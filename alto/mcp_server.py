@@ -15,6 +15,7 @@ import datetime
 import os
 import re
 import secrets
+import sys
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -642,8 +643,50 @@ def alto_interview() -> str:
     return (ROOT / "interview_guide.md").read_text(encoding="utf-8")
 
 
-def main():
-    transport = os.environ.get("ALTO_TRANSPORT", "streamable-http")
+USAGE = f"""alto-connector {__version__} — build interactive timelines from
+your own materials. An MCP server; it never invents content.
+
+  alto-connector              speak MCP over stdio (what a client runs)
+  alto-connector --version    print the version and exit
+  alto-connector --help       print this and exit
+
+Add it to any MCP client's config, for example:
+
+  {{"mcpServers": {{"alto": {{"command": "alto-connector"}}}}}}
+
+Claude Desktop users can install the one-click bundle instead — see
+{WEBSITE_URL}
+
+Environment:
+  ALTO_STORE_DIR         where timelines are kept (default ~/Documents/Alto)
+  ALTO_TRANSPORT         stdio (default) or streamable-http
+  ALTO_FIREBASE_SITE     your own Hosting site, to publish shareable links
+  ALTO_FIREBASE_PROJECT  the project that site belongs to
+  ALTO_FIREBASE_CONFIG   your web SDK config JSON, to sync highlights/notes
+"""
+
+
+def main(argv: list[str] | None = None) -> None:
+    # Without this, `alto-connector --help` starts a server and blocks on
+    # stdin forever, which looks exactly like a hang.
+    args = sys.argv[1:] if argv is None else argv
+    if "--help" in args or "-h" in args:
+        print(USAGE)
+        return
+    if "--version" in args or "-V" in args:
+        print(__version__)
+        return
+    if args:
+        print(f"alto-connector: unrecognised argument {args[0]!r}\n",
+              file=sys.stderr)
+        print(USAGE, file=sys.stderr)
+        raise SystemExit(2)
+
+    # stdio is the default because this entry point is what `uvx
+    # alto-connector` and MCP client configs invoke, and every MCP client
+    # launching a local server speaks stdio. The hosted HTTP variant does not
+    # come through here — it is served by uvicorn via alto/web.py.
+    transport = os.environ.get("ALTO_TRANSPORT", "stdio")
     mcp.run(transport=transport)
 
 

@@ -6,7 +6,7 @@ engine renders detail sections with
     sections.map(s=>`<div class="detail-section"><h3>${s.h}</h3><p>${s.t}</p></div>`)
 
 straight into `innerHTML`, with no escaping — that is inherited Terrarium
-behaviour and `engine/` is frozen. So a string's journey through `js_str()`
+behavior and `engine/` is frozen. So a string's journey through `js_str()`
 protects only the *JS literal*; once assigned it decodes and is parsed as HTML.
 The single point where user content can be made inert is therefore right here,
 before it reaches blocks.py.

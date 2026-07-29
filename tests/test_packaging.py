@@ -128,3 +128,40 @@ def test_no_proofs_are_staged():
 def test_manifest_is_json_serialisable(entry):
     _, m = entry
     json.dumps(m)
+
+
+def test_packaged_templates_match_the_canonical_engine():
+    """alto/engine/*.html are committed copies of engine/*.html so that a
+    plain `pip install git+…` works without running stage_engine.py first.
+    Committed copies rot; this pins them byte-identical to the source."""
+    from alto.engine import RUNTIME_TEMPLATES
+    for name in RUNTIME_TEMPLATES:
+        src = (ROOT / "engine" / name).read_bytes()
+        staged = (ROOT / "alto" / "engine" / name).read_bytes()
+        assert staged == src, (
+            f"{name}: alto/engine copy differs from engine/ — run "
+            "packaging/stage_engine.py and commit the result")
+
+
+BRITISH = ("colour", "organis", "licence", "behaviour", "artefact",
+           "customis", "minimis", "normalis", "recognis", "authoris")
+
+
+def test_user_visible_prose_is_american_english():
+    """The engine and the original README are American; mixing in British
+    spellings reads as sloppy. engine/ is excluded: it is frozen, and its
+    hits are code comments no user ever sees."""
+    import re
+    targets = [ROOT / "README.md", ROOT / "NOTICE",
+               ROOT / "alto" / "interview_guide.md",
+               ROOT / "packaging" / "build_mcpb.py",
+               ROOT / "packaging" / "make_distribution.py"]
+    bad = []
+    for f in targets:
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8")
+        for word in BRITISH:
+            if re.search(word, text, re.I):
+                bad.append(f"{f.name}: {word}")
+    assert not bad, f"British spellings in user-visible prose: {bad}"

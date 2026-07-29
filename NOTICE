@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 --------------------------------------------------------------------------------
 
-What this licence does and does not cover
+What this license does and does not cover
 --------------------------------------------------------------------------------
 
 COVERED — the software in this repository:
@@ -39,4 +39,4 @@ Distributed .mcpb bundles additionally contain:
     https://github.com/modelcontextprotocol/python-sdk
     MIT License
 
-Each retains its own licence; see the licence files inside those distributions.
+Each retains its own license; see the license files inside those distributions.

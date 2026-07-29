@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 firebase/site/
-alto/engine/*.html
 /build/
 /dist/
 *.egg-info/

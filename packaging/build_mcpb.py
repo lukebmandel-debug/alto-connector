@@ -179,11 +179,11 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
         "long_description": (
             "Alto interviews you about material you already have — a course, a "
             "novel, a research project — and builds an interactive, filterable "
-            "timeline from it: glass cards on coloured act bands, entity chips, "
+            "timeline from it: glass cards on colored act bands, entity chips, "
             "routed connection lines, detail pages using your own schema, "
             "highlights and notes, a mobile layout, and a self-contained "
             "offline file you can send to anyone.\n\n"
-            "Alto is a closed knowledge container. It connects and organises "
+            "Alto is a closed knowledge container. It connects and organizes "
             "what you provide and never invents facts, events, holdings or "
             "descriptions. Sparse notes make a sparse timeline, on purpose."),
         "author": {"name": "Luke Mandel"},

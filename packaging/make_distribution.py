@@ -254,11 +254,11 @@ PAGE = """<!doctype html>
 
   <p class="lede">Alto interviews you about material you already have — a
   course, a novel, a research project — and builds it into an interactive,
-  filterable timeline. Cards on coloured act bands, entity chips, connection
+  filterable timeline. Cards on colored act bands, entity chips, connection
   lines, detail pages using your own headings, highlights and notes, a mobile
   layout, and a single offline file you can send to anyone.</p>
 
-  <p class="rule">It never invents content. Alto organises what you give it and
+  <p class="rule">It never invents content. Alto organizes what you give it and
   nothing else — sparse notes make a sparse timeline, on purpose.</p>
 
 {notice}  <h2>Download</h2>

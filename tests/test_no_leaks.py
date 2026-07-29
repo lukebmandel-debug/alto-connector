@@ -186,7 +186,7 @@ def test_a_generated_site_carries_no_authors_project(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("marker", CONTENT_MARKERS)
 def test_no_tracked_file_carries_the_authors_characters(marker):
-    """The licence covers the software; it must not sweep up the author's
+    """The license covers the software; it must not sweep up the author's
     novel. engine/ templates are content-free by construction and
     tools/check_templates.py proves it, but that gate only ran over the
     templates — this one runs over everything that would be published."""

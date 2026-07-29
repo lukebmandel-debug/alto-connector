@@ -1,7 +1,7 @@
 """XSS and injection regressions for the build path.
 
 The engine renders detail sections with `${s.h}`/`${s.t}` straight into
-innerHTML (frozen Terrarium behaviour), so the only place user content can be
+innerHTML (frozen Terrarium behavior), so the only place user content can be
 made inert is alto/build/sanitize.py. These tests build a real timeline whose
 every text field is an attack payload and assert nothing executable survives.
 """

@@ -31,6 +31,26 @@ it. Restart Claude Desktop and Alto appears under Extensions.
 it is around 50MB. Claude Desktop ships Node but not Python, and stock macOS
 still has 3.9 — too old for this server.
 
+### Without Claude Desktop
+
+Alto is a plain MCP server, so any MCP client can run it — Claude Code, Cline,
+Zed, Continue, your own script. No download, no bundle:
+
+```bash
+uvx --from git+https://github.com/lukebmandel-debug/alto-connector alto-connector
+```
+
+Point a client at it by adding the command to that client's MCP config:
+
+```json
+{"mcpServers": {"alto": {"command": "alto-connector"}}}
+```
+
+`alto-connector --help` lists the environment variables. Everything works the
+same way — the interview, the build, the offline file — because the bundle and
+this are the same server; the bundle just carries its own Python so that
+Claude Desktop users need not install one.
+
 From a checkout instead: `bash setup.sh` (the development install).
 
 Once installed, open a chat and say *"I want to build a timeline in Alto —
