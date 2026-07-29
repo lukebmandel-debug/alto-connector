@@ -4,8 +4,8 @@ __pycache__/
 .DS_Store
 firebase/site/
 alto/engine/*.html
-build/
-dist/
+/build/
+/dist/
 *.egg-info/
 packaging/build/
 packaging/dist/

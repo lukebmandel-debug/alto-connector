@@ -24,7 +24,7 @@ from alto.mcp_server import __version__  # noqa: E402
 @pytest.fixture(scope="module", params=sorted(build_mcpb.PLATFORMS))
 def entry(request):
     key = request.param
-    triple, mcpb_platform, interpreter = build_mcpb.PLATFORMS[key]
+    triple, mcpb_platform, interpreter, _site = build_mcpb.PLATFORMS[key]
     return key, build_mcpb.manifest(key, mcpb_platform, interpreter)
 
 
@@ -58,12 +58,22 @@ def test_interpreter_is_the_bundled_one(entry):
     assert command.startswith("${__dirname}/server/python")
 
 
-def test_pythonpath_uses_the_right_separator(entry):
-    key, m = entry
-    sep = ";" if key.startswith("windows") else ":"
+def test_pythonpath_points_only_at_the_package(entry):
+    """Dependencies live in the interpreter's own site-packages, not on
+    PYTHONPATH. That is what lets .pth files run — pywin32 ships one, and
+    without it `pywintypes` is missing on every Windows machine."""
+    _, m = entry
     path = m["server"]["mcp_config"]["env"]["PYTHONPATH"]
-    assert sep in path
-    assert ("/lib" in path) and ("/server" in path)
+    assert path.endswith("/server")
+    assert "/lib" not in path
+
+
+def test_dependencies_go_into_the_runtime_site_packages():
+    for key, (_t, _p, interpreter, site) in build_mcpb.PLATFORMS.items():
+        assert site.startswith("python/"), key
+        expected = "Lib" if key.startswith("windows") else "lib"
+        assert f"/{expected}/" in f"/{site}/", (key, site)
+        assert interpreter.startswith("python/"), key
 
 
 def test_platform_matches_the_key(entry):

@@ -39,13 +39,14 @@ PBS_TAG = "20260718"
 PBS_URL = ("https://github.com/astral-sh/python-build-standalone/releases/"
            f"download/{PBS_TAG}/cpython-{PY}+{PBS_TAG}-{{triple}}-install_only.tar.gz")
 
-# platform key -> (python-build-standalone triple, mcpb platform id,
-#                  interpreter path inside the runtime). uv accepts the same
-#                  triple for cross-platform wheel resolution.
+# platform key -> (triple, mcpb platform id, interpreter, site-packages dir)
 PLATFORMS = {
-    "macos-arm64": ("aarch64-apple-darwin", "darwin", "python/bin/python3.12"),
-    "macos-x64": ("x86_64-apple-darwin", "darwin", "python/bin/python3.12"),
-    "windows-x64": ("x86_64-pc-windows-msvc", "win32", "python/python.exe"),
+    "macos-arm64": ("aarch64-apple-darwin", "darwin", "python/bin/python3.12",
+                    "python/lib/python3.12/site-packages"),
+    "macos-x64": ("x86_64-apple-darwin", "darwin", "python/bin/python3.12",
+                  "python/lib/python3.12/site-packages"),
+    "windows-x64": ("x86_64-pc-windows-msvc", "win32", "python/python.exe",
+                    "python/Lib/site-packages"),
 }
 
 # Only what the stdio server imports. The hosted variant's dependencies
@@ -115,14 +116,22 @@ def _uv() -> str:
     raise SystemExit("uv not found — install it with: python3 -m pip install --user uv")
 
 
-def vendor_wheels(server: Path, triple: str) -> None:
-    """Resolve wheels for the TARGET platform, not this machine's.
+def vendor_wheels(server: Path, triple: str, site_packages: str) -> None:
+    """Resolve wheels for the TARGET platform, into the runtime's site-packages.
 
-    Several dependencies (pydantic-core) ship compiled, platform-specific
-    wheels, so a plain install here would produce a bundle that only runs on an
-    Apple-silicon Mac. uv resolves against the target triple instead.
+    Two things this gets right that the obvious approach does not:
+
+    * **Target platform, not this machine's.** Several dependencies
+      (pydantic-core, pywin32) ship compiled, platform-specific wheels, so a
+      plain install here would produce a bundle that only runs on an
+      Apple-silicon Mac. uv resolves against the target triple instead.
+    * **The interpreter's real site-packages, not a `lib/` on PYTHONPATH.**
+      `.pth` files are only executed for genuine site directories. pywin32
+      ships `pywin32.pth`, which is what puts `pywintypes` on the path — drop
+      it in an arbitrary PYTHONPATH directory and the import fails on every
+      Windows machine, which is exactly what happened.
     """
-    lib = server / "lib"
+    lib = server / site_packages
     lib.mkdir(parents=True, exist_ok=True)
     cmd = [_uv(), "pip", "install", "--quiet", "--target", str(lib),
            "--only-binary", ":all:",
@@ -138,8 +147,6 @@ def vendor_wheels(server: Path, triple: str) -> None:
 
 
 def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
-    win = mcpb_platform == "win32"
-    sep = ";" if win else ":"
     dirname = "${__dirname}"
     return {
         "manifest_version": "0.3",
@@ -178,7 +185,7 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
                 "command": f"{dirname}/server/{interpreter}",
                 "args": ["-m", "alto.mcp_server"],
                 "env": {
-                    "PYTHONPATH": f"{dirname}/server{sep}{dirname}/server/lib",
+                    "PYTHONPATH": f"{dirname}/server",
                     "PYTHONDONTWRITEBYTECODE": "1",
                     "ALTO_TRANSPORT": "stdio",
                     "ALTO_PUBLISH_MODE": "firebase-static",
@@ -258,19 +265,19 @@ def sha256sums(root: Path) -> str:
 
 
 def build(key: str) -> Path:
-    triple, mcpb_platform, interpreter = PLATFORMS[key]
+    triple, mcpb_platform, interpreter, site_packages = PLATFORMS[key]
     log(f"\n▸ {key}")
     stage = BUILD / key
     shutil.rmtree(stage, ignore_errors=True)
     server = stage / "server"
     server.mkdir(parents=True)
 
-    log("  staging package")
-    stage_package(server)
-    log("  vendoring wheels")
-    vendor_wheels(server, triple)
     log("  unpacking CPython")
     stage_runtime(fetch_runtime(triple), server)
+    log("  staging package")
+    stage_package(server)
+    log("  vendoring wheels into the runtime")
+    vendor_wheels(server, triple, site_packages)
 
     assets = stage / "assets"
     assets.mkdir(parents=True, exist_ok=True)
