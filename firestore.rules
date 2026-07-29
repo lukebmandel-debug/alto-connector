@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Alto sync rules — deploy to YOUR project before publishing anything:
+//   firebase deploy --only firestore:rules --project <your-project>
+//
+// A Firestore created in "test mode" is world-readable and world-writable for
+// 30 days. Publishing a timeline before these rules are live would expose every
+// reader's highlights and notes to anyone who found the project id.
+//
+// Layout written by alto-cloud.js (v3):
+//   users/{uid}                       { theme }                    account-wide
+//   users/{uid}/tl/{tid}              { highlights, hl_removed, updatedAt }
+//   users/{uid}/tl/{tid}/reports/{id} { data, deleted, ts }
+//
+// Rules do NOT cascade into subcollections, hence the recursive {document=**}.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

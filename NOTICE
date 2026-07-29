@@ -1,0 +1,42 @@
+Alto Connector
+Copyright 2026 Luke Mandel
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+
+What this licence does and does not cover
+--------------------------------------------------------------------------------
+
+COVERED — the software in this repository:
+  the MCP server, the build library, the layout resolver, the page templates
+  in engine/, the packaging scripts and the tests.
+
+NOT COVERED — anything a user puts into Alto:
+  Alto is a closed knowledge container (rule §0). Timelines are built from
+  material the user supplies. Their source documents, their node text and the
+  timelines they build are their own work and are not licensed by this file.
+  Nothing a user creates with Alto is subject to these terms.
+
+NOT INCLUDED — the author's own content:
+  The reference material this engine was extracted from (the Terrarium and
+  ConLaw timelines) is not part of this distribution. engine/ contains
+  content-free templates only; tools/check_templates.py fails the build if any
+  of that content survives extraction.
+
+--------------------------------------------------------------------------------
+
+Third-party components
+--------------------------------------------------------------------------------
+
+Distributed .mcpb bundles additionally contain:
+
+  CPython, from python-build-standalone
+    https://github.com/astral-sh/python-build-standalone
+    Python Software Foundation License
+
+  mcp (Model Context Protocol Python SDK) and its dependencies
+    https://github.com/modelcontextprotocol/python-sdk
+    MIT License
+
+Each retains its own licence; see the licence files inside those distributions.

@@ -1,0 +1,86 @@
+{
+  "brief": {
+    "title": "Contracts I",
+    "subject": "First-semester contracts course",
+    "timeline_id": "contracts-i",
+    "columns": 3,
+    "node_noun": "Case",
+    "entity_axis_label": "Doctrines",
+    "entity_axis_singular": "Doctrine",
+    "accent": "#a78bfa",
+    "owner_name": "Sample Student",
+    "owner_email": "student@example.com",
+    "acts": [
+      {"label": "UNIT ONE — FORMATION", "short": "Unit One — Formation", "color": "#4a9eff"},
+      {"label": "UNIT TWO — CONSIDERATION", "short": "Unit Two — Consideration", "color": "#e8a87c"}
+    ],
+    "entities": [
+      {"id": "offer", "name": "Offer & Acceptance", "role": "Formation doctrine", "color": "#4a9eff",
+       "sections": [{"h": "Statement", "t": "A contract requires mutual assent: an offer inviting acceptance, and an acceptance mirroring its terms."}]},
+      {"id": "consideration", "name": "Consideration", "role": "Enforcement doctrine", "color": "#10b981",
+       "sections": [{"h": "Statement", "t": "A promise is enforceable when supported by bargained-for exchange."}]},
+      {"id": "reliance", "name": "Reliance", "role": "Substitute doctrine", "color": "#f43f5e",
+       "sections": [{"h": "Statement", "t": "Detrimental reliance can substitute for consideration under promissory estoppel."}]}
+    ],
+    "axes": [
+      {"label": "Courts", "singular": "Court", "values": [
+        {"id": "ny", "name": "New York"},
+        {"id": "eng", "name": "England"}
+      ]}
+    ],
+    "relations": [
+      {"key": "spine", "label": "leads to"},
+      {"key": "cites", "label": "cites", "color": "#a78bfa"},
+      {"key": "limits", "label": "limits", "color": "#f43f5e"}
+    ]
+  },
+  "nodes": [
+    {"id": "lucy-v-zehmer", "act": 0, "tag": "Formation", "title": "Lucy v. Zehmer",
+     "desc": "Objective theory of assent: a drunken 'joke' offer to sell a farm, written and signed, binds when a reasonable person would take it seriously.",
+     "entity_ids": ["offer"], "axis1_values": ["ny"],
+     "sections": [
+       {"h": "Facts", "t": "Zehmer, drinking with Lucy, wrote and signed an agreement to sell his farm for $50,000, later claiming it was a joke."},
+       {"h": "Holding", "t": "Outward expressions control over secret intent; the contract was enforceable."},
+       {"h": "Rule", "t": "Mutual assent is judged objectively, by what a reasonable person would understand."}
+     ]},
+    {"id": "carbolic", "act": 0, "tag": "Formation", "title": "Carlill v. Carbolic Smoke Ball",
+     "desc": "A newspaper advertisement promising £100 to anyone who used the smoke ball and caught influenza was a unilateral offer accepted by performance.",
+     "entity_ids": ["offer"], "axis1_values": ["eng"],
+     "sections": [
+       {"h": "Facts", "t": "The company advertised a £100 reward and deposited £1,000 to show sincerity; Mrs. Carlill used the ball and caught flu."},
+       {"h": "Holding", "t": "The advertisement was an offer to the world, accepted by performance of the conditions."}
+     ]},
+    {"id": "hamer", "act": 1, "tag": "Consideration", "title": "Hamer v. Sidway",
+     "desc": "An uncle's promise of $5,000 if his nephew abstained from drinking, tobacco, and gambling until 21 was supported by consideration: forbearance of a legal right.",
+     "entity_ids": ["consideration"], "axis1_values": ["ny"],
+     "sections": [
+       {"h": "Holding", "t": "Waiver of any legal right at the request of another is sufficient consideration."},
+       {"h": "Rule", "t": "Consideration may be a benefit to the promisor or a detriment to the promisee."}
+     ]},
+    {"id": "kirksey", "act": 1, "tag": "Consideration", "title": "Kirksey v. Kirksey",
+     "desc": "A brother-in-law's invitation to 'come see me' with land to cultivate was a mere gratuitous promise; moving one's household was a condition, not consideration.",
+     "entity_ids": ["consideration"],
+     "sections": [
+       {"h": "Holding", "t": "A gratuitous promise is unenforceable even when the promisee incurs inconvenience relying on it."}
+     ]},
+    {"id": "ricketts", "act": 1, "tag": "Reliance", "title": "Ricketts v. Scothorn",
+     "desc": "A grandfather's note so his granddaughter 'would not have to work' became enforceable when she quit her job in reliance — equitable estoppel fills the consideration gap.",
+     "entity_ids": ["reliance", "consideration"], "axis1_values": ["ny"],
+     "sections": [
+       {"h": "Holding", "t": "Intentional influence followed by reasonable reliance estops the promisor from pleading lack of consideration."}
+     ]},
+    {"id": "feinberg", "act": 1, "tag": "Reliance", "title": "Feinberg v. Pfeiffer Co.",
+     "desc": "A promised pension induced retirement; past service was not consideration, but retirement in reliance made the promise enforceable under promissory estoppel.",
+     "entity_ids": ["reliance"],
+     "sections": [
+       {"h": "Holding", "t": "Reliance on a pension promise, by retiring and forgoing employment, substitutes for consideration."}
+     ]}
+  ],
+  "connections": [
+    ["lucy-v-zehmer", "carbolic", "spine"],
+    ["carbolic", "hamer", "spine"],
+    ["hamer", "kirksey", "limits"],
+    ["kirksey", "ricketts", "spine"],
+    ["ricketts", "feinberg", "cites"]
+  ]
+}

@@ -1,0 +1,35 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+firebase/site/
+alto/engine/*.html
+build/
+dist/
+*.egg-info/
+packaging/build/
+packaging/dist/
+packaging/site/
+
+# Build-time proofs that contain the author's own creative work (Terrarium
+# prose, character pages) and the author's Firebase web API key. They are the
+# evidence that extraction was faithful, not something anyone needs to run
+# Alto — and they must not be published. tests/test_roundtrip.py and
+# tools/check_templates.py skip when they are absent.
+engine/FROZEN/
+engine/TEMPLATE_MANIFEST.json
+
+# The author's own Firebase deploy target.
+firebase/
+
+# Regenerable demo output.
+samples/*.built.html
+samples/*.offline.html
+
+# Author-side extraction tooling. It only runs against engine/FROZEN and
+# TEMPLATE_MANIFEST.json, which are private, and it carries the author's
+# character names (as a hygiene denylist) and original UI strings.
+tools/
+
+# The author's own publishing runbook — names his projects and accounts.
+DISTRIBUTION.md

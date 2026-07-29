@@ -1,0 +1,7 @@
+.venv/
+.git/
+engine/FROZEN/
+samples/*.built.html
+samples/*.offline.html
+tests/
+__pycache__/

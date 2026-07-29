@@ -1,0 +1,6 @@
+mcp>=1.28
+fastapi
+uvicorn
+itsdangerous
+firebase-admin
+google-cloud-storage

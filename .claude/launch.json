@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "alto-get",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8799", "--directory", "/private/tmp/claude-501/-Users-lbmandel-Desktop/71513a9c-6c87-44f1-9ccd-c7200ea419c9/scratchpad/getpage"],
+      "port": 8799
+    }
+  ]
+}

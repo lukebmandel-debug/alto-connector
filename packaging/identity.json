@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Single source of truth for the public identity of this project.",
+    "Everything downstream \u2014 server.json, the download page, README badges,",
+    "pyproject URLs \u2014 is generated from here, so there is exactly one place to",
+    "change when a name or account changes.",
+    "",
+    "Fill in github_user and run:  python packaging/make_distribution.py",
+    "Values still set to a PLACEHOLDER string make that script fail loudly",
+    "rather than publishing a broken URL."
+  ],
+  "github_user": "lukebmandel-debug",
+  "github_repo": "alto-connector",
+  "pypi_package": "alto-connector",
+  "firebase_project": "alto-connector-app",
+  "firebase_site": "alto-connector",
+  "author_name": "Luke Mandel",
+  "license": "Apache-2.0"
+}
