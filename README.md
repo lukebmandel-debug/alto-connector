@@ -1,6 +1,6 @@
 # Alto Connector
 
-mcp-name: io.github.PLACEHOLDER-github-username/alto-connector
+mcp-name: io.github.lukebmandel-debug/alto-connector
 
 A Claude connector that interviews you about **your own materials** — a course,
 a novel, a research project — and builds you an interactive, filterable
@@ -108,9 +108,10 @@ them in the Firebase console.
 
 ## Repo layout
 
-- `engine/` — the Alto engine templates, extracted content-free from the
-  reference build; `engine/FROZEN/` is the pinned source of truth and
-  `tests/test_roundtrip.py` proves extraction is byte-exact.
+- `engine/` — the three page templates, extracted content-free from the
+  reference build. The extraction fixtures they were derived from are not
+  published: they contain the author's own writing. `test_roundtrip.py` skips
+  without them.
 - `alto/build/` — brief model, height estimator, layout resolver (a port of
   the engine's own), block generators, verifier, offline bundler.
 - `alto/mcp_server.py` — the 14 MCP tools + interview prompt.

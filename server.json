@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.lukebmandel-debug/alto-connector",
+  "description": "Build an interactive timeline from your own materials \u2014 never from invented content.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/lukebmandel-debug/alto-connector",
+    "source": "github"
+  },
+  "websiteUrl": "https://alto-connector.web.app",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "alto-connector",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "uvx",
+      "environmentVariables": [
+        {
+          "name": "ALTO_STORE_DIR",
+          "description": "Where timelines are kept on this machine.",
+          "isRequired": false,
+          "default": "~/Documents/Alto"
+        },
+        {
+          "name": "ALTO_FIREBASE_SITE",
+          "description": "Your own Firebase Hosting site id, for publishing shareable links.",
+          "isRequired": false
+        },
+        {
+          "name": "ALTO_FIREBASE_PROJECT",
+          "description": "The Firebase project that site belongs to.",
+          "isRequired": false
+        },
+        {
+          "name": "ALTO_FIREBASE_CONFIG",
+          "description": "Your Firebase web SDK config JSON, which enables cross-device sync of highlights and notes. Alto never ships a project of its own.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
