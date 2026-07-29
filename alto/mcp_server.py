@@ -41,8 +41,12 @@ def get_store():
             from .store.firestore import FirestoreStore
             _store = FirestoreStore()
         else:
+            # ~/Documents/Alto, matching what the .mcpb bundle configures.
+            # The old default was ~/.alto-connector-dev — hidden, and named
+            # for a developer. Someone installing via uvx got their finished
+            # timeline in a folder they would never think to open.
             _store = LocalStore(os.environ.get(
-                "ALTO_STORE_DIR", str(Path.home() / ".alto-connector-dev")))
+                "ALTO_STORE_DIR", str(Path.home() / "Documents" / "Alto")))
     return _store
 
 
@@ -84,7 +88,9 @@ def uid() -> str:
         raise AuthError(
             "no authenticated uid in context — refusing to serve a request "
             "over a network transport without an identity")
-    return os.environ.get("ALTO_DEV_UID", "dev")
+    # "local" rather than "dev": it becomes a directory name in the user's
+    # store, and nothing about a single-user install is a dev environment.
+    return os.environ.get("ALTO_DEV_UID", "local")
 
 
 def _now() -> str:
@@ -587,11 +593,23 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         slug = doc.get("share_slug") or timeline_id
         urls = {"view_url": f"{base}/t/{slug}",
                 "download_url": f"{base}/t/{slug}/download"}
-    else:  # local dev: artifact paths
-        urls = {"view_path": st.put_artifact(uid(), timeline_id, "timeline.html",
-                                             st.get_artifact(uid(), timeline_id, "timeline.html") or ""),
-                "offline_path": st.put_artifact(uid(), timeline_id, "offline.html",
-                                                st.get_artifact(uid(), timeline_id, "offline.html") or "")}
+    else:
+        # No publishing configured — the normal case for someone running the
+        # CLI from any MCP client. The offline file IS the finished timeline,
+        # so say so: otherwise the model reports a bare path and the user is
+        # left guessing what to do with it.
+        offline_path = st.put_artifact(
+            uid(), timeline_id, "offline.html",
+            st.get_artifact(uid(), timeline_id, "offline.html") or "")
+        urls = {
+            "offline_path": offline_path,
+            "note": ("Done — that file IS the complete timeline. Open it in "
+                     "any browser (double-click it), or send it to someone: "
+                     "it is fully self-contained and needs no server, no "
+                     "account and no internet. Tell the user the path. "
+                     "Shareable web links are optional and need a free "
+                     "Firebase site — see README §Publishing."),
+        }
     doc["urls"] = urls
     st.put_timeline(uid(), timeline_id, doc)
     return {"visibility": visibility, **urls}

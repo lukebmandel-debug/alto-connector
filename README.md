@@ -51,6 +51,11 @@ same way — the interview, the build, the offline file — because the bundle a
 this are the same server; the bundle just carries its own Python so that
 Claude Desktop users need not install one.
 
+Timelines land in `~/Documents/Alto`. Each one is written as a single
+self-contained HTML file you open in any browser — no server, no account, no
+internet. Shareable web links are optional (see Publishing below); without
+them, that file is the finished product.
+
 From a checkout instead: `bash setup.sh` (the development install).
 
 Once installed, open a chat and say *"I want to build a timeline in Alto —

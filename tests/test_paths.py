@@ -179,3 +179,71 @@ def test_revoking_removes_the_published_directory(tmp_path):
     st.put_timeline("local", tid, doc)
     regenerate_site(st, "local", site)
     assert not (site / "t" / slug).exists(), "revoked page still on disk"
+
+
+# ── first run without Claude Desktop ──────────────────────────────────────────
+
+def test_default_store_is_somewhere_a_person_would_look():
+    """A user installing via uvx sets no environment at all. The finished
+    timeline has to land somewhere they can find — the old default was
+    ~/.alto-connector-dev, hidden and named for a developer."""
+    import os
+    from pathlib import Path as P
+    from alto import mcp_server as srv
+    srv.set_store(None)
+    for var in ("ALTO_STORE_DIR", "ALTO_STORE"):
+        os.environ.pop(var, None)
+    try:
+        root = P(srv.get_store().root)
+    finally:
+        srv.set_store(None)
+    assert not root.name.startswith("."), f"{root} is hidden"
+    assert "dev" not in root.name.lower(), f"{root} is named for a developer"
+    assert root == P.home() / "Documents" / "Alto"
+
+
+def test_default_uid_is_not_dev():
+    """It becomes a directory name inside the user's store."""
+    import os
+    from alto import mcp_server as srv
+    previous = os.environ.pop("ALTO_DEV_UID", None)
+    try:
+        assert srv.uid() == "local"
+    finally:
+        if previous is not None:
+            os.environ["ALTO_DEV_UID"] = previous
+
+
+def test_publish_without_firebase_explains_the_offline_file(tmp_path, monkeypatch):
+    """Ending with a bare path leaves the user guessing. The response must say
+    the offline file IS the timeline and how to open it."""
+    import json
+    from alto import mcp_server as srv
+    from alto.build.builder import load_brief, build_timeline
+    from alto.build.single_file import bundle
+
+    monkeypatch.delenv("ALTO_PUBLISH_MODE", raising=False)
+    monkeypatch.delenv("ALTO_PUBLIC_BASE", raising=False)
+    monkeypatch.setenv("ALTO_DEV_UID", "local")
+    st = LocalStore(tmp_path)
+    srv.set_store(st)
+    try:
+        d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(
+            encoding="utf-8"))
+        b, nodes, conns = load_brief(d)
+        html, _ = build_timeline(b, nodes, conns)
+        tid = b.timeline_id
+        st.put_artifact("local", tid, "offline.html", bundle(b, html))
+        st.put_timeline("local", tid, {
+            "timeline_id": tid, "project_id": "", "brief": d["brief"],
+            "consent": {"granted": True}, "status": "built",
+            "visibility": "private"})
+
+        out = srv.publish_timeline(tid, "link")
+        assert "offline_path" in out, out
+        note = out.get("note", "").lower()
+        assert "complete timeline" in note or "the complete" in note, out
+        assert "browser" in note, "does not say how to open it"
+        assert out["offline_path"].endswith("offline.html")
+    finally:
+        srv.set_store(None)
