@@ -16,6 +16,5 @@
   "firebase_site": "alto-get",
   "author_name": "Luke Mandel",
   "license": "Apache-2.0",
-  "pypi_published": false,
-  "notice": "<strong>Windows users:</strong> the Windows download in v1.0.0 does not start \u2014 a packaging fault, found by running it on a real Windows machine. A fixed build is on the way. macOS is unaffected."
+  "pypi_published": false
 }
