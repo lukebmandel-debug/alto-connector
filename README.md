@@ -34,32 +34,53 @@ still has 3.9 — too old for this server.
 ### Without Claude Desktop
 
 Alto is a plain MCP server, so any MCP client can run it — Claude Code, Cline,
-Zed, Continue, your own script. No download, no bundle:
+Zed, Continue, your own script. No download, no bundle.
 
-```bash
-uvx --from git+https://github.com/lukebmandel-debug/alto-connector alto-connector
-```
-
-Point a client at it by adding the command to that client's MCP config:
+Add this to your client's MCP config:
 
 ```json
-{"mcpServers": {"alto": {"command": "alto-connector"}}}
+{
+  "mcpServers": {
+    "alto": {
+      "command": "uvx",
+      "args": ["--from",
+               "git+https://github.com/lukebmandel-debug/alto-connector",
+               "alto-connector"]
+    }
+  }
+}
 ```
 
-`alto-connector --help` lists the environment variables. Everything works the
-same way — the interview, the build, the offline file — because the bundle and
-this are the same server; the bundle just carries its own Python so that
-Claude Desktop users need not install one.
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/)
+(`curl -LsSf https://astral.sh/uv/install.sh | sh`). `uvx` fetches and runs
+Alto in a throwaway environment each time, so there is nothing to install or
+update.
 
-Timelines land in `~/Documents/Alto`. Each one is written as a single
-self-contained HTML file you open in any browser — no server, no account, no
-internet. Shareable web links are optional (see Publishing below); without
-them, that file is the finished product.
+Prefer a permanent install? Then `alto-connector` is on your `PATH` and the
+config is simply `{"command": "alto-connector"}`:
 
-From a checkout instead: `bash setup.sh` (the development install).
+```bash
+pip install git+https://github.com/lukebmandel-debug/alto-connector
+alto-connector --help      # check it works; without --help it waits for a
+                           # client to speak to it, which looks like a hang
+```
 
-Once installed, open a chat and say *"I want to build a timeline in Alto —
-interview me."*
+Everything works the same way — the interview, the build, the offline file —
+because the bundle and this are the same server; the bundle just carries its
+own Python so Claude Desktop users need not install one.
+
+Timelines land in `~/Documents/Alto`. Each is a single self-contained HTML
+file you open in any browser — no server, no account, no internet. Shareable
+web links are optional (see Publishing below); without them, that file is the
+finished product.
+
+Then tell your client: *"I want to build a timeline in Alto — interview me."*
+
+### From a checkout
+
+`bash setup.sh` — **macOS and Claude Desktop only**; it registers the
+connector by writing `claude_desktop_config.json`. For any other client, use
+one of the two methods above pointed at your checkout.
 
 ## Using it — what a new user actually does
 

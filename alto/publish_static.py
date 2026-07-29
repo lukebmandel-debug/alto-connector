@@ -29,7 +29,18 @@ from .cloud import write_cloud_js
 from .store.local import check_component
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_SITE = REPO / "firebase" / "site"
+
+
+def default_site_dir() -> Path:
+    """Where the generated static site is staged before deploy.
+
+    Under the user's store, NOT under the package. `REPO` resolves to
+    site-packages for an installed Alto, so the old default would have written
+    a site into the installed package directory — read-only on many systems,
+    and wrong on all of them.
+    """
+    from .mcp_server import store_dir
+    return Path(store_dir()) / "_site"
 
 # Firebase Hosting site ids and GCP project ids: lowercase alphanumeric plus
 # hyphens. Enforced because both are interpolated into a subprocess argument
@@ -63,7 +74,8 @@ def _published(store, uid: str) -> list[dict]:
 
 
 def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
-    site = Path(site_dir or os.environ.get("ALTO_SITE_DIR", DEFAULT_SITE))
+    site = Path(site_dir or os.environ.get("ALTO_SITE_DIR")
+                or default_site_dir())
     site.mkdir(parents=True, exist_ok=True)
 
     published = _published(store, uid)

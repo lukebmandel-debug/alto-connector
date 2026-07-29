@@ -20,8 +20,16 @@ sys.path.insert(0, str(ROOT))
 
 
 @pytest.fixture(autouse=True)
-def _isolate_global_server_state():
+def _isolate_global_server_state(tmp_path_factory, monkeypatch):
     from alto import mcp_server as srv
+
+    # Point the default store at a temp directory for EVERY test. Without
+    # this, any test that exercises a code path reaching get_store() without
+    # setting ALTO_STORE_DIR writes into the real ~/Documents/Alto — which is
+    # exactly what happened: a test run left OAuth token fixtures in the
+    # author's home directory. A test suite must never touch it.
+    monkeypatch.setenv(
+        "ALTO_STORE_DIR", str(tmp_path_factory.mktemp("alto-store")))
 
     previous_auth = srv._require_auth
     srv.require_auth(False)

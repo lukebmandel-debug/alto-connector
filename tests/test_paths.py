@@ -183,23 +183,31 @@ def test_revoking_removes_the_published_directory(tmp_path):
 
 # ── first run without Claude Desktop ──────────────────────────────────────────
 
-def test_default_store_is_somewhere_a_person_would_look():
+def test_default_store_is_somewhere_a_person_would_look(monkeypatch):
     """A user installing via uvx sets no environment at all. The finished
     timeline has to land somewhere they can find — the old default was
-    ~/.alto-connector-dev, hidden and named for a developer."""
-    import os
+    ~/.alto-connector-dev, hidden and named for a developer.
+
+    Asserts on store_dir() rather than get_store(): constructing a LocalStore
+    would mkdir the path, and an earlier version of this test duly created a
+    real ~/Documents/Alto on the machine running it."""
     from pathlib import Path as P
     from alto import mcp_server as srv
-    srv.set_store(None)
-    for var in ("ALTO_STORE_DIR", "ALTO_STORE"):
-        os.environ.pop(var, None)
-    try:
-        root = P(srv.get_store().root)
-    finally:
-        srv.set_store(None)
+    monkeypatch.delenv("ALTO_STORE_DIR", raising=False)
+    root = P(srv.store_dir())
     assert not root.name.startswith("."), f"{root} is hidden"
     assert "dev" not in root.name.lower(), f"{root} is named for a developer"
     assert root == P.home() / "Documents" / "Alto"
+
+
+def test_the_suite_never_writes_to_the_real_store(monkeypatch):
+    """conftest points ALTO_STORE_DIR at a temp dir for every test; this is
+    the canary if that fixture is ever removed."""
+    import os
+    from pathlib import Path as P
+    configured = os.environ.get("ALTO_STORE_DIR")
+    assert configured, "conftest should always set ALTO_STORE_DIR"
+    assert P.home() / "Documents" / "Alto" != P(configured)
 
 
 def test_default_uid_is_not_dev():

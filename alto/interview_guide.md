@@ -144,7 +144,7 @@ Offer to fix. This is the last step before sharing links.
 3. `record_materials_consent` → 4. `set_entities` → 5. `add_nodes` (batches;
 authored from the materials in this conversation) → 6. `add_connections` →
 7. `set_overview` (optional prose overview with `showDetail('node','<id>')`
-deep links) → 8. `run_layout` (cheap; rebalance columns on warnings) →
+deep links) → 8. `run_layout_preview` (cheap; rebalance columns on warnings) →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the
 view/download links. Use `get_timeline` to resume a draft in a later chat.
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alto-connector"
-version = "1.0.1"
+version = "1.0.2"
 description = "Build interactive timelines from your own materials — an MCP connector for Claude"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,7 +41,8 @@ include = ["alto*"]
   "assets/*.svg",
   "assets/png/*.png",
   "cloud/*.js",
-  # Copied in by packaging/stage_engine.py; generated, so gitignored.
+  # Committed copies of engine/*.html, refreshed by
+  # packaging/stage_engine.py and pinned byte-identical by a test.
   "engine/*.html",
 ]
 

@@ -73,7 +73,7 @@ async def put_uid_in_context(request: Request, call_next):
         token = auth[7:]
         dev = os.environ.get("ALTO_DEV_TOKEN")
         if dev and token == dev:
-            uid = os.environ.get("ALTO_DEV_UID", "dev")
+            uid = os.environ.get("ALTO_DEV_UID", "local")
         else:
             uid = verify_access_token(token)
     if uid is None:

@@ -6,8 +6,11 @@ Two layouts have to work:
   package, alongside `FROZEN/` and `TEMPLATE_MANIFEST.json` which the
   extraction tooling and the golden round-trip test need.
 * **Installed** — a `pip install` or an .mcpb bundle has no repo, so the three
-  runtime templates are copied in beside this file at packaging time (see
-  `packaging/build_mcpb.sh`). They are generated, hence gitignored.
+  runtime templates sit beside this file. They are committed, not generated:
+  `uvx --from git+…` builds straight from a clone with no packaging step, so
+  a gitignored copy would install and then fail to render anything.
+  `packaging/stage_engine.py` refreshes them from `engine/`, and a test pins
+  them byte-identical to it.
 
 The packaged copy wins when present, so an installed Alto never silently reads
 a stale checkout that happens to be lying around.

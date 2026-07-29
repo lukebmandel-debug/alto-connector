@@ -34,6 +34,21 @@ current_uid: contextvars.ContextVar[str] = contextvars.ContextVar("uid")
 _store = None
 
 
+def store_dir() -> str:
+    """Where timelines live.
+
+    ~/Documents/Alto, matching what the .mcpb bundle configures, so the CLI
+    and the bundle agree. The old default was ~/.alto-connector-dev — hidden,
+    and named for a developer: someone installing via uvx got their finished
+    timeline in a folder they would never think to open.
+
+    Separate from get_store() so it can be asserted on without constructing a
+    LocalStore, which would mkdir the very directory under test.
+    """
+    return os.environ.get("ALTO_STORE_DIR",
+                          str(Path.home() / "Documents" / "Alto"))
+
+
 def get_store():
     global _store
     if _store is None:
@@ -41,12 +56,7 @@ def get_store():
             from .store.firestore import FirestoreStore
             _store = FirestoreStore()
         else:
-            # ~/Documents/Alto, matching what the .mcpb bundle configures.
-            # The old default was ~/.alto-connector-dev — hidden, and named
-            # for a developer. Someone installing via uvx got their finished
-            # timeline in a folder they would never think to open.
-            _store = LocalStore(os.environ.get(
-                "ALTO_STORE_DIR", str(Path.home() / "Documents" / "Alto")))
+            _store = LocalStore(store_dir())
     return _store
 
 
@@ -160,7 +170,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -523,12 +533,21 @@ def build_timeline(timeline_id: str) -> dict:
     st.put_artifact(uid(), timeline_id, "timeline.html", html)
     st.put_artifact(uid(), timeline_id, "hosted.html",
                     hosted_timeline(html, timeline_id))
-    st.put_artifact(uid(), timeline_id, "offline.html", offline)
+    offline_path = st.put_artifact(uid(), timeline_id, "offline.html", offline)
     doc["status"] = "built"
     doc["build_report"] = report
     st.put_timeline(uid(), timeline_id, doc)
+    # The path goes here, not only in publish_timeline. Someone who never
+    # wants a shareable link has no reason to call publish, and would
+    # otherwise be told the build succeeded without ever learning that a
+    # 700KB finished timeline is sitting on their disk.
     return {"verify": "passed", **report,
-            "next": "publish_timeline to get shareable links"}
+            "offline_path": offline_path,
+            "note": ("That file IS the finished timeline — self-contained, "
+                     "opens in any browser, no server or account needed. "
+                     "Give the user the path. publish_timeline is only "
+                     "needed for a shareable web link."),
+            "next": "publish_timeline, if they want a link as well"}
 
 
 @mcp.tool(title="Publish timeline", annotations=RW)
@@ -555,11 +574,17 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
 
     mode = os.environ.get("ALTO_PUBLISH_MODE", "")
     base = os.environ.get("ALTO_PUBLIC_BASE", "")
-    if mode == "firebase-static":
+
+    # Someone who configured Firebase has done the work and expects a link.
+    # Requiring ALTO_PUBLISH_MODE on top of that was a trap: the .mcpb bundle
+    # sets it, so it only bit CLI users, who would set the three documented
+    # Firebase variables, get no URL, no deploy and no error, and be told to
+    # go set up the Firebase they had just set up.
+    from .publish_static import firebase_configured
+    if mode == "firebase-static" or (not base and firebase_configured()):
         # Free-tier path: regenerate the static site (all link-visible
         # timelines + homepage + reports) and deploy with the Firebase CLI.
-        from .publish_static import regenerate_site, deploy_site, \
-            firebase_configured, PublishError
+        from .publish_static import regenerate_site, deploy_site, PublishError
         st.put_timeline(uid(), timeline_id, doc)
         if not firebase_configured():
             # No web publishing set up (new user without a Firebase site):
@@ -668,7 +693,13 @@ your own materials. An MCP server; it never invents content.
   alto-connector --version    print the version and exit
   alto-connector --help       print this and exit
 
-Add it to any MCP client's config, for example:
+Add it to any MCP client's config. With uvx (nothing to install — needs uv):
+
+  {{"mcpServers": {{"alto": {{"command": "uvx", "args": [
+    "--from", "git+https://github.com/lukebmandel-debug/alto-connector",
+    "alto-connector"]}}}}}}
+
+Or, after `pip install`, when this script is on PATH:
 
   {{"mcpServers": {{"alto": {{"command": "alto-connector"}}}}}}
 
