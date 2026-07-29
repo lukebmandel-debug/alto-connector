@@ -106,7 +106,7 @@ def test_private_fixtures_are_not_tracked():
 
 def test_frozen_fixture_is_excluded_from_every_packaging_path():
     """engine/FROZEN is also kept out of every build artifact."""
-    assert "engine/FROZEN/" in (ROOT / ".dockerignore").read_text()
+    assert "engine/FROZEN/" in (ROOT / ".dockerignore").read_text(encoding="utf-8")
     packaged = ROOT / "alto"          # the importable package
     for p in packaged.rglob("*"):
         assert "FROZEN" not in p.parts, f"FROZEN leaked into the package: {p}"
@@ -164,7 +164,7 @@ def test_a_generated_site_carries_no_authors_project(tmp_path, monkeypatch):
 
     monkeypatch.delenv("ALTO_FIREBASE_CONFIG", raising=False)
     st = LocalStore(tmp_path / "store")
-    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text())
+    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
     b, nodes, conns = load_brief(d)
     html, _ = build_timeline(b, nodes, conns)
     tid = b.timeline_id

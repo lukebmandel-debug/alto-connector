@@ -25,6 +25,12 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
+# Windows consoles default to cp1252, which cannot encode the tick and arrow
+# characters this script prints — that is a crash, not a cosmetic problem.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 

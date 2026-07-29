@@ -11,7 +11,7 @@ import pytest  # noqa: E402
 from alto import mcp_server as srv  # noqa: E402
 from alto.store.local import LocalStore  # noqa: E402
 
-SAMPLE = json.loads((ROOT / "samples" / "contracts_brief.json").read_text())
+SAMPLE = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(autouse=True)

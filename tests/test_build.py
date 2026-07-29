@@ -29,7 +29,7 @@ def test_sample_builds():
 
 
 def test_sample_bundle():
-    d = json.loads(SAMPLE.read_text())
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     brief, nodes, conns = load_brief(d)
     html, _ = build_timeline(brief, nodes, conns)
     offline = bundle(brief, html)
@@ -39,7 +39,7 @@ def test_sample_bundle():
 
 
 def test_bad_connection_rejected():
-    d = json.loads(SAMPLE.read_text())
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     d["connections"].append(["lucy-v-zehmer", "no-such-node", "spine"])
     brief, nodes, conns = load_brief(d)
     with pytest.raises(VerifyError, match="unknown target"):
@@ -47,7 +47,7 @@ def test_bad_connection_rejected():
 
 
 def test_bad_relation_rejected():
-    d = json.loads(SAMPLE.read_text())
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     d["connections"].append(["lucy-v-zehmer", "hamer", "made-up-relation"])
     brief, nodes, conns = load_brief(d)
     with pytest.raises(VerifyError, match="not in vocabulary"):

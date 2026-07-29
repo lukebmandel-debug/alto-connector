@@ -1,0 +1,17 @@
+# Keep every text file LF in the working tree on every platform.
+#
+# This is load-bearing, not tidiness. Git on Windows converts to CRLF on
+# checkout by default, which silently changed engine/timeline_template.html
+# from 582,042 to 593,488 bytes in CI. alto/hosted.py and
+# alto/build/single_file.py splice by exact string match with "\n" in the
+# anchors and assert on the match count, so CRLF makes those counts zero and
+# the build fails. The templates must be byte-identical everywhere.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.png binary
+*.jpg binary
+*.ico binary
+*.mcpb binary
+*.tar.gz binary
+*.whl binary

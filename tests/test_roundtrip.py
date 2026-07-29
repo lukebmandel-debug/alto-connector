@@ -44,7 +44,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.parametrize("key,template_name,frozen_name", PAGES)
 def test_roundtrip(key, template_name, frozen_name):
-    manifest = json.loads((ENG / "TEMPLATE_MANIFEST.json").read_text())
+    manifest = json.loads((ENG / "TEMPLATE_MANIFEST.json").read_text(encoding="utf-8"))
     m = manifest[key]
     template = (ENG / template_name).read_text(encoding="utf-8")
     frozen = (ENG / "FROZEN" / frozen_name).read_text(encoding="utf-8")

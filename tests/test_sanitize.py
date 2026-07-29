@@ -88,7 +88,7 @@ def test_ordinary_titles_are_not_mangled():
     """The reason we strip rather than escape: the engine escapes a node title
     on the card but interpolates it raw on the detail page, so an escaped value
     would render as `Smith &amp; Jones` in one of the two places."""
-    d = json.loads(SAMPLE.read_text())
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     d["brief"]["title"] = "Contracts & Remedies"
     d["nodes"][0]["title"] = "Smith & Jones v. O'Brien"
     brief, nodes, _ = load_brief(d)
@@ -98,7 +98,7 @@ def test_ordinary_titles_are_not_mangled():
 
 
 def test_sanitize_brief_is_idempotent():
-    d = json.loads(SAMPLE.read_text())
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     d["brief"]["title"] = "Contracts & <b>Remedies</b>"
     brief, nodes, _ = load_brief(d)
     sanitize_brief(brief, nodes)
@@ -124,7 +124,7 @@ def test_plain_text_cannot_reassemble_a_tag(nested):
 # ── end to end ───────────────────────────────────────────────────────────────
 
 def _poisoned_build():
-    d = json.loads(SAMPLE.read_text())
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     p = PAYLOADS[0] + PAYLOADS[1] + PAYLOADS[3]
     short = PAYLOADS[1]          # node_noun/singular have tight length caps
     d["brief"]["title"] = p

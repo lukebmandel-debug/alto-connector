@@ -26,6 +26,13 @@ import zipfile
 from pathlib import Path
 
 
+# Windows consoles default to cp1252, which cannot encode the tick and arrow
+# characters this script prints — that is a crash, not a cosmetic problem.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
 class ProbeFailure(SystemExit):
     pass
 
@@ -50,7 +57,8 @@ def unpack(mcpb: Path, dest: Path) -> Path:
 
 
 def launch(ext: Path, store: Path) -> subprocess.Popen:
-    cfg = json.loads((ext / "manifest.json").read_text())["server"]["mcp_config"]
+    cfg = json.loads((ext / "manifest.json").read_text(
+        encoding="utf-8"))["server"]["mcp_config"]
     sub = lambda s: s.replace("${__dirname}", str(ext))
 
     env = {k: sub(v) for k, v in cfg["env"].items()
@@ -96,7 +104,8 @@ def build_a_timeline(ext: Path, brief: Path) -> dict:
 
     Runs from a temp cwd so nothing can resolve relative to a source checkout.
     """
-    cfg = json.loads((ext / "manifest.json").read_text())["server"]["mcp_config"]
+    cfg = json.loads((ext / "manifest.json").read_text(
+        encoding="utf-8"))["server"]["mcp_config"]
     sub = lambda s: s.replace("${__dirname}", str(ext))
     env = dict(os.environ)
     env["PYTHONPATH"] = sub(cfg["env"]["PYTHONPATH"])

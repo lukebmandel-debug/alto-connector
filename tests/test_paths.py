@@ -104,7 +104,7 @@ def test_oversized_field_is_rejected():
     import json
     from alto.build.builder import load_brief
     from alto.build.brief import BriefError, validate_brief, MAX_LEN
-    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text())
+    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
     d["brief"]["title"] = "x" * (MAX_LEN["title"] + 1)
     b, _, _ = load_brief(d)
     with pytest.raises(BriefError, match="exceeds"):
@@ -115,7 +115,7 @@ def test_oversized_node_desc_is_rejected():
     import json
     from alto.build.builder import load_brief
     from alto.build.brief import BriefError, validate_brief, validate_nodes, MAX_LEN
-    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text())
+    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
     d["nodes"][0]["desc"] = "x" * (MAX_LEN["desc"] + 1)
     b, nodes, _ = load_brief(d)
     validate_brief(b)
@@ -159,7 +159,7 @@ def test_revoking_removes_the_published_directory(tmp_path):
     from alto.hosted import hosted_timeline
 
     st = LocalStore(tmp_path / "store")
-    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text())
+    d = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
     b, nodes, conns = load_brief(d)
     html, _ = build_timeline(b, nodes, conns)
     tid, slug = b.timeline_id, "contracts-i-ab23cd45"
