@@ -31,12 +31,7 @@ it. Restart Claude Desktop and Alto appears under Extensions.
 it is around 50MB. Claude Desktop ships Node but not Python, and stock macOS
 still has 3.9 — too old for this server.
 
-Other ways in:
-
-```bash
-uvx alto-connector          # any MCP client, from PyPI
-bash setup.sh               # from a checkout — the development install
-```
+From a checkout instead: `bash setup.sh` (the development install).
 
 Once installed, open a chat and say *"I want to build a timeline in Alto —
 interview me."*

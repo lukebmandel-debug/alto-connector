@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lukebmandel-debug/alto-connector",
   "description": "Build an interactive timeline from your own materials \u2014 never from invented content.",
   "version": "1.0.0",
@@ -10,37 +10,31 @@
   "websiteUrl": "https://alto-get.web.app",
   "packages": [
     {
-      "registryType": "pypi",
-      "identifier": "alto-connector",
+      "registryType": "mcpb",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.0.0/Alto-macos-arm64.mcpb",
       "version": "1.0.0",
+      "fileSha256": "3362cad9644f3c8ef038d5c52ead4a7b933e13baa718c331a06712bf9a4f777b",
       "transport": {
         "type": "stdio"
-      },
-      "runtimeHint": "uvx",
-      "environmentVariables": [
-        {
-          "name": "ALTO_STORE_DIR",
-          "description": "Where timelines are kept on this machine.",
-          "isRequired": false,
-          "default": "~/Documents/Alto"
-        },
-        {
-          "name": "ALTO_FIREBASE_SITE",
-          "description": "Your own Firebase Hosting site id, for publishing shareable links.",
-          "isRequired": false
-        },
-        {
-          "name": "ALTO_FIREBASE_PROJECT",
-          "description": "The Firebase project that site belongs to.",
-          "isRequired": false
-        },
-        {
-          "name": "ALTO_FIREBASE_CONFIG",
-          "description": "Your Firebase web SDK config JSON, which enables cross-device sync of highlights and notes. Alto never ships a project of its own.",
-          "isRequired": false,
-          "isSecret": true
-        }
-      ]
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.0.0/Alto-macos-x64.mcpb",
+      "version": "1.0.0",
+      "fileSha256": "eb93d5730170baa4af47c445fe3e3e55bad10875d9e1a6e72a72049916bab36b",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.0.0/Alto-windows-x64.mcpb",
+      "version": "1.0.0",
+      "fileSha256": "6e41e9057b4828682a8e6d8f6a115e23a43edf6b73a29459028b3a8ef390f8a7",
+      "transport": {
+        "type": "stdio"
+      }
     }
   ]
 }

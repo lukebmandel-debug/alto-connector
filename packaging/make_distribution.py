@@ -68,16 +68,49 @@ def bundles() -> list[dict]:
 
 # ── MCP Registry entry ───────────────────────────────────────────────────────
 
-def server_json(ident: dict) -> dict:
+def server_json(ident: dict, files: list[dict]) -> dict:
     """The registry lists where a server lives; it does not host anything.
 
-    The pypi package is what makes `uvx alto-connector` work, which is the
-    install path registry-driven clients use. Ownership of the name is proved
-    by the `mcp-name:` line in the PyPI README.
+    The bundles are listed as `mcpb` packages pointing straight at the GitHub
+    Release assets, which is the artifact people actually install — no PyPI
+    round trip, and the registry verifies each download against fileSha256.
+
+    A `pypi` entry is added only once the package is actually published
+    (`pypi_published` in identity.json). Listing one before it exists would
+    advertise an install path that fails.
     """
     name = f"io.github.{ident['github_user']}/{ident['github_repo']}"
+    repo = f"https://github.com/{ident['github_user']}/{ident['github_repo']}"
+    base = f"{repo}/releases/download/v{__version__}"
+
+    packages = [{
+        "registryType": "mcpb",
+        "identifier": f"{base}/{f['name']}",
+        "version": __version__,
+        "fileSha256": f["sha256"],
+        "transport": {"type": "stdio"},
+    } for f in files]
+
+    if ident.get("pypi_published"):
+        packages.append(_pypi_package(ident))
+
+    return {**_server_base(ident, name, repo), "packages": packages}
+
+
+def _pypi_package(ident: dict) -> dict:
     return {
-        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+        "registryType": "pypi",
+        "identifier": ident["pypi_package"],
+        "version": __version__,
+        "transport": {"type": "stdio"},
+        "runtimeHint": "uvx",
+        "environmentVariables": _env_vars(),
+    }
+
+
+def _server_base(ident: dict, name: str, repo: str) -> dict:
+    return {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
         "name": name,
         "description": ("Build an interactive timeline from your own materials "
                         "— never from invented content."),
@@ -87,33 +120,29 @@ def server_json(ident: dict) -> dict:
             "source": "github",
         },
         "websiteUrl": f"https://{ident['firebase_site']}.web.app",
-        "packages": [{
-            "registryType": "pypi",
-            "identifier": ident["pypi_package"],
-            "version": __version__,
-            "transport": {"type": "stdio"},
-            "runtimeHint": "uvx",
-            "environmentVariables": [
-                {"name": "ALTO_STORE_DIR",
-                 "description": "Where timelines are kept on this machine.",
-                 "isRequired": False,
-                 "default": "~/Documents/Alto"},
-                {"name": "ALTO_FIREBASE_SITE",
-                 "description": "Your own Firebase Hosting site id, for "
-                                "publishing shareable links.",
-                 "isRequired": False},
-                {"name": "ALTO_FIREBASE_PROJECT",
-                 "description": "The Firebase project that site belongs to.",
-                 "isRequired": False},
-                {"name": "ALTO_FIREBASE_CONFIG",
-                 "description": "Your Firebase web SDK config JSON, which "
-                                "enables cross-device sync of highlights and "
-                                "notes. Alto never ships a project of its own.",
-                 "isRequired": False,
-                 "isSecret": True},
-            ],
-        }],
     }
+
+
+def _env_vars() -> list[dict]:
+    return [
+        {"name": "ALTO_STORE_DIR",
+         "description": "Where timelines are kept on this machine.",
+         "isRequired": False,
+         "default": "~/Documents/Alto"},
+        {"name": "ALTO_FIREBASE_SITE",
+         "description": "Your own Firebase Hosting site id, for publishing "
+                        "shareable links.",
+         "isRequired": False},
+        {"name": "ALTO_FIREBASE_PROJECT",
+         "description": "The Firebase project that site belongs to.",
+         "isRequired": False},
+        {"name": "ALTO_FIREBASE_CONFIG",
+         "description": "Your Firebase web SDK config JSON, which enables "
+                        "cross-device sync of highlights and notes. Alto "
+                        "never ships a project of its own.",
+         "isRequired": False,
+         "isSecret": True},
+    ]
 
 
 # ── download page ────────────────────────────────────────────────────────────
@@ -254,13 +283,7 @@ PAGE = """<!doctype html>
     stays offline. See the <a href="/privacy/">privacy note</a>.</p>
   </details>
 
-  <details>
-    <summary>Prefer the command line?</summary>
-    <p><code>uvx {pypi}</code> runs the same server from PyPI, for use with any
-    MCP client.</p>
-  </details>
-
-  <details>
+{cli}  <details>
     <summary>Verifying your download</summary>
     <p class="sums">{sums}</p>
   </details>
@@ -289,8 +312,16 @@ def build_page(ident: dict, files: list[dict]) -> str:
         f'    </a>'
         for f in files)
     sums = "<br>".join(f'{f["sha256"]}&nbsp;&nbsp;{f["name"]}' for f in files)
+    # Only advertise the PyPI route once the package actually exists.
+    cli = ("""  <details>
+    <summary>Prefer the command line?</summary>
+    <p><code>uvx %s</code> runs the same server from PyPI, for use with any
+    MCP client.</p>
+  </details>
+
+""" % ident["pypi_package"]) if ident.get("pypi_published") else ""
     return PAGE.format(version=__version__, cards=cards, sums=sums, repo=repo,
-                       pypi=ident["pypi_package"], license=ident["license"],
+                       cli=cli, license=ident["license"],
                        author=ident["author_name"])
 
 
@@ -365,7 +396,7 @@ def main() -> None:
     files = bundles()
 
     (ROOT / "server.json").write_text(
-        json.dumps(server_json(ident), indent=2) + "\n", encoding="utf-8")
+        json.dumps(server_json(ident, files), indent=2) + "\n", encoding="utf-8")
     print("✓ server.json")
 
     stamp_readme(ident)
