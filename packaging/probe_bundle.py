@@ -74,27 +74,33 @@ def launch(ext: Path, store: Path) -> subprocess.Popen:
     if not Path(command).exists():
         raise ProbeFailure(f"interpreter missing from the bundle: {command}")
 
+    # Binary pipes on purpose. In text mode Windows translates "\n" to
+    # "\r\n" on the way out, which corrupts newline-delimited JSON-RPC
+    # framing; encoding here keeps the bytes identical on every platform.
     return subprocess.Popen([command, *cfg["args"]],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True, env=env,
-                            cwd=str(ext))
+                            stderr=subprocess.PIPE, env=env, cwd=str(ext))
 
 
 def handshake(proc: subprocess.Popen) -> tuple[dict, list]:
     def send(obj):
-        proc.stdin.write(json.dumps(obj) + "\n")
+        proc.stdin.write((json.dumps(obj) + "\n").encode("utf-8"))
         proc.stdin.flush()
+
+    def recv() -> str:
+        return proc.stdout.readline().decode("utf-8").strip()
 
     send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
           "params": {"protocolVersion": "2025-06-18", "capabilities": {},
                      "clientInfo": {"name": "probe", "version": "0"}}})
-    init = proc.stdout.readline()
+    init = recv()
     if not init:
-        raise ProbeFailure("no response to initialize\n"
-                           + proc.stderr.read()[-3000:])
+        raise ProbeFailure(
+            "no response to initialize\n"
+            + proc.stderr.read().decode("utf-8", "replace")[-3000:])
     send({"jsonrpc": "2.0", "method": "notifications/initialized"})
     send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
-    tools = proc.stdout.readline()
+    tools = recv()
     return (json.loads(init)["result"]["serverInfo"],
             json.loads(tools)["result"]["tools"])
 
