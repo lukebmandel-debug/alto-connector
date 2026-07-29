@@ -1,0 +1,74 @@
+name: verify
+
+# Two things are checked here that a laptop cannot check on its own:
+#   1. the test suite on a machine that has never seen this project
+#   2. the WINDOWS bundle, actually running on Windows
+#
+# The Windows bundle is cross-built on macOS. Everything about it can be
+# verified statically — architecture, manifest, wheel tags — and all of that
+# passed while it was still completely untested, because none of it proves the
+# thing launches. This runs the shipped artifact on a real Windows runner.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet pytest "mcp>=1.28,<2"
+      - name: Stage the engine templates
+        run: python packaging/stage_engine.py
+      - name: Run the suite
+        # test_roundtrip skips here by design: its fixtures are private.
+        run: python -m pytest tests/ -q
+
+  bundle:
+    name: bundle on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: Alto-windows-x64.mcpb
+          - os: macos-latest
+            asset: Alto-macos-arm64.mcpb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Deliberately the published artifact, not a fresh build: the point is to
+      # test what people actually download.
+      - name: Fetch the released bundle
+        shell: bash
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          [ -n "$TAG" ] || TAG=$(curl -sf \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" \
+            | python -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+          echo "Testing $TAG / ${{ matrix.asset }}"
+          curl -sfL -o "${{ matrix.asset }}" \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/${{ matrix.asset }}"
+          ls -l "${{ matrix.asset }}"
+
+      - name: Launch it and build a timeline
+        run: python packaging/probe_bundle.py ${{ matrix.asset }}
