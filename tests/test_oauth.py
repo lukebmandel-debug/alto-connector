@@ -11,6 +11,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import pytest  # noqa: E402
+pytest.importorskip(
+    "fastapi",
+    reason="hosted-variant dependency; see requirements-remote.txt. The "
+           "local stdio connector deliberately does not install it, so this "
+           "module skips wherever only the core requirements are present.")
+
 from fastapi.testclient import TestClient  # noqa: E402
 
 from alto import mcp_server as srv  # noqa: E402

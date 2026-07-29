@@ -1,0 +1,11 @@
+# The parked hosted variant (alto/web.py + alto/auth/): streamable HTTP with
+# OAuth 2.1, Firestore storage. NOT needed by the local stdio connector, and
+# deliberately excluded from the .mcpb bundles and the wheel — these add tens
+# of megabytes to something people have to download.
+#
+#   pip install -r requirements.txt -r requirements-remote.txt
+fastapi
+uvicorn
+itsdangerous
+firebase-admin
+google-cloud-storage
