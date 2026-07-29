@@ -111,6 +111,21 @@ def stage_package(server: Path) -> None:
             "engine templates missing — run packaging/stage_engine.py first")
 
 
+def _exe(name: str) -> str:
+    """Resolve a CLI to a full path before handing it to subprocess.
+
+    On Windows an npm-installed CLI is a `.cmd` shim, and CreateProcess cannot
+    launch one from a bare name — it fails with WinError 2. shutil.which
+    consults PATHEXT and returns the real thing.
+    """
+    found = shutil.which(name)
+    if not found:
+        raise SystemExit(
+            f"{name} not found on PATH. The MCPB CLI comes from "
+            "`npm install -g @anthropic-ai/mcpb`.")
+    return found
+
+
 def _uv() -> str:
     found = shutil.which("uv")
     if found:
@@ -304,7 +319,7 @@ def build(key: str) -> Path:
     out = DIST / f"Alto-{key}.mcpb"
     out.unlink(missing_ok=True)
     env = {**os.environ, "PATH": f"{Path.home()}/.local/node/bin:{os.environ.get('PATH','')}"}
-    r = subprocess.run(["mcpb", "pack", str(stage), str(out)],
+    r = subprocess.run([_exe("mcpb"), "pack", str(stage), str(out)],
                        capture_output=True, text=True, env=env)
     if r.returncode != 0:
         raise SystemExit(f"mcpb pack failed:\n{r.stdout}\n{r.stderr}")

@@ -196,6 +196,11 @@ PAGE = """<!doctype html>
   h2{{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;
      color:var(--dim);font-weight:600;margin:38px 0 14px}}
   .dl{{display:flex;flex-direction:column;gap:10px}}
+  .notice{{
+    background:var(--surface);border:1px solid var(--accent);
+    border-left-width:3px;border-radius:10px;padding:13px 16px;
+    margin:0 0 8px;font-size:.94rem;
+  }}
   a.card{{
     display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;
     background:var(--surface);border:1px solid var(--border);border-radius:14px;
@@ -256,7 +261,7 @@ PAGE = """<!doctype html>
   <p class="rule">It never invents content. Alto organises what you give it and
   nothing else — sparse notes make a sparse timeline, on purpose.</p>
 
-  <h2>Download</h2>
+{notice}  <h2>Download</h2>
   <div class="dl">
 {cards}
   </div>
@@ -326,8 +331,10 @@ def build_page(ident: dict, files: list[dict]) -> str:
   </details>
 
 """ % ident["pypi_package"]) if ident.get("pypi_published") else ""
+    notice = (f'  <p class="notice">{ident["notice"]}</p>\n\n'
+              if ident.get("notice") else "")
     return PAGE.format(version=__version__, cards=cards, sums=sums, repo=repo,
-                       cli=cli, license=ident["license"],
+                       cli=cli, notice=notice, license=ident["license"],
                        author=ident["author_name"])
 
 
