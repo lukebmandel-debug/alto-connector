@@ -12,8 +12,8 @@
   "github_user": "lukebmandel-debug",
   "github_repo": "alto-connector",
   "pypi_package": "alto-connector",
-  "firebase_project": "alto-connector-app",
-  "firebase_site": "alto-connector",
+  "firebase_project": "alto-connector-8777c",
+  "firebase_site": "alto-get",
   "author_name": "Luke Mandel",
   "license": "Apache-2.0"
 }

@@ -154,7 +154,7 @@ RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
 __version__ = "1.0.0"
-WEBSITE_URL = "https://alto-connector.web.app"
+WEBSITE_URL = "https://alto-get.web.app"
 
 
 def _server_icons():

@@ -7,7 +7,7 @@
     "url": "https://github.com/lukebmandel-debug/alto-connector",
     "source": "github"
   },
-  "websiteUrl": "https://alto-connector.web.app",
+  "websiteUrl": "https://alto-get.web.app",
   "packages": [
     {
       "registryType": "pypi",
