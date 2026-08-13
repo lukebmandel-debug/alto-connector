@@ -289,13 +289,24 @@ def validate_brief(b: Brief) -> list[str]:
             warnings.append(f"filter {f.id}: replace_nav has no effect for "
                             f"source {f.source!r} (nothing to replace)")
     rel_keys = set()
+    non_spine = 0
     for r in b.relations:
         _check_id(r.key, "relation")
         if r.key in rel_keys:
             raise BriefError(f"duplicate relation key {r.key!r}")
         rel_keys.add(r.key)
-        if r.key != "spine" and r.color:
-            _check_hex(r.color, f"relation {r.key}", None)
+        if r.key != "spine":
+            # Non-spine relations get distinct palette colors by default —
+            # the line renderer's merge/de-overlap legibility ("cross-colour
+            # parallels stay clearly distinct", and a merged ride is only
+            # readable as a separate line past its fork when it has its own
+            # color) assumes relation types are distinguishable. Offset past
+            # the entity assignments so lines and chips don't pool colors.
+            if r.color:
+                _check_hex(r.color, f"relation {r.key}", None)
+            else:
+                r.color = PALETTE[(len(b.entities) + non_spine) % len(PALETTE)]
+            non_spine += 1
     if "spine" not in rel_keys:
         warnings.append("no 'spine' relation — the neutral main-thread line "
                         "style is unused")

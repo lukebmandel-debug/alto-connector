@@ -107,11 +107,13 @@ glyphs — their chips are text by design.
 Process: pick an object metaphor per value (concept → object, one line each)
 and **propose the list to the user before drawing**; then draw to these
 rules, learned the hard way:
-- Wrapper: `<svg viewBox="0 0 20 20" width="14" height="14"
-  style="vertical-align:-2px;margin-right:5px;flex-shrink:0;display:inline-block"
-  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+- Wrapper: `<svg viewBox="0 0 20 20" width="14" height="14" fill="none"
+  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
   stroke-linejoin="round">…</svg>` — `currentColor` inherits each chip's
-  entity color automatically.
+  entity color automatically. No `style` attribute: the build supplies
+  per-context sizing and spacing (chips flex-center the glyph; nav rows add
+  the label gap), and a baked-in margin would skew chip centring — the
+  builder strips a root `style` defensively.
 - Keep all geometry inside 2 ≤ x,y ≤ 18; ≥2 units between parallel strokes;
   ≤6 paths per glyph.
 - **Silhouette-first**: the glyph must be nameable from its outline alone at

@@ -170,7 +170,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -323,7 +323,9 @@ def create_timeline(project_id: str, brief: dict) -> dict:
      filters?: [{id, label, source: 'entity'|'axis1'|'axis2'|'acts'|'custom',
       values?: [{id,name}] (custom source only, 2-10),
       replace_nav?: bool}] (≤2),
-     relations?: [{key,label?,color?}] ('spine' = neutral main thread),
+     relations?: [{key,label?,color?}] ('spine' = neutral main thread; other
+      relations get distinct palette colors when color is omitted, so their
+      lines stay tellable apart from the spine),
      overview_html?, owner_name?, owner_email?}.
     Filters add canvas filter chips that dim non-matching nodes (they never
     navigate). Derived sources (entity/axis1/axis2/acts) mirror that

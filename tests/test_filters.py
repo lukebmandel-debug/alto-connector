@@ -137,6 +137,29 @@ def test_validation_rejects_bad_filters():
         validate_nodes(brief, nodes)
 
 
+def test_symbol_style_stripped_and_context_css_emitted():
+    """Regression: a symbol_svg root style (old §C1 wrapper margin) skewed
+    glyph centring in flex-centred card chips."""
+    d = _sample()
+    d["brief"]["entities"][0]["symbol_svg"] = (
+        '<svg viewBox="0 0 20 20" width="14" height="14" '
+        'style="vertical-align:-2px;margin-right:5px" fill="none" '
+        'stroke="currentColor" stroke-width="1.5"><path d="M4 6 H16"/></svg>')
+    html, _ = _build(d)
+    assert 'style="vertical-align:-2px;margin-right:5px"' not in html
+    assert ".csym-btn svg" in html and "width:1em" in html
+
+
+def test_non_spine_relations_get_default_colors():
+    d = _sample()
+    d["brief"]["relations"].append({"key": "responds-to", "label": "Responds"})
+    html, _ = _build(d)
+    assert "'responds-to': 'var(--rel-responds-to)'" in html   # COLOR_MAP
+    assert "'var(--rel-responds-to)':'#" in html               # CSS_HEX
+    # spine stays neutral
+    assert "spine:  'var(--line-flow)'" in html
+
+
 def test_hyphenated_entity_ids_emit_parseable_chars():
     """Regression: unquoted hyphenated CHARS keys were a page-killing
     SyntaxError (criminal-law-101 external test, 2026-08-12)."""

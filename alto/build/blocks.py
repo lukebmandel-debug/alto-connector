@@ -15,6 +15,7 @@ string rather than parse it (navigator.share and the mailto subject).
 from __future__ import annotations
 
 import json
+import re
 from urllib.parse import quote as url_q
 
 from .brief import Brief, Node, COL_SETS, ROMAN
@@ -37,6 +38,18 @@ ENV_SECTIONS_M = "var enSecs=(en.sections||[]).filter(function(s){return s&&s.t;
 THEME_SECTIONS_M = "var thSecs=(th.sections||[]).filter(function(s){return s&&s.t;});"
 
 FALLBACK_GLYPH = "&#9670;"   # ◆ — used when an entity/axis value has no SVG
+
+_SVG_STYLE_RE = re.compile(r'(<svg\b[^>]*?)\s+style="[^"]*"')
+
+
+def _normalize_symbol(svg: str) -> str:
+    """Strip the root svg's style attribute. A baked-in margin/vertical-align
+    (the old §C1 wrapper carried both) skews centring inside the flex-centred
+    chip contexts; spacing belongs to the rendering context, supplied by the
+    glyph-context CSS emitted with nav_char_css."""
+    if not svg:
+        return svg
+    return _SVG_STYLE_RE.sub(r"\1", svg, count=1)
 
 
 def js_str(s: str) -> str:
@@ -158,6 +171,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     ent_by_id = {e.id: e for e in b.entities}
+
+    for e in b.entities:
+        e.symbol_svg = _normalize_symbol(e.symbol_svg)
+    for ax in b.axes:
+        for v in ax.values:
+            v.symbol_svg = _normalize_symbol(v.symbol_svg)
 
     # Canvas filters: resolved slot data plus which axes' navigation chips the
     # filter chips replace (replace_nav on entity/axis1/axis2 sources).
@@ -386,6 +405,16 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "button[onclick*=\"'char','{id}'\"]{{color:{c};border-color:rgba({r},{g},{b},.4);}}".format(
             id=e.id, c=e.color, r=tint(e)[0], g=tint(e)[1], b=tint(e)[2])
         for e in b.entities)
+    # Glyph-context sizing/spacing. Authored symbol_svg is emitted bare (any
+    # root style attr is stripped below): inside flex-centred chips a baked-in
+    # margin skews centring, so spacing belongs to each CONTEXT, not the glyph.
+    # 1em sizing scales the glyph with every context's own font-size (24px card
+    # chips, mobile 30/34px, nav rows, detail headers) instead of a fixed 14px.
+    nav_char_css += (
+        "\n  .csym-btn svg,.esym-btn svg,.tsym-btn svg,.detail-symbol svg,"
+        "#nav .nav-btn svg,.char-chip svg,.drawer-icon svg"
+        "{width:1em;height:1em;margin:0;flex-shrink:0;}"
+        "\n  #nav .nav-btn svg,.char-chip svg{vertical-align:-2px;margin-right:5px;}")
     nav_char_css_mix = "\n".join(
         "html:not(.mobile):not(.dark) button[onclick*=\"'char','{id}'\"]{{ "
         "color:color-mix(in srgb, var(--{id}) 50%, var(--text)); "
