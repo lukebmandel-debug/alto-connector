@@ -298,6 +298,10 @@ def sanitize_brief(b, nodes=None) -> None:
             v.name, v.role = plain_text(v.name), plain_text(v.role)
             v.symbol_svg = clean_svg(v.symbol_svg)
             sections(v.sections)
+    for f in b.filters:
+        f.label = plain_text(f.label)
+        for v in f.values:
+            v.name = plain_text(v.name)
     for r in b.relations:
         r.label = plain_text(r.label)
 

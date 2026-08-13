@@ -101,6 +101,38 @@ class Axis:
 
 
 @dataclass
+class FilterValue:
+    id: str
+    name: str
+
+
+@dataclass
+class FilterSpec:
+    """A canvas filter mapped onto one of the engine's two scalar filter
+    slots (first filter → 'era', second → 'weight'). Filter chips dim
+    non-matching nodes; they never navigate. Where values come from:
+      entity / axis1 / axis2 — mirror that axis's values; a node's filter
+        value is its first value on that axis (multi-valued nodes warn).
+      acts   — one value per act; nodes filter by the act they sit in.
+      custom — caller-defined `values`, assigned per node via Node.filters.
+    `replace_nav` makes a mirrored axis1/axis2 **filter-only**: its
+    navigation chips, drawer section, legend dot, and per-node card/detail
+    chips are all suppressed, so the dimension exists solely as filter chips
+    (no reachable detail pages, no identical fallback glyphs on cards) —
+    recommended for axes whose detail pages carry no authored sections. For
+    source 'entity' it only swaps the nav chips: entity chips stay on cards
+    because they are the nodes' color identity."""
+    id: str
+    label: str                 # chip-group label, e.g. "Filter by Type"
+    source: str = "custom"     # entity | axis1 | axis2 | acts | custom
+    values: list[FilterValue] = field(default_factory=list)  # custom only
+    replace_nav: bool = False  # entity/axis1/axis2 sources only
+
+
+FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "custom")
+
+
+@dataclass
 class Act:
     label: str                 # band label, e.g. "ACT ONE — ARRIVAL"
     short: str = ""            # detail-page form, e.g. "Act One — Arrival"
@@ -125,6 +157,7 @@ class Node:
     entity_ids: list[str] = field(default_factory=list)
     axis1_values: list[str] = field(default_factory=list)
     axis2_values: list[str] = field(default_factory=list)
+    filters: dict = field(default_factory=dict)   # custom-filter id → value id
     sections: list[Section] = field(default_factory=list)   # detail page
     color: str = ""            # css color ref; defaults to first entity's var
     base_y: int = 0            # filled by layout
@@ -139,6 +172,7 @@ class Brief:
     entity_axis_label: str = "Characters"       # plural
     entity_axis_singular: str = "Character"
     axes: list[Axis] = field(default_factory=list)          # 0-2 extra axes
+    filters: list[FilterSpec] = field(default_factory=list)  # 0-2 canvas filters
     relations: list[Relation] = field(default_factory=list)
     columns: int = 5
     node_noun: str = "Event"                    # detail badge, e.g. "Case"
@@ -215,6 +249,45 @@ def validate_brief(b: Brief) -> list[str]:
                              PALETTE[i % len(PALETTE)])
         if not a.short:
             a.short = a.label.title()
+    if len(b.filters) > 2:
+        raise BriefError("at most 2 filters (the engine has two filter slots)")
+    f_ids, f_sources = set(), set()
+    for f in b.filters:
+        _check_id(f.id, "filter")
+        if f.id in f_ids:
+            raise BriefError(f"duplicate filter id {f.id!r}")
+        f_ids.add(f.id)
+        _check_len(f.label, "label", f"filter {f.id} label")
+        if f.source not in FILTER_SOURCES:
+            raise BriefError(f"filter {f.id}: source {f.source!r} must be one "
+                             f"of {FILTER_SOURCES}")
+        if f.source != "custom":
+            if f.source in f_sources:
+                raise BriefError(f"two filters share source {f.source!r}")
+            f_sources.add(f.source)
+            if f.values:
+                raise BriefError(f"filter {f.id}: values are only for "
+                                 "source 'custom' — derived sources mirror "
+                                 "the axis they name")
+        if f.source == "entity" and not b.entities:
+            raise BriefError(f"filter {f.id}: source 'entity' needs entities")
+        if f.source == "axis1" and len(b.axes) < 1:
+            raise BriefError(f"filter {f.id}: source 'axis1' needs an extra axis")
+        if f.source == "axis2" and len(b.axes) < 2:
+            raise BriefError(f"filter {f.id}: source 'axis2' needs two extra axes")
+        if f.source == "custom":
+            if not 2 <= len(f.values) <= 10:
+                raise BriefError(f"filter {f.id}: custom filters need 2-10 values")
+            v_ids = set()
+            for v in f.values:
+                _check_id(v.id, f"filter {f.id} value")
+                if v.id in v_ids:
+                    raise BriefError(f"filter {f.id}: duplicate value {v.id!r}")
+                v_ids.add(v.id)
+                _check_len(v.name, "name", f"filter {f.id} value {v.id} name")
+        if f.replace_nav and f.source in ("acts", "custom"):
+            warnings.append(f"filter {f.id}: replace_nav has no effect for "
+                            f"source {f.source!r} (nothing to replace)")
     rel_keys = set()
     for r in b.relations:
         _check_id(r.key, "relation")
@@ -262,4 +335,33 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
         _check_sections(n.sections, f"node {n.id}")
         if not (n.desc or "").strip():
             warnings.append(f"node {n.id}: empty desc (sparse by design?)")
+
+    custom_vals = {f.id: {v.id for v in f.values}
+                   for f in b.filters if f.source == "custom"}
+    for n in nodes:
+        for fid, vid in (n.filters or {}).items():
+            if fid not in custom_vals:
+                raise BriefError(f"node {n.id}: filters key {fid!r} is not a "
+                                 "custom filter id (derived filters assign "
+                                 "automatically)")
+            if vid not in custom_vals[fid]:
+                raise BriefError(f"node {n.id}: filter {fid}: unknown value "
+                                 f"{vid!r}")
+    for f in b.filters:
+        multi_attr = {"entity": "entity_ids", "axis1": "axis1_values",
+                      "axis2": "axis2_values"}.get(f.source)
+        if multi_attr:
+            multi = [n.id for n in nodes if len(getattr(n, multi_attr)) > 1]
+            if multi:
+                warnings.append(
+                    f"filter {f.id}: {len(multi)} node(s) carry several "
+                    f"{f.source} values ({', '.join(multi[:4])}) — the filter "
+                    "uses the first")
+        if f.source == "custom":
+            missing = [n.id for n in nodes if f.id not in (n.filters or {})]
+            if missing:
+                warnings.append(
+                    f"filter {f.id}: {len(missing)} node(s) unassigned "
+                    f"({', '.join(missing[:4])}) — they dim whenever this "
+                    "filter is active")
     return warnings

@@ -95,6 +95,35 @@ they are and what to call the axis (`entity_axis_label`, e.g. "Characters",
 palette) → `set_entities`. Entities can carry their own detail pages
 (`sections`) built from user material.
 
+#### C1. Glyphs — design them, don't skip them
+Every entity and every **navigable** axis value should get a unique
+`symbol_svg` chip glyph. Anything without one falls back to the same ◆
+diamond, so distinct dimensions silently become indistinguishable — a whole
+nav row of identical diamonds is worse than no glyphs. Glyphs are visual
+design, not content: inventing them does not touch §0 (same as the
+auto-assigned color palette). Filter-only dimensions (`replace_nav`) take no
+glyphs — their chips are text by design.
+
+Process: pick an object metaphor per value (concept → object, one line each)
+and **propose the list to the user before drawing**; then draw to these
+rules, learned the hard way:
+- Wrapper: `<svg viewBox="0 0 20 20" width="14" height="14"
+  style="vertical-align:-2px;margin-right:5px;flex-shrink:0;display:inline-block"
+  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+  stroke-linejoin="round">…</svg>` — `currentColor` inherits each chip's
+  entity color automatically.
+- Keep all geometry inside 2 ≤ x,y ≤ 18; ≥2 units between parallel strokes;
+  ≤6 paths per glyph.
+- **Silhouette-first**: the glyph must be nameable from its outline alone at
+  14px. Detail strokes only where they aid recognition.
+- **Collision check**: before committing, name 2–3 *other* objects that share
+  the silhouette; if a misread is plausible, exaggerate the one
+  distinguishing feature.
+- Known misreads to avoid: 2+ bare stacked horizontal lines (reads as an
+  equals sign), a near-closed circle with a chevron plugging the gap (reads
+  as a donut), a rectangle with perpendicular end-caps (reads as a drum),
+  detached floating arrowheads (read as separate marks, not motion).
+
 ### D. Node granularity & schema
 - "What's a single node — a case, an event, a concept, a chapter? What should
   its detail page contain?" Offer proven schemas:
@@ -114,10 +143,32 @@ small and unambiguous. One relation may be the **spine** (the main thread) —
 key it `spine`; it renders as the neutral flowing line. Others can carry
 colors. → brief `relations`; used by `add_connections`.
 
-### F. Extra filter axes (0–2)
+### F. Extra axes (0–2)
 Beyond the entity axis: up to two more axes (e.g. environments/themes for a
 novel, courts/topics for a course), each with a label, singular form, and
 values. → brief `axes`.
+
+### F2. Canvas filters (0–2) — ask every time
+Axes and entities give the timeline **navigation** chips (they open detail
+pages). **Filters** are different: filter chips dim every non-matching node on
+the canvas so one dimension can be studied in isolation, and on mobile they
+narrow swipe order. Ask: "Want filter chips on the canvas? Pick up to two
+dimensions to filter by." Offer recommendations drawn from what's already
+defined — no re-entry needed, assignment is automatic:
+- **an axis you defined** (`source:'axis1'`/`'axis2'`) — e.g. filter by Type;
+- **the entity axis** (`source:'entity'`) — e.g. filter by Doctrine;
+- **the acts** (`source:'acts'`) — filter by period/unit;
+- **fully custom** (`source:'custom'`) — any dimension with its own values
+  (classic: importance — Heavy / Medium / Background); each node then picks
+  its value via `filters: {filter_id: value_id}` in `add_nodes`.
+Constraints: ≤2 filters (the engine has two slots); custom filters take 2–10
+values; filtering is single-valued per node (multi-valued nodes filter by
+their first value — the tools warn). For a mirrored axis whose detail pages
+have no authored sections, set `replace_nav: true` to make it **filter-only**:
+the filter chips replace that axis's navigation chips, and its legend dot and
+per-node card chips disappear too — a dimension that only filters shouldn't
+dangle empty detail pages or identical fallback glyphs on every card.
+→ brief `filters` (in `create_timeline`).
 
 ### G. Persona (stored for reports)
 "Every workspace can have its own study companion. Want one? Name and vibe?"
@@ -140,9 +191,11 @@ Offer to fix. This is the last step before sharing links.
 
 ## Build sequence (tool order)
 
-1. `create_project` → 2. `create_timeline(project_id, brief)` →
-3. `record_materials_consent` → 4. `set_entities` → 5. `add_nodes` (batches;
-authored from the materials in this conversation) → 6. `add_connections` →
+1. `create_project` → 2. `create_timeline(project_id, brief)` (brief carries
+acts, axes, **filters**, relations) → 3. `record_materials_consent` →
+4. `set_entities` → 5. `add_nodes` (batches; authored from the materials in
+this conversation; custom-filter values ride on each node) →
+6. `add_connections` →
 7. `set_overview` (optional prose overview with `showDetail('node','<id>')`
 deep links) → 8. `run_layout_preview` (cheap; rebalance columns on warnings) →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the

@@ -170,7 +170,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -320,8 +320,19 @@ def create_timeline(project_id: str, brief: dict) -> dict:
      entity_axis_label?, entity_axis_singular?,
      acts: [{label, short?, color?}] (2-7),
      axes?: [{label, singular, values:[{id,name,...}]}] (≤2),
+     filters?: [{id, label, source: 'entity'|'axis1'|'axis2'|'acts'|'custom',
+      values?: [{id,name}] (custom source only, 2-10),
+      replace_nav?: bool}] (≤2),
      relations?: [{key,label?,color?}] ('spine' = neutral main thread),
      overview_html?, owner_name?, owner_email?}.
+    Filters add canvas filter chips that dim non-matching nodes (they never
+    navigate). Derived sources (entity/axis1/axis2/acts) mirror that
+    dimension's values and assign nodes automatically; 'custom' declares its
+    own values and each node picks one via its `filters` map in add_nodes.
+    replace_nav makes a mirrored axis1/axis2 filter-only — nav chips, drawer
+    section, legend dot, and per-node card chips are all suppressed (no
+    reachable detail pages) — recommended when that axis has no authored
+    detail sections. On source 'entity' it only swaps the nav chips.
     Entities are set separately via set_entities. Returns validation warnings."""
     st = get_store()
     project_id, err = _check_ref(project_id, "project_id")
@@ -381,8 +392,10 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
 def set_entities(timeline_id: str, entities: list[dict]) -> dict:
     """Define the entity axis (the chips): ≤12 entities
     [{id, name, role?, color?, symbol_svg?, sections?: [{h,t}]}].
-    Omitted colors get a clean palette. Detail-page sections must come
-    verbatim from the user's materials (§0)."""
+    Omitted colors get a clean palette. Design a unique symbol_svg per entity
+    (guide §C1 has the rules and the exact wrapper) — entities without one
+    all share the same fallback ◆ and become indistinguishable. Detail-page
+    sections must come verbatim from the user's materials (§0)."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -403,7 +416,8 @@ def set_entities(timeline_id: str, entities: list[dict]) -> dict:
 def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     """Batch-add/update timeline nodes (idempotent upsert by id). Each:
     {id, act (0-based), tag, title, desc, col?, entity_ids?, axis1_values?,
-     axis2_values?, sections?: [{h,t}]}.
+     axis2_values?, filters?: {custom_filter_id: value_id},
+     sections?: [{h,t}]}.
     §0: title/desc/sections are authored VERBATIM from the user's materials —
     never fill gaps, never collapse multi-item arcs into one node. Column
     guidance: alternate sides; 'center' for pivotal beats; omit col for the

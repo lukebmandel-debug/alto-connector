@@ -58,6 +58,90 @@ def _sections_js(sections, indent="    ") -> str:
     return f"sections:[{items}]"
 
 
+def resolve_filters(b: Brief, nodes: list[Node]) -> list[dict]:
+    """Brief.filters → the engine's two scalar filter slots.
+
+    Returns [{slot, node_key, spec, values: [(id, name)], node_value: {node
+    id → value id}}]; first filter lands on the 'era' slot (node field
+    `era`), second on 'weight' (node field `examWeight` — the engine's
+    historical name for it)."""
+    out = []
+    for i, f in enumerate(b.filters[:2]):
+        slot, node_key = (("era", "era"), ("weight", "examWeight"))[i]
+        if f.source == "entity":
+            values = [(e.id, e.name) for e in b.entities]
+            nv = {n.id: n.entity_ids[0] for n in nodes if n.entity_ids}
+        elif f.source in ("axis1", "axis2"):
+            ax = b.axes[0] if f.source == "axis1" else b.axes[1]
+            attr = "axis1_values" if f.source == "axis1" else "axis2_values"
+            values = [(v.id, v.name) for v in ax.values]
+            nv = {n.id: getattr(n, attr)[0] for n in nodes if getattr(n, attr)}
+        elif f.source == "acts":
+            values = [(f"act-{j+1}", a.short or a.label)
+                      for j, a in enumerate(b.acts)]
+            nv = {n.id: f"act-{n.act+1}" for n in nodes}
+        else:  # custom
+            values = [(v.id, v.name) for v in f.values]
+            nv = {n.id: n.filters[f.id] for n in nodes
+                  if f.id in (n.filters or {})}
+        out.append({"slot": slot, "node_key": node_key, "spec": f,
+                    "values": values, "node_value": nv})
+    return out
+
+
+# Runtime glue emitted (into the `orders` region) only when filters exist.
+# Two jobs the frozen engine no longer does itself:
+#   1. bind clicks for the drawer's [data-sd-axis] filter chips (ConLaw bound
+#      them at creation; the frozen drawer builder emits none of its own);
+#   2. re-label the desktop active-filter banner, whose label maps are
+#      pre-template fossils with a raw-id fallback.
+FILTER_GLUE = """
+(function(){
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest && e.target.closest('#nav-drawer [data-sd-axis]');
+    if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    if(typeof window.setMobileFilter === 'function'){
+      window.setMobileFilter(b.getAttribute('data-sd-axis'), b.getAttribute('data-sd-id'));
+    }
+  }, true);
+  /* The engine's _activeFilters is script-scoped, so mirror the toggle by
+     wrapping filterCanvas; the banner relabel falls back to a reverse lookup
+     on the rendered raw id when the mirror is stale (direct clears). */
+  var state = {};
+  var of = window.filterCanvas;
+  if(typeof of === 'function'){
+    window.filterCanvas = function(axis, value){
+      if(state[axis]===value) delete state[axis]; else state[axis]=value;
+      return of.apply(this, arguments);
+    };
+  }
+  function relabel(seg, key, labels){
+    if(!seg || seg.hasAttribute('hidden')) return;
+    var sp = seg.querySelector('span');
+    if(!sp) return;
+    var name = labels[state[key]] || labels[sp.textContent];
+    if(name) sp.textContent = name;
+  }
+  var tries = 0;
+  (function wrap(){
+    var orig = window._updateDesktopFilterBar;
+    if(typeof orig !== 'function'){ if(++tries < 80) setTimeout(wrap, 250); return; }
+    window._updateDesktopFilterBar = function(){
+      var r = orig.apply(this, arguments);
+      try{
+        var row = document.getElementById('desktop-banner-row');
+        if(row){
+          relabel(row.querySelector('.dbr-era'), 'era', ERA_LABELS);
+          relabel(row.querySelector('.dbr-weight'), 'weight', WEIGHT_LABELS);
+        }
+      }catch(_){}
+      return r;
+    };
+  })();
+})();"""
+
+
 def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
@@ -74,6 +158,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     ent_by_id = {e.id: e for e in b.entities}
+
+    # Canvas filters: resolved slot data plus which axes' navigation chips the
+    # filter chips replace (replace_nav on entity/axis1/axis2 sources).
+    resolved_filters = resolve_filters(b, nodes)
+    nav_replaced = {rf["spec"].source for rf in resolved_filters
+                    if rf["spec"].replace_nav
+                    and rf["spec"].source in ("entity", "axis1", "axis2")}
 
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
@@ -102,11 +193,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         f'style="background:var(--{e.id})"></div>{e.name}</div>'
         for e in b.entities)
     axis_dots = ""
-    if ax1:
+    if ax1 and "axis1" not in nav_replaced:
         axis_dots += ('\n    <div class="legend-item"><div class="legend-dot" '
                       'style="background:var(--env-color);border-radius:2px">'
                       f'</div>{ax1.singular}</div>')
-    if ax2:
+    if ax2 and "axis2" not in nav_replaced:
         axis_dots += ('\n    <div class="legend-item"><div class="legend-dot" '
                       f'style="background:var(--theme-color)"></div>{ax2.singular}</div>')
     divider = ('\n    <div style="width:1px;height:14px;background:var(--border);'
@@ -118,17 +209,26 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"onclick=\"showDetail('{kind}','{vid}')\">{sym} {name}</button>")
 
     nav = [f'<div id="nav">\n    <span class="title">{b.title}</span>']
-    if b.entities:
+    if b.entities and "entity" not in nav_replaced:
         nav.append(f'\n    <span class="nav-group-label">{b.entity_axis_singular}</span>')
         for e in b.entities:
             nav.append(nav_btn("char", e.id, e.symbol_svg or FALLBACK_GLYPH, e.name))
-    for ax, kind, cls in ((ax1, "env", " env-btn"), (ax2, "theme", " theme-btn")):
-        if not ax:
+    for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
+                               (ax2, "axis2", "theme", " theme-btn")):
+        if not ax or src in nav_replaced:
             continue
         nav.append('\n    <div class="nav-divider"></div>')
         nav.append(f'\n    <span class="nav-group-label">{ax.singular}</span>')
         for v in ax.values:
             nav.append(nav_btn(kind, v.id, v.symbol_svg or FALLBACK_GLYPH, v.name, cls))
+    for rf in resolved_filters:
+        nav.append('\n    <div class="nav-divider"></div>')
+        nav.append(f'\n    <span class="nav-group-label">{rf["spec"].label}</span>')
+        for vid, name in rf["values"]:
+            nav.append(f'\n    <button class="nav-btn filter-btn" '
+                       f'data-axis="{rf["slot"]}" data-value="{vid}" '
+                       f'onclick="filterCanvas(\'{rf["slot"]}\',\'{vid}\')">'
+                       f'{name}</button>')
     nav.append("\n  </div>")
     nav = "".join(nav)
 
@@ -136,13 +236,16 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 if b.overview_html else '<div id="summary-inner"></div>')
 
     # ── JS data consts ───────────────────────────────────────────────────────
+    # Keys are quoted because entity ids are slugs and may contain hyphens,
+    # which are illegal in bare JS object keys (an unquoted hyphenated key is
+    # a SyntaxError that kills the whole engine script block).
     chars = "const CHARS={" + ",".join(
-        f"\n  {e.id}: {{name:{js_str(e.name)}, role:{js_str(e.role)}, "
+        f"\n  '{e.id}': {{name:{js_str(e.name)}, role:{js_str(e.role)}, "
         f"color:'#{e.color.lstrip('#')}', symbol:{_sym(e.symbol_svg)}}}"
         for e in b.entities) + "\n};"
 
     char_pages = "const CHAR_PAGES={" + ",".join(
-        f"\n  {e.id}: {{{_sections_js(e.sections)}}}"
+        f"\n  '{e.id}': {{{_sections_js(e.sections)}}}"
         for e in b.entities) + "\n};"
 
     def axis_registry(name, ax):
@@ -179,11 +282,31 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             return f"var(--{n.entity_ids[0]})"
         return "var(--ensemble)"
 
+    def _filter_fields(n):
+        # Scalar filter-slot fields the engine tests in _applyActiveFilters
+        # (era / examWeight). Omitted entirely when no filters are defined so
+        # filterless briefs emit byte-identically to before.
+        parts = ""
+        for rf in resolved_filters:
+            vid = rf["node_value"].get(n.id)
+            if vid is not None:
+                parts += f", {rf['node_key']}:'{vid}'"
+        return parts
+
+    # A replace_nav'd axis is filter-only: emptying its per-node arrays removes
+    # its card/detail chips (which would open empty pages and all share the
+    # fallback glyph); the filter still works off the brief via _filter_fields.
+    envs_of = (lambda n: []) if "axis1" in nav_replaced \
+        else (lambda n: n.axis1_values)
+    themes_of = (lambda n: []) if "axis2" in nav_replaced \
+        else (lambda n: n.axis2_values)
+
     nodes_src = "const NODES_SRC=[" + ",".join(
         f"\n  {{id:'{n.id}', baseY:{round(positions[n.id])}, col:'{n.col}', "
         f"tag:{js_str(n.tag)}, title:{js_str(n.title)}, desc:{js_str(n.desc)}, "
         f"chars:{json.dumps(n.entity_ids)}, color:'{node_color(n)}', "
-        f"envs:{json.dumps(n.axis1_values)}, themes:{json.dumps(n.axis2_values)}}}"
+        f"envs:{json.dumps(envs_of(n))}, themes:{json.dumps(themes_of(n))}"
+        f"{_filter_fields(n)}}}"
         for n in nodes) + "\n];"
 
     act_seqs_list = [[] for _ in b.acts]
@@ -226,6 +349,19 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         f"const CHAR_ORDER  = {json.dumps([e.id for e in b.entities])};\n"
         f"const ENV_ORDER   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
         f"const THEME_ORDER = {json.dumps([v.id for v in ax2.values] if ax2 else [])};")
+    if resolved_filters:
+        def _label_map(slot):
+            rf = next((r for r in resolved_filters if r["slot"] == slot), None)
+            if not rf:
+                return "{}"
+            return "{" + ",".join(f"'{vid}':{js_str(name)}"
+                                  for vid, name in rf["values"]) + "}"
+        # ERA_LABELS/WEIGHT_LABELS are the free globals the engine's mobile
+        # filter bar reads; FILTER_GLUE binds drawer chips + fixes the desktop
+        # banner labels.
+        orders += ("\nvar ERA_LABELS=" + _label_map("era") + ";"
+                   "\nvar WEIGHT_LABELS=" + _label_map("weight") + ";"
+                   + FILTER_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
@@ -265,17 +401,30 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 + f"</span><span class=\"drawer-label\">{name}</span></button>',")
 
     drawer = []
-    if b.entities:
+    if b.entities and "entity" not in nav_replaced:
         drawer.append(f"'    <div class=\"drawer-section-label\">{b.entity_axis_label}</div>',")
         for e in b.entities:
             drawer.append(drawer_btn("char", e.id, e.symbol_svg, e.name,
                                      data_char=e.id))
-    for ax, kind, cls in ((ax1, "env", " env-btn"), (ax2, "theme", " theme-btn")):
-        if not ax:
+    for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
+                               (ax2, "axis2", "theme", " theme-btn")):
+        if not ax or src in nav_replaced:
             continue
         drawer.append(f"'    <div class=\"drawer-section-label\">{ax.label}</div>',")
         for v in ax.values:
             drawer.append(drawer_btn(kind, v.id, v.symbol_svg, v.name, cls))
+    # Filter chips: data-sd-axis/-id (NOT data-sd-type, which would make the
+    # engine's drawer handler navigate). Engine CSS already styles
+    # .drawer-btn.filter-btn[data-sd-axis]; clicks are bound by FILTER_GLUE.
+    # Text-only on purpose: filter values carry no authored glyphs, and a row
+    # of identical fallback diamonds reads as meaning it doesn't have.
+    for rf in resolved_filters:
+        drawer.append(f"'    <div class=\"drawer-section-label\">{rf['spec'].label}</div>',")
+        for vid, name in rf["values"]:
+            drawer.append(
+                f"'    <button class=\"drawer-btn filter-btn\" "
+                f"data-sd-axis=\"{rf['slot']}\" data-sd-id=\"{vid}\">"
+                f"<span class=\"drawer-label\">{name}</span></button>',")
     drawer_filters = "\n".join(drawer)
 
     # ── mobile grid ──────────────────────────────────────────────────────────

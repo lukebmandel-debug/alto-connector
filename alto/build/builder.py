@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .brief import Brief, Node, Act, Axis, AxisValue, Entity, Relation, Section, \
-    validate_brief, validate_nodes
+from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
+    FilterValue, Relation, Section, validate_brief, validate_nodes
 from .blocks import timeline_blocks, connections_block
 from .emit import emit
 from .layout import assign_columns, resolve, mobile_grid
@@ -27,6 +27,10 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
                      for v in ax.get("values", [])])
         for ax in bd.get("axes", [])]
     bd["relations"] = [Relation(**r) for r in bd.get("relations", [])]
+    bd["filters"] = [
+        FilterSpec(**{**f, "values": [FilterValue(**v)
+                                      for v in f.get("values", [])]})
+        for f in bd.get("filters", [])]
     brief = Brief(**bd)
     nodes = [
         Node(**{**n, "sections": [Section(**s) for s in n.get("sections", [])]})
