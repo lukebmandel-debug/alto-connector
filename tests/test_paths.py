@@ -200,6 +200,28 @@ def test_default_store_is_somewhere_a_person_would_look(monkeypatch):
     assert root == P.home() / "Documents" / "Alto"
 
 
+def test_unexpanded_mcpb_placeholder_never_becomes_a_path(monkeypatch):
+    """Observed on a real install (2026-08-12): Claude Desktop passed the
+    .mcpb user_config default through verbatim, so ALTO_STORE_DIR arrived as
+    the literal '${HOME}/Documents/Alto'. LocalStore then tried to mkdir
+    '${HOME}' at the filesystem root and every tool failed with EROFS."""
+    from pathlib import Path as P
+    from alto import mcp_server as srv
+    home = P.home() / "Documents" / "Alto"
+
+    # HOME present: expand it properly rather than trusting the client.
+    monkeypatch.setenv("ALTO_STORE_DIR", "${HOME}/Documents/Alto")
+    assert P(srv.store_dir()) == home
+
+    # HOME absent: unresolvable placeholder must fall back, never be a path.
+    monkeypatch.delenv("HOME", raising=False)
+    got = srv.store_dir()
+    assert "$" not in got and "{" not in got, got
+
+    monkeypatch.setenv("ALTO_STORE_DIR", "~/Documents/Alto")
+    assert "~" not in srv.store_dir()
+
+
 def test_the_suite_never_writes_to_the_real_store(monkeypatch):
     """conftest points ALTO_STORE_DIR at a temp dir for every test; this is
     the canary if that fixture is ever removed."""

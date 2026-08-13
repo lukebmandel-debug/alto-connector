@@ -44,9 +44,24 @@ def store_dir() -> str:
 
     Separate from get_store() so it can be asserted on without constructing a
     LocalStore, which would mkdir the very directory under test.
+
+    The value is expanded and sanity-checked because it does not always
+    arrive expanded: an .mcpb user_config default like "${HOME}/Documents/Alto"
+    reaches the server verbatim when the user never opens the extension's
+    settings, and mkdir then tries to create a directory literally named
+    '${HOME}' — at the filesystem root, which fails with EROFS and bricks
+    every tool. A placeholder that survives expansion means the client did not
+    resolve it, so fall back to the documented default rather than write to a
+    nonsense path.
     """
-    return os.environ.get("ALTO_STORE_DIR",
-                          str(Path.home() / "Documents" / "Alto"))
+    default = str(Path.home() / "Documents" / "Alto")
+    raw = os.environ.get("ALTO_STORE_DIR", "").strip()
+    if not raw:
+        return default
+    path = os.path.expanduser(os.path.expandvars(raw))
+    if "$" in path or "{" in path:
+        return default
+    return path
 
 
 def get_store():
@@ -170,7 +185,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
