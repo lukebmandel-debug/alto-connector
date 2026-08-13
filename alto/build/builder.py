@@ -8,6 +8,7 @@ from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes
 from .blocks import timeline_blocks, connections_block
 from .emit import emit
+from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid
 from .sanitize import sanitize_brief
 from ..engine import template as engine_template
@@ -73,7 +74,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     regions["connections"] = connections_block(connections)
 
     template = engine_template("timeline_template.html")
-    html = emit(template, regions, tokens)
+    html = apply_patches(emit(template, regions, tokens))
 
     failures = verify_output(html)
     if failures:
