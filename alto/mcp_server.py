@@ -24,7 +24,7 @@ from mcp.types import ToolAnnotations
 from .build.brief import BriefError, ID_RE
 from .build.builder import load_brief, build_timeline as _build, run_layout
 from .build.single_file import bundle
-from .build.verify import VerifyError
+from .build.verify import VerifyError, verify_scripts
 from .store.local import LocalStore
 
 ROOT = Path(__file__).resolve().parent
@@ -185,7 +185,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.1.3"
+__version__ = "1.2.0"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -340,7 +340,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       replace_nav?: bool}] (≤2),
      relations?: [{key,label?,color?}] ('spine' = neutral main thread; other
       relations get distinct palette colors when color is omitted, so their
-      lines stay tellable apart from the spine),
+      lines stay tellable apart from the spine. Each label is user-visible: it
+      appears in the on-page line key (desktop nav + mobile drawer) next to a
+      swatch of its line color, for every relation a connection actually uses —
+      so keep labels short, e.g. 'Overrules'),
      overview_html?, owner_name?, owner_email?}.
     Filters add canvas filter chips that dim non-matching nodes (they never
     navigate). Derived sources (entity/axis1/axis2/acts) mirror that
@@ -498,9 +501,12 @@ def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
 
 @mcp.tool(title="Set overview", annotations=RW)
 def set_overview(timeline_id: str, overview_html: str) -> dict:
-    """Optional prose overview panel (HTML paragraphs; may deep-link nodes via
-    onclick=\"showDetail('node','<id>')\"). Authored from the user's material
-    (§0). Link targets are validated at build."""
+    """Optional prose overview panel (HTML paragraphs). Authored from the user's
+    material (§0). Deep-link a node with exactly
+    `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — at build
+    these become the engine's clickable overview chips. A link whose id is not a
+    live node is demoted to plain text with a build warning, so links are always
+    validated before anything ships."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -508,6 +514,19 @@ def set_overview(timeline_id: str, overview_html: str) -> dict:
         return CONSENT_ERROR
     doc["brief"] = {**doc["brief"], "overview_html": overview_html}
     get_store().put_timeline(uid(), timeline_id, doc)
+    # Eager, non-blocking feedback: flag deep links to ids that aren't live
+    # nodes now (the build-time demotion is the actual enforcement, but a later
+    # delete_nodes can still invalidate a link, so this only advises).
+    import re as _re
+    linked = set(_re.findall(
+        r"showDetail\(\s*['\"]node['\"]\s*,\s*['\"]([a-z][a-z0-9-]{0,47})['\"]",
+        overview_html or ""))
+    known = {n["id"] for n in get_store().list_nodes(uid(), timeline_id)}
+    unknown = sorted(linked - known)
+    if unknown:
+        return {"ok": True, "warnings": [
+            "overview deep-links to unknown node ids (they will show as plain "
+            "text at build): " + ", ".join(unknown)]}
     return {"ok": True}
 
 
@@ -542,8 +561,9 @@ def run_layout_preview(timeline_id: str) -> dict:
 @mcp.tool(title="Build timeline", annotations=RW)
 def build_timeline(timeline_id: str) -> dict:
     """Emit the timeline from the engine template, verify it (structure,
-    geometry, no invented slots), and store the artifacts (hosted page +
-    offline single-file). Fails with the exact check list on any violation."""
+    geometry, no invented slots, and a JS parse check of every emitted script),
+    and store the artifacts (hosted page + offline single-file). Fails with the
+    exact check list on any violation."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -561,9 +581,17 @@ def build_timeline(timeline_id: str) -> dict:
         return {"error": "build_failed", "message": str(e)}
     from .hosted import hosted_timeline
     st = get_store()
+    # timeline.html was parse-gated inside _build; hosted/offline are derived
+    # from it (string patches, bundle shell) so a bad rewrite there must be
+    # caught before either artifact is stored.
+    hosted = hosted_timeline(html, timeline_id)
+    for lbl, doc_html in (("hosted.html", hosted), ("offline.html", offline)):
+        js_failures, js_warnings = verify_scripts(doc_html, lbl)
+        if js_failures:
+            return {"error": "verify_failed", "failures": js_failures}
+        report["warnings"] += js_warnings
     st.put_artifact(uid(), timeline_id, "timeline.html", html)
-    st.put_artifact(uid(), timeline_id, "hosted.html",
-                    hosted_timeline(html, timeline_id))
+    st.put_artifact(uid(), timeline_id, "hosted.html", hosted)
     offline_path = st.put_artifact(uid(), timeline_id, "offline.html", offline)
     doc["status"] = "built"
     doc["build_report"] = report

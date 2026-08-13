@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
@@ -12,7 +13,7 @@ from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid
 from .sanitize import sanitize_brief
 from ..engine import template as engine_template
-from .verify import verify_data, verify_output, VerifyError
+from .verify import verify_data, verify_output, verify_scripts, VerifyError
 
 
 def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
@@ -57,8 +58,9 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     # Validation first (it reads raw values and fills defaults), then make the
     # content inert. Everything downstream of here — blocks.py, emit, the
-    # engine's innerHTML sinks — may assume text is already escaped.
-    sanitize_brief(brief, nodes)
+    # engine's innerHTML sinks — may assume text is already escaped. Sanitize
+    # also rewrites overview deep links and reports unknown-node demotions.
+    warnings += sanitize_brief(brief, nodes)
 
     assign_columns(nodes, brief.columns)
     failures = verify_data(brief, nodes, connections)
@@ -70,15 +72,26 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     regions, tokens = timeline_blocks(
         brief, nodes, positions, heights, mgrid, mobile_h,
-        reports_href=reports_href)
+        reports_href=reports_href, connections=connections)
     regions["connections"] = connections_block(connections)
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
 
-    failures = verify_output(html)
+    # Deep links that survived sanitize (unknown ones were demoted) must reach
+    # the output as engine chip markup — assert each one did.
+    deeplink_ids = re.findall(
+        r"onclick=\"showDetail\('node','([a-z][a-z0-9-]{0,47})'\)\"",
+        brief.overview_html or "")
+    failures = verify_output(html, deeplink_ids)
     if failures:
         raise VerifyError(failures)
+
+    # Parse-gate every emitted script: a SyntaxError must abort, not ship silent.
+    js_failures, js_warnings = verify_scripts(html, "timeline")
+    if js_failures:
+        raise VerifyError(js_failures)
+    warnings += js_warnings
 
     report = {
         "warnings": warnings,

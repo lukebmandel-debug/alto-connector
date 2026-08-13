@@ -174,6 +174,21 @@ def test_payloads_do_not_survive_a_real_build():
     assert "function initLayout(" in body
 
 
+def test_poisoned_overview_showdetail_cannot_break_out():
+    """A showDetail() deep link whose id tries to break out of the onclick
+    attribute never matches the strict full-match pattern, so it is demoted to
+    plain text — its code is never emitted as a live handler."""
+    from alto.build.sanitize import clean_overview
+    evil = (
+        "<a onclick=\"showDetail('node','x'); window.__pwned=1; //')\">a</a>"
+        "<a onclick=\"showDetail('node','x&quot; onmouseover=&quot;y')\">b</a>")
+    out, _ = clean_overview(evil, {"x"})
+    assert "__pwned" not in out
+    assert "onmouseover" not in out
+    assert "showDetail" not in out          # neither survived as a handler
+    assert "a" in out and "b" in out        # link text kept as prose
+
+
 def test_payloads_do_not_break_js_syntax():
     """A payload that closed a JS literal would leave unbalanced quotes; the
     build's own verifier plus a token scan is the cheap proxy for that."""

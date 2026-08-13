@@ -143,7 +143,10 @@ rules, learned the hard way:
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary
 small and unambiguous. One relation may be the **spine** (the main thread) —
 key it `spine`; it renders as the neutral flowing line. Others can carry
-colors. → brief `relations`; used by `add_connections`.
+colors. → brief `relations`; used by `add_connections`. Relation **labels are
+user-visible**: each appears in the on-page line key (desktop nav + mobile
+drawer) beside a swatch of its line color, for every relation a connection
+actually uses — so keep them short (e.g. "Overrules").
 
 ### F. Extra axes (0–2)
 Beyond the entity axis: up to two more axes (e.g. environments/themes for a
@@ -198,8 +201,11 @@ acts, axes, **filters**, relations) → 3. `record_materials_consent` →
 4. `set_entities` → 5. `add_nodes` (batches; authored from the materials in
 this conversation; custom-filter values ride on each node) →
 6. `add_connections` →
-7. `set_overview` (optional prose overview with `showDetail('node','<id>')`
-deep links) → 8. `run_layout_preview` (cheap; rebalance columns on warnings) →
+7. `set_overview` (optional prose overview; deep-link a node with exactly
+`<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become
+the engine's clickable overview chips at build; a link to an id that is not a
+live node is demoted to plain text and warns, so check the build warnings) →
+8. `run_layout_preview` (cheap; rebalance columns on warnings) →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the
 view/download links. Use `get_timeline` to resume a draft in a later chat.
 

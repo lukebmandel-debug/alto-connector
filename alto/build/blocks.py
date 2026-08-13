@@ -19,7 +19,7 @@ import re
 from urllib.parse import quote as url_q
 
 from .brief import Brief, Node, COL_SETS, ROMAN
-from .sanitize import css_color, one_line
+from .sanitize import css_color, esc, one_line
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
 # Generic section-builder code (same shape as the template's empty defaults —
@@ -161,11 +161,12 @@ def _sym(svg: str) -> str:
 
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     mgrid, mobile_world_h: int, *, reports_href: str = None,
-                    view_path: str = "") -> tuple[dict, dict]:
+                    view_path: str = "", connections: list = None) -> tuple[dict, dict]:
     """Return (regions, tokens) for emit() against timeline_template.html.
 
     nodes must be validated, in narrative order, with col set and positions
-    resolved. mgrid: id -> [colIndex, row].
+    resolved. mgrid: id -> [colIndex, row]. connections (optional) drives the
+    relation "line key" — only relations actually used by a connection appear.
     """
     tid = b.timeline_id
     ax1 = b.axes[0] if len(b.axes) > 0 else None
@@ -185,9 +186,29 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     if rf["spec"].replace_nav
                     and rf["spec"].source in ("entity", "axis1", "axis2")}
 
+    # Relation "line key": the legend that names which line color means which
+    # relation. Only relations actually used by a connection are shown, in
+    # vocabulary order; a labeled spine appears last as the neutral flowing line.
+    used_rels = {c[2] for c in (connections or []) if len(c) >= 3}
+    rel_key_items = [(r.label, f"var(--rel-{r.key})") for r in b.relations
+                     if r.key != "spine" and r.color and r.label
+                     and r.key in used_rels]
+    # The spine joins the key only when there is a colored relation to tell it
+    # apart from — a spine-only timeline's neutral thread is self-evident, and a
+    # one-row "Lines" legend on it is noise (and would break byte-parity).
+    _spine = next((r for r in b.relations if r.key == "spine"), None)
+    if rel_key_items and _spine and _spine.label and "spine" in used_rels:
+        rel_key_items.append((_spine.label, "var(--line-flow)"))
+
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
     entity_vars += f"--accent:{b.accent};"
+    # --rel-<key> resolve the connection line colors: the engine's _lineResolveVar
+    # reads getComputedStyle('--rel-<key>'); without these the tube stroke gets a
+    # literal `var(--rel-…)` and contrast adaptation is skipped. Emitted only for
+    # colored non-spine relations, so a relationless brief adds zero bytes.
+    entity_vars += "".join(f"--rel-{r.key}:{r.color};" for r in b.relations
+                           if r.key != "spine" and r.color)
 
     def phase_line(alpha):
         return "".join(
@@ -248,6 +269,17 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                        f'data-axis="{rf["slot"]}" data-value="{vid}" '
                        f'onclick="filterCanvas(\'{rf["slot"]}\',\'{vid}\')">'
                        f'{name}</button>')
+    # Relation line key (desktop): inert chips (pointer-events:none) whose swatch
+    # is the relation's line color. Mobile hides #nav .nav-btn entirely, so the
+    # drawer carries its own copy below.
+    if rel_key_items:
+        nav.append('\n    <div class="nav-divider"></div>')
+        nav.append('\n    <span class="nav-group-label">Lines</span>')
+        for label, swatch in rel_key_items:
+            nav.append(
+                '\n    <span class="nav-btn" style="pointer-events:none;cursor:default">'
+                f'<span style="display:inline-block;width:14px;height:3px;'
+                f'border-radius:2px;background:{swatch}"></span>{esc(label)}</span>')
     nav.append("\n  </div>")
     nav = "".join(nav)
 
@@ -454,6 +486,17 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"'    <button class=\"drawer-btn filter-btn\" "
                 f"data-sd-axis=\"{rf['slot']}\" data-sd-id=\"{vid}\">"
                 f"<span class=\"drawer-label\">{name}</span></button>',")
+    # Relation line key (mobile): attribute-free inert rows — no data-sd-* means
+    # the engine's drawer handler and FILTER_GLUE both ignore them.
+    if rel_key_items:
+        drawer.append("'    <div class=\"drawer-section-label\">Lines</div>',")
+        for label, swatch in rel_key_items:
+            drawer.append(
+                "'    <div class=\"drawer-btn\" style=\"pointer-events:none\">"
+                "<span class=\"drawer-icon\"><span style=\"display:inline-block;"
+                "width:16px;height:3px;border-radius:2px;background:" + swatch
+                + "\"></span></span><span class=\"drawer-label\">" + esc(label)
+                + "</span></div>',")
     drawer_filters = "\n".join(drawer)
 
     # ── mobile grid ──────────────────────────────────────────────────────────
@@ -463,7 +506,6 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     f"MOBILE_OY={MOBILE_OY}, MOBILE_WORLD_W={MOBILE_WORLD_W}, "
                     f"MOBILE_WORLD_H={mobile_world_h};")
 
-    connections = None  # provided by caller via separate argument historically
     regions = {
         "entity_css_vars": entity_vars,
         "phase_css_vars_light": phase_line("0.09"),

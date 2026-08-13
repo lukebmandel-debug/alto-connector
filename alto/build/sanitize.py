@@ -94,6 +94,27 @@ _CSS_COLOR = re.compile(
     r"|hsla?\([\d\s.,%deg]{1,40}\)"
     r"|[a-zA-Z]{3,20})$")
 
+# An overview deep link the engine understands: `showDetail('node','<id>')`,
+# optionally as a `javascript:` href and optionally trailed by `return false`.
+# Full-match, and the id is the same slug shape as a node id (brief.ID_RE), so
+# the captured value is safe to interpolate back into the emitted onclick — it
+# can carry no quote or space to break out of the attribute.
+_SHOWDETAIL_RE = re.compile(
+    r"^\s*(?:javascript:\s*)?showDetail\(\s*['\"]node['\"]\s*,"
+    r"\s*['\"]([a-z][a-z0-9-]{0,47})['\"]\s*\)\s*;?\s*"
+    r"(?:return\s+false\s*;?\s*)?$")
+
+
+def _showdetail_id(attrs) -> "str | None":
+    """The node id an <a>'s onclick/href deep-links to, or None if it isn't a
+    showDetail link."""
+    for name, value in attrs:
+        if (name or "").lower() in ("onclick", "href") and value:
+            m = _SHOWDETAIL_RE.match(value.strip())
+            if m:
+                return m.group(1)
+    return None
+
 
 def esc(s) -> str:
     """HTML-escape text, quotes included. Safe in element and attribute bodies."""
@@ -155,12 +176,18 @@ class _Allowlist(HTMLParser):
 
     DROP_CONTENT = {"script", "style"}
 
-    def __init__(self, tags: set, attrs, svg: bool = False):
+    def __init__(self, tags: set, attrs, svg: bool = False, node_ids=None):
         super().__init__(convert_charrefs=True)
         self.tags, self.attrs, self.svg = tags, attrs, svg
+        # None → ordinary markup mode; a set → overview mode, where <a> tags
+        # carrying a showDetail() deep link are rewritten to the engine's
+        # clickable-chip markup (known id) or demoted to plain text (unknown).
+        self.node_ids = node_ids
         self.out: list[str] = []
         self._open: list[str] = []
+        self._anchor_stack: list[str] = []
         self._suppress = 0
+        self.warnings: list[str] = []
 
     def _allowed_attrs(self, tag: str):
         return self.attrs if self.svg else self.attrs.get(tag, set())
@@ -190,9 +217,37 @@ class _Allowlist(HTMLParser):
             return
         if self._suppress or tag not in self.tags:
             return
+        if tag == "a" and self.node_ids is not None:
+            self._open_overview_anchor(attrs)
+            return
         self.out.append(f"<{tag}{self._emit_attrs(tag, attrs)}>")
         if tag not in VOID_TAGS:
             self._open.append(tag)
+
+    def _open_overview_anchor(self, attrs):
+        """Rewrite an overview <a> per its showDetail() target. The visible link
+        text flows through handle_data unchanged; the matching </a> is closed in
+        handle_endtag off _anchor_stack (not _open, since the emitted wrapper is
+        a <span>, not an <a>)."""
+        nid = _showdetail_id(attrs)
+        if nid is None:
+            # Not a deep link — keep it as a normal <a> (any onclick is stripped
+            # by _emit_attrs' on* rule, exactly as before this mode existed).
+            self.out.append(f"<a{self._emit_attrs('a', attrs)}>")
+            self._anchor_stack.append("a")
+        elif nid in self.node_ids:
+            # The engine's initOverviewNavLinks reads the node id from the hidden
+            # button's onclick and turns the span into a clickable chip.
+            self.out.append(
+                '<span class="ov-node-link"><button class="ov-node-btn" '
+                f"onclick=\"showDetail('node','{nid}')\"></button>")
+            self._anchor_stack.append("span")
+        else:
+            # validate-before-write: a link to a non-existent node never ships as
+            # a dead chip — it becomes plain prose, and the build is warned.
+            self.warnings.append(
+                f"overview: deep link to unknown node {nid!r} demoted to plain text")
+            self._anchor_stack.append("drop")
 
     def handle_startendtag(self, tag, attrs):
         tag = tag.lower()
@@ -205,7 +260,17 @@ class _Allowlist(HTMLParser):
         if tag in self.DROP_CONTENT:
             self._suppress = max(0, self._suppress - 1)
             return
-        if self._suppress or tag not in self.tags or tag in VOID_TAGS:
+        if self._suppress:
+            return
+        if tag == "a" and self.node_ids is not None and self._anchor_stack:
+            action = self._anchor_stack.pop()
+            if action == "span":
+                self.out.append("</span>")
+            elif action == "a":
+                self.out.append("</a>")
+            # "drop" closes nothing — the wrapper emitted nothing to close.
+            return
+        if tag not in self.tags or tag in VOID_TAGS:
             return
         if tag in self._open:
             # Close anything left dangling so a stray </div> can't unbalance the
@@ -235,6 +300,13 @@ class _Allowlist(HTMLParser):
     def result(self) -> str:
         while self._open:
             self.out.append(f"</{self._open.pop()}>")
+        # Close any overview anchors the author left unbalanced.
+        for action in reversed(self._anchor_stack):
+            if action == "span":
+                self.out.append("</span>")
+            elif action == "a":
+                self.out.append("</a>")
+        self._anchor_stack.clear()
         return "".join(self.out)
 
 
@@ -252,6 +324,19 @@ def clean_markup(value) -> str:
     return _run(value, MARKUP_TAGS, MARKUP_ATTRS)
 
 
+def clean_overview(value, node_ids) -> "tuple[str, list[str]]":
+    """Allowlisted inline HTML for the overview panel, plus deep-link rewriting:
+    an <a> whose onclick/href is `showDetail('node','<id>')` becomes the engine's
+    clickable-chip markup when the id is a live node, or plain text (with a
+    warning) when it isn't. Returns (html, warnings)."""
+    if not value:
+        return "", []
+    p = _Allowlist(MARKUP_TAGS, MARKUP_ATTRS, node_ids=node_ids or set())
+    p.feed(str(value))
+    p.close()
+    return p.result(), p.warnings
+
+
 def clean_svg(value) -> str:
     """Allowlisted inline SVG — for entity/axis `symbol_svg` glyphs."""
     return _run(value, SVG_TAGS, SVG_ATTRS, svg=True)
@@ -261,14 +346,16 @@ def clean_svg(value) -> str:
 _FLAG = "_alto_sanitized"
 
 
-def sanitize_brief(b, nodes=None) -> None:
+def sanitize_brief(b, nodes=None) -> list:
     """Escape plain text and allowlist markup, in place. Idempotent.
 
-    Call exactly once per Brief before blocks.py sees it. The flag makes a
-    second call a no-op rather than double-escaping `&` into `&amp;amp;`.
+    Returns overview deep-link warnings (unknown-node demotions). Call exactly
+    once per Brief before blocks.py sees it; the flag makes a second call a no-op
+    (rather than double-escaping `&` into `&amp;amp;`) and re-returns the same
+    warnings.
     """
     if getattr(b, _FLAG, False):
-        return
+        return getattr(b, "_alto_sanitize_warnings", [])
 
     def sections(items):
         for s in items or []:
@@ -280,7 +367,8 @@ def sanitize_brief(b, nodes=None) -> None:
     b.entity_axis_label = plain_text(b.entity_axis_label)
     b.entity_axis_singular = plain_text(b.entity_axis_singular)
     b.node_noun = plain_text(b.node_noun)
-    b.overview_html = clean_markup(b.overview_html)
+    b.overview_html, ov_warnings = clean_overview(
+        b.overview_html, {n.id for n in (nodes or [])})
     # These two land inside single-quoted JS literals in the sign-in stub, so
     # they additionally must not contain a quote that closes the literal.
     b.owner_name = one_line(b.owner_name).replace("'", "’")
@@ -315,3 +403,5 @@ def sanitize_brief(b, nodes=None) -> None:
         sections(n.sections)
 
     setattr(b, _FLAG, True)
+    setattr(b, "_alto_sanitize_warnings", ov_warnings)
+    return ov_warnings
