@@ -27,13 +27,15 @@ from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 NODE_SECTIONS_D = (
     "sections = ((nd.sections)||[]).filter(s=>s&&s.t);\n"
     "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});")
-CHAR_SECTIONS_D = "sections=(p.sections||[]).filter(s=>s&&s.t);"
+CHAR_SECTIONS_D = ("sections=(p.sections||[]).filter(s=>s&&s.t)"
+                   ".concat(_altoDoctrineBody(id));")
 ENV_SECTIONS_D = "sections=(e.sections||[]).filter(s=>s&&s.t);"
 THEME_SECTIONS_D = "sections=(th.sections||[]).filter(s=>s&&s.t);"
 NODE_SECTIONS_M = (
     "var sections=((ndDet.sections)||[]).filter(function(s){return s&&s.t;});\n"
     "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});")
-CHAR_SECTIONS_M = "var chSecs=(cp.sections||[]).filter(function(s){return s&&s.t;});"
+CHAR_SECTIONS_M = ("var chSecs=(cp.sections||[]).filter(function(s){return s&&s.t;})"
+                   ".concat(_altoDoctrineBody(targetId));")
 ENV_SECTIONS_M = "var enSecs=(en.sections||[]).filter(function(s){return s&&s.t;});"
 THEME_SECTIONS_M = "var thSecs=(th.sections||[]).filter(function(s){return s&&s.t;});"
 
@@ -93,6 +95,12 @@ def resolve_filters(b: Brief, nodes: list[Node]) -> list[dict]:
             values = [(f"act-{j+1}", a.short or a.label)
                       for j, a in enumerate(b.acts)]
             nv = {n.id: f"act-{n.act+1}" for n in nodes}
+        elif f.source == "coverage":
+            # Derived from how much the student authored on each node: a node
+            # with ≥2 detail sections is Solid, otherwise Thin (stub/one-liner).
+            values = [("solid", "Solid"), ("thin", "Thin")]
+            nv = {n.id: ("solid" if sum(1 for s in n.sections if s.t) >= 2
+                         else "thin") for n in nodes}
         else:  # custom
             values = [(v.id, v.name) for v in f.values]
             nv = {n.id: n.filters[f.id] for n in nodes
@@ -155,6 +163,117 @@ FILTER_GLUE = """
 })();"""
 
 
+# Emitted into the `orders` region. Builds a doctrine/entity detail page from
+# the student's OWN material when authored sections are thin/absent — a member
+# roster + the relations among those members, all re-projected from NODES_SRC /
+# CONNECTIONS (never invented). This is the never-empty fallback: an entity has
+# ≥1 member by construction, so the page is always populated; and every token is
+# the student's own text or a derived count, so it is never slop. Rows carry
+# data-goto and a delegated listener opens the node — no quote-escaping needed.
+DOCTRINE_BODY = """
+function _altoDoctrineBody(id){
+  if(typeof NODES_SRC==='undefined') return [];
+  var members = NODES_SRC.filter(function(n){ return (n.chars||[]).indexOf(id)!==-1; });
+  if(!members.length) return [];
+  var nn = (typeof _ALTO_NODE_NOUN!=='undefined' && _ALTO_NODE_NOUN) || 'Case';
+  var titleOf={}; NODES_SRC.forEach(function(n){ titleOf[n.id]=n.title; });
+  var memberSet={}; members.forEach(function(n){ memberSet[n.id]=1; });
+  var actSet={};
+  members.forEach(function(n){ var a=(typeof NODE_ACT!=='undefined'&&NODE_ACT[n.id]!=null)?NODE_ACT[n.id]:0; actSet[a]=1; });
+  var spans=Object.keys(actSet).map(function(a){ return (typeof PHASE_META!=='undefined'&&PHASE_META[a])?PHASE_META[a].label:''; }).filter(Boolean);
+  var thin = members.length<=2 || members.every(function(n){
+    var d=(typeof NODE_DETAILS!=='undefined')&&NODE_DETAILS[n.id];
+    return !(d&&d.sections&&d.sections.filter(function(s){return s&&s.t;}).length);
+  });
+  var meta = '<div class="doc-meta">'
+    + members.length+' '+nn.toLowerCase()+(members.length===1?'':'s')
+    + (spans.length?' &middot; '+spans.join(', '):'')
+    + (thin?' &middot; <strong class="doc-thin">THIN &mdash; sparse in your notes</strong>':'')
+    + '</div>';
+  var rows = members.map(function(n){
+    return '<div class="doc-row" data-goto="'+n.id+'">'
+      + '<span class="doc-row-t">'+(n.title||'')+'</span>'
+      + (n.tag?' <span class="doc-row-tag">'+n.tag+'</span>':'')
+      + (n.desc?'<div class="doc-row-d">'+n.desc+'</div>':'')
+      + '</div>';
+  }).join('');
+  var heading = nn + (/s$/i.test(nn)?'':'s');
+  var out=[{h: heading, t: meta+rows}];
+  if(typeof CONNECTIONS!=='undefined'){
+    var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
+    var internal=CONNECTIONS.filter(function(c){ return memberSet[c[0]]&&memberSet[c[1]]; });
+    if(internal.length){
+      var relRows=internal.map(function(c){
+        var lab=rl[c[2]]||'related';
+        var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--line-flow)';
+        return '<div class="doc-rel"><span class="doc-rel-dot" style="background:'+col+'"></span>'
+          +(titleOf[c[0]]||c[0])+' <span class="doc-rel-lab">'+lab+' &rarr;</span> '+(titleOf[c[1]]||c[1])+'</div>';
+      }).join('');
+      out.push({h:'How they connect', t:relRows});
+    }
+  }
+  return out;
+}
+(function(){
+  if(window._altoDocRowBound) return; window._altoDocRowBound=1;
+  document.addEventListener('click', function(e){
+    var r = e.target && e.target.closest && e.target.closest('.doc-row[data-goto]');
+    if(r && typeof showDetail==='function'){ e.preventDefault(); showDetail('node', r.getAttribute('data-goto')); }
+  });
+})();"""
+
+
+# Interactive relation "Lines" key (emitted into `orders`). Clicking a line-key
+# chip isolates that relation's edges on the canvas (dims the rest); active state
+# lives in the chips' .active class so the engine's own nav-resets keep it in
+# sync. Plus a per-edge hover tooltip (tubes get pointer-events via CSS since
+# #river-svg is otherwise click-through). Dims only lines — node dimming is the
+# filter's job, and touching it here would fight the filter state.
+LINES_GLUE = """
+function isolateRelation(key){
+  var svg=document.getElementById('river-svg'); if(!svg||typeof CONNECTIONS==='undefined') return;
+  var btns=document.querySelectorAll('.line-key-btn[data-rel-key]');
+  btns.forEach(function(b){ if(b.getAttribute('data-rel-key')===key) b.classList.toggle('active'); });
+  var active={};
+  btns.forEach(function(b){ if(b.classList.contains('active')) active[b.getAttribute('data-rel-key')]=1; });
+  var tubes=svg.querySelectorAll('[data-edge]');
+  if(!Object.keys(active).length){ tubes.forEach(function(p){ p.style.opacity=''; }); return; }
+  var keep={};
+  CONNECTIONS.forEach(function(c){ if(active[c[2]]) keep[c[0]+'|'+c[1]]=1; });
+  tubes.forEach(function(p){ p.style.opacity = keep[p.getAttribute('data-edge')] ? '1' : '0.08'; });
+}
+(function(){
+  if(window._altoLinesBound) return; window._altoLinesBound=1;
+  document.addEventListener('click', function(e){
+    var b=e.target && e.target.closest && e.target.closest('.line-key-btn[data-rel-key]');
+    if(b){ e.preventDefault(); e.stopPropagation(); isolateRelation(b.getAttribute('data-rel-key')); }
+  }, true);
+  var tip=null;
+  function edgeInfo(edge){
+    if(typeof CONNECTIONS==='undefined') return '';
+    var p=edge.split('|'), from=p[0], to=p[1], c=null;
+    for(var i=0;i<CONNECTIONS.length;i++){ if(CONNECTIONS[i][0]===from&&CONNECTIONS[i][1]===to){ c=CONNECTIONS[i]; break; } }
+    if(!c) return '';
+    var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{}, tt={};
+    if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ tt[n.id]=n.title; });
+    return (rl[c[2]]?rl[c[2]]+': ':'')+(tt[from]||from)+' → '+(tt[to]||to);
+  }
+  document.addEventListener('mouseover', function(e){
+    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge]'); if(!p) return;
+    var info=edgeInfo(p.getAttribute('data-edge')); if(!info) return;
+    if(!tip){ tip=document.createElement('div'); tip.className='line-tip'; document.body.appendChild(tip); }
+    tip.textContent=info; tip.style.display='block';
+  });
+  document.addEventListener('mousemove', function(e){
+    if(tip && tip.style.display==='block'){ tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+14)+'px'; }
+  });
+  document.addEventListener('mouseout', function(e){
+    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge]');
+    if(p && tip){ tip.style.display='none'; }
+  });
+})();"""
+
+
 def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
@@ -172,6 +291,19 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     ent_by_id = {e.id: e for e in b.entities}
+    # Per-entity member count + "thin" flag — the nav "gap radar": a doctrine
+    # with ≤2 members or only stub (section-less) members reads as thin.
+    ent_count = {e.id: 0 for e in b.entities}
+    ent_has_sec = {e.id: False for e in b.entities}
+    for n in nodes:
+        for eid in (n.entity_ids or []):
+            if eid in ent_count:
+                ent_count[eid] += 1
+                if any(s.t for s in n.sections):
+                    ent_has_sec[eid] = True
+
+    def _ent_thin(eid):
+        return ent_count[eid] <= 2 or not ent_has_sec[eid]
 
     for e in b.entities:
         e.symbol_svg = _normalize_symbol(e.symbol_svg)
@@ -190,7 +322,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # relation. Only relations actually used by a connection are shown, in
     # vocabulary order; a labeled spine appears last as the neutral flowing line.
     used_rels = {c[2] for c in (connections or []) if len(c) >= 3}
-    rel_key_items = [(r.label, f"var(--rel-{r.key})") for r in b.relations
+    rel_counts = {}
+    for c in (connections or []):
+        if len(c) >= 3:
+            rel_counts[c[2]] = rel_counts.get(c[2], 0) + 1
+    # (key, label, swatch) — the key drives the interactive isolate control.
+    rel_key_items = [(r.key, r.label, f"var(--rel-{r.key})") for r in b.relations
                      if r.key != "spine" and r.color and r.label
                      and r.key in used_rels]
     # The spine joins the key only when there is a colored relation to tell it
@@ -198,7 +335,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # one-row "Lines" legend on it is noise (and would break byte-parity).
     _spine = next((r for r in b.relations if r.key == "spine"), None)
     if rel_key_items and _spine and _spine.label and "spine" in used_rels:
-        rel_key_items.append((_spine.label, "var(--line-flow)"))
+        rel_key_items.append(("spine", _spine.label, "var(--line-flow)"))
 
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
@@ -252,7 +389,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if b.entities and "entity" not in nav_replaced:
         nav.append(f'\n    <span class="nav-group-label">{b.entity_axis_singular}</span>')
         for e in b.entities:
-            nav.append(nav_btn("char", e.id, e.symbol_svg or FALLBACK_GLYPH, e.name))
+            thin = _ent_thin(e.id)
+            badge = (f'<span class="nav-chip-count{" thin" if thin else ""}">'
+                     f'{ent_count[e.id]}</span>')
+            nav.append(
+                f'\n    <button class="nav-btn{" chip-thin" if thin else ""}" '
+                f"onclick=\"showDetail('char','{e.id}')\">"
+                f"{e.symbol_svg or FALLBACK_GLYPH} {e.name}{badge}</button>")
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
         if not ax or src in nav_replaced:
@@ -263,23 +406,24 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             nav.append(nav_btn(kind, v.id, v.symbol_svg or FALLBACK_GLYPH, v.name, cls))
     for rf in resolved_filters:
         nav.append('\n    <div class="nav-divider"></div>')
-        nav.append(f'\n    <span class="nav-group-label">{rf["spec"].label}</span>')
+        nav.append(f'\n    <span class="nav-group-label">Filter · {rf["spec"].label}</span>')
         for vid, name in rf["values"]:
             nav.append(f'\n    <button class="nav-btn filter-btn" '
                        f'data-axis="{rf["slot"]}" data-value="{vid}" '
                        f'onclick="filterCanvas(\'{rf["slot"]}\',\'{vid}\')">'
                        f'{name}</button>')
-    # Relation line key (desktop): inert chips (pointer-events:none) whose swatch
-    # is the relation's line color. Mobile hides #nav .nav-btn entirely, so the
-    # drawer carries its own copy below.
+    # Relation line key (desktop): each entry is a toggle — click it to isolate
+    # that relation's lines on the canvas (dim the rest) — with a live edge count.
+    # Mobile hides #nav .nav-btn entirely, so the drawer carries its own copy.
     if rel_key_items:
         nav.append('\n    <div class="nav-divider"></div>')
         nav.append('\n    <span class="nav-group-label">Lines</span>')
-        for label, swatch in rel_key_items:
+        for key, label, swatch in rel_key_items:
             nav.append(
-                '\n    <span class="nav-btn" style="pointer-events:none;cursor:default">'
+                f'\n    <button class="nav-btn line-key-btn" data-rel-key="{key}">'
                 f'<span style="display:inline-block;width:14px;height:3px;'
-                f'border-radius:2px;background:{swatch}"></span>{esc(label)}</span>')
+                f'border-radius:2px;background:{swatch}"></span>{esc(label)}'
+                f'<span class="line-key-count">{rel_counts.get(key, 0)}</span></button>')
     nav.append("\n  </div>")
     nav = "".join(nav)
 
@@ -413,6 +557,16 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         orders += ("\nvar ERA_LABELS=" + _label_map("era") + ";"
                    "\nvar WEIGHT_LABELS=" + _label_map("weight") + ";"
                    + FILTER_GLUE)
+    # Relation labels (quoted keys — relation keys may be hyphenated) + node noun,
+    # consumed by the doctrine-page auto-body (and the interactive line key).
+    # Only relations a connection actually uses — an unused relation's label
+    # should not leak onto the page.
+    rel_labels = ("var REL_LABELS={" + ",".join(
+        f"{js_str(r.key)}:{js_str(r.label)}" for r in b.relations
+        if r.label and r.key in used_rels) + "};")
+    orders += ("\n" + rel_labels
+               + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
+               + DOCTRINE_BODY + LINES_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
@@ -447,6 +601,35 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "#nav .nav-btn svg,.char-chip svg,.drawer-icon svg"
         "{width:1em;height:1em;margin:0;flex-shrink:0;}"
         "\n  #nav .nav-btn svg,.char-chip svg{vertical-align:-2px;margin-right:5px;}")
+    # Doctrine/entity detail-page auto-body (member roster + relation rows).
+    nav_char_css += (
+        "\n  .doc-meta{opacity:.75;font-size:.9em;margin-bottom:8px;}"
+        "\n  .doc-thin{color:#d97706;}"
+        "\n  .doc-row{cursor:pointer;padding:7px 0;border-bottom:1px solid var(--border);}"
+        "\n  .doc-row:hover .doc-row-t{color:var(--accent);}"
+        "\n  .doc-row-t{font-weight:600;}"
+        "\n  .doc-row-tag{opacity:.6;font-size:.85em;}"
+        "\n  .doc-row-d{opacity:.8;font-size:.92em;margin-top:2px;}"
+        "\n  .doc-rel{padding:4px 0;}"
+        "\n  .doc-rel-dot{display:inline-block;width:12px;height:3px;border-radius:2px;"
+        "vertical-align:middle;margin-right:6px;}"
+        "\n  .doc-rel-lab{opacity:.6;}")
+    # Interactive line-key chips + per-edge hover tooltip.
+    nav_char_css += (
+        "\n  .line-key-btn{cursor:pointer;}"
+        "\n  .line-key-btn.active{border-color:currentColor;"
+        "box-shadow:inset 0 0 0 1px currentColor;}"
+        "\n  .line-key-count{margin-left:6px;opacity:.5;font-size:.85em;}"
+        "\n  html:not(.mobile) #river-svg [data-edge]{pointer-events:stroke;}"
+        "\n  .line-tip{position:fixed;z-index:9999;pointer-events:none;display:none;"
+        "background:var(--surface);color:var(--text);border:1px solid var(--border);"
+        "border-radius:6px;padding:4px 8px;font-size:12px;max-width:280px;"
+        "box-shadow:0 4px 16px rgba(0,0,0,.2);}")
+    # Gap-radar badges on the doctrine nav/drawer chips.
+    nav_char_css += (
+        "\n  .nav-chip-count{margin-left:5px;font-size:.8em;opacity:.45;}"
+        "\n  .nav-chip-count.thin{color:#d97706;opacity:.9;font-weight:600;}"
+        "\n  #nav .nav-btn.chip-thin{border-color:rgba(217,119,6,.5);}")
     nav_char_css_mix = "\n".join(
         "html:not(.mobile):not(.dark) button[onclick*=\"'char','{id}'\"]{{ "
         "color:color-mix(in srgb, var(--{id}) 50%, var(--text)); "
@@ -465,8 +648,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if b.entities and "entity" not in nav_replaced:
         drawer.append(f"'    <div class=\"drawer-section-label\">{b.entity_axis_label}</div>',")
         for e in b.entities:
-            drawer.append(drawer_btn("char", e.id, e.symbol_svg, e.name,
-                                     data_char=e.id))
+            thin = _ent_thin(e.id)
+            nm = (e.name + f'<span class="nav-chip-count{" thin" if thin else ""}">'
+                  f'{ent_count[e.id]}</span>')
+            drawer.append(drawer_btn("char", e.id, e.symbol_svg, nm, data_char=e.id))
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
         if not ax or src in nav_replaced:
@@ -480,23 +665,25 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # Text-only on purpose: filter values carry no authored glyphs, and a row
     # of identical fallback diamonds reads as meaning it doesn't have.
     for rf in resolved_filters:
-        drawer.append(f"'    <div class=\"drawer-section-label\">{rf['spec'].label}</div>',")
+        drawer.append(f"'    <div class=\"drawer-section-label\">Filter &middot; {rf['spec'].label}</div>',")
         for vid, name in rf["values"]:
             drawer.append(
                 f"'    <button class=\"drawer-btn filter-btn\" "
                 f"data-sd-axis=\"{rf['slot']}\" data-sd-id=\"{vid}\">"
                 f"<span class=\"drawer-label\">{name}</span></button>',")
-    # Relation line key (mobile): attribute-free inert rows — no data-sd-* means
-    # the engine's drawer handler and FILTER_GLUE both ignore them.
+    # Relation line key (mobile): data-rel-key (NOT data-sd-*, so the engine
+    # drawer handler + FILTER_GLUE ignore them); the LINES_GLUE delegated handler
+    # binds .line-key-btn to isolate that relation's lines.
     if rel_key_items:
         drawer.append("'    <div class=\"drawer-section-label\">Lines</div>',")
-        for label, swatch in rel_key_items:
+        for key, label, swatch in rel_key_items:
             drawer.append(
-                "'    <div class=\"drawer-btn\" style=\"pointer-events:none\">"
-                "<span class=\"drawer-icon\"><span style=\"display:inline-block;"
-                "width:16px;height:3px;border-radius:2px;background:" + swatch
-                + "\"></span></span><span class=\"drawer-label\">" + esc(label)
-                + "</span></div>',")
+                "'    <button class=\"drawer-btn line-key-btn\" data-rel-key=\""
+                + key + "\"><span class=\"drawer-icon\"><span style=\"display:"
+                "inline-block;width:16px;height:3px;border-radius:2px;background:"
+                + swatch + "\"></span></span><span class=\"drawer-label\">"
+                + esc(label) + "<span class=\"line-key-count\">"
+                + str(rel_counts.get(key, 0)) + "</span></span></button>',")
     drawer_filters = "\n".join(drawer)
 
     # ── mobile grid ──────────────────────────────────────────────────────────

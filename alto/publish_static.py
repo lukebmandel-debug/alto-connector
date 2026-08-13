@@ -79,6 +79,10 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     site.mkdir(parents=True, exist_ok=True)
 
     published = _published(store, uid)
+    # project kind drives the periodization label ("Units" for a course, "Acts"
+    # for a novel, …) unless the brief sets period_noun explicitly.
+    kind_by_pid = {p["project_id"]: p.get("kind", "")
+                   for p in store.list_projects(uid)}
     courses = []
     projects_by_pid = {}
     for t in published:
@@ -89,7 +93,9 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         # from the title; the timeline id stays the sync key (courseId).
         slug = check_component(t.get("share_slug") or tid, "share_slug")
         b, _, _ = load_brief({"brief": t["brief"]})
-        entry = course_entry_for(b, href=f"/t/{slug}/")
+        entry = course_entry_for(
+            b, href=f"/t/{slug}/",
+            kind=kind_by_pid.get(t.get("project_id", ""), ""))
         courses.append(entry)
         projects_by_pid.setdefault(t.get("project_id", ""), []).append(entry)
 

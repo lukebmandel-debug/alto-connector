@@ -40,6 +40,20 @@ PALETTE = ["#4a9eff", "#e8a87c", "#a78bfa", "#f43f5e", "#10b981", "#fb923c",
 
 ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"]
 
+# Domain-appropriate name for the periodization axis (the horizontal bands).
+# The engine determines it: an explicit brief.period_noun wins; otherwise it is
+# derived from the project kind; otherwise "Unit" (studying is Alto's primary
+# use). A novel's bands read "Acts", a course's "Units", history's "Eras".
+_PERIOD_BY_KIND = {"studying": "Unit", "writing": "Act", "research": "Phase"}
+
+
+def period_words(kind: str = "", override: str = "") -> "tuple[str, str]":
+    """(singular, plural) label for the periodization axis. Explicit override
+    wins; else derived from the project kind; else 'Unit'."""
+    sing = (override or "").strip() or _PERIOD_BY_KIND.get(
+        (kind or "").strip().lower(), "Unit")
+    return sing, sing + "s"
+
 COL_SETS = {
     3: {"left": 450, "center": 850, "right": 1250},
     5: {"far-left": 210, "left": 450, "center": 850, "right": 1250,
@@ -114,6 +128,9 @@ class FilterSpec:
       entity / axis1 / axis2 — mirror that axis's values; a node's filter
         value is its first value on that axis (multi-valued nodes warn).
       acts   — one value per act; nodes filter by the act they sit in.
+      coverage — derived Solid/Thin from how much the student authored on each
+        node (Thin = a stub with no detail sections). §0-safe: it measures the
+        shape of the student's own notes, so it surfaces gaps without inventing.
       custom — caller-defined `values`, assigned per node via Node.filters.
     `replace_nav` makes a mirrored axis1/axis2 **filter-only**: its
     navigation chips, drawer section, legend dot, and per-node card/detail
@@ -124,12 +141,12 @@ class FilterSpec:
     because they are the nodes' color identity."""
     id: str
     label: str                 # chip-group label, e.g. "Filter by Type"
-    source: str = "custom"     # entity | axis1 | axis2 | acts | custom
+    source: str = "custom"     # entity | axis1 | axis2 | acts | coverage | custom
     values: list[FilterValue] = field(default_factory=list)  # custom only
     replace_nav: bool = False  # entity/axis1/axis2 sources only
 
 
-FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "custom")
+FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "custom")
 
 
 @dataclass
@@ -176,6 +193,7 @@ class Brief:
     relations: list[Relation] = field(default_factory=list)
     columns: int = 5
     node_noun: str = "Event"                    # detail badge, e.g. "Case"
+    period_noun: str = ""                        # bands label override, e.g. "Unit"
     accent: str = "#a78bfa"
     overview_html: str = ""
     timeline_id: str = "timeline"               # tid: keys + URLs
@@ -285,9 +303,18 @@ def validate_brief(b: Brief) -> list[str]:
                     raise BriefError(f"filter {f.id}: duplicate value {v.id!r}")
                 v_ids.add(v.id)
                 _check_len(v.name, "name", f"filter {f.id} value {v.id} name")
-        if f.replace_nav and f.source in ("acts", "custom"):
+        if f.replace_nav and f.source in ("acts", "coverage", "custom"):
             warnings.append(f"filter {f.id}: replace_nav has no effect for "
                             f"source {f.source!r} (nothing to replace)")
+        # A filter that mirrors the act bands or the (still-navigable) entity
+        # chips re-expresses a dimension already on screen — a cross-cutting
+        # filter (coverage, a custom dimension, an era) helps more.
+        if f.source == "acts" or (f.source == "entity" and not f.replace_nav):
+            mirror = "the act bands" if f.source == "acts" else "the nav chips"
+            warnings.append(
+                f"filter {f.id}: source {f.source!r} mostly repeats {mirror} — "
+                f"a cross-cutting filter (e.g. 'coverage' or a custom dimension) "
+                f"would add more than a dimension already on screen")
     rel_keys = set()
     non_spine = 0
     for r in b.relations:

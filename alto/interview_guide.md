@@ -82,10 +82,16 @@ into one.)
 - "When something sits earlier or later on this timeline, what does that
   represent — chronology/eras, doctrinal development, course sequence, or a
   narrative arc?"
-- **Periodization**: the big clusters become the timeline's **acts** (2–7
-  horizontal bands, each with a label, numeral, and color). ConLaw used seven
-  eras; a novel uses acts; a course uses units. Derive candidates from their
+- **Periodization**: the big clusters become the timeline's horizontal bands
+  (2–7, each with a label, numeral, and color). Derive candidates from their
   materials if unsure, then confirm.
+- **What to call the bands** (`period_noun`, singular): pick the word that fits
+  the domain from the answer above — chronology/eras → "Era", course sequence →
+  "Unit", narrative arc → "Act", doctrinal development → "Part". A course
+  defaults to "Unit". Set it in the `create_timeline` brief; if omitted, the
+  label is derived from the project kind (studying→Unit, writing→Act). The
+  homepage tile shows it ("6 Units"); the bands themselves show numerals + your
+  own cluster labels, so the noun never appears there.
 
 ### C. The entity axis (the chips)
 The most prominent filter axis: the recurring "actors" of the timeline —
@@ -160,17 +166,33 @@ the canvas so one dimension can be studied in isolation, and on mobile they
 narrow swipe order. Ask: "Want filter chips on the canvas? Pick up to two
 dimensions to filter by." Offer recommendations drawn from what's already
 defined — no re-entry needed, assignment is automatic:
-- **an axis you defined** (`source:'axis1'`/`'axis2'`) — e.g. filter by Type;
-- **the entity axis** (`source:'entity'`) — e.g. filter by Doctrine;
-- **the acts** (`source:'acts'`) — filter by period/unit;
+- **coverage** (`source:'coverage'`) — auto-derived Solid / Thin from how much
+  the student wrote on each node (Thin = a stub). Surfaces "where are my notes
+  weak" with zero extra input; §0-safe (it measures their own material). Often
+  the single most useful filter for a studying deck.
 - **fully custom** (`source:'custom'`) — any dimension with its own values
   (classic: importance — Heavy / Medium / Background); each node then picks
-  its value via `filters: {filter_id: value_id}` in `add_nodes`.
-Constraints: ≤2 filters (the engine has two slots); custom filters take 2–10
-values; filtering is single-valued per node (multi-valued nodes filter by
-their first value — the tools warn). For a mirrored axis whose detail pages
-have no authored sections, set `replace_nav: true` to make it **filter-only**:
-the filter chips replace that axis's navigation chips, and its legend dot and
+  its value via `filters: {filter_id: value_id}` in `add_nodes`. Importance is
+  **not** in most notes — only offer it if the student's material carries
+  salience marks (stars, "DEAD", "key"), and derive the values from those or
+  have the student tag them; never guess importance.
+- **an axis you defined** (`source:'axis1'`/`'axis2'`) — e.g. filter by Type;
+- **the entity axis** (`source:'entity'`) / **the acts** (`source:'acts'`) —
+  available, but these usually **repeat** the nav chips / act bands already on
+  screen (the build warns), so prefer a cross-cutting filter instead.
+
+**Recommend cross-cutting, not redundant.** A good filter splits the timeline
+into chunks the student would actually study *separately*. Before suggesting
+one: (a) don't spend a slot on a dimension the act bands or nav chips already
+show; (b) draft the nodes first, then pick dimensions that cut *across* the
+acts and partition the set unevenly-but-usefully; (c) avoid a binary whose
+off-value holds ~80% of nodes (it barely partitions). Good default pair for a
+course: **coverage** + an **importance** filter (if the notes carry salience
+marks). Constraints: ≤2 filters (two engine slots); custom filters take 2–10
+values; filtering is single-valued per node (multi-valued nodes filter by their
+first value — the tools warn). For a mirrored axis whose detail pages have no
+authored sections, set `replace_nav: true` to make it **filter-only**: the
+filter chips replace that axis's navigation chips, and its legend dot and
 per-node card chips disappear too — a dimension that only filters shouldn't
 dangle empty detail pages or identical fallback glyphs on every card.
 → brief `filters` (in `create_timeline`).

@@ -185,7 +185,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -331,13 +331,14 @@ def create_project(name: str, purpose: str = "",
 @mcp.tool(title="Create timeline draft", annotations=RW)
 def create_timeline(project_id: str, brief: dict) -> dict:
     """Create a timeline draft from the build brief (Flow 2 §B–§I). brief:
-    {title, subject?, timeline_id?, columns?: 3|5, node_noun?, accent?,
-     entity_axis_label?, entity_axis_singular?,
+    {title, subject?, timeline_id?, columns?: 3|5, node_noun?, period_noun?,
+     accent?, entity_axis_label?, entity_axis_singular?,
      acts: [{label, short?, color?}] (2-7),
      axes?: [{label, singular, values:[{id,name,...}]}] (≤2),
-     filters?: [{id, label, source: 'entity'|'axis1'|'axis2'|'acts'|'custom',
+     filters?: [{id, label,
+      source: 'entity'|'axis1'|'axis2'|'acts'|'coverage'|'custom',
       values?: [{id,name}] (custom source only, 2-10),
-      replace_nav?: bool}] (≤2),
+      replace_nav?: bool}] (≤2; 'coverage' = auto Solid/Thin from node density),
      relations?: [{key,label?,color?}] ('spine' = neutral main thread; other
       relations get distinct palette colors when color is omitted, so their
       lines stay tellable apart from the spine. Each label is user-visible: it
@@ -353,6 +354,9 @@ def create_timeline(project_id: str, brief: dict) -> dict:
     section, legend dot, and per-node card chips are all suppressed (no
     reachable detail pages) — recommended when that axis has no authored
     detail sections. On source 'entity' it only swaps the nav chips.
+    period_noun names the horizontal bands on the homepage tile ("Unit",
+    "Act", "Era", …); omit it and the label is derived from the project kind
+    (studying→Unit, writing→Act, research→Phase, default Unit).
     Entities are set separately via set_entities. Returns validation warnings."""
     st = get_store()
     project_id, err = _check_ref(project_id, "project_id")

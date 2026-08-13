@@ -32,16 +32,20 @@ def test_rel_css_vars_emitted_for_line_rendering():
 
 def test_used_relation_gets_nav_key_and_drawer_row():
     html, _ = _build()
-    assert 'background:var(--rel-cites)"></span>cites</span>' in html      # desktop
-    assert 'background:var(--rel-cites)"></span></span>' in html           # mobile swatch
-    assert 'class="drawer-label">cites</span>' in html                     # mobile label
+    # interactive line-key chips carry data-rel-key + a live edge count
+    assert 'class="nav-btn line-key-btn" data-rel-key="cites"' in html      # desktop
+    assert 'background:var(--rel-cites)' in html                            # swatch color
+    assert 'drawer-btn line-key-btn" data-rel-key="cites"' in html          # mobile
+    assert 'class="line-key-count">1</span>' in html                        # cites used once
+    assert "function isolateRelation" in html                              # the isolate glue
     assert 'nav-group-label">Lines</span>' in html
     assert 'drawer-section-label">Lines</div>' in html
 
 
 def test_labeled_spine_appears_last_and_neutral():
     html, _ = _build()          # spine label "leads to", used by the sample
-    assert 'background:var(--line-flow)"></span>leads to</span>' in html
+    assert 'data-rel-key="spine"' in html
+    assert 'background:var(--line-flow)' in html
     assert "--rel-spine" not in html
 
 
@@ -52,8 +56,8 @@ def test_unused_relation_omitted_from_key():
     conns = [["lucy-v-zehmer", "carbolic", "spine"],
              ["carbolic", "hamer", "cites"]]
     html, _ = _build(relations=rels, connections=conns)
-    assert ">Cites</span>" in html                # used → in the key
-    assert "Distinguishes" not in html            # unused → absent from the key
+    assert 'data-rel-key="cites"' in html         # used → in the key
+    assert "Distinguishes" not in html            # unused → absent from the key (incl. REL_LABELS)
     assert "--rel-distinguishes:#22d3ee;" in html  # var still defined (harmless)
 
 

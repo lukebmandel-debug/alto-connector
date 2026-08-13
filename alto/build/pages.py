@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .brief import Brief
+from .brief import Brief, PALETTE, period_words
 from .emit import emit
 
 from ..engine import template as engine_template
@@ -92,14 +92,19 @@ def build_reports(courses: list[dict], default_course: str) -> str:
 
 
 def course_entry_for(brief: Brief, project_name: str = "",
-                     href: str = "terrarium_glass.html") -> dict:
+                     href: str = "terrarium_glass.html", kind: str = "") -> dict:
     n_acts = len(brief.acts)
+    sing, plural = period_words(kind, brief.period_noun)
     return {
         "title": brief.title,
         "href": href,
-        "sub": f"{n_acts} {'act' if n_acts == 1 else 'acts'}",
+        "sub": f"{n_acts} {(sing if n_acts == 1 else plural).lower()}",
         "courseId": brief.timeline_id,
         "reports": True,
         "project": project_name,
-        "units": [a.color for a in brief.acts],
+        # Fill missing act colors from the same palette validate_brief uses, so
+        # the homepage strip is always a full rainbow even when the stored brief
+        # never had explicit act colors (they are assigned at build, not stored).
+        "units": [a.color or PALETTE[i % len(PALETTE)]
+                  for i, a in enumerate(brief.acts)],
     }
