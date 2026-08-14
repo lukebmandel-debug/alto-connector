@@ -314,7 +314,9 @@ PAGE = """<!doctype html>
 
 def build_page(ident: dict, files: list[dict]) -> str:
     repo = f"https://github.com/{ident['github_user']}/{ident['github_repo']}"
-    base = f"{repo}/releases/download/v{__version__}"
+    # The download page always offers the newest release, so it never goes stale
+    # on a version bump (the version-pinned manifest above still uses v{version}).
+    base = f"{repo}/releases/latest/download"
     cards = "\n".join(
         f'    <a class="card" href="{base}/{f["name"]}" download>\n'
         f'      <span><span class="os">{f["os"]}</span> '
