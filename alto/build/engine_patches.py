@@ -94,6 +94,97 @@ _SEARCH_DESKTOP_NEW = "'placeholder=\"Search\">'+"
 _SEARCH_MOBILE_OLD = "'placeholder=\"Search\u2026\">';"
 _SEARCH_MOBILE_NEW = "'placeholder=\"Search\">';"
 
+# ── focused card is blurry when enlarged ────────────────────────────────────
+# The focus magnifier grew the card with `transform:scale(1.7)`, which magnifies
+# the card's existing 1x raster instead of re-rendering it — at 1.7x the text is
+# a blown-up bitmap. Safari shows it worst, because `.node-card` carries a
+# backdrop-filter and the frosted layer is rasterised once and then stretched.
+#
+# The engine already knew: the `.crisp` rule swaps to `zoom:1.7` precisely to
+# "re-raster the text", and its kill switch reads "flip to true if focused text
+# looks blurry on Safari". It shipped OFF because the swap itself was visible —
+# scaling to 1.7 and *then* re-laying the text out snaps every glyph advance in
+# one frame, the "text jumps" glitch.
+#
+# There is no swap if the card is never scaled in the first place. Grow it with
+# `zoom` from the start, ramped per frame, so the text is laid out at its final
+# size on every frame and no frame re-flows. `.node-card` is a fixed 270px wide,
+# so zoom changes no wrapping — only the device pixels per glyph. `.node` is
+# `translate(-50%,-50%)` around its own box, which the zoom grows, so the card
+# still grows about its centre exactly as the transform did.
+_FOCUS_CSS_OLD = """html:not(.mobile) .node.focused .node-card{
+  transform:scale(1.7) !important; transform-origin:center !important;
+  opacity:1 !important; box-shadow:0 38px 84px var(--node-hover-shadow) !important;
+}
+"""
+_FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
+  transform:scale(1) !important; transform-origin:center !important;
+  opacity:1 !important; box-shadow:0 38px 84px var(--node-hover-shadow) !important;
+  /* The magnification is CSS zoom, applied inline per frame by enterFocus. A
+     zoomed element can lose its backdrop-filter, so — as the .crisp rule this
+     replaces already did — legibility must not depend on the frost. Raise the
+     FALLBACK, not the value: --node-glass-bg is Blink-only and already opaque
+     enough there (0.90, set so the card occludes the connector lines Chrome's
+     dead backdrop-filter can't hide). Only Safari, where it is undefined and
+     the card falls back to --card-glass-bg at 0.54, needs the floor lifted. */
+  background:var(--node-glass-bg, var(--panel-glass-bg));
+}
+"""
+
+_FOCUS_JS_OLD = """  function enterFocus(id){
+    if(!id) return; var el=nodeEl(id); if(!el) return;
+    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p.style.transform=''; p._fx=p._fy=0; } }
+    window._focusedNodeId=id;
+    canvas.classList.add('focus-mode');
+    el.classList.add('focused');
+    flyTo(el);
+  }"""
+
+_FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame ──────────────────────
+     transform:scale() magnifies the card's 1x raster (blurry text at 1.7x, worst
+     in Safari where the backdrop-filter layer is rasterised once). zoom re-lays
+     the card out, so every glyph renders at its final resolution. Ramped rather
+     than scaled-then-swapped: the swap frame is what jumped the text, and is why
+     ALTO_CRISP_SWAP ships off. The card is a fixed 270px wide, so nothing
+     re-wraps at any point on the ramp. */
+  var FOCUS_K=1.7, _zw=null, _zwCard=null, _zwTo=1;
+  function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
+  function _setZoom(card,k){ if(card) card.style.zoom = (k>1.0005) ? String(k) : ''; }
+  function _zoomRamp(el,to,dur){
+    var card=_cardOf(el); if(!card) return;
+    if(_zw){
+      cancelAnimationFrame(_zw); _zw=null;
+      // never strand a half-ramped card when focus moves before the ramp lands
+      if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);
+    }
+    _zwCard=card; _zwTo=to;
+    var from=parseFloat(card.style.zoom)||1, s=null;
+    if(Math.abs(to-from)<0.002){ _setZoom(card,to); return; }
+    function step(ts){
+      if(s===null) s=ts;
+      var p=Math.min(1,(ts-s)/dur), e=1-(1-p)*(1-p);  // ease-out, as the card's own transition was
+      _setZoom(card, from+(to-from)*e);
+      if(p<1) _zw=requestAnimationFrame(step); else { _zw=null; _setZoom(card,to); }
+    }
+    _zw=requestAnimationFrame(step);
+  }
+
+  function enterFocus(id){
+    if(!id) return; var el=nodeEl(id); if(!el) return;
+    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p.style.transform=''; p._fx=p._fy=0; _setZoom(_cardOf(p),1); } }
+    window._focusedNodeId=id;
+    canvas.classList.add('focus-mode');
+    el.classList.add('focused');
+    _zoomRamp(el,FOCUS_K,240);
+    flyTo(el);
+  }"""
+
+_FOCUS_EXIT_OLD = """      el.classList.remove('focused');
+      flyBack(el);"""
+_FOCUS_EXIT_NEW = """      el.classList.remove('focused');
+      _zoomRamp(el,1,220);
+      flyBack(el);"""
+
 
 PATCHES = [
     {
@@ -124,6 +215,24 @@ PATCHES = [
         "name": "search-placeholder-mobile",
         "old": _SEARCH_MOBILE_OLD,
         "new": _SEARCH_MOBILE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "focus-magnifies-by-zoom-not-transform",
+        "old": _FOCUS_CSS_OLD,
+        "new": _FOCUS_CSS_NEW,
+        "count": 1,
+    },
+    {
+        "name": "focus-zoom-ramp-enter",
+        "old": _FOCUS_JS_OLD,
+        "new": _FOCUS_JS_NEW,
+        "count": 1,
+    },
+    {
+        "name": "focus-zoom-ramp-exit",
+        "old": _FOCUS_EXIT_OLD,
+        "new": _FOCUS_EXIT_NEW,
         "count": 1,
     },
 ]
