@@ -248,6 +248,40 @@ ALTO_LINK_GLUE = """
 })();
 """
 
+# Relation filters dim cards, not just line tubes. LINES_GLUE still owns the
+# tubes and the chips' active state; this runs just after it (a 0ms timeout, so
+# the class toggle has already landed) and applies the node half.
+#
+# It deliberately uses its own `rel-dimmed` class rather than the engine's
+# `dimmed`. The engine owns `dimmed` for slot filters, and two writers on one
+# class is exactly the fight LINES_GLUE's comment warned about. Two classes
+# compose instead: a card is lit only when it carries neither, which is the
+# stacking we want — a node must satisfy the slot filters AND touch an active
+# relation.
+REL_FILTER_GLUE = """
+(function(){
+  if(window._altoRelFilterBound) return; window._altoRelFilterBound=1;
+  function apply(){
+    var active=[], nodes=document.querySelectorAll('#world .node');
+    document.querySelectorAll('.line-key-btn[data-rel-key].active')
+      .forEach(function(b){ active.push(b.getAttribute('data-rel-key')); });
+    for(var i=0;i<nodes.length;i++){
+      var card=nodes[i].querySelector('.node-card'); if(!card) continue;
+      var id=nodes[i].id.slice(5), keep=!active.length;
+      for(var j=0;!keep && j<active.length;j++){
+        var set=(typeof REL_NODES!=='undefined' && REL_NODES[active[j]])||[];
+        if(set.indexOf(id)>=0) keep=true;
+      }
+      card.classList.toggle('rel-dimmed', !keep);
+    }
+  }
+  document.addEventListener('click', function(e){
+    var b=e.target && e.target.closest && e.target.closest('.line-key-btn[data-rel-key]');
+    if(b) setTimeout(apply, 0);
+  }, true);
+})();"""
+
+
 LINES_GLUE = """
 function isolateRelation(key){
   var svg=document.getElementById('river-svg'); if(!svg||typeof CONNECTIONS==='undefined') return;
@@ -299,7 +333,8 @@ def _sym(svg: str) -> str:
 
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     mgrid, mobile_world_h: int, *, reports_href: str = None,
-                    view_path: str = "", connections: list = None) -> tuple[dict, dict]:
+                    view_path: str = "", connections: list = None,
+                    warnings: list = None) -> tuple[dict, dict]:
     """Return (regions, tokens) for emit() against timeline_template.html.
 
     nodes must be validated, in narrative order, with col set and positions
@@ -366,6 +401,29 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     for c in (connections or []):
         if len(c) >= 3:
             rel_counts[c[2]] = rel_counts.get(c[2], 0) + 1
+    # Which nodes each relation actually touches — the set a relation filter
+    # keeps lit. Built from the connections, so it costs nothing extra.
+    rel_nodes = {}
+    for c in (connections or []):
+        if len(c) >= 3:
+            rel_nodes.setdefault(c[2], set()).update((c[0], c[1]))
+
+    _warn = warnings if warnings is not None else []
+    _all_ids = {n.id for n in nodes}
+
+    def _partitions(touched, what) -> bool:
+        """A chip has to divide the set to be worth showing. One that matches
+        every node changes nothing when clicked, and one that matches none is
+        dead on arrival — both read as a broken control."""
+        if not touched:
+            _warn.append(f"{what}: matches no nodes — chip dropped")
+            return False
+        if _all_ids and touched >= _all_ids:
+            _warn.append(f"{what}: matches every node, so filtering by it "
+                         "changes nothing — chip dropped")
+            return False
+        return True
+
     # (key, label, swatch) — the key drives the interactive isolate control.
     rel_key_items = [(r.key, r.label, f"var(--rel-{r.key})") for r in b.relations
                      if r.key != "spine" and r.color and r.label
@@ -376,6 +434,23 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     _spine = next((r for r in b.relations if r.key == "spine"), None)
     if rel_key_items and _spine and _spine.label and "spine" in used_rels:
         rel_key_items.append(("spine", _spine.label, "var(--line-flow)"))
+    # Now that the chips also filter nodes, the same rule applies to them: a
+    # structural spine touches every node in its band, so filtering by it lights
+    # everything. Drop those rather than ship a control that does nothing.
+    rel_key_items = [it for it in rel_key_items
+                     if _partitions(rel_nodes.get(it[0], set()),
+                                    f"line filter {it[1]!r}")]
+
+    # Same rule for the slot filters. A Coverage chip on a deck where every
+    # node is Solid, or a custom value the student never assigned, is just as
+    # dead as a spine chip — drop it and say why.
+    for _rf in resolved_filters:
+        _kept = []
+        for _vid, _name in _rf["values"]:
+            _touched = {nid for nid, v in _rf["node_value"].items() if v == _vid}
+            if _partitions(_touched, f"filter {_rf['spec'].label!r} value {_name!r}"):
+                _kept.append((_vid, _name))
+        _rf["values"] = _kept
 
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
@@ -454,15 +529,24 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                        f'data-axis="{rf["slot"]}" data-value="{vid}" '
                        f'onclick="filterCanvas(\'{rf["slot"]}\',\'{vid}\')">'
                        f'{name}</button>')
-    # Relation line key (desktop): each entry is a toggle — click it to isolate
-    # that relation's lines on the canvas (dim the rest) — with a live edge count.
+    # Relation filters (desktop). These sit with the other filter groups and
+    # read as filter chips, because that is what they now are: clicking one
+    # dims the lines of every other relation AND dims the cards that relation
+    # never touches, stacking with whatever slot filters are active.
     # Mobile hides #nav .nav-btn entirely, so the drawer carries its own copy.
     if rel_key_items:
         nav.append('\n    <div class="nav-divider"></div>')
-        nav.append('\n    <span class="nav-group-label">Lines</span>')
+        nav.append('\n    <span class="nav-group-label">Filter · Lines</span>')
         for key, label, swatch in rel_key_items:
             nav.append(
-                f'\n    <button class="nav-btn line-key-btn" data-rel-key="{key}">'
+                # NOT .filter-btn: the engine sweeps every .filter-btn in
+                # _applyActiveFilters (engine :2539) and in clear-all (:7931),
+                # keying off data-axis/data-value these chips do not have — so
+                # wearing that class made a slot-filter click light a relation
+                # chip too. They sit in the filter group and are styled like
+                # filter chips; they are not one of the engine's two slots.
+                f'\n    <button class="nav-btn line-key-btn" '
+                f'data-rel-key="{key}">'
                 f'<span style="display:inline-block;width:14px;height:3px;'
                 f'border-radius:2px;background:{swatch}"></span>{esc(label)}'
                 f'<span class="line-key-count">{rel_counts.get(key, 0)}</span></button>')
@@ -622,6 +706,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
                + DOCTRINE_BODY + LINES_GLUE
                + (ALTO_LINK_GLUE if uses_alto_link else ""))
+    if rel_key_items:
+        orders += ("\nvar REL_NODES={" + ",".join(
+            f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
+            for k, _lbl, _sw in rel_key_items) + "};" + REL_FILTER_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
@@ -688,6 +776,14 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n  .esym-btn,.tsym-btn{max-width:150px;overflow:hidden;"
             "text-overflow:ellipsis;white-space:nowrap;display:inline-block;"
             "line-height:18px;}")
+    # A relation-filtered-out card reads exactly like a slot-filtered-out one
+    # (the engine's `.node-card.dimmed`, engine :1167-1168) — same treatment,
+    # separate class, so the two dim independently and compose.
+    if rel_key_items:
+        nav_char_css += (
+            "\n  .node-card.rel-dimmed{background:var(--surface) !important;"
+            "border-top-color:var(--border) !important;}"
+            "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
     # Deep links in detail-page text. Styled after the overview's .ov-node-link
     # resting/hover chip so a link reads the same wherever it appears — but it
     # carries its own accent underline, since a detail page has no per-character

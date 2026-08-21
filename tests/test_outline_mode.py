@@ -175,8 +175,12 @@ def test_node_desc_stays_plain_text():
 def test_the_outline_sample_builds_hub_and_spoke():
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
     html, report = build_timeline(*load_brief(d))
-    assert not report["warnings"]
     assert report["layout"]["moved_on_recheck"] == []       # resolver at fixpoint
+    # The only expected warning: the structural spine touches every concept, so
+    # a filter on it would light everything — the build drops that chip.
+    assert [w for w in report["warnings"]] == [
+        "line filter 'Contains': matches every node, so filtering by it "
+        "changes nothing \u2014 chip dropped"]
 
     nodes = {n["id"]: n for n in d["nodes"]}
     parents = {c[1] for c in d["connections"] if c[2] == "spine"}

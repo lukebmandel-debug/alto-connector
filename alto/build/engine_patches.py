@@ -50,12 +50,31 @@ _MERGE_FLAG_NEW = """        var _mfLo = mergedRide ? mergedRide.x1 : 0, _mfHi =
           var flag = document.createElementNS(NS,'path');
           flag.setAttribute('d', 'M ' + _mfLo + ' ' + (midY + tubeW/4) +
                                  ' L ' + _mfHi + ' ' + (midY + tubeW/4));"""
+# ── compass hop ignores relation-filtered nodes ──────────────────────────────
+# focusNeighbor (the 8-way arrow/swipe hop between focused cards) deliberately
+# skips nodes an era/weight filter has dimmed, so hopping only visits nodes that
+# meet the active filter. Relation filters dim with their own `rel-dimmed` class
+# — a separate class on purpose, so the engine's slot filters and the relation
+# filters never write to the same one — which left the hop walking into cards
+# the user had just filtered out. Teach the guard about both.
+_HOP_DIM_OLD = ("      var _c=n.querySelector('.node-card'); "
+                "if(_c&&_c.classList.contains('dimmed')) return;")
+_HOP_DIM_NEW = ("      var _c=n.querySelector('.node-card'); "
+                "if(_c&&(_c.classList.contains('dimmed')||"
+                "_c.classList.contains('rel-dimmed'))) return;")
+
 
 PATCHES = [
     {
         "name": "merge-flag-overshoot",
         "old": _MERGE_FLAG_OLD,
         "new": _MERGE_FLAG_NEW,
+        "count": 1,
+    },
+    {
+        "name": "compass-hop-skips-relation-filtered",
+        "old": _HOP_DIM_OLD,
+        "new": _HOP_DIM_NEW,
         "count": 1,
     },
 ]

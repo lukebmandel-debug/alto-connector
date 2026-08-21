@@ -73,7 +73,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     regions, tokens = timeline_blocks(
         brief, nodes, positions, heights, mgrid, mobile_h,
-        reports_href=reports_href, connections=connections)
+        reports_href=reports_href, connections=connections,
+        warnings=warnings)
     regions["connections"] = connections_block(connections)
 
     template = engine_template("timeline_template.html")

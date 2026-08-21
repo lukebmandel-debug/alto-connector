@@ -242,7 +242,7 @@
     "filters": [
       {
         "id": "cov",
-        "label": "Filter by Coverage",
+        "label": "Coverage",
         "source": "coverage"
       }
     ],
