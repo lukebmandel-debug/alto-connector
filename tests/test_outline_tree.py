@@ -154,8 +154,13 @@ def test_a_linear_brief_gets_none_of_it():
     # a linear brief ignores `parent`, so give it real spine edges to lay out
     d["connections"] = [["formation", "offer", "spine"]] + d["connections"]
     html, _ = build_timeline(*load_brief(d))
-    for marker in ("_ALTO_OUTLINE", "_altoOutlineHead", ".ol-row"):
+    # The data, the page builders and the styling are all conditional...
+    for marker in ("window._ALTO_OUTLINE={", "_altoOutlineHead",
+                   ".ol-row{display:grid", "_altoPrintOutline = function"):
         assert marker not in html
+    # ...while the two engine hooks that reach them are permanent guards,
+    # applied to every build and simply never satisfied here.
+    assert "if(window._ALTO_OUTLINE && window._altoPrintOutline)" in html
 
 
 def test_mode_must_be_one_of_the_two():

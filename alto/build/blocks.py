@@ -282,6 +282,51 @@ ALTO_LINK_GLUE = """
 })();
 """
 
+# Printing an outline. The engine's own "main timeline" print lays every node
+# out as a card hanging off a vertical spine — right for a sequence, wrong for a
+# containment tree, where what you want on paper is the outline itself: nested
+# headings, real outline numerals, the rule under each, and the authority beside
+# it. An engine patch hands the data here (ACT_SEQS / NODES / PHASE_META / ENVS
+# are module-scoped, so this cannot be done from outside without one).
+#
+# "With what is given" is the whole rule: a concept with nothing written under
+# it still gets its heading, and nothing is filled in for it.
+OUTLINE_PRINT_GLUE = """
+window._altoPrintOutline = function(ACT_SEQS, NODES, PHASE_META, ENVS){
+  var O = window._ALTO_OUTLINE; if(!O) return '';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){
+    return c==='&'?'&amp;':(c==='<'?'&lt;':'&gt;'); }); }
+  var byId={}; NODES.forEach(function(n){ byId[n.id]=n; });
+  var out=['<div class="print-ol-doc">__ALTO_TOK_print_title__'];
+  ACT_SEQS.forEach(function(ids, ui){
+    var pm = PHASE_META[ui] || null;
+    var inUnit={}; ids.forEach(function(id){ inUnit[id]=1; });
+    out.push('<section class="print-ol-unit"><h2 class="print-ol-h">'
+      + esc(pm ? pm.label : ('UNIT ' + (ui+1))) + '</h2>');
+    function row(id, depth){
+      var n = byId[id]; if(!n) return;
+      out.push('<div class="print-ol-row" style="--lvl:' + depth + '">');
+      out.push('<span class="print-ol-num">' + esc(O.label[id] || '') + '</span>');
+      out.push('<div class="print-ol-body">');
+      out.push('<span class="print-ol-name">' + esc(n.title || id) + '</span>');
+      // the student's own one-liner, verbatim
+      if(n.desc) out.push('<div class="print-ol-desc">' + esc(n.desc) + '</div>');
+      // authority, named the way an outline cites it
+      var cites = (n.envs || []).map(function(e){
+        return esc((ENVS[e] && ENVS[e].name) || e); });
+      if(cites.length) out.push('<div class="print-ol-cite">' + cites.join('; ') + '</div>');
+      out.push('</div></div>');
+      (O.kids[id] || []).forEach(function(kid){
+        if(inUnit[kid]) row(kid, depth + 1); });
+    }
+    ids.forEach(function(id){ if(!O.parent[id]) row(id, 0); });
+    out.push('</section>');
+  });
+  out.push('</div>');
+  return out.join('');
+};"""
+
+
 # Relation filters dim cards, not just line tubes. LINES_GLUE still owns the
 # tubes and the chips' active state; this runs just after it (a 0ms timeout, so
 # the class toggle has already landed) and applies the node half.
@@ -834,7 +879,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         orders += ("\nwindow._ALTO_OUTLINE={num:" + json.dumps(_num)
                    + ",label:" + json.dumps(_label)
                    + ",kids:" + json.dumps(_kids)
-                   + ",parent:" + json.dumps(_parent) + "};" + OUTLINE_BODY)
+                   + ",parent:" + json.dumps(_parent) + "};"
+                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE)
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
@@ -927,7 +973,28 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n  .ol-d{grid-column:2;color:var(--muted);font-size:.92em;"
             "line-height:1.5;margin-top:.15em;}"
             "\n  .ol-trail{color:var(--muted);line-height:1.9;}"
-            "\n  .ol-sep{opacity:.5;padding:0 .15em;}")
+            "\n  .ol-sep{opacity:.5;padding:0 .15em;}"
+            # Paper. Indentation carries the nesting, the numeral column keeps
+            # the numbers aligned down the page, and a heading never sits alone
+            # at the foot of a page away from what it contains.
+            "\n  @media print{"
+            "\n    .print-ol-doc{font-family:'Georgia',serif;font-size:10.5pt;"
+            "line-height:1.4;}"
+            "\n    .print-ol-unit{margin:0 0 1.4em;break-inside:auto;}"
+            "\n    .print-ol-h{font-size:12pt;letter-spacing:.08em;"
+            "text-transform:uppercase;border-bottom:1px solid #9a9a9a;"
+            "padding-bottom:.25em;margin:0 0 .7em;break-after:avoid;}"
+            "\n    .print-ol-row{display:flex;gap:.5em;align-items:baseline;"
+            "margin:.28em 0;padding-left:calc(var(--lvl) * 1.6em);"
+            "break-inside:avoid;}"
+            "\n    .print-ol-num{flex:0 0 2.2em;text-align:right;"
+            "font-variant-numeric:tabular-nums;}"
+            "\n    .print-ol-body{flex:1 1 auto;min-width:0;}"
+            "\n    .print-ol-name{font-weight:700;}"
+            "\n    .print-ol-desc{margin-top:.1em;}"
+            "\n    .print-ol-cite{margin-top:.1em;font-style:italic;}"
+            "\n    .print-ol-row + .print-ol-row{break-before:auto;}"
+            "\n  }")
     # Deep links in detail-page text. Styled after the overview's .ov-node-link
     # resting/hover chip so a link reads the same wherever it appears — but it
     # carries its own accent underline, since a detail page has no per-character
@@ -1100,7 +1167,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                             f"&#8212; {sec_hint}."),
         "help_sections_d": ("click any card to open its detail page "
                             f"({sec_hint})"),
-        "print_title": f'<h1 class="print-tl-title">{b.title} — Timeline</h1>',
+        # An outline printed as an outline should not be headed "Timeline".
+        "print_title": (
+            f'<h1 class="print-tl-title">{b.title} — '
+            f'{"Outline" if b.mode == "outline" else "Timeline"}</h1>'),
         # navigator.share() displays this as text, so it gets the tag-free
         # title — and it is a JS literal, so js_str() rather than interpolation.
         "share_title": f"title:{js_str(title_txt + ' Timeline')}",

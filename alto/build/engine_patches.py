@@ -63,6 +63,37 @@ _HOP_DIM_NEW = ("      var _c=n.querySelector('.node-card'); "
                 "if(_c&&(_c.classList.contains('dimmed')||"
                 "_c.classList.contains('rel-dimmed'))) return;")
 
+# ── an outline prints as an outline ─────────────────────────────────────────
+# The engine's "main timeline" print renders every node as a card on a vertical
+# spine, which is right for a sequence and wrong for a containment tree: on
+# paper a concept outline wants nesting, real outline numerals, and the
+# authority beside each rule. ACT_SEQS / NODES / PHASE_META / ENVS are all
+# module-scoped, so a builder-side override is impossible without this hook.
+# Two lines: when the page carries outline data, hand it to the builder's own
+# renderer; otherwise fall through to the engine's, untouched.
+_PRINT_OUTLINE_OLD = (
+    "function _buildPrintTimelineHTML(){\n"
+    "  if(typeof ACT_SEQS === 'undefined' || typeof NODES === 'undefined') return '';")
+_PRINT_OUTLINE_NEW = (
+    "function _buildPrintTimelineHTML(){\n"
+    "  if(typeof ACT_SEQS === 'undefined' || typeof NODES === 'undefined') return '';\n"
+    "  if(window._ALTO_OUTLINE && window._altoPrintOutline)\n"
+    "    return window._altoPrintOutline(ACT_SEQS, NODES,\n"
+    "      (typeof PHASE_META!=='undefined')?PHASE_META:[],\n"
+    "      (typeof ENVS!=='undefined')?ENVS:{});")
+
+# ── the search box says "Search", everywhere ────────────────────────────────
+# Three surfaces had three different placeholders, and the desktop timeline's
+# still named the reference build's own subject matter — "scenes, characters,
+# themes" — which is wrong on a law outline and wrong on anything else that
+# isn't a novel. Worse, it LOOKS configurable, so it invites a hunt for the
+# setting that would fix it; there isn't one, the strings are frozen literals
+# inside a JS concatenation. One word, the same on every surface.
+_SEARCH_DESKTOP_OLD = "'placeholder=\"Search scenes, characters, themes\u2026\">'+"
+_SEARCH_DESKTOP_NEW = "'placeholder=\"Search\">'+"
+_SEARCH_MOBILE_OLD = "'placeholder=\"Search\u2026\">';"
+_SEARCH_MOBILE_NEW = "'placeholder=\"Search\">';"
+
 
 PATCHES = [
     {
@@ -75,6 +106,24 @@ PATCHES = [
         "name": "compass-hop-skips-relation-filtered",
         "old": _HOP_DIM_OLD,
         "new": _HOP_DIM_NEW,
+        "count": 1,
+    },
+    {
+        "name": "outline-prints-as-an-outline",
+        "old": _PRINT_OUTLINE_OLD,
+        "new": _PRINT_OUTLINE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "search-placeholder-desktop",
+        "old": _SEARCH_DESKTOP_OLD,
+        "new": _SEARCH_DESKTOP_NEW,
+        "count": 1,
+    },
+    {
+        "name": "search-placeholder-mobile",
+        "old": _SEARCH_MOBILE_OLD,
+        "new": _SEARCH_MOBILE_NEW,
         "count": 1,
     },
 ]
