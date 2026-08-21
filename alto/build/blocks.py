@@ -229,6 +229,25 @@ function _altoDoctrineBody(id){
 # sync. Plus a per-edge hover tooltip (tubes get pointer-events via CSS since
 # #river-svg is otherwise click-through). Dims only lines — node dimming is the
 # filter's job, and touching it here would fight the filter state.
+# Deep links inside detail-page section text. The overview's own upgrader
+# (initOverviewNavLinks) cannot serve these: it runs once, only when the overview
+# panel opens, and only for 'node' — a chip rendered later into #detail-content
+# would stay an un-upgraded span, which .ov-node-btn{display:none} makes
+# invisible. One delegated listener covers desktop, mobile and the swipe peek.
+# Data attributes rather than an inline onclick, so nothing has to survive a JS
+# string literal on the way in.
+ALTO_LINK_GLUE = """
+(function(){
+  if(window._altoLinkBound) return; window._altoLinkBound=1;
+  document.addEventListener('click', function(e){
+    var a=e.target && e.target.closest && e.target.closest('.alto-link[data-sd-id]');
+    if(!a || typeof showDetail!=='function') return;
+    e.preventDefault(); e.stopPropagation();
+    showDetail(a.getAttribute('data-sd-type')||'node', a.getAttribute('data-sd-id'));
+  }, true);
+})();
+"""
+
 LINES_GLUE = """
 function isolateRelation(key){
   var svg=document.getElementById('river-svg'); if(!svg||typeof CONNECTIONS==='undefined') return;
@@ -318,6 +337,27 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     if rf["spec"].replace_nav
                     and rf["spec"].source in ("entity", "axis1", "axis2")}
 
+    # Everything kept out of the navigation chrome — the nav row, the mobile
+    # drawer and the legend dots. A replace_nav'd axis is hidden there AND loses
+    # its card chips (below); an Axis.hide_nav axis is hidden here only, so its
+    # chips stay on the cards and its detail pages stay reachable.
+    nav_hidden = nav_replaced | {
+        f"axis{i + 1}" for i, ax in enumerate(b.axes[:2]) if ax.hide_nav}
+
+    # sanitize has already rewritten any showDetail() anchors in section text,
+    # so the emitted spans are the honest signal for whether this build needs
+    # the link handler and its CSS at all. A brief with no deep links adds no
+    # bytes for them — the same discipline as the relation colour vars above.
+    def _has_alto_link() -> bool:
+        if 'class="alto-link"' in (b.overview_html or ""):
+            return True
+        groups = [n.sections for n in nodes] + [e.sections for e in b.entities]
+        groups += [v.sections for ax in b.axes for v in ax.values]
+        return any('class="alto-link"' in (s.t or "")
+                   for g in groups for s in (g or []))
+
+    uses_alto_link = _has_alto_link()
+
     # Relation "line key": the legend that names which line color means which
     # relation. Only relations actually used by a connection are shown, in
     # vocabulary order; a labeled spine appears last as the neutral flowing line.
@@ -372,11 +412,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         f'style="background:var(--{e.id})"></div>{e.name}</div>'
         for e in b.entities)
     axis_dots = ""
-    if ax1 and "axis1" not in nav_replaced:
+    if ax1 and "axis1" not in nav_hidden:
         axis_dots += ('\n    <div class="legend-item"><div class="legend-dot" '
                       'style="background:var(--env-color);border-radius:2px">'
                       f'</div>{ax1.singular}</div>')
-    if ax2 and "axis2" not in nav_replaced:
+    if ax2 and "axis2" not in nav_hidden:
         axis_dots += ('\n    <div class="legend-item"><div class="legend-dot" '
                       f'style="background:var(--theme-color)"></div>{ax2.singular}</div>')
     divider = ('\n    <div style="width:1px;height:14px;background:var(--border);'
@@ -388,7 +428,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"onclick=\"showDetail('{kind}','{vid}')\">{sym} {name}</button>")
 
     nav = [f'<div id="nav">\n    <span class="title">{b.title}</span>']
-    if b.entities and "entity" not in nav_replaced:
+    if b.entities and "entity" not in nav_hidden:
         nav.append(f'\n    <span class="nav-group-label">{b.entity_axis_singular}</span>')
         for e in b.entities:
             thin = _ent_thin(e.id)
@@ -400,7 +440,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"{e.symbol_svg or FALLBACK_GLYPH} {e.name}{badge}</button>")
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
-        if not ax or src in nav_replaced:
+        if not ax or src in nav_hidden:
             continue
         nav.append('\n    <div class="nav-divider"></div>')
         nav.append(f'\n    <span class="nav-group-label">{ax.singular}</span>')
@@ -460,8 +500,20 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     def sym_map(name, ax):
         if not ax:
             return f"const {name}={{}};"
+        # The engine sets `btn.innerHTML = ENV_SYM[id]` on a flex pill with no
+        # width constraint, so this slot takes a label just as happily as a
+        # glyph. For a hide_nav axis it must: that axis is the large uncapped
+        # kind (a course's cases), where drawing a unique glyph per value is not
+        # realistic and every value would fall back to the same ◆ — a row of
+        # identical diamonds on a card names nothing. `v.name` is plain_text'd
+        # by sanitize before it gets here.
+        def cell(v):
+            if not ax.hide_nav:
+                return _sym(v.symbol_svg)
+            return (f"{js_str(v.symbol_svg)}+{js_str(' ' + v.name)}"
+                    if v.symbol_svg else js_str(v.name))
         return f"const {name}={{" + ",".join(
-            f"'{v.id}':{_sym(v.symbol_svg)}" for v in ax.values) + "};"
+            f"'{v.id}':{cell(v)}" for v in ax.values) + "};"
 
     env_sym = sym_map("ENV_SYM", ax1)
     theme_sym = sym_map("THEME_SYM", ax2)
@@ -568,7 +620,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         if r.label and r.key in used_rels) + "};")
     orders += ("\n" + rel_labels
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
-               + DOCTRINE_BODY + LINES_GLUE)
+               + DOCTRINE_BODY + LINES_GLUE
+               + (ALTO_LINK_GLUE if uses_alto_link else ""))
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
@@ -627,6 +680,29 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "background:var(--surface);color:var(--text);border:1px solid var(--border);"
         "border-radius:6px;padding:4px 8px;font-size:12px;max-width:280px;"
         "box-shadow:0 4px 16px rgba(0,0,0,.2);}")
+    # A named chip (hide_nav axes, above) has to stay inside a 270px card, so
+    # cap it and ellipsise rather than letting one long case name reflow the
+    # footer. The glyph form is a fixed 14px and needs none of this.
+    if any(ax.hide_nav for ax in b.axes[:2]):
+        nav_char_css += (
+            "\n  .esym-btn,.tsym-btn{max-width:150px;overflow:hidden;"
+            "text-overflow:ellipsis;white-space:nowrap;display:inline-block;"
+            "line-height:18px;}")
+    # Deep links in detail-page text. Styled after the overview's .ov-node-link
+    # resting/hover chip so a link reads the same wherever it appears — but it
+    # carries its own accent underline, since a detail page has no per-character
+    # colour to borrow.
+    if uses_alto_link:
+        # Tighter than .ov-node-link's chip padding: these sit mid-sentence, so
+        # a 3px gutter reads as a space before the following comma.
+        nav_char_css += (
+            "\n  .alto-link{display:inline;cursor:pointer;border-radius:3px;"
+            "padding:0 1px;border:1px solid transparent;"
+            "box-shadow:inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);"
+            "transition:border-color .15s, background .15s;}"
+            "\n  .alto-link:hover{"
+            "border-color:color-mix(in srgb, var(--accent) 55%, transparent);"
+            "background:color-mix(in srgb, var(--accent) 12%, transparent);}")
     # Gap-radar badges on the doctrine nav/drawer chips.
     nav_char_css += (
         "\n  .nav-chip-count{margin-left:5px;font-size:.8em;opacity:.45;}"
@@ -647,7 +723,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 + f"</span><span class=\"drawer-label\">{name}</span></button>',")
 
     drawer = []
-    if b.entities and "entity" not in nav_replaced:
+    if b.entities and "entity" not in nav_hidden:
         drawer.append(f"'    <div class=\"drawer-section-label\">{b.entity_axis_label}</div>',")
         for e in b.entities:
             thin = _ent_thin(e.id)
@@ -656,7 +732,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             drawer.append(drawer_btn("char", e.id, e.symbol_svg, nm, data_char=e.id))
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
-        if not ax or src in nav_replaced:
+        if not ax or src in nav_hidden:
             continue
         drawer.append(f"'    <div class=\"drawer-section-label\">{ax.label}</div>',")
         for v in ax.values:

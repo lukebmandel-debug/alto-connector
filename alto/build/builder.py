@@ -25,6 +25,7 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
         for e in bd.get("entities", [])]
     bd["axes"] = [
         Axis(label=ax["label"], singular=ax["singular"],
+             hide_nav=bool(ax.get("hide_nav", False)),
              values=[AxisValue(**{**v, "sections": [Section(**s) for s in v.get("sections", [])]})
                      for v in ax.get("values", [])])
         for ax in bd.get("axes", [])]

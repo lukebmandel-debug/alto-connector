@@ -128,6 +128,13 @@ class Axis:
     label: str                 # plural, e.g. "Environments" / "Doctrines"
     singular: str              # e.g. "Environment"
     values: list[AxisValue] = field(default_factory=list)
+    # Drop this axis from the top nav bar, the mobile drawer and the legend,
+    # while KEEPING its chips on the cards and its detail pages reachable.
+    # For a large uncapped axis — a course's cases — a nav row listing every
+    # value is unusable, but the per-card chips are exactly how you reach the
+    # one you want. Distinct from FilterSpec.replace_nav, which also strips the
+    # card chips because a filter-only axis has no pages worth opening.
+    hide_nav: bool = False
 
 
 @dataclass
