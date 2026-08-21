@@ -18,7 +18,7 @@ import json
 import re
 from urllib.parse import quote as url_q
 
-from .brief import Brief, Node, COL_SETS, ROMAN
+from .brief import Brief, Node, COL_SETS, roman
 from .sanitize import css_color, esc, one_line
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
@@ -352,15 +352,17 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             f"--phase{i+1}:rgba({r},{g},{bl},{alpha});"
             for i, (r, g, bl) in enumerate(_rgb(a.color) for a in b.acts[:5]))
 
+    # Bands 6+ land in their own <style> block rather than the :root above, so
+    # this covers every remaining act — the count is whatever the brief carries.
     def phase_extra():
         if len(b.acts) <= 5:
             return ""
         light = "".join(f"--phase{i+6}:rgba({r},{g},{bl},0.09);"
                         for i, (r, g, bl) in
-                        enumerate(_rgb(a.color) for a in b.acts[5:7]))
+                        enumerate(_rgb(a.color) for a in b.acts[5:]))
         dark = "".join(f"--phase{i+6}:rgba({r},{g},{bl},0.07);"
                        for i, (r, g, bl) in
-                       enumerate(_rgb(a.color) for a in b.acts[5:7]))
+                       enumerate(_rgb(a.color) for a in b.acts[5:]))
         return (f":root{{{light}}}\n"
                 f"@media(prefers-color-scheme:dark){{:root{{{dark}}}}}")
 
@@ -511,7 +513,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "\n  " + json.dumps(ids) for ids in act_seqs_list) + "\n];"
 
     phase_meta = "const PHASE_META = [" + ",".join(
-        f"\n  {{label:{js_str(a.label)}, numeral:'{ROMAN[i]}', "
+        f"\n  {{label:{js_str(a.label)}, numeral:'{roman(i + 1)}', "
         f"colorRaw:'{a.color}', cssVar:'var(--phase{i+1})'}}"
         for i, a in enumerate(b.acts)) + "\n];"
 

@@ -38,7 +38,23 @@ def _check_len(value, kind, what) -> str:
 PALETTE = ["#4a9eff", "#e8a87c", "#a78bfa", "#f43f5e", "#10b981", "#fb923c",
            "#94a3b8", "#7dd3fc", "#f472b6", "#a3e635", "#fbbf24", "#2dd4bf"]
 
-ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"]
+_ROMAN_PARTS = ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"),
+                (90, "XC"), (50, "L"), (40, "XL"), (10, "X"), (9, "IX"),
+                (5, "V"), (4, "IV"), (1, "I"))
+
+
+def roman(n: int) -> str:
+    """Roman numeral for a 1-based band number. Generated rather than
+    tabulated: a timeline carries as many bands as the user's own material
+    has, so there is no fixed set to enumerate."""
+    if n < 1:
+        raise BriefError(f"roman({n}): band numbers start at 1")
+    out = []
+    for value, sym in _ROMAN_PARTS:
+        while n >= value:
+            out.append(sym)
+            n -= value
+    return "".join(out)
 
 # Domain-appropriate name for the periodization axis (the horizontal bands).
 # The engine determines it: an explicit brief.period_noun wins; otherwise it is
@@ -223,8 +239,12 @@ def validate_brief(b: Brief) -> list[str]:
     _check_len(b.node_noun, "node_noun", "node_noun")
     _check_len(b.owner_name, "owner", "owner_name")
     _check_len(b.owner_email, "owner", "owner_email")
-    if not 2 <= len(b.acts) <= 7:
-        raise BriefError(f"{len(b.acts)} acts: the engine supports 2-7")
+    # No upper bound: the engine builds bands in a runtime loop over PHASE_META
+    # and takes each band's colour from its own entry, so it renders as many as
+    # the brief carries. A course with eleven units gets eleven bands.
+    if len(b.acts) < 2:
+        raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
+                         "(with one band there is no periodization to show)")
     if b.columns not in COL_SETS:
         raise BriefError(f"columns={b.columns}: engine grids are 3 or 5 columns")
     if len(b.axes) > 2:
