@@ -77,6 +77,20 @@ into one.)
    consent=true)` with a factual source manifest (names/kinds only — the
    material itself stays in this conversation, where you read it).
 
+### B0. Which shape? — ask once, plainly
+Two ways to organize the same material, and the answer changes what §C, §D and
+§F even mean, so settle it before the rest.
+
+> "Two shapes. **Timeline** — each card is a case, event or reading, laid out
+> in sequence. **Outline** — each card is a *concept*, arranged the way the
+> outline you'd bring to an exam is: a hub concept per unit with its
+> sub-concepts radiating out, and clicking any concept opens its outline page.
+> Cases attach to concepts as chips rather than being cards of their own.
+> Which fits how you actually study this?"
+
+Unsure → timeline. → `mode` in the `create_timeline` brief; outline mode then
+routes §D to **§D-Outline** below.
+
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
 - "When something sits earlier or later on this timeline, what does that
@@ -147,6 +161,56 @@ rules, learned the hard way:
 - **Don't collapse arcs**: several items forming one arc (Roe → Casey →
   Dobbs) each stay their OWN node, cross-linked — never merged.
 - Every field is authored **verbatim from the user's material**.
+
+### D-Outline. The concept tree — the student authors it, you transcribe
+
+Only in `mode: 'outline'`. §D's node schema still applies to each concept; this
+section is about the *structure*, and the structure is the artifact.
+
+> **Hard rule: you do not name a single concept. Not one, not as an example,
+> not as a "does this sound right?".** If asked to suggest concepts, say: "That
+> part has to be yours — an outline is only worth anything if it's your
+> organization. Read me your table of contents or your headings and I'll take
+> them down." Reading *their* words back is transcription. Offering a word they
+> did not say is invention, and §0 forbids it here exactly as it does for
+> holdings. If their materials contain a heading list, quote it and ask them to
+> confirm, cut or reorder — never extend it.
+
+1. **Top-level families.** "Open your syllabus, or the front of your outline.
+   What are the big divisions — the ones that would be the units of the course?
+   Read them to me in order." → these become `acts`, one family per unit. If
+   they list one, ask what the rest of the course is.
+2. **Hubs, one unit at a time.** "Inside '<their unit 1>', what's the concept
+   everything else in that unit hangs off?" → that node gets no `parent`.
+   Exactly one per unit. Ask unit by unit; never batch this.
+3. **Children, one family at a time.** "Under '<their hub>', what are its
+   sub-concepts? Just the names, in whatever order they sit in your head."
+   → each gets `parent: <hub id>`. Then per child: "Does '<their child>' break
+   down further, or is that the bottom for you?" Recurse until *they* say
+   bottom. **Never volunteer a level they did not name.**
+4. **Echo the skeleton back, numbered** (I. / A. / 1.), with no descriptions,
+   and ask: "Anything in the wrong place, or missing?" Fix before authoring any
+   content. This is §J's reconciliation, moved early — in outline mode the
+   skeleton *is* the thing.
+5. **Fill it, concept by concept.** "For '<concept>' — what do your notes say it
+   is? Your own words, or point me at the page." → `title`, a one-line `desc`
+   (that is the card), and `sections` verbatim. Nothing in their notes? The
+   concept ships with a title and an empty desc, and the coverage filter marks
+   it Thin. Say so out loud — that gap is the study signal, not a failure.
+6. **Cases.** "Which cases do you have for '<concept>', and what does each one
+   stand for *in your notes*?" → `set_axis_values(slot=1, label="Cases",
+   singular="Case", hide_nav=True, values=[…])`, each with the student's own
+   brief in `sections`; attach via `axis1_values` on the concept. Where a case
+   is doing the work inside a write-up, link it inline:
+   `<a onclick="showDetail('env','<case-id>')">Hawkins v. McGee</a>`.
+7. **Cross-links only.** "Do any concepts in *different* units talk to each
+   other — one narrows another, one is the exception to another?" → `relations`
+   + `add_connections`. The parent→child lines are generated from the tree;
+   author only the edges that carry their own meaning.
+
+What the build does for you, so don't ask the student about any of it: hub and
+column placement, the parent→child lines, the outline numbering, and the depth
+filter. `col` is ignored in outline mode.
 
 ### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
@@ -276,8 +340,11 @@ Offer to fix. This is the last step before sharing links.
 
 1. `create_project` → 2. `create_timeline(project_id, brief)` (brief carries
 acts, axes, **filters**, relations) → 3. `record_materials_consent` →
-4. `set_entities` → 5. `add_nodes` (batches; authored from the materials in
-this conversation; custom-filter values ride on each node) →
+4. `set_entities` → 4b. `set_axis_values` (any extra axis carrying real
+content — a course's cases — since an axis declared in `create_timeline` is
+authored before the consent gate) → 5. `add_nodes` (batches; authored from the
+materials in this conversation; custom-filter values ride on each node; in
+outline mode `parent` carries the tree) →
 6. `add_connections` →
 7. `set_overview` (optional prose overview; deep-link a node with exactly
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become

@@ -446,9 +446,16 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     for n in nodes:
         if not n.parent:
             roots_by_act.setdefault(n.act, []).append(n.id)
+    acts_with_nodes = {n.act for n in nodes}
     for act_i in range(len(b.acts)):
         roots = roots_by_act.get(act_i, [])
         label = b.acts[act_i].short or b.acts[act_i].label
+        if act_i not in acts_with_nodes:
+            # Nothing authored for this unit yet. During an interview the units
+            # fill one at a time, so demanding a hub here would reject every
+            # add_nodes call until the last one. The empty unit is caught at
+            # build instead, by verify_data's act-coverage gate.
+            continue
         if not roots:
             raise BriefError(
                 f"unit {act_i + 1} ({label!r}) has no top-level concept — "

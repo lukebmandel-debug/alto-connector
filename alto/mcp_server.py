@@ -169,7 +169,9 @@ def _unique_slug(existing: set, base: str) -> str:
     return s
 
 
-MAX_NODES = 200
+# Concepts are 3-5x denser than cases: a 1L outline is a few
+# hundred nodes where the case list was a few dozen.
+MAX_NODES = 300
 MAX_CONNECTIONS = 600
 MAX_TIMELINES = 20
 MAX_PROJECTS = 20
@@ -334,11 +336,19 @@ def create_timeline(project_id: str, brief: dict) -> dict:
     {title, subject?, timeline_id?, columns?: 3|5, node_noun?, period_noun?,
      accent?, entity_axis_label?, entity_axis_singular?,
      acts: [{label, short?, color?}] (2-7),
-     axes?: [{label, singular, values:[{id,name,...}]}] (≤2),
+     mode?: 'linear'|'outline' — 'linear' (default) flows nodes through the
+      bands in sequence; 'outline' makes them concepts that CONTAIN one
+      another, one family per band, structure carried by node `parent`,
+      §D-Outline,
+     axes?: [{label, singular, hide_nav?: bool, values:[{id,name,...}]}] (≤2;
+      hide_nav drops the axis from the nav bar, drawer and legend but KEEPS its
+      card chips and detail pages, and labels those chips with the value name —
+      right for a large uncapped axis such as a course's cases),
      filters?: [{id, label,
-      source: 'entity'|'axis1'|'axis2'|'acts'|'coverage'|'custom',
+      source: 'entity'|'axis1'|'axis2'|'acts'|'coverage'|'depth'|'custom',
       values?: [{id,name}] (custom source only, 2-10),
-      replace_nav?: bool}] (≤2; 'coverage' = auto Solid/Thin from node density),
+      replace_nav?: bool}] (≤2; 'coverage' = auto Solid/Thin from node density;
+      'depth' = auto Level 1/2/3+ from the containment structure),
      relations?: [{key,label?,color?}] ('spine' = neutral main thread; other
       relations get distinct palette colors when color is omitted, so their
       lines stay tellable apart from the spine. Each label is user-visible: it
@@ -436,16 +446,72 @@ def set_entities(timeline_id: str, entities: list[dict]) -> dict:
             "warnings": warnings}
 
 
+@mcp.tool(title="Set axis values", annotations=RW)
+def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
+                    values: list[dict], hide_nav: bool = False) -> dict:
+    """Define or extend an extra axis (slot 1 or 2) after the consent gate.
+
+    values: [{id, name, role?, color?, symbol_svg?, sections?: [{h,t}]}],
+    upserted by id, so this can be called repeatedly as material arrives.
+    Unlike the entity axis there is no count cap — this is where a course's
+    cases belong, each carrying the student's own brief in `sections`.
+
+    `hide_nav` keeps the chips on the cards and the detail pages reachable
+    while dropping the axis from the nav bar, drawer and legend, and labels
+    those chips with the value's name rather than a glyph. Set it for anything
+    with more values than a nav row can hold; skip glyph design for it.
+
+    §0: `sections` are verbatim from the user's materials. This tool exists
+    because an axis declared inside create_timeline is authored BEFORE
+    record_materials_consent runs — so axis values carrying real content had no
+    gate. This one is consent-locked like add_nodes."""
+    if slot not in (1, 2):
+        return {"error": "bad_slot", "message": "slot must be 1 or 2"}
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    if not _consent_ok(doc):
+        return CONSENT_ERROR
+    axes = [dict(a) for a in (doc["brief"].get("axes") or [])]
+    while len(axes) < slot:
+        axes.append({"label": label, "singular": singular, "values": []})
+    ax = axes[slot - 1]
+    ax["label"], ax["singular"], ax["hide_nav"] = label, singular, bool(hide_nav)
+    merged = {v["id"]: v for v in (ax.get("values") or []) if v.get("id")}
+    for v in values:
+        merged[v.get("id", "")] = {**v}
+    ax["values"] = list(merged.values())
+    brief = {**doc["brief"], "axes": axes}
+    try:
+        b, _, _ = load_brief({"brief": brief})
+        from .build.brief import validate_brief
+        warnings = validate_brief(b)
+    except BriefError as e:
+        return {"error": "invalid_axis", "message": str(e)}
+    doc["brief"] = brief
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"slot": slot, "values": len(ax["values"]),
+            "hide_nav": bool(hide_nav), "warnings": warnings}
+
+
 @mcp.tool(title="Add or update nodes", annotations=RW)
 def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     """Batch-add/update timeline nodes (idempotent upsert by id). Each:
-    {id, act (0-based), tag, title, desc, col?, entity_ids?, axis1_values?,
-     axis2_values?, filters?: {custom_filter_id: value_id},
+    {id, act (0-based), tag, title, desc, col?, parent?, entity_ids?,
+     axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
      sections?: [{h,t}]}.
     §0: title/desc/sections are authored VERBATIM from the user's materials —
-    never fill gaps, never collapse multi-item arcs into one node. Column
-    guidance: alternate sides; 'center' for pivotal beats; omit col for the
-    deterministic fallback. Locked until the consent gate is open."""
+    never fill gaps, never collapse multi-item arcs into one node.
+    `parent` (outline mode): the id of the concept that CONTAINS this one; omit
+    it to make this the hub of its unit. Exactly one node per unit has no
+    parent, and a parent must sit in the same unit as its child. A child may be
+    sent before its parent — that only warns until you build.
+    Column guidance (linear mode): alternate sides; 'center' for pivotal beats;
+    omit col for the deterministic fallback. **In outline mode `col` is
+    ignored** — the tree decides placement, hubs centred and leaves out to the
+    sides, and the parent→child lines are generated for you, so author only the
+    cross-links that carry their own meaning.
+    Locked until the consent gate is open."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -729,11 +795,27 @@ def get_timeline(timeline_id: str) -> dict:
 @mcp.tool(title="Delete nodes", annotations=ToolAnnotations(destructiveHint=True))
 def delete_nodes(timeline_id: str, node_ids: list[str]) -> dict:
     """Remove nodes from the draft (e.g. after §J scope reconciliation).
-    Connections touching removed nodes are dropped too."""
+    Connections touching removed nodes are dropped too. In outline mode a
+    concept that still contains others is refused rather than silently
+    orphaning them — delete the subtree, or re-parent the children first."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     st = get_store()
+    if (doc.get("brief") or {}).get("mode") == "outline":
+        going = set(node_ids)
+        orphaned = {}
+        for n in st.list_nodes(uid(), timeline_id):
+            par = n.get("parent")
+            if par in going and n["id"] not in going:
+                orphaned.setdefault(par, []).append(n["id"])
+        if orphaned:
+            return {"error": "has_children",
+                    "message": "these concepts still contain others; deleting "
+                               "them would orphan the children",
+                    "children": orphaned,
+                    "hint": "delete the whole subtree, or re-parent the "
+                            "children with add_nodes first"}
     st.delete_nodes(uid(), timeline_id, node_ids)
     remaining = {n["id"] for n in st.list_nodes(uid(), timeline_id)}
     conns = [c for c in st.get_connections(uid(), timeline_id)
