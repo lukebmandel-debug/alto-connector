@@ -28,7 +28,15 @@ SHIM = ("<script>(function(){function go(u){try{var p=window.parent;"
         "window.__altoSearch=function(){return(window.__altoQuery&&window.__altoQuery.search)||location.search;};"
         "window.__altoHash=function(){return(window.__altoQuery&&window.__altoQuery.hash!==undefined&&window.__altoQuery.hash!=='')"
         "?window.__altoQuery.hash:location.hash;};"
-        "document.addEventListener('click',function(e){var t=e.target;var a=t&&t.closest&&t.closest('a[href]');"
+        # Capture phase, so this runs BEFORE any handler on the element itself.
+        # That is what makes it a reliable link router — and also why it has to
+        # step aside for buttons: the tile's share and reports controls sit inside
+        # the course-tile anchor and cancel the click in their own bubble-phase
+        # handler, which never got to run. Clicking share silently opened the
+        # timeline instead of sharing.
+        "document.addEventListener('click',function(e){var t=e.target;"
+        "if(t&&t.closest&&t.closest('button'))return;"
+        "var a=t&&t.closest&&t.closest('a[href]');"
         "if(!a)return;var h=a.getAttribute('href')||'';if(/^(index|terrarium_glass|reports)\\.html/.test(h))"
         "{e.preventDefault();window.__altoGo(h);}},true);"
         "})();</script>")
@@ -75,6 +83,24 @@ def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
                 "Promise.resolve((function(){try{var p=window.parent;"
                 "return (p&&p.__altoDoc&&p.__altoDoc('timeline'))||'';}catch(e){return '';}})())",
                 1, "home search source")
+    # Share: the bundle runs every page in a srcdoc iframe, where location.href
+    # is "about:srcdoc" — an invalid base, so `new URL(path, location.href)`
+    # THREW. altoShareLink is async, so the throw became an unhandled rejection:
+    # no toast, no copy, nothing at all happened on click. The relative path is
+    # meaningless here anyway (the bundle is one file and always opens at
+    # index.html — it has no deep links), so share the document that CONTAINS
+    # the bundle when that is a real web address, and say so plainly when it is
+    # a local file. Never throw: a share that cannot resolve still tells the user.
+    home = _rep(home,
+                "  const url = new URL(path, location.href).href;",
+                "  var url = '';\n"
+                "  try {\n"
+                "    var top = (window.parent && window.parent !== window)\n"
+                "      ? window.parent.location.href : location.href;\n"
+                "    if(/^https?:/i.test(top||'')) url = top;\n"
+                "  } catch(e){}\n"
+                "  if(!url){ showToast('Offline copy \\u2014 send the file itself'); return; }",
+                1, "home share base (srcdoc has no usable location.href)")
     home = _rep(home,
                 "  if(isMobile){ location.href = web; return; }   // Claude mobile app intercepts the universal link\n",
                 "  { window.open(web, '_blank'); return; }\n", 1, "openClaude mobile")
