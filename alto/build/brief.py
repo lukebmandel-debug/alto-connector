@@ -178,6 +178,8 @@ class FilterSpec:
 FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
                   "custom")
 
+MODES = ("linear", "outline")
+
 
 @dataclass
 class Act:
@@ -208,6 +210,13 @@ class Node:
     sections: list[Section] = field(default_factory=list)   # detail page
     color: str = ""            # css color ref; defaults to first entity's var
     base_y: int = 0            # filled by layout
+    # Outline mode: the concept that CONTAINS this one. "" makes it the root of
+    # its band. Single-valued and stored on the child, matching how every other
+    # reference in this model works (entity_ids, axis*_values) — and upsert-safe,
+    # since adding a child touches exactly one record. A stored outline *path*
+    # ("I.A.2") would be silently invalidated by inserting a sibling, so the
+    # numbering is derived at build and never stored.
+    parent: str = ""
 
 
 @dataclass
@@ -229,6 +238,12 @@ class Brief:
     timeline_id: str = "timeline"               # tid: keys + URLs
     owner_name: str = ""
     owner_email: str = ""
+    # "linear" — nodes flow through the bands in sequence (the original shape).
+    # "outline" — nodes are concepts that CONTAIN one another: each band holds
+    # one family, its root centred with its children radiating out, and Node
+    # .parent carries the structure. Same engine and same geometry either way;
+    # what changes is where the cards sit and what a detail page shows.
+    mode: str = "linear"
 
 
 def _check_sections(sections, what) -> None:
@@ -259,6 +274,12 @@ def validate_brief(b: Brief) -> list[str]:
     if len(b.acts) < 2:
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
+    if b.mode not in MODES:
+        raise BriefError(f"mode {b.mode!r}: must be one of {MODES}")
+    if b.mode == "outline" and b.columns == 3:
+        warnings.append(
+            "outline mode with 3 columns: depth has nowhere to spread — "
+            "5 columns give a hub's children their own lanes")
     if b.columns not in COL_SETS:
         raise BriefError(f"columns={b.columns}: engine grids are 3 or 5 columns")
     if len(b.axes) > 2:
@@ -374,6 +395,73 @@ def validate_brief(b: Brief) -> list[str]:
     return warnings
 
 
+def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
+    """Outline mode's containment tree: every hard rule the geometry depends on.
+
+    Returns soft warnings; raises BriefError on anything that would produce a
+    page that cannot be laid out or read.
+
+    A dangling parent is only a *warning* here on purpose. `add_nodes` is an
+    idempotent batch upsert, so a child legitimately arrives before its parent
+    during an interview; it becomes a hard failure at build time, in
+    verify_data, once the node set is final. That is the same split
+    `add_connections` already uses for act coverage.
+    """
+    warnings: list[str] = []
+    ids = {n.id for n in nodes}
+    by_id = {n.id: n for n in nodes}
+
+    for n in nodes:
+        if not n.parent:
+            continue
+        if n.parent == n.id:
+            raise BriefError(f"node {n.id}: parent is itself")
+        if n.parent not in ids:
+            warnings.append(
+                f"node {n.id}: parent {n.parent!r} is not a node yet — add it "
+                "before building")
+            continue
+        if by_id[n.parent].act != n.act:
+            raise BriefError(
+                f"node {n.id} (unit {n.act + 1}) has parent {n.parent!r} "
+                f"(unit {by_id[n.parent].act + 1}). A concept and its "
+                "sub-concepts live in the same unit — a different family of "
+                "concepts gets its own unit")
+
+    # Cycles. Walk each chain to its end; revisiting a node inside one walk is
+    # a loop, and a loop makes depth and layout meaningless.
+    for n in nodes:
+        seen, cur = {n.id}, n
+        while cur.parent and cur.parent in by_id:
+            if cur.parent in seen:
+                raise BriefError(
+                    f"node {n.id}: parent chain loops back on itself "
+                    f"({' → '.join(list(seen)[:4])}). A concept cannot "
+                    "contain one of its own ancestors")
+            seen.add(cur.parent)
+            cur = by_id[cur.parent]
+
+    # Exactly one root per band — the hub the rest of the band radiates from.
+    roots_by_act: dict[int, list[str]] = {}
+    for n in nodes:
+        if not n.parent:
+            roots_by_act.setdefault(n.act, []).append(n.id)
+    for act_i in range(len(b.acts)):
+        roots = roots_by_act.get(act_i, [])
+        label = b.acts[act_i].short or b.acts[act_i].label
+        if not roots:
+            raise BriefError(
+                f"unit {act_i + 1} ({label!r}) has no top-level concept — "
+                "every unit needs exactly one hub with no parent")
+        if len(roots) > 1:
+            raise BriefError(
+                f"unit {act_i + 1} ({label!r}) has {len(roots)} top-level "
+                f"concepts ({', '.join(sorted(roots)[:4])}) — a unit has one "
+                "hub. Give each its own unit, or make the others its "
+                "sub-concepts")
+    return warnings
+
+
 def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     warnings = []
     entity_ids = {e.id for e in b.entities}
@@ -407,6 +495,9 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
         _check_sections(n.sections, f"node {n.id}")
         if not (n.desc or "").strip():
             warnings.append(f"node {n.id}: empty desc (sparse by design?)")
+
+    if b.mode == "outline":
+        warnings += _validate_outline_tree(b, nodes)
 
     custom_vals = {f.id: {v.id for v in f.values}
                    for f in b.filters if f.source == "custom"}

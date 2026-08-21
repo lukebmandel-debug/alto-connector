@@ -169,9 +169,10 @@ def test_depth_puts_each_band_root_at_level_one():
     brief, nodes, conns = load_brief(d)
     rf = resolve_filters(brief, nodes, conns)[0]
     roots = {nid for nid, v in rf["node_value"].items() if v == "d1"}
-    # a root is a node no spine edge points at
-    pointed_at = {c[1] for c in conns if len(c) >= 3 and c[2] == "spine"}
-    assert roots == {n.id for n in nodes} - pointed_at
+    # In outline mode the tree is authored on the nodes; the spine edges are
+    # generated from it later, so depth must read `parent` rather than depend
+    # on when in the build it is called.
+    assert roots == {n.id for n in nodes if not n.parent}
     assert len(roots) == len(brief.acts)          # one family root per band
 
 

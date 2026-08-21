@@ -251,7 +251,8 @@
         "source": "depth"
       }
     ],
-    "overview_html": "<p>This outline is organised by <strong>concept</strong>, not by case. Each unit opens with a hub concept — <a href=\"#\" onclick=\"showDetail('node','formation')\">Formation</a>, <a href=\"#\" onclick=\"showDetail('node','consideration')\">Consideration</a>, <a href=\"#\" onclick=\"showDetail('node','defenses')\">Defenses</a>, <a href=\"#\" onclick=\"showDetail('node','performance')\">Terms &amp; Performance</a>, <a href=\"#\" onclick=\"showDetail('node','remedies')\">Remedies</a> — with the concepts it contains radiating out from it.</p><p>Cases hang off the concepts they support, as chips on the cards. Use the coverage filter to find the concepts your notes are thinnest on.</p>"
+    "overview_html": "<p>This outline is organised by <strong>concept</strong>, not by case. Each unit opens with a hub concept — <a href=\"#\" onclick=\"showDetail('node','formation')\">Formation</a>, <a href=\"#\" onclick=\"showDetail('node','consideration')\">Consideration</a>, <a href=\"#\" onclick=\"showDetail('node','defenses')\">Defenses</a>, <a href=\"#\" onclick=\"showDetail('node','performance')\">Terms &amp; Performance</a>, <a href=\"#\" onclick=\"showDetail('node','remedies')\">Remedies</a> — with the concepts it contains radiating out from it.</p><p>Cases hang off the concepts they support, as chips on the cards. Use the coverage filter to find the concepts your notes are thinnest on.</p>",
+    "mode": "outline"
   },
   "nodes": [
     {
@@ -260,7 +261,6 @@
       "tag": "Formation",
       "title": "Formation",
       "desc": "A contract forms on mutual assent to a bargain, supported by consideration.",
-      "col": "center",
       "entity_ids": [
         "formation"
       ],
@@ -280,7 +280,6 @@
       "tag": "Formation",
       "title": "Definiteness",
       "desc": "An agreement too indefinite in its material terms is unenforceable even where both sides intended to be bound.",
-      "col": "left",
       "entity_ids": [
         "formation"
       ],
@@ -290,7 +289,8 @@
           "h": "Rule",
           "t": "Essential terms — parties, subject matter, price, quantity, time — must be reasonably certain."
         }
-      ]
+      ],
+      "parent": "formation"
     },
     {
       "id": "preliminary-negotiations",
@@ -298,12 +298,12 @@
       "tag": "Formation",
       "title": "Preliminary Negotiations",
       "desc": "Invitations to deal, price quotes and most advertisements are not offers.",
-      "col": "right",
       "entity_ids": [
         "formation"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "formation"
     },
     {
       "id": "offer",
@@ -311,7 +311,6 @@
       "tag": "Formation",
       "title": "Offer",
       "desc": "A manifestation of willingness to enter a bargain, so made as to justify another in understanding that assent will conclude it.",
-      "col": "center",
       "entity_ids": [
         "formation"
       ],
@@ -321,7 +320,8 @@
           "h": "Rule",
           "t": "The offeree must reasonably believe that their assent alone closes the deal."
         }
-      ]
+      ],
+      "parent": "formation"
     },
     {
       "id": "revocation",
@@ -329,7 +329,6 @@
       "tag": "Formation",
       "title": "Revocation",
       "desc": "An offer is freely revocable until accepted, effective on receipt by the offeree.",
-      "col": "left",
       "entity_ids": [
         "formation"
       ],
@@ -339,7 +338,8 @@
           "h": "Rule",
           "t": "Revocation is effective when received; indirect reliable information of revocation also terminates the power of acceptance."
         }
-      ]
+      ],
+      "parent": "offer"
     },
     {
       "id": "option-contracts",
@@ -347,12 +347,12 @@
       "tag": "Formation",
       "title": "Option Contracts",
       "desc": "Consideration paid to hold an offer open makes it irrevocable for the stated period.",
-      "col": "right",
       "entity_ids": [
         "formation"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "offer"
     },
     {
       "id": "unilateral-offers",
@@ -360,7 +360,6 @@
       "tag": "Formation",
       "title": "Unilateral Offers",
       "desc": "An offer inviting acceptance only by performance; part performance makes it irrevocable.",
-      "col": "far-left",
       "entity_ids": [
         "formation"
       ],
@@ -372,7 +371,8 @@
           "h": "Holding",
           "t": "An advertisement promising a reward on stated conditions is an offer to the world, accepted by performing them."
         }
-      ]
+      ],
+      "parent": "offer"
     },
     {
       "id": "acceptance",
@@ -380,12 +380,12 @@
       "tag": "Formation",
       "title": "Acceptance",
       "desc": "A manifestation of assent to the terms of the offer, made in a manner the offer invites.",
-      "col": "center",
       "entity_ids": [
         "formation"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "formation"
     },
     {
       "id": "mirror-image",
@@ -393,12 +393,12 @@
       "tag": "Formation",
       "title": "Mirror Image Rule",
       "desc": "At common law a purported acceptance varying the offer's terms is a counter-offer, not an acceptance.",
-      "col": "left",
       "entity_ids": [
         "formation"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "acceptance"
     },
     {
       "id": "mailbox-rule",
@@ -406,7 +406,6 @@
       "tag": "Formation",
       "title": "Mailbox Rule",
       "desc": "Acceptance is effective on dispatch; revocation, rejection and counter-offers are effective on receipt.",
-      "col": "right",
       "entity_ids": [
         "formation"
       ],
@@ -416,7 +415,8 @@
           "h": "Rule",
           "t": "Dispatch closes the contract, so an acceptance mailed before a revocation arrives still binds."
         }
-      ]
+      ],
+      "parent": "acceptance"
     },
     {
       "id": "acceptance-by-conduct",
@@ -424,12 +424,12 @@
       "tag": "Formation",
       "title": "Acceptance by Conduct",
       "desc": "Assent may be shown by performance or by conduct recognising the existence of a contract.",
-      "col": "far-left",
       "entity_ids": [
         "formation"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "acceptance"
     },
     {
       "id": "consideration",
@@ -437,7 +437,6 @@
       "tag": "Consideration",
       "title": "Consideration",
       "desc": "A bargained-for exchange: each side's promise or performance induces the other's.",
-      "col": "center",
       "entity_ids": [
         "consideration"
       ],
@@ -455,7 +454,6 @@
       "tag": "Consideration",
       "title": "Bargained-For Exchange",
       "desc": "Detriment to the promisee suffices; forbearance from a legal right is consideration.",
-      "col": "left",
       "entity_ids": [
         "consideration"
       ],
@@ -472,7 +470,8 @@
           "h": "Where the line falls",
           "t": "Contrast <a href=\"#\" onclick=\"showDetail('env','hamer')\">Hamer</a>, where forbearance was bargained for, with <a href=\"#\" onclick=\"showDetail('env','kirksey')\">Kirksey</a>, where the promise was a bare gratuity. The pivot is inducement, not value."
         }
-      ]
+      ],
+      "parent": "consideration"
     },
     {
       "id": "adequacy",
@@ -480,12 +479,12 @@
       "tag": "Consideration",
       "title": "Adequacy",
       "desc": "Courts police the existence of a bargain, not the fairness of its terms.",
-      "col": "right",
       "entity_ids": [
         "consideration"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "consideration"
     },
     {
       "id": "pre-existing-duty",
@@ -493,7 +492,6 @@
       "tag": "Consideration",
       "title": "Pre-Existing Duty Rule",
       "desc": "Performing what one is already bound to do is not consideration for a new promise.",
-      "col": "far-left",
       "entity_ids": [
         "consideration"
       ],
@@ -505,7 +503,8 @@
           "h": "Rule",
           "t": "A modification unsupported by fresh consideration is unenforceable at common law."
         }
-      ]
+      ],
+      "parent": "consideration"
     },
     {
       "id": "illusory-promises",
@@ -513,7 +512,6 @@
       "tag": "Consideration",
       "title": "Illusory Promises",
       "desc": "A promise reserving unlimited freedom not to perform is no promise at all.",
-      "col": "far-right",
       "entity_ids": [
         "consideration"
       ],
@@ -525,7 +523,8 @@
           "h": "Holding",
           "t": "A duty of best efforts may be implied to save an otherwise illusory exclusive-dealing agreement."
         }
-      ]
+      ],
+      "parent": "consideration"
     },
     {
       "id": "reliance",
@@ -533,12 +532,12 @@
       "tag": "Consideration",
       "title": "Reliance Substitutes",
       "desc": "Where a bargain is missing, detrimental reliance may still make a promise enforceable.",
-      "col": "center",
       "entity_ids": [
         "consideration"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "consideration"
     },
     {
       "id": "promissory-estoppel",
@@ -546,7 +545,6 @@
       "tag": "Consideration",
       "title": "Promissory Estoppel",
       "desc": "A promise reasonably expected to induce reliance, and which does induce it, binds if injustice can be avoided only by enforcement.",
-      "col": "left",
       "entity_ids": [
         "consideration"
       ],
@@ -558,7 +556,8 @@
           "h": "Rule",
           "t": "Promise + foreseeable reliance + actual reliance + injustice absent enforcement."
         }
-      ]
+      ],
+      "parent": "reliance"
     },
     {
       "id": "charitable-subscriptions",
@@ -566,7 +565,6 @@
       "tag": "Consideration",
       "title": "Charitable Subscriptions & Pensions",
       "desc": "Reliance on a gratuitous pension or pledge can supply the missing bargain.",
-      "col": "right",
       "entity_ids": [
         "consideration"
       ],
@@ -578,7 +576,8 @@
           "h": "Holding",
           "t": "An employee who retired in reliance on a pension promise could enforce it though she gave no consideration."
         }
-      ]
+      ],
+      "parent": "reliance"
     },
     {
       "id": "defenses",
@@ -586,7 +585,6 @@
       "tag": "Defenses",
       "title": "Defenses",
       "desc": "Grounds on which an otherwise-formed contract is void, voidable or unenforceable.",
-      "col": "center",
       "entity_ids": [
         "defenses"
       ],
@@ -599,12 +597,12 @@
       "tag": "Defenses",
       "title": "Capacity",
       "desc": "Infants and the mentally incompetent may avoid their contracts.",
-      "col": "left",
       "entity_ids": [
         "defenses"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "defenses"
     },
     {
       "id": "duress",
@@ -612,12 +610,12 @@
       "tag": "Defenses",
       "title": "Duress & Undue Influence",
       "desc": "Assent induced by an improper threat leaving no reasonable alternative is voidable.",
-      "col": "right",
       "entity_ids": [
         "defenses"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "defenses"
     },
     {
       "id": "misrepresentation",
@@ -625,12 +623,12 @@
       "tag": "Defenses",
       "title": "Misrepresentation",
       "desc": "A fraudulent or material misstatement inducing justifiable reliance makes the contract voidable.",
-      "col": "far-left",
       "entity_ids": [
         "defenses"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "defenses"
     },
     {
       "id": "unconscionability",
@@ -638,7 +636,6 @@
       "tag": "Defenses",
       "title": "Unconscionability",
       "desc": "A bargain oppressive in substance and secured by unfair process may be refused enforcement.",
-      "col": "far-right",
       "entity_ids": [
         "defenses"
       ],
@@ -650,7 +647,8 @@
           "h": "Rule",
           "t": "Requires both procedural unfairness in bargaining and substantive unfairness in terms."
         }
-      ]
+      ],
+      "parent": "defenses"
     },
     {
       "id": "statute-of-frauds",
@@ -658,12 +656,12 @@
       "tag": "Defenses",
       "title": "Statute of Frauds",
       "desc": "Certain contracts are unenforceable without a signed writing.",
-      "col": "center",
       "entity_ids": [
         "defenses"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "defenses"
     },
     {
       "id": "within-the-statute",
@@ -671,12 +669,12 @@
       "tag": "Defenses",
       "title": "Contracts Within the Statute",
       "desc": "Suretyship, marriage, land, one-year and goods over $500 contracts fall within it.",
-      "col": "left",
       "entity_ids": [
         "defenses"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "statute-of-frauds"
     },
     {
       "id": "satisfying-the-writing",
@@ -684,12 +682,12 @@
       "tag": "Defenses",
       "title": "Satisfying the Writing",
       "desc": "A memorandum signed by the party to be charged, stating the essential terms, suffices.",
-      "col": "right",
       "entity_ids": [
         "defenses"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "statute-of-frauds"
     },
     {
       "id": "performance",
@@ -697,7 +695,6 @@
       "tag": "Terms & Performance",
       "title": "Terms & Performance",
       "desc": "What the contract means, when performance is due, and what excuses it.",
-      "col": "center",
       "entity_ids": [
         "performance"
       ],
@@ -710,7 +707,6 @@
       "tag": "Terms & Performance",
       "title": "Parol Evidence Rule",
       "desc": "A fully integrated writing bars prior or contemporaneous agreements that contradict it.",
-      "col": "left",
       "entity_ids": [
         "performance"
       ],
@@ -720,7 +716,8 @@
           "h": "Rule",
           "t": "Total integration bars contradictory and supplementary terms; partial integration bars only contradictory ones."
         }
-      ]
+      ],
+      "parent": "performance"
     },
     {
       "id": "interpretation",
@@ -728,12 +725,12 @@
       "tag": "Terms & Performance",
       "title": "Interpretation",
       "desc": "Ambiguity is resolved by context, course of dealing, usage of trade and course of performance.",
-      "col": "right",
       "entity_ids": [
         "performance"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "performance"
     },
     {
       "id": "conditions",
@@ -741,12 +738,12 @@
       "tag": "Terms & Performance",
       "title": "Conditions",
       "desc": "An event that must occur before performance becomes due; non-occurrence discharges the duty.",
-      "col": "far-left",
       "entity_ids": [
         "performance"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "performance"
     },
     {
       "id": "material-breach",
@@ -754,12 +751,12 @@
       "tag": "Terms & Performance",
       "title": "Material Breach",
       "desc": "A material failure suspends the other side's duty; a minor breach sounds only in damages.",
-      "col": "far-right",
       "entity_ids": [
         "performance"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "performance"
     },
     {
       "id": "excuse",
@@ -767,12 +764,12 @@
       "tag": "Terms & Performance",
       "title": "Excuse",
       "desc": "Supervening events may discharge a duty that has become radically different from the one undertaken.",
-      "col": "center",
       "entity_ids": [
         "performance"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "performance"
     },
     {
       "id": "impracticability",
@@ -780,7 +777,6 @@
       "tag": "Terms & Performance",
       "title": "Impracticability",
       "desc": "Performance is excused where an unforeseen event destroys a basic assumption of the contract.",
-      "col": "left",
       "entity_ids": [
         "performance"
       ],
@@ -792,7 +788,8 @@
           "h": "Holding",
           "t": "Destruction of the subject matter without fault excuses both parties."
         }
-      ]
+      ],
+      "parent": "excuse"
     },
     {
       "id": "frustration",
@@ -800,12 +797,12 @@
       "tag": "Terms & Performance",
       "title": "Frustration of Purpose",
       "desc": "Performance remains possible but the event has destroyed its whole point.",
-      "col": "right",
       "entity_ids": [
         "performance"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "excuse"
     },
     {
       "id": "remedies",
@@ -813,7 +810,6 @@
       "tag": "Remedies",
       "title": "Remedies",
       "desc": "Expectation is the default; reliance and restitution are the alternatives.",
-      "col": "center",
       "entity_ids": [
         "remedies"
       ],
@@ -831,7 +827,6 @@
       "tag": "Remedies",
       "title": "Expectation Damages",
       "desc": "The value of the promised performance less what was saved by not performing.",
-      "col": "left",
       "entity_ids": [
         "remedies"
       ],
@@ -843,7 +838,8 @@
           "h": "Holding",
           "t": "Damages are the difference between the promised result and the result actually obtained."
         }
-      ]
+      ],
+      "parent": "remedies"
     },
     {
       "id": "reliance-damages",
@@ -851,12 +847,12 @@
       "tag": "Remedies",
       "title": "Reliance Damages",
       "desc": "Out-of-pocket losses incurred in reliance, where expectation cannot be proved.",
-      "col": "right",
       "entity_ids": [
         "remedies"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "remedies"
     },
     {
       "id": "restitution",
@@ -864,12 +860,12 @@
       "tag": "Remedies",
       "title": "Restitution",
       "desc": "Recovery of a benefit conferred, measured to prevent unjust enrichment.",
-      "col": "far-left",
       "entity_ids": [
         "remedies"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "remedies"
     },
     {
       "id": "specific-performance",
@@ -877,12 +873,12 @@
       "tag": "Remedies",
       "title": "Specific Performance",
       "desc": "Available where damages are inadequate — classically for land and unique goods.",
-      "col": "far-right",
       "entity_ids": [
         "remedies"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "remedies"
     },
     {
       "id": "damage-limits",
@@ -890,12 +886,12 @@
       "tag": "Remedies",
       "title": "Limits on Damages",
       "desc": "Three filters cut expectation down: foreseeability, certainty and mitigation.",
-      "col": "center",
       "entity_ids": [
         "remedies"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "remedies"
     },
     {
       "id": "foreseeability",
@@ -903,7 +899,6 @@
       "tag": "Remedies",
       "title": "Foreseeability",
       "desc": "Damages are limited to losses arising naturally or within the contemplation of both parties at formation.",
-      "col": "left",
       "entity_ids": [
         "remedies"
       ],
@@ -919,7 +914,8 @@
           "h": "Relation to the other limits",
           "t": "<a href=\"#\" onclick=\"showDetail('env','hadley')\">Hadley</a> caps what is recoverable at all; <a href=\"#\" onclick=\"showDetail('node','certainty')\">certainty</a> and <a href=\"#\" onclick=\"showDetail('node','mitigation')\">mitigation</a> then cut the survivors down."
         }
-      ]
+      ],
+      "parent": "damage-limits"
     },
     {
       "id": "certainty",
@@ -927,12 +923,12 @@
       "tag": "Remedies",
       "title": "Certainty",
       "desc": "Damages must be proved with reasonable certainty; speculative lost profits fail.",
-      "col": "right",
       "entity_ids": [
         "remedies"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "damage-limits"
     },
     {
       "id": "mitigation",
@@ -940,210 +936,15 @@
       "tag": "Remedies",
       "title": "Mitigation",
       "desc": "No recovery for losses the injured party could have avoided by reasonable effort.",
-      "col": "far-left",
       "entity_ids": [
         "remedies"
       ],
       "axis1_values": [],
-      "sections": []
+      "sections": [],
+      "parent": "damage-limits"
     }
   ],
   "connections": [
-    [
-      "formation",
-      "definiteness",
-      "spine"
-    ],
-    [
-      "formation",
-      "preliminary-negotiations",
-      "spine"
-    ],
-    [
-      "formation",
-      "offer",
-      "spine"
-    ],
-    [
-      "offer",
-      "revocation",
-      "spine"
-    ],
-    [
-      "offer",
-      "option-contracts",
-      "spine"
-    ],
-    [
-      "offer",
-      "unilateral-offers",
-      "spine"
-    ],
-    [
-      "formation",
-      "acceptance",
-      "spine"
-    ],
-    [
-      "acceptance",
-      "mirror-image",
-      "spine"
-    ],
-    [
-      "acceptance",
-      "mailbox-rule",
-      "spine"
-    ],
-    [
-      "acceptance",
-      "acceptance-by-conduct",
-      "spine"
-    ],
-    [
-      "consideration",
-      "bargained-exchange",
-      "spine"
-    ],
-    [
-      "consideration",
-      "adequacy",
-      "spine"
-    ],
-    [
-      "consideration",
-      "pre-existing-duty",
-      "spine"
-    ],
-    [
-      "consideration",
-      "illusory-promises",
-      "spine"
-    ],
-    [
-      "consideration",
-      "reliance",
-      "spine"
-    ],
-    [
-      "reliance",
-      "promissory-estoppel",
-      "spine"
-    ],
-    [
-      "reliance",
-      "charitable-subscriptions",
-      "spine"
-    ],
-    [
-      "defenses",
-      "capacity",
-      "spine"
-    ],
-    [
-      "defenses",
-      "duress",
-      "spine"
-    ],
-    [
-      "defenses",
-      "misrepresentation",
-      "spine"
-    ],
-    [
-      "defenses",
-      "unconscionability",
-      "spine"
-    ],
-    [
-      "defenses",
-      "statute-of-frauds",
-      "spine"
-    ],
-    [
-      "statute-of-frauds",
-      "within-the-statute",
-      "spine"
-    ],
-    [
-      "statute-of-frauds",
-      "satisfying-the-writing",
-      "spine"
-    ],
-    [
-      "performance",
-      "parol-evidence",
-      "spine"
-    ],
-    [
-      "performance",
-      "interpretation",
-      "spine"
-    ],
-    [
-      "performance",
-      "conditions",
-      "spine"
-    ],
-    [
-      "performance",
-      "material-breach",
-      "spine"
-    ],
-    [
-      "performance",
-      "excuse",
-      "spine"
-    ],
-    [
-      "excuse",
-      "impracticability",
-      "spine"
-    ],
-    [
-      "excuse",
-      "frustration",
-      "spine"
-    ],
-    [
-      "remedies",
-      "expectation-damages",
-      "spine"
-    ],
-    [
-      "remedies",
-      "reliance-damages",
-      "spine"
-    ],
-    [
-      "remedies",
-      "restitution",
-      "spine"
-    ],
-    [
-      "remedies",
-      "specific-performance",
-      "spine"
-    ],
-    [
-      "remedies",
-      "damage-limits",
-      "spine"
-    ],
-    [
-      "damage-limits",
-      "foreseeability",
-      "spine"
-    ],
-    [
-      "damage-limits",
-      "certainty",
-      "spine"
-    ],
-    [
-      "damage-limits",
-      "mitigation",
-      "spine"
-    ],
     [
       "promissory-estoppel",
       "bargained-exchange",

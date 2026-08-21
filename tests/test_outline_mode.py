@@ -182,24 +182,40 @@ def test_the_outline_sample_builds_hub_and_spoke():
         "line filter 'Contains': matches every node, so filtering by it "
         "changes nothing \u2014 chip dropped"]
 
-    nodes = {n["id"]: n for n in d["nodes"]}
-    parents = {c[1] for c in d["connections"] if c[2] == "spine"}
+    # The brief declares a tree, not a layout: no authored columns, and the
+    # parent→child spokes are generated at build.
+    assert not any("col" in n for n in d["nodes"])
+    assert not any(c[2] == "spine" for c in d["connections"])
+
+    brief, nodes, conns = load_brief(d)
+    from alto.build.builder import place
+    from alto.build.layout import outline_spokes
+    place(brief, nodes)
     children_of = {}
-    for src, dst, key in d["connections"]:
-        if key == "spine":
-            children_of.setdefault(src, []).append(dst)
+    for n in nodes:
+        if n.parent:
+            children_of.setdefault(n.parent, []).append(n.id)
 
-    # every concept that contains others is a hub in the centre column, and
-    # every concept that contains none sits out to one side
-    for nid, node in nodes.items():
-        assert node["col"] == ("center" if children_of.get(nid) else node["col"])
-        if not children_of.get(nid):
-            assert node["col"] != "center", nid
+    # a concept that contains others is a hub in the centre column; a concept
+    # that contains none sits out to one side
+    for n in nodes:
+        if children_of.get(n.id):
+            assert n.col == "center", n.id
+        else:
+            assert n.col != "center", n.id
 
-    # one root per unit band, and it is the band's first node
-    roots = [n for n in d["nodes"] if n["id"] not in parents]
-    assert len(roots) == len(d["brief"]["acts"])
-    assert {r["act"] for r in roots} == set(range(len(d["brief"]["acts"])))
+    # one root per unit band, and the DFS puts it first in its band
+    roots = [n for n in nodes if not n.parent]
+    assert len(roots) == len(brief.acts)
+    assert {r.act for r in roots} == set(range(len(brief.acts)))
+    for act_i in range(len(brief.acts)):
+        assert next(n for n in nodes if n.act == act_i).parent == ""
+
+    # one generated spoke per child, and the authored cross-links survive
+    spokes = outline_spokes(nodes, conns)
+    derived = [c for c in spokes if c[2] == "spine"]
+    assert len(derived) == sum(1 for n in nodes if n.parent)
+    assert all(c in spokes for c in conns)
 
     # cases are on the cards but nowhere in the nav
     assert "showDetail('env'" not in _nav(html)

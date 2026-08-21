@@ -200,6 +200,81 @@ def resolve(nodes, columns: int, act_count: int):
     return positions, heights, round(world_h), report
 
 
+def outline_order_and_columns(nodes, columns: int) -> None:
+    """Order and place an outline's concepts from its containment tree.
+
+    Ordering is depth-first per band — a hub, then each child's whole subtree —
+    which is simply outline reading order, so it also fixes ACT_SEQS, the
+    prev/next hop and the mobile grid for free.
+
+    Placement follows one rule: **a concept that contains others is a hub and
+    sits in `center`; a leaf sits out to one side.** That is what makes a band
+    read as a run of radial clusters rather than a column of cards, and it is
+    why depth can grow without running out of columns — a deeper level starts a
+    new cluster further down the band instead of a lane further out.
+
+    Authored `col` is ignored in outline mode: the geometry is structural, not
+    editorial, and letting a brief pin a hub off-centre would break the shape
+    the whole mode is for.
+    """
+    inner = ["left", "right"]
+    outer = ["far-left", "far-right"] if columns == 5 else inner
+
+    kids: dict[str, list] = {}
+    roots = []
+    by_id = {n.id: n for n in nodes}
+    for n in nodes:
+        if n.parent and n.parent in by_id:
+            kids.setdefault(n.parent, []).append(n)
+        else:
+            roots.append(n)
+
+    ordered = []
+
+    def walk(node):
+        children = kids.get(node.id, [])
+        node.col = "center" if children else None      # filled below for leaves
+        ordered.append(node)
+        # leaves first so they sit beside this hub, then sub-hubs, which start
+        # their own cluster further down
+        leaves = [c for c in children if not kids.get(c.id)]
+        hubs = [c for c in children if kids.get(c.id)]
+        for i, leaf in enumerate(leaves):
+            leaf.col = (outer if i >= 2 and columns == 5 else inner)[i % 2]
+            ordered.append(leaf)
+        for hub in hubs:
+            walk(hub)
+
+    for root in sorted(roots, key=lambda n: n.act):
+        walk(root)
+
+    # Anything the walk never reached (a parent outside the node set — verify
+    # rejects it at build, but validation may still be mid-upsert) keeps its
+    # place rather than vanishing from the page.
+    seen = {id(n) for n in ordered}
+    ordered += [n for n in nodes if id(n) not in seen]
+    for n in ordered:
+        if not n.col:
+            n.col = inner[0]
+    nodes[:] = ordered
+
+
+def outline_spokes(nodes, connections: list) -> list:
+    """parent → child edges, as `spine` connections.
+
+    Generated at build rather than authored, so the tree stays the single
+    source of truth: an authored copy could disagree with `parent` and nothing
+    would catch it. An edge the brief already declares wins, keeping its own
+    relation and label.
+    """
+    authored = {(c[0], c[1]) for c in (connections or []) if len(c) >= 2}
+    by_id = {n.id for n in nodes}
+    spokes = [[n.parent, n.id, "spine"] for n in nodes
+              if n.parent and n.parent in by_id
+              and (n.parent, n.id) not in authored]
+    return spokes + list(connections or [])
+
+
 def mobile_grid(nodes, columns: int):
     """[colIndex, row] per node in narrative order: ordinal column mapping,
     monotone row counter (+1 normally, +2 when the same mobile column repeats,

@@ -10,7 +10,8 @@ from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
 from .blocks import timeline_blocks, connections_block
 from .emit import emit
 from .engine_patches import apply_patches
-from .layout import assign_columns, resolve, mobile_grid
+from .layout import assign_columns, resolve, mobile_grid, \
+    outline_order_and_columns, outline_spokes
 from .sanitize import sanitize_brief
 from ..engine import template as engine_template
 from .verify import verify_data, verify_output, verify_scripts, VerifyError
@@ -42,9 +43,17 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
     return brief, nodes, connections
 
 
+def place(brief: Brief, nodes: list[Node]) -> None:
+    """Order and column-assign nodes for the brief's mode. Idempotent."""
+    if brief.mode == "outline":
+        outline_order_and_columns(nodes, brief.columns)
+    else:
+        assign_columns(nodes, brief.columns)
+
+
 def run_layout(brief: Brief, nodes: list[Node]):
     """Column assignment + baseY resolution + mobile grid. Returns layout info."""
-    assign_columns(nodes, brief.columns)
+    place(brief, nodes)
     positions, heights, world_h, report = resolve(nodes, brief.columns,
                                                   len(brief.acts))
     mgrid, mobile_h = mobile_grid(nodes, brief.columns)
@@ -63,7 +72,12 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     # also rewrites overview deep links and reports unknown-node demotions.
     warnings += sanitize_brief(brief, nodes)
 
-    assign_columns(nodes, brief.columns)
+    place(brief, nodes)
+    # The tree is the single source of truth for structure, so the parent→child
+    # spokes are derived here rather than authored — an authored copy could
+    # disagree with `parent` and nothing would catch it.
+    if brief.mode == "outline":
+        connections = outline_spokes(nodes, connections)
     failures = verify_data(brief, nodes, connections)
     if failures:
         raise VerifyError(failures)

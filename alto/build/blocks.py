@@ -108,10 +108,15 @@ def resolve_filters(b: Brief, nodes: list[Node],
             # children Level 2, everything below Level 3+. Nothing extra to
             # author, and §0-safe for the same reason coverage is — it measures
             # the shape of the student's own outline rather than adding to it.
-            parent = {}
-            for c in (connections or []):
-                if len(c) >= 3 and c[2] == "spine" and c[0] != c[1]:
-                    parent.setdefault(c[1], c[0])
+            # Node.parent is the tree when there is one, and it is authored
+            # rather than derived — so prefer it over the spine edges, which in
+            # outline mode are themselves generated FROM it later in the build.
+            # Reading the edges here would make depth depend on call ordering.
+            parent = {n.id: n.parent for n in nodes if n.parent}
+            if not parent:
+                for c in (connections or []):
+                    if len(c) >= 3 and c[2] == "spine" and c[0] != c[1]:
+                        parent.setdefault(c[1], c[0])
 
             def _depth(nid):
                 seen, d = {nid}, 1
@@ -356,6 +361,58 @@ function isolateRelation(key){
 })();"""
 
 
+# Outline mode's node detail page: where you are, then what you contain.
+# Same shape as DOCTRINE_BODY — a runtime function emitted into `orders` that
+# synthesizes sections from data the page already carries, so the frozen
+# engine's detail renderer needs no change. Children are `alto-link` chips, so
+# the one delegated handler that serves inline links serves these too, on
+# desktop, mobile and the swipe peek alike.
+OUTLINE_BODY = """
+function _altoOutlineHead(id){
+  var O = window._ALTO_OUTLINE; if(!O || !O.parent) return [];
+  var chain = [], cur = O.parent[id], guard = 0;
+  while(cur && guard++ < 64){ chain.unshift(cur); cur = O.parent[cur]; }
+  if(!chain.length) return [];
+  var titleOf = {};
+  if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ titleOf[n.id]=n.title; });
+  var parts = chain.map(function(pid){
+    return '<span class="alto-link" data-sd-type="node" data-sd-id="'+pid+'">'
+      + ((O.num[pid]?O.num[pid]+' ':'') + (titleOf[pid]||pid)) + '</span>';
+  });
+  return [{h:'Sits under', t:'<div class="ol-trail">'+parts.join(' <span class="ol-sep">\\u203a</span> ')+'</div>'}];
+}
+function _altoOutlineTail(id){
+  var O = window._ALTO_OUTLINE; if(!O || !O.kids) return [];
+  var kids = O.kids[id] || []; if(!kids.length) return [];
+  var titleOf = {}, descOf = {};
+  if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){
+    titleOf[n.id]=n.title; descOf[n.id]=n.desc; });
+  var rows = kids.map(function(kid){
+    return '<div class="ol-row">'
+      + '<span class="ol-num">'+(O.label[kid]||'')+'</span>'
+      + '<span class="alto-link ol-name" data-sd-type="node" data-sd-id="'+kid+'">'
+      + (titleOf[kid]||kid) + '</span>'
+      + (descOf[kid] ? '<div class="ol-d">'+descOf[kid]+'</div>' : '')
+      + '</div>';
+  }).join('');
+  return [{h:'Contains', t:rows}];
+}"""
+
+# Outline mode splices its own section builder: ancestry, then the student's
+# own sections, then the children. The Synopsis fallback still applies when a
+# concept has none of the three.
+NODE_SECTIONS_OUTLINE_D = (
+    "sections = _altoOutlineHead(id)"
+    ".concat(((nd.sections)||[]).filter(s=>s&&s.t))"
+    ".concat(_altoOutlineTail(id));\n"
+    "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});")
+NODE_SECTIONS_OUTLINE_M = (
+    "var sections=_altoOutlineHead(targetId)"
+    ".concat(((ndDet.sections)||[]).filter(function(s){return s&&s.t;}))"
+    ".concat(_altoOutlineTail(targetId));\n"
+    "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});")
+
+
 def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
@@ -413,6 +470,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # the link handler and its CSS at all. A brief with no deep links adds no
     # bytes for them — the same discipline as the relation colour vars above.
     def _has_alto_link() -> bool:
+        # Outline detail pages build their child links and ancestry trail at
+        # runtime (OUTLINE_BODY), so they never appear in the emitted section
+        # text this scan looks at — but they still need the handler and CSS.
+        if b.mode == "outline":
+            return True
         if 'class="alto-link"' in (b.overview_html or ""):
             return True
         groups = [n.sections for n in nodes] + [e.sections for e in b.entities]
@@ -735,6 +797,44 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
                + DOCTRINE_BODY + LINES_GLUE
                + (ALTO_LINK_GLUE if uses_alto_link else ""))
+    if b.mode == "outline":
+        # Outline numerals, derived at build from depth and sibling order — a
+        # stored path would be silently invalidated the moment a sibling is
+        # inserted. Level styles cycle I. / A. / 1. / a. / i. the way a written
+        # outline does.
+        _kids: dict[str, list] = {}
+        for n in nodes:
+            if n.parent:
+                _kids.setdefault(n.parent, []).append(n.id)
+        _num, _label, _parent = {}, {}, {}
+        for n in nodes:
+            if n.parent:
+                _parent[n.id] = n.parent
+
+        def _mark(level: int, i: int) -> str:
+            if level == 0:
+                return roman(i + 1) + "."
+            if level == 1:
+                return chr(ord("A") + i % 26) + "."
+            if level == 2:
+                return f"{i + 1}."
+            if level == 3:
+                return chr(ord("a") + i % 26) + "."
+            return roman(i + 1).lower() + "."
+
+        def _walk(nid: str, level: int, i: int, prefix: str) -> None:
+            mark = _mark(level, i)
+            _label[nid] = mark
+            _num[nid] = (prefix + mark) if prefix else mark
+            for j, kid in enumerate(_kids.get(nid, [])):
+                _walk(kid, level + 1, j, _num[nid])
+
+        for _i, _root in enumerate([n.id for n in nodes if not n.parent]):
+            _walk(_root, 0, _i, "")
+        orders += ("\nwindow._ALTO_OUTLINE={num:" + json.dumps(_num)
+                   + ",label:" + json.dumps(_label)
+                   + ",kids:" + json.dumps(_kids)
+                   + ",parent:" + json.dumps(_parent) + "};" + OUTLINE_BODY)
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
@@ -813,6 +913,21 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n  .node-card.rel-dimmed{background:var(--surface) !important;"
             "border-top-color:var(--border) !important;}"
             "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
+    # Outline detail pages: a numbered "Contains" list and an ancestry trail,
+    # set to read like a written outline rather than a table.
+    if b.mode == "outline":
+        nav_char_css += (
+            "\n  .ol-row{display:grid;grid-template-columns:2.6em 1fr;"
+            "align-items:baseline;column-gap:.4em;margin:.55em 0;}"
+            "\n  .ol-num{color:var(--muted);font-variant-numeric:tabular-nums;"
+            "letter-spacing:.02em;}"
+            # a direct grid child blockifies, which stretched the link's
+            # underline across the whole row — shrink it back to its text
+            "\n  .ol-name{font-weight:600;justify-self:start;}"
+            "\n  .ol-d{grid-column:2;color:var(--muted);font-size:.92em;"
+            "line-height:1.5;margin-top:.15em;}"
+            "\n  .ol-trail{color:var(--muted);line-height:1.9;}"
+            "\n  .ol-sep{opacity:.5;padding:0 .15em;}")
     # Deep links in detail-page text. Styled after the overview's .ov-node-link
     # resting/hover chip so a link reads the same wherever it appears — but it
     # carries its own accent underline, since a detail page has no per-character
@@ -928,11 +1043,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "orders_m": orders_m,
         "mobile_grid": mobile_grid_js,
         "mobile_world": mobile_world,
-        "node_sections": NODE_SECTIONS_D,
+        "node_sections": (NODE_SECTIONS_OUTLINE_D if b.mode == "outline"
+                          else NODE_SECTIONS_D),
         "char_sections": CHAR_SECTIONS_D,
         "env_sections": ENV_SECTIONS_D,
         "theme_sections": THEME_SECTIONS_D,
-        "node_sections_m": NODE_SECTIONS_M,
+        "node_sections_m": (NODE_SECTIONS_OUTLINE_M if b.mode == "outline"
+                            else NODE_SECTIONS_M),
         "char_sections_m": CHAR_SECTIONS_M,
         "env_sections_m": ENV_SECTIONS_M,
         "theme_sections_m": THEME_SECTIONS_M,

@@ -29,6 +29,15 @@ def verify_data(b: Brief, nodes: list[Node], connections: list) -> list[str]:
     node_ids = {n.id for n in nodes}
     rel_keys = {r.key for r in b.relations} | {"spine"}
 
+    # A parent that never arrived is only a warning while nodes are still being
+    # upserted (see _validate_outline_tree); by build time the set is final, so
+    # a child pointing at nothing would lose its place in the tree silently.
+    if b.mode == "outline":
+        for n in nodes:
+            if n.parent and n.parent not in node_ids:
+                failures.append(
+                    f"node {n.id!r}: parent {n.parent!r} is not a node")
+
     for c in connections:
         if len(c) != 3:
             failures.append(f"connection {c!r}: must be [src, tgt, relation]")
