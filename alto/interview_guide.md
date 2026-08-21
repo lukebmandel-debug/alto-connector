@@ -107,8 +107,12 @@ Every entity and every **navigable** axis value should get a unique
 diamond, so distinct dimensions silently become indistinguishable — a whole
 nav row of identical diamonds is worse than no glyphs. Glyphs are visual
 design, not content: inventing them does not touch §0 (same as the
-auto-assigned color palette). Filter-only dimensions (`replace_nav`) take no
-glyphs — their chips are text by design.
+auto-assigned color palette). Two kinds of dimension take **no** glyphs, and
+drawing them anyway is wasted work: filter-only dimensions (`replace_nav`),
+whose chips are text by design, and `hide_nav` axes, which label their chips
+with the value's own name — which is the point, since such an axis is large
+enough that a unique glyph per value was never realistic and every value would
+fall back to the same ◆.
 
 Process: pick an object metaphor per value (concept → object, one line each)
 and **propose the list to the user before drawing**; then draw to these
@@ -144,15 +148,33 @@ rules, learned the hard way:
   Dobbs) each stay their OWN node, cross-linked — never merged.
 - Every field is authored **verbatim from the user's material**.
 
-### E. Relations (the lines)
+### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary
 small and unambiguous. One relation may be the **spine** (the main thread) —
 key it `spine`; it renders as the neutral flowing line. Others can carry
 colors. → brief `relations`; used by `add_connections`. Relation **labels are
-user-visible**: each appears in the on-page line key (desktop nav + mobile
-drawer) beside a swatch of its line color, for every relation a connection
-actually uses — so keep them short (e.g. "Overrules").
+user-visible**: each appears in the on-page line key beside a swatch of its
+line color, for every relation a connection actually uses — so keep them short
+(e.g. "Overrules").
+
+**A relation is also a filter.** Its chip sits with the other filter groups,
+and clicking it dims both the other relations' lines *and* every card that
+relation never touches — so "show me only what Overrules touches" is one
+click. Relation filters are multi-select (chips union), and they **stack** with
+the two canvas filters below: a card stays lit only when it satisfies every
+active chip. This is why relation labels are worth choosing well — they are
+filter names now, not just legend text.
+
+Relations are **not** one of the two filter slots in §F2, so they cost you
+nothing there. That is deliberate: a slot holds one value per node, but a node
+legitimately sits in several relations at once, and a slot would silently keep
+only the first.
+
+A relation that touches **every** node is dropped from the filter bar, because
+filtering by it would light everything (see the relevance rule in §F2). A
+structural spine usually is exactly that — expect it to disappear from the
+chips and stay a line style, and don't treat the build warning as an error.
 
 ### F. Extra axes (0–2)
 Beyond the entity axis: up to two more axes (e.g. environments/themes for a
@@ -170,6 +192,14 @@ defined — no re-entry needed, assignment is automatic:
   the student wrote on each node (Thin = a stub). Surfaces "where are my notes
   weak" with zero extra input; §0-safe (it measures their own material). Often
   the single most useful filter for a studying deck.
+- **depth** (`source:'depth'`) — auto-derived Level 1 / Level 2 / Level 3+ from
+  how deep each node sits in the structure the `spine` connections describe: a
+  node no spine edge points at is Level 1, its children Level 2, the rest below.
+  Zero extra input and §0-safe for the same reason coverage is — it measures the
+  shape of the student's own material. Best where the spine encodes containment
+  rather than sequence (a concept outline, a syllabus, a hierarchy of causes):
+  it gives "show me just the skeleton, then let me drill". The Level 3+ chip
+  only appears if something reaches it.
 - **fully custom** (`source:'custom'`) — any dimension with its own values
   (classic: importance — Heavy / Medium / Background); each node then picks
   its value via `filters: {filter_id: value_id}` in `add_nodes`. Importance is
@@ -181,21 +211,47 @@ defined — no re-entry needed, assignment is automatic:
   available, but these usually **repeat** the nav chips / act bands already on
   screen (the build warns), so prefer a cross-cutting filter instead.
 
+**The relevance rule — a filter that matches everything is not a filter.**
+The build drops any chip whose value matches **every** node or **none**, and
+warns saying which and why. Clicking a chip that lights the whole canvas
+changes nothing, and one that lights nothing is dead on arrival; either reads
+as a broken control. This applies to every source, so expect it to bite in
+ordinary places: a coverage filter on a deck where the student wrote full notes
+everywhere loses both chips, a custom value nobody was assigned vanishes, and a
+structural spine relation disappears from the line filters. **Treat those
+warnings as information, not failure** — tell the student the dimension didn't
+divide their material, and offer one that does.
+
 **Recommend cross-cutting, not redundant.** A good filter splits the timeline
 into chunks the student would actually study *separately*. Before suggesting
 one: (a) don't spend a slot on a dimension the act bands or nav chips already
 show; (b) draft the nodes first, then pick dimensions that cut *across* the
 acts and partition the set unevenly-but-usefully; (c) avoid a binary whose
-off-value holds ~80% of nodes (it barely partitions). Good default pair for a
-course: **coverage** + an **importance** filter (if the notes carry salience
-marks). Constraints: ≤2 filters (two engine slots); custom filters take 2–10
-values; filtering is single-valued per node (multi-valued nodes filter by their
-first value — the tools warn). For a mirrored axis whose detail pages have no
-authored sections, set `replace_nav: true` to make it **filter-only**: the
-filter chips replace that axis's navigation chips, and its legend dot and
-per-node card chips disappear too — a dimension that only filters shouldn't
-dangle empty detail pages or identical fallback glyphs on every card.
-→ brief `filters` (in `create_timeline`).
+off-value holds ~80% of nodes (it barely partitions).
+
+Good default pair for a course: **coverage** + **depth** where the spine
+encodes containment, otherwise **coverage** + an **importance** filter (only if
+the notes carry salience marks). Remember the relation chips from §E ride
+alongside for free and stack with both — so two slots plus relations is three
+dimensions, not two.
+
+Constraints: ≤2 filters (two engine slots); custom filters take 2–10 values;
+filtering is single-valued per node (multi-valued nodes filter by their first
+value — the tools warn).
+
+Two ways to keep a dimension out of the top nav bar, and they are not
+interchangeable:
+- `replace_nav: true` on a **filter** whose mirrored axis has no authored
+  sections makes that axis **filter-only**: its nav chips, legend dot **and its
+  per-node card chips** all disappear. Right when the axis has no pages worth
+  opening — it shouldn't dangle empty detail pages or identical fallback glyphs.
+- `hide_nav: true` on the **axis itself** removes it from the nav bar, drawer
+  and legend but **keeps the card chips and the detail pages**. Right for a
+  large, uncapped axis — a course's cases — where a nav row listing every value
+  is unusable but the chip on the card is exactly how you reach the one you
+  want. Such an axis labels its chips with the value's **name** instead of a
+  glyph, so skip glyph design for it (§C1).
+→ brief `filters` and `axes` (in `create_timeline`).
 
 ### G. Persona (stored for reports)
 "Every workspace can have its own study companion. Want one? Name and vibe?"
