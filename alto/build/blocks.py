@@ -73,7 +73,8 @@ def _sections_js(sections, indent="    ") -> str:
     return f"sections:[{items}]"
 
 
-def resolve_filters(b: Brief, nodes: list[Node]) -> list[dict]:
+def resolve_filters(b: Brief, nodes: list[Node],
+                    connections: list = None) -> list[dict]:
     """Brief.filters → the engine's two scalar filter slots.
 
     Returns [{slot, node_key, spec, values: [(id, name)], node_value: {node
@@ -101,6 +102,34 @@ def resolve_filters(b: Brief, nodes: list[Node]) -> list[dict]:
             values = [("solid", "Solid"), ("thin", "Thin")]
             nv = {n.id: ("solid" if sum(1 for s in n.sections if s.t) >= 2
                          else "thin") for n in nodes}
+        elif f.source == "depth":
+            # How deep each node sits in the structure the connections already
+            # describe: a node no spine edge points at is a root (Level 1), its
+            # children Level 2, everything below Level 3+. Nothing extra to
+            # author, and §0-safe for the same reason coverage is — it measures
+            # the shape of the student's own outline rather than adding to it.
+            parent = {}
+            for c in (connections or []):
+                if len(c) >= 3 and c[2] == "spine" and c[0] != c[1]:
+                    parent.setdefault(c[1], c[0])
+
+            def _depth(nid):
+                seen, d = {nid}, 1
+                while nid in parent and parent[nid] not in seen:
+                    nid = parent[nid]
+                    seen.add(nid)
+                    d += 1
+                    if d > 64:          # authored cycle; stop rather than hang
+                        break
+                return d
+
+            depths = {n.id: _depth(n.id) for n in nodes}
+            deepest = max(depths.values(), default=1)
+            values = [("d1", "Level 1"), ("d2", "Level 2")]
+            if deepest >= 3:
+                values.append(("d3", "Level 3+"))
+            nv = {nid: ("d1" if d == 1 else "d2" if d == 2 else "d3")
+                  for nid, d in depths.items()}
         else:  # custom
             values = [(v.id, v.name) for v in f.values]
             nv = {n.id: n.filters[f.id] for n in nodes
@@ -367,7 +396,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
 
     # Canvas filters: resolved slot data plus which axes' navigation chips the
     # filter chips replace (replace_nav on entity/axis1/axis2 sources).
-    resolved_filters = resolve_filters(b, nodes)
+    resolved_filters = resolve_filters(b, nodes, connections)
     nav_replaced = {rf["spec"].source for rf in resolved_filters
                     if rf["spec"].replace_nav
                     and rf["spec"].source in ("entity", "axis1", "axis2")}

@@ -244,6 +244,11 @@
         "id": "cov",
         "label": "Coverage",
         "source": "coverage"
+      },
+      {
+        "id": "depth",
+        "label": "Depth",
+        "source": "depth"
       }
     ],
     "overview_html": "<p>This outline is organised by <strong>concept</strong>, not by case. Each unit opens with a hub concept — <a href=\"#\" onclick=\"showDetail('node','formation')\">Formation</a>, <a href=\"#\" onclick=\"showDetail('node','consideration')\">Consideration</a>, <a href=\"#\" onclick=\"showDetail('node','defenses')\">Defenses</a>, <a href=\"#\" onclick=\"showDetail('node','performance')\">Terms &amp; Performance</a>, <a href=\"#\" onclick=\"showDetail('node','remedies')\">Remedies</a> — with the concepts it contains radiating out from it.</p><p>Cases hang off the concepts they support, as chips on the cards. Use the coverage filter to find the concepts your notes are thinnest on.</p>"

@@ -154,6 +154,12 @@ class FilterSpec:
       coverage — derived Solid/Thin from how much the student authored on each
         node (Thin = a stub with no detail sections). §0-safe: it measures the
         shape of the student's own notes, so it surfaces gaps without inventing.
+      depth — derived from how deep each node sits in the structure the
+        connections describe: Level 1 for the roots of each band, Level 2 for
+        their children, Level 3+ for everything below. §0-safe for the same
+        reason — it measures the shape of the student's own outline. The one a
+        concept outline actually wants: show just the skeleton for a review
+        pass, then drill.
       custom — caller-defined `values`, assigned per node via Node.filters.
     `replace_nav` makes a mirrored axis1/axis2 **filter-only**: its
     navigation chips, drawer section, legend dot, and per-node card/detail
@@ -169,7 +175,8 @@ class FilterSpec:
     replace_nav: bool = False  # entity/axis1/axis2 sources only
 
 
-FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "custom")
+FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
+                  "custom")
 
 
 @dataclass

@@ -149,3 +149,64 @@ def test_the_outline_sample_keeps_only_relations_that_partition():
     assert 'data-rel-key="substitutes"' in html
     assert any("Contains" in w and "matches every node" in w
                for w in report["warnings"])
+
+
+# ── the derived depth source ────────────────────────────────────────────────
+
+def _depth_build(path=OUTLINE):
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
+    d["brief"]["filters"] = [{"id": "depth", "label": "Depth",
+                              "source": "depth"}]
+    return build_timeline(*load_brief(d))
+
+
+@pytest.mark.skipif(not OUTLINE.exists(), reason="outline sample not present")
+def test_depth_puts_each_band_root_at_level_one():
+    from alto.build.blocks import resolve_filters
+    d = json.loads(OUTLINE.read_text(encoding="utf-8"))
+    d["brief"]["filters"] = [{"id": "depth", "label": "Depth",
+                              "source": "depth"}]
+    brief, nodes, conns = load_brief(d)
+    rf = resolve_filters(brief, nodes, conns)[0]
+    roots = {nid for nid, v in rf["node_value"].items() if v == "d1"}
+    # a root is a node no spine edge points at
+    pointed_at = {c[1] for c in conns if len(c) >= 3 and c[2] == "spine"}
+    assert roots == {n.id for n in nodes} - pointed_at
+    assert len(roots) == len(brief.acts)          # one family root per band
+
+
+@pytest.mark.skipif(not OUTLINE.exists(), reason="outline sample not present")
+def test_depth_labels_and_covers_every_node():
+    from alto.build.blocks import resolve_filters
+    d = json.loads(OUTLINE.read_text(encoding="utf-8"))
+    d["brief"]["filters"] = [{"id": "depth", "label": "Depth",
+                              "source": "depth"}]
+    brief, nodes, conns = load_brief(d)
+    rf = resolve_filters(brief, nodes, conns)[0]
+    assert [v for _, v in rf["values"]] == ["Level 1", "Level 2", "Level 3+"]
+    assert set(rf["node_value"]) == {n.id for n in nodes}
+
+
+def test_depth_collapses_to_two_levels_when_nothing_is_deeper():
+    """The Level 3+ chip only exists if something reaches it — otherwise it
+    would match no nodes and the no-op rule would drop it anyway."""
+    from alto.build.blocks import resolve_filters
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    d["brief"]["filters"] = [{"id": "depth", "label": "Depth",
+                              "source": "depth"}]
+    brief, nodes, conns = load_brief(d)
+    conns = [["lucy-v-zehmer", "carbolic", "spine"]]
+    rf = resolve_filters(brief, nodes, conns)[0]
+    assert [v for _, v in rf["values"]] == ["Level 1", "Level 2"]
+
+
+def test_depth_survives_an_authored_cycle():
+    """A cycle in the connections must not hang the build."""
+    from alto.build.blocks import resolve_filters
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    d["brief"]["filters"] = [{"id": "depth", "label": "Depth",
+                              "source": "depth"}]
+    brief, nodes, _ = load_brief(d)
+    cyclic = [["hamer", "kirksey", "spine"], ["kirksey", "hamer", "spine"]]
+    rf = resolve_filters(brief, nodes, cyclic)[0]
+    assert set(rf["node_value"]) == {n.id for n in nodes}
