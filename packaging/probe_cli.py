@@ -100,8 +100,8 @@ def main() -> None:
     print(f"serverInfo: {info['name']} {info['version']}")
     print(f"icons     : {len(info.get('icons') or [])}")
     print(f"tools     : {len(tools)}")
-    if len(tools) != 14:
-        fail(f"expected 14 tools, got {len(tools)}")
+    if len(tools) != 15:
+        fail(f"expected 15 tools, got {len(tools)}")
     if not (info.get("icons") or []):
         fail("no icons advertised")
 
