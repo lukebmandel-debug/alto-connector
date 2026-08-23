@@ -109,6 +109,14 @@ def test_buttons_still_track_the_latest_release(ident):
         assert f'/releases/latest/download/{f["name"]}' in page
 
 
+def test_page_declares_the_ico_favicon(ident):
+    """Claude Desktop's tile comes from a favicon service that asks for
+    /favicon.ico by name; the SVG link alone leaves it 404ing."""
+    page = md.build_page(ident, FILES, RELEASE)
+    assert '<link rel="icon" href="/favicon.ico" sizes="any">' in page
+    assert (md.ROOT / "alto" / "assets" / "favicon.ico").is_file()
+
+
 # ── the lookup ───────────────────────────────────────────────────────────────
 
 def test_digest_prefix_is_stripped(ident, monkeypatch):

@@ -279,6 +279,7 @@ PAGE = """<!doctype html>
 <meta name="description" content="Alto interviews you about material you already have and builds an interactive, filterable timeline from it. It never invents content.">
 <meta name="theme-color" content="#f0efea" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12141f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <style>
@@ -487,7 +488,11 @@ def build_site(ident: dict, files: list[dict],
     (SITE / "index.html").write_text(
         build_page(ident, files, release), encoding="utf-8")
 
-    # The glyph, as a favicon and as the page mark.
+    # The glyph, as a favicon and as the page mark. favicon.ico is not
+    # decoration: Claude Desktop draws connector tiles from a favicon service
+    # that asks the domain for /favicon.ico by name — an SVG <link> alone
+    # leaves that lookup 404ing and the connector with a letter tile.
+    shutil.copy2(ROOT / "alto" / "assets" / "favicon.ico", SITE / "favicon.ico")
     shutil.copy2(ROOT / "alto" / "assets" / "alto-mark.svg", SITE / "icon.svg")
     shutil.copy2(ROOT / "alto" / "assets" / "png" / "alto-light-256.png",
                  SITE / "icon-192.png")
