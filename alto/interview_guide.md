@@ -77,6 +77,20 @@ into one.)
    consent=true)` with a factual source manifest (names/kinds only — the
    material itself stays in this conversation, where you read it).
 
+### B0. Which shape? — ask once, plainly
+Two ways to organize the same material, and the answer changes what §C, §D and
+§F even mean, so settle it before the rest.
+
+> "Two shapes. **Timeline** — each card is a case, event or reading, laid out
+> in sequence. **Outline** — each card is a *concept*, arranged the way the
+> outline you'd bring to an exam is: a hub concept per unit with its
+> sub-concepts radiating out, and clicking any concept opens its outline page.
+> Cases attach to concepts as chips rather than being cards of their own.
+> Which fits how you actually study this?"
+
+Unsure → timeline. → `mode` in the `create_timeline` brief; outline mode then
+routes §D to **§D-Outline** below.
+
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
 - "When something sits earlier or later on this timeline, what does that
@@ -107,8 +121,12 @@ Every entity and every **navigable** axis value should get a unique
 diamond, so distinct dimensions silently become indistinguishable — a whole
 nav row of identical diamonds is worse than no glyphs. Glyphs are visual
 design, not content: inventing them does not touch §0 (same as the
-auto-assigned color palette). Filter-only dimensions (`replace_nav`) take no
-glyphs — their chips are text by design.
+auto-assigned color palette). Two kinds of dimension take **no** glyphs, and
+drawing them anyway is wasted work: filter-only dimensions (`replace_nav`),
+whose chips are text by design, and `hide_nav` axes, which label their chips
+with the value's own name — which is the point, since such an axis is large
+enough that a unique glyph per value was never realistic and every value would
+fall back to the same ◆.
 
 Process: pick an object metaphor per value (concept → object, one line each)
 and **propose the list to the user before drawing**; then draw to these
@@ -144,15 +162,83 @@ rules, learned the hard way:
   Dobbs) each stay their OWN node, cross-linked — never merged.
 - Every field is authored **verbatim from the user's material**.
 
-### E. Relations (the lines)
+### D-Outline. The concept tree — the student authors it, you transcribe
+
+Only in `mode: 'outline'`. §D's node schema still applies to each concept; this
+section is about the *structure*, and the structure is the artifact.
+
+> **Hard rule: you do not name a single concept. Not one, not as an example,
+> not as a "does this sound right?".** If asked to suggest concepts, say: "That
+> part has to be yours — an outline is only worth anything if it's your
+> organization. Read me your table of contents or your headings and I'll take
+> them down." Reading *their* words back is transcription. Offering a word they
+> did not say is invention, and §0 forbids it here exactly as it does for
+> holdings. If their materials contain a heading list, quote it and ask them to
+> confirm, cut or reorder — never extend it.
+
+1. **Top-level families.** "Open your syllabus, or the front of your outline.
+   What are the big divisions — the ones that would be the units of the course?
+   Read them to me in order." → these become `acts`, one family per unit. If
+   they list one, ask what the rest of the course is.
+2. **Hubs, one unit at a time.** "Inside '<their unit 1>', what's the concept
+   everything else in that unit hangs off?" → that node gets no `parent`.
+   Exactly one per unit. Ask unit by unit; never batch this.
+3. **Children, one family at a time.** "Under '<their hub>', what are its
+   sub-concepts? Just the names, in whatever order they sit in your head."
+   → each gets `parent: <hub id>`. Then per child: "Does '<their child>' break
+   down further, or is that the bottom for you?" Recurse until *they* say
+   bottom. **Never volunteer a level they did not name.**
+4. **Echo the skeleton back, numbered** (I. / A. / 1.), with no descriptions,
+   and ask: "Anything in the wrong place, or missing?" Fix before authoring any
+   content. This is §J's reconciliation, moved early — in outline mode the
+   skeleton *is* the thing.
+5. **Fill it, concept by concept.** "For '<concept>' — what do your notes say it
+   is? Your own words, or point me at the page." → `title`, a one-line `desc`
+   (that is the card), and `sections` verbatim. Nothing in their notes? The
+   concept ships with a title and an empty desc, and the coverage filter marks
+   it Thin. Say so out loud — that gap is the study signal, not a failure.
+6. **Cases.** "Which cases do you have for '<concept>', and what does each one
+   stand for *in your notes*?" → `set_axis_values(slot=1, label="Cases",
+   singular="Case", hide_nav=True, values=[…])`, each with the student's own
+   brief in `sections`; attach via `axis1_values` on the concept. Where a case
+   is doing the work inside a write-up, link it inline:
+   `<a onclick="showDetail('env','<case-id>')">Hawkins v. McGee</a>`.
+7. **Cross-links only.** "Do any concepts in *different* units talk to each
+   other — one narrows another, one is the exception to another?" → `relations`
+   + `add_connections`. The parent→child lines are generated from the tree;
+   author only the edges that carry their own meaning.
+
+What the build does for you, so don't ask the student about any of it: hub and
+column placement, the parent→child lines, the outline numbering, and the depth
+filter. `col` is ignored in outline mode.
+
+### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary
 small and unambiguous. One relation may be the **spine** (the main thread) —
 key it `spine`; it renders as the neutral flowing line. Others can carry
 colors. → brief `relations`; used by `add_connections`. Relation **labels are
-user-visible**: each appears in the on-page line key (desktop nav + mobile
-drawer) beside a swatch of its line color, for every relation a connection
-actually uses — so keep them short (e.g. "Overrules").
+user-visible**: each appears in the on-page line key beside a swatch of its
+line color, for every relation a connection actually uses — so keep them short
+(e.g. "Overrules").
+
+**A relation is also a filter.** Its chip sits with the other filter groups,
+and clicking it dims both the other relations' lines *and* every card that
+relation never touches — so "show me only what Overrules touches" is one
+click. Relation filters are multi-select (chips union), and they **stack** with
+the two canvas filters below: a card stays lit only when it satisfies every
+active chip. This is why relation labels are worth choosing well — they are
+filter names now, not just legend text.
+
+Relations are **not** one of the two filter slots in §F2, so they cost you
+nothing there. That is deliberate: a slot holds one value per node, but a node
+legitimately sits in several relations at once, and a slot would silently keep
+only the first.
+
+A relation that touches **every** node is dropped from the filter bar, because
+filtering by it would light everything (see the relevance rule in §F2). A
+structural spine usually is exactly that — expect it to disappear from the
+chips and stay a line style, and don't treat the build warning as an error.
 
 ### F. Extra axes (0–2)
 Beyond the entity axis: up to two more axes (e.g. environments/themes for a
@@ -170,6 +256,14 @@ defined — no re-entry needed, assignment is automatic:
   the student wrote on each node (Thin = a stub). Surfaces "where are my notes
   weak" with zero extra input; §0-safe (it measures their own material). Often
   the single most useful filter for a studying deck.
+- **depth** (`source:'depth'`) — auto-derived Level 1 / Level 2 / Level 3+ from
+  how deep each node sits in the structure the `spine` connections describe: a
+  node no spine edge points at is Level 1, its children Level 2, the rest below.
+  Zero extra input and §0-safe for the same reason coverage is — it measures the
+  shape of the student's own material. Best where the spine encodes containment
+  rather than sequence (a concept outline, a syllabus, a hierarchy of causes):
+  it gives "show me just the skeleton, then let me drill". The Level 3+ chip
+  only appears if something reaches it.
 - **fully custom** (`source:'custom'`) — any dimension with its own values
   (classic: importance — Heavy / Medium / Background); each node then picks
   its value via `filters: {filter_id: value_id}` in `add_nodes`. Importance is
@@ -181,21 +275,47 @@ defined — no re-entry needed, assignment is automatic:
   available, but these usually **repeat** the nav chips / act bands already on
   screen (the build warns), so prefer a cross-cutting filter instead.
 
+**The relevance rule — a filter that matches everything is not a filter.**
+The build drops any chip whose value matches **every** node or **none**, and
+warns saying which and why. Clicking a chip that lights the whole canvas
+changes nothing, and one that lights nothing is dead on arrival; either reads
+as a broken control. This applies to every source, so expect it to bite in
+ordinary places: a coverage filter on a deck where the student wrote full notes
+everywhere loses both chips, a custom value nobody was assigned vanishes, and a
+structural spine relation disappears from the line filters. **Treat those
+warnings as information, not failure** — tell the student the dimension didn't
+divide their material, and offer one that does.
+
 **Recommend cross-cutting, not redundant.** A good filter splits the timeline
 into chunks the student would actually study *separately*. Before suggesting
 one: (a) don't spend a slot on a dimension the act bands or nav chips already
 show; (b) draft the nodes first, then pick dimensions that cut *across* the
 acts and partition the set unevenly-but-usefully; (c) avoid a binary whose
-off-value holds ~80% of nodes (it barely partitions). Good default pair for a
-course: **coverage** + an **importance** filter (if the notes carry salience
-marks). Constraints: ≤2 filters (two engine slots); custom filters take 2–10
-values; filtering is single-valued per node (multi-valued nodes filter by their
-first value — the tools warn). For a mirrored axis whose detail pages have no
-authored sections, set `replace_nav: true` to make it **filter-only**: the
-filter chips replace that axis's navigation chips, and its legend dot and
-per-node card chips disappear too — a dimension that only filters shouldn't
-dangle empty detail pages or identical fallback glyphs on every card.
-→ brief `filters` (in `create_timeline`).
+off-value holds ~80% of nodes (it barely partitions).
+
+Good default pair for a course: **coverage** + **depth** where the spine
+encodes containment, otherwise **coverage** + an **importance** filter (only if
+the notes carry salience marks). Remember the relation chips from §E ride
+alongside for free and stack with both — so two slots plus relations is three
+dimensions, not two.
+
+Constraints: ≤2 filters (two engine slots); custom filters take 2–10 values;
+filtering is single-valued per node (multi-valued nodes filter by their first
+value — the tools warn).
+
+Two ways to keep a dimension out of the top nav bar, and they are not
+interchangeable:
+- `replace_nav: true` on a **filter** whose mirrored axis has no authored
+  sections makes that axis **filter-only**: its nav chips, legend dot **and its
+  per-node card chips** all disappear. Right when the axis has no pages worth
+  opening — it shouldn't dangle empty detail pages or identical fallback glyphs.
+- `hide_nav: true` on the **axis itself** removes it from the nav bar, drawer
+  and legend but **keeps the card chips and the detail pages**. Right for a
+  large, uncapped axis — a course's cases — where a nav row listing every value
+  is unusable but the chip on the card is exactly how you reach the one you
+  want. Such an axis labels its chips with the value's **name** instead of a
+  glyph, so skip glyph design for it (§C1).
+→ brief `filters` and `axes` (in `create_timeline`).
 
 ### G. Persona (stored for reports)
 "Every workspace can have its own study companion. Want one? Name and vibe?"
@@ -220,8 +340,11 @@ Offer to fix. This is the last step before sharing links.
 
 1. `create_project` → 2. `create_timeline(project_id, brief)` (brief carries
 acts, axes, **filters**, relations) → 3. `record_materials_consent` →
-4. `set_entities` → 5. `add_nodes` (batches; authored from the materials in
-this conversation; custom-filter values ride on each node) →
+4. `set_entities` → 4b. `set_axis_values` (any extra axis carrying real
+content — a course's cases — since an axis declared in `create_timeline` is
+authored before the consent gate) → 5. `add_nodes` (batches; authored from the
+materials in this conversation; custom-filter values ride on each node; in
+outline mode `parent` carries the tree) →
 6. `add_connections` →
 7. `set_overview` (optional prose overview; deep-link a node with exactly
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become

@@ -38,7 +38,9 @@ def test_used_relation_gets_nav_key_and_drawer_row():
     assert 'drawer-btn line-key-btn" data-rel-key="cites"' in html          # mobile
     assert 'class="line-key-count">1</span>' in html                        # cites used once
     assert "function isolateRelation" in html                              # the isolate glue
-    assert 'nav-group-label">Lines</span>' in html
+    # The desktop chips now sit with the filter groups (they filter nodes too,
+    # not just line tubes); the mobile drawer keeps its own "Lines" section.
+    assert 'nav-group-label">Filter \u00b7 Lines</span>' in html
     assert 'drawer-section-label">Lines</div>' in html
 
 

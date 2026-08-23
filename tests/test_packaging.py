@@ -98,7 +98,7 @@ def test_firebase_config_is_marked_sensitive(entry):
 
 def test_every_tool_is_listed(entry):
     _, m = entry
-    assert len(m["tools"]) == 14
+    assert len(m["tools"]) == 15
     assert all(t["name"] and t["description"] for t in m["tools"])
 
 

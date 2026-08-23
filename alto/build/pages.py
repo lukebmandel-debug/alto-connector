@@ -64,8 +64,28 @@ SEARCH_FETCH = """if(!courseLoading){
     }"""
 
 
+class PageError(RuntimeError):
+    pass
+
+
+def _rep(html: str, old: str, new: str, n: int, label: str) -> str:
+    """Counted string swap, same discipline as single_file._rep and
+    engine_patches: a miss fails the build loudly rather than dropping the fix
+    silently when the template moves underneath."""
+    found = html.count(old)
+    if found != n:
+        raise PageError(f"{label}: found {found} != {n} :: {old[:60]!r}")
+    return html.replace(old, new)
+
+
 def build_home(projects: list[dict]) -> str:
     template = engine_template("home_template.html")
+    # The search box reads "Search" on every surface; the home page said
+    # "Search all of Alto" while the timeline said something else again. Home
+    # is not reached by engine_patches (that hook is timeline-only) and the
+    # template is frozen, so the swap happens here.
+    template = _rep(template, 'placeholder="Search all of Alto"',
+                    'placeholder="Search"', 1, "home search placeholder")
     regions = {
         "projects": projects_const(projects),
         "search_course_fn": SEARCH_COURSE_FN,

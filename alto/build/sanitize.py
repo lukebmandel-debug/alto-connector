@@ -94,25 +94,28 @@ _CSS_COLOR = re.compile(
     r"|hsla?\([\d\s.,%deg]{1,40}\)"
     r"|[a-zA-Z]{3,20})$")
 
-# An overview deep link the engine understands: `showDetail('node','<id>')`,
-# optionally as a `javascript:` href and optionally trailed by `return false`.
+# A deep link the engine understands: `showDetail('<type>','<id>')`, optionally
+# as a `javascript:` href and optionally trailed by `return false`. The four
+# types are the engine's own (node / char=entity / env=axis1 / theme=axis2).
 # Full-match, and the id is the same slug shape as a node id (brief.ID_RE), so
-# the captured value is safe to interpolate back into the emitted onclick — it
+# the captured value is safe to interpolate back into the emitted markup — it
 # can carry no quote or space to break out of the attribute.
 _SHOWDETAIL_RE = re.compile(
-    r"^\s*(?:javascript:\s*)?showDetail\(\s*['\"]node['\"]\s*,"
+    r"^\s*(?:javascript:\s*)?showDetail\(\s*['\"](node|char|env|theme)['\"]\s*,"
     r"\s*['\"]([a-z][a-z0-9-]{0,47})['\"]\s*\)\s*;?\s*"
     r"(?:return\s+false\s*;?\s*)?$")
 
+DETAIL_TYPES = ("node", "char", "env", "theme")
 
-def _showdetail_id(attrs) -> "str | None":
-    """The node id an <a>'s onclick/href deep-links to, or None if it isn't a
+
+def _showdetail_target(attrs) -> "tuple[str, str] | None":
+    """The (type, id) an <a>'s onclick/href deep-links to, or None if it isn't a
     showDetail link."""
     for name, value in attrs:
         if (name or "").lower() in ("onclick", "href") and value:
             m = _SHOWDETAIL_RE.match(value.strip())
             if m:
-                return m.group(1)
+                return m.group(1), m.group(2)
     return None
 
 
@@ -176,13 +179,17 @@ class _Allowlist(HTMLParser):
 
     DROP_CONTENT = {"script", "style"}
 
-    def __init__(self, tags: set, attrs, svg: bool = False, node_ids=None):
+    def __init__(self, tags: set, attrs, svg: bool = False, node_ids=None,
+                 link_types=None):
         super().__init__(convert_charrefs=True)
         self.tags, self.attrs, self.svg = tags, attrs, svg
         # None → ordinary markup mode; a set → overview mode, where <a> tags
         # carrying a showDetail() deep link are rewritten to the engine's
         # clickable-chip markup (known id) or demoted to plain text (unknown).
         self.node_ids = node_ids
+        # id → detail type, for detail-page text. Present means deep links are
+        # resolved by id rather than trusting the authored type.
+        self.link_types = link_types
         self.out: list[str] = []
         self._open: list[str] = []
         self._anchor_stack: list[str] = []
@@ -217,7 +224,8 @@ class _Allowlist(HTMLParser):
             return
         if self._suppress or tag not in self.tags:
             return
-        if tag == "a" and self.node_ids is not None:
+        if tag == "a" and (self.node_ids is not None
+                           or self.link_types is not None):
             self._open_overview_anchor(attrs)
             return
         self.out.append(f"<{tag}{self._emit_attrs(tag, attrs)}>")
@@ -225,29 +233,60 @@ class _Allowlist(HTMLParser):
             self._open.append(tag)
 
     def _open_overview_anchor(self, attrs):
-        """Rewrite an overview <a> per its showDetail() target. The visible link
-        text flows through handle_data unchanged; the matching </a> is closed in
+        """Rewrite an <a> per its showDetail() target. The visible link text
+        flows through handle_data unchanged; the matching </a> is closed in
         handle_endtag off _anchor_stack (not _open, since the emitted wrapper is
         a <span>, not an <a>)."""
-        nid = _showdetail_id(attrs)
-        if nid is None:
+        target = _showdetail_target(attrs)
+        if target is None:
             # Not a deep link — keep it as a normal <a> (any onclick is stripped
             # by _emit_attrs' on* rule, exactly as before this mode existed).
             self.out.append(f"<a{self._emit_attrs('a', attrs)}>")
             self._anchor_stack.append("a")
-        elif nid in self.node_ids:
+            return
+        authored, lid = target
+
+        # Resolve by id, not by the authored type. Across a long outline nobody
+        # reliably remembers that a concept is 'node' and a case is 'env', and a
+        # mistyped link would otherwise ship as a chip that opens nothing.
+        kind = None
+        if self.link_types is not None:
+            kind = self.link_types.get(lid)
+        if kind is None and self.node_ids is not None and lid in self.node_ids:
+            kind = "node"
+        overview = self.node_ids is not None
+        where = "overview" if overview else "detail text"
+
+        if kind is None:
+            # validate-before-write: a link to something that does not exist
+            # never ships as a dead chip — it becomes plain prose, and warns.
+            # The overview resolves nodes only, so name that; detail text can
+            # reach concepts, entities and axis values alike.
+            self.warnings.append(
+                f"{where}: deep link to unknown {'node' if overview else 'id'} "
+                f"{lid!r} demoted to plain text")
+            self._anchor_stack.append("drop")
+            return
+        if kind != authored:
+            self.warnings.append(
+                f"{where}: link to {lid!r} was typed {authored!r} but resolves "
+                f"as {kind!r} — corrected")
+
+        if self.node_ids is not None and kind == "node":
             # The engine's initOverviewNavLinks reads the node id from the hidden
             # button's onclick and turns the span into a clickable chip.
             self.out.append(
                 '<span class="ov-node-link"><button class="ov-node-btn" '
-                f"onclick=\"showDetail('node','{nid}')\"></button>")
-            self._anchor_stack.append("span")
+                f"onclick=\"showDetail('node','{lid}')\"></button>")
         else:
-            # validate-before-write: a link to a non-existent node never ships as
-            # a dead chip — it becomes plain prose, and the build is warned.
-            self.warnings.append(
-                f"overview: deep link to unknown node {nid!r} demoted to plain text")
-            self._anchor_stack.append("drop")
+            # Everywhere else — detail pages, and non-node overview targets —
+            # initOverviewNavLinks cannot reach: it runs once, only when the
+            # overview panel opens, and only for 'node'. A data-attribute span
+            # driven by one delegated handler works on desktop, mobile and peek.
+            self.out.append(
+                f'<span class="alto-link" data-sd-type="{kind}" '
+                f'data-sd-id="{lid}">')
+        self._anchor_stack.append("span")
 
     def handle_startendtag(self, tag, attrs):
         tag = tag.lower()
@@ -262,7 +301,8 @@ class _Allowlist(HTMLParser):
             return
         if self._suppress:
             return
-        if tag == "a" and self.node_ids is not None and self._anchor_stack:
+        if (tag == "a" and self._anchor_stack
+                and (self.node_ids is not None or self.link_types is not None)):
             action = self._anchor_stack.pop()
             if action == "span":
                 self.out.append("</span>")
@@ -324,6 +364,21 @@ def clean_markup(value) -> str:
     return _run(value, MARKUP_TAGS, MARKUP_ATTRS)
 
 
+def clean_linked_markup(value, link_types) -> "tuple[str, list[str]]":
+    """`clean_markup` plus deep-link rewriting, for detail-page section text.
+
+    An <a> whose onclick/href is `showDetail('<type>','<id>')` becomes an
+    `alto-link` span **resolved by id** — the authored type is advisory and a
+    mismatch is corrected with a warning. An unknown id demotes to plain text,
+    same as the overview does. Returns (html, warnings)."""
+    if not value:
+        return "", []
+    p = _Allowlist(MARKUP_TAGS, MARKUP_ATTRS, link_types=link_types or {})
+    p.feed(str(value))
+    p.close()
+    return p.result(), p.warnings
+
+
 def clean_overview(value, node_ids) -> "tuple[str, list[str]]":
     """Allowlisted inline HTML for the overview panel, plus deep-link rewriting:
     an <a> whose onclick/href is `showDetail('node','<id>')` becomes the engine's
@@ -357,10 +412,24 @@ def sanitize_brief(b, nodes=None) -> list:
     if getattr(b, _FLAG, False):
         return getattr(b, "_alto_sanitize_warnings", [])
 
-    def sections(items):
-        for s in items or []:
+    # id → detail type, so a link in section text resolves to the right page
+    # whatever type it was authored with. Nodes are written last and win: a
+    # concept and a case that share an id is a data problem, not a link problem.
+    link_types = {}
+    for slot, ax in zip(("env", "theme"), b.axes[:2]):
+        link_types.update({v.id: slot for v in ax.values})
+    link_types.update({e.id: "char" for e in b.entities})
+    link_types.update({n.id: "node" for n in (nodes or [])})
+
+    sec_warnings: list[str] = []
+
+    def sections(items, what):
+        for i, s in enumerate(items or []):
             s.h = plain_text(s.h)          # `<h3>${s.h}</h3>`, raw
-            s.t = clean_markup(s.t)        # `<p>${s.t}</p>`, raw and markup-bearing
+            # `<p>${s.t}</p>`, raw and markup-bearing — so deep links survive
+            # here, unlike node.desc which has to stay plain (see below).
+            s.t, w = clean_linked_markup(s.t, link_types)
+            sec_warnings.extend(f"{what} section {i + 1}: {m}" for m in w)
 
     b.title = plain_text(b.title)
     b.subject = plain_text(b.subject)
@@ -379,13 +448,13 @@ def sanitize_brief(b, nodes=None) -> list:
     for e in b.entities:
         e.name, e.role = plain_text(e.name), plain_text(e.role)
         e.symbol_svg = clean_svg(e.symbol_svg)
-        sections(e.sections)
+        sections(e.sections, f"entity {e.id}")
     for ax in b.axes:
         ax.label, ax.singular = plain_text(ax.label), plain_text(ax.singular)
         for v in ax.values:
             v.name, v.role = plain_text(v.name), plain_text(v.role)
             v.symbol_svg = clean_svg(v.symbol_svg)
-            sections(v.sections)
+            sections(v.sections, f"{ax.label} value {v.id}")
     for f in b.filters:
         f.label = plain_text(f.label)
         for v in f.values:
@@ -400,8 +469,9 @@ def sanitize_brief(b, nodes=None) -> list:
         # plain text is the only presentation that is right in both places.
         n.desc = plain_text(n.desc)
         n.color = css_color(n.color, "") if n.color else ""
-        sections(n.sections)
+        sections(n.sections, f"node {n.id}")
 
     setattr(b, _FLAG, True)
-    setattr(b, "_alto_sanitize_warnings", ov_warnings)
-    return ov_warnings
+    warnings = ov_warnings + sec_warnings
+    setattr(b, "_alto_sanitize_warnings", warnings)
+    return warnings

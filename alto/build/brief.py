@@ -38,7 +38,23 @@ def _check_len(value, kind, what) -> str:
 PALETTE = ["#4a9eff", "#e8a87c", "#a78bfa", "#f43f5e", "#10b981", "#fb923c",
            "#94a3b8", "#7dd3fc", "#f472b6", "#a3e635", "#fbbf24", "#2dd4bf"]
 
-ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"]
+_ROMAN_PARTS = ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"),
+                (90, "XC"), (50, "L"), (40, "XL"), (10, "X"), (9, "IX"),
+                (5, "V"), (4, "IV"), (1, "I"))
+
+
+def roman(n: int) -> str:
+    """Roman numeral for a 1-based band number. Generated rather than
+    tabulated: a timeline carries as many bands as the user's own material
+    has, so there is no fixed set to enumerate."""
+    if n < 1:
+        raise BriefError(f"roman({n}): band numbers start at 1")
+    out = []
+    for value, sym in _ROMAN_PARTS:
+        while n >= value:
+            out.append(sym)
+            n -= value
+    return "".join(out)
 
 # Domain-appropriate name for the periodization axis (the horizontal bands).
 # The engine determines it: an explicit brief.period_noun wins; otherwise it is
@@ -112,6 +128,13 @@ class Axis:
     label: str                 # plural, e.g. "Environments" / "Doctrines"
     singular: str              # e.g. "Environment"
     values: list[AxisValue] = field(default_factory=list)
+    # Drop this axis from the top nav bar, the mobile drawer and the legend,
+    # while KEEPING its chips on the cards and its detail pages reachable.
+    # For a large uncapped axis — a course's cases — a nav row listing every
+    # value is unusable, but the per-card chips are exactly how you reach the
+    # one you want. Distinct from FilterSpec.replace_nav, which also strips the
+    # card chips because a filter-only axis has no pages worth opening.
+    hide_nav: bool = False
 
 
 @dataclass
@@ -131,6 +154,12 @@ class FilterSpec:
       coverage — derived Solid/Thin from how much the student authored on each
         node (Thin = a stub with no detail sections). §0-safe: it measures the
         shape of the student's own notes, so it surfaces gaps without inventing.
+      depth — derived from how deep each node sits in the structure the
+        connections describe: Level 1 for the roots of each band, Level 2 for
+        their children, Level 3+ for everything below. §0-safe for the same
+        reason — it measures the shape of the student's own outline. The one a
+        concept outline actually wants: show just the skeleton for a review
+        pass, then drill.
       custom — caller-defined `values`, assigned per node via Node.filters.
     `replace_nav` makes a mirrored axis1/axis2 **filter-only**: its
     navigation chips, drawer section, legend dot, and per-node card/detail
@@ -146,7 +175,10 @@ class FilterSpec:
     replace_nav: bool = False  # entity/axis1/axis2 sources only
 
 
-FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "custom")
+FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
+                  "custom")
+
+MODES = ("linear", "outline")
 
 
 @dataclass
@@ -178,6 +210,13 @@ class Node:
     sections: list[Section] = field(default_factory=list)   # detail page
     color: str = ""            # css color ref; defaults to first entity's var
     base_y: int = 0            # filled by layout
+    # Outline mode: the concept that CONTAINS this one. "" makes it the root of
+    # its band. Single-valued and stored on the child, matching how every other
+    # reference in this model works (entity_ids, axis*_values) — and upsert-safe,
+    # since adding a child touches exactly one record. A stored outline *path*
+    # ("I.A.2") would be silently invalidated by inserting a sibling, so the
+    # numbering is derived at build and never stored.
+    parent: str = ""
 
 
 @dataclass
@@ -199,6 +238,12 @@ class Brief:
     timeline_id: str = "timeline"               # tid: keys + URLs
     owner_name: str = ""
     owner_email: str = ""
+    # "linear" — nodes flow through the bands in sequence (the original shape).
+    # "outline" — nodes are concepts that CONTAIN one another: each band holds
+    # one family, its root centred with its children radiating out, and Node
+    # .parent carries the structure. Same engine and same geometry either way;
+    # what changes is where the cards sit and what a detail page shows.
+    mode: str = "linear"
 
 
 def _check_sections(sections, what) -> None:
@@ -223,8 +268,18 @@ def validate_brief(b: Brief) -> list[str]:
     _check_len(b.node_noun, "node_noun", "node_noun")
     _check_len(b.owner_name, "owner", "owner_name")
     _check_len(b.owner_email, "owner", "owner_email")
-    if not 2 <= len(b.acts) <= 7:
-        raise BriefError(f"{len(b.acts)} acts: the engine supports 2-7")
+    # No upper bound: the engine builds bands in a runtime loop over PHASE_META
+    # and takes each band's colour from its own entry, so it renders as many as
+    # the brief carries. A course with eleven units gets eleven bands.
+    if len(b.acts) < 2:
+        raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
+                         "(with one band there is no periodization to show)")
+    if b.mode not in MODES:
+        raise BriefError(f"mode {b.mode!r}: must be one of {MODES}")
+    if b.mode == "outline" and b.columns == 3:
+        warnings.append(
+            "outline mode with 3 columns: depth has nowhere to spread — "
+            "5 columns give a hub's children their own lanes")
     if b.columns not in COL_SETS:
         raise BriefError(f"columns={b.columns}: engine grids are 3 or 5 columns")
     if len(b.axes) > 2:
@@ -340,6 +395,80 @@ def validate_brief(b: Brief) -> list[str]:
     return warnings
 
 
+def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
+    """Outline mode's containment tree: every hard rule the geometry depends on.
+
+    Returns soft warnings; raises BriefError on anything that would produce a
+    page that cannot be laid out or read.
+
+    A dangling parent is only a *warning* here on purpose. `add_nodes` is an
+    idempotent batch upsert, so a child legitimately arrives before its parent
+    during an interview; it becomes a hard failure at build time, in
+    verify_data, once the node set is final. That is the same split
+    `add_connections` already uses for act coverage.
+    """
+    warnings: list[str] = []
+    ids = {n.id for n in nodes}
+    by_id = {n.id: n for n in nodes}
+
+    for n in nodes:
+        if not n.parent:
+            continue
+        if n.parent == n.id:
+            raise BriefError(f"node {n.id}: parent is itself")
+        if n.parent not in ids:
+            warnings.append(
+                f"node {n.id}: parent {n.parent!r} is not a node yet — add it "
+                "before building")
+            continue
+        if by_id[n.parent].act != n.act:
+            raise BriefError(
+                f"node {n.id} (unit {n.act + 1}) has parent {n.parent!r} "
+                f"(unit {by_id[n.parent].act + 1}). A concept and its "
+                "sub-concepts live in the same unit — a different family of "
+                "concepts gets its own unit")
+
+    # Cycles. Walk each chain to its end; revisiting a node inside one walk is
+    # a loop, and a loop makes depth and layout meaningless.
+    for n in nodes:
+        seen, cur = {n.id}, n
+        while cur.parent and cur.parent in by_id:
+            if cur.parent in seen:
+                raise BriefError(
+                    f"node {n.id}: parent chain loops back on itself "
+                    f"({' → '.join(list(seen)[:4])}). A concept cannot "
+                    "contain one of its own ancestors")
+            seen.add(cur.parent)
+            cur = by_id[cur.parent]
+
+    # Exactly one root per band — the hub the rest of the band radiates from.
+    roots_by_act: dict[int, list[str]] = {}
+    for n in nodes:
+        if not n.parent:
+            roots_by_act.setdefault(n.act, []).append(n.id)
+    acts_with_nodes = {n.act for n in nodes}
+    for act_i in range(len(b.acts)):
+        roots = roots_by_act.get(act_i, [])
+        label = b.acts[act_i].short or b.acts[act_i].label
+        if act_i not in acts_with_nodes:
+            # Nothing authored for this unit yet. During an interview the units
+            # fill one at a time, so demanding a hub here would reject every
+            # add_nodes call until the last one. The empty unit is caught at
+            # build instead, by verify_data's act-coverage gate.
+            continue
+        if not roots:
+            raise BriefError(
+                f"unit {act_i + 1} ({label!r}) has no top-level concept — "
+                "every unit needs exactly one hub with no parent")
+        if len(roots) > 1:
+            raise BriefError(
+                f"unit {act_i + 1} ({label!r}) has {len(roots)} top-level "
+                f"concepts ({', '.join(sorted(roots)[:4])}) — a unit has one "
+                "hub. Give each its own unit, or make the others its "
+                "sub-concepts")
+    return warnings
+
+
 def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     warnings = []
     entity_ids = {e.id for e in b.entities}
@@ -373,6 +502,9 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
         _check_sections(n.sections, f"node {n.id}")
         if not (n.desc or "").strip():
             warnings.append(f"node {n.id}: empty desc (sparse by design?)")
+
+    if b.mode == "outline":
+        warnings += _validate_outline_tree(b, nodes)
 
     custom_vals = {f.id: {v.id for v in f.values}
                    for f in b.filters if f.source == "custom"}

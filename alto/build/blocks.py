@@ -18,7 +18,7 @@ import json
 import re
 from urllib.parse import quote as url_q
 
-from .brief import Brief, Node, COL_SETS, ROMAN
+from .brief import Brief, Node, COL_SETS, roman
 from .sanitize import css_color, esc, one_line
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
@@ -73,7 +73,8 @@ def _sections_js(sections, indent="    ") -> str:
     return f"sections:[{items}]"
 
 
-def resolve_filters(b: Brief, nodes: list[Node]) -> list[dict]:
+def resolve_filters(b: Brief, nodes: list[Node],
+                    connections: list = None) -> list[dict]:
     """Brief.filters → the engine's two scalar filter slots.
 
     Returns [{slot, node_key, spec, values: [(id, name)], node_value: {node
@@ -101,6 +102,39 @@ def resolve_filters(b: Brief, nodes: list[Node]) -> list[dict]:
             values = [("solid", "Solid"), ("thin", "Thin")]
             nv = {n.id: ("solid" if sum(1 for s in n.sections if s.t) >= 2
                          else "thin") for n in nodes}
+        elif f.source == "depth":
+            # How deep each node sits in the structure the connections already
+            # describe: a node no spine edge points at is a root (Level 1), its
+            # children Level 2, everything below Level 3+. Nothing extra to
+            # author, and §0-safe for the same reason coverage is — it measures
+            # the shape of the student's own outline rather than adding to it.
+            # Node.parent is the tree when there is one, and it is authored
+            # rather than derived — so prefer it over the spine edges, which in
+            # outline mode are themselves generated FROM it later in the build.
+            # Reading the edges here would make depth depend on call ordering.
+            parent = {n.id: n.parent for n in nodes if n.parent}
+            if not parent:
+                for c in (connections or []):
+                    if len(c) >= 3 and c[2] == "spine" and c[0] != c[1]:
+                        parent.setdefault(c[1], c[0])
+
+            def _depth(nid):
+                seen, d = {nid}, 1
+                while nid in parent and parent[nid] not in seen:
+                    nid = parent[nid]
+                    seen.add(nid)
+                    d += 1
+                    if d > 64:          # authored cycle; stop rather than hang
+                        break
+                return d
+
+            depths = {n.id: _depth(n.id) for n in nodes}
+            deepest = max(depths.values(), default=1)
+            values = [("d1", "Level 1"), ("d2", "Level 2")]
+            if deepest >= 3:
+                values.append(("d3", "Level 3+"))
+            nv = {nid: ("d1" if d == 1 else "d2" if d == 2 else "d3")
+                  for nid, d in depths.items()}
         else:  # custom
             values = [(v.id, v.name) for v in f.values]
             nv = {n.id: n.filters[f.id] for n in nodes
@@ -229,6 +263,104 @@ function _altoDoctrineBody(id){
 # sync. Plus a per-edge hover tooltip (tubes get pointer-events via CSS since
 # #river-svg is otherwise click-through). Dims only lines — node dimming is the
 # filter's job, and touching it here would fight the filter state.
+# Deep links inside detail-page section text. The overview's own upgrader
+# (initOverviewNavLinks) cannot serve these: it runs once, only when the overview
+# panel opens, and only for 'node' — a chip rendered later into #detail-content
+# would stay an un-upgraded span, which .ov-node-btn{display:none} makes
+# invisible. One delegated listener covers desktop, mobile and the swipe peek.
+# Data attributes rather than an inline onclick, so nothing has to survive a JS
+# string literal on the way in.
+ALTO_LINK_GLUE = """
+(function(){
+  if(window._altoLinkBound) return; window._altoLinkBound=1;
+  document.addEventListener('click', function(e){
+    var a=e.target && e.target.closest && e.target.closest('.alto-link[data-sd-id]');
+    if(!a || typeof showDetail!=='function') return;
+    e.preventDefault(); e.stopPropagation();
+    showDetail(a.getAttribute('data-sd-type')||'node', a.getAttribute('data-sd-id'));
+  }, true);
+})();
+"""
+
+# Printing an outline. The engine's own "main timeline" print lays every node
+# out as a card hanging off a vertical spine — right for a sequence, wrong for a
+# containment tree, where what you want on paper is the outline itself: nested
+# headings, real outline numerals, the rule under each, and the authority beside
+# it. An engine patch hands the data here (ACT_SEQS / NODES / PHASE_META / ENVS
+# are module-scoped, so this cannot be done from outside without one).
+#
+# "With what is given" is the whole rule: a concept with nothing written under
+# it still gets its heading, and nothing is filled in for it.
+OUTLINE_PRINT_GLUE = """
+window._altoPrintOutline = function(ACT_SEQS, NODES, PHASE_META, ENVS){
+  var O = window._ALTO_OUTLINE; if(!O) return '';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){
+    return c==='&'?'&amp;':(c==='<'?'&lt;':'&gt;'); }); }
+  var byId={}; NODES.forEach(function(n){ byId[n.id]=n; });
+  var out=['<div class="print-ol-doc">__ALTO_TOK_print_title__'];
+  ACT_SEQS.forEach(function(ids, ui){
+    var pm = PHASE_META[ui] || null;
+    var inUnit={}; ids.forEach(function(id){ inUnit[id]=1; });
+    out.push('<section class="print-ol-unit"><h2 class="print-ol-h">'
+      + esc(pm ? pm.label : ('UNIT ' + (ui+1))) + '</h2>');
+    function row(id, depth){
+      var n = byId[id]; if(!n) return;
+      out.push('<div class="print-ol-row" style="--lvl:' + depth + '">');
+      out.push('<span class="print-ol-num">' + esc(O.label[id] || '') + '</span>');
+      out.push('<div class="print-ol-body">');
+      out.push('<span class="print-ol-name">' + esc(n.title || id) + '</span>');
+      // the student's own one-liner, verbatim
+      if(n.desc) out.push('<div class="print-ol-desc">' + esc(n.desc) + '</div>');
+      // authority, named the way an outline cites it
+      var cites = (n.envs || []).map(function(e){
+        return esc((ENVS[e] && ENVS[e].name) || e); });
+      if(cites.length) out.push('<div class="print-ol-cite">' + cites.join('; ') + '</div>');
+      out.push('</div></div>');
+      (O.kids[id] || []).forEach(function(kid){
+        if(inUnit[kid]) row(kid, depth + 1); });
+    }
+    ids.forEach(function(id){ if(!O.parent[id]) row(id, 0); });
+    out.push('</section>');
+  });
+  out.push('</div>');
+  return out.join('');
+};"""
+
+
+# Relation filters dim cards, not just line tubes. LINES_GLUE still owns the
+# tubes and the chips' active state; this runs just after it (a 0ms timeout, so
+# the class toggle has already landed) and applies the node half.
+#
+# It deliberately uses its own `rel-dimmed` class rather than the engine's
+# `dimmed`. The engine owns `dimmed` for slot filters, and two writers on one
+# class is exactly the fight LINES_GLUE's comment warned about. Two classes
+# compose instead: a card is lit only when it carries neither, which is the
+# stacking we want — a node must satisfy the slot filters AND touch an active
+# relation.
+REL_FILTER_GLUE = """
+(function(){
+  if(window._altoRelFilterBound) return; window._altoRelFilterBound=1;
+  function apply(){
+    var active=[], nodes=document.querySelectorAll('#world .node');
+    document.querySelectorAll('.line-key-btn[data-rel-key].active')
+      .forEach(function(b){ active.push(b.getAttribute('data-rel-key')); });
+    for(var i=0;i<nodes.length;i++){
+      var card=nodes[i].querySelector('.node-card'); if(!card) continue;
+      var id=nodes[i].id.slice(5), keep=!active.length;
+      for(var j=0;!keep && j<active.length;j++){
+        var set=(typeof REL_NODES!=='undefined' && REL_NODES[active[j]])||[];
+        if(set.indexOf(id)>=0) keep=true;
+      }
+      card.classList.toggle('rel-dimmed', !keep);
+    }
+  }
+  document.addEventListener('click', function(e){
+    var b=e.target && e.target.closest && e.target.closest('.line-key-btn[data-rel-key]');
+    if(b) setTimeout(apply, 0);
+  }, true);
+})();"""
+
+
 LINES_GLUE = """
 function isolateRelation(key){
   var svg=document.getElementById('river-svg'); if(!svg||typeof CONNECTIONS==='undefined') return;
@@ -274,13 +406,66 @@ function isolateRelation(key){
 })();"""
 
 
+# Outline mode's node detail page: where you are, then what you contain.
+# Same shape as DOCTRINE_BODY — a runtime function emitted into `orders` that
+# synthesizes sections from data the page already carries, so the frozen
+# engine's detail renderer needs no change. Children are `alto-link` chips, so
+# the one delegated handler that serves inline links serves these too, on
+# desktop, mobile and the swipe peek alike.
+OUTLINE_BODY = """
+function _altoOutlineHead(id){
+  var O = window._ALTO_OUTLINE; if(!O || !O.parent) return [];
+  var chain = [], cur = O.parent[id], guard = 0;
+  while(cur && guard++ < 64){ chain.unshift(cur); cur = O.parent[cur]; }
+  if(!chain.length) return [];
+  var titleOf = {};
+  if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ titleOf[n.id]=n.title; });
+  var parts = chain.map(function(pid){
+    return '<span class="alto-link" data-sd-type="node" data-sd-id="'+pid+'">'
+      + ((O.num[pid]?O.num[pid]+' ':'') + (titleOf[pid]||pid)) + '</span>';
+  });
+  return [{h:'Sits under', t:'<div class="ol-trail">'+parts.join(' <span class="ol-sep">\\u203a</span> ')+'</div>'}];
+}
+function _altoOutlineTail(id){
+  var O = window._ALTO_OUTLINE; if(!O || !O.kids) return [];
+  var kids = O.kids[id] || []; if(!kids.length) return [];
+  var titleOf = {}, descOf = {};
+  if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){
+    titleOf[n.id]=n.title; descOf[n.id]=n.desc; });
+  var rows = kids.map(function(kid){
+    return '<div class="ol-row">'
+      + '<span class="ol-num">'+(O.label[kid]||'')+'</span>'
+      + '<span class="alto-link ol-name" data-sd-type="node" data-sd-id="'+kid+'">'
+      + (titleOf[kid]||kid) + '</span>'
+      + (descOf[kid] ? '<div class="ol-d">'+descOf[kid]+'</div>' : '')
+      + '</div>';
+  }).join('');
+  return [{h:'Contains', t:rows}];
+}"""
+
+# Outline mode splices its own section builder: ancestry, then the student's
+# own sections, then the children. The Synopsis fallback still applies when a
+# concept has none of the three.
+NODE_SECTIONS_OUTLINE_D = (
+    "sections = _altoOutlineHead(id)"
+    ".concat(((nd.sections)||[]).filter(s=>s&&s.t))"
+    ".concat(_altoOutlineTail(id));\n"
+    "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});")
+NODE_SECTIONS_OUTLINE_M = (
+    "var sections=_altoOutlineHead(targetId)"
+    ".concat(((ndDet.sections)||[]).filter(function(s){return s&&s.t;}))"
+    ".concat(_altoOutlineTail(targetId));\n"
+    "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});")
+
+
 def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
 
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     mgrid, mobile_world_h: int, *, reports_href: str = None,
-                    view_path: str = "", connections: list = None) -> tuple[dict, dict]:
+                    view_path: str = "", connections: list = None,
+                    warnings: list = None) -> tuple[dict, dict]:
     """Return (regions, tokens) for emit() against timeline_template.html.
 
     nodes must be validated, in narrative order, with col set and positions
@@ -313,10 +498,36 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
 
     # Canvas filters: resolved slot data plus which axes' navigation chips the
     # filter chips replace (replace_nav on entity/axis1/axis2 sources).
-    resolved_filters = resolve_filters(b, nodes)
+    resolved_filters = resolve_filters(b, nodes, connections)
     nav_replaced = {rf["spec"].source for rf in resolved_filters
                     if rf["spec"].replace_nav
                     and rf["spec"].source in ("entity", "axis1", "axis2")}
+
+    # Everything kept out of the navigation chrome — the nav row, the mobile
+    # drawer and the legend dots. A replace_nav'd axis is hidden there AND loses
+    # its card chips (below); an Axis.hide_nav axis is hidden here only, so its
+    # chips stay on the cards and its detail pages stay reachable.
+    nav_hidden = nav_replaced | {
+        f"axis{i + 1}" for i, ax in enumerate(b.axes[:2]) if ax.hide_nav}
+
+    # sanitize has already rewritten any showDetail() anchors in section text,
+    # so the emitted spans are the honest signal for whether this build needs
+    # the link handler and its CSS at all. A brief with no deep links adds no
+    # bytes for them — the same discipline as the relation colour vars above.
+    def _has_alto_link() -> bool:
+        # Outline detail pages build their child links and ancestry trail at
+        # runtime (OUTLINE_BODY), so they never appear in the emitted section
+        # text this scan looks at — but they still need the handler and CSS.
+        if b.mode == "outline":
+            return True
+        if 'class="alto-link"' in (b.overview_html or ""):
+            return True
+        groups = [n.sections for n in nodes] + [e.sections for e in b.entities]
+        groups += [v.sections for ax in b.axes for v in ax.values]
+        return any('class="alto-link"' in (s.t or "")
+                   for g in groups for s in (g or []))
+
+    uses_alto_link = _has_alto_link()
 
     # Relation "line key": the legend that names which line color means which
     # relation. Only relations actually used by a connection are shown, in
@@ -326,6 +537,29 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     for c in (connections or []):
         if len(c) >= 3:
             rel_counts[c[2]] = rel_counts.get(c[2], 0) + 1
+    # Which nodes each relation actually touches — the set a relation filter
+    # keeps lit. Built from the connections, so it costs nothing extra.
+    rel_nodes = {}
+    for c in (connections or []):
+        if len(c) >= 3:
+            rel_nodes.setdefault(c[2], set()).update((c[0], c[1]))
+
+    _warn = warnings if warnings is not None else []
+    _all_ids = {n.id for n in nodes}
+
+    def _partitions(touched, what) -> bool:
+        """A chip has to divide the set to be worth showing. One that matches
+        every node changes nothing when clicked, and one that matches none is
+        dead on arrival — both read as a broken control."""
+        if not touched:
+            _warn.append(f"{what}: matches no nodes — chip dropped")
+            return False
+        if _all_ids and touched >= _all_ids:
+            _warn.append(f"{what}: matches every node, so filtering by it "
+                         "changes nothing — chip dropped")
+            return False
+        return True
+
     # (key, label, swatch) — the key drives the interactive isolate control.
     rel_key_items = [(r.key, r.label, f"var(--rel-{r.key})") for r in b.relations
                      if r.key != "spine" and r.color and r.label
@@ -336,6 +570,23 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     _spine = next((r for r in b.relations if r.key == "spine"), None)
     if rel_key_items and _spine and _spine.label and "spine" in used_rels:
         rel_key_items.append(("spine", _spine.label, "var(--line-flow)"))
+    # Now that the chips also filter nodes, the same rule applies to them: a
+    # structural spine touches every node in its band, so filtering by it lights
+    # everything. Drop those rather than ship a control that does nothing.
+    rel_key_items = [it for it in rel_key_items
+                     if _partitions(rel_nodes.get(it[0], set()),
+                                    f"line filter {it[1]!r}")]
+
+    # Same rule for the slot filters. A Coverage chip on a deck where every
+    # node is Solid, or a custom value the student never assigned, is just as
+    # dead as a spine chip — drop it and say why.
+    for _rf in resolved_filters:
+        _kept = []
+        for _vid, _name in _rf["values"]:
+            _touched = {nid for nid, v in _rf["node_value"].items() if v == _vid}
+            if _partitions(_touched, f"filter {_rf['spec'].label!r} value {_name!r}"):
+                _kept.append((_vid, _name))
+        _rf["values"] = _kept
 
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
@@ -352,15 +603,17 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             f"--phase{i+1}:rgba({r},{g},{bl},{alpha});"
             for i, (r, g, bl) in enumerate(_rgb(a.color) for a in b.acts[:5]))
 
+    # Bands 6+ land in their own <style> block rather than the :root above, so
+    # this covers every remaining act — the count is whatever the brief carries.
     def phase_extra():
         if len(b.acts) <= 5:
             return ""
         light = "".join(f"--phase{i+6}:rgba({r},{g},{bl},0.09);"
                         for i, (r, g, bl) in
-                        enumerate(_rgb(a.color) for a in b.acts[5:7]))
+                        enumerate(_rgb(a.color) for a in b.acts[5:]))
         dark = "".join(f"--phase{i+6}:rgba({r},{g},{bl},0.07);"
                        for i, (r, g, bl) in
-                       enumerate(_rgb(a.color) for a in b.acts[5:7]))
+                       enumerate(_rgb(a.color) for a in b.acts[5:]))
         return (f":root{{{light}}}\n"
                 f"@media(prefers-color-scheme:dark){{:root{{{dark}}}}}")
 
@@ -370,11 +623,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         f'style="background:var(--{e.id})"></div>{e.name}</div>'
         for e in b.entities)
     axis_dots = ""
-    if ax1 and "axis1" not in nav_replaced:
+    if ax1 and "axis1" not in nav_hidden:
         axis_dots += ('\n    <div class="legend-item"><div class="legend-dot" '
                       'style="background:var(--env-color);border-radius:2px">'
                       f'</div>{ax1.singular}</div>')
-    if ax2 and "axis2" not in nav_replaced:
+    if ax2 and "axis2" not in nav_hidden:
         axis_dots += ('\n    <div class="legend-item"><div class="legend-dot" '
                       f'style="background:var(--theme-color)"></div>{ax2.singular}</div>')
     divider = ('\n    <div style="width:1px;height:14px;background:var(--border);'
@@ -386,7 +639,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"onclick=\"showDetail('{kind}','{vid}')\">{sym} {name}</button>")
 
     nav = [f'<div id="nav">\n    <span class="title">{b.title}</span>']
-    if b.entities and "entity" not in nav_replaced:
+    if b.entities and "entity" not in nav_hidden:
         nav.append(f'\n    <span class="nav-group-label">{b.entity_axis_singular}</span>')
         for e in b.entities:
             thin = _ent_thin(e.id)
@@ -398,7 +651,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"{e.symbol_svg or FALLBACK_GLYPH} {e.name}{badge}</button>")
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
-        if not ax or src in nav_replaced:
+        if not ax or src in nav_hidden:
             continue
         nav.append('\n    <div class="nav-divider"></div>')
         nav.append(f'\n    <span class="nav-group-label">{ax.singular}</span>')
@@ -412,15 +665,24 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                        f'data-axis="{rf["slot"]}" data-value="{vid}" '
                        f'onclick="filterCanvas(\'{rf["slot"]}\',\'{vid}\')">'
                        f'{name}</button>')
-    # Relation line key (desktop): each entry is a toggle — click it to isolate
-    # that relation's lines on the canvas (dim the rest) — with a live edge count.
+    # Relation filters (desktop). These sit with the other filter groups and
+    # read as filter chips, because that is what they now are: clicking one
+    # dims the lines of every other relation AND dims the cards that relation
+    # never touches, stacking with whatever slot filters are active.
     # Mobile hides #nav .nav-btn entirely, so the drawer carries its own copy.
     if rel_key_items:
         nav.append('\n    <div class="nav-divider"></div>')
-        nav.append('\n    <span class="nav-group-label">Lines</span>')
+        nav.append('\n    <span class="nav-group-label">Filter · Lines</span>')
         for key, label, swatch in rel_key_items:
             nav.append(
-                f'\n    <button class="nav-btn line-key-btn" data-rel-key="{key}">'
+                # NOT .filter-btn: the engine sweeps every .filter-btn in
+                # _applyActiveFilters (engine :2539) and in clear-all (:7931),
+                # keying off data-axis/data-value these chips do not have — so
+                # wearing that class made a slot-filter click light a relation
+                # chip too. They sit in the filter group and are styled like
+                # filter chips; they are not one of the engine's two slots.
+                f'\n    <button class="nav-btn line-key-btn" '
+                f'data-rel-key="{key}">'
                 f'<span style="display:inline-block;width:14px;height:3px;'
                 f'border-radius:2px;background:{swatch}"></span>{esc(label)}'
                 f'<span class="line-key-count">{rel_counts.get(key, 0)}</span></button>')
@@ -458,8 +720,20 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     def sym_map(name, ax):
         if not ax:
             return f"const {name}={{}};"
+        # The engine sets `btn.innerHTML = ENV_SYM[id]` on a flex pill with no
+        # width constraint, so this slot takes a label just as happily as a
+        # glyph. For a hide_nav axis it must: that axis is the large uncapped
+        # kind (a course's cases), where drawing a unique glyph per value is not
+        # realistic and every value would fall back to the same ◆ — a row of
+        # identical diamonds on a card names nothing. `v.name` is plain_text'd
+        # by sanitize before it gets here.
+        def cell(v):
+            if not ax.hide_nav:
+                return _sym(v.symbol_svg)
+            return (f"{js_str(v.symbol_svg)}+{js_str(' ' + v.name)}"
+                    if v.symbol_svg else js_str(v.name))
         return f"const {name}={{" + ",".join(
-            f"'{v.id}':{_sym(v.symbol_svg)}" for v in ax.values) + "};"
+            f"'{v.id}':{cell(v)}" for v in ax.values) + "};"
 
     env_sym = sym_map("ENV_SYM", ax1)
     theme_sym = sym_map("THEME_SYM", ax2)
@@ -511,7 +785,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "\n  " + json.dumps(ids) for ids in act_seqs_list) + "\n];"
 
     phase_meta = "const PHASE_META = [" + ",".join(
-        f"\n  {{label:{js_str(a.label)}, numeral:'{ROMAN[i]}', "
+        f"\n  {{label:{js_str(a.label)}, numeral:'{roman(i + 1)}', "
         f"colorRaw:'{a.color}', cssVar:'var(--phase{i+1})'}}"
         for i, a in enumerate(b.acts)) + "\n];"
 
@@ -566,7 +840,51 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         if r.label and r.key in used_rels) + "};")
     orders += ("\n" + rel_labels
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
-               + DOCTRINE_BODY + LINES_GLUE)
+               + DOCTRINE_BODY + LINES_GLUE
+               + (ALTO_LINK_GLUE if uses_alto_link else ""))
+    if b.mode == "outline":
+        # Outline numerals, derived at build from depth and sibling order — a
+        # stored path would be silently invalidated the moment a sibling is
+        # inserted. Level styles cycle I. / A. / 1. / a. / i. the way a written
+        # outline does.
+        _kids: dict[str, list] = {}
+        for n in nodes:
+            if n.parent:
+                _kids.setdefault(n.parent, []).append(n.id)
+        _num, _label, _parent = {}, {}, {}
+        for n in nodes:
+            if n.parent:
+                _parent[n.id] = n.parent
+
+        def _mark(level: int, i: int) -> str:
+            if level == 0:
+                return roman(i + 1) + "."
+            if level == 1:
+                return chr(ord("A") + i % 26) + "."
+            if level == 2:
+                return f"{i + 1}."
+            if level == 3:
+                return chr(ord("a") + i % 26) + "."
+            return roman(i + 1).lower() + "."
+
+        def _walk(nid: str, level: int, i: int, prefix: str) -> None:
+            mark = _mark(level, i)
+            _label[nid] = mark
+            _num[nid] = (prefix + mark) if prefix else mark
+            for j, kid in enumerate(_kids.get(nid, [])):
+                _walk(kid, level + 1, j, _num[nid])
+
+        for _i, _root in enumerate([n.id for n in nodes if not n.parent]):
+            _walk(_root, 0, _i, "")
+        orders += ("\nwindow._ALTO_OUTLINE={num:" + json.dumps(_num)
+                   + ",label:" + json.dumps(_label)
+                   + ",kids:" + json.dumps(_kids)
+                   + ",parent:" + json.dumps(_parent) + "};"
+                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE)
+    if rel_key_items:
+        orders += ("\nvar REL_NODES={" + ",".join(
+            f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
+            for k, _lbl, _sw in rel_key_items) + "};" + REL_FILTER_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
@@ -625,6 +943,73 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "background:var(--surface);color:var(--text);border:1px solid var(--border);"
         "border-radius:6px;padding:4px 8px;font-size:12px;max-width:280px;"
         "box-shadow:0 4px 16px rgba(0,0,0,.2);}")
+    # A named chip (hide_nav axes, above) has to stay inside a 270px card, so
+    # cap it and ellipsise rather than letting one long case name reflow the
+    # footer. The glyph form is a fixed 14px and needs none of this.
+    if any(ax.hide_nav for ax in b.axes[:2]):
+        nav_char_css += (
+            "\n  .esym-btn,.tsym-btn{max-width:150px;overflow:hidden;"
+            "text-overflow:ellipsis;white-space:nowrap;display:inline-block;"
+            "line-height:18px;}")
+    # A relation-filtered-out card reads exactly like a slot-filtered-out one
+    # (the engine's `.node-card.dimmed`, engine :1167-1168) — same treatment,
+    # separate class, so the two dim independently and compose.
+    if rel_key_items:
+        nav_char_css += (
+            "\n  .node-card.rel-dimmed{background:var(--surface) !important;"
+            "border-top-color:var(--border) !important;}"
+            "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
+    # Outline detail pages: a numbered "Contains" list and an ancestry trail,
+    # set to read like a written outline rather than a table.
+    if b.mode == "outline":
+        nav_char_css += (
+            "\n  .ol-row{display:grid;grid-template-columns:2.6em 1fr;"
+            "align-items:baseline;column-gap:.4em;margin:.55em 0;}"
+            "\n  .ol-num{color:var(--muted);font-variant-numeric:tabular-nums;"
+            "letter-spacing:.02em;}"
+            # a direct grid child blockifies, which stretched the link's
+            # underline across the whole row — shrink it back to its text
+            "\n  .ol-name{font-weight:600;justify-self:start;}"
+            "\n  .ol-d{grid-column:2;color:var(--muted);font-size:.92em;"
+            "line-height:1.5;margin-top:.15em;}"
+            "\n  .ol-trail{color:var(--muted);line-height:1.9;}"
+            "\n  .ol-sep{opacity:.5;padding:0 .15em;}"
+            # Paper. Indentation carries the nesting, the numeral column keeps
+            # the numbers aligned down the page, and a heading never sits alone
+            # at the foot of a page away from what it contains.
+            "\n  @media print{"
+            "\n    .print-ol-doc{font-family:'Georgia',serif;font-size:10.5pt;"
+            "line-height:1.4;}"
+            "\n    .print-ol-unit{margin:0 0 1.4em;break-inside:auto;}"
+            "\n    .print-ol-h{font-size:12pt;letter-spacing:.08em;"
+            "text-transform:uppercase;border-bottom:1px solid #9a9a9a;"
+            "padding-bottom:.25em;margin:0 0 .7em;break-after:avoid;}"
+            "\n    .print-ol-row{display:flex;gap:.5em;align-items:baseline;"
+            "margin:.28em 0;padding-left:calc(var(--lvl) * 1.6em);"
+            "break-inside:avoid;}"
+            "\n    .print-ol-num{flex:0 0 2.2em;text-align:right;"
+            "font-variant-numeric:tabular-nums;}"
+            "\n    .print-ol-body{flex:1 1 auto;min-width:0;}"
+            "\n    .print-ol-name{font-weight:700;}"
+            "\n    .print-ol-desc{margin-top:.1em;}"
+            "\n    .print-ol-cite{margin-top:.1em;font-style:italic;}"
+            "\n    .print-ol-row + .print-ol-row{break-before:auto;}"
+            "\n  }")
+    # Deep links in detail-page text. Styled after the overview's .ov-node-link
+    # resting/hover chip so a link reads the same wherever it appears — but it
+    # carries its own accent underline, since a detail page has no per-character
+    # colour to borrow.
+    if uses_alto_link:
+        # Tighter than .ov-node-link's chip padding: these sit mid-sentence, so
+        # a 3px gutter reads as a space before the following comma.
+        nav_char_css += (
+            "\n  .alto-link{display:inline;cursor:pointer;border-radius:3px;"
+            "padding:0 1px;border:1px solid transparent;"
+            "box-shadow:inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);"
+            "transition:border-color .15s, background .15s;}"
+            "\n  .alto-link:hover{"
+            "border-color:color-mix(in srgb, var(--accent) 55%, transparent);"
+            "background:color-mix(in srgb, var(--accent) 12%, transparent);}")
     # Gap-radar badges on the doctrine nav/drawer chips.
     nav_char_css += (
         "\n  .nav-chip-count{margin-left:5px;font-size:.8em;opacity:.45;}"
@@ -645,7 +1030,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 + f"</span><span class=\"drawer-label\">{name}</span></button>',")
 
     drawer = []
-    if b.entities and "entity" not in nav_replaced:
+    if b.entities and "entity" not in nav_hidden:
         drawer.append(f"'    <div class=\"drawer-section-label\">{b.entity_axis_label}</div>',")
         for e in b.entities:
             thin = _ent_thin(e.id)
@@ -654,7 +1039,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             drawer.append(drawer_btn("char", e.id, e.symbol_svg, nm, data_char=e.id))
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
-        if not ax or src in nav_replaced:
+        if not ax or src in nav_hidden:
             continue
         drawer.append(f"'    <div class=\"drawer-section-label\">{ax.label}</div>',")
         for v in ax.values:
@@ -725,11 +1110,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "orders_m": orders_m,
         "mobile_grid": mobile_grid_js,
         "mobile_world": mobile_world,
-        "node_sections": NODE_SECTIONS_D,
+        "node_sections": (NODE_SECTIONS_OUTLINE_D if b.mode == "outline"
+                          else NODE_SECTIONS_D),
         "char_sections": CHAR_SECTIONS_D,
         "env_sections": ENV_SECTIONS_D,
         "theme_sections": THEME_SECTIONS_D,
-        "node_sections_m": NODE_SECTIONS_M,
+        "node_sections_m": (NODE_SECTIONS_OUTLINE_M if b.mode == "outline"
+                            else NODE_SECTIONS_M),
         "char_sections_m": CHAR_SECTIONS_M,
         "env_sections_m": ENV_SECTIONS_M,
         "theme_sections_m": THEME_SECTIONS_M,
@@ -780,7 +1167,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                             f"&#8212; {sec_hint}."),
         "help_sections_d": ("click any card to open its detail page "
                             f"({sec_hint})"),
-        "print_title": f'<h1 class="print-tl-title">{b.title} — Timeline</h1>',
+        # An outline printed as an outline should not be headed "Timeline".
+        "print_title": (
+            f'<h1 class="print-tl-title">{b.title} — '
+            f'{"Outline" if b.mode == "outline" else "Timeline"}</h1>'),
         # navigator.share() displays this as text, so it gets the tag-free
         # title — and it is a JS literal, so js_str() rather than interpolation.
         "share_title": f"title:{js_str(title_txt + ' Timeline')}",

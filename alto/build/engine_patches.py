@@ -50,12 +50,296 @@ _MERGE_FLAG_NEW = """        var _mfLo = mergedRide ? mergedRide.x1 : 0, _mfHi =
           var flag = document.createElementNS(NS,'path');
           flag.setAttribute('d', 'M ' + _mfLo + ' ' + (midY + tubeW/4) +
                                  ' L ' + _mfHi + ' ' + (midY + tubeW/4));"""
+# ── compass hop ignores relation-filtered nodes ──────────────────────────────
+# focusNeighbor (the 8-way arrow/swipe hop between focused cards) deliberately
+# skips nodes an era/weight filter has dimmed, so hopping only visits nodes that
+# meet the active filter. Relation filters dim with their own `rel-dimmed` class
+# — a separate class on purpose, so the engine's slot filters and the relation
+# filters never write to the same one — which left the hop walking into cards
+# the user had just filtered out. Teach the guard about both.
+_HOP_DIM_OLD = ("      var _c=n.querySelector('.node-card'); "
+                "if(_c&&_c.classList.contains('dimmed')) return;")
+_HOP_DIM_NEW = ("      var _c=n.querySelector('.node-card'); "
+                "if(_c&&(_c.classList.contains('dimmed')||"
+                "_c.classList.contains('rel-dimmed'))) return;")
+
+# ── an outline prints as an outline ─────────────────────────────────────────
+# The engine's "main timeline" print renders every node as a card on a vertical
+# spine, which is right for a sequence and wrong for a containment tree: on
+# paper a concept outline wants nesting, real outline numerals, and the
+# authority beside each rule. ACT_SEQS / NODES / PHASE_META / ENVS are all
+# module-scoped, so a builder-side override is impossible without this hook.
+# Two lines: when the page carries outline data, hand it to the builder's own
+# renderer; otherwise fall through to the engine's, untouched.
+_PRINT_OUTLINE_OLD = (
+    "function _buildPrintTimelineHTML(){\n"
+    "  if(typeof ACT_SEQS === 'undefined' || typeof NODES === 'undefined') return '';")
+_PRINT_OUTLINE_NEW = (
+    "function _buildPrintTimelineHTML(){\n"
+    "  if(typeof ACT_SEQS === 'undefined' || typeof NODES === 'undefined') return '';\n"
+    "  if(window._ALTO_OUTLINE && window._altoPrintOutline)\n"
+    "    return window._altoPrintOutline(ACT_SEQS, NODES,\n"
+    "      (typeof PHASE_META!=='undefined')?PHASE_META:[],\n"
+    "      (typeof ENVS!=='undefined')?ENVS:{});")
+
+# ── the search box says "Search", everywhere ────────────────────────────────
+# Three surfaces had three different placeholders, and the desktop timeline's
+# still named the reference build's own subject matter — "scenes, characters,
+# themes" — which is wrong on a law outline and wrong on anything else that
+# isn't a novel. Worse, it LOOKS configurable, so it invites a hunt for the
+# setting that would fix it; there isn't one, the strings are frozen literals
+# inside a JS concatenation. One word, the same on every surface.
+_SEARCH_DESKTOP_OLD = "'placeholder=\"Search scenes, characters, themes\u2026\">'+"
+_SEARCH_DESKTOP_NEW = "'placeholder=\"Search\">'+"
+_SEARCH_MOBILE_OLD = "'placeholder=\"Search\u2026\">';"
+_SEARCH_MOBILE_NEW = "'placeholder=\"Search\">';"
+
+# ── focused card is blurry when enlarged ────────────────────────────────────
+# The focus magnifier grew the card with `transform:scale(1.7)`, which magnifies
+# the card's existing 1x raster instead of re-rendering it — at 1.7x the text is
+# a blown-up bitmap. Safari shows it worst, because `.node-card` carries a
+# backdrop-filter and the frosted layer is rasterised once and then stretched.
+#
+# The engine already knew: the `.crisp` rule swaps to `zoom:1.7` precisely to
+# "re-raster the text", and its kill switch reads "flip to true if focused text
+# looks blurry on Safari". It shipped OFF because the swap itself was visible —
+# scaling to 1.7 and *then* re-laying the text out snaps every glyph advance in
+# one frame, the "text jumps" glitch.
+#
+# There is no swap if the card is never scaled in the first place. Grow it with
+# `zoom` from the start, ramped per frame, so the text is laid out at its final
+# size on every frame and no frame re-flows. `.node-card` is a fixed 270px wide,
+# so zoom changes no wrapping — only the device pixels per glyph. `.node` is
+# `translate(-50%,-50%)` around its own box, which the zoom grows, so the card
+# still grows about its centre exactly as the transform did.
+_FOCUS_CSS_OLD = """html:not(.mobile) .node.focused .node-card{
+  transform:scale(1.7) !important; transform-origin:center !important;
+  opacity:1 !important; box-shadow:0 38px 84px var(--node-hover-shadow) !important;
+}
+"""
+_FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
+  transform:scale(1) !important; transform-origin:center !important;
+  opacity:1 !important; box-shadow:0 38px 84px var(--node-hover-shadow) !important;
+  /* The magnification is CSS zoom, applied inline per frame by enterFocus. A
+     zoomed element can lose its backdrop-filter, so — as the .crisp rule this
+     replaces already did — legibility must not depend on the frost. Raise the
+     FALLBACK, not the value: --node-glass-bg is Blink-only and already opaque
+     enough there (0.90, set so the card occludes the connector lines Chrome's
+     dead backdrop-filter can't hide). Only Safari, where it is undefined and
+     the card falls back to --card-glass-bg at 0.54, needs the floor lifted. */
+  background:var(--node-glass-bg, var(--panel-glass-bg));
+}
+"""
+
+_FOCUS_JS_OLD = """  function enterFocus(id){
+    if(!id) return; var el=nodeEl(id); if(!el) return;
+    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p.style.transform=''; p._fx=p._fy=0; } }
+    window._focusedNodeId=id;
+    canvas.classList.add('focus-mode');
+    el.classList.add('focused');
+    flyTo(el);
+  }"""
+
+_FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame ──────────────────────
+     transform:scale() magnifies the card's 1x raster (blurry text at 1.7x, worst
+     in Safari where the backdrop-filter layer is rasterised once). zoom re-lays
+     the card out, so every glyph renders at its final resolution. Ramped rather
+     than scaled-then-swapped: the swap frame is what jumped the text, and is why
+     ALTO_CRISP_SWAP ships off. The card is a fixed 270px wide, so nothing
+     re-wraps at any point on the ramp. */
+  var FOCUS_K=1.7, _zw=null, _zwCard=null, _zwTo=1;
+  function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
+  function _setZoom(card,k){ if(card) card.style.zoom = (k>1.0005) ? String(k) : ''; }
+  function _zoomRamp(el,to,dur){
+    var card=_cardOf(el); if(!card) return;
+    if(_zw){
+      cancelAnimationFrame(_zw); _zw=null;
+      // never strand a half-ramped card when focus moves before the ramp lands
+      if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);
+    }
+    _zwCard=card; _zwTo=to;
+    var from=parseFloat(card.style.zoom)||1, s=null;
+    if(Math.abs(to-from)<0.002){ _setZoom(card,to); return; }
+    function step(ts){
+      if(s===null) s=ts;
+      var p=Math.min(1,(ts-s)/dur), e=1-(1-p)*(1-p);  // ease-out, as the card's own transition was
+      _setZoom(card, from+(to-from)*e);
+      if(p<1) _zw=requestAnimationFrame(step); else { _zw=null; _setZoom(card,to); }
+    }
+    _zw=requestAnimationFrame(step);
+  }
+
+  function enterFocus(id){
+    if(!id) return; var el=nodeEl(id); if(!el) return;
+    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p.style.transform=''; p._fx=p._fy=0; _setZoom(_cardOf(p),1); } }
+    window._focusedNodeId=id;
+    canvas.classList.add('focus-mode');
+    el.classList.add('focused');
+    _zoomRamp(el,FOCUS_K,240);
+    flyTo(el);
+  }"""
+
+_FOCUS_EXIT_OLD = """      el.classList.remove('focused');
+      flyBack(el);"""
+_FOCUS_EXIT_NEW = """      el.classList.remove('focused');
+      _zoomRamp(el,1,220);
+      flyBack(el);"""
+
+# ── the world fits the window instead of being pinned at 0.8 ────────────────
+# #world is authored 1700px wide (five columns), and html{zoom:0.8} shrank it to
+# 1360 so it would fit a 1512px laptop. That pinned every reader to 0.8 — a
+# 1920px monitor with 220px of slack included, where Alto's Georgia body text
+# lands at 10 device pixels and reads as blurry on a 1x display.
+#
+# Scale to fit: clamp(innerWidth / 1700, 0.8, 1.0). The floor is the 0.8 the
+# stylesheet already sets, so no window is worse off than today; the ceiling is
+# the design's own native size. Three parts:
+#   1. the rule keeps 0.8 and gains --alto-zoom, so a JS-off page is unchanged;
+#   2. a <head> script picks the scale before any layout exists;
+#   3. Blink's viewport-fill compensations divide by the chosen scale, not 0.8.
+#
+# (3) is the one that would have broken quietly. Chrome computes 100vw/100vh
+# against the DEVICE viewport and ignores the root zoom, so the engine divides
+# by 0.8 to recover CSS px. Left hardcoded, a zoom of 1.0 makes <body> 125% of
+# the window in Chrome — a quarter of the canvas pushed out of reach and the
+# open Overview panel overflowing the bottom. Safari never gets .is-blink and
+# never had the bug.
+_FIT_RULE_OLD = "  html{zoom:0.8;}\n"
+_FIT_RULE_NEW = (
+    "  /* A floor, not a fixed size: #alto-fit (end of <head>) raises this toward\n"
+    "     1.0 when the window can hold the world's full 1700px, and publishes its\n"
+    "     choice as --alto-zoom. With JS off both stay at 0.8 — today's page. */\n"
+    "  html{zoom:0.8; --alto-zoom:0.8;}\n")
+
+_FIT_SCRIPT_OLD = "</head>\n<body>"
+_FIT_SCRIPT_NEW = """<script id="alto-fit">
+/* Pick the root zoom from the window, before any layout exists.
+
+   Measures at zoom 1 rather than trusting window.innerWidth to be
+   zoom-invariant. It is in Blink, but if a browser ever divides it by the root
+   zoom instead, inferring from a zoomed reading would let the scale oscillate
+   between two values on every resize. Measuring at a known scale cannot.
+
+   Mobile is skipped outright: it already forces zoom:1 !important and lays out
+   on its own single-column grid, where 1700 means nothing. */
+(function(){
+  var d = document.documentElement;
+  if (d.classList.contains('mobile')) return;
+  var NEED = 1700, MIN = 0.8, MAX = 1;
+  function fit(){
+    d.style.zoom = '1';
+    void d.offsetWidth;                       // flush, so innerWidth is read at scale 1
+    var k = Math.min(MAX, Math.max(MIN, window.innerWidth / NEED));
+    d.style.setProperty('--alto-zoom', String(k));
+    d.style.zoom = (k > MIN) ? String(k) : '';   // '' falls back to the stylesheet's 0.8
+  }
+  fit();
+  var t = null;
+  window.addEventListener('resize', function(){
+    if (t) clearTimeout(t);
+    // ahead of centreWorld (120ms) and the d-grid quantizer (160ms), both of
+    // which measure the scale themselves and so re-settle onto the new one.
+    t = setTimeout(fit, 100);
+  });
+})();
+</script>
+</head>
+<body>"""
+
+_FIT_BLINK_OLD = """html.is-blink:not(.mobile) body{
+  width:calc(100vw / 0.8) !important;
+  height:calc(100vh / 0.8) !important;
+}"""
+_FIT_BLINK_NEW = """html.is-blink:not(.mobile) body{
+  width:calc(100vw / var(--alto-zoom, 0.8)) !important;
+  height:calc(100vh / var(--alto-zoom, 0.8)) !important;
+}"""
+
+_FIT_SLAB_OLD = (
+    "html.is-blink:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / 0.8)) !important; }\n"
+    "html.is-blink:not(.mobile) #summary-wrap.open{\n"
+    "  max-height:calc(100vh / 0.8 - 104px) !important;\n"
+    "  height:calc(100vh / 0.8 - 104px) !important;\n"
+    "}")
+_FIT_SLAB_NEW = (
+    "html.is-blink:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / var(--alto-zoom, 0.8))) !important; }\n"
+    "html.is-blink:not(.mobile) #summary-wrap.open{\n"
+    "  max-height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
+    "  height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
+    "}")
+
 
 PATCHES = [
     {
         "name": "merge-flag-overshoot",
         "old": _MERGE_FLAG_OLD,
         "new": _MERGE_FLAG_NEW,
+        "count": 1,
+    },
+    {
+        "name": "compass-hop-skips-relation-filtered",
+        "old": _HOP_DIM_OLD,
+        "new": _HOP_DIM_NEW,
+        "count": 1,
+    },
+    {
+        "name": "outline-prints-as-an-outline",
+        "old": _PRINT_OUTLINE_OLD,
+        "new": _PRINT_OUTLINE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "search-placeholder-desktop",
+        "old": _SEARCH_DESKTOP_OLD,
+        "new": _SEARCH_DESKTOP_NEW,
+        "count": 1,
+    },
+    {
+        "name": "search-placeholder-mobile",
+        "old": _SEARCH_MOBILE_OLD,
+        "new": _SEARCH_MOBILE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "focus-magnifies-by-zoom-not-transform",
+        "old": _FOCUS_CSS_OLD,
+        "new": _FOCUS_CSS_NEW,
+        "count": 1,
+    },
+    {
+        "name": "focus-zoom-ramp-enter",
+        "old": _FOCUS_JS_OLD,
+        "new": _FOCUS_JS_NEW,
+        "count": 1,
+    },
+    {
+        "name": "focus-zoom-ramp-exit",
+        "old": _FOCUS_EXIT_OLD,
+        "new": _FOCUS_EXIT_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-world-to-window-rule",
+        "old": _FIT_RULE_OLD,
+        "new": _FIT_RULE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-world-to-window-script",
+        "old": _FIT_SCRIPT_OLD,
+        "new": _FIT_SCRIPT_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-blink-viewport-fill-tracks-the-zoom",
+        "old": _FIT_BLINK_OLD,
+        "new": _FIT_BLINK_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-blink-slab-and-overview-track-the-zoom",
+        "old": _FIT_SLAB_OLD,
+        "new": _FIT_SLAB_NEW,
         "count": 1,
     },
 ]

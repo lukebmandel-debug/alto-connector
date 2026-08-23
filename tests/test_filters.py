@@ -82,7 +82,12 @@ def test_entity_and_custom_filters_both_slots():
             {"id": "importance", "label": "Importance", "source": "custom",
              "values": [{"id": "heavy", "name": "Heavy"},
                         {"id": "background", "name": "Background"}]}],
-        node_patch=lambda n: {"filters": {"importance": "heavy"}})
+        # Split the nodes across both values. Giving every node the same value
+        # made this a filter that never partitioned, which the build now drops
+        # as a no-op — and then it was testing nothing.
+        node_patch=lambda n: {"filters": {
+            "importance": "heavy" if n["id"] in ("lucy-v-zehmer", "carbolic")
+            else "background"}})
     html, report = _build(d)
     assert "era:'offer'" in html                # entity-derived, era slot
     assert "examWeight:'heavy'" in html         # custom, weight slot
