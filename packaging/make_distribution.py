@@ -5,22 +5,24 @@ Emits:
   server.json          the MCP Registry entry (repo root)
   packaging/site/      the download page, ready for `firebase deploy`
 
-Run after building the bundles so the download sizes are real:
+Run after building the bundles so the download sizes are real, and after this
+version's release is published so its checksums exist:
 
     python packaging/build_mcpb.py
     python packaging/make_distribution.py
 
-The download page's checksums are read from the published GitHub release
-rather than from those local bundles — see released_digests(). Set
-ALTO_NO_RELEASE_LOOKUP=1 to skip that call when generating offline; the page
-is then built with no checksum block at all.
+Every checksum emitted here — server.json's fileSha256 and the page's
+"verifying your download" block — describes an asset stored on a GitHub
+release, so it is read from that release and never from the local bundles
+(see released_digests()). The page can manage without: ALTO_NO_RELEASE_LOOKUP=1
+skips the call and the block is dropped. server.json cannot, and stops rather
+than pin a hash that would fail every install.
 
 Refuses to run while identity.json still holds PLACEHOLDER values — a wrong
 URL on a download page is worse than no page.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
@@ -64,19 +66,22 @@ def identity() -> dict:
 
 
 def bundles() -> list[dict]:
+    """Which platforms to list, and roughly how big each download is.
+
+    Nothing stronger than that comes out of packaging/dist. These files are a
+    local build; every asset a release actually serves was built in CI
+    (.github/workflows/release.yml), so no digest taken here would describe
+    one. A size rounded to whole megabytes is a label nobody verifies — a
+    checksum is the opposite, and comes from released_digests() instead.
+    """
     out = []
     for key, (os_name, arch) in PLATFORM_LABELS.items():
         f = DIST / f"Alto-{key}.mcpb"
         if not f.exists():
             continue
-        data = f.read_bytes()
-        # This hash describes the *local* build. server.json pins it against a
-        # matching v{version} asset, which is the only place it is meaningful —
-        # the download page must not quote it. See released_digests().
         out.append({
             "key": key, "os": os_name, "arch": arch, "name": f.name,
-            "mb": round(len(data) / 1048576),
-            "sha256": hashlib.sha256(data).hexdigest(),
+            "mb": round(f.stat().st_size / 1048576),
         })
     if not out:
         raise SystemExit("no bundles in packaging/dist — run build_mcpb.py first")
@@ -88,27 +93,34 @@ def bundles() -> list[dict]:
 RELEASE_TIMEOUT = 10
 
 
-def released_digests(ident: dict) -> tuple[str, dict[str, str]] | None:
-    """The SHA-256 digests GitHub publishes for the latest release's assets.
+def released_digests(ident: dict,
+                     tag: str | None = None) -> tuple[str, dict[str, str]] | None:
+    """The SHA-256 digests GitHub publishes for a release's assets.
 
-    The download buttons point at `releases/latest/download`, and the released
-    bundles are built in CI (.github/workflows/release.yml) — so a hash taken
-    from a local build is wrong by construction, not merely stale. Anyone who
-    checked it would conclude the file had been tampered with.
+    Every bundle anyone installs is built in CI (.github/workflows/release.yml)
+    and uploaded to a release — so a hash taken from a local build is wrong by
+    construction, not merely stale. Anyone who checked it would conclude the
+    file had been tampered with.
 
     GitHub reports each asset's digest as "sha256:<hex>", computed over the
-    stored asset, so it is the one figure that always matches what a visitor
-    actually downloads.
+    stored asset, so it is the one figure that always matches what is actually
+    downloaded.
+
+    `tag` chooses the release: None for whatever is newest, which is where the
+    page's buttons point, or "v1.4.0" for the exact assets server.json pins.
 
     Returns (tag, {asset name: hex}), or None when there is nothing
-    trustworthy to quote — lookup disabled, no network, no release yet, or an
-    older release GitHub never recorded a digest for. The caller then omits
-    the checksum block; silence is honest, a wrong checksum is an accusation.
+    trustworthy to quote — lookup disabled, no network, no such release, or an
+    older release GitHub never recorded a digest for. What that silence means
+    is the caller's to decide: the page drops its checksum block, since silence
+    is honest where a wrong checksum is an accusation; server.json, which has
+    no equivalent way to say nothing, refuses to be written at all.
     """
     if os.environ.get("ALTO_NO_RELEASE_LOOKUP"):
         return None
+    where = f"tags/{tag}" if tag else "latest"
     url = (f"https://api.github.com/repos/{ident['github_user']}"
-           f"/{ident['github_repo']}/releases/latest")
+           f"/{ident['github_repo']}/releases/{where}")
     request = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
@@ -118,7 +130,7 @@ def released_digests(ident: dict) -> tuple[str, dict[str, str]] | None:
         with urllib.request.urlopen(request, timeout=RELEASE_TIMEOUT) as response:
             release = json.load(response)
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        print(f"  ! could not read the latest release ({exc})")
+        print(f"  ! could not read the {tag or 'latest'} release ({exc})")
         return None
 
     digests = {}
@@ -133,12 +145,57 @@ def released_digests(ident: dict) -> tuple[str, dict[str, str]] | None:
 
 # ── MCP Registry entry ───────────────────────────────────────────────────────
 
-def server_json(ident: dict, files: list[dict]) -> dict:
+def pinned_digests(files: list[dict],
+                   release: tuple[str, dict[str, str]] | None) -> dict[str, str]:
+    """One released digest per listed bundle, or a hard stop.
+
+    fileSha256 is what makes an entry verifiable: the registry fetches the
+    asset and checks it, so a wrong value is not untidy, it fails the install
+    outright. That leaves no honest fallback — the hash of the local build in
+    packaging/dist is precisely the wrong answer, and omitting the field
+    publishes something nobody can verify — so when the release cannot supply
+    a digest this declines to produce an entry.
+    """
+    tag = f"v{__version__}"
+    if not release:
+        fix = ("ALTO_NO_RELEASE_LOOKUP is set, and the registry entry is the "
+               "one thing here that cannot be generated offline."
+               if os.environ.get("ALTO_NO_RELEASE_LOOKUP") else
+               f"Push the {tag} tag, let .github/workflows/release.yml publish "
+               "the bundles, then re-run this.")
+        raise SystemExit(
+            f"server.json needs the digest GitHub records for each {tag} "
+            f"asset, and none could be read.\n{fix}")
+
+    found, digests = release
+    if found != tag:
+        raise SystemExit(
+            f"server.json pins {tag} assets, but these digests describe "
+            f"{found or 'an unnamed release'} — different builds of the same "
+            f"filenames. Look up {tag} itself.")
+
+    missing = [f["name"] for f in files if not digests.get(f["name"])]
+    if missing:
+        raise SystemExit(
+            f"the {tag} release records no digest for: {', '.join(missing)}\n"
+            "Every listed package needs one — the registry verifies each "
+            "download against fileSha256, and the local build in "
+            "packaging/dist is not the file it fetches.")
+    return {f["name"]: digests[f["name"]] for f in files}
+
+
+def server_json(ident: dict, files: list[dict],
+                release: tuple[str, dict[str, str]] | None) -> dict:
     """The registry lists where a server lives; it does not host anything.
 
     The bundles are listed as `mcpb` packages pointing straight at the GitHub
     Release assets, which is the artifact people actually install — no PyPI
     round trip, and the registry verifies each download against fileSha256.
+
+    Those URLs stay pinned to v{version} rather than `latest`, so an entry
+    always names the exact files it describes — which is also why its digests
+    have to come from that same release rather than from packaging/dist. See
+    pinned_digests().
 
     A `pypi` entry is added only once the package is actually published
     (`pypi_published` in identity.json). Listing one before it exists would
@@ -147,12 +204,13 @@ def server_json(ident: dict, files: list[dict]) -> dict:
     name = f"io.github.{ident['github_user']}/{ident['github_repo']}"
     repo = f"https://github.com/{ident['github_user']}/{ident['github_repo']}"
     base = f"{repo}/releases/download/v{__version__}"
+    digests = pinned_digests(files, release)
 
     packages = [{
         "registryType": "mcpb",
         "identifier": f"{base}/{f['name']}",
         "version": __version__,
-        "fileSha256": f["sha256"],
+        "fileSha256": digests[f["name"]],
         "transport": {"type": "stdio"},
     } for f in files]
 
@@ -495,13 +553,20 @@ def main() -> None:
     ident = identity()
     files = bundles()
 
+    # The entry pins v{version} assets, so it takes that release's own
+    # digests — not the newest release's, and never a local hash. Looked up
+    # before anything is written: no digests, no server.json.
+    tag = f"v{__version__}"
+    entry = server_json(ident, files, released_digests(ident, tag))
     (ROOT / "server.json").write_text(
-        json.dumps(server_json(ident, files), indent=2) + "\n", encoding="utf-8")
-    print("✓ server.json")
+        json.dumps(entry, indent=2) + "\n", encoding="utf-8")
+    print(f"✓ server.json  (checksums from the {tag} release assets)")
 
     stamp_readme(ident)
     print("✓ README mcp-name line")
 
+    # The page's buttons track `releases/latest`, which is only sometimes the
+    # release above — so it gets its own lookup.
     release = released_digests(ident)
     build_site(ident, files, release)
     print(f"✓ packaging/site/  ({len(files)} downloads listed)")
