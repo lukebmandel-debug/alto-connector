@@ -269,7 +269,69 @@ _FIT_SLAB_NEW = (
     "}")
 
 
+# ── mobile glyphs: Overview should carry the same mark as desktop ────────────
+# Desktop's Overview control (#overview-toggle) is the four-point sparkle; the
+# mobile drawer gave that sparkle to Timeline and drew Overview as a globe, so
+# the same mark meant two different things depending on the device. Swap the
+# drawer pair — Overview takes desktop's exact sparkle path, Timeline takes the
+# globe — and move the mobile back-to-timeline button (detail pages) onto the
+# globe too, since a sparkle that now means Overview cannot also mean "back to
+# the timeline". Desktop chrome is untouched.
+_DRAWER_TIMELINE_OLD = (
+    '<button class="drawer-btn" id="drawer-timeline-btn" onclick="showTimeline();closeNavDrawer()">'
+    '<span class="drawer-icon">'
+    '<svg viewBox="0 0 100 100" width="22" height="22" style="display:inline-block;pointer-events:none">'
+    '<polygon points="50,2 63,37 98,50 63,63 50,98 37,63 2,50 37,37" fill="currentColor"/>'
+    '</svg></span><span class="drawer-label">Timeline</span></button>')
+_DRAWER_TIMELINE_NEW = (
+    '<button class="drawer-btn" id="drawer-timeline-btn" onclick="showTimeline();closeNavDrawer()">'
+    '<span class="drawer-icon">'
+    '<svg viewBox="0 0 100 100" width="22" height="22" style="display:inline-block;pointer-events:none">'
+    '<circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" stroke-width="7"/><ellipse cx="50" cy="50" rx="22" ry="44" fill="none" stroke="currentColor" stroke-width="6"/><line x1="6" y1="50" x2="94" y2="50" stroke="currentColor" stroke-width="6"/><path d="M14,27 Q50,18 86,27" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M14,73 Q50,82 86,73" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>'
+    '</svg></span><span class="drawer-label">Timeline</span></button>')
+
+_DRAWER_OVERVIEW_OLD = (
+    '<button class="drawer-btn" onclick="toggleSummary();closeNavDrawer()">'
+    '<span class="drawer-icon">'
+    '<svg viewBox="0 0 100 100" width="20" height="20" style="display:inline-block;pointer-events:none;vertical-align:middle">'
+    '<circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" stroke-width="7"/><ellipse cx="50" cy="50" rx="22" ry="44" fill="none" stroke="currentColor" stroke-width="6"/><line x1="6" y1="50" x2="94" y2="50" stroke="currentColor" stroke-width="6"/><path d="M14,27 Q50,18 86,27" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M14,73 Q50,82 86,73" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>'
+    '</svg></span><span class="drawer-label">Overview</span></button>')
+_DRAWER_OVERVIEW_NEW = (
+    '<button class="drawer-btn" onclick="toggleSummary();closeNavDrawer()">'
+    '<span class="drawer-icon">'
+    '<svg viewBox="0 0 20 20" width="20" height="20" style="display:inline-block;pointer-events:none;vertical-align:middle" fill="currentColor">'
+    '<path d="M10 1.6 C10.9 6.2 13.8 9.1 18.4 10 C13.8 10.9 10.9 13.8 10 18.4 C9.1 13.8 6.2 10.9 1.6 10 C6.2 9.1 9.1 6.2 10 1.6 Z"/>'
+    '</svg></span><span class="drawer-label">Overview</span></button>')
+
+_BACK_PILL_OLD = (
+    '<svg viewBox="0 0 100 100" width="16" height="16" style="display:block;pointer-events:none">'
+    '<polygon points="50,2 63,37 98,50 63,63 50,98 37,63 2,50 37,37" fill="currentColor"/>'
+    '</svg><span>BACK</span>')
+_BACK_PILL_NEW = (
+    '<svg viewBox="0 0 100 100" width="16" height="16" style="display:block;pointer-events:none">'
+    '<circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" stroke-width="7"/><ellipse cx="50" cy="50" rx="22" ry="44" fill="none" stroke="currentColor" stroke-width="6"/><line x1="6" y1="50" x2="94" y2="50" stroke="currentColor" stroke-width="6"/><path d="M14,27 Q50,18 86,27" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M14,73 Q50,82 86,73" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>'
+    '</svg><span>BACK</span>')
+
+
 PATCHES = [
+    {
+        "name": "drawer-timeline-glyph-globe",
+        "old": _DRAWER_TIMELINE_OLD,
+        "new": _DRAWER_TIMELINE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "drawer-overview-glyph-desktop-sparkle",
+        "old": _DRAWER_OVERVIEW_OLD,
+        "new": _DRAWER_OVERVIEW_NEW,
+        "count": 1,
+    },
+    {
+        "name": "mobile-back-pill-glyph-globe",
+        "old": _BACK_PILL_OLD,
+        "new": _BACK_PILL_NEW,
+        "count": 1,
+    },
     {
         "name": "merge-flag-overshoot",
         "old": _MERGE_FLAG_OLD,
