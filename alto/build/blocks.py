@@ -178,6 +178,20 @@ FILTER_GLUE = """
     var name = labels[state[key]] || labels[sp.textContent];
     if(name) sp.textContent = name;
   }
+  /* A filter change does not navigate, so the engine's post-navigation label
+     patch never runs: the mobile prev/next strip keeps naming the neighbours
+     the filter just hid, and its tap targets still point at them. Every
+     mobile filter path funnels through setMobileFilter, so re-patch there. */
+  var mtries = 0;
+  (function wrapMobile(){
+    var omf = window.setMobileFilter;
+    if(typeof omf !== 'function'){ if(++mtries < 80) setTimeout(wrapMobile, 250); return; }
+    window.setMobileFilter = function(){
+      var r = omf.apply(this, arguments);
+      try{ if(window._patchTimelineLabels) window._patchTimelineLabels(); }catch(_){}
+      return r;
+    };
+  })();
   var tries = 0;
   (function wrap(){
     var orig = window._updateDesktopFilterBar;

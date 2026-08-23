@@ -56,6 +56,16 @@ def test_axis1_filter_emits_chips_fields_labels():
     assert "'env','ny'" in html
 
 
+def test_mobile_filter_repatches_the_prev_next_labels():
+    """A filter change does not navigate, so the engine never re-runs its
+    label patch: without this wrap the mobile prev/next strip goes on naming
+    — and linking to — the neighbours the filter just hid."""
+    html, _ = _build(_sample(filters=[
+        {"id": "court", "label": "Filter by Court", "source": "axis1"}]))
+    assert "window.setMobileFilter = function()" in html
+    assert "window._patchTimelineLabels()" in html
+
+
 def test_replace_nav_makes_axis_filter_only():
     html, _ = _build(_sample(filters=[
         {"id": "court", "label": "Court", "source": "axis1",
