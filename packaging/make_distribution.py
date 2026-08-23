@@ -5,10 +5,15 @@ Emits:
   server.json          the MCP Registry entry (repo root)
   packaging/site/      the download page, ready for `firebase deploy`
 
-Run after building the bundles so file sizes and checksums are real:
+Run after building the bundles so the download sizes are real:
 
     python packaging/build_mcpb.py
     python packaging/make_distribution.py
+
+The download page's checksums are read from the published GitHub release
+rather than from those local bundles — see released_digests(). Set
+ALTO_NO_RELEASE_LOOKUP=1 to skip that call when generating offline; the page
+is then built with no checksum block at all.
 
 Refuses to run while identity.json still holds PLACEHOLDER values — a wrong
 URL on a download page is worse than no page.
@@ -17,8 +22,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 # Windows consoles default to cp1252, which cannot encode the tick and arrow
@@ -62,6 +70,9 @@ def bundles() -> list[dict]:
         if not f.exists():
             continue
         data = f.read_bytes()
+        # This hash describes the *local* build. server.json pins it against a
+        # matching v{version} asset, which is the only place it is meaningful —
+        # the download page must not quote it. See released_digests().
         out.append({
             "key": key, "os": os_name, "arch": arch, "name": f.name,
             "mb": round(len(data) / 1048576),
@@ -70,6 +81,54 @@ def bundles() -> list[dict]:
     if not out:
         raise SystemExit("no bundles in packaging/dist — run build_mcpb.py first")
     return out
+
+
+# ── checksums, from the release rather than from this machine ────────────────
+
+RELEASE_TIMEOUT = 10
+
+
+def released_digests(ident: dict) -> tuple[str, dict[str, str]] | None:
+    """The SHA-256 digests GitHub publishes for the latest release's assets.
+
+    The download buttons point at `releases/latest/download`, and the released
+    bundles are built in CI (.github/workflows/release.yml) — so a hash taken
+    from a local build is wrong by construction, not merely stale. Anyone who
+    checked it would conclude the file had been tampered with.
+
+    GitHub reports each asset's digest as "sha256:<hex>", computed over the
+    stored asset, so it is the one figure that always matches what a visitor
+    actually downloads.
+
+    Returns (tag, {asset name: hex}), or None when there is nothing
+    trustworthy to quote — lookup disabled, no network, no release yet, or an
+    older release GitHub never recorded a digest for. The caller then omits
+    the checksum block; silence is honest, a wrong checksum is an accusation.
+    """
+    if os.environ.get("ALTO_NO_RELEASE_LOOKUP"):
+        return None
+    url = (f"https://api.github.com/repos/{ident['github_user']}"
+           f"/{ident['github_repo']}/releases/latest")
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": f"alto-make-distribution/{__version__}",
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=RELEASE_TIMEOUT) as response:
+            release = json.load(response)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"  ! could not read the latest release ({exc})")
+        return None
+
+    digests = {}
+    for asset in release.get("assets") or []:
+        algorithm, _, value = (asset.get("digest") or "").partition(":")
+        if algorithm == "sha256" and value:
+            digests[asset.get("name")] = value
+    if not digests:
+        return None
+    return release.get("tag_name") or "", digests
 
 
 # ── MCP Registry entry ───────────────────────────────────────────────────────
@@ -294,12 +353,7 @@ PAGE = """<!doctype html>
     stays offline. See the <a href="/privacy/">privacy note</a>.</p>
   </details>
 
-{cli}  <details>
-    <summary>Verifying your download</summary>
-    <p class="sums">{sums}</p>
-  </details>
-
-  <footer>
+{cli}{verify}  <footer>
     <a href="{repo}">Source</a> ·
     <a href="{repo}/releases">Releases</a> ·
     <a href="/privacy/">Privacy</a> ·
@@ -312,7 +366,36 @@ PAGE = """<!doctype html>
 """
 
 
-def build_page(ident: dict, files: list[dict]) -> str:
+VERIFY = """  <details>
+    <summary>Verifying your download</summary>
+    <p>SHA-256, as GitHub publishes it for the {tag} assets — the same files
+    the buttons above download.</p>
+    <p class="sums">{sums}</p>
+  </details>
+
+"""
+
+
+def verify_block(files: list[dict],
+                 release: tuple[str, dict[str, str]] | None) -> str:
+    """The "Verifying your download" block, or nothing at all.
+
+    Only digests that came from the release get printed here, and only when
+    every listed download has one — a partial list sitting under a full set of
+    buttons invites exactly the wrong conclusion about the missing file.
+    """
+    if not release:
+        return ""
+    tag, digests = release
+    listed = [(f["name"], digests.get(f["name"])) for f in files]
+    if not all(digest for _name, digest in listed):
+        return ""
+    sums = "<br>".join(f"{digest}&nbsp;&nbsp;{name}" for name, digest in listed)
+    return VERIFY.format(tag=tag or "released", sums=sums)
+
+
+def build_page(ident: dict, files: list[dict],
+               release: tuple[str, dict[str, str]] | None = None) -> str:
     repo = f"https://github.com/{ident['github_user']}/{ident['github_repo']}"
     # The download page always offers the newest release, so it never goes stale
     # on a version bump (the version-pinned manifest above still uses v{version}).
@@ -324,7 +407,6 @@ def build_page(ident: dict, files: list[dict]) -> str:
         f'      <span class="size">{f["mb"]} MB</span>\n'
         f'    </a>'
         for f in files)
-    sums = "<br>".join(f'{f["sha256"]}&nbsp;&nbsp;{f["name"]}' for f in files)
     # Only advertise the PyPI route once the package actually exists.
     cli = ("""  <details>
     <summary>Prefer the command line?</summary>
@@ -335,14 +417,17 @@ def build_page(ident: dict, files: list[dict]) -> str:
 """ % ident["pypi_package"]) if ident.get("pypi_published") else ""
     notice = (f'  <p class="notice">{ident["notice"]}</p>\n\n'
               if ident.get("notice") else "")
-    return PAGE.format(version=__version__, cards=cards, sums=sums, repo=repo,
-                       cli=cli, notice=notice, license=ident["license"],
+    return PAGE.format(version=__version__, cards=cards, repo=repo,
+                       verify=verify_block(files, release), cli=cli,
+                       notice=notice, license=ident["license"],
                        author=ident["author_name"])
 
 
-def build_site(ident: dict, files: list[dict]) -> None:
+def build_site(ident: dict, files: list[dict],
+               release: tuple[str, dict[str, str]] | None = None) -> None:
     SITE.mkdir(parents=True, exist_ok=True)
-    (SITE / "index.html").write_text(build_page(ident, files), encoding="utf-8")
+    (SITE / "index.html").write_text(
+        build_page(ident, files, release), encoding="utf-8")
 
     # The glyph, as a favicon and as the page mark.
     shutil.copy2(ROOT / "alto" / "assets" / "alto-mark.svg", SITE / "icon.svg")
@@ -417,10 +502,15 @@ def main() -> None:
     stamp_readme(ident)
     print("✓ README mcp-name line")
 
-    build_site(ident, files)
+    release = released_digests(ident)
+    build_site(ident, files, release)
     print(f"✓ packaging/site/  ({len(files)} downloads listed)")
     for f in files:
         print(f"    {f['os']:8} {f['arch']:26} {f['mb']:>3} MB")
+    if verify_block(files, release):
+        print(f"    checksums quoted from the {release[0]} release assets")
+    else:
+        print("    no checksum block — nothing published to quote")
 
     print("\nNext:")
     print(f"  cd packaging/site && firebase deploy "
