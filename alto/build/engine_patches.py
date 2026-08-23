@@ -185,6 +185,89 @@ _FOCUS_EXIT_NEW = """      el.classList.remove('focused');
       _zoomRamp(el,1,220);
       flyBack(el);"""
 
+# ── the world fits the window instead of being pinned at 0.8 ────────────────
+# #world is authored 1700px wide (five columns), and html{zoom:0.8} shrank it to
+# 1360 so it would fit a 1512px laptop. That pinned every reader to 0.8 — a
+# 1920px monitor with 220px of slack included, where Alto's Georgia body text
+# lands at 10 device pixels and reads as blurry on a 1x display.
+#
+# Scale to fit: clamp(innerWidth / 1700, 0.8, 1.0). The floor is the 0.8 the
+# stylesheet already sets, so no window is worse off than today; the ceiling is
+# the design's own native size. Three parts:
+#   1. the rule keeps 0.8 and gains --alto-zoom, so a JS-off page is unchanged;
+#   2. a <head> script picks the scale before any layout exists;
+#   3. Blink's viewport-fill compensations divide by the chosen scale, not 0.8.
+#
+# (3) is the one that would have broken quietly. Chrome computes 100vw/100vh
+# against the DEVICE viewport and ignores the root zoom, so the engine divides
+# by 0.8 to recover CSS px. Left hardcoded, a zoom of 1.0 makes <body> 125% of
+# the window in Chrome — a quarter of the canvas pushed out of reach and the
+# open Overview panel overflowing the bottom. Safari never gets .is-blink and
+# never had the bug.
+_FIT_RULE_OLD = "  html{zoom:0.8;}\n"
+_FIT_RULE_NEW = (
+    "  /* A floor, not a fixed size: #alto-fit (end of <head>) raises this toward\n"
+    "     1.0 when the window can hold the world's full 1700px, and publishes its\n"
+    "     choice as --alto-zoom. With JS off both stay at 0.8 — today's page. */\n"
+    "  html{zoom:0.8; --alto-zoom:0.8;}\n")
+
+_FIT_SCRIPT_OLD = "</head>\n<body>"
+_FIT_SCRIPT_NEW = """<script id="alto-fit">
+/* Pick the root zoom from the window, before any layout exists.
+
+   Measures at zoom 1 rather than trusting window.innerWidth to be
+   zoom-invariant. It is in Blink, but if a browser ever divides it by the root
+   zoom instead, inferring from a zoomed reading would let the scale oscillate
+   between two values on every resize. Measuring at a known scale cannot.
+
+   Mobile is skipped outright: it already forces zoom:1 !important and lays out
+   on its own single-column grid, where 1700 means nothing. */
+(function(){
+  var d = document.documentElement;
+  if (d.classList.contains('mobile')) return;
+  var NEED = 1700, MIN = 0.8, MAX = 1;
+  function fit(){
+    d.style.zoom = '1';
+    void d.offsetWidth;                       // flush, so innerWidth is read at scale 1
+    var k = Math.min(MAX, Math.max(MIN, window.innerWidth / NEED));
+    d.style.setProperty('--alto-zoom', String(k));
+    d.style.zoom = (k > MIN) ? String(k) : '';   // '' falls back to the stylesheet's 0.8
+  }
+  fit();
+  var t = null;
+  window.addEventListener('resize', function(){
+    if (t) clearTimeout(t);
+    // ahead of centreWorld (120ms) and the d-grid quantizer (160ms), both of
+    // which measure the scale themselves and so re-settle onto the new one.
+    t = setTimeout(fit, 100);
+  });
+})();
+</script>
+</head>
+<body>"""
+
+_FIT_BLINK_OLD = """html.is-blink:not(.mobile) body{
+  width:calc(100vw / 0.8) !important;
+  height:calc(100vh / 0.8) !important;
+}"""
+_FIT_BLINK_NEW = """html.is-blink:not(.mobile) body{
+  width:calc(100vw / var(--alto-zoom, 0.8)) !important;
+  height:calc(100vh / var(--alto-zoom, 0.8)) !important;
+}"""
+
+_FIT_SLAB_OLD = (
+    "html.is-blink:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / 0.8)) !important; }\n"
+    "html.is-blink:not(.mobile) #summary-wrap.open{\n"
+    "  max-height:calc(100vh / 0.8 - 104px) !important;\n"
+    "  height:calc(100vh / 0.8 - 104px) !important;\n"
+    "}")
+_FIT_SLAB_NEW = (
+    "html.is-blink:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / var(--alto-zoom, 0.8))) !important; }\n"
+    "html.is-blink:not(.mobile) #summary-wrap.open{\n"
+    "  max-height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
+    "  height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
+    "}")
+
 
 PATCHES = [
     {
@@ -233,6 +316,30 @@ PATCHES = [
         "name": "focus-zoom-ramp-exit",
         "old": _FOCUS_EXIT_OLD,
         "new": _FOCUS_EXIT_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-world-to-window-rule",
+        "old": _FIT_RULE_OLD,
+        "new": _FIT_RULE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-world-to-window-script",
+        "old": _FIT_SCRIPT_OLD,
+        "new": _FIT_SCRIPT_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-blink-viewport-fill-tracks-the-zoom",
+        "old": _FIT_BLINK_OLD,
+        "new": _FIT_BLINK_NEW,
+        "count": 1,
+    },
+    {
+        "name": "fit-blink-slab-and-overview-track-the-zoom",
+        "old": _FIT_SLAB_OLD,
+        "new": _FIT_SLAB_NEW,
         "count": 1,
     },
 ]
