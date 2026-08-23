@@ -229,3 +229,19 @@ def test_the_linear_sample_gains_no_outline_machinery():
     # Not the drawer's data-sd-* attributes — those are ordinary axis chrome.
     for marker in ("alto-link", "_altoLinkBound"):
         assert marker not in html, f"{marker} shipped in a brief that has no links"
+
+def test_outline_pages_carry_the_mobile_crumb_glue():
+    """Child cards get an "under {parent}" breadcrumb on mobile — the stack
+    has no hub-and-spoke geometry, so without it a level-3 sub-point's card
+    face is indistinguishable from a root concept's."""
+    html, _ = _build(OUTLINE)
+    assert "node-crumb" in html
+    assert "'under ' + pn.title" in html
+
+
+def test_linear_pages_have_no_crumb_glue():
+    """Linear timelines have no Node.parent hierarchy — a crumb would relabel
+    the chronological spine as containment."""
+    html, _ = _build(SAMPLE)
+    assert "node-crumb" not in html
+

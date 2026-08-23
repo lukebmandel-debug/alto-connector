@@ -420,6 +420,75 @@ function isolateRelation(key){
 })();"""
 
 
+
+# Mobile depth cue (outline mode). On the desktop canvas, depth is geometry —
+# hubs centre, spokes branch. The mobile stack has no geometry, so a level-3
+# sub-point's card face is indistinguishable from a root concept's. Give every
+# child card a breadcrumb in the footer's empty right half — "under {parent}",
+# echoing the detail page's SITS UNDER — tappable to feature the parent.
+# Authored structure only (_ALTO_OUTLINE.parent is Node.parent verbatim);
+# desktop and print are untouched.
+CRUMB_GLUE = """
+(function(){
+  function jump(p){ return function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(typeof featureNode === 'function') featureNode(p, true);
+  }; }
+  function inject(){
+    var O = window._ALTO_OUTLINE;
+    if(!O || !document.querySelector('.node .node-footer')) return false;
+    if(!document.getElementById('alto-crumb-css')){
+      var st = document.createElement('style');
+      st.id = 'alto-crumb-css';
+      st.textContent = '.node-crumb{display:none;}' +
+        'html.mobile .node-crumb{display:block;margin-left:auto;max-width:48%;' +
+        'overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;' +
+        'font-size:11px;color:var(--muted);background:none;border:none;padding:0;' +
+        'font-family:inherit;letter-spacing:.02em;cursor:pointer;}' +
+        'html.printing .node-crumb{display:none !important;}';
+      document.head.appendChild(st);
+    }
+    Object.keys(O.parent).forEach(function(id){
+      var card = document.getElementById('node-' + id);
+      var f = card && card.querySelector('.node-footer');
+      if(!f || f.querySelector('.node-crumb')) return;
+      var pid = O.parent[id];
+      /* NODES is a top-level const — global lexical scope, not a window
+         property — so it must be referenced bare, behind a typeof guard. */
+      var _list = (typeof NODES !== 'undefined') ? NODES : [];
+      var pn = _list.find(function(n){ return n.id === pid; });
+      if(!pn) return;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'node-crumb';
+      b.textContent = 'under ' + pn.title;
+      b.setAttribute('aria-label', 'Sits under ' + pn.title + ' — go there');
+      b.addEventListener('click', jump(pid));
+      b.addEventListener('touchend', jump(pid), {passive: false});
+      f.appendChild(b);
+    });
+    return true;
+  }
+  /* The cards the glue first sees are the pre-rendered ones; engine init
+     rebuilds them once, sweeping early injections away. So: keep re-injecting
+     (idempotent) through the init window, and again after every featureNode —
+     the same seam the template uses for its own post-nav patches. */
+  var tries = 0;
+  (function go(){ inject(); if(++tries < 80) setTimeout(go, 250); })();
+  (function hook(){
+    var fn = window.featureNode;
+    if(typeof fn === 'function' && !fn._altoCrumbs){
+      var w = function(){ var r = fn.apply(this, arguments);
+        try{ inject(); }catch(_){} return r; };
+      w._altoCrumbs = true;
+      window.featureNode = w;
+      return;
+    }
+    if(!(fn && fn._altoCrumbs)) setTimeout(hook, 250);
+  })();
+})();"""
+
+
 # Outline mode's node detail page: where you are, then what you contain.
 # Same shape as DOCTRINE_BODY — a runtime function emitted into `orders` that
 # synthesizes sections from data the page already carries, so the frozen
@@ -894,7 +963,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",label:" + json.dumps(_label)
                    + ",kids:" + json.dumps(_kids)
                    + ",parent:" + json.dumps(_parent) + "};"
-                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE)
+                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE + CRUMB_GLUE)
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
