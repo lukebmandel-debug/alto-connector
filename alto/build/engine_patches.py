@@ -202,8 +202,10 @@ _FOCUS_EXIT_NEW = """      el.classList.remove('focused');
 # against the DEVICE viewport and ignores the root zoom, so the engine divides
 # by 0.8 to recover CSS px. Left hardcoded, a zoom of 1.0 makes <body> 125% of
 # the window in Chrome — a quarter of the canvas pushed out of reach and the
-# open Overview panel overflowing the bottom. Safari never gets .is-blink and
-# never had the bug.
+# open Overview panel overflowing the bottom. Safari 18 and earlier zoom-adjust
+# vw/vh and never had the bug; Safari 26+ implements standardized zoom and has
+# it exactly like Chrome — see the safari-standard-zoom patch below, which
+# gives it the same compensation via html.vw-unzoomed.
 _FIT_RULE_OLD = "  html{zoom:0.8;}\n"
 _FIT_RULE_NEW = (
     "  /* A floor, not a fixed size: #alto-fit (end of <head>) raises this toward\n"
@@ -250,7 +252,8 @@ _FIT_BLINK_OLD = """html.is-blink:not(.mobile) body{
   width:calc(100vw / 0.8) !important;
   height:calc(100vh / 0.8) !important;
 }"""
-_FIT_BLINK_NEW = """html.is-blink:not(.mobile) body{
+_FIT_BLINK_NEW = """html.is-blink:not(.mobile) body,
+html.vw-unzoomed:not(.mobile) body{
   width:calc(100vw / var(--alto-zoom, 0.8)) !important;
   height:calc(100vh / var(--alto-zoom, 0.8)) !important;
 }"""
@@ -262,11 +265,58 @@ _FIT_SLAB_OLD = (
     "  height:calc(100vh / 0.8 - 104px) !important;\n"
     "}")
 _FIT_SLAB_NEW = (
-    "html.is-blink:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / var(--alto-zoom, 0.8))) !important; }\n"
-    "html.is-blink:not(.mobile) #summary-wrap.open{\n"
+    "html.is-blink:not(.mobile) #glass-slab,\n"
+    "html.vw-unzoomed:not(.mobile) #glass-slab{ width:max(1700px, calc(100vw / var(--alto-zoom, 0.8))) !important; }\n"
+    "html.is-blink:not(.mobile) #summary-wrap.open,\n"
+    "html.vw-unzoomed:not(.mobile) #summary-wrap.open{\n"
     "  max-height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
     "  height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;\n"
     "}")
+
+# ── Safari 26+ renders the timeline at 80% of the window ────────────────────
+# Safari 26 adopted standardized CSS zoom, the model Chrome moved to earlier:
+# 100vw/100vh resolve against the unzoomed viewport, so under the root zoom
+# <body> covers only zoom×window — a blank strip down the right and across the
+# bottom, the canvas cut short. The engine gates its viewport-fill compensation
+# on .is-blink (a UA sniff), so Safari never received it.
+#
+# Detected by behaviour, not UA — Safari 18 and earlier zoom-adjust vw and must
+# NOT be compensated. Compare a 100vw probe with a fixed left:0/right:0 probe
+# (the true viewport) under a forced zoom of 0.5: standardized engines measure
+# 0.5, legacy ones 1.0 or more, whatever zoom the stylesheet or #alto-fit
+# picked. Blink keeps its own class and is skipped. The fit-blink patches above
+# give html.vw-unzoomed the same rules; Safari's glass rules are untouched.
+_SAFARI_ZOOM_OLD = (
+    "  if(/Chrome\\//.test(navigator.userAgent)) "
+    "document.documentElement.classList.add('is-blink');\n")
+_SAFARI_ZOOM_NEW = _SAFARI_ZOOM_OLD + """  // Safari 26+: standardized zoom, same vw/vh behaviour as Blink (see
+  // engine_patches.py, safari-standard-zoom). Measured, not sniffed.
+  (function(){
+    var de = document.documentElement;
+    if(de.classList.contains('mobile') || de.classList.contains('is-blink')) return;
+    function probe(){
+      var z = de.style.zoom;
+      var a = document.createElement('div'), b = document.createElement('div');
+      a.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:0;visibility:hidden;pointer-events:none;';
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;height:0;visibility:hidden;pointer-events:none;';
+      de.style.zoom = '0.5';
+      de.appendChild(a); de.appendChild(b);
+      var va = a.offsetWidth, vb = b.offsetWidth;
+      de.removeChild(a); de.removeChild(b);
+      de.style.zoom = z;
+      if(!va || !vb) return false;          // 0x0 viewport (hidden) — try again later
+      if(va / vb < 0.75) de.classList.add('vw-unzoomed');
+      return true;
+    }
+    var done = probe();
+    function retry(){ if(!done) done = probe(); }
+    if(!done){
+      document.addEventListener('DOMContentLoaded', retry);
+      window.addEventListener('load', retry);
+      window.addEventListener('resize', retry);
+    }
+  })();
+"""
 
 
 # ── mobile glyphs: Overview should carry the same mark as desktop ────────────
@@ -402,6 +452,12 @@ PATCHES = [
         "name": "fit-blink-slab-and-overview-track-the-zoom",
         "old": _FIT_SLAB_OLD,
         "new": _FIT_SLAB_NEW,
+        "count": 1,
+    },
+    {
+        "name": "safari-standard-zoom-gets-the-viewport-fill",
+        "old": _SAFARI_ZOOM_OLD,
+        "new": _SAFARI_ZOOM_NEW,
         "count": 1,
     },
 ]

@@ -98,6 +98,29 @@ def test_the_overview_panel_and_the_glass_slab_track_it_too(html):
     assert "height:calc(100vh / var(--alto-zoom, 0.8) - 104px) !important;" in html
 
 
+# ── Safari 26+: standardized zoom, the same viewport bug as Chrome ──────────
+
+def test_safari_standard_zoom_is_detected_by_behaviour_before_layout(html):
+    """Safari 26 resolves 100vw against the unzoomed viewport, like Blink, so
+    without the compensation <body> covers only zoom×window. Detected by
+    measurement (Safari 18 must not match), in <head>, before layout."""
+    add = "de.classList.add('vw-unzoomed')"
+    assert add in html
+    assert html.index(add) < html.index("\n<body>")
+    assert "de.style.zoom = '0.5';" in html        # zoom-independent probe
+    assert ("if(de.classList.contains('mobile') || "
+            "de.classList.contains('is-blink')) return;") in html
+
+
+@pytest.mark.parametrize("sel", [
+    "html.vw-unzoomed:not(.mobile) body",
+    "html.vw-unzoomed:not(.mobile) #glass-slab",
+    "html.vw-unzoomed:not(.mobile) #summary-wrap.open",
+])
+def test_safari_gets_the_same_viewport_fill_as_blink(html, sel):
+    assert sel in html
+
+
 # ── the other two pages never had the zoom, and must not gain it ────────────
 
 def test_the_home_and_reports_pages_are_untouched():
