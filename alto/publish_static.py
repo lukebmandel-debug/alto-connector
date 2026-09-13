@@ -166,7 +166,10 @@ def _security_headers() -> list[dict]:
     """
     csp = "; ".join([
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://www.gstatic.com",
+        # gstatic serves the Firebase SDK; apis.google.com serves the gapi
+        # loader signInWithPopup injects — without it Google sign-in (and so
+        # cross-device sync) is dead on every published page.
+        "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https://*.googleusercontent.com",
         "font-src 'self' data:",
