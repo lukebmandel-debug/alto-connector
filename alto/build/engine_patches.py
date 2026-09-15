@@ -468,46 +468,56 @@ PATCHES = [
 # in Chrome), Safari's gesture* events, and ⌘± — and turns it into card focus,
 # because native page zoom breaks the liquid glass. That left the open
 # Overview, the one long read in the app, impossible to enlarge. Over the open
-# Overview the same gestures now zoom #summary-inner alone with CSS zoom: the
-# text re-lays out at the new size, the column keeps its on-screen width, the
-# text under the fingers stays put, and nothing behind the glass moves. Phones
-# (where focus mode is off) get a two-finger pinch on the panel.
+# Overview the same gestures now magnify #summary-inner alone, like a browser
+# pinch: transform:scale, so the text is never re-laid out — it grows and you
+# scroll around it — the words under the fingers stay put, and nothing behind
+# the glass moves. Phones (focus mode off) get a two-finger pinch on the panel.
 _OVERVIEW_ZOOM_SCRIPT = """<script id="alto-overview-zoom">
 /* ── Alto: pinch-zoom the open Overview on its own (engine_patches.py,
-   overview-zooms-alone). Desktop gestures are routed here by the focus-mode
-   handlers; phones use the two-finger pinch below. ── */
+   overview-zooms-alone). Magnifies like a browser pinch — the text is scaled,
+   never re-laid out, and you scroll around it — but only the Overview: the
+   glass behind it stays put. Desktop gestures are routed here by the
+   focus-mode handlers; phones use the two-finger pinch below. ── */
 (function(){
-  var MIN=0.85, MAX=2.6, k=1, baseMax=null, g0=0, d0=0, t0=1;
+  var MIN=1, MAX=4, k=1, g0=0, d0=0, t0=1;
   function openWrap(){ var w=document.getElementById('summary-wrap'); return (w&&w.classList.contains('open'))?w:null; }
   function over(t){ return !!(openWrap() && t && t.closest && t.closest('#summary-wrap')); }
-  function set(nk, cy){
+  function set(nk, cx, cy){
     var w=openWrap(), el=document.getElementById('summary-inner'); if(!w||!el) return;
     nk=Math.max(MIN,Math.min(MAX,nk)); if(Math.abs(nk-k)<0.002) return;
-    if(baseMax===null){ var mw=parseFloat(getComputedStyle(el).maxWidth); baseMax=isFinite(mw)?mw:0; }
-    var r=w.getBoundingClientRect(), s=r.height?w.clientHeight/r.height:1;
-    var y=(cy==null?r.height/2:cy-r.top)*s;           // anchor, in the panel's own px
-    var at=(w.scrollTop+y)/k;                           // ...in unzoomed content px
+    var r=w.getBoundingClientRect();
+    var sx=r.width?w.clientWidth/r.width:1, sy=r.height?w.clientHeight/r.height:1;
+    var x=(cx==null?r.width/2:cx-r.left)*sx, y=(cy==null?r.height/2:cy-r.top)*sy;  // anchor, in panel px
+    var px=(w.scrollLeft+x-el.offsetLeft)/k, py=(w.scrollTop+y-el.offsetTop)/k;    // ...in content px
     k=nk;
-    el.style.zoom=(Math.abs(k-1)<0.002)?'':String(k);
-    el.style.maxWidth=(baseMax&&el.style.zoom)?(baseMax/k)+'px':'';   // same column width on screen
-    w.scrollTop=at*k-y;                                 // keep the text under the fingers put
+    el.style.transformOrigin='0 0';
+    el.style.transform=(k>1.002)?'scale('+k+')':'';
+    w.scrollLeft=el.offsetLeft+px*k-x;                  // the words under the fingers stay put
+    w.scrollTop=el.offsetTop+py*k-y;
   }
   window._altoOverviewZoom={
-    wheel:function(e){ if(!over(e.target)) return false; e.preventDefault(); set(k*Math.exp(-e.deltaY*0.01), e.clientY); return true; },
+    wheel:function(e){ if(!over(e.target)) return false; e.preventDefault(); set(k*Math.exp(-e.deltaY*0.01), e.clientX, e.clientY); return true; },
     gesture:function(e){
       if(e.type==='gesturestart'){ g0=over(e.target)?k:0; return !!g0; }
-      if(!g0) return false; set(g0*e.scale, e.clientY); return true;
+      if(!g0) return false; set(g0*e.scale, e.clientX, e.clientY); return true;
     },
     gestureEnd:function(){ var was=!!g0; g0=0; return was; },
-    key:function(e){ if(!openWrap()) return false; set(e.key==='0'?1:(e.key==='-'?k/1.15:k*1.15)); return true; }
+    key:function(e){ if(!openWrap()) return false; set(e.key==='0'?1:(e.key==='-'?k/1.25:k*1.25)); return true; }
   };
+  // reset on close: the Overview always reopens at its normal size
+  var _ovw=document.getElementById('summary-wrap');
+  if(_ovw && window.MutationObserver) new MutationObserver(function(){
+    if(_ovw.classList.contains('open') || k===1) return;
+    var el=document.getElementById('summary-inner'); if(el) el.style.transform='';
+    k=1; g0=0; d0=0;
+  }).observe(_ovw,{attributes:true,attributeFilter:['class']});
   if(!document.documentElement.classList.contains('mobile')) return;
   function dist(t){ return Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY); }
   document.addEventListener('touchstart',function(e){ if(e.touches.length===2&&over(e.target)){ d0=dist(e.touches); t0=k; } },{passive:true});
   document.addEventListener('touchmove',function(e){
     if(!d0||e.touches.length!==2) return;
     e.preventDefault();
-    set(t0*dist(e.touches)/d0, (e.touches[0].clientY+e.touches[1].clientY)/2);
+    set(t0*dist(e.touches)/d0, (e.touches[0].clientX+e.touches[1].clientX)/2, (e.touches[0].clientY+e.touches[1].clientY)/2);
   },{passive:false});
   document.addEventListener('touchend',function(e){ if(e.touches.length<2) d0=0; },{passive:true});
   ['gesturestart','gesturechange'].forEach(function(ev){

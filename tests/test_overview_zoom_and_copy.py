@@ -59,8 +59,10 @@ def test_the_overview_zooms_its_own_content_not_the_page(html):
     i = html.index('<script id="alto-overview-zoom">')
     body = html[i:html.index("</script>", i)]
     assert "getElementById('summary-inner')" in body
-    assert "el.style.zoom=" in body
-    assert "documentElement.style.zoom" not in body
+    # magnified like a browser pinch: scaled, never re-laid out
+    assert "el.style.transform=" in body
+    assert "style.zoom" not in body and "maxWidth" not in body
+    assert "documentElement.style" not in body
 
 
 @pytest.mark.parametrize("name", [p["name"] for p in PATCHES
