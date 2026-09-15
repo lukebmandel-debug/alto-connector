@@ -64,6 +64,55 @@ SEARCH_FETCH = """if(!courseLoading){
     }"""
 
 
+# ── stale wording on the home and reports pages ─────────────────────────────
+# The reference build was a law course with placeholder tiles for courses not
+# yet built. Alto has neither: every tile is a live timeline and nothing is
+# "coming soon". Each swap is counted, like every other template edit.
+_HOME_COPY = [
+    ("open a live tile to enter it. Dimmed tiles are coming soon. Inside any workspace, "
+     "the Alto mark at the top returns you here.",
+     "open a tile to enter its timeline. Inside any timeline, the Alto mark at the top "
+     "returns you here.", "home info: tiles"),
+    ("the content inside them (scenes, characters, themes).",
+     "everything inside them.", "home info: search"),
+    ("every report you generate inside a course is saved automatically. The small "
+     "document bubble on a course tile opens that course's report repository.",
+     "every report you generate inside a timeline is saved automatically. The small "
+     "document bubble on a timeline tile opens that timeline's report repository.",
+     "home info: reports"),
+    ("Sign in to keep your courses, reports, and highlights with you.",
+     "Sign in to keep your highlights, notes, and reports with you on every device.",
+     "home account blurb"),
+    ("kind:'Course'", "kind:'Timeline'", "home search result label"),
+    # The sign-in glyph is a fixed point. INFO's expansion slid it 324px left in
+    # step with the search pill — a leftover from when account sat beside
+    # search; from its bottom-left slot that throws it off the screen.
+    ("    slideAside('account-btn', expanded);\n", "", "account glyph stays put"),
+    # A failed sign-in only reached the console, so the button just did nothing.
+    # Say why in the modal; an unauthorized domain is the common, fixable case.
+    (".catch(e => { console.warn('sign-in failed', e); })",
+     ".catch(e => { console.warn('sign-in failed', e); _altoSignInFailed(e); })",
+     "home sign-in error shown"),
+]
+_REPORTS_COPY = [
+    ("'← Course'", "'← Timeline'", "reports back label"),
+    ("'Every report generated inside the course is saved here automatically.'",
+     "'Every report generated inside this timeline is saved here automatically.'",
+     "reports subtitle"),
+    ("Generate one from inside the course &#8212;",
+     "Generate one from inside the timeline &#8212;", "reports empty state"),
+]
+# Shared by every page that carries the account modal.
+SIGN_IN_FAILED_FN = """function _altoSignInFailed(e){
+  var s = document.querySelector('#acct-signed-out .acct-sub');
+  if(!s || (e && e.code === 'auth/popup-closed-by-user')) return;
+  s.textContent = (e && e.code === 'auth/unauthorized-domain')
+    ? 'Sign-in is not enabled for this address yet. The site owner needs to add it in Firebase under Authentication, Settings, Authorized domains.'
+    : 'Sign-in did not complete. Please try again.';
+}
+"""
+
+
 class PageError(RuntimeError):
     pass
 
@@ -86,6 +135,11 @@ def build_home(projects: list[dict]) -> str:
     # template is frozen, so the swap happens here.
     template = _rep(template, 'placeholder="Search all of Alto"',
                     'placeholder="Search"', 1, "home search placeholder")
+    for old, new, label in _HOME_COPY:
+        template = _rep(template, old, new, 1, label)
+    template = _rep(template, "function renderAccount(){",
+                    SIGN_IN_FAILED_FN + "function renderAccount(){", 1,
+                    "home sign-in error helper")
     regions = {
         "projects": projects_const(projects),
         "search_course_fn": SEARCH_COURSE_FN,
@@ -105,6 +159,8 @@ def course_meta_const(courses: list[dict]) -> str:
 
 def build_reports(courses: list[dict], default_course: str) -> str:
     template = engine_template("reports_template.html")
+    for old, new, label in _REPORTS_COPY:
+        template = _rep(template, old, new, 1, label)
     regions = {"course_meta": course_meta_const(courses)}
     tokens = {"default_course":
               f"params.get('course') || {json.dumps(default_course)}"}

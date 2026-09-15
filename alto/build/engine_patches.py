@@ -463,6 +463,135 @@ PATCHES = [
 ]
 
 
+# ── the Overview can be pinch-zoomed on its own ─────────────────────────────
+# The focus-mode script owns every zoom gesture — ctrl+wheel (a trackpad pinch
+# in Chrome), Safari's gesture* events, and ⌘± — and turns it into card focus,
+# because native page zoom breaks the liquid glass. That left the open
+# Overview, the one long read in the app, impossible to enlarge. Over the open
+# Overview the same gestures now zoom #summary-inner alone with CSS zoom: the
+# text re-lays out at the new size, the column keeps its on-screen width, the
+# text under the fingers stays put, and nothing behind the glass moves. Phones
+# (where focus mode is off) get a two-finger pinch on the panel.
+_OVERVIEW_ZOOM_SCRIPT = """<script id="alto-overview-zoom">
+/* ── Alto: pinch-zoom the open Overview on its own (engine_patches.py,
+   overview-zooms-alone). Desktop gestures are routed here by the focus-mode
+   handlers; phones use the two-finger pinch below. ── */
+(function(){
+  var MIN=0.85, MAX=2.6, k=1, baseMax=null, g0=0, d0=0, t0=1;
+  function openWrap(){ var w=document.getElementById('summary-wrap'); return (w&&w.classList.contains('open'))?w:null; }
+  function over(t){ return !!(openWrap() && t && t.closest && t.closest('#summary-wrap')); }
+  function set(nk, cy){
+    var w=openWrap(), el=document.getElementById('summary-inner'); if(!w||!el) return;
+    nk=Math.max(MIN,Math.min(MAX,nk)); if(Math.abs(nk-k)<0.002) return;
+    if(baseMax===null){ var mw=parseFloat(getComputedStyle(el).maxWidth); baseMax=isFinite(mw)?mw:0; }
+    var r=w.getBoundingClientRect(), s=r.height?w.clientHeight/r.height:1;
+    var y=(cy==null?r.height/2:cy-r.top)*s;           // anchor, in the panel's own px
+    var at=(w.scrollTop+y)/k;                           // ...in unzoomed content px
+    k=nk;
+    el.style.zoom=(Math.abs(k-1)<0.002)?'':String(k);
+    el.style.maxWidth=(baseMax&&el.style.zoom)?(baseMax/k)+'px':'';   // same column width on screen
+    w.scrollTop=at*k-y;                                 // keep the text under the fingers put
+  }
+  window._altoOverviewZoom={
+    wheel:function(e){ if(!over(e.target)) return false; e.preventDefault(); set(k*Math.exp(-e.deltaY*0.01), e.clientY); return true; },
+    gesture:function(e){
+      if(e.type==='gesturestart'){ g0=over(e.target)?k:0; return !!g0; }
+      if(!g0) return false; set(g0*e.scale, e.clientY); return true;
+    },
+    gestureEnd:function(){ var was=!!g0; g0=0; return was; },
+    key:function(e){ if(!openWrap()) return false; set(e.key==='0'?1:(e.key==='-'?k/1.15:k*1.15)); return true; }
+  };
+  if(!document.documentElement.classList.contains('mobile')) return;
+  function dist(t){ return Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY); }
+  document.addEventListener('touchstart',function(e){ if(e.touches.length===2&&over(e.target)){ d0=dist(e.touches); t0=k; } },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!d0||e.touches.length!==2) return;
+    e.preventDefault();
+    set(t0*dist(e.touches)/d0, (e.touches[0].clientY+e.touches[1].clientY)/2);
+  },{passive:false});
+  document.addEventListener('touchend',function(e){ if(e.touches.length<2) d0=0; },{passive:true});
+  ['gesturestart','gesturechange'].forEach(function(ev){
+    document.addEventListener(ev,function(e){ if(over(e.target)) e.preventDefault(); },{passive:false});
+  });
+})();
+</script>
+"""
+_OVZ_SCRIPT_OLD = '<script id="alto-focus-mode">'
+_OVZ_SCRIPT_NEW = _OVERVIEW_ZOOM_SCRIPT + _OVZ_SCRIPT_OLD
+
+_OVZ_WHEEL_OLD = ("    e.preventDefault();                       "
+                  "// ← stop native browser zoom (the Safari bug)\n")
+_OVZ_WHEEL_NEW = ("    if(window._altoOverviewZoom && window._altoOverviewZoom.wheel(e)) return;"
+                  "  // pinch over the Overview zooms it alone\n" + _OVZ_WHEEL_OLD)
+
+_OVZ_GESTURE_OLD = ("document.addEventListener(ev,function(e){ e.preventDefault(); "
+                    "},{passive:false});")
+_OVZ_GESTURE_NEW = ("document.addEventListener(ev,function(e){ e.preventDefault(); "
+                    "if(window._altoOverviewZoom) window._altoOverviewZoom.gesture(e); "
+                    "},{passive:false});")
+
+_OVZ_GEND_OLD = "    e.preventDefault(); if(!cooled()) return;\n"
+_OVZ_GEND_NEW = ("    e.preventDefault(); if(window._altoOverviewZoom && "
+                 "window._altoOverviewZoom.gestureEnd(e)) return;\n"
+                 "    if(!cooled()) return;\n")
+
+_OVZ_KEY_OLD = ("      e.preventDefault();\n"
+                "      if(e.key==='-'||e.key==='0') exitFocus();\n")
+_OVZ_KEY_NEW = ("      e.preventDefault();\n"
+                "      if(window._altoOverviewZoom && window._altoOverviewZoom.key(e)) return;"
+                "  // ⌘± with the Overview open\n"
+                "      if(e.key==='-'||e.key==='0') exitFocus();\n")
+
+# ── stale "course" wording on the timeline ──────────────────────────────────
+# The reference build was a law course, and three strings still say so on every
+# timeline — a novel, a project, anything. Alto's unit is the timeline.
+_COPY_OVERVIEW_TITLE_OLD = 'title="Course overview" aria-label="Course overview"'
+_COPY_OVERVIEW_TITLE_NEW = 'title="Overview" aria-label="Overview"'
+_COPY_OVERVIEW_SECTION_OLD = "var cur='Course Overview';"
+_COPY_OVERVIEW_SECTION_NEW = "var cur='Overview';"
+_COPY_ACCT_SUB_OLD = "Sign in to keep your courses, reports, and highlights with you."
+_COPY_ACCT_SUB_NEW = "Sign in to keep your highlights, notes, and reports with you on every device."
+
+PATCHES += [
+    {"name": "overview-zooms-alone-script", "old": _OVZ_SCRIPT_OLD,
+     "new": _OVZ_SCRIPT_NEW, "count": 1},
+    {"name": "overview-zooms-alone-wheel", "old": _OVZ_WHEEL_OLD,
+     "new": _OVZ_WHEEL_NEW, "count": 1},
+    {"name": "overview-zooms-alone-gesture", "old": _OVZ_GESTURE_OLD,
+     "new": _OVZ_GESTURE_NEW, "count": 1},
+    {"name": "overview-zooms-alone-gesture-end", "old": _OVZ_GEND_OLD,
+     "new": _OVZ_GEND_NEW, "count": 1},
+    {"name": "overview-zooms-alone-keyboard", "old": _OVZ_KEY_OLD,
+     "new": _OVZ_KEY_NEW, "count": 1},
+    {"name": "copy-overview-toggle-label", "old": _COPY_OVERVIEW_TITLE_OLD,
+     "new": _COPY_OVERVIEW_TITLE_NEW, "count": 1},
+    {"name": "copy-overview-default-section", "old": _COPY_OVERVIEW_SECTION_OLD,
+     "new": _COPY_OVERVIEW_SECTION_NEW, "count": 1},
+    {"name": "copy-account-blurb", "old": _COPY_ACCT_SUB_OLD,
+     "new": _COPY_ACCT_SUB_NEW, "count": 1},
+]
+
+
+# ── a failed sign-in says why ───────────────────────────────────────────────
+# AltoCloud.signIn() failures only reached the console, so "Continue with
+# Google" simply did nothing — most often because the site's domain is not in
+# the Firebase project's Authorized domains. Say so in the account modal.
+_SIGNIN_FAIL_OLD = ".catch(function(e){ console.warn('sign-in failed', e); })"
+_SIGNIN_FAIL_NEW = (
+    ".catch(function(e){ console.warn('sign-in failed', e);"
+    " var s=document.querySelector('#acct-signed-out .acct-sub');"
+    " if(s && !(e && e.code==='auth/popup-closed-by-user'))"
+    " s.textContent=(e && e.code==='auth/unauthorized-domain')"
+    " ? 'Sign-in is not enabled for this address yet. The site owner needs to add it"
+    " in Firebase under Authentication, Settings, Authorized domains.'"
+    " : 'Sign-in did not complete. Please try again.'; })")
+
+PATCHES += [
+    {"name": "copy-sign-in-failure-is-explained", "old": _SIGNIN_FAIL_OLD,
+     "new": _SIGNIN_FAIL_NEW, "count": 1},
+]
+
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])
