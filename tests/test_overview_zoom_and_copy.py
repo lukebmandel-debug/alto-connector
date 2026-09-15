@@ -58,11 +58,16 @@ def test_every_zoom_gesture_asks_the_overview_first(html, hook):
 def test_the_overview_zooms_its_own_content_not_the_page(html):
     i = html.index('<script id="alto-overview-zoom">')
     body = html[i:html.index("</script>", i)]
-    assert "getElementById('summary-inner')" in body
+    # both reading panels: the Overview and the detail page
+    assert "inner:'summary-inner'" in body and "inner:'detail-content'" in body
     # magnified like a browser pinch: scaled, never re-laid out
     assert "el.style.transform=" in body
-    assert "style.zoom" not in body and "maxWidth" not in body
+    assert "style.zoom" not in body
+    # the column's margins become padding while zoomed, so lines never re-wrap
+    assert "s.setProperty('padding-left',(pl+L)+'px')" in body
     assert "documentElement.style" not in body
+    # while zoomed the panel must pan sideways too (its CSS hides overflow-x)
+    assert "setProperty('overflow-x','auto','important')" in body
 
 
 @pytest.mark.parametrize("name", [p["name"] for p in PATCHES

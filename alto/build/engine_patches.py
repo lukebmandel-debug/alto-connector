@@ -468,60 +468,109 @@ PATCHES = [
 # in Chrome), Safari's gesture* events, and ⌘± — and turns it into card focus,
 # because native page zoom breaks the liquid glass. That left the open
 # Overview, the one long read in the app, impossible to enlarge. Over the open
-# Overview the same gestures now magnify #summary-inner alone, like a browser
-# pinch: transform:scale, so the text is never re-laid out — it grows and you
-# scroll around it — the words under the fingers stay put, and nothing behind
-# the glass moves. Phones (focus mode off) get a two-finger pinch on the panel.
+# Overview — and on a detail page — the same gestures now magnify that panel's
+# content alone, like a browser pinch: transform:scale toward the fingers, so
+# the text is never re-laid out, and the panel pans freely in both directions
+# while zoomed (its stylesheet hides sideways overflow, so that is forced on).
+# Nothing behind the glass moves. Phones (focus mode off) get a two-finger
+# pinch on either panel. A panel resets when it closes or changes item.
 _OVERVIEW_ZOOM_SCRIPT = """<script id="alto-overview-zoom">
-/* ── Alto: pinch-zoom the open Overview on its own (engine_patches.py,
-   overview-zooms-alone). Magnifies like a browser pinch — the text is scaled,
-   never re-laid out, and you scroll around it — but only the Overview: the
-   glass behind it stays put. Desktop gestures are routed here by the
-   focus-mode handlers; phones use the two-finger pinch below. ── */
+/* ── Alto: pinch-zoom a reading panel on its own (engine_patches.py,
+   overview-zooms-alone). Works on the open Overview and on detail pages.
+   Magnifies like a browser pinch — the text is scaled, never re-laid out —
+   toward the point under the fingers, and the panel pans freely in both
+   directions while zoomed; the glass and timeline behind it stay put.
+   Desktop gestures are routed here by the focus-mode handlers; phones use the
+   two-finger pinch below. A panel resets when it closes or changes item. ── */
 (function(){
-  var MIN=1, MAX=4, k=1, g0=0, d0=0, t0=1;
-  function openWrap(){ var w=document.getElementById('summary-wrap'); return (w&&w.classList.contains('open'))?w:null; }
-  function over(t){ return !!(openWrap() && t && t.closest && t.closest('#summary-wrap')); }
-  function set(nk, cx, cy){
-    var w=openWrap(), el=document.getElementById('summary-inner'); if(!w||!el) return;
-    nk=Math.max(MIN,Math.min(MAX,nk)); if(Math.abs(nk-k)<0.002) return;
-    var r=w.getBoundingClientRect();
-    var sx=r.width?w.clientWidth/r.width:1, sy=r.height?w.clientHeight/r.height:1;
-    var x=(cx==null?r.width/2:cx-r.left)*sx, y=(cy==null?r.height/2:cy-r.top)*sy;  // anchor, in panel px
-    var px=(w.scrollLeft+x-el.offsetLeft)/k, py=(w.scrollTop+y-el.offsetTop)/k;    // ...in content px
-    k=nk;
+  var MIN=1, MAX=4;
+  var PANELS=[{wrap:'summary-wrap', inner:'summary-inner', open:'open', k:1},
+              {wrap:'detail-page', inner:'detail-content', open:'visible', k:1}];
+  var g=null, g0=1, tp=null, d0=0, t0=1;
+  function byId(id){ return document.getElementById(id); }
+  function isOpen(p){ var w=byId(p.wrap); return !!(w && w.classList.contains(p.open)); }
+  function panelAt(t){
+    for(var i=0;i<PANELS.length;i++){ var p=PANELS[i];
+      if(isOpen(p) && t && t.closest && t.closest('#'+p.wrap)) return p; }
+    return null;
+  }
+  function activePanel(){ for(var i=0;i<PANELS.length;i++) if(isOpen(PANELS[i])) return PANELS[i]; return null; }
+  // While zoomed, the scaled box spans the panel's full width, like a page: the
+  // centred column's side margins become equal padding, so every line of text
+  // keeps its exact width and place (no re-wrap) but the margins magnify too —
+  // otherwise there is no room to pan out to the right-hand side of the text.
+  function widen(p, el, w){
+    if(p.wide) return;
+    var cs=getComputedStyle(el), L=el.offsetLeft, Wd=el.offsetWidth, full=w.clientWidth;
+    var pl=parseFloat(cs.paddingLeft)||0, pr=parseFloat(cs.paddingRight)||0, ml=parseFloat(cs.marginLeft)||0;
+    var s=el.style;
+    s.setProperty('box-sizing','border-box'); s.setProperty('max-width','none');
+    s.setProperty('width',Math.max(full,Wd)+'px');
+    s.setProperty('margin-left',(ml-L)+'px'); s.setProperty('margin-right','0px');
+    s.setProperty('padding-left',(pl+L)+'px'); s.setProperty('padding-right',(Math.max(0,full-L-Wd)+pr)+'px');
+    p.wide=true;
+  }
+  function unwiden(p, el){
+    if(!p.wide) return;
+    ['box-sizing','max-width','width','margin-left','margin-right','padding-left','padding-right']
+      .forEach(function(k){ el.style.removeProperty(k); });
+    p.wide=false;
+  }
+  function reset(p){
+    var el=byId(p.inner), w=byId(p.wrap);
+    if(el){ el.style.transform=''; unwiden(p, el); }
+    if(w) w.style.removeProperty('overflow-x');
+    p.k=1;
+  }
+  // Where the text starts on screen, and the screen px per content px. Measured
+  // on the content itself: the Overview slides in with a transform, so its own
+  // reported edge is unreliable while open.
+  function textBox(el){
+    var r=el.getBoundingClientRect(), cs=getComputedStyle(el), vs=r.width/el.offsetWidth||1;
+    return {x:r.left+(parseFloat(cs.paddingLeft)||0)*vs, y:r.top+(parseFloat(cs.paddingTop)||0)*vs, vs:vs};
+  }
+  function set(p, nk, cx, cy){
+    var w=byId(p.wrap), el=byId(p.inner); if(!w||!el||!el.offsetWidth) return;
+    nk=Math.max(MIN,Math.min(MAX,nk)); if(Math.abs(nk-p.k)<0.002) return;
+    if(cx==null){ cx=window.innerWidth/2; cy=window.innerHeight/2; }   // keyboard: middle of the screen
+    var on=nk>1.002;
+    if(on) widen(p, el, w);
+    var b=textBox(el), lx=(cx-b.x)/b.vs, ly=(cy-b.y)/b.vs;           // text px under the fingers
+    p.k=nk;
     el.style.transformOrigin='0 0';
-    el.style.transform=(k>1.002)?'scale('+k+')':'';
-    w.scrollLeft=el.offsetLeft+px*k-x;                  // the words under the fingers stay put
-    w.scrollTop=el.offsetTop+py*k-y;
+    el.style.transform=on?'scale('+p.k+')':'';
+    if(on) w.style.setProperty('overflow-x','auto','important');      // pan sideways, not just up and down
+    else { w.style.removeProperty('overflow-x'); unwiden(p, el); }
+    var b2=textBox(el), z=b2.vs/p.k;
+    w.scrollLeft+=(b2.x+lx*b2.vs-cx)/z;                               // put those words back under the fingers
+    w.scrollTop+=(b2.y+ly*b2.vs-cy)/z;
   }
   window._altoOverviewZoom={
-    wheel:function(e){ if(!over(e.target)) return false; e.preventDefault(); set(k*Math.exp(-e.deltaY*0.01), e.clientX, e.clientY); return true; },
+    wheel:function(e){ var p=panelAt(e.target); if(!p) return false; e.preventDefault(); set(p, p.k*Math.exp(-e.deltaY*0.01), e.clientX, e.clientY); return true; },
     gesture:function(e){
-      if(e.type==='gesturestart'){ g0=over(e.target)?k:0; return !!g0; }
-      if(!g0) return false; set(g0*e.scale, e.clientX, e.clientY); return true;
+      if(e.type==='gesturestart'){ g=panelAt(e.target); g0=g?g.k:1; return !!g; }
+      if(!g) return false; set(g, g0*e.scale, e.clientX, e.clientY); return true;
     },
-    gestureEnd:function(){ var was=!!g0; g0=0; return was; },
-    key:function(e){ if(!openWrap()) return false; set(e.key==='0'?1:(e.key==='-'?k/1.25:k*1.25)); return true; }
+    gestureEnd:function(){ var was=!!g; g=null; return was; },
+    key:function(e){ var p=activePanel(); if(!p) return false; set(p, e.key==='0'?1:(e.key==='-'?p.k/1.25:p.k*1.25)); return true; }
   };
-  // reset on close: the Overview always reopens at its normal size
-  var _ovw=document.getElementById('summary-wrap');
-  if(_ovw && window.MutationObserver) new MutationObserver(function(){
-    if(_ovw.classList.contains('open') || k===1) return;
-    var el=document.getElementById('summary-inner'); if(el) el.style.transform='';
-    k=1; g0=0; d0=0;
-  }).observe(_ovw,{attributes:true,attributeFilter:['class']});
+  // reset on close, and when the detail page moves to another item
+  PANELS.forEach(function(p){
+    var w=byId(p.wrap), el=byId(p.inner); if(!w||!window.MutationObserver) return;
+    new MutationObserver(function(){ if(!isOpen(p) && p.k!==1) reset(p); }).observe(w,{attributes:true,attributeFilter:['class']});
+    if(el && p.wrap==='detail-page') new MutationObserver(function(){ if(p.k!==1) reset(p); }).observe(el,{childList:true});
+  });
   if(!document.documentElement.classList.contains('mobile')) return;
   function dist(t){ return Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY); }
-  document.addEventListener('touchstart',function(e){ if(e.touches.length===2&&over(e.target)){ d0=dist(e.touches); t0=k; } },{passive:true});
+  document.addEventListener('touchstart',function(e){ if(e.touches.length===2){ tp=panelAt(e.target); if(tp){ d0=dist(e.touches); t0=tp.k; } } },{passive:true});
   document.addEventListener('touchmove',function(e){
-    if(!d0||e.touches.length!==2) return;
+    if(!tp||!d0||e.touches.length!==2) return;
     e.preventDefault();
-    set(t0*dist(e.touches)/d0, (e.touches[0].clientX+e.touches[1].clientX)/2, (e.touches[0].clientY+e.touches[1].clientY)/2);
+    set(tp, t0*dist(e.touches)/d0, (e.touches[0].clientX+e.touches[1].clientX)/2, (e.touches[0].clientY+e.touches[1].clientY)/2);
   },{passive:false});
-  document.addEventListener('touchend',function(e){ if(e.touches.length<2) d0=0; },{passive:true});
+  document.addEventListener('touchend',function(e){ if(e.touches.length<2){ d0=0; tp=null; } },{passive:true});
   ['gesturestart','gesturechange'].forEach(function(ev){
-    document.addEventListener(ev,function(e){ if(over(e.target)) e.preventDefault(); },{passive:false});
+    document.addEventListener(ev,function(e){ if(panelAt(e.target)) e.preventDefault(); },{passive:false});
   });
 })();
 </script>
