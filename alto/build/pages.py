@@ -21,7 +21,12 @@ def _js(s):
 
 
 def projects_const(projects: list[dict]) -> str:
-    """projects: [{name, courses:[{title, href, sub, courseId, reports, units[]}]}]"""
+    """projects: [{name, pid, courses:[{title, href, sub, courseId, reports, units[]}]}]
+
+    `pid` is the project id. It is what the homepage's project-level download
+    button turns into /p/{pid}/offline.html; an offline bundle has no such file
+    and leaves it empty.
+    """
     slabs = []
     for p in projects:
         courses = ",".join(
@@ -32,7 +37,8 @@ def projects_const(projects: list[dict]) -> str:
                 _js(c["courseId"]), "true" if c.get("reports", True) else "false",
                 json.dumps(c.get("units", [])))
             for c in p["courses"])
-        slabs.append("\n  { name:%s, courses:[%s,\n  ]}" % (_js(p["name"]), courses))
+        slabs.append("\n  { name:%s, pid:%s, courses:[%s,\n  ]}"
+                     % (_js(p["name"]), _js(p.get("pid", "")), courses))
     return "const PROJECTS = [%s,\n];" % ",".join(slabs)
 
 

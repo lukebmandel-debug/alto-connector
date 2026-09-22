@@ -23,7 +23,7 @@ from mcp.types import ToolAnnotations
 
 from .build.brief import BriefError, ID_RE
 from .build.builder import load_brief, build_timeline as _build, run_layout
-from .build.single_file import bundle
+from .build.single_file import bundle, private_page
 from .build.verify import VerifyError, verify_scripts
 from .store.local import LocalStore
 
@@ -158,6 +158,18 @@ def _share_slug(tid: str) -> str:
     """
     tail = "".join(secrets.choice(_SHARE_ALPHABET) for _ in range(8))
     return f"{tid}-{tail}"
+
+
+def _private_key() -> str:
+    """The directory name for a private timeline — opaque all the way through.
+
+    `_share_slug` keeps the timeline id so a shared link stays readable, which
+    is right when the point is to hand it to someone. A private timeline is the
+    opposite case: /pv/civ-pro-jade-xxxx/ would announce its subject to anyone
+    who saw the URL, so nothing here is derived from the timeline. 22 characters
+    of the 32-symbol alphabet is 110 bits.
+    """
+    return "".join(secrets.choice(_SHARE_ALPHABET) for _ in range(22))
 
 
 def _unique_slug(existing: set, base: str) -> str:
@@ -645,6 +657,7 @@ def build_timeline(timeline_id: str) -> dict:
             return {"error": "no_nodes", "message": "add_nodes first"}
         html, report = _build(b, nodes, conns)
         offline = bundle(b, html)
+        private = private_page(b, html)
     except VerifyError as e:
         return {"error": "verify_failed", "failures": e.failures}
     except (BriefError, ValueError) as e:
@@ -655,13 +668,17 @@ def build_timeline(timeline_id: str) -> dict:
     # from it (string patches, bundle shell) so a bad rewrite there must be
     # caught before either artifact is stored.
     hosted = hosted_timeline(html, timeline_id)
-    for lbl, doc_html in (("hosted.html", hosted), ("offline.html", offline)):
+    for lbl, doc_html in (("hosted.html", hosted), ("offline.html", offline),
+                          ("private.html", private)):
         js_failures, js_warnings = verify_scripts(doc_html, lbl)
         if js_failures:
             return {"error": "verify_failed", "failures": js_failures}
         report["warnings"] += js_warnings
     st.put_artifact(uid(), timeline_id, "timeline.html", html)
     st.put_artifact(uid(), timeline_id, "hosted.html", hosted)
+    # The srcdoc-ready variant the private shell uploads. Built here so it is
+    # always as new as the page itself, rather than at publish time.
+    st.put_artifact(uid(), timeline_id, "private.html", private)
     offline_path = st.put_artifact(uid(), timeline_id, "offline.html", offline)
     doc["status"] = "built"
     doc["build_report"] = report
@@ -681,16 +698,25 @@ def build_timeline(timeline_id: str) -> dict:
 
 @mcp.tool(title="Publish timeline", annotations=RW)
 def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
-    """Publish the built timeline. visibility: 'private' (only the signed-in
-    owner) or 'link' (anyone with the URL). Returns view + offline-download
-    URLs."""
+    """Publish the built timeline.
+
+    visibility:
+      'private'     — not on the web at all.
+      'link'        — anyone with the URL; public but unguessable.
+      'private-web' — a page only the publishing Google account can open. The
+                      site gets a sign-in shell carrying no timeline content;
+                      the page itself is uploaded once from the browser (the
+                      connector holds no Firebase credentials), after which it
+                      lives in Firestore under the owner's uid.
+
+    Returns view + offline-download URLs."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     if doc.get("status") not in ("built", "published"):
         return {"error": "not_built", "message": "build_timeline first"}
-    if visibility not in ("private", "link"):
-        return {"error": "bad_visibility", "message": "private|link"}
+    if visibility not in ("private", "link", "private-web"):
+        return {"error": "bad_visibility", "message": "private|link|private-web"}
     st = get_store()
     st.put_share(timeline_id, {"uid": uid(), "visibility": visibility})
     doc["status"] = "published"
@@ -700,6 +726,10 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     # directory; publishing again reuses the same slug.
     if visibility == "link" and not doc.get("share_slug"):
         doc["share_slug"] = _share_slug(timeline_id)
+    # Kept separate from share_slug on purpose: a timeline that went link →
+    # private-web must not reuse the readable slug it was public under.
+    if visibility == "private-web" and not doc.get("private_key"):
+        doc["private_key"] = _private_key()
 
     mode = os.environ.get("ALTO_PUBLISH_MODE", "")
     base = os.environ.get("ALTO_PUBLIC_BASE", "")
@@ -736,13 +766,41 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         except PublishError as e:
             return {"error": "publish_failed", "message": str(e)}
         slug = doc.get("share_slug") or timeline_id
-        urls = ({"view_url": f"{live}/t/{slug}/",
-                 "download_url": f"{live}/t/{slug}/offline.html",
-                 "note": ("anyone with this link can read it — it is public, "
-                          "just unguessable. publish_timeline(visibility="
-                          "'private') takes it down.")}
-                if visibility == "link" else
-                {"note": "private — removed from the public site"})
+        from .publish_static import LAST_STALE
+        stale = list(LAST_STALE)
+        stale_bits = ({"stale": stale,
+                       "stale_note": ("these timelines could not be rebuilt and "
+                                      "shipped from their last build — they may "
+                                      "predate current engine fixes")}
+                      if stale else {})
+        if visibility == "link":
+            urls = {"view_url": f"{live}/t/{slug}/",
+                    "download_url": f"{live}/t/{slug}/offline.html",
+                    **stale_bits,
+                    "note": ("anyone with this link can read it — it is public, "
+                             "just unguessable. publish_timeline(visibility="
+                             "'private') takes it down.")}
+        elif visibility == "private-web":
+            key = doc["private_key"]
+            # put_artifact returns the path; same re-put idiom the offline
+            # branches below use to hand back a location.
+            private_path = st.put_artifact(
+                uid(), timeline_id, "private.html",
+                st.get_artifact(uid(), timeline_id, "private.html") or "")
+            urls = {"view_url": f"{live}/pv/{key}/",
+                    "upload_file": private_path,
+                    **stale_bits,
+                    "note": ("Only the Google account you sign in with can open "
+                             "this. One step remains and it is manual, because "
+                             "the connector holds no Firebase credentials: open "
+                             "the link, sign in, and choose the upload_file "
+                             "above. It is stored under your own account in "
+                             "Firestore, where the security rules — not any "
+                             "JavaScript — decide who may read it. Those rules "
+                             "must already be deployed (README §Publishing); a "
+                             "Firestore left in test mode is world-readable.")}
+        else:
+            urls = {"note": "private — removed from the public site"}
     elif base:
         slug = doc.get("share_slug") or timeline_id
         urls = {"view_url": f"{base}/t/{slug}",

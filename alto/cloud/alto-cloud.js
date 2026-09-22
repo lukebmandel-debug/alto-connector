@@ -9,6 +9,12 @@
      users/{uid}                      — { theme }           (account-wide)
      users/{uid}/tl/{tid}             — { highlights, hl_removed, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
+     users/{uid}/pages/{key}          — { html, updatedAt }
+
+   That last one is a whole private timeline page, filed under the opaque key
+   in its /pv/{key}/ URL rather than under a timeline id, so nothing about it
+   is legible from outside. It is covered by the same users/{uid} rule as
+   everything else here — which is what actually keeps it private.
 
    Which timeline this page belongs to:
      timeline pages:  <script src="/alto-cloud.js" data-tid="{tid}">
@@ -49,6 +55,17 @@
     signIn:  async () => { await ready; return _signIn(); },
     signOut: async () => { await ready; return _signOut(); },
     sync:    async () => { await ready; return requestSync('manual'); },
+    // Private timelines: the page itself lives in Firestore under the owner's
+    // uid, so the rules decide who may read it. `ready` never resolves when the
+    // publisher has no Firebase project, hence the check before the await.
+    getPage: async (key) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _getPage(key);
+    },
+    putPage: async (key, html) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _putPage(key, html);
+    },
   };
   window.AltoCloud = cloud;
 
@@ -62,7 +79,8 @@
          { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
            getRedirectResult, signOut, onAuthStateChanged, browserLocalPersistence,
            setPersistence },
-         { getFirestore, doc, collection, setDoc, onSnapshot, serverTimestamp }] =
+         { getFirestore, doc, collection, setDoc, getDoc, onSnapshot,
+           serverTimestamp }] =
     await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
@@ -255,6 +273,36 @@
       try { document.documentElement.classList.toggle('dark', ev.newValue === 'dark'); } catch (e) {}
     }
   });
+
+  /* ── private pages ─────────────────────────────────────────────────────────
+     users/{uid}/pages/{tid} = { html, tid, title, updatedAt }. Covered by the
+     SAME rule as everything else under users/{uid}, so no rules change was
+     needed: a reader who is not the owner is refused by Firestore itself.
+     Firestore caps a document at 1 MiB; stop short of it with a message the
+     author can act on. ─────────────────────────────────────────────────────── */
+  const MAX_PAGE_BYTES = 900000;
+
+  async function _getPage(key) {
+    const u = auth.currentUser;
+    if (!u || !key) return null;
+    const snap = await getDoc(doc(db, 'users', u.uid, 'pages', key));
+    return snap.exists() ? (snap.data().html || null) : null;
+  }
+
+  async function _putPage(key, html) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('not signed in');
+    if (!key) throw new Error('no page key');
+    const bytes = new TextEncoder().encode(html || '').length;
+    if (bytes > MAX_PAGE_BYTES)
+      throw new Error(Math.round(bytes / 1024) + ' KB exceeds the ' +
+                      Math.round(MAX_PAGE_BYTES / 1024) + ' KB limit');
+    // No title and no timeline id: the document is filed under the opaque key
+    // so nothing here ties it back to a readable name.
+    await setDoc(doc(db, 'users', u.uid, 'pages', key),
+                 { html, updatedAt: serverTimestamp() });
+    return true;
+  }
 
   const provider = new GoogleAuthProvider();
   async function _signIn() {

@@ -7,10 +7,12 @@ rules_version = '2';
 // 30 days. Publishing a timeline before these rules are live would expose every
 // reader's highlights and notes to anyone who found the project id.
 //
-// Layout written by alto-cloud.js (v3):
+// Layout written by alto-cloud.js (v3). The recursive match below already
+// covers every one of these, including private timeline pages:
 //   users/{uid}                       { theme }                    account-wide
 //   users/{uid}/tl/{tid}              { highlights, hl_removed, updatedAt }
 //   users/{uid}/tl/{tid}/reports/{id} { data, deleted, ts }
+//   users/{uid}/pages/{key}           { html, updatedAt }   private timelines
 //
 // Rules do NOT cascade into subcollections, hence the recursive {document=**}.
 service cloud.firestore {

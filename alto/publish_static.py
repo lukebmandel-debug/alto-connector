@@ -4,7 +4,14 @@ Firebase CLI (Spark plan — no server, no card).
 Site layout (Firebase Hosting site `alto-connector`, static only):
   /index.html            — the owner's Alto homepage (published timelines)
   /t/{tid}/index.html    — hosted timeline page
-  /t/{tid}/offline.html  — downloadable single-file bundle
+  /t/{tid}/offline.html  — downloadable single-file bundle (one timeline)
+  /p/{pid}/offline.html  — one bundle for a whole project (only when it holds
+                           2+ timelines; otherwise it would duplicate the
+                           timeline's own offline.html)
+  /offline.html          — one bundle for every published timeline (only when
+                           the site holds 2+)
+  /pv/{key}/index.html   — sign-in shell for a 'private-web' timeline; the
+                           page itself is NOT here, it is in Firestore
   /reports/index.html    — reports viewer (?course={tid})
   /alto-cloud.js         — v3 sync layer (page ↔ Firestore directly; Spark-free)
   /privacy/index.html
@@ -15,6 +22,7 @@ always reflects the current published set.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -22,10 +30,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .build.builder import load_brief
+from .build.builder import build_timeline, load_brief
 from .build.pages import build_home, build_reports, course_entry_for
-from .hosted import hosted_home, hosted_reports
-from .cloud import write_cloud_js
+from .build.private_shell import shell as private_shell
+from .build.single_file import bundle, bundle_many, private_page
+from .hosted import hosted_home, hosted_reports, hosted_timeline
+from .cloud import emit_cloud_js, load_config, write_cloud_js
 from .store.local import check_component
 
 REPO = Path(__file__).resolve().parent.parent
@@ -65,12 +75,59 @@ class PublishError(RuntimeError):
     pass
 
 
+# Timelines the last regenerate_site() could not rebuild, so had to ship
+# from a build-time artifact. Read by publish_timeline; a stdio MCP server
+# cannot print, so a silent fallback would otherwise be invisible.
+LAST_STALE: list[str] = []
+
+
 def _published(store, uid: str) -> list[dict]:
     out = []
     for t in store.list_timelines(uid):
         if t.get("visibility") == "link" and t.get("status") == "published":
             out.append(t)
     return out
+
+
+def _private_web(store, uid: str) -> list[dict]:
+    """Timelines published as 'private-web'.
+
+    Deliberately NOT merged into _published(): everything that function returns
+    reaches build_home(), and a private timeline's title and URL must never
+    appear on the public homepage.
+    """
+    out = []
+    for t in store.list_timelines(uid):
+        if (t.get("visibility") == "private-web"
+                and t.get("status") == "published" and t.get("private_key")):
+            out.append(t)
+    return out
+
+
+def _rebuild(store, uid: str, doc: dict) -> tuple[str | None, str]:
+    """Re-emit a timeline from its stored nodes, against the CURRENT engine.
+
+    Publishing used to ship whatever `build_timeline` stored, which meant an
+    engine fix never reached a timeline nobody happened to rebuild — the
+    fit-to-window work sat unshipped for weeks that way, invisibly. Rebuilding
+    here makes a publish always as new as the code.
+
+    Never fatal: a timeline that cannot be rebuilt (no nodes, or a brief the
+    current verifier rejects) falls back to its stored artifact, so one bad
+    timeline cannot block publishing the rest. Returns (html, reason_if_stale).
+    """
+    tid = doc["timeline_id"]
+    try:
+        nodes = [{k: v for k, v in n.items() if not k.startswith("_")}
+                 for n in store.list_nodes(uid, tid)]
+        if not nodes:
+            return None, "no stored nodes"
+        b, nodes, conns = load_brief({"brief": doc["brief"], "nodes": nodes,
+                                      "connections": store.get_connections(uid, tid)})
+        html, _ = build_timeline(b, nodes, conns)
+        return html, ""
+    except Exception as e:                      # noqa: BLE001 — see docstring
+        return None, f"{type(e).__name__}: {e}"
 
 
 def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
@@ -83,8 +140,15 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # for a novel, …) unless the brief sets period_noun explicitly.
     kind_by_pid = {p["project_id"]: p.get("kind", "")
                    for p in store.list_projects(uid)}
+    name_by_pid = {p["project_id"]: p["name"] for p in store.list_projects(uid)}
     courses = []
     projects_by_pid = {}
+    # timelines that had to fall back to a build-time artifact, reported back so
+    # a silently stale page is at least a visible one
+    stale_notes = LAST_STALE
+    stale_notes.clear()
+    # (Brief, raw timeline html) per project, for the combined offline bundles
+    briefs_by_pid = {}
     for t in published:
         # These become directories that are written and later rmtree'd, so they
         # are re-checked here even though the store already refuses a bad one.
@@ -101,11 +165,24 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
 
         tdir = site / "t" / slug
         tdir.mkdir(parents=True, exist_ok=True)
-        hosted = store.get_artifact(uid, tid, "hosted.html")
-        offline = store.get_artifact(uid, tid, "offline.html")
+        pname = name_by_pid.get(t.get("project_id", ""), "Alto")
+
+        # Current engine first; the stored artifacts are only as new as the last
+        # build_timeline call (see _rebuild).
+        raw, stale = _rebuild(store, uid, t)
+        if raw is None:
+            raw = store.get_artifact(uid, tid, "timeline.html")
+            stale_notes.append(f"{tid}: {stale}")
+        hosted = hosted_timeline(raw, tid) if raw else store.get_artifact(
+            uid, tid, "hosted.html")
         if not hosted:
             raise PublishError(f"{tid}: no built artifact — build_timeline first")
         (tdir / "index.html").write_text(hosted, encoding="utf-8")
+
+        offline = bundle(b, raw, pname) if raw else store.get_artifact(
+            uid, tid, "offline.html")
+        if raw:
+            briefs_by_pid.setdefault(t.get("project_id", ""), []).append((b, raw))
         if offline:
             (tdir / "offline.html").write_text(offline, encoding="utf-8")
 
@@ -122,12 +199,96 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     for p in store.list_projects(uid):
         cs = projects_by_pid.get(p["project_id"], [])
         if cs:
-            projects.append({"name": p["name"], "courses": cs})
+            # pid only when a project bundle actually exists at /p/{pid}/ — the
+            # homepage uses its presence to decide what its slab button offers.
+            has_bundle = len(briefs_by_pid.get(p["project_id"], [])) > 1
+            projects.append({"name": p["name"], "courses": cs,
+                             "pid": p["project_id"] if has_bundle else ""})
     orphaned = projects_by_pid.get("", [])
     if orphaned:
         projects.append({"name": "Alto", "courses": orphaned})
     (site / "index.html").write_text(hosted_home(build_home(projects)),
                                      encoding="utf-8")
+
+    # ── combined offline bundles ────────────────────────────────────────────
+    # A project holding ONE timeline would produce a byte-identical copy of that
+    # timeline's own /t/{slug}/offline.html, so it is skipped and the homepage's
+    # slab button points at the single timeline instead. Same for a whole site
+    # that only has one timeline.
+    pdir_root = site / "p"
+    groups_all = []
+    live_pids = set()
+    for pid, items in briefs_by_pid.items():
+        pname = name_by_pid.get(pid, "Alto")
+        groups_all.append({"name": pname, "items": items})
+        if len(items) < 2 or not pid:
+            continue
+        pslug = check_component(pid, "project_id")
+        live_pids.add(pslug)
+        bdir = pdir_root / pslug
+        bdir.mkdir(parents=True, exist_ok=True)
+        (bdir / "offline.html").write_text(
+            bundle_many([{"name": pname, "items": items}],
+                        title=f"{pname} — Alto"),
+            encoding="utf-8")
+
+    if pdir_root.exists():
+        for d in pdir_root.iterdir():
+            if d.is_dir() and d.name not in live_pids:
+                shutil.rmtree(d)
+
+    # ── private timelines ───────────────────────────────────────────────────
+    # Only the sign-in shell goes on the web; it is byte-identical for every
+    # private timeline and carries no timeline content at all. The page itself
+    # is uploaded to Firestore from the owner's browser (see private_shell.py).
+    pvdir_root = site / "pv"
+    live_keys = set()
+    private = _private_web(store, uid)
+    # Digest of the alto-cloud.js this publish ships, so the shell's script URL
+    # changes whenever the file does. See private_shell.shell().
+    cloud_v = hashlib.sha256(emit_cloud_js().encode()).hexdigest()[:12]
+    # A private timeline is opened by signing in; with no Firebase project there
+    # is nothing to sign into, so the shell would be a locked door with no key —
+    # and the page would never reach Firestore to begin with. Refuse rather than
+    # publish something no one, including the owner, can ever open.
+    if private and not load_config().get("apiKey"):
+        raise PublishError(
+            f"{len(private)} timeline(s) are published as 'private-web', but "
+            "this site has no Firebase project configured, so Google sign-in "
+            "is off and nobody could ever open them. Set ALTO_FIREBASE_CONFIG "
+            "(see README §Publishing), or republish them as 'link'/'private'.")
+    for t in private:
+        key = check_component(t["private_key"], "private_key")
+        live_keys.add(key)
+        d = pvdir_root / key
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "index.html").write_text(private_shell(cloud_v), encoding="utf-8")
+        # Refresh the artifact the owner uploads, for the same reason the
+        # hosted page is rebuilt above: a timeline built before private.html
+        # existed has none, and one built long ago predates current engine
+        # fixes. Falls back to whatever is stored if it cannot be rebuilt.
+        tid = check_component(t["timeline_id"], "timeline_id")
+        raw, stale = _rebuild(store, uid, t)
+        if raw is None:
+            raw = store.get_artifact(uid, tid, "timeline.html")
+            stale_notes.append(f"{tid}: {stale}")
+        if raw:
+            b, _, _ = load_brief({"brief": t["brief"]})
+            store.put_artifact(uid, tid, "private.html", private_page(b, raw))
+
+    # Pruned on its own key set: `live` above is built from link-visible
+    # timelines, so sharing that loop would delete every shell each publish.
+    if pvdir_root.exists():
+        for d in pvdir_root.iterdir():
+            if d.is_dir() and d.name not in live_keys:
+                shutil.rmtree(d)
+
+    all_offline = site / "offline.html"
+    if sum(len(i) for i in briefs_by_pid.values()) > 1:
+        all_offline.write_text(bundle_many(groups_all, title="Alto"),
+                               encoding="utf-8")
+    elif all_offline.exists():
+        all_offline.unlink()
 
     # reports viewer (all published courses selectable via ?course=)
     rdir = site / "reports"
@@ -182,12 +343,25 @@ def _security_headers() -> list[dict]:
         "form-action 'none'",
         "frame-ancestors 'none'",
     ])
-    return [{"source": "**", "headers": [
-        {"key": "Content-Security-Policy", "value": csp},
-        {"key": "X-Content-Type-Options", "value": "nosniff"},
-        {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
-        {"key": "X-Frame-Options", "value": "DENY"},
-    ]}]
+    return [
+        {"source": "**", "headers": [
+            {"key": "Content-Security-Policy", "value": csp},
+            {"key": "X-Content-Type-Options", "value": "nosniff"},
+            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+            {"key": "X-Frame-Options", "value": "DENY"},
+            # Firebase Hosting defaults to max-age=3600, and deploy_site
+            # regenerates firebase.json every publish, so a hand-written cache
+            # rule cannot survive there. Without this a publish takes up to an
+            # hour to reach anyone who has already visited — and the failure is
+            # invisible from outside: curl sees the new file, the owner does
+            # not. On "**" rather than "**/*.@(js|html)" because Hosting matches
+            # headers against the REQUEST path, and a page served as a directory
+            # index (/t/{slug}/, /pv/{key}/) never matches a .html glob. Every
+            # file this site serves is HTML or JS, so no-cache costs one
+            # conditional request and makes a publish mean what it says.
+            {"key": "Cache-Control", "value": "no-cache"},
+        ]},
+    ]
 
 
 def deploy_site(site_dir: Path) -> str:

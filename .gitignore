@@ -32,3 +32,6 @@ tools/
 
 # The author's own publishing runbook — names his projects and accounts.
 DISTRIBUTION.md
+
+# Machine-specific permission rules (absolute paths to this laptop)
+.claude/settings.local.json

@@ -529,6 +529,49 @@
   }
   .acct-signout:hover{ color:var(--text); background:var(--btn-hover-bg); }
 
+  /* ── Download everything — sits beside the account button, bottom-left ── */
+  #download-all{
+    position:fixed; bottom:24px; left:60px; z-index:300;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
+    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--muted); cursor:pointer; padding:0;
+    transition:transform .35s cubic-bezier(.4,0,.2,1), color .2s;
+  }
+  #download-all:hover{ border-color:var(--muted); color:var(--text); }
+
+  /* ── "Include my notes?" — asked on every download ── */
+  #dl-scrim{
+    position:fixed; inset:0; z-index:400; display:none; align-items:center; justify-content:center;
+    background:rgba(10,12,24,.32);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  }
+  #dl-scrim.open{ display:flex; }
+  #dl-modal{
+    width:340px; border-radius:16px; padding:30px 30px 24px;
+    background:var(--panel-glass-bg); border:1px solid var(--glass-slab-border);
+    box-shadow:0 8px 40px var(--card-shadow), inset 0 1px 0 var(--card-glass-hi);
+    -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+  }
+  .dl-choice{
+    display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+    width:100%; margin-bottom:12px; padding:11px 14px; border-radius:12px;
+    border:1px solid var(--btn-border); background:var(--card-glass-bg);
+    color:var(--text); font-family:inherit; font-size:13.5px; cursor:pointer;
+    text-align:left; transition:background .2s;
+  }
+  .dl-choice:hover{ background:var(--btn-hover-bg); }
+  .dl-choice small{ color:var(--muted); font-size:11.5px; line-height:1.5; }
+  .dl-cancel{
+    width:100%; height:38px; border-radius:10px; border:1px solid var(--btn-border);
+    background:transparent; color:var(--muted); font-family:inherit; font-size:12.5px; cursor:pointer;
+  }
+  .dl-cancel:hover{ color:var(--text); background:var(--btn-hover-bg); }
+
   /* ── Per-course reports button — small doc bubble in the tile's bottom-right ── */
   .course-tile{ position:relative; }
   .tile-reports{
@@ -548,6 +591,15 @@
     transition:transform .2s, color .2s;
   }
   .tile-share:hover{ transform:scale(1.15); color:var(--text); }
+  /* Download an offline copy of this timeline — left of share, same 34px stride */
+  .tile-download{
+    position:absolute; bottom:14px; right:82px; width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; padding:0;
+    background:var(--chip-glass-bg); border:1px solid var(--btn-border);
+    color:var(--muted); cursor:pointer; z-index:2;
+    transition:transform .2s, color .2s;
+  }
+  .tile-download:hover{ transform:scale(1.15); color:var(--text); }
   /* C5: share the whole project — top-right of the slab (no print) */
   .project-slab{ position:relative; }
   .slab-share{
@@ -559,13 +611,32 @@
   }
   .slab-share:hover{ transform:scale(1.1); color:var(--text); }
   @media (max-width:640px){ .slab-share{ top:22px; right:18px; } }
+  /* Download the whole project offline — left of the slab share button */
+  .slab-download{
+    position:absolute; top:36px; right:82px; width:30px; height:30px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; padding:0;
+    background:var(--chip-glass-bg); border:1px solid var(--btn-border);
+    color:var(--muted); cursor:pointer; z-index:3;
+    transition:transform .2s, color .2s;
+  }
+  .slab-download:hover{ transform:scale(1.1); color:var(--text); }
+  /* An offline copy is a desktop thing: a phone has nowhere useful to put a
+     multi-megabyte .html file and no way to open it afterwards. */
+  @media (max-width:640px){
+    .tile-download, .slab-download, #download-all{ display:none !important; }
+  }
+  /* Busy state — these fetch 0.7–4 MB, so the click needs an acknowledgement. */
+  .tile-download.busy, .slab-download.busy, #download-all.busy{
+    opacity:.55; pointer-events:none;
+  }
 
   /* ── PRINT: strip wallpaper + fixed chrome; slabs/tiles as plain ink-light outlines.
      (Without this, the toolbar tiles + full-bleed wallpaper printed over the slabs.) */
   @media print{
     html, body{ height:auto !important; background:#fff !important; }
     #page-bg, #page-glass, #title-bar, #m-toolbar, #search-btn, #info-btn,
-    #account-btn, #mode-toggle, #claude-toast, #account-scrim{ display:none !important; }
+    #account-btn, #mode-toggle, #claude-toast, #account-scrim,
+    #download-all, #dl-scrim{ display:none !important; }
     #projects-wrap{ padding:10px 0 !important; gap:20px !important; }
     .project-slab, .course-tile{
       background:#fff !important; box-shadow:none !important;
@@ -575,6 +646,7 @@
     .course-tile{ border:1px solid #ccc !important; }
     .course-tile .unit-strip{ display:none !important; }   /* solid color bars = ink */
     .tile-share, .tile-reports, .slab-share,
+    .tile-download, .slab-download,
     .course-tile.new-tile, .project-slab.new-project-slab{ display:none !important; }
     #projects-wrap *{ color:#000 !important; text-shadow:none !important; }
   }
@@ -637,6 +709,18 @@
     </div>
   </div>
 </div>
+
+<div id="dl-scrim">
+  <div id="dl-modal">
+    <div class="acct-title">Offline copy</div>
+    <div class="acct-sub" id="dl-sub"></div>
+    <button class="dl-choice" id="dl-with"></button>
+    <button class="dl-choice" id="dl-clean">Clean copy<small>No highlights or notes — the file others should get.</small></button>
+    <button class="dl-cancel" onclick="dlClose()">Cancel</button>
+  </div>
+</div>
+
+<button id="download-all" onclick="altoDownloadAll()" title="Download everything — offline copy" aria-label="Download everything"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8 H5 V17 H15 V8 H13"/><line x1="10" y1="3" x2="10" y2="12"/><polyline points="7,9 10,12 13,9"/></svg></button>
 
 <button id="mode-toggle" onclick="toggleMode()"><span id="mode-label">&#9789; Dark</span><svg class="mode-glyph mode-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16 12.2A6.4 6.4 0 1 1 8.6 3.2 5 5 0 0 0 16 12.2Z" fill="currentColor"/></svg><svg class="mode-glyph mode-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="10" y1="1.6" x2="10" y2="3.8"/><line x1="10" y1="16.2" x2="10" y2="18.4"/><line x1="1.6" y1="10" x2="3.8" y2="10"/><line x1="16.2" y1="10" x2="18.4" y2="10"/><line x1="4.05" y1="4.05" x2="5.6" y2="5.6"/><line x1="14.4" y1="14.4" x2="15.95" y2="15.95"/><line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>
 
@@ -716,6 +800,103 @@ function showToast(msg){
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => el.classList.remove('show'), 2500);
 }
+// ── Offline copies ────────────────────────────────────────────────────────
+// The bundles themselves are built at publish time and sit beside the pages
+// they mirror (/t/{slug}/offline.html, /p/{pid}/offline.html, /offline.html).
+// All that happens here is the fetch, the notes question, and the save.
+const DOWNLOAD_GLYPH = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8 H5 V17 H15 V8 H13"/><line x1="10" y1="3" x2="10" y2="12"/><polyline points="7,9 10,12 13,9"/></svg>';
+// An offline copy has no offline copies to hand out: inside the bundle every
+// page runs from a srcdoc frame (protocol "about:"), where these fetches would
+// only 404. Same for a page opened straight off disk.
+const DL_OK = /^https?:$/.test(location.protocol);
+
+function dlClose(){ document.getElementById('dl-scrim').classList.remove('open'); }
+
+// Highlights and notes live only in THIS browser, under one key pair per
+// timeline — so a copy can only carry them if we read them here and seed them.
+function dlNotes(tids){
+  const kv = {};
+  (tids || []).forEach(t => ['alto-hl-' + t, 'alto-doc-' + t].forEach(k => {
+    try { const v = localStorage.getItem(k); if(v) kv[k] = v; } catch(e){}
+  }));
+  return kv;
+}
+function dlNoteCount(kv){
+  let n = 0;
+  Object.keys(kv).forEach(k => {
+    if(k.indexOf('alto-hl-') !== 0) return;
+    try { const a = JSON.parse(kv[k]); if(Array.isArray(a)) n += a.length; } catch(e){}
+  });
+  return n;
+}
+
+function dlFilename(name){
+  const base = (name || 'alto').replace(/[^\w -]+/g, '').trim().slice(0, 40) || 'alto';
+  return base.replace(/\s+/g, '-') + '-offline.html';
+}
+
+async function dlSave(url, filename, kv, btn){
+  if(btn) btn.classList.add('busy');
+  try {
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    let html = await r.text();
+    if(kv && Object.keys(kv).length){
+      // The shell and every framed page share one origin, so a single seed in
+      // the shell's head reaches all of them. It never overwrites: notes made
+      // inside the copy survive reopening it.
+      const seed = '<scr' + 'ipt>try{var S=' + JSON.stringify(kv).replace(/</g, '\\u003c') +
+        ';for(var k in S){if(!localStorage.getItem(k))localStorage.setItem(k,S[k]);}}catch(e){}</scr' + 'ipt>';
+      const i = html.indexOf('<head>');
+      if(i >= 0) html = html.slice(0, i + 6) + seed + html.slice(i + 6);
+    }
+    const blob = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast('Saved ' + filename);
+  } catch(e){
+    showToast('Could not download — try again');
+  } finally {
+    if(btn) btn.classList.remove('busy');
+  }
+}
+
+// Ask every time, but only when there is something to ask about.
+function altoDownloadOffline(url, name, tids, btn){
+  const filename = dlFilename(name);
+  const kv = dlNotes(tids), n = dlNoteCount(kv);
+  if(!n) return dlSave(url, filename, null, btn);
+  document.getElementById('dl-sub').textContent =
+    'Your highlights and notes live in this browser, not in the file. Carry them across?';
+  const withBtn = document.getElementById('dl-with');
+  withBtn.innerHTML = 'Include my notes (' + n + ')<small>A snapshot — later changes on either side stay put.</small>';
+  withBtn.onclick = () => { dlClose(); dlSave(url, filename, kv, btn); };
+  document.getElementById('dl-clean').onclick = () => { dlClose(); dlSave(url, filename, null, btn); };
+  document.getElementById('dl-scrim').classList.add('open');
+}
+
+function altoDownloadAll(){
+  const tids = [];
+  PROJECTS.forEach(p => p.courses.forEach(c => { if(c.courseId) tids.push(c.courseId); }));
+  altoDownloadOffline('/offline.html', 'Alto', tids, document.getElementById('download-all'));
+}
+
+// /offline.html is only published when the site holds 2+ timelines — with one,
+// the per-timeline button already offers the identical file.
+(function(){
+  const btn = document.getElementById('download-all');
+  if(!btn) return;
+  let n = 0;
+  PROJECTS.forEach(p => p.courses.forEach(c => { if(c.courseId && !c.comingSoon) n++; }));
+  if(!DL_OK || n < 2) btn.style.display = 'none';
+})();
+document.getElementById('dl-scrim').addEventListener('click', e => {
+  if(e.target.id === 'dl-scrim') dlClose();
+});
+
 const newProjectPrompt =
   'I want to start a new project in Alto. Help me install the Alto connector on this device, ' +
   'then interview me about the materials I want to turn into a timeline, course, or book.';
@@ -775,6 +956,25 @@ PROJECTS.forEach((p, pi) => {
       });
       el.appendChild(shb);
     }
+    // Download an offline copy of this one timeline — left of share.
+    if(live && c.courseId && DL_OK){
+      const dlb = document.createElement('button');
+      dlb.className = 'tile-download';
+      dlb.title = c.title + ' — download offline copy';
+      dlb.setAttribute('aria-label', c.title + ' download offline copy');
+      dlb.innerHTML = DOWNLOAD_GLYPH;
+      // Close the gap when the buttons to its right were not drawn.
+      let slot = 82;
+      if(!el.querySelector('.tile-reports')) slot -= 34;
+      if(!el.querySelector('.tile-share')) slot -= 34;
+      if(slot !== 82) dlb.style.right = slot + 'px';
+      dlb.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        altoDownloadOffline(c.href.replace(/[^/]*$/, '') + 'offline.html',
+                            c.title, [c.courseId], dlb);
+      });
+      el.appendChild(dlb);
+    }
     grid.appendChild(el);
   });
   // ＋ New — start a new item inside this project (course/book/timeline…).
@@ -793,6 +993,25 @@ PROJECTS.forEach((p, pi) => {
   psh.innerHTML = SHARE_GLYPH;
   psh.addEventListener('click', () => altoShareLink('index.html?project=' + encodeURIComponent(p.name), p.name + ' — Alto project'));
   slab.appendChild(psh);
+  // Download the whole project as one file. With a single timeline there is no
+  // /p/{pid}/ bundle — it would be a byte-for-byte copy of that timeline's own
+  // — so point at the timeline's instead.
+  if(DL_OK){
+    const live1 = p.courses.filter(c => !c.comingSoon && c.courseId);
+    let url = '';
+    if(p.pid) url = '/p/' + encodeURIComponent(p.pid) + '/offline.html';
+    else if(live1.length === 1) url = live1[0].href.replace(/[^/]*$/, '') + 'offline.html';
+    if(url){
+      const pdl = document.createElement('button');
+      pdl.className = 'slab-download';
+      pdl.title = p.name + ' — download offline copy';
+      pdl.setAttribute('aria-label', p.name + ' download offline copy');
+      pdl.innerHTML = DOWNLOAD_GLYPH;
+      pdl.addEventListener('click', () => altoDownloadOffline(
+        url, p.name, live1.map(c => c.courseId), pdl));
+      slab.appendChild(pdl);
+    }
+  }
   wrap.appendChild(slab);
 });
 

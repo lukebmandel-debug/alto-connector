@@ -1,14 +1,19 @@
-"""Package a built timeline + generated home/reports snapshot into ONE offline
-HTML file — a direct port of Terrarium's build_single_file.py (srcdoc-iframe
-shell, __altoSwap router, SHIM link rerouting, cloud tag stripped), with the
-Terrarium-specific anchors parameterized by timeline id.
+"""Package one or more built timelines + a generated home snapshot into ONE
+offline HTML file — a direct port of Terrarium's build_single_file.py
+(srcdoc-iframe shell, __altoSwap router, SHIM link rerouting, cloud tag
+stripped), with the Terrarium-specific anchors parameterized by timeline id.
+
+Every timeline in a bundle gets the router key `t_<n>`, served at the synthetic
+href `t_<n>.html`. The reports repository is deliberately NOT bundled: an
+offline copy carries the timelines and their detail pages, nothing else.
 """
 from __future__ import annotations
 
+import html as _html
 import json
 
 from .brief import Brief
-from .pages import build_home, build_reports, course_entry_for
+from .pages import build_home, course_entry_for
 
 
 class BundleError(ValueError):
@@ -37,7 +42,9 @@ SHIM = ("<script>(function(){function go(u){try{var p=window.parent;"
         "document.addEventListener('click',function(e){var t=e.target;"
         "if(t&&t.closest&&t.closest('button'))return;"
         "var a=t&&t.closest&&t.closest('a[href]');"
-        "if(!a)return;var h=a.getAttribute('href')||'';if(/^(index|terrarium_glass|reports)\\.html/.test(h))"
+        # t_<n>.html is a bundled timeline. Without it here the chip anchors in a
+        # multi-timeline bundle fall through to a real navigation and 404.
+        "if(!a)return;var h=a.getAttribute('href')||'';if(/^(index|terrarium_glass|reports|t_\\d+)\\.html/.test(h))"
         "{e.preventDefault();window.__altoGo(h);}},true);"
         "})();</script>")
 
@@ -55,19 +62,88 @@ def _embed(html):
     return json.dumps(html).replace("<", "\\u003c")
 
 
+def _prepare_timeline(tl: str, tid: str, label: str) -> str:
+    """Reroute one timeline document's navigation into the bundle's router."""
+    tl = _rep(tl, CLOUD_TAG, "", 1, f"strip cloud tag ({label})")
+    tl = _rep(tl, "onclick=\"location.href='index.html'\"",
+              "onclick=\"__altoGo('index.html')\"", 2, f"{label} clef+wordmark")
+    # The reports repository is not bundled, so its button has nowhere to go —
+    # hide it rather than route it at a missing document.
+    tl = _rep(tl,
+              f"onclick=\"location.href='reports.html?course={tid}&amp;from=project'\"",
+              "style=\"display:none\" onclick=\"return false\"",
+              1, f"{label} reports btn (hidden: no reports in bundle)")
+    tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
+              2, f"{label} mobile brand (js)")
+    tl = _rep(tl, "location.hash", "__altoHash()", 3, f"{label} hash reads")
+    return _inject_shim(tl, label)
+
+
+# The framed page's own account panel is built in JS, so there is no markup to
+# rewrite — hide it with a style instead. In an offline bundle the simulated
+# account is honest enough (there is no server to be signed in to), but in the
+# private view the session is REAL and belongs to the shell: the framed panel
+# would offer a "Sign out" that clears a localStorage key, changes nothing about
+# Firebase, and leaves the timeline on screen. A sign-out control that lies
+# about signing you out is worse than none.
+_HIDE_FRAMED_ACCOUNT = "<style>#account-btn{display:none !important}</style>"
+
+
+def private_page(brief: Brief, timeline_html: str) -> str:
+    """The timeline prepared for srcdoc delivery by the private shell.
+
+    Identical preparation to a bundled timeline — the cloud tag stripped (it
+    cannot run at about:srcdoc anyway), navigation routed through __altoGo, the
+    reports button hidden — but delivered as one document rather than embedded
+    in a router, and with the framed account panel suppressed. The shell
+    supplies __altoSwap; see alto/build/private_shell.py.
+    """
+    page = _prepare_timeline(timeline_html, brief.timeline_id, "private")
+    i = page.find("<head>")
+    if i < 0:
+        raise BundleError("private: no <head>")
+    return page[:i + 6] + _HIDE_FRAMED_ACCOUNT + page[i + 6:]
+
+
 def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
     """Return the single offline HTML file for one built timeline."""
-    tid = brief.timeline_id
-    course = course_entry_for(brief, project_name or brief.subject or "Alto")
-    home = build_home([{"name": project_name or "Alto",
-                        "courses": [course]}])
-    reports = build_reports([course], tid)
-    tl = timeline_html
+    name = project_name or brief.subject or "Alto"
+    return bundle_many([{"name": name, "items": [(brief, timeline_html)]}],
+                       title=f"{brief.title} — Alto")
 
-    # strip the hosted-only cloud loader everywhere
+
+def bundle_many(groups: list[dict], title: str = "Alto") -> str:
+    """Return ONE offline HTML file holding every timeline in `groups`.
+
+    groups: [{"name": <project name>, "items": [(Brief, timeline_html), ...]}]
+
+    One group with one item is the single-timeline bundle; several groups is a
+    whole-site bundle. Router keys are assigned across the whole bundle, so a
+    timeline's key is stable regardless of which project it sits in.
+    """
+    if not groups or not any(g["items"] for g in groups):
+        raise BundleError("bundle_many: nothing to bundle")
+
+    projects, docs, keys = [], {}, {}
+    n = 0
+    for g in groups:
+        courses = []
+        for brief, timeline_html in g["items"]:
+            key = f"t_{n}"
+            entry = course_entry_for(brief, g["name"], href=f"{key}.html")
+            # No reports page in the bundle → no report bubble on the chip.
+            entry["reports"] = False
+            courses.append(entry)
+            docs[key] = _prepare_timeline(timeline_html, brief.timeline_id, key)
+            keys[f"{key}.html"] = key
+            n += 1
+        if courses:
+            projects.append({"name": g["name"], "courses": courses})
+
+    home = build_home(projects)
+
+    # strip the hosted-only cloud loader
     home = _rep(home, CLOUD_TAG, "", 1, "strip cloud tag (home)")
-    tl = _rep(tl, CLOUD_TAG, "", 1, "strip cloud tag (timeline)")
-    reports = _rep(reports, CLOUD_TAG, "", 1, "strip cloud tag (reports)")
 
     # home edits
     home = _rep(home,
@@ -78,10 +154,13 @@ def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
                 "go:(id => () => { location.href = courseHref + '#find=' + id; })(m[1])",
                 "go:(id => () => { __altoGo(courseHref + '#find=' + id); })(m[1])",
                 1, "home search deep-link")
+    # Search indexes every bundled timeline, so the source has to resolve the
+    # course's own href to its router key rather than assume a single doc.
     home = _rep(home,
                 "fetch(c.href)\n          .then(r => r.ok ? r.text() : '')",
                 "Promise.resolve((function(){try{var p=window.parent;"
-                "return (p&&p.__altoDoc&&p.__altoDoc('timeline'))||'';}catch(e){return '';}})())",
+                "var k=String(c.href||'').replace(/^\\.?\\//,'').replace(/\\.html$/,'');"
+                "return (p&&p.__altoDoc&&p.__altoDoc(k))||'';}catch(e){return '';}})())",
                 1, "home search source")
     # Share: the bundle runs every page in a srcdoc iframe, where location.href
     # is "about:srcdoc" — an invalid base, so `new URL(path, location.href)`
@@ -107,35 +186,18 @@ def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
     home = _rep(home, "  location.href = 'claude://claude.ai/new?q=' + q;\n",
                 "  window.open(web, '_blank');\n", 1, "openClaude desktop")
     home = _inject_shim(home, "home")
+    docs["home"] = home
 
-    # timeline edits (anchors parameterized by tid)
-    tl = _rep(tl, "onclick=\"location.href='index.html'\"",
-              "onclick=\"__altoGo('index.html')\"", 2, "tl clef+wordmark")
-    tl = _rep(tl,
-              f"onclick=\"location.href='reports.html?course={tid}&amp;from=project'\"",
-              f"onclick=\"__altoGo('reports.html?course={tid}&amp;from=project')\"",
-              1, "tl reports btn")
-    tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
-              2, "tl mobile brand (js)")
-    tl = _rep(tl, "location.hash", "__altoHash()", 3, "tl hash reads")
-    tl = _inject_shim(tl, "timeline")
-
-    # reports edits
-    reports = _rep(reports, "onclick=\"location.href='index.html'\"",
-                   "onclick=\"__altoGo('index.html')\"", 2, "reports brand")
-    reports = _rep(reports, "const params = new URLSearchParams(location.search);",
-                   "const params = new URLSearchParams(window.__altoSearch?window.__altoSearch():location.search);",
-                   1, "reports query read")
-    reports = _inject_shim(reports, "reports")
-
-    for name, h in [("home", home), ("timeline", tl), ("reports", reports)]:
+    for name, h in docs.items():
         for bad in ["location.href='index.html'", "location.href = 'reports.html",
                     "location.href = 'terrarium_glass.html",
                     "onclick=\"location.href='index.html'\""]:
             if bad in h:
                 raise BundleError(f"{name}: residual un-routed nav :: {bad!r}")
 
-    title = f"{brief.title} — Alto"
+    keys["index.html"] = "home"
+    docs_js = ",\n".join(f"{k}:{_embed(v)}" for k, v in docs.items())
+    title = _html.escape(title, quote=True)
     shell = (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
@@ -145,13 +207,13 @@ def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
         '</head><body>\n'
         f'<iframe id="stage" title="{title}" allow="clipboard-write; clipboard-read"></iframe>\n'
         '<script>\n'
-        'var __DOCS={home:' + _embed(home) + ',\ntimeline:' + _embed(tl) +
-        ',\nreports:' + _embed(reports) + '};\n'
+        'var __DOCS={' + docs_js + '};\n'
         'window.__altoDoc=function(k){return __DOCS[k]||"";};\n'
-        'var __KEY={"index.html":"home","terrarium_glass.html":"timeline","reports.html":"reports"};\n'
+        'var __KEY=' + json.dumps(keys) + ';\n'
         'window.__altoSwap=function(url){\n'
         '  url=String(url||"index.html");\n'
-        '  var m=/^\\.?\\/?([a-z_]+\\.html)(\\?[^#]*)?(#.*)?$/.exec(url);\n'
+        # [a-z0-9_] — bundled timelines are keyed t_0, t_1, ...
+        '  var m=/^\\.?\\/?([a-z0-9_]+\\.html)(\\?[^#]*)?(#.*)?$/.exec(url);\n'
         '  var file=(m&&m[1])||"index.html", search=(m&&m[2])||"", hash=(m&&m[3])||"";\n'
         '  var key=__KEY[file]||"home";\n'
         '  var html=__DOCS[key]||"";\n'
