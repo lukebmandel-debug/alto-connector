@@ -178,3 +178,12 @@ def test_reports_carry_the_homepage_glyphs():
                'id="account-scrim"'):
         assert el in r, el
     assert "function _altoSignInFailed(" in r
+
+
+def test_any_private_key_opens_the_shell():
+    """The homepage lists every private timeline the account owns, whichever
+    of its sites published it; a key this site never published must still
+    reach the shell rather than a 404."""
+    src = (ROOT / "alto" / "publish_static.py").read_text(encoding="utf-8")
+    assert '{"source": "/pv/**", "destination": "/pv/index.html"}' in src
+    assert '(pvdir_root / "index.html").write_text(private_shell(cloud_v)' in src

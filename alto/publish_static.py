@@ -12,6 +12,8 @@ Site layout (Firebase Hosting site `alto-connector`, static only):
                            the site holds 2+)
   /pv/{key}/index.html   — sign-in shell for a 'private-web' timeline; the
                            page itself is NOT here, it is in Firestore
+  /pv/index.html         — the same shell, which every other /pv/{key}/
+                           rewrites to (see deploy_site)
   /s/index.html          — shell for every share link; /s/{key}/ rewrites to
                            it, so creating or revoking a share is a Firestore
                            write and never a deploy
@@ -301,6 +303,15 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         for d in pvdir_root.iterdir():
             if d.is_dir() and d.name not in live_keys:
                 shutil.rmtree(d)
+    # The shell is identical for every key and carries nothing, so it also
+    # answers /pv/{key}/ for keys this site did not publish — a private
+    # timeline listed on the homepage because the SAME account published it
+    # from another site on this Firebase project. Without it that chip was a
+    # 404. Firestore's rules, not the shell, still decide who reads the page.
+    if load_config().get("apiKey"):
+        pvdir_root.mkdir(parents=True, exist_ok=True)
+        (pvdir_root / "index.html").write_text(private_shell(cloud_v),
+                                               encoding="utf-8")
 
     all_offline = site / "offline.html"
     if sum(len(i) for i in briefs_by_pid.values()) > 1:
@@ -411,7 +422,10 @@ def deploy_site(site_dir: Path) -> str:
         # A rewrite rather than a directory per share: a share is created in
         # the browser, and a share that needed a deploy to exist could not be
         # created there at all.
-        "rewrites": [{"source": "/s/**", "destination": "/s/index.html"}],
+        "rewrites": [{"source": "/s/**", "destination": "/s/index.html"},
+                     # Same idea for private timelines: any account's page
+                     # opens from any of its sites (see regenerate_site).
+                     {"source": "/pv/**", "destination": "/pv/index.html"}],
         "headers": _security_headers()}}
     if rules_out.exists():
         cfg_json["firestore"] = {"rules": rules_out.name}
