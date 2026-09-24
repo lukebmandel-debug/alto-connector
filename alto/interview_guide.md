@@ -61,11 +61,17 @@ directly into this conversation — that is the normal delivery path.
 (If the user already has projects, `list_projects` first and offer to add
 into one.)
 
+**Signing in.** When Alto keeps projects in the user's own account, a tool may
+answer that Alto is not signed in on this computer. Call `sign_in`: it opens
+their Alto site, where they click Continue with Google once. If it returns
+`waiting`, tell them to finish in the browser, then call it again. Signed in,
+`list_projects` is their whole account — the same projects the homepage shows.
+
 **A project named from the homepage.** The homepage's "＋ New timeline" names
 the project it was clicked in. If `list_projects` has no project by that
-exact name, it was published from another device or another Alto store — the
-homepage lists everything on the user's account, this connector only what is
-stored here. That is normal; do not tell the user the project does not exist
+exact name, it was published from another device or another Alto store (when
+Alto keeps projects in a folder, the homepage lists everything on the account
+but this connector only what is stored here). That is normal; do not tell the user the project does not exist
 or ask which account they used. Create it here with **exactly** that name
 (`create_project`) — the homepage files timelines by project name, so the new
 timeline lands in the same box — ask only for the purpose (and kind, with

@@ -211,6 +211,7 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
                     "ALTO_TRANSPORT": "stdio",
                     "ALTO_PUBLISH_MODE": "firebase-static",
                     "ALTO_STORE_DIR": "${user_config.store_dir}",
+                    "ALTO_STORE": "${user_config.store_mode}",
                     "ALTO_FIREBASE_SITE": "${user_config.firebase_site}",
                     "ALTO_FIREBASE_PROJECT": "${user_config.firebase_project}",
                     "ALTO_FIREBASE_CONFIG": "${user_config.firebase_config}",
@@ -226,6 +227,17 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
                 "description": ("Drafts, built pages and offline files are "
                                 "stored here on this Mac."),
                 "default": "${HOME}/Documents/Alto",
+                "required": False,
+            },
+            "store_mode": {
+                "type": "string",
+                "title": "Keep projects in (local or cloud)",
+                "description": ("local: in the folder above, on this Mac. "
+                                "cloud: in your own Firebase account, so every "
+                                "computer you sign in on sees the same projects "
+                                "(needs the three Firebase settings below; "
+                                "Claude asks you to sign in once)."),
+                "default": "local",
                 "required": False,
             },
             "firebase_site": {

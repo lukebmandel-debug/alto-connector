@@ -14,6 +14,8 @@ Site layout (Firebase Hosting site `alto-connector`, static only):
                            page itself is NOT here, it is in Firestore
   /pv/index.html         — the same shell, which every other /pv/{key}/
                            rewrites to (see deploy_site)
+  /connect/index.html    — where Alto on the user's computer signs in as them
+                           (ALTO_STORE=cloud; alto/cloud/session.py)
   /s/index.html          — shell for every share link; /s/{key}/ rewrites to
                            it, so creating or revoking a share is a Firestore
                            write and never a deploy
@@ -312,6 +314,11 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         pvdir_root.mkdir(parents=True, exist_ok=True)
         (pvdir_root / "index.html").write_text(private_shell(cloud_v),
                                                encoding="utf-8")
+        # Where Alto on the user's computer signs in as them (ALTO_STORE=cloud).
+        from .build.connect_page import connect_page
+        cdir = site / "connect"
+        cdir.mkdir(parents=True, exist_ok=True)
+        (cdir / "index.html").write_text(connect_page(cloud_v), encoding="utf-8")
 
     all_offline = site / "offline.html"
     if sum(len(i) for i in briefs_by_pid.values()) > 1:

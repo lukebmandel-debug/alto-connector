@@ -14,11 +14,29 @@ from alto.store.local import LocalStore  # noqa: E402
 SAMPLE = json.loads((ROOT / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
 
 
-@pytest.fixture(autouse=True)
-def fresh_store(tmp_path):
-    srv.set_store(LocalStore(tmp_path))
+@pytest.fixture(autouse=True, params=["local", "cloud"])
+def fresh_store(request, tmp_path, monkeypatch):
+    """Every flow runs twice: on a folder, and on the user's own account
+    (ALTO_STORE=cloud) through a fake of the Firestore REST API."""
+    if request.param == "local":
+        srv.set_store(LocalStore(tmp_path))
+        yield
+        srv.set_store(None)
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from cloudfake import FakeFirebase
+    from alto.cloud import session as sess
+    from alto.store.cloud import CloudStore
+    s = sess.Session({"apiKey": "k", "projectId": "proj", "appId": "a"},
+                     http=FakeFirebase(), path=tmp_path / "session.json",
+                     opener=lambda u: None)
+    s._accept("RT")
+    sess.set_session(s)
+    monkeypatch.setenv("ALTO_STORE", "cloud")
+    srv.set_store(CloudStore(s, LocalStore(tmp_path / "local")))
     yield
     srv.set_store(None)
+    sess.set_session(None)
 
 
 def _setup_draft():

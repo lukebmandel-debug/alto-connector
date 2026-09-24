@@ -147,6 +147,24 @@ their notes gets an account in *your* Firebase project: the security rules stop
 you reading their notes through the app, but you own the project and can see
 them in the Firebase console.
 
+### Keep your projects in your account (optional)
+
+Once publishing is set up, Alto can keep your projects in that same Firebase
+project instead of a folder, so every computer you use sees the same ones and
+private timelines publish without an upload. Set **Keep projects in** to
+`cloud` in the extension's settings (or `ALTO_STORE=cloud`). The first time
+Claude needs your projects, it opens your site's `/connect/` page; continue
+with Google once. It signs in as *you*, under the same security rules as the
+website, so it needs no admin key and stays on Firebase's free plan.
+
+Moving existing work across:
+
+```bash
+alto-connector migrate --from ~/Documents/Alto
+```
+
+It copies, never deletes, and skips anything already in your account.
+
 ## Repo layout
 
 - `engine/` — the three page templates, extracted content-free from the

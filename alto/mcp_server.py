@@ -64,12 +64,28 @@ def store_dir() -> str:
     return path
 
 
+def store_mode() -> str:
+    """local (a folder on this computer), cloud (the user's own Firestore,
+    reached as them after sign_in) or firestore (the parked hosted server's
+    admin store). Anything unrecognised — including an .mcpb placeholder that
+    was never filled in — is local, the one mode that needs no setup."""
+    m = os.environ.get("ALTO_STORE", "").strip().lower()
+    return m if m in ("local", "cloud", "firestore") else "local"
+
+
 def get_store():
     global _store
     if _store is None:
-        if os.environ.get("ALTO_STORE", "local") == "firestore":
+        mode = store_mode()
+        if mode == "firestore":
             from .store.firestore import FirestoreStore
             _store = FirestoreStore()
+        elif mode == "cloud":
+            from .cloud.session import get_session
+            from .store.cloud import CloudStore
+            # Built files still live here: they are rebuilt from nodes on every
+            # publish, and their paths are what the user is handed.
+            _store = CloudStore(get_session(), LocalStore(store_dir()))
         else:
             _store = LocalStore(store_dir())
     return _store
@@ -113,6 +129,11 @@ def uid() -> str:
         raise AuthError(
             "no authenticated uid in context — refusing to serve a request "
             "over a network transport without an identity")
+    # Projects kept in the user's own account belong to whoever signed in on
+    # this computer — the same uid the homepage and the security rules use.
+    if store_mode() == "cloud":
+        from .cloud.session import get_session
+        return get_session().uid
     # "local" rather than "dev": it becomes a directory name in the user's
     # store, and nothing about a single-user install is a dev environment.
     return os.environ.get("ALTO_DEV_UID", "local")
@@ -308,6 +329,42 @@ def get_interview_guide() -> dict:
     return {"guide_markdown": guide, "drafts": drafts}
 
 
+@mcp.tool(title="Sign in to your Alto account", annotations=RW)
+def sign_in() -> dict:
+    """Connect Alto on this computer to the user's own account, once per
+    computer, when projects are kept in the account (ALTO_STORE=cloud). Opens
+    the user's Alto site in their browser, where they continue with Google.
+    If it returns status 'waiting', ask the user to finish in the browser and
+    call sign_in again."""
+    if store_mode() != "cloud":
+        return {"status": "not_needed",
+                "message": ("This Alto keeps projects in a folder on this "
+                            "computer, so there is nothing to sign in to.")}
+    from .cloud.session import SignInRequired, get_session
+    from .publish_static import firebase_configured
+    s = get_session()
+    if s.signed_in:
+        try:
+            s.id_token()
+            return {"status": "signed_in", "email": s.email}
+        except SignInRequired:
+            s.forget()
+    fc = firebase_configured()
+    if not fc or not s.configured:
+        return {"error": "not_configured",
+                "message": ("Alto has no Firebase site configured "
+                            "(ALTO_FIREBASE_SITE / ALTO_FIREBASE_CONFIG), so "
+                            "there is no account to sign in to.")}
+    p = s.start(f"https://{fc[1]}.web.app")
+    if s.wait(45):
+        return {"status": "signed_in", "email": s.email}
+    return {"status": "waiting", "url": p["url"],
+            "message": ("A sign-in page is open in the user's browser (the URL "
+                        "above, if it did not open). Ask them to click "
+                        "Continue with Google there, then call sign_in again."
+                        + (f" Last error: {p['error']}" if p.get("error") else ""))}
+
+
 @mcp.tool(title="List projects", annotations=RO)
 def list_projects() -> dict:
     """List the user's Alto projects and the timelines inside them."""
@@ -326,6 +383,9 @@ def list_projects() -> dict:
     # The homepage lists every project on the user's account; this lists only
     # what is stored where this connector runs. Say so, or a project named on
     # the homepage reads as "missing" when it was only published elsewhere.
+    if store_mode() == "cloud":
+        # The account itself: exactly what the homepage lists.
+        return {"projects": projects}
     return {"projects": projects,
             "note": ("Projects stored with this connector only. A project the "
                      "user names that is not listed here was published from "
@@ -807,6 +867,26 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                     "note": ("anyone with this link can read it — it is public, "
                              "just unguessable. publish_timeline(visibility="
                              "'private') takes it down.")}
+        elif visibility == "private-web" and store_mode() == "cloud":
+            # Signed in as the owner, the connector writes the page into their
+            # account itself — the same two documents the browser upload
+            # writes — so it is on their homepage the moment this returns.
+            from .build.private_shell import MAX_PAGE_BYTES
+            from .cloud.meta import meta_of, title_of
+            key = doc["private_key"]
+            page = st.get_artifact(uid(), timeline_id, "private.html") or ""
+            if not page:
+                return {"error": "not_built", "message": "build_timeline first"}
+            if len(page.encode("utf-8")) > MAX_PAGE_BYTES:
+                return {"error": "too_large",
+                        "message": (f"{len(page.encode()) // 1024} KB exceeds the "
+                                    f"{MAX_PAGE_BYTES // 1024} KB a private page can be")}
+            st.put_page(uid(), key, page, title_of(page), meta_of(page))
+            urls = {"view_url": f"{live}/pv/{key}/", **stale_bits,
+                    "note": ("Published privately to the user's own account: "
+                             "only they can open it, after signing in with "
+                             "Google, and it is already on their homepage in "
+                             "its project's box. Nothing to upload.")}
         elif visibility == "private-web":
             key = doc["private_key"]
             # put_artifact returns the path; same re-put idiom the offline
@@ -938,6 +1018,13 @@ Claude Desktop users can install the one-click bundle instead — see
 
 Environment:
   ALTO_STORE_DIR         where timelines are kept (default ~/Documents/Alto)
+  ALTO_STORE             local (default) or cloud: keep projects in your own
+                         Firebase account, so every computer you sign in on
+                         sees them (needs ALTO_FIREBASE_*; sign in once)
+
+Commands:
+  alto-connector migrate --from DIR [--from-uid UID] [--overwrite]
+                         copy projects from a local store into your account
   ALTO_TRANSPORT         stdio (default) or streamable-http
   ALTO_FIREBASE_SITE     your own Hosting site, to publish shareable links
   ALTO_FIREBASE_PROJECT  the project that site belongs to
@@ -955,6 +1042,9 @@ def main(argv: list[str] | None = None) -> None:
     if "--version" in args or "-V" in args:
         print(__version__)
         return
+    if args and args[0] == "migrate":
+        from .migrate import main as migrate_main
+        raise SystemExit(migrate_main(args[1:]))
     if args:
         print(f"alto-connector: unrecognised argument {args[0]!r}\n",
               file=sys.stderr)
