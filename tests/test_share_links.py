@@ -309,3 +309,57 @@ def test_the_pill_stays_clear_of_the_engines_own_controls():
 def test_saving_a_project_share_saves_the_project_not_one_timeline():
     s = shell()
     assert "savePill((MANIFEST && MANIFEST.title) || '')" in s
+
+
+# ── a share changes nothing about the public site ───────────────────────────
+
+def test_sharing_does_not_put_a_timeline_on_the_public_homepage(tmp_path, monkeypatch):
+    """A share lives entirely in Firestore. If creating one could also make a
+    timeline public — the thing the old 'republish as link' workflow did — the
+    whole feature would have reintroduced what it exists to replace."""
+    monkeypatch.setenv("ALTO_FIREBASE_CONFIG", json.dumps(
+        {"apiKey": "k", "projectId": "p", "appId": "a"}))
+    from alto.build.builder import build_timeline as bt, load_brief as lb
+    from alto.publish_static import _published, regenerate_site
+    from alto.store.local import LocalStore
+
+    d = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    b, nodes, conns = lb(d)
+    html, _ = bt(b, nodes, conns)
+    st = LocalStore(tmp_path / "store")
+    st.put_artifact("local", b.timeline_id, "timeline.html", html)
+    st.put_timeline("local", b.timeline_id, {
+        "timeline_id": b.timeline_id, "project_id": "", "brief": d["brief"],
+        "status": "published", "visibility": "private-web",
+        "private_key": KEY, "share_slug": f"{b.timeline_id}-aa22bb33"})
+
+    assert _published(st, "local") == []
+    site = regenerate_site(st, "local", tmp_path / "site")
+    home = (site / "index.html").read_text(encoding="utf-8")
+    block = home[home.index("const PROJECTS = ["):]
+    block = block[:block.index("\n];")]
+    assert b.timeline_id not in block and b.title not in block
+    assert not (site / "t" / b.timeline_id).exists()
+
+
+def test_the_share_shell_is_written_once_for_every_share(tmp_path, monkeypatch):
+    """One shell behind a /s/** rewrite, not a directory per share. A share
+    that needed a deploy could not be created from the browser at all — which
+    is the only place the owner's credentials exist."""
+    monkeypatch.setenv("ALTO_FIREBASE_CONFIG", json.dumps(
+        {"apiKey": "k", "projectId": "p", "appId": "a"}))
+    from alto.publish_static import regenerate_site
+    from alto.store.local import LocalStore
+    site = regenerate_site(LocalStore(tmp_path / "store"), "local", tmp_path / "site")
+    assert (site / "s" / "index.html").exists()
+    assert [p.name for p in (site / "s").iterdir()] == ["index.html"]
+
+
+def test_a_project_manifest_is_followed_by_share_key_only():
+    """An item that carried a timeline id would name the owner's own document,
+    and the shell would be one typo away from trying to read it."""
+    s = shell()
+    fn = s[s.index("function openItem(it)"):]
+    fn = fn[:fn.index("\n  }")]
+    assert "it.shareKey" in fn
+    assert "courseId" not in fn and "timeline_id" not in fn and "tid" not in fn
