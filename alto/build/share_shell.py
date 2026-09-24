@@ -56,6 +56,14 @@ button[disabled]{opacity:.55;cursor:default}
 .item b{display:block;font-size:14px;font-weight:600;margin:0 0 2px}
 .item span{font-size:11.5px;color:var(--muted)}
 .muted{font-size:11px;color:var(--muted);margin:12px 0 0;line-height:1.6}
+/* Offered over a rendered timeline, where the card is gone. Bottom-LEFT: the
+   engine keeps its own controls bottom-right. */
+#pill{position:fixed;left:16px;bottom:16px;z-index:5;width:auto;height:36px;
+  padding:0 14px;margin:0;border-radius:18px;font-size:12.5px;
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 8px 24px rgba(0,0,0,.28);display:none}
+#pill.on{display:flex}
+@media (max-width:640px){#pill{left:10px;bottom:10px}}
 """
 
 _JS = """
@@ -95,6 +103,7 @@ _JS = """
 
   function chooser(man){
     MANIFEST = man;
+    hidePill();
     var items = man.items || [];
     var h = '<h1>' + esc(man.title || 'Shared project') + '</h1>' +
             '<p>' + items.length + ' timeline' + (items.length === 1 ? '' : 's') +
@@ -115,7 +124,7 @@ _JS = """
     if(!it || !it.shareKey) return;
     waiting('Opening\\u2026');
     window.AltoCloud.getShare(it.shareKey).then(function(d){
-      if(d && d.html) render(d.html);
+      if(d && d.html){ render(d.html); savePill((MANIFEST && MANIFEST.title) || ''); }
       else waiting('That timeline is no longer shared.');
     }).catch(function(){ waiting('That timeline is no longer shared.'); });
   }
@@ -136,6 +145,42 @@ _JS = """
     return '<button id="save">Save to my Alto</button>' +
            '<p class="muted" id="save-note"></p>';
   }
+
+  // A single-timeline share replaces the card with the timeline, so the card's
+  // save button is gone the moment there is anything to save. Without this the
+  // whole "keep what someone sent you" path is unreachable for the only kind
+  // of share that exists.
+  var pill = null;
+  function savePill(title){
+    var c = window.AltoCloud;
+    if(!c || !c.enabled) return;
+    if(!pill){
+      pill = document.createElement('button');
+      pill.id = 'pill';
+      document.body.appendChild(pill);
+    }
+    pill.className = 'on';
+    pill.disabled = false;
+    // renderAccount re-reads this to rewrite the label once sign-in resolves.
+    pill.dataset.t = title || '';
+    pill.textContent = c.user ? 'Save to my Alto' : 'Sign in to save this';
+    pill.onclick = function(){
+      pill.disabled = true;
+      if(!c.user){
+        c.signIn().catch(function(){ pill.disabled = false; });
+        return;
+      }
+      pill.textContent = 'Saving\u2026';
+      c.saveShare(KEY, title).then(function(){
+        pill.textContent = 'Saved to your Alto \u2713';
+        setTimeout(function(){ pill.classList.remove('on'); }, 2600);
+      }).catch(function(){
+        pill.disabled = false;
+        pill.textContent = 'Could not save \u2014 try again';
+      });
+    };
+  }
+  function hidePill(){ if(pill) pill.classList.remove('on'); }
 
   function wireSave(title){
     var btn = document.getElementById('save');
@@ -174,6 +219,7 @@ _JS = """
       if(d.kind === 'project'){ chooser(d); return; }
       if(d.html){
         render(d.html);
+        savePill(d.title || '');
         return;
       }
       waiting('This link is not shared any more.');
@@ -189,7 +235,11 @@ _JS = """
   window.renderAccount = function(){
     // Re-offer the save control once sign-in resolves, without disturbing a
     // timeline already on screen.
-    if(!stage.classList.contains('on') && MANIFEST) chooser(MANIFEST);
+    if(stage.classList.contains('on')){
+      if(pill && pill.classList.contains('on')) savePill(pill.dataset.t || '');
+      return;
+    }
+    if(MANIFEST) chooser(MANIFEST);
   };
 
   function start(){

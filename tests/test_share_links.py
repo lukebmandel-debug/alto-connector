@@ -280,3 +280,32 @@ def test_a_shared_title_is_not_parsed_as_markup():
 def test_a_kept_share_can_be_removed():
     home = _home()
     assert "c.forgetShare(it.key)" in home
+
+
+def test_a_single_timeline_share_can_still_be_saved():
+    """Rendering a timeline replaces the card the save button lived on, so
+    without a control outside it the whole "keep what someone sent you" path
+    is unreachable for the only kind of share that exists."""
+    s = shell()
+    assert "function savePill(" in s
+    body = s[s.index("if(d.html){"):]
+    assert "savePill(" in body[:body.index("return;")]
+
+
+def test_the_save_offer_follows_sign_in_state():
+    s = shell()
+    assert "c.user ? 'Save to my Alto' : 'Sign in to save this'" in s
+    assert "pill.dataset.t = title || '';" in s
+
+
+def test_the_pill_stays_clear_of_the_engines_own_controls():
+    """The engine keeps its controls bottom-right on every page."""
+    s = shell()
+    css = s[s.index("#pill{"):s.index("#pill.on{")]
+    assert "left:16px" in css and "bottom:16px" in css
+    assert "right:" not in css
+
+
+def test_saving_a_project_share_saves_the_project_not_one_timeline():
+    s = shell()
+    assert "savePill((MANIFEST && MANIFEST.title) || '')" in s
