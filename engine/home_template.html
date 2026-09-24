@@ -111,6 +111,13 @@
     -webkit-backdrop-filter:blur(26px) saturate(170%) brightness(var(--glass-slab-bright));
     backdrop-filter:blur(26px) saturate(170%) brightness(var(--glass-slab-bright));
   }
+  /* "Private" / "Shared with you": a page-level label ABOVE that group's project
+     boxes — the boxes themselves are projects, headed by the project's name. */
+  .slab-group{ width:100%; display:flex; flex-direction:column; align-items:center; gap:38px; }
+  .home-section-label{
+    width:min(1040px, 100%); box-sizing:border-box; padding:0 10px; margin-bottom:-22px;
+    font-size:12px; letter-spacing:.34em; text-transform:uppercase; color:var(--text); opacity:.72;
+  }
   .project-slab .slab-kicker{
     font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:var(--muted);
     margin-bottom:26px;
@@ -136,12 +143,6 @@
   .course-tile .tile-body{ padding:22px 24px 24px; }
   .course-tile .tile-title{ font-size:19px; font-weight:600; margin-bottom:6px; }
   .course-tile .tile-sub{ font-size:12.5px; color:var(--muted); letter-spacing:.03em; }
-  /* The project a private or kept timeline belongs to, above its title. */
-  .course-tile .tile-project{
-    font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
-    margin-bottom:6px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:4px;
-  }
   .course-tile.placeholder{ opacity:.55; filter:saturate(.35); cursor:default; }
   .course-tile.placeholder .unit-strip span{ background:var(--muted); opacity:.35; }
   .soon-chip{
@@ -364,6 +365,8 @@
     #projects-wrap{ padding:calc(118px + env(safe-area-inset-top,0px)) 14px 48px; gap:26px; }
     .project-slab{ padding:26px 18px 28px; border-radius:22px; }
     .course-grid{ grid-template-columns:1fr; gap:16px; }
+    .slab-group{ gap:26px; }
+    .home-section-label{ margin-bottom:-14px; padding:0 6px; }
     /* header: clef left, title center, "Alto" wordmark top-RIGHT (C2); safe-area top (C3) */
     #title-bar{ padding:env(safe-area-inset-top,0px) 14px 0; height:calc(56px + env(safe-area-inset-top,0px)); }
     #title-bar .brand-mark{ height:34px; }
@@ -682,7 +685,6 @@
     .project-slab{ border:1px solid #bbb !important; page-break-inside:avoid; }
     .course-tile{ border:1px solid #ccc !important; }
     .course-tile .unit-strip{ display:none !important; }   /* solid color bars = ink */
-    .course-tile .tile-project{ color:#555 !important; }
     .tile-share, .tile-reports, .slab-share,
     .tile-download, .slab-download,
     .course-tile.new-tile, .project-slab.new-project-slab{ display:none !important; }
@@ -1265,6 +1267,42 @@ function _searchExtra(part, list){
   if(typeof window._homeSearchReset === 'function') window._homeSearchReset();
 }
 
+// Projects are the home for timelines, so a group's timelines are drawn as
+// one box per project, in the order their newest timeline appears.
+function byProject(list, nameOf){
+  const order = [], by = {};
+  list.forEach(x => {
+    const n = nameOf(x);
+    if(!by[n]){ by[n] = []; order.push(n); }
+    by[n].push(x);
+  });
+  return order.map(n => ({ name: n, items: by[n] }));
+}
+function slabGroup(cls, label){
+  const g = document.createElement('div');
+  g.className = 'slab-group ' + cls;
+  g.dataset.project = label;
+  const l = document.createElement('div');
+  l.className = 'home-section-label';
+  l.textContent = label;
+  g.appendChild(l);
+  return g;
+}
+function projectSlab(name, extraCls){
+  const slab = document.createElement('div');
+  slab.className = 'project-slab ' + extraCls;
+  slab.dataset.project = name;
+  const kicker = document.createElement('div');
+  kicker.className = 'slab-kicker';
+  // textContent: a project name that has been to Firestore and back.
+  kicker.textContent = name;
+  const grid = document.createElement('div');
+  grid.className = 'course-grid';
+  slab.appendChild(kicker);
+  slab.appendChild(grid);
+  return { slab, grid };
+}
+
 let sharedSlab = null, sharedDrawn = '';
 function clearShared(){
   if(sharedSlab){ sharedSlab.remove(); sharedSlab = null; }
@@ -1287,15 +1325,14 @@ function drawShared(items){
   {
     clearShared();
     if(!items || !items.length) return;
-    const slab = document.createElement('div');
-    slab.className = 'project-slab shared-slab';
-    slab.dataset.project = 'Shared with me';
-    const kicker = document.createElement('div');
-    kicker.className = 'slab-kicker';
-    kicker.textContent = 'Shared with me';
-    const grid = document.createElement('div');
-    grid.className = 'course-grid';
-    items.forEach(it => {
+    const group = slabGroup('shared-group', 'Shared with you');
+    const found = [];
+    // A kept share's title is the name its owner published it under — their
+    // project — so that heads the box and the timeline's own title the card.
+    byProject(items, it => it.title || 'Shared timeline').forEach(pj => {
+    const { slab, grid } = projectSlab(pj.name, 'shared-slab');
+    group.appendChild(slab);
+    pj.items.forEach(it => {
       const el = document.createElement('a');
       el.className = 'course-tile live';
       el.href = '/s/' + encodeURIComponent(it.key) + '/';
@@ -1307,7 +1344,7 @@ function drawShared(items){
         '<div class="tile-sub">Shared with you</div></div>';
       // textContent: this title was written by whoever shared it, so it is the
       // one string on this page that someone else controls.
-      el.querySelector('.tile-title').textContent = it.title || 'Shared timeline';
+      el.querySelector('.tile-title').textContent = it.heading || it.title || 'Shared timeline';
       const rm = document.createElement('button');
       rm.className = 'tile-share';
       rm.style.right = '14px';
@@ -1325,16 +1362,16 @@ function drawShared(items){
       });
       el.appendChild(rm);
       grid.appendChild(el);
+      found.push({ key: 's-' + it.key, title: it.heading || it.title || 'Shared timeline',
+                   project: pj.name, label: pj.name,
+                   href: el.getAttribute('href'), search: [] });
     });
-    slab.appendChild(kicker);
-    slab.appendChild(grid);
+    });
     // Below the account's own work, above "Start new project".
-    wrap.insertBefore(slab, nps);
-    sharedSlab = slab;
+    wrap.insertBefore(group, nps);
+    sharedSlab = group;
     sharedDrawn = sig;
-    _searchExtra('shared', items.map((it, i) => ({
-      key: 's-' + it.key, title: it.title || 'Shared timeline', project: 'Shared with me',
-      href: grid.children[i].getAttribute('href'), search: [] })));
+    _searchExtra('shared', found);
   }
 }
 
@@ -1360,15 +1397,12 @@ function drawPrivate(pages){
   {
     clearPrivate();
     if(!pages || !pages.length) return;
-    const slab = document.createElement('div');
-    slab.className = 'project-slab private-slab';
-    slab.dataset.project = 'Private';
-    const kicker = document.createElement('div');
-    kicker.className = 'slab-kicker';
-    kicker.textContent = 'Private';
-    const grid = document.createElement('div');
-    grid.className = 'course-grid';
-    pages.forEach(pg => {
+    const group = slabGroup('private-group', 'Private');
+    const found = [];
+    byProject(pages, pg => pg.project || pg.title || pg.heading || 'Untitled project').forEach(pj => {
+    const { slab, grid } = projectSlab(pj.name, 'private-slab');
+    group.appendChild(slab);
+    pj.items.forEach(pg => {
       const el = document.createElement('a');
       el.className = 'course-tile live';
       el.href = '/pv/' + encodeURIComponent(pg.key) + '/';
@@ -1376,17 +1410,13 @@ function drawPrivate(pages){
       el.dataset.key = pg.key;
       el.innerHTML =
         '<div class="unit-strip">' + unitStrip(pg.units) + '</div>' +
-        '<div class="tile-body"><div class="tile-project"></div><div class="tile-title"></div>' +
+        '<div class="tile-body"><div class="tile-title"></div>' +
         '<div class="tile-sub">Private</div></div>';
       // textContent, not innerHTML: these have been to Firestore and back, so
       // they are no longer template output and must not be parsed as markup.
-      // Title is the timeline's own; the project it was published under sits
-      // above it (and is the title itself when the page carries no other).
+      // The box is the project; the card is the timeline, by its own title.
       const heading = pg.heading || pg.title || 'Untitled timeline';
-      const project = pg.project && pg.project !== heading ? pg.project : '';
       el.querySelector('.tile-title').textContent = heading;
-      const pj = el.querySelector('.tile-project');
-      if(project) pj.textContent = project; else pj.remove();
       if(pg.shareKey) el.querySelector('.tile-sub').textContent = 'Private · shared';
 
       // The same three controls, in the same three places, as every other
@@ -1438,21 +1468,18 @@ function drawPrivate(pages){
         el.appendChild(dlb);
       }
       grid.appendChild(el);
+      found.push({ key: pg.key, title: heading, project: pj.name, label: pj.name,
+                   href: el.getAttribute('href'), search: pg.search || [] });
     });
-    slab.appendChild(kicker);
-    slab.appendChild(grid);
-    // Anchored on the shared slab rather than on nps, because these two
+    });
+    // Anchored on the shared group rather than on nps, because these two
     // render from independent Firestore reads and whichever resolved first
     // would otherwise decide the order. Your own work stays above what other
     // people sent you, either way round.
-    wrap.insertBefore(slab, sharedSlab || nps);
-    privateSlab = slab;
+    wrap.insertBefore(group, sharedSlab || nps);
+    privateSlab = group;
     privateDrawn = sig;
-    _searchExtra('private', pages.map((pg, i) => ({
-      key: pg.key, title: pg.heading || pg.title || 'Untitled timeline',
-      project: pg.project || '', label: pg.project || '',
-      href: grid.children[i].getAttribute('href'),
-      search: pg.search || [] })));
+    _searchExtra('private', found);
   }
 }
 

@@ -642,13 +642,14 @@
     return true;
   }
 
-  // Colours only — never the html, and never its text. A kept share is a
+  // Colours and the timeline's own title only — never the html, and never its
+  // text. A kept share is a
   // reference, and card titles copied here as search terms would outlive the
   // owner revoking it, in the one place they cannot see: someone else's
   // homepage search. So a kept share is found by its title, not its contents.
   function _sharedMetaOf(html) {
     const m = _metaOf(html);
-    return { units: m.units, v: META_V };
+    return { units: m.units, heading: m.heading, v: META_V };
   }
 
   async function _saveShare(key, title, html) {
@@ -678,7 +679,7 @@
     const out = [];
     snap.forEach(d => {
       const v = d.data() || {};
-      out.push({ key: d.id, title: v.title || '',
+      out.push({ key: d.id, title: v.title || '', heading: v.heading || '',
                  units: Array.isArray(v.units) ? v.units : [],
                  savedAt: (v.savedAt && v.savedAt.seconds) || 0 });
     });

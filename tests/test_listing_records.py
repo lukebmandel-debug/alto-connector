@@ -86,8 +86,10 @@ def test_private_chips_show_colours_and_project():
     block = _home()[_home().index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
     assert "unitStrip(pg.units)" in block
-    assert "tile-project" in block
-    assert "kicker.textContent = 'Private';" in block
+    # "Private" is a page-level label above the group; each box is a project.
+    assert "slabGroup('private-group', 'Private')" in block
+    assert "byProject(pages, pg => pg.project ||" in block
+    assert "projectSlab(pj.name, 'private-slab')" in block
     assert "visible only to you" not in _home()
 
 

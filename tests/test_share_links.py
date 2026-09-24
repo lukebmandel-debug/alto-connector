@@ -214,7 +214,7 @@ def test_saving_a_share_stores_a_reference_not_a_copy():
     # which would outlive revocation just as surely as a copy of the page.
     meta = CLOUD_JS[CLOUD_JS.index("function _sharedMetaOf("):]
     meta = meta[:meta.index("\n  }")]
-    assert "return { units: m.units, v: META_V };" in meta
+    assert "return { units: m.units, heading: m.heading, v: META_V };" in meta
 
 
 def test_revoking_deletes_the_public_copy_before_forgetting_it():
@@ -261,7 +261,7 @@ def test_your_own_work_sits_above_what_others_sent_you():
     """Both slabs come from independent Firestore reads, so whichever resolved
     first would otherwise decide the order."""
     home = _home()
-    assert "wrap.insertBefore(slab, sharedSlab || nps);" in home
+    assert "wrap.insertBefore(group, sharedSlab || nps);" in home
 
 
 def test_signing_out_clears_the_shared_list_too():
@@ -279,7 +279,7 @@ def test_a_shared_title_is_not_parsed_as_markup():
     homepage that somebody else controls."""
     block = _home()[_home().index("function drawShared("):]
     block = block[:block.index("\n}\n")]
-    assert ".tile-title').textContent = it.title" in block
+    assert ".tile-title').textContent = it.heading || it.title" in block
 
 
 def test_a_kept_share_can_be_removed():
