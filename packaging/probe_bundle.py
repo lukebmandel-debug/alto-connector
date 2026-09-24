@@ -25,6 +25,13 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+def expected_tools() -> int:
+    """How many tools the server declares — counted from the source, so adding
+    a tool cannot leave a probe asserting a stale number (it did, twice)."""
+    src = (Path(__file__).resolve().parent.parent / "alto" / "mcp_server.py").read_text(encoding="utf-8")
+    return src.count("\n@mcp.tool(")
+
+
 
 # Windows consoles default to cp1252, which cannot encode the tick and arrow
 # characters this script prints — that is a crash, not a cosmetic problem.
@@ -174,8 +181,8 @@ def main() -> None:
         if not any(i["mimeType"] == "image/png" for i in icons):
             raise ProbeFailure("no PNG icon — clients are only required to "
                                "support PNG, so an SVG-only list may not render")
-        if len(tools) != 16:
-            raise ProbeFailure(f"expected 16 tools, got {len(tools)}")
+        if len(tools) != expected_tools():
+            raise ProbeFailure(f"expected {expected_tools()} tools, got {len(tools)}")
 
         built = build_a_timeline(ext, brief)
         print(f"built     : timeline {built['html']:,} B, "

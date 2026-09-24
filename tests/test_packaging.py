@@ -98,7 +98,8 @@ def test_firebase_config_is_marked_sensitive(entry):
 
 def test_every_tool_is_listed(entry):
     _, m = entry
-    assert len(m["tools"]) == 16
+    src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
+    assert len(m["tools"]) == src.count("\n@mcp.tool(")
     assert all(t["name"] and t["description"] for t in m["tools"])
 
 

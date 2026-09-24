@@ -26,6 +26,13 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def expected_tools() -> int:
+    """How many tools the server declares — counted from the source, so adding
+    a tool cannot leave a probe asserting a stale number (it did, twice)."""
+    src = (Path(__file__).resolve().parent.parent / "alto" / "mcp_server.py").read_text(encoding="utf-8")
+    return src.count("\n@mcp.tool(")
 BRIEF = ROOT / "samples" / "contracts_brief.json"
 
 
@@ -100,8 +107,8 @@ def main() -> None:
     print(f"serverInfo: {info['name']} {info['version']}")
     print(f"icons     : {len(info.get('icons') or [])}")
     print(f"tools     : {len(tools)}")
-    if len(tools) != 15:
-        fail(f"expected 15 tools, got {len(tools)}")
+    if len(tools) != expected_tools():
+        fail(f"expected {expected_tools()} tools, got {len(tools)}")
     if not (info.get("icons") or []):
         fail("no icons advertised")
 

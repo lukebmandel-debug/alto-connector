@@ -53,8 +53,8 @@ def test_signed_out_tools_say_how_to_sign_in(fake, tmp_path):
 
 def test_the_refresh_token_is_private_to_this_user(session):
     assert session.uid == "U1" and session.email == "me@example.com"
-    mode = os.stat(session.path).st_mode & 0o777
-    assert mode == 0o600
+    if os.name != "nt":          # Windows has no POSIX mode bits to check
+        assert os.stat(session.path).st_mode & 0o777 == 0o600
 
 
 def test_a_revoked_token_asks_to_sign_in_again(session, fake):
