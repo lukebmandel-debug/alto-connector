@@ -969,12 +969,29 @@ document.getElementById('dl-scrim').addEventListener('click', e => {
   if(e.target.id === 'dl-scrim') dlClose();
 });
 
+// What the "＋" tiles hand to Claude. The connector's own interview guide runs
+// the rest (project → materials + consent → shape → build → publish), so these
+// only say where to start, and where to get the connector if this device has
+// none — never how to build, which the guide owns and keeps current.
+const ALTO_GET = 'https://alto-get.web.app';
 const newProjectPrompt =
-  'I want to start a new project in Alto. Help me install the Alto connector on this device, ' +
-  'then interview me about the materials I want to turn into a timeline, course, or book.';
+  'I want to start a new project in Alto. If the Alto connector isn\'t connected here yet, ' +
+  'help me install it from ' + ALTO_GET + ' first. Then begin with Alto\'s interview guide: ' +
+  'set up the project and build its first timeline from the materials I give you.';
 function inProjectPrompt(projectName){
-  return 'I want to add something new to my ' + projectName + ' project in Alto. ' +
-    'Help me add the Alto connector, add my materials, and interview me about what I want to build.';
+  return 'I want to add a new timeline to my "' + projectName + '" project in Alto. ' +
+    'If the Alto connector isn\'t connected here yet, help me install it from ' + ALTO_GET +
+    ' first. Then begin with Alto\'s interview guide and build the timeline into that ' +
+    'project from the materials I give you.';
+}
+// The "＋ New timeline" tile at the end of a project's grid.
+function newTimelineTile(projectName){
+  const nt = document.createElement('div');
+  nt.className = 'course-tile new-tile';
+  nt.setAttribute('role', 'button');
+  nt.innerHTML = '<span class="nt-plus">＋</span><span class="nt-label">New timeline</span>';
+  nt.addEventListener('click', () => openClaude(inProjectPrompt(projectName)));
+  return nt;
 }
 
 PROJECTS.forEach((p, pi) => {
@@ -1050,11 +1067,7 @@ PROJECTS.forEach((p, pi) => {
     grid.appendChild(el);
   });
   // ＋ New — start a new item inside this project (course/book/timeline…).
-  const nt = document.createElement('div');
-  nt.className = 'course-tile new-tile';
-  nt.innerHTML = '<span class="nt-plus">＋</span><span class="nt-label">New</span>';
-  nt.addEventListener('click', () => openClaude(inProjectPrompt(p.name)));
-  grid.appendChild(nt);
+  grid.appendChild(newTimelineTile(p.name));
   slab.appendChild(kicker);
   slab.appendChild(grid);
   // C5: share the whole project (no print) — top-right of the slab
@@ -1471,6 +1484,8 @@ function drawPrivate(pages){
       found.push({ key: pg.key, title: heading, project: pj.name, label: pj.name,
                    href: el.getAttribute('href'), search: pg.search || [] });
     });
+    // Your own project, so you can add to it — unlike a kept share's box.
+    grid.appendChild(newTimelineTile(pj.name));
     });
     // Anchored on the shared group rather than on nps, because these two
     // render from independent Firestore reads and whichever resolved first

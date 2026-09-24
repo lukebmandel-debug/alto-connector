@@ -189,3 +189,24 @@ def test_any_private_key_opens_the_shell():
     src = (ROOT / "alto" / "publish_static.py").read_text(encoding="utf-8")
     assert '{"source": "/pv/**", "destination": "/pv/index.html"}' in src
     assert '(pvdir_root / "index.html").write_text(private_shell(cloud_v)' in src
+
+
+def test_every_owned_project_offers_a_new_timeline():
+    """A project is the home for its timelines, so each one the account owns —
+    published or private — ends with a tile that starts the next timeline in
+    it. A kept share is someone else's project and gets none."""
+    h = _home()
+    assert h.count("grid.appendChild(newTimelineTile(") == 2
+    shared = h[h.index("function drawShared("):]
+    shared = shared[:shared.index("\n}\n")]
+    assert "newTimelineTile" not in shared
+
+
+def test_the_claude_prompts_point_at_the_guide_and_the_download():
+    h = _home()
+    for fn in ("const newProjectPrompt", "function inProjectPrompt("):
+        body = h[h.index(fn):][:600]
+        assert "interview guide" in body
+        assert "ALTO_GET" in body and "isn\\'t connected here yet" in body
+    assert "const ALTO_GET = 'https://alto-get.web.app';" in h
+    assert "course, or book" not in h
