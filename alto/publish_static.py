@@ -278,7 +278,8 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             stale_notes.append(f"{tid}: {stale}")
         if raw:
             b, _, _ = load_brief({"brief": t["brief"]})
-            store.put_artifact(uid, tid, "private.html", private_page(b, raw))
+            store.put_artifact(uid, tid, "private.html", private_page(
+                b, raw, name_by_pid.get(t.get("project_id", ""), "")))
 
     # Pruned on its own key set: `live` above is built from link-visible
     # timelines, so sharing that loop would delete every shell each publish.

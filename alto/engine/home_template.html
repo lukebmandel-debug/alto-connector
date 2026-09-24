@@ -1022,6 +1022,57 @@ nps.innerHTML = '<span class="nps-plus">＋</span><span class="nps-label">Start 
 nps.addEventListener('click', () => openClaude(newProjectPrompt));
 wrap.appendChild(nps);
 
+// ── Your own private timelines ──────────────────────────────────────────────
+// A private timeline is listed nowhere: not here, not in search, not in the
+// sitemap. That is exactly the point of it, and it is also how five outlines
+// became unreachable the moment their 22-character URLs were mislaid. Being
+// unlisted to the world should not mean being unlisted to their owner — so
+// once Firebase says who you are, ask Firestore what you have and put it back
+// on the page.
+//
+// Gated on AltoCloud.user and never on Account.get(): the simulated sign-in
+// path writes that same localStorage key on any site with no Firebase project,
+// and would promise a private section to someone signed in to nothing.
+let privateSlab = null;
+function clearPrivate(){
+  if(privateSlab){ privateSlab.remove(); privateSlab = null; }
+}
+function renderPrivate(){
+  const c = window.AltoCloud;
+  if(!c || !c.enabled || !c.user || !c.listPages){ clearPrivate(); return; }
+  c.listPages().then(pages => {
+    clearPrivate();
+    if(!pages || !pages.length) return;
+    const slab = document.createElement('div');
+    slab.className = 'project-slab private-slab';
+    slab.dataset.project = 'Private';
+    const kicker = document.createElement('div');
+    kicker.className = 'slab-kicker';
+    kicker.textContent = 'Private — visible only to you';
+    const grid = document.createElement('div');
+    grid.className = 'course-grid';
+    pages.forEach(pg => {
+      const el = document.createElement('a');
+      el.className = 'course-tile live';
+      el.href = '/pv/' + encodeURIComponent(pg.key) + '/';
+      el.dataset.tile = pg.title || 'Untitled';
+      el.innerHTML =
+        '<div class="unit-strip"><span></span><span></span><span></span>' +
+        '<span></span><span></span><span></span><span></span></div>' +
+        '<div class="tile-body"><div class="tile-title"></div>' +
+        '<div class="tile-sub">Private</div></div>';
+      // textContent, not innerHTML: this title has been to Firestore and back,
+      // so it is no longer template output and must not be parsed as markup.
+      el.querySelector('.tile-title').textContent = pg.title || 'Untitled timeline';
+      grid.appendChild(el);
+    });
+    slab.appendChild(kicker);
+    slab.appendChild(grid);
+    wrap.insertBefore(slab, nps);
+    privateSlab = slab;
+  }).catch(() => clearPrivate());
+}
+
 // ── Honor shared project links: index.html?project=NAME scrolls to that slab and
 // flashes it (the slab-share button copies exactly this URL — without a reader the
 // parameter was write-only and shared links landed on a plain homepage).
@@ -1305,6 +1356,7 @@ function renderAccount(){
     glyph.style.display = 'flex'; mini.style.display = 'none';
     out.style.display = 'block'; inn.style.display = 'none';
   }
+  renderPrivate();
 }
 function toggleAccount(){
   document.getElementById('account-scrim').classList.toggle('open');

@@ -88,8 +88,13 @@ def _prepare_timeline(tl: str, tid: str, label: str) -> str:
 # about signing you out is worse than none.
 _HIDE_FRAMED_ACCOUNT = "<style>#account-btn{display:none !important}</style>"
 
+# Read by the private shell when it backfills a title, and never present in
+# anything world-readable: this meta lives inside the page, which is in
+# Firestore under the owner's uid, not in the shell that serves it.
+PRIVATE_LABEL = "alto-label"
 
-def private_page(brief: Brief, timeline_html: str) -> str:
+
+def private_page(brief: Brief, timeline_html: str, label: str = "") -> str:
     """The timeline prepared for srcdoc delivery by the private shell.
 
     Identical preparation to a bundled timeline — the cloud tag stripped (it
@@ -102,7 +107,14 @@ def private_page(brief: Brief, timeline_html: str) -> str:
     i = page.find("<head>")
     if i < 0:
         raise BundleError("private: no <head>")
-    return page[:i + 6] + _HIDE_FRAMED_ACCOUNT + page[i + 6:]
+    # The name the owner's homepage shows. The page's own <title> is built from
+    # the brief, and five outlines of one course all have the same brief title
+    # — listing five tiles that all read "Civil Procedure" is no more use than
+    # listing five that read "Untitled". The project name is what tells them
+    # apart, and only the publisher knows it, so it is recorded here.
+    meta = (f'<meta name="{PRIVATE_LABEL}" content="'
+            f'{_html.escape(label or brief.title, quote=True)}">')
+    return page[:i + 6] + meta + _HIDE_FRAMED_ACCOUNT + page[i + 6:]
 
 
 def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:

@@ -62,9 +62,23 @@
       if (!configured) throw new Error('sync not configured');
       await ready; return _getPage(key);
     },
-    putPage: async (key, html) => {
+    putPage: async (key, html, title) => {
       if (!configured) throw new Error('sync not configured');
-      await ready; return _putPage(key, html);
+      await ready; return _putPage(key, html, title);
+    },
+    // Everything this account has published privately. This is what lets the
+    // homepage show you your own private timelines — without it they are
+    // reachable only by a 22-character URL you have to have kept.
+    listPages: async () => {
+      if (!configured) return [];
+      await ready; return _listPages();
+    },
+    // Backfill for pages uploaded before titles were stored. Without it every
+    // timeline published up to now lists as "Untitled" forever, because the
+    // list deliberately never fetches the 600 KB the title could be read from.
+    ensureTitle: async (key, title) => {
+      if (!configured) return false;
+      await ready; return _ensureTitle(key, title);
     },
   };
   window.AltoCloud = cloud;
@@ -79,7 +93,7 @@
          { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
            getRedirectResult, signOut, onAuthStateChanged, browserLocalPersistence,
            setPersistence },
-         { getFirestore, doc, collection, setDoc, getDoc, onSnapshot,
+         { getFirestore, doc, collection, setDoc, getDoc, getDocs, onSnapshot,
            serverTimestamp }] =
     await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
@@ -297,11 +311,43 @@
     if (bytes > MAX_PAGE_BYTES)
       throw new Error(Math.round(bytes / 1024) + ' KB exceeds the ' +
                       Math.round(MAX_PAGE_BYTES / 1024) + ' KB limit');
-    // No title and no timeline id: the document is filed under the opaque key
-    // so nothing here ties it back to a readable name.
+    // The title IS stored, deliberately, and only here. The opaque key keeps
+    // the public URL from announcing its subject; this document is inside
+    // users/{uid}, which the rules make readable to nobody but the owner. A
+    // list you cannot read the names in is not a list you can use.
     await setDoc(doc(db, 'users', u.uid, 'pages', key),
-                 { html, updatedAt: serverTimestamp() });
+                 { html, title: title || '', updatedAt: serverTimestamp() });
     return true;
+  }
+
+  async function _ensureTitle(key, title) {
+    const u = auth.currentUser;
+    if (!u || !key || !title) return false;
+    const ref = doc(db, 'users', u.uid, 'pages', key);
+    const snap = await getDoc(ref);
+    // Never overwrite a title that is already there — this heals old documents,
+    // it does not get an opinion about current ones.
+    if (!snap.exists() || (snap.data() || {}).title) return false;
+    await setDoc(ref, { title }, { merge: true });
+    return true;
+  }
+
+  async function _listPages() {
+    const u = auth.currentUser;
+    if (!u) return [];
+    const snap = await getDocs(collection(db, 'users', u.uid, 'pages'));
+    const out = [];
+    // The html field is deliberately not returned: this feeds a list, and
+    // pulling several 600 KB pages to render their titles would make opening
+    // the homepage cost more than opening a timeline.
+    snap.forEach(d => {
+      const v = d.data() || {};
+      out.push({ key: d.id, title: v.title || '',
+                 updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
+    });
+    out.sort((a, b) => (b.updatedAt - a.updatedAt) ||
+                       String(a.title).localeCompare(String(b.title)));
+    return out;
   }
 
   const provider = new GoogleAuthProvider();

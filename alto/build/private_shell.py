@@ -82,6 +82,21 @@ _JS = """
     gate.classList.remove('off');
   }
 
+  // The page's own <title> is the only name this shell ever sees, and it only
+  // sees it once the rules have already let the page through. Nothing here
+  // reads a name from the URL, which is the whole reason the URL is opaque.
+  function titleOf(pageHtml){
+    // The publisher's own name for this timeline, stamped into the page at
+    // build time. Preferred over <title>, which is built from the brief and so
+    // is identical across every outline of one course.
+    var lm = /<meta name="alto-label" content="([^"]*)"/i.exec(String(pageHtml || ''));
+    if(lm && lm[1]) return lm[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+                                .replace(/&#x27;/g, "'").replace(/&lt;/g, '<')
+                                .replace(/&gt;/g, '>').trim();
+    var m = /<title>([^<]*)<\\/title>/i.exec(String(pageHtml || ''));
+    return m ? m[1].replace(/\\s*\\u2014\\s*Alto(\\s+Timeline)?\\s*$/, '').trim() : '';
+  }
+
   function render(pageHtml){
     // Same delivery as the offline bundle: one document injected whole, so the
     // engine boots inside the frame exactly as it does when served directly.
@@ -144,7 +159,7 @@ _JS = """
       }
       st.textContent = 'Uploading\\u2026';
       file.text().then(function(html){
-        return window.AltoCloud.putPage(KEY, html)
+        return window.AltoCloud.putPage(KEY, html, titleOf(html))
           .then(function(){ st.textContent = 'Saved.'; render(html); });
       }).catch(function(e){
         st.textContent = 'Upload failed: ' + ((e && e.message) || e);
@@ -165,8 +180,12 @@ _JS = """
     lock();
     waiting('Opening\\u2026');
     cloud.getPage(KEY).then(function(page){
-      if(page) render(page);
-      else needsUpload();
+      if(!page){ needsUpload(); return; }
+      render(page);
+      // Pages uploaded before titles were stored would otherwise sit on the
+      // homepage as "Untitled" forever: the listing never fetches the html a
+      // title could be recovered from, so the one moment it IS in hand is here.
+      if(cloud.ensureTitle) cloud.ensureTitle(KEY, titleOf(page)).catch(function(){});
     }).catch(function(){
       // A rules refusal lands here. Say nothing about what does or does not exist.
       lock();
