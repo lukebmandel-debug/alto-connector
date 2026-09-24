@@ -7,6 +7,8 @@ These functions produce the HOSTED variants served at /t/{tid}, / and
 """
 from __future__ import annotations
 
+from .build.fingerprint import meta_tag
+
 
 class HostedError(ValueError):
     pass
@@ -21,6 +23,21 @@ def _rep(html, old, new, n, label):
 
 CLOUD_TAG = '<script type="module" src="alto-cloud.js"></script>\n'
 
+# The one <head> that opens the document. The templates also contain the
+# literal inside JS strings (a report builder, a comment), so the newline is
+# what distinguishes the real one — hence the counted swap below.
+_HEAD = "<head>\n"
+
+
+def _stamp(html: str, label: str) -> str:
+    """Record which Alto built this page, so a stale deploy is visible.
+
+    See alto/build/fingerprint.py: without this, a page shipped from a stale
+    build-time artifact is indistinguishable from a current one, which is
+    exactly how an engine fix once went five weeks without reaching anybody.
+    """
+    return _rep(html, _HEAD, _HEAD + meta_tag() + "\n", 1, f"{label} build stamp")
+
 
 def hosted_timeline(html: str, tid: str) -> str:
     """Built timeline → hosted variant (served at /t/{tid})."""
@@ -33,6 +50,7 @@ def hosted_timeline(html: str, tid: str) -> str:
     html = _rep(html, CLOUD_TAG,
                 f'<script type="module" src="/alto-cloud.js" data-tid="{tid}"></script>\n',
                 1, "cloud tag")
+    html = _stamp(html, "timeline")
     return html
 
 
@@ -46,6 +64,7 @@ def hosted_home(html: str) -> str:
                 '<script type="module" src="/alto-cloud.js"></script>\n',
                 1, "cloud tag")
     html = _rep(html, "'index.html?project='", "'/?project='", 1, "project share link")
+    html = _stamp(html, "home")
     return html
 
 
@@ -56,4 +75,5 @@ def hosted_reports(html: str) -> str:
     html = _rep(html, CLOUD_TAG,
                 '<script type="module" src="/alto-cloud.js"></script>\n',
                 1, "cloud tag")
+    html = _stamp(html, "reports")
     return html

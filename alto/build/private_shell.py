@@ -25,6 +25,8 @@ as the author. One upload per publish is the cost of that.
 """
 from __future__ import annotations
 
+from .fingerprint import meta_tag
+
 # Firestore rejects a document over 1 MiB. Stop short of it with a message the
 # author can act on, rather than surfacing a raw backend error.
 MAX_PAGE_BYTES = 900_000
@@ -205,6 +207,7 @@ def shell(cloud_version: str = "") -> str:
         '<meta name="viewport" content="width=device-width, initial-scale=1, '
         'viewport-fit=cover">\n'
         '<meta name="robots" content="noindex, nofollow">\n'
+        f'{meta_tag()}\n'
         '<title>Alto</title>\n'
         f'<style>{_CSS}</style>\n'
         '</head><body>\n'

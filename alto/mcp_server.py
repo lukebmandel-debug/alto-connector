@@ -766,12 +766,31 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         except PublishError as e:
             return {"error": "publish_failed", "message": str(e)}
         slug = doc.get("share_slug") or timeline_id
-        from .publish_static import LAST_STALE
+
+        # A deploy that succeeded has proved only that files were uploaded.
+        # These two checks prove that what is now on the web is what was just
+        # built. Both used to be advisory notes, which is how an engine fix
+        # once sat unshipped for five weeks behind a green publish.
+        from .publish_static import LAST_STALE, verify_live
+        allow_stale = os.environ.get("ALTO_ALLOW_STALE") == "1"
         stale = list(LAST_STALE)
+        if stale and not allow_stale:
+            return {"error": "stale_build", "stale": stale,
+                    "message": ("these timelines could not be re-emitted from "
+                                "their stored nodes, so publishing them would "
+                                "ship a page older than the current engine. "
+                                "Fix the listed timelines, or set "
+                                "ALTO_ALLOW_STALE=1 to publish anyway.")}
+        drift = verify_live(site, live)
+        if drift and not allow_stale:
+            return {"error": "live_mismatch", "pages": drift,
+                    "message": ("the deploy reported success but the live site "
+                                "is not serving this build. Re-run the publish; "
+                                "if it persists, the pages above are stale on "
+                                "the CDN or were never written.")}
         stale_bits = ({"stale": stale,
-                       "stale_note": ("these timelines could not be rebuilt and "
-                                      "shipped from their last build — they may "
-                                      "predate current engine fixes")}
+                       "stale_note": ("shipped from an older build — "
+                                      "ALTO_ALLOW_STALE was set")}
                       if stale else {})
         if visibility == "link":
             urls = {"view_url": f"{live}/t/{slug}/",

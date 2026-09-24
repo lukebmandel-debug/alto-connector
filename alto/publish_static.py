@@ -30,7 +30,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import urllib.error
+import urllib.request
+
 from .build.builder import build_timeline, load_brief
+from .build.fingerprint import META_NAME, build_fingerprint
 from .build.pages import build_home, build_reports, course_entry_for
 from .build.private_shell import shell as private_shell
 from .build.single_file import bundle, bundle_many, private_page
@@ -391,3 +395,59 @@ def deploy_site(site_dir: Path) -> str:
     if r.returncode != 0:
         raise PublishError(f"firebase deploy failed:\n{r.stdout[-800:]}\n{r.stderr[-800:]}")
     return f"https://{site}.web.app"
+
+
+def live_pages(site_dir: Path) -> list[str]:
+    """Site-relative URLs of every page a deploy puts on the web.
+
+    Derived from the generated tree rather than from the store, so it reflects
+    what was actually written — including anything a future writer adds without
+    remembering to update this list.
+    """
+    site = Path(site_dir)
+    out = ["/"]
+    if (site / "reports" / "index.html").exists():
+        out.append("/reports/")
+    for parent in ("t", "pv"):
+        d = site / parent
+        if not d.exists():
+            continue
+        for sub in sorted(d.iterdir()):
+            if (sub / "index.html").exists():
+                out.append(f"/{parent}/{sub.name}/")
+    return out
+
+
+def verify_live(site_dir: Path, base_url: str, timeout: int = 20) -> list[str]:
+    """Fetch the deployed pages and confirm each carries THIS build's stamp.
+
+    A deploy that reports success has only proved that files were uploaded. It
+    has not proved that what a browser now receives is what was just built —
+    a CDN edge can still be serving the previous version, and for five weeks
+    once, every page on the site was a build-time artifact while the deploy
+    logs looked perfect. This is the check that would have caught that.
+
+    Returns a list of human-readable problems; empty means the site matches.
+    """
+    want = build_fingerprint()
+    pat = re.compile(
+        r'<meta\s+name="%s"\s+content="([0-9a-f]+)"' % re.escape(META_NAME))
+    problems = []
+    for rel in live_pages(site_dir):
+        url = base_url.rstrip("/") + rel
+        try:
+            req = urllib.request.Request(
+                url, headers={"Cache-Control": "no-cache",
+                              "User-Agent": "alto-publish"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                body = r.read().decode("utf-8", "replace")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            problems.append(f"{rel}: could not be fetched ({e})")
+            continue
+        m = pat.search(body)
+        if not m:
+            problems.append(f"{rel}: carries no {META_NAME} stamp — it predates "
+                            "build fingerprinting, so it is an old page")
+        elif m.group(1) != want:
+            problems.append(f"{rel}: serving build {m.group(1)}, expected {want}")
+    return problems
