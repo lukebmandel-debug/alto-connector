@@ -127,14 +127,28 @@ def test_the_shell_recovers_a_title_from_the_page_it_just_opened(built):
     moment it is in hand is when the shell renders it."""
     s = shell()
     assert "function titleOf(pageHtml)" in s
-    assert "cloud.ensureTitle(KEY, titleOf(page))" in s
+    assert "cloud.ensureTitle(KEY, titleOf(page), idOf(page))" in s
 
 
-def test_a_backfill_never_overwrites_a_title_that_is_already_there(built):
+def test_a_backfill_never_overwrites_what_is_already_there(built):
+    """It heals documents written before these fields existed. It must not get
+    an opinion about current ones — a backfill that overwrote would quietly
+    undo a rename every time the page was opened."""
     fn = CLOUD_JS[CLOUD_JS.index("async function _ensureTitle("):]
     fn = fn[:fn.index("\n  }")]
-    assert "if (!snap.exists() || (snap.data() || {}).title) return false;" in fn
+    assert "if (title && !have.title) add.title = title;" in fn
+    assert "if (tid && !have.tid) add.tid = tid;" in fn
     assert "{ merge: true }" in fn
+    assert "if (!Object.keys(add).length) return false;" in fn, "writes on every open"
+
+
+def test_the_listing_carries_the_course_id(built):
+    """The chip's reports button and its notes lookup both need it, and the
+    listing deliberately never downloads the page it could be read from."""
+    assert "tid: v.tid || ''" in CLOUD_JS
+    fn = CLOUD_JS[CLOUD_JS.index("async function _putPage("):]
+    fn = fn[:fn.index("\n  }")]
+    assert "tid: _identityOf(html)" in fn
 
 
 def test_the_recovered_title_is_the_timeline_name(built):
@@ -195,3 +209,94 @@ def test_publishing_passes_the_project_name(tmp_path):
     """A label that is always the brief title would defeat the whole point."""
     src = (ROOT / "alto" / "publish_static.py").read_text(encoding="utf-8")
     assert 'private_page(\n                b, raw, name_by_pid.get(' in src
+
+
+# ── a private chip is still a chip ──────────────────────────────────────────
+
+def test_a_private_chip_carries_the_same_three_controls(home):
+    """A private timeline is still a timeline: it has a reports repository and
+    it can be taken offline. Rendering it with fewer buttons than the chip
+    beside it was a regression, not a design decision."""
+    block = home[home.index("function renderPrivate()"):]
+    block = block[:block.index("\n}\n")]
+    for cls in ("tile-reports", "tile-share", "tile-download"):
+        assert f"'{cls}'" in block, f"private chip has no {cls}"
+
+
+def test_both_kinds_of_chip_draw_the_same_glyphs(home):
+    """Two copies of the markup is exactly how chips start looking different."""
+    assert home.count("const REPORTS_GLYPH = ") == 1
+    assert home.count("rb.innerHTML = REPORTS_GLYPH;") == 2
+    # 3 for share: the two chip builders plus the project slab's own button.
+    assert home.count("SHARE_GLYPH;") == 3
+    assert home.count("DOWNLOAD_GLYPH;") >= 2
+
+
+def test_a_private_chip_downloads_from_the_account_not_the_web(home):
+    """There is no offline.html for a private timeline — publishing one is the
+    whole thing being avoided. The only copy is the one this account can read
+    out of Firestore."""
+    block = home[home.index("function renderPrivate()"):]
+    block = block[:block.index("\n}\n")]
+    assert "altoDownloadOffline(() => window.AltoCloud.getPage(pg.key)" in block
+    code = "\n".join(l for l in block.splitlines() if not l.strip().startswith("//"))
+    assert "offline.html" not in code, "a private timeline has no published bundle"
+
+
+def test_the_downloader_accepts_a_page_it_cannot_fetch(home):
+    assert "if(typeof src === 'function'){" in home
+    assert "html = await src();" in home
+
+
+def test_a_downloaded_private_page_does_not_navigate_to_a_missing_file():
+    """Opened on its own there is no router above it and no sibling file, so
+    following the href lands on a 404. Doing nothing is the honest outcome."""
+    from alto.build.single_file import SHIM
+    assert "window.__altoGo=function(u){go(u);};" in SHIM
+
+
+def test_the_reports_button_needs_a_course_to_point_at(home):
+    """Documents written before the id was stored have none; the chip draws
+    without that button rather than linking at an empty course."""
+    block = home[home.index("function renderPrivate()"):]
+    block = block[:block.index("\n}\n")]
+    assert "if(pg.tid){" in block
+    assert "if(!pg.tid) shb.style.right = '14px';" in block, "gap not closed"
+
+
+def test_every_cloud_function_declares_what_its_body_uses():
+    """_putPage once read `title` without taking it, so every upload failed
+    with "title is not defined" — and nothing noticed, because the only code
+    path that uploads a page is a hand-driven file picker nothing can run."""
+    import re
+    src = CLOUD_JS
+    for m in re.finditer(r"async function (_\w+)\(([^)]*)\)\s*\{", src):
+        name = m.group(1)
+        params = [a.strip() for a in m.group(2).split(",") if a.strip()]
+        body = src[m.end():]
+        body = body[:body.index("\n  }")]
+        # Property accesses (.html) and object keys (html:) are not references
+        # to a binding; object shorthand ({ html }) is, and is what broke.
+        code = "\n".join(l for l in body.splitlines()
+                         if not l.strip().startswith(("//", "/*", "*")))
+        code = re.sub(r"\.\s*\w+", "", code)
+        code = re.sub(r"\b\w+\s*:", "", code)
+        declared = set(params) | set(re.findall(r"\b(?:const|let|var)\s+(\w+)", body))
+        for ident in ("title", "tid", "html", "shareKey"):
+            if re.search(rf"\b{ident}\b", code) and ident not in declared:
+                raise AssertionError(
+                    f"{name}() uses `{ident}` but never takes or declares it "
+                    f"— params were {params}")
+
+
+def test_the_reports_page_names_a_private_timeline_properly():
+    """COURSE_META lists what is published publicly, so a private timeline
+    falls back to its raw id — "civ-pro-jade" where the owner expects "Civil
+    Procedure — Jade". Restoring the reports button made that heading visible."""
+    from alto.build.pages import build_reports
+    page = build_reports([], "")
+    assert "if(!COURSE_META[courseId]){" in page
+    assert "p.tid === courseId" in page
+    # never on an unauthenticated page: the name is the owner's alone
+    fn = page[page.index("if(!COURSE_META[courseId]){"):]
+    assert "!c.user" in fn[:fn.index("listPages()")]

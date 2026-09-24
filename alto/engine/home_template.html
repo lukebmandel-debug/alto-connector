@@ -784,6 +784,9 @@ function showClaudeToast(web){
   showClaudeToast._t = setTimeout(() => el.classList.remove('show'), 6000);
 }
 // ── Share a link (timeline or whole project). Mobile → native share sheet; desktop → clipboard + toast.
+// Named so the private chips and the public ones cannot drift apart —
+// two copies of this markup is exactly how chips start looking different.
+const REPORTS_GLYPH = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="10" height="14" rx="1.5"/><line x1="8" y1="8" x2="12" y2="8"/><line x1="8" y1="11" x2="12" y2="11"/></svg>';
 const SHARE_GLYPH = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8 H5 V17 H15 V8 H13"/><line x1="10" y1="12" x2="10" y2="3"/><polyline points="7,6 10,3 13,6"/></svg>';
 async function altoShareLink(path, title){
   const url = new URL(path, location.href).href;
@@ -860,12 +863,21 @@ function dlFilename(name){
   return base.replace(/\s+/g, '-') + '-offline.html';
 }
 
-async function dlSave(url, filename, kv, btn){
+async function dlSave(src, filename, kv, btn){
   if(btn) btn.classList.add('busy');
   try {
-    const r = await fetch(url);
-    if(!r.ok) throw new Error('HTTP ' + r.status);
-    let html = await r.text();
+    // `src` is a URL for anything the site hosts, or a function returning the
+    // HTML for anything it does not. A private timeline is deliberately not on
+    // the web at all, so the only copy is the one already in the owner's
+    // browser — fetching it would mean publishing it first.
+    let html;
+    if(typeof src === 'function'){
+      html = await src();
+    } else {
+      const r = await fetch(src);
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      html = await r.text();
+    }
     if(kv && Object.keys(kv).length){
       // The shell and every framed page share one origin, so a single seed in
       // the shell's head reaches all of them. It never overwrites: notes made
@@ -959,7 +971,7 @@ PROJECTS.forEach((p, pi) => {
       rb.className = 'tile-reports';
       rb.title = c.title + ' — report repository';
       rb.setAttribute('aria-label', c.title + ' reports');
-      rb.innerHTML = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="10" height="14" rx="1.5"/><line x1="8" y1="8" x2="12" y2="8"/><line x1="8" y1="11" x2="12" y2="11"/></svg>';
+      rb.innerHTML = REPORTS_GLYPH;
       // Tile is an <a> — stop both navigation and bubbling before going to reports.
       rb.addEventListener('click', e => {
         e.preventDefault(); e.stopPropagation();
@@ -1233,9 +1245,27 @@ function renderPrivate(){
       // so it is no longer template output and must not be parsed as markup.
       el.querySelector('.tile-title').textContent = pg.title || 'Untitled timeline';
       if(pg.shareKey) el.querySelector('.tile-sub').textContent = 'Private · shared';
+
+      // The same three controls, in the same three places, as every other
+      // chip on this page. A private timeline is still a timeline: it has a
+      // reports repository and it can be taken offline, and rendering it with
+      // fewer buttons than its neighbours was a regression, not a design.
+      if(pg.tid){
+        const rb = document.createElement('button');
+        rb.className = 'tile-reports';
+        rb.title = (pg.title || 'Timeline') + ' — report repository';
+        rb.setAttribute('aria-label', (pg.title || 'Timeline') + ' reports');
+        rb.innerHTML = REPORTS_GLYPH;
+        rb.addEventListener('click', e => {
+          e.preventDefault(); e.stopPropagation();
+          location.href = '/reports/?course=' + encodeURIComponent(pg.tid) + '&from=home';
+        });
+        el.appendChild(rb);
+      }
+
       const shb = document.createElement('button');
       shb.className = 'tile-share';
-      shb.style.right = '14px';
+      if(!pg.tid) shb.style.right = '14px';
       shb.title = (pg.title || 'Timeline') + ' — share';
       shb.setAttribute('aria-label', (pg.title || 'Timeline') + ' share');
       shb.innerHTML = SHARE_GLYPH;
@@ -1244,6 +1274,26 @@ function renderPrivate(){
         altoShareMenu(pg, shb);
       });
       el.appendChild(shb);
+
+      if(DL_OK){
+        const dlb = document.createElement('button');
+        dlb.className = 'tile-download';
+        dlb.title = (pg.title || 'Timeline') + ' — download offline copy';
+        dlb.setAttribute('aria-label', (pg.title || 'Timeline') + ' download offline copy');
+        dlb.innerHTML = DOWNLOAD_GLYPH;
+        if(!pg.tid) dlb.style.right = '48px';
+        dlb.addEventListener('click', e => {
+          e.preventDefault(); e.stopPropagation();
+          // A private timeline is on the web nowhere, so there is no
+          // offline.html to fetch — the only copy is the one this account can
+          // read out of Firestore. Handed to dlSave as a getter for exactly
+          // that reason.
+          altoDownloadOffline(() => window.AltoCloud.getPage(pg.key),
+                              pg.title || 'Alto',
+                              pg.tid ? [pg.tid] : [], dlb);
+        });
+        el.appendChild(dlb);
+      }
       grid.appendChild(el);
     });
     slab.appendChild(kicker);

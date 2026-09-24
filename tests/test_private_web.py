@@ -246,8 +246,111 @@ def test_signing_out_puts_the_page_back_behind_the_gate():
     assert "if(!cloud.user){ lock(); signedOut(); return; }" in s
 
 
-def test_the_framed_page_offers_no_sign_out_that_does_nothing(built):
-    """The engine's account panel would clear a localStorage key, change
-    nothing about Firebase, and leave the timeline up."""
+def test_the_framed_page_keeps_its_account_panel(built):
+    """It used to be hidden, because a framed "Sign out" would clear a
+    localStorage key, change nothing about Firebase and leave the timeline on
+    screen. That was a real problem and hiding it was the wrong fix: it also
+    took the account glyph off a page with every right to one. The panel stays
+    and is wired to the shell's real session instead."""
     d, b, html = built
-    assert "#account-btn{display:none !important}" in private_page(b, html)
+    page = private_page(b, html)
+    assert "#account-btn{display:none" not in page, "the glyph is gone again"
+    assert "window.AltoCloud=p.__altoAccount()" in page
+
+
+def test_the_framed_sign_out_reaches_the_real_session(built):
+    """Account.signOut() defers to AltoCloud when it is enabled, so the bridge
+    has to supply one that actually signs out — otherwise the panel is back to
+    clearing a key and lying about it."""
+    from alto.build.private_shell import shell as _shell
+    s = _shell()
+    fn = s[s.index("window.__altoAccount = function()"):]
+    fn = fn[:fn.index("\n  };")]
+    assert "enabled: !!c.enabled" in fn
+    assert "signOut: function(){ return c.signOut(); }" in fn
+
+
+def test_the_framed_reports_button_points_at_the_real_repository(built):
+    """A private page is served from the live site, where /reports/ exists.
+    _prepare_timeline hides that button because an offline BUNDLE has no
+    reports — applying the bundle's preparation to a hosted page removed a
+    working control."""
+    d, b, html = built
+    page = private_page(b, html)
+    assert f"__altoGo('/reports/?course={b.timeline_id}" in page
+    assert 'style="display:none" onclick="return false"' not in page
+
+
+def test_the_shell_follows_a_real_path_at_top_level():
+    """The frame has no usable base URL, so /reports/ has to be followed by
+    the shell or the click goes nowhere."""
+    from alto.build.private_shell import shell as _shell
+    fn = _shell()
+    fn = fn[fn.index("window.__altoSwap = function(url)"):]
+    fn = fn[:fn.index("\n  };")]
+    assert "window.top.location = u;" in fn
+
+
+# ── the one page publishing cannot refresh ──────────────────────────────────
+
+def test_the_uploaded_page_says_which_alto_built_it(built):
+    """Every hosted page carries this stamp and verify_live checks it. A
+    private page is uploaded by hand and then frozen in Firestore — and
+    verify_live only ever sees the SHELL in front of it, so this is the one
+    page on the site that can sit months behind the engine while every check
+    reports the site is current. It did exactly that."""
+    from alto.build.fingerprint import build_fingerprint, page_fingerprint
+    d, b, html = built
+    page = private_page(b, html)
+    assert f'<meta name="alto-build" content="{page_fingerprint()}">' in page
+
+
+def test_a_private_page_is_not_stamped_with_the_whole_site(built):
+    """It is stamped with what can actually change a timeline document. Using
+    the site-wide digest meant editing the reports page marked every private
+    timeline stale — and a warning that cries wolf gets dismissed."""
+    from alto.build.fingerprint import build_fingerprint, page_fingerprint
+    assert page_fingerprint() != build_fingerprint()
+    d, b, html = built
+    assert build_fingerprint() not in private_page(b, html)
+
+
+def test_the_shell_says_which_build_the_page_should_carry():
+    from alto.build.fingerprint import page_fingerprint
+    s = shell()
+    assert f'<meta name="alto-page-build" content="{page_fingerprint()}">' in s
+    assert "document.querySelector('meta[name=\"alto-page-build\"]')" in s
+
+
+def test_the_shell_notices_a_page_older_than_itself():
+    s = shell()
+    assert "function checkFresh(html)" in s
+    assert "if(!want || want === have) return;" in s
+    body = s[s.index("cloud.getPage(KEY).then"):]
+    assert "checkFresh(page)" in body[:600], "the check must run on open"
+
+
+def test_a_page_with_no_stamp_counts_as_stale():
+    """Everything uploaded before stamping existed. Treating 'no version' as
+    'fine' would leave exactly the oldest pages unflagged."""
+    s = shell()
+    assert "' and carries no version at all'" in s
+
+
+def test_updating_a_page_needs_no_deletion_first():
+    """Before this the only way to replace a private page was to delete the
+    Firestore document so the upload prompt came back — which meant destroying
+    the only copy to fix it."""
+    s = shell()
+    fn = s[s.index("function checkFresh(html)"):]
+    fn = fn[:fn.index("\n  }\n")]
+    assert "putPage(KEY, h, titleOf(h))" in fn
+    assert "deleteDoc" not in fn and "delete" not in fn
+
+
+def test_the_notice_can_be_dismissed():
+    """It sits over the timeline. A warning with no way out is worse than the
+    staleness it reports."""
+    s = shell()
+    assert "id=\"rx\"" in s
+    assert "bar.className = '';" in s

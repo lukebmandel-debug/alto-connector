@@ -13,6 +13,7 @@ import html as _html
 import json
 
 from .brief import Brief
+from .fingerprint import page_meta_tag
 from .pages import build_home, course_entry_for
 
 
@@ -29,7 +30,11 @@ def _rep(html, old, new, n, label):
 
 SHIM = ("<script>(function(){function go(u){try{var p=window.parent;"
         "if(p&&p!==window&&p.__altoSwap){p.__altoSwap(String(u));return true;}}catch(e){}return false;}"
-        "window.__altoGo=function(u){if(!go(u))location.href=u;};"
+        # go() fails only when there is no router above us, which means this
+        # document is being read on its own — a downloaded copy. There is no
+        # sibling file to navigate to, so following the href would land on a
+        # 404 instead of doing nothing. Doing nothing is the honest outcome.
+        "window.__altoGo=function(u){go(u);};"
         "window.__altoSearch=function(){return(window.__altoQuery&&window.__altoQuery.search)||location.search;};"
         "window.__altoHash=function(){return(window.__altoQuery&&window.__altoQuery.hash!==undefined&&window.__altoQuery.hash!=='')"
         "?window.__altoQuery.hash:location.hash;};"
@@ -79,31 +84,63 @@ def _prepare_timeline(tl: str, tid: str, label: str) -> str:
     return _inject_shim(tl, label)
 
 
-# The framed page's own account panel is built in JS, so there is no markup to
-# rewrite — hide it with a style instead. In an offline bundle the simulated
-# account is honest enough (there is no server to be signed in to), but in the
-# private view the session is REAL and belongs to the shell: the framed panel
-# would offer a "Sign out" that clears a localStorage key, changes nothing about
-# Firebase, and leaves the timeline on screen. A sign-out control that lies
-# about signing you out is worse than none.
-_HIDE_FRAMED_ACCOUNT = "<style>#account-btn{display:none !important}</style>"
-
 # Read by the private shell when it backfills a title, and never present in
 # anything world-readable: this meta lives inside the page, which is in
 # Firestore under the owner's uid, not in the shell that serves it.
 PRIVATE_LABEL = "alto-label"
 
+# Lets the shell hand the framed page the REAL Firebase session, so its account
+# panel shows who you actually are and its "Sign out" actually signs you out.
+# Without this the panel would clear a localStorage key, change nothing about
+# Firebase and leave the timeline on screen, which is why it was hidden
+# outright — but hiding it also took the account glyph off a page with every
+# right to one. Wiring it up is the better answer than removing it.
+_ACCOUNT_BRIDGE = (
+    "<script>(function(){try{var p=window.parent;"
+    "if(p&&p!==window&&p.__altoAccount){window.AltoCloud=p.__altoAccount();}}"
+    "catch(e){}})();</script>")
+
+
+def _prepare_private(tl: str, tid: str) -> str:
+    """A timeline prepared for the private shell — a HOSTED page, not a bundled one.
+
+    The distinction matters, and getting it wrong is what stripped working
+    controls off private timelines. `_prepare_timeline` exists for offline
+    bundles, where there is no reports repository and no server to be signed in
+    to, so it hides the reports button and the account panel. A private page is
+    served from the live site with a real Firebase session in the shell above
+    it. Both of those things exist here, and a private timeline should look and
+    behave exactly like any other one.
+
+    So: navigation still routes through __altoGo, because srcdoc has no usable
+    base URL — but the reports button points at the real viewer, and the
+    account panel stays and is wired to the shell's session.
+    """
+    tl = _rep(tl, CLOUD_TAG, "", 1, "strip cloud tag (private)")
+    tl = _rep(tl, "onclick=\"location.href='index.html'\"",
+              "onclick=\"__altoGo('index.html')\"", 2, "private clef+wordmark")
+    # The reports repository IS on this site, at /reports/. Route the button
+    # there at top level rather than hiding it.
+    tl = _rep(tl,
+              f"onclick=\"location.href='reports.html?course={tid}&amp;from=project'\"",
+              f"onclick=\"__altoGo('/reports/?course={tid}&amp;from=project')\"",
+              1, "private reports btn")
+    tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
+              2, "private mobile brand (js)")
+    tl = _rep(tl, "location.hash", "__altoHash()", 3, "private hash reads")
+    return _inject_shim(tl, "private")
+
 
 def private_page(brief: Brief, timeline_html: str, label: str = "") -> str:
     """The timeline prepared for srcdoc delivery by the private shell.
 
-    Identical preparation to a bundled timeline — the cloud tag stripped (it
-    cannot run at about:srcdoc anyway), navigation routed through __altoGo, the
-    reports button hidden — but delivered as one document rather than embedded
-    in a router, and with the framed account panel suppressed. The shell
-    supplies __altoSwap; see alto/build/private_shell.py.
+    Prepared as a hosted page (see _prepare_private): the cloud tag stripped
+    because it cannot run at about:srcdoc, navigation routed through __altoGo,
+    but the reports button and the account panel both intact — this page is on
+    the live site, where both of those work. The shell supplies __altoSwap and
+    __altoAccount; see alto/build/private_shell.py.
     """
-    page = _prepare_timeline(timeline_html, brief.timeline_id, "private")
+    page = _prepare_private(timeline_html, brief.timeline_id)
     i = page.find("<head>")
     if i < 0:
         raise BundleError("private: no <head>")
@@ -114,7 +151,12 @@ def private_page(brief: Brief, timeline_html: str, label: str = "") -> str:
     # apart, and only the publisher knows it, so it is recorded here.
     meta = (f'<meta name="{PRIVATE_LABEL}" content="'
             f'{_html.escape(label or brief.title, quote=True)}">')
-    return page[:i + 6] + meta + _HIDE_FRAMED_ACCOUNT + page[i + 6:]
+    # The same stamp every hosted page carries. A private page is uploaded by
+    # hand and then frozen in Firestore, so it is the one page on the site that
+    # publishing CANNOT refresh — and verify_live only ever sees the shell in
+    # front of it. Without this, a private timeline can sit on an engine months
+    # old while every check reports the site is current.
+    return page[:i + 6] + meta + page_meta_tag() + _ACCOUNT_BRIDGE + page[i + 6:]
 
 
 def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:

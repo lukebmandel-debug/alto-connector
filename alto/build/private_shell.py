@@ -25,7 +25,7 @@ as the author. One upload per publish is the cost of that.
 """
 from __future__ import annotations
 
-from .fingerprint import meta_tag
+from .fingerprint import META_NAME, meta_tag, page_fingerprint
 
 # Firestore rejects a document over 1 MiB. Stop short of it with a message the
 # author can act on, rather than surfacing a raw backend error.
@@ -56,6 +56,16 @@ button:hover,label.file:hover{background:var(--hover)}
 button[disabled]{opacity:.55;cursor:default}
 .muted{font-size:11px;color:var(--muted);margin:12px 0 0;line-height:1.6}
 input[type=file]{display:none}
+/* Shown over a page that is older than the site serving it. Bottom-RIGHT is
+   taken by the engine's own controls, so this sits bottom-left. */
+#stale{position:fixed;left:16px;bottom:60px;z-index:6;display:none;
+  align-items:center;gap:10px;max-width:min(92vw,420px);padding:10px 14px;
+  border-radius:14px;background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:12px;line-height:1.45}
+#stale.on{display:flex}
+#stale label{height:30px;width:auto;padding:0 12px;margin:0;font-size:12px;
+  white-space:nowrap}
+#stale .x{cursor:pointer;color:var(--muted);padding:0 2px}
 """
 
 _JS = """
@@ -97,6 +107,55 @@ _JS = """
     return m ? m[1].replace(/\\s*\\u2014\\s*Alto(\\s+Timeline)?\\s*$/, '').trim() : '';
   }
 
+  // Which course this page is, for the homepage's reports link and its notes
+  // lookup. Same reason as titleOf: the listing never downloads the page, so
+  // the one moment this is in hand is here.
+  function idOf(pageHtml){
+    var m = /var COURSE_ID = '([^']*)';/.exec(String(pageHtml || ''));
+    return m ? m[1] : '';
+  }
+
+  // A private page is uploaded by hand and then frozen in Firestore. Every
+  // other page on this site is rewritten by each publish, and verify_live only
+  // ever sees the shell — so this is the one page that can quietly fall months
+  // behind the engine while every check says the site is current. Compare the
+  // stamp the page carries with the one this shell was built with, and say so.
+  // NOT this shell's own alto-build, which covers the whole site: the page
+  // inside is a timeline document and only timeline sources can change it.
+  // See _TIMELINE_SOURCES in fingerprint.py.
+  function shellBuild(){
+    var m = document.querySelector('meta[name="alto-page-build"]');
+    return (m && m.content) || '';
+  }
+  function pageBuild(html){
+    var m = /<meta name="alto-build" content="([0-9a-f]+)"/.exec(String(html || ''));
+    return m ? m[1] : '';
+  }
+  function checkFresh(html){
+    var want = shellBuild(), have = pageBuild(html);
+    if(!want || want === have) return;
+    var bar = document.getElementById('stale');
+    bar.className = 'on';
+    bar.innerHTML =
+      '<span>This copy was built by an older Alto' +
+      (have ? '' : ' and carries no version at all') +
+      ', so recent fixes are missing from it.</span>' +
+      '<label class="file">Update<input type="file" id="rf" ' +
+      'accept=".html,text/html"></label><span class="x" id="rx">\u00d7</span>';
+    document.getElementById('rx').onclick = function(){ bar.className = ''; };
+    document.getElementById('rf').onchange = function(){
+      var f = this.files && this.files[0];
+      if(!f) return;
+      bar.firstChild.textContent = 'Updating\u2026';
+      f.text().then(function(h){
+        return window.AltoCloud.putPage(KEY, h, titleOf(h))
+          .then(function(){ location.reload(); });
+      }).catch(function(e){
+        bar.firstChild.textContent = 'Could not update: ' + ((e && e.message) || e);
+      });
+    };
+  }
+
   function render(pageHtml){
     // Same delivery as the offline bundle: one document injected whole, so the
     // engine boots inside the frame exactly as it does when served directly.
@@ -105,10 +164,32 @@ _JS = """
     stage.srcdoc = pageHtml;
   }
 
-  // The framed page routes its brand links through __altoGo, which calls this.
-  // There is only one document here, so "go home" means leave the frame.
+  // The framed page routes its links through __altoGo, which calls this.
+  // "index.html" means the homepage; anything else is a real path on this site
+  // (the reports repository) and is followed at top level, because the frame
+  // has no usable base URL of its own.
   window.__altoSwap = function(url){
-    if(/^\\.?\\/?index\\.html/.test(String(url||''))) window.top.location = '/';
+    var u = String(url || '');
+    if(/^\\.?\\/?index\\.html/.test(u)){ window.top.location = '/'; return; }
+    if(/^\\//.test(u)){ window.top.location = u; return; }
+  };
+
+  // The framed page's account panel asks for this (see _ACCOUNT_BRIDGE in
+  // single_file.py). It reads WHO you are from localStorage, which a srcdoc
+  // frame shares with this shell, so all it needs from us is the two actions
+  // and the flag that says the session is real rather than simulated.
+  window.__altoAccount = function(){
+    var c = window.AltoCloud;
+    if(!c) return null;
+    return {
+      enabled: !!c.enabled,
+      get user(){ return c.user; },
+      signIn: function(){ return c.signIn(); },
+      // Goes through the real Firebase sign-out, which fires renderAccount
+      // here and puts the page back behind the gate. The panel used to be
+      // hidden precisely because a framed "Sign out" could not do this.
+      signOut: function(){ return c.signOut(); }
+    };
   };
 
   function signedOut(){
@@ -182,10 +263,12 @@ _JS = """
     cloud.getPage(KEY).then(function(page){
       if(!page){ needsUpload(); return; }
       render(page);
+      checkFresh(page);
       // Pages uploaded before titles were stored would otherwise sit on the
       // homepage as "Untitled" forever: the listing never fetches the html a
       // title could be recovered from, so the one moment it IS in hand is here.
-      if(cloud.ensureTitle) cloud.ensureTitle(KEY, titleOf(page)).catch(function(){});
+      if(cloud.ensureTitle)
+        cloud.ensureTitle(KEY, titleOf(page), idOf(page)).catch(function(){});
     }).catch(function(){
       // A rules refusal lands here. Say nothing about what does or does not exist.
       lock();
@@ -227,12 +310,15 @@ def shell(cloud_version: str = "") -> str:
         'viewport-fit=cover">\n'
         '<meta name="robots" content="noindex, nofollow">\n'
         f'{meta_tag()}\n'
+        # What the page inside this shell should have been built by.
+        f'<meta name="alto-page-build" content="{page_fingerprint()}">\n'
         '<title>Alto</title>\n'
         f'<style>{_CSS}</style>\n'
         '</head><body>\n'
         '<iframe id="stage" title="Alto" '
         'allow="clipboard-write; clipboard-read"></iframe>\n'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
+        '<div id="stale"></div>\n'
         f'<script>{js}</script>\n'
         f'<script type="module" src="{src}"></script>\n'
         '</body></html>\n'

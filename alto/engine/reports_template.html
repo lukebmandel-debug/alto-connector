@@ -271,6 +271,25 @@ const KEY = 'alto-reports-' + courseId;
 })();
 
 document.getElementById('course-title').textContent = meta.title;
+
+/* COURSE_META lists the timelines published to the public site. A private one
+   is deliberately in none of them, so its heading falls back to the raw id —
+   "civ-pro-jade" where the owner expects "Civil Procedure — Jade". They are
+   the only person who can be shown that name, and only once Firebase says who
+   they are, so it is filled in here rather than baked into the page. */
+if(!COURSE_META[courseId]){
+  window.renderAccount = (function(prev){
+    return function(){
+      if(typeof prev === 'function') try{ prev(); }catch(e){}
+      var c = window.AltoCloud;
+      if(!c || !c.enabled || !c.user || !c.listPages) return;
+      c.listPages().then(function(pages){
+        var hit = (pages || []).filter(function(p){ return p.tid === courseId; })[0];
+        if(hit && hit.title) document.getElementById('course-title').textContent = hit.title;
+      }).catch(function(){});
+    };
+  })(window.renderAccount);
+}
 document.getElementById('course-sub').textContent =
   (meta.project ? meta.project + ' · ' : '') + 'Every report generated inside the course is saved here automatically.';
 document.getElementById('unit-strip').innerHTML =

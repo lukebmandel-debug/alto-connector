@@ -76,9 +76,9 @@
     // Backfill for pages uploaded before titles were stored. Without it every
     // timeline published up to now lists as "Untitled" forever, because the
     // list deliberately never fetches the 600 KB the title could be read from.
-    ensureTitle: async (key, title) => {
+    ensureTitle: async (key, title, tid) => {
       if (!configured) return false;
-      await ready; return _ensureTitle(key, title);
+      await ready; return _ensureTitle(key, title, tid);
     },
     /* ── shares ──────────────────────────────────────────────────────────
        A share is opened by someone signed in to nothing, so getShare must
@@ -343,7 +343,7 @@
     return snap.exists() ? (snap.data().html || null) : null;
   }
 
-  async function _putPage(key, html) {
+  async function _putPage(key, html, title) {
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
     if (!key) throw new Error('no page key');
@@ -356,19 +356,28 @@
     // users/{uid}, which the rules make readable to nobody but the owner. A
     // list you cannot read the names in is not a list you can use.
     await setDoc(doc(db, 'users', u.uid, 'pages', key),
-                 { html, title: title || '', updatedAt: serverTimestamp() });
+                 { html, title: title || '', tid: _identityOf(html),
+                   updatedAt: serverTimestamp() });
     return true;
   }
 
-  async function _ensureTitle(key, title) {
+  async function _ensureTitle(key, title, tid) {
     const u = auth.currentUser;
-    if (!u || !key || !title) return false;
+    if (!u || !key) return false;
     const ref = doc(db, 'users', u.uid, 'pages', key);
     const snap = await getDoc(ref);
-    // Never overwrite a title that is already there — this heals old documents,
-    // it does not get an opinion about current ones.
-    if (!snap.exists() || (snap.data() || {}).title) return false;
-    await setDoc(ref, { title }, { merge: true });
+    if (!snap.exists()) return false;
+    const have = snap.data() || {};
+    const add = {};
+    // Never overwrite what is already there — this heals old documents, it
+    // does not get an opinion about current ones.
+    if (title && !have.title) add.title = title;
+    // The timeline id, which the homepage needs to point the chip's reports
+    // button and notes lookup at the right course. Recovered from the page
+    // because the listing never downloads it.
+    if (tid && !have.tid) add.tid = tid;
+    if (!Object.keys(add).length) return false;
+    await setDoc(ref, add, { merge: true });
     return true;
   }
 
@@ -382,7 +391,7 @@
     // the homepage cost more than opening a timeline.
     snap.forEach(d => {
       const v = d.data() || {};
-      out.push({ key: d.id, title: v.title || '',
+      out.push({ key: d.id, title: v.title || '', tid: v.tid || '',
                  shareKey: v.shareKey || '',
                  updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
     });
@@ -411,6 +420,11 @@
   // A srcdoc iframe inherits this origin, so a share that kept the master's id
   // would write to the master's localStorage keys and, for a signed-in reader,
   // the master's users/{uid}/tl/{tid} document. Re-stamp it first, always.
+  function _identityOf(html) {
+    const m = /var COURSE_ID = '([^']*)';/.exec(html || '');
+    return m ? m[1] : '';
+  }
+
   function _reidentify(html, shareKey) {
     const m = /var COURSE_ID = '([^']*)';/.exec(html || '');
     if (!m) throw new Error('not an Alto timeline page');

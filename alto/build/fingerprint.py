@@ -54,6 +54,31 @@ def _sources() -> list[tuple[str, bytes]]:
     return out
 
 
+# The build files that decide what a TIMELINE document contains. Deliberately
+# narrower than _sources(): a private page is stamped with this one, and it is
+# the only page on the site that a publish cannot refresh — its owner has to
+# re-upload it by hand. Stamping it with the whole-build digest meant a change
+# to the reports page or the homepage flagged every private timeline as stale,
+# and a warning that cries wolf is one people learn to dismiss.
+_TIMELINE_SOURCES = (
+    "blocks.py", "brief.py", "builder.py", "emit.py", "engine_patches.py",
+    "estimate.py", "layout.py", "sanitize.py", "single_file.py", "verify.py",
+)
+
+
+def page_fingerprint() -> str:
+    """The digest for a built timeline page — see _TIMELINE_SOURCES."""
+    h = hashlib.sha256()
+    for label, data in _sources():
+        if not (label == "engine/timeline_template.html"
+                or (label.startswith("build/")
+                    and label[len("build/"):] in _TIMELINE_SOURCES)):
+            continue
+        h.update(f"{label}:{len(data)}\n".encode())
+        h.update(data)
+    return h.hexdigest()[:DIGEST_CHARS]
+
+
 def build_fingerprint() -> str:
     """The digest embedded in every hosted page."""
     h = hashlib.sha256()
@@ -66,3 +91,8 @@ def build_fingerprint() -> str:
 
 def meta_tag(digest: str = "") -> str:
     return f'<meta name="{META_NAME}" content="{digest or build_fingerprint()}">'
+
+
+def page_meta_tag() -> str:
+    """The stamp a built timeline page carries."""
+    return f'<meta name="{META_NAME}" content="{page_fingerprint()}">'
