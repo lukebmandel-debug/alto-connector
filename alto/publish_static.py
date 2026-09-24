@@ -12,6 +12,9 @@ Site layout (Firebase Hosting site `alto-connector`, static only):
                            the site holds 2+)
   /pv/{key}/index.html   — sign-in shell for a 'private-web' timeline; the
                            page itself is NOT here, it is in Firestore
+  /s/index.html          — shell for every share link; /s/{key}/ rewrites to
+                           it, so creating or revoking a share is a Firestore
+                           write and never a deploy
   /reports/index.html    — reports viewer (?course={tid})
   /alto-cloud.js         — v3 sync layer (page ↔ Firestore directly; Spark-free)
   /privacy/index.html
@@ -37,6 +40,7 @@ from .build.builder import build_timeline, load_brief
 from .build.fingerprint import META_NAME, build_fingerprint
 from .build.pages import build_home, build_reports, course_entry_for
 from .build.private_shell import shell as private_shell
+from .build.share_shell import shell as share_shell
 from .build.single_file import bundle, bundle_many, private_page
 from .hosted import hosted_home, hosted_reports, hosted_timeline
 from .cloud import emit_cloud_js, load_config, write_cloud_js
@@ -281,6 +285,16 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             store.put_artifact(uid, tid, "private.html", private_page(
                 b, raw, name_by_pid.get(t.get("project_id", ""), "")))
 
+    # ── share links ─────────────────────────────────────────────────────
+    # ONE shell for every share that will ever exist. /s/{key}/ is rewritten to
+    # it by Hosting (see deploy_site), so the owner can mint a share from their
+    # homepage and send the link immediately — no deploy, and nothing on this
+    # machine ever learns the key. It is also what makes revoking instant: a
+    # deleted Firestore document, not a republished site.
+    sdir = site / "s"
+    sdir.mkdir(parents=True, exist_ok=True)
+    (sdir / "index.html").write_text(share_shell(cloud_v), encoding="utf-8")
+
     # Pruned on its own key set: `live` above is built from link-visible
     # timelines, so sharing that loop would delete every shell each publish.
     if pvdir_root.exists():
@@ -379,21 +393,45 @@ def deploy_site(site_dir: Path) -> str:
             "ALTO_FIREBASE_PROJECT (a free Firebase Hosting site; see README) "
             "or share the offline file instead")
     fb, site, project = cfg
+    # The rules travel with the site. Everything Alto stores in Firestore is
+    # governed by them, and until now deploying them was a README step nobody
+    # was reminded of — a Firestore left in test mode is world-readable and
+    # world-writable for thirty days, and publishing into one exposes every
+    # reader's highlights and notes to anyone who learns the project id.
+    rules_src = REPO / "firestore.rules"
+    rules_out = site_dir.parent / "firestore.rules"
+    if rules_src.exists():
+        shutil.copy(rules_src, rules_out)
+
     # keep firebase.json's site in step with the configured site name
     fbjson = site_dir.parent / "firebase.json"
-    fbjson.write_text(json.dumps({"hosting": {
+    cfg_json = {"hosting": {
         "site": site, "public": site_dir.name, "ignore": ["**/.*"],
-        "headers": _security_headers()}}, indent=2))
+        # Every /s/{key}/ is the same shell, which reads its key from the URL.
+        # A rewrite rather than a directory per share: a share is created in
+        # the browser, and a share that needed a deploy to exist could not be
+        # created there at all.
+        "rewrites": [{"source": "/s/**", "destination": "/s/index.html"}],
+        "headers": _security_headers()}}
+    if rules_out.exists():
+        cfg_json["firestore"] = {"rules": rules_out.name}
+    fbjson.write_text(json.dumps(cfg_json, indent=2))
     (site_dir.parent / ".firebaserc").write_text(
         json.dumps({"projects": {"default": project}}, indent=2))
     env = {**os.environ,
            "PATH": f"{Path(fb).parent}:{os.environ.get('PATH', '')}"}
+    targets = [f"hosting:{site}"]
+    if rules_out.exists():
+        targets.append("firestore:rules")
     r = subprocess.run(
-        [fb, "deploy", "--only", f"hosting:{site}",
+        [fb, "deploy", "--only", ",".join(targets),
          "--project", project, "--non-interactive"],
         cwd=str(site_dir.parent), env=env, capture_output=True, text=True,
         timeout=240)
     if r.returncode != 0:
+        # Deliberately not falling back to a hosting-only deploy. A site whose
+        # pages shipped but whose rules did not is the worst of both: it looks
+        # published and it is not protected.
         raise PublishError(f"firebase deploy failed:\n{r.stdout[-800:]}\n{r.stderr[-800:]}")
     return f"https://{site}.web.app"
 
@@ -409,6 +447,8 @@ def live_pages(site_dir: Path) -> list[str]:
     out = ["/"]
     if (site / "reports" / "index.html").exists():
         out.append("/reports/")
+    if (site / "s" / "index.html").exists():
+        out.append("/s/")
     for parent in ("t", "pv"):
         d = site / parent
         if not d.exists():

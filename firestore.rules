@@ -12,13 +12,36 @@ rules_version = '2';
 //   users/{uid}                       { theme }                    account-wide
 //   users/{uid}/tl/{tid}              { highlights, hl_removed, updatedAt }
 //   users/{uid}/tl/{tid}/reports/{id} { data, deleted, ts }
-//   users/{uid}/pages/{key}           { html, updatedAt }   private timelines
+//   users/{uid}/pages/{key}           { html, title, updatedAt }  private
+//   users/{uid}/shared/{key}          { key, title, savedAt }  shares kept
+//   shares/{key}                      { html|items, title, owner, updatedAt }
 //
 // Rules do NOT cascade into subcollections, hence the recursive {document=**}.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // A share link is meant to be opened by someone who is not signed in to
+    // anything, so this is the one collection in Alto that is world-readable.
+    // What protects it is that the key is 22 random characters and appears
+    // nowhere: not on the homepage, not in search, not in a sitemap.
+    //
+    // `get` without `list` is the whole point. `allow read` would cover both,
+    // and a listable collection turns 110 bits of unguessable key into a
+    // directory anyone can walk — every share on the project, readable, in one
+    // request. Do not merge these two lines back into `read`.
+    match /shares/{key} {
+      allow get: if true;
+      allow list: if false;
+      // Only the account named in the document may change or revoke it, and a
+      // new share must name its own author — otherwise anyone signed in could
+      // create shares under someone else's name, or overwrite theirs.
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.owner;
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.owner;
     }
   }
 }

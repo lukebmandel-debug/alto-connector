@@ -600,6 +600,31 @@
     transition:transform .2s, color .2s;
   }
   .tile-download:hover{ transform:scale(1.15); color:var(--text); }
+  /* Share menu for a private timeline. */
+  .share-scrim{
+    position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+    justify-content:center; padding:24px; background:rgba(8,9,16,.55);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  }
+  .share-menu{
+    width:100%; max-width:360px; border-radius:18px; padding:22px 20px 16px;
+    background:var(--panel-glass-bg); border:1px solid var(--glass-slab-border);
+    box-shadow:0 30px 70px rgba(0,0,0,.45); color:var(--text);
+  }
+  .share-menu .sm-title{ font-size:15px; font-weight:600; margin:0 0 8px; }
+  .share-menu .sm-note{ font-size:12px; line-height:1.6; color:var(--muted); margin:0 0 16px; }
+  .share-menu button{
+    display:block; width:100%; height:40px; margin:0 0 8px; border-radius:11px;
+    border:1px solid var(--glass-slab-border); background:rgba(255,255,255,.06);
+    color:var(--text); font-family:inherit; font-size:13px; cursor:pointer;
+  }
+  .share-menu button:hover{ background:rgba(255,255,255,.14); }
+  .share-menu button[disabled]{ opacity:.5; cursor:default; }
+  .share-menu .sm-danger{ color:#ff9b9b; }
+  .share-menu .sm-quiet{ background:none; color:var(--muted); }
+  .share-menu .sm-status{ font-size:11.5px; color:var(--muted); margin:6px 0 0; min-height:14px; }
+  @media print{ .share-scrim{ display:none !important; } }
+
   /* C5: share the whole project — top-right of the slab (no print) */
   .project-slab{ position:relative; }
   .slab-share{
@@ -1033,6 +1058,85 @@ wrap.appendChild(nps);
 // Gated on AltoCloud.user and never on Account.get(): the simulated sign-in
 // path writes that same localStorage key on any site with no Firebase project,
 // and would promise a private section to someone signed in to nothing.
+// ── Sharing a private timeline ─────────────────────────────────────────────
+// A share is a SNAPSHOT. Creating one copies the timeline as it stands now,
+// and it does not move again until "Update shared copy" is pressed — so
+// republishing, or editing, never pushes work to a recipient before the owner
+// meant it to. One link per timeline: the same URL goes to everyone, so one
+// update moves every recipient together.
+//
+// The link needs no sign-in to open, which means whoever holds it can read it.
+// Say that on the button rather than in a footnote.
+function altoShareMenu(pg, btn){
+  const c = window.AltoCloud;
+  if(!c || !c.enabled || !c.user) return;
+  const has = !!pg.shareKey;
+  const sc = document.createElement('div');
+  sc.className = 'share-scrim';
+  sc.innerHTML =
+    '<div class="share-menu" role="dialog" aria-modal="true">' +
+      '<div class="sm-title"></div>' +
+      (has
+        ? '<p class="sm-note">Anyone with this link can read it, without ' +
+          'signing in. It shows the timeline as it was when you last ' +
+          'updated it.</p>' +
+          '<button data-a="copy">Copy link</button>' +
+          '<button data-a="push">Update shared copy</button>' +
+          '<button data-a="revoke" class="sm-danger">Stop sharing</button>'
+        : '<p class="sm-note">Creates a link that opens without signing in. ' +
+          'It shows this timeline as it is now, and stays that way until you ' +
+          'update it. Your own copy is untouched.</p>' +
+          '<button data-a="create">Create share link</button>') +
+      '<button data-a="close" class="sm-quiet">Cancel</button>' +
+      '<p class="sm-status"></p>' +
+    '</div>';
+  document.body.appendChild(sc);
+  sc.querySelector('.sm-title').textContent = pg.title || 'Untitled timeline';
+  const status = sc.querySelector('.sm-status');
+  const close = () => sc.remove();
+  sc.addEventListener('click', e => { if(e.target === sc) close(); });
+
+  function busy(msg){
+    status.textContent = msg;
+    Array.prototype.forEach.call(sc.querySelectorAll('button'),
+                                 b => { b.disabled = true; });
+  }
+  function failed(e){
+    status.textContent = 'Did not work: ' + ((e && e.message) || e);
+    Array.prototype.forEach.call(sc.querySelectorAll('button'),
+                                 b => { b.disabled = false; });
+  }
+  async function copyUrl(k){
+    const url = c.shareUrl(k);
+    try{ await navigator.clipboard.writeText(url); showToast('Link copied ✓'); }
+    catch(e){ showToast(url); }
+  }
+
+  sc.addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if(!b) return;
+    const a = b.dataset.a;
+    if(a === 'close'){ close(); return; }
+    try{
+      if(a === 'copy'){ await copyUrl(pg.shareKey); close(); return; }
+      if(a === 'create' || a === 'push'){
+        busy(a === 'create' ? 'Creating…' : 'Updating…');
+        const r = await c.sharePush(pg.key, pg.title);
+        pg.shareKey = r.shareKey;
+        await copyUrl(r.shareKey);
+        close(); renderPrivate(); return;
+      }
+      if(a === 'revoke'){
+        busy('Stopping…');
+        await c.shareRevoke(pg.key);
+        pg.shareKey = '';
+        showToast('Link turned off');
+        close(); renderPrivate(); return;
+      }
+    }catch(err){ failed(err); }
+  });
+}
+
 let privateSlab = null;
 function clearPrivate(){
   if(privateSlab){ privateSlab.remove(); privateSlab = null; }
@@ -1064,6 +1168,18 @@ function renderPrivate(){
       // textContent, not innerHTML: this title has been to Firestore and back,
       // so it is no longer template output and must not be parsed as markup.
       el.querySelector('.tile-title').textContent = pg.title || 'Untitled timeline';
+      if(pg.shareKey) el.querySelector('.tile-sub').textContent = 'Private · shared';
+      const shb = document.createElement('button');
+      shb.className = 'tile-share';
+      shb.style.right = '14px';
+      shb.title = (pg.title || 'Timeline') + ' — share';
+      shb.setAttribute('aria-label', (pg.title || 'Timeline') + ' share');
+      shb.innerHTML = SHARE_GLYPH;
+      shb.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        altoShareMenu(pg, shb);
+      });
+      el.appendChild(shb);
       grid.appendChild(el);
     });
     slab.appendChild(kicker);

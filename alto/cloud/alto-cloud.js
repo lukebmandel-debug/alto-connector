@@ -80,6 +80,46 @@
       if (!configured) return false;
       await ready; return _ensureTitle(key, title);
     },
+    /* ── shares ──────────────────────────────────────────────────────────
+       A share is opened by someone signed in to nothing, so getShare must
+       work with no user at all — the rules allow `get` on shares/{key} and
+       nothing else. Everything that WRITES one needs the owner. */
+    getShare: async (key) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _getShare(key);
+    },
+    /* The three things an owner does with a share. A share is a SNAPSHOT: it
+       is written by shareCreate and does not move again until sharePush is
+       called, so republishing a timeline never changes what a recipient sees.
+       That is the point — the owner decides when their work goes out. */
+    shareCreate: async (pageKey, title) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _sharePush(pageKey, title, true);
+    },
+    sharePush: async (pageKey, title) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _sharePush(pageKey, title, false);
+    },
+    shareRevoke: async (pageKey) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _shareRevoke(pageKey);
+    },
+    shareUrl: (shareKey) => location.origin + '/s/' + shareKey + '/',
+    reidentify: (html, shareKey) => _reidentify(html, shareKey),
+    /* Shares someone has kept. A REFERENCE, never a copy: if this stored the
+       html, revoking a share would leave every recipient still reading it. */
+    saveShare: async (key, title) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _saveShare(key, title);
+    },
+    listShared: async () => {
+      if (!configured) return [];
+      await ready; return _listShared();
+    },
+    forgetShare: async (key) => {
+      if (!configured) return false;
+      await ready; return _forgetShare(key);
+    },
   };
   window.AltoCloud = cloud;
 
@@ -93,8 +133,8 @@
          { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
            getRedirectResult, signOut, onAuthStateChanged, browserLocalPersistence,
            setPersistence },
-         { getFirestore, doc, collection, setDoc, getDoc, getDocs, onSnapshot,
-           serverTimestamp }] =
+         { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
+           onSnapshot, serverTimestamp }] =
     await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
@@ -343,11 +383,159 @@
     snap.forEach(d => {
       const v = d.data() || {};
       out.push({ key: d.id, title: v.title || '',
+                 shareKey: v.shareKey || '',
                  updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
     });
     out.sort((a, b) => (b.updatedAt - a.updatedAt) ||
                        String(a.title).localeCompare(String(b.title)));
     return out;
+  }
+
+  /* ── shares: a copy anyone with the link can read ────────────────────────
+     shares/{key} is the one world-readable collection in Alto. `get` is
+     allowed and `list` is not, so the 22-character key is the whole of the
+     access control — see firestore.rules. ─────────────────────────────────── */
+
+  // Every place a page records WHICH timeline it is. MUST stay identical to
+  // ID_PATTERNS in alto/build/blocks.py — tests/test_share_links.py asserts it,
+  // because two copies of this list quietly disagreeing would hand a share
+  // some of the master's storage and look completely normal while doing it.
+  const ID_PATTERNS = [
+    ["course_id_lit", "courseId:'{tid}'"],
+    ["course_id_var", "var COURSE_ID = '{tid}';"],
+    ["doc_save_key", "alto-doc-{tid}"],
+    ["hl_key", "alto-hl-{tid}"],
+    ["rp_key", "alto-rp-{tid}"]
+  ];
+
+  // A srcdoc iframe inherits this origin, so a share that kept the master's id
+  // would write to the master's localStorage keys and, for a signed-in reader,
+  // the master's users/{uid}/tl/{tid} document. Re-stamp it first, always.
+  function _reidentify(html, shareKey) {
+    const m = /var COURSE_ID = '([^']*)';/.exec(html || '');
+    if (!m) throw new Error('not an Alto timeline page');
+    const oldId = m[1], newId = 's-' + shareKey;
+    if (oldId === newId) return html;
+    let out = html;
+    for (const [, tmpl] of ID_PATTERNS)
+      out = out.split(tmpl.replace('{tid}', oldId))
+               .join(tmpl.replace('{tid}', newId));
+    // A partial rewrite is worse than none: it shares SOME storage with the
+    // master and gives no sign of it.
+    for (const [name, tmpl] of ID_PATTERNS)
+      if (out.includes(tmpl.replace('{tid}', oldId)))
+        throw new Error('share still carries the original identity: ' + name);
+    return out;
+  }
+
+  async function _getShare(key) {
+    if (!key) return null;
+    const snap = await getDoc(doc(db, 'shares', key));
+    return snap.exists() ? snap.data() : null;
+  }
+
+  async function _putShare(key, data) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('not signed in');
+    if (!key) throw new Error('no share key');
+    const bytes = new TextEncoder().encode((data && data.html) || '').length;
+    if (bytes > MAX_PAGE_BYTES)
+      throw new Error(Math.round(bytes / 1024) + ' KB exceeds the ' +
+                      Math.round(MAX_PAGE_BYTES / 1024) + ' KB limit');
+    // owner is what the rules check on every later update and delete, so it is
+    // written here and never taken from the caller.
+    await setDoc(doc(db, 'shares', key),
+                 Object.assign({}, data, { owner: u.uid,
+                                           updatedAt: serverTimestamp() }));
+    return true;
+  }
+
+  async function _revokeShare(key) {
+    const u = auth.currentUser;
+    if (!u || !key) return false;
+    await deleteDoc(doc(db, 'shares', key));
+    return true;
+  }
+
+  // Same alphabet as the connector's _share_slug: 32 symbols with no look-alike
+  // glyphs, 22 of them, so a key is unguessable and also dictatable over the
+  // phone without an O/0 or l/1 argument.
+  const KEY_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+  function _mintKey() {
+    const a = new Uint8Array(22);
+    crypto.getRandomValues(a);
+    let out = '';
+    // 256 % 32 === 0, so the modulo is uniform — no rejection sampling needed.
+    for (const b of a) out += KEY_ALPHABET[b % KEY_ALPHABET.length];
+    return out;
+  }
+
+  // Create, or push the current master out to an existing link. One shared
+  // link per timeline: the same URL goes to everyone, so "update the shared
+  // copies" is one write and every recipient moves together.
+  async function _sharePush(pageKey, title, mustBeNew) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('not signed in');
+    const ref = doc(db, 'users', u.uid, 'pages', pageKey);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('nothing published here yet');
+    const page = snap.data() || {};
+    if (!page.html) throw new Error('nothing published here yet');
+    const existing = page.shareKey || '';
+    if (mustBeNew && existing) return { shareKey: existing, reused: true };
+    const shareKey = existing || _mintKey();
+    // Re-identify BEFORE writing. A share that kept the master's identity
+    // would write a recipient's highlights into the owner's own records.
+    const html = _reidentify(page.html, shareKey);
+    await _putShare(shareKey, { html, title: title || page.title || '' });
+    if (!existing) await setDoc(ref, { shareKey }, { merge: true });
+    return { shareKey, reused: false };
+  }
+
+  async function _shareRevoke(pageKey) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('not signed in');
+    const ref = doc(db, 'users', u.uid, 'pages', pageKey);
+    const snap = await getDoc(ref);
+    const shareKey = snap.exists() ? ((snap.data() || {}).shareKey || '') : '';
+    if (!shareKey) return false;
+    // Delete the readable copy FIRST. If this throws, the owner still sees the
+    // share on their homepage and can try again; clearing our end first would
+    // leave a live public document nobody knew about any more.
+    await _revokeShare(shareKey);
+    await setDoc(ref, { shareKey: '' }, { merge: true });
+    return true;
+  }
+
+  async function _saveShare(key, title) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('not signed in');
+    if (!key) throw new Error('no share key');
+    await setDoc(doc(db, 'users', u.uid, 'shared', key),
+                 { key, title: title || '', savedAt: serverTimestamp() });
+    return true;
+  }
+
+  async function _listShared() {
+    const u = auth.currentUser;
+    if (!u) return [];
+    const snap = await getDocs(collection(db, 'users', u.uid, 'shared'));
+    const out = [];
+    snap.forEach(d => {
+      const v = d.data() || {};
+      out.push({ key: d.id, title: v.title || '',
+                 savedAt: (v.savedAt && v.savedAt.seconds) || 0 });
+    });
+    out.sort((a, b) => (b.savedAt - a.savedAt) ||
+                       String(a.title).localeCompare(String(b.title)));
+    return out;
+  }
+
+  async function _forgetShare(key) {
+    const u = auth.currentUser;
+    if (!u || !key) return false;
+    await deleteDoc(doc(db, 'users', u.uid, 'shared', key));
+    return true;
   }
 
   const provider = new GoogleAuthProvider();

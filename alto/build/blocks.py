@@ -44,6 +44,27 @@ FALLBACK_GLYPH = "&#9670;"   # ◆ — used when an entity/axis value has no SVG
 _SVG_STYLE_RE = re.compile(r'(<svg\b[^>]*?)\s+style="[^"]*"')
 
 
+# Every place a page is stamped with WHICH timeline it is. These decide the
+# localStorage namespace and the Firestore sync key, so two pages sharing them
+# share their reader's highlights, notes and reports — which is exactly what
+# must not happen between a private master and a copy handed to someone else.
+#
+# Listed here rather than inline below because alto/build/reidentify.py and
+# alto-cloud.js both have to know the same set, and a page identity that three
+# files each described separately would drift silently and merge two readers'
+# work the day it did.
+#
+# hl_key_legacy is absent on purpose: it is hl_key plus a suffix, so rewriting
+# hl_key rewrites it too. A separate entry would match the same text twice.
+ID_PATTERNS = {
+    "course_id_lit": "courseId:'{tid}'",
+    "course_id_var": "var COURSE_ID = '{tid}';",
+    "doc_save_key": "alto-doc-{tid}",
+    "hl_key": "alto-hl-{tid}",
+    "rp_key": "alto-rp-{tid}",
+}
+
+
 def _normalize_symbol(svg: str) -> str:
     """Strip the root svg's style attribute. A baked-in margin/vertical-align
     (the old §C1 wrapper carried both) skews centring inside the flex-centred
@@ -1225,15 +1246,15 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "report_footer": ("Generated from highlights and notes in the "
                           f"{b.title} study timeline."),
         "reports_link": rhref,
-        "course_id_lit": f"courseId:'{tid}'",
+        "course_id_lit": ID_PATTERNS["course_id_lit"].format(tid=tid),
         "drawer_title": f"'    <span id=\"nav-drawer-title\">{b.title}</span>',",
-        "doc_save_key": f"alto-doc-{tid}",
-        "hl_key": f"alto-hl-{tid}",
-        "hl_key_legacy": f"alto-hl-{tid}-legacy",
-        "rp_key": f"alto-rp-{tid}",
+        "doc_save_key": ID_PATTERNS["doc_save_key"].format(tid=tid),
+        "hl_key": ID_PATTERNS["hl_key"].format(tid=tid),
+        "hl_key_legacy": ID_PATTERNS["hl_key"].format(tid=tid) + "-legacy",
+        "rp_key": ID_PATTERNS["rp_key"].format(tid=tid),
         "sim_name": b.owner_name or "Alto User",
         "sim_email": owner_mail,
-        "course_id_var": f"var COURSE_ID = '{tid}';",
+        "course_id_var": ID_PATTERNS["course_id_var"].format(tid=tid),
         "badge_event_d": f'<div class="detail-badge ${{badgeClass}}">{b.node_noun}</div>',
         "badge_event_m": f'<div class="detail-badge badge-node">{b.node_noun}</div>',
         "badge_char_m": f'<div class="detail-badge badge-char">{b.entity_axis_singular}</div>',
