@@ -323,7 +323,15 @@ def list_projects() -> dict:
                  "status": t.get("status", "draft")}
                 for t in timelines if t.get("project_id") == p["project_id"]],
         })
-    return {"projects": projects}
+    # The homepage lists every project on the user's account; this lists only
+    # what is stored where this connector runs. Say so, or a project named on
+    # the homepage reads as "missing" when it was only published elsewhere.
+    return {"projects": projects,
+            "note": ("Projects stored with this connector only. A project the "
+                     "user names that is not listed here was published from "
+                     "another device or store: create it here with exactly "
+                     "that name (the homepage groups timelines by project "
+                     "name), ask only for its purpose, and continue.")}
 
 
 @mcp.tool(title="Create project", annotations=RW)

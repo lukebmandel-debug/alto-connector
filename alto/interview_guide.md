@@ -61,6 +61,16 @@ directly into this conversation — that is the normal delivery path.
 (If the user already has projects, `list_projects` first and offer to add
 into one.)
 
+**A project named from the homepage.** The homepage's "＋ New timeline" names
+the project it was clicked in. If `list_projects` has no project by that
+exact name, it was published from another device or another Alto store — the
+homepage lists everything on the user's account, this connector only what is
+stored here. That is normal; do not tell the user the project does not exist
+or ask which account they used. Create it here with **exactly** that name
+(`create_project`) — the homepage files timelines by project name, so the new
+timeline lands in the same box — ask only for the purpose (and kind, with
+"studying" as the default), then go straight on to Flow 2.
+
 ## Flow 2 — New timeline (deep, sectioned; each maps to tool input)
 
 ### A. Materials — the closed-system gate (FIRST, load-bearing)

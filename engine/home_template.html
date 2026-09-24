@@ -176,6 +176,10 @@
   }
   .project-slab.new-project-slab:hover{ transform:scale(1.01); color:var(--text); border-color:var(--muted); }
   .project-slab.new-project-slab .nps-plus{ font-size:22px; line-height:1; font-weight:300; }
+  .new-project-note{
+    width:min(1040px, 100%); box-sizing:border-box; padding:4px 12px; text-align:center;
+    font-size:12.5px; line-height:1.6; color:var(--muted); letter-spacing:.02em;
+  }
   .project-slab.new-project-slab .nps-label{ font-size:13px; letter-spacing:.14em; text-transform:uppercase; }
 
   /* search-jump flash for slabs/tiles */
@@ -982,7 +986,8 @@ function inProjectPrompt(projectName){
   return 'I want to add a new timeline to my "' + projectName + '" project in Alto. ' +
     'If the Alto connector isn\'t connected here yet, help me install it from ' + ALTO_GET +
     ' first. Then begin with Alto\'s interview guide and build the timeline into that ' +
-    'project from the materials I give you.';
+    'project from the materials I give you. If Alto on this device has no project by that ' +
+    'name yet, create it with exactly that name.';
 }
 // The "＋ New timeline" tile at the end of a project's grid.
 function newTimelineTile(projectName){
@@ -1067,7 +1072,7 @@ PROJECTS.forEach((p, pi) => {
     grid.appendChild(el);
   });
   // ＋ New — start a new item inside this project (course/book/timeline…).
-  grid.appendChild(newTimelineTile(p.name));
+  if(!altoIsTouch()) grid.appendChild(newTimelineTile(p.name));
   slab.appendChild(kicker);
   slab.appendChild(grid);
   // C5: share the whole project (no print) — top-right of the slab
@@ -1101,10 +1106,19 @@ PROJECTS.forEach((p, pi) => {
 });
 
 // ── "Start new project" panel below all existing projects.
+// Building happens in Claude with the Alto connector, which runs on a computer —
+// the Claude app on a phone or tablet cannot reach it. So on those devices the
+// "new" affordances would open a chat that can build nothing; say where instead.
+// (The element stays either way: the private and shared groups anchor on it.)
 const nps = document.createElement('div');
-nps.className = 'project-slab new-project-slab';
-nps.innerHTML = '<span class="nps-plus">＋</span><span class="nps-label">Start new project</span>';
-nps.addEventListener('click', () => openClaude(newProjectPrompt));
+if(altoIsTouch()){
+  nps.className = 'new-project-note';
+  nps.textContent = 'New projects and timelines are made with Claude on your computer.';
+} else {
+  nps.className = 'project-slab new-project-slab';
+  nps.innerHTML = '<span class="nps-plus">＋</span><span class="nps-label">Start new project</span>';
+  nps.addEventListener('click', () => openClaude(newProjectPrompt));
+}
 wrap.appendChild(nps);
 
 // ── Your own private timelines ──────────────────────────────────────────────
@@ -1485,7 +1499,7 @@ function drawPrivate(pages){
                    href: el.getAttribute('href'), search: pg.search || [] });
     });
     // Your own project, so you can add to it — unlike a kept share's box.
-    grid.appendChild(newTimelineTile(pj.name));
+    if(!altoIsTouch()) grid.appendChild(newTimelineTile(pj.name));
     });
     // Anchored on the shared group rather than on nps, because these two
     // render from independent Firestore reads and whichever resolved first

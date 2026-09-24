@@ -196,7 +196,7 @@ def test_every_owned_project_offers_a_new_timeline():
     published or private — ends with a tile that starts the next timeline in
     it. A kept share is someone else's project and gets none."""
     h = _home()
-    assert h.count("grid.appendChild(newTimelineTile(") == 2
+    assert h.count("grid.appendChild(newTimelineTile(") == 2  # both guarded by altoIsTouch
     shared = h[h.index("function drawShared("):]
     shared = shared[:shared.index("\n}\n")]
     assert "newTimelineTile" not in shared
@@ -210,3 +210,24 @@ def test_the_claude_prompts_point_at_the_guide_and_the_download():
         assert "ALTO_GET" in body and "isn\\'t connected here yet" in body
     assert "const ALTO_GET = 'https://alto-get.web.app';" in h
     assert "course, or book" not in h
+
+
+def test_a_project_named_on_the_homepage_but_not_stored_here_is_created():
+    """The homepage lists the whole account; a connector sees only its own
+    store. Claude once told the user their project did not exist."""
+    guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    assert "A project named from the homepage." in guide
+    assert "Create it here with **exactly** that name" in guide
+    src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
+    assert "create it here with exactly" in src
+    assert "create it with exactly that name." in _home()
+
+
+def test_phones_are_told_where_to_build_instead_of_offered_a_dead_end():
+    """The connector runs on a computer; the Claude app on a phone cannot
+    reach it, so a "new" button there opens a chat that can build nothing."""
+    h = _home()
+    assert h.count("if(!altoIsTouch()) grid.appendChild(newTimelineTile(") == 2
+    assert "New projects and timelines are made with Claude on your computer." in h
+    note = h[h.index("const nps = document.createElement('div');"):][:500]
+    assert "if(altoIsTouch()){" in note
