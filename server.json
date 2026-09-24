@@ -13,7 +13,7 @@
       "registryType": "mcpb",
       "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.7.0/Alto-macos-arm64.mcpb",
       "version": "1.7.0",
-      "fileSha256": "ee77dc7682cb7baf7a6f4755c27ae3af45468dc742eed7dd5dcaf911b4419104",
+      "fileSha256": "6de50d32e6da720be79f486cb1bd6a621b861c7878b81a6b93ed8b9152618404",
       "transport": {
         "type": "stdio"
       }
@@ -22,7 +22,7 @@
       "registryType": "mcpb",
       "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.7.0/Alto-macos-x64.mcpb",
       "version": "1.7.0",
-      "fileSha256": "5210a366fd96b2577f5ea9f42407ae5d8cdc413075c791ff47e512bf5468517c",
+      "fileSha256": "e223091209821d0cf4eed82a746de83f0c8a0d1fd9fe1df2664c9e7fb58018ba",
       "transport": {
         "type": "stdio"
       }
@@ -31,7 +31,7 @@
       "registryType": "mcpb",
       "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.7.0/Alto-windows-x64.mcpb",
       "version": "1.7.0",
-      "fileSha256": "a4aae6201fa2a3b461fc50fcdccfa4c8cfbfd0ecd6b5a2074c005bd61a7fe7cb",
+      "fileSha256": "f5810707811ee5a2fa11c170251bedbd86d6f1aad639ad782e224ff1679d956d",
       "transport": {
         "type": "stdio"
       }
