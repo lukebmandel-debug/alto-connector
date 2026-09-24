@@ -1137,6 +1137,70 @@ function altoShareMenu(pg, btn){
   });
 }
 
+// ── Shared with you ────────────────────────────────────────────────────────
+// What someone else sent you and you chose to keep. A REFERENCE, never a copy:
+// the timeline stays in its owner's shares/{key}, so when they stop sharing it
+// this stops working — which is what stopping sharing is supposed to mean.
+//
+// Deliberately NOT checked for liveness on load. Confirming each entry still
+// exists would mean fetching every shared page in full — 600 KB apiece — to
+// learn one bit. A revoked share says so plainly when you open it, and can be
+// removed from here or from there.
+let sharedSlab = null;
+function clearShared(){
+  if(sharedSlab){ sharedSlab.remove(); sharedSlab = null; }
+}
+function renderShared(){
+  const c = window.AltoCloud;
+  if(!c || !c.enabled || !c.user || !c.listShared){ clearShared(); return; }
+  c.listShared().then(items => {
+    clearShared();
+    if(!items || !items.length) return;
+    const slab = document.createElement('div');
+    slab.className = 'project-slab shared-slab';
+    slab.dataset.project = 'Shared with me';
+    const kicker = document.createElement('div');
+    kicker.className = 'slab-kicker';
+    kicker.textContent = 'Shared with me';
+    const grid = document.createElement('div');
+    grid.className = 'course-grid';
+    items.forEach(it => {
+      const el = document.createElement('a');
+      el.className = 'course-tile live';
+      el.href = '/s/' + encodeURIComponent(it.key) + '/';
+      el.dataset.tile = it.title || 'Shared timeline';
+      el.innerHTML =
+        '<div class="unit-strip"><span></span><span></span><span></span>' +
+        '<span></span><span></span><span></span><span></span></div>' +
+        '<div class="tile-body"><div class="tile-title"></div>' +
+        '<div class="tile-sub">Shared with you</div></div>';
+      // textContent: this title was written by whoever shared it, so it is the
+      // one string on this page that someone else controls.
+      el.querySelector('.tile-title').textContent = it.title || 'Shared timeline';
+      const rm = document.createElement('button');
+      rm.className = 'tile-share';
+      rm.style.right = '14px';
+      rm.title = 'Remove from my Alto';
+      rm.setAttribute('aria-label', (it.title || 'Shared timeline') + ' remove');
+      rm.innerHTML = '<span style="font-size:15px;line-height:1">\u00d7</span>';
+      rm.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        rm.disabled = true;
+        c.forgetShare(it.key)
+          .then(() => { showToast('Removed'); renderShared(); })
+          .catch(() => { rm.disabled = false; showToast('Could not remove'); });
+      });
+      el.appendChild(rm);
+      grid.appendChild(el);
+    });
+    slab.appendChild(kicker);
+    slab.appendChild(grid);
+    // Below the account's own work, above "Start new project".
+    wrap.insertBefore(slab, nps);
+    sharedSlab = slab;
+  }).catch(() => clearShared());
+}
+
 let privateSlab = null;
 function clearPrivate(){
   if(privateSlab){ privateSlab.remove(); privateSlab = null; }
@@ -1184,7 +1248,11 @@ function renderPrivate(){
     });
     slab.appendChild(kicker);
     slab.appendChild(grid);
-    wrap.insertBefore(slab, nps);
+    // Anchored on the shared slab rather than on nps, because these two
+    // render from independent Firestore reads and whichever resolved first
+    // would otherwise decide the order. Your own work stays above what other
+    // people sent you, either way round.
+    wrap.insertBefore(slab, sharedSlab || nps);
     privateSlab = slab;
   }).catch(() => clearPrivate());
 }
@@ -1473,6 +1541,7 @@ function renderAccount(){
     out.style.display = 'block'; inn.style.display = 'none';
   }
   renderPrivate();
+  renderShared();
 }
 function toggleAccount(){
   document.getElementById('account-scrim').classList.toggle('open');

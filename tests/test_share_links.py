@@ -236,3 +236,47 @@ def test_the_key_is_minted_from_a_real_random_source():
 def test_the_share_id_cannot_collide_with_a_timeline_id():
     assert share_id(KEY).startswith("s-")
     assert re.fullmatch(r"[a-z0-9-]+", share_id(KEY))
+
+
+# ── shared with me ──────────────────────────────────────────────────────────
+
+def _home():
+    from alto.build.pages import build_home
+    return build_home([])
+
+
+def test_a_kept_share_links_back_to_the_owners_copy():
+    """Not to a copy in the recipient's account: the point of keeping a
+    reference is that revoking the share revokes it."""
+    home = _home()
+    assert "'/s/' + encodeURIComponent(it.key) + '/'" in home
+
+
+def test_your_own_work_sits_above_what_others_sent_you():
+    """Both slabs come from independent Firestore reads, so whichever resolved
+    first would otherwise decide the order."""
+    home = _home()
+    assert "wrap.insertBefore(slab, sharedSlab || nps);" in home
+
+
+def test_signing_out_clears_the_shared_list_too():
+    home = _home()
+    assert "function clearShared()" in home
+    body = home[home.index("function renderShared()"):]
+    assert "clearShared(); return; }" in body[:400]
+    fn = home[home.index("function renderAccount()"):]
+    fn = fn[:fn.index("\nfunction ")]
+    assert "renderShared();" in fn
+
+
+def test_a_shared_title_is_not_parsed_as_markup():
+    """This title was written by whoever shared it — the one string on the
+    homepage that somebody else controls."""
+    block = _home()[_home().index("function renderShared()"):]
+    block = block[:block.index("\n}\n")]
+    assert ".tile-title').textContent = it.title" in block
+
+
+def test_a_kept_share_can_be_removed():
+    home = _home()
+    assert "c.forgetShare(it.key)" in home
