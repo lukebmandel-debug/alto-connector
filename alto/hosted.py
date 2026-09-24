@@ -72,6 +72,13 @@ def hosted_reports(html: str) -> str:
     """Emitted reports page → hosted variant (served at /reports)."""
     html = _rep(html, "onclick=\"location.href='index.html'\"",
                 "onclick=\"location.href='/'\"", 2, "brand home links")
+    # "← Home". The page is served from /reports/, where a relative index.html
+    # is /reports/index.html — this page again, minus its ?course. The link
+    # looked dead, or quietly switched to the default timeline.
+    html = _rep(html, '<a id="home-link" href="index.html">',
+                '<a id="home-link" href="/">', 1, "reports home link")
+    html = _rep(html, "back.href = 'index.html';", "back.href = '/';",
+                1, "reports home link (js)")
     html = _rep(html, CLOUD_TAG,
                 '<script type="module" src="/alto-cloud.js"></script>\n',
                 1, "cloud tag")

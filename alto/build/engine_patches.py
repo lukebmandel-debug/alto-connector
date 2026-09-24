@@ -651,6 +651,140 @@ PATCHES += [
 ]
 
 
+# ── section headers: room either side, and crisper names ───────────────────
+# The unit-divider tube ran edge to edge, so every section header sat hard
+# against both sides of the window. Pull the tube in by TUBE_INSET and move
+# both chips with it — they are laid out TUBE_M inside the tube, which is what
+# keeps their corners concentric with its corners. The name was 600-weight
+# 12.5px under html{zoom:.8} (≈10px on screen) in the unit colour on glass,
+# which read soft; heavier, larger, tighter and with a faint halo it holds.
+_TUBE_INSET = 20
+_HDR_TUBE_OLD = "bar.style.left='0px'; bar.style.right='0px';"
+_HDR_TUBE_NEW = f"bar.style.left='{_TUBE_INSET}px'; bar.style.right='{_TUBE_INSET}px';"
+_HDR_NAME_OLD = "    lbl.style.left='9px';"
+_HDR_NAME_NEW = f"    lbl.style.left='{9 + _TUBE_INSET}px';"
+_HDR_NUM_OLD = "  top:38px !important; right:9px !important; transform:none !important;"
+_HDR_NUM_NEW = f"  top:38px !important; right:{9 + _TUBE_INSET}px !important; transform:none !important;"
+_HDR_TEXT_OLD = ("  white-space:normal; font-size:12.5px; line-height:1.2; letter-spacing:.085em;\n"
+                 "  font-weight:600; text-transform:uppercase;")
+_HDR_TEXT_NEW = ("  white-space:normal; font-size:13.5px; line-height:1.2; letter-spacing:.06em;\n"
+                 "  font-weight:700; text-transform:uppercase; text-rendering:optimizeLegibility;\n"
+                 "  text-shadow:0 0 2px rgba(255,255,255,0.9), 0 0 1px rgba(255,255,255,0.9);")
+_HDR_DARK_OLD = "html.dark:not(.mobile) .unit-bar{"
+_HDR_DARK_NEW = ("html.dark:not(.mobile) .phase-label-float{\n"
+                 "  text-shadow:0 0 2px rgba(0,0,0,0.75), 0 0 1px rgba(0,0,0,0.6);\n"
+                 "}\n"
+                 "html.dark:not(.mobile) .unit-bar{")
+
+PATCHES += [
+    {"name": "section-header-tube-inset", "old": _HDR_TUBE_OLD,
+     "new": _HDR_TUBE_NEW, "count": 1},
+    {"name": "section-header-name-inset", "old": _HDR_NAME_OLD,
+     "new": _HDR_NAME_NEW, "count": 1},
+    {"name": "section-header-numeral-inset", "old": _HDR_NUM_OLD,
+     "new": _HDR_NUM_NEW, "count": 1},
+    {"name": "section-header-crisper-text", "old": _HDR_TEXT_OLD,
+     "new": _HDR_TEXT_NEW, "count": 1},
+    {"name": "section-header-crisper-text-dark", "old": _HDR_DARK_OLD,
+     "new": _HDR_DARK_NEW, "count": 1},
+]
+
+
+# ── homepage search lands on phones too ─────────────────────────────────────
+# A homepage search hit opens the timeline at #find=<node>. The reader for it
+# lives in the desktop search block, after that block's mobile early-return, so
+# on a phone the link opened the timeline at the top and the hit was lost.
+_MFIND_OLD = ("  var glyph=wrap.querySelector('#m-search-glyph'),\n"
+              "      input=wrap.querySelector('#m-search-input'),")
+_MFIND_NEW = ("  (function(){\n"
+              "    var m=/[#&]find=([\\w-]+)/.exec(location.hash||'');\n"
+              "    if(!m) return;\n"
+              "    var id=m[1], done=false, tries=0;\n"
+              "    function go(){\n"
+              "      if(done) return;\n"
+              "      if(!document.getElementById('node-'+id) || typeof window.featureNode!=='function'){\n"
+              "        if(++tries<80) setTimeout(go,100); return; }\n"
+              "      done=true;\n"
+              "      window.featureNode(id,true);\n"
+              "      try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}\n"
+              "    }\n"
+              "    window.addEventListener('load', function(){ setTimeout(go,400); });\n"
+              "    setTimeout(go,900);\n"
+              "  })();\n"
+              + _MFIND_OLD)
+
+PATCHES += [
+    {"name": "mobile-find-deep-link", "old": _MFIND_OLD,
+     "new": _MFIND_NEW, "count": 1},
+]
+
+
+# ── signed in: the photo is the account control ─────────────────────────────
+# The signed-in state was an initial on a gradient, 25px inside the same 35px
+# glass bubble as the signed-out glyph. Show the Google photo (initial if there
+# is none or it fails) filling the whole slot, with no glass around it — the
+# same treatment as the homepage and reports page.
+_AV_JS = ("function _altoAvatar(el, photo, initial){ if(!el) return;"
+          " var img=el.querySelector('img');"
+          " if(photo && /^https:\\/\\//.test(photo)){"
+          " if(img && img.getAttribute('src')===photo) return;"
+          " var im=document.createElement('img'); im.alt=''; im.referrerPolicy='no-referrer';"
+          " im.onerror=function(){ el.textContent=initial; }; im.src=photo;"
+          " el.textContent=''; el.appendChild(im);"
+          " } else { el.textContent=initial; } }")
+_AV_IN_OLD = ("      glyph.style.display='none'; mini.style.display='flex';\n"
+              "      mini.textContent = (s.name || 'A')[0].toUpperCase();")
+_AV_IN_NEW = ("      glyph.style.display='none'; mini.style.display='flex';\n"
+              "      " + _AV_JS + "\n"
+              "      _altoAvatar(mini, s.photo, (s.name || 'A')[0].toUpperCase());\n"
+              "      var _ab=document.getElementById('account-btn'); if(_ab) _ab.classList.add('signed-in');")
+_AV_MODAL_OLD = "      document.getElementById('acct-avatar').textContent = (s.name || 'A')[0].toUpperCase();"
+_AV_MODAL_NEW = "      _altoAvatar(document.getElementById('acct-avatar'), s.photo, (s.name || 'A')[0].toUpperCase());"
+_AV_OUT_OLD = ("      glyph.style.display='flex'; mini.style.display='none';\n"
+               "      out.style.display='block'; inn.style.display='none';")
+_AV_OUT_NEW = (_AV_OUT_OLD + "\n"
+               "      var _ab2=document.getElementById('account-btn'); if(_ab2) _ab2.classList.remove('signed-in');")
+_AV_CSS_OLD = "html.mobile #account-btn #acct-avatar-mini{ width:20px; height:20px; font-size:10px; }"
+_AV_CSS_NEW = (_AV_CSS_OLD + "\n"
+               "html #account-btn.signed-in{ background:transparent !important; border-color:transparent !important;"
+               " box-shadow:none !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }\n"
+               "html:not(.mobile) #account-btn.signed-in #acct-avatar-mini{ width:100%; height:100%; font-size:14px; overflow:hidden; }\n"
+               "html.mobile #account-btn.signed-in #acct-avatar-mini{ width:32px; height:32px; font-size:13px; overflow:hidden; }\n"
+               "#acct-avatar-mini img, #acct-avatar img{ width:100%; height:100%; object-fit:cover; border-radius:50%; display:block; }\n"
+               "#acct-avatar{ overflow:hidden; }")
+
+PATCHES += [
+    {"name": "account-photo-signed-in", "old": _AV_IN_OLD, "new": _AV_IN_NEW, "count": 1},
+    {"name": "account-photo-modal", "old": _AV_MODAL_OLD, "new": _AV_MODAL_NEW, "count": 1},
+    {"name": "account-photo-signed-out", "old": _AV_OUT_OLD, "new": _AV_OUT_NEW, "count": 1},
+    {"name": "account-photo-css", "old": _AV_CSS_OLD, "new": _AV_CSS_NEW, "count": 1},
+]
+
+
+# ── homepage search jump survives the page's own load-time scroll ──────────
+# The desktop #find reader tried to jump from 300ms after the script ran, which
+# on a large timeline is before `load` — and the load-time centring then put
+# the canvas back at the top. The hash was already cleared and `done` set, so
+# the hit was silently lost. Wait for load, then check the card really is on
+# screen and jump once more if something moved it.
+_DFIND_OLD = ("    window.addEventListener('load', function(){ setTimeout(go,200); });\n"
+              "    [300,900,1600].forEach(function(ms){ setTimeout(go,ms); });")
+_DFIND_NEW = ("    function start(){\n"
+              "      setTimeout(go,350);\n"
+              "      setTimeout(function(){\n"
+              "        var cv=document.getElementById('canvas'), n=document.getElementById('node-'+id);\n"
+              "        if(!done || !cv || !n) return;\n"
+              "        var r=n.getBoundingClientRect();\n"
+              "        if(r.top < 0 || r.bottom > cv.getBoundingClientRect().bottom) searchGoToNode(id);\n"
+              "      },1800);\n"
+              "    }\n"
+              "    if(document.readyState==='complete') start(); else window.addEventListener('load', start);")
+
+PATCHES += [
+    {"name": "desktop-find-waits-for-load", "old": _DFIND_OLD,
+     "new": _DFIND_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])
@@ -661,3 +795,4 @@ def apply_patches(html: str) -> str:
                 "the patch against the current template or retire it")
         html = html.replace(p["old"], p["new"])
     return html
+

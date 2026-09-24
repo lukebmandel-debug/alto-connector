@@ -71,7 +71,8 @@ def test_render_account_drives_the_listing(home):
 
 
 def test_a_failed_lookup_leaves_no_half_rendered_slab(home):
-    assert ".catch(() => clearPrivate());" in home
+    # The cached list stays up if Firestore fails; with none, nothing is left behind.
+    assert ".catch(() => { if(!early) clearPrivate(); });" in home
 
 
 # ── what the list contains ──────────────────────────────────────────────────
@@ -84,10 +85,12 @@ def test_a_title_from_firestore_is_not_parsed_as_markup(home):
     """Every other title on this page is template output. These have been to
     Firestore and back, so they are the one string here that an attacker with
     write access to the account could shape."""
-    block = home[home.index("function renderPrivate()"):]
+    block = home[home.index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
-    assert ".tile-title').textContent = pg.title" in block
-    assert "innerHTML = pg.title" not in block
+    assert "const heading = pg.heading || pg.title" in block
+    assert ".tile-title').textContent = heading" in block
+    assert "pj.textContent = project" in block
+    assert "innerHTML = pg." not in block
 
 
 def test_the_empty_case_renders_nothing_at_all(home):
@@ -217,7 +220,7 @@ def test_a_private_chip_carries_the_same_three_controls(home):
     """A private timeline is still a timeline: it has a reports repository and
     it can be taken offline. Rendering it with fewer buttons than the chip
     beside it was a regression, not a design decision."""
-    block = home[home.index("function renderPrivate()"):]
+    block = home[home.index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
     for cls in ("tile-reports", "tile-share", "tile-download"):
         assert f"'{cls}'" in block, f"private chip has no {cls}"
@@ -236,7 +239,7 @@ def test_a_private_chip_downloads_from_the_account_not_the_web(home):
     """There is no offline.html for a private timeline — publishing one is the
     whole thing being avoided. The only copy is the one this account can read
     out of Firestore."""
-    block = home[home.index("function renderPrivate()"):]
+    block = home[home.index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
     assert "altoDownloadOffline(() => window.AltoCloud.getPage(pg.key)" in block
     code = "\n".join(l for l in block.splitlines() if not l.strip().startswith("//"))
@@ -258,7 +261,7 @@ def test_a_downloaded_private_page_does_not_navigate_to_a_missing_file():
 def test_the_reports_button_needs_a_course_to_point_at(home):
     """Documents written before the id was stored have none; the chip draws
     without that button rather than linking at an empty course."""
-    block = home[home.index("function renderPrivate()"):]
+    block = home[home.index("function drawPrivate("):]
     block = block[:block.index("\n}\n")]
     assert "if(pg.tid){" in block
     assert "if(!pg.tid) shb.style.right = '14px';" in block, "gap not closed"

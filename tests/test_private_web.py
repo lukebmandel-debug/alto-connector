@@ -243,7 +243,7 @@ def test_signing_out_puts_the_page_back_behind_the_gate():
     assert "function lock(){" in s
     assert "stage.srcdoc = '';" in s, "the page must leave the DOM, not just hide"
     assert "gate.classList.remove('off');" in s
-    assert "if(!cloud.user){ lock(); signedOut(); return; }" in s
+    assert "if(!cloud.user){ cached = null; lock(); signedOut(); return; }" in s
 
 
 def test_the_framed_page_keeps_its_account_panel(built):

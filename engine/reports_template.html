@@ -147,18 +147,6 @@
   }
   #empty-state .es-glyph{ opacity:.5; margin-bottom:14px; }
 
-  #mode-toggle{
-    position:fixed; bottom:24px; right:24px; z-index:200;
-    height:36px; display:inline-flex; align-items:center;
-    padding:0 14px; border-radius:18px; font-size:12px; letter-spacing:.06em;
-    color:var(--muted); cursor:pointer; font-family:inherit;
-    background:var(--card-glass-bg); border:1px solid transparent;
-    -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
-    backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
-    box-shadow:0 10px 26px var(--node-rest-shadow);
-  }
-  #mode-toggle:hover{ background:var(--btn-hover-bg); color:var(--text); }
-
   /* ── D1: share / print toolbar + report selection ── */
   .repo-actions{ display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px; flex-wrap:wrap; min-height:1px; }
   .repo-btn{
@@ -200,7 +188,7 @@
 
   /* ── MOBILE PASS: same tokens/recipes, phone-sized geometry only ── */
   @media (max-width:640px){
-    #reports-wrap{ padding:92px 14px 110px; gap:24px; }
+    #reports-wrap{ padding:118px 14px 60px; gap:24px; }
     #reports-slab{ padding:26px 18px 30px; border-radius:22px; }
     #title-bar{ padding:0 16px; height:56px; }
     #title-bar .brand-mark{ height:34px; }
@@ -213,8 +201,333 @@
       -webkit-backdrop-filter:blur(24px) saturate(185%) brightness(var(--page-glass-bright));
       backdrop-filter:blur(24px) saturate(185%) brightness(var(--page-glass-bright));
     }
-    #mode-toggle{ bottom:calc(16px + env(safe-area-inset-bottom,0px)); right:16px; }
   }
+  /* ── Controls: the homepage's own set, copied so every page carries the same
+     glyphs in the same places (search · info · light/dark, account). ── */
+  /* ── Mode toggle, same placement/feel as the course app.
+     36px tall to match the 36px search / info / account bubbles exactly. ── */
+  #mode-toggle{
+    position:fixed; bottom:24px; right:24px; z-index:200;
+    height:28px; width:84px; display:inline-flex; align-items:center; justify-content:center;
+    white-space:nowrap; border-radius:14px; font-size:12px; letter-spacing:.06em;
+    color:var(--muted); cursor:pointer; font-family:inherit;
+    /* Frosted glass, no saturate() — matches the other controls (see #search-btn note).
+       FIXED width so "☾ Dark" (light mode) and "☀ Light" (dark mode) render the SAME size:
+       the labels differ in length, so an auto-width pill was ~7px wider in dark mode. */
+    background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
+    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
+  }
+  #mode-toggle:hover{ border-color:var(--muted); color:var(--text); }
+
+  /* ── SEARCH — frosted toggle bubble directly LEFT of the mode toggle
+     (same recipe as the course app's #search-btn; right is set by alignSearch JS
+     so it tracks the toggle's width with the 12px rhythm). ── */
+  #search-btn{
+    position:fixed; bottom:24px; right:144px; z-index:300;
+    width:28px; height:28px; border-radius:50%;
+    /* Frosted glass. NO saturate() — over the homepage's vivid wallpaper it over-vivifies
+       the tint into "lit-up yellow"; without it the tint stays muted like the timeline
+       (whose saturate sits over a neutral full-bleed slab). Translucent so dark mode reads
+       as a soft frosted bubble, not an invisible dark-on-dark disc. */
+    background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
+    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
+    display:flex; align-items:center; overflow:visible; cursor:pointer;
+    transition:width .35s cubic-bezier(.4,0,.2,1), border-radius .35s cubic-bezier(.4,0,.2,1);
+  }
+  #search-btn.expanded{ width:380px; border-radius:18px; }
+  #search-glyph{ flex:0 0 26.8px; width:26.8px; height:26.8px; display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer; }
+  #search-btn.expanded #search-glyph{ color:var(--text); }
+  #search-input{
+    flex:1 1 auto; width:0; opacity:0; min-width:0;
+    border:none; background:transparent; outline:none;
+    color:var(--text); font-family:inherit; font-size:14px; padding:0 14px 0 0;
+    transition:opacity .2s .12s;
+  }
+  #search-btn.expanded #search-input{ width:auto; opacity:1; }
+  #search-input::placeholder{ color:var(--muted); opacity:.75; }
+  #search-results{
+    position:absolute; right:0; bottom:46px; width:380px; max-height:420px; overflow-y:auto;
+    background:var(--panel-glass-bg); border:1px solid var(--card-glass-border); border-radius:12px;
+    -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+    box-shadow:0 8px 40px var(--card-shadow), inset 0 1px 0 var(--card-glass-hi); padding:6px; display:none;
+  }
+  #search-btn.expanded #search-results.has-results{ display:block; }
+  .search-result{
+    display:block; width:100%; text-align:left; border:none; background:transparent;
+    color:var(--text); font-family:inherit; cursor:pointer; padding:8px 10px; border-radius:8px;
+  }
+  .search-result:hover{ background:var(--btn-hover-bg); }
+  .search-result .sr-kind{
+    display:inline-block; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:1px 5px;
+    margin-right:7px; vertical-align:middle;
+  }
+  .search-result .sr-title{ font-size:13px; vertical-align:middle; }
+  .search-result .sr-snip{ display:block; font-size:11px; color:var(--muted); margin-top:3px; line-height:1.45; }
+  .search-result mark{ background:rgba(167,139,250,.30); color:inherit; border-radius:3px; padding:0 1px; }
+  .search-empty{ padding:12px 12px; font-size:12px; color:var(--muted); }
+
+  /* ── INFO — 36px circle that expands up+left into the Alto guide panel
+     (same recipe as the course app's #info-btn, in homepage glass). ── */
+  #info-btn{
+    position:fixed; bottom:24px; right:96px; z-index:300;
+    width:28px; max-height:28px; border-radius:50%;
+    /* Frosted glass, no saturate() — see #search-btn note. */
+    background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
+    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
+    overflow:hidden; cursor:pointer;
+    transition:width .35s cubic-bezier(.4,0,.2,1),
+               max-height .35s cubic-bezier(.4,0,.2,1),
+               border-radius .35s cubic-bezier(.4,0,.2,1);
+  }
+  #info-btn.expanded{
+    width:360px; max-height:520px; border-radius:12px;
+    background:var(--panel-glass-bg);
+    -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+  }
+  #info-icon{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); cursor:pointer; z-index:1;
+  }
+  /* Panel opens up+left from the circle: pin the "i" to the bottom-right corner so
+     the toggle stays exactly where the circle was (consistent click-to-close). */
+  #info-btn.expanded #info-icon{ inset:auto; bottom:10px; right:10px; width:20px; height:20px; }
+  #info-content{
+    padding:18px 18px 44px; font-size:13px; line-height:1.7; color:var(--muted);
+    opacity:0; transition:opacity .2s .1s; overflow-y:auto; max-height:600px;
+  }
+  #info-btn.expanded #info-content{ opacity:1; }
+  #info-content strong{ color:var(--text); font-weight:600; }
+
+  /* ── ACCOUNT — 36px person bubble in the bottom-LEFT slot (the spot the account
+     chat bubble occupies inside a course); opens the sign-in modal. ── */
+  #account-btn{
+    position:fixed; bottom:24px; left:24px; right:auto; z-index:300;
+    width:28px; height:28px; border-radius:50%;
+    /* Frosted glass, no saturate() — see #search-btn note. */
+    background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
+    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--muted); cursor:pointer; padding:0;
+    transition:transform .35s cubic-bezier(.4,0,.2,1), color .2s;
+  }
+  /* ── Standard floating-toggle hover across Alto: subtle ring (--muted border) +
+     brightened glyph (--text). Matches the light/dark toggle; applied to every
+     floating control. Glyphs with their own color (#search-glyph/#info-icon) are
+     targeted directly so they brighten too. ── */
+  #account-btn:hover,
+  #search-btn:hover,
+  #info-btn:hover{ border-color:var(--muted); color:var(--text); }
+  #search-btn:hover #search-glyph,
+  #info-btn:hover #info-icon{ color:var(--text); }
+
+  /* The bubble glyphs are authored at 20px to match the course app, where html{zoom:0.8}
+     renders them at 16px. The homepage is un-zoomed, so pin the collapsed glyphs to 16px
+     and force display:block (kills the inline-baseline gap that threw off centering). */
+  /* Center the collapsed glyphs in their circular buttons with the course app's proven
+     method — absolute + inset:0 + margin:auto, anchored to the fixed CIRCLE itself. Do NOT
+     anchor to the inner <span>: #acct-glyph collapses to 0×0 (svg is out-of-flow), which
+     Chrome tolerates but Safari mis-centers. The buttons are all position:fixed (or the
+     info-icon is inset:0), so an absolute svg here resolves against the full 28.8px circle. */
+  #search-btn:not(.expanded) #search-glyph svg,
+  #info-btn:not(.expanded) #info-icon svg{
+    position:absolute; inset:0; margin:auto; width:16px; height:16px; display:block;
+  }
+  /* The "i" glyph's drawn content (dot + stem) sits 0.35 viewBox-units below the viewBox
+     centre, so its bounding-box midpoint lands ~0.28px low in the bubble — lift it so the
+     glyph's vertical midpoint sits exactly on the bubble's horizontal diameter. */
+  #info-btn:not(.expanded) #info-icon svg{ transform:translateY(-0.28px); }
+  /* Account: center the glyph with the BUTTON's own flexbox — pure in-flow, NO absolute
+     positioning of any kind. (Absolute + inset:0 / margin:auto against the position:fixed
+     button mis-behaves in Safari — the wrapper collapses and the glyph drops to top-left.)
+     The button is already display:flex; align-items:center; justify-content:center. */
+  #account-btn #acct-glyph{ display:flex; align-items:center; justify-content:center; }
+  /* No nudge — the person icon is geometrically centred in its 20×20 viewBox, so pure flex
+     centering lands its head on the bubble's vertical diameter (verified with crosshairs in
+     Safari). Earlier ±0.6px nudges over-corrected into "too right" / "too northwest". */
+  #account-btn #acct-glyph svg{ position:static; margin:0; width:16px; height:16px; display:block; flex:0 0 auto; }
+
+  @media (max-width:640px){
+    /* ══ C1 (batch 3): the four controls live in the top toolbar under the title bar —
+       order: info · account · search · light/dark. They stay position:fixed so search &
+       info still expand as overlays; results / info panel now drop DOWNWARD. ══ */
+    #info-btn, #account-btn, #mode-toggle{
+      position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)) !important;
+      bottom:auto !important; left:auto !important; right:auto !important; transform:none !important;
+      width:34px !important; height:34px !important; max-height:34px !important; min-width:0 !important;
+      border-radius:10px !important; border:1px solid var(--card-glass-border) !important;
+      border-left:1px solid var(--card-glass-border) !important; border-right:1px solid var(--card-glass-border) !important;
+      padding:0 !important; z-index:300; overflow:visible !important;
+      display:flex !important; flex-direction:row !important; align-items:center; justify-content:center; gap:0 !important;
+      background:var(--card-glass-bg); box-shadow:none !important; color:var(--muted);
+      -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%);
+    }
+    /* order: account (far left) · search — · · · — info · light/dark (far right) */
+    #account-btn{ left:14px !important; }
+    #info-btn{ right:56px !important; left:auto !important; }
+    #mode-toggle{ right:14px !important; color:var(--text); }
+    /* glyph-only in the compact bar — no ::after text labels */
+    #info-btn:not(.expanded)::after, #account-btn::after{ content:none !important; }
+    #info-btn:not(.expanded) #info-icon{ position:absolute !important; inset:0 !important; display:flex; align-items:center; justify-content:center; width:auto; height:auto; }
+    #info-btn:not(.expanded) #info-icon svg{ position:static !important; inset:auto !important; margin:0 !important; width:18px; height:18px; transform:none !important; }
+    #info-btn:not(.expanded) #info-content{ display:none !important; }
+    #account-btn #acct-glyph{ display:flex; }
+    #account-btn #acct-glyph svg{ position:static !important; inset:auto !important; margin:0 !important; width:18px; height:18px; }
+
+    /* SEARCH: pill sits directly RIGHT of the account tile (left-anchored, not centred);
+       glyph + label centred inside the bubble; expands rightward, results drop DOWN */
+    #search-btn{
+      position:fixed !important; top:calc(63px + env(safe-area-inset-top,0px)) !important; bottom:auto !important;
+      left:56px !important; right:auto !important; transform:none !important;
+      width:auto !important; height:34px !important; max-height:34px !important; border-radius:17px !important;
+      display:flex; align-items:center; justify-content:center; gap:6px; padding:0 15px !important; overflow:visible !important; z-index:300;
+      box-shadow:none !important;
+      -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%);
+    }
+    #search-btn #search-glyph{ position:static !important; width:20px; height:20px; }
+    #search-btn:not(.expanded) #search-glyph svg{ position:static !important; inset:auto !important; margin:0 !important; }
+    #search-label{ display:inline; font-size:13px; color:var(--muted); white-space:nowrap;
+      font-family:Georgia,'Times New Roman',serif; }
+    /* expanded pill grows rightward from its left anchor and stops 8px short of the
+       INFO tile (which spans right:56–90px) — never covers the other buttons */
+    #search-btn.expanded{ width:min(340px, calc(100vw - 154px)) !important; padding:0 12px !important; justify-content:flex-start; }
+    #search-input{ font-size:16px; }   /* 16px suppresses iOS focus-zoom (keyboard viewport jumps) */
+    #search-btn.expanded #search-label{ display:none; }
+    #search-btn:not(.expanded) #search-input{ display:none; }
+    #search-btn.expanded #search-input{ position:static; flex:1 1 auto; min-width:0; width:auto; opacity:1; }
+    /* results overlay BELOW the toolbar pill (absolute within the fixed pill) */
+    #search-results{
+      left:-42px !important; right:auto !important; transform:none !important;   /* pill left = 56px → panel left = 14px */
+      top:42px !important; bottom:auto !important;
+      width:calc(100vw - 28px); max-width:440px; max-height:62dvh;
+      /* near-opaque plate + hairline: results must read AGAINST the vivid wallpaper */
+      background:rgba(252,252,255,0.97); border:1px solid rgba(90,90,128,0.32);
+      box-shadow:0 18px 44px rgba(20,28,60,0.26);
+    }
+    html.dark #search-results{ background:rgba(19,21,31,0.97); border-color:rgba(255,255,255,0.16); }
+
+    /* INFO: the tile itself never moves or grows — the guide drops from the tile's
+       bottom-RIGHT corner as a separate overlay panel (nothing gets pushed aside). */
+    #info-btn.expanded{
+      top:calc(63px + env(safe-area-inset-top,0px)) !important; bottom:auto !important;
+      right:56px !important; left:auto !important;
+      width:34px !important; height:34px !important; max-height:34px !important;
+      border-radius:10px !important; overflow:visible !important;
+      border-color:var(--muted) !important;   /* active hint while the guide is open */
+    }
+    #info-btn.expanded #info-icon{ position:absolute !important; inset:0 !important; width:auto !important; height:auto !important; display:flex; align-items:center; justify-content:center; }
+    #info-btn.expanded #info-icon svg{ position:static !important; margin:0 !important; width:18px; height:18px; transform:none !important; }
+    #info-btn.expanded #info-content{
+      /* ABSOLUTE, anchored to the tile itself: the tile's backdrop-filter makes it the
+         containing block for fixed children anyway (engine-dependent) — absolute is the
+         same box in every browser. top:34 = tile height → panel top-RIGHT corner meets
+         the tile's bottom-RIGHT corner. */
+      display:block; position:absolute; z-index:400;
+      top:33px; right:-1px; left:auto;   /* −1px each: absolute anchors inside the tile's 1px border */
+      width:min(360px, calc(100vw - 70px)); max-height:65dvh; overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+      padding:15px 16px 17px; opacity:1;
+      background:rgba(252,252,255,0.97); border:1px solid rgba(90,90,128,0.32);
+      border-radius:12px 3px 12px 12px;
+      box-shadow:0 18px 44px rgba(20,28,60,0.26);
+    }
+    html.dark #info-btn.expanded #info-content{ background:rgba(19,21,31,0.97); border-color:rgba(255,255,255,0.16); }
+
+    /* LIGHT/DARK: monochrome sun/moon glyph (right of the toolbar) */
+    #mode-label{ display:none; }
+    #mode-toggle .mode-glyph{ display:none; width:20px; height:20px; }
+    html:not(.dark) #mode-toggle .mode-moon{ display:block; }
+    html.dark #mode-toggle .mode-sun{ display:block; }
+  }
+  /* desktop: hide the mobile-only mode glyphs + search label */
+  #mode-toggle .mode-glyph{ display:none; }
+  @media (min-width:641px){ #search-label{ display:none; } }
+  /* medium-aware wording inside the INFO guide (desktop-only vs mobile-only phrases) */
+  @media (max-width:640px){ .d-only{ display:none; } }
+  @media (min-width:641px){ .m-only{ display:none; } }
+  /* Integer geometry (2026-07-25): the pre-scaled 19.2/9.6 values (the timeline's
+     24/12 × its html{zoom:.8}) are fractional device px here, where there is no
+     zoom to land them back on the grid — and Safari floors a fractional centring
+     margin rather than rounding it, which is what threw the signed-in initial off
+     centre in its bubble. 20/10 are whole, and (28−20)/2 = 4px margins are too. */
+  #acct-avatar-mini{
+    display:none; width:20px; height:20px; border-radius:50%; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#b06ef0,#5b8cff); color:#fff; font-size:10px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  #account-scrim{
+    position:fixed; inset:0; z-index:400; display:none; align-items:center; justify-content:center;
+    background:rgba(10,12,24,.32);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  }
+  #account-scrim.open{ display:flex; }
+  #account-modal{
+    width:340px; border-radius:16px; padding:30px 30px 24px;
+    background:var(--panel-glass-bg); border:1px solid var(--glass-slab-border);
+    box-shadow:0 8px 40px var(--card-shadow), inset 0 1px 0 var(--card-glass-hi);
+    -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+  }
+  .acct-title{ font-size:15px; letter-spacing:.22em; text-transform:uppercase; color:var(--text); margin-bottom:6px; }
+  .acct-sub{ font-size:12.5px; color:var(--muted); line-height:1.65; margin-bottom:22px; }
+  .acct-provider{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    width:100%; height:44px; margin-bottom:12px; border-radius:12px;
+    border:1px solid var(--btn-border); background:var(--card-glass-bg);
+    color:var(--text); font-family:inherit; font-size:13.5px; cursor:pointer;
+    transition:background .2s, opacity .2s;
+  }
+  .acct-provider:hover{ background:var(--btn-hover-bg); }
+  .acct-provider.busy{ opacity:.5; pointer-events:none; }
+  .acct-note{ font-size:10.5px; color:var(--muted); letter-spacing:.04em; margin-top:8px; line-height:1.6; }
+  #acct-signed-in{ display:none; text-align:center; }
+  .acct-avatar{
+    width:56px; height:56px; border-radius:50%; margin:0 auto 12px;
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#b06ef0,#5b8cff); color:#fff; font-size:24px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  .acct-name{ font-size:16px; color:var(--text); }
+  .acct-email{ font-size:12px; color:var(--muted); margin:2px 0 4px; }
+  .acct-chip{
+    display:inline-block; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:2px 6px;
+    margin-bottom:18px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  .acct-row{
+    font-size:12px; color:var(--muted); border:1px dashed var(--border);
+    border-radius:10px; padding:10px; margin-bottom:14px;
+  }
+  .acct-signout{
+    width:100%; height:38px; border-radius:10px; border:1px solid var(--btn-border);
+    background:transparent; color:var(--muted); font-family:inherit; font-size:12.5px; cursor:pointer;
+  }
+  .acct-signout:hover{ color:var(--text); background:var(--btn-hover-bg); }
+
+  /* Signed in: the Google photo (or initial) IS the account control — it takes
+     the whole slot the person glyph sits in, with no glass bubble around it. */
+  html #account-btn.signed-in{
+    background:transparent !important; border-color:transparent !important;
+    box-shadow:none !important;
+    -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+  }
+  html #account-btn.signed-in #acct-avatar-mini{
+    width:100%; height:100%; font-size:13px; overflow:hidden;
+  }
+  #acct-avatar-mini img, .acct-avatar img{
+    width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;
+  }
+  .acct-avatar{ overflow:hidden; }
 </style>
 <script>/* Restore Alto theme before first paint (shared across index/course/reports). */try{if(localStorage.getItem('alto-theme-v1')==='dark')document.documentElement.classList.add('dark');}catch(e){}</script>
 </head>
@@ -238,7 +551,54 @@
   </div>
 </div>
 
-<button id="mode-toggle" onclick="toggleMode()">&#9789; Dark</button>
+<div id="search-btn">
+  <span id="search-glyph" role="button" aria-label="Search">
+    <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11.4" cy="8.6" r="5.6"></circle><line x1="7.44" y1="12.56" x2="3.3" y2="16.7"></line></svg>
+  </span>
+  <span id="search-label">Search</span>
+  <input id="search-input" type="text" autocomplete="off" spellcheck="false" placeholder="Search">
+  <div id="search-results"></div>
+</div>
+
+<button id="account-btn" onclick="toggleAccount()" aria-label="Account">
+  <span id="acct-glyph" style="display:flex"><svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="7" r="3.0"/><path d="M4 16 Q4 11 10 11 Q16 11 16 16"/></svg></span>
+  <span id="acct-avatar-mini"></span>
+</button>
+
+<div id="info-btn">
+  <span id="info-icon" onclick="event.stopPropagation();toggleInfo()"><svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="5.5" r="1.8" fill="currentColor"/><rect x="8.8" y="9" width="2.4" height="8" rx="1.2" fill="currentColor"/></svg></span>
+  <div id="info-content">
+    <p style="margin:0 0 8px"><strong>Report repository</strong> &#8212; every report you generate inside this timeline is saved here automatically, newest first.</p>
+    <p style="margin:5px 0"><strong>Open &amp; delete</strong> &#8212; tap a report to open it in a new tab; the &#215; removes it for good.</p>
+    <p style="margin:5px 0"><strong>Share / Print</strong> &#8212; choose one or more reports and send them as a single file, or print them together.</p>
+    <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches your timelines, so you can jump straight to any card.</p>
+    <p style="margin:5px 0"><strong>Account</strong> &#8212; the person <span class="d-only">bubble at the bottom left</span><span class="m-only">tile at the top left</span> signs you in with Google so your reports follow you.</p>
+    <p style="margin:5px 0"><strong>Home</strong> &#8212; the Alto mark at the top returns you to your homepage.</p>
+  </div>
+</div>
+
+<div id="account-scrim">
+  <div id="account-modal">
+    <div id="acct-signed-out">
+      <div class="acct-title">Account</div>
+      <div class="acct-sub">Sign in to keep your highlights, notes, and reports with you on every device.</div>
+      <button class="acct-provider" data-provider="google" onclick="Account.signIn('google')">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12.24 10.4v3.44h4.98c-.2 1.29-1.48 3.78-4.98 3.78-3 0-5.44-2.48-5.44-5.54s2.44-5.54 5.44-5.54c1.71 0 2.85.73 3.5 1.35l2.38-2.29C16.99 3.6 14.83 2.7 12.24 2.7c-5.28 0-9.54 4.26-9.54 9.54s4.26 9.54 9.54 9.54c5.5 0 9.14-3.86 9.14-9.3 0-.62-.07-1.1-.16-1.58h-8.98z"/></svg>
+        Continue with Google
+      </button>
+      <div class="acct-note">Sign-in is simulated in this shared copy; the live Alto site syncs across your devices.</div>
+    </div>
+    <div id="acct-signed-in">
+      <div class="acct-avatar" id="acct-avatar"></div>
+      <div class="acct-name" id="acct-name"></div>
+      <div class="acct-email" id="acct-email"></div>
+      <span class="acct-chip" id="acct-provider-chip"></span>
+      <button class="acct-signout" onclick="Account.signOut()">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<button id="mode-toggle" onclick="toggleMode()"><span id="mode-label">&#9789; Dark</span><svg class="mode-glyph mode-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16 12.2A6.4 6.4 0 1 1 8.6 3.2 5 5 0 0 0 16 12.2Z" fill="currentColor"/></svg><svg class="mode-glyph mode-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="10" y1="1.6" x2="10" y2="3.8"/><line x1="10" y1="16.2" x2="10" y2="18.4"/><line x1="1.6" y1="10" x2="3.8" y2="10"/><line x1="16.2" y1="10" x2="18.4" y2="10"/><line x1="4.05" y1="4.05" x2="5.6" y2="5.6"/><line x1="14.4" y1="14.4" x2="15.95" y2="15.95"/><line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>
 
 <script>
 /* NOTE: reports live in localStorage under 'alto-reports-<courseId>' and are written
@@ -278,15 +638,40 @@ document.getElementById('course-title').textContent = meta.title;
    the only person who can be shown that name, and only once Firebase says who
    they are, so it is filled in here rather than baked into the page. */
 if(!COURSE_META[courseId]){
+  // The listing record also carries the section colours, and the page key —
+  // which is the only way back to a private timeline, since it is on the web
+  // at /pv/{key}/ and nowhere else.
+  var showPrivate = function(pages){
+    var hit = (pages || []).filter(function(p){ return p.tid === courseId; })[0];
+    if(!hit) return;
+    var t = hit.heading || hit.title;
+    if(t) document.getElementById('course-title').textContent = t;
+    if(hit.project && hit.project !== t)
+      document.getElementById('course-sub').textContent = hit.project + ' · ' +
+        'Every report generated inside this timeline is saved here automatically.';
+    var strip = document.getElementById('unit-strip');
+    if(hit.units && hit.units.length){
+      strip.innerHTML = hit.units.filter(function(u){ return /^#[0-9a-fA-F]{3,8}$/.test(u); })
+        .map(function(u){ return '<span style="background:' + u + '"></span>'; }).join('');
+      strip.style.display = '';
+    }
+    var back = document.getElementById('home-link');
+    if(back && from === 'project' && hit.key){
+      back.href = '/pv/' + encodeURIComponent(hit.key) + '/';
+      back.textContent = '\u2190 Timeline';
+    }
+  };
+  try{
+    var _s = JSON.parse(localStorage.getItem('alto-account-v1') || 'null');
+    var _k = JSON.parse(localStorage.getItem('alto-pages-cache-v1') || 'null');
+    if(_s && _s.uid && _k && _k.uid === _s.uid) setTimeout(function(){ showPrivate(_k.pages); }, 0);
+  }catch(e){}
   window.renderAccount = (function(prev){
     return function(){
       if(typeof prev === 'function') try{ prev(); }catch(e){}
       var c = window.AltoCloud;
       if(!c || !c.enabled || !c.user || !c.listPages) return;
-      c.listPages().then(function(pages){
-        var hit = (pages || []).filter(function(p){ return p.tid === courseId; })[0];
-        if(hit && hit.title) document.getElementById('course-title').textContent = hit.title;
-      }).catch(function(){});
+      c.listPages().then(showPrivate).catch(function(){});
     };
   })(window.renderAccount);
 }
@@ -438,14 +823,287 @@ buildToolbar();
 
 function toggleMode(){
   const isDark = document.documentElement.classList.toggle('dark');
-  document.getElementById('mode-toggle').innerHTML = isDark ? '&#9788; Light' : '&#9789; Dark';
+  document.getElementById('mode-label').innerHTML = isDark ? '&#9728; Light' : '&#9789; Dark';
   try{ localStorage.setItem('alto-theme-v1', isDark ? 'dark' : 'light'); }catch(e){}
+  setThemeMeta(isDark);
+  alignSearch();
+}
+// Safari tints the status-bar strip from theme-color — keep it on-theme in both modes.
+function setThemeMeta(dark){
+  const m = document.getElementById('meta-theme');
+  if(m) m.content = dark ? '#6b4326' : '#ffc59e';
+}
+
+// ── Bottom-right control cluster alignment. Visual order left→right:
+// [search] [info] [mode-toggle], all 36px tall, 12px rhythm. (Account lives
+// bottom-LEFT now, mirroring the course account slot, so it's not in this loop.)
+// (Name kept as alignSearch — load/resize/toggleMode all call it.)
+function alignSearch(){
+  const mt = document.getElementById('mode-toggle');
+  if(!mt || !mt.offsetWidth) return;
+  if(window.innerWidth <= 640) return;   // mobile: the media-query layout owns positions
+  const GAP = 10, W = 28;
+  // Search + info sit flush on the same baseline as the mode-toggle, 10px rhythm.
+  // Integer W + GAP keep each bubble on a whole-pixel origin so glyphs don't round-shift in Safari.
+  const bottom = (24 + Math.max(0, (mt.offsetHeight - W) / 2)) + 'px';
+  let right = 24 + mt.offsetWidth + GAP;
+  ['info-btn', 'search-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.style.right = right + 'px';
+    el.style.bottom = bottom;
+    right += W + GAP;
+  });
 }
 // Reflect a restored dark theme on the toggle label (class was set pre-paint).
 if(document.documentElement.classList.contains('dark')){
-  const _mt = document.getElementById('mode-toggle');
-  if(_mt) _mt.innerHTML = '&#9788; Light';
+  const _ml = document.getElementById('mode-label');
+  if(_ml) _ml.innerHTML = '&#9728; Light';
 }
+setThemeMeta(document.documentElement.classList.contains('dark'));
+// iOS only reliably engages viewport-fit=cover when the viewport meta is RE-APPLIED after
+// load — the timeline does this and fills the notch; the homepage never did, so iOS kept
+// its white status-bar strip. Mirror the timeline's rewrite (same content, same delay).
+if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)){
+  const _vp = document.querySelector('meta[name="viewport"]');
+  if(_vp) setTimeout(() => { _vp.content = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover'; }, 100);
+}
+window.addEventListener('load', alignSearch);
+window.addEventListener('resize', alignSearch);
+alignSearch();
+
+// ── SEARCH — same pill as the homepage. This page has no project list of its
+// own, so it searches what this browser remembers of the account's timelines
+// (the homepage keeps that list) plus the published ones named above. A hit
+// opens the timeline at that card.
+(function(){
+  const btn = document.getElementById('search-btn'),
+        glyph = document.getElementById('search-glyph'),
+        input = document.getElementById('search-input'),
+        resultsEl = document.getElementById('search-results');
+  if(!btn) return;
+  function remembered(){
+    try{
+      const s = JSON.parse(localStorage.getItem('alto-account-v1') || 'null');
+      const k = JSON.parse(localStorage.getItem('alto-pages-cache-v1') || 'null');
+      if(!s || !s.uid || !k || k.uid !== s.uid) return [];
+      return [].concat(
+        (k.pages || []).map(pg => ({ title: pg.heading || pg.title || 'Untitled timeline',
+          label: pg.project || '',
+          href: '/pv/' + encodeURIComponent(pg.key) + '/', search: pg.search || [] })),
+        (k.shared || []).map(it => ({ title: it.title || 'Shared timeline',
+          href: '/s/' + encodeURIComponent(it.key) + '/', search: it.search || [] })));
+    }catch(e){ return []; }
+  }
+  function buildIndex(){
+    const idx = [];
+    Object.keys(COURSE_META).forEach(id => {
+      const m = COURSE_META[id];
+      if(m && m.app) idx.push({kind:'Timeline', title:m.title, text:m.project || '',
+                               go:() => { location.href = m.app; }});
+    });
+    remembered().forEach(t => {
+      idx.push({kind:'Timeline', title:t.title, text:'', go:() => { location.href = t.href; }});
+      t.search.forEach(n => {
+        if(!n || !/^[\w-]+$/.test(n.id || '')) return;
+        idx.push({kind:t.label || t.title, title:n.t || '', text:n.d || '',
+                  go:() => { location.href = t.href + '#find=' + n.id; }});
+      });
+    });
+    return idx;
+  }
+  function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function snippet(text, q){
+    text = text || ''; const lc = text.toLowerCase(), i = lc.indexOf(q);
+    if(i < 0) return esc(text.slice(0,90)) + (text.length > 90 ? '…' : '');
+    const s = Math.max(0, i-32), e = Math.min(text.length, i + q.length + 58);
+    return (s>0?'…':'') + esc(text.slice(s,i)) + '<mark>' + esc(text.slice(i, i+q.length)) + '</mark>' + esc(text.slice(i+q.length, e)) + (e<text.length?'…':'');
+  }
+  function render(q){
+    resultsEl.innerHTML = '';
+    const ql = (q||'').trim().toLowerCase();
+    if(ql.length < 2){ resultsEl.classList.remove('has-results'); return; }
+    const res = [];
+    for(const r of buildIndex()){
+      const ti = (r.title||'').toLowerCase().indexOf(ql), bi = (r.text||'').toLowerCase().indexOf(ql);
+      if(ti >= 0 || bi >= 0) res.push({r, rank: ti >= 0 ? 0 : 1});
+    }
+    res.sort((a,b) => a.rank - b.rank || (a.r.title||'').length - (b.r.title||'').length);
+    if(!res.length){
+      resultsEl.innerHTML = '<div class="search-empty">No matches.</div>';
+      resultsEl.classList.add('has-results'); return;
+    }
+    res.slice(0, 12).forEach(o => {
+      const r = o.r, row = document.createElement('button');
+      row.className = 'search-result';
+      row.innerHTML = '<span class="sr-kind">' + esc(r.kind) + '</span><span class="sr-title">' + esc(r.title) + '</span>' +
+                      '<span class="sr-snip">' + snippet(r.text, ql) + '</span>';
+      row.addEventListener('click', () => { closeSearch(); r.go(); });
+      resultsEl.appendChild(row);
+    });
+    resultsEl.classList.add('has-results');
+  }
+  let open = false;
+  function openSearch(){
+    if(open) return;
+    const info = document.getElementById('info-btn');
+    if(info && info.classList.contains('expanded')) info.classList.remove('expanded');
+    btn.classList.add('expanded'); open = true; setTimeout(() => input.focus(), 60);
+  }
+  function closeSearch(){ if(!open) return; btn.classList.remove('expanded'); open = false; resultsEl.classList.remove('has-results'); resultsEl.innerHTML = ''; input.value = ''; input.blur(); }
+  window._homeSearchClose = closeSearch;
+  glyph.addEventListener('click', e => { e.stopPropagation(); open ? closeSearch() : openSearch(); });
+  btn.addEventListener('click', e => { if(!open){ e.stopPropagation(); openSearch(); } });
+  let deb = null;
+  input.addEventListener('input', () => { if(deb) clearTimeout(deb); const v = input.value; deb = setTimeout(() => render(v), 120); });
+  input.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ const first = resultsEl.querySelector('.search-result'); if(first) first.click(); }
+    if(e.key === 'Escape'){ closeSearch(); }
+  });
+  document.addEventListener('click', e => {
+    if(!open) return;
+    if(e.target && e.target.closest && e.target.closest('#search-btn')) return;
+    closeSearch();
+  }, true);
+})();
+
+// ── INFO — the broad Alto guide. WAAPI drives the expansion (CSS transition is the
+// fallback), and search + account slide left in lock-step so the panel never covers
+// them; same recipe as the course app's applyExpansion.
+function toggleInfo(){
+  document.getElementById('info-btn').classList.toggle('expanded');
+}
+(function(){
+  const btn = document.getElementById('info-btn');
+  if(!btn || typeof btn.animate !== 'function') return;
+  let cur = null;
+  const slides = {};
+  function slideAside(id, expanded){
+    const el = document.getElementById(id);
+    if(!el || typeof el.animate !== 'function') return;
+    let fromT = getComputedStyle(el).transform;
+    if(!fromT || fromT === 'none') fromT = 'translateX(0px)';
+    if(slides[id]){ try{ slides[id].cancel(); }catch(e){} }
+    const a = el.animate(
+      [{transform: fromT}, {transform: expanded ? 'translateX(-324px)' : 'translateX(0px)'}],
+      {duration:350, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards'});
+    // On return, CANCEL so the fill stops overriding CSS transforms
+    // (the search-expanded sibling rule must be able to move account-btn again).
+    if(!expanded) a.onfinish = () => { try{ a.cancel(); }catch(e){} if(slides[id] === a) slides[id] = null; };
+    slides[id] = a;
+  }
+  function applyInfoExpansion(){
+    const expanded = btn.classList.contains('expanded');
+    if(expanded && typeof window._homeSearchClose === 'function'){ try{ window._homeSearchClose(); }catch(e){} }
+    if(window.innerWidth <= 640) return;   // mobile: pure-CSS corner dropdown — no WAAPI, nothing slides aside
+    const fromW = btn.offsetWidth, fromH = btn.offsetHeight;
+    if(cur){ try{ cur.cancel(); }catch(e){} }
+    cur = btn.animate(
+      [{width: fromW+'px', maxHeight: fromH+'px'},
+       {width: (expanded?360:36)+'px', maxHeight: (expanded?640:36)+'px'}],
+      {duration:350, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards'});
+    if(!expanded){ const a = cur; a.onfinish = () => { try{ a.cancel(); }catch(e){} if(cur === a) cur = null; }; }
+    btn.style.borderRadius = expanded ? '12px' : '50%';
+    slideAside('search-btn', expanded);
+  }
+  new MutationObserver(applyInfoExpansion).observe(btn, {attributes:true, attributeFilter:['class']});
+  // Click anywhere closes the open panel (the "i" icon stopPropagations its toggle) —
+  // except inside the guide itself: tapping/reading the text must not dismiss it.
+  document.addEventListener('click', (e) => {
+    if(e.target && e.target.closest && e.target.closest('#info-content')) return;
+    if(btn.classList.contains('expanded')) btn.classList.remove('expanded');
+  });
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && btn.classList.contains('expanded')) btn.classList.remove('expanded');
+  });
+})();
+
+// ── ACCOUNT — UI shell. Hosted: real Google OAuth via alto-cloud.js.
+// Offline single file: AltoCloud is absent → simulated local session below.
+const Account = {
+  KEY: 'alto-account-v1',
+  get(){ try{ return JSON.parse(localStorage.getItem(this.KEY) || 'null'); }catch(e){ return null; } },
+  signIn(provider){
+    const b = document.querySelector('.acct-provider[data-provider="' + provider + '"]');
+    if(b) b.classList.add('busy');
+    // Hosted site: real Google OAuth via Firebase (alto-cloud.js). onAuthStateChanged
+    // writes the session + calls renderAccount(). Offline single-file: AltoCloud is
+    // absent → keep the original simulated round-trip so the artifact is unchanged.
+    if(window.AltoCloud && window.AltoCloud.enabled){
+      window.AltoCloud.signIn()
+        .catch(e => { console.warn('sign-in failed', e); })
+        .finally(() => { if(b) b.classList.remove('busy'); });
+      return;
+    }
+    setTimeout(() => {                       // simulated provider round-trip
+      const session = { provider, name:'Luke Mandel', email:'lukebmandel@gmail.com',
+                        ts:new Date().toISOString(), v:1 };
+      try{ localStorage.setItem(this.KEY, JSON.stringify(session)); }catch(e){}
+      if(b) b.classList.remove('busy');
+      renderAccount();
+    }, 600);
+  },
+  signOut(){
+    if(window.AltoCloud && window.AltoCloud.enabled){ window.AltoCloud.signOut().catch(()=>{}); return; }
+    try{ localStorage.removeItem(this.KEY); }catch(e){} renderAccount();
+  }
+};
+// The Google photo, falling back to the initial if there is none or it fails
+// to load. Unchanged photo → nothing touched, so re-renders do not blink it.
+function _altoAvatar(el, photo, initial){
+  if(!el) return;
+  const img = el.querySelector('img');
+  if(photo && /^https:\/\//.test(photo)){
+    if(img && img.getAttribute('src') === photo) return;
+    const im = document.createElement('img');
+    im.alt = ''; im.referrerPolicy = 'no-referrer';
+    im.onerror = () => { el.textContent = initial; };
+    im.src = photo;
+    el.textContent = '';
+    el.appendChild(im);
+  } else {
+    el.textContent = initial;
+  }
+}
+function renderAccount(){
+  const s = Account.get();
+  const glyph = document.getElementById('acct-glyph');
+  const mini = document.getElementById('acct-avatar-mini');
+  const out = document.getElementById('acct-signed-out');
+  const inn = document.getElementById('acct-signed-in');
+  if(!glyph || !mini || !out || !inn) return;
+  const abtn = document.getElementById('account-btn');
+  if(s){
+    glyph.style.display = 'none';
+    mini.style.display = 'flex';
+    const initial = (s.name || 'A')[0].toUpperCase();
+    _altoAvatar(mini, s.photo, initial);
+    if(abtn) abtn.classList.add('signed-in');
+    out.style.display = 'none'; inn.style.display = 'block';
+    _altoAvatar(document.getElementById('acct-avatar'), s.photo, initial);
+    document.getElementById('acct-name').textContent = s.name || '';
+    document.getElementById('acct-email').textContent = s.email || '';
+    document.getElementById('acct-provider-chip').textContent =
+      (window.AltoCloud && window.AltoCloud.enabled) ? 'Google' : 'Google · simulated';
+  } else {
+    glyph.style.display = 'flex'; mini.style.display = 'none';
+    if(abtn) abtn.classList.remove('signed-in');
+    out.style.display = 'block'; inn.style.display = 'none';
+  }
+}
+function toggleAccount(){
+  document.getElementById('account-scrim').classList.toggle('open');
+}
+document.getElementById('account-scrim').addEventListener('click', e => {
+  if(e.target === e.currentTarget) toggleAccount();
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    const sc = document.getElementById('account-scrim');
+    if(sc.classList.contains('open')) sc.classList.remove('open');
+  }
+});
+renderAccount();
 </script>
 <script type="module" src="alto-cloud.js"></script>
 </body>

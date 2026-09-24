@@ -167,6 +167,15 @@ def build_reports(courses: list[dict], default_course: str) -> str:
     template = engine_template("reports_template.html")
     for old, new, label in _REPORTS_COPY:
         template = _rep(template, old, new, 1, label)
+    # The reports page carries the homepage's account modal now, so it says why
+    # a sign-in failed in the same words.
+    template = _rep(template,
+                    ".catch(e => { console.warn('sign-in failed', e); })",
+                    ".catch(e => { console.warn('sign-in failed', e); _altoSignInFailed(e); })",
+                    1, "reports sign-in error shown")
+    template = _rep(template, "function renderAccount(){",
+                    SIGN_IN_FAILED_FN + "function renderAccount(){", 1,
+                    "reports sign-in error helper")
     regions = {"course_meta": course_meta_const(courses)}
     tokens = {"default_course":
               f"params.get('course') || {json.dumps(default_course)}"}

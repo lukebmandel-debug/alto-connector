@@ -80,7 +80,7 @@ def _prepare_timeline(tl: str, tid: str, label: str) -> str:
               1, f"{label} reports btn (hidden: no reports in bundle)")
     tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
               2, f"{label} mobile brand (js)")
-    tl = _rep(tl, "location.hash", "__altoHash()", 3, f"{label} hash reads")
+    tl = _rep(tl, "location.hash", "__altoHash()", 4, f"{label} hash reads")
     return _inject_shim(tl, label)
 
 
@@ -127,7 +127,7 @@ def _prepare_private(tl: str, tid: str) -> str:
               1, "private reports btn")
     tl = _rep(tl, "location.href='index.html'", "__altoGo('index.html')",
               2, "private mobile brand (js)")
-    tl = _rep(tl, "location.hash", "__altoHash()", 3, "private hash reads")
+    tl = _rep(tl, "location.hash", "__altoHash()", 4, "private hash reads")
     return _inject_shim(tl, "private")
 
 

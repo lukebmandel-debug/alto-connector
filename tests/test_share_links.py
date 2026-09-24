@@ -208,8 +208,13 @@ def test_saving_a_share_stores_a_reference_not_a_copy():
     recipient keeps reading it forever."""
     fn = CLOUD_JS[CLOUD_JS.index("async function _saveShare("):]
     fn = fn[:fn.index("\n  }")]
-    assert "html" not in fn
+    assert "html:" not in fn and "html," not in fn.split("{ key,")[1]
     assert "'shared', key)" in fn
+    # The page is read only for its colours: no html, and no card text either,
+    # which would outlive revocation just as surely as a copy of the page.
+    meta = CLOUD_JS[CLOUD_JS.index("function _sharedMetaOf("):]
+    meta = meta[:meta.index("\n  }")]
+    assert "return { units: m.units, v: META_V };" in meta
 
 
 def test_revoking_deletes_the_public_copy_before_forgetting_it():
@@ -272,7 +277,7 @@ def test_signing_out_clears_the_shared_list_too():
 def test_a_shared_title_is_not_parsed_as_markup():
     """This title was written by whoever shared it — the one string on the
     homepage that somebody else controls."""
-    block = _home()[_home().index("function renderShared()"):]
+    block = _home()[_home().index("function drawShared("):]
     block = block[:block.index("\n}\n")]
     assert ".tile-title').textContent = it.title" in block
 

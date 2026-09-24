@@ -80,10 +80,28 @@ _JS = """
     show('<h1>' + (head || 'Shared timeline') + '</h1><p>' + msg + '</p>');
   }
 
+  // #find=<node> from the owner's homepage search: a srcdoc frame has no hash
+  // of its own, so hand it to the page's __altoHash() through __altoQuery.
+  // Same hand-off as the private shell.
+  var HANDOFF = location.hash || '';
+  var lastHtml = '';
   function render(pageHtml){
     gate.classList.add('off');
     stage.classList.add('on');
+    lastHtml = pageHtml;
+    var i = HANDOFF ? pageHtml.indexOf('<head>') : -1;
+    if(i >= 0){
+      pageHtml = pageHtml.slice(0, i + 6) + '<script>window.__altoQuery={hash:' +
+        JSON.stringify(HANDOFF).replace(/</g, '\\\\u003c') + '};<\\/script>' +
+        pageHtml.slice(i + 6);
+      HANDOFF = '';
+      try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    }
     stage.srcdoc = pageHtml;
+    // Already kept by this account? Give the homepage its colours and search
+    // terms. Does nothing for a share that was never saved.
+    var c = window.AltoCloud;
+    if(c && c.user && c.refreshShared) c.refreshShared(KEY, lastHtml).catch(function(){});
   }
 
   function unrender(){
@@ -171,7 +189,7 @@ _JS = """
         return;
       }
       pill.textContent = 'Saving\u2026';
-      c.saveShare(KEY, title).then(function(){
+      c.saveShare(KEY, title, lastHtml).then(function(){
         pill.textContent = 'Saved to your Alto \u2713';
         setTimeout(function(){ pill.classList.remove('on'); }, 2600);
       }).catch(function(){
@@ -202,7 +220,7 @@ _JS = """
     btn.onclick = function(){
       btn.disabled = true;
       note.textContent = 'Saving\\u2026';
-      c.saveShare(KEY, title).then(function(){
+      c.saveShare(KEY, title, lastHtml).then(function(){
         note.textContent = 'Saved. It is on your Alto homepage now.';
       }).catch(function(e){
         btn.disabled = false;
@@ -237,6 +255,9 @@ _JS = """
     // timeline already on screen.
     if(stage.classList.contains('on')){
       if(pill && pill.classList.contains('on')) savePill(pill.dataset.t || '');
+      var c = window.AltoCloud;
+      if(lastHtml && c && c.user && c.refreshShared)
+        c.refreshShared(KEY, lastHtml).catch(function(){});
       return;
     }
     if(MANIFEST) chooser(MANIFEST);
@@ -275,7 +296,7 @@ def shell(cloud_version: str = "") -> str:
         f'<style>{_CSS}</style>\n'
         '</head><body>\n'
         '<iframe id="stage" title="Alto" '
-        'allow="clipboard-write; clipboard-read"></iframe>\n'
+        'allow="clipboard-write; clipboard-read; web-share"></iframe>\n'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
         f'<script>{_JS}</script>\n'
         f'<script type="module" src="{src}"></script>\n'

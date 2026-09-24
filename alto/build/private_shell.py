@@ -86,9 +86,11 @@ _JS = """
   // text is NOT enough: the gate is still display:none and the frame is still
   // on top with the whole timeline in it. Put the page back behind the gate AND
   // drop it out of the DOM — a hidden iframe still holds every word of it.
+  var shown = '';
   function lock(){
     stage.classList.remove('on');
     stage.srcdoc = '';
+    shown = '';
     gate.classList.remove('off');
   }
 
@@ -156,13 +158,83 @@ _JS = """
     };
   }
 
+  // A #find=<node> from the homepage search is on THIS url, and a srcdoc frame
+  // has no hash of its own. The page reads its hash through __altoHash(), which
+  // prefers __altoQuery — so hand it over in the document, then drop it here so
+  // a reload does not jump again.
+  var HANDOFF = location.hash || '';
+  function withHandoff(pageHtml){
+    if(!HANDOFF) return pageHtml;
+    var i = pageHtml.indexOf('<head>');
+    if(i < 0) return pageHtml;
+    var tag = '<script>window.__altoQuery={hash:' +
+      JSON.stringify(HANDOFF).replace(/</g, '\\\\u003c') + '};<\\/script>';
+    HANDOFF = '';
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    return pageHtml.slice(0, i + 6) + tag + pageHtml.slice(i + 6);
+  }
+
   function render(pageHtml){
     // Same delivery as the offline bundle: one document injected whole, so the
     // engine boots inside the frame exactly as it does when served directly.
     gate.classList.add('off');
     stage.classList.add('on');
-    stage.srcdoc = pageHtml;
+    if(shown === pageHtml) return;
+    shown = pageHtml;
+    stage.srcdoc = withHandoff(pageHtml);
   }
+
+  /* ── device cache ─────────────────────────────────────────────────────────
+     Every visit used to wait for Firebase to load, then for sign-in to be
+     confirmed, then for the whole page to download — "Checking your account",
+     then "Opening", on every hop back from the homepage. The page is cached
+     here, in this browser, for the account that opened it: shown at once when
+     the same account is remembered, then checked against Firestore in the
+     background and replaced only if it changed. Signing out deletes the cache
+     (alto-cloud.js), and a different account never sees another's entry. */
+  var DB = 'alto-pv-cache';
+  function idb(){
+    return new Promise(function(res, rej){
+      try{
+        var r = indexedDB.open(DB, 1);
+        r.onupgradeneeded = function(){ r.result.createObjectStore('pages'); };
+        r.onsuccess = function(){ res(r.result); };
+        r.onerror = function(){ rej(r.error); };
+      }catch(e){ rej(e); }
+    });
+  }
+  function cacheGet(){
+    return idb().then(function(d){ return new Promise(function(res){
+      var q = d.transaction('pages').objectStore('pages').get(KEY);
+      q.onsuccess = function(){ res(q.result || null); };
+      q.onerror = function(){ res(null); };
+    }); }).catch(function(){ return null; });
+  }
+  function cachePut(v){
+    return idb().then(function(d){
+      d.transaction('pages', 'readwrite').objectStore('pages').put(v, KEY);
+    }).catch(function(){});
+  }
+  function remembered(){
+    try{ return JSON.parse(localStorage.getItem('alto-account-v1') || 'null'); }
+    catch(e){ return null; }
+  }
+  var cached = null;
+  var early = (function(){
+    var s = remembered();
+    if(!KEY || !s || !s.uid) return Promise.resolve(null);
+    return cacheGet().then(function(v){
+      // Firebase may already have answered, and said someone else (or no one).
+      var u = window.AltoCloud && window.AltoCloud.user;
+      if(confirmed && (!u || u.uid !== s.uid)) return null;
+      if(v && v.uid === s.uid && v.html){
+        cached = v;
+        render(v.html);
+      }
+      return v;
+    });
+  })();
+  var confirmed = false;
 
   // The framed page routes its links through __altoGo, which calls this.
   // "index.html" means the homepage; anything else is a real path on this site
@@ -256,19 +328,39 @@ _JS = """
       waiting('Sign-in is not set up for this site, so this cannot be opened here.');
       return;
     }
-    if(!cloud.user){ lock(); signedOut(); return; }
+    confirmed = true;
+    if(!cloud.user){ cached = null; lock(); signedOut(); return; }
     if(!KEY){ lock(); waiting('Not found.'); return; }
-    lock();
-    waiting('Opening\\u2026');
-    cloud.getPage(KEY).then(function(page){
-      if(!page){ needsUpload(); return; }
-      render(page);
-      checkFresh(page);
-      // Pages uploaded before titles were stored would otherwise sit on the
-      // homepage as "Untitled" forever: the listing never fetches the html a
-      // title could be recovered from, so the one moment it IS in hand is here.
-      if(cloud.ensureTitle)
-        cloud.ensureTitle(KEY, titleOf(page), idOf(page)).catch(function(){});
+    var uid = cloud.user.uid;
+    early.then(function(){
+      var mine = cached && cached.uid === uid ? cached : null;
+      if(!mine){ cached = null; lock(); waiting('Opening\\u2026'); }
+      // With a copy on screen, ask only for the small listing record: if the
+      // page has not been re-uploaded since, there is nothing to download.
+      var fresh = mine && cloud.getPageMeta
+        ? cloud.getPageMeta(KEY).then(function(m){
+            return !!(m && m.updatedAt && m.updatedAt === mine.updatedAt);
+          }).catch(function(){ return false; })
+        : Promise.resolve(false);
+      return fresh.then(function(ok){
+        if(ok){ checkFresh(mine.html); return; }
+        return cloud.getPage(KEY).then(function(page){
+          if(!page){ needsUpload(); return; }
+          render(page);
+          checkFresh(page);
+          // Listing record (colours, project, search terms) for pages uploaded
+          // before records existed, then the cache — keyed to the record's
+          // updatedAt, which is what the next visit compares against.
+          var meta = cloud.ensureMeta ? cloud.ensureMeta(KEY, page).catch(function(){})
+                                      : Promise.resolve();
+          if(cloud.ensureTitle)
+            cloud.ensureTitle(KEY, titleOf(page), idOf(page)).catch(function(){});
+          meta.then(function(){ return cloud.getPageMeta ? cloud.getPageMeta(KEY) : null; })
+            .then(function(m){
+              if(m && m.updatedAt) cachePut({ uid: uid, html: page, updatedAt: m.updatedAt });
+            }).catch(function(){});
+        });
+      });
     }).catch(function(){
       // A rules refusal lands here. Say nothing about what does or does not exist.
       lock();
@@ -276,7 +368,9 @@ _JS = """
     });
   };
 
-  waiting('Checking your account\\u2026');
+  // A remembered session means the cached page (above) is about to appear,
+  // so there is nothing to check out loud; otherwise say what is happening.
+  waiting(remembered() ? 'Opening\\u2026' : 'Checking your account\\u2026');
 
   // alto-cloud.js drives renderAccount from onAuthStateChanged, but it returns
   // early — before ever calling it — when the publisher has no Firebase project
@@ -316,7 +410,7 @@ def shell(cloud_version: str = "") -> str:
         f'<style>{_CSS}</style>\n'
         '</head><body>\n'
         '<iframe id="stage" title="Alto" '
-        'allow="clipboard-write; clipboard-read"></iframe>\n'
+        'allow="clipboard-write; clipboard-read; web-share"></iframe>\n'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
         '<div id="stale"></div>\n'
         f'<script>{js}</script>\n'

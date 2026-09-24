@@ -136,6 +136,12 @@
   .course-tile .tile-body{ padding:22px 24px 24px; }
   .course-tile .tile-title{ font-size:19px; font-weight:600; margin-bottom:6px; }
   .course-tile .tile-sub{ font-size:12.5px; color:var(--muted); letter-spacing:.03em; }
+  /* The project a private or kept timeline belongs to, above its title. */
+  .course-tile .tile-project{
+    font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+    margin-bottom:6px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:4px;
+  }
   .course-tile.placeholder{ opacity:.55; filter:saturate(.35); cursor:default; }
   .course-tile.placeholder .unit-strip span{ background:var(--muted); opacity:.35; }
   .soon-chip{
@@ -602,7 +608,7 @@
   .tile-download:hover{ transform:scale(1.15); color:var(--text); }
   /* Share menu for a private timeline. */
   .share-scrim{
-    position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+    position:fixed; inset:0; z-index:450; display:flex; align-items:center;
     justify-content:center; padding:24px; background:rgba(8,9,16,.55);
     -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   }
@@ -622,6 +628,12 @@
   .share-menu button[disabled]{ opacity:.5; cursor:default; }
   .share-menu .sm-danger{ color:#ff9b9b; }
   .share-menu .sm-quiet{ background:none; color:var(--muted); }
+  .share-menu .sm-link{
+    display:block; width:100%; box-sizing:border-box; height:40px; margin:0 0 10px;
+    padding:0 12px; border-radius:11px; border:1px solid var(--glass-slab-border);
+    background:rgba(255,255,255,.1); color:var(--text); font-size:16px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
   .share-menu .sm-status{ font-size:11.5px; color:var(--muted); margin:6px 0 0; min-height:14px; }
   @media print{ .share-scrim{ display:none !important; } }
 
@@ -670,11 +682,26 @@
     .project-slab{ border:1px solid #bbb !important; page-break-inside:avoid; }
     .course-tile{ border:1px solid #ccc !important; }
     .course-tile .unit-strip{ display:none !important; }   /* solid color bars = ink */
+    .course-tile .tile-project{ color:#555 !important; }
     .tile-share, .tile-reports, .slab-share,
     .tile-download, .slab-download,
     .course-tile.new-tile, .project-slab.new-project-slab{ display:none !important; }
     #projects-wrap *{ color:#000 !important; text-shadow:none !important; }
   }
+  /* Signed in: the Google photo (or initial) IS the account control — it takes
+     the whole slot the person glyph sits in, with no glass bubble around it. */
+  html #account-btn.signed-in{
+    background:transparent !important; border-color:transparent !important;
+    box-shadow:none !important;
+    -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+  }
+  html #account-btn.signed-in #acct-avatar-mini{
+    width:100%; height:100%; font-size:13px; overflow:hidden;
+  }
+  #acct-avatar-mini img, .acct-avatar img{
+    width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;
+  }
+  .acct-avatar{ overflow:hidden; }
 </style>
 <script>/* Restore Alto theme before first paint (shared across index/course/reports). */try{if(localStorage.getItem('alto-theme-v1')==='dark')document.documentElement.classList.add('dark');}catch(e){}</script>
 </head>
@@ -788,12 +815,18 @@ function showClaudeToast(web){
 // two copies of this markup is exactly how chips start looking different.
 const REPORTS_GLYPH = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="10" height="14" rx="1.5"/><line x1="8" y1="8" x2="12" y2="8"/><line x1="8" y1="11" x2="12" y2="11"/></svg>';
 const SHARE_GLYPH = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8 H5 V17 H15 V8 H13"/><line x1="10" y1="12" x2="10" y2="3"/><polyline points="7,6 10,3 13,6"/></svg>';
+// Phones and tablets get the native share sheet. iPadOS Safari reports itself
+// as a Mac, so a Mac user agent with a touch screen is an iPad.
+function altoIsTouch(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+         (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
 async function altoShareLink(path, title){
   const url = new URL(path, location.href).href;
   // Native share sheet on MOBILE only — same policy as the timeline's share dialog.
   // (Desktop Safari also exposes navigator.share; without this guard the homepage
   // opened the macOS share sheet while the timeline copied — divergent behavior.)
-  if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.share){
+  if(altoIsTouch() && navigator.share){
     try { await navigator.share({ title: title, url: url }); return; }
     catch(e){ if(e && e.name === 'AbortError') return; }
   }
@@ -1118,10 +1151,38 @@ function altoShareMenu(pg, btn){
     Array.prototype.forEach.call(sc.querySelectorAll('button'),
                                  b => { b.disabled = false; });
   }
+  // Called straight from a tap, so the share sheet and the clipboard are both
+  // allowed. On a phone that means the native sheet.
   async function copyUrl(k){
     const url = c.shareUrl(k);
+    if(altoIsTouch() && navigator.share){
+      try{ await navigator.share({ title: pg.title || 'Alto', url: url }); return; }
+      catch(e){ if(e && e.name === 'AbortError') return; }
+    }
     try{ await navigator.clipboard.writeText(url); showToast('Link copied ✓'); }
-    catch(e){ showToast(url); }
+    catch(e){ showLink(k); throw 'keep-open'; }
+  }
+  // After a Firestore write the tap that started it has expired: iOS refuses
+  // the clipboard and the share sheet alike, and the link used to flash past
+  // in a toast. Hand it over for one more tap instead, selectable as a
+  // fallback.
+  function showLink(k){
+    const url = c.shareUrl(k);
+    const box = sc.querySelector('.share-menu');
+    Array.prototype.forEach.call(box.querySelectorAll('button[data-a]'), b => b.remove());
+    box.querySelector('.sm-note').textContent = 'Your link is ready.';
+    const inp = document.createElement('input');
+    inp.className = 'sm-link'; inp.readOnly = true; inp.value = url;
+    inp.addEventListener('focus', () => inp.select());
+    const go = document.createElement('button');
+    go.dataset.a = 'copy';
+    go.textContent = (altoIsTouch() && navigator.share) ? 'Share link…' : 'Copy link';
+    const done = document.createElement('button');
+    done.dataset.a = 'close'; done.className = 'sm-quiet'; done.textContent = 'Done';
+    status.textContent = '';
+    box.insertBefore(inp, status);
+    box.insertBefore(go, status);
+    box.insertBefore(done, status);
   }
 
   sc.addEventListener('click', async e => {
@@ -1135,8 +1196,10 @@ function altoShareMenu(pg, btn){
         busy(a === 'create' ? 'Creating…' : 'Updating…');
         const r = await c.sharePush(pg.key, pg.title);
         pg.shareKey = r.shareKey;
+        renderPrivate();
+        if(altoIsTouch()){ showLink(r.shareKey); return; }
         await copyUrl(r.shareKey);
-        close(); renderPrivate(); return;
+        close(); return;
       }
       if(a === 'revoke'){
         busy('Stopping…');
@@ -1145,7 +1208,7 @@ function altoShareMenu(pg, btn){
         showToast('Link turned off');
         close(); renderPrivate(); return;
       }
-    }catch(err){ failed(err); }
+    }catch(err){ if(err !== 'keep-open') failed(err); }
   });
 }
 
@@ -1158,14 +1221,70 @@ function altoShareMenu(pg, btn){
 // exists would mean fetching every shared page in full — 600 KB apiece — to
 // learn one bit. A revoked share says so plainly when you open it, and can be
 // removed from here or from there.
-let sharedSlab = null;
+// ── What this browser remembers about the account's own lists ─────────────
+// Firebase takes a round-trip or two to say who you are, and the lists below
+// wait on it — so coming back to this page from a timeline redrew it without
+// your private work, then put it back a moment later. The last lists this
+// account saw are kept here and drawn at once, then replaced by Firestore's
+// answer. Keyed by uid; alto-cloud.js deletes it on sign-out.
+const PAGES_CACHE = 'alto-pages-cache-v1';
+function _listCache(){
+  try{ return JSON.parse(localStorage.getItem(PAGES_CACHE) || 'null'); }catch(e){ return null; }
+}
+function _listCacheSet(part, v){
+  const s = Account.get();
+  if(!s || !s.uid) return;
+  let c = _listCache();
+  if(!c || c.uid !== s.uid) c = { uid: s.uid };
+  c[part] = v;
+  try{ localStorage.setItem(PAGES_CACHE, JSON.stringify(c)); }
+  catch(e){
+    // Over quota: keep the chips, drop the search terms.
+    try{
+      c[part] = v.map(x => Object.assign({}, x, { search: [] }));
+      localStorage.setItem(PAGES_CACHE, JSON.stringify(c));
+    }catch(e2){}
+  }
+}
+// Only until Firebase has answered: after that, AltoCloud.user is the truth.
+function _listCached(part){
+  const c = window.AltoCloud;
+  if(c && c.known) return null;
+  const s = Account.get(), k = _listCache();
+  return (s && s.uid && k && k.uid === s.uid && Array.isArray(k[part])) ? k[part] : null;
+}
+function unitStrip(units){
+  const u = (units && units.length) ? units : [null,null,null,null,null,null,null];
+  return u.map(c => '<span' + (c && /^#[0-9a-fA-F]{3,8}$/.test(c)
+    ? ' style="background:' + c + '"' : '') + '></span>').join('');
+}
+// Homepage search reads these; renderPrivate / renderShared fill them.
+window._altoExtra = { private: [], shared: [] };
+function _searchExtra(part, list){
+  window._altoExtra[part] = list;
+  if(typeof window._homeSearchReset === 'function') window._homeSearchReset();
+}
+
+let sharedSlab = null, sharedDrawn = '';
 function clearShared(){
   if(sharedSlab){ sharedSlab.remove(); sharedSlab = null; }
+  sharedDrawn = '';
+  _searchExtra('shared', []);
 }
 function renderShared(){
   const c = window.AltoCloud;
-  if(!c || !c.enabled || !c.user || !c.listShared){ clearShared(); return; }
+  const early = _listCached('shared');
+  if(early) drawShared(early);
+  if(!c || !c.enabled || !c.user || !c.listShared){ if(!early) clearShared(); return; }
   c.listShared().then(items => {
+    _listCacheSet('shared', items || []);
+    drawShared(items || []);
+  }).catch(() => { if(!early) clearShared(); });
+}
+function drawShared(items){
+  const sig = JSON.stringify(items);
+  if(sharedSlab && sig === sharedDrawn) return;
+  {
     clearShared();
     if(!items || !items.length) return;
     const slab = document.createElement('div');
@@ -1181,9 +1300,9 @@ function renderShared(){
       el.className = 'course-tile live';
       el.href = '/s/' + encodeURIComponent(it.key) + '/';
       el.dataset.tile = it.title || 'Shared timeline';
+      el.dataset.key = 's-' + it.key;
       el.innerHTML =
-        '<div class="unit-strip"><span></span><span></span><span></span>' +
-        '<span></span><span></span><span></span><span></span></div>' +
+        '<div class="unit-strip">' + unitStrip(it.units) + '</div>' +
         '<div class="tile-body"><div class="tile-title"></div>' +
         '<div class="tile-sub">Shared with you</div></div>';
       // textContent: this title was written by whoever shared it, so it is the
@@ -1197,6 +1316,8 @@ function renderShared(){
       rm.innerHTML = '<span style="font-size:15px;line-height:1">\u00d7</span>';
       rm.addEventListener('click', e => {
         e.preventDefault(); e.stopPropagation();
+        const c = window.AltoCloud;
+        if(!c || !c.forgetShare) return;
         rm.disabled = true;
         c.forgetShare(it.key)
           .then(() => { showToast('Removed'); renderShared(); })
@@ -1210,17 +1331,33 @@ function renderShared(){
     // Below the account's own work, above "Start new project".
     wrap.insertBefore(slab, nps);
     sharedSlab = slab;
-  }).catch(() => clearShared());
+    sharedDrawn = sig;
+    _searchExtra('shared', items.map((it, i) => ({
+      key: 's-' + it.key, title: it.title || 'Shared timeline', project: 'Shared with me',
+      href: grid.children[i].getAttribute('href'), search: [] })));
+  }
 }
 
-let privateSlab = null;
+let privateSlab = null, privateDrawn = '';
 function clearPrivate(){
   if(privateSlab){ privateSlab.remove(); privateSlab = null; }
+  privateDrawn = '';
+  _searchExtra('private', []);
 }
 function renderPrivate(){
   const c = window.AltoCloud;
-  if(!c || !c.enabled || !c.user || !c.listPages){ clearPrivate(); return; }
+  const early = _listCached('pages');
+  if(early) drawPrivate(early);
+  if(!c || !c.enabled || !c.user || !c.listPages){ if(!early) clearPrivate(); return; }
   c.listPages().then(pages => {
+    _listCacheSet('pages', pages || []);
+    drawPrivate(pages || []);
+  }).catch(() => { if(!early) clearPrivate(); });
+}
+function drawPrivate(pages){
+  const sig = JSON.stringify(pages);
+  if(privateSlab && sig === privateDrawn) return;
+  {
     clearPrivate();
     if(!pages || !pages.length) return;
     const slab = document.createElement('div');
@@ -1228,7 +1365,7 @@ function renderPrivate(){
     slab.dataset.project = 'Private';
     const kicker = document.createElement('div');
     kicker.className = 'slab-kicker';
-    kicker.textContent = 'Private — visible only to you';
+    kicker.textContent = 'Private';
     const grid = document.createElement('div');
     grid.className = 'course-grid';
     pages.forEach(pg => {
@@ -1236,14 +1373,20 @@ function renderPrivate(){
       el.className = 'course-tile live';
       el.href = '/pv/' + encodeURIComponent(pg.key) + '/';
       el.dataset.tile = pg.title || 'Untitled';
+      el.dataset.key = pg.key;
       el.innerHTML =
-        '<div class="unit-strip"><span></span><span></span><span></span>' +
-        '<span></span><span></span><span></span><span></span></div>' +
-        '<div class="tile-body"><div class="tile-title"></div>' +
+        '<div class="unit-strip">' + unitStrip(pg.units) + '</div>' +
+        '<div class="tile-body"><div class="tile-project"></div><div class="tile-title"></div>' +
         '<div class="tile-sub">Private</div></div>';
-      // textContent, not innerHTML: this title has been to Firestore and back,
-      // so it is no longer template output and must not be parsed as markup.
-      el.querySelector('.tile-title').textContent = pg.title || 'Untitled timeline';
+      // textContent, not innerHTML: these have been to Firestore and back, so
+      // they are no longer template output and must not be parsed as markup.
+      // Title is the timeline's own; the project it was published under sits
+      // above it (and is the title itself when the page carries no other).
+      const heading = pg.heading || pg.title || 'Untitled timeline';
+      const project = pg.project && pg.project !== heading ? pg.project : '';
+      el.querySelector('.tile-title').textContent = heading;
+      const pj = el.querySelector('.tile-project');
+      if(project) pj.textContent = project; else pj.remove();
       if(pg.shareKey) el.querySelector('.tile-sub').textContent = 'Private · shared';
 
       // The same three controls, in the same three places, as every other
@@ -1304,7 +1447,13 @@ function renderPrivate(){
     // people sent you, either way round.
     wrap.insertBefore(slab, sharedSlab || nps);
     privateSlab = slab;
-  }).catch(() => clearPrivate());
+    privateDrawn = sig;
+    _searchExtra('private', pages.map((pg, i) => ({
+      key: pg.key, title: pg.heading || pg.title || 'Untitled timeline',
+      project: pg.project || '', label: pg.project || '',
+      href: grid.children[i].getAttribute('href'),
+      search: pg.search || [] })));
+  }
 }
 
 // ── Honor shared project links: index.html?project=NAME scrolls to that slab and
@@ -1397,8 +1546,32 @@ alignSearch();
                   go:() => jumpTo(document.querySelector('.course-tile[data-tile="'+c.title+'"]'))});
       });
     });
-    return idx;
+    return idx.concat(extraIndex());
   }
+
+  // Private and kept timelines: their text never reaches this page's HTML (it
+  // lives in Firestore, readable only once signed in), so their listing records
+  // carry each card's id, title and description. A hit opens the timeline at
+  // that card, through the shell's #find hand-off.
+  function extraIndex(){
+    const ex = window._altoExtra || {}, out = [];
+    [].concat(ex.private || [], ex.shared || []).forEach(t => {
+      out.push({_x:true, kind:'Timeline', title:t.title, text:t.project || '',
+                go:() => jumpTo(document.querySelector('.course-tile[data-key="'+t.key+'"]'))});
+      (t.search || []).forEach(n => {
+        if(!n || !/^[\w-]+$/.test(n.id || '')) return;
+        // Five outlines of one course share a title; the project tells them apart.
+        out.push({_x:true, kind:t.label || t.title, title:n.t || '', text:n.d || '',
+                  go:() => { location.href = t.href + '#find=' + n.id; }});
+      });
+    });
+    return out;
+  }
+  window._homeSearchReset = function(){
+    if(!INDEX) return;
+    INDEX = INDEX.filter(r => !r._x).concat(extraIndex());
+    if(open && input.value) render(input.value);
+  };
 
   function unesc(s){ return (s||'').replace(/\\'/g, "'").replace(/\\\\/g, '\\'); }
   /*ALTO:BEGIN search_course_fn*/function extractCourse(html){ return []; }/*ALTO:END search_course_fn*/
@@ -1569,6 +1742,23 @@ const Account = {
     try{ localStorage.removeItem(this.KEY); }catch(e){} renderAccount();
   }
 };
+// The Google photo, falling back to the initial if there is none or it fails
+// to load. Unchanged photo → nothing touched, so re-renders do not blink it.
+function _altoAvatar(el, photo, initial){
+  if(!el) return;
+  const img = el.querySelector('img');
+  if(photo && /^https:\/\//.test(photo)){
+    if(img && img.getAttribute('src') === photo) return;
+    const im = document.createElement('img');
+    im.alt = ''; im.referrerPolicy = 'no-referrer';
+    im.onerror = () => { el.textContent = initial; };
+    im.src = photo;
+    el.textContent = '';
+    el.appendChild(im);
+  } else {
+    el.textContent = initial;
+  }
+}
 function renderAccount(){
   const s = Account.get();
   const glyph = document.getElementById('acct-glyph');
@@ -1576,18 +1766,22 @@ function renderAccount(){
   const out = document.getElementById('acct-signed-out');
   const inn = document.getElementById('acct-signed-in');
   if(!glyph || !mini || !out || !inn) return;
+  const abtn = document.getElementById('account-btn');
   if(s){
     glyph.style.display = 'none';
     mini.style.display = 'flex';
-    mini.textContent = (s.name || 'A')[0].toUpperCase();
+    const initial = (s.name || 'A')[0].toUpperCase();
+    _altoAvatar(mini, s.photo, initial);
+    if(abtn) abtn.classList.add('signed-in');
     out.style.display = 'none'; inn.style.display = 'block';
-    document.getElementById('acct-avatar').textContent = (s.name || 'A')[0].toUpperCase();
+    _altoAvatar(document.getElementById('acct-avatar'), s.photo, initial);
     document.getElementById('acct-name').textContent = s.name || '';
     document.getElementById('acct-email').textContent = s.email || '';
     document.getElementById('acct-provider-chip').textContent =
       (window.AltoCloud && window.AltoCloud.enabled) ? 'Google' : 'Google · simulated';
   } else {
     glyph.style.display = 'flex'; mini.style.display = 'none';
+    if(abtn) abtn.classList.remove('signed-in');
     out.style.display = 'block'; inn.style.display = 'none';
   }
   renderPrivate();

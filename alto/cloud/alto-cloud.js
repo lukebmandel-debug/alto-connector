@@ -10,6 +10,8 @@
      users/{uid}/tl/{tid}             — { highlights, hl_removed, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
+     users/{uid}/pagemeta/{key}       — { title, heading, project, units,
+                                          search, shareKey, updatedAt }
 
    That last one is a whole private timeline page, filed under the opaque key
    in its /pv/{key}/ URL rather than under a timeline id, so nothing about it
@@ -46,13 +48,17 @@
   const TID = (scriptEl && scriptEl.dataset && scriptEl.dataset.tid)
     || new URLSearchParams(location.search).get('course') || null;
 
-  let _resolveReady;
-  const ready = new Promise(r => { _resolveReady = r; });
+  let _resolveReady, _isReady = false;
+  const ready = new Promise(r => { _resolveReady = () => { _isReady = true; r(); }; });
   const cloud = {
     enabled: configured,
     user: null,
+    known: false,
     tid: TID,
-    signIn:  async () => { await ready; return _signIn(); },
+    // Synchronous once Firebase is up: the popup must open inside the tap that
+    // asked for it, and even an already-resolved await gives Safari on iOS a
+    // reason to call it unprompted and block it.
+    signIn:  () => _isReady ? _signIn() : ready.then(() => _signIn()),
     signOut: async () => { await ready; return _signOut(); },
     sync:    async () => { await ready; return requestSync('manual'); },
     // Private timelines: the page itself lives in Firestore under the owner's
@@ -80,6 +86,21 @@
       if (!configured) return false;
       await ready; return _ensureTitle(key, title, tid);
     },
+    // The listing record for a page, (re)written from the html in hand when it
+    // is missing or older than this code — the private shell calls it each
+    // time it opens a page, which is what heals pages uploaded before it.
+    ensureMeta: async (key, html) => {
+      if (!configured) return false;
+      await ready; return _ensureMeta(key, html);
+    },
+    // Just the listing record — a few KB, where getPage is the whole page.
+    // The private shell uses its updatedAt to decide whether a cached copy
+    // is still current without downloading the page to find out.
+    getPageMeta: async (key) => {
+      if (!configured) return null;
+      await ready; return _getPageMeta(key);
+    },
+    metaOf: (html) => _metaOf(html),
     /* ── shares ──────────────────────────────────────────────────────────
        A share is opened by someone signed in to nothing, so getShare must
        work with no user at all — the rules allow `get` on shares/{key} and
@@ -108,9 +129,15 @@
     reidentify: (html, shareKey) => _reidentify(html, shareKey),
     /* Shares someone has kept. A REFERENCE, never a copy: if this stored the
        html, revoking a share would leave every recipient still reading it. */
-    saveShare: async (key, title) => {
+    saveShare: async (key, title, html) => {
       if (!configured) throw new Error('sync not configured');
-      await ready; return _saveShare(key, title);
+      await ready; return _saveShare(key, title, html);
+    },
+    // Adds colours + search terms to a share this account already kept.
+    // Never creates one: keeping a share is the reader's decision.
+    refreshShared: async (key, html) => {
+      if (!configured) return false;
+      await ready; return _refreshShared(key, html);
     },
     listShared: async () => {
       if (!configured) return [];
@@ -336,6 +363,89 @@
      author can act on. ─────────────────────────────────────────────────────── */
   const MAX_PAGE_BYTES = 900000;
 
+  /* ── listing records ──────────────────────────────────────────────────────
+     Firestore always returns whole documents, so listing users/{uid}/pages
+     downloaded every private timeline in full (600 KB apiece) just to print
+     their titles — the homepage cost more than opening a timeline. The list
+     reads users/{uid}/pagemeta instead: one small document per page, holding
+     what a chip and the homepage search need and nothing else. ─────────── */
+  const META_V = 1;
+  const SEARCH_CAP = 600, DESC_CAP = 280;
+
+  const _unq = s => String(s || '').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+  const _unent = s => String(s || '').replace(/&quot;/g, '"').replace(/&#x27;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+  function _metaOf(html) {
+    const h = String(html || '');
+    const lm = /<meta name="alto-label" content="([^"]*)"/i.exec(h);
+    const project = lm ? _unent(lm[1]).trim() : '';
+    const tm = /<title>([^<]*)<\/title>/i.exec(h);
+    const heading = tm ? _unent(tm[1]).replace(/\s*\u2014\s*Alto(\s+Timeline)?\s*$/, '').trim() : '';
+    const units = [];
+    const ps = h.indexOf('const PHASE_META = [');
+    if (ps >= 0) {
+      const pe = h.indexOf('\n];', ps);
+      const block = h.slice(ps, pe < 0 ? ps + 20000 : pe);
+      const re = /colorRaw:'(#[0-9a-fA-F]{3,8})'/g;
+      let m;
+      while ((m = re.exec(block))) units.push(m[1]);
+    }
+    const search = [];
+    const ns = h.indexOf('const NODES_SRC=[');
+    if (ns >= 0) {
+      const ne = h.indexOf('\n];', ns);
+      const block = h.slice(ns, ne < 0 ? ns + 400000 : ne);
+      const re = /\{id:'((?:[^'\\]|\\.)*)'[\s\S]*?title:'((?:[^'\\]|\\.)*)'\s*,\s*desc:'((?:[^'\\]|\\.)*)'/g;
+      let m;
+      while ((m = re.exec(block)) && search.length < SEARCH_CAP)
+        search.push({ id: _unq(m[1]), t: _unq(m[2]), d: _unq(m[3]).slice(0, DESC_CAP) });
+    }
+    return { title: project || heading, heading, project, tid: _identityOf(h),
+             units, search, v: META_V };
+  }
+
+  async function _getPageMeta(key) {
+    const u = auth.currentUser;
+    if (!u || !key) return null;
+    const snap = await getDoc(doc(db, 'users', u.uid, 'pagemeta', key));
+    if (!snap.exists()) return null;
+    const v = snap.data() || {};
+    return Object.assign({}, v, { updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
+  }
+
+  async function _ensureMeta(key, html) {
+    const u = auth.currentUser;
+    if (!u || !key || !html) return false;
+    const ref = doc(db, 'users', u.uid, 'pagemeta', key);
+    const snap = await getDoc(ref);
+    if (snap.exists() && ((snap.data() || {}).v || 0) >= META_V) return false;
+    const page = await getDoc(doc(db, 'users', u.uid, 'pages', key));
+    const pv = page.exists() ? (page.data() || {}) : {};
+    await setDoc(ref, Object.assign(_metaOf(html),
+                 { shareKey: pv.shareKey || '', updatedAt: pv.updatedAt || serverTimestamp() }),
+                 { merge: true });
+    return true;
+  }
+
+  // One pass per account, recorded on users/{uid}: build the listing record
+  // for every page uploaded before records existed. This is the one time the
+  // whole pages collection is read.
+  async function _migrateMeta(uid) {
+    const snap = await getDocs(collection(db, 'users', uid, 'pages'));
+    const writes = [];
+    snap.forEach(d => {
+      const v = d.data() || {};
+      const m = _metaOf(v.html || '');
+      if (!m.title) m.title = v.title || '';
+      if (!m.tid) m.tid = v.tid || '';
+      writes.push(setDoc(doc(db, 'users', uid, 'pagemeta', d.id),
+        Object.assign(m, { shareKey: v.shareKey || '', updatedAt: v.updatedAt || serverTimestamp() })));
+    });
+    await Promise.all(writes);
+    await setDoc(doc(db, 'users', uid), { pagemetaV: META_V }, { merge: true });
+  }
+
   async function _getPage(key) {
     const u = auth.currentUser;
     if (!u || !key) return null;
@@ -358,6 +468,11 @@
     await setDoc(doc(db, 'users', u.uid, 'pages', key),
                  { html, title: title || '', tid: _identityOf(html),
                    updatedAt: serverTimestamp() });
+    // merge: shareKey belongs to the share flow, not to an upload.
+    await setDoc(doc(db, 'users', u.uid, 'pagemeta', key),
+                 Object.assign(_metaOf(html), { updatedAt: serverTimestamp() },
+                               title ? { title } : {}),
+                 { merge: true });
     return true;
   }
 
@@ -384,14 +499,16 @@
   async function _listPages() {
     const u = auth.currentUser;
     if (!u) return [];
-    const snap = await getDocs(collection(db, 'users', u.uid, 'pages'));
+    const acct = await getDoc(doc(db, 'users', u.uid));
+    if (((acct.exists() && acct.data()) || {}).pagemetaV !== META_V) await _migrateMeta(u.uid);
+    const snap = await getDocs(collection(db, 'users', u.uid, 'pagemeta'));
     const out = [];
-    // The html field is deliberately not returned: this feeds a list, and
-    // pulling several 600 KB pages to render their titles would make opening
-    // the homepage cost more than opening a timeline.
     snap.forEach(d => {
       const v = d.data() || {};
-      out.push({ key: d.id, title: v.title || '', tid: v.tid || '',
+      out.push({ key: d.id, title: v.title || '', heading: v.heading || '',
+                 project: v.project || '', tid: v.tid || '',
+                 units: Array.isArray(v.units) ? v.units : [],
+                 search: Array.isArray(v.search) ? v.search : [],
                  shareKey: v.shareKey || '',
                  updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
     });
@@ -502,7 +619,10 @@
     // would write a recipient's highlights into the owner's own records.
     const html = _reidentify(page.html, shareKey);
     await _putShare(shareKey, { html, title: title || page.title || '' });
-    if (!existing) await setDoc(ref, { shareKey }, { merge: true });
+    if (!existing) {
+      await setDoc(ref, { shareKey }, { merge: true });
+      await setDoc(doc(db, 'users', u.uid, 'pagemeta', pageKey), { shareKey }, { merge: true });
+    }
     return { shareKey, reused: false };
   }
 
@@ -518,15 +638,36 @@
     // leave a live public document nobody knew about any more.
     await _revokeShare(shareKey);
     await setDoc(ref, { shareKey: '' }, { merge: true });
+    await setDoc(doc(db, 'users', u.uid, 'pagemeta', pageKey), { shareKey: '' }, { merge: true });
     return true;
   }
 
-  async function _saveShare(key, title) {
+  // Colours only — never the html, and never its text. A kept share is a
+  // reference, and card titles copied here as search terms would outlive the
+  // owner revoking it, in the one place they cannot see: someone else's
+  // homepage search. So a kept share is found by its title, not its contents.
+  function _sharedMetaOf(html) {
+    const m = _metaOf(html);
+    return { units: m.units, v: META_V };
+  }
+
+  async function _saveShare(key, title, html) {
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
     if (!key) throw new Error('no share key');
     await setDoc(doc(db, 'users', u.uid, 'shared', key),
-                 { key, title: title || '', savedAt: serverTimestamp() });
+                 Object.assign({ key, title: title || '', savedAt: serverTimestamp() },
+                               html ? _sharedMetaOf(html) : {}));
+    return true;
+  }
+
+  async function _refreshShared(key, html) {
+    const u = auth.currentUser;
+    if (!u || !key || !html) return false;
+    const ref = doc(db, 'users', u.uid, 'shared', key);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return false;
+    await setDoc(ref, _sharedMetaOf(html), { merge: true });
     return true;
   }
 
@@ -538,6 +679,7 @@
     snap.forEach(d => {
       const v = d.data() || {};
       out.push({ key: d.id, title: v.title || '',
+                 units: Array.isArray(v.units) ? v.units : [],
                  savedAt: (v.savedAt && v.savedAt.seconds) || 0 });
     });
     out.sort((a, b) => (b.savedAt - a.savedAt) ||
@@ -562,12 +704,19 @@
     }
   }
   const _signOut = () => signOut(auth);
-  try { await getRedirectResult(auth); } catch (e) {}
+  // Not awaited. It used to gate the auth listener on every page load — a
+  // network round-trip before anything could learn who you are, on every
+  // navigation, to finish a redirect sign-in that almost never happened.
+  // onAuthStateChanged reports a completed redirect on its own.
+  getRedirectResult(auth).catch(() => {});
 
   let unsubUser = null, unsubMain = null, unsubRp = null;
 
   onAuthStateChanged(auth, (user) => {
     cloud.user = user || null;
+    // Pages draw from what this browser remembers until this is set; after it,
+    // cloud.user is the truth, including a null that means signed out.
+    cloud.known = true;
     for (const u of [unsubUser, unsubMain, unsubRp]) { try { u && u(); } catch (e) {} }
     unsubUser = unsubMain = unsubRp = null;
     remoteUser = undefined; remoteMain = undefined; remoteReports = undefined; remoteTombs = new Set();
@@ -607,6 +756,9 @@
       }
     } else {
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
+      // Cached listings and pages belong to the account that just left.
+      try { localStorage.removeItem('alto-pages-cache-v1'); } catch (e) {}
+      try { indexedDB.deleteDatabase('alto-pv-cache'); } catch (e) {}
       if (typeof window.renderAccount === 'function') { try { window.renderAccount(); } catch (e) {} }
     }
   });
