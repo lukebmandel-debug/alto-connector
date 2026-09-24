@@ -174,8 +174,8 @@ def main() -> None:
         if not any(i["mimeType"] == "image/png" for i in icons):
             raise ProbeFailure("no PNG icon — clients are only required to "
                                "support PNG, so an SVG-only list may not render")
-        if len(tools) != 15:
-            raise ProbeFailure(f"expected 15 tools, got {len(tools)}")
+        if len(tools) != 16:
+            raise ProbeFailure(f"expected 16 tools, got {len(tools)}")
 
         built = build_a_timeline(ext, brief)
         print(f"built     : timeline {built['html']:,} B, "
