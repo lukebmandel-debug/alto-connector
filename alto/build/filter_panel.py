@@ -117,7 +117,9 @@ FILTER_PANEL_GLUE = """
     var head=document.createElement('div'); head.className='ef-head';
     var ttl=document.createElement('span'); ttl.textContent='Filter';
     var clr=document.createElement('button'); clr.type='button'; clr.id='ef-clear'; clr.hidden=true; clr.textContent='Clear all';
-    head.appendChild(ttl); head.appendChild(clr); panel.appendChild(head);
+    var cls=document.createElement('button'); cls.type='button'; cls.id='ef-close'; cls.setAttribute('aria-label','Close'); cls.innerHTML='&#x2715;';
+    var act=document.createElement('span'); act.className='ef-act'; act.appendChild(clr); act.appendChild(cls);
+    head.appendChild(ttl); head.appendChild(act); panel.appendChild(head);
     FILTER_SECTIONS.forEach(function(s){
       var sec=document.createElement('div'); sec.className='ef-sec';
       var h=document.createElement('div'); h.className='ef-h'; h.textContent=s.label; sec.appendChild(h);
@@ -144,6 +146,7 @@ FILTER_PANEL_GLUE = """
     (rail && !mobile() ? rail : document.body).appendChild(tab);
     function open(v){ panel.classList.toggle('open', v); tab.setAttribute('aria-expanded', v?'true':'false'); }
     tab.addEventListener('click', function(e){ e.stopPropagation(); open(!panel.classList.contains('open')); });
+    cls.addEventListener('click', function(){ open(false); });
     clr.addEventListener('click', function(){
       Object.keys(sel).forEach(function(k){ sel[k]={}; });
       FILTER_SECTIONS.forEach(function(s){
@@ -254,12 +257,26 @@ def filter_panel_css() -> str:
         "\n  html:not(.mobile) #ef-panel{right:46px;top:50%;width:340px;max-height:min(76vh,600px);"
         "transform:translateY(calc(-50% + 8px));}"
         "\n  html:not(.mobile) #ef-panel.open{opacity:1;pointer-events:auto;transform:translateY(-50%);}"
-        "\n  html.mobile #ef-panel{left:10px;right:10px;bottom:calc(66px + env(safe-area-inset-bottom, 0px));"
-        "z-index:450;max-height:min(60dvh,470px);transform:translateY(8px);}"
-        "\n  html.mobile #ef-panel.open{opacity:1;pointer-events:auto;transform:none;}"
+        # mobile: a full page in from the left, like INFO and Notes
+        "\n  html.mobile #ef-panel{inset:0;width:auto;max-height:none;padding:0 0 40px;border-radius:0;"
+        "border:0;z-index:401;opacity:1;transform:translateX(-100%);"
+        "-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);"
+        "box-shadow:none;transition:transform .22s cubic-bezier(.4,0,.2,1);-webkit-overflow-scrolling:touch;}"
+        "\n  html.mobile #ef-panel.open{pointer-events:auto;transform:none;}"
+        "\n  html.mobile #ef-panel .ef-head{position:sticky;top:0;z-index:1;margin:0 0 12px;"
+        "padding:16px 16px 12px;font-size:12px;letter-spacing:.14em;min-height:0;"
+        "background:var(--panel-glass-bg);border-bottom:1px solid var(--header-hairline, var(--border));}"
+        "\n  html.mobile #ef-panel .ef-sec{padding:0 16px;margin-bottom:18px;}"
+        "\n  html.mobile #ef-panel .ef-chip{font-size:14px;padding:9px 14px;}"
+        "\n  html.mobile #ef-panel .ef-h{font-size:11px;margin-bottom:9px;}"
         "\n  #ef-panel .ef-head{display:flex;justify-content:space-between;align-items:center;"
         "font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);"
         "margin:0 2px 6px;min-height:20px;}"
+        "\n  #ef-panel .ef-act{display:flex;align-items:center;gap:10px;}"
+        "\n  #ef-close{display:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;"
+        "align-items:center;justify-content:center;color:var(--text);letter-spacing:0;"
+        "background:var(--card-glass-bg);border:1px solid var(--card-glass-border);}"
+        "\n  html.mobile #ef-close{display:flex;}"
         "\n  #ef-clear{font:inherit;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);"
         "background:none;border:0;cursor:pointer;padding:2px 4px;}"
         "\n  #ef-clear[hidden]{display:none;}"

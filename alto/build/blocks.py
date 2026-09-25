@@ -20,6 +20,7 @@ from urllib.parse import quote as url_q
 
 from .brief import Brief, Node, COL_SETS, roman
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
+from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
 from .sanitize import css_color, esc, one_line
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
@@ -1005,7 +1006,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             for k, _lbl, _sw in rel_key_items) + "};" + REL_FILTER_GLUE)
     def _js_json(v):
         return json.dumps(v, ensure_ascii=False).replace("</", "<\\/")
-    orders += "\n" + RAIL_GLUE
+    orders += "\n" + RAIL_GLUE + "\n" + MSEARCH_PANEL_GLUE
     if filter_sections:
         orders += ("\nvar FILTER_SECTIONS=" + _js_json(filter_sections) + ";"
                    "\nvar FILTER_NODES=" + _js_json(filter_nodes) + ";"
@@ -1084,7 +1085,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n  .node-card.rel-dimmed{background:var(--surface) !important;"
             "border-top-color:var(--border) !important;}"
             "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
-    nav_char_css += RAIL_CSS
+    nav_char_css += RAIL_CSS + MSEARCH_PANEL_CSS
     if filter_sections:
         nav_char_css += filter_panel_css()
     # Outline detail pages: a numbered "Contains" list and an ancestry trail,

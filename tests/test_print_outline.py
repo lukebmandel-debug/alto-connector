@@ -101,7 +101,7 @@ def test_the_search_box_says_search_everywhere():
     timeline's still named the reference build's own subject matter."""
     from alto.build.pages import build_home
     tl, _ = _build(SAMPLE)
-    assert tl.count('placeholder="Search"') == 2      # desktop + mobile
+    assert tl.count('placeholder="Search"') == 3      # desktop, mobile pill, mobile detail panel
     assert "scenes, characters, themes" not in tl
     assert 'placeholder="Search…"' not in tl
     home = build_home([{"name": "P", "courses": []}])

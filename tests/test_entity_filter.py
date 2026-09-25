@@ -83,7 +83,7 @@ def test_a_timeline_with_nothing_to_filter_has_no_panel():
     d["brief"]["chip_filters"] = False
     d["brief"]["line_filter"] = False
     html, _ = build_timeline(*load_brief(d))
-    assert "var FILTER_SECTIONS=" not in html and "ef-panel" not in html
+    assert "var FILTER_SECTIONS=" not in html and "panel.id='ef-panel'" not in html
 
 
 def test_the_right_edge_tabs_share_one_rail_in_a_fixed_order():
@@ -120,3 +120,19 @@ def test_mobile_search_sits_in_the_top_row_and_stays_put():
     assert "position:fixed; top:104px; bottom:auto; left:50%" in html
     assert "html.mobile.msearch-open #m-search{" not in html      # no docking
     assert "input.focus({preventScroll:true})" in html
+
+
+def test_mobile_detail_pages_search_from_a_side_panel_not_the_pill():
+    html, _ = _build()
+    assert "html.mobile.detail-open #m-search" in html          # pill hidden there
+    assert "html.mobile.detail-open #search-toggle{display:flex;}" in html
+    assert "bottom:calc(66px + env(safe-area-inset-bottom, 0px));z-index:295" in html
+    assert "window._mSearchNavigate=navigate" in html            # reuses the pill's navigation
+    assert "transform:translateX(-100%)" in html.split("html.mobile #msp{", 1)[1].split("}", 1)[0]
+
+
+def test_mobile_filter_opens_as_a_full_page_like_info():
+    html, _ = _build()
+    css = html.split("html.mobile #ef-panel{", 1)[1].split("}", 1)[0]
+    assert "inset:0" in css and "z-index:401" in css and "translateX(-100%)" in css
+    assert "ef-close" in html

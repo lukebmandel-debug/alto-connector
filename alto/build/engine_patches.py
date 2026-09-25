@@ -981,6 +981,19 @@ PATCHES += [
     {"name": "mobile-search-focus-fallback", "old": _MS_FOCUS_B_OLD, "new": _MS_FOCUS_B_NEW, "count": 1},
 ]
 
+# ── mobile search: the detail-page panel reuses the timeline search ────────
+# The panel needs the pill's own navigation (leave a detail page, feature a
+# card, open a detail), so the pill's closure hands it out.
+_MS_NAV_OLD = "window._mSearchClose=closeSearch;"
+_MS_NAV_NEW = "window._mSearchClose=closeSearch; window._mSearchNavigate=navigate;"
+# A swipe that starts on either full-page panel must not step the timeline.
+_SWIPE_OLD = "#summary-wrap,#tutorial-wrap,#notes-panel"
+_SWIPE_NEW = "#summary-wrap,#tutorial-wrap,#ef-panel,#msp,#notes-panel"
+PATCHES += [
+    {"name": "mobile-search-navigate-exposed", "old": _MS_NAV_OLD, "new": _MS_NAV_NEW, "count": 1},
+    {"name": "mobile-swipe-ignores-new-panels", "old": _SWIPE_OLD, "new": _SWIPE_NEW, "count": 2},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])
