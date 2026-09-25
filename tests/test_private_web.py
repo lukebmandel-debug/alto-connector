@@ -254,7 +254,11 @@ def test_the_framed_page_keeps_its_account_panel(built):
     and is wired to the shell's real session instead."""
     d, b, html = built
     page = private_page(b, html)
-    assert "#account-btn{display:none" not in page, "the glyph is gone again"
+    # Hidden inside a timeline on a phone only (the Filter tile has its corner;
+    # the account lives on the home page). Never on desktop.
+    assert "html:not(.mobile) #account-btn{display:none" not in page, "the glyph is gone again"
+    assert "#account-btn{display:none" not in page.replace(
+        "html.mobile #account-btn{display:none", "")
     assert "window.AltoCloud=p.__altoAccount()" in page
 
 

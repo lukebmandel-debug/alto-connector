@@ -39,19 +39,22 @@ def _nav(html):
 
 # ── placement ───────────────────────────────────────────────────────────────
 
-def test_relation_chips_sit_with_the_filter_groups():
+def test_relation_chips_live_in_the_filter_panel_not_the_nav():
     html, _ = _build()
-    assert 'nav-group-label">Filter · Lines</span>' in _nav(html)
+    from panel import item_ids
+    assert item_ids(html, "lines")
+    assert 'Filter · Lines' not in _nav(html)
+    assert "line-key-btn" not in _nav(html)
 
 
 def test_relation_chips_do_not_wear_the_engines_filter_class():
     """`.filter-btn` is swept by the engine's own _applyActiveFilters and its
     clear-all, keyed off data-axis/data-value these chips do not have. Wearing
-    it made a slot-filter click light a relation chip too."""
+    it made a slot-filter click light a relation chip too. The panel builds the
+    chips with `line-key-btn` and never `filter-btn`."""
     html, _ = _build()
-    for chip in _nav(html).split("<button")[1:]:
-        if "data-rel-key=" in chip:
-            assert "filter-btn" not in chip
+    build = html.split("if(s.kind==='lines'){", 1)[1].split("}", 1)[0]
+    assert "line-key-btn" in build and "filter-btn" not in build
 
 
 # ── the no-op rule ──────────────────────────────────────────────────────────
@@ -72,12 +75,14 @@ def test_a_relation_touching_every_node_is_dropped_with_a_warning():
     html, report = _build(mutate=mutate)
     assert any("matches every node" in w and "Contains" in w
                for w in report["warnings"])
-    assert 'data-rel-key="spine"' not in html
+    from panel import item_ids
+    assert "spine" not in item_ids(html, "lines")
 
 
 def test_a_partitioning_relation_survives():
     html, report = _build()
-    assert 'data-rel-key="cites"' in html
+    from panel import item_ids
+    assert "cites" in item_ids(html, "lines")
     assert not any("cites" in w.lower() and "dropped" in w
                    for w in report["warnings"])
 
@@ -95,8 +100,8 @@ def test_a_slot_filter_value_matching_everything_is_dropped():
     html, report = _build(mutate=mutate)
     assert any("matches every node" in w for w in report["warnings"])
     assert any("matches no nodes" in w for w in report["warnings"])
-    assert 'data-value="heavy"' not in html
-    assert 'data-value="light"' not in html
+    from panel import slot_ids
+    assert slot_ids(html, "era") == [] and slot_ids(html, "weight") == []
 
 
 # ── the runtime half ────────────────────────────────────────────────────────
@@ -144,9 +149,10 @@ def test_no_relation_chips_means_no_relation_machinery():
 @pytest.mark.skipif(not OUTLINE.exists(), reason="outline sample not present")
 def test_the_outline_sample_keeps_only_relations_that_partition():
     html, report = _build(OUTLINE)
-    assert 'data-rel-key="spine"' not in html          # Contains — every node
-    assert 'data-rel-key="limits"' in html
-    assert 'data-rel-key="substitutes"' in html
+    from panel import item_ids
+    assert "spine" not in item_ids(html, "lines")          # Contains — every node
+    assert "limits" in item_ids(html, "lines")
+    assert "substitutes" in item_ids(html, "lines")
     assert any("Contains" in w and "matches every node" in w
                for w in report["warnings"])
 

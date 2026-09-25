@@ -222,7 +222,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.8.3"
+__version__ = "1.8.4"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -440,10 +440,12 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       appears in the on-page line key (desktop nav + mobile drawer) next to a
       swatch of its line color, for every relation a connection actually uses —
       so keep labels short, e.g. 'Overrules'),
-     entity_filter?: bool (a Filter tab on the right edge that dims cards not
-      carrying the chosen entity chip; default false),
-     line_filter?: bool (the "Filter · Lines" row in the nav bar; default true,
-      set false for a story whose lines just follow characters),
+     chip_filters?: bool (default true: the Filter toggle gets a section for
+      every kind of sub-chip cards carry — entities, each axis — and picking
+      chips dims the cards without them),
+     line_filter?: bool (a "Lines" section in the Filter toggle that isolates
+      one relation's lines; default true, set false for a story whose lines
+      just follow characters),
      overview_html?, owner_name?, owner_email?}.
     Filters add canvas filter chips that dim non-matching nodes (they never
     navigate). Derived sources (entity/axis1/axis2/acts) mirror that

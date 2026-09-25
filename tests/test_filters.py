@@ -41,17 +41,19 @@ def test_axis1_filter_emits_chips_fields_labels():
     html, report = _build(_sample(filters=[
         {"id": "court", "label": "Filter by Court", "source": "axis1"}]))
     # nav chips on the era slot
-    assert ("<button class=\"nav-btn filter-btn\" data-axis=\"era\" "
-            "data-value=\"ny\" onclick=\"filterCanvas('era','ny')\">"
-            "New York</button>") in html
+    from panel import sections
+    slot = next(s for s in sections(html) if s["kind"] == "slot")
+    assert slot["slot"] == "era" and slot["label"] == "Filter by Court"
+    assert slot["items"][0] == {"id": "ny", "name": "New York"}
+    assert 'class="nav-btn filter-btn"' not in html      # not a nav row any more
     # node fields (first axis1 value)
     assert "era:'ny'" in html
     # label globals + glue
     assert "var ERA_LABELS={'ny':'New York','eng':'England'};" in html
     assert "var WEIGHT_LABELS={};" in html
     assert "_updateDesktopFilterBar" in html
-    # drawer chips
-    assert 'data-sd-axis="era" data-sd-id="ny"' in html
+    # and not a drawer section either: the Filter tile opens the same panel
+    assert 'data-sd-axis="era" data-sd-id="ny"' not in html
     # nav axis group still present (replace_nav not set)
     assert "'env','ny'" in html
 
@@ -70,7 +72,8 @@ def test_replace_nav_makes_axis_filter_only():
     html, _ = _build(_sample(filters=[
         {"id": "court", "label": "Court", "source": "axis1",
          "replace_nav": True}]))
-    assert 'data-axis="era" data-value="ny"' in html      # filter chips in
+    from panel import slot_ids
+    assert "ny" in slot_ids(html, "era")                   # filter chips in
     assert "'env','ny'" not in html                        # nav buttons out
     assert 'data-sd-type="env"' not in html                # drawer nav out
     assert "envs:[]" in html and 'envs:["ny"]' not in html  # card chips out
@@ -102,7 +105,8 @@ def test_entity_and_custom_filters_both_slots():
     assert "era:'offer'" in html                # entity-derived, era slot
     assert "examWeight:'heavy'" in html         # custom, weight slot
     assert "'heavy':'Heavy'" in html            # WEIGHT_LABELS
-    assert 'data-axis="weight" data-value="background"' in html
+    from panel import slot_ids
+    assert "background" in slot_ids(html, "weight")
 
 
 def test_acts_filter_derives_from_act_index():

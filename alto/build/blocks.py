@@ -19,6 +19,7 @@ import re
 from urllib.parse import quote as url_q
 
 from .brief import Brief, Node, COL_SETS, roman
+from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .sanitize import css_color, esc, one_line
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
@@ -396,87 +397,6 @@ REL_FILTER_GLUE = """
 })();"""
 
 
-# Entity filter: a Filter tab on the right edge (same rail as Notes and the
-# overview star) opening a panel of the timeline's entity chips. A card stays lit
-# when it carries at least one selected entity; the rest dim with their own
-# `ent-dimmed` class, which composes with the engine's slot filters and the
-# relation filters the same way `rel-dimmed` does. The chips are in the panel
-# (desktop) and the drawer (mobile), never in the nav bar — the nav already has
-# each entity once, as a link to its page.
-ENT_FILTER_GLUE = """
-(function(){
-  if(window._altoEntFilterBound) return; window._altoEntFilterBound=1;
-  var sel={};
-  function keys(){ return Object.keys(sel); }
-  function apply(){
-    var on=keys(), nodes=document.querySelectorAll('#world .node');
-    for(var i=0;i<nodes.length;i++){
-      var card=nodes[i].querySelector('.node-card'); if(!card) continue;
-      var id=nodes[i].id.slice(5), keep=!on.length;
-      for(var j=0;!keep && j<on.length;j++){
-        if((ENT_NODES[on[j]]||[]).indexOf(id)>=0) keep=true;
-      }
-      card.classList.toggle('ent-dimmed', !keep);
-    }
-    document.querySelectorAll('.ent-filter-btn[data-ent-key]').forEach(function(b){
-      b.classList.toggle('active', !!sel[b.getAttribute('data-ent-key')]);
-    });
-    var tab=document.getElementById('filter-toggle');
-    if(tab){ tab.classList.toggle('active', on.length>0); tab.setAttribute('data-n', on.length||''); }
-    var clr=document.getElementById('ef-clear'); if(clr) clr.hidden=!on.length;
-  }
-  function build(){
-    if(document.getElementById('filter-toggle')) return;
-    var tab=document.createElement('button');
-    tab.id='filter-toggle'; tab.type='button';
-    tab.title='Filter by '+ENT_LABEL; tab.setAttribute('aria-label','Filter by '+ENT_LABEL);
-    tab.setAttribute('aria-expanded','false');
-    tab.innerHTML='<svg viewBox="0 0 20 20" width="17" height="17" style="display:block" fill="currentColor" aria-hidden="true"><path d="M2 3.5h16l-6.2 7.4v5.1l-3.6 1.9v-7z"/></svg>';
-    var panel=document.createElement('div');
-    panel.id='ef-panel'; panel.setAttribute('role','dialog'); panel.setAttribute('aria-label','Filter by '+ENT_LABEL);
-    var head=document.createElement('div'); head.className='ef-head';
-    var ttl=document.createElement('span'); ttl.textContent='Filter by '+ENT_LABEL;
-    var clr=document.createElement('button'); clr.type='button'; clr.id='ef-clear'; clr.hidden=true; clr.textContent='Clear';
-    head.appendChild(ttl); head.appendChild(clr); panel.appendChild(head);
-    var list=document.createElement('div'); list.className='ef-list';
-    ENT_ITEMS.forEach(function(it){
-      var b=document.createElement('button'); b.type='button';
-      b.className='ent-filter-btn ef-chip'; b.setAttribute('data-ent-key', it.id);
-      b.style.setProperty('--c', it.color);
-      var s=document.createElement('span'); s.className='ef-sym'; s.innerHTML=it.symbol; b.appendChild(s);
-      var n=document.createElement('span'); n.className='ef-name'; n.textContent=it.name; b.appendChild(n);
-      var c=document.createElement('span'); c.className='ef-count'; c.textContent=it.count; b.appendChild(c);
-      list.appendChild(b);
-    });
-    panel.appendChild(list);
-    document.body.appendChild(panel); document.body.appendChild(tab);
-    function open(v){ panel.classList.toggle('open', v); tab.setAttribute('aria-expanded', v?'true':'false'); }
-    tab.addEventListener('click', function(e){ e.stopPropagation(); open(!panel.classList.contains('open')); });
-    clr.addEventListener('click', function(){ sel={}; apply(); });
-    document.addEventListener('click', function(e){
-      if(panel.classList.contains('open') && !e.target.closest('#ef-panel') && !e.target.closest('#filter-toggle')) open(false);
-    });
-    document.addEventListener('keydown', function(e){ if(e.key==='Escape') open(false); });
-  }
-  document.addEventListener('click', function(e){
-    var b=e.target && e.target.closest && e.target.closest('.ent-filter-btn[data-ent-key]');
-    if(!b) return;
-    e.preventDefault(); e.stopPropagation();
-    var k=b.getAttribute('data-ent-key');
-    if(sel[k]) delete sel[k]; else sel[k]=1;
-    apply();
-  }, true);
-  // A re-render (theme toggle, back from a detail page) rebuilds the cards, and
-  // the mobile drawer is built when opened; put the filter back on both.
-  var queued=false;
-  new MutationObserver(function(){
-    if(queued || !keys().length) return; queued=true;
-    requestAnimationFrame(function(){ queued=false; apply(); });
-  }).observe(document.body, {childList:true, subtree:true});
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', build); else build();
-})();"""
-
-
 LINES_GLUE = """
 function isolateRelation(key){
   var svg=document.getElementById('river-svg'); if(!svg||typeof CONNECTIONS==='undefined') return;
@@ -763,15 +683,6 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                      if _partitions(rel_nodes.get(it[0], set()),
                                     f"line filter {it[1]!r}")]
 
-    # Entity filter chips: same rule — an entity on every node, or on none,
-    # would be a chip that cannot divide anything.
-    ent_filter_items = []
-    if b.entity_filter:
-        for _e in b.entities:
-            _t = {n.id for n in nodes if _e.id in n.entity_ids}
-            if _partitions(_t, f"{b.entity_axis_singular.lower()} filter {_e.name!r}"):
-                ent_filter_items.append((_e, sorted(_t)))
-
     # Same rule for the slot filters. A Coverage chip on a deck where every
     # node is Solid, or a custom value the student never assigned, is just as
     # dead as a spine chip — drop it and say why.
@@ -782,6 +693,47 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             if _partitions(_touched, f"filter {_rf['spec'].label!r} value {_name!r}"):
                 _kept.append((_vid, _name))
         _rf["values"] = _kept
+
+    # ── the Filter panel: one section per kind of filter ─────────────────────
+    # Every kind of sub-chip a card carries is filterable — those chips have
+    # detail pages of their own — so each gets a section, unless an explicit
+    # filter already mirrors that axis. A chip still has to divide the set.
+    filter_sections, filter_nodes = [], {}
+    _covered = {rf["spec"].source for rf in resolved_filters}
+    if b.chip_filters:
+        _dims = []
+        if b.entities:
+            _dims.append(("entity", b.entity_axis_singular, "entity_ids", [
+                (e.id, e.name, e.color, e.symbol_svg or FALLBACK_GLYPH) for e in b.entities]))
+        for _ax, _key, _attr, _dflt in ((ax1, "axis1", "axis1_values", "var(--env-color)"),
+                                        (ax2, "axis2", "axis2_values", "var(--theme-color)")):
+            if _ax:
+                _dims.append((_key, _ax.singular, _attr, [
+                    (v.id, v.name, v.color or _dflt, v.symbol_svg) for v in _ax.values]))
+        for _key, _label, _attr, _vals in _dims:
+            if _key in _covered:
+                continue
+            _items, _map = [], {}
+            for _vid, _name, _color, _symbol in _vals:
+                _t = {n.id for n in nodes if _vid in getattr(n, _attr)}
+                if _partitions(_t, f"{_label.lower()} filter {_name!r}"):
+                    _items.append({"id": _vid, "name": _name, "color": _color,
+                                   "symbol": _symbol, "count": len(_t)})
+                    _map[_vid] = sorted(_t)
+            if _items:
+                filter_sections.append({"key": _key, "kind": "chips",
+                                        "label": _label, "items": _items})
+                filter_nodes[_key] = _map
+    for rf in resolved_filters:
+        filter_sections.append({
+            "key": "slot-" + rf["slot"], "kind": "slot", "slot": rf["slot"],
+            "label": rf["spec"].label,
+            "items": [{"id": vid, "name": name} for vid, name in rf["values"]]})
+    if rel_key_items:
+        filter_sections.append({
+            "key": "lines", "kind": "lines", "label": "Lines",
+            "items": [{"id": k, "name": lbl, "swatch": sw, "count": rel_counts.get(k, 0)}
+                      for k, lbl, sw in rel_key_items]})
 
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
@@ -852,35 +804,6 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         nav.append(f'\n    <span class="nav-group-label">{ax.singular}</span>')
         for v in ax.values:
             nav.append(nav_btn(kind, v.id, v.symbol_svg or FALLBACK_GLYPH, v.name, cls))
-    for rf in resolved_filters:
-        nav.append('\n    <div class="nav-divider"></div>')
-        nav.append(f'\n    <span class="nav-group-label">Filter · {rf["spec"].label}</span>')
-        for vid, name in rf["values"]:
-            nav.append(f'\n    <button class="nav-btn filter-btn" '
-                       f'data-axis="{rf["slot"]}" data-value="{vid}" '
-                       f'onclick="filterCanvas(\'{rf["slot"]}\',\'{vid}\')">'
-                       f'{name}</button>')
-    # Relation filters (desktop). These sit with the other filter groups and
-    # read as filter chips, because that is what they now are: clicking one
-    # dims the lines of every other relation AND dims the cards that relation
-    # never touches, stacking with whatever slot filters are active.
-    # Mobile hides #nav .nav-btn entirely, so the drawer carries its own copy.
-    if rel_key_items:
-        nav.append('\n    <div class="nav-divider"></div>')
-        nav.append('\n    <span class="nav-group-label">Filter · Lines</span>')
-        for key, label, swatch in rel_key_items:
-            nav.append(
-                # NOT .filter-btn: the engine sweeps every .filter-btn in
-                # _applyActiveFilters (engine :2539) and in clear-all (:7931),
-                # keying off data-axis/data-value these chips do not have — so
-                # wearing that class made a slot-filter click light a relation
-                # chip too. They sit in the filter group and are styled like
-                # filter chips; they are not one of the engine's two slots.
-                f'\n    <button class="nav-btn line-key-btn" '
-                f'data-rel-key="{key}">'
-                f'<span style="display:inline-block;width:14px;height:3px;'
-                f'border-radius:2px;background:{swatch}"></span>{esc(label)}'
-                f'<span class="line-key-count">{rel_counts.get(key, 0)}</span></button>')
     nav.append("\n  </div>")
     nav = "".join(nav)
 
@@ -1080,17 +1003,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
             for k, _lbl, _sw in rel_key_items) + "};" + REL_FILTER_GLUE)
-    if ent_filter_items:
-        def _js_json(v):
-            return json.dumps(v, ensure_ascii=False).replace("</", "<\\/")
-        orders += (
-            "\nvar ENT_LABEL=" + js_str(b.entity_axis_singular) + ";"
-            "\nvar ENT_ITEMS=" + _js_json([
-                {"id": e.id, "name": e.name, "color": e.color,
-                 "symbol": e.symbol_svg or FALLBACK_GLYPH, "count": len(ids)}
-                for e, ids in ent_filter_items]) + ";"
-            "\nvar ENT_NODES=" + _js_json({e.id: ids for e, ids in ent_filter_items})
-            + ";" + ENT_FILTER_GLUE)
+    def _js_json(v):
+        return json.dumps(v, ensure_ascii=False).replace("</", "<\\/")
+    orders += "\n" + RAIL_GLUE
+    if filter_sections:
+        orders += ("\nvar FILTER_SECTIONS=" + _js_json(filter_sections) + ";"
+                   "\nvar FILTER_NODES=" + _js_json(filter_nodes) + ";"
+                   + FILTER_PANEL_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
@@ -1165,56 +1084,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n  .node-card.rel-dimmed{background:var(--surface) !important;"
             "border-top-color:var(--border) !important;}"
             "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
-    if ent_filter_items:
-        nav_char_css += (
-            "\n  .node-card.ent-dimmed{background:var(--surface) !important;"
-            "border-top-color:var(--border) !important;}"
-            "\n  .node-card.ent-dimmed > *{opacity:0.15;}"
-            "\n  #filter-toggle{position:fixed;right:0;top:calc(50% + 84px);z-index:395;"
-            "width:34px;height:34px;box-sizing:border-box;padding:0;display:flex;"
-            "align-items:center;justify-content:center;cursor:pointer;"
-            "background:var(--card-glass-bg, var(--surface));"
-            "-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);"
-            "border:1px solid var(--card-glass-border, var(--border));border-right:none;"
-            "border-radius:6px 0 0 6px;color:var(--muted);"
-            "box-shadow:0 10px 26px var(--node-rest-shadow);}"
-            "\n  #filter-toggle:hover{color:var(--text);border-color:var(--muted);}"
-            "\n  #filter-toggle.active{color:var(--accent);border-color:var(--accent);}"
-            "\n  #filter-toggle[data-n]:not([data-n=\"\"])::after{content:attr(data-n);"
-            "position:absolute;top:-6px;left:-7px;min-width:15px;height:15px;padding:0 3px;"
-            "box-sizing:border-box;border-radius:8px;background:var(--accent);color:#fff;"
-            "font-size:10px;line-height:15px;text-align:center;}"
-            "\n  #ef-panel{position:fixed;right:46px;top:50%;z-index:396;width:272px;"
-            "max-height:min(70vh,540px);overflow:auto;padding:12px;border-radius:14px;"
-            "opacity:0;pointer-events:none;transform:translateY(calc(-50% + 8px));"
-            "transition:opacity .15s, transform .15s;"
-            "background:var(--panel-glass-bg, var(--surface));"
-            "-webkit-backdrop-filter:blur(30px) saturate(185%);backdrop-filter:blur(30px) saturate(185%);"
-            "border:1px solid var(--card-glass-border, var(--border));"
-            "box-shadow:0 18px 48px var(--node-hover-shadow);color:var(--text);}"
-            "\n  #ef-panel.open{opacity:1;pointer-events:auto;transform:translateY(-50%);}"
-            "\n  #ef-panel .ef-head{display:flex;justify-content:space-between;align-items:center;"
-            "font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);"
-            "margin:0 2px 10px;min-height:20px;}"
-            "\n  #ef-clear{font:inherit;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);"
-            "background:none;border:0;cursor:pointer;padding:2px 4px;}"
-            "\n  #ef-clear[hidden]{display:none;}"
-            "\n  #ef-panel .ef-list{display:flex;flex-direction:column;gap:6px;}"
-            "\n  .ef-chip{display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;"
-            "padding:8px 11px;border-radius:10px;cursor:pointer;font:inherit;font-size:13px;"
-            "color:var(--text);text-align:left;background:transparent;"
-            "border:1.4px solid color-mix(in srgb, var(--c) 50%, transparent);}"
-            "\n  .ef-chip:hover{background:color-mix(in srgb, var(--c) 10%, transparent);}"
-            "\n  .ef-chip.active{background:color-mix(in srgb, var(--c) 24%, transparent);"
-            "border-color:var(--c);}"
-            "\n  .ef-sym{display:inline-flex;color:var(--c);font-size:16px;line-height:1;}"
-            "\n  .ef-sym svg{width:1em;height:1em;}"
-            "\n  .ef-name{flex:1;}"
-            "\n  .ef-count{opacity:.5;font-size:.85em;}"
-            "\n  html.mobile #filter-toggle, html.mobile #ef-panel{display:none !important;}"
-            "\n  html.printing #filter-toggle, html.printing #ef-panel{display:none !important;}"
-            "\n  .drawer-btn.ent-filter-btn.active{border-color:var(--accent);"
-            "background:color-mix(in srgb, var(--accent) 16%, transparent);}")
+    nav_char_css += RAIL_CSS
+    if filter_sections:
+        nav_char_css += filter_panel_css()
     # Outline detail pages: a numbered "Contains" list and an ancestry trail,
     # set to read like a written outline rather than a table.
     if b.mode == "outline":
@@ -1300,45 +1172,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         drawer.append(f"'    <div class=\"drawer-section-label\">{ax.label}</div>',")
         for v in ax.values:
             drawer.append(drawer_btn(kind, v.id, v.symbol_svg, v.name, cls))
-    # Filter chips: data-sd-axis/-id (NOT data-sd-type, which would make the
-    # engine's drawer handler navigate). Engine CSS already styles
-    # .drawer-btn.filter-btn[data-sd-axis]; clicks are bound by FILTER_GLUE.
-    # Text-only on purpose: filter values carry no authored glyphs, and a row
-    # of identical fallback diamonds reads as meaning it doesn't have.
-    for rf in resolved_filters:
-        drawer.append(f"'    <div class=\"drawer-section-label\">Filter &middot; {rf['spec'].label}</div>',")
-        for vid, name in rf["values"]:
-            drawer.append(
-                f"'    <button class=\"drawer-btn filter-btn\" "
-                f"data-sd-axis=\"{rf['slot']}\" data-sd-id=\"{vid}\">"
-                f"<span class=\"drawer-label\">{name}</span></button>',")
-    # Entity filter (mobile): the desktop panel is hidden on a phone, so the
-    # drawer carries the same chips. data-ent-key, not data-sd-*, so the
-    # engine's drawer handler leaves them to ENT_FILTER_GLUE.
-    if ent_filter_items:
-        drawer.append(f"'    <div class=\"drawer-section-label\">Filter &middot; "
-                      f"{esc(b.entity_axis_singular)}</div>',")
-        for e, _ids in ent_filter_items:
-            drawer.append(
-                "'    <button class=\"drawer-btn ent-filter-btn\" data-ent-key=\""
-                + e.id + "\"><span class=\"drawer-icon\">"
-                + (e.symbol_svg or FALLBACK_GLYPH).replace("'", "\\'")
-                + "</span><span class=\"drawer-label\">" + esc(e.name)
-                + f"<span class=\"line-key-count\">{len(_ids)}</span>"
-                + "</span></button>',")
-    # Relation line key (mobile): data-rel-key (NOT data-sd-*, so the engine
-    # drawer handler + FILTER_GLUE ignore them); the LINES_GLUE delegated handler
-    # binds .line-key-btn to isolate that relation's lines.
-    if rel_key_items:
-        drawer.append("'    <div class=\"drawer-section-label\">Lines</div>',")
-        for key, label, swatch in rel_key_items:
-            drawer.append(
-                "'    <button class=\"drawer-btn line-key-btn\" data-rel-key=\""
-                + key + "\"><span class=\"drawer-icon\"><span style=\"display:"
-                "inline-block;width:16px;height:3px;border-radius:2px;background:"
-                + swatch + "\"></span></span><span class=\"drawer-label\">"
-                + esc(label) + "<span class=\"line-key-count\">"
-                + str(rel_counts.get(key, 0)) + "</span></span></button>',")
+    # Filters are not in the drawer: the Filter tile (bottom-left) opens them.
     drawer_filters = "\n".join(drawer)
 
     # ── mobile grid ──────────────────────────────────────────────────────────

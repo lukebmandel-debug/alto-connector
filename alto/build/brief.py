@@ -248,10 +248,10 @@ class Brief:
     # A useful working tool for an author (or a law outline's "Overrules"), and
     # noise on a story where lines just follow characters — so it is a choice.
     line_filter: bool = True
-    # A Filter tab on the right edge (beside Notes and the overview star) that
-    # opens character chips; picking one dims every card that does not carry
-    # that entity's chip. The chips live in the panel, never in the nav bar.
-    entity_filter: bool = False
+    # The Filter toggle carries a section for every kind of sub-chip a card has
+    # (characters, environments, themes, doctrines…), so any of them can be
+    # filtered by. Set false for a timeline that should not offer that.
+    chip_filters: bool = True
 
 
 def _check_sections(sections, what) -> None:
@@ -282,7 +282,7 @@ def validate_brief(b: Brief) -> list[str]:
     if len(b.acts) < 2:
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
-    for flag in ("line_filter", "entity_filter"):
+    for flag in ("line_filter", "chip_filters"):
         if not isinstance(getattr(b, flag), bool):
             raise BriefError(f"{flag}: must be true or false")
     if b.mode not in MODES:

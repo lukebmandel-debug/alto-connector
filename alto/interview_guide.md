@@ -123,18 +123,25 @@ routes §D to **§D-Outline** below.
   homepage tile shows it ("6 Units"); the bands themselves show numerals + your
   own cluster labels, so the noun never appears there.
 
-### B2. Two optional filters (`entity_filter`, `line_filter`)
-Both are brief flags, and both are the author's call — ask, do not assume.
-- `entity_filter: true` adds a **Filter** tab on the right edge, beside Notes
-  and the overview star. It opens the entity chips (characters, doctrines…);
-  picking one dims every card that does not carry that chip. The chips live in
-  that panel (and the mobile drawer), never as a second row in the nav bar.
-  Right for a story, or anything where readers want to follow one actor.
-  Default off.
-- `line_filter` (default **true**) shows a "Filter · Lines" row in the nav bar
-  that isolates one relation's lines. It suits a working outline ("Overrules")
-  and is noise where the lines simply follow characters. Set it to `false` to
-  drop the row; the lines and their hover labels stay.
+### B2. The Filter toggle (`chip_filters`, `line_filter`)
+Every timeline has one **Filter** toggle — a tab on the right edge on desktop
+(under Notes), a tile at the bottom-left on a phone — and every filter lives in
+it, one section each. Nothing filter-shaped goes in the nav bar or the mobile
+menu.
+- A section per kind of **sub-chip** the cards carry: the entity axis
+  (characters, doctrines…) and each extra axis (environments, themes…). These
+  chips have detail pages of their own, so any of them is a fair thing to
+  filter by. Picking several inside one section keeps cards with *any* of them;
+  sections combine with *and*. On by default; `chip_filters: false` turns the
+  whole set off.
+- A section per declared **filter** (`filters` in the brief: coverage, depth,
+  a custom dimension…).
+- `line_filter` (default **true**): a "Lines" section that isolates one
+  relation's lines. It suits a working outline ("Overrules") and is noise where
+  the lines simply follow characters — set it `false` there; the lines and
+  their hover labels stay.
+A chip only appears if it divides the nodes (one on every node, or on none,
+would change nothing when picked).
 
 ### C. The entity axis (the chips)
 The most prominent filter axis: the recurring "actors" of the timeline —

@@ -33,21 +33,24 @@ def test_rel_css_vars_emitted_for_line_rendering():
 def test_used_relation_gets_nav_key_and_drawer_row():
     html, _ = _build()
     # interactive line-key chips carry data-rel-key + a live edge count
-    assert 'class="nav-btn line-key-btn" data-rel-key="cites"' in html      # desktop
-    assert 'background:var(--rel-cites)' in html                            # swatch color
-    assert 'drawer-btn line-key-btn" data-rel-key="cites"' in html          # mobile
-    assert 'class="line-key-count">1</span>' in html                        # cites used once
+    # The chips live in the Filter panel's "Lines" section — one control for
+    # desktop and mobile — with a live edge count and the line colour.
+    from panel import sections
+    lines = next(s for s in sections(html) if s["kind"] == "lines")
+    cites = next(i for i in lines["items"] if i["id"] == "cites")
+    assert cites["swatch"] == "var(--rel-cites)" and cites["count"] == 1
     assert "function isolateRelation" in html                              # the isolate glue
-    # The desktop chips now sit with the filter groups (they filter nodes too,
-    # not just line tubes); the mobile drawer keeps its own "Lines" section.
-    assert 'nav-group-label">Filter \u00b7 Lines</span>' in html
-    assert 'drawer-section-label">Lines</div>' in html
+    # ...and no longer a row in the nav bar or a section in the mobile drawer
+    assert 'nav-group-label">Filter \u00b7 Lines</span>' not in html
+    assert 'drawer-section-label">Lines</div>' not in html
 
 
 def test_labeled_spine_appears_last_and_neutral():
     html, _ = _build()          # spine label "leads to", used by the sample
-    assert 'data-rel-key="spine"' in html
-    assert 'background:var(--line-flow)' in html
+    from panel import sections
+    lines = next(s for s in sections(html) if s["kind"] == "lines")
+    assert lines["items"][-1]["id"] == "spine"
+    assert lines["items"][-1]["swatch"] == "var(--line-flow)"
     assert "--rel-spine" not in html
 
 
@@ -58,7 +61,9 @@ def test_unused_relation_omitted_from_key():
     conns = [["lucy-v-zehmer", "carbolic", "spine"],
              ["carbolic", "hamer", "cites"]]
     html, _ = _build(relations=rels, connections=conns)
-    assert 'data-rel-key="cites"' in html         # used → in the key
+    from panel import item_ids
+    assert "cites" in item_ids(html, "lines")      # used → in the key
+    assert "distinguishes" not in item_ids(html, "lines")
     assert "Distinguishes" not in html            # unused → absent from the key (incl. REL_LABELS)
     assert "--rel-distinguishes:#22d3ee;" in html  # var still defined (harmless)
 

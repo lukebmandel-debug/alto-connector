@@ -882,6 +882,105 @@ PATCHES += [
      "new": _DFIND_NEW, "count": 1},
 ]
 
+# ── filters that hide cards also steer the timeline ─────────────────────────
+# Stepping through the timeline (swipe, the edge buttons, next/previous on a
+# detail page) walks only the cards an era/weight filter left, through the
+# engine's `_filteredOrder`. The Filter panel's sub-chip filters (characters,
+# themes…) hide cards too and have to steer the same way, or a swipe lands on a
+# card the reader just filtered out. They report through two hooks the panel
+# defines, `_altoChipOn` and `_altoChipKeep`; a timeline with no panel has
+# neither, and every check below falls through to what it was.
+_CHIP_ON = "(window._altoChipOn&&window._altoChipOn())"
+_CHIP_KEEP = "(!window._altoChipKeep||window._altoChipKeep(id))"
+PATCHES += [
+    {"name": "filtered-order-preview", "old": "(_pF.era||_pF.weight)",
+     "new": f"(_pF.era||_pF.weight||{_CHIP_ON})", "count": 1},
+    {"name": "filtered-order-empty",
+     "old": "if(!f.era && !f.weight) return NODE_ORDER.slice();",
+     "new": f"if(!f.era && !f.weight && !{_CHIP_ON}) return NODE_ORDER.slice();", "count": 1},
+    {"name": "filtered-order-keep",
+     "old": "return (!f.era || n.era===f.era) && (!f.weight || n.examWeight===f.weight);",
+     "new": ("return (!f.era || n.era===f.era) && (!f.weight || n.examWeight===f.weight)"
+             f" && {_CHIP_KEEP};"), "count": 1},
+    {"name": "filtered-order-swipe",
+     "old": "var order = (f.era || f.weight) ? _filteredOrder() : NODE_ORDER;",
+     "new": f"var order = (f.era || f.weight || {_CHIP_ON}) ? _filteredOrder() : NODE_ORDER;",
+     "count": 1},
+    {"name": "filtered-order-edge-buttons",
+     "old": "var ord = (f.era || f.weight) ? _filteredOrder() : NODE_ORDER;",
+     "new": f"var ord = (f.era || f.weight || {_CHIP_ON}) ? _filteredOrder() : NODE_ORDER;",
+     "count": 2},
+    {"name": "filtered-order-detail-a",
+     "old": "if(t === 'node' && (f.era || f.weight)){",
+     "new": f"if(t === 'node' && (f.era || f.weight || {_CHIP_ON})){{", "count": 1},
+    {"name": "filtered-order-detail-b",
+     "old": "if(type === 'node' && (f.era || f.weight) && typeof window._filteredOrder === 'function'){",
+     "new": ("if(type === 'node' && (f.era || f.weight || " + _CHIP_ON +
+             ") && typeof window._filteredOrder === 'function'){"), "count": 1},
+    {"name": "filtered-order-detail-c",
+     "old": "if(type === 'node' && (f.era || f.weight)){",
+     "new": f"if(type === 'node' && (f.era || f.weight || {_CHIP_ON})){{", "count": 1},
+    {"name": "filtered-order-desktop-empty",
+     "old": "      if(!f.era && !f.weight) return null;",
+     "new": f"      if(!f.era && !f.weight && !{_CHIP_ON}) return null;", "count": 1},
+    {"name": "filtered-order-desktop-keep",
+     "old": "        if(f.weight && n.examWeight !== f.weight) return false;",
+     "new": ("        if(f.weight && n.examWeight !== f.weight) return false;\n"
+             f"        if(!{_CHIP_KEEP}) return false;"), "count": 1},
+]
+
+# ── mobile: the INFO tile only rises when a Filter tile sits under it ──────
+# The account toggle used to hold the bottom-left corner, with INFO lifted above
+# it. Inside a timeline the account toggle is gone and the Filter tile takes the
+# corner — when the timeline has one. Without it INFO drops to the corner.
+_INFO_OLD = "html.mobile #tutorial-toggle{ bottom:calc(66px + env(safe-area-inset-bottom, 0px)); }"
+_INFO_NEW = ("html.mobile #tutorial-toggle{ bottom:calc(8px + env(safe-area-inset-bottom, 0px)); }\n"
+             "html.mobile.has-filter-tab #tutorial-toggle{ bottom:calc(66px + env(safe-area-inset-bottom, 0px)); }")
+
+# ── mobile search: top row, between MAP and MENU, and it stays put ─────────
+# It sat at the bottom centre and, when tapped, jumped to the top to dodge the
+# keyboard. It now lives at the top from the start, level with the tops of the
+# MAP and MENU tabs (104px) and centred between them, and expands sideways in
+# place — so there is nothing for the keyboard to push, and nothing to jump.
+# 16px type in the field already stops iOS zooming the page on focus; focusing
+# without scrolling stops it nudging the page as well.
+_MS_OLD = ("html.mobile #m-search{\n"
+           "  position:fixed; bottom:calc(10px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%);\n"
+           "  z-index:298;\n"
+           "  height:38px; border-radius:19px;")
+_MS_NEW = ("html.mobile #m-search{\n"
+           "  position:fixed; top:104px; bottom:auto; left:50%; transform:translateX(-50%);\n"
+           "  z-index:298; box-sizing:border-box; width:98px;\n"
+           "  height:38px; border-radius:19px;")
+_MS_EXP_OLD = "html.mobile #m-search.expanded{ width:min(360px, calc(100vw - 168px)); padding:0 10px 0 14px; cursor:text; }"
+_MS_EXP_NEW = "html.mobile #m-search.expanded{ width:calc(100vw - 112px); padding:0 10px 0 14px; cursor:text; }"
+_MS_RES_OLD = ("html.mobile #m-search-results{\n"
+               "  display:none; position:fixed; bottom:calc(56px + env(safe-area-inset-bottom,0px));")
+_MS_RES_NEW = ("html.mobile #m-search-results{\n"
+               "  display:none; position:fixed; top:150px; bottom:auto;")
+_MS_DOCK_OLD = ("html.mobile.msearch-open #m-search{\n"
+                "  top:calc(10px + env(safe-area-inset-top,0px)); bottom:auto;\n"
+                "}\n"
+                "html.mobile.msearch-open #m-search-results{\n"
+                "  top:calc(56px + env(safe-area-inset-top,0px)); bottom:auto;\n")
+_MS_DOCK_NEW = ("html.mobile.msearch-open #m-search-results{\n")
+_MS_FOCUS_A_OLD = ("try{ input.focus(); }catch(e){}                              "
+                   "// focus inside the tap gesture → iOS shows the keyboard")
+_MS_FOCUS_A_NEW = ("try{ input.focus({preventScroll:true}); }catch(e){}   "
+                   "// focus inside the tap gesture → iOS shows the keyboard")
+_MS_FOCUS_B_OLD = "setTimeout(function(){ try{ input.focus(); }catch(e){} },60);"
+_MS_FOCUS_B_NEW = "setTimeout(function(){ try{ input.focus({preventScroll:true}); }catch(e){} },60);"
+
+PATCHES += [
+    {"name": "mobile-info-tile-position", "old": _INFO_OLD, "new": _INFO_NEW, "count": 1},
+    {"name": "mobile-search-top-row", "old": _MS_OLD, "new": _MS_NEW, "count": 1},
+    {"name": "mobile-search-expands-in-place", "old": _MS_EXP_OLD, "new": _MS_EXP_NEW, "count": 1},
+    {"name": "mobile-search-results-below", "old": _MS_RES_OLD, "new": _MS_RES_NEW, "count": 1},
+    {"name": "mobile-search-no-docking", "old": _MS_DOCK_OLD, "new": _MS_DOCK_NEW, "count": 1},
+    {"name": "mobile-search-focus-in-tap", "old": _MS_FOCUS_A_OLD, "new": _MS_FOCUS_A_NEW, "count": 1},
+    {"name": "mobile-search-focus-fallback", "old": _MS_FOCUS_B_OLD, "new": _MS_FOCUS_B_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])

@@ -25,7 +25,8 @@ def test_coverage_filter_assigns_solid_thin():
     html, _ = _build(lambda d: d["brief"].__setitem__(
         "filters", [{"id": "cov", "label": "Coverage", "source": "coverage"}]))
     assert "era:'solid'" in html and "era:'thin'" in html
-    assert 'data-value="solid"' in html and 'data-value="thin"' in html
+    from panel import slot_ids
+    assert set(slot_ids(html, "era")) == {"solid", "thin"}
     # no redundancy warning for a cross-cutting filter
     _, rep = _build(lambda d: d["brief"].__setitem__(
         "filters", [{"id": "cov", "label": "Coverage", "source": "coverage"}]))
