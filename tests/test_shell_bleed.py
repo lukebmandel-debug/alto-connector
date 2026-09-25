@@ -20,3 +20,11 @@ def test_both_shells_repeat_the_pages_theme_colour_and_root_background():
     for html in (private_shell.shell(), share_shell.shell()):
         assert "meta-theme" in html and "'theme-color'" in html
         assert "no-repeat ' + cs.backgroundColor" in html
+
+
+def test_both_shells_carry_edge_strips_safari_can_sample():
+    for html in (private_shell.shell(), share_shell.shell()):
+        assert 'id="bar-top"' in html and 'id="bar-bot"' in html
+        assert html.index('id="stage"') < html.index('id="bar-top"')      # above the frame
+        assert "#bar-top,#bar-bot{position:fixed;left:0;width:100%;height:12px;" in html
+        assert "opacity:0}" in html and "#bar-top{top:-8px}" in html and "#bar-bot{bottom:-8px}" in html

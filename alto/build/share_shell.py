@@ -25,7 +25,7 @@ Two properties this shell must not lose:
 from __future__ import annotations
 
 from .fingerprint import meta_tag
-from .shell_bleed import BLEED_CSS, BLEED_HTML, BLEED_JS
+from .shell_bleed import BARS_HTML, BLEED_CSS, BLEED_HTML, BLEED_JS
 
 # Same ceiling as a private page: Firestore rejects a document over 1 MiB.
 MAX_PAGE_BYTES = 1_000_000   # see private_shell.MAX_PAGE_BYTES
@@ -299,6 +299,7 @@ def shell(cloud_version: str = "") -> str:
         f'{BLEED_HTML}'
         '<iframe id="stage" title="Alto" '
         'allow="clipboard-write; clipboard-read; web-share"></iframe>\n'
+        f'{BARS_HTML}'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
         f'<script>{_JS}</script>\n'
         f'<script>{BLEED_JS}</script>\n'

@@ -83,7 +83,7 @@ def test_the_shell_is_the_same_for_every_private_timeline():
     """It takes no arguments at all — it works out which timeline it is showing
     from its own URL, so there is nothing in it to leak."""
     assert shell() == shell()
-    assert len(shell()) < 20_000, "shell should be tiny"
+    assert len(shell()) < 30_000, "shell should be tiny"
 
 
 def test_the_shell_carries_no_timeline_content(tmp_path, built):
