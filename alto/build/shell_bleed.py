@@ -1,44 +1,39 @@
-"""Edge-to-edge wallpaper for the sign-in shells on a phone.
+"""Wallpaper and bar tint for the sign-in shells.
 
-Safari (iOS 26 on) paints the strips behind the clock and the toolbar flat,
-from a pinned element on the edge or the body, unless the top-level document
-holds real pixels there AND is scrolled a little from its top. The timeline
-sits in a frame, which Safari cannot see into, so the shell gives itself what
-a plain page would have:
+Safari (iOS 26 on) tints the status-bar and toolbar strips from the background
+colour of a fixed element on the top / bottom edge, else the body — it ignores
+theme-color. The page's own fixed header does that job when it is opened
+directly, but Safari cannot see inside a frame, so the shell keeps two thin
+fixed strips whose colour is the page wallpaper's top / bottom edge colour (the
+mobile wallpaper settles into one uniform colour at each edge, see
+engine_patches.py), so they read as the wallpaper carrying on.
 
-  * a wallpaper stage in the document itself, taller than the screen, whose ends
-    are the page wallpaper's uniform top and bottom colours (the mobile
-    wallpaper settles into one colour at each edge, see engine_patches.py) with
-    the header's frosted tint continued upward over the top end;
-  * a scroll "runway": the document is taller than the screen and rests in the
-    middle of it, and is pinned there so the bars never show again.
-
-No pinned element with a background sits on the top or bottom edge: Safari
-would sample it and go back to a flat strip.
+On an iPhone a fixed full-screen layer under-covers the real screen: the strips
+behind the status bar and the bottom toolbar show whatever is behind it. A
+timeline page fixes that itself with an oversized wallpaper, but inside the
+shell's frame that wallpaper is clipped to the frame, so the strips showed the
+shell's plain grey. The shell paints the same wallpaper, with the same
+oversize, behind the frame — read from the page itself so it follows light and
+dark mode — and nothing inside the frame moves.
 """
 
-BLEED_HTML = '<div id="app"><div id="rw-stage"><div id="navext"></div></div></div>\n'
-BARS_HTML = ""
-
-_OFF = 62   # runway: px the document rests below its top (also the bleed above the screen)
+BLEED_HTML = '<div id="bleed"></div>\n'
+BARS_HTML = '<div id="bar-top"></div><div id="bar-bot"></div>\n'
 
 BLEED_CSS = (
-    "\n#app,#rw-stage,#navext{display:none}"
-    "\nhtml.rw{height:auto;overflow-y:scroll;overscroll-behavior:none}"
-    f"\nhtml.rw body{{height:auto;min-height:calc(100dvh + {2 * _OFF}px)}}"
-    f"\nhtml.rw #app{{display:block;position:relative;height:100dvh;margin-top:{_OFF}px}}"
-    f"\nhtml.rw #rw-stage{{display:block;position:absolute;left:0;right:0;top:-{_OFF}px;"
-    "height:calc(100dvh + 198px);pointer-events:none}"
-    f"\nhtml.rw #navext{{display:block;position:absolute;left:0;right:0;top:0;height:{_OFF}px}}"
+    "\n#bleed{position:fixed;top:-12%;right:-6%;bottom:-12%;left:-6%;"
+    "pointer-events:none;display:none;background-repeat:no-repeat}"
+    "\n#bar-top,#bar-bot{position:fixed;left:0;width:100%;height:12px;"
+    "pointer-events:none;display:none}"
+    "\n#bar-top{top:-8px}\n#bar-bot{bottom:-8px}"
 )
 
 BLEED_JS = """
 (function(){
-  var OFF = __OFF__;
-  var stage = document.getElementById('stage'), rw = document.getElementById('rw-stage');
-  var navext = document.getElementById('navext'), mo = null, key = '', on = false;
-  if(!stage || !rw) return;
-  var root = document.documentElement, body = document.body;
+  var stage = document.getElementById('stage'), bleed = document.getElementById('bleed'), mo = null;
+  var barTop = document.getElementById('bar-top'), barBot = document.getElementById('bar-bot');
+  if(!stage || !bleed) return;
+  var root = document.documentElement, body = document.body, meta = null, key = '';
   function rgba(s){
     s = (s || '').trim();
     var h = /^#([0-9a-f]{6})$/i.exec(s);
@@ -52,43 +47,60 @@ BLEED_JS = """
     var a = t[3];
     return [t[0] * a + b[0] * (1 - a), t[1] * a + b[1] * (1 - a), t[2] * a + b[2] * (1 - a), 1];
   }
+  // CSS filter: saturate(s) — the header saturates whatever sits behind it
+  function saturate(c, s){
+    var r = c[0], g = c[1], b = c[2];
+    function cl(x){ return Math.max(0, Math.min(255, x)); }
+    return [
+      cl((0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b),
+      cl((0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b),
+      cl((0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b), 1];
+  }
   function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
-  // keep the document resting on its runway so the bars never get uncovered
-  function pin(){ if(on && Math.abs((window.pageYOffset || 0) - OFF) > 0.5) window.scrollTo(0, OFF); }
-  function settle(){ pin(); setTimeout(pin, 120); setTimeout(pin, 450); setTimeout(pin, 1000); }
-  function off(){
-    if(!on && !key) return;
-    on = false; key = '';
-    root.classList.remove('rw');
+  function clear(){
+    key = '';
+    bleed.style.display = 'none';
+    if(barTop) barTop.style.display = 'none';
+    if(barBot) barBot.style.display = 'none';
     root.style.background = ''; body.style.background = '';
-    rw.style.background = ''; navext.style.background = '';
-    navext.style.webkitBackdropFilter = navext.style.backdropFilter = '';
-    window.scrollTo(0, 0);
+    if(meta){ meta.parentNode.removeChild(meta); meta = null; }
   }
   function sync(){
     var d = null;
     try{ d = stage.contentDocument; }catch(e){}
     var r = d && d.documentElement;
-    if(!r || !stage.classList.contains('on') || !r.classList.contains('mobile')){ off(); return; }
+    if(!r || !stage.classList.contains('on') || !r.classList.contains('mobile')){ if(key) clear(); return; }
     var win = stage.contentWindow, cs = win.getComputedStyle(r);
+    var pb = d.getElementById('page-bg');
+    var wall = pb ? win.getComputedStyle(pb).backgroundImage : '';
     var v = cs.getPropertyValue('--m-page-veil').trim();
     var eTop = rgba(cs.getPropertyValue('--m-edge-top')), eBot = rgba(cs.getPropertyValue('--m-edge-bot'));
-    if(!eTop || !eBot){ off(); return; }
-    var nav = d.getElementById('nav'), ncs = nav ? win.getComputedStyle(nav) : null;
-    var navBg = ncs ? ncs.backgroundColor : '';
-    var bf = ncs ? (ncs.backdropFilter || ncs.webkitBackdropFilter || '') : '';
-    var k = [v, eTop.join(), eBot.join(), navBg, bf].join('|');
-    if(k === key && on) return;
+    if(!wall || wall === 'none' || !eTop || !eBot){ if(key) clear(); return; }
+    var nav = d.getElementById('nav'), navBg = nav ? rgba(win.getComputedStyle(nav).backgroundColor) : null;
+    var t = d.getElementById('meta-theme');
+    var k = [wall, v, eTop.join(), eBot.join(), navBg && navBg.join(), nav && (win.getComputedStyle(nav).backdropFilter || ''), t && t.content].join('|');
+    if(k === key) return;
     key = k;
+    // What is drawn behind the frame: the page's own wallpaper, same size, same veil.
+    bleed.style.background = (v ? 'linear-gradient(' + v + ',' + v + '),' : '') + wall;
+    bleed.style.display = 'block';
+    // The colours Safari should carry into its top and bottom strips: the wallpaper's
+    // uniform edge colour under the frosted veil, plus the era-tinted header on top.
     var vv = rgba(v), top = eTop, bot = eBot;
     if(vv){ top = over(vv, top); bot = over(vv, bot); }
-    rw.style.background = 'linear-gradient(' + css(top) + ' 0 50%, ' + css(bot) + ' 50% 100%)';
-    // the header, continued upward under the clock: same frost, same tint
-    navext.style.background = navBg;
-    navext.style.webkitBackdropFilter = navext.style.backdropFilter = bf;
+    // the header frosts what is behind it (saturating it), then lays its era tint on top
+    var bf = nav ? (win.getComputedStyle(nav).backdropFilter || win.getComputedStyle(nav).webkitBackdropFilter || '') : '';
+    var sm = /saturate\\(([\\d.]+)(%?)\\)/.exec(bf);
+    if(sm) top = saturate(top, parseFloat(sm[1]) / (sm[2] ? 100 : 1));
+    if(navBg) top = over(navBg, top);
     root.style.background = css(bot);
     body.style.background = css(bot);
-    if(!on){ on = true; root.classList.add('rw'); settle(); }
+    if(barTop){ barTop.style.background = css(top); barTop.style.display = 'block'; }
+    if(barBot){ barBot.style.background = css(bot); barBot.style.display = 'block'; }
+    if(t && t.content){
+      if(!meta){ meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta); }
+      meta.content = t.content;
+    }
   }
   function watch(){
     if(mo){ mo.disconnect(); mo = null; }
@@ -97,22 +109,15 @@ BLEED_JS = """
     var d = null;
     try{ d = stage.contentDocument; }catch(e){}
     if(d && d.documentElement){
-      // a scroll gesture that ends inside the frame must not chain out to this page
-      if(!d.getElementById('shell-overscroll')){
-        var st = d.createElement('style'); st.id = 'shell-overscroll';
-        st.textContent = 'html,body{overscroll-behavior:none}';
-        (d.head || d.documentElement).appendChild(st);
-      }
       mo = new MutationObserver(sync);
       mo.observe(d.documentElement, {attributes: true, attributeFilter: ['class', 'style']});
+      var t = d.getElementById('meta-theme');
+      if(t) mo.observe(t, {attributes: true, attributeFilter: ['content']});
     }
   }
   stage.addEventListener('load', watch);
   new MutationObserver(sync).observe(stage, {attributes: true, attributeFilter: ['class']});
-  window.addEventListener('scroll', pin, {passive: true});
-  window.addEventListener('resize', function(){ sync(); settle(); });
-  window.addEventListener('pageshow', settle);
-  window.addEventListener('orientationchange', settle);
+  window.addEventListener('resize', sync);
   setInterval(sync, 600);
 })();
-""".replace("__OFF__", str(_OFF))
+"""
