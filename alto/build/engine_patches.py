@@ -1072,6 +1072,28 @@ PATCHES += [
     {"name": "desktop-controls-above-nodes", "old": _CTRL_OLD, "new": _CTRL_NEW, "count": 1},
 ]
 
+# ── mobile wallpaper: uniform top and bottom edges ─────────────────────────
+# Safari paints the strips behind the clock and the toolbar as ONE flat colour,
+# and the diagonal wallpaper differs across any edge, so a flat strip always read
+# as a bar. The wallpaper now settles into a single colour at its very top and
+# bottom (fading in over ~130px), so a strip of exactly that colour continues it.
+# The oversized layer spans -12%..112% of the screen; 9.68% of it is the part
+# above the screen (12/124), which stays solid.
+_EDGE_OLD = ("html.mobile #page-bg{ position:fixed; top:-12%; right:-6%; bottom:-12%; left:-6%; "
+             "z-index:-1; pointer-events:none; background:var(--page-grad); }")
+_EDGE_NEW = ("html.mobile{ --m-edge-top:#c2c3d3; --m-edge-bot:#c4d7a2; }\n"
+             "html.mobile.dark{ --m-edge-top:#425063; --m-edge-bot:#425535; }\n"
+             "html.mobile #page-bg{ position:fixed; top:-12%; right:-6%; bottom:-12%; left:-6%; "
+             "z-index:-1; pointer-events:none;\n"
+             "  background:linear-gradient(to bottom, var(--m-edge-top) 0, var(--m-edge-top) 9.68%, "
+             "transparent calc(9.68% + 130px)),\n"
+             "    linear-gradient(to top, var(--m-edge-bot) 0, var(--m-edge-bot) 9.68%, "
+             "transparent calc(9.68% + 150px)),\n"
+             "    var(--page-grad); }")
+PATCHES += [
+    {"name": "mobile-wallpaper-uniform-edges", "old": _EDGE_OLD, "new": _EDGE_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])

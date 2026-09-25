@@ -4,8 +4,9 @@ Safari (iOS 26 on) tints the status-bar and toolbar strips from the background
 colour of a fixed element on the top / bottom edge, else the body — it ignores
 theme-color. The page's own fixed header does that job when it is opened
 directly, but Safari cannot see inside a frame, so the shell keeps two thin
-fixed strips, transparent to the eye but not to Safari, whose colour is worked
-out from what the page shows at each edge.
+fixed strips whose colour is the page wallpaper's top / bottom edge colour (the
+mobile wallpaper settles into one uniform colour at each edge, see
+engine_patches.py), so they read as the wallpaper carrying on.
 
 On an iPhone a fixed full-screen layer under-covers the real screen: the strips
 behind the status bar and the bottom toolbar show whatever is behind it. A
@@ -23,7 +24,7 @@ BLEED_CSS = (
     "\n#bleed{position:fixed;top:-12%;right:-6%;bottom:-12%;left:-6%;"
     "pointer-events:none;display:none;background-repeat:no-repeat}"
     "\n#bar-top,#bar-bot{position:fixed;left:0;width:100%;height:12px;"
-    "pointer-events:none;display:none;opacity:0}"
+    "pointer-events:none;display:none}"
     "\n#bar-top{top:-8px}\n#bar-bot{bottom:-8px}"
 )
 
@@ -33,9 +34,11 @@ BLEED_JS = """
   var barTop = document.getElementById('bar-top'), barBot = document.getElementById('bar-bot');
   if(!stage || !bleed) return;
   var root = document.documentElement, body = document.body, meta = null, key = '';
-  var probe = document.createElement('div');
   function rgba(s){
-    var m = /rgba?\\(([^)]+)\\)/.exec(s || '');
+    s = (s || '').trim();
+    var h = /^#([0-9a-f]{6})$/i.exec(s);
+    if(h) return [parseInt(h[1].slice(0, 2), 16), parseInt(h[1].slice(2, 4), 16), parseInt(h[1].slice(4), 16), 1];
+    var m = /rgba?\\(([^)]+)\\)/.exec(s);
     if(!m) return null;
     var p = m[1].split(/[ ,\\/]+/).filter(Boolean).map(parseFloat);
     return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
@@ -45,24 +48,6 @@ BLEED_JS = """
     return [t[0] * a + b[0] * (1 - a), t[1] * a + b[1] * (1 - a), t[2] * a + b[2] * (1 - a), 1];
   }
   function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
-  // the colour of a linear-gradient at a point of a w x h box (CSS gradient-line maths)
-  function gradAt(g, w, h, x, y){
-    probe.style.backgroundImage = g;
-    var n = probe.style.backgroundImage, deg = /(-?[\\d.]+)deg/.exec(n);
-    var re = /(rgba?\\([^)]*\\))\\s*([\\d.]+)%/g, st = [], m;
-    while((m = re.exec(n))) st.push([parseFloat(m[2]) / 100, rgba(m[1])]);
-    if(!deg || st.length < 2) return null;
-    var a = parseFloat(deg[1]) * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a);
-    var L = Math.abs(w * dx) + Math.abs(h * dy);
-    var t = Math.max(0, Math.min(1, ((x - w / 2) * dx + (y - h / 2) * dy) / L + 0.5));
-    for(var i = 1; i < st.length; i++){
-      if(t <= st[i][0] || i === st.length - 1){
-        var s0 = st[i - 1], s1 = st[i], k = s1[0] === s0[0] ? 1 : Math.max(0, Math.min(1, (t - s0[0]) / (s1[0] - s0[0])));
-        return [0, 1, 2, 3].map(function(j){ return s0[1][j] + (s1[1][j] - s0[1][j]) * k; });
-      }
-    }
-    return null;
-  }
   function clear(){
     key = '';
     bleed.style.display = 'none';
@@ -77,35 +62,32 @@ BLEED_JS = """
     var r = d && d.documentElement;
     if(!r || !stage.classList.contains('on') || !r.classList.contains('mobile')){ if(key) clear(); return; }
     var win = stage.contentWindow, cs = win.getComputedStyle(r);
-    var g = cs.getPropertyValue('--page-grad').trim(), v = cs.getPropertyValue('--m-page-veil').trim();
-    if(!g){ if(key) clear(); return; }
+    var pb = d.getElementById('page-bg');
+    var wall = pb ? win.getComputedStyle(pb).backgroundImage : '';
+    var v = cs.getPropertyValue('--m-page-veil').trim();
+    var eTop = rgba(cs.getPropertyValue('--m-edge-top')), eBot = rgba(cs.getPropertyValue('--m-edge-bot'));
+    if(!wall || wall === 'none' || !eTop || !eBot){ if(key) clear(); return; }
     var nav = d.getElementById('nav'), navBg = nav ? rgba(win.getComputedStyle(nav).backgroundColor) : null;
     var t = d.getElementById('meta-theme');
-    var k = [g, v, cs.backgroundColor, navBg && navBg.join(), t && t.content, innerWidth, innerHeight].join('|');
+    var k = [wall, v, eTop.join(), eBot.join(), navBg && navBg.join(), t && t.content].join('|');
     if(k === key) return;
     key = k;
-    bleed.style.background = (v ? 'linear-gradient(' + v + ',' + v + '),' : '') + g;
+    // What is drawn behind the frame: the page's own wallpaper, same size, same veil.
+    bleed.style.background = (v ? 'linear-gradient(' + v + ',' + v + '),' : '') + wall;
     bleed.style.display = 'block';
-    root.style.background = g + ' 0 0 / 100% 100% no-repeat ' + cs.backgroundColor;
-    body.style.background = 'transparent';
+    // The colours Safari should carry into its top and bottom strips: the wallpaper's
+    // uniform edge colour under the frosted veil, plus the era-tinted header on top.
+    var vv = rgba(v), top = eTop, bot = eBot;
+    if(vv){ top = over(vv, top); bot = over(vv, bot); }
+    if(navBg) top = over(navBg, top);
+    root.style.background = css(bot);
+    body.style.background = css(bot);
+    if(barTop){ barTop.style.background = css(top); barTop.style.display = 'block'; }
+    if(barBot){ barBot.style.background = css(bot); barBot.style.display = 'block'; }
     if(t && t.content){
       if(!meta){ meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta); }
       meta.content = t.content;
     }
-    // What the page shows at the top and bottom edge: wallpaper, the frosted veil,
-    // and (top only) the era-tinted header.
-    var vv = rgba(v), w = innerWidth, h = innerHeight;
-    function edge(y, tint){
-      var c = gradAt(g, w, h, w / 2, y);
-      if(!c) return null;
-      c[3] = 1;
-      if(vv) c = over(vv, c);
-      if(tint) c = over(tint, c);
-      return css(c);
-    }
-    var top = edge(0, navBg), bot = edge(h, null);
-    if(barTop && top){ barTop.style.background = top; barTop.style.display = 'block'; }
-    if(barBot && bot){ barBot.style.background = bot; barBot.style.display = 'block'; }
   }
   function watch(){
     if(mo){ mo.disconnect(); mo = null; }
