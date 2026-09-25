@@ -26,6 +26,7 @@ as the author. One upload per publish is the cost of that.
 from __future__ import annotations
 
 from .fingerprint import META_NAME, meta_tag, page_fingerprint
+from .shell_bleed import BLEED_CSS, BLEED_HTML, BLEED_JS
 
 # Firestore rejects a document over 1 MiB (1,048,576 bytes), counting the field
 # names, the document's path and a little overhead on top of the value. A page
@@ -411,13 +412,15 @@ def shell(cloud_version: str = "") -> str:
         # What the page inside this shell should have been built by.
         f'<meta name="alto-page-build" content="{page_fingerprint()}">\n'
         '<title>Alto</title>\n'
-        f'<style>{_CSS}</style>\n'
+        f'<style>{_CSS}{BLEED_CSS}</style>\n'
         '</head><body>\n'
+        f'{BLEED_HTML}'
         '<iframe id="stage" title="Alto" '
         'allow="clipboard-write; clipboard-read; web-share"></iframe>\n'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
         '<div id="stale"></div>\n'
         f'<script>{js}</script>\n'
+        f'<script>{BLEED_JS}</script>\n'
         f'<script type="module" src="{src}"></script>\n'
         '</body></html>\n'
     )
