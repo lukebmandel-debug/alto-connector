@@ -250,6 +250,7 @@ def filter_panel_css() -> str:
         "color:var(--text);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;"
         "font-family:-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;"
         "-webkit-tap-highlight-color:transparent;transition:opacity .15s;}"
+        "\n  html.mobile #filter-toggle[data-n]:not([data-n=\"\"])::after{left:auto;right:-7px;}"
         "\n  html.mobile #filter-toggle svg{width:13px;height:13px;}"
         "\n  html.mobile #filter-toggle:active{opacity:.6;}"
         "\n  html.mobile.detail-open #filter-toggle, html.mobile.summary-open #filter-toggle,"

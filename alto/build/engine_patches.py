@@ -1059,6 +1059,19 @@ PATCHES += [
     {"name": "node-peek-axis-chips", "old": _NC_PEEK_OLD, "new": _NC_PEEK_NEW, "count": 1},
 ]
 
+# ── desktop: the bottom-right controls stay above the nodes ────────────────
+# The light/dark toggle and INFO sat at z-index 200 — the same as a hovered node,
+# which comes later in the page and so won the tie — and a focused node (300)
+# tied the search bubble. Scrolling a card under the cursor slipped the toggle
+# behind it. All three now sit above any node (panels and the rail are 395+).
+_CTRL_OLD = "html:not(.mobile) #notes-toggle:hover{ border-color:var(--muted) !important; }"
+_CTRL_NEW = (_CTRL_OLD + "\n"
+             "html:not(.mobile) #mode-toggle, html:not(.mobile) #info-btn,\n"
+             "html:not(.mobile) #search-btn{ z-index:310 !important; }")
+PATCHES += [
+    {"name": "desktop-controls-above-nodes", "old": _CTRL_OLD, "new": _CTRL_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])

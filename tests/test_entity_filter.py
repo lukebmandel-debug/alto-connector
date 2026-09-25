@@ -136,3 +136,16 @@ def test_mobile_filter_opens_as_a_full_page_like_info():
     css = html.split("html.mobile #ef-panel{", 1)[1].split("}", 1)[0]
     assert "inset:0" in css and "z-index:401" in css and "translateX(-100%)" in css
     assert "ef-close" in html
+
+
+def test_mobile_filter_count_badge_sits_on_the_right_of_the_tile():
+    html, _ = _build()
+    assert 'html.mobile #filter-toggle[data-n]:not([data-n=""])::after{left:auto;right:-7px;}' in html
+
+
+def test_desktop_bottom_controls_sit_above_every_node():
+    html, _ = _build()
+    rule = "html:not(.mobile) #search-btn{ z-index:310 !important; }"
+    assert rule in html
+    # a focused node is 300 and a hovered one 200: the controls must beat both
+    assert "html:not(.mobile) .node.focused{ z-index:300 !important; }" in html
