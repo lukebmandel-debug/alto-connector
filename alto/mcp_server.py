@@ -345,7 +345,10 @@ def sign_in() -> dict:
     s = get_session()
     if s.signed_in:
         try:
-            s.id_token()
+            # Ask Google, not the cache: a pass issued before the account's
+            # sign-ins were revoked stays valid for up to an hour, and saying
+            # "signed in" then would be wrong for the rest of that hour.
+            s.id_token(force=True)
             return {"status": "signed_in", "email": s.email}
         except SignInRequired:
             s.forget()
