@@ -401,6 +401,29 @@ def clean_svg(value) -> str:
 _FLAG = "_alto_sanitized"
 
 
+def sanitize_connections(b, nodes, connections) -> "tuple[list, list[str]]":
+    """Make each connection's explanation (its optional fourth element) inert.
+
+    It lands in the engine's innerHTML on a node's "How they connect" section,
+    so it gets the same treatment as detail-page text: allowlisted markup, and
+    a link to another node that resolves by id. Returns (connections, warnings).
+    """
+    link_types = {}
+    for slot, ax in zip(("env", "theme"), b.axes[:2]):
+        link_types.update({v.id: slot for v in ax.values})
+    link_types.update({e.id: "char" for e in b.entities})
+    link_types.update({n.id: "node" for n in (nodes or [])})
+    out, warnings = [], []
+    for c in connections or []:
+        if len(c) == 4 and c[3]:
+            how, w = clean_linked_markup(c[3], link_types)
+            warnings.extend(f"connection {c[0]} → {c[1]}: {m}" for m in w)
+            out.append([c[0], c[1], c[2], how])
+        else:
+            out.append([c[0], c[1], c[2]] if len(c) >= 3 else list(c))
+    return out, warnings
+
+
 def sanitize_brief(b, nodes=None) -> list:
     """Escape plain text and allowlist markup, in place. Idempotent.
 

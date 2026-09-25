@@ -161,6 +161,14 @@ FILTER_PANEL_GLUE = """
       if(panel.classList.contains('open') && !e.target.closest('#ef-panel') && !e.target.closest('#filter-toggle')) open(false);
     });
     document.addEventListener('keydown', function(e){ if(e.key==='Escape') open(false); });
+    // Swipe left to put it away on a phone, as INFO does.
+    var stries=0;
+    (function wire(){
+      if(!mobile()) return;
+      if(typeof window._altoPanelSwipe!=='function'){ if(++stries<80) setTimeout(wire,250); return; }
+      window._altoPanelSwipe(panel,{swipeSign:-1,closeVal:'translateX(-100%)',noButtonGuard:true,
+        isOpen:function(){ return panel.classList.contains('open'); }, closeFn:function(){ open(false); }});
+    })();
     // A detail page or the overview covers the timeline; the panel goes with it.
     new MutationObserver(function(){
       if(root.classList.contains('detail-open') || root.classList.contains('summary-open')) open(false);

@@ -222,7 +222,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.8.5"
+__version__ = "1.8.6"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -632,10 +632,15 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
 
 @mcp.tool(title="Add connections", annotations=RW)
 def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
-    """Set the full connection list: [[source_id, target_id, relation_key],
-    ...]. Endpoints must be existing nodes; relation_key must be in the
-    brief's vocabulary ('spine' = neutral main thread). Replaces the stored
-    list (send the complete set)."""
+    """Set the full connection list: [[source_id, target_id, relation_key,
+    how_they_connect?], ...]. Endpoints must be existing nodes; relation_key
+    must be in the brief's vocabulary ('spine' = neutral main thread). The
+    optional fourth element is the reason the line exists, in the user's own
+    material: it shows on the source node's page under "How they connect". A
+    line between neighbours is continuity and needs none; one that jumps more
+    than 3 places ahead gets a build warning without it — supply the reason, or
+    redraw the line. Never write a reason the material does not support.
+    Replaces the stored list (send the complete set)."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err

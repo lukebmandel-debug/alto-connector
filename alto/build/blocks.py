@@ -21,6 +21,19 @@ from urllib.parse import quote as url_q
 from .brief import Brief, Node, COL_SETS, roman
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
+
+# "How they connect": a node's steps to the nodes after it, and a sub-chip's steps
+# through the nodes it is named in. Authored text uses the same markup, whose
+# links the sanitizer turns into .alto-link spans.
+HOW_CONNECT_CSS = (
+    "\n  .hc-row{padding:9px 0;border-bottom:1px solid var(--border);line-height:1.6;}"
+    "\n  .hc-row:last-child{border-bottom:0;}"
+    "\n  .hc-link{cursor:pointer;font-weight:600;border-radius:3px;"
+    "box-shadow:inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);}"
+    "\n  .hc-link:hover{background:color-mix(in srgb, var(--accent) 12%, transparent);}"
+    "\n  .hc-arrow{opacity:.5;margin:0 8px;}"
+    "\n  .hc-num{opacity:.5;font-size:.85em;margin-right:6px;}"
+    "\n  .hc-how{opacity:.88;font-size:.94em;margin-top:3px;}")
 from .sanitize import css_color, esc, one_line
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
@@ -28,18 +41,24 @@ from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 # kept in one place because emit() replaces the whole region span).
 NODE_SECTIONS_D = (
     "sections = ((nd.sections)||[]).filter(s=>s&&s.t);\n"
-    "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});")
-CHAR_SECTIONS_D = ("sections=(p.sections||[]).filter(s=>s&&s.t)"
-                   ".concat(_altoDoctrineBody(id));")
-ENV_SECTIONS_D = "sections=(e.sections||[]).filter(s=>s&&s.t);"
-THEME_SECTIONS_D = "sections=(th.sections||[]).filter(s=>s&&s.t);"
+    "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});\n"
+    "    sections = sections.concat(_altoNodeConnect(id));")
+CHAR_SECTIONS_D = ("sections=(p.sections||[]).filter(s=>s&&s.t);"
+                   " sections=_altoOrder(sections.concat(_altoDoctrineBody(id,'char',sections)));")
+ENV_SECTIONS_D = ("sections=(e.sections||[]).filter(s=>s&&s.t);"
+                  " sections=_altoOrder(sections.concat(_altoDoctrineBody(id,'env',sections)));")
+THEME_SECTIONS_D = ("sections=(th.sections||[]).filter(s=>s&&s.t);"
+                    " sections=_altoOrder(sections.concat(_altoDoctrineBody(id,'theme',sections)));")
 NODE_SECTIONS_M = (
     "var sections=((ndDet.sections)||[]).filter(function(s){return s&&s.t;});\n"
-    "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});")
-CHAR_SECTIONS_M = ("var chSecs=(cp.sections||[]).filter(function(s){return s&&s.t;})"
-                   ".concat(_altoDoctrineBody(targetId));")
-ENV_SECTIONS_M = "var enSecs=(en.sections||[]).filter(function(s){return s&&s.t;});"
-THEME_SECTIONS_M = "var thSecs=(th.sections||[]).filter(function(s){return s&&s.t;});"
+    "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});\n"
+    "          sections=sections.concat(_altoNodeConnect(targetId));")
+CHAR_SECTIONS_M = ("var chSecs=(cp.sections||[]).filter(function(s){return s&&s.t;});"
+                   " chSecs=_altoOrder(chSecs.concat(_altoDoctrineBody(targetId,'char',chSecs)));")
+ENV_SECTIONS_M = ("var enSecs=(en.sections||[]).filter(function(s){return s&&s.t;});"
+                  " enSecs=_altoOrder(enSecs.concat(_altoDoctrineBody(targetId,'env',enSecs)));")
+THEME_SECTIONS_M = ("var thSecs=(th.sections||[]).filter(function(s){return s&&s.t;});"
+                    " thSecs=_altoOrder(thSecs.concat(_altoDoctrineBody(targetId,'theme',thSecs)));")
 
 FALLBACK_GLYPH = "&#9670;"   # ◆ — used when an entity/axis value has no SVG
 
@@ -242,9 +261,44 @@ FILTER_GLUE = """
 # the student's own text or a derived count, so it is never slop. Rows carry
 # data-goto and a delegated listener opens the node — no quote-escaping needed.
 DOCTRINE_BODY = """
-function _altoDoctrineBody(id){
+function _altoMembers(id, kind){
+  var f = kind==='env' ? 'envs' : (kind==='theme' ? 'themes' : 'chars');
+  var by={}; NODES_SRC.forEach(function(n){ by[n.id]=n; });
+  var order=(typeof NODE_ORDER!=='undefined')?NODE_ORDER:NODES_SRC.map(function(n){ return n.id; });
+  return order.map(function(i){ return by[i]; }).filter(function(n){ return n && (n[f]||[]).indexOf(id)!==-1; });
+}
+// The reason a line between two nodes exists, if its author gave one — either way round.
+function _altoHow(a, b){
+  if(typeof CONNECTIONS==='undefined') return '';
+  for(var i=0;i<CONNECTIONS.length;i++){
+    var c=CONNECTIONS[i];
+    if(c[3] && ((c[0]===a&&c[1]===b)||(c[0]===b&&c[1]===a))) return c[3];
+  }
+  return '';
+}
+// The list of nodes reads before the steps between them, whichever of the two the
+// author wrote.
+function _altoOrder(secs){
+  var nn=(typeof _ALTO_NODE_NOUN!=='undefined' && _ALTO_NODE_NOUN) || 'Case';
+  var ev=(nn+(/s$/i.test(nn)?'':'s')).toLowerCase(), hc=-1, ei=-1;
+  secs.forEach(function(s,i){ var k=String(s.h||'').trim().toLowerCase(); if(k==='how they connect') hc=i; if(k===ev) ei=i; });
+  if(hc>=0 && ei>hc){ var e=secs.splice(ei,1)[0]; secs.splice(hc,0,e); }
+  return secs;
+}
+function _altoHave(have, h){
+  var k=String(h).toLowerCase();
+  return (have||[]).some(function(s){ return s && String(s.h||'').trim().toLowerCase()===k; });
+}
+// A page for a sub-chip (character, environment, theme, doctrine…): every node
+// it is named in, then how those nodes connect. Authored sections of the same
+// name win; this fills in what is missing from the material's own text and the
+// lines' own explanations, and never invents any.
+function _altoDoctrineBody(id, kind, have){
   if(typeof NODES_SRC==='undefined') return [];
-  var members = NODES_SRC.filter(function(n){ return (n.chars||[]).indexOf(id)!==-1; });
+  kind = kind || 'char';
+  var outline = !!window._ALTO_OUTLINE;
+  if(outline && kind!=='char') return [];
+  var members = _altoMembers(id, kind);
   if(!members.length) return [];
   var nn = (typeof _ALTO_NODE_NOUN!=='undefined' && _ALTO_NODE_NOUN) || 'Case';
   var titleOf={}; NODES_SRC.forEach(function(n){ titleOf[n.id]=n.title; });
@@ -259,7 +313,7 @@ function _altoDoctrineBody(id){
   var meta = '<div class="doc-meta">'
     + members.length+' '+nn.toLowerCase()+(members.length===1?'':'s')
     + (spans.length?' &middot; '+spans.join(', '):'')
-    + (thin?' &middot; <strong class="doc-thin">THIN &mdash; sparse in your notes</strong>':'')
+    + (kind==='char' && thin?' &middot; <strong class="doc-thin">THIN &mdash; sparse in your notes</strong>':'')
     + '</div>';
   var rows = members.map(function(n){
     return '<div class="doc-row" data-goto="'+n.id+'">'
@@ -269,26 +323,73 @@ function _altoDoctrineBody(id){
       + '</div>';
   }).join('');
   var heading = nn + (/s$/i.test(nn)?'':'s');
-  var out=[{h: heading, t: meta+rows}];
-  if(typeof CONNECTIONS!=='undefined'){
-    var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
-    var internal=CONNECTIONS.filter(function(c){ return memberSet[c[0]]&&memberSet[c[1]]; });
-    if(internal.length){
-      var relRows=internal.map(function(c){
-        var lab=rl[c[2]]||'related';
-        var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--line-flow)';
-        return '<div class="doc-rel"><span class="doc-rel-dot" style="background:'+col+'"></span>'
-          +(titleOf[c[0]]||c[0])+' <span class="doc-rel-lab">'+lab+' &rarr;</span> '+(titleOf[c[1]]||c[1])+'</div>';
-      }).join('');
-      out.push({h:'How they connect', t:relRows});
+  var out=[];
+  if(!_altoHave(have, heading)) out.push({h: heading, t: meta+rows});
+  if(_altoHave(have, 'How they connect')) return out;
+  if(outline){
+    // A concept outline: the relations among these concepts, as the material draws them.
+    if(typeof CONNECTIONS!=='undefined'){
+      var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
+      var internal=CONNECTIONS.filter(function(c){ return memberSet[c[0]]&&memberSet[c[1]]; });
+      if(internal.length){
+        out.push({h:'How they connect', t: internal.map(function(c){
+          var lab=rl[c[2]]||'related';
+          var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--line-flow)';
+          return '<div class="doc-rel"><span class="doc-rel-dot" style="background:'+col+'"></span>'
+            +(titleOf[c[0]]||c[0])+' <span class="doc-rel-lab">'+lab+' &rarr;</span> '+(titleOf[c[1]]||c[1])+'</div>';
+        }).join('')});
+      }
     }
+    return out;
   }
+  // Story order: each node this chip is named in, and its step to the next one.
+  if(members.length>1){
+    var steps=[];
+    for(var i=0;i<members.length-1;i++){
+      var a=members[i], b=members[i+1], how=_altoHow(a.id,b.id);
+      steps.push('<div class="hc-row"><a class="hc-link" data-goto="'+a.id+'">'+(a.title||'')+'</a>'
+        +'<span class="hc-arrow">&rarr;</span>'
+        +'<a class="hc-link" data-goto="'+b.id+'">'+(b.title||'')+'</a>'
+        +(how?'<div class="hc-how">'+how+'</div>':'')+'</div>');
+    }
+    out.push({h:'How they connect', t: steps.join('')});
+  }
+  return out;
+}
+// A node's own "How they connect": the nodes after it that a line leads to,
+// each linked, each with the reason the line was drawn when there is one.
+function _altoNodeConnect(id){
+  if(window._ALTO_OUTLINE) return [];          // an outline lists what a concept contains instead
+  if(typeof CONNECTIONS==='undefined' || typeof NODE_ORDER==='undefined') return [];
+  var pos=NODE_ORDER.indexOf(id), titleOf={};
+  NODES_SRC.forEach(function(n){ titleOf[n.id]=n.title; });
+  var kids=CONNECTIONS.filter(function(c){ return c[0]===id && NODE_ORDER.indexOf(c[1])>pos; });
+  if(!kids.length) return [];
+  return [{h:'How they connect', t: kids.map(function(c){
+    return '<div class="hc-row"><a class="hc-link" data-goto="'+c[1]+'">'+(titleOf[c[1]]||c[1])+'</a>'
+      +(c[3]?'<div class="hc-how">'+c[3]+'</div>':'')+'</div>';
+  }).join('')}];
+}
+// The sub-chips a node carries beyond its entities, as sections of their own.
+function _altoAxisChips(n, clickable){
+  var out='';
+  [['envs','env','ENVS'],['themes','theme','THEMES']].forEach(function(k){
+    var reg=(typeof window[k[2]]!=='undefined')?window[k[2]]:(k[2]==='ENVS'?ENVS:THEMES);
+    var ids=n[k[0]]||[], h='';
+    ids.forEach(function(cid){
+      var v=reg&&reg[cid]; if(!v) return;
+      var col=(!v.color||v.color==='#8888aa')?(k[1]==='env'?'var(--env-color)':'var(--theme-color)'):v.color;
+      h+='<span class="char-chip" style="color:'+col+';border-color:color-mix(in srgb, '+col+' 30%, transparent);background:color-mix(in srgb, '+col+' 8%, transparent);"'
+        +(clickable?' onclick="showDetail(\\''+k[1]+'\\',\\''+cid+'\\')"':'')+'>'+v.symbol+' '+v.name+'</span>';
+    });
+    if(h) out+='<div class="detail-section"><h3>'+_ALTO_CHIP_HEADINGS[k[0]]+'</h3><div class="char-chips">'+h+'</div></div>';
+  });
   return out;
 }
 (function(){
   if(window._altoDocRowBound) return; window._altoDocRowBound=1;
   document.addEventListener('click', function(e){
-    var r = e.target && e.target.closest && e.target.closest('.doc-row[data-goto]');
+    var r = e.target && e.target.closest && e.target.closest('.doc-row[data-goto], .hc-link[data-goto]');
     if(r && typeof showDetail==='function'){ e.preventDefault(); showDetail('node', r.getAttribute('data-goto')); }
   });
 })();"""
@@ -959,6 +1060,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         if r.label and r.key in used_rels) + "};")
     orders += ("\n" + rel_labels
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
+               + "\nvar _ALTO_CHIP_HEADINGS={envs:" + js_str(ax1.label if ax1 else "Environments")
+               + ",themes:" + js_str(ax2.label if ax2 else "Themes") + "};"
                + DOCTRINE_BODY + LINES_GLUE
                + (ALTO_LINK_GLUE if uses_alto_link else ""))
     if b.mode == "outline":
@@ -1085,7 +1188,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n  .node-card.rel-dimmed{background:var(--surface) !important;"
             "border-top-color:var(--border) !important;}"
             "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
-    nav_char_css += RAIL_CSS + MSEARCH_PANEL_CSS
+    nav_char_css += RAIL_CSS + MSEARCH_PANEL_CSS + HOW_CONNECT_CSS
     if filter_sections:
         nav_char_css += filter_panel_css()
     # Outline detail pages: a numbered "Contains" list and an ancestry trail,

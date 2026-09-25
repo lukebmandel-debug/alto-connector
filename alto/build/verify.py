@@ -39,10 +39,11 @@ def verify_data(b: Brief, nodes: list[Node], connections: list) -> list[str]:
                     f"node {n.id!r}: parent {n.parent!r} is not a node")
 
     for c in connections:
-        if len(c) != 3:
-            failures.append(f"connection {c!r}: must be [src, tgt, relation]")
+        if len(c) not in (3, 4) or (len(c) == 4 and not isinstance(c[3], str)):
+            failures.append(f"connection {c!r}: must be [src, tgt, relation] "
+                            "or [src, tgt, relation, how-they-connect]")
             continue
-        src, tgt, rel = c
+        src, tgt, rel = c[0], c[1], c[2]
         if src not in node_ids:
             failures.append(f"connection {c!r}: unknown source node")
         if tgt not in node_ids:

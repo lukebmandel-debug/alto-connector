@@ -394,6 +394,25 @@ Column guidance for `add_nodes`: alternate sides around the center; reserve
 `center` for pivotal beats; avoid >2 consecutive nodes in one column; omit
 `col` to accept the deterministic fallback.
 
+## How they connect
+Every node page whose node has a line to a later node shows a **How they
+connect** section: each child, linked, with the reason for the line when one was
+given (the fourth element of the connection, `[from, to, relation, why]`).
+- Neighbours or near-neighbours are continuity — no reason needed. A line that
+  jumps well ahead (more than 3 places; the build warns) is a claim about the
+  material, so give the reason from the user's own text, or redraw the line.
+  Tell the user whenever a line is redrawn.
+- Sub-chip pages (a character, an environment, a theme, a doctrine) list every
+  node the chip is named in, in timeline order, then **How they connect**: each
+  step from one of those nodes to the next, with a reason where the material
+  gives one. That is independent of the lines. Write it as a section of the
+  chip (`sections`, heading "How they connect", each node named as
+  `<a href="#" onclick="showDetail('node','<id>')">Title</a>`); without one, the
+  page builds the list of steps itself and shows a reason only where a line
+  between the two nodes has one.
+- Reasons restate what the user's notes already say. Where the notes do not say
+  why two nodes connect, leave the reason out.
+
 ## Deleting
 
 `delete_timeline` and `delete_project` exist for one case: the user explicitly

@@ -20,10 +20,13 @@ def _build():
 
 def test_autobody_function_and_wiring_emitted():
     html, _ = _build()
-    assert "function _altoDoctrineBody(id){" in html
-    # both desktop (id) and mobile (targetId) char section-builders append it
-    assert ".concat(_altoDoctrineBody(id));" in html
-    assert ".concat(_altoDoctrineBody(targetId));" in html
+    assert "function _altoDoctrineBody(id, kind, have){" in html
+    # desktop (id) and mobile (targetId) section-builders of every sub-chip kind
+    # append it, telling it which sections the author already wrote
+    for kind in ("char", "env", "theme"):
+        assert f"_altoDoctrineBody(id,'{kind}'," in html
+        assert f"_altoDoctrineBody(targetId,'{kind}'," in html
+    assert "function _altoOrder(secs){" in html   # nodes read before the steps between them
     # the delegated row-click binding ships
     assert "_altoDocRowBound" in html
 

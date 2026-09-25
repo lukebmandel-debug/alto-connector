@@ -994,6 +994,71 @@ PATCHES += [
     {"name": "mobile-swipe-ignores-new-panels", "old": _SWIPE_OLD, "new": _SWIPE_NEW, "count": 2},
 ]
 
+# ── mobile search collapses reliably, and never leaves the card faded ─────
+# The pill closed only on a tap or click landing elsewhere, which is not the only
+# way focus leaves it: dismissing the keyboard, or a tap that iOS delivers to
+# nothing, left it expanded. Now it also closes when the field loses focus (unless
+# the reader is on the results), and on the very start of a touch elsewhere.
+# It also no longer animates its width: that transition ran on a backdrop-filter
+# layer beside the featured card's own, and WebKit can leave the neighbour drawn
+# faded. Closing also clears anything that could still be dimming the card.
+_MS_TRANS_OLD = "  transition:width .18s ease;\n}"
+_MS_TRANS_NEW = "  /* width is set, not animated */\n}"
+_MS_CLOSE_OLD = "    input.value=''; input.blur();\n    resultsEl.innerHTML='';"
+_MS_CLOSE_NEW = ("    input.value=''; input.blur(); setTimeout(_altoRestoreFeatured,0);\n"
+                 "    resultsEl.innerHTML='';")
+_MS_OUTSIDE_OLD = ("  document.addEventListener('touchend',outside,true);\n"
+                   "  document.addEventListener('click',outside,true);\n"
+                   "})();")
+_MS_OUTSIDE_NEW = (
+    "  var resultsTouched=false;\n"
+    "  resultsEl.addEventListener('touchstart',function(){ resultsTouched=true; },{passive:true});\n"
+    "  resultsEl.addEventListener('touchend',function(){ setTimeout(function(){ resultsTouched=false; },500); },{passive:true});\n"
+    "  function _altoRestoreFeatured(){\n"
+    "    var f=document.querySelector('.node.mobile-featured'); if(!f) return;\n"
+    "    f.style.opacity=''; var c=f.querySelector('.node-card');\n"
+    "    if(c){ c.style.opacity=''; c.style.visibility=''; }\n"
+    "  }\n"
+    "  document.addEventListener('touchstart',outside,true);\n"
+    "  document.addEventListener('touchend',outside,true);\n"
+    "  document.addEventListener('click',outside,true);\n"
+    "  document.addEventListener('pointerdown',outside,true);\n"
+    "  input.addEventListener('blur',function(){\n"
+    "    setTimeout(function(){ if(isOpen && document.activeElement!==input && !resultsTouched) closeSearch(); },220);\n"
+    "  });\n"
+    "})();")
+# ── the shared swipe-to-close helper is handed out ─────────────────────────
+_SWIPE_HELPER_OLD = "    // MAP — swipe left to close\n    var _mm=document.getElementById('minimap-wrap');"
+_SWIPE_HELPER_NEW = ("    window._altoPanelSwipe=_makePanelSwipeDismiss;   // the Filter and Search panels use it too\n"
+                     "    // MAP — swipe left to close\n    var _mm=document.getElementById('minimap-wrap');")
+PATCHES += [
+    {"name": "mobile-search-no-width-transition", "old": _MS_TRANS_OLD, "new": _MS_TRANS_NEW, "count": 1},
+    {"name": "mobile-search-close-restores-card", "old": _MS_CLOSE_OLD, "new": _MS_CLOSE_NEW, "count": 1},
+    {"name": "mobile-search-collapses-on-blur", "old": _MS_OUTSIDE_OLD, "new": _MS_OUTSIDE_NEW, "count": 1},
+    {"name": "panel-swipe-helper-exposed", "old": _SWIPE_HELPER_OLD, "new": _SWIPE_HELPER_NEW, "count": 1},
+]
+
+# ── a node's page carries every kind of sub-chip it has ─────────────────────
+# The node page listed the entity chips ("Characters Present") and stopped, though
+# a node carries environment and theme chips too — which have pages of their own.
+# Each kind present now gets a section, with chips that open that page.
+_NC_DESK_OLD = ("    document.getElementById('detail-content').innerHTML = html;\n"
+                "    document.getElementById('detail-page').scrollTop = 0;\n"
+                "    return;")
+_NC_DESK_NEW = ("    html += _altoAxisChips(n, true);\n"
+                "    document.getElementById('detail-content').innerHTML = html;\n"
+                "    document.getElementById('detail-page').scrollTop = 0;\n"
+                "    return;")
+_NC_PEEK_OLD = ("        }\n"
+                "      } else if(type==='char'&&typeof CHARS!=='undefined'){")
+_NC_PEEK_NEW = ("          inner += _altoAxisChips(nd, false);\n"
+                "        }\n"
+                "      } else if(type==='char'&&typeof CHARS!=='undefined'){")
+PATCHES += [
+    {"name": "node-page-axis-chips", "old": _NC_DESK_OLD, "new": _NC_DESK_NEW, "count": 1},
+    {"name": "node-peek-axis-chips", "old": _NC_PEEK_OLD, "new": _NC_PEEK_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])

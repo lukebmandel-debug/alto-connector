@@ -8,11 +8,12 @@ from pathlib import Path
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes
 from .blocks import timeline_blocks, connections_block
+JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid, \
     outline_order_and_columns, outline_spokes
-from .sanitize import sanitize_brief
+from .sanitize import sanitize_brief, sanitize_connections
 from ..engine import template as engine_template
 from .verify import verify_data, verify_output, verify_scripts, VerifyError
 
@@ -71,6 +72,21 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     # engine's innerHTML sinks — may assume text is already escaped. Sanitize
     # also rewrites overview deep links and reports unknown-node demotions.
     warnings += sanitize_brief(brief, nodes)
+    connections, _cw = sanitize_connections(brief, nodes, connections)
+    warnings += _cw
+
+    # A line between neighbours is continuity and needs no explaining. One that
+    # jumps well ahead is a claim about the material, so it should carry its
+    # reason (the fourth element), which the node's page shows as "How they
+    # connect".
+    _pos = {n.id: i for i, n in enumerate(nodes)}
+    for c in connections:
+        if len(c) >= 3 and c[0] in _pos and c[1] in _pos:
+            gap = _pos[c[1]] - _pos[c[0]]
+            if gap > JUMP_WITHOUT_REASON and not (len(c) == 4 and c[3].strip()):
+                warnings.append(
+                    f"connection {c[0]} → {c[1]} jumps {gap} places ahead with no "
+                    "explanation — add how they connect, or redraw the line")
 
     place(brief, nodes)
     # The tree is the single source of truth for structure, so the parent→child
