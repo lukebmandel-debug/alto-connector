@@ -123,6 +123,19 @@ routes §D to **§D-Outline** below.
   homepage tile shows it ("6 Units"); the bands themselves show numerals + your
   own cluster labels, so the noun never appears there.
 
+### B2. Two optional filters (`entity_filter`, `line_filter`)
+Both are brief flags, and both are the author's call — ask, do not assume.
+- `entity_filter: true` adds a **Filter** tab on the right edge, beside Notes
+  and the overview star. It opens the entity chips (characters, doctrines…);
+  picking one dims every card that does not carry that chip. The chips live in
+  that panel (and the mobile drawer), never as a second row in the nav bar.
+  Right for a story, or anything where readers want to follow one actor.
+  Default off.
+- `line_filter` (default **true**) shows a "Filter · Lines" row in the nav bar
+  that isolates one relation's lines. It suits a working outline ("Overrules")
+  and is noise where the lines simply follow characters. Set it to `false` to
+  drop the row; the lines and their hover labels stay.
+
 ### C. The entity axis (the chips)
 The most prominent filter axis: the recurring "actors" of the timeline —
 characters in a novel, doctrines in a course, teams in a project. Ask what

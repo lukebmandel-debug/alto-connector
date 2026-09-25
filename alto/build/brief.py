@@ -244,6 +244,14 @@ class Brief:
     # .parent carries the structure. Same engine and same geometry either way;
     # what changes is where the cards sit and what a detail page shows.
     mode: str = "linear"
+    # The "Filter · Lines" chips in the nav bar isolate one relation's lines.
+    # A useful working tool for an author (or a law outline's "Overrules"), and
+    # noise on a story where lines just follow characters — so it is a choice.
+    line_filter: bool = True
+    # A Filter tab on the right edge (beside Notes and the overview star) that
+    # opens character chips; picking one dims every card that does not carry
+    # that entity's chip. The chips live in the panel, never in the nav bar.
+    entity_filter: bool = False
 
 
 def _check_sections(sections, what) -> None:
@@ -274,6 +282,9 @@ def validate_brief(b: Brief) -> list[str]:
     if len(b.acts) < 2:
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
+    for flag in ("line_filter", "entity_filter"):
+        if not isinstance(getattr(b, flag), bool):
+            raise BriefError(f"{flag}: must be true or false")
     if b.mode not in MODES:
         raise BriefError(f"mode {b.mode!r}: must be one of {MODES}")
     if b.mode == "outline" and b.columns == 3:

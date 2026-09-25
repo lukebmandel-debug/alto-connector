@@ -61,7 +61,8 @@ _HOP_DIM_OLD = ("      var _c=n.querySelector('.node-card'); "
                 "if(_c&&_c.classList.contains('dimmed')) return;")
 _HOP_DIM_NEW = ("      var _c=n.querySelector('.node-card'); "
                 "if(_c&&(_c.classList.contains('dimmed')||"
-                "_c.classList.contains('rel-dimmed'))) return;")
+                "_c.classList.contains('rel-dimmed')||"
+                "_c.classList.contains('ent-dimmed'))) return;")
 
 # ── an outline prints as an outline ─────────────────────────────────────────
 # The engine's "main timeline" print renders every node as a card on a vertical
