@@ -3,7 +3,11 @@
 The connector (alto/cloud/session.py) opens this page with ?port=N&state=S. The
 page signs in with Google through alto-cloud.js — the same sign-in as the rest
 of the site — and, on the user's click, hands the account's refresh token to
-the connector by navigating the whole window to http://127.0.0.1:N/cb#…
+the connector by POSTing a form to http://127.0.0.1:N/cb. A POST, never a URL:
+a token in an address ends up in browser history, and on the error page the
+browser shows if the connector has stopped listening — which is exactly how
+one was once left on screen. /connect/ is the only page whose CSP lets a form
+go to this computer (publish_static._security_headers).
 
 Only a loopback address on a numeric port is ever navigated to, the state is
 passed through untouched for the connector to check, and nothing happens
@@ -52,8 +56,16 @@ _JS = r"""
   function handOver(user){
     var rt = user && user.refreshToken;
     if(!rt){ show('<h1>Connect Alto</h1><p>Sign-in did not return an account. Try again.</p>'); return; }
-    location.href = 'http://127.0.0.1:' + port + '/cb#state=' + encodeURIComponent(state) +
-                    '&rt=' + encodeURIComponent(rt);
+    var f = document.createElement('form');
+    f.method = 'POST';
+    f.action = 'http://127.0.0.1:' + port + '/cb';
+    [['state', state], ['rt', rt]].forEach(function(kv){
+      var i = document.createElement('input');
+      i.type = 'hidden'; i.name = kv[0]; i.value = kv[1];
+      f.appendChild(i);
+    });
+    document.body.appendChild(f);
+    f.submit();
   }
   function offer(){
     var c = window.AltoCloud;

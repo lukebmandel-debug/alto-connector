@@ -9,12 +9,12 @@ already speaks Google sign-in for this Firebase project:
 
   1. `start()` opens a one-shot listener on 127.0.0.1 with a random `state` and
      opens https://{site}.web.app/connect/?port=N&state=S in the browser.
-  2. The page signs in with Google and navigates the whole window to
-     http://127.0.0.1:N/cb#state=S&rt=<refresh token>. A fragment never reaches
-     a server log, and a top-level navigation needs no change to the site's CSP.
-  3. The listener's page posts the fragment back to itself (same origin), the
-     state is checked, and the refresh token is exchanged at Google's secure
-     token endpoint — which both proves it and yields the uid.
+  2. The page signs in with Google and POSTs a form {state, rt} to
+     http://127.0.0.1:N/cb. The token travels in the request body only — never
+     in an address, where it would be kept in browser history and shown on the
+     browser's error page if this listener had already stopped.
+  3. The state is checked, and the refresh token is exchanged at Google's
+     secure token endpoint — which both proves it and yields the uid.
 
 The refresh token is kept in ~/.config/alto/, mode 0600, outside the timeline
 store (which a user may sync or share). Stdlib only: the connector ships with
@@ -38,6 +38,7 @@ from pathlib import Path
 from . import load_config
 
 TOKEN_URL = "https://securetoken.googleapis.com/v1/token?key={key}"
+HTML = "text/html; charset=utf-8"
 
 
 class SignInRequired(RuntimeError):
@@ -70,18 +71,12 @@ def config_dir() -> Path:
     return Path(base) / "alto"
 
 
-_CB_PAGE = """<!doctype html><meta charset="utf-8"><title>Alto</title>
-<style>body{font:15px -apple-system,BlinkMacSystemFont,sans-serif;display:flex;
-align-items:center;justify-content:center;height:90vh;color:#333}</style>
-<p id="m">Connecting Alto&hellip;</p>
-<script>
-var h = location.hash.slice(1);
-history.replaceState(null, '', '/cb');
-fetch('/cb', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:h})
-  .then(function(r){ return r.text(); })
-  .then(function(t){ document.getElementById('m').textContent = t; })
-  .catch(function(){ document.getElementById('m').textContent = 'Something went wrong. Go back to Claude and try again.'; });
-</script>"""
+def _page(msg: str) -> str:
+    return ("<!doctype html><meta charset=\"utf-8\"><title>Alto</title>"
+            "<style>body{font:15px -apple-system,BlinkMacSystemFont,sans-serif;"
+            "display:flex;align-items:center;justify-content:center;height:90vh;"
+            "color:#333;text-align:center;padding:0 24px}</style>"
+            f"<p>{html.escape(msg)}</p>")
 
 
 class Session:
@@ -220,9 +215,10 @@ class Session:
                 self.wfile.write(b)
 
             def do_GET(self):
-                if self.path.split("?")[0] != "/cb":
-                    return self._send(404, "Not found")
-                self._send(200, _CB_PAGE, "text/html; charset=utf-8")
+                # Nothing arrives by GET: the page POSTs. Anything else here is
+                # a reload or a stale tab.
+                self._send(200, _page("This Alto sign-in page is finished. You "
+                                      "can close this tab."), HTML)
 
             def do_POST(self):
                 if self.path != "/cb":
@@ -230,17 +226,17 @@ class Session:
                 n = min(int(self.headers.get("Content-Length") or 0), 16384)
                 q = urllib.parse.parse_qs(self.rfile.read(n).decode("utf-8", "replace"))
                 if (q.get("state") or [""])[0] != state:
-                    return self._send(400, "This sign-in link has expired. Go back to Claude and try again.")
+                    return self._send(400, _page("This sign-in link has expired. Go back to Claude and try again."), HTML)
                 if pending["done"]:
-                    return self._send(200, "Already connected. You can close this tab.")
+                    return self._send(200, _page("Already connected. You can close this tab."), HTML)
                 try:
                     session._accept((q.get("rt") or [""])[0])
                     pending["done"] = True
                     who = session.email or "your account"
-                    self._send(200, f"Alto is connected to {who}. You can close this tab and go back to Claude.")
+                    self._send(200, _page(f"Alto is connected to {who}. You can close this tab and go back to Claude."), HTML)
                 except Exception as e:  # noqa: BLE001 — reported to the tool call
                     pending["error"] = str(e)
-                    self._send(400, "Sign-in did not complete. Go back to Claude and try again.")
+                    self._send(400, _page("Sign-in did not complete. Go back to Claude and try again."), HTML)
                 finally:
                     if pending["done"]:
                         threading.Thread(target=srv.shutdown, daemon=True).start()

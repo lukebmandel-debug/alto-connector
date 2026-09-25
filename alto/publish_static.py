@@ -362,7 +362,17 @@ def _security_headers() -> list[dict]:
     blast radius: no third-party script origins, no plugins, no framing, no form
     posts, and no <base> rewriting.
     """
-    csp = "; ".join([
+    def build(form_action: str) -> str:
+        return _csp(form_action)
+    csp = build("'none'")
+    # /connect/ hands the connector its sign-in by posting a form to the user's
+    # own machine (alto/build/connect_page.py) — the one place a form may go.
+    connect_csp = build("http://127.0.0.1:*")
+    return _headers(csp, connect_csp)
+
+
+def _csp(form_action: str) -> str:
+    return "; ".join([
         "default-src 'self'",
         # gstatic serves the Firebase SDK; apis.google.com serves the gapi
         # loader signInWithPopup injects — without it Google sign-in (and so
@@ -377,9 +387,12 @@ def _security_headers() -> list[dict]:
         "frame-src https://*.firebaseapp.com",   # the Google sign-in popup
         "object-src 'none'",
         "base-uri 'self'",
-        "form-action 'none'",
+        f"form-action {form_action}",
         "frame-ancestors 'none'",
     ])
+
+
+def _headers(csp: str, connect_csp: str) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -397,6 +410,11 @@ def _security_headers() -> list[dict]:
             # file this site serves is HTML or JS, so no-cache costs one
             # conditional request and makes a publish mean what it says.
             {"key": "Cache-Control", "value": "no-cache"},
+        ]},
+        # After "**" so it wins for this path (Hosting applies matching
+        # header blocks in order; a later one overrides the same key).
+        {"source": "/connect/**", "headers": [
+            {"key": "Content-Security-Policy", "value": connect_csp},
         ]},
     ]
 

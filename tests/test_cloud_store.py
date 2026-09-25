@@ -168,3 +168,18 @@ def test_python_listing_record_reads_a_built_page():
     assert m["project"] == "Civil Procedure & More" and m["heading"] == "Civil Procedure"
     assert m["units"] == ["#4a9eff", "#e8a87c"] and m["tid"] == "cp"
     assert m["search"] == [{"id": "a", "t": "Int'l Shoe", "d": "min contacts"}]
+
+
+def test_the_token_never_travels_in_an_address():
+    """A token in a URL lands in browser history and on the error page shown if
+    the listener has stopped — which happened. The page must POST it."""
+    from alto.build.connect_page import connect_page
+    page = connect_page()
+    assert "f.method = 'POST';" in page
+    assert "#state=" not in page and "&rt=" not in page and "location.href" not in page
+    from alto.publish_static import _security_headers
+    blocks = {b["source"]: b for b in _security_headers()}
+    csp = lambda src: next(h["value"] for h in blocks[src]["headers"]
+                           if h["key"] == "Content-Security-Policy")
+    assert "form-action 'none'" in csp("**")
+    assert "form-action http://127.0.0.1:*" in csp("/connect/**")
