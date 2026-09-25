@@ -65,6 +65,20 @@ class FirestoreStore(Store):
     def put_timeline(self, uid, tid, doc):
         self._timelines(uid).document(tid).set(doc)
 
+    def delete_project(self, uid, pid):
+        self._projects(uid).document(pid).delete()
+
+    def delete_timeline(self, uid, tid):
+        batch = self.db.batch()
+        for d in self._nodes(uid, tid).stream():
+            batch.delete(d.reference)
+        ref = self._timelines(uid).document(tid)
+        batch.delete(ref.collection("meta").document("connections"))
+        batch.delete(ref)
+        batch.commit()
+        for blob in self.bucket.list_blobs(prefix=f"builds/{uid}/{tid}/"):
+            blob.delete()
+
     # ── nodes / connections ──────────────────────────────────────────────────
     def _nodes(self, uid, tid):
         return self._timelines(uid).document(tid).collection("nodes")
@@ -120,6 +134,9 @@ class FirestoreStore(Store):
     def get_share(self, tid):
         snap = self.db.collection("shares").document(tid).get()
         return snap.to_dict() if snap.exists else None
+
+    def delete_share(self, tid):
+        self.db.collection("shares").document(tid).delete()
 
     def put_share(self, tid, doc):
         self.db.collection("shares").document(tid).set(doc)

@@ -142,6 +142,34 @@ class CloudStore(Store):
         self._put(self._doc(uid, "alto_timelines", tid), doc,
                   {"created": doc.get("created", "")})
 
+    def delete_project(self, uid, pid):
+        self._commit([{"delete": self._doc(uid, "alto_projects", pid)}])
+
+    def delete_timeline(self, uid, tid):
+        # Firestore keeps a document's subcollections when the document goes,
+        # so the nodes and the connections list are removed by name first.
+        self._nodes_cache.pop((uid, tid), None)
+        ids = [n["id"] for n in self.list_nodes(uid, tid)]
+        self._nodes_cache.pop((uid, tid), None)
+        self._commit(
+            [{"delete": self._doc(uid, "alto_timelines", tid, "nodes", i)} for i in ids]
+            + [{"delete": self._doc(uid, "alto_timelines", tid, "meta", "connections")},
+               {"delete": self._doc(uid, "alto_timelines", tid)}])
+        self.local.delete_timeline(uid, tid)
+
+    def delete_page(self, uid: str, key: str) -> None:
+        """The private page put_page wrote (users/{uid}/pages + pagemeta), and
+        the public share link the owner made from it, if any — a deleted page
+        must not stay readable through a key that was already handed out."""
+        meta = self._req("GET", self._doc(uid, "pagemeta", key), ok404=True)
+        share = (((meta or {}).get("fields") or {}).get("shareKey") or {}).get("stringValue")
+        writes = [{"delete": self._doc(uid, "pages", key)},
+                  {"delete": self._doc(uid, "pagemeta", key)}]
+        if share:
+            writes += [{"delete": f"{self.root}/shares/{check_component(share, 'shareKey')}"},
+                       {"delete": self._doc(uid, "shared", share)}]
+        self._commit(writes)
+
     # ── nodes / connections ──────────────────────────────────────────────────
     def list_nodes(self, uid, tid):
         key = (uid, tid)
@@ -193,6 +221,9 @@ class CloudStore(Store):
 
     def put_share(self, tid, doc):
         self.local.put_share(tid, doc)
+
+    def delete_share(self, tid):
+        self.local.delete_share(tid)
 
     # ── private pages, written the way the browser writes them ───────────────
     def put_page(self, uid: str, key: str, html: str, title: str,

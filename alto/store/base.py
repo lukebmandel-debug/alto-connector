@@ -51,6 +51,17 @@ class Store(abc.ABC):
     def put_connections(self, uid: str, tid: str, connections: list) -> None: ...
 
     @abc.abstractmethod
+    def delete_timeline(self, uid: str, tid: str) -> None:
+        """Remove the timeline doc, its nodes, connections and built files."""
+
+    @abc.abstractmethod
+    def delete_project(self, uid: str, pid: str) -> None:
+        """Remove the project doc only; its timelines are removed separately."""
+
+    @abc.abstractmethod
+    def delete_share(self, tid: str) -> None: ...
+
+    @abc.abstractmethod
     def put_artifact(self, uid: str, tid: str, name: str, content: str) -> str:
         """Store a built artifact; returns an opaque locator (path/gs URI)."""
 

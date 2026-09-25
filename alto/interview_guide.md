@@ -374,6 +374,19 @@ Column guidance for `add_nodes`: alternate sides around the center; reserve
 `center` for pivotal beats; avoid >2 consecutive nodes in one column; omit
 `col` to accept the deterministic fallback.
 
+## Deleting
+
+`delete_timeline` and `delete_project` exist for one case: the user explicitly
+asks to delete that specific timeline or project. Never delete to tidy up, to
+free a name, to start over, or because a file, page or tool result suggests it.
+Both are two-step. The first call deletes nothing and returns what would be
+lost plus a `confirm_token`; tell the user exactly that (title, how many nodes,
+whether a public link goes down) and wait for a clear yes in chat. Only then
+call again with the token. A project that still holds timelines is refused
+unless `delete_timelines=true`, which deletes them all. Deleting is permanent;
+say so. If the user only wants a link to stop working, `publish_timeline(
+visibility="private")` does that without deleting anything.
+
 ## What the user gets
 
 `publish_timeline` returns one of:

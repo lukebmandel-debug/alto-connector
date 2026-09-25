@@ -35,3 +35,14 @@ def test_every_patch_is_anchored_once_and_changes_something():
         assert p["old"] != p["new"], f"patch {p['name']} is a no-op"
         assert html.count(p["new"]) == p["count"], \
             f"patch {p['name']} not present in the emitted page"
+
+
+def test_section_header_chip_fits_its_name():
+    """The name chip used to be a fixed 208px box, so a long unit name wrapped
+    to four lines and spilled out of it. It is fitted now, and its ink is
+    contrast-adjusted rather than the raw unit colour on unit-coloured glass."""
+    html, _ = build_from_file(str(SAMPLE))
+    assert "_altoFitUnitChip(lbl)" in html
+    assert "max-width:208px" not in html
+    assert "_altoUnitInk(lbl,pm.colorRaw)" in html
+    assert "lbl.style.color=pm.colorRaw" not in html

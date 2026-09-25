@@ -121,6 +121,16 @@ def test_a_private_page_is_written_the_way_the_browser_writes_it(cloud, fake):
     assert fake.docs[base]["pagemetaV"] == {"integerValue": "1"}
 
 
+def test_deleting_a_private_page_also_revokes_its_share_link(cloud, fake):
+    base = "projects/proj/databases/(default)/documents"
+    fake.docs[f"{base}/users/U1/pages/k1"] = {"html": {"stringValue": "<html>"}}
+    fake.docs[f"{base}/users/U1/pagemeta/k1"] = {"shareKey": {"stringValue": "S"}}
+    fake.docs[f"{base}/users/U1/shared/S"] = {"key": {"stringValue": "S"}}
+    fake.docs[f"{base}/shares/S"] = {"html": {"stringValue": "<html>"}}
+    cloud.delete_page("U1", "k1")
+    assert not [n for n in fake.docs if n.endswith(("/pages/k1", "/pagemeta/k1", "/shared/S", "/shares/S"))]
+
+
 # ── the whole MCP flow, on the cloud store ─────────────────────────────────
 
 def test_the_mcp_flow_runs_on_the_cloud_store(cloud, session, monkeypatch):

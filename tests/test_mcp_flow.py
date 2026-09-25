@@ -103,3 +103,61 @@ def test_upsert_and_delete_nodes():
     r = srv.delete_nodes(tid, ["feinberg"])
     assert r["remaining_nodes"] == 5
     assert r["remaining_connections"] == 4  # ricketts→feinberg dropped
+
+
+def _built_timeline(visibility="private"):
+    tid = _setup_draft()
+    srv.record_materials_consent(tid, [{"name": "notes", "kind": "notes"}], True)
+    srv.add_nodes(tid, SAMPLE["nodes"])
+    srv.add_connections(tid, SAMPLE["connections"])
+    assert srv.build_timeline(tid).get("verify") == "passed"
+    return tid
+
+
+def test_delete_timeline_needs_the_token_from_a_preview():
+    tid = _built_timeline()
+    preview = srv.delete_timeline(tid)
+    assert preview["status"] == "confirmation_required"
+    assert preview["will_delete"]["nodes"] == 6
+    assert srv.get_timeline(tid)["node_ids"], "the preview must delete nothing"
+    # a guessed or stale token deletes nothing either
+    assert srv.delete_timeline(tid, "0000000000")["status"] == "confirmation_required"
+    assert srv.get_timeline(tid)["node_ids"]
+    done = srv.delete_timeline(tid, preview["confirm_token"])
+    assert done["deleted"]["timeline_id"] == tid
+    assert srv.get_timeline(tid)["error"] == "not_found"
+    assert all(t["timeline_id"] != tid
+               for p in srv.list_projects()["projects"] for t in p["timelines"])
+
+
+def test_token_goes_stale_when_the_timeline_changes():
+    tid = _built_timeline()
+    token = srv.delete_timeline(tid)["confirm_token"]
+    srv.delete_nodes(tid, ["feinberg"])
+    assert srv.delete_timeline(tid, token)["status"] == "confirmation_required"
+    assert srv.get_timeline(tid)["node_ids"]
+
+
+def test_delete_project_refuses_non_empty_then_takes_timelines_with_it():
+    tid = _built_timeline()
+    pid = srv.get_timeline(tid)["project_id"]
+    r = srv.delete_project(pid)
+    assert r["error"] == "not_empty" and r["timelines"][0]["timeline_id"] == tid
+    preview = srv.delete_project(pid, delete_timelines=True)
+    assert preview["status"] == "confirmation_required"
+    assert srv.list_projects()["projects"], "the preview must delete nothing"
+    srv.delete_project(pid, True, preview["confirm_token"])
+    assert srv.list_projects()["projects"] == []
+    assert srv.get_timeline(tid)["error"] == "not_found"
+
+
+def test_delete_empty_project():
+    pid = srv.create_project("Scratch", "", "studying")["project_id"]
+    token = srv.delete_project(pid)["confirm_token"]
+    assert srv.delete_project(pid, False, token)["deleted"]["project_id"] == pid
+    assert srv.delete_project(pid)["error"] == "not_found"
+
+
+def test_delete_rejects_a_bad_id():
+    assert srv.delete_timeline("../x")["error"] == "bad_id"
+    assert srv.delete_project("../x")["error"] == "bad_id"

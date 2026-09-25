@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 from .base import Store
@@ -89,6 +90,14 @@ class LocalStore(Store):
     def put_timeline(self, uid, tid, doc):
         self._write(self._p(uid, "timelines", tid, "doc.json"), doc)
 
+    def delete_project(self, uid, pid):
+        self._p(uid, "projects", f"{pid}.json", mkdir=False).unlink(missing_ok=True)
+
+    def delete_timeline(self, uid, tid):
+        d = self._p(uid, "timelines", tid, mkdir=False)
+        if d.is_dir():
+            shutil.rmtree(d)
+
     # ── nodes / connections ──────────────────────────────────────────────────
     def list_nodes(self, uid, tid):
         d = self._p(uid, "timelines", tid, "nodes", mkdir=False)
@@ -132,6 +141,9 @@ class LocalStore(Store):
 
     def get_share(self, tid):
         return self._read(self._p("_shares", f"{tid}.json"))
+
+    def delete_share(self, tid):
+        self._p("_shares", f"{tid}.json", mkdir=False).unlink(missing_ok=True)
 
     def put_share(self, tid, doc):
         self._write(self._p("_shares", f"{tid}.json"), doc)

@@ -651,13 +651,23 @@ PATCHES += [
 ]
 
 
-# ── section headers: room either side, and crisper names ───────────────────
+# ── section headers: room either side, a chip that fits its name, legible ink ─
 # The unit-divider tube ran edge to edge, so every section header sat hard
 # against both sides of the window. Pull the tube in by TUBE_INSET and move
 # both chips with it — they are laid out TUBE_M inside the tube, which is what
-# keeps their corners concentric with its corners. The name was 600-weight
-# 12.5px under html{zoom:.8} (≈10px on screen) in the unit colour on glass,
-# which read soft; heavier, larger, tighter and with a faint halo it holds.
+# keeps their corners concentric with its corners.
+#
+# The name chip was a fixed 56px box capped at 208px wide, so a long name
+# ("Discovery, Summary Judgment & Preclusion") wrapped to four lines and spilled
+# out of it. The height stays fixed (the tube geometry is built on it) but the
+# WIDTH is now fitted to the name: widen until it sets in at most two lines,
+# and only if even the widest chip cannot hold it, step the type down.
+#
+# The ink was the unit colour on a glass tinted the same unit colour, which read
+# soft and, for mid-tone units, failed contrast outright. Both chips now sit on
+# a near-opaque surface and the ink is the unit colour pulled toward black
+# (light) or white (dark) until it clears WCAG 4.5:1 against that surface. The
+# unit colour still rings the chip.
 _TUBE_INSET = 20
 _HDR_TUBE_OLD = "bar.style.left='0px'; bar.style.right='0px';"
 _HDR_TUBE_NEW = f"bar.style.left='{_TUBE_INSET}px'; bar.style.right='{_TUBE_INSET}px';"
@@ -665,16 +675,90 @@ _HDR_NAME_OLD = "    lbl.style.left='9px';"
 _HDR_NAME_NEW = f"    lbl.style.left='{9 + _TUBE_INSET}px';"
 _HDR_NUM_OLD = "  top:38px !important; right:9px !important; transform:none !important;"
 _HDR_NUM_NEW = f"  top:38px !important; right:{9 + _TUBE_INSET}px !important; transform:none !important;"
+
+_HDR_BOX_OLD = "  box-sizing:border-box; height:56px; max-width:208px;"
+_HDR_BOX_NEW = "  box-sizing:border-box; height:56px; max-width:none;"
 _HDR_TEXT_OLD = ("  white-space:normal; font-size:12.5px; line-height:1.2; letter-spacing:.085em;\n"
-                 "  font-weight:600; text-transform:uppercase;")
+                 "  font-weight:600; text-transform:uppercase;\n"
+                 "  padding:6px 16px; border-radius:15px;\n"
+                 "  background:var(--card-glass-bg);")
 _HDR_TEXT_NEW = ("  white-space:normal; font-size:13.5px; line-height:1.2; letter-spacing:.06em;\n"
                  "  font-weight:700; text-transform:uppercase; text-rendering:optimizeLegibility;\n"
-                 "  text-shadow:0 0 2px rgba(255,255,255,0.9), 0 0 1px rgba(255,255,255,0.9);")
+                 "  padding:6px 18px; border-radius:15px;\n"
+                 "  color:var(--unit-ink, #1d1d2b);\n"
+                 "  background:rgba(255,255,255,0.92);")
+_HDR_NUMBG_OLD = ("  padding:0 17px; border-radius:15px;\n"
+                  "  background:var(--card-glass-bg);")
+_HDR_NUMBG_NEW = ("  padding:0 17px; border-radius:15px;\n"
+                  "  color:var(--unit-ink, #1d1d2b);\n"
+                  "  background:rgba(255,255,255,0.92);")
 _HDR_DARK_OLD = "html.dark:not(.mobile) .unit-bar{"
-_HDR_DARK_NEW = ("html.dark:not(.mobile) .phase-label-float{\n"
-                 "  text-shadow:0 0 2px rgba(0,0,0,0.75), 0 0 1px rgba(0,0,0,0.6);\n"
+_HDR_DARK_NEW = ("html.dark:not(.mobile) .phase-label-float,\n"
+                 "html.dark:not(.mobile) .phase-numeral{\n"
+                 "  color:var(--unit-ink-dark, #f2f4fb);\n"
+                 "  background:rgba(20,24,38,0.90);\n"
                  "}\n"
                  "html.dark:not(.mobile) .unit-bar{")
+
+_HDR_NUMINK_OLD = "num.className='phase-numeral';num.style.color=pm.colorRaw;"
+_HDR_NUMINK_NEW = ("num.className='phase-numeral';"
+                   "_altoUnitInk(num,pm.colorRaw);")
+_HDR_LBLINK_OLD = "    lbl.style.color=pm.colorRaw;\n"
+_HDR_LBLINK_NEW = "    _altoUnitInk(lbl,pm.colorRaw);\n"
+_HDR_FIT_OLD = ("    lbl.textContent=(pm.label.split(' — ')[1]||pm.label);\n"
+                "    world.appendChild(lbl);")
+_HDR_FIT_NEW = ("    lbl.textContent=(pm.label.split(' — ')[1]||pm.label);\n"
+                "    world.appendChild(lbl);\n"
+                "    _altoFitUnitChip(lbl);")
+_HDR_FN_OLD = "  const _dots='<g class=\"ud-base\">"
+_HDR_FN_NEW = r"""  // Ink for a header chip: the unit colour darkened (light) / lightened (dark)
+  // until it clears 4.5:1 against the chip surface. Sets --unit-ink[-dark].
+  function _altoUnitInk(el, hex){
+    let m=/^#?([0-9a-f]{3}|[0-9a-f]{6})/i.exec(hex||''), h=m?m[1]:'';
+    if(h.length===3) h=h.replace(/./g,'$&$&');
+    const base=h?[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)):null;
+    const lum=c=>{ const f=v=>{ v/=255; return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4); };
+                   return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2]); };
+    const ratio=(a,b)=>{ const x=lum(a), y=lum(b); return (Math.max(x,y)+.05)/(Math.min(x,y)+.05); };
+    function pull(surface, toward){
+      if(!base) return null;
+      let c=base, t=0;
+      while(ratio(c,surface)<5 && t<1){ t+=.04; c=base.map((v,i)=>Math.round(v+(toward[i]-v)*t)); }
+      return 'rgb('+c.join(',')+')';
+    }
+    const li=pull([255,255,255],[0,0,0]), di=pull([20,24,38],[255,255,255]);
+    if(li) el.style.setProperty('--unit-ink',li);
+    if(di) el.style.setProperty('--unit-ink-dark',di);
+  }
+  // Fit the name chip to its name: widen (up to MAXW) until the text sets in the
+  // fixed-height box, then shrink the type only if it still will not.
+  function _altoFitUnitChip(el){
+    if(document.documentElement.classList.contains('mobile')) return;
+    const text=el.textContent;
+    el.textContent='';
+    const span=document.createElement('span');
+    span.style.display='block';
+    span.textContent=text;
+    el.appendChild(span);
+    const cs=getComputedStyle(el);
+    const room=()=>el.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+    const MAXW=560, WIDTHS=[208,260,320,400,480,MAXW];
+    function fitted(){
+      return span.offsetHeight<=room()+0.5 && span.scrollWidth<=span.clientWidth+0.5;
+    }
+    function run(){
+      for(let fs=13.5; fs>=10; fs-=0.5){
+        el.style.fontSize=fs+'px';
+        for(const w of WIDTHS){
+          el.style.width=w+'px';
+          if(fitted()) return;
+        }
+      }
+    }
+    run();
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  }
+  const _dots='<g class="ud-base">"""
 
 PATCHES += [
     {"name": "section-header-tube-inset", "old": _HDR_TUBE_OLD,
@@ -683,10 +767,22 @@ PATCHES += [
      "new": _HDR_NAME_NEW, "count": 1},
     {"name": "section-header-numeral-inset", "old": _HDR_NUM_OLD,
      "new": _HDR_NUM_NEW, "count": 1},
+    {"name": "section-header-chip-can-widen", "old": _HDR_BOX_OLD,
+     "new": _HDR_BOX_NEW, "count": 1},
     {"name": "section-header-crisper-text", "old": _HDR_TEXT_OLD,
      "new": _HDR_TEXT_NEW, "count": 1},
-    {"name": "section-header-crisper-text-dark", "old": _HDR_DARK_OLD,
+    {"name": "section-header-numeral-surface", "old": _HDR_NUMBG_OLD,
+     "new": _HDR_NUMBG_NEW, "count": 1},
+    {"name": "section-header-dark-surface", "old": _HDR_DARK_OLD,
      "new": _HDR_DARK_NEW, "count": 1},
+    {"name": "section-header-numeral-ink", "old": _HDR_NUMINK_OLD,
+     "new": _HDR_NUMINK_NEW, "count": 1},
+    {"name": "section-header-name-ink", "old": _HDR_LBLINK_OLD,
+     "new": _HDR_LBLINK_NEW, "count": 1},
+    {"name": "section-header-name-fits", "old": _HDR_FIT_OLD,
+     "new": _HDR_FIT_NEW, "count": 1},
+    {"name": "section-header-helpers", "old": _HDR_FN_OLD,
+     "new": _HDR_FN_NEW, "count": 1},
 ]
 
 

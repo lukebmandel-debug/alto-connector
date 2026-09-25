@@ -64,4 +64,5 @@ class FakeFirebase:
         raise AssertionError((method, url))
 
     def _own(self, name):
-        assert f"/documents/users/{self.uid}" in name + "/", f"outside own uid: {name}"
+        assert (f"/documents/users/{self.uid}" in name + "/"
+                or "/documents/shares/" in name), f"outside own uid: {name}"
