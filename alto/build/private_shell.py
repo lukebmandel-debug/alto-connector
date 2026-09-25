@@ -27,9 +27,13 @@ from __future__ import annotations
 
 from .fingerprint import META_NAME, meta_tag, page_fingerprint
 
-# Firestore rejects a document over 1 MiB. Stop short of it with a message the
-# author can act on, rather than surfacing a raw backend error.
-MAX_PAGE_BYTES = 900_000
+# Firestore rejects a document over 1 MiB (1,048,576 bytes), counting the field
+# names, the document's path and a little overhead on top of the value. A page
+# is one string plus two short ones, so ~1,000,000 bytes of page leaves the
+# best part of 48 KB for all of that. It was 900,000 until the page outgrew it.
+# Stop short of it with a message the author can act on, rather than a raw
+# backend error.
+MAX_PAGE_BYTES = 1_000_000
 
 _CSS = """
 :root{--bg:#f0efea;--surface:#fff;--text:#1a1a24;--muted:#6b6b80;

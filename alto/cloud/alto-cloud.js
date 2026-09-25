@@ -361,7 +361,7 @@
      needed: a reader who is not the owner is refused by Firestore itself.
      Firestore caps a document at 1 MiB; stop short of it with a message the
      author can act on. ─────────────────────────────────────────────────────── */
-  const MAX_PAGE_BYTES = 900000;
+  const MAX_PAGE_BYTES = 1000000;   // Firestore's document limit is 1 MiB; see private_shell.py
 
   /* ── listing records ──────────────────────────────────────────────────────
      Firestore always returns whole documents, so listing users/{uid}/pages

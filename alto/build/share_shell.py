@@ -27,7 +27,7 @@ from __future__ import annotations
 from .fingerprint import meta_tag
 
 # Same ceiling as a private page: Firestore rejects a document over 1 MiB.
-MAX_PAGE_BYTES = 900_000
+MAX_PAGE_BYTES = 1_000_000   # see private_shell.MAX_PAGE_BYTES
 
 _CSS = """
 :root{--bg:#f0efea;--surface:#fff;--text:#1a1a24;--muted:#6b6b80;

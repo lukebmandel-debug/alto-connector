@@ -358,3 +358,15 @@ def test_the_notice_can_be_dismissed():
     s = shell()
     assert "id=\"rx\"" in s
     assert "bar.className = '';" in s
+
+
+def test_the_page_cap_stays_inside_firestores_document_limit():
+    """The cap is the number that stops a page too big to store. It must leave
+    room under Firestore's 1 MiB for the field names, the path and the other two
+    fields, and the three places that state it must agree."""
+    from alto.build.private_shell import MAX_PAGE_BYTES
+    from alto.build.share_shell import MAX_PAGE_BYTES as SHARE_MAX
+    js = (Path(__file__).resolve().parent.parent / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
+    assert MAX_PAGE_BYTES == SHARE_MAX
+    assert f"const MAX_PAGE_BYTES = {MAX_PAGE_BYTES};" in js
+    assert MAX_PAGE_BYTES <= 1_048_576 - 32_768
