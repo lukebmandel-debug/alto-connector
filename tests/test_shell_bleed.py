@@ -37,3 +37,8 @@ def test_the_mobile_wallpaper_settles_into_one_colour_at_each_edge():
     html, _ = build_timeline(*load_brief(d))
     assert "html.mobile{ --m-edge-top:#c2c3d3; --m-edge-bot:#c4d7a2; }" in html
     assert "linear-gradient(to bottom, var(--m-edge-top) 0, var(--m-edge-top) 9.68%" in html
+
+
+def test_the_top_strip_allows_for_the_headers_saturating_frost():
+    for html in (private_shell.shell(), share_shell.shell()):
+        assert "function saturate(c, s)" in html and "top = saturate(top," in html

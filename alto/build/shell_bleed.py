@@ -47,6 +47,15 @@ BLEED_JS = """
     var a = t[3];
     return [t[0] * a + b[0] * (1 - a), t[1] * a + b[1] * (1 - a), t[2] * a + b[2] * (1 - a), 1];
   }
+  // CSS filter: saturate(s) — the header saturates whatever sits behind it
+  function saturate(c, s){
+    var r = c[0], g = c[1], b = c[2];
+    function cl(x){ return Math.max(0, Math.min(255, x)); }
+    return [
+      cl((0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b),
+      cl((0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b),
+      cl((0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b), 1];
+  }
   function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
   function clear(){
     key = '';
@@ -69,7 +78,7 @@ BLEED_JS = """
     if(!wall || wall === 'none' || !eTop || !eBot){ if(key) clear(); return; }
     var nav = d.getElementById('nav'), navBg = nav ? rgba(win.getComputedStyle(nav).backgroundColor) : null;
     var t = d.getElementById('meta-theme');
-    var k = [wall, v, eTop.join(), eBot.join(), navBg && navBg.join(), t && t.content].join('|');
+    var k = [wall, v, eTop.join(), eBot.join(), navBg && navBg.join(), nav && (win.getComputedStyle(nav).backdropFilter || ''), t && t.content].join('|');
     if(k === key) return;
     key = k;
     // What is drawn behind the frame: the page's own wallpaper, same size, same veil.
@@ -79,6 +88,10 @@ BLEED_JS = """
     // uniform edge colour under the frosted veil, plus the era-tinted header on top.
     var vv = rgba(v), top = eTop, bot = eBot;
     if(vv){ top = over(vv, top); bot = over(vv, bot); }
+    // the header frosts what is behind it (saturating it), then lays its era tint on top
+    var bf = nav ? (win.getComputedStyle(nav).backdropFilter || win.getComputedStyle(nav).webkitBackdropFilter || '') : '';
+    var sm = /saturate\\(([\\d.]+)(%?)\\)/.exec(bf);
+    if(sm) top = saturate(top, parseFloat(sm[1]) / (sm[2] ? 100 : 1));
     if(navBg) top = over(navBg, top);
     root.style.background = css(bot);
     body.style.background = css(bot);
