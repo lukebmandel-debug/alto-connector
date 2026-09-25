@@ -1094,6 +1094,64 @@ PATCHES += [
     {"name": "mobile-wallpaper-uniform-edges", "old": _EDGE_OLD, "new": _EDGE_NEW, "count": 1},
 ]
 
+# ── mobile, opened directly: the wallpaper runs behind Safari's bars ───────
+# Safari (iOS 26 on) paints the strips behind the clock and the toolbar flat —
+# from a pinned element on the edge that has a background, else the body —
+# unless the document itself holds real pixels there and has been scrolled a
+# little from its top. So a page opened directly (not in a frame, which Safari
+# cannot see into) does what any ordinary page does:
+#   * the wallpaper is part of the page, taller than the screen, so there are
+#     pixels above and below the screen for Safari to show;
+#   * the page rests 62px down a short scroll runway, and stays there (no touch
+#     scrolling, and a snap-back if anything moves it) so the bars never uncover;
+#   * the header's frosted glass lives on a child of the pinned header, which
+#     Safari does not sample, and reaches up under the clock.
+# The 62px margin on #app cancels the 62px scroll, so nothing on the page moves.
+_RW_ANCHOR = '<script id="layout-settle">'
+_RW_NEW = """<style id="alto-runway">
+html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
+  overscroll-behavior:none; touch-action:none; }
+html.mobile.rw body{ height:auto !important; min-height:calc(100dvh + 124px); overflow:visible !important;
+  overscroll-behavior:none; touch-action:none; }
+html.mobile.rw #app{ height:100dvh; margin-top:62px; }
+html.mobile.rw #page-bg, html.mobile.rw #page-glass{ position:absolute !important; top:-62px !important;
+  bottom:auto !important; left:0 !important; right:0 !important; height:calc(100dvh + 198px) !important; }
+html.mobile.rw #page-bg{ background:
+  linear-gradient(to bottom, var(--m-edge-top) 0, var(--m-edge-top) 62px, transparent 192px),
+  linear-gradient(to top, var(--m-edge-bot) 0, var(--m-edge-bot) 136px, transparent 286px),
+  var(--page-grad) !important; }
+html.mobile.rw #nav{ background:transparent !important; -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important; }
+html.mobile.rw #nav::before{ content:''; position:absolute; left:0; right:0; top:-62px; bottom:0; z-index:-1;
+  pointer-events:none; background:var(--header-tint, var(--header-glass-bg));
+  -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%); }
+</style>
+<script id="alto-runway-js">
+(function(){
+  var r = document.documentElement, OFF = 62;
+  if(!r.classList.contains('mobile') || window.top !== window) return;
+  r.classList.add('rw');
+  var busy = false;
+  function typing(){ var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
+  function pin(){
+    if(busy || typing() || Math.abs((window.pageYOffset || 0) - OFF) <= 1) return;
+    busy = true;
+    requestAnimationFrame(function(){ busy = false; window.scrollTo(0, OFF); });
+  }
+  function settle(){ window.scrollTo(0, OFF); setTimeout(pin, 100); setTimeout(pin, 400); setTimeout(pin, 1000); }
+  window.addEventListener('scroll', pin, {passive: true});
+  window.addEventListener('load', settle);
+  window.addEventListener('pageshow', settle);
+  window.addEventListener('orientationchange', settle);
+  window.addEventListener('resize', pin);
+  settle();
+})();
+</script>
+""" + _RW_ANCHOR
+PATCHES += [
+    {"name": "mobile-runway-behind-bars", "old": _RW_ANCHOR, "new": _RW_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])

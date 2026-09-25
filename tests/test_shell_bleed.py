@@ -42,3 +42,13 @@ def test_the_mobile_wallpaper_settles_into_one_colour_at_each_edge():
 def test_the_top_strip_allows_for_the_headers_saturating_frost():
     for html in (private_shell.shell(), share_shell.shell()):
         assert "function saturate(c, s)" in html and "top = saturate(top," in html
+
+
+def test_a_directly_opened_mobile_page_runs_its_wallpaper_behind_the_bars():
+    import json
+    from alto.build.builder import build_timeline, load_brief
+    d = json.loads((Path(__file__).resolve().parent.parent / "samples" / "contracts_brief.json").read_text(encoding="utf-8"))
+    html, _ = build_timeline(*load_brief(d))
+    assert 'id="alto-runway"' in html and "html.mobile.rw #app{ height:100dvh; margin-top:62px; }" in html
+    assert "html.mobile.rw #nav::before" in html          # glass on a child, not the pinned header
+    assert "window.top !== window" in html                # never inside a frame
