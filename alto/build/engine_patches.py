@@ -1116,6 +1116,7 @@ _RW_HEAD_NEW = _RW_HEAD_OLD + """
 <style id="alto-runway">
 html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
   overscroll-behavior:none; touch-action:none; }
+html.mobile.rw body *{ overscroll-behavior:contain; }   /* a panel's scroll never carries on into the page */
 html.mobile.rw body:not(#_){ position:relative !important; height:100dvh !important; min-height:0 !important;
   margin:80px 0 140px !important; overflow:visible !important; overscroll-behavior:none; touch-action:none; }
 html.mobile.rw #app:not(#_){ height:100dvh !important; margin-top:0 !important; }
@@ -1146,6 +1147,31 @@ _RW_NEW = """<script id="alto-runway-js">
 (function(){
   var r = document.documentElement, OFF = 80;
   if(!r.classList.contains('rw')) return;
+  // The page itself now scrolls (it rests on the runway), so the engine's
+  // scrollIntoView calls — the Map centring the current node, search jumping
+  // to a hit — scrolled the page too, dragging every tile with it until the
+  // pin below snapped it back. Scroll only the panel the element is in.
+  function scroller(e){
+    for(var p = e.parentElement; p && p !== document.body && p !== r; p = p.parentElement){
+      var c = getComputedStyle(p);
+      if(/(auto|scroll)/.test(c.overflowY) && p.scrollHeight > p.clientHeight + 1) return p;
+    }
+    return null;
+  }
+  Element.prototype.scrollIntoView = function(o){
+    var p = scroller(this);
+    if(!p) return;
+    var block = (o && typeof o === 'object' && o.block) || (o === false ? 'end' : 'start');
+    var a = this.getBoundingClientRect(), b = p.getBoundingClientRect();
+    var top = p.scrollTop + (a.top - b.top);
+    if(block === 'center') top -= (p.clientHeight - a.height) / 2;
+    else if(block === 'end') top -= p.clientHeight - a.height;
+    else if(block === 'nearest'){
+      if(a.top >= b.top && a.bottom <= b.bottom) return;
+      if(a.bottom > b.bottom) top -= p.clientHeight - a.height;
+    }
+    p.scrollTo({top: Math.max(0, top), behavior: (o && o.behavior === 'smooth') ? 'smooth' : 'auto'});
+  };
   // Any other fixed piece at the level of <body> / #app (one added by a later
   // script, say) goes absolute too. Fixed pieces inside a positioned parent
   // are left alone: absolute would move them.

@@ -43,3 +43,11 @@ def test_the_page_rests_on_a_short_runway(html):
     assert "var r = document.documentElement, OFF = 80;" in html
     # the old flat edge colours are gone: they read as bars
     assert "--m-edge-top" not in html
+
+
+def test_scroll_into_view_never_moves_the_page(html):
+    # Opening the Map centres the current node with scrollIntoView; with the
+    # page on a runway that scrolled the page and every tile with it.
+    assert "Element.prototype.scrollIntoView = function(o){" in html
+    assert "p !== document.body && p !== r" in html
+    assert "html.mobile.rw body *{ overscroll-behavior:contain; }" in html
