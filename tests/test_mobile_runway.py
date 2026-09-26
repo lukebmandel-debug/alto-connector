@@ -60,3 +60,20 @@ def test_a_finger_never_moves_the_page(html):
     assert "document.addEventListener('touchmove', function(e){" in html
     assert "if(e.touches.length !== 1 || !e.cancelable) return;" in html
     assert "!(window.pageXOffset || 0)" in html
+
+
+def test_the_homepage_runs_behind_the_bars_too():
+    from alto.build.pages import build_home
+    home = build_home([{"name": "P", "pid": "p", "courses": []}])
+    body = home.index("<body")
+    # class and rules before first layout, only for a phone-width top-level page
+    assert home.index("classList.add('rw')") < body
+    assert "window.matchMedia('(max-width:640px)').matches" in home
+    assert home.index('<style id="alto-runway">') < body
+    # the list is the one scroller; the body cannot collapse its margin away
+    assert "html.rw #projects-wrap:not(#_){ margin-top:-80px !important;" in home
+    assert "html.rw body:not(#_){ display:flow-root !important;" in home
+    assert "#title-bar, #search-btn" in home and "html.rw #title-bar:not(#_)::before" in home
+    # the same runway script as the timeline (pin, finger guard, scrollIntoView)
+    from alto.build.runway import RUNWAY_JS
+    assert RUNWAY_JS in home

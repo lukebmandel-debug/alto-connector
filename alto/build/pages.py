@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .brief import Brief, PALETTE, period_words
 from .emit import emit
+from .runway import runway_script
 
 from ..engine import template as engine_template
 
@@ -133,6 +134,57 @@ def _rep(html: str, old: str, new: str, n: int, label: str) -> str:
     return html.replace(old, new)
 
 
+# ── mobile homepage opened directly: runs behind Safari's bars ──────────────
+# Same recipe as the timeline (runway.py, engine_patches.py
+# mobile-runway-behind-bars): the class is set in <head> so Safari never sees a
+# fixed header at first layout; the page rests on the runway, every fixed piece
+# is absolute in a body that is exactly the screen, and #projects-wrap becomes
+# the one scroller (the page itself no longer scrolls). The home page's phone
+# layout is the max-width:640px media query, so the rules live inside it and
+# the class is set only when it matches.
+_HOME_RW_HEAD_OLD = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
+_HOME_RW_FIXED = ("#page-bg, #page-glass, #title-bar, #search-btn, #account-btn, #info-btn, "
+                  "#mode-toggle, #account-scrim, #dl-scrim, #download-all, #claude-toast, .share-scrim")
+_HOME_RW_HEAD_NEW = _HOME_RW_HEAD_OLD + """
+<script>
+(function(){
+  // Before first layout — see pages.py, _HOME_RW.
+  if(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && window.top === window &&
+     window.matchMedia && window.matchMedia('(max-width:640px)').matches)
+    document.documentElement.classList.add('rw');
+})();
+</script>
+<style id="alto-runway">
+@media (max-width:640px){
+  html.rw, html.rw:not(#_){ height:auto !important; overflow-y:scroll !important; overflow-x:hidden !important;
+    overscroll-behavior:none; touch-action:none; }
+  /* flow-root: #projects-wrap's -80px top margin must not collapse into the
+     body's 80px one, which would lift the body (and all the chrome) off the screen */
+  html.rw body:not(#_){ display:flow-root !important; position:relative !important; height:100dvh !important; min-height:0 !important;
+    margin:80px 0 140px !important; overflow-x:clip !important; overflow-y:visible !important;
+    overscroll-behavior:none; touch-action:none; }
+  html.rw body *{ overscroll-behavior:contain; }
+  /* the list runs under both bars, like any native page: 80px above the screen
+     box, 140px below it, with its padding moved out by the same amounts */
+  html.rw #projects-wrap:not(#_){ margin-top:-80px !important; height:calc(100dvh + 220px) !important;
+    min-height:0 !important; padding-top:198px !important; padding-bottom:280px !important;
+    overflow-y:auto !important; overflow-x:hidden !important; -webkit-overflow-scrolling:touch; }
+  html.rw :is(""" + _HOME_RW_FIXED + """):not(#_), html.rw .rw-abs:not(#_){ position:absolute !important; }
+  html.rw #page-bg:not(#_), html.rw #page-glass:not(#_){ top:-80px !important; bottom:auto !important;
+    left:0 !important; right:0 !important; height:calc(100dvh + 220px) !important; }
+  html.rw :is(#account-scrim, #dl-scrim, .share-scrim):not(#_){ top:-80px !important; bottom:-140px !important;
+    padding:80px 0 140px !important; box-sizing:border-box !important; }
+  html.rw #title-bar:not(#_){ background:transparent !important; -webkit-backdrop-filter:none !important;
+    backdrop-filter:none !important; }
+  html.rw #title-bar:not(#_)::before{ content:''; position:absolute; left:0; right:0; top:-80px; bottom:0;
+    z-index:-1; pointer-events:none; background:var(--header-glass-bg);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+}
+</style>"""
+_HOME_RW_TAIL_OLD = "</body>"
+_HOME_RW_TAIL_NEW = runway_script() + "</body>"
+
+
 def build_home(projects: list[dict]) -> str:
     template = engine_template("home_template.html")
     # The search box reads "Search" on every surface; the home page said
@@ -146,6 +198,8 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, "function renderAccount(){",
                     SIGN_IN_FAILED_FN + "function renderAccount(){", 1,
                     "home sign-in error helper")
+    template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
+    template = _rep(template, _HOME_RW_TAIL_OLD, _HOME_RW_TAIL_NEW, 1, "home runway (script)")
     regions = {
         "projects": projects_const(projects),
         "search_course_fn": SEARCH_COURSE_FN,
