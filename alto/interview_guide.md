@@ -387,8 +387,24 @@ outline mode `parent` carries the tree) →
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →
 8. `run_layout_preview` (cheap; rebalance columns on warnings) →
+8b. `preview_timeline` → show it as an Artifact (below) and iterate →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the
 view/download links. Use `get_timeline` to resume a draft in a later chat.
+
+## Previewing as an Artifact
+`preview_timeline` builds the current draft into one self-contained page: the
+same engine, content, layout, filters, map, search and detail pages the live
+site serves, opening on the timeline. It runs every build check but publishes
+nothing and does not change the timeline's status, so call it after each round
+of edits. Where the client has an Artifact tool, publish `preview_path` as an
+Artifact (icon "timeline") and give the user the link; on later previews of the
+same timeline, republish the same path so the one Artifact updates in place.
+Where it has none, give the user the path to open in a browser. The Artifact is
+private to the user; it is not an Alto publish and puts nothing on their site.
+Offer a preview before the first publish, and whenever the user wants to see a
+change before it goes live. Inside an Artifact the few things that need a site
+or a new window (sharing, reports, sign-in, exporting notes) do not work; say
+so if the user tries them.
 
 Column guidance for `add_nodes`: alternate sides around the center; reserve
 `center` for pivotal beats; avoid >2 consecutive nodes in one column; omit

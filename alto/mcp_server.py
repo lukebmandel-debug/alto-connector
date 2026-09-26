@@ -25,7 +25,7 @@ from mcp.types import ToolAnnotations
 
 from .build.brief import BriefError, ID_RE
 from .build.builder import load_brief, build_timeline as _build, run_layout
-from .build.single_file import bundle, private_page
+from .build.single_file import bundle, preview as preview_page, private_page
 from .build.verify import VerifyError, verify_scripts
 from .store.local import LocalStore
 
@@ -222,7 +222,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.8.20"
+__version__ = "1.8.21"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -778,6 +778,56 @@ def build_timeline(timeline_id: str) -> dict:
                      "Give the user the path. publish_timeline is only "
                      "needed for a shareable web link."),
             "next": "publish_timeline, if they want a link as well"}
+
+
+@mcp.tool(title="Preview timeline as an Artifact", annotations=RW)
+def preview_timeline(timeline_id: str) -> dict:
+    """Build the current draft into ONE self-contained HTML page for showing
+    the user as a Claude Artifact before anything is published (and whether
+    or not it ever will be). Same engine, content, layout, filters, map,
+    search and detail pages as the live site; it opens on the timeline.
+
+    Runs the full build and every check, but publishes nothing and leaves the
+    timeline's status and live pages alone, so it is safe to call after every
+    round of edits. Returns `preview_path`: publish that file with the
+    Artifact tool, updating the same Artifact on each later preview."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    if not _consent_ok(doc):
+        return CONSENT_ERROR
+    try:
+        b, nodes, conns = _load_full(doc)
+        if not nodes:
+            return {"error": "no_nodes", "message": "add_nodes first"}
+        html, report = _build(b, nodes, conns)
+        proj = get_store().get_project(uid(), doc.get("project_id") or "") or {}
+        page = preview_page(b, html, proj.get("name", ""))
+    except VerifyError as e:
+        return {"error": "verify_failed", "failures": e.failures}
+    except (BriefError, ValueError) as e:
+        return {"error": "build_failed", "message": str(e)}
+    js_failures, js_warnings = verify_scripts(page, "preview.html")
+    if js_failures:
+        return {"error": "verify_failed", "failures": js_failures}
+    report["warnings"] += js_warnings
+    path = get_store().put_artifact(uid(), timeline_id, "preview.html", page)
+    return {
+        "verify": "passed", **report,
+        "preview_path": path,
+        "bytes": len(page.encode("utf-8")),
+        "artifact_title": f"{b.title} — Alto preview",
+        "how": ("Publish preview_path as an Artifact (the Artifact tool's "
+                "publish, file_path=preview_path, icon 'timeline'). On later "
+                "previews of this timeline, republish the same file path so "
+                "the same Artifact URL updates. An Artifact is private to the "
+                "user until they share it; it is not an Alto publish. Where "
+                "the client has no Artifact tool, give the user the path to "
+                "open in a browser."),
+        "next": ("iterate (add_nodes / add_connections / set_overview, then "
+                 "preview_timeline again), or build_timeline then "
+                 "publish_timeline when the user is happy"),
+    }
 
 
 @mcp.tool(title="Publish timeline", annotations=RW)

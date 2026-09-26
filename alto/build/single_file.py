@@ -168,7 +168,32 @@ def bundle(brief: Brief, timeline_html: str, project_name: str = "") -> str:
                        title=f"{brief.title} — Alto")
 
 
-def bundle_many(groups: list[dict], title: str = "Alto") -> str:
+def preview(brief: Brief, timeline_html: str, project_name: str = "") -> str:
+    """The timeline as a Claude Artifact, for looking at before it is published.
+
+    The offline bundle is the only form of the page that runs with no server
+    behind it, so it is the honest preview: the same engine, content, layout,
+    filters, map, search and detail pages the live site serves. The one
+    difference from a download is where it opens. A download opens on the home
+    snapshot; a preview is asked for to look at one timeline, so it opens on
+    that timeline, and the wordmark still goes home the way it does on the site.
+    """
+    name = project_name or brief.subject or "Alto"
+    page = bundle_many([{"name": name, "items": [(brief, timeline_html)]}],
+                       title=f"{brief.title} — Alto preview", start="t_0.html")
+    # An Artifact is published into the host's own doctype/head/body skeleton
+    # (charset, viewport-fit=cover), so the shell supplies only its title,
+    # style, stage and router. The pages inside the stage are untouched.
+    for tag in ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">\n',
+                '<meta name="viewport" content="width=device-width, '
+                'initial-scale=1, viewport-fit=cover">\n',
+                '</head><body>\n', '</body></html>\n'):
+        page = _rep(page, tag, "", 1, "preview shell")
+    return page
+
+
+def bundle_many(groups: list[dict], title: str = "Alto",
+                start: str = "index.html") -> str:
     """Return ONE offline HTML file holding every timeline in `groups`.
 
     groups: [{"name": <project name>, "items": [(Brief, timeline_html), ...]}]
@@ -277,7 +302,7 @@ def bundle_many(groups: list[dict], title: str = "Alto") -> str:
         '  html=html.replace("<head>","<head><script>window.__altoQuery="+q+";<\\/script>");\n'
         '  document.getElementById("stage").srcdoc=html;\n'
         '};\n'
-        'window.__altoSwap("index.html");\n'
+        f'window.__altoSwap({json.dumps(start)});\n'
         '</script>\n'
         '</body></html>\n'
     )

@@ -161,3 +161,29 @@ def test_delete_empty_project():
 def test_delete_rejects_a_bad_id():
     assert srv.delete_timeline("../x")["error"] == "bad_id"
     assert srv.delete_project("../x")["error"] == "bad_id"
+
+
+def test_preview_is_an_artifact_page_and_publishes_nothing():
+    tid = _setup_draft()
+    assert srv.preview_timeline(tid).get("error") == "consent_gate"
+    srv.record_materials_consent(tid, [{"name": "notes", "kind": "notes"}], True)
+    srv.set_entities(tid, SAMPLE["brief"]["entities"])
+    assert srv.preview_timeline(tid).get("error") == "no_nodes"
+    srv.add_nodes(tid, SAMPLE["nodes"])
+    srv.add_connections(tid, SAMPLE["connections"])
+    r = srv.preview_timeline(tid)
+    assert r.get("verify") == "passed", r
+    page = Path(r["preview_path"]).read_text(encoding="utf-8")
+    assert r["bytes"] == len(page.encode("utf-8"))
+    # The Artifact host supplies the doctype/head/body; the shell must not.
+    assert page.startswith("<title>") and "<!DOCTYPE" not in page[:200]
+    assert "<body>" not in page.split("var __DOCS=")[0]
+    # Opens on the timeline itself, not the home snapshot.
+    assert page.rstrip().endswith('window.__altoSwap("t_0.html");\n</script>')
+    # Nothing a sandboxed Artifact would block: no external script or style.
+    import re
+    assert not re.search(r'src=\\?"https?:', page)
+    assert 'src=\\"alto-cloud.js\\"' not in page
+    # A preview is not a build: status and live pages are left alone.
+    assert srv.get_timeline(tid)["status"] == "draft"
+    assert srv.publish_timeline(tid, "link").get("error")
