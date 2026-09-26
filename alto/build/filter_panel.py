@@ -120,6 +120,10 @@ FILTER_PANEL_GLUE = """
     var cls=document.createElement('button'); cls.type='button'; cls.id='ef-close'; cls.setAttribute('aria-label','Close'); cls.innerHTML='&#x2715;';
     var act=document.createElement('span'); act.className='ef-act'; act.appendChild(clr); act.appendChild(cls);
     head.appendChild(ttl); head.appendChild(act); panel.appendChild(head);
+    // The sections scroll in a body of their own, under a header that stays
+    // put without being sticky (Safari paints its status-bar strip flat over
+    // a sticky header; see engine_patches.py, mobile-runway-behind-bars).
+    var body=document.createElement('div'); body.className='ef-body'; panel.appendChild(body);
     FILTER_SECTIONS.forEach(function(s){
       var sec=document.createElement('div'); sec.className='ef-sec';
       var h=document.createElement('div'); h.className='ef-h'; h.textContent=s.label; sec.appendChild(h);
@@ -139,7 +143,7 @@ FILTER_PANEL_GLUE = """
         if(it.count!=null){ var c=document.createElement('span'); c.className='ef-count'; c.textContent=it.count; b.appendChild(c); }
         list.appendChild(b);
       });
-      sec.appendChild(list); panel.appendChild(sec);
+      sec.appendChild(list); body.appendChild(sec);
     });
     document.body.appendChild(panel);
     var rail=document.getElementById('tab-rail');
@@ -272,6 +276,11 @@ def filter_panel_css() -> str:
         "-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);"
         "box-shadow:none;transition:transform .22s cubic-bezier(.4,0,.2,1);-webkit-overflow-scrolling:touch;}"
         "\n  html.mobile #ef-panel.open{pointer-events:auto;transform:none;}"
+        # opened directly (engine_patches.py, mobile-runway-behind-bars): no sticky header
+        "\n  html.mobile.rw #ef-panel{display:flex;flex-direction:column;overflow:hidden;}"
+        "\n  html.mobile.rw #ef-panel .ef-head{position:relative;flex:none;}"
+        "\n  html.mobile.rw #ef-panel .ef-body{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;"
+        "padding-bottom:180px;}"
         "\n  html.mobile #ef-panel .ef-head{position:sticky;top:0;z-index:1;margin:0 0 12px;"
         "padding:16px 16px 12px;font-size:12px;letter-spacing:.14em;min-height:0;"
         "background:var(--panel-glass-bg);border-bottom:1px solid var(--header-hairline, var(--border));}"

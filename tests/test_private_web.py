@@ -236,14 +236,34 @@ def test_a_refused_sign_in_leaves_the_button_usable_and_says_why():
 
 
 def test_signing_out_puts_the_page_back_behind_the_gate():
-    """Rewriting the gate's text is not enough: render() hid the gate and put
-    the frame on top, so without lock() the timeline stays on screen after a
-    sign-out — and a hidden iframe still holds every word of it."""
+    """Rewriting the gate's text is not enough. Once the page has replaced the
+    shell's document every word of it is in the window, so signing out (or a
+    different account) reloads into the gate — both before the page has been
+    written (lock) and after (topCheck, reached through renderAccount)."""
     s = shell()
     assert "function lock(){" in s
-    assert "stage.srcdoc = '';" in s, "the page must leave the DOM, not just hide"
+    assert "if(shownTop){ location.reload(); return; }" in s
     assert "gate.classList.remove('off');" in s
     assert "if(!cloud.user){ cached = null; lock(); signedOut(); return; }" in s
+    assert ("if(!cloud.user || (shownUid && cloud.user.uid !== shownUid)){ location.reload(); return; }"
+            in s)
+
+
+def test_the_private_page_is_the_document_not_a_frame():
+    """Safari paints the strips behind the clock and the toolbar from the
+    top-level document only, so the page is written into the shell's own
+    window. It waits for alto-cloud.js first (document.open drops a module
+    script that has not run), and the page's own renderAccount is kept
+    alongside the shell's rather than replacing it."""
+    s = shell()
+    assert "<iframe" not in s and ".srcdoc" not in s
+    assert "document.open();" in s and "document.write(withHandoff(pageHtml));" in s
+    assert "function whenCloud(){" in s and "if(window.AltoCloud || ++n > 200) res();" in s
+    assert "if(!cloud || !cloud.enabled || !cloud.known) return;" in s   # no reload before auth is known
+    assert "Object.defineProperty(window, 'renderAccount', {" in s
+    assert "set: function(f){ pageRA = f; }" in s
+    # a second copy is never written over the first
+    assert "function replaceWith(pageHtml){" in s and "location.reload(); });" in s
 
 
 def test_the_framed_page_keeps_its_account_panel(built):

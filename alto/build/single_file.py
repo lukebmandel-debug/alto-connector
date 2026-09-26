@@ -29,7 +29,9 @@ def _rep(html, old, new, n, label):
 
 
 SHIM = ("<script>(function(){function go(u){try{var p=window.parent;"
-        "if(p&&p!==window&&p.__altoSwap){p.__altoSwap(String(u));return true;}}catch(e){}return false;}"
+        # p===window when the private shell has written the page into its own
+        # window (private_shell.render); its router is then on this window.
+        "if(p&&p.__altoSwap){p.__altoSwap(String(u));return true;}}catch(e){}return false;}"
         # go() fails only when there is no router above us, which means this
         # document is being read on its own — a downloaded copy. There is no
         # sibling file to navigate to, so following the href would land on a

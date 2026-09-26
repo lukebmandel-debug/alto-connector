@@ -127,8 +127,10 @@ def test_a_private_share_link_is_handed_over_after_the_write():
 # ── the shells ──────────────────────────────────────────────────────────────
 
 def test_shells_allow_the_native_share_sheet():
-    for s in (private_shell(), share_shell()):
-        assert 'allow="clipboard-write; clipboard-read; web-share"' in s
+    # The share shell frames its page, so the frame has to pass the permission
+    # on. A private page is written into the top-level window and has it anyway.
+    assert 'allow="clipboard-write; clipboard-read; web-share"' in share_shell()
+    assert "<iframe" not in private_shell()
 
 
 def test_shells_hand_a_find_link_to_the_framed_page():

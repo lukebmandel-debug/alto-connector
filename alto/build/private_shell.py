@@ -25,8 +25,9 @@ as the author. One upload per publish is the cost of that.
 """
 from __future__ import annotations
 
+import json
+
 from .fingerprint import META_NAME, meta_tag, page_fingerprint
-from .shell_bleed import BARS_HTML, BLEED_CSS, BLEED_HTML, BLEED_JS
 
 # Firestore rejects a document over 1 MiB (1,048,576 bytes), counting the field
 # names, the document's path and a little overhead on top of the value. A page
@@ -44,8 +45,6 @@ _CSS = """
   --hover:rgba(255,255,255,.08)}}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-#stage{position:fixed;inset:0;width:100%;height:100%;border:0;display:none}
-#stage.on{display:block}
 #gate{position:fixed;inset:0;display:flex;align-items:center;
   justify-content:center;padding:24px;box-sizing:border-box}
 #gate.off{display:none}
@@ -61,17 +60,23 @@ button:hover,label.file:hover{background:var(--hover)}
 button[disabled]{opacity:.55;cursor:default}
 .muted{font-size:11px;color:var(--muted);margin:12px 0 0;line-height:1.6}
 input[type=file]{display:none}
-/* Shown over a page that is older than the site serving it. Bottom-RIGHT is
-   taken by the engine's own controls, so this sits bottom-left. */
-#stale{position:fixed;left:16px;bottom:60px;z-index:6;display:none;
-  align-items:center;gap:10px;max-width:min(92vw,420px);padding:10px 14px;
-  border-radius:14px;background:var(--surface);border:1px solid var(--border);
-  box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:12px;line-height:1.45}
-#stale.on{display:flex}
-#stale label{height:30px;width:auto;padding:0 12px;margin:0;font-size:12px;
-  white-space:nowrap}
-#stale .x{cursor:pointer;color:var(--muted);padding:0 2px}
 """
+
+# Shown over a page that is older than the site serving it. It is put up after
+# the page has replaced the shell, so it brings its own rules into the page.
+# Bottom-RIGHT is taken by the engine's own controls, so this sits bottom-left.
+_STALE_CSS = (
+    "#stale{position:fixed;left:16px;bottom:60px;z-index:600;display:none;"
+    "align-items:center;gap:10px;max-width:min(92vw,420px);padding:10px 14px;"
+    "border-radius:14px;background:var(--surface,#fff);color:var(--text,#1a1a24);"
+    "border:1px solid var(--border,#c8c8d8);box-shadow:0 10px 30px rgba(0,0,0,.3);"
+    "font:12px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}"
+    "#stale.on{display:flex}"
+    "#stale label{display:flex;align-items:center;height:30px;padding:0 12px;"
+    "border-radius:10px;border:1px solid var(--border,#c8c8d8);cursor:pointer;white-space:nowrap}"
+    "#stale input{display:none}"
+    "#stale .x{cursor:pointer;opacity:.7;padding:0 2px}"
+)
 
 _JS = """
 (function(){
@@ -80,21 +85,19 @@ _JS = """
   // capability. Nothing about the timeline is written into this page.
   var KEY = (location.pathname.replace(/\\/+$/, '').split('/').pop() || '');
   var gate = document.getElementById('gate'),
-      body = document.getElementById('gate-body'),
-      stage = document.getElementById('stage');
+      body = document.getElementById('gate-body');
+  var STALE_CSS = __STALE_CSS__;
 
   function show(h){ body.innerHTML = h; }
   function waiting(msg){ show('<h1>Private timeline</h1><p>' + msg + '</p>'); }
 
   // The counterpart to render(). Signing out (here, in another tab, or by a
-  // token expiring) fires renderAccount with no user, and rewriting the gate's
-  // text is NOT enough: the gate is still display:none and the frame is still
-  // on top with the whole timeline in it. Put the page back behind the gate AND
-  // drop it out of the DOM — a hidden iframe still holds every word of it.
+  // token expiring) fires renderAccount with no user. Once the page has
+  // replaced this document, every word of it is in the window, and the only
+  // way to take it away is to load the shell again, which opens on the gate.
   var shown = '';
   function lock(){
-    stage.classList.remove('on');
-    stage.srcdoc = '';
+    if(shownTop){ location.reload(); return; }
     shown = '';
     gate.classList.remove('off');
   }
@@ -138,10 +141,17 @@ _JS = """
     var m = /<meta name="alto-build" content="([0-9a-f]+)"/.exec(String(html || ''));
     return m ? m[1] : '';
   }
+  var SHELL_BUILD = shellBuild();   // read now: the page replaces this document
   function checkFresh(html){
-    var want = shellBuild(), have = pageBuild(html);
+    var want = SHELL_BUILD, have = pageBuild(html);
     if(!want || want === have) return;
     var bar = document.getElementById('stale');
+    if(!bar){
+      var st = document.createElement('style'); st.textContent = STALE_CSS;
+      document.head.appendChild(st);
+      bar = document.createElement('div'); bar.id = 'stale';
+      document.body.appendChild(bar);
+    }
     bar.className = 'on';
     bar.innerHTML =
       '<span>This copy was built by an older Alto' +
@@ -163,10 +173,9 @@ _JS = """
     };
   }
 
-  // A #find=<node> from the homepage search is on THIS url, and a srcdoc frame
-  // has no hash of its own. The page reads its hash through __altoHash(), which
-  // prefers __altoQuery — so hand it over in the document, then drop it here so
-  // a reload does not jump again.
+  // A #find=<node> from the homepage search is on THIS url. The page reads its
+  // hash through __altoHash(), which prefers __altoQuery — so hand it over in
+  // the document, then drop it from the url so a reload does not jump again.
   var HANDOFF = location.hash || '';
   function withHandoff(pageHtml){
     if(!HANDOFF) return pageHtml;
@@ -179,15 +188,54 @@ _JS = """
     return pageHtml.slice(0, i + 6) + tag + pageHtml.slice(i + 6);
   }
 
-  function render(pageHtml){
-    // Same delivery as the offline bundle: one document injected whole, so the
-    // engine boots inside the frame exactly as it does when served directly.
-    gate.classList.add('off');
-    stage.classList.add('on');
-    if(shown === pageHtml) return;
-    shown = pageHtml;
-    stage.srcdoc = withHandoff(pageHtml);
+  // The page becomes THIS document (document.open/write), not the content of
+  // a frame. Safari (iOS 26 on) reads only the top-level document when it
+  // paints the strips behind the clock and the toolbar, so a framed page could
+  // never run its wallpaper behind them, whatever it did (see
+  // engine_patches.py, mobile-runway-behind-bars). The window — and with it
+  // AltoCloud, this closure and the hooks below — survives the rewrite; the
+  // shell's own elements do not, so everything after it works through the
+  // window alone.
+  var shownTop = false, shownUid = '', writing = null;
+  function whenCloud(){
+    // document.open() drops a module script that has not run yet, and
+    // alto-cloud.js is one. Write only once it has.
+    return new Promise(function(res){
+      var n = 0;
+      (function wait(){
+        if(window.AltoCloud || ++n > 200) res(); else setTimeout(wait, 25);
+      })();
+    });
   }
+  function render(pageHtml){
+    if(shownTop){ if(pageHtml !== shown) replaceWith(pageHtml); return writing; }
+    if(writing) return writing;
+    shown = pageHtml;
+    writing = whenCloud().then(function(){
+      var u = window.AltoCloud && window.AltoCloud.user, s = remembered();
+      shownUid = (u && u.uid) || (s && s.uid) || '';
+      shownTop = true;
+      document.open();
+      document.write(withHandoff(pageHtml));
+      document.close();
+    });
+    return writing;
+  }
+  // A newer copy arrived while an older one is on screen. A document written
+  // into this window cannot be written over again (its scripts' declarations
+  // are still in the window), so store it and start again from the top.
+  function replaceWith(pageHtml){
+    var u = window.AltoCloud && window.AltoCloud.user;
+    try{ if(sessionStorage.getItem('alto-pv-swap') === KEY) return; }catch(e){}
+    try{ sessionStorage.setItem('alto-pv-swap', KEY); }catch(e){}
+    var put = (u && window.AltoCloud.getPageMeta)
+      ? window.AltoCloud.getPageMeta(KEY).then(function(m){
+          return cachePut({ uid: u.uid, html: pageHtml, updatedAt: m && m.updatedAt });
+        })
+      : Promise.resolve();
+    put.catch(function(){}).then(function(){ location.reload(); });
+  }
+  try{ setTimeout(function(){ sessionStorage.removeItem('alto-pv-swap'); }, 5000); }catch(e){}
 
   /* ── device cache ─────────────────────────────────────────────────────────
      Every visit used to wait for Firebase to load, then for sign-in to be
@@ -241,20 +289,19 @@ _JS = """
   })();
   var confirmed = false;
 
-  // The framed page routes its links through __altoGo, which calls this.
+  // The page routes its links through __altoGo, which calls this (it is on
+  // the page's own window once the page has been written into it).
   // "index.html" means the homepage; anything else is a real path on this site
-  // (the reports repository) and is followed at top level, because the frame
-  // has no usable base URL of its own.
+  // (the reports repository).
   window.__altoSwap = function(url){
     var u = String(url || '');
     if(/^\\.?\\/?index\\.html/.test(u)){ window.top.location = '/'; return; }
     if(/^\\//.test(u)){ window.top.location = u; return; }
   };
 
-  // The framed page's account panel asks for this (see _ACCOUNT_BRIDGE in
-  // single_file.py). It reads WHO you are from localStorage, which a srcdoc
-  // frame shares with this shell, so all it needs from us is the two actions
-  // and the flag that says the session is real rather than simulated.
+  // A page in a frame asks for this (see _ACCOUNT_BRIDGE in single_file.py).
+  // A page written into this window does not need it: window.AltoCloud there
+  // is the real session already.
   window.__altoAccount = function(){
     var c = window.AltoCloud;
     if(!c) return null;
@@ -318,15 +365,50 @@ _JS = """
       st.textContent = 'Uploading\\u2026';
       file.text().then(function(html){
         return window.AltoCloud.putPage(KEY, html, titleOf(html))
-          .then(function(){ st.textContent = 'Saved.'; render(html); });
+          .then(function(){ st.textContent = 'Saved.'; checked = true; render(html); });
       }).catch(function(e){
         st.textContent = 'Upload failed: ' + ((e && e.message) || e);
       });
     };
   }
 
-  // alto-cloud.js calls renderAccount() on every auth state change.
-  window.renderAccount = function(){
+  // Once the page is the document: signing out (here, in another tab, or by a
+  // token expiring) or a different account takes it off the screen by
+  // reloading into the gate. The same account only checks, once, that the
+  // copy on screen is the current one.
+  var checked = false;
+  function topCheck(){
+    var cloud = window.AltoCloud;
+    // The page calls renderAccount itself as it starts, before Firebase has
+    // said who is signed in; until it has (cloud.known), a null user means
+    // "not known yet", not "signed out".
+    if(!cloud || !cloud.enabled || !cloud.known) return;
+    if(!cloud.user || (shownUid && cloud.user.uid !== shownUid)){ location.reload(); return; }
+    shownUid = cloud.user.uid;
+    if(checked) return;
+    checked = true;
+    var have = cached && cached.html === shown ? cached : null;
+    var fresh = have && cloud.getPageMeta
+      ? cloud.getPageMeta(KEY).then(function(m){
+          return !!(m && m.updatedAt && m.updatedAt === have.updatedAt);
+        }).catch(function(){ return false; })
+      : Promise.resolve(false);
+    fresh.then(function(ok){
+      if(ok){ checkFresh(shown); return; }
+      return cloud.getPage(KEY).then(function(page){
+        if(!page){ location.reload(); return; }
+        if(page !== shown){ replaceWith(page); return; }
+        checkFresh(page);
+      });
+    }).catch(function(){ location.reload(); });
+  }
+
+  // alto-cloud.js calls renderAccount() on every auth state change, and the
+  // page, once written, installs its own renderAccount for its account panel.
+  // Both run: the page's assignment is kept, not allowed to replace this one.
+  var pageRA = null;
+  function shellRA(){
+    if(shownTop){ topCheck(); return; }
     var cloud = window.AltoCloud;
     if(!cloud || !cloud.enabled){
       lock();
@@ -348,11 +430,12 @@ _JS = """
           }).catch(function(){ return false; })
         : Promise.resolve(false);
       return fresh.then(function(ok){
-        if(ok){ checkFresh(mine.html); return; }
+        if(ok){ checked = true; if(writing) writing.then(function(){ checkFresh(mine.html); }); return; }
         return cloud.getPage(KEY).then(function(page){
           if(!page){ needsUpload(); return; }
-          render(page);
-          checkFresh(page);
+          checked = true;
+          if(shownTop){ if(page !== shown) replaceWith(page); else checkFresh(page); }
+          else render(page).then(function(){ checkFresh(page); });
           // Listing record (colours, project, search terms) for pages uploaded
           // before records existed, then the cache — keyed to the record's
           // updatedAt, which is what the next visit compares against.
@@ -371,7 +454,17 @@ _JS = """
       lock();
       waiting('Not found, or not available to this account.');
     });
-  };
+  }
+  Object.defineProperty(window, 'renderAccount', {
+    configurable: true,
+    get: function(){
+      return function(){
+        shellRA();
+        if(shownTop && pageRA){ try{ pageRA.apply(window, arguments); }catch(e){} }
+      };
+    },
+    set: function(f){ pageRA = f; }
+  });
 
   // A remembered session means the cached page (above) is about to appear,
   // so there is nothing to check out loud; otherwise say what is happening.
@@ -401,7 +494,8 @@ def shell(cloud_version: str = "") -> str:
     the URL is the only thing that does. Empty version = plain URL, for callers
     that have no digest to hand.
     """
-    js = _JS.replace("__MAX__", str(MAX_PAGE_BYTES))
+    js = (_JS.replace("__MAX__", str(MAX_PAGE_BYTES))
+            .replace("__STALE_CSS__", json.dumps(_STALE_CSS)))
     src = "/alto-cloud.js" + (f"?v={cloud_version}" if cloud_version else "")
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">\n'
@@ -412,16 +506,11 @@ def shell(cloud_version: str = "") -> str:
         # What the page inside this shell should have been built by.
         f'<meta name="alto-page-build" content="{page_fingerprint()}">\n'
         '<title>Alto</title>\n'
-        f'<style>{_CSS}{BLEED_CSS}</style>\n'
+        f'<style>{_CSS}</style>\n'
         '</head><body>\n'
-        f'{BLEED_HTML}'
-        '<iframe id="stage" title="Alto" '
-        'allow="clipboard-write; clipboard-read; web-share"></iframe>\n'
-        f'{BARS_HTML}'
         '<div id="gate"><div class="card" id="gate-body"></div></div>\n'
         '<div id="stale"></div>\n'
         f'<script>{js}</script>\n'
-        f'<script>{BLEED_JS}</script>\n'
         f'<script type="module" src="{src}"></script>\n'
         '</body></html>\n'
     )

@@ -1072,65 +1072,106 @@ PATCHES += [
     {"name": "desktop-controls-above-nodes", "old": _CTRL_OLD, "new": _CTRL_NEW, "count": 1},
 ]
 
-# ── mobile wallpaper: uniform top and bottom edges ─────────────────────────
-# Safari paints the strips behind the clock and the toolbar as ONE flat colour,
-# and the diagonal wallpaper differs across any edge, so a flat strip always read
-# as a bar. The wallpaper now settles into a single colour at its very top and
-# bottom (fading in over ~130px), so a strip of exactly that colour continues it.
-# The oversized layer spans -12%..112% of the screen; 9.68% of it is the part
-# above the screen (12/124), which stays solid.
-_EDGE_OLD = ("html.mobile #page-bg{ position:fixed; top:-12%; right:-6%; bottom:-12%; left:-6%; "
-             "z-index:-1; pointer-events:none; background:var(--page-grad); }")
-_EDGE_NEW = ("html.mobile{ --m-edge-top:#c2c3d3; --m-edge-bot:#c4d7a2; }\n"
-             "html.mobile.dark{ --m-edge-top:#425063; --m-edge-bot:#425535; }\n"
-             "html.mobile #page-bg{ position:fixed; top:-12%; right:-6%; bottom:-12%; left:-6%; "
-             "z-index:-1; pointer-events:none;\n"
-             "  background:linear-gradient(to bottom, var(--m-edge-top) 0, var(--m-edge-top) 9.68%, "
-             "transparent calc(9.68% + 130px)),\n"
-             "    linear-gradient(to top, var(--m-edge-bot) 0, var(--m-edge-bot) 9.68%, "
-             "transparent calc(9.68% + 150px)),\n"
-             "    var(--page-grad); }")
-PATCHES += [
-    {"name": "mobile-wallpaper-uniform-edges", "old": _EDGE_OLD, "new": _EDGE_NEW, "count": 1},
-]
+# ── mobile, opened directly: the page runs behind Safari's bars ────────────
+# Safari (iOS 26 on) paints the strip behind the clock and the strip around the
+# toolbar with ONE flat colour when a position:fixed (or sticky) element sits
+# on that edge, and otherwise shows the page's real pixels there — but only
+# pixels that are part of the document above and below the visible area.
+# Measured in the iOS 27 simulator:
+#   * a fixed header at the top, with or without a background, with its glass
+#     on a child, or 1px down from the edge, gives the flat strip; the same
+#     header position:absolute does not;
+#   * Safari takes that colour when it first lays the page out and keeps it:
+#     turning the header absolute afterwards (the 1.8.16 runway did it from a
+#     script at the end of <body>) leaves the flat strip in place. So the rules
+#     below live in <head> and the class that switches them on is set there.
+# The recipe, for a mobile page that is the top-level document:
+#   * the document scrolls a short runway: the body starts 80px down, is
+#     exactly one screen tall, and 140px more runs below it; the page rests
+#     80px down and is pinned there, so the body box IS the screen;
+#   * every piece of fixed chrome becomes position:absolute inside the body —
+#     the same place on screen, but no longer "fixed" to Safari;
+#   * the wallpaper and its veil run past both ends of the body, and the
+#     header's frosted glass (on a child) reaches up under the clock.
+# Inside a frame (window.top !== window) nothing changes.
+_RW_CLASS_OLD = "  if(ua || qp) document.documentElement.classList.add('mobile');"
+_RW_CLASS_NEW = (_RW_CLASS_OLD + "\n"
+                 "  // Before first layout — see engine_patches.py, mobile-runway-behind-bars.\n"
+                 "  if((ua || qp) && window.top === window) document.documentElement.classList.add('rw');")
 
-# ── mobile, opened directly: the wallpaper runs behind Safari's bars ───────
-# Safari (iOS 26 on) paints the strips behind the clock and the toolbar flat —
-# from a pinned element on the edge that has a background, else the body —
-# unless the document itself holds real pixels there and has been scrolled a
-# little from its top. So a page opened directly (not in a frame, which Safari
-# cannot see into) does what any ordinary page does:
-#   * the wallpaper is part of the page, taller than the screen, so there are
-#     pixels above and below the screen for Safari to show;
-#   * the page rests 62px down a short scroll runway, and stays there (no touch
-#     scrolling, and a snap-back if anything moves it) so the bars never uncover;
-#   * the header's frosted glass lives on a child of the pinned header, which
-#     Safari does not sample, and reaches up under the clock.
-# The 62px margin on #app cancels the 62px scroll, so nothing on the page moves.
-_RW_ANCHOR = '<script id="layout-settle">'
-_RW_NEW = """<style id="alto-runway">
+# Everything the engine positions fixed at the level of <body> / #app. A piece
+# missed here is still caught by the sweep below, but only after Safari has
+# looked, which is too late if it sits on the top or bottom edge.
+_RW_FIXED = ("#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-label-bar, "
+             "#back-to-overview-bar, #mode-toggle, #legend, #summary-wrap, #notes-toggle, "
+             "#overview-toggle, #notes-panel, #hl-dot-desktop, #hl-palette-desktop, #note-dialog, "
+             "#node-nav-bar, #detail-page, #hamburger-tab, #minimap-toggle, #minimap-wrap, "
+             "#compass-rose, #nav-prev-btn, #nav-next-btn, #detail-back-fixed, #hl-mode-btn, "
+             "#hl-color-palette, #hl-dot-btn, #tutorial-toggle, #tutorial-wrap, #info-btn, "
+             "#timeline-return-pill, #wrap-warn-bar, #alto-icon-tip, #m-search, #m-search-results, "
+             "#share-dialog, #account-btn, #account-scrim, #msp, #search-toggle, #ef-panel, "
+             "#filter-toggle")
+_RW_HEAD_OLD = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
+_RW_HEAD_NEW = _RW_HEAD_OLD + """
+<style id="alto-runway">
 html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
   overscroll-behavior:none; touch-action:none; }
-html.mobile.rw body{ height:auto !important; min-height:calc(100dvh + 200px); overflow:hidden !important;
-  overscroll-behavior:none; touch-action:none; }
-html.mobile.rw #app{ height:100dvh; margin-top:62px; }
-html.mobile.rw #page-bg, html.mobile.rw #page-glass{ position:absolute !important; top:-62px !important;
-  bottom:auto !important; left:0 !important; right:0 !important; height:calc(100dvh + 198px) !important; }
-html.mobile.rw #page-bg{ background:
-  linear-gradient(to bottom, var(--m-edge-top) 0, var(--m-edge-top) 62px, transparent 192px),
-  linear-gradient(to top, var(--m-edge-bot) 0, var(--m-edge-bot) 136px, transparent 286px),
-  var(--page-grad) !important; }
-html.mobile.rw #nav{ background:transparent !important; -webkit-backdrop-filter:none !important;
+html.mobile.rw body:not(#_){ position:relative !important; height:100dvh !important; min-height:0 !important;
+  margin:80px 0 140px !important; overflow:visible !important; overscroll-behavior:none; touch-action:none; }
+html.mobile.rw #app:not(#_){ height:100dvh !important; margin-top:0 !important; }
+html.mobile.rw #page-bg:not(#_), html.mobile.rw #page-glass:not(#_){ position:absolute !important;
+  top:-80px !important; bottom:auto !important; left:0 !important; right:0 !important;
+  height:calc(100dvh + 220px) !important; }
+html.mobile.rw #page-bg:not(#_){ background:var(--page-grad) !important; }
+html.mobile.rw #nav:not(#_){ background:transparent !important; -webkit-backdrop-filter:none !important;
   backdrop-filter:none !important; }
-html.mobile.rw #nav::before{ content:''; position:absolute; left:0; right:0; top:-62px; bottom:0; z-index:-1;
-  pointer-events:none; background:var(--header-tint, var(--header-glass-bg));
+html.mobile.rw #nav:not(#_)::before{ content:''; position:absolute; left:0; right:0; top:-80px; bottom:0;
+  z-index:-1; pointer-events:none; background:var(--header-tint, var(--header-glass-bg));
   -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%); }
-</style>
-<script id="alto-runway-js">
+html.mobile.rw :is(""" + _RW_FIXED + """):not(#_), html.mobile.rw .rw-abs:not(#_){ position:absolute !important; }
+html.mobile.rw :is(#nav-drawer, #nav-drawer-overlay, #notes-panel, #minimap-wrap, #tutorial-wrap, #msp,
+  #ef-panel, #account-scrim):not(#_){ top:-80px !important; bottom:-140px !important; height:auto !important;
+  padding-bottom:140px !important; }
+html.mobile.rw #ef-panel:not(#_){ padding-bottom:0 !important; }
+html.mobile.rw :is(#minimap-header, #tutorial-header):not(#_){ position:relative !important; }
+html.mobile.rw #msp:not(#_){ padding-top:80px !important; }
+html.mobile.rw :is(#notes-header, #minimap-header, #tutorial-header, #ef-panel > .ef-head):not(#_){
+  padding-top:96px !important; height:auto !important; }
+html.mobile.rw #nav-drawer-header:not(#_){ padding-top:98px !important; height:auto !important; }
+html.mobile.rw #detail-page:not(#_){ bottom:-140px !important; padding-bottom:240px !important; }
+</style>"""
+
+_RW_ANCHOR = '<script id="layout-settle">'
+_RW_NEW = """<script id="alto-runway-js">
 (function(){
-  var r = document.documentElement, OFF = 62;
-  if(!r.classList.contains('mobile') || window.top !== window) return;
-  r.classList.add('rw');
+  var r = document.documentElement, OFF = 80;
+  if(!r.classList.contains('rw')) return;
+  // Any other fixed piece at the level of <body> / #app (one added by a later
+  // script, say) goes absolute too. Fixed pieces inside a positioned parent
+  // are left alone: absolute would move them.
+  function loose(e){
+    for(var p = e.parentElement; p && p !== document.body; p = p.parentElement){
+      if(p.id === 'app') continue;
+      var c = getComputedStyle(p);
+      if(c.position !== 'static' || c.transform !== 'none' || c.filter !== 'none') return false;
+    }
+    return true;
+  }
+  function sweep(root){
+    var all = [root].concat([].slice.call(root.querySelectorAll('*')));
+    for(var i = 0; i < all.length; i++){
+      var e = all[i];
+      if(e.nodeType !== 1 || e.classList.contains('rw-abs')) continue;
+      var pos = getComputedStyle(e).position;
+      if((pos === 'fixed' || pos === 'sticky') && e.parentElement && loose(e)) e.classList.add('rw-abs');
+    }
+  }
+  sweep(document.body);
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){ [].forEach.call(m.addedNodes, function(n){ if(n.nodeType === 1) sweep(n); }); });
+  }).observe(document.body, {childList: true, subtree: true});
+  // Rest 80px down the runway, and stay there: no touch scrolling, and a
+  // snap-back if anything (a focused field, a hash jump) moves the page.
   var busy = false;
   function typing(){ var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
   function pin(){
@@ -1144,12 +1185,15 @@ html.mobile.rw #nav::before{ content:''; position:absolute; left:0; right:0; top
   window.addEventListener('pageshow', settle);
   window.addEventListener('orientationchange', settle);
   window.addEventListener('resize', pin);
+  document.addEventListener('focusout', function(){ setTimeout(pin, 50); });
   settle();
 })();
 </script>
 """ + _RW_ANCHOR
 PATCHES += [
-    {"name": "mobile-runway-behind-bars", "old": _RW_ANCHOR, "new": _RW_NEW, "count": 1},
+    {"name": "mobile-runway-class-in-head", "old": _RW_CLASS_OLD, "new": _RW_CLASS_NEW, "count": 1},
+    {"name": "mobile-runway-behind-bars", "old": _RW_HEAD_OLD, "new": _RW_HEAD_NEW, "count": 1},
+    {"name": "mobile-runway-pin", "old": _RW_ANCHOR, "new": _RW_NEW, "count": 1},
 ]
 
 def apply_patches(html: str) -> str:
