@@ -108,13 +108,21 @@ def test_artifacts_stay_on_this_computer(cloud, fake, tmp_path):
 
 
 def test_a_private_page_is_written_the_way_the_browser_writes_it(cloud, fake):
-    fake.docs["projects/proj/databases/(default)/documents/users/U1/pagemeta/k1"] = {
-        "shareKey": {"stringValue": "S"}}
+    import base64
+    from alto.build.private_shell import unpack_page
+    base = "projects/proj/databases/(default)/documents/users/U1"
+    fake.docs[f"{base}/pagemeta/k1"] = {"shareKey": {"stringValue": "S"}}
+    # A page first stored before compression: its plain copy must not survive.
+    fake.docs[f"{base}/pages/k1"] = {"html": {"stringValue": "<old>"},
+                                     "shareKey": {"stringValue": "S"}}
     meta = {"title": "P", "heading": "H", "project": "P", "tid": "t1",
             "units": ["#fff"], "search": [{"id": "a", "t": "A", "d": "d"}], "v": 1}
     cloud.put_page("U1", "k1", "<html>", "P", meta)
-    base = "projects/proj/databases/(default)/documents/users/U1"
-    assert fake.docs[f"{base}/pages/k1"]["html"] == {"stringValue": "<html>"}
+    pg = fake.docs[f"{base}/pages/k1"]
+    assert pg["enc"] == {"stringValue": "gzip"}
+    assert unpack_page(base64.b64decode(pg["z"]["bytesValue"])) == "<html>"
+    assert "html" not in pg, "the uncompressed copy is removed"
+    assert pg["shareKey"] == {"stringValue": "S"}
     pm = fake.docs[f"{base}/pagemeta/k1"]
     assert pm["shareKey"] == {"stringValue": "S"}, "the share link survives a republish"
     assert "timestampValue" in pm["updatedAt"]

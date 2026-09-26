@@ -18,7 +18,7 @@ import json
 import re
 from urllib.parse import quote as url_q
 
-from .brief import Brief, Node, COL_SETS, roman
+from .brief import Brief, Node, Section, COL_SETS, roman
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
 
@@ -35,6 +35,7 @@ HOW_CONNECT_CSS = (
     "\n  .hc-num{opacity:.5;font-size:.85em;margin-right:6px;}"
     "\n  .hc-how{opacity:.88;font-size:.94em;margin-top:3px;}")
 from .sanitize import css_color, esc, one_line
+from . import detail_extras as dx
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
 
 # Generic section-builder code (same shape as the template's empty defaults —
@@ -111,7 +112,8 @@ def _rgb(hexcolor: str):
 
 def _sections_js(sections, indent="    ") -> str:
     items = ",".join(
-        f"{{h:{js_str(s.h)},t:{js_str(s.t)}}}" for s in (sections or []) if s.t)
+        f"{{h:{js_str(dx.prov_heading(s))},t:{js_str(s.t)}}}"
+        for s in (sections or []) if s.t)
     return f"sections:[{items}]"
 
 
@@ -324,19 +326,22 @@ function _altoDoctrineBody(id, kind, have){
   }).join('');
   var heading = nn + (/s$/i.test(nn)?'':'s');
   var out=[];
-  if(!_altoHave(have, heading)) out.push({h: heading, t: meta+rows});
+  if(!_altoHave(have, heading)) out.push({h: heading,
+    t: (outline && typeof _altoElementTree==='function') ? _altoElementTree(members) : meta+rows});
   if(_altoHave(have, 'How they connect')) return out;
   if(outline){
-    // A concept outline: the relations among these concepts, as the material draws them.
+    // A concept outline: the labelled cross-links among these concepts. The
+    // spokes are the tree the list above already shows, so a line with no
+    // label of its own ("related") adds nothing and is left out.
     if(typeof CONNECTIONS!=='undefined'){
       var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
-      var internal=CONNECTIONS.filter(function(c){ return memberSet[c[0]]&&memberSet[c[1]]; });
+      var internal=CONNECTIONS.filter(function(c){ return memberSet[c[0]]&&memberSet[c[1]]&&c[2]!=='spine'&&rl[c[2]]; });
       if(internal.length){
         out.push({h:'How they connect', t: internal.map(function(c){
-          var lab=rl[c[2]]||'related';
           var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--line-flow)';
           return '<div class="doc-rel"><span class="doc-rel-dot" style="background:'+col+'"></span>'
-            +(titleOf[c[0]]||c[0])+' <span class="doc-rel-lab">'+lab+' &rarr;</span> '+(titleOf[c[1]]||c[1])+'</div>';
+            +'<a class="hc-link" data-goto="'+c[0]+'">'+(titleOf[c[0]]||c[0])+'</a> <span class="doc-rel-lab">'+rl[c[2]]
+            +' &rarr;</span> <a class="hc-link" data-goto="'+c[1]+'">'+(titleOf[c[1]]||c[1])+'</a></div>';
         }).join('')});
       }
     }
@@ -682,6 +687,39 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     tid = b.timeline_id
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
+    _warn0 = warnings if warnings is not None else []
+    # A hide_nav axis is too big for the nav row, so it gets an index page and
+    # a nav entry for it instead (ALTO-006).
+    index_axes = [(k, ax) for k, ax in (("env", ax1), ("theme", ax2))
+                  if ax and ax.hide_nav]
+    # Pages that get the detail-navigation extras (back-to-previous, banner
+    # clearance, auto-linking). See detail_extras' docstring for why not all.
+    rich_detail = b.mode == "outline" or bool(index_axes)
+    # Build-time sections: citation (axis values) and source notes.
+    _docs = {d["id"]: d for d in b.source_docs}
+    _by_id = {n.id: n for n in nodes}
+
+    def _node_sources(n):
+        seen, cur = set(), n
+        while cur is not None and cur.id not in seen:
+            if cur.sources or b.mode != "outline":
+                return cur.sources
+            seen.add(cur.id)
+            cur = _by_id.get(cur.parent)
+        return []
+
+    def _extra(obj, ax=None):
+        """The page's own sections framed by what the build knows about it:
+        its citation first (ALTO-013), its source notes last (ALTO-011)."""
+        head = []
+        if ax is not None and getattr(obj, "cite", None):
+            c = dx.cite_html(ax, obj, False)
+            if c:
+                head.append(Section(h=dx.cite_heading(ax), t=c))
+        ids = _node_sources(obj) if isinstance(obj, Node) else obj.sources
+        src = dx.source_section(ids, _docs)
+        return head + list(obj.sections) + ([src] if src else [])
+    uses_note_links = False
     ent_by_id = {e.id: e for e in b.entities}
     # Per-entity member count + "thin" flag — the nav "gap radar": a doctrine
     # with ≤2 members or only stub (section-less) members reads as thin.
@@ -726,6 +764,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # runtime (OUTLINE_BODY), so they never appear in the emitted section
         # text this scan looks at — but they still need the handler and CSS.
         if b.mode == "outline":
+            return True
+        # Auto-linking (detail_extras.AUTOLINK, on every page) makes
+        # .alto-link spans at runtime out of this table, too.
+        from .detail_extras import autolink_table
+        t = autolink_table(b)
+        if t["names"] or t["sec"]:
             return True
         if 'class="alto-link"' in (b.overview_html or ""):
             return True
@@ -809,7 +853,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 (e.id, e.name, e.color, e.symbol_svg or FALLBACK_GLYPH) for e in b.entities]))
         for _ax, _key, _attr, _dflt in ((ax1, "axis1", "axis1_values", "var(--env-color)"),
                                         (ax2, "axis2", "axis2_values", "var(--theme-color)")):
-            if _ax:
+            # Opt-in for an axis with an index page (ALTO-006).
+            if _ax and (_ax.filter if _ax.filter is not None else not _ax.hide_nav):
                 _dims.append((_key, _ax.singular, _attr, [
                     (v.id, v.name, v.color or _dflt, v.symbol_svg) for v in _ax.values]))
         for _key, _label, _attr, _vals in _dims:
@@ -906,11 +951,30 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         nav.append(f'\n    <span class="nav-group-label">{ax.singular}</span>')
         for v in ax.values:
             nav.append(nav_btn(kind, v.id, v.symbol_svg or FALLBACK_GLYPH, v.name, cls))
+    if index_axes:
+        nav.append('\n    <span class="nav-divider"></span>'
+                   f'\n    <span class="nav-group-label">{b.index_label}</span>')
+        for kind, ax in index_axes:
+            glyph = "&#9670;" if kind == "env" else "&#167;"
+            nav.append(
+                f'\n    <button class="nav-btn {kind}-btn" data-axis-index="{kind}" '
+                f"onclick=\"showAxisIndex('{kind}')\">{glyph} {ax.nav_label or ax.label}"
+                f'<span class="nav-chip-count">{len(ax.values)}</span></button>')
     nav.append("\n  </div>")
     nav = "".join(nav)
 
-    overview = (f'<div id="summary-inner">\n{b.overview_html}\n    </div>'
-                if b.overview_html else '<div id="summary-inner"></div>')
+    overview_html = b.overview_html
+    if not overview_html:
+        if b.mode == "outline":
+            overview_html = dx.outline_overview(b, nodes)
+            _warn0.append("no overview authored — the Overview shows one assembled "
+                          "from the outline's own titles and descriptions; "
+                          "set_overview to write your own")
+        else:
+            _warn0.append("no overview authored — the Overview (\u2605) opens blank; "
+                          "set_overview to write one")
+    overview = (f'<div id="summary-inner">\n{overview_html}\n    </div>'
+                if overview_html else '<div id="summary-inner"></div>')
 
     # ── JS data consts ───────────────────────────────────────────────────────
     # Keys are quoted because entity ids are slugs and may contain hyphens,
@@ -922,7 +986,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         for e in b.entities) + "\n};"
 
     char_pages = "const CHAR_PAGES={" + ",".join(
-        f"\n  '{e.id}': {{{_sections_js(e.sections)}}}"
+        f"\n  '{e.id}': {{{_sections_js(_extra(e))}}}"
         for e in b.entities) + "\n};"
 
     def axis_registry(name, ax):
@@ -931,7 +995,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         return f"const {name}={{" + ",".join(
             f"\n  '{v.id}': {{name:{js_str(v.name)}, role:{js_str(v.role)}, "
             f"color:{js_str(v.color or '#8888aa')}, symbol:{_sym(v.symbol_svg)}, "
-            f"{_sections_js(v.sections)}}}"
+            f"{_sections_js(_extra(v, ax))}}}"
             for v in ax.values) + "\n};"
 
     envs = axis_registry("ENVS", ax1)
@@ -958,9 +1022,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     env_sym = sym_map("ENV_SYM", ax1)
     theme_sym = sym_map("THEME_SYM", ax2)
 
+    _nsecs = {n.id: _extra(n) for n in nodes}
     node_details = "const NODE_DETAILS={" + ",".join(
-        f"\n  '{n.id}':{{{_sections_js(n.sections)}}}"
-        for n in nodes if any(s.t for s in n.sections)) + "\n};"
+        f"\n  '{n.id}':{{{_sections_js(_nsecs[n.id])}}}"
+        for n in nodes if any(s.t for s in _nsecs[n.id])) + "\n};"
+    uses_note_links = 'class="note-link"' in (char_pages + envs + themes + node_details)
 
     def node_color(n):
         # Lands inside a single-quoted JS literal, so a free-form value would
@@ -1102,7 +1168,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",label:" + json.dumps(_label)
                    + ",kids:" + json.dumps(_kids)
                    + ",parent:" + json.dumps(_parent) + "};"
-                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE + CRUMB_GLUE)
+                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE + CRUMB_GLUE
+                   + dx.HUBS_ABOVE_GLUE + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE)
+    if index_axes:
+        orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
@@ -1189,6 +1258,14 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "border-top-color:var(--border) !important;}"
             "\n  .node-card.rel-dimmed > *{opacity:0.15;}")
     nav_char_css += RAIL_CSS + MSEARCH_PANEL_CSS + HOW_CONNECT_CSS
+    if b.mode == "outline":
+        nav_char_css += dx.ELEMENT_TREE_CSS
+    if uses_note_links or index_axes:
+        nav_char_css += dx.NOTE_LINK_CSS
+    if any(s.prov for g in ([n.sections for n in nodes] + [e.sections for e in b.entities]
+                            + [v.sections for ax in b.axes for v in ax.values])
+           for s in g):
+        nav_char_css += dx.PROV_CSS
     if filter_sections:
         nav_char_css += filter_panel_css()
     # Outline detail pages: a numbered "Contains" list and an ancestry trail,
@@ -1276,6 +1353,15 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         drawer.append(f"'    <div class=\"drawer-section-label\">{ax.label}</div>',")
         for v in ax.values:
             drawer.append(drawer_btn(kind, v.id, v.symbol_svg, v.name, cls))
+    if index_axes:
+        drawer.append(f"'    <div class=\"drawer-section-label\">{js_str(b.index_label)[1:-1]}</div>',")
+        for kind, ax in index_axes:
+            glyph = "&#9670;" if kind == "env" else "&#167;"
+            drawer.append(
+                f"'    <button class=\"drawer-btn {kind}-btn\" "
+                f"onclick=\"showAxisIndex(\\'{kind}\\');closeNavDrawer()\">"
+                f"<span class=\"drawer-icon\">{glyph}</span>"
+                f"<span class=\"drawer-label\">{js_str(ax.nav_label or ax.label)[1:-1]}</span></button>',")
     # Filters are not in the drawer: the Filter tile (bottom-left) opens them.
     drawer_filters = "\n".join(drawer)
 
@@ -1359,8 +1445,14 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "sim_name": b.owner_name or "Alto User",
         "sim_email": owner_mail,
         "course_id_var": ID_PATTERNS["course_id_var"].format(tid=tid),
-        "badge_event_d": f'<div class="detail-badge ${{badgeClass}}">{b.node_noun}</div>',
-        "badge_event_m": f'<div class="detail-badge badge-node">{b.node_noun}</div>',
+        # An outline names each node's kind by its own tag (Concept, Outcome…)
+        # rather than one noun for all (ALTO-004).
+        "badge_event_d": (f'<div class="detail-badge ${{badgeClass}}">'
+                          + (f"${{n.tag||{js_str(b.node_noun)}}}" if b.mode == "outline"
+                             else b.node_noun) + '</div>'),
+        "badge_event_m": ('<div class="detail-badge badge-node">'
+                          + (f"'+(nd.tag||{js_str(b.node_noun)})+'" if b.mode == "outline"
+                             else b.node_noun) + '</div>'),
         "badge_char_m": f'<div class="detail-badge badge-char">{b.entity_axis_singular}</div>',
         "badge_env_m": ('<div class="detail-badge badge-env">'
                         f'{(ax1.singular if ax1 else "Group")}</div>'),

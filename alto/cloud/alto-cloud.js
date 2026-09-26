@@ -161,7 +161,7 @@
            getRedirectResult, signOut, onAuthStateChanged, browserLocalPersistence,
            setPersistence },
          { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc,
-           onSnapshot, serverTimestamp }] =
+           onSnapshot, serverTimestamp, Bytes }] =
     await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
       import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
@@ -363,6 +363,47 @@
      author can act on. ─────────────────────────────────────────────────────── */
   const MAX_PAGE_BYTES = 1000000;   // Firestore's document limit is 1 MiB; see private_shell.py
 
+  /* A page is stored gzipped, as Bytes in `z` with `enc: 'gzip'` — about a
+     quarter of its html — and the cap applies to those stored bytes. Everything
+     outside this file still sees html: _packPage/_unpackPage are the only two
+     places the stored form exists. A document written before this (a plain
+     `html` string) still reads, and the next upload replaces it. A browser
+     with no CompressionStream (Safari before 16.4) still uploads plain html,
+     up to the same cap. See private_shell.py. */
+  const PAGE_ENC = 'gzip';
+
+  async function _pipe(bytes, Stream) {
+    const out = new Blob([bytes]).stream().pipeThrough(new Stream(PAGE_ENC));
+    return new Uint8Array(await new Response(out).arrayBuffer());
+  }
+
+  // → { fields, bytes }: the fields to write in place of `html`, and what they
+  // cost against MAX_PAGE_BYTES.
+  async function _packPage(html) {
+    const raw = new TextEncoder().encode(html || '');
+    if (typeof CompressionStream !== 'function')
+      return { fields: { html: html || '' }, bytes: raw.length, raw: raw.length };
+    const z = await _pipe(raw, CompressionStream);
+    return { fields: { z: Bytes.fromUint8Array(z), enc: PAGE_ENC },
+             bytes: z.length, raw: raw.length };
+  }
+
+  async function _unpackPage(data) {
+    const v = data || {};
+    if (!v.z) return v.html || null;
+    if (v.enc !== PAGE_ENC) throw new Error('page stored as unknown encoding ' + v.enc);
+    if (typeof DecompressionStream !== 'function')
+      throw new Error('this browser is too old to open this page; please update it');
+    const z = typeof v.z.toUint8Array === 'function' ? v.z.toUint8Array() : v.z;
+    return new TextDecoder().decode(await _pipe(z, DecompressionStream));
+  }
+
+  function _tooLarge(p) {
+    return new Error(Math.round(p.bytes / 1024) + ' KB' +
+                     (p.fields.z ? ' compressed (' + Math.round(p.raw / 1024) + ' KB of html)' : '') +
+                     ' exceeds the ' + Math.round(MAX_PAGE_BYTES / 1024) + ' KB limit');
+  }
+
   /* ── listing records ──────────────────────────────────────────────────────
      Firestore always returns whole documents, so listing users/{uid}/pages
      downloaded every private timeline in full (600 KB apiece) just to print
@@ -434,14 +475,14 @@
   async function _migrateMeta(uid) {
     const snap = await getDocs(collection(db, 'users', uid, 'pages'));
     const writes = [];
-    snap.forEach(d => {
+    for (const d of snap.docs) {
       const v = d.data() || {};
-      const m = _metaOf(v.html || '');
+      const m = _metaOf(await _unpackPage(v).catch(() => '') || '');
       if (!m.title) m.title = v.title || '';
       if (!m.tid) m.tid = v.tid || '';
       writes.push(setDoc(doc(db, 'users', uid, 'pagemeta', d.id),
         Object.assign(m, { shareKey: v.shareKey || '', updatedAt: v.updatedAt || serverTimestamp() })));
-    });
+    }
     await Promise.all(writes);
     await setDoc(doc(db, 'users', uid), { pagemetaV: META_V }, { merge: true });
   }
@@ -450,24 +491,22 @@
     const u = auth.currentUser;
     if (!u || !key) return null;
     const snap = await getDoc(doc(db, 'users', u.uid, 'pages', key));
-    return snap.exists() ? (snap.data().html || null) : null;
+    return snap.exists() ? _unpackPage(snap.data()) : null;
   }
 
   async function _putPage(key, html, title) {
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
     if (!key) throw new Error('no page key');
-    const bytes = new TextEncoder().encode(html || '').length;
-    if (bytes > MAX_PAGE_BYTES)
-      throw new Error(Math.round(bytes / 1024) + ' KB exceeds the ' +
-                      Math.round(MAX_PAGE_BYTES / 1024) + ' KB limit');
+    const packed = await _packPage(html);
+    if (packed.bytes > MAX_PAGE_BYTES) throw _tooLarge(packed);
     // The title IS stored, deliberately, and only here. The opaque key keeps
     // the public URL from announcing its subject; this document is inside
     // users/{uid}, which the rules make readable to nobody but the owner. A
     // list you cannot read the names in is not a list you can use.
     await setDoc(doc(db, 'users', u.uid, 'pages', key),
-                 { html, title: title || '', tid: _identityOf(html),
-                   updatedAt: serverTimestamp() });
+                 Object.assign({ title: title || '', tid: _identityOf(html),
+                                 updatedAt: serverTimestamp() }, packed.fields));
     // merge: shareKey belongs to the share flow, not to an upload.
     await setDoc(doc(db, 'users', u.uid, 'pagemeta', key),
                  Object.assign(_metaOf(html), { updatedAt: serverTimestamp() },
@@ -562,22 +601,31 @@
   async function _getShare(key) {
     if (!key) return null;
     const snap = await getDoc(doc(db, 'shares', key));
-    return snap.exists() ? snap.data() : null;
+    if (!snap.exists()) return null;
+    // The share shell reads d.html; hand it html whichever way it is stored.
+    const d = Object.assign({}, snap.data());
+    if (d.z) { d.html = await _unpackPage(d); delete d.z; delete d.enc; }
+    return d;
   }
 
   async function _putShare(key, data) {
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
     if (!key) throw new Error('no share key');
-    const bytes = new TextEncoder().encode((data && data.html) || '').length;
-    if (bytes > MAX_PAGE_BYTES)
-      throw new Error(Math.round(bytes / 1024) + ' KB exceeds the ' +
-                      Math.round(MAX_PAGE_BYTES / 1024) + ' KB limit');
+    // A timeline share carries a page, packed like a private page; a project
+    // share carries only its items.
+    let body = Object.assign({}, data);
+    if (body.html) {
+      const packed = await _packPage(body.html);
+      if (packed.bytes > MAX_PAGE_BYTES) throw _tooLarge(packed);
+      delete body.html;
+      body = Object.assign(body, packed.fields);
+    }
     // owner is what the rules check on every later update and delete, so it is
     // written here and never taken from the caller.
     await setDoc(doc(db, 'shares', key),
-                 Object.assign({}, data, { owner: u.uid,
-                                           updatedAt: serverTimestamp() }));
+                 Object.assign(body, { owner: u.uid,
+                                       updatedAt: serverTimestamp() }));
     return true;
   }
 
@@ -611,13 +659,14 @@
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new Error('nothing published here yet');
     const page = snap.data() || {};
-    if (!page.html) throw new Error('nothing published here yet');
+    const master = await _unpackPage(page);
+    if (!master) throw new Error('nothing published here yet');
     const existing = page.shareKey || '';
     if (mustBeNew && existing) return { shareKey: existing, reused: true };
     const shareKey = existing || _mintKey();
     // Re-identify BEFORE writing. A share that kept the master's identity
     // would write a recipient's highlights into the owner's own records.
-    const html = _reidentify(page.html, shareKey);
+    const html = _reidentify(master, shareKey);
     await _putShare(shareKey, { html, title: title || page.title || '' });
     if (!existing) {
       await setDoc(ref, { shareKey }, { merge: true });

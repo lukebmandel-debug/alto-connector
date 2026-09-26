@@ -28,6 +28,11 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
     bd["axes"] = [
         Axis(label=ax["label"], singular=ax["singular"],
              hide_nav=bool(ax.get("hide_nav", False)),
+             filter=ax.get("filter"), sources=list(ax.get("sources") or []),
+             cite_link=dict(ax.get("cite_link") or {}),
+             nav_label=ax.get("nav_label") or "",
+             index_blurb=list(ax.get("index_blurb") or []),
+             index_sections=[Section(**s) for s in ax.get("index_sections") or []],
              values=[AxisValue(**{**v, "sections": [Section(**s) for s in v.get("sections", [])]})
                      for v in ax.get("values", [])])
         for ax in bd.get("axes", [])]
@@ -55,8 +60,10 @@ def place(brief: Brief, nodes: list[Node]) -> None:
 def run_layout(brief: Brief, nodes: list[Node]):
     """Column assignment + baseY resolution + mobile grid. Returns layout info."""
     place(brief, nodes)
+    parent = ({n.id: n.parent for n in nodes if n.parent}
+              if brief.mode == "outline" else None)
     positions, heights, world_h, report = resolve(nodes, brief.columns,
-                                                  len(brief.acts))
+                                                  len(brief.acts), parent)
     mgrid, mobile_h = mobile_grid(nodes, brief.columns)
     return positions, heights, world_h, mgrid, mobile_h, report
 
@@ -109,6 +116,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
+    html = _add_tail(html, brief, nodes)
 
     # Deep links that survived sanitize (unknown ones were demoted) must reach
     # the output as engine chip markup — assert each one did.
@@ -133,6 +141,24 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
         "connections": len(connections),
     }
     return html, report
+
+
+def _add_tail(html: str, brief: Brief, nodes: list) -> str:
+    """Detail-page extras that must wrap showDetail last (back-to-previous,
+    banner clearance, auto-linking), placed just before the page's closing
+    body tag. Every page gets them: they were gated to outline and index
+    pages only while private pages were stored uncompressed and Terrarium sat
+    at the cap (see private_shell.MAX_PAGE_BYTES)."""
+    from . import detail_extras as dx
+    table = dx.autolink_table(brief)
+    tail = ("<script>window._ALTO_AUTOLINK="
+            + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
+            + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
+            + "\n" + dx.BACK_PREV + "\n")
+    at = html.rfind("</body>")
+    if at < 0:
+        raise VerifyError(["page has no </body> for the detail extras"])
+    return html[:at] + tail + html[at:]
 
 
 def build_from_file(path: str) -> tuple[str, dict]:

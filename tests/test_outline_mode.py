@@ -176,9 +176,13 @@ def test_the_outline_sample_builds_hub_and_spoke():
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
     html, report = build_timeline(*load_brief(d))
     assert report["layout"]["moved_on_recheck"] == []       # resolver at fixpoint
-    # The only expected warning: the structural spine touches every concept, so
-    # a filter on it would light everything — the build drops that chip.
-    assert [w for w in report["warnings"]] == [
+    # The structural spine touches every concept, so a filter on it would
+    # light everything — the build drops that chip. The sample's elements
+    # carry no sections of their own, which an outline now flags (ALTO-015).
+    bare = [e["id"] for e in d["brief"]["entities"] if not e.get("sections")]
+    empty = [w for w in report["warnings"] if "have no sections of their own" in w]
+    assert len(empty) == 1 and empty[0].startswith(f"{len(bare)} element page")
+    assert [w for w in report["warnings"] if w not in empty] == [
         "line filter 'Contains': matches every node, so filtering by it "
         "changes nothing \u2014 chip dropped"]
 
@@ -226,9 +230,17 @@ def test_the_linear_sample_gains_no_outline_machinery():
     """Every outline path is opt-in; a brief that uses none of it must not pay
     for any of it."""
     html, _ = _build()
-    # Not the drawer's data-sd-* attributes — those are ordinary axis chrome.
-    for marker in ("alto-link", "_altoLinkBound"):
-        assert marker not in html, f"{marker} shipped in a brief that has no links"
+    for marker in ("window._ALTO_OUTLINE=", "node-crumb", "print-ol-row"):
+        assert marker not in html, f"{marker} shipped in a brief that is not an outline"
+
+
+def test_autolinked_names_are_clickable_on_a_linear_page():
+    """Auto-linking (detail_extras) runs on every page and makes .alto-link
+    spans at runtime, so a page with no authored deep links still needs the
+    handler and its CSS — without them the names are dead, unstyled text."""
+    html, _ = _build()
+    assert "window._ALTO_AUTOLINK=" in html and '"names": {}' not in html
+    assert "_altoLinkBound" in html and ".alto-link{display:inline;" in html
 
 def test_outline_pages_carry_the_mobile_crumb_glue():
     """Child cards get an "under {parent}" breadcrumb on mobile — the stack

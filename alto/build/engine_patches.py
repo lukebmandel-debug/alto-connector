@@ -1158,6 +1158,59 @@ PATCHES += [
     {"name": "mobile-runway-pin", "old": _RW_ANCHOR, "new": _RW_NEW, "count": 1},
 ]
 
+# ── outline: a hub sits above its own children (ALTO-001) ───────────────────
+# initLayout's Pass A only pushes a card down when it collides with one in a
+# horizontally overlapping column. An outline hub lives in `center`, so the
+# tall hubs before it push it down; its leaves live in `left`/`right`, collide
+# with nothing, and stay where the cascade left them — beside or above the hub.
+# Every spoke then has to double back (Torts: all 40 Liable / Not Liable
+# pairs sat above their hub). Pass C restores the tree's order on the page;
+# layout.resolve() carries the same pass so the baseY hints already satisfy
+# it. The pass itself (blocks.HUBS_ABOVE_GLUE) is emitted on outline pages
+# only; everywhere else this is a no-op guard, kept to one line because
+# Terrarium's private page sits within a kilobyte of the 1,000,000-byte cap.
+_HUB_ABOVE_OLD = "    // ── Pass B: act boundary enforcement ──\n"
+_HUB_ABOVE_NEW = ("    if(window._altoHubsAbove&&_altoHubsAbove(positions,nodeHeights))"
+                  "outerChanged=true;\n" + _HUB_ABOVE_OLD)
+PATCHES += [
+    {"name": "outline-hub-above-children", "old": _HUB_ABOVE_OLD,
+     "new": _HUB_ABOVE_NEW, "count": 1},
+]
+
+# ── node-card chip label sits above the hovered chip's row (ALTO-007) ───────
+# The label was pinned with bottom:calc(100% + 8px) of the footer, so in a
+# footer whose chips wrap onto several rows it always rose above the first
+# row. Anchor it to the chip's own offsetTop instead and lift it by its height.
+_TIP_POS_OLD = "  position:absolute; left:0; bottom:calc(100% + 8px); z-index:5;"
+_TIP_POS_NEW = "  position:absolute; left:0; top:0; z-index:5;"
+_TIP_REST_OLD = "  transform:translateX(-50%) translateY(3px);"
+_TIP_REST_NEW = "  transform:translate(-50%, calc(-100% - 5px));"
+_TIP_ON_OLD = "  opacity:1; transform:translateX(-50%) translateY(0);"
+_TIP_ON_NEW = "  opacity:1; transform:translate(-50%, calc(-100% - 8px));"
+_TIP_JS_OLD = "    tip.style.left=(chip.offsetLeft + chip.offsetWidth/2)+'px';"
+_TIP_JS_NEW = _TIP_JS_OLD + "\n    tip.style.top=chip.offsetTop+'px';"
+
+# ── index pages and node names route through showDetail (ALTO-004/006) ──────
+# Both hooks are guards that do nothing unless the page defines the function
+# (detail_extras: outline pages / pages with an index axis).
+_INDEX_OLD = "function showDetail(type,id){\n  window._currentDetailType = type;"
+_INDEX_NEW = ("function showDetail(type,id){\n"
+              "  if(type==='index'&&window._altoAxisIndex) return _altoAxisIndex(id);\n"
+              "  window._currentDetailType = type;")
+_NAME_D_OLD = "    name = n.title;\n"
+_NAME_D_NEW = "    name = window._altoNodeName ? _altoNodeName(n) : n.title;\n"
+_NAME_M_OLD = "+nd.title+'</div>'"
+_NAME_M_NEW = "+(window._altoNodeName?_altoNodeName(nd):nd.title)+'</div>'"
+PATCHES += [
+    {"name": "chip-tip-row-top", "old": _TIP_POS_OLD, "new": _TIP_POS_NEW, "count": 1},
+    {"name": "chip-tip-row-rest", "old": _TIP_REST_OLD, "new": _TIP_REST_NEW, "count": 1},
+    {"name": "chip-tip-row-on", "old": _TIP_ON_OLD, "new": _TIP_ON_NEW, "count": 1},
+    {"name": "chip-tip-row-js", "old": _TIP_JS_OLD, "new": _TIP_JS_NEW, "count": 1},
+    {"name": "show-detail-index-route", "old": _INDEX_OLD, "new": _INDEX_NEW, "count": 1},
+    {"name": "node-name-desktop", "old": _NAME_D_OLD, "new": _NAME_D_NEW, "count": 1},
+    {"name": "node-name-mobile-peek", "old": _NAME_M_OLD, "new": _NAME_M_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])

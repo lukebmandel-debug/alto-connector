@@ -43,6 +43,10 @@ class FakeFirebase:
                 name = w["update"]["name"]; self._own(name)
                 fields = dict(self.docs.get(name, {})) if "updateMask" in w else {}
                 fields.update(w["update"]["fields"])
+                # As Firestore: a path in the mask but not in the fields is deleted.
+                for f in (w.get("updateMask") or {}).get("fieldPaths", []):
+                    if f not in w["update"]["fields"]:
+                        fields.pop(f, None)
                 for t in w.get("updateTransforms", []):
                     fields[t["fieldPath"]] = {"timestampValue": "2026-09-24T00:00:00Z"}
                 self.docs[name] = fields

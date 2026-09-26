@@ -198,10 +198,13 @@ def test_the_uploaded_page_is_regenerated_at_publish_time(tmp_path, built):
 
 
 def test_the_uploaded_page_fits_a_firestore_document(tmp_path, built):
-    """Firestore caps a document at 1 MiB and the shell refuses past 900 KB."""
-    from alto.build.private_shell import MAX_PAGE_BYTES
+    """Firestore caps a document at 1 MiB; the cap is on the page as stored,
+    which is gzipped."""
+    from alto.build.private_shell import MAX_PAGE_BYTES, stored_bytes
     d, b, html = built
-    assert len(private_page(b, html).encode()) < MAX_PAGE_BYTES
+    page = private_page(b, html)
+    assert stored_bytes(page) < MAX_PAGE_BYTES
+    assert stored_bytes(page) < len(page.encode()) // 3
 
 
 def test_publishing_a_private_timeline_without_sign_in_is_refused(tmp_path, built, monkeypatch):

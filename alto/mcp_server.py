@@ -222,7 +222,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.8.21"
+__version__ = "1.8.22"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -499,7 +499,10 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
     materials in the conversation and (2) they explicitly agreed to the
     closed-system statement. sources: factual manifest, e.g.
     [{name:'ConLaw syllabus.pdf', kind:'syllabus'}] — the materials themselves
-    stay in the conversation. Until consent=true, node authoring is locked."""
+    stay in the conversation. Give an entry an `id` (and an https `url` when
+    the material lives at one, e.g. a Google Doc) and nodes, entities and axis
+    values can name it in their `sources`; their pages then get a "Source
+    notes" section linking back to it. Until consent=true, node authoring is locked."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -514,9 +517,17 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
 
 
 @mcp.tool(title="Set entities", annotations=RW)
-def set_entities(timeline_id: str, entities: list[dict]) -> dict:
+def set_entities(timeline_id: str, entities: list[dict],
+                 autolink: list[str] | None = None,
+                 autolink_overview: bool | None = None) -> dict:
     """Define the entity axis (the chips): ≤12 entities
-    [{id, name, role?, color?, symbol_svg?, sections?: [{h,t}]}].
+    [{id, name, role?, color?, symbol_svg?, sections?: [{h,t,prov?}],
+      aliases?: [str], sources?: [source id]}].
+    In outline mode give each entity sections on how it is satisfied, from the
+    material, where the material says — otherwise its page lists concepts only.
+    `autolink` picks which kinds of page are linked by name in running text:
+    any of 'char' (these entities), 'env', 'theme' (default ['env','theme']);
+    `autolink_overview` false leaves the Overview unlinked.
     Omitted colors get a clean palette. Design a unique symbol_svg per entity
     (guide §C1 has the rules and the exact wrapper) — entities without one
     all share the same fallback ◆ and become indistinguishable. Detail-page
@@ -525,6 +536,10 @@ def set_entities(timeline_id: str, entities: list[dict]) -> dict:
     if err:
         return err
     brief = {**doc["brief"], "entities": entities}
+    if autolink is not None:
+        brief["autolink"] = list(autolink)
+    if autolink_overview is not None:
+        brief["autolink_overview"] = bool(autolink_overview)
     try:
         b, _, _ = load_brief({"brief": brief})
         from .build.brief import validate_brief
@@ -539,18 +554,35 @@ def set_entities(timeline_id: str, entities: list[dict]) -> dict:
 
 @mcp.tool(title="Set axis values", annotations=RW)
 def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
-                    values: list[dict], hide_nav: bool = False) -> dict:
+                    values: list[dict], hide_nav: bool = False,
+                    filter: bool | None = None, sources: list[str] | None = None,
+                    cite_link: dict | None = None, nav_label: str | None = None,
+                    index_blurb: list[str] | None = None,
+                    index_sections: list[dict] | None = None,
+                    index_label: str | None = None) -> dict:
     """Define or extend an extra axis (slot 1 or 2) after the consent gate.
 
-    values: [{id, name, role?, color?, symbol_svg?, sections?: [{h,t}]}],
+    values: [{id, name, role?, color?, symbol_svg?, sections?: [{h,t,prov?}],
+    aliases?: [str], cite?: {ch?, p?, note?}, sources?: [source id]}],
     upserted by id, so this can be called repeatedly as material arrives.
+    `aliases` are other names the material uses for a value (running text
+    naming one links to its page; "X v. Y" short forms are generated).
+    `cite` is where it sits in a book; `cite_link` ({label?, url with {p}
+    and optionally {sec}, sections: {chapter number: section id}}) turns each
+    cite into a link.
     Unlike the entity axis there is no count cap — this is where a course's
     cases belong, each carrying the student's own brief in `sections`.
 
     `hide_nav` keeps the chips on the cards and the detail pages reachable
     while dropping the axis from the nav bar, drawer and legend, and labels
     those chips with the value's name rather than a glyph. Set it for anything
-    with more values than a nav row can hold; skip glyph design for it.
+    with more values than a nav row can hold; skip glyph design for it. Such
+    an axis gets an index page under "Index" in the nav instead, and no Filter
+    section unless `filter` is true. `sources` (manifest ids) show on the
+    index page; `index_sections` [{h,t}] open it; `index_blurb` names the
+    section headings (in order) whose text excerpts each row; `nav_label`
+    shortens the nav button; `index_label` names the nav group (default
+    "Index", shared by both axes).
 
     §0: `sections` are verbatim from the user's materials. This tool exists
     because an axis declared inside create_timeline is authored BEFORE
@@ -568,11 +600,25 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
         axes.append({"label": label, "singular": singular, "values": []})
     ax = axes[slot - 1]
     ax["label"], ax["singular"], ax["hide_nav"] = label, singular, bool(hide_nav)
+    if filter is not None:
+        ax["filter"] = bool(filter)
+    if sources is not None:
+        ax["sources"] = list(sources)
+    if cite_link is not None:
+        ax["cite_link"] = dict(cite_link)
+    if nav_label is not None:
+        ax["nav_label"] = nav_label
+    if index_blurb is not None:
+        ax["index_blurb"] = list(index_blurb)
+    if index_sections is not None:
+        ax["index_sections"] = list(index_sections)
     merged = {v["id"]: v for v in (ax.get("values") or []) if v.get("id")}
     for v in values:
         merged[v.get("id", "")] = {**v}
     ax["values"] = list(merged.values())
     brief = {**doc["brief"], "axes": axes}
+    if index_label is not None:
+        brief["index_label"] = index_label
     try:
         b, _, _ = load_brief({"brief": brief})
         from .build.brief import validate_brief
@@ -590,7 +636,12 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     """Batch-add/update timeline nodes (idempotent upsert by id). Each:
     {id, act (0-based), tag, title, desc, col?, parent?, entity_ids?,
      axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
-     sections?: [{h,t}]}.
+     sections?: [{h,t,prov?}], sources?: [source id]}.
+    `prov` says what a section's text is: 'quoted' (the source's own words,
+    present in the material), 'notes' (the user's notes) or 'summary'. Never
+    head a section "Text" unless it is a quote — head it for what it is.
+    `sources` name consent-manifest ids; an outline node without them
+    inherits its parent's.
     §0: title/desc/sections are authored VERBATIM from the user's materials —
     never fill gaps, never collapse multi-item arcs into one node.
     `parent` (outline mode): the id of the concept that CONTAINS this one; omit
@@ -696,11 +747,25 @@ def set_overview(timeline_id: str, overview_html: str) -> dict:
     return {"ok": True}
 
 
+def _source_docs(doc) -> list:
+    """The consent manifest's entries that carry an id: the source map node
+    and sub-chip `sources` point into (ALTO-011)."""
+    out = []
+    for s in (doc.get("consent") or {}).get("sources") or []:
+        if isinstance(s, dict) and s.get("id"):
+            out.append({"id": s["id"], "name": s.get("name") or s["id"],
+                        "url": s.get("url") or ""})
+    return out
+
+
 def _load_full(doc):
     st = get_store()
     nodes = [{k: v for k, v in n.items() if not k.startswith("_")}
              for n in st.list_nodes(uid(), doc["timeline_id"])]
-    return load_brief({"brief": doc["brief"], "nodes": nodes,
+    brief = dict(doc["brief"])
+    if not brief.get("source_docs"):
+        brief["source_docs"] = _source_docs(doc)
+    return load_brief({"brief": brief, "nodes": nodes,
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
@@ -758,6 +823,16 @@ def build_timeline(timeline_id: str) -> dict:
         if js_failures:
             return {"error": "verify_failed", "failures": js_failures}
         report["warnings"] += js_warnings
+    # What the private page costs against the Firestore cap (it is stored
+    # gzipped); said at build time so the author learns it before publishing.
+    from .build.private_shell import MAX_PAGE_BYTES, stored_bytes
+    report["private_bytes"] = len(private.encode("utf-8"))
+    report["private_stored_bytes"] = stored_bytes(private)
+    if report["private_stored_bytes"] > MAX_PAGE_BYTES:
+        report["warnings"].append(
+            f"private page is {report['private_stored_bytes'] // 1024} KB "
+            f"compressed, over the {MAX_PAGE_BYTES // 1024} KB a private-web "
+            "page can be; publish it as a link or offline instead")
     st.put_artifact(uid(), timeline_id, "timeline.html", html)
     st.put_artifact(uid(), timeline_id, "hosted.html", hosted)
     # The srcdoc-ready variant the private shell uploads. Built here so it is
@@ -818,7 +893,9 @@ def preview_timeline(timeline_id: str) -> dict:
         "bytes": len(page.encode("utf-8")),
         "artifact_title": f"{b.title} — Alto preview",
         "how": ("Publish preview_path as an Artifact (the Artifact tool's "
-                "publish, file_path=preview_path, icon 'timeline'). On later "
+                "publish, file_path=preview_path, icon 'timeline', "
+                "capabilities {downloads: true} — the Notes report and the "
+                "offline copy are saved through it). On later "
                 "previews of this timeline, republish the same file path so "
                 "the same Artifact URL updates. An Artifact is private to the "
                 "user until they share it; it is not an Alto publish. Where "
@@ -937,16 +1014,20 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
             # Signed in as the owner, the connector writes the page into their
             # account itself — the same two documents the browser upload
             # writes — so it is on their homepage the moment this returns.
-            from .build.private_shell import MAX_PAGE_BYTES
+            from .build.private_shell import MAX_PAGE_BYTES, stored_bytes
             from .cloud.meta import meta_of, title_of
             key = doc["private_key"]
             page = st.get_artifact(uid(), timeline_id, "private.html") or ""
             if not page:
                 return {"error": "not_built", "message": "build_timeline first"}
-            if len(page.encode("utf-8")) > MAX_PAGE_BYTES:
+            # The cap is on what is stored, and a page is stored gzipped.
+            stored = stored_bytes(page)
+            if stored > MAX_PAGE_BYTES:
                 return {"error": "too_large",
-                        "message": (f"{len(page.encode()) // 1024} KB exceeds the "
-                                    f"{MAX_PAGE_BYTES // 1024} KB a private page can be")}
+                        "message": (f"{stored // 1024} KB compressed "
+                                    f"({len(page.encode()) // 1024} KB of html) "
+                                    f"exceeds the {MAX_PAGE_BYTES // 1024} KB a "
+                                    "private page can be")}
             st.put_page(uid(), key, page, title_of(page), meta_of(page))
             urls = {"view_url": f"{live}/pv/{key}/", **stale_bits,
                     "note": ("Published privately to the user's own account: "

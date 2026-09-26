@@ -47,7 +47,7 @@ from html.parser import HTMLParser
 MARKUP_TAGS = {
     "b", "strong", "i", "em", "u", "s", "mark", "small", "code", "kbd", "abbr",
     "sup", "sub", "br", "span", "p", "div", "ul", "ol", "li", "dl", "dt", "dd",
-    "blockquote", "cite", "q", "a", "h3", "h4", "h5", "h6", "hr", "table",
+    "blockquote", "cite", "q", "a", "h2", "h3", "h4", "h5", "h6", "hr", "table",
     "thead", "tbody", "tr", "th", "td", "figure", "figcaption",
 }
 MARKUP_ATTRS = {
@@ -241,7 +241,14 @@ class _Allowlist(HTMLParser):
         if target is None:
             # Not a deep link — keep it as a normal <a> (any onclick is stripped
             # by _emit_attrs' on* rule, exactly as before this mode existed).
-            self.out.append(f"<a{self._emit_attrs('a', attrs)}>")
+            # A link out of the page (a source doc, a casebook page) opens in a
+            # new tab and is styled as one: the page runs inside a frame on
+            # every host, where following it in place would replace Alto.
+            ext = ""
+            href = next((v for k, v in attrs if (k or "").lower() == "href"), "") or ""
+            if re.match(r"^https?://", (_safe_url(href) or ""), re.I):
+                ext = ' class="note-link" target="_blank" rel="noopener"'
+            self.out.append(f"<a{self._emit_attrs('a', attrs)}{ext}>")
             self._anchor_stack.append("a")
             return
         authored, lid = target
@@ -459,6 +466,7 @@ def sanitize_brief(b, nodes=None) -> list:
     b.entity_axis_label = plain_text(b.entity_axis_label)
     b.entity_axis_singular = plain_text(b.entity_axis_singular)
     b.node_noun = plain_text(b.node_noun)
+    b.index_label = plain_text(b.index_label) or "Index"
     b.overview_html, ov_warnings = clean_overview(
         b.overview_html, {n.id for n in (nodes or [])})
     # These two land inside single-quoted JS literals in the sign-in stub, so
@@ -468,16 +476,36 @@ def sanitize_brief(b, nodes=None) -> list:
 
     for a in b.acts:
         a.label, a.short = plain_text(a.label), plain_text(a.short)
+    # The source map: names are text; a url survives only as https.
+    docs = []
+    for d in b.source_docs:
+        u = _safe_url(d.get("url") or "") or ""
+        docs.append({"id": d["id"], "name": plain_text(d.get("name") or d["id"]),
+                     "url": u if u.startswith("https://") else ""})
+    b.source_docs = docs
+
+    def cite(c):
+        out = {k: plain_text(str(c[k])) for k in ("ch", "note", "short") if c.get(k)}
+        p = re.sub(r"[^0-9A-Za-z-]", "", str(c.get("p") or ""))[:12]
+        if p:
+            out["p"] = p
+        return out
     for e in b.entities:
         e.name, e.role = plain_text(e.name), plain_text(e.role)
         e.symbol_svg = clean_svg(e.symbol_svg)
         sections(e.sections, f"entity {e.id}")
+        e.aliases = [plain_text(x) for x in e.aliases if (x or "").strip()]
     for ax in b.axes:
         ax.label, ax.singular = plain_text(ax.label), plain_text(ax.singular)
+        ax.nav_label = plain_text(ax.nav_label)
+        ax.index_blurb = [plain_text(h) for h in ax.index_blurb]
+        sections(ax.index_sections, f"{ax.label} index")
         for v in ax.values:
             v.name, v.role = plain_text(v.name), plain_text(v.role)
             v.symbol_svg = clean_svg(v.symbol_svg)
             sections(v.sections, f"{ax.label} value {v.id}")
+            v.aliases = [plain_text(x) for x in v.aliases if (x or "").strip()]
+            v.cite = cite(v.cite or {})
     for f in b.filters:
         f.label = plain_text(f.label)
         for v in f.values:

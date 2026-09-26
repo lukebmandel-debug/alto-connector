@@ -179,8 +179,11 @@ def preview(brief: Brief, timeline_html: str, project_name: str = "") -> str:
     that timeline, and the wordmark still goes home the way it does on the site.
     """
     name = project_name or brief.subject or "Alto"
+    timeline_html = _rep(timeline_html, _REPORT_OPEN_OLD, _REPORT_OPEN_NEW, 1,
+                         "notes report via artifact")
     page = bundle_many([{"name": name, "items": [(brief, timeline_html)]}],
-                       title=f"{brief.title} — Alto preview", start="t_0.html")
+                       title=f"{brief.title} — Alto preview", start="t_0.html",
+                       artifact=True)
     # An Artifact is published into the host's own doctype/head/body skeleton
     # (charset, viewport-fit=cover), so the shell supplies only its title,
     # style, stage and router. The pages inside the stage are untouched.
@@ -189,11 +192,44 @@ def preview(brief: Brief, timeline_html: str, project_name: str = "") -> str:
                 'initial-scale=1, viewport-fit=cover">\n',
                 '</head><body>\n', '</body></html>\n'):
         page = _rep(page, tag, "", 1, "preview shell")
-    return page
+    at = page.index("</title>\n") + len("</title>\n")
+    return page[:at] + _PREVIEW_SAVE + page[at:]
+
+
+# ALTO-016. An Artifact viewer never lets a page download through a plain
+# link or a script-driven save; files leave through its `downloads`
+# capability, which only the top frame can reach. The preview's pages run in
+# the stage iframe, so they hand the file up to the shell's __altoSave.
+_PREVIEW_SAVE = (
+    "<script>window.__altoSave=function(name,data){"
+    "var c=window.claude;"
+    "return(c&&c.use?c.use('downloads'):Promise.resolve(null)).then(function(d){"
+    "if(!d)throw{code:'unavailable'};return d.save({filename:name,data:data});});};"
+    "</script>\n")
+_HOME_SAVE_OLD = """    const blob = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+"""
+_HOME_SAVE_NEW = "    await parent.__altoSave(filename, html);\n"
+_REPORT_OPEN_OLD = """    const win = window.open('','_blank');
+    if(win){
+      win.document.write(reportHtml);
+      win.document.close();
+    } else {
+      const blob = new Blob([reportHtml],{type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      window.open(url,'_blank');
+    }
+"""
+_REPORT_OPEN_NEW = ("    parent.__altoSave('Notes report.html', reportHtml)"
+                    ".catch(function(){});\n")
 
 
 def bundle_many(groups: list[dict], title: str = "Alto",
-                start: str = "index.html") -> str:
+                start: str = "index.html", artifact: bool = False) -> str:
     """Return ONE offline HTML file holding every timeline in `groups`.
 
     groups: [{"name": <project name>, "items": [(Brief, timeline_html), ...]}]
@@ -222,6 +258,8 @@ def bundle_many(groups: list[dict], title: str = "Alto",
             projects.append({"name": g["name"], "courses": courses})
 
     home = build_home(projects)
+    if artifact:
+        home = _rep(home, _HOME_SAVE_OLD, _HOME_SAVE_NEW, 1, "home save via artifact")
 
     # strip the hosted-only cloud loader
     home = _rep(home, CLOUD_TAG, "", 1, "strip cloud tag (home)")

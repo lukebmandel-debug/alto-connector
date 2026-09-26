@@ -197,6 +197,25 @@ rules, learned the hard way:
 - **Don't collapse arcs**: several items forming one arc (Roe → Casey →
   Dobbs) each stay their OWN node, cross-linked — never merged.
 - Every field is authored **verbatim from the user's material**.
+- **Label what each section is** (`prov` on a section): `quoted` only for
+  the source's own words that are actually present in the material; `notes`
+  for the user's notes restated; `summary` for a condensation. Never head a
+  section "Text" (or "Rule text", "Quote") unless it is a quote you can point
+  to — a Restatement section the notes only paraphrase is "From your notes",
+  and one the notes do not explain gets its label and nothing else. The build
+  warns on a "Text" heading that is not marked quoted.
+- **Source map**: give each consent-manifest entry an `id` (and its https
+  `url`, e.g. the Google Doc), and put `sources: [id]` on nodes, entities and
+  axis values. Their pages get a "Source notes" section linking back; an
+  outline node inherits its parent's sources.
+- **Outline element pages**: in outline mode each entity (element) page lists
+  its concepts automatically; give the entity its own sections on how it is
+  satisfied, from the material, where the material says. The build warns on
+  an empty one.
+- **Big axes** (a course's cases, its Restatement sections): `hide_nav` them.
+  Each gets an index page under "Index" in the nav; set `cite` per value and a
+  `cite_link` on the axis when the material gives book pages; add `aliases`
+  for short names the notes use that the build cannot derive.
 
 ### D-Outline. The concept tree — the student authors it, you transcribe
 
@@ -382,7 +401,8 @@ authored before the consent gate) → 5. `add_nodes` (batches; authored from the
 materials in this conversation; custom-filter values ride on each node; in
 outline mode `parent` carries the tree) →
 6. `add_connections` →
-7. `set_overview` (optional prose overview; deep-link a node with exactly
+7. `set_overview` (prose overview — an outline without one gets an Overview
+assembled from its own titles and descriptions, and the build warns; deep-link a node with exactly
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →

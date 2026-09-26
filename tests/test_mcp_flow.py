@@ -71,6 +71,8 @@ def test_full_flow_and_resume():
     assert r["moved_on_recheck"] == [], r
     r = srv.build_timeline(tid)
     assert r.get("verify") == "passed", r
+    # The private page is stored gzipped; the build says what it will cost.
+    assert 0 < r["private_stored_bytes"] < r["private_bytes"] // 3, r
     r = srv.publish_timeline(tid, "link")
     assert r["visibility"] == "link"
 
@@ -187,3 +189,28 @@ def test_preview_is_an_artifact_page_and_publishes_nothing():
     # A preview is not a build: status and live pages are left alone.
     assert srv.get_timeline(tid)["status"] == "draft"
     assert srv.publish_timeline(tid, "link").get("error")
+
+
+def test_a_private_web_page_is_written_compressed(request, monkeypatch):
+    """On the cloud store the connector writes the page into the account
+    itself — gzipped, the same form the browser upload stores."""
+    if request.node.callspec.params["fresh_store"] != "cloud":
+        pytest.skip("only the cloud store writes pages")
+    import base64
+    from alto.build.private_shell import unpack_page
+    import alto.publish_static as ps
+    # No real site: the deploy and its checks are stubbed; the page write is not.
+    monkeypatch.setattr(ps, "firebase_configured", lambda: True)
+    monkeypatch.setattr(ps, "regenerate_site", lambda st, u: "site")
+    monkeypatch.setattr(ps, "deploy_site", lambda site: "https://x.web.app")
+    monkeypatch.setattr(ps, "verify_live", lambda site, live: [])
+    monkeypatch.setattr(ps, "LAST_STALE", [])
+    tid = _built_timeline()
+    r = srv.publish_timeline(tid, "private-web")
+    assert "error" not in r, r
+    st = srv.get_store()
+    page = st.get_artifact(srv.uid(), tid, "private.html")
+    key = r["view_url"].rstrip("/").rsplit("/", 1)[1]
+    fields = st.s.http.docs[f"{st.root}/users/{srv.uid()}/pages/{key}"]
+    assert "html" not in fields and fields["enc"] == {"stringValue": "gzip"}
+    assert unpack_page(base64.b64decode(fields["z"]["bytesValue"])) == page

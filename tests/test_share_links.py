@@ -113,7 +113,7 @@ def test_the_browser_refuses_a_partial_rewrite():
 def test_the_share_is_reidentified_before_it_is_written():
     order = CLOUD_JS[CLOUD_JS.index("async function _sharePush("):]
     order = order[:order.index("\n  }")]
-    assert order.index("_reidentify(page.html") < order.index("_putShare(")
+    assert order.index("_reidentify(master") < order.index("_putShare(")
 
 
 # ── the rules ───────────────────────────────────────────────────────────────

@@ -27,10 +27,12 @@ Stdlib only — `urllib` through the session's transport.
 """
 from __future__ import annotations
 
+import base64
 import json
 import time
 import urllib.parse
 
+from ..build.private_shell import PAGE_ENCODING, pack_page
 from .base import Store
 from .local import LocalStore, check_component
 from ..cloud.session import CloudError, Session
@@ -233,7 +235,9 @@ class CloudStore(Store):
         upload by hand. Update masks leave shareKey (set by the share flow)
         alone, and both updatedAt come from the server clock, which the
         shell's cache compares."""
-        page = {"html": _sv(html), "title": _sv(title or ""), "tid": _sv(meta.get("tid", ""))}
+        page = {"z": {"bytesValue": base64.b64encode(pack_page(html)).decode("ascii")},
+                "enc": _sv(PAGE_ENCODING),
+                "title": _sv(title or ""), "tid": _sv(meta.get("tid", ""))}
         mfields = {
             "title": _sv(title or meta.get("title", "")),
             "heading": _sv(meta.get("heading", "")),
@@ -248,7 +252,9 @@ class CloudStore(Store):
         now = [{"fieldPath": "updatedAt", "setToServerValue": "REQUEST_TIME"}]
         self._req("POST", f"{self.root}:commit", {"writes": [
             {"update": {"name": self._doc(uid, "pages", key), "fields": page},
-             "updateMask": {"fieldPaths": list(page)}, "updateTransforms": now},
+             # "html" is in the mask but not the fields, which deletes it: a
+             # page written before compression must not keep its old copy.
+             "updateMask": {"fieldPaths": list(page) + ["html"]}, "updateTransforms": now},
             {"update": {"name": self._doc(uid, "pagemeta", key), "fields": mfields},
              "updateMask": {"fieldPaths": list(mfields)}, "updateTransforms": now},
             {"update": {"name": f"{self.root}/users/{check_component(uid, 'uid')}",

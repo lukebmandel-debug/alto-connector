@@ -24,6 +24,7 @@ LABEL_RESERVE = 184
 BOTTOM_PAD = 40
 ACT_BOUNDARY_GAP = 210
 RHYTHM_STEP = 90          # median inter-node cascade step in the reference build
+HUB_DROP = RHYTHM_STEP    # outline: a child's top sits at least this far below its hub's
 
 # Lane-feasibility constants (verify_terrarium.py §D2)
 WORLD_W, HALF, HALF_CENTER, CLR, EDGE = 1700, 135, 145, 24, 8
@@ -113,9 +114,16 @@ def _initial_positions(nodes, heights):
     return positions
 
 
-def resolve(nodes, columns: int, act_count: int):
+def resolve(nodes, columns: int, act_count: int, parent: dict = None):
     """Compute baseY hints. Returns (positions, heights, world_height, report).
-    nodes must be in narrative order (ACT_SEQS order); node.col must be set."""
+    nodes must be in narrative order (ACT_SEQS order); node.col must be set.
+
+    `parent` (outline mode: child id → hub id) adds Pass C, which keeps every
+    hub above its own children. Without it a hub in `center` is pushed down by
+    the tall hubs before it while its leaves, out in `left`/`right`, collide
+    with nothing and stay put — so the leaves ride up beside or above the hub
+    and its spokes have to double back (ALTO-001). The engine's initLayout
+    carries the same pass (engine_patches: outline-hub-above-children)."""
     colx = COL_SETS[columns]
     heights = {n.id: card_height(n.desc, n.title) for n in nodes}
     act_seqs = [[] for _ in range(act_count)]
@@ -165,6 +173,16 @@ def resolve(nodes, columns: int, act_count: int):
                     for bi in range(ai + 1, len(act_seqs)):
                         for i in act_seqs[bi]:
                             positions[i] += shift
+                    nonlocal_changed[0] = True
+            # Pass C (outline): a hub sits above every direct child. Pushes
+            # only downward, like A and B, so the outer loop still converges.
+            for cid, pid in (parent or {}).items():
+                if cid not in positions or pid not in positions:
+                    continue
+                need = (positions[pid] - heights[pid] / 2 + HUB_DROP
+                        + heights[cid] / 2)
+                if positions[cid] < need - 0.5:
+                    positions[cid] = need
                     nonlocal_changed[0] = True
             if nonlocal_changed[0]:
                 outer_changed = True

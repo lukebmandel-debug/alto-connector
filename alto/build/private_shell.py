@@ -25,17 +25,45 @@ as the author. One upload per publish is the cost of that.
 """
 from __future__ import annotations
 
+import gzip
 import json
 
 from .fingerprint import META_NAME, meta_tag, page_fingerprint
 
 # Firestore rejects a document over 1 MiB (1,048,576 bytes), counting the field
 # names, the document's path and a little overhead on top of the value. A page
-# is one string plus two short ones, so ~1,000,000 bytes of page leaves the
+# is one value plus two short strings, so ~1,000,000 bytes of page leaves the
 # best part of 48 KB for all of that. It was 900,000 until the page outgrew it.
 # Stop short of it with a message the author can act on, rather than a raw
 # backend error.
+#
+# The cap is on the STORED bytes. A page is stored gzipped, as a Bytes field
+# `z` (with `enc: 'gzip'`), not as the html string — the engine alone is
+# ~650 KB of html but ~170 KB gzipped, which is what lets every page carry the
+# detail extras. alto-cloud.js packs and unpacks it (CompressionStream), so
+# the shells and the homepage still only ever see html; a document written
+# before this, with a plain `html` field, still reads. The built private.html
+# on disk stays plain html: it is what the author uploads, and the browser
+# compresses it on the way in.
 MAX_PAGE_BYTES = 1_000_000
+PAGE_ENCODING = "gzip"
+# zlib's default, which is what browsers' CompressionStream uses — so the
+# connector measures (and writes) what an upload from the browser would store.
+_GZIP_LEVEL = 6
+
+
+def pack_page(html: str) -> bytes:
+    """The bytes a private page is stored as (users/{uid}/pages/{key}.z)."""
+    return gzip.compress(html.encode("utf-8"), _GZIP_LEVEL, mtime=0)
+
+
+def unpack_page(data: bytes) -> str:
+    return gzip.decompress(data).decode("utf-8")
+
+
+def stored_bytes(html: str) -> int:
+    """What a page costs against MAX_PAGE_BYTES."""
+    return len(pack_page(html))
 
 _CSS = """
 :root{--bg:#f0efea;--surface:#fff;--text:#1a1a24;--muted:#6b6b80;
@@ -80,7 +108,6 @@ _STALE_CSS = (
 
 _JS = """
 (function(){
-  var MAX = __MAX__;
   // Which private timeline is this? Only the URL knows, and the URL is the
   // capability. Nothing about the timeline is written into this page.
   var KEY = (location.pathname.replace(/\\/+$/, '').split('/').pop() || '');
@@ -357,11 +384,8 @@ _JS = """
       var file = this.files && this.files[0];
       if(!file) return;
       var st = document.getElementById('st');
-      if(file.size > MAX){
-        st.textContent = 'That file is ' + Math.round(file.size/1024) +
-          ' KB; the limit is ' + Math.round(MAX/1024) + ' KB.';
-        return;
-      }
+      // No size check here: the cap is on the page as stored (compressed),
+      // which putPage measures, and refuses with the sizes in its message.
       st.textContent = 'Uploading\\u2026';
       file.text().then(function(html){
         return window.AltoCloud.putPage(KEY, html, titleOf(html))
@@ -494,8 +518,7 @@ def shell(cloud_version: str = "") -> str:
     the URL is the only thing that does. Empty version = plain URL, for callers
     that have no digest to hand.
     """
-    js = (_JS.replace("__MAX__", str(MAX_PAGE_BYTES))
-            .replace("__STALE_CSS__", json.dumps(_STALE_CSS)))
+    js = _JS.replace("__STALE_CSS__", json.dumps(_STALE_CSS))
     src = "/alto-cloud.js" + (f"?v={cloud_version}" if cloud_version else "")
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">\n'

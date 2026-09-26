@@ -100,6 +100,19 @@ def _check_hex(s, what, default):
 class Section:
     h: str          # heading, user-defined (e.g. "Holding", "Why It Matters")
     t: str          # verbatim user-material text (may contain inline HTML)
+    # Where the text stands relative to the material (ALTO-014): "quoted" —
+    # the source's own words; "notes" — the user's notes, restated; "summary"
+    # — a condensation. Shown beside the heading. A section headed "Text"
+    # (or "Rule text", "Quote"…) claims to be primary text, so validation
+    # warns unless it is marked quoted.
+    prov: str = ""
+
+
+PROVENANCE = {"quoted": "Quoted", "notes": "From your notes",
+              "summary": "Summary"}
+# Headings that read as the primary source's own words.
+PRIMARY_TEXT_HEADINGS = {"text", "rule text", "statutory text", "quote",
+                         "quotation", "verbatim"}
 
 
 @dataclass
@@ -110,6 +123,8 @@ class Entity:
     color: str = ""            # #rrggbb; auto-assigned when empty
     symbol_svg: str = ""       # inline SVG glyph; fallback glyph when empty
     sections: list[Section] = field(default_factory=list)   # entity detail page
+    aliases: list[str] = field(default_factory=list)   # other names prose uses
+    sources: list[str] = field(default_factory=list)   # Brief.source_docs ids
 
 
 @dataclass
@@ -120,6 +135,16 @@ class AxisValue:
     color: str = ""
     role: str = ""
     sections: list[Section] = field(default_factory=list)
+    # Other names the material uses for this value ("Carroll Towing" for
+    # "United States v. Carroll Towing Co."); running text naming any of them
+    # links to this value's page. Short forms are generated at build as well —
+    # these are the ones generation cannot guess.
+    aliases: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)   # Brief.source_docs ids
+    # Where the value is found in a book: {ch?, p?, note?}. `ch` is the
+    # chapter as the material names it ("Chapter 3 — Negligence"); `note`
+    # stands alone when there is no page ("not in the casebook").
+    cite: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -135,6 +160,24 @@ class Axis:
     # one you want. Distinct from FilterSpec.replace_nav, which also strips the
     # card chips because a filter-only axis has no pages worth opening.
     hide_nav: bool = False
+    # A section for this axis in the Filter panel. None = the default: on for
+    # an axis in the nav, off for a hide_nav axis, which gets an index page
+    # of its own instead (ALTO-006).
+    filter: bool | None = None
+    sources: list[str] = field(default_factory=list)   # shown on its index page
+    # Turns each value's `cite` into a link (ALTO-012):
+    # {label?: "Casebook", url: "https://…/{sec}#page-{p}", sections: {"3": id}}.
+    # `{sec}` is looked up by the chapter number in cite.ch; a chapter with no
+    # entry prints unlinked. Without `{sec}` the template is used as-is.
+    cite_link: dict = field(default_factory=dict)
+    # The index page (hide_nav axes). nav_label: the button's name when the
+    # plural label is too long for the nav row ("Restatement"). index_blurb:
+    # which section headings, in order of preference, give each row's one-line
+    # excerpt (default: the first section). index_sections: {h, t} shown at
+    # the top of the index, e.g. where its page numbers come from.
+    nav_label: str = ""
+    index_blurb: list[str] = field(default_factory=list)
+    index_sections: list[Section] = field(default_factory=list)
 
 
 @dataclass
@@ -217,6 +260,9 @@ class Node:
     # ("I.A.2") would be silently invalidated by inserting a sibling, so the
     # numbering is derived at build and never stored.
     parent: str = ""
+    # Brief.source_docs ids this node was built from. In outline mode a node
+    # with none inherits its nearest ancestor's (ALTO-011).
+    sources: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -252,15 +298,92 @@ class Brief:
     # (characters, environments, themes, doctrines…), so any of them can be
     # filtered by. Set false for a timeline that should not offer that.
     chip_filters: bool = True
+    # The documents the material came from, [{id, name, url?}] — the source
+    # map every node and sub-chip's `sources` point into, rendered as a
+    # "Source notes" section on its page. Filled from the consent manifest
+    # (record_materials_consent) for every entry that carries an id.
+    source_docs: list[dict] = field(default_factory=list)
+    # The nav group that holds the index buttons of hide_nav axes.
+    index_label: str = "Index"
+    # Which kinds of page are linked by name in running text (ALTO-010):
+    # "char" (entities), "env" (axis 1), "theme" (axis 2). A story whose
+    # settings and themes are ordinary words ("Control", "Love") links its
+    # characters only. autolink_overview=False keeps the Overview unlinked.
+    autolink: list[str] = field(default_factory=lambda: ["env", "theme"])
+    autolink_overview: bool = True
 
 
-def _check_sections(sections, what) -> None:
+def _check_sections(sections, what, warnings=None) -> None:
     if len(sections or []) > MAX_SECTIONS:
         raise BriefError(f"{what}: {len(sections)} sections exceeds the "
                          f"{MAX_SECTIONS}-section limit")
     for i, s in enumerate(sections or []):
         _check_len(s.h, "section_h", f"{what} section {i+1} heading")
         _check_len(s.t, "section_t", f"{what} section {i+1} text")
+        if s.prov and s.prov not in PROVENANCE:
+            raise BriefError(f"{what} section {i+1}: prov {s.prov!r} must be "
+                             f"one of {sorted(PROVENANCE)}")
+        if (warnings is not None and s.t and s.prov != "quoted"
+                and (s.h or "").strip().lower() in PRIMARY_TEXT_HEADINGS):
+            warnings.append(
+                f"{what} section {i+1} is headed {s.h!r}, which reads as the "
+                "source's own words — mark it prov:'quoted' only if it is a "
+                "quote present in the material; otherwise head it for what it "
+                "is (e.g. 'From your notes', prov:'notes')")
+
+
+_TEXT_WARN = re.compile(r"^(.+) section \d+ is headed '([^']*)', which reads as")
+_EMPTY_WARN = re.compile(r"^entity (\S+) \(.*\): no sections of its own")
+
+
+def _collapse(warnings: list) -> list:
+    """One line per new provenance / empty-element finding, not one per item
+    (a Restatement axis can hold dozens)."""
+    text, empty, out = [], [], []
+    for w in warnings:
+        m, e = _TEXT_WARN.match(w), _EMPTY_WARN.match(w)
+        if m:
+            text.append(m.group(1))
+        elif e:
+            empty.append(e.group(1))
+        else:
+            out.append(w)
+    def ids(xs):
+        return ", ".join(xs[:6]) + (f" and {len(xs) - 6} more" if len(xs) > 6 else "")
+    if text:
+        out.append(
+            f"{len(text)} section(s) are headed like primary text ('Text', "
+            f"'Quote'…) but not marked prov:'quoted' ({ids(text)}) — mark them "
+            "quoted only if the words are a quote present in the material; "
+            "otherwise head them for what they are (e.g. 'From your notes', "
+            "prov:'notes')")
+    if empty:
+        out.append(
+            f"{len(empty)} element page(s) have no sections of their own "
+            f"({ids(empty)}) — each will list its concepts but not how it is "
+            "satisfied; add sections from the material where it says")
+    return out
+
+
+def _check_refs(refs, doc_ids, what, warnings) -> None:
+    for r in refs or []:
+        if r not in doc_ids:
+            warnings.append(f"{what}: source {r!r} is not in source_docs — "
+                            "it will not be shown")
+
+
+def _check_sources(b) -> set:
+    ids = set()
+    for d in b.source_docs:
+        if not isinstance(d, dict) or not d.get("id"):
+            raise BriefError("source_docs: every entry needs an id")
+        _check_id(d["id"], "source doc")
+        _check_len(d.get("name", ""), "name", f"source doc {d['id']} name")
+        u = d.get("url") or ""
+        if u and not u.startswith("https://"):
+            raise BriefError(f"source doc {d['id']}: url must be https://")
+        ids.add(d["id"])
+    return ids
 
 
 def validate_brief(b: Brief) -> list[str]:
@@ -301,6 +424,11 @@ def validate_brief(b: Brief) -> list[str]:
         warnings.append("no entities defined — cards will carry no chips")
     _check_id(b.timeline_id, "timeline")
     _check_hex(b.accent, "accent", None)
+    doc_ids = _check_sources(b)
+    if not isinstance(b.autolink, list) or set(b.autolink) - {"char", "env", "theme"}:
+        raise BriefError("autolink: a list drawn from 'char', 'env', 'theme'")
+    if not isinstance(b.autolink_overview, bool):
+        raise BriefError("autolink_overview: must be true or false")
 
     seen = set()
     for i, e in enumerate(b.entities):
@@ -311,12 +439,34 @@ def validate_brief(b: Brief) -> list[str]:
         _check_len(e.name, "name", f"entity {e.id} name")
         _check_len(e.role, "role", f"entity {e.id} role")
         _check_len(e.symbol_svg, "symbol_svg", f"entity {e.id} symbol_svg")
-        _check_sections(e.sections, f"entity {e.id}")
+        _check_sections(e.sections, f"entity {e.id}", warnings)
+        _check_refs(e.sources, doc_ids, f"entity {e.id}", warnings)
+        for a in e.aliases:
+            _check_len(a, "name", f"entity {e.id} alias")
+        if b.mode == "outline" and not any(s.t for s in e.sections):
+            # ALTO-015: the page then shows only the concept list.
+            warnings.append(
+                f"entity {e.id} ({e.name}): no sections of its own — its page "
+                "will list its concepts but not how it is satisfied; add "
+                "sections from the material if it says")
         e.color = _check_hex(e.color or None, f"entity {e.id}",
                              PALETTE[i % len(PALETTE)])
     for ax in b.axes:
         _check_len(ax.label, "label", "axis label")
         _check_len(ax.singular, "singular", "axis singular")
+        if ax.filter is not None and not isinstance(ax.filter, bool):
+            raise BriefError(f"axis {ax.label!r}: filter must be true, false or omitted")
+        _check_refs(ax.sources, doc_ids, f"axis {ax.label!r}", warnings)
+        _check_len(ax.nav_label, "label", f"axis {ax.label!r} nav_label")
+        _check_sections(ax.index_sections, f"axis {ax.label!r} index", warnings)
+        if ax.cite_link:
+            u = ax.cite_link.get("url") or ""
+            if not u.startswith("https://") or "{p}" not in u:
+                raise BriefError(f"axis {ax.label!r}: cite_link.url must be an "
+                                 "https:// template containing {p}")
+            if not isinstance(ax.cite_link.get("sections", {}), dict):
+                raise BriefError(f"axis {ax.label!r}: cite_link.sections must map "
+                                 "chapter numbers to section ids")
         for v in ax.values:
             _check_id(v.id, f"axis {ax.label!r} value")
             if v.id in seen:
@@ -325,7 +475,14 @@ def validate_brief(b: Brief) -> list[str]:
             _check_len(v.name, "name", f"axis value {v.id} name")
             _check_len(v.role, "role", f"axis value {v.id} role")
             _check_len(v.symbol_svg, "symbol_svg", f"axis value {v.id} symbol_svg")
-            _check_sections(v.sections, f"axis value {v.id}")
+            _check_sections(v.sections, f"axis value {v.id}", warnings)
+            _check_refs(v.sources, doc_ids, f"axis value {v.id}", warnings)
+            for a in v.aliases:
+                _check_len(a, "name", f"axis value {v.id} alias")
+            if v.cite and not isinstance(v.cite, dict):
+                raise BriefError(f"axis value {v.id}: cite must be {{ch?, p?, note?}}")
+            if set(v.cite) - {"ch", "p", "note", "short"}:
+                raise BriefError(f"axis value {v.id}: cite keys are ch, p, note, short")
     for i, a in enumerate(b.acts):
         _check_len(a.label, "label", f"act {i+1} label")
         _check_len(a.short, "short", f"act {i+1} short")
@@ -403,7 +560,7 @@ def validate_brief(b: Brief) -> list[str]:
     if "spine" not in rel_keys:
         warnings.append("no 'spine' relation — the neutral main-thread line "
                         "style is unused")
-    return warnings
+    return _collapse(warnings)
 
 
 def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
@@ -510,12 +667,15 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
         _check_len(n.title, "title", f"node {n.id} title")
         _check_len(n.tag, "tag", f"node {n.id} tag")
         _check_len(n.desc, "desc", f"node {n.id} desc")
-        _check_sections(n.sections, f"node {n.id}")
+        _check_sections(n.sections, f"node {n.id}", warnings)
         if not (n.desc or "").strip():
             warnings.append(f"node {n.id}: empty desc (sparse by design?)")
 
     if b.mode == "outline":
         warnings += _validate_outline_tree(b, nodes)
+    doc_ids = {d.get("id") for d in b.source_docs if isinstance(d, dict)}
+    for n in nodes:
+        _check_refs(n.sources, doc_ids, f"node {n.id}", warnings)
 
     custom_vals = {f.id: {v.id for v in f.values}
                    for f in b.filters if f.source == "custom"}
@@ -545,4 +705,4 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
                     f"filter {f.id}: {len(missing)} node(s) unassigned "
                     f"({', '.join(missing[:4])}) — they dim whenever this "
                     "filter is active")
-    return warnings
+    return _collapse(warnings)
