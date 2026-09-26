@@ -130,5 +130,11 @@ RUNWAY_JS = r"""(function(){
 """
 
 
+def _strip_comments(js: str) -> str:
+    """Whole-line // comments only: they explain the code here, in the source,
+    and cost bytes in every page (a private page is capped at 1,000,000)."""
+    return "\n".join(l for l in js.split("\n") if not l.lstrip().startswith("//"))
+
+
 def runway_script() -> str:
-    return '<script id="alto-runway-js">\n' + RUNWAY_JS + '</script>\n'
+    return '<script id="alto-runway-js">\n' + _strip_comments(RUNWAY_JS) + '</script>\n'

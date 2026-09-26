@@ -1113,18 +1113,20 @@ _RW_FIXED = ("#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-labe
              "#timeline-return-pill, #wrap-warn-bar, #alto-icon-tip, #m-search, #m-search-results, "
              "#share-dialog, #account-btn, #account-scrim, #msp, #search-toggle, #ef-panel, "
              "#filter-toggle")
+# body overflow-x:clip: the closed panels wait just off the right edge, and as
+# part of the page they made it twice the screen's width, which an iPhone pans
+# into (overflow-x:hidden on the root does not stop a finger in iOS Safari).
+# body * overscroll-behavior:contain: a panel's scroll never carries on into
+# the page. (Kept here, not in the CSS: comments cost bytes in every page.)
 _RW_HEAD_OLD = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
 _RW_HEAD_NEW = _RW_HEAD_OLD + """
 <style id="alto-runway">
 html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
   overscroll-behavior:none; touch-action:none; }
-html.mobile.rw body *{ overscroll-behavior:contain; }   /* a panel's scroll never carries on into the page */
+html.mobile.rw body *{ overscroll-behavior:contain; }
 html.mobile.rw body:not(#_){ position:relative !important; height:100dvh !important; min-height:0 !important;
   margin:80px 0 140px !important; overflow-x:clip !important; overflow-y:visible !important;
   overscroll-behavior:none; touch-action:none; }
-/* overflow-x:clip: the closed panels wait just off the right edge, and as part of
-   the page they made it twice the screen's width, which an iPhone pans into
-   (overflow-x:hidden on the root does not stop a finger in iOS Safari). */
 html.mobile.rw #app:not(#_){ height:100dvh !important; margin-top:0 !important; }
 html.mobile.rw #page-bg:not(#_), html.mobile.rw #page-glass:not(#_){ position:absolute !important;
   top:-80px !important; bottom:auto !important; left:0 !important; right:0 !important;

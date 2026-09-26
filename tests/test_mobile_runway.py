@@ -75,5 +75,5 @@ def test_the_homepage_runs_behind_the_bars_too():
     assert "html.rw body:not(#_){ display:flow-root !important;" in home
     assert "#title-bar, #search-btn" in home and "html.rw #title-bar:not(#_)::before" in home
     # the same runway script as the timeline (pin, finger guard, scrollIntoView)
-    from alto.build.runway import RUNWAY_JS
-    assert RUNWAY_JS in home
+    from alto.build.runway import runway_script
+    assert runway_script() in home
