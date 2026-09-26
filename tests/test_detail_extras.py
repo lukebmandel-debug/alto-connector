@@ -228,14 +228,14 @@ def test_a_story_can_link_its_characters_only():
     b0 = d["brief"]
     b0["autolink"] = ["char"]
     b0["autolink_overview"] = False
-    b0["entities"] = [{"id": "marc", "name": "Marc Voss"}, {"id": "daisy", "name": "Daisy Voss"},
-                      {"id": "anya", "name": "Anya Cooper", "aliases": []},
-                      {"id": "conrad", "name": "Conrad"}]
-    b0["axes"][0]["values"] = [{"id": "hq", "name": "Conrad HQ"}, {"id": "ctl", "name": "Control"}]
+    b0["entities"] = [{"id": "tom", "name": "Tom Reyes"}, {"id": "ada", "name": "Ada Reyes"},
+                      {"id": "lin", "name": "Lin Park", "aliases": []},
+                      {"id": "hale", "name": "Hale"}]
+    b0["axes"][0]["values"] = [{"id": "hq", "name": "Hale House"}, {"id": "ctl", "name": "Control"}]
     b, _, _ = load_brief({"brief": b0})
     t = dx.autolink_table(b)
-    assert t["names"]["Anya"] == ["char", "anya"] and t["names"]["Marc"] == ["char", "marc"]
-    assert "Voss" not in t["names"]                     # two characters share it
+    assert t["names"]["Lin"] == ["char", "lin"] and t["names"]["Tom"] == ["char", "tom"]
+    assert "Reyes" not in t["names"]                    # two characters share it
     assert "Control" not in t["names"]                  # settings/themes are not linked
-    assert t["names"]["Conrad HQ"] is None              # held whole, not linked as Conrad
+    assert t["names"]["Hale House"] is None             # held whole, not linked as Hale
     assert t["ov"] is False

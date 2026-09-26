@@ -459,8 +459,8 @@ def autolink_table(b) -> dict:
                 names[a.strip()] = [kind, v.id]
     if "char" in on:
         # A character by full name, and by a first or last name no other
-        # character shares ("Anya" for Anya Cooper; not "Voss", which two
-        # characters carry — an alias settles that one).
+        # character shares ("Ada" for Ada Reyes; not a surname two characters
+        # carry — an alias settles that one).
         parts: dict = {}
         for e in b.entities:
             words = e.name.split()
@@ -477,7 +477,7 @@ def autolink_table(b) -> dict:
             for a in e.aliases:
                 names[a.strip()] = ["char", e.id]
     # A name of a kind that is NOT linked, but contains a linked one
-    # ("Conrad HQ", a setting, holds "Conrad", a character), is matched whole
+    # ("Hale House", a setting, holds "Hale", a character), is matched whole
     # and left alone, so its first word does not link to the wrong page.
     others = [e.name for e in b.entities] if "char" not in on else []
     for k, ax in (("env", b.axes[0] if len(b.axes) > 0 else None),
