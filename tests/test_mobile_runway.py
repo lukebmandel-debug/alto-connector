@@ -51,3 +51,12 @@ def test_scroll_into_view_never_moves_the_page(html):
     assert "Element.prototype.scrollIntoView = function(o){" in html
     assert "p !== document.body && p !== r" in html
     assert "html.mobile.rw body *{ overscroll-behavior:contain; }" in html
+
+
+def test_a_finger_never_moves_the_page(html):
+    # Real iPhones pan the root despite touch-action:none / overflow-x:hidden:
+    # the page slid sideways into the parked panels and jittered vertically.
+    assert "overflow-x:clip !important; overflow-y:visible !important;" in html
+    assert "document.addEventListener('touchmove', function(e){" in html
+    assert "if(e.touches.length !== 1 || !e.cancelable) return;" in html
+    assert "!(window.pageXOffset || 0)" in html

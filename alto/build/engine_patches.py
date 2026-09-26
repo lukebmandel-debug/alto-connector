@@ -1118,7 +1118,11 @@ html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; heig
   overscroll-behavior:none; touch-action:none; }
 html.mobile.rw body *{ overscroll-behavior:contain; }   /* a panel's scroll never carries on into the page */
 html.mobile.rw body:not(#_){ position:relative !important; height:100dvh !important; min-height:0 !important;
-  margin:80px 0 140px !important; overflow:visible !important; overscroll-behavior:none; touch-action:none; }
+  margin:80px 0 140px !important; overflow-x:clip !important; overflow-y:visible !important;
+  overscroll-behavior:none; touch-action:none; }
+/* overflow-x:clip: the closed panels wait just off the right edge, and as part of
+   the page they made it twice the screen's width, which an iPhone pans into
+   (overflow-x:hidden on the root does not stop a finger in iOS Safari). */
 html.mobile.rw #app:not(#_){ height:100dvh !important; margin-top:0 !important; }
 html.mobile.rw #page-bg:not(#_), html.mobile.rw #page-glass:not(#_){ position:absolute !important;
   top:-80px !important; bottom:auto !important; left:0 !important; right:0 !important;
@@ -1196,12 +1200,41 @@ _RW_NEW = """<script id="alto-runway-js">
   new MutationObserver(function(ms){
     ms.forEach(function(m){ [].forEach.call(m.addedNodes, function(n){ if(n.nodeType === 1) sweep(n); }); });
   }).observe(document.body, {childList: true, subtree: true});
+  // A finger never moves the page itself. On an iPhone touch-action:none on
+  // the root does not hold, and a drag that reached the page made every tile
+  // move and snap back ("seizure"). One-finger drags go only to a panel that
+  // can still scroll that way; anything else is refused. Two fingers (the
+  // engine's own panel zoom), text selection and form fields are left alone.
+  var tx = 0, ty = 0;
+  document.addEventListener('touchstart', function(e){
+    if(e.touches.length === 1){ tx = e.touches[0].clientX; ty = e.touches[0].clientY; }
+  }, {passive: true, capture: true});
+  document.addEventListener('touchmove', function(e){
+    if(e.touches.length !== 1 || !e.cancelable) return;
+    var t = e.target;
+    if(t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+    var sel = window.getSelection && window.getSelection();
+    if(sel && !sel.isCollapsed) return;
+    var dx = e.touches[0].clientX - tx, dy = e.touches[0].clientY - ty;
+    var vert = Math.abs(dy) >= Math.abs(dx);
+    for(var p = t && t.nodeType === 1 ? t : t && t.parentElement; p && p !== document.body && p !== r; p = p.parentElement){
+      var c = getComputedStyle(p);
+      if(vert){
+        if(/(auto|scroll)/.test(c.overflowY) && p.scrollHeight > p.clientHeight + 1 &&
+           ((dy > 0 && p.scrollTop > 0) || (dy < 0 && p.scrollTop + p.clientHeight < p.scrollHeight - 1))) return;
+      } else {
+        if(/(auto|scroll)/.test(c.overflowX) && p.scrollWidth > p.clientWidth + 1 &&
+           ((dx > 0 && p.scrollLeft > 0) || (dx < 0 && p.scrollLeft + p.clientWidth < p.scrollWidth - 1))) return;
+      }
+    }
+    e.preventDefault();
+  }, {passive: false});
   // Rest 80px down the runway, and stay there: no touch scrolling, and a
   // snap-back if anything (a focused field, a hash jump) moves the page.
   var busy = false;
   function typing(){ var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
   function pin(){
-    if(busy || typing() || Math.abs((window.pageYOffset || 0) - OFF) <= 1) return;
+    if(busy || typing() || (Math.abs((window.pageYOffset || 0) - OFF) <= 1 && !(window.pageXOffset || 0))) return;
     busy = true;
     requestAnimationFrame(function(){ busy = false; window.scrollTo(0, OFF); });
   }
