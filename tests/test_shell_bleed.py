@@ -51,4 +51,5 @@ def test_a_directly_opened_mobile_page_runs_its_wallpaper_behind_the_bars():
     html, _ = build_timeline(*load_brief(d))
     assert 'id="alto-runway"' in html and "html.mobile.rw #app{ height:100dvh; margin-top:62px; }" in html
     assert "html.mobile.rw #nav::before" in html          # glass on a child, not the pinned header
+    assert "min-height:calc(100dvh + 200px); overflow:hidden !important" in html   # the runway is not stretched by the timeline
     assert "window.top !== window" in html                # never inside a frame

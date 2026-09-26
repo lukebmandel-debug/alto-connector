@@ -1111,7 +1111,7 @@ _RW_ANCHOR = '<script id="layout-settle">'
 _RW_NEW = """<style id="alto-runway">
 html.mobile.rw{ overflow-y:scroll !important; overflow-x:hidden !important; height:auto !important;
   overscroll-behavior:none; touch-action:none; }
-html.mobile.rw body{ height:auto !important; min-height:calc(100dvh + 124px); overflow:visible !important;
+html.mobile.rw body{ height:auto !important; min-height:calc(100dvh + 200px); overflow:hidden !important;
   overscroll-behavior:none; touch-action:none; }
 html.mobile.rw #app{ height:100dvh; margin-top:62px; }
 html.mobile.rw #page-bg, html.mobile.rw #page-glass{ position:absolute !important; top:-62px !important;
