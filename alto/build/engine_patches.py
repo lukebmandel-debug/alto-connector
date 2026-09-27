@@ -52,20 +52,6 @@ _MERGE_FLAG_NEW = """        var _mfLo = mergedRide ? mergedRide.x1 : 0, _mfHi =
           var flag = document.createElementNS(NS,'path');
           flag.setAttribute('d', 'M ' + _mfLo + ' ' + (midY + tubeW/4) +
                                  ' L ' + _mfHi + ' ' + (midY + tubeW/4));"""
-# ── compass hop ignores relation-filtered nodes ──────────────────────────────
-# focusNeighbor (the 8-way arrow/swipe hop between focused cards) deliberately
-# skips nodes an era/weight filter has dimmed, so hopping only visits nodes that
-# meet the active filter. Relation filters dim with their own `rel-dimmed` class
-# — a separate class on purpose, so the engine's slot filters and the relation
-# filters never write to the same one — which left the hop walking into cards
-# the user had just filtered out. Teach the guard about both.
-_HOP_DIM_OLD = ("      var _c=n.querySelector('.node-card'); "
-                "if(_c&&_c.classList.contains('dimmed')) return;")
-_HOP_DIM_NEW = ("      var _c=n.querySelector('.node-card'); "
-                "if(_c&&(_c.classList.contains('dimmed')||"
-                "_c.classList.contains('rel-dimmed')||"
-                "_c.classList.contains('ent-dimmed'))) return;")
-
 # ── an outline prints as an outline ─────────────────────────────────────────
 # The engine's "main timeline" print renders every node as a card on a vertical
 # spine, which is right for a sequence and wrong for a containment tree: on
@@ -344,9 +330,10 @@ _SAFARI_ZOOM_NEW = _SAFARI_ZOOM_OLD + """  // Safari 26+: standardized zoom, sam
 # A ResizeObserver keeps the margins current (fonts, relayout, the focus zoom
 # ramp). A node with an inline transform — the focus fly — drops the margins
 # and uses its transform exactly as before, so enlarged cards are unchanged.
-# The three engine functions that read offsetLeft/offsetTop as a node's centre
-# (focus fly, arrow-key neighbour, search scroll) subtract the margin back out
-# (dgrid-centre-*), which is also correct on mobile, where there is none.
+# The engine functions that read offsetLeft/offsetTop as a node's centre
+# (focus fly, search scroll) subtract the margin back out (dgrid-centre-*),
+# which is also correct on mobile, where there is none; arrow-key navigation
+# reads style.left/top (arrows-follow-the-layout).
 _DGRID_SCRIPT_OLD = """<script id="d-grid-quantize">
 /* D-GRID quantize (2026-07-25, desktop only): translate(-50%) of a fractional
    card height leaves the card top on a fractional device pixel — every glyph in
@@ -398,7 +385,8 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
   function centre(n){
     if(!n.offsetWidth) return;
     n.style.setProperty('--mx',(-n.offsetWidth/2)+'px');
-    n.style.setProperty('--my',(-n.offsetHeight/2)+'px');
+    /* a hovered card grows downward from its resting top (n._hov: rest height) */
+    n.style.setProperty('--my',(-(n._hov!=null?n._hov:n.offsetHeight)/2)+'px');
   }
   var ro=(typeof ResizeObserver==='function')
     ? new ResizeObserver(function(es){ es.forEach(function(e){ centre(e.target); }); }) : null;
@@ -428,6 +416,38 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
     el._settled=0; el.style.margin='';
     el.style.transform='translate(-50%,-50%) translate('+(el._fx||0)+'px,'+(el._fy||0)+'px)';
   };
+  /* Hover enlarge by CSS zoom, ramped, not transform:scale — a scaled card is
+     a transform again (off-grid, soft text), a zoomed one is laid out at its
+     new size and lands on the grid like any other. The card is a fixed width,
+     so nothing re-wraps. Its top stays put (centre() above), so it grows down
+     into the gap below as the scale always did. A focused card is left to the
+     focus ramp, which starts from whatever zoom this left it at. */
+  var HK=1.08, HMS=160;
+  function hoverRamp(n,c,to){
+    if(n._hr) cancelAnimationFrame(n._hr);
+    var from=parseFloat(c.style.zoom)||1, t0=null;
+    function step(ts){
+      if(n.classList.contains('focused')){ n._hr=null; n._hov=null; return; }
+      if(t0===null) t0=ts;
+      var p=Math.min(1,(ts-t0)/HMS), e=1-(1-p)*(1-p), z=from+(to-from)*e;
+      c.style.zoom=(Math.abs(z-1)<0.0005)?'':String(z);
+      if(p<1) n._hr=requestAnimationFrame(step);
+      else { n._hr=null; if(to===1){ n._hov=null; centre(n); } }
+    }
+    n._hr=requestAnimationFrame(step);
+  }
+  function cardOf(t){ return t&&t.closest ? t.closest('#world .node-card') : null; }
+  document.addEventListener('mouseover',function(e){
+    var c=cardOf(e.target); if(!c || de.classList.contains('mobile')) return;
+    var n=c.closest('.node'); if(!n || n._hovOn || n.classList.contains('focused')) return;
+    n._hovOn=1; if(n._hov==null) n._hov=n.offsetHeight;
+    hoverRamp(n,c,HK);
+  });
+  document.addEventListener('mouseout',function(e){
+    var c=cardOf(e.target); if(!c || c.contains(e.relatedTarget)) return;
+    var n=c.closest('.node'); if(!n || !n._hovOn) return;
+    n._hovOn=0; if(!n.classList.contains('focused')) hoverRamp(n,c,1);
+  });
   window.__altoQuantize=sweep;
   window.addEventListener('load',sweep);
   if(document.fonts&&document.fonts.ready&&document.fonts.ready.then) document.fonts.ready.then(sweep);
@@ -440,15 +460,16 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
 # focus-zoom patches above carry (_altoUnsettle, p._settled=0).
 _DGRID_LAND_OLD = "      // settle: optionally swap the transform scale for a CSS-zoom re-raster\n"
 _DGRID_LAND_NEW = ("      if(window._altoSettle) window._altoSettle(el);\n" + _DGRID_LAND_OLD)
+# The hover rule's transform:scale(1.08) is replaced by the zoom ramp above.
+_DGRID_HOVER_OLD = ("html:not(.mobile) .node:not(.focused) .node-card:hover{\n"
+                    "  transform: scale(1.08);\n}")
+_DGRID_HOVER_NEW = ("html:not(.mobile) .node:not(.focused) .node-card:hover{\n"
+                    "  transform: none;   /* D-GRID: enlarged by a zoom ramp, see d-grid-quantize */\n}")
+
 # Readers of a node's centre: offsetLeft/Top include the centring margin now.
 _DGRID_CXY_OLD = "    return {x:el.offsetLeft+ox, y:el.offsetTop+oy};"
 _DGRID_CXY_NEW = ("    var _cs=getComputedStyle(el);\n"
                   "    return {x:el.offsetLeft-(parseFloat(_cs.marginLeft)||0)+ox, y:el.offsetTop-(parseFloat(_cs.marginTop)||0)+oy};")
-_DGRID_NB_OLD = "    var cx=cur.offsetLeft,cy=cur.offsetTop,best=null,bc=Infinity;"
-_DGRID_NB_NEW = ("    function _ctr(e){ var c=getComputedStyle(e); return [e.offsetLeft-(parseFloat(c.marginLeft)||0), e.offsetTop-(parseFloat(c.marginTop)||0)]; }\n"
-                 "    var _cc=_ctr(cur), cx=_cc[0],cy=_cc[1],best=null,bc=Infinity;")
-_DGRID_NB2_OLD = "      var dx=n.offsetLeft-cx,dy=n.offsetTop-cy;"
-_DGRID_NB2_NEW = "      var _nc=_ctr(n), dx=_nc[0]-cx,dy=_nc[1]-cy;"
 _DGRID_SRCH_OLD = ("      var top=(world?world.offsetTop:0)+node.offsetTop - cv.clientHeight/2;\n"
                    "      var left=(world?world.offsetLeft:0)+node.offsetLeft - cv.clientWidth/2;")
 _DGRID_SRCH_NEW = ("      var _ns=getComputedStyle(node);\n"
@@ -556,12 +577,6 @@ PATCHES = [
         "count": 1,
     },
     {
-        "name": "compass-hop-skips-relation-filtered",
-        "old": _HOP_DIM_OLD,
-        "new": _HOP_DIM_NEW,
-        "count": 1,
-    },
-    {
         "name": "outline-prints-as-an-outline",
         "old": _PRINT_OUTLINE_OLD,
         "new": _PRINT_OUTLINE_NEW,
@@ -631,8 +646,7 @@ PATCHES = [
      "new": _DGRID_SCRIPT_NEW, "count": 1},
     {"name": "dgrid-centre-fly", "old": _DGRID_CXY_OLD, "new": _DGRID_CXY_NEW, "count": 1},
     {"name": "dgrid-focus-lands-in-layout", "old": _DGRID_LAND_OLD, "new": _DGRID_LAND_NEW, "count": 1},
-    {"name": "dgrid-centre-neighbour", "old": _DGRID_NB_OLD, "new": _DGRID_NB_NEW, "count": 1},
-    {"name": "dgrid-centre-neighbour-2", "old": _DGRID_NB2_OLD, "new": _DGRID_NB2_NEW, "count": 1},
+    {"name": "dgrid-hover-by-zoom", "old": _DGRID_HOVER_OLD, "new": _DGRID_HOVER_NEW, "count": 1},
     {"name": "dgrid-centre-search", "old": _DGRID_SRCH_OLD, "new": _DGRID_SRCH_NEW, "count": 1},
     {"name": "chip-outlines-are-borders", "old": _CHIP_RULE_OLD, "new": _CHIP_RULE_NEW, "count": 1},
 ]
@@ -1348,6 +1362,106 @@ _HUB_ABOVE_NEW = ("    if(window._altoHubsAbove&&_altoHubsAbove(positions,nodeHe
 PATCHES += [
     {"name": "outline-hub-above-children", "old": _HUB_ABOVE_OLD,
      "new": _HUB_ABOVE_NEW, "count": 1},
+]
+
+# ── arrow keys follow the layout ────────────────────────────────────────────
+# Arrows (and swipes) while a card is enlarged used to take the nearest node
+# within 60 degrees of the direction, so on a tree "down" from a root could land
+# on an outcome card two branches over. The rule now, everywhere:
+#   1. an outline's structure first — down goes into the node's children (the
+#      one most directly below), up goes back to its parent — when it lies that way;
+#   2. up/down on a flowing page (a story like Terrarium): the previous / next
+#      card in its reading order, so no event in between is ever skipped;
+#   3. then straight ahead: the nearest card that lines up with this one — the
+#      same row for left/right, the same column for up/down (on a tree);
+#   4. only then the old nearest-within-60-degrees pick (and for diagonals).
+# Cards dimmed by any filter (slot `dimmed`, relation `rel-dimmed`, entity
+# `ent-dimmed`) are skipped, as the retired compass-hop patch did.
+_ARROWS_OLD = """  function focusNeighbor(dir){
+    var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
+    var ta=_DIRANG[dir]; if(ta===undefined) return;
+    var cx=cur.offsetLeft,cy=cur.offsetTop,best=null,bc=Infinity;
+    allNodes().forEach(function(n){
+      if(n===cur) return;
+      // Filter-aware: when an era/weight filter dims a node, skip it so swipe/arrows
+      // only hop between nodes that meet the active filter criteria.
+      var _c=n.querySelector('.node-card'); if(_c&&_c.classList.contains('dimmed')) return;
+      var dx=n.offsetLeft-cx,dy=n.offsetTop-cy;
+      var dist=Math.sqrt(dx*dx+dy*dy); if(dist<1) return;
+      var diff=Math.atan2(dy,dx)*180/Math.PI-ta;
+      while(diff>180)diff-=360; while(diff<-180)diff+=360;
+      if(Math.abs(diff)>60) return;                 // not in this compass sector
+      var c=dist/Math.max(Math.cos(diff*Math.PI/180),0.2);
+      if(c<bc){bc=c;best=n.id.slice(5);}
+    });
+    if(best) enterFocus(best);
+  }"""
+_ARROWS_NEW = """  function focusNeighbor(dir){
+    var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
+    var ta=_DIRANG[dir]; if(ta===undefined) return;
+    var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
+    // Every node's resting box in world px: style.left/top is its centre however
+    // it is placed (margins, fly transform, tree), the card its size unzoomed.
+    function g(n){
+      if(!n) return null;
+      var c=n.querySelector('.node-card'), z=c?(parseFloat(c.style.zoom)||1):1;
+      var w=(c?c.offsetWidth:n.offsetWidth)/z, h=(c?c.offsetHeight:n.offsetHeight)/z;
+      var x=parseFloat(n.style.left), y=parseFloat(n.style.top);
+      if(isNaN(x)) x=n.offsetLeft; if(isNaN(y)) y=n.offsetTop;
+      return {id:n.id.slice(5), x:x, y:y, l:x-w/2, r:x+w/2, t:y-h/2, b:y+h/2,
+              dim:!!(c&&(c.classList.contains('dimmed')||c.classList.contains('rel-dimmed')||
+                          c.classList.contains('ent-dimmed')))};
+    }
+    var C=g(cur), all=allNodes().filter(function(n){ return n!==cur; }).map(g)
+                         .filter(function(q){ return !q.dim; });
+    function byId(i){ for(var k=0;k<all.length;k++) if(all[k].id===i) return all[k]; return null; }
+    var best=null;
+    if(dir==='n'||dir==='s'||dir==='e'||dir==='w'){
+      var vert=(dir==='n'||dir==='s'), sg=(dir==='s'||dir==='e')?1:-1;
+      // 1. the outline's own structure: down is into a node's children (the one
+      //    most directly below), up is back to its parent — when they lie that way
+      if(dir==='s'){
+        var ks=(K[id]||[]).map(byId).filter(function(q){ return q && q.t>=C.b-1; });
+        ks.sort(function(a,b){ return Math.abs(a.x-C.x)-Math.abs(b.x-C.x); });
+        if(ks.length) best=ks[0].id;
+      } else if(dir==='n' && P[id]){
+        var pq=byId(P[id]); if(pq && pq.b<=C.t+1) best=pq.id;
+      }
+      // 2. up/down on a flowing page (a story): the previous / next card in the
+      //    page's own reading order (ACT_SEQS), so no event is ever skipped.
+      if(!best && vert && !window._altoTreeOn && typeof ACT_SEQS!=='undefined'){
+        var seq=[].concat.apply([],ACT_SEQS), at=seq.indexOf(id);
+        for(var i=at+sg; at>=0 && i>=0 && i<seq.length; i+=sg){ if(byId(seq[i])){ best=seq[i]; break; } }
+      }
+      // 3. otherwise straight ahead: the nearest card that lines up with this one
+      //    — the same row going left/right, the same column going up/down.
+      if(!best){
+        var bc=Infinity;
+        all.forEach(function(q){
+          var along=(vert?q.y-C.y:q.x-C.x)*sg;
+          if(along<=1) return;
+          var ov=vert?Math.min(C.r,q.r)-Math.max(C.l,q.l):Math.min(C.b,q.b)-Math.max(C.t,q.t);
+          if(ov<=0) return;
+          if(along<bc){ bc=along; best=q.id; }
+        });
+      }
+    }
+    // 4. otherwise the nearest node within 60 degrees of the direction
+    if(!best){
+      var bc2=Infinity;
+      all.forEach(function(q){
+        var dx=q.x-C.x, dy=q.y-C.y, dist=Math.sqrt(dx*dx+dy*dy); if(dist<1) return;
+        var diff=Math.atan2(dy,dx)*180/Math.PI-ta;
+        while(diff>180)diff-=360; while(diff<-180)diff+=360;
+        if(Math.abs(diff)>60) return;
+        var c=dist/Math.max(Math.cos(diff*Math.PI/180),0.2);
+        if(c<bc2){ bc2=c; best=q.id; }
+      });
+    }
+    if(best) enterFocus(best);
+  }"""
+PATCHES += [
+    {"name": "arrows-follow-the-layout", "old": _ARROWS_OLD, "new": _ARROWS_NEW, "count": 1},
 ]
 
 # ── outline: the desktop tree replaces the resolver's positions ─────────────

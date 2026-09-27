@@ -36,7 +36,6 @@ def test_desktop_nodes_are_centred_by_layout_on_every_engine():
 def test_readers_of_a_node_centre_subtract_the_centring_margin():
     html = _html()
     assert "el.offsetLeft-(parseFloat(_cs.marginLeft)||0)+ox" in html      # focus fly
-    assert "var _cc=_ctr(cur), cx=_cc[0],cy=_cc[1]" in html                  # arrow keys
     assert "node.offsetLeft-(parseFloat(_ns.marginLeft)||0)" in html        # search
 
 
@@ -67,7 +66,32 @@ def test_fading_waits_for_the_pointer_to_rest_and_masks_lines_under_cards():
     html = _html()
     assert "arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);" in html
     assert "e.setAttribute('mask','url(#alto-hover-mask)')" in html
-    assert "m.setAttribute('id','alto-hover-mask')" in html
+    assert "cardMask(svg,'alto-hover-mask');" in html
+
+
+def test_faded_lines_never_show_through_faded_cards():
+    """Enlarging a card fades the rest; so do filters. Safari masks each line
+    path under every card while anything is faded (not the outer <svg>, which
+    WebKit stops drawing when masked)."""
+    html = _html()
+    assert "e.setAttribute('mask','url(#alto-fade-mask)')" in html
+    assert "cv.classList.contains('focus-mode')" in html
+    assert "svg.setAttribute('mask','url(#alto-fade-mask)')" not in html
+
+
+def test_hovered_cards_grow_by_zoom_not_transform():
+    html = _html()
+    assert "transform: none;   /* D-GRID: enlarged by a zoom ramp" in html
+    assert "var HK=1.08, HMS=160;" in html
+
+
+def test_arrow_keys_follow_structure_then_reading_order_then_alignment():
+    html = _html()
+    f = html[html.index("  function focusNeighbor(dir){"):]
+    f = f[:f.index("    if(best) enterFocus(best);")]
+    s_ = f.index("if(dir==='s'){"); r = f.index("var seq=[].concat.apply([],ACT_SEQS)")
+    a = f.index("if(ov<=0) return;"); c = f.index("Math.abs(diff)>60")
+    assert s_ < r < a < c          # structure → reading order → aligned → compass
 
 
 def test_an_enlarged_card_settles_into_layout_too():

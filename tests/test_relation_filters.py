@@ -119,7 +119,7 @@ def test_relation_dimming_uses_its_own_class():
     html, _ = _build()
     assert ".node-card.rel-dimmed > *{opacity:0.15;}" in html
     # ...and the compass hop knows about both, so arrow-hopping skips them
-    assert "_c.classList.contains('rel-dimmed')" in html
+    assert "c.classList.contains('rel-dimmed')" in html      # arrows skip them
 
 
 def test_the_node_map_lists_only_nodes_the_relation_touches():
@@ -141,9 +141,9 @@ def test_no_relation_chips_means_no_relation_machinery():
     for marker in ("REL_NODES", "_altoRelFilterBound",
                    ".node-card.rel-dimmed"):
         assert marker not in html
-    # The compass-hop guard is an engine patch, not a feature toggle — it is
+    # The arrow-key guard is an engine patch, not a feature toggle — it is
     # applied to every build and simply never sees the class.
-    assert "_c.classList.contains('rel-dimmed')" in html
+    assert "c.classList.contains('rel-dimmed')" in html
 
 
 @pytest.mark.skipif(not OUTLINE.exists(), reason="outline sample not present")
