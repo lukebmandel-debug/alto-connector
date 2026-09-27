@@ -593,9 +593,14 @@ LINE_NAV_GLUE = """
   function edgeOf(t){ return t && t.closest && t.closest('#river-svg [data-edge-hit],#river-svg [data-edge]'); }
   function keyOf(p){ return p.getAttribute('data-edge-hit')||p.getAttribute('data-edge'); }
   var hot=null, NS='http://www.w3.org/2000/svg';
-  /* every card's box as it is on screen (moved, enlarged, hovered), cut out of
-     a mask in the line layer's own coordinates */
-  function cardMask(svg,id){
+  /* every FADED card's box as it is on screen (moved, enlarged, hovered), cut
+     out of a mask in the line layer's own coordinates. A card at full strength
+     — the enlarged one, the two ends of a hovered line, the cards a filter
+     keeps — does not hide the lines behind it, just as at rest. */
+  function dimmed(c){
+    return c.classList.contains('dimmed')||c.classList.contains('rel-dimmed')||c.classList.contains('ent-dimmed');
+  }
+  function cardMask(svg,id,faded){
     var m=svg.querySelector('#'+id), defs=svg.querySelector('defs');
     if(!defs){ defs=document.createElementNS(NS,'defs'); svg.insertBefore(defs,svg.firstChild); }
     if(!m){ m=document.createElementNS(NS,'mask'); m.setAttribute('id',id);
@@ -607,7 +612,7 @@ LINE_NAV_GLUE = """
     m.appendChild(full);
     var T=svg.getScreenCTM(); if(!T) return;
     [].forEach.call(document.querySelectorAll('#world .node-card'),function(c){
-      if(!c.offsetWidth) return;
+      if(!c.offsetWidth || !faded(c)) return;
       var q=c.getBoundingClientRect(), r=document.createElementNS(NS,'rect');
       r.setAttribute('x',(q.left-T.e)/T.a); r.setAttribute('y',(q.top-T.f)/T.d);
       r.setAttribute('width',q.width/T.a); r.setAttribute('height',q.height/T.d);
@@ -630,7 +635,11 @@ LINE_NAV_GLUE = """
     if(de.classList.contains('is-blink') || !desktop()) return;
     var svg=document.getElementById('river-svg'); if(!svg) return;
     var on=fadeOn();
-    if(on) cardMask(svg,'alto-fade-mask');
+    if(on){
+      var focus=document.getElementById('canvas').classList.contains('focus-mode');
+      cardMask(svg,'alto-fade-mask',function(c){
+        return focus ? !c.closest('.node').classList.contains('focused') : dimmed(c); });
+    }
     [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit])'),function(e){
       if(e.closest('mask')) return;
       if(on){ if(!e.hasAttribute('data-edge-masked')){ e.setAttribute('mask','url(#alto-fade-mask)'); e.setAttribute('data-fade-masked','1'); } }
@@ -663,7 +672,7 @@ LINE_NAV_GLUE = """
     if(!cv || !svg || cv.classList.contains('focus-mode')) return;
     hot=key; var ends=key.split('|');
     ends.forEach(function(id){ var n=document.getElementById('node-'+id); if(n) n.classList.add('edge-end'); });
-    cardMask(svg,'alto-hover-mask');
+    cardMask(svg,'alto-hover-mask',function(c){ return !c.closest('.node').classList.contains('edge-end'); });
     [].forEach.call(svg.querySelectorAll('[data-edge],[data-edge-part]'),function(e){
       if((e.getAttribute('data-edge')||e.getAttribute('data-edge-part'))===key) e.classList.add('edge-hot');
       else { e.setAttribute('mask','url(#alto-hover-mask)'); e.setAttribute('data-edge-masked','1'); e.removeAttribute('data-fade-masked'); }

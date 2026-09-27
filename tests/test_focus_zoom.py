@@ -62,7 +62,9 @@ def test_a_half_ramped_card_is_never_stranded(html):
     """Hopping focus before the ramp lands cancels it; the abandoned card has to
     be put back, or it keeps a partial inline zoom forever."""
     assert "if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);" in html
-    assert "_setZoom(_cardOf(p),1);" in html          # previous node on re-focus
+    # the previous node glides home and ends with its zoom cleared
+    assert "_release(p); } }" in html
+    assert "else { p._rel=null; p.style.transform=''; p._fx=p._fy=0; _setZoom(card,1); }" in html
 
 
 def test_exit_clears_the_inline_zoom_rather_than_pinning_it_to_1(html):

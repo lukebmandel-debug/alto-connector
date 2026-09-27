@@ -66,7 +66,7 @@ def test_fading_waits_for_the_pointer_to_rest_and_masks_lines_under_cards():
     html = _html()
     assert "arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);" in html
     assert "e.setAttribute('mask','url(#alto-hover-mask)')" in html
-    assert "cardMask(svg,'alto-hover-mask');" in html
+    assert "cardMask(svg,'alto-hover-mask',function(c){ return !c.closest('.node').classList.contains('edge-end'); });" in html
 
 
 def test_faded_lines_never_show_through_faded_cards():
@@ -89,13 +89,16 @@ def test_arrow_keys_follow_structure_then_reading_order_then_alignment():
     html = _html()
     f = html[html.index("  function focusNeighbor(dir){"):]
     f = f[:f.index("    if(best) enterFocus(best);")]
-    s_ = f.index("if(dir==='s'){"); r = f.index("var seq=[].concat.apply([],ACT_SEQS)")
-    a = f.index("if(ov<=0) return;"); c = f.index("Math.abs(diff)>60")
-    assert s_ < r < a < c          # structure → reading order → aligned → compass
+    t = f.index("if(vert && tree){")                      # a tree: within the branch
+    k = f.index("best=kidsBelow() || aligned(all.filter(inScope),true,1);")
+    h = f.index("if(!best && sc) best=sc.id;")           # …else up to the branch's head
+    r = f.index("var seq=[].concat.apply([],ACT_SEQS)")  # a flowing page: reading order
+    a = f.index("if(!best) best=aligned(all,vert,sg);")  # then straight ahead
+    c = f.index("Math.abs(diff)>60")                     # then the compass
+    assert t < k < h < r < a < c
+    assert "e.preventDefault(); _hop(d, e.repeat);" in html      # one hop at a time
 
 
-def test_an_enlarged_card_settles_into_layout_too():
+def test_only_faded_cards_hide_lines():
     html = _html()
-    assert "      if(window._altoSettle) window._altoSettle(el);\n" in html     # fly lands
-    assert "if(window._altoUnsettle) window._altoUnsettle(el);" in html         # flies home
-    assert "p._settled=0; p.style.margin='';" in html                           # focus moves on
+    assert "return focus ? !c.closest('.node').classList.contains('focused') : dimmed(c); });" in html

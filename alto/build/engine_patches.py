@@ -158,9 +158,29 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     _zw=requestAnimationFrame(step);
   }
 
+  /* The card focus leaves (an arrow hop, a swipe, a click on another) glides
+     home — shrinking and sliding back over 300ms — instead of snapping, which
+     read as a glitch on every hop. */
+  function _release(p){
+    if(window._altoUnsettle) window._altoUnsettle(p);   // margins -> its fly transform
+    var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=null;
+    if(p._rel) cancelAnimationFrame(p._rel);
+    function step(ts){
+      if(p.classList.contains('focused')){ p._rel=null; return; }   // focused again mid-way
+      if(s0===null) s0=ts;
+      var t=Math.min(1,(ts-s0)/300), e=1-(1-t)*(1-t);
+      _setZoom(card, z0+(1-z0)*e);
+      p.style.transform='translate(-50%,-50%) translate('+(fx*(1-e))+'px,'+(fy*(1-e))+'px)';
+      if(t<1) p._rel=requestAnimationFrame(step);
+      else { p._rel=null; p.style.transform=''; p._fx=p._fy=0; _setZoom(card,1); }
+    }
+    p._rel=requestAnimationFrame(step);
+  }
+
   function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
-    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p._settled=0; p.style.margin=''; p.style.transform=''; p._fx=p._fy=0; _setZoom(_cardOf(p),1); } }
+    if(el._rel){ cancelAnimationFrame(el._rel); el._rel=null; }
+    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); _release(p); } }
     window._focusedNodeId=id;
     canvas.classList.add('focus-mode');
     el.classList.add('focused');
@@ -1368,13 +1388,18 @@ PATCHES += [
 # Arrows (and swipes) while a card is enlarged used to take the nearest node
 # within 60 degrees of the direction, so on a tree "down" from a root could land
 # on an outcome card two branches over. The rule now, everywhere:
-#   1. an outline's structure first — down goes into the node's children (the
-#      one most directly below), up goes back to its parent — when it lies that way;
-#   2. up/down on a flowing page (a story like Terrarium): the previous / next
-#      card in its reading order, so no event in between is ever skipped;
-#   3. then straight ahead: the nearest card that lines up with this one — the
-#      same row for left/right, the same column for up/down (on a tree);
-#   4. only then the old nearest-within-60-degrees pick (and for diagonals).
+#   * up/down on a TREE stays inside the branch the card belongs to (the subtree
+#     of its nearest ancestor above it): down goes into the card's children,
+#     else to the nearest card lined up below in the branch; up goes to the
+#     nearest card lined up above in the branch, else to the branch's head —
+#     so up from an outcome beside the first concept reaches its section;
+#   * up/down on a FLOWING page: into the children / back to the parent on an
+#     outline, else the previous / next card in the page's reading order
+#     (ACT_SEQS), so no event is skipped;
+#   * then (and for left/right) straight ahead: the nearest card lined up with
+#     this one, same row or same column;
+#   * only then the old nearest-within-60-degrees pick (and for diagonals).
+# Arrow presses take one hop at a time (_hop, arrows-one-hop-at-a-time).
 # Cards dimmed by any filter (slot `dimmed`, relation `rel-dimmed`, entity
 # `ent-dimmed`) are skipped, as the retired compass-hop patch did.
 _ARROWS_OLD = """  function focusNeighbor(dir){
@@ -1415,38 +1440,53 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var C=g(cur), all=allNodes().filter(function(n){ return n!==cur; }).map(g)
                          .filter(function(q){ return !q.dim; });
     function byId(i){ for(var k=0;k<all.length;k++) if(all[k].id===i) return all[k]; return null; }
-    var best=null;
+    function anc(i){ var a=[]; while(P[i]){ i=P[i]; a.push(i); } return a; }
+    // the nearest card lined up with this one, ahead in the direction, from `pool`
+    function aligned(pool,vert,sg){
+      var best=null, bc=Infinity;
+      pool.forEach(function(q){
+        var along=(vert?q.y-C.y:q.x-C.x)*sg; if(along<=1) return;
+        var ov=vert?Math.min(C.r,q.r)-Math.max(C.l,q.l):Math.min(C.b,q.b)-Math.max(C.t,q.t);
+        if(ov<=0) return;
+        if(along<bc){ bc=along; best=q.id; }
+      });
+      return best;
+    }
+    function kidsBelow(){
+      var ks=(K[id]||[]).map(byId).filter(function(q){ return q && q.t>=C.b-1; });
+      ks.sort(function(a,b){ return (Math.abs(a.x-C.x)-Math.abs(b.x-C.x)) || (a.t-b.t); });
+      return ks.length ? ks[0].id : null;
+    }
+    var best=null, tree=!!window._altoTreeOn;
     if(dir==='n'||dir==='s'||dir==='e'||dir==='w'){
       var vert=(dir==='n'||dir==='s'), sg=(dir==='s'||dir==='e')?1:-1;
-      // 1. the outline's own structure: down is into a node's children (the one
-      //    most directly below), up is back to its parent — when they lie that way
-      if(dir==='s'){
-        var ks=(K[id]||[]).map(byId).filter(function(q){ return q && q.t>=C.b-1; });
-        ks.sort(function(a,b){ return Math.abs(a.x-C.x)-Math.abs(b.x-C.x); });
-        if(ks.length) best=ks[0].id;
-      } else if(dir==='n' && P[id]){
-        var pq=byId(P[id]); if(pq && pq.b<=C.t+1) best=pq.id;
+      if(vert && tree){
+        // A tree: move within the branch this card belongs to — the subtree of
+        // its nearest ancestor ABOVE it (for an outcome beside its concept, the
+        // section over that concept) — before leaving it.
+        var sc=null, as=anc(id);
+        for(var k=0;k<as.length;k++){ var aq=byId(as[k]); if(aq && aq.b<=C.t+1){ sc=aq; break; } }
+        var inScope=function(q){ return !!sc && (q.id===sc.id || anc(q.id).indexOf(sc.id)>=0); };
+        if(dir==='s'){
+          best=kidsBelow() || aligned(all.filter(inScope),true,1);
+        } else {
+          best=aligned(all.filter(inScope),true,-1);
+          if(!best && sc) best=sc.id;                   // up to the branch's head
+        }
+      } else if(vert){
+        // A flowing page: an outline's own structure first, then the page's
+        // reading order (ACT_SEQS), so no event in between is skipped.
+        if(dir==='s') best=kidsBelow();
+        else if(P[id]){ var pq=byId(P[id]); if(pq && pq.b<=C.t+1) best=pq.id; }
+        if(!best && typeof ACT_SEQS!=='undefined'){
+          var seq=[].concat.apply([],ACT_SEQS), at=seq.indexOf(id);
+          for(var i=at+sg; at>=0 && i>=0 && i<seq.length; i+=sg){ if(byId(seq[i])){ best=seq[i]; break; } }
+        }
       }
-      // 2. up/down on a flowing page (a story): the previous / next card in the
-      //    page's own reading order (ACT_SEQS), so no event is ever skipped.
-      if(!best && vert && !window._altoTreeOn && typeof ACT_SEQS!=='undefined'){
-        var seq=[].concat.apply([],ACT_SEQS), at=seq.indexOf(id);
-        for(var i=at+sg; at>=0 && i>=0 && i<seq.length; i+=sg){ if(byId(seq[i])){ best=seq[i]; break; } }
-      }
-      // 3. otherwise straight ahead: the nearest card that lines up with this one
-      //    — the same row going left/right, the same column going up/down.
-      if(!best){
-        var bc=Infinity;
-        all.forEach(function(q){
-          var along=(vert?q.y-C.y:q.x-C.x)*sg;
-          if(along<=1) return;
-          var ov=vert?Math.min(C.r,q.r)-Math.max(C.l,q.l):Math.min(C.b,q.b)-Math.max(C.t,q.t);
-          if(ov<=0) return;
-          if(along<bc){ bc=along; best=q.id; }
-        });
-      }
+      // straight ahead anywhere: same row for left/right, same column up/down
+      if(!best) best=aligned(all,vert,sg);
     }
-    // 4. otherwise the nearest node within 60 degrees of the direction
+    // otherwise the nearest node within 60 degrees of the direction
     if(!best){
       var bc2=Infinity;
       all.forEach(function(q){
@@ -1459,9 +1499,21 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
       });
     }
     if(best) enterFocus(best);
+  }
+  // One hop at a time, each landing before the next starts: presses made during
+  // a hop wait their turn (up to three), and a held key's auto-repeat adds at
+  // most one, so holding a key walks at a readable pace instead of flickering.
+  var _hopBusy=0, _hopQ=[];
+  function _hop(dir,repeat){
+    if(_hopBusy){ if(repeat ? !_hopQ.length : _hopQ.length<3) _hopQ.push(dir); return; }
+    _hopBusy=1; focusNeighbor(dir);
+    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },460);
   }"""
+_HOP_KEY_OLD = "    if(!d) return; e.preventDefault(); focusNeighbor(d);"
+_HOP_KEY_NEW = "    if(!d) return; e.preventDefault(); _hop(d, e.repeat);"
 PATCHES += [
     {"name": "arrows-follow-the-layout", "old": _ARROWS_OLD, "new": _ARROWS_NEW, "count": 1},
+    {"name": "arrows-one-hop-at-a-time", "old": _HOP_KEY_OLD, "new": _HOP_KEY_NEW, "count": 1},
 ]
 
 # ── outline: the desktop tree replaces the resolver's positions ─────────────
