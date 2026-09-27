@@ -174,7 +174,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
 
   function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
-    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p.style.transform=''; p._fx=p._fy=0; _setZoom(_cardOf(p),1); } }
+    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); p._settled=0; p.style.margin=''; p.style.transform=''; p._fx=p._fy=0; _setZoom(_cardOf(p),1); } }
     window._focusedNodeId=id;
     canvas.classList.add('focus-mode');
     el.classList.add('focused');
@@ -185,6 +185,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
 _FOCUS_EXIT_OLD = """      el.classList.remove('focused');
       flyBack(el);"""
 _FOCUS_EXIT_NEW = """      el.classList.remove('focused');
+      if(window._altoUnsettle) window._altoUnsettle(el);   // D-GRID: back to the fly transform
       _zoomRamp(el,1,220);
       flyBack(el);"""
 
@@ -413,6 +414,20 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
   if(typeof MutationObserver==='function')
     new MutationObserver(function(ms){ ms.forEach(function(m){ [].forEach.call(m.addedNodes,adopt); }); })
       .observe(world,{childList:true});
+  /* The enlarged (focused) node is placed by its fly transform, which is not
+     snapped either: once the fly lands, the same position becomes margins
+     (settle) and goes back to the transform just before it flies home. */
+  window._altoSettle=function(el){
+    if(de.classList.contains('mobile') || !el || !el.classList.contains('focused')) return;
+    var w=el.offsetWidth, h=el.offsetHeight;
+    el.style.margin=(-h/2+(el._fy||0))+'px 0 0 '+(-w/2+(el._fx||0))+'px';
+    el.style.transform='none'; el._settled=1;
+  };
+  window._altoUnsettle=function(el){
+    if(!el || !el._settled) return;
+    el._settled=0; el.style.margin='';
+    el.style.transform='translate(-50%,-50%) translate('+(el._fx||0)+'px,'+(el._fy||0)+'px)';
+  };
   window.__altoQuantize=sweep;
   window.addEventListener('load',sweep);
   if(document.fonts&&document.fonts.ready&&document.fonts.ready.then) document.fonts.ready.then(sweep);
@@ -420,6 +435,11 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
 })();
 </script>"""
 
+# The focused node settles into margins when its fly lands (below); it goes
+# back to the transform before it flies home or when focus moves on, which the
+# focus-zoom patches above carry (_altoUnsettle, p._settled=0).
+_DGRID_LAND_OLD = "      // settle: optionally swap the transform scale for a CSS-zoom re-raster\n"
+_DGRID_LAND_NEW = ("      if(window._altoSettle) window._altoSettle(el);\n" + _DGRID_LAND_OLD)
 # Readers of a node's centre: offsetLeft/Top include the centring margin now.
 _DGRID_CXY_OLD = "    return {x:el.offsetLeft+ox, y:el.offsetTop+oy};"
 _DGRID_CXY_NEW = ("    var _cs=getComputedStyle(el);\n"
@@ -610,6 +630,7 @@ PATCHES = [
     {"name": "dgrid-nodes-centred-by-layout", "old": _DGRID_SCRIPT_OLD,
      "new": _DGRID_SCRIPT_NEW, "count": 1},
     {"name": "dgrid-centre-fly", "old": _DGRID_CXY_OLD, "new": _DGRID_CXY_NEW, "count": 1},
+    {"name": "dgrid-focus-lands-in-layout", "old": _DGRID_LAND_OLD, "new": _DGRID_LAND_NEW, "count": 1},
     {"name": "dgrid-centre-neighbour", "old": _DGRID_NB_OLD, "new": _DGRID_NB_NEW, "count": 1},
     {"name": "dgrid-centre-neighbour-2", "old": _DGRID_NB2_OLD, "new": _DGRID_NB2_NEW, "count": 1},
     {"name": "dgrid-centre-search", "old": _DGRID_SRCH_OLD, "new": _DGRID_SRCH_NEW, "count": 1},
@@ -1309,6 +1330,26 @@ PATCHES += [
     {"name": "mobile-runway-pin", "old": _RW_ANCHOR, "new": _RW_NEW, "count": 1},
 ]
 
+# ── outline: a hub sits above its own children (ALTO-001) ───────────────────
+# initLayout's Pass A only pushes a card down when it collides with one in a
+# horizontally overlapping column. An outline hub lives in `center`, so the
+# tall hubs before it push it down; its leaves live in `left`/`right`, collide
+# with nothing, and stay where the cascade left them — beside or above the hub.
+# Every spoke then has to double back (Torts: all 40 Liable / Not Liable
+# pairs sat above their hub). Pass C restores the tree's order on an outline laid out as flow (a tree
+# layout has it by construction);
+# layout.resolve() carries the same pass so the baseY hints already satisfy
+# it. The pass itself (blocks.HUBS_ABOVE_GLUE) is emitted on outline pages
+# only; everywhere else this is a no-op guard, kept to one line because
+# Terrarium's private page sits within a kilobyte of the 1,000,000-byte cap.
+_HUB_ABOVE_OLD = "    // ── Pass B: act boundary enforcement ──\n"
+_HUB_ABOVE_NEW = ("    if(window._altoHubsAbove&&_altoHubsAbove(positions,nodeHeights))"
+                  "outerChanged=true;\n" + _HUB_ABOVE_OLD)
+PATCHES += [
+    {"name": "outline-hub-above-children", "old": _HUB_ABOVE_OLD,
+     "new": _HUB_ABOVE_NEW, "count": 1},
+]
+
 # ── outline: the desktop tree replaces the resolver's positions ─────────────
 # detail_extras.TREE_GLUE lays an outline out as a tree (layout.outline_tree)
 # over the measured heights and sets each node's displayX; the numeral check
@@ -1335,8 +1376,25 @@ _TREE_MID_NEW = ("        try { computeTrunks(); if(window._altoTreeMid) window.
 _TREE_LANE2_OLD = "              try { _lr = laneRoute(sx0, _sy0, tx0, _ty0, c[0], c[1]); } catch(e){}\n"
 _TREE_LANE2_NEW = ("              try { _lr = window._altoTreeOn ? null"
                    " : laneRoute(sx0, _sy0, tx0, _ty0, c[0], c[1]); } catch(e){}\n")
+# Fanned tree lines (brief.tree_lines="fan"): each child down a spine gets its
+# own line, which meets the top of the spine's first card at its own point and
+# drops from there. TREE_GLUE records those end points in _altoEdgeTX; the
+# router's three readers of a line's end x take them.
+_FAN_TX = "(window._altoEdgeTX&&window._altoEdgeTX[{s}+'|'+{t}]!=null?window._altoEdgeTX[{s}+'|'+{t}]:({x}))"
+_FAN_DRAW_OLD = "        var tx = tgtNode.displayX !== undefined ? tgtNode.displayX : COL_X[tgtNode.col];\n"
+_FAN_DRAW_NEW = ("        var tx = " + _FAN_TX.format(s="srcNode.id", t="tgtNode.id",
+                 x="tgtNode.displayX !== undefined ? tgtNode.displayX : COL_X[tgtNode.col]") + ";\n")
+_FAN_REG_OLD = "              var tx0 = t.displayX !== undefined ? t.displayX : COL_X[t.col];\n"
+_FAN_REG_NEW = ("              var tx0 = " + _FAN_TX.format(s="c[0]", t="c[1]",
+                x="t.displayX !== undefined ? t.displayX : COL_X[t.col]") + ";\n")
+_FAN_TRUNK_OLD = "          var tx = tgt.displayX !== undefined ? tgt.displayX : COL_X[tgt.col];\n"
+_FAN_TRUNK_NEW = ("          var tx = " + _FAN_TX.format(s="c[0]", t="c[1]",
+                  x="tgt.displayX !== undefined ? tgt.displayX : COL_X[tgt.col]") + ";\n")
 PATCHES += [
     {"name": "outline-tree-layout", "old": _TREE_HOOK_OLD, "new": _TREE_HOOK_NEW, "count": 1},
+    {"name": "tree-fan-draw", "old": _FAN_DRAW_OLD, "new": _FAN_DRAW_NEW, "count": 1},
+    {"name": "tree-fan-registry", "old": _FAN_REG_OLD, "new": _FAN_REG_NEW, "count": 1},
+    {"name": "tree-fan-trunks", "old": _FAN_TRUNK_OLD, "new": _FAN_TRUNK_NEW, "count": 1},
     {"name": "outline-tree-spine-registry", "old": _TREE_LANE2_OLD, "new": _TREE_LANE2_NEW, "count": 1},
     {"name": "outline-tree-shared-elbow", "old": _TREE_MID_OLD, "new": _TREE_MID_NEW, "count": 1},
     {"name": "outline-tree-spine-is-straight", "old": _TREE_LANE_OLD, "new": _TREE_LANE_NEW, "count": 1},

@@ -12,7 +12,9 @@ JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reas
 from .emit import emit
 from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid, \
-    outline_order_and_columns, outline_spokes, outline_tree, outline_flanks, TREE
+    outline_order_and_columns, outline_spokes, outline_tree, outline_flanks, \
+    outline_has_categories, line_crossings, TREE
+from .brief import COL_SETS
 from .estimate import card_height
 from .sanitize import sanitize_brief, sanitize_connections
 from ..engine import template as engine_template
@@ -58,21 +60,40 @@ def place(brief: Brief, nodes: list[Node]) -> None:
         assign_columns(nodes, brief.columns)
 
 
-def run_layout(brief: Brief, nodes: list[Node]):
-    """Column assignment + baseY resolution + mobile grid. Returns layout info."""
+def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
+    """Column assignment + desktop arrangement + mobile grid. Returns layout
+    info; report["layout"] says which arrangement the desktop map uses.
+
+    An outline can be a tree or flow (brief.layout). "auto" takes the tree
+    when the outline has real categories to show and the tree's lines cross
+    no more often than flow's; the counts are in report["line_crossings"].
+    `col` drives the mobile grid either way."""
     place(brief, nodes)
-    if brief.mode == "outline":
-        # Desktop is a tree (layout.TREE); `col` still drives the mobile grid.
+    flow_parent = ({n.id: n.parent for n in nodes if n.parent}
+                   if brief.mode == "outline" else None)
+    positions, heights, world_h, report = resolve(nodes, brief.columns,
+                                                  len(brief.acts), flow_parent)
+    report["layout"] = "flow"
+    if brief.mode == "outline" and brief.layout != "flow":
         flanks = outline_flanks(nodes)
-        heights = {n.id: card_height(n.desc, n.title,
-                                     TREE["FLANK_W"] if n.id in flanks else 270)
-                   for n in nodes}
-        positions, _xs, world_h = outline_tree(nodes, len(brief.acts), heights)
-        report = {"world_height": world_h, "moved_on_recheck": [],
-                  "per_column": {}, "tree": True}
-    else:
-        positions, heights, world_h, report = resolve(nodes, brief.columns,
-                                                      len(brief.acts))
+        th = {n.id: card_height(n.desc, n.title,
+                                TREE["FLANK_W"] if n.id in flanks else 270)
+              for n in nodes}
+        ty, tx, tworld = outline_tree(nodes, len(brief.acts), th)
+        edges = [(c[0], c[1]) for c in outline_spokes(nodes, connections or [])
+                 if c[0] in ty and c[1] in ty]
+        colx = COL_SETS[brief.columns]
+        fx = {n.id: colx[n.col] for n in nodes}
+        crossings = {"tree": line_crossings(edges, tx, ty, th, True),
+                     "flow": line_crossings(edges, fx, positions, heights, False)}
+        categories = outline_has_categories(nodes)
+        if brief.layout == "tree" or (categories
+                                      and crossings["tree"] <= crossings["flow"]):
+            positions, heights, world_h = ty, th, tworld
+            report = {"world_height": world_h, "moved_on_recheck": [],
+                      "per_column": {}, "layout": "tree"}
+        report["line_crossings"] = crossings
+        report["categories"] = categories
     mgrid, mobile_h = mobile_grid(nodes, brief.columns)
     return positions, heights, world_h, mgrid, mobile_h, report
 
@@ -115,12 +136,12 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
         raise VerifyError(failures)
 
     positions, heights, world_h, mgrid, mobile_h, layout_report = \
-        run_layout(brief, nodes)
+        run_layout(brief, nodes, connections)
 
     regions, tokens = timeline_blocks(
         brief, nodes, positions, heights, mgrid, mobile_h,
         reports_href=reports_href, connections=connections,
-        warnings=warnings)
+        warnings=warnings, tree=layout_report.get("layout") == "tree")
     regions["connections"] = connections_block(connections)
 
     template = engine_template("timeline_template.html")

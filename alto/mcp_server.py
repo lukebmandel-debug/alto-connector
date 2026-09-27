@@ -207,7 +207,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.8.28"
+__version__ = "1.8.29"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -754,37 +754,60 @@ def _load_full(doc):
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
+def _layout_choice(doc, layout: str, tree_lines: str) -> dict:
+    """The brief with a layout / tree_lines override applied ('' keeps it)."""
+    brief = dict(doc["brief"])
+    if layout:
+        brief["layout"] = layout
+    if tree_lines:
+        brief["tree_lines"] = tree_lines
+    return {**doc, "brief": brief}
+
+
 @mcp.tool(title="Run layout (preview)", annotations=RO)
-def run_layout_preview(timeline_id: str) -> dict:
-    """Cheap layout dry-run: resolves columns + vertical positions and reports
-    world height, per-column balance, and warnings — iterate here before
-    build_timeline."""
+def run_layout_preview(timeline_id: str, layout: str = "",
+                       tree_lines: str = "") -> dict:
+    """Cheap layout dry-run: resolves the desktop arrangement + vertical
+    positions and reports world height, per-column balance, and warnings —
+    iterate here before build_timeline.
+
+    layout: '' keeps the brief's ('auto' unless set). 'auto' picks the
+    clearest arrangement (an outline with real categories becomes a tree when
+    that crosses no more lines than flow); 'tree' / 'flow' force one. The
+    report's `layout` says what was chosen and `line_crossings` why.
+    tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
+    Nothing is stored here; pass the same values to build_timeline to keep them."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     try:
-        b, nodes, conns = _load_full(doc)
+        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines))
         from .build.brief import validate_brief, validate_nodes
         warnings = validate_brief(b) + validate_nodes(b, nodes)
         if not nodes:
             return {"error": "no_nodes", "message": "add_nodes first"}
-        _, _, world_h, _, mobile_h, report = run_layout(b, nodes)
+        _, _, world_h, _, mobile_h, report = run_layout(b, nodes, conns)
     except (BriefError, VerifyError, ValueError) as e:
         return {"error": "layout_failed", "message": str(e)}
     return {**report, "mobile_world_height": mobile_h, "warnings": warnings}
 
 
 @mcp.tool(title="Build timeline", annotations=RW)
-def build_timeline(timeline_id: str) -> dict:
+def build_timeline(timeline_id: str, layout: str = "",
+                   tree_lines: str = "") -> dict:
     """Emit the timeline from the engine template, verify it (structure,
     geometry, no invented slots, and a JS parse check of every emitted script),
     and store the artifacts (hosted page + offline single-file). Fails with the
-    exact check list on any violation."""
+    exact check list on any violation.
+
+    layout / tree_lines: as run_layout_preview; given here they are also kept
+    in the brief, so every later build (and publish) uses them."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     if not _consent_ok(doc):
         return CONSENT_ERROR
+    doc = _layout_choice(doc, layout, tree_lines)
     try:
         b, nodes, conns = _load_full(doc)
         if not nodes:

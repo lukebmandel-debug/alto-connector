@@ -56,7 +56,22 @@ def test_lines_can_be_followed_and_singled_out():
     assert "window.enterFocus(best);" in html                    # click → far end, enlarged
     assert "#river-svg [data-edge-hit]{pointer-events:stroke;cursor:pointer;}" in html
     assert "#canvas.edge-hover .node:not(.edge-end) .node-card{opacity:.35 !important;}" in html
-    # the relation label still shows over the wider hit path
-    assert "closest('#river-svg [data-edge],#river-svg [data-edge-hit]')" in html
+    # the relation label follows the same resting-pointer rule as the fade
+    assert "document.addEventListener('alto:edge-dwell', function(e){" in html
+    assert "var DWELL=300, SLOP=6" in html
     # the hit path is not a data-edge: the audit sampler and filters count those
     assert "setAttribute('data-edge',t" not in html
+
+
+def test_fading_waits_for_the_pointer_to_rest_and_masks_lines_under_cards():
+    html = _html()
+    assert "arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);" in html
+    assert "e.setAttribute('mask','url(#alto-hover-mask)')" in html
+    assert "m.setAttribute('id','alto-hover-mask')" in html
+
+
+def test_an_enlarged_card_settles_into_layout_too():
+    html = _html()
+    assert "      if(window._altoSettle) window._altoSettle(el);\n" in html     # fly lands
+    assert "if(window._altoUnsettle) window._altoUnsettle(el);" in html         # flies home
+    assert "p._settled=0; p.style.margin='';" in html                           # focus moves on

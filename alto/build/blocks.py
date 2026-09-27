@@ -533,19 +533,18 @@ function isolateRelation(key){
     if(typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ tt[n.id]=n.title; });
     return (rl[c[2]]?rl[c[2]]+': ':'')+(tt[from]||from)+' → '+(tt[to]||to);
   }
-  document.addEventListener('mouseover', function(e){
-    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge],#river-svg [data-edge-hit]'); if(!p) return;
-    var info=edgeInfo(p.getAttribute('data-edge')||p.getAttribute('data-edge-hit')); if(!info) return;
+  // Shown only once the pointer RESTS on a line (LINE_NAV_GLUE's dwell), not
+  // as it passes over one on the way somewhere else.
+  document.addEventListener('alto:edge-dwell', function(e){
+    var info=edgeInfo(e.detail.key); if(!info) return;
     if(!tip){ tip=document.createElement('div'); tip.className='line-tip'; document.body.appendChild(tip); }
     tip.textContent=info; tip.style.display='block';
+    tip.style.left=(e.detail.x+12)+'px'; tip.style.top=(e.detail.y+14)+'px';
   });
   document.addEventListener('mousemove', function(e){
     if(tip && tip.style.display==='block'){ tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+14)+'px'; }
   });
-  document.addEventListener('mouseout', function(e){
-    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge],#river-svg [data-edge-hit]');
-    if(p && tip){ tip.style.display='none'; }
-  });
+  document.addEventListener('alto:edge-leave', function(){ if(tip) tip.style.display='none'; });
 })();"""
 
 
@@ -555,6 +554,10 @@ function isolateRelation(key){
 # "go there" from either side — and enlarges it (the engine's own focus). Moving
 # onto a line fades every other card and line a little, so the two cards it
 # joins stand out; the existing .line-tip label still names the relation.
+# Both wait for intent: the pointer has to rest on the line (DWELL ms without
+# moving more than a few px), so sweeping across the map never flickers the
+# page. While faded, the other lines are masked out wherever a card covers
+# them, so a faded line never shows through a faded (translucent) card.
 # The engine's drawing is left alone: after each redraw, every path belonging
 # to an edge (tube, frosted sheen, two-colour flags) is tagged with its key, and
 # a wide transparent hit path is laid over each tube so a 5px line is easy to
@@ -588,30 +591,69 @@ LINE_NAV_GLUE = """
     var r=_rc.apply(this,arguments); try{ tag(); }catch(e){} return r; };
   function edgeOf(t){ return t && t.closest && t.closest('#river-svg [data-edge-hit],#river-svg [data-edge]'); }
   function keyOf(p){ return p.getAttribute('data-edge-hit')||p.getAttribute('data-edge'); }
-  var hot=null;
+  var hot=null, NS='http://www.w3.org/2000/svg';
+  /* every card's box, cut out of the faded lines */
+  function cardMask(svg){
+    var m=svg.querySelector('#alto-hover-mask'), defs=svg.querySelector('defs');
+    if(!defs){ defs=document.createElementNS(NS,'defs'); svg.insertBefore(defs,svg.firstChild); }
+    if(!m){ m=document.createElementNS(NS,'mask'); m.setAttribute('id','alto-hover-mask');
+      m.setAttribute('maskUnits','userSpaceOnUse'); defs.appendChild(m); }
+    while(m.firstChild) m.removeChild(m.firstChild);
+    var full=document.createElementNS(NS,'rect');
+    full.setAttribute('x',-4000); full.setAttribute('y',-4000);
+    full.setAttribute('width',12000); full.setAttribute('height',40000); full.setAttribute('fill','#fff');
+    m.appendChild(full);
+    [].forEach.call(document.querySelectorAll('#world .node'),function(n){
+      var c=n.querySelector('.node-card'); if(!c||!c.offsetWidth) return;
+      var nx=parseFloat(n.style.left), ny=parseFloat(n.style.top); if(isNaN(nx)||isNaN(ny)) return;
+      var r=document.createElementNS(NS,'rect');
+      r.setAttribute('x',nx-n.offsetWidth/2+c.offsetLeft); r.setAttribute('y',ny-n.offsetHeight/2+c.offsetTop);
+      r.setAttribute('width',c.offsetWidth); r.setAttribute('height',c.offsetHeight);
+      r.setAttribute('rx',14); r.setAttribute('fill','#000'); m.appendChild(r);
+    });
+  }
   function clear(){
     if(!hot) return; hot=null;
     var cv=document.getElementById('canvas'); if(cv) cv.classList.remove('edge-hover');
     [].forEach.call(document.querySelectorAll('.edge-end,.edge-hot'),function(e){ e.classList.remove('edge-end'); e.classList.remove('edge-hot'); });
+    [].forEach.call(document.querySelectorAll('#river-svg [data-edge-masked]'),function(e){
+      e.removeAttribute('mask'); e.removeAttribute('data-edge-masked'); });
+    document.dispatchEvent(new CustomEvent('alto:edge-leave'));
   }
-  function light(key){
+  function light(key,x,y){
     if(hot===key) return; clear();
-    var cv=document.getElementById('canvas'); if(!cv || cv.classList.contains('focus-mode')) return;
+    var cv=document.getElementById('canvas'), svg=document.getElementById('river-svg');
+    if(!cv || !svg || cv.classList.contains('focus-mode')) return;
     hot=key; var ends=key.split('|');
     ends.forEach(function(id){ var n=document.getElementById('node-'+id); if(n) n.classList.add('edge-end'); });
-    [].forEach.call(document.querySelectorAll('#river-svg [data-edge]'),function(e){
-      if(e.getAttribute('data-edge')===key) e.classList.add('edge-hot'); });
-    [].forEach.call(document.querySelectorAll('#river-svg [data-edge-part]'),function(e){
-      if(e.getAttribute('data-edge-part')===key) e.classList.add('edge-hot'); });
+    cardMask(svg);
+    [].forEach.call(svg.querySelectorAll('[data-edge],[data-edge-part]'),function(e){
+      if((e.getAttribute('data-edge')||e.getAttribute('data-edge-part'))===key) e.classList.add('edge-hot');
+      else { e.setAttribute('mask','url(#alto-hover-mask)'); e.setAttribute('data-edge-masked','1'); }
+    });
     cv.classList.add('edge-hover');
+    document.dispatchEvent(new CustomEvent('alto:edge-dwell',{detail:{key:key,x:x,y:y}}));
+  }
+  /* intent: the pointer must rest on a line, not just cross it */
+  var DWELL=300, SLOP=6, arm=null, ax=0, ay=0, akey=null;
+  function disarm(){ clearTimeout(arm); arm=null; akey=null; }
+  function rearm(key,x,y){
+    clearTimeout(arm); akey=key; ax=x; ay=y;
+    arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);
   }
   document.addEventListener('mouseover',function(e){
     if(!desktop()) return; var p=edgeOf(e.target);
-    if(p) light(keyOf(p)); else if(hot && !(e.target.closest && e.target.closest('#river-svg'))) clear();
+    if(p){ if(hot!==keyOf(p)) rearm(keyOf(p),e.clientX,e.clientY); }
+    else if(!(e.target.closest && e.target.closest('#river-svg'))){ disarm(); clear(); }
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!akey || hot===akey) return;
+    var p=edgeOf(e.target); if(!p || keyOf(p)!==akey){ disarm(); return; }
+    if(Math.abs(e.clientX-ax)>SLOP || Math.abs(e.clientY-ay)>SLOP) rearm(akey,e.clientX,e.clientY);
   });
   document.addEventListener('mouseout',function(e){
-    if(!hot || !edgeOf(e.target)) return;
-    if(!edgeOf(e.relatedTarget)) clear();
+    if(!edgeOf(e.target) || edgeOf(e.relatedTarget)) return;
+    disarm(); clear();
   });
   document.addEventListener('click',function(e){
     if(!desktop()) return; var p=edgeOf(e.target); if(!p) return;
@@ -622,8 +664,7 @@ LINE_NAV_GLUE = """
       if(dd>bd){ bd=dd; best=id; }
     });
     if(!best || typeof window.enterFocus!=='function') return;
-    e.preventDefault(); e.stopPropagation(); clear();
-    var tip=document.querySelector('.line-tip'); if(tip) tip.style.display='none';
+    e.preventDefault(); e.stopPropagation(); disarm(); clear();
     window.enterFocus(best);
   }, true);
   if(document.readyState!=='loading') tag(); else document.addEventListener('DOMContentLoaded',tag);
@@ -769,7 +810,7 @@ def _sym(svg: str) -> str:
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     mgrid, mobile_world_h: int, *, reports_href: str = None,
                     view_path: str = "", connections: list = None,
-                    warnings: list = None) -> tuple[dict, dict]:
+                    warnings: list = None, tree: bool = False) -> tuple[dict, dict]:
     """Return (regions, tokens) for emit() against timeline_template.html.
 
     nodes must be validated, in narrative order, with col set and positions
@@ -1262,7 +1303,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",parent:" + json.dumps(_parent) + "};"
                    + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
-                   + dx.tree_glue(TREE))
+                   + (dx.tree_glue(TREE, b.tree_lines) if tree else dx.HUBS_ABOVE_GLUE))
     if index_axes:
         orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
     if rel_key_items:
@@ -1341,7 +1382,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "box-shadow:0 4px 16px rgba(0,0,0,.2);}")
     # An outline's flanking outcome cards are narrower on desktop, so a tree
     # row (flank | concept | flank, twice) fits the 1700px world (layout.TREE).
-    if b.mode == "outline":
+    if tree:
         _fl = sorted(outline_flanks(nodes))
         if _fl:
             nav_char_css += ("\n  " + ",".join(

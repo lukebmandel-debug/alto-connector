@@ -12,7 +12,8 @@ sys.path.insert(0, str(ROOT))
 
 from alto.build.builder import load_brief, build_timeline, place  # noqa: E402
 from alto.build.brief import validate_brief  # noqa: E402
-from alto.build.layout import TREE, outline_flanks, outline_tree  # noqa: E402
+from alto.build.layout import (TREE, HUB_DROP, outline_flanks,  # noqa: E402
+                               outline_tree, resolve)
 from alto.build.estimate import card_height  # noqa: E402
 from alto.build import detail_extras as dx  # noqa: E402
 from alto.build.single_file import preview  # noqa: E402
@@ -54,10 +55,30 @@ def test_the_browser_runs_the_tree_only_on_outlines():
     html, _ = _build(_d())
     assert "if(window._altoTree) window._altoTree(positions, nodeHeights);" in html  # hook
     assert "window._altoTree = function" in html
+    assert "window._altoHubsAbove = function" not in html      # a tree has it built in
     linear, _ = _build(_d(LINEAR))
     assert "if(window._altoTree) window._altoTree(positions, nodeHeights);" in linear  # guard only
     assert "window._altoTree = function" not in linear
-    assert "_altoHubsAbove" not in html + linear          # superseded by the tree
+    assert "window._altoHubsAbove = function" not in linear
+
+
+def test_an_outline_that_flows_keeps_every_hub_above_its_children():
+    """layout='flow' (or 'auto' choosing it) is the cascade again, which needs
+    Pass C on both sides (ALTO-001)."""
+    d = _d()
+    d["brief"]["layout"] = "flow"
+    b, nodes, _ = load_brief(d)
+    validate_brief(b)
+    place(b, nodes)
+    parent = {n.id: n.parent for n in nodes if n.parent}
+    pos, h, _, _ = resolve(nodes, b.columns, len(b.acts), parent)
+    for cid, pid in parent.items():
+        assert pos[cid] - h[cid] / 2 >= pos[pid] - h[pid] / 2 + HUB_DROP - 1, cid
+    html, rep = _build(d)
+    assert rep["layout"]["layout"] == "flow"
+    assert "window._altoHubsAbove = function" in html
+    assert "_altoHubsAbove(positions,nodeHeights)" in html
+    assert "window._altoTree = function" not in html
 
 
 # ── ALTO-002/003/004 ────────────────────────────────────────────────────────

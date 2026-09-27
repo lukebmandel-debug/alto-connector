@@ -23,14 +23,31 @@ from urllib.parse import quote
 from .brief import PROVENANCE, Section
 from .sanitize import esc
 
+# ── outline: a hub sits above its own children (ALTO-001) ───────────────────
+# The engine hook (engine_patches: outline-hub-above-children) calls this from
+# inside initLayout's resolver loop, on an outline laid out as flow (a tree
+# guarantees it by construction); layout.resolve() runs the same pass so the
+# baseY hints already satisfy it. 90 = layout.HUB_DROP.
+HUBS_ABOVE_GLUE = """
+window._altoHubsAbove = function(pos, h){
+  var par = (window._ALTO_OUTLINE||{}).parent || {}, moved = false;
+  Object.keys(par).forEach(function(id){
+    var p = par[id]; if(pos[p]==null || pos[id]==null) return;
+    var need = pos[p]-(h[p]||0)/2 + 90 + (h[id]||0)/2;
+    if(pos[id] < need-0.5){ pos[id] = need; moved = true; }
+  });
+  return moved;
+};"""
+
 # ── outline: the desktop tree (layout.outline_tree, re-run on real heights) ──
 # initLayout measures every card and runs its collision resolver; on an outline
-# page this then replaces those positions with the tree's — which also keeps
-# every hub above its children (ALTO-001) — exactly as the
+# page laid out as a tree this then replaces those positions with the tree's
+# (which keeps every hub above its children by construction) exactly as the
 # builder computed them (same TREE constants, emitted by tree_glue()), and sets
 # each node's displayX, which the line router and the numeral check read.
-def tree_glue(tree: dict) -> str:
-    return "\nwindow._ALTO_TREE_C=" + json.dumps(tree) + ";" + TREE_GLUE
+def tree_glue(tree: dict, lines: str = "fan") -> str:
+    return ("\nwindow._ALTO_TREE_C=" + json.dumps({**tree, "LINES": lines}) + ";"
+            + TREE_GLUE)
 
 
 TREE_GLUE = """
@@ -56,10 +73,11 @@ window._altoTree = function(pos, h){
           r2.forEach(function(l,j){ put(l,bx+(j?1:-1)*T.FLANK_DX,c,h2); });
           c+=h2+T.ROW_GAP;
         }
-      } else { put(i,bx,c); c=items(K[i],bx,c+h[i]+T.HEAD_GAP); }
+      } else { put(i,bx,c); spine[i]=K[i]; c=items(K[i],bx,c+h[i]+T.HEAD_GAP); }
     });
     return c;
   }
+  var spine={};
   var cur=T.TOP;
   ACT_SEQS.forEach(function(ids,a){
     var roots=ids.filter(function(i){ return !P[i]; });
@@ -68,7 +86,7 @@ window._altoTree = function(pos, h){
       put(r,T.CX,cur); cur+=h[r]+T.ROOT_GAP;
       var ks=K[r]||[], br=ks.filter(function(k){ return !leaf(k)&&!concept(k); }).map(function(k){ return [k]; }),
           direct=ks.filter(function(k){ return leaf(k)||concept(k); });
-      if(direct.length) br.push(direct);
+      if(direct.length){ br.push(direct); spine[r]=direct; }
       br.sort(function(p,q){ return ks.indexOf(p[0])-ks.indexOf(q[0]); });
       for(var g=0; g<br.length; g+=2){
         var grp=br.slice(g,g+2), xs=grp.length===2?T.BRANCH_X:[T.CX];
@@ -82,19 +100,36 @@ window._altoTree = function(pos, h){
     pos[n.id]=y[n.id]; n.displayX=x[n.id];
     var el=document.getElementById('node-'+n.id); if(el) el.style.left=x[n.id]+'px';
   });
+  /* fan: the k children down a spine meet the top of its first card at k
+     equally spaced points — the first child at the centre, the rest
+     alternating left, right, further left… — and each line drops from its
+     point to its own child. Offsets stay inside the card (s >= 40 keeps room
+     for the router's 20px corners). */
+  var etx={};
+  if(T.LINES==='fan') Object.keys(spine).forEach(function(p){
+    var ks=spine[p]; if(ks.length<2) return;
+    var bx=x[ks[0]], half=Math.ceil((ks.length-1)/2), s=Math.max(40,Math.min(80,115/half));
+    ks.forEach(function(k,j){
+      if(!j) return; var off=Math.ceil(j/2)*s*(j%2?-1:1); etx[p+'|'+k]=bx+off;
+    });
+  });
+  window._altoEdgeTX=etx;
   window._altoTreeOn=true; window._altoTreeGeo={y:y, h:h, x:x};
   return true;
 };
 window._altoTreeMid = function(fm){
-  var G=window._altoTreeGeo, P=(window._ALTO_OUTLINE||{}).parent||{}; if(!G) return;
+  var G=window._altoTreeGeo, P=(window._ALTO_OUTLINE||{}).parent||{}, E=window._altoEdgeTX||{}; if(!G) return;
+  function ex(p,c){ var v=E[p+'|'+c]; return v!=null ? v : G.x[c]; }   // the line's end x
   var mid={};
+  /* halfway down the gap to the parent's NEAREST child below — including one
+     straight under it, whose line needs no turn but bounds the gap */
   Object.keys(P).forEach(function(c){
-    var p=P[c]; if(G.y[p]==null||G.y[c]==null||Math.abs(G.x[c]-G.x[p])<10) return;
+    var p=P[c]; if(G.y[p]==null||G.y[c]==null) return;
     var pb=G.y[p]+G.h[p]/2, ct=G.y[c]-G.h[c]/2; if(ct<=pb) return;   // flanks share the row
     mid[p]=Math.min(mid[p]==null?Infinity:mid[p], ct);
   });
   Object.keys(P).forEach(function(c){
-    var p=P[c]; if(mid[p]==null||Math.abs(G.x[c]-G.x[p])<10) return;
+    var p=P[c]; if(mid[p]==null||Math.abs(ex(p,c)-G.x[p])<10) return;
     var pb=G.y[p]+G.h[p]/2; if(G.y[c]-G.h[c]/2<=pb) return;
     fm[p+'|'+c]=pb+(mid[p]-pb)/2+WORLD_PAD_TOP;
   });

@@ -222,6 +222,8 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
                   "custom")
 
 MODES = ("linear", "outline")
+LAYOUTS = ("auto", "tree", "flow")
+TREE_LINES = ("fan", "trunk")
 
 
 @dataclass
@@ -290,6 +292,17 @@ class Brief:
     # .parent carries the structure. Same engine and same geometry either way;
     # what changes is where the cards sit and what a detail page shows.
     mode: str = "linear"
+    # How the desktop map is arranged. "auto" lets the builder pick the clearest
+    # arrangement: an outline whose concepts really do group (sections, or
+    # concepts with outcomes of their own) becomes a tree (layout.outline_tree)
+    # when that crosses no more lines than the flowing cascade does; anything
+    # else — a linear story, a flat list — flows. "tree" / "flow" force one.
+    layout: str = "auto"
+    # A tree's lines down a branch's spine. "fan": a section's lines spread
+    # across the top of its first card and drop to each child at its own point,
+    # so every child has a line of its own to hover and follow; "trunk": one
+    # shared line straight down the spine.
+    tree_lines: str = "fan"
     # The "Filter · Lines" chips in the nav bar isolate one relation's lines.
     # A useful working tool for an author (or a law outline's "Overrules"), and
     # noise on a story where lines just follow characters — so it is a choice.
@@ -410,6 +423,13 @@ def validate_brief(b: Brief) -> list[str]:
             raise BriefError(f"{flag}: must be true or false")
     if b.mode not in MODES:
         raise BriefError(f"mode {b.mode!r}: must be one of {MODES}")
+    if b.layout not in LAYOUTS:
+        raise BriefError(f"layout {b.layout!r}: must be one of {LAYOUTS}")
+    if b.tree_lines not in TREE_LINES:
+        raise BriefError(f"tree_lines {b.tree_lines!r}: must be one of {TREE_LINES}")
+    if b.layout == "tree" and b.mode != "outline":
+        raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
+                         "from the nodes' parents")
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "

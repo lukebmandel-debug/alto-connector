@@ -24,6 +24,7 @@ LABEL_RESERVE = 184
 BOTTOM_PAD = 40
 ACT_BOUNDARY_GAP = 210
 RHYTHM_STEP = 90          # median inter-node cascade step in the reference build
+HUB_DROP = RHYTHM_STEP    # outline (flow): a child's top sits at least this far below its hub's
 
 # Lane-feasibility constants (verify_terrarium.py §D2)
 WORLD_W, HALF, HALF_CENTER, CLR, EDGE = 1700, 135, 145, 24, 8
@@ -113,10 +114,17 @@ def _initial_positions(nodes, heights):
     return positions
 
 
-def resolve(nodes, columns: int, act_count: int):
+def resolve(nodes, columns: int, act_count: int, parent: dict = None):
     """Compute baseY hints. Returns (positions, heights, world_height, report).
     nodes must be in narrative order (ACT_SEQS order); node.col must be set.
-    An outline is laid out by outline_tree instead."""
+
+    `parent` (an outline laid out as flow rather than a tree: child id → hub
+    id) adds Pass C, which keeps every hub above its own children. Without it
+    a hub in `center` is pushed down by the tall hubs before it while its
+    leaves, out in `left`/`right`, collide with nothing and stay put — so the
+    leaves ride up beside or above the hub and its spokes have to double back
+    (ALTO-001). The engine's initLayout carries the same pass
+    (engine_patches: outline-hub-above-children)."""
     colx = COL_SETS[columns]
     heights = {n.id: card_height(n.desc, n.title) for n in nodes}
     act_seqs = [[] for _ in range(act_count)]
@@ -166,6 +174,16 @@ def resolve(nodes, columns: int, act_count: int):
                     for bi in range(ai + 1, len(act_seqs)):
                         for i in act_seqs[bi]:
                             positions[i] += shift
+                    nonlocal_changed[0] = True
+            # Pass C (outline): a hub sits above every direct child. Pushes
+            # only downward, like A and B, so the outer loop still converges.
+            for cid, pid in (parent or {}).items():
+                if cid not in positions or pid not in positions:
+                    continue
+                need = (positions[pid] - heights[pid] / 2 + HUB_DROP
+                        + heights[cid] / 2)
+                if positions[cid] < need - 0.5:
+                    positions[cid] = need
                     nonlocal_changed[0] = True
             if nonlocal_changed[0]:
                 outer_changed = True
@@ -296,12 +314,19 @@ def outline_kids(nodes) -> dict:
     return kids
 
 
+def _roots(nodes) -> set:
+    by_id = {n.id for n in nodes}
+    return {n.id for n in nodes if not (n.parent and n.parent in by_id)}
+
+
 def outline_flanks(nodes) -> set:
-    """Ids of the leaves that flank their concept (the narrow cards)."""
+    """Ids of the leaves that flank their concept (the narrow cards). A band's
+    root is never flanked: its own leaves hang down its spine."""
     kids = outline_kids(nodes)
+    roots = _roots(nodes)
     flanks = set()
     for pid, ks in kids.items():
-        if ks and all(not kids.get(k) for k in ks):
+        if pid not in roots and ks and all(not kids.get(k) for k in ks):
             flanks.update(ks[:2])
     return flanks
 
@@ -370,6 +395,63 @@ def outline_tree(nodes, act_count: int, heights: dict):
         if n.id not in y:
             put(n.id, T["CX"], bottom[0] + T["ROW_GAP"])
     return y, x, round(bottom[0] + BOTTOM_PAD)
+
+
+def outline_has_categories(nodes) -> bool:
+    """Whether an outline's structure gives a tree something to show: a
+    concept with outcomes of its own to flank it, or a root that splits into
+    at least two sections. A flat list under one root is just a column."""
+    kids = outline_kids(nodes)
+    roots = _roots(nodes)
+    leaf = lambda i: not kids.get(i)
+    concept = lambda i: bool(kids.get(i)) and all(leaf(k) for k in kids[i])
+    if any(concept(i) for i in kids if i not in roots):
+        return True
+    return any(sum(1 for k in kids.get(r, []) if not leaf(k) and not concept(k)) >= 2
+               for r in roots)
+
+
+def line_crossings(edges, xs: dict, ys: dict, heights: dict, tree: bool) -> int:
+    """How many times the drawn lines cross each other, on the router's basic
+    shapes: a vertical when both ends share a column, a straight run when they
+    share a row, else down–across–down. A flowing layout turns halfway between
+    the ends; a tree turns on one shared elbow under each parent (the
+    engine's _altoTreeMid). Lines that meet at a card they share are not a
+    crossing, and neither are lines running along one another."""
+    mid = {}
+    if tree:
+        for s, t in edges:
+            if ys[t] - heights[t] / 2 > ys[s] + heights[s] / 2:
+                mid[s] = min(mid.get(s, float("inf")), ys[t] - heights[t] / 2)
+    segs = []
+    for k, (s, t) in enumerate(edges):
+        sx, sy, tx, ty = xs[s], ys[s], xs[t], ys[t]
+        if abs(sx - tx) < 10:
+            pts = [(sx, sy), (sx, ty)]
+        elif abs(sy - ty) < 1:
+            pts = [(sx, sy), (tx, ty)]
+        else:
+            if tree and s in mid:
+                pb = sy + heights[s] / 2
+                m = pb + (mid[s] - pb) / 2
+            else:
+                m = (sy + ty) / 2
+            pts = [(sx, sy), (sx, m), (tx, m), (tx, ty)]
+        for a, b in zip(pts, pts[1:]):
+            segs.append((k, s, t, a, b))
+    n = 0
+    for i, (k1, s1, t1, a1, b1) in enumerate(segs):
+        for k2, s2, t2, a2, b2 in segs[i + 1:]:
+            if k1 == k2 or {s1, t1} & {s2, t2}:
+                continue
+            v, h = ((a1, b1), (a2, b2)) if a1[0] == b1[0] else ((a2, b2), (a1, b1))
+            if v[0][0] != v[1][0] or h[0][1] != h[1][1]:
+                continue           # both vertical or both horizontal: not a crossing
+            x, y = v[0][0], h[0][1]
+            if (min(h[0][0], h[1][0]) + 0.5 < x < max(h[0][0], h[1][0]) - 0.5
+                    and min(v[0][1], v[1][1]) + 0.5 < y < max(v[0][1], v[1][1]) - 0.5):
+                n += 1
+    return n
 
 
 def outline_spokes(nodes, connections: list) -> list:

@@ -133,15 +133,23 @@ def test_the_browser_tree_matches_the_builder(tmp_path):
           f"var ACT_SEQS={json.dumps(acts)}; var NODES={json.dumps([{'id': n.id} for n in nodes])};\n"
           "window._ALTO_OUTLINE={kids:" + json.dumps(kids) + ",parent:"
           + json.dumps({n.id: n.parent for n in nodes if n.parent}) + "};\n"
-          + dx.tree_glue(TREE) + "\n"
+          + dx.tree_glue(TREE, "fan") + "\n"
           f"var pos={{}}, h={json.dumps(h)}; window._altoTree(pos,h);\n"
-          "console.log(JSON.stringify({y:pos, x:Object.fromEntries(NODES.map(function(n){return [n.id,n.displayX];}))}));")
+          "console.log(JSON.stringify({y:pos, etx:window._altoEdgeTX, x:Object.fromEntries(NODES.map(function(n){return [n.id,n.displayX];}))}));")
     f = tmp_path / "tree.js"
     f.write_text(js, encoding="utf-8")
     out = json.loads(subprocess.check_output([NODE, str(f)], timeout=60))
     for n in nodes:
         assert out["y"][n.id] == pytest.approx(y[n.id]), n.id
         assert out["x"][n.id] == pytest.approx(x[n.id]), n.id
+    # fan: offer's spine children would be its leaves' — pick a real spine,
+    # the root's children: first at the centre, then left, right, …
+    root = next(n.id for n in nodes if not n.parent)
+    ks = kids[root]
+    bx = x[ks[0]]
+    offs = [out["etx"].get(root + "|" + k, bx) - bx for k in ks]
+    assert offs[0] == 0 and offs[1] < 0 < offs[2]
+    assert offs[1] == -offs[2] and abs(offs[3]) == 2 * abs(offs[1])
 
 
 def test_flank_cards_are_narrower_on_desktop_only():
@@ -156,3 +164,42 @@ def test_a_tree_spine_is_one_straight_trunk_in_the_router():
     assert "_lr = window._altoTreeOn ? null" in html
     assert "if(window._altoTreeMid) window._altoTreeMid(forcedMid);" in html
     assert "(n.displayX !== undefined) ? n.displayX : COL_X[n.col]" in html
+
+
+def _brief(**kw):
+    return Brief(title="t", subject="t", mode=kw.pop("mode", "outline"), columns=5,
+                 acts=[{"label": "I"}, {"label": "II"}], timeline_id="t", **kw)
+
+
+def test_layout_options_are_validated():
+    from alto.build.brief import BriefError, validate_brief
+    for bad in ({"layout": "grid"}, {"tree_lines": "curvy"}):
+        with pytest.raises(BriefError):
+            validate_brief(_brief(**bad))
+    with pytest.raises(BriefError):
+        validate_brief(_brief(mode="linear", layout="tree"))
+
+
+def test_auto_takes_the_tree_only_when_the_outline_has_categories():
+    from alto.build.builder import run_layout
+    # Torts-shaped: concepts with outcomes → tree
+    ns = _torts_shape()
+    rep = run_layout(_brief(), ns, [])[5]
+    assert rep["layout"] == "tree" and rep["categories"]
+    # a flat list under one root: nothing for a tree to show → flow
+    flat = [_n("r")] + [_n(f"k{i}", "r") for i in range(6)]
+    rep = run_layout(_brief(), flat, [])[5]
+    assert rep["layout"] == "flow" and not rep["categories"]
+    # forced either way
+    assert run_layout(_brief(layout="tree"), [_n("r")] + [_n(f"k{i}", "r") for i in range(6)], [])[5]["layout"] == "tree"
+    assert run_layout(_brief(layout="flow"), _torts_shape(), [])[5]["layout"] == "flow"
+
+
+def test_line_crossings_counts_a_crossing_and_ignores_shared_ends():
+    from alto.build.layout import line_crossings
+    xs = {"a": 0, "b": 100, "c": 50, "d": 50}
+    ys = {"a": 0, "b": 200, "c": -100, "d": 300}
+    h = {k: 10 for k in xs}
+    # a→b turns across at y=100; c→d runs straight down x=50 through it
+    assert line_crossings([("a", "b"), ("c", "d")], xs, ys, h, False) == 1
+    assert line_crossings([("a", "b"), ("a", "d")], xs, ys, h, False) == 0

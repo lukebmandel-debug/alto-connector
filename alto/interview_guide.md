@@ -267,6 +267,18 @@ What the build does for you, so don't ask the student about any of it: hub and
 column placement, the parent→child lines, the outline numbering, and the depth
 filter. `col` is ignored in outline mode.
 
+The arrangement is chosen too. `layout: 'auto'` (the default) draws an outline
+whose concepts really do group — sections, or concepts with outcomes of their
+own (Liable / Not Liable) — as a tree: each band's root on top, its sections
+side by side, every concept down its branch with its outcomes beside it. It
+does that when the tree crosses no more lines than the flowing layout; a flat
+list, or anything linear, flows. `run_layout_preview` reports which it chose
+and the crossing counts; `'tree'` / `'flow'` force one, and passing that to
+`build_timeline` keeps it. `tree_lines: 'fan'` (default) gives each child down
+a branch its own line, spread across the top of the first card, so every
+subtopic can be reached by following its line; `'trunk'` draws one shared line.
+Only change these if the student asks for a different look.
+
 ### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary
