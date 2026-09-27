@@ -24,7 +24,6 @@ LABEL_RESERVE = 184
 BOTTOM_PAD = 40
 ACT_BOUNDARY_GAP = 210
 RHYTHM_STEP = 90          # median inter-node cascade step in the reference build
-HUB_DROP = RHYTHM_STEP    # outline: a child's top sits at least this far below its hub's
 
 # Lane-feasibility constants (verify_terrarium.py §D2)
 WORLD_W, HALF, HALF_CENTER, CLR, EDGE = 1700, 135, 145, 24, 8
@@ -114,16 +113,10 @@ def _initial_positions(nodes, heights):
     return positions
 
 
-def resolve(nodes, columns: int, act_count: int, parent: dict = None):
+def resolve(nodes, columns: int, act_count: int):
     """Compute baseY hints. Returns (positions, heights, world_height, report).
     nodes must be in narrative order (ACT_SEQS order); node.col must be set.
-
-    `parent` (outline mode: child id → hub id) adds Pass C, which keeps every
-    hub above its own children. Without it a hub in `center` is pushed down by
-    the tall hubs before it while its leaves, out in `left`/`right`, collide
-    with nothing and stay put — so the leaves ride up beside or above the hub
-    and its spokes have to double back (ALTO-001). The engine's initLayout
-    carries the same pass (engine_patches: outline-hub-above-children)."""
+    An outline is laid out by outline_tree instead."""
     colx = COL_SETS[columns]
     heights = {n.id: card_height(n.desc, n.title) for n in nodes}
     act_seqs = [[] for _ in range(act_count)]
@@ -174,16 +167,6 @@ def resolve(nodes, columns: int, act_count: int, parent: dict = None):
                         for i in act_seqs[bi]:
                             positions[i] += shift
                     nonlocal_changed[0] = True
-            # Pass C (outline): a hub sits above every direct child. Pushes
-            # only downward, like A and B, so the outer loop still converges.
-            for cid, pid in (parent or {}).items():
-                if cid not in positions or pid not in positions:
-                    continue
-                need = (positions[pid] - heights[pid] / 2 + HUB_DROP
-                        + heights[cid] / 2)
-                if positions[cid] < need - 0.5:
-                    positions[cid] = need
-                    nonlocal_changed[0] = True
             if nonlocal_changed[0]:
                 outer_changed = True
                 nonlocal_changed[0] = False
@@ -221,15 +204,14 @@ def resolve(nodes, columns: int, act_count: int, parent: dict = None):
 def outline_order_and_columns(nodes, columns: int) -> None:
     """Order and place an outline's concepts from its containment tree.
 
-    Ordering is depth-first per band — a hub, then each child's whole subtree —
-    which is simply outline reading order, so it also fixes ACT_SEQS, the
+    Ordering is depth-first per band — a hub, then each child's whole subtree,
+    children in the order the material gives them — which is simply outline
+    reading order, so it also fixes the outline numerals, ACT_SEQS, the
     prev/next hop and the mobile grid for free.
 
-    Placement follows one rule: **a concept that contains others is a hub and
-    sits in `center`; a leaf sits out to one side.** That is what makes a band
-    read as a run of radial clusters rather than a column of cards, and it is
-    why depth can grow without running out of columns — a deeper level starts a
-    new cluster further down the band instead of a lane further out.
+    `col` follows one rule: **a concept that contains others sits in `center`;
+    a leaf sits out to one side.** Mobile lays its grid out from it; desktop
+    places an outline as a tree instead (outline_tree).
 
     Authored `col` is ignored in outline mode: the geometry is structural, not
     editorial, and letting a brief pin a hub off-centre would break the shape
@@ -253,15 +235,14 @@ def outline_order_and_columns(nodes, columns: int) -> None:
         children = kids.get(node.id, [])
         node.col = "center" if children else None      # filled below for leaves
         ordered.append(node)
-        # leaves first so they sit beside this hub, then sub-hubs, which start
-        # their own cluster further down
-        leaves = [c for c in children if not kids.get(c.id)]
-        hubs = [c for c in children if kids.get(c.id)]
-        for i, leaf in enumerate(leaves):
-            leaf.col = (outer if i >= 2 and columns == 5 else inner)[i % 2]
-            ordered.append(leaf)
-        for hub in hubs:
-            walk(hub)
+        i = 0
+        for c in children:
+            if kids.get(c.id):
+                walk(c)
+            else:
+                c.col = (outer if i >= 2 and columns == 5 else inner)[i % 2]
+                ordered.append(c)
+                i += 1
 
     for root in sorted(roots, key=lambda n: n.act):
         walk(root)
@@ -275,6 +256,120 @@ def outline_order_and_columns(nodes, columns: int) -> None:
         if not n.col:
             n.col = inner[0]
     nodes[:] = ordered
+
+
+# ── outline tree ────────────────────────────────────────────────────────────
+# A desktop outline reads as a tree growing down from each band's root:
+#
+#                       [Intentional Torts]
+#              [Battery]                    [Trespass]
+#   (L)-[Intent and Volition]-(NL)   (L)-[Trespass to Land]-(NL)
+#   (L)-[Minimum Requirements]-(NL)      [Trespass to Chattels]
+#   (L)-[Consent and Limits]-(NL)    (L)-[Conversion]-(NL)
+#
+# Every node is a LEAF (no children), a CONCEPT (children, all leaves) or a
+# SECTION (at least one child with children of its own). The root's sections
+# are BRANCHES set side by side, two to a row; its other children form one more
+# branch hanging straight off the root. A branch is one vertical spine: its
+# section on top, then its children in order, a nested section starting a new
+# run of the same spine. A concept's first two leaves flank it on its own row
+# (left, right), narrower than a spine card so six lanes fit the 1700px world;
+# further leaves take rows of their own below it. Rows are centred, so every
+# concept-to-flank line is a straight horizontal run.
+#
+# The browser re-runs exactly this over measured heights (detail_extras
+# TREE_GLUE, which reads TREE below), so the builder's positions are hints in
+# the same shape. Mobile keeps its own single-column grid (mobile_grid, col).
+TREE = {
+    "CX": 850, "BRANCH_X": [425, 1275], "FLANK_DX": 283, "FLANK_W": 200,
+    "TOP": LABEL_RESERVE, "ROOT_GAP": 70, "HEAD_GAP": 56, "ROW_GAP": 40,
+    "GROUP_GAP": 90, "ACT_GAP": ACT_BOUNDARY_GAP,
+}
+
+
+def outline_kids(nodes) -> dict:
+    by_id = {n.id for n in nodes}
+    kids: dict[str, list] = {}
+    for n in nodes:
+        if n.parent and n.parent in by_id:
+            kids.setdefault(n.parent, []).append(n.id)
+    return kids
+
+
+def outline_flanks(nodes) -> set:
+    """Ids of the leaves that flank their concept (the narrow cards)."""
+    kids = outline_kids(nodes)
+    flanks = set()
+    for pid, ks in kids.items():
+        if ks and all(not kids.get(k) for k in ks):
+            flanks.update(ks[:2])
+    return flanks
+
+
+def outline_tree(nodes, act_count: int, heights: dict):
+    """Tree placement for an outline (see TREE). Returns (centres, xs,
+    world_height); centres are card-centre y like resolve()'s positions."""
+    T = TREE
+    kids = outline_kids(nodes)
+    by_id = {n.id: n for n in nodes}
+    leaf = lambda i: not kids.get(i)
+    concept = lambda i: bool(kids.get(i)) and all(leaf(k) for k in kids[i])
+    y, x = {}, {}
+    bottom = [0.0]
+
+    def put(i, cx, top, row_h=None):
+        x[i] = cx
+        y[i] = top + (row_h if row_h is not None else heights[i]) / 2
+        bottom[0] = max(bottom[0], y[i] + heights[i] / 2)
+
+    def items(ids, bx, c):
+        for i in ids:
+            if leaf(i):
+                put(i, bx, c)
+                c += heights[i] + T["ROW_GAP"]
+            elif concept(i):
+                ls = kids[i]
+                row = [i] + ls[:2]
+                h = max(heights[r] for r in row)
+                put(i, bx, c, h)
+                for j, l in enumerate(ls[:2]):
+                    put(l, bx + (-1 if j == 0 else 1) * T["FLANK_DX"], c, h)
+                c += h + T["ROW_GAP"]
+                for k in range(2, len(ls), 2):
+                    row = ls[k:k + 2]
+                    h = max(heights[r] for r in row)
+                    for j, l in enumerate(row):
+                        put(l, bx + (-1 if j == 0 else 1) * T["FLANK_DX"], c, h)
+                    c += h + T["ROW_GAP"]
+            else:
+                put(i, bx, c)
+                c = items(kids[i], bx, c + heights[i] + T["HEAD_GAP"])
+        return c
+
+    cur = T["TOP"]
+    for a in range(act_count):
+        roots = [n.id for n in nodes if n.act == a and not (n.parent and n.parent in by_id)]
+        if a and roots:
+            cur = bottom[0] + T["ACT_GAP"]
+        for r in roots:
+            put(r, T["CX"], cur)
+            cur += heights[r] + T["ROOT_GAP"]
+            ks = kids.get(r, [])
+            branches = [[k] for k in ks if not leaf(k) and not concept(k)]
+            direct = [k for k in ks if leaf(k) or concept(k)]
+            if direct:
+                branches.append(direct)
+            branches.sort(key=lambda br: ks.index(br[0]))
+            for g in range(0, len(branches), 2):
+                group = branches[g:g + 2]
+                xs = T["BRANCH_X"] if len(group) == 2 else [T["CX"]]
+                ends = [items(br, bx, cur) - T["ROW_GAP"] for br, bx in zip(group, xs)]
+                cur = max(ends) + T["GROUP_GAP"]
+    # anything outside the tree (verify rejects it; still never drop a card)
+    for n in nodes:
+        if n.id not in y:
+            put(n.id, T["CX"], bottom[0] + T["ROW_GAP"])
+    return y, x, round(bottom[0] + BOTTOM_PAD)
 
 
 def outline_spokes(nodes, connections: list) -> list:

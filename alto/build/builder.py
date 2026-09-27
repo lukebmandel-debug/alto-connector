@@ -12,7 +12,8 @@ JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reas
 from .emit import emit
 from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid, \
-    outline_order_and_columns, outline_spokes
+    outline_order_and_columns, outline_spokes, outline_tree, outline_flanks, TREE
+from .estimate import card_height
 from .sanitize import sanitize_brief, sanitize_connections
 from ..engine import template as engine_template
 from .verify import verify_data, verify_output, verify_scripts, VerifyError
@@ -60,10 +61,18 @@ def place(brief: Brief, nodes: list[Node]) -> None:
 def run_layout(brief: Brief, nodes: list[Node]):
     """Column assignment + baseY resolution + mobile grid. Returns layout info."""
     place(brief, nodes)
-    parent = ({n.id: n.parent for n in nodes if n.parent}
-              if brief.mode == "outline" else None)
-    positions, heights, world_h, report = resolve(nodes, brief.columns,
-                                                  len(brief.acts), parent)
+    if brief.mode == "outline":
+        # Desktop is a tree (layout.TREE); `col` still drives the mobile grid.
+        flanks = outline_flanks(nodes)
+        heights = {n.id: card_height(n.desc, n.title,
+                                     TREE["FLANK_W"] if n.id in flanks else 270)
+                   for n in nodes}
+        positions, _xs, world_h = outline_tree(nodes, len(brief.acts), heights)
+        report = {"world_height": world_h, "moved_on_recheck": [],
+                  "per_column": {}, "tree": True}
+    else:
+        positions, heights, world_h, report = resolve(nodes, brief.columns,
+                                                      len(brief.acts))
     mgrid, mobile_h = mobile_grid(nodes, brief.columns)
     return positions, heights, world_h, mgrid, mobile_h, report
 

@@ -21,12 +21,19 @@ FLOOR = 120         # no card estimates below this
 FALLBACK = 260      # matches the engine's own fallback for unmeasurable cards
 
 
-def card_height(desc: str, title: str = "") -> int:
+CARD_W = 270        # the calibrated card width
+CARD_PAD_X = 35     # its horizontal padding; text wraps inside the rest
+
+
+def card_height(desc: str, title: str = "", width: int = CARD_W) -> int:
+    """`width` scales the characters per line for a narrower card (an outline's
+    flanking outcome cards) by the text width it leaves."""
     desc_len = len(desc or "")
     if desc_len == 0:
         return FLOOR
-    h = BASE + LINE_H * math.ceil(desc_len / CPL) + SAFETY
+    k = (width - CARD_PAD_X) / (CARD_W - CARD_PAD_X)
+    h = BASE + LINE_H * math.ceil(desc_len / (CPL * k)) + SAFETY
     # Long titles wrap to a second line (~24 chars/line in the 270px card).
-    if len(title or "") > 24:
+    if len(title or "") > 24 * k:
         h += LINE_H
     return max(FLOOR, h)

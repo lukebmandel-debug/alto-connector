@@ -36,7 +36,7 @@ HOW_CONNECT_CSS = (
     "\n  .hc-how{opacity:.88;font-size:.94em;margin-top:3px;}")
 from .sanitize import css_color, esc, one_line
 from . import detail_extras as dx
-from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W
+from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_flanks
 
 # Generic section-builder code (same shape as the template's empty defaults —
 # kept in one place because emit() replaces the whole region span).
@@ -534,8 +534,8 @@ function isolateRelation(key){
     return (rl[c[2]]?rl[c[2]]+': ':'')+(tt[from]||from)+' → '+(tt[to]||to);
   }
   document.addEventListener('mouseover', function(e){
-    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge]'); if(!p) return;
-    var info=edgeInfo(p.getAttribute('data-edge')); if(!info) return;
+    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge],#river-svg [data-edge-hit]'); if(!p) return;
+    var info=edgeInfo(p.getAttribute('data-edge')||p.getAttribute('data-edge-hit')); if(!info) return;
     if(!tip){ tip=document.createElement('div'); tip.className='line-tip'; document.body.appendChild(tip); }
     tip.textContent=info; tip.style.display='block';
   });
@@ -543,11 +543,91 @@ function isolateRelation(key){
     if(tip && tip.style.display==='block'){ tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+14)+'px'; }
   });
   document.addEventListener('mouseout', function(e){
-    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge]');
+    var p=e.target && e.target.closest && e.target.closest('#river-svg [data-edge],#river-svg [data-edge-hit]');
     if(p && tip){ tip.style.display='none'; }
   });
 })();"""
 
+
+
+# Following a line (desktop). Clicking a connecting line flies to the node at
+# its far end — the end farther from where you clicked, so a line reads as
+# "go there" from either side — and enlarges it (the engine's own focus). Moving
+# onto a line fades every other card and line a little, so the two cards it
+# joins stand out; the existing .line-tip label still names the relation.
+# The engine's drawing is left alone: after each redraw, every path belonging
+# to an edge (tube, frosted sheen, two-colour flags) is tagged with its key, and
+# a wide transparent hit path is laid over each tube so a 5px line is easy to
+# catch. The hit path carries data-edge-hit, not data-edge, which the engine's
+# audit sampler and the relation filter count. Mobile is untouched.
+LINE_NAV_GLUE = """
+(function(){
+  if(window._altoLineNav) return; window._altoLineNav=1;
+  var de=document.documentElement;
+  function desktop(){ return !de.classList.contains('mobile'); }
+  function tag(){
+    var svg=document.getElementById('river-svg'); if(!svg) return;
+    [].forEach.call(svg.querySelectorAll('[data-edge-hit]'),function(h){ h.parentNode.removeChild(h); });
+    var key=null, hits=[];
+    [].forEach.call(svg.children,function(el){
+      if(el.hasAttribute('data-edge')){ key=el.getAttribute('data-edge'); hits.push(el); }
+      else if(key && el.tagName.toLowerCase()==='path') el.setAttribute('data-edge-part',key);
+    });
+    if(!desktop()) return;
+    hits.forEach(function(t){
+      var h=document.createElementNS('http://www.w3.org/2000/svg','path');
+      h.setAttribute('d',t.getAttribute('d')); h.setAttribute('fill','none');
+      h.setAttribute('stroke','transparent'); h.setAttribute('stroke-width','14');
+      h.setAttribute('stroke-linecap','round'); h.setAttribute('stroke-linejoin','round');
+      h.setAttribute('data-edge-hit',t.getAttribute('data-edge'));
+      svg.appendChild(h);
+    });
+  }
+  var _rc=window.redrawConnections;
+  if(typeof _rc==='function') window.redrawConnections=function(){
+    var r=_rc.apply(this,arguments); try{ tag(); }catch(e){} return r; };
+  function edgeOf(t){ return t && t.closest && t.closest('#river-svg [data-edge-hit],#river-svg [data-edge]'); }
+  function keyOf(p){ return p.getAttribute('data-edge-hit')||p.getAttribute('data-edge'); }
+  var hot=null;
+  function clear(){
+    if(!hot) return; hot=null;
+    var cv=document.getElementById('canvas'); if(cv) cv.classList.remove('edge-hover');
+    [].forEach.call(document.querySelectorAll('.edge-end,.edge-hot'),function(e){ e.classList.remove('edge-end'); e.classList.remove('edge-hot'); });
+  }
+  function light(key){
+    if(hot===key) return; clear();
+    var cv=document.getElementById('canvas'); if(!cv || cv.classList.contains('focus-mode')) return;
+    hot=key; var ends=key.split('|');
+    ends.forEach(function(id){ var n=document.getElementById('node-'+id); if(n) n.classList.add('edge-end'); });
+    [].forEach.call(document.querySelectorAll('#river-svg [data-edge]'),function(e){
+      if(e.getAttribute('data-edge')===key) e.classList.add('edge-hot'); });
+    [].forEach.call(document.querySelectorAll('#river-svg [data-edge-part]'),function(e){
+      if(e.getAttribute('data-edge-part')===key) e.classList.add('edge-hot'); });
+    cv.classList.add('edge-hover');
+  }
+  document.addEventListener('mouseover',function(e){
+    if(!desktop()) return; var p=edgeOf(e.target);
+    if(p) light(keyOf(p)); else if(hot && !(e.target.closest && e.target.closest('#river-svg'))) clear();
+  });
+  document.addEventListener('mouseout',function(e){
+    if(!hot || !edgeOf(e.target)) return;
+    if(!edgeOf(e.relatedTarget)) clear();
+  });
+  document.addEventListener('click',function(e){
+    if(!desktop()) return; var p=edgeOf(e.target); if(!p) return;
+    var ends=keyOf(p).split('|'), best=null, bd=-1;
+    ends.forEach(function(id){
+      var c=document.querySelector('#node-'+id+' .node-card'); if(!c) return;
+      var r=c.getBoundingClientRect(), dx=r.left+r.width/2-e.clientX, dy=r.top+r.height/2-e.clientY, dd=dx*dx+dy*dy;
+      if(dd>bd){ bd=dd; best=id; }
+    });
+    if(!best || typeof window.enterFocus!=='function') return;
+    e.preventDefault(); e.stopPropagation(); clear();
+    var tip=document.querySelector('.line-tip'); if(tip) tip.style.display='none';
+    window.enterFocus(best);
+  }, true);
+  if(document.readyState!=='loading') tag(); else document.addEventListener('DOMContentLoaded',tag);
+})();"""
 
 
 # Mobile unit label. The phone shows one card at a time, with nothing around
@@ -1140,7 +1220,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
                + "\nvar _ALTO_CHIP_HEADINGS={envs:" + js_str(ax1.label if ax1 else "Environments")
                + ",themes:" + js_str(ax2.label if ax2 else "Themes") + "};"
-               + DOCTRINE_BODY + LINES_GLUE
+               + DOCTRINE_BODY + LINES_GLUE + LINE_NAV_GLUE
                + (ALTO_LINK_GLUE if uses_alto_link else ""))
     if b.mode == "outline":
         # Outline numerals, derived at build from depth and sibling order — a
@@ -1181,7 +1261,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",kids:" + json.dumps(_kids)
                    + ",parent:" + json.dumps(_parent) + "};"
                    + OUTLINE_BODY + OUTLINE_PRINT_GLUE
-                   + dx.HUBS_ABOVE_GLUE + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE)
+                   + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
+                   + dx.tree_glue(TREE))
     if index_axes:
         orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
     if rel_key_items:
@@ -1249,10 +1330,23 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "box-shadow:inset 0 0 0 1px currentColor;}"
         "\n  .line-key-count{margin-left:6px;opacity:.5;font-size:.85em;}"
         "\n  html:not(.mobile) #river-svg [data-edge]{pointer-events:stroke;}"
+        "\n  html:not(.mobile) #river-svg [data-edge-hit]{pointer-events:stroke;cursor:pointer;}"
+        "\n  html:not(.mobile) #river-svg [data-edge],html:not(.mobile) #river-svg [data-edge-part]{transition:opacity .18s;}"
+        "\n  html:not(.mobile) #canvas.edge-hover #river-svg [data-edge]:not(.edge-hot),"
+        "html:not(.mobile) #canvas.edge-hover #river-svg [data-edge-part]:not(.edge-hot){opacity:.15 !important;}"
+        "\n  html:not(.mobile) #canvas.edge-hover .node:not(.edge-end) .node-card{opacity:.35 !important;}"
         "\n  .line-tip{position:fixed;z-index:9999;pointer-events:none;display:none;"
         "background:var(--surface);color:var(--text);border:1px solid var(--border);"
         "border-radius:6px;padding:4px 8px;font-size:12px;max-width:280px;"
         "box-shadow:0 4px 16px rgba(0,0,0,.2);}")
+    # An outline's flanking outcome cards are narrower on desktop, so a tree
+    # row (flank | concept | flank, twice) fits the 1700px world (layout.TREE).
+    if b.mode == "outline":
+        _fl = sorted(outline_flanks(nodes))
+        if _fl:
+            nav_char_css += ("\n  " + ",".join(
+                f"html:not(.mobile) #node-{i} .node-card" for i in _fl)
+                + f"{{width:{TREE['FLANK_W']}px;}}")
     # A named chip (hide_nav axes, above) has to stay inside a 270px card, so
     # cap it and ellipsise rather than letting one long case name reflow the
     # footer. The glyph form is a fixed 14px and needs none of this.

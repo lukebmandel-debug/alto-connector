@@ -321,24 +321,149 @@ _SAFARI_ZOOM_NEW = _SAFARI_ZOOM_OLD + """  // Safari 26+: standardized zoom, sam
   })();
 """
 
-# ── D-GRID quantize also covers Safari 26+ ──────────────────────────────────
-# The card-position sub-pixel snap (d-grid-quantize) reads getBoundingClientRect
-# under the root zoom and assumed Blink's zoom model, so it was gated on
-# .is-blink — Safari's own zoom model was untested at the time (2026-07-25) and
-# left alone rather than risk a wrong snap. Safari 26+ has since moved to the
-# same standardized zoom Blink already used (see safari-standard-zoom above,
-# which measures this behaviourally into .vw-unzoomed), so the same
-# getBoundingClientRect math is valid there too — this was the actual cause of
-# the Safari-only blur users kept reporting on desktop monitors, since Chrome
-# always got the quantize pass and Safari never did. Legacy Safari (pre-26,
-# neither class set) keeps the untouched no-op.
-_DGRID_GATE_OLD = (
-    "if(!document.documentElement.classList.contains('is-blink')) return;"
-    "  /* Safari: unverified geometry */")
-_DGRID_GATE_NEW = (
-    "if(!document.documentElement.classList.contains('is-blink')"
-    " && !document.documentElement.classList.contains('vw-unzoomed')) return;"
-    "  /* legacy Safari (pre-26): unverified geometry */")
+# ── D-GRID: desktop nodes are centred by layout, not by a transform ─────────
+# Every node was centred on its (left, top) point by translate(-50%,-50%). A
+# transform is applied on top of layout WITHOUT being snapped to device pixels,
+# so at any fit zoom between 0.8 and 1 — every window from 1366 to 1700px wide —
+# half a card's size lands a node between device pixels. Two visible results:
+#   * Safari: a card is its own GPU layer (its backdrop-filter), and WebKit
+#     bilinear-resamples an off-grid layer, softening all its text. Chrome
+#     drops backdrop-filter under the root zoom, so it was Safari-only.
+#   * both engines: a 1px chip outline straddling two device rows reads as a
+#     frame half hidden behind the card.
+# The old quantize pass nudged Y by measuring getBoundingClientRect, on Blink
+# only (Safari "unverified"; 1.8.27 widened it to Safari 26+). Measuring is the
+# wrong model: the engines combine layout and transform fractions differently,
+# and on painted pixels no rect-based or transform-based nudge was crisp in
+# both (Playwright WebKit 26.6 + Chromium, 1x and 2x, 1366..1920px).
+#
+# Centring by margins instead (-w/2, -h/2) makes the offset part of layout,
+# which both engines snap to device pixels themselves: in the same test every
+# chip border and card edge painted on-grid, at every width, dpr and scroll.
+# A ResizeObserver keeps the margins current (fonts, relayout, the focus zoom
+# ramp). A node with an inline transform — the focus fly — drops the margins
+# and uses its transform exactly as before, so enlarged cards are unchanged.
+# The three engine functions that read offsetLeft/offsetTop as a node's centre
+# (focus fly, arrow-key neighbour, search scroll) subtract the margin back out
+# (dgrid-centre-*), which is also correct on mobile, where there is none.
+_DGRID_SCRIPT_OLD = """<script id="d-grid-quantize">
+/* D-GRID quantize (2026-07-25, desktop only): translate(-50%) of a fractional
+   card height leaves the card top on a fractional device pixel — every glyph in
+   the card then rasters off-grid (visible smear on 1× displays under zoom:.8).
+   Snap each node's Y onto the device grid via --qy. getBoundingClientRect is
+   post-zoom here, so rect coords ARE device-visual px. */
+(function(){
+  if(document.documentElement.classList.contains('mobile')) return;
+  if(!document.documentElement.classList.contains('is-blink')) return;  /* Safari: unverified geometry */
+  var Z=0.8;
+  function q(){
+    /* effective visual scale, MEASURED (survives html-zoom or browser-zoom changes) */
+    var c=document.querySelector('.node-card');
+    if(c&&c.offsetWidth){ var rr=c.getBoundingClientRect().width/c.offsetWidth; if(rr>0.1&&rr<10) Z=rr; }
+    var nodes=document.querySelectorAll('.node');
+    for(var i=0;i<nodes.length;i++){ var n=nodes[i];
+      if(n.style.transform) continue;                 /* mid-fly/focused: leave alone */
+      n.style.setProperty('--qy','0px');
+      var r=n.getBoundingClientRect();
+      var d=(Math.round(r.top)-r.top)/Z;
+      if(d>0.005||d<-0.005) n.style.setProperty('--qy',d.toFixed(3)+'px');
+    }
+  }
+  function qq(){ q(); requestAnimationFrame(function(){ requestAnimationFrame(q); }); }
+  /* background-tab loads: rAF is paused until the tab fronts — the sync q() above
+     covers the hidden case; the double-rAF re-snaps after any pending layout. */
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) qq(); });
+  window.__altoQuantize=qq;
+  window.addEventListener('load',qq);
+  window.addEventListener('resize',function(){ clearTimeout(window.__qt); window.__qt=setTimeout(qq,160); });
+  if(document.fonts&&document.fonts.ready&&document.fonts.ready.then) document.fonts.ready.then(qq);
+  var _ef=window.exitFocus;
+  if(typeof _ef==='function') window.exitFocus=function(){ var r=_ef.apply(this,arguments); setTimeout(qq,400); return r; };
+  qq();
+})();
+</script>"""
+_DGRID_SCRIPT_NEW = """<style id="d-grid-centre">
+html:not(.mobile) #world .node.dg:not([style*="transform"]){
+  transform:none; margin:var(--my,0px) 0 0 var(--mx,0px);
+}
+</style>
+<script id="d-grid-quantize">
+/* D-GRID (1.8.28): centre desktop nodes with margins so layout, which every
+   engine snaps to device pixels, places them. See engine_patches.py. */
+(function(){
+  var de=document.documentElement;
+  if(de.classList.contains('mobile')) return;
+  var world=document.getElementById('world'); if(!world) return;
+  function centre(n){
+    if(!n.offsetWidth) return;
+    n.style.setProperty('--mx',(-n.offsetWidth/2)+'px');
+    n.style.setProperty('--my',(-n.offsetHeight/2)+'px');
+  }
+  var ro=(typeof ResizeObserver==='function')
+    ? new ResizeObserver(function(es){ es.forEach(function(e){ centre(e.target); }); }) : null;
+  function adopt(n){
+    if(!n.classList || !n.classList.contains('node') || n._dg) return;
+    n._dg=1; centre(n); n.classList.add('dg'); if(ro) ro.observe(n);
+  }
+  function sweep(){
+    if(de.classList.contains('mobile')) return;
+    [].forEach.call(world.querySelectorAll('.node'),function(n){ if(n._dg) centre(n); else adopt(n); });
+  }
+  /* renderTimeline rebuilds every .node; adopt them as they arrive */
+  if(typeof MutationObserver==='function')
+    new MutationObserver(function(ms){ ms.forEach(function(m){ [].forEach.call(m.addedNodes,adopt); }); })
+      .observe(world,{childList:true});
+  window.__altoQuantize=sweep;
+  window.addEventListener('load',sweep);
+  if(document.fonts&&document.fonts.ready&&document.fonts.ready.then) document.fonts.ready.then(sweep);
+  sweep();
+})();
+</script>"""
+
+# Readers of a node's centre: offsetLeft/Top include the centring margin now.
+_DGRID_CXY_OLD = "    return {x:el.offsetLeft+ox, y:el.offsetTop+oy};"
+_DGRID_CXY_NEW = ("    var _cs=getComputedStyle(el);\n"
+                  "    return {x:el.offsetLeft-(parseFloat(_cs.marginLeft)||0)+ox, y:el.offsetTop-(parseFloat(_cs.marginTop)||0)+oy};")
+_DGRID_NB_OLD = "    var cx=cur.offsetLeft,cy=cur.offsetTop,best=null,bc=Infinity;"
+_DGRID_NB_NEW = ("    function _ctr(e){ var c=getComputedStyle(e); return [e.offsetLeft-(parseFloat(c.marginLeft)||0), e.offsetTop-(parseFloat(c.marginTop)||0)]; }\n"
+                 "    var _cc=_ctr(cur), cx=_cc[0],cy=_cc[1],best=null,bc=Infinity;")
+_DGRID_NB2_OLD = "      var dx=n.offsetLeft-cx,dy=n.offsetTop-cy;"
+_DGRID_NB2_NEW = "      var _nc=_ctr(n), dx=_nc[0]-cx,dy=_nc[1]-cy;"
+_DGRID_SRCH_OLD = ("      var top=(world?world.offsetTop:0)+node.offsetTop - cv.clientHeight/2;\n"
+                   "      var left=(world?world.offsetLeft:0)+node.offsetLeft - cv.clientWidth/2;")
+_DGRID_SRCH_NEW = ("      var _ns=getComputedStyle(node);\n"
+                   "      var top=(world?world.offsetTop:0)+node.offsetTop-(parseFloat(_ns.marginTop)||0) - cv.clientHeight/2;\n"
+                   "      var left=(world?world.offsetLeft:0)+node.offsetLeft-(parseFloat(_ns.marginLeft)||0) - cv.clientWidth/2;")
+
+
+
+# ── chip outlines are real borders, one device pixel wide ──────────────────
+# The square entity chips drew their outline as `box-shadow: inset 0 0 0 1px`,
+# the tag pills the same way. A box-shadow is not snapped to device pixels, so
+# at a fit zoom of 0.8..0.95 the 1px ring is 0.8..0.95 of a device pixel,
+# smeared unevenly across the edge pixels: part of the frame reads as hidden
+# behind the card. It looked right only at zoom 1 (a wide window) and in an
+# enlarged card (zoom 1.7), which is exactly the reported pattern. Borders ARE
+# snapped, in WebKit and Blink, and never drawn thinner than one device pixel.
+# The width has to survive two different snaps: Blink floors width x zoom x dpr
+# to device pixels, WebKit floors the width to 1/dpr BEFORE the zoom and then
+# floors again when painting. round(up, 1px/zoom, 0.5px) — 1px at zoom 1, 1.5px
+# below it — lands on exactly one visual pixel (1 device px at 1x, 2 at 2x) in
+# both, measured in Playwright WebKit 26.6 and Chromium. Engines without CSS
+# round() get 1.02px/zoom, right in Blink at any dpr and in WebKit at 1x.
+# box-sizing is already border-box, so no chip changes size. Mobile untouched.
+_CHIP_RULE_OLD = ("html:not(.mobile) .csym-btn{ background:var(--chip-plate) !important; "
+                  "opacity:1 !important; box-shadow:inset 0 0 0 1px currentColor; }")
+_CHIP_RULE_NEW = (
+    "html:not(.mobile){ --chip-rule:calc(1.02px / var(--alto-zoom, 0.8)); }\n"
+    "@supports (width: round(up, 1.3px, 0.5px)){\n"
+    "  html:not(.mobile){ --chip-rule:round(up, calc(1px / var(--alto-zoom, 0.8) - 0.001px), 0.5px); }\n"
+    "}\n"
+    "html:not(.mobile) .csym-btn{ background:var(--chip-plate) !important; "
+    "opacity:1 !important; border:var(--chip-rule) solid currentColor; box-sizing:border-box; }\n"
+    "html:not(.mobile) .tsym-btn{ box-shadow:none; border:var(--chip-rule) solid rgba(192,132,252,.6); box-sizing:border-box; }\n"
+    "html:not(.mobile) .tsym-btn:hover{ box-shadow:none; border-color:var(--theme-color); }\n"
+    "html:not(.mobile) .esym-btn{ border-width:var(--chip-rule); }")
 
 
 # ── mobile glyphs: Overview should carry the same mark as desktop ────────────
@@ -482,12 +607,13 @@ PATCHES = [
         "new": _SAFARI_ZOOM_NEW,
         "count": 1,
     },
-    {
-        "name": "safari-standard-zoom-gets-the-dgrid-quantize",
-        "old": _DGRID_GATE_OLD,
-        "new": _DGRID_GATE_NEW,
-        "count": 1,
-    },
+    {"name": "dgrid-nodes-centred-by-layout", "old": _DGRID_SCRIPT_OLD,
+     "new": _DGRID_SCRIPT_NEW, "count": 1},
+    {"name": "dgrid-centre-fly", "old": _DGRID_CXY_OLD, "new": _DGRID_CXY_NEW, "count": 1},
+    {"name": "dgrid-centre-neighbour", "old": _DGRID_NB_OLD, "new": _DGRID_NB_NEW, "count": 1},
+    {"name": "dgrid-centre-neighbour-2", "old": _DGRID_NB2_OLD, "new": _DGRID_NB2_NEW, "count": 1},
+    {"name": "dgrid-centre-search", "old": _DGRID_SRCH_OLD, "new": _DGRID_SRCH_NEW, "count": 1},
+    {"name": "chip-outlines-are-borders", "old": _CHIP_RULE_OLD, "new": _CHIP_RULE_NEW, "count": 1},
 ]
 
 
@@ -1183,23 +1309,38 @@ PATCHES += [
     {"name": "mobile-runway-pin", "old": _RW_ANCHOR, "new": _RW_NEW, "count": 1},
 ]
 
-# ── outline: a hub sits above its own children (ALTO-001) ───────────────────
-# initLayout's Pass A only pushes a card down when it collides with one in a
-# horizontally overlapping column. An outline hub lives in `center`, so the
-# tall hubs before it push it down; its leaves live in `left`/`right`, collide
-# with nothing, and stay where the cascade left them — beside or above the hub.
-# Every spoke then has to double back (Torts: all 40 Liable / Not Liable
-# pairs sat above their hub). Pass C restores the tree's order on the page;
-# layout.resolve() carries the same pass so the baseY hints already satisfy
-# it. The pass itself (blocks.HUBS_ABOVE_GLUE) is emitted on outline pages
-# only; everywhere else this is a no-op guard, kept to one line because
-# Terrarium's private page sits within a kilobyte of the 1,000,000-byte cap.
-_HUB_ABOVE_OLD = "    // ── Pass B: act boundary enforcement ──\n"
-_HUB_ABOVE_NEW = ("    if(window._altoHubsAbove&&_altoHubsAbove(positions,nodeHeights))"
-                  "outerChanged=true;\n" + _HUB_ABOVE_OLD)
+# ── outline: the desktop tree replaces the resolver's positions ─────────────
+# detail_extras.TREE_GLUE lays an outline out as a tree (layout.outline_tree)
+# over the measured heights and sets each node's displayX; the numeral check
+# must then read that x, not the column's.
+_TREE_HOOK_OLD = "  runResolver();\n"
+_TREE_HOOK_NEW = ("  runResolver();\n"
+                  "  if(window._altoTree) window._altoTree(positions, nodeHeights);\n")
+_TREE_NUM_OLD = "      const nodeX    = COL_X[n.col];\n"
+_TREE_NUM_NEW = "      const nodeX    = (n.displayX !== undefined) ? n.displayX : COL_X[n.col];\n"
+# A tree's spine is one straight trunk: the lines from a section to each card
+# down its spine run behind the cards in between, as the drawing of a tree
+# does. The router would otherwise look for a clear lane beside them and send
+# some out into the gap between branches and back.
+_TREE_LANE_OLD = "          try { _lane = laneRoute(sx, sy, tx, ty, srcNode.id, tgtNode.id); }\n"
+_TREE_LANE_NEW = ("          try { _lane = window._altoTreeOn ? null"
+                  " : laneRoute(sx, sy, tx, ty, srcNode.id, tgtNode.id); }\n")
+# A parent's lines to the children below it leave on ONE shared horizontal,
+# halfway down the gap under it, so a root reads as a clean T into its
+# branches and a fan off one card is a single trunk (the router's own
+# forced-midY mechanism, which its trunk merge already uses).
+_TREE_MID_OLD = "        try { computeTrunks(); } catch(e){\n"
+_TREE_MID_NEW = ("        try { computeTrunks(); if(window._altoTreeMid) window._altoTreeMid(forcedMid); }"
+                 " catch(e){\n")
+_TREE_LANE2_OLD = "              try { _lr = laneRoute(sx0, _sy0, tx0, _ty0, c[0], c[1]); } catch(e){}\n"
+_TREE_LANE2_NEW = ("              try { _lr = window._altoTreeOn ? null"
+                   " : laneRoute(sx0, _sy0, tx0, _ty0, c[0], c[1]); } catch(e){}\n")
 PATCHES += [
-    {"name": "outline-hub-above-children", "old": _HUB_ABOVE_OLD,
-     "new": _HUB_ABOVE_NEW, "count": 1},
+    {"name": "outline-tree-layout", "old": _TREE_HOOK_OLD, "new": _TREE_HOOK_NEW, "count": 1},
+    {"name": "outline-tree-spine-registry", "old": _TREE_LANE2_OLD, "new": _TREE_LANE2_NEW, "count": 1},
+    {"name": "outline-tree-shared-elbow", "old": _TREE_MID_OLD, "new": _TREE_MID_NEW, "count": 1},
+    {"name": "outline-tree-spine-is-straight", "old": _TREE_LANE_OLD, "new": _TREE_LANE_NEW, "count": 1},
+    {"name": "numeral-check-reads-display-x", "old": _TREE_NUM_OLD, "new": _TREE_NUM_NEW, "count": 1},
 ]
 
 # ── node-card chip label sits above the hovered chip's row (ALTO-007) ───────

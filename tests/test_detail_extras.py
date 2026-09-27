@@ -12,7 +12,8 @@ sys.path.insert(0, str(ROOT))
 
 from alto.build.builder import load_brief, build_timeline, place  # noqa: E402
 from alto.build.brief import validate_brief  # noqa: E402
-from alto.build.layout import HUB_DROP, resolve  # noqa: E402
+from alto.build.layout import TREE, outline_flanks, outline_tree  # noqa: E402
+from alto.build.estimate import card_height  # noqa: E402
 from alto.build import detail_extras as dx  # noqa: E402
 from alto.build.single_file import preview  # noqa: E402
 
@@ -31,22 +32,32 @@ def _build(d):
 # ── ALTO-001 ────────────────────────────────────────────────────────────────
 
 def test_a_hub_sits_above_every_child_in_the_hints():
+    """The outline tree keeps every hub above its children (a flank shares its
+    concept's row; everything else starts below the hub's bottom)."""
     b, nodes, _ = load_brief(_d())
     validate_brief(b)
     place(b, nodes)
-    parent = {n.id: n.parent for n in nodes if n.parent}
-    pos, h, _, _ = resolve(nodes, b.columns, len(b.acts), parent)
-    for cid, pid in parent.items():
-        assert pos[cid] - h[cid] / 2 >= pos[pid] - h[pid] / 2 + HUB_DROP - 1, cid
+    fl = outline_flanks(nodes)
+    h = {n.id: card_height(n.desc, n.title, TREE["FLANK_W"] if n.id in fl else 270)
+         for n in nodes}
+    pos, _, _ = outline_tree(nodes, len(b.acts), h)
+    for n in nodes:
+        if not n.parent:
+            continue
+        if n.id in fl:
+            assert abs(pos[n.id] - pos[n.parent]) < 0.5, n.id
+        else:
+            assert pos[n.id] - h[n.id] / 2 >= pos[n.parent] + h[n.parent] / 2, n.id
 
 
-def test_the_browser_resolver_carries_the_same_pass_only_on_outlines():
+def test_the_browser_runs_the_tree_only_on_outlines():
     html, _ = _build(_d())
-    assert "_altoHubsAbove(positions,nodeHeights)" in html     # engine hook
-    assert "window._altoHubsAbove = function" in html
+    assert "if(window._altoTree) window._altoTree(positions, nodeHeights);" in html  # hook
+    assert "window._altoTree = function" in html
     linear, _ = _build(_d(LINEAR))
-    assert "_altoHubsAbove(positions,nodeHeights)" in linear  # guard only
-    assert "window._altoHubsAbove = function" not in linear
+    assert "if(window._altoTree) window._altoTree(positions, nodeHeights);" in linear  # guard only
+    assert "window._altoTree = function" not in linear
+    assert "_altoHubsAbove" not in html + linear          # superseded by the tree
 
 
 # ── ALTO-002/003/004 ────────────────────────────────────────────────────────
