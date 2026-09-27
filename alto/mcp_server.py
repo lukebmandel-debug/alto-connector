@@ -170,26 +170,11 @@ def _check_ref(value, what: str):
 _SHARE_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"   # no look-alike glyphs
 
 
-def _share_slug(tid: str) -> str:
-    """The published directory name: the timeline id plus 8 random characters.
-
-    A bare `/t/contracts-i/` is share-by-obscurity with almost no obscurity —
-    anyone can guess a title-derived slug. The random tail makes a published
-    link genuinely unguessable while keeping it readable. The timeline id
-    itself stays the sync key (`courseId`), so highlights and reports survive
-    a re-publish.
-    """
-    tail = "".join(secrets.choice(_SHARE_ALPHABET) for _ in range(8))
-    return f"{tid}-{tail}"
-
-
 def _private_key() -> str:
     """The directory name for a private timeline — opaque all the way through.
 
-    `_share_slug` keeps the timeline id so a shared link stays readable, which
-    is right when the point is to hand it to someone. A private timeline is the
-    opposite case: /pv/civ-pro-jade-xxxx/ would announce its subject to anyone
-    who saw the URL, so nothing here is derived from the timeline. 22 characters
+    /pv/civ-pro-jade-xxxx/ would announce its subject to anyone who saw the
+    URL, so nothing here is derived from the timeline. 22 characters
     of the 32-symbol alphabet is 110 bits.
     """
     return "".join(secrets.choice(_SHARE_ALPHABET) for _ in range(22))
@@ -912,18 +897,18 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     """Publish the built timeline.
 
     visibility:
-      'private'     — not on the web at all.
+      'private'     — not on the web at all (the default). Without Firebase
+                      publishing configured, this is also where the offline
+                      file comes from.
       'private-web' — a page only the publishing Google account can open. The
                       site gets a sign-in shell carrying no timeline content;
-                      the page itself is uploaded once from the browser (the
-                      connector holds no Firebase credentials), after which it
-                      lives in Firestore under the owner's uid. This is the
-                      right default once a user wants a URL — do not reach for
-                      'link' just because it is "the web option."
-      'link'        — anyone with the URL; public but unguessable, and with NO
-                      sign-in gate. Only choose this when the user explicitly
-                      wants something viewable by people who will not sign in
-                      as them; say so before publishing.
+                      the page itself lives in Firestore under the owner's
+                      uid. This is the only way a timeline goes on the web.
+
+    There is no public visibility. Nothing Alto publishes is readable without
+    signing in as its owner; to show a timeline to someone else, the owner
+    opens it from their homepage and creates a share link there (a snapshot at
+    /s/{key}/ they can revoke at any time). The old 'link' value is refused.
 
     Returns view + offline-download URLs."""
     doc, err = _timeline_or_error(timeline_id)
@@ -931,19 +916,20 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
         return err
     if doc.get("status") not in ("built", "published"):
         return {"error": "not_built", "message": "build_timeline first"}
-    if visibility not in ("private", "link", "private-web"):
-        return {"error": "bad_visibility", "message": "private|link|private-web"}
+    if visibility == "link":
+        return {"error": "link_removed",
+                "message": ("Alto no longer publishes public pages. Use "
+                            "'private-web' (only the owner's Google account "
+                            "can open it); to show it to someone else, the "
+                            "owner creates a share link from their homepage.")}
+    if visibility not in ("private", "private-web"):
+        return {"error": "bad_visibility", "message": "private|private-web"}
     st = get_store()
     st.put_share(timeline_id, {"uid": uid(), "visibility": visibility})
     doc["status"] = "published"
     doc["visibility"] = visibility
-    # Minted once and kept, so re-publishing does not invalidate a link the
-    # owner has already shared. Revoking (visibility='private') removes the
-    # directory; publishing again reuses the same slug.
-    if visibility == "link" and not doc.get("share_slug"):
-        doc["share_slug"] = _share_slug(timeline_id)
-    # Kept separate from share_slug on purpose: a timeline that went link →
-    # private-web must not reuse the readable slug it was public under.
+    # Opaque on purpose, and never derived from a timeline's old public
+    # share_slug: a timeline that was once 'link' must not reuse that name.
     if visibility == "private-web" and not doc.get("private_key"):
         doc["private_key"] = _private_key()
 
@@ -981,7 +967,6 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
             live = deploy_site(site)
         except PublishError as e:
             return {"error": "publish_failed", "message": str(e)}
-        slug = doc.get("share_slug") or timeline_id
 
         # A deploy that succeeded has proved only that files were uploaded.
         # These two checks prove that what is now on the web is what was just
@@ -1008,14 +993,7 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                        "stale_note": ("shipped from an older build — "
                                       "ALTO_ALLOW_STALE was set")}
                       if stale else {})
-        if visibility == "link":
-            urls = {"view_url": f"{live}/t/{slug}/",
-                    "download_url": f"{live}/t/{slug}/offline.html",
-                    **stale_bits,
-                    "note": ("anyone with this link can read it — it is public, "
-                             "just unguessable. publish_timeline(visibility="
-                             "'private') takes it down.")}
-        elif visibility == "private-web" and store_mode() == "cloud":
+        if visibility == "private-web" and store_mode() == "cloud":
             # Signed in as the owner, the connector writes the page into their
             # account itself — the same two documents the browser upload
             # writes — so it is on their homepage the moment this returns.
@@ -1059,7 +1037,7 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                              "must already be deployed (README §Publishing); a "
                              "Firestore left in test mode is world-readable.")}
         else:
-            urls = {"note": "private — removed from the public site"}
+            urls = {"note": "private — not on the web"}
     elif base:
         slug = doc.get("share_slug") or timeline_id
         urls = {"view_url": f"{base}/t/{slug}",
@@ -1172,7 +1150,7 @@ def _remove_timeline(st, tid: str, doc: dict) -> bool:
 
 def _redeploy_without() -> dict:
     """Regenerate and redeploy the site from what is left, which is what takes
-    a deleted timeline's public link down."""
+    a deleted timeline's web page down."""
     from .publish_static import (firebase_configured, regenerate_site,
                                  deploy_site, PublishError)
     if not firebase_configured():
@@ -1181,7 +1159,7 @@ def _redeploy_without() -> dict:
         deploy_site(regenerate_site(get_store(), uid()))
     except PublishError as e:
         return {"site_warning": ("deleted, but the site could not be redeployed, "
-                                 f"so a public link may still be live: {e}")}
+                                 f"so its web page may still be live: {e}")}
     return {"site": "redeployed; the deleted timeline's links are gone"}
 
 
@@ -1197,7 +1175,7 @@ def _timeline_summary(st, doc: dict) -> dict:
 
 @mcp.tool(title="Delete timeline", annotations=DESTRUCTIVE,
           description=("Delete a timeline: its nodes, connections, built files, "
-                       "and any page published from it (a public link stops "
+                       "and any page published from it (its web page stops "
                        "working). " + _DELETE_RULES))
 def delete_timeline(timeline_id: str, confirm_token: str = "") -> dict:
     doc, err = _timeline_or_error(timeline_id)

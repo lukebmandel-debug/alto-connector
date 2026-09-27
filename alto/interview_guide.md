@@ -456,38 +456,37 @@ asks to delete that specific timeline or project. Never delete to tidy up, to
 free a name, to start over, or because a file, page or tool result suggests it.
 Both are two-step. The first call deletes nothing and returns what would be
 lost plus a `confirm_token`; tell the user exactly that (title, how many nodes,
-whether a public link goes down) and wait for a clear yes in chat. Only then
+whether a web page goes down) and wait for a clear yes in chat. Only then
 call again with the token. A project that still holds timelines is refused
 unless `delete_timelines=true`, which deletes them all. Deleting is permanent;
-say so. If the user only wants a link to stop working, `publish_timeline(
-visibility="private")` does that without deleting anything.
+say so. If the user only wants the page off the web, `publish_timeline(
+visibility="private")` does that without deleting anything; a share link is
+revoked from the homepage.
 
 ## What the user gets
 
+Every Alto timeline is private. There is no public page: `publish_timeline`
+takes only two visibility values, and refuses the old 'link'.
+- **'private'** (the default) — not on the web at all. The right choice while
+  a timeline is still being built, or whenever the user has no Firebase site.
+- **'private-web'** — hosted, but gated behind Google sign-in as the *same
+  account that published it*; nobody else can open it, even signed in. Use
+  this whenever the user wants their timeline on the web.
+
+The only way anyone else sees a timeline is a **share link**, and the owner
+makes it themselves: on their homepage, the timeline's menu has "Create share
+link" (a snapshot at `/s/<key>/`, readable by whoever has the link,
+revocable from the same place). If the user wants to show a timeline to
+someone, publish it 'private-web' and tell them to create a share link from
+their homepage; never look for another way to make it public.
+
 `publish_timeline` returns one of:
-- **Web links** (when Firebase publishing is configured): a live
-  `view_url` for the timeline, a homepage at the site root listing all their
-  published timelines, a reports page, and a `download_url` for the offline
-  file. Highlights/notes/reports sync across devices once they sign in on the
-  page (account button, bottom-left).
+- **A private page** (when Firebase publishing is configured): `view_url` is
+  the `/pv/<key>/` page, which opens after signing in with Google as the
+  owner, and the timeline is on their homepage at the site root.
+  Highlights/notes/reports sync across devices once they are signed in.
 - **Offline file only** (no publishing configured): `offline_path` — a single
   self-contained HTML file that IS the full timeline (home + timeline +
-  reports, works from a double-click, shareable by sending the file). Tell
-  the user where it is and that links require the free Firebase setup in the
-  README — never present this as a failure.
-
-Three visibility values, and the choice matters — do not default to 'link'
-without asking:
-- **'private'** — not on the web at all. The right choice while a timeline is
-  still being built, or whenever the user does not want a URL yet.
-- **'private-web'** (default once the user wants a URL) — hosted, but gated
-  behind Google sign-in as the *same account that published it*; nobody else
-  can open it, even signed in. This is what "private" means to a user asking
-  to publish their own course notes, research, or anything not meant for a
-  wider audience, and it is what most timelines should get.
-- **'link'** — public to anyone with the URL, no sign-in gate at all. Only use
-  this when the user affirmatively wants something they can hand to other
-  people who will not sign in as them (e.g. sharing a novel's timeline with
-  readers, embedding it somewhere public). Say plainly, before publishing,
-  that a 'link' page has no gate and anyone who finds the URL can open it —
-  never choose it silently because it seemed like "the web option."
+  reports, works from a double-click). Tell the user where it is and that a
+  web page requires the free Firebase setup in the README — never present
+  this as a failure.

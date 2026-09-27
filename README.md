@@ -101,25 +101,27 @@ one of the two methods above pointed at your checkout.
 4. You get your timeline two ways:
    - **Offline file** (always): one self-contained HTML — double-click to
      open, send to a friend, works forever with no server.
-   - **Web links** (optional, still free): if Firebase publishing is
-     configured, `https://<your-site>.web.app/t/<timeline>/` plus a homepage
-     listing all your published timelines, a reports page, and cross-device
-     sync of highlights/notes/reports.
+   - **Web page** (optional, still free): if Firebase publishing is
+     configured, a page at `https://<your-site>.web.app/pv/<key>/` that only
+     your Google account can open, listed on your homepage, with cross-device
+     sync of highlights/notes/reports. To show it to someone, create a share
+     link from your homepage.
 5. Come back any time — drafts resume across chats via `get_timeline`.
 
 ## Publishing (optional web links + cross-device sync)
 
-Timelines are private by default and the offline file always works. To publish
-shareable links — and to get highlights, notes and reports syncing between your
-desktop and your phone — you host them on **your own** free Firebase project
-(Spark plan, no card).
+Timelines are always private and the offline file always works. To put them on
+the web — and to get highlights, notes and reports syncing between your desktop
+and your phone — you host them on **your own** free Firebase project (Spark
+plan, no card). A published timeline (`visibility="private-web"`) opens only
+for the Google account that published it; there is no public option.
 
-**You host what you share.** Everyone who authors a timeline publishes to their
-own project, so the people you send a link to read it from your site and their
-notes live in your Firestore. That means you can revoke a link at any time
-(`publish_timeline(timeline_id, visibility="private")` deletes the page from
-your site), and it means nobody's data flows through anyone else's project.
-Reading a shared timeline needs no install and no Alto account — just the link.
+**Sharing is a share link.** To show a timeline to someone, use "Create share
+link" in its menu on your homepage. It is a snapshot of that one page at
+`/s/<key>/`, readable by anyone with the link without an install or an Alto
+account, and you can revoke it from the same place at any time. Everyone who
+authors a timeline publishes to their own project, so nobody's data flows
+through anyone else's project.
 
 1. [console.firebase.google.com](https://console.firebase.google.com) → create
    a project → Hosting → add a site (e.g. `my-alto`).
@@ -140,9 +142,9 @@ Reading a shared timeline needs no install and no Alto account — just the link
    `ALTO_FIREBASE_BIN` overrides the path to the `firebase` CLI if it is not on
    your `PATH`.
 
-Two things worth knowing before you share a link. Published means **public to
-anyone who has the URL** — the address carries a random tail so it cannot be
-guessed, but it is not access-controlled. And a reader who signs in to sync
+Two things worth knowing before you share a link. A share link is **readable by
+anyone who has it** — the key cannot be guessed, but it is not
+access-controlled, so revoke it when it has done its job. And a reader who signs in to sync
 their notes gets an account in *your* Firebase project: the security rules stop
 you reading their notes through the app, but you own the project and can see
 them in the Firebase console.

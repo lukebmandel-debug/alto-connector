@@ -21,7 +21,7 @@ from alto.build.builder import load_brief, build_timeline  # noqa: E402
 from alto.build.private_shell import shell  # noqa: E402
 from alto.build.single_file import private_page  # noqa: E402
 from alto.publish_static import (  # noqa: E402
-    _private_web, _published, regenerate_site)
+    _private_web, regenerate_site)
 from alto.store.local import LocalStore  # noqa: E402
 
 SAMPLE = ROOT / "samples" / "contracts_brief.json"
@@ -117,11 +117,10 @@ def test_the_shell_resolves_its_state_even_when_sync_is_unconfigured():
 # ── it stays off the public site ────────────────────────────────────────────
 
 def test_a_private_timeline_is_not_on_the_homepage(tmp_path, built):
-    """Everything _published() returns reaches build_home(). A private entry
-    there would leak its title AND its capability URL."""
+    """A private entry on the static homepage would leak its title AND its
+    capability URL."""
     d, b, html = built
     st, doc = _store(tmp_path, built)
-    assert _published(st, "local") == []
     assert [t["timeline_id"] for t in _private_web(st, "local")] == [b.timeline_id]
 
     site = tmp_path / "site"

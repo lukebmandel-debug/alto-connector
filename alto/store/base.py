@@ -6,7 +6,7 @@ Documents are plain dicts; the MCP layer owns their shape:
   project doc:  {project_id, name, purpose, kind, created}
   timeline doc: {timeline_id, project_id, brief: {...}, consent: {granted,
                  at, sources: []}, status: draft|built|published,
-                 visibility: private|link, urls: {...}, layout: {...}}
+                 visibility: private|private-web, urls: {...}, layout: {...}}
   nodes:        one doc per node id (the add_nodes payload, verbatim)
   connections:  single list document
   artifacts:    built HTML blobs (timeline.html / offline.html)

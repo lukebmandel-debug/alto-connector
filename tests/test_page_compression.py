@@ -59,7 +59,7 @@ def test_the_shell_no_longer_caps_the_raw_file():
 
 def test_publish_measures_the_stored_bytes():
     src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
-    fn = src[src.index('elif visibility == "private-web" and store_mode() == "cloud":'):]
+    fn = src[src.index('if visibility == "private-web" and store_mode() == "cloud":'):]
     fn = fn[:fn.index("st.put_page(")]
     assert "stored = stored_bytes(page)" in fn and "if stored > MAX_PAGE_BYTES:" in fn
     assert "len(page.encode(\"utf-8\")) > MAX_PAGE_BYTES" not in fn

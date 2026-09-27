@@ -5,7 +5,7 @@ Routes:
   /               — per-user Alto homepage (session) or sign-in page
   /session        — POST {idToken} → verify (Firebase) → session cookie
   /dev-login      — dev only (ALTO_DEV_UID): set session without Firebase
-  /t/{tid}        — hosted timeline (visibility-gated)
+  /t/{tid}        — hosted timeline (owner only)
   /t/{tid}/download — offline single-file artifact
   /reports        — reports page (?course=tid)
   /alto-cloud.js  — cloud sync layer (v3)
@@ -207,8 +207,9 @@ def _serve_artifact(request: Request, tid: str, name: str):
     share = st.get_share(tid)
     if not share:
         return PlainTextResponse("Not found", status_code=404)
-    owner, visibility = share["uid"], share.get("visibility", "private")
-    if visibility != "link" and session_uid(request) != owner:
+    owner = share["uid"]
+    # Owner only: Alto has no public visibility (a stored 'link' is legacy).
+    if session_uid(request) != owner:
         return RedirectResponse("/")     # sign in / not yours
     html = st.get_artifact(owner, tid, name)
     if html is None:
@@ -237,8 +238,9 @@ async def reports(request: Request, course: str = ""):
     share = st.get_share(course) if course else None
     if not share:
         return PlainTextResponse("Not found", status_code=404)
-    owner, visibility = share["uid"], share.get("visibility", "private")
-    if visibility != "link" and session_uid(request) != owner:
+    owner = share["uid"]
+    # Owner only: Alto has no public visibility (a stored 'link' is legacy).
+    if session_uid(request) != owner:
         return RedirectResponse("/")
     t = st.get_timeline(owner, course)
     if not t:

@@ -73,8 +73,10 @@ def test_full_flow_and_resume():
     assert r.get("verify") == "passed", r
     # The private page is stored gzipped; the build says what it will cost.
     assert 0 < r["private_stored_bytes"] < r["private_bytes"] // 3, r
-    r = srv.publish_timeline(tid, "link")
-    assert r["visibility"] == "link"
+    # There is no public visibility; sharing is a share link from the homepage.
+    assert srv.publish_timeline(tid, "link")["error"] == "link_removed"
+    r = srv.publish_timeline(tid, "private")
+    assert r["visibility"] == "private"
 
     # resume in a "new conversation"
     state = srv.get_timeline(tid)

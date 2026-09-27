@@ -2,14 +2,8 @@
 Firebase CLI (Spark plan — no server, no card).
 
 Site layout (Firebase Hosting site `alto-connector`, static only):
-  /index.html            — the owner's Alto homepage (published timelines)
-  /t/{tid}/index.html    — hosted timeline page
-  /t/{tid}/offline.html  — downloadable single-file bundle (one timeline)
-  /p/{pid}/offline.html  — one bundle for a whole project (only when it holds
-                           2+ timelines; otherwise it would duplicate the
-                           timeline's own offline.html)
-  /offline.html          — one bundle for every published timeline (only when
-                           the site holds 2+)
+  /index.html            — the owner's Alto homepage; lists nothing until
+                           they sign in, then their pages from Firestore
   /pv/{key}/index.html   — sign-in shell for a 'private-web' timeline; the
                            page itself is NOT here, it is in Firestore
   /pv/index.html         — the same shell, which every other /pv/{key}/
@@ -23,9 +17,13 @@ Site layout (Firebase Hosting site `alto-connector`, static only):
   /alto-cloud.js         — v3 sync layer (page ↔ Firestore directly; Spark-free)
   /privacy/index.html
 
-Only timelines with visibility 'link' are in the static site; 'private' drafts
-never leave the machine. Every publish regenerates home + reports so the site
-always reflects the current published set.
+No timeline content is ever in the static site. 'private' timelines never
+leave the machine; 'private-web' ones live in Firestore behind the owner's
+Google sign-in, and reach anyone else only through a share link the owner
+creates (and can revoke) from their homepage. There used to be a public
+'link' visibility served from /t/{slug}/; it is gone, and every publish
+deletes /t/, /p/ and /offline.html from the staged site so a page published
+that way cannot survive the next deploy.
 """
 from __future__ import annotations
 
@@ -42,11 +40,11 @@ import urllib.request
 
 from .build.builder import build_timeline, load_brief
 from .build.fingerprint import META_NAME, build_fingerprint
-from .build.pages import build_home, build_reports, course_entry_for
+from .build.pages import build_home, build_reports
 from .build.private_shell import shell as private_shell
 from .build.share_shell import shell as share_shell
-from .build.single_file import bundle, bundle_many, private_page
-from .hosted import hosted_home, hosted_reports, hosted_timeline
+from .build.single_file import private_page
+from .hosted import hosted_home, hosted_reports
 from .cloud import emit_cloud_js, load_config, write_cloud_js
 from .store.local import check_component
 
@@ -93,20 +91,11 @@ class PublishError(RuntimeError):
 LAST_STALE: list[str] = []
 
 
-def _published(store, uid: str) -> list[dict]:
-    out = []
-    for t in store.list_timelines(uid):
-        if t.get("visibility") == "link" and t.get("status") == "published":
-            out.append(t)
-    return out
-
-
 def _private_web(store, uid: str) -> list[dict]:
     """Timelines published as 'private-web'.
 
-    Deliberately NOT merged into _published(): everything that function returns
-    reaches build_home(), and a private timeline's title and URL must never
-    appear on the public homepage.
+    Their titles and URLs never go into the static homepage: the signed-in
+    owner's browser lists them from Firestore.
     """
     out = []
     for t in store.list_timelines(uid):
@@ -147,107 +136,20 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
                 or default_site_dir())
     site.mkdir(parents=True, exist_ok=True)
 
-    published = _published(store, uid)
-    # project kind drives the periodization label ("Units" for a course, "Acts"
-    # for a novel, …) unless the brief sets period_noun explicitly.
-    kind_by_pid = {p["project_id"]: p.get("kind", "")
-                   for p in store.list_projects(uid)}
-    name_by_pid = {p["project_id"]: p["name"] for p in store.list_projects(uid)}
-    courses = []
-    projects_by_pid = {}
-    # timelines that had to fall back to a build-time artifact, reported back so
-    # a silently stale page is at least a visible one
+    # Public pages from the old 'link' visibility, and the offline bundles
+    # built from them. Nothing writes these any more; deleting them here is what
+    # takes a formerly public timeline off the web on the next deploy.
+    for gone in (site / "t", site / "p"):
+        if gone.exists():
+            shutil.rmtree(gone)
+    if (site / "offline.html").exists():
+        (site / "offline.html").unlink()
     stale_notes = LAST_STALE
     stale_notes.clear()
-    # (Brief, raw timeline html) per project, for the combined offline bundles
-    briefs_by_pid = {}
-    for t in published:
-        # These become directories that are written and later rmtree'd, so they
-        # are re-checked here even though the store already refuses a bad one.
-        tid = check_component(t["timeline_id"], "timeline_id")
-        # The public path carries a random tail so a link cannot be guessed
-        # from the title; the timeline id stays the sync key (courseId).
-        slug = check_component(t.get("share_slug") or tid, "share_slug")
-        b, _, _ = load_brief({"brief": t["brief"]})
-        entry = course_entry_for(
-            b, href=f"/t/{slug}/",
-            kind=kind_by_pid.get(t.get("project_id", ""), ""))
-        courses.append(entry)
-        projects_by_pid.setdefault(t.get("project_id", ""), []).append(entry)
+    name_by_pid = {p["project_id"]: p["name"] for p in store.list_projects(uid)}
 
-        tdir = site / "t" / slug
-        tdir.mkdir(parents=True, exist_ok=True)
-        pname = name_by_pid.get(t.get("project_id", ""), "Alto")
-
-        # Current engine first; the stored artifacts are only as new as the last
-        # build_timeline call (see _rebuild).
-        raw, stale = _rebuild(store, uid, t)
-        if raw is None:
-            raw = store.get_artifact(uid, tid, "timeline.html")
-            stale_notes.append(f"{tid}: {stale}")
-        hosted = hosted_timeline(raw, tid) if raw else store.get_artifact(
-            uid, tid, "hosted.html")
-        if not hosted:
-            raise PublishError(f"{tid}: no built artifact — build_timeline first")
-        (tdir / "index.html").write_text(hosted, encoding="utf-8")
-
-        offline = bundle(b, raw, pname) if raw else store.get_artifact(
-            uid, tid, "offline.html")
-        if raw:
-            briefs_by_pid.setdefault(t.get("project_id", ""), []).append((b, raw))
-        if offline:
-            (tdir / "offline.html").write_text(offline, encoding="utf-8")
-
-    # prune timelines no longer published — this is what makes revocation real
-    tdir_root = site / "t"
-    live = {t.get("share_slug") or t["timeline_id"] for t in published}
-    if tdir_root.exists():
-        for d in tdir_root.iterdir():
-            if d.is_dir() and d.name not in live:
-                shutil.rmtree(d)
-
-    # homepage: project slabs from the owner's project containers
-    projects = []
-    for p in store.list_projects(uid):
-        cs = projects_by_pid.get(p["project_id"], [])
-        if cs:
-            # pid only when a project bundle actually exists at /p/{pid}/ — the
-            # homepage uses its presence to decide what its slab button offers.
-            has_bundle = len(briefs_by_pid.get(p["project_id"], [])) > 1
-            projects.append({"name": p["name"], "courses": cs,
-                             "pid": p["project_id"] if has_bundle else ""})
-    orphaned = projects_by_pid.get("", [])
-    if orphaned:
-        projects.append({"name": "Alto", "courses": orphaned})
-    (site / "index.html").write_text(hosted_home(build_home(projects)),
+    (site / "index.html").write_text(hosted_home(build_home([])),
                                      encoding="utf-8")
-
-    # ── combined offline bundles ────────────────────────────────────────────
-    # A project holding ONE timeline would produce a byte-identical copy of that
-    # timeline's own /t/{slug}/offline.html, so it is skipped and the homepage's
-    # slab button points at the single timeline instead. Same for a whole site
-    # that only has one timeline.
-    pdir_root = site / "p"
-    groups_all = []
-    live_pids = set()
-    for pid, items in briefs_by_pid.items():
-        pname = name_by_pid.get(pid, "Alto")
-        groups_all.append({"name": pname, "items": items})
-        if len(items) < 2 or not pid:
-            continue
-        pslug = check_component(pid, "project_id")
-        live_pids.add(pslug)
-        bdir = pdir_root / pslug
-        bdir.mkdir(parents=True, exist_ok=True)
-        (bdir / "offline.html").write_text(
-            bundle_many([{"name": pname, "items": items}],
-                        title=f"{pname} — Alto"),
-            encoding="utf-8")
-
-    if pdir_root.exists():
-        for d in pdir_root.iterdir():
-            if d.is_dir() and d.name not in live_pids:
-                shutil.rmtree(d)
 
     # ── private timelines ───────────────────────────────────────────────────
     # Only the sign-in shell goes on the web; it is byte-identical for every
@@ -268,7 +170,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
             f"{len(private)} timeline(s) are published as 'private-web', but "
             "this site has no Firebase project configured, so Google sign-in "
             "is off and nobody could ever open them. Set ALTO_FIREBASE_CONFIG "
-            "(see README §Publishing), or republish them as 'link'/'private'.")
+            "(see README §Publishing), or republish them as 'private'.")
     for t in private:
         key = check_component(t["private_key"], "private_key")
         live_keys.add(key)
@@ -299,8 +201,6 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     sdir.mkdir(parents=True, exist_ok=True)
     (sdir / "index.html").write_text(share_shell(cloud_v), encoding="utf-8")
 
-    # Pruned on its own key set: `live` above is built from link-visible
-    # timelines, so sharing that loop would delete every shell each publish.
     if pvdir_root.exists():
         for d in pvdir_root.iterdir():
             if d.is_dir() and d.name not in live_keys:
@@ -320,19 +220,11 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         cdir.mkdir(parents=True, exist_ok=True)
         (cdir / "index.html").write_text(connect_page(cloud_v), encoding="utf-8")
 
-    all_offline = site / "offline.html"
-    if sum(len(i) for i in briefs_by_pid.values()) > 1:
-        all_offline.write_text(bundle_many(groups_all, title="Alto"),
-                               encoding="utf-8")
-    elif all_offline.exists():
-        all_offline.unlink()
-
-    # reports viewer (all published courses selectable via ?course=)
+    # reports viewer (no public courses to preselect)
     rdir = site / "reports"
     rdir.mkdir(exist_ok=True)
-    default_course = courses[0]["courseId"] if courses else ""
     (rdir / "index.html").write_text(
-        hosted_reports(build_reports(courses, default_course)), encoding="utf-8")
+        hosted_reports(build_reports([], "")), encoding="utf-8")
 
     # Emitted, not copied: the Firebase project comes from the publisher's own
     # ALTO_FIREBASE_CONFIG, and is empty (sync off) when they have not set one.

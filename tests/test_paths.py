@@ -139,19 +139,23 @@ def test_uid_fails_closed_when_auth_is_required():
         srv.require_auth(previous)
 
 
-# ── share slugs and revocation ───────────────────────────────────────────────
+# ── no public pages ──────────────────────────────────────────────────────────
 
-def test_share_slug_is_unguessable_and_stable():
-    from alto.mcp_server import _share_slug
-    a, b = _share_slug("contracts-i"), _share_slug("contracts-i")
-    assert a != b                                  # random tail
-    assert a.startswith("contracts-i-")            # still readable
-    assert len(a) == len("contracts-i-") + 8
-    check_component(a)                             # safe as a path segment
+def test_publish_refuses_link():
+    """Alto has no public visibility: a timeline reaches anyone but its owner
+    only through a share link the owner creates from their homepage."""
+    src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
+    assert "_share_slug" not in src
+    fn = src[src.index("def publish_timeline("):]
+    fn = fn[:fn.index("st = get_store()")]
+    assert 'if visibility == "link":' in fn and '"link_removed"' in fn
 
 
-def test_revoking_removes_the_published_directory(tmp_path):
-    """Revocation must delete the directory, not merely unlink it."""
+def test_a_formerly_public_page_is_removed_on_the_next_publish(tmp_path):
+    """A timeline stored as 'link' (published before public pages were
+    removed) must not be served, and whatever the staged site still holds
+    under /t/, /p/ and /offline.html from those days must be deleted, since the
+    deploy uploads that whole directory."""
     import json
     from alto.publish_static import regenerate_site
     from alto.build.builder import load_brief, build_timeline
@@ -165,20 +169,22 @@ def test_revoking_removes_the_published_directory(tmp_path):
     tid, slug = b.timeline_id, "contracts-i-ab23cd45"
     st.put_artifact("local", tid, "hosted.html", hosted_timeline(html, tid))
     st.put_artifact("local", tid, "offline.html", bundle(b, html))
-    doc = {"timeline_id": tid, "project_id": "", "brief": d["brief"],
-           "status": "published", "visibility": "link", "share_slug": slug}
-    st.put_timeline("local", tid, doc)
+    st.put_timeline("local", tid, {
+        "timeline_id": tid, "project_id": "", "brief": d["brief"],
+        "status": "published", "visibility": "link", "share_slug": slug})
 
     site = tmp_path / "site"
-    regenerate_site(st, "local", site)
-    published = site / "t" / slug / "index.html"
-    assert published.exists(), "published page missing"
-    assert not (site / "t" / tid).exists(), "guessable path must not be used"
+    for rel in (f"t/{slug}", "p/proj"):
+        (site / rel).mkdir(parents=True)
+        (site / rel / "index.html").write_text(html, encoding="utf-8")
+    (site / "offline.html").write_text(html, encoding="utf-8")
 
-    doc["visibility"] = "private"
-    st.put_timeline("local", tid, doc)
     regenerate_site(st, "local", site)
-    assert not (site / "t" / slug).exists(), "revoked page still on disk"
+    assert not (site / "t").exists(), "a public page survived"
+    assert not (site / "p").exists()
+    assert not (site / "offline.html").exists()
+    home = (site / "index.html").read_text(encoding="utf-8")
+    assert b.title not in home
 
 
 # ── first run without Claude Desktop ──────────────────────────────────────────
@@ -269,7 +275,7 @@ def test_publish_without_firebase_explains_the_offline_file(tmp_path, monkeypatc
             "consent": {"granted": True}, "status": "built",
             "visibility": "private"})
 
-        out = srv.publish_timeline(tid, "link")
+        out = srv.publish_timeline(tid, "private")
         assert "offline_path" in out, out
         note = out.get("note", "").lower()
         assert "complete timeline" in note or "the complete" in note, out

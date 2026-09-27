@@ -325,7 +325,7 @@ def test_sharing_does_not_put_a_timeline_on_the_public_homepage(tmp_path, monkey
     monkeypatch.setenv("ALTO_FIREBASE_CONFIG", json.dumps(
         {"apiKey": "k", "projectId": "p", "appId": "a"}))
     from alto.build.builder import build_timeline as bt, load_brief as lb
-    from alto.publish_static import _published, regenerate_site
+    from alto.publish_static import regenerate_site
     from alto.store.local import LocalStore
 
     d = json.loads(SAMPLE.read_text(encoding="utf-8"))
@@ -338,7 +338,6 @@ def test_sharing_does_not_put_a_timeline_on_the_public_homepage(tmp_path, monkey
         "status": "published", "visibility": "private-web",
         "private_key": KEY, "share_slug": f"{b.timeline_id}-aa22bb33"})
 
-    assert _published(st, "local") == []
     site = regenerate_site(st, "local", tmp_path / "site")
     home = (site / "index.html").read_text(encoding="utf-8")
     block = home[home.index("const PROJECTS = ["):]
