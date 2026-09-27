@@ -553,8 +553,10 @@ function isolateRelation(key){
 # Mobile depth cue (outline mode). On the desktop canvas, depth is geometry —
 # hubs centre, spokes branch. The mobile stack has no geometry, so a level-3
 # sub-point's card face is indistinguishable from a root concept's. Give every
-# child card a breadcrumb in the footer's empty right half — "under {parent}",
-# echoing the detail page's SITS UNDER — tappable to feature the parent.
+# child card a breadcrumb on its own row under the footer's chips — "under
+# {parent}", echoing the detail page's SITS UNDER — tappable to feature the
+# parent. (It once shared the chips' row, and wrapped in among the authority
+# and case chips as if it were one of them.)
 # Authored structure only (_ALTO_OUTLINE.parent is Node.parent verbatim);
 # desktop and print are untouched.
 CRUMB_GLUE = """
@@ -570,7 +572,7 @@ CRUMB_GLUE = """
       var st = document.createElement('style');
       st.id = 'alto-crumb-css';
       st.textContent = '.node-crumb{display:none;}' +
-        'html.mobile .node-crumb{display:block;margin-left:auto;max-width:48%;' +
+        'html.mobile .node-crumb{display:block;flex:0 0 100%;max-width:100%;' +
         'overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;' +
         'font-size:11px;color:var(--muted);background:none;border:none;padding:0;' +
         'font-family:inherit;letter-spacing:.02em;cursor:pointer;}' +
@@ -1476,6 +1478,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "share_title": f"title:{js_str(title_txt + ' Timeline')}",
         "share_import": f"Someone shared their {b.title} timeline with you",
         "act_names": act_names_lit,
+        "map_act_names": f"var ACT_NAMES = {act_names_lit};",
+        "map_act_colors": ("var ACCENT_COLORS = ["
+                           + ",".join(js_str(a.color + "cc") for a in b.acts) + "];"),
     }
     return regions, tokens
 

@@ -1211,6 +1211,63 @@ PATCHES += [
     {"name": "node-name-mobile-peek", "old": _NAME_M_OLD, "new": _NAME_M_NEW, "count": 1},
 ]
 
+# ── mobile help: MAP and the rest describe any timeline, not the novel ─────
+_HELP_MAP_M_OLD = ("(top-left) to see all 5 acts. From the main timeline, tapping a node "
+                   "features it. From a detail page, tapping a node jumps to that scene.")
+_HELP_MAP_M_NEW = ("(top-left) to see every node, grouped by section. From the main timeline, "
+                   "tapping a node features it. From a detail page, tapping a node jumps to it.")
+_HELP_MAP_I_OLD = ("(top-left) shows all 5 acts. From a detail page, tap any node to jump "
+                   "straight to its scene.")
+_HELP_MAP_I_NEW = ("(top-left) shows every node, grouped by section. From a detail page, "
+                   "tap any node to jump straight to it.")
+# The rest of the help still described the source novel (scenes, a story, its
+# Characters / Environments / Themes, a plot summary) on every timeline.
+_HELP_WORDS = [
+    ("<h3>Moving between scenes</h3>", "<h3>Moving between cards</h3>"),
+    ("to step through the story in order.", "to step through the timeline in order."),
+    ("<h3>Open a scene</h3>", "<h3>Open a card</h3>"),
+    ("for Characters, Environments, and Themes. Tap one",
+     "for the timeline&#8217;s groups and index pages. Tap one"),
+    ("to read the plot summary. Tap a phrase there to jump to its scene.",
+     "to read the summary. Tap a phrase there to jump to its card."),
+    ("for an act-by-act plot summary. Click any highlighted phrase to open that scene.",
+     "for a section-by-section summary. Click any highlighted phrase to open that card."),
+    ("to jump to that scene.", "to jump to that card."),
+]
+
+# ── mobile search drops below the filter bar ────────────────────────────────
+# A slot filter (e.g. Liability Outcome) docks the engine's filter bar across
+# the screen at 90..128px, right where the search pill sits (104px): the pill
+# covered the bar's label. While the bar shows, the pill and its results move
+# down below it.
+_MS_FILTER_OLD = _MS_DOCK_NEW
+_MS_FILTER_NEW = ("html.mobile.filter-active #m-search{ top:136px; }\n"
+                  "html.mobile.filter-active #m-search-results{ top:182px; }\n"
+                  + _MS_DOCK_NEW)
+
+# ── detail-page swipe preview matches the page it becomes ──────────────────
+# The page sliding in under the finger was painted a flat var(--bg) (near-black
+# in dark mode), while the real detail page is frosted glass over the
+# gradient — so every swipe showed a flat page that then "flashed" into the
+# glass one on landing. Give the preview the detail page's own computed
+# background, blur and box (absolute under the runway, reaching under the
+# bottom bar), so the page that lands is the page you saw sliding in.
+_PEEK_BG_OLD = "      var inner = '';\n      var actNames = "
+_PEEK_BG_NEW = (
+    "      var _dcs = getComputedStyle(detailPage);\n"
+    "      if(_dcs.backgroundColor !== 'rgba(0, 0, 0, 0)'){ el.style.background = _dcs.backgroundColor;\n"
+    "        el.style.webkitBackdropFilter = el.style.backdropFilter = _dcs.backdropFilter || _dcs.webkitBackdropFilter || ''; }\n"
+    "      el.style.position = _dcs.position; el.style.bottom = _dcs.bottom;\n"
+    + _PEEK_BG_OLD)
+PATCHES += [
+    {"name": "mobile-help-map-generic", "old": _HELP_MAP_M_OLD, "new": _HELP_MAP_M_NEW, "count": 1},
+    {"name": "info-help-map-generic", "old": _HELP_MAP_I_OLD, "new": _HELP_MAP_I_NEW, "count": 1},
+    *({"name": f"help-generic-{i}", "old": o, "new": n, "count": 1}
+      for i, (o, n) in enumerate(_HELP_WORDS)),
+    {"name": "mobile-search-below-filter-bar", "old": _MS_FILTER_OLD, "new": _MS_FILTER_NEW, "count": 1},
+    {"name": "detail-peek-matches-page", "old": _PEEK_BG_OLD, "new": _PEEK_BG_NEW, "count": 1},
+]
+
 def apply_patches(html: str) -> str:
     for p in PATCHES:
         found = html.count(p["old"])
