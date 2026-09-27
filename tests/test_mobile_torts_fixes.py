@@ -2,7 +2,8 @@
 
   * the phone's MAP panel headed its groups with the source novel's five acts
     and palette on every timeline;
-  * the "under {parent}" crumb shared the chips' row and wrapped in among them;
+  * the "under {parent}" crumb read as one more chip; it gave way to a unit
+    label above every mobile card (1.8.24);
   * the search pill sat on top of the docked filter bar;
   * the detail page sliding in on a swipe was a flat var(--bg) (black in dark
     mode) that then flashed into the frosted-glass page.
@@ -44,9 +45,15 @@ def test_help_text_does_not_describe_the_novel():
         assert phrase not in html
 
 
-def test_outline_crumb_has_its_own_row():
-    _, html = _build(OUTLINE)
-    assert "html.mobile .node-crumb{display:block;flex:0 0 100%;" in html
+def test_every_mobile_card_is_labelled_with_its_unit():
+    """Every timeline, linear or outline: the band label hangs above each
+    mobile card, hidden on desktop and in print."""
+    for path in (SAMPLE, OUTLINE):
+        _, html = _build(path)
+        assert "st.id = 'alto-unit-css';" in html
+        assert "'.node-unit{display:none;}'" in html
+        assert "html.printing .node-unit{display:none !important;}" in html
+        assert "node-crumb" not in html
 
 
 def test_search_pill_moves_below_the_filter_bar():

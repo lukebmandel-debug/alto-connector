@@ -230,7 +230,7 @@ def test_the_linear_sample_gains_no_outline_machinery():
     """Every outline path is opt-in; a brief that uses none of it must not pay
     for any of it."""
     html, _ = _build()
-    for marker in ("window._ALTO_OUTLINE=", "node-crumb", "print-ol-row"):
+    for marker in ("window._ALTO_OUTLINE=", "print-ol-row"):
         assert marker not in html, f"{marker} shipped in a brief that is not an outline"
 
 
@@ -242,18 +242,11 @@ def test_autolinked_names_are_clickable_on_a_linear_page():
     assert "window._ALTO_AUTOLINK=" in html and '"names": {}' not in html
     assert "_altoLinkBound" in html and ".alto-link{display:inline;" in html
 
-def test_outline_pages_carry_the_mobile_crumb_glue():
-    """Child cards get an "under {parent}" breadcrumb on mobile — the stack
-    has no hub-and-spoke geometry, so without it a level-3 sub-point's card
-    face is indistinguishable from a root concept's."""
-    html, _ = _build(OUTLINE)
-    assert "node-crumb" in html
-    assert "'under ' + pn.title" in html
-
-
-def test_linear_pages_have_no_crumb_glue():
-    """Linear timelines have no Node.parent hierarchy — a crumb would relabel
-    the chronological spine as containment."""
-    html, _ = _build(SAMPLE)
-    assert "node-crumb" not in html
+def test_no_page_carries_the_old_footer_crumb():
+    """The outline-only "under {parent}" crumb sat in the card footer and read
+    as one more chip; the mobile unit label (every page) replaced it."""
+    for path in (OUTLINE, SAMPLE):
+        html, _ = _build(path)
+        assert "node-crumb" not in html
+        assert "'under ' + pn.title" not in html
 

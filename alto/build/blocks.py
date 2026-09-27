@@ -550,73 +550,83 @@ function isolateRelation(key){
 
 
 
-# Mobile depth cue (outline mode). On the desktop canvas, depth is geometry —
-# hubs centre, spokes branch. The mobile stack has no geometry, so a level-3
-# sub-point's card face is indistinguishable from a root concept's. Give every
-# child card a breadcrumb on its own row under the footer's chips — "under
-# {parent}", echoing the detail page's SITS UNDER — tappable to feature the
-# parent. (It once shared the chips' row, and wrapped in among the authority
-# and case chips as if it were one of them.)
-# Authored structure only (_ALTO_OUTLINE.parent is Node.parent verbatim);
-# desktop and print are untouched.
-CRUMB_GLUE = """
+# Mobile unit label. The phone shows one card at a time, with nothing around
+# it to say which unit (act, era — whatever this timeline calls its bands) the
+# card belongs to. Every card gets that band's label hung just above it, in
+# the band's colour: small and quiet, outside the card so it never competes
+# with the card's own text or chips. It replaced an outline-only "under
+# {parent}" crumb in the card footer, which read as one more chip.
+# If a very tall card on a short screen would put the label against the top
+# toggles (Search, MAP, MENU, the filter bar), it moves inside the card's top
+# edge instead. Desktop and print are untouched.
+UNIT_GLUE = """
 (function(){
-  function jump(p){ return function(e){
-    e.preventDefault(); e.stopPropagation();
-    if(typeof featureNode === 'function') featureNode(p, true);
-  }; }
+  var ACTS = (typeof PHASE_META !== 'undefined') ? PHASE_META : [];
+  var OF = (typeof NODE_ACT !== 'undefined') ? NODE_ACT : {};
+  if(!ACTS.length) return;
   function inject(){
-    var O = window._ALTO_OUTLINE;
-    if(!O || !document.querySelector('.node .node-footer')) return false;
-    if(!document.getElementById('alto-crumb-css')){
+    if(!document.getElementById('alto-unit-css')){
       var st = document.createElement('style');
-      st.id = 'alto-crumb-css';
-      st.textContent = '.node-crumb{display:none;}' +
-        'html.mobile .node-crumb{display:block;flex:0 0 100%;max-width:100%;' +
-        'overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:right;' +
-        'font-size:11px;color:var(--muted);background:none;border:none;padding:0;' +
-        'font-family:inherit;letter-spacing:.02em;cursor:pointer;}' +
-        'html.printing .node-crumb{display:none !important;}';
+      st.id = 'alto-unit-css';
+      st.textContent = '.node-unit{display:none;}' +
+        'html.mobile .node-unit{display:block;position:absolute;left:12px;right:12px;' +
+        'bottom:calc(100% + 7px);text-align:center;pointer-events:none;' +
+        'font:600 10px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;' +
+        'letter-spacing:.2em;text-transform:uppercase;opacity:.9;' +
+        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        'html.mobile .node-unit.in-card{position:static;text-align:left;margin:0 0 6px;opacity:.8;}' +
+        'html.printing .node-unit{display:none !important;}';
       document.head.appendChild(st);
     }
-    Object.keys(O.parent).forEach(function(id){
-      var card = document.getElementById('node-' + id);
-      var f = card && card.querySelector('.node-footer');
-      if(!f || f.querySelector('.node-crumb')) return;
-      var pid = O.parent[id];
-      /* NODES is a top-level const — global lexical scope, not a window
-         property — so it must be referenced bare, behind a typeof guard. */
-      var _list = (typeof NODES !== 'undefined') ? NODES : [];
-      var pn = _list.find(function(n){ return n.id === pid; });
-      if(!pn) return;
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'node-crumb';
-      b.textContent = 'under ' + pn.title;
-      b.setAttribute('aria-label', 'Sits under ' + pn.title + ' — go there');
-      b.addEventListener('click', jump(pid));
-      b.addEventListener('touchend', jump(pid), {passive: false});
-      f.appendChild(b);
+    var nodes = document.querySelectorAll('#world .node');
+    for(var i = 0; i < nodes.length; i++){
+      var el = nodes[i];
+      if(el.querySelector('.node-unit')) continue;
+      var a = ACTS[OF[el.id.slice(5)]];
+      if(!a) continue;
+      var u = document.createElement('div');
+      u.className = 'node-unit';
+      u.textContent = a.label;
+      u.style.color = a.colorRaw;
+      u.setAttribute('aria-hidden', 'true');
+      el.insertBefore(u, el.firstChild);
+    }
+  }
+  function clear(){
+    var el = document.querySelector('.node.mobile-featured');
+    var u = el && el.querySelector('.node-unit');
+    if(!u || !document.documentElement.classList.contains('mobile')) return;
+    if(u.classList.contains('in-card')){
+      u.classList.remove('in-card'); el.insertBefore(u, el.firstChild);
+    }
+    var top = u.getBoundingClientRect().top, lim = 0;
+    ['m-search','minimap-toggle','hamburger-tab','mobile-filter-bar'].forEach(function(id){
+      var t = document.getElementById(id);
+      if(!t || getComputedStyle(t).display === 'none') return;
+      var r = t.getBoundingClientRect();
+      if(r.height && r.bottom > lim) lim = r.bottom;
     });
-    return true;
+    var card = el.querySelector('.node-card');
+    if(card && top < lim + 4){ u.classList.add('in-card'); card.insertBefore(u, card.firstChild); }
   }
   /* The cards the glue first sees are the pre-rendered ones; engine init
      rebuilds them once, sweeping early injections away. So: keep re-injecting
      (idempotent) through the init window, and again after every featureNode —
      the same seam the template uses for its own post-nav patches. */
   var tries = 0;
-  (function go(){ inject(); if(++tries < 80) setTimeout(go, 250); })();
+  (function go(){ inject(); clear(); if(++tries < 80) setTimeout(go, 250); })();
   (function hook(){
     var fn = window.featureNode;
-    if(typeof fn === 'function' && !fn._altoCrumbs){
+    if(typeof fn === 'function' && !fn._altoUnits){
       var w = function(){ var r = fn.apply(this, arguments);
-        try{ inject(); }catch(_){} return r; };
-      w._altoCrumbs = true;
+        try{ inject(); setTimeout(clear, 360); }catch(_){} return r; };
+      w._altoUnits = true;
       window.featureNode = w;
       return;
     }
-    if(!(fn && fn._altoCrumbs)) setTimeout(hook, 250);
+    if(!(fn && fn._altoUnits)) setTimeout(hook, 250);
   })();
+  window.addEventListener('resize', function(){ setTimeout(clear, 200); });
 })();"""
 
 
@@ -1170,7 +1180,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",label:" + json.dumps(_label)
                    + ",kids:" + json.dumps(_kids)
                    + ",parent:" + json.dumps(_parent) + "};"
-                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE + CRUMB_GLUE
+                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.HUBS_ABOVE_GLUE + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE)
     if index_axes:
         orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
@@ -1180,7 +1190,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             for k, _lbl, _sw in rel_key_items) + "};" + REL_FILTER_GLUE)
     def _js_json(v):
         return json.dumps(v, ensure_ascii=False).replace("</", "<\\/")
-    orders += "\n" + RAIL_GLUE + "\n" + MSEARCH_PANEL_GLUE
+    orders += "\n" + RAIL_GLUE + "\n" + MSEARCH_PANEL_GLUE + UNIT_GLUE
     if filter_sections:
         orders += ("\nvar FILTER_SECTIONS=" + _js_json(filter_sections) + ";"
                    "\nvar FILTER_NODES=" + _js_json(filter_nodes) + ";"
