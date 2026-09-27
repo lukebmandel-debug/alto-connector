@@ -120,6 +120,19 @@ SIGN_IN_FAILED_FN = """function _altoSignInFailed(e){
 """
 
 
+# ── search: one tap raises the keyboard ──────────────────────────────────────
+# Both pages opened the pill and focused the field 60ms later from a timer. iOS
+# raises the keyboard only for a focus() made inside the tap itself, so the
+# first tap opened the pill and a second tap on the field was needed to type.
+# Focus in the tap (the field is displayed by then: adding .expanded is
+# synchronous); the timer stays as a fallback for anything that steals focus.
+_SEARCH_FOCUS_HOME_OLD = "btn.classList.add('expanded'); open = true; buildIndex(); setTimeout(() => input.focus(), 60);"
+_SEARCH_FOCUS_REPORTS_OLD = "btn.classList.add('expanded'); open = true; setTimeout(() => input.focus(), 60);"
+_SEARCH_FOCUS_NEW = ("try{ input.focus({preventScroll:true}); }catch(e){} "
+                     "setTimeout(() => { if(open && document.activeElement !== input) "
+                     "input.focus({preventScroll:true}); }, 60);")
+
+
 class PageError(RuntimeError):
     pass
 
@@ -198,6 +211,9 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, "function renderAccount(){",
                     SIGN_IN_FAILED_FN + "function renderAccount(){", 1,
                     "home sign-in error helper")
+    template = _rep(template, _SEARCH_FOCUS_HOME_OLD,
+                    "btn.classList.add('expanded'); open = true; buildIndex(); " + _SEARCH_FOCUS_NEW,
+                    1, "home search focus in the tap")
     template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
     template = _rep(template, _HOME_RW_TAIL_OLD, _HOME_RW_TAIL_NEW, 1, "home runway (script)")
     regions = {
@@ -230,6 +246,9 @@ def build_reports(courses: list[dict], default_course: str) -> str:
     template = _rep(template, "function renderAccount(){",
                     SIGN_IN_FAILED_FN + "function renderAccount(){", 1,
                     "reports sign-in error helper")
+    template = _rep(template, _SEARCH_FOCUS_REPORTS_OLD,
+                    "btn.classList.add('expanded'); open = true; " + _SEARCH_FOCUS_NEW,
+                    1, "reports search focus in the tap")
     regions = {"course_meta": course_meta_const(courses)}
     tokens = {"default_course":
               f"params.get('course') || {json.dumps(default_course)}"}

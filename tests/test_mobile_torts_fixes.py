@@ -64,3 +64,12 @@ def test_search_pill_moves_below_the_filter_bar():
 def test_swipe_preview_copies_the_detail_page_background():
     _, html = _build(SAMPLE)
     assert "var _dcs = getComputedStyle(detailPage);" in html
+
+
+def test_home_and_reports_search_focus_inside_the_tap():
+    """iOS raises the keyboard only for a focus() made during the tap; both
+    pages used to focus from a 60ms timer, so opening search took two taps."""
+    from alto.build.pages import build_home, build_reports
+    for html in (build_home([]), build_reports([], "")):
+        assert "open = true; setTimeout(() => input.focus(), 60);" not in html
+        assert "try{ input.focus({preventScroll:true}); }catch(e){}" in html
