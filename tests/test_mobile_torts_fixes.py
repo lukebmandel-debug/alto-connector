@@ -73,3 +73,15 @@ def test_home_and_reports_search_focus_inside_the_tap():
     for html in (build_home([]), build_reports([], "")):
         assert "open = true; setTimeout(() => input.focus(), 60);" not in html
         assert "try{ input.focus({preventScroll:true}); }catch(e){}" in html
+
+
+def test_reports_runs_behind_safaris_bars_like_home():
+    """The reports page got none of the runway the homepage has, so Safari
+    painted flat bars over it on a phone."""
+    from alto.build.pages import build_home, build_reports
+    r, h = build_reports([], ""), build_home([])
+    assert "viewport-fit=cover" in r.split("</head>", 1)[0]
+    assert '<style id="alto-runway">' in r and "html.rw #reports-wrap:not(#_)" in r
+    assert "document.documentElement.classList.add('rw')" in r.split("</head>", 1)[0]
+    assert "function pin(" in r.rsplit("</body>", 1)[0].rsplit("<div id=\"reports-wrap\"", 1)[1]
+    assert "html.rw #projects-wrap:not(#_)" in h

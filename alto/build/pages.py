@@ -147,18 +147,23 @@ def _rep(html: str, old: str, new: str, n: int, label: str) -> str:
     return html.replace(old, new)
 
 
-# ── mobile homepage opened directly: runs behind Safari's bars ──────────────
+# ── mobile home / reports opened directly: run behind Safari's bars ─────────
 # Same recipe as the timeline (runway.py, engine_patches.py
 # mobile-runway-behind-bars): the class is set in <head> so Safari never sees a
 # fixed header at first layout; the page rests on the runway, every fixed piece
-# is absolute in a body that is exactly the screen, and #projects-wrap becomes
-# the one scroller (the page itself no longer scrolls). The home page's phone
-# layout is the max-width:640px media query, so the rules live inside it and
-# the class is set only when it matches.
+# is absolute in a body that is exactly the screen, and the page's one list
+# (#projects-wrap, #reports-wrap) becomes the one scroller (the page itself no
+# longer scrolls). Both pages' phone layout is the max-width:640px media query,
+# so the rules live inside it and the class is set only when it matches.
 _HOME_RW_HEAD_OLD = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
-_HOME_RW_FIXED = ("#page-bg, #page-glass, #title-bar, #search-btn, #account-btn, #info-btn, "
-                  "#mode-toggle, #account-scrim, #dl-scrim, #download-all, #claude-toast, .share-scrim")
-_HOME_RW_HEAD_NEW = _HOME_RW_HEAD_OLD + """
+_RW_FIXED = ("#page-bg, #page-glass, #title-bar, #search-btn, #account-btn, #info-btn, "
+             "#mode-toggle, #account-scrim")
+_HOME_RW_FIXED = _RW_FIXED + ", #dl-scrim, #download-all, #claude-toast, .share-scrim"
+_REPORTS_RW_FIXED = _RW_FIXED + ", #repo-toast"
+
+
+def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
+    return """
 <script>
 (function(){
   // Before first layout — see pages.py, _HOME_RW.
@@ -179,13 +184,13 @@ _HOME_RW_HEAD_NEW = _HOME_RW_HEAD_OLD + """
   html.rw body *{ overscroll-behavior:contain; }
   /* the list runs under both bars, like any native page: 80px above the screen
      box, 140px below it, with its padding moved out by the same amounts */
-  html.rw #projects-wrap:not(#_){ margin-top:-80px !important; height:calc(100dvh + 220px) !important;
+  html.rw """ + scroller + """:not(#_){ margin-top:-80px !important; height:calc(100dvh + 220px) !important;
     min-height:0 !important; padding-top:198px !important; padding-bottom:280px !important;
     overflow-y:auto !important; overflow-x:hidden !important; -webkit-overflow-scrolling:touch; }
-  html.rw :is(""" + _HOME_RW_FIXED + """):not(#_), html.rw .rw-abs:not(#_){ position:absolute !important; }
+  html.rw :is(""" + fixed + """):not(#_), html.rw .rw-abs:not(#_){ position:absolute !important; }
   html.rw #page-bg:not(#_), html.rw #page-glass:not(#_){ top:-80px !important; bottom:auto !important;
     left:0 !important; right:0 !important; height:calc(100dvh + 220px) !important; }
-  html.rw :is(#account-scrim, #dl-scrim, .share-scrim):not(#_){ top:-80px !important; bottom:-140px !important;
+  html.rw :is(""" + scrims + """):not(#_){ top:-80px !important; bottom:-140px !important;
     padding:80px 0 140px !important; box-sizing:border-box !important; }
   html.rw #title-bar:not(#_){ background:transparent !important; -webkit-backdrop-filter:none !important;
     backdrop-filter:none !important; }
@@ -194,6 +199,18 @@ _HOME_RW_HEAD_NEW = _HOME_RW_HEAD_OLD + """
     -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
 }
 </style>"""
+
+
+_HOME_RW_HEAD_NEW = _HOME_RW_HEAD_OLD + _rw_head(
+    "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim")
+# Reports had none of the runway, and not even viewport-fit=cover until a
+# script re-applied the viewport 100ms after load — so Safari painted flat
+# bars top and bottom there. Its viewport tag gets cover from the start, and
+# the same head block (it has no theme-color tag to anchor on).
+_REPORTS_RW_HEAD_OLD = '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+_REPORTS_RW_HEAD_NEW = ('<meta name="viewport" content="width=device-width, initial-scale=1.0, '
+                        'viewport-fit=cover">' + _rw_head("#reports-wrap", _REPORTS_RW_FIXED,
+                                                          "#account-scrim"))
 _HOME_RW_TAIL_OLD = "</body>"
 _HOME_RW_TAIL_NEW = runway_script() + "</body>"
 
@@ -249,6 +266,11 @@ def build_reports(courses: list[dict], default_course: str) -> str:
     template = _rep(template, _SEARCH_FOCUS_REPORTS_OLD,
                     "btn.classList.add('expanded'); open = true; " + _SEARCH_FOCUS_NEW,
                     1, "reports search focus in the tap")
+    template = _rep(template, _REPORTS_RW_HEAD_OLD, _REPORTS_RW_HEAD_NEW, 1, "reports runway (head)")
+    # the page's own "</body>" also appears inside a JS string (the print
+    # document it assembles), so anchor on the closing pair
+    template = _rep(template, "</body>\n</html>", runway_script() + "</body>\n</html>", 1,
+                    "reports runway (script)")
     regions = {"course_meta": course_meta_const(courses)}
     tokens = {"default_course":
               f"params.get('course') || {json.dumps(default_course)}"}
