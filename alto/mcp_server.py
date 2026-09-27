@@ -913,12 +913,17 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
 
     visibility:
       'private'     — not on the web at all.
-      'link'        — anyone with the URL; public but unguessable.
       'private-web' — a page only the publishing Google account can open. The
                       site gets a sign-in shell carrying no timeline content;
                       the page itself is uploaded once from the browser (the
                       connector holds no Firebase credentials), after which it
-                      lives in Firestore under the owner's uid.
+                      lives in Firestore under the owner's uid. This is the
+                      right default once a user wants a URL — do not reach for
+                      'link' just because it is "the web option."
+      'link'        — anyone with the URL; public but unguessable, and with NO
+                      sign-in gate. Only choose this when the user explicitly
+                      wants something viewable by people who will not sign in
+                      as them; say so before publishing.
 
     Returns view + offline-download URLs."""
     doc, err = _timeline_or_error(timeline_id)

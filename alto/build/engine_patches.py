@@ -321,6 +321,25 @@ _SAFARI_ZOOM_NEW = _SAFARI_ZOOM_OLD + """  // Safari 26+: standardized zoom, sam
   })();
 """
 
+# ── D-GRID quantize also covers Safari 26+ ──────────────────────────────────
+# The card-position sub-pixel snap (d-grid-quantize) reads getBoundingClientRect
+# under the root zoom and assumed Blink's zoom model, so it was gated on
+# .is-blink — Safari's own zoom model was untested at the time (2026-07-25) and
+# left alone rather than risk a wrong snap. Safari 26+ has since moved to the
+# same standardized zoom Blink already used (see safari-standard-zoom above,
+# which measures this behaviourally into .vw-unzoomed), so the same
+# getBoundingClientRect math is valid there too — this was the actual cause of
+# the Safari-only blur users kept reporting on desktop monitors, since Chrome
+# always got the quantize pass and Safari never did. Legacy Safari (pre-26,
+# neither class set) keeps the untouched no-op.
+_DGRID_GATE_OLD = (
+    "if(!document.documentElement.classList.contains('is-blink')) return;"
+    "  /* Safari: unverified geometry */")
+_DGRID_GATE_NEW = (
+    "if(!document.documentElement.classList.contains('is-blink')"
+    " && !document.documentElement.classList.contains('vw-unzoomed')) return;"
+    "  /* legacy Safari (pre-26): unverified geometry */")
+
 
 # ── mobile glyphs: Overview should carry the same mark as desktop ────────────
 # Desktop's Overview control (#overview-toggle) is the four-point sparkle; the
@@ -461,6 +480,12 @@ PATCHES = [
         "name": "safari-standard-zoom-gets-the-viewport-fill",
         "old": _SAFARI_ZOOM_OLD,
         "new": _SAFARI_ZOOM_NEW,
+        "count": 1,
+    },
+    {
+        "name": "safari-standard-zoom-gets-the-dgrid-quantize",
+        "old": _DGRID_GATE_OLD,
+        "new": _DGRID_GATE_NEW,
         "count": 1,
     },
 ]

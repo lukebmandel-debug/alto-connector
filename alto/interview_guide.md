@@ -476,6 +476,18 @@ visibility="private")` does that without deleting anything.
   the user where it is and that links require the free Firebase setup in the
   README — never present this as a failure.
 
-'private' visibility keeps a timeline off the web entirely; 'link' makes it
-public to anyone with the URL (static hosting has no sign-in gate — say so
-before publishing anything sensitive).
+Three visibility values, and the choice matters — do not default to 'link'
+without asking:
+- **'private'** — not on the web at all. The right choice while a timeline is
+  still being built, or whenever the user does not want a URL yet.
+- **'private-web'** (default once the user wants a URL) — hosted, but gated
+  behind Google sign-in as the *same account that published it*; nobody else
+  can open it, even signed in. This is what "private" means to a user asking
+  to publish their own course notes, research, or anything not meant for a
+  wider audience, and it is what most timelines should get.
+- **'link'** — public to anyone with the URL, no sign-in gate at all. Only use
+  this when the user affirmatively wants something they can hand to other
+  people who will not sign in as them (e.g. sharing a novel's timeline with
+  readers, embedding it somewhere public). Say plainly, before publishing,
+  that a 'link' page has no gate and anyone who finds the URL can open it —
+  never choose it silently because it seemed like "the web option."
