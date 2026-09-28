@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.1"
+__version__ = "1.9.2"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -355,7 +355,9 @@ def _site_status() -> dict:
     # Settings typed in, with a CLI that can deploy them: that site is the
     # user's, whatever an earlier set_up_site (another Claude account on this
     # computer, say — site.json is per OS user) left in its record.
-    if firebase_configured() and site_rec.hand_configured():
+    from .cloud import load_config
+    if firebase_configured() and site_rec.hand_configured() \
+            and load_config().get("apiKey"):
         # Configured by hand (the extension's advanced settings, or an
         # author's own environment): nothing for set_up_site to do.
         return {"status": "configured", "site_url":
@@ -374,6 +376,12 @@ def set_up_site(code: str = "") -> dict:
     returns at once. Call it again (no arguments) whenever the user says they
     clicked something, or before publishing, to see where it is.
 
+    Never ask the user to run commands, find files, change settings or set
+    anything up in Firebase/Google Cloud themselves: this tool does the work
+    and every reply carries `next` (what to do now) and, on an error,
+    `details` (the diagnostic record). The user only clicks Allow, Continue
+    with Google, and — for an account new to Google Cloud — accepts its terms.
+
     status: working (Alto is busy — carry on), waiting_for_google /
     waiting_for_sign_in (tell the user a page is open in their browser and
     what to click; `url` if it did not open), needs_browser_step (a Google
@@ -389,13 +397,15 @@ def set_up_site(code: str = "") -> dict:
     from .publish_static import firebase_configured
     p = get_provisioner()
     typed = site_rec.hand_configured()
-    if typed and firebase_configured():
+    from .cloud import load_config
+    if typed and firebase_configured() and load_config().get("apiKey"):
         return {"status": "configured",
                 "site_url": f"https://{typed[0]}.web.app",
                 "message": ("This Alto already publishes to the Firebase site "
                             "in its settings; nothing to set up.")}
-    # Typed in but unusable (no Firebase CLI on this computer, say): finish
-    # setting up THAT project rather than making another.
+    # Typed in but unusable (no Firebase CLI on this computer, or no web
+    # config pasted): finish setting up THAT project rather than making
+    # another — the app step reads its config, which apply() then fills in.
     p.kick(code, adopt=typed)
     return p.wait(40)
 
@@ -1162,24 +1172,41 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                              "Google, and it is already on their homepage in "
                              "its project's box. Nothing to upload.")}
         elif visibility == "private-web":
+            # Projects kept in a folder, but the page still belongs in the
+            # owner's account. It used to end in "open the link and upload
+            # this file yourself"; now the connector signs in once (the same
+            # Continue with Google as sign_in) and writes the page itself.
+            from .build.private_shell import MAX_PAGE_BYTES, stored_bytes
+            from .cloud.meta import meta_of, title_of
+            from .cloud.session import get_session
+            from .store.cloud import CloudStore
             key = doc["private_key"]
-            # put_artifact returns the path; same re-put idiom the offline
-            # branches below use to hand back a location.
-            private_path = st.put_artifact(
-                uid(), timeline_id, "private.html",
-                st.get_artifact(uid(), timeline_id, "private.html") or "")
-            urls = {"view_url": f"{live}/pv/{key}/",
-                    "upload_file": private_path,
-                    **stale_bits,
-                    "note": ("Only the Google account you sign in with can open "
-                             "this. One step remains and it is manual, because "
-                             "the connector holds no Firebase credentials: open "
-                             "the link, sign in, and choose the upload_file "
-                             "above. It is stored under your own account in "
-                             "Firestore, where the security rules — not any "
-                             "JavaScript — decide who may read it. Those rules "
-                             "must already be deployed (README §Publishing); a "
-                             "Firestore left in test mode is world-readable.")}
+            page = st.get_artifact(uid(), timeline_id, "private.html") or ""
+            if not page:
+                return {"error": "not_built", "message": "build_timeline first"}
+            if stored_bytes(page) > MAX_PAGE_BYTES:
+                return {"error": "too_large",
+                        "message": f"the page exceeds the {MAX_PAGE_BYTES // 1024} KB "
+                                   "a private page can be"}
+            s = get_session()
+            if not s.signed_in:
+                p = s.start(live)
+                return {"status": "waiting_for_sign_in", "url": p["url"],
+                        "message": ("One click first: the user's Alto site is "
+                                    "open in their browser — they click "
+                                    "Continue with Google."),
+                        "next": ("Tell the user to click Continue with Google "
+                                 "on the page that opened (give `url` if "
+                                 "nothing did), then call publish_timeline "
+                                 "again. Never ask them to upload or copy "
+                                 "anything themselves.")}
+            CloudStore(s, st).put_page(s.uid, key, page, title_of(page),
+                                       meta_of(page))
+            urls = {"view_url": f"{live}/pv/{key}/", **stale_bits,
+                    "note": ("Published privately to the user's own account: "
+                             "only they can open it, after signing in with "
+                             "Google, and it is on their homepage. Nothing to "
+                             "upload.")}
         else:
             urls = {"note": "private — not on the web"}
     elif base:
@@ -1200,8 +1227,8 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                      "any browser (double-click it), or send it to someone: "
                      "it is fully self-contained and needs no server, no "
                      "account and no internet. Tell the user the path. "
-                     "Shareable web links are optional and need a free "
-                     "Firebase site — see README §Publishing."),
+                     "For a private web page on their own site, call "
+                     "set_up_site — it sets everything up itself."),
         }
     doc["urls"] = urls
     st.put_timeline(uid(), timeline_id, doc)

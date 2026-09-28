@@ -79,6 +79,44 @@ READY = site_rec.READY
 FAILED = "error"
 
 
+# What the model does next, returned with every status. The chat has no
+# access to the user's computer and needs none: Alto does the work and reports
+# everything, so the user is never handed a command, a file to find, a setting
+# or a console to set up. The only things a person does are the consents
+# Google requires in their own name.
+_NO_CHORES = ("Never ask the user to run a command, find or send a file, "
+              "change a setting, install anything, or set anything up in the "
+              "Firebase or Google Cloud console — Alto does all of that, and "
+              "this reply already carries every detail there is.")
+NEXT = {
+    "working": "Carry on with the interview; call set_up_site again later.",
+    "paused": "Call set_up_site to carry on.",
+    WAITING_GOOGLE: ("Tell the user a Google page is open and to click Allow "
+                     "(give `url` if nothing opened). Keep interviewing; call "
+                     "set_up_site again when they say they clicked. "
+                     + _NO_CHORES),
+    WAITING_SIGN_IN: ("Tell the user their new Alto site is open and to click "
+                      "Continue with Google (give `url` if nothing opened); "
+                      "call set_up_site again when they have. " + _NO_CHORES),
+    NEEDS_BROWSER: ("Tell the user what `message` says: a Google page is open "
+                    "(give `url`) where they accept the terms themselves — an "
+                    "agreement in their own name, so never click it for them. "
+                    "Call set_up_site again when they say done. " + _NO_CHORES),
+    NEEDS_CODE: ("Ask the user for the code shown at `url`, then call "
+                 "set_up_site(code=...). " + _NO_CHORES),
+    FAILED: ("Tell the user in one plain sentence that setting up their site "
+             "hit a snag and that you are retrying, then call set_up_site "
+             "again — it resumes where it stopped. Keep building their "
+             "timeline meanwhile; it publishes once the site is ready. "
+             "`details` is the diagnostic record (for you, not for them). "
+             + _NO_CHORES),
+    "stuck": ("Stop calling set_up_site. Tell the user plainly what `message` "
+              "says, that their timeline still works as an offline file and "
+              "will publish once this is resolved, and that the diagnostics "
+              "are saved at `log` for whoever maintains Alto. " + _NO_CHORES),
+}
+
+
 class StepError(RuntimeError):
     def __init__(self, msg: str, status: str = FAILED, url: str = ""):
         super().__init__(msg)
@@ -171,6 +209,35 @@ def _debug_reason() -> str:
     return f"{reason} ({host[-1]})" if host else reason
 
 
+_SECRET = re.compile(
+    r'("(?:access_token|refresh_token|id_token|apiKey|client_secret)"\s*:\s*")'
+    r'[^"]*(")|(Bearer\s+)[A-Za-z0-9._\-]+|(\bkey=)[A-Za-z0-9_\-]+')
+
+
+def _redact(line: str) -> str:
+    return _SECRET.sub(lambda m: (m.group(1) + "<redacted>" + m.group(2))
+                       if m.group(1) else ((m.group(3) or m.group(4))
+                                           + "<redacted>"), line)
+
+
+def log_excerpt(limit: int = 2500) -> str:
+    """The last CLI command's record from firebase-debug.log — the command,
+    each API call's method, URL and status, and every error — with tokens and
+    keys removed. Returned with an error so no one has to go and find the
+    file: the model has no access to the user's computer."""
+    try:
+        text = debug_log().read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    last = text[text.rfind("Command:"):] if "Command:" in text else text[-limit:]
+    keep = [l for l in last.splitlines()
+            if "Command:" in l or "[status]" in l or "rror" in l
+            or '"error"' in l]
+    out = "\n".join(_redact(l.split("] ", 1)[-1] if l.startswith("[debug]") else l)
+                    for l in keep)
+    return out[-limit:]
+
+
 def _download(url: str, timeout: float = 300) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "Alto"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -221,6 +288,15 @@ class Provisioner:
                   "log"):
             if s.get(k):
                 out[k] = s[k]
+        nxt = NEXT.get(out["status"])
+        if out["status"] == FAILED and "will not help" in s.get("message", ""):
+            nxt = NEXT["stuck"]
+        if nxt:
+            out["next"] = nxt
+        if out["status"] == FAILED:
+            details = log_excerpt()
+            if details:
+                out["details"] = details
         return out
 
     def kick(self, code: str = "", adopt: tuple[str, str] | None = None) -> None:

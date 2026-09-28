@@ -440,7 +440,113 @@ def test_typed_settings_stay_configured_whatever_another_setup_left(
     monkeypatch.setenv("ALTO_FIREBASE_BIN", str(cli))
     monkeypatch.setenv("ALTO_FIREBASE_SITE", "my-alto")
     monkeypatch.setenv("ALTO_FIREBASE_PROJECT", "my-own-project")
+    monkeypatch.setenv("ALTO_FIREBASE_CONFIG",
+                       '{"apiKey":"k","projectId":"my-own-project","appId":"a"}')
     assert srv.get_interview_guide()["site_status"]["status"] == "configured"
     r = srv.set_up_site()
     assert r["status"] == "configured"
     assert pv.get_provisioner()._thread is None          # nothing started
+
+
+# ── the user is never handed a chore ────────────────────────────────────────
+# 2026-09-28: with only "See firebase-debug.log" to go on, the chat model had
+# the user run `find` in a terminal. It has no access to their computer; every
+# reply now says what to do next and carries the diagnostics itself.
+
+CHORES = ("run a command", "find or send a file", "change a setting",
+          "install anything", "Firebase or Google Cloud console")
+
+
+@pytest.mark.parametrize("status", ["working", "waiting_for_google",
+                                    "waiting_for_sign_in", "needs_browser_step",
+                                    "needs_code", "error"])
+def test_every_status_says_what_to_do_next(status):
+    p = pv.Provisioner()
+    p.state.update(status=status, message="m")
+    nxt = p.status()["next"]
+    if status != "working":
+        assert all(c in nxt for c in CHORES), (status, nxt)
+
+
+def test_an_error_carries_its_diagnostics_without_secrets(tmp_path, monkeypatch, fb_bin):
+    monkeypatch.setenv("ALTO_TOOLS_DIR", str(tmp_path))
+    (tmp_path / "firebase-debug.log").write_text(
+        '[debug] [t] Command: node firebase.js projects:create x --json\n'
+        '[debug] [t] >>> [apiv2][query] POST https://x.googleapis.com/v1/p?key=AIzaSECRETKEY1\n'
+        '[debug] [t] Authorization: Bearer ya29.SECRETTOKEN\n'
+        '[debug] [t] <<< [apiv2][status] POST https://x.googleapis.com/v1/p 403\n'
+        '[debug] [t] <<< [apiv2][body] {"access_token":"ya29.SECRET2","error":{"code":7,"message":"Permission denied"}}\n'
+        '[debug] [t] FirebaseError: Permission denied\n')
+    p = pv.Provisioner()
+    p._fail("error", "creating your Firebase project failed")
+    st = p.status()
+    assert "403" in st["details"] and "Permission denied" in st["details"]
+    assert "SECRET" not in st["details"]
+    assert st["log"] == str(tmp_path / "firebase-debug.log")
+    for _ in range(2):
+        p._fail("error", "creating your Firebase project failed")
+    assert "Stop calling set_up_site" in p.status()["next"]
+
+
+def test_the_guide_forbids_handing_the_user_chores():
+    g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    assert "Never hand the user a technical task" in g
+    doc = srv.set_up_site.__doc__ or ""
+    assert "Never ask the user to run commands" in doc
+
+
+def test_typed_settings_without_a_web_config_are_finished_not_left(fb_bin, monkeypatch, tmp_path):
+    """Site and project typed in, config never pasted: set_up_site reads the
+    config itself instead of calling the setup done."""
+    cli = tmp_path / "firebase"
+    cli.write_text("#!/bin/sh\n")
+    monkeypatch.setenv("ALTO_FIREBASE_BIN", str(cli))
+    monkeypatch.setenv("ALTO_FIREBASE_SITE", "my-alto")
+    monkeypatch.setenv("ALTO_FIREBASE_PROJECT", "my-alto")
+    assert srv.get_interview_guide()["site_status"]["status"] != "configured"
+
+
+def test_private_publish_from_a_folder_writes_the_page_itself(tmp_path, monkeypatch):
+    """Projects kept in a folder used to end private-web publishing with "open
+    the link and upload this file yourself". Now: sign in once, and Alto
+    writes the page into the account; nothing to upload."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from cloudfake import FakeFirebase as FakeFirestore
+    from alto import publish_static as ps
+    from alto.cloud import session as sess
+    from alto.store.local import LocalStore
+    cli = tmp_path / "firebase"
+    cli.write_text("#!/bin/sh\nexit 0\n")
+    cli.chmod(0o755)
+    cfg = '{"apiKey":"k","projectId":"proj","appId":"a"}'
+    for k, v in {"ALTO_FIREBASE_BIN": str(cli), "ALTO_FIREBASE_SITE": "my-alto",
+                 "ALTO_FIREBASE_PROJECT": "proj", "ALTO_FIREBASE_CONFIG": cfg,
+                 "ALTO_STORE": "local", "ALTO_PUBLISH_MODE": "firebase-static",
+                 "ALTO_ALLOW_STALE": "1"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(ps, "verify_live", lambda site, live: [])
+    fs = FakeFirestore()
+    opened = []
+    s = sess.Session(json.loads(cfg), http=fs, path=tmp_path / "s.json",
+                     opener=opened.append)
+    sess.set_session(s)
+    srv.set_store(LocalStore(tmp_path / "store"))
+    try:
+        pid = srv.create_project("C", "", "studying")["project_id"]
+        tid = srv.create_timeline(pid, {"title": "C", "acts": [
+            {"label": "A"}, {"label": "B"}]})["timeline_id"]
+        srv.record_materials_consent(tid, [{"name": "notes"}], True)
+        srv.add_nodes(tid, [{"id": "a", "act": 0, "tag": "x", "title": "A", "desc": "d"},
+                            {"id": "b", "act": 1, "tag": "x", "title": "B", "desc": "d"}])
+        srv.build_timeline(tid)
+        first = srv.publish_timeline(tid, "private-web")
+        assert first["status"] == "waiting_for_sign_in"
+        assert opened and "/connect/" in opened[0]
+        assert "upload" in first["next"] and "Never" in first["next"]
+        s._accept("RT")                          # they clicked Continue with Google
+        r = srv.publish_timeline(tid, "private-web")
+        assert r["view_url"].startswith("https://my-alto.web.app/pv/")
+        assert "upload_file" not in r and "Nothing to upload" in r["note"]
+        assert any("/pages/" in k for k in fs.docs), list(fs.docs)[:5]
+    finally:
+        sess.set_session(None)

@@ -81,8 +81,21 @@ click in their browser when asked.
   account, and any drafts made before it finished were copied across.
 
 Call it again (no arguments) whenever the user says they clicked, and before
-`publish_timeline`. Never tell a user to edit settings, install anything or
-visit the Firebase console themselves.
+`publish_timeline`. Every reply has a `next` field saying exactly what to do;
+follow it.
+
+**Never hand the user a technical task.** You have no access to their
+computer and need none: Alto runs there, does the work, and puts everything —
+Google's own error, the diagnostic record (`details`), the log's location —
+in its reply. So never ask them to run a terminal command, find or send a
+file, open or change the extension's settings, install anything, or create or
+configure anything in the Firebase or Google Cloud console, and never say the
+chat "can't" do something and hand it to them. The only things the user ever
+does are the consents Google requires in their own name: **Allow**,
+**Continue with Google**, and — for a Google account new to Google Cloud —
+accepting its terms once. If setup cannot finish, say so plainly, keep
+building their timeline (it works offline and publishes once the site is
+ready), and let `set_up_site` retry.
 
 ## Flow 1 — New project (short, container-level)
 

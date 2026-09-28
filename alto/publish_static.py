@@ -184,8 +184,9 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         raise PublishError(
             f"{len(private)} timeline(s) are published as 'private-web', but "
             "this site has no Firebase project configured, so Google sign-in "
-            "is off and nobody could ever open them. Set ALTO_FIREBASE_CONFIG "
-            "(see README §Publishing), or republish them as 'private'.")
+            "is off and nobody could ever open them. Call set_up_site: it "
+            "reads the project's web config itself (never ask the user to "
+            "paste it).")
     for t in private:
         key = check_component(t["private_key"], "private_key")
         live_keys.add(key)
@@ -332,8 +333,8 @@ def deploy_site(site_dir: Path) -> str:
     cfg = firebase_configured()
     if not cfg:
         raise PublishError(
-            "web publishing not configured — set ALTO_FIREBASE_SITE and "
-            "ALTO_FIREBASE_PROJECT (a free Firebase Hosting site; see README) "
+            "web publishing not configured — call set_up_site, which gives "
+            "the user their own site (never ask them to set it up) "
             "or share the offline file instead")
     fb, site, project = cfg
     # The rules travel with the site. Everything Alto stores in Firestore is
