@@ -65,18 +65,21 @@ def test_lines_can_be_followed_and_singled_out():
 def test_fading_waits_for_the_pointer_to_rest_and_masks_lines_under_cards():
     html = _html()
     assert "arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);" in html
-    assert "e.setAttribute('mask','url(#alto-hover-mask)')" in html
+    assert "e.setAttribute('clip-path','url(#alto-hover-mask)')" in html
     assert "cardMask(svg,'alto-hover-mask',function(c){ return !c.closest('.node').classList.contains('edge-end'); });" in html
 
 
 def test_faded_lines_never_show_through_faded_cards():
-    """Enlarging a card fades the rest; so do filters. Safari masks each line
-    path under every card while anything is faded (not the outer <svg>, which
-    WebKit stops drawing when masked)."""
+    """Enlarging a card fades the rest; so do filters. Safari clips each line
+    path out from under every faded card while anything is faded (not the
+    outer <svg>, which WebKit stops drawing). A clipPath, never a <mask>:
+    WebKit re-rendered masked lines on every frame of a fly, and hops got
+    slower and jerkier the further down the page they went (1.8.30-31)."""
     html = _html()
-    assert "e.setAttribute('mask','url(#alto-fade-mask)')" in html
+    assert "e.setAttribute('clip-path','url(#alto-fade-mask)')" in html
+    assert "m=document.createElementNS(NS,'clipPath')" in html
     assert "cv.classList.contains('focus-mode')" in html
-    assert "svg.setAttribute('mask','url(#alto-fade-mask)')" not in html
+    assert "'mask','url(#alto-fade-mask)'" not in html and "'mask','url(#alto-hover-mask)'" not in html
 
 
 def test_hovered_cards_grow_by_zoom_not_transform():

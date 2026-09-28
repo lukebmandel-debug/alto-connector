@@ -601,31 +601,33 @@ LINE_NAV_GLUE = """
     return c.classList.contains('dimmed')||c.classList.contains('rel-dimmed')||c.classList.contains('ent-dimmed');
   }
   function cardMask(svg,id,faded){
+    /* a clipPath, not a <mask>: the same shape (everything but the faded cards,
+       holes by even-odd), but vector clipping — WebKit re-rendered a masked
+       line on every frame of a fly, slower the further down the page. */
     var m=svg.querySelector('#'+id), defs=svg.querySelector('defs');
     if(!defs){ defs=document.createElementNS(NS,'defs'); svg.insertBefore(defs,svg.firstChild); }
-    if(!m){ m=document.createElementNS(NS,'mask'); m.setAttribute('id',id);
-      m.setAttribute('maskUnits','userSpaceOnUse'); defs.appendChild(m); }
+    if(!m){ m=document.createElementNS(NS,'clipPath'); m.setAttribute('id',id);
+      m.setAttribute('clipPathUnits','userSpaceOnUse'); defs.appendChild(m); }
     while(m.firstChild) m.removeChild(m.firstChild);
-    var full=document.createElementNS(NS,'rect');
-    full.setAttribute('x',-4000); full.setAttribute('y',-4000);
-    full.setAttribute('width',12000); full.setAttribute('height',40000); full.setAttribute('fill','#fff');
-    m.appendChild(full);
-    var T=svg.getScreenCTM(); if(!T) return;
+    var d='M-4000 -4000H12000V60000H-4000Z', T=svg.getScreenCTM(); if(!T) return;
     [].forEach.call(document.querySelectorAll('#world .node-card'),function(c){
       if(!c.offsetWidth || !faded(c)) return;
-      var q=c.getBoundingClientRect(), r=document.createElementNS(NS,'rect');
-      r.setAttribute('x',(q.left-T.e)/T.a); r.setAttribute('y',(q.top-T.f)/T.d);
-      r.setAttribute('width',q.width/T.a); r.setAttribute('height',q.height/T.d);
-      r.setAttribute('rx',14); r.setAttribute('fill','#000'); m.appendChild(r);
+      var q=c.getBoundingClientRect(), x=(q.left-T.e)/T.a, y=(q.top-T.f)/T.d,
+          w=q.width/T.a, h=q.height/T.d, r=Math.min(14,w/2,h/2);
+      d+='M'+(x+r)+' '+y+'H'+(x+w-r)+'A'+r+' '+r+' 0 0 1 '+(x+w)+' '+(y+r)+'V'+(y+h-r)+
+         'A'+r+' '+r+' 0 0 1 '+(x+w-r)+' '+(y+h)+'H'+(x+r)+'A'+r+' '+r+' 0 0 1 '+x+' '+(y+h-r)+
+         'V'+(y+r)+'A'+r+' '+r+' 0 0 1 '+(x+r)+' '+y+'Z';
     });
+    var pth=document.createElementNS(NS,'path');
+    pth.setAttribute('d',d); pth.setAttribute('clip-rule','evenodd'); m.appendChild(pth);
   }
   /* Faded cards are translucent, so a line behind one shows through it. Blink
      already masks every line under every card, all the time (its card-mask
      pass); Safari cannot afford that while scrolling, so there the lines are
      masked only while something is faded — a card enlarged (every other card
      fades) or cards dimmed by a filter — and the mask is rebuilt as cards move.
-     Per path: WebKit does not apply an SVG <mask> set on the outer <svg>, it
-     just stops drawing the layer. */
+     Per path: WebKit does not clip or mask the outer <svg> this way, it just
+     stops drawing the layer. */
   function fadeOn(){
     var cv=document.getElementById('canvas');
     return !!cv && (cv.classList.contains('focus-mode') ||
@@ -641,9 +643,9 @@ LINE_NAV_GLUE = """
         return focus ? !c.closest('.node').classList.contains('focused') : dimmed(c); });
     }
     [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit])'),function(e){
-      if(e.closest('mask')) return;
-      if(on){ if(!e.hasAttribute('data-edge-masked')){ e.setAttribute('mask','url(#alto-fade-mask)'); e.setAttribute('data-fade-masked','1'); } }
-      else if(e.hasAttribute('data-fade-masked')){ e.removeAttribute('mask'); e.removeAttribute('data-fade-masked'); }
+      if(e.closest('clipPath')) return;
+      if(on){ if(!e.hasAttribute('data-edge-masked')){ e.setAttribute('clip-path','url(#alto-fade-mask)'); e.setAttribute('data-fade-masked','1'); } }
+      else if(e.hasAttribute('data-fade-masked')){ e.removeAttribute('clip-path'); e.removeAttribute('data-fade-masked'); }
     });
   }
   var fadeT=null;
@@ -662,7 +664,7 @@ LINE_NAV_GLUE = """
     var cv=document.getElementById('canvas'); if(cv) cv.classList.remove('edge-hover');
     [].forEach.call(document.querySelectorAll('.edge-end,.edge-hot'),function(e){ e.classList.remove('edge-end'); e.classList.remove('edge-hot'); });
     [].forEach.call(document.querySelectorAll('#river-svg [data-edge-masked]'),function(e){
-      e.removeAttribute('mask'); e.removeAttribute('data-edge-masked'); });
+      e.removeAttribute('clip-path'); e.removeAttribute('data-edge-masked'); });
     syncFade();
     document.dispatchEvent(new CustomEvent('alto:edge-leave'));
   }
@@ -675,7 +677,7 @@ LINE_NAV_GLUE = """
     cardMask(svg,'alto-hover-mask',function(c){ return !c.closest('.node').classList.contains('edge-end'); });
     [].forEach.call(svg.querySelectorAll('[data-edge],[data-edge-part]'),function(e){
       if((e.getAttribute('data-edge')||e.getAttribute('data-edge-part'))===key) e.classList.add('edge-hot');
-      else { e.setAttribute('mask','url(#alto-hover-mask)'); e.setAttribute('data-edge-masked','1'); e.removeAttribute('data-fade-masked'); }
+      else { e.setAttribute('clip-path','url(#alto-hover-mask)'); e.setAttribute('data-edge-masked','1'); e.removeAttribute('data-fade-masked'); }
     });
     cv.classList.add('edge-hover');
     document.dispatchEvent(new CustomEvent('alto:edge-dwell',{detail:{key:key,x:x,y:y}}));
