@@ -630,80 +630,131 @@ LINE_NAV_GLUE = """
     for(var i=0;i<R.length;i++){ var r=R[i]; if(x>r.x0&&x<r.x1&&y>r.y0&&y<r.y1) return true; }
     return false;
   }
-  /* The engine draws lines with absolute M / L / Q only. A straight stretch is
-     split around every box it crosses (Liang–Barsky per box); a corner curve
-     (a 20px quarter turn) is kept or dropped whole. */
-  function cutD(d,R){
-    var tk=d.match(/[MLQ]|-?\d*\.?\d+(?:e-?\d+)?/gi)||[], i=0, out='', px=0, py=0, pen=false;
+  /* The engine draws lines with absolute M / L / Q only. piecesD(d, keep, B)
+     keeps the parts of a line where keep(x,y) holds: a straight stretch is
+     split at every edge of the boxes in B (Liang–Barsky) and each piece kept
+     or dropped by its midpoint; a corner curve (a 20px quarter turn) is kept
+     or dropped whole. */
+  function piecesD(d,keep,B){
+    var tk=d.match(/[MLQ]|-?\d*\.?\d+(?:e-?\d+)?/gi)||[], i=0, out='', px=0, py=0, pen=false, lastT=0;
     function num(){ return parseFloat(tk[i++]); }
     function f(v){ return Math.round(v*100)/100; }
     while(i<tk.length){
       var c=tk[i++];
       if(c==='M'){ px=num(); py=num(); pen=false; }
       else if(c==='L'){
-        var x=num(), y=num(), dx=x-px, dy=y-py, cuts=[];
-        R.forEach(function(r){
-          var t0=0, t1=1, P=[-dx,dx,-dy,dy], Q=[px-r.x0,r.x1-px,py-r.y0,r.y1-py];
+        var x=num(), y=num(), dx=x-px, dy=y-py, ts=[0,1];
+        B.forEach(function(r){
+          var t0=0, t1=1, P=[-dx,dx,-dy,dy], Q=[px-r.x0,r.x1-px,py-r.y0,r.y1-py], ok=true;
           for(var k=0;k<4;k++){
-            if(P[k]===0){ if(Q[k]<=0){ t0=1; t1=0; break; } }
+            if(P[k]===0){ if(Q[k]<=0){ ok=false; break; } }
             else { var t=Q[k]/P[k]; if(P[k]<0){ if(t>t0) t0=t; } else { if(t<t1) t1=t; } }
           }
-          if(t0<t1) cuts.push([t0,t1]);
+          if(ok && t0<t1){ ts.push(t0); ts.push(t1); }
         });
-        cuts.sort(function(a,b){ return a[0]-b[0]; });
-        var at=0;
-        cuts.concat([[1,1]]).forEach(function(cu){
-          if(cu[0]>at+1e-6){
-            var ax=px+dx*at, ay=py+dy*at, bx=px+dx*cu[0], by=py+dy*cu[0];
-            if(!(pen && at===0)) out+='M'+f(ax)+' '+f(ay);
-            out+='L'+f(bx)+' '+f(by);
-          }
-          at=Math.max(at,cu[1]);
-        });
-        pen=!cuts.length || cuts[cuts.length-1][1]<1-1e-6;
-        px=x; py=y;
+        ts.sort(function(a,b){ return a-b; });
+        for(var j=0;j<ts.length-1;j++){
+          var a=ts[j], b=ts[j+1]; if(b-a<1e-6) continue;
+          var m=(a+b)/2;
+          if(keep(px+dx*m,py+dy*m)){
+            if(!(pen && a===lastT)) out+='M'+f(px+dx*a)+' '+f(py+dy*a);
+            out+='L'+f(px+dx*b)+' '+f(py+dy*b); pen=true; lastT=b;
+          } else pen=false;
+        }
+        pen=pen && lastT===1; px=x; py=y; lastT=0;
       }
       else if(c==='Q'){
-        var cx=num(), cy=num(), x2=num(), y2=num(), hit=false;
+        var cx=num(), cy=num(), x2=num(), y2=num(), all=true;
         [0.25,0.5,0.75].forEach(function(t){
-          var u=1-t, qx=u*u*px+2*u*t*cx+t*t*x2, qy=u*u*py+2*u*t*cy+t*t*y2;
-          if(inside(qx,qy,R)) hit=true;
+          var u=1-t; if(!keep(u*u*px+2*u*t*cx+t*t*x2, u*u*py+2*u*t*cy+t*t*y2)) all=false;
         });
-        if(hit) pen=false;
-        else { if(!pen) out+='M'+f(px)+' '+f(py); out+='Q'+f(cx)+' '+f(cy)+' '+f(x2)+' '+f(y2); pen=true; }
-        px=x2; py=y2;
+        if(all){ if(!pen) out+='M'+f(px)+' '+f(py); out+='Q'+f(cx)+' '+f(cy)+' '+f(x2)+' '+f(y2); pen=true; }
+        else pen=false;
+        px=x2; py=y2; lastT=0;
       }
-      else return d;                       // anything else: leave the line whole
+      else return null;                    // anything else: leave the line whole
     }
     return out || 'M0 0';
   }
   function keyOfPath(e){ return e.getAttribute('data-edge')||e.getAttribute('data-edge-part'); }
+  /* The pieces of a line that appear or disappear when the faded set changes
+     fade in step with the cards (~240ms), drawn as a separate overlay of just
+     those pieces — the rest of the line is untouched, so nothing already on
+     screen flickers or doubles up. */
+  var FADE_MS=240;
+  function settle(e){                       // finish a line's running fade now
+    (e._ov||[]).forEach(function(o){ if(o.parentNode) o.parentNode.removeChild(o); });
+    e._ov=null; clearTimeout(e._ft); if(e._fin){ var f=e._fin; e._fin=null; f(); }
+  }
+  function overlay(e,d,from,to){
+    var o=e.cloneNode(false);
+    ['data-edge','data-edge-part','data-d0','class','mask','clip-path','id'].forEach(function(a){ o.removeAttribute(a); });
+    o.setAttribute('d',d); o.setAttribute('stroke-linecap','butt'); o.setAttribute('pointer-events','none');
+    o.setAttribute('data-fade-piece','1');
+    o.style.opacity=String(from); o.style.transition='opacity '+FADE_MS+'ms ease';
+    e.parentNode.insertBefore(o,e.nextSibling);
+    void o.getBoundingClientRect();
+    o.style.opacity=String(to);
+    return o;
+  }
+  function alphaOf(e){                      // the line's own opacity in the state now applied
+    if(hot && keyOfPath(e)!==hot) return 0.15;
+    var v=parseFloat(e.style.opacity); return isNaN(v)?1:v;
+  }
+  function sameR(a,b){
+    if(a.length!==b.length) return false;
+    for(var i=0;i<a.length;i++) if(a[i].x0!==b[i].x0||a[i].y0!==b[i].y0||a[i].x1!==b[i].x1||a[i].y1!==b[i].y1) return false;
+    return true;
+  }
   function syncCuts(){
     if(!desktop()) return;
     var svg=document.getElementById('river-svg'), cv=document.getElementById('canvas'); if(!svg||!cv) return;
-    var focus=cv.classList.contains('focus-mode'), fade=fadeOn(), R=null;
+    var focus=cv.classList.contains('focus-mode'), fade=fadeOn(), R=[];
     if(fade||hot) R=holes(svg,function(c){
       var n=c.closest('.node');
       if(focus) return !n.classList.contains('focused');
       if(hot) return !n.classList.contains('edge-end');
       return dimmed(c);
     });
-    [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit])'),function(e){
-      var d0=e.getAttribute('data-d0');
-      var cut=(fade||hot) && !(hot && keyOfPath(e)===hot);
-      if(cut){ if(d0===null){ d0=e.getAttribute('d'); e.setAttribute('data-d0',d0); } e.setAttribute('d',cutD(d0,R)); }
-      else if(d0!==null){ e.setAttribute('d',d0); e.removeAttribute('data-d0'); }
+    [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit]):not([data-fade-piece])'),function(e){
+      if(e.closest('defs')) return;
+      var newR=((fade||hot) && !(hot && keyOfPath(e)===hot)) ? R : [];
+      if(sameR(e._R||[],newR)) return;      // nothing changes for this line
+      settle(e);
+      var oldR=e._R||[];
+      var d0=e.getAttribute('data-d0'); if(d0===null){ d0=e.getAttribute('d'); e.setAttribute('data-d0',d0); }
+      var B=oldR.concat(newR);
+      var target=newR.length ? piecesD(d0,function(x,y){ return !inside(x,y,newR); },newR) : d0;
+      if(target===null){ e._R=[]; e.setAttribute('d',d0); e.removeAttribute('data-d0'); return; }
+      var both=piecesD(d0,function(x,y){ return !inside(x,y,oldR)&&!inside(x,y,newR); },B);
+      var appear=piecesD(d0,function(x,y){ return inside(x,y,oldR)&&!inside(x,y,newR); },B);
+      var vanish=piecesD(d0,function(x,y){ return !inside(x,y,oldR)&&inside(x,y,newR); },B);
+      e._R=newR;
+      e._fin=function(){ if(newR.length) e.setAttribute('d',target); else { e.setAttribute('d',d0); e.removeAttribute('data-d0'); } };
+      var a=alphaOf(e), ov=[];
+      if(appear && appear!=='M0 0') ov.push(overlay(e,appear,0,a));
+      if(vanish && vanish!=='M0 0') ov.push(overlay(e,vanish,parseFloat(getComputedStyle(e).opacity)||a,0));
+      if(!ov.length){ settle(e); return; }
+      e.setAttribute('d',both);
+      e._ov=ov; e._ft=setTimeout(function(){ settle(e); }, FADE_MS+30);
     });
   }
   var fadeT=null;
-  function fadeSoon(){ clearTimeout(fadeT); fadeT=setTimeout(syncCuts,60); }
+  function fadeSoon(){ clearTimeout(fadeT); fadeT=setTimeout(syncCuts,120); }
   window._altoSyncFade=syncCuts;
   (function watch(){
     var cv=document.getElementById('canvas'), w=document.getElementById('world');
     if(!cv||!w||typeof MutationObserver!=='function'){ document.addEventListener('DOMContentLoaded',watch); return; }
-    new MutationObserver(fadeSoon).observe(cv,{attributes:true,attributeFilter:['class']});
-    new MutationObserver(function(){
-      if(fadeOn() || document.querySelector('#river-svg [data-d0]')) fadeSoon();
+    /* a state change (enlarge, hop, filter) is applied on the same frame the
+       cards start to fade; only layout changes wait for things to settle */
+    new MutationObserver(function(){ clearTimeout(fadeT); syncCuts(); })
+      .observe(cv,{attributes:true,attributeFilter:['class']});
+    new MutationObserver(function(ms){
+      var cls=false, sty=false;
+      ms.forEach(function(m){ if(m.target.closest && m.target.closest('#river-svg')) return;
+        if(m.attributeName==='class') cls=true; else sty=true; });
+      if(!(fadeOn() || document.querySelector('#river-svg [data-d0]'))) return;
+      if(cls){ clearTimeout(fadeT); syncCuts(); } else if(sty) fadeSoon();
     }).observe(w,{attributes:true,subtree:true,attributeFilter:['class','style']});
   })();
   function clear(){

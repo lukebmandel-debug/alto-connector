@@ -75,9 +75,8 @@ def test_faded_lines_never_show_through_faded_cards():
     frame of a fly, 1.8.30-31) and not a clipPath (Safari did not apply it,
     1.8.32)."""
     html = _html()
-    assert "function cutD(d,R){" in html
-    assert "e.setAttribute('d',cutD(d0,R));" in html                 # cut…
-    assert "e.setAttribute('d',d0); e.removeAttribute('data-d0');" in html   # …and restored
+    assert "function piecesD(d,keep,B){" in html
+    assert "if(newR.length) e.setAttribute('d',target); else { e.setAttribute('d',d0); e.removeAttribute('data-d0'); }" in html
     for gone in ("'mask','url(#alto-fade-mask)'", "'clip-path','url(#alto-fade-mask)'",
                  "'mask','url(#alto-hover-mask)'", "'clip-path','url(#alto-hover-mask)'"):
         assert gone not in html
@@ -120,3 +119,16 @@ def test_cut_boxes_come_from_layout_not_screen_coordinates():
     g = g[:g.index("function inside(x,y,R){")]
     assert "n.offsetLeft+c.offsetLeft" in g and "n.offsetTop+c.offsetTop" in g
     assert "getScreenCTM()" not in g and "getBoundingClientRect" not in g
+
+
+
+def test_cut_pieces_fade_with_the_cards_not_after_them():
+    """Lines used to be restored 11ms (hover) or ~390ms (enlarge) out of step
+    with the cards' 240ms fade, all at once. Now a state change is applied on
+    the frame it happens, and only the pieces that appear or disappear fade,
+    as a separate overlay, over the cards' own 240ms."""
+    html = _html()
+    assert "var FADE_MS=240;" in html
+    assert "new MutationObserver(function(){ clearTimeout(fadeT); syncCuts(); })" in html
+    assert "if(sameR(e._R||[],newR)) return;      // nothing changes for this line" in html
+    assert "o.setAttribute('data-fade-piece','1');" in html
