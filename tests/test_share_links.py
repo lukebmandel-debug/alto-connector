@@ -147,8 +147,10 @@ def test_publishing_deploys_the_rules():
     world-readable, and this feature adds a rule that must be live or sharing
     simply does not work."""
     src = (ROOT / "alto" / "publish_static.py").read_text(encoding="utf-8")
-    assert 'targets.append("firestore:rules")' in src
+    assert '"firestore:rules"]' in src
     assert '"firestore"' in src
+    # Deployed unconditionally (tests/test_new_user.py runs the deploy).
+    assert "if rules_out.exists()" not in src
 
 
 def test_a_failed_rules_deploy_fails_the_publish():

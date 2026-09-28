@@ -399,17 +399,23 @@ PAGE = """<!doctype html>
   <details>
     <summary>Do I need to install anything else?</summary>
     <p>No. Each download carries its own copy of Python, so there is nothing to
-    set up first. That is why the files are around 50&nbsp;MB.</p>
+    set up first. That is why the files are around 50&nbsp;MB. When Claude
+    sets up your private site, Alto fetches the official Node and Firebase
+    command-line tools once, in the background, into its own folder (about
+    450&nbsp;MB; nothing is installed system-wide).</p>
   </details>
 
   <details>
     <summary>Where do my timelines go?</summary>
-    <p>Onto your own computer, in <code>~/Documents/Alto</code>. Every timeline
-    is also produced as a self-contained file you can open or send to someone
-    without any server involved.</p>
-    <p>Publishing shareable web links is optional and uses <em>your</em> free
-    Firebase project, never one of ours. Leave it unconfigured and Alto simply
-    stays offline. See the <a href="/privacy/">privacy note</a>.</p>
+    <p>Onto your own private Alto site — a free Firebase project that Claude
+    sets up in <em>your</em> Google account the first time you build a
+    timeline, never one of ours. You click <b>Allow</b> and <b>Continue with
+    Google</b> in your browser; there is nothing to install or configure.
+    Only your Google account can open what you publish there; to show a
+    timeline to someone, you make a share link from your homepage.</p>
+    <p>Every timeline is also produced as a self-contained file you can open
+    without any server, and it lives in <code>~/Documents/Alto</code> until
+    your site is ready. See the <a href="/privacy/">privacy note</a>.</p>
   </details>
 
 {cli}{verify}  <footer>

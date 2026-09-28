@@ -106,7 +106,9 @@ def test_every_tool_is_listed(entry):
 def test_bundle_requirements_stay_slim():
     """The hosted variant's dependencies would add tens of megabytes to a file
     people have to download."""
-    assert build_mcpb.REQUIREMENTS == ["mcp>=1.28,<2"]
+    # quickjs (~2 MB) is the one deliberate addition: without it the JS syntax
+    # gate never ran for a Claude Desktop user, who has no node.
+    assert build_mcpb.REQUIREMENTS == ["mcp>=1.28,<2", "quickjs>=1.19,<2"]
     for heavy in ("fastapi", "uvicorn", "firebase-admin", "google-cloud-storage"):
         assert not any(heavy in r for r in build_mcpb.REQUIREMENTS)
 

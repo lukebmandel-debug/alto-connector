@@ -75,14 +75,14 @@ def test_onclick_inside_script_string_is_not_flagged():
 
 
 def test_missing_node_degrades_to_warning(monkeypatch):
-    monkeypatch.setattr(V, "find_node", lambda: None)
+    monkeypatch.setattr(V, "find_checker", lambda: None)
     failures, warnings = V.verify_scripts("<script>let x = ;</script>", "t")
     assert failures == []
     assert warnings and "node not found" in warnings[0]
 
 
 def test_build_still_succeeds_without_node(monkeypatch):
-    monkeypatch.setattr(V, "find_node", lambda: None)
+    monkeypatch.setattr(V, "find_checker", lambda: None)
     html, report = _build()
     assert html
     assert any("node not found" in w for w in report["warnings"])
@@ -100,3 +100,28 @@ def test_build_aborts_on_script_failure(monkeypatch):
 
     with pytest.raises(VerifyError):
         _build(add_filter)
+
+
+# ── no node: the bundled QuickJS runs the gate (every Claude Desktop user) ──
+
+def test_quickjs_takes_over_without_node(monkeypatch):
+    pytest.importorskip("quickjs")
+    monkeypatch.setattr(V, "find_node", lambda: None)
+    V._script_cache.clear()
+    assert V.find_checker() == V.QUICKJS
+    failures, warnings = V.verify_scripts("<script>let x = {a-b: 1};</script>", "t")
+    assert failures and "SyntaxError" in failures[0]
+    assert warnings == []
+    assert V.verify_scripts(
+        "<script>class A { #p = 1 } const f = async () => a?.b ?? 1;</script>"
+        '<button onclick="showDetail(\'node\',\'x\')"></button>', "t") == ([], [])
+    # parsed, never run: a script that would throw (or loop) at runtime passes
+    assert V.verify_scripts("<script>while(true){}; document.x.y;</script>",
+                            "t") == ([], [])
+    bad = V.verify_scripts('<b onclick="showDetail(\'node\',">x</b>', "t")[0]
+    assert bad and "onclick" in bad[0]
+
+
+def test_the_bundle_ships_quickjs():
+    mcpb = (ROOT / "packaging" / "build_mcpb.py").read_text(encoding="utf-8")
+    assert '"quickjs' in mcpb.split("REQUIREMENTS =", 1)[1].split("\n", 1)[0]

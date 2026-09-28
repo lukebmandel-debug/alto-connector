@@ -101,46 +101,47 @@ one of the two methods above pointed at your checkout.
 4. You get your timeline two ways:
    - **Offline file** (always): one self-contained HTML — double-click to
      open, send to a friend, works forever with no server.
-   - **Web page** (optional, still free): if Firebase publishing is
-     configured, a page at `https://<your-site>.web.app/pv/<key>/` that only
-     your Google account can open, listed on your homepage, with cross-device
-     sync of highlights/notes/reports. To show it to someone, create a share
-     link from your homepage.
+   - **Web page** (free, set up for you — see Publishing): a page at
+     `https://<your-site>.web.app/pv/<key>/` that only your Google account
+     can open, listed on your homepage, with cross-device sync of
+     highlights/notes/reports. To show it to someone, create a share link
+     from your homepage.
 5. Come back any time — drafts resume across chats via `get_timeline`.
 
-## Publishing (optional web links + cross-device sync)
+## Publishing — your own private site, set up for you
 
-Timelines are always private and the offline file always works. To put them on
-the web — and to get highlights, notes and reports syncing between your desktop
-and your phone — you host them on **your own** free Firebase project (Spark
-plan, no card). A published timeline (`visibility="private-web"`) opens only
-for the Google account that published it; there is no public option.
+Every timeline is private. It goes on **your own** Alto site — a free Firebase
+project (Spark plan, no card) in *your* Google account, never one of ours — at
+`https://<your-project>.web.app/pv/<key>/`, which opens only for the Google
+account that published it. There is no public option.
+
+**You set nothing up.** The first time you use Alto, Claude calls
+`set_up_site`, which runs in the background while the interview goes on:
+
+1. fetches the official Node and Firebase CLI into Alto's own folder
+   (checksum-pinned; nothing system-wide, no admin password);
+2. opens a Google page — you click **Allow** — so it can act in your account;
+3. creates your Firebase project, its web app, Firestore, and Google sign-in;
+4. deploys your site and the per-user security rules in `firestore.rules`,
+   then checks from outside that anonymous reads of your data are refused;
+5. opens your new site — you click **Continue with Google** — so Alto on this
+   computer is signed in as you, and moves any drafts into your account.
+
+From then on your projects live in your account (**Keep projects in:
+auto**), so every computer you sign in on sees the same ones, and
+`publish_timeline` puts a timeline on your site with nothing to upload.
 
 **Sharing is a share link.** To show a timeline to someone, use "Create share
 link" in its menu on your homepage. It is a snapshot of that one page at
 `/s/<key>/`, readable by anyone with the link without an install or an Alto
-account, and you can revoke it from the same place at any time. Everyone who
-authors a timeline publishes to their own project, so nobody's data flows
-through anyone else's project.
+account, and you can revoke it from the same place at any time.
 
-1. [console.firebase.google.com](https://console.firebase.google.com) → create
-   a project → Hosting → add a site (e.g. `my-alto`).
-2. Enable **Firestore** and **Authentication → Google** in that project, and
-   deploy the per-user rules in `firestore.rules` (`firebase deploy --only
-   firestore:rules`). Do this *before* publishing: a Firestore left in test
-   mode is world-readable and world-writable for 30 days.
-3. `npm i -g firebase-tools && firebase login`
-4. Open Alto's settings in Claude Desktop (**Settings → Extensions → Alto**)
-   and fill in **Firebase Hosting site**, **Firebase project id** and
-   **Firebase web config**. From a checkout instead, set `ALTO_FIREBASE_SITE`,
-   `ALTO_FIREBASE_PROJECT` and `ALTO_FIREBASE_CONFIG` in the environment.
-
-   The web config comes from Firebase console → Project
-   settings → Your apps → SDK setup and configuration. It is spliced into
-   `alto-cloud.js` at publish time. Leave it unset and sync is simply off:
-   highlights stay in the browser's local storage on each device.
-   `ALTO_FIREBASE_BIN` overrides the path to the `firebase` CLI if it is not on
-   your `PATH`.
+**Already have a Firebase project?** Fill in the extension's *Advanced*
+settings (site, project id, and optionally the web config) — or, from a
+checkout, `ALTO_FIREBASE_SITE`, `ALTO_FIREBASE_PROJECT`, `ALTO_FIREBASE_CONFIG`.
+If this computer has no Firebase CLI, `set_up_site` installs Alto's own and
+finishes setting up *that* project (Firestore, sign-in, rules) instead of
+making a new one. `ALTO_FIREBASE_BIN` points at a CLI of your own.
 
 Two things worth knowing before you share a link. A share link is **readable by
 anyone who has it** — the key cannot be guessed, but it is not
@@ -149,17 +150,10 @@ their notes gets an account in *your* Firebase project: the security rules stop
 you reading their notes through the app, but you own the project and can see
 them in the Firebase console.
 
-### Keep your projects in your account (optional)
+### Moving existing work across
 
-Once publishing is set up, Alto can keep your projects in that same Firebase
-project instead of a folder, so every computer you use sees the same ones and
-private timelines publish without an upload. Set **Keep projects in** to
-`cloud` in the extension's settings (or `ALTO_STORE=cloud`). The first time
-Claude needs your projects, it opens your site's `/connect/` page; continue
-with Google once. It signs in as *you*, under the same security rules as the
-website, so it needs no admin key and stays on Firebase's free plan.
-
-Moving existing work across:
+`set_up_site` copies whatever is in the local folder into your account as its
+last step. To do it by hand (for example from another folder):
 
 ```bash
 alto-connector migrate --from ~/Documents/Alto
@@ -175,7 +169,7 @@ It copies, never deletes, and skips anything already in your account.
   without them.
 - `alto/build/` — brief model, height estimator, layout resolver (a port of
   the engine's own), block generators, verifier, offline bundler.
-- `alto/mcp_server.py` — the 19 MCP tools + interview prompt.
+- `alto/mcp_server.py` — the 20 MCP tools + interview prompt.
 - `alto/build/sanitize.py` — makes user content inert before it reaches a page.
   Load-bearing: the engine renders detail sections straight into `innerHTML`.
 - `alto/publish_static.py` — free-tier static publishing via the Firebase CLI.

@@ -57,7 +57,9 @@ PLATFORMS = {
 
 # Only what the stdio server imports. The hosted variant's dependencies
 # (fastapi, uvicorn, firebase-admin, …) would add tens of megabytes.
-REQUIREMENTS = ["mcp>=1.28,<2"]
+# quickjs: the JS syntax gate's parser where no node is installed (every
+# Claude Desktop user) — ~2 MB, prebuilt for all three targets.
+REQUIREMENTS = ["mcp>=1.28,<2", "quickjs>=1.19,<2"]
 
 PACKAGE_INCLUDE = [
     ("alto", "*.py"),
@@ -104,7 +106,7 @@ def stage_package(server: Path) -> None:
         out.mkdir(parents=True, exist_ok=True)
         for f in sorted(src_dir.glob(pattern)):
             shutil.copy2(f, out / f.name)
-    for extra in ("interview_guide.md", "privacy.html"):
+    for extra in ("interview_guide.md", "privacy.html", "firestore.rules"):
         shutil.copy2(ROOT / "alto" / extra, server / "alto" / extra)
     if not (server / "alto" / "engine" / "timeline_template.html").exists():
         raise SystemExit(
@@ -188,7 +190,8 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
             "descriptions. Sparse notes make a sparse timeline, on purpose."),
         "author": {"name": "Luke Mandel"},
         "homepage": WEBSITE_URL,
-        "documentation": f"{WEBSITE_URL}/get",
+        # The download page is the documentation; /get never existed (404).
+        "documentation": f"{WEBSITE_URL}/",
         "license": "Apache-2.0",
         "keywords": ["timeline", "study", "notes", "law", "research"],
         "icon": "icon.png",
@@ -231,36 +234,37 @@ def manifest(key: str, mcpb_platform: str, interpreter: str) -> dict:
             },
             "store_mode": {
                 "type": "string",
-                "title": "Keep projects in (local or cloud)",
-                "description": ("local: in the folder above, on this Mac. "
-                                "cloud: in your own Firebase account, so every "
-                                "computer you sign in on sees the same projects "
-                                "(needs the three Firebase settings below; "
-                                "Claude asks you to sign in once)."),
-                "default": "local",
+                "title": "Keep projects in (auto, local or cloud)",
+                "description": ("auto (recommended): in your own account once "
+                                "Claude has set up your private Alto site, on "
+                                "this Mac until then. local: always the folder "
+                                "above. cloud: always your account."),
+                "default": "auto",
                 "required": False,
             },
             "firebase_site": {
                 "type": "string",
-                "title": "Firebase Hosting site (optional)",
-                "description": ("Your own free Hosting site id, for publishing "
-                                "shareable links. Leave blank to keep every "
-                                "timeline offline-only."),
+                "title": "Advanced: existing Firebase Hosting site",
+                "description": ("Not needed — Claude sets up your own private "
+                                "site the first time you build a timeline. "
+                                "Only to use a Firebase project you already "
+                                "have: its Hosting site id."),
                 "required": False,
             },
             "firebase_project": {
                 "type": "string",
-                "title": "Firebase project id (optional)",
-                "description": "The project that Hosting site belongs to.",
+                "title": "Advanced: existing Firebase project id",
+                "description": ("Not needed. The project that site belongs "
+                                "to, if you filled in the site above."),
                 "required": False,
             },
             "firebase_config": {
                 "type": "string",
-                "title": "Firebase web config (optional)",
-                "description": ("The web SDK config JSON from your Firebase "
-                                "console, which switches on cross-device sync "
-                                "of highlights and notes. Yours alone — Alto "
-                                "never ships a project of its own."),
+                "title": "Advanced: existing Firebase web config",
+                "description": ("Not needed — Claude reads it from your project "
+                                "itself. Required for web pages only if you "
+                                "use your own project above and want to paste "
+                                "it: the web SDK config JSON."),
                 "sensitive": True,
                 "required": False,
             },

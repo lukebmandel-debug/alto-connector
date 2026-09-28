@@ -21,6 +21,7 @@ MAX_LEN = {
     "name": 200, "role": 500, "singular": 200, "node_noun": 100,
     "desc": 20_000, "section_h": 300, "section_t": 100_000,
     "overview_html": 200_000, "symbol_svg": 20_000, "owner": 300,
+    "persona_prompt": 5_000,
 }
 MAX_BRIEF_BYTES = 4_000_000
 MAX_SECTIONS = 24
@@ -238,6 +239,11 @@ class Relation:
     key: str                   # connection vocabulary key, e.g. "overrules"
     label: str = ""
     color: str = ""            # #rrggbb; "spine" key always renders neutral
+    # The entity this relation's lines follow (a story's per-character lines).
+    # Defaults to the entity whose id equals `key`; an uncoloured relation that
+    # follows an entity takes that entity's colour, so the line and the chip
+    # read as one thing.
+    entity: str = ""
 
 
 @dataclass
@@ -324,6 +330,10 @@ class Brief:
     # characters only. autolink_overview=False keeps the Overview unlinked.
     autolink: list[str] = field(default_factory=lambda: ["env", "theme"])
     autolink_overview: bool = True
+    # The study companion (guide §G): {name, prompt}. Not rendered on any page;
+    # get_timeline hands it back so the conversation that picks the timeline up
+    # again speaks as it. Its prompt must restate the closed-system rule.
+    persona: dict = field(default_factory=dict)
 
 
 def _check_sections(sections, what, warnings=None) -> None:
@@ -399,6 +409,31 @@ def _check_sources(b) -> set:
     return ids
 
 
+_PERSONA_KEYS = {"name", "prompt"}
+# Words a prompt restating §0 cannot avoid: it has to say the companion works
+# only from the user's own material.
+_CLOSED_WORDS = ("only", "never")
+_MATERIAL_WORDS = ("material", "notes", "outline", "sources", "§0")
+
+
+def _check_persona(p, warnings) -> None:
+    if not p:
+        return
+    if not isinstance(p, dict) or set(p) - _PERSONA_KEYS:
+        raise BriefError("persona must be {name, prompt}")
+    for k in _PERSONA_KEYS:
+        if not isinstance(p.get(k, ""), str):
+            raise BriefError(f"persona.{k} must be text")
+    _check_len(p.get("name", ""), "name", "persona name")
+    _check_len(p.get("prompt", ""), "persona_prompt", "persona prompt")
+    low = (p.get("prompt") or "").lower()
+    if not (any(w in low for w in _CLOSED_WORDS)
+            and any(w in low for w in _MATERIAL_WORDS)):
+        warnings.append("persona prompt does not restate the closed-system "
+                        "rule (§0): say it answers only from the user's own "
+                        "material and never adds outside facts")
+
+
 def validate_brief(b: Brief) -> list[str]:
     """Raise BriefError on hard violations; return soft warnings."""
     warnings = []
@@ -412,6 +447,7 @@ def validate_brief(b: Brief) -> list[str]:
     _check_len(b.node_noun, "node_noun", "node_noun")
     _check_len(b.owner_name, "owner", "owner_name")
     _check_len(b.owner_email, "owner", "owner_email")
+    _check_persona(b.persona, warnings)
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
@@ -572,8 +608,17 @@ def validate_brief(b: Brief) -> list[str]:
             # readable as a separate line past its fork when it has its own
             # color) assumes relation types are distinguishable. Offset past
             # the entity assignments so lines and chips don't pool colors.
+            ents = {e.id: e for e in b.entities}
+            if r.entity and r.entity not in ents:
+                # Relations arrive in create_timeline, entities after it.
+                warnings.append(f"relation {r.key}: entity {r.entity!r} is not "
+                                "on the entity axis (yet) — its lines keep a "
+                                "palette color until it is")
+            follows = ents.get(r.entity or r.key)
             if r.color:
                 _check_hex(r.color, f"relation {r.key}", None)
+            elif follows is not None:
+                r.color = follows.color
             else:
                 r.color = PALETTE[(len(b.entities) + non_spine) % len(PALETTE)]
             non_spine += 1

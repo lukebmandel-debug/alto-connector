@@ -72,7 +72,12 @@ def store_mode() -> str:
     admin store). Anything unrecognised — including an .mcpb placeholder that
     was never filled in — is local, the one mode that needs no setup."""
     m = os.environ.get("ALTO_STORE", "").strip().lower()
-    return m if m in ("local", "cloud", "firestore") else "local"
+    if m in ("local", "cloud", "firestore"):
+        return m
+    # 'auto' (the extension's default), blank or an unfilled placeholder: the
+    # user's own account once set_up_site has made them one, else the folder.
+    from .cloud import site as site_rec
+    return "cloud" if site_rec.ready() else "local"
 
 
 def get_store():
@@ -146,8 +151,19 @@ def _now() -> str:
 
 
 def _slug(text: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:40]
-    return s or "item"
+    """A derived id that always passes ID_RE. A name that starts with a digit
+    ("1L Fall", "2026 Research") gets a `p-` prefix: the bare slug used to be
+    stored as a project id that create_timeline then refused, leaving the user
+    a project nothing could ever be added to."""
+    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+    if s and not s[0].isalpha():
+        s = "p-" + s
+    return s[:40].strip("-") or "item"
+
+
+# Project ids stored before _slug learned the p- prefix: slug-shaped, but
+# starting with a digit. They exist and must stay usable.
+_LEGACY_PROJECT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 
 
 def _check_ref(value, what: str):
@@ -207,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.8.37"
+__version__ = "1.9.0"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -313,7 +329,71 @@ def get_interview_guide() -> dict:
             **_completeness(t, st.list_nodes(uid(), tid),
                             st.get_connections(uid(), tid)),
         })
-    return {"guide_markdown": guide, "drafts": drafts}
+    return {"guide_markdown": guide, "drafts": drafts,
+            "site_status": _site_status()}
+
+
+def _why_not_configured() -> str:
+    """The specific gap, so a person who filled in settings is not told to go
+    set up what they already set up."""
+    from .cloud import site as site_rec
+    from .publish_static import firebase_bin
+    typed = site_rec.hand_configured()
+    if typed and not Path(firebase_bin()).exists():
+        return (f"(The settings name the site {typed[0]!r}, but this computer "
+                "has no Firebase CLI to deploy it with; set_up_site installs "
+                "Alto's own and finishes that project's setup.)")
+    return ""
+
+
+def _site_status() -> dict:
+    """Where the user's own web site stands, for the guide's opening step."""
+    from .cloud import site as site_rec
+    from .cloud.provision import get_provisioner
+    from .publish_static import firebase_configured
+    st = get_provisioner().status()
+    if st["status"] == "not_started" and firebase_configured() \
+            and site_rec.hand_configured():
+        # Configured by hand (the extension's advanced settings, or an
+        # author's own environment): nothing for set_up_site to do.
+        return {"status": "configured", "site_url":
+                f"https://{os.environ.get('ALTO_FIREBASE_SITE', '')}.web.app"}
+    return st
+
+
+@mcp.tool(title="Set up your own Alto site", annotations=RW)
+def set_up_site(code: str = "") -> dict:
+    """Give the user their own private Alto site — a free Firebase project in
+    THEIR Google account with Firestore, Google sign-in, the security rules
+    and the site itself — with nothing for them to do but click Allow and
+    Continue with Google in their browser. Call it in the first turn of any
+    session whose get_interview_guide site_status is not 'ready' or
+    'configured', then keep interviewing: it runs in the background and
+    returns at once. Call it again (no arguments) whenever the user says they
+    clicked something, or before publishing, to see where it is.
+
+    status: working (Alto is busy — carry on), waiting_for_google /
+    waiting_for_sign_in (tell the user a page is open in their browser and
+    what to click; `url` if it did not open), needs_browser_step (a Google
+    page Alto cannot click for them, e.g. accepting the Firebase terms once:
+    open `url` — with the browser tools if the user allows — then call again),
+    needs_code (Windows: the user pastes the code from `url`; pass it as
+    `code`), ready (site_url is theirs), error (say `message`, then call again
+    to retry: every step resumes where it stopped)."""
+    from .cloud import site as site_rec
+    from .cloud.provision import get_provisioner
+    from .publish_static import firebase_configured
+    p = get_provisioner()
+    typed = site_rec.hand_configured()
+    if typed and firebase_configured() and p.status()["status"] == "not_started":
+        return {"status": "configured",
+                "site_url": f"https://{typed[0]}.web.app",
+                "message": ("This Alto already publishes to the Firebase site "
+                            "in its settings; nothing to set up.")}
+    # Typed in but unusable (no Firebase CLI on this computer, say): finish
+    # setting up THAT project rather than making another.
+    p.kick(code, adopt=typed)
+    return p.wait(40)
 
 
 @mcp.tool(title="Sign in to your Alto account", annotations=RW)
@@ -342,10 +422,25 @@ def sign_in() -> dict:
     fc = firebase_configured()
     if not fc or not s.configured:
         return {"error": "not_configured",
-                "message": ("Alto has no Firebase site configured "
-                            "(ALTO_FIREBASE_SITE / ALTO_FIREBASE_CONFIG), so "
-                            "there is no account to sign in to.")}
-    p = s.start(f"https://{fc[1]}.web.app")
+                "message": ("Alto has no site of its own yet, so there is no "
+                            "account to sign in to. Call set_up_site: it "
+                            "makes one and signs in as part of it.")}
+    site_url = f"https://{fc[1]}.web.app"
+    # /connect/ only exists once the site has been deployed, and deploying
+    # used to need a timeline, which needed a project, which needed this
+    # sign-in: a new account could never get in. Ship the empty shell first.
+    from .cloud.provision import _http_get
+    if _http_get(f"{site_url}/connect/") == 404:
+        from .publish_static import PublishError, deploy_site, regenerate_site
+        from .store.local import LocalStore
+        try:
+            deploy_site(regenerate_site(LocalStore(store_dir()), "local"))
+        except PublishError as e:
+            return {"error": "site_not_deployed",
+                    "message": ("Your site has no sign-in page yet and "
+                                f"deploying it failed: {e}. Call set_up_site "
+                                "to finish setting it up.")}
+    p = s.start(site_url)
     if s.wait(45):
         return {"status": "signed_in", "email": s.email}
     return {"status": "waiting", "url": p["url"],
@@ -445,9 +540,13 @@ def create_timeline(project_id: str, brief: dict) -> dict:
     (studying→Unit, writing→Act, research→Phase, default Unit).
     Entities are set separately via set_entities. Returns validation warnings."""
     st = get_store()
-    project_id, err = _check_ref(project_id, "project_id")
-    if err:
-        return err
+    legacy = (isinstance(project_id, str)
+              and _LEGACY_PROJECT_ID.match(project_id)
+              and st.get_project(uid(), project_id))
+    if not legacy:
+        project_id, err = _check_ref(project_id, "project_id")
+        if err:
+            return err
     if not st.get_project(uid(), project_id):
         return {"error": "not_found", "message": f"project {project_id!r} not found"}
     existing = {t["timeline_id"] for t in st.list_timelines(uid())}
@@ -463,6 +562,12 @@ def create_timeline(project_id: str, brief: dict) -> dict:
         tid = _slug(brief.get("title", ""))
     tid = _unique_slug(existing, tid)
     brief = {**brief, "timeline_id": tid}
+    # A story's running text names its characters far more than its places or
+    # themes, and the brief default (places + themes) linked none of them.
+    # Only when the caller did not choose.
+    if ("autolink" not in brief
+            and (st.get_project(uid(), project_id) or {}).get("kind") == "writing"):
+        brief["autolink"] = ["char", "env", "theme"]
     try:
         b, _, _ = load_brief({"brief": brief})
         from .build.brief import validate_brief
@@ -526,7 +631,7 @@ def set_entities(timeline_id: str, entities: list[dict],
     if autolink_overview is not None:
         brief["autolink_overview"] = bool(autolink_overview)
     try:
-        b, _, _ = load_brief({"brief": brief})
+        b, _, _ = load_brief({"brief": _checked(doc, brief)})
         from .build.brief import validate_brief
         warnings = validate_brief(b)
     except BriefError as e:
@@ -605,7 +710,7 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
     if index_label is not None:
         brief["index_label"] = index_label
     try:
-        b, _, _ = load_brief({"brief": brief})
+        b, _, _ = load_brief({"brief": _checked(doc, brief)})
         from .build.brief import validate_brief
         warnings = validate_brief(b)
     except BriefError as e:
@@ -653,7 +758,7 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
         return {"error": "quota", "message": f"max {MAX_NODES} nodes"}
     try:
         b, all_nodes, _ = load_brief({
-            "brief": doc["brief"],
+            "brief": _checked(doc, doc["brief"]),
             "nodes": [{k: v for k, v in n.items() if not k.startswith("_")}
                       for n in merged.values()]})
         from .build.brief import validate_nodes
@@ -687,7 +792,7 @@ def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
     st = get_store()
     nodes = st.list_nodes(uid(), timeline_id)
     from .build.verify import verify_data
-    b, all_nodes, _ = load_brief({"brief": doc["brief"],
+    b, all_nodes, _ = load_brief({"brief": _checked(doc, doc["brief"]),
                                   "nodes": [{k: v for k, v in n.items()
                                              if not k.startswith("_")}
                                             for n in nodes]})
@@ -741,6 +846,16 @@ def _source_docs(doc) -> list:
             out.append({"id": s["id"], "name": s.get("name") or s["id"],
                         "url": s.get("url") or ""})
     return out
+
+
+def _checked(doc, brief: dict) -> dict:
+    """The brief as the build will see it, for validating: with the consent
+    manifest's source map filled in. Validating without it warned on every
+    `sources` id ("not in source_docs — it will not be shown") although the
+    build showed each one. Only for checks; the stored brief keeps no copy."""
+    if brief.get("source_docs"):
+        return brief
+    return {**brief, "source_docs": _source_docs(doc)}
 
 
 def _load_full(doc):
@@ -977,11 +1092,13 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                 uid(), timeline_id, "offline.html",
                 st.get_artifact(uid(), timeline_id, "offline.html") or "")
             urls = {"offline_path": offline_path,
-                    "note": ("Web publishing isn't configured, so there is no "
-                             "URL — but the offline file above IS the full "
-                             "timeline (double-click to open, send to share). "
-                             "To get shareable links, set up a free Firebase "
-                             "Hosting site (see README §Publishing).")}
+                    "note": ("There is no web page yet because this Alto has "
+                             "no site of its own — the offline file above IS "
+                             "the full timeline (double-click to open). Call "
+                             "set_up_site: it gives the user their own private "
+                             "site with nothing to do but click Allow in the "
+                             "browser, then publish again. "
+                             + _why_not_configured())}
             doc["urls"] = urls
             st.put_timeline(uid(), timeline_id, doc)
             return {"visibility": visibility, **urls}
@@ -1225,10 +1342,14 @@ def delete_timeline(timeline_id: str, confirm_token: str = "") -> dict:
                        "pages). " + _DELETE_RULES))
 def delete_project(project_id: str, delete_timelines: bool = False,
                    confirm_token: str = "") -> dict:
-    pid, err = _check_ref(project_id, "project_id")
-    if err:
-        return err
     st = get_store()
+    if (isinstance(project_id, str) and _LEGACY_PROJECT_ID.match(project_id)
+            and st.get_project(uid(), project_id)):
+        pid = project_id
+    else:
+        pid, err = _check_ref(project_id, "project_id")
+        if err:
+            return err
     proj = st.get_project(uid(), pid)
     if not proj:
         return {"error": "not_found",
@@ -1327,6 +1448,8 @@ def main(argv: list[str] | None = None) -> None:
     # launching a local server speaks stdio. The hosted HTTP variant does not
     # come through here — it is served by uvicorn via alto/web.py.
     transport = os.environ.get("ALTO_TRANSPORT", "stdio")
+    from .cloud import site as site_rec
+    site_rec.apply()
     mcp.run(transport=transport)
 
 

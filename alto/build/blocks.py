@@ -1117,6 +1117,15 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             if _partitions(_touched, f"filter {_rf['spec'].label!r} value {_name!r}"):
                 _kept.append((_vid, _name))
         _rf["values"] = _kept
+        if not _kept and _rf["spec"].source == "coverage":
+            # The notes are uniformly full (or uniformly thin): coverage
+            # cannot divide them. Say what would, so the slot is not wasted.
+            alt = ("'depth' (Level 1/2/3+ from the outline's own structure)"
+                   if b.mode == "outline" or any(n.parent for n in nodes)
+                   else "a custom dimension the material marks")
+            _warn.append(f"filter {_rf['spec'].label!r}: coverage does not "
+                         f"divide these notes, so the filter is empty — use "
+                         f"{alt} for this slot instead")
 
     # ── the Filter panel: one section per kind of filter ─────────────────────
     # Every kind of sub-chip a card carries is filterable — those chips have

@@ -30,6 +30,15 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch):
     # author's home directory. A test suite must never touch it.
     monkeypatch.setenv(
         "ALTO_STORE_DIR", str(tmp_path_factory.mktemp("alto-store")))
+    # Same for the sign-in session, the managed site record (site.json) and
+    # set_up_site's tools: a real one on this machine must never steer a test
+    # (store_mode 'auto' becomes cloud when site.json says ready).
+    monkeypatch.setenv(
+        "XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg-config")))
+    monkeypatch.setenv(
+        "ALTO_TOOLS_DIR", str(tmp_path_factory.mktemp("alto-tools")))
+    from alto.cloud import provision
+    provision.set_provisioner(None)
 
     previous_auth = srv._require_auth
     srv.require_auth(False)

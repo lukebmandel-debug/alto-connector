@@ -49,6 +49,36 @@ questions. Offer sensible defaults the user can accept with one word. Echo
 back what was captured before moving on. The user can upload materials
 directly into this conversation — that is the normal delivery path.
 
+## Flow 0 — The user's own site (first turn, then out of the way)
+
+`get_interview_guide` returns `site_status`. Unless it is `ready` or
+`configured`, call `set_up_site` in the same turn and tell the user, in one
+sentence, that Alto is setting up their own private site in their Google
+account while you talk — then start Flow 1 straight away. Do not wait for it
+and do not walk them through Firebase: there is nothing for them to do but
+click in their browser when asked.
+
+`set_up_site` runs in the background and returns at once with a `status`:
+- `working` — carry on with the interview; check again between sections.
+- `waiting_for_google` — a Google page is open in their browser: "click
+  **Allow** so Alto can make your free Firebase project." Give `url` if they
+  say nothing opened.
+- `waiting_for_sign_in` — their new site is open: "click **Continue with
+  Google**." That connects Alto to their account.
+- `needs_browser_step` — a one-time Google page (e.g. accepting the Firebase
+  terms). If you have browser tools and the user allows it, open `url` and do
+  it for them; otherwise ask them to. Then call `set_up_site` again.
+- `needs_code` (Windows) — they sign in at `url` and paste the code; pass it
+  as `set_up_site(code=…)`.
+- `error` — say what `message` says in plain words and call it again; every
+  step resumes where it stopped.
+- `ready` — `site_url` is theirs. Their projects now live in their own
+  account, and any drafts made before it finished were copied across.
+
+Call it again (no arguments) whenever the user says they clicked, and before
+`publish_timeline`. Never tell a user to edit settings, install anything or
+visit the Firebase console themselves.
+
 ## Flow 1 — New project (short, container-level)
 
 1. **What is this project?** "What should we call this project, and in a
@@ -92,6 +122,50 @@ timeline lands in the same box — ask only for the purpose (and kind, with
 3. On an explicit yes → `record_materials_consent(timeline_id, sources,
    consent=true)` with a factual source manifest (names/kinds only — the
    material itself stays in this conversation, where you read it).
+
+### A2. Start from a recipe — then let them tweak
+
+Once you have read the materials, offer the recipe that fits and show it as a
+short list the user can change in one reply ("keep it all", "call them
+Chapters", "no Themes"). Every recipe is structure only — names, labels and
+text still come from their material (§0). Adjust it to what their material
+actually has; never invent a band, entity or axis value to fill a slot.
+
+**Novel or story map** (kind `writing`)
+- `period_noun: "Act"`, one band per act/part the manuscript has;
+  `node_noun: "Chapter"` (or "Scene"), `columns: 5` for 25+ nodes.
+- Entity axis **Characters** (≤12 principal ones), each with `aliases` for
+  the short names the prose uses, and a glyph (§C1).
+- Axis 1 **Places**, axis 2 **Themes**, each value with a glyph.
+- Relations: `spine` labelled "Ensemble" for the main thread, plus **one
+  relation per main character keyed by that character's entity id** — its
+  lines then take the character's color automatically, so a reader can
+  follow one person through the book. `line_filter: false`.
+- A reason (fourth element) on every line that jumps more than 3 places,
+  from their notes; a "How they connect" section on each character.
+- `set_overview` with deep links to the turning points.
+- Autolinking of character names in running text is on by default for
+  `writing` projects.
+
+**Course outline** (kind `studying`, `mode: 'outline'`)
+- `period_noun: "Unit"`, one band per unit of their outline; `node_noun:
+  "Concept"`.
+- Entity axis **Elements** (the recurring doctrinal building blocks), each
+  with sections on how it is satisfied, where the material says; glyphs.
+- Axis 1 **Cases** (`hide_nav: true`, each case's brief in `sections`,
+  `cite` where the material gives pages); axis 2 **Restatement** or
+  **Statutes** the same way, if the material has them.
+- A custom **outcome** filter (e.g. Liable / Not Liable, Enforceable / Not
+  Enforceable) on the leaf concepts that state a result.
+- `layout: 'auto'` — an outline with real categories becomes a tree.
+- Second filter: `coverage` if their notes vary in depth; if the build says
+  coverage dropped (every node Thin or every node Solid), switch it to
+  `depth`.
+
+**Research project or timeline of events** (kind `research`)
+- `period_noun: "Phase"` or "Era"; `node_noun: "Event"`.
+- Entity axis **People** or **Teams**; axis 1 **Sources** (`hide_nav`).
+- Relations "Leads to" / "Responds to"; filter `coverage`.
 
 ### B0. Which shape? — ask once, plainly
 Two ways to organize the same material, and the answer changes what §C, §D and
@@ -384,11 +458,14 @@ interchangeable:
   glyph, so skip glyph design for it (§C1).
 → brief `filters` and `axes` (in `create_timeline`).
 
-### G. Persona (stored for reports)
+### G. Persona (the study companion)
 "Every workspace can have its own study companion. Want one? Name and vibe?"
 Domain defaults: law → THE IN-LAW; book → Scribe; else design one together.
-The persona's system prompt MUST restate §0. → brief `persona` (stored; the
-in-app reports feature uses it).
+→ brief `persona: {name, prompt}`. The prompt MUST restate §0 — that the
+companion answers only from the user's own material and never adds outside
+facts; the brief warns if it does not. It is not shown on any page:
+`get_timeline` hands it back, and when the user returns to study or quiz
+themselves on this timeline, speak as that companion, under §0.
 
 ### H. Outputs
 Reports from highlights & notes are built in (auto-saved to the Reports
@@ -405,7 +482,8 @@ Offer to fix. This is the last step before sharing links.
 
 ## Build sequence (tool order)
 
-1. `create_project` → 2. `create_timeline(project_id, brief)` (brief carries
+0. `set_up_site` (Flow 0; background) → 1. `create_project` →
+2. `create_timeline(project_id, brief)` (brief carries
 acts, axes, **filters**, relations) → 3. `record_materials_consent` →
 4. `set_entities` → 4b. `set_axis_values` (any extra axis carrying real
 content — a course's cases — since an axis declared in `create_timeline` is
@@ -497,8 +575,9 @@ their homepage; never look for another way to make it public.
   the `/pv/<key>/` page, which opens after signing in with Google as the
   owner, and the timeline is on their homepage at the site root.
   Highlights/notes/reports sync across devices once they are signed in.
-- **Offline file only** (no publishing configured): `offline_path` — a single
-  self-contained HTML file that IS the full timeline (home + timeline +
-  reports, works from a double-click). Tell the user where it is and that a
-  web page requires the free Firebase setup in the README — never present
-  this as a failure.
+- **Offline file only** (their site is not ready yet): `offline_path` — a
+  single self-contained HTML file that IS the full timeline (home + timeline +
+  reports, works from a double-click). Tell the user where it is, call
+  `set_up_site`, and publish again once it reports `ready`. Never present
+  this as a failure, and never send them to the README or the Firebase
+  console.

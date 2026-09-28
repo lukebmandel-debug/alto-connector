@@ -7,6 +7,7 @@ failure aborts the build with a structured report (nothing is published).
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -138,7 +139,52 @@ def find_node() -> "str | None":
     if found:
         return found
     fallback = Path.home() / ".local" / "node" / "bin" / "node"
-    return str(fallback) if fallback.exists() else None
+    if fallback.exists():
+        return str(fallback)
+    from ..cloud.provision import managed_node     # set_up_site's own node
+    m = managed_node()
+    return str(m) if m else None
+
+
+# The checker when no node is installed — which is every Claude Desktop user:
+# the .mcpb carries QuickJS (a few MB, one wheel per platform), so the gate
+# runs for them too instead of degrading to a warning on every build.
+QUICKJS = "quickjs"
+
+
+def find_checker() -> "str | None":
+    """node when present (the reference parser), else the bundled QuickJS,
+    else None."""
+    node = find_node()
+    if node:
+        return node
+    try:
+        import quickjs  # noqa: F401
+    except ImportError:
+        return None
+    return QUICKJS
+
+
+def _check_quickjs(body: str, is_module: bool) -> "str | None":
+    """Parse without running: a script body goes through `new Function`, which
+    compiles it and never calls it. A module cannot, so it is evaluated in a
+    fresh, empty context under a time limit, and only a SyntaxError counts —
+    anything else (a missing import, no DOM) is the sandbox, not the page."""
+    import quickjs
+    ctx = quickjs.Context()
+    ctx.set_time_limit(10)
+    ctx.set_memory_limit(256 * 1024 * 1024)
+    try:
+        if is_module:
+            ctx.module(body)
+        else:
+            ctx.eval("new Function(" + json.dumps(body) + ")")
+    except quickjs.JSException as e:
+        msg = str(e).strip()
+        return msg.splitlines()[0] if msg.startswith("SyntaxError") else None
+    except Exception:                          # noqa: BLE001 — degrade, never crash
+        return None
+    return None
 
 
 def _check_one(node: str, body: str, is_module: bool) -> "str | None":
@@ -147,6 +193,9 @@ def _check_one(node: str, body: str, is_module: bool) -> "str | None":
     already surfaced the no-node warning) rather than failing the build."""
     key = (hashlib.sha256(body.encode("utf-8")).hexdigest(), is_module)
     if key in _script_cache:
+        return _script_cache[key]
+    if node == QUICKJS:
+        _script_cache[key] = _check_quickjs(body, is_module)
         return _script_cache[key]
     cmd = [node, "--check"] + (["--input-type=module"] if is_module else []) + ["-"]
     try:
@@ -177,11 +226,11 @@ def verify_scripts(html: str, label: str = "page") -> "tuple[list[str], list[str
     With no node available, `failures` is empty and `warnings` carries one line
     recording that scripts were not checked (a degraded gate, never a crash).
     """
-    node = find_node()
+    node = find_checker()
     if not node:
         return [], [f"js-gate: node not found (tried $ALTO_NODE_BIN, PATH, "
-                    f"~/.local/node/bin/node) — inline scripts in {label} not "
-                    f"syntax-checked"]
+                    f"~/.local/node/bin/node) and QuickJS is not installed — "
+                    f"inline scripts in {label} not syntax-checked"]
 
     failures: list[str] = []
     for i, m in enumerate(_SCRIPT_RE.finditer(html)):

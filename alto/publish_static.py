@@ -78,11 +78,26 @@ def firebase_bin() -> str:
     found = shutil.which("firebase")
     if found:
         return found
+    from .cloud.provision import wrapper_path
+    if wrapper_path().exists():             # the CLI set_up_site installed
+        return str(wrapper_path())
     return str(Path.home() / ".local" / "node" / "bin" / "firebase")
 
 
 class PublishError(RuntimeError):
     pass
+
+
+def rules_path() -> Path:
+    """The Firestore rules every deploy ships: the package's copy, else the
+    checkout's. Missing is an error, never a hosting-only deploy — pages
+    without their rules look published and are not protected."""
+    for p in (Path(__file__).resolve().parent / "firestore.rules",
+              REPO / "firestore.rules"):
+        if p.exists():
+            return p
+    raise PublishError("firestore.rules is missing from this Alto install, so "
+                       "its security rules cannot be deployed; reinstall Alto")
 
 
 # Timelines the last regenerate_site() could not rebuild, so had to ship
@@ -326,10 +341,13 @@ def deploy_site(site_dir: Path) -> str:
     # was reminded of — a Firestore left in test mode is world-readable and
     # world-writable for thirty days, and publishing into one exposes every
     # reader's highlights and notes to anyone who learns the project id.
-    rules_src = REPO / "firestore.rules"
+    # They used to be read from the repo root, which a .mcpb bundle or a pip
+    # install does not have — so every such deploy silently shipped hosting
+    # only. The package carries its own copy now, and a deploy without rules
+    # is refused rather than shipped.
+    rules_src = rules_path()
     rules_out = site_dir.parent / "firestore.rules"
-    if rules_src.exists():
-        shutil.copy(rules_src, rules_out)
+    shutil.copy(rules_src, rules_out)
 
     # keep firebase.json's site in step with the configured site name
     fbjson = site_dir.parent / "firebase.json"
@@ -344,16 +362,13 @@ def deploy_site(site_dir: Path) -> str:
                      # opens from any of its sites (see regenerate_site).
                      {"source": "/pv/**", "destination": "/pv/index.html"}],
         "headers": _security_headers()}}
-    if rules_out.exists():
-        cfg_json["firestore"] = {"rules": rules_out.name}
+    cfg_json["firestore"] = {"rules": rules_out.name}
     fbjson.write_text(json.dumps(cfg_json, indent=2))
     (site_dir.parent / ".firebaserc").write_text(
         json.dumps({"projects": {"default": project}}, indent=2))
     env = {**os.environ,
            "PATH": f"{Path(fb).parent}:{os.environ.get('PATH', '')}"}
-    targets = [f"hosting:{site}"]
-    if rules_out.exists():
-        targets.append("firestore:rules")
+    targets = [f"hosting:{site}", "firestore:rules"]
     r = subprocess.run(
         [fb, "deploy", "--only", ",".join(targets),
          "--project", project, "--non-interactive"],

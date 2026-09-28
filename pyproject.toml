@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alto-connector"
-version = "1.8.37"
+version = "1.9.0"
 description = "Build interactive timelines from your own materials — an MCP connector for Claude"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,7 +23,7 @@ classifiers = [
 # firebase-admin/google-cloud-storage belong to the parked hosted variant
 # (alto/web.py, alto/auth/) and live in requirements-remote.txt — pulling them
 # in here would add tens of megabytes to every install and .mcpb bundle.
-dependencies = ["mcp>=1.28,<2"]
+dependencies = ["mcp>=1.28,<2", "quickjs>=1.19,<2"]
 
 [project.urls]
 Homepage = "https://alto-connector.web.app"
@@ -38,6 +38,9 @@ include = ["alto*"]
 "alto" = [
   "interview_guide.md",
   "privacy.html",
+  # Committed copy of ../firestore.rules (pinned identical by a test): the
+  # rules have to travel with every install, or publishing cannot deploy them.
+  "firestore.rules",
   "assets/*.svg",
   "assets/png/*.png",
   "cloud/*.js",
