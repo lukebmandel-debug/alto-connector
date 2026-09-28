@@ -180,7 +180,8 @@ def test_a_new_user_ends_with_a_ready_private_site(fb_bin):
     assert os.environ["ALTO_FIREBASE_SITE"] == pid
     assert json.loads(os.environ["ALTO_FIREBASE_CONFIG"])["projectId"] == pid
     assert rec["migrated"]["timelines"] == 2
-    assert oct(site_rec.path().stat().st_mode)[-3:] == "600"
+    if os.name != "nt":                       # POSIX permissions only
+        assert oct(site_rec.path().stat().st_mode)[-3:] == "600"
 
 
 def test_the_person_is_told_what_to_click_while_it_waits(fb_bin):

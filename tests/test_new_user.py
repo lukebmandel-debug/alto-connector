@@ -148,6 +148,7 @@ def test_the_package_carries_the_rules():
     assert '"firestore.rules")' in mcpb
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the fake CLI is a /bin/sh script")
 def test_a_deploy_from_an_install_without_a_checkout_ships_the_rules(
         tmp_path, monkeypatch):
     """The bundle case: no repo root next to the package."""
