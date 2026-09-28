@@ -1912,3 +1912,50 @@ def apply_patches(html: str) -> str:
         html = html.replace(p["old"], p["new"])
     return html
 
+
+# ── search: one index, one ranking, every surface (alto/build/search.py) ────
+# The desktop box, the mobile pill and the detail page's FIND panel all ran a
+# verbatim indexOf over node text: no prefixes, no typos, no case or
+# restatement pages, twelve rows at most, and a 1.7s flash on the card. Each
+# now hands its query to window._altoSearch (emitted on every page by the
+# builder's tail) and keeps its own look; the old code stays as the fallback.
+_SR_SEARCH_OLD = "  function search(q){\n    q=(q||'').trim().toLowerCase();"
+_SR_SEARCH_NEW = ("  function search(q){\n    if(window._altoSearch) return window._altoSearch.search(q);\n"
+                  "    q=(q||'').trim().toLowerCase();")
+_SR_SNIP_OLD = "  function snippet(text, q){\n    text=text||'';"
+_SR_SNIP_NEW = ("  function snippet(text, q){\n    if(window._altoSearch) return window._altoSearch.snippet(text,q);\n"
+                "    text=text||'';")
+_SR_RENDER_OLD = "  function render(q){\n    var res=search(q); resultsEl.innerHTML='';"
+_SR_RENDER_NEW = (
+    "  function render(q){\n"
+    "    if(window._altoSearch){\n"
+    "      var S=window._altoSearch; resultsEl.innerHTML='';\n"
+    "      if((q||'').trim().length<2){ resultsEl.classList.remove('has-results'); return; }\n"
+    "      var rs=S.search(q);\n"
+    "      resultsEl.innerHTML=rs.length?S.rowsHtml(rs,'data-i'):'<div class=\"search-empty\">No matches.</div>';\n"
+    "      Array.prototype.forEach.call(resultsEl.querySelectorAll('.search-result'), function(b){\n"
+    "        b.addEventListener('click', function(){ var o=rs[+b.getAttribute('data-i')]; closeSearch(); if(o) S.go(o); });\n"
+    "      });\n"
+    "      resultsEl.classList.add('has-results'); resultsEl.scrollTop=0; return;\n"
+    "    }\n"
+    "    var res=search(q); resultsEl.innerHTML='';")
+_SR_LAND_OLD = "  function searchGoToNode(id){\n    var dp=document.getElementById('detail-page');"
+_SR_LAND_NEW = ("  function searchGoToNode(id){\n    if(window._altoSearch){ window._altoSearch.land(id); return; }\n"
+                "    var dp=document.getElementById('detail-page');")
+_SR_M_ROWS_OLD = ("    var ql=q.toLowerCase();\n    res.forEach(function(o,i){\n"
+                  "      var b=document.createElement('button');")
+_SR_M_ROWS_NEW = ("    if(window._altoSearch){ resultsEl.innerHTML=window._altoSearch.rowsHtml(res,'data-i');"
+                  " resultsEl.classList.add('has-results'); resultsEl.scrollTop=0; return; }\n"
+                  + _SR_M_ROWS_OLD)
+_SR_M_NAV_OLD = "  function navigate(r){\n    closeSearch();\n    var sw=document.getElementById('summary-wrap');"
+_SR_M_NAV_NEW = ("  function navigate(r){\n    closeSearch();\n"
+                 "    if(window._altoSearch && r && r.fields){ window._altoSearch.go({r:r, q:r._q||''}); return; }\n"
+                 "    var sw=document.getElementById('summary-wrap');")
+PATCHES += [
+    {"name": "search-core-ranked", "old": _SR_SEARCH_OLD, "new": _SR_SEARCH_NEW, "count": 1},
+    {"name": "search-core-snippet", "old": _SR_SNIP_OLD, "new": _SR_SNIP_NEW, "count": 1},
+    {"name": "search-desktop-grouped-rows", "old": _SR_RENDER_OLD, "new": _SR_RENDER_NEW, "count": 1},
+    {"name": "search-lands-enlarged-ringed", "old": _SR_LAND_OLD, "new": _SR_LAND_NEW, "count": 1},
+    {"name": "search-mobile-grouped-rows", "old": _SR_M_ROWS_OLD, "new": _SR_M_ROWS_NEW, "count": 1},
+    {"name": "search-mobile-lands", "old": _SR_M_NAV_OLD, "new": _SR_M_NAV_NEW, "count": 1},
+]

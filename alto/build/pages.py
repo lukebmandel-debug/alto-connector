@@ -133,6 +133,31 @@ _SEARCH_FOCUS_NEW = ("try{ input.focus({preventScroll:true}); }catch(e){} "
                      "input.focus({preventScroll:true}); }, 60);")
 
 
+# ── homepage search ranks like the timeline's ──────────────────────────────
+# Same matcher (alto/build/search.py): prefixes, stems, one typo, filler words
+# ignored, every word must match; a card or timeline named exactly what was
+# typed comes first. The old verbatim indexOf stays as the fallback.
+_HOME_SNIP_OLD = "  function snippet(text, q){\n"
+_HOME_SEARCH_OLD = "  function search(q){\n"
+
+
+def _home_search_new() -> str:
+    from .search import MATCH_JS
+    return (MATCH_JS + "\n  function search(q){\n"
+            "    if(window._altoMatch){\n"
+            "      const M = window._altoMatch, Q = M.query(q||'');\n"
+            "      if(!Q.toks.length || Q.raw.length < 2) return [];\n"
+            "      let out = [];\n"
+            "      for(const r of buildIndex()){\n"
+            "        if(!r._f) r._f = [{w:10, text:r.title||'', ac:1}, {w:4, text:r.kind||''}, {w:3, text:r.text||''}];\n"
+            "        const s = M.score(Q, {fields:r._f}); if(s) out.push({r, s});\n"
+            "      }\n"
+            "      if(out.some(o => o.s.exact)) out = out.filter(o => o.s.exact);\n"
+            "      out.sort((a,b) => (b.s.named?1:0)-(a.s.named?1:0) || b.s.score-a.s.score || (a.r.title||'').length-(b.r.title||'').length);\n"
+            "      return out.slice(0, 40);\n"
+            "    }\n")
+
+
 class PageError(RuntimeError):
     pass
 
@@ -231,6 +256,10 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, _SEARCH_FOCUS_HOME_OLD,
                     "btn.classList.add('expanded'); open = true; buildIndex(); " + _SEARCH_FOCUS_NEW,
                     1, "home search focus in the tap")
+    template = _rep(template, _HOME_SNIP_OLD,
+                    _HOME_SNIP_OLD + "    if(window._altoMatch) return window._altoMatch.snippet(text, window._altoMatch.query(q||''));\n",
+                    1, "home search snippet")
+    template = _rep(template, _HOME_SEARCH_OLD, _home_search_new(), 1, "home search ranking")
     template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
     template = _rep(template, _HOME_RW_TAIL_OLD, _HOME_RW_TAIL_NEW, 1, "home runway (script)")
     regions = {

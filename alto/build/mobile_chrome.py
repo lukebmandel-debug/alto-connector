@@ -29,15 +29,21 @@ MSEARCH_PANEL_GLUE = """
     // covers authored sections and the generated ones alike.
     function pageMatches(q){
       var dc=document.getElementById('detail-content'); if(!dc) return [];
-      var ql=q.toLowerCase(), out=[];
+      var ql=q.toLowerCase(), out=[], M=window._altoMatch, Q=M?M.query(q):null;
       dc.querySelectorAll('p, li, .doc-row, .doc-rel, .hc-row, .detail-name').forEach(function(el){
         if(out.length>=12) return;
         if(el.querySelector('p, li, .doc-row, .doc-rel, .hc-row')) return;      // the smallest block that matches
-        var tx=(el.textContent||'').replace(/\s+/g,' ').trim();
-        var i=tx.toLowerCase().indexOf(ql); if(i<0) return;
+        var tx=(el.textContent||'').replace(/\s+/g,' ').trim(), snip;
         var sec=el.closest('.detail-section'), h=sec&&sec.querySelector('h3');
-        var a=Math.max(0,i-50), b=Math.min(tx.length,i+ql.length+80);
-        var snip=(a>0?'…':'')+esc(tx.slice(a,i))+'<mark>'+esc(tx.slice(i,i+ql.length))+'</mark>'+esc(tx.slice(i+ql.length,b))+(b<tx.length?'…':'');
+        if(M){
+          // every word of the query, matched the way the timeline search matches it
+          if(!Q.toks.length || !M.score(Q,{fields:[{w:1,text:tx}]})) return;
+          snip=M.snippet(tx,Q);
+        } else {
+          var i=tx.toLowerCase().indexOf(ql); if(i<0) return;
+          var a=Math.max(0,i-50), b=Math.min(tx.length,i+ql.length+80);
+          snip=(a>0?'…':'')+esc(tx.slice(a,i))+'<mark>'+esc(tx.slice(i,i+ql.length))+'</mark>'+esc(tx.slice(i+ql.length,b))+(b<tx.length?'…':'');
+        }
         out.push({el:el, where:h?h.textContent.trim():'This page', snip:snip});
       });
       return out;
@@ -57,7 +63,8 @@ MSEARCH_PANEL_GLUE = """
       if(core){
         var res=core.search(q); lastRes=res; var ql=q.toLowerCase();
         if(!res.length) frag+='<div class="search-empty">No matches.</div>';
-        res.forEach(function(o,i){
+        else if(window._altoSearch) frag+=window._altoSearch.rowsHtml(res,'data-i');
+        if(!window._altoSearch) res.forEach(function(o,i){
           frag+='<button type="button" class="search-result" data-i="'+i+'"><span class="sr-kind">'+o.r.kind+'</span><span class="sr-title">'+core.esc(o.r.title)+'</span><span class="sr-snip">'+core.snippet(o.r.text,ql)+'</span></button>';
         });
       }

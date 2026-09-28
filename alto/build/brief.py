@@ -330,6 +330,11 @@ class Brief:
     # characters only. autolink_overview=False keeps the Overview unlinked.
     autolink: list[str] = field(default_factory=lambda: ["env", "theme"])
     autolink_overview: bool = True
+    # A node's detail page never shows less than its card: the card's number
+    # and summary line open the page (a "Summary" lead) ahead of everything
+    # else. False keeps the older page for a timeline whose authored sections
+    # already restate every card in full.
+    card_on_detail: bool = True
     # The study companion (guide §G): {name, prompt}. Not rendered on any page;
     # get_timeline hands it back so the conversation that picks the timeline up
     # again speaks as it. Its prompt must restate the closed-system rule.

@@ -33,7 +33,10 @@ HOW_CONNECT_CSS = (
     "\n  .hc-link:hover{background:color-mix(in srgb, var(--accent) 12%, transparent);}"
     "\n  .hc-arrow{opacity:.5;margin:0 8px;}"
     "\n  .hc-num{opacity:.5;font-size:.85em;margin-right:6px;}"
-    "\n  .hc-how{opacity:.88;font-size:.94em;margin-top:3px;}")
+    "\n  .hc-how{opacity:.88;font-size:.94em;margin-top:3px;}"
+    "\n  .alto-lead{display:block;font-size:1.06em;line-height:1.6;}"
+    "\n  .alto-lead-num{opacity:.55;font-size:.8em;font-weight:600;margin-right:8px;"
+    "font-variant-numeric:tabular-nums;}")
 from .sanitize import css_color, esc, one_line
 from . import detail_extras as dx
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_flanks
@@ -41,7 +44,7 @@ from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, out
 # Generic section-builder code (same shape as the template's empty defaults —
 # kept in one place because emit() replaces the whole region span).
 NODE_SECTIONS_D = (
-    "sections = ((nd.sections)||[]).filter(s=>s&&s.t);\n"
+    "sections = _altoCardLead(id).concat(((nd.sections)||[]).filter(s=>s&&s.t));\n"
     "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});\n"
     "    sections = sections.concat(_altoNodeConnect(id));")
 CHAR_SECTIONS_D = ("sections=(p.sections||[]).filter(s=>s&&s.t);"
@@ -51,7 +54,7 @@ ENV_SECTIONS_D = ("sections=(e.sections||[]).filter(s=>s&&s.t);"
 THEME_SECTIONS_D = ("sections=(th.sections||[]).filter(s=>s&&s.t);"
                     " sections=_altoOrder(sections.concat(_altoDoctrineBody(id,'theme',sections)));")
 NODE_SECTIONS_M = (
-    "var sections=((ndDet.sections)||[]).filter(function(s){return s&&s.t;});\n"
+    "var sections=_altoCardLead(targetId).concat(((ndDet.sections)||[]).filter(function(s){return s&&s.t;}));\n"
     "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});\n"
     "          sections=sections.concat(_altoNodeConnect(targetId));")
 CHAR_SECTIONS_M = ("var chSecs=(cp.sections||[]).filter(function(s){return s&&s.t;});"
@@ -262,6 +265,19 @@ FILTER_GLUE = """
 # ≥1 member by construction, so the page is always populated; and every token is
 # the student's own text or a derived count, so it is never slop. Rows carry
 # data-goto and a delegated listener opens the node — no quote-escaping needed.
+# The card's number and summary line, as the lead section of its detail page
+# (brief.card_on_detail): the page must never show less than the card did.
+# Escaped here because the card renders desc as text, the page as HTML.
+CARD_LEAD_BODY = """
+function _altoCardLead(id){
+  if(!window._ALTO_CARD_LEAD || typeof NODES_SRC==='undefined') return [];
+  var n=null; for(var i=0;i<NODES_SRC.length;i++){ if(NODES_SRC[i].id===id){ n=NODES_SRC[i]; break; } }
+  if(!n || !n.desc) return [];
+  var e=function(t){ return String(t).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var num=(typeof NODE_ORDER_MAP!=='undefined' && NODE_ORDER_MAP[id]) || '';
+  return [{h:'Summary', t:'<span class="alto-lead">'+(num?'<span class="alto-lead-num">'+e(num)+'</span>':'')+e(n.desc)+'</span>'}];
+}
+"""
 DOCTRINE_BODY = """
 function _altoMembers(id, kind){
   var f = kind==='env' ? 'envs' : (kind==='theme' ? 'themes' : 'chars');
@@ -942,12 +958,12 @@ function _altoOutlineTail(id){
 # own sections, then the children. The Synopsis fallback still applies when a
 # concept has none of the three.
 NODE_SECTIONS_OUTLINE_D = (
-    "sections = _altoOutlineHead(id)"
+    "sections = _altoCardLead(id).concat(_altoOutlineHead(id))"
     ".concat(((nd.sections)||[]).filter(s=>s&&s.t))"
     ".concat(_altoOutlineTail(id));\n"
     "    if(sections.length === 0) sections.push({h:'Synopsis', t: n.desc});")
 NODE_SECTIONS_OUTLINE_M = (
-    "var sections=_altoOutlineHead(targetId)"
+    "var sections=_altoCardLead(targetId).concat(_altoOutlineHead(targetId))"
     ".concat(((ndDet.sections)||[]).filter(function(s){return s&&s.t;}))"
     ".concat(_altoOutlineTail(targetId));\n"
     "          if(sections.length===0) sections.push({h:'Synopsis',t:nd.desc||''});")
@@ -1420,7 +1436,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                + f"\nvar _ALTO_NODE_NOUN={js_str(b.node_noun)};"
                + "\nvar _ALTO_CHIP_HEADINGS={envs:" + js_str(ax1.label if ax1 else "Environments")
                + ",themes:" + js_str(ax2.label if ax2 else "Themes") + "};"
-               + DOCTRINE_BODY + LINES_GLUE + LINE_NAV_GLUE
+               + f"\nwindow._ALTO_CARD_LEAD={'true' if b.card_on_detail else 'false'};"
+               + CARD_LEAD_BODY + DOCTRINE_BODY + LINES_GLUE + LINE_NAV_GLUE
                + (ALTO_LINK_GLUE if uses_alto_link else ""))
     if b.mode == "outline":
         # Outline numerals, derived at build from depth and sibling order — a
