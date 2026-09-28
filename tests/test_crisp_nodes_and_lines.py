@@ -76,7 +76,8 @@ def test_faded_lines_never_show_through_faded_cards():
     1.8.32)."""
     html = _html()
     assert "function piecesD(d,keep,B){" in html
-    assert "if(newR.length) e.setAttribute('d',target); else { e.setAttribute('d',d0); e.removeAttribute('data-d0'); }" in html
+    assert "e._R=newR; e.setAttribute('d',cut===null?d0:cut);" in html                   # cut…
+    assert "if(!newR.length){ e._R=[]; if(d0!==null){ e.setAttribute('d',d0); e.removeAttribute('data-d0'); } return; }" in html  # …restored
     for gone in ("'mask','url(#alto-fade-mask)'", "'clip-path','url(#alto-fade-mask)'",
                  "'mask','url(#alto-hover-mask)'", "'clip-path','url(#alto-hover-mask)'"):
         assert gone not in html
@@ -122,13 +123,12 @@ def test_cut_boxes_come_from_layout_not_screen_coordinates():
 
 
 
-def test_cut_pieces_fade_with_the_cards_not_after_them():
-    """Lines used to be restored 11ms (hover) or ~390ms (enlarge) out of step
-    with the cards' 240ms fade, all at once. Now a state change is applied on
-    the frame it happens, and only the pieces that appear or disappear fade,
-    as a separate overlay, over the cards' own 240ms."""
+def test_cut_pieces_change_the_instant_the_fade_does():
+    """Measured in Safari 26.6.2: pieces restored 0-4ms after a hover ends or
+    an enlarged card is left. They must not wait (1.8.34 debounced until the
+    fly settled: ~390ms late) and must not fade on their own (1.8.35's
+    separate piece fade multiplied with the line's fade and trailed it)."""
     html = _html()
-    assert "var FADE_MS=240;" in html
     assert "new MutationObserver(function(){ clearTimeout(fadeT); syncCuts(); })" in html
     assert "if(sameR(e._R||[],newR)) return;      // nothing changes for this line" in html
-    assert "o.setAttribute('data-fade-piece','1');" in html
+    assert "data-fade-piece" not in html and "FADE_MS" not in html

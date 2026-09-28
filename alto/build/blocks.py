@@ -677,35 +677,17 @@ LINE_NAV_GLUE = """
     return out || 'M0 0';
   }
   function keyOfPath(e){ return e.getAttribute('data-edge')||e.getAttribute('data-edge-part'); }
-  /* The pieces of a line that appear or disappear when the faded set changes
-     fade in step with the cards (~240ms), drawn as a separate overlay of just
-     those pieces — the rest of the line is untouched, so nothing already on
-     screen flickers or doubles up. */
-  var FADE_MS=240;
-  function settle(e){                       // finish a line's running fade now
-    (e._ov||[]).forEach(function(o){ if(o.parentNode) o.parentNode.removeChild(o); });
-    e._ov=null; clearTimeout(e._ft); if(e._fin){ var f=e._fin; e._fin=null; f(); }
-  }
-  function overlay(e,d,from,to){
-    var o=e.cloneNode(false);
-    ['data-edge','data-edge-part','data-d0','class','mask','clip-path','id'].forEach(function(a){ o.removeAttribute(a); });
-    o.setAttribute('d',d); o.setAttribute('stroke-linecap','butt'); o.setAttribute('pointer-events','none');
-    o.setAttribute('data-fade-piece','1');
-    o.style.opacity=String(from); o.style.transition='opacity '+FADE_MS+'ms ease';
-    e.parentNode.insertBefore(o,e.nextSibling);
-    void o.getBoundingClientRect();
-    o.style.opacity=String(to);
-    return o;
-  }
-  function alphaOf(e){                      // the line's own opacity in the state now applied
-    if(hot && keyOfPath(e)!==hot) return 0.15;
-    var v=parseFloat(e.style.opacity); return isNaN(v)?1:v;
-  }
   function sameR(a,b){
     if(a.length!==b.length) return false;
     for(var i=0;i<a.length;i++) if(a[i].x0!==b[i].x0||a[i].y0!==b[i].y0||a[i].x1!==b[i].x1||a[i].y1!==b[i].y1) return false;
     return true;
   }
+  /* Applied the instant the faded set changes (a hover starts or ends, a card
+     is enlarged or left, a hop, a filter) — never debounced or faded on its
+     own. The line layer and each line already fade with the cards; a piece
+     put back or taken away at that same instant rides that fade and arrives
+     with the rest of its line. (A separate fade for the pieces trailed the
+     line, 1.8.35; waiting for the fly to settle made them late, 1.8.34.) */
   function syncCuts(){
     if(!desktop()) return;
     var svg=document.getElementById('river-svg'), cv=document.getElementById('canvas'); if(!svg||!cv) return;
@@ -716,27 +698,15 @@ LINE_NAV_GLUE = """
       if(hot) return !n.classList.contains('edge-end');
       return dimmed(c);
     });
-    [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit]):not([data-fade-piece])'),function(e){
+    [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit])'),function(e){
       if(e.closest('defs')) return;
       var newR=((fade||hot) && !(hot && keyOfPath(e)===hot)) ? R : [];
       if(sameR(e._R||[],newR)) return;      // nothing changes for this line
-      settle(e);
-      var oldR=e._R||[];
-      var d0=e.getAttribute('data-d0'); if(d0===null){ d0=e.getAttribute('d'); e.setAttribute('data-d0',d0); }
-      var B=oldR.concat(newR);
-      var target=newR.length ? piecesD(d0,function(x,y){ return !inside(x,y,newR); },newR) : d0;
-      if(target===null){ e._R=[]; e.setAttribute('d',d0); e.removeAttribute('data-d0'); return; }
-      var both=piecesD(d0,function(x,y){ return !inside(x,y,oldR)&&!inside(x,y,newR); },B);
-      var appear=piecesD(d0,function(x,y){ return inside(x,y,oldR)&&!inside(x,y,newR); },B);
-      var vanish=piecesD(d0,function(x,y){ return !inside(x,y,oldR)&&inside(x,y,newR); },B);
-      e._R=newR;
-      e._fin=function(){ if(newR.length) e.setAttribute('d',target); else { e.setAttribute('d',d0); e.removeAttribute('data-d0'); } };
-      var a=alphaOf(e), ov=[];
-      if(appear && appear!=='M0 0') ov.push(overlay(e,appear,0,a));
-      if(vanish && vanish!=='M0 0') ov.push(overlay(e,vanish,parseFloat(getComputedStyle(e).opacity)||a,0));
-      if(!ov.length){ settle(e); return; }
-      e.setAttribute('d',both);
-      e._ov=ov; e._ft=setTimeout(function(){ settle(e); }, FADE_MS+30);
+      var d0=e.getAttribute('data-d0');
+      if(!newR.length){ e._R=[]; if(d0!==null){ e.setAttribute('d',d0); e.removeAttribute('data-d0'); } return; }
+      if(d0===null){ d0=e.getAttribute('d'); e.setAttribute('data-d0',d0); }
+      var cut=piecesD(d0,function(x,y){ return !inside(x,y,newR); },newR);
+      e._R=newR; e.setAttribute('d',cut===null?d0:cut);
     });
   }
   var fadeT=null;
