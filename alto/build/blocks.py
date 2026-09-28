@@ -786,14 +786,18 @@ LINE_NAV_GLUE = """
     clearTimeout(arm); akey=key; ax=x; ay=y;
     arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);
   }
+  /* a line the canvas slides under a still pointer is not one it rests on */
+  function still(e){ return !!(window._altoPointerStill && window._altoPointerStill(e)); }
   document.addEventListener('mouseover',function(e){
     if(!desktop()) return; var p=edgeOf(e.target);
-    if(p){ if(hot!==keyOf(p)) rearm(keyOf(p),e.clientX,e.clientY); }
+    if(p){ if(hot!==keyOf(p) && !still(e)) rearm(keyOf(p),e.clientX,e.clientY); }
     else if(!(e.target.closest && e.target.closest('#river-svg'))){ disarm(); clear(); }
   });
   document.addEventListener('mousemove',function(e){
-    if(!akey || hot===akey) return;
-    var p=edgeOf(e.target); if(!p || keyOf(p)!==akey){ disarm(); return; }
+    var p=edgeOf(e.target);
+    if(!akey){ if(p && desktop() && hot!==keyOf(p) && !still(e)) rearm(keyOf(p),e.clientX,e.clientY); return; }
+    if(hot===akey) return;
+    if(!p || keyOf(p)!==akey){ disarm(); return; }
     if(Math.abs(e.clientX-ax)>SLOP || Math.abs(e.clientY-ay)>SLOP) rearm(akey,e.clientX,e.clientY);
   });
   document.addEventListener('mouseout',function(e){

@@ -457,11 +457,37 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
     n._hr=requestAnimationFrame(step);
   }
   function cardOf(t){ return t&&t.closest ? t.closest('#world .node-card') : null; }
-  document.addEventListener('mouseover',function(e){
-    var c=cardOf(e.target); if(!c || de.classList.contains('mobile')) return;
+  function grow(c){
     var n=c.closest('.node'); if(!n || n._hovOn || n.classList.contains('focused')) return;
     n._hovOn=1; if(n._hov==null) n._hov=n.offsetHeight;
     hoverRamp(n,c,HK);
+  }
+  /* Only the pointer moving grows a card. When the canvas moves under a still
+     pointer (a scroll, an arrow hop's glide) the browser reports each card
+     that slides beneath it as hovered, and they pulsed past the pointer one
+     after another. Such a hover is content moving: same pointer position,
+     canvas moved since. A card the pointer is resting on when the canvas stops
+     grows on the pointer's next move. window._altoPointerStill(e) tells the
+     line hover the same thing. */
+  var px=null, py=null, still=false;
+  function moved(){ still=true; }
+  var cv=document.getElementById('canvas');
+  if(cv) cv.addEventListener('scroll',moved,{passive:true});
+  window.addEventListener('wheel',moved,{passive:true,capture:true});
+  window.addEventListener('keydown',moved,true);
+  window._altoPointerStill=function(e){ return still && e.clientX===px && e.clientY===py; };
+  function track(e){
+    if(e.clientX===px && e.clientY===py) return false;
+    px=e.clientX; py=e.clientY; var was=still; still=false; return was;
+  }
+  document.addEventListener('mouseover',function(e){
+    if(de.classList.contains('mobile') || window._altoPointerStill(e)) return;
+    track(e);
+    var c=cardOf(e.target); if(c) grow(c);
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!track(e) || de.classList.contains('mobile')) return;
+    var c=cardOf(e.target); if(c) grow(c);    /* first move after the canvas stopped */
   });
   document.addEventListener('mouseout',function(e){
     var c=cardOf(e.target); if(!c || c.contains(e.relatedTarget)) return;
@@ -485,6 +511,96 @@ _DGRID_HOVER_OLD = ("html:not(.mobile) .node:not(.focused) .node-card:hover{\n"
                     "  transform: scale(1.08);\n}")
 _DGRID_HOVER_NEW = ("html:not(.mobile) .node:not(.focused) .node-card:hover{\n"
                     "  transform: none;   /* D-GRID: enlarged by a zoom ramp, see d-grid-quantize */\n}")
+
+# ── the fly scrolls in steps the canvas can actually take ──────────────────
+# Safari keeps a scroll offset in whole layout px and, under the page's CSS
+# zoom, floors a written scrollTop twice: 14 reads back 13, 100 reads 99. Every
+# enlarge or arrow hop therefore started with the whole canvas stepping 1px
+# BACKWARDS, then glided in uneven steps (up to ~1.8px off the curve) — the
+# neighbours twitched as a new card came to the centre. Measured in Safari
+# 26.6 (zoom 0.8647, dpr 2) and Playwright WebKit (zoom 0.8) alike. Each frame
+# now writes the value that lands on the whole layout px nearest the curve,
+# the start is read back exactly, and the fly ends where the canvas can stop,
+# so the enlarged card's residual centres it on the real final offset. Blink
+# scrolls fractionally and is written as before.
+_FLY_SCROLL_OLD = """    var tl=_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw));
+    var tt=_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch));
+    var rx=a.x-(tl+cw/2), ry=a.y-(tt+ch/2);   // residual to truly centre
+    el._fx=-rx; el._fy=-ry;
+    var l0=canvas.scrollLeft,t0=canvas.scrollTop;
+    _animate(420,function(k){
+      canvas.scrollLeft=l0+(tl-l0)*k; canvas.scrollTop=t0+(tt-t0)*k;"""
+_FLY_SCROLL_NEW = """    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
+    var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
+    var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
+    var rx=a.x-(tl+cw/2), ry=a.y-(tt+ch/2);   // residual to truly centre
+    el._fx=-rx; el._fy=-ry;
+    var l0=qx.at(),t0=qy.at();
+    _animate(420,function(k){
+      qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);"""
+_FLY_AXIS_OLD = "  function flyTo(el){\n"
+_FLY_AXIS_NEW = """  /* Safari stores the canvas offset in whole layout px and turns a written
+     value v into floor(floor(v)*z) of them (z = the page's CSS zoom), so it
+     reads back short and uneven. pos(n) is where writing the integer n really
+     puts the canvas, in CSS px. (engine_patches.py, fly-scrolls-in-whole-px) */
+  var _wk=/AppleWebKit/.test(navigator.userAgent) && !document.documentElement.classList.contains('is-blink');
+  function _scrollAxis(prop){
+    if(!_wk) return { at:function(){ return canvas[prop]; }, stop:function(v){ return v; },
+                      go:function(v){ canvas[prop]=v; } };
+    var de=document.documentElement, z=(parseFloat(getComputedStyle(de).zoom)||1)*(parseFloat(getComputedStyle(document.body).zoom)||1);
+    function pos(n){ return Math.floor(n*z+1e-6)/z; }
+    function near(v){                      // the write whose landing is nearest v
+      var best=Math.floor(v), bd=Infinity;
+      for(var n=Math.floor(v)-1;n<=Math.ceil(v)+1;n++){ var d=Math.abs(pos(n)-v); if(d<bd-1e-9){ bd=d; best=n; } }
+      return best;
+    }
+    var c=canvas['_q'+prop];
+    return {
+      at:function(){                       // the exact offset the canvas is at now
+        var r=canvas[prop];
+        if(c && c.r===r) return c.p;
+        if(z<1){ var P=Math.ceil(r*z-1e-6); if(Math.floor(P/z+1e-6)===r) return P/z; }
+        return r;
+      },
+      stop:function(v){ return pos(near(v)); },
+      go:function(v){
+        var n=near(v); canvas[prop]=n;
+        c=canvas['_q'+prop]={p:pos(n), r:Math.floor(pos(n)+1e-6)};
+      }
+    };
+  }
+  function flyTo(el){
+"""
+
+# ── the scroll tint restyles the bars, not the whole page ───────────────────
+# The desktop top bars take the era colour under them as the canvas scrolls,
+# by a custom property written on <html> every scroll frame. A custom property
+# on the root is inherited by every element, so each write restyled the whole
+# page: 52 full restyles (~4.3ms each) in a two-second scroll in Chromium, the
+# same on every frame of an arrow hop's glide. Only #title-bar, #nav and
+# #node-nav-bar read it on desktop, so it is set on those three, and only
+# when the colour actually changes.
+_TINT_SCOPE_OLD = """    if(!rgb){ root.style.removeProperty('--header-tint'); _setBrandTone(null,0); return; }
+    var a=root.classList.contains('dark')?ALPHA_DARK:ALPHA_LIGHT;
+    root.style.setProperty('--header-tint','rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+a+')');
+    _setBrandTone(rgb,a);
+  }
+  window.updateHeaderTint=updateHeaderTint;"""
+_TINT_SCOPE_NEW = """    if(!rgb){ _tint(''); _setBrandTone(null,0); return; }
+    var a=root.classList.contains('dark')?ALPHA_DARK:ALPHA_LIGHT;
+    _tint('rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+a+')');
+    _setBrandTone(rgb,a);
+  }
+  /* on the three bars that read it, not <html> (engine_patches.py,
+     scroll-tint-on-the-bars): a root custom property restyles every element */
+  function _tint(v){
+    if(root.style.getPropertyValue('--header-tint')) root.style.removeProperty('--header-tint');
+    ['title-bar','nav','node-nav-bar'].forEach(function(id){
+      var el=document.getElementById(id); if(!el || el.style.getPropertyValue('--header-tint')===v) return;
+      if(v) el.style.setProperty('--header-tint',v); else el.style.removeProperty('--header-tint');
+    });
+  }
+  window.updateHeaderTint=updateHeaderTint;"""
 
 # Readers of a node's centre: offsetLeft/Top include the centring margin now.
 _DGRID_CXY_OLD = "    return {x:el.offsetLeft+ox, y:el.offsetTop+oy};"
@@ -668,6 +784,9 @@ PATCHES = [
     {"name": "dgrid-focus-lands-in-layout", "old": _DGRID_LAND_OLD, "new": _DGRID_LAND_NEW, "count": 1},
     {"name": "dgrid-hover-by-zoom", "old": _DGRID_HOVER_OLD, "new": _DGRID_HOVER_NEW, "count": 1},
     {"name": "dgrid-centre-search", "old": _DGRID_SRCH_OLD, "new": _DGRID_SRCH_NEW, "count": 1},
+    {"name": "fly-scrolls-in-whole-px", "old": _FLY_SCROLL_OLD, "new": _FLY_SCROLL_NEW, "count": 1},
+    {"name": "fly-scroll-axis", "old": _FLY_AXIS_OLD, "new": _FLY_AXIS_NEW, "count": 1},
+    {"name": "scroll-tint-on-the-bars", "old": _TINT_SCOPE_OLD, "new": _TINT_SCOPE_NEW, "count": 1},
     {"name": "chip-outlines-are-borders", "old": _CHIP_RULE_OLD, "new": _CHIP_RULE_NEW, "count": 1},
 ]
 
