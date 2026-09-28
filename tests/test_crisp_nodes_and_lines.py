@@ -65,21 +65,22 @@ def test_lines_can_be_followed_and_singled_out():
 def test_fading_waits_for_the_pointer_to_rest_and_masks_lines_under_cards():
     html = _html()
     assert "arm=setTimeout(function(){ arm=null; if(akey) light(akey,ax,ay); },DWELL);" in html
-    assert "e.setAttribute('clip-path','url(#alto-hover-mask)')" in html
-    assert "cardMask(svg,'alto-hover-mask',function(c){ return !c.closest('.node').classList.contains('edge-end'); });" in html
+    assert "if(hot) return !n.classList.contains('edge-end');" in html
 
 
 def test_faded_lines_never_show_through_faded_cards():
-    """Enlarging a card fades the rest; so do filters. Safari clips each line
-    path out from under every faded card while anything is faded (not the
-    outer <svg>, which WebKit stops drawing). A clipPath, never a <mask>:
-    WebKit re-rendered masked lines on every frame of a fly, and hops got
-    slower and jerkier the further down the page they went (1.8.30-31)."""
+    """Enlarging a card fades the rest; so do filters and line hover. Each
+    faded line is redrawn with the stretches under faded cards left out —
+    plain geometry. Not an SVG <mask> (Safari re-rendered masked lines every
+    frame of a fly, 1.8.30-31) and not a clipPath (Safari did not apply it,
+    1.8.32)."""
     html = _html()
-    assert "e.setAttribute('clip-path','url(#alto-fade-mask)')" in html
-    assert "m=document.createElementNS(NS,'clipPath')" in html
-    assert "cv.classList.contains('focus-mode')" in html
-    assert "'mask','url(#alto-fade-mask)'" not in html and "'mask','url(#alto-hover-mask)'" not in html
+    assert "function cutD(d,R){" in html
+    assert "e.setAttribute('d',cutD(d0,R));" in html                 # cut…
+    assert "e.setAttribute('d',d0); e.removeAttribute('data-d0');" in html   # …and restored
+    for gone in ("'mask','url(#alto-fade-mask)'", "'clip-path','url(#alto-fade-mask)'",
+                 "'mask','url(#alto-hover-mask)'", "'clip-path','url(#alto-hover-mask)'"):
+        assert gone not in html
 
 
 def test_hovered_cards_grow_by_zoom_not_transform():
@@ -104,4 +105,5 @@ def test_arrow_keys_follow_structure_then_reading_order_then_alignment():
 
 def test_only_faded_cards_hide_lines():
     html = _html()
-    assert "return focus ? !c.closest('.node').classList.contains('focused') : dimmed(c); });" in html
+    assert "if(focus) return !n.classList.contains('focused');" in html
+    assert "return dimmed(c);" in html
