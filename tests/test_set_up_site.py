@@ -506,6 +506,7 @@ def test_typed_settings_without_a_web_config_are_finished_not_left(fb_bin, monke
     assert srv.get_interview_guide()["site_status"]["status"] != "configured"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the fake CLI is a /bin/sh script")
 def test_private_publish_from_a_folder_writes_the_page_itself(tmp_path, monkeypatch):
     """Projects kept in a folder used to end private-web publishing with "open
     the link and upload this file yourself". Now: sign in once, and Alto
