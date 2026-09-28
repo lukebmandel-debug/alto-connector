@@ -150,7 +150,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      re-wraps at any point on the ramp. */
   var FOCUS_K=1.7, _zw=null, _zwCard=null, _zwTo=1;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
-  function _setZoom(card,k){ if(card) card.style.zoom = (k>1.0005) ? String(k) : ''; }
+  function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _shadowSync(card.parentNode); }
   function _zoomRamp(el,to,dur){
     var card=_cardOf(el); if(!card) return;
     if(_zw){
@@ -177,7 +177,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   function _release(p){
     var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=null, warm=true;
     if(p._rel) cancelAnimationFrame(p._rel);
-    _quietShadow(card,300); _focusShadow(p,null,300);
+    _quietShadow(card,300); _focusShadow(p,null);
     function step(ts){
       if(p.classList.contains('focused')){ p._rel=null; return; }   // focused again mid-way
       if(warm){ warm=false; p._rel=requestAnimationFrame(step); return; }
@@ -190,7 +190,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     }
     p._rel=requestAnimationFrame(step);
   }
-  function _place(el,x,y){ if(window._altoPlace) window._altoPlace(el,x,y); }
+  function _place(el,x,y){ if(window._altoPlace) window._altoPlace(el,x,y); _shadowSync(el); }
   /* The card's resting shadow comes back at once as it leaves focus, not by
      its .28s transition: animated on a card that is shrinking, it re-blurred
      every frame. */
@@ -200,39 +200,44 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     card._qs=setTimeout(function(){ card.style.transition=''; },ms+40);
   }
   /* The enlarged card's shadow: one element per focused card, the size the
-     card will be (its unzoomed box x FOCUS_K) where it will land, drawn once
-     and then only faded and scaled — both on the compositor, so Safari never
-     re-blurs it. It grows and fades in with the card, and shrinks and fades
-     out as the card leaves. at: [fx,fy] landing offset, or null to remove. */
-  function _focusShadow(el,at,ms){
+     card will be at FOCUS_K (its unzoomed box x FOCUS_K), drawn once and then
+     only faded, scaled and moved — all on the compositor, so Safari never
+     re-blurs it. at: truthy to show, null to let it follow the card down and
+     go when the card is back to 1x. */
+  function _focusShadow(el,at){
     var sh=el._fsh;
-    if(!at){
-      if(!sh) return; el._fsh=null;
-      var cs=getComputedStyle(sh), o=parseFloat(cs.opacity)||0, tf=cs.transform;
-      if(sh._a) sh._a.forEach(function(a){ a.cancel(); });
-      if(!sh.animate){ sh.remove(); return; }
-      var a=sh.animate([{opacity:o, transform:(tf&&tf!=='none')?tf:'scale(1)'},{opacity:0, transform:'scale('+(1/FOCUS_K)+')'}],
-        {duration:ms, easing:'cubic-bezier(.33,1,.68,1)', fill:'forwards'});
-      a.onfinish=function(){ sh.remove(); };
-      return;
-    }
+    if(!at){ if(sh){ sh._leaving=true; _shadowSync(el); } return; }
     var world=document.getElementById('world'), card=_cardOf(el);
-    if(!world || !card || !sh && !document.body.animate) return;
+    if(!world || !card) return;
     var w=card.offsetWidth, h=card.offsetHeight;        // a zoomed card reports its unzoomed box
     if(!w || !h) return;
     var ax=parseFloat(el.style.left), ay=parseFloat(el.style.top); if(isNaN(ax)||isNaN(ay)) return;
-    if(!sh){
-      sh=document.createElement('div'); sh.className='alto-fshadow'; world.appendChild(sh); el._fsh=sh;
-      sh._a=[sh.animate([{opacity:0},{opacity:1}],{duration:280, easing:'ease', fill:'forwards'}),
-             sh.animate([{transform:'scale('+(1/FOCUS_K)+')'},{transform:'scale(1)'}],
-               {duration:240, easing:'cubic-bezier(.33,1,.68,1)', fill:'forwards'})];
+    if(!sh){ sh=document.createElement('div'); sh.className='alto-fshadow'; world.appendChild(sh); el._fsh=sh; }
+    sh._leaving=false;
+    var W=w*FOCUS_K, H=h*FOCUS_K, key=[W,H,ax,ay].join();
+    if(sh._key!==key){                                // unchanged: never re-drawn
+      sh._key=key; sh._g=[ax-W/2, ay-H/2];
+      sh.style.width=W+'px'; sh.style.height=H+'px';
     }
-    var W=w*FOCUS_K, H=h*FOCUS_K, key=[W,H,ax+at[0],ay+at[1]].join();
-    if(sh._key===key) return;                         // unchanged: never re-drawn
-    sh._key=key;
-    sh.style.width=W+'px'; sh.style.height=H+'px';
-    sh.style.left=(ax+at[0]-W/2)+'px'; sh.style.top=(ay+at[1]-H/2)+'px';
+    _shadowSync(el);
   }
+  /* The shadow never has a clock of its own: every frame it takes the card's
+     own zoom (its size and strength) and offset (where it is), so it cannot
+     arrive before the card does — a shadow on its own timeline, full-size
+     round a card that had not grown yet, showed as a phantom frame (1.9.4). */
+  function _shadowSync(n){
+    var sh=n && n._fsh; if(!sh) return;
+    var card=_cardOf(n), z=parseFloat(card&&card.style.zoom)||1, t=Math.max(0,Math.min(1,(z-1)/(FOCUS_K-1)));
+    if(sh._leaving && z<=1.0005){ sh.remove(); n._fsh=null; return; }
+    sh.style.opacity=String(t);
+    /* at full size it is placed by layout, snapped like the card (a fractional
+       translate left a faint seam along the card's lower edge); growing or
+       shrinking, by a transform off its full-size spot */
+    var g=sh._g, fx=n._fx||0, fy=n._fy||0, full=Math.abs(z-FOCUS_K)<1e-4;
+    sh.style.left=(g[0]+(full?fx:0))+'px'; sh.style.top=(g[1]+(full?fy:0))+'px';
+    sh.style.transform=full?'none':'translate('+fx+'px,'+fy+'px) scale('+(z/FOCUS_K)+')';
+  }
+
 
   function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
@@ -249,7 +254,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
 _FOCUS_EXIT_OLD = """      el.classList.remove('focused');
       flyBack(el);"""
 _FOCUS_EXIT_NEW = """      el.classList.remove('focused');
-      _quietShadow(_cardOf(el),300); _focusShadow(el,null,220);
+      _quietShadow(_cardOf(el),300); _focusShadow(el,null);
       _zoomRamp(el,1,220);
       flyBack(el);"""
 
@@ -589,14 +594,14 @@ _FLY_SCROLL_NEW = """    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrol
     var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
     var rx=a.x-(tl+cw/2), ry=a.y-(tt+ch/2);   // residual to truly centre
     var fx0=el._fx||0, fy0=el._fy||0;
-    _focusShadow(el,[-rx,-ry]);
+    _focusShadow(el,true);
     var l0=qx.at(),t0=qy.at();
     _animate(420,function(k){
       qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
       _place(el, fx0+(-rx-fx0)*k, fy0+(-ry-fy0)*k);"""
 # On landing, the shadow is checked against the card as it now is.
 _FLY_LAND_OLD = "      // settle: optionally swap the transform scale for a CSS-zoom re-raster\n"
-_FLY_LAND_NEW = ("      if(window._focusedNodeId && el.id==='node-'+window._focusedNodeId) _focusShadow(el,[el._fx||0,el._fy||0]);\n"
+_FLY_LAND_NEW = ("      if(window._focusedNodeId && el.id==='node-'+window._focusedNodeId) _focusShadow(el,true);\n"
                  + _FLY_LAND_OLD)
 _FLY_BACK_OLD = """    if(!fx&&!fy){ el.style.transform=''; return; }
     _animate(300,function(k){ el.style.transform='translate(-50%,-50%) translate('+(fx*(1-k))+'px,'+(fy*(1-k))+'px)'; },
