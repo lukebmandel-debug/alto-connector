@@ -116,7 +116,7 @@ def test_cut_boxes_come_from_layout_not_screen_coordinates():
     (1.8.30-33) missed the cards. The line layer's units are the world's
     layout px; the boxes are taken there."""
     html = _html()
-    g = html[html.index("function holes(svg,faded){"):]
+    g = html[html.index("function atRest(n,c){"):]
     g = g[:g.index("function inside(x,y,R){")]
     assert "n.offsetLeft+c.offsetLeft" in g and "n.offsetTop+c.offsetTop" in g
     assert "getScreenCTM()" not in g and "getBoundingClientRect" not in g
@@ -132,3 +132,17 @@ def test_cut_pieces_change_the_instant_the_fade_does():
     assert "new MutationObserver(function(){ clearTimeout(fadeT); syncCuts(); })" in html
     assert "if(sameR(e._R||[],newR)) return;      // nothing changes for this line" in html
     assert "data-fade-piece" not in html and "FADE_MS" not in html
+
+
+def test_cut_boxes_are_resting_boxes_so_a_hop_cuts_once():
+    """Measured per frame (WebKit, Chromium, Safari 26.6.2): in 1.8.35-36 the
+    card an arrow hop left was cut at its mid-glide box (no centring margin,
+    1.7x), so 12-14 lines stayed wrong for ~565ms and every faded line was
+    redrawn again at landing. A card on the move is cut at its resting box
+    (anchor from style left/top + the size remembered at rest), and a line is
+    only redrawn when a box touching it changes: lines are final 0-6ms after
+    the key press, one redraw per hop."""
+    html = _html()
+    assert "if(atRest(n,c) && c.offsetWidth)" in html
+    assert "var ax=parseFloat(n.style.left), ay=parseFloat(n.style.top);" in html
+    assert "touching(R,e._bb)" in html

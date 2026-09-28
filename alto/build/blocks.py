@@ -617,12 +617,33 @@ LINE_NAV_GLUE = """
      under #world), never from screen coordinates run back through
      getScreenCTM: under the page's CSS zoom Safari maps those differently
      from other engines, which put the cuts beside the cards (1.8.30-33). */
+  /* A card's box is always its RESTING box. A card on the move — the one an
+     arrow hop just left, gliding home at 1.7x on its fly transform; the one
+     leaving focus; a hovered card mid-ramp — is measured where it will land,
+     not where it is this frame: otherwise its cuts were wrong for the whole
+     glide and fixed only by a second redraw once it landed (1.8.35-36: lines
+     'late to the party' on every hop). The anchor (offsetLeft less the
+     centring margin) never moves; the card's size and offset from the anchor
+     are remembered from whenever it was last at rest. */
+  function atRest(n,c){
+    return !n.classList.contains('focused') && !n._settled && !n._hovOn && !n._rel &&
+      !c.style.zoom && !(n.style.transform && n.style.transform!=='none');
+  }
+  function restBox(n,c){
+    /* the anchor from the node's own left/top (offsetLeft/Top round, and the
+       rounding differs with and without the centring margin) */
+    var ax=parseFloat(n.style.left), ay=parseFloat(n.style.top);
+    if(isNaN(ax)||isNaN(ay)){ var cs=getComputedStyle(n); ax=n.offsetLeft-(parseFloat(cs.marginLeft)||0); ay=n.offsetTop-(parseFloat(cs.marginTop)||0); }
+    if(atRest(n,c) && c.offsetWidth)
+      n._rb={dx:n.offsetLeft+c.offsetLeft-ax, dy:n.offsetTop+c.offsetTop-ay, w:c.offsetWidth, h:c.offsetHeight};
+    var b=n._rb; if(!b) return null;
+    return {x0:ax+b.dx, y0:ay+b.dy, x1:ax+b.dx+b.w, y1:ay+b.dy+b.h};
+  }
   function holes(svg,faded){
     var R=[];
     [].forEach.call(document.querySelectorAll('#world .node'),function(n){
-      var c=n.querySelector('.node-card'); if(!c || !c.offsetWidth || !faded(c)) return;
-      var x=n.offsetLeft+c.offsetLeft, y=n.offsetTop+c.offsetTop;
-      R.push({x0:x, y0:y, x1:x+c.offsetWidth, y1:y+c.offsetHeight});
+      var c=n.querySelector('.node-card'); if(!c) return;
+      var b=restBox(n,c); if(b && faded(c)) R.push(b);
     });
     return R;
   }
@@ -677,6 +698,14 @@ LINE_NAV_GLUE = """
     return out || 'M0 0';
   }
   function keyOfPath(e){ return e.getAttribute('data-edge')||e.getAttribute('data-edge-part'); }
+  function bboxOf(d){
+    var v=(d.match(/-?\d*\.?\d+(?:e-?\d+)?/gi)||[]).map(parseFloat), b={x0:1e9,y0:1e9,x1:-1e9,y1:-1e9};
+    for(var i=0;i+1<v.length;i+=2){ if(v[i]<b.x0)b.x0=v[i]; if(v[i]>b.x1)b.x1=v[i]; if(v[i+1]<b.y0)b.y0=v[i+1]; if(v[i+1]>b.y1)b.y1=v[i+1]; }
+    return b;
+  }
+  function touching(R,bb){
+    return R.filter(function(r){ return r.x0<bb.x1+1 && r.x1>bb.x0-1 && r.y0<bb.y1+1 && r.y1>bb.y0-1; });
+  }
   function sameR(a,b){
     if(a.length!==b.length) return false;
     for(var i=0;i<a.length;i++) if(a[i].x0!==b[i].x0||a[i].y0!==b[i].y0||a[i].x1!==b[i].x1||a[i].y1!==b[i].y1) return false;
@@ -692,7 +721,10 @@ LINE_NAV_GLUE = """
     if(!desktop()) return;
     var svg=document.getElementById('river-svg'), cv=document.getElementById('canvas'); if(!svg||!cv) return;
     var focus=cv.classList.contains('focus-mode'), fade=fadeOn(), R=[];
-    if(fade||hot) R=holes(svg,function(c){
+    /* measured even when nothing is faded, so every card's resting box is
+       known before its first enlarge or hop */
+    R=holes(svg,function(c){
+      if(!(fade||hot)) return false;
       var n=c.closest('.node');
       if(focus) return !n.classList.contains('focused');
       if(hot) return !n.classList.contains('edge-end');
@@ -700,9 +732,10 @@ LINE_NAV_GLUE = """
     });
     [].forEach.call(svg.querySelectorAll('path:not([data-edge-hit])'),function(e){
       if(e.closest('defs')) return;
-      var newR=((fade||hot) && !(hot && keyOfPath(e)===hot)) ? R : [];
+      var d0=e.getAttribute('data-d0'), src=d0===null?e.getAttribute('d'):d0;
+      if(e._bbd!==src){ e._bbd=src; e._bb=bboxOf(src); }
+      var newR=((fade||hot) && !(hot && keyOfPath(e)===hot)) ? touching(R,e._bb) : [];
       if(sameR(e._R||[],newR)) return;      // nothing changes for this line
-      var d0=e.getAttribute('data-d0');
       if(!newR.length){ e._R=[]; if(d0!==null){ e.setAttribute('d',d0); e.removeAttribute('data-d0'); } return; }
       if(d0===null){ d0=e.getAttribute('d'); e.setAttribute('data-d0',d0); }
       var cut=piecesD(d0,function(x,y){ return !inside(x,y,newR); },newR);
