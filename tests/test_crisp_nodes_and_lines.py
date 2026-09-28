@@ -25,7 +25,7 @@ def test_desktop_nodes_are_centred_by_layout_on_every_engine():
     html = _html()
     assert '<style id="d-grid-centre">' in html
     assert ('html:not(.mobile) #world .node.dg:not([style*="transform"]){\n'
-            '  transform:none; margin:var(--my,0px) 0 0 var(--mx,0px);') in html
+            '  transform:none; margin:calc(var(--my,0px) + var(--fy,0px)) 0 0 calc(var(--mx,0px) + var(--fx,0px));') in html
     q = html[html.index('<script id="d-grid-quantize">'):]
     q = q[:q.index("</script>")]
     assert "ResizeObserver" in q and "MutationObserver" in q

@@ -41,7 +41,12 @@ def _focus_rule(html):
 
 def test_the_focused_card_is_not_transform_scaled(html):
     assert "transform:scale(1.7) !important" not in html
-    assert "transform:scale(1) !important" in _focus_rule(html)
+    rule = _focus_rule(html)
+    assert "transform:none !important" in rule
+    # its big shadow is its own layer, not re-blurred on the zooming card
+    assert "box-shadow:none !important" in rule
+    assert "transition:opacity .25s, border-color .2s !important" in rule
+    assert ".alto-fshadow{" in html and "function _focusShadow(el,at,ms)" in html
 
 
 def test_the_focused_card_grows_by_zoom(html):
@@ -64,7 +69,7 @@ def test_a_half_ramped_card_is_never_stranded(html):
     assert "if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);" in html
     # the previous node glides home and ends with its zoom cleared
     assert "_release(p); } }" in html
-    assert "else { p._rel=null; p.style.transform=''; p._fx=p._fy=0; _setZoom(card,1); }" in html
+    assert "else { p._rel=null; _place(p,0,0); _setZoom(card,1); }" in html
 
 
 def test_exit_clears_the_inline_zoom_rather_than_pinning_it_to_1(html):

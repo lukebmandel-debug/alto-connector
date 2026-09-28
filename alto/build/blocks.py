@@ -626,8 +626,9 @@ LINE_NAV_GLUE = """
      centring margin) never moves; the card's size and offset from the anchor
      are remembered from whenever it was last at rest. */
   function atRest(n,c){
-    return !n.classList.contains('focused') && !n._settled && !n._hovOn && !n._rel &&
-      !c.style.zoom && !(n.style.transform && n.style.transform!=='none');
+    return !n.classList.contains('focused') && !n._hovOn && !n._rel &&
+      !c.style.zoom && !(n.style.transform && n.style.transform!=='none') &&
+      !n.style.getPropertyValue('--fx') && !n.style.getPropertyValue('--fy');
   }
   function restBox(n,c){
     /* the anchor from the node's own left/top (offsetLeft/Top round, and the

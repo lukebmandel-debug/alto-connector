@@ -107,8 +107,15 @@ _FOCUS_CSS_OLD = """html:not(.mobile) .node.focused .node-card{
 }
 """
 _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
-  transform:scale(1) !important; transform-origin:center !important;
-  opacity:1 !important; box-shadow:0 38px 84px var(--node-hover-shadow) !important;
+  /* No transform (scale(1) was a leftover of the scale era: identical on
+     screen, but it started a transform transition and a new layer in Safari
+     on every enlarge). The big shadow is drawn once on its own layer
+     (.alto-fshadow, enterFocus) and faded: on the card it was re-blurred on
+     every frame of the zoom ramp — Safari frames of 25-60ms. So the card's
+     own shadow goes, at once, not animated. */
+  transform:none !important; transform-origin:center !important;
+  opacity:1 !important; box-shadow:none !important;
+  transition:opacity .25s, border-color .2s !important;
   /* The magnification is CSS zoom, applied inline per frame by enterFocus. A
      zoomed element can lose its backdrop-filter, so — as the .crisp rule this
      replaces already did — legibility must not depend on the frost. Raise the
@@ -118,6 +125,11 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
      the card falls back to --card-glass-bg at 0.54, needs the floor lifted. */
   background:var(--node-glass-bg, var(--panel-glass-bg));
 }
+html:not(.mobile) #world .alto-fshadow{
+  position:absolute; pointer-events:none; z-index:299; opacity:0; will-change:opacity, transform;
+  border-radius:calc(14px * 1.7); box-shadow:0 calc(38px * 1.7) calc(84px * 1.7) var(--node-hover-shadow);
+}
+@media print{ #world .alto-fshadow{ display:none !important; } }
 """
 
 _FOCUS_JS_OLD = """  function enterFocus(id){
@@ -147,9 +159,10 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
       if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);
     }
     _zwCard=card; _zwTo=to;
-    var from=parseFloat(card.style.zoom)||1, s=null;
+    var from=parseFloat(card.style.zoom)||1, s=null, warm=true;
     if(Math.abs(to-from)<0.002){ _setZoom(card,to); return; }
     function step(ts){
+      if(warm){ warm=false; _zw=requestAnimationFrame(step); return; }   // see motion-starts-after-the-state-frame
       if(s===null) s=ts;
       var p=Math.min(1,(ts-s)/dur), e=1-(1-p)*(1-p);  // ease-out, as the card's own transition was
       _setZoom(card, from+(to-from)*e);
@@ -162,19 +175,63 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      home — shrinking and sliding back over 300ms — instead of snapping, which
      read as a glitch on every hop. */
   function _release(p){
-    if(window._altoUnsettle) window._altoUnsettle(p);   // margins -> its fly transform
-    var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=null;
+    var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=null, warm=true;
     if(p._rel) cancelAnimationFrame(p._rel);
+    _quietShadow(card,300); _focusShadow(p,null,300);
     function step(ts){
       if(p.classList.contains('focused')){ p._rel=null; return; }   // focused again mid-way
+      if(warm){ warm=false; p._rel=requestAnimationFrame(step); return; }
       if(s0===null) s0=ts;
       var t=Math.min(1,(ts-s0)/300), e=1-(1-t)*(1-t);
       _setZoom(card, z0+(1-z0)*e);
-      p.style.transform='translate(-50%,-50%) translate('+(fx*(1-e))+'px,'+(fy*(1-e))+'px)';
+      _place(p, fx*(1-e), fy*(1-e));
       if(t<1) p._rel=requestAnimationFrame(step);
-      else { p._rel=null; p.style.transform=''; p._fx=p._fy=0; _setZoom(card,1); }
+      else { p._rel=null; _place(p,0,0); _setZoom(card,1); }
     }
     p._rel=requestAnimationFrame(step);
+  }
+  function _place(el,x,y){ if(window._altoPlace) window._altoPlace(el,x,y); }
+  /* The card's resting shadow comes back at once as it leaves focus, not by
+     its .28s transition: animated on a card that is shrinking, it re-blurred
+     every frame. */
+  function _quietShadow(card,ms){
+    if(!card) return; clearTimeout(card._qs);
+    card.style.transition='opacity .25s, border-color .2s';
+    card._qs=setTimeout(function(){ card.style.transition=''; },ms+40);
+  }
+  /* The enlarged card's shadow: one element per focused card, the size the
+     card will be (its unzoomed box x FOCUS_K) where it will land, drawn once
+     and then only faded and scaled — both on the compositor, so Safari never
+     re-blurs it. It grows and fades in with the card, and shrinks and fades
+     out as the card leaves. at: [fx,fy] landing offset, or null to remove. */
+  function _focusShadow(el,at,ms){
+    var sh=el._fsh;
+    if(!at){
+      if(!sh) return; el._fsh=null;
+      var cs=getComputedStyle(sh), o=parseFloat(cs.opacity)||0, tf=cs.transform;
+      if(sh._a) sh._a.forEach(function(a){ a.cancel(); });
+      if(!sh.animate){ sh.remove(); return; }
+      var a=sh.animate([{opacity:o, transform:(tf&&tf!=='none')?tf:'scale(1)'},{opacity:0, transform:'scale('+(1/FOCUS_K)+')'}],
+        {duration:ms, easing:'cubic-bezier(.33,1,.68,1)', fill:'forwards'});
+      a.onfinish=function(){ sh.remove(); };
+      return;
+    }
+    var world=document.getElementById('world'), card=_cardOf(el);
+    if(!world || !card || !sh && !document.body.animate) return;
+    var w=card.offsetWidth, h=card.offsetHeight;        // a zoomed card reports its unzoomed box
+    if(!w || !h) return;
+    var ax=parseFloat(el.style.left), ay=parseFloat(el.style.top); if(isNaN(ax)||isNaN(ay)) return;
+    if(!sh){
+      sh=document.createElement('div'); sh.className='alto-fshadow'; world.appendChild(sh); el._fsh=sh;
+      sh._a=[sh.animate([{opacity:0},{opacity:1}],{duration:280, easing:'ease', fill:'forwards'}),
+             sh.animate([{transform:'scale('+(1/FOCUS_K)+')'},{transform:'scale(1)'}],
+               {duration:240, easing:'cubic-bezier(.33,1,.68,1)', fill:'forwards'})];
+    }
+    var W=w*FOCUS_K, H=h*FOCUS_K, key=[W,H,ax+at[0],ay+at[1]].join();
+    if(sh._key===key) return;                         // unchanged: never re-drawn
+    sh._key=key;
+    sh.style.width=W+'px'; sh.style.height=H+'px';
+    sh.style.left=(ax+at[0]-W/2)+'px'; sh.style.top=(ay+at[1]-H/2)+'px';
   }
 
   function enterFocus(id){
@@ -184,6 +241,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     window._focusedNodeId=id;
     canvas.classList.add('focus-mode');
     el.classList.add('focused');
+    _wheelSync();
     _zoomRamp(el,FOCUS_K,240);
     flyTo(el);
   }"""
@@ -191,7 +249,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
 _FOCUS_EXIT_OLD = """      el.classList.remove('focused');
       flyBack(el);"""
 _FOCUS_EXIT_NEW = """      el.classList.remove('focused');
-      if(window._altoUnsettle) window._altoUnsettle(el);   // D-GRID: back to the fly transform
+      _quietShadow(_cardOf(el),300); _focusShadow(el,null,220);
       _zoomRamp(el,1,220);
       flyBack(el);"""
 
@@ -392,7 +450,7 @@ _DGRID_SCRIPT_OLD = """<script id="d-grid-quantize">
 </script>"""
 _DGRID_SCRIPT_NEW = """<style id="d-grid-centre">
 html:not(.mobile) #world .node.dg:not([style*="transform"]){
-  transform:none; margin:var(--my,0px) 0 0 var(--mx,0px);
+  transform:none; margin:calc(var(--my,0px) + var(--fy,0px)) 0 0 calc(var(--mx,0px) + var(--fx,0px));
 }
 </style>
 <script id="d-grid-quantize">
@@ -422,19 +480,19 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
   if(typeof MutationObserver==='function')
     new MutationObserver(function(ms){ ms.forEach(function(m){ [].forEach.call(m.addedNodes,adopt); }); })
       .observe(world,{childList:true});
-  /* The enlarged (focused) node is placed by its fly transform, which is not
-     snapped either: once the fly lands, the same position becomes margins
-     (settle) and goes back to the transform just before it flies home. */
-  window._altoSettle=function(el){
-    if(de.classList.contains('mobile') || !el || !el.classList.contains('focused')) return;
-    var w=el.offsetWidth, h=el.offsetHeight;
-    el.style.margin=(-h/2+(el._fy||0))+'px 0 0 '+(-w/2+(el._fx||0))+'px';
-    el.style.transform='none'; el._settled=1;
-  };
-  window._altoUnsettle=function(el){
-    if(!el || !el._settled) return;
-    el._settled=0; el.style.margin='';
-    el.style.transform='translate(-50%,-50%) translate('+(el._fx||0)+'px,'+(el._fy||0)+'px)';
+  /* The enlarged node is moved off its anchor — only where the canvas can't
+     scroll far enough to centre it — by --fx/--fy, which the margins above add
+     in. It stays in layout the whole way, snapped like every other node, and
+     never takes a transform: that made Safari build a new layer for it at the
+     start of every hop (a 15-30ms first frame) and snap by a fraction as it
+     switched to margins on landing and back on leaving (1.8.29-1.9.3). */
+  window._altoPlace=function(el,fx,fy){
+    if(!el) return;
+    if(Math.abs(fx)<0.005 && Math.abs(fy)<0.005){
+      el._fx=el._fy=0; el.style.removeProperty('--fx'); el.style.removeProperty('--fy'); return;
+    }
+    el._fx=fx; el._fy=fy;
+    el.style.setProperty('--fx',fx+'px'); el.style.setProperty('--fy',fy+'px');
   };
   /* Hover enlarge by CSS zoom, ramped, not transform:scale — a scaled card is
      a transform again (off-grid, soft text), a zoomed one is laid out at its
@@ -501,11 +559,6 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
 })();
 </script>"""
 
-# The focused node settles into margins when its fly lands (below); it goes
-# back to the transform before it flies home or when focus moves on, which the
-# focus-zoom patches above carry (_altoUnsettle, p._settled=0).
-_DGRID_LAND_OLD = "      // settle: optionally swap the transform scale for a CSS-zoom re-raster\n"
-_DGRID_LAND_NEW = ("      if(window._altoSettle) window._altoSettle(el);\n" + _DGRID_LAND_OLD)
 # The hover rule's transform:scale(1.08) is replaced by the zoom ramp above.
 _DGRID_HOVER_OLD = ("html:not(.mobile) .node:not(.focused) .node-card:hover{\n"
                     "  transform: scale(1.08);\n}")
@@ -529,15 +582,28 @@ _FLY_SCROLL_OLD = """    var tl=_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.
     el._fx=-rx; el._fy=-ry;
     var l0=canvas.scrollLeft,t0=canvas.scrollTop;
     _animate(420,function(k){
-      canvas.scrollLeft=l0+(tl-l0)*k; canvas.scrollTop=t0+(tt-t0)*k;"""
+      canvas.scrollLeft=l0+(tl-l0)*k; canvas.scrollTop=t0+(tt-t0)*k;
+      el.style.transform='translate(-50%,-50%) translate('+(-rx*k)+'px,'+(-ry*k)+'px)';"""
 _FLY_SCROLL_NEW = """    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
     var rx=a.x-(tl+cw/2), ry=a.y-(tt+ch/2);   // residual to truly centre
-    el._fx=-rx; el._fy=-ry;
+    var fx0=el._fx||0, fy0=el._fy||0;
+    _focusShadow(el,[-rx,-ry]);
     var l0=qx.at(),t0=qy.at();
     _animate(420,function(k){
-      qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);"""
+      qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
+      _place(el, fx0+(-rx-fx0)*k, fy0+(-ry-fy0)*k);"""
+# On landing, the shadow is checked against the card as it now is.
+_FLY_LAND_OLD = "      // settle: optionally swap the transform scale for a CSS-zoom re-raster\n"
+_FLY_LAND_NEW = ("      if(window._focusedNodeId && el.id==='node-'+window._focusedNodeId) _focusShadow(el,[el._fx||0,el._fy||0]);\n"
+                 + _FLY_LAND_OLD)
+_FLY_BACK_OLD = """    if(!fx&&!fy){ el.style.transform=''; return; }
+    _animate(300,function(k){ el.style.transform='translate(-50%,-50%) translate('+(fx*(1-k))+'px,'+(fy*(1-k))+'px)'; },
+      function(){ el.style.transform=''; el._fx=el._fy=0; });"""
+_FLY_BACK_NEW = """    if(!fx&&!fy){ _place(el,0,0); return; }
+    _animate(300,function(k){ _place(el, fx*(1-k), fy*(1-k)); },
+      function(){ _place(el,0,0); });"""
 _FLY_AXIS_OLD = "  function flyTo(el){\n"
 _FLY_AXIS_NEW = """  /* Safari stores the canvas offset in whole layout px and turns a written
      value v into floor(floor(v)*z) of them (z = the page's CSS zoom), so it
@@ -601,6 +667,50 @@ _TINT_SCOPE_NEW = """    if(!rgb){ _tint(''); _setBrandTone(null,0); return; }
     });
   }
   window.updateHeaderTint=updateHeaderTint;"""
+
+# ── Safari scrolls the canvas off the main thread again ────────────────────
+# One non-passive wheel listener on window (focus-mode nav, the Notes swipe,
+# and Chrome's ctrl+wheel pinch) made every scroll wait for the main thread:
+# while anything ran there — a hop, a ramp, a restyle — the canvas stalled.
+# Safari pinches with gesture events, blocked separately, so there the
+# listener only has to be able to cancel while a card is enlarged or Notes is
+# open; the rest of the time it is passive and Safari scrolls on its own
+# thread. Blink keeps it non-passive (ctrl+wheel), and only its first wheel
+# event in a gesture waits anyway.
+# ── motion starts after the frame that changes state ────────────────────────
+# Enlarging a card or hopping restyles two cards, re-cuts the lines under the
+# faded ones and swaps the shadow: a first frame of 30-45ms in Safari, which
+# no single piece accounts for (measured 2026-09-28). Every ramp took its
+# clock from that frame, so the next frame drew 40ms of progress at once —
+# with ease-out ramps, ~30% of the card's growth in one step. Each ramp now
+# lets that frame pass (warm), starts its clock on the next, and moves from
+# the one after: the stall happens before anything moves.
+_ANIM_WARM_OLD = """    var s=null;
+    function ez(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; }
+    function step(ts){ if(s===null)s=ts; var p=Math.min(1,(ts-s)/dur),k=ez(p); cb(k); if(p<1)_tw=requestAnimationFrame(step); else if(done)done(); }"""
+_ANIM_WARM_NEW = """    var s=null, warm=true;
+    function ez(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; }
+    function step(ts){ if(warm){ warm=false; _tw=requestAnimationFrame(step); return; }
+      if(s===null)s=ts; var p=Math.min(1,(ts-s)/dur),k=ez(p); cb(k); if(p<1)_tw=requestAnimationFrame(step); else if(done)done(); }"""
+_WHEEL_EXIT_OLD = "    canvas.classList.remove('focus-mode');\n"
+_WHEEL_EXIT_NEW = "    canvas.classList.remove('focus-mode');\n    _wheelSync();\n"
+_WHEEL_OPEN_OLD = "  window.addEventListener('wheel', function(e){\n"
+_WHEEL_OPEN_NEW = "  function _onWheel(e){\n"
+_WHEEL_CLOSE_OLD = "  }, {passive:false, capture:true});\n"
+_WHEEL_CLOSE_NEW = """  }
+  var _wheelHold=null;                    // null: not yet registered
+  function _wheelSync(){
+    var np=document.getElementById('notes-panel');
+    var hold=!_wk || !!window._focusedNodeId || !!(np && np.classList.contains('open'));
+    if(hold===_wheelHold) return;
+    if(_wheelHold!==null) window.removeEventListener('wheel', _onWheel, true);
+    _wheelHold=hold;
+    window.addEventListener('wheel', _onWheel, {passive:!hold, capture:true});
+  }
+  _wheelSync();
+  (function(){ var np=document.getElementById('notes-panel');
+    if(np && window.MutationObserver) new MutationObserver(_wheelSync).observe(np,{attributes:true,attributeFilter:['class']}); })();
+"""
 
 # Readers of a node's centre: offsetLeft/Top include the centring margin now.
 _DGRID_CXY_OLD = "    return {x:el.offsetLeft+ox, y:el.offsetTop+oy};"
@@ -781,10 +891,15 @@ PATCHES = [
     {"name": "dgrid-nodes-centred-by-layout", "old": _DGRID_SCRIPT_OLD,
      "new": _DGRID_SCRIPT_NEW, "count": 1},
     {"name": "dgrid-centre-fly", "old": _DGRID_CXY_OLD, "new": _DGRID_CXY_NEW, "count": 1},
-    {"name": "dgrid-focus-lands-in-layout", "old": _DGRID_LAND_OLD, "new": _DGRID_LAND_NEW, "count": 1},
     {"name": "dgrid-hover-by-zoom", "old": _DGRID_HOVER_OLD, "new": _DGRID_HOVER_NEW, "count": 1},
     {"name": "dgrid-centre-search", "old": _DGRID_SRCH_OLD, "new": _DGRID_SRCH_NEW, "count": 1},
     {"name": "fly-scrolls-in-whole-px", "old": _FLY_SCROLL_OLD, "new": _FLY_SCROLL_NEW, "count": 1},
+    {"name": "fly-refits-focus-shadow", "old": _FLY_LAND_OLD, "new": _FLY_LAND_NEW, "count": 1},
+    {"name": "fly-back-by-margins", "old": _FLY_BACK_OLD, "new": _FLY_BACK_NEW, "count": 1},
+    {"name": "wheel-passive-in-safari-open", "old": _WHEEL_OPEN_OLD, "new": _WHEEL_OPEN_NEW, "count": 1},
+    {"name": "motion-starts-after-the-state-frame", "old": _ANIM_WARM_OLD, "new": _ANIM_WARM_NEW, "count": 1},
+    {"name": "wheel-passive-in-safari-exit", "old": _WHEEL_EXIT_OLD, "new": _WHEEL_EXIT_NEW, "count": 1},
+    {"name": "wheel-passive-in-safari-close", "old": _WHEEL_CLOSE_OLD, "new": _WHEEL_CLOSE_NEW, "count": 1},
     {"name": "fly-scroll-axis", "old": _FLY_AXIS_OLD, "new": _FLY_AXIS_NEW, "count": 1},
     {"name": "scroll-tint-on-the-bars", "old": _TINT_SCOPE_OLD, "new": _TINT_SCOPE_NEW, "count": 1},
     {"name": "chip-outlines-are-borders", "old": _CHIP_RULE_OLD, "new": _CHIP_RULE_NEW, "count": 1},
