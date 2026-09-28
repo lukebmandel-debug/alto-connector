@@ -107,3 +107,16 @@ def test_only_faded_cards_hide_lines():
     html = _html()
     assert "if(focus) return !n.classList.contains('focused');" in html
     assert "return dimmed(c);" in html
+
+
+def test_cut_boxes_come_from_layout_not_screen_coordinates():
+    """Measured in Safari 26.6.2: a card's box run back through getScreenCTM
+    from getBoundingClientRect landed 38px left and 190px below its layout
+    position under the page's CSS zoom, so every mask/clip/cut placed from it
+    (1.8.30-33) missed the cards. The line layer's units are the world's
+    layout px; the boxes are taken there."""
+    html = _html()
+    g = html[html.index("function holes(svg,faded){"):]
+    g = g[:g.index("function inside(x,y,R){")]
+    assert "n.offsetLeft+c.offsetLeft" in g and "n.offsetTop+c.offsetTop" in g
+    assert "getScreenCTM()" not in g and "getBoundingClientRect" not in g

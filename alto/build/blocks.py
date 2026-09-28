@@ -611,13 +611,18 @@ LINE_NAV_GLUE = """
     return !!cv && (cv.classList.contains('focus-mode') ||
       !!document.querySelector('#world .node-card.dimmed,#world .node-card[class~="rel-dimmed"],#world .node-card[class~="ent-dimmed"]'));
   }
-  /* the faded cards' boxes, in the line layer's own coordinates */
+  /* The faded cards' boxes, in the line layer's own units — which are the
+     world's layout px: the engine draws every line from node positions in
+     those px. So the boxes come from layout too (offsetLeft/Top/Width/Height
+     under #world), never from screen coordinates run back through
+     getScreenCTM: under the page's CSS zoom Safari maps those differently
+     from other engines, which put the cuts beside the cards (1.8.30-33). */
   function holes(svg,faded){
-    var T=svg.getScreenCTM(), R=[]; if(!T) return R;
-    [].forEach.call(document.querySelectorAll('#world .node-card'),function(c){
-      if(!c.offsetWidth || !faded(c)) return;
-      var q=c.getBoundingClientRect();
-      R.push({x0:(q.left-T.e)/T.a, y0:(q.top-T.f)/T.d, x1:(q.right-T.e)/T.a, y1:(q.bottom-T.f)/T.d});
+    var R=[];
+    [].forEach.call(document.querySelectorAll('#world .node'),function(n){
+      var c=n.querySelector('.node-card'); if(!c || !c.offsetWidth || !faded(c)) return;
+      var x=n.offsetLeft+c.offsetLeft, y=n.offsetTop+c.offsetTop;
+      R.push({x0:x, y0:y, x1:x+c.offsetWidth, y1:y+c.offsetHeight});
     });
     return R;
   }
