@@ -81,3 +81,12 @@ def test_safari_wheel_listener_is_passive_unless_needed():
     assert "window.addEventListener('wheel', _onWheel, {passive:!hold, capture:true});" in js
     assert "var hold=!_wk || !!window._focusedNodeId" in js
     assert js.count("_wheelSync();") >= 3               # load, enter, exit
+
+
+def test_an_enlarged_card_is_centred_even_if_it_was_hovered():
+    """A pinch enlarges the card under the pointer, which was mid hover-grow:
+    its hover rest height kept it ~50px low and its shadow showed above it."""
+    q = _script(_html(), "d-grid-quantize")
+    assert "var hov=n._hov!=null && !n.classList.contains('focused');" in q
+    js = _script(_html(), "alto-focus-mode")
+    assert "el._hov=null;" in js.split("function enterFocus(id){", 1)[1].split("\n  }", 1)[0]

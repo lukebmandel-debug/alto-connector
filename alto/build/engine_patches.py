@@ -242,6 +242,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
     if(el._rel){ cancelAnimationFrame(el._rel); el._rel=null; }
+    el._hov=null;                                       // enlarged: centred, not grown from its top
     if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); _release(p); } }
     window._focusedNodeId=id;
     canvas.classList.add('focus-mode');
@@ -468,8 +469,11 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
   function centre(n){
     if(!n.offsetWidth) return;
     n.style.setProperty('--mx',(-n.offsetWidth/2)+'px');
-    /* a hovered card grows downward from its resting top (n._hov: rest height) */
-    n.style.setProperty('--my',(-(n._hov!=null?n._hov:n.offsetHeight)/2)+'px');
+    /* a hovered card grows downward from its resting top (n._hov: rest height);
+       an enlarged one is centred whatever hover it was caught in (a pinch on
+       the card under the pointer left it 50px low, its shadow showing above) */
+    var hov=n._hov!=null && !n.classList.contains('focused');
+    n.style.setProperty('--my',(-(hov?n._hov:n.offsetHeight)/2)+'px');
   }
   var ro=(typeof ResizeObserver==='function')
     ? new ResizeObserver(function(es){ es.forEach(function(e){ centre(e.target); }); }) : null;
