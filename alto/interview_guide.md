@@ -65,13 +65,18 @@ click in their browser when asked.
   say nothing opened.
 - `waiting_for_sign_in` — their new site is open: "click **Continue with
   Google**." That connects Alto to their account.
-- `needs_browser_step` — a one-time Google page (e.g. accepting the Firebase
-  terms). If you have browser tools and the user allows it, open `url` and do
-  it for them; otherwise ask them to. Then call `set_up_site` again.
+- `needs_browser_step` — a one-time Google page, already open in their
+  browser as the right account: usually a Google account that has never used
+  Google Cloud accepting its terms. That is an agreement in the user's own
+  name, so **they** tick the box and click Agree — never click it for them.
+  Say what `message` says, give `url` if nothing opened, and call
+  `set_up_site` again when they say done.
 - `needs_code` (Windows) — they sign in at `url` and paste the code; pass it
   as `set_up_site(code=…)`.
 - `error` — say what `message` says in plain words and call it again; every
-  step resumes where it stopped.
+  step resumes where it stopped. `message` carries Google's own reason, and
+  `log` is the full CLI log on the user's computer. If `message` says retrying
+  will not help, stop calling it and tell the user what it says.
 - `ready` — `site_url` is theirs. Their projects now live in their own
   account, and any drafts made before it finished were copied across.
 

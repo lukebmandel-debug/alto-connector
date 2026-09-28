@@ -23,6 +23,8 @@ from pathlib import Path
 from .session import config_dir
 
 READY = "ready"
+# Set when apply() filled the Firebase settings from the managed site.
+MANAGED_FLAG = "ALTO_SITE_MANAGED"
 
 
 def path() -> Path:
@@ -87,13 +89,16 @@ def apply(d: dict | None = None, partial: bool = False) -> bool:
     for k, v in fills.items():
         if v:
             os.environ[k] = v
+    # So hand_configured() can tell these from settings the user typed.
+    os.environ[MANAGED_FLAG] = "1"
     return True
 
 
 def hand_configured() -> tuple[str, str] | None:
     """(site, project) typed into the extension's settings or an author's own
     environment, when both are."""
-    if _unset("ALTO_FIREBASE_SITE") or _unset("ALTO_FIREBASE_PROJECT"):
+    if _unset("ALTO_FIREBASE_SITE") or _unset("ALTO_FIREBASE_PROJECT") \
+            or os.environ.get(MANAGED_FLAG) == "1":
         return None
     return (os.environ["ALTO_FIREBASE_SITE"].strip(),
             os.environ["ALTO_FIREBASE_PROJECT"].strip())

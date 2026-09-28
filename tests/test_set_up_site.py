@@ -33,6 +33,8 @@ class FakeFirebase:
         self.auth_config = None
         self.calls = []
         self.enabled = set()
+        self.log_reason = ""
+        self.opened = []
 
     def api(self, method, url, body, token):
         self.calls.append(["<api>", method, url])
@@ -61,7 +63,11 @@ class FakeFirebase:
                            if self.logged_in else [])
         if cmd == "projects:create":
             if self.tos:
-                return self.err("Callers must accept Terms of Service")
+                # What the real CLI prints: the reason is only in its log.
+                self.log_reason = ("Callers must accept Terms of Service "
+                                   "(cloudresourcemanager.googleapis.com)")
+                return self.err("Failed to create project. See "
+                                "firebase-debug.log for more info.")
             if self.taken:
                 self.taken -= 1
                 return self.err("Project ID already exists")
@@ -129,7 +135,8 @@ def fb_bin(tmp_path):
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     for k in ("ALTO_FIREBASE_SITE", "ALTO_FIREBASE_PROJECT",
-              "ALTO_FIREBASE_CONFIG", "ALTO_FIREBASE_BIN", "ALTO_STORE"):
+              "ALTO_FIREBASE_CONFIG", "ALTO_FIREBASE_BIN", "ALTO_STORE",
+              "ALTO_SITE_MANAGED"):
         monkeypatch.delenv(k, raising=False)
 
 
@@ -142,7 +149,9 @@ def make(fake, fb_bin, http=None, **kw):
             return True
         return "https://accounts.google.com/o/oauth2/auth?x", done
 
-    p = pv.Provisioner(run=fake, http=http or live(), opener=lambda u: None,
+    p = pv.Provisioner(run=fake, http=http or live(),
+                       opener=fake.opened.append,
+                       debug_reason=lambda: fake.log_reason,
                        login=login, session_factory=FakeSession,
                        deploy=lambda: fake.calls.append(["<deploy site+rules>"]),
                        migrate=lambda s: {"projects": 1, "timelines": 2,
@@ -215,13 +224,58 @@ def test_a_taken_project_id_is_retried(fb_bin):
 
 
 def test_google_terms_become_a_browser_step(fb_bin):
+    """2026-09-28, a real new account: every projects:create failed with only
+    "Failed to create project. See firebase-debug.log" — Google's "Callers
+    must accept Terms of Service" was in the log alone, so the terms were never
+    detected and the user got five identical generic errors."""
     fake = FakeFirebase(tos=True)
     p = make(fake, fb_bin)
     p._drive()
     st = p.status()
-    assert st["status"] == "needs_browser_step"
-    assert st["url"] == "https://console.firebase.google.com/"
+    assert st["status"] == "needs_browser_step", st
+    url = "https://console.cloud.google.com/?authuser=priya.k%40example.com"
+    assert st["url"] == url and fake.opened[-1] == url   # opened, as the account
+    assert "Google Cloud" in st["message"] and "Agree" in st["message"]
+    assert sum(c[0] == "projects:create" for c in fake.calls) == 1  # no retry loop
     assert not site_rec.ready()
+    # Accepted: the next call carries on and finishes.
+    fake.tos = False
+    p._drive()
+    assert p.status()["status"] == "ready"
+
+
+def test_the_real_cli_log_yields_the_reason(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALTO_TOOLS_DIR", str(tmp_path))
+    (tmp_path / "firebase-debug.log").write_text(
+        '[debug] Command: node firebase.js projects:list\n'
+        '[debug] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects {}\n'
+        '[debug] Command: node firebase.js projects:create x --json\n'
+        '[debug] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects {"projectId":"x"}\n'
+        '[debug] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/operations/o '
+        '{"name":"o","done":true,"error":{"code":9,"message":"Callers must accept Terms of Service"}}\n'
+        '[debug] FirebaseError: Callers must accept Terms of Service\n'
+        '[error] Error: Failed to create project. See firebase-debug.log for more info.\n')
+    assert pv._debug_reason() == ("Callers must accept Terms of Service "
+                                  "(cloudresourcemanager.googleapis.com)")
+
+
+def test_the_same_failure_three_times_says_retrying_will_not_help(fb_bin):
+    fake = FakeFirebase()
+    p = make(fake, fb_bin)
+    real = fake.__call__
+
+    def broken(args, timeout=0):
+        if args[0] == "firestore:databases:create":
+            fake.calls.append(args)
+            return fake.err("Failed to create database.")
+        return real(args, timeout)
+    p.run = broken
+    fake.log_reason = "PERMISSION_DENIED (firestore.googleapis.com)"
+    for i in range(3):
+        p._drive()
+        st = p.status()
+        assert "PERMISSION_DENIED" in st["message"]      # the real reason, shown
+        assert ("will not help" in st["message"]) == (i == 2)
 
 
 def test_an_interrupted_setup_resumes_without_redoing_anything(fb_bin):
@@ -371,3 +425,22 @@ def test_the_services_a_new_project_lacks_are_switched_on_first(fb_bin):
                             "identitytoolkit.googleapis.com"}
     order = [c[0] for c in fake.calls]
     assert order.index("<api>") < order.index("firestore:databases:create")
+
+
+def test_typed_settings_stay_configured_whatever_another_setup_left(
+        fb_bin, monkeypatch, tmp_path):
+    """site.json is per OS user, so a second Claude account's failed setup on
+    the same Mac is visible to the first. Typed settings with a working CLI
+    must still read as configured — never as a setup to resume or adopt."""
+    site_rec.save({"status": "error", "step": "project", "email": "other@x",
+                   "done": ["tools", "login"], "firebase_bin": fb_bin})
+    pv.set_provisioner(None)
+    cli = tmp_path / "firebase"
+    cli.write_text("#!/bin/sh\n")
+    monkeypatch.setenv("ALTO_FIREBASE_BIN", str(cli))
+    monkeypatch.setenv("ALTO_FIREBASE_SITE", "my-alto")
+    monkeypatch.setenv("ALTO_FIREBASE_PROJECT", "my-own-project")
+    assert srv.get_interview_guide()["site_status"]["status"] == "configured"
+    r = srv.set_up_site()
+    assert r["status"] == "configured"
+    assert pv.get_provisioner()._thread is None          # nothing started

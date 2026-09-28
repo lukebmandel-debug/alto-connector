@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -352,8 +352,10 @@ def _site_status() -> dict:
     from .cloud.provision import get_provisioner
     from .publish_static import firebase_configured
     st = get_provisioner().status()
-    if st["status"] == "not_started" and firebase_configured() \
-            and site_rec.hand_configured():
+    # Settings typed in, with a CLI that can deploy them: that site is the
+    # user's, whatever an earlier set_up_site (another Claude account on this
+    # computer, say — site.json is per OS user) left in its record.
+    if firebase_configured() and site_rec.hand_configured():
         # Configured by hand (the extension's advanced settings, or an
         # author's own environment): nothing for set_up_site to do.
         return {"status": "configured", "site_url":
@@ -375,8 +377,10 @@ def set_up_site(code: str = "") -> dict:
     status: working (Alto is busy — carry on), waiting_for_google /
     waiting_for_sign_in (tell the user a page is open in their browser and
     what to click; `url` if it did not open), needs_browser_step (a Google
-    page Alto cannot click for them, e.g. accepting the Firebase terms once:
-    open `url` — with the browser tools if the user allows — then call again),
+    page already open as the right account, usually a new account's Google
+    Cloud terms: the USER ticks the box and clicks Agree — an agreement in
+    their name, never clicked for them; `url` if nothing opened; call again
+    when they say done),
     needs_code (Windows: the user pastes the code from `url`; pass it as
     `code`), ready (site_url is theirs), error (say `message`, then call again
     to retry: every step resumes where it stopped)."""
@@ -385,7 +389,7 @@ def set_up_site(code: str = "") -> dict:
     from .publish_static import firebase_configured
     p = get_provisioner()
     typed = site_rec.hand_configured()
-    if typed and firebase_configured() and p.status()["status"] == "not_started":
+    if typed and firebase_configured():
         return {"status": "configured",
                 "site_url": f"https://{typed[0]}.web.app",
                 "message": ("This Alto already publishes to the Firebase site "

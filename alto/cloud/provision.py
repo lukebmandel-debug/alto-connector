@@ -51,6 +51,7 @@ import tarfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import webbrowser
 import zipfile
@@ -147,6 +148,29 @@ def _api(method: str, url: str, body, token: str, timeout: float = 60):
             return e.code, {}
 
 
+def debug_log() -> Path:
+    """Where the CLI writes firebase-debug.log: its working directory, which
+    for every call Alto makes is Alto's tools folder."""
+    return tools_dir() / "firebase-debug.log"
+
+
+def _debug_reason() -> str:
+    """The underlying error of the LAST CLI command in firebase-debug.log:
+    Google's own message and which API said it."""
+    try:
+        text = debug_log().read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    last = text[text.rfind("Command:"):] if "Command:" in text else text
+    msgs = re.findall(r'"error":\{"code":\d+,"message":"((?:[^"\\]|\\.)*)"', last)
+    msgs += re.findall(r"FirebaseError: (.+)", last)
+    host = re.findall(r"https://([a-z0-9.-]+\.googleapis\.com)", last)
+    if not msgs:
+        return ""
+    reason = msgs[-1].strip()
+    return f"{reason} ({host[-1]})" if host else reason
+
+
 def _download(url: str, timeout: float = 300) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "Alto"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -164,12 +188,13 @@ def _json_out(out: str):
 class Provisioner:
     def __init__(self, run=None, http=None, opener=None, download=None,
                  login=None, session_factory=None, deploy=None, migrate=None,
-                 sleep=time.sleep, api=None):
+                 sleep=time.sleep, api=None, debug_reason=None):
         self.run = run or self._run_cli
         self.http = http or _http_get
         self.opener = opener or webbrowser.open
         self.download = download or _download
         self.api = api or _api
+        self.debug_reason = debug_reason or _debug_reason
         self.login_starter = login or self._start_login_pty
         self.session_factory = session_factory
         self.deploy = deploy
@@ -192,7 +217,8 @@ class Provisioner:
         s = self.state
         out = {"status": s.get("status") or "not_started",
                "step": s.get("step", "")}
-        for k in ("url", "message", "site_url", "project", "email", "migrated"):
+        for k in ("url", "message", "site_url", "project", "email", "migrated",
+                  "log"):
             if s.get(k):
                 out[k] = s[k]
         return out
@@ -242,16 +268,33 @@ class Provisioner:
                     continue
                 self._set(status=WORKING, step=step, url="", message="")
                 getattr(self, "_" + step)()
-                self._set(done=self.state.get("done", []) + [step])
+                self._set(done=self.state.get("done", []) + [step],
+                          last_error="", repeats=0)
             site_rec.apply(self.state)
-            self._set(status=READY, step="", url="", site_url=self._site_url(),
+            self._set(status=READY, step="", url="", log="", site_url=self._site_url(),
                       message=("Your private Alto site is ready at "
                                f"{self._site_url()} — timelines publish there, "
                                "and only your Google account can open them."))
         except StepError as e:
-            self._set(status=e.status, url=e.url, message=str(e))
+            self._fail(e.status, str(e), e.url)
         except Exception as e:                    # noqa: BLE001 — reported, resumable
-            self._set(status=FAILED, message=f"{type(e).__name__}: {e}")
+            self._fail(FAILED, f"{type(e).__name__}: {e}")
+
+    def _fail(self, status: str, message: str, url: str = "") -> None:
+        """Record a stop. The same error three times running means retrying
+        is not going to fix it: say so, so the model stops looping."""
+        # last_error is cleared whenever a step completes, so "same" means
+        # nothing moved forward between the two failures.
+        same = status == FAILED and self.state.get("last_error") == message
+        n = self.state.get("repeats", 0) + 1 if same else 1
+        shown = message
+        if status == FAILED and n >= 3:
+            shown += (" — this has failed the same way several times, so "
+                      "calling set_up_site again will not help. Tell the user "
+                      "what it says; the details are in the log file.")
+        extra = {"log": str(debug_log())} if debug_log().exists() else {}
+        self._set(status=status, url=url, message=shown, last_error=message,
+                  repeats=n, **extra)
 
     def _site_url(self) -> str:
         return f"https://{self.state.get('site', '')}.web.app"
@@ -274,7 +317,14 @@ class Provisioner:
         except ValueError:
             doc = {"status": "error", "error": (err or out)[-600:]}
         if rc != 0 or doc.get("status") != "success":
-            return None, str(doc.get("error") or err or out)[-800:]
+            msg = str(doc.get("error") or err or out)[-800:]
+            # The CLI's --json error is often only "Failed to create project.
+            # See firebase-debug.log for more info." The actual reason — e.g.
+            # Google's "Callers must accept Terms of Service" — is in that log.
+            why = self.debug_reason()
+            if why and why not in msg:
+                msg = f"{msg} [{why}]"
+            return None, msg
         return doc.get("result"), ""
 
     # ── steps ───────────────────────────────────────────────────────────────
@@ -488,6 +538,8 @@ class Provisioner:
                 return
             # The Cloud project exists but Firebase was never added to it.
             res, err = self._cli_json(["projects:addfirebase", pid], 300)
+            if res is None and "terms of service" in err.lower():
+                self._terms(err)
             if res is None and "already" not in err.lower():
                 raise StepError(f"adding Firebase to {pid} failed: {err}")
             return
@@ -501,17 +553,37 @@ class Provisioner:
                 return
             last = err
             low = err.lower()
-            if "terms of service" in low or "tos" in low.split():
-                raise StepError(
-                    "Google needs you to accept the Firebase terms once. The "
-                    "page is open; accept them, then say done.",
-                    NEEDS_BROWSER, "https://console.firebase.google.com/")
+            if "terms of service" in low:
+                self._terms(err)
             if "quota" in low or "exceeded" in low:
                 raise StepError("this Google account has reached its limit on "
                                 "new Cloud projects: " + err)
             if "already" not in low and "exists" not in low:
                 break
         raise StepError(f"creating your Firebase project failed: {last}")
+
+    def _terms(self, err: str) -> None:
+        """A Google account that has never used Google Cloud (or Firebase) must
+        accept its terms once, in a browser, before any project can be made
+        for it — no API can do that for the person. Open the right console,
+        signed in as the account the CLI used (a browser often holds several),
+        and stop until they have."""
+        email = self.state.get("email", "")
+        cloud = "cloudresourcemanager" in err or "firebase.googleapis" not in err
+        base = ("https://console.cloud.google.com/" if cloud
+                else "https://console.firebase.google.com/")
+        url = base + (f"?authuser={urllib.parse.quote(email)}" if email else "")
+        try:
+            self.opener(url)
+        except Exception:                   # noqa: BLE001 — the URL is returned too
+            pass
+        which = "Google Cloud" if cloud else "Firebase"
+        raise StepError(
+            f"{email or 'This Google account'} has never used {which}, so Google "
+            f"needs its terms accepted once. A {which} page is open in the "
+            "browser (signed in as that account): tick the box to agree to the "
+            "terms, click Agree and continue, then say done — setup carries on "
+            "from here.", NEEDS_BROWSER, url)
 
     def _app(self) -> None:
         pid = self.state["project"]
