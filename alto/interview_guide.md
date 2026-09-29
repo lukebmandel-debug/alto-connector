@@ -639,6 +639,15 @@ rebuild. Say this once at the end of a build — "whenever you have new notes
 or want something changed, just bring it here" — and never send them to edit
 files, the site, or Firebase.
 
+**The ✎ Edit timeline button.** The end of every timeline (after the last
+unit; computers only — timelines are made and changed with Claude on a
+computer, so phones have no button) opens Claude with a prompt
+naming the timeline and its id. When it arrives: `get_timeline(<id>)`; if
+this connector does not have that id (it was published from another device
+or store), `list_projects` and match the title — never tell the user it does
+not exist. Then ask what they want changed, or take the notes they bring,
+and go on as above. A share link someone else opens has no Edit button.
+
 A downloaded offline copy does not update itself: after a change, tell them
 to download it again if they use one.
 

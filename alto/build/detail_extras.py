@@ -726,6 +726,135 @@ LOCAL_OPEN = r"""<style id="alto-local-css">
 </script>"""
 
 
+# ── ✎ Edit timeline: the way back to Claude ─────────────────────────────────
+# Every change to a timeline is made through Claude (interview guide: "Changes
+# go through Claude"), so the end of every timeline carries the door: a dashed
+# tile after the last unit, like the homepage's "＋ New timeline", that opens
+# Claude with a prompt naming this timeline. Never on a phone (no UA match, and
+# hidden in the engine's mobile layout): timelines are made and changed with
+# Claude on a computer. Placed from the laid-out page —
+# below the glass slab, or the lowest card when there is none — and re-placed
+# whenever #world changes size, so tree, flow and mobile layouts all get it
+# without touching the engine. A share snapshot (COURSE_ID 's-…', see
+# reidentify) is someone else's timeline and shows no tile.
+EDIT_TILE = r"""<style id="alto-edit-css">
+  .alto-edit-tile{position:absolute;left:50%;transform:translateX(-50%);width:260px;min-height:92px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    box-sizing:border-box;border:1.5px dashed var(--muted);border-radius:18px;background:var(--chip-glass-bg);
+    -webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);
+    color:var(--muted);cursor:pointer;z-index:30;font:inherit;text-align:center;padding:14px 18px;
+    transition:transform .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease;}
+  .alto-edit-tile:hover,.alto-edit-tile:focus-visible{transform:translateX(-50%) scale(1.03) translateY(-2px);
+    color:var(--text);border-color:var(--muted);box-shadow:0 14px 34px var(--node-rest-shadow);outline:none;}
+  .alto-edit-tile .et-glyph{font-size:24px;line-height:1;font-weight:300;}
+  .alto-edit-tile .et-label{font-size:12.5px;letter-spacing:.06em;}
+  .alto-edit-tile .et-sub{font-size:11px;opacity:.75;letter-spacing:.02em;}
+  html.mobile .alto-edit-tile{display:none !important;}
+  html.printing .alto-edit-tile{display:none !important;}
+  @media print{.alto-edit-tile{display:none !important;}}
+  #alto-edit-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);opacity:0;
+    pointer-events:none;z-index:400;padding:10px 16px;border-radius:12px;background:var(--surface);color:var(--text);
+    border:1px solid var(--border);box-shadow:0 10px 30px var(--node-rest-shadow);font-size:13px;
+    transition:opacity .2s ease,transform .2s ease;}
+  #alto-edit-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+  #alto-edit-toast a{color:inherit;margin-left:6px;}
+</style>
+<script id="alto-edit-tile">
+(function(){
+  var E = window._ALTO_EDIT || {};
+  // `key` is blocks.ID_PATTERNS' doc_save_key, which reidentify rewrites in a
+  // share — so a share reads back 's-…' here, like its COURSE_ID.
+  var tid = String(E.key || '').replace(/^alto-doc-/, '');
+  if(!tid || tid.indexOf('s-') === 0) return;
+  // Not on a phone: timelines are made and changed with Claude on a computer.
+  if(/iPhone|iPod|Android.*Mobile|Windows Phone/i.test(navigator.userAgent)) return;
+  var TITLE = E.title || document.title;
+  var GET = 'https://alto-get.web.app';
+  function prompt(){
+    return "I want to edit my Alto timeline \"" + TITLE + "\" (timeline id: " + tid + "). " +
+      "If the Alto connector isn't connected here yet, help me install it from " + GET +
+      " first. Then open this timeline with Alto's get_timeline and ask me what I'd like " +
+      "to change \u2014 I may have new notes to add, sources to link, or edits to make. " +
+      "Follow Alto's interview guide to make the changes, then rebuild and republish it.";
+  }
+  function go(u){
+    // The page usually runs in a frame (private shell, offline copy): hand the
+    // link to the top window, which is where an app link or claude.ai belongs.
+    try{ window.top.location.href = u; } catch(e){ try{ window.open(u, '_blank'); } catch(_){ location.href = u; } }
+  }
+  function toast(web){
+    var el = document.getElementById('alto-edit-toast');
+    if(!el){ el = document.createElement('div'); el.id = 'alto-edit-toast'; document.body.appendChild(el); }
+    el.textContent = 'Opening the Claude app… ';
+    var a = document.createElement('a'); a.textContent = 'Open in browser instead';
+    a.href = web; a.target = '_blank'; a.rel = 'noopener'; el.appendChild(a);
+    el.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('show'); }, 6000);
+  }
+  function openClaude(){
+    var q = encodeURIComponent(prompt()), web = 'https://claude.ai/new?q=' + q;
+    var touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+                (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    if(touch){ go(web); return; }          // the Claude app intercepts the universal link
+    toast(web);
+    go('claude://claude.ai/new?q=' + q);
+  }
+  window._altoEditTimeline = openClaude;
+  var tile = null, world = null;
+  function bottomOf(){
+    var slab = document.getElementById('glass-slab'), b = 0;
+    if(slab && slab.offsetHeight && getComputedStyle(slab).display !== 'none')
+      b = slab.offsetTop + slab.offsetHeight;
+    var ns = world.querySelectorAll('.node, .phase-band');
+    for(var i = 0; i < ns.length; i++){
+      var n = ns[i]; if(!n.offsetHeight) continue;
+      var nb = n.offsetTop + n.offsetHeight; if(nb > b) b = nb;
+    }
+    return b;
+  }
+  function place(){
+    world = document.getElementById('world');
+    if(!world) return;
+    if(!tile || !tile.isConnected){
+      tile = document.createElement('button');
+      tile.type = 'button'; tile.className = 'alto-edit-tile';
+      tile.setAttribute('aria-label', 'Edit this timeline with Claude');
+      tile.innerHTML = '<span class="et-glyph">✎</span><span class="et-label">Edit timeline</span>' +
+                       '<span class="et-sub">Add notes, link sources or change anything</span>';
+      tile.addEventListener('click', function(e){ e.stopPropagation(); openClaude(); });
+      world.appendChild(tile);
+    }
+    var b = bottomOf(); if(!b) return;
+    var top = Math.round(b + 48);
+    if(tile.style.top !== top + 'px') tile.style.top = top + 'px';
+    var need = top + tile.offsetHeight + 60;
+    var pad = parseFloat(getComputedStyle(world).paddingTop) || 0;
+    if(world.offsetHeight < need + pad) world.style.minHeight = need + 'px';
+  }
+  var tries = 0;
+  (function poll(){ try{ place(); }catch(_){} if(++tries < 60) setTimeout(poll, 250); })();
+  window.addEventListener('resize', function(){ setTimeout(function(){ try{ place(); }catch(_){} }, 250); });
+  if(window.ResizeObserver){
+    var ro = new ResizeObserver(function(){ try{ place(); }catch(_){} }), watched = null;
+    (function watch(){
+      var w = document.getElementById('world');
+      if(w && w !== watched){ if(watched) ro.unobserve(watched); ro.observe(w); watched = w; }
+      if(tries < 60) setTimeout(watch, 500);
+    })();
+  }
+})();
+</script>"""
+
+
+def edit_tile(b) -> str:
+    """EDIT_TILE with this timeline's title and id, which its prompt quotes."""
+    from .blocks import ID_PATTERNS
+    data = json.dumps({"title": b.title or "",
+                       "key": ID_PATTERNS["doc_save_key"].format(tid=b.timeline_id)},
+                      ensure_ascii=False).replace("</", "<\\/")
+    return f"<script>window._ALTO_EDIT={data};</script>\n" + EDIT_TILE + "\n"
+
+
 def local_sources(b) -> "tuple[str, list[str]]":
     """The page's _ALTO_LOCAL block plus LOCAL_OPEN, or "" when no source has a
     local copy — a timeline without one is byte-for-byte what it was. Warns

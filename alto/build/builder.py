@@ -212,7 +212,8 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
     tail = (local + "<script>window._ALTO_AUTOLINK="
             + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
-            + "\n" + dx.BACK_PREV + "\n" + search_config(brief))
+            + "\n" + dx.BACK_PREV + "\n" + search_config(brief)
+            + "\n" + dx.edit_tile(brief))
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])
