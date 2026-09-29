@@ -94,20 +94,26 @@ def test_an_enlarged_card_is_centred_even_if_it_was_hovered():
 
 
 def test_enlarging_and_hopping_move_as_one_body():
-    """Luke: smoother, not slower, not faster. The glide, the new card's growth
-    and the old card's return share one curve and one duration, so nothing
-    arrives before the view does and nothing starts with a kick."""
+    """The glide, the new card's growth and the old card's return share one
+    curve and one clock, so nothing arrives before the view does."""
     js = _script(_html(), "alto-focus-mode")
-    assert "function _altoEase(p){" in js and "var FOCUS_MS=460, UNFOCUS_MS=330;" in js
+    assert "function _altoEase(p){" in js and "var FOCUS_MS=400, UNFOCUS_MS=320;" in js
+    assert "return p*p*p*(10+p*(-15+6*p));" in js                   # minimum-jerk
+    assert "FOCUS_MS=window._altoFlyMs=_flyMs(" in js               # duration follows distance
     assert "function ez(p){ return _altoEase(p); }" in js          # glide + glide back
     assert "e=_altoEase(p);" in js                                  # zoom ramp
     assert "e=_altoEase(t);" in js and "(ts-s0)/FOCUS_MS" in js     # release
-    assert "_zoomRamp(el,FOCUS_K,FOCUS_MS);" in js and "_animate(FOCUS_MS," in js
-    assert "_zoomRamp(el,1,UNFOCUS_MS);" in js and "_animate(UNFOCUS_MS," in js
+    enter = js[js.index("function enterFocus(id){", js.index("function _shadowSync")):]
+    enter = enter[:enter.index("\n  }")]
+    assert enter.index("flyTo(el);") < enter.index("_zoomRamp(el,FOCUS_K,FOCUS_MS);") < enter.index("if(p) _release(p);")
+    assert "_animate(FOCUS_MS," in js and "_zoomRamp(el,1,UNFOCUS_MS);" in js and "_animate(UNFOCUS_MS," in js
+    assert "(window._altoFlyMs||400)+40" in js                      # held arrows wait for the glide
     assert "1-(1-p)*(1-p)" not in js and "1-(1-t)*(1-t)" not in js
 
 
-def test_the_shared_curve_starts_from_rest_and_lands_on_time():
+def test_the_shared_curve_is_minimum_jerk():
+    """Zero speed and zero acceleration at both ends, peak speed at the middle,
+    and a short tail: the profile of natural human movement."""
     import subprocess, shutil
     node = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
     if not Path(node).is_file():
@@ -115,10 +121,20 @@ def test_the_shared_curve_starts_from_rest_and_lands_on_time():
     js = _script(_html(), "alto-focus-mode")
     fn = js[js.index("function _altoEase(p){"):]
     fn = fn[:fn.index("\n  }\n") + 4]
-    out = subprocess.run([node, "-e", fn + "console.log(JSON.stringify([0,.01,100/460,.5,1].map(_altoEase)))"],
-                         capture_output=True, text=True, check=True).stdout
-    v = __import__("json").loads(out)
-    assert v[0] == 0 and v[-1] == 1
-    assert v[1] < 0.01                       # from rest: no jump on the first frame
-    assert 0.45 < v[2] < 0.65                # ~half way at 100ms of 460
-    assert 0.8 < v[3] < 0.9                  # ~85% by the middle, gentler than (.2,0,0,1)
+    fly = js[js.index("function _flyMs(dist)"):].split("\n", 1)[0]
+    prog = fn + fly + """
+      var N=1000, y=[], v=[], a=[];
+      for(var i=0;i<=N;i++) y.push(_altoEase(i/N));
+      for(i=0;i<N;i++) v.push((y[i+1]-y[i])*N);
+      for(i=0;i<N-1;i++) a.push((v[i+1]-v[i])*N);
+      var vmax=Math.max.apply(null,v), at=v.indexOf(vmax)/N;
+      var t95=y.findIndex(function(q){ return q>=0.95; })/N;
+      console.log(JSON.stringify({v0:v[0], v1:v[N-1], a0:Math.abs(a[0]), vmax:vmax, at:at,
+        amax:Math.max.apply(null,a.map(Math.abs)), tail:1-t95,
+        ms:[_flyMs(0), _flyMs(300), _flyMs(3000)]}));"""
+    r = __import__("json").loads(subprocess.run([node, "-e", prog], capture_output=True,
+                                               text=True, check=True).stdout)
+    assert r["v0"] < 0.01 and r["v1"] < 0.01 and r["a0"] < 0.1
+    assert 0.45 < r["at"] < 0.55 and r["vmax"] < 1.9
+    assert r["amax"] < 6 and r["tail"] < 0.2
+    assert r["ms"] == [400, 410, 580]

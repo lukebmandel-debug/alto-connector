@@ -150,30 +150,30 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      re-wraps at any point on the ramp. */
   var FOCUS_K=1.7, _zw=null, _zwCard=null, _zwTo=1;
   /* ── one curve, one clock (motion-one-body) ───────────────────────────────
-     Enlarging or hopping used to be three motions on three curves: the camera
-     glided in on an ease-in-out (11% of the way at 100ms), the new card grew
-     on a 240ms ease-out that started at full speed (66% grown at 100ms), and
-     the old card shrank home on its own 300ms ease-out. The card ballooned
-     before the view had set off, then the view drifted after it — and each
-     ease-out began with a jolt. Luke: smoother, not slower, not faster.
-     Every piece now shares this curve and starts on the same frame: glide,
-     grow and release all over FOCUS_MS (exit: UNFOCUS_MS). It starts from
-     rest, so nothing kicks off with a jolt. Tuned by Luke's eye in 1.9.15:
-     cubic-bezier(.2,0,0,1) over 420/300ms was "20% too jerky and 10% too
-     fast", so the curve is (.15,0,.1,1) — top speed 78%, top acceleration 77%
-     of that one — over 460/330ms. */
+     Enlarging or hopping is one movement: the view glides, the new card grows
+     into place and the old one settles home, all on this curve and starting
+     on the same frame.
+
+     The curve is the minimum-jerk trajectory, 10t^3 - 15t^4 + 6t^5: the
+     profile of human reaching movements (Flash & Hogan, 1985), which is why it
+     reads as natural. Speed rises and falls evenly to a peak at the middle,
+     and speed AND acceleration are zero at both ends — no kick off the mark,
+     no crawl into place. History (2026-09-29): 1.9.13 had three motions on
+     three curves; 1.9.14/15 unified them on ease-out beziers, which start
+     from rest in name only — top speed inside the first 10% of the time
+     (acceleration 8-10x this curve's), then a third of the time crawling the
+     last 5%, stepping a pixel at a time in Safari. Luke: jerky, and worse
+     when slowed. This curve also forgives a slow first frame: nothing is
+     moving fast yet when it lands.
+
+     Duration follows distance, as a hand's does (Fitts): ~410-440ms for a
+     neighbour, up to 580ms across the outline (_flyMs, set by flyTo). */
   function _altoEase(p){
     if(p<=0) return 0; if(p>=1) return 1;
-    var lo=0, hi=1, t=p;
-    for(var i=0;i<24;i++){                       // x(t) is monotonic: bisect
-      t=(lo+hi)/2;
-      var x=3*(1-t)*(1-t)*t*0.15 + 3*(1-t)*t*t*0.1 + t*t*t;   // x1=.15, x2=.1
-      if(x<p) lo=t; else hi=t;
-    }
-    t=(lo+hi)/2;
-    return 3*(1-t)*t*t + t*t*t;                   // y1=0, y2=1
+    return p*p*p*(10+p*(-15+6*p));
   }
-  var FOCUS_MS=460, UNFOCUS_MS=330;
+  function _flyMs(dist){ return Math.round(Math.max(400, Math.min(580, 380+0.1*dist))); }
+  var FOCUS_MS=400, UNFOCUS_MS=320;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
   function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _shadowSync(card.parentNode); }
   function _zoomRamp(el,to,dur){
@@ -268,13 +268,17 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     if(!id) return; var el=nodeEl(id); if(!el) return;
     if(el._rel){ cancelAnimationFrame(el._rel); el._rel=null; }
     el._hov=null;                                       // enlarged: centred, not grown from its top
-    if(window._focusedNodeId && window._focusedNodeId!==id){ var p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); _release(p); } }
+    var p=null;
+    if(window._focusedNodeId && window._focusedNodeId!==id){ p=nodeEl(window._focusedNodeId); if(p){ p.classList.remove('crisp'); p.classList.remove('focused'); } }
     window._focusedNodeId=id;
     canvas.classList.add('focus-mode');
     el.classList.add('focused');
     _wheelSync();
-    _zoomRamp(el,FOCUS_K,FOCUS_MS);
+    // flyTo first: it sets FOCUS_MS from the distance. All three start on the
+    // same (next) frame whatever their order here — each waits a frame (warm).
     flyTo(el);
+    _zoomRamp(el,FOCUS_K,FOCUS_MS);
+    if(p) _release(p);
   }"""
 
 _FOCUS_EXIT_OLD = """      el.classList.remove('focused');
@@ -625,6 +629,9 @@ _FLY_SCROLL_NEW = """    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrol
     var fx0=el._fx||0, fy0=el._fy||0;
     _focusShadow(el,true);
     var l0=qx.at(),t0=qy.at();
+    // how far the eye travels: the view, plus the card's own settle
+    FOCUS_MS=window._altoFlyMs=_flyMs(Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0))
+                                      + Math.sqrt((rx+fx0)*(rx+fx0)+(ry+fy0)*(ry+fy0)));
     _animate(FOCUS_MS,function(k){
       qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
       _place(el, fx0+(-rx-fx0)*k, fy0+(-ry-fy0)*k);"""
@@ -1775,7 +1782,8 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
   function _hop(dir,repeat){
     if(_hopBusy){ if(repeat ? !_hopQ.length : _hopQ.length<3) _hopQ.push(dir); return; }
     _hopBusy=1; focusNeighbor(dir);
-    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },505);   // FOCUS_MS + 45
+    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },
+               (window._altoFlyMs||400)+40);   // the next hop waits for this glide
   }"""
 _HOP_KEY_OLD = "    if(!d) return; e.preventDefault(); focusNeighbor(d);"
 _HOP_KEY_NEW = "    if(!d) return; e.preventDefault(); _hop(d, e.repeat);"

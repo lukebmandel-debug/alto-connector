@@ -68,7 +68,7 @@ def test_a_half_ramped_card_is_never_stranded(html):
     be put back, or it keeps a partial inline zoom forever."""
     assert "if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);" in html
     # the previous node glides home and ends with its zoom cleared
-    assert "_release(p); } }" in html
+    assert "if(p) _release(p);" in html
     assert "else { p._rel=null; _place(p,0,0); _setZoom(card,1); }" in html
 
 
