@@ -138,4 +138,14 @@ def test_the_tile_sits_inside_the_last_band(built):
     ro = js.index("window._altoEditRoom = ROOM;")
     assert js.index("tid.indexOf('s-') === 0) return;") < ro   # not in a share
     assert js.index("Windows Phone/i.test(navigator.userAgent)) return;") < ro  # nor on a phone
-    assert "return b - ROOM - 60;" in js
+    assert "return b - (window._altoEditRoom || ROOM) - 60;" in js
+
+
+def test_the_page_ends_where_the_background_ends():
+    """Luke: no strip of bare page gradient under the timeline. #world is
+    sized to end at the glass slab's bottom, and a timeline shorter than the
+    window lengthens its last band until the background fills it."""
+    js = dx.EDIT_TILE
+    assert "var mh = Math.max(0, end - pads) + 'px';" in js
+    assert "window._altoEditRoom = (window._altoEditRoom || ROOM) + short;" in js
+    assert "!place._relaying" in js

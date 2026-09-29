@@ -807,15 +807,15 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   }
   window._altoEditTimeline = openClaude;
   var tile = null, world = null;
-  // Bottom edge of the last unit's band, which ends ROOM + 100 below its
-  // lowest card; the tile takes the middle of that. Timelines with no bands
+  // The last unit's band ends _altoEditRoom + 100 below its lowest card; the
+  // tile sits just under the cards, in that room. Timelines with no bands
   // fall back to the lowest card.
   function slot(){
     var bands = world.querySelectorAll('.phase-band'), b = 0;
     for(var i = 0; i < bands.length; i++){
       var nb = bands[i].offsetTop + bands[i].offsetHeight; if(nb > b) b = nb;
     }
-    if(b) return b - ROOM - 60;
+    if(b) return b - (window._altoEditRoom || ROOM) - 60;   // just under the cards
     var ns = world.querySelectorAll('.node');
     for(var k = 0; k < ns.length; k++){
       var n = ns[k]; if(!n.offsetHeight) continue;
@@ -837,13 +837,26 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     }
     var top = Math.round(slot()); if(!top) return;
     if(tile.style.top !== top + 'px') tile.style.top = top + 'px';
-    // Room to scroll to the end of the background (the glass slab runs past
-    // the last band) as well as to the tile.
+    // The page ends exactly where the timeline's background (the glass slab)
+    // ends: no strip of bare page gradient below it (Luke). #world's height
+    // is its min-height plus its padding; absolutely placed children add none.
     var slab = document.getElementById('glass-slab');
-    var need = Math.max(top + tile.offsetHeight + 60,
-                        slab && slab.offsetHeight ? slab.offsetTop + slab.offsetHeight + 40 : 0);
-    var pad = parseFloat(getComputedStyle(world).paddingTop) || 0;
-    if(world.offsetHeight < need + pad) world.style.minHeight = need + 'px';
+    if(!slab || !slab.offsetHeight) return;
+    var end = slab.offsetTop + slab.offsetHeight, cs = getComputedStyle(world);
+    var pads = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    var mh = Math.max(0, end - pads) + 'px';
+    if(world.style.minHeight !== mh) world.style.minHeight = mh;
+    // A timeline shorter than the window would still show page below its
+    // end: lengthen the last band until the background fills the window.
+    var cv = document.getElementById('canvas');
+    var k = (world.getBoundingClientRect().height / world.offsetHeight) || 1;   // CSS zoom
+    var short = cv ? Math.ceil(cv.clientHeight / k - end) : 0;
+    if(short > 0 && typeof initLayout === 'function' && !place._relaying){
+      window._altoEditRoom = (window._altoEditRoom || ROOM) + short;
+      place._relaying = true;
+      try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }
+      finally{ place._relaying = false; }
+    }
   }
   var tries = 0;
   (function poll(){ try{ place(); }catch(_){} if(++tries < 60) setTimeout(poll, 250); })();
