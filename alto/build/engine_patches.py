@@ -125,6 +125,11 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
      the card falls back to --card-glass-bg at 0.54, needs the floor lifted. */
   background:var(--node-glass-bg, var(--panel-glass-bg));
 }
+html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
+/* The glass is full-bleed and only changes colour top to bottom, so it holds
+   still sideways while the board pans across it: panning never shows bare
+   page past its edge. */
+html:not(.mobile) #world #glass-slab{ translate:calc(-1 * var(--pan-x,0px)) 0; }
 html:not(.mobile) #world .alto-fshadow{
   position:absolute; pointer-events:none; z-index:299; opacity:0; will-change:opacity, transform;
   border-radius:calc(14px * 1.7); box-shadow:0 calc(38px * 1.7) calc(84px * 1.7) var(--node-hover-shadow);
@@ -172,6 +177,26 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     if(p<=0) return 0; if(p>=1) return 1;
     return p*p*p*(10+p*(-15+6*p));
   }
+  /* The board's pan (flyTo): the CSS translate property on #world through
+     --pan-x/--pan-y. A layout offset (left/top) re-laid the whole board every
+     frame — WebKit frames of 48-68ms. A transform is the compositor's, but
+     one between device pixels softens text in Safari (1.8.28), so the pan is
+     rounded to whole DEVICE pixels (CSS px x page zoom x dpr): the board
+     lands on the pixel grid on every frame, as crisp as a layout offset. */
+  var _pan={x:0,y:0};
+  function _devPx(v){
+    var z=(parseFloat(getComputedStyle(document.documentElement).zoom)||1)*(window.devicePixelRatio||1);
+    return Math.round(v*z)/z;
+  }
+  function _setPan(x,y){
+    var w=document.getElementById('world'); if(!w) return;
+    x=_devPx(x); y=_devPx(y);
+    if(x===_pan.x && y===_pan.y) return;
+    _pan.x=x; _pan.y=y;
+    if(!x && !y){ w.style.removeProperty('--pan-x'); w.style.removeProperty('--pan-y'); return; }
+    w.style.setProperty('--pan-x',x+'px'); w.style.setProperty('--pan-y',y+'px');
+  }
+  window._altoPan=function(){ return {x:_pan.x, y:_pan.y}; };
   function _flyMs(dist){ return Math.round(Math.max(400, Math.min(580, 380+0.1*dist))); }
   var FOCUS_MS=400, UNFOCUS_MS=320;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
@@ -622,19 +647,28 @@ _FLY_SCROLL_OLD = """    var tl=_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.
     _animate(420,function(k){
       canvas.scrollLeft=l0+(tl-l0)*k; canvas.scrollTop=t0+(tt-t0)*k;
       el.style.transform='translate(-50%,-50%) translate('+(-rx*k)+'px,'+(-ry*k)+'px)';"""
-_FLY_SCROLL_NEW = """    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
-    var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
-    var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
-    var rx=a.x-(tl+cw/2), ry=a.y-(tt+ch/2);   // residual to truly centre
-    var fx0=el._fx||0, fy0=el._fy||0;
+_FLY_SCROLL_NEW = """    // Where the card sits on the board at rest (_canvasXY reads layout, which
+    // the pan's transform does not change).
+    var ax=a.x, ay=a.y;
+    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
+    var tl=qx.stop(_clamp(Math.round(ax-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
+    var tt=qy.stop(_clamp(Math.round(ay-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
+    // What scrolling cannot cover (the board fits the window's width, and
+    // stops at its ends) the board is PANNED by (_setPan): the whole scene
+    // moves as one piece, like a camera, and the card only grows where it
+    // sits. It used to slide across the board by itself (--fx/--fy) while the
+    // board scrolled under it — two drags at once (Luke, 1.9.16).
+    var px=-(ax-(tl+cw/2)), py=-(ay-(tt+ch/2));
+    var fx0=el._fx||0, fy0=el._fy||0, px0=_pan.x, py0=_pan.y;
     _focusShadow(el,true);
     var l0=qx.at(),t0=qy.at();
-    // how far the eye travels: the view, plus the card's own settle
-    FOCUS_MS=window._altoFlyMs=_flyMs(Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0))
-                                      + Math.sqrt((rx+fx0)*(rx+fx0)+(ry+fy0)*(ry+fy0)));
+    // how far the eye travels: the board, scrolled and panned
+    var dx=(tl-l0)-(px-px0), dy=(tt-t0)-(py-py0);
+    FOCUS_MS=window._altoFlyMs=_flyMs(Math.sqrt(dx*dx+dy*dy));
     _animate(FOCUS_MS,function(k){
       qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
-      _place(el, fx0+(-rx-fx0)*k, fy0+(-ry-fy0)*k);"""
+      _setPan(px0+(px-px0)*k, py0+(py-py0)*k);
+      if(fx0||fy0) _place(el, fx0*(1-k), fy0*(1-k));"""
 # On landing, the shadow is checked against the card as it now is.
 _FLY_LAND_OLD = "      // settle: optionally swap the transform scale for a CSS-zoom re-raster\n"
 _FLY_LAND_NEW = ("      if(window._focusedNodeId && el.id==='node-'+window._focusedNodeId) _focusShadow(el,true);\n"
@@ -642,9 +676,11 @@ _FLY_LAND_NEW = ("      if(window._focusedNodeId && el.id==='node-'+window._focu
 _FLY_BACK_OLD = """    if(!fx&&!fy){ el.style.transform=''; return; }
     _animate(300,function(k){ el.style.transform='translate(-50%,-50%) translate('+(fx*(1-k))+'px,'+(fy*(1-k))+'px)'; },
       function(){ el.style.transform=''; el._fx=el._fy=0; });"""
-_FLY_BACK_NEW = """    if(!fx&&!fy){ _place(el,0,0); return; }
-    _animate(UNFOCUS_MS,function(k){ _place(el, fx*(1-k), fy*(1-k)); },
-      function(){ _place(el,0,0); });"""
+_FLY_BACK_NEW = """    var px0=_pan.x, py0=_pan.y;
+    if(!fx&&!fy&&!px0&&!py0){ _place(el,0,0); return; }
+    // the board glides back to rest, as one piece (see flyTo)
+    _animate(UNFOCUS_MS,function(k){ _place(el, fx*(1-k), fy*(1-k)); _setPan(px0*(1-k), py0*(1-k)); },
+      function(){ _place(el,0,0); _setPan(0,0); });"""
 _FLY_AXIS_OLD = "  function flyTo(el){\n"
 _FLY_AXIS_NEW = """  /* Safari stores the canvas offset in whole layout px and turns a written
      value v into floor(floor(v)*z) of them (z = the page's CSS zoom), so it

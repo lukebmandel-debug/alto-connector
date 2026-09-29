@@ -138,3 +138,22 @@ def test_the_shared_curve_is_minimum_jerk():
     assert 0.45 < r["at"] < 0.55 and r["vmax"] < 1.9
     assert r["amax"] < 6 and r["tail"] < 0.2
     assert r["ms"] == [400, 410, 580]
+
+
+def test_the_board_moves_as_one_piece():
+    """Luke (1.9.16): the card felt dragged by two separate drags — it slid
+    across the board on its own while the board scrolled under it. Now what
+    scrolling cannot cover is a pan of the whole board (a camera); the card
+    only grows where it sits, and the full-bleed glass holds still sideways
+    so the pan never shows bare page."""
+    html = _html()
+    js = _script(html, "alto-focus-mode")
+    fly = js.split("function flyTo(el){", 1)[1].split("function flyBack", 1)[0]
+    assert "_setPan(px0+(px-px0)*k, py0+(py-py0)*k);" in fly
+    assert "_place(el, fx0+(-rx-fx0)*k" not in fly            # no solo slide any more
+    back = js.split("function flyBack(el){", 1)[1].split("\n  }", 1)[0]
+    assert "_setPan(px0*(1-k), py0*(1-k));" in back and "_setPan(0,0);" in back
+    assert "html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }" in html
+    assert "#world #glass-slab{ translate:calc(-1 * var(--pan-x,0px)) 0; }" in html
+    # on the device-pixel grid, so a transform stays as crisp as layout
+    assert "return Math.round(v*z)/z;" in js and "x=_devPx(x); y=_devPx(y);" in js
