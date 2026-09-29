@@ -48,6 +48,19 @@ def share_id(share_key: str) -> str:
     return SHARE_PREFIX + share_key
 
 
+# The page's map of source files on the owner's computer
+# (detail_extras.local_sources). A share goes to other people, on other
+# computers: the owner's folder names are no business of theirs and the paths
+# would open nothing there, so a snapshot keeps the block but empties it.
+# alto-cloud.js carries the same pattern (tests/test_share_links.py).
+LOCAL_BLOCK = re.compile(r'<script id="alto-local-src">[\s\S]*?</script>')
+LOCAL_EMPTY = '<script id="alto-local-src">window._ALTO_LOCAL={};</script>'
+
+
+def strip_local(page_html: str) -> str:
+    return LOCAL_BLOCK.sub(LOCAL_EMPTY, page_html)
+
+
 def reidentify(page_html: str, share_key: str) -> str:
     """Return `page_html` re-stamped as the share `share_key`.
 
@@ -57,6 +70,7 @@ def reidentify(page_html: str, share_key: str) -> str:
     """
     old = identity_of(page_html)
     new = share_id(share_key)
+    page_html = strip_local(page_html)
     if old == new:
         return page_html
     out = page_html

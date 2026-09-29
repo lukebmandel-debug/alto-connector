@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.7"
+__version__ = "1.9.8"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -609,7 +609,12 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
     stay in the conversation. Give an entry an `id` (and an https `url` when
     the material lives at one, e.g. a Google Doc) and nodes, entities and axis
     values can name it in their `sources`; their pages then get a "Source
-    notes" section linking back to it. Until consent=true, node authoring is locked."""
+    notes" section linking back to it. Add `local`, the file's full path on
+    this computer (e.g. '~/Downloads/Torts/Notes 9_22.docx'), when the user has
+    a copy of it here: in an offline copy of the timeline every link to that
+    source then offers the local file, and opens it in place of the web copy
+    when there is no internet. Section text links a source by its web url or
+    by `<a href="src:<id>">`. Until consent=true, node authoring is locked."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -855,14 +860,9 @@ def set_overview(timeline_id: str, overview_html: str) -> dict:
 
 
 def _source_docs(doc) -> list:
-    """The consent manifest's entries that carry an id: the source map node
-    and sub-chip `sources` point into (ALTO-011)."""
-    out = []
-    for s in (doc.get("consent") or {}).get("sources") or []:
-        if isinstance(s, dict) and s.get("id"):
-            out.append({"id": s["id"], "name": s.get("name") or s["id"],
-                        "url": s.get("url") or ""})
-    return out
+    """The consent manifest's entries that carry an id (ALTO-011)."""
+    from .build.builder import consent_source_docs
+    return consent_source_docs(doc)
 
 
 def _checked(doc, brief: dict) -> dict:
@@ -879,10 +879,8 @@ def _load_full(doc):
     st = get_store()
     nodes = [{k: v for k, v in n.items() if not k.startswith("_")}
              for n in st.list_nodes(uid(), doc["timeline_id"])]
-    brief = dict(doc["brief"])
-    if not brief.get("source_docs"):
-        brief["source_docs"] = _source_docs(doc)
-    return load_brief({"brief": brief, "nodes": nodes,
+    from .build.builder import stored_brief
+    return load_brief({"brief": stored_brief(doc), "nodes": nodes,
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 

@@ -38,7 +38,7 @@ from pathlib import Path
 import urllib.error
 import urllib.request
 
-from .build.builder import build_timeline, load_brief
+from .build.builder import build_timeline, load_brief, stored_brief
 from .build.fingerprint import META_NAME, build_fingerprint
 from .build.pages import build_home, build_reports
 from .build.private_shell import shell as private_shell
@@ -138,7 +138,7 @@ def _rebuild(store, uid: str, doc: dict) -> tuple[str | None, str]:
                  for n in store.list_nodes(uid, tid)]
         if not nodes:
             return None, "no stored nodes"
-        b, nodes, conns = load_brief({"brief": doc["brief"], "nodes": nodes,
+        b, nodes, conns = load_brief({"brief": stored_brief(doc), "nodes": nodes,
                                       "connections": store.get_connections(uid, tid)})
         html, _ = build_timeline(b, nodes, conns)
         return html, ""

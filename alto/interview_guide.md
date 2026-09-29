@@ -300,6 +300,13 @@ rules, learned the hard way:
   `url`, e.g. the Google Doc), and put `sources: [id]` on nodes, entities and
   axis values. Their pages get a "Source notes" section linking back; an
   outline node inherits its parent's sources.
+- **Local copies**: when the user has a source on this computer (downloaded
+  notes, a PDF), add its full path as `local` on that manifest entry — you can
+  see the path; never ask the user to find it. In an offline copy of the
+  timeline every link to that source (its url in section text, `src:<id>`
+  links, Source notes) then offers the file on this computer, and opens it
+  instead of the web copy when there is no internet. On the web nothing
+  changes. The build warns on a path with no file behind it.
 - **Outline element pages**: in outline mode each entity (element) page lists
   its concepts automatically; give the entity its own sections on how it is
   satisfied, from the material, where the material says. The build warns on

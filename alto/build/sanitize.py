@@ -124,6 +124,55 @@ def esc(s) -> str:
     return html.escape("" if s is None else str(s), quote=True)
 
 
+# ── links to the material's own documents (the source map) ──────────────────
+# `src:<id>` names a source by its manifest id; the build writes the real link.
+_SRC_REF = re.compile(r"^\s*src:([a-z][a-z0-9-]{0,47})\s*$")
+
+# Beside every link to a source that has a copy on the author's computer. It
+# carries only the source id — the path lives in the page's _ALTO_LOCAL map
+# (detail_extras.LOCAL_SOURCES), which a share snapshot drops — and it stays
+# hidden unless that script finds the page open from disk.
+LOCAL_ICON = ('<a href="#" class="alto-src-local" data-src-local="{id}" '
+              'title="Open the copy on this computer"></a>')
+
+
+def _url_key(u: str) -> str:
+    """A document URL cut down to what names the document: no query or
+    fragment, no trailing /edit, /view or /preview. A link to a heading
+    (…/edit#heading=h.x) and a sharing link (…/edit?usp=sharing) both still
+    name the source recorded as …/edit."""
+    v = (u or "").strip().split("#", 1)[0].split("?", 1)[0].rstrip("/")
+    return re.sub(r"/(?:edit|view|preview)$", "", v)
+
+
+class SourceMap:
+    """The brief's source_docs, for recognising links to them in text."""
+
+    def __init__(self, docs):
+        self.by_id, self.by_url = {}, {}
+        for d in docs or []:
+            if not isinstance(d, dict) or not d.get("id"):
+                continue
+            url = _safe_url(d.get("url") or "") or ""
+            self.by_id[d["id"]] = {"url": url if url.startswith("https://") else "",
+                                   "local": bool(d.get("local"))}
+            if self.by_id[d["id"]]["url"]:
+                self.by_url.setdefault(_url_key(url), d["id"])
+
+    def __bool__(self):
+        return bool(self.by_id)
+
+    def resolve(self, href: str) -> "tuple[str | None, str | None]":
+        """(source id, None) for a link to a known source; (None, id) for a
+        `src:` link to an unknown one; (None, None) for anything else."""
+        m = _SRC_REF.match(href or "")
+        if m:
+            return (m.group(1), None) if m.group(1) in self.by_id else (None, m.group(1))
+        if re.match(r"^https://", href or "", re.I):
+            return self.by_url.get(_url_key(href)), None
+        return None, None
+
+
 def unescape_text(s) -> str:
     """Undo `esc()` for the few sinks that are neither HTML nor innerHTML."""
     return html.unescape("" if s is None else str(s))
@@ -180,8 +229,11 @@ class _Allowlist(HTMLParser):
     DROP_CONTENT = {"script", "style"}
 
     def __init__(self, tags: set, attrs, svg: bool = False, node_ids=None,
-                 link_types=None):
+                 link_types=None, sources=None):
         super().__init__(convert_charrefs=True)
+        # The source map (SourceMap), so a link to one of the material's own
+        # documents is recognised and can offer its copy on this computer.
+        self.sources = sources
         self.tags, self.attrs, self.svg = tags, attrs, svg
         # None → ordinary markup mode; a set → overview mode, where <a> tags
         # carrying a showDetail() deep link are rewritten to the engine's
@@ -232,6 +284,45 @@ class _Allowlist(HTMLParser):
         if tag not in VOID_TAGS:
             self._open.append(tag)
 
+    def _open_source_anchor(self, attrs, href) -> bool:
+        """A link to a document in the source map: its web link (when it has
+        one) tagged with the source id, and — for a source with a copy on this
+        computer — the local icon after it (see handle_endtag). A `src:` link
+        to an unknown id keeps its text only. False when `href` is neither."""
+        sid, unknown = self.sources.resolve(href)
+        if unknown:
+            where = "overview" if self.node_ids is not None else "detail text"
+            self.warnings.append(f"{where}: link to unknown source {unknown!r} "
+                                 "shown as plain text")
+            self._anchor_stack.append("drop")
+            return True
+        if not sid:
+            return False
+        d = self.sources.by_id[sid]
+        if not (d["url"] or d["local"]):
+            self._anchor_stack.append("drop")
+            return True
+        title = self._emit_attrs("a", [(k, v) for k, v in attrs
+                                       if (k or "").lower() == "title"])
+        if d["url"]:
+            self.out.append(f'<a href="{esc(d["url"])}"{title} class="note-link" '
+                            f'target="_blank" rel="noopener" data-src="{sid}">')
+        else:
+            # Only on this computer: nothing to open on the web, so the link
+            # goes nowhere there (LOCAL_SOURCES stops the '#').
+            self.out.append(f'<a href="#"{title} class="note-link" data-src="{sid}">')
+        self._anchor_stack.append("a+local:" + sid if d["local"] else "a")
+        return True
+
+    def _close_anchor(self, action):
+        if action == "span":
+            self.out.append("</span>")
+        elif action == "a":
+            self.out.append("</a>")
+        elif action.startswith("a+local:"):
+            self.out.append("</a>" + LOCAL_ICON.format(id=action[8:]))
+        # "drop" closes nothing — the wrapper emitted nothing to close.
+
     def _open_overview_anchor(self, attrs):
         """Rewrite an <a> per its showDetail() target. The visible link text
         flows through handle_data unchanged; the matching </a> is closed in
@@ -246,6 +337,8 @@ class _Allowlist(HTMLParser):
             # every host, where following it in place would replace Alto.
             ext = ""
             href = next((v for k, v in attrs if (k or "").lower() == "href"), "") or ""
+            if self.sources is not None and self._open_source_anchor(attrs, href):
+                return
             if re.match(r"^https?://", (_safe_url(href) or ""), re.I):
                 ext = ' class="note-link" target="_blank" rel="noopener"'
             self.out.append(f"<a{self._emit_attrs('a', attrs)}{ext}>")
@@ -310,12 +403,7 @@ class _Allowlist(HTMLParser):
             return
         if (tag == "a" and self._anchor_stack
                 and (self.node_ids is not None or self.link_types is not None)):
-            action = self._anchor_stack.pop()
-            if action == "span":
-                self.out.append("</span>")
-            elif action == "a":
-                self.out.append("</a>")
-            # "drop" closes nothing — the wrapper emitted nothing to close.
+            self._close_anchor(self._anchor_stack.pop())
             return
         if tag not in self.tags or tag in VOID_TAGS:
             return
@@ -349,10 +437,7 @@ class _Allowlist(HTMLParser):
             self.out.append(f"</{self._open.pop()}>")
         # Close any overview anchors the author left unbalanced.
         for action in reversed(self._anchor_stack):
-            if action == "span":
-                self.out.append("</span>")
-            elif action == "a":
-                self.out.append("</a>")
+            self._close_anchor(action)
         self._anchor_stack.clear()
         return "".join(self.out)
 
@@ -371,7 +456,7 @@ def clean_markup(value) -> str:
     return _run(value, MARKUP_TAGS, MARKUP_ATTRS)
 
 
-def clean_linked_markup(value, link_types) -> "tuple[str, list[str]]":
+def clean_linked_markup(value, link_types, sources=None) -> "tuple[str, list[str]]":
     """`clean_markup` plus deep-link rewriting, for detail-page section text.
 
     An <a> whose onclick/href is `showDetail('<type>','<id>')` becomes an
@@ -380,20 +465,22 @@ def clean_linked_markup(value, link_types) -> "tuple[str, list[str]]":
     same as the overview does. Returns (html, warnings)."""
     if not value:
         return "", []
-    p = _Allowlist(MARKUP_TAGS, MARKUP_ATTRS, link_types=link_types or {})
+    p = _Allowlist(MARKUP_TAGS, MARKUP_ATTRS, link_types=link_types or {},
+                   sources=sources)
     p.feed(str(value))
     p.close()
     return p.result(), p.warnings
 
 
-def clean_overview(value, node_ids) -> "tuple[str, list[str]]":
+def clean_overview(value, node_ids, sources=None) -> "tuple[str, list[str]]":
     """Allowlisted inline HTML for the overview panel, plus deep-link rewriting:
     an <a> whose onclick/href is `showDetail('node','<id>')` becomes the engine's
     clickable-chip markup when the id is a live node, or plain text (with a
     warning) when it isn't. Returns (html, warnings)."""
     if not value:
         return "", []
-    p = _Allowlist(MARKUP_TAGS, MARKUP_ATTRS, node_ids=node_ids or set())
+    p = _Allowlist(MARKUP_TAGS, MARKUP_ATTRS, node_ids=node_ids or set(),
+                   sources=sources)
     p.feed(str(value))
     p.close()
     return p.result(), p.warnings
@@ -423,7 +510,7 @@ def sanitize_connections(b, nodes, connections) -> "tuple[list, list[str]]":
     out, warnings = [], []
     for c in connections or []:
         if len(c) == 4 and c[3]:
-            how, w = clean_linked_markup(c[3], link_types)
+            how, w = clean_linked_markup(c[3], link_types, SourceMap(b.source_docs))
             warnings.extend(f"connection {c[0]} → {c[1]}: {m}" for m in w)
             out.append([c[0], c[1], c[2], how])
         else:
@@ -452,13 +539,16 @@ def sanitize_brief(b, nodes=None) -> list:
     link_types.update({n.id: "node" for n in (nodes or [])})
 
     sec_warnings: list[str] = []
+    # Read before the source_docs themselves are cleaned below; SourceMap
+    # applies the same https-only rule to each url.
+    sources = SourceMap(b.source_docs)
 
     def sections(items, what):
         for i, s in enumerate(items or []):
             s.h = plain_text(s.h)          # `<h3>${s.h}</h3>`, raw
             # `<p>${s.t}</p>`, raw and markup-bearing — so deep links survive
             # here, unlike node.desc which has to stay plain (see below).
-            s.t, w = clean_linked_markup(s.t, link_types)
+            s.t, w = clean_linked_markup(s.t, link_types, sources)
             sec_warnings.extend(f"{what} section {i + 1}: {m}" for m in w)
 
     b.title = plain_text(b.title)
@@ -468,7 +558,7 @@ def sanitize_brief(b, nodes=None) -> list:
     b.node_noun = plain_text(b.node_noun)
     b.index_label = plain_text(b.index_label) or "Index"
     b.overview_html, ov_warnings = clean_overview(
-        b.overview_html, {n.id for n in (nodes or [])})
+        b.overview_html, {n.id for n in (nodes or [])}, sources)
     # These two land inside single-quoted JS literals in the sign-in stub, so
     # they additionally must not contain a quote that closes the literal.
     b.owner_name = one_line(b.owner_name).replace("'", "’")
@@ -481,7 +571,10 @@ def sanitize_brief(b, nodes=None) -> list:
     for d in b.source_docs:
         u = _safe_url(d.get("url") or "") or ""
         docs.append({"id": d["id"], "name": plain_text(d.get("name") or d["id"]),
-                     "url": u if u.startswith("https://") else ""})
+                     "url": u if u.startswith("https://") else "",
+                     # A path, never markup: it reaches the page only inside
+                     # the JSON of detail_extras.local_sources.
+                     "local": d.get("local") or ""})
     b.source_docs = docs
 
     def cite(c):

@@ -21,7 +21,7 @@ import re
 from urllib.parse import quote
 
 from .brief import PROVENANCE, Section
-from .sanitize import esc
+from .sanitize import esc, LOCAL_ICON
 
 # ── outline: a hub sits above its own children (ALTO-001) ───────────────────
 # The engine hook (engine_patches: outline-hub-above-children) calls this from
@@ -645,11 +645,118 @@ def source_section(ids, docs_by_id) -> "Section | None":
         if not d:
             continue
         name = d["name"]
-        items.append(
-            f'<span class="ns-item"><a class="note-link" href="{esc(d["url"])}" '
-            f'target="_blank" rel="noopener">{name}</a></span>' if d.get("url")
-            else f'<span class="ns-item">{name}</span>')
+        icon = LOCAL_ICON.format(id=sid) if d.get("local") else ""
+        if d.get("url"):
+            items.append(f'<span class="ns-item"><a class="note-link" href="{esc(d["url"])}" '
+                         f'target="_blank" rel="noopener" data-src="{sid}">{name}</a>'
+                         f'{icon}</span>')
+        elif icon:
+            items.append(f'<span class="ns-item"><a class="note-link" href="#" '
+                         f'data-src="{sid}">{name}</a>{icon}</span>')
+        else:
+            items.append(f'<span class="ns-item">{name}</span>')
     return Section(h="Source notes", t="".join(items)) if items else None
+
+
+# ── the material's own files, opened from this computer ─────────────────────
+# A source with a `local` path (brief.source_docs) is tagged data-src wherever
+# the page links to it, with sanitize.LOCAL_ICON after the link. Only a page
+# opened from disk — an offline copy — can reach a file:// URL, so on the web
+# nothing changes: the icons stay hidden and links go to the web copy. On disk
+# the icons show, and a link to the web copy opens the local file instead when
+# the browser reports no connection. The paths are in _ALTO_LOCAL alone, in a
+# block of its own that a share snapshot empties (reidentify.strip_local).
+#
+# `root` is the folder the files have in common. An offline copy saved in a
+# folder of that name, somewhere else, is taken to have moved together with
+# the files: they are looked for beside it, not at the old path.
+LOCAL_OPEN = r"""<style id="alto-local-css">
+  .alto-src-local{display:none;}
+  html.alto-disk .alto-src-local{display:inline-block;width:13px;height:13px;margin-left:4px;vertical-align:-2px;color:var(--muted);text-decoration:none;}
+  html.alto-disk .alto-src-local::before{content:"";display:block;width:100%;height:100%;background:currentColor;
+    -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3.5' width='10' height='7' rx='1'/%3E%3Cpath d='M1.5 12.5h13'/%3E%3C/svg%3E") center/contain no-repeat;
+    mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3.5' width='10' height='7' rx='1'/%3E%3Cpath d='M1.5 12.5h13'/%3E%3C/svg%3E") center/contain no-repeat;}
+  html.alto-disk .alto-src-local:hover{color:var(--accent);}
+  @media print{.alto-src-local{display:none!important;}}
+</style>
+<script id="alto-local-open">
+(function(){
+  var L=window._ALTO_LOCAL||{}, F=L.files||{};
+  var base=String(document.baseURI||'');
+  var disk=/^file:/i.test(base) && Object.keys(F).length>0;
+  if(disk) document.documentElement.classList.add('alto-disk');
+  function leaf(x){ return String(x).replace(/[\\/]+$/,'').split(/[\\/]/).pop(); }
+  function pathOf(id){
+    var p=F[id].p, root=L.root||'';
+    try{
+      var here=decodeURIComponent(base.replace(/^file:\/\/[^\/]*/i,'').replace(/[?#].*$/,'').replace(/\/[^\/]*$/,''));
+      if(/^\/[A-Za-z]:\//.test(here)) here=here.slice(1);
+      var r=root.replace(/\\/g,'/');
+      if(r && here!==r && leaf(here)===leaf(r) && p.replace(/\\/g,'/').indexOf(r+'/')===0)
+        p=here+p.replace(/\\/g,'/').slice(r.length);
+    }catch(e){}
+    return p;
+  }
+  function fileUrl(p){
+    p=p.replace(/\\/g,'/'); if(p.charAt(0)!=='/') p='/'+p;
+    return 'file://'+encodeURI(p).replace(/\?/g,'%3F').replace(/#/g,'%23');
+  }
+  window._altoOpenLocal=function(id){
+    if(!disk || !F[id]) return false;
+    var u=fileUrl(pathOf(id));
+    // window.open: WebKit ignores a scripted link click to file:// from inside
+    // the offline copy's srcdoc frame, and honours this.
+    var w=null; try{ w=window.open(u,'_blank'); }catch(e){}
+    if(!w){ var a=document.createElement('a'); a.href=u; a.target='_blank';
+      document.body.appendChild(a); a.click(); a.remove(); }
+    return true;
+  };
+  document.addEventListener('click',function(e){
+    var a=e.target&&e.target.closest&&e.target.closest('a[data-src],a[data-src-local]');
+    if(!a) return;
+    var icon=a.hasAttribute('data-src-local');
+    var id=a.getAttribute(icon?'data-src-local':'data-src');
+    var web=/^https?:/i.test(a.getAttribute('href')||'');
+    if(disk && F[id] && (icon || !web || navigator.onLine===false)){
+      e.preventDefault(); e.stopPropagation(); window._altoOpenLocal(id); return;
+    }
+    if(!web) e.preventDefault();
+  },true);
+})();
+</script>"""
+
+
+def local_sources(b) -> "tuple[str, list[str]]":
+    """The page's _ALTO_LOCAL block plus LOCAL_OPEN, or "" when no source has a
+    local copy — a timeline without one is byte-for-byte what it was. Warns
+    about a path with no file behind it: the build runs on the author's own
+    computer, so a missing file there is a real mistake, not a moved one."""
+    import os
+    files, warnings = {}, []
+    for d in b.source_docs:
+        loc = (d.get("local") or "").strip() if isinstance(d, dict) else ""
+        if not loc:
+            continue
+        p = os.path.expanduser(loc)
+        if not os.path.isfile(p):
+            warnings.append(f"source {d['id']}: no file at {loc} — its "
+                            "offline link will not open anything")
+        files[d["id"]] = {"p": p}
+    if not files:
+        return "", warnings
+    dirs = [os.path.dirname(f["p"]) for f in files.values()]
+    try:
+        root = os.path.commonpath(dirs)
+    except ValueError:              # different drives
+        root = ""
+    data = json.dumps({"root": root, "files": files}, ensure_ascii=False)
+    block = (f'<script id="{LOCAL_BLOCK_ID}">window._ALTO_LOCAL='
+             + data.replace("</", "<\\/") + ";</script>\n")
+    return block + LOCAL_OPEN + "\n", warnings
+
+
+# The id reidentify.strip_local (and alto-cloud.js) look for.
+LOCAL_BLOCK_ID = "alto-local-src"
 
 
 def prov_heading(s) -> str:

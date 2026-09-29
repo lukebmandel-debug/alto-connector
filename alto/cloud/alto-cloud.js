@@ -581,10 +581,15 @@
     return m ? m[1] : '';
   }
 
+  const LOCAL_BLOCK = /<script id="alto-local-src">[\s\S]*?<\/script>/g;
+  const LOCAL_EMPTY = '<script id="alto-local-src">window._ALTO_LOCAL={};</script>';
   function _reidentify(html, shareKey) {
     const m = /var COURSE_ID = '([^']*)';/.exec(html || '');
     if (!m) throw new Error('not an Alto timeline page');
     const oldId = m[1], newId = 's-' + shareKey;
+    // The owner's own file paths (reidentify.LOCAL_BLOCK) never leave with a
+    // share: other people's computers do not have those files.
+    html = html.replace(LOCAL_BLOCK, LOCAL_EMPTY);
     if (oldId === newId) return html;
     let out = html;
     for (const [, tmpl] of ID_PATTERNS)

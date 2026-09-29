@@ -317,10 +317,13 @@ class Brief:
     # (characters, environments, themes, doctrines…), so any of them can be
     # filtered by. Set false for a timeline that should not offer that.
     chip_filters: bool = True
-    # The documents the material came from, [{id, name, url?}] — the source
-    # map every node and sub-chip's `sources` point into, rendered as a
+    # The documents the material came from, [{id, name, url?, local?}] — the
+    # source map every node and sub-chip's `sources` point into, rendered as a
     # "Source notes" section on its page. Filled from the consent manifest
-    # (record_materials_consent) for every entry that carries an id.
+    # (record_materials_consent) for every entry that carries an id. `local`
+    # is the file's path on the author's own computer: a copy opened from
+    # disk opens it in place of `url` when there is no internet, and offers it
+    # beside every link to that source (detail_extras.LOCAL_SOURCES).
     source_docs: list[dict] = field(default_factory=list)
     # The nav group that holds the index buttons of hide_nav axes.
     index_label: str = "Index"
@@ -400,6 +403,12 @@ def _check_refs(refs, doc_ids, what, warnings) -> None:
                             "it will not be shown")
 
 
+# A source's copy on the author's own computer: absolute (POSIX or a Windows
+# drive) or under ~. No control characters, no URL schemes — it becomes a
+# file:// URL only at click time, inside a copy opened from disk.
+LOCAL_PATH = re.compile(r"^(?:/|~/|[A-Za-z]:[\\/])[^\x00-\x1f]{1,1000}$")
+
+
 def _check_sources(b) -> set:
     ids = set()
     for d in b.source_docs:
@@ -410,6 +419,11 @@ def _check_sources(b) -> set:
         u = d.get("url") or ""
         if u and not u.startswith("https://"):
             raise BriefError(f"source doc {d['id']}: url must be https://")
+        loc = d.get("local") or ""
+        if loc and not LOCAL_PATH.match(loc):
+            raise BriefError(f"source doc {d['id']}: local must be a full path "
+                             "to the file on this computer ('/…', '~/…' or "
+                             "'C:\\…')")
         ids.add(d["id"])
     return ids
 

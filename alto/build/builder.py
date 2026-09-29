@@ -52,6 +52,29 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
     return brief, nodes, connections
 
 
+def consent_source_docs(doc: dict) -> list:
+    """The consent manifest's entries that carry an id: the source map node
+    and sub-chip `sources` point into (ALTO-011), and the local copies
+    detail_extras.local_sources opens. Every path that builds a stored
+    timeline fills Brief.source_docs from here — the publish rebuild once
+    did not, and shipped every private page without its source links."""
+    out = []
+    for s in (doc.get("consent") or {}).get("sources") or []:
+        if isinstance(s, dict) and s.get("id"):
+            out.append({"id": s["id"], "name": s.get("name") or s["id"],
+                        "url": s.get("url") or "", "local": s.get("local") or ""})
+    return out
+
+
+def stored_brief(doc: dict) -> dict:
+    """A stored timeline's brief as the build must see it: with the source
+    map filled in from the consent manifest unless the brief carries one."""
+    brief = dict(doc["brief"])
+    if not brief.get("source_docs"):
+        brief["source_docs"] = consent_source_docs(doc)
+    return brief
+
+
 def place(brief: Brief, nodes: list[Node]) -> None:
     """Order and column-assign nodes for the brief's mode. Idempotent."""
     if brief.mode == "outline":
@@ -146,7 +169,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
-    html = _add_tail(html, brief, nodes)
+    html = _add_tail(html, brief, nodes, warnings)
 
     # Deep links that survived sanitize (unknown ones were demoted) must reach
     # the output as engine chip markup — assert each one did.
@@ -173,7 +196,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     return html, report
 
 
-def _add_tail(html: str, brief: Brief, nodes: list) -> str:
+def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
     """Detail-page extras that must wrap showDetail last (back-to-previous,
     banner clearance, auto-linking), placed just before the page's closing
     body tag. Every page gets them: they were gated to outline and index
@@ -182,7 +205,11 @@ def _add_tail(html: str, brief: Brief, nodes: list) -> str:
     from . import detail_extras as dx
     from .search import search_config
     table = dx.autolink_table(brief)
-    tail = ("<script>window._ALTO_AUTOLINK="
+    # Sources with a copy on the author's computer (empty when none have one).
+    local, local_warnings = dx.local_sources(brief)
+    if warnings is not None:
+        warnings += local_warnings
+    tail = (local + "<script>window._ALTO_AUTOLINK="
             + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + search_config(brief))
