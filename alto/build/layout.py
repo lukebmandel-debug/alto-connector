@@ -291,15 +291,16 @@ def outline_order_and_columns(nodes, columns: int) -> None:
 # branch hanging straight off the root. A branch is one vertical spine: its
 # section on top, then its children in order, a nested section starting a new
 # run of the same spine. A concept's first two leaves flank it on its own row
-# (left, right), narrower than a spine card so six lanes fit the 1700px world;
-# further leaves take rows of their own below it. Rows are centred, so every
+# (left, right), narrower than a spine card so six lanes fit the 1700px world
+# with a clear margin (MARGIN) at each edge; further leaves take rows of their
+# own below it, in the same narrow flank lanes. Rows are centred, so every
 # concept-to-flank line is a straight horizontal run.
 #
 # The browser re-runs exactly this over measured heights (detail_extras
 # TREE_GLUE, which reads TREE below), so the builder's positions are hints in
 # the same shape. Mobile keeps its own single-column grid (mobile_grid, col).
 TREE = {
-    "CX": 850, "BRANCH_X": [425, 1275], "FLANK_DX": 283, "FLANK_W": 200,
+    "CX": 850, "BRANCH_X": [470, 1230], "FLANK_DX": 265, "FLANK_W": 180,
     "TOP": LABEL_RESERVE, "ROOT_GAP": 70, "HEAD_GAP": 56, "ROW_GAP": 40,
     "GROUP_GAP": 90, "ACT_GAP": ACT_BOUNDARY_GAP,
 }
@@ -327,7 +328,7 @@ def outline_flanks(nodes) -> set:
     flanks = set()
     for pid, ks in kids.items():
         if pid not in roots and ks and all(not kids.get(k) for k in ks):
-            flanks.update(ks[:2])
+            flanks.update(ks)
     return flanks
 
 

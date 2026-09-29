@@ -33,8 +33,9 @@ def _build(d):
 # ── ALTO-001 ────────────────────────────────────────────────────────────────
 
 def test_a_hub_sits_above_every_child_in_the_hints():
-    """The outline tree keeps every hub above its children (a flank shares its
-    concept's row; everything else starts below the hub's bottom)."""
+    """The outline tree keeps every hub above its children (a concept's first
+    two flanks share its row; everything else, including the flanks on the
+    rows below, starts below the hub's bottom)."""
     b, nodes, _ = load_brief(_d())
     validate_brief(b)
     place(b, nodes)
@@ -42,10 +43,14 @@ def test_a_hub_sits_above_every_child_in_the_hints():
     h = {n.id: card_height(n.desc, n.title, TREE["FLANK_W"] if n.id in fl else 270)
          for n in nodes}
     pos, _, _ = outline_tree(nodes, len(b.acts), h)
+    kids = {}
+    for n in nodes:
+        if n.parent:
+            kids.setdefault(n.parent, []).append(n.id)
     for n in nodes:
         if not n.parent:
             continue
-        if n.id in fl:
+        if n.id in fl and kids[n.parent].index(n.id) < 2:
             assert abs(pos[n.id] - pos[n.parent]) < 0.5, n.id
         else:
             assert pos[n.id] - h[n.id] / 2 >= pos[n.parent] + h[n.parent] / 2, n.id

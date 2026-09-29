@@ -1563,7 +1563,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         if _fl:
             nav_char_css += ("\n  " + ",".join(
                 f"html:not(.mobile) #node-{i} .node-card" for i in _fl)
-                + f"{{width:{TREE['FLANK_W']}px;}}")
+                + f"{{width:{TREE['FLANK_W']}px;}}"
+                + "\n  " + ",".join(
+                    f"html:not(.mobile) #node-{i} .esym-btn,"
+                    f"html:not(.mobile) #node-{i} .tsym-btn" for i in _fl)
+                + "{max-width:120px;}")
     # A named chip (hide_nav axes, above) has to stay inside a 270px card, so
     # cap it and ellipsise rather than letting one long case name reflow the
     # footer. The glyph form is a fixed 14px and needs none of this.

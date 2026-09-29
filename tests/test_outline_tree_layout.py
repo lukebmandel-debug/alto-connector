@@ -203,3 +203,25 @@ def test_line_crossings_counts_a_crossing_and_ignores_shared_ends():
     # a→b turns across at y=100; c→d runs straight down x=50 through it
     assert line_crossings([("a", "b"), ("c", "d")], xs, ys, h, False) == 1
     assert line_crossings([("a", "b"), ("a", "d")], xs, ys, h, False) == 0
+
+
+def test_side_by_side_branches_keep_a_clear_margin_at_both_edges():
+    """Two branches side by side, each with a concept of five leaves: every
+    card, including the leaves on rows below the concept, stays well inside
+    the 1700px world (clear of the page's right-edge rail), and the leaves
+    below the first row are narrow flank cards too, not full-width ones."""
+    ns = [_n("root")]
+    for s in ("a", "b"):
+        ns += [_n(s, "root"), _n(s + "c", s)]
+        ns += [_n(f"{s}c{k}", s + "c") for k in range(5)]
+    h = _heights(ns)
+    y, x, _ = outline_tree(ns, 1, h)
+    fl = outline_flanks(ns)
+    assert {f"ac{k}" for k in range(5)} <= fl
+    boxes = {n.id: _box(n, y, x, h, fl) for n in ns}
+    assert all(b[0] >= 100 and b[2] <= 1600 for b in boxes.values()), boxes
+    ids = list(boxes)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            A, B = boxes[a], boxes[b]
+            assert not (A[0] < B[2] and B[0] < A[2] and A[1] < B[3] and B[1] < A[3]), (a, b)
