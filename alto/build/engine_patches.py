@@ -115,7 +115,7 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
      own shadow goes, at once, not animated. */
   transform:none !important; transform-origin:center !important;
   opacity:1 !important; box-shadow:none !important;
-  transition:opacity .25s, border-color .2s !important;
+  transition:opacity var(--alto-fly,.25s) var(--alto-ease), border-color .2s !important;
   /* The magnification is CSS zoom, applied inline per frame by enterFocus. A
      zoomed element can lose its backdrop-filter, so — as the .crisp rule this
      replaces already did — legibility must not depend on the frost. Raise the
@@ -126,6 +126,22 @@ _FOCUS_CSS_NEW = """html:not(.mobile) .node.focused .node-card{
   background:var(--node-glass-bg, var(--panel-glass-bg));
 }
 html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
+/* Every fade that comes with a focus change rides the growth's clock and curve
+   (motion-one-body): the other cards dimming, the new card brightening, the
+   headers and lines fading. They ran on CSS's own 'ease' over .25-.3s, done
+   in ~150ms while the card was 12% grown — the scene dimmed, THEN the card
+   grew: two beats (Luke: "the Netflix boom boom"). cubic-bezier(.5,0,.5,1)
+   is minimum-jerk to within 1%; --alto-fly is the glide's duration, written
+   once per focus change (flyTo, exitFocus) and 250ms the rest of the time,
+   so a hover fade keeps its pace. */
+html:not(.mobile) #canvas{ --alto-fly:250ms; --alto-ease:cubic-bezier(.5,0,.5,1); }
+html:not(.mobile) #canvas .node-card{
+  transition: opacity var(--alto-fly) var(--alto-ease), box-shadow .28s, border-color .2s,
+              transform .24s cubic-bezier(.22,.61,.36,1);
+}
+html:not(.mobile) #canvas .phase-label, html:not(.mobile) #canvas .phase-label-float,
+html:not(.mobile) #canvas .unit-bar, html:not(.mobile) #canvas .phase-numeral,
+html:not(.mobile) #canvas #river-svg{ transition: opacity var(--alto-fly) var(--alto-ease) !important; }
 /* The glass is full-bleed and only changes colour top to bottom, so it holds
    still sideways while the board pans across it: panning never shows bare
    page past its edge. */
@@ -171,6 +187,15 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      when slowed. This curve also forgives a slow first frame: nothing is
      moving fast yet when it lands.
 
+     No frame is held back any more (motion-starts-after-the-state-frame):
+     that wait kept a 40ms first frame from jumping an ease-out ramp ~30%,
+     but minimum-jerk has moved <1% by then — and the wait put the card a
+     frame or two behind the CSS fades, which start at once (a lead of ~80ms
+     in WebKit: the second beat again). And each ramp's clock starts at the
+     change itself (performance.now()), as a CSS transition's does, not at its
+     first frame: WebKit's first frame after a focus change takes ~40ms, which
+     the ramps used to lose and the fades did not.
+
      Duration follows distance, as a hand's does (Fitts): ~410-440ms for a
      neighbour, up to 580ms across the outline (_flyMs, set by flyTo). */
   function _altoEase(p){
@@ -197,6 +222,15 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     w.style.setProperty('--pan-x',x+'px'); w.style.setProperty('--pan-y',y+'px');
   }
   window._altoPan=function(){ return {x:_pan.x, y:_pan.y}; };
+  /* The fades' duration (see the --alto-fly CSS): set for this focus change,
+     back to 250ms once it has landed. Running transitions keep the duration
+     they started with, so resetting early never cuts one short. */
+  var _flyT=null;
+  function _fadeClock(ms){
+    canvas.style.setProperty('--alto-fly', ms+'ms');
+    clearTimeout(_flyT);
+    _flyT=setTimeout(function(){ canvas.style.removeProperty('--alto-fly'); }, ms+60);
+  }
   function _flyMs(dist){ return Math.round(Math.max(400, Math.min(580, 380+0.1*dist))); }
   var FOCUS_MS=400, UNFOCUS_MS=320;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
@@ -209,7 +243,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
       if(_zwCard && _zwCard!==card) _setZoom(_zwCard,_zwTo);
     }
     _zwCard=card; _zwTo=to;
-    var from=parseFloat(card.style.zoom)||1, s=null, warm=true;
+    var from=parseFloat(card.style.zoom)||1, s=performance.now(), warm=false;
     if(Math.abs(to-from)<0.002){ _setZoom(card,to); return; }
     function step(ts){
       if(warm){ warm=false; _zw=requestAnimationFrame(step); return; }   // see motion-starts-after-the-state-frame
@@ -225,7 +259,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      home — shrinking and sliding back with the glide — instead of snapping, which
      read as a glitch on every hop. */
   function _release(p){
-    var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=null, warm=true;
+    var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=performance.now(), warm=false;
     if(p._rel) cancelAnimationFrame(p._rel);
     _quietShadow(card,FOCUS_MS); _focusShadow(p,null);
     function step(ts){
@@ -246,7 +280,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      every frame. */
   function _quietShadow(card,ms){
     if(!card) return; clearTimeout(card._qs);
-    card.style.transition='opacity .25s, border-color .2s';
+    card.style.transition='opacity '+ms+'ms cubic-bezier(.5,0,.5,1), border-color .2s';
     card._qs=setTimeout(function(){ card.style.transition=''; },ms+40);
   }
   /* The enlarged card's shadow: one element per focused card, the size the
@@ -289,8 +323,22 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   }
 
 
+  /* flyTo's duration, planned BEFORE any class changes: the classes start the
+     fades, and flyTo's own layout reads would start them before it could say
+     how long they should take (they ran at 250ms while the card grew over
+     ~420ms — the two beats again). Same arithmetic as flyTo. */
+  function _flyPlanMs(el){
+    var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);
+    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
+    var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
+    var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
+    var px=-(a.x-(tl+cw/2)), py=-(a.y-(tt+ch/2));
+    var dx=(tl-qx.at())-(px-_pan.x), dy=(tt-qy.at())-(py-_pan.y);
+    return _flyMs(Math.sqrt(dx*dx+dy*dy));
+  }
   function enterFocus(id){
     if(!id) return; var el=nodeEl(id); if(!el) return;
+    _fadeClock(FOCUS_MS=window._altoFlyMs=_flyPlanMs(el));
     if(el._rel){ cancelAnimationFrame(el._rel); el._rel=null; }
     el._hov=null;                                       // enlarged: centred, not grown from its top
     var p=null;
@@ -665,6 +713,7 @@ _FLY_SCROLL_NEW = """    // Where the card sits on the board at rest (_canvasXY 
     // how far the eye travels: the board, scrolled and panned
     var dx=(tl-l0)-(px-px0), dy=(tt-t0)-(py-py0);
     FOCUS_MS=window._altoFlyMs=_flyMs(Math.sqrt(dx*dx+dy*dy));
+    _fadeClock(FOCUS_MS);
     _animate(FOCUS_MS,function(k){
       qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
       _setPan(px0+(px-px0)*k, py0+(py-py0)*k);
@@ -765,12 +814,12 @@ _TINT_SCOPE_NEW = """    if(!rgb){ _tint(''); _setBrandTone(null,0); return; }
 _ANIM_WARM_OLD = """    var s=null;
     function ez(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; }
     function step(ts){ if(s===null)s=ts; var p=Math.min(1,(ts-s)/dur),k=ez(p); cb(k); if(p<1)_tw=requestAnimationFrame(step); else if(done)done(); }"""
-_ANIM_WARM_NEW = """    var s=null, warm=true;
+_ANIM_WARM_NEW = """    var s=performance.now(), warm=false;   // clock from the change, as CSS's: see motion-one-body
     function ez(p){ return _altoEase(p); }
     function step(ts){ if(warm){ warm=false; _tw=requestAnimationFrame(step); return; }
       if(s===null)s=ts; var p=Math.min(1,(ts-s)/dur),k=ez(p); cb(k); if(p<1)_tw=requestAnimationFrame(step); else if(done)done(); }"""
 _WHEEL_EXIT_OLD = "    canvas.classList.remove('focus-mode');\n"
-_WHEEL_EXIT_NEW = "    canvas.classList.remove('focus-mode');\n    _wheelSync();\n"
+_WHEEL_EXIT_NEW = "    _fadeClock(UNFOCUS_MS);   // before the class change starts the fades\n    canvas.classList.remove('focus-mode');\n    _wheelSync();\n"
 _WHEEL_OPEN_OLD = "  window.addEventListener('wheel', function(e){\n"
 _WHEEL_OPEN_NEW = "  function _onWheel(e){\n"
 _WHEEL_CLOSE_OLD = "  }, {passive:false, capture:true});\n"

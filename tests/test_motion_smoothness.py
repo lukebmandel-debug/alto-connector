@@ -71,9 +71,11 @@ def test_the_enlarged_card_moves_by_margins_never_a_transform():
     assert "!n.style.getPropertyValue('--fx')" in html
 
 
-def test_ramps_start_their_clock_after_the_state_frame():
+def test_ramps_start_with_the_css_fades():
+    """The held first frame is gone: with minimum-jerk it saved nothing, and it
+    put the card behind the CSS fades that start at once (two beats)."""
     js = _script(_html(), "alto-focus-mode")
-    assert js.count("if(warm){ warm=false;") == 3     # fly/flyBack, zoom ramp, release glide
+    assert "warm=true" not in js
 
 
 def test_safari_wheel_listener_is_passive_unless_needed():
@@ -157,3 +159,23 @@ def test_the_board_moves_as_one_piece():
     assert "#world #glass-slab{ translate:calc(-1 * var(--pan-x,0px)) 0; }" in html
     # on the device-pixel grid, so a transform stays as crisp as layout
     assert "return Math.round(v*z)/z;" in js and "x=_devPx(x); y=_devPx(y);" in js
+
+
+def test_the_fades_ride_the_growths_clock():
+    """Luke (1.9.17): "the Netflix boom boom" — the scene dimmed on CSS's own
+    .25-.3s ease (half done by ~85ms) and THEN the card grew (half at ~270ms).
+    Every fade now takes the glide's duration and a minimum-jerk curve, is
+    timed before the classes change, and the ramps count from the change."""
+    html = _html()
+    js = _script(html, "alto-focus-mode")
+    assert "html:not(.mobile) #canvas{ --alto-fly:250ms; --alto-ease:cubic-bezier(.5,0,.5,1); }" in html
+    assert "transition: opacity var(--alto-fly) var(--alto-ease), box-shadow .28s" in html
+    assert "#canvas #river-svg{ transition: opacity var(--alto-fly) var(--alto-ease) !important; }" in html
+    assert "transition:opacity var(--alto-fly,.25s) var(--alto-ease), border-color .2s !important" in html
+    enter = js[js.index("function enterFocus(id){", js.index("function _flyPlanMs")):]
+    enter = enter[:enter.index("\n  }")]
+    assert enter.index("_fadeClock(FOCUS_MS=window._altoFlyMs=_flyPlanMs(el));") < enter.index("el.classList.add('focused');")
+    ex = js[js.index("function exitFocus(){"):]
+    assert ex.index("_fadeClock(UNFOCUS_MS);") < ex.index("canvas.classList.remove('focus-mode');")
+    assert "card.style.transition='opacity '+ms+'ms cubic-bezier(.5,0,.5,1), border-color .2s';" in js
+    assert js.count("=performance.now(), warm=false;") == 3

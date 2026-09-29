@@ -45,7 +45,7 @@ def test_the_focused_card_is_not_transform_scaled(html):
     assert "transform:none !important" in rule
     # its big shadow is its own layer, not re-blurred on the zooming card
     assert "box-shadow:none !important" in rule
-    assert "transition:opacity .25s, border-color .2s !important" in rule
+    assert "transition:opacity var(--alto-fly,.25s) var(--alto-ease), border-color .2s !important" in rule
     assert ".alto-fshadow{" in html and "function _focusShadow(el,at)" in html and "function _shadowSync(n)" in html
 
 
