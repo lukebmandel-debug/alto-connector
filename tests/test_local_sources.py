@@ -157,9 +157,13 @@ def test_the_page_maps_each_source_to_its_file(notes):
 
 
 def test_tilde_is_expanded_at_build(monkeypatch, notes):
+    # HOME on POSIX, USERPROFILE on Windows
     monkeypatch.setenv("HOME", str(notes.parent.parent))
-    html, _ = build_timeline(*load_brief(_with_local(_d(), "~/Contracts/" + notes.name)))
-    assert json.dumps(str(notes)) in html
+    monkeypatch.setenv("USERPROFILE", str(notes.parent.parent))
+    loc = "~/Contracts/" + notes.name
+    html, rep = build_timeline(*load_brief(_with_local(_d(), loc)))
+    assert json.dumps(__import__("os").path.expanduser(loc)) in html
+    assert not any("no file at" in w for w in rep["warnings"])
 
 
 def test_source_notes_offer_the_local_copy(notes):
