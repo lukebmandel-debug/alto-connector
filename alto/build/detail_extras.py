@@ -732,11 +732,12 @@ LOCAL_OPEN = r"""<style id="alto-local-css">
 # tile after the last unit, like the homepage's "＋ New timeline", that opens
 # Claude with a prompt naming this timeline. Never on a phone (no UA match, and
 # hidden in the engine's mobile layout): timelines are made and changed with
-# Claude on a computer. Placed from the laid-out page —
-# below the glass slab, or the lowest card when there is none — and re-placed
-# whenever #world changes size, so tree, flow and mobile layouts all get it
-# without touching the engine. A share snapshot (COURSE_ID 's-…', see
-# reidentify) is someone else's timeline and shows no tile.
+# Claude on a computer. It sits inside the timeline's own background: the last
+# unit's band is lengthened by ROOM for it (engine patch
+# edit-tile-inside-the-last-band, which carries the glass slab and its tint
+# along), and the tile takes that row, re-placed whenever #world changes size.
+# A share snapshot (id 's-...', see reidentify) is someone else's timeline: no
+# tile, and no extra room.
 EDIT_TILE = r"""<style id="alto-edit-css">
   .alto-edit-tile{position:absolute;left:50%;transform:translateX(-50%);width:260px;min-height:92px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -768,6 +769,11 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   if(!tid || tid.indexOf('s-') === 0) return;
   // Not on a phone: timelines are made and changed with Claude on a computer.
   if(/iPhone|iPod|Android.*Mobile|Windows Phone/i.test(navigator.userAgent)) return;
+  // The last unit's band grows by this much (engine patch
+  // edit-tile-inside-the-last-band), so the tile sits inside the timeline's
+  // own background. Set while the page parses — the first layout runs later.
+  var ROOM = 130;
+  window._altoEditRoom = ROOM;
   var TITLE = E.title || document.title;
   var GET = 'https://alto-get.web.app';
   function prompt(){
@@ -801,16 +807,21 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   }
   window._altoEditTimeline = openClaude;
   var tile = null, world = null;
-  function bottomOf(){
-    var slab = document.getElementById('glass-slab'), b = 0;
-    if(slab && slab.offsetHeight && getComputedStyle(slab).display !== 'none')
-      b = slab.offsetTop + slab.offsetHeight;
-    var ns = world.querySelectorAll('.node, .phase-band');
-    for(var i = 0; i < ns.length; i++){
-      var n = ns[i]; if(!n.offsetHeight) continue;
-      var nb = n.offsetTop + n.offsetHeight; if(nb > b) b = nb;
+  // Bottom edge of the last unit's band, which ends ROOM + 100 below its
+  // lowest card; the tile takes the middle of that. Timelines with no bands
+  // fall back to the lowest card.
+  function slot(){
+    var bands = world.querySelectorAll('.phase-band'), b = 0;
+    for(var i = 0; i < bands.length; i++){
+      var nb = bands[i].offsetTop + bands[i].offsetHeight; if(nb > b) b = nb;
     }
-    return b;
+    if(b) return b - ROOM - 60;
+    var ns = world.querySelectorAll('.node');
+    for(var k = 0; k < ns.length; k++){
+      var n = ns[k]; if(!n.offsetHeight) continue;
+      var bb = n.offsetTop + n.offsetHeight; if(bb > b) b = bb;
+    }
+    return b ? b + 48 : 0;
   }
   function place(){
     world = document.getElementById('world');
@@ -824,10 +835,13 @@ EDIT_TILE = r"""<style id="alto-edit-css">
       tile.addEventListener('click', function(e){ e.stopPropagation(); openClaude(); });
       world.appendChild(tile);
     }
-    var b = bottomOf(); if(!b) return;
-    var top = Math.round(b + 48);
+    var top = Math.round(slot()); if(!top) return;
     if(tile.style.top !== top + 'px') tile.style.top = top + 'px';
-    var need = top + tile.offsetHeight + 60;
+    // Room to scroll to the end of the background (the glass slab runs past
+    // the last band) as well as to the tile.
+    var slab = document.getElementById('glass-slab');
+    var need = Math.max(top + tile.offsetHeight + 60,
+                        slab && slab.offsetHeight ? slab.offsetTop + slab.offsetHeight + 40 : 0);
     var pad = parseFloat(getComputedStyle(world).paddingTop) || 0;
     if(world.offsetHeight < need + pad) world.style.minHeight = need + 'px';
   }

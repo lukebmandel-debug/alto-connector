@@ -1959,3 +1959,20 @@ PATCHES += [
     {"name": "search-mobile-grouped-rows", "old": _SR_M_ROWS_OLD, "new": _SR_M_ROWS_NEW, "count": 1},
     {"name": "search-mobile-lands", "old": _SR_M_NAV_OLD, "new": _SR_M_NAV_NEW, "count": 1},
 ]
+
+
+# ── the ✎ Edit timeline tile sits inside the timeline's own background ──────
+# detail_extras.EDIT_TILE hangs the tile after the last unit. Below the glass
+# slab it read as a separate bar on the bare page gradient (Luke: extend the
+# background instead). The slab, its per-unit tint and the bands are all drawn
+# from computeActBands, so the last band grows by the tile's row — set by the
+# tile's script (window._altoEditRoom) only where the tile shows; a share or a
+# phone adds nothing.
+_EDIT_ROOM_OLD = "    bands[bands.length-1].endY += 100; // canvas breathing room"
+_EDIT_ROOM_NEW = ("    bands[bands.length-1].endY += 100 + (window._altoEditRoom || 0); "
+                  "// canvas breathing room (+ the Edit timeline tile's row)")
+
+PATCHES += [
+    {"name": "edit-tile-inside-the-last-band", "old": _EDIT_ROOM_OLD,
+     "new": _EDIT_ROOM_NEW, "count": 1},
+]

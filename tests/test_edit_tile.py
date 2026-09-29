@@ -126,3 +126,16 @@ def test_the_guide_explains_the_button():
     g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     sec = g[g.index("## Changes go through Claude"):g.index("## What the user gets")]
     assert "Edit timeline" in sec and "get_timeline(<id>)" in sec and "list_projects" in sec
+
+
+def test_the_tile_sits_inside_the_last_band(built):
+    """Luke: extend the timeline's background rather than hang the tile on a
+    bar of its own below it. The last band grows by the tile's row, set only
+    where the tile shows."""
+    b, html = built
+    assert "bands[bands.length-1].endY += 100 + (window._altoEditRoom || 0);" in html
+    js = dx.EDIT_TILE
+    ro = js.index("window._altoEditRoom = ROOM;")
+    assert js.index("tid.indexOf('s-') === 0) return;") < ro   # not in a share
+    assert js.index("Windows Phone/i.test(navigator.userAgent)) return;") < ro  # nor on a phone
+    assert "return b - ROOM - 60;" in js
