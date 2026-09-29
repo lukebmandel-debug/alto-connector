@@ -98,12 +98,12 @@ def test_enlarging_and_hopping_move_as_one_body():
     and the old card's return share one curve and one duration, so nothing
     arrives before the view does and nothing starts with a kick."""
     js = _script(_html(), "alto-focus-mode")
-    assert "function _altoEase(p){" in js and "var FOCUS_MS=420, UNFOCUS_MS=300;" in js
+    assert "function _altoEase(p){" in js and "var FOCUS_MS=460, UNFOCUS_MS=330;" in js
     assert "function ez(p){ return _altoEase(p); }" in js          # glide + glide back
     assert "e=_altoEase(p);" in js                                  # zoom ramp
     assert "e=_altoEase(t);" in js and "(ts-s0)/FOCUS_MS" in js     # release
-    assert "_zoomRamp(el,FOCUS_K,FOCUS_MS);" in js and "_animate(420," in js
-    assert "_zoomRamp(el,1,UNFOCUS_MS);" in js and "_animate(300," in js
+    assert "_zoomRamp(el,FOCUS_K,FOCUS_MS);" in js and "_animate(FOCUS_MS," in js
+    assert "_zoomRamp(el,1,UNFOCUS_MS);" in js and "_animate(UNFOCUS_MS," in js
     assert "1-(1-p)*(1-p)" not in js and "1-(1-t)*(1-t)" not in js
 
 
@@ -115,10 +115,10 @@ def test_the_shared_curve_starts_from_rest_and_lands_on_time():
     js = _script(_html(), "alto-focus-mode")
     fn = js[js.index("function _altoEase(p){"):]
     fn = fn[:fn.index("\n  }\n") + 4]
-    out = subprocess.run([node, "-e", fn + "console.log(JSON.stringify([0,.01,.238,.5,1].map(_altoEase)))"],
+    out = subprocess.run([node, "-e", fn + "console.log(JSON.stringify([0,.01,100/460,.5,1].map(_altoEase)))"],
                          capture_output=True, text=True, check=True).stdout
     v = __import__("json").loads(out)
     assert v[0] == 0 and v[-1] == 1
     assert v[1] < 0.01                       # from rest: no jump on the first frame
-    assert 0.5 < v[2] < 0.7                  # ~60% there at 100ms of 420
-    assert v[3] > 0.85                       # ~90% by the middle
+    assert 0.45 < v[2] < 0.65                # ~half way at 100ms of 460
+    assert 0.8 < v[3] < 0.9                  # ~85% by the middle, gentler than (.2,0,0,1)

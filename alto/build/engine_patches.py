@@ -157,22 +157,23 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      before the view had set off, then the view drifted after it — and each
      ease-out began with a jolt. Luke: smoother, not slower, not faster.
      Every piece now shares this curve and starts on the same frame: glide,
-     grow and release all over 420ms (exit: 300ms). cubic-bezier(.2,0,0,1)
-     starts from rest, is ~60% there at 100ms and ~90% by 220ms — the card
-     arrives about as soon as before, the camera with it, and nothing starts
-     or stops with a kick. */
+     grow and release all over FOCUS_MS (exit: UNFOCUS_MS). It starts from
+     rest, so nothing kicks off with a jolt. Tuned by Luke's eye in 1.9.15:
+     cubic-bezier(.2,0,0,1) over 420/300ms was "20% too jerky and 10% too
+     fast", so the curve is (.15,0,.1,1) — top speed 78%, top acceleration 77%
+     of that one — over 460/330ms. */
   function _altoEase(p){
     if(p<=0) return 0; if(p>=1) return 1;
     var lo=0, hi=1, t=p;
     for(var i=0;i<24;i++){                       // x(t) is monotonic: bisect
       t=(lo+hi)/2;
-      var x=3*(1-t)*(1-t)*t*0.2 + t*t*t;          // x1=.2, x2=0
+      var x=3*(1-t)*(1-t)*t*0.15 + 3*(1-t)*t*t*0.1 + t*t*t;   // x1=.15, x2=.1
       if(x<p) lo=t; else hi=t;
     }
     t=(lo+hi)/2;
     return 3*(1-t)*t*t + t*t*t;                   // y1=0, y2=1
   }
-  var FOCUS_MS=420, UNFOCUS_MS=300;
+  var FOCUS_MS=460, UNFOCUS_MS=330;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
   function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _shadowSync(card.parentNode); }
   function _zoomRamp(el,to,dur){
@@ -624,7 +625,7 @@ _FLY_SCROLL_NEW = """    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrol
     var fx0=el._fx||0, fy0=el._fy||0;
     _focusShadow(el,true);
     var l0=qx.at(),t0=qy.at();
-    _animate(420,function(k){
+    _animate(FOCUS_MS,function(k){
       qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
       _place(el, fx0+(-rx-fx0)*k, fy0+(-ry-fy0)*k);"""
 # On landing, the shadow is checked against the card as it now is.
@@ -635,7 +636,7 @@ _FLY_BACK_OLD = """    if(!fx&&!fy){ el.style.transform=''; return; }
     _animate(300,function(k){ el.style.transform='translate(-50%,-50%) translate('+(fx*(1-k))+'px,'+(fy*(1-k))+'px)'; },
       function(){ el.style.transform=''; el._fx=el._fy=0; });"""
 _FLY_BACK_NEW = """    if(!fx&&!fy){ _place(el,0,0); return; }
-    _animate(300,function(k){ _place(el, fx*(1-k), fy*(1-k)); },
+    _animate(UNFOCUS_MS,function(k){ _place(el, fx*(1-k), fy*(1-k)); },
       function(){ _place(el,0,0); });"""
 _FLY_AXIS_OLD = "  function flyTo(el){\n"
 _FLY_AXIS_NEW = """  /* Safari stores the canvas offset in whole layout px and turns a written
@@ -1774,7 +1775,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
   function _hop(dir,repeat){
     if(_hopBusy){ if(repeat ? !_hopQ.length : _hopQ.length<3) _hopQ.push(dir); return; }
     _hopBusy=1; focusNeighbor(dir);
-    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },460);
+    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },505);   // FOCUS_MS + 45
   }"""
 _HOP_KEY_OLD = "    if(!d) return; e.preventDefault(); focusNeighbor(d);"
 _HOP_KEY_NEW = "    if(!d) return; e.preventDefault(); _hop(d, e.repeat);"
