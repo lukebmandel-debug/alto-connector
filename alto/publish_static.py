@@ -28,6 +28,7 @@ that way cannot survive the next deploy.
 from __future__ import annotations
 
 import hashlib
+import secrets
 import json
 import os
 import re
@@ -176,6 +177,10 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # Digest of the alto-cloud.js this publish ships, so the shell's script URL
     # changes whenever the file does. See private_shell.shell().
     cloud_v = hashlib.sha256(emit_cloud_js().encode()).hexdigest()[:12]
+    # This deploy's stamp, in every private shell: a page cached under an
+    # older one is fetched fresh instead of shown and then swapped (see
+    # private_shell, SITE_V). Opaque and compared only for equality.
+    site_v = secrets.token_hex(6)
     # A private timeline is opened by signing in; with no Firebase project there
     # is nothing to sign into, so the shell would be a locked door with no key —
     # and the page would never reach Firestore to begin with. Refuse rather than
@@ -192,7 +197,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         live_keys.add(key)
         d = pvdir_root / key
         d.mkdir(parents=True, exist_ok=True)
-        (d / "index.html").write_text(private_shell(cloud_v), encoding="utf-8")
+        (d / "index.html").write_text(private_shell(cloud_v, site_v), encoding="utf-8")
         # Refresh the artifact the owner uploads, for the same reason the
         # hosted page is rebuilt above: a timeline built before private.html
         # existed has none, and one built long ago predates current engine
@@ -228,7 +233,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # 404. Firestore's rules, not the shell, still decide who reads the page.
     if load_config().get("apiKey"):
         pvdir_root.mkdir(parents=True, exist_ok=True)
-        (pvdir_root / "index.html").write_text(private_shell(cloud_v),
+        (pvdir_root / "index.html").write_text(private_shell(cloud_v, site_v),
                                                encoding="utf-8")
         # Where Alto on the user's computer signs in as them (ALTO_STORE=cloud).
         from .build.connect_page import connect_page

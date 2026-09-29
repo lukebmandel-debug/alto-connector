@@ -190,7 +190,7 @@ def test_any_private_key_opens_the_shell():
     reach the shell rather than a 404."""
     src = (ROOT / "alto" / "publish_static.py").read_text(encoding="utf-8")
     assert '{"source": "/pv/**", "destination": "/pv/index.html"}' in src
-    assert '(pvdir_root / "index.html").write_text(private_shell(cloud_v)' in src
+    assert '(pvdir_root / "index.html").write_text(private_shell(cloud_v, site_v)' in src
 
 
 def test_every_owned_project_offers_a_new_timeline():

@@ -8,6 +8,7 @@
     hop began with the canvas stepping 1px backwards, then glided unevenly.
 """
 import json
+import pytest
 import re
 import sys
 from pathlib import Path
@@ -90,3 +91,34 @@ def test_an_enlarged_card_is_centred_even_if_it_was_hovered():
     assert "var hov=n._hov!=null && !n.classList.contains('focused');" in q
     js = _script(_html(), "alto-focus-mode")
     assert "el._hov=null;" in js.split("function enterFocus(id){", 1)[1].split("\n  }", 1)[0]
+
+
+def test_enlarging_and_hopping_move_as_one_body():
+    """Luke: smoother, not slower, not faster. The glide, the new card's growth
+    and the old card's return share one curve and one duration, so nothing
+    arrives before the view does and nothing starts with a kick."""
+    js = _script(_html(), "alto-focus-mode")
+    assert "function _altoEase(p){" in js and "var FOCUS_MS=420, UNFOCUS_MS=300;" in js
+    assert "function ez(p){ return _altoEase(p); }" in js          # glide + glide back
+    assert "e=_altoEase(p);" in js                                  # zoom ramp
+    assert "e=_altoEase(t);" in js and "(ts-s0)/FOCUS_MS" in js     # release
+    assert "_zoomRamp(el,FOCUS_K,FOCUS_MS);" in js and "_animate(420," in js
+    assert "_zoomRamp(el,1,UNFOCUS_MS);" in js and "_animate(300," in js
+    assert "1-(1-p)*(1-p)" not in js and "1-(1-t)*(1-t)" not in js
+
+
+def test_the_shared_curve_starts_from_rest_and_lands_on_time():
+    import subprocess, shutil
+    node = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
+    if not Path(node).is_file():
+        pytest.skip("needs node")
+    js = _script(_html(), "alto-focus-mode")
+    fn = js[js.index("function _altoEase(p){"):]
+    fn = fn[:fn.index("\n  }\n") + 4]
+    out = subprocess.run([node, "-e", fn + "console.log(JSON.stringify([0,.01,.238,.5,1].map(_altoEase)))"],
+                         capture_output=True, text=True, check=True).stdout
+    v = __import__("json").loads(out)
+    assert v[0] == 0 and v[-1] == 1
+    assert v[1] < 0.01                       # from rest: no jump on the first frame
+    assert 0.5 < v[2] < 0.7                  # ~60% there at 100ms of 420
+    assert v[3] > 0.85                       # ~90% by the middle

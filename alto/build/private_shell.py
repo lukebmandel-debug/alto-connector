@@ -88,6 +88,12 @@ button:hover,label.file:hover{background:var(--hover)}
 button[disabled]{opacity:.55;cursor:default}
 .muted{font-size:11px;color:var(--muted);margin:12px 0 0;line-height:1.6}
 input[type=file]{display:none}
+html.alto-quiet,html.alto-quiet body{background:linear-gradient(150deg,#8fc1ff 0%,
+  #ffc59e 23%,#ff9fb6 41%,#c7b2ff 59%,#84e6bd 78%,#ffc98a 100%) fixed}
+html.alto-quiet.alto-quiet-dark,html.alto-quiet.alto-quiet-dark body{background:
+  linear-gradient(150deg,#1f5a96 0%,#6b4326 23%,#6e2438 41%,#3b2f72 59%,#156a4c 78%,
+  #6b4220 100%) fixed}
+html.alto-quiet #gate .card{visibility:hidden}
 """
 
 # Shown over a page that is older than the site serving it. It is put up after
@@ -117,6 +123,31 @@ _JS = """
 
   function show(h){ body.innerHTML = h; }
   function waiting(msg){ show('<h1>Private timeline</h1><p>' + msg + '</p>'); }
+
+  // Opening for a remembered account shows no card: a reload used to flash
+  // "Private timeline / Opening…" for the ~250ms the sign-in library takes to
+  // load before the cached page could be written (Luke: a double take). The
+  // gate paints the timeline's own backdrop instead (engine --page-grad, in
+  // the theme the timeline remembers); the card comes back if opening takes
+  // longer than QUIET_MS, and for anything the owner has to read or do.
+  var QUIET_MS = 1500, root = document.documentElement;
+  function quiet(){
+    root.classList.add('alto-quiet');
+    try{ if(localStorage.getItem('alto-theme-v1') === 'dark') root.classList.add('alto-quiet-dark'); }catch(e){}
+    setTimeout(loud, QUIET_MS);
+  }
+  function loud(){ root.classList.remove('alto-quiet'); }
+
+  // The deploy this shell came from. Every publish redeploys the site, so a
+  // cached copy stored under an older deploy may be older than the page in
+  // Firestore: showing it and then swapping in the new one was the other
+  // double take (a reload into the gate). Such a copy is not shown; the page
+  // is fetched and shown once. Clock-free: the stamp is compared, never
+  // ordered. See publish_static.regenerate_site.
+  var SITE_V = (function(){
+    var m = document.querySelector('meta[name="alto-site-v"]');
+    return (m && m.content) || '';
+  })();
 
   // The counterpart to render(). Signing out (here, in another tab, or by a
   // token expiring) fires renderAccount with no user. Once the page has
@@ -257,7 +288,7 @@ _JS = """
     try{ sessionStorage.setItem('alto-pv-swap', KEY); }catch(e){}
     var put = (u && window.AltoCloud.getPageMeta)
       ? window.AltoCloud.getPageMeta(KEY).then(function(m){
-          return cachePut({ uid: u.uid, html: pageHtml, updatedAt: m && m.updatedAt });
+          return cachePut({ uid: u.uid, html: pageHtml, updatedAt: m && m.updatedAt, site: SITE_V });
         })
       : Promise.resolve();
     put.catch(function(){}).then(function(){ location.reload(); });
@@ -307,11 +338,11 @@ _JS = """
       // Firebase may already have answered, and said someone else (or no one).
       var u = window.AltoCloud && window.AltoCloud.user;
       if(confirmed && (!u || u.uid !== s.uid)) return null;
-      if(v && v.uid === s.uid && v.html){
+      if(v && v.uid === s.uid && v.html && (!SITE_V || v.site === SITE_V)){
         cached = v;
         render(v.html);
       }
-      return v;
+      return cached;
     });
   })();
   var confirmed = false;
@@ -344,6 +375,7 @@ _JS = """
   };
 
   function signedOut(){
+    loud();
     show('<h1>Private timeline</h1>' +
          '<p>This is visible only to the account that published it.</p>' +
          '<button id="si">Continue with Google</button>');
@@ -374,6 +406,7 @@ _JS = """
   }
 
   function needsUpload(){
+    loud();
     show('<h1>One more step</h1>' +
          '<p>Nothing has been uploaded here yet. Choose the private.html file ' +
          'Alto built for this timeline.</p>' +
@@ -436,12 +469,12 @@ _JS = """
     var cloud = window.AltoCloud;
     if(!cloud || !cloud.enabled){
       lock();
-      waiting('Sign-in is not set up for this site, so this cannot be opened here.');
+      loud(); waiting('Sign-in is not set up for this site, so this cannot be opened here.');
       return;
     }
     confirmed = true;
     if(!cloud.user){ cached = null; lock(); signedOut(); return; }
-    if(!KEY){ lock(); waiting('Not found.'); return; }
+    if(!KEY){ lock(); loud(); waiting('Not found.'); return; }
     var uid = cloud.user.uid;
     early.then(function(){
       var mine = cached && cached.uid === uid ? cached : null;
@@ -469,14 +502,14 @@ _JS = """
             cloud.ensureTitle(KEY, titleOf(page), idOf(page)).catch(function(){});
           meta.then(function(){ return cloud.getPageMeta ? cloud.getPageMeta(KEY) : null; })
             .then(function(m){
-              if(m && m.updatedAt) cachePut({ uid: uid, html: page, updatedAt: m.updatedAt });
+              if(m && m.updatedAt) cachePut({ uid: uid, html: page, updatedAt: m.updatedAt, site: SITE_V });
             }).catch(function(){});
         });
       });
     }).catch(function(){
       // A rules refusal lands here. Say nothing about what does or does not exist.
       lock();
-      waiting('Not found, or not available to this account.');
+      loud(); waiting('Not found, or not available to this account.');
     });
   }
   Object.defineProperty(window, 'renderAccount', {
@@ -492,7 +525,8 @@ _JS = """
 
   // A remembered session means the cached page (above) is about to appear,
   // so there is nothing to check out loud; otherwise say what is happening.
-  waiting(remembered() ? 'Opening\\u2026' : 'Checking your account\\u2026');
+  if(remembered()){ quiet(); waiting('Opening\\u2026'); }
+  else waiting('Checking your account\\u2026');
 
   // alto-cloud.js drives renderAccount from onAuthStateChanged, but it returns
   // early — before ever calling it — when the publisher has no Firebase project
@@ -508,7 +542,7 @@ _JS = """
 """
 
 
-def shell(cloud_version: str = "") -> str:
+def shell(cloud_version: str = "", site_version: str = "") -> str:
     """Return the public shell page. Identical for every private timeline.
 
     `cloud_version` is a short digest of the alto-cloud.js this site ships, used
@@ -517,6 +551,9 @@ def shell(cloud_version: str = "") -> str:
     header on the server cannot reach it — the request never arrives. Changing
     the URL is the only thing that does. Empty version = plain URL, for callers
     that have no digest to hand.
+
+    `site_version` stamps the deploy (publish_static.regenerate_site): a copy
+    cached under another stamp is not shown before the fresh page is fetched.
     """
     js = _JS.replace("__STALE_CSS__", json.dumps(_STALE_CSS))
     src = "/alto-cloud.js" + (f"?v={cloud_version}" if cloud_version else "")
@@ -528,6 +565,7 @@ def shell(cloud_version: str = "") -> str:
         f'{meta_tag()}\n'
         # What the page inside this shell should have been built by.
         f'<meta name="alto-page-build" content="{page_fingerprint()}">\n'
+        + (f'<meta name="alto-site-v" content="{site_version}">\n' if site_version else "") +
         '<title>Alto</title>\n'
         f'<style>{_CSS}</style>\n'
         '</head><body>\n'

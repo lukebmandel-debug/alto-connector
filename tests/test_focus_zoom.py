@@ -50,8 +50,8 @@ def test_the_focused_card_is_not_transform_scaled(html):
 
 
 def test_the_focused_card_grows_by_zoom(html):
-    assert "_zoomRamp(el,FOCUS_K,240);" in html      # enter
-    assert "_zoomRamp(el,1,220);" in html            # exit
+    assert "_zoomRamp(el,FOCUS_K,FOCUS_MS);" in html      # enter, with the glide
+    assert "_zoomRamp(el,1,UNFOCUS_MS);" in html          # exit, with the glide back
     assert "var FOCUS_K=1.7" in html
 
 

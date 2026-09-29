@@ -149,6 +149,30 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      ALTO_CRISP_SWAP ships off. The card is a fixed 270px wide, so nothing
      re-wraps at any point on the ramp. */
   var FOCUS_K=1.7, _zw=null, _zwCard=null, _zwTo=1;
+  /* ── one curve, one clock (motion-one-body) ───────────────────────────────
+     Enlarging or hopping used to be three motions on three curves: the camera
+     glided in on an ease-in-out (11% of the way at 100ms), the new card grew
+     on a 240ms ease-out that started at full speed (66% grown at 100ms), and
+     the old card shrank home on its own 300ms ease-out. The card ballooned
+     before the view had set off, then the view drifted after it — and each
+     ease-out began with a jolt. Luke: smoother, not slower, not faster.
+     Every piece now shares this curve and starts on the same frame: glide,
+     grow and release all over 420ms (exit: 300ms). cubic-bezier(.2,0,0,1)
+     starts from rest, is ~60% there at 100ms and ~90% by 220ms — the card
+     arrives about as soon as before, the camera with it, and nothing starts
+     or stops with a kick. */
+  function _altoEase(p){
+    if(p<=0) return 0; if(p>=1) return 1;
+    var lo=0, hi=1, t=p;
+    for(var i=0;i<24;i++){                       // x(t) is monotonic: bisect
+      t=(lo+hi)/2;
+      var x=3*(1-t)*(1-t)*t*0.2 + t*t*t;          // x1=.2, x2=0
+      if(x<p) lo=t; else hi=t;
+    }
+    t=(lo+hi)/2;
+    return 3*(1-t)*t*t + t*t*t;                   // y1=0, y2=1
+  }
+  var FOCUS_MS=420, UNFOCUS_MS=300;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
   function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _shadowSync(card.parentNode); }
   function _zoomRamp(el,to,dur){
@@ -164,7 +188,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     function step(ts){
       if(warm){ warm=false; _zw=requestAnimationFrame(step); return; }   // see motion-starts-after-the-state-frame
       if(s===null) s=ts;
-      var p=Math.min(1,(ts-s)/dur), e=1-(1-p)*(1-p);  // ease-out, as the card's own transition was
+      var p=Math.min(1,(ts-s)/dur), e=_altoEase(p);   // the shared curve (motion-one-body)
       _setZoom(card, from+(to-from)*e);
       if(p<1) _zw=requestAnimationFrame(step); else { _zw=null; _setZoom(card,to); }
     }
@@ -172,17 +196,17 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
   }
 
   /* The card focus leaves (an arrow hop, a swipe, a click on another) glides
-     home — shrinking and sliding back over 300ms — instead of snapping, which
+     home — shrinking and sliding back with the glide — instead of snapping, which
      read as a glitch on every hop. */
   function _release(p){
     var card=_cardOf(p), z0=parseFloat(card&&card.style.zoom)||1, fx=p._fx||0, fy=p._fy||0, s0=null, warm=true;
     if(p._rel) cancelAnimationFrame(p._rel);
-    _quietShadow(card,300); _focusShadow(p,null);
+    _quietShadow(card,FOCUS_MS); _focusShadow(p,null);
     function step(ts){
       if(p.classList.contains('focused')){ p._rel=null; return; }   // focused again mid-way
       if(warm){ warm=false; p._rel=requestAnimationFrame(step); return; }
       if(s0===null) s0=ts;
-      var t=Math.min(1,(ts-s0)/300), e=1-(1-t)*(1-t);
+      var t=Math.min(1,(ts-s0)/FOCUS_MS), e=_altoEase(t);   // in step with the glide
       _setZoom(card, z0+(1-z0)*e);
       _place(p, fx*(1-e), fy*(1-e));
       if(t<1) p._rel=requestAnimationFrame(step);
@@ -248,15 +272,15 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     canvas.classList.add('focus-mode');
     el.classList.add('focused');
     _wheelSync();
-    _zoomRamp(el,FOCUS_K,240);
+    _zoomRamp(el,FOCUS_K,FOCUS_MS);
     flyTo(el);
   }"""
 
 _FOCUS_EXIT_OLD = """      el.classList.remove('focused');
       flyBack(el);"""
 _FOCUS_EXIT_NEW = """      el.classList.remove('focused');
-      _quietShadow(_cardOf(el),300); _focusShadow(el,null);
-      _zoomRamp(el,1,220);
+      _quietShadow(_cardOf(el),UNFOCUS_MS); _focusShadow(el,null);
+      _zoomRamp(el,1,UNFOCUS_MS);
       flyBack(el);"""
 
 # ── the world fits the window instead of being pinned at 0.8 ────────────────
@@ -698,7 +722,7 @@ _ANIM_WARM_OLD = """    var s=null;
     function ez(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; }
     function step(ts){ if(s===null)s=ts; var p=Math.min(1,(ts-s)/dur),k=ez(p); cb(k); if(p<1)_tw=requestAnimationFrame(step); else if(done)done(); }"""
 _ANIM_WARM_NEW = """    var s=null, warm=true;
-    function ez(p){ return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; }
+    function ez(p){ return _altoEase(p); }
     function step(ts){ if(warm){ warm=false; _tw=requestAnimationFrame(step); return; }
       if(s===null)s=ts; var p=Math.min(1,(ts-s)/dur),k=ez(p); cb(k); if(p<1)_tw=requestAnimationFrame(step); else if(done)done(); }"""
 _WHEEL_EXIT_OLD = "    canvas.classList.remove('focus-mode');\n"

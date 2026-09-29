@@ -392,3 +392,20 @@ def test_the_page_cap_stays_inside_firestores_document_limit():
     assert MAX_PAGE_BYTES == SHARE_MAX
     assert f"const MAX_PAGE_BYTES = {MAX_PAGE_BYTES};" in js
     assert MAX_PAGE_BYTES <= 1_048_576 - 32_768
+
+
+def test_a_reload_shows_no_gate_card_and_no_stale_page():
+    """Luke: a reload flashed "Private timeline" and, after a publish, showed
+    the old page and then reloaded into the new one. A remembered account now
+    opens on the timeline's own backdrop, and a copy cached under another
+    deploy is fetched fresh instead of shown first."""
+    from alto.build.private_shell import shell as sh
+    s = sh("x", "d1")
+    assert '<meta name="alto-site-v" content="d1">' in s
+    assert '<meta name="alto-site-v"' not in sh("x")
+    assert "if(remembered()){ quiet(); waiting(" in s
+    assert "html.alto-quiet #gate .card{visibility:hidden}" in s
+    assert "(!SITE_V || v.site === SITE_V)" in s
+    assert s.count("site: SITE_V") == 2
+    for fn in ("function signedOut(){\n    loud();", "function needsUpload(){\n    loud();"):
+        assert fn in s
