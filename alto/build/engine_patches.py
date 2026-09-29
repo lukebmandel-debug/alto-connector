@@ -130,11 +130,11 @@ html:not(.mobile) #world{ translate:var(--pan-x,0px) var(--pan-y,0px); }
    (motion-one-body): the other cards dimming, the new card brightening, the
    headers and lines fading. They ran on CSS's own 'ease' over .25-.3s, done
    in ~150ms while the card was 12% grown — the scene dimmed, THEN the card
-   grew: two beats (Luke: "the Netflix boom boom"). cubic-bezier(.5,0,.5,1)
-   is minimum-jerk to within 1%; --alto-fly is the glide's duration, written
+   grew: two beats (Luke: "the Netflix boom boom"). cubic-bezier(.25,.2,.4,1)
+   follows the shared curve (_altoEase) to within ~1%; --alto-fly is the glide's duration, written
    once per focus change (flyTo, exitFocus) and 250ms the rest of the time,
    so a hover fade keeps its pace. */
-html:not(.mobile) #canvas{ --alto-fly:250ms; --alto-ease:cubic-bezier(.5,0,.5,1); }
+html:not(.mobile) #canvas{ --alto-fly:250ms; --alto-ease:cubic-bezier(.25,.2,.4,1); }
 html:not(.mobile) #canvas .node-card{
   transition: opacity var(--alto-fly) var(--alto-ease), box-shadow .28s, border-color .2s,
               transform .24s cubic-bezier(.22,.61,.36,1);
@@ -175,32 +175,41 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      into place and the old one settles home, all on this curve and starting
      on the same frame.
 
-     The curve is the minimum-jerk trajectory, 10t^3 - 15t^4 + 6t^5: the
-     profile of human reaching movements (Flash & Hogan, 1985), which is why it
-     reads as natural. Speed rises and falls evenly to a peak at the middle,
-     and speed AND acceleration are zero at both ends — no kick off the mark,
-     no crawl into place. History (2026-09-29): 1.9.13 had three motions on
-     three curves; 1.9.14/15 unified them on ease-out beziers, which start
-     from rest in name only — top speed inside the first 10% of the time
-     (acceleration 8-10x this curve's), then a third of the time crawling the
-     last 5%, stepping a pixel at a time in Safari. Luke: jerky, and worse
-     when slowed. This curve also forgives a slow first frame: nothing is
-     moving fast yet when it lands.
+     The curve launches quickly and lands decisively: speed rises from rest
+     to its peak within the first fifth of the time, then falls away to a
+     clean stop — the regularized incomplete beta B(1.4, 2.6), whose speed
+     profile is t^0.4 (1-t)^1.6. Luke picked it (2026-09-29, from a
+     side-by-side of four curves) as "F". History: 1.9.13 had three motions on
+     three curves; 1.9.14/15 used ease-out beziers (a kick off the mark and a
+     third of the time crawling the last 5%); 1.9.16-18 used minimum-jerk,
+     10t^3-15t^4+6t^5, which is symmetric — ~75ms with nothing visible, then
+     90% in the next ~200ms at nearly twice the average speed ("too slow AND
+     too fast"). A critically damped spring felt best at the start but never
+     truly arrives: its last 3% took ~160ms ("it has to think about the final
+     position"). This curve keeps the spring's launch (10% at ~9% of the
+     time) and covers its last 3% in ~a fifth of the time, ending at rest.
 
      No frame is held back any more (motion-starts-after-the-state-frame):
      that wait kept a 40ms first frame from jumping an ease-out ramp ~30%,
-     but minimum-jerk has moved <1% by then — and the wait put the card a
+     but it also put the card a
      frame or two behind the CSS fades, which start at once (a lead of ~80ms
      in WebKit: the second beat again). And each ramp's clock starts at the
      change itself (performance.now()), as a CSS transition's does, not at its
      first frame: WebKit's first frame after a focus change takes ~40ms, which
      the ramps used to lose and the fades did not.
 
-     Duration follows distance, as a hand's does (Fitts): ~410-440ms for a
-     neighbour, up to 580ms across the outline (_flyMs, set by flyTo). */
+     Duration follows distance, as a hand's does (Fitts): ~430-460ms for a
+     neighbour, up to 560ms across the outline (_flyMs, set by flyTo). */
+  var _altoCurve=(function(){                       // B(1.4,2.6) as a cumulative table
+    var M=1000, c=[0], s=0, i, x;
+    for(i=0;i<M;i++){ x=(i+0.5)/M; s+=Math.pow(x,0.4)*Math.pow(1-x,1.6); c.push(s); }
+    for(i=0;i<=M;i++) c[i]/=s;
+    return c;
+  })();
   function _altoEase(p){
     if(p<=0) return 0; if(p>=1) return 1;
-    return p*p*p*(10+p*(-15+6*p));
+    var f=p*1000, i=Math.floor(f);
+    return _altoCurve[i]+(_altoCurve[i+1]-_altoCurve[i])*(f-i);
   }
   /* The board's pan (flyTo): the CSS translate property on #world through
      --pan-x/--pan-y. A layout offset (left/top) re-laid the whole board every
@@ -231,8 +240,8 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     clearTimeout(_flyT);
     _flyT=setTimeout(function(){ canvas.style.removeProperty('--alto-fly'); }, ms+60);
   }
-  function _flyMs(dist){ return Math.round(Math.max(400, Math.min(580, 380+0.1*dist))); }
-  var FOCUS_MS=400, UNFOCUS_MS=320;
+  function _flyMs(dist){ return Math.round(Math.max(420, Math.min(560, 400+0.1*dist))); }
+  var FOCUS_MS=420, UNFOCUS_MS=340;
   function _cardOf(el){ return (el && el.querySelector) ? el.querySelector('.node-card') : null; }
   function _setZoom(card,k){ if(!card) return; card.style.zoom = (k>1.0005) ? String(k) : ''; _shadowSync(card.parentNode); }
   function _zoomRamp(el,to,dur){
@@ -280,7 +289,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      every frame. */
   function _quietShadow(card,ms){
     if(!card) return; clearTimeout(card._qs);
-    card.style.transition='opacity '+ms+'ms cubic-bezier(.5,0,.5,1), border-color .2s';
+    card.style.transition='opacity '+ms+'ms cubic-bezier(.25,.2,.4,1), border-color .2s';
     card._qs=setTimeout(function(){ card.style.transition=''; },ms+40);
   }
   /* The enlarged card's shadow: one element per focused card, the size the
@@ -1868,7 +1877,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     if(_hopBusy){ if(repeat ? !_hopQ.length : _hopQ.length<3) _hopQ.push(dir); return; }
     _hopBusy=1; focusNeighbor(dir);
     setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },
-               (window._altoFlyMs||400)+40);   // the next hop waits for this glide
+               (window._altoFlyMs||420)+40);   // the next hop waits for this glide
   }"""
 _HOP_KEY_OLD = "    if(!d) return; e.preventDefault(); focusNeighbor(d);"
 _HOP_KEY_NEW = "    if(!d) return; e.preventDefault(); _hop(d, e.repeat);"

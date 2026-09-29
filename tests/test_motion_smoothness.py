@@ -72,8 +72,8 @@ def test_the_enlarged_card_moves_by_margins_never_a_transform():
 
 
 def test_ramps_start_with_the_css_fades():
-    """The held first frame is gone: with minimum-jerk it saved nothing, and it
-    put the card behind the CSS fades that start at once (two beats)."""
+    """The held first frame is gone: with a curve that starts from rest it saved
+    little, and it put the card behind the CSS fades that start at once (two beats)."""
     js = _script(_html(), "alto-focus-mode")
     assert "warm=true" not in js
 
@@ -99,8 +99,9 @@ def test_enlarging_and_hopping_move_as_one_body():
     """The glide, the new card's growth and the old card's return share one
     curve and one clock, so nothing arrives before the view does."""
     js = _script(_html(), "alto-focus-mode")
-    assert "function _altoEase(p){" in js and "var FOCUS_MS=400, UNFOCUS_MS=320;" in js
-    assert "return p*p*p*(10+p*(-15+6*p));" in js                   # minimum-jerk
+    assert "function _altoEase(p){" in js and "var FOCUS_MS=420, UNFOCUS_MS=340;" in js
+    assert "Math.pow(x,0.4)*Math.pow(1-x,1.6)" in js                # B(1.4,2.6), Luke's "F"
+    assert "10+p*(-15+6*p)" not in js                               # minimum-jerk retired
     assert "FOCUS_MS=window._altoFlyMs=_flyMs(" in js               # duration follows distance
     assert "function ez(p){ return _altoEase(p); }" in js          # glide + glide back
     assert "e=_altoEase(p);" in js                                  # zoom ramp
@@ -109,19 +110,21 @@ def test_enlarging_and_hopping_move_as_one_body():
     enter = enter[:enter.index("\n  }")]
     assert enter.index("flyTo(el);") < enter.index("_zoomRamp(el,FOCUS_K,FOCUS_MS);") < enter.index("if(p) _release(p);")
     assert "_animate(FOCUS_MS," in js and "_zoomRamp(el,1,UNFOCUS_MS);" in js and "_animate(UNFOCUS_MS," in js
-    assert "(window._altoFlyMs||400)+40" in js                      # held arrows wait for the glide
+    assert "(window._altoFlyMs||420)+40" in js                      # held arrows wait for the glide
     assert "1-(1-p)*(1-p)" not in js and "1-(1-t)*(1-t)" not in js
 
 
-def test_the_shared_curve_is_minimum_jerk():
-    """Zero speed and zero acceleration at both ends, peak speed at the middle,
-    and a short tail: the profile of natural human movement."""
+def test_the_shared_curve_launches_quickly_and_lands_decisively():
+    """Luke's pick ("F", 2026-09-29). Starts and ends at rest; moving within
+    the first tenth (min-jerk: "too slow and too fast"); peak speed early and
+    lower than min-jerk's; and no spring-style creep into place (the last 3%
+    in well under a quarter of the time)."""
     import subprocess, shutil
     node = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
     if not Path(node).is_file():
         pytest.skip("needs node")
     js = _script(_html(), "alto-focus-mode")
-    fn = js[js.index("function _altoEase(p){"):]
+    fn = js[js.index("var _altoCurve="):]
     fn = fn[:fn.index("\n  }\n") + 4]
     fly = js[js.index("function _flyMs(dist)"):].split("\n", 1)[0]
     prog = fn + fly + """
@@ -130,16 +133,18 @@ def test_the_shared_curve_is_minimum_jerk():
       for(i=0;i<N;i++) v.push((y[i+1]-y[i])*N);
       for(i=0;i<N-1;i++) a.push((v[i+1]-v[i])*N);
       var vmax=Math.max.apply(null,v), at=v.indexOf(vmax)/N;
-      var t95=y.findIndex(function(q){ return q>=0.95; })/N;
+      var t10=y.findIndex(function(q){ return q>=0.10; })/N;
+      var t97=y.findIndex(function(q){ return q>=0.97; })/N;
       console.log(JSON.stringify({v0:v[0], v1:v[N-1], a0:Math.abs(a[0]), vmax:vmax, at:at,
-        amax:Math.max.apply(null,a.map(Math.abs)), tail:1-t95,
+        t10:t10, tail:1-t97,
         ms:[_flyMs(0), _flyMs(300), _flyMs(3000)]}));"""
     r = __import__("json").loads(subprocess.run([node, "-e", prog], capture_output=True,
                                                text=True, check=True).stdout)
-    assert r["v0"] < 0.01 and r["v1"] < 0.01 and r["a0"] < 0.1
-    assert 0.45 < r["at"] < 0.55 and r["vmax"] < 1.9
-    assert r["amax"] < 6 and r["tail"] < 0.2
-    assert r["ms"] == [400, 410, 580]
+    assert r["v0"] < 0.3 and r["v1"] < 0.05              # from rest, to rest
+    assert r["t10"] < 0.11                               # moving at once
+    assert 0.12 < r["at"] < 0.28 and r["vmax"] < 1.8     # early, gentle peak
+    assert r["tail"] < 0.22                              # no creep into place
+    assert r["ms"] == [420, 430, 560]
 
 
 def test_the_board_moves_as_one_piece():
@@ -164,11 +169,11 @@ def test_the_board_moves_as_one_piece():
 def test_the_fades_ride_the_growths_clock():
     """Luke (1.9.17): "the Netflix boom boom" — the scene dimmed on CSS's own
     .25-.3s ease (half done by ~85ms) and THEN the card grew (half at ~270ms).
-    Every fade now takes the glide's duration and a minimum-jerk curve, is
+    Every fade now takes the glide's duration and curve, is
     timed before the classes change, and the ramps count from the change."""
     html = _html()
     js = _script(html, "alto-focus-mode")
-    assert "html:not(.mobile) #canvas{ --alto-fly:250ms; --alto-ease:cubic-bezier(.5,0,.5,1); }" in html
+    assert "html:not(.mobile) #canvas{ --alto-fly:250ms; --alto-ease:cubic-bezier(.25,.2,.4,1); }" in html
     assert "transition: opacity var(--alto-fly) var(--alto-ease), box-shadow .28s" in html
     assert "#canvas #river-svg{ transition: opacity var(--alto-fly) var(--alto-ease) !important; }" in html
     assert "transition:opacity var(--alto-fly,.25s) var(--alto-ease), border-color .2s !important" in html
@@ -177,5 +182,5 @@ def test_the_fades_ride_the_growths_clock():
     assert enter.index("_fadeClock(FOCUS_MS=window._altoFlyMs=_flyPlanMs(el));") < enter.index("el.classList.add('focused');")
     ex = js[js.index("function exitFocus(){"):]
     assert ex.index("_fadeClock(UNFOCUS_MS);") < ex.index("canvas.classList.remove('focus-mode');")
-    assert "card.style.transition='opacity '+ms+'ms cubic-bezier(.5,0,.5,1), border-color .2s';" in js
+    assert "card.style.transition='opacity '+ms+'ms cubic-bezier(.25,.2,.4,1), border-color .2s';" in js
     assert js.count("=performance.now(), warm=false;") == 3
