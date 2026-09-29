@@ -94,8 +94,8 @@ chat "can't" do something and hand it to them. The only things the user ever
 does are the consents Google requires in their own name: **Allow**,
 **Continue with Google**, and — for a Google account new to Google Cloud —
 accepting its terms once. If setup cannot finish, say so plainly, keep
-building their timeline (it works offline and publishes once the site is
-ready), and let `set_up_site` retry.
+building their timeline (building needs no site; it publishes once the
+site is ready), and let `set_up_site` retry.
 
 ## Flow 1 — New project (short, container-level)
 
@@ -144,14 +144,24 @@ timeline lands in the same box — ask only for the purpose (and kind, with
    notes, and always for an outline (`mode: 'outline'`). Ask once, in one
    message, before authoring:
    > "Want each page to link back to the notes it came from? I can link them
-   > to your Google Docs, and/or to the copies downloaded on this computer —
-   > then a downloaded copy of the outline opens your notes even with no
-   > internet."
+   > to your Google Docs, and/or to the copies of your notes saved on this
+   > computer. The Google Docs links need internet. The links to your saved
+   > copies are for when you download the timeline for offline use: that
+   > downloaded copy then opens your notes even with no internet."
+
+   **What "offline" means — never blur it.** An Alto timeline on the web
+   (the `/pv/` page, the homepage) needs internet; with no internet it does
+   not open at all, so no link on it can work. Offline means only a timeline
+   the user has **downloaded for offline use** (the download button on their
+   homepage, or the offline file the build writes) and opened from their
+   computer. Only there do the local links show and work. Never tell the
+   user their timeline "works offline" without saying it must be downloaded
+   first.
 
    - **Google Docs** → each manifest entry gets an `id` and its https `url`.
      Take the links from a Google Drive connector or from this conversation;
      only if neither has them, ask for the doc links in one reply.
-   - **Downloaded copies** → add `local` to each entry. With file tools here,
+   - **Saved copies** → add `local` to each entry. With file tools here,
      find the files yourself and give full paths; otherwise give just each
      file's name (a Google Doc downloads as its title + `.docx`, with `/`
      turned into `_`) and Alto searches Downloads, Desktop and Documents
@@ -160,17 +170,20 @@ timeline lands in the same box — ask only for the purpose (and kind, with
      and move on. (macOS may ask them to let Claude read those folders —
      that Allow is theirs, like Google's.)
    - Either, both or neither is fine; record the answer by calling
-     `record_materials_consent` again with the full manifest. A "no" stands
-     for this timeline — don't ask again. When they bring more notes later,
-     link the new ones the same way they chose, without asking again.
+     `record_materials_consent` again with the full manifest. Don't raise it
+     again unprompted if they said no; if they ask later, link them then.
+     When they bring more notes, link the new ones the same way they chose.
    - Then cite sources as you author: in section text as
      `<a href="src:<id>">9/22</a>` (a doc's own url works too), and/or
      `sources: [id]` on nodes, entities and axis values for a "Source notes"
      section. The build turns each into the Google Doc link plus the local
      file.
-   - Say it plainly once: the local links work in a downloaded copy (the
-     homepage's download button), not on the web page, and in Chrome a
-     `.docx` opens as a download.
+   - Say it plainly once: the local links work only in a copy downloaded for
+     offline use (the homepage's download button), never on the web page,
+     and in Chrome a `.docx` opens as a download. Re-download the copy after
+     any change — a downloaded copy is a snapshot and does not update.
+   - Tell them the door stays open (see *Changes go through Claude*): they
+     can bring new notes, or ask to link or unlink sources, any time.
 
 ### A2. Start from a recipe — then let them tweak
 
@@ -334,11 +347,12 @@ rules, learned the hard way:
   axis values. Their pages get a "Source notes" section linking back; an
   outline node inherits its parent's sources.
 - **Local copies** (§A.4): `local` on a manifest entry — a full path, or
-  just the file name for Alto to find. In a downloaded copy of the timeline
-  every link to that source (its url in section text, `src:<id>` links,
-  Source notes) then offers the file on this computer, and opens it instead
-  of the web copy when there is no internet. On the web nothing changes. The
-  build warns on a path with no file behind it.
+  just the file name for Alto to find. In a copy of the timeline downloaded
+  for offline use, every link to that source (its url in section text,
+  `src:<id>` links, Source notes) then offers the file on this computer, and
+  opens it instead of the web copy when there is no internet. The web
+  timeline is unchanged, and needs internet to open at all. The build warns
+  on a path with no file behind it.
 - **Outline element pages**: in outline mode each entity (element) page lists
   its concepts automatically; give the entity its own sections on how it is
   satisfied, from the material, where the material says. The build warns on
@@ -611,6 +625,22 @@ unless `delete_timelines=true`, which deletes them all. Deleting is permanent;
 say so. If the user only wants the page off the web, `publish_timeline(
 visibility="private")` does that without deleting anything; a share link is
 revoked from the homepage.
+
+## Changes go through Claude
+
+The user never edits a timeline by hand. To change anything — fix a line,
+rename a unit, restructure, add a case, add or remove source links — or to
+add new notes, they come back to Claude with their materials, and you make
+the change with the tools, rebuild and republish (`get_timeline` resumes the
+draft). New notes can come at any point in the semester: read them, record
+them in the manifest (`record_materials_consent` with the full list, old
+entries unchanged), link them as the user chose (§A.4), author from them, and
+rebuild. Say this once at the end of a build — "whenever you have new notes
+or want something changed, just bring it here" — and never send them to edit
+files, the site, or Firebase.
+
+A downloaded offline copy does not update itself: after a change, tell them
+to download it again if they use one.
 
 ## What the user gets
 

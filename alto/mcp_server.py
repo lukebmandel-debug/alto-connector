@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.9"
+__version__ = "1.9.10"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -612,9 +612,11 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
     notes" section linking back to it. Add `local` when the user has a copy
     of it on this computer: its full path, or just its file name (e.g.
     'Torts Notes 9_22_26.docx') and Alto finds it in Downloads, Desktop or
-    Documents — the reply's `local_files` says what was found. In an offline
-    copy of the timeline every link to that source then offers the local
-    file, and opens it in place of the web copy when there is no internet. Section text links a source by its web url or
+    Documents — the reply's `local_files` says what was found. In a copy of
+    the timeline downloaded for offline use (only there: the web timeline
+    needs internet to open at all), every link to that source then offers
+    the local file, and opens it in place of the web copy when there is no
+    internet. Section text links a source by its web url or
     by `<a href="src:<id>">`. Until consent=true, node authoring is locked."""
     doc, err = _timeline_or_error(timeline_id)
     if err:

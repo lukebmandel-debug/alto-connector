@@ -354,11 +354,22 @@ def test_a_missing_file_drops_only_the_offline_link(home):
 def test_the_guide_offers_source_links_for_notes_and_outlines():
     g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     a4 = g[g.index("4. **Offer source links**"):g.index("### A2.")]
-    for must in ("always for an outline", "Google Docs", "Downloaded copies",
+    for must in ("always for an outline", "Google Docs", "Saved copies",
                  "Never ask the user where a file is", "`local_files`",
-                 'href="src:<id>"', "downloaded copy"):
+                 'href="src:<id>"', "download the timeline for offline use",
+                 "with no internet it does\n   not open at all",
+                 "Changes go through Claude"):
         assert must in a4, must
     assert "per §A.4" in g[g.index("**Course outline**"):g.index("**Research project")]
+
+
+def test_the_guide_sends_every_change_back_to_claude():
+    g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    sec = g[g.index("## Changes go through Claude"):g.index("## What the user gets")]
+    for must in ("never edits a timeline by hand", "come back to Claude",
+                 "New notes can come at any point", "record_materials_consent",
+                 "download it again"):
+        assert must in sec, must
 
 
 def test_a_stray_duplicate_loses_to_the_notes_folder(home):
