@@ -299,3 +299,76 @@ def test_the_publish_rebuild_keeps_the_source_map(tmp_path, notes):
     assert not stale
     assert 'id="alto-local-src"' in html and "data-src-local" in html
     assert json.dumps(str(notes)) in html
+
+
+# ── the manifest finds the files (no chores for the user) ───────────────────
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    from alto import mcp_server as srv
+    from alto.store.local import LocalStore
+    h = tmp_path / "home"
+    (h / "Downloads" / "Torts").mkdir(parents=True)
+    (h / "Downloads" / ".hidden").mkdir()
+    for name in ("Torts Notes 9_22_26.docx",):
+        (h / "Downloads" / "Torts" / name).write_bytes(b"PK")
+    (h / "Downloads" / ".hidden" / "Secret.docx").write_bytes(b"PK")
+    monkeypatch.setenv("HOME", str(h))
+    monkeypatch.setenv("USERPROFILE", str(h))
+    srv.set_store(LocalStore(tmp_path / "store"))
+    pid = srv.create_project("Law", "1L", "studying")["project_id"]
+    tid = srv.create_timeline(pid, _d()["brief"])["timeline_id"]
+    yield srv, tid, h
+    srv.set_store(None)
+
+
+def test_a_bare_file_name_is_found_in_downloads(home):
+    srv, tid, h = home
+    r = srv.record_materials_consent(tid, [
+        {"id": "n922", "name": "Torts Notes 9/22/26", "kind": "notes",
+         "local": "torts notes 9_22_26.docx"}], True)
+    want = str(h / "Downloads" / "Torts" / "Torts Notes 9_22_26.docx")
+    assert r["local_files"] == {"n922": {"status": "found", "path": want}}
+    assert srv.get_timeline(tid)["consent"]["sources"][0]["local"] == want
+
+
+def test_a_path_under_home_is_completed_and_a_full_one_checked(home):
+    srv, tid, h = home
+    full = str(h / "Downloads" / "Torts" / "Torts Notes 9_22_26.docx")
+    r = srv.record_materials_consent(tid, [
+        {"id": "a", "name": "A", "local": "Downloads/Torts/Torts Notes 9_22_26.docx"},
+        {"id": "b", "name": "B", "local": full}], True)
+    assert r["local_files"]["a"]["path"] == full == r["local_files"]["b"]["path"]
+
+
+def test_a_missing_file_drops_only_the_offline_link(home):
+    srv, tid, _ = home
+    r = srv.record_materials_consent(tid, [
+        {"id": "x", "name": "X", "url": DOC, "local": "Secret.docx"}], True)
+    assert r["local_files"]["x"]["status"] == "not_found"   # hidden folders skipped
+    assert "never ask them to look for the files" in r["next"]
+    src = srv.get_timeline(tid)["consent"]["sources"][0]
+    assert "local" not in src and src["url"] == DOC
+
+
+def test_the_guide_offers_source_links_for_notes_and_outlines():
+    g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    a4 = g[g.index("4. **Offer source links**"):g.index("### A2.")]
+    for must in ("always for an outline", "Google Docs", "Downloaded copies",
+                 "Never ask the user where a file is", "`local_files`",
+                 'href="src:<id>"', "downloaded copy"):
+        assert must in a4, must
+    assert "per §A.4" in g[g.index("**Course outline**"):g.index("**Research project")]
+
+
+def test_a_stray_duplicate_loses_to_the_notes_folder(home):
+    srv, tid, h = home
+    (h / "Downloads" / "Torts" / "Torts Notes 9_24_26.docx").write_bytes(b"PK")
+    stray = h / "Downloads" / "Torts Notes 9_24_26.docx"
+    stray.write_bytes(b"PK")
+    __import__("os").utime(stray, None)          # the stray is the newest
+    r = srv.record_materials_consent(tid, [
+        {"id": "a", "name": "A", "local": "Torts Notes 9_22_26.docx"},
+        {"id": "b", "name": "B", "local": "Torts Notes 9_24_26.docx"}], True)
+    assert r["local_files"]["b"]["path"] == str(h / "Downloads" / "Torts" / "Torts Notes 9_24_26.docx")
+    assert r["local_files"]["b"]["others"] == [str(stray)]

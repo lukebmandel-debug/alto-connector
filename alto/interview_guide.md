@@ -140,6 +140,37 @@ timeline lands in the same box — ask only for the purpose (and kind, with
 3. On an explicit yes → `record_materials_consent(timeline_id, sources,
    consent=true)` with a factual source manifest (names/kinds only — the
    material itself stays in this conversation, where you read it).
+4. **Offer source links** — whenever the materials include the user's own
+   notes, and always for an outline (`mode: 'outline'`). Ask once, in one
+   message, before authoring:
+   > "Want each page to link back to the notes it came from? I can link them
+   > to your Google Docs, and/or to the copies downloaded on this computer —
+   > then a downloaded copy of the outline opens your notes even with no
+   > internet."
+
+   - **Google Docs** → each manifest entry gets an `id` and its https `url`.
+     Take the links from a Google Drive connector or from this conversation;
+     only if neither has them, ask for the doc links in one reply.
+   - **Downloaded copies** → add `local` to each entry. With file tools here,
+     find the files yourself and give full paths; otherwise give just each
+     file's name (a Google Doc downloads as its title + `.docx`, with `/`
+     turned into `_`) and Alto searches Downloads, Desktop and Documents
+     itself. Never ask the user where a file is. The reply's `local_files`
+     says what was found; tell them in one line about any that were not,
+     and move on. (macOS may ask them to let Claude read those folders —
+     that Allow is theirs, like Google's.)
+   - Either, both or neither is fine; record the answer by calling
+     `record_materials_consent` again with the full manifest. A "no" stands
+     for this timeline — don't ask again. When they bring more notes later,
+     link the new ones the same way they chose, without asking again.
+   - Then cite sources as you author: in section text as
+     `<a href="src:<id>">9/22</a>` (a doc's own url works too), and/or
+     `sources: [id]` on nodes, entities and axis values for a "Source notes"
+     section. The build turns each into the Google Doc link plus the local
+     file.
+   - Say it plainly once: the local links work in a downloaded copy (the
+     homepage's download button), not on the web page, and in Chrome a
+     `.docx` opens as a download.
 
 ### A2. Start from a recipe — then let them tweak
 
@@ -176,6 +207,8 @@ actually has; never invent a band, entity or axis value to fill a slot.
 - A custom **outcome** filter (e.g. Liable / Not Liable, Enforceable / Not
   Enforceable) on the leaf concepts that state a result.
 - `layout: 'auto'` — an outline with real categories becomes a tree.
+- Source links to their notes (Google Docs and/or downloaded copies) — offer
+  per §A.4 and cite each point's class notes as you author.
 - Second filter: `coverage` if their notes vary in depth; if the build says
   coverage dropped (every node Thin or every node Solid), switch it to
   `depth`.
@@ -300,13 +333,12 @@ rules, learned the hard way:
   `url`, e.g. the Google Doc), and put `sources: [id]` on nodes, entities and
   axis values. Their pages get a "Source notes" section linking back; an
   outline node inherits its parent's sources.
-- **Local copies**: when the user has a source on this computer (downloaded
-  notes, a PDF), add its full path as `local` on that manifest entry — you can
-  see the path; never ask the user to find it. In an offline copy of the
-  timeline every link to that source (its url in section text, `src:<id>`
-  links, Source notes) then offers the file on this computer, and opens it
-  instead of the web copy when there is no internet. On the web nothing
-  changes. The build warns on a path with no file behind it.
+- **Local copies** (§A.4): `local` on a manifest entry — a full path, or
+  just the file name for Alto to find. In a downloaded copy of the timeline
+  every link to that source (its url in section text, `src:<id>` links,
+  Source notes) then offers the file on this computer, and opens it instead
+  of the web copy when there is no internet. On the web nothing changes. The
+  build warns on a path with no file behind it.
 - **Outline element pages**: in outline mode each entity (element) page lists
   its concepts automatically; give the entity its own sections on how it is
   satisfied, from the material, where the material says. The build warns on
@@ -509,7 +541,9 @@ Offer to fix. This is the last step before sharing links.
 
 0. `set_up_site` (Flow 0; background) → 1. `create_project` →
 2. `create_timeline(project_id, brief)` (brief carries
-acts, axes, **filters**, relations) → 3. `record_materials_consent` →
+acts, axes, **filters**, relations) → 3. `record_materials_consent` (then
+the source-links offer, §A.4, and again with ids/urls/`local` if they want
+them) →
 4. `set_entities` → 4b. `set_axis_values` (any extra axis carrying real
 content — a course's cases — since an axis declared in `create_timeline` is
 authored before the consent gate) → 5. `add_nodes` (batches; authored from the

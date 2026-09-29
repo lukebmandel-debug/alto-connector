@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.8"
+__version__ = "1.9.9"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -609,11 +609,12 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
     stay in the conversation. Give an entry an `id` (and an https `url` when
     the material lives at one, e.g. a Google Doc) and nodes, entities and axis
     values can name it in their `sources`; their pages then get a "Source
-    notes" section linking back to it. Add `local`, the file's full path on
-    this computer (e.g. '~/Downloads/Torts/Notes 9_22.docx'), when the user has
-    a copy of it here: in an offline copy of the timeline every link to that
-    source then offers the local file, and opens it in place of the web copy
-    when there is no internet. Section text links a source by its web url or
+    notes" section linking back to it. Add `local` when the user has a copy
+    of it on this computer: its full path, or just its file name (e.g.
+    'Torts Notes 9_22_26.docx') and Alto finds it in Downloads, Desktop or
+    Documents — the reply's `local_files` says what was found. In an offline
+    copy of the timeline every link to that source then offers the local
+    file, and opens it in place of the web copy when there is no internet. Section text links a source by its web url or
     by `<a href="src:<id>">`. Until consent=true, node authoring is locked."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -622,10 +623,94 @@ def record_materials_consent(timeline_id: str, sources: list[dict],
         return {"error": "no_sources",
                 "message": "consent without a source manifest is not a gate — "
                            "list the actual materials provided"}
+    sources, local_report = _resolve_local(sources)
     doc["consent"] = {"granted": bool(consent), "at": _now(),
                       "sources": sources}
     get_store().put_timeline(uid(), timeline_id, doc)
-    return {"gate": "open" if consent else "closed"}
+    out = {"gate": "open" if consent else "closed"}
+    if local_report:
+        out["local_files"] = local_report
+        if any(r["status"] == "not_found" for r in local_report.values()):
+            out["next"] = ("Some files were not found on this computer, so those "
+                           "sources have no offline link (their web link is "
+                           "unaffected). Tell the user in one line which ones; "
+                           "never ask them to look for the files. Call again "
+                           "with a corrected name or full path if you learn it.")
+    return out
+
+
+# Where downloaded notes end up. Searched for a source whose `local` is only a
+# file name — the chat usually knows a document's name but not where it was
+# saved, and the user is never asked to go and find it.
+_LOCAL_ROOTS = ("Downloads", "Desktop", "Documents")
+_LOCAL_SCAN_LIMIT = 60000        # directory entries, all roots together
+_LOCAL_DEPTH = 5
+
+
+def _find_local(name: str) -> list[str]:
+    """Files called `name` (case-insensitive) under the user's Downloads,
+    Desktop and Documents, newest first. Hidden folders are skipped."""
+    home, want, hits, seen = Path.home(), name.casefold(), [], 0
+    for root in _LOCAL_ROOTS:
+        base = home / root
+        if not base.is_dir():
+            continue
+        for d, dirs, files in os.walk(base):
+            depth = len(Path(d).relative_to(base).parts)
+            dirs[:] = [x for x in dirs if not x.startswith(".")
+                       and depth < _LOCAL_DEPTH]
+            seen += len(dirs) + len(files)
+            hits += [os.path.join(d, f) for f in files if f.casefold() == want]
+            if seen > _LOCAL_SCAN_LIMIT:
+                break
+    return sorted(set(hits), key=lambda f: os.path.getmtime(f), reverse=True)
+
+
+def _resolve_local(sources: list) -> "tuple[list, dict]":
+    """Give every manifest entry's `local` a full path to a file that exists.
+
+    A full path is checked; a path relative to the home folder
+    ('Downloads/Torts/a.docx') is completed; a bare file name is searched for
+    (_find_local), the newest match winning. An entry whose file cannot be
+    found loses `local` — its web link still works — and the report says so.
+    Returns (sources, {id: {status, path?, others?}})."""
+    from collections import Counter
+    from .build.brief import LOCAL_PATH
+    found = []                       # (entry, key, loc, candidates)
+    for s in sources or []:
+        if not (isinstance(s, dict) and s.get("local")):
+            found.append((s, None, None, None))
+            continue
+        s, loc = dict(s), str(s["local"]).strip()
+        if LOCAL_PATH.match(loc):
+            p = os.path.expanduser(loc)
+            cands = [p] if os.path.isfile(p) else []
+        elif "/" in loc or "\\" in loc:
+            p = str(Path.home() / loc)
+            cands = [p] if os.path.isfile(p) else []
+        else:
+            cands = _find_local(loc)
+        found.append((s, s.get("id") or s.get("name") or loc, loc, cands))
+    # Several files by one name (a stray second download): take the one in
+    # the folder that holds the most of the other notes, then the newest.
+    folders = Counter(os.path.dirname(c) for *_, cands in found if cands
+                      for c in dict.fromkeys(cands))
+    out, report = [], {}
+    for s, key, loc, cands in found:
+        if key is None:
+            out.append(s)
+            continue
+        if cands:
+            cands = sorted(cands, key=lambda c: -folders[os.path.dirname(c)])
+            s["local"] = cands[0]
+            report[key] = {"status": "found", "path": cands[0]}
+            if len(cands) > 1:
+                report[key].update(status="found_several", others=cands[1:5])
+        else:
+            s.pop("local")
+            report[key] = {"status": "not_found", "looked_for": loc}
+        out.append(s)
+    return out, report
 
 
 @mcp.tool(title="Set entities", annotations=RW)
