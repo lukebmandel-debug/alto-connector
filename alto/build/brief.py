@@ -754,6 +754,88 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     return warnings
 
 
+
+# ── cited authorities ───────────────────────────────────────────────────────
+# A law outline's notes cite statutes and court rules by name ("28 U.S.C. §
+# 1367", "Rule 4(h)"). Each one belongs on the timeline as a section of its
+# own (guide §C3). This finds the explicit citations so that, as more notes come
+# in, the ones that have no section yet are named in the build/add_nodes
+# warnings and the next step is obvious. A bare "§ 8A" names no source, so it
+# is not matched.
+_USC_CITE = re.compile(
+    r"\b(\d{1,2})\s*U\.?\s?S\.?\s?C\.?\s*(?:§§?|sec(?:tion)?s?\.?)\s*"
+    r"(\d+[A-Za-z]?)((?:\s*(?:,|&|and)\s*\d+[A-Za-z]?(?![\dA-Za-z]|\s*U\.?\s?S\.?\s?C))*)")
+_RULE_CITE = re.compile(
+    r"\b(?:Federal |Fed\.\s?R\.\s?Civ\.\s?P\.\s?|FRCP\s)Rule\s(\d+[A-Z]?)((?:\([a-z0-9]+\))*)"
+    r"|\bRule\s(\d+[A-Z]?)((?:\([a-z0-9]+\))*)"
+    r"|\bFed\.\s?R\.\s?Civ\.\s?P\.\s?(\d+[A-Z]?)((?:\([a-z0-9]+\))*)")
+
+
+def _auth_key(text: str) -> str:
+    t = re.sub(r"\s+", " ", (text or "").lower()).strip()
+    t = re.sub(r"fed\.?\s?r\.?\s?civ\.?\s?p\.?\s?", "rule ", t)
+    t = re.sub(r"\bfederal rule( of civil procedure)?\s", "rule ", t)
+    t = re.sub(r"(\d+)\s*u\.?\s?s\.?\s?c\.?\s*§§?\s*", r"\1 u.s.c. § ", t)
+    return t.replace("rule  ", "rule ").strip()
+
+
+def cited_authorities(b: Brief, nodes: list) -> dict:
+    """{display cite: [node ids]} for each explicitly cited statute section or
+    rule that no axis value names (by name or alias) and no covered value
+    contains or extends — Rule 12(b)(6) is covered by "Rule 12(b)", and Rule 4
+    by any "Rule 4(x)"."""
+    have = set()
+    for ax in b.axes:
+        for v in ax.values:
+            have.add(_auth_key(v.name))
+            have.update(_auth_key(a) for a in v.aliases)
+    for e in b.entities:
+        have.add(_auth_key(e.name))
+        have.update(_auth_key(a) for a in e.aliases)
+
+    def covered(key: str) -> bool:
+        for h in have:
+            if h == key or h.startswith(key + "(") or key.startswith(h + "("):
+                return True
+        return False
+
+    found: dict = {}
+    for n in nodes:
+        text = " ".join([n.title or "", n.desc or ""]
+                        + [f"{s.h} {s.t}" for s in n.sections])
+        text = re.sub(r"<[^>]+>", " ", text)
+        for m in _USC_CITE.finditer(text):
+            title = m.group(1)
+            nums = [m.group(2)] + re.findall(r"\d+[A-Za-z]?", m.group(3) or "")
+            for num in nums:
+                cite = f"{title} U.S.C. § {num}"
+                if not covered(_auth_key(cite)):
+                    found.setdefault(cite, [])
+                    if n.id not in found[cite]:
+                        found[cite].append(n.id)
+        for m in _RULE_CITE.finditer(text):
+            num = next(g for g in (m.group(1), m.group(3), m.group(5)) if g)
+            sub = (m.group(2) or m.group(4) or m.group(6) or "")
+            cite = f"Rule {num}{sub}"
+            if not covered(_auth_key(cite)):
+                found.setdefault(cite, [])
+                if n.id not in found[cite]:
+                    found[cite].append(n.id)
+    return found
+
+
+def _authority_warnings(b: Brief, nodes: list) -> list:
+    found = cited_authorities(b, nodes)
+    if not found:
+        return []
+    items = [f"{c} ({', '.join(ids[:3])})" for c, ids in list(found.items())[:14]]
+    more = f" and {len(found) - 14} more" if len(found) > 14 else ""
+    return ["statutes/rules cited in the notes with no section page yet — "
+            + "; ".join(items) + more + ". Add each as a section of the "
+            "Statutes & Rules axis (guide §C3: group per source, aliases, and — "
+            "if the user wants — the official text quoted with a summary)"]
+
+
 def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     warnings = []
     entity_ids = {e.id for e in b.entities}
@@ -828,4 +910,6 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
                     f"filter {f.id}: {len(missing)} node(s) unassigned "
                     f"({', '.join(missing[:4])}) — they dim whenever this "
                     "filter is active")
+    if b.mode == "outline":
+        warnings += _authority_warnings(b, nodes)
     return _collapse(warnings)

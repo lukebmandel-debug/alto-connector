@@ -551,6 +551,17 @@ and from running text that names it.
   Enabling Act"); `role` = the section's title. A "§ 1367" in any text links by
   itself. Assign each value to the concepts whose notes discuss it
   (`axis2_values` on the node), cite a node only where the notes do.
+- **Keeping up as notes arrive.** The engine does not add sections by itself
+  (it cannot look anything up): it **finds the citations** — every explicit
+  "28 U.S.C. § 1441", "Rule 4(h)", "Fed. R. Civ. P. 12(b)" in the nodes — and
+  when one has no section page yet, `add_nodes` and `build_timeline` warn
+  "statutes/rules cited in the notes with no section page yet — …" with the
+  node ids. Treat that warning as a to-do: add each as a value (with `group`,
+  `aliases`, `role`, `axis2_values` on the nodes that cite it) and, if the user
+  said yes to lookups, fetch and quote its text the same way. A yes covers that
+  timeline from then on; do not re-ask for each new section. A bare "§ 8A"
+  names no source and is not detected; a cited subsection ("Rule 12(b)(6)") is
+  covered by its parent section ("Rule 12(b)") and vice versa.
 - **Text of the section.** The notes usually name a section without quoting
   it. Ask once: "Want me to look up the official text of each section you cite
   and link it?" If yes, this is the one place the closed-system rule (§0) lets
@@ -558,7 +569,13 @@ and from running text that names it.
   quoted verbatim**: section `{h: "Statutory text"|"Rule text", prov:
   "quoted"}`, plus a second section `{h: "Where this text comes from", t: "Looked
   up at your request — this is not from your notes. … <a href=…>Official
-  text</a>"}`. Never paraphrase, never abridge, never add commentary of your own.
+  text</a>"}`. Never paraphrase the quoted text itself, never abridge it, never add
+  commentary of your own to it. **Above it, always put a `Summary` section**
+  (`{h: "Summary", prov: "summary"}`, the first section on the page): what the
+  section says in plain words, subsection by subsection, condensed from the text
+  you quoted and nothing else, then one sentence beginning "In your notes:" that
+  says how the user's own notes use it, taken from their notes. A long section
+  (28 U.S.C. § 1332, Rule 35) is unreadable without it.
   Fetch the page itself (a real HTTP GET and parse, not a summarizing web
   tool, which rewrites) and quote the section's own paragraphs; for the U.S.
   Code use the Office of the Law Revision Counsel (uscode.house.gov); for

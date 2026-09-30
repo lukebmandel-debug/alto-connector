@@ -57,3 +57,55 @@ def test_index_entries_orders_groups_by_first_appearance():
 def test_autolink_does_not_link_a_rule_number_inside_a_longer_one():
     js = dx.AUTOLINK
     assert "(?![A-Za-z0-9])" in js          # "Rule 3" must not link inside "Rule 38"
+
+
+# ── cited authorities: the engine finds the citations, the model adds the sections ──
+
+def _law_brief(values):
+    d = json.loads((ROOT / "samples" / "outline_brief.json").read_text(encoding="utf-8"))
+    for n in d["nodes"]:
+        n["axis1_values"] = []
+    d["brief"]["axes"] = [{"label": "Statutes & Rules", "singular": "Section", "hide_nav": True,
+                           "values": values}]
+    return d
+
+
+def _cites(d, *texts):
+    for n, t in zip(d["nodes"], texts):
+        n["desc"] = t
+    b, nodes, _ = load_brief(d)
+    from alto.build.brief import cited_authorities
+    return cited_authorities(b, nodes), d["nodes"]
+
+
+def test_a_cited_statute_or_rule_with_no_section_is_reported():
+    d = _law_brief([{"id": "u1367", "name": "28 U.S.C. § 1367", "group": "28 U.S.C."}])
+    found, nodes = _cites(d, "See 28 U.S.C. § 1367 and 28 U.S.C. §§ 1441 & 1446.",
+                          "Serve under Rule 4(h); see Federal Rule 26(b) too.")
+    assert set(found) == {"28 U.S.C. § 1441", "28 U.S.C. § 1446", "Rule 4(h)", "Rule 26(b)"}
+    assert found["28 U.S.C. § 1441"] == [nodes[0]["id"]]
+    assert found["Rule 26(b)"] == [nodes[1]["id"]]
+
+
+def test_covered_citations_are_not_reported():
+    d = _law_brief([
+        {"id": "u1391", "name": "28 U.S.C. § 1391", "group": "28 U.S.C."},
+        {"id": "r12b", "name": "Fed. R. Civ. P. 12(b)", "aliases": ["Rule 12(b)(6)"], "group": "FRCP"},
+        {"id": "r4h", "name": "Fed. R. Civ. P. 4(h)", "group": "FRCP"}])
+    found, _n = _cites(d, "28 U.S.C. § 1391(b)(2) venue; Rule 12(b)(5) and 12(b)(6) motions.",
+                       "Rule 4 governs service; Rule 4(h) for entities. A bare § 8A names no source.")
+    assert found == {}
+
+
+def test_outline_builds_warn_about_uncovered_citations():
+    d = _law_brief([{"id": "u1367", "name": "28 U.S.C. § 1367", "group": "28 U.S.C."}])
+    d["nodes"][0]["desc"] = "Removal is governed by 28 U.S.C. § 1441."
+    _html, rep = build_timeline(*load_brief(d))
+    assert any("cited in the notes with no section page yet" in w and "28 U.S.C. § 1441" in w
+               for w in rep["warnings"])
+
+
+def test_the_guide_requires_a_summary_above_quoted_text_and_explains_keeping_up():
+    g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    assert "always put a `Summary` section" in g
+    assert "Keeping up as notes arrive" in g and "no section page yet" in g
