@@ -219,17 +219,17 @@ actually has; never invent a band, entity or axis value to fill a slot.
   **Statutes** the same way, if the material has them.
 - A custom **outcome** filter (e.g. Liable / Not Liable, Enforceable / Not
   Enforceable) on the leaf concepts that state a result.
+- **Flags** (§F3): ask which marks from their notes they want as filters.
+- An **Overview** with a real summary of every unit (§ workflow step 7).
 - `layout: 'auto'` — an outline with real categories becomes a tree.
 - Source links to their notes (Google Docs and/or downloaded copies) — offer
   per §A.4 and cite each point's class notes as you author.
-- Second filter: `coverage` if their notes vary in depth; if the build says
-  coverage dropped (every node Thin or every node Solid), switch it to
-  `depth`.
+- Second filter: `depth`. Not `coverage` — only if the user asks for it.
 
 **Research project or timeline of events** (kind `research`)
 - `period_noun: "Phase"` or "Era"; `node_noun: "Event"`.
 - Entity axis **People** or **Teams**; axis 1 **Sources** (`hide_nav`).
-- Relations "Leads to" / "Responds to"; filter `coverage`.
+- Relations "Leads to" / "Responds to"; no `coverage` filter unless asked.
 
 ### B0. Which shape? — ask once, plainly
 Two ways to organize the same material, and the answer changes what §C, §D and
@@ -272,8 +272,11 @@ menu.
   filter by. Picking several inside one section keeps cards with *any* of them;
   sections combine with *and*. On by default; `chip_filters: false` turns the
   whole set off.
-- A section per declared **filter** (`filters` in the brief: coverage, depth,
-  a custom dimension…).
+- A section per declared **filter** (`filters` in the brief: depth, a custom
+  dimension… — **never `coverage` unless the user asks for it**).
+- A **Flags** section when the user's notes carry their own marks ("pivotal",
+  "not tested", "revisit"…): one chip per flag, and a node shows under every
+  flag it carries. Ask which flags they want — §F3.
 - `line_filter` (default **true**): a "Lines" section that isolates one
   relation's lines. It suits a working outline ("Overrules") and is noise where
   the lines simply follow characters — set it `false` there; the lines and
@@ -465,9 +468,9 @@ narrow swipe order. Ask: "Want filter chips on the canvas? Pick up to two
 dimensions to filter by." Offer recommendations drawn from what's already
 defined — no re-entry needed, assignment is automatic:
 - **coverage** (`source:'coverage'`) — auto-derived Solid / Thin from how much
-  the student wrote on each node (Thin = a stub). Surfaces "where are my notes
-  weak" with zero extra input; §0-safe (it measures their own material). Often
-  the single most useful filter for a studying deck.
+  the student wrote on each node (Thin = a stub). **Do not offer or add it on
+  your own**: Luke found what it filters too coarse to be useful. Add it only
+  when the user asks for it by name.
 - **depth** (`source:'depth'`) — auto-derived Level 1 / Level 2 / Level 3+ from
   how deep each node sits in the structure the `spine` connections describe: a
   node no spine edge points at is Level 1, its children Level 2, the rest below.
@@ -505,11 +508,11 @@ show; (b) draft the nodes first, then pick dimensions that cut *across* the
 acts and partition the set unevenly-but-usefully; (c) avoid a binary whose
 off-value holds ~80% of nodes (it barely partitions).
 
-Good default pair for a course: **coverage** + **depth** where the spine
-encodes containment, otherwise **coverage** + an **importance** filter (only if
-the notes carry salience marks). Remember the relation chips from §E ride
-alongside for free and stack with both — so two slots plus relations is three
-dimensions, not two.
+Good default for a course: **depth** where the spine encodes containment, plus
+the user's **flags** (§F3) — flags are not a slot, so they cost nothing. An
+**importance** filter only if the notes carry salience marks (flags usually
+cover that). Remember the relation chips from §E ride alongside for free and
+stack with everything — slots, flags and relations are separate dimensions.
 
 Constraints: ≤2 filters (two engine slots); custom filters take 2–10 values;
 filtering is single-valued per node (multi-valued nodes filter by their first
@@ -528,6 +531,24 @@ interchangeable:
   want. Such an axis labels its chips with the value's **name** instead of a
   glyph, so skip glyph design for it (§C1).
 → brief `filters` and `axes` (in `create_timeline`).
+
+### F3. Flags in their notes — ask which ones
+Students mark their notes: "pivotal", "not tested", "revisit", a case that is
+only background, a case since overruled. Ask, every time the material has such
+marks (and once even if you saw none): "Do your notes flag anything — key
+points, things not on the exam, things to revisit? Which flags do you want as
+filters?" Offer the marks you actually saw in the notes as suggestions, then
+take the user's list as the final word — the flag set is **theirs**. Civ Pro's
+was: pivotal, not being tested on, background history case, overruled, revisit.
+- `set_flags(timeline_id, flags: [{id, name}], assign: {flag_id: [node ids]})`
+  (or `flags` in the brief and `flags: [ids]` on each node in `add_nodes`).
+- **A node carries any number of flags**, and appears under each one in the
+  Filter panel (a case can be pivotal *and* overruled). Assign from what the
+  notes say about that node, nothing more (§0); a flag nobody carries is left
+  out of the panel and warns.
+- This is the flags section of the Filter toggle, not one of the two canvas
+  filter slots (those hold one value per node).
+- Re-ask when new notes arrive: new marks may need new flags.
 
 ### G. Persona (the study companion)
 "Every workspace can have its own study companion. Want one? Name and vibe?"
@@ -564,8 +585,14 @@ authored before the consent gate) → 5. `add_nodes` (batches; authored from the
 materials in this conversation; custom-filter values ride on each node; in
 outline mode `parent` carries the tree) →
 6. `add_connections` →
-7. `set_overview` (prose overview — an outline without one gets an Overview
-assembled from its own titles and descriptions, and the build warns; deep-link a node with exactly
+6b. `set_flags` (the user's own marks, §F3 — ask which) →
+7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
+section** (4-8 sentences: what the section is about, how its main ideas fit
+together, the turning points and tests, in the notes' own terms — a thin
+two-line blurb is a defect). The Overview shows each summary above that
+section's linked concepts. Leave the summaries out and the build composes a
+plainer one from the hub's description and its concepts' names (and warns).
+For a story / linear timeline, `overview_html`: prose overview; deep-link a node with exactly
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →

@@ -1142,36 +1142,73 @@ def prov_heading(s) -> str:
     return f'{s.h}<span class="sec-prov">{PROVENANCE[s.prov]}</span>'
 
 
+def _list_and(items) -> str:
+    items = [i for i in items if i]
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + (", and " if len(items) > 2 else " and ") + items[-1]
+
+
 def outline_overview(b, nodes) -> str:
     """ALTO-005: an outline build with no authored overview gets one assembled
-    from the outline itself — a heading per band, and under it each concept of
-    the first two levels, linked, with its own one-line description. Nothing is
-    written that the nodes do not already say. Emitted in the same deep-link
-    form sanitize produces, so the Overview's link upgrader handles it."""
+    from the outline itself. Each section (band) gets
+
+      * a heading and a SUMMARY paragraph — the section's own `summary` when the
+        author wrote one from the notes, else composed from the hub's
+        description and the names of the concepts it branches into;
+      * then each concept of its first two levels, linked, with its one-line
+        description and the concepts beneath it.
+
+    Nothing is written that the nodes do not already say. Emitted in the same
+    deep-link form sanitize produces, so the Overview's link upgrader handles
+    it."""
+    from html import escape as esc
     kids: dict = {}
     for n in nodes:
         if n.parent:
             kids.setdefault(n.parent, []).append(n)
 
     def chip(n):
-        return (f'<span class="ov-node-link">{n.title}<button class="ov-node-btn" '
+        return (f'<span class="ov-node-link">{esc(n.title, quote=False)}'
+                f'<button class="ov-node-btn" '
                 f"onclick=\"showDetail('node','{n.id}')\"></button></span>")
+
+    def line(n):
+        return chip(n) + (f" — {esc(n.desc, quote=False)}" if n.desc else "")
 
     out = ["<h2>Overview</h2>"]
     for i, a in enumerate(b.acts):
         roots = [n for n in nodes if n.act == i and not n.parent]
         if not roots:
             continue
-        out.append(f"<h2>{a.short or a.label}</h2>")
-        for r in roots:
-            line = chip(r) + (f" — {r.desc}" if r.desc else "")
-            out.append(f"<p>{line}</p>")
+        # The band's full name reads better than its abbreviation ("Personal
+        # Jurisdiction", not "PJ") unless it is shouted (ACT ONE — ARRIVAL).
+        head = a.label if a.label and not a.label.isupper() else (a.short or a.label)
+        out.append(f"<h2>{esc(head, quote=False)}</h2>")
+        paras = [p.strip() for p in (a.summary or "").split("\n\n") if p.strip()]
+        if paras:
+            out += [f"<p>{esc(p, quote=False)}</p>" for p in paras]
+        else:
+            # Composed: what the hub says, then where the section goes.
+            hub = roots[0]
+            branches = kids.get(hub.id, [])
+            text = esc(hub.desc, quote=False) if hub.desc else ""
+            if branches:
+                text = (text + " " if text else "") + (
+                    "It covers " + _list_and([esc(c.title, quote=False)
+                                              for c in branches]) + ".")
+            if text:
+                out.append(f"<p>{text}</p>")
+        for k, r in enumerate(roots):
+            # The first hub's description is the summary's lead (or the
+            # summary replaces it), so it appears as a link alone.
+            out.append(f"<p>{chip(r) if k == 0 else line(r)}</p>")
             for c in kids.get(r.id, []):
                 sub = kids.get(c.id, [])
                 tail = ""
                 if sub:
                     tail = " Covers " + ", ".join(chip(s) for s in sub) + "."
-                out.append(f"<p>{chip(c)}{(' — ' + c.desc) if c.desc else ''}{tail}</p>")
+                out.append(f"<p>{line(c)}{tail}</p>")
     return "\n".join(out)
 
 

@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.24"
+__version__ = "1.9.25"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -514,7 +514,8 @@ def create_timeline(project_id: str, brief: dict) -> dict:
     """Create a timeline draft from the build brief (Flow 2 §B–§I). brief:
     {title, subject?, timeline_id?, columns?: 3|5, node_noun?, period_noun?,
      accent?, entity_axis_label?, entity_axis_singular?,
-     acts: [{label, short?, color?}] (2-7),
+     acts: [{label, short?, color?, summary?}] (2-7; `summary` = that section's
+      Overview paragraph — normally sent later with set_overview),
      mode?: 'linear'|'outline' — 'linear' (default) flows nodes through the
       bands in sequence; 'outline' makes them concepts that CONTAIN one
       another, one family per band, structure carried by node `parent`,
@@ -527,7 +528,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       source: 'entity'|'axis1'|'axis2'|'acts'|'coverage'|'depth'|'custom',
       values?: [{id,name}] (custom source only, 2-10),
       replace_nav?: bool}] (≤2; 'coverage' = auto Solid/Thin from node density;
-      'depth' = auto Level 1/2/3+ from the containment structure),
+      'depth' = auto Level 1/2/3+ from the containment structure; do NOT add
+      'coverage' unless the user asks for it),
+     flags?: [{id, name}] (the user's own marks in their notes; ask which —
+      guide §F3; or use set_flags),
      relations?: [{key,label?,color?}] ('spine' = neutral main thread; other
       relations get distinct palette colors when color is omitted, so their
       lines stay tellable apart from the spine. Each label is user-visible: it
@@ -835,6 +839,7 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     """Batch-add/update timeline nodes (idempotent upsert by id). Each:
     {id, act (0-based), tag, title, desc, col?, parent?, entity_ids?,
      axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
+     flags?: [flag id] (several allowed; declared with set_flags),
      sections?: [{h,t,prov?}], sources?: [source id]}.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
@@ -915,10 +920,79 @@ def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
     return {"accepted": len(connections)}
 
 
+@mcp.tool(title="Set flags", annotations=RW)
+def set_flags(timeline_id: str, flags: list[dict],
+              assign: dict[str, list[str]] | None = None) -> dict:
+    """The user's own marks in their notes as a Filter section — "pivotal", "not
+    tested", "revisit", "background case", "overruled"… — whatever THEY use.
+    ASK which marks they want (interview §F3); never invent a flag or assign one
+    the notes do not support (§0).
+
+    flags: [{id, name}], 1-12, replacing the stored set ([] removes the
+    section). assign: {flag_id: [node ids]} — the complete assignment; every
+    node's flags are rebuilt from it, and a node listed under several flags
+    shows under each of them in the Filter. Omit `assign` to leave nodes'
+    current flags alone (flags no longer declared are dropped from them)."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    if not _consent_ok(doc):
+        return CONSENT_ERROR
+    st = get_store()
+    existing = st.list_nodes(uid(), timeline_id)
+    known = {n["id"] for n in existing}
+    fids = [f.get("id") for f in flags if isinstance(f, dict)]
+    if assign:
+        bad = sorted(set(assign) - set(fids))
+        if bad:
+            return {"error": "invalid_flags",
+                    "message": "assign names flags that are not declared: " + ", ".join(bad)}
+        unknown = sorted({i for ids in assign.values() for i in ids} - known)
+        if unknown:
+            return {"error": "invalid_flags",
+                    "message": "assign names unknown nodes: " + ", ".join(unknown[:10])}
+    brief = {**doc["brief"], "flags": [dict(f) for f in flags]}
+    rebuilt = []
+    for n in existing:
+        if assign is not None:
+            nf = [f for f in fids if n["id"] in set(assign.get(f, []))]
+        else:
+            nf = [f for f in (n.get("flags") or []) if f in fids]
+        if nf != list(n.get("flags") or []):
+            rebuilt.append({k: v for k, v in n.items() if not k.startswith("_")} | {"flags": nf})
+    try:
+        b, all_nodes, _ = load_brief({
+            "brief": _checked(doc, brief),
+            "nodes": [{k: v for k, v in n.items() if not k.startswith("_")} | (
+                {"flags": next((r["flags"] for r in rebuilt if r["id"] == n["id"]),
+                               n.get("flags") or [])}) for n in existing]})
+        from .build.brief import validate_nodes
+        warnings = validate_nodes(b, all_nodes)
+    except BriefError as e:
+        return {"error": "invalid_flags", "message": str(e)}
+    doc["brief"] = brief
+    st.put_timeline(uid(), timeline_id, doc)
+    if rebuilt:
+        st.put_nodes(uid(), timeline_id, rebuilt)
+    counts = {f: sum(1 for n in all_nodes if f in n.flags) for f in fids}
+    return {"ok": True, "flags": counts, "warnings": warnings}
+
+
 @mcp.tool(title="Set overview", annotations=RW)
-def set_overview(timeline_id: str, overview_html: str) -> dict:
-    """Optional prose overview panel (HTML paragraphs). Authored from the user's
-    material (§0). Deep-link a node with exactly
+def set_overview(timeline_id: str, overview_html: str = "",
+                 section_summaries: list[str] | None = None) -> dict:
+    """The Overview panel. Authored from the user's material (§0).
+
+    `section_summaries` (outlines; the usual choice): one paragraph per section
+    (band), in order — what that section is about and how its ideas fit
+    together, a substantial 4-8 sentences drawn from the notes (the hub and its
+    concepts' descriptions and the notes' own sections), never a one-line blurb.
+    The Overview then shows each section's summary above its linked concepts,
+    and `overview_html` stays empty. An empty string keeps that section's
+    composed fallback. Send the full list (one entry per act).
+
+    `overview_html` (optional, replaces the above with hand-written HTML
+    paragraphs — how a story/linear timeline is usually done). Deep-link a node with exactly
     `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — at build
     these become the engine's clickable overview chips. A link whose id is not a
     live node is demoted to plain text with a build warning, so links are always
@@ -928,7 +1002,17 @@ def set_overview(timeline_id: str, overview_html: str) -> dict:
         return err
     if not _consent_ok(doc):
         return CONSENT_ERROR
-    doc["brief"] = {**doc["brief"], "overview_html": overview_html}
+    brief = {**doc["brief"], "overview_html": overview_html or ""}
+    if section_summaries is not None:
+        acts = [dict(a) for a in brief.get("acts", [])]
+        if len(section_summaries) != len(acts):
+            return {"error": "invalid_summaries",
+                    "message": f"{len(section_summaries)} summaries for {len(acts)} "
+                               "sections — send one per section, in order"}
+        for a, t in zip(acts, section_summaries):
+            a["summary"] = t or ""
+        brief["acts"] = acts
+    doc["brief"] = brief
     get_store().put_timeline(uid(), timeline_id, doc)
     # Eager, non-blocking feedback: flag deep links to ids that aren't live
     # nodes now (the build-time demotion is the actual enforcement, but a later

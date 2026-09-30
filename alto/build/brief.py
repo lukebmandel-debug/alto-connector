@@ -21,8 +21,9 @@ MAX_LEN = {
     "name": 200, "role": 500, "singular": 200, "node_noun": 100,
     "desc": 20_000, "section_h": 300, "section_t": 100_000,
     "overview_html": 200_000, "symbol_svg": 20_000, "owner": 300,
-    "persona_prompt": 5_000,
+    "persona_prompt": 5_000, "summary": 4_000, "flag_name": 80,
 }
+MAX_FLAGS = 12
 MAX_BRIEF_BYTES = 4_000_000
 MAX_SECTIONS = 24
 
@@ -232,6 +233,10 @@ class Act:
     label: str                 # band label, e.g. "ACT ONE — ARRIVAL"
     short: str = ""            # detail-page form, e.g. "Act One — Arrival"
     color: str = ""            # #rrggbb; band tint + numeral color
+    # The Overview's paragraph for this section, drawn from the user's own
+    # materials. Empty: an outline's Overview composes one from the section's
+    # hub description and its concepts (detail_extras.outline_overview).
+    summary: str = ""
 
 
 @dataclass
@@ -258,6 +263,9 @@ class Node:
     axis1_values: list[str] = field(default_factory=list)
     axis2_values: list[str] = field(default_factory=list)
     filters: dict = field(default_factory=dict)   # custom-filter id → value id
+    # Brief.flags ids this node carries. Unlike `filters` (one value per node)
+    # a node may carry several: a case can be pivotal AND overruled.
+    flags: list[str] = field(default_factory=list)
     sections: list[Section] = field(default_factory=list)   # detail page
     color: str = ""            # css color ref; defaults to first entity's var
     base_y: int = 0            # filled by layout
@@ -317,6 +325,11 @@ class Brief:
     # (characters, environments, themes, doctrines…), so any of them can be
     # filtered by. Set false for a timeline that should not offer that.
     chip_filters: bool = True
+    # The user's own marks in their notes, [{id, name}] — "pivotal", "not
+    # tested", "revisit"… The interview asks which marks they want. Each gets
+    # a chip in the Filter toggle's "Flags" section; a node carries any number
+    # (Node.flags), so it shows under every flag it has.
+    flags: list[dict] = field(default_factory=list)
     # The documents the material came from, [{id, name, url?, local?}] — the
     # source map every node and sub-chip's `sources` point into, rendered as a
     # "Source notes" section on its page. Filled from the consent manifest
@@ -561,10 +574,24 @@ def validate_brief(b: Brief) -> list[str]:
     for i, a in enumerate(b.acts):
         _check_len(a.label, "label", f"act {i+1} label")
         _check_len(a.short, "short", f"act {i+1} short")
+        _check_len(a.summary, "summary", f"act {i+1} summary")
         a.color = _check_hex(a.color or None, f"act {i+1}",
                              PALETTE[i % len(PALETTE)])
         if not a.short:
             a.short = a.label.title()
+    if not isinstance(b.flags, list) or len(b.flags) > MAX_FLAGS:
+        raise BriefError(f"flags: a list of at most {MAX_FLAGS} {{id, name}}")
+    flag_ids = set()
+    for fl in b.flags:
+        if not isinstance(fl, dict):
+            raise BriefError("flags: each flag is {id, name}")
+        _check_id(fl.get("id", ""), "flag")
+        if fl["id"] in flag_ids:
+            raise BriefError(f"duplicate flag id {fl['id']!r}")
+        flag_ids.add(fl["id"])
+        if not (fl.get("name") or "").strip():
+            raise BriefError(f"flag {fl['id']}: needs a name")
+        _check_len(fl["name"], "flag_name", f"flag {fl['id']} name")
     if len(b.filters) > 2:
         raise BriefError("at most 2 filters (the engine has two filter slots)")
     f_ids, f_sources = set(), set()
@@ -761,6 +788,12 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     for n in nodes:
         _check_refs(n.sources, doc_ids, f"node {n.id}", warnings)
 
+    flag_ids = {fl.get("id") for fl in b.flags if isinstance(fl, dict)}
+    for n in nodes:
+        for fid in n.flags:
+            if fid not in flag_ids:
+                raise BriefError(f"node {n.id}: unknown flag {fid!r} "
+                                 "(declare it in the brief's flags first)")
     custom_vals = {f.id: {v.id for v in f.values}
                    for f in b.filters if f.source == "custom"}
     for n in nodes:

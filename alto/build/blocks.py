@@ -1179,6 +1179,25 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 filter_sections.append({"key": _key, "kind": "chips",
                                         "label": _label, "items": _items})
                 filter_nodes[_key] = _map
+    # The user's own flags (pivotal, revisit…): one chip each, and a card shows
+    # under EVERY flag it carries. Not a canvas slot — those hold one value per
+    # node — so it is a panel section like the sub-chip ones, any-of within it.
+    if b.flags:
+        _fitems, _fmap = [], {}
+        for _fl in b.flags:
+            _t = {n.id for n in nodes if _fl["id"] in n.flags}
+            if not _t:
+                _warn.append(f"flag {_fl['name']!r}: no node carries it, so it "
+                             "is left out of the Filter")
+                continue
+            _fitems.append({"id": _fl["id"], "name": _fl["name"],
+                            "color": _fl.get("color") or "var(--accent)",
+                            "count": len(_t)})
+            _fmap[_fl["id"]] = sorted(_t)
+        if _fitems:
+            filter_sections.append({"key": "flags", "kind": "chips",
+                                    "label": "Flags", "items": _fitems})
+            filter_nodes["flags"] = _fmap
     for rf in resolved_filters:
         filter_sections.append({
             "key": "slot-" + rf["slot"], "kind": "slot", "slot": rf["slot"],
@@ -1275,9 +1294,14 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if not overview_html:
         if b.mode == "outline":
             overview_html = dx.outline_overview(b, nodes)
-            _warn0.append("no overview authored — the Overview shows one assembled "
-                          "from the outline's own titles and descriptions; "
-                          "set_overview to write your own")
+            _bare = [(x.short or x.label) for i, x in enumerate(b.acts)
+                     if not (x.summary or "").strip()
+                     and any(n.act == i and not n.parent for n in nodes)]
+            if _bare:
+                _warn0.append("no overview summary for " + ", ".join(_bare)
+                              + " — the Overview composes one from the hub's "
+                              "description and its concepts' names; "
+                              "set_overview(section_summaries) to write a real one")
         else:
             _warn0.append("no overview authored — the Overview (\u2605) opens blank; "
                           "set_overview to write one")

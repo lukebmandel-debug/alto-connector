@@ -566,6 +566,7 @@ def sanitize_brief(b, nodes=None) -> list:
 
     for a in b.acts:
         a.label, a.short = plain_text(a.label), plain_text(a.short)
+        a.summary = plain_text(a.summary)
     # The source map: names are text; a url survives only as https.
     docs = []
     for d in b.source_docs:
@@ -605,6 +606,8 @@ def sanitize_brief(b, nodes=None) -> list:
             v.name = plain_text(v.name)
     for r in b.relations:
         r.label = plain_text(r.label)
+    for fl in b.flags:
+        fl['name'] = plain_text(fl.get('name', ''))
 
     for n in nodes or []:
         n.tag, n.title = plain_text(n.tag), plain_text(n.title)

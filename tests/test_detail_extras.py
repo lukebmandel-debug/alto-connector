@@ -114,7 +114,7 @@ def test_an_outline_with_no_overview_gets_one_from_its_own_text():
     inner = html.split('<div id="summary-inner">', 1)[1][:4000]
     first = d["nodes"][0]
     assert f"showDetail('node','{first['id']}')" in inner
-    assert any("no overview authored" in w for w in rep["warnings"])
+    assert any("no overview summary for" in w for w in rep["warnings"])
 
 
 # ── ALTO-006 ────────────────────────────────────────────────────────────────
