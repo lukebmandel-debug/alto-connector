@@ -991,6 +991,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # a nav entry for it instead (ALTO-006).
     index_axes = [(k, ax) for k, ax in (("env", ax1), ("theme", ax2))
                   if ax and ax.hide_nav]
+    index_entries = dx.index_entries(index_axes)
     # Pages that get the detail-navigation extras (back-to-previous, banner
     # clearance, auto-linking). See detail_extras' docstring for why not all.
     rich_detail = b.mode == "outline" or bool(index_axes)
@@ -1281,12 +1282,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if index_axes:
         nav.append('\n    <span class="nav-divider"></span>'
                    f'\n    <span class="nav-group-label">{b.index_label}</span>')
-        for kind, ax in index_axes:
+        for key, kind, label, ids in index_entries:
             glyph = "&#9670;" if kind == "env" else "&#167;"
             nav.append(
-                f'\n    <button class="nav-btn {kind}-btn" data-axis-index="{kind}" '
-                f"onclick=\"showAxisIndex('{kind}')\">{glyph} {ax.nav_label or ax.label}"
-                f'<span class="nav-chip-count">{len(ax.values)}</span></button>')
+                f'\n    <button class="nav-btn {kind}-btn" data-axis-index="{key}" '
+                f"onclick=\"showAxisIndex('{key}')\">{glyph} {label}"
+                f'<span class="nav-chip-count">{len(ids)}</span></button>')
     nav.append("\n  </div>")
     nav = "".join(nav)
 
@@ -1706,13 +1707,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             drawer.append(drawer_btn(kind, v.id, v.symbol_svg, v.name, cls))
     if index_axes:
         drawer.append(f"'    <div class=\"drawer-section-label\">{js_str(b.index_label)[1:-1]}</div>',")
-        for kind, ax in index_axes:
+        for key, kind, label, ids in index_entries:
             glyph = "&#9670;" if kind == "env" else "&#167;"
             drawer.append(
                 f"'    <button class=\"drawer-btn {kind}-btn\" "
-                f"onclick=\"showAxisIndex(\\'{kind}\\');closeNavDrawer()\">"
+                f"onclick=\"showAxisIndex(\\'{key}\\');closeNavDrawer()\">"
                 f"<span class=\"drawer-icon\">{glyph}</span>"
-                f"<span class=\"drawer-label\">{js_str(ax.nav_label or ax.label)[1:-1]}</span></button>',")
+                f"<span class=\"drawer-label\">{js_str(label)[1:-1]}</span></button>',")
     # Filters are not in the drawer: the Filter tile (bottom-left) opens them.
     drawer_filters = "\n".join(drawer)
 

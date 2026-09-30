@@ -596,6 +596,7 @@ def sanitize_brief(b, nodes=None) -> list:
         sections(ax.index_sections, f"{ax.label} index")
         for v in ax.values:
             v.name, v.role = plain_text(v.name), plain_text(v.role)
+            v.group = plain_text(v.group)
             v.symbol_svg = clean_svg(v.symbol_svg)
             sections(v.sections, f"{ax.label} value {v.id}")
             v.aliases = [plain_text(x) for x in v.aliases if (x or "").strip()]

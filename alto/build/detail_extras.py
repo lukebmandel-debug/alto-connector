@@ -214,7 +214,10 @@ AXIS_INDEX_GLUE = """
 function showAxisIndex(kind){ window.showDetail('index', kind); }
 function _altoAxisIndex(kind){
   var A = (window._ALTO_AXES||{})[kind]; if(!A) return;
-  var reg = kind==='env' ? ENVS : THEMES, field = kind==='env' ? 'envs' : 'themes';
+  var base = kind.split('~')[0];
+  var reg = {}, all = base==='env' ? ENVS : THEMES, field = base==='env' ? 'envs' : 'themes';
+  // One Index chip per family of values ('theme~frcp'): only that family's rows.
+  Object.keys(all).forEach(function(k){ if(!A.ids || A.ids.indexOf(k)>=0) reg[k]=all[k]; });
   var O = window._ALTO_OUTLINE, num = (O && O.num) || {}, par = (O && O.parent) || {};
   var byId = {}; NODES_SRC.forEach(function(n){ byId[n.id]=n; });
   // An outcome leaf files under the concept it belongs to; a linear page files by band.
@@ -236,7 +239,7 @@ function _altoAxisIndex(kind){
     });
   });
   var loose = Object.keys(reg).filter(function(k){ return !seen[k]; });
-  var color = kind==='env' ? 'var(--env-color)' : 'var(--theme-color)', cites = A.cites || {};
+  var color = base==='env' ? 'var(--env-color)' : 'var(--theme-color)', cites = A.cites || {};
   function blurb(e){
     var ok = (e.sections||[]).filter(function(x){ return x && x.t && x.h!==A.citeH && x.h!=='Source notes'; });
     var s = ok[0];
@@ -252,7 +255,7 @@ function _altoAxisIndex(kind){
       return '<span class="alto-link" data-sd-type="node" data-sd-id="'+n.id+'">'+(num[n.id]?num[n.id]+' ':'')+lab+'</span>';
     }).join(' &middot; ');
     return '<div class="doc-row" style="cursor:default">'
-      + '<span class="alto-link doc-row-t" data-sd-type="'+kind+'" data-sd-id="'+eid+'">'+e.name+'</span>'
+      + '<span class="alto-link doc-row-t" data-sd-type="'+base+'" data-sd-id="'+eid+'">'+e.name+'</span>'
       + (cites[eid] ? ' <span class="doc-row-tag">&middot; '+cites[eid]+'</span>' : '')
       + (b ? '<div class="doc-row-d">'+b+'</div>' : '')
       + (links ? '<div class="doc-row-d" style="margin-top:4px"><span class="doc-rel-lab">Appears in:</span> '+links+'</div>' : '')
@@ -262,7 +265,7 @@ function _altoAxisIndex(kind){
   var html = '<div class="detail-header"><div class="detail-symbol" style="color:'+color+'">'+A.sym+'</div><div>'
     + '<div class="detail-name" style="color:'+color+'">'+A.label+'</div>'
     + '<div class="detail-role">'+total+' '+A.unit+' &middot; in '+(O?'outline':'timeline')+' order</div>'
-    + '<div class="detail-badge '+(kind==='env'?'badge-env':'badge-theme')+'">Index</div></div></div>';
+    + '<div class="detail-badge '+(base==='env'?'badge-env':'badge-theme')+'">Index</div></div></div>';
   (A.top||[]).forEach(function(s){ html += '<div class="detail-section"><h3>'+s.h+'</h3><p>'+s.t+'</p></div>'; });
   groups.forEach(function(g){
     var head = g.c.band ? g.c.title
@@ -445,7 +448,7 @@ AUTOLINK = """<script id="alto-autolink">
   var names=L.names||{}, sec=L.sec||{};
   var keys=Object.keys(names).sort(function(a,b){ return b.length-a.length; });
   var esc=function(t){ return t.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); };
-  var RE=keys.length ? new RegExp('(^|[^A-Za-z-])('+keys.map(esc).join('|')+')(?![A-Za-z])','g') : null;
+  var RE=keys.length ? new RegExp('(^|[^A-Za-z-])('+keys.map(esc).join('|')+')(?![A-Za-z0-9])','g') : null;
   var SRE=/\\u00a7\\s?(\\d+[A-Z]?)(\\([a-z]\\))?(\\s*\\((?:2d|3d)\\))?/g;
   var SKIP='a,button,.alto-link,.hc-link,.ov-node-link,.char-chip,.note-link,[data-sd-id],[data-goto],h1,script,style,textarea,.detail-name,.ns-src';
   function texts(root, test){
@@ -1212,24 +1215,57 @@ def outline_overview(b, nodes) -> str:
     return "\n".join(out)
 
 
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-") or "x"
+
+
+def index_entries(index_axes) -> list:
+    """The Index chips: [(key, kind, label, value ids)]. One per axis, or — when
+    some of its values carry a `group` — one per group (key 'theme~frcp'), in
+    order of first appearance, with any ungrouped values under the axis's own
+    name. The key is what showAxisIndex() and _ALTO_AXES are addressed by."""
+    out = []
+    for kind, ax in index_axes:
+        label = ax.nav_label or ax.label
+        if not any(v.group for v in ax.values):
+            out.append((kind, kind, label, [v.id for v in ax.values]))
+            continue
+        groups: dict = {}
+        for v in ax.values:
+            groups.setdefault(v.group or "", []).append(v.id)
+        used: set = set()
+        for g, ids in groups.items():
+            key = f"{kind}~{_slug(g or label)}"
+            while key in used:
+                key += "x"
+            used.add(key)
+            out.append((key, kind, g or label, ids))
+    return out
+
+
 def axes_config(b, index_axes) -> str:
     """window._ALTO_AXES for the index pages: label, glyph, source line, and
-    each value's short citation."""
+    each value's short citation — one entry per Index chip (index_entries)."""
     docs = {d["id"]: d for d in b.source_docs}
     cfg = {}
-    for kind, ax in index_axes:
+    axes_by_kind = dict(index_axes)
+    for key, kind, label, ids in index_entries(index_axes):
+        ax = axes_by_kind[kind]
         src = source_section(ax.sources, docs)
         top = [{"h": s.h, "t": s.t} for s in ax.index_sections if s.t]
         if src:
             top.append({"h": "Source", "t": src.t})
-        cfg[kind] = {
-            "label": ax.label,
+        vals = [v for v in ax.values if v.id in set(ids)]
+        cfg[key] = {
+            "label": label,
             "unit": (ax.singular or ax.label).lower() + ("" if (ax.singular or "").endswith("s") else "s"),
             "sym": "&#9670;" if kind == "env" else "&#167;",
             "top": top,
             "blurb": [h.lower() for h in ax.index_blurb],
             "citeH": cite_heading(ax),
-            "cites": {v.id: cite_html(ax, v, True) for v in ax.values if v.cite},
+            "cites": {v.id: cite_html(ax, v, True) for v in vals if v.cite},
         }
+        if key != kind:
+            cfg[key]["ids"] = ids
     return ("\nwindow._ALTO_AXES=" + json.dumps(cfg, ensure_ascii=False)
             .replace("</", "<\\/") + ";")

@@ -147,6 +147,12 @@ class AxisValue:
     # chapter as the material names it ("Chapter 3 — Negligence"); `note`
     # stands alone when there is no page ("not in the casebook").
     cite: dict = field(default_factory=dict)
+    # A hide_nav axis whose values fall into named families gets one Index chip
+    # per family in the top bar instead of one for the whole axis — a law
+    # outline's statutes, say: "Federal Rules of Civil Procedure" and
+    # "28 U.S.C.", each chip opening the sections of its own. Empty: the value
+    # sits under the axis's own chip.
+    group: str = ""
 
 
 @dataclass

@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.25"
+__version__ = "1.9.26"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -766,13 +766,18 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
     """Define or extend an extra axis (slot 1 or 2) after the consent gate.
 
     values: [{id, name, role?, color?, symbol_svg?, sections?: [{h,t,prov?}],
-    aliases?: [str], cite?: {ch?, p?, note?}, sources?: [source id]}],
+    aliases?: [str], cite?: {ch?, p?, note?}, sources?: [source id],
+    group?: str}],
     upserted by id, so this can be called repeatedly as material arrives.
     `aliases` are other names the material uses for a value (running text
     naming one links to its page; "X v. Y" short forms are generated).
     `cite` is where it sits in a book; `cite_link` ({label?, url with {p}
     and optionally {sec}, sections: {chapter number: section id}}) turns each
     cite into a link.
+    `group` (hide_nav axes): a family of values — "Federal Rules of Civil
+    Procedure", "28 U.S.C." — each distinct group gets its own Index chip in the
+    top bar and its own index page (guide §C3: statutes and rules cited in a
+    law outline).
     Unlike the entity axis there is no count cap — this is where a course's
     cases belong, each carrying the student's own brief in `sections`.
 

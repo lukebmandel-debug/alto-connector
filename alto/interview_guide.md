@@ -219,6 +219,9 @@ actually has; never invent a band, entity or axis value to fill a slot.
   **Statutes** the same way, if the material has them.
 - A custom **outcome** filter (e.g. Liable / Not Liable, Enforceable / Not
   Enforceable) on the leaf concepts that state a result.
+- **Statutes & rules** (§C3): when the notes cite statutes or rules, they get
+  top-bar Index chips of their own — one per source ("Federal Rules of Civil
+  Procedure", "28 U.S.C.") — each listing the cited sections.
 - **Flags** (§F3): ask which marks from their notes they want as filters.
 - An **Overview** with a real summary of every unit (§ workflow step 7).
 - `layout: 'auto'` — an outline with real categories becomes a tree.
@@ -531,6 +534,41 @@ interchangeable:
   want. Such an axis labels its chips with the value's **name** instead of a
   glyph, so skip glyph design for it (§C1).
 → brief `filters` and `axes` (in `create_timeline`).
+
+### C3. Statutes & rules cited in the notes (law outlines)
+Whenever the notes cite statutes or court rules — "28 U.S.C. § 1367", "Rule
+4(h)", "§ 1391(b)" — they belong in the timeline as **sections**, not just as
+words in a paragraph: a top-bar chip per source, each opening a page of the
+sections the notes mention, every one linked from the concepts that discuss it
+and from running text that names it.
+- Put them on the **second extra axis** (`set_axis_values` slot 2, `hide_nav:
+  true`, label "Statutes & Rules", singular "Section") — the first is usually
+  the cases. Each value is one cited section ("28 U.S.C. § 1367", "Fed. R. Civ.
+  P. 4(h)"), with `group` = its source. **Each distinct `group` becomes its own
+  chip** in the top bar (Index group) with its own index page; values without a
+  group sit under the axis's chip.
+- `aliases` = every way the notes cite it ("Rule 4(h)", "4(h)", "Rules
+  Enabling Act"); `role` = the section's title. A "§ 1367" in any text links by
+  itself. Assign each value to the concepts whose notes discuss it
+  (`axis2_values` on the node), cite a node only where the notes do.
+- **Text of the section.** The notes usually name a section without quoting
+  it. Ask once: "Want me to look up the official text of each section you cite
+  and link it?" If yes, this is the one place the closed-system rule (§0) lets
+  outside text in, because the user asked for it, and only as **primary text
+  quoted verbatim**: section `{h: "Statutory text"|"Rule text", prov:
+  "quoted"}`, plus a second section `{h: "Where this text comes from", t: "Looked
+  up at your request — this is not from your notes. … <a href=…>Official
+  text</a>"}`. Never paraphrase, never abridge, never add commentary of your own.
+  Fetch the page itself (a real HTTP GET and parse, not a summarizing web
+  tool, which rewrites) and quote the section's own paragraphs; for the U.S.
+  Code use the Office of the Law Revision Counsel (uscode.house.gov); for
+  court rules the official rules text (uscourts.gov) or a faithful
+  reproduction such as Cornell LII, and say which. Quote only the section
+  (or the subdivision) the notes cite, and leave the Advisory Committee notes
+  and amendment history out. If a citation is ambiguous (e.g. "Rule 38" could
+  be civil or appellate) do not guess — leave it without text and say so.
+- If the user says no, still make the values (name, aliases, role) so the
+  sections are chips and links — with no text.
 
 ### F3. Flags in their notes — ask which ones
 Students mark their notes: "pivotal", "not tested", "revisit", a case that is
