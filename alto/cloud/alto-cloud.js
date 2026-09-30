@@ -45,7 +45,9 @@
 
   // Which timeline is this page about?
   const scriptEl = document.querySelector('script[src*="alto-cloud.js"]');
-  const TID = (scriptEl && scriptEl.dataset && scriptEl.dataset.tid)
+  // `let`: the private shell loads this file before it knows which timeline it
+  // is about to show (one shell serves them all), then names it with setTid().
+  let TID = (scriptEl && scriptEl.dataset && scriptEl.dataset.tid)
     || new URLSearchParams(location.search).get('course') || null;
 
   let _resolveReady, _isReady = false;
@@ -61,6 +63,13 @@
     signIn:  () => _isReady ? _signIn() : ready.then(() => _signIn()),
     signOut: async () => { await ready; return _signOut(); },
     sync:    async () => { await ready; return requestSync('manual'); },
+    // Tell the sync layer which timeline the page now on screen is. Without it a
+    // page shown by the private shell has no id and syncs nothing: highlights and
+    // notes stayed on the device that made them.
+    setTid:  (tid) => {
+      if (!configured) return false;
+      return ready.then(() => _setTid(tid));
+    },
     // Private timelines: the page itself lives in Firestore under the owner's
     // uid, so the rules decide who may read it. `ready` never resolves when the
     // publisher has no Firebase project, hence the check before the await.
@@ -173,16 +182,17 @@
   const db   = getFirestore(app);
   try { await setPersistence(auth, browserLocalPersistence); } catch (e) {}
 
-  const HL_KEY = TID ? `alto-hl-${TID}` : null;
-  const RP_KEY = TID ? `alto-rp-${TID}` : null;
+  let HL_KEY = TID ? `alto-hl-${TID}` : null;
+  let RP_KEY = TID ? `alto-rp-${TID}` : null;
   const TH_KEY = 'alto-theme-v1';
-  const META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
+  let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
   const RP_CAP = 25, TOMB_CAP = 800;
 
   const origSet = localStorage.setItem.bind(localStorage);
   const origGet = localStorage.getItem.bind(localStorage);
 
-  const meta = (() => { try { return JSON.parse(origGet(META_KEY) || '{}'); } catch (e) { return {}; } })();
+  const loadMeta = () => { try { return JSON.parse(origGet(META_KEY) || '{}'); } catch (e) { return {}; } };
+  let meta = loadMeta();
   const saveMeta = () => { try { origSet(META_KEY, JSON.stringify(meta)); } catch (e) {} };
 
   const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -767,6 +777,43 @@
 
   let unsubUser = null, unsubMain = null, unsubRp = null;
 
+  // Listeners on this timeline's cloud record; called at sign-in, and again by
+  // setTid() when the shell learns the timeline after sign-in.
+  function subscribeTl(user) {
+    for (const u of [unsubMain, unsubRp]) { try { u && u(); } catch (e) {} }
+    unsubMain = unsubRp = null;
+    remoteMain = undefined; remoteReports = undefined; remoteTombs = new Set();
+    if (!user || !TID) return;
+    unsubMain = onSnapshot(doc(db, 'users', user.uid, 'tl', TID), snap => {
+      if (snap.metadata.hasPendingWrites) return;
+      remoteMain = snap.exists() ? snap.data() : null;
+      requestSync('main-snapshot');
+    }, e => console.warn('[AltoCloud] main listener', e));
+
+    unsubRp = onSnapshot(collection(db, 'users', user.uid, 'tl', TID, 'reports'), snap => {
+      if (snap.metadata.hasPendingWrites) return;
+      const live = new Map(); const tombs = new Set();
+      snap.forEach(dnap => {
+        const d = dnap.data() || {};
+        if (d.deleted) { tombs.add(dnap.id); return; }
+        try { const e = JSON.parse(d.data); if (e && e.id) live.set(dnap.id, e); } catch (e2) {}
+      });
+      remoteReports = live; remoteTombs = tombs;
+      requestSync('reports-snapshot');
+    }, e => console.warn('[AltoCloud] reports listener', e));
+  }
+
+  function _setTid(tid) {
+    tid = String(tid || '');
+    if (!tid || tid === TID) return false;
+    TID = tid; cloud.tid = tid;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`;
+    META_KEY = `alto-cloud-meta-v3-${tid}`;
+    meta = loadMeta();
+    if (cloud.user) subscribeTl(cloud.user);
+    return true;
+  }
+
   onAuthStateChanged(auth, (user) => {
     cloud.user = user || null;
     // Pages draw from what this browser remembers until this is set; after it,
@@ -790,25 +837,7 @@
         requestSync('user-snapshot');
       }, e => console.warn('[AltoCloud] user listener', e));
 
-      if (TID) {
-        unsubMain = onSnapshot(doc(db, 'users', user.uid, 'tl', TID), snap => {
-          if (snap.metadata.hasPendingWrites) return;
-          remoteMain = snap.exists() ? snap.data() : null;
-          requestSync('main-snapshot');
-        }, e => console.warn('[AltoCloud] main listener', e));
-
-        unsubRp = onSnapshot(collection(db, 'users', user.uid, 'tl', TID, 'reports'), snap => {
-          if (snap.metadata.hasPendingWrites) return;
-          const live = new Map(); const tombs = new Set();
-          snap.forEach(dnap => {
-            const d = dnap.data() || {};
-            if (d.deleted) { tombs.add(dnap.id); return; }
-            try { const e = JSON.parse(d.data); if (e && e.id) live.set(dnap.id, e); } catch (e2) {}
-          });
-          remoteReports = live; remoteTombs = tombs;
-          requestSync('reports-snapshot');
-        }, e => console.warn('[AltoCloud] reports listener', e));
-      }
+      subscribeTl(user);
     } else {
       try { localStorage.removeItem('alto-account-v1'); } catch (e) {}
       // Cached listings and pages belong to the account that just left.

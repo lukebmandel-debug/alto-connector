@@ -273,6 +273,13 @@ _JS = """
       var u = window.AltoCloud && window.AltoCloud.user, s = remembered();
       shownUid = (u && u.uid) || (s && s.uid) || '';
       shownTop = true;
+      // Name the timeline to the sync layer: this shell is the same for all of
+      // them, so alto-cloud.js cannot know which one it is syncing highlights
+      // and notes for until the page says (var COURSE_ID = '...').
+      try{
+        var tm = /var COURSE_ID = '([^']+)';/.exec(pageHtml);
+        if(tm && window.AltoCloud && window.AltoCloud.setTid) window.AltoCloud.setTid(tm[1]);
+      }catch(e){}
       document.open();
       document.write(withHandoff(pageHtml));
       document.close();
