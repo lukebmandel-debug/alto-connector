@@ -10,7 +10,7 @@ rules_version = '2';
 // Layout written by alto-cloud.js (v3). The recursive match below already
 // covers every one of these, including private timeline pages:
 //   users/{uid}                       { theme }                    account-wide
-//   users/{uid}/tl/{tid}              { highlights, hl_removed, updatedAt }
+//   users/{uid}/tl/{tid}              { highlights, hl_removed, hl_trash, hl_trash_purged, updatedAt }
 //   users/{uid}/tl/{tid}/reports/{id} { data, deleted, ts }
 //   users/{uid}/pages/{key}           { html, title, updatedAt }  private
 //   users/{uid}/shared/{key}          { key, title, savedAt }  shares kept

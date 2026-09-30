@@ -7,7 +7,7 @@
    generalized to many timelines per user:
 
      users/{uid}                      — { theme }           (account-wide)
-     users/{uid}/tl/{tid}             — { highlights, hl_removed, updatedAt }
+     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
@@ -184,9 +184,10 @@
 
   let HL_KEY = TID ? `alto-hl-${TID}` : null;
   let RP_KEY = TID ? `alto-rp-${TID}` : null;
+  let TR_KEY = TID ? `alto-hl-${TID}-trash` : null;   // deleted notes/highlights (the trash)
   const TH_KEY = 'alto-theme-v1';
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
-  const RP_CAP = 25, TOMB_CAP = 800;
+  const RP_CAP = 25, TOMB_CAP = 800, TRASH_CAP = 200;
 
   const origSet = localStorage.setItem.bind(localStorage);
   const origGet = localStorage.getItem.bind(localStorage);
@@ -216,6 +217,17 @@
       seen.add(k); out.push(h);
     }
     return out;
+  }
+
+  // The trash: union of both sides by id+quote, minus anything permanently deleted
+  // (purged ledger), oldest first, newest TRASH_CAP kept.
+  function mergeTrash(localArr, remoteArr, purged) {
+    const byKey = new Map();
+    for (const h of [...remoteArr, ...localArr]) {
+      const k = hlKey(h);
+      if (!purged.has(k) && !byKey.has(k)) byKey.set(k, h);
+    }
+    return [...byKey.values()].sort((a, b) => (a.del || 0) - (b.del || 0)).slice(-TRASH_CAP);
   }
 
   function mergeReports(localArr, remoteMap, tombs) {
@@ -317,6 +329,27 @@
         }
         meta.lastHl = mergedStr;
 
+        /* ---- trash (deleted highlights/notes; Undo + the Deleted list) ---- */
+        const localTr = parseArr(origGet(TR_KEY));
+        const remoteTr = parseArr(remoteMain ? remoteMain.hl_trash : '[]');
+        const remotePurged = Array.isArray(remoteMain && remoteMain.hl_trash_purged) ? remoteMain.hl_trash_purged : [];
+        const purged = new Set(remotePurged);
+        const nowTrKeys = new Set(localTr.map(hlKey));
+        for (const h of parseArr(meta.lastTr)) { const k = hlKey(h); if (!nowTrKeys.has(k)) purged.add(k); }
+        const mergedTr = mergeTrash(localTr, remoteTr, purged);
+        const mergedTrStr = JSON.stringify(mergedTr);
+        const purgedArr = [...purged].slice(-TOMB_CAP);
+        if (mergedTrStr !== JSON.stringify(localTr)) {
+          origSet(TR_KEY, mergedTrStr);
+          try { window.dispatchEvent(new Event('alto-trash-sync')); } catch (e) {}
+        }
+        if (mergedTrStr !== (remoteMain && remoteMain.hl_trash || '[]')
+            || JSON.stringify(purgedArr) !== JSON.stringify(remotePurged)) {
+          await setDoc(mainRef, { hl_trash: mergedTrStr, hl_trash_purged: purgedArr,
+                                  updatedAt: serverTimestamp() }, { merge: true });
+        }
+        meta.lastTr = mergedTrStr;
+
         /* ---- reports ---- */
         const localRp = parseArr(origGet(RP_KEY)).filter(e => e && e.id);
         const remoteRp = new Map(remoteReports);
@@ -349,9 +382,11 @@
     }
   }
 
-  localStorage.setItem = function (k, v) {
+  // On the prototype, not the localStorage object: Safari ignores an override of
+  // the method on the object itself, so local changes never triggered a sync there.
+  Storage.prototype.setItem = function (k, v) {
     origSet(k, v);
-    if (cloud.user && (k === HL_KEY || k === RP_KEY || k === TH_KEY)) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === RP_KEY || k === TH_KEY)) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -807,7 +842,7 @@
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
     TID = tid; cloud.tid = tid;
-    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`;
     META_KEY = `alto-cloud-meta-v3-${tid}`;
     meta = loadMeta();
     if (cloud.user) subscribeTl(cloud.user);

@@ -2428,7 +2428,7 @@ function deleteHighlight(hlId){
 
 function clearAllHighlights(){
   if(highlights.length === 0) return;
-  if(!confirm('This will permanently delete all your highlights and notes. Are you sure?')) return;
+  if(!confirm('This will delete all your highlights and notes. You can bring them back from the trash button in Notes. Continue?')) return;
   const ids = highlights.map(h=>h.id);
   ids.forEach(id=>{
     const marks = document.querySelectorAll(`mark[data-hl-id="${id}"]`);
@@ -4369,7 +4369,7 @@ html.mobile #detail-page { padding-top: 48px !important; }
     window.clearAllHighlights = function(){
       if((!window.highlights || window.highlights.length === 0) &&
          !document.querySelector('mark[data-hl-id]')) return;
-      if(!confirm('This will permanently delete all your highlights and notes. Are you sure?')) return;
+      if(!confirm('This will delete all your highlights and notes. You can bring them back from the trash button in Notes. Continue?')) return;
       document.querySelectorAll('mark[data-hl-id]').forEach(function(m){
         var p = m.parentNode; while(m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m);
       });

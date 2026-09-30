@@ -873,6 +873,219 @@ EDIT_TILE = r"""<style id="alto-edit-css">
 </script>"""
 
 
+NOTES_TRASH = r"""<style id="alto-trash-css">
+  #notes-footer .nt-row{display:flex;align-items:center;justify-content:center;gap:14px;}
+  #notes-footer .nt-btn{box-sizing:border-box;background:var(--surface);border:1px solid var(--border);color:var(--muted);
+    cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;width:32px;height:32px;
+    border-radius:50%;line-height:1;flex-shrink:0;}
+  #notes-footer .nt-btn svg{display:block;pointer-events:none;}
+  #notes-footer .nt-btn:disabled{opacity:.35;cursor:default;}
+  #notes-footer .nt-btn.on{color:var(--text);border-color:var(--muted);}
+  html:not(.mobile) #notes-footer .nt-btn, html.mobile #notes-footer .nt-btn{background:var(--card-glass-bg,var(--surface)) !important;border-color:var(--card-glass-border,var(--border)) !important;}
+  html:not(.mobile) #notes-footer .nt-btn:not(:disabled):hover{border-color:var(--muted) !important;color:var(--text) !important;}
+  #notes-trash{display:none;flex:1;overflow-y:auto;padding:12px;}
+  #notes-panel.trash-mode #notes-list{display:none !important;}
+  #notes-panel.trash-mode #notes-trash{display:block;}
+  #notes-panel.trash-mode #notes-add-btn{visibility:hidden;}
+  #notes-panel.trash-mode #notes-report-btn, #notes-panel.trash-mode #notes-clear-btn{display:none !important;}
+  html.mobile #notes-trash{-webkit-overflow-scrolling:touch;}
+  #notes-trash .nt-empty{font-size:12px;color:var(--muted);text-align:center;padding:40px 20px;line-height:1.8;}
+  #notes-trash .nt-item{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;
+    margin-bottom:10px;font-size:12px;line-height:1.6;color:var(--text);}
+  #notes-trash .nt-quote{font-style:italic;color:var(--muted);margin-bottom:6px;font-size:11px;
+    border-left:2px solid var(--accent);padding-left:8px;word-break:break-word;}
+  #notes-trash .nt-text{color:var(--text);word-break:break-word;white-space:pre-wrap;}
+  #notes-trash .nt-when{font-size:10.5px;color:var(--muted);margin-top:6px;letter-spacing:.02em;}
+  #notes-trash .nt-acts{display:flex;gap:8px;margin-top:8px;}
+  #notes-trash .nt-acts button{flex:1;font:inherit;font-size:11.5px;padding:6px 8px;border-radius:14px;cursor:pointer;
+    background:var(--surface);border:1px solid var(--border);color:var(--text);}
+  #notes-trash .nt-acts button.nt-purge{color:var(--muted);}
+  #notes-trash .nt-acts button.nt-purge.sure{color:#d04a4a;border-color:#d04a4a;}
+  @media print{#notes-footer .nt-row .nt-btn,#notes-trash{display:none !important;}}
+</style>
+<script id="alto-notes-trash">
+(function(){
+  var KEY = '__ALTO_HL_KEY__', TKEY = KEY + '-trash', CAP = 200;
+  var ls = window.localStorage;
+  function rd(k){ try { var a = JSON.parse(ls.getItem(k) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
+  function emptyFreeform(h){ return h && h.kind === 'freeform' && !(h.note && h.note.length) && !(h.quote && h.quote.length); }
+
+  function wr(k, v){ try { ls.setItem(k, v); } catch(e){} }
+
+  /* Every delete lands in the trash: the × on a note and Clear all. The store
+     is read before and after the page's own delete runs, so whatever it took
+     out is what is kept, and one click = one batch (Undo brings back a whole
+     Clear all). Wrapping the two functions rather than localStorage.setItem:
+     Safari ignores an override of that method on the localStorage object. */
+  function trashGone(prev, next){
+    var keep = {}; next.forEach(function(h){ if(h) keep[h.id] = 1; });
+    var gone = prev.filter(function(h){ return h && !keep[h.id] && !emptyFreeform(h); });
+    if(!gone.length) return;
+    var now = Date.now(), batch = 'b' + now.toString(36), t = rd(TKEY), have = {};
+    t.forEach(function(h){ have[h.id + '§' + h.quote] = 1; });
+    gone.forEach(function(h){
+      if(have[h.id + '§' + h.quote]) return;
+      var c = {}; for(var f in h) c[f] = h[f];
+      c.del = now; c.batch = batch; t.push(c);
+    });
+    t.sort(function(a,b){ return (a.del||0) - (b.del||0); });
+    wr(TKEY, JSON.stringify(t.slice(-CAP)));
+    refresh();
+  }
+  function wrap(name){
+    var f = window[name];
+    if(typeof f !== 'function' || f.__altoTrash) return;
+    var w = function(){
+      var before = rd(KEY), r = f.apply(this, arguments);
+      try { trashGone(before, rd(KEY)); } catch(e){}
+      return r;
+    };
+    w.__altoTrash = true;
+    window[name] = w;
+  }
+  function wrapAll(){ wrap('deleteHighlight'); wrap('clearAllHighlights'); }
+  wrapAll();
+  window.addEventListener('load', function(){ wrapAll(); setTimeout(wrapAll, 400); });
+
+  function el(tag, cls, text){ var n = document.createElement(tag); if(cls) n.className = cls; if(text != null) n.textContent = text; return n; }
+  var UNDO_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 3 6.5l3 3"/><path d="M3.4 6.5H9a3.6 3.6 0 0 1 0 7.2H6.5"/></svg>';
+  var TRASH_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.2h10.4"/><path d="M6.3 4.2V2.8h3.4v1.4"/><path d="M4 4.2l.6 8.6a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.6"/></svg>';
+
+  function panel(){ return document.getElementById('notes-panel'); }
+  function inTrash(){ var p = panel(); return !!(p && p.classList.contains('trash-mode')); }
+
+  function reload(){
+    try { if(typeof loadHighlights === 'function') loadHighlights(); } catch(e){}
+    window.highlights = rd(KEY).sort(function(a,b){ return (a.ts||0) - (b.ts||0); });
+    try { if(typeof renderNotesList === 'function') renderNotesList(); } catch(e){}
+    try { if(typeof updateNotesToggle === 'function') updateNotesToggle(); } catch(e){}
+  }
+
+  /* A restored note gets a fresh id. The old id is on the sync ledger of
+     removed highlights, and a ledger entry beats any copy that still carries it. */
+  function bringBack(items){
+    if(!items.length) return;
+    var arr = rd(KEY), n = 0;
+    items.forEach(function(h){
+      var c = {}; for(var f in h) if(f !== 'del' && f !== 'batch') c[f] = h[f];
+      c.id = (h.kind === 'freeform' ? 'fn_' : 'hl-r') + Date.now() + '_' + (n++) + Math.floor(Math.random()*1000);
+      if(!c.ts) c.ts = Date.now();
+      arr.push(c);
+    });
+    arr.sort(function(a,b){ return (a.ts||0) - (b.ts||0); });
+    var ids = {}; items.forEach(function(h){ ids[h.id + '§' + h.quote] = 1; });
+    var t = rd(TKEY).filter(function(h){ return !ids[h.id + '§' + h.quote]; });
+    wr(TKEY, JSON.stringify(t));
+    wr(KEY, JSON.stringify(arr));
+    reload(); refresh();
+  }
+
+  function undo(){
+    var t = rd(TKEY); if(!t.length) return;
+    var last = t[t.length - 1];
+    bringBack(t.filter(function(h){ return h.batch === last.batch; }));
+  }
+  function purge(h){
+    wr(TKEY, JSON.stringify(rd(TKEY).filter(function(x){ return !(x.id === h.id && x.quote === h.quote); })));
+    refresh();
+  }
+
+  function when(ts){
+    try {
+      var d = new Date(ts), now = new Date();
+      var day = d.toDateString() === now.toDateString() ? 'today' : d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+      return 'Deleted ' + day + ', ' + d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+    } catch(e){ return 'Deleted'; }
+  }
+  var DOT = {yellow:'rgba(255,220,50,0.7)', blue:'rgba(74,158,255,0.5)'};
+
+  function renderTrash(){
+    var box = document.getElementById('notes-trash'); if(!box) return;
+    box.textContent = '';
+    var t = rd(TKEY).slice().reverse();
+    if(!t.length){ box.appendChild(el('div', 'nt-empty', 'Nothing deleted yet.')); return; }
+    t.forEach(function(h){
+      var item = el('div', 'nt-item');
+      if(h.kind !== 'freeform' && h.quote){
+        var q = el('div', 'nt-quote', '“' + (h.quote.length > 120 ? h.quote.slice(0,120) + '…' : h.quote) + '”');
+        q.style.borderColor = DOT[h.color] || 'rgba(232,100,130,0.55)';
+        item.appendChild(q);
+      }
+      if(h.note) item.appendChild(el('div', 'nt-text', h.note));
+      else if(h.kind !== 'freeform') item.appendChild(el('div', 'nt-text', 'No note')).style.cssText = 'color:var(--muted);font-style:italic';
+      item.appendChild(el('div', 'nt-when', when(h.del)));
+      var acts = el('div', 'nt-acts');
+      var b1 = el('button', 'nt-restore', 'Bring back'); b1.type = 'button';
+      b1.addEventListener('click', function(){ bringBack([h]); });
+      var b2 = el('button', 'nt-purge', 'Delete forever'); b2.type = 'button';
+      b2.addEventListener('click', function(){
+        if(b2.classList.contains('sure')){ purge(h); return; }
+        b2.classList.add('sure'); b2.textContent = 'Really delete?';
+        setTimeout(function(){ b2.classList.remove('sure'); b2.textContent = 'Delete forever'; }, 3500);
+      });
+      acts.appendChild(b1); acts.appendChild(b2); item.appendChild(acts);
+      box.appendChild(item);
+    });
+  }
+
+  function refresh(){
+    var u = document.getElementById('notes-undo-btn'), tb = document.getElementById('notes-trash-btn');
+    var n = rd(TKEY).length;
+    if(u) u.disabled = !n;
+    if(tb){ tb.title = n ? 'Deleted notes (' + n + ')' : 'Deleted notes'; }
+    if(inTrash()) renderTrash();
+  }
+
+  function setMode(on){
+    var p = panel(), title = document.getElementById('notes-header-title'), tb = document.getElementById('notes-trash-btn');
+    if(!p) return;
+    p.classList.toggle('trash-mode', !!on);
+    if(tb){ tb.classList.toggle('on', !!on); tb.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    if(title){
+      if(on){ title.setAttribute('data-was', title.textContent); title.textContent = 'Deleted notes'; }
+      else if(title.hasAttribute('data-was')){ title.textContent = title.getAttribute('data-was'); title.removeAttribute('data-was'); }
+    }
+    if(on) renderTrash();
+  }
+
+  function install(){
+    var add = document.getElementById('notes-add-btn'), list = document.getElementById('notes-list'), footer = document.getElementById('notes-footer');
+    if(!add || !list || !footer || document.getElementById('notes-trash')) return;
+    var box = document.createElement('div'); box.id = 'notes-trash';
+    list.parentNode.insertBefore(box, list.nextSibling);
+    var row = document.createElement('div'); row.className = 'nt-row';
+    add.parentNode.insertBefore(row, add);
+    var u = document.createElement('button'); u.id = 'notes-undo-btn'; u.type = 'button'; u.className = 'nt-btn';
+    u.title = 'Undo last delete'; u.setAttribute('aria-label', 'Undo last delete'); u.innerHTML = UNDO_SVG;
+    u.addEventListener('click', undo);
+    var tb = document.createElement('button'); tb.id = 'notes-trash-btn'; tb.type = 'button'; tb.className = 'nt-btn';
+    tb.title = 'Deleted notes'; tb.setAttribute('aria-label', 'Deleted notes'); tb.setAttribute('aria-pressed', 'false'); tb.innerHTML = TRASH_SVG;
+    tb.addEventListener('click', function(){ setMode(!inTrash()); });
+    row.appendChild(u); row.appendChild(add); row.appendChild(tb);
+    /* Closing the panel leaves the deleted list: Notes reopens on the notes. */
+    var wasOpen = false;
+    new MutationObserver(function(){
+      var p = panel(), open = !!(p && p.classList.contains('open'));
+      if(wasOpen && !open && inTrash()) setMode(false);
+      wasOpen = open;
+    }).observe(panel(), {attributes:true, attributeFilter:['class']});
+    window.addEventListener('storage', function(ev){ if(ev && (ev.key === TKEY || ev.key === KEY)) refresh(); });
+    window.addEventListener('alto-trash-sync', refresh);
+    refresh();
+  }
+  window._altoNotesTrash = {undo: undo, refresh: refresh, key: TKEY};
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
+})();
+</script>"""
+
+
+def notes_trash(b) -> str:
+    """NOTES_TRASH with this timeline's highlight storage key (the page's own
+    `alto-hl-{tid}` text, which a share re-stamps like every other copy)."""
+    from .blocks import ID_PATTERNS
+    return NOTES_TRASH.replace("__ALTO_HL_KEY__", ID_PATTERNS["hl_key"].format(tid=b.timeline_id)) + "\n"
+
+
 def edit_tile(b) -> str:
     """EDIT_TILE with this timeline's title and id, which its prompt quotes."""
     from .blocks import ID_PATTERNS
