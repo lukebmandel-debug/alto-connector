@@ -886,7 +886,9 @@ NOTES_TRASH = r"""<style id="alto-trash-css">
   #notes-trash{display:none;flex:1;overflow-y:auto;padding:12px;}
   #notes-panel.trash-mode #notes-list{display:none !important;}
   #notes-panel.trash-mode #notes-trash{display:block;}
-  #notes-panel.trash-mode #notes-add-btn{visibility:hidden;}
+  #notes-footer .nt-home{display:none !important;}
+  #notes-panel.trash-mode #notes-add-btn{display:none !important;}
+  #notes-panel.trash-mode #notes-footer .nt-home{display:flex !important;}
   #notes-panel.trash-mode #notes-report-btn, #notes-panel.trash-mode #notes-clear-btn{display:none !important;}
   html.mobile #notes-trash{-webkit-overflow-scrolling:touch;}
   #notes-trash .nt-empty{font-size:12px;color:var(--muted);text-align:center;padding:40px 20px;line-height:1.8;}
@@ -949,6 +951,7 @@ NOTES_TRASH = r"""<style id="alto-trash-css">
 
   function el(tag, cls, text){ var n = document.createElement(tag); if(cls) n.className = cls; if(text != null) n.textContent = text; return n; }
   var UNDO_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 3 6.5l3 3"/><path d="M3.4 6.5H9a3.6 3.6 0 0 1 0 7.2H6.5"/></svg>';
+  var HOME_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.6 8 2.8l5.5 4.8"/><path d="M4 6.6v6.2a.9.9 0 0 0 .9.9h6.2a.9.9 0 0 0 .9-.9V6.6"/><path d="M6.6 13.7V9.6h2.8v4.1"/></svg>';
   var TRASH_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.2h10.4"/><path d="M6.3 4.2V2.8h3.4v1.4"/><path d="M4 4.2l.6 8.6a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.6"/></svg>';
 
   function panel(){ return document.getElementById('notes-panel'); }
@@ -1061,7 +1064,11 @@ NOTES_TRASH = r"""<style id="alto-trash-css">
     var tb = document.createElement('button'); tb.id = 'notes-trash-btn'; tb.type = 'button'; tb.className = 'nt-btn';
     tb.title = 'Deleted notes'; tb.setAttribute('aria-label', 'Deleted notes'); tb.setAttribute('aria-pressed', 'false'); tb.innerHTML = TRASH_SVG;
     tb.addEventListener('click', function(){ setMode(!inTrash()); });
-    row.appendChild(u); row.appendChild(add); row.appendChild(tb);
+    /* In the deleted list the + has no job, so its place holds Home: back to the notes. */
+    var hm = document.createElement('button'); hm.id = 'notes-home-btn'; hm.type = 'button'; hm.className = 'nt-btn nt-home';
+    hm.title = 'Back to notes'; hm.setAttribute('aria-label', 'Back to notes'); hm.innerHTML = HOME_SVG;
+    hm.addEventListener('click', function(){ setMode(false); });
+    row.appendChild(u); row.appendChild(add); row.appendChild(hm); row.appendChild(tb);
     /* Closing the panel leaves the deleted list: Notes reopens on the notes. */
     var wasOpen = false;
     new MutationObserver(function(){

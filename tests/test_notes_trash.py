@@ -51,3 +51,11 @@ def test_cloud_layer_syncs_the_trash_and_hooks_safari():
 
 def test_clear_all_no_longer_says_permanent(html):
     assert "permanently delete all" not in html
+
+
+def test_the_deleted_list_has_a_home_button_where_the_plus_was(html):
+    assert 'id = \'notes-home-btn\'' in html or "hm.id = 'notes-home-btn'" in html
+    assert "#notes-panel.trash-mode #notes-add-btn{display:none !important;}" in html
+    assert "#notes-panel.trash-mode #notes-footer .nt-home{display:flex !important;}" in html
+    i = html.index("row.appendChild(u); row.appendChild(add); row.appendChild(hm)")
+    assert "setMode(false)" in html[i - 400:i]
