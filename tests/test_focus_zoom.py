@@ -109,3 +109,14 @@ def test_a_moved_focus_anchor_fails_the_build_by_name(name):
     moved = engine_template("timeline_template.html").replace(p["old"], "/* moved */", 1)
     with pytest.raises(PatchError, match=name):
         apply_patches(moved)
+
+
+def test_the_focus_shadow_is_sized_at_the_enlarged_zoom(html):
+    """A description on a wrap boundary re-wraps as the zoom grows, so the card's
+    1x height can be a line taller than its enlarged one; a shadow sized from the
+    1x box overshot above and below mid-ramp (Civ Pro "The Erie Doctrine")."""
+    i = html.index("function _focusShadow(el,at)")
+    body = html[i:html.index("function _shadowSync", i)]
+    assert "card.style.zoom=String(FOCUS_K);" in body
+    assert body.index("card.style.zoom=String(FOCUS_K);") < body.index("card.offsetHeight")
+    assert body.index("card.offsetHeight") < body.index("card.style.zoom=z0;")

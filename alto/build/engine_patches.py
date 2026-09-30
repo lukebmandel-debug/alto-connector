@@ -302,7 +302,15 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
     if(!at){ if(sh){ sh._leaving=true; _shadowSync(el); } return; }
     var world=document.getElementById('world'), card=_cardOf(el);
     if(!world || !card) return;
-    var w=card.offsetWidth, h=card.offsetHeight;        // a zoomed card reports its unzoomed box
+    /* Measure the card AT the enlarged zoom, not at 1x: a description that sits
+       on a line-wrap boundary re-wraps as the zoom grows (glyph advances round
+       differently), so its 1x height can be a line taller than its enlarged one.
+       Sized from the 1x box the shadow ran ~30px past the card, above and below,
+       until the landing re-sized it (Civ Pro "The Erie Doctrine"). Style writes
+       + one layout read, restored before any paint. */
+    var z0=card.style.zoom; card.style.zoom=String(FOCUS_K);
+    var w=card.offsetWidth, h=card.offsetHeight;        // the card's own box at FOCUS_K
+    card.style.zoom=z0;
     if(!w || !h) return;
     var ax=parseFloat(el.style.left), ay=parseFloat(el.style.top); if(isNaN(ax)||isNaN(ay)) return;
     if(!sh){ sh=document.createElement('div'); sh.className='alto-fshadow'; world.appendChild(sh); el._fsh=sh; }
