@@ -197,7 +197,11 @@
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
   const RP_CAP = 25, TOMB_CAP = 800, TRASH_CAP = 200;
 
-  const origSet = localStorage.setItem.bind(localStorage);
+  // The browser's own setter, kept before the prototype is patched below. origSet
+  // writes localStorage (this layer's own keys); the patch itself must write
+  // whichever Storage it was called on — sessionStorage included.
+  const nativeSet = Storage.prototype.setItem;
+  const origSet = (k, v) => nativeSet.call(localStorage, k, v);
   const origGet = localStorage.getItem.bind(localStorage);
 
   const loadMeta = () => { try { return JSON.parse(origGet(META_KEY) || '{}'); } catch (e) { return {}; } };
@@ -209,6 +213,16 @@
   const hlKey = h => ((h && h.id) || 'x') + '§' + hash(String((h && h.quote) || ''));
   const rpTs = id => { const n = parseInt(String(id || '').replace(/^r/, ''), 10); return isNaN(n) ? 0 : n; };
 
+  // Which copy of one highlight to keep. A highlight carries `mod`, when its note
+  // was last edited: the later edit wins, so shortening or clearing a note sticks
+  // (the old rule — the longer note wins — put a deleted sentence straight back).
+  // Copies with no `mod` (made before it existed) fall back to the longer note.
+  function newerNote(local, remote) {
+    const lm = Number(local.mod) || 0, rm = Number(remote.mod) || 0;
+    if (lm || rm) return rm > lm;
+    return String(remote.note || '').length > String(local.note || '').length;
+  }
+
   function mergeHl(localArr, remoteArr, removed) {
     const out = [], seen = new Set();
     const rmap = new Map(remoteArr.map(h => [hlKey(h), h]));
@@ -217,7 +231,7 @@
       if (removed.has(k) || seen.has(k)) continue;
       seen.add(k);
       const r = rmap.get(k);
-      out.push(r && String(r.note || '').length > String(h.note || '').length ? r : h);
+      out.push(r && newerNote(h, r) ? r : h);
     }
     for (const h of remoteArr) {
       const k = hlKey(h);
@@ -331,7 +345,12 @@
         const mainRef = doc(db, 'users', uid, 'tl', TID);
 
         /* ---- highlights ---- */
-        const localArr = parseArr(origGet(HL_KEY));
+        // A note still being typed (the "+" placeholder, flagged `pending`) stays
+        // on this device until it is saved: other devices never see an empty note
+        // appear and vanish.
+        const localAll = parseArr(origGet(HL_KEY));
+        const pendingLocal = localAll.filter(h => h && h.pending);
+        const localArr = localAll.filter(h => !(h && h.pending));
         const localStr = JSON.stringify(localArr);
         const remoteArr = parseArr(remoteMain ? remoteMain.highlights : '[]');
         const removed = new Set(Array.isArray(remoteMain && remoteMain.hl_removed) ? remoteMain.hl_removed : []);
@@ -342,8 +361,10 @@
         const mergedStr = JSON.stringify(merged);
         const tombs = [...removed].slice(-TOMB_CAP);
 
-        if (mergedStr !== localStr) applyHighlightsLocally(merged, mergedStr);
-        else origSet(HL_KEY, mergedStr);
+        if (mergedStr !== localStr) {
+          const keep = merged.concat(pendingLocal);
+          applyHighlightsLocally(keep, JSON.stringify(keep));
+        } else if (!pendingLocal.length) origSet(HL_KEY, mergedStr);
 
         const remoteTombsStr = JSON.stringify(Array.isArray(remoteMain && remoteMain.hl_removed) ? remoteMain.hl_removed : []);
         const needMainPush = !remoteMain
@@ -411,7 +432,7 @@
   // On the prototype, not the localStorage object: Safari ignores an override of
   // the method on the object itself, so local changes never triggered a sync there.
   Storage.prototype.setItem = function (k, v) {
-    origSet(k, v);
+    nativeSet.call(this, k, v);
     if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
   };
 

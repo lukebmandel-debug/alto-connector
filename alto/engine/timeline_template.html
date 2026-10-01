@@ -2399,7 +2399,7 @@ function saveNote(){
   const text = document.getElementById('note-input').value.trim();
   if(pendingSelection){
     const hl = highlights.find(h=>h.id===pendingSelection);
-    if(hl) hl.note = text;
+    if(hl){ hl.note = text; hl.mod = Date.now(); delete hl.pending; }   // when the note was last edited — sync keeps the later edit
   }
   pendingSelection = null;
   document.getElementById('note-dialog').classList.remove('visible');
@@ -8697,7 +8697,7 @@ html:not(.mobile) .note-dialog-btn {
     var arr = _readStore();
     var nodeId = (typeof window._currentDetailType === 'string' && window._currentDetailType === 'node' && typeof window._currentDetailId === 'string') ? window._currentDetailId : null;
     var id = 'fn_' + Date.now() + '_' + Math.floor(Math.random()*100000);
-    arr.push({ id:id, kind:'freeform', ts:Date.now(), nodeId:nodeId, note:'', quote:'', color:'yellow' });
+    arr.push({ id:id, kind:'freeform', ts:Date.now(), nodeId:nodeId, note:'', quote:'', color:'yellow', pending:true });   // pending: not synced until saved
     // Backfill + sort to keep chronological invariant
     var now = Date.now();
     arr.forEach(function(h, i){
