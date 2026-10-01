@@ -280,6 +280,8 @@ _JS = """
         var tm = /var COURSE_ID = '([^']+)';/.exec(pageHtml);
         if(tm && window.AltoCloud && window.AltoCloud.setTid) window.AltoCloud.setTid(tm[1]);
       }catch(e){}
+      // Opened by its owner: the homepage's "recently viewed" order reads this.
+      try{ if(u && window.AltoCloud && window.AltoCloud.markViewed) window.AltoCloud.markViewed(KEY); }catch(e){}
       document.open();
       document.write(withHandoff(pageHtml));
       document.close();

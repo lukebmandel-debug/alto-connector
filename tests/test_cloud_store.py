@@ -201,3 +201,14 @@ def test_the_token_never_travels_in_an_address():
                            if h["key"] == "Content-Security-Policy")
     assert "form-action 'none'" in csp("**")
     assert "form-action http://127.0.0.1:*" in csp("/connect/**")
+
+
+def test_a_private_page_records_when_its_project_was_added(cloud, fake):
+    base = "projects/proj/databases/(default)/documents/users/U1"
+    meta = {"title": "P", "heading": "H", "project": "P", "tid": "t1", "units": [], "search": [],
+            "v": 1, "added": 1790000000}
+    cloud.put_page("U1", "k1", "<html>", "P", meta)
+    assert fake.docs[f"{base}/pagemeta/k1"]["added"] == {"integerValue": "1790000000"}
+    # a republish that does not know it leaves the stored value alone
+    cloud.put_page("U1", "k1", "<html>", "P", {k: v for k, v in meta.items() if k != "added"})
+    assert fake.docs[f"{base}/pagemeta/k1"]["added"] == {"integerValue": "1790000000"}

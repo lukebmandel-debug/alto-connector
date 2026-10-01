@@ -6,12 +6,13 @@
    per id with {deleted} tombstones, 25-newest cap; theme last-change-wins),
    generalized to many timelines per user:
 
-     users/{uid}                      — { theme }           (account-wide)
+     users/{uid}                      — { theme, homeSort, homeSortAt }   (account-wide)
      users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
-                                          search, shareKey, updatedAt }
+                                          search, shareKey, updatedAt,
+                                          added, viewedAt }
 
    That last one is a whole private timeline page, filed under the opaque key
    in its /pv/{key}/ URL rather than under a timeline id, so nothing about it
@@ -105,6 +106,12 @@
     // Just the listing record — a few KB, where getPage is the whole page.
     // The private shell uses its updatedAt to decide whether a cached copy
     // is still current without downloading the page to find out.
+    // The owner opened this private timeline: stamp its listing record, which
+    // is what the homepage's "recently viewed" order sorts by.
+    markViewed: async (key) => {
+      if (!configured) return false;
+      await ready; return _markViewed(key);
+    },
     getPageMeta: async (key) => {
       if (!configured) return null;
       await ready; return _getPageMeta(key);
@@ -186,6 +193,7 @@
   let RP_KEY = TID ? `alto-rp-${TID}` : null;
   let TR_KEY = TID ? `alto-hl-${TID}-trash` : null;   // deleted notes/highlights (the trash)
   const TH_KEY = 'alto-theme-v1';
+  const SORT_KEY = 'alto-home-sort-v1';       // the homepage's project order
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
   const RP_CAP = 25, TOMB_CAP = 800, TRASH_CAP = 200;
 
@@ -301,6 +309,24 @@
       }
       meta.lastTheme = themeAfter;
 
+      /* ---- homepage project order (account-wide; the newest choice wins) ----
+         Kept locally as {v, t} (t = when it was chosen); the account document
+         carries the same pair, so a choice made on one device reaches the
+         rest, and an old choice never overwrites a newer one. */
+      {
+        let ls = null;
+        try { ls = JSON.parse(origGet(SORT_KEY) || 'null'); } catch (e) {}
+        const rs = remoteUser && remoteUser.homeSort
+          ? { v: String(remoteUser.homeSort), t: Number(remoteUser.homeSortAt) || 0 } : null;
+        if (ls && ls.v && (!rs || (Number(ls.t) || 0) > rs.t)) {
+          await setDoc(userRef, { homeSort: ls.v, homeSortAt: Number(ls.t) || Date.now(),
+                                  updatedAt: serverTimestamp() }, { merge: true });
+        } else if (rs && (!ls || rs.t > (Number(ls.t) || 0))) {
+          origSet(SORT_KEY, JSON.stringify(rs));
+          try { window.dispatchEvent(new Event('alto-home-sort')); } catch (e) {}
+        }
+      }
+
       if (TID) {
         const mainRef = doc(db, 'users', uid, 'tl', TID);
 
@@ -386,7 +412,7 @@
   // the method on the object itself, so local changes never triggered a sync there.
   Storage.prototype.setItem = function (k, v) {
     origSet(k, v);
-    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === RP_KEY || k === TH_KEY)) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -500,6 +526,16 @@
     return Object.assign({}, v, { updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
   }
 
+  async function _markViewed(key) {
+    const u = auth.currentUser;
+    if (!u || !key) return false;
+    try {
+      await setDoc(doc(db, 'users', u.uid, 'pagemeta', key),
+                   { viewedAt: serverTimestamp() }, { merge: true });
+      return true;
+    } catch (e) { return false; }
+  }
+
   async function _ensureMeta(key, html) {
     const u = auth.currentUser;
     if (!u || !key || !html) return false;
@@ -594,6 +630,8 @@
                  units: Array.isArray(v.units) ? v.units : [],
                  search: Array.isArray(v.search) ? v.search : [],
                  shareKey: v.shareKey || '',
+                 added: Number(v.added) || 0,
+                 viewedAt: (v.viewedAt && v.viewedAt.seconds) || 0,
                  updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
     });
     out.sort((a, b) => (b.updatedAt - a.updatedAt) ||

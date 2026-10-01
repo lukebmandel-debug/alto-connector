@@ -223,7 +223,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.27"
+__version__ = "1.9.28"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1221,6 +1221,18 @@ def preview_timeline(timeline_id: str) -> dict:
     }
 
 
+def _added_epoch(doc) -> int:
+    """When the project this timeline lives in was added, in epoch seconds —
+    the homepage's "recently added" order. 0 when unknown."""
+    from datetime import datetime
+    try:
+        proj = get_store().get_project(uid(), doc.get("project_id") or "") or {}
+        raw = proj.get("created") or doc.get("created") or ""
+        return int(datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp())
+    except Exception:
+        return 0
+
+
 @mcp.tool(title="Publish timeline", annotations=RW)
 def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     """Publish the built timeline.
@@ -1342,7 +1354,8 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                                     f"({len(page.encode()) // 1024} KB of html) "
                                     f"exceeds the {MAX_PAGE_BYTES // 1024} KB a "
                                     "private page can be")}
-            st.put_page(uid(), key, page, title_of(page), meta_of(page))
+            st.put_page(uid(), key, page, title_of(page),
+                        {**meta_of(page), "added": _added_epoch(doc)})
             urls = {"view_url": f"{live}/pv/{key}/", **stale_bits,
                     "note": ("Published privately to the user's own account: "
                              "only they can open it, after signing in with "
@@ -1378,7 +1391,7 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                                  "again. Never ask them to upload or copy "
                                  "anything themselves.")}
             CloudStore(s, st).put_page(s.uid, key, page, title_of(page),
-                                       meta_of(page))
+                                       {**meta_of(page), "added": _added_epoch(doc)})
             urls = {"view_url": f"{live}/pv/{key}/", **stale_bits,
                     "note": ("Published privately to the user's own account: "
                              "only they can open it, after signing in with "

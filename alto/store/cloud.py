@@ -249,6 +249,11 @@ class CloudStore(Store):
                 for n in meta.get("search", [])]}},
             "v": {"integerValue": str(meta.get("v", 1))},
         }
+        # When the project this timeline belongs to was added (epoch seconds):
+        # the homepage's "recently added" order. Left out when unknown, so an
+        # update never blanks a value another publish already wrote.
+        if meta.get("added"):
+            mfields["added"] = {"integerValue": str(int(meta["added"]))}
         now = [{"fieldPath": "updatedAt", "setToServerValue": "REQUEST_TIME"}]
         self._req("POST", f"{self.root}:commit", {"writes": [
             {"update": {"name": self._doc(uid, "pages", key), "fields": page},
