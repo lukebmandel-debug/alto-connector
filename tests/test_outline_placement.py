@@ -780,3 +780,32 @@ def test_the_pairs_of_a_wide_band_narrow_to_fit_across_the_page_and_share_a_leve
     assert y["mal"] == y["custom-l"] == y["custom-nl"]
     assert y["nat"] > y["mal"]
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
+
+
+def test_concepts_with_progeny_go_in_a_row_under_their_parent_clear_of_a_wide_rows_line():
+    """The Negligence Standard case: a band card whose three sub-concepts each
+    have a Liable / Not Liable pair. They sit in one row right under it (not a tall
+    column), over their pairs, and leave the connector of the wide row hanging
+    from the card to their right clear."""
+    ns = [_n("hub"), _n("std", "hub"), _n("duty", "hub"), _n("breach", "hub"), _n("cause", "hub"),
+          _n("prox", "hub"), _n("dam", "hub")]
+    for c in ("mental", "phys", "age"):
+        ns += [_n(c, "std"), _n(c + "-l", c, tag="Outcome"), _n(c + "-nl", c, tag="Outcome")]
+    for c in ("risks", "custom", "perse", "res"):
+        ns += [_n(c, "breach"), _n(c + "-l", c, tag="Outcome"), _n(c + "-nl", c, tag="Outcome")]
+    hints = {"hub": {"arrange": "row", "child_w": 210}, "std": {}, "breach": {"arrange": "row"}}
+    hints_t = {**hints, "std": {}}
+    plan = outline_plan(ns, 1, {"hub": hints["hub"], "breach": hints["breach"]}, "fan", "beside")
+    h = _heights(ns)
+    y, x, _ = run_plan(plan, ns, h)
+    row = ["mental", "phys", "age"]
+    assert len({round(y[i] - h[i] / 2, 3) for i in row}) == 1                # one row
+    top = y["mental"] - h["mental"] / 2
+    assert top - (y["std"] + h["std"] / 2) <= 150                           # directly under std
+    for c in row:                                                           # over its own pair
+        assert x[c + "-l"] < x[c] < x[c + "-nl"] or abs(x[c] - (x[c + "-l"] + x[c + "-nl"]) / 2) < 1
+    lane = x["breach"]                                                      # breach's line
+    assert all(not (x[i] - plan["w"][i] / 2 < lane < x[i] + plan["w"][i] / 2)
+               for i in row + [c + s for c in row for s in ("-l", "-nl")])
+    check = placement_check(ns, plan, y, x, h)
+    assert check["overlaps"] == [] and check["off_margin"] == []
