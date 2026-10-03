@@ -232,11 +232,16 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
 MODES = ("linear", "outline")
 LAYOUTS = ("auto", "tree", "flow")
 TREE_LINES = ("fan", "trunk")
+# How an outline's outcome cards (Liable / Not Liable: a leaf whose tag differs
+# from its parent's) sit. "stack": down the parent's spine like any child.
+# "beside": on either side of the parent when there is room, else side by side
+# directly under it.
+OUTCOME_LAYOUTS = ("stack", "beside")
 # Placement hints (layout.outline_plan): how a card's children are arranged,
 # and where one card goes. PLACE_WORLD_W mirrors layout.WORLD_W (layout imports
 # this module, so it cannot be imported here; a test holds the two equal).
 ARRANGEMENTS = ("auto", "column", "row", "branches")
-PLACE_KEYS = ("arrange", "x", "dx", "y", "dy", "w", "float", "order", "tier")
+PLACE_KEYS = ("arrange", "x", "dx", "y", "dy", "w", "child_w", "float", "order", "tier")
 PLACE_WORLD_W = 1700
 PLACE_MAX_SHIFT = 2000
 PLACE_MAX_Y = 40000
@@ -332,6 +337,10 @@ class Brief:
     # so every child has a line of its own to hover and follow; "trunk": one
     # shared line straight down the spine.
     tree_lines: str = "fan"
+    # Where a tree puts an outline's outcome cards (OUTCOME_LAYOUTS). An author
+    # who wants every Liable / Not Liable beside its concept sets "beside" once
+    # rather than placing each card.
+    outcomes: str = "stack"
     # Where individual cards go, {node id: hints} (layout.outline_plan). The
     # tree's own arrangement is the default; a hint overrides it for one card
     # and the cards under it follow. `arrange` says how a card's children sit
@@ -521,6 +530,11 @@ def validate_brief(b: Brief) -> list[str]:
         raise BriefError(f"layout {b.layout!r}: must be one of {LAYOUTS}")
     if b.tree_lines not in TREE_LINES:
         raise BriefError(f"tree_lines {b.tree_lines!r}: must be one of {TREE_LINES}")
+    if b.outcomes not in OUTCOME_LAYOUTS:
+        raise BriefError(f"outcomes {b.outcomes!r}: must be one of {OUTCOME_LAYOUTS}")
+    if b.outcomes == "beside" and b.mode != "outline":
+        raise BriefError("outcomes 'beside' needs mode 'outline': outcomes are "
+                         "the leaves of an outline's tree")
     if b.layout == "tree" and b.mode != "outline":
         raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
                          "from the nodes' parents")
@@ -737,7 +751,7 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
                 number(nid, key, v, -PLACE_MAX_SHIFT, PLACE_MAX_SHIFT)
             elif key == "y":
                 number(nid, key, v, 0, PLACE_MAX_Y)
-            elif key == "w":
+            elif key in ("w", "child_w"):
                 number(nid, key, v, *PLACE_WIDTHS)
             elif key == "float" and not isinstance(v, bool):
                 raise BriefError(f"placement {nid}: float must be true or false")

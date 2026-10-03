@@ -26,8 +26,8 @@ needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
 SAMPLE = ROOT / "samples" / "outline_brief.json"
 
 
-def _n(i, parent=None, act=0, desc="d " * 20):
-    return Node(id=i, act=act, tag="Concept", title=i, desc=desc, parent=parent)
+def _n(i, parent=None, act=0, desc="d " * 20, tag="Concept"):
+    return Node(id=i, act=act, tag=tag, title=i, desc=desc, parent=parent)
 
 
 def _negligence():
@@ -324,7 +324,7 @@ def test_a_placed_build_says_what_overlaps():
 # The promise the hints make: any card can be put anywhere on the page. Held to
 # it on random outlines, with every card pinned to a random spot.
 
-def _random_outline(seed, acts=2):
+def _random_outline(seed, acts=2, outcomes=False):
     import random
     r = random.Random(seed)
     ns, n = [], 0
@@ -333,10 +333,13 @@ def _random_outline(seed, acts=2):
         nonlocal n
         n += 1
         i = f"n{n}"
-        ns.append(_n(i, parent, act, desc="d " * r.randint(5, 60)))
+        node = _n(i, parent, act, desc="d " * r.randint(5, 60))
+        ns.append(node)
         if depth < 4 and r.random() < (0.95 if depth == 0 else 0.55):
             for _ in range(r.randint(1, 7)):
                 mk(i, depth + 1, act)
+        elif outcomes and depth and r.random() < 0.6:
+            node.tag = "Outcome"                      # a leaf of a different kind
 
     for a in range(acts):
         mk(None, 0, a)
@@ -527,6 +530,150 @@ def test_the_browser_agrees_with_the_builder_on_random_arrangements(tmp_path, se
     import random
     ns = _random_outline(seed)
     plan = outline_plan(ns, 2, _random_flow_hints(ns, seed))
+    r = random.Random(seed)
+    h = {n.id: r.choice([100, 130, 160, 190, 240, 400]) for n in ns}
+    y, x, _ = run_plan(plan, ns, h)
+    out = _js_plan(ns, plan, h, tmp_path)
+    for n in ns:
+        assert out["y"][n.id] == pytest.approx(y[n.id]), (seed, n.id)
+        assert out["x"][n.id] == pytest.approx(x[n.id]), (seed, n.id)
+
+
+
+# ── outcomes: Liable / Not Liable beside their parent, or side by side under it ──
+
+def _torts_negligence():
+    """A hub of five concepts, two of which have outcomes (and one of those also a
+    sub-concept), as Torts' Negligence unit does."""
+    ns = [_n("hub")]
+    for c in ("std", "duty", "cause", "prox", "dam"):
+        ns.append(_n(c, "hub"))
+    for p in ("duty", "cause"):
+        ns += [_n(p + "-l", p, tag="Outcome"), _n(p + "-nl", p, tag="Outcome")]
+    ns += [_n("alt", "cause"), _n("alt-l", "alt", tag="Outcome"), _n("alt-nl", "alt", tag="Outcome")]
+    return ns
+
+
+def test_outcomes_stay_in_the_stack_unless_asked():
+    ns = _torts_negligence()
+    stacked = outline_plan(ns, 1, {"hub": {"arrange": "row"}})
+    assert stacked["x"]["cause-l"] == stacked["x"]["cause-nl"] == stacked["x"]["cause"]
+    plain = outline_plan(ns, 1, {"hub": {"arrange": "row"}}, "fan", "stack")
+    assert plain["acts"] == stacked["acts"]
+
+
+def test_outcomes_sit_side_by_side_directly_under_a_parent_with_no_room_beside_it():
+    ns = _torts_negligence()
+    hints = {"hub": {"arrange": "row"}}
+    plan = outline_plan(ns, 1, hints, "fan", "beside")
+    y, x, _ = run_plan(plan, ns, _heights(ns))
+    for parent in ("duty", "cause", "alt"):
+        l, nl = parent + "-l", parent + "-nl"
+        assert y[l] == y[nl] > y[parent]                         # a pair, below the parent
+        assert x[l] + 100 == x[parent] == x[nl] - 100 or parent == "alt"
+        assert plan["w"][l] == plan["w"][nl] == TREE["FLANK_W"]
+        assert x[nl] - x[l] == TREE["FLANK_W"] + TREE["OUT_GAP"]
+    # the rest of the parent's children continue below the pair, on its own axis
+    assert y["alt"] > y["cause-l"] and x["alt"] == x["cause"]
+    assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
+    assert placement_check(ns, plan, y, x, _heights(ns))["off_margin"] == []
+
+
+def test_a_pair_of_outcomes_is_held_inside_the_margin_as_a_pair():
+    ns = [_n("hub")] + [_n(f"c{i}", "hub") for i in range(5)]
+    ns += [_n("c0-l", "c0", tag="Outcome"), _n("c0-nl", "c0", tag="Outcome")]
+    plan = outline_plan(ns, 1, {"hub": {"arrange": "row"}}, "fan", "beside")
+    y, x, _ = run_plan(plan, ns, _heights(ns))
+    assert x["c0"] < TREE["MARGIN"] + 190                        # the leftmost column: no room for a centred pair
+    assert x["c0-l"] - 90 >= TREE["MARGIN"] and x["c0-nl"] - x["c0-l"] == 200
+    assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
+
+
+def test_a_third_outcome_sits_alone_under_the_pair():
+    ns = [_n("hub")] + [_n(f"c{i}", "hub") for i in range(3)]
+    ns += [_n(f"c1-o{k}", "c1", tag="Outcome") for k in range(3)]
+    plan = outline_plan(ns, 1, {"hub": {"arrange": "row"}}, "fan", "beside")
+    y, x, _ = run_plan(plan, ns, _heights(ns))
+    assert y["c1-o0"] == y["c1-o1"] < y["c1-o2"] and x["c1-o2"] == x["c1"]
+
+
+def test_outcomes_flank_a_section_that_has_room_and_its_other_children_continue_below():
+    ns = [_n("root"), _n("sec", "root"), _n("sec-l", "sec", tag="Outcome"),
+          _n("sec-nl", "sec", tag="Outcome"), _n("sub", "sec"), _n("sub-a", "sub"),
+          _n("other", "root"), _n("other-a", "other"), _n("other-b", "other")]
+    plan = outline_plan(ns, 1, {}, "fan", "beside")
+    y, x, _ = run_plan(plan, ns, _heights(ns))
+    assert y["sec-l"] == y["sec"] == y["sec-nl"]
+    assert x["sec-l"] == x["sec"] - TREE["FLANK_DX"] and x["sec-nl"] == x["sec"] + TREE["FLANK_DX"]
+    assert y["sub"] > y["sec"] and x["sub"] == x["sec"]
+    # and the same outline left alone stacks them down the spine, as before
+    plain = outline_plan(ns, 1, {})
+    y0, x0, _ = run_plan(plain, ns, _heights(ns))
+    assert x0["sec-l"] == x0["sec"] and y0["sec-l"] > y0["sec"]
+
+
+def test_child_w_shrinks_a_band_so_more_fit_one_row_and_tier_2_is_visibly_staggered():
+    ns = [_n("hub")] + [_n(f"c{i}", "hub") for i in range(6)]
+    wide = outline_plan(ns, 1, {"hub": {"arrange": "row"}})
+    y, x, _ = run_plan(wide, ns, _heights(ns))
+    assert len({y[f"c{i}"] for i in range(6)}) == 2             # 6 x 270 will not fit: two rows
+    hints = {"hub": {"arrange": "row", "child_w": 210}, "c0": {"tier": 2}}
+    plan = outline_plan(ns, 1, hints)
+    y, x, _ = run_plan(plan, ns, _heights(ns))
+    assert {plan["w"][f"c{i}"] for i in range(6)} == {210}
+    row = [y[f"c{i}"] for i in range(1, 6)]
+    assert len(set(row)) == 1                                    # five in the same row
+    assert y["c0"] - row[0] == TREE["STAGGER_DROP"]              # the staggered one sits lower
+    gaps = {round(x[f"c{i + 1}"] - x[f"c{i}"], 1) for i in range(5)}
+    assert len(gaps) == 1 and min(gaps) >= 210 + TREE["BAND_GAP"]
+    assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
+
+
+def test_outcomes_and_child_w_are_validated():
+    with pytest.raises(BriefError, match="outcomes"):
+        validate_brief(_brief(outcomes="sideways"))
+    with pytest.raises(BriefError, match="needs mode 'outline'"):
+        validate_brief(_brief(mode="linear", outcomes="beside"))
+    assert not [w for w in validate_brief(_brief(outcomes="beside")) if "outcomes" in w]
+    for bad in (50, 900, "wide", True):
+        with pytest.raises(BriefError, match="child_w"):
+            validate_brief(_brief(placement={"hub": {"child_w": bad}}))
+
+
+def test_beside_makes_auto_choose_the_tree_and_the_page_carries_the_pairs():
+    flat = [_n("r")] + [_n(f"k{i}", "r", tag="Outcome") for i in range(4)]   # a flat list
+    assert run_layout(_brief(), flat, [])[5]["layout"] == "flow"
+    assert run_layout(_brief(outcomes="beside"), flat, [])[5]["layout"] == "tree"
+    html, report = build_timeline(_brief(outcomes="beside", placement={"hub": {"arrange": "row"}}),
+                                  _two_units() + [_n("duty-o", "duty", tag="Outcome")], [])
+    assert report["layout"]["layout"] == "tree" and "#node-duty-o .node-card" in html
+
+
+@pytest.mark.parametrize("seed", range(150))
+def test_outcomes_beside_never_make_cards_overlap_or_leave_the_margin(seed):
+    import random
+    ns = _random_outline(seed, outcomes=True)
+    plan = outline_plan(ns, 2, _random_flow_hints(ns, seed), "fan", "beside")
+    r = random.Random(seed)
+    h = {n.id: r.choice([100, 130, 160, 190, 240, 400]) for n in ns}
+    y, x, _ = run_plan(plan, ns, h)
+    check = placement_check(ns, plan, y, x, h)
+    assert check["overlaps"] == [] and check["off_margin"] == [], (seed, check)
+
+
+@needs_node
+@pytest.mark.parametrize("seed", range(0, 150, 15))
+def test_the_browser_agrees_with_the_builder_on_outcomes_and_staggered_bands(tmp_path, seed):
+    import random
+    ns = _random_outline(seed, outcomes=True)
+    hints = _random_flow_hints(ns, seed)
+    kids = outline_kids(ns)
+    for k, v in list(hints.items()):
+        if v["arrange"] == "row":
+            v["child_w"] = 210
+            for c in kids[k][:1]:
+                hints[c] = {**hints.get(c, {}), "tier": 2}
+    plan = outline_plan(ns, 2, hints, "fan", "beside")
     r = random.Random(seed)
     h = {n.id: r.choice([100, 130, 160, 190, 240, 400]) for n in ns}
     y, x, _ = run_plan(plan, ns, h)

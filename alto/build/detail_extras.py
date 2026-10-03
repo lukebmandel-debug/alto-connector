@@ -75,13 +75,13 @@ window._altoTree = function(pos, h){
       return ends.length ? Math.max.apply(null,ends)+op[2] : c;
     }
     if(k==='band'){
-      var cards=op[1], blocks=op[2], rg=op[3], gap=op[4];
+      var cards=op[1], blocks=op[2], rg=op[3], gap=op[4], drop=op[5];
       var lay=function(flip){
         var tops={}, sky=[];
         cards.map(function(cd,j){ return [(cd[3]^flip),j]; })
           .sort(function(a,b){ return a[0]-b[0] || a[1]-b[1]; })
           .forEach(function(kj){
-            var cd=cards[kj[1]], t=c;
+            var cd=cards[kj[1]], t=c+kj[0]*drop;
             sky.forEach(function(s){ if(s[0]<cd[2] && cd[1]<s[1]) t=Math.max(t,s[2]+rg); });
             t+=cd[4]; tops[cd[0]]=t; sky.push([cd[1],cd[2],t+h[cd[0]]]);
           });
@@ -90,7 +90,7 @@ window._altoTree = function(pos, h){
       var low=function(L){ return Math.max.apply(null,L.sky.map(function(s){ return s[2]; })); };
       var sum=function(L){ return Object.keys(L.tops).reduce(function(a,i){ return a+L.tops[i]; },0); };
       var best=lay(0);
-      if(op.length>5){
+      if(op.length>6){
         var alt=lay(1), l0=low(best), l1=low(alt);
         if(l1<l0-1e-9 || (Math.abs(l1-l0)<=1e-9 && sum(alt)<sum(best)-1e-9)) best=alt;
       }

@@ -245,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.34"
+__version__ = "1.9.35"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1541,7 +1541,7 @@ def _tree_boxes(b, nodes, conns, ids=None) -> dict:
     positions, heights, _, _, _, report = run_layout(b, nodes, conns)
     if report.get("layout") != "tree":
         return {}
-    plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines)
+    plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines, b.outcomes)
     return {n.id: {"x": round(plan["x"][n.id]), "top": round(positions[n.id] - heights[n.id] / 2),
                    "w": plan["w"].get(n.id, 270), "h": round(heights[n.id])}
             for n in nodes if n.id in plan["x"] and (ids is None or n.id in ids)}
@@ -1584,7 +1584,8 @@ def run_layout_preview(timeline_id: str, layout: str = "",
 @mcp.tool(title="Place nodes", annotations=RW)
 @accounted
 def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
-                clear: list[str] | None = None, reset: bool = False) -> dict:
+                clear: list[str] | None = None, reset: bool = False,
+                outcomes: str = "") -> dict:
     """Place an outline's cards where the user wants them, instead of where the
     tree puts them. ONLY at the user's request: they say what goes where ("put
     the six concepts in a row under the hub", "move Damages to the left", "Cause
@@ -1626,8 +1627,11 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
                adapts to the real card heights; pin only for exceptions.
       dx, dy   nudge sideways / add room above (negative: less). Everything
                after the card in its column moves with a dy.
-      w        the card's width, 120-420 (the default is 270; rows of 5-6
-               narrow it so they fit).
+      w        the card's width, 120-420 (the default is 270).
+      child_w  the width of this card's children when it is a row: shrink them
+               a little (say 210) to get more into one row instead of staggering
+               them; their progeny follow. A child with tier 2 sits a stagger
+               lower than the rest.
       float    true: leave the card and its progeny at the current top without
                pushing what follows down — to set a subtree beside another.
                Give it an x, or it sits where it was. A Liable / Not Liable
@@ -1637,6 +1641,12 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
                numbering too (II.A, II.B…), so the notes' order is only changed
                when the user asked for it.
     clear: node ids whose hints are all removed. reset: remove every hint.
+    outcomes: a rule for the whole outline rather than one card. 'beside': every
+    outcome card (a leaf whose tag differs from its parent's — Liable / Not
+    Liable) sits on either side of its parent when there is room across the page,
+    and side by side directly under it when there is not (a column of a row); the
+    parent's other children continue below. 'stack': the default, outcomes down
+    the spine like any child. '' leaves the setting as it is.
 
     The reply lays the result out and says what is wrong: `placement.overlaps`
     (pairs of cards on top of each other: move one with x/dx/dy, or float it),
@@ -1679,6 +1689,8 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
         else:
             pl.pop(nid, None)
     brief["placement"] = pl
+    if outcomes:
+        brief["outcomes"] = outcomes
     try:
         b, all_nodes, conns = _load_full({**doc, "brief": brief})
         from .build.brief import validate_brief, validate_nodes

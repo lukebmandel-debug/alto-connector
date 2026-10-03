@@ -100,7 +100,7 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
     report["layout"] = "flow"
     if brief.mode == "outline" and brief.layout != "flow":
         plan = outline_plan(nodes, len(brief.acts), brief.placement,
-                            brief.tree_lines)
+                            brief.tree_lines, brief.outcomes)
         th = {n.id: card_height(n.desc, n.title, plan["w"].get(n.id, TREE["CARD_W"]))
               for n in nodes}
         ty, tx, tworld = outline_tree(nodes, len(brief.acts), th, plan=plan)
@@ -111,7 +111,8 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
         crossings = {"tree": line_crossings(edges, tx, ty, th, True),
                      "flow": line_crossings(edges, fx, positions, heights, False)}
         categories = outline_has_categories(nodes)
-        placed = any(set(h) - {"order"} for h in (brief.placement or {}).values())
+        placed = (brief.outcomes == "beside"
+                  or any(set(h) - {"order"} for h in (brief.placement or {}).values()))
         if brief.layout == "tree" or placed or (
                 categories and crossings["tree"] <= crossings["flow"]):
             positions, heights, world_h = ty, th, tworld

@@ -986,7 +986,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     tid = b.timeline_id
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
-    tree_plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines) if tree else None
+    tree_plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines, b.outcomes) if tree else None
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     _warn0 = warnings if warnings is not None else []

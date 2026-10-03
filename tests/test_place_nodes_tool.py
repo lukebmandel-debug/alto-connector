@@ -135,3 +135,19 @@ def test_the_guide_tells_the_chat_when_and_how_to_place_cards():
     g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     assert "**Placing cards.**" in g and "`place_nodes`" in g
     assert "Only when they ask" in g and 'arrange: "row"' in g
+
+
+def test_outcomes_is_a_rule_for_the_whole_outline_kept_in_the_brief():
+    tid = _draft(OUTLINE)
+    hub = _hub(OUTLINE)
+    r = srv.place_nodes(tid, {hub: {"arrange": "row", "child_w": 210}}, outcomes="beside")
+    assert r["ok"], r
+    assert srv.get_timeline(tid)["brief"]["outcomes"] == "beside"
+    # '' leaves it alone; a bad value is refused and nothing changes
+    assert srv.place_nodes(tid, {hub: {"dx": 0}})["ok"]
+    assert srv.get_timeline(tid)["brief"]["outcomes"] == "beside"
+    bad = srv.place_nodes(tid, outcomes="sideways")
+    assert bad["error"] == "invalid_placement" and "outcomes" in bad["message"]
+    assert srv.get_timeline(tid)["brief"]["outcomes"] == "beside"
+    assert srv.place_nodes(tid, outcomes="stack")["ok"]
+    assert srv.get_timeline(tid)["brief"]["outcomes"] == "stack"

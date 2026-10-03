@@ -488,7 +488,10 @@ to a child that is itself heavy and its own children form a band of their own,
 which settles below its neighbours, so a long unit spreads across the page rather
 than running down one column. Row hints never make cards overlap, and need no
 coordinates. `"column"` stacks children down one spine; `tier` picks a card's
-row in a band; `x`,
+row in a band (a second row sits a stagger lower) and `child_w` shrinks a band's
+cards so more fit one row; `outcomes: "beside"` (a rule for the whole outline)
+puts every Liable / Not Liable beside its concept, or side by side under it where
+there is no room; `x`,
 `dx`, `y`, `dy`, `w`, `float` and `order` move or size one card (its progeny
 follow). Any card can go anywhere on the page: when the student wants something
 the arrangements do not give, pin it with `x` and `y`. A unit you do not name is

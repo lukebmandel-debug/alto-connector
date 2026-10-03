@@ -2190,3 +2190,94 @@ PATCHES += [
     {"name": "chip-tip-skips-named-chips-js", "old": _NOTIP_JS_OLD, "new": _NOTIP_JS_NEW, "count": 1},
     {"name": "chip-tip-skips-named-chips-mobile", "old": _NOTIP_M_OLD, "new": _NOTIP_M_NEW, "count": 1},
 ]
+
+
+# ── a connector's corners fit the runs they turn on ─────────────────────────
+# Every corner was drawn with a fixed 20px radius. On a jog under 40px (a card
+# only a little off its parent's x, e.g. a band shifted to stay inside the page
+# margin) the first arc already lands on the target's x and the next segment
+# walks back to start the second arc — M 650 y L 650 b Q 650 b+20 670 b+20
+# L 650 .. — a visible kink where the line looks broken. Shrink the radius to
+# fit (half the sideways run, and the room above and below the bus), in the
+# router's own elbow and in orthPath, which draws its alternative routes.
+_CORNER_MAIN_OLD = """        var r = 20;
+        var hDir = tx > sx ? 1 : -1;
+"""
+_CORNER_MAIN_NEW = """        // The corner radius fits the run it turns on: two 20px arcs on a jog under
+        // 40px overshoot the target's x and walk back (a visible kink), and an
+        // end closer than 20px to the bus cannot hold its arc either.
+        var r = Math.min(20, Math.abs(tx - sx) / 2,
+                         Math.abs(sy - midY) < 1 ? 20 : Math.abs(sy - midY),
+                         Math.abs(ty - midY) < 1 ? 20 : Math.abs(ty - midY));
+        var hDir = tx > sx ? 1 : -1;
+"""
+_CORNER_ORTH_OLD = """      function orthPath(pts, r){
+        var _vG = (typeof vSegWithGaps === 'function') ? vSegWithGaps
+                  : function(x, y1, y2){ return ' L ' + x + ' ' + y2; };
+        var d = 'M ' + pts[0].x + ' ' + pts[0].y;
+        for(var i=1;i<pts.length;i++){
+          var a = pts[i-1], b = pts[i];
+          var hasNext = i < pts.length - 1;
+          if(a.x === b.x){                                    // vertical segment
+            var dirY = b.y > a.y ? 1 : -1;
+            var yEnd = hasNext ? b.y - dirY*r : b.y;
+            d += _vG(a.x, a.y, yEnd);
+            if(hasNext){
+              var outX = pts[i+1].x > b.x ? 1 : -1;
+              d += ' Q ' + b.x + ' ' + b.y + ' ' + (b.x + outX*r) + ' ' + b.y;
+            }
+          } else {                                            // horizontal segment
+            var dirX = b.x > a.x ? 1 : -1;
+            var xEnd = hasNext ? b.x - dirX*r : b.x;
+            d += ' L ' + xEnd + ' ' + b.y;
+            if(hasNext){
+              var outY = pts[i+1].y > b.y ? 1 : -1;
+              d += ' Q ' + b.x + ' ' + b.y + ' ' + b.x + ' ' + (b.y + outY*r);
+            }
+          }
+        }
+        return d;
+      }
+"""
+_CORNER_ORTH_NEW = """      function orthPath(pts, r){
+        var _vG = (typeof vSegWithGaps === 'function') ? vSegWithGaps
+                  : function(x, y1, y2){ return ' L ' + x + ' ' + y2; };
+        // Each corner's radius fits the runs it joins (half of a run it shares
+        // with the next corner), so a short segment cannot make the path overshoot
+        // and double back.
+        var _len = function(i){ return Math.abs(pts[i].x - pts[i-1].x) + Math.abs(pts[i].y - pts[i-1].y); };
+        var _rc = function(i){
+          return Math.min(r, i === 1 ? _len(i) : _len(i) / 2,
+                          i === pts.length - 2 ? _len(i + 1) : _len(i + 1) / 2);
+        };
+        var d = 'M ' + pts[0].x + ' ' + pts[0].y;
+        for(var i=1;i<pts.length;i++){
+          var a = pts[i-1], b = pts[i];
+          var hasNext = i < pts.length - 1;
+          if(a.x === b.x){                                    // vertical segment
+            var dirY = b.y > a.y ? 1 : -1;
+            var yEnd = hasNext ? b.y - dirY*_rc(i) : b.y;
+            d += _vG(a.x, a.y, yEnd);
+            if(hasNext){
+              var outX = pts[i+1].x > b.x ? 1 : -1;
+              d += ' Q ' + b.x + ' ' + b.y + ' ' + (b.x + outX*_rc(i)) + ' ' + b.y;
+            }
+          } else {                                            // horizontal segment
+            var dirX = b.x > a.x ? 1 : -1;
+            var xEnd = hasNext ? b.x - dirX*_rc(i) : b.x;
+            d += ' L ' + xEnd + ' ' + b.y;
+            if(hasNext){
+              var outY = pts[i+1].y > b.y ? 1 : -1;
+              d += ' Q ' + b.x + ' ' + b.y + ' ' + b.x + ' ' + (b.y + outY*_rc(i));
+            }
+          }
+        }
+        return d;
+      }
+"""
+PATCHES += [
+    {"name": "router-corner-fits-the-jog", "old": _CORNER_MAIN_OLD,
+     "new": _CORNER_MAIN_NEW, "count": 1},
+    {"name": "router-orthpath-corner-fits-the-segment", "old": _CORNER_ORTH_OLD,
+     "new": _CORNER_ORTH_NEW, "count": 1},
+]

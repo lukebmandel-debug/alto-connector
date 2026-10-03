@@ -333,6 +333,9 @@ TREE = {
     # BAND_GAP clear between neighbours in a row (closer than that they stagger
     # into two rows, STAGGER_GAP apart), progeny cards none narrower than MIN_W
     "MAX_ROW": 7, "PITCH_MAX": 420, "BAND_GAP": 30, "STAGGER_GAP": 28, "MIN_W": 180,
+    # a lower row of a band sits at least STAGGER_DROP under the upper one;
+    # outcome cards under a parent are OUT_GAP apart
+    "STAGGER_DROP": 80, "OUT_GAP": 20,
     # a parent's lines turn on one bus halfway down the gap to its nearest
     # child, unless that gap is longer than BUS_SPAN: then the bus runs
     # BUS_ABOVE over the children, so the long drop is in the parent's own column
@@ -380,15 +383,16 @@ def _fit_pair(k: int, bx: float):
     return w, [round(v + shift, 2) for v in xs], True
 
 
-def _band(k: int, bx: float):
+def _band(k: int, bx: float, width: float = None):
     """(xs, card width, progeny width, staggered) for a band of k >= 3 cards
-    centred on bx. The cards keep their full width: when that leaves them closer
-    than BAND_GAP they stagger into two rows instead (neighbours alternate), so
-    a column can run straight down between the cards of the other row. The
+    centred on bx. The cards keep their full width (or the `width` asked for:
+    a narrower card leaves a wider pitch): when that leaves them closer than
+    BAND_GAP they stagger into two rows instead (neighbours alternate), so a
+    column can run straight down between the cards of the other row. The
     progeny hanging from the band are as wide as the pitch allows."""
     T = TREE
     usable = WORLD_W - 2 * T["MARGIN"]
-    w = T["CARD_W"]
+    w = width or T["CARD_W"]
     pitch = min(T["PITCH_MAX"], (usable - w) / (k - 1))
     xs = [bx + (j - (k - 1) / 2) * pitch for j in range(k)]
     lo, hi = T["MARGIN"] + w / 2, WORLD_W - T["MARGIN"] - w / 2
@@ -403,7 +407,7 @@ def _band(k: int, bx: float):
 
 
 def outline_plan(nodes, act_count: int, placement: dict = None,
-                 lines: str = "fan") -> dict:
+                 lines: str = "fan", outcomes: str = "stack") -> dict:
     """The tree's layout as a program, from the nodes' structure and the
     brief's placement hints alone (no card heights needed).
 
@@ -417,10 +421,11 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
       ["seq", [ops]]              one after another
       ["par", [ops], gap]         side by side from the same top; ends at the
                                   lowest, then `gap`
-      ["band", [[id, lo, hi, row, dy]], [[lo, hi, op]], rowgap, gap, auto?]
+      ["band", [[id, lo, hi, row, dy]], [[lo, hi, op]], rowgap, gap, drop, auto?]
                                   a band of cards, then the blocks that hang
-                                  from them. Cards go in rows (`row`, 0 first);
-                                  a card starts at the top, or `rowgap` under
+                                  from them. Cards go in rows (`row`, 0 first,
+                                  each at least `drop` under the one before); a
+                                  card starts at the top, or `rowgap` under
                                   the lowest earlier card it overlaps in width
                                   (lo..hi). With `auto` the cards alternate rows
                                   and the page keeps whichever of the two
@@ -458,11 +463,20 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                its progeny flow from it. With x, any card can go anywhere.
       dy       more (or less) room above the card; what follows moves with it.
       w        the card's width.
+      child_w  the width of this card's children when it is a row (a band's
+               cards shrink to fit more in one row; its progeny follow).
       float    leave the card and its progeny at the flow's current top,
                pushing nothing down: for setting a subtree beside another.
     A concept's outcome that has its own y, dy or float leaves the concept's
     row and is placed on its own. (order is applied earlier, to the nodes:
     outline_order_and_columns.)
+
+    `outcomes` ("stack", or "beside" from brief.outcomes): with "beside" every
+    outcome card (a leaf whose tag differs from its parent's: Liable / Not
+    Liable) is taken out of its parent's stack. Where the parent has room across
+    the page it flanks the parent, as a concept's outcomes always have; where
+    it does not (a column of a band) they sit side by side directly under it,
+    the rest of the parent's children continuing below.
     """
     T = TREE
     H = placement or {}
@@ -510,40 +524,83 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         """An outcome that is placed on its own rather than in its concept's row."""
         return bool(hint(l, "float")) or hint(l, "y") is not None or bool(hint(l, "dy"))
 
+    by_id = {n.id: n for n in nodes}
+    outcome = lambda k: (outcomes == "beside" and leaf(k) and k in by_id
+                         and by_id[k].parent in by_id
+                         and by_id[k].tag != by_id[by_id[k].parent].tag)
+
+    def flank_head(i, bx, ww, beside):
+        """Card i with `beside` (its outcomes) on either side of it, two to a row
+        (the first two flank it on its own row, further ones take rows below, in
+        the same narrow lanes). Returns (centre, head ops). An outcome with its
+        own y, dy or float leaves the row and is placed on its own."""
+        rows = [[l for l in beside[k:k + 2] if not detached(l)]
+                for k in range(0, len(beside), 2)]
+        reach = (T["FLANK_DX"] + T["FLANK_W"] / 2) if any(rows[0]) else None
+        cx = at(i, bx, ww, reach)
+        alone = []
+        for j, l in enumerate(beside):
+            at(l, cx + (-1 if j % 2 == 0 else 1) * T["FLANK_DX"],
+               T["FLANK_W"], T["FLANK_W"] / 2)
+            if detached(l):
+                alone += settled(l, [card(l, 0)])
+        first = ["row", [i] + rows[0], T["ROW_GAP"]] + (
+            [hint(i, "dy")] if hint(i, "dy") else [])
+        return cx, alone + [first] + [["row", r, T["ROW_GAP"]] for r in rows[1:] if r]
+
+    def under(cx, beside):
+        """Outcomes side by side directly under their parent, two to a row and
+        centred on it, held inside the margins as a pair; a last odd one sits
+        centred on its own."""
+        step = (T["FLANK_W"] + T["OUT_GAP"]) / 2
+        ops = []
+        for k in range(0, len(beside), 2):
+            chunk = beside[k:k + 2]
+            half = T["FLANK_W"] / 2 + (step if len(chunk) == 2 else 0)
+            mid = min(max(cx, T["MARGIN"] + half), WORLD_W - T["MARGIN"] - half)
+            ids, alone = [], []
+            for j, l in enumerate(chunk):
+                off = 0 if len(chunk) == 1 else (-step if j == 0 else step)
+                at(l, mid + off, T["FLANK_W"], T["FLANK_W"] / 2)
+                if detached(l):
+                    alone += settled(l, [card(l, 0)])
+                else:
+                    ids.append(l)
+            # top-aligned (a `par` of cards, not a centred `row`), so a pair of
+            # different heights shares an edge for the lines to meet
+            ops += alone + ([["par", [["card", l, T["ROW_GAP"]] for l in ids],
+                              T["ROW_GAP"]]] if ids else [])
+        return ops
+
     def item(i, bx, ww, wide):
         """Card i on the axis bx and everything under it, as ops."""
         if leaf(i):
             at(i, bx, ww)
             return settled(i, [card(i, T["ROW_GAP"])])
+        mine = [k for k in kids[i] if outcome(k)]
         if concept(i) and wide and hint(i, "arrange", "auto") == "auto":
-            ls = kids[i]
-            rows = [[l for l in ls[k:k + 2] if not detached(l)]
-                    for k in range(0, len(ls), 2)]
-            reach = (T["FLANK_DX"] + T["FLANK_W"] / 2) if any(rows[0]) else None
-            cx = at(i, bx, ww, reach)
-            alone = []
-            for j, l in enumerate(ls):
-                at(l, cx + (-1 if j % 2 == 0 else 1) * T["FLANK_DX"],
-                   T["FLANK_W"], T["FLANK_W"] / 2)
-                if detached(l):
-                    alone += settled(l, [card(l, 0)])
-            first = ["row", [i] + rows[0], T["ROW_GAP"]] + (
-                [hint(i, "dy")] if hint(i, "dy") else [])
-            rest = [["row", r, T["ROW_GAP"]] for r in rows[1:] if r]
-            return settled(i, alone + [first] + rest)
+            cx, head = flank_head(i, bx, ww, kids[i])
+            return settled(i, head)
+        if mine and wide and hint(i, "arrange", "auto") == "auto":
+            # a section with outcomes of its own: they flank it, the rest below
+            cx, head = flank_head(i, bx, ww, mine)
+            return settled(i, head + children(i, cx, ww, wide, skip=mine))
         cx = at(i, bx, ww)
         return settled(i, [card(i, T["HEAD_GAP"])]
                        + children(i, cx, ww, wide))
 
-    def children(p, bx, ww, wide):
+    def children(p, bx, ww, wide, skip=()):
         """The ops for p's children, below p's own card."""
-        ks = kids.get(p, [])
+        every = [k for k in kids.get(p, []) if k not in skip]
+        mine = [k for k in every if outcome(k)]
+        ks = [k for k in every if k not in mine]
+        lead = under(bx, mine) if mine else []
         mode = hint(p, "arrange", "auto")
         if mode == "auto":
             mode = "branches" if p in roots else "column"
         if mode == "column":
             spine[p] = ks
-            return stack(ks, bx, ww, wide)
+            return lead + stack(ks, bx, ww, wide)
         if mode == "branches":
             br = [[k] for k in ks if not leaf(k) and not concept(k)]
             direct = [k for k in ks if leaf(k) or concept(k)]
@@ -551,7 +608,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                 br.append(direct)
                 spine[p] = direct
             br.sort(key=lambda b: ks.index(b[0]))
-            ops = []
+            ops = list(lead)
             for g in range(0, len(br), 2):
                 grp = br[g:g + 2]
                 xs = T["BRANCH_X"] if len(grp) == 2 else [T["CX"]]
@@ -562,11 +619,11 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         # that hangs from them (see band); more than MAX_ROW make several
         n = len(ks)
         bands = -(-n // T["MAX_ROW"]) if n else 0
-        ops, start = [], 0
+        ops, start = list(lead), 0
         for r in range(bands):
             size = n // bands + (1 if r < n % bands else 0)
             chunk, start = ks[start:start + size], start + size
-            ops += band(chunk, bx) if size > 2 else pair(chunk, bx)
+            ops += band(p, chunk, bx) if size > 2 else pair(chunk, bx)
         return ops
 
     def pair(chunk, bx):
@@ -590,7 +647,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         if all(b[0] >= a[1] - 0.5 for a, b in zip(spans, spans[1:])):
             return ["par", cols, gap]
         ext.sort(key=lambda t: t[1] - t[0])
-        return ["band", [], [[lo, hi, o] for lo, hi, o in ext], T["STAGGER_GAP"], gap]
+        return ["band", [], [[lo, hi, o] for lo, hi, o in ext], T["STAGGER_GAP"], gap, 0]
 
     def ids_of(op):
         if op[0] == "card":
@@ -603,14 +660,14 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             return [c[0] for c in op[1]] + [i for _, _, o in op[2] for i in ids_of(o)]
         return []                                   # float: takes no room
 
-    def band(chunk, bx):
+    def band(p, chunk, bx):
         """Three or more children as a band: the cards first, in one row if they
         fit and in two staggered rows if not (a `tier` hint picks a card's row),
         then everything that hangs from them packs in beneath, each block straight
         under its parent. Narrowest blocks are placed first, so a wide one (a
         child that is itself a band) settles below its neighbours' instead of
         across them."""
-        xs, bw, cw, stagger = _band(len(chunk), bx)
+        xs, bw, cw, stagger = _band(len(chunk), bx, hint(p, "child_w"))
         given = [hint(c, "tier") for c in chunk]
         if any(given):
             tiers = sorted({hint(c, "tier", 1) for c in chunk})
@@ -641,8 +698,8 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                                  " — give neighbours different tiers")
         auto = stagger and not any(given)
         return pre + ([["band", cards, [[lo, hi, ["seq", b]] for lo, hi, b in blocks],
-                        T["STAGGER_GAP"], T["GROUP_GAP"]] + ([True] if auto else [])]
-                      if cards else [])
+                        T["STAGGER_GAP"], T["GROUP_GAP"], T["STAGGER_DROP"]]
+                       + ([True] if auto else [])] if cards else [])
 
     acts = []
     for a in range(act_count):
@@ -713,17 +770,18 @@ def run_plan(plan: dict, nodes, heights: dict):
             ends = [run(o, c) - row_gap for o in op[1]]
             return max(ends) + op[2] if ends else c
         if kind == "band":
-            cards, blocks, rg, gap = op[1], op[2], op[3], op[4]
+            cards, blocks, rg, gap, drop = op[1], op[2], op[3], op[4], op[5]
 
             def lay(flip):
                 tops, sky = {}, []                       # sky: (lo, hi, bottom)
                 for k in sorted(range(len(cards)), key=lambda k: (cards[k][3] ^ flip, k)):
                     i, lo, hi, _, dy = cards[k]
-                    tops[i] = max([c] + [b + rg for l, h, b in sky if l < hi and lo < h]) + dy
+                    tops[i] = max([c + (cards[k][3] ^ flip) * drop]
+                                  + [b + rg for l, h, b in sky if l < hi and lo < h]) + dy
                     sky.append((lo, hi, tops[i] + h[i]))
                 return tops, sky
             tops, sky = lay(0)
-            if len(op) > 5:
+            if len(op) > 6:
                 alt = lay(1)
                 # the shorter band; when equally short, the one that keeps the
                 # other cards higher (a tall card on the lower row holds nothing up)
