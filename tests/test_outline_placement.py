@@ -570,9 +570,13 @@ def test_outcomes_sit_side_by_side_directly_under_a_parent_with_no_room_beside_i
     for parent in ("duty", "cause", "alt"):
         l, nl = parent + "-l", parent + "-nl"
         assert y[l] == y[nl] > y[parent]                         # a pair, below the parent
-        assert x[l] + 100 == x[parent] == x[nl] - 100 or parent == "alt"
-        assert plan["w"][l] == plan["w"][nl] == TREE["FLANK_W"]
-        assert x[nl] - x[l] == TREE["FLANK_W"] + TREE["OUT_GAP"]
+        assert plan["w"][l] == plan["w"][nl] <= TREE["FLANK_W"]
+        assert x[nl] - x[l] == plan["w"][l] + TREE["OUT_GAP"]
+        # centred on the parent, give or take the slide that keeps neighbouring
+        # parents' pairs apart
+        assert abs((x[l] + x[nl]) / 2 - x[parent]) <= 100
+    # two parents side by side: their pairs are kept clear of each other
+    assert x["duty-nl"] + 90 <= x["cause-l"] - 90
     # the rest of the parent's children continue below the pair, on its own axis
     assert y["alt"] > y["cause-l"] and x["alt"] == x["cause"]
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
@@ -705,3 +709,35 @@ def test_an_outcome_pair_slides_clear_of_a_staggered_card_instead_of_waiting_for
     ns2 += [_n("c2-l", "c2", tag="Outcome"), _n("c2-nl", "c2", tag="Outcome")]
     p2 = outline_plan(ns2, 1, {"hub": {"arrange": "row"}}, "fan", "beside")
     assert p2["x"]["c2-l"] == p2["x"]["c2"] - 100 and p2["x"]["c2-nl"] == p2["x"]["c2"] + 100
+
+
+def _breach_like():
+    """Four children of a band, each with a Liable / Not Liable pair; one of them
+    (custom) also has a sub-concept whose own row is as wide as the page."""
+    ns = [_n("b")]
+    for c in ("risks", "custom", "perse", "res"):
+        ns += [_n(c, "b"), _n(c + "-l", c, tag="Outcome"), _n(c + "-nl", c, tag="Outcome")]
+    ns += [_n("mal", "custom"), _n("nat", "mal"), _n("loc", "mal"),
+           _n("nat-l", "nat", tag="Outcome"), _n("nat-nl", "nat", tag="Outcome"),
+           _n("loc-l", "loc", tag="Outcome"), _n("loc-nl", "loc", tag="Outcome")]
+    return ns
+
+
+def test_the_pairs_of_a_wide_band_narrow_to_fit_across_the_page_and_share_a_level():
+    ns = _breach_like()
+    plan = outline_plan(ns, 1, {"b": {"arrange": "row"}, "mal": {"arrange": "row"}}, "fan", "beside")
+    y, x, _ = run_plan(plan, ns, _heights(ns))
+    pairs = [c + s for c in ("risks", "custom", "perse", "res") for s in ("-l", "-nl")]
+    # four 380px pairs cannot sit across 1470px, so the cards narrow (not below the minimum)
+    ow = {plan["w"][i] for i in pairs}
+    assert len(ow) == 1 and TREE["MIN_OUT_W"] <= ow.pop() < TREE["FLANK_W"]
+    # and so they all hang at the same level, none held down by a neighbour
+    assert len({y[i] for i in pairs}) == 1
+    spans = sorted((x[c + "-l"] - plan["w"][c + "-l"] / 2, x[c + "-nl"] + plan["w"][c + "-nl"] / 2)
+                   for c in ("risks", "custom", "perse", "res"))
+    assert all(b[0] >= a[1] for a, b in zip(spans, spans[1:]))               # side by side, no overlap
+    assert spans[0][0] >= TREE["MARGIN"] and spans[-1][1] <= WORLD_W - TREE["MARGIN"]
+    # custom's wide descendant (a row across the whole page) sits below ITS pair
+    # and below the others', but did not pull the pair down with it
+    assert y["mal"] > y["custom-l"]
+    assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
