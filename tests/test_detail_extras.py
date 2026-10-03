@@ -140,7 +140,7 @@ def test_the_axis_filter_can_be_opted_back_in():
 
 def test_chip_label_anchors_to_the_hovered_chips_row():
     html, _ = _build(_d(LINEAR))
-    assert "tip.style.top=chip.offsetTop+'px';" in html
+    assert "window._altoTipShow(chip,tip);" in html   # placed from the hovered chip itself
     assert "bottom:calc(100% + 8px); z-index:5;" not in html
 
 
