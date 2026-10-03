@@ -1592,13 +1592,14 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 + "\n  " + ",".join(
                     f"html:not(.mobile) #node-{i} .esym-btn,"
                     f"html:not(.mobile) #node-{i} .tsym-btn" for i in _fl)
-                + "{max-width:120px;}")
-    # A named chip (hide_nav axes, above) has to stay inside a 270px card, so
-    # cap it and ellipsise rather than letting one long case name reflow the
-    # footer. The glyph form is a fixed 14px and needs none of this.
+                + "{max-width:100%;}")
+    # A named chip (hide_nav axes, above) has to stay inside its card, so cap it
+    # at the footer's own width and ellipsise past that. It takes as much of the
+    # row as its name needs: a name that fits shows whole and needs no hover
+    # label. The glyph form is a fixed 14px and needs none of this.
     if any(ax.hide_nav for ax in b.axes[:2]):
         nav_char_css += (
-            "\n  .esym-btn,.tsym-btn{max-width:150px;overflow:hidden;"
+            "\n  .esym-btn,.tsym-btn{max-width:100%;overflow:hidden;"
             "text-overflow:ellipsis;white-space:nowrap;display:inline-block;"
             "line-height:18px;}")
     # A relation-filtered-out card reads exactly like a slot-filtered-out one

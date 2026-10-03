@@ -21,3 +21,13 @@ def test_named_chip_label_rules_are_in_every_page():
     assert "window._altoChipNoTip && window._altoChipNoTip(target,title)" in html
     # label still sits over the hovered chip's own row
     assert "tip.style.top=chip.offsetTop+'px';" in html
+
+
+def test_label_hugs_chip_and_named_chips_may_use_the_whole_row():
+    html, _ = build_from_file(str(ROOT / "samples" / "outline_brief.json"))
+    # placed by on-screen position (zoom-proof), 3px above the chip
+    assert "window._altoTipFit=function(chip,tip)" in html
+    assert "calc(-100% - 3px)" in html
+    # a named chip grows to its name, up to the footer's width
+    assert ".esym-btn,.tsym-btn{max-width:100%;overflow:hidden;" in html
+    assert "max-width:150px;overflow:hidden" not in html
