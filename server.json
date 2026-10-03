@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lukebmandel-debug/alto-connector",
   "description": "Build an interactive timeline from your own materials \u2014 never from invented content.",
-  "version": "1.9.37",
+  "version": "1.9.38",
   "repository": {
     "url": "https://github.com/lukebmandel-debug/alto-connector",
     "source": "github"
@@ -11,27 +11,27 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.37/Alto-macos-arm64.mcpb",
-      "version": "1.9.37",
-      "fileSha256": "c6d62baca66d835ecbbe8fd16fed0ade6c24957ca557559a595b51155016ba55",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.38/Alto-macos-arm64.mcpb",
+      "version": "1.9.38",
+      "fileSha256": "cebb529e21d00358772935bff3bc11a17c2971d1fd46e66663d3526bdc682ff4",
       "transport": {
         "type": "stdio"
       }
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.37/Alto-macos-x64.mcpb",
-      "version": "1.9.37",
-      "fileSha256": "56af79abe722931fd48e3e847ad6ae8227f103f5a5207d77c02ee74b40b64fe4",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.38/Alto-macos-x64.mcpb",
+      "version": "1.9.38",
+      "fileSha256": "5ea349dfd2540ef10cedd7889faa671b462bcc548d9e26ca35434c75a3143a02",
       "transport": {
         "type": "stdio"
       }
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.37/Alto-windows-x64.mcpb",
-      "version": "1.9.37",
-      "fileSha256": "ebe708815457f6e755b3c998b2f84c3b2c196473861d77f75a576ede8e6daa0c",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.38/Alto-windows-x64.mcpb",
+      "version": "1.9.38",
+      "fileSha256": "05724f8d2d512fe5073aa5c6a8fde161a2319ff9603bcab754539704d9a2ae23",
       "transport": {
         "type": "stdio"
       }
