@@ -56,7 +56,7 @@ file ext/server/lib/pydantic_core/*.so        # or *.pyd on the Windows bundle
 ```
 
 What to look for: `serverInfo.version` is Alto's own version (not the MCP
-SDK's), the icon list leads with a PNG, and `tools/list` returns 21.
+SDK's), the icon list leads with a PNG, and `tools/list` returns 24.
 
 ## Platforms
 

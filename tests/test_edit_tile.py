@@ -79,12 +79,12 @@ MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
 IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148"
 
 
-def _prompt(title, key, ua=MAC):
+def _prompt(title, key, ua=MAC, page=""):
     if not Path(NODE).is_file():
         pytest.skip("needs node")
     script = dx.EDIT_TILE.split('<script id="alto-edit-tile">', 1)[1].rsplit("</script>", 1)[0]
     harness = r"""
-    const [script, title, key, ua] = JSON.parse(process.argv[1]);
+    const [script, title, key, ua, page] = JSON.parse(process.argv[1]);
     const went = [];
     global.window = global;
     window._ALTO_EDIT = { title, key };
@@ -92,13 +92,13 @@ def _prompt(title, key, ua=MAC):
                         createElement: () => ({ classList: { add(){}, remove(){} }, appendChild(){} }),
                         body: { appendChild(){} } };
     Object.defineProperty(globalThis, 'navigator', { value: { userAgent: ua, maxTouchPoints: 0 }, configurable: true });
-    window.top = { location: { set href(u){ went.push(u); } } };
+    window.top = { location: { get href(){ return page; }, set href(u){ went.push(u); } } };
     window.addEventListener = () => {}; global.setTimeout = () => 0;
     eval(script);
     if (window._altoEditTimeline) window._altoEditTimeline();
     console.log(JSON.stringify(went));
     """
-    out = subprocess.run([NODE, "-e", harness, json.dumps([script, title, key, ua])],
+    out = subprocess.run([NODE, "-e", harness, json.dumps([script, title, key, ua, page])],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)
 
@@ -112,6 +112,22 @@ def test_the_prompt_names_the_timeline_and_how_to_edit_it():
                  "get_timeline", "new notes to add, sources to link",
                  "rebuild and republish"):
         assert must in q, must
+
+
+def test_the_prompt_carries_the_page_so_any_chat_can_find_the_timeline():
+    """A chat that cannot see the draft needs the account's site and the page's
+    own key to look in the right place — and says what to do if it is not there."""
+    from urllib.parse import unquote
+    page = "https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/?x=1#top"
+    went = _prompt("Torts", "alto-doc-torts", page=page)
+    q = unquote(went[0].split("?q=", 1)[1])
+    assert '(timeline id: torts, page: https://luke-alto.web.app/pv/3nyerz5twqgfzaczvnddkk/)' in q
+    assert "?x=1" not in q and "#top" not in q
+    assert 'list_projects(account="all")' in q
+    assert "connect_account" in q and "(luke-alto.web.app)" in q
+    # With no address to go on (an offline copy) the prompt is the plain one.
+    plain = unquote(_prompt("Torts", "alto-doc-torts")[0].split("?q=", 1)[1])
+    assert "page:" not in plain and "connect_account" not in plain
 
 
 def test_a_share_opens_nothing():

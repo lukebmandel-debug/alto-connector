@@ -779,10 +779,25 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   window._altoEditRoom = ROOM;
   var TITLE = E.title || document.title;
   var GET = 'https://alto-get.web.app';
+  // The address of this page (…/pv/<key>/) names the account's site and the
+  // published copy, so a chat that cannot see the draft can still find it.
+  function where(){
+    var u = '';
+    try{ u = window.top.location.href; }catch(e){}
+    if(!/^https:\/\/[^\/]+\/pv\/[a-z0-9]+/.test(u)){ try{ u = document.referrer || ''; }catch(e){} }
+    var m = /^(https:\/\/[^\/]+\/pv\/[a-z0-9]+\/?)/.exec(u);
+    return m ? m[1] : '';
+  }
   function prompt(){
-    return "I want to edit my Alto timeline \"" + TITLE + "\" (timeline id: " + tid + "). " +
+    var at = where(), host = at ? at.split('/')[2] : '';
+    return "I want to edit my Alto timeline \"" + TITLE + "\" (timeline id: " + tid +
+      (at ? ", page: " + at : "") + "). " +
       "If the Alto connector isn't connected here yet, help me install it from " + GET +
-      " first. Then open this timeline with Alto's get_timeline and ask me what I'd like " +
+      " first. Then open this timeline with Alto's get_timeline" +
+      (at ? " \u2014 if it isn't found, it may be in another of my Alto accounts: look with " +
+            "list_projects(account=\"all\"), and add my site (" + host + ") with connect_account " +
+            "if it isn't listed" : "") +
+      ". Then ask me what I'd like " +
       "to change \u2014 I may have new notes to add, sources to link, or edits to make. " +
       "Follow Alto's interview guide to make the changes, then rebuild and republish it.";
   }

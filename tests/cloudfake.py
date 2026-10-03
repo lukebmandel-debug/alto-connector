@@ -11,8 +11,9 @@ class FakeFirebase:
     """Firestore REST + securetoken, in memory. Rejects any request whose token
     is not the current one, and any path outside users/{its uid}."""
 
-    def __init__(self, uid="U1"):
+    def __init__(self, uid="U1", project="proj", email="me@example.com"):
         self.uid, self.docs, self.calls = uid, {}, []
+        self.project, self.email = project, email
         self.good_rt, self.token_n = "RT", 0
 
     def _tok(self):
@@ -27,14 +28,14 @@ class FakeFirebase:
                 return 400, {"error": {"message": "INVALID_REFRESH_TOKEN"}}
             import base64
             claims = base64.urlsafe_b64encode(json.dumps(
-                {"user_id": self.uid, "email": "me@example.com"}).encode()).decode().rstrip("=")
+                {"user_id": self.uid, "email": self.email}).encode()).decode().rstrip("=")
             return 200, {"id_token": f"h.{claims}.s", "refresh_token": rt,
                          "user_id": self.uid, "expires_in": "3600"}
-        assert url.startswith(API + "/projects/proj/databases/(default)/documents")
+        root = f"projects/{self.project}/databases/(default)/documents"
+        assert url.startswith(API + "/" + root)
         if (headers or {}).get("Authorization", "").split(".")[0] != "Bearer h":
             return 401, {"error": {"message": "unauthenticated"}}
         path, _, query = url[len(API) + 1:].partition("?")
-        root = "projects/proj/databases/(default)/documents"
         if path == root + ":commit":
             for w in json.loads(body)["writes"]:
                 if "delete" in w:

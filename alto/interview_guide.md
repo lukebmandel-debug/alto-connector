@@ -115,11 +115,55 @@ their Alto site, where they click Continue with Google once. If it returns
 `waiting`, tell them to finish in the browser, then call it again. Signed in,
 `list_projects` is their whole account — the same projects the homepage shows.
 
+**More than one Alto account.** A person may have an Alto site for each Google
+account they use (a school address, a personal one), and a chat can start with
+no timeline in front of it — the user just says "let's work on my Torts
+timeline". `get_interview_guide` returns `accounts`: every Alto account this
+computer can reach (`known`, with the email and site of each) and, for the
+ones other than the one in use, what is in them (`timelines_in_accounts`).
+Read it before deciding anything is missing.
+- The user names a timeline or project: find it in `timelines_in_accounts` (or
+  `list_projects(account="all")`, which searches every account and the local
+  folder), then pass `account=<that account>` on EVERY tool call that follows.
+  Nothing is remembered between calls (one connector can serve several chats),
+  and a call with no `account` goes to the default place — the folder on this
+  computer, when that is what `here` says. Every reply from an account call
+  echoes `account`; check it. Say which account you are in ("working in your
+  school account, school@…") when the user has more than one.
+- Never say a timeline "does not exist", never create it again, and never
+  rebuild it, because the first list did not show it. A `not_found` that
+  carries `found_in_accounts` or `published_without_draft` already says where
+  it is; follow its `next`.
+- The user has an Alto site this computer does not list: `connect_account`
+  with its address (ask for nothing else — "the address you open to see your
+  timelines", e.g. luke-alto.web.app). It opens a sign-in page; the user clicks
+  Continue with Google as the account that site belongs to and you call it
+  again. Nothing is copied or pasted. If they say which Google account, pass
+  `email`.
+- A timeline can be named by its id, the address of its published page
+  (`…/pv/<key>/`) or its title: `get_timeline` and every tool that takes
+  `timeline_id` accept all three.
+- `published_without_draft` lists pages on the homepage that no draft in the
+  account belongs to (published from another computer). If one has
+  `can_import`, `import_timeline(published_key)` restores the draft exactly as
+  published; then carry on as usual. If it does not, say plainly that its
+  draft lives only on the computer that built it and ask whether they want to
+  open Claude there or give you the notes to build it again — a new timeline,
+  not an edit. Never rewrite one from its page's text.
+- `set_up_site` is for a NEW user with no account at all. A user whose
+  `accounts.known` has an entry already has a site; do not set up another, and
+  ignore a half-finished `site_status` (it is reported with `accounts_instead`).
+- Publishing goes into the account in use. For an account added with
+  `connect_account` the page is written straight into it and is on that
+  account's homepage at once; the site itself is not redeployed.
+
 **A project named from the homepage.** The homepage's "＋ New timeline" names
-the project it was clicked in. If `list_projects` has no project by that
-exact name, it was published from another device or another Alto store (when
-Alto keeps projects in a folder, the homepage lists everything on the account
-but this connector only what is stored here). That is normal; do not tell the user the project does not exist
+the project it was clicked in. Look for it in every account first
+(`list_projects(account="all")`): if it is there, work in that account. Only
+if no account has a project by that exact name was it published from another
+device or another Alto store (when Alto keeps projects in a folder, the
+homepage lists everything on the account but this connector only what is
+stored here). That is normal; do not tell the user the project does not exist
 or ask which account they used. Create it here with **exactly** that name
 (`create_project`) — the homepage files timelines by project name, so the new
 timeline lands in the same box — ask only for the purpose (and kind, with
@@ -721,14 +765,20 @@ rebuild. Say this once at the end of a build — "whenever you have new notes
 or want something changed, just bring it here" — and never send them to edit
 files, the site, or Firebase.
 
-**The ✎ Edit timeline button.** The end of every timeline (after the last
-unit; computers only — timelines are made and changed with Claude on a
-computer, so phones have no button) opens Claude with a prompt
-naming the timeline and its id. When it arrives: `get_timeline(<id>)`; if
-this connector does not have that id (it was published from another device
-or store), `list_projects` and match the title — never tell the user it does
-not exist. Then ask what they want changed, or take the notes they bring,
-and go on as above. A share link someone else opens has no Edit button.
+**The ✎ Edit timeline button — and starting without it.** The end of every
+timeline (after the last unit; computers only — timelines are made and changed
+with Claude on a computer, so phones have no button) opens Claude with a prompt
+naming the timeline, its id and the address of its page. A user can just as
+well open Claude on their own and say which timeline they want to change, so
+the same steps serve both. `get_timeline(<id>)` — the id, the page address or
+the title all work. If this connector does not have it: it is probably in
+another of the user's Alto accounts (`found_in_accounts` on the error, or
+`list_projects(account="all")`), or published from another device
+(`published_without_draft`, `import_timeline`) — see "More than one Alto
+account". If the prompt names a site (the address after "page:") that no
+account lists, `connect_account` it. Never tell the user it does not exist.
+Then ask what they want changed, or take the notes they bring, and go on as
+above. A share link someone else opens has no Edit button.
 
 A downloaded offline copy does not update itself: after a change, tell them
 to download it again if they use one.

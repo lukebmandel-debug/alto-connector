@@ -161,6 +161,36 @@ alto-connector migrate --from ~/Documents/Alto
 
 It copies, never deletes, and skips anything already in your account.
 
+### More than one site, and chats that start on their own
+
+A person can have an Alto site for each Google account they use. Every
+timeline tool takes an optional `account` (a site name like `luke-alto`, its
+address, or the Google email), and nothing is remembered between calls — one
+connector process can serve several chats.
+
+- `get_interview_guide` lists every account this computer is signed in to and
+  what is in each, so a chat opened on its own (not from a timeline's
+  **Edit timeline** button) finds a timeline the user names. `list_projects`
+  with `account="all"` does the same on demand.
+- `connect_account(site)` adds a site the user already has, from its address
+  alone: Alto reads the site's public web config (`/__/firebase/init.json`),
+  and the user clicks Continue with Google on the site's own sign-in page.
+  Accounts are kept in `~/.config/alto/accounts.json` (no tokens; each
+  sign-in is its own `session-<project>.json`, mode 0600).
+- A timeline can be named by its id, its published page address
+  (`…/pv/<key>/`) or its title. A `not_found` says where it is: another
+  account (`found_in_accounts`), or the homepage with no draft behind it
+  (`published_without_draft`).
+- `import_timeline(published_key)` restores a draft whose page was published
+  from a folder-backed connector: that publish now keeps a compressed copy of
+  the draft beside the page (`users/{uid}/alto_snapshots/{key}`).
+- Publishing into a connected account writes the page straight into it and
+  does not redeploy the site: deploying needs the Firebase CLI logged in as
+  that Google account, which this computer may not be. A sign-in whose site
+  address Alto does not know is never given a guessed one (a project's default
+  site can be somebody else's); the site is learned from the account's own
+  published timelines.
+
 ## Repo layout
 
 - `engine/` — the three page templates, extracted content-free from the
@@ -169,7 +199,7 @@ It copies, never deletes, and skips anything already in your account.
   without them.
 - `alto/build/` — brief model, height estimator, layout resolver (a port of
   the engine's own), block generators, verifier, offline bundler.
-- `alto/mcp_server.py` — the 21 MCP tools + interview prompt.
+- `alto/mcp_server.py` — the 24 MCP tools + interview prompt.
 - `alto/build/sanitize.py` — makes user content inert before it reaches a page.
   Load-bearing: the engine renders detail sections straight into `innerHTML`.
 - `alto/publish_static.py` — free-tier static publishing via the Firebase CLI.

@@ -280,6 +280,12 @@ _SESSION: Session | None = None
 
 
 def get_session() -> Session:
+    """The sign-in the current call uses: the chosen account's while a tool is
+    scoped to one (cloud/accounts.py), else the default account's."""
+    from . import accounts
+    scoped = accounts.scoped_session()
+    if scoped is not None:
+        return scoped
     global _SESSION
     if _SESSION is None:
         _SESSION = Session()

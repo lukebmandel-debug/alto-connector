@@ -121,4 +121,4 @@ def test_the_guide_never_defaults_to_coverage_and_asks_for_flags():
 
 def test_set_flags_is_a_tool():
     src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
-    assert src.count("@mcp.tool(") == 21 and "def set_flags(" in src
+    assert src.count("@mcp.tool(") == 24 and "def set_flags(" in src

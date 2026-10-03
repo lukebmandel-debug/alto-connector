@@ -12,16 +12,20 @@ from __future__ import annotations
 
 import contextvars
 import datetime
+import functools
 import hashlib
+import inspect
 import json
 import os
 import re
 import secrets
 import sys
 from pathlib import Path
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from .build.brief import BriefError, ID_RE
 from .build.builder import load_brief, build_timeline as _build, run_layout
@@ -71,6 +75,9 @@ def store_mode() -> str:
     reached as them after sign_in) or firestore (the parked hosted server's
     admin store). Anything unrecognised — including an .mcpb placeholder that
     was never filled in — is local, the one mode that needs no setup."""
+    from .cloud import accounts
+    if accounts.current() is not None:      # a call scoped to an account
+        return "cloud"
     m = os.environ.get("ALTO_STORE", "").strip().lower()
     if m in ("local", "cloud", "firestore"):
         return m
@@ -80,8 +87,22 @@ def store_mode() -> str:
     return "cloud" if site_rec.ready() else "local"
 
 
+_account_stores: dict = {}
+
+
 def get_store():
     global _store
+    from .cloud import accounts
+    scoped = accounts.current()
+    if scoped is not None:
+        # One store per account, each on its own sign-in. Built files still
+        # land under this computer's store dir, keyed by the account's uid.
+        st = _account_stores.get(scoped["id"])
+        if st is None:
+            from .store.cloud import CloudStore
+            st = _account_stores[scoped["id"]] = CloudStore(
+                accounts.session_for(scoped), LocalStore(store_dir()))
+        return st
     if _store is None:
         mode = store_mode()
         if mode == "firestore":
@@ -101,6 +122,7 @@ def get_store():
 def set_store(store):
     global _store
     _store = store
+    _account_stores.clear()
 
 
 class AuthError(RuntimeError):
@@ -223,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.32"
+__version__ = "1.9.33"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -276,7 +298,14 @@ mcp = FastMCP(
         "Alto builds interactive timelines EXCLUSIVELY from the user's own "
         "materials — it never invents content (closed-system rule §0). Start "
         "any new session with get_interview_guide; it returns the interview "
-        "to run and any resumable drafts."),
+        "to run, the user's resumable drafts and every Alto account this "
+        "computer can reach. The user may have timelines in more than one "
+        "account (Google email / site): when they name a timeline or project "
+        "you cannot see, never say it does not exist and never recreate it — "
+        "list_projects(account=\"all\") searches every account, "
+        "connect_account(site) adds a site from its address, and every tool "
+        "takes `account` — pass it on every call that follows, there is no "
+        "current account kept between calls."),
 )
 
 # FastMCP takes no version kwarg, so without this the server reports the MCP
@@ -285,18 +314,217 @@ mcp = FastMCP(
 mcp._mcp_server.version = __version__
 
 
+# The timeline the current call already read while resolving its reference
+# (see `accounted`), so the tool body does not fetch it a second time.
+_prefetched: contextvars.ContextVar = contextvars.ContextVar("alto_prefetched",
+                                                             default=None)
+
+
+def _norm_title(text: str) -> str:
+    t = re.sub(r"\s*[—–-]\s*alto timeline\s*$", "", (text or "").lower())
+    return re.sub(r"[^a-z0-9]+", " ", t).strip()
+
+
+def _page_key(ref: str) -> str:
+    """The key of a private page, from its address (…/pv/<key>/) or bare."""
+    m = re.search(r"/pv/([a-z0-9]{16,40})", ref or "")
+    if m:
+        return m.group(1)
+    return ref if re.fullmatch(r"[a-z0-9]{16,40}", ref or "") else ""
+
+
+def _find_timeline(st, u: str, ref: str):
+    """(timeline_id, doc) for whatever the user or the Edit timeline button
+    named: the draft's id, the id of a page published from it (the
+    /pv/<key>/ in its address), or its title. None when nothing matches
+    exactly once."""
+    raw = str(ref or "").strip()
+    if not raw:
+        return None
+    if ID_RE.match(raw):
+        doc = st.get_timeline(u, raw)
+        if doc:
+            return raw, doc
+    key = _page_key(raw)
+    rows = st.list_timelines(u)
+    hits = [t for t in rows if key and t.get("private_key") == key]
+    if not hits:
+        want = _norm_title(raw)
+        hits = [t for t in rows if want and want in (
+            _norm_title((t.get("brief") or {}).get("title", "")),
+            _norm_title(t["timeline_id"]))]
+    return (hits[0]["timeline_id"], hits[0]) if len(hits) == 1 else None
+
+
+def _homepage_only(st, u: str, timelines: list | None = None) -> list:
+    """Pages the account's homepage lists that no draft here belongs to — a
+    timeline published from another computer or store. [] when this store has
+    no homepage listing (a folder). `timelines` is the list the caller already
+    read: a timeline document carries its whole brief, so it is not fetched
+    again here."""
+    if not hasattr(st, "list_pages"):
+        return []
+    try:
+        rows = timelines if timelines is not None else st.list_timelines(u)
+        mine = {t.get("private_key") for t in rows}
+        tids = {t["timeline_id"] for t in rows}
+        orphans = [pg for pg in st.list_pages(u)
+                   if pg["key"] not in mine and pg["tid"] not in tids]
+        if not orphans:
+            return []
+        snaps = st.snapshot_keys(u)
+        return [{"published_key": pg["key"], "title": pg["heading"] or pg["title"],
+                 "project": pg["project"], "timeline_id": pg["tid"],
+                 "can_import": pg["key"] in snaps} for pg in orphans]
+    except Exception:                       # noqa: BLE001 — a hint, never an error
+        return []
+
+
+def _elsewhere(ref: str) -> dict:
+    """Where else a timeline that is not in this account might be: the other
+    accounts this computer is signed in to, and this account's own homepage.
+    Added to every not_found so a chat that starts on its own (not from the
+    Edit timeline button) is never told "it does not exist"."""
+    from .cloud import accounts as A
+    from .cloud.session import CloudError, SignInRequired
+    out: dict = {}
+    here = A.current()
+    here_id = here["id"] if here else (A.default() or {}).get("id")
+    found = []
+    for a in A.known():
+        if a["id"] == here_id or not a.get("signed_in"):
+            continue
+        try:
+            with A.scope(None if A.is_default(a) else a):
+                hit = _find_timeline(get_store(), uid(), ref)
+        except (SignInRequired, CloudError, OSError):
+            continue
+        if hit:
+            found.append({"account": a["id"], "email": a.get("email", ""),
+                          "timeline_id": hit[0],
+                          "title": (hit[1].get("brief") or {}).get("title")})
+    if found:
+        out["found_in_accounts"] = found
+        out["next"] = ("It is in another of the user's Alto accounts. Call "
+                       "this tool again with account=<account> (and keep "
+                       "passing it) — do not tell the user it is missing.")
+    pages = _homepage_only(get_store(), uid())
+    match = [pg for pg in pages if ref and (
+        pg["timeline_id"] == ref or _norm_title(pg["title"]) == _norm_title(ref)
+        or pg["published_key"] == _page_key(ref))]
+    if match:
+        out["published_without_draft"] = match
+        out["next"] = ("It is published on the user's homepage but its draft "
+                       "is not in this account. " + (
+                           "import_timeline(published_key) restores it."
+                           if any(m["can_import"] for m in match) else
+                           "Its draft was kept only on the computer that built "
+                           "it; see import_timeline for what can be done."))
+    elif not found:
+        others = [a for a in A.known() if a["id"] != here_id]
+        if others or here_id is None:
+            out["accounts"] = [A.summary(a) for a in A.known()]
+            out["next"] = ("Not in this account. list_projects(account=\"all\") "
+                           "searches every account this computer is signed in "
+                           "to; if the user has an Alto site that is not "
+                           "listed, connect_account(site) adds it.")
+    return out
+
+
 def _timeline_or_error(tid: str):
     # Every tool that takes a timeline_id funnels through here, so this is the
     # one place the id has to be proven safe before it becomes a store path.
-    tid, err = _check_ref(tid, "timeline_id")
+    pre = _prefetched.get()
+    if pre and pre[0] == tid:
+        return pre[1], None
+    ref = tid
+    tid, err = _check_ref(ref, "timeline_id")
     if err:
-        return None, err
+        err["message"] += (". That is not a draft id: pass the timeline's id "
+                           "(list_projects shows them), the address of its "
+                           "published page, or its title")
+        return None, {**err, **_elsewhere(str(ref or ""))}
     doc = get_store().get_timeline(uid(), tid)
     if not doc:
         return None, {"error": "not_found",
                       "message": f"timeline {tid!r} not found — list_projects "
-                                 "shows existing drafts"}
+                                 "shows existing drafts",
+                      **_elsewhere(tid)}
     return doc, None
+
+
+_ACCOUNT_ARG = Annotated[str, Field(description=(
+    "Which of the user's Alto accounts (sites) to work in: a site name or "
+    "address (luke-alto.web.app), or the Google email it belongs to. Leave "
+    "empty for the account already in use (list_accounts shows them)."))]
+
+
+def accounted(fn):
+    """Give a tool an `account` argument and run it as that account.
+
+    Alto can reach more than one Firebase site (one per Google account the user
+    has used it with). The tool bodies below know nothing about that: this
+    wrapper picks the account (the argument, else the default), points the
+    Firebase settings and the store at it for the length of the call
+    (cloud/accounts.py), and puts them back. Nothing is remembered between
+    calls: a connector process can serve several chats.
+    It also lets `timeline_id` be the address of a published page or a title:
+    the Edit timeline button and a person's own words both name a timeline
+    that way, and neither is a draft id.
+    """
+    sig = inspect.signature(fn)
+    own = "account" in sig.parameters
+    params = list(sig.parameters.values())
+    if not own:
+        params.append(inspect.Parameter(
+            "account", inspect.Parameter.POSITIONAL_OR_KEYWORD, default="",
+            annotation=_ACCOUNT_ARG))
+
+    @functools.wraps(fn)
+    def wrapper(*args, account: str = "", **kwargs):
+        from .cloud import accounts as A
+        from .cloud.session import CloudError, SignInRequired
+        if account and _require_auth:
+            return {"error": "single_account",
+                    "message": "this server serves one account; leave account empty"}
+        acct, err = A.pick(account)
+        if err:
+            return err
+        if own:
+            kwargs["account"] = account
+        try:
+            with A.scope(acct):
+                tok = None
+                if "timeline_id" in sig.parameters:
+                    ba = sig.bind_partial(*args, **kwargs)
+                    hit = _find_timeline(get_store(), uid(),
+                                         ba.arguments.get("timeline_id"))
+                    if hit:
+                        ba.arguments["timeline_id"] = hit[0]
+                        tok = _prefetched.set(hit)
+                        args, kwargs = ba.args, ba.kwargs
+                try:
+                    out = fn(*args, **kwargs)
+                finally:
+                    if tok is not None:
+                        _prefetched.reset(tok)
+        except SignInRequired as e:
+            if acct is None:
+                raise
+            return {"error": "sign_in_required", "account": acct["id"],
+                    "message": str(e),
+                    "next": f"Call sign_in(account={acct['id']!r})."}
+        except CloudError as e:
+            if acct is None:
+                raise
+            return {"error": "account_unreachable", "account": acct["id"],
+                    "message": str(e)}
+        if acct is not None and isinstance(out, dict):
+            out.setdefault("account", acct["id"])
+        return out
+
+    wrapper.__signature__ = sig.replace(parameters=params)
+    return wrapper
 
 
 def _consent_ok(doc) -> bool:
@@ -314,10 +542,13 @@ def _completeness(doc, nodes, connections) -> dict:
 
 
 @mcp.tool(title="Get interview guide", annotations=RO)
+@accounted
 def get_interview_guide() -> dict:
     """START HERE in any Alto session. Returns the interview/build guide
     (including the non-negotiable closed-system rule §0) plus the user's
-    resumable drafts."""
+    resumable drafts, and every Alto account this computer can reach — a
+    timeline the user names that is not in the first list is often in
+    another account, which `accounts` shows."""
     guide = (ROOT / "interview_guide.md").read_text(encoding="utf-8")
     drafts = []
     st = get_store()
@@ -330,7 +561,50 @@ def get_interview_guide() -> dict:
                             st.get_connections(uid(), tid)),
         })
     return {"guide_markdown": guide, "drafts": drafts,
-            "site_status": _site_status()}
+            "site_status": _site_status(), "accounts": _accounts_overview()}
+
+
+def _where_am_i() -> dict:
+    """Which account and store a call is using, in the model's terms."""
+    from .cloud import accounts as A
+    a = A.current() or A.default()
+    if store_mode() == "cloud":
+        out = {"store": "account"}
+        if a:
+            out.update(account=a["id"], email=a.get("email", ""),
+                       site_url=f"https://{a['site']}.web.app" if a.get("site") else "")
+        return out
+    return {"store": "folder on this computer", "folder": store_dir()}
+
+
+def _accounts_overview() -> dict:
+    """What a chat that starts on its own needs before it decides a timeline
+    is missing: where this connector is looking, and every other place the
+    user's timelines can be. Nothing here is a chore for the user."""
+    from .cloud import accounts as A
+    if _require_auth:           # a hosted server has no one's accounts but its caller's
+        return {}
+    rows = A.known()
+    out: dict = {"here": _where_am_i()}
+    others = [a for a in rows if a.get("signed_in")
+              and a["id"] != (A.current() or {}).get("id")
+              and not (A.current() is None and A.is_default(a))]
+    if others:
+        # Listed first: reading an account is how a sign-in's site is learned.
+        out["timelines_in_accounts"] = _list_all_accounts(only=others)
+    out["known"] = [A.summary(a) for a in A.known()]
+    if others:
+        out["next"] = ("The user has timelines in the account(s) above. When "
+                       "they name an existing timeline or project, find it "
+                       "there and pass account=<account> on every call that "
+                       "follows — never create it again and never say it "
+                       "does not exist.")
+    elif not rows:
+        out["next"] = ("No Alto account is signed in on this computer. For a "
+                       "user who already has an Alto site, connect_account("
+                       "site) opens it from its address (ask only for that); "
+                       "a new user gets one from set_up_site.")
+    return out
 
 
 def _why_not_configured() -> str:
@@ -348,6 +622,11 @@ def _why_not_configured() -> str:
 
 def _site_status() -> dict:
     """Where the user's own web site stands, for the guide's opening step."""
+    from .cloud import accounts as A
+    if A.current() is not None:            # a connected account is a finished site
+        cur = A.current()
+        return {"status": "connected", "email": cur.get("email", ""),
+                "site_url": f"https://{cur['site']}.web.app" if cur.get("site") else ""}
     from .cloud import site as site_rec
     from .cloud.provision import get_provisioner
     from .publish_static import firebase_configured
@@ -362,17 +641,32 @@ def _site_status() -> dict:
         # author's own environment): nothing for set_up_site to do.
         return {"status": "configured", "site_url":
                 f"https://{os.environ.get('ALTO_FIREBASE_SITE', '')}.web.app"}
+    # A setup that never finished (a Google account that has not accepted
+    # Google Cloud's terms, say) says nothing about a user who already has
+    # Alto sites: those are `accounts`. Without this a chat would read the
+    # stale error as "this user has no site" and start another one — under
+    # whatever Google account the Firebase CLI last used.
+    from .cloud import accounts as A
+    have = [A.summary(a) for a in A.known() if a.get("signed_in")]
+    if have and st.get("status") not in ("ready", "configured"):
+        st = {**st, "accounts_instead": have,
+              "note": ("The user already has the Alto account(s) listed here. "
+                       "Work in one of them (every tool takes `account`); do "
+                       "NOT call set_up_site for a user who has one, and do "
+                       "not tell them about a setup that did not finish.")}
     return st
 
 
 @mcp.tool(title="Set up your own Alto site", annotations=RW)
 def set_up_site(code: str = "") -> dict:
-    """Give the user their own private Alto site — a free Firebase project in
+    """Give a NEW user their own private Alto site — a free Firebase project in
     THEIR Google account with Firestore, Google sign-in, the security rules
     and the site itself — with nothing for them to do but click Allow and
     Continue with Google in their browser. Call it in the first turn of any
     session whose get_interview_guide site_status is not 'ready' or
-    'configured', then keep interviewing: it runs in the background and
+    'configured' AND whose `accounts.known` is empty — a user who already has
+    an Alto site (list_accounts) never needs another; connect_account adds
+    one. Then keep interviewing: it runs in the background and
     returns at once. Call it again (no arguments) whenever the user says they
     clicked something, or before publishing, to see where it is.
 
@@ -411,16 +705,23 @@ def set_up_site(code: str = "") -> dict:
 
 
 @mcp.tool(title="Sign in to your Alto account", annotations=RW)
+@accounted
 def sign_in() -> dict:
     """Connect Alto on this computer to the user's own account, once per
     computer, when projects are kept in the account (ALTO_STORE=cloud). Opens
     the user's Alto site in their browser, where they continue with Google.
     If it returns status 'waiting', ask the user to finish in the browser and
-    call sign_in again."""
+    call sign_in again. For an account that has lapsed, pass its `account`;
+    for a site not on this computer yet, use connect_account."""
+    from .cloud import accounts as A
+    scoped = A.current()
     if store_mode() != "cloud":
         return {"status": "not_needed",
                 "message": ("This Alto keeps projects in a folder on this "
-                            "computer, so there is nothing to sign in to.")}
+                            "computer, so there is nothing to sign in to."),
+                "next": ("If the user's timelines are on an Alto site, "
+                         "list_accounts shows the ones this computer knows; "
+                         "connect_account(site) adds one from its address.")}
     from .cloud.session import SignInRequired, get_session
     from .publish_static import firebase_configured
     s = get_session()
@@ -434,17 +735,26 @@ def sign_in() -> dict:
         except SignInRequired:
             s.forget()
     fc = firebase_configured()
-    if not fc or not s.configured:
+    # A connected account is signed in through its own site, which needs no
+    # Firebase CLI here: only the default (set_up_site's) site is deployed.
+    if not s.configured or (not fc and not scoped):
         return {"error": "not_configured",
                 "message": ("Alto has no site of its own yet, so there is no "
                             "account to sign in to. Call set_up_site: it "
                             "makes one and signs in as part of it.")}
-    site_url = f"https://{fc[1]}.web.app"
+    if scoped is not None and not scoped.get("site"):
+        return {"error": "site_unknown",
+                "message": ("Alto knows this sign-in but not the address of "
+                            "its site, which is where the user signs in again."),
+                "next": ("Call connect_account with the site's address (ask "
+                         "the user only for that).")}
+    site_url = (f"https://{scoped['site']}.web.app" if scoped
+                else f"https://{fc[1]}.web.app")
     # /connect/ only exists once the site has been deployed, and deploying
     # used to need a timeline, which needed a project, which needed this
     # sign-in: a new account could never get in. Ship the empty shell first.
     from .cloud.provision import _http_get
-    if _http_get(f"{site_url}/connect/") == 404:
+    if not scoped and _http_get(f"{site_url}/connect/") == 404:
         from .publish_static import PublishError, deploy_site, regenerate_site
         from .store.local import LocalStore
         try:
@@ -464,9 +774,42 @@ def sign_in() -> dict:
                         + (f" Last error: {p['error']}" if p.get("error") else ""))}
 
 
-@mcp.tool(title="List projects", annotations=RO)
-def list_projects() -> dict:
-    """List the user's Alto projects and the timelines inside them."""
+@mcp.tool(title="List Alto accounts", annotations=RO)
+def list_accounts() -> dict:
+    """Every Alto account (site) this computer can reach: the default one,
+    any added with connect_account, and any other sign-in kept here. Shows the
+    email each belongs to and whether it is signed in. A timeline the user
+    names that is not in one account may be in another."""
+    from .cloud import accounts as A
+    if _require_auth:
+        return {"accounts": [], "here": {"store": "account"}}
+    rows = A.known()
+    out: dict = {"accounts": [A.summary(a) for a in rows],
+                 "here": _where_am_i()}
+    if not rows:
+        out["next"] = ("None yet. connect_account(site) adds an existing Alto "
+                       "site from its address; set_up_site makes a new one.")
+    return out
+
+
+@mcp.tool(title="Connect another Alto site", annotations=RW)
+def connect_account(site: str, email: str = "") -> dict:
+    """Add an Alto site the user already has — from its address alone (e.g.
+    luke-alto.web.app); nothing is pasted. Opens its sign-in page, where the
+    user clicks Continue with Google as the account that site belongs to
+    (`email`, if they said which). Use it when a timeline or project the user
+    names is not in any account list_accounts shows, or to work in a second
+    Google account's site. If it returns status 'waiting', tell the user to
+    click Continue with Google, then call it again with the same site."""
+    from .cloud import accounts as A
+    if _require_auth:
+        return {"error": "single_account",
+                "message": "this server serves one account"}
+    return A.connect(site, email)
+
+
+def _projects_listing() -> dict:
+    """The projects and timelines in the store the current call points at."""
     st = get_store()
     timelines = st.list_timelines(uid())
     projects = []
@@ -479,26 +822,136 @@ def list_projects() -> dict:
                  "status": t.get("status", "draft")}
                 for t in timelines if t.get("project_id") == p["project_id"]],
         })
+    out: dict = {"projects": projects}
+    from .cloud import accounts as A
+    cur = A.current()
+    if cur is not None and not cur.get("site"):
+        A.infer_site(cur, timelines)
+    # What the homepage lists that no draft here belongs to: a timeline
+    # published from another computer or store. Said outright, so it never
+    # reads as "missing".
+    only = _homepage_only(st, uid(), timelines)
+    if only:
+        out["published_without_draft"] = only
+        out["published_without_draft_note"] = (
+            "These are on the user's homepage but have no draft in this "
+            "account. import_timeline(published_key) restores one that has "
+            "can_import; for the rest, the draft is only on the computer that "
+            "built it.")
+    return out
+
+
+def _list_all_accounts(only: list | None = None) -> list:
+    """Projects and timelines in every account this computer is signed in to,
+    plus the local folder when that is where this connector keeps drafts.
+    One account being unreachable never hides the others."""
+    from .cloud import accounts as A
+    from .cloud.session import CloudError, SignInRequired
+    out = []
+    rows = only if only is not None else A.known()
+    seen: dict = {}
+    for a in rows:
+        if not a.get("signed_in"):
+            out.append({**A.summary(a), "error": "not signed in",
+                        "next": f"sign_in(account={a['id']!r})"})
+            continue
+        # Two sites of one Firebase project are one account's data: list it once.
+        same = seen.get((a["project"], a.get("uid")))
+        if same:
+            out.append({**A.summary(a), "same_data_as": same})
+            continue
+        seen[(a["project"], a.get("uid"))] = a["id"]
+        body: dict = {}
+        try:
+            with A.scope(None if A.is_default(a) else a):
+                body = _projects_listing()
+        except (SignInRequired, CloudError, OSError) as e:
+            body = {"error": str(e)}
+        # After the read: it is what teaches a bare sign-in its site.
+        out.append({**A.summary(a), **body})
+    if only is None and store_mode() == "local":
+        out.insert(0, {"account": "(folder on this computer)",
+                       "store": "folder", **_projects_listing()})
+    return out
+
+
+@mcp.tool(title="List projects", annotations=RO)
+@accounted
+def list_projects(account: str = "") -> dict:
+    """List the user's Alto projects and the timelines inside them, in the
+    account in use. account="all" lists every account this computer can reach
+    (and the local folder), each labelled — use it first when the user names a
+    timeline or project you cannot see, or starts a chat on their own."""
+    if (account or "").strip().lower() == "all":
+        return {"accounts": _list_all_accounts(),
+                "next": ("Pass account=<account> to the other tools to work "
+                         "in one of them.")}
+    out = _projects_listing()
+    out["here"] = _where_am_i()
     # The homepage lists every project on the user's account; this lists only
     # what is stored where this connector runs. Say so, or a project named on
     # the homepage reads as "missing" when it was only published elsewhere.
     if store_mode() == "cloud":
         # The account itself: exactly what the homepage lists.
-        return {"projects": projects}
-    return {"projects": projects,
-            "note": ("Projects stored with this connector only. A project the "
-                     "user names that is not listed here was published from "
-                     "another device or store: create it here with exactly "
-                     "that name (the homepage groups timelines by project "
-                     "name), ask only for its purpose, and continue.")}
+        return out
+    from .cloud import accounts as A
+    out["note"] = ("Projects stored with this connector only. A project the "
+                   "user names that is not listed here is probably in one of "
+                   "their Alto accounts: list_projects(account=\"all\") "
+                   "searches them all, and connect_account(site) adds a site "
+                   "this computer does not know. Only if it is in none of "
+                   "them, it was published from another device or store: "
+                   "create it here with exactly that name (the homepage "
+                   "groups timelines by project name), ask only for its "
+                   "purpose, and continue.")
+    others = [A.summary(a) for a in A.known()]
+    if others:
+        out["accounts"] = others
+    return out
+
+
+def _project_in_other_account(name: str):
+    """A refusal when the user's other Alto accounts already hold a project by
+    this name. A chat that cannot see a project the homepage shows must not
+    create an empty copy of it here (and, worse, rebuild its timelines): it
+    belongs to the account that has it."""
+    from .cloud import accounts as A
+    from .cloud.session import CloudError, SignInRequired
+    want = _slug(name)
+    here = A.current()
+    here_id = here["id"] if here else (A.default() or {}).get("id")
+    for a in A.known():
+        if a["id"] == here_id or not a.get("signed_in"):
+            continue
+        try:
+            with A.scope(None if A.is_default(a) else a):
+                hit = [p for p in get_store().list_projects(uid())
+                       if p["project_id"] == want or p["name"].strip().lower() == name.strip().lower()]
+        except (SignInRequired, CloudError, OSError):
+            continue
+        if hit:
+            return {"error": "exists_in_account", "account": a["id"],
+                    "email": a.get("email", ""), "project_id": hit[0]["project_id"],
+                    "message": (f"A project named {hit[0]['name']!r} already "
+                                f"exists in the user's Alto account {a['id']} "
+                                f"({a.get('email') or 'signed in here'}); nothing was created."),
+                    "next": (f"Work in that account: pass account={a['id']!r} to "
+                             "create_timeline and the other tools (list_projects "
+                             "shows what is in it). Create a project only if the "
+                             "user wants a different one.")}
+    return None
 
 
 @mcp.tool(title="Create project", annotations=RW)
+@accounted
 def create_project(name: str, purpose: str = "",
                    kind: str = "studying") -> dict:
     """Create a project container (Flow 1). kind: studying|writing|research.
     Name + purpose only — Alto never stores generated blurbs."""
     st = get_store()
+    taken = _project_in_other_account(name)
+    if taken:
+        return taken
     existing = {p["project_id"] for p in st.list_projects(uid())}
     if len(existing) >= MAX_PROJECTS:
         return {"error": "quota", "message": f"max {MAX_PROJECTS} projects"}
@@ -510,6 +963,7 @@ def create_project(name: str, purpose: str = "",
 
 
 @mcp.tool(title="Create timeline draft", annotations=RW)
+@accounted
 def create_timeline(project_id: str, brief: dict) -> dict:
     """Create a timeline draft from the build brief (Flow 2 §B–§I). brief:
     {title, subject?, timeline_id?, columns?: 3|5, node_noun?, period_noun?,
@@ -604,6 +1058,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
 
 
 @mcp.tool(title="Record materials + consent (§0 gate)", annotations=RW)
+@accounted
 def record_materials_consent(timeline_id: str, sources: list[dict],
                              consent: bool) -> dict:
     """THE HARD GATE (§A). Call only after (1) the user provided real
@@ -720,6 +1175,7 @@ def _resolve_local(sources: list) -> "tuple[list, dict]":
 
 
 @mcp.tool(title="Set entities", annotations=RW)
+@accounted
 def set_entities(timeline_id: str, entities: list[dict],
                  autolink: list[str] | None = None,
                  autolink_overview: bool | None = None) -> dict:
@@ -756,6 +1212,7 @@ def set_entities(timeline_id: str, entities: list[dict],
 
 
 @mcp.tool(title="Set axis values", annotations=RW)
+@accounted
 def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
                     values: list[dict], hide_nav: bool = False,
                     filter: bool | None = None, sources: list[str] | None = None,
@@ -840,6 +1297,7 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
 
 
 @mcp.tool(title="Add or update nodes", annotations=RW)
+@accounted
 def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     """Batch-add/update timeline nodes (idempotent upsert by id). Each:
     {id, act (0-based), tag, title, desc, col?, parent?, entity_ids?,
@@ -891,6 +1349,7 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
 
 
 @mcp.tool(title="Add connections", annotations=RW)
+@accounted
 def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
     """Set the full connection list: [[source_id, target_id, relation_key,
     how_they_connect?], ...]. Endpoints must be existing nodes; relation_key
@@ -926,6 +1385,7 @@ def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
 
 
 @mcp.tool(title="Set flags", annotations=RW)
+@accounted
 def set_flags(timeline_id: str, flags: list[dict],
               assign: dict[str, list[str]] | None = None) -> dict:
     """The user's own marks in their notes as a Filter section — "pivotal", "not
@@ -984,6 +1444,7 @@ def set_flags(timeline_id: str, flags: list[dict],
 
 
 @mcp.tool(title="Set overview", annotations=RW)
+@accounted
 def set_overview(timeline_id: str, overview_html: str = "",
                  section_summaries: list[str] | None = None) -> dict:
     """The Overview panel. Authored from the user's material (§0).
@@ -1071,6 +1532,7 @@ def _layout_choice(doc, layout: str, tree_lines: str) -> dict:
 
 
 @mcp.tool(title="Run layout (preview)", annotations=RO)
+@accounted
 def run_layout_preview(timeline_id: str, layout: str = "",
                        tree_lines: str = "") -> dict:
     """Cheap layout dry-run: resolves the desktop arrangement + vertical
@@ -1099,6 +1561,7 @@ def run_layout_preview(timeline_id: str, layout: str = "",
 
 
 @mcp.tool(title="Build timeline", annotations=RW)
+@accounted
 def build_timeline(timeline_id: str, layout: str = "",
                    tree_lines: str = "") -> dict:
     """Emit the timeline from the engine template, verify it (structure,
@@ -1170,6 +1633,7 @@ def build_timeline(timeline_id: str, layout: str = "",
 
 
 @mcp.tool(title="Preview timeline as an Artifact", annotations=RW)
+@accounted
 def preview_timeline(timeline_id: str) -> dict:
     """Build the current draft into ONE self-contained HTML page for showing
     the user as a Claude Artifact before anything is published (and whether
@@ -1233,7 +1697,68 @@ def _added_epoch(doc) -> int:
         return 0
 
 
+def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
+                        acct: dict) -> dict:
+    """Publish into an account that is not this connector's own site: connected
+    with connect_account, or a sign-in found on this computer. The page is
+    written straight into the account (the homepage lists it at once) and the
+    site is NOT redeployed — deploying needs the Firebase CLI logged in as
+    that Google account, which this computer may not have, and the site's
+    /pv/ shell is the same for every page anyway. Never aimed at a site Alto
+    only guessed: with no known site there is no address to hand back."""
+    from .build.private_shell import MAX_PAGE_BYTES, stored_bytes
+    from .cloud import accounts as A
+    from .cloud.meta import meta_of, title_of
+    from .publish_static import _rebuild
+    st = get_store()
+    u = uid()
+    st.put_share(timeline_id, {"uid": u, "visibility": visibility})
+    doc["status"] = "published"
+    doc["visibility"] = visibility
+    if visibility != "private-web":
+        doc["urls"] = {"note": "private — not on the web"}
+        st.put_timeline(u, timeline_id, doc)
+        return {"visibility": visibility, **doc["urls"]}
+    if not doc.get("private_key"):
+        doc["private_key"] = _private_key()
+    key = doc["private_key"]
+    raw, why = _rebuild(st, u, doc)
+    if raw is None:
+        raw = st.get_artifact(u, timeline_id, "timeline.html")
+    if not raw:
+        return {"error": "not_built", "message": "build_timeline first"}
+    names = {p["project_id"]: p["name"] for p in st.list_projects(u)}
+    b, _, _ = load_brief({"brief": doc["brief"]})
+    page = private_page(b, raw, names.get(doc.get("project_id", ""), ""))
+    st.put_artifact(u, timeline_id, "private.html", page)
+    stored = stored_bytes(page)
+    if stored > MAX_PAGE_BYTES:
+        return {"error": "too_large",
+                "message": (f"{stored // 1024} KB compressed exceeds the "
+                            f"{MAX_PAGE_BYTES // 1024} KB a private page can be")}
+    st.put_page(u, key, page, title_of(page),
+                {**meta_of(page), "added": _added_epoch(doc)})
+    site = acct.get("site") or A.infer_site(acct, st.list_timelines(u))
+    urls: dict = {"note": ("Published privately to this account "
+                           f"({acct.get('email') or acct['id']}): only that "
+                           "Google account can open it, and it is on its "
+                           "homepage now. Nothing to upload.")}
+    if site:
+        urls["view_url"] = f"https://{site}.web.app/pv/{key}/"
+        if A.probe(f"https://{site}.web.app/pv/") != 200:
+            urls["note"] += (" The site's page shell is not deployed yet, so "
+                             "open it from the homepage once the site has "
+                             "been set up.")
+    else:
+        urls["note"] += (" Alto does not know this account's site address, so "
+                         "there is no direct link: it opens from the homepage.")
+    doc["urls"] = urls
+    st.put_timeline(u, timeline_id, doc)
+    return {"visibility": visibility, **urls}
+
+
 @mcp.tool(title="Publish timeline", annotations=RW)
+@accounted
 def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     """Publish the built timeline.
 
@@ -1265,6 +1790,9 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                             "owner creates a share link from their homepage.")}
     if visibility not in ("private", "private-web"):
         return {"error": "bad_visibility", "message": "private|private-web"}
+    from .cloud import accounts as A
+    if A.current() is not None:
+        return _publish_to_account(timeline_id, doc, visibility, A.current())
     st = get_store()
     st.put_share(timeline_id, {"uid": uid(), "visibility": visibility})
     doc["status"] = "published"
@@ -1390,8 +1918,21 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
                                  "nothing did), then call publish_timeline "
                                  "again. Never ask them to upload or copy "
                                  "anything themselves.")}
-            CloudStore(s, st).put_page(s.uid, key, page, title_of(page),
-                                       {**meta_of(page), "added": _added_epoch(doc)})
+            cloud = CloudStore(s, st)
+            cloud.put_page(s.uid, key, page, title_of(page),
+                           {**meta_of(page), "added": _added_epoch(doc)})
+            # The draft stays in this folder, so keep a copy beside the page:
+            # another computer, or a chat that starts on its own, restores it
+            # with import_timeline instead of finding a page it cannot edit.
+            try:
+                cloud.put_snapshot(s.uid, key, {
+                    "v": 1, "project": st.get_project(uid(), doc.get("project_id") or ""),
+                    "timeline": doc,
+                    "nodes": [{k: v for k, v in n.items() if k != "_seq"}
+                              for n in st.list_nodes(uid(), timeline_id)],
+                    "connections": st.get_connections(uid(), timeline_id)})
+            except Exception:           # noqa: BLE001 — never undo a publish that worked
+                pass        # the page is published; only the restore copy missed
             urls = {"view_url": f"{live}/pv/{key}/", **stale_bits,
                     "note": ("Published privately to the user's own account: "
                              "only they can open it, after signing in with "
@@ -1426,6 +1967,7 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
 
 
 @mcp.tool(title="Get timeline state", annotations=RO)
+@accounted
 def get_timeline(timeline_id: str) -> dict:
     """Full draft state for resuming: brief, consent, node ids, connection
     count, status, urls."""
@@ -1448,7 +1990,73 @@ def get_timeline(timeline_id: str) -> dict:
     }
 
 
+@mcp.tool(title="Restore a published timeline's draft", annotations=RW)
+@accounted
+def import_timeline(published: str) -> dict:
+    """Bring back the editable draft of a timeline that is on the user's
+    homepage but has none in this account — it was published from another
+    computer or store. `published` is its published_key (list_projects shows
+    it under published_without_draft), the address of its page, or its title.
+    Restores the project, the timeline, every card and connection exactly as
+    published; nothing is rewritten. Then continue with get_timeline."""
+    st = get_store()
+    if not hasattr(st, "get_snapshot"):
+        return {"error": "needs_account",
+                "message": ("Drafts here are kept in a folder on this computer, "
+                            "so there is nothing to restore from an account."),
+                "next": ("If the timeline is in one of the user's Alto "
+                         "accounts, list_projects(account=\"all\") finds it.")}
+    u = uid()
+    pages = _homepage_only(st, u)
+    ref = str(published or "").strip()
+    key = _page_key(ref)
+    hit = [pg for pg in pages if pg["published_key"] == key
+           or pg["timeline_id"] == ref or _norm_title(pg["title"]) == _norm_title(ref)]
+    if len(hit) != 1:
+        found = _find_timeline(st, u, ref)
+        if found:
+            return {"error": "already_here", "timeline_id": found[0],
+                    "message": "That timeline already has a draft in this account.",
+                    "next": f"get_timeline({found[0]!r})"}
+        return {"error": "not_found",
+                "message": ("No published page without a draft matches that."
+                            if not hit else "More than one page matches; use its published_key."),
+                "published_without_draft": pages}
+    pg = hit[0]
+    snap = st.get_snapshot(u, pg["published_key"])
+    if not snap or not snap.get("timeline"):
+        return {"error": "no_snapshot", "published_key": pg["published_key"],
+                "message": (f"{pg['title']!r} was published before Alto kept a "
+                            "restorable copy beside the page, and its draft is "
+                            "only on the computer that built it. The page's own "
+                            "text cannot be turned back into a draft without "
+                            "risking changes to it."),
+                "next": ("Do not rebuild it from memory. Tell the user plainly: "
+                         "to change it, Alto needs either that computer (open "
+                         "Claude there with the account and publish once — that "
+                         "saves the copy) or their notes to build it again, "
+                         "which is a new timeline, not an edit. Ask which they "
+                         "want.")}
+    tl = snap["timeline"]
+    tid = tl["timeline_id"]
+    proj = snap.get("project")
+    if proj and not st.get_project(u, proj["project_id"]):
+        st.put_project(u, proj["project_id"], proj)
+    nodes = snap.get("nodes") or []
+    st.put_timeline(u, tid, tl)
+    if nodes:
+        st.put_nodes(u, tid, nodes)
+    st.put_connections(u, tid, snap.get("connections") or [])
+    return {"restored": {"timeline_id": tid,
+                         "title": (tl.get("brief") or {}).get("title"),
+                         "nodes": len(nodes),
+                         "connections": len(snap.get("connections") or [])},
+            "next": (f"get_timeline({tid!r}) and carry on. Republish when done: "
+                     "it updates the same page.")}
+
+
 @mcp.tool(title="Delete nodes", annotations=ToolAnnotations(destructiveHint=True))
+@accounted
 def delete_nodes(timeline_id: str, node_ids: list[str]) -> dict:
     """Remove nodes from the draft (e.g. after §J scope reconciliation).
     Connections touching removed nodes are dropped too. In outline mode a
@@ -1538,6 +2146,7 @@ def _timeline_summary(st, doc: dict) -> dict:
           description=("Delete a timeline: its nodes, connections, built files, "
                        "and any page published from it (its web page stops "
                        "working). " + _DELETE_RULES))
+@accounted
 def delete_timeline(timeline_id: str, confirm_token: str = "") -> dict:
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -1561,6 +2170,7 @@ def delete_timeline(timeline_id: str, confirm_token: str = "") -> dict:
                        "is refused unless delete_timelines=true, which deletes "
                        "every timeline in it too (each with its published "
                        "pages). " + _DELETE_RULES))
+@accounted
 def delete_project(project_id: str, delete_timelines: bool = False,
                    confirm_token: str = "") -> dict:
     st = get_store()

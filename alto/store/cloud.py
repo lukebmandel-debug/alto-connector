@@ -12,6 +12,13 @@ shared — untouched here):
   users/{uid}/alto_timelines/{tid}                      {data, created}
   users/{uid}/alto_timelines/{tid}/nodes/{nodeId}       {data, _seq}
   users/{uid}/alto_timelines/{tid}/meta/connections     {data}
+  users/{uid}/alto_snapshots/{pageKey}                  {z (gzip), v}
+
+A snapshot is the whole draft (project, timeline, nodes, connections), kept
+beside a private page that was published from a connector whose drafts live in a
+folder — so any other computer or Claude chat can restore the draft from the
+account (import_timeline). A connector that keeps its drafts in the account
+needs none: its drafts ARE the account's.
 
 `data` is the document as JSON text. Firestore forbids arrays inside arrays —
 which is exactly what connections are — and mapping every shape through its
@@ -166,7 +173,8 @@ class CloudStore(Store):
         meta = self._req("GET", self._doc(uid, "pagemeta", key), ok404=True)
         share = (((meta or {}).get("fields") or {}).get("shareKey") or {}).get("stringValue")
         writes = [{"delete": self._doc(uid, "pages", key)},
-                  {"delete": self._doc(uid, "pagemeta", key)}]
+                  {"delete": self._doc(uid, "pagemeta", key)},
+                  {"delete": self._doc(uid, "alto_snapshots", key)}]
         if share:
             writes += [{"delete": f"{self.root}/shares/{check_component(share, 'shareKey')}"},
                        {"delete": self._doc(uid, "shared", share)}]
@@ -210,6 +218,52 @@ class CloudStore(Store):
     def put_connections(self, uid, tid, connections):
         self._put(self._doc(uid, "alto_timelines", tid, "meta", "connections"),
                   connections)
+
+    # ── what the homepage lists, and drafts kept beside it ───────────────────
+    def list_pages(self, uid) -> list[dict]:
+        """The account's private pages the way its homepage lists them:
+        [{key, tid, title, project, heading}]. Reads pagemeta with a field mask,
+        so the per-node search index (most of each record) is not downloaded."""
+        out, token = [], ""
+        mask = "".join(f"&mask.fieldPaths={f}" for f in ("title", "tid", "project", "heading"))
+        while True:
+            params = ("?pageSize=300" + mask
+                      + (f"&pageToken={urllib.parse.quote(token)}" if token else ""))
+            js = self._req("GET", self._doc(uid, "pagemeta"), params=params,
+                           ok404=True) or {}
+            for d in js.get("documents") or []:
+                f = d.get("fields") or {}
+
+                def sv(k):
+                    return (f.get(k) or {}).get("stringValue", "")
+                out.append({"key": d["name"].rsplit("/", 1)[-1], "tid": sv("tid"),
+                            "title": sv("title"), "project": sv("project"),
+                            "heading": sv("heading")})
+            token = js.get("nextPageToken") or ""
+            if not token:
+                return out
+
+    def put_snapshot(self, uid, key: str, snap: dict) -> None:
+        z = base64.b64encode(pack_page(json.dumps(snap, ensure_ascii=False))).decode("ascii")
+        self._req("PATCH", self._doc(uid, "alto_snapshots", key),
+                  {"fields": {"z": {"bytesValue": z}, "v": {"integerValue": "1"}}})
+
+    def get_snapshot(self, uid, key: str) -> dict | None:
+        js = self._req("GET", self._doc(uid, "alto_snapshots", key), ok404=True)
+        z = (((js or {}).get("fields") or {}).get("z") or {}).get("bytesValue")
+        if not z:
+            return None
+        from ..build.private_shell import unpack_page
+        try:
+            snap = json.loads(unpack_page(base64.b64decode(z)))
+        except (ValueError, OSError):
+            return None
+        return snap if isinstance(snap, dict) else None
+
+    def snapshot_keys(self, uid) -> set[str]:
+        js = self._req("GET", self._doc(uid, "alto_snapshots"),
+                       params="?pageSize=300&mask.fieldPaths=v", ok404=True) or {}
+        return {d["name"].rsplit("/", 1)[-1] for d in js.get("documents") or []}
 
     # ── on this computer ─────────────────────────────────────────────────────
     def put_artifact(self, uid, tid, name, content):
