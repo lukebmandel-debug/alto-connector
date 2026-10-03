@@ -12,8 +12,8 @@ JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reas
 from .emit import emit
 from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid, \
-    outline_order_and_columns, outline_spokes, outline_tree, outline_flanks, \
-    outline_has_categories, line_crossings, TREE
+    outline_order_and_columns, outline_spokes, outline_tree, outline_plan, \
+    placement_check, outline_has_categories, line_crossings, TREE
 from .brief import COL_SETS
 from .estimate import card_height
 from .sanitize import sanitize_brief, sanitize_connections
@@ -78,7 +78,7 @@ def stored_brief(doc: dict) -> dict:
 def place(brief: Brief, nodes: list[Node]) -> None:
     """Order and column-assign nodes for the brief's mode. Idempotent."""
     if brief.mode == "outline":
-        outline_order_and_columns(nodes, brief.columns)
+        outline_order_and_columns(nodes, brief.columns, brief.placement)
     else:
         assign_columns(nodes, brief.columns)
 
@@ -89,7 +89,8 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
 
     An outline can be a tree or flow (brief.layout). "auto" takes the tree
     when the outline has real categories to show and the tree's lines cross
-    no more often than flow's; the counts are in report["line_crossings"].
+    no more often than flow's, or when the author has placed cards (only a
+    tree can honour that); the counts are in report["line_crossings"].
     `col` drives the mobile grid either way."""
     place(brief, nodes)
     flow_parent = ({n.id: n.parent for n in nodes if n.parent}
@@ -98,11 +99,11 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
                                                   len(brief.acts), flow_parent)
     report["layout"] = "flow"
     if brief.mode == "outline" and brief.layout != "flow":
-        flanks = outline_flanks(nodes)
-        th = {n.id: card_height(n.desc, n.title,
-                                TREE["FLANK_W"] if n.id in flanks else 270)
+        plan = outline_plan(nodes, len(brief.acts), brief.placement,
+                            brief.tree_lines)
+        th = {n.id: card_height(n.desc, n.title, plan["w"].get(n.id, TREE["CARD_W"]))
               for n in nodes}
-        ty, tx, tworld = outline_tree(nodes, len(brief.acts), th)
+        ty, tx, tworld = outline_tree(nodes, len(brief.acts), th, plan=plan)
         edges = [(c[0], c[1]) for c in outline_spokes(nodes, connections or [])
                  if c[0] in ty and c[1] in ty]
         colx = COL_SETS[brief.columns]
@@ -110,15 +111,36 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
         crossings = {"tree": line_crossings(edges, tx, ty, th, True),
                      "flow": line_crossings(edges, fx, positions, heights, False)}
         categories = outline_has_categories(nodes)
-        if brief.layout == "tree" or (categories
-                                      and crossings["tree"] <= crossings["flow"]):
+        placed = any(set(h) - {"order"} for h in (brief.placement or {}).values())
+        if brief.layout == "tree" or placed or (
+                categories and crossings["tree"] <= crossings["flow"]):
             positions, heights, world_h = ty, th, tworld
             report = {"world_height": world_h, "moved_on_recheck": [],
                       "per_column": {}, "layout": "tree"}
+            if brief.placement:
+                check = placement_check(nodes, plan, ty, tx, th)
+                report["placement"] = {"hinted": len(brief.placement),
+                                       "warnings": plan["warnings"], **check}
         report["line_crossings"] = crossings
         report["categories"] = categories
     mgrid, mobile_h = mobile_grid(nodes, brief.columns)
     return positions, heights, world_h, mgrid, mobile_h, report
+
+
+def _placement_warnings(pl: dict = None) -> list[str]:
+    """What a placed layout got wrong, as plain sentences for the author."""
+    if not pl:
+        return []
+    out = list(pl.get("warnings") or [])
+    if pl.get("overlap_count"):
+        pairs = ", ".join(f"{a}/{b}" for a, b in pl["overlaps"][:4])
+        out.append(f"placement: {pl['overlap_count']} cards overlap ({pairs}"
+                   f"{' …' if pl['overlap_count'] > 4 else ''}) — move one with "
+                   "x, dx or dy, or float it")
+    if pl.get("off_margin"):
+        out.append("placement: " + ", ".join(pl["off_margin"][:4])
+                   + " sit closer to the page edge than the margin — narrow or move")
+    return out
 
 
 def build_timeline(brief: Brief, nodes: list[Node], connections: list,
@@ -160,6 +182,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     positions, heights, world_h, mgrid, mobile_h, layout_report = \
         run_layout(brief, nodes, connections)
+    warnings += _placement_warnings(layout_report.get("placement"))
 
     regions, tokens = timeline_blocks(
         brief, nodes, positions, heights, mgrid, mobile_h,

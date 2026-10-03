@@ -199,7 +199,7 @@ connector process can serve several chats.
   without them.
 - `alto/build/` — brief model, height estimator, layout resolver (a port of
   the engine's own), block generators, verifier, offline bundler.
-- `alto/mcp_server.py` — the 24 MCP tools + interview prompt.
+- `alto/mcp_server.py` — the 25 MCP tools + interview prompt.
 - `alto/build/sanitize.py` — makes user content inert before it reaches a page.
   Load-bearing: the engine renders detail sections straight into `innerHTML`.
 - `alto/publish_static.py` — free-tier static publishing via the Firebase CLI.

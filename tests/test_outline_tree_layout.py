@@ -18,7 +18,7 @@ from alto.build.brief import Brief, Node  # noqa: E402
 from alto.build.builder import load_brief, build_timeline, place  # noqa: E402
 from alto.build import detail_extras as dx  # noqa: E402
 from alto.build.layout import (TREE, outline_flanks, outline_kids,  # noqa: E402
-                               outline_tree)
+                               outline_plan, outline_tree, plan_js)
 
 NODE = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
 needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
@@ -125,7 +125,8 @@ def test_the_browser_tree_matches_the_builder(tmp_path):
     b, nodes, _ = load_brief(d)
     place(b, nodes)
     h = {n.id: 100 + (len(n.desc) % 7) * 20 for n in nodes}
-    y, x, _ = outline_tree(nodes, len(b.acts), h)
+    plan = outline_plan(nodes, len(b.acts))
+    y, x, _ = outline_tree(nodes, len(b.acts), h, plan=plan)
     kids = outline_kids(nodes)
     acts = [[n.id for n in nodes if n.act == a] for a in range(len(b.acts))]
     js = ("var window=globalThis; var document={documentElement:{classList:{contains:function(){return false;}}},"
@@ -133,7 +134,7 @@ def test_the_browser_tree_matches_the_builder(tmp_path):
           f"var ACT_SEQS={json.dumps(acts)}; var NODES={json.dumps([{'id': n.id} for n in nodes])};\n"
           "window._ALTO_OUTLINE={kids:" + json.dumps(kids) + ",parent:"
           + json.dumps({n.id: n.parent for n in nodes if n.parent}) + "};\n"
-          + dx.tree_glue(TREE, "fan") + "\n"
+          + dx.tree_glue(plan_js(plan)) + "\n"
           f"var pos={{}}, h={json.dumps(h)}; window._altoTree(pos,h);\n"
           "console.log(JSON.stringify({y:pos, etx:window._altoEdgeTX, x:Object.fromEntries(NODES.map(function(n){return [n.id,n.displayX];}))}));")
     f = tmp_path / "tree.js"

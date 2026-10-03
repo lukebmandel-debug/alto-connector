@@ -474,6 +474,30 @@ a branch its own line, spread across the top of the first card, so every
 subtopic can be reached by following its line; `'trunk'` draws one shared line.
 Only change these if the student asks for a different look.
 
+**Placing cards.** The tree decides where cards go, but the student may ask for
+something it would not do on its own: "put the six concepts in a row right under
+the hub", "move Damages over to the left", "Cause in Fact should come after
+Breach", "set Medical Malpractice beside Custom". That is `place_nodes` — never
+`col` (ignored here), and never deleting and re-adding cards to reorder them.
+Only when they ask; do not rearrange a unit on your own. A hub's `arrange: "row"`
+puts its children in a band directly under it, ahead of anything that hangs from
+them: one row if they fit (up to five), two staggered rows if not (six or seven),
+and their progeny packed in beneath, each straight below its parent (a concept's
+Liable / Not Liable stack under it instead of flanking it). Apply `arrange: "row"`
+to a child that is itself heavy and its own children form a band of their own,
+which settles below its neighbours, so a long unit spreads across the page rather
+than running down one column. Row hints never make cards overlap, and need no
+coordinates. `"column"` stacks children down one spine; `tier` picks a card's
+row in a band; `x`,
+`dx`, `y`, `dy`, `w`, `float` and `order` move or size one card (its progeny
+follow). Any card can go anywhere on the page: when the student wants something
+the arrangements do not give, pin it with `x` and `y`. A unit you do not name is
+never touched. The reply lays the result out and lists any cards
+that overlap or sit too near the page edge — fix those, using
+`run_layout_preview(boxes=true)` to see where there is room, before
+`build_timeline` and `publish_timeline`. Say what you did in plain words; the
+student never edits coordinates.
+
 ### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary

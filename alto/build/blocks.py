@@ -39,7 +39,7 @@ HOW_CONNECT_CSS = (
     "font-variant-numeric:tabular-nums;}")
 from .sanitize import css_color, esc, one_line
 from . import detail_extras as dx
-from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_flanks
+from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_plan, plan_js
 
 # Generic section-builder code (same shape as the template's empty defaults —
 # kept in one place because emit() replaces the whole region span).
@@ -984,6 +984,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     relation "line key" — only relations actually used by a connection appear.
     """
     tid = b.timeline_id
+    # An outline drawn as a tree: the page runs this plan over its measured
+    # card heights, and narrows the cards the plan gives less than a full width.
+    tree_plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines) if tree else None
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     _warn0 = warnings if warnings is not None else []
@@ -1504,7 +1507,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",parent:" + json.dumps(_parent) + "};"
                    + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
-                   + (dx.tree_glue(TREE, b.tree_lines) if tree else dx.HUBS_ABOVE_GLUE))
+                   + (dx.tree_glue(plan_js(tree_plan)) if tree else dx.HUBS_ABOVE_GLUE))
     if index_axes:
         orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
     if rel_key_items:
@@ -1582,16 +1585,22 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "border-radius:6px;padding:4px 8px;font-size:12px;max-width:280px;"
         "box-shadow:0 4px 16px rgba(0,0,0,.2);}")
     # An outline's flanking outcome cards are narrower on desktop, so a tree
-    # row (flank | concept | flank, twice) fits the 1700px world (layout.TREE).
+    # row (flank | concept | flank, twice) fits the 1700px world (layout.TREE);
+    # so are the cards of a placed row of three or more.
     if tree:
-        _fl = sorted(outline_flanks(nodes))
-        if _fl:
+        _narrow: dict[int, list] = {}
+        for _i, _w in tree_plan["w"].items():
+            if _w != TREE["CARD_W"]:
+                _narrow.setdefault(_w, []).append(_i)
+        if _narrow:
+            nav_char_css += "".join(
+                "\n  " + ",".join(f"html:not(.mobile) #node-{i} .node-card"
+                                  for i in sorted(ids))
+                + f"{{width:{_w:g}px;}}" for _w, ids in sorted(_narrow.items()))
+            _fl = sorted(i for ids in _narrow.values() for i in ids)
             nav_char_css += ("\n  " + ",".join(
-                f"html:not(.mobile) #node-{i} .node-card" for i in _fl)
-                + f"{{width:{TREE['FLANK_W']}px;}}"
-                + "\n  " + ",".join(
-                    f"html:not(.mobile) #node-{i} .esym-btn,"
-                    f"html:not(.mobile) #node-{i} .tsym-btn" for i in _fl)
+                f"html:not(.mobile) #node-{i} .esym-btn,"
+                f"html:not(.mobile) #node-{i} .tsym-btn" for i in _fl)
                 + "{max-width:100%;}")
     # A named chip (hide_nav axes, above) has to stay inside its card, so cap it
     # at the footer's own width and ellipsise past that. It takes as much of the

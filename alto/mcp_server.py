@@ -245,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.33"
+__version__ = "1.9.34"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1319,7 +1319,9 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     omit col for the deterministic fallback. **In outline mode `col` is
     ignored** — the tree decides placement, hubs centred and leaves out to the
     sides, and the parent→child lines are generated for you, so author only the
-    cross-links that carry their own meaning.
+    cross-links that carry their own meaning. If the user wants a card put
+    somewhere else, or a unit's concepts in a row, that is place_nodes, not
+    `col`.
     Locked until the consent gate is open."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -1531,10 +1533,24 @@ def _layout_choice(doc, layout: str, tree_lines: str) -> dict:
     return {**doc, "brief": brief}
 
 
+def _tree_boxes(b, nodes, conns, ids=None) -> dict:
+    """Where the tree puts cards, {id: {x, top, w, h}} in the 1700px-wide world
+    (x is the card's centre; heights are the builder's estimates, which the page
+    re-measures). {} when the outline flows instead."""
+    from .build.layout import outline_plan
+    positions, heights, _, _, _, report = run_layout(b, nodes, conns)
+    if report.get("layout") != "tree":
+        return {}
+    plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines)
+    return {n.id: {"x": round(plan["x"][n.id]), "top": round(positions[n.id] - heights[n.id] / 2),
+                   "w": plan["w"].get(n.id, 270), "h": round(heights[n.id])}
+            for n in nodes if n.id in plan["x"] and (ids is None or n.id in ids)}
+
+
 @mcp.tool(title="Run layout (preview)", annotations=RO)
 @accounted
 def run_layout_preview(timeline_id: str, layout: str = "",
-                       tree_lines: str = "") -> dict:
+                       tree_lines: str = "", boxes: bool = False) -> dict:
     """Cheap layout dry-run: resolves the desktop arrangement + vertical
     positions and reports world height, per-column balance, and warnings —
     iterate here before build_timeline.
@@ -1544,6 +1560,10 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     that crosses no more lines than flow); 'tree' / 'flow' force one. The
     report's `layout` says what was chosen and `line_crossings` why.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
+    boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
+    1700px-wide world — where things are, and so where there is room, when
+    placing cards with place_nodes. With placed cards the report also carries
+    `placement`: cards that overlap and cards too near the page edge.
     Nothing is stored here; pass the same values to build_timeline to keep them."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -1555,9 +1575,134 @@ def run_layout_preview(timeline_id: str, layout: str = "",
         if not nodes:
             return {"error": "no_nodes", "message": "add_nodes first"}
         _, _, world_h, _, mobile_h, report = run_layout(b, nodes, conns)
+        extra = {"boxes": _tree_boxes(b, nodes, conns)} if boxes else {}
     except (BriefError, VerifyError, ValueError) as e:
         return {"error": "layout_failed", "message": str(e)}
-    return {**report, "mobile_world_height": mobile_h, "warnings": warnings}
+    return {**report, "mobile_world_height": mobile_h, "warnings": warnings, **extra}
+
+
+@mcp.tool(title="Place nodes", annotations=RW)
+@accounted
+def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
+                clear: list[str] | None = None, reset: bool = False) -> dict:
+    """Place an outline's cards where the user wants them, instead of where the
+    tree puts them. ONLY at the user's request: they say what goes where ("put
+    the six concepts in a row under the hub", "move Damages to the left", "Cause
+    in Fact comes after Breach"); never rearrange on your own. Changes layout
+    only, never a word of content (§0 does not apply).
+
+    placements: {node_id: {hint: value}}; hints are merged into what the node
+    already has, and a value of null removes that hint.
+      arrange  how this card's CHILDREN sit under it:
+               "row"      the children become a BAND directly under the card,
+                          placed first; everything that hangs from them (their
+                          progeny) packs in beneath. Up to 5 fit in one row at
+                          full width; 6-7 STAGGER into two rows (neighbours
+                          alternate, and the page keeps whichever alternation
+                          makes the shorter band); more wrap into further
+                          bands. Progeny hang straight below their parent. A
+                          child that is itself a row is a wide block: it settles
+                          below its neighbours' progeny instead of across them,
+                          so row hints never make cards overlap and no
+                          coordinates are needed. A concept's Liable/Not Liable
+                          stack under it instead of flanking it.
+               "column"   every child down one spine under the card, in order,
+                          sections and all.
+               "branches" the tree's own rule for a unit's hub: sections side
+                          by side, two to a row, its other children in one
+                          spine.
+               "auto"     the tree's own arrangement (the default).
+      tier     which ROW of the band a child sits in (1 = upper, the default).
+               The band staggers by itself; set tiers only to choose which
+               cards go on which row (neighbours need different tiers). The
+               notes' order is unchanged.
+      x        the card's centre across the page, 0-1700 (850 is the middle).
+               Its progeny hang from wherever it lands. Cards stay ≥115px
+               from the edges, and a concept with flanking outcomes needs 355px
+               each side of it (x from 470 to 1230).
+      y        the card's TOP, in the page's pixels: pins it there whatever
+               else moves; its progeny flow below it. With x, any card can be
+               put anywhere. Prefer flow (arrange, tier, dy) so the layout
+               adapts to the real card heights; pin only for exceptions.
+      dx, dy   nudge sideways / add room above (negative: less). Everything
+               after the card in its column moves with a dy.
+      w        the card's width, 120-420 (the default is 270; rows of 5-6
+               narrow it so they fit).
+      float    true: leave the card and its progeny at the current top without
+               pushing what follows down — to set a subtree beside another.
+               Give it an x, or it sits where it was. A Liable / Not Liable
+               with its own y, dy or float leaves its concept's row and goes
+               where it is told.
+      order    its place among its siblings, 1 = first. Moves the outline
+               numbering too (II.A, II.B…), so the notes' order is only changed
+               when the user asked for it.
+    clear: node ids whose hints are all removed. reset: remove every hint.
+
+    The reply lays the result out and says what is wrong: `placement.overlaps`
+    (pairs of cards on top of each other: move one with x/dx/dy, or float it),
+    `off_margin`, `world_height`, and `placed` — the boxes {x, top, w, h} of
+    the cards you named and their children. run_layout_preview(boxes=true)
+    shows every card, which is how to find room. Fix overlaps before building.
+    Hints are kept in the brief and used by every later build; build_timeline
+    (then publish_timeline) shows them on the page. A unit you did not name is
+    never touched. Needs an outline timeline. Placement only shapes the tree
+    layout: with layout 'auto' it is chosen once any card is placed ('flow'
+    ignores everything but `order`)."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    brief = dict(doc["brief"])
+    if brief.get("mode") != "outline":
+        return {"error": "needs_outline",
+                "message": "Placement positions the cards of an outline's tree; "
+                           "this timeline is linear (its cards are placed by `col`)."}
+    st = get_store()
+    nodes = st.list_nodes(uid(), timeline_id)
+    known = {n["id"] for n in nodes}
+    placements = placements or {}
+    if not isinstance(placements, dict) or any(
+            not isinstance(h, dict) for h in placements.values()):
+        return {"error": "invalid_placement",
+                "message": 'placements: {node_id: {"arrange": "row"}, ...}'}
+    unknown = sorted(set(placements) - known)
+    if unknown:
+        return {"error": "unknown_nodes", "unknown": unknown,
+                "message": "not nodes in this timeline: " + ", ".join(unknown),
+                "node_ids": sorted(known)}
+    pl = {} if reset else {k: dict(v) for k, v in (brief.get("placement") or {}).items()}
+    for nid in clear or []:
+        pl.pop(nid, None)
+    for nid, hints in placements.items():
+        merged = {k: v for k, v in {**pl.get(nid, {}), **hints}.items() if v is not None}
+        if merged:
+            pl[nid] = merged
+        else:
+            pl.pop(nid, None)
+    brief["placement"] = pl
+    try:
+        b, all_nodes, conns = _load_full({**doc, "brief": brief})
+        from .build.brief import validate_brief, validate_nodes
+        warnings = [w for w in validate_brief(b) + validate_nodes(b, all_nodes)
+                    if "placement" in w]
+        _, _, world_h, _, _, report = run_layout(b, all_nodes, conns)
+        named = set(placements)
+        want = named | {n.id for n in all_nodes if n.parent in named}
+        placed = _tree_boxes(b, all_nodes, conns, want)
+    except (BriefError, VerifyError, ValueError) as e:
+        return {"error": "invalid_placement", "message": str(e)}
+    doc["brief"] = brief
+    st.put_timeline(uid(), timeline_id, doc)
+    out = {"ok": True, "hints": pl, "layout": report.get("layout"),
+           "world_height": world_h, "placed": placed, "warnings": warnings,
+           "placement": report.get("placement") or {}}
+    if pl and report.get("layout") != "tree":
+        out["warnings"].append("the layout is 'flow', which ignores placement "
+                               "except `order` — build with layout 'tree'")
+    out["next"] = ("Fix any overlaps, then build_timeline and publish_timeline "
+                   "to show it." if (out["placement"].get("overlap_count")
+                                     or out["placement"].get("off_margin"))
+                   else "build_timeline, then publish_timeline, to show it.")
+    return out
 
 
 @mcp.tool(title="Build timeline", annotations=RW)
@@ -1570,7 +1715,8 @@ def build_timeline(timeline_id: str, layout: str = "",
     exact check list on any violation.
 
     layout / tree_lines: as run_layout_preview; given here they are also kept
-    in the brief, so every later build (and publish) uses them."""
+    in the brief, so every later build (and publish) uses them. Cards placed
+    with place_nodes are used automatically; overlaps come back as warnings."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err

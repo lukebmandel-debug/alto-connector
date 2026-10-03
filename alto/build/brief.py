@@ -232,6 +232,15 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
 MODES = ("linear", "outline")
 LAYOUTS = ("auto", "tree", "flow")
 TREE_LINES = ("fan", "trunk")
+# Placement hints (layout.outline_plan): how a card's children are arranged,
+# and where one card goes. PLACE_WORLD_W mirrors layout.WORLD_W (layout imports
+# this module, so it cannot be imported here; a test holds the two equal).
+ARRANGEMENTS = ("auto", "column", "row", "branches")
+PLACE_KEYS = ("arrange", "x", "dx", "y", "dy", "w", "float", "order", "tier")
+PLACE_WORLD_W = 1700
+PLACE_MAX_SHIFT = 2000
+PLACE_MAX_Y = 40000
+PLACE_WIDTHS = (120, 420)
 
 
 @dataclass
@@ -323,6 +332,17 @@ class Brief:
     # so every child has a line of its own to hover and follow; "trunk": one
     # shared line straight down the spine.
     tree_lines: str = "fan"
+    # Where individual cards go, {node id: hints} (layout.outline_plan). The
+    # tree's own arrangement is the default; a hint overrides it for one card
+    # and the cards under it follow. `arrange` says how a card's children sit
+    # ("auto", "column", "row", "branches") and `tier` which line of a row a
+    # child goes on; `x` / `dx` and `y` / `dy` move the card (its progeny hang
+    # from wherever it ends up; `y` pins its top to the page, `dy` is relative)
+    # and `w` sets its width; `float` takes it out of the flow so it does not
+    # push what follows down; `order` is its place among its siblings (1 =
+    # first). Kept apart from the nodes on purpose: add_nodes replaces a node
+    # whole, so a hint stored on one would vanish with an edit.
+    placement: dict = field(default_factory=dict)
     # The "Filter · Lines" chips in the nav bar isolate one relation's lines.
     # A useful working tool for an author (or a law outline's "Overrules"), and
     # noise on a story where lines just follow characters — so it is a choice.
@@ -504,6 +524,7 @@ def validate_brief(b: Brief) -> list[str]:
     if b.layout == "tree" and b.mode != "outline":
         raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
                          "from the nodes' parents")
+    _check_placement(b, warnings)
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -680,6 +701,55 @@ def validate_brief(b: Brief) -> list[str]:
     return _collapse(warnings)
 
 
+def _check_placement(b: Brief, warnings: list[str]) -> None:
+    """The shape of the placement hints: each is a known key with a value the
+    layout can use. Which nodes they name is checked once the nodes are known
+    (_validate_outline_tree); a typo'd key fails here, loudly, because a hint
+    that silently does nothing looks exactly like one that worked."""
+    pl = b.placement
+    if not isinstance(pl, dict):
+        raise BriefError("placement: must be an object {node id: {hint: value}}")
+    if not pl:
+        return
+    if b.mode != "outline":
+        raise BriefError("placement needs mode 'outline': it positions the "
+                         "cards of a tree")
+
+    def number(nid, key, v, lo, hi):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
+            raise BriefError(f"placement {nid}: {key} must be a number from "
+                             f"{lo} to {hi}, not {v!r}")
+
+    for nid, hints in pl.items():
+        if not isinstance(hints, dict):
+            raise BriefError(f"placement {nid}: must be an object of hints, "
+                             f"e.g. {{\"arrange\": \"row\"}}")
+        for key, v in hints.items():
+            if key not in PLACE_KEYS:
+                raise BriefError(f"placement {nid}: unknown hint {key!r}; use "
+                                 f"one of {', '.join(PLACE_KEYS)}")
+            if key == "arrange" and v not in ARRANGEMENTS:
+                raise BriefError(f"placement {nid}: arrange {v!r} must be one "
+                                 f"of {ARRANGEMENTS}")
+            elif key == "x":
+                number(nid, key, v, 0, PLACE_WORLD_W)
+            elif key in ("dx", "dy"):
+                number(nid, key, v, -PLACE_MAX_SHIFT, PLACE_MAX_SHIFT)
+            elif key == "y":
+                number(nid, key, v, 0, PLACE_MAX_Y)
+            elif key == "w":
+                number(nid, key, v, *PLACE_WIDTHS)
+            elif key == "float" and not isinstance(v, bool):
+                raise BriefError(f"placement {nid}: float must be true or false")
+            elif key in ("order", "tier") and (isinstance(v, bool) or not isinstance(v, int) or v < 1):
+                raise BriefError(f"placement {nid}: {key} must be a whole number "
+                                 "from 1" + (" (first among its siblings)" if key == "order"
+                                             else " (the first line of its parent's row)"))
+    if b.layout == "flow" and any(set(h) - {"order"} for h in pl.values()):
+        warnings.append("placement: layout is 'flow', which ignores everything "
+                        "but `order` — use layout 'auto' or 'tree' to see the rest")
+
+
 def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     """Outline mode's containment tree: every hard rule the geometry depends on.
 
@@ -695,6 +765,12 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     warnings: list[str] = []
     ids = {n.id for n in nodes}
     by_id = {n.id: n for n in nodes}
+
+    stray = sorted(set(b.placement or {}) - ids)
+    if stray:
+        warnings.append("placement names " + ", ".join(stray[:6])
+                        + (" …" if len(stray) > 6 else "")
+                        + ": not nodes in this timeline, so ignored")
 
     for n in nodes:
         if not n.parent:

@@ -39,81 +39,83 @@ window._altoHubsAbove = function(pos, h){
   return moved;
 };"""
 
-# ── outline: the desktop tree (layout.outline_tree, re-run on real heights) ──
+# ── outline: the desktop tree (layout.outline_plan, run on real heights) ────
 # initLayout measures every card and runs its collision resolver; on an outline
-# page laid out as a tree this then replaces those positions with the tree's
-# (which keeps every hub above its children by construction) exactly as the
-# builder computed them (same TREE constants, emitted by tree_glue()), and sets
-# each node's displayX, which the line router and the numeral check read.
-def tree_glue(tree: dict, lines: str = "fan") -> str:
-    return ("\nwindow._ALTO_TREE_C=" + json.dumps({**tree, "LINES": lines}) + ";"
-            + TREE_GLUE)
+# page laid out as a tree this then replaces those positions with the tree's.
+# The builder has already worked out every card's x and the program that stacks
+# them (layout.outline_plan: cards, rows, columns, floats); the page only runs
+# it over the heights it measured, exactly as layout.run_plan does for the
+# builder's own hints, keeping every hub above its children by construction.
+# It sets each node's displayX, which the line router and the numeral check
+# read, and records the fanned lines' end points in _altoEdgeTX.
+def tree_glue(plan: dict) -> str:
+    return "\nwindow._ALTO_TREE_PLAN=" + json.dumps(plan, separators=(",", ":")) + ";" + TREE_GLUE
 
 
 TREE_GLUE = """
 if(!document.documentElement.classList.contains('mobile')) window._altoTreeOn=true;
 window._altoTree = function(pos, h){
   var de=document.documentElement; if(de.classList.contains('mobile')) return false;
-  var O=window._ALTO_OUTLINE||{}, K=O.kids||{}, P=O.parent||{}, T=window._ALTO_TREE_C;
-  if(!T || typeof ACT_SEQS==='undefined') return false;
+  var T=window._ALTO_TREE_PLAN; if(!T || typeof NODES==='undefined') return false;
   var y={}, x={}, bottom=0;
-  function leaf(i){ return !(K[i]&&K[i].length); }
-  function concept(i){ return !leaf(i) && K[i].every(leaf); }
-  function put(i,cx,top,rowH){ x[i]=cx; y[i]=top+(rowH!=null?rowH:h[i])/2; bottom=Math.max(bottom,y[i]+h[i]/2); }
-  function items(ids,bx,c){
-    ids.forEach(function(i){
-      if(leaf(i)){ put(i,bx,c); c+=h[i]+T.ROW_GAP; }
-      else if(concept(i)){
-        var ls=K[i], row=[i].concat(ls.slice(0,2)), rh=Math.max.apply(null,row.map(function(r){return h[r];}));
-        put(i,bx,c,rh);
-        ls.slice(0,2).forEach(function(l,j){ put(l,bx+(j?1:-1)*T.FLANK_DX,c,rh); });
-        c+=rh+T.ROW_GAP;
-        for(var k=2;k<ls.length;k+=2){
-          var r2=ls.slice(k,k+2), h2=Math.max.apply(null,r2.map(function(r){return h[r];}));
-          r2.forEach(function(l,j){ put(l,bx+(j?1:-1)*T.FLANK_DX,c,h2); });
-          c+=h2+T.ROW_GAP;
-        }
-      } else { put(i,bx,c); spine[i]=K[i]; c=items(K[i],bx,c+h[i]+T.HEAD_GAP); }
-    });
-    return c;
-  }
-  var spine={};
-  var cur=T.TOP;
-  ACT_SEQS.forEach(function(ids,a){
-    var roots=ids.filter(function(i){ return !P[i]; });
-    if(a && roots.length) cur=bottom+T.ACT_GAP;
-    roots.forEach(function(r){
-      put(r,T.CX,cur); cur+=h[r]+T.ROOT_GAP;
-      var ks=K[r]||[], br=ks.filter(function(k){ return !leaf(k)&&!concept(k); }).map(function(k){ return [k]; }),
-          direct=ks.filter(function(k){ return leaf(k)||concept(k); });
-      if(direct.length){ br.push(direct); spine[r]=direct; }
-      br.sort(function(p,q){ return ks.indexOf(p[0])-ks.indexOf(q[0]); });
-      for(var g=0; g<br.length; g+=2){
-        var grp=br.slice(g,g+2), xs=grp.length===2?T.BRANCH_X:[T.CX];
-        var ends=grp.map(function(b,j){ return items(b,xs[j],cur)-T.ROW_GAP; });
-        cur=Math.max.apply(null,ends)+T.GROUP_GAP;
+  Object.keys(T.x).forEach(function(i){ x[i]=T.x[i]; });
+  function put(i,top,rowH){ y[i]=top+(rowH!=null?rowH:h[i])/2; bottom=Math.max(bottom,y[i]+h[i]/2); }
+  function run(op,c){
+    var k=op[0];
+    if(k==='card'){ c+=op[3]||0; put(op[1],c); return c+h[op[1]]+op[2]; }
+    if(k==='row'){
+      c+=op[3]||0;
+      var rh=Math.max.apply(null,op[1].map(function(r){ return h[r]; }));
+      op[1].forEach(function(r){ put(r,c,rh); });
+      return c+rh+op[2];
+    }
+    if(k==='seq'){ op[1].forEach(function(o){ c=run(o,c); }); return c; }
+    if(k==='par'){
+      var ends=op[1].map(function(o){ return run(o,c)-T.row_gap; });
+      return ends.length ? Math.max.apply(null,ends)+op[2] : c;
+    }
+    if(k==='band'){
+      var cards=op[1], blocks=op[2], rg=op[3], gap=op[4];
+      var lay=function(flip){
+        var tops={}, sky=[];
+        cards.map(function(cd,j){ return [(cd[3]^flip),j]; })
+          .sort(function(a,b){ return a[0]-b[0] || a[1]-b[1]; })
+          .forEach(function(kj){
+            var cd=cards[kj[1]], t=c;
+            sky.forEach(function(s){ if(s[0]<cd[2] && cd[1]<s[1]) t=Math.max(t,s[2]+rg); });
+            t+=cd[4]; tops[cd[0]]=t; sky.push([cd[1],cd[2],t+h[cd[0]]]);
+          });
+        return {tops:tops, sky:sky};
+      };
+      var low=function(L){ return Math.max.apply(null,L.sky.map(function(s){ return s[2]; })); };
+      var sum=function(L){ return Object.keys(L.tops).reduce(function(a,i){ return a+L.tops[i]; },0); };
+      var best=lay(0);
+      if(op.length>5){
+        var alt=lay(1), l0=low(best), l1=low(alt);
+        if(l1<l0-1e-9 || (Math.abs(l1-l0)<=1e-9 && sum(alt)<sum(best)-1e-9)) best=alt;
       }
-    });
+      Object.keys(best.tops).forEach(function(i){ put(i,best.tops[i]); });
+      var sky2=best.sky;
+      blocks.forEach(function(b){
+        var t=c;
+        sky2.forEach(function(s){ if(s[0]<b[1] && b[0]<s[1]) t=Math.max(t,s[2]+gap); });
+        sky2.push([b[0],b[1],run(b[2],t)-T.row_gap]);
+      });
+      return Math.max.apply(null,sky2.map(function(s){ return s[2]; }))+gap;
+    }
+    run(op[1],op.length>2?op[2]:c); return c;                 // float / pinned: takes no room
+  }
+  var cur=T.top;
+  T.acts.forEach(function(ops,a){
+    if(a && ops.length) cur=bottom+T.act_gap;
+    ops.forEach(function(o){ cur=run(o,cur); });
   });
   NODES.forEach(function(n){
-    if(y[n.id]==null){ y[n.id]=bottom+T.ROW_GAP+h[n.id]/2; x[n.id]=T.CX; bottom=y[n.id]+h[n.id]/2; }
+    if(y[n.id]==null){ y[n.id]=bottom+T.row_gap+h[n.id]/2; x[n.id]=T.cx; bottom=y[n.id]+h[n.id]/2; }
     pos[n.id]=y[n.id]; n.displayX=x[n.id];
     var el=document.getElementById('node-'+n.id); if(el) el.style.left=x[n.id]+'px';
   });
-  /* fan: the k children down a spine meet the top of its first card at k
-     equally spaced points — the first child at the centre, the rest
-     alternating left, right, further left… — and each line drops from its
-     point to its own child. Offsets stay inside the card (s >= 40 keeps room
-     for the router's 20px corners). */
-  var etx={};
-  if(T.LINES==='fan') Object.keys(spine).forEach(function(p){
-    var ks=spine[p]; if(ks.length<2) return;
-    var bx=x[ks[0]], half=Math.ceil((ks.length-1)/2), s=Math.max(40,Math.min(80,115/half));
-    ks.forEach(function(k,j){
-      if(!j) return; var off=Math.ceil(j/2)*s*(j%2?-1:1); etx[p+'|'+k]=bx+off;
-    });
-  });
-  window._altoEdgeTX=etx;
+  window._altoEdgeTX=T.etx||{};
   window._altoTreeOn=true; window._altoTreeGeo={y:y, h:h, x:x};
   return true;
 };
@@ -128,10 +130,13 @@ window._altoTreeMid = function(fm){
     var pb=G.y[p]+G.h[p]/2, ct=G.y[c]-G.h[c]/2; if(ct<=pb) return;   // flanks share the row
     mid[p]=Math.min(mid[p]==null?Infinity:mid[p], ct);
   });
+  var T=window._ALTO_TREE_PLAN||{};
   Object.keys(P).forEach(function(c){
     var p=P[c]; if(mid[p]==null||Math.abs(ex(p,c)-G.x[p])<10) return;
     var pb=G.y[p]+G.h[p]/2; if(G.y[c]-G.h[c]/2<=pb) return;
-    fm[p+'|'+c]=pb+(mid[p]-pb)/2+WORLD_PAD_TOP;
+    /* a long drop runs down the parent's own column and turns just over its
+       children, rather than crossing every column between on a halfway bus */
+    fm[p+'|'+c]=(mid[p]-pb>T.bus_span ? mid[p]-T.bus_above : pb+(mid[p]-pb)/2)+WORLD_PAD_TOP;
   });
 };"""
 
