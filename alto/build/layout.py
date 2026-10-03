@@ -589,12 +589,13 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         return settled(i, [card(i, T["HEAD_GAP"])]
                        + children(i, cx, ww, wide))
 
-    def children(p, bx, ww, wide, skip=()):
-        """The ops for p's children, below p's own card."""
+    def children(p, bx, ww, wide, skip=(), lean=0):
+        """The ops for p's children, below p's own card. `lean` slides the
+        outcome pair sideways (see band)."""
         every = [k for k in kids.get(p, []) if k not in skip]
         mine = [k for k in every if outcome(k)]
         ks = [k for k in every if k not in mine]
-        lead = under(bx, mine) if mine else []
+        lead = under(bx + lean, mine) if mine else []
         mode = hint(p, "arrange", "auto")
         if mode == "auto":
             mode = "branches" if p in roots else "column"
@@ -660,6 +661,29 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             return [c[0] for c in op[1]] + [i for _, _, o in op[2] for i in ids_of(o)]
         return []                                   # float: takes no room
 
+    def lean(c, cx, chunk, xs, bw, row_of):
+        """How far c's outcome pair, which is wider than its column, slides to
+        clear a card of a LOWER row beside it: only those reach down into the
+        space the pair hangs in, and a tall one would otherwise hold the pair
+        far below its parent. Zero when it is clear, or would hit one on each
+        side; the pair stays where the margin allows."""
+        n = sum(1 for k in kids.get(c, []) if outcome(k))
+        if not n:
+            return 0
+        half = T["FLANK_W"] / 2 + (T["FLANK_W"] + T["OUT_GAP"]) / 2 * (n > 1)
+        pad = T["BAND_GAP"] / 2
+        right = left = 0
+        for d, dx_ in zip(chunk, xs):
+            if d == c or row_of[d] <= row_of[c]:
+                continue
+            dlo, dhi = dx_ - bw / 2 - pad, dx_ + bw / 2 + pad
+            if cx - half < dhi and dlo < cx + half:
+                if dx_ < cx:
+                    right = max(right, dhi - (cx - half))
+                else:
+                    left = max(left, (cx + half) - dlo)
+        return right if right and not left else (-left if left and not right else 0)
+
     def band(p, chunk, bx):
         """Three or more children as a band: the cards first, in one row if they
         fit and in two staggered rows if not (a `tier` hint picks a card's row),
@@ -677,7 +701,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
         pre, cards, blocks = [], [], []
         for c, slot in zip(chunk, xs):
             cx = at(c, slot, bw)
-            below = children(c, cx, cw, False)
+            below = children(c, cx, cw, False, lean=lean(c, cx, chunk, xs, bw, row_of))
             if hint(c, "float") or hint(c, "y") is not None:
                 pre += settled(c, [card(c, T["ROW_GAP"])] + below)
                 continue

@@ -681,3 +681,27 @@ def test_the_browser_agrees_with_the_builder_on_outcomes_and_staggered_bands(tmp
     for n in ns:
         assert out["y"][n.id] == pytest.approx(y[n.id]), (seed, n.id)
         assert out["x"][n.id] == pytest.approx(x[n.id]), (seed, n.id)
+
+
+def test_an_outcome_pair_slides_clear_of_a_staggered_card_instead_of_waiting_for_it():
+    """Torts: Negligence Standard is the staggered (tier 2) card at the left and a
+    tall one. Duty's pair is wider than Duty's column, so its left card would hit
+    Standard's right edge and have to wait for the whole tall card to end, leaving
+    Duty's outcomes far below Duty. The pair leans away instead."""
+    ns = _torts_negligence()
+    hints = {"hub": {"arrange": "row", "child_w": 210}, "std": {"tier": 2}}
+    plan = outline_plan(ns, 1, hints, "fan", "beside")
+    h = {**_heights(ns), "std": 900}
+    y, x, _ = run_plan(plan, ns, h)
+    assert x["duty-l"] - 90 >= x["std"] + 105 + TREE["BAND_GAP"] / 2 - 1     # clear of Standard
+    assert x["duty-nl"] - x["duty-l"] == TREE["FLANK_W"] + TREE["OUT_GAP"]   # still a pair
+    duty_bottom = y["duty"] + 75
+    assert y["duty-l"] - 75 == pytest.approx(duty_bottom + TREE["GROUP_GAP"])  # directly under Duty
+    assert y["duty-l"] < y["std"] + 450                                       # not waiting for Standard
+    assert placement_check(ns, plan, y, x, h)["overlaps"] == []
+    # a pair with a lower-row neighbour on BOTH sides cannot clear them: it stays
+    # centred and waits (an auto-staggered band of six)
+    ns2 = [_n("hub")] + [_n(f"c{i}", "hub") for i in range(6)]
+    ns2 += [_n("c2-l", "c2", tag="Outcome"), _n("c2-nl", "c2", tag="Outcome")]
+    p2 = outline_plan(ns2, 1, {"hub": {"arrange": "row"}}, "fan", "beside")
+    assert p2["x"]["c2-l"] == p2["x"]["c2"] - 100 and p2["x"]["c2-nl"] == p2["x"]["c2"] + 100
