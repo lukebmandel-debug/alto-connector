@@ -245,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.37"
+__version__ = "1.9.38"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1644,8 +1644,9 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     outcomes: a rule for the whole outline rather than one card. 'beside': every
     outcome card (a leaf whose tag differs from its parent's — Liable / Not
     Liable) sits on either side of its parent when there is room across the page,
-    and side by side directly under it when there is not (a column of a row); the
-    parent's other children continue below. 'stack': the default, outcomes down
+    and side by side directly under it when there is not (a column of a row). When
+    a concept has outcomes AND other concepts, they are equals: one row of
+    children under it, not a pair with the concepts hung below. 'stack': the default, outcomes down
     the spine like any child. '' leaves the setting as it is.
 
     The reply lays the result out and says what is wrong: `placement.overlaps`

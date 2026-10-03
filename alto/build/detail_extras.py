@@ -78,10 +78,11 @@ window._altoTree = function(pos, h){
       var cards=op[1], blocks=op[2], rg=op[3], gap=op[4], drop=op[5];
       var lay=function(flip){
         var tops={}, sky=[];
-        cards.map(function(cd,j){ return [(cd[3]^flip),j]; })
+        cards.map(function(cd,j){ return [cd.length>5 ? 9 : (cd[3]^flip),j]; })
           .sort(function(a,b){ return a[0]-b[0] || a[1]-b[1]; })
           .forEach(function(kj){
-            var cd=cards[kj[1]], t=c+kj[0]*drop;
+            var cd=cards[kj[1]], t=c+(cd.length>5 ? 0 : kj[0]*drop);
+            if(cd.length>5) t=Math.max(t,tops[cd[5]]+h[cd[5]]+rg);
             sky.forEach(function(s){ if(s[0]<cd[2] && cd[1]<s[1]) t=Math.max(t,s[2]+rg); });
             t+=cd[4]; tops[cd[0]]=t; sky.push([cd[1],cd[2],t+h[cd[0]]]);
           });

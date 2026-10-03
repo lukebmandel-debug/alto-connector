@@ -491,7 +491,8 @@ coordinates. `"column"` stacks children down one spine; `tier` picks a card's
 row in a band (a second row sits a stagger lower) and `child_w` shrinks a band's
 cards so more fit one row; `outcomes: "beside"` (a rule for the whole outline)
 puts every Liable / Not Liable beside its concept, or side by side under it where
-there is no room; `x`,
+there is no room (and when a concept has outcomes and other concepts, all of them
+are one row of equals under it); `x`,
 `dx`, `y`, `dy`, `w`, `float` and `order` move or size one card (its progeny
 follow). Any card can go anywhere on the page: when the student wants something
 the arrangements do not give, pin it with `x` and `y`. A unit you do not name is

@@ -577,10 +577,42 @@ def test_outcomes_sit_side_by_side_directly_under_a_parent_with_no_room_beside_i
         assert abs((x[l] + x[nl]) / 2 - x[parent]) <= 100
     # two parents side by side: their pairs are kept clear of each other
     assert x["duty-nl"] + 90 <= x["cause-l"] - 90
-    # the rest of the parent's children continue below the pair, on its own axis
-    assert y["alt"] > y["cause-l"] and x["alt"] == x["cause"]
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
     assert placement_check(ns, plan, y, x, _heights(ns))["off_margin"] == []
+
+
+def test_outcomes_are_equals_of_the_sub_concepts_beside_them():
+    """Cause in Fact has Liable, Not Liable and a sub-concept: the three are one
+    row under it, level and side by side, not a pair with the sub-concept hung
+    below. A concept with outcomes only keeps its pair."""
+    ns = _torts_negligence()
+    plan = outline_plan(ns, 1, {"hub": {"arrange": "row"}}, "fan", "beside")
+    h = _heights(ns)
+    y, x, _ = run_plan(plan, ns, h)
+    row = ["cause-l", "cause-nl", "alt"]
+    assert len({round(y[i] - h[i] / 2, 3) for i in row}) == 1       # one top
+    xs = [x[i] for i in row]
+    assert xs == sorted(xs) and all(plan["w"][i] == plan["w"]["cause-l"] for i in row)
+    assert x["alt"] - x["cause-nl"] == plan["w"]["alt"] + TREE["OUT_GAP"]
+    below = y["cause"] + h["cause"] / 2
+    assert 0 < y["cause-l"] - h["cause-l"] / 2 - below <= 100        # directly under
+    assert y["alt-l"] > y["alt"]                                     # its own pair follows
+    assert y["duty-l"] - h["duty-l"] / 2 - (y["duty"] + h["duty"] / 2) <= 100
+
+
+@needs_node
+@pytest.mark.parametrize("tall", [None, "std", "cause", "alt"])
+def test_the_browser_lays_out_a_row_of_equals_as_the_builder_does(tmp_path, tall):
+    ns = _torts_negligence()
+    plan = outline_plan(ns, 1, {"hub": {"arrange": "row"}, "std": {"tier": 2}}, "fan", "beside")
+    h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
+    if tall:
+        h[tall] = 800
+    y, x, _ = run_plan(plan, ns, h)
+    out = _js_plan(ns, plan, h, tmp_path)
+    for n in ns:
+        assert out["y"][n.id] == pytest.approx(y[n.id]), n.id
+        assert out["x"][n.id] == pytest.approx(x[n.id]), n.id
 
 
 def test_a_pair_of_outcomes_is_held_inside_the_margin_as_a_pair():
@@ -601,15 +633,20 @@ def test_a_third_outcome_sits_alone_under_the_pair():
     assert y["c1-o0"] == y["c1-o1"] < y["c1-o2"] and x["c1-o2"] == x["c1"]
 
 
-def test_outcomes_flank_a_section_that_has_room_and_its_other_children_continue_below():
+def test_outcomes_flank_a_section_that_has_only_outcomes_and_others_join_its_row():
     ns = [_n("root"), _n("sec", "root"), _n("sec-l", "sec", tag="Outcome"),
           _n("sec-nl", "sec", tag="Outcome"), _n("sub", "sec"), _n("sub-a", "sub"),
           _n("other", "root"), _n("other-a", "other"), _n("other-b", "other")]
     plan = outline_plan(ns, 1, {}, "fan", "beside")
     y, x, _ = run_plan(plan, ns, _heights(ns))
-    assert y["sec-l"] == y["sec"] == y["sec-nl"]
-    assert x["sec-l"] == x["sec"] - TREE["FLANK_DX"] and x["sec-nl"] == x["sec"] + TREE["FLANK_DX"]
-    assert y["sub"] > y["sec"] and x["sub"] == x["sec"]
+    # a section with outcomes AND a sub-concept: the three are equals, one row under it
+    assert y["sec-l"] == y["sec-nl"] == y["sub"] > y["sec"]
+    assert x["sec-l"] < x["sec-nl"] < x["sub"]
+    # one with outcomes only keeps them beside it
+    only = outline_plan([n for n in ns if n.id not in ("sub", "sub-a")], 1, {}, "fan", "beside")
+    y1, x1, _ = run_plan(only, [n for n in ns if n.id not in ("sub", "sub-a")], _heights(ns))
+    assert y1["sec-l"] == y1["sec"] == y1["sec-nl"]
+    assert x1["sec-l"] == x1["sec"] - TREE["FLANK_DX"] and x1["sec-nl"] == x1["sec"] + TREE["FLANK_DX"]
     # and the same outline left alone stacks them down the spine, as before
     plain = outline_plan(ns, 1, {})
     y0, x0, _ = run_plan(plain, ns, _heights(ns))
@@ -737,7 +774,9 @@ def test_the_pairs_of_a_wide_band_narrow_to_fit_across_the_page_and_share_a_leve
                    for c in ("risks", "custom", "perse", "res"))
     assert all(b[0] >= a[1] for a, b in zip(spans, spans[1:]))               # side by side, no overlap
     assert spans[0][0] >= TREE["MARGIN"] and spans[-1][1] <= WORLD_W - TREE["MARGIN"]
-    # custom's wide descendant (a row across the whole page) sits below ITS pair
-    # and below the others', but did not pull the pair down with it
-    assert y["mal"] > y["custom-l"]
+    # custom's sub-concept is one of three equals in its row, level with the others'
+    # pairs; what hangs from it (a row across the whole page) sits below, and did
+    # not pull that row down with it
+    assert y["mal"] == y["custom-l"] == y["custom-nl"]
+    assert y["nat"] > y["mal"]
     assert placement_check(ns, plan, y, x, _heights(ns))["overlaps"] == []
