@@ -2111,3 +2111,44 @@ PATCHES += [
     {"name": "edit-tile-inside-the-last-band", "old": _EDIT_ROOM_OLD,
      "new": _EDIT_ROOM_NEW, "count": 1},
 ]
+
+
+# ── a chip that already shows its name gets no hover label ──────────────────
+# A named chip (a hide_nav axis value, drawn as text) says what it is on its
+# face, so the popup only repeated it. Glyph chips and letter/symbol chips
+# (the letter stands for something) keep the label, and so does a named chip
+# whose text is cut off by its max-width ellipsis: only then is the label news.
+# The label stays directly over the hovered chip (ALTO-007 above). Desktop
+# hover is pure CSS, so the JS flags the chip (data-notip) on mouseover and the
+# rule skips flagged chips; the phone long-press asks the same helper.
+_NOTIP_CSS_OLD = ("html:not(.mobile) .node-card .csym-btn:hover ~ .chip-tip,\n"
+                  "html:not(.mobile) .node-card .esym-btn:hover ~ .chip-tip,\n"
+                  "html:not(.mobile) .node-card .tsym-btn:hover ~ .chip-tip{")
+_NOTIP_CSS_NEW = ("html:not(.mobile) .node-card .csym-btn:hover:not([data-notip]) ~ .chip-tip,\n"
+                  "html:not(.mobile) .node-card .esym-btn:hover:not([data-notip]) ~ .chip-tip,\n"
+                  "html:not(.mobile) .node-card .tsym-btn:hover:not([data-notip]) ~ .chip-tip{")
+_NOTIP_JS_OLD = "    if(!label) return;\n    var tip=foot.querySelector(':scope > .chip-tip');"
+_NOTIP_JS_NEW = (
+    "    if(!label) return;\n"
+    "    if(window._altoChipNoTip(chip,label)){ chip.setAttribute('data-notip',''); return; }\n"
+    "    chip.removeAttribute('data-notip');\n"
+    "    var tip=foot.querySelector(':scope > .chip-tip');")
+_NOTIP_FN_OLD = "  var SEL='.csym-btn,.esym-btn,.tsym-btn';\n  document.addEventListener('mouseover', function(e){"
+_NOTIP_FN_NEW = (
+    "  var SEL='.csym-btn,.esym-btn,.tsym-btn';\n"
+    "  window._altoChipNoTip=function(chip,label){\n"
+    "    var norm=function(s){ return String(s||'').replace(/\\s+/g,' ').trim().toLowerCase(); };\n"
+    "    if(!norm(chip.textContent) || norm(chip.textContent).indexOf(norm(label))<0) return false;\n"
+    "    return chip.scrollWidth<=chip.clientWidth+1;   // name fully visible\n"
+    "  };\n"
+    "  document.addEventListener('mouseover', function(e){")
+_NOTIP_M_OLD = "      if(!title) return;\n      // Stash and remove `title`"
+_NOTIP_M_NEW = ("      if(!title) return;\n"
+                "      if(window._altoChipNoTip && window._altoChipNoTip(target,title)) return;\n"
+                "      // Stash and remove `title`")
+PATCHES += [
+    {"name": "chip-tip-skips-named-chips-css", "old": _NOTIP_CSS_OLD, "new": _NOTIP_CSS_NEW, "count": 1},
+    {"name": "chip-tip-skips-named-chips-fn", "old": _NOTIP_FN_OLD, "new": _NOTIP_FN_NEW, "count": 1},
+    {"name": "chip-tip-skips-named-chips-js", "old": _NOTIP_JS_OLD, "new": _NOTIP_JS_NEW, "count": 1},
+    {"name": "chip-tip-skips-named-chips-mobile", "old": _NOTIP_M_OLD, "new": _NOTIP_M_NEW, "count": 1},
+]
