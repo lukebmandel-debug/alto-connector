@@ -53,6 +53,10 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
     border:1px solid var(--border);color:var(--muted);}
   #notes-list .note-edit svg{display:block;pointer-events:none;}
   #notes-list .note-edit:hover{color:var(--text);border-color:var(--muted);}
+  @media (hover:hover){
+    #notes-list .note-item:hover{border-color:var(--muted) !important;}
+    #notes-list .note-item .note-del:hover,#notes-list .note-item .note-edit:hover{border-color:var(--muted) !important;color:var(--text) !important;}
+  }
   @media print{.alto-note-pop,#note-dialog .nd-tools{display:none !important;}}
 </style>
 <script id="alto-notes-v2">
