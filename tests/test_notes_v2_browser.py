@@ -162,3 +162,33 @@ def test_tapping_notes_never_opens_the_box(page):
         assert not page.evaluate(box)
     page.click("#notes-list .note-item >> nth=0 >> .note-edit")
     assert page.evaluate(box)
+
+
+def test_a_generated_report_shows_up_in_the_repository(page_file):
+    """End to end over http (localStorage is per origin): Generate Report, then open the repository."""
+    import http.server
+    import threading
+    from functools import partial
+    from alto.build.pages import build_reports
+    (page_file.parent / "reports.html").write_text(build_reports(
+        [{"title": "C", "href": "page.html", "sub": "", "courseId": "contracts-outline", "reports": True, "units": []}],
+        "contracts-outline"), encoding="utf-8")
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(http.server.SimpleHTTPRequestHandler, directory=str(page_file.parent)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        with pw.sync_playwright() as p:
+            try:
+                b = p.chromium.launch()
+            except Exception as e:
+                pytest.skip(f"no Chromium: {e}")
+            pg = b.new_page(viewport={"width": 1400, "height": 900})
+            pg.goto(base + "/page.html"); pg.wait_for_timeout(1200)
+            pg.evaluate("showDetail('node','definiteness')"); pg.wait_for_timeout(600)
+            highlight(pg)
+            pg.evaluate("document.getElementById('notes-report-btn').click()"); pg.wait_for_timeout(600)
+            pg.goto(base + "/reports.html?course=contracts-outline&from=project"); pg.wait_for_timeout(1200)
+            assert "Notes Report" in pg.inner_text("body") and "No reports yet" not in pg.inner_text("body")
+            b.close()
+    finally:
+        srv.shutdown()
