@@ -601,7 +601,7 @@
 <button id="mode-toggle" onclick="toggleMode()"><span id="mode-label">&#9789; Dark</span><svg class="mode-glyph mode-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16 12.2A6.4 6.4 0 1 1 8.6 3.2 5 5 0 0 0 16 12.2Z" fill="currentColor"/></svg><svg class="mode-glyph mode-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="10" y1="1.6" x2="10" y2="3.8"/><line x1="10" y1="16.2" x2="10" y2="18.4"/><line x1="1.6" y1="10" x2="3.8" y2="10"/><line x1="16.2" y1="10" x2="18.4" y2="10"/><line x1="4.05" y1="4.05" x2="5.6" y2="5.6"/><line x1="14.4" y1="14.4" x2="15.95" y2="15.95"/><line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>
 
 <script>
-/* NOTE: reports live in localStorage under 'alto-reports-<courseId>' and are written
+/* NOTE: reports live in localStorage under 'alto-rp-<courseId>' and are written
    by the course apps (e.g. the timeline page's doGenerateReport). localStorage is
    per-origin: this page sees a course's reports only when both pages are served from
    the same host (e.g. localhost:8099) — file:// opens will NOT share storage. */
@@ -613,7 +613,7 @@ const params = new URLSearchParams(location.search);
 const courseId = __ALTO_TOK_default_course__;
 const from = params.get('from');
 const meta = COURSE_META[courseId] || { title: courseId, project: '', units: [] };
-const KEY = 'alto-reports-' + courseId;
+const KEY = 'alto-rp-' + courseId;   // the key the timelines save reports under (blocks.ID_PATTERNS rp_key) and alto-cloud.js syncs
 
 // Context-aware back button: return the user to wherever they opened the repository.
 // Opened from inside a course (&from=project) → back to that course app; otherwise
