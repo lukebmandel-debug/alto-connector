@@ -237,7 +237,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
     tail = (local + "<script>window._ALTO_AUTOLINK="
             + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
-            + "\n" + dx.BACK_PREV + "\n" + search_config(brief)
+            + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief))
     at = html.rfind("</body>")
     if at < 0:

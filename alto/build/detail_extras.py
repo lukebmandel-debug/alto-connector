@@ -302,6 +302,31 @@ NOTE_LINK_CSS = (
     "\n  .ns-src{font-size:.72em;letter-spacing:.06em;text-transform:uppercase;"
     "color:var(--muted);white-space:nowrap;margin-left:4px;}")
 
+# Casebook Connect's reader honours a link's #page-N only in windows at least
+# 1224px wide; narrower ones (every phone) scroll to that browser's last-read
+# page instead. Sending the same URL to the reader's tab again once it has
+# drawn the chapter is a same-document fragment navigation, which the browser
+# itself scrolls to. Safari only lets the opener navigate the tab while it
+# stays its opener, so the tab keeps window.opener. Wide windows keep the
+# plain link.
+BOOK_JUMP = """<script id="alto-book-jump">
+(function(){
+  var gen=0, RE=/^https:\\/\\/(www\\.)?casebookconnect\\.com\\/[^#]*#page-\\d+$/i;
+  document.addEventListener('click',function(e){
+    if(e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey) return;
+    var a=e.target&&e.target.closest&&e.target.closest('a[href]');
+    if(!a||!RE.test(a.href)||(window.outerWidth||window.innerWidth)>=1224) return;
+    var u=a.href, w=null; try{ w=window.open(u,'_blank'); }catch(x){}
+    if(!w) return;
+    e.preventDefault();
+    var g=++gen;
+    [2500,5000,8000].forEach(function(ms){ setTimeout(function(){
+      if(g===gen&&!w.closed) try{ w.location.href=u; }catch(x){}
+    },ms); });
+  },true);
+})();
+</script>"""
+
 PROV_CSS = ("\n  .sec-prov{margin-left:8px;padding:1px 6px;border:1px solid var(--border);"
             "border-radius:8px;font-size:.85em;letter-spacing:.08em;opacity:.85;}")
 

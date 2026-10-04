@@ -276,3 +276,20 @@ def test_a_story_can_link_its_characters_only():
     assert "Control" not in t["names"]                  # settings/themes are not linked
     assert t["names"]["Hale House"] is None             # held whole, not linked as Hale
     assert t["ov"] is False
+
+
+def test_casebook_page_links_get_the_narrow_window_jump():
+    """Casebook Connect's reader reads #page-N only in windows >= 1224px;
+    narrower ones (phones) land on the last-read page. Every page carries the
+    script that re-sends the link once the reader has drawn, and its pattern
+    matches the link form the Torts outline uses."""
+    html = _build(_d())[0]
+    assert html.count('<script id="alto-book-jump">') == 1
+    js = html.split('<script id="alto-book-jump">', 1)[1].split("</script>", 1)[0]
+    pat = re.compile(re.search(r"RE=/(.+?)/i;", js).group(1), re.I)
+    url = ("https://www.casebookconnect.com/cc/read/users/464914/books/"
+           "9781543812237/79d7016a-49b6-11e9-82aa-0b5e81e40d1a#page-163")
+    assert pat.match(url)
+    assert not pat.match(url.split("#")[0])
+    assert not pat.match("https://book.example/sec#page-4")
+    assert ">=1224" in js
