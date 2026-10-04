@@ -144,3 +144,21 @@ def test_a_phone_highlight_survives_leaving_the_page_and_a_reload(page_file):
         pg.evaluate("showDetail('node','definiteness')"); pg.wait_for_timeout(800)
         assert pg.evaluate(count) == 1
         b.close()
+
+
+def test_tapping_notes_never_opens_the_box(page):
+    seed = [{"id": "a1", "quote": "agreement too indefinite", "color": "yellow", "note": "A", "kind": "highlight", "ts": 1,
+             "src": {"t": "page", "type": "node", "id": "definiteness"}},
+            {"id": "a2", "quote": "Essential terms", "color": "yellow", "note": "B", "kind": "highlight", "ts": 2,
+             "src": {"t": "page", "type": "node", "id": "definiteness"}},
+            {"id": "f1", "kind": "freeform", "quote": "", "color": "yellow", "note": "free", "ts": 3}]
+    page.evaluate(f"(a)=>localStorage.setItem('{KEY}',JSON.stringify(a))", seed)
+    page.reload(); page.wait_for_timeout(1200)
+    box = "document.getElementById('note-dialog').classList.contains('visible')"
+    page.evaluate("showDetail('node','definiteness')"); page.wait_for_timeout(600)
+    page.evaluate("document.getElementById('notes-panel').classList.contains('open')||toggleNotes()"); page.wait_for_timeout(450)
+    for i in (0, 1, 2, 0):                            # already on the page, then a note with no page, then back
+        page.click(f"#notes-list .note-item >> nth={i} >> .note-text"); page.wait_for_timeout(500)
+        assert not page.evaluate(box)
+    page.click("#notes-list .note-item >> nth=0 >> .note-edit")
+    assert page.evaluate(box)

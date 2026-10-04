@@ -661,7 +661,12 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
   }
   function go(h){
     var s = h.src || (h.kind !== 'freeform' ? guessSrc(h) : null);
-    if(!s){ openNote(h.id); return; }
+    if(!s){                                   // no page on record (made on the timeline, or not findable): the timeline, never the box
+      holdPanelOpen();
+      if(mobile()){ var q = $('notes-panel'); if(q && q.classList.contains('open') && typeof toggleNotes === 'function') toggleNotes(); }
+      if(detailOpen() && typeof window.showTimeline === 'function') window.showTimeline();
+      return;
+    }
     if(!h.src){ var arr = items(), x = byId(arr, h.id); if(x){ x.src = s; put(arr); } }
     holdPanelOpen();
     if(mobile()){ var p = $('notes-panel'); if(p && p.classList.contains('open') && typeof toggleNotes === 'function') toggleNotes(); }
