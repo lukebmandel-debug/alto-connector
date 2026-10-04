@@ -227,6 +227,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
     pages only while private pages were stored uncompressed and Terrarium sat
     at the cap (see private_shell.MAX_PAGE_BYTES)."""
     from . import detail_extras as dx
+    from .notes_v2 import notes_v2
     from .search import search_config
     table = dx.autolink_table(brief)
     # Sources with a copy on the author's computer (empty when none have one).
@@ -237,7 +238,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
             + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + search_config(brief)
-            + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief))
+            + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief))
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])

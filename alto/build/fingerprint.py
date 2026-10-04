@@ -61,8 +61,8 @@ def _sources() -> list[tuple[str, bytes]]:
 # to the reports page or the homepage flagged every private timeline as stale,
 # and a warning that cries wolf is one people learn to dismiss.
 _TIMELINE_SOURCES = (
-    "blocks.py", "brief.py", "builder.py", "emit.py", "engine_patches.py",
-    "estimate.py", "layout.py", "sanitize.py", "search.py", "single_file.py", "verify.py",
+    "blocks.py", "brief.py", "builder.py", "detail_extras.py", "emit.py", "engine_patches.py",
+    "estimate.py", "layout.py", "notes_v2.py", "sanitize.py", "search.py", "single_file.py", "verify.py",
 )
 
 

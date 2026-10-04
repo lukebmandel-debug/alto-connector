@@ -1058,7 +1058,8 @@ NOTES_TRASH = r"""<style id="alto-trash-css">
   function refresh(){
     var u = document.getElementById('notes-undo-btn'), tb = document.getElementById('notes-trash-btn');
     var n = rd(TKEY).length;
-    if(u) u.disabled = !n;
+    var H = window._altoNotesHist;
+    if(u) u.disabled = !n && !(H && H.canUndo());
     if(tb){ tb.title = n ? 'Deleted notes (' + n + ')' : 'Deleted notes'; }
     if(inTrash()) renderTrash();
   }
@@ -1083,8 +1084,13 @@ NOTES_TRASH = r"""<style id="alto-trash-css">
     var row = document.createElement('div'); row.className = 'nt-row';
     add.parentNode.insertBefore(row, add);
     var u = document.createElement('button'); u.id = 'notes-undo-btn'; u.type = 'button'; u.className = 'nt-btn';
-    u.title = 'Undo last delete'; u.setAttribute('aria-label', 'Undo last delete'); u.innerHTML = UNDO_SVG;
-    u.addEventListener('click', undo);
+    u.title = 'Undo'; u.setAttribute('aria-label', 'Undo'); u.innerHTML = UNDO_SVG;
+    /* Undo steps back through every change (new, edited, deleted, recoloured: notes_v2); with no
+       changes recorded it still brings back the last deleted batch. */
+    u.addEventListener('click', function(){
+      var H = window._altoNotesHist;
+      if(H && H.canUndo()) H.undo(); else undo();
+    });
     var tb = document.createElement('button'); tb.id = 'notes-trash-btn'; tb.type = 'button'; tb.className = 'nt-btn';
     tb.title = 'Deleted notes'; tb.setAttribute('aria-label', 'Deleted notes'); tb.setAttribute('aria-pressed', 'false'); tb.innerHTML = TRASH_SVG;
     tb.addEventListener('click', function(){ setMode(!inTrash()); });
@@ -1104,7 +1110,7 @@ NOTES_TRASH = r"""<style id="alto-trash-css">
     window.addEventListener('alto-trash-sync', refresh);
     refresh();
   }
-  window._altoNotesTrash = {undo: undo, refresh: refresh, key: TKEY};
+  window._altoNotesTrash = {undo: undo, refresh: refresh, key: TKEY, trashGone: trashGone};
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
 })();
 </script>"""
