@@ -22,11 +22,19 @@ Field keys ("|"-separated; ids are slugs):
   dt|<owner>-new-…|tree                   a new section's decision tree
   nn|card-…   nd|<id>                     a card added here / a built card taken out
   fl|list   fn|<id>   fx|off              the owner's filters, a card's, the ones taken out
+  nu|unit-…   nl|unit-…                   a unit added here, its name
+  rp|<id>                                 a card (and its progeny) moved under another card
+  ch|<id>|chars  envs  themes             a card's sub-chips
+  ne|c|<id>  ne|env|<id>  ne|theme|<id>   a chip made here (an entity, an axis value)
 A section's `i` is its index among the object's OWN sections (the page also
 carries ones the build adds); _ALTO_EDK maps the page's list to it. A link to a
 file on the owner's computer is <a data-file="file-…">: the file itself (or,
 in Chromium, its place on disk) stays in this browser's IndexedDB, and the
 connector finds it by name to record its path (edits.find_file).
+
+A drag lays the whole tree out again with the card where it is held
+(TREE_GLUE _altoTreeCalc), so the cards it lands on step aside
+(layout.make_room) and go back once it moves on.
 
 Desktop: everything. Phones: text on the page being read (no dragging, no
 cards, filters or sections to add, no Claude half). Shares and copies opened from disk never offer it.
@@ -79,6 +87,21 @@ def edit_keys(b, nodes=()) -> str:
         edk["fall"] = {"sections": fa.get("sections") or [], "nodes": fa.get("nodes") or {}}
     edk["mode"] = b.mode
     edk["noun"] = b.node_noun or "Card"
+    # Units: the ones added in a page carry that page's id for them. Chips: the
+    # kinds a card shows (the build's own order), what each is called.
+    edk["uids"] = [getattr(a, "id", "") or "" for a in b.acts]
+    nav = getattr(b, "_alto_navrep", set())
+    kinds = [{"f": "chars", "r": "c", "l": b.entity_axis_label or "Characters",
+              "one": b.entity_axis_singular or "Character"}]
+    for j, (key, f, r) in enumerate((("axis1", "envs", "env"), ("axis2", "themes", "theme"))):
+        if j < len(b.axes) and key not in nav:
+            ax = b.axes[j]
+            kinds.append({"f": f, "r": r, "l": ax.label, "one": ax.singular,
+                          "fk": key} | ({"hide": 1} if ax.hide_nav else {}))
+    kinds[0]["fk"] = "entity"
+    edk["chipk"] = kinds
+    from .blocks import FALLBACK_GLYPH
+    edk["glyph"] = FALLBACK_GLYPH
     data = json.dumps(edk, separators=(",", ":"), ensure_ascii=False)
     data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
     return f'<script id="alto-edk">window._ALTO_EDK={data};</script>\n'
@@ -257,6 +280,41 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-kinds button:hover{background:color-mix(in srgb,var(--accent,#a78bfa) 14%,transparent);}
   #aed-kinds button b{display:block;font-weight:600;}
   #aed-kinds button small{display:block;color:var(--muted);font-size:11.5px;}
+  /* dragging: the cards in the way step aside, and back */
+  .node.aed-room{transition:translate .22s cubic-bezier(.2,.7,.3,1);}
+  .aed-uc.aed-ur{border-style:solid;border-color:color-mix(in srgb,var(--muted) 45%,transparent);}
+  .aed-uc.aed-unew{height:36px;padding:0 16px;font-size:13px;}
+  /* moving a card under another: click the new parent */
+  html.aed-linking #canvas .node{cursor:pointer !important;}
+  html.aed-linking #canvas .node.aed-link-no .node-card{opacity:.32;cursor:not-allowed;}
+  html.aed-linking #canvas .node.aed-link-at .node-card{outline:2px dashed var(--muted);outline-offset:3px;}
+  html.aed-linking #canvas .node:not(.aed-link-no):hover .node-card{outline:3px solid var(--accent,#a78bfa);outline-offset:3px;}
+  html.aed-linking .aed-cc,html.aed-linking .aed-uc{display:none !important;}
+  #aed-linkbar{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:8250;display:none;align-items:center;gap:12px;padding:8px 8px 8px 16px;
+    border-radius:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.3 system-ui,-apple-system,sans-serif;max-width:92vw;}
+  #aed-linkbar.show{display:flex;}
+  #aed-linkbar button{height:30px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--text);font:inherit;cursor:pointer;}
+  /* a card's sub-chips, on its page */
+  .aed-chips{display:flex;flex-direction:column;gap:8px;margin:14px 0 22px;padding:10px 12px;border-radius:12px;border:1.5px dashed var(--border);
+    font:12.5px/1.2 system-ui,-apple-system,sans-serif;}
+  .aed-chips .aed-chrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+  .aed-chips .aed-fh{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:4px;min-width:72px;}
+  .aed-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 4px 4px 11px;border-radius:999px;border:1.4px solid color-mix(in srgb,var(--c,var(--accent)) 55%,transparent);
+    background:color-mix(in srgb,var(--c,var(--accent)) 14%,transparent);color:var(--text);}
+  .aed-chip button{width:20px;height:20px;padding:0;border:0;border-radius:50%;background:none;color:var(--muted);cursor:pointer;font:600 11px/20px system-ui,sans-serif;}
+  .aed-chip button:hover{color:#dc2626;background:color-mix(in srgb,#dc2626 12%,transparent);}
+  .aed-chadd{padding:5px 11px;border-radius:999px;border:1.4px dashed var(--border);background:none;color:var(--muted);font:inherit;cursor:pointer;}
+  .aed-chadd:hover{color:var(--text);border-color:var(--muted);}
+  #aed-chip{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
+    border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--text);}
+  #aed-chip.show{display:block;}
+  #aed-chip h5{margin:0 0 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  #aed-chip input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;}
+  #aed-chip .al-list{max-height:240px;overflow:auto;margin:6px 0 2px;}
+  #aed-chip .al-row{padding:7px 8px;border-radius:7px;cursor:pointer;}
+  #aed-chip .al-row:hover{background:color-mix(in srgb,var(--accent,#a78bfa) 14%,transparent);}
+  #aed-chip .al-new{color:var(--accent,#a78bfa);}
+  #aed-chip .al-k{color:var(--muted);font-size:11px;}
   #aed-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:8400;display:none;padding:10px 16px;border-radius:12px;
     background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 10px 30px var(--node-rest-shadow);font-size:13px;max-width:90vw;}
   #aed-toast.show{display:block;}
@@ -392,6 +450,9 @@ MANUAL_JS = r"""<script id="alto-manual">
      tree, or a unit's run of cards) */
   var OUT = window._ALTO_OUTLINE || null;
   var CARDS0 = null, NEWC = {}, NEWO = [], GONE = {};
+  // units added here (in the order they were made), cards moved under
+  // another card (the id moved: its new parent), and what that moved
+  var NEWU = {}, NEWUO = [], REPAR = {}, REPO = [], MOVED = [], OUTP = {}, PLAN0 = null;
   function cardsBase(){
     if(CARDS0) return CARDS0;
     try{
@@ -402,11 +463,18 @@ MANUAL_JS = r"""<script id="alto-manual">
         kids: OUT ? JSON.parse(JSON.stringify(OUT.kids || {})) : null, par: OUT ? Object.assign({}, OUT.parent || {}) : null,
         num: OUT ? Object.assign({}, OUT.num || {}) : null, label: OUT ? Object.assign({}, OUT.label || {}) : null,
         plan: T ? JSON.parse(JSON.stringify(T.acts)) : null,
+        units: (typeof PHASE_META !== 'undefined') ? PHASE_META.slice() : [],
         order: (typeof NODE_ORDER_MAP !== 'undefined') ? Object.assign({}, NODE_ORDER_MAP) : null};
     }catch(e){ CARDS0 = null; }
     return CARDS0;
   }
   function isNew(id){ return !!(NEWC[id] && !NEWC[id].off); }
+  function liveUnits(){ return NEWUO.filter(function(u){ return NEWU[u] && !NEWU[u].off; })
+    .sort(function(a, b){ return ((NEWU[a].v.n || 0) - (NEWU[b].v.n || 0)) || (a < b ? -1 : 1); }); }
+  // a unit's place on the page: a built one by its number, one added here by its id
+  function unitAt(a){ if(typeof a === 'number') return a; var B = cardsBase(); if(!B) return -1; var i = liveUnits().indexOf(a); return i < 0 ? -1 : B.units.length + i; }
+  function unitKeyOf(i){ var B = cardsBase(); return B && i >= B.units.length ? liveUnits()[i - B.units.length] : i; }
+  function dfsOf(kids, id){ var out = []; (function walk(x){ out.push(x); (kids[x] || []).forEach(walk); })(id); return out; }
   function cardGone(id){ return !!GONE[id] || !!(NEWC[id] && NEWC[id].off); }
   function kidsOf(id){ return ((OUT && OUT.kids) || {})[id] || []; }
   function descendantsOf(id){ var out = [], q = kidsOf(id).slice(); while(q.length){ var c = q.shift(); out.push(c); q = q.concat(kidsOf(c)); } return out; }
@@ -417,16 +485,18 @@ MANUAL_JS = r"""<script id="alto-manual">
     : level === 2 ? (i + 1) + '.' : level === 3 ? String.fromCharCode(97 + i % 26) + '.' : romanOf(i + 1).toLowerCase() + '.'; }
   function fill(obj, from){ Object.keys(obj).forEach(function(k){ delete obj[k]; }); Object.keys(from).forEach(function(k){ obj[k] = from[k]; }); }
   // A plan (layout.outline_plan) without the cards taken out.
+  function out_(i){ return cardGone(i) || !!OUTP[i]; }
   function prune(op){
     var k = op[0];
-    if(k === 'card') return cardGone(op[1]) ? null : op;
-    if(k === 'row'){ var ids = op[1].filter(function(i){ return !cardGone(i); }); return ids.length ? [k, ids].concat(op.slice(2)) : null; }
+    if(k === 'card') return out_(op[1]) ? null : op;
+    if(k === 'row'){ var ids = op[1].filter(function(i){ return !out_(i); }); return ids.length ? [k, ids].concat(op.slice(2)) : null; }
     if(k === 'seq') return [k, op[1].map(prune).filter(Boolean)];
     if(k === 'par') return [k, op[1].map(prune).filter(Boolean)].concat(op.slice(2));
     if(k === 'band'){
-      var cards = op[1].filter(function(cd){ return !cardGone(cd[0]); }).map(function(cd){ return cd.length > 5 && cardGone(cd[5]) ? cd.slice(0, 5) : cd; });
-      if(!cards.length) return null;
+      var cards = op[1].filter(function(cd){ return !out_(cd[0]); }).map(function(cd){ return cd.length > 5 && out_(cd[5]) ? cd.slice(0, 5) : cd; });
+      // a band of columns only (layout.columns packing them) has no cards of its own
       var blocks = op[2].map(function(b){ var o = prune(b[2]); return o ? [b[0], b[1], o] : null; }).filter(Boolean);
+      if(!cards.length && !blocks.length) return null;
       return [k, cards, blocks].concat(op.slice(3));
     }
     var inner = prune(op[1]); return inner ? [k, inner].concat(op.slice(2)) : null;     // float
@@ -435,8 +505,9 @@ MANUAL_JS = r"""<script id="alto-manual">
   // the ones added and less the ones removed here.
   function syncCards(){
     var B = cardsBase(); if(!B) return;
+    var nu = liveUnits();
     var src = B.src.filter(function(n){ return !cardGone(n.id); });
-    var seqs = B.seqs.map(function(a){ return a.filter(function(id){ return !cardGone(id); }); });
+    var seqs = B.seqs.map(function(a){ return a.filter(function(id){ return !cardGone(id); }); }).concat(nu.map(function(){ return []; }));
     var act = {}; Object.keys(B.act).forEach(function(id){ if(!cardGone(id)) act[id] = B.act[id]; });
     var kids = null, par = null;
     if(B.kids){
@@ -447,7 +518,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var spines = [];
     NEWO.forEach(function(id){
       var c = NEWC[id]; if(!c || c.off) return;
-      var sp = c.spec, a = act[sp.p] != null ? act[sp.p] : sp.a, seq = seqs[a];
+      var sp = c.spec, a = act[sp.p] != null ? act[sp.p] : unitAt(sp.a), seq = seqs[a];
       if(!seq || (sp.p && act[sp.p] == null)) return;           // its unit or parent is not on the page
       var at = seq.length;
       if(sp.p && kids){
@@ -467,14 +538,43 @@ MANUAL_JS = r"""<script id="alto-manual">
       c.live.act = a;
       try{ if(!NODE_DETAILS[id]) NODE_DETAILS[id] = {sections: []}; }catch(e){}
     });
+    // cards moved under another card: the card and everything under it go to
+    // the new parent's unit, after the new parent's last card
+    MOVED = []; OUTP = {}; var moves = [];
+    if(kids) REPO.forEach(function(id){
+      var np = REPAR[id]; if(np == null || act[id] == null || act[np] == null || cardGone(id) || cardGone(np)) return;
+      var S = dfsOf(kids, id); if(S.indexOf(np) >= 0 || par[id] === np) return;
+      var op = par[id];
+      if(op && kids[op]){ kids[op] = kids[op].filter(function(x){ return x !== id; }); if(!kids[op].length) delete kids[op]; }
+      par[id] = np; (kids[np] = kids[np] || []).push(id);
+      var na = act[np];
+      S.forEach(function(m){ var q = seqs[act[m]], j = q.indexOf(m); if(j >= 0) q.splice(j, 1); act[m] = na; });
+      var seq = seqs[na], last = seq.indexOf(np);
+      (function walk(x){ (kids[x] || []).forEach(function(k){ if(S.indexOf(k) >= 0) return; var j = seq.indexOf(k); if(j > last) last = j; walk(k); }); })(np);
+      var before = last >= 0 ? seq[last] : null;
+      seq.splice.apply(seq, [last + 1, 0].concat(S));
+      var keep = src.filter(function(n){ return S.indexOf(n.id) >= 0; }); src = src.filter(function(n){ return S.indexOf(n.id) < 0; });
+      var bi = -1; for(var i = 0; i < src.length; i++) if(src[i].id === before) bi = i;
+      src.splice.apply(src, [bi < 0 ? src.length : bi + 1, 0].concat(keep));
+      S.forEach(function(m){ OUTP[m] = 1; });
+      moves.push({id: id, from: op, np: np, S: S});
+    });
+    MOVED = moves;
     var liveBy = {}; B.live.forEach(function(n){ liveBy[n.id] = n; });
+    moves.forEach(function(mv){ mv.S.forEach(function(m){ var l = liveBy[m] || (NEWC[m] && NEWC[m].live); if(l && 'act' in l) l.act = act[m]; }); });
     NODES_SRC.splice.apply(NODES_SRC, [0, NODES_SRC.length].concat(src));
     NODES.splice.apply(NODES, [0, NODES.length].concat(src.map(function(n){ return liveBy[n.id] || NEWC[n.id].live; })));
+    ACT_SEQS.length = Math.min(ACT_SEQS.length, seqs.length); while(ACT_SEQS.length < seqs.length) ACT_SEQS.push([]);
     ACT_SEQS.forEach(function(a, i){ a.splice.apply(a, [0, a.length].concat(seqs[i] || [])); });
     fill(NODE_ACT, act);
     if(B.conns) CONNECTIONS.splice.apply(CONNECTIONS, [0, CONNECTIONS.length].concat(
-      spines.concat(B.conns.filter(function(c){ return !cardGone(c[0]) && !cardGone(c[1]); }))));
-    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0;
+      spines.concat(B.conns.filter(function(c){ return !cardGone(c[0]) && !cardGone(c[1]); }).map(function(c){
+        var mv = moves.filter(function(m){ return m.id === c[1] && m.from === c[0] && c[2] === 'spine'; })[0];
+        return mv ? [mv.np, c[1], 'spine'] : c; }))));
+    // the units: the page's own, then the ones added here
+    if(typeof PHASE_META !== 'undefined') PHASE_META.splice.apply(PHASE_META, [0, PHASE_META.length].concat(B.units,
+      nu.map(function(u, j){ var pm = NEWU[u].pm, i = B.units.length + j; pm.numeral = romanOf(i + 1); pm.cssVar = 'var(--phase' + (i + 1) + ')'; return pm; })));
+    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0 || nu.length > 0 || moves.length > 0;
     if(OUT){
       fill(OUT.kids, kids); fill(OUT.parent, par);
       if(!changed){ fill(OUT.num, B.num); fill(OUT.label, B.label); }
@@ -488,7 +588,15 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     if(B.order){ if(!changed) fill(NODE_ORDER_MAP, B.order);
       else { var om = {}; seqs.forEach(function(ids, a){ ids.forEach(function(id, j){ om[id] = (a + 1) + '.' + (j + 1); }); }); fill(NODE_ORDER_MAP, om); } }
-    var T = plan(); if(T && B.plan) T.acts = changed ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : JSON.parse(JSON.stringify(B.plan));
+    // a phone swipes through the cards in this order
+    try{ if(typeof NODE_ORDER !== 'undefined') NODE_ORDER.splice.apply(NODE_ORDER, [0, NODE_ORDER.length].concat(NODES_SRC.map(function(n){ return n.id; }))); }catch(e){}
+    phoneDirty = true;
+    var T = plan();
+    if(T && B.plan){
+      T.acts = (changed ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : JSON.parse(JSON.stringify(B.plan))).concat(nu.map(function(){ return []; }));
+      // the plan as built (less what was taken out): where moved cards sat among themselves
+      var mo = OUTP; OUTP = {}; PLAN0 = moves.length ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : null; OUTP = mo;
+    }
   }
   function setNew(id, v){
     if(!cardsBase()) return;
@@ -502,45 +610,119 @@ MANUAL_JS = r"""<script id="alto-manual">
     c.off = false; c.spec = JSON.parse(JSON.stringify(v));
     syncCards();
   }
+  function setUnit(id, v){
+    if(!cardsBase()) return;
+    var u = NEWU[id];
+    if(!v){ if(u) u.off = true; syncCards(); return; }
+    if(!u){ u = NEWU[id] = {v: null, pm: {label: v.l || 'New unit', numeral: '', colorRaw: v.c || '#8888aa', cssVar: ''}}; NEWUO.push(id); }
+    u.off = false; u.v = JSON.parse(JSON.stringify(v)); u.pm.colorRaw = v.c || u.pm.colorRaw;
+    syncCards();
+  }
+  /* chips made here: a new entity (or axis value) the page draws like its own */
+  var NEWE = {}, CHTOUCH = false;
+  function setChip(kind, id, v, k){
+    var R = reg(kind); if(!R) return;
+    if(!v){ if(NEWE[k]) NEWE[k].off = true; delete R[id]; try{ if(kind === 'c') delete CHAR_PAGES[id]; }catch(e){} CHTOUCH = true; drawFiltersSoon(); return; }
+    NEWE[k] = {v: JSON.parse(JSON.stringify(v)), off: false};
+    var col = /^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#8888aa', glyph = EDK.glyph || '&#9670;';
+    var kd = (EDK.chipk || []).filter(function(x){ return x.r === kind; })[0] || {};
+    R[id] = Object.assign(R[id] || {sections: []}, {name: esc(v.name || 'New'), role: '', color: col, symbol: glyph});
+    try{
+      if(kind === 'c'){ if(!CHAR_PAGES[id]) CHAR_PAGES[id] = {sections: []}; document.documentElement.style.setProperty('--' + id, col); if(typeof CSS_HEX !== 'undefined') CSS_HEX['var(--' + id + ')'] = col; }
+      else if(kind === 'env' && typeof ENV_SYM !== 'undefined') ENV_SYM[id] = kd.hide ? esc(v.name) : glyph;
+      else if(kind === 'theme' && typeof THEME_SYM !== 'undefined') THEME_SYM[id] = kd.hide ? esc(v.name) : glyph;
+    }catch(e){}
+    CHTOUCH = true; drawFiltersSoon();
+  }
+  // A card's width on the page (the plan's, else measured).
+  var WID = {};
+  function wOf(id){ var T = plan(); if(T && T.w && T.w[id]) return T.w[id];
+    if(WID[id] == null){ var el = document.getElementById('node-' + id), c = el && el.querySelector('.node-card'); WID[id] = c && c.offsetWidth ? c.offsetWidth : 240; } return WID[id]; }
+  // Room for a block of cards at `cand` (their top): it starts below any card
+  // already across that line in its width, and every card below moves down by
+  // the block's height — so it covers nothing until the next build places it.
+  function makeSpace(R, h, cand, lo, hi, bh, skip, gap){
+    var all = Object.keys(R.y).filter(function(q){ return !skip[q] && h[q] != null; });
+    for(var guard = 0, moved = true; moved && guard < 400; guard++){
+      moved = false;
+      all.forEach(function(q){ var top = R.y[q] - h[q] / 2, bot = R.y[q] + h[q] / 2, ww = wOf(q) / 2 + 16;
+        if(top < cand && bot > cand - gap + 1 && R.x[q] + ww > lo && R.x[q] - ww < hi){ cand = bot + gap; moved = true; } });
+    }
+    var D = bh + gap;
+    all.forEach(function(q){ if(R.y[q] - h[q] / 2 >= cand - 0.5) R.y[q] += D; });
+    return cand;
+  }
   // A new card of an outline drawn as a tree, after the tree is laid out: under
-  // its parent's last descendant (or at the foot of its unit), and everything
-  // that starts below that point moves down to make room — so it covers
-  // nothing until Claude's next build places it properly.
-  function placeNew(pos, h){
-    var G = window._altoTreeGeo, T = plan(); if(!G || !T) return;
-    var ids = NEWO.filter(function(id){ return isNew(id) && pos[id] != null; }); if(!ids.length) return;
-    var gap = T.row_gap || 40, W = {}, placed = {};
-    function w(id){ if(W[id] == null){ var el = document.getElementById('node-' + id), c = el && el.querySelector('.node-card'); W[id] = c && c.offsetWidth ? c.offsetWidth : 240; } return W[id]; }
+  // its parent's last descendant (or at the foot of its unit; the first card of
+  // a unit added here, below every unit before it).
+  function placeNew(R, h){
+    var T = plan(); if(!T) return;
+    var ids = NEWO.filter(function(id){ return isNew(id) && R.y[id] != null && h[id] != null; }); if(!ids.length) return;
+    var gap = T.row_gap || 40, placed = {}, skip = {};
+    ids.forEach(function(id){ skip[id] = 1; });
     ids.forEach(function(id){
       var sp = NEWC[id].spec, hc = h[id] || 120, x, cand;
-      var all = Object.keys(pos).filter(function(q){ return q !== id && (!isNew(q) || placed[q]) && G.x[q] != null && h[q] != null; });
-      if(sp.p && pos[sp.p] != null){
+      var all = Object.keys(R.y).filter(function(q){ return q !== id && (!isNew(q) || placed[q]) && h[q] != null; });
+      if(sp.p && R.y[sp.p] != null){
         var kin = descendantsOf(sp.p).filter(function(q){ return all.indexOf(q) >= 0; });
         var sib = kidsOf(sp.p).filter(function(q){ return all.indexOf(q) >= 0; });
-        x = sib.length ? G.x[sib[sib.length - 1]] : G.x[sp.p];
-        cand = Math.max.apply(null, kin.concat([sp.p]).map(function(q){ return pos[q] + h[q] / 2; })) + gap;
+        x = sib.length ? R.x[sib[sib.length - 1]] : R.x[sp.p];
+        cand = Math.max.apply(null, kin.concat([sp.p]).map(function(q){ return R.y[q] + h[q] / 2; })) + gap;
       } else {
-        var mine = all.filter(function(q){ return NODE_ACT[q] === NODE_ACT[id]; });
+        var a = NODE_ACT[id], mine = all.filter(function(q){ return NODE_ACT[q] === a; });
+        var above = all.filter(function(q){ return NODE_ACT[q] < a; });
         x = T.cx || 850;
-        cand = mine.length ? Math.max.apply(null, mine.map(function(q){ return pos[q] + h[q] / 2; })) + gap : (T.top || 200);
+        cand = mine.length ? Math.max.apply(null, mine.map(function(q){ return R.y[q] + h[q] / 2; })) + gap
+          : above.length ? Math.max.apply(null, above.map(function(q){ return R.y[q] + h[q] / 2; })) + (T.act_gap || 210) : (T.top || 200);
       }
-      for(var guard = 0, moved = true; moved && guard < 400; guard++){
-        moved = false;
-        all.forEach(function(q){ var top = pos[q] - h[q] / 2, bot = pos[q] + h[q] / 2;
-          if(top < cand && bot > cand - gap + 1 && Math.abs(G.x[q] - x) < (w(q) + w(id)) / 2 + 16){ cand = bot + gap; moved = true; } });
-      }
-      var D = hc + gap;
-      all.forEach(function(q){ if(pos[q] - h[q] / 2 >= cand - 0.5){ pos[q] += D; if(G.y[q] != null) G.y[q] = pos[q]; } });
-      pos[id] = cand + hc / 2; G.y[id] = pos[id]; G.x[id] = x; G.h[id] = hc;
-      var n = liveNode(id); if(n) n.displayX = x;
-      var el = document.getElementById('node-' + id); if(el) el.style.left = x + 'px';
+      var sk = {}; Object.keys(skip).forEach(function(q){ if(!placed[q]) sk[q] = 1; });
+      cand = makeSpace(R, h, cand, x - wOf(id) / 2 - 16, x + wOf(id) / 2 + 16, hc, sk, gap);
+      R.y[id] = cand + hc / 2; R.x[id] = x;
       placed[id] = 1;
     });
   }
-  if(typeof window._altoTree === 'function'){
-    var tree0 = window._altoTree;
-    var withNew = function(pos, h){ var r = tree0.apply(this, arguments); if(r && NEWO.length){ try{ placeNew(pos, h); }catch(e){} } return r; };
-    window._altoTree = withNew;
+  // Cards moved under another card: laid out among themselves as they were,
+  // hung under the new parent's last card, everything below moving down.
+  function placeMoved(R, h, shift){
+    var T = plan(); if(!T || !MOVED.length || !PLAN0) return;
+    var R0 = window._altoTreeCalc(h, null, Object.assign({}, T, {acts: PLAN0}), true); if(!R0) return;
+    var gap = T.row_gap || 40, P = (OUT && OUT.parent) || {};
+    if(shift === undefined) shift = T.shift;
+    MOVED.forEach(function(mv){
+      var inS = {}; mv.S.forEach(function(i){ inS[i] = 1; });
+      var S = mv.S.filter(function(i){ return !isNew(i) && R0.y[i] != null && h[i] != null; });
+      if(!S.length || R.y[mv.np] == null) return;
+      var minT = Infinity, maxB = -Infinity, lo = Infinity, hi = -Infinity;
+      S.forEach(function(i){ minT = Math.min(minT, R0.y[i] - h[i] / 2); maxB = Math.max(maxB, R0.y[i] + h[i] / 2);
+        lo = Math.min(lo, R0.x[i] - wOf(i) / 2); hi = Math.max(hi, R0.x[i] + wOf(i) / 2); });
+      var dx = R.x[mv.np] - R0.x[mv.id];
+      if(lo + dx < 115) dx += 115 - (lo + dx); if(hi + dx > 1585) dx -= hi + dx - 1585;
+      var fam = [mv.np].concat(descendantsOf(mv.np)).filter(function(q){ return !inS[q] && R.y[q] != null && h[q] != null; });
+      var cand = Math.max.apply(null, fam.map(function(q){ return R.y[q] + h[q] / 2; })) + gap;
+      var skip = {}; Object.keys(inS).forEach(function(q){ skip[q] = 1; }); NEWO.forEach(function(q){ if(isNew(q)) skip[q] = 1; });
+      cand = makeSpace(R, h, cand, lo + dx - 16, hi + dx + 16, maxB - minT, skip, gap);
+      S.forEach(function(i){
+        var ox = 0, oy = 0, c = i;
+        while(c && inS[c]){ var s = shift && shift[c]; if(s){ ox += s[0]; oy += s[1]; } if(c === mv.id) break; c = P[c]; }
+        R.y[i] = cand + (R0.y[i] - h[i] / 2 - minT) + h[i] / 2 + oy; R.x[i] = R0.x[i] + dx + ox; });
+      Object.keys(R.etx).forEach(function(k){ var c = k.split('|')[1];
+        if(c === mv.id) delete R.etx[k]; else if(inS[c] && R0.etx[k] != null) R.etx[k] = R0.etx[k] + dx; });
+    });
+  }
+  // The tree as this page has it: laid out, then the cards moved and added here.
+  function layoutAll(h, shift){
+    var R = window._altoTreeCalc(h, shift); if(!R) return null;
+    if(MOVED.length || NEWO.length){ R.etx = Object.assign({}, R.etx);
+      try{ placeMoved(R, h, shift); }catch(e){} try{ placeNew(R, h); }catch(e){} }
+    return R;
+  }
+  if(typeof window._altoTreeCalc === 'function' && typeof window._altoTreeWrite === 'function'){
+    var ownTree = function(pos, h){
+      if(root.classList.contains('mobile')) return false;
+      var R = layoutAll(h); if(!R) return false;
+      window._altoTreeWrite(R, pos, h); return true;
+    };
+    window._altoTree = ownTree;
   }
 
   /* filters: the owner's own (flags) and the ones taken out of the panel */
@@ -555,7 +737,9 @@ MANUAL_JS = r"""<script id="alto-manual">
     var fm = {}; Object.keys(FLN).forEach(function(nid){ if(here[nid]) (FLN[nid] || []).forEach(function(f){ (fm[f] = fm[f] || []).push(nid); }); });
     var fitems = FLAGS.filter(function(f){ return all || (fm[f.id] || []).length; }).map(function(f){
       return {id:f.id, name:f.name, color:f.color || 'var(--accent)', count:(fm[f.id] || []).length}; });
-    var chips = FULL.sections.filter(function(s){ return s.kind === 'chips' && s.key !== 'flags'; });
+    var CHN = {};
+    var chips = FULL.sections.filter(function(s){ return s.kind === 'chips' && s.key !== 'flags'; })
+      .map(function(s){ var c = chipSec(s); if(c.nodes) CHN[s.key] = c.nodes; return c.s; });
     var rest = FULL.sections.filter(function(s){ return s.kind !== 'chips'; });
     var list = chips.concat(fitems.length ? [{key:'flags', kind:'chips', label:'Flags', items:fitems}] : []).concat(rest);
     var out = [], nodes = {};
@@ -568,9 +752,23 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(all){ s2.off = off; s2.items.forEach(function(it){ it.off = OFF.indexOf(k + ':' + it.id) >= 0; }); }
       out.push(s2);
       if(s.key === 'flags'){ var m = {}; fitems.forEach(function(it){ m[it.id] = (fm[it.id] || []).slice().sort(); }); nodes.flags = m; }
+      else if(CHN[s.key]) nodes[s.key] = CHN[s.key];
       else if(FULL.nodes[s.key]) nodes[s.key] = FULL.nodes[s.key];
     });
     return {sections: out, nodes: nodes};
+  }
+  // A sub-chip section as the cards' chips are now (blocks.py: one item per
+  // chip some card carries), once chips were changed here.
+  var FK = {entity:'chars', axis1:'envs', axis2:'themes'}, RK = {entity:'c', axis1:'env', axis2:'theme'};
+  function chipSec(s){
+    var f = FK[s.key]; if(!f || !CHTOUCH || typeof NODES_SRC === 'undefined') return {s: s, nodes: null};
+    var m = {}; NODES_SRC.forEach(function(n){ (n[f] || []).forEach(function(v){ (m[v] = m[v] || []).push(n.id); }); });
+    var R = reg(RK[s.key]) || {}, seen = {};
+    var items = s.items.map(function(it){ seen[it.id] = 1; return Object.assign({}, it, {count: (m[it.id] || []).length}); });
+    Object.keys(NEWE).forEach(function(k){ var q = k.split('|'); if(q[1] !== RK[s.key] || NEWE[k].off || seen[q[2]] || !R[q[2]]) return;
+      items.push({id: q[2], name: NEWE[k].v.name, color: R[q[2]].color, symbol: EDK.glyph || '', count: (m[q[2]] || []).length}); });
+    Object.keys(m).forEach(function(v){ m[v].sort(); });
+    return {s: Object.assign({}, s, {items: items.filter(function(it){ return it.count > 0; })}), nodes: m};
   }
   var drawFT = null;
   function drawFiltersSoon(){ FTOUCH = true; clearTimeout(drawFT); drawFT = setTimeout(drawFilters, 0); }
@@ -681,6 +879,33 @@ MANUAL_JS = r"""<script id="alto-manual">
       return {kind:'list', get:function(){ return OFF.slice(); },
         set:function(v){ OFF.splice.apply(OFF, [0, OFF.length].concat(v || [])); drawFiltersSoon(); }};
     }
+    if(kind === 'nu' && p.length === 2 && /^unit-[a-z0-9]{4,12}$/.test(id)){
+      // a page built with the unit already has it
+      var B3 = cardsBase(); if(!B3 || (EDK.uids || []).indexOf(id) >= 0) return null;
+      return {kind:'card', sig:function(){ return null; },
+        get:function(){ return (NEWU[id] && !NEWU[id].off) ? JSON.parse(JSON.stringify(NEWU[id].v)) : null; },
+        set:function(v){ setUnit(id, v); }};
+    }
+    if(kind === 'nl' && p.length === 2){
+      if(!NEWU[id]) return null;
+      return {kind:'plain', get:function(){ return NEWU[id].pm.label; }, set:function(v){ NEWU[id].pm.label = v; }};
+    }
+    if(kind === 'rp' && p.length === 2){
+      var B4 = cardsBase(); if(!B4 || !OUT || !B4.par || !B4.par[id] || !B4.src.some(function(n){ return n.id === id; })) return null;
+      return {kind:'card', get:function(){ return REPAR[id] != null ? REPAR[id] : B4.par[id]; },
+        set:function(v){ if(!v || v === B4.par[id]) delete REPAR[id]; else { REPAR[id] = v; if(REPO.indexOf(id) < 0) REPO.push(id); } syncCards(); }};
+    }
+    if(kind === 'ch' && p.length === 3 && /^(chars|envs|themes)$/.test(p[2])){
+      var cn = srcNode(id); if(!cn) return null;
+      return {kind:'list', get:function(){ return (cn[p[2]] || []).slice(); },
+        set:function(v){ v = (v || []).slice(); cn[p[2]] = v; var l = liveNode(id); if(l) l[p[2]] = v.slice(); CHTOUCH = true; phoneDirty = true; drawFiltersSoon(); }};
+    }
+    if(kind === 'ne' && p.length === 3 && /^(c|env|theme)$/.test(id) && /^[a-z0-9][a-z0-9-]{0,47}$/.test(p[2])){
+      var R5 = reg(id); if(!R5 || (R5[p[2]] && !NEWE[k])) return null;      // the page has it already
+      return {kind:'card', sig:function(){ return null; },
+        get:function(){ return NEWE[k] && !NEWE[k].off ? JSON.parse(JSON.stringify(NEWE[k].v)) : null; },
+        set:function(v){ setChip(id, p[2], v, k); }};
+    }
     if(kind === 'p' && p[2] === 'shift'){
       var T = plan(); if(!T || !srcNode(id)) return null;
       return {kind:'shift', get:function(){ return (T.shift && T.shift[id]) ? T.shift[id].slice() : null; },
@@ -700,7 +925,10 @@ MANUAL_JS = r"""<script id="alto-manual">
   // cards, then the filters' list, then structure (a section list, a tree; a
   // new section's tree after its section), new sections' words, the rest
   function pri(k){ var p = k.split('|');
+    if(p[0] === 'nu') return -4;
+    if(p[0] === 'ne') return -3;
     if(p[0] === 'nn' || p[0] === 'nd') return -2;
+    if(p[0] === 'rp') return -1.5;
     if(p[0] === 'fl') return -1;
     if(p[0] === 'dt' && p[2] === 'tree') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
@@ -717,8 +945,16 @@ MANUAL_JS = r"""<script id="alto-manual">
     return any;
   }
   var laidOut = false;
+  // A change made while a page covers the timeline (a card's chips): the
+  // cards are drawn again once the timeline shows.
+  var relayLater = false, phoneDirty = false;
   function relayout(){
-    if(root.classList.contains('mobile') || typeof initLayout !== 'function') return;
+    if(typeof initLayout !== 'function') return;
+    // a phone lays its cards out once: draw them again when cards changed
+    if(root.classList.contains('mobile')){ if(phoneDirty){ phoneDirty = false; try{ initLayout(); }catch(e){} } return; }
+    var cv = document.getElementById('canvas');
+    if(cv && getComputedStyle(cv).display === 'none'){ relayLater = true; return; }
+    relayLater = false;
     try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(e){}
     try{ if(window._altoFilterRefresh && window._altoChipOn && window._altoChipOn()) window._altoFilterRefresh(); }catch(e){}
     decorateCanvas(); paintPick();
@@ -816,12 +1052,19 @@ MANUAL_JS = r"""<script id="alto-manual">
   var TYPE = {n:'node', c:'char', env:'env', theme:'theme'};
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
-    if(kind === 'nn' || kind === 'nd'){
+    if(kind === 'nl'){ relayoutSoon(); return; }
+    if(kind === 'ch' || kind === 'ne'){
+      relayoutSoon();
+      if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
+      return;
+    }
+    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp'){
       relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
       if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
       else if(P) { rerenderPage(P); repaint(); }
       return;
     }
+    if(kind === 'ch' && P && P.type === 'node' && editing()){ relayoutSoon(); rerenderPage(P); repaint(); return; }
     if(kind === 'fl' || kind === 'fn' || kind === 'fx'){
       if(P && P.type === 'node' && editing()) decorateFlags(true);
       return;
@@ -887,8 +1130,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing()) return;
     endField(true);
     root.classList.remove('alto-editing', 'alto-drag-ok');
-    endPick(true); hideMenus();
-    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-fx,.aed-fadd').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
+    endPick(true); endLink(); hideMenus();
+    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
     hideBar();
     if(FTOUCH || structOK()) drawFilters();
@@ -1022,7 +1265,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(lastOwn && lastOwn.nextSibling) dc.insertBefore(add, lastOwn.nextSibling);
         else if(tile) dc.insertBefore(add, tile); else dc.appendChild(add);
       }
-      if(kind === 'n') decorateFlags(false);
+      if(kind === 'n'){ decorateFlags(false); decorateChips(false); }
       if(kind === 'n'){
         var seenT = {};
         dc.querySelectorAll('.hc-row').forEach(function(row){
@@ -1078,21 +1321,38 @@ MANUAL_JS = r"""<script id="alto-manual">
     var world = document.getElementById('world'); if(!world) return;
     var lbls = Array.prototype.slice.call(world.querySelectorAll('.phase-label-float')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
     lbls.forEach(function(l, i){
+      var r = document.createElement('button'); r.type = 'button'; r.className = 'aed-uc aed-ur'; r.textContent = '✎ Rename';
+      r.title = 'Rename this unit'; r.setAttribute('data-x', 'renu'); r.setAttribute('data-act', i);
+      r.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14) + 'px';
+      r.style.top = Math.round(l.offsetTop + l.offsetHeight / 2 - 15) + 'px';
+      world.appendChild(r);
       var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-uc'; b.textContent = '+ Add a card';
       b.title = OUT ? 'Add a card to this unit, under its top card' : 'Add a card at the end of this unit';
       b.setAttribute('data-act', i);
-      b.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14) + 'px';
-      b.style.top = Math.round(l.offsetTop + l.offsetHeight / 2 - 15) + 'px';
+      b.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14 + r.offsetWidth + 8) + 'px';
+      b.style.top = r.style.top;
       world.appendChild(b);
     });
+    // + Add a unit, at the foot of the last one
+    var bands = Array.prototype.slice.call(world.querySelectorAll('.phase-band')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
+    var last = bands[bands.length - 1];
+    if(last){
+      var u = document.createElement('button'); u.type = 'button'; u.className = 'aed-uc aed-unew'; u.textContent = '+ Add a unit';
+      u.title = 'A new unit at the end, with its first card'; u.setAttribute('data-x', 'addunit');
+      var tile = world.querySelector('.alto-edit-tile:not(.in-page)');
+      var y = tile && tile.offsetHeight ? tile.offsetTop + tile.offsetHeight / 2 - 18 : last.offsetTop + last.offsetHeight - 150;
+      u.style.left = '40px'; u.style.top = Math.round(y) + 'px';
+      world.appendChild(u);
+    }
   }
   document.addEventListener('mouseover', function(e){
-    if(!editing() || !structOK() || PICK || !cardsBase()) return;
+    if(!editing() || !structOK() || PICK || LINK || !cardsBase()) return;
     var nodeEl = e.target && e.target.closest && e.target.closest('#canvas .node'); if(!nodeEl) return;
     var card = nodeEl.querySelector('.node-card'), id = nodeEl.id.replace(/^node-/, '');
     if(!card || card.querySelector(':scope > .aed-cc') || !srcNode(id)) return;
     var items = [];
     if(OUT) items.push(['addc', '+', 'Add a card under this one']);
+    if(OUT && (OUT.parent || {})[id]) items.push(['linkc', '⇄', 'Move it, and the cards under it, under another card']);
     if(canRemove(id)) items.push(['delc', '✕', 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
   });
@@ -1103,15 +1363,83 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!p && OUT){ var hub = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === a && !(OUT.parent || {})[n.id]; })[0]; if(hub) p = hub.id; }
     var id = rid('card-'), par = p ? srcNode(p) : null, act = par ? NODE_ACT[p] : a;
     var inAct = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === act; }), like = par || inAct[inAct.length - 1] || null;
-    var spec = {p: p || '', a: act, t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
+    var spec = {p: p || '', a: unitKeyOf(act), t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
     if(!OUT) spec.col = like && like.col ? like.col : 'center';
     if(!change('nn|' + id, spec)) return;
-    toast('Card added — Claude places it properly at the next build.');
+    toast('Card added — ⌘Z takes it back.');
     setTimeout(function(){ var el = document.querySelector('#node-' + id + ' .node-title');
       if(el){ try{ el.scrollIntoView({block:'center', inline:'nearest'}); }catch(_){} startField(el, 'n|' + id + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 140);
   }
+  /* units: add one at the end (with its first card), rename one */
+  var UNIT_COLORS = ['#e0654a', '#4a9eff', '#2fb380', '#c084fc', '#f2a93b', '#ec6fa8', '#22b8cf', '#8f9c3a', '#b07a4f', '#7c83f2'];
+  function labelEl(i){ var all = Array.prototype.slice.call(document.querySelectorAll('#world .phase-label-float')).sort(function(a, b){ return a.offsetTop - b.offsetTop; }); return all[i] || null; }
+  function renameUnit(i){
+    var el = labelEl(i); if(!el) return; var u = unitKeyOf(i);
+    startField(el, typeof u === 'string' ? 'nl|' + u : 'u|' + i + '|label'); try{ document.execCommand('selectAll'); }catch(_){}
+  }
+  function addUnit(){
+    var B = cardsBase(); if(!B) return;
+    var used = {}; PHASE_META.forEach(function(pm){ used[String(pm.colorRaw || '').toLowerCase()] = 1; });
+    var col = UNIT_COLORS.filter(function(c){ return !used[c]; })[0] || UNIT_COLORS[PHASE_META.length % UNIT_COLORS.length];
+    var uid = rid('unit-'), cid = rid('card-'), n = PHASE_META.length;
+    var spec = {p: '', a: uid, t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: '', d: '', c: col};
+    if(!OUT) spec.col = 'center';
+    if(!changes([['nu|' + uid, {n: Date.now(), c: col, l: 'New unit'}], ['nn|' + cid, spec]])) return;
+    toast('Unit added — name it, then fill in its first card.');
+    setTimeout(function(){ var el = labelEl(n); if(el){ try{ el.scrollIntoView({block:'center'}); }catch(_){} renameUnit(n); } }, 160);
+  }
+  /* moving a card (and what hangs under it) under another card: click it */
+  var LINK = null;
+  function startLink(id){
+    if(!OUT || !(OUT.parent || {})[id]) return;
+    endPick(true);
+    LINK = {id: id, S: dfsOf(OUT.kids || {}, id)};
+    var t = document.getElementById('aed-toast'); if(t) t.classList.remove('show');
+    root.classList.add('aed-linking'); paintLink();
+  }
+  function endLink(){
+    if(!LINK) return; LINK = null; root.classList.remove('aed-linking');
+    document.querySelectorAll('.aed-link-no,.aed-link-at').forEach(function(el){ el.classList.remove('aed-link-no', 'aed-link-at'); });
+    var b = document.getElementById('aed-linkbar'); if(b) b.classList.remove('show');
+  }
+  function paintLink(){
+    if(!LINK) return;
+    var P = (OUT && OUT.parent) || {};
+    document.querySelectorAll('#world .node').forEach(function(el){ var i = el.id.slice(5);
+      el.classList.toggle('aed-link-no', LINK.S.indexOf(i) >= 0); el.classList.toggle('aed-link-at', P[LINK.id] === i); });
+    var b = document.getElementById('aed-linkbar');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-linkbar';
+      b.innerHTML = '<span class="ap-t"></span><button type="button">Cancel</button>';
+      b.querySelector('button').addEventListener('click', function(e){ e.stopPropagation(); endLink(); });
+      document.body.appendChild(b); }
+    var n = srcNode(LINK.id);
+    b.querySelector('.ap-t').textContent = 'Click the card “' + (n ? n.title : '') + '” should go under' + (LINK.S.length > 1 ? ' — the ' + (LINK.S.length - 1) + ' under it come along' : '') + ' · Esc to cancel';
+    b.classList.add('show');
+  }
+  function relink(id, np){
+    var S = dfsOf((OUT && OUT.kids) || {}, id);
+    if(S.indexOf(np) >= 0){ toast('A card cannot go under itself or a card under it.'); return false; }
+    if(((OUT && OUT.parent) || {})[id] === np){ endLink(); return false; }
+    var ok, to = srcNode(np);
+    if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.p = np; sp.a = unitKeyOf(NODE_ACT[np]); ok = change('nn|' + id, sp); }
+    else {
+      var L = [['rp|' + id, np]], sf = field('p|' + id + '|shift');
+      if(sf && sf.get()) L.push(['p|' + id + '|shift', null]);
+      ok = changes(L);
+    }
+    endLink();
+    if(ok) toast('Moved under “' + (to ? to.title : '') + '” — ⌘Z puts it back.');
+    return ok;
+  }
   function removeCard(id){
     if(!canRemove(id)) { toast('Remove the cards under it first.'); return; }
+    var a = NODE_ACT[id];
+    if(ACT_SEQS[a] && ACT_SEQS[a].length === 1){
+      var u = unitKeyOf(a);
+      if(typeof u === 'string'){ if(changes([['nu|' + u, null]].concat(isNew(id) ? [['nn|' + id, null]] : []))) toast('Unit removed — ⌘Z brings it back.'); }
+      else toast('A unit keeps at least one card.');
+      return;
+    }
     var ok = isNew(id) ? change('nn|' + id, null) : change('nd|' + id, 1);
     if(ok) toast('Card removed — ⌘Z brings it back.');
   }
@@ -1130,6 +1458,91 @@ MANUAL_JS = r"""<script id="alto-manual">
     var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-fchip aed-fnew'; add.setAttribute('data-x', 'flnew'); add.textContent = '+ New filter'; row.appendChild(add);
     if(old) old.parentNode.replaceChild(row, old);
     else { var hd = dc.querySelector('.detail-header'); if(hd && hd.parentNode === dc) dc.insertBefore(row, hd.nextSibling); else dc.insertBefore(row, dc.firstChild); }
+  }
+  /* sub-chips: on a card's page, the chips it carries — take one off, add one
+     the timeline has, or make a new one */
+  function aOne(k){ var w = String(k.one || 'chip').toLowerCase(); return (/^[aeiou]/.test(w) ? 'an ' : 'a ') + w; }
+  function chipKinds(){ return (EDK.chipk || []).filter(function(k){ return reg(k.r); }); }
+  function decorateChips(again){
+    var P = page(), dc = document.getElementById('detail-content'); if(!P || P.type !== 'node' || !dc) return;
+    var old = dc.querySelector('.aed-chips');
+    if(old && !again) return;
+    var n = srcNode(P.id);
+    if(!editing() || !structOK() || !n){ if(old) old.parentNode.removeChild(old); return; }
+    var box = document.createElement('div'); box.className = 'aed-chips'; box.contentEditable = 'false';
+    chipKinds().forEach(function(k){
+      var R = reg(k.r) || {}, row = document.createElement('div'); row.className = 'aed-chrow';
+      var h = document.createElement('span'); h.className = 'aed-fh'; h.textContent = k.l; row.appendChild(h);
+      (n[k.f] || []).forEach(function(v){
+        var c = document.createElement('span'); c.className = 'aed-chip'; var it = R[v];
+        c.style.setProperty('--c', it && it.color ? it.color : 'var(--accent)');
+        c.appendChild(document.createTextNode(it ? txt(it.name) : v));
+        var x = document.createElement('button'); x.type = 'button'; x.setAttribute('data-x', 'chipdel'); x.setAttribute('data-f', k.f); x.setAttribute('data-v', v);
+        x.title = 'Take this chip off the card'; x.setAttribute('aria-label', x.title); x.textContent = '✕'; c.appendChild(x);
+        row.appendChild(c); });
+      var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-chadd'; add.setAttribute('data-x', 'chipadd'); add.setAttribute('data-f', k.f);
+      add.textContent = '+ Add'; add.title = 'Add ' + aOne(k) + ' to this card'; row.appendChild(add);
+      box.appendChild(row);
+    });
+    if(old) old.parentNode.replaceChild(box, old);
+    else { var fl = dc.querySelector('.aed-flags'), hd = dc.querySelector('.detail-header');
+      if(fl && fl.parentNode === dc) dc.insertBefore(box, fl.nextSibling);
+      else if(hd && hd.parentNode === dc) dc.insertBefore(box, hd.nextSibling); else dc.insertBefore(box, dc.firstChild); }
+  }
+  function chipToggle(nid, f, v, on){
+    var n = srcNode(nid); if(!n || !v) return false;
+    var L = (n[f] || []).slice(), i = L.indexOf(v);
+    if(on && i < 0) L.push(v); else if(!on && i >= 0) L.splice(i, 1); else return false;
+    return change('ch|' + nid + '|' + f, L);
+  }
+  function chooseChip(at, nid, f){
+    hideMenus();
+    var k = chipKinds().filter(function(x){ return x.f === f; })[0]; if(!k) return;
+    var b = document.getElementById('aed-chip');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-chip';
+      b.innerHTML = '<h5></h5><input type="text" maxlength="80" autocomplete="off" placeholder="Search or type a new name…"><div class="al-list"></div>';
+      b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); var r = e.target.closest('.al-row'); if(!r) return; pickChip(r.getAttribute('data-v'), r.getAttribute('data-new')); });
+      b.querySelector('input').addEventListener('input', function(){ listChips(); });
+      b.querySelector('input').addEventListener('keydown', function(e){ e.stopPropagation();
+        if(e.key === 'Enter'){ e.preventDefault(); var r = b.querySelector('.al-row'); if(r) r.click(); }
+        if(e.key === 'Escape'){ e.preventDefault(); b.classList.remove('show'); } });
+      document.body.appendChild(b); }
+    b._nid = nid; b._k = k;
+    b.querySelector('h5').textContent = 'Add ' + aOne(k);
+    var inp = b.querySelector('input'); inp.value = '';
+    listChips(); b.classList.add('show'); placeNear(b, at); setTimeout(function(){ inp.focus(); }, 0);
+  }
+  function listChips(){
+    var b = document.getElementById('aed-chip'); if(!b) return;
+    var k = b._k, n = srcNode(b._nid), R = reg(k.r) || {}, have = (n && n[k.f]) || [];
+    var q = b.querySelector('input').value.replace(/\s+/g, ' ').trim(), Q = q.toLowerCase(), L = b.querySelector('.al-list');
+    var hits = Object.keys(R).filter(function(id){ return have.indexOf(id) < 0 && (!Q || txt(R[id].name).toLowerCase().indexOf(Q) >= 0); }).slice(0, 60);
+    L.innerHTML = '';
+    hits.forEach(function(id){ var r = document.createElement('div'); r.className = 'al-row'; r.setAttribute('data-v', id);
+      var a = document.createElement('span'); a.textContent = txt(R[id].name); r.appendChild(a); L.appendChild(r); });
+    var exact = Object.keys(R).some(function(id){ return txt(R[id].name).toLowerCase() === Q; });
+    if(q && !exact){ var r = document.createElement('div'); r.className = 'al-row al-new'; r.setAttribute('data-new', q);
+      var a = document.createElement('span'); a.textContent = '+ New ' + String(k.one || 'chip').toLowerCase() + ' “' + q + '”'; r.appendChild(a); L.appendChild(r); }
+    if(!L.children.length){ var none = document.createElement('div'); none.className = 'al-k'; none.style.padding = '6px 8px'; none.textContent = 'Type a name to make a new one.'; L.appendChild(none); }
+  }
+  var CHIP_COLORS = ['#e0654a', '#4a9eff', '#2fb380', '#c084fc', '#f2a93b', '#ec6fa8', '#22b8cf', '#8f9c3a'];
+  function pickChip(v, name){
+    var b = document.getElementById('aed-chip'); if(!b) return; b.classList.remove('show');
+    var k = b._k, nid = b._nid, n = srcNode(nid); if(!n) return;
+    if(v){ chipToggle(nid, k.f, v, true); return; }
+    name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return;
+    var R = reg(k.r) || {}, base = slug(name) || 'chip', id, i = 2;
+    if(!/^[a-z]/.test(base)) base = 'c-' + base;
+    id = base;
+    // an entity's colour is the CSS variable named after it: never one the page already has
+    if(k.r === 'c' && Object.keys(R).length >= 12){ toast('A timeline has at most 12 ' + String(k.l || 'of these').toLowerCase() + '.'); return; }
+    function taken(x){ if(reg('c') && reg('c')[x] || reg('env') && reg('env')[x] || reg('theme') && reg('theme')[x]) return true; try{ return k.r === 'c' && !!getComputedStyle(document.documentElement).getPropertyValue('--' + x).trim(); }catch(e){ return false; } }
+    while(taken(id)) id = base.slice(0, 44) + '-' + (i++);
+    var col = CHIP_COLORS[Object.keys(R).length % CHIP_COLORS.length];
+    var L = (n[k.f] || []).concat([id]);
+    if(changes([['ne|' + k.r + '|' + id, {name: name, color: col}], ['ch|' + nid + '|' + k.f, L]]))
+      toast('“' + name + '” made and added — it has a page of its own to fill in.');
   }
   function newFlag(name){
     name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return null;
@@ -1242,7 +1655,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
 
   /* a small box asking for a name; a menu of kinds of section */
-  function hideMenus(){ ['aed-name', 'aed-kinds'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
+  function hideMenus(){ ['aed-name', 'aed-kinds', 'aed-chip'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
   function placeNear(b, at){
     var r = at.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
     var top = r.bottom + 8; if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
@@ -1276,7 +1689,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       document.body.appendChild(b); }
     b._ok = ok; b.classList.add('show'); placeNear(b, at);
   }
-  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-kinds,.aed-add,.aed-fadd,.aed-fx')) hideMenus(); }, true);
+  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-kinds,#aed-chip,.aed-add,.aed-fadd,.aed-fx,.aed-chadd')) hideMenus(); }, true);
   function addSection(ok, kind){
     var f = field(ok + '|order'); if(!f) return;
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
@@ -1330,7 +1743,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     var lb = t.closest('.phase-label-float'); if(!lb || !t.closest('#canvas')) return null;
     var all = Array.prototype.slice.call(document.querySelectorAll('#world .phase-label-float'));
     var bands = all.slice().sort(function(a, b){ return a.offsetTop - b.offsetTop; });
-    var i = bands.indexOf(lb); return i >= 0 ? {el: lb, k: 'u|' + i + '|label'} : null;
+    var i = bands.indexOf(lb); if(i < 0) return null;
+    var u = unitKeyOf(i); return {el: lb, k: typeof u === 'string' ? 'nl|' + u : 'u|' + i + '|label'};
   }
   function startField(el, k){
     if(cur && cur.el === el) return;
@@ -1744,6 +2158,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // otherwise. A text box being typed in keeps its own.
   window.addEventListener('keydown', function(e){
     if(e.key === 'Escape' && PICK && !cur){ e.preventDefault(); e.stopImmediatePropagation(); endPick(); drawFilters(); }
+    if(e.key === 'Escape' && LINK && !cur){ e.preventDefault(); e.stopImmediatePropagation(); endLink(); }
   }, true);
   document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey) || e.altKey) return;
@@ -1760,15 +2175,19 @@ MANUAL_JS = r"""<script id="alto-manual">
   });
 
   /* ── clicks and drags while editing ───────────────────────────────────── */
-  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-tile,#aed-toast,#aed-pick,#aed-name,#aed-kinds,#ef-panel,#filter-toggle'); }
+  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-tile,#aed-toast,#aed-pick,#aed-linkbar,#aed-chip,#aed-name,#aed-kinds,#ef-panel,#filter-toggle'); }
   // Move, add and remove: a page's sections, a tree's steps, an Overview's blocks.
   function structure(b){
     var x = b.getAttribute('data-x') || (b.classList.contains('aed-uc') ? 'addcu' : ''), w = b.closest('.aed-sc,.aed-tc,.aed-cc');
     if(x === 'addsec'){ chooseKind(b, b.getAttribute('data-ok')); return; }
     if(x === 'addcu'){ addCard(null, +b.getAttribute('data-act')); return; }
+    if(x === 'addunit'){ addUnit(); return; }
+    if(x === 'renu'){ renameUnit(+b.getAttribute('data-act')); return; }
+    if(x === 'chipdel'){ var P2 = page(); if(P2) chipToggle(P2.id, b.getAttribute('data-f'), b.getAttribute('data-v'), false); return; }
+    if(x === 'chipadd'){ var P3 = page(); if(P3) chooseChip(b, P3.id, b.getAttribute('data-f')); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');
-      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid);
+      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid);
       return;
     }
     if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }
@@ -1824,7 +2243,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags') || (PICK && t.closest('#canvas .node'))){
+    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips') || ((PICK || LINK) && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -1834,12 +2253,17 @@ MANUAL_JS = r"""<script id="alto-manual">
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }
     if(dragJustEnded){ dragJustEnded = false; e.stopPropagation(); e.preventDefault(); return; }
+    if(LINK){
+      var ln = t.closest('#canvas .node');
+      if(ln){ e.stopPropagation(); e.preventDefault(); var lid = ln.id.replace(/^node-/, ''); if(srcNode(lid)) relink(LINK.id, lid); return; }
+      if(t.closest('#canvas')){ e.stopPropagation(); e.preventDefault(); return; }
+    }
     if(PICK){
       var pn = t.closest('#canvas .node');
       if(pn){ e.stopPropagation(); e.preventDefault(); var pid = pn.id.replace(/^node-/, ''); if(srcNode(pid)){ toggleFlag(pid, PICK); paintPick(); } return; }
       if(t.closest('#canvas')){ e.stopPropagation(); e.preventDefault(); return; }
     }
-    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button');
+    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button,.aed-chips button');
     if(sb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); structure(sb); return; }
     var ck = canvasKey(t) || unitKey(t);
     if(ck){ e.stopPropagation(); e.preventDefault(); startField(ck.el, ck.k); return; }
@@ -1865,7 +2289,9 @@ MANUAL_JS = r"""<script id="alto-manual">
       window[name] = function(){
         // a link to a card taken out here (the build turns those into words)
         if(name === 'showDetail' && arguments[0] === 'node' && cardGone(arguments[1])){ toast('That card was removed.'); return; }
-        if(cur) endField(true); hideBar(); return f.apply(this, arguments); };
+        if(cur) endField(true); hideBar(); var r = f.apply(this, arguments);
+        if(name === 'showTimeline' && relayLater) setTimeout(relayout, 0);
+        return r; };
     });
   }
 
@@ -1887,7 +2313,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button')) return;
-    var id = nodeEl.id.replace(/^node-/, ''); if(PICK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
+    var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
     drag = {id:id, x0:e.clientX, y0:e.clientY, k:scale(nodeEl), on:false, els: subtree(id).map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean)};
   }, true);
   window.addEventListener('pointermove', function(e){
@@ -1896,28 +2322,67 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!drag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; drag.on = true; if(cur) endField(true);
       root.classList.add('alto-dragging'); drag.els.forEach(function(el){ el.classList.add('aed-moving'); }); }
     e.preventDefault();
-    var wx = dx / drag.k, wy = dy / drag.k;
-    drag.els.forEach(function(el){ el.style.translate = Math.round(wx) + 'px ' + Math.round(wy) + 'px'; });
-    drag.wx = wx; drag.wy = wy;
+    drag.wx = dx / drag.k; drag.wy = dy / drag.k;
+    if(!drag.raf) drag.raf = requestAnimationFrame(function(){ if(drag){ drag.raf = 0; preview(drag); } });
   }, true);
+  // The whole tree as it would be with the card dropped here: the cards in its
+  // way step aside, and go back once it has moved on.
+  function preview(d){
+    var G = window._altoTreeGeo, T = plan(), R = null;
+    if(G && T){
+      var sh = Object.assign({}, T.shift || {}), o = sh[d.id] || [0, 0];
+      sh[d.id] = [o[0] + d.wx, o[1] + d.wy];
+      try{ R = layoutAll(G.h, sh); }catch(e){ R = null; }
+    }
+    if(!R){ d.els.forEach(function(el){ el.style.translate = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px'; }); return; }
+    var mine = {}; d.els.forEach(function(el){ mine[el.id] = 1; });
+    document.querySelectorAll('#world .node').forEach(function(el){
+      var i = el.id.slice(5); if(G.y[i] == null || R.y[i] == null) return;
+      var tx = Math.round(R.x[i] - G.x[i]), ty = Math.round(R.y[i] - G.y[i]);
+      if(!mine[el.id] && (tx || ty || el.style.translate)) el.classList.add('aed-room');
+      el.style.translate = (tx || ty) ? tx + 'px ' + ty + 'px' : '';
+    });
+  }
+  function clearPreview(){
+    document.querySelectorAll('#world .node').forEach(function(el){ el.classList.remove('aed-room', 'aed-moving'); el.style.translate = ''; });
+  }
   function endDrag(){
     if(!drag) return; var d = drag; drag = null;
+    if(d.raf) cancelAnimationFrame(d.raf);
     if(!d.on) return;
     dragJustEnded = true; setTimeout(function(){ dragJustEnded = false; }, 400);
     root.classList.remove('alto-dragging');
-    d.els.forEach(function(el){ el.classList.remove('aed-moving'); el.style.translate = ''; });
-    var f = field('p|' + d.id + '|shift'); if(!f) return;
+    var f = field('p|' + d.id + '|shift'); if(!f){ clearPreview(); return; }
     var old = f.get() || [0, 0], v = [Math.round(old[0] + (d.wx || 0)), Math.round(old[1] + (d.wy || 0))];
     // keep the card on the page
     var n = liveNode(d.id), el = document.getElementById('node-' + d.id), card = el && el.querySelector('.node-card');
     if(n && card){ var cx = (n.displayX != null ? n.displayX : 850) + (d.wx || 0), hw = card.offsetWidth / 2;
       var lo = hw + 30, hi = 1700 - hw - 30; if(cx < lo) v[0] += Math.round(lo - cx); if(cx > hi) v[0] -= Math.round(cx - hi); }
-    change('p|' + d.id + '|shift', (v[0] || v[1]) ? v : null);
+    // laid out at once where it was dropped, so nothing jumps back first
+    if(change('p|' + d.id + '|shift', (v[0] || v[1]) ? v : null)){ clearTimeout(relayT); document.querySelectorAll('#world .node').forEach(function(x){ x.classList.remove('aed-room'); }); relayout(); }
+    clearPreview();
   }
   window.addEventListener('pointerup', endDrag, true);
-  window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); }, true);
+  window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); clearPreview(); }, true);
 
-  function boot(){ guardNav(); syncTiles(); decorate(); }
+  // A timeline just started on the homepage opens ready to write in.
+  function startHere(){
+    var want = null; try{ want = sessionStorage.getItem('alto-edit-now'); }catch(e){}
+    if(want !== TID) return;
+    var tries = 0;
+    (function go(){
+      if(canEdit()){
+        try{ sessionStorage.removeItem('alto-edit-now'); }catch(e){}
+        enter();
+        toast(structOK() ? 'Your new timeline — click any words to write them, ✎ Rename a unit, + Add a card, + Add a unit at the foot.'
+                         : 'Your new timeline — tap any words to write them. Cards and units are added on a computer.');
+        return;
+      }
+      if(++tries < 60) setTimeout(go, 250);
+    })();
+  }
+  var booted = false;
+  function boot(){ guardNav(); syncTiles(); decorate(); if(!booted){ booted = true; startHere(); } }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   window.addEventListener('load', boot);
 })();

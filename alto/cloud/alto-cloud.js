@@ -92,6 +92,15 @@
     // Private timelines: the page itself lives in Firestore under the owner's
     // uid, so the rules decide who may read it. `ready` never resolves when the
     // publisher has no Firebase project, hence the check before the await.
+    /* A timeline started on the homepage, without Claude (alto/build/starter.py):
+       its draft where the connector keeps drafts (users/{uid}/alto_projects,
+       alto_timelines — the same {data: JSON text} documents store/cloud.py
+       writes), and its private page, made from the site's starter. */
+    createTimeline: async (o) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _createTimeline(o || {});
+    },
+    cleanTitle: (s) => _cleanTitle(s),
     getPage: async (key) => {
       if (!configured) throw new Error('sync not configured');
       await ready; return _getPage(key);
@@ -633,6 +642,79 @@
                                title ? { title } : {}),
                  { merge: true });
     return true;
+  }
+
+  /* ── starting a timeline here ─────────────────────────────────────────── */
+  // The starter page names its title in page text, JS strings and JSON; with
+  // these few characters swapped for look-alikes one replacement is right in
+  // all of them (alto/build/starter.py).
+  function _cleanTitle(s) {
+    return String(s || '').replace(/[\u0000-\u001f\u2028\u2029]/g, ' ')
+      .replace(/(^|[\s(\[{\u2014\u2013-])"/g, '$1\u201c').replace(/"/g, '\u201d')
+      .replace(/(^|[\s(\[{\u2014\u2013-])'/g, '$1\u2018').replace(/['`]/g, '\u2019').replace(/&/g, ' and ')
+      .replace(/[<>\\]/g, '').replace(/\$\{/g, '$ {').replace(/\s+/g, ' ').trim().slice(0, 120);
+  }
+  function _slug(s, pre) {
+    let x = String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (x && !/^[a-z]/.test(x)) x = pre + x;
+    return x.slice(0, 40).replace(/-+$/, '') || pre + 'new';
+  }
+  const _ALPHA = 'abcdefghijkmnpqrstuvwxyz23456789';
+  function _pageKey() {
+    const r = new Uint8Array(22); crypto.getRandomValues(r);
+    return Array.from(r, b => _ALPHA[b % 32]).join('');
+  }
+  function _attr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  async function _freeId(uid, coll, base) {
+    for (let i = 1; i < 200; i++) {
+      const id = i === 1 ? base : (base.slice(0, 44) + '-' + i);
+      if (!(await getDoc(doc(db, 'users', uid, coll, id))).exists()) return id;
+    }
+    throw new Error('no free id');
+  }
+  async function _createTimeline(o) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('not signed in');
+    const kind = o.kind === 'timeline' ? 'timeline' : 'outline';
+    const title = _cleanTitle(o.title) || 'Untitled timeline';
+    const pname = String(o.project || '').replace(/\s+/g, ' ').trim().slice(0, 120) || title;
+    const [hr, jr] = await Promise.all([fetch('/new/' + kind + '.html', { cache: 'no-cache' }),
+                                        fetch('/new/' + kind + '.json', { cache: 'no-cache' })]);
+    if (!hr.ok || !jr.ok) throw new Error('This site has no starter yet — it comes with the next update.');
+    const starter = await hr.text(), dr = await jr.json();
+    const now = new Date().toISOString();
+    // the project: one of the account's by name, else a new one
+    let pid = null;
+    (await getDocs(collection(db, 'users', u.uid, 'alto_projects'))).forEach(d => {
+      let v = null; try { v = JSON.parse((d.data() || {}).data || 'null'); } catch (e) {}
+      if (!pid && v && String(v.name || '').trim().toLowerCase() === pname.toLowerCase()) pid = d.id;
+    });
+    if (!pid) {
+      pid = await _freeId(u.uid, 'alto_projects', _slug(pname, 'p-'));
+      await setDoc(doc(db, 'users', u.uid, 'alto_projects', pid), {
+        data: JSON.stringify({ project_id: pid, name: pname, purpose: '', kind: 'studying', created: now }),
+        created: now });
+    }
+    const tid = await _freeId(u.uid, 'alto_timelines', _slug(title, 't-'));
+    const key = _pageKey();
+    const html = starter.split('subject=Zqtitleqz').join('subject=' + encodeURIComponent(title))
+      .split('Zqtitleqz').join(title).split('zqtidqz').join(tid).split('Zqlabelqz').join(_attr(pname));
+    const brief = Object.assign({}, dr.brief, { title: title, timeline_id: tid });
+    // The owner writes it all in the page: their own words are the material.
+    const tdoc = { timeline_id: tid, project_id: pid, brief: brief,
+                   consent: { granted: true, at: now, manual: true,
+                              sources: [{ name: 'Written by the owner in the page', kind: 'own-writing' }] },
+                   status: 'published', visibility: 'private-web', private_key: key,
+                   created: now, started: 'homepage' };
+    await Promise.all((dr.nodes || []).map((n, i) => setDoc(
+      doc(db, 'users', u.uid, 'alto_timelines', tid, 'nodes', n.id),
+      { data: JSON.stringify(Object.assign({}, n, { _seq: i + 1 })), _seq: i + 1 })));
+    await setDoc(doc(db, 'users', u.uid, 'alto_timelines', tid, 'meta', 'connections'), { data: '[]' });
+    await setDoc(doc(db, 'users', u.uid, 'alto_timelines', tid), { data: JSON.stringify(tdoc), created: now });
+    await _putPage(key, html, pname);
+    await setDoc(doc(db, 'users', u.uid, 'pagemeta', key), { added: Math.floor(Date.now() / 1000) }, { merge: true });
+    return { key: key, tid: tid, pid: pid, url: '/pv/' + key + '/' };
   }
 
   async function _ensureTitle(key, title, tid) {

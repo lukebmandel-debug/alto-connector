@@ -169,6 +169,16 @@ or ask which account they used. Create it here with **exactly** that name
 timeline lands in the same box — ask only for the purpose (and kind, with
 "studying" as the default), then go straight on to Flow 2.
 
+**A timeline started on the homepage.** Signed in on their own site, the
+owner can start a project or a timeline themselves ("Start writing" in the
+homepage's ＋ dialog): a two-unit outline or timeline, which they fill in with
+manual edit mode. Its draft is in the account like any other
+(`consent.manual`: everything in it is the owner's own writing), and its
+edits fold in at your next `get_timeline` / `build_timeline`. When they bring
+notes to it, it is an existing timeline: §A still applies to the new
+material (`record_materials_consent` with the notes, keeping the manual entry),
+then author from them as usual — never replace what they wrote unasked.
+
 ## Flow 2 — New timeline (deep, sectioned; each maps to tool input)
 
 ### A. Materials — the closed-system gate (FIRST, load-bearing)
@@ -845,9 +855,14 @@ blocks; add cards (under a card on an outline — a unit's "+ Add a card" goes
 under its top card — or at the end of a unit on a linear timeline) and remove
 a card with nothing under it; make filters of their own (Brief.flags, with the
 cards they choose) and take any filter, or one chip of it, out of the panel
-(Brief.filters_off); and, on an outline, drag a card (its progeny come with
-it, nothing else moves — a `shift` placement hint). Moving a card under a
-different one stays with you. Phones edit words only. Nothing changes until they turn the mode on; Done
+(Brief.filters_off); add a unit at the end (with its first card) and rename
+any unit; put chips on a card or take them off, and make a new one (an
+element, or a value of an axis, with a page of its own); on an outline, drag
+a card (its progeny come with it; cards it lands on step aside and go back
+when it moves on — a `shift` placement hint), and move a card with
+everything under it under a different card, in its unit or another one
+(⇄ on the card — its parent changes; a unit's top card stays). Phones edit
+words only. Nothing changes until they turn the mode on; Done
 in the pill turns it off; undo and redo sit either side of the tile, and ⌘Z /
 ⇧⌘Z work too (outside edit mode the same keys undo notes and highlights).
 Edits save as they are made and show on their other devices at once; share
@@ -858,7 +873,8 @@ if it lists `conflicts`, those fields were changed in the draft after the page
 edit, so the draft's version was kept — say which, and ask. `cards_added`
 are cards they made on the page: they hold only what the user wrote (often a
 title and nothing more) — never fill them in from the material unasked; offer
-to. `cards_removed` are cards they took out, lines and all; links to them
+to. `units_added` and `chips_added` hold only the name they typed; the same
+applies. `cards_moved` says which cards they put under which. `cards_removed` are cards they took out, lines and all; links to them
 elsewhere become plain words at the build. `files_not_found` names a linked
 file Alto could not find in their Desktop, Documents or Downloads: that text
 waits on the page that made it — say which file, in one line. Publish

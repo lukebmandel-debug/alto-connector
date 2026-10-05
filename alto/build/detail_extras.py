@@ -54,9 +54,51 @@ def tree_glue(plan: dict) -> str:
 
 TREE_GLUE = """
 if(!document.documentElement.classList.contains('mobile')) window._altoTreeOn=true;
-window._altoTree = function(pos, h){
-  var de=document.documentElement; if(de.classList.contains('mobile')) return false;
-  var T=window._ALTO_TREE_PLAN; if(!T || typeof NODES==='undefined') return false;
+/* cards a dragged card lands on step out of its way (layout.make_room) */
+window._altoMakeRoom = function(y, x, h, w, ids, moved, parent, gap, top){
+  var free=ids.filter(function(i){ return !moved[i] && y[i]!=null; }); if(!free.length) return false;
+  var y0={}, fset={}, kids={}; Object.keys(y).forEach(function(i){ y0[i]=y[i]; });
+  free.forEach(function(i){ fset[i]=1; });
+  free.forEach(function(i){ var p=parent[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
+  function ww(i){ return (w&&w[i])||270; }
+  function rowroot(i){ for(;;){ var p=parent[i]; if(p && fset[p] && Math.abs(y0[p]-y0[i])<1) i=p; else return i; } }
+  function unit(i, whole){ var out=[], q=[i]; while(q.length){ var c=q.shift(); out.push(c);
+    (kids[c]||[]).forEach(function(k){ if(whole || Math.abs(y0[k]-y0[c])<1) q.push(k); }); } return out; }
+  function near(i, ti, j, tj){ return Math.abs(x[i]-x[j]) < (ww(i)+ww(j))/2+12 && ti < tj+h[j]+gap && ti+h[i]+gap > tj; }
+  function hits(i, t, j){ if(!moved[j] && near(i, y0[i]-h[i]/2, j, y0[j]-h[j]/2)) return false; return near(i, t, j, y[j]-h[j]/2); }
+  function cmp(a, b){ return a[0]-b[0] || a[1]-b[1] || (a[2]<b[2]?-1:a[2]>b[2]?1:0); }
+  var obst=ids.filter(function(i){ return moved[i] && y[i]!=null; }), done={}, changed=false;
+  free.map(function(i){ return [-(y0[i]+h[i]/2), x[i], i]; }).sort(cmp).forEach(function(e){
+    var r=rowroot(e[2]); if(done[r]) return;
+    var grp=unit(r,false), t={}, lift=0, again=true, ing={};
+    if(unit(r,true).length>grp.length) return;
+    grp.forEach(function(k){ t[k]=y[k]-h[k]/2; ing[k]=1; });
+    while(again){ again=false;
+      grp.forEach(function(k){ obst.forEach(function(j){
+        if(!ing[j] && y0[k]<y[j] && hits(k,t[k]-lift,j)){ lift=Math.max(lift,t[k]-(y[j]-h[j]/2-gap-h[k])); again=true; } }); }); }
+    var mt=Math.min.apply(null, grp.map(function(k){ return t[k]; }));
+    if(lift>0 && mt-lift>=top-0.5 && !grp.some(function(k){ return obst.some(function(j){ return !ing[j] && hits(k,t[k]-lift,j); }); })){ grp.forEach(function(k){ y[k]-=lift; done[k]=1; obst.push(k); }); changed=true; }
+  });
+  free.map(function(i){ return [y0[i]-h[i]/2, x[i], i]; }).sort(cmp).forEach(function(e){
+    if(done[e[2]]) return;
+    var r=rowroot(e[2]); if(done[r]) return;
+    var row=unit(r,false);
+    if(!row.some(function(k){ return obst.some(function(j){ return j!==k && hits(k,y[k]-h[k]/2,j); }); })) return;
+    var grp=unit(r,true).filter(function(k){ return !done[k]; }), ing={}, drop=0, again=true;
+    grp.forEach(function(k){ ing[k]=1; });
+    while(again){ again=false;
+      for(var a=0; a<grp.length; a++){ var k=grp[a], tk=y[k]-h[k]/2+drop, hit=null;
+        for(var b=0; b<obst.length; b++){ var j=obst[b]; if(!ing[j] && hits(k,tk,j)){ hit=j; break; } }
+        if(hit!=null){ drop+=y[hit]+h[hit]/2+gap-tk; again=true; } } }
+    if(drop>0){ grp.forEach(function(k){ y[k]+=drop; done[k]=1; obst.push(k); }); changed=true; }
+  });
+  return changed;
+};
+/* the tree's places over these heights (layout.run_plan); `shift` stands in
+   for the plan's own while a card is being dragged */
+window._altoTreeCalc = function(h, shift, TP){
+  var T=TP||window._ALTO_TREE_PLAN; if(!T || typeof NODES==='undefined') return null;
+  if(shift===undefined) shift=T.shift;
   var y={}, x={}, bottom=0;
   Object.keys(T.x).forEach(function(i){ x[i]=T.x[i]; });
   function put(i,top,rowH){ y[i]=top+(rowH!=null?rowH:h[i])/2; bottom=Math.max(bottom,y[i]+h[i]/2); }
@@ -109,30 +151,44 @@ window._altoTree = function(pos, h){
   /* `shift` hints (layout.shift_offsets): a card and its progeny move after
      their unit is laid out; nothing else in it moves */
   var off={}, P0=(window._ALTO_OUTLINE||{}).parent||{};
-  if(T.shift) Object.keys(NODE_ACT).forEach(function(i){
+  if(shift) Object.keys(NODE_ACT).forEach(function(i){
     var dx=0, dy=0, c=i, seen={};
-    while(c && !seen[c]){ seen[c]=1; var s=T.shift[c]; if(s){ dx+=s[0]; dy+=s[1]; } c=P0[c]||''; }
+    while(c && !seen[c]){ seen[c]=1; var s=shift[c]; if(s){ dx+=s[0]; dy+=s[1]; } c=P0[c]||''; }
     if(dx || dy) off[i]=[dx,dy];
   });
   var cur=T.top;
   T.acts.forEach(function(ops,a){
     if(a && ops.length) cur=bottom+T.act_gap;
+    var start=cur;
     ops.forEach(function(o){ cur=run(o,cur); });
     var moved=Object.keys(off).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; });
     if(moved.length){
-      moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; });
+      var mv={};
+      moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; mv[i]=1; });
+      window._altoMakeRoom(y, x, h, T.w, NODES.map(function(n){ return n.id; }).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; }),
+        mv, P0, T.row_gap, start);
       bottom=Math.max.apply(null, Object.keys(y).map(function(i){ return y[i]+h[i]/2; }));
     }
   });
   NODES.forEach(function(n){
     if(y[n.id]==null){ y[n.id]=bottom+T.row_gap+h[n.id]/2; x[n.id]=T.cx; bottom=y[n.id]+h[n.id]/2; }
-    pos[n.id]=y[n.id]; n.displayX=x[n.id];
-    var el=document.getElementById('node-'+n.id); if(el) el.style.left=x[n.id]+'px';
   });
   var etx=T.etx||{};
-  if(T.shift){ etx={}; Object.keys(T.etx||{}).forEach(function(k){ var c=k.split('|')[1]; etx[k]=T.etx[k]+(off[c]?off[c][0]:0); }); }
-  window._altoEdgeTX=etx;
-  window._altoTreeOn=true; window._altoTreeGeo={y:y, h:h, x:x};
+  if(shift){ etx={}; Object.keys(T.etx||{}).forEach(function(k){ var c=k.split('|')[1]; etx[k]=T.etx[k]+(off[c]?off[c][0]:0); }); }
+  return {y:y, x:x, etx:etx, bottom:bottom};
+};
+window._altoTreeWrite = function(R, pos, h){
+  NODES.forEach(function(n){
+    pos[n.id]=R.y[n.id]; n.displayX=R.x[n.id];
+    var el=document.getElementById('node-'+n.id); if(el) el.style.left=R.x[n.id]+'px';
+  });
+  window._altoEdgeTX=R.etx;
+  window._altoTreeOn=true; window._altoTreeGeo={y:R.y, h:h, x:R.x};
+};
+window._altoTree = function(pos, h){
+  if(document.documentElement.classList.contains('mobile')) return false;
+  var R=window._altoTreeCalc(h); if(!R) return false;
+  window._altoTreeWrite(R, pos, h);
   return true;
 };
 window._altoTreeMid = function(fm){

@@ -583,3 +583,95 @@ def test_a_preview_cannot_open_a_linked_file():
     page = preview(b, html)
     assert "function showBlob(file, name, w){ if(w) w.close(); }" in page
 
+
+
+# ── 1.9.51: moving a card under another, units, sub-chips ───────────────────
+
+def test_a_card_moved_under_another_takes_its_progeny_into_the_new_unit():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "rp|offer": {"b": "formation", "v": "reliance", "t": 1},
+        "p|offer|shift": {"b": None, "v": None, "t": 1}}}
+    st.doc["brief"].setdefault("placement", {})["offer"] = {"shift": [40, 90], "arrange": "row"}
+    r = fold(st, "u", "t1")
+    assert not r["conflicts"] and not r["gone"], r
+    for i in ("offer", "revocation", "option-contracts", "unilateral-offers"):
+        assert _node(st, i)["act"] == 1, i
+    assert _node(st, "offer")["parent"] == "reliance"
+    pl = st.doc["brief"]["placement"]["offer"]
+    assert "shift" not in pl and pl["arrange"] == "row" and pl["order"] == 3   # last under reliance
+    html, _ = _build(st)
+    o = html[html.index("window._ALTO_OUTLINE="):]
+    assert '"offer": "reliance"' in o[o.index("parent:"):]
+    assert re.search(r'"reliance": \[[^\]]*"offer"\]', o[o.index("kids:"):])
+    assert published(st, "u", "t1") == 2
+
+
+def test_a_move_under_its_own_card_or_from_a_changed_parent_is_refused():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"rp|offer": {"b": "formation", "v": "revocation", "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["rp|offer"]
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"rp|offer": {"b": "acceptance", "v": "reliance", "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["rp|offer"]
+    assert _node(st, "offer")["parent"] == "formation"
+
+
+def test_a_unit_added_on_the_page_folds_with_its_name_and_first_card():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "nu|unit-ab12cd": {"b": None, "v": {"n": 5, "c": "#2fb380", "l": "New unit"}, "t": 1},
+        "nl|unit-ab12cd": {"b": "New unit", "v": "UNIT SIX — THIRD PARTIES", "t": 3},
+        "nn|card-ee11ff": {"b": None, "v": {"p": "", "a": "unit-ab12cd", "t": "Third parties", "g": "", "d": ""}, "t": 2},
+        "nn|card-ee22ff": {"b": None, "v": {"p": "card-ee11ff", "a": "unit-ab12cd", "t": "Assignment"}, "t": 4},
+        "u|0|label": {"b": "UNIT ONE — FORMATION", "v": "UNIT ONE — MAKING A CONTRACT", "t": 5}}}
+    r = fold(st, "u", "t1")
+    assert not r["conflicts"] and not r["gone"], r
+    acts = st.doc["brief"]["acts"]
+    assert len(acts) == 6 and acts[5]["label"] == "UNIT SIX — THIRD PARTIES" and acts[5]["id"] == "unit-ab12cd"
+    assert acts[0]["label"] == "UNIT ONE — MAKING A CONTRACT"
+    assert _node(st, "card-ee11ff")["act"] == 5 and _node(st, "card-ee22ff")["parent"] == "card-ee11ff"
+    html, _ = _build(st)
+    assert '"uids":["","","","","","unit-ab12cd"]' in html          # the page knows it has it
+    assert "THIRD PARTIES" in html
+    # folding again changes nothing
+    r2 = fold(st, "u", "t1")
+    assert r2 is None or r2["folded"] == 0
+
+
+def test_chips_added_taken_off_and_made_on_the_page_fold():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "ne|c|good-faith": {"b": None, "v": {"name": "Good Faith", "color": "#22b8cf"}, "t": 1},
+        "ne|env|new-case": {"b": None, "v": {"name": "Smith v. Jones"}, "t": 1},
+        "ch|offer|chars": {"b": ["formation"], "v": ["formation", "good-faith"], "t": 2},
+        "ch|formation|envs": {"b": ["lucy-v-zehmer"], "v": ["new-case"], "t": 3}}}
+    r = fold(st, "u", "t1")
+    assert not r["conflicts"] and not r["gone"], r
+    ents = {e["id"]: e for e in st.doc["brief"]["entities"]}
+    assert ents["good-faith"]["name"] == "Good Faith" and ents["good-faith"]["color"] == "#22b8cf"
+    assert any(v["id"] == "new-case" for v in st.doc["brief"]["axes"][0]["values"])
+    assert _node(st, "offer")["entity_ids"] == ["formation", "good-faith"]
+    assert _node(st, "formation")["axis1_values"] == ["new-case"]
+    html, _ = _build(st)
+    assert "Good Faith" in html and "Smith v. Jones" in html
+    assert published(st, "u", "t1") == 4
+
+
+def test_a_chip_list_changed_meanwhile_is_a_conflict_and_unknown_chips_drop():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"ch|offer|chars": {"b": ["remedies"], "v": ["formation", "nope"], "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["ch|offer|chars"]
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"ch|offer|chars": {"b": ["formation"], "v": ["formation", "nope"], "t": 1}}}
+    fold(st, "u", "t1")
+    assert _node(st, "offer")["entity_ids"] == ["formation"]
+
+
+def test_the_page_carries_unit_ids_and_chip_kinds():
+    html, _ = build_timeline(*load_brief(_d()))
+    m = re.search(r"window\._ALTO_EDK=(\{.*?\});</script>", html)
+    edk = json.loads(m.group(1).replace("<\\/", "</"))
+    assert edk["uids"] == [""] * 5
+    assert [k["f"] for k in edk["chipk"]] == ["chars", "envs"] and edk["chipk"][0]["fk"] == "entity"
+    assert edk["glyph"]

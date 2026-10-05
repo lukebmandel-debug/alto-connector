@@ -605,6 +605,47 @@
   }
   .dl-cancel:hover{ color:var(--text); background:var(--btn-hover-bg); }
 
+  /* ── A new project or timeline, made here (alto/build/starter.py) ── */
+  #nt-scrim{
+    position:fixed; inset:0; z-index:400; display:none; align-items:center; justify-content:center;
+    background:rgba(10,12,24,.32);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  }
+  #nt-scrim.open{ display:flex; }
+  #nt-modal{
+    width:380px; max-width:calc(100vw - 32px); border-radius:16px; padding:28px 28px 22px; box-sizing:border-box;
+    background:var(--panel-glass-bg); border:1px solid var(--glass-slab-border);
+    box-shadow:0 8px 40px var(--card-shadow), inset 0 1px 0 var(--card-glass-hi);
+    -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
+  }
+  #nt-modal label{ display:block; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  #nt-modal input{
+    width:100%; box-sizing:border-box; height:40px; margin:0 0 16px; padding:0 12px; border-radius:10px;
+    border:1px solid var(--btn-border); background:var(--card-glass-bg); color:var(--text); font:inherit; font-size:14px;
+  }
+  #nt-modal input:focus{ outline:2px solid var(--accent, #a78bfa); outline-offset:1px; }
+  .nt-kinds{ display:flex; gap:8px; margin:0 0 18px; }
+  .nt-kind{
+    flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:10px 12px; border-radius:12px;
+    border:1px solid var(--btn-border); background:var(--card-glass-bg); color:var(--text); font-family:inherit;
+    font-size:13px; cursor:pointer; text-align:left;
+  }
+  .nt-kind small{ color:var(--muted); font-size:11px; line-height:1.45; }
+  .nt-kind.on{ border-color:var(--text); box-shadow:inset 0 0 0 1px var(--text); }
+  .nt-make{
+    width:100%; height:40px; border-radius:10px; border:0; margin:0 0 10px; cursor:pointer;
+    background:var(--text); color:var(--bg); font-family:inherit; font-size:13px; letter-spacing:.06em;
+  }
+  .nt-make[disabled]{ opacity:.55; cursor:default; }
+  .nt-claude{
+    width:100%; height:36px; border-radius:10px; border:1px solid var(--btn-border); margin:0 0 8px;
+    background:transparent; color:var(--muted); font-family:inherit; font-size:12.5px; cursor:pointer;
+  }
+  .nt-claude:hover{ color:var(--text); background:var(--btn-hover-bg); }
+  .nt-msg{ min-height:16px; font-size:12px; color:#c2410c; line-height:1.4; margin:0 0 6px; }
+  @media print{ #nt-scrim{ display:none !important; } }
+
   /* ── Per-course reports button — small doc bubble in the tile's bottom-right ── */
   .course-tile{ position:relative; }
   .tile-reports{
@@ -795,6 +836,23 @@
     <button class="dl-choice" id="dl-with"></button>
     <button class="dl-choice" id="dl-clean">Clean copy<small>No highlights or notes — the file others should get.</small></button>
     <button class="dl-cancel" onclick="dlClose()">Cancel</button>
+  </div>
+</div>
+
+<div id="nt-scrim">
+  <div id="nt-modal" role="dialog" aria-modal="true" aria-labelledby="nt-head">
+    <div class="acct-title" id="nt-head">New timeline</div>
+    <div class="acct-sub" id="nt-sub"></div>
+    <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. 1L Fall"></div>
+    <label for="nt-title">Timeline</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Contracts">
+    <div class="nt-kinds">
+      <button type="button" class="nt-kind on" data-kind="outline">Outline<small>Concepts that hold other concepts — a course</small></button>
+      <button type="button" class="nt-kind" data-kind="timeline">Timeline<small>Events in order — a story, a history</small></button>
+    </div>
+    <div class="nt-msg" id="nt-msg"></div>
+    <button type="button" class="nt-make" id="nt-make">Start writing</button>
+    <button type="button" class="nt-claude" id="nt-claude">Build it with Claude from my notes instead</button>
+    <button type="button" class="dl-cancel" id="nt-cancel">Cancel</button>
   </div>
 </div>
 
@@ -1009,13 +1067,72 @@ function inProjectPrompt(projectName){
     'project from the materials I give you. If Alto on this device has no project by that ' +
     'name yet, create it with exactly that name.';
 }
+// Signed in to this site's account, a new project or timeline can be started
+// right here and written in the page (alto/build/starter.py); Claude builds
+// one from notes. Without an account to keep it in, only Claude can.
+function altoCanMake(){
+  const c = window.AltoCloud;
+  return !!(c && c.enabled && c.user && typeof c.createTimeline === 'function' && DL_OK);
+}
+let ntKind = 'outline';
+function ntOpen(projectName){
+  if(!altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt); return; }
+  const s = document.getElementById('nt-scrim');
+  s.dataset.project = projectName || '';
+  document.getElementById('nt-head').textContent = projectName ? 'New timeline' : 'New project';
+  document.getElementById('nt-sub').textContent = projectName
+    ? 'In ' + projectName + '. Start it here and write it yourself — Claude can add your notes to it any time.'
+    : 'Name the project and its first timeline. Start it here and write it yourself — Claude can add your notes to it any time.';
+  document.getElementById('nt-prow').hidden = !!projectName;
+  document.getElementById('nt-project').value = '';
+  document.getElementById('nt-title').value = '';
+  document.getElementById('nt-msg').textContent = '';
+  const mk = document.getElementById('nt-make'); mk.disabled = false; mk.textContent = 'Start writing';
+  ntPick('outline');
+  s.classList.add('open');
+  setTimeout(() => document.getElementById(projectName ? 'nt-title' : 'nt-project').focus(), 0);
+}
+function ntClose(){ document.getElementById('nt-scrim').classList.remove('open'); }
+function ntPick(k){
+  ntKind = k;
+  document.querySelectorAll('#nt-modal .nt-kind').forEach(b => b.classList.toggle('on', b.dataset.kind === k));
+}
+function ntMake(){
+  const s = document.getElementById('nt-scrim'), msg = document.getElementById('nt-msg');
+  const inProject = s.dataset.project || '';
+  const project = inProject || document.getElementById('nt-project').value.replace(/\s+/g, ' ').trim();
+  const title = document.getElementById('nt-title').value.replace(/\s+/g, ' ').trim();
+  if(!inProject && !project){ msg.textContent = 'Name the project.'; document.getElementById('nt-project').focus(); return; }
+  if(!title){ msg.textContent = 'Name the timeline.'; document.getElementById('nt-title').focus(); return; }
+  const mk = document.getElementById('nt-make');
+  mk.disabled = true; mk.textContent = 'Making it…'; msg.textContent = '';
+  window.AltoCloud.createTimeline({ title: title, project: project, kind: ntKind }).then(r => {
+    try { sessionStorage.setItem('alto-edit-now', r.tid); } catch(e){}
+    location.href = r.url;
+  }).catch(e => {
+    mk.disabled = false; mk.textContent = 'Start writing';
+    msg.textContent = 'It could not be made: ' + ((e && e.message) || 'try again') + '.';
+  });
+}
+document.getElementById('nt-make').addEventListener('click', ntMake);
+document.getElementById('nt-cancel').addEventListener('click', ntClose);
+document.getElementById('nt-claude').addEventListener('click', () => {
+  const p = document.getElementById('nt-scrim').dataset.project || '';
+  ntClose(); openClaude(p ? inProjectPrompt(p) : newProjectPrompt);
+});
+document.querySelectorAll('#nt-modal .nt-kind').forEach(b => b.addEventListener('click', () => ntPick(b.dataset.kind)));
+document.getElementById('nt-scrim').addEventListener('click', e => { if(e.target.id === 'nt-scrim') ntClose(); });
+document.getElementById('nt-modal').addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ e.preventDefault(); ntClose(); }
+  if(e.key === 'Enter' && e.target.tagName === 'INPUT'){ e.preventDefault(); ntMake(); }
+});
 // The "＋ New timeline" tile at the end of a project's grid.
 function newTimelineTile(projectName){
   const nt = document.createElement('div');
   nt.className = 'course-tile new-tile';
   nt.setAttribute('role', 'button');
   nt.innerHTML = '<span class="nt-plus">＋</span><span class="nt-label">New timeline</span>';
-  nt.addEventListener('click', () => openClaude(inProjectPrompt(projectName)));
+  nt.addEventListener('click', () => ntOpen(projectName));
   return nt;
 }
 
@@ -1137,7 +1254,7 @@ if(altoIsTouch()){
 } else {
   nps.className = 'project-slab new-project-slab';
   nps.innerHTML = '<span class="nps-plus">＋</span><span class="nps-label">Start new project</span>';
-  nps.addEventListener('click', () => openClaude(newProjectPrompt));
+  nps.addEventListener('click', () => ntOpen(''));
 }
 wrap.appendChild(nps);
 

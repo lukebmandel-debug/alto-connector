@@ -247,3 +247,52 @@ def test_build_keeps_what_the_page_edits_folded_into_the_brief(monkeypatch):
     store[tid]["ops"]["u|0|label"]["b"] = "Renamed in the page"
     srv.build_timeline(tid)
     assert srv.get_store().get_timeline(srv.uid(), tid)["brief"]["acts"][0]["label"] == "Third name"
+
+
+def test_a_timeline_started_on_the_homepage_builds_with_what_was_written_in_it(monkeypatch):
+    """1.9.51: the homepage writes a starter draft (alto-cloud.js
+    createTimeline); everything after that is page edits. The connector's
+    build folds them and keeps them (units, cards, moves, chips)."""
+    from alto.build import starter
+    st = srv.get_store()
+    st.put_project(srv.uid(), "spring", {"project_id": "spring", "name": "Spring", "purpose": "",
+                                         "kind": "studying", "created": "2026-10-05T00:00:00+00:00"})
+    d = starter.draft("outline")
+    tid = "my-outline"
+    brief = {**d["brief"], "title": "My outline", "timeline_id": tid}
+    st.put_timeline(srv.uid(), tid, {
+        "timeline_id": tid, "project_id": "spring", "brief": brief,
+        "consent": {"granted": True, "at": "x", "manual": True,
+                    "sources": [{"name": "Written by the owner in the page", "kind": "own-writing"}]},
+        "status": "published", "visibility": "private-web", "private_key": "k" * 22,
+        "created": "2026-10-05T00:00:00+00:00", "started": "homepage"})
+    st.put_nodes(srv.uid(), tid, [dict(n) for n in d["nodes"]])
+    st.put_connections(srv.uid(), tid, [])
+    assert any(t["timeline_id"] == tid for p in srv.list_projects()["projects"] for t in p.get("timelines", [])) \
+        or tid in json.dumps(srv.list_projects())
+    store = {}
+    monkeypatch.setattr(type(st), "get_edits", lambda self, u, t: json.loads(json.dumps(store.get(t))) if t in store else None, raising=False)
+    monkeypatch.setattr(type(st), "put_edits", lambda self, u, t, x: store.__setitem__(t, json.loads(json.dumps(x))), raising=False)
+    store[tid] = {"v": 1, "ops": {
+        "n|unit-1-start|title": {"b": "First card", "v": "Negligence", "t": 1},
+        "nn|card-aa11bb": {"b": None, "v": {"p": "unit-1-start", "a": 0, "t": "Duty", "g": "", "d": ""}, "t": 2},
+        "nu|unit-cc22dd": {"b": None, "v": {"n": 3, "c": "#2fb380", "l": "New unit"}, "t": 3},
+        "nl|unit-cc22dd": {"b": "New unit", "v": "Strict liability", "t": 4},
+        "nn|card-ee33ff": {"b": None, "v": {"p": "", "a": "unit-cc22dd", "t": "Animals"}, "t": 5},
+        "rp|card-aa11bb": {"b": "unit-1-start", "v": "card-ee33ff", "t": 6},
+        "rp|unit-2-start": {"b": "", "v": "card-ee33ff", "t": 6},
+        "ne|c|duty-tag": {"b": None, "v": {"name": "Duty", "color": "#4a9eff"}, "t": 7},
+        "ch|card-aa11bb|chars": {"b": [], "v": ["duty-tag"], "t": 8}}}
+    r = srv.build_timeline(tid)
+    assert r.get("verify") == "passed", r
+    me = r["manual_edits"]
+    assert me.get("conflicts") == ["rp|unit-2-start"], me          # a unit's top card stays
+    doc = srv.get_store().get_timeline(srv.uid(), tid)
+    assert [a["label"] for a in doc["brief"]["acts"]] == ["Unit 1", "Unit 2", "Strict liability"]
+    assert any(e["id"] == "duty-tag" for e in doc["brief"]["entities"])
+    nodes = {n["id"]: n for n in srv.get_store().list_nodes(srv.uid(), tid)}
+    assert nodes["unit-1-start"]["title"] == "Negligence"
+    assert nodes["card-aa11bb"]["entity_ids"] == ["duty-tag"]
+    assert nodes["card-ee33ff"]["act"] == 2
+    assert (nodes["card-aa11bb"]["parent"], nodes["card-aa11bb"]["act"]) == ("card-ee33ff", 2)
+    assert nodes["unit-2-start"]["act"] == 1

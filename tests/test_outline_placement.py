@@ -822,30 +822,81 @@ def _shift_case():
     return ns, hints
 
 
-def test_a_shift_moves_the_card_and_its_progeny_and_nothing_else():
+def _under(par, i, top):
+    while i:
+        if i == top:
+            return True
+        i = par.get(i)
+    return False
+
+
+def _clash(y, x, h, w, a, b, gap=40):
+    """Two cards closer than the room make_room keeps between them."""
+    from alto.build.layout import ROOM_HGAP
+    return (abs(x[a] - x[b]) < (w[a] + w[b]) / 2 + ROOM_HGAP
+            and y[a] - h[a] / 2 < y[b] + h[b] / 2 + gap
+            and y[a] + h[a] / 2 + gap > y[b] - h[b] / 2)
+
+
+def test_a_shift_moves_the_card_and_its_progeny_and_the_rest_make_room():
     ns, hints = _shift_case()
     h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
     base = {k: {kk: vv for kk, vv in v.items() if kk != "shift"} for k, v in hints.items()}
     y0, x0, _ = run_plan(outline_plan(ns, 2, base), ns, h)
-    y1, x1, _ = run_plan(outline_plan(ns, 2, hints), ns, h)
+    plan = outline_plan(ns, 2, hints)
+    y1, x1, _ = run_plan(plan, ns, h)
     par = {n.id: n.parent for n in ns}
-
-    def under(i, top):
-        while i:
-            if i == top:
-                return True
-            i = par.get(i)
-        return False
     act0 = [n.id for n in ns if n.act == 0]
-    for i in act0:
-        dx = (120 if under(i, "breach") else 0) + (-30 if under(i, "custom") else 0)
-        dy = (340 if under(i, "breach") else 0) + (15 if under(i, "custom") else 0)
+    moved = [i for i in act0 if _under(par, i, "breach") or _under(par, i, "custom")]
+    for i in moved:
+        dx = (120 if _under(par, i, "breach") else 0) + (-30 if _under(par, i, "custom") else 0)
+        dy = (340 if _under(par, i, "breach") else 0) + (15 if _under(par, i, "custom") else 0)
         assert x1[i] == pytest.approx(x0[i] + dx), i
         assert y1[i] == pytest.approx(y0[i] + dy), i
+    # every other card is where it was, or out of the dragged cards' way
+    for i in act0:
+        if i in moved:
+            continue
+        assert x1[i] == pytest.approx(x0[i]), i
+        for j in moved:
+            assert not _clash(y1, x1, h, plan["w"], i, j), (i, j)
+    assert any(y1[i] != pytest.approx(y0[i]) for i in act0 if i not in moved)
     # the next unit starts below whatever the shift pushed lower
     low0 = max(y1[i] + h[i] / 2 for i in act0)
     assert min(y1[i] - h[i] / 2 for i in ("r2", "a2", "a2-l")) > low0
     assert x1["a2-l"] == pytest.approx(x0["a2-l"] - 200)
+
+
+def test_cards_that_made_room_go_back_once_the_card_moves_on():
+    ns, hints = _shift_case()
+    h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
+    plain = {"hub": {"arrange": "row"}}
+    y0, x0, _ = run_plan(outline_plan(ns, 2, plain), ns, h)
+    # dragged far down, past everything: nothing is in its way, nothing moves
+    far = dict(plain, custom={"shift": [0, 4000]})
+    y1, x1, _ = run_plan(outline_plan(ns, 2, far), ns, h)
+    par = {n.id: n.parent for n in ns}
+    for n in ns:
+        if n.act == 0 and not _under(par, n.id, "custom"):
+            assert y1[n.id] == pytest.approx(y0[n.id]), n.id
+    # dropped onto another card: that card moves; dragged on again, it is back
+    on = dict(plain, custom={"shift": [x0["risks"] - x0["custom"], y0["risks"] - y0["custom"] + 10]})
+    y2, _, _ = run_plan(outline_plan(ns, 2, on), ns, h)
+    assert y2["risks"] != pytest.approx(y0["risks"])
+
+
+def test_a_card_dropped_on_the_lower_half_of_another_lifts_it_if_there_is_room():
+    from alto.build.layout import make_room
+    y = {"a": 300.0, "b": 600.0, "m": 340.0}
+    x = {"a": 850.0, "b": 850.0, "m": 850.0}
+    h = {"a": 100.0, "b": 100.0, "m": 100.0}
+    w = {"a": 270, "b": 270, "m": 270}
+    make_room(y, x, h, w, ["a", "b", "m"], {"m"}, {}, 40, 0)
+    assert y["a"] == pytest.approx(340 - 50 - 40 - 50)           # lifted over it
+    assert y["b"] == pytest.approx(600)                          # never in the way
+    y = {"a": 300.0, "m": 340.0}
+    make_room(y, x, h, w, ["a", "m"], {"m"}, {}, 40, 260)          # no room above
+    assert y["a"] == pytest.approx(340 + 50 + 40 + 50)
 
 
 def test_no_shift_leaves_the_plan_as_it_was():
@@ -855,9 +906,16 @@ def test_no_shift_leaves_the_plan_as_it_was():
     assert "shift" not in plan and "shift" not in plan_js(plan)
 
 
+SHIFTS = [None, {"risks": [240, 0]}, {"cause": [-240, -200], "dam": [-600, 40]},
+          {"alt": [-120, -500]}, {"breach": [0, -260], "prox": [-360, 300]}]
+
+
 @needs_node
-def test_the_browser_shifts_exactly_as_the_builder_does(tmp_path):
+@pytest.mark.parametrize("extra", SHIFTS)
+def test_the_browser_shifts_exactly_as_the_builder_does(tmp_path, extra):
     ns, hints = _shift_case()
+    if extra:
+        hints = {**hints, **{k: {**hints.get(k, {}), "shift": v} for k, v in extra.items()}}
     plan = outline_plan(ns, 2, hints)
     h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
     y, x, _ = run_plan(plan, ns, h)

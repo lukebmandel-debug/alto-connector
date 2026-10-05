@@ -262,6 +262,9 @@ class Act:
     # materials. Empty: an outline's Overview composes one from the section's
     # hub description and its concepts (detail_extras.outline_overview).
     summary: str = ""
+    # Set on a unit added in the page (manual edit mode): the page's own name
+    # for it, so a page built with the unit does not add it a second time.
+    id: str = ""
 
 
 @dataclass
@@ -665,6 +668,8 @@ def validate_brief(b: Brief) -> list[str]:
             if set(v.cite) - {"ch", "p", "note", "short"}:
                 raise BriefError(f"axis value {v.id}: cite keys are ch, p, note, short")
     for i, a in enumerate(b.acts):
+        if a.id:
+            _check_id(a.id, f"act {i+1}")
         _check_len(a.label, "label", f"act {i+1} label")
         _check_len(a.short, "short", f"act {i+1} short")
         _check_len(a.summary, "summary", f"act {i+1} summary")

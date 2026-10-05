@@ -1055,6 +1055,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # drawer and the legend dots. A replace_nav'd axis is hidden there AND loses
     # its card chips (below); an Axis.hide_nav axis is hidden here only, so its
     # chips stay on the cards and its detail pages stay reachable.
+    b._alto_navrep = set(nav_replaced)            # manual edit mode: chips cards show
     nav_hidden = nav_replaced | {
         f"axis{i + 1}" for i, ax in enumerate(b.axes[:2]) if ax.hide_nav}
 
@@ -1671,8 +1672,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                             + [v.sections for ax in b.axes for v in ax.values])
            for s in g):
         nav_char_css += dx.PROV_CSS
-    if filter_sections:
-        nav_char_css += filter_panel_css()
+    # Always: manual edit mode can draw the panel for a timeline's first filter.
+    nav_char_css += filter_panel_css()
     # Outline detail pages: a numbered "Contains" list and an ancestry trail,
     # set to read like a written outline rather than a table.
     if b.mode == "outline":

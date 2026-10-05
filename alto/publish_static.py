@@ -166,6 +166,15 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
 
     (site / "index.html").write_text(hosted_home(build_home([])),
                                      encoding="utf-8")
+    # What the homepage starts a timeline from when the owner makes one there
+    # themselves (alto/build/starter.py). Only where there is an account to
+    # keep it in.
+    starters = site / "new"
+    if starters.exists():
+        shutil.rmtree(starters)
+    if load_config().get("apiKey"):
+        from .build.starter import write as write_starters
+        write_starters(site)
 
     # ── private timelines ───────────────────────────────────────────────────
     # Only the sign-in shell goes on the web; it is byte-identical for every

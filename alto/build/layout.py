@@ -944,7 +944,7 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
 
 def plan_js(plan: dict) -> dict:
     """The part of a plan the page needs (it measures heights itself)."""
-    out = {k: plan[k] for k in ("x", "acts", "etx", "top", "act_gap", "row_gap", "cx",
+    out = {k: plan[k] for k in ("x", "w", "acts", "etx", "top", "act_gap", "row_gap", "cx",
                                 "bus_span", "bus_above")}
     if plan.get("shift"):
         out["shift"] = plan["shift"]
@@ -969,6 +969,119 @@ def shift_offsets(shift: dict, parent: dict) -> dict:
         if dx or dy:
             out[i] = (dx, dy)
     return out
+
+
+ROOM_HGAP = 12
+
+
+def make_room(y: dict, x: dict, h: dict, w: dict, ids: list, moved: set,
+              parent: dict, gap: float, top: float) -> bool:
+    """Cards a dragged card lands on step out of its way (`moved`: the dragged
+    cards, which stay where they were put). Worked out afresh from the unit's
+    own layout every time, so a card that made room goes back to its place once
+    the dragged card is moved elsewhere. TREE_GLUE's _altoMakeRoom is the same.
+
+    A card whose centre is above the dragged card it meets moves up, with the
+    cards on its row, if nothing hangs under them and the unit has room above;
+    any other card it meets moves down below it, with everything under it. A card that moved is in the way of
+    the rest in turn. `ids` are the unit's cards, `top` its first card's top."""
+    if not moved:
+        return False
+    free = [i for i in ids if i not in moved and i in y]
+    if not free:
+        return False
+    y0 = dict(y)
+    ww = lambda i: w.get(i) or TREE["CARD_W"]
+    kids: dict = {}
+    for i in free:
+        p = parent.get(i)
+        if p:
+            kids.setdefault(p, []).append(i)
+    fset = set(free)
+
+    def rowroot(i):
+        while True:
+            p = parent.get(i)
+            if p in fset and abs(y0[p] - y0[i]) < 1:
+                i = p
+            else:
+                return i
+
+    def unit(i, whole):
+        """i and the cards on its row (whole: and everything under them)."""
+        out, q = [], [i]
+        while q:
+            c = q.pop(0)
+            out.append(c)
+            q += [k for k in kids.get(c, []) if whole or abs(y0[k] - y0[c]) < 1]
+        return out
+
+    def near(i, ti, j, tj):
+        return (abs(x[i] - x[j]) < (ww(i) + ww(j)) / 2 + ROOM_HGAP
+                and ti < tj + h[j] + gap and ti + h[i] + gap > tj)
+
+    def hits(i, t, j):
+        # two cards the unit's own layout set this close are left as they were
+        if j not in moved and near(i, y0[i] - h[i] / 2, j, y0[j] - h[j] / 2):
+            return False
+        return near(i, t, j, y[j] - h[j] / 2)
+
+    obst = [i for i in ids if i in moved and i in y]
+    order = sorted(free, key=lambda i: (y0[i] - h[i] / 2, x[i], i))
+    done, changed = set(), False
+    # up: what sits above a dragged card's centre, from the lowest up
+    for i in sorted(free, key=lambda i: (-(y0[i] + h[i] / 2), x[i], i)):
+        r = rowroot(i)
+        if r in done:
+            continue
+        grp = unit(r, False)
+        if len(unit(r, True)) > len(grp):
+            continue                # cards hang under it: they all go down together
+        t = {k: y[k] - h[k] / 2 for k in grp}
+        lift = 0.0
+        again = True
+        while again:
+            again = False
+            for k in grp:
+                for j in obst:
+                    if j not in grp and y0[k] < y[j] and hits(k, t[k] - lift, j):
+                        lift = max(lift, t[k] - (y[j] - h[j] / 2 - gap - h[k]))
+                        again = True
+        if (lift > 0 and min(t.values()) - lift >= top - 0.5
+                and not any(hits(k, t[k] - lift, j) for k in grp for j in obst if j not in grp)):
+            for k in grp:
+                y[k] -= lift
+            obst += grp
+            done.update(grp)
+            changed = True
+    # down: everything else in the way, top first, with what hangs under it
+    for i in order:
+        if i in done:
+            continue
+        r = rowroot(i)
+        if r in done:
+            continue
+        if not any(hits(k, y[k] - h[k] / 2, j) for k in unit(r, False) for j in obst
+                   if j != k):
+            continue
+        grp = [k for k in unit(r, True) if k not in done]
+        drop, again = 0.0, True
+        while again:
+            again = False
+            for k in grp:
+                tk = y[k] - h[k] / 2 + drop
+                for j in obst:
+                    if j not in grp and hits(k, tk, j):
+                        drop += y[j] + h[j] / 2 + gap - tk
+                        again = True
+                        break
+        if drop > 0:
+            for k in grp:
+                y[k] += drop
+            obst += grp
+            done.update(grp)
+            changed = True
+    return changed
 
 
 def run_plan(plan: dict, nodes, heights: dict):
@@ -1039,13 +1152,15 @@ def run_plan(plan: dict, nodes, heights: dict):
 
     # `shift` hints move a card and its progeny after its unit is laid out:
     # nothing else in the unit moves, and the units below start under it.
-    off = shift_offsets(plan.get("shift") or {},
-                        {n.id: n.parent for n in nodes}) if plan.get("shift") else {}
+    # Cards they land on make room (make_room); the units below start under it.
+    par = {n.id: n.parent for n in nodes}
+    off = shift_offsets(plan.get("shift") or {}, par) if plan.get("shift") else {}
     act_of = {n.id: n.act for n in nodes}
     cur = plan["top"]
     for a, ops in enumerate(plan["acts"]):
         if a and ops:
             cur = bottom[0] + plan["act_gap"]
+        start = cur
         for op in ops:
             cur = run(op, cur)
         moved = [i for i in off if act_of.get(i) == a and i in y]
@@ -1053,6 +1168,9 @@ def run_plan(plan: dict, nodes, heights: dict):
             for i in moved:
                 x[i] += off[i][0]
                 y[i] += off[i][1]
+            mine = [n.id for n in nodes if n.act == a and n.id in y]
+            make_room(y, x, h, plan.get("w") or {}, mine, set(moved), par,
+                      row_gap, start)
             bottom[0] = max(y[i] + h[i] / 2 for i in y)
     # anything outside the tree (verify rejects it; still never drop a card)
     for n in nodes:
