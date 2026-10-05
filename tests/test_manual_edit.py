@@ -542,7 +542,7 @@ def test_find_file_prefers_the_same_size_then_the_nearest_date(tmp_path):
         p.write_bytes(body)
         os.utime(p, (mt, mt))
     assert Path(find_file("Notes.docx", 3, 5100 * 1000, home=str(tmp_path))) == tmp_path / "Documents/b/Notes.docx"
-    assert Path(find_file("Notes.docx", 5, None, home=str(tmp_path))) == tmp_path / "Desktop/a/Notes.docx
+    assert Path(find_file("Notes.docx", 5, None, home=str(tmp_path))) == tmp_path / "Desktop/a/Notes.docx"
     assert find_file("nothing.pdf", home=str(tmp_path)) is None
     assert find_file("../etc/passwd", home=str(tmp_path)) is None
 
