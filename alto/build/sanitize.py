@@ -37,6 +37,7 @@ bundle and every dependency is weight there.
 from __future__ import annotations
 
 import html
+import copy
 import re
 from html.parser import HTMLParser
 
@@ -552,6 +553,9 @@ def sanitize_brief(b, nodes=None) -> list:
             sec_warnings.extend(f"{what} section {i + 1}: {m}" for m in w)
             if getattr(s, "tree", None):
                 from .subtree import sanitize_tree
+                # A copy: the dict is the stored node's own (load_brief shares
+                # it), and a cleaned tree must never reach the store.
+                s.tree = copy.deepcopy(s.tree)
                 sec_warnings.extend(sanitize_tree(s.tree, link_types, sources,
                                                   f"{what} section {i + 1}"))
 

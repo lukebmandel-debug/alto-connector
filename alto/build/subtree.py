@@ -138,7 +138,10 @@ def sanitize_tree(tree, link_types: dict, sources, what: str) -> list[str]:
         for k in ("title", "text", "tag", "edge"):
             if k in n:
                 n[k] = plain_text(n.get(k) or "")
-        link = (n.get("link") or "").strip()
+        link = n.get("link") or ""
+        if isinstance(link, list):          # already resolved: [type, id]
+            link = link[-1] if link else ""
+        link = str(link).strip()
         if link:
             typ = link_types.get(link)
             if typ:

@@ -177,3 +177,14 @@ def test_the_tree_draws_folds_and_opens_in_a_browser(tmp_path):
         assert pg.evaluate("window._currentDetailId") == "definiteness"
         b.close()
         assert errs == []
+
+
+def test_building_never_changes_the_stored_tree():
+    """load_brief shares the stored node's dicts; a cleaned tree (links
+    resolved to [type, id]) once leaked back and broke the next build."""
+    d = _d()
+    before = copy.deepcopy(d)
+    first, _ = _build(d)
+    assert d == before
+    second, _ = _build(d)
+    assert _data(first) == _data(second)
