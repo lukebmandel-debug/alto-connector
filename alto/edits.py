@@ -827,24 +827,40 @@ def published(store, uid, tid) -> int:
     # A card added on the page that is not in the draft yet: its words are
     # not gone, they are waiting for it.
     waiting = {k.split("|")[1] for k in live if k.startswith("nn|") and not ops[k].get("f")}
+    n_unmark = False
     n = 0
     for k in live:
         o = ops[k]
-        done = bool(o.get("f"))
+        p = k.split("|")
+        if len(p) > 1 and p[1] in waiting and not o.get("f"):
+            continue
+        # What the draft carries decides, folded or not: an edit marked
+        # folded that the draft does not hold (a write lost after the fold)
+        # stays on the page, and the next fold writes it again.
+        t = _target(k, copy.deepcopy(doc.get("brief") or {}), by_id, conns)
+        carried = None
+        if len(p) > 2 and p[2] == "s":
+            pass                 # by its ORIGINAL place: a reorder moves it, so trust the fold
+        elif t is not None and t[2] in ("plain", "para"):
+            carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
+        elif t is not None and t[2] == "shift":
+            carried = _same((t[0].get(t[1]) or {}).get("shift"), o.get("v"))
+        elif t is not None and t[2] == "flags":
+            carried = _flag_list(t[0].get(t[1])) == _flag_list(o.get("v"))
+        elif t is not None and t[2] == "list":
+            carried = [str(x) for x in (t[0].get(t[1]) or [])] == [str(x) for x in (o.get("v") or [])]
+        if carried is False:
+            if o.get("f"):
+                ops[k] = {key: val for key, val in o.items() if key != "f"}
+                n_unmark = True
+            continue
+        done = bool(o.get("f")) or carried is True
         if not done:
-            p = k.split("|")
-            if len(p) > 1 and p[1] in waiting:
-                continue
-            t = _target(k, copy.deepcopy(doc.get("brief") or {}), by_id, conns)
-            if t is None:
+            if t is None and not (len(p) > 1 and p[1] in waiting):
                 done = True                    # its field is gone
-            elif t[2] in ("plain", "para"):
-                done = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
-            elif t[2] == "shift":
-                done = _same((t[0].get(t[1]) or {}).get("shift"), o.get("v"))
         if done:
             ops[k] = {"t": o.get("t") or int(time.time() * 1000), "done": True}
             n += 1
-    if n:
+    if n or n_unmark:
         store.put_edits(uid, tid, {"v": 1, "ops": ops})
     return n

@@ -245,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.49"
+__version__ = "1.9.50"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1530,9 +1530,17 @@ def _fold_edits(timeline_id: str):
         return None
     try:
         from .edits import fold
-        return fold(st, uid(), timeline_id)
+        r = fold(st, uid(), timeline_id)
     except Exception as e:                     # noqa: BLE001 — report, don't block
         return {"error": "fold_failed", "message": str(e)[:300]}
+    # The draft just changed: the copy fetched before the tool ran (see
+    # _prefetched) is stale now, and a caller that saved it back would undo
+    # every edit the fold wrote into the brief.
+    if r and r.get("folded"):
+        pre = _prefetched.get()
+        if pre and pre[0] == timeline_id:
+            _prefetched.set(None)
+    return r
 
 
 def _edits_published(timeline_id: str) -> None:

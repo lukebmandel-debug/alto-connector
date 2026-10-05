@@ -1449,7 +1449,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(n.nodeType === 3){ dst.appendChild(document.createTextNode(n.nodeValue)); return; }
         if(n.nodeType !== 1) return;
         var tag = n.tagName;
-        if(tag === 'A' && n.classList.contains(LOCAL_CLS)){ dst.appendChild(n.cloneNode(false)); return; }
+        if(tag === 'A' && n.classList.contains(LOCAL_CLS)){ var ic = n.cloneNode(false); ic.removeAttribute('contenteditable'); dst.appendChild(ic); return; }
         if(tag === 'SPAN' && n.classList.contains('ov-node-link')){
           var ob = n.querySelector('button.ov-node-btn'), om = ob && /^showDetail\('node','([a-z0-9][a-z0-9-]{0,47})'\)$/.exec(ob.getAttribute('onclick') || '');
           if(om){ var sp = document.createElement('span'); sp.className = 'ov-node-link'; var bt = document.createElement('button'); bt.className = 'ov-node-btn';
@@ -1467,7 +1467,9 @@ MANUAL_JS = r"""<script id="alto-manual">
           walk(n, fa); dst.appendChild(fa); return; }
         if(tag === 'A'){
           var href = n.getAttribute('href') || '';
-          if(/^(https?:\/\/|mailto:)/i.test(href)){ var a = document.createElement('a'); a.setAttribute('href', href); a.className = 'note-link'; a.target = '_blank'; a.rel = 'noopener';
+          if(/^(https?:\/\/|mailto:)/i.test(href)){ var a = document.createElement('a'); a.setAttribute('href', href);
+            var tt = n.getAttribute('title'); if(tt) a.setAttribute('title', tt.slice(0, 300));
+            a.className = 'note-link'; a.target = '_blank'; a.rel = 'noopener';
             var ds = n.getAttribute('data-src'); if(ds && /^[a-z0-9][a-z0-9-]{0,63}$/.test(ds)) a.setAttribute('data-src', ds); walk(n, a); dst.appendChild(a); return; }
           if(href === '#' && n.getAttribute('data-src')){ var a2 = document.createElement('a'); a2.setAttribute('href', '#'); a2.className = 'note-link'; a2.setAttribute('data-src', n.getAttribute('data-src')); walk(n, a2); dst.appendChild(a2); return; }
           walk(n, dst); return;
@@ -1476,7 +1478,13 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(tag === 'DIV') tag = 'BR_DIV';
         if(tag === 'BR_DIV'){ if(dst.lastChild) dst.appendChild(document.createElement('br')); walk(n, dst); return; }
         var e = document.createElement(tag.toLowerCase());
-        if(tag === 'SPAN'){ walk(n, dst); return; }
+        // a span the build wrote (a source note's item, its "Notes" tag…)
+        // keeps its class; one the editor made (style only) is unwrapped
+        if(tag === 'SPAN'){
+          var sc = String(n.getAttribute('class') || '').trim();
+          if(/^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)*$/.test(sc) && !/(^| )(aed|adt)-/.test(sc) && sc.length <= 80){ e.className = sc; walk(n, e); dst.appendChild(e); }
+          else walk(n, dst);
+          return; }
         walk(n, e); dst.appendChild(e);
       });
     }

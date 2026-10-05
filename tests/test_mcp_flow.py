@@ -216,3 +216,34 @@ def test_a_private_web_page_is_written_compressed(request, monkeypatch):
     fields = st.s.http.docs[f"{st.root}/users/{srv.uid()}/pages/{key}"]
     assert "html" not in fields and fields["enc"] == {"stringValue": "gzip"}
     assert unpack_page(base64.b64decode(fields["z"]["bytesValue"])) == page
+
+
+def test_build_keeps_what_the_page_edits_folded_into_the_brief(monkeypatch):
+    """1.9.49 regression: build_timeline folded the page's edits and then
+    saved the timeline it had fetched BEFORE the fold, undoing every edit that
+    lives in the brief (dragged cards, unit names, the Overview, filters).
+    And a publish must never mark done an edit the draft does not carry."""
+    tid = _setup_draft()
+    srv.record_materials_consent(tid, [{"name": "notes", "kind": "notes"}], True)
+    srv.add_nodes(tid, SAMPLE["nodes"])
+    st = srv.get_store()
+    store = {}
+    monkeypatch.setattr(type(st), "get_edits", lambda self, u, t: json.loads(json.dumps(store.get(t))) if t in store else None, raising=False)
+    monkeypatch.setattr(type(st), "put_edits", lambda self, u, t, d: store.__setitem__(t, json.loads(json.dumps(d))), raising=False)
+    brief0 = srv.get_store().get_timeline(srv.uid(), tid)["brief"]
+    l0, l1 = brief0["acts"][0]["label"], brief0["acts"][1]["label"]
+    store[tid] = {"v": 1, "ops": {"u|0|label": {"b": l0, "v": "Renamed in the page", "t": 1},
+                                 "u|1|label": {"b": l1, "v": "Also renamed", "t": 2}}}
+    r = srv.build_timeline(tid)
+    assert r.get("verify") == "passed" and r["manual_edits"].get("folded") == 2, r.get("manual_edits")
+    acts = srv.get_store().get_timeline(srv.uid(), tid)["brief"]["acts"]
+    assert (acts[0]["label"], acts[1]["label"]) == ("Renamed in the page", "Also renamed")
+    from alto.edits import published
+    assert published(srv.get_store(), srv.uid(), tid) == 2
+    # a folded edit the draft lost is not marked done, and folds again
+    store[tid] = {"v": 1, "ops": {"u|0|label": {"b": l0, "v": "Third name", "t": 3, "f": 1}}}
+    assert published(srv.get_store(), srv.uid(), tid) == 0
+    assert not store[tid]["ops"]["u|0|label"].get("done")
+    store[tid]["ops"]["u|0|label"]["b"] = "Renamed in the page"
+    srv.build_timeline(tid)
+    assert srv.get_store().get_timeline(srv.uid(), tid)["brief"]["acts"][0]["label"] == "Third name"
