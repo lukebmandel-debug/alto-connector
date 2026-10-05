@@ -515,7 +515,8 @@ def test_a_link_to_a_file_on_this_computer_is_found_and_kept(tmp_path, monkeypat
     assert st.doc["brief"]["linked_files"] == [{"id": "file-abcdef12", "name": "Offer letter.pdf", "local": str(f)}]
     assert 'href="src:file-abcdef12"' in _node(st, "formation")["sections"][0]["t"]
     html, _ = _build(st)
-    assert 'data-src="file-abcdef12"' in html and str(f) in html     # the page's _ALTO_LOCAL
+    assert 'data-src="file-abcdef12"' in html
+    assert json.dumps(str(f), ensure_ascii=False)[1:-1] in html      # the page's _ALTO_LOCAL
 
 
 def test_a_link_to_a_file_that_cannot_be_found_waits(tmp_path, monkeypatch):
@@ -540,8 +541,8 @@ def test_find_file_prefers_the_same_size_then_the_nearest_date(tmp_path):
         p = tmp_path / d / "Notes.docx"
         p.write_bytes(body)
         os.utime(p, (mt, mt))
-    assert find_file("Notes.docx", 3, 5100 * 1000, home=str(tmp_path)).endswith("Documents/b/Notes.docx")
-    assert find_file("Notes.docx", 5, None, home=str(tmp_path)).endswith("Desktop/a/Notes.docx")
+    assert Path(find_file("Notes.docx", 3, 5100 * 1000, home=str(tmp_path))) == tmp_path / "Documents/b/Notes.docx"
+    assert Path(find_file("Notes.docx", 5, None, home=str(tmp_path))) == tmp_path / "Desktop/a/Notes.docx
     assert find_file("nothing.pdf", home=str(tmp_path)) is None
     assert find_file("../etc/passwd", home=str(tmp_path)) is None
 
