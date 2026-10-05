@@ -71,6 +71,24 @@
       if (!configured) return false;
       return ready.then(() => _setTid(tid));
     },
+    /* Manual edit mode (alto/build/manual_edit.py): the owner's edits to one
+       timeline, one document beside the notes — users/{uid}/edits/{tid},
+       {data: JSON text, updatedAt}. The connector folds them into the draft
+       (alto/edits.py) and marks them done. Nothing else reads or writes it. */
+    getEdits: async (tid) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _getEdits(tid);
+    },
+    putEdits: async (tid, obj) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _putEdits(tid, obj);
+    },
+    watchEdits: (tid, cb) => {
+      if (!configured) return () => {};
+      let stop = null, off = false;
+      ready.then(() => { if (!off) stop = _watchEdits(tid, cb); });
+      return () => { off = true; try { stop && stop(); } catch (e) {} };
+    },
     // Private timelines: the page itself lives in Firestore under the owner's
     // uid, so the rules decide who may read it. `ready` never resolves when the
     // publisher has no Firebase project, hence the check before the await.
@@ -897,6 +915,27 @@
     }, e => console.warn('[AltoCloud] reports listener', e));
   }
 
+  function _editsRef(tid) {
+    if (!cloud.user) throw new Error('not signed in');
+    tid = String(tid || '');
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(tid)) throw new Error('bad timeline id');
+    return doc(db, 'users', cloud.user.uid, 'edits', tid);
+  }
+  const _decodeEdits = (snap) => {
+    if (!snap || !snap.exists()) return null;
+    try { const d = snap.data() || {}; return d.data ? JSON.parse(d.data) : null; } catch (e) { return null; }
+  };
+  async function _getEdits(tid) { return _decodeEdits(await getDoc(_editsRef(tid))); }
+  async function _putEdits(tid, obj) {
+    await setDoc(_editsRef(tid), { data: JSON.stringify(obj || {}), updatedAt: serverTimestamp() });
+    return true;
+  }
+  function _watchEdits(tid, cb) {
+    if (!cloud.user) return () => {};
+    return onSnapshot(_editsRef(tid), (snap) => { try { cb(_decodeEdits(snap)); } catch (e) {} },
+                      () => {});
+  }
+
   function _setTid(tid) {
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
@@ -913,6 +952,7 @@
     // Pages draw from what this browser remembers until this is set; after it,
     // cloud.user is the truth, including a null that means signed out.
     cloud.known = true;
+    try { window.dispatchEvent(new CustomEvent('alto-auth')); } catch (e) {}
     for (const u of [unsubUser, unsubMain, unsubRp]) { try { u && u(); } catch (e) {} }
     unsubUser = unsubMain = unsubRp = null;
     remoteUser = undefined; remoteMain = undefined; remoteReports = undefined; remoteTombs = new Set();

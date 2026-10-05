@@ -106,17 +106,32 @@ window._altoTree = function(pos, h){
     }
     run(op[1],op.length>2?op[2]:c); return c;                 // float / pinned: takes no room
   }
+  /* `shift` hints (layout.shift_offsets): a card and its progeny move after
+     their unit is laid out; nothing else in it moves */
+  var off={}, P0=(window._ALTO_OUTLINE||{}).parent||{};
+  if(T.shift) Object.keys(NODE_ACT).forEach(function(i){
+    var dx=0, dy=0, c=i, seen={};
+    while(c && !seen[c]){ seen[c]=1; var s=T.shift[c]; if(s){ dx+=s[0]; dy+=s[1]; } c=P0[c]||''; }
+    if(dx || dy) off[i]=[dx,dy];
+  });
   var cur=T.top;
   T.acts.forEach(function(ops,a){
     if(a && ops.length) cur=bottom+T.act_gap;
     ops.forEach(function(o){ cur=run(o,cur); });
+    var moved=Object.keys(off).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; });
+    if(moved.length){
+      moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; });
+      bottom=Math.max.apply(null, Object.keys(y).map(function(i){ return y[i]+h[i]/2; }));
+    }
   });
   NODES.forEach(function(n){
     if(y[n.id]==null){ y[n.id]=bottom+T.row_gap+h[n.id]/2; x[n.id]=T.cx; bottom=y[n.id]+h[n.id]/2; }
     pos[n.id]=y[n.id]; n.displayX=x[n.id];
     var el=document.getElementById('node-'+n.id); if(el) el.style.left=x[n.id]+'px';
   });
-  window._altoEdgeTX=T.etx||{};
+  var etx=T.etx||{};
+  if(T.shift){ etx={}; Object.keys(T.etx||{}).forEach(function(k){ var c=k.split('|')[1]; etx[k]=T.etx[k]+(off[c]?off[c][0]:0); }); }
+  window._altoEdgeTX=etx;
   window._altoTreeOn=true; window._altoTreeGeo={y:y, h:h, x:x};
   return true;
 };
@@ -773,7 +788,7 @@ LOCAL_OPEN = r"""<style id="alto-local-css">
 # A share snapshot (id 's-...', see reidentify) is someone else's timeline: no
 # tile, and no extra room.
 EDIT_TILE = r"""<style id="alto-edit-css">
-  .alto-edit-tile{position:absolute;left:50%;transform:translateX(-50%);width:260px;min-height:92px;
+  .alto-edit-tile{position:absolute;left:50%;transform:translateX(-50%);width:340px;min-height:92px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
     box-sizing:border-box;border:1.5px dashed var(--muted);border-radius:18px;background:var(--chip-glass-bg);
     -webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);
@@ -876,13 +891,27 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     world = document.getElementById('world');
     if(!world) return;
     if(!tile || !tile.isConnected){
-      tile = document.createElement('button');
-      tile.type = 'button'; tile.className = 'alto-edit-tile';
-      tile.setAttribute('aria-label', 'Edit this timeline with Claude');
-      tile.innerHTML = '<span class="et-glyph">✎</span><span class="et-label">Edit timeline</span>' +
-                       '<span class="et-sub">Add notes, link sources or change anything</span>';
-      tile.addEventListener('click', function(e){ e.stopPropagation(); openClaude(); });
+      // Two halves under one header (manual_edit.py draws them and runs the
+      // right half: edit mode, with undo / redo either side of the tile).
+      tile = document.createElement('div');
+      tile.className = 'alto-edit-tile'; tile.setAttribute('role', 'group');
+      tile.setAttribute('aria-label', 'Edit this timeline');
+      tile.innerHTML = window._altoEditTileHTML ? window._altoEditTileHTML(false) :
+        '<span class="et-head"><span class="et-glyph">✎</span><span class="et-label">Edit timeline</span></span>' +
+        '<span class="et-split"><button type="button" class="et-half et-claude">Edit in Claude' +
+        '<small>Add notes, link sources or change anything</small></button></span>';
+      tile.addEventListener('click', function(e){
+        var b = e.target.closest && e.target.closest('button'); if(!b) return;
+        e.stopPropagation();
+        if(b.classList.contains('et-claude')){ openClaude(); return; }
+        var M = window._altoManual; if(!M) return;
+        if(b.classList.contains('et-manual')){ if(M.editing()) M.exit(); else M.enter(); }
+        else if(b.classList.contains('et-undo')) M.undo();
+        else if(b.classList.contains('et-redo')) M.redo();
+      });
+      tile._aed = 1;
       world.appendChild(tile);
+      if(window._altoWireEditTile) window._altoWireEditTile(tile);
     }
     var top = Math.round(slot()); if(!top) return;
     if(tile.style.top !== top + 'px') tile.style.top = top + 'px';

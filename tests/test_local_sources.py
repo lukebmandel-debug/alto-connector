@@ -366,7 +366,10 @@ def test_the_guide_offers_source_links_for_notes_and_outlines():
 def test_the_guide_sends_every_change_back_to_claude():
     g = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     sec = g[g.index("## Changes go through Claude"):g.index("## What the user gets")]
-    for must in ("never edits a timeline by hand", "come back to Claude",
+    # Since manual edit mode the user may change words in the page itself;
+    # files, the site and Firebase stay off limits, and the rest comes to Claude.
+    for must in ("never edits files, the site or Firebase", "come back to Claude",
+                 "Manual edit mode", "fold them into the draft first",
                  "New notes can come at any point", "record_materials_consent",
                  "download it again"):
         assert must in sec, must

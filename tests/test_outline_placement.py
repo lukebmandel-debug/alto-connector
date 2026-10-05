@@ -809,3 +809,82 @@ def test_concepts_with_progeny_go_in_a_row_under_their_parent_clear_of_a_wide_ro
                for i in row + [c + s for c in row for s in ("-l", "-nl")])
     check = placement_check(ns, plan, y, x, h)
     assert check["overlaps"] == [] and check["off_margin"] == []
+
+
+# ── shift: a card dragged in manual edit mode ────────────────────────────────
+
+def _shift_case():
+    ns = _negligence() + [_n("r2", act=1), _n("a2", "r2", 1), _n("a2-l", "a2", 1)]
+    hints = {"hub": {"arrange": "row"}, "breach": {"shift": [120, 340]},
+             "custom": {"shift": [-30, 15]}, "a2": {"shift": [-200, -20]}}
+    b = _brief(placement=hints)
+    place(b, ns)
+    return ns, hints
+
+
+def test_a_shift_moves_the_card_and_its_progeny_and_nothing_else():
+    ns, hints = _shift_case()
+    h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
+    base = {k: {kk: vv for kk, vv in v.items() if kk != "shift"} for k, v in hints.items()}
+    y0, x0, _ = run_plan(outline_plan(ns, 2, base), ns, h)
+    y1, x1, _ = run_plan(outline_plan(ns, 2, hints), ns, h)
+    par = {n.id: n.parent for n in ns}
+
+    def under(i, top):
+        while i:
+            if i == top:
+                return True
+            i = par.get(i)
+        return False
+    act0 = [n.id for n in ns if n.act == 0]
+    for i in act0:
+        dx = (120 if under(i, "breach") else 0) + (-30 if under(i, "custom") else 0)
+        dy = (340 if under(i, "breach") else 0) + (15 if under(i, "custom") else 0)
+        assert x1[i] == pytest.approx(x0[i] + dx), i
+        assert y1[i] == pytest.approx(y0[i] + dy), i
+    # the next unit starts below whatever the shift pushed lower
+    low0 = max(y1[i] + h[i] / 2 for i in act0)
+    assert min(y1[i] - h[i] / 2 for i in ("r2", "a2", "a2-l")) > low0
+    assert x1["a2-l"] == pytest.approx(x0["a2-l"] - 200)
+
+
+def test_no_shift_leaves_the_plan_as_it_was():
+    ns, hints = _shift_case()
+    base = {k: {kk: vv for kk, vv in v.items() if kk != "shift"} for k, v in hints.items()}
+    plan = outline_plan(ns, 2, base)
+    assert "shift" not in plan and "shift" not in plan_js(plan)
+
+
+@needs_node
+def test_the_browser_shifts_exactly_as_the_builder_does(tmp_path):
+    ns, hints = _shift_case()
+    plan = outline_plan(ns, 2, hints)
+    h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
+    y, x, _ = run_plan(plan, ns, h)
+    kids = outline_kids(ns)
+    js = ("var window=globalThis; var document={documentElement:{classList:{contains:function(){return false;}}},"
+          "getElementById:function(){return null;}};\n"
+          f"var NODES={json.dumps([{'id': n.id} for n in ns])};\n"
+          f"var NODE_ACT={json.dumps({n.id: n.act for n in ns})};\n"
+          "window._ALTO_OUTLINE={kids:" + json.dumps(kids) + ",parent:"
+          + json.dumps({n.id: n.parent for n in ns if n.parent}) + "};\n"
+          + dx.tree_glue(plan_js(plan)) + "\n"
+          f"var pos={{}}, h={json.dumps(h)}; window._altoTree(pos,h);\n"
+          "console.log(JSON.stringify({y:pos, etx:window._altoEdgeTX, x:Object.fromEntries(NODES.map(function(n){return [n.id,n.displayX];}))}));")
+    f = tmp_path / "plan.js"
+    f.write_text(js, encoding="utf-8")
+    out = json.loads(subprocess.check_output([NODE, str(f)], timeout=60))
+    for n in ns:
+        assert out["y"][n.id] == pytest.approx(y[n.id]), n.id
+        assert out["x"][n.id] == pytest.approx(x[n.id]), n.id
+    from alto.build.layout import shift_offsets
+    off = shift_offsets(plan["shift"], {n.id: n.parent for n in ns})
+    for k, v in plan["etx"].items():
+        assert out["etx"][k] == pytest.approx(v + off.get(k.split("|")[1], (0, 0))[0]), k
+
+
+def test_a_bad_shift_is_refused():
+    for bad in ([1], "up", [1, "x"], [5000, 0], [0, 99999], {"dx": 1}):
+        with pytest.raises(BriefError, match="shift"):
+            validate_brief(_brief(placement={"a": {"shift": bad}}))
+    validate_brief(_brief(placement={"a": {"shift": [-40, 300.5]}}))

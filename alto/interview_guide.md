@@ -804,21 +804,21 @@ revoked from the homepage.
 
 ## Changes go through Claude
 
-The user never edits a timeline by hand. To change anything — fix a line,
-rename a unit, restructure, add a case, add or remove source links — or to
-add new notes, they come back to Claude with their materials, and you make
-the change with the tools, rebuild and republish (`get_timeline` resumes the
-draft). New notes can come at any point in the semester: read them, record
+The user never edits files, the site or Firebase. Small changes they can make
+in the timeline itself (manual edit mode, below); for anything else —
+restructure, add a case, add or remove source links, add new notes — they
+come back to Claude with their materials, and you make the change with the
+tools, rebuild and republish (`get_timeline` resumes the draft). New notes can come at any point in the semester: read them, record
 them in the manifest (`record_materials_consent` with the full list, old
 entries unchanged), link them as the user chose (§A.4), author from them, and
 rebuild. Say this once at the end of a build — "whenever you have new notes
 or want something changed, just bring it here" — and never send them to edit
 files, the site, or Firebase.
 
-**The ✎ Edit timeline button — and starting without it.** The end of every
-timeline (after the last unit; computers only — timelines are made and changed
-with Claude on a computer, so phones have no button) opens Claude with a prompt
-naming the timeline, its id and the address of its page. A user can just as
+**The ✎ Edit timeline tile — and starting without it.** The end of every
+timeline (after the last unit) and the foot of every page carry a tile split in
+two: "Edit in Claude" opens Claude with a prompt naming the timeline, its id
+and the address of its page; "Edit manually" turns on manual edit mode. A user can just as
 well open Claude on their own and say which timeline they want to change, so
 the same steps serve both. `get_timeline(<id>)` — the id, the page address or
 the title all work. If this connector does not have it: it is probably in
@@ -828,7 +828,26 @@ another of the user's Alto accounts (`found_in_accounts` on the error, or
 account". If the prompt names a site (the address after "page:") that no
 account lists, `connect_account` it. Never tell the user it does not exist.
 Then ask what they want changed, or take the notes they bring, and go on as
-above. A share link someone else opens has no Edit button.
+above. A share link someone else opens has no Edit tile.
+
+**Manual edit mode.** Signed in on their own web timeline, the owner can
+change words in place: card titles, tags and summaries, unit names, a page's
+section headings and text, decision-tree steps, element and case names; link
+any words in a page's text to another page of the timeline or to a website;
+and, on an outline, on a computer, drag a card (its progeny come with it,
+nothing else moves — stored as a `shift` placement hint). Phones edit text on
+the page being read only. Nothing changes until they turn the mode on; Done
+in the pill turns it off; undo and redo sit either side of the tile, and ⌘Z /
+⇧⌘Z work too (outside edit mode the same keys undo notes and highlights).
+Edits save as they are made and show on their other devices at once; share
+links get them only after you fold them in and republish. **`get_timeline`
+and `build_timeline` fold them into the draft first** — the reply's
+`manual_edits` says how many. Tell the user in plain words what was folded;
+if it lists `conflicts`, those fields were changed in the draft after the page
+edit, so the draft's version was kept — say which, and ask. Publish
+(private-web) to put the folded edits in the page itself; Alto then marks
+them done. The user's own words are theirs to edit: §0 governs what YOU write,
+not what they type.
 
 A downloaded offline copy does not update itself: after a change, tell them
 to download it again if they use one.

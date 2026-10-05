@@ -245,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.46"
+__version__ = "1.9.47"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1521,6 +1521,31 @@ def _checked(doc, brief: dict) -> dict:
     return {**brief, "source_docs": _source_docs(doc)}
 
 
+def _fold_edits(timeline_id: str):
+    """The owner's manual edits from the page (alto/edits.py), folded into
+    the draft before Claude reads or builds it, so a page edit and Claude's
+    next change never overwrite each other. Never stops the tool calling it."""
+    st = get_store()
+    if not hasattr(st, "get_edits"):
+        return None
+    try:
+        from .edits import fold
+        return fold(st, uid(), timeline_id)
+    except Exception as e:                     # noqa: BLE001 — report, don't block
+        return {"error": "fold_failed", "message": str(e)[:300]}
+
+
+def _edits_published(timeline_id: str) -> None:
+    st = get_store()
+    if not hasattr(st, "get_edits"):
+        return
+    try:
+        from .edits import published
+        published(st, uid(), timeline_id)
+    except Exception:                          # noqa: BLE001
+        pass
+
+
 def _load_full(doc):
     st = get_store()
     nodes = [{k: v for k, v in n.items() if not k.startswith("_")}
@@ -1736,12 +1761,19 @@ def build_timeline(timeline_id: str, layout: str = "",
 
     layout / tree_lines: as run_layout_preview; given here they are also kept
     in the brief, so every later build (and publish) uses them. Cards placed
-    with place_nodes are used automatically; overlaps come back as warnings."""
+    with place_nodes are used automatically; overlaps come back as warnings.
+    Edits the owner made in the page itself (manual edit mode) are folded into
+    the draft first; the reply's manual_edits says how many."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
     if not _consent_ok(doc):
         return CONSENT_ERROR
+    edits = _fold_edits(timeline_id)
+    if edits and edits.get("folded"):
+        doc, err = _timeline_or_error(timeline_id)
+        if err:
+            return err
     doc = _layout_choice(doc, layout, tree_lines)
     try:
         b, nodes, conns = _load_full(doc)
@@ -1790,6 +1822,7 @@ def build_timeline(timeline_id: str, layout: str = "",
     # otherwise be told the build succeeded without ever learning that a
     # 700KB finished timeline is sitting on their disk.
     return {"verify": "passed", **report,
+            **({"manual_edits": edits} if edits else {}),
             "offline_path": offline_path,
             "note": ("That file IS the finished timeline — self-contained, "
                      "opens in any browser, no server or account needed. "
@@ -1923,9 +1956,7 @@ def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
     return {"visibility": visibility, **urls}
 
 
-@mcp.tool(title="Publish timeline", annotations=RW)
-@accounted
-def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
+def _publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     """Publish the built timeline.
 
     visibility:
@@ -2132,6 +2163,23 @@ def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
     return {"visibility": visibility, **urls}
 
 
+
+def _doc_of(src):
+    def d(fn):
+        fn.__doc__ = src.__doc__
+        return fn
+    return d
+
+
+@mcp.tool(title="Publish timeline", annotations=RW)
+@accounted
+@_doc_of(_publish_timeline)
+def publish_timeline(timeline_id: str, visibility: str = "private") -> dict:
+    r = _publish_timeline(timeline_id, visibility)
+    if isinstance(r, dict) and not r.get("error") and visibility == "private-web":
+        _edits_published(timeline_id)        # the page now carries the folded edits
+    return r
+
 @mcp.tool(title="Get timeline state", annotations=RO)
 @accounted
 def get_timeline(timeline_id: str) -> dict:
@@ -2140,10 +2188,16 @@ def get_timeline(timeline_id: str) -> dict:
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
+    edits = _fold_edits(timeline_id)
+    if edits and edits.get("folded"):
+        doc, err = _timeline_or_error(timeline_id)
+        if err:
+            return err
     st = get_store()
     nodes = st.list_nodes(uid(), timeline_id)
     conns = st.get_connections(uid(), timeline_id)
     return {
+        **({"manual_edits": edits} if edits else {}),
         "timeline_id": timeline_id,
         "project_id": doc.get("project_id"),
         "brief": doc.get("brief"),

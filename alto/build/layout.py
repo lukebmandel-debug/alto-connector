@@ -932,15 +932,43 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             s = (w[ks[0]] / 2 - 20) / 115 * max(40, min(80, 115 / half))
             for j, k in enumerate(ks[1:], 1):
                 etx[f"{p}|{k}"] = round(x[ks[0]] + -(-j // 2) * s * (-1 if j % 2 else 1), 2)
-    return {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
-            "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"],
-            "bus_span": T["BUS_SPAN"], "bus_above": T["BUS_ABOVE"], "warnings": warns}
+    out = {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
+           "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"],
+           "bus_span": T["BUS_SPAN"], "bus_above": T["BUS_ABOVE"], "warnings": warns}
+    shift = {i: [float(h["shift"][0]), float(h["shift"][1])] for i, h in H.items()
+             if i in by_id and isinstance(h, dict) and h.get("shift")}
+    if shift:
+        out["shift"] = shift
+    return out
 
 
 def plan_js(plan: dict) -> dict:
     """The part of a plan the page needs (it measures heights itself)."""
-    return {k: plan[k] for k in ("x", "acts", "etx", "top", "act_gap", "row_gap", "cx",
-                                 "bus_span", "bus_above")}
+    out = {k: plan[k] for k in ("x", "acts", "etx", "top", "act_gap", "row_gap", "cx",
+                                "bus_span", "bus_above")}
+    if plan.get("shift"):
+        out["shift"] = plan["shift"]
+    return out
+
+
+def shift_offsets(shift: dict, parent: dict) -> dict:
+    """Each card's total move from `shift` hints: its own plus every
+    ancestor's, so a moved card carries its progeny with it. {id: (dx, dy)}
+    for every card that moves; TREE_GLUE computes the same in the page."""
+    out = {}
+    for i in parent.keys() | shift.keys():
+        dx = dy = 0.0
+        cur, seen = i, set()
+        while cur and cur not in seen:
+            seen.add(cur)
+            s_ = shift.get(cur)
+            if s_:
+                dx += s_[0]
+                dy += s_[1]
+            cur = parent.get(cur) or ""
+        if dx or dy:
+            out[i] = (dx, dy)
+    return out
 
 
 def run_plan(plan: dict, nodes, heights: dict):
@@ -1009,12 +1037,23 @@ def run_plan(plan: dict, nodes, heights: dict):
         run(op[1], op[2] if len(op) > 2 else c)          # float / pinned
         return c
 
+    # `shift` hints move a card and its progeny after its unit is laid out:
+    # nothing else in the unit moves, and the units below start under it.
+    off = shift_offsets(plan.get("shift") or {},
+                        {n.id: n.parent for n in nodes}) if plan.get("shift") else {}
+    act_of = {n.id: n.act for n in nodes}
     cur = plan["top"]
     for a, ops in enumerate(plan["acts"]):
         if a and ops:
             cur = bottom[0] + plan["act_gap"]
         for op in ops:
             cur = run(op, cur)
+        moved = [i for i in off if act_of.get(i) == a and i in y]
+        if moved:
+            for i in moved:
+                x[i] += off[i][0]
+                y[i] += off[i][1]
+            bottom[0] = max(y[i] + h[i] / 2 for i in y)
     # anything outside the tree (verify rejects it; still never drop a card)
     for n in nodes:
         if n.id not in y:

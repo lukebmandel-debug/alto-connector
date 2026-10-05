@@ -127,6 +127,15 @@ class CloudStore(Store):
         for i in range(0, len(writes), 400):     # Firestore caps a commit at 500
             self._req("POST", f"{self.root}:commit", {"writes": writes[i:i + 400]})
 
+    # ── manual edits (alto/edits.py) ────────────────────────────────────────
+    # users/{uid}/edits/{tid} is written by the owner's page in edit mode
+    # (alto-cloud.js putEdits): {data: JSON text, updatedAt}.
+    def get_edits(self, uid, tid):
+        return self._get(self._doc(uid, "edits", tid))
+
+    def put_edits(self, uid, tid, data) -> None:
+        self._put(self._doc(uid, "edits", tid), data)
+
     # ── projects ─────────────────────────────────────────────────────────────
     def list_projects(self, uid):
         return sorted(self._list(self._doc(uid, "alto_projects")),

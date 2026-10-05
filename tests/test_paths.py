@@ -146,7 +146,8 @@ def test_publish_refuses_link():
     only through a share link the owner creates from their homepage."""
     src = (ROOT / "alto" / "mcp_server.py").read_text(encoding="utf-8")
     assert "_share_slug" not in src
-    fn = src[src.index("def publish_timeline("):]
+    # the tool (publish_timeline) wraps _publish_timeline, which holds the rule
+    fn = src[src.index("def _publish_timeline("):]
     fn = fn[:fn.index("st = get_store()")]
     assert 'if visibility == "link":' in fn and '"link_removed"' in fn
 

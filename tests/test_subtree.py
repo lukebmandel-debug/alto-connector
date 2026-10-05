@@ -44,7 +44,8 @@ def _data(html):
 def test_a_page_without_a_tree_is_unchanged():
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
     html, _ = _build(d)
-    assert "alto-dt" not in html and "adt-slot" not in html
+    assert '<script id="alto-dt' not in html and '<style id="alto-dt-css">' not in html
+    assert '\\u003cspan class="adt-slot"' not in html     # no slot in any page's data
 
 
 def test_a_tree_section_gets_a_slot_and_its_data():
