@@ -832,11 +832,16 @@ above. A share link someone else opens has no Edit tile.
 
 **Manual edit mode.** Signed in on their own web timeline, the owner can
 change words in place: card titles, tags and summaries, unit names, a page's
-section headings and text, decision-tree steps, element and case names; link
-any words in a page's text to another page of the timeline or to a website;
-and, on an outline, on a computer, drag a card (its progeny come with it,
-nothing else moves — stored as a `shift` placement hint). Phones edit text on
-the page being read only. Nothing changes until they turn the mode on; Done
+section headings and text, its tag / role line, element and case names, a
+"How they connect" reason, decision-tree steps (title, text, answer, tag) and
+the Overview (an authored one block by block; a composed one through each
+unit's heading and summary, which stay composed); link any words in a page's
+text or the Overview to another page of the timeline or to a website. On a
+computer they can also add, remove and reorder a page's own sections, a
+tree's steps and an authored Overview's blocks, and, on an outline, drag a card
+(its progeny come with it, nothing else moves — a `shift` placement hint).
+Cards themselves — adding, removing, moving one under another — stay with you.
+Phones edit words only. Nothing changes until they turn the mode on; Done
 in the pill turns it off; undo and redo sit either side of the tile, and ⌘Z /
 ⇧⌘Z work too (outside edit mode the same keys undo notes and highlights).
 Edits save as they are made and show on their other devices at once; share

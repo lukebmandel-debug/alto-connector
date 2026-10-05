@@ -78,7 +78,7 @@ def test_the_section_map_skips_what_the_build_adds():
     html, _ = build_timeline(*load_brief(d))
     edk = json.loads(re.search(r'window._ALTO_EDK=(\{.*?\});</script>', html).group(1))
     # page list: Test, Two, Source notes → own indexes 0, 2, and -1 for the build's own
-    assert edk["n"]["formation"] == [0, 2, -1]
+    assert edk["n"]["formation"] == [0, 2, -2]          # -2: after its own (Source notes)
 
 
 def test_a_share_carries_a_share_key_so_the_module_stands_down():
@@ -101,6 +101,7 @@ class Store:
         self.nodes = copy.deepcopy(d["nodes"])
         self.edits = None
         self.put_n = []
+        self.conns = copy.deepcopy(d.get("connections") or [])
 
     # Like CloudStore's cache within a call: the SAME objects every time, so a
     # fold that changed them in place (rather than through put_*) shows up.
@@ -117,6 +118,12 @@ class Store:
         self.put_n += [n["id"] for n in nodes]
         by = {n["id"]: n for n in nodes}
         self.nodes = [copy.deepcopy(by.get(n["id"], n)) for n in self.nodes]
+
+    def get_connections(self, uid, tid):
+        return self.conns
+
+    def put_connections(self, uid, tid, conns):
+        self.conns = copy.deepcopy(conns)
 
     def get_edits(self, uid, tid):
         return copy.deepcopy(self.edits)
@@ -199,7 +206,7 @@ def test_published_marks_carried_edits_done_and_keeps_the_rest():
     assert published(st, "u", "t1") == 1
     ops = st.edits["ops"]
     assert ops["n|definiteness|title"]["done"] is True and ops["n|definiteness|title"]["t"] == 1
-    assert not ops["n|formation|title"].get("done")
+    assert not ops["n|formation|title"].get("done")      # a conflict is never marked done
 
 
 def test_nothing_to_fold_writes_nothing():
@@ -228,3 +235,135 @@ def test_fold_never_changes_what_the_store_handed_it():
                                 "u|0|label": {"b": held_doc["brief"]["acts"][0]["label"], "v": "U", "t": 2}}}
     assert fold(st, "u", "t1")["folded"] == 2
     assert (held_doc, held_nodes) == snap
+
+
+
+# ── 1.9.48: the Overview, section order, whole trees, connection reasons ────
+
+from alto.edits import order_sig, tree_list, _View  # noqa: E402
+from alto.build.manual_edit import jhash  # noqa: E402
+
+LINEAR = ROOT / "samples" / "contracts_brief.json"
+
+
+def _view(st):
+    return _View(st.doc, st.nodes, st.conns)
+
+
+def test_a_new_section_order_with_new_sections_folds():
+    st = Store(_d())
+    st.nodes[0]["sections"].append({"h": "Two", "t": "second"})
+    v = _view(st)
+    f = v.owner("n", "formation")
+    sig = order_sig(f)
+    st.edits = {"v": 1, "ops": {
+        "n|formation|order": {"b": sig, "v": ["1", "new-abc123", "0"], "t": 5},
+        "n|formation|s|new-abc123|h": {"b": "", "v": "Fresh", "t": 6},
+        "n|formation|s|new-abc123|t": {"b": "", "v": 'See <span class="alto-link" data-sd-type="node" data-sd-id="definiteness">this</span>.', "t": 7},
+        "n|formation|s|0|h": {"b": "Test", "v": "The Test", "t": 3},     # by its original place
+    }}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 4 and not r["conflicts"] and not r["gone"], r
+    hs = [s["h"] for s in _node(st, "formation")["sections"]]
+    assert hs == ["Two", "Fresh", "The Test"]
+    assert "showDetail('node','definiteness')" in _node(st, "formation")["sections"][1]["t"]
+    assert all(o.get("f") for o in st.edits["ops"].values())
+    # built again: nothing more to do, and the marks clear on publish
+    assert fold(st, "u", "t1")["folded"] == 0
+    assert published(st, "u", "t1") == 4
+    build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))
+
+
+def test_an_order_made_against_another_page_is_a_conflict():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"n|formation|order": {"b": "deadbeef", "v": [], "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["conflicts"] == ["n|formation|order"] and _node(st, "formation")["sections"]
+
+
+def test_a_whole_tree_folds_and_a_step_edited_after_it_too():
+    d = _d()
+    d["nodes"][0]["sections"].append({"h": "Tree", "t": "", "tree": {"label": "L", "nodes": [
+        {"id": "q", "title": "Q?"}, {"id": "y", "parent": "q", "edge": "Yes", "title": "Y"}]}})
+    st = Store(d)
+    lst = tree_list(_view(st).owner("n", "formation").sections[1])
+    new = copy.deepcopy(lst) + [{"i": "s-new1", "p": "q", "t": "New step"}]
+    new[0], new[1] = new[0], new[1]
+    st.edits = {"v": 1, "ops": {
+        "dt|n-formation-1|tree": {"b": jhash(json.dumps(lst, ensure_ascii=False, separators=(",", ":"))), "v": new, "t": 1},
+        "dt|n-formation-1|s-new1|title": {"b": "New step", "v": "No", "t": 2}}}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 2 and not r["conflicts"], r
+    tree = _node(st, "formation")["sections"][1]["tree"]
+    assert tree["label"] == "L" and [n["id"] for n in tree["nodes"]] == ["q", "y", "s-new1"]
+    assert tree["nodes"][2] == {"id": "s-new1", "title": "No", "parent": "q"}
+
+
+def test_a_tree_that_would_not_build_is_refused():
+    d = _d()
+    d["nodes"][0]["sections"].append({"h": "Tree", "t": "", "tree": {"nodes": [{"id": "q", "title": "Q?"}]}})
+    st = Store(d)
+    lst = tree_list(_view(st).owner("n", "formation").sections[1])
+    bad = [{"i": "a", "t": "A"}, {"i": "b", "t": "B"}]          # two roots
+    st.edits = {"v": 1, "ops": {"dt|n-formation-1|tree": {
+        "b": jhash(json.dumps(lst, ensure_ascii=False, separators=(",", ":"))), "v": bad, "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["conflicts"] == ["dt|n-formation-1|tree"]
+
+
+def test_an_authored_overview_folds_with_its_links():
+    d = _d()
+    st = Store(d)
+    ov = _view(st).b.overview_html
+    page = ov.replace("organised by", "arranged by") + '<p>More: <span class="ov-node-link"><button class="ov-node-btn" onclick="showDetail(\'node\',\'definiteness\')"></button>a chip</span>.</p>'
+    st.edits = {"v": 1, "ops": {"ov|html": {"b": jhash(ov), "v": page, "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 1, r
+    again = _view(st).b.overview_html
+    assert "arranged by" in again and "showDetail('node','definiteness')" in again
+    assert _view(st).norm_ov(again) == _view(st).norm_ov(page)
+    # stale signature: conflict
+    st.edits["ops"]["ov|html"] = {"b": "0", "v": "<p>x</p>", "t": 2}
+    assert fold(st, "u", "t1")["conflicts"] == ["ov|html"]
+
+
+def test_a_composed_overview_folds_into_the_units():
+    d = _d()
+    d["brief"]["overview_html"] = ""
+    st = Store(d)
+    a0 = st.doc["brief"]["acts"][0]
+    st.edits = {"v": 1, "ops": {
+        "u|0|summary": {"b": a0.get("summary") or "", "v": "First paragraph.\n\nSecond.", "t": 1},
+        "u|0|short": {"b": a0.get("short") or "", "v": "Making It", "t": 2}}}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 2, r
+    assert st.doc["brief"]["acts"][0]["summary"] == "First paragraph.\n\nSecond."
+    html, _ = build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))
+    assert "<p>First paragraph.</p>\n<p>Second.</p>" in html
+
+
+def test_a_connection_reason_folds():
+    d = json.loads(LINEAR.read_text(encoding="utf-8"))
+    st = Store(d)
+    c = st.conns[0]
+    st.edits = {"v": 1, "ops": {f"cx|{c[0]}|{c[1]}|0": {"b": "", "v": "Because <b>this</b>.", "t": 1}}}
+    if len(c) > 3 and c[3]:
+        st.edits["ops"][f"cx|{c[0]}|{c[1]}|0"]["b"] = _view(st).conns[0][3]
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 1, r
+    assert st.conns[0][3] == "Because <b>this</b>."
+
+
+def test_the_page_and_the_connector_sign_alike(tmp_path):
+    """jh() in the page and jhash() here, over the same strings, under node."""
+    import shutil, subprocess
+    node = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
+    if not Path(node).is_file():
+        pytest.skip("no node")
+    from alto.build.manual_edit import MANUAL_JS
+    m = re.search(r"function jh\(s\)\{.*?\}", MANUAL_JS)
+    words = ["", "abc", "Café — ✎ “quotes” \\ \" \n\t", "😀 astral", "x" * 5000]
+    f = tmp_path / "h.js"
+    f.write_text(m.group(0) + "\nconsole.log(JSON.stringify(" + json.dumps(words) + ".map(jh)));", encoding="utf-8")
+    out = json.loads(subprocess.check_output([node, str(f)]))
+    assert out == [jhash(w) for w in words]

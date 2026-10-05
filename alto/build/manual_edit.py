@@ -29,17 +29,41 @@ from __future__ import annotations
 import json
 
 
-def edit_keys(b) -> str:
-    """_ALTO_EDK: each page's section list → the object's own section index."""
-    edk = getattr(b, "_alto_edk", None) or {}
-    out = {k: {i: v for i, v in m.items() if any(x >= 0 for x in v)}
-           for k, m in edk.items()}
-    data = json.dumps(out, separators=(",", ":")).replace("</", "<\\/")
+def jhash(s: str) -> str:
+    """djb2 over UTF-16 code units, as hex — the page's jh(): the signature of
+    what a structural edit was made against (MANUAL_JS, alto/edits.py)."""
+    h = 5381
+    b = str(s).encode("utf-16-le", "surrogatepass")
+    for i in range(0, len(b), 2):
+        h = ((h << 5) + h + (b[i] | (b[i + 1] << 8))) & 0xFFFFFFFF
+    return format(h, "x")
+
+
+def edit_keys(b, nodes=()) -> str:
+    """_ALTO_EDK: each page's section list → the object's own section index
+    (-1 / -2 for the build's own, ahead of / after them), and what the page's
+    Overview is made of: an authored one (its signature) or one composed from
+    the units (which heading each shows, and each unit's own summary)."""
+    edk = dict(getattr(b, "_alto_edk", None) or {})
+    if b.overview_html:
+        edk["ov"] = "authored"
+        edk["ovh"] = jhash(b.overview_html)
+    elif b.mode == "outline":
+        acts = [i for i, a in enumerate(b.acts)
+                if any(n.act == i and not n.parent for n in nodes)]
+        edk["ov"] = "composed"
+        edk["ova"] = acts
+        edk["ovf"] = {i: ("label" if b.acts[i].label and not b.acts[i].label.isupper()
+                          or not b.acts[i].short else "short") for i in acts}
+        edk["us"] = {i: b.acts[i].summary or "" for i in acts}
+        edk["sh"] = {i: b.acts[i].short or "" for i in acts}
+    data = json.dumps(edk, separators=(",", ":"), ensure_ascii=False)
+    data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
     return f'<script id="alto-edk">window._ALTO_EDK={data};</script>\n'
 
 
-def manual_edit(b) -> str:
-    return edit_keys(b) + MANUAL_CSS + "\n" + MANUAL_JS + "\n"
+def manual_edit(b, nodes=()) -> str:
+    return edit_keys(b, nodes) + MANUAL_CSS + "\n" + MANUAL_JS + "\n"
 
 
 MANUAL_CSS = r"""<style id="alto-manual-css">
@@ -102,6 +126,25 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   .node.aed-moving{z-index:60 !important;}
   .node.aed-moving .node-card{box-shadow:0 18px 44px var(--node-hover-shadow) !important;}
   .aed-body{font-size:17.5px;line-height:35px;min-height:35px;}
+  .aed-para{white-space:pre-wrap;}
+  /* structure: move / remove / add, shown while editing */
+  .aed-sc,.aed-tc{display:none;gap:3px;vertical-align:middle;margin-left:10px;-webkit-user-select:none;user-select:none;}
+  html.alto-editing .aed-sc{display:inline-flex;}
+  .aed-sc button,.aed-tc button{width:24px;height:22px;padding:0;border-radius:6px;border:1px solid var(--border);background:var(--surface);
+    color:var(--muted);cursor:pointer;font:600 12px/20px system-ui,-apple-system,sans-serif;letter-spacing:0;text-transform:none;}
+  .aed-sc button:hover,.aed-tc button:hover{color:var(--text);border-color:var(--muted);}
+  .aed-sc button::before,.aed-tc button::before{content:attr(data-g);}
+  .aed-sc button[data-x="del"]:hover,.aed-tc button[data-x="del"]:hover{color:#dc2626;border-color:#dc2626;}
+  #summary-inner > .aed-blk{position:relative;}
+  #summary-inner > .aed-blk > .aed-sc{position:absolute;right:-4px;top:-14px;margin:0;}
+  html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-12px;z-index:3;opacity:0;transition:opacity .15s;}
+  html.alto-editing .adt-card:hover .aed-tc,html.alto-editing .adt-card:focus-within .aed-tc{opacity:1;}
+  .aed-add{display:none;margin:8px 0 34px;padding:10px 16px;border-radius:10px;border:1.5px dashed var(--border);background:none;color:var(--muted);
+    cursor:pointer;font:inherit;font-size:13px;letter-spacing:.06em;}
+  html.alto-editing .aed-add{display:inline-block;}
+  .aed-add:hover{color:var(--text);border-color:var(--muted);}
+  .aed-ph{color:var(--muted);font-style:italic;opacity:.8;}
+  html:not(.alto-editing) .aed-ph{display:none;}
   html.mobile .aed-body{font-size:15px;line-height:2;}
   #aed-bar{position:fixed;z-index:8200;display:none;align-items:center;gap:4px;padding:4px;border-radius:10px;background:var(--surface);
     border:1px solid var(--border);box-shadow:0 8px 24px var(--card-shadow);font:12.5px/1 system-ui,-apple-system,sans-serif;}
@@ -149,6 +192,11 @@ MANUAL_JS = r"""<script id="alto-manual">
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>]/g, function(c){ return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'; }); }
   function txt(html){ var d = document.createElement('div'); d.innerHTML = String(html == null ? '' : html); return d.textContent; }
   function same(a, b){ return JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b); }
+  // djb2 over UTF-16 code units (manual_edit.jhash): what a structural edit
+  // was made against, so it is laid over that page and no other.
+  function jh(s){ s = String(s); var h = 5381; for(var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(16); }
+  function rid(p){ return p + Math.random().toString(36).slice(2, 8); }
+  function own(x){ return typeof x === 'string' || x >= 0; }
 
   /* ── the page's data, field by field ───────────────────────────────────── */
   function srcNode(id){ if(typeof NODES_SRC === 'undefined') return null; for(var i = 0; i < NODES_SRC.length; i++) if(NODES_SRC[i].id === id) return NODES_SRC[i]; return null; }
@@ -165,16 +213,72 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   function sec(kind, id, i){
     var m = (EDK[kind] || {})[id], L = secList(kind, id); if(!m || !L) return null;
-    var j = m.indexOf(+i); return j >= 0 && L[j] ? L[j] : null;
+    for(var j = 0; j < m.length; j++) if(String(m[j]) === String(i)) return L[j] || null;
+    return null;
+  }
+  // An object that can carry sections, its list made if the build gave it none.
+  function ownable(kind, id){
+    try{
+      if(kind === 'n'){ if(!srcNode(id)) return false; if(!NODE_DETAILS[id]) NODE_DETAILS[id] = {sections: []}; if(!NODE_DETAILS[id].sections) NODE_DETAILS[id].sections = []; }
+      else if(kind === 'c'){ if(!CHARS[id]) return false; if(!CHAR_PAGES[id]) CHAR_PAGES[id] = {sections: []}; if(!CHAR_PAGES[id].sections) CHAR_PAGES[id].sections = []; }
+      else { var R = reg(kind); if(!R || !R[id]) return false; if(!R[id].sections) R[id].sections = []; }
+      EDK[kind] = EDK[kind] || {}; if(!EDK[kind][id]) EDK[kind][id] = secList(kind, id).map(function(){ return -2; });
+      return true;
+    }catch(e){ return false; }
+  }
+  var ORIG = {};
+  function reorder(kind, id, order){
+    var L = secList(kind, id), m = EDK[kind][id], key = kind + '|' + id;
+    if(!ORIG[key]){ ORIG[key] = {}; m.forEach(function(x, j){ if(own(x)) ORIG[key][String(x)] = L[j]; }); }
+    var O = ORIG[key], head = [], hm = [], tail = [], tm = [], os = [], om = [];
+    m.forEach(function(x, j){ if(x === -1){ head.push(L[j]); hm.push(-1); } else if(x === -2){ tail.push(L[j]); tm.push(-2); } });
+    (order || []).forEach(function(x){
+      x = String(x); var s = O[x];
+      if(!s && /^new-[a-z0-9]+$/.test(x)) s = O[x] = {h: '', t: '<span class="aed-k" data-k="' + key + '|s|' + x + '"></span>'};
+      if(s){ os.push(s); om.push(/^new-/.test(x) ? x : +x); } });
+    L.splice.apply(L, [0, L.length].concat(head, os, tail));
+    m.splice.apply(m, [0, m.length].concat(hm, om, tm));
+  }
+  function ownPairs(kind, id){ var L = secList(kind, id) || [], m = (EDK[kind] || {})[id] || [], out = [];
+    L.forEach(function(s, i){ if(typeof m[i] === 'number' && m[i] >= 0) out.push([txt(hParts(s.h).text), tParts(s.t).text]); }); return out; }
+  function connAt(s, t, j){ if(typeof CONNECTIONS === 'undefined') return null; var n = 0;
+    for(var i = 0; i < CONNECTIONS.length; i++){ var c = CONNECTIONS[i]; if(c[0] === s && c[1] === t){ if(n === j) return c; n++; } } return null; }
+  /* the Overview: an authored one is one field; a composed one is its units' headings and summaries */
+  var OVROOT = document.getElementById('summary-inner'), OVCUR = OVROOT ? OVROOT.innerHTML : '';
+  function reinitOv(){ try{ if(typeof ovNavLinksInit !== 'undefined' && ovNavLinksInit && typeof initOverviewNavLinks === 'function'){ ovNavLinksInit = false; initOverviewNavLinks(); } }catch(e){} }
+  function ovHeads(){
+    if(!OVROOT || EDK.ov !== 'composed') return {};
+    var hs = Array.prototype.filter.call(OVROOT.children, function(c){ return c.tagName === 'H2'; }), out = {};
+    (EDK.ova || []).forEach(function(a, i){ if(hs[i + 1]) out[a] = hs[i + 1]; });
+    return out;
+  }
+  function summaryPs(a){ var h = ovHeads()[a], out = []; if(!h) return out;
+    for(var e = h.nextElementSibling; e && e.tagName === 'P' && !e.querySelector('.ov-node-link'); e = e.nextElementSibling) out.push(e);
+    return out; }
+  function drawSummary(a){
+    var h = ovHeads()[a]; if(!h) return;
+    summaryPs(a).forEach(function(p){ p.parentNode.removeChild(p); });
+    var at = h;
+    String(EDK.us[a] || '').split(/\n\s*\n/).map(function(x){ return x.trim(); }).filter(Boolean).forEach(function(t){
+      var p = document.createElement('p'); p.textContent = t; at.parentNode.insertBefore(p, at.nextSibling); at = p; });
+  }
+  function drawOvHead(a){
+    var h = ovHeads()[a]; if(!h) return;
+    var f = (EDK.ovf || {})[a], pm = (typeof PHASE_META !== 'undefined') ? PHASE_META[a] : null;
+    h.textContent = f === 'short' ? ((EDK.sh || {})[a] || (pm && pm.label) || '') : ((pm && pm.label) || '');
   }
   var PROV = '<span class="sec-prov">', SLOT = /<span class="adt-slot"[\s\S]*$/;
   function hParts(h){ h = String(h || ''); var at = h.indexOf(PROV), mk = /^<span class="aed-k"[^>]*><\/span>/.exec(h);
     var lead = mk ? mk[0] : '', body = mk ? h.slice(lead.length) : h; at = body.indexOf(PROV);
     return {lead:lead, text: at >= 0 ? body.slice(0, at) : body, tail: at >= 0 ? body.slice(at) : ''}; }
-  function tParts(t){ t = String(t || ''); var m = SLOT.exec(t); return {text: m ? t.slice(0, m.index) : t, tail: m ? m[0] : ''}; }
+  // A section's text may end with its tree's slot and (while editing) its key —
+  // kept in the TEXT, never the heading: pages compare headings by name.
+  var MARK = /<span class="aed-k" data-k="[^"]*"><\/span>/;
+  function tParts(t){ t = String(t || ''); var mk = MARK.exec(t), mks = mk ? mk[0] : '';
+    if(mk) t = t.replace(MARK, ''); var m = SLOT.exec(t); return {text: m ? t.slice(0, m.index) : t, tail: (m ? m[0] : '') + mks}; }
   function plan(){ return window._ALTO_TREE_PLAN || null; }
   function treeStep(key, step){ var T = (window._ALTO_DT || {})[key]; if(!T) return null; for(var i = 0; i < T.n.length; i++) if(T.n[i].i === step) return T.n[i]; return null; }
-  var DTF = {title:'t', text:'x', edge:'e'};
+  var DTF = {title:'t', text:'x', edge:'e', tag:'g'};
 
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
@@ -199,7 +303,35 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     if(kind === 'u' && p[2] === 'label'){
       var pm = (typeof PHASE_META !== 'undefined') ? PHASE_META[+id] : null; if(!pm) return null;
-      return {kind:'plain', get:function(){ return pm.label; }, set:function(v){ pm.label = v; }};
+      return {kind:'plain', get:function(){ return pm.label; }, set:function(v){ pm.label = v; drawOvHead(+id); }};
+    }
+    if(kind === 'u' && p[2] === 'summary' && EDK.ov === 'composed' && EDK.us && (id in EDK.us)){
+      return {kind:'para', get:function(){ return EDK.us[id] || ''; }, set:function(v){ EDK.us[id] = v; drawSummary(+id); }};
+    }
+    if(kind === 'u' && p[2] === 'short' && EDK.sh && (id in EDK.sh)){
+      return {kind:'plain', get:function(){ return EDK.sh[id] || ''; }, set:function(v){ EDK.sh[id] = v; drawOvHead(+id); }};
+    }
+    if(kind === 'ov' && id === 'html' && EDK.ov === 'authored' && OVROOT){
+      return {kind:'ovhtml', sig:function(){ return EDK.ovh; }, get:function(){ return OVCUR; },
+        set:function(v){ OVCUR = v; OVROOT.innerHTML = v; reinitOv(); }};
+    }
+    if(/^(n|c|env|theme)$/.test(kind) && p.length === 3 && p[2] === 'order'){
+      if(!ownable(kind, id)) return null;
+      var pk = kind + '|' + id;
+      if(!(pk in PRIS)) PRIS[pk] = jh(JSON.stringify(ownPairs(kind, id)));
+      return {kind:'struct', sig:function(){ return PRIS[pk]; },
+        get:function(){ return ((EDK[kind] || {})[id] || []).filter(own).map(String); },
+        set:function(v){ reorder(kind, id, v || []); }};
+    }
+    if(kind === 'dt' && p.length === 3 && p[2] === 'tree'){
+      var TT = (window._ALTO_DT || {})[id]; if(!TT) return null;
+      return {kind:'struct', sig:function(){ return PRIS['dt|' + id]; },
+        get:function(){ return JSON.parse(JSON.stringify(TT.n)); },
+        set:function(v){ TT.n = JSON.parse(JSON.stringify(v || [])); }};
+    }
+    if(kind === 'cx' && p.length === 4){
+      var cc = connAt(id, p[2], +p[3]); if(!cc) return null;
+      return {kind:'html', get:function(){ return cc[3] || ''; }, set:function(v){ if(v) cc[3] = v; else cc.length = 3; }};
     }
     if(kind === 'dt' && p.length === 4 && DTF[p[3]]){
       var st = treeStep(id, p[2]); if(!st) return null;
@@ -215,15 +347,22 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
 
   /* ── lay the stored edits over the page ───────────────────────────────── */
+  // Signatures of what the page was built with, taken before any edit lies over it.
+  var PRIS = {};
+  ['n', 'c', 'env', 'theme'].forEach(function(kind){ Object.keys(EDK[kind] || {}).forEach(function(id){ PRIS[kind + '|' + id] = jh(JSON.stringify(ownPairs(kind, id))); }); });
+  Object.keys(window._ALTO_DT || {}).forEach(function(k){ PRIS['dt|' + k] = jh(JSON.stringify(window._ALTO_DT[k].n)); });
   var conflicts = {}, APPLIED = {};      // APPLIED: what this page last set each field to
+  function sigOf(f){ return f.sig ? f.sig() : f.get(); }
+  // structure first (a section list, a tree), then new sections' words, then the rest, oldest first
+  function pri(k){ var p = k.split('|'); return (p[2] === 'order' || (p[0] === 'dt' && p[2] === 'tree')) ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
   function overlay(){
     var any = false;
-    Object.keys(STORE.ops).forEach(function(k){
+    Object.keys(STORE.ops).sort(function(a, b){ return pri(a) - pri(b) || ((STORE.ops[a] || {}).t || 0) - ((STORE.ops[b] || {}).t || 0); }).forEach(function(k){
       var o = STORE.ops[k]; if(!o || o.done) return;
       var f = field(k); if(!f) return;
       var cur = f.get();
       if(same(cur, o.v)) return;
-      if(same(cur, o.b) || ((k in APPLIED) && same(cur, APPLIED[k]))){ f.set(o.v); APPLIED[k] = o.v; any = true; delete conflicts[k]; }
+      if(same(sigOf(f), o.b) || ((k in APPLIED) && same(cur, APPLIED[k]))){ f.set(o.v); APPLIED[k] = o.v; any = true; delete conflicts[k]; }
       else conflicts[k] = 1;            // the page changed under it: the page wins
     });
     return any;
@@ -257,7 +396,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       var x = ka[k], y = kb[k];
       if(!x || !y){ out[k] = x || y; return; }
       if((x.t || 0) !== (y.t || 0)) out[k] = (x.t || 0) > (y.t || 0) ? x : y;
-      else out[k] = y.done ? y : x;
+      else out[k] = y.done ? y : x.done ? x : Object.assign({}, x, y);   // keeps the connector's fold mark
     });
     var cut = Date.now() - 30 * 864e5;
     Object.keys(out).forEach(function(k){ if(out[k] && out[k].done && (out[k].t || 0) < cut) delete out[k]; });
@@ -291,22 +430,25 @@ MANUAL_JS = r"""<script id="alto-manual">
   var HIST = [], HP = 0;
   function apply(k, v){
     var f = field(k); if(!f) return false;
-    var cur = f.get(), o = STORE.ops[k];
-    var base = (o && !o.done && (same(cur, o.v) || same(cur, o.b))) ? o.b : cur;
-    if((k in APPLIED) && same(cur, APPLIED[k]) && o) base = o.b;
+    var cur = f.get(), o = STORE.ops[k], sg = sigOf(f);
+    var base = (o && !o.done && (same(cur, o.v) || same(sg, o.b))) ? o.b : sg;
+    if((k in APPLIED) && same(cur, APPLIED[k]) && o && !o.done) base = o.b;
     STORE.ops[k] = {b: base, v: v, t: Date.now()};
     f.set(v); APPLIED[k] = v; wr(); push(); refresh(k);
     return true;
   }
-  function change(k, v){
-    var f = field(k); if(!f) return false;
-    var cur = f.get(); if(same(cur, v)) return false;
-    if(!apply(k, v)) return false;
-    HIST = HIST.slice(0, HP); HIST.push({k:k, a:cur, b:v}); if(HIST.length > MAX_HIST) HIST.shift(); HP = HIST.length;
+  // Several changes as one step of undo (a new section is its place, heading and words).
+  function changes(list){
+    var done = [];
+    list.forEach(function(kv){ var f = field(kv[0]); if(!f) return; var a = f.get(); if(same(a, kv[1])) return;
+      if(apply(kv[0], kv[1])) done.push({k:kv[0], a:a, b:kv[1]}); });
+    if(!done.length) return false;
+    HIST = HIST.slice(0, HP); HIST.push(done); if(HIST.length > MAX_HIST) HIST.shift(); HP = HIST.length;
     syncHist(); return true;
   }
-  function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; apply(h.k, h.a); syncHist(); return true; }
-  function redo(){ if(HP >= HIST.length) return false; var h = HIST[HP++]; apply(h.k, h.b); syncHist(); return true; }
+  function change(k, v){ return changes([[k, v]]); }
+  function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; h.slice().reverse().forEach(function(e){ apply(e.k, e.a); }); syncHist(); return true; }
+  function redo(){ if(HP >= HIST.length) return false; var h = HIST[HP++]; h.forEach(function(e){ apply(e.k, e.b); }); syncHist(); return true; }
   function syncHist(){
     document.querySelectorAll('.alto-edit-tile .et-undo, #alto-edit-exit .ee-undo').forEach(function(b){ b.disabled = HP <= 0; });
     document.querySelectorAll('.alto-edit-tile .et-redo, #alto-edit-exit .ee-redo').forEach(function(b){ b.disabled = HP >= HIST.length; });
@@ -322,14 +464,18 @@ MANUAL_JS = r"""<script id="alto-manual">
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'n' && p.length === 3) relayoutSoon();
     if(kind === 'u' || kind === 'p') relayoutSoon();
+    if(kind === 'u' || kind === 'ov') decorateOvSoon();
     if(!P || !dc) return;
+    // the whole page again where a change reaches past one element
+    if((TYPE[kind] && TYPE[kind] === P.type && p[1] === P.id && (p[2] === 'order' || p[2] === 'tag' || p[2] === 'role' || (p[2] === 's' && /^new-/.test(p[3] || ''))))
+       || (kind === 'cx' && P.type === 'node' && p[1] === P.id)){ rerenderPage(P); repaint(); return; }
     if(TYPE[kind] && TYPE[kind] === P.type && p[1] === P.id){
       var f = field(k), v = f ? f.get() : '';
       if(p[2] === 'title' || p[2] === 'name'){ var nm = dc.querySelector('.detail-name');
         if(nm){ var sn = kind === 'n' ? srcNode(p[1]) : null; nm.textContent = (sn && window._altoNodeName) ? window._altoNodeName(sn) : v; } }
       if(p[2] === 'desc'){ var ld = dc.querySelector('.alto-lead'); if(ld){ var num = ld.querySelector('.alto-lead-num'); ld.textContent = v; if(num) ld.insertBefore(num, ld.firstChild); } }
       if(p[2] === 's'){
-        var mk = dc.querySelector('.aed-k[data-k="' + kind + '|' + p[1] + '|s|' + p[3] + '"]'), h3 = mk && mk.closest('h3');
+        var mk = dc.querySelector('.aed-k[data-k="' + kind + '|' + p[1] + '|s|' + p[3] + '"]'), sb = mk && mk.closest('.detail-section'), h3 = sb && sb.querySelector(':scope > h3');
         var s = sec(kind, p[1], p[3]);
         if(h3 && s){
           if(p[4] === 'h') h3.innerHTML = s.h;
@@ -366,12 +512,13 @@ MANUAL_JS = r"""<script id="alto-manual">
     root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !root.classList.contains('mobile') && !PHONE));
     exitPill(); setStatus(status); syncHist(); listen();
     var P = page(); if(P) rerenderPage(P);
-    decorate();
+    decorate(); decorateOv();
   }
   function exit(){
     if(!editing()) return;
     endField(true);
     root.classList.remove('alto-editing', 'alto-drag-ok');
+    document.querySelectorAll('.aed-sc,.aed-tc,.aed-add,.aed-ph').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
     hideBar();
   }
@@ -392,12 +539,12 @@ MANUAL_JS = r"""<script id="alto-manual">
   var marked = false;
   function markSections(){
     if(marked) return; marked = true;
-    Object.keys(EDK).forEach(function(kind){
-      Object.keys(EDK[kind]).forEach(function(id){
+    ['n', 'c', 'env', 'theme'].forEach(function(kind){
+      Object.keys(EDK[kind] || {}).forEach(function(id){
         var L = secList(kind, id), m = EDK[kind][id]; if(!L) return;
         var j = 0;
-        L.forEach(function(s, i){ var src = m[i]; if(src == null || src < 0 || !s || /^<span class="aed-k"/.test(s.h || '')) return;
-          s.h = '<span class="aed-k" data-k="' + kind + '|' + id + '|s|' + src + '"></span>' + (s.h || ''); });
+        L.forEach(function(s, i){ var src = m[i]; if(src == null || !own(src) || !s || MARK.test(s.t || '')) return;
+          s.t = (s.t || '') + '<span class="aed-k" data-k="' + kind + '|' + id + '|s|' + src + '"></span>'; });
       });
     });
   }
@@ -435,7 +582,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       + '<span class="et-head"><span class="et-glyph">✎</span><span class="et-label">Edit timeline</span></span>'
       + '<span class="et-split">'
       + (phone ? '' : '<button type="button" class="et-half et-claude">Edit in Claude<small>Add notes, link sources or change anything</small></button><span class="et-div"></span>')
-      + '<button type="button" class="et-half et-manual">Edit manually<small>' + (phone ? 'Change the words on this page' : 'Words, labels, links, moving cards') + '</small></button>'
+      + '<button type="button" class="et-half et-manual">Edit manually<small>' + (phone ? 'Change the words on this page' : 'Words, links, sections, moving cards') + '</small></button>'
       + '</span>'
       + '<button type="button" class="et-hist et-redo" title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>';
   }
@@ -488,22 +635,86 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(kind){
         setF(dc.querySelector('.detail-name'), kind + '|' + P.id + '|' + (kind === 'n' ? 'title' : 'name'));
         if(kind === 'n') setF(dc.querySelector('.alto-lead'), 'n|' + P.id + '|desc');
+        setF(dc.querySelector('.detail-role'), kind + '|' + P.id + '|' + (kind === 'n' ? 'tag' : 'role'));
       }
+      var lastOwn = null;
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
-        var h3 = mk.closest('h3'); if(!h3) return; var k = mk.getAttribute('data-k');
-        setF(h3, k + '|h'); h3.parentNode.setAttribute('data-aed-body', k + '|t');
+        var box = mk.closest('.detail-section'), h3 = box && box.querySelector(':scope > h3'); if(!h3) return; var k = mk.getAttribute('data-k');
+        setF(h3, k + '|h'); box.setAttribute('data-aed-body', k + '|t'); lastOwn = box;
         Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('alto-edit-tile')) c.classList.add('aed-f', 'aed-bodypart'); });
+        if(structOK() && !h3.querySelector('.aed-sc')) h3.appendChild(ctl('aed-sc', [['up', '↑', 'Move this section up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this section']], {sk: k}));
       });
+      if(kind && structOK() && !dc.querySelector('.aed-add') && field(kind + '|' + P.id + '|order')){
+        var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-add'; add.textContent = '+ Add a section';
+        add.setAttribute('data-x', 'addsec'); add.setAttribute('data-ok', kind + '|' + P.id);
+        var tile = dc.querySelector(':scope > .alto-edit-tile');
+        if(lastOwn && lastOwn.nextSibling) dc.insertBefore(add, lastOwn.nextSibling);
+        else if(tile) dc.insertBefore(add, tile); else dc.appendChild(add);
+      }
+      if(kind === 'n'){
+        var seenT = {};
+        dc.querySelectorAll('.hc-row').forEach(function(row){
+          var a = row.querySelector('.hc-link[data-goto]'); if(!a) return; var t = a.getAttribute('data-goto');
+          var j = seenT[t] = (t in seenT) ? seenT[t] + 1 : 0, k = 'cx|' + P.id + '|' + t + '|' + j;
+          if(!field(k)) return;
+          var how = row.querySelector('.hc-how');
+          if(!how){ how = document.createElement('div'); how.className = 'hc-how aed-ph'; how.textContent = '+ Add how they connect'; row.appendChild(how); }
+          setF(how, k);
+        });
+      }
       dc.querySelectorAll('.adt[data-adt-key]').forEach(function(bx){
         var key = bx.getAttribute('data-adt-key');
+        var T0 = (window._ALTO_DT || {})[key], rootId = T0 && T0.n.filter(function(x){ return !x.p; })[0];
         bx.querySelectorAll('.adt-card[data-i]').forEach(function(c){
           var i = c.getAttribute('data-i');
           setF(c.querySelector('.adt-t'), 'dt|' + key + '|' + i + '|title');
           setF(c.querySelector('.adt-x'), 'dt|' + key + '|' + i + '|text');
+          setF(c.querySelector('.adt-tag'), 'dt|' + key + '|' + i + '|tag');
+          if(structOK() && !c.querySelector('.aed-tc')){
+            var isRoot = rootId && rootId.i === i;
+            c.appendChild(ctl('aed-tc', isRoot ? [['add', '+', 'Add a step under this one']]
+              : [['add', '+', 'Add a step under this one'], ['up', '←', 'Move before its neighbour'], ['down', '→', 'Move after its neighbour'], ['del', '✕', 'Remove this step and the steps under it']], {tk: key, ts: i}));
+          }
         });
+        // a step without an answer or a tag gets a place to write one
+        bx.querySelectorAll('.adt-sub[data-i] > .adt-edge').forEach(function(ed){
+          if(!ed.querySelector('span')){ var sp = document.createElement('span'); sp.className = 'aed-ph'; sp.textContent = '+ answer'; ed.appendChild(sp); } });
+        bx.querySelectorAll('.adt-card[data-i]').forEach(function(c){
+          if(!c.querySelector('.adt-tag')){ var tg = document.createElement('div'); tg.className = 'adt-tag aed-ph'; tg.textContent = '+ tag'; c.insertBefore(tg, c.firstChild);
+            setF(tg, 'dt|' + key + '|' + c.getAttribute('data-i') + '|tag'); } });
         bx.querySelectorAll('.adt-sub[data-i] > .adt-edge > span').forEach(function(sp){
           setF(sp, 'dt|' + key + '|' + sp.parentNode.parentNode.getAttribute('data-i') + '|edge');
         });
+      });
+    }
+  }
+  // Moving, adding and removing pieces is for a computer; phones edit words.
+  function structOK(){ return !PHONE && !root.classList.contains('mobile'); }
+  function ctl(cls, items, data){
+    var w = document.createElement('span'); w.className = cls; w.contentEditable = 'false';
+    Object.keys(data || {}).forEach(function(k){ w.setAttribute('data-' + k, data[k]); });
+    items.forEach(function(it){ var b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-x', it[0]);
+      b.setAttribute('data-g', it[1]); b.title = it[2]; b.setAttribute('aria-label', it[2]); w.appendChild(b); });
+    return w;
+  }
+  var decOvT = null;
+  function decorateOvSoon(){ clearTimeout(decOvT); decOvT = setTimeout(decorateOv, 0); }
+  function decorateOv(){
+    if(!editing() || !OVROOT) return;
+    if(EDK.ov === 'authored'){
+      Array.prototype.forEach.call(OVROOT.children, function(el, i){
+        if(el.classList.contains('aed-sc')) return;
+        el.classList.add('aed-f', 'aed-blk'); el.setAttribute('data-aed', 'ov|html'); el.setAttribute('data-ovb', i);
+        if(structOK() && !el.querySelector(':scope > .aed-sc'))
+          el.appendChild(ctl('aed-sc', [['addp', '+', 'Add a paragraph after this'], ['up', '↑', 'Move up'], ['down', '↓', 'Move down'], ['del', '✕', 'Remove']], {ob: i}));
+      });
+    } else if(EDK.ov === 'composed'){
+      var H = ovHeads();
+      Object.keys(H).forEach(function(a){
+        setF(H[a], 'u|' + a + '|' + ((EDK.ovf || {})[a] || 'label'));
+        var ps = summaryPs(+a);
+        if(!ps.length){ var ph = document.createElement('p'); ph.className = 'aed-ph'; ph.textContent = '+ Write a summary for this unit'; H[a].parentNode.insertBefore(ph, H[a].nextSibling); ps = [ph]; }
+        ps.forEach(function(p){ setF(p, 'u|' + a + '|summary'); });
       });
     }
   }
@@ -530,9 +741,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(cur && cur.el === el) return;
     endField(false);
     var f = field(k); if(!f) return;
-    if(f.kind === 'html') return startBody(el, k, f);
+    if(f.kind === 'html') return el.classList.contains('aed-bodypart') ? startBody(el, k, f) : startRich(el, k, f);
+    if(f.kind === 'ovhtml') return startOvBlock(el);
+    if(f.kind === 'para') return startPara(el, k, f);
     var orig = f.get();
-    cur = {el: el, k: k, kind: 'plain', orig: orig, html: el.innerHTML};
+    cur = {el: el, k: k, kind: 'plain', orig: orig, html: el.innerHTML, ph: el.classList.contains('aed-ph')};
+    el.classList.remove('aed-ph');
     if(k.indexOf('n|') === 0 && /\|desc$/.test(k) && el.classList.contains('alto-lead')){ cur.num = el.querySelector('.alto-lead-num'); }
     el.textContent = orig;
     try{ el.contentEditable = 'plaintext-only'; }catch(e){ el.contentEditable = 'true'; }
@@ -551,11 +765,67 @@ MANUAL_JS = r"""<script id="alto-manual">
     cur = {el: ed, k: k, kind: 'html', orig: f.get(), hidden: parts};
     ed.focus(); caretEnd(ed); keysOn(); showBar(ed, true);
   }
+  // Rich words in place (a connection's reason): the element itself is edited.
+  function startRich(el, k, f){
+    cur = {el: el, k: k, kind: 'rich', orig: f.get(), html: el.innerHTML, ph: el.classList.contains('aed-ph')};
+    el.classList.remove('aed-ph'); el.innerHTML = f.get();
+    el.contentEditable = 'true'; el.classList.add('aed-on'); el.spellcheck = true; el.focus();
+    caretEnd(el); keysOn(); showBar(el, true);
+  }
+  // A unit's summary (composed Overview): paragraphs as plain text, a blank line between.
+  function startPara(el, k, f){
+    var a = +k.split('|')[1], ps = summaryPs(a);
+    if(!ps.length && el.classList.contains('aed-ph')) ps = [el];
+    var ed = document.createElement('div'); ed.className = 'aed-body aed-para aed-on';
+    ed.textContent = String(f.get() || '').split(/\n\s*\n/).join('\n\n');
+    ps.forEach(function(x){ x.style.display = 'none'; });
+    (ps[0] || el).parentNode.insertBefore(ed, ps[0] || el);
+    try{ ed.contentEditable = 'plaintext-only'; }catch(e){ ed.contentEditable = 'true'; }
+    if(ed.contentEditable !== 'plaintext-only') ed.contentEditable = 'true';
+    cur = {el: ed, k: k, kind: 'para', orig: f.get(), hidden: ps};
+    ed.focus(); caretEnd(ed); keysOn(); showBar(ed, false);
+    bar().querySelector('.ab-hint').textContent = 'A new line starts a paragraph';
+  }
+  // One block of an authored Overview: its words come from the Overview as built
+  // (not the screen, where links have been dressed up), and the whole changes.
+  function ovBlocks(html){ var d = document.createElement('div'); d.innerHTML = html; return d; }
+  function startOvBlock(el){
+    var i = +el.getAttribute('data-ovb'), d = ovBlocks(OVCUR), blk = d.children[i]; if(!blk) return;
+    var head = /^H[1-6]$/.test(blk.tagName);
+    cur = {el: el, k: 'ov|html', kind: 'ovb', i: i, head: head, html: el.innerHTML, orig: head ? blk.textContent : blk.innerHTML};
+    if(head) el.textContent = blk.textContent; else el.innerHTML = blk.innerHTML;
+    el.querySelectorAll('.ov-node-link,.' + LOCAL_CLS).forEach(function(x){ x.contentEditable = 'false'; });
+    if(head){ try{ el.contentEditable = 'plaintext-only'; }catch(e){} if(el.contentEditable !== 'plaintext-only') el.contentEditable = 'true'; }
+    else el.contentEditable = 'true';
+    el.classList.add('aed-on'); el.spellcheck = true; el.focus();
+    caretEnd(el); keysOn(); showBar(el, !head);
+  }
+  function ovSet(fn){ var d = ovBlocks(OVCUR); if(fn(d) === false) return false; return change('ov|html', d.innerHTML); }
   function caretEnd(el){ try{ var r = document.createRange(); r.selectNodeContents(el); r.collapse(false); var s = getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){} }
   function endField(save){
     if(!cur) return; var c = cur; cur = null;
     keysOff(); hideBar(); hideLink();
     c.el.classList.remove('aed-on'); c.el.removeAttribute('contenteditable');
+    if(c.kind === 'rich'){
+      var vr = save ? clean(c.el) : c.orig;
+      c.el.innerHTML = c.html; if(c.ph) c.el.classList.add('aed-ph');
+      if(save && !same(vr, c.orig)) change(c.k, vr);
+      return;
+    }
+    if(c.kind === 'para'){
+      var vp = save ? String(c.el.innerText || c.el.textContent || '').replace(/\u00a0/g, ' ').replace(/</g, '')
+        .split(/\n+/).map(function(x){ return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean).join('\n\n') : c.orig;
+      c.el.parentNode.removeChild(c.el);
+      (c.hidden || []).forEach(function(x){ x.style.display = ''; });
+      if(save && !same(vp, c.orig)) change(c.k, vp);
+      return;
+    }
+    if(c.kind === 'ovb'){
+      var vb = save ? (c.head ? String(c.el.textContent || '').replace(/</g, '').replace(/\s+/g, ' ').trim() : clean(c.el)) : c.orig;
+      c.el.innerHTML = c.html;
+      if(save && !same(vb, c.orig)) ovSet(function(d){ var b = d.children[c.i]; if(!b) return false; if(c.head) b.textContent = vb; else b.innerHTML = vb; });
+      return;
+    }
     if(c.kind === 'html'){
       var v = save ? clean(c.el) : c.orig;
       c.el.parentNode.removeChild(c.el);
@@ -565,7 +835,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     // plain text, as the build makes it (sanitize.plain_text): no '<' at all
     var v2 = String(c.el.textContent || '').replace(/</g, '').replace(/\s+/g, ' ').trim();
-    var needs = /\|(title|name|label)$/.test(c.k);
+    var needs = /\|(title|name|label)$/.test(c.k) && c.k.indexOf('dt|') !== 0 || /^dt\|[^|]+\|[^|]+\|title$/.test(c.k);
+    if(c.ph) c.el.classList.add('aed-ph');
     if(!save || (needs && !v2) || v2 === c.orig){
       c.el.innerHTML = c.html;
       if(save && needs && !v2) toast('A title cannot be empty — it is back as it was.');
@@ -584,6 +855,14 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(n.nodeType !== 1) return;
         var tag = n.tagName;
         if(tag === 'A' && n.classList.contains(LOCAL_CLS)){ dst.appendChild(n.cloneNode(false)); return; }
+        if(tag === 'SPAN' && n.classList.contains('ov-node-link')){
+          var ob = n.querySelector('button.ov-node-btn'), om = ob && /^showDetail\('node','([a-z0-9][a-z0-9-]{0,47})'\)$/.exec(ob.getAttribute('onclick') || '');
+          if(om){ var sp = document.createElement('span'); sp.className = 'ov-node-link'; var bt = document.createElement('button'); bt.className = 'ov-node-btn';
+            bt.setAttribute('onclick', "showDetail('node','" + om[1] + "')"); var first = n.firstChild === ob;
+            if(first) sp.appendChild(bt); sp.appendChild(document.createTextNode(n.textContent)); if(!first) sp.appendChild(bt); dst.appendChild(sp); return; }
+          walk(n, dst); return;
+        }
+        if(tag === 'BUTTON') return;
         if(tag === 'SPAN' && n.classList.contains('alto-link') && /^(node|char|env|theme)$/.test(n.getAttribute('data-sd-type') || '') && /^[a-z0-9][a-z0-9-]{0,47}$/.test(n.getAttribute('data-sd-id') || '')){
           var s = document.createElement('span'); s.className = 'alto-link'; s.setAttribute('data-sd-type', n.getAttribute('data-sd-type')); s.setAttribute('data-sd-id', n.getAttribute('data-sd-id')); walk(n, s); dst.appendChild(s); return; }
         if(tag === 'A'){
@@ -722,12 +1001,17 @@ MANUAL_JS = r"""<script id="alto-manual">
     cur.el.focus(); var s = getSelection(); s.removeAllRanges(); s.addRange(savedRange);
     var frag = savedRange.extractContents();
     // a link never holds another link
-    Array.prototype.forEach.call(frag.querySelectorAll ? frag.querySelectorAll('a,span.alto-link') : [], function(x){ while(x.firstChild) x.parentNode.insertBefore(x.firstChild, x); x.parentNode.removeChild(x); });
+    Array.prototype.forEach.call(frag.querySelectorAll ? frag.querySelectorAll('a,span.alto-link,span.ov-node-link') : [], function(x){ while(x.firstChild) x.parentNode.insertBefore(x.firstChild, x); x.parentNode.removeChild(x); });
+    Array.prototype.forEach.call(frag.querySelectorAll ? frag.querySelectorAll('button') : [], function(x){ x.parentNode.removeChild(x); });
     el.appendChild(frag); savedRange.insertNode(el);
     s.removeAllRanges(); var r = document.createRange(); r.selectNodeContents(el); s.addRange(r);
     savedRange = null; hideLink(false);
   }
   function makeLink(x){
+    if(cur && cur.kind === 'ovb' && x.t === 'node'){
+      var o = document.createElement('span'); o.className = 'ov-node-link'; var b = document.createElement('button'); b.className = 'ov-node-btn';
+      b.setAttribute('onclick', "showDetail('node','" + x.id + "')"); o.appendChild(b); wrapSel(o); return;
+    }
     var s = document.createElement('span'); s.className = 'alto-link'; s.setAttribute('data-sd-type', x.t); s.setAttribute('data-sd-id', x.id); wrapSel(s);
   }
   function linkUrl(){
@@ -739,7 +1023,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   function unlinkSel(){
     if(!cur) return; var s = getSelection(); if(!s.rangeCount) return;
     var n = s.anchorNode; n = n && (n.nodeType === 1 ? n : n.parentNode);
-    var l = n && n.closest('a.note-link,span.alto-link'); if(!l || !cur.el.contains(l)) { toast('Put the cursor in a link to remove it.'); return; }
+    var l = n && n.closest('a.note-link,span.alto-link,span.ov-node-link'); if(!l || !cur.el.contains(l)) { toast('Put the cursor in a link to remove it.'); return; }
+    l.querySelectorAll('button').forEach(function(b){ b.parentNode.removeChild(b); });
     while(l.firstChild) l.parentNode.insertBefore(l.firstChild, l); l.parentNode.removeChild(l);
   }
 
@@ -781,13 +1066,67 @@ MANUAL_JS = r"""<script id="alto-manual">
 
   /* ── clicks and drags while editing ───────────────────────────────────── */
   function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-tile,#aed-toast'); }
+  // Move, add and remove: a page's sections, a tree's steps, an Overview's blocks.
+  function structure(b){
+    var x = b.getAttribute('data-x'), w = b.closest('.aed-sc,.aed-tc');
+    if(x === 'addsec'){
+      var ok = b.getAttribute('data-ok'), f = field(ok + '|order'); if(!f) return;
+      var nk = rid('new-'), ord = f.get().concat(nk);
+      if(changes([[ok + '|order', ord], [ok + '|s|' + nk + '|h', 'New section'], [ok + '|s|' + nk + '|t', 'Write here.']])){
+        setTimeout(function(){ var mk = document.querySelector('#detail-content .aed-k[data-k="' + ok + '|s|' + nk + '"]'), sb = mk && mk.closest('.detail-section'), h3 = sb && sb.querySelector(':scope > h3');
+          if(h3){ h3.scrollIntoView({block:'center'}); startField(h3, ok + '|s|' + nk + '|h'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
+      }
+      return;
+    }
+    if(w && w.hasAttribute('data-sk')){
+      var sk = w.getAttribute('data-sk').split('|'), okey = sk[0] + '|' + sk[1], f2 = field(okey + '|order'); if(!f2) return;
+      var o = f2.get(), i = o.indexOf(sk[3]); if(i < 0) return;
+      if(x === 'del'){ o.splice(i, 1); if(change(okey + '|order', o)) toast('Section removed — ⌘Z brings it back.'); }
+      else if(x === 'up' && i > 0){ o.splice(i - 1, 0, o.splice(i, 1)[0]); change(okey + '|order', o); }
+      else if(x === 'down' && i < o.length - 1){ o.splice(i + 1, 0, o.splice(i, 1)[0]); change(okey + '|order', o); }
+      return;
+    }
+    if(w && w.hasAttribute('data-tk')){
+      var tk = w.getAttribute('data-tk'), ts = w.getAttribute('data-ts'), tf = field('dt|' + tk + '|tree'); if(!tf) return;
+      var n = tf.get(), me = n.filter(function(q){ return q.i === ts; })[0]; if(!me) return;
+      if(x === 'add'){
+        var ni = rid('s-'); n.push({i: ni, p: ts, t: 'New step'});
+        if(change('dt|' + tk + '|tree', n)) setTimeout(function(){ var c = document.querySelector('#detail-content .adt[data-adt-key="' + tk + '"] .adt-card[data-i="' + ni + '"] .adt-t');
+          if(c){ decorate(); startField(c, 'dt|' + tk + '|' + ni + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
+        return;
+      }
+      if(x === 'del'){
+        var gone = {}; gone[ts] = 1; var more = true;
+        while(more){ more = false; n.forEach(function(q){ if(q.p && gone[q.p] && !gone[q.i]){ gone[q.i] = 1; more = true; } }); }
+        if(change('dt|' + tk + '|tree', n.filter(function(q){ return !gone[q.i]; }))) toast('Step removed — ⌘Z brings it back.');
+        return;
+      }
+      var sib = n.filter(function(q){ return (q.p || '') === (me.p || ''); }), k = sib.indexOf(me), other = sib[x === 'up' ? k - 1 : k + 1];
+      if(!other) return;
+      var a1 = n.indexOf(me), a2 = n.indexOf(other); n[a1] = other; n[a2] = me;
+      change('dt|' + tk + '|tree', n);
+      return;
+    }
+    if(w && w.hasAttribute('data-ob')){
+      var bi = +w.getAttribute('data-ob');
+      if(x === 'addp'){
+        if(ovSet(function(d){ var b0 = d.children[bi]; if(!b0) return false; var np = document.createElement('p'); np.textContent = 'New paragraph.'; d.insertBefore(np, b0.nextSibling); }))
+          setTimeout(function(){ var el = OVROOT.children[bi + 1]; if(el){ decorateOv(); startField(el, 'ov|html'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
+        return;
+      }
+      ovSet(function(d){ var b0 = d.children[bi]; if(!b0) return false;
+        if(x === 'del'){ d.removeChild(b0); toast('Removed — ⌘Z brings it back.'); }
+        else if(x === 'up'){ if(!b0.previousElementSibling) return false; d.insertBefore(b0, b0.previousElementSibling); }
+        else if(x === 'down'){ var nx = b0.nextElementSibling; if(!nx) return false; d.insertBefore(nx, b0); } });
+    }
+  }
   function eatIfEditing(e){
     if(!editing()) return;
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card')){
+    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-add')){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -797,6 +1136,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }
     if(dragJustEnded){ dragJustEnded = false; e.stopPropagation(); e.preventDefault(); return; }
+    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-add');
+    if(sb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); structure(sb); return; }
     var ck = canvasKey(t) || unitKey(t);
     if(ck){ e.stopPropagation(); e.preventDefault(); startField(ck.el, ck.k); return; }
     var f = t.closest('[data-aed]');

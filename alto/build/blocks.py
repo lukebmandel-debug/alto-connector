@@ -1324,10 +1324,20 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # Manual edit mode (manual_edit.py) needs to know, for each section the
     # page carries, which of the object's own sections it is (-1: one the
     # build adds — a citation, Source notes). Read by builder._add_tail.
+    # -1: a section the build puts ahead of the object's own (a citation);
+    # -2: one it puts after them (Source notes).
     def _edk(obj, secs):
-        own = [i for i, s in enumerate(secs) if s.t]
-        return [next((j for j, o in enumerate(obj.sections) if o is secs[i]), -1)
-                for i in own]
+        out, seen = [], False
+        for s in secs:
+            if not s.t:
+                continue
+            j = next((j for j, o in enumerate(obj.sections) if o is s), None)
+            if j is None:
+                out.append(-2 if seen else -1)
+            else:
+                seen = True
+                out.append(j)
+        return out
     b._alto_edk = {
         "n": {n.id: _edk(n, _extra(n)) for n in nodes},
         "c": {e.id: _edk(e, _extra(e)) for e in b.entities},
