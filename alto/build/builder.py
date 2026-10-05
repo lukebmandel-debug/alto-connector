@@ -45,6 +45,15 @@ def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
                                       for v in f.get("values", [])]})
         for f in bd.get("filters", [])]
     brief = Brief(**bd)
+    # Files the owner linked from the page are sources like any other (one
+    # already in the map keeps its own entry).
+    have = {d.get("id") for d in brief.source_docs if isinstance(d, dict)}
+    extra = [{"id": f["id"], "name": f.get("name") or f["id"], "url": "",
+              "local": f.get("local") or ""}
+             for f in brief.linked_files or []
+             if isinstance(f, dict) and f.get("id") and f["id"] not in have]
+    if extra:
+        brief.source_docs = list(brief.source_docs) + extra
     nodes = [
         Node(**{**n, "sections": [Section(**s) for s in n.get("sections", [])]})
         for n in d.get("nodes", [])]

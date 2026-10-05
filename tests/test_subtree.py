@@ -41,10 +41,12 @@ def _data(html):
     return json.loads(m.group(1).replace("<\\/", "</"))
 
 
-def test_a_page_without_a_tree_is_unchanged():
+def test_a_page_without_a_tree_has_an_empty_registry():
+    """The renderer is on every page (manual edit mode can add a tree to any
+    section), but with no tree it has nothing to draw and no page has a slot."""
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
     html, _ = _build(d)
-    assert '<script id="alto-dt' not in html and '<style id="alto-dt-css">' not in html
+    assert _data(html) == {}
     assert '\\u003cspan class="adt-slot"' not in html     # no slot in any page's data
 
 

@@ -1212,6 +1212,24 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "key": "lines", "kind": "lines", "label": "Lines",
             "items": [{"id": k, "name": lbl, "swatch": sw, "count": rel_counts.get(k, 0)}
                       for k, lbl, sw in rel_key_items]})
+    # Filters the owner took out (manual edit mode, Brief.filters_off): left out
+    # of the panel. The whole set goes to the edit layer (manual_edit), which
+    # lets the owner put one back.
+    _slot_ids = {"slot-" + rf["slot"]: "filter:" + rf["spec"].id for rf in resolved_filters}
+    b._alto_filters = {"sections": filter_sections, "nodes": filter_nodes, "slot": _slot_ids}
+    if b.filters_off:
+        _off = set(b.filters_off)
+        _kept = []
+        for _s in filter_sections:
+            _k = _slot_ids.get(_s["key"], _s["key"])
+            if _k in _off:
+                continue
+            _its = [it for it in _s["items"] if f"{_k}:{it['id']}" not in _off]
+            if _its:
+                _kept.append({**_s, "items": _its})
+        filter_sections = _kept
+        filter_nodes = {k: v for k, v in filter_nodes.items()
+                        if any(s_["key"] == k for s_ in filter_sections)}
 
     # ── CSS variable blocks ──────────────────────────────────────────────────
     entity_vars = "".join(f"--{e.id}:{e.color};" for e in b.entities)
@@ -1541,10 +1559,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     def _js_json(v):
         return json.dumps(v, ensure_ascii=False).replace("</", "<\\/")
     orders += "\n" + RAIL_GLUE + "\n" + MSEARCH_PANEL_GLUE + UNIT_GLUE
-    if filter_sections:
-        orders += ("\nvar FILTER_SECTIONS=" + _js_json(filter_sections) + ";"
-                   "\nvar FILTER_NODES=" + _js_json(filter_nodes) + ";"
-                   + FILTER_PANEL_GLUE)
+    # Always there, empty or not: manual edit mode can add the first filter.
+    # With no sections the panel draws no tab.
+    orders += ("\nvar FILTER_SECTIONS=" + _js_json(filter_sections) + ";"
+               "\nvar FILTER_NODES=" + _js_json(filter_nodes) + ";"
+               + FILTER_PANEL_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
         f"  var ENV_ORDER_M   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"

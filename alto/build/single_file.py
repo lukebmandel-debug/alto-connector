@@ -181,6 +181,9 @@ def preview(brief: Brief, timeline_html: str, project_name: str = "") -> str:
     name = project_name or brief.subject or "Alto"
     timeline_html = _rep(timeline_html, _REPORT_OPEN_OLD, _REPORT_OPEN_NEW, 1,
                          "notes report via artifact")
+    from .manual_edit import SHOW_BLOB, SHOW_BLOB_PREVIEW
+    timeline_html = _rep(timeline_html, SHOW_BLOB, SHOW_BLOB_PREVIEW, 1,
+                         "linked files open nothing in a preview")
     page = bundle_many([{"name": name, "items": [(brief, timeline_html)]}],
                        title=f"{brief.title} — Alto preview", start="t_0.html",
                        artifact=True)

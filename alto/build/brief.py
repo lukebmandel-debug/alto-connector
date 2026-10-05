@@ -395,6 +395,17 @@ class Brief:
     # get_timeline hands it back so the conversation that picks the timeline up
     # again speaks as it. Its prompt must restate the closed-system rule.
     persona: dict = field(default_factory=dict)
+    # Filters the owner took out of the Filter panel (manual edit mode): a
+    # whole section by its key ("entity", "axis1", "axis2", "flags", "lines",
+    # "filter:<filter id>") or one chip in it ("<section key>:<chip id>").
+    # The build leaves them out of the panel; nothing else changes.
+    filters_off: list[str] = field(default_factory=list)
+    # Files on the owner's computer that page text links to, [{id, name,
+    # local}] (manual edit mode: "a file on this computer"). Joined to the
+    # source map at load (load_brief), so `src:<id>` links them like any
+    # other source with a local copy, without touching source_docs — which,
+    # when empty, the consent manifest fills.
+    linked_files: list[dict] = field(default_factory=list)
 
 
 def _check_sections(sections, what, warnings=None) -> None:
@@ -463,6 +474,37 @@ def _check_refs(refs, doc_ids, what, warnings) -> None:
 # drive) or under ~. No control characters, no URL schemes — it becomes a
 # file:// URL only at click time, inside a copy opened from disk.
 LOCAL_PATH = re.compile(r"^(?:/|~/|[A-Za-z]:[\\/])[^\x00-\x1f]{1,1000}$")
+
+
+FILTER_OFF_RE = re.compile(r"^(entity|axis1|axis2|flags|lines|filter:[a-z0-9][a-z0-9-]{0,47})"
+                           r"(:[A-Za-z0-9][A-Za-z0-9_.~-]{0,79})?$")
+MAX_LINKED_FILES = 300
+
+
+def _check_filters_off(b) -> None:
+    if not isinstance(b.filters_off, list) or len(b.filters_off) > 200:
+        raise BriefError("filters_off: a list of at most 200 filter keys")
+    for k in b.filters_off:
+        if not isinstance(k, str) or not FILTER_OFF_RE.match(k):
+            raise BriefError(f"filters_off: {k!r} is not a filter key "
+                             "('entity', 'axis1', 'lines', 'filter:<id>', "
+                             "or one of those + ':<chip id>')")
+
+
+def _check_linked_files(b) -> None:
+    if not isinstance(b.linked_files, list) or len(b.linked_files) > MAX_LINKED_FILES:
+        raise BriefError(f"linked_files: a list of at most {MAX_LINKED_FILES}")
+    seen = set()
+    for f in b.linked_files:
+        if not isinstance(f, dict) or set(f) - {"id", "name", "local"}:
+            raise BriefError("linked_files: each is {id, name, local}")
+        _check_id(f.get("id", ""), "linked file")
+        if f["id"] in seen:
+            raise BriefError(f"linked_files: duplicate id {f['id']!r}")
+        seen.add(f["id"])
+        _check_len(f.get("name", ""), "name", f"linked file {f['id']} name")
+        if not LOCAL_PATH.match(f.get("local") or ""):
+            raise BriefError(f"linked file {f['id']}: local must be a full path")
 
 
 def _check_sources(b) -> set:
@@ -562,6 +604,8 @@ def validate_brief(b: Brief) -> list[str]:
     _check_id(b.timeline_id, "timeline")
     _check_hex(b.accent, "accent", None)
     doc_ids = _check_sources(b)
+    _check_filters_off(b)
+    _check_linked_files(b)
     if not isinstance(b.autolink, list) or set(b.autolink) - {"char", "env", "theme"}:
         raise BriefError("autolink: a list drawn from 'char', 'env', 'theme'")
     if not isinstance(b.autolink_overview, bool):

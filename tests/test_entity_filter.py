@@ -79,11 +79,14 @@ def test_the_filter_tab_comes_with_a_mobile_tile_and_no_account_toggle():
 
 
 def test_a_timeline_with_nothing_to_filter_has_no_panel():
+    """The panel's code is there (manual edit mode can add the first filter),
+    but with no sections it draws no tab."""
     d = json.loads(SAMPLE.read_text(encoding="utf-8"))
     d["brief"]["chip_filters"] = False
     d["brief"]["line_filter"] = False
     html, _ = build_timeline(*load_brief(d))
-    assert "var FILTER_SECTIONS=" not in html and "panel.id='ef-panel'" not in html
+    assert "var FILTER_SECTIONS=[];" in html
+    assert "if(!secs().length && !window._altoFilterWanted) return;" in html
 
 
 def test_the_right_edge_tabs_share_one_rail_in_a_fixed_order():

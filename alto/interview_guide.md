@@ -836,12 +836,18 @@ section headings and text, its tag / role line, element and case names, a
 "How they connect" reason, decision-tree steps (title, text, answer, tag) and
 the Overview (an authored one block by block; a composed one through each
 unit's heading and summary, which stay composed); link any words in a page's
-text or the Overview to another page of the timeline or to a website. On a
-computer they can also add, remove and reorder a page's own sections, a
-tree's steps and an authored Overview's blocks, and, on an outline, drag a card
-(its progeny come with it, nothing else moves — a `shift` placement hint).
-Cards themselves — adding, removing, moving one under another — stay with you.
-Phones edit words only. Nothing changes until they turn the mode on; Done
+text or the Overview to another page of the timeline, to a website, or to a
+file on their own computer. On a computer they can also add, remove and
+reorder a page's own sections — a new one is the kind they choose: text, a
+list, a quote (prov "quoted"), their notes ("notes"), a summary ("summary") or
+a decision tree; remove and reorder a tree's steps and an authored Overview's
+blocks; add cards (under a card on an outline — a unit's "+ Add a card" goes
+under its top card — or at the end of a unit on a linear timeline) and remove
+a card with nothing under it; make filters of their own (Brief.flags, with the
+cards they choose) and take any filter, or one chip of it, out of the panel
+(Brief.filters_off); and, on an outline, drag a card (its progeny come with
+it, nothing else moves — a `shift` placement hint). Moving a card under a
+different one stays with you. Phones edit words only. Nothing changes until they turn the mode on; Done
 in the pill turns it off; undo and redo sit either side of the tile, and ⌘Z /
 ⇧⌘Z work too (outside edit mode the same keys undo notes and highlights).
 Edits save as they are made and show on their other devices at once; share
@@ -849,7 +855,13 @@ links get them only after you fold them in and republish. **`get_timeline`
 and `build_timeline` fold them into the draft first** — the reply's
 `manual_edits` says how many. Tell the user in plain words what was folded;
 if it lists `conflicts`, those fields were changed in the draft after the page
-edit, so the draft's version was kept — say which, and ask. Publish
+edit, so the draft's version was kept — say which, and ask. `cards_added`
+are cards they made on the page: they hold only what the user wrote (often a
+title and nothing more) — never fill them in from the material unasked; offer
+to. `cards_removed` are cards they took out, lines and all; links to them
+elsewhere become plain words at the build. `files_not_found` names a linked
+file Alto could not find in their Desktop, Documents or Downloads: that text
+waits on the page that made it — say which file, in one line. Publish
 (private-web) to put the folded edits in the page itself; Alto then marks
 them done. The user's own words are theirs to edit: §0 governs what YOU write,
 not what they type.

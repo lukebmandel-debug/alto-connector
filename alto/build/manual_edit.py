@@ -18,11 +18,18 @@ Field keys ("|"-separated; ids are slugs):
   u|<i>|label                             a unit's name
   dt|<tree key>|<step>|title  text  edge  a decision-tree step (subtree.py)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
+  n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
+  dt|<owner>-new-…|tree                   a new section's decision tree
+  nn|card-…   nd|<id>                     a card added here / a built card taken out
+  fl|list   fn|<id>   fx|off              the owner's filters, a card's, the ones taken out
 A section's `i` is its index among the object's OWN sections (the page also
-carries ones the build adds); _ALTO_EDK maps the page's list to it.
+carries ones the build adds); _ALTO_EDK maps the page's list to it. A link to a
+file on the owner's computer is <a data-file="file-…">: the file itself (or,
+in Chromium, its place on disk) stays in this browser's IndexedDB, and the
+connector finds it by name to record its path (edits.find_file).
 
 Desktop: everything. Phones: text on the page being read (no dragging, no
-Claude half). Shares and copies opened from disk never offer it.
+cards, filters or sections to add, no Claude half). Shares and copies opened from disk never offer it.
 """
 from __future__ import annotations
 
@@ -57,6 +64,21 @@ def edit_keys(b, nodes=()) -> str:
                           or not b.acts[i].short else "short") for i in acts}
         edk["us"] = {i: b.acts[i].summary or "" for i in acts}
         edk["sh"] = {i: b.acts[i].short or "" for i in acts}
+    # Filters: the owner's own (flags, and which cards carry each), the ones
+    # taken out of the panel, and — when some are out — the whole set, so one
+    # can be put back. Cards: what a new one is made like.
+    edk["fl"] = [{"id": f["id"], "name": f.get("name") or f["id"]}
+                 | ({"color": f["color"]} if f.get("color") else {})
+                 for f in b.flags if isinstance(f, dict) and f.get("id")]
+    edk["fln"] = {n.id: list(n.flags) for n in nodes if n.flags}
+    edk["foff"] = list(b.filters_off or [])
+    fa = getattr(b, "_alto_filters", None) or {}
+    if fa.get("slot"):
+        edk["fslot"] = fa["slot"]
+    if b.filters_off and fa:
+        edk["fall"] = {"sections": fa.get("sections") or [], "nodes": fa.get("nodes") or {}}
+    edk["mode"] = b.mode
+    edk["noun"] = b.node_noun or "Card"
     data = json.dumps(edk, separators=(",", ":"), ensure_ascii=False)
     data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
     return f'<script id="alto-edk">window._ALTO_EDK={data};</script>\n'
@@ -64,6 +86,19 @@ def edit_keys(b, nodes=()) -> str:
 
 def manual_edit(b, nodes=()) -> str:
     return edit_keys(b, nodes) + MANUAL_CSS + "\n" + MANUAL_JS + "\n"
+
+
+# How a linked file is shown (MANUAL_JS openFile). A Claude preview may not
+# download through a page (single_file.preview, ALTO-016): it swaps this out.
+SHOW_BLOB = """  function showBlob(file, name, w){
+    var u = URL.createObjectURL(file);
+    if(w) w.location.href = u;
+    else { var a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 120000);
+  }
+"""
+SHOW_BLOB_PREVIEW = """  function showBlob(file, name, w){ if(w) w.close(); }
+"""
 
 
 MANUAL_CSS = r"""<style id="alto-manual-css">
@@ -166,6 +201,62 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-link .al-go{display:flex;gap:6px;margin-top:6px;}
   #aed-link .al-go button{flex:1;height:30px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text);font:inherit;cursor:pointer;}
   #aed-link .al-msg{color:#c2410c;font-size:11.5px;min-height:14px;margin-top:4px;}
+  #aed-link .al-fh{margin-top:12px;}
+  #aed-link .al-fk{font-size:11px;line-height:1.35;margin-top:6px;}
+  /* cards: + / ✕ on a card, + Add a card beside a unit's name */
+  .aed-cc{position:absolute;right:40px;top:-13px;z-index:6;display:none;gap:3px;-webkit-user-select:none;user-select:none;}
+  html.alto-editing:not(.mobile):not(.aed-picking) #canvas .node:hover .aed-cc{display:flex;}
+  .aed-cc button{width:26px;height:24px;padding:0;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    cursor:pointer;font:600 13px/22px system-ui,-apple-system,sans-serif;box-shadow:0 4px 12px var(--node-rest-shadow);}
+  .aed-cc button::before{content:attr(data-g);}
+  .aed-cc button:hover{color:var(--text);border-color:var(--muted);}
+  .aed-cc button[data-x="delc"]:hover{color:#dc2626;border-color:#dc2626;}
+  .aed-uc{position:absolute;z-index:21;height:30px;padding:0 12px;border-radius:8px;border:1.5px dashed var(--muted);background:var(--chip-glass-bg, var(--surface));
+    color:var(--muted);cursor:pointer;font:12px/1 system-ui,-apple-system,sans-serif;letter-spacing:.04em;white-space:nowrap;}
+  .aed-uc:hover{color:var(--text);border-color:var(--text);}
+  html:not(.alto-editing) .aed-uc,html.mobile .aed-uc,html.aed-picking .aed-uc{display:none;}
+  /* choosing a filter's cards */
+  html.aed-picking #canvas .node{cursor:pointer !important;}
+  html.aed-picking #canvas .node.aed-pick-out .node-card{opacity:.38;}
+  html.aed-picking #canvas .node.aed-pick-in .node-card{outline:3px solid var(--accent,#a78bfa);outline-offset:3px;}
+  #aed-pick{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:8250;display:none;align-items:center;gap:12px;padding:8px 8px 8px 16px;
+    border-radius:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.3 system-ui,-apple-system,sans-serif;max-width:92vw;}
+  #aed-pick.show{display:flex;}
+  #aed-pick .ap-n{color:var(--muted);white-space:nowrap;}
+  #aed-pick button{height:30px;padding:0 14px;border:0;border-radius:8px;background:var(--accent,#a78bfa);color:#fff;font:inherit;cursor:pointer;}
+  /* a card's page: which of your filters it is in */
+  .aed-flags{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:14px 0 22px;padding:10px 12px;border-radius:12px;border:1.5px dashed var(--border);
+    font:12.5px/1.2 system-ui,-apple-system,sans-serif;}
+  .aed-flags .aed-fh{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:4px;}
+  .aed-fchip{padding:6px 11px;border-radius:999px;border:1.4px solid color-mix(in srgb,var(--c,var(--accent)) 50%,transparent);background:none;color:var(--text);font:inherit;cursor:pointer;}
+  .aed-fchip.on{background:color-mix(in srgb,var(--c,var(--accent)) 24%,transparent);border-color:var(--c,var(--accent));}
+  .aed-fchip.on::before{content:"✓ ";}
+  .aed-fchip.aed-fnew{border-style:dashed;border-color:var(--border);color:var(--muted);}
+  /* the Filter panel while editing */
+  #ef-panel .aed-fhint{font-size:11.5px;color:var(--muted);margin:0 2px 10px;line-height:1.35;}
+  #ef-panel .ef-h .aed-fx{margin-left:8px;font-size:10px;letter-spacing:.04em;text-transform:none;color:var(--muted);cursor:pointer;padding:1px 6px;border-radius:5px;border:1px solid var(--border);}
+  #ef-panel .ef-h .aed-fx:hover{color:var(--text);border-color:var(--muted);}
+  #ef-panel .aed-fxc{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:-2px;border-radius:50%;color:var(--muted);font-size:11px;line-height:1;}
+  #ef-panel .aed-fxc::before{content:attr(data-g);}
+  #ef-panel .aed-fxc:hover{color:var(--text);background:color-mix(in srgb,var(--text) 10%,transparent);}
+  #ef-panel .aed-foff{opacity:.42;}
+  #ef-panel .ef-sec.aed-foff .ef-h .aed-fx,#ef-panel .ef-chip.aed-foff .aed-fxc{opacity:1;}
+  #ef-panel .ef-sec.aed-foff{opacity:1;} #ef-panel .ef-sec.aed-foff .ef-chips{opacity:.42;}
+  #ef-panel .aed-fadd{display:block;width:100%;margin:6px 0 8px;padding:9px;border-radius:10px;border:1.5px dashed var(--border);background:none;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;}
+  #ef-panel .aed-fadd:hover{color:var(--text);border-color:var(--muted);}
+  /* a name to type; the kinds of section */
+  #aed-name,#aed-kinds{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
+    border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--text);}
+  #aed-name.show,#aed-kinds.show{display:block;}
+  #aed-name h5,#aed-kinds h5{margin:0 0 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  #aed-name input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;}
+  #aed-name .al-go{display:flex;gap:6px;margin-top:8px;}
+  #aed-name .al-go button{flex:1;height:30px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text);font:inherit;cursor:pointer;}
+  #aed-name .al-go .ab-ok{background:var(--accent,#a78bfa);border-color:transparent;color:#fff;}
+  #aed-kinds button{display:block;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:8px;background:none;color:var(--text);font:inherit;cursor:pointer;}
+  #aed-kinds button:hover{background:color-mix(in srgb,var(--accent,#a78bfa) 14%,transparent);}
+  #aed-kinds button b{display:block;font-weight:600;}
+  #aed-kinds button small{display:block;color:var(--muted);font-size:11.5px;}
   #aed-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:8400;display:none;padding:10px 16px;border-radius:12px;
     background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 10px 30px var(--node-rest-shadow);font-size:13px;max-width:90vw;}
   #aed-toast.show{display:block;}
@@ -280,6 +371,221 @@ MANUAL_JS = r"""<script id="alto-manual">
   function treeStep(key, step){ var T = (window._ALTO_DT || {})[key]; if(!T) return null; for(var i = 0; i < T.n.length; i++) if(T.n[i].i === step) return T.n[i]; return null; }
   var DTF = {title:'t', text:'x', edge:'e', tag:'g'};
 
+  /* a section added here: its kind (brief.PROVENANCE), and a tree of its own */
+  var PROVL = {quoted:'Quoted', notes:'From your notes', summary:'Summary'};
+  var DTPRE = {n:'n', c:'c', env:'a0', theme:'a1'};
+  var NEWT = /^(n|c|a0|a1)-(.+)-(new-[a-z0-9]+)$/;
+  function newTreeSec(key){
+    var m = NEWT.exec(key); if(!m) return null;
+    var kind = {n:'n', c:'c', a0:'env', a1:'theme'}[m[1]], s = sec(kind, m[2], m[3]);
+    return s ? {kind:kind, id:m[2], x:m[3], s:s} : null;
+  }
+  function setSlot(s, key, on){
+    var t = String(s.t || ''), mk = MARK.exec(t), m = mk ? mk[0] : '';
+    var body = t.replace(MARK, '').replace(SLOT, '');
+    s.t = body + (on ? '<span class="adt-slot" data-adt="' + key + '" hidden></span>' : '') + m;
+  }
+  // a heading's kind tag, left off where the heading already says it (detail_extras.prov_heading)
+  function provTail(v, h){ var L = PROVL[v]; if(!L || txt(h).trim().toLowerCase() === L.toLowerCase()) return ''; return PROV + esc(L) + '</span>'; }
+
+  /* cards added and removed here, laid over the page's own (an outline's
+     tree, or a unit's run of cards) */
+  var OUT = window._ALTO_OUTLINE || null;
+  var CARDS0 = null, NEWC = {}, NEWO = [], GONE = {};
+  function cardsBase(){
+    if(CARDS0) return CARDS0;
+    try{
+      if(typeof NODES_SRC === 'undefined' || typeof NODES === 'undefined' || typeof ACT_SEQS === 'undefined' || typeof NODE_ACT === 'undefined') return null;
+      var T = plan();
+      CARDS0 = {src: NODES_SRC.slice(), live: NODES.slice(), seqs: ACT_SEQS.map(function(a){ return a.slice(); }),
+        conns: (typeof CONNECTIONS !== 'undefined') ? CONNECTIONS.slice() : null, act: Object.assign({}, NODE_ACT),
+        kids: OUT ? JSON.parse(JSON.stringify(OUT.kids || {})) : null, par: OUT ? Object.assign({}, OUT.parent || {}) : null,
+        num: OUT ? Object.assign({}, OUT.num || {}) : null, label: OUT ? Object.assign({}, OUT.label || {}) : null,
+        plan: T ? JSON.parse(JSON.stringify(T.acts)) : null,
+        order: (typeof NODE_ORDER_MAP !== 'undefined') ? Object.assign({}, NODE_ORDER_MAP) : null};
+    }catch(e){ CARDS0 = null; }
+    return CARDS0;
+  }
+  function isNew(id){ return !!(NEWC[id] && !NEWC[id].off); }
+  function cardGone(id){ return !!GONE[id] || !!(NEWC[id] && NEWC[id].off); }
+  function kidsOf(id){ return ((OUT && OUT.kids) || {})[id] || []; }
+  function descendantsOf(id){ var out = [], q = kidsOf(id).slice(); while(q.length){ var c = q.shift(); out.push(c); q = q.concat(kidsOf(c)); } return out; }
+  function romanOf(n){ var r = '', V = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+    V.forEach(function(p){ while(n >= p[0]){ r += p[1]; n -= p[0]; } }); return r; }
+  // blocks.py _mark: I. / A. / 1. / a. / i.
+  function outMark(level, i){ return level === 0 ? romanOf(i + 1) + '.' : level === 1 ? String.fromCharCode(65 + i % 26) + '.'
+    : level === 2 ? (i + 1) + '.' : level === 3 ? String.fromCharCode(97 + i % 26) + '.' : romanOf(i + 1).toLowerCase() + '.'; }
+  function fill(obj, from){ Object.keys(obj).forEach(function(k){ delete obj[k]; }); Object.keys(from).forEach(function(k){ obj[k] = from[k]; }); }
+  // A plan (layout.outline_plan) without the cards taken out.
+  function prune(op){
+    var k = op[0];
+    if(k === 'card') return cardGone(op[1]) ? null : op;
+    if(k === 'row'){ var ids = op[1].filter(function(i){ return !cardGone(i); }); return ids.length ? [k, ids].concat(op.slice(2)) : null; }
+    if(k === 'seq') return [k, op[1].map(prune).filter(Boolean)];
+    if(k === 'par') return [k, op[1].map(prune).filter(Boolean)].concat(op.slice(2));
+    if(k === 'band'){
+      var cards = op[1].filter(function(cd){ return !cardGone(cd[0]); }).map(function(cd){ return cd.length > 5 && cardGone(cd[5]) ? cd.slice(0, 5) : cd; });
+      if(!cards.length) return null;
+      var blocks = op[2].map(function(b){ var o = prune(b[2]); return o ? [b[0], b[1], o] : null; }).filter(Boolean);
+      return [k, cards, blocks].concat(op.slice(3));
+    }
+    var inner = prune(op[1]); return inner ? [k, inner].concat(op.slice(2)) : null;     // float
+  }
+  // Every table the page keeps of its cards, from the cards as built plus
+  // the ones added and less the ones removed here.
+  function syncCards(){
+    var B = cardsBase(); if(!B) return;
+    var src = B.src.filter(function(n){ return !cardGone(n.id); });
+    var seqs = B.seqs.map(function(a){ return a.filter(function(id){ return !cardGone(id); }); });
+    var act = {}; Object.keys(B.act).forEach(function(id){ if(!cardGone(id)) act[id] = B.act[id]; });
+    var kids = null, par = null;
+    if(B.kids){
+      kids = {}; par = {};
+      Object.keys(B.kids).forEach(function(p){ if(cardGone(p)) return; var l = B.kids[p].filter(function(id){ return !cardGone(id); }); if(l.length) kids[p] = l; });
+      Object.keys(B.par).forEach(function(c){ if(!cardGone(c)) par[c] = B.par[c]; });
+    }
+    var spines = [];
+    NEWO.forEach(function(id){
+      var c = NEWC[id]; if(!c || c.off) return;
+      var sp = c.spec, a = act[sp.p] != null ? act[sp.p] : sp.a, seq = seqs[a];
+      if(!seq || (sp.p && act[sp.p] == null)) return;           // its unit or parent is not on the page
+      var at = seq.length;
+      if(sp.p && kids){
+        var last = seq.indexOf(sp.p);
+        (function walk(x){ (kids[x] || []).forEach(function(k){ var j = seq.indexOf(k); if(j > last) last = j; walk(k); }); })(sp.p);
+        at = last + 1;
+        par[id] = sp.p; (kids[sp.p] = kids[sp.p] || []).push(id);
+        spines.push([sp.p, id, 'spine']);
+      }
+      var before = at > 0 ? seq[at - 1] : null, after = seq[at] || null;
+      seq.splice(at, 0, id); act[id] = a;
+      function at_(x){ for(var i = 0; i < src.length; i++) if(src[i].id === x) return i; return -1; }
+      var si = before ? at_(before) + 1 : after ? at_(after) : src.length;
+      src.splice(si < 0 ? src.length : si, 0, c.src);
+      if(!c.src.baseY){ var ys = src.filter(function(n){ return act[n.id] === a && n !== c.src; }).map(function(n){ return n.baseY || 0; });
+        c.src.baseY = c.live.baseY = c.live.y = (ys.length ? Math.max.apply(null, ys) : 300) + 1; }
+      c.live.act = a;
+      try{ if(!NODE_DETAILS[id]) NODE_DETAILS[id] = {sections: []}; }catch(e){}
+    });
+    var liveBy = {}; B.live.forEach(function(n){ liveBy[n.id] = n; });
+    NODES_SRC.splice.apply(NODES_SRC, [0, NODES_SRC.length].concat(src));
+    NODES.splice.apply(NODES, [0, NODES.length].concat(src.map(function(n){ return liveBy[n.id] || NEWC[n.id].live; })));
+    ACT_SEQS.forEach(function(a, i){ a.splice.apply(a, [0, a.length].concat(seqs[i] || [])); });
+    fill(NODE_ACT, act);
+    if(B.conns) CONNECTIONS.splice.apply(CONNECTIONS, [0, CONNECTIONS.length].concat(
+      spines.concat(B.conns.filter(function(c){ return !cardGone(c[0]) && !cardGone(c[1]); }))));
+    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0;
+    if(OUT){
+      fill(OUT.kids, kids); fill(OUT.parent, par);
+      if(!changed){ fill(OUT.num, B.num); fill(OUT.label, B.label); }
+      else {
+        var num = {}, lab = {};
+        (function(){ var r = 0; seqs.forEach(function(ids){ ids.forEach(function(id){ if(par[id]) return;
+          (function walk(x, level, i, pre){ var m = outMark(level, i); lab[x] = m; num[x] = pre + m;
+            (kids[x] || []).forEach(function(k, j){ walk(k, level + 1, j, num[x]); }); })(id, 0, r++, ''); }); }); })();
+        fill(OUT.num, num); fill(OUT.label, lab);
+      }
+    }
+    if(B.order){ if(!changed) fill(NODE_ORDER_MAP, B.order);
+      else { var om = {}; seqs.forEach(function(ids, a){ ids.forEach(function(id, j){ om[id] = (a + 1) + '.' + (j + 1); }); }); fill(NODE_ORDER_MAP, om); } }
+    var T = plan(); if(T && B.plan) T.acts = changed ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : JSON.parse(JSON.stringify(B.plan));
+  }
+  function setNew(id, v){
+    if(!cardsBase()) return;
+    var c = NEWC[id];
+    if(!v){ if(c) c.off = true; syncCards(); return; }
+    if(!c){
+      var s = {id:id, baseY:0, col: v.col || 'center', tag: v.g || '', title: v.t || '', desc: v.d || '', chars:[], color: v.c || 'var(--accent)', envs:[], themes:[]};
+      c = NEWC[id] = {spec: null, src: s, live: Object.assign({}, s, {y: 0, act: v.a || 0})};
+      NEWO.push(id);
+    }
+    c.off = false; c.spec = JSON.parse(JSON.stringify(v));
+    syncCards();
+  }
+  // A new card of an outline drawn as a tree, after the tree is laid out: under
+  // its parent's last descendant (or at the foot of its unit), and everything
+  // that starts below that point moves down to make room — so it covers
+  // nothing until Claude's next build places it properly.
+  function placeNew(pos, h){
+    var G = window._altoTreeGeo, T = plan(); if(!G || !T) return;
+    var ids = NEWO.filter(function(id){ return isNew(id) && pos[id] != null; }); if(!ids.length) return;
+    var gap = T.row_gap || 40, W = {}, placed = {};
+    function w(id){ if(W[id] == null){ var el = document.getElementById('node-' + id), c = el && el.querySelector('.node-card'); W[id] = c && c.offsetWidth ? c.offsetWidth : 240; } return W[id]; }
+    ids.forEach(function(id){
+      var sp = NEWC[id].spec, hc = h[id] || 120, x, cand;
+      var all = Object.keys(pos).filter(function(q){ return q !== id && (!isNew(q) || placed[q]) && G.x[q] != null && h[q] != null; });
+      if(sp.p && pos[sp.p] != null){
+        var kin = descendantsOf(sp.p).filter(function(q){ return all.indexOf(q) >= 0; });
+        var sib = kidsOf(sp.p).filter(function(q){ return all.indexOf(q) >= 0; });
+        x = sib.length ? G.x[sib[sib.length - 1]] : G.x[sp.p];
+        cand = Math.max.apply(null, kin.concat([sp.p]).map(function(q){ return pos[q] + h[q] / 2; })) + gap;
+      } else {
+        var mine = all.filter(function(q){ return NODE_ACT[q] === NODE_ACT[id]; });
+        x = T.cx || 850;
+        cand = mine.length ? Math.max.apply(null, mine.map(function(q){ return pos[q] + h[q] / 2; })) + gap : (T.top || 200);
+      }
+      for(var guard = 0, moved = true; moved && guard < 400; guard++){
+        moved = false;
+        all.forEach(function(q){ var top = pos[q] - h[q] / 2, bot = pos[q] + h[q] / 2;
+          if(top < cand && bot > cand - gap + 1 && Math.abs(G.x[q] - x) < (w(q) + w(id)) / 2 + 16){ cand = bot + gap; moved = true; } });
+      }
+      var D = hc + gap;
+      all.forEach(function(q){ if(pos[q] - h[q] / 2 >= cand - 0.5){ pos[q] += D; if(G.y[q] != null) G.y[q] = pos[q]; } });
+      pos[id] = cand + hc / 2; G.y[id] = pos[id]; G.x[id] = x; G.h[id] = hc;
+      var n = liveNode(id); if(n) n.displayX = x;
+      var el = document.getElementById('node-' + id); if(el) el.style.left = x + 'px';
+      placed[id] = 1;
+    });
+  }
+  if(typeof window._altoTree === 'function'){
+    var tree0 = window._altoTree;
+    var withNew = function(pos, h){ var r = tree0.apply(this, arguments); if(r && NEWO.length){ try{ placeNew(pos, h); }catch(e){} } return r; };
+    window._altoTree = withNew;
+  }
+
+  /* filters: the owner's own (flags) and the ones taken out of the panel */
+  var FLAGS = EDK.fl || [], FLN = EDK.fln || {}, OFF = EDK.foff || [], FSLOT = EDK.fslot || {};
+  var FULL = JSON.parse(JSON.stringify(EDK.fall || {sections: window.FILTER_SECTIONS || [], nodes: window.FILTER_NODES || {}}));
+  var FORIG = {sections: window.FILTER_SECTIONS, nodes: window.FILTER_NODES}, FTOUCH = false;
+  function fkey(k){ return FSLOT[k] || k; }
+  // The panel's sections as the build would make them now (blocks.py), or,
+  // while editing, with the ones taken out still there to put back.
+  function filterSets(all){
+    var here = {}; (typeof NODES_SRC !== 'undefined' ? NODES_SRC : []).forEach(function(n){ here[n.id] = 1; });
+    var fm = {}; Object.keys(FLN).forEach(function(nid){ if(here[nid]) (FLN[nid] || []).forEach(function(f){ (fm[f] = fm[f] || []).push(nid); }); });
+    var fitems = FLAGS.filter(function(f){ return all || (fm[f.id] || []).length; }).map(function(f){
+      return {id:f.id, name:f.name, color:f.color || 'var(--accent)', count:(fm[f.id] || []).length}; });
+    var chips = FULL.sections.filter(function(s){ return s.kind === 'chips' && s.key !== 'flags'; });
+    var rest = FULL.sections.filter(function(s){ return s.kind !== 'chips'; });
+    var list = chips.concat(fitems.length ? [{key:'flags', kind:'chips', label:'Flags', items:fitems}] : []).concat(rest);
+    var out = [], nodes = {};
+    list.forEach(function(s){
+      var k = fkey(s.key), off = OFF.indexOf(k) >= 0;
+      if(off && !all) return;
+      var items = s.items.filter(function(it){ return all || OFF.indexOf(k + ':' + it.id) < 0; });
+      if(!items.length) return;
+      var s2 = JSON.parse(JSON.stringify(s)); s2.items = JSON.parse(JSON.stringify(items));
+      if(all){ s2.off = off; s2.items.forEach(function(it){ it.off = OFF.indexOf(k + ':' + it.id) >= 0; }); }
+      out.push(s2);
+      if(s.key === 'flags'){ var m = {}; fitems.forEach(function(it){ m[it.id] = (fm[it.id] || []).slice().sort(); }); nodes.flags = m; }
+      else if(FULL.nodes[s.key]) nodes[s.key] = FULL.nodes[s.key];
+    });
+    return {sections: out, nodes: nodes};
+  }
+  var drawFT = null;
+  function drawFiltersSoon(){ FTOUCH = true; clearTimeout(drawFT); drawFT = setTimeout(drawFilters, 0); }
+  function drawFilters(){
+    if(typeof window._altoFilterRedraw !== 'function') return;
+    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', function(){ setTimeout(drawFilters, 0); }); return; }
+    var ed = editing() && structOK();
+    if(!ed && !FTOUCH){ window.FILTER_SECTIONS = FORIG.sections; window.FILTER_NODES = FORIG.nodes; }
+    else { var S = filterSets(ed); window.FILTER_SECTIONS = S.sections; window.FILTER_NODES = S.nodes; }
+    window._altoFilterWanted = ed;
+    try{ window._altoFilterRedraw(); }catch(e){}
+    paintPick();
+  }
+  function slug(s){ return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, ''); }
+
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
@@ -296,9 +602,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(/^(n|c|env|theme)$/.test(kind) && p[2] === 's' && p.length === 5){
       var s = sec(kind, id, p[3]); if(!s) return null;
       if(p[4] === 'h') return {kind:'plain', get:function(){ return txt(hParts(s.h).text); },
-        set:function(v){ var q = hParts(s.h); s.h = q.lead + esc(v) + q.tail; }};
+        set:function(v){ var q = hParts(s.h); s.h = q.lead + esc(v) + (s._p != null ? provTail(s._p, esc(v)) : q.tail); }};
       if(p[4] === 't') return {kind:'html', get:function(){ return tParts(s.t).text; },
         set:function(v){ s.t = v + tParts(s.t).tail; }};
+      // a new section's kind: quoted, from your notes, a summary (or none)
+      if(p[4] === 'p' && /^new-/.test(p[3])) return {kind:'plain', get:function(){ return s._p || ''; },
+        set:function(v){ s._p = PROVL[v] ? v : ''; var q = hParts(s.h); s.h = q.lead + q.text + provTail(s._p, q.text); }};
       return null;
     }
     if(kind === 'u' && p[2] === 'label'){
@@ -323,6 +632,15 @@ MANUAL_JS = r"""<script id="alto-manual">
         get:function(){ return ((EDK[kind] || {})[id] || []).filter(own).map(String); },
         set:function(v){ reorder(kind, id, v || []); }};
     }
+    if(kind === 'dt' && p.length === 3 && p[2] === 'tree' && NEWT.test(id)){
+      // a tree in a section added here: made with its first step
+      if(!window._ALTO_DT || (!window._ALTO_DT[id] && !newTreeSec(id))) return null;
+      return {kind:'struct', sig:function(){ return 'new'; },
+        get:function(){ var X = window._ALTO_DT[id]; return X ? JSON.parse(JSON.stringify(X.n)) : []; },
+        set:function(v){ var X = window._ALTO_DT[id]; v = JSON.parse(JSON.stringify(v || []));
+          if(!X) X = window._ALTO_DT[id] = {n: [], lay: 'auto', open: true, fold: 0, label: ''};
+          X.n = v; var q = newTreeSec(id); if(q) setSlot(q.s, id, v.length > 0); }};
+    }
     if(kind === 'dt' && p.length === 3 && p[2] === 'tree'){
       var TT = (window._ALTO_DT || {})[id]; if(!TT) return null;
       return {kind:'struct', sig:function(){ return PRIS['dt|' + id]; },
@@ -337,6 +655,31 @@ MANUAL_JS = r"""<script id="alto-manual">
       var st = treeStep(id, p[2]); if(!st) return null;
       var f = DTF[p[3]];
       return {kind:'plain', get:function(){ return st[f] || ''; }, set:function(v){ if(v) st[f] = v; else delete st[f]; }};
+    }
+    if(kind === 'nn' && p.length === 2 && /^card-[a-z0-9]{4,12}$/.test(id)){
+      // a page built with the card already has it: nothing to lay over
+      var B1 = cardsBase(); if(!B1 || B1.src.some(function(n){ return n.id === id; })) return null;
+      return {kind:'card', sig:function(){ return null; },
+        get:function(){ return isNew(id) ? JSON.parse(JSON.stringify(NEWC[id].spec)) : null; },
+        set:function(v){ setNew(id, v); }};
+    }
+    if(kind === 'nd' && p.length === 2){
+      var B0 = cardsBase(); if(!B0 || !B0.src.some(function(n){ return n.id === id; })) return null;
+      return {kind:'card', get:function(){ return GONE[id] ? 1 : 0; },
+        set:function(v){ if(v) GONE[id] = 1; else delete GONE[id]; syncCards(); }};
+    }
+    if(kind === 'fl' && id === 'list' && p.length === 2){
+      return {kind:'list', get:function(){ return JSON.parse(JSON.stringify(FLAGS)); },
+        set:function(v){ FLAGS.splice.apply(FLAGS, [0, FLAGS.length].concat(JSON.parse(JSON.stringify(v || [])))); drawFiltersSoon(); }};
+    }
+    if(kind === 'fn' && p.length === 2){
+      if(!srcNode(id)) return null;
+      return {kind:'list', get:function(){ return (FLN[id] || []).slice(); },
+        set:function(v){ if(v && v.length) FLN[id] = v.slice(); else delete FLN[id]; drawFiltersSoon(); }};
+    }
+    if(kind === 'fx' && id === 'off' && p.length === 2){
+      return {kind:'list', get:function(){ return OFF.slice(); },
+        set:function(v){ OFF.splice.apply(OFF, [0, OFF.length].concat(v || [])); drawFiltersSoon(); }};
     }
     if(kind === 'p' && p[2] === 'shift'){
       var T = plan(); if(!T || !srcNode(id)) return null;
@@ -354,7 +697,13 @@ MANUAL_JS = r"""<script id="alto-manual">
   var conflicts = {}, APPLIED = {};      // APPLIED: what this page last set each field to
   function sigOf(f){ return f.sig ? f.sig() : f.get(); }
   // structure first (a section list, a tree), then new sections' words, then the rest, oldest first
-  function pri(k){ var p = k.split('|'); return (p[2] === 'order' || (p[0] === 'dt' && p[2] === 'tree')) ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
+  // cards, then the filters' list, then structure (a section list, a tree; a
+  // new section's tree after its section), new sections' words, the rest
+  function pri(k){ var p = k.split('|');
+    if(p[0] === 'nn' || p[0] === 'nd') return -2;
+    if(p[0] === 'fl') return -1;
+    if(p[0] === 'dt' && p[2] === 'tree') return NEWT.test(p[1]) ? 0.5 : 0;
+    return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
   function overlay(){
     var any = false;
     Object.keys(STORE.ops).sort(function(a, b){ return pri(a) - pri(b) || ((STORE.ops[a] || {}).t || 0) - ((STORE.ops[b] || {}).t || 0); }).forEach(function(k){
@@ -371,8 +720,13 @@ MANUAL_JS = r"""<script id="alto-manual">
   function relayout(){
     if(root.classList.contains('mobile') || typeof initLayout !== 'function') return;
     try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(e){}
+    try{ if(window._altoFilterRefresh && window._altoChipOn && window._altoChipOn()) window._altoFilterRefresh(); }catch(e){}
+    decorateCanvas(); paintPick();
   }
-  if(overlay()) requestAnimationFrame(function(){ requestAnimationFrame(function(){ requestAnimationFrame(relayout); }); });
+  if(overlay()){
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ requestAnimationFrame(relayout); }); });
+    if(FTOUCH) drawFiltersSoon();
+  }
 
   /* ── who may edit ─────────────────────────────────────────────────────── */
   function cloud(){ return window.AltoCloud && window.AltoCloud.enabled ? window.AltoCloud : null; }
@@ -462,6 +816,20 @@ MANUAL_JS = r"""<script id="alto-manual">
   var TYPE = {n:'node', c:'char', env:'env', theme:'theme'};
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
+    if(kind === 'nn' || kind === 'nd'){
+      relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
+      if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
+      else if(P) { rerenderPage(P); repaint(); }
+      return;
+    }
+    if(kind === 'fl' || kind === 'fn' || kind === 'fx'){
+      if(P && P.type === 'node' && editing()) decorateFlags(true);
+      return;
+    }
+    if((kind === 'dt' && NEWT.test(p[1] || '') && p[2] === 'tree') || (p[2] === 's' && p[4] === 'p')){
+      if(P) { rerenderPage(P); repaint(); }
+      return;
+    }
     if(kind === 'n' && p.length === 3) relayoutSoon();
     if(kind === 'u' || kind === 'p') relayoutSoon();
     if(kind === 'u' || kind === 'ov') decorateOvSoon();
@@ -513,14 +881,17 @@ MANUAL_JS = r"""<script id="alto-manual">
     exitPill(); setStatus(status); syncHist(); listen();
     var P = page(); if(P) rerenderPage(P);
     decorate(); decorateOv();
+    if(structOK()){ drawFilters(); decorateCanvas(); }
   }
   function exit(){
     if(!editing()) return;
     endField(true);
     root.classList.remove('alto-editing', 'alto-drag-ok');
-    document.querySelectorAll('.aed-sc,.aed-tc,.aed-add,.aed-ph').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
+    endPick(true); hideMenus();
+    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-fx,.aed-fadd').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
     hideBar();
+    if(FTOUCH || structOK()) drawFilters();
   }
   // A page shown again in place: keeps where the reader was, and adds nothing
   // to Back (BACK_PREV counts a page opened from inside a page as a hop).
@@ -651,6 +1022,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(lastOwn && lastOwn.nextSibling) dc.insertBefore(add, lastOwn.nextSibling);
         else if(tile) dc.insertBefore(add, tile); else dc.appendChild(add);
       }
+      if(kind === 'n') decorateFlags(false);
       if(kind === 'n'){
         var seenT = {};
         dc.querySelectorAll('.hc-row').forEach(function(row){
@@ -697,6 +1069,229 @@ MANUAL_JS = r"""<script id="alto-manual">
       b.setAttribute('data-g', it[1]); b.title = it[2]; b.setAttribute('aria-label', it[2]); w.appendChild(b); });
     return w;
   }
+  /* cards: + under a card (an outline), ✕ on a card with nothing under it,
+     + Add a card beside each unit's name */
+  function canRemove(id){ return !kidsOf(id).some(function(k){ return !cardGone(k); }); }
+  function decorateCanvas(){
+    document.querySelectorAll('.aed-uc').forEach(function(el){ el.parentNode.removeChild(el); });
+    if(!editing() || !structOK() || !cardsBase()) return;
+    var world = document.getElementById('world'); if(!world) return;
+    var lbls = Array.prototype.slice.call(world.querySelectorAll('.phase-label-float')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
+    lbls.forEach(function(l, i){
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-uc'; b.textContent = '+ Add a card';
+      b.title = OUT ? 'Add a card to this unit, under its top card' : 'Add a card at the end of this unit';
+      b.setAttribute('data-act', i);
+      b.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14) + 'px';
+      b.style.top = Math.round(l.offsetTop + l.offsetHeight / 2 - 15) + 'px';
+      world.appendChild(b);
+    });
+  }
+  document.addEventListener('mouseover', function(e){
+    if(!editing() || !structOK() || PICK || !cardsBase()) return;
+    var nodeEl = e.target && e.target.closest && e.target.closest('#canvas .node'); if(!nodeEl) return;
+    var card = nodeEl.querySelector('.node-card'), id = nodeEl.id.replace(/^node-/, '');
+    if(!card || card.querySelector(':scope > .aed-cc') || !srcNode(id)) return;
+    var items = [];
+    if(OUT) items.push(['addc', '+', 'Add a card under this one']);
+    if(canRemove(id)) items.push(['delc', '✕', 'Remove this card']);
+    if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
+  });
+  function addCard(p, a){
+    if(!cardsBase()) return;
+    // an outline's unit has one card at its top (brief: one hub per unit): a
+    // card added to the unit goes under it
+    if(!p && OUT){ var hub = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === a && !(OUT.parent || {})[n.id]; })[0]; if(hub) p = hub.id; }
+    var id = rid('card-'), par = p ? srcNode(p) : null, act = par ? NODE_ACT[p] : a;
+    var inAct = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === act; }), like = par || inAct[inAct.length - 1] || null;
+    var spec = {p: p || '', a: act, t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
+    if(!OUT) spec.col = like && like.col ? like.col : 'center';
+    if(!change('nn|' + id, spec)) return;
+    toast('Card added — Claude places it properly at the next build.');
+    setTimeout(function(){ var el = document.querySelector('#node-' + id + ' .node-title');
+      if(el){ try{ el.scrollIntoView({block:'center', inline:'nearest'}); }catch(_){} startField(el, 'n|' + id + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 140);
+  }
+  function removeCard(id){
+    if(!canRemove(id)) { toast('Remove the cards under it first.'); return; }
+    var ok = isNew(id) ? change('nn|' + id, null) : change('nd|' + id, 1);
+    if(ok) toast('Card removed — ⌘Z brings it back.');
+  }
+
+  /* filters of the owner's own: on a card's page, which it is in */
+  function decorateFlags(again){
+    var P = page(), dc = document.getElementById('detail-content'); if(!P || P.type !== 'node' || !dc) return;
+    var old = dc.querySelector('.aed-flags');
+    if(old && !again) return;
+    if(!editing() || !structOK() || !srcNode(P.id)){ if(old) old.parentNode.removeChild(old); return; }
+    var row = document.createElement('div'); row.className = 'aed-flags'; row.contentEditable = 'false';
+    var h = document.createElement('span'); h.className = 'aed-fh'; h.textContent = 'Filters'; row.appendChild(h);
+    var mine = FLN[P.id] || [];
+    FLAGS.forEach(function(f){ var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-fchip' + (mine.indexOf(f.id) >= 0 ? ' on' : '');
+      b.setAttribute('data-x', 'fltoggle'); b.setAttribute('data-fl', f.id); b.textContent = f.name; b.style.setProperty('--c', f.color || 'var(--accent)'); row.appendChild(b); });
+    var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-fchip aed-fnew'; add.setAttribute('data-x', 'flnew'); add.textContent = '+ New filter'; row.appendChild(add);
+    if(old) old.parentNode.replaceChild(row, old);
+    else { var hd = dc.querySelector('.detail-header'); if(hd && hd.parentNode === dc) dc.insertBefore(row, hd.nextSibling); else dc.insertBefore(row, dc.firstChild); }
+  }
+  function newFlag(name){
+    name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return null;
+    if(FLAGS.length >= 12){ toast('A timeline has at most 12 filters of its own.'); return null; }
+    var base = slug(name) || 'filter', id = base, i = 2;
+    var taken = {}; FLAGS.forEach(function(f){ taken[f.id] = 1; });
+    while(taken[id]) id = base.slice(0, 44) + '-' + (i++);
+    return {id: id, name: name};
+  }
+  function toggleFlag(nid, fid){ var L = (FLN[nid] || []).slice(), i = L.indexOf(fid); if(i < 0) L.push(fid); else L.splice(i, 1); return change('fn|' + nid, L); }
+
+  /* the Filter panel while editing: your own filters (choose their cards,
+     rename, remove), the others (take out, put back), + Add a filter */
+  var PICK = null;
+  function decoratePanel(){
+    var panel = document.getElementById('ef-panel'); if(!panel) return;
+    panel.querySelectorAll('.aed-fx,.aed-fadd,.aed-fhint').forEach(function(el){ el.parentNode.removeChild(el); });
+    panel.classList.toggle('aed-fedit', editing() && structOK());
+    if(!editing() || !structOK()) return;
+    var S = window.FILTER_SECTIONS || [], body = panel.querySelector('.ef-body'); if(!body) return;
+    var hint = document.createElement('div'); hint.className = 'aed-fhint'; hint.textContent = 'Editing filters — click one of your own to choose its cards.'; body.insertBefore(hint, body.firstChild);
+    panel.querySelectorAll('.ef-sec[data-sec]').forEach(function(sec){
+      var key = sec.getAttribute('data-sec'), sd = S.filter(function(x){ return x.key === key; })[0]; if(!sd) return;
+      sec.classList.toggle('aed-foff', !!sd.off);
+      if(key !== 'flags'){
+        var hx = document.createElement('span'); hx.className = 'aed-fx'; hx.setAttribute('role', 'button'); hx.setAttribute('data-x', sd.off ? 'fsecon' : 'fsecoff');
+        hx.textContent = sd.off ? '↺ Put back' : '✕ Take out'; hx.title = sd.off ? 'Show this filter again' : 'Take this filter out of the panel';
+        var hh = sec.querySelector('.ef-h'); if(hh) hh.appendChild(hx);
+      }
+      sec.querySelectorAll('.ef-chip[data-fid]').forEach(function(ch){
+        var id = ch.getAttribute('data-fid'), it = sd.items.filter(function(x){ return x.id === id; })[0] || {};
+        ch.classList.toggle('aed-foff', !!it.off);
+        var acts = key === 'flags' ? [['flren', '✎', 'Rename'], ['fldel', '✕', 'Remove this filter']]
+          : [[it.off ? 'fchipon' : 'fchipoff', it.off ? '↺' : '✕', it.off ? 'Put this back' : 'Take this out of the filter']];
+        acts.forEach(function(a){ var x = document.createElement('span'); x.className = 'aed-fx aed-fxc'; x.setAttribute('role', 'button');
+          x.setAttribute('data-x', a[0]); x.setAttribute('data-g', a[1]); x.title = a[2]; x.setAttribute('aria-label', a[2]); ch.appendChild(x); });
+      });
+    });
+    var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-fadd'; add.textContent = '+ Add a filter';
+    add.title = 'A filter of your own: name it, then click the cards that belong in it'; body.appendChild(add);
+  }
+  document.addEventListener('alto-filter-drawn', function(){ decoratePanel(); });
+  // A click on a chip while editing: its controls, or (your own filter) choosing its cards.
+  window._altoFilterChipClick = function(e, b){
+    if(!editing() || !structOK()) return false;
+    var x = e.target.closest && e.target.closest('.aed-fx');
+    var key = b.getAttribute('data-fs'), id = b.getAttribute('data-fid');
+    if(!x && key !== 'flags' && !b.classList.contains('aed-foff')) return false;
+    e.preventDefault(); e.stopPropagation();
+    if(!x){ if(key === 'flags') startPick(id); return true; }
+    filterAction(x.getAttribute('data-x'), key, id, x);
+    return true;
+  };
+  function filterAction(a, key, id, at){
+    var k = fkey(key), o = OFF.slice();
+    if(a === 'fsecoff'){ o.push(k); change('fx|off', o); }
+    else if(a === 'fsecon'){ change('fx|off', o.filter(function(x){ return x !== k; })); }
+    else if(a === 'fchipoff'){ o.push(k + ':' + id); change('fx|off', o); }
+    else if(a === 'fchipon'){ change('fx|off', o.filter(function(x){ return x !== k + ':' + id; })); }
+    else if(a === 'fldel'){
+      var f = FLAGS.filter(function(x){ return x.id === id; })[0]; if(!f) return;
+      var L = [['fl|list', FLAGS.filter(function(x){ return x.id !== id; })]];
+      Object.keys(FLN).forEach(function(nid){ if((FLN[nid] || []).indexOf(id) >= 0) L.push(['fn|' + nid, FLN[nid].filter(function(x){ return x !== id; })]); });
+      if(changes(L)) toast('“' + f.name + '” removed — ⌘Z brings it back.');
+    }
+    else if(a === 'flren'){
+      var f2 = FLAGS.filter(function(x){ return x.id === id; })[0]; if(!f2) return;
+      askName(at, 'Rename this filter', f2.name, function(nm){
+        nm = String(nm || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!nm || nm === f2.name) return;
+        change('fl|list', FLAGS.map(function(x){ return x.id === id ? Object.assign({}, x, {name: nm}) : x; })); });
+    }
+  }
+  function panelClick(e){
+    if(!editing() || !structOK()) return;
+    var t = e.target; if(!t.closest) return;
+    var x = t.closest('#ef-panel .ef-h .aed-fx');
+    if(x){ e.preventDefault(); e.stopPropagation(); var sec = x.closest('.ef-sec'); filterAction(x.getAttribute('data-x'), sec.getAttribute('data-sec'), null, x); return; }
+    var add = t.closest('#ef-panel .aed-fadd');
+    if(add){ e.preventDefault(); e.stopPropagation();
+      askName(add, 'Name your filter', '', function(nm){ var f = newFlag(nm); if(!f) return; if(change('fl|list', FLAGS.concat([f]))) startPick(f.id); }); }
+  }
+  document.addEventListener('click', panelClick, true);
+
+  /* choosing a filter's cards: click them on the timeline */
+  function startPick(fid){
+    if(!FLAGS.some(function(f){ return f.id === fid; })) return;
+    PICK = fid; if(window._altoFilterOpen) window._altoFilterOpen(false);
+    try{ if(page() && window.showTimeline) window.showTimeline(); }catch(e){}
+    root.classList.add('aed-picking'); paintPick();
+  }
+  function endPick(quiet){
+    if(!PICK) return; PICK = null; root.classList.remove('aed-picking');
+    document.querySelectorAll('.aed-pick-in,.aed-pick-out').forEach(function(el){ el.classList.remove('aed-pick-in', 'aed-pick-out'); });
+    var b = document.getElementById('aed-pick'); if(b) b.classList.remove('show');
+  }
+  function paintPick(){
+    if(!PICK) return;
+    var f = FLAGS.filter(function(x){ return x.id === PICK; })[0]; if(!f){ endPick(); return; }
+    var n = 0;
+    document.querySelectorAll('#world .node').forEach(function(el){ var on = (FLN[el.id.slice(5)] || []).indexOf(PICK) >= 0; if(on) n++;
+      el.classList.toggle('aed-pick-in', on); el.classList.toggle('aed-pick-out', !on); });
+    var b = document.getElementById('aed-pick');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-pick';
+      b.innerHTML = '<span class="ap-t"></span><span class="ap-n"></span><button type="button">Done</button>';
+      b.querySelector('button').addEventListener('click', function(e){ e.stopPropagation(); endPick(); drawFilters(); if(window._altoFilterOpen) window._altoFilterOpen(true); });
+      document.body.appendChild(b); }
+    b.querySelector('.ap-t').textContent = 'Choosing the cards in “' + f.name + '” — click a card to put it in or take it out';
+    b.querySelector('.ap-n').textContent = n + (n === 1 ? ' card' : ' cards');
+    b.classList.add('show');
+  }
+
+  /* a small box asking for a name; a menu of kinds of section */
+  function hideMenus(){ ['aed-name', 'aed-kinds'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
+  function placeNear(b, at){
+    var r = at.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
+    var top = r.bottom + 8; if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    b.style.top = Math.round(top) + 'px'; b.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left))) + 'px';
+  }
+  function askName(at, title, val, done){
+    hideMenus();
+    var b = document.getElementById('aed-name');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-name';
+      b.innerHTML = '<h5></h5><input type="text" maxlength="80" autocomplete="off"><div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="ok" class="ab-ok">Save</button></div>';
+      b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button'); if(!a) return;
+        if(a.getAttribute('data-a') === 'ok'){ var fn = b._done; b.classList.remove('show'); if(fn) fn(b.querySelector('input').value); } else b.classList.remove('show'); });
+      b.querySelector('input').addEventListener('keydown', function(e){ e.stopPropagation();
+        if(e.key === 'Enter'){ e.preventDefault(); var fn = b._done; b.classList.remove('show'); if(fn) fn(this.value); }
+        if(e.key === 'Escape'){ e.preventDefault(); b.classList.remove('show'); } });
+      document.body.appendChild(b); }
+    b._done = done; b.querySelector('h5').textContent = title; var inp = b.querySelector('input'); inp.value = val || '';
+    b.classList.add('show'); placeNear(b, at); setTimeout(function(){ inp.focus(); inp.select(); }, 0);
+  }
+  var KINDS = [['text', 'Text', 'A heading and a paragraph'], ['list', 'List', 'A heading and bullet points'],
+    ['quoted', 'Quote', 'The source’s own words, marked Quoted'], ['notes', 'From your notes', 'Your notes, marked as yours'],
+    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch, like a small timeline']];
+  function chooseKind(at, ok){
+    hideMenus();
+    var b = document.getElementById('aed-kinds');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-kinds';
+      b.innerHTML = '<h5>Add a section</h5>' + KINDS.map(function(k){ return '<button type="button" data-k="' + k[0] + '"><b>' + esc(k[1]) + '</b><small>' + esc(k[2]) + '</small></button>'; }).join('');
+      b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button[data-k]'); if(!a) return; b.classList.remove('show'); addSection(b._ok, a.getAttribute('data-k')); });
+      document.body.appendChild(b); }
+    b._ok = ok; b.classList.add('show'); placeNear(b, at);
+  }
+  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-kinds,.aed-add,.aed-fadd,.aed-fx')) hideMenus(); }, true);
+  function addSection(ok, kind){
+    var f = field(ok + '|order'); if(!f) return;
+    var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
+    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree'}[kind] || 'New section';
+    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : kind === 'tree' ? '' : 'Write here.';
+    var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H]];
+    if(T) L.push([base + '|t', T]);
+    if(PROVL[kind]) L.push([base + '|p', kind]);
+    if(kind === 'tree') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), t: 'First question'}]]);
+    if(changes(L)){
+      setTimeout(function(){ var mk = document.querySelector('#detail-content .aed-k[data-k="' + base + '"]'), sb = mk && mk.closest('.detail-section'), h3 = sb && sb.querySelector(':scope > h3');
+        if(h3){ h3.scrollIntoView({block:'center'}); startField(h3, base + '|h'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
+    }
+  }
+
   var decOvT = null;
   function decorateOvSoon(){ clearTimeout(decOvT); decOvT = setTimeout(decorateOv, 0); }
   function decorateOv(){
@@ -865,6 +1460,11 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(tag === 'BUTTON') return;
         if(tag === 'SPAN' && n.classList.contains('alto-link') && /^(node|char|env|theme)$/.test(n.getAttribute('data-sd-type') || '') && /^[a-z0-9][a-z0-9-]{0,47}$/.test(n.getAttribute('data-sd-id') || '')){
           var s = document.createElement('span'); s.className = 'alto-link'; s.setAttribute('data-sd-type', n.getAttribute('data-sd-type')); s.setAttribute('data-sd-id', n.getAttribute('data-sd-id')); walk(n, s); dst.appendChild(s); return; }
+        if(tag === 'A' && FILE_ID.test(n.getAttribute('data-file') || '')){
+          var fa = document.createElement('a'); fa.setAttribute('href', '#'); fa.className = 'note-link'; fa.setAttribute('data-file', n.getAttribute('data-file'));
+          var fnm = String(n.getAttribute('data-file-name') || '').replace(/[\u0000-\u001f<>"]/g, '').slice(0, 200); if(fnm) fa.setAttribute('data-file-name', fnm);
+          ['data-file-size', 'data-file-mod'].forEach(function(at){ var v = n.getAttribute(at); if(v && /^\d{1,15}$/.test(v)) fa.setAttribute(at, v); });
+          walk(n, fa); dst.appendChild(fa); return; }
         if(tag === 'A'){
           var href = n.getAttribute('href') || '';
           if(/^(https?:\/\/|mailto:)/i.test(href)){ var a = document.createElement('a'); a.setAttribute('href', href); a.className = 'note-link'; a.target = '_blank'; a.rel = 'noopener';
@@ -961,7 +1561,9 @@ MANUAL_JS = r"""<script id="alto-manual">
     b = document.createElement('div'); b.id = 'aed-link';
     b.innerHTML = '<h5>Link to a page in this timeline</h5><input class="al-q" type="text" placeholder="Search pages…" autocomplete="off">'
       + '<div class="al-list"></div><h5>or a website</h5><input class="al-url" type="url" placeholder="https://…" autocomplete="off">'
-      + '<div class="al-msg"></div><div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="url">Link website</button></div>';
+      + '<div class="al-msg"></div><div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="url">Link website</button></div>'
+      + '<h5 class="al-fh">or a file on this computer</h5><div class="al-go"><button type="button" data-a="file">Choose a file…</button></div>'
+      + '<div class="al-k al-fk">It opens from this browser on this computer. Claude also finds it in your Desktop, Documents or Downloads, so the copy of the timeline you download opens it too.</div>';
     b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
     b.addEventListener('click', function(e){
       e.stopPropagation();
@@ -969,6 +1571,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       var a = e.target.closest('button') && e.target.closest('button').getAttribute('data-a');
       if(a === 'cancel') hideLink(true);
       if(a === 'url') linkUrl();
+      if(a === 'file') linkFile();
     });
     b.querySelector('.al-q').addEventListener('input', function(){ list(this.value); });
     b.querySelector('.al-q').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); var r = b.querySelector('.al-row'); if(r) r.click(); } if(e.key === 'Escape'){ e.preventDefault(); hideLink(true); } });
@@ -1020,6 +1623,87 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!/^(https?:\/\/[^\s<>"]+|mailto:[^\s<>"]+)$/i.test(u)){ b.querySelector('.al-msg').textContent = 'Paste a full web address (https://…).'; return; }
     var a = document.createElement('a'); a.setAttribute('href', u); a.className = 'note-link'; a.target = '_blank'; a.rel = 'noopener'; wrapSel(a);
   }
+  /* a file on this computer: the page keeps it (or, where the browser can,
+     its place on disk) in this browser's own storage, under the link's id */
+  var FILE_ID = /^file-[a-z0-9]{6,12}$/, MAX_KEEP = 300 * 1024 * 1024;
+  var fdbP = null;
+  function fdb(){
+    if(!fdbP) fdbP = new Promise(function(res, rej){
+      try{ var r = indexedDB.open('alto-files', 1);
+        r.onupgradeneeded = function(){ r.result.createObjectStore('f'); };
+        r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; }catch(e){ rej(e); } });
+    return fdbP;
+  }
+  function fput(id, rec){ return fdb().then(function(db){ return new Promise(function(res, rej){
+    var t = db.transaction('f', 'readwrite'); t.objectStore('f').put(rec, id); t.oncomplete = function(){ res(); }; t.onerror = t.onabort = function(){ rej(t.error); }; }); }); }
+  function fget(id){ return fdb().then(function(db){ return new Promise(function(res){
+    var q = db.transaction('f').objectStore('f').get(id); q.onsuccess = function(){ res(q.result || null); }; q.onerror = function(){ res(null); }; }); }).catch(function(){ return null; }); }
+  function pickFile(){
+    if(typeof window.showOpenFilePicker === 'function')
+      return window.showOpenFilePicker({multiple: false}).then(function(hs){ return hs[0].getFile().then(function(f){ return {file: f, handle: hs[0]}; }); });
+    return new Promise(function(res, rej){
+      var inp = document.createElement('input'); inp.type = 'file'; inp.style.cssText = 'position:fixed;left:-9999px;top:0;';
+      inp.addEventListener('change', function(){ var f = inp.files && inp.files[0]; inp.remove(); if(f) res({file: f}); else rej(new Error('none')); });
+      inp.addEventListener('cancel', function(){ inp.remove(); rej(new Error('none')); });
+      // inside the link box: a click there is not a click away from the words
+      (document.getElementById('aed-link') || document.body).appendChild(inp); inp.click();
+    });
+  }
+  function linkFile(){
+    var b = linkBox(), keep = savedRange;
+    pickFile().then(function(got){
+      var f = got.file, id = rid('file-') + Math.random().toString(36).slice(2, 4);
+      var rec = {name: f.name, size: f.size, type: f.type || '', mod: f.lastModified || 0};
+      // where the browser can, its place on disk (opens the file as it is
+      // now); elsewhere a copy of its bytes (WebKit will not keep a File in a
+      // private window, bytes it will)
+      var ready = got.handle ? Promise.resolve(rec.handle = got.handle)
+        : f.size <= MAX_KEEP ? f.arrayBuffer().then(function(b){ rec.buf = b; }) : Promise.resolve();
+      return ready.then(function(){ return fput(id, rec); }).catch(function(){ delete rec.buf; delete rec.handle; return fput(id, rec); }).then(function(){
+        if(!rec.handle && !rec.buf) toast('“' + f.name + '” is linked, but too big to keep in this browser — the timeline you download opens it.');
+        savedRange = keep;
+        var a = document.createElement('a'); a.setAttribute('href', '#'); a.className = 'note-link'; a.setAttribute('data-file', id);
+        a.setAttribute('data-file-name', String(f.name).slice(0, 200)); a.setAttribute('data-file-size', String(f.size));
+        if(f.lastModified) a.setAttribute('data-file-mod', String(f.lastModified));
+        wrapSel(a);
+      });
+    }).catch(function(e){ if(e && e.message !== 'none' && e.name !== 'AbortError') b.querySelector('.al-msg').textContent = 'That file could not be linked here.'; });
+  }
+  // Opens in a tab what a browser shows; anything else is handed to its own app.
+  var VIEW = /\.(pdf|png|jpe?g|gif|webp|svg|txt|md|csv|html?|mp4|mov|webm|mp3|m4a|wav)$/i;
+  function fileName(a, id){
+    var n = a.getAttribute('data-file-name'); if(n) return n;
+    var L = (window['_ALTO_' + 'LOCAL'] || {}).files || {}; if(L[id] && L[id].p) return String(L[id].p).split(/[\\/]/).pop();
+    return a.textContent || 'the file';
+  }
+  function openFile(id, name){
+    var w = null; if(VIEW.test(name)){ try{ w = window.open('', '_blank'); }catch(e){} }
+    fget(id).then(function(rec){
+      if(!rec){ if(w) w.close(); toast('“' + name + '” is on the computer it was linked from — open this timeline there to open it.'); return; }
+      var got = rec.handle ? Promise.resolve(rec.handle.queryPermission ? rec.handle.queryPermission({mode: 'read'}) : 'granted').then(function(st){
+          return st === 'granted' ? st : rec.handle.requestPermission({mode: 'read'}); }).then(function(st){ if(st !== 'granted') throw new Error('denied'); return rec.handle.getFile(); })
+        : Promise.resolve(rec.buf ? new Blob([rec.buf], {type: rec.type || ''}) : null);
+      return got.then(function(file){ if(!file) throw new Error('gone'); showBlob(file, rec.name || name, w); });
+    }).catch(function(){ if(w) w.close(); toast('“' + name + '” could not be opened — it may have been moved or renamed. Link it again.'); });
+  }
+  function showBlob(file, name, w){
+    var u = URL.createObjectURL(file);
+    if(w) w.location.href = u;
+    else { var a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 120000);
+  }
+  // On the web a page cannot reach a file on disk by its path: the link opens
+  // what this browser kept. (A copy opened from disk opens the path itself —
+  // detail_extras.LOCAL_OPEN.)
+  if(/^https?:/.test(location.protocol)) window.addEventListener('click', function(e){
+    var a = e.target && e.target.closest && e.target.closest('a[data-file],a.note-link[data-src^="file-"],a[data-src-local^="file-"]');
+    if(!a || editing() || (cur && cur.el.contains(a))) return;
+    var id = a.getAttribute('data-file') || a.getAttribute('data-src') || a.getAttribute('data-src-local');
+    if(!FILE_ID.test(id || '')) return;
+    e.preventDefault(); e.stopPropagation();
+    openFile(id, fileName(a, id));
+  }, true);
+
   function unlinkSel(){
     if(!cur) return; var s = getSelection(); if(!s.rangeCount) return;
     var n = s.anchorNode; n = n && (n.nodeType === 1 ? n : n.parentNode);
@@ -1050,6 +1734,9 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   // Undo / redo from the keyboard: edits in edit mode, notes and highlights
   // otherwise. A text box being typed in keeps its own.
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && PICK && !cur){ e.preventDefault(); e.stopImmediatePropagation(); endPick(); drawFilters(); }
+  }, true);
   document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey) || e.altKey) return;
     var key = String(e.key || '').toLowerCase();
@@ -1065,19 +1752,22 @@ MANUAL_JS = r"""<script id="alto-manual">
   });
 
   /* ── clicks and drags while editing ───────────────────────────────────── */
-  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-tile,#aed-toast'); }
+  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-tile,#aed-toast,#aed-pick,#aed-name,#aed-kinds,#ef-panel,#filter-toggle'); }
   // Move, add and remove: a page's sections, a tree's steps, an Overview's blocks.
   function structure(b){
-    var x = b.getAttribute('data-x'), w = b.closest('.aed-sc,.aed-tc');
-    if(x === 'addsec'){
-      var ok = b.getAttribute('data-ok'), f = field(ok + '|order'); if(!f) return;
-      var nk = rid('new-'), ord = f.get().concat(nk);
-      if(changes([[ok + '|order', ord], [ok + '|s|' + nk + '|h', 'New section'], [ok + '|s|' + nk + '|t', 'Write here.']])){
-        setTimeout(function(){ var mk = document.querySelector('#detail-content .aed-k[data-k="' + ok + '|s|' + nk + '"]'), sb = mk && mk.closest('.detail-section'), h3 = sb && sb.querySelector(':scope > h3');
-          if(h3){ h3.scrollIntoView({block:'center'}); startField(h3, ok + '|s|' + nk + '|h'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
-      }
+    var x = b.getAttribute('data-x') || (b.classList.contains('aed-uc') ? 'addcu' : ''), w = b.closest('.aed-sc,.aed-tc,.aed-cc');
+    if(x === 'addsec'){ chooseKind(b, b.getAttribute('data-ok')); return; }
+    if(x === 'addcu'){ addCard(null, +b.getAttribute('data-act')); return; }
+    if(w && w.hasAttribute('data-cid')){
+      var cid = w.getAttribute('data-cid');
+      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid);
       return;
     }
+    if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }
+    if(x === 'flnew'){ var P1 = page(); if(!P1) return;
+      askName(b, 'Name your filter', '', function(nm){ var nf = newFlag(nm); if(!nf) return;
+        changes([['fl|list', FLAGS.concat([nf])], ['fn|' + P1.id, (FLN[P1.id] || []).concat([nf.id])]]); });
+      return; }
     if(w && w.hasAttribute('data-sk')){
       var sk = w.getAttribute('data-sk').split('|'), okey = sk[0] + '|' + sk[1], f2 = field(okey + '|order'); if(!f2) return;
       var o = f2.get(), i = o.indexOf(sk[3]); if(i < 0) return;
@@ -1126,7 +1816,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-add')){
+    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags') || (PICK && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -1136,7 +1826,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }
     if(dragJustEnded){ dragJustEnded = false; e.stopPropagation(); e.preventDefault(); return; }
-    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-add');
+    if(PICK){
+      var pn = t.closest('#canvas .node');
+      if(pn){ e.stopPropagation(); e.preventDefault(); var pid = pn.id.replace(/^node-/, ''); if(srcNode(pid)){ toggleFlag(pid, PICK); paintPick(); } return; }
+      if(t.closest('#canvas')){ e.stopPropagation(); e.preventDefault(); return; }
+    }
+    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button');
     if(sb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); structure(sb); return; }
     var ck = canvasKey(t) || unitKey(t);
     if(ck){ e.stopPropagation(); e.preventDefault(); startField(ck.el, ck.k); return; }
@@ -1159,7 +1854,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(sd0 || typeof window.showDetail !== 'function') return; sd0 = 1;
     ['showDetail', 'showTimeline'].forEach(function(name){
       var f = window[name]; if(typeof f !== 'function') return;
-      window[name] = function(){ if(cur) endField(true); hideBar(); return f.apply(this, arguments); };
+      window[name] = function(){
+        // a link to a card taken out here (the build turns those into words)
+        if(name === 'showDetail' && arguments[0] === 'node' && cardGone(arguments[1])){ toast('That card was removed.'); return; }
+        if(cur) endField(true); hideBar(); return f.apply(this, arguments); };
     });
   }
 
@@ -1181,7 +1879,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button')) return;
-    var id = nodeEl.id.replace(/^node-/, ''); if(!srcNode(id) || !field('p|' + id + '|shift')) return;
+    var id = nodeEl.id.replace(/^node-/, ''); if(PICK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
     drag = {id:id, x0:e.clientX, y0:e.clientY, k:scale(nodeEl), on:false, els: subtree(id).map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean)};
   }, true);
   window.addEventListener('pointermove', function(e){

@@ -117,7 +117,12 @@ class Store:
     def put_nodes(self, uid, tid, nodes):
         self.put_n += [n["id"] for n in nodes]
         by = {n["id"]: n for n in nodes}
-        self.nodes = [copy.deepcopy(by.get(n["id"], n)) for n in self.nodes]
+        have = {n["id"] for n in self.nodes}
+        self.nodes = ([copy.deepcopy(by.get(n["id"], n)) for n in self.nodes]
+                      + [copy.deepcopy(n) for n in nodes if n["id"] not in have])
+
+    def delete_nodes(self, uid, tid, ids):
+        self.nodes = [n for n in self.nodes if n["id"] not in ids]
 
     def get_connections(self, uid, tid):
         return self.conns
@@ -367,3 +372,213 @@ def test_the_page_and_the_connector_sign_alike(tmp_path):
     f.write_text(m.group(0) + "\nconsole.log(JSON.stringify(" + json.dumps(words) + ".map(jh)));", encoding="utf-8")
     out = json.loads(subprocess.check_output([node, str(f)]))
     assert out == [jhash(w) for w in words]
+
+
+# ── 1.9.49: cards, filters, kinds of section, files on this computer ────────
+
+def _build(st):
+    return build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes,
+                                       "connections": st.conns}))
+
+
+def test_a_card_added_on_the_page_folds_with_its_words_and_sections():
+    st = Store(_d())
+    from alto.build.manual_edit import jhash
+    spec = {"p": "offer", "a": 0, "t": "New concept", "g": "Concept", "d": "", "c": "var(--x)"}
+    st.edits = {"v": 1, "ops": {
+        "nn|card-ab12cd": {"b": None, "v": spec, "t": 1},
+        "n|card-ab12cd|title": {"b": "New concept", "v": "Counter-offers", "t": 2},
+        "n|card-ab12cd|desc": {"b": "", "v": "A reply that changes the terms.", "t": 3},
+        "n|card-ab12cd|order": {"b": jhash("[]"), "v": ["new-x1y2z3"], "t": 4},
+        "n|card-ab12cd|s|new-x1y2z3|h": {"b": "", "v": "Rule", "t": 5},
+        "n|card-ab12cd|s|new-x1y2z3|t": {"b": "", "v": "It rejects the offer.", "t": 6},
+        "n|card-ab12cd|s|new-x1y2z3|p": {"b": "", "v": "notes", "t": 7},
+    }}
+    r = fold(st, "u", "t1")
+    assert not r["conflicts"] and not r["gone"], r
+    assert r["cards_added"] == [{"id": "card-ab12cd", "title": "Counter-offers"}]
+    n = _node(st, "card-ab12cd")
+    assert (n["parent"], n["act"], n["tag"], n["desc"]) == ("offer", 0, "Concept", "A reply that changes the terms.")
+    assert n["sections"] == [{"h": "Rule", "t": "It rejects the offer.", "prov": "notes"}]
+    html, _ = _build(st)
+    assert "Counter-offers" in html and "From your notes" in html
+    # until it is folded a publish leaves its words alone; once folded, done
+    assert published(st, "u", "t1") == len(st.edits["ops"])
+
+
+def test_words_for_a_card_not_yet_in_the_draft_are_not_marked_done():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "nn|card-zz99aa": {"b": None, "v": {"p": "offer", "a": 0, "t": "X", "g": "", "d": ""}, "t": 1},
+        "n|card-zz99aa|title": {"b": "X", "v": "Y", "t": 2}}}
+    assert published(st, "u", "t1") == 0
+
+
+def test_a_card_under_a_card_that_is_gone_is_a_conflict():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"nn|card-aaaa11": {"b": None, "v": {"p": "nope", "a": 0, "t": "X"}, "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["conflicts"] == ["nn|card-aaaa11"] and not any(n["id"] == "card-aaaa11" for n in st.nodes)
+
+
+def test_a_card_removed_on_the_page_goes_with_its_lines_but_never_a_parent():
+    st = Store(_d())
+    st.conns = [["revocation", "mailbox-rule", "spine"], ["offer", "acceptance", "spine"]]
+    st.edits = {"v": 1, "ops": {"nd|revocation": {"b": 0, "v": 1, "t": 1},
+                                "nd|offer": {"b": 0, "v": 1, "t": 2}}}
+    r = fold(st, "u", "t1")
+    assert r["cards_removed"] == ["revocation"] and "nd|offer" in r["conflicts"], r
+    ids = {n["id"] for n in st.nodes}
+    assert "revocation" not in ids and "offer" in ids
+    assert st.conns == [["offer", "acceptance", "spine"]]
+    _build(st)
+
+
+def test_a_card_folded_then_taken_out_on_the_same_page_is_removed():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"nn|card-bb22cc": {"b": None, "v": {"p": "offer", "a": 0, "t": "X"}, "t": 1}}}
+    fold(st, "u", "t1")
+    assert any(n["id"] == "card-bb22cc" for n in st.nodes)
+    st.edits["ops"]["nn|card-bb22cc"] = {"b": None, "v": None, "t": 5}
+    r = fold(st, "u", "t1")
+    assert r.get("cards_removed") == ["card-bb22cc"] and not any(n["id"] == "card-bb22cc" for n in st.nodes)
+
+
+def test_filters_of_your_own_and_filters_taken_out_fold_and_build():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "fl|list": {"b": [], "v": [{"id": "exam", "name": "Exam"}], "t": 1},
+        "fn|offer": {"b": [], "v": ["exam"], "t": 2},
+        "fn|revocation": {"b": [], "v": ["exam"], "t": 3},
+        "fx|off": {"b": [], "v": ["filter:depth"], "t": 4}}}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 4 and not r["conflicts"], r
+    assert st.doc["brief"]["flags"] == [{"id": "exam", "name": "Exam"}]
+    assert st.doc["brief"]["filters_off"] == ["filter:depth"]
+    assert _node(st, "offer")["flags"] == ["exam"]
+    html, _ = _build(st)
+    from tests.panel import sections
+    keys = [s["key"] for s in sections(html)]
+    assert "flags" in keys and not any(s["label"] == "Depth" for s in sections(html)), keys
+    # taking the filter away again drops it from the cards too
+    st.edits = {"v": 1, "ops": {"fl|list": {"b": [{"id": "exam", "name": "Exam"}], "v": [], "t": 9}}}
+    fold(st, "u", "t1")
+    assert "flags" not in _node(st, "offer") or _node(st, "offer")["flags"] == []
+    _build(st)
+
+
+def test_a_filter_list_changed_meanwhile_is_a_conflict():
+    st = Store(_d())
+    st.doc["brief"]["flags"] = [{"id": "a", "name": "A"}]
+    st.edits = {"v": 1, "ops": {"fl|list": {"b": [], "v": [{"id": "b", "name": "B"}], "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["fl|list"]
+
+
+def test_a_new_section_with_a_tree_folds_with_its_steps():
+    st = Store(_d())
+    v = _view(st)
+    sig = order_sig(v.owner("n", "formation"))
+    cur = [str(j) for j in range(len(_node(st, "formation")["sections"]))]
+    st.edits = {"v": 1, "ops": {
+        "n|formation|order": {"b": sig, "v": cur + ["new-t1t2t3"], "t": 1},
+        "n|formation|s|new-t1t2t3|h": {"b": "", "v": "Is there a deal?", "t": 2},
+        "dt|n-formation-new-t1t2t3|tree": {"b": "new", "v": [{"i": "s-aaaa", "t": "First question"},
+                                                              {"i": "s-bbbb", "t": "Yes", "p": "s-aaaa"}], "t": 3},
+        "dt|n-formation-new-t1t2t3|s-aaaa|title": {"b": "First question", "v": "Was there an offer?", "t": 4},
+        "dt|n-formation-new-t1t2t3|s-bbbb|edge": {"b": "", "v": "yes", "t": 5}}}
+    r = fold(st, "u", "t1")
+    assert not r["conflicts"] and not r["gone"], r
+    sec = _node(st, "formation")["sections"][-1]
+    assert sec["h"] == "Is there a deal?" and sec["t"] == ""
+    assert [(n["id"], n["title"], n.get("edge")) for n in sec["tree"]["nodes"]] == [
+        ("s-aaaa", "Was there an offer?", None), ("s-bbbb", "Yes", "yes")]
+    html, _ = _build(st)
+    assert '"t":"Was there an offer?"' in html
+
+
+def test_a_link_to_a_file_on_this_computer_is_found_and_kept(tmp_path, monkeypatch):
+    import alto.edits as E
+    (tmp_path / "Documents" / "Contracts").mkdir(parents=True)
+    f = tmp_path / "Documents" / "Contracts" / "Offer letter.pdf"
+    f.write_bytes(b"%PDF-1.4 x")
+    real = E.find_file
+    monkeypatch.setattr(E, "find_file", lambda name, size=None, mod=None, home=None:
+                        real(name, size, mod, home=str(tmp_path)))
+    st = Store(_d())
+    t0 = _node(st, "formation")["sections"][0]["t"]
+    page, _ = clean_linked_markup(t0, {})
+    link = ('<a href="#" class="note-link" data-file="file-abcdef12" data-file-name="Offer letter.pdf" '
+            'data-file-size="10">the letter</a>')
+    st.edits = {"v": 1, "ops": {"n|formation|s|0|t": {"b": page, "v": page + " See " + link + ".", "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 1 and not r.get("files_not_found"), r
+    assert st.doc["brief"]["linked_files"] == [{"id": "file-abcdef12", "name": "Offer letter.pdf", "local": str(f)}]
+    assert 'href="src:file-abcdef12"' in _node(st, "formation")["sections"][0]["t"]
+    html, _ = _build(st)
+    assert 'data-src="file-abcdef12"' in html and str(f) in html     # the page's _ALTO_LOCAL
+
+
+def test_a_link_to_a_file_that_cannot_be_found_waits(tmp_path, monkeypatch):
+    import alto.edits as E
+    monkeypatch.setattr(E, "find_file", lambda *a, **k: None)
+    st = Store(_d())
+    t0 = _node(st, "formation")["sections"][0]["t"]
+    page, _ = clean_linked_markup(t0, {})
+    link = '<a href="#" class="note-link" data-file="file-zzzzzz99" data-file-name="Lost.pdf">x</a>'
+    st.edits = {"v": 1, "ops": {"n|formation|s|0|t": {"b": page, "v": page + link, "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["files_not_found"] == ["Lost.pdf"] and r["folded"] == 0
+    assert _node(st, "formation")["sections"][0]["t"] == t0
+    assert not st.edits or not st.edits["ops"]["n|formation|s|0|t"].get("f")
+
+
+def test_find_file_prefers_the_same_size_then_the_nearest_date(tmp_path):
+    import os
+    from alto.edits import find_file
+    for d, body, mt in (("Desktop/a", b"12345", 1000), ("Documents/b", b"123", 5000), ("Downloads/c", b"123", 9000)):
+        (tmp_path / d).mkdir(parents=True)
+        p = tmp_path / d / "Notes.docx"
+        p.write_bytes(body)
+        os.utime(p, (mt, mt))
+    assert find_file("Notes.docx", 3, 5100 * 1000, home=str(tmp_path)).endswith("Documents/b/Notes.docx")
+    assert find_file("Notes.docx", 5, None, home=str(tmp_path)).endswith("Desktop/a/Notes.docx")
+    assert find_file("nothing.pdf", home=str(tmp_path)) is None
+    assert find_file("../etc/passwd", home=str(tmp_path)) is None
+
+
+def test_filters_off_and_linked_files_are_checked():
+    from alto.build.brief import BriefError, validate_brief
+    d = _d()
+    d["brief"]["filters_off"] = ["entity", "filter:depth:level-1", "lines:spine"]
+    validate_brief(load_brief(d)[0])
+    for bad in (["<script>"], ["entity:"], "entity"):
+        d["brief"]["filters_off"] = bad
+        with pytest.raises(BriefError):
+            validate_brief(load_brief(d)[0])
+    d["brief"]["filters_off"] = []
+    d["brief"]["linked_files"] = [{"id": "file-abc123", "name": "x", "local": "relative/path"}]
+    with pytest.raises(BriefError):
+        validate_brief(load_brief(d)[0])
+
+
+def test_the_page_carries_what_cards_and_filters_need():
+    d = _d()
+    d["brief"]["flags"] = [{"id": "exam", "name": "Exam"}]
+    d["nodes"][1]["flags"] = ["exam"]
+    d["brief"]["filters_off"] = ["filter:depth"]
+    html, _ = build_timeline(*load_brief(d))
+    edk = json.loads(re.search(r"window\._ALTO_EDK=(\{.*?\});</script>", html).group(1).replace("<\\/", "</"))
+    assert edk["fl"] == [{"id": "exam", "name": "Exam"}] and edk["fln"] == {d["nodes"][1]["id"]: ["exam"]}
+    assert edk["foff"] == ["filter:depth"] and edk["mode"] == "outline"
+    assert any(s["label"] == "Depth" for s in edk["fall"]["sections"])        # can be put back
+    from tests.panel import sections
+    assert not any(s["label"] == "Depth" for s in sections(html))
+
+
+def test_a_preview_cannot_open_a_linked_file():
+    from alto.build.single_file import preview
+    b, nodes, conns = load_brief(_d())
+    html, _ = build_timeline(b, nodes, conns)
+    page = preview(b, html)
+    assert "function showBlob(file, name, w){ if(w) w.close(); }" in page
+

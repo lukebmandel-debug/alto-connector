@@ -28,7 +28,7 @@ every word comes from the user's material.
 
 Build path: brief._check_sections → check_tree (shape); sanitize.sanitize_brief
 → sanitize_tree (text, links); builder → prepare (a slot in the section's text
-plus the data) → tree_block (data + renderer, only when some page has a tree).
+plus the data) → tree_block (data + renderer, on every page: manual edit mode can add a tree).
 """
 from __future__ import annotations
 
@@ -209,10 +209,9 @@ def _compact(tree) -> dict:
 
 
 def tree_block(reg: dict) -> str:
-    """The data and the renderer, or "" when no page has a tree (a timeline
-    without one is byte-for-byte what it was)."""
-    if not reg:
-        return ""
+    """The data and the renderer. Always there, trees or not: manual edit
+    mode can add a section with a tree to any page (an empty registry draws
+    nothing)."""
     data = json.dumps(reg, ensure_ascii=False, separators=(",", ":"))
     data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
     return (f'<script id="alto-dt-data">window._ALTO_DT={data};</script>\n'

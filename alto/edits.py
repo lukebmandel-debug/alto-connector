@@ -32,6 +32,13 @@ import time
 from html.parser import HTMLParser
 
 DT_KEY = re.compile(r"^(n|c|a[01]|x[01])-(.+?)(?:-(\d+))?$")
+# What the page makes: a card (`nn|card-…`), a tree in a section it added
+# (`dt|<owner>-new-…|tree`), a link to a file on the owner's computer.
+NEW_CARD = re.compile(r"^card-[a-z0-9]{4,12}$")
+NEW_TREE = re.compile(r"^(n|c|a0|a1)-(.+)-(new-[a-z0-9]+)$")
+FILE_ID = re.compile(r"^file-[a-z0-9]{6,12}$")
+PROV_KEYS = ("quoted", "notes", "summary")
+_OWNER = {"n": "n", "c": "c", "a0": "env", "a1": "theme"}
 _DETAIL = re.compile(r"^\s*showDetail\(\s*'node'\s*,\s*'([a-z0-9][a-z0-9-]{0,47})'\s*\)\s*;?\s*$")
 
 
@@ -78,6 +85,8 @@ class _Back(HTMLParser):
             href = a.get("href") or ""
             if href == "#" and a.get("data-src"):
                 href = "src:" + a["data-src"]
+            if FILE_ID.match(a.get("data-file") or ""):
+                href = "src:" + a["data-file"]
             keep = [("href", href)] + ([("title", a["title"])] if a.get("title") else [])
             self.out.append(f"<a{self._attrs(keep)}>")
             self.stack.append(["a", "a"])
@@ -122,6 +131,70 @@ def page_to_source(markup: str) -> str:
     p.feed(markup or "")
     p.close()
     return p.result()
+
+
+class _Files(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out = {}
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "a" and FILE_ID.match(a.get("data-file") or ""):
+            def num(x):
+                return int(x) if x and str(x).isdigit() else None
+            self.out.setdefault(a["data-file"], {
+                "id": a["data-file"], "name": (a.get("data-file-name") or "").strip(),
+                "size": num(a.get("data-file-size")), "mod": num(a.get("data-file-mod"))})
+
+
+def files_in(markup) -> list:
+    """The files on the owner's computer a page value links to (MANUAL_JS
+    linkFile): [{id, name, size, mod}]."""
+    p = _Files()
+    p.feed(markup or "")
+    p.close()
+    return list(p.out.values())
+
+
+# Where a linked file is looked for: the page knows its name, size and date,
+# never its path (a browser does not tell a page where a file is).
+FILE_ROOTS = ("Downloads", "Desktop", "Documents")
+_FILE_DEPTH = 6
+_FILE_SCAN_LIMIT = 80000
+
+
+def find_file(name: str, size=None, mod=None, home=None) -> "str | None":
+    """The file the owner linked: one called `name` under Downloads, Desktop
+    or Documents — of that size when there are several, then the one whose
+    date is nearest the one the page saw. None when there is none."""
+    import os
+    from pathlib import Path
+    if not name or "/" in name or "\\" in name:
+        return None
+    base0, want, hits, seen = Path(home) if home else Path.home(), name.casefold(), [], 0
+    for r in FILE_ROOTS:
+        base = base0 / r
+        if not base.is_dir():
+            continue
+        for d, dirs, files in os.walk(base):
+            depth = len(Path(d).relative_to(base).parts)
+            dirs[:] = [x for x in dirs if not x.startswith(".") and depth < _FILE_DEPTH]
+            seen += len(dirs) + len(files)
+            hits += [os.path.join(d, f) for f in files if f.casefold() == want]
+            if seen > _FILE_SCAN_LIMIT:
+                break
+    hits = [h for h in dict.fromkeys(hits) if os.path.isfile(h)]
+    if size is not None and len(hits) > 1:
+        same = [h for h in hits if os.path.getsize(h) == size]
+        hits = same or hits
+    if not hits:
+        return None
+    if mod:
+        hits.sort(key=lambda h: abs(os.path.getmtime(h) * 1000 - mod))
+    else:
+        hits.sort(key=lambda h: -os.path.getmtime(h))
+    return hits[0]
 
 
 # ── a draft as the page sees it ─────────────────────────────────────────────
@@ -225,6 +298,23 @@ def _target(key, brief, by_id, conns):
     ovhtml, shift, order, tree, newsec."""
     p = key.split("|")
     kind = p[0]
+    if kind == "nn" and len(p) == 2 and NEW_CARD.match(p[1]):
+        return None, None, "newnode"
+    if kind == "nd" and len(p) == 2:
+        return (by_id[p[1]], None, "delnode") if p[1] in by_id else None
+    if key == "fl|list":
+        return brief, "flags", "flags"
+    if key == "fx|off":
+        return brief, "filters_off", "list"
+    if kind == "fn" and len(p) == 2:
+        if p[1] in by_id:
+            return by_id[p[1]], "flags", "list"
+        return (None, None, "pending") if NEW_CARD.match(p[1]) else None
+    if kind == "dt" and len(p) in (3, 4) and NEW_TREE.match(p[1]):
+        m = NEW_TREE.match(p[1])
+        if _owner(_OWNER[m.group(1)], m.group(2), brief, by_id) is None:
+            return None
+        return None, None, "newtree" if len(p) == 3 and p[2] == "tree" else "newtreef"
     if kind in ("n", "c", "env", "theme") and len(p) == 3:
         ok = {"n": ("title", "tag", "desc"), "c": ("name", "role"),
               "env": ("name", "role"), "theme": ("name", "role")}[kind]
@@ -235,7 +325,7 @@ def _target(key, brief, by_id, conns):
             return o, "sections", "order"
         return (o, p[2], "plain") if p[2] in ok else None
     if kind in ("n", "c", "env", "theme") and len(p) == 5 and p[2] == "s":
-        if p[3].startswith("new-") and p[4] in ("h", "t"):
+        if p[3].startswith("new-") and p[4] in ("h", "t", "p"):
             return (None, None, "newsec") if _owner(kind, p[1], brief, by_id) is not None else None
         if not p[3].isdigit() or p[4] not in ("h", "t"):
             return None
@@ -332,12 +422,25 @@ def _tree_from_list(v, old):
 
 # ── fold ────────────────────────────────────────────────────────────────────
 
+def _flag_list(v) -> list:
+    """A filters' list as the page keeps it: [{id, name, color?}]."""
+    out = []
+    for f in v or []:
+        if isinstance(f, dict) and f.get("id"):
+            d = {"id": f["id"], "name": f.get("name") or f["id"]}
+            if f.get("color"):
+                d["color"] = f["color"]
+            out.append(d)
+    return out
+
+
 def fold(store, uid, tid) -> "dict | None":
     """Write the page's edits into the draft. Returns a report, or None when
     there is nothing to fold."""
     from .build.manual_edit import jhash
     from .build.sanitize import plain_text
     from .build.brief import BriefError
+    from .build.builder import consent_source_docs
     data = store.get_edits(uid, tid)
     ops = (data or {}).get("ops") or {}
     live = {k: o for k, o in ops.items() if isinstance(o, dict) and not o.get("done")}
@@ -353,15 +456,19 @@ def fold(store, uid, tid) -> "dict | None":
     conns = copy.deepcopy(store.get_connections(uid, tid) or [])
     by_id = {n["id"]: n for n in nodes}
     brief = doc["brief"]
-    written, already, conflicts, missing = [], [], [], []
+    written, already, conflicts, missing, no_file = [], [], [], [], []
     touched = {"nodes": set(), "brief": False, "conns": False}
+    created, removed = [], []
 
     def touch(key):
         p = key.split("|")
         m = DT_KEY.match(p[1]) if p[0] == "dt" else None
-        if p[0] == "n":
+        mn = NEW_TREE.match(p[1]) if p[0] == "dt" else None
+        if p[0] in ("n", "fn"):
             touched["nodes"].add(p[1])
-        elif m and m.group(1) == "n":
+        elif mn and mn.group(1) == "n":
+            touched["nodes"].add(mn.group(2))
+        elif m and m.group(1) == "n" and not mn:
             touched["nodes"].add(m.group(2))
         elif p[0] == "cx":
             touched["conns"] = True
@@ -374,6 +481,65 @@ def fold(store, uid, tid) -> "dict | None":
     # Structural edits are checked against the draft as it was before anything
     # here changed it: that is what the page was built from.
     pristine = _View(doc, nodes, conns)
+
+    def known_sources():
+        have = {d.get("id") for d in brief.get("source_docs") or consent_source_docs(doc)
+                if isinstance(d, dict)}
+        return have | {f.get("id") for f in brief.get("linked_files") or [] if isinstance(f, dict)}
+
+    def files_ok(v) -> bool:
+        """Every file the value links to is known, or found on this computer
+        and added to linked_files. False: one could not be found (the edit
+        waits, still shown on the page that made it)."""
+        need = [f for f in files_in(v) if f["id"] not in known_sources()]
+        found = []
+        for f in need:
+            path = find_file(f["name"], f["size"], f["mod"])
+            if not path:
+                no_file.append(f["name"] or f["id"])
+                return False
+            found.append({"id": f["id"], "name": (f["name"] or f["id"])[:200], "local": path})
+        if found:
+            brief["linked_files"] = list(brief.get("linked_files") or []) + found
+            touched["brief"] = True
+        return True
+
+    # 0. new cards, oldest first (a card added under a new card comes after it)
+    for k in by_time([k for k in live if k.startswith("nn|")]):
+        cid, v = k.split("|")[1], live[k].get("v")
+        if not NEW_CARD.match(cid):
+            missing.append(k)
+            continue
+        if not v:
+            if cid in by_id:                           # folded before, then taken out
+                removed.append(cid)
+                written.append(k)
+            else:
+                already.append(k)
+            continue
+        if cid in by_id:
+            already.append(k)
+            continue
+        par = v.get("p") or ""
+        if par and par not in by_id:
+            conflicts.append(k)
+            continue
+        act = by_id[par]["act"] if par else v.get("a")
+        if not isinstance(act, int) or not 0 <= act < len(brief.get("acts") or []):
+            conflicts.append(k)
+            continue
+        n = {"id": cid, "act": act, "tag": plain_text(v.get("g") or ""),
+             "title": plain_text(v.get("t") or "") or "New card", "desc": plain_text(v.get("d") or "")}
+        if par:
+            n["parent"] = par
+        if v.get("col") and brief.get("mode") != "outline":
+            n["col"] = v["col"]
+        nodes.append(n)
+        by_id[cid] = n
+        created.append(cid)
+        touched["nodes"].add(cid)
+        written.append(k)
+
     kinds = {k: (_target(k, brief, by_id, conns) or (None, None, None))[2] for k in live}
 
     # 1. whole trees (a step's own words may change after, by step id)
@@ -398,11 +564,14 @@ def fold(store, uid, tid) -> "dict | None":
         written.append(k)
         touch(k)
 
-    # 2. single fields, oldest first (sections by their original place)
-    for k in by_time([k for k in live if kinds[k] not in ("tree", "order", "newsec")]):
+    # 2. single fields, oldest first (sections by their original place; the
+    #    filters' list before which cards are in each)
+    singles = [k for k in live if kinds[k] not in ("tree", "order", "newsec", "newnode", "delnode",
+                                                    "newtree", "newtreef") and not k.startswith("nn|")]
+    for k in sorted(singles, key=lambda k: (0 if kinds[k] == "flags" else 1, live[k].get("t") or 0)):
         o = live[k]
         t = _target(k, brief, by_id, conns)
-        if t is None:
+        if t is None or t[2] == "pending":
             missing.append(k)
             continue
         holder, f, kind = t
@@ -416,6 +585,19 @@ def fold(store, uid, tid) -> "dict | None":
                 conflicts.append(k)
                 continue
             holder[f] = v or ""
+        elif kind in ("flags", "list"):
+            norm = _flag_list if kind == "flags" else (lambda x: [str(y) for y in (x or [])])
+            cur = norm(holder.get(f))
+            if cur == norm(v):
+                already.append(k)
+                continue
+            if cur != norm(b):
+                conflicts.append(k)
+                continue
+            if norm(v):
+                holder[f] = norm(v)
+            else:
+                holder.pop(f, None)
         elif kind == "shift":
             cur = (holder.get(f) or {}).get("shift")
             if _same(cur, v):
@@ -434,6 +616,8 @@ def fold(store, uid, tid) -> "dict | None":
             else:
                 holder.pop(f, None)
         else:                                  # html, cx, ovhtml
+            if not files_ok(v):
+                continue
             view = _View(doc, nodes, conns)
             cur = _view_value(k, kind, view)
             n = view.norm_ov if kind == "ovhtml" else view.norm
@@ -455,37 +639,105 @@ def fold(store, uid, tid) -> "dict | None":
         written.append(k)
         touch(k)
 
-    # 3. the order of sections (by their original places), new ones with their words
+    # 3. the order of sections (by their original places), new ones with their
+    #    words, their kind and their tree
     for k in by_time([k for k in live if kinds[k] == "order"]):
         p = k.split("|")
         obj = _owner(p[0], p[1], brief, by_id)
         pv = pristine.owner(p[0], p[1])
-        shown = _shown(pv)
+        shown = _shown(pv) if pv is not None else []
+        sig = order_sig(pv) if pv is not None else jhash("[]")
         v = [str(x) for x in (live[k].get("v") or [])]
         if v == [str(j) for j in shown]:
             already.append(k)
             continue
-        if order_sig(pv) != live[k].get("b"):
+        if sig != live[k].get("b"):
             conflicts.append(k)
             continue
         secs = obj.setdefault("sections", [])
-        hidden = [s for j, s in enumerate(secs) if j not in shown]
-        out = []
+        hidden = [s_ for j, s_ in enumerate(secs) if j not in shown]
+        out, mine, waiting = [], [], False
         for x in v:
             if x.isdigit() and int(x) in shown:
                 out.append(secs[int(x)])
             elif x.startswith("new-"):
-                hk, tk = f"{p[0]}|{p[1]}|s|{x}|h", f"{p[0]}|{p[1]}|s|{x}|t"
+                hk, tk, pk = (f"{p[0]}|{p[1]}|s|{x}|{f}" for f in ("h", "t", "p"))
                 h = (live.get(hk) or {}).get("v") or ""
                 tx = (live.get(tk) or {}).get("v") or ""
-                written.extend(nk for nk in (hk, tk) if nk in live)
-                if tx.strip():
-                    out.append({"h": plain_text(h), "t": page_to_source(tx)})
+                if tx and not files_ok(tx):
+                    waiting = True
+                    break
+                d = {"h": plain_text(h), "t": page_to_source(tx)}
+                pr = (live.get(pk) or {}).get("v") or ""
+                if pr in PROV_KEYS:
+                    d["prov"] = pr
+                tkey = f"dt|{DTPRE_OF[p[0]]}-{p[1]}-{x}|tree"
+                steps = (live.get(tkey) or {}).get("v") or []
+                if steps:
+                    tree = _tree_from_list(steps, {})
+                    for sk in [q for q in live if q.startswith(f"dt|{DTPRE_OF[p[0]]}-{p[1]}-{x}|")
+                               and kinds.get(q) == "newtreef"]:
+                        _, _, step, fld = sk.split("|")
+                        st = next((n_ for n_ in tree["nodes"] if n_["id"] == step), None)
+                        if st is not None:
+                            val = (live[sk].get("v") or "").strip()
+                            if val:
+                                st[fld] = plain_text(val)
+                            elif fld != "title":
+                                st.pop(fld, None)
+                            mine.append(sk)
+                    from .build.subtree import check_tree
+                    try:
+                        check_tree(tree, tkey)
+                        d["tree"] = tree
+                        mine.append(tkey)
+                    except BriefError:
+                        conflicts.append(tkey)
+                mine.extend(q for q in (hk, tk, pk) if q in live)
+                if (d["t"] or "").strip() or d.get("tree"):
+                    out.append(d)
+        if waiting:
+            continue
         obj["sections"] = out + hidden
+        written.extend(mine)
         written.append(k)
         touch(k)
     # words of a new section whose place was never recorded have nowhere to go
-    missing += [k for k in live if kinds[k] == "newsec" and k not in written]
+    missing += [k for k in live if kinds[k] in ("newsec", "newtree", "newtreef") and k not in written]
+
+    # 4. cards taken out (nothing under them; their lines go with them)
+    for k in by_time([k for k in live if kinds[k] == "delnode"]):
+        cid = k.split("|")[1]
+        if not live[k].get("v"):
+            already.append(k)
+            continue
+        removed.append(cid)
+        written.append(k)
+    if removed:
+        going = set(removed)
+        kept = [c for c in removed if not any(n.get("parent") == c and n["id"] not in going for n in nodes)]
+        for c in set(removed) - set(kept):
+            conflicts.append(f"nd|{c}")
+            written[:] = [w for w in written if w not in (f"nd|{c}", f"nn|{c}")]
+        removed = kept
+        going = set(removed)
+        nodes[:] = [n for n in nodes if n["id"] not in going]
+        for c in removed:
+            by_id.pop(c, None)
+            touched["nodes"].discard(c)
+        before = len(conns)
+        conns[:] = [c for c in conns if not (len(c) >= 2 and (c[0] in going or c[1] in going))]
+        touched["conns"] = touched["conns"] or len(conns) != before
+        pl = brief.get("placement") or {}
+        if any(c in pl for c in going):
+            brief["placement"] = {i: h for i, h in pl.items() if i not in going}
+            touched["brief"] = True
+    # a card's filters name only filters the timeline has
+    fids = {f.get("id") for f in brief.get("flags") or [] if isinstance(f, dict)}
+    for n in nodes:
+        if n.get("flags") and any(f not in fids for f in n["flags"]):
+            n["flags"] = [f for f in n["flags"] if f in fids]
+            touched["nodes"].add(n["id"])
 
     if written:
         # the result must still build; if it does not, nothing is written
@@ -501,21 +753,44 @@ def fold(store, uid, tid) -> "dict | None":
                     "note": "The page's edits were NOT written: together they would "
                             "not build. Tell the user which edit is the problem."}
     if touched["nodes"]:
-        store.put_nodes(uid, tid, [by_id[i] for i in touched["nodes"] if i in by_id])
+        store.put_nodes(uid, tid, [by_id[i] for i in [n["id"] for n in nodes] if i in touched["nodes"]])
+    if removed:
+        store.delete_nodes(uid, tid, removed)
     if touched["brief"]:
         doc["brief"] = brief
         store.put_timeline(uid, tid, doc)
     if touched["conns"]:
         store.put_connections(uid, tid, conns)
     _mark(store, uid, tid, {k: live[k].get("t") for k in written + already})
-    return {"folded": len(written), "already_in_draft": len(already),
-            "conflicts": conflicts, "gone": missing,
-            "note": ("The owner's manual edits from the page are now in the draft"
-                     + (" — rebuild and publish to put them in the page itself."
-                        if written else ".")
-                     + (" Conflicts: those fields were changed in the draft after the "
-                        "page edit was made, so the draft's version was kept — tell "
-                        "the user which, in plain words." if conflicts else ""))}
+    titles = {n["id"]: n.get("title") for n in nodes}
+    rep = {"folded": len(written), "already_in_draft": len(already),
+           "conflicts": conflicts, "gone": missing,
+           "note": ("The owner's manual edits from the page are now in the draft"
+                    + (" — rebuild and publish to put them in the page itself."
+                       if written else ".")
+                    + (" Conflicts: those fields were changed in the draft after the "
+                       "page edit was made, so the draft's version was kept — tell "
+                       "the user which, in plain words." if conflicts else ""))}
+    if created:
+        rep["cards_added"] = [{"id": c, "title": titles.get(c)} for c in created]
+        rep["note"] += (" The owner added cards on the page (cards_added): they are in "
+                        "the draft with what the owner wrote; their place on the page "
+                        "is decided by the next build.")
+    if removed:
+        rep["cards_removed"] = removed
+        rep["note"] += (" The owner removed cards on the page (cards_removed); they and "
+                        "their lines are gone from the draft.")
+    if no_file:
+        rep["files_not_found"] = sorted(set(no_file))
+        rep["note"] += (" Some text links to a file on the owner's computer that is not "
+                        "in their Desktop, Documents or Downloads (files_not_found), so "
+                        "that text waits on the page that made it — tell the user in one "
+                        "line which file, and that moving it into one of those folders "
+                        "lets the next build pick it up.")
+    return rep
+
+
+DTPRE_OF = {"n": "n", "c": "c", "env": "a0", "theme": "a1"}
 
 
 def _mark(store, uid, tid, keys_t: dict) -> None:
@@ -549,11 +824,17 @@ def published(store, uid, tid) -> int:
     nodes = [copy.deepcopy(n) for n in store.list_nodes(uid, tid)]
     by_id = {n["id"]: n for n in nodes}
     conns = store.get_connections(uid, tid) or []
+    # A card added on the page that is not in the draft yet: its words are
+    # not gone, they are waiting for it.
+    waiting = {k.split("|")[1] for k in live if k.startswith("nn|") and not ops[k].get("f")}
     n = 0
     for k in live:
         o = ops[k]
         done = bool(o.get("f"))
         if not done:
+            p = k.split("|")
+            if len(p) > 1 and p[1] in waiting:
+                continue
             t = _target(k, copy.deepcopy(doc.get("brief") or {}), by_id, conns)
             if t is None:
                 done = True                    # its field is gone

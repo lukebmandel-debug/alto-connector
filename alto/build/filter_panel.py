@@ -54,14 +54,27 @@ FILTER_PANEL_GLUE = """
   if(window._altoFilterBound) return; window._altoFilterBound=1;
   var root=document.documentElement;
   function mobile(){ return root.classList.contains('mobile'); }
-  root.classList.add('has-filter-tab');
+  // The sections are read from FILTER_SECTIONS / FILTER_NODES each time, so
+  // manual edit mode can change them and redraw (window._altoFilterRedraw).
+  function secs(){ return window.FILTER_SECTIONS||[]; }
+  if(secs().length) root.classList.add('has-filter-tab');
   var sel={}, slotState={};
-  FILTER_SECTIONS.forEach(function(s){ if(s.kind==='chips') sel[s.key]={}; });
+  function syncSel(){
+    var keep={};
+    secs().forEach(function(s){
+      if(s.kind!=='chips') return; keep[s.key]=1;
+      var ids={}; s.items.forEach(function(it){ ids[it.id]=1; });
+      if(!sel[s.key]) sel[s.key]={};
+      Object.keys(sel[s.key]).forEach(function(v){ if(!ids[v]) delete sel[s.key][v]; });
+    });
+    Object.keys(sel).forEach(function(k){ if(!keep[k]) delete sel[k]; });
+  }
+  syncSel();
   function chipKeys(){ return Object.keys(sel).filter(function(k){ return Object.keys(sel[k]).length>0; }); }
   function keep(id){
     var ks=chipKeys();
     for(var i=0;i<ks.length;i++){
-      var m=FILTER_NODES[ks[i]]||{}, ok=false;
+      var m=(window.FILTER_NODES||{})[ks[i]]||{}, ok=false;
       Object.keys(sel[ks[i]]).forEach(function(v){ if((m[v]||[]).indexOf(id)>=0) ok=true; });
       if(!ok) return false;
     }
@@ -75,7 +88,7 @@ FILTER_PANEL_GLUE = """
   function activeLines(){ return document.querySelectorAll('#ef-panel .line-key-btn.active'); }
   function activeCount(){
     var n=0; chipKeys().forEach(function(k){ n+=Object.keys(sel[k]).length; });
-    FILTER_SECTIONS.forEach(function(s){ if(s.kind==='slot' && slotVal(s.slot)) n++; });
+    secs().forEach(function(s){ if(s.kind==='slot' && slotVal(s.slot)) n++; });
     return n+activeLines().length;
   }
   function refresh(){
@@ -88,7 +101,7 @@ FILTER_PANEL_GLUE = """
       var k=b.getAttribute('data-fs'), id=b.getAttribute('data-fid'), on=false;
       if(sel[k]) on=!!sel[k][id];
       else {
-        var s=FILTER_SECTIONS.filter(function(x){ return x.key===k; })[0];
+        var s=secs().filter(function(x){ return x.key===k; })[0];
         if(!s || s.kind==='lines') return;   // LINES_GLUE owns those chips' state
         on=slotVal(s.slot)===id;
       }
@@ -106,26 +119,10 @@ FILTER_PANEL_GLUE = """
     if(order.length && order.indexOf(window._featuredNodeId)<0 && typeof window.featureNode==='function') window.featureNode(order[0],false);
     try{ if(window._patchTimelineLabels) window._patchTimelineLabels(); }catch(e){}
   }
-  function build(){
-    if(document.getElementById('filter-toggle')) return;
-    var tab=document.createElement('button');
-    tab.id='filter-toggle'; tab.type='button';
-    tab.title='Filter'; tab.setAttribute('aria-label','Filter'); tab.setAttribute('aria-expanded','false');
-    tab.innerHTML='<svg viewBox="0 0 20 20" width="17" height="17" style="display:block" fill="currentColor" aria-hidden="true"><path d="M2 3.5h16l-6.2 7.4v5.1l-3.6 1.9v-7z"/></svg><span>FILTER</span>';
-    var panel=document.createElement('div');
-    panel.id='ef-panel'; panel.setAttribute('role','dialog'); panel.setAttribute('aria-label','Filter');
-    var head=document.createElement('div'); head.className='ef-head';
-    var ttl=document.createElement('span'); ttl.textContent='Filter';
-    var clr=document.createElement('button'); clr.type='button'; clr.id='ef-clear'; clr.hidden=true; clr.textContent='Clear all';
-    var cls=document.createElement('button'); cls.type='button'; cls.id='ef-close'; cls.setAttribute('aria-label','Close'); cls.innerHTML='&#x2715;';
-    var act=document.createElement('span'); act.className='ef-act'; act.appendChild(clr); act.appendChild(cls);
-    head.appendChild(ttl); head.appendChild(act); panel.appendChild(head);
-    // The sections scroll in a body of their own, under a header that stays
-    // put without being sticky (Safari paints its status-bar strip flat over
-    // a sticky header; see engine_patches.py, mobile-runway-behind-bars).
-    var body=document.createElement('div'); body.className='ef-body'; panel.appendChild(body);
-    FILTER_SECTIONS.forEach(function(s){
-      var sec=document.createElement('div'); sec.className='ef-sec';
+  function fill(body){
+    body.innerHTML='';
+    secs().forEach(function(s){
+      var sec=document.createElement('div'); sec.className='ef-sec'; sec.setAttribute('data-sec', s.key);
       var h=document.createElement('div'); h.className='ef-h'; h.textContent=s.label; sec.appendChild(h);
       var list=document.createElement('div'); list.className='ef-chips';
       s.items.forEach(function(it){
@@ -145,15 +142,43 @@ FILTER_PANEL_GLUE = """
       });
       sec.appendChild(list); body.appendChild(sec);
     });
+    try{ document.dispatchEvent(new CustomEvent('alto-filter-drawn')); }catch(e){}
+  }
+  function open(v){
+    var panel=document.getElementById('ef-panel'), tab=document.getElementById('filter-toggle'); if(!panel) return;
+    panel.classList.toggle('open', v); if(tab) tab.setAttribute('aria-expanded', v?'true':'false');
+  }
+  window._altoFilterOpen=open;
+  function build(){
+    if(document.getElementById('filter-toggle')) return;
+    // Nothing to filter by: no tab (manual edit mode draws it once there is).
+    if(!secs().length && !window._altoFilterWanted) return;
+    root.classList.add('has-filter-tab');
+    var tab=document.createElement('button');
+    tab.id='filter-toggle'; tab.type='button';
+    tab.title='Filter'; tab.setAttribute('aria-label','Filter'); tab.setAttribute('aria-expanded','false');
+    tab.innerHTML='<svg viewBox="0 0 20 20" width="17" height="17" style="display:block" fill="currentColor" aria-hidden="true"><path d="M2 3.5h16l-6.2 7.4v5.1l-3.6 1.9v-7z"/></svg><span>FILTER</span>';
+    var panel=document.createElement('div');
+    panel.id='ef-panel'; panel.setAttribute('role','dialog'); panel.setAttribute('aria-label','Filter');
+    var head=document.createElement('div'); head.className='ef-head';
+    var ttl=document.createElement('span'); ttl.textContent='Filter';
+    var clr=document.createElement('button'); clr.type='button'; clr.id='ef-clear'; clr.hidden=true; clr.textContent='Clear all';
+    var cls=document.createElement('button'); cls.type='button'; cls.id='ef-close'; cls.setAttribute('aria-label','Close'); cls.innerHTML='&#x2715;';
+    var act=document.createElement('span'); act.className='ef-act'; act.appendChild(clr); act.appendChild(cls);
+    head.appendChild(ttl); head.appendChild(act); panel.appendChild(head);
+    // The sections scroll in a body of their own, under a header that stays
+    // put without being sticky (Safari paints its status-bar strip flat over
+    // a sticky header; see engine_patches.py, mobile-runway-behind-bars).
+    var body=document.createElement('div'); body.className='ef-body'; panel.appendChild(body);
+    fill(body);
     document.body.appendChild(panel);
     var rail=document.getElementById('tab-rail');
     (rail && !mobile() ? rail : document.body).appendChild(tab);
-    function open(v){ panel.classList.toggle('open', v); tab.setAttribute('aria-expanded', v?'true':'false'); }
     tab.addEventListener('click', function(e){ e.stopPropagation(); open(!panel.classList.contains('open')); });
     cls.addEventListener('click', function(){ open(false); });
     clr.addEventListener('click', function(){
       Object.keys(sel).forEach(function(k){ sel[k]={}; });
-      FILTER_SECTIONS.forEach(function(s){
+      secs().forEach(function(s){
         if(s.kind!=='slot') return; var v=slotVal(s.slot); if(!v) return;
         if(mobile()){ if(window.setMobileFilter) window.setMobileFilter(s.slot, v); }
         else if(window.filterCanvas) window.filterCanvas(s.slot, v);
@@ -178,16 +203,38 @@ FILTER_PANEL_GLUE = """
       if(root.classList.contains('detail-open') || root.classList.contains('summary-open')) open(false);
     }).observe(root, {attributes:true, attributeFilter:['class']});
   }
+  // Draw the panel again from FILTER_SECTIONS (manual edit mode changed them).
+  // A slot filter or a line that is no longer offered is switched off first.
+  window._altoFilterRedraw=function(){
+    var have={}; secs().forEach(function(s){ have[s.key]=s; });
+    Object.keys(slotState).forEach(function(slot){
+      var s=have['slot-'+slot], v=slotState[slot];
+      if(!s || !s.items.some(function(it){ return it.id===v; })){ if(window.filterCanvas) window.filterCanvas(slot, v); }
+    });
+    var lines=have.lines;
+    Array.prototype.forEach.call(activeLines(), function(b){
+      var k=b.getAttribute('data-rel-key'); if(!lines || !lines.items.some(function(it){ return it.id===k; })) b.click(); });
+    syncSel();
+    var panel=document.getElementById('ef-panel'), tab=document.getElementById('filter-toggle');
+    if(!panel) build();
+    else fill(panel.querySelector('.ef-body'));
+    tab=document.getElementById('filter-toggle');
+    var want=!!(secs().length || window._altoFilterWanted);
+    if(tab) tab.style.display=want ? '' : 'none';
+    root.classList.toggle('has-filter-tab', want);
+    refresh(); refeature();
+  };
   document.addEventListener('click', function(e){
     var b=e.target && e.target.closest && e.target.closest('#ef-panel .ef-chip[data-fs]');
     if(!b) return;
+    if(window._altoFilterChipClick && window._altoFilterChipClick(e, b)) return;
     var k=b.getAttribute('data-fs'), id=b.getAttribute('data-fid');
     if(sel[k]){
       e.preventDefault(); e.stopPropagation();
       if(sel[k][id]) delete sel[k][id]; else sel[k][id]=1;
       refresh(); refeature(); return;
     }
-    var s=FILTER_SECTIONS.filter(function(x){ return x.key===k; })[0];
+    var s=secs().filter(function(x){ return x.key===k; })[0];
     if(s && s.kind==='slot'){
       e.preventDefault(); e.stopPropagation();
       if(mobile()){ if(window.setMobileFilter) window.setMobileFilter(s.slot, id); }
@@ -217,6 +264,7 @@ FILTER_PANEL_GLUE = """
     if(queued || !window._altoChipOn()) return; queued=true;
     requestAnimationFrame(function(){ queued=false; refresh(); });
   }).observe(document.body, {childList:true, subtree:true});
+  window._altoFilterRefresh=refresh;
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();"""
 
