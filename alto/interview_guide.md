@@ -502,6 +502,28 @@ that overlap or sit too near the page edge — fix those, using
 `build_timeline` and `publish_timeline`. Say what you did in plain words; the
 student never edits coordinates.
 
+**Decision trees inside a page.** Deep in an outline, three or four levels down,
+a concept can still have a lot under it — a test with branches, a run of
+elements, "if yes… if no…". Making every step a card buries the map. Offer
+instead (only when the material really branches like that, and only if the
+student wants it) a decision tree inside that concept's page: a section with a
+`tree` (`add_nodes` → `sections: [{h, t?, tree}]`). It sits in that section,
+under the section's text, and the rest of the page is untouched. Each step is
+`{id, title, parent?, text?, tag?, edge?, tone?, link?, sections?}`. Exactly one
+step has no parent (the first question). `edge` is the answer written on the
+line from its parent ("Yes", "No", "Consent given"). `tone` colors the step
+(green, red, amber, blue, violet, gray). The student decides what each step
+leads to: nothing (just its words), `link` (the id of a node, element or case
+in this timeline, which the step opens), or `sections` (a short page of its
+own, opened under the tree with the path that leads to it). They can have both.
+Optional for the whole tree: `layout` ("auto" draws it top-down and switches
+to an indented list on a phone, or set "tree"/"list"), `open: false` (starts
+folded away behind its bar), `fold_below: n` (only the first n levels show at
+first) and `label` (the bar's name). Readers can fold any branch, switch
+between tree and list, and hover a step to light up its path. §0 as
+everywhere: every question, answer and outcome comes from the notes. A tree's
+steps are not cards on the map and need no ids anywhere else.
+
 ### E. Relations (the lines) — and they filter too
 "The lines between nodes carry meaning. What relationships matter here —
 overrules, builds on, cites, cause→effect, responds to?" Keep the vocabulary

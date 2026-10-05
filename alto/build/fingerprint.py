@@ -62,7 +62,8 @@ def _sources() -> list[tuple[str, bytes]]:
 # and a warning that cries wolf is one people learn to dismiss.
 _TIMELINE_SOURCES = (
     "blocks.py", "brief.py", "builder.py", "detail_extras.py", "emit.py", "engine_patches.py",
-    "estimate.py", "layout.py", "notes_v2.py", "sanitize.py", "search.py", "single_file.py", "verify.py",
+    "estimate.py", "layout.py", "notes_v2.py", "sanitize.py", "search.py", "single_file.py",
+    "subtree.py", "verify.py",
 )
 
 

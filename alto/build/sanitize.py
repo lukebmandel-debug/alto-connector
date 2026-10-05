@@ -550,6 +550,10 @@ def sanitize_brief(b, nodes=None) -> list:
             # here, unlike node.desc which has to stay plain (see below).
             s.t, w = clean_linked_markup(s.t, link_types, sources)
             sec_warnings.extend(f"{what} section {i + 1}: {m}" for m in w)
+            if getattr(s, "tree", None):
+                from .subtree import sanitize_tree
+                sec_warnings.extend(sanitize_tree(s.tree, link_types, sources,
+                                                  f"{what} section {i + 1}"))
 
     b.title = plain_text(b.title)
     b.subject = plain_text(b.subject)

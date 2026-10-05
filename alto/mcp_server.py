@@ -245,7 +245,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.44"
+__version__ = "1.9.45"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1309,6 +1309,13 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     head a section "Text" unless it is a quote — head it for what it is.
     `sources` name consent-manifest ids; an outline node without them
     inherits its parent's.
+    A section may carry a decision tree drawn inside it, under its text
+    (`t` may then be empty): `tree: {nodes: [{id, title, parent?, text?,
+    tag?, edge?, tone?, link?, sections?}], layout?, open?, fold_below?,
+    label?}` — one step without a parent, `edge` = the answer on the line
+    from its parent, `link` = a page of this timeline the step opens,
+    `sections` = a small page of its own; see the guide's "Decision trees
+    inside a page". Only when the student wants one.
     §0: title/desc/sections are authored VERBATIM from the user's materials —
     never fill gaps, never collapse multi-item arcs into one node.
     `parent` (outline mode): the id of the concept that CONTAINS this one; omit

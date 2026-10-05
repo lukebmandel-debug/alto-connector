@@ -155,6 +155,9 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     # engine's innerHTML sinks — may assume text is already escaped. Sanitize
     # also rewrites overview deep links and reports unknown-node demotions.
     warnings += sanitize_brief(brief, nodes)
+    # Decision trees inside pages: a slot in each section's text, and the data.
+    from .subtree import prepare as _prepare_trees
+    trees = _prepare_trees(brief, nodes)
     connections, _cw = sanitize_connections(brief, nodes, connections)
     warnings += _cw
 
@@ -193,7 +196,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
-    html = _add_tail(html, brief, nodes, warnings)
+    html = _add_tail(html, brief, nodes, warnings, trees)
 
     # Deep links that survived sanitize (unknown ones were demoted) must reach
     # the output as engine chip markup — assert each one did.
@@ -220,7 +223,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     return html, report
 
 
-def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
+def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
+              trees: dict = None) -> str:
     """Detail-page extras that must wrap showDetail last (back-to-previous,
     banner clearance, auto-linking), placed just before the page's closing
     body tag. Every page gets them: they were gated to outline and index
@@ -229,6 +233,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
     from . import detail_extras as dx
     from .notes_v2 import notes_v2
     from .search import search_config
+    from .subtree import tree_block
     table = dx.autolink_table(brief)
     # Sources with a copy on the author's computer (empty when none have one).
     local, local_warnings = dx.local_sources(brief)
@@ -238,7 +243,8 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None) -> str:
             + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
-            + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief))
+            + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief)
+            + tree_block(trees or {}))
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])

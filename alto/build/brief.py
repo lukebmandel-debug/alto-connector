@@ -108,6 +108,10 @@ class Section:
     # (or "Rule text", "Quote"…) claims to be primary text, so validation
     # warns unless it is marked quoted.
     prov: str = ""
+    # A decision tree drawn inside this section, under its text (subtree.py):
+    # {nodes: [{id, title, parent?, text?, tag?, edge?, tone?, link?,
+    # sections?}], layout?, open?, fold_below?, label?}. Empty: no tree.
+    tree: dict = field(default_factory=dict)
 
 
 PROVENANCE = {"quoted": "Quoted", "notes": "From your notes",
@@ -402,6 +406,9 @@ def _check_sections(sections, what, warnings=None) -> None:
         if s.prov and s.prov not in PROVENANCE:
             raise BriefError(f"{what} section {i+1}: prov {s.prov!r} must be "
                              f"one of {sorted(PROVENANCE)}")
+        if s.tree:
+            from .subtree import check_tree
+            check_tree(s.tree, f"{what} section {i+1}")
         if (warnings is not None and s.t and s.prov != "quoted"
                 and (s.h or "").strip().lower() in PRIMARY_TEXT_HEADINGS):
             warnings.append(
