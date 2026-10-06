@@ -21,6 +21,8 @@ Field keys ("|"-separated; ids are slugs):
   p|<id>|slide                            a card slid along its own line, [dx, dy] (it alone)
   n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
   dt|<owner>-new-…|tree                   a new section's decision tree
+  sd|<study key>|study                    a section's flash cards or quiz, whole (study.py; study_edit.py)
+  sd|<owner>-new-…|study                  a new section's flash cards or quiz
   nn|card-…   nd|<id>                     a card added here / a built card taken out
   fl|list   fn|<id>   fx|off              the owner's filters, a card's, the ones taken out
   nu|unit-…   nl|unit-…                   a unit added here, its name
@@ -135,7 +137,12 @@ def edit_keys(b, nodes=()) -> str:
 
 
 def manual_edit(b, nodes=()) -> str:
-    return edit_keys(b, nodes) + MANUAL_CSS + "\n" + MANUAL_JS + "\n"
+    from .study_edit import STUDY_EDIT_CSS, STUDY_EDIT_FIELD, STUDY_EDIT_DECORATE, STUDY_EDIT_JS
+    js = (MANUAL_JS.replace("/*__STUDY_FIELD__*/", STUDY_EDIT_FIELD)
+          .replace("/*__STUDY_DECORATE__*/", STUDY_EDIT_DECORATE)
+          .replace("/*__STUDY_EDIT__*/", STUDY_EDIT_JS))
+    css = MANUAL_CSS[:MANUAL_CSS.rindex("</style>")] + STUDY_EDIT_CSS + "\n</style>"
+    return edit_keys(b, nodes) + css + "\n" + js + "\n"
 
 
 # How a linked file is shown (MANUAL_JS openFile). A Claude preview may not
@@ -562,7 +569,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = (EDK.ovf || {})[a], pm = (typeof PHASE_META !== 'undefined') ? PHASE_META[a] : null;
     h.textContent = f === 'short' ? ((EDK.sh || {})[a] || (pm && pm.label) || '') : ((pm && pm.label) || '');
   }
-  var PROV = '<span class="sec-prov">', SLOT = /<span class="adt-slot"[\s\S]*$/;
+  var PROV = '<span class="sec-prov">', SLOT = /<span class="a(?:dt|st)-slot"[\s\S]*$/;
   function hParts(h){ h = String(h || ''); var at = h.indexOf(PROV), mk = /^<span class="aed-k"[^>]*><\/span>/.exec(h);
     var lead = mk ? mk[0] : '', body = mk ? h.slice(lead.length) : h; at = body.indexOf(PROV);
     return {lead:lead, text: at >= 0 ? body.slice(0, at) : body, tail: at >= 0 ? body.slice(at) : ''}; }
@@ -584,10 +591,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     var kind = {n:'n', c:'c', a0:'env', a1:'theme'}[m[1]], s = sec(kind, m[2], m[3]);
     return s ? {kind:kind, id:m[2], x:m[3], s:s} : null;
   }
-  function setSlot(s, key, on){
+  function setSlot(s, key, on, pre){
     var t = String(s.t || ''), mk = MARK.exec(t), m = mk ? mk[0] : '';
-    var body = t.replace(MARK, '').replace(SLOT, '');
-    s.t = body + (on ? '<span class="adt-slot" data-adt="' + key + '" hidden></span>' : '') + m;
+    var body = t.replace(MARK, '').replace(SLOT, ''); pre = pre || 'adt';
+    s.t = body + (on ? '<span class="' + pre + '-slot" data-' + pre + '="' + key + '" hidden></span>' : '') + m;
   }
   // a heading's kind tag, left off where the heading already says it (detail_extras.prov_heading)
   function provTail(v, h){ var L = PROVL[v]; if(!L || txt(h).trim().toLowerCase() === L.toLowerCase()) return ''; return PROV + esc(L) + '</span>'; }
@@ -1231,6 +1238,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         get:function(){ return ((EDK[kind] || {})[id] || []).filter(own).map(String); },
         set:function(v){ reorder(kind, id, v || []); }};
     }
+    /*__STUDY_FIELD__*/
     if(kind === 'dt' && p.length === 3 && p[2] === 'tree' && NEWT.test(id)){
       // a tree in a section added here: made with its first step
       if(!window._ALTO_DT || (!window._ALTO_DT[id] && !newTreeSec(id))) return null;
@@ -1367,6 +1375,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   var PRIS = {};
   ['n', 'c', 'env', 'theme'].forEach(function(kind){ Object.keys(EDK[kind] || {}).forEach(function(id){ PRIS[kind + '|' + id] = jh(JSON.stringify(ownPairs(kind, id))); }); });
   Object.keys(window._ALTO_DT || {}).forEach(function(k){ PRIS['dt|' + k] = jh(JSON.stringify(window._ALTO_DT[k].n)); });
+  Object.keys(window._ALTO_ST || {}).forEach(function(k){ PRIS['sd|' + k] = jh(JSON.stringify(window._ALTO_ST[k])); });
   var conflicts = {}, APPLIED = {};      // APPLIED: what this page last set each field to
   function sigOf(f){ return f.sig ? f.sig() : f.get(); }
   // structure first (a section list, a tree), then new sections' words, then the rest, oldest first
@@ -1384,7 +1393,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(p[0] === 'sx') return -1.35;
     if(p[0] === 'so') return -1.3;
     if(p[0] === 'fl') return -1;
-    if(p[0] === 'dt' && p[2] === 'tree') return NEWT.test(p[1]) ? 0.5 : 0;
+    if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
   function overlay(){
     var any = false;
@@ -1524,6 +1533,13 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(P && P.type === 'node' && editing()) decorateFlags(true);
       return;
     }
+    if(kind === 'sd'){
+      if(NEWT.test(p[1] || '')){ if(P){ rerenderPage(P); repaint(); } return; }
+      var sb0 = dc && dc.querySelector('.ast[data-ast-key="' + p[1] + '"]');
+      if(sb0){ var sl0 = document.createElement('span'); sl0.className = 'ast-slot'; sl0.setAttribute('data-ast', p[1]); sl0.hidden = true;
+        sb0.parentNode.replaceChild(sl0, sb0); if(window._altoStudy) window._altoStudy(); }
+      return;
+    }
     if((kind === 'dt' && NEWT.test(p[1] || '') && p[2] === 'tree') || (p[2] === 's' && p[4] === 'p')){
       if(P) { rerenderPage(P); repaint(); }
       return;
@@ -1587,7 +1603,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     endField(true);
     root.classList.remove('alto-editing', 'alto-drag-ok');
     endPick(true); endLink(); hideMenus();
-    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd,.aed-nadd,.aed-nx').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
+    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd,.aed-nadd,.aed-nx,.aed-st').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
     hideBar(); closeAsk(); navSync();
     if(FTOUCH || structOK()) drawFilters();
@@ -1706,7 +1722,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
         var box = mk.closest('.detail-section'), h3 = box && box.querySelector(':scope > h3'); if(!h3) return; var k = mk.getAttribute('data-k');
         setF(h3, k + '|h'); box.setAttribute('data-aed-body', k + '|t'); lastOwn = box;
-        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
+        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('ast') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
         if(structOK() && !h3.querySelector('.aed-sc')) h3.appendChild(ctl('aed-sc', [['up', '↑', 'Move this section up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this section']], {sk: k}));
         decorateLists(box, k, h3);
       });
@@ -1729,6 +1745,7 @@ MANUAL_JS = r"""<script id="alto-manual">
           setF(how, k);
         });
       }
+      /*__STUDY_DECORATE__*/
       dc.querySelectorAll('.adt[data-adt-key]').forEach(function(bx){
         var key = bx.getAttribute('data-adt-key');
         var T0 = (window._ALTO_DT || {})[key], rootId = T0 && T0.n.filter(function(x){ return !x.p; })[0];
@@ -2509,6 +2526,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     paintFind();
   }
 
+  /*__STUDY_EDIT__*/
   /* a small box asking for a name; a menu of kinds of section */
   function hideMenus(){ ['aed-name', 'aed-form', 'aed-kinds', 'aed-chip', 'aed-chpop', 'aed-glyph'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
   function placeNear(b, at){
@@ -2534,6 +2552,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   var KINDS = [['text', 'Text', 'A heading and a paragraph'], ['list', 'List', 'A heading and bullet points'],
     ['quoted', 'Quote', 'The source’s own words, marked Quoted'], ['notes', 'From your notes', 'Your notes, marked as yours'],
     ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch, like a small timeline'],
+    ['quiz', 'Quiz', 'Multiple-choice questions that grade you — best written by Claude from your notes'],
+    ['cards', 'Flash cards', 'Cards you flip and mark Know it / Still learning — best written by Claude from your notes'],
     ['cases', 'Cases', 'A list of cases — each with its citation, a note and a link'],
     ['authorities', 'Authorities', 'A list of statutes, rules, Restatement sections or other sources']];
   function chooseKind(at, ok){
@@ -2551,12 +2571,18 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = field(ok + '|order'); if(!f) return;
     if(kind === 'cases' || kind === 'authorities'){ addAuthSection(ok, kind, at || document.body); return; }
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
-    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree'}[kind] || 'New section';
+    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', quiz:'Quiz', cards:'Flash cards'}[kind] || 'New section';
     var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : kind === 'tree' ? '' : 'Write here.';
     var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H]];
     if(T) L.push([base + '|t', T]);
     if(PROVL[kind]) L.push([base + '|p', kind]);
     if(kind === 'tree') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), t: 'First question'}]]);
+    if(kind === 'quiz' || kind === 'cards'){
+      var sk = DTPRE[q[0]] + '-' + q[1] + '-' + nk;
+      L.push(['sd|' + sk + '|study', studyStarter(kind)]);
+      if(changes(L)) setTimeout(function(){ openStudyEditor(sk, {fresh: true}); }, 60);
+      return;
+    }
     if(changes(L)){
       setTimeout(function(){ var mk = document.querySelector('#detail-content .aed-k[data-k="' + base + '"]'), sb = mk && mk.closest('.detail-section'), h3 = sb && sb.querySelector(':scope > h3');
         if(h3){ h3.scrollIntoView({block:'center'}); startField(h3, base + '|h'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
@@ -3272,7 +3298,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   });
 
   /* ── clicks and drags while editing ───────────────────────────────────── */
-  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-pill,#aed-toast,#aed-pick,#aed-pickres,#aed-linkbar,#aed-chip,#aed-chpop,#aed-glyph,#aed-name,#aed-form,#aed-kinds,#aed-ask,#ef-panel,#filter-toggle'); }
+  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-pill,#aed-toast,#aed-pick,#aed-pickres,#aed-linkbar,#aed-chip,#aed-chpop,#aed-glyph,#aed-name,#aed-form,#aed-kinds,#aed-ask,#aed-study,#ef-panel,#filter-toggle'); }
   // Move, add and remove: a page's sections, a tree's steps, an Overview's blocks.
   function structure(b){
     var x = b.getAttribute('data-x') || (b.classList.contains('aed-uc') ? 'addcu' : ''), w = b.closest('.aed-sc,.aed-tc,.aed-cc');
@@ -3382,6 +3408,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     // a card's chips on the timeline: clicking one opens the card's chips to change
     var chipEl = structOK() && t.closest('#canvas .node-card .csym-btn,#canvas .node-card .esym-btn,#canvas .node-card .tsym-btn');
     if(chipEl){ var cn = chipEl.closest('.node'); if(cn && srcNode(cn.id.slice(5))){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); chipPop(cn.id.slice(5), chipEl); return; } }
+    var stb = t.closest('.aed-st');
+    if(stb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); openStudyEditor(stb.getAttribute('data-sk')); return; }
     var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button,.aed-chips button,.aed-nadd,.aed-nx');
     if(sb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); structure(sb); return; }
     var ck = canvasKey(t) || unitKey(t);

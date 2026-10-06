@@ -570,6 +570,10 @@ def sanitize_brief(b, nodes=None) -> list:
                 s.tree = copy.deepcopy(s.tree)
                 sec_warnings.extend(sanitize_tree(s.tree, link_types, sources,
                                                   f"{what} section {i + 1}"))
+            if getattr(s, "cards", None) or getattr(s, "quiz", None):
+                from .study import sanitize_study
+                s.cards, s.quiz = copy.deepcopy(s.cards), copy.deepcopy(s.quiz)   # the stored dicts stay as they were
+                sanitize_study(s)
 
     b.title = plain_text(b.title)
     b.subject = plain_text(b.subject)
