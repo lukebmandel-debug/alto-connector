@@ -2065,29 +2065,94 @@ PATCHES += [
     {"name": "node-name-mobile-peek", "old": _NAME_M_OLD, "new": _NAME_M_NEW, "count": 1},
 ]
 
-# ── mobile help: MAP and the rest describe any timeline, not the novel ─────
-_HELP_MAP_M_OLD = ("(top-left) to see all 5 acts. From the main timeline, tapping a node "
-                   "features it. From a detail page, tapping a node jumps to that scene.")
-_HELP_MAP_M_NEW = ("(top-left) to see every node, grouped by section. From the main timeline, "
-                   "tapping a node features it. From a detail page, tapping a node jumps to it.")
-_HELP_MAP_I_OLD = ("(top-left) shows all 5 acts. From a detail page, tap any node to jump "
-                   "straight to its scene.")
-_HELP_MAP_I_NEW = ("(top-left) shows every node, grouped by section. From a detail page, "
-                   "tap any node to jump straight to it.")
-# The rest of the help still described the source novel (scenes, a story, its
-# Characters / Environments / Themes, a plot summary) on every timeline.
-_HELP_WORDS = [
-    ("<h3>Moving between scenes</h3>", "<h3>Moving between cards</h3>"),
-    ("to step through the story in order.", "to step through the timeline in order."),
-    ("<h3>Open a scene</h3>", "<h3>Open a card</h3>"),
-    ("for Characters, Environments, and Themes. Tap one",
-     "for the timeline&#8217;s groups and index pages. Tap one"),
-    ("to read the plot summary. Tap a phrase there to jump to its scene.",
-     "to read the summary. Tap a phrase there to jump to its card."),
-    ("for an act-by-act plot summary. Click any highlighted phrase to open that scene.",
-     "for a section-by-section summary. Click any highlighted phrase to open that card."),
-    ("to jump to that scene.", "to jump to that card."),
-]
+# ── help: the INFO panel (desktop) and the HOW TO USE sheet (phone) ────────
+# The engine's help described the source novel (scenes, a story, Characters /
+# Environments / Themes, a plot summary, "5 acts") and the controls as they were
+# before the edit toggle, the back button and the top-row search. It is rewritten
+# for any material and for the page as it is now. Each text keeps the one
+# sentence the builder fills in (blocks.py help_sections_*: the names of this
+# timeline's own page sections) between a static head and a static tail, so each
+# half is anchored on the engine's own words. The panel's phone paragraphs were
+# never shown (a phone has the sheet instead) and go.
+# The recommended route is said once in each: build with Claude from the user's
+# own material, then adjust by hand (the Edit toggle's two halves say the rest).
+_HELP_D_HEAD_OLD = (
+    '    <div id="info-content">\n'
+    '      <p class="info-desktop" style="margin:0 0 8px"><strong>Overview</strong> &#8212; click the &#10022; tab on the right edge for an act-by-act plot summary. Click any highlighted phrase to open that scene.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Navigate</strong> &#8212; ')
+_HELP_D_HEAD_NEW = (
+    '    <div id="info-content">\n'
+    '      <p class="info-desktop" style="margin:0 0 8px"><strong>Making it</strong> &#8212; you can build it all by hand, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments yourself.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Open a card</strong> &#8212; ')
+_HELP_D_TAIL_OLD = (
+    '. On a detail page, &#8592; &#8594; arrows step prev/next; Escape returns to the timeline.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Characters &#183; Environments &#183; Themes</strong> &#8212; chips in the nav open their detail pages. The symbols in each card&#8217;s footer do the same.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Search</strong> &#8212; click the magnifier bubble at bottom-right (beside the &#9432;) to search scenes, detail pages, and the overview. Click a result to jump straight there.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight text</strong> &#8212; click and drag over any text on a card or detail page. The color dot at center-bottom changes highlight color.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Add a note</strong> &#8212; click a highlighted passage to open a note dialog. Or click the <em>+</em> in the Notes panel for a freeform note.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes panel</strong> &#8212; click the <em>Notes</em> tab on the right edge to see all highlights and notes.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes report</strong> &#8212; click <em>Generate Report</em> at the bottom of the Notes panel for a printable report of your highlights and notes. It also saves to your report repository.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Share &amp; print</strong> &#8212; open the <em>Notes</em> panel and click the share arrow in its header to send a copy of this timeline (with or without your notes), or print.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Account</strong> &#8212; the person bubble at the bottom left signs you in so your work can follow you.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Alto home</strong> &#8212; click the Alto clef (top-left) or the Alto wordmark (top-right) to open your Alto homepage.</p>\n'
+    '      <p class="info-mobile" style="margin:0 0 8px"><strong>Swipe</strong> a card left or right to move through scenes.</p>\n'
+    '      <p class="info-mobile" style="margin:5px 0"><strong>Tap a card</strong> to open its detail page. Tap <em>Back</em> (top-left) to return.</p>\n'
+    '      <p class="info-mobile" style="margin:5px 0"><strong>MENU</strong> (top-right) opens Character / Environment / Theme chips &#8212; tap one for its detail page.</p>\n'
+    '      <p class="info-mobile" style="margin:5px 0"><strong>MAP</strong> (top-left) shows all 5 acts. From a detail page, tap any node to jump straight to its scene.</p>\n'
+    '      <p class="info-mobile" style="margin:5px 0"><strong>NOTES / MARK</strong> live on each node. In NOTES, tap a highlighted passage to add a note, or tap the <em>+</em> for a freeform note.</p>\n'
+    '      <p class="info-mobile" style="margin:5px 0"><strong>Overview</strong> &#8212; tap a phrase in MENU&rsquo;s Overview to jump to that scene.</p>\n'
+    '    </div>\n')
+_HELP_D_TAIL_NEW = (
+    '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; Timeline</em> or Escape goes back.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Bottom right</strong> &#8212; search, this &#9432;, light or dark, Edit.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab lists all you have saved and makes a report. Its header arrow shares or prints.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em> is for bigger changes, like new notes. <em>Edit manually</em> is for small ones: click words to change them; drag, swap or move cards; add list entries. &#8984;Z undoes.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Account &amp; home</strong> &#8212; the bubble at bottom left signs you in; the Alto clef or wordmark opens your homepage.</p>\n'
+    '    </div>\n')
+
+_HELP_M_HEAD_OLD = (
+    "    '    <h3>Moving between scenes</h3>',\n"
+    "    '    <p>Swipe a card left or right to step through the story in order.</p>',\n"
+    "    '    <h3>Open a scene</h3>',\n"
+    "    '    <p>")
+_HELP_M_HEAD_NEW = (
+    "    '    <h3>Moving between cards</h3>',\n"
+    "    '    <p>Swipe a card left or right to step through the timeline in order.</p>',\n"
+    "    '    <h3>Open a card</h3>',\n"
+    "    '    <p>")
+_HELP_M_TAIL_OLD = (
+    " Tap <strong>Back</strong> (top-left) to return.</p>',\n"
+    "    '    <h3>MENU</h3>',\n"
+    "    '    <p>Tap <strong>MENU</strong> (top-right) for Characters, Environments, and Themes. Tap one to open its detail page.</p>',\n"
+    "    '    <h3>MAP</h3>',\n"
+    "    '    <p>Tap <strong>MAP</strong> (top-left) to see all 5 acts. From the main timeline, tapping a node features it. From a detail page, tapping a node jumps to that scene.</p>',\n"
+    "    '    <h3>Overview</h3>',\n"
+    "    '    <p>Tap <strong>Overview</strong> in <strong>MENU</strong> to read the plot summary. Tap a phrase there to jump to its scene.</p>',\n"
+    "    '    <h3>MARK and NOTES</h3>',\n"
+    "    '    <p>Tap <strong>MARK</strong> (bottom-right) to highlight text &#8212; a color palette appears above the Search pill; drag over text to highlight it. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note.</p>',\n"
+    "    '    <h3>Search</h3>',\n"
+    "    '    <p>Tap the <strong>Search</strong> pill at the bottom center to search scenes, detail pages, and the overview. Tap a result to jump straight there.</p>',\n"
+    "    '    <h3>Share &amp; Print</h3>',\n"
+    "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in the panel header. <strong>Create Link</strong> builds your link; then <strong>Copy Link</strong> copies it. Print options live in the same dialog.</p>',\n")
+_HELP_M_TAIL_NEW = (
+    " Tap <strong>BACK</strong> (bottom-left) to return.</p>',\n"
+    "    '    <h3>MENU</h3>',\n"
+    "    '    <p>Tap <strong>MENU</strong> (top-right) for the timeline&#8217;s groups and index pages. Tap one to open its page.</p>',\n"
+    "    '    <h3>MAP</h3>',\n"
+    "    '    <p>Tap <strong>MAP</strong> (top-left) to see every card, grouped by section. Tap one to feature it, or, from a detail page, to jump to it.</p>',\n"
+    "    '    <h3>Overview</h3>',\n"
+    "    '    <p>Tap <strong>Overview</strong> in <strong>MENU</strong> to read the summary. Tap a phrase there to jump to its card.</p>',\n"
+    "    '    <h3>Search and filter</h3>',\n"
+    "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards.</p>',\n"
+    "    '    <h3>MARK and NOTES</h3>',\n"
+    "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note.</p>',\n"
+    "    '    <h3>Share &amp; Print</h3>',\n"
+    "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy of this timeline or print it.</p>',\n"
+    "    '    <h3>Making and editing</h3>',\n"
+    "    '    <p>You can build a timeline entirely by hand on a computer, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments and revisions yourself. On your own timeline, <strong>Edit this page</strong> (at the foot of a page) changes its words right here.</p>',\n")
 
 # ── mobile search drops below the filter bar ────────────────────────────────
 # A slot filter (e.g. Liability Outcome) docks the engine's filter bar across
@@ -2114,10 +2179,10 @@ _PEEK_BG_NEW = (
     "      el.style.position = _dcs.position; el.style.bottom = _dcs.bottom;\n"
     + _PEEK_BG_OLD)
 PATCHES += [
-    {"name": "mobile-help-map-generic", "old": _HELP_MAP_M_OLD, "new": _HELP_MAP_M_NEW, "count": 1},
-    {"name": "info-help-map-generic", "old": _HELP_MAP_I_OLD, "new": _HELP_MAP_I_NEW, "count": 1},
-    *({"name": f"help-generic-{i}", "old": o, "new": n, "count": 1}
-      for i, (o, n) in enumerate(_HELP_WORDS)),
+    {"name": "help-info-head", "old": _HELP_D_HEAD_OLD, "new": _HELP_D_HEAD_NEW, "count": 1},
+    {"name": "help-info-tail", "old": _HELP_D_TAIL_OLD, "new": _HELP_D_TAIL_NEW, "count": 1},
+    {"name": "help-sheet-head", "old": _HELP_M_HEAD_OLD, "new": _HELP_M_HEAD_NEW, "count": 1},
+    {"name": "help-sheet-tail", "old": _HELP_M_TAIL_OLD, "new": _HELP_M_TAIL_NEW, "count": 1},
     {"name": "mobile-search-below-filter-bar", "old": _MS_FILTER_OLD, "new": _MS_FILTER_NEW, "count": 1},
     {"name": "detail-peek-matches-page", "old": _PEEK_BG_OLD, "new": _PEEK_BG_NEW, "count": 1},
 ]
