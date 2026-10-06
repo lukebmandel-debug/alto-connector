@@ -625,14 +625,42 @@
     border:1px solid var(--btn-border); background:var(--card-glass-bg); color:var(--text); font:inherit; font-size:14px;
   }
   #nt-modal input:focus{ outline:2px solid var(--accent, #a78bfa); outline-offset:1px; }
-  .nt-kinds{ display:flex; gap:8px; margin:0 0 18px; }
+  #nt-modal{ width:600px; }
+  .nt-kinds{ display:flex; gap:10px; margin:0 0 18px; }
   .nt-kind{
-    flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:10px 12px; border-radius:12px;
+    flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:10px 10px 11px; border-radius:12px;
     border:1px solid var(--btn-border); background:var(--card-glass-bg); color:var(--text); font-family:inherit;
-    font-size:13px; cursor:pointer; text-align:left;
+    font-size:13px; cursor:pointer; text-align:left; transition:border-color .15s, box-shadow .15s;
   }
+  .nt-kind:hover{ border-color:var(--muted); }
+  .nt-kind .nt-t{ font-size:13px; }
+  .nt-kind .nt-t i{ font-style:normal; color:var(--muted); font-size:11px; letter-spacing:.04em; }
   .nt-kind small{ color:var(--muted); font-size:11px; line-height:1.45; }
   .nt-kind.on{ border-color:var(--text); box-shadow:inset 0 0 0 1px var(--text); }
+  .nt-pv{ display:block; width:100%; height:auto; aspect-ratio:5/3; border-radius:8px; background:var(--card-glass-bg); opacity:.62; transition:opacity .15s; overflow:hidden; }
+  .nt-kind.on .nt-pv, .nt-kind:hover .nt-pv{ opacity:1; }
+  .nt-pv .pv-card{ fill:var(--surface); stroke:var(--muted); stroke-width:1; }
+  .nt-pv .pv-hub{ fill:var(--text); stroke:none; }
+  .nt-pv .pv-band{ fill:var(--muted); fill-opacity:.1; stroke:none; }
+  .nt-pv .pv-ln{ fill:none; stroke:var(--muted); stroke-width:1.2; stroke-linecap:round; }
+  .nt-pv .pv-main{ fill:none; stroke:var(--text); stroke-width:2; stroke-linecap:round; }
+  .nt-pv .pv-dot{ fill:var(--text); }
+  .nt-pv .pv-tick{ stroke:var(--muted); stroke-width:1; }
+  .nt-pv text{ fill:var(--muted); font:7px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; text-anchor:middle; }
+  .nt-pv .pv-hubt{ fill:var(--bg); font-weight:600; }
+  .nt-pv .pv-s1{ fill:none; stroke:#b06ef0; stroke-width:1.8; stroke-linecap:round; }
+  .nt-pv .pv-s2{ fill:none; stroke:#2f9e8f; stroke-width:1.8; stroke-linecap:round; }
+  .nt-pv .pv-fb{ fill:none; stroke:#e0813f; stroke-width:1.8; stroke-linecap:round; stroke-dasharray:4 3; }
+  .nt-pv .pv-pan{ animation:ntpan 9s ease-in-out infinite alternate; }
+  @keyframes ntpan{ from{ transform:translateX(0); } to{ transform:translateX(-150px); } }
+  @media (prefers-reduced-motion:reduce){ .nt-pv .pv-pan{ animation:none; } }
+  @media (max-width:640px){
+    #nt-modal{ max-height:calc(100vh - 24px); max-height:calc(100dvh - 24px); overflow-y:auto; padding:22px 18px 18px; }
+    .nt-kinds{ flex-direction:column; gap:8px; }
+    .nt-kind{ display:grid; grid-template-columns:104px 1fr; grid-template-rows:auto auto; column-gap:12px; row-gap:2px; align-items:center; }
+    .nt-kind .nt-pv{ grid-row:1 / span 2; }
+    .nt-kind .nt-t{ align-self:end; } .nt-kind small{ align-self:start; }
+  }
   .nt-make{
     width:100%; height:38px; border-radius:10px; border:1px solid var(--btn-border); margin:0 0 8px; cursor:pointer;
     background:transparent; color:var(--text); font-family:inherit; font-size:13px; letter-spacing:.06em;
@@ -889,9 +917,36 @@
     <div class="nt-or">Or start from a blank page</div>
     <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Fall term"></div>
     <label for="nt-title">Timeline</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Course notes">
-    <div class="nt-kinds">
-      <button type="button" class="nt-kind on" data-kind="outline">Outline<small>Ideas that hold other ideas — a subject, a course</small></button>
-      <button type="button" class="nt-kind" data-kind="timeline">Timeline<small>Events in order — a story, a history</small></button>
+    <div class="nt-kinds" role="group" aria-label="What to start">
+      <button type="button" class="nt-kind on" data-kind="outline" aria-pressed="true"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
+          <path class="pv-ln" d="M100 26 V34 M100 34 H32 V46 M100 34 V46 M100 34 H168 V46 M100 66 V74 M100 74 H72 V84 M100 74 H128 V84"/>
+          <rect class="pv-hub" x="72" y="8" width="56" height="18" rx="5"/><text class="pv-hubt" x="100" y="20">hub</text>
+          <rect class="pv-card" x="14" y="46" width="36" height="20" rx="4"/><text x="32" y="59">a</text>
+          <rect class="pv-card" x="82" y="46" width="36" height="20" rx="4"/><text x="100" y="59">b</text>
+          <rect class="pv-card" x="150" y="46" width="36" height="20" rx="4"/><text x="168" y="59">c</text>
+          <rect class="pv-card" x="54" y="84" width="36" height="20" rx="4"/><text x="72" y="97">b.1</text>
+          <rect class="pv-card" x="110" y="84" width="36" height="20" rx="4"/><text x="128" y="97">b.2</text>
+        </svg>
+        <span class="nt-t">Outline</span><small>Ideas that hold other ideas: a subject, a course.</small></button>
+      <button type="button" class="nt-kind" data-kind="timeline" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
+          <rect class="pv-band" x="6" y="8" width="188" height="32" rx="6"/><rect class="pv-band" x="6" y="44" width="188" height="32" rx="6"/><rect class="pv-band" x="6" y="80" width="188" height="32" rx="6"/>
+          <path class="pv-ln" d="M62 24 H74 M126 24 H138 M168 30 V40 L40 46 V52 M72 60 H84 M136 60 H148 M178 66 V72 L60 80 V88 M92 96 H104"/>
+          <rect class="pv-card" x="18" y="14" width="44" height="20" rx="4"/><rect class="pv-card" x="74" y="14" width="52" height="20" rx="4"/><rect class="pv-card" x="138" y="14" width="44" height="20" rx="4"/>
+          <rect class="pv-card" x="18" y="50" width="54" height="20" rx="4"/><rect class="pv-card" x="84" y="50" width="52" height="20" rx="4"/><rect class="pv-card" x="148" y="50" width="34" height="20" rx="4"/>
+          <rect class="pv-card" x="30" y="86" width="62" height="20" rx="4"/><rect class="pv-card" x="104" y="86" width="50" height="20" rx="4"/>
+        </svg>
+        <span class="nt-t">Timeline <i>· Sketch</i></span><small>Cards in rough order, in bands. For sketching events and sorting your thoughts.</small></button>
+      <button type="button" class="nt-kind" data-kind="lanes" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true"><g class="pv-pan">
+          <path class="pv-ln" d="M0 106 H350"/><path class="pv-tick" d="M0 106 V113"/><path class="pv-tick" d="M20 106 V110"/><path class="pv-tick" d="M40 106 V110"/><path class="pv-tick" d="M60 106 V113"/><path class="pv-tick" d="M80 106 V110"/><path class="pv-tick" d="M100 106 V110"/><path class="pv-tick" d="M120 106 V113"/><path class="pv-tick" d="M140 106 V110"/><path class="pv-tick" d="M160 106 V110"/><path class="pv-tick" d="M180 106 V113"/><path class="pv-tick" d="M200 106 V110"/><path class="pv-tick" d="M220 106 V110"/><path class="pv-tick" d="M240 106 V113"/><path class="pv-tick" d="M260 106 V110"/><path class="pv-tick" d="M280 106 V110"/><path class="pv-tick" d="M300 106 V113"/><path class="pv-tick" d="M320 106 V110"/><path class="pv-tick" d="M340 106 V110"/><text x="60" y="120">1850</text><text x="180" y="120">1900</text><text x="300" y="120">1950</text>
+          <path class="pv-fb" d="M-10 44 H112 C130 44 126 64 144 64"/><circle class="pv-dot" cx="8" cy="44" r="2.6" style="fill:#e0813f"/>
+          <path class="pv-s1" d="M38 64 C52 64 48 22 64 22 H134 C150 22 146 64 162 64"/>
+          <path class="pv-s1" d="M236 64 C250 64 246 22 262 22 H350"/>
+          <path class="pv-s2" d="M86 64 C100 64 96 90 112 90 H196 C212 90 208 64 224 64"/>
+          <path class="pv-main" d="M-10 64 H350"/>
+          <circle class="pv-dot" cx="20" cy="64" r="2.6"/><circle class="pv-dot" cx="144" cy="64" r="2.6"/><circle class="pv-dot" cx="224" cy="64" r="2.6"/><circle class="pv-dot" cx="300" cy="64" r="2.6"/>
+          <circle class="pv-dot" cx="100" cy="22" r="2.2" style="fill:#b06ef0"/><circle class="pv-dot" cx="154" cy="90" r="2.2" style="fill:#2f9e8f"/><circle class="pv-dot" cx="300" cy="22" r="2.2" style="fill:#b06ef0"/>
+        </g></svg>
+        <span class="nt-t">Timeline <i>· Horizontal</i></span><small>To scale, left to right. Concurrent lines branch off and rejoin the main line.</small></button>
     </div>
     <div class="nt-msg" id="nt-msg"></div>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>
@@ -1138,7 +1193,7 @@ function ntOpen(projectName){
 function ntClose(){ document.getElementById('nt-scrim').classList.remove('open'); }
 function ntPick(k){
   ntKind = k;
-  document.querySelectorAll('#nt-modal .nt-kind').forEach(b => b.classList.toggle('on', b.dataset.kind === k));
+  document.querySelectorAll('#nt-modal .nt-kind').forEach(b => { b.classList.toggle('on', b.dataset.kind === k); b.setAttribute('aria-pressed', b.dataset.kind === k ? 'true' : 'false'); });
 }
 function ntMake(){
   const s = document.getElementById('nt-scrim'), msg = document.getElementById('nt-msg');
