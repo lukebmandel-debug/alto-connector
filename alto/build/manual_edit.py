@@ -171,6 +171,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-pill .aep-half::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
     padding:5px 10px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:12px;letter-spacing:.02em;
     white-space:nowrap;box-shadow:0 6px 18px var(--node-rest-shadow);opacity:0;pointer-events:none;transition:opacity .12s;}
+  #alto-edit-pill .aep-claude::after{left:auto;right:-50px;transform:none;}
+  #alto-edit-pill .aep-manual::after{left:auto;right:0;transform:none;}   /* the pill sits at the screen's edge: grow leftward */
   #alto-edit-pill .aep-half:hover::after,#alto-edit-pill .aep-half:focus-visible::after{opacity:1;}
   html.dark:not(.mobile) #alto-edit-pill{color:var(--muted);}
   html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}
@@ -1635,8 +1637,8 @@ MANUAL_JS = r"""<script id="alto-manual">
      the foot of each page. While editing, the editing bar takes its place. */
   var BUILD_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l7-3v18"/><path d="M11 9h9v12"/><path d="M2.5 21h19"/><path d="M7 8.5v.01M7 12v.01M7 15.5v.01M15 12.5v.01M15 16v.01"/></svg>';
   function pillHTML(phone){
-    return (phone ? '' : '<button type="button" class="aep-half aep-claude" data-tip="Edit with Claude" aria-label="Edit with Claude">' + BUILD_SVG + '</button><span class="aep-div" aria-hidden="true"></span>')
-      + '<button type="button" class="aep-half aep-manual" data-tip="Edit manually" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span>' + (phone ? '<span>Edit this page</span>' : '') + '</button>';
+    return (phone ? '' : '<button type="button" class="aep-half aep-claude" data-tip="Edit with Claude: best for bigger changes" aria-label="Edit with Claude">' + BUILD_SVG + '</button><span class="aep-div" aria-hidden="true"></span>')
+      + '<button type="button" class="aep-half aep-manual" data-tip="Edit manually: best for small fixes" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span>' + (phone ? '<span>Edit this page</span>' : '') + '</button>';
   }
   function wire(el){
     if(el._aed) return; el._aed = 1;
@@ -1669,7 +1671,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     document.querySelectorAll('.alto-edit-pill').forEach(function(t){
       wire(t);
       var m = t.querySelector('.aep-manual'); if(!m) return;
-      m.classList.toggle('off', !ok); m.setAttribute('data-tip', ok ? 'Edit manually' : whyNot());
+      m.classList.toggle('off', !ok); m.setAttribute('data-tip', ok ? 'Edit manually: best for small fixes' : whyNot());
     });
     syncHist();
   }
@@ -3542,7 +3544,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(canEdit()){
         try{ sessionStorage.removeItem('alto-edit-now'); }catch(e){}
         enter();
-        toast(structOK() ? 'Your new timeline — click any words to write them, ✎ Rename a unit, + Add a card, + Add a unit at the foot.'
+        toast(structOK() ? 'Your new timeline — click any words to write them, ✎ Rename a unit, + Add a card, + Add a unit at the foot. Claude can build it out from your notes any time.'
                          : 'Your new timeline — tap any words to write them. Cards and units are added on a computer.');
         return;
       }

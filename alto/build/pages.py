@@ -76,17 +76,6 @@ SEARCH_FETCH = """if(!courseLoading){
 # yet built. Alto has neither: every tile is a live timeline and nothing is
 # "coming soon". Each swap is counted, like every other template edit.
 _HOME_COPY = [
-    ("open a live tile to enter it. Dimmed tiles are coming soon. Inside any workspace, "
-     "the Alto mark at the top returns you here.",
-     "open a tile to enter its timeline. Inside any timeline, the Alto mark at the top "
-     "returns you here.", "home info: tiles"),
-    ("the content inside them (scenes, characters, themes).",
-     "everything inside them.", "home info: search"),
-    ("every report you generate inside a course is saved automatically. The small "
-     "document bubble on a course tile opens that course's report repository.",
-     "every report you generate inside a timeline is saved automatically. The small "
-     "document bubble on a timeline tile opens that timeline's report repository.",
-     "home info: reports"),
     ("Sign in to keep your courses, reports, and highlights with you.",
      "Sign in to keep your highlights, notes, and reports with you on every device.",
      "home account blurb"),

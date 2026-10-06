@@ -2082,7 +2082,7 @@ _HELP_D_HEAD_OLD = (
     '      <p class="info-desktop" style="margin:5px 0"><strong>Navigate</strong> &#8212; ')
 _HELP_D_HEAD_NEW = (
     '    <div id="info-content">\n'
-    '      <p class="info-desktop" style="margin:0 0 8px"><strong>Making it</strong> &#8212; you can build it all by hand, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments yourself.</p>\n'
+    '      <p class="info-desktop" style="margin:0 0 8px"><strong>Making it</strong> &#8212; build by hand if you like. The suggested route: have Claude build it from your own notes or readings, then make small adjustments yourself.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Open a card</strong> &#8212; ')
 _HELP_D_TAIL_OLD = (
     '. On a detail page, &#8592; &#8594; arrows step prev/next; Escape returns to the timeline.</p>\n'
@@ -2106,11 +2106,10 @@ _HELP_D_TAIL_NEW = (
     '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; Timeline</em> or Escape goes back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Bottom right</strong> &#8212; search, this &#9432;, light or dark, Edit.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab lists all you have saved and makes a report. Its header arrow shares or prints.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em> is for bigger changes, like new notes. <em>Edit manually</em> is for small ones: click words to change them; drag, swap or move cards; add list entries. &#8984;Z undoes.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Account &amp; home</strong> &#8212; the bubble at bottom left signs you in; the Alto clef or wordmark opens your homepage.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Controls</strong> &#8212; bottom right: search, this &#9432;, light or dark, Edit. Bottom left signs you in; the Alto clef or wordmark opens your homepage.</p>\n'
     '    </div>\n')
 
 _HELP_M_HEAD_OLD = (
@@ -2148,7 +2147,7 @@ _HELP_M_TAIL_NEW = (
     "    '    <h3>Search and filter</h3>',\n"
     "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards.</p>',\n"
     "    '    <h3>MARK and NOTES</h3>',\n"
-    "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note.</p>',\n"
+    "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"
     "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy of this timeline or print it.</p>',\n"
     "    '    <h3>Making and editing</h3>',\n"

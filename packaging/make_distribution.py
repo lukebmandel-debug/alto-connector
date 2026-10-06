@@ -372,12 +372,16 @@ PAGE = """<!doctype html>
 
   <p class="lede">Alto interviews you about material you already have — a
   course, a novel, a research project — and builds it into an interactive,
-  filterable timeline. Cards on colored act bands, entity chips, connection
-  lines, detail pages using your own headings, highlights and notes, a mobile
-  layout, and a single offline file you can send to anyone.</p>
+  filterable timeline or outline. Cards on colored bands, chips, connection
+  lines, detail pages using your own headings, highlights, notes and
+  freewriting, a phone layout, and a single offline file you can send to
+  anyone.</p>
 
-  <p class="rule">It never invents content. Alto organizes what you give it and
-  nothing else — sparse notes make a sparse timeline, on purpose.</p>
+  <p class="rule">The suggested route: have Claude build it from your own notes,
+  outlines or readings, then make small adjustments and revisions by hand in the
+  page. You can build everything by hand, but Claude does the main build best.
+  It never invents content. Alto organizes what you give it and nothing else —
+  sparse notes make a sparse timeline, on purpose.</p>
 
 {notice}  <h2>Download</h2>
   <div class="dl">

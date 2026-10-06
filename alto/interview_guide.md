@@ -823,7 +823,10 @@ them in the manifest (`record_materials_consent` with the full list, old
 entries unchanged), link them as the user chose (§A.4), author from them, and
 rebuild. Say this once at the end of a build — "whenever you have new notes
 or want something changed, just bring it here" — and never send them to edit
-files, the site, or Firebase.
+files, the site, or Firebase. This is also the route the page and the homepage
+suggest to the user: Claude does the main build from their material, then they
+make small adjustments and revisions by hand (anything is possible by hand, but
+that is the recommended way). Say it that way, and never as a rule.
 
 **The edit toggle (Edit timeline) — and starting without it.** On a computer
 every timeline carries a split pill beside its light/dark toggle: the building
@@ -880,11 +883,16 @@ chips out of the timeline, or add a chip or a new category (an axis; at most
 two); resize any card by its corner (Brief.card_size: its width and the least
 height it takes — never smaller than its words; more words grow it in both
 directions, or taller only when it would meet another card); on an outline, drag
-a card (its progeny come with it; cards it lands on step aside and go back
-when it moves on — a `shift` placement hint), and move a card with
+a card — held close to its own line it slides along it alone (a `slide`
+placement hint), taken off the line it carries its progeny (a `shift` hint);
+cards in the way step aside, and none are left touching — swap it (⇅) with a
+sibling or with its parent, or click its number and type the number it should
+have (the card holding that number trades with it), and move a card with
 everything under it under a different card, in its unit or another one
-(⇄ on the card — its parent changes; a unit's top card stays). Phones edit
-words only. Nothing changes until they turn the mode on; while it is on, an
+(⇄ on the card — its parent changes; a unit's top card stays); add, change,
+remove and reorder entries in a page's lists, an Index page or a chip box (a
+case, statute, source or other authority, with its citation, a note and a
+link). Phones edit words only. Nothing changes until they turn the mode on; while it is on, an
 editing bar at the foot of the screen takes the toggle's place — Done turns it
 off, and undo and redo are on it; ⌘Z /
 ⇧⌘Z work too (outside edit mode the same keys undo notes and highlights).
@@ -900,7 +908,7 @@ to. `units_added` and `chips_added` hold only the name they typed; the same
 applies. `cards_moved` says which cards they put under which (`under: null`: it took
 its removed parent's place at the top of the unit); `cards_moved_to_unit`,
 `units_deleted`, `chips_removed`, `categories_removed`, `categories_added` and
-`cards_resized` say the rest — keep a size the owner set (Brief.card_size). `cards_removed` are cards they took out, lines and all; links to them
+`cards_resized`, `cards_swapped_with_parent` and `children_reordered` say the rest — keep a size the owner set (Brief.card_size). `cards_removed` are cards they took out, lines and all; links to them
 elsewhere become plain words at the build. `files_not_found` names a linked
 file Alto could not find in their Desktop, Documents or Downloads: that text
 waits on the page that made it — say which file, in one line. Publish
