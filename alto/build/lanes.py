@@ -210,6 +210,7 @@ LANES_CSS = """
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
     background:color-mix(in srgb,var(--surface) 80%,transparent);border:1.5px solid color-mix(in srgb,var(--unit-color) 45%,transparent);}
   .lanes-unit .lu-chip b{font-weight:800;opacity:.6;margin-right:7px;}
+  html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;line-clamp:5;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
   html.alto-editing .node-card .lanes-when:empty{display:block;}
   html.alto-editing .node-card .lanes-when:empty::before{content:'+ When';opacity:.7;}
@@ -364,7 +365,8 @@ function draw(world, lines, order, X, pos, h, S, W, H){
   var col=function(l){ return l.id==='main'?'var(--accent)':l.color; };
   /* the time axis along the main line: ticks where the numbers are round */
   var my=main.y+P, tk=el('g',{'class':'ln-axis'},svg);
-  var nums=order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); });
+  var nums=order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); })
+  if(!order.some(function(id){ return L.ev[id].t!=null; })) nums=false;   // nothing dated: no clock to show
   S.segs.forEach(function(sg){
     if(sg.t1==null || sg.t1<=sg.t0 || !nums) return;
     var step=nice(220/S.s); if(step<1) step=1;
@@ -420,7 +422,7 @@ function draw(world, lines, order, X, pos, h, S, W, H){
   /* connections the material draws between events (not the lines themselves) */
   (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(cn){
     if(!cn || cn[2]==='spine' || X[cn[0]]==null || X[cn[1]]==null) return;
-    var la=lineOf(lines,cn[0]), lb=lineOf(lines,cn[1]); if(!la||!lb) return;
+    var la=lineOf(lines,cn[0]), lb=lineOf(lines,cn[1]); if(!la||!lb || la===lb) return;   // the line itself already joins them
     var ax=X[cn[0]], ay=la.y+P, bx=X[cn[1]], by=lb.y+P, mx=(ax+bx)/2, bow=Math.min(160, Math.abs(bx-ax)/3+30);
     var c=(typeof COLOR_MAP!=='undefined' && COLOR_MAP[cn[2]]) ? COLOR_MAP[cn[2]] : 'var(--muted)';
     el('path',{'class':'ln-rel', d:'M'+ax+' '+ay+' Q'+mx+' '+(Math.min(ay,by)-bow)+' '+bx+' '+by, stroke:c},svg);
