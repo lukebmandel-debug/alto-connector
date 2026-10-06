@@ -1652,9 +1652,95 @@ PATCHES += [
 _CTRL_OLD = "html:not(.mobile) #notes-toggle:hover{ border-color:var(--muted) !important; }"
 _CTRL_NEW = (_CTRL_OLD + "\n"
              "html:not(.mobile) #mode-toggle, html:not(.mobile) #info-btn,\n"
-             "html:not(.mobile) #search-btn{ z-index:310 !important; }")
+             "html:not(.mobile) #search-btn{ z-index:310 !important; }\n"
+             # light/dark is just its glyph in a circle, the same 35px as INFO and
+             # search; the edit toggle (manual_edit) takes the rightmost slot and
+             # alignInfo lines the three circles up to its left.
+             "html:not(.mobile) #mode-toggle{ width:35px; height:35px; padding:0; border-radius:50% !important; }\n"
+             "html:not(.mobile) #mode-toggle .mode-glyph{ display:none; width:18px; height:18px; flex:none; }\n"
+             "html:not(.mobile):not(.dark) #mode-toggle .mode-moon{ display:block; }\n"
+             "html:not(.mobile).dark #mode-toggle .mode-sun{ display:block; }\n"
+             # the way back to the timeline from a detail page, left of the title in
+             # the title bar (a phone's BACK tile; the green pill is "back to the
+             # previous page"). Glass like the other floating controls; below
+             # 1100px it keeps only its arrow so a long title is never crowded.
+             "html.mobile #desk-back{ display:none !important; }\n"
+             "html:not(.mobile) #desk-back{ display:none; position:fixed; left:74px; top:16px; z-index:103; height:35px;\n"
+             "  align-items:center; justify-content:center; gap:7px; padding:0 15px 0 12px; border-radius:17.5px; cursor:pointer;\n"
+             "  font-family:inherit; font-size:14px; letter-spacing:.05em; white-space:nowrap; color:var(--muted);\n"
+             "  background:var(--card-glass-bg); border:1px solid var(--card-glass-border);\n"
+             "  -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));\n"
+             "  backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));\n"
+             "  box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim); }\n"
+             "html:not(.mobile).detail-open #desk-back{ display:inline-flex; }\n"
+             "html:not(.mobile) #desk-back:hover{ border-color:var(--muted); color:var(--text); }\n"
+             "html:not(.mobile) #desk-back svg{ display:block; flex:none; }\n"
+             "@media (max-width:1100px){ html:not(.mobile) #desk-back{ width:35px; padding:0; }\n"
+             "  html:not(.mobile) #desk-back .db-label{ display:none; } }\n"
+             "html.printing #desk-back{ display:none !important; }")
+_MODE_BTN_OLD = '<button id="mode-toggle" onclick="toggleMode()">\u263d Dark</button>'
+_MODE_BTN_NEW = (
+    '<button id="mode-toggle" type="button" onclick="toggleMode()" aria-label="Light or dark" title="Light or dark">'
+    '<svg class="mode-glyph mode-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">'
+    '<path d="M16 12.2A6.4 6.4 0 1 1 8.6 3.2 5 5 0 0 0 16 12.2Z" fill="currentColor"/></svg>'
+    '<svg class="mode-glyph mode-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">'
+    '<circle cx="10" cy="10" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round">'
+    '<line x1="10" y1="1.6" x2="10" y2="3.8"/><line x1="10" y1="16.2" x2="10" y2="18.4"/><line x1="1.6" y1="10" x2="3.8" y2="10"/>'
+    '<line x1="16.2" y1="10" x2="18.4" y2="10"/><line x1="4.05" y1="4.05" x2="5.6" y2="5.6"/><line x1="14.4" y1="14.4" x2="15.95" y2="15.95"/>'
+    '<line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>\n'
+    '  <button id="desk-back" type="button" onclick="showTimeline()" aria-label="Back to the timeline" title="Back to the timeline">'
+    '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
+    'stroke-linejoin="round" aria-hidden="true"><path d="M16.5 10H3.8M9 4.6 3.6 10 9 15.4"/></svg><span class="db-label">Timeline</span></button>')
+_MODE_TXT_OLD = "  document.getElementById('mode-toggle').textContent = isDark ? '\u2600 Light' : '\u263d Dark';\n"
+_MODE_TXT_NEW = "  document.getElementById('mode-toggle').title = isDark ? 'Switch to light' : 'Switch to dark';\n"
+_MODE_EARLY_OLD = "if(m)m.textContent='\u2600 Light';"
+_MODE_EARLY_NEW = "if(m)m.title='Switch to light';"
+_ALIGN_OLD = (
+    "    var dwCSS = mt.offsetWidth, dhCSS = mt.offsetHeight;\n"
+    "    if(dwCSS === 0) return;\n"
+    "    var MARGIN = 12.5;        // gap (10px VISUAL after zoom) \u2014 matches homepage rhythm\n"
+    "    var COLLAPSED_H = 35;     // the \"i\" circle diameter (28px VISUAL)\n"
+    "    var rightCSS  = 30 + dwCSS + MARGIN;             // 30 = toggle's right inset (24px VISUAL)\n"
+    "    var bottomCSS = 30 + (dhCSS - COLLAPSED_H) / 2;  // centre INFO on the toggle\n"
+    "    if(bottomCSS < 0) bottomCSS = 30;\n")
+_ALIGN_NEW = (
+    "    if(mt.offsetWidth === 0) return;\n"
+    "    var MARGIN = 12.5;        // gap (10px VISUAL after zoom) \u2014 matches homepage rhythm\n"
+    "    var COLLAPSED_H = 35;     // every circle's diameter (28px VISUAL)\n"
+    "    // The row, right to left: the edit toggle (manual_edit's #alto-edit-pill, when\n"
+    "    // the page has one on screen) in the corner, then light/dark, INFO, search.\n"
+    "    // With no edit toggle (a share, a copy, while editing) they sit flush right.\n"
+    "    var ep = document.getElementById('alto-edit-pill');\n"
+    "    var epW = (ep && ep.offsetWidth) ? Math.ceil((ep.offsetWidth + MARGIN) / 1.25) * 1.25 : 0;   // whole VISUAL px under zoom .8\n"
+    "    var modeR = 30 + epW;                           // 30 = the corner inset (24px VISUAL)\n"
+    "    var rightCSS  = modeR + COLLAPSED_H + MARGIN;\n"
+    "    var bottomCSS = 30;\n"
+    "    mt.style.setProperty('right',  modeR + 'px', 'important');\n"
+    "    mt.style.setProperty('bottom', bottomCSS + 'px', 'important');\n")
+_ALIGN_HOOK_OLD = "  // Retry until mode-toggle has dimensions AND alignInfo successfully commits."
+_ALIGN_HOOK_NEW = (
+    "  window._altoAlignInfo = alignInfo;   // manual_edit calls it once the edit toggle exists\n"
+    "  new MutationObserver(alignInfo).observe(document.documentElement, {attributes:true, attributeFilter:['class']});\n"
+    + _ALIGN_HOOK_OLD)
+_INFO_FB_OLD = "html:not(.mobile) #info-btn{ bottom:24px !important; right:96px !important; top:auto !important; }"
+_INFO_FB_NEW = "html:not(.mobile) #info-btn{ bottom:30px !important; right:78px !important; top:auto !important; }"
+_SB_FB_OLD = "position:fixed; bottom:24px; right:144px; z-index:300;"
+_SB_FB_NEW = "position:fixed; bottom:30px; right:125px; z-index:300;"
+# The magnifier's ink is heavy at the upper right (the lens), so its bounding box
+# centred in the circle still reads high and to the right; the view box nudges
+# the drawing 0.3 units down-left, splitting box centre and ink centre.
+_SG_OLD = "'<svg viewBox=\"0 0 20 20\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" '+"
+_SG_NEW = "'<svg viewBox=\"0.3 -0.3 20 20\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" '+"
 PATCHES += [
+    {"name": "desktop-search-glyph-optical-centre", "old": _SG_OLD, "new": _SG_NEW, "count": 1},
     {"name": "desktop-controls-above-nodes", "old": _CTRL_OLD, "new": _CTRL_NEW, "count": 1},
+    {"name": "desktop-mode-toggle-glyph", "old": _MODE_BTN_OLD, "new": _MODE_BTN_NEW, "count": 1},
+    {"name": "desktop-mode-toggle-no-text", "old": _MODE_TXT_OLD, "new": _MODE_TXT_NEW, "count": 1},
+    {"name": "desktop-mode-toggle-no-text-early", "old": _MODE_EARLY_OLD, "new": _MODE_EARLY_NEW, "count": 1},
+    {"name": "desktop-controls-row", "old": _ALIGN_OLD, "new": _ALIGN_NEW, "count": 1},
+    {"name": "desktop-controls-row-hook", "old": _ALIGN_HOOK_OLD, "new": _ALIGN_HOOK_NEW, "count": 1},
+    {"name": "desktop-info-fallback", "old": _INFO_FB_OLD, "new": _INFO_FB_NEW, "count": 1},
+    {"name": "desktop-search-fallback", "old": _SB_FB_OLD, "new": _SB_FB_NEW, "count": 1},
 ]
 
 # ── mobile, opened directly: the page runs behind Safari's bars ────────────

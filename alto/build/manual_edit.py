@@ -135,10 +135,10 @@ SHOW_BLOB_PREVIEW = """  function showBlob(file, name, w){ if(w) w.close(); }
 
 
 MANUAL_CSS = r"""<style id="alto-manual-css">
-  /* the edit toggle: a split pill beside the light/dark one — build with
+  /* the edit toggle: a split pill in the corner, where light/dark used to be — build with
      Claude on the left, edit by hand on the right. On a phone, a pencil-only
      pill at the foot of a page. While editing, the editing bar takes its place. */
-  #alto-edit-pill{position:fixed;bottom:30px;right:250px;z-index:200;height:35px;display:inline-flex;align-items:stretch;
+  #alto-edit-pill{position:fixed;bottom:30px;right:30px;z-index:310;height:35px;display:inline-flex;align-items:stretch;
     border-radius:17.5px;background:var(--card-glass-bg);border:1px solid var(--card-glass-border);color:var(--muted);
     -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
     box-shadow:0 10px 26px var(--node-rest-shadow),inset 0 0 0 .5px var(--card-glass-rim);}
@@ -1592,8 +1592,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   function placePill(){}
 
   /* ── the edit toggle ───────────────────────────────────────────────────
-     A split pill in the row of controls at the foot of the screen, beside
-     light/dark: the building builds with Claude (detail_extras.EDIT_TILE's
+     A split pill in the corner of the row of controls at the foot of the screen
+     (search, info and light/dark sit to its left): the building builds with Claude (detail_extras.EDIT_TILE's
      openClaude), the pencil edits by hand. A phone gets the pencil alone, at
      the foot of each page. While editing, the editing bar takes its place. */
   var BUILD_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l7-3v18"/><path d="M11 9h9v12"/><path d="M2.5 21h19"/><path d="M7 8.5v.01M7 12v.01M7 15.5v.01M15 12.5v.01M15 16v.01"/></svg>';
@@ -1616,21 +1616,16 @@ MANUAL_JS = r"""<script id="alto-manual">
       b.setAttribute('aria-label', 'Edit this timeline'); b.innerHTML = pillHTML(false); document.body.appendChild(b); wire(b); }
     return b;
   }
-  // just left of the leftmost control in the row (search, info, light/dark)
+  // The toggle holds the corner of the row (CSS: right/bottom 30); the engine's
+  // alignInfo lines search, info and light/dark up to its left, so tell it when
+  // the toggle exists or changes.
   function placeDesk(){
     if(PHONE || root.classList.contains('mobile')) return;
-    var b = deskPill(), left = Infinity, bottom = null;
-    ['search-btn', 'info-btn', 'mode-toggle'].forEach(function(id){
-      var el = document.getElementById(id); if(!el || !el.offsetWidth) return;
-      var r = el.getBoundingClientRect(); if(r.left < left){ left = r.left; }
-      if(id === 'mode-toggle') bottom = r.bottom; });
-    if(left === Infinity) return;
-    var z = (b.getBoundingClientRect().width / (b.offsetWidth || 1)) || 1;     // html{zoom}
-    var r = Math.round((window.innerWidth - left) / z + 12);
-    if(b.style.right !== r + 'px') b.style.right = r + 'px';
-    if(bottom != null){ var bt = Math.round((window.innerHeight - bottom) / z); if(b.style.bottom !== bt + 'px') b.style.bottom = bt + 'px'; }
+    deskPill();
+    if(window._altoAlignInfo) window._altoAlignInfo();
   }
-  setInterval(placeDesk, 500); window.addEventListener('resize', placeDesk);
+  window.addEventListener('resize', placeDesk);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', placeDesk); else placeDesk();
   function syncTiles(){
     var ok = canEdit();
     if(!PHONE) placeDesk();
