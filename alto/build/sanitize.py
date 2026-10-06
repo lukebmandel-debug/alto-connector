@@ -37,6 +37,7 @@ bundle and every dependency is weight there.
 from __future__ import annotations
 
 import html
+import json
 import copy
 import re
 from html.parser import HTMLParser
@@ -118,6 +119,17 @@ def _showdetail_target(attrs) -> "tuple[str, str] | None":
             if m:
                 return m.group(1), m.group(2)
     return None
+
+
+def js_json(v, **kw) -> str:
+    """json.dumps for a value spliced into a <script> as a JS expression. The
+    text stays as typed (apostrophes, quotes, backslashes) — JSON quotes it —
+    and what could end or confuse the script element or a line is written as an
+    escape that JS reads back as the same characters: `</` (a closing tag),
+    `<!--` (script-data comment state) and the line/paragraph separators."""
+    kw.setdefault("ensure_ascii", False)
+    return (json.dumps(v, **kw).replace("</", "<\\/").replace("<!--", "<\\!--")
+            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
 
 def esc(s) -> str:

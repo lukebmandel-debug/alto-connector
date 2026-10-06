@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 
 from .brief import Brief
+from .sanitize import js_json
 
 # ── the matcher (no DOM) ─────────────────────────────────────────────────────
 MATCH_JS = r"""
@@ -512,6 +513,6 @@ def search_config(b: Brief) -> str:
             labels[k] = b.axes[i].label
     cfg = {"aliases": aliases, "kinds": kinds, "labels": labels}
     return ("<script>window._ALTO_SEARCH="
-            + json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/") + ";</script>\n"
+            + js_json(cfg) + ";</script>\n"
             + SEARCH_CSS + "\n<script id=\"alto-search-core\">" + MATCH_JS
             + TIMELINE_SEARCH_JS + "</script>\n")

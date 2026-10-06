@@ -35,6 +35,8 @@ from __future__ import annotations
 import json
 import re
 
+from .sanitize import js_json
+
 MAX_TREE_NODES = 80
 MAX_TREE_DEPTH = 10
 TREE_LAYOUTS = ("auto", "tree", "list")
@@ -212,8 +214,7 @@ def tree_block(reg: dict) -> str:
     """The data and the renderer. Always there, trees or not: manual edit
     mode can add a section with a tree to any page (an empty registry draws
     nothing)."""
-    data = json.dumps(reg, ensure_ascii=False, separators=(",", ":"))
-    data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
+    data = js_json(reg, separators=(",", ":"))
     return (f'<script id="alto-dt-data">window._ALTO_DT={data};</script>\n'
             + TREE_CSS + "\n" + TREE_JS + "\n")
 
