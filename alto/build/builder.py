@@ -16,7 +16,7 @@ from .layout import assign_columns, resolve, mobile_grid, sized_placement, \
     placement_check, outline_has_categories, line_crossings, TREE
 from .brief import COL_SETS
 from .estimate import card_height
-from .sanitize import sanitize_brief, sanitize_connections
+from .sanitize import sanitize_brief, sanitize_connections, js_json
 from ..engine import template as engine_template
 from .verify import verify_data, verify_output, verify_scripts, VerifyError
 
@@ -252,7 +252,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     if warnings is not None:
         warnings += local_warnings
     tail = (local + "<script>window._ALTO_AUTOLINK="
-            + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
+            + js_json(table)
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief)

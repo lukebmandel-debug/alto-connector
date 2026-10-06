@@ -37,7 +37,7 @@ HOW_CONNECT_CSS = (
     "\n  .alto-lead{display:block;font-size:1.06em;line-height:1.6;}"
     "\n  .alto-lead-num{opacity:.55;font-size:.8em;font-weight:600;margin-right:8px;"
     "font-variant-numeric:tabular-nums;}")
-from .sanitize import css_color, esc, one_line
+from .sanitize import css_color, esc, js_json, one_line
 from . import detail_extras as dx
 from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_plan, plan_js, sized_placement
 
@@ -104,8 +104,20 @@ def js_str(s: str) -> str:
     """Single-quoted JS string literal, </script>-safe."""
     out = json.dumps(s or "", ensure_ascii=False)[1:-1]
     out = out.replace('\\"', '"').replace("'", "\\'")
-    out = out.replace("<", "\\u003c")
+    # `<` (</script>) and the line/paragraph separators are written as \u
+    # escapes, which a JS literal reads back as the same character.
+    for ch, esc_ in (("<", "\\u003c"), ("\u2028", "\\u2028"), ("\u2029", "\\u2029")):
+        out = out.replace(ch, esc_)
     return "'" + out + "'"
+
+
+def jsq(s) -> str:
+    """The inside of js_str(), for text spliced into a quoted JS literal that a
+    template already opened (the engine builds HTML in '…' and `…` strings).
+    Also safe inside a template literal: a backtick or `${` is written as a unicode
+    escape, which '…', "…" and `…` all read back as the same characters."""
+    out = js_str("" if s is None else str(s))[1:-1]
+    return out.replace("`", "\\u0060").replace("$", "\\u0024")
 
 
 def _rgb(hexcolor: str):
@@ -1545,7 +1557,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         for _i, _root in enumerate([n.id for n in nodes if not n.parent]):
             _walk(_root, 0, _i, "")
         orders += ("\nwindow._ALTO_OUTLINE={num:" + json.dumps(_num)
-                   + ",label:" + json.dumps(_label)
+                   + ",label:" + js_json(_label)
                    + ",kids:" + json.dumps(_kids)
                    + ",parent:" + json.dumps(_parent) + "};"
                    + OUTLINE_BODY + OUTLINE_PRINT_GLUE
@@ -1557,13 +1569,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
             for k, _lbl, _sw in rel_key_items) + "};" + REL_FILTER_GLUE)
-    def _js_json(v):
-        return json.dumps(v, ensure_ascii=False).replace("</", "<\\/")
     orders += "\n" + RAIL_GLUE + "\n" + MSEARCH_PANEL_GLUE + UNIT_GLUE
     # Always there, empty or not: manual edit mode can add the first filter.
     # With no sections the panel draws no tab.
-    orders += ("\nvar FILTER_SECTIONS=" + _js_json(filter_sections) + ";"
-               "\nvar FILTER_NODES=" + _js_json(filter_nodes) + ";"
+    orders += ("\nvar FILTER_SECTIONS=" + js_json(filter_sections) + ";"
+               "\nvar FILTER_NODES=" + js_json(filter_nodes) + ";"
                + FILTER_PANEL_GLUE)
     orders_m = (
         f"var CHAR_ORDER_M  = {json.dumps([e.id for e in b.entities])};\n"
@@ -1755,19 +1765,19 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
 
     drawer = []
     if b.entities and "entity" not in nav_hidden:
-        drawer.append(f"'    <div class=\"drawer-section-label\">{b.entity_axis_label}</div>',")
+        drawer.append(f"'    <div class=\"drawer-section-label\">{jsq(b.entity_axis_label)}</div>',")
         for e in b.entities:
             thin = _ent_thin(e.id)
-            nm = (e.name + f'<span class="nav-chip-count{" thin" if thin else ""}">'
+            nm = (jsq(e.name) + f'<span class="nav-chip-count{" thin" if thin else ""}">'
                   f'{ent_count[e.id]}</span>')
             drawer.append(drawer_btn("char", e.id, e.symbol_svg, nm, data_char=e.id))
     for ax, src, kind, cls in ((ax1, "axis1", "env", " env-btn"),
                                (ax2, "axis2", "theme", " theme-btn")):
         if not ax or src in nav_hidden:
             continue
-        drawer.append(f"'    <div class=\"drawer-section-label\">{ax.label}</div>',")
+        drawer.append(f"'    <div class=\"drawer-section-label\">{jsq(ax.label)}</div>',")
         for v in ax.values:
-            drawer.append(drawer_btn(kind, v.id, v.symbol_svg, v.name, cls))
+            drawer.append(drawer_btn(kind, v.id, v.symbol_svg, jsq(v.name), cls))
     if index_axes:
         drawer.append(f"'    <div class=\"drawer-section-label\">{js_str(b.index_label)[1:-1]}</div>',")
         for key, kind, label, ids in index_entries:
@@ -1846,50 +1856,50 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # href attribute: percent-encode, or a quote in the title closes it.
         "mailto_href": (f"mailto:{url_q(one_line(owner_mail), safe='@')}"
                         f"?subject={url_q(title_txt)}%20Notes%20Report&body="),
-        "report_title": f"{b.title} — Notes Report",
-        "report_h1": f"<h1>{b.title}</h1>",
+        "report_title": f"{jsq(b.title)} — Notes Report",
+        "report_h1": f"<h1>{jsq(b.title)}</h1>",
         "report_footer": ("Generated from highlights and notes in the "
-                          f"{b.title} study timeline."),
+                          f"{jsq(b.title)} study timeline."),
         "reports_link": rhref,
         "course_id_lit": ID_PATTERNS["course_id_lit"].format(tid=tid),
-        "drawer_title": f"'    <span id=\"nav-drawer-title\">{b.title}</span>',",
+        "drawer_title": f"'    <span id=\"nav-drawer-title\">{jsq(b.title)}</span>',",
         "doc_save_key": ID_PATTERNS["doc_save_key"].format(tid=tid),
         "hl_key": ID_PATTERNS["hl_key"].format(tid=tid),
         "hl_key_legacy": ID_PATTERNS["hl_key"].format(tid=tid) + "-legacy",
         "rp_key": ID_PATTERNS["rp_key"].format(tid=tid),
-        "sim_name": b.owner_name or "Alto User",
-        "sim_email": owner_mail,
+        "sim_name": jsq(b.owner_name or "Alto User"),
+        "sim_email": jsq(owner_mail),
         "course_id_var": ID_PATTERNS["course_id_var"].format(tid=tid),
         # An outline names each node's kind by its own tag (Concept, Outcome…)
         # rather than one noun for all (ALTO-004).
         "badge_event_d": (f'<div class="detail-badge ${{badgeClass}}">'
                           + (f"${{n.tag||{js_str(b.node_noun)}}}" if b.mode == "outline"
-                             else b.node_noun) + '</div>'),
+                             else jsq(b.node_noun)) + '</div>'),
         "badge_event_m": ('<div class="detail-badge badge-node">'
                           + (f"'+(nd.tag||{js_str(b.node_noun)})+'" if b.mode == "outline"
-                             else b.node_noun) + '</div>'),
-        "badge_char_m": f'<div class="detail-badge badge-char">{b.entity_axis_singular}</div>',
+                             else jsq(b.node_noun)) + '</div>'),
+        "badge_char_m": f'<div class="detail-badge badge-char">{jsq(b.entity_axis_singular)}</div>',
         "badge_env_m": ('<div class="detail-badge badge-env">'
-                        f'{(ax1.singular if ax1 else "Group")}</div>'),
+                        f'{jsq(ax1.singular if ax1 else "Group")}</div>'),
         "badge_theme_m": ('<div class="detail-badge badge-theme">'
-                          f'{(ax2.singular if ax2 else "Group")}</div>'),
+                          f'{jsq(ax2.singular if ax2 else "Group")}</div>'),
         "type_labels": ("const typeLabel=type==='char'?"
                         f"{js_str(b.entity_axis_singular)}:type==='env'?"
                         f"{js_str(ax1.singular if ax1 else 'Group')}:"
                         f"{js_str(ax2.singular if ax2 else 'Group')};"),
-        "chips_heading": f"<h3>{b.entity_axis_label} Present</h3>",
+        "chips_heading": f"<h3>{jsq(b.entity_axis_label)} Present</h3>",
         "help_sections_m": ("Tap the current card to open its detail page "
-                            f"&#8212; {sec_hint}."),
+                            f"&#8212; {jsq(sec_hint)}."),
         "help_sections_d": ("click any card to open its detail page "
                             f"({sec_hint})"),
         # An outline printed as an outline should not be headed "Timeline".
         "print_title": (
-            f'<h1 class="print-tl-title">{b.title} — '
+            f'<h1 class="print-tl-title">{jsq(b.title)} — '
             f'{"Outline" if b.mode == "outline" else "Timeline"}</h1>'),
         # navigator.share() displays this as text, so it gets the tag-free
         # title — and it is a JS literal, so js_str() rather than interpolation.
         "share_title": f"title:{js_str(title_txt + ' Timeline')}",
-        "share_import": f"Someone shared their {b.title} timeline with you",
+        "share_import": f"Someone shared their {jsq(b.title)} timeline with you",
         "act_names": act_names_lit,
         "map_act_names": f"var ACT_NAMES = {act_names_lit};",
         "map_act_colors": ("var ACCENT_COLORS = ["
@@ -1900,4 +1910,4 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
 
 def connections_block(connections: list) -> str:
     return "const CONNECTIONS = [" + ",".join(
-        f"\n  {json.dumps(c)}" for c in connections) + "\n];"
+        f"\n  {js_json(c, ensure_ascii=True)}" for c in connections) + "\n];"

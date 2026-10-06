@@ -12,13 +12,14 @@ from pathlib import Path
 
 from .brief import Brief, PALETTE, period_words
 from .emit import emit
+from .sanitize import js_json
 from .runway import runway_script
 
 from ..engine import template as engine_template
 
 
 def _js(s):
-    return json.dumps(s or "", ensure_ascii=False)
+    return js_json(s or "")
 
 
 def projects_const(projects: list[dict]) -> str:

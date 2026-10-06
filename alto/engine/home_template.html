@@ -1194,10 +1194,13 @@ PROJECTS.forEach((p, pi) => {
     el.innerHTML =
       '<div class="unit-strip">' + strip + '</div>' +
       '<div class="tile-body">' +
-        '<div class="tile-title">' + c.title + '</div>' +
+        '<div class="tile-title"></div>' +
         (live ? '<div class="tile-sub">' + c.sub + '</div>'
               : (c.noChip ? '' : '<span class="soon-chip">Coming soon</span>')) +
       '</div>';
+    // textContent: a timeline's name is typed text, never markup (an apostrophe,
+    // an ampersand or a tag in it must read as typed)
+    el.querySelector('.tile-title').textContent = c.title;
     if(live && c.reports && c.courseId){
       const rb = document.createElement('button');
       rb.className = 'tile-reports';
@@ -2054,15 +2057,18 @@ alignSearch();
         resultsEl = document.getElementById('search-results');
   let INDEX = null, courseLoading = false;
 
+  // a name typed by the owner, safe inside a quoted attribute selector
+  function cssq(v){ v = String(v == null ? '' : v); return (window.CSS && CSS.escape) ? CSS.escape(v) : v.replace(/["\\]/g, '\\$&'); }
+
   function baseIndex(){
     const idx = [];
     PROJECTS.forEach(p => {
       idx.push({kind:'Project', title:p.name, text:p.courses.map(c=>c.title).join(', '),
-                go:() => jumpTo(document.querySelector('.project-slab[data-project="'+p.name+'"]'))});
+                go:() => jumpTo(document.querySelector('.project-slab[data-project="'+cssq(p.name)+'"]'))});
       p.courses.forEach(c => {
         if(c.noChip) return;
         idx.push({kind:'Course', title:c.title, text:p.name + (c.sub ? ' · '+c.sub : ''),
-                  go:() => jumpTo(document.querySelector('.course-tile[data-tile="'+c.title+'"]'))});
+                  go:() => jumpTo(document.querySelector('.course-tile[data-tile="'+cssq(c.title)+'"]'))});
       });
     });
     return idx.concat(extraIndex());
@@ -2076,7 +2082,7 @@ alignSearch();
     const ex = window._altoExtra || {}, out = [];
     [].concat(ex.private || [], ex.shared || []).forEach(t => {
       out.push({_x:true, kind:'Timeline', title:t.title, text:t.project || '',
-                go:() => jumpTo(document.querySelector('.course-tile[data-key="'+t.key+'"]'))});
+                go:() => jumpTo(document.querySelector('.course-tile[data-key="'+cssq(t.key)+'"]'))});
       (t.search || []).forEach(n => {
         if(!n || !/^[\w-]+$/.test(n.id || '')) return;
         // Five outlines of one course share a title; the project tells them apart.

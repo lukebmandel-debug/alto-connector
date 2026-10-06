@@ -21,7 +21,7 @@ import re
 from urllib.parse import quote
 
 from .brief import PROVENANCE, Section
-from .sanitize import esc, LOCAL_ICON
+from .sanitize import esc, LOCAL_ICON, js_json
 
 # ── outline: a hub sits above its own children (ALTO-001) ───────────────────
 # The engine hook (engine_patches: outline-hub-above-children) calls this from
@@ -49,7 +49,7 @@ window._altoHubsAbove = function(pos, h){
 # It sets each node's displayX, which the line router and the numeral check
 # read, and records the fanned lines' end points in _altoEdgeTX.
 def tree_glue(plan: dict) -> str:
-    return "\nwindow._ALTO_TREE_PLAN=" + json.dumps(plan, separators=(",", ":")) + ";" + TREE_GLUE
+    return "\nwindow._ALTO_TREE_PLAN=" + js_json(plan, separators=(",", ":")) + ";" + TREE_GLUE
 
 
 TREE_GLUE = """
@@ -1207,9 +1207,8 @@ def notes_trash(b) -> str:
 def edit_tile(b) -> str:
     """EDIT_TILE with this timeline's title and id, which its prompt quotes."""
     from .blocks import ID_PATTERNS
-    data = json.dumps({"title": b.title or "",
-                       "key": ID_PATTERNS["doc_save_key"].format(tid=b.timeline_id)},
-                      ensure_ascii=False).replace("</", "<\\/")
+    data = js_json({"title": b.title or "",
+                    "key": ID_PATTERNS["doc_save_key"].format(tid=b.timeline_id)})
     return f"<script>window._ALTO_EDIT={data};</script>\n" + EDIT_TILE + "\n"
 
 
@@ -1236,9 +1235,9 @@ def local_sources(b) -> "tuple[str, list[str]]":
         root = os.path.commonpath(dirs)
     except ValueError:              # different drives
         root = ""
-    data = json.dumps({"root": root, "files": files}, ensure_ascii=False)
+    data = js_json({"root": root, "files": files})
     block = (f'<script id="{LOCAL_BLOCK_ID}">window._ALTO_LOCAL='
-             + data.replace("</", "<\\/") + ";</script>\n")
+             + data + ";</script>\n")
     return block + LOCAL_OPEN + "\n", warnings
 
 
@@ -1375,5 +1374,4 @@ def axes_config(b, index_axes) -> str:
         }
         if key != kind:
             cfg[key]["ids"] = ids
-    return ("\nwindow._ALTO_AXES=" + json.dumps(cfg, ensure_ascii=False)
-            .replace("</", "<\\/") + ";")
+    return ("\nwindow._ALTO_AXES=" + js_json(cfg) + ";")

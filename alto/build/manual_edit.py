@@ -55,6 +55,8 @@ from __future__ import annotations
 
 import json
 
+from .sanitize import js_json
+
 
 def jhash(s: str) -> str:
     """djb2 over UTF-16 code units, as hex — the page's jh(): the signature of
@@ -128,8 +130,7 @@ def edit_keys(b, nodes=()) -> str:
     edk["glyphs"] = LIBRARY
     from .blocks import FALLBACK_GLYPH
     edk["glyph"] = FALLBACK_GLYPH
-    data = json.dumps(edk, separators=(",", ":"), ensure_ascii=False)
-    data = data.replace("</", "<\\/").replace("<!--", "<\\!--")
+    data = js_json(edk, separators=(",", ":"))
     return f'<script id="alto-edk">window._ALTO_EDK={data};</script>\n'
 
 
