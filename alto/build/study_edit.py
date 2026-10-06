@@ -212,7 +212,7 @@ STUDY_EDIT_CSS = r"""
   .aed-st{font:inherit;font-size:12.5px;line-height:1;padding:7px 12px;border-radius:999px;border:1.5px dashed var(--muted);background:none;color:var(--text);cursor:pointer;}
   .aed-st:hover{border-style:solid;border-color:var(--text);}
   #aed-study{position:fixed;inset:0;z-index:8460;display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow:auto;background:rgba(8,9,16,.5);}
-  #aed-study .as-box{width:760px;max-width:100%;box-sizing:border-box;padding:20px 22px 16px;border-radius:18px;background:var(--surface);color:var(--text);
+  #aed-study .as-box{width:760px;max-width:100%;max-height:92vh;overflow:auto;overscroll-behavior:contain;box-sizing:border-box;padding:20px 22px 16px;border-radius:18px;background:var(--surface);color:var(--text);
     border:1px solid var(--border);box-shadow:0 28px 70px rgba(0,0,0,.4);font:14px/1.45 system-ui,-apple-system,sans-serif;}
   #aed-study h4{margin:0 0 12px;font-size:18px;font-weight:650;}
   #aed-study .as-claude{display:flex;align-items:center;gap:14px;margin:0 0 16px;padding:11px 14px;border-radius:13px;
@@ -243,7 +243,7 @@ STUDY_EDIT_CSS = r"""
   #aed-study .as-add{display:block;width:100%;padding:11px;margin:0 0 6px;border-radius:12px;font-size:13.5px;}
   #aed-study .as-addc:hover,#aed-study .as-add:hover{color:var(--text);border-color:var(--muted);}
   #aed-study .as-err{min-height:18px;margin:6px 0 0;font-size:12.5px;color:#dc2626;}
-  #aed-study .as-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;position:sticky;bottom:-16px;padding:10px 0 4px;background:var(--surface);}
+  #aed-study .as-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;position:sticky;bottom:-16px;padding:10px 0 16px;margin-bottom:-16px;background:var(--surface);border-top:1px solid var(--border);z-index:2;}
   #aed-study .as-foot button{height:34px;padding:0 18px;border-radius:9px;border:1px solid var(--border);background:none;color:var(--text);font:inherit;cursor:pointer;}
   #aed-study .as-foot .as-save{background:var(--accent,#7c6cf0);border-color:transparent;color:#fff;font-weight:600;}
   @media (max-width:600px){#aed-study .as-claude{flex-direction:column;align-items:stretch;}}
