@@ -831,33 +831,15 @@ LOCAL_OPEN = r"""<style id="alto-local-css">
 </script>"""
 
 
-# ── ✎ Edit timeline: the way back to Claude ─────────────────────────────────
-# Every change to a timeline is made through Claude (interview guide: "Changes
-# go through Claude"), so the end of every timeline carries the door: a dashed
-# tile after the last unit, like the homepage's "＋ New timeline", that opens
-# Claude with a prompt naming this timeline. Never on a phone (no UA match, and
-# hidden in the engine's mobile layout): timelines are made and changed with
-# Claude on a computer. It sits inside the timeline's own background: the last
-# unit's band is lengthened by ROOM for it (engine patch
-# edit-tile-inside-the-last-band, which carries the glass slab and its tint
-# along), and the tile takes that row, re-placed whenever #world changes size.
-# A share snapshot (id 's-...', see reidentify) is someone else's timeline: no
-# tile, and no extra room.
+# ── Edit with Claude: the way back to Claude ────────────────────────────────
+# The building half of the edit toggle (manual_edit.py draws the toggle beside
+# light/dark) opens Claude with a prompt naming this timeline — this script is
+# that prompt (window._altoEditTimeline). Never on a phone: timelines are made
+# with Claude on a computer. The last unit's band is lengthened by ROOM (engine
+# patch edit-tile-inside-the-last-band) so edit mode's "+ Add a unit" has a row
+# inside the timeline's own background. A share snapshot (id 's-...', see
+# reidentify) is someone else's timeline: none of it, and no extra room.
 EDIT_TILE = r"""<style id="alto-edit-css">
-  .alto-edit-tile{position:absolute;left:50%;transform:translateX(-50%);width:340px;min-height:92px;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-    box-sizing:border-box;border:1.5px dashed var(--muted);border-radius:18px;background:var(--chip-glass-bg);
-    -webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);
-    color:var(--muted);cursor:pointer;z-index:30;font:inherit;text-align:center;padding:14px 18px;
-    transition:transform .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease;}
-  .alto-edit-tile:hover,.alto-edit-tile:focus-visible{transform:translateX(-50%) scale(1.03) translateY(-2px);
-    color:var(--text);border-color:var(--muted);box-shadow:0 14px 34px var(--node-rest-shadow);outline:none;}
-  .alto-edit-tile .et-glyph{font-size:24px;line-height:1;font-weight:300;}
-  .alto-edit-tile .et-label{font-size:12.5px;letter-spacing:.06em;}
-  .alto-edit-tile .et-sub{font-size:11px;opacity:.75;letter-spacing:.02em;}
-  html.mobile .alto-edit-tile{display:none !important;}
-  html.printing .alto-edit-tile{display:none !important;}
-  @media print{.alto-edit-tile{display:none !important;}}
   #alto-edit-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);opacity:0;
     pointer-events:none;z-index:400;padding:10px 16px;border-radius:12px;background:var(--surface);color:var(--text);
     border:1px solid var(--border);box-shadow:0 10px 30px var(--node-rest-shadow);font-size:13px;
@@ -877,7 +859,7 @@ EDIT_TILE = r"""<style id="alto-edit-css">
   // The last unit's band grows by this much (engine patch
   // edit-tile-inside-the-last-band), so the tile sits inside the timeline's
   // own background. Set while the page parses — the first layout runs later.
-  var ROOM = 130;
+  var ROOM = 70;
   window._altoEditRoom = ROOM;
   var TITLE = E.title || document.title;
   var GET = 'https://alto-get.web.app';
@@ -926,51 +908,13 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     go('claude://claude.ai/new?q=' + q);
   }
   window._altoEditTimeline = openClaude;
-  var tile = null, world = null;
-  // The last unit's band ends _altoEditRoom + 100 below its lowest card; the
-  // tile sits just under the cards, in that room. Timelines with no bands
-  // fall back to the lowest card.
-  function slot(){
-    var bands = world.querySelectorAll('.phase-band'), b = 0;
-    for(var i = 0; i < bands.length; i++){
-      var nb = bands[i].offsetTop + bands[i].offsetHeight; if(nb > b) b = nb;
-    }
-    if(b) return b - (window._altoEditRoom || ROOM) - 60;   // just under the cards
-    var ns = world.querySelectorAll('.node');
-    for(var k = 0; k < ns.length; k++){
-      var n = ns[k]; if(!n.offsetHeight) continue;
-      var bb = n.offsetTop + n.offsetHeight; if(bb > b) b = bb;
-    }
-    return b ? b + 48 : 0;
-  }
+  var world = null;
+  // The editing controls live in the edit toggle beside light/dark
+  // (manual_edit.py); the last unit's band keeps a little room under its cards
+  // for edit mode's "+ Add a unit".
   function place(){
     world = document.getElementById('world');
     if(!world) return;
-    if(!tile || !tile.isConnected){
-      // Two halves under one header (manual_edit.py draws them and runs the
-      // right half: edit mode, with undo / redo either side of the tile).
-      tile = document.createElement('div');
-      tile.className = 'alto-edit-tile'; tile.setAttribute('role', 'group');
-      tile.setAttribute('aria-label', 'Edit this timeline');
-      tile.innerHTML = window._altoEditTileHTML ? window._altoEditTileHTML(false) :
-        '<span class="et-head"><span class="et-glyph">✎</span><span class="et-label">Edit timeline</span></span>' +
-        '<span class="et-split"><button type="button" class="et-half et-claude">Edit in Claude' +
-        '<small>Add notes, link sources or change anything</small></button></span>';
-      tile.addEventListener('click', function(e){
-        var b = e.target.closest && e.target.closest('button'); if(!b) return;
-        e.stopPropagation();
-        if(b.classList.contains('et-claude')){ openClaude(); return; }
-        var M = window._altoManual; if(!M) return;
-        if(b.classList.contains('et-manual')){ if(M.editing()) M.exit(); else M.enter(); }
-        else if(b.classList.contains('et-undo')) M.undo();
-        else if(b.classList.contains('et-redo')) M.redo();
-      });
-      tile._aed = 1;
-      world.appendChild(tile);
-      if(window._altoWireEditTile) window._altoWireEditTile(tile);
-    }
-    var top = Math.round(slot()); if(!top) return;
-    if(tile.style.top !== top + 'px') tile.style.top = top + 'px';
     // The page ends exactly where the timeline's background (the glass slab)
     // ends: no strip of bare page gradient below it (Luke). #world's height
     // is its min-height plus its padding; absolutely placed children add none.

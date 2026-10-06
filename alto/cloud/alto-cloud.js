@@ -101,6 +101,23 @@
       await ready; return _createTimeline(o || {});
     },
     cleanTitle: (s) => _cleanTitle(s),
+    moveTimeline: async (key, tid, project) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _moveTimeline(key, tid, project);
+    },
+    binTimeline: async (key) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _binTimeline(key);
+    },
+    restoreTimeline: async (key) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _restoreTimeline(key);
+    },
+    purgeExpired: async () => {
+      if (!configured) return 0;
+      await ready; return _purgeExpired();
+    },
+    binDays: 30,
     getPage: async (key) => {
       if (!configured) throw new Error('sync not configured');
       await ready; return _getPage(key);
@@ -717,6 +734,116 @@
     return { key: key, tid: tid, pid: pid, url: '/pv/' + key + '/' };
   }
 
+  /* ── moving a timeline to another project, and Recently deleted ─────────
+     A project is a name the homepage groups by: the page's alto-label, its
+     listing record's `project`, and — where the connector keeps drafts in the
+     account — the draft's project_id. A move rewrites all three, so the next
+     build from the draft keeps it where it was put.
+
+     Deleting puts a timeline in Recently deleted (pagemeta.binned, epoch
+     seconds) and stops its share link. For BIN_DAYS it can be restored; after
+     that the homepage removes it for good (_purgeExpired) — page, listing
+     record, draft, notes and edits. Nothing is ever removed at once. */
+  const BIN_DAYS = 30;
+  function _uidOrThrow() { const u = auth.currentUser; if (!u) throw new Error('not signed in'); return u.uid; }
+  async function _projectId(uid, pname) {
+    let pid = null;
+    (await getDocs(collection(db, 'users', uid, 'alto_projects'))).forEach(d => {
+      let v = null; try { v = JSON.parse((d.data() || {}).data || 'null'); } catch (e) {}
+      if (!pid && v && String(v.name || '').trim().toLowerCase() === pname.toLowerCase()) pid = d.id;
+    });
+    if (pid) return pid;
+    const now = new Date().toISOString();
+    pid = await _freeId(uid, 'alto_projects', _slug(pname, 'p-'));
+    await setDoc(doc(db, 'users', uid, 'alto_projects', pid), {
+      data: JSON.stringify({ project_id: pid, name: pname, purpose: '', kind: 'studying', created: now }),
+      created: now });
+    return pid;
+  }
+  function _cleanProject(s) { return String(s || '').replace(/[\u0000-\u001f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120); }
+  async function _moveTimeline(key, tid, project) {
+    const uid = _uidOrThrow();
+    const pname = _cleanProject(project);
+    if (!pname) throw new Error('no project name');
+    // the draft, when the connector keeps it in the account
+    if (tid && /^[a-z0-9][a-z0-9-]{0,63}$/.test(tid)) {
+      const tref = doc(db, 'users', uid, 'alto_timelines', tid);
+      const ts = await getDoc(tref);
+      if (ts.exists()) {
+        let t = null; try { t = JSON.parse((ts.data() || {}).data || 'null'); } catch (e) {}
+        if (t) {
+          t.project_id = await _projectId(uid, pname);
+          await setDoc(tref, { data: JSON.stringify(t) }, { merge: true });
+        }
+      }
+    }
+    // the page names its project in one meta tag; rewriting it keeps the
+    // listing record (read back from the page) in step
+    const pref = doc(db, 'users', uid, 'pages', key);
+    const ps = await getDoc(pref);
+    if (ps.exists()) {
+      const html = await _unpackPage(ps.data());
+      const share = (ps.data() || {}).shareKey || '';
+      if (html) {
+        const out = html.replace(/(<meta name="alto-label" content=")[^"]*(")/i, '$1' + _attr(pname) + '$2');
+        await _putPage(key, out, pname);
+        // _putPage writes the page afresh; its share link is the share flow's
+        if (share) await setDoc(pref, { shareKey: share }, { merge: true });
+      }
+    }
+    await setDoc(doc(db, 'users', uid, 'pagemeta', key), { project: pname, title: pname }, { merge: true });
+    return { project: pname };
+  }
+  async function _binTimeline(key) {
+    const uid = _uidOrThrow();
+    // the share link stops first: a deleted timeline is read by nobody else
+    try { await _shareRevoke(key); } catch (e) {}
+    await setDoc(doc(db, 'users', uid, 'pagemeta', key), { binned: Math.floor(Date.now() / 1000) }, { merge: true });
+    return { binned: true, days: BIN_DAYS };
+  }
+  async function _restoreTimeline(key) {
+    const uid = _uidOrThrow();
+    await setDoc(doc(db, 'users', uid, 'pagemeta', key), { binned: 0 }, { merge: true });
+    return { restored: true };
+  }
+  async function _deleteAll(ref) {
+    await Promise.all((await getDocs(ref)).docs.map(d => deleteDoc(d.ref)));
+  }
+  async function _purgeOne(uid, key, tid) {
+    if (tid && /^[a-z0-9][a-z0-9-]{0,63}$/.test(tid)) {
+      await _deleteAll(collection(db, 'users', uid, 'alto_timelines', tid, 'nodes'));
+      await deleteDoc(doc(db, 'users', uid, 'alto_timelines', tid, 'meta', 'connections'));
+      await deleteDoc(doc(db, 'users', uid, 'alto_timelines', tid));
+      await _deleteAll(collection(db, 'users', uid, 'tl', tid, 'reports'));
+      await deleteDoc(doc(db, 'users', uid, 'tl', tid));
+      await deleteDoc(doc(db, 'users', uid, 'edits', tid));
+    }
+    await deleteDoc(doc(db, 'users', uid, 'alto_snapshots', key));
+    await deleteDoc(doc(db, 'users', uid, 'pages', key));
+    // the listing record goes last: while it is there the homepage still
+    // knows to finish the job
+    await deleteDoc(doc(db, 'users', uid, 'pagemeta', key));
+  }
+  // Only what has been in Recently deleted longer than BIN_DAYS, each checked
+  // again against the account just before it goes.
+  async function _purgeExpired() {
+    const uid = _uidOrThrow();
+    const cut = Math.floor(Date.now() / 1000) - BIN_DAYS * 86400;
+    const snap = await getDocs(collection(db, 'users', uid, 'pagemeta'));
+    let n = 0;
+    for (const d of snap.docs) {
+      const v = d.data() || {};
+      const b = Number(v.binned) || 0;
+      if (!b || b > cut) continue;
+      const again = await getDoc(d.ref);
+      const bb = again.exists() ? Number((again.data() || {}).binned) || 0 : 0;
+      if (!bb || bb > cut) continue;
+      await _purgeOne(uid, d.id, v.tid || '');
+      n++;
+    }
+    return n;
+  }
+
   async function _ensureTitle(key, title, tid) {
     const u = auth.currentUser;
     if (!u || !key) return false;
@@ -752,6 +879,7 @@
                  search: Array.isArray(v.search) ? v.search : [],
                  shareKey: v.shareKey || '',
                  added: Number(v.added) || 0,
+                 binned: Number(v.binned) || 0,
                  viewedAt: (v.viewedAt && v.viewedAt.seconds) || 0,
                  updatedAt: (v.updatedAt && v.updatedAt.seconds) || 0 });
     });

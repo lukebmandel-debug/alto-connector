@@ -1,8 +1,8 @@
-"""✎ Edit timeline: every timeline's way back to Claude (detail_extras.EDIT_TILE).
+"""Edit with Claude: every timeline's way back to Claude (detail_extras.EDIT_TILE).
 
-The tile sits after the last unit on the desktop map and at the end of the
-MENU drawer on a phone, and opens Claude with a prompt naming the timeline.
-A share snapshot — someone else's timeline — must not offer it.
+The building half of the edit toggle beside light/dark (manual_edit.py) opens
+Claude with a prompt naming the timeline. A share snapshot — someone else's
+timeline — must not offer it, and a phone gets only the pencil half.
 """
 import json
 import re
@@ -61,11 +61,17 @@ def test_a_share_reads_back_as_a_share(built):
 
 
 def test_never_on_a_phone_or_in_print():
-    """Timelines are made and changed with Claude on a computer."""
+    """Timelines are made and changed with Claude on a computer: the toggle
+    beside light/dark is a desktop control; a phone gets a pencil-only pill at
+    the foot of a page, and while editing the editing bar takes its place."""
+    from alto.build.manual_edit import MANUAL_CSS, MANUAL_JS
+    assert "html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}" in MANUAL_CSS
+    assert "html.mobile .alto-edit-pill.in-page{display:flex;}" in MANUAL_CSS
+    assert "(phone ? '' : '<button type=\"button\" class=\"aep-half aep-claude\"" in MANUAL_JS
+    assert "#alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:30px;" in MANUAL_CSS
     js = dx.EDIT_TILE
-    assert "html.mobile .alto-edit-tile{display:none !important;}" in js
-    assert "@media print{.alto-edit-tile{display:none !important;}}" in js
     assert "nav-drawer" not in js and "drawer-edit-btn" not in js
+    assert "world.appendChild(tile)" not in js
 
 
 def test_a_title_cannot_break_out_of_its_script():
@@ -154,7 +160,6 @@ def test_the_tile_sits_inside_the_last_band(built):
     ro = js.index("window._altoEditRoom = ROOM;")
     assert js.index("tid.indexOf('s-') === 0) return;") < ro   # not in a share
     assert js.index("Windows Phone/i.test(navigator.userAgent)) return;") < ro  # nor on a phone
-    assert "return b - (window._altoEditRoom || ROOM) - 60;" in js
 
 
 def test_the_page_ends_where_the_background_ends():

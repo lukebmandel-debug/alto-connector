@@ -100,6 +100,10 @@ def edit_keys(b, nodes=()) -> str:
                           "fk": key} | ({"hide": 1} if ax.hide_nav else {}))
     kinds[0]["fk"] = "entity"
     edk["chipk"] = kinds
+    edk["nax"] = len(b.axes)
+    edk["sz"] = {k: v for k, v in (b.card_size or {}).items() if isinstance(v, dict)}
+    from .glyphs import LIBRARY
+    edk["glyphs"] = LIBRARY
     from .blocks import FALLBACK_GLYPH
     edk["glyph"] = FALLBACK_GLYPH
     data = json.dumps(edk, separators=(",", ":"), ensure_ascii=False)
@@ -125,46 +129,56 @@ SHOW_BLOB_PREVIEW = """  function showBlob(file, name, w){ if(w) w.close(); }
 
 
 MANUAL_CSS = r"""<style id="alto-manual-css">
-  /* the split Edit tile — also used at the foot of a page */
-  .alto-edit-tile .et-head{display:flex;align-items:center;justify-content:center;gap:8px;}
-  .alto-edit-tile .et-split{display:flex;align-items:stretch;width:100%;margin-top:4px;border-top:1px solid color-mix(in srgb,var(--muted) 40%,transparent);}
-  .alto-edit-tile .et-half{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 8px 2px;border:0;background:none;
-    color:inherit;font:inherit;font-size:12.5px;letter-spacing:.05em;cursor:pointer;border-radius:10px;-webkit-tap-highlight-color:transparent;}
-  .alto-edit-tile .et-half small{font-size:10.5px;opacity:.72;letter-spacing:.02em;line-height:1.3;}
-  .alto-edit-tile .et-half:hover,.alto-edit-tile .et-half:focus-visible{color:var(--text);background:color-mix(in srgb,var(--text) 5%,transparent);outline:none;}
-  .alto-edit-tile .et-half.off{opacity:.45;cursor:default;}
-  .alto-edit-tile .et-div{width:1px;margin:8px 0 2px;background:color-mix(in srgb,var(--muted) 40%,transparent);}
-  .alto-edit-tile .et-hist{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;
-    display:none;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--text);
-    cursor:pointer;font:inherit;font-size:18px;box-shadow:0 6px 16px var(--node-rest-shadow);}
-  .alto-edit-tile .et-hist[disabled]{opacity:.35;cursor:default;}
-  .alto-edit-tile .et-undo{left:-54px;} .alto-edit-tile .et-redo{right:-54px;}
-  html.alto-editing .alto-edit-tile .et-hist{display:flex;}
-  html.alto-editing .alto-edit-tile .et-manual{color:var(--text);}
-  .alto-edit-tile.in-page{position:relative;left:auto;transform:none;margin:56px auto 24px;width:340px;max-width:calc(100% - 120px);}
-  .alto-edit-tile.in-page:hover,.alto-edit-tile.in-page:focus-visible{transform:scale(1.02) translateY(-2px);}
-  html.mobile .alto-edit-tile.in-page{display:flex !important;max-width:calc(100% - 110px);width:auto;}
-  html.printing .alto-edit-tile.in-page{display:none !important;}
+  /* the edit toggle: a split pill beside the light/dark one — build with
+     Claude on the left, edit by hand on the right. On a phone, a pencil-only
+     pill at the foot of a page. While editing, the editing bar takes its place. */
+  #alto-edit-pill{position:fixed;bottom:30px;right:250px;z-index:200;height:35px;display:inline-flex;align-items:stretch;
+    border-radius:17.5px;background:var(--card-glass-bg);border:1px solid var(--card-glass-border);color:var(--muted);
+    -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
+    box-shadow:0 10px 26px var(--node-rest-shadow),inset 0 0 0 .5px var(--card-glass-rim);}
+  #alto-edit-pill:hover{border-color:var(--muted);}
+  .alto-edit-pill .aep-half{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;min-width:48px;padding:0 14px;border:0;
+    background:none;color:inherit;font:inherit;font-size:15px;letter-spacing:.05em;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #alto-edit-pill .aep-claude{border-radius:17.5px 0 0 17.5px;padding:0 12px 0 15px;}
+  #alto-edit-pill .aep-manual{border-radius:0 17.5px 17.5px 0;padding:0 15px 0 12px;}
+  .alto-edit-pill .aep-half:hover,.alto-edit-pill .aep-half:focus-visible{color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent);outline:none;}
+  .alto-edit-pill .aep-half.off{opacity:.4;cursor:default;}
+  .alto-edit-pill .aep-half svg{display:block;}
+  .alto-edit-pill .aep-pen{font-size:19px;line-height:1;font-weight:300;}
+  .alto-edit-pill .aep-div{width:1px;margin:8px 0;background:color-mix(in srgb,var(--muted) 45%,transparent);}
+  #alto-edit-pill .aep-half::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
+    padding:5px 10px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:12px;letter-spacing:.02em;
+    white-space:nowrap;box-shadow:0 6px 18px var(--node-rest-shadow);opacity:0;pointer-events:none;transition:opacity .12s;}
+  #alto-edit-pill .aep-half:hover::after,#alto-edit-pill .aep-half:focus-visible::after{opacity:1;}
+  html.dark:not(.mobile) #alto-edit-pill{color:var(--muted);}
+  html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}
+  .alto-edit-pill.in-page{display:none;margin:52px auto 28px;width:max-content;height:42px;border-radius:21px;
+    background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
+    box-shadow:0 8px 22px var(--node-rest-shadow);}
+  .alto-edit-pill.in-page .aep-half{border-radius:21px;padding:0 20px;font-size:14px;}
+  html.mobile .alto-edit-pill.in-page{display:flex;}
+  html.alto-editing .alto-edit-pill.in-page,html.printing .alto-edit-pill.in-page{display:none !important;}
 
-  /* the exit pill, like Back to Overview */
-  #alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);top:140px;z-index:330;display:none;align-items:center;gap:10px;
-    height:34px;padding:0 6px 0 16px;border-radius:6px;background:#7a4b00;color:#fff;font:13px Georgia,serif;letter-spacing:.05em;
-    box-shadow:0 4px 16px rgba(0,0,0,.22);white-space:nowrap;}
-  html.dark #alto-edit-exit{background:#5a3a08;box-shadow:0 4px 16px rgba(0,0,0,.55);}
+  /* the editing bar, at the foot of the screen */
+  #alto-edit-exit{position:fixed;left:50%;transform:translateX(-50%);bottom:30px;z-index:330;display:none;align-items:center;gap:10px;
+    height:38px;padding:0 6px 0 16px;border-radius:19px;background:#7a4b00;color:#fff;font:14px Georgia,serif;letter-spacing:.05em;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);white-space:nowrap;}
+  html.dark #alto-edit-exit{background:#5a3a08;box-shadow:0 6px 20px rgba(0,0,0,.55);}
   html.alto-editing #alto-edit-exit{display:flex;}
-  #alto-edit-exit .ee-st{font-size:11px;opacity:.8;}
-  #alto-edit-exit button{height:26px;border:0;border-radius:4px;padding:0 12px;background:rgba(255,255,255,.18);color:#fff;font:inherit;cursor:pointer;}
+  #alto-edit-exit .ee-st{font-size:11.5px;opacity:.8;}
+  #alto-edit-exit button{height:28px;border:0;border-radius:14px;padding:0 14px;background:rgba(255,255,255,.18);color:#fff;font:inherit;cursor:pointer;}
   #alto-edit-exit button:hover{background:rgba(255,255,255,.28);}
-  #alto-edit-exit .ee-h{display:none;min-width:32px;padding:0 6px;line-height:0;}
-  #alto-edit-exit .ee-h svg, .alto-edit-tile .et-hist svg{display:block;margin:auto;}
-  #alto-edit-exit .ee-h[disabled]{opacity:.4;}
-  /* phones: under the header, like Back to Overview; undo / redo ride in the pill
-     (beside the tile they would sit under the side buttons) */
-  html.mobile #alto-edit-exit{border-radius:20px;height:40px;font-size:14px;padding:0 5px 0 14px;gap:6px;}
+  #alto-edit-exit .ee-h{min-width:34px;padding:0 6px;line-height:0;}
+  #alto-edit-exit .ee-h svg{display:block;margin:auto;}
+  #alto-edit-exit .ee-h[disabled]{opacity:.4;cursor:default;}
+  /* phones: above the controls along the foot of the screen */
+  html.mobile #alto-edit-exit{bottom:calc(66px + env(safe-area-inset-bottom,0px));height:42px;border-radius:21px;font-size:14px;padding:0 5px 0 14px;gap:6px;}
   html.mobile #alto-edit-exit .ee-st{display:none;}
-  html.mobile #alto-edit-exit .ee-h{display:inline-block;}
-  html.mobile .alto-edit-tile .et-hist{display:none !important;}
+  html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}
+  /* what else sits at the foot of the screen moves up while editing */
+  html.alto-editing #aed-toast,html.alto-editing #aed-linkbar,html.alto-editing #aed-pick,html.alto-editing #alto-edit-toast{bottom:84px;}
+  html.mobile.alto-editing #aed-toast,html.mobile.alto-editing #aed-linkbar{bottom:calc(120px + env(safe-area-inset-bottom,0px));}
 
   /* what can be edited, while editing */
   html.alto-editing .aed-f{outline:1.5px dashed transparent;outline-offset:3px;border-radius:4px;cursor:text;transition:outline-color .15s;}
@@ -240,7 +254,32 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html:not(.alto-editing) .aed-uc,html.mobile .aed-uc,html.aed-picking .aed-uc{display:none;}
   /* choosing a filter's cards */
   html.aed-picking #canvas .node{cursor:pointer !important;}
-  html.aed-picking #canvas .node.aed-pick-out .node-card{opacity:.38;}
+  /* faded, but still solid: the lines behind a card never show through it */
+  html.aed-picking #canvas .node.aed-pick-out .node-card{position:relative;filter:saturate(.35);}
+  html.aed-picking #canvas .node.aed-pick-out .node-card::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;z-index:50;
+    background:color-mix(in srgb,var(--surface,#fff) 66%,transparent);}
+  html.aed-picking #canvas .node.aed-pick-hit .node-card{outline:2px dashed var(--accent,#a78bfa);outline-offset:4px;}
+  html.aed-picking #canvas .node.aed-pick-in.aed-pick-hit .node-card{outline-style:solid;}
+  #aed-pick .ap-q{width:220px;height:30px;box-sizing:border-box;padding:0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;}
+  #aed-pickres{position:fixed;left:50%;transform:translateX(-50%);z-index:8250;display:none;width:min(560px,92vw);max-height:46vh;overflow:auto;padding:8px;
+    border-radius:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.3 system-ui,-apple-system,sans-serif;}
+  #aed-pickres.show{display:block;}
+  #aed-pickres .pr-h{display:flex;align-items:center;gap:8px;padding:2px 4px 8px;color:var(--muted);font-size:12px;}
+  #aed-pickres .pr-h span{flex:1;}
+  #aed-pickres .pr-h button{height:26px;padding:0 10px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);font:inherit;font-size:12px;cursor:pointer;}
+  #aed-pickres .pr-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer;}
+  #aed-pickres .pr-row:hover{background:color-mix(in srgb,var(--text) 6%,transparent);}
+  #aed-pickres .pr-ck{width:16px;height:16px;flex:none;border-radius:4px;border:1.5px solid var(--muted);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;}
+  #aed-pickres .pr-row.on .pr-ck{background:var(--accent,#a78bfa);border-color:var(--accent,#a78bfa);}
+  #aed-pickres .pr-t{flex:1;min-width:0;}
+  #aed-pickres .pr-t b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #aed-pickres .pr-t small{color:var(--muted);font-size:11.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #aed-pickres .pr-none{padding:10px;color:var(--muted);}
+  #aed-pickres .pr-g{width:16px;flex:none;display:flex;justify-content:center;}
+  #aed-pickres .pr-g svg{width:15px;height:15px;}
+  #aed-pickres .pr-h + .pr-row{margin-top:0;}
+  #aed-pickres .pr-row + .pr-h{margin-top:8px;border-top:1px solid var(--border);padding-top:10px;}
+  #aed-pick .ap-chips{background:none !important;color:var(--text) !important;border:1px solid var(--border) !important;white-space:nowrap;}
   html.aed-picking #canvas .node.aed-pick-in .node-card{outline:3px solid var(--accent,#a78bfa);outline-offset:3px;}
   #aed-pick{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:8250;display:none;align-items:center;gap:12px;padding:8px 8px 8px 16px;
     border-radius:12px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.3 system-ui,-apple-system,sans-serif;max-width:92vw;}
@@ -268,6 +307,63 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #ef-panel .aed-fadd{display:block;width:100%;margin:6px 0 8px;padding:9px;border-radius:10px;border:1.5px dashed var(--border);background:none;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;}
   #ef-panel .aed-fadd:hover{color:var(--text);border-color:var(--muted);}
   /* a name to type; the kinds of section */
+  /* a card's chips, beside the card on the timeline */
+  #aed-chpop{position:fixed;z-index:8340;display:none;width:360px;max-width:calc(100vw - 24px);max-height:70vh;overflow:auto;padding:12px 12px 4px;border-radius:12px;
+    background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 14px 40px var(--node-rest-shadow);}
+  #aed-chpop.show{display:block;}
+  #aed-chpop h5{margin:0 0 4px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  #aed-chpop .aed-chips{margin:6px 0 8px;border:0;padding:0;}
+  #aed-chpop .aed-chnone{font-size:12px;color:var(--muted);margin:4px 0 10px;line-height:1.5;}
+  /* the bar at the top, while editing */
+  .aed-navoff{display:none !important;}
+  #nav .nav-btn{position:relative;}
+  .aed-nx{position:absolute;top:-7px;right:-7px;width:17px;height:17px;border-radius:50%;display:none;align-items:center;justify-content:center;
+    background:var(--surface);color:var(--muted);border:1px solid var(--border);font-size:9px;line-height:1;cursor:pointer;z-index:3;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
+  .nav-btn:hover > .aed-nx,.nav-group-label:hover > .aed-nx{display:flex;}
+  .aed-nx:hover{color:#dc2626;border-color:#dc2626;}
+  .nav-group-label{position:relative;}
+  .aed-nx.aed-nxl{top:-9px;right:-14px;}
+  .aed-nadd{height:26px;padding:0 12px;margin-left:6px;border-radius:13px;border:1.5px dashed var(--muted);background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;}
+  .aed-nadd:hover{color:var(--text);border-color:var(--text);}
+  /* a card's corner, to resize it */
+  .aed-rz{position:absolute;right:-1px;bottom:-1px;width:18px;height:18px;display:none;cursor:nwse-resize;z-index:60;border-radius:0 0 8px 0;
+    background:linear-gradient(135deg,transparent 52%,var(--muted) 52%,var(--muted) 60%,transparent 60%,transparent 70%,var(--muted) 70%,var(--muted) 78%,transparent 78%);}
+  html.alto-editing:not(.mobile):not(.aed-picking):not(.aed-linking) #canvas .node:hover .aed-rz,html.aed-resizing .aed-rz{display:block;}
+  html.alto-editing #canvas .node-card{position:relative;}
+  html.aed-resizing,html.aed-resizing *{cursor:nwse-resize !important;user-select:none !important;}
+  html.aed-resizing #canvas .node-card{transition:none !important;}
+  #aed-rztip{position:fixed;z-index:8500;display:none;padding:3px 8px;border-radius:6px;background:var(--surface);color:var(--muted);border:1px solid var(--border);
+    font:11px system-ui,-apple-system,sans-serif;pointer-events:none;}
+  #aed-rztip.show{display:block;}
+  /* the glyph library, for a chip made here */
+  #aed-glyph{position:fixed;z-index:8360;display:none;width:330px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
+    color:var(--text);border:1px solid var(--border);box-shadow:0 14px 40px var(--node-rest-shadow);}
+  #aed-glyph.show{display:block;}
+  #aed-glyph h5{margin:0 0 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  #aed-glyph .ag-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;}
+  #aed-glyph button{aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:0;border-radius:7px;border:1px solid transparent;
+    background:none;color:var(--text);cursor:pointer;}
+  #aed-glyph button svg{width:18px;height:18px;}
+  #aed-glyph button:hover:not([disabled]),#aed-glyph button:focus-visible{border-color:var(--border);background:color-mix(in srgb,var(--text) 7%,transparent);outline:none;}
+  #aed-glyph button[disabled]{opacity:.22;cursor:not-allowed;}
+  #aed-glyph .ag-k{margin:8px 0 0;font-size:11px;color:var(--muted);}
+  /* a question with a few answers: removing a card with cards under it, a unit */
+  #aed-ask{position:fixed;inset:0;z-index:8450;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(8,9,16,.42);}
+  #aed-ask.show{display:flex;}
+  #aed-ask .aa-box{width:390px;max-width:100%;max-height:calc(100vh - 40px);overflow:auto;padding:18px 18px 12px;border-radius:16px;background:var(--surface);color:var(--text);
+    border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,.35);font-size:13.5px;}
+  #aed-ask h4{margin:0 0 6px;font-size:15px;font-weight:600;}
+  #aed-ask p{margin:0 0 14px;color:var(--muted);font-size:12.5px;line-height:1.55;}
+  #aed-ask .aa-l{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:4px 0 6px;}
+  #aed-ask button{display:block;width:100%;text-align:left;min-height:38px;margin:0 0 7px;padding:8px 13px;border-radius:10px;border:1px solid var(--border);
+    background:none;color:var(--text);font:inherit;cursor:pointer;line-height:1.35;}
+  #aed-ask button:hover{background:color-mix(in srgb,var(--text) 6%,transparent);}
+  #aed-ask button[disabled]{opacity:.4;cursor:default;}
+  #aed-ask button small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px;}
+  #aed-ask .aa-danger{color:#dc2626;border-color:color-mix(in srgb,#dc2626 45%,var(--border));}
+  #aed-ask .aa-quiet{border-color:transparent;color:var(--muted);text-align:center;}
+  .aed-uc.aed-ux{border-style:solid;border-color:color-mix(in srgb,var(--muted) 45%,transparent);}
+  .aed-uc.aed-ux:hover{color:#dc2626;border-color:#dc2626;}
   #aed-name,#aed-kinds{position:fixed;z-index:8350;display:none;width:300px;max-width:calc(100vw - 24px);padding:12px;border-radius:12px;background:var(--surface);
     border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--text);}
   #aed-name.show,#aed-kinds.show{display:block;}
@@ -318,6 +414,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:8400;display:none;padding:10px 16px;border-radius:12px;
     background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 10px 30px var(--node-rest-shadow);font-size:13px;max-width:90vw;}
   #aed-toast.show{display:block;}
+  #aed-toast{pointer-events:none;}     /* a passing word: never in the way of a click */
 </style>"""
 
 
@@ -453,6 +550,17 @@ MANUAL_JS = r"""<script id="alto-manual">
   // units added here (in the order they were made), cards moved under
   // another card (the id moved: its new parent), and what that moved
   var NEWU = {}, NEWUO = [], REPAR = {}, REPO = [], MOVED = [], OUTP = {}, PLAN0 = null;
+  // units taken out (a built one by its number), cards moved to another unit
+  // (a unit's top card, or any card of a timeline: its unit), the built units
+  // no longer on the page, and the classic layout's place of a moved card
+  var GONEU = {}, UA = {}, UAO = [], UNITS_OUT = [], BASEY0 = {};
+  // chips taken out of the timeline ('c|<id>'), categories taken out and
+  // made here (axis1 / axis2), and the chips the page was built with
+  var XGONE = {}, XA = {}, NA = {}, CHIP0 = {};
+  ['c', 'env', 'theme'].forEach(function(r){ CHIP0[r] = Object.keys(reg(r) || {}); });
+  var RF = {c: 'chars', env: 'envs', theme: 'themes'}, AXR = {axis1: 'env', axis2: 'theme'};
+  // cards sized here ({w, h}; null: as built), and the tree's widths as built
+  var SZ = {}, SZ0 = EDK.sz || {}, W0 = null;
   function cardsBase(){
     if(CARDS0) return CARDS0;
     try{
@@ -472,8 +580,11 @@ MANUAL_JS = r"""<script id="alto-manual">
   function liveUnits(){ return NEWUO.filter(function(u){ return NEWU[u] && !NEWU[u].off; })
     .sort(function(a, b){ return ((NEWU[a].v.n || 0) - (NEWU[b].v.n || 0)) || (a < b ? -1 : 1); }); }
   // a unit's place on the page: a built one by its number, one added here by its id
-  function unitAt(a){ if(typeof a === 'number') return a; var B = cardsBase(); if(!B) return -1; var i = liveUnits().indexOf(a); return i < 0 ? -1 : B.units.length + i; }
-  function unitKeyOf(i){ var B = cardsBase(); return B && i >= B.units.length ? liveUnits()[i - B.units.length] : i; }
+  function unitAt(a){ var B = cardsBase(); if(!B) return -1;
+    if(typeof a === 'number'){ if(UNITS_OUT.indexOf(a) >= 0) return -1; return a - UNITS_OUT.filter(function(x){ return x < a; }).length; }
+    var i = liveUnits().indexOf(a); return i < 0 ? -1 : B.units.length - UNITS_OUT.length + i; }
+  function liveBase(){ var B = cardsBase(), out = []; if(B) for(var i = 0; i < B.units.length; i++) if(UNITS_OUT.indexOf(i) < 0) out.push(i); return out; }
+  function unitKeyOf(i){ var lb = liveBase(); return i >= lb.length ? liveUnits()[i - lb.length] : lb[i]; }
   function dfsOf(kids, id){ var out = []; (function walk(x){ out.push(x); (kids[x] || []).forEach(walk); })(id); return out; }
   function cardGone(id){ return !!GONE[id] || !!(NEWC[id] && NEWC[id].off); }
   function kidsOf(id){ return ((OUT && OUT.kids) || {})[id] || []; }
@@ -506,6 +617,10 @@ MANUAL_JS = r"""<script id="alto-manual">
   function syncCards(){
     var B = cardsBase(); if(!B) return;
     var nu = liveUnits();
+    UNITS_OUT = [];               // full numbering while the tables are made
+    var liveBy0 = {}; B.live.forEach(function(n){ liveBy0[n.id] = n; });
+    Object.keys(BASEY0).forEach(function(id){ var o = BASEY0[id]; B.src.forEach(function(n){ if(n.id === id) n.baseY = o[0]; });
+      if(liveBy0[id]){ liveBy0[id].baseY = o[0]; if(o[1] != null) liveBy0[id].y = o[1]; } delete BASEY0[id]; });
     var src = B.src.filter(function(n){ return !cardGone(n.id); });
     var seqs = B.seqs.map(function(a){ return a.filter(function(id){ return !cardGone(id); }); }).concat(nu.map(function(){ return []; }));
     var act = {}; Object.keys(B.act).forEach(function(id){ if(!cardGone(id)) act[id] = B.act[id]; });
@@ -542,9 +657,15 @@ MANUAL_JS = r"""<script id="alto-manual">
     // the new parent's unit, after the new parent's last card
     MOVED = []; OUTP = {}; var moves = [];
     if(kids) REPO.forEach(function(id){
-      var np = REPAR[id]; if(np == null || act[id] == null || act[np] == null || cardGone(id) || cardGone(np)) return;
-      var S = dfsOf(kids, id); if(S.indexOf(np) >= 0 || par[id] === np) return;
+      var np = REPAR[id]; if(np == null || act[id] == null || cardGone(id)) return;
       var op = par[id];
+      if(np === ''){
+        // the top card of its unit, in place of the one taken out above it
+        if(op && kids[op]){ kids[op] = kids[op].filter(function(x){ return x !== id; }); if(!kids[op].length) delete kids[op]; }
+        delete par[id]; moves.push({id: id, from: op, np: '', S: [], top: true}); return;
+      }
+      if(act[np] == null || cardGone(np)) return;
+      var S = dfsOf(kids, id); if(S.indexOf(np) >= 0 || par[id] === np) return;
       if(op && kids[op]){ kids[op] = kids[op].filter(function(x){ return x !== id; }); if(!kids[op].length) delete kids[op]; }
       par[id] = np; (kids[np] = kids[np] || []).push(id);
       var na = act[np];
@@ -559,9 +680,41 @@ MANUAL_JS = r"""<script id="alto-manual">
       S.forEach(function(m){ OUTP[m] = 1; });
       moves.push({id: id, from: op, np: np, S: S});
     });
-    MOVED = moves;
+    MOVED = moves.filter(function(m){ return !m.top; });
+    // cards moved to another unit: a unit's top card and all under it (an
+    // outline), or one card (a timeline), after the unit's last card
+    var carry = {}, uam = [];
+    UAO.forEach(function(id){
+      var v = UA[id]; if(v == null || act[id] == null || cardGone(id)) return;
+      var t = unitAt(v); if(t < 0 || !seqs[t] || t === act[id]) return;
+      if(par && par[id]) return;
+      var from = act[id], S = kids ? dfsOf(kids, id) : [id];
+      S.forEach(function(m){ var q = seqs[act[m]], j = q.indexOf(m); if(j >= 0) q.splice(j, 1); act[m] = t; });
+      var wasEmpty = !seqs[t].length;
+      seqs[t] = seqs[t].concat(S);
+      var keep = src.filter(function(n){ return S.indexOf(n.id) >= 0; }); src = src.filter(function(n){ return S.indexOf(n.id) < 0; });
+      var bi = -1; src.forEach(function(n, i){ if(act[n.id] <= t) bi = i; });
+      src.splice.apply(src, [bi + 1, 0].concat(keep));
+      if(kids && wasEmpty && typeof from === 'number' && from < B.units.length) carry[t] = from;
+      uam.push({S: S, t: t});
+    });
+    // a timeline's card goes below the cards of the unit it joined
+    if(!kids) uam.forEach(function(m){ m.S.forEach(function(id, k){
+      var ys = src.filter(function(n){ return act[n.id] === m.t && m.S.indexOf(n.id) < 0; }).map(function(n){ return n.baseY || 0; });
+      var mine = src.filter(function(n){ return n.id === id; })[0]; if(!mine) return;
+      BASEY0[id] = [mine.baseY, liveBy0[id] ? liveBy0[id].y : null];
+      var y = (ys.length ? Math.max.apply(null, ys) : 300) + 1 + k;
+      mine.baseY = y; if(liveBy0[id]){ liveBy0[id].baseY = y; liveBy0[id].y = y; } }); });
+    // units taken out, once nothing is left in them
+    var gone = [];
+    for(var bu = 0; bu < B.units.length; bu++) if(GONEU[bu] && seqs[bu] && !seqs[bu].length) gone.push(bu);
+    var renum = function(i){ return i - gone.filter(function(x){ return x < i; }).length; };
+    if(gone.length){
+      seqs = seqs.filter(function(q, i){ return gone.indexOf(i) < 0; });
+      Object.keys(act).forEach(function(id){ act[id] = renum(act[id]); });
+    }
     var liveBy = {}; B.live.forEach(function(n){ liveBy[n.id] = n; });
-    moves.forEach(function(mv){ mv.S.forEach(function(m){ var l = liveBy[m] || (NEWC[m] && NEWC[m].live); if(l && 'act' in l) l.act = act[m]; }); });
+    Object.keys(act).forEach(function(m){ var l = liveBy[m] || (NEWC[m] && NEWC[m].live); if(l && 'act' in l) l.act = act[m]; });
     NODES_SRC.splice.apply(NODES_SRC, [0, NODES_SRC.length].concat(src));
     NODES.splice.apply(NODES, [0, NODES.length].concat(src.map(function(n){ return liveBy[n.id] || NEWC[n.id].live; })));
     ACT_SEQS.length = Math.min(ACT_SEQS.length, seqs.length); while(ACT_SEQS.length < seqs.length) ACT_SEQS.push([]);
@@ -570,11 +723,14 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(B.conns) CONNECTIONS.splice.apply(CONNECTIONS, [0, CONNECTIONS.length].concat(
       spines.concat(B.conns.filter(function(c){ return !cardGone(c[0]) && !cardGone(c[1]); }).map(function(c){
         var mv = moves.filter(function(m){ return m.id === c[1] && m.from === c[0] && c[2] === 'spine'; })[0];
-        return mv ? [mv.np, c[1], 'spine'] : c; }))));
+        return mv ? (mv.np ? [mv.np, c[1], 'spine'] : null) : c; }).filter(Boolean))));
     // the units: the page's own, then the ones added here
-    if(typeof PHASE_META !== 'undefined') PHASE_META.splice.apply(PHASE_META, [0, PHASE_META.length].concat(B.units,
-      nu.map(function(u, j){ var pm = NEWU[u].pm, i = B.units.length + j; pm.numeral = romanOf(i + 1); pm.cssVar = 'var(--phase' + (i + 1) + ')'; return pm; })));
-    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0 || nu.length > 0 || moves.length > 0;
+    var baseU = B.units.filter(function(pm, i){ return gone.indexOf(i) < 0; });
+    if(gone.length) baseU = baseU.map(function(pm, i){ return Object.assign({}, pm, {numeral: romanOf(i + 1)}); });
+    if(typeof PHASE_META !== 'undefined') PHASE_META.splice.apply(PHASE_META, [0, PHASE_META.length].concat(baseU,
+      nu.map(function(u, j){ var pm = NEWU[u].pm, i = baseU.length + j; pm.numeral = romanOf(i + 1); pm.cssVar = pm.colorRaw || 'var(--phase' + (i + 1) + ')'; return pm; })));
+    UNITS_OUT = gone;
+    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0 || nu.length > 0 || moves.length > 0 || uam.length > 0 || gone.length > 0;
     if(OUT){
       fill(OUT.kids, kids); fill(OUT.parent, par);
       if(!changed){ fill(OUT.num, B.num); fill(OUT.label, B.label); }
@@ -593,7 +749,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     phoneDirty = true;
     var T = plan();
     if(T && B.plan){
-      T.acts = (changed ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : JSON.parse(JSON.stringify(B.plan))).concat(nu.map(function(){ return []; }));
+      var acts = (changed ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : JSON.parse(JSON.stringify(B.plan))).concat(nu.map(function(){ return []; }));
+      // a unit whose cards all went to a new unit takes its plan with it
+      Object.keys(carry).forEach(function(t){ acts[+t] = acts[carry[t]]; acts[carry[t]] = []; });
+      T.acts = acts.filter(function(a, i){ return gone.indexOf(i) < 0; });
       // the plan as built (less what was taken out): where moved cards sat among themselves
       var mo = OUTP; OUTP = {}; PLAN0 = moves.length ? B.plan.map(function(ops){ return ops.map(prune).filter(Boolean); }) : null; OUTP = mo;
     }
@@ -624,7 +783,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     var R = reg(kind); if(!R) return;
     if(!v){ if(NEWE[k]) NEWE[k].off = true; delete R[id]; try{ if(kind === 'c') delete CHAR_PAGES[id]; }catch(e){} CHTOUCH = true; drawFiltersSoon(); return; }
     NEWE[k] = {v: JSON.parse(JSON.stringify(v)), off: false};
-    var col = /^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#8888aa', glyph = EDK.glyph || '&#9670;';
+    var col = /^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#8888aa';
+    var glyph = (EDK.glyphs || []).some(function(g){ return g.s === v.svg; }) ? v.svg : (EDK.glyph || '&#9670;');
     var kd = (EDK.chipk || []).filter(function(x){ return x.r === kind; })[0] || {};
     R[id] = Object.assign(R[id] || {sections: []}, {name: esc(v.name || 'New'), role: '', color: col, symbol: glyph});
     try{
@@ -638,6 +798,95 @@ MANUAL_JS = r"""<script id="alto-manual">
   var WID = {};
   function wOf(id){ var T = plan(); if(T && T.w && T.w[id]) return T.w[id];
     if(WID[id] == null){ var el = document.getElementById('node-' + id), c = el && el.querySelector('.node-card'); WID[id] = c && c.offsetWidth ? c.offsetWidth : 240; } return WID[id]; }
+  /* a card's size: set by dragging its corner (or grown by more words) — its
+     width, and the least height it takes; its words always fit */
+  var SZ_W = [160, 520], SZ_H = [40, 1400];
+  function sizeOf(id){ return id in SZ ? SZ[id] : (SZ0[id] || null); }
+  function sizeCSS(){
+    var st = document.getElementById('aed-sz');
+    if(!st){ st = document.createElement('style'); st.id = 'aed-sz'; document.head.appendChild(st); }
+    var css = '', T = plan();
+    if(T && T.w && !W0) W0 = Object.assign({}, T.w);
+    Object.keys(SZ).forEach(function(id){ var z = SZ[id];
+      if(T && T.w){ if(z && z.w) T.w[id] = z.w; else if(W0 && W0[id] != null) T.w[id] = W0[id]; }
+      delete WID[id];
+      if(!z) return;
+      css += 'html:not(.mobile) #node-' + id + ' .node-card{' + (z.w ? 'width:' + z.w + 'px !important;' : '') + (z.h ? 'min-height:' + z.h + 'px !important;' : '') + '}\n'; });
+    st.textContent = css;
+  }
+  function cardEl(id){ return document.querySelector('#node-' + id + ' .node-card'); }
+  // how tall the card's words are at width w
+  function natH(id, w){
+    var c = cardEl(id); if(!c) return 0;
+    var ow = c.style.getPropertyValue('width'), op = c.style.getPropertyPriority('width'), oh = c.style.getPropertyValue('min-height'), oq = c.style.getPropertyPriority('min-height');
+    c.style.setProperty('width', w + 'px', 'important'); c.style.setProperty('min-height', '0px', 'important');
+    var h = c.offsetHeight;
+    if(ow) c.style.setProperty('width', ow, op); else c.style.removeProperty('width');
+    if(oh) c.style.setProperty('min-height', oh, oq); else c.style.removeProperty('min-height');
+    return h;
+  }
+  // the widest the card can be at height h before it meets another card, or
+  // the edge of the page (outline cards keep clear of it)
+  function maxW(id, h){
+    var n = document.getElementById('node-' + id); if(!n) return SZ_W[1];
+    var cx = n.offsetLeft + n.offsetWidth / 2, cy = n.offsetTop + n.offsetHeight / 2, lim = SZ_W[1] / 2;
+    var edge = OUT ? 115 : 60, world = document.getElementById('world'), ww = world ? Math.max(world.offsetWidth, 1700) : 1700;
+    lim = Math.min(lim, cx - edge, ww - edge - cx);
+    document.querySelectorAll('#world .node').forEach(function(o){ if(o === n || !o.offsetWidth) return;
+      var t = o.offsetTop, b = t + o.offsetHeight; if(b < cy - h / 2 - 4 || t > cy + h / 2 + 4) return;
+      var l = o.offsetLeft, r = l + o.offsetWidth;
+      if(l >= cx) lim = Math.min(lim, l - 16 - cx); else if(r <= cx) lim = Math.min(lim, cx - r - 16); });
+    return Math.max(SZ_W[0], Math.floor(lim * 2));
+  }
+  // more words than the card's shape held: it grows in both directions, keeping
+  // its shape, unless that would meet another card — then it grows taller only,
+  // and the cards below make way (the formation across stays as it is)
+  function growFor(id, w0, h0){
+    var need = natH(id, w0); if(need <= h0 + 2) return null;
+    var a = h0 / Math.max(w0, 1), top = Math.min(SZ_W[1], maxW(id, need));
+    for(var w = w0 + 4; w <= top; w += 4){ var nh = natH(id, w); if(nh <= Math.round(w * a)) return {w: w, h: Math.max(nh, Math.round(w * a))}; }
+    return sizeOf(id) ? {w: w0, h: Math.min(SZ_H[1], need)} : null;
+  }
+  // dragging the corner
+  var RZ = null;
+  function startResize(e, id){
+    var c = cardEl(id), world = document.getElementById('world'); if(!c || !world) return;
+    e.preventDefault(); e.stopPropagation();
+    var k = (world.getBoundingClientRect().width / world.offsetWidth) || 1;
+    RZ = {id: id, x: e.clientX, y: e.clientY, w0: c.offsetWidth, h0: c.offsetHeight, k: k, before: sizeOf(id), t: 0};
+    root.classList.add('aed-resizing');
+    try{ e.target.setPointerCapture(e.pointerId); }catch(_){}
+  }
+  function moveResize(e){
+    if(!RZ) return;
+    var dx = (e.clientX - RZ.x) / RZ.k * 2, dy = (e.clientY - RZ.y) / RZ.k * 2;
+    var want = Math.round(Math.max(SZ_W[0], Math.min(RZ.w0 + dx, SZ_W[1]))), hw = Math.min(RZ.h0 + dy, SZ_H[1]);
+    // the widest it can be up to where the pointer is: a wider card is shorter,
+    // so each width is tried at the height it would have
+    var w = SZ_W[0], h = 0;
+    for(var tw = want; tw >= SZ_W[0]; tw -= 6){
+      var th = Math.max(natH(RZ.id, tw), hw, SZ_H[0]);
+      if(tw <= maxW(RZ.id, th)){ w = tw; h = th; break; }
+    }
+    if(!h) h = Math.max(natH(RZ.id, w), hw, SZ_H[0]);
+    w = Math.round(w); h = Math.round(h);
+    SZ[RZ.id] = {w: w, h: h}; sizeCSS();
+    var now = Date.now(); if(now - RZ.t > 90){ RZ.t = now; relayout(); }
+    var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
+    b.textContent = w + ' × ' + h; b.style.left = (e.clientX + 14) + 'px'; b.style.top = (e.clientY + 14) + 'px'; b.classList.add('show');
+  }
+  function endResize(){
+    if(!RZ) return; var R = RZ; RZ = null; root.classList.remove('aed-resizing');
+    var b = document.getElementById('aed-rztip'); if(b) b.classList.remove('show');
+    var z = SZ[R.id];
+    if(R.before) SZ[R.id] = R.before; else delete SZ[R.id];
+    sizeCSS();
+    if(z && !same(z, R.before)){ if(change('sz|' + R.id, z)) toast('Card resized — ⌘Z puts it back.'); }
+    else relayout();
+  }
+  document.addEventListener('pointermove', moveResize, true);
+  document.addEventListener('pointerup', endResize, true);
+  document.addEventListener('pointercancel', endResize, true);
   // Room for a block of cards at `cand` (their top): it starts below any card
   // already across that line in its width, and every card below moves down by
   // the block's height — so it covers nothing until the next build places it.
@@ -738,8 +987,14 @@ MANUAL_JS = r"""<script id="alto-manual">
     var fitems = FLAGS.filter(function(f){ return all || (fm[f.id] || []).length; }).map(function(f){
       return {id:f.id, name:f.name, color:f.color || 'var(--accent)', count:(fm[f.id] || []).length}; });
     var CHN = {};
-    var chips = FULL.sections.filter(function(s){ return s.kind === 'chips' && s.key !== 'flags'; })
+    var chips = FULL.sections.filter(function(s){ return s.kind === 'chips' && s.key !== 'flags' && !XA[s.key]; })
       .map(function(s){ var c = chipSec(s); if(c.nodes) CHN[s.key] = c.nodes; return c.s; });
+    // every kind of chip is a filter of its own (not a catch-all one, like a
+    // course's cases), the ones made here included
+    chipKinds().forEach(function(k){
+      if(k.hide || FULL.sections.some(function(s){ return s.key === k.fk; })) return;
+      var c = chipSec({key: k.fk, kind: 'chips', label: k.l, items: []}, true);
+      if(c.s.items.length){ CHN[k.fk] = c.nodes; chips.push(c.s); } });
     var rest = FULL.sections.filter(function(s){ return s.kind !== 'chips'; });
     var list = chips.concat(fitems.length ? [{key:'flags', kind:'chips', label:'Flags', items:fitems}] : []).concat(rest);
     var out = [], nodes = {};
@@ -760,13 +1015,14 @@ MANUAL_JS = r"""<script id="alto-manual">
   // A sub-chip section as the cards' chips are now (blocks.py: one item per
   // chip some card carries), once chips were changed here.
   var FK = {entity:'chars', axis1:'envs', axis2:'themes'}, RK = {entity:'c', axis1:'env', axis2:'theme'};
-  function chipSec(s){
-    var f = FK[s.key]; if(!f || !CHTOUCH || typeof NODES_SRC === 'undefined') return {s: s, nodes: null};
+  function chipSec(s, force){
+    var f = FK[s.key]; if(!f || (!CHTOUCH && !force) || typeof NODES_SRC === 'undefined') return {s: s, nodes: null};
     var m = {}; NODES_SRC.forEach(function(n){ (n[f] || []).forEach(function(v){ (m[v] = m[v] || []).push(n.id); }); });
     var R = reg(RK[s.key]) || {}, seen = {};
     var items = s.items.map(function(it){ seen[it.id] = 1; return Object.assign({}, it, {count: (m[it.id] || []).length}); });
     Object.keys(NEWE).forEach(function(k){ var q = k.split('|'); if(q[1] !== RK[s.key] || NEWE[k].off || seen[q[2]] || !R[q[2]]) return;
-      items.push({id: q[2], name: NEWE[k].v.name, color: R[q[2]].color, symbol: EDK.glyph || '', count: (m[q[2]] || []).length}); });
+      items.push({id: q[2], name: NEWE[k].v.name, color: R[q[2]].color, symbol: R[q[2]].symbol || EDK.glyph || '', count: (m[q[2]] || []).length}); });
+    items = items.filter(function(it){ return !chipGone(RK[s.key], it.id); });
     Object.keys(m).forEach(function(v){ m[v].sort(); });
     return {s: Object.assign({}, s, {items: items.filter(function(it){ return it.count > 0; })}), nodes: m};
   }
@@ -891,9 +1147,44 @@ MANUAL_JS = r"""<script id="alto-manual">
       return {kind:'plain', get:function(){ return NEWU[id].pm.label; }, set:function(v){ NEWU[id].pm.label = v; }};
     }
     if(kind === 'rp' && p.length === 2){
-      var B4 = cardsBase(); if(!B4 || !OUT || !B4.par || !B4.par[id] || !B4.src.some(function(n){ return n.id === id; })) return null;
-      return {kind:'card', get:function(){ return REPAR[id] != null ? REPAR[id] : B4.par[id]; },
-        set:function(v){ if(!v || v === B4.par[id]) delete REPAR[id]; else { REPAR[id] = v; if(REPO.indexOf(id) < 0) REPO.push(id); } syncCards(); }};
+      var B4 = cardsBase(); if(!B4 || !OUT || !B4.par || !B4.src.some(function(n){ return n.id === id; })) return null;
+      return {kind:'card', get:function(){ return REPAR[id] != null ? REPAR[id] : (B4.par[id] || ''); },
+        set:function(v){ if(v == null || v === (B4.par[id] || '')) delete REPAR[id]; else { REPAR[id] = v; if(REPO.indexOf(id) < 0) REPO.push(id); } syncCards(); }};
+    }
+    if(kind === 'xe' && p.length === 3 && RF[id] && CHIP0[id].indexOf(p[2]) >= 0){
+      var xk = id + '|' + p[2];
+      return {kind:'card', get:function(){ return XGONE[xk] ? 1 : 0; },
+        set:function(v){ if(v) XGONE[xk] = 1; else delete XGONE[xk]; CHTOUCH = true; navSync(); drawFiltersSoon(); }};
+    }
+    if(kind === 'na' && p.length === 2 && AXR[id]){
+      var nax = EDK.nax || 0;
+      if(!(id === 'axis1' ? nax === 0 : (nax === 1 || nax === 0))) return null;
+      return {kind:'card', sig:function(){ return null; }, get:function(){ return NA[id] ? JSON.parse(JSON.stringify(NA[id])) : null; },
+        set:function(v){ if(v) NA[id] = {l: String(v.l || 'Chips'), one: String(v.one || 'Chip')}; else delete NA[id]; CHTOUCH = true; navSync(); drawFiltersSoon(); }};
+    }
+    if(kind === 'xa' && p.length === 2 && AXR[id]){
+      var xkd = (EDK.chipk || []).filter(function(k){ return k.fk === id; })[0]; if(!xkd) return null;
+      return {kind:'card', sig:function(){ return String(xkd.l || ''); }, get:function(){ return XA[id] ? 1 : 0; },
+        set:function(v){ if(v) XA[id] = 1; else delete XA[id]; CHTOUCH = true; navSync(); drawFiltersSoon(); }};
+    }
+    if(kind === 'sz' && p.length === 2){
+      if(!srcNode(id)) return null;
+      return {kind:'card', get:function(){ var z = sizeOf(id); return z ? JSON.parse(JSON.stringify(z)) : null; },
+        set:function(v){ SZ[id] = v ? {w: +v.w || undefined, h: +v.h || undefined} : null; sizeCSS(); relayoutSoon(); }};
+    }
+    if(kind === 'ud' && p.length === 2 && /^\d+$/.test(id)){
+      var B5 = cardsBase(); if(!B5 || !B5.units[+id]) return null;
+      var lab0 = String(B5.units[+id].label || '');
+      return {kind:'card', sig:function(){ return lab0; }, get:function(){ return GONEU[+id] ? 1 : 0; },
+        set:function(v){ if(v) GONEU[+id] = 1; else delete GONEU[+id]; syncCards(); }};
+    }
+    if(kind === 'ua' && p.length === 2){
+      var B6 = cardsBase(); if(!B6 || !(id in B6.act)) return null;
+      // made against the card's unit as built — its number and its name — so a
+      // page whose units have moved up does not take it a second time
+      var ua0 = [B6.act[id], String((B6.units[B6.act[id]] || {}).label || '')];
+      return {kind:'card', sig:function(){ return ua0; }, get:function(){ return UA[id] != null ? UA[id] : B6.act[id]; },
+        set:function(v){ if(v == null || v === B6.act[id]) delete UA[id]; else { UA[id] = v; if(UAO.indexOf(id) < 0) UAO.push(id); } syncCards(); }};
     }
     if(kind === 'ch' && p.length === 3 && /^(chars|envs|themes)$/.test(p[2])){
       var cn = srcNode(id); if(!cn) return null;
@@ -925,10 +1216,14 @@ MANUAL_JS = r"""<script id="alto-manual">
   // cards, then the filters' list, then structure (a section list, a tree; a
   // new section's tree after its section), new sections' words, the rest
   function pri(k){ var p = k.split('|');
+    if(p[0] === 'na') return -5;
+    if(p[0] === 'sz') return 1.5;
     if(p[0] === 'nu') return -4;
     if(p[0] === 'ne') return -3;
     if(p[0] === 'nn' || p[0] === 'nd') return -2;
     if(p[0] === 'rp') return -1.5;
+    if(p[0] === 'ua') return -1.45;
+    if(p[0] === 'ud') return -1.4;
     if(p[0] === 'fl') return -1;
     if(p[0] === 'dt' && p[2] === 'tree') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
@@ -962,6 +1257,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   if(overlay()){
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ requestAnimationFrame(relayout); }); });
     if(FTOUCH) drawFiltersSoon();
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', navSync); else navSync();
   }
 
   /* ── who may edit ─────────────────────────────────────────────────────── */
@@ -1040,8 +1336,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; h.slice().reverse().forEach(function(e){ apply(e.k, e.a); }); syncHist(); return true; }
   function redo(){ if(HP >= HIST.length) return false; var h = HIST[HP++]; h.forEach(function(e){ apply(e.k, e.b); }); syncHist(); return true; }
   function syncHist(){
-    document.querySelectorAll('.alto-edit-tile .et-undo, #alto-edit-exit .ee-undo').forEach(function(b){ b.disabled = HP <= 0; });
-    document.querySelectorAll('.alto-edit-tile .et-redo, #alto-edit-exit .ee-redo').forEach(function(b){ b.disabled = HP >= HIST.length; });
+    document.querySelectorAll('#alto-edit-exit .ee-undo').forEach(function(b){ b.disabled = HP <= 0; });
+    document.querySelectorAll('#alto-edit-exit .ee-redo').forEach(function(b){ b.disabled = HP >= HIST.length; });
   }
 
   /* ── showing a change: the page in front of the reader, in place ──────── */
@@ -1053,12 +1349,12 @@ MANUAL_JS = r"""<script id="alto-manual">
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'nl'){ relayoutSoon(); return; }
-    if(kind === 'ch' || kind === 'ne'){
-      relayoutSoon();
+    if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
+      relayoutSoon(); navSync(); chipPopSync();
       if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
       return;
     }
-    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp'){
+    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || kind === 'ua' || kind === 'ud'){
       relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
       if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
       else if(P) { rerenderPage(P); repaint(); }
@@ -1090,7 +1386,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         var s = sec(kind, p[1], p[3]);
         if(h3 && s){
           if(p[4] === 'h') h3.innerHTML = s.h;
-          else { var box = h3.parentNode; Array.prototype.slice.call(box.childNodes).forEach(function(c){ if(c !== h3 && !(c.classList && c.classList.contains('alto-edit-tile'))) box.removeChild(c); });
+          else { var box = h3.parentNode; Array.prototype.slice.call(box.childNodes).forEach(function(c){ if(c !== h3 && !(c.classList && c.classList.contains('alto-edit-pill'))) box.removeChild(c); });
             var para = document.createElement('p'); para.innerHTML = s.t; box.insertBefore(para, h3.nextSibling); }
         }
       }
@@ -1125,15 +1421,16 @@ MANUAL_JS = r"""<script id="alto-manual">
     var P = page(); if(P) rerenderPage(P);
     decorate(); decorateOv();
     if(structOK()){ drawFilters(); decorateCanvas(); }
+    navSync();
   }
   function exit(){
     if(!editing()) return;
     endField(true);
     root.classList.remove('alto-editing', 'alto-drag-ok');
     endPick(true); endLink(); hideMenus();
-    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
+    document.querySelectorAll('.aed-sc,.aed-tc,.aed-cc,.aed-uc,.aed-add,.aed-ph,.aed-flags,.aed-chips,.aed-fx,.aed-fadd,.aed-nadd,.aed-nx').forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
     document.querySelectorAll('.aed-f').forEach(function(el){ el.classList.remove('aed-f'); });
-    hideBar();
+    hideBar(); closeAsk(); navSync();
     if(FTOUCH || structOK()) drawFilters();
   }
   // A page shown again in place: keeps where the reader was, and adds nothing
@@ -1175,64 +1472,65 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     document.body.appendChild(b); placePill(); return b;
   }
-  function placePill(){
-    var b = document.getElementById('alto-edit-exit'); if(!b) return;
-    if(root.classList.contains('mobile')){
-      var low = 0;
-      ['title-bar', 'nav', 'node-nav-bar', 'mobile-filter-bar', 'back-to-overview-bar'].forEach(function(id){
-        var el = document.getElementById(id); if(!el || !el.offsetHeight) return;
-        var r = el.getBoundingClientRect(); if(r.top < 260 && r.bottom > low && r.bottom < 300) low = r.bottom; });
-      b.style.top = Math.round((low || 100) + 10) + 'px'; return;
-    }
-    var row = document.getElementById('desktop-banner-row'), top = root.classList.contains('detail-open') ? 175 : 140;
-    if(row && row.classList.contains('active') && row.offsetHeight) top = row.getBoundingClientRect().bottom + 8;
-    b.style.top = Math.round(top) + 'px';
-  }
-  setInterval(function(){ if(editing()) placePill(); }, 400);
+  function placePill(){}
 
-  /* ── the tiles ────────────────────────────────────────────────────────── */
-  function tileHTML(phone){
-    return '<button type="button" class="et-hist et-undo" title="Undo (⌘Z)" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>'
-      + '<span class="et-head"><span class="et-glyph">✎</span><span class="et-label">Edit timeline</span></span>'
-      + '<span class="et-split">'
-      + (phone ? '' : '<button type="button" class="et-half et-claude">Edit in Claude<small>Add notes, link sources or change anything</small></button><span class="et-div"></span>')
-      + '<button type="button" class="et-half et-manual">Edit manually<small>' + (phone ? 'Change the words on this page' : 'Words, links, sections, moving cards') + '</small></button>'
-      + '</span>'
-      + '<button type="button" class="et-hist et-redo" title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>';
+  /* ── the edit toggle ───────────────────────────────────────────────────
+     A split pill in the row of controls at the foot of the screen, beside
+     light/dark: the building builds with Claude (detail_extras.EDIT_TILE's
+     openClaude), the pencil edits by hand. A phone gets the pencil alone, at
+     the foot of each page. While editing, the editing bar takes its place. */
+  var BUILD_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l7-3v18"/><path d="M11 9h9v12"/><path d="M2.5 21h19"/><path d="M7 8.5v.01M7 12v.01M7 15.5v.01M15 12.5v.01M15 16v.01"/></svg>';
+  function pillHTML(phone){
+    return (phone ? '' : '<button type="button" class="aep-half aep-claude" data-tip="Edit with Claude" aria-label="Edit with Claude">' + BUILD_SVG + '</button><span class="aep-div" aria-hidden="true"></span>')
+      + '<button type="button" class="aep-half aep-manual" data-tip="Edit manually" aria-label="Edit manually"><span class="aep-pen" aria-hidden="true">✎</span>' + (phone ? '<span>Edit this page</span>' : '') + '</button>';
   }
-  window._altoEditTileHTML = tileHTML;
-  function wire(tile){
-    if(tile._aed) return; tile._aed = 1;
-    tile.addEventListener('click', function(e){
+  function wire(el){
+    if(el._aed) return; el._aed = 1;
+    el.addEventListener('click', function(e){
       var t = e.target.closest('button'); if(!t) return;
       e.stopPropagation();
-      if(t.classList.contains('et-claude')){ if(window._altoEditTimeline) window._altoEditTimeline(); }
-      else if(t.classList.contains('et-manual')){ if(editing()) exit(); else enter(); }
-      else if(t.classList.contains('et-undo')) undo();
-      else if(t.classList.contains('et-redo')) redo();
+      if(t.classList.contains('aep-claude')){ if(window._altoEditTimeline) window._altoEditTimeline(); }
+      else if(t.classList.contains('aep-manual')){ if(t.classList.contains('off')){ toast(whyNot()); return; } if(editing()) exit(); else enter(); }
     });
   }
+  function deskPill(){
+    var b = document.getElementById('alto-edit-pill');
+    if(!b){ b = document.createElement('div'); b.id = 'alto-edit-pill'; b.className = 'alto-edit-pill'; b.setAttribute('role', 'group');
+      b.setAttribute('aria-label', 'Edit this timeline'); b.innerHTML = pillHTML(false); document.body.appendChild(b); wire(b); }
+    return b;
+  }
+  // just left of the leftmost control in the row (search, info, light/dark)
+  function placeDesk(){
+    if(PHONE || root.classList.contains('mobile')) return;
+    var b = deskPill(), left = Infinity, bottom = null;
+    ['search-btn', 'info-btn', 'mode-toggle'].forEach(function(id){
+      var el = document.getElementById(id); if(!el || !el.offsetWidth) return;
+      var r = el.getBoundingClientRect(); if(r.left < left){ left = r.left; }
+      if(id === 'mode-toggle') bottom = r.bottom; });
+    if(left === Infinity) return;
+    var z = (b.getBoundingClientRect().width / (b.offsetWidth || 1)) || 1;     // html{zoom}
+    var r = Math.round((window.innerWidth - left) / z + 12);
+    if(b.style.right !== r + 'px') b.style.right = r + 'px';
+    if(bottom != null){ var bt = Math.round((window.innerHeight - bottom) / z); if(b.style.bottom !== bt + 'px') b.style.bottom = bt + 'px'; }
+  }
+  setInterval(placeDesk, 500); window.addEventListener('resize', placeDesk);
   function syncTiles(){
     var ok = canEdit();
-    // The timeline's tile is drawn (detail_extras.EDIT_TILE) before this script
-    // runs: give it both halves now. Its own click handler runs them.
-    document.querySelectorAll('.alto-edit-tile:not(.in-page)').forEach(function(t){
-      if(!t.querySelector('.et-manual')) t.innerHTML = tileHTML(false); });
-    document.querySelectorAll('.alto-edit-tile').forEach(function(t){
+    if(!PHONE) placeDesk();
+    document.querySelectorAll('.alto-edit-pill').forEach(function(t){
       wire(t);
-      var m = t.querySelector('.et-manual'); if(!m) return;
-      m.classList.toggle('off', !ok); m.title = ok ? '' : whyNot();
-      var sm = m.querySelector('small'); if(sm && editing()) sm.textContent = 'Click to stop editing';
+      var m = t.querySelector('.aep-manual'); if(!m) return;
+      m.classList.toggle('off', !ok); m.setAttribute('data-tip', ok ? 'Edit manually' : whyNot());
     });
     syncHist();
   }
-  window._altoWireEditTile = function(t){ wire(t); syncTiles(); };
+  window._altoWireEditTile = function(){ syncTiles(); };
   function pageTile(){
     var dc = document.getElementById('detail-content'); if(!dc || !page()) return;
-    if(dc.querySelector(':scope > .alto-edit-tile')) return;
+    if(dc.querySelector(':scope > .alto-edit-pill')) return;
     if(!dc.querySelector('.detail-header')) return;
-    var t = document.createElement('div'); t.className = 'alto-edit-tile in-page'; t.setAttribute('role', 'group');
-    t.setAttribute('aria-label', 'Edit this timeline'); t.innerHTML = tileHTML(PHONE || root.classList.contains('mobile'));
+    var t = document.createElement('div'); t.className = 'alto-edit-pill in-page'; t.setAttribute('role', 'group');
+    t.setAttribute('aria-label', 'Edit this page'); t.innerHTML = pillHTML(true);
     dc.appendChild(t); wire(t); syncTiles();
   }
 
@@ -1255,13 +1553,13 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
         var box = mk.closest('.detail-section'), h3 = box && box.querySelector(':scope > h3'); if(!h3) return; var k = mk.getAttribute('data-k');
         setF(h3, k + '|h'); box.setAttribute('data-aed-body', k + '|t'); lastOwn = box;
-        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('alto-edit-tile')) c.classList.add('aed-f', 'aed-bodypart'); });
+        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('alto-edit-pill')) c.classList.add('aed-f', 'aed-bodypart'); });
         if(structOK() && !h3.querySelector('.aed-sc')) h3.appendChild(ctl('aed-sc', [['up', '↑', 'Move this section up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this section']], {sk: k}));
       });
       if(kind && structOK() && !dc.querySelector('.aed-add') && field(kind + '|' + P.id + '|order')){
         var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-add'; add.textContent = '+ Add a section';
         add.setAttribute('data-x', 'addsec'); add.setAttribute('data-ok', kind + '|' + P.id);
-        var tile = dc.querySelector(':scope > .alto-edit-tile');
+        var tile = dc.querySelector(':scope > .alto-edit-pill');
         if(lastOwn && lastOwn.nextSibling) dc.insertBefore(add, lastOwn.nextSibling);
         else if(tile) dc.insertBefore(add, tile); else dc.appendChild(add);
       }
@@ -1332,6 +1630,10 @@ MANUAL_JS = r"""<script id="alto-manual">
       b.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14 + r.offsetWidth + 8) + 'px';
       b.style.top = r.style.top;
       world.appendChild(b);
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'aed-uc aed-ux'; x.textContent = '✕ Delete unit';
+      x.title = 'Delete this unit — you choose what happens to its cards'; x.setAttribute('data-x', 'delu'); x.setAttribute('data-act', i);
+      x.style.left = Math.round(b.offsetLeft + b.offsetWidth + 8) + 'px'; x.style.top = r.style.top;
+      world.appendChild(x);
     });
     // + Add a unit, at the foot of the last one
     var bands = Array.prototype.slice.call(world.querySelectorAll('.phase-band')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
@@ -1339,8 +1641,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(last){
       var u = document.createElement('button'); u.type = 'button'; u.className = 'aed-uc aed-unew'; u.textContent = '+ Add a unit';
       u.title = 'A new unit at the end, with its first card'; u.setAttribute('data-x', 'addunit');
-      var tile = world.querySelector('.alto-edit-tile:not(.in-page)');
-      var y = tile && tile.offsetHeight ? tile.offsetTop + tile.offsetHeight / 2 - 18 : last.offsetTop + last.offsetHeight - 150;
+      // under the lowest card of the last unit
+      var low = 0, la = PHASE_META.length - 1;
+      world.querySelectorAll('.node').forEach(function(n){ if(NODE_ACT[n.id.slice(5)] === la && n.offsetHeight) low = Math.max(low, n.offsetTop + n.offsetHeight); });
+      var y = low ? low + 34 : last.offsetTop + last.offsetHeight - 150;
       u.style.left = '40px'; u.style.top = Math.round(y) + 'px';
       world.appendChild(u);
     }
@@ -1353,8 +1657,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     var items = [];
     if(OUT) items.push(['addc', '+', 'Add a card under this one']);
     if(OUT && (OUT.parent || {})[id]) items.push(['linkc', '⇄', 'Move it, and the cards under it, under another card']);
-    if(canRemove(id)) items.push(['delc', '✕', 'Remove this card']);
+    items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
+    items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
+    if(!card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
+      rz.setAttribute('aria-hidden', 'true'); rz.addEventListener('pointerdown', function(e){ startResize(e, id); }); card.appendChild(rz); }
   });
   function addCard(p, a){
     if(!cardsBase()) return;
@@ -1431,17 +1738,99 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(ok) toast('Moved under “' + (to ? to.title : '') + '” — ⌘Z puts it back.');
     return ok;
   }
+  /* asking: a title, a line, and the answers (the last one cancels) */
+  function ask(title, note, answers){
+    var w = document.getElementById('aed-ask');
+    if(!w){ w = document.createElement('div'); w.id = 'aed-ask'; w.innerHTML = '<div class="aa-box" role="dialog" aria-modal="true"></div>';
+      w.addEventListener('mousedown', function(e){ e.stopPropagation(); if(e.target === w) closeAsk(); });
+      w.addEventListener('click', function(e){ e.stopPropagation(); });
+      document.body.appendChild(w); }
+    var box = w.querySelector('.aa-box'); box.innerHTML = '';
+    var h = document.createElement('h4'); h.textContent = title; box.appendChild(h);
+    if(note){ var p = document.createElement('p'); p.textContent = note; box.appendChild(p); }
+    answers.forEach(function(an){
+      if(an.label){ var l = document.createElement('div'); l.className = 'aa-l'; l.textContent = an.label; box.appendChild(l); return; }
+      var b = document.createElement('button'); b.type = 'button'; b.className = an.cls || '';
+      b.appendChild(document.createTextNode(an.t)); if(an.sub){ var sm = document.createElement('small'); sm.textContent = an.sub; b.appendChild(sm); }
+      if(an.off){ b.disabled = true; if(an.why) b.title = an.why; }
+      b.addEventListener('click', function(e){ e.stopPropagation(); closeAsk(); if(an.fn) an.fn(); });
+      box.appendChild(b); });
+    var c = document.createElement('button'); c.type = 'button'; c.className = 'aa-quiet'; c.textContent = 'Cancel';
+    c.addEventListener('click', function(e){ e.stopPropagation(); closeAsk(); }); box.appendChild(c);
+    w.classList.add('show'); setTimeout(function(){ c.focus(); }, 0);
+  }
+  function closeAsk(){ var w = document.getElementById('aed-ask'); if(w) w.classList.remove('show'); }
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ var w = document.getElementById('aed-ask'); if(w && w.classList.contains('show')){ e.preventDefault(); e.stopPropagation(); closeAsk(); } } }, true);
+
+  function titleOf(id){ var n = srcNode(id); return n ? txt(n.title || '') || 'Untitled' : ''; }
+  function liveKids(id){ return kidsOf(id).filter(function(k){ return !cardGone(k); }); }
+  function branchOf(id){ var out = [id]; (function walk(x){ liveKids(x).forEach(function(k){ out.push(k); walk(k); }); })(id); return out; }
+  function unitIds(i){ return NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === i && !cardGone(n.id); }).map(function(n){ return n.id; }); }
+  function unitTop(i){ var P = (OUT && OUT.parent) || {}; return unitIds(i).filter(function(id){ return !P[id]; })[0] || null; }
+  function unitName(i){ var pm = PHASE_META[i]; return pm ? txt(pm.label || '') || ('Unit ' + (i + 1)) : ''; }
+  function delOps(ids){ return ids.map(function(m){ return isNew(m) ? ['nn|' + m, null] : ['nd|' + m, 1]; }); }
+  // a card under another (np), or the top of its unit (np === '')
+  function underOps(kid, np, unitKey){
+    if(isNew(kid)){ var sp = JSON.parse(JSON.stringify(NEWC[kid].spec)); sp.p = np;
+      if(!np) sp.a = unitKey != null ? unitKey : unitKeyOf(NODE_ACT[kid]); return ['nn|' + kid, sp]; }
+    return ['rp|' + kid, np];
+  }
+  // a card (and, in an outline, all under it) into another unit
+  function intoOps(id, key){
+    if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.a = key; sp.p = ''; return ['nn|' + id, sp]; }
+    return ['ua|' + id, key];
+  }
   function removeCard(id){
-    if(!canRemove(id)) { toast('Remove the cards under it first.'); return; }
-    var a = NODE_ACT[id];
-    if(ACT_SEQS[a] && ACT_SEQS[a].length === 1){
-      var u = unitKeyOf(a);
-      if(typeof u === 'string'){ if(changes([['nu|' + u, null]].concat(isNew(id) ? [['nn|' + id, null]] : []))) toast('Unit removed — ⌘Z brings it back.'); }
-      else toast('A unit keeps at least one card.');
-      return;
-    }
-    var ok = isNew(id) ? change('nn|' + id, null) : change('nd|' + id, 1);
-    if(ok) toast('Card removed — ⌘Z brings it back.');
+    var a = NODE_ACT[id], K = liveKids(id), par = ((OUT && OUT.parent) || {})[id] || '', all = unitIds(a);
+    var T = titleOf(id), n = branchOf(id).length - 1;
+    function done(ok, msg){ if(ok) toast(msg + ' — ⌘Z brings it back.'); }
+    if(all.length <= 1){ deleteUnit(a); return; }
+    if(!K.length){ done(changes(delOps([id])), 'Card removed'); return; }
+    var below = n === 1 ? 'the card under it' : 'the ' + n + ' cards under it';
+    var A = [];
+    if(par) A.push({t: 'Remove it and ' + below, cls: 'aa-danger', fn: function(){ done(changes(delOps(branchOf(id))), 'Removed with ' + below); }});
+    A.push({t: 'Remove just this card',
+      sub: par ? (K.length === 1 ? 'The card under it moves up under “' + titleOf(par) + '”.' : 'Its ' + K.length + ' cards move up under “' + titleOf(par) + '”.')
+               : '“' + titleOf(K[0]) + '” takes its place at the top of the unit' + (K.length > 1 ? ', with the others under it.' : '.'),
+      fn: function(){
+        var L = par ? K.map(function(k){ return underOps(k, par); })
+                    : [underOps(K[0], '')].concat(K.slice(1).map(function(k){ return underOps(k, K[0]); }));
+        done(changes(L.concat(delOps([id]))), 'Card removed'); }});
+    if(!par) A.push({t: 'Delete the whole unit…', cls: 'aa-danger', sub: 'This is its top card: you choose what happens to the unit’s cards.', fn: function(){ deleteUnit(a); }});
+    ask('Remove “' + T + '”?', 'It has ' + below.replace(/^the /, '') + '.', A);
+  }
+  /* deleting a unit: its cards go to another unit, to a new unit, or with it */
+  function unitGoneOp(i){ var k = unitKeyOf(i); return typeof k === 'string' ? ['nu|' + k, null] : ['ud|' + k, 1]; }
+  function deleteUnit(i){
+    var ids = unitIds(i), N = ids.length, U = PHASE_META.length, nm = unitName(i);
+    var few = U <= 2, why = 'A timeline keeps at least two units.';
+    var cards = N === 1 ? 'its card' : 'its ' + N + ' cards';
+    var A = [{label: 'Move ' + cards + ' to'}];
+    for(var j = 0; j < U; j++) if(j !== i) (function(j){ A.push({t: unitName(j), off: few, why: why, fn: function(){ moveUnit(i, j); }}); })(j);
+    A.push({t: 'A new unit', sub: 'At the end, under a name you choose.', fn: function(){ moveUnitNew(i); }});
+    A.push({label: 'Or'});
+    A.push({t: 'Delete ' + (N === 1 ? 'its card' : 'all ' + N + ' cards') + ' too', cls: 'aa-danger', off: few, why: why,
+      fn: function(){ if(changes(delOps(ids).concat([unitGoneOp(i)]))) toast('Unit deleted — ⌘Z brings it back.'); }});
+    ask('Delete the unit “' + nm + '”?', few ? why + ' Its cards can still go to a new unit.' : 'It has ' + N + (N === 1 ? ' card.' : ' cards.'), A);
+  }
+  function moveUnit(i, j){
+    var ids = unitIds(i), key = unitKeyOf(j), L;
+    if(OUT){ var top = unitTop(i), tt = unitTop(j); if(!top || !tt) return;
+      L = [underOps(top, tt)]; }
+    else L = ids.map(function(id){ return intoOps(id, key); });
+    var tn = unitName(j);
+    if(changes(L.concat([unitGoneOp(i)]))) toast('Unit deleted — its cards are in “' + tn + '”. ⌘Z undoes it.');
+  }
+  function moveUnitNew(i){
+    var ids = unitIds(i), used = {};
+    PHASE_META.forEach(function(pm){ used[String(pm.colorRaw || '').toLowerCase()] = 1; });
+    var col = UNIT_COLORS.filter(function(c){ return !used[c]; })[0] || UNIT_COLORS[PHASE_META.length % UNIT_COLORS.length];
+    var uid = rid('unit-'), L = [['nu|' + uid, {n: Date.now(), c: col, l: 'New unit'}]];
+    if(OUT){ var top = unitTop(i); if(!top) return; L.push(intoOps(top, uid)); }
+    else ids.forEach(function(id){ L.push(intoOps(id, uid)); });
+    if(!changes(L.concat([unitGoneOp(i)]))) return;
+    toast('Its cards are in a new unit — name it.');
+    setTimeout(function(){ var n = PHASE_META.length - 1, el = labelEl(n); if(el){ try{ el.scrollIntoView({block:'center'}); }catch(_){} renameUnit(n); } }, 160);
   }
 
   /* filters of the owner's own: on a card's page, which it is in */
@@ -1462,33 +1851,55 @@ MANUAL_JS = r"""<script id="alto-manual">
   /* sub-chips: on a card's page, the chips it carries — take one off, add one
      the timeline has, or make a new one */
   function aOne(k){ var w = String(k.one || 'chip').toLowerCase(); return (/^[aeiou]/.test(w) ? 'an ' : 'a ') + w; }
-  function chipKinds(){ return (EDK.chipk || []).filter(function(k){ return reg(k.r); }); }
-  function decorateChips(again){
-    var P = page(), dc = document.getElementById('detail-content'); if(!P || P.type !== 'node' || !dc) return;
-    var old = dc.querySelector('.aed-chips');
-    if(old && !again) return;
-    var n = srcNode(P.id);
-    if(!editing() || !structOK() || !n){ if(old) old.parentNode.removeChild(old); return; }
+  function chipKinds(){ return (EDK.chipk || []).concat(newKinds()).filter(function(k){ return reg(k.r) && !XA[k.fk]; }); }
+  // The chips a card carries, by kind: ✕ takes one off, + Add puts one on.
+  function chipBox(nid){
+    var n = srcNode(nid); if(!n) return null;
     var box = document.createElement('div'); box.className = 'aed-chips'; box.contentEditable = 'false';
     chipKinds().forEach(function(k){
       var R = reg(k.r) || {}, row = document.createElement('div'); row.className = 'aed-chrow';
       var h = document.createElement('span'); h.className = 'aed-fh'; h.textContent = k.l; row.appendChild(h);
       (n[k.f] || []).forEach(function(v){
+        if(chipGone(k.r, v)) return;
         var c = document.createElement('span'); c.className = 'aed-chip'; var it = R[v];
         c.style.setProperty('--c', it && it.color ? it.color : 'var(--accent)');
         c.appendChild(document.createTextNode(it ? txt(it.name) : v));
-        var x = document.createElement('button'); x.type = 'button'; x.setAttribute('data-x', 'chipdel'); x.setAttribute('data-f', k.f); x.setAttribute('data-v', v);
+        var x = document.createElement('button'); x.type = 'button'; x.setAttribute('data-x', 'chipdel'); x.setAttribute('data-f', k.f); x.setAttribute('data-v', v); x.setAttribute('data-nid', nid);
         x.title = 'Take this chip off the card'; x.setAttribute('aria-label', x.title); x.textContent = '✕'; c.appendChild(x);
         row.appendChild(c); });
-      var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-chadd'; add.setAttribute('data-x', 'chipadd'); add.setAttribute('data-f', k.f);
+      var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-chadd'; add.setAttribute('data-x', 'chipadd'); add.setAttribute('data-f', k.f); add.setAttribute('data-nid', nid);
       add.textContent = '+ Add'; add.title = 'Add ' + aOne(k) + ' to this card'; row.appendChild(add);
       box.appendChild(row);
     });
+    return box;
+  }
+  function decorateChips(again){
+    var P = page(), dc = document.getElementById('detail-content'); if(!P || P.type !== 'node' || !dc) return;
+    var old = dc.querySelector(':scope > .aed-chips');
+    if(old && !again) return;
+    if(!editing() || !structOK() || !srcNode(P.id)){ if(old) old.parentNode.removeChild(old); return; }
+    var box = chipBox(P.id);
     if(old) old.parentNode.replaceChild(box, old);
     else { var fl = dc.querySelector('.aed-flags'), hd = dc.querySelector('.detail-header');
       if(fl && fl.parentNode === dc) dc.insertBefore(box, fl.nextSibling);
       else if(hd && hd.parentNode === dc) dc.insertBefore(box, hd.nextSibling); else dc.insertBefore(box, dc.firstChild); }
   }
+  // the same, for a card on the timeline: ◆ on the card opens it beside the card
+  function chipPop(nid, at){
+    hideMenus();
+    var w = document.getElementById('aed-chpop');
+    if(!w){ w = document.createElement('div'); w.id = 'aed-chpop';
+      w.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      w.addEventListener('click', function(e){ var b = e.target.closest('button'); if(!b) return; e.stopPropagation(); e.preventDefault(); structure(b); });
+      document.body.appendChild(w); }
+    w._nid = nid; w.innerHTML = '';
+    var h = document.createElement('h5'); h.textContent = 'Chips on “' + titleOf(nid) + '”'; w.appendChild(h);
+    var box = chipBox(nid); if(!box) return; w.appendChild(box);
+    if(!chipKinds().length){ var none = document.createElement('p'); none.className = 'aed-chnone'; none.textContent = 'This timeline has no kinds of chip yet — add one with “+ Add” in the bar at the top.'; w.appendChild(none); }
+    w.classList.add('show'); placeNear(w, at);
+  }
+  function chipPopSync(){ var w = document.getElementById('aed-chpop'); if(w && w.classList.contains('show') && w._nid){
+    var box = chipBox(w._nid), old = w.querySelector('.aed-chips'); if(box && old) w.replaceChild(box, old); } }
   function chipToggle(nid, f, v, on){
     var n = srcNode(nid); if(!n || !v) return false;
     var L = (n[f] || []).slice(), i = L.indexOf(v);
@@ -1531,18 +1942,141 @@ MANUAL_JS = r"""<script id="alto-manual">
     var b = document.getElementById('aed-chip'); if(!b) return; b.classList.remove('show');
     var k = b._k, nid = b._nid, n = srcNode(nid); if(!n) return;
     if(v){ chipToggle(nid, k.f, v, true); return; }
-    name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return;
+    withGlyph(document.querySelector('#node-' + nid + ' .node-card') || document.getElementById('detail-content') || document.body, k, name, function(svg){
+      var c = newChip(k, name, svg); if(!c) return;
+      var L = (n[k.f] || []).concat([c.id]);
+      if(changes([c.op, ['ch|' + nid + '|' + k.f, L]]))
+        toast('“' + c.name + '” made and added — it has a page of its own to fill in.'); });
+  }
+  /* the glyph a new chip is drawn with: one of the library's, never one a
+     chip of this timeline already has (those are dimmed) */
+  function glyphKey(svg){ var m = /<svg\b[^>]*>([\s\S]*)<\/svg>/.exec(String(svg || '')); return (m ? m[1] : String(svg || '')).replace(/\s+/g, '').split('/>').join('>'); }
+  function glyphsInUse(){
+    var used = {};
+    ['c', 'env', 'theme'].forEach(function(r){ var R = reg(r) || {}; Object.keys(R).forEach(function(id){
+      if(chipGone(r, id) || !R[id] || !R[id].symbol) return; var key = glyphKey(R[id].symbol); if(!used[key]) used[key] = txt(R[id].name || id); }); });
+    return used;
+  }
+  function withGlyph(at, k, name, done){
+    name = String(name || '').replace(/\s+/g, ' ').trim(); if(!name) return;
+    var lib = EDK.glyphs || [];
+    if(k.hide || !lib.length){ done(''); return; }       // shown by its name, not a glyph
+    ['aed-name', 'aed-kinds', 'aed-chip'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); });
+    var w = document.getElementById('aed-glyph');
+    if(!w){ w = document.createElement('div'); w.id = 'aed-glyph';
+      w.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      w.addEventListener('click', function(e){ e.stopPropagation(); var b = e.target.closest('button[data-gi]'); if(!b || b.disabled) return;
+        w.classList.remove('show'); var fn = w._done; if(fn) fn(lib[+b.getAttribute('data-gi')].s); });
+      w.addEventListener('keydown', function(e){ e.stopPropagation(); if(e.key === 'Escape'){ e.preventDefault(); w.classList.remove('show'); } });
+      document.body.appendChild(w); }
+    w._done = done;
+    var used = glyphsInUse(), html = '<h5></h5><div class="ag-grid">';
+    lib.forEach(function(g, i){ var by = used[glyphKey(g.s)];
+      html += '<button type="button" data-gi="' + i + '"' + (by ? ' disabled title="Already used by ' + esc(by).replace(/"/g, '&quot;') + '"' : ' title="' + esc(g.n) + '"') + '>' + g.s + '</button>'; });
+    w.innerHTML = html + '</div><p class="ag-k">Dimmed glyphs are already on this timeline’s chips.</p>';
+    w.querySelector('h5').textContent = 'A glyph for “' + name + '”';
+    w.style.setProperty('--c', 'var(--text)');
+    w.classList.add('show'); placeNear(w, at);
+    var first = w.querySelector('button[data-gi]:not([disabled])'); if(first) setTimeout(function(){ first.focus(); }, 0);
+  }
+  // a new chip of kind k: its id (never one the page has) and the op that makes it
+  function newChip(k, name, svg){
+    name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return null;
     var R = reg(k.r) || {}, base = slug(name) || 'chip', id, i = 2;
     if(!/^[a-z]/.test(base)) base = 'c-' + base;
     id = base;
     // an entity's colour is the CSS variable named after it: never one the page already has
-    if(k.r === 'c' && Object.keys(R).length >= 12){ toast('A timeline has at most 12 ' + String(k.l || 'of these').toLowerCase() + '.'); return; }
+    var live = Object.keys(R).filter(function(x){ return !chipGone(k.r, x); }).length;
+    if(k.r === 'c' && live >= 12){ toast('A timeline has at most 12 ' + String(k.l || 'of these').toLowerCase() + '.'); return null; }
     function taken(x){ if(reg('c') && reg('c')[x] || reg('env') && reg('env')[x] || reg('theme') && reg('theme')[x]) return true; try{ return k.r === 'c' && !!getComputedStyle(document.documentElement).getPropertyValue('--' + x).trim(); }catch(e){ return false; } }
     while(taken(id)) id = base.slice(0, 44) + '-' + (i++);
     var col = CHIP_COLORS[Object.keys(R).length % CHIP_COLORS.length];
-    var L = (n[k.f] || []).concat([id]);
-    if(changes([['ne|' + k.r + '|' + id, {name: name, color: col}], ['ch|' + nid + '|' + k.f, L]]))
-      toast('“' + name + '” made and added — it has a page of its own to fill in.');
+    var v = {name: name, color: col}; if(svg) v.svg = svg;
+    return {id: id, name: name, op: ['ne|' + k.r + '|' + id, v]};
+  }
+
+  /* the bar at the top, while editing: ✕ on a chip or a category takes it
+     out of the timeline (off every card); + Add makes a chip or a category */
+  function chipGone(r, id){ return !!XGONE[r + '|' + id] || !!(XA[r === 'env' ? 'axis1' : r === 'theme' ? 'axis2' : ''] ); }
+  function newKinds(){ var out = []; ['axis1', 'axis2'].forEach(function(ax){ var v = NA[ax];
+    if(v) out.push({f: RF[AXR[ax]], r: AXR[ax], l: v.l, one: v.one, fk: ax, na: 1}); }); return out; }
+  function axesNow(){ return (EDK.nax || 0) + Object.keys(NA).length; }
+  function isNewChip(r, id){ var e = NEWE['ne|' + r + '|' + id]; return !!(e && !e.off); }
+  function rmEl(el){ if(el && el.parentNode) el.parentNode.removeChild(el); }
+  function navChip(b){
+    var oc = b.getAttribute('onclick') || '', m = /showDetail\('(char|env|theme)','([^']+)'\)/.exec(oc);
+    if(m) return {r: m[1] === 'char' ? 'c' : m[1], id: m[2]};
+    var ai = /showAxisIndex\('(env|theme)/.exec(oc);
+    return ai ? {ax: ai[1] === 'env' ? 'axis1' : 'axis2'} : null;
+  }
+  function navSync(){
+    var nav = document.getElementById('nav'); if(!nav) return;
+    nav.querySelectorAll('.aed-newnav,.aed-nadd,.aed-nx').forEach(rmEl);
+    nav.querySelectorAll('.nav-btn').forEach(function(b){ var c = navChip(b); if(!c) return;
+      b.classList.toggle('aed-navoff', c.ax ? !!XA[c.ax] : chipGone(c.r, c.id)); });
+    nav.querySelectorAll('.nav-group-label').forEach(function(l){ var t = l.textContent.trim().toLowerCase();
+      var k = (EDK.chipk || []).filter(function(k){ return k.fk !== 'entity' && String(k.l || '').toLowerCase() === t; })[0];
+      l.classList.toggle('aed-navoff', !!(k && XA[k.fk])); });
+    // chips made here, after the last of their kind (a new kind: its own group)
+    Object.keys(NEWE).forEach(function(key){ var e = NEWE[key]; if(!e || e.off) return; var q = key.split('|'), r = q[1], id = q[2];
+      var kd = chipKinds().filter(function(k){ return k.r === r; })[0]; if(!kd || kd.hide) return;
+      var t = r === 'c' ? 'char' : r, last = null;
+      nav.querySelectorAll('.nav-btn').forEach(function(b){ var c = navChip(b); if(c && c.r === r && !b.classList.contains('aed-navoff')) last = b; });
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'nav-btn aed-newnav'; b.setAttribute('onclick', "showDetail('" + t + "','" + id + "')");
+      var R0 = reg(r) || {}; if(R0[id] && R0[id].symbol && !kd.hide) b.innerHTML = R0[id].symbol + ' ';
+      b.appendChild(document.createTextNode(e.v.name || 'New'));
+      if(last) last.parentNode.insertBefore(b, last.nextSibling);
+      else { var g = document.createElement('span'); g.className = 'nav-group-label aed-newnav'; g.textContent = kd.l; nav.appendChild(g); nav.appendChild(b); }
+    });
+    if(!editing() || !structOK()) return;
+    nav.querySelectorAll('.nav-btn').forEach(function(b){ var c = navChip(b); if(!c || b.classList.contains('aed-navoff')) return;
+      if(c.r === 'env' || c.r === 'theme'){ var kd = chipKinds().filter(function(k){ return k.r === c.r; })[0]; if(!kd) return; }
+      var x = document.createElement('span'); x.className = 'aed-nx'; x.setAttribute('role', 'button'); x.setAttribute('data-x', 'navx');
+      if(c.ax){ x.setAttribute('data-ax', c.ax); x.title = 'Remove this category of chips'; }
+      else { x.setAttribute('data-r', c.r); x.setAttribute('data-id', c.id); x.title = 'Remove this chip from the timeline'; }
+      x.setAttribute('aria-label', x.title); x.textContent = '✕'; b.appendChild(x); });
+    // a visible axis: ✕ on its group's label removes the category
+    nav.querySelectorAll('.nav-group-label').forEach(function(l){ if(l.classList.contains('aed-navoff')) return; var t = l.textContent.trim().toLowerCase();
+      var k = chipKinds().filter(function(k){ return k.fk !== 'entity' && String(k.l || '').toLowerCase() === t; })[0]; if(!k) return;
+      var x = document.createElement('span'); x.className = 'aed-nx aed-nxl'; x.setAttribute('role', 'button'); x.setAttribute('data-x', 'navx'); x.setAttribute('data-ax', k.fk);
+      x.title = 'Remove this category of chips'; x.setAttribute('aria-label', x.title); x.textContent = '✕'; l.appendChild(x); });
+    var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-nadd'; add.setAttribute('data-x', 'navadd');
+    add.textContent = '+ Add'; add.title = 'Add a chip, or a new category of chips'; nav.appendChild(add);
+  }
+  function cardsWith(r, id){ var f = RF[r]; return NODES_SRC.filter(function(n){ return (n[f] || []).indexOf(id) >= 0 && !cardGone(n.id); }).map(function(n){ return n.id; }); }
+  function navRemove(b){
+    var ax = b.getAttribute('data-ax');
+    if(ax){
+      var k = chipKinds().filter(function(x){ return x.fk === ax; })[0]; if(!k) return;
+      var r = k.r, R = reg(r) || {}, ids = Object.keys(R).filter(function(i){ return !chipGone(r, i); });
+      var cards = NODES_SRC.filter(function(n){ return (n[k.f] || []).length && !cardGone(n.id); });
+      ask('Remove the category “' + k.l + '”?', 'Its ' + ids.length + (ids.length === 1 ? ' chip comes' : ' chips come') + ' off ' + (cards.length === 1 ? 'the 1 card that has them' : 'the ' + cards.length + ' cards that have them') + ', and their pages go with them.',
+        [{t: 'Remove the category', cls: 'aa-danger', fn: function(){
+          var L = cards.map(function(n){ return ['ch|' + n.id + '|' + k.f, []]; });
+          ids.forEach(function(i){ if(isNewChip(r, i)) L.push(['ne|' + r + '|' + i, null]); });
+          L.push(NA[ax] ? ['na|' + ax, null] : ['xa|' + ax, 1]);
+          if(changes(L)) toast('“' + k.l + '” removed — ⌘Z brings it back.'); }}]);
+      return;
+    }
+    var r2 = b.getAttribute('data-r'), id = b.getAttribute('data-id'), it = (reg(r2) || {})[id]; if(!it) return;
+    var nm = txt(it.name || id), on = cardsWith(r2, id), f = RF[r2];
+    ask('Remove “' + nm + '”?', on.length ? 'It comes off ' + (on.length === 1 ? 'the 1 card' : 'the ' + on.length + ' cards') + ' it is on, and its page goes with it.' : 'It is on no card. Its page goes with it.',
+      [{t: 'Remove it', cls: 'aa-danger', fn: function(){
+        var L = on.map(function(nid){ return ['ch|' + nid + '|' + f, (srcNode(nid)[f] || []).filter(function(x){ return x !== id; })]; });
+        L.push(isNewChip(r2, id) ? ['ne|' + r2 + '|' + id, null] : ['xe|' + r2 + '|' + id, 1]);
+        if(changes(L)) toast('“' + nm + '” removed — ⌘Z brings it back.'); }}]);
+  }
+  function singularOf(w){ w = String(w || '').trim(); return /ies$/i.test(w) ? w.slice(0, -3) + 'y' : /(ss|us|is)$/i.test(w) ? w : /s$/i.test(w) ? w.slice(0, -1) : w; }
+  function navAdd(b){
+    var A = chipKinds().map(function(k){ return {t: 'A new ' + String(k.one || 'chip').toLowerCase(), sub: 'In ' + k.l + ' — put it on cards with ◆ on a card, or on a card’s page.',
+      fn: function(){ askName(b, 'Name the new ' + String(k.one || 'chip').toLowerCase(), '', function(nm){ withGlyph(b, k, nm, function(svg){
+        var c = newChip(k, nm, svg); if(c && changes([c.op])) toast('“' + c.name + '” added — it has a page of its own to fill in.'); }); }); }}; });
+    if(axesNow() < 2) A.push({t: 'A new category of chips', sub: 'Its own kind of chip, like Cases or Themes.',
+      fn: function(){ askName(b, 'Name the category (plural, e.g. Cases)', '', function(nm){
+        nm = String(nm || '').replace(/\s+/g, ' ').trim().slice(0, 60); if(!nm) return;
+        var ax = (EDK.nax || 0) === 0 && !NA.axis1 ? 'axis1' : 'axis2';
+        if(change('na|' + ax, {l: nm, one: singularOf(nm)})) toast('“' + nm + '” added — + Add makes its first chip.'); }); }});
+    ask('Add to the bar at the top', null, A);
   }
   function newFlag(name){
     name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 80); if(!name) return null;
@@ -1635,8 +2169,85 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   function endPick(quiet){
     if(!PICK) return; PICK = null; root.classList.remove('aed-picking');
-    document.querySelectorAll('.aed-pick-in,.aed-pick-out').forEach(function(el){ el.classList.remove('aed-pick-in', 'aed-pick-out'); });
-    var b = document.getElementById('aed-pick'); if(b) b.classList.remove('show');
+    document.querySelectorAll('.aed-pick-in,.aed-pick-out,.aed-pick-hit').forEach(function(el){ el.classList.remove('aed-pick-in', 'aed-pick-out', 'aed-pick-hit'); });
+    var b = document.getElementById('aed-pick'); if(b){ b.classList.remove('show'); var q = b.querySelector('.ap-q'); if(q) q.value = ''; }
+    var r = document.getElementById('aed-pickres'); if(r) r.classList.remove('show');
+    CHIPMENU = false;
+  }
+  /* finding cards for a filter: by their words, their page's words or their chips */
+  function chipNames(n){ var out = []; [['chars', 'c'], ['envs', 'env'], ['themes', 'theme']].forEach(function(q){ var R = reg(q[1]) || {};
+    (n[q[0]] || []).forEach(function(v){ if(R[v] && !chipGone(q[1], v)) out.push(txt(R[v].name)); }); }); return out; }
+  function pageWords(id){ var L = secList('n', id) || []; return L.map(function(s){ return txt(s.h || '') + ' ' + txt(s.t || ''); }).join(' '); }
+  function findCards(q){
+    var Q = String(q || '').toLowerCase().replace(/\s+/g, ' ').trim(); if(!Q) return [];
+    var words = Q.split(' ');
+    return NODES_SRC.filter(function(n){ return !cardGone(n.id); }).map(function(n){
+      var head = (txt(n.title || '') + ' ' + txt(n.tag || '')).toLowerCase(), chips = chipNames(n).join(' ').toLowerCase();
+      var body = (txt(n.desc || '') + ' ' + pageWords(n.id)).toLowerCase();
+      var all = head + ' ' + chips + ' ' + body;
+      if(!words.every(function(w){ return all.indexOf(w) >= 0; })) return null;
+      var score = (head.indexOf(Q) >= 0 ? 3 : 0) + (chips.indexOf(Q) >= 0 ? 2 : 0) + (body.indexOf(Q) >= 0 ? 1 : 0);
+      var why = head.indexOf(Q) >= 0 ? '' : chips.indexOf(Q) >= 0 ? chipNames(n).filter(function(c){ return c.toLowerCase().indexOf(Q) >= 0 || words.some(function(w){ return c.toLowerCase().indexOf(w) >= 0; }); }).join(', ') : 'in its text';
+      return {id: n.id, score: score, why: why};
+    }).filter(Boolean).sort(function(a, b){ return b.score - a.score; });
+  }
+  // every kind of chip (not a catch-all one) with its chips: one puts all the
+  // cards that carry it in the filter
+  var CHIPMENU = false;
+  function chipMenu(r){
+    r.innerHTML = '';
+    var kinds = chipKinds().filter(function(k){ return !k.hide; }), any = false;
+    kinds.forEach(function(k){
+      var R = reg(k.r) || {}, ids = Object.keys(R).filter(function(id){ return !chipGone(k.r, id) && cardsWith(k.r, id).length; });
+      if(!ids.length) return; any = true;
+      var hd = document.createElement('div'); hd.className = 'pr-h'; var sp = document.createElement('span'); sp.textContent = k.l; hd.appendChild(sp); r.appendChild(hd);
+      ids.forEach(function(id){
+        var cs = cardsWith(k.r, id), inN = cs.filter(function(c){ return (FLN[c] || []).indexOf(PICK) >= 0; }).length, on = inN === cs.length;
+        var row = document.createElement('div'); row.className = 'pr-row' + (on ? ' on' : ''); row.setAttribute('data-pr', 'chip'); row.setAttribute('data-r', k.r); row.setAttribute('data-id', id);
+        var ck = document.createElement('span'); ck.className = 'pr-ck'; ck.textContent = on ? '✓' : inN ? '–' : ''; if(inN && !on) ck.style.background = 'color-mix(in srgb,var(--accent,#a78bfa) 45%,transparent)'; row.appendChild(ck);
+        var g = document.createElement('span'); g.className = 'pr-g'; g.style.color = R[id].color || 'var(--text)'; g.innerHTML = R[id].symbol || ''; row.appendChild(g);
+        var t = document.createElement('span'); t.className = 'pr-t'; var bb = document.createElement('b'); bb.textContent = txt(R[id].name || id); t.appendChild(bb);
+        var sm = document.createElement('small'); sm.textContent = cs.length + (cs.length === 1 ? ' card' : ' cards') + (inN && !on ? ' — ' + inN + ' in the filter' : ''); t.appendChild(sm); row.appendChild(t);
+        r.appendChild(row); }); });
+    if(!any){ var no = document.createElement('div'); no.className = 'pr-none'; no.textContent = 'No card carries a chip yet.'; r.appendChild(no); }
+  }
+  function paintFind(){
+    var b = document.getElementById('aed-pick'), r = document.getElementById('aed-pickres'); if(!b || !PICK) return;
+    var q = b.querySelector('.ap-q').value; if(String(q).trim()) CHIPMENU = false;
+    var hits = findCards(q), H = {};
+    hits.forEach(function(h){ H[h.id] = 1; });
+    document.querySelectorAll('#world .node').forEach(function(el){ el.classList.toggle('aed-pick-hit', !!H[el.id.slice(5)]); });
+    if(!r){ r = document.createElement('div'); r.id = 'aed-pickres'; document.body.appendChild(r);
+      r.addEventListener('mousedown', function(e){ e.stopPropagation(); e.preventDefault(); });
+      r.addEventListener('click', function(e){ e.stopPropagation(); var x = e.target.closest('[data-pr]'); if(!x || !PICK) return;
+        var a = x.getAttribute('data-pr'), cur = findCards(b.querySelector('.ap-q').value);
+        if(a === 'one') toggleFlag(x.getAttribute('data-id'), PICK);
+        else if(a === 'chip'){ var ids = cardsWith(x.getAttribute('data-r'), x.getAttribute('data-id')), want2 = !x.classList.contains('on'), L2 = [];
+          ids.forEach(function(id){ var have = (FLN[id] || []).indexOf(PICK) >= 0; if(have !== want2) L2.push(['fn|' + id, want2 ? (FLN[id] || []).concat([PICK]) : (FLN[id] || []).filter(function(f){ return f !== PICK; })]); });
+          if(L2.length) changes(L2); }
+        else { var want = a === 'all', L = [];
+          cur.forEach(function(h){ var have = (FLN[h.id] || []).indexOf(PICK) >= 0; if(have !== want) L.push(['fn|' + h.id, want ? (FLN[h.id] || []).concat([PICK]) : (FLN[h.id] || []).filter(function(f){ return f !== PICK; })]); });
+          if(L.length) changes(L); }
+        paintPick(); }); }
+    if(CHIPMENU){ chipMenu(r); var bb0 = b.getBoundingClientRect(); r.style.bottom = Math.round(window.innerHeight - bb0.top + 8) + 'px'; r.classList.add('show'); return; }
+    if(!String(q).trim()){ r.classList.remove('show'); return; }
+    var inN = hits.filter(function(h){ return (FLN[h.id] || []).indexOf(PICK) >= 0; }).length;
+    r.innerHTML = '';
+    var hd = document.createElement('div'); hd.className = 'pr-h';
+    var sp = document.createElement('span'); sp.textContent = hits.length ? hits.length + (hits.length === 1 ? ' card matches' : ' cards match') + ' — ' + inN + ' in the filter' : ''; hd.appendChild(sp);
+    if(hits.length && inN < hits.length){ var ab = document.createElement('button'); ab.type = 'button'; ab.setAttribute('data-pr', 'all'); ab.textContent = 'Add all ' + hits.length; hd.appendChild(ab); }
+    if(inN){ var tb = document.createElement('button'); tb.type = 'button'; tb.setAttribute('data-pr', 'none'); tb.textContent = 'Take these out'; hd.appendChild(tb); }
+    r.appendChild(hd);
+    if(!hits.length){ var no = document.createElement('div'); no.className = 'pr-none'; no.textContent = 'No card has those words, on it, on its page or in its chips.'; r.appendChild(no); }
+    hits.slice(0, 200).forEach(function(h){
+      var n = srcNode(h.id), on = (FLN[h.id] || []).indexOf(PICK) >= 0;
+      var row = document.createElement('div'); row.className = 'pr-row' + (on ? ' on' : ''); row.setAttribute('data-pr', 'one'); row.setAttribute('data-id', h.id);
+      var ck = document.createElement('span'); ck.className = 'pr-ck'; ck.textContent = on ? '✓' : ''; row.appendChild(ck);
+      var t = document.createElement('span'); t.className = 'pr-t'; var bb = document.createElement('b'); bb.textContent = txt(n.title || '') || 'Untitled'; t.appendChild(bb);
+      var sm = document.createElement('small'); sm.textContent = unitName(NODE_ACT[h.id]) + (h.why ? ' · ' + h.why : ''); t.appendChild(sm); row.appendChild(t);
+      r.appendChild(row); });
+    r.classList.add('show');
+    var br = b.getBoundingClientRect(); r.style.bottom = Math.round(window.innerHeight - br.top + 8) + 'px';
   }
   function paintPick(){
     if(!PICK) return;
@@ -1646,16 +2257,22 @@ MANUAL_JS = r"""<script id="alto-manual">
       el.classList.toggle('aed-pick-in', on); el.classList.toggle('aed-pick-out', !on); });
     var b = document.getElementById('aed-pick');
     if(!b){ b = document.createElement('div'); b.id = 'aed-pick';
-      b.innerHTML = '<span class="ap-t"></span><span class="ap-n"></span><button type="button">Done</button>';
-      b.querySelector('button').addEventListener('click', function(e){ e.stopPropagation(); endPick(); drawFilters(); if(window._altoFilterOpen) window._altoFilterOpen(true); });
+      b.innerHTML = '<span class="ap-t"></span><input class="ap-q" type="search" autocomplete="off" placeholder="Find cards — words or a chip" aria-label="Find cards"><button type="button" class="ap-chips">From chips ▾</button><span class="ap-n"></span><button type="button" class="ap-done">Done</button>';
+      b.querySelector('.ap-done').addEventListener('click', function(e){ e.stopPropagation(); endPick(); drawFilters(); if(window._altoFilterOpen) window._altoFilterOpen(true); });
+      b.querySelector('.ap-chips').addEventListener('click', function(e){ e.stopPropagation(); var r = document.getElementById('aed-pickres');
+        CHIPMENU = !(CHIPMENU && r && r.classList.contains('show')); b.querySelector('.ap-q').value = ''; paintFind(); });
+      var q = b.querySelector('.ap-q');
+      q.addEventListener('input', paintFind);
+      q.addEventListener('keydown', function(e){ e.stopPropagation(); if(e.key === 'Escape'){ e.preventDefault(); if(q.value){ q.value = ''; paintFind(); } else endPick(); } });
       document.body.appendChild(b); }
-    b.querySelector('.ap-t').textContent = 'Choosing the cards in “' + f.name + '” — click a card to put it in or take it out';
+    b.querySelector('.ap-t').textContent = 'Cards in “' + f.name + '”: click them, or find them';
     b.querySelector('.ap-n').textContent = n + (n === 1 ? ' card' : ' cards');
     b.classList.add('show');
+    paintFind();
   }
 
   /* a small box asking for a name; a menu of kinds of section */
-  function hideMenus(){ ['aed-name', 'aed-kinds', 'aed-chip'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
+  function hideMenus(){ ['aed-name', 'aed-kinds', 'aed-chip', 'aed-chpop', 'aed-glyph'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
   function placeNear(b, at){
     var r = at.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
     var top = r.bottom + 8; if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
@@ -1689,7 +2306,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       document.body.appendChild(b); }
     b._ok = ok; b.classList.add('show'); placeNear(b, at);
   }
-  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-kinds,#aed-chip,.aed-add,.aed-fadd,.aed-fx,.aed-chadd')) hideMenus(); }, true);
+  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-kinds,#aed-chip,#aed-chpop,#aed-glyph,.aed-add,.aed-nadd,.aed-fadd,.aed-fx,.aed-chadd')) hideMenus(); }, true);
   function addSection(ok, kind){
     var f = field(ok + '|order'); if(!f) return;
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
@@ -1755,6 +2372,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(f.kind === 'para') return startPara(el, k, f);
     var orig = f.get();
     cur = {el: el, k: k, kind: 'plain', orig: orig, html: el.innerHTML, ph: el.classList.contains('aed-ph')};
+    var cm = /^n\|([^|]+)\|(title|tag|desc)$/.exec(k), cc = cm && el.closest('#canvas .node-card');
+    if(cc && structOK()) cur.box = {id: cm[1], w: cc.offsetWidth, h: cc.offsetHeight};
     el.classList.remove('aed-ph');
     if(k.indexOf('n|') === 0 && /\|desc$/.test(k) && el.classList.contains('alto-lead')){ cur.num = el.querySelector('.alto-lead-num'); }
     el.textContent = orig;
@@ -1852,7 +2471,16 @@ MANUAL_JS = r"""<script id="alto-manual">
       return;
     }
     c.el.innerHTML = c.html;           // what the page shows is re-drawn from the data
-    change(c.k, v2);
+    if(change(c.k, v2) && c.box){
+      var g = growFor(c.box.id, c.box.w, c.box.h);
+      if(g) joinLast('sz|' + c.box.id, g);
+    }
+  }
+  // one more change, undone with the one before it
+  function joinLast(k, v){
+    var f = field(k); if(!f) return false; var a = f.get(); if(same(a, v) || !apply(k, v)) return false;
+    if(HP > 0 && HP === HIST.length) HIST[HP - 1].push({k: k, a: a, b: v}); else { HIST = HIST.slice(0, HP); HIST.push([{k: k, a: a, b: v}]); HP = HIST.length; }
+    syncHist(); return true;
   }
 
   // A page's text, cleaned to what Alto pages allow (the build cleans again).
@@ -2175,7 +2803,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   });
 
   /* ── clicks and drags while editing ───────────────────────────────────── */
-  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-tile,#aed-toast,#aed-pick,#aed-linkbar,#aed-chip,#aed-name,#aed-kinds,#ef-panel,#filter-toggle'); }
+  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-pill,#aed-toast,#aed-pick,#aed-pickres,#aed-linkbar,#aed-chip,#aed-chpop,#aed-glyph,#aed-name,#aed-kinds,#aed-ask,#ef-panel,#filter-toggle'); }
   // Move, add and remove: a page's sections, a tree's steps, an Overview's blocks.
   function structure(b){
     var x = b.getAttribute('data-x') || (b.classList.contains('aed-uc') ? 'addcu' : ''), w = b.closest('.aed-sc,.aed-tc,.aed-cc');
@@ -2183,11 +2811,15 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(x === 'addcu'){ addCard(null, +b.getAttribute('data-act')); return; }
     if(x === 'addunit'){ addUnit(); return; }
     if(x === 'renu'){ renameUnit(+b.getAttribute('data-act')); return; }
-    if(x === 'chipdel'){ var P2 = page(); if(P2) chipToggle(P2.id, b.getAttribute('data-f'), b.getAttribute('data-v'), false); return; }
-    if(x === 'chipadd'){ var P3 = page(); if(P3) chooseChip(b, P3.id, b.getAttribute('data-f')); return; }
+    if(x === 'delu'){ deleteUnit(+b.getAttribute('data-act')); return; }
+    if(x === 'chipdel'){ var n2 = b.getAttribute('data-nid') || (page() || {}).id; if(n2) chipToggle(n2, b.getAttribute('data-f'), b.getAttribute('data-v'), false); return; }
+    if(x === 'chipadd'){ var n3 = b.getAttribute('data-nid') || (page() || {}).id; if(n3){ var keep = document.getElementById('aed-chpop'); var open = keep && keep.classList.contains('show');
+      chooseChip(b, n3, b.getAttribute('data-f')); if(open) keep.classList.add('show'); } return; }
+    if(x === 'navadd'){ navAdd(b); return; }
+    if(x === 'navx'){ navRemove(b); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');
-      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid);
+      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'chipc') chipPop(cid, b);
       return;
     }
     if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }
@@ -2243,7 +2875,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips') || ((PICK || LINK) && t.closest('#canvas .node'))){
+    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -2263,7 +2895,10 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(pn){ e.stopPropagation(); e.preventDefault(); var pid = pn.id.replace(/^node-/, ''); if(srcNode(pid)){ toggleFlag(pid, PICK); paintPick(); } return; }
       if(t.closest('#canvas')){ e.stopPropagation(); e.preventDefault(); return; }
     }
-    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button,.aed-chips button');
+    // a card's chips on the timeline: clicking one opens the card's chips to change
+    var chipEl = structOK() && t.closest('#canvas .node-card .csym-btn,#canvas .node-card .esym-btn,#canvas .node-card .tsym-btn');
+    if(chipEl){ var cn = chipEl.closest('.node'); if(cn && srcNode(cn.id.slice(5))){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); chipPop(cn.id.slice(5), chipEl); return; } }
+    var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button,.aed-chips button,.aed-nadd,.aed-nx');
     if(sb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); structure(sb); return; }
     var ck = canvasKey(t) || unitKey(t);
     if(ck){ e.stopPropagation(); e.preventDefault(); startField(ck.el, ck.k); return; }
@@ -2312,7 +2947,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   window.addEventListener('pointerdown', function(e){
     if(!editing() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
-    var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button')) return;
+    var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-rz')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
     drag = {id:id, x0:e.clientX, y0:e.clientY, k:scale(nodeEl), on:false, els: subtree(id).map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean)};
   }, true);

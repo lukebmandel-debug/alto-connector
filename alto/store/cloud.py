@@ -231,10 +231,10 @@ class CloudStore(Store):
     # ── what the homepage lists, and drafts kept beside it ───────────────────
     def list_pages(self, uid) -> list[dict]:
         """The account's private pages the way its homepage lists them:
-        [{key, tid, title, project, heading}]. Reads pagemeta with a field mask,
+        [{key, tid, title, project, heading, binned}]. Reads pagemeta with a field mask,
         so the per-node search index (most of each record) is not downloaded."""
         out, token = [], ""
-        mask = "".join(f"&mask.fieldPaths={f}" for f in ("title", "tid", "project", "heading"))
+        mask = "".join(f"&mask.fieldPaths={f}" for f in ("title", "tid", "project", "heading", "binned"))
         while True:
             params = ("?pageSize=300" + mask
                       + (f"&pageToken={urllib.parse.quote(token)}" if token else ""))
@@ -247,7 +247,9 @@ class CloudStore(Store):
                     return (f.get(k) or {}).get("stringValue", "")
                 out.append({"key": d["name"].rsplit("/", 1)[-1], "tid": sv("tid"),
                             "title": sv("title"), "project": sv("project"),
-                            "heading": sv("heading")})
+                            "heading": sv("heading"),
+                            # in the homepage's Recently deleted since (epoch s), or 0
+                            "binned": int((f.get("binned") or {}).get("integerValue", 0) or 0)})
             token = js.get("nextPageToken") or ""
             if not token:
                 return out

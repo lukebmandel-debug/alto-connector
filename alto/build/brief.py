@@ -251,6 +251,8 @@ PLACE_WORLD_W = 1700
 PLACE_MAX_SHIFT = 2000
 PLACE_MAX_Y = 40000
 PLACE_WIDTHS = (120, 420)
+CARD_SIZE_W = (160, 520)
+CARD_SIZE_H = (40, 1400)
 
 
 @dataclass
@@ -360,6 +362,11 @@ class Brief:
     # first). Kept apart from the nodes on purpose: add_nodes replaces a node
     # whole, so a hint stored on one would vanish with an edit.
     placement: dict = field(default_factory=dict)
+    # A card's size, set by its owner in manual edit mode: {node id: {w, h}}
+    # in page pixels — its width, and the least height it takes (its words
+    # always fit: a card is never shorter than they need). Any timeline, on a
+    # computer; a phone keeps its own column of cards.
+    card_size: dict = field(default_factory=dict)
     # The "Filter · Lines" chips in the nav bar isolate one relation's lines.
     # A useful working tool for an author (or a law outline's "Overrules"), and
     # noise on a story where lines just follow characters — so it is a choice.
@@ -592,6 +599,7 @@ def validate_brief(b: Brief) -> list[str]:
         raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
                          "from the nodes' parents")
     _check_placement(b, warnings)
+    _check_card_size(b)
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -770,6 +778,19 @@ def validate_brief(b: Brief) -> list[str]:
         warnings.append("no 'spine' relation — the neutral main-thread line "
                         "style is unused")
     return _collapse(warnings)
+
+
+def _check_card_size(b: Brief) -> None:
+    cs = b.card_size
+    if not isinstance(cs, dict):
+        raise BriefError("card_size: must be an object {node id: {w, h}}")
+    for nid, v in cs.items():
+        if not isinstance(v, dict) or not v or set(v) - {"w", "h"}:
+            raise BriefError(f"card_size {nid}: must be {{w, h}} (either or both)")
+        for key, (lo, hi) in (("w", CARD_SIZE_W), ("h", CARD_SIZE_H)):
+            x = v.get(key)
+            if x is not None and (isinstance(x, bool) or not isinstance(x, (int, float)) or not lo <= x <= hi):
+                raise BriefError(f"card_size {nid}: {key} must be a number from {lo} to {hi}, not {x!r}")
 
 
 def _check_placement(b: Brief, warnings: list[str]) -> None:

@@ -825,10 +825,11 @@ rebuild. Say this once at the end of a build — "whenever you have new notes
 or want something changed, just bring it here" — and never send them to edit
 files, the site, or Firebase.
 
-**The ✎ Edit timeline tile — and starting without it.** The end of every
-timeline (after the last unit) and the foot of every page carry a tile split in
-two: "Edit in Claude" opens Claude with a prompt naming the timeline, its id
-and the address of its page; "Edit manually" turns on manual edit mode. A user can just as
+**The edit toggle (Edit timeline) — and starting without it.** On a computer
+every timeline carries a split pill beside its light/dark toggle: the building
+half ("Edit with Claude") opens Claude with a prompt naming the timeline, its
+id and the address of its page; the pencil half ("Edit manually") turns on
+manual edit mode. A phone has only the pencil, at the foot of each page. A user can just as
 well open Claude on their own and say which timeline they want to change, so
 the same steps serve both. `get_timeline(<id>)` — the id, the page address or
 the title all work. If this connector does not have it: it is probably in
@@ -838,7 +839,18 @@ another of the user's Alto accounts (`found_in_accounts` on the error, or
 account". If the prompt names a site (the address after "page:") that no
 account lists, `connect_account` it. Never tell the user it does not exist.
 Then ask what they want changed, or take the notes they bring, and go on as
-above. A share link someone else opens has no Edit tile.
+above. A share link someone else opens has no edit toggle.
+
+**Moving and deleting timelines on the homepage.** The ⋯ on a private
+timeline's card moves it to another project (or a new one) — its page, its
+listing and its draft all follow — or deletes it. Deleting never removes
+anything at once: the timeline goes to Recently deleted at the foot of the
+homepage, where Restore brings it back for 30 days; after that the homepage
+removes it for good, and its share link stops working the moment it is
+deleted. `list_projects` marks such a timeline `in_recently_deleted`: do not
+open, build or publish it unless the user asks, and to bring it back they
+press Restore. For a delete the user asks of you, `delete_timeline` is still
+the tool (two-step confirm).
 
 **Manual edit mode.** Signed in on their own web timeline, the owner can
 change words in place: card titles, tags and summaries, unit names, a page's
@@ -853,17 +865,28 @@ list, a quote (prov "quoted"), their notes ("notes"), a summary ("summary") or
 a decision tree; remove and reorder a tree's steps and an authored Overview's
 blocks; add cards (under a card on an outline — a unit's "+ Add a card" goes
 under its top card — or at the end of a unit on a linear timeline) and remove
-a card with nothing under it; make filters of their own (Brief.flags, with the
-cards they choose) and take any filter, or one chip of it, out of the panel
-(Brief.filters_off); add a unit at the end (with its first card) and rename
-any unit; put chips on a card or take them off, and make a new one (an
-element, or a value of an axis, with a page of its own); on an outline, drag
+any card — one with cards under it asks whether they go too or move up to its
+parent (a unit's top card hands its place to its first card); make filters of
+their own (Brief.flags, with the cards they choose — clicked, found by their
+words or chips, or every card carrying a chosen chip) and take any filter, or
+one chip of it, out of the panel (Brief.filters_off); add a unit at the end
+(with its first card), rename any unit, and delete one — its cards go to
+another unit, to a new unit, or with it (a timeline keeps at least two); put
+chips on a card or take them off (on its page, or ◆ on the card on the
+timeline), and make a new one (an element, or a value of an axis, with a page
+of its own and a glyph chosen from Alto's library of fifty — never one another
+chip of the timeline has); in the top bar, take a chip or a whole category of
+chips out of the timeline, or add a chip or a new category (an axis; at most
+two); resize any card by its corner (Brief.card_size: its width and the least
+height it takes — never smaller than its words; more words grow it in both
+directions, or taller only when it would meet another card); on an outline, drag
 a card (its progeny come with it; cards it lands on step aside and go back
 when it moves on — a `shift` placement hint), and move a card with
 everything under it under a different card, in its unit or another one
 (⇄ on the card — its parent changes; a unit's top card stays). Phones edit
-words only. Nothing changes until they turn the mode on; Done
-in the pill turns it off; undo and redo sit either side of the tile, and ⌘Z /
+words only. Nothing changes until they turn the mode on; while it is on, an
+editing bar at the foot of the screen takes the toggle's place — Done turns it
+off, and undo and redo are on it; ⌘Z /
 ⇧⌘Z work too (outside edit mode the same keys undo notes and highlights).
 Edits save as they are made and show on their other devices at once; share
 links get them only after you fold them in and republish. **`get_timeline`
@@ -874,7 +897,10 @@ edit, so the draft's version was kept — say which, and ask. `cards_added`
 are cards they made on the page: they hold only what the user wrote (often a
 title and nothing more) — never fill them in from the material unasked; offer
 to. `units_added` and `chips_added` hold only the name they typed; the same
-applies. `cards_moved` says which cards they put under which. `cards_removed` are cards they took out, lines and all; links to them
+applies. `cards_moved` says which cards they put under which (`under: null`: it took
+its removed parent's place at the top of the unit); `cards_moved_to_unit`,
+`units_deleted`, `chips_removed`, `categories_removed`, `categories_added` and
+`cards_resized` say the rest — keep a size the owner set (Brief.card_size). `cards_removed` are cards they took out, lines and all; links to them
 elsewhere become plain words at the build. `files_not_found` names a linked
 file Alto could not find in their Desktop, Documents or Downloads: that text
 waits on the page that made it — say which file, in one line. Publish

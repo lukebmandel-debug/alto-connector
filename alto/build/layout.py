@@ -406,6 +406,16 @@ def _band(k: int, bx: float, width: float = None):
     return [round(v + shift, 2) for v in xs], w, cw, stagger
 
 
+def sized_placement(brief) -> dict:
+    """brief.placement with each sized card's width (brief.card_size) as its
+    `w` hint, which is how the tree lays a card of its own width out."""
+    pl = {k: dict(v) for k, v in (brief.placement or {}).items()}
+    for nid, sz in (getattr(brief, "card_size", None) or {}).items():
+        if isinstance(sz, dict) and sz.get("w"):
+            pl.setdefault(nid, {})["w"] = sz["w"]
+    return pl
+
+
 def outline_plan(nodes, act_count: int, placement: dict = None,
                  lines: str = "fan", outcomes: str = "stack") -> dict:
     """The tree's layout as a program, from the nodes' structure and the

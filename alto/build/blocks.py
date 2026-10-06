@@ -39,7 +39,7 @@ HOW_CONNECT_CSS = (
     "font-variant-numeric:tabular-nums;}")
 from .sanitize import css_color, esc, one_line
 from . import detail_extras as dx
-from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_plan, plan_js
+from .layout import MOBILE_STEP, MOBILE_OX, MOBILE_OY, MOBILE_WORLD_W, TREE, outline_plan, plan_js, sized_placement
 
 # Generic section-builder code (same shape as the template's empty defaults —
 # kept in one place because emit() replaces the whole region span).
@@ -986,7 +986,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     tid = b.timeline_id
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
-    tree_plan = outline_plan(nodes, len(b.acts), b.placement, b.tree_lines, b.outcomes) if tree else None
+    tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes) if tree else None
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     _warn0 = warnings if warnings is not None else []
@@ -1646,6 +1646,15 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"html:not(.mobile) #node-{i} .esym-btn,"
                 f"html:not(.mobile) #node-{i} .tsym-btn" for i in _fl)
                 + "{max-width:100%;}")
+    # A card sized by its owner (brief.card_size): its width, and the least
+    # height it takes. After the tree's widths above, so it wins.
+    _ids = {n.id for n in nodes}
+    for _i, _sz in sorted((b.card_size or {}).items()):
+        if _i in _ids and isinstance(_sz, dict):
+            _d = ((f"width:{_sz['w']:g}px;" if _sz.get("w") else "")
+                  + (f"min-height:{_sz['h']:g}px;" if _sz.get("h") else ""))
+            if _d:
+                nav_char_css += f"\n  html:not(.mobile) #node-{_i} .node-card{{{_d}}}"
     # A named chip (hide_nav axes, above) has to stay inside its card, so cap it
     # at the footer's own width and ellipsise past that. It takes as much of the
     # row as its name needs: a name that fits shows whole and needs no hover

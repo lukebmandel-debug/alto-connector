@@ -675,3 +675,173 @@ def test_the_page_carries_unit_ids_and_chip_kinds():
     assert edk["uids"] == [""] * 5
     assert [k["f"] for k in edk["chipk"]] == ["chars", "envs"] and edk["chipk"][0]["fk"] == "entity"
     assert edk["glyph"]
+
+
+# ── 1.9.52: any card removed, units deleted, chips and categories from the
+#    top bar, the glyph library, card sizes ─────────────────────────────────
+
+def _ok(st):
+    r = fold(st, "u", "t1")
+    assert r and not r["conflicts"] and not r["gone"] and not r.get("error"), r
+    return r
+
+
+def test_a_top_card_removed_hands_its_place_to_its_first_card():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "rp|definiteness": {"b": "formation", "v": "", "t": 1},
+        "rp|preliminary-negotiations": {"b": "formation", "v": "definiteness", "t": 2},
+        "rp|offer": {"b": "formation", "v": "definiteness", "t": 2},
+        "rp|acceptance": {"b": "formation", "v": "definiteness", "t": 2},
+        "nd|formation": {"b": 0, "v": 1, "t": 3}}}
+    r = _ok(st)
+    assert "formation" in r["cards_removed"]
+    assert not any(n["id"] == "formation" for n in st.nodes)
+    assert "parent" not in _node(st, "definiteness") and _node(st, "offer")["parent"] == "definiteness"
+    assert _node(st, "revocation")["parent"] == "offer"          # their own cards stay with them
+    _build(st)
+
+
+def test_a_card_becomes_a_top_card_only_in_place_of_one_taken_out():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"rp|definiteness": {"b": "formation", "v": "", "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["rp|definiteness"]
+    assert _node(st, "definiteness")["parent"] == "formation"
+
+
+def test_a_card_and_all_under_it_removed_together():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {k: {"b": 0, "v": 1, "t": 1} for k in
+                                ("nd|offer", "nd|revocation", "nd|option-contracts", "nd|unilateral-offers")}}
+    r = _ok(st)
+    assert sorted(r["cards_removed"]) == ["offer", "option-contracts", "revocation", "unilateral-offers"]
+    _build(st)
+
+
+def test_a_unit_deleted_with_its_cards_moved_under_another_units_top_card():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "rp|consideration": {"b": "", "v": "formation", "t": 1},
+        "ud|1": {"b": "UNIT TWO — CONSIDERATION", "v": 1, "t": 2}}}
+    r = _ok(st)
+    assert r["units_deleted"] == ["UNIT TWO — CONSIDERATION"]
+    acts = [a["label"] for a in st.doc["brief"]["acts"]]
+    assert acts == ["UNIT ONE — FORMATION", "UNIT THREE — DEFENSES", "UNIT FOUR — TERMS & PERFORMANCE", "UNIT FIVE — REMEDIES"]
+    assert _node(st, "consideration")["parent"] == "formation"
+    assert _node(st, "promissory-estoppel")["act"] == 0 and _node(st, "defenses")["act"] == 1 and _node(st, "remedies")["act"] == 3
+    _build(st)
+
+
+def test_a_unit_deleted_with_its_cards_in_a_new_unit():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "nu|unit-aa11bb": {"b": None, "v": {"n": 9, "c": "#2fb380", "l": "New unit"}, "t": 1},
+        "nl|unit-aa11bb": {"b": "New unit", "v": "UNIT SIX — DEFENSES, AGAIN", "t": 3},
+        "ua|defenses": {"b": [2, "UNIT THREE — DEFENSES"], "v": "unit-aa11bb", "t": 2},
+        "ud|2": {"b": "UNIT THREE — DEFENSES", "v": 1, "t": 2}}}
+    r = _ok(st)
+    acts = [a["label"] for a in st.doc["brief"]["acts"]]
+    assert len(acts) == 5 and acts[-1] == "UNIT SIX — DEFENSES, AGAIN" and "UNIT THREE — DEFENSES" not in acts
+    assert _node(st, "defenses")["act"] == 4 and _node(st, "within-the-statute")["act"] == 4
+    assert _node(st, "performance")["act"] == 2
+    assert r["cards_moved_to_unit"][0]["id"] == "defenses"
+    _build(st)
+
+
+def test_a_unit_delete_is_refused_when_the_unit_changed_or_still_holds_cards():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"ud|1": {"b": "UNIT TWO — SOMETHING ELSE", "v": 1, "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["ud|1"]
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"ud|1": {"b": "UNIT TWO — CONSIDERATION", "v": 1, "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["ud|1"]          # its cards are still in it
+    assert len(st.doc["brief"]["acts"]) == 5
+    # a move into a unit whose number now names another one is refused
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {"ua|defenses": {"b": [2, "UNIT TWO — CONSIDERATION"], "v": 4, "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["ua|defenses"]
+
+
+def test_a_chip_and_a_category_taken_out_of_the_timeline():
+    st = Store(_d())
+    on = [n["id"] for n in st.nodes if "remedies" in (n.get("entity_ids") or [])]
+    st.edits = {"v": 1, "ops": {
+        "xe|c|remedies": {"b": 0, "v": 1, "t": 1},
+        "xa|axis1": {"b": "Cases", "v": 1, "t": 2}}}
+    r = _ok(st)
+    assert on and r["chips_removed"] == ["Remedies"] and r["categories_removed"] == ["Cases"]
+    assert not any(e["id"] == "remedies" for e in st.doc["brief"]["entities"])
+    assert st.doc["brief"]["axes"] == []
+    assert all("remedies" not in (n.get("entity_ids") or []) and not n.get("axis1_values") for n in st.nodes)
+    _build(st)
+
+
+def test_a_category_made_on_the_page_with_a_chip_from_the_glyph_library():
+    from alto.build.glyphs import LIBRARY
+    star = LIBRARY[4]["s"]
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "na|axis2": {"b": None, "v": {"l": "Themes", "one": "Theme"}, "t": 1},
+        "ne|theme|fairness": {"b": None, "v": {"name": "Fairness", "color": "#22b8cf", "svg": star}, "t": 2},
+        "ne|c|good-faith": {"b": None, "v": {"name": "Good Faith", "svg": "<svg onload=alert(1)></svg>"}, "t": 2},
+        "ch|offer|themes": {"b": [], "v": ["fairness"], "t": 3}}}
+    r = _ok(st)
+    ax = st.doc["brief"]["axes"]
+    assert r["categories_added"] == ["Themes"] and ax[1]["label"] == "Themes" and ax[1]["singular"] == "Theme"
+    assert ax[1]["values"][0]["symbol_svg"] == star
+    ents = {e["id"]: e for e in st.doc["brief"]["entities"]}
+    assert not ents["good-faith"].get("symbol_svg")             # only the library's glyphs, never page markup
+    assert _node(st, "offer")["axis2_values"] == ["fairness"]
+    html, _ = _build(st)
+    assert "Fairness" in html and "onload" not in html
+
+
+def test_the_glyph_library_is_fifty_distinct_glyphs():
+    from alto.build.glyphs import LIBRARY, inner, from_library
+    assert len(LIBRARY) == 50
+    assert len({inner(g["s"]) for g in LIBRARY}) == 50 and len({g["n"] for g in LIBRARY}) == 50
+    assert all(g["s"].startswith('<svg viewBox="0 0 20 20"') and "currentColor" in g["s"] for g in LIBRARY)
+    assert from_library(LIBRARY[0]["s"]) and not from_library("<svg></svg>") and not from_library(None)
+
+
+def test_a_card_size_set_on_the_page_folds_and_builds():
+    st = Store(_d())
+    st.edits = {"v": 1, "ops": {
+        "sz|offer": {"b": None, "v": {"w": 400, "h": 300}, "t": 1},
+        "sz|acceptance": {"b": None, "v": {"w": 9999, "h": -5}, "t": 1}}}
+    r = _ok(st)
+    cs = st.doc["brief"]["card_size"]
+    assert cs["offer"] == {"w": 400, "h": 300} and cs["acceptance"] == {"w": 520, "h": 40}
+    assert sorted(c["id"] for c in r["cards_resized"]) == ["acceptance", "offer"]
+    html, _ = _build(st)
+    assert "html:not(.mobile) #node-offer .node-card{width:400px;min-height:300px;}" in html
+    m = re.search(r"window\._ALTO_EDK=(\{.*?\});</script>", html)
+    assert json.loads(m.group(1).replace("<\\/", "</"))["sz"]["offer"] == {"w": 400, "h": 300}
+    # a card taken out takes its size with it
+    st.edits = {"v": 1, "ops": {"nd|offer": {"b": 0, "v": 1, "t": 5}, "nd|revocation": {"b": 0, "v": 1, "t": 5},
+                                "nd|option-contracts": {"b": 0, "v": 1, "t": 5}, "nd|unilateral-offers": {"b": 0, "v": 1, "t": 5}}}
+    _ok(st)
+    assert "offer" not in st.doc["brief"]["card_size"]
+
+
+def test_card_size_is_checked():
+    from alto.build.brief import BriefError, validate_brief
+    for bad in ({"w": 100}, {"w": 300, "depth": 2}, {"h": True}):
+        d = _d()
+        d["brief"]["card_size"] = {"offer": bad}
+        with pytest.raises(BriefError, match="card_size offer"):
+            validate_brief(load_brief(d)[0])
+    d = _d()
+    d["brief"]["card_size"] = {"offer": {"w": 300}}
+    validate_brief(load_brief(d)[0])
+
+
+def test_the_page_carries_the_glyphs_axes_and_sizes():
+    html, _ = build_timeline(*load_brief(_d()))
+    m = re.search(r"window\._ALTO_EDK=(\{.*?\});</script>", html)
+    edk = json.loads(m.group(1).replace("<\\/", "</"))
+    assert len(edk["glyphs"]) == 50 and edk["nax"] == 1 and edk["sz"] == {}
+    from alto.build.manual_edit import MANUAL_JS
+    for need in ("function withGlyph(", "function deleteUnit(", "function navSync(", "function chipPop(",
+                 "function startResize(", "function growFor(", "function chipMenu("):
+        assert need in MANUAL_JS, need

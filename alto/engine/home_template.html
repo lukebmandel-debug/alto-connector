@@ -674,6 +674,41 @@
     transition:transform .2s, color .2s;
   }
   .tile-download:hover{ transform:scale(1.15); color:var(--text); }
+  /* ⋯ on a private timeline: move it to another project, or delete it */
+  .tile-more{
+    position:absolute; top:16px; right:12px; width:28px; height:22px; border-radius:11px;
+    display:flex; align-items:center; justify-content:center; padding:0;
+    background:var(--chip-glass-bg); border:1px solid var(--btn-border);
+    color:var(--muted); cursor:pointer; z-index:2; font-size:15px; line-height:1; letter-spacing:1px;
+    transition:transform .2s, color .2s;
+  }
+  .tile-more:hover{ transform:scale(1.12); color:var(--text); }
+  .course-tile.has-more .tile-title{ padding-right:26px; }
+  .share-menu .sm-label{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:2px 0 8px; }
+  .share-menu .sm-projects{ max-height:220px; overflow:auto; margin:0 0 6px; }
+  .share-menu .sm-projects button{ text-align:left; padding:0 14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .share-menu .sm-row{ display:flex; gap:8px; }
+  .share-menu .sm-row .sm-link{ flex:1; margin:0 0 8px; font-size:14px; }
+  .share-menu .sm-row button{ width:auto; padding:0 16px; flex:none; }
+  .share-menu .sm-confirm{ background:#c0392b; border-color:#c0392b; color:#fff; font-weight:600; }
+  .share-menu .sm-confirm:hover{ background:#a93226; }
+  .share-menu .sm-confirm[disabled]{ opacity:.45; }
+  .share-menu .sm-warn{ font-size:12.5px; line-height:1.6; margin:0 0 14px; }
+  .share-menu .sm-warn b{ font-weight:600; }
+  /* Recently deleted: under your own projects, folded until opened */
+  .bin-group .bin-toggle{ background:none; border:0; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; padding:0; letter-spacing:.04em; }
+  .bin-group .bin-toggle:hover{ color:var(--text); }
+  .bin-list{ display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .bin-list[hidden]{ display:none; }
+  .bin-row{ display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:14px;
+    background:var(--card-glass-bg); border:1px solid var(--btn-border); }
+  .bin-row .br-t{ flex:1; min-width:0; }
+  .bin-row .br-t b{ display:block; font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bin-row .br-t small{ color:var(--muted); font-size:11.5px; }
+  .bin-row button{ height:32px; padding:0 14px; border-radius:10px; border:1px solid var(--btn-border);
+    background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:12.5px; cursor:pointer; }
+  .bin-row button:hover{ background:var(--btn-hover-bg); }
+  .bin-row button[disabled]{ opacity:.5; cursor:default; }
   /* Share menu for a private timeline. */
   .share-scrim{
     position:fixed; inset:0; z-index:450; display:flex; align-items:center;
@@ -750,7 +785,7 @@
     .project-slab{ border:1px solid #bbb !important; page-break-inside:avoid; }
     .course-tile{ border:1px solid #ccc !important; }
     .course-tile .unit-strip{ display:none !important; }   /* solid color bars = ink */
-    .tile-share, .tile-reports, .slab-share,
+    .tile-share, .tile-reports, .slab-share, .tile-more, .bin-group,
     .tile-download, .slab-download,
     .course-tile.new-tile, .project-slab.new-project-slab{ display:none !important; }
     #projects-wrap *{ color:#000 !important; text-shadow:none !important; }
@@ -1378,6 +1413,153 @@ function altoShareMenu(pg, btn){
   });
 }
 
+// ── Move or delete a private timeline (the ⋯ on its card) ─────────────────
+// Moving rewrites the project the page, its listing record and its draft name
+// (alto-cloud.js moveTimeline). Deleting never removes anything at once: the
+// timeline goes to Recently deleted, where Restore brings it back for 30 days,
+// and only then is it removed for good. The confirm button is red, says what
+// it does, sits away from where "Delete timeline…" was, and wakes up a moment
+// after it appears — a double-click that opened it cannot also press it.
+function altoTileMenu(pg){
+  const c = window.AltoCloud;
+  if(!c || !c.enabled || !c.user) return;
+  const sc = document.createElement('div');
+  sc.className = 'share-scrim';
+  sc.innerHTML = '<div class="share-menu" role="dialog" aria-modal="true">' +
+    '<div class="sm-title"></div><div class="sm-body"></div><p class="sm-status"></p></div>';
+  document.body.appendChild(sc);
+  const box = sc.querySelector('.share-menu'), body = sc.querySelector('.sm-body'),
+        status = sc.querySelector('.sm-status');
+  const name = pg.heading || pg.title || 'Untitled timeline';
+  sc.querySelector('.sm-title').textContent = name;
+  const close = () => { sc.remove(); document.removeEventListener('keydown', onKey, true); };
+  function onKey(e){ if(e.key === 'Escape'){ e.preventDefault(); close(); } }
+  document.addEventListener('keydown', onKey, true);
+  sc.addEventListener('click', e => { if(e.target === sc) close(); });
+  function btn(label, cls, fn){
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    if(cls) b.className = cls;
+    b.addEventListener('click', e => { e.stopPropagation(); fn(b); });
+    return b;
+  }
+  function note(t){ const p = document.createElement('p'); p.className = 'sm-note'; p.textContent = t; return p; }
+  function lock(on){ Array.prototype.forEach.call(box.querySelectorAll('button,input'), b => { b.disabled = on; }); }
+  function failed(e){ status.textContent = 'Did not work: ' + ((e && e.message) || e); lock(false); }
+
+  function home(){
+    body.innerHTML = ''; status.textContent = '';
+    const where = pg.project || pg.title || '';
+    if(where) body.appendChild(note('In ' + where + '.'));
+    body.appendChild(btn('Move to another project…', '', moveView));
+    body.appendChild(btn('Share…', '', () => { close(); altoShareMenu(pg); }));
+    body.appendChild(btn('Delete timeline…', 'sm-danger', deleteView));
+    body.appendChild(btn('Cancel', 'sm-quiet', close));
+  }
+  function moveView(){
+    body.innerHTML = ''; status.textContent = '';
+    const here = String(pg.project || pg.title || '').trim().toLowerCase();
+    const names = [];
+    (lastPrivatePages || []).forEach(p => {
+      if(p.binned) return;
+      const n = String(p.project || p.title || '').trim();
+      if(n && n.toLowerCase() !== here && names.every(x => x.toLowerCase() !== n.toLowerCase())) names.push(n);
+    });
+    names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    if(names.length){
+      const l = document.createElement('div'); l.className = 'sm-label'; l.textContent = 'Move it to'; body.appendChild(l);
+      const list = document.createElement('div'); list.className = 'sm-projects';
+      names.forEach(n => list.appendChild(btn(n, '', () => go(n))));
+      body.appendChild(list);
+    }
+    const l2 = document.createElement('div'); l2.className = 'sm-label'; l2.textContent = names.length ? 'Or a new project' : 'A new project'; body.appendChild(l2);
+    const row = document.createElement('div'); row.className = 'sm-row';
+    const inp = document.createElement('input'); inp.className = 'sm-link'; inp.type = 'text'; inp.maxLength = 120;
+    inp.placeholder = 'Project name'; inp.setAttribute('aria-label', 'New project name');
+    const mk = btn('Move', '', () => { const v = inp.value.replace(/\s+/g, ' ').trim(); if(v) go(v); else inp.focus(); });
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); mk.click(); } });
+    row.appendChild(inp); row.appendChild(mk); body.appendChild(row);
+    body.appendChild(btn('Back', 'sm-quiet', home));
+    if(!names.length) setTimeout(() => inp.focus(), 0);
+  }
+  async function go(project){
+    lock(true); status.textContent = 'Moving…';
+    try{
+      const r = await c.moveTimeline(pg.key, pg.tid || '', project);
+      pg.project = r.project; pg.title = r.project;
+      close(); showToast('Moved to ' + r.project); renderPrivate();
+    }catch(e){ failed(e); }
+  }
+  function deleteView(){
+    body.innerHTML = ''; status.textContent = '';
+    const w = document.createElement('p'); w.className = 'sm-warn';
+    w.innerHTML = '<b>Delete this timeline?</b> It moves to <b>Recently deleted</b> at the foot of your homepage. ' +
+      'You can restore it from there for ' + (c.binDays || 30) + ' days; after that it is removed for good.' +
+      (pg.shareKey ? ' Its share link stops working now.' : '');
+    body.appendChild(w);
+    body.appendChild(btn('Cancel', '', close));
+    const ok = btn('Confirm deletion', 'sm-confirm', async () => {
+      lock(true); status.textContent = 'Deleting…';
+      try{
+        await c.binTimeline(pg.key);
+        pg.binned = Math.floor(Date.now() / 1000); pg.shareKey = '';
+        close(); showToast('Moved to Recently deleted'); renderPrivate();
+      }catch(e){ failed(e); }
+    });
+    ok.disabled = true; body.appendChild(ok);
+    setTimeout(() => { if(document.body.contains(ok) && !status.textContent) ok.disabled = false; }, 900);
+    body.appendChild(btn('Back', 'sm-quiet', home));
+    body.querySelector('button').focus();
+  }
+  home();
+}
+
+// What is in Recently deleted: each with the days it has left and Restore.
+let binSlab = null, binOpen = false;
+function drawBin(pages){
+  if(binSlab){ binSlab.remove(); binSlab = null; }
+  const c = window.AltoCloud;
+  const items = (pages || []).filter(p => p.binned).sort((a, b) => b.binned - a.binned);
+  if(!items.length || !c || !c.user) return;
+  const days = c.binDays || 30;
+  const g = slabGroup('bin-group', '');
+  const lab = g.firstChild; lab.innerHTML = '';
+  const t = document.createElement('button'); t.type = 'button'; t.className = 'bin-toggle';
+  t.setAttribute('aria-expanded', binOpen ? 'true' : 'false');
+  t.textContent = (binOpen ? '▾ ' : '▸ ') + 'Recently deleted (' + items.length + ')';
+  lab.appendChild(t);
+  const list = document.createElement('div'); list.className = 'bin-list'; list.hidden = !binOpen;
+  t.addEventListener('click', () => { binOpen = !binOpen; drawBin(lastPrivatePages); });
+  items.forEach(pg => {
+    const r = document.createElement('div'); r.className = 'bin-row';
+    const tx = document.createElement('div'); tx.className = 'br-t';
+    const b = document.createElement('b'); b.textContent = pg.heading || pg.title || 'Untitled timeline';
+    const left = Math.max(0, Math.ceil(days - (Date.now() / 1000 - pg.binned) / 86400));
+    const sm = document.createElement('small');
+    sm.textContent = (pg.project ? pg.project + ' · ' : '') + (left <= 1 ? 'removed for good within a day' : 'removed for good in ' + left + ' days');
+    tx.appendChild(b); tx.appendChild(sm); r.appendChild(tx);
+    const rb = document.createElement('button'); rb.type = 'button'; rb.textContent = 'Restore';
+    rb.addEventListener('click', () => {
+      rb.disabled = true;
+      c.restoreTimeline(pg.key).then(() => { pg.binned = 0; showToast('Restored'); renderPrivate(); })
+        .catch(() => { rb.disabled = false; showToast('Could not restore'); });
+    });
+    r.appendChild(rb); list.appendChild(r);
+  });
+  g.appendChild(list);
+  wrap.insertBefore(g, nps);
+  binSlab = g;
+}
+// Once per visit: what has been in Recently deleted longer than its days.
+let binPurged = false;
+function purgeBinOnce(pages){
+  const c = window.AltoCloud;
+  if(binPurged || !c || !c.user || !c.purgeExpired) return;
+  const cut = Date.now() / 1000 - (c.binDays || 30) * 86400;
+  if(!(pages || []).some(p => p.binned && p.binned <= cut)) return;
+  binPurged = true;
+  c.purgeExpired().then(n => { if(n) renderPrivate(); }).catch(() => {});
+}
+
 // ── Shared with you ────────────────────────────────────────────────────────
 // What someone else sent you and you chose to keep. A REFERENCE, never a copy:
 // the timeline stays in its owner's shares/{key}, so when they stop sharing it
@@ -1609,6 +1791,7 @@ function drawShared(items){
 let privateSlab = null, privateDrawn = '';
 function clearPrivate(){
   if(privateSlab){ privateSlab.remove(); privateSlab = null; }
+  if(binSlab){ binSlab.remove(); binSlab = null; }
   privateDrawn = '';
   _searchExtra('private', []);
 }
@@ -1620,14 +1803,17 @@ function renderPrivate(){
   c.listPages().then(pages => {
     _listCacheSet('pages', pages || []);
     drawPrivate(pages || []);
+    purgeBinOnce(pages || []);
   }).catch(() => { if(!early) clearPrivate(); });
 }
-function drawPrivate(pages){
-  lastPrivatePages = pages;
-  const sig = JSON.stringify(pages) + '|' + homeSort();
+function drawPrivate(all){
+  lastPrivatePages = all;
+  const sig = JSON.stringify(all) + '|' + homeSort();
   if(privateSlab && sig === privateDrawn) return;
+  const pages = (all || []).filter(p => !p.binned);
   {
     clearPrivate();
+    drawBin(all);
     if(!pages || !pages.length) return;
     const group = slabGroup('private-group', 'Private');
     const found = [];
@@ -1681,6 +1867,17 @@ function drawPrivate(pages){
         altoShareMenu(pg, shb);
       });
       el.appendChild(shb);
+
+      const mob = document.createElement('button');
+      mob.className = 'tile-more';
+      mob.title = 'Move or delete';
+      mob.setAttribute('aria-label', heading + ' — move or delete');
+      mob.textContent = '\u22EF';
+      mob.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation();
+        altoTileMenu(pg);
+      });
+      el.appendChild(mob); el.classList.add('has-more');
 
       if(DL_OK){
         const dlb = document.createElement('button');

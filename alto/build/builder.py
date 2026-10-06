@@ -11,7 +11,7 @@ from .blocks import timeline_blocks, connections_block
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
-from .layout import assign_columns, resolve, mobile_grid, \
+from .layout import assign_columns, resolve, mobile_grid, sized_placement, \
     outline_order_and_columns, outline_spokes, outline_tree, outline_plan, \
     placement_check, outline_has_categories, line_crossings, TREE
 from .brief import COL_SETS
@@ -108,9 +108,10 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
                                                   len(brief.acts), flow_parent)
     report["layout"] = "flow"
     if brief.mode == "outline" and brief.layout != "flow":
-        plan = outline_plan(nodes, len(brief.acts), brief.placement,
+        plan = outline_plan(nodes, len(brief.acts), sized_placement(brief),
                             brief.tree_lines, brief.outcomes)
-        th = {n.id: card_height(n.desc, n.title, plan["w"].get(n.id, TREE["CARD_W"]))
+        th = {n.id: max(card_height(n.desc, n.title, plan["w"].get(n.id, TREE["CARD_W"])),
+                        (brief.card_size.get(n.id) or {}).get("h") or 0)
               for n in nodes}
         ty, tx, tworld = outline_tree(nodes, len(brief.acts), th, plan=plan)
         edges = [(c[0], c[1]) for c in outline_spokes(nodes, connections or [])

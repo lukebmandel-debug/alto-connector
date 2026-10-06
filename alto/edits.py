@@ -310,6 +310,16 @@ def _target(key, brief, by_id, conns):
         return None, None, "newchip"
     if kind == "rp" and len(p) == 2:
         return (by_id[p[1]], "parent", "reparent") if p[1] in by_id else None
+    if kind == "ua" and len(p) == 2:
+        return (by_id[p[1]], "act", "unitmove") if p[1] in by_id else None
+    if kind == "ud" and len(p) == 2 and p[1].isdigit():
+        return None, None, "unitdel"
+    if kind in ("na", "xa") and len(p) == 2 and p[1] in ("axis1", "axis2"):
+        return None, None, "newaxis" if kind == "na" else "axisdel"
+    if kind == "sz" and len(p) == 2:
+        return (None, None, "cardsize") if p[1] in by_id or NEW_CARD.match(p[1]) else None
+    if kind == "xe" and len(p) == 3 and p[1] in ("c", "env", "theme"):
+        return None, None, "chipdel"
     if kind == "ch" and len(p) == 3 and p[2] in CHIP_ATTR:
         if p[1] in by_id:
             return by_id[p[1]], CHIP_ATTR[p[2]], "list"
@@ -474,6 +484,7 @@ def fold(store, uid, tid) -> "dict | None":
     written, already, conflicts, missing, no_file = [], [], [], [], []
     touched = {"nodes": set(), "brief": False, "conns": False}
     created, removed, units_made, moved, chips_made = [], [], [], [], []
+    units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
 
     def touch(key):
         p = key.split("|")
@@ -519,6 +530,26 @@ def fold(store, uid, tid) -> "dict | None":
             touched["brief"] = True
         return True
 
+    # 0. a category of chips made on the page (an axis, empty until chips join it)
+    for k in sorted([k for k in live if k.startswith("na|")]):
+        j = 0 if k.endswith("axis1") else 1
+        v = live[k].get("v")
+        ax = brief.setdefault("axes", [])
+        if not v:
+            already.append(k)
+            continue
+        if len(ax) > j and plain_text(ax[j].get("label") or "") == plain_text(v.get("l") or ""):
+            already.append(k)
+            continue
+        if len(ax) != j:
+            conflicts.append(k)
+            continue
+        label = plain_text(v.get("l") or "") or "Chips"
+        ax.append({"label": label, "singular": plain_text(v.get("one") or "") or label, "values": []})
+        axes_made.append(label)
+        touched["brief"] = True
+        written.append(k)
+
     # 0a. chips made on the page: an entity, or a value of an axis
     for k in by_time([k for k in live if k.startswith("ne|")]):
         _, rk, cid = k.split("|")
@@ -547,6 +578,9 @@ def fold(store, uid, tid) -> "dict | None":
         e = {"id": cid, "name": plain_text(v.get("name") or "") or cid}
         if re.fullmatch(r"#[0-9a-fA-F]{6}", v.get("color") or ""):
             e["color"] = v["color"]
+        from .build.glyphs import from_library
+        if from_library(v.get("svg")):           # one of the library's, never page markup
+            e["symbol_svg"] = v["svg"]
         holder.append(e)
         touched["brief"] = True
         written.append(k)
@@ -634,6 +668,8 @@ def fold(store, uid, tid) -> "dict | None":
 
     # 0c. cards moved under another card: the card and everything under it
     #     join the new parent's unit, after its last card
+    def _on(key):
+        return bool((live.get(key) or {}).get("v"))
     for k in by_time([k for k in live if k.startswith("rp|")]):
         cid, v, b = k.split("|")[1], live[k].get("v"), live[k].get("b")
         n = by_id.get(cid)
@@ -643,8 +679,30 @@ def fold(store, uid, tid) -> "dict | None":
         if (n.get("parent") or "") == (v or ""):
             already.append(k)
             continue
-        # a unit's top card stays where it is (the page offers no move for it)
-        if (n.get("parent") or "") != (b or "") or not v or not n.get("parent"):
+        if (n.get("parent") or "") != (b or ""):
+            conflicts.append(k)
+            continue
+        going = _on(f"ud|{n['act']}")
+        if not v:
+            # the top of its unit, in place of its parent — only when that
+            # parent was the top card and is being taken out
+            par = by_id.get(n.get("parent") or "")
+            if not par or par.get("parent") or not _on(f"nd|{par['id']}"):
+                conflicts.append(k)
+                continue
+            n.pop("parent", None)
+            pl = brief.get("placement") or {}
+            if cid in pl:
+                h = {kk: vv for kk, vv in pl[cid].items()
+                     if kk not in ("shift", "x", "dx", "y", "dy", "tier", "float", "order")}
+                brief["placement"] = {**pl, cid: h}
+                touched["brief"] = True
+            touched["nodes"].add(cid)
+            written.append(k)
+            moved.append({"id": cid, "under": None})
+            continue
+        # a unit's top card moves only out of a unit being deleted
+        if not n.get("parent") and not going:
             conflicts.append(k)
             continue
         kid_of: dict = {}
@@ -656,7 +714,7 @@ def fold(store, uid, tid) -> "dict | None":
             c = q.pop(0)
             sub.append(c)
             q += kid_of.get(c, [])
-        if v in sub or not any(x["act"] == n["act"] and x["id"] not in sub for x in nodes):
+        if v in sub or (not going and not any(x["act"] == n["act"] and x["id"] not in sub for x in nodes)):
             conflicts.append(k)
             continue
         n["parent"] = v
@@ -673,6 +731,58 @@ def fold(store, uid, tid) -> "dict | None":
         touched["brief"] = True
         written.append(k)
         moved.append({"id": cid, "under": v})
+
+    # 0d. a unit's top card (and all under it) or a timeline's card, moved
+    #     into another unit — a unit being deleted, its cards kept
+    for k in by_time([k for k in live if k.startswith("ua|")]):
+        cid, v, b = k.split("|")[1], live[k].get("v"), live[k].get("b")
+        n = by_id.get(cid)
+        if n is None:
+            missing.append(k)
+            continue
+        acts = brief.get("acts") or []
+        t = v if isinstance(v, int) and not isinstance(v, bool) else (
+            units.get(v, next((i for i, a in enumerate(acts) if a.get("id") == v), None))
+            if isinstance(v, str) else None)
+        if not isinstance(t, int) or not 0 <= t < len(acts):
+            conflicts.append(k)
+            continue
+        if n["act"] == t:
+            already.append(k)
+            continue
+        # made against the card's unit as the page had it: its number and name
+        if isinstance(b, list) and len(b) == 2:
+            at, nm = b
+            if (n["act"] != at or at >= len(acts)
+                    or _html.unescape(plain_text(acts[at].get("label") or "")).strip()
+                    != _html.unescape(plain_text(str(nm or ""))).strip()):
+                conflicts.append(k)
+                continue
+        elif isinstance(b, int) and n["act"] != b:
+            conflicts.append(k)
+            continue
+        if n.get("parent"):
+            conflicts.append(k)
+            continue
+        kid_of = {}
+        for x in nodes:
+            if x.get("parent"):
+                kid_of.setdefault(x["parent"], []).append(x["id"])
+        sub, q = [], [cid]
+        while q:
+            c = q.pop(0)
+            sub.append(c)
+            q += kid_of.get(c, [])
+        for c in sub:
+            by_id[c]["act"] = t
+            touched["nodes"].add(c)
+        pl = brief.get("placement") or {}
+        if cid in pl:
+            brief["placement"] = {**pl, cid: {kk: vv for kk, vv in pl[cid].items()
+                                              if kk not in ("shift", "x", "dx", "y", "dy", "tier", "float", "order")}}
+            touched["brief"] = True
+        written.append(k)
+        to_unit.append({"id": cid, "unit": t})
 
     kinds = {k: (_target(k, brief, by_id, conns) or (None, None, None))[2] for k in live}
 
@@ -702,8 +812,9 @@ def fold(store, uid, tid) -> "dict | None":
     #    filters' list before which cards are in each)
     singles = [k for k in live if kinds[k] not in ("tree", "order", "newsec", "newnode", "delnode",
                                                     "newtree", "newtreef", "newunit", "unitname",
-                                                    "newchip", "reparent")
-               and not k.startswith(("nn|", "nu|", "nl|", "ne|", "rp|"))]
+                                                    "newchip", "reparent", "unitmove", "unitdel",
+                                                    "newaxis", "axisdel", "chipdel", "cardsize")
+               and not k.startswith(("nn|", "nu|", "nl|", "ne|", "rp|", "ua|", "ud|", "na|", "xa|", "xe|", "sz|"))]
     for k in sorted(singles, key=lambda k: (0 if kinds[k] == "flags" else 1, live[k].get("t") or 0)):
         o = live[k]
         t = _target(k, brief, by_id, conns)
@@ -868,6 +979,122 @@ def fold(store, uid, tid) -> "dict | None":
         if any(c in pl for c in going):
             brief["placement"] = {i: h for i, h in pl.items() if i not in going}
             touched["brief"] = True
+        cs = brief.get("card_size") or {}
+        if any(c in cs for c in going):
+            brief["card_size"] = {i: h for i, h in cs.items() if i not in going}
+            touched["brief"] = True
+    # 4b. card sizes set on the page (its width; the least height it takes)
+    from .build.brief import CARD_SIZE_W, CARD_SIZE_H
+    for k in by_time([k for k in live if k.startswith("sz|")]):
+        cid, v = k.split("|")[1], live[k].get("v")
+        if cid not in by_id:
+            missing.append(k)
+            continue
+        cs = dict(brief.get("card_size") or {})
+        new = None
+        if isinstance(v, dict):
+            new = {}
+            for key, (lo, hi) in (("w", CARD_SIZE_W), ("h", CARD_SIZE_H)):
+                x = v.get(key)
+                if isinstance(x, (int, float)) and not isinstance(x, bool):
+                    new[key] = round(min(max(x, lo), hi))
+            new = new or None
+        if cs.get(cid) == new:
+            already.append(k)
+            continue
+        if new:
+            cs[cid] = new
+        else:
+            cs.pop(cid, None)
+        brief["card_size"] = cs
+        touched["brief"] = True
+        written.append(k)
+        sized.append(cid)
+    # 5. units deleted on the page, once their cards are elsewhere or gone
+    #    (last first, so the numbers of the others hold)
+    uds = sorted(((int(k.split("|")[1]), k) for k in live
+                  if k.startswith("ud|") and k.split("|")[1].isdigit()), reverse=True)
+    for i, k in uds:
+        if not live[k].get("v"):
+            already.append(k)
+            continue
+        acts = brief.get("acts") or []
+        def _nm(x):
+            return _html.unescape(plain_text(str(x or ""))).strip()
+        if i >= len(acts) or _nm(acts[i].get("label")) != _nm(live[k].get("b")):
+            conflicts.append(k)
+            continue
+        if any(n["act"] == i for n in nodes) or len(acts) <= 2:
+            conflicts.append(k)
+            continue
+        units_gone.append(_nm(acts[i].get("label")))
+        del acts[i]
+        for n in nodes:
+            if n["act"] > i:
+                n["act"] -= 1
+                touched["nodes"].add(n["id"])
+        for m in to_unit:
+            if m["unit"] > i:
+                m["unit"] -= 1
+        touched["brief"] = True
+        written.append(k)
+    # 6. chips taken out of the timeline (the cards drop them just below)
+    for k in by_time([k for k in live if k.startswith("xe|")]):
+        _, rk, cid = k.split("|")
+        if not live[k].get("v"):
+            already.append(k)
+            continue
+        if rk == "c":
+            holder = brief.get("entities") or []
+        else:
+            ax = brief.get("axes") or []
+            j = {"env": 0, "theme": 1}[rk]
+            holder = (ax[j].get("values") or []) if j < len(ax) else []
+        hit = next((e for e in holder if e.get("id") == cid), None)
+        if hit is None:
+            already.append(k)
+            continue
+        holder.remove(hit)
+        chips_gone.append(hit.get("name") or cid)
+        touched["brief"] = True
+        written.append(k)
+    # 7. categories taken out: the axis and every card's chips of it; the one
+    #    after it (axis2) becomes axis1, its filters with it
+    for k in sorted([k for k in live if k.startswith("xa|")], reverse=True):
+        j = 0 if k.endswith("axis1") else 1
+        ax = brief.get("axes") or []
+        if not live[k].get("v"):
+            already.append(k)
+            continue
+        if j >= len(ax) or plain_text(ax[j].get("label") or "") != plain_text(live[k].get("b") or ""):
+            conflicts.append(k)
+            continue
+        axes_gone.append(ax[j].get("label"))
+        del ax[j]
+        src = f"axis{j + 1}"
+        fl = [f for f in brief.get("filters") or [] if not (isinstance(f, dict) and f.get("source") == src)]
+        off = [o for o in brief.get("filters_off") or [] if o != src]
+        if j == 0:
+            for f in fl:
+                if isinstance(f, dict) and f.get("source") == "axis2":
+                    f["source"] = "axis1"
+            off = ["axis1" if o == "axis2" else o for o in off]
+        if "filters" in brief:
+            brief["filters"] = fl
+        if "filters_off" in brief:
+            brief["filters_off"] = off
+        for n in nodes:
+            a1, a2 = n.get("axis1_values"), n.get("axis2_values")
+            if j == 0:
+                if a1 or a2:
+                    n["axis1_values"] = list(a2 or [])
+                    n.pop("axis2_values", None)
+                    touched["nodes"].add(n["id"])
+            elif a2:
+                n.pop("axis2_values", None)
+                touched["nodes"].add(n["id"])
+        touched["brief"] = True
+        written.append(k)
     # a card's chips name only chips the timeline has
     have = {"entity_ids": {e.get("id") for e in brief.get("entities") or []}}
     for j, attr in enumerate(("axis1_values", "axis2_values")):
@@ -932,6 +1159,30 @@ def fold(store, uid, tid) -> "dict | None":
         rep["cards_moved"] = moved
         rep["note"] += (" The owner moved cards (and everything under them) under "
                         "other cards (cards_moved).")
+    if to_unit:
+        acts = brief.get("acts") or []
+        rep["cards_moved_to_unit"] = [{"id": m["id"], "title": titles.get(m["id"]),
+                                       "unit": (acts[m["unit"]].get("label") if m["unit"] < len(acts) else "")}
+                                      for m in to_unit]
+        rep["note"] += (" The owner moved cards into another unit (cards_moved_to_unit).")
+    if units_gone:
+        rep["units_deleted"] = units_gone
+        rep["note"] += (" The owner deleted units on the page (units_deleted); their "
+                        "cards were moved or deleted first.")
+    if sized:
+        rep["cards_resized"] = [{"id": c, "title": titles.get(c)} for c in sized]
+        rep["note"] += (" The owner set the size of some cards on the page (cards_resized, "
+                        "brief.card_size) — keep it.")
+    if axes_made:
+        rep["categories_added"] = axes_made
+        rep["note"] += (" The owner added categories of chips (categories_added): only "
+                        "the name, and the chips they made in it.")
+    if chips_gone or axes_gone:
+        rep["chips_removed"] = chips_gone
+        rep["categories_removed"] = axes_gone
+        rep["note"] += (" The owner took chips (chips_removed) or whole categories "
+                        "(categories_removed) out of the timeline: gone from every card "
+                        "and from the top bar, their pages with them.")
     if chips_made:
         rep["chips_added"] = chips_made
         rep["note"] += (" The owner made new chips (chips_added): each has only its "

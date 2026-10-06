@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import sys
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -245,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.51"
+__version__ = "1.9.52"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -356,20 +357,22 @@ def _find_timeline(st, u: str, ref: str):
     return (hits[0]["timeline_id"], hits[0]) if len(hits) == 1 else None
 
 
-def _homepage_only(st, u: str, timelines: list | None = None) -> list:
+def _homepage_only(st, u: str, timelines: list | None = None,
+                   pages: list | None = None) -> list:
     """Pages the account's homepage lists that no draft here belongs to — a
     timeline published from another computer or store. [] when this store has
     no homepage listing (a folder). `timelines` is the list the caller already
     read: a timeline document carries its whole brief, so it is not fetched
-    again here."""
+    again here. A page in the homepage's Recently deleted is left out."""
     if not hasattr(st, "list_pages"):
         return []
     try:
         rows = timelines if timelines is not None else st.list_timelines(u)
         mine = {t.get("private_key") for t in rows}
         tids = {t["timeline_id"] for t in rows}
-        orphans = [pg for pg in st.list_pages(u)
-                   if pg["key"] not in mine and pg["tid"] not in tids]
+        orphans = [pg for pg in (pages if pages is not None else st.list_pages(u))
+                   if pg["key"] not in mine and pg["tid"] not in tids
+                   and not pg.get("binned")]
         if not orphans:
             return []
         snaps = st.snapshot_keys(u)
@@ -378,6 +381,16 @@ def _homepage_only(st, u: str, timelines: list | None = None) -> list:
                  "can_import": pg["key"] in snaps} for pg in orphans]
     except Exception:                       # noqa: BLE001 — a hint, never an error
         return []
+
+
+def _pages_or_none(st):
+    """The homepage's listing records, or None where there is no homepage."""
+    if not hasattr(st, "list_pages"):
+        return None
+    try:
+        return st.list_pages(uid())
+    except Exception:                       # noqa: BLE001 — a hint, never an error
+        return None
 
 
 def _elsewhere(ref: str) -> dict:
@@ -552,8 +565,11 @@ def get_interview_guide() -> dict:
     guide = (ROOT / "interview_guide.md").read_text(encoding="utf-8")
     drafts = []
     st = get_store()
+    binned = {pg["key"] for pg in _pages_or_none(st) or [] if pg.get("binned")}
     for t in st.list_timelines(uid()):
         tid = t["timeline_id"]
+        if t.get("private_key") in binned:
+            continue                  # in the homepage's Recently deleted
         drafts.append({
             "timeline_id": tid,
             "title": (t.get("brief") or {}).get("title", tid),
@@ -812,17 +828,32 @@ def _projects_listing() -> dict:
     """The projects and timelines in the store the current call points at."""
     st = get_store()
     timelines = st.list_timelines(uid())
+    pages = _pages_or_none(st)
+    binned = {pg["key"]: pg["binned"] for pg in pages or [] if pg.get("binned")}
+
+    def row(t):
+        r = {"timeline_id": t["timeline_id"],
+             "title": (t.get("brief") or {}).get("title"),
+             "status": t.get("status", "draft")}
+        if t.get("private_key") in binned:
+            r["in_recently_deleted"] = time.strftime(
+                "%Y-%m-%d", time.gmtime(binned[t["private_key"]]))
+        return r
     projects = []
     for p in st.list_projects(uid()):
         projects.append({
             **{k: p[k] for k in ("project_id", "name", "purpose", "kind")},
-            "timelines": [
-                {"timeline_id": t["timeline_id"],
-                 "title": (t.get("brief") or {}).get("title"),
-                 "status": t.get("status", "draft")}
-                for t in timelines if t.get("project_id") == p["project_id"]],
+            "timelines": [row(t) for t in timelines
+                          if t.get("project_id") == p["project_id"]],
         })
     out: dict = {"projects": projects}
+    if binned and any(t.get("private_key") in binned for t in timelines):
+        out["recently_deleted_note"] = (
+            "Timelines with in_recently_deleted were deleted by the user on "
+            "their homepage (that date). They are removed for good 30 days "
+            "later. Do not open, build or publish one unless the user asks; "
+            "to bring one back they press Restore under Recently deleted on "
+            "their homepage.")
     from .cloud import accounts as A
     cur = A.current()
     if cur is not None and not cur.get("site"):
@@ -830,7 +861,7 @@ def _projects_listing() -> dict:
     # What the homepage lists that no draft here belongs to: a timeline
     # published from another computer or store. Said outright, so it never
     # reads as "missing".
-    only = _homepage_only(st, uid(), timelines)
+    only = _homepage_only(st, uid(), timelines, pages)
     if only:
         out["published_without_draft"] = only
         out["published_without_draft_note"] = (
