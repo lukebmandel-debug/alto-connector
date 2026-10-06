@@ -25,7 +25,13 @@ Field keys ("|"-separated; ids are slugs):
   nu|unit-…   nl|unit-…                   a unit added here, its name
   rp|<id>                                 a card (and its progeny) moved under another card
   ch|<id>|chars  envs  themes             a card's sub-chips
-  ne|c|<id>  ne|env|<id>  ne|theme|<id>   a chip made here (an entity, an axis value)
+  ne|c|<id>  ne|env|<id>  ne|theme|<id>   a chip made here (an entity, an axis value). An axis
+                                          value is a case / statute / Restatement section: its v is
+                                          {name, color?, svg?, cite?, h?, t?, link?, grp?} — citation,
+                                          a note under the heading its sisters use, a link, the Index
+                                          list it joins (EDK.ix) — folded into cite, sections, group.
+  <section>|t of a list section (Cases, Authorities, Sources…)  its <li> entries: added, removed,
+                                          moved on the page as one change of the section's words.
 A section's `i` is its index among the object's OWN sections (the page also
 carries ones the build adds); _ALTO_EDK maps the page's list to it. A link to a
 file on the owner's computer is <a data-file="file-…">: the file itself (or,
@@ -101,6 +107,16 @@ def edit_keys(b, nodes=()) -> str:
     kinds[0]["fk"] = "entity"
     edk["chipk"] = kinds
     edk["nax"] = len(b.axes)
+    # The Index pages (a hide_nav axis, or a group of its values): which kind
+    # of chip each lists and the group a value added there joins ("" = none).
+    from .detail_extras import index_entries
+    ix = {}
+    for key, kind, label, ids in index_entries([(k, ax) for k, ax in (("env", b.axes[0] if b.axes else None),
+                                                                      ("theme", b.axes[1] if len(b.axes) > 1 else None))
+                                                if ax and ax.hide_nav]):
+        v0 = next((v for ax in b.axes[:2] for v in ax.values if v.id in ids), None)
+        ix[key] = {"r": kind, "g": (v0.group if v0 else "") or "", "l": label}
+    edk["ix"] = ix
     edk["sz"] = {k: v for k, v in (b.card_size or {}).items() if isinstance(v, dict)}
     from .glyphs import LIBRARY
     edk["glyphs"] = LIBRARY
@@ -369,6 +385,28 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #aed-name.show,#aed-kinds.show{display:block;}
   #aed-name h5,#aed-kinds h5{margin:0 0 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
   #aed-name input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;}
+  #aed-form{position:fixed;z-index:8350;display:none;width:340px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:14px;border-radius:12px;background:var(--surface);
+    border:1px solid var(--border);box-shadow:0 12px 34px var(--card-shadow);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--text);}
+  #aed-form.show{display:block;}
+  #aed-form h5{margin:0 0 10px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  #aed-form label{display:block;margin:0 0 9px;}
+  #aed-form label span{display:block;margin:0 0 3px;font-size:11.5px;color:var(--muted);}
+  #aed-form label small{display:block;margin-top:3px;font-size:11px;color:var(--muted);}
+  #aed-form input,#aed-form textarea,#aed-form select{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;}
+  #aed-form textarea{resize:vertical;min-height:60px;}
+  #aed-form .bad{border-color:#dc2626;}
+  #aed-form .al-go{display:flex;gap:6px;margin-top:12px;}
+  #aed-form .al-go button{flex:1;height:30px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text);font:inherit;cursor:pointer;}
+  #aed-form .al-go .ab-ok{background:var(--accent,#a78bfa);border-color:transparent;color:#fff;}
+  /* a line of a list section, a row of an Index page: its controls */
+  .aed-lic{margin-left:8px;opacity:.35;transition:opacity .12s;}
+  li:hover > .aed-lic,.aed-lic:focus-within{opacity:1;}
+  .aed-ixc{position:absolute;right:0;top:8px;margin:0;}
+  html.alto-editing .doc-row{position:relative;padding-right:64px;}
+  .aed-lisadd{margin:4px 0 22px;padding:6px 14px;font-size:13px;}
+  .aed-ixadd{margin:2px 0 22px;}
+  .aed-chip .aed-chmv{width:16px;font-size:13px;}
+  .aed-chip .aed-chmv:hover{color:var(--text);background:color-mix(in srgb,var(--text) 10%,transparent);}
   #aed-name .al-go{display:flex;gap:6px;margin-top:8px;}
   #aed-name .al-go button{flex:1;height:30px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text);font:inherit;cursor:pointer;}
   #aed-name .al-go .ab-ok{background:var(--accent,#a78bfa);border-color:transparent;color:#fff;}
@@ -781,12 +819,13 @@ MANUAL_JS = r"""<script id="alto-manual">
   var NEWE = {}, CHTOUCH = false;
   function setChip(kind, id, v, k){
     var R = reg(kind); if(!R) return;
-    if(!v){ if(NEWE[k]) NEWE[k].off = true; delete R[id]; try{ if(kind === 'c') delete CHAR_PAGES[id]; }catch(e){} CHTOUCH = true; drawFiltersSoon(); return; }
+    if(!v){ if(NEWE[k]) NEWE[k].off = true; delete R[id]; authDrop(kind, id); try{ if(kind === 'c') delete CHAR_PAGES[id]; }catch(e){} CHTOUCH = true; drawFiltersSoon(); return; }
     NEWE[k] = {v: JSON.parse(JSON.stringify(v)), off: false};
     var col = /^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#8888aa';
     var glyph = (EDK.glyphs || []).some(function(g){ return g.s === v.svg; }) ? v.svg : (EDK.glyph || '&#9670;');
     var kd = (EDK.chipk || []).filter(function(x){ return x.r === kind; })[0] || {};
     R[id] = Object.assign(R[id] || {sections: []}, {name: esc(v.name || 'New'), role: '', color: col, symbol: glyph});
+    authSet(kind, id, v);
     try{
       if(kind === 'c'){ if(!CHAR_PAGES[id]) CHAR_PAGES[id] = {sections: []}; document.documentElement.style.setProperty('--' + id, col); if(typeof CSS_HEX !== 'undefined') CSS_HEX['var(--' + id + ')'] = col; }
       else if(kind === 'env' && typeof ENV_SYM !== 'undefined') ENV_SYM[id] = kd.hide ? esc(v.name) : glyph;
@@ -1448,16 +1487,14 @@ MANUAL_JS = r"""<script id="alto-manual">
   // Each of an object's own sections carries its key in its heading (an empty
   // span), so the page can say which section a heading and its text are.
   var marked = false;
+  function markObj(kind, id){
+    var L = secList(kind, id), m = (EDK[kind] || {})[id]; if(!L || !m) return;
+    L.forEach(function(s, i){ var src = m[i]; if(src == null || !own(src) || !s || MARK.test(s.t || '')) return;
+      s.t = (s.t || '') + '<span class="aed-k" data-k="' + kind + '|' + id + '|s|' + src + '"></span>'; });
+  }
   function markSections(){
     if(marked) return; marked = true;
-    ['n', 'c', 'env', 'theme'].forEach(function(kind){
-      Object.keys(EDK[kind] || {}).forEach(function(id){
-        var L = secList(kind, id), m = EDK[kind][id]; if(!L) return;
-        var j = 0;
-        L.forEach(function(s, i){ var src = m[i]; if(src == null || !own(src) || !s || MARK.test(s.t || '')) return;
-          s.t = (s.t || '') + '<span class="aed-k" data-k="' + kind + '|' + id + '|s|' + src + '"></span>'; });
-      });
-    });
+    ['n', 'c', 'env', 'theme'].forEach(function(kind){ Object.keys(EDK[kind] || {}).forEach(function(id){ markObj(kind, id); }); });
   }
   window._altoManual = {enter:enter, exit:exit, undo:undo, redo:redo, change:change, editing:editing,
                         canEdit:canEdit, ops:function(){ return STORE.ops; }};
@@ -1542,6 +1579,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     pageTile();
     if(!editing()) return;
     var P = page(), dc = document.getElementById('detail-content');
+    if(P && dc && P.type === 'index') decorateIndex(P);
     if(P && dc){
       var kind = {node:'n', char:'c', env:'env', theme:'theme'}[P.type];
       if(kind){
@@ -1553,8 +1591,9 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.aed-k[data-k]').forEach(function(mk){
         var box = mk.closest('.detail-section'), h3 = box && box.querySelector(':scope > h3'); if(!h3) return; var k = mk.getAttribute('data-k');
         setF(h3, k + '|h'); box.setAttribute('data-aed-body', k + '|t'); lastOwn = box;
-        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('alto-edit-pill')) c.classList.add('aed-f', 'aed-bodypart'); });
+        Array.prototype.forEach.call(h3.parentNode.children, function(c){ if(c !== h3 && !c.classList.contains('adt') && !c.classList.contains('alto-edit-pill') && !c.classList.contains('aed-lisadd')) c.classList.add('aed-f', 'aed-bodypart'); });
         if(structOK() && !h3.querySelector('.aed-sc')) h3.appendChild(ctl('aed-sc', [['up', '↑', 'Move this section up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this section']], {sk: k}));
+        decorateLists(box, k, h3);
       });
       if(kind && structOK() && !dc.querySelector('.aed-add') && field(kind + '|' + P.id + '|order')){
         var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-add'; add.textContent = '+ Add a section';
@@ -1864,6 +1903,9 @@ MANUAL_JS = r"""<script id="alto-manual">
         var c = document.createElement('span'); c.className = 'aed-chip'; var it = R[v];
         c.style.setProperty('--c', it && it.color ? it.color : 'var(--accent)');
         c.appendChild(document.createTextNode(it ? txt(it.name) : v));
+        if((n[k.f] || []).length > 1) [['‹', -1, 'Move this chip earlier'], ['›', 1, 'Move this chip later']].forEach(function(m){
+          var mv = document.createElement('button'); mv.type = 'button'; mv.className = 'aed-chmv'; mv.setAttribute('data-x', 'chipmv'); mv.setAttribute('data-f', k.f); mv.setAttribute('data-v', v); mv.setAttribute('data-nid', nid); mv.setAttribute('data-d', m[1]);
+          mv.title = m[2]; mv.setAttribute('aria-label', m[2]); mv.textContent = m[0]; c.appendChild(mv); });
         var x = document.createElement('button'); x.type = 'button'; x.setAttribute('data-x', 'chipdel'); x.setAttribute('data-f', k.f); x.setAttribute('data-v', v); x.setAttribute('data-nid', nid);
         x.title = 'Take this chip off the card'; x.setAttribute('aria-label', x.title); x.textContent = '✕'; c.appendChild(x);
         row.appendChild(c); });
@@ -1942,6 +1984,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var b = document.getElementById('aed-chip'); if(!b) return; b.classList.remove('show');
     var k = b._k, nid = b._nid, n = srcNode(nid); if(!n) return;
     if(v){ chipToggle(nid, k.f, v, true); return; }
+    if(k.r !== 'c'){ addAuthority(document.querySelector('#node-' + nid + ' .node-card') || document.getElementById('detail-content') || document.body, k, {nid: nid, name: name}); return; }
     withGlyph(document.querySelector('#node-' + nid + ' .node-card') || document.getElementById('detail-content') || document.body, k, name, function(svg){
       var c = newChip(k, name, svg); if(!c) return;
       var L = (n[k.f] || []).concat([c.id]);
@@ -1961,7 +2004,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     name = String(name || '').replace(/\s+/g, ' ').trim(); if(!name) return;
     var lib = EDK.glyphs || [];
     if(k.hide || !lib.length){ done(''); return; }       // shown by its name, not a glyph
-    ['aed-name', 'aed-kinds', 'aed-chip'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); });
+    ['aed-name', 'aed-form', 'aed-kinds', 'aed-chip'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); });
     var w = document.getElementById('aed-glyph');
     if(!w){ w = document.createElement('div'); w.id = 'aed-glyph';
       w.addEventListener('mousedown', function(e){ e.stopPropagation(); });
@@ -2069,7 +2112,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   function singularOf(w){ w = String(w || '').trim(); return /ies$/i.test(w) ? w.slice(0, -3) + 'y' : /(ss|us|is)$/i.test(w) ? w : /s$/i.test(w) ? w.slice(0, -1) : w; }
   function navAdd(b){
     var A = chipKinds().map(function(k){ return {t: 'A new ' + String(k.one || 'chip').toLowerCase(), sub: 'In ' + k.l + ' — put it on cards with ◆ on a card, or on a card’s page.',
-      fn: function(){ askName(b, 'Name the new ' + String(k.one || 'chip').toLowerCase(), '', function(nm){ withGlyph(b, k, nm, function(svg){
+      fn: function(){ if(k.r !== 'c') return addAuthority(b, k, {});
+        askName(b, 'Name the new ' + String(k.one || 'chip').toLowerCase(), '', function(nm){ withGlyph(b, k, nm, function(svg){
         var c = newChip(k, nm, svg); if(c && changes([c.op])) toast('“' + c.name + '” added — it has a page of its own to fill in.'); }); }); }}; });
     if(axesNow() < 2) A.push({t: 'A new category of chips', sub: 'Its own kind of chip, like Cases or Themes.',
       fn: function(){ askName(b, 'Name the category (plural, e.g. Cases)', '', function(nm){
@@ -2272,7 +2316,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
 
   /* a small box asking for a name; a menu of kinds of section */
-  function hideMenus(){ ['aed-name', 'aed-kinds', 'aed-chip', 'aed-chpop', 'aed-glyph'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
+  function hideMenus(){ ['aed-name', 'aed-form', 'aed-kinds', 'aed-chip', 'aed-chpop', 'aed-glyph'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
   function placeNear(b, at){
     var r = at.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
     var top = r.bottom + 8; if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
@@ -2295,20 +2339,23 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   var KINDS = [['text', 'Text', 'A heading and a paragraph'], ['list', 'List', 'A heading and bullet points'],
     ['quoted', 'Quote', 'The source’s own words, marked Quoted'], ['notes', 'From your notes', 'Your notes, marked as yours'],
-    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch, like a small timeline']];
+    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch, like a small timeline'],
+    ['cases', 'Cases', 'A list of cases — each with its citation, a note and a link'],
+    ['authorities', 'Authorities', 'A list of statutes, rules, Restatement sections or other sources']];
   function chooseKind(at, ok){
     hideMenus();
     var b = document.getElementById('aed-kinds');
     if(!b){ b = document.createElement('div'); b.id = 'aed-kinds';
       b.innerHTML = '<h5>Add a section</h5>' + KINDS.map(function(k){ return '<button type="button" data-k="' + k[0] + '"><b>' + esc(k[1]) + '</b><small>' + esc(k[2]) + '</small></button>'; }).join('');
       b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-      b.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button[data-k]'); if(!a) return; b.classList.remove('show'); addSection(b._ok, a.getAttribute('data-k')); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button[data-k]'); if(!a) return; b.classList.remove('show'); addSection(b._ok, a.getAttribute('data-k'), b._at); });
       document.body.appendChild(b); }
-    b._ok = ok; b.classList.add('show'); placeNear(b, at);
+    b._ok = ok; b._at = at; b.classList.add('show'); placeNear(b, at);
   }
-  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-kinds,#aed-chip,#aed-chpop,#aed-glyph,.aed-add,.aed-nadd,.aed-fadd,.aed-fx,.aed-chadd')) hideMenus(); }, true);
-  function addSection(ok, kind){
+  document.addEventListener('mousedown', function(e){ if(e.target.closest && !e.target.closest('#aed-name,#aed-form,#aed-kinds,#aed-chip,#aed-chpop,#aed-glyph,.aed-add,.aed-nadd,.aed-fadd,.aed-fx,.aed-chadd')) hideMenus(); }, true);
+  function addSection(ok, kind, at){
     var f = field(ok + '|order'); if(!f) return;
+    if(kind === 'cases' || kind === 'authorities'){ addAuthSection(ok, kind, at || document.body); return; }
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
     var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree'}[kind] || 'New section';
     var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : kind === 'tree' ? '' : 'Write here.';
@@ -2321,6 +2368,234 @@ MANUAL_JS = r"""<script id="alto-manual">
         if(h3){ h3.scrollIntoView({block:'center'}); startField(h3, base + '|h'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
     }
   }
+
+  /* ── authorities: the cases, statutes, Restatement sections and sources a
+     page lists. An entry made as a chip of its own (a value of the Cases /
+     Statutes axis) has a page; one in a list section (Cases, Authorities,
+     Sources…) is a line of that section's list. Both are the owner's words:
+     a name, a citation, a note, a link — nothing is filled in for them. ── */
+  var AUTHRE = /\b(cases?|authorit(?:y|ies)|restatements?|statutes?|rules?|sources?|citations?|cited|precedents?|references?|readings?)\b/i;
+  function authNoun(h){
+    h = String(h || '');
+    if(/restatement/i.test(h)) return 'Restatement section';
+    if(/\bcases?\b/i.test(h)) return 'case';
+    if(/statute|\brules?\b/i.test(h)) return 'statute or rule';
+    if(/source|reading|reference/i.test(h)) return 'source';
+    return 'authority';
+  }
+  function aOneW(w){ w = String(w || 'entry'); return (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w; }
+  function linkHtml(u){ var e = esc(u).replace(/"/g, '&quot;'); return '<a class="note-link" href="' + e + '" target="_blank" rel="noopener">' + esc(u) + '</a>'; }
+  function goodLink(u){ return /^https?:\/\/[^\s<>"']{3,2000}$/i.test(String(u || '').trim()); }
+  // the heading the other entries of an axis put their words under
+  function authHead(kind){
+    var R = reg(kind) || {}, cnt = {}, order = [], A = null, X = EDK.ix || {};
+    Object.keys(X).forEach(function(key){ if(!A && X[key].r === kind) A = (window._ALTO_AXES || {})[key]; });
+    Object.keys(R).forEach(function(id){
+      if(isNewChip(kind, id) || chipGone(kind, id)) return;
+      var ss = R[id].sections || [];
+      for(var i = 0; i < ss.length; i++){
+        var h = txt(hParts(ss[i].h).text).trim();
+        if(!h || /^(citation|source notes|link)$/i.test(h) || (A && A.citeH && h === txt(A.citeH))) continue;
+        if(!(h in cnt)){ cnt[h] = 0; order.push(h); } cnt[h]++; break;
+      } });
+    var best = '', bn = 0;
+    if(A && (A.blurb || []).length) order.forEach(function(h){ if(!best && h.toLowerCase() === A.blurb[0]) best = h; });
+    if(!best) order.forEach(function(h){ if(cnt[h] > bn){ bn = cnt[h]; best = h; } });
+    return best || 'Notes';
+  }
+  /* a box of a few labelled fields: fields [{k, l, type: text|area|select, val, opts, hint}] */
+  function askForm(at, title, fields, ok, done){
+    hideMenus();
+    var b = document.getElementById('aed-form');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-form';
+      b.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); var a = e.target.closest('button'); if(!a) return;
+        if(a.getAttribute('data-a') === 'ok') submit(); else b.classList.remove('show'); });
+      b.addEventListener('keydown', function(e){ e.stopPropagation();
+        if(e.key === 'Escape'){ e.preventDefault(); b.classList.remove('show'); }
+        if(e.key === 'Enter' && e.target.tagName === 'INPUT'){ e.preventDefault(); submit(); } });
+      document.body.appendChild(b); }
+    function submit(){
+      var vals = {}, bad = null;
+      b.querySelectorAll('[data-f]').forEach(function(el){ var k = el.getAttribute('data-f'); vals[k] = String(el.value || '').replace(/[ \t]+/g, ' ').trim();
+        var fd = b._fields.filter(function(x){ return x.k === k; })[0]; if(fd && fd.req && !vals[k] && !bad) bad = el; });
+      if(bad){ bad.focus(); bad.classList.add('bad'); return; }
+      var fn = b._done; b.classList.remove('show'); if(fn) fn(vals);
+    }
+    b._fields = fields; b._done = done;
+    var h = '<h5></h5>';
+    fields.forEach(function(f){
+      h += '<label><span>' + esc(f.l) + '</span>';
+      if(f.type === 'select') h += '<select data-f="' + f.k + '">' + f.opts.map(function(o){ return '<option value="' + esc(o[0]).replace(/"/g, '&quot;') + '"' + (String(o[0]) === String(f.val) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>';
+      else if(f.type === 'area') h += '<textarea data-f="' + f.k + '" rows="3" maxlength="2000" placeholder="' + esc(f.ph || '').replace(/"/g, '&quot;') + '">' + esc(f.val || '') + '</textarea>';
+      else h += '<input data-f="' + f.k + '" type="text" maxlength="300" autocomplete="off" placeholder="' + esc(f.ph || '').replace(/"/g, '&quot;') + '" value="' + esc(f.val || '').replace(/"/g, '&quot;') + '">';
+      if(f.hint) h += '<small>' + esc(f.hint) + '</small>';
+      h += '</label>'; });
+    h += '<div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="ok" class="ab-ok">' + esc(ok || 'Add') + '</button></div>';
+    b.innerHTML = h; b.querySelector('h5').textContent = title;
+    b.querySelectorAll('input,textarea').forEach(function(el){ el.addEventListener('input', function(){ el.classList.remove('bad'); }); });
+    b.classList.add('show'); placeNear(b, at);
+    var first = b.querySelector('input,textarea'); if(first) setTimeout(function(){ first.focus(); first.select && first.select(); }, 0);
+  }
+  /* an axis value: its own form, then (for one with a glyph) the glyph, then it is made */
+  function authFields(k, o){
+    var X = EDK.ix || {}, keys = Object.keys(X).filter(function(key){ return X[key].r === k.r; }), hd = authHead(k.r);
+    var F = [{k: 'name', l: 'Name', val: o.name, req: 1}, {k: 'cite', l: 'Citation', val: o.cite},
+             {k: 't', l: 'Note', type: 'area', val: o.t, hint: 'Shown under “' + hd + '”, like the others.'},
+             {k: 'link', l: 'Link (optional)', val: o.link, ph: 'https://…'}];
+    if(keys.length > 1) F.push({k: 'grp', l: 'List', type: 'select', val: o.grp || '', opts: keys.map(function(key){ return [X[key].g, X[key].l]; })});
+    if(o.pick){
+      var opts = [['', 'Not yet — attach it later']];
+      NODES_SRC.forEach(function(n){ if(!cardGone(n.id)) opts.push([n.id, txt(n.title || '') || 'Untitled']); });
+      F.push({k: 'attach', l: 'Put it on', type: 'select', val: '', opts: opts});
+    }
+    return F;
+  }
+  // the name of the list a new entry joins (an Index chip's own, else the kind's)
+  function listName(k, grp){
+    var X = EDK.ix || {}, hit = null;
+    Object.keys(X).forEach(function(key){ if(X[key].r === k.r && (!hit || String(X[key].g || '') === String(grp || ''))) hit = X[key]; });
+    return hit ? hit.l : k.l;
+  }
+  function addAuthority(at, k, ctx){
+    ctx = ctx || {};
+    var one = String(k.one || 'entry').toLowerCase();
+    askForm(at, 'New ' + one + ' in ' + listName(k, ctx.grp), authFields(k, {name: ctx.name, grp: ctx.grp, pick: !ctx.nid}), 'Add', function(f){
+      withGlyph(at, k, f.name, function(svg){
+        var c = newChip(k, f.name, svg); if(!c) return;
+        var v = c.op[1];
+        if(f.cite) v.cite = f.cite; if(f.t){ v.t = f.t; v.h = authHead(k.r); }
+        if(goodLink(f.link)) v.link = f.link.trim(); else if(f.link) toast('That link needs to start with https:// — the rest was added without it.');
+        if(f.grp) v.grp = f.grp;
+        var L = [c.op], att = ctx.nid || f.attach, n = att && srcNode(att);
+        if(n) L.push(['ch|' + att + '|' + k.f, (n[k.f] || []).concat([c.id])]);
+        if(changes(L)) toast('“' + c.name + '” added' + (n ? ' to “' + titleOf(att) + '”' : '') + ' — click its name to open its page.');
+      }); });
+  }
+  function editAuthority(at, k, id){
+    var e = NEWE['ne|' + k.r + '|' + id]; if(!e || e.off) return;
+    var o = Object.assign({}, e.v);
+    askForm(at, 'Change this ' + String(k.one || 'entry').toLowerCase() + ' in ' + listName(k, o.grp), authFields(k, {name: o.name, cite: o.cite, t: o.t, link: o.link, grp: o.grp}), 'Save', function(f){
+      var v = Object.assign({}, e.v, {name: f.name.slice(0, 80)});
+      ['cite', 't', 'link', 'grp'].forEach(function(x){ if(f[x]) v[x] = f[x]; else delete v[x]; });
+      if(v.link && !goodLink(v.link)){ delete v.link; toast('That link needs to start with https://.'); }
+      if(v.t) v.h = e.v.h || authHead(k.r); else delete v.h;
+      change('ne|' + k.r + '|' + id, v); });
+  }
+  // an axis value's words (setChip): its citation (the build's own first section),
+  // then its note and link — its own sections 0, 1
+  function authSet(kind, id, v){
+    var R = reg(kind); if(!R || !R[id] || kind === 'c') return;
+    var ss = [], map = [], i = 0, cite = String(v.cite || '').trim();
+    var A0 = null, X = EDK.ix || {}; Object.keys(X).forEach(function(key){ if(!A0 && X[key].r === kind) A0 = (window._ALTO_AXES || {})[key]; });
+    if(cite){ ss.push({h: (A0 && A0.citeH) || 'Citation', t: esc(cite)}); map.push(-1); }
+    if(String(v.t || '').trim()){ ss.push({h: esc(v.h || 'Notes'), t: esc(String(v.t).trim())}); map.push(i++); }
+    if(goodLink(v.link)){ ss.push({h: 'Link', t: linkHtml(String(v.link).trim())}); map.push(i++); }
+    R[id].sections = ss; EDK[kind] = EDK[kind] || {}; EDK[kind][id] = map; PRIS[kind + '|' + id] = jh('[]');
+    if(marked) markObj(kind, id);
+    var AX = window._ALTO_AXES || {};
+    Object.keys(X).forEach(function(key){ var A = AX[key]; if(!A || X[key].r !== kind) return;
+      A.cites = A.cites || {}; if(cite) A.cites[id] = esc(cite); else delete A.cites[id];
+      if(A.ids){ var at = A.ids.indexOf(id), mine = String(X[key].g || '') === String(v.grp || '');
+        if(mine && at < 0) A.ids.push(id); else if(!mine && at >= 0) A.ids.splice(at, 1); } });
+  }
+  function authDrop(kind, id){
+    var AX = window._ALTO_AXES || {}, X = EDK.ix || {};
+    Object.keys(X).forEach(function(key){ var A = AX[key]; if(!A || X[key].r !== kind) return;
+      if(A.cites) delete A.cites[id]; if(A.ids){ var at = A.ids.indexOf(id); if(at >= 0) A.ids.splice(at, 1); } });
+    if(EDK[kind]) delete EDK[kind][id]; delete PRIS[kind + '|' + id];
+  }
+  /* the Index page while editing: + Add at the top, ✕ (and ✎ for one made here) on each row */
+  function decorateIndex(P){
+    var dc = document.getElementById('detail-content'); if(!dc) return;
+    var X = (EDK.ix || {})[P.id]; if(!X) return;
+    if(!editing() || !structOK()){ dc.querySelectorAll('.aed-ixadd,.aed-ixc').forEach(rmEl); return; }
+    var kd = chipKinds().filter(function(k){ return k.r === X.r; })[0]; if(!kd) return;
+    var hd = dc.querySelector('.detail-header');
+    if(!dc.querySelector('.aed-ixadd')){
+    var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-add aed-ixadd'; add.setAttribute('data-x', 'ixadd');
+    add.setAttribute('data-r', X.r); add.setAttribute('data-g', X.g || '');
+    add.textContent = '+ Add ' + aOne(kd) + ' to ' + X.l; add.title = 'Add ' + aOne(kd) + ' to this list — its name, citation, a note and a link';
+    if(hd && hd.parentNode === dc) dc.insertBefore(add, hd.nextSibling); else dc.insertBefore(add, dc.firstChild);
+    }
+    dc.querySelectorAll('.doc-row-t[data-sd-id]').forEach(function(t){
+      var row = t.closest('.doc-row'), id = t.getAttribute('data-sd-id'); if(!row || row.querySelector('.aed-ixc')) return;
+      var mine = isNewChip(X.r, id);
+      row.appendChild(ctl('aed-sc aed-ixc', (mine ? [['ixedit', '✎', 'Change this entry']] : []).concat([['ixdel', '✕', 'Remove this entry from the timeline']]), {ixr: X.r, ixid: id}));
+    });
+  }
+  /* a list section (Cases, Authorities, Sources…): + Add at its foot, ↑ ↓ ✕ on each line */
+  function liFmt(d, kind){
+    var f = {tag: kind === 'cases' ? 'i' : '', s1: ', ', s2: ' — '}, li = null;
+    Array.prototype.forEach.call(d.querySelectorAll('li'), function(x){ if(!li && x.textContent.trim()) li = x; });
+    if(!li) return f;
+    var el = li.firstChild; while(el && el.nodeType === 3 && !el.data.trim()) el = el.nextSibling;
+    var inner = el && el.nodeType === 1 ? (el.tagName === 'A' && el.firstElementChild ? el.firstElementChild : el) : null;
+    f.tag = inner && /^(I|EM|B|STRONG|U)$/.test(inner.tagName) ? inner.tagName.toLowerCase() : '';
+    var rest = el && el.nodeType === 1 ? (el.nextSibling && el.nextSibling.nodeType === 3 ? el.nextSibling.data : '') : '';
+    var m = /^\s*(,|:|—|–|-)\s/.exec(rest); if(m) f.s1 = m[1] === ',' || m[1] === ':' ? m[1] + ' ' : ' ' + m[1] + ' ';
+    var t = li.textContent, m2 = /\s(—|–)\s/.exec(t) || /:\s/.exec(t); if(m2) f.s2 = m2[0].charAt(0) === ':' ? ': ' : ' ' + m2[1] + ' ';
+    return f;
+  }
+  function liHtml(v, f){
+    var nm = esc(v.name); if(f.tag) nm = '<' + f.tag + '>' + nm + '</' + f.tag + '>';
+    if(goodLink(v.link)) nm = '<a class="note-link" href="' + esc(v.link.trim()).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + nm + '</a>';
+    var out = nm; if(v.cite) out += f.s1 + esc(v.cite); if(v.t) out += f.s2 + esc(v.t);
+    return out;
+  }
+  function liSet(lk, mut){
+    var f = field(lk + '|t'); if(!f) return false;
+    var d = document.createElement('div'); d.innerHTML = f.get();
+    if(mut(d) === false) return false;
+    return change(lk + '|t', d.innerHTML);
+  }
+  function topLis(d){ return Array.prototype.filter.call(d.querySelectorAll('li'), function(x){ return !(x.parentNode.closest && x.parentNode.closest('li')); }); }
+  function liAdd(lk, at){
+    var hf = field(lk + '|h'); if(!hf) return;
+    var noun = authNoun(hf.get());
+    askForm(at, 'Add ' + aOneW(noun), [{k: 'name', l: 'Name', req: 1}, {k: 'cite', l: 'Citation'}, {k: 't', l: 'Note', type: 'area'}, {k: 'link', l: 'Link (optional)', ph: 'https://…'}], 'Add', function(v){
+      if(v.link && !goodLink(v.link)){ toast('That link needs to start with https:// — the rest was added without it.'); delete v.link; }
+      if(liSet(lk, function(d){
+        var fm = liFmt(d, /\bcases?\b/i.test(hf.get()) ? 'cases' : ''), ls = d.querySelectorAll('ul,ol'), ul = ls.length ? ls[ls.length - 1] : null;
+        if(!ul){ ul = document.createElement('ul'); d.appendChild(ul); }
+        var li = document.createElement('li'); li.innerHTML = liHtml(v, fm); ul.appendChild(li);
+      })) toast('Added — ⌘Z takes it back.'); });
+  }
+  function liMove(lk, i, x){
+    liSet(lk, function(d){ var L = topLis(d), li = L[i]; if(!li) return false;
+      if(x === 'del'){ var ul = li.parentNode; ul.removeChild(li); if(!ul.children.length && ul.parentNode) ul.parentNode.removeChild(ul); toast('Removed — ⌘Z brings it back.'); return; }
+      var nb = x === 'up' ? li.previousElementSibling : li.nextElementSibling; if(!nb) return false;
+      if(x === 'up') li.parentNode.insertBefore(li, nb); else li.parentNode.insertBefore(nb, li); });
+  }
+  function decorateLists(box, k, h3){
+    if(!structOK()) return;
+    var hf = field(k + '|h'); if(!hf || !AUTHRE.test(hf.get()) || !topLis(box).length) return;
+    topLis(box).forEach(function(li, i){
+      if(li.querySelector(':scope > .aed-lic')) return;
+      li.appendChild(ctl('aed-sc aed-lic', [['up', '↑', 'Move this entry up'], ['down', '↓', 'Move it down'], ['del', '✕', 'Remove this entry']], {lk: k, li: i})); });
+    if(!box.querySelector(':scope > .aed-lisadd')){
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-add aed-lisadd'; b.setAttribute('data-x', 'liadd'); b.setAttribute('data-lk', k);
+      b.textContent = '+ Add ' + aOneW(authNoun(hf.get())); box.appendChild(b); }
+  }
+  // the + Add a section menu's "Cases" / "Authorities": the section is made with its first entry
+  function addAuthSection(ok, kind, at){
+    var f = field(ok + '|order'); if(!f) return;
+    var cases = kind === 'cases', H = cases ? 'Cases' : 'Authorities', noun = cases ? 'case' : 'authority';
+    askForm(at, 'Add ' + aOneW(noun) + ' — a new “' + H + '” list', [{k: 'name', l: 'Name', req: 1}, {k: 'cite', l: 'Citation'}, {k: 't', l: 'Note', type: 'area'}, {k: 'link', l: 'Link (optional)', ph: 'https://…'}], 'Make the list', function(v){
+      if(v.link && !goodLink(v.link)){ toast('That link needs to start with https:// — the rest was added without it.'); delete v.link; }
+      var nk = rid('new-'), base = ok + '|s|' + nk;
+      var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H], [base + '|t', '<ul><li>' + liHtml(v, {tag: cases ? 'i' : '', s1: ', ', s2: ' — '}) + '</li></ul>']];
+      if(changes(L)) setTimeout(function(){ var mk = document.querySelector('#detail-content .aed-k[data-k="' + base + '"]'), sb = mk && mk.closest('.detail-section'); if(sb) sb.scrollIntoView({block: 'center'}); }, 60); });
+  }
+  // ‹ › on a chip: where it stands among the card's chips
+  function chipMove(nid, f, v, dir){
+    var n = srcNode(nid); if(!n) return;
+    var L = (n[f] || []).slice(), i = L.indexOf(v), j = i + dir;
+    while(j >= 0 && j < L.length && chipGone(RK2[f], L[j])) j += dir;
+    if(i < 0 || j < 0 || j >= L.length) return;
+    L.splice(j, 0, L.splice(i, 1)[0]); change('ch|' + nid + '|' + f, L);
+  }
+  var RK2 = {chars: 'c', envs: 'env', themes: 'theme'};
 
   var decOvT = null;
   function decorateOvSoon(){ clearTimeout(decOvT); decOvT = setTimeout(decorateOv, 0); }
@@ -2803,7 +3078,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   });
 
   /* ── clicks and drags while editing ───────────────────────────────────── */
-  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-pill,#aed-toast,#aed-pick,#aed-pickres,#aed-linkbar,#aed-chip,#aed-chpop,#aed-glyph,#aed-name,#aed-kinds,#aed-ask,#ef-panel,#filter-toggle'); }
+  function inUi(t){ return t.closest('#aed-bar,#aed-link,#alto-edit-exit,.alto-edit-pill,#aed-toast,#aed-pick,#aed-pickres,#aed-linkbar,#aed-chip,#aed-chpop,#aed-glyph,#aed-name,#aed-form,#aed-kinds,#aed-ask,#ef-panel,#filter-toggle'); }
   // Move, add and remove: a page's sections, a tree's steps, an Overview's blocks.
   function structure(b){
     var x = b.getAttribute('data-x') || (b.classList.contains('aed-uc') ? 'addcu' : ''), w = b.closest('.aed-sc,.aed-tc,.aed-cc');
@@ -2816,6 +3091,16 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(x === 'chipadd'){ var n3 = b.getAttribute('data-nid') || (page() || {}).id; if(n3){ var keep = document.getElementById('aed-chpop'); var open = keep && keep.classList.contains('show');
       chooseChip(b, n3, b.getAttribute('data-f')); if(open) keep.classList.add('show'); } return; }
     if(x === 'navadd'){ navAdd(b); return; }
+    if(x === 'ixadd'){ var xk = chipKinds().filter(function(q){ return q.r === b.getAttribute('data-r'); })[0]; if(xk) addAuthority(b, xk, {grp: b.getAttribute('data-g') || ''}); return; }
+    if(x === 'liadd'){ liAdd(b.getAttribute('data-lk'), b); return; }
+    if(x === 'chipmv'){ chipMove(b.getAttribute('data-nid') || (page() || {}).id, b.getAttribute('data-f'), b.getAttribute('data-v'), +b.getAttribute('data-d')); return; }
+    if(w && w.hasAttribute('data-ixid')){
+      var ir = w.getAttribute('data-ixr'), ii = w.getAttribute('data-ixid');
+      if(x === 'ixdel') navRemove({getAttribute: function(a){ return {'data-r': ir, 'data-id': ii}[a] || null; }});
+      else if(x === 'ixedit'){ var ek = chipKinds().filter(function(q){ return q.r === ir; })[0]; if(ek) editAuthority(b, ek, ii); }
+      return;
+    }
+    if(w && w.hasAttribute('data-lk')){ liMove(w.getAttribute('data-lk'), +w.getAttribute('data-li'), x); return; }
     if(x === 'navx'){ navRemove(b); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');

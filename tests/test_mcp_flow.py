@@ -296,3 +296,122 @@ def test_a_timeline_started_on_the_homepage_builds_with_what_was_written_in_it(m
     assert nodes["card-ee33ff"]["act"] == 2
     assert (nodes["card-aa11bb"]["parent"], nodes["card-aa11bb"]["act"]) == ("card-ee33ff", 2)
     assert nodes["unit-2-start"]["act"] == 1
+
+
+# ── authorities added on a detail page (cases, statutes, Restatement, lists) ─
+
+OUTLINE = json.loads((ROOT / "samples" / "outline_brief.json").read_text(encoding="utf-8"))
+
+
+def _outline_with_statutes(monkeypatch):
+    """The outline sample plus a second, grouped axis (statutes by source), built
+    through the tools, with the page's edits held in a dict."""
+    brief = json.loads(json.dumps(OUTLINE["brief"]))
+    brief["axes"].append({"label": "Statutes & Rules", "singular": "Section", "hide_nav": True, "values": [
+        {"id": "frcp-4", "name": "Fed. R. Civ. P. 4", "group": "Federal Rules", "sections": [{"h": "Text", "t": "Summons."}]},
+        {"id": "usc-1367", "name": "28 U.S.C. § 1367", "group": "28 U.S.C.", "sections": [{"h": "Text", "t": "Supplemental."}]}]})
+    pid = srv.create_project("Contracts", "1L", "studying")["project_id"]
+    r = srv.create_timeline(pid, brief)
+    assert "error" not in r, r
+    tid = r["timeline_id"]
+    srv.record_materials_consent(tid, [{"name": "notes", "kind": "notes"}], True)
+    r = srv.add_nodes(tid, OUTLINE["nodes"])
+    assert "error" not in r, r
+    srv.add_connections(tid, OUTLINE["connections"])
+    st = srv.get_store()
+    store = {}
+    monkeypatch.setattr(type(st), "get_edits", lambda self, u, t: json.loads(json.dumps(store.get(t))) if t in store else None, raising=False)
+    monkeypatch.setattr(type(st), "put_edits", lambda self, u, t, d: store.__setitem__(t, json.loads(json.dumps(d))), raising=False)
+    return tid, store
+
+
+def test_a_case_added_on_a_page_folds_through_the_tool_and_builds_as_its_sisters_are(monkeypatch):
+    """The Index page's + Add a case, and a case made from a concept's chips: a
+    name, a citation, a note under the heading the other cases use, a link —
+    folded by build_timeline (not only edits.fold) and still there after it."""
+    tid, store = _outline_with_statutes(monkeypatch)
+    store[tid] = {"v": 1, "ops": {
+        "ne|env|raffles-v-wichelhaus": {"b": None, "t": 1, "v": {
+            "name": "Raffles v. Wichelhaus", "color": "#f2a93b", "cite": "159 Eng. Rep. 375 (1864)",
+            "h": "Holding", "t": "Two ships named Peerless & no meeting of the minds.", "link": "https://example.com/raffles"}},
+        "ch|bargained-exchange|envs": {"b": ["hamer", "kirksey"], "t": 2,
+                                       "v": ["hamer", "kirksey", "raffles-v-wichelhaus"]},
+        "ne|theme|usc-1332": {"b": None, "t": 3, "v": {"name": "28 U.S.C. § 1332", "cite": "28 U.S.C. § 1332",
+                                                        "grp": "28 U.S.C.", "h": "Text", "t": "Diversity."}}}}
+    r = srv.build_timeline(tid)
+    assert r.get("verify") == "passed", r
+    assert r["manual_edits"].get("folded") == 3 and not r["manual_edits"].get("conflicts"), r["manual_edits"]
+    brief = srv.get_store().get_timeline(srv.uid(), tid)["brief"]
+    v = next(x for x in brief["axes"][0]["values"] if x["id"] == "raffles-v-wichelhaus")
+    assert v["cite"] == {"note": "159 Eng. Rep. 375 (1864)", "short": "159 Eng. Rep. 375 (1864)"}
+    assert [s["h"] for s in v["sections"]] == ["Holding", "Link"]          # the sisters' own heading
+    assert v["sections"][0]["t"] == "Two ships named Peerless &amp; no meeting of the minds."
+    assert 'href="https://example.com/raffles"' in v["sections"][1]["t"]
+    s = next(x for x in brief["axes"][1]["values"] if x["id"] == "usc-1332")
+    assert s["group"] == "28 U.S.C."
+    nodes = {n["id"]: n for n in srv.get_store().list_nodes(srv.uid(), tid)}
+    assert nodes["bargained-exchange"]["axis1_values"] == ["hamer", "kirksey", "raffles-v-wichelhaus"]
+    page = srv.get_store().get_artifact(srv.uid(), tid, "timeline.html")
+    assert "Raffles v. Wichelhaus" in page and "159 Eng. Rep. 375 (1864)" in page
+    assert 'href="https://example.com/raffles"' in page and "Two ships named Peerless" in page
+    # it sits in the 28 U.S.C. index with its siblings, not a chip of its own
+    cfg = json.loads(page.split("window._ALTO_AXES=", 1)[1].split(";\n", 1)[0])
+    assert "usc-1332" in cfg["theme~28-u-s-c"]["ids"] and "usc-1367" in cfg["theme~28-u-s-c"]["ids"]
+    assert "usc-1332" not in cfg["theme~federal-rules"]["ids"]
+    assert cfg["theme~28-u-s-c"]["cites"]["usc-1332"] == "28 U.S.C. § 1332"
+    # a second build changes nothing, and the draft keeps it
+    r2 = srv.build_timeline(tid)
+    assert r2.get("verify") == "passed"
+    from alto.edits import published
+    assert published(srv.get_store(), srv.uid(), tid) == 3
+    brief2 = srv.get_store().get_timeline(srv.uid(), tid)["brief"]
+    assert sum(1 for x in brief2["axes"][0]["values"] if x["id"] == "raffles-v-wichelhaus") == 1
+
+
+def test_a_list_of_cases_made_on_a_page_folds_with_its_entries(monkeypatch):
+    """"+ Add a section" → Cases / Authorities: a new section whose words are a
+    list, each entry <i>Name</i>, citation — note, with a link; entries added,
+    moved and removed afterwards are the same section's words."""
+    tid, store = _outline_with_statutes(monkeypatch)
+    from alto.build.manual_edit import jhash
+    nodes = {n["id"]: n for n in srv.get_store().list_nodes(srv.uid(), tid)}
+    pairs = [[s["h"], s["t"]] for s in nodes["offer"]["sections"] if s.get("t")]
+    base = jhash(json.dumps(pairs, ensure_ascii=False, separators=(",", ":")))
+    li1 = ('<li><a class="note-link" href="https://example.com/lucy" target="_blank" rel="noopener">'
+           '<i>Lucy v. Zehmer</i></a>, 84 S.E.2d 516 (Va. 1954) — Objective theory of assent.</li>')
+    li2 = "<li><i>Hamer v. Sidway</i>, 27 N.E. 256 (N.Y. 1891)</li>"
+    store[tid] = {"v": 1, "ops": {
+        "n|offer|order": {"b": base, "t": 1, "v": [str(i) for i in range(len(pairs))] + ["new-ab12cd"]},
+        "n|offer|s|new-ab12cd|h": {"b": "", "t": 1, "v": "Cases"},
+        "n|offer|s|new-ab12cd|t": {"b": "", "t": 5, "v": f"<ul>{li2}{li1}</ul>"}}}
+    r = srv.build_timeline(tid)
+    assert r.get("verify") == "passed" and r["manual_edits"].get("folded") == 3, r.get("manual_edits")
+    secs = next(n for n in srv.get_store().list_nodes(srv.uid(), tid) if n["id"] == "offer")["sections"]
+    cases = next(s for s in secs if s["h"] == "Cases")
+    assert cases["t"].index("Hamer v. Sidway") < cases["t"].index("Lucy v. Zehmer")      # the order the page showed
+    assert 'href="https://example.com/lucy"' in cases["t"] and "<ul>" in cases["t"]
+    page = srv.get_store().get_artifact(srv.uid(), tid, "timeline.html")
+    assert "84 S.E.2d 516 (Va. 1954) — Objective theory of assent." in page
+
+
+def test_a_case_added_then_edited_before_the_fold_still_folds(monkeypatch):
+    """The page's sections of a case made there carry their own numbers
+    (citation = the build's, note = 0, link = 1): words and a reorder made
+    before the fold apply to the case the fold has just made."""
+    tid, store = _outline_with_statutes(monkeypatch)
+    store[tid] = {"v": 1, "ops": {
+        "ne|env|new-case": {"b": None, "t": 1, "v": {"name": "New v. Case", "cite": "1 U.S. 1", "h": "Holding", "t": "First words.", "link": "https://example.com/x"}},
+        "env|new-case|s|0|t": {"b": "First words.", "t": 2, "v": "Second words, edited on the page."},
+        "env|new-case|name": {"b": "New v. Case", "t": 3, "v": "New v. Case (renamed)"},
+        "env|new-case|order": {"b": jh_empty(), "t": 4, "v": ["1", "0"]}}}
+    r = srv.build_timeline(tid)
+    assert r.get("verify") == "passed" and not r["manual_edits"].get("conflicts"), r.get("manual_edits")
+    v = next(x for x in srv.get_store().get_timeline(srv.uid(), tid)["brief"]["axes"][0]["values"] if x["id"] == "new-case")
+    assert v["name"] == "New v. Case (renamed)"
+    assert [s["h"] for s in v["sections"]] == ["Link", "Holding"]
+    assert v["sections"][1]["t"] == "Second words, edited on the page."
+
+
+def jh_empty():
+    from alto.build.manual_edit import jhash
+    return jhash("[]")
