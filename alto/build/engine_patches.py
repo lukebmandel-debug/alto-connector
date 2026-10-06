@@ -2367,3 +2367,50 @@ PATCHES += [
     {"name": "router-orthpath-corner-fits-the-segment", "old": _CORNER_ORTH_OLD,
      "new": _CORNER_ORTH_NEW, "count": 1},
 ]
+
+
+# ── print: the outline with every detail page, and the picture, ink-saver ───
+# `_stagePrint` knows 'timeline' (the outline), 'current' and 'all'. 'full' puts
+# the outline in front of the detail pages (one run, a sheet break between), and
+# 'ink' hands over to the picture builder in print_views.py. The same two modes
+# are asked for by the share dialog's PRINT list (below) and by the homepage's
+# Print... dialog, through #altoprint=<mode> (print_views.py), so there is one
+# printing code path. The detail pages are built BEFORE any print class is set:
+# showDetail needs the live page.
+_PV_STAGE_OLD = ("function _stagePrint(mode){\n"
+                 "  var root = document.documentElement;\n"
+                 "  root.classList.remove('printing','print-timeline','print-current','print-all');\n")
+_PV_STAGE_NEW = (
+    "function _stagePrint(mode){\n"
+    "  var root = document.documentElement;\n"
+    "  root.classList.remove('printing','print-timeline','print-current','print-all','print-full','print-ink');\n"
+    "  if(window._altoInkUnstage) window._altoInkUnstage();\n"
+    "  if(mode === 'ink'){\n"
+    "    if(window._altoInkStage && window._altoInkStage()){ root.classList.add('print-ink','printing'); return; }\n"
+    "    mode = 'timeline';   // no canvas to draw: the outline is the fallback\n"
+    "  }\n"
+    "  if(mode === 'full'){\n"
+    "    var pa = document.getElementById('print-all');\n"
+    "    if(!pa){ pa = document.createElement('div'); pa.id = 'print-all'; document.body.appendChild(pa); }\n"
+    "    var pt = document.getElementById('print-timeline-host');\n"
+    "    if(!pt){ pt = document.createElement('div'); pt.id = 'print-timeline-host'; document.body.appendChild(pt); }\n"
+    "    pa.innerHTML = _buildAllDetailsHTML();\n"
+    "    pt.innerHTML = _buildPrintTimelineHTML();\n"
+    "    document.body.appendChild(pt); document.body.appendChild(pa);   // the outline first\n"
+    "    root.classList.add('print-timeline','print-all','print-full','printing');\n"
+    "    return;\n"
+    "  }\n")
+_PV_UNSTAGE_OLD = ("function _unstagePrint(){\n"
+                   "  document.documentElement.classList.remove('printing','print-timeline','print-current','print-all');\n")
+_PV_UNSTAGE_NEW = ("function _unstagePrint(){\n"
+                   "  document.documentElement.classList.remove('printing','print-timeline','print-current','print-all','print-full','print-ink');\n"
+                   "  if(window._altoInkUnstage) window._altoInkUnstage();\n")
+_PV_BTN_OLD = "      '<button class=\"print-opt\" data-print=\"all\">All detail pages</button>' +\n"
+_PV_BTN_NEW = (_PV_BTN_OLD +
+               "      '<button class=\"print-opt\" data-print=\"ink\">Timeline picture, ink-saver</button>' +\n")
+
+PATCHES += [
+    {"name": "print-views-stage", "old": _PV_STAGE_OLD, "new": _PV_STAGE_NEW, "count": 1},
+    {"name": "print-views-unstage", "old": _PV_UNSTAGE_OLD, "new": _PV_UNSTAGE_NEW, "count": 1},
+    {"name": "print-views-dialog-button", "old": _PV_BTN_OLD, "new": _PV_BTN_NEW, "count": 1},
+]

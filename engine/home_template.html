@@ -694,6 +694,9 @@
   .share-menu .sm-confirm:hover{ background:#a93226; }
   .share-menu .sm-confirm[disabled]{ opacity:.45; }
   .share-menu .sm-warn{ font-size:12.5px; line-height:1.6; margin:0 0 14px; }
+  /* Print: each choice names itself and says what it prints */
+  .share-menu .sm-pick{ height:auto; padding:10px 14px; text-align:left; }
+  .share-menu .sm-pick small{ display:block; margin-top:3px; font-size:11.5px; line-height:1.45; color:var(--muted); white-space:normal; }
   .share-menu .sm-warn b{ font-weight:600; }
   /* Recently deleted: under your own projects, folded until opened */
   .bin-group .bin-toggle{ background:none; border:0; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; padding:0; letter-spacing:.04em; }
@@ -1328,11 +1331,13 @@ function altoShareMenu(pg, btn){
           'updated it.</p>' +
           '<button data-a="copy">Copy link</button>' +
           '<button data-a="push">Update shared copy</button>' +
-          '<button data-a="revoke" class="sm-danger">Stop sharing</button>'
+          '<button data-a="revoke" class="sm-danger">Stop sharing</button>' +
+          '<button data-a="print">Print…</button>'
         : '<p class="sm-note">Creates a link that opens without signing in. ' +
           'It shows this timeline as it is now, and stays that way until you ' +
           'update it. Your own copy is untouched.</p>' +
-          '<button data-a="create">Create share link</button>') +
+          '<button data-a="create">Create share link</button>' +
+          '<button data-a="print">Print…</button>') +
       '<button data-a="close" class="sm-quiet">Cancel</button>' +
       '<p class="sm-status"></p>' +
     '</div>';
@@ -1391,6 +1396,7 @@ function altoShareMenu(pg, btn){
     if(!b) return;
     const a = b.dataset.a;
     if(a === 'close'){ close(); return; }
+    if(a === 'print'){ close(); altoPrintMenu(pg); return; }
     try{
       if(a === 'copy'){ await copyUrl(pg.shareKey); close(); return; }
       if(a === 'create' || a === 'push'){
@@ -1411,6 +1417,58 @@ function altoShareMenu(pg, btn){
       }
     }catch(err){ if(err !== 'keep-open') failed(err); }
   });
+}
+
+// ── Print a private timeline ───────────────────────────────────────────────
+// A private page lives in Firestore and is written into its own tab by the
+// shell (see privateHref), so the homepage cannot print it from here. It opens the
+// timeline with #altoprint=<mode>: the page (alto/build/print_views.py) stages
+// that print itself, calls print(), and closes the tab it was opened in. The
+// shell hands the hash to the page (private_shell.withHandoff) and drops it
+// from the address bar, so a reload never prints again. The three modes are
+// the same ones the notes panel's share dialog offers.
+// Where a private timeline opens: the shell, which writes the page into its own tab.
+function privateHref(pg){ return '/pv/' + encodeURIComponent(pg.key) + '/'; }
+const PRINT_CHOICES = [
+  ['outline', 'Outline', 'The numbered outline: every card with its title and short description.'],
+  ['full', 'Outline + all detail pages', 'The outline, then every detail page in outline order, one to a sheet.'],
+  ['ink', 'Timeline picture, ink-saver', 'The cards and lines as drawn, on white with no colour or shading. Scaled to the sheet.']
+];
+function altoPrintUrl(pg, mode){
+  return privateHref(pg) + '#altoprint=' + mode;
+}
+function altoPrintMenu(pg){
+  const sc = document.createElement('div');
+  sc.className = 'share-scrim';
+  sc.innerHTML = '<div class="share-menu" role="dialog" aria-modal="true">' +
+    '<div class="sm-title"></div>' +
+    '<p class="sm-note">What do you want to print? It opens in a new tab, ready to print, and the tab closes when you are done.</p>' +
+    '<div class="sm-body"></div><p class="sm-status"></p></div>';
+  document.body.appendChild(sc);
+  const body = sc.querySelector('.sm-body'), status = sc.querySelector('.sm-status');
+  sc.querySelector('.sm-title').textContent = pg.heading || pg.title || 'Untitled timeline';
+  const close = () => { sc.remove(); document.removeEventListener('keydown', onKey, true); };
+  function onKey(e){ if(e.key === 'Escape'){ e.preventDefault(); close(); } }
+  document.addEventListener('keydown', onKey, true);
+  sc.addEventListener('click', e => { if(e.target === sc) close(); });
+  PRINT_CHOICES.forEach(ch => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sm-pick'; b.dataset.print = ch[0];
+    b.appendChild(document.createTextNode(ch[1]));
+    const sm = document.createElement('small'); sm.textContent = ch[2]; b.appendChild(sm);
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      // opened straight from the tap, so the browser lets the new tab through
+      const w = window.open(altoPrintUrl(pg, ch[0]), '_blank');
+      if(!w){ status.textContent = 'Your browser blocked the new tab. Allow pop-ups for this site, then choose again.'; return; }
+      close(); showToast('Opening the print view…');
+    });
+    body.appendChild(b);
+  });
+  const cancel = document.createElement('button');
+  cancel.type = 'button'; cancel.className = 'sm-quiet'; cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', e => { e.stopPropagation(); close(); });
+  body.appendChild(cancel);
 }
 
 // ── Move or delete a private timeline (the ⋯ on its card) ─────────────────
@@ -1452,6 +1510,7 @@ function altoTileMenu(pg){
     if(where) body.appendChild(note('In ' + where + '.'));
     body.appendChild(btn('Move to another project…', '', moveView));
     body.appendChild(btn('Share…', '', () => { close(); altoShareMenu(pg); }));
+    body.appendChild(btn('Print…', '', () => { close(); altoPrintMenu(pg); }));
     body.appendChild(btn('Delete timeline…', 'sm-danger', deleteView));
     body.appendChild(btn('Cancel', 'sm-quiet', close));
   }
@@ -1825,7 +1884,7 @@ function drawPrivate(all){
     pj.items.forEach(pg => {
       const el = document.createElement('a');
       el.className = 'course-tile live';
-      el.href = '/pv/' + encodeURIComponent(pg.key) + '/';
+      el.href = privateHref(pg);
       el.dataset.tile = pg.title || 'Untitled';
       el.dataset.key = pg.key;
       el.innerHTML =

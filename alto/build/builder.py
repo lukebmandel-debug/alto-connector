@@ -245,6 +245,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .search import search_config
     from .subtree import tree_block
     from .manual_edit import manual_edit
+    from .print_views import print_views
     table = dx.autolink_table(brief)
     # Sources with a copy on the author's computer (empty when none have one).
     local, local_warnings = dx.local_sources(brief)
@@ -255,7 +256,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief)
-            + tree_block(trees or {}) + manual_edit(brief, nodes))
+            + tree_block(trees or {}) + manual_edit(brief, nodes) + print_views())
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])
