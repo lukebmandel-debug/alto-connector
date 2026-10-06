@@ -7,6 +7,17 @@
      back to WHITE even when the page paints underneath. JS keeps it in sync with dark mode. -->
 <meta name="theme-color" id="meta-theme" content="#ffc59e">
 <title>Alto — Home</title>
+<script id="home-chrome-fit">
+/* The timeline scales its page by clamp(window / 1700, 0.8, 1) (engine_patches.py,
+   #alto-fit). The title bar and the floating controls here take the same scale, so the
+   two pages hold the same chrome. */
+(function(){
+  var d = document.documentElement;
+  if(/Chrome\//.test(navigator.userAgent)) d.classList.add('is-blink');   // same sniff as the timeline
+  function fit(){ d.style.setProperty('--alto-zoom', String(Math.min(1, Math.max(0.8, window.innerWidth / 1700)))); }
+  fit(); window.addEventListener('resize', fit);
+})();
+</script>
 <style>
   /* Tokens copied from the timeline page so the two pages share one visual system. */
   :root {
@@ -79,18 +90,45 @@
   }
 
   /* ── Glass header, mirroring the course title-bar ── */
+  /* The title bar, the bottom-right row and the account bubble are the timeline's own
+     controls: same CSS as the timeline (see engine_patches.py), at the same scale. The
+     timeline zooms its whole page by --alto-zoom (0.8 up to 1.0 with the window, set by
+     #alto-fit in <head>); these elements take the same zoom, so a click from here into a
+     timeline and back moves nothing. Phones (<=640px) have their own layout below. */
   #title-bar{
-    position:fixed; top:0; left:0; right:0; height:67px; z-index:100;
+    position:fixed; top:0; left:0; right:0; height:52px; z-index:102;
     display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:0 26px;
     background:var(--header-glass-bg);
-    border-bottom:1px solid var(--header-hairline);
-    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%);
   }
-  #title-bar .brand-mark{ justify-self:start; height:42px; }
-  #title-bar .brand-word{ justify-self:end; height:26px; opacity:.96; }
+  #title-bar .brand-mark{ justify-self:start; height:42px; filter:drop-shadow(0 1px 4px rgba(25,30,60,0.40)); }
+  #title-bar .brand-word{ justify-self:end; height:26px; opacity:.96; filter:drop-shadow(0 1px 4px rgba(25,30,60,0.40)); }
+  html.dark #title-bar .brand-mark, html.dark #title-bar .brand-word{ filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55)); }
   #title-bar #title-text{
-    justify-self:center; font-size:15px; letter-spacing:.32em; text-transform:uppercase;
-    color:var(--muted);
+    justify-self:center; font-size:20px; letter-spacing:.08em; font-weight:normal;
+    color:var(--text);
+  }
+  @media (min-width:641px){
+    #title-bar, #search-btn, #info-btn, #mode-toggle, #account-btn{ zoom:var(--alto-zoom, 0.8); }
+    /* Chrome does not composite backdrop-filter under the timeline's page zoom, so the
+       timeline raises each glass tint to a floor there (glass-chrome-fallback, html.is-blink);
+       the same floors here keep the controls and the title bar identical in Chrome. */
+    html.is-blink{
+      --page-glass-tint:rgba(247,249,253,0.30); --header-glass-bg:rgba(255,255,255,0.12);
+      --card-glass-bg:rgba(255,255,255,0.54); --chip-glass-bg:rgba(255,255,255,0.54);
+      --panel-glass-bg:rgba(252,252,255,0.76);
+    }
+    html.is-blink.dark{
+      --page-glass-tint:rgba(11,13,21,0.34); --header-glass-bg:rgba(20,22,34,0.18);
+      --card-glass-bg:rgba(26,30,48,0.62); --chip-glass-bg:rgba(34,36,52,0.58);
+      --panel-glass-bg:rgba(18,20,30,0.78);
+    }
+  }
+  /* On ~1x screens the timeline deepens its muted ink and thickens its small text a hair
+     (LOW-DPI ADAPTATION); the controls' glyphs and the guide text follow it. */
+  @media (min-width:641px) and (-webkit-max-device-pixel-ratio:1.25), (min-width:641px) and (max-resolution:1.25dppx){
+    html:not(.dark){ --muted:#454565; }
+    #info-content{ -webkit-text-stroke:0.2px; }
   }
   /* Dark mode: swap brand strokes to the pastel gradients (same as brand-on-dark). */
   html.dark .brand-mark .alto-ink{ stroke:url(#altoG2); }
@@ -213,50 +251,50 @@
   /* ── Mode toggle, same placement/feel as the course app.
      36px tall to match the 36px search / info / account bubbles exactly. ── */
   #mode-toggle{
-    position:fixed; bottom:24px; right:24px; z-index:200;
-    height:28px; width:84px; display:inline-flex; align-items:center; justify-content:center;
-    white-space:nowrap; border-radius:14px; font-size:12px; letter-spacing:.06em;
-    color:var(--muted); cursor:pointer; font-family:inherit;
-    /* Frosted glass, no saturate() — matches the other controls (see #search-btn note).
-       FIXED width so "☾ Dark" (light mode) and "☀ Light" (dark mode) render the SAME size:
-       the labels differ in length, so an auto-width pill was ~7px wider in dark mode. */
+    position:fixed; bottom:30px; right:30px; z-index:310;
+    width:35px; height:35px; padding:0; display:flex; align-items:center; justify-content:center;
+    white-space:nowrap; border-radius:50%; font-size:15px; letter-spacing:.06em;
+    color:var(--text); cursor:pointer; font-family:inherit;
+    /* Frosted glass, no saturate() — matches the other controls (see #search-btn note). */
     background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
-    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
-    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
     box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
   }
-  #mode-toggle:hover{ border-color:var(--muted); color:var(--text); }
+  html.dark #mode-toggle{ color:var(--muted); }
+  #mode-label{ display:none; }
+  #mode-toggle:hover, html.dark #mode-toggle:hover{ border-color:var(--muted); color:var(--text); }
 
   /* ── SEARCH — frosted toggle bubble directly LEFT of the mode toggle
      (same recipe as the course app's #search-btn; right is set by alignSearch JS
      so it tracks the toggle's width with the 12px rhythm). ── */
   #search-btn{
-    position:fixed; bottom:24px; right:144px; z-index:300;
-    width:28px; height:28px; border-radius:50%;
+    position:fixed; bottom:30px; right:125px; z-index:310;
+    width:35px; height:35px; border-radius:50%;
     /* Frosted glass. NO saturate() — over the homepage's vivid wallpaper it over-vivifies
        the tint into "lit-up yellow"; without it the tint stays muted like the timeline
        (whose saturate sits over a neutral full-bleed slab). Translucent so dark mode reads
        as a soft frosted bubble, not an invisible dark-on-dark disc. */
     background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
-    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
-    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
     box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
     display:flex; align-items:center; overflow:visible; cursor:pointer;
     transition:width .35s cubic-bezier(.4,0,.2,1), border-radius .35s cubic-bezier(.4,0,.2,1);
   }
   #search-btn.expanded{ width:380px; border-radius:18px; }
-  #search-glyph{ flex:0 0 26.8px; width:26.8px; height:26.8px; display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer; }
+  #search-glyph{ flex:0 0 35px; width:35px; height:35px; display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer; }
   #search-btn.expanded #search-glyph{ color:var(--text); }
   #search-input{
     flex:1 1 auto; width:0; opacity:0; min-width:0;
     border:none; background:transparent; outline:none;
-    color:var(--text); font-family:inherit; font-size:14px; padding:0 14px 0 0;
+    color:var(--text); font-family:inherit; font-size:13.75px; padding:0 14px 0 0;
     transition:opacity .2s .12s;
   }
   #search-btn.expanded #search-input{ width:auto; opacity:1; }
   #search-input::placeholder{ color:var(--muted); opacity:.75; }
   #search-results{
-    position:absolute; right:0; bottom:46px; width:380px; max-height:420px; overflow-y:auto;
+    position:absolute; right:0; bottom:46px; width:380px; max-height:480px; overflow-y:auto;
     background:var(--panel-glass-bg); border:1px solid var(--card-glass-border); border-radius:12px;
     -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
     backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
@@ -281,12 +319,12 @@
   /* ── INFO — 36px circle that expands up+left into the Alto guide panel
      (same recipe as the course app's #info-btn, in homepage glass). ── */
   #info-btn{
-    position:fixed; bottom:24px; right:96px; z-index:300;
-    width:28px; max-height:28px; border-radius:50%;
+    position:fixed; bottom:30px; right:77.5px; z-index:310;
+    width:35px; max-height:35px; border-radius:50%;
     /* Frosted glass, no saturate() — see #search-btn note. */
     background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
-    -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
-    backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
+    -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
+    backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright));
     box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
     overflow:hidden; cursor:pointer;
     transition:width .35s cubic-bezier(.4,0,.2,1),
@@ -294,21 +332,23 @@
                border-radius .35s cubic-bezier(.4,0,.2,1);
   }
   #info-btn.expanded{
-    width:360px; max-height:520px; border-radius:12px;
+    width:360px; max-height:660px; border-radius:12px;
+    box-shadow:0 18px 48px var(--node-hover-shadow), inset 0 1px 0 var(--card-glass-hi);
     background:var(--panel-glass-bg);
     -webkit-backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
     backdrop-filter:blur(30px) saturate(185%) brightness(var(--card-glass-bright));
   }
   #info-icon{
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    position:absolute; inset:0; display:block; font-size:15px;
     color:var(--muted); cursor:pointer; z-index:1;
   }
   /* Panel opens up+left from the circle: pin the "i" to the bottom-right corner so
      the toggle stays exactly where the circle was (consistent click-to-close). */
+  #info-btn.expanded, #info-btn.expanded:hover{ border-color:var(--card-glass-border); }
   #info-btn.expanded #info-icon{ inset:auto; bottom:10px; right:10px; width:20px; height:20px; }
   #info-content{
-    padding:18px 18px 44px; font-size:13px; line-height:1.7; color:var(--muted);
-    opacity:0; transition:opacity .2s .1s; overflow-y:auto; max-height:600px;
+    padding:16px 16px 42px; font-size:13px; line-height:1.7; color:var(--muted);
+    opacity:0; transition:opacity .2s .1s; overflow-y:auto; max-height:620px;
   }
   #info-btn.expanded #info-content{ opacity:1; }
   #info-content strong{ color:var(--text); font-weight:600; }
@@ -316,8 +356,8 @@
   /* ── ACCOUNT — 36px person bubble in the bottom-LEFT slot (the spot the account
      chat bubble occupies inside a course); opens the sign-in modal. ── */
   #account-btn{
-    position:fixed; bottom:24px; left:24px; right:auto; z-index:300;
-    width:28px; height:28px; border-radius:50%;
+    position:fixed; bottom:24px; left:24px; right:auto; z-index:200;
+    width:35px; height:35px; border-radius:50%;
     /* Frosted glass, no saturate() — see #search-btn note. */
     background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
     -webkit-backdrop-filter:blur(18px) brightness(var(--card-glass-bright));
@@ -347,12 +387,8 @@
      info-icon is inset:0), so an absolute svg here resolves against the full 28.8px circle. */
   #search-btn:not(.expanded) #search-glyph svg,
   #info-btn:not(.expanded) #info-icon svg{
-    position:absolute; inset:0; margin:auto; width:16px; height:16px; display:block;
+    position:absolute; inset:0; margin:auto; width:20px; height:20px; display:block;
   }
-  /* The "i" glyph's drawn content (dot + stem) sits 0.35 viewBox-units below the viewBox
-     centre, so its bounding-box midpoint lands ~0.28px low in the bubble — lift it so the
-     glyph's vertical midpoint sits exactly on the bubble's horizontal diameter. */
-  #info-btn:not(.expanded) #info-icon svg{ transform:translateY(-0.28px); }
   /* Account: center the glyph with the BUTTON's own flexbox — pure in-flow, NO absolute
      positioning of any kind. (Absolute + inset:0 / margin:auto against the position:fixed
      button mis-behaves in Safari — the wrapper collapses and the glyph drops to top-left.)
@@ -361,7 +397,7 @@
   /* No nudge — the person icon is geometrically centred in its 20×20 viewBox, so pure flex
      centering lands its head on the bubble's vertical diameter (verified with crosshairs in
      Safari). Earlier ±0.6px nudges over-corrected into "too right" / "too northwest". */
-  #account-btn #acct-glyph svg{ position:static; margin:0; width:16px; height:16px; display:block; flex:0 0 auto; }
+  #account-btn #acct-glyph svg{ position:static; margin:0; width:20px; height:20px; display:block; flex:0 0 auto; }
 
   /* "Opening the Claude app…" toast — desktop deep-link handoff feedback + manual web fallback. */
   #claude-toast{
@@ -392,14 +428,18 @@
     .slab-group{ gap:26px; }
     .home-section-label{ margin-bottom:-14px; padding:0 6px; }
     /* header: clef left, title center, "Alto" wordmark top-RIGHT (C2); safe-area top (C3) */
-    #title-bar{ padding:env(safe-area-inset-top,0px) 14px 0; height:calc(56px + env(safe-area-inset-top,0px)); }
+    /* the timeline's phone header: 52px band, clef 12px in, title 16px at .12em */
+    #title-bar{ padding:env(safe-area-inset-top,0px) 14px 0 12px; height:calc(52px + env(safe-area-inset-top,0px)); }
     #title-bar .brand-mark{ height:34px; }
     #title-bar .brand-word{ display:block; height:21px; opacity:.96; }  /* 34 × 26/42 — same word:clef ratio as desktop */
-    #title-bar #title-text{ font-size:12px; letter-spacing:.22em; }
+    #title-bar{ border-bottom:1px solid var(--header-hairline); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+    #title-bar .brand-mark, #title-bar .brand-word{ filter:none; }
+    #title-bar #title-text{ font-size:16px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-left:2px; }  /* 2px: centred on the screen despite the clef's 12px / wordmark's 14px insets */
     #page-glass{
-      -webkit-backdrop-filter:blur(24px) saturate(185%) brightness(var(--page-glass-bright));
-      backdrop-filter:blur(24px) saturate(185%) brightness(var(--page-glass-bright));
+      background:rgba(250,251,255,0.35);       /* the timeline's phone veil (--m-page-veil) */
+      -webkit-backdrop-filter:blur(22px); backdrop-filter:blur(22px);
     }
+    html.dark #page-glass{ background:rgba(10,11,17,0.38); }
     /* wallpaper bleeds past every edge — a real fixed element reliably paints the
        notch/home strips on iOS (canvas gradients + attachment:fixed are not honoured) */
     #page-bg{ top:-12%; right:-6%; bottom:-12%; left:-6%; }
@@ -442,7 +482,8 @@
       box-shadow:none !important;
       -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%);
     }
-    #search-btn #search-glyph{ position:static !important; width:20px; height:20px; }
+    #search-btn #search-glyph{ position:static !important; flex:0 0 26.8px; width:20px; height:20px; }
+    #search-btn:not(.expanded) #search-glyph svg{ width:16px; height:16px; }
     #search-btn:not(.expanded) #search-glyph svg{ position:static !important; inset:auto !important; margin:0 !important; }
     #search-label{ display:inline; font-size:13px; color:var(--muted); white-space:nowrap;
       font-family:Georgia,'Times New Roman',serif; }
@@ -498,7 +539,10 @@
     html.dark #mode-toggle .mode-sun{ display:block; }
   }
   /* desktop: hide the mobile-only mode glyphs + search label */
-  #mode-toggle .mode-glyph{ display:none; }
+  #mode-toggle .mode-glyph{ display:none; flex:none; }
+  @media (min-width:641px){ #mode-toggle .mode-glyph{ width:18px; height:18px; } }
+  html:not(.dark) #mode-toggle .mode-moon{ display:block; }
+  html.dark #mode-toggle .mode-sun{ display:block; }
   @media (min-width:641px){ #search-label{ display:none; } }
   /* medium-aware wording inside the INFO guide (desktop-only vs mobile-only phrases) */
   @media (max-width:640px){ .d-only{ display:none; } }
@@ -844,7 +888,7 @@
     <p class="d-only" style="margin:5px 0"><strong>Making one</strong> &#8212; you can build everything by hand, but the suggested route is to have Claude build it from your own notes, outlines or readings (<em>&#65291; New timeline</em> or <em>Start new project</em>), then make small adjustments and revisions in the timeline itself.</p>
     <p class="m-only" style="margin:5px 0"><strong>Making one</strong> &#8212; timelines are made with Claude on a computer. You can build by hand, but the suggested route is to have Claude build from your own notes, then make small adjustments yourself.</p>
     <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches every project and timeline, and the cards and pages inside them. A result jumps straight to the spot.</p>
-    <p style="margin:5px 0"><strong>On a tile</strong> &#8212; the small buttons share a timeline, download an offline copy, or open its saved reports. The &#8943; on your own timelines moves, shares, prints or deletes; deleted ones wait in <em>Recently deleted</em> for a while.</p>
+    <p style="margin:5px 0"><strong>On a tile</strong> &#8212; the small buttons share a timeline, download an offline copy, or open its saved reports. The &#8943; on your own timelines moves, prints or deletes; deleted ones wait in <em>Recently deleted</em> for a while.</p>
     <p style="margin:5px 0"><strong>Account</strong> &#8212; the person <span class="d-only">bubble at the bottom left</span><span class="m-only">tile at the top left</span> signs you in with Google so your work can follow you.</p>
     <p style="margin:5px 0"><strong>Light / Dark</strong> &#8212; the <span class="d-only">toggle at the bottom right</span><span class="m-only">moon/sun tile at the top right</span> switches the whole surface; each timeline has its own toggle too.</p>
   </div>
@@ -1517,7 +1561,6 @@ function altoTileMenu(pg){
     const where = pg.project || pg.title || '';
     if(where) body.appendChild(note('In ' + where + '.'));
     body.appendChild(btn('Move to another project…', '', moveView));
-    body.appendChild(btn('Share…', '', () => { close(); altoShareMenu(pg); }));
     body.appendChild(btn('Print…', '', () => { close(); altoPrintMenu(pg); }));
     body.appendChild(btn('Delete timeline…', 'sm-danger', deleteView));
     body.appendChild(btn('Cancel', 'sm-quiet', close));
@@ -2022,16 +2065,20 @@ function alignSearch(){
   const mt = document.getElementById('mode-toggle');
   if(!mt || !mt.offsetWidth) return;
   if(window.innerWidth <= 640) return;   // mobile: the media-query layout owns positions
-  const GAP = 10, W = 28;
-  // Search + info sit flush on the same baseline as the mode-toggle, 10px rhythm.
-  // Integer W + GAP keep each bubble on a whole-pixel origin so glyphs don't round-shift in Safari.
-  const bottom = (24 + Math.max(0, (mt.offsetHeight - W) / 2)) + 'px';
-  let right = 24 + mt.offsetWidth + GAP;
+  // Same arithmetic as the timeline's alignInfo (engine_patches.py), in the same CSS px:
+  // 35px circles, 12.5 apart, the row inset 30 from the corner. The timeline keeps its
+  // edit toggle in that corner (a 112.5px slot, 99.4 wide + 12.5 gap rounded to the
+  // zoomed pixel grid); a page here has none, but the row stays where it is on the
+  // timeline so nothing jumps on the way in or out. Set EDIT_SLOT to 0 to sit flush right.
+  const GAP = 12.5, W = 35, EDIT_SLOT = 112.5;
+  let right = 30 + EDIT_SLOT;
+  mt.style.right = right + 'px'; mt.style.bottom = '30px';
+  right += W + GAP;
   ['info-btn', 'search-btn'].forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
     el.style.right = right + 'px';
-    el.style.bottom = bottom;
+    el.style.bottom = '30px';
     right += W + GAP;
   });
 }

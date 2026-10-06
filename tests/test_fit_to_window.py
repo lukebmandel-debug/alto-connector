@@ -123,15 +123,18 @@ def test_safari_gets_the_same_viewport_fill_as_blink(html, sel):
 
 # ── the other two pages never had the zoom, and must not gain it ────────────
 
-def test_the_home_and_reports_pages_are_untouched():
-    """Only the timeline carries html{zoom:0.8}; home and reports already render
-    at 1.0. Neither goes through apply_patches, and neither should start."""
+def test_the_home_and_reports_pages_are_not_zoomed():
+    """Only the timeline carries html{zoom:0.8}; home and reports render at 1.0.
+    Neither goes through apply_patches, and neither gets a root zoom. The homepage
+    does take the timeline's scale for its title bar and floating controls (and
+    only those), so they are the same size on both pages (test_chrome_parity)."""
     home = build_home([{"name": "P", "courses": []}])
     reports = build_reports([], "")
     for name, page in (("home", home), ("reports", reports)):
-        assert "alto-fit" not in page, f"{name} gained the timeline's fit script"
-        assert "--alto-zoom" not in page, f"{name} gained the timeline's zoom var"
+        assert 'id="alto-fit"' not in page, f"{name} gained the timeline's fit script"
         assert "html{zoom:0.8;}" not in page, f"{name} gained a root zoom it never had"
+    assert "--alto-zoom" not in reports
+    assert "#title-bar, #search-btn, #info-btn, #mode-toggle, #account-btn{ zoom:var(--alto-zoom, 0.8); }" in home
 
 
 # ── the anchors ─────────────────────────────────────────────────────────────

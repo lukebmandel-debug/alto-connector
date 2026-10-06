@@ -1664,8 +1664,11 @@ _CTRL_NEW = (_CTRL_OLD + "\n"
              # the title bar (a phone's BACK tile; the green pill is "back to the
              # previous page"). Glass like the other floating controls; below
              # 1100px it keeps only its arrow so a long title is never crowded.
+             # It sits on the clef's centre line (the bar is 52px: centre 26, so top =
+             # 26 - 35/2) and 80px in, ~20px clear of the clef's 59px right edge; it
+             # zooms with the page, so the gap and the alignment hold at every width.
              "html.mobile #desk-back{ display:none !important; }\n"
-             "html:not(.mobile) #desk-back{ display:none; position:fixed; left:74px; top:16px; z-index:103; height:35px;\n"
+             "html:not(.mobile) #desk-back{ display:none; position:fixed; left:80px; top:8.5px; z-index:103; height:35px;\n"
              "  align-items:center; justify-content:center; gap:7px; padding:0 15px 0 12px; border-radius:17.5px; cursor:pointer;\n"
              "  font-family:inherit; font-size:14px; letter-spacing:.05em; white-space:nowrap; color:var(--muted);\n"
              "  background:var(--card-glass-bg); border:1px solid var(--card-glass-border);\n"
@@ -1730,13 +1733,16 @@ _INFO_FB_OLD = "html:not(.mobile) #info-btn{ bottom:24px !important; right:96px 
 _INFO_FB_NEW = "html:not(.mobile) #info-btn{ bottom:30px !important; right:78px !important; top:auto !important; }"
 _SB_FB_OLD = "position:fixed; bottom:24px; right:144px; z-index:300;"
 _SB_FB_NEW = "position:fixed; bottom:30px; right:125px; z-index:300;"
-# The magnifier's ink is heavy at the upper right (the lens), so its bounding box
-# centred in the circle still reads high and to the right; the view box nudges
-# the drawing 0.3 units down-left, splitting box centre and ink centre.
-_SG_OLD = "'<svg viewBox=\"0 0 20 20\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" '+"
-_SG_NEW = "'<svg viewBox=\"0.3 -0.3 20 20\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" '+"
+# The magnifier is the homepage's, exactly: the same 20-unit drawing at the same
+# 1.8 stroke (the engine's own 2.25 was a heavier line, and a 0.3/-0.3 view-box nudge
+# that the homepage never had). Drawn 20px in the 35px circle, centred by
+# `position:absolute; inset:0; margin:auto`, it is the homepage's 16px-in-28px at 1.25x.
+_SG_OLD = ("'<svg viewBox=\"0 0 20 20\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" '+\n"
+           "           'stroke-width=\"2.25\" stroke-linecap=\"round\"")
+_SG_NEW = ("'<svg viewBox=\"0 0 20 20\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" '+\n"
+           "           'stroke-width=\"1.8\" stroke-linecap=\"round\"")
 PATCHES += [
-    {"name": "desktop-search-glyph-optical-centre", "old": _SG_OLD, "new": _SG_NEW, "count": 1},
+    {"name": "desktop-search-glyph-matches-home", "old": _SG_OLD, "new": _SG_NEW, "count": 1},
     {"name": "desktop-controls-above-nodes", "old": _CTRL_OLD, "new": _CTRL_NEW, "count": 1},
     {"name": "desktop-mode-toggle-glyph", "old": _MODE_BTN_OLD, "new": _MODE_BTN_NEW, "count": 1},
     {"name": "desktop-mode-toggle-no-text", "old": _MODE_TXT_OLD, "new": _MODE_TXT_NEW, "count": 1},
