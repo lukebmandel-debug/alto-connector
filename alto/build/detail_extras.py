@@ -97,7 +97,7 @@ window._altoMakeRoom = function(y, x, h, w, ids, moved, parent, gap, top){
 /* no two cards of a unit touch once cards were dragged (layout.separate) */
 window._altoSeparate = function(y, x, h, w, ids, y0, x0, parent, gap){
   ids=ids.filter(function(i){ return y[i]!=null; });
-  function ww(i){ return (w&&w[i])||270; }
+  function ww(i){ var v=(w&&w[i])||270; return v===270 ? 290 : v; }     // as drawn (layout.CARD_DRAWN_W)
   var kids={}; ids.forEach(function(i){ var p=parent[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
   function kept(i, j){ return Math.abs((y[i]-y[j])-(y0[i]-y0[j]))<0.5 && Math.abs((x[i]-x[j])-(x0[i]-x0[j]))<0.5; }
   function group(j){ var out=[], q=[j];
