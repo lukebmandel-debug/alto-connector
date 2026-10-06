@@ -1712,11 +1712,15 @@ _ALIGN_NEW = (
     "    // With no edit toggle (a share, a copy, while editing) they sit flush right.\n"
     "    var ep = document.getElementById('alto-edit-pill');\n"
     "    var epW = (ep && ep.offsetWidth) ? Math.ceil((ep.offsetWidth + MARGIN) / 1.25) * 1.25 : 0;   // whole VISUAL px under zoom .8\n"
-    "    var modeR = 30 + epW;                           // 30 = the corner inset (24px VISUAL)\n"
+    "    // While the Notes / Freewrite panel is open (freewrite.py sets --np-dock, its CSS width) the whole\n"
+    "    // row sits left of it, the same 30 off its edge as it is off the corner.\n"
+    "    var dock = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--np-dock')) || 0;\n"
+    "    var modeR = 30 + epW + dock;                    // 30 = the corner inset (24px VISUAL)\n"
     "    var rightCSS  = modeR + COLLAPSED_H + MARGIN;\n"
     "    var bottomCSS = 30;\n"
     "    mt.style.setProperty('right',  modeR + 'px', 'important');\n"
-    "    mt.style.setProperty('bottom', bottomCSS + 'px', 'important');\n")
+    "    mt.style.setProperty('bottom', bottomCSS + 'px', 'important');\n"
+    "    if(ep) ep.style.setProperty('right', (30 + dock) + 'px', 'important');\n")
 _ALIGN_HOOK_OLD = "  // Retry until mode-toggle has dimensions AND alignInfo successfully commits."
 _ALIGN_HOOK_NEW = (
     "  window._altoAlignInfo = alignInfo;   // manual_edit calls it once the edit toggle exists\n"
