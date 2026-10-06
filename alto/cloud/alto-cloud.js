@@ -7,7 +7,7 @@
    generalized to many timelines per user:
 
      users/{uid}                      — { theme, homeSort, homeSortAt }   (account-wide)
-     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, updatedAt }
+     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
@@ -236,6 +236,7 @@
   let HL_KEY = TID ? `alto-hl-${TID}` : null;
   let RP_KEY = TID ? `alto-rp-${TID}` : null;
   let TR_KEY = TID ? `alto-hl-${TID}-trash` : null;   // deleted notes/highlights (the trash)
+  let FW_KEY = TID ? `alto-hl-${TID}-fw` : null;      // the Freewrite document: {html, mod}
   const TH_KEY = 'alto-theme-v1';
   const SORT_KEY = 'alto-home-sort-v1';       // the homepage's project order
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
@@ -295,6 +296,13 @@
     }
     return [...byKey.values()].sort((a, b) => (a.del || 0) - (b.del || 0)).slice(-TRASH_CAP);
   }
+
+  // Freewrite: one document per timeline, {html, mod}. The later edit wins whole.
+  const parseFw = s => {
+    try { const o = JSON.parse(s || 'null');
+      return o && typeof o === 'object' ? { html: String(o.html || ''), mod: Number(o.mod) || 0 } : null;
+    } catch (e) { return null; }
+  };
 
   function mergeReports(localArr, remoteMap, tombs) {
     const byId = new Map();
@@ -441,6 +449,19 @@
         }
         meta.lastTr = mergedTrStr;
 
+        /* ---- freewrite (one rich-text document; the later edit wins) ---- */
+        {
+          const lf = parseFw(origGet(FW_KEY));
+          const rf = remoteMain && remoteMain.fw ? parseFw(JSON.stringify(remoteMain.fw)) : null;
+          if (rf && rf.mod && (!lf || rf.mod > lf.mod)) {
+            origSet(FW_KEY, JSON.stringify(rf));
+            try { window.dispatchEvent(new Event('alto-fw-sync')); } catch (e) {}
+          } else if (lf && lf.mod && (!rf || lf.mod > rf.mod)) {
+            await setDoc(mainRef, { fw: { html: lf.html, mod: lf.mod }, updatedAt: serverTimestamp() },
+                         { merge: true });
+          }
+        }
+
         /* ---- reports ---- */
         const localRp = parseArr(origGet(RP_KEY)).filter(e => e && e.id);
         const remoteRp = new Map(remoteReports);
@@ -477,7 +498,7 @@
   // the method on the object itself, so local changes never triggered a sync there.
   Storage.prototype.setItem = function (k, v) {
     nativeSet.call(this, k, v);
-    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -1150,7 +1171,7 @@
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
     TID = tid; cloud.tid = tid;
-    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`;
     META_KEY = `alto-cloud-meta-v3-${tid}`;
     meta = loadMeta();
     if (cloud.user) subscribeTl(cloud.user);

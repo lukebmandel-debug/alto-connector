@@ -242,6 +242,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     at the cap (see private_shell.MAX_PAGE_BYTES)."""
     from . import detail_extras as dx
     from .notes_v2 import notes_v2
+    from .freewrite import freewrite
     from .search import search_config
     from .subtree import tree_block
     from .manual_edit import manual_edit
@@ -254,7 +255,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + json.dumps(table, ensure_ascii=False).replace("</", "<\\/")
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
-            + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief)
+            + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + manual_edit(brief, nodes))
     at = html.rfind("</body>")
     if at < 0:
