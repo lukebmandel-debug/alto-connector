@@ -124,8 +124,8 @@ def test_outline_numbering_is_derived_and_nests():
     html, _ = build_timeline(*load_brief(_brief()))
     num = json.loads(html.split("window._ALTO_OUTLINE={num:", 1)[1]
                      .split(",label:", 1)[0])
-    assert num["formation"] == "I."
-    assert num["offer"].startswith("I.")          # a child of the first band
+    assert num["formation"] == "1"                # the first unit's top card
+    assert num["offer"].startswith("1.")          # a child of the first band
     assert num["revocation"].startswith(num["offer"])   # and its own child
 
 

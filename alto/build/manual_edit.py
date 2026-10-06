@@ -643,9 +643,6 @@ MANUAL_JS = r"""<script id="alto-manual">
   function descendantsOf(id){ var out = [], q = kidsOf(id).slice(); while(q.length){ var c = q.shift(); out.push(c); q = q.concat(kidsOf(c)); } return out; }
   function romanOf(n){ var r = '', V = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
     V.forEach(function(p){ while(n >= p[0]){ r += p[1]; n -= p[0]; } }); return r; }
-  // blocks.py _mark: I. / A. / 1. / a. / i.
-  function outMark(level, i){ return level === 0 ? romanOf(i + 1) + '.' : level === 1 ? String.fromCharCode(65 + i % 26) + '.'
-    : level === 2 ? (i + 1) + '.' : level === 3 ? String.fromCharCode(97 + i % 26) + '.' : romanOf(i + 1).toLowerCase() + '.'; }
   function fill(obj, from){ Object.keys(obj).forEach(function(k){ delete obj[k]; }); Object.keys(from).forEach(function(k){ obj[k] = from[k]; }); }
   // A plan (layout.outline_plan) without the cards taken out.
   function out_(i){ return cardGone(i) || !!OUTP[i]; }
@@ -831,14 +828,13 @@ MANUAL_JS = r"""<script id="alto-manual">
       fill(OUT.kids, kids); fill(OUT.parent, par);
       if(!changed){ fill(OUT.num, B.num); fill(OUT.label, B.label); }
       else {
-        var num = {}, lab = {};
-        (function(){ var r = 0; seqs.forEach(function(ids){ ids.forEach(function(id){ if(par[id]) return;
-          (function walk(x, level, i, pre){ var m = outMark(level, i); lab[x] = m; num[x] = pre + m;
-            (kids[x] || []).forEach(function(k, j){ walk(k, level + 1, j, num[x]); }); })(id, 0, r++, ''); }); }); })();
+        // numbering.py: 2, 2.e, 2.e.6, 2.e.6.2-1c … from the outline as it is now
+        var num = window._altoPathNums(seqs, kids, par), lab = Object.assign({}, num);
         fill(OUT.num, num); fill(OUT.label, lab);
       }
     }
     if(B.order){ if(!changed) fill(NODE_ORDER_MAP, B.order);
+      else if(OUT) fill(NODE_ORDER_MAP, Object.assign({}, OUT.num));
       else { var om = {}; seqs.forEach(function(ids, a){ ids.forEach(function(id, j){ om[id] = (a + 1) + '.' + (j + 1); }); }); fill(NODE_ORDER_MAP, om); } }
     // a phone swipes through the cards in this order
     try{ if(typeof NODE_ORDER !== 'undefined') NODE_ORDER.splice.apply(NODE_ORDER, [0, NODE_ORDER.length].concat(NODES_SRC.map(function(n){ return n.id; }))); }catch(e){}
@@ -1897,13 +1893,11 @@ MANUAL_JS = r"""<script id="alto-manual">
   function numOf(id){ return (typeof NODE_ORDER_MAP !== 'undefined' && NODE_ORDER_MAP[id]) || ''; }
   // every card's number as it would be with the outline changed by fn(kids, par)
   function numsIf(fn){
-    var K = JSON.parse(JSON.stringify((OUT && OUT.kids) || {})), P = Object.assign({}, (OUT && OUT.parent) || {}); fn(K, P);
-    var out = {};
-    ACT_SEQS.forEach(function(q, a){ var inQ = {}, j = 0, seen = {}; q.forEach(function(i){ inQ[i] = 1; });
-      q.forEach(function(i){ if(P[i] && inQ[P[i]]) return;
-        (function walk(x){ if(seen[x] || !inQ[x]) return; seen[x] = 1; out[x] = (a + 1) + '.' + (++j); (K[x] || []).forEach(walk); })(i); });
-      q.forEach(function(i){ if(!seen[i]) out[i] = (a + 1) + '.' + (++j); }); });
-    return out;
+    var K = JSON.parse(JSON.stringify((OUT && OUT.kids) || {})), P = Object.assign({}, (OUT && OUT.parent) || {}),
+        Q = ACT_SEQS.map(function(q){ return q.slice(); }); fn(K, P, Q);
+    var drop = function(L){ return L.filter(function(i){ return !cardGone(i); }); };
+    Object.keys(K).forEach(function(k){ K[k] = drop(K[k]); });
+    return window._altoPathNums(Q.map(drop), K, P);
   }
   function orderWith(p, list){ return function(K){ K[p] = list.slice(); }; }
   function swapSibs(id, other, how){
@@ -1951,25 +1945,57 @@ MANUAL_JS = r"""<script id="alto-manual">
     var A = swapChoices(id); if(!A.length) return;
     ask('Swap “' + titleOf(id) + '” (' + numOf(id) + ') with…', 'Cards trade places with a card under the same card, or with the card they sit under. You can also click a card’s number and type the one it should have.', A);
   }
-  // A card's number, typed: the card that has that number now is the one it trades with.
+  // A card's number, typed: it goes there. The number names the card it goes
+  // under (all but the last mark) and its place among that card's children
+  // (the last mark); the card that held that place and the ones after it move
+  // along one. Always asked first, saying what each card becomes.
   function renumber(id, typed){
-    var want = String(typed || '').trim().replace(/[.\s]+$/, ''); if(!want || want === numOf(id)) return;
-    if(!/^\d+\.\d+$/.test(want)){ toast('Type a number like ' + (numOf(id) || '1.3') + ' — its unit, then its place.'); return; }
-    var other = Object.keys(NODE_ORDER_MAP).filter(function(k){ return NODE_ORDER_MAP[k] === want && srcNode(k) && !cardGone(k); })[0];
-    if(!other){ toast('No card is numbered ' + want + '.'); return; }
+    var want = String(typed || '').trim().toLowerCase().replace(/[.\s]+$/, ''); if(!want || want === numOf(id)) return;
+    var eg = numOf(id) || '1.a';
+    var pn = window._altoParseNum(want);
+    if(!pn){ toast('Type a number like ' + eg + ' — the unit, then a letter, then .1, .1, -1, then letters again.'); return; }
+    if(!pn.idx.length){ toast(pn.unit + ' is the top card of unit ' + pn.unit + '. To put this card there, use ⇅ and trade places with it.'); return; }
     var P = (OUT && OUT.parent) || {}, p = P[id];
-    if(p && P[other] === p && field('so|' + p)){
-      var sw = swapSibs(id, other, 'swap'), mvL = swapSibs(id, other, 'move');
-      var n1 = numsIf(orderWith(p, sw)), n2 = numsIf(orderWith(p, mvL)), A = [];
-      A.push({t: '“' + titleOf(other) + '” becomes ' + n1[other], sub: 'The two trade places (this one becomes ' + n1[id] + ').', fn: function(){ doOrder(id, sw, 'Swapped'); }});
-      var between = Math.abs(kidsOf(p).indexOf(id) - kidsOf(p).indexOf(other)) > 1;
-      if(between) A.push({t: '“' + titleOf(other) + '” becomes ' + n2[other], sub: 'This one takes its turn (' + n2[id] + '), and the cards from there on move along one.', fn: function(){ doOrder(id, mvL, 'Moved'); }});
-      ask(want + ' is “' + titleOf(other) + '”. Where should it go?', '“' + titleOf(id) + '” becomes ' + n1[id] + '. The cards under each go with it.', A);
-      return;
+    var pnum = window._altoFormatNum(pn.unit, pn.idx.slice(0, -1)), pos = pn.idx[pn.idx.length - 1];
+    var np = Object.keys(NODE_ORDER_MAP).filter(function(k){ return NODE_ORDER_MAP[k] === pnum && srcNode(k) && !cardGone(k); })[0];
+    if(!np){ toast('No card is numbered ' + pnum + ', so there is nothing for it to go under.'); return; }
+    if(branchOf(id).indexOf(np) >= 0){ toast(pnum + ' is this card or a card under it — a card cannot go under itself.'); return; }
+    var sibs = liveKids(np).filter(function(k){ return k !== id; });
+    var at = Math.min(pos, sibs.length), list = sibs.slice(); list.splice(at, 0, id);
+    var holder = liveKids(np)[pos], same = np === p;
+    if(same && liveKids(np).join('|') === list.join('|')) return;
+    // the whole child list as the page knows it (cards taken out keep their turns)
+    var full = kidsOf(np).filter(function(k){ return k !== id; }), fi = holder ? full.indexOf(holder) : -1;
+    if(fi < 0){ var lastLive = sibs[at - 1]; fi = lastLive ? full.indexOf(lastLive) + 1 : 0; }
+    full.splice(fi, 0, id);
+    var nn = numsIf(function(K, Q, S){
+      if(!same){ if(p && K[p]) K[p] = K[p].filter(function(x){ return x !== id; }); Q[id] = np;
+        var ua = NODE_ACT[id], ub = NODE_ACT[np];
+        if(ua !== ub && S[ua] && S[ub]){ var br = branchOf(id); S[ua] = S[ua].filter(function(x){ return br.indexOf(x) < 0; }); S[ub] = S[ub].concat(br); } }
+      K[np] = full.slice(); });
+    var lands = nn[id] || want;
+    var tail = holder && holder !== id ? ' “' + titleOf(holder) + '” becomes ' + nn[holder] + (liveKids(np).length - pos > 1 ? ', and the cards after it move along one.' : '.') : '';
+    var under = liveKids(id).length ? ' The ' + (liveKids(id).length === 1 ? 'card' : liveKids(id).length + ' cards') + ' under it go with it.' : '';
+    var where = same ? '' : ' It moves under “' + titleOf(np) + '” (' + pnum + ').';
+    var note = (pos > sibs.length ? (sibs.length ? pnum + ' has ' + sibs.length + ' ' + (sibs.length === 1 ? 'card' : 'cards') + ' under it, so it goes last, as ' + lands + '.' : 'Nothing is under ' + pnum + ' yet, so it becomes ' + lands + '.') : '') + where + tail + under;
+    ask('Move “' + titleOf(id) + '” to ' + lands + '?', note.trim(), [{t: 'Yes, make it ' + lands, fn: function(){ moveTo(id, np, full, same); }}]);
+  }
+  function moveTo(id, np, full, same){
+    var L = [];
+    if(!same){
+      if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.p = np; sp.a = unitKeyOf(NODE_ACT[np]); L.push(['nn|' + id, sp]); }
+      else { L.push(['rp|' + id, np]);
+        ['shift', 'slide'].forEach(function(hk){ var sf = field('p|' + id + '|' + hk); if(sf && sf.get()) L.push(['p|' + id + '|' + hk, null]); }); }
     }
-    if(p && other === p){ var C = swapChoices(id).filter(function(a){ return a.t && a.t.indexOf('Trade places') === 0; });
-      ask(want + ' is “' + titleOf(other) + '”, the card this one sits under.', 'Trade the two places?', C); return; }
-    toast(want + ' is “' + titleOf(other) + '”, which is not under the same card as this one, or the card it sits under. Use ⇄ to move a card under another one.');
+    // its turn among the children: only a card the page was built with keeps an order
+    var later = false;
+    if(!(full[full.length - 1] === id && !same)){
+      if(field('so|' + np)) L.push(['so|' + np, full]);
+      else if(same){ toast('Cards added here take a place by number once the timeline is built again.'); return; }
+      else later = true;
+    }
+    if(later){ if(changes(L)) toast('Moved under “' + titleOf(np) + '” — it takes its place by number once the timeline is built again. ⌘Z puts it back.'); return; }
+    if(changes(L)) toast('Moved to ' + (numOf(id) || '') + ' — ⌘Z puts it back.');
   }
   /* asking: a title, a line, and the answers (the last one cancels) */
   function ask(title, note, answers){

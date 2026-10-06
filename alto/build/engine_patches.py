@@ -940,7 +940,22 @@ _BACK_PILL_NEW = (
     '</svg><span>BACK</span>')
 
 
+# ── outline card numbers say whose child a card is ─────────────────────────
+# The engine numbers every card unit.place-in-reading-order (1.13), which on an
+# outline says nothing about where a card hangs. An outline's cards take their
+# path number from the builder (numbering.py: 2, 2.e, 2.e.6, 2.e.6.2-1c…);
+# timelines keep the engine's.
+_ORDER_MAP_OLD = "    NODE_ORDER_MAP[id] = `${actIdx+1}.${seqIdx+1}`;"
+_ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALTO_OUTLINE.num && window._ALTO_OUTLINE.num[id])"
+                  " || `${actIdx+1}.${seqIdx+1}`;")
+
 PATCHES = [
+    {
+        "name": "outline-path-numbers",
+        "old": _ORDER_MAP_OLD,
+        "new": _ORDER_MAP_NEW,
+        "count": 1,
+    },
     {
         "name": "drawer-timeline-glyph-globe",
         "old": _DRAWER_TIMELINE_OLD,

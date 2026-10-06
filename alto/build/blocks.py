@@ -19,6 +19,7 @@ import re
 from urllib.parse import quote as url_q
 
 from .brief import Brief, Node, Section, COL_SETS, roman
+from .numbering import NUM_JS, path_numbers
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
 
@@ -1523,44 +1524,24 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                + CARD_LEAD_BODY + DOCTRINE_BODY + LINES_GLUE + LINE_NAV_GLUE
                + (ALTO_LINK_GLUE if uses_alto_link else ""))
     if b.mode == "outline":
-        # Outline numerals, derived at build from depth and sibling order — a
-        # stored path would be silently invalidated the moment a sibling is
-        # inserted. Level styles cycle I. / A. / 1. / a. / i. the way a written
-        # outline does.
+        # Outline numbers, derived at build from the tree — a stored path
+        # would be silently invalidated the moment a sibling is inserted. A
+        # unit's top card is the unit's number; under it a, b, c, then .1,
+        # .1, -1, then letters again (numbering.py). The full path is both the
+        # card's number and its label, so every list shows whose child it is.
         _kids: dict[str, list] = {}
         for n in nodes:
             if n.parent:
                 _kids.setdefault(n.parent, []).append(n.id)
-        _num, _label, _parent = {}, {}, {}
-        for n in nodes:
-            if n.parent:
-                _parent[n.id] = n.parent
-
-        def _mark(level: int, i: int) -> str:
-            if level == 0:
-                return roman(i + 1) + "."
-            if level == 1:
-                return chr(ord("A") + i % 26) + "."
-            if level == 2:
-                return f"{i + 1}."
-            if level == 3:
-                return chr(ord("a") + i % 26) + "."
-            return roman(i + 1).lower() + "."
-
-        def _walk(nid: str, level: int, i: int, prefix: str) -> None:
-            mark = _mark(level, i)
-            _label[nid] = mark
-            _num[nid] = (prefix + mark) if prefix else mark
-            for j, kid in enumerate(_kids.get(nid, [])):
-                _walk(kid, level + 1, j, _num[nid])
-
-        for _i, _root in enumerate([n.id for n in nodes if not n.parent]):
-            _walk(_root, 0, _i, "")
+        _parent = {n.id: n.parent for n in nodes if n.parent}
+        _num = path_numbers([[n.id for n in nodes if n.act == a] for a in range(len(b.acts))],
+                            _kids, _parent)
+        _label = dict(_num)
         orders += ("\nwindow._ALTO_OUTLINE={num:" + json.dumps(_num)
                    + ",label:" + js_json(_label)
                    + ",kids:" + json.dumps(_kids)
                    + ",parent:" + json.dumps(_parent) + "};"
-                   + OUTLINE_BODY + OUTLINE_PRINT_GLUE
+                   + NUM_JS + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
                    + (dx.tree_glue(plan_js(tree_plan)) if tree else dx.HUBS_ABOVE_GLUE))
     if index_axes:
@@ -1697,7 +1678,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # set to read like a written outline rather than a table.
     if b.mode == "outline":
         nav_char_css += (
-            "\n  .ol-row{display:grid;grid-template-columns:2.6em 1fr;"
+            "\n  .ol-row{display:grid;grid-template-columns:minmax(2.6em,max-content) 1fr;"
             "align-items:baseline;column-gap:.4em;margin:.55em 0;}"
             "\n  .ol-num{color:var(--muted);font-variant-numeric:tabular-nums;"
             "letter-spacing:.02em;}"
@@ -1721,7 +1702,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
             "\n    .print-ol-row{display:flex;gap:.5em;align-items:baseline;"
             "margin:.28em 0;padding-left:calc(var(--lvl) * 1.6em);"
             "break-inside:avoid;}"
-            "\n    .print-ol-num{flex:0 0 2.2em;text-align:right;"
+            "\n    .print-ol-num{flex:0 0 auto;min-width:2.2em;text-align:right;"
             "font-variant-numeric:tabular-nums;}"
             "\n    .print-ol-body{flex:1 1 auto;min-width:0;}"
             "\n    .print-ol-name{font-weight:700;}"

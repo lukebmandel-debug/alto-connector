@@ -218,7 +218,7 @@ def test_order_sets_a_cards_place_among_its_siblings_and_the_numerals_follow():
     b = _brief(placement={"hub": {"arrange": "row"}, "cause": {"order": 3}})
     html, _ = build_timeline(b, _two_units(), [])
     num = json.loads(html.split("window._ALTO_OUTLINE={num:", 1)[1].split(",label:", 1)[0])
-    assert num["cause"] == "I.C." and num["breach"] == "I.D." and num["duty"] == "I.B."
+    assert num["cause"] == "1.c" and num["breach"] == "1.d" and num["duty"] == "1.b"
 
 
 def test_hints_for_one_unit_leave_the_others_alone():

@@ -276,7 +276,7 @@ function _altoElementTree(members){
   var nCon = members.length-nOut, nn = String(_ALTO_NODE_NOUN||'Concept').toLowerCase(), ot = outTag.toLowerCase();
   var meta = '<div class="doc-meta">'+nCon+' '+nn+(nCon===1?'':'s')
     + (nOut ? ' &middot; '+nOut+' '+ot+(nOut===1?'':'s') : '') + '</div>';
-  function depth(id){ return Math.max(0, String(num[id]||'').split('.').filter(Boolean).length-1); }
+  function depth(id){ var d = 0, seen = {}; while(par[id] && !seen[id]){ seen[id]=1; id = par[id]; d++; } return d; }
   return meta + rows.map(function(c){
     var faint = !isM[c.id];
     var h = '<div class="el-row" style="margin-left:'+(depth(c.id)*22)+'px'+(faint?';opacity:.7':'')+'">'
@@ -297,7 +297,7 @@ function _altoElementTree(members){
 
 ELEMENT_TREE_CSS = (
     "\n  .el-row{padding:10px 0 10px 12px;border-left:2px solid var(--border);margin-bottom:6px;line-height:1.6;}"
-    "\n  .el-num{display:inline-block;min-width:3.4em;color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9em;}"
+    "\n  .el-num{display:inline-block;min-width:3.4em;margin-right:.45em;color:var(--muted);font-variant-numeric:tabular-nums;font-size:.9em;}"
     "\n  .el-title{font-weight:600;}"
     "\n  .el-out{margin:8px 0 0 3.4em;padding:6px 10px;border-radius:6px;"
     "background:color-mix(in srgb, var(--text) 4%, transparent);font-size:.94em;}"
