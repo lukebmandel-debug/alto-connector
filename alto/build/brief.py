@@ -112,6 +112,12 @@ class Section:
     # {nodes: [{id, title, parent?, text?, tag?, edge?, tone?, link?,
     # sections?}], layout?, open?, fold_below?, label?}. Empty: no tree.
     tree: dict = field(default_factory=dict)
+    # Flash cards / a quiz drawn inside this section (study.py): {cards: [{id?,
+    # front, back}], shuffle?, label?} and {questions: [{id?, q, choices,
+    # answer: int | [int], explain?}], label?}. A section carries one of tree,
+    # cards, quiz. Empty: none.
+    cards: dict = field(default_factory=dict)
+    quiz: dict = field(default_factory=dict)
 
 
 PROVENANCE = {"quoted": "Quoted", "notes": "From your notes",
@@ -440,6 +446,13 @@ def _check_sections(sections, what, warnings=None) -> None:
         if s.tree:
             from .subtree import check_tree
             check_tree(s.tree, f"{what} section {i+1}")
+        if s.cards or s.quiz:
+            from .study import check_cards, check_quiz
+            if sum(1 for x in (s.tree, s.cards, s.quiz) if x) > 1:
+                raise BriefError(f"{what} section {i+1}: a section carries one of `tree`, "
+                                 "`cards` or `quiz` — put each in its own section")
+            check_cards(s.cards, f"{what} section {i+1}")
+            check_quiz(s.quiz, f"{what} section {i+1}")
         if (warnings is not None and s.t and s.prov != "quoted"
                 and (s.h or "").strip().lower() in PRIMARY_TEXT_HEADINGS):
             warnings.append(

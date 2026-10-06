@@ -168,6 +168,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     # Decision trees inside pages: a slot in each section's text, and the data.
     from .subtree import prepare as _prepare_trees
     trees = _prepare_trees(brief, nodes)
+    from .study import prepare as _prepare_study
+    study = _prepare_study(brief, nodes)
     connections, _cw = sanitize_connections(brief, nodes, connections)
     warnings += _cw
 
@@ -206,7 +208,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
-    html = _add_tail(html, brief, nodes, warnings, trees)
+    html = _add_tail(html, brief, nodes, warnings, trees, study)
 
     # Deep links that survived sanitize (unknown ones were demoted) must reach
     # the output as engine chip markup — assert each one did.
@@ -234,7 +236,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
-              trees: dict = None) -> str:
+              trees: dict = None, study: dict = None) -> str:
     """Detail-page extras that must wrap showDetail last (back-to-previous,
     banner clearance, auto-linking), placed just before the page's closing
     body tag. Every page gets them: they were gated to outline and index
@@ -245,6 +247,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .freewrite import freewrite
     from .search import search_config
     from .subtree import tree_block
+    from .study import study_block_for
     from .manual_edit import manual_edit
     from .print_views import print_views
     table = dx.autolink_table(brief)
@@ -257,7 +260,8 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
             + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
-            + tree_block(trees or {}) + manual_edit(brief, nodes) + print_views())
+            + tree_block(trees or {}) + study_block_for(brief, study or {})
+            + manual_edit(brief, nodes) + print_views())
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])

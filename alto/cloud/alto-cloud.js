@@ -7,7 +7,7 @@
    generalized to many timelines per user:
 
      users/{uid}                      — { theme, homeSort, homeSortAt }   (account-wide)
-     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, updatedAt }
+     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
@@ -237,6 +237,7 @@
   let RP_KEY = TID ? `alto-rp-${TID}` : null;
   let TR_KEY = TID ? `alto-hl-${TID}-trash` : null;   // deleted notes/highlights (the trash)
   let FW_KEY = TID ? `alto-hl-${TID}-fw` : null;      // the Freewrite document: {html, mod}
+  let ST_KEY = TID ? `alto-hl-${TID}-st` : null;      // flash-card marks and quiz scores (study.py)
   const TH_KEY = 'alto-theme-v1';
   const SORT_KEY = 'alto-home-sort-v1';       // the homepage's project order
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
@@ -303,6 +304,39 @@
       return o && typeof o === 'object' ? { html: String(o.html || ''), mod: Number(o.mod) || 0 } : null;
     } catch (e) { return null; }
   };
+
+  // Study progress (study.py): {v:1, s:{<section key>:{m, k:{<card id>:[state,t]},
+  // b:{s,n,t} best, l:{s,n,t,bl} last, a:attempts}}}. Merged field by field: a card's
+  // mark by its own time (newest wins; a cleared mark is state 0, so it stays cleared),
+  // the best score by its share right (a tie keeps the earlier), the last attempt by
+  // time, the attempt count by size. Keys are written sorted so equal data is equal text.
+  const parseSt = s => {
+    try { const o = JSON.parse(s || 'null'); return o && o.s && typeof o.s === 'object' ? o : { v: 1, s: {} }; }
+    catch (e) { return { v: 1, s: {} }; }
+  };
+  const sortedObj = o => { const r = {}; Object.keys(o).sort().forEach(k => { r[k] = o[k]; }); return r; };
+  function mergeStudy(a, b) {
+    const out = { v: 1, s: {} };
+    const keys = new Set([...Object.keys(a.s || {}), ...Object.keys(b.s || {})]);
+    const share = r => (r && r.n ? r.s / r.n : -1);
+    for (const key of [...keys].sort()) {
+      const x = (a.s || {})[key] || {}, y = (b.s || {})[key] || {}, r = {};
+      const k = {};
+      for (const src of [x.k || {}, y.k || {}])
+        for (const id of Object.keys(src)) {
+          const m = src[id];
+          if (Array.isArray(m) && (!k[id] || (Number(m[1]) || 0) > (Number(k[id][1]) || 0))) k[id] = m;
+        }
+      if (Object.keys(k).length) r.k = sortedObj(k);
+      if (x.b || y.b) r.b = share(y.b) > share(x.b) ? y.b : x.b;
+      if (x.l || y.l) r.l = (Number(y.l && y.l.t) || 0) > (Number(x.l && x.l.t) || 0) ? y.l : (x.l || y.l);
+      const at = Math.max(Number(x.a) || 0, Number(y.a) || 0);
+      if (at) r.a = at;
+      r.m = Math.max(Number(x.m) || 0, Number(y.m) || 0);
+      out.s[key] = r;
+    }
+    return out;
+  }
 
   function mergeReports(localArr, remoteMap, tombs) {
     const byId = new Map();
@@ -462,6 +496,21 @@
           }
         }
 
+        /* ---- study progress (flash-card marks, quiz scores) ---- */
+        {
+          const ls = parseSt(origGet(ST_KEY));
+          const rs = parseSt(remoteMain && typeof remoteMain.study === 'string' ? remoteMain.study : '');
+          const ms = JSON.stringify(mergeStudy(ls, rs));
+          const empty = !Object.keys(JSON.parse(ms).s).length;
+          if (!empty && ms !== JSON.stringify(ls)) {
+            origSet(ST_KEY, ms);
+            try { window.dispatchEvent(new Event('alto-study-sync')); } catch (e) {}
+          }
+          if (!empty && ms !== (remoteMain && remoteMain.study || '')) {
+            await setDoc(mainRef, { study: ms, updatedAt: serverTimestamp() }, { merge: true });
+          }
+        }
+
         /* ---- reports ---- */
         const localRp = parseArr(origGet(RP_KEY)).filter(e => e && e.id);
         const remoteRp = new Map(remoteReports);
@@ -498,7 +547,7 @@
   // the method on the object itself, so local changes never triggered a sync there.
   Storage.prototype.setItem = function (k, v) {
     nativeSet.call(this, k, v);
-    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -1171,7 +1220,7 @@
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
     TID = tid; cloud.tid = tid;
-    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`;
     META_KEY = `alto-cloud-meta-v3-${tid}`;
     meta = loadMeta();
     if (cloud.user) subscribeTl(cloud.user);

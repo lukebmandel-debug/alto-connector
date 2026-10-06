@@ -1227,7 +1227,9 @@ def set_entities(timeline_id: str, entities: list[dict],
     Omitted colors get a clean palette. Design a unique symbol_svg per entity
     (guide §C1 has the rules and the exact wrapper) — entities without one
     all share the same fallback ◆ and become indistinguishable. Detail-page
-    sections must come verbatim from the user's materials (§0)."""
+    sections must come verbatim from the user's materials (§0). A section may
+    also carry flash cards or a quiz (`cards` / `quiz`, see add_nodes), only from
+    the user's own materials."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -1273,7 +1275,8 @@ def set_axis_values(timeline_id: str, slot: int, label: str, singular: str,
     top bar and its own index page (guide §C3: statutes and rules cited in a
     law outline).
     Unlike the entity axis there is no count cap — this is where a course's
-    cases belong, each carrying the student's own brief in `sections`.
+    cases belong, each carrying the student's own brief in `sections` (which
+    may also carry `cards` / `quiz`, see add_nodes — only from their materials).
 
     `hide_nav` keeps the chips on the cards and the detail pages reachable
     while dropping the axis from the nav bar, drawer and legend, and labels
@@ -1356,6 +1359,16 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     from its parent, `link` = a page of this timeline the step opens,
     `sections` = a small page of its own; see the guide's "Decision trees
     inside a page". Only when the student wants one.
+    A section may instead carry flash cards or a quiz, drawn inside it: `cards:
+    {cards: [{front, back}], shuffle?, label?}` or `quiz: {questions: [{q,
+    choices: [2-8 strings], answer: <index of the right choice, or a list of
+    indexes = "select all that apply">, explain?}], label?}` (`t` may be empty;
+    ONE of tree / cards / quiz per section). The reader flips and marks cards,
+    takes the quiz and gets graded, and keeps their progress; the owner can also
+    edit both by hand on the page. ONLY from the user's own materials (§0):
+    every card, question, answer and explanation must be grounded in their notes
+    — never outside knowledge. Offer a quiz or cards for outline concepts; see
+    the guide's "Flash cards and quizzes". A bad one is refused with the reason.
     §0: title/desc/sections are authored VERBATIM from the user's materials —
     never fill gaps, never collapse multi-item arcs into one node.
     `parent` (outline mode): the id of the concept that CONTAINS this one; omit

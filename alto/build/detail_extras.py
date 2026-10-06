@@ -899,7 +899,7 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     var m = /^(https:\/\/[^\/]+\/pv\/[a-z0-9]+\/?)/.exec(u);
     return m ? m[1] : '';
   }
-  function prompt(){
+  function prompt(extra){
     var at = where(), host = at ? at.split('/')[2] : '';
     return "I want to edit my Alto timeline \"" + TITLE + "\" (timeline id: " + tid +
       (at ? ", page: " + at : "") + "). " +
@@ -908,9 +908,10 @@ EDIT_TILE = r"""<style id="alto-edit-css">
       (at ? " \u2014 if it isn't found, it may be in another of my Alto accounts: look with " +
             "list_projects(account=\"all\"), and add my site (" + host + ") with connect_account " +
             "if it isn't listed" : "") +
-      ". Then ask me what I'd like " +
+      (extra ? ". " + extra + " Follow Alto's interview guide, then rebuild and republish it."
+        : ". Then ask me what I'd like " +
       "to change \u2014 I may have new notes to add, sources to link, or edits to make. " +
-      "Follow Alto's interview guide to make the changes, then rebuild and republish it.";
+      "Follow Alto's interview guide to make the changes, then rebuild and republish it.");
   }
   function go(u){
     // The page usually runs in a frame (private shell, offline copy): hand the
@@ -926,15 +927,18 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     el.classList.add('show');
     clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('show'); }, 6000);
   }
-  function openClaude(){
-    var q = encodeURIComponent(prompt()), web = 'https://claude.ai/new?q=' + q;
+  function openClaude(text){
+    var q = encodeURIComponent(typeof text === 'string' ? text : prompt()), web = 'https://claude.ai/new?q=' + q;
     var touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                 (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
     if(touch){ go(web); return; }          // the Claude app intercepts the universal link
     toast(web);
     go('claude://claude.ai/new?q=' + q);
   }
-  window._altoEditTimeline = openClaude;
+  window._altoEditTimeline = function(){ openClaude(); };
+  // A request of its own (a quiz for this page, say): the same way in, with the
+  // timeline named ahead of it so a chat that cannot see the draft can find it.
+  window._altoAskClaude = function(text){ openClaude(prompt(String(text || ""))); };
   var world = null;
   // The editing controls live in the edit toggle beside light/dark
   // (manual_edit.py); the last unit's band keeps a little room under its cards
