@@ -634,15 +634,18 @@
   .nt-kind small{ color:var(--muted); font-size:11px; line-height:1.45; }
   .nt-kind.on{ border-color:var(--text); box-shadow:inset 0 0 0 1px var(--text); }
   .nt-make{
-    width:100%; height:40px; border-radius:10px; border:0; margin:0 0 10px; cursor:pointer;
-    background:var(--text); color:var(--bg); font-family:inherit; font-size:13px; letter-spacing:.06em;
+    width:100%; height:38px; border-radius:10px; border:1px solid var(--btn-border); margin:0 0 8px; cursor:pointer;
+    background:transparent; color:var(--text); font-family:inherit; font-size:13px; letter-spacing:.06em;
   }
+  .nt-make:hover{ background:var(--btn-hover-bg); }
   .nt-make[disabled]{ opacity:.55; cursor:default; }
   .nt-claude{
-    width:100%; height:36px; border-radius:10px; border:1px solid var(--btn-border); margin:0 0 8px;
-    background:transparent; color:var(--muted); font-family:inherit; font-size:12.5px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    width:100%; min-height:48px; padding:8px 12px; border-radius:10px; border:0; margin:0 0 16px; cursor:pointer;
+    background:var(--text); color:var(--bg); font-family:inherit; font-size:13.5px; letter-spacing:.04em;
   }
-  .nt-claude:hover{ color:var(--text); background:var(--btn-hover-bg); }
+  .nt-claude small{ font-size:11px; letter-spacing:0; opacity:.78; }
+  .nt-or{ font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; text-align:center; }
   .nt-msg{ min-height:16px; font-size:12px; color:#c2410c; line-height:1.4; margin:0 0 6px; }
   @media print{ #nt-scrim{ display:none !important; } }
 
@@ -837,12 +840,13 @@
 <div id="info-btn">
   <span id="info-icon" onclick="event.stopPropagation();toggleInfo()"><svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="5.5" r="1.8" fill="currentColor"/><rect x="8.8" y="9" width="2.4" height="8" rx="1.2" fill="currentColor"/></svg></span>
   <div id="info-content">
-    <p style="margin:0 0 8px"><strong>Alto</strong> &#8212; your home for everything you study and build. Each project lives in its own glass slab; each tile opens its own workspace.</p>
-    <p style="margin:5px 0"><strong>Projects &amp; tiles</strong> &#8212; open a live tile to enter it. Dimmed tiles are coming soon. Inside any workspace, the Alto mark at the top returns you here.</p>
-    <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches everything across Alto: projects, timelines, and the content inside them (scenes, characters, themes). Results jump straight to the right spot, even deep inside a timeline.</p>
-    <p style="margin:5px 0"><strong>Reports</strong> &#8212; every report you generate inside a course is saved automatically. The small document bubble on a course tile opens that course's report repository.</p>
+    <p style="margin:0 0 8px"><strong>Alto</strong> &#8212; your home for the timelines and outlines you build from your own material. Each project is a glass slab; each tile opens a timeline.</p>
+    <p class="d-only" style="margin:5px 0"><strong>Making one</strong> &#8212; you can build everything by hand, but the suggested route is to have Claude build it from your own notes, outlines or readings (<em>&#65291; New timeline</em> or <em>Start new project</em>), then make small adjustments and revisions in the timeline itself.</p>
+    <p class="m-only" style="margin:5px 0"><strong>Making one</strong> &#8212; timelines are made with Claude on a computer. You can build by hand, but the suggested route is to have Claude build from your own notes, then make small adjustments yourself.</p>
+    <p style="margin:5px 0"><strong>Search</strong> &#8212; the magnifier searches every project and timeline, and the cards and pages inside them. A result jumps straight to the spot.</p>
+    <p style="margin:5px 0"><strong>On a tile</strong> &#8212; the small buttons share a timeline, download an offline copy, or open its saved reports. The &#8943; on your own timelines moves, shares, prints or deletes; deleted ones wait in <em>Recently deleted</em> for a while.</p>
     <p style="margin:5px 0"><strong>Account</strong> &#8212; the person <span class="d-only">bubble at the bottom left</span><span class="m-only">tile at the top left</span> signs you in with Google so your work can follow you.</p>
-    <p style="margin:5px 0"><strong>Light / Dark</strong> &#8212; the <span class="d-only">toggle at the bottom right</span><span class="m-only">moon/sun tile at the top right</span> switches the whole surface; each workspace has its own toggle too.</p>
+    <p style="margin:5px 0"><strong>Light / Dark</strong> &#8212; the <span class="d-only">toggle at the bottom right</span><span class="m-only">moon/sun tile at the top right</span> switches the whole surface; each timeline has its own toggle too.</p>
   </div>
 </div>
 
@@ -881,15 +885,16 @@
   <div id="nt-modal" role="dialog" aria-modal="true" aria-labelledby="nt-head">
     <div class="acct-title" id="nt-head">New timeline</div>
     <div class="acct-sub" id="nt-sub"></div>
-    <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. 1L Fall"></div>
-    <label for="nt-title">Timeline</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Contracts">
+    <button type="button" class="nt-claude" id="nt-claude">Build it with Claude from my notes<small>Suggested. Then make small adjustments by hand.</small></button>
+    <div class="nt-or">Or start from a blank page</div>
+    <div id="nt-prow"><label for="nt-project">Project</label><input id="nt-project" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Fall term"></div>
+    <label for="nt-title">Timeline</label><input id="nt-title" type="text" maxlength="120" autocomplete="off" placeholder="e.g. Course notes">
     <div class="nt-kinds">
-      <button type="button" class="nt-kind on" data-kind="outline">Outline<small>Concepts that hold other concepts — a course</small></button>
+      <button type="button" class="nt-kind on" data-kind="outline">Outline<small>Ideas that hold other ideas — a subject, a course</small></button>
       <button type="button" class="nt-kind" data-kind="timeline">Timeline<small>Events in order — a story, a history</small></button>
     </div>
     <div class="nt-msg" id="nt-msg"></div>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>
-    <button type="button" class="nt-claude" id="nt-claude">Build it with Claude from my notes instead</button>
     <button type="button" class="dl-cancel" id="nt-cancel">Cancel</button>
   </div>
 </div>
@@ -1119,8 +1124,8 @@ function ntOpen(projectName){
   s.dataset.project = projectName || '';
   document.getElementById('nt-head').textContent = projectName ? 'New timeline' : 'New project';
   document.getElementById('nt-sub').textContent = projectName
-    ? 'In ' + projectName + '. Start it here and write it yourself — Claude can add your notes to it any time.'
-    : 'Name the project and its first timeline. Start it here and write it yourself — Claude can add your notes to it any time.';
+    ? 'In ' + projectName + '. You can write it all yourself, but the suggested route is to have Claude build it from your own notes, outlines or readings, then fine-tune it here.'
+    : 'You can write it all yourself, but the suggested route is to have Claude build it from your own notes, outlines or readings, then fine-tune it here. Claude can add your material to a timeline you start by hand, too.';
   document.getElementById('nt-prow').hidden = !!projectName;
   document.getElementById('nt-project').value = '';
   document.getElementById('nt-title').value = '';
@@ -1435,7 +1440,7 @@ function privateHref(pg){ return '/pv/' + encodeURIComponent(pg.key) + '/'; }
 const PRINT_CHOICES = [
   ['outline', 'Outline', 'The numbered outline: every card with its title and short description.'],
   ['full', 'Outline + all detail pages', 'The outline, then every detail page in outline order, one to a sheet.'],
-  ['ink', 'Timeline picture, ink-saver', 'The cards and lines as drawn, on white with no colour or shading. Scaled to the sheet.']
+  ['ink', 'Timeline picture, ink-saver', 'The cards and lines as drawn, on white with no color or shading. Scaled to the sheet.']
 ];
 function altoPrintUrl(pg, mode){
   return privateHref(pg) + '#altoprint=' + mode;

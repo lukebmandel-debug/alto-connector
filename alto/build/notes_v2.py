@@ -691,7 +691,7 @@ NOTES_V2 = r"""<style id="alto-notes-v2-css">
     Array.prototype.slice.call(list.children).forEach(function(n){ if(n.id !== 'notes-empty') n.remove(); });   // a phone's own renderer wipes the list, empty note included
     if(!empty){
       empty = el('div'); empty.id = 'notes-empty';
-      empty.innerHTML = 'Select any text to highlight it.<br><br>Add notes to your highlights.<br><br>Generate a study report anytime.';
+      empty.innerHTML = 'Select any text to highlight it.<br><br>Add notes to your highlights.<br><br>Make a report of them anytime.<br><br>Or switch to Freewrite to write an outline or answer.';
       list.appendChild(empty);
     }
     var arr = items().filter(function(h){ return h && !(h.pending && !(h.note && h.note.length)); });
