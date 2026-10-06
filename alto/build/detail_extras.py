@@ -60,7 +60,7 @@ window._altoMakeRoom = function(y, x, h, w, ids, moved, parent, gap, top){
   var y0={}, fset={}, kids={}; Object.keys(y).forEach(function(i){ y0[i]=y[i]; });
   free.forEach(function(i){ fset[i]=1; });
   free.forEach(function(i){ var p=parent[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
-  function ww(i){ return (w&&w[i])||270; }
+  function ww(i){ var v=(w&&w[i])||270; return v===270 ? 290 : v; }     // as drawn (layout.drawn_w)
   function rowroot(i){ for(;;){ var p=parent[i]; if(p && fset[p] && Math.abs(y0[p]-y0[i])<1) i=p; else return i; } }
   function unit(i, whole){ var out=[], q=[i]; while(q.length){ var c=q.shift(); out.push(c);
     (kids[c]||[]).forEach(function(k){ if(whole || Math.abs(y0[k]-y0[c])<1) q.push(k); }); } return out; }

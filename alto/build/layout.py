@@ -993,6 +993,13 @@ ROOM_HGAP = 12
 CARD_DRAWN_W = 290        # the engine's .node-card width where the plan sets none (TREE CARD_W)
 
 
+def drawn_w(w: dict, i) -> float:
+    """A card's width as the page draws it: one the plan leaves at CARD_W is
+    CARD_DRAWN_W wide. make_room and separate measure cards so."""
+    v = w.get(i) or TREE["CARD_W"]
+    return CARD_DRAWN_W if v == TREE["CARD_W"] else v
+
+
 def make_room(y: dict, x: dict, h: dict, w: dict, ids: list, moved: set,
               parent: dict, gap: float, top: float) -> bool:
     """Cards a dragged card lands on step out of its way (`moved`: the dragged
@@ -1010,7 +1017,7 @@ def make_room(y: dict, x: dict, h: dict, w: dict, ids: list, moved: set,
     if not free:
         return False
     y0 = dict(y)
-    ww = lambda i: w.get(i) or TREE["CARD_W"]
+    ww = lambda i: drawn_w(w, i)
     kids: dict = {}
     for i in free:
         p = parent.get(i)
@@ -1113,8 +1120,7 @@ def separate(y: dict, x: dict, h: dict, w: dict, ids: list, y0: dict, x0: dict,
     the unit's own layout gave them, one to the other, is left alone (the
     layout set them so). TREE_GLUE's _altoSeparate is the same."""
     ids = [i for i in ids if i in y]
-    # as drawn: the page draws a card the plan leaves at CARD_W wider (CARD_DRAWN_W)
-    ww = lambda i: CARD_DRAWN_W if (w.get(i) or TREE["CARD_W"]) == TREE["CARD_W"] else w[i]
+    ww = lambda i: drawn_w(w, i)
     kids: dict = {}
     for i in ids:
         if parent.get(i):
