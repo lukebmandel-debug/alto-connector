@@ -2479,3 +2479,43 @@ PATCHES += [
     {"name": "print-views-unstage", "old": _PV_UNSTAGE_OLD, "new": _PV_UNSTAGE_NEW, "count": 1},
     {"name": "print-views-dialog-button", "old": _PV_BTN_OLD, "new": _PV_BTN_NEW, "count": 1},
 ]
+
+
+# ── Freewrite (alto/build/freewrite.py): the notes panel's writing mode stays put ──
+# Freewrite is a rich-text box in the Notes panel. While it is the open mode the
+# panel must outlast everything that used to close it, and no page shortcut may
+# fire under the writer's fingers. toggleNotes itself is guarded by freewrite.py
+# (a close that is not the panel's own x is swallowed); these patches cover the
+# keys and the gestures that act before toggleNotes is ever called.
+_FW_ARROWS_OLD = ("    if(tag === 'INPUT' || tag === 'TEXTAREA') return;\n"
+                  "    if(e.key === 'ArrowLeft' || e.keyCode === 37){")
+_FW_ARROWS_NEW = ("    if(tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable)) return;\n"
+                  "    if(e.key === 'ArrowLeft' || e.keyCode === 37){")
+_FW_FOCUSKEYS_OLD = ("  window.addEventListener('keydown', function(e){\n"
+                     "    if((e.metaKey||e.ctrlKey)&&(e.key==='-'||e.key==='='")
+_FW_FOCUSKEYS_NEW = ("  window.addEventListener('keydown', function(e){\n"
+                     "    if(document.activeElement && document.activeElement.isContentEditable) return;   // typing: no page shortcut\n"
+                     "    if((e.metaKey||e.ctrlKey)&&(e.key==='-'||e.key==='='")
+_FW_ESC_OLD = ("    if(e.key!=='Escape' && e.keyCode!==27) return;\n"
+               "    // 1) close the most-recently-opened pop-up, if any.")
+_FW_ESC_NEW = ("    if(e.key!=='Escape' && e.keyCode!==27) return;\n"
+               "    var _fwa=document.activeElement;     // Escape in the Freewrite box only leaves the box\n"
+               "    if(_fwa && _fwa.id==='fw-editor'){ _fwa.blur(); e.preventDefault(); e.stopImmediatePropagation(); return; }\n"
+               "    // 1) close the most-recently-opened pop-up, if any.")
+_FW_ISOPEN_OLD = "    if(key==='notes')    return typeof notesOpen!=='undefined'   && !!notesOpen;"
+_FW_ISOPEN_NEW = ("    if(key==='notes')    return typeof notesOpen!=='undefined'   && !!notesOpen"
+                  " && !(window._altoFw && window._altoFw.pinned());   // Freewrite is not an Escape-able pop-up")
+_FW_WHEEL_OLD = ("      if(typeof notesOpen!=='undefined' && notesOpen){\n"
+                 "        if(_notesDismiss(e))")
+_FW_WHEEL_NEW = ("      if(typeof notesOpen!=='undefined' && notesOpen && !(window._altoFw && window._altoFw.pinned())){\n"
+                 "        if(_notesDismiss(e))")
+_FW_SWIPE_OLD = "isOpen:function(){return _np.classList.contains('open');},"
+_FW_SWIPE_NEW = "isOpen:function(){return _np.classList.contains('open') && !(window._altoFw && window._altoFw.pinned());},"
+PATCHES += [
+    {"name": "freewrite-arrows-not-while-typing", "old": _FW_ARROWS_OLD, "new": _FW_ARROWS_NEW, "count": 1},
+    {"name": "freewrite-focus-keys-not-while-typing", "old": _FW_FOCUSKEYS_OLD, "new": _FW_FOCUSKEYS_NEW, "count": 1},
+    {"name": "freewrite-escape-leaves-the-box", "old": _FW_ESC_OLD, "new": _FW_ESC_NEW, "count": 1},
+    {"name": "freewrite-escape-spares-the-panel", "old": _FW_ISOPEN_OLD, "new": _FW_ISOPEN_NEW, "count": 1},
+    {"name": "freewrite-wheel-swipe-spares-the-panel", "old": _FW_WHEEL_OLD, "new": _FW_WHEEL_NEW, "count": 1},
+    {"name": "freewrite-phone-swipe-spares-the-panel", "old": _FW_SWIPE_OLD, "new": _FW_SWIPE_NEW, "count": 1},
+]
