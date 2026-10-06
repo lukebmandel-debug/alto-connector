@@ -26,6 +26,7 @@ MATCH_JS is shared with the homepage search (pages.py), so both rank alike.
 from __future__ import annotations
 
 import json
+import re
 
 from .brief import Brief
 from .sanitize import js_json
@@ -216,7 +217,14 @@ MATCH_JS = r"""
     out+=esc(text.slice(at,e));
     return (s>0?'\u2026':'')+out+(e<text.length?'\u2026':'');
   }
-  window._altoMatch={norm:norm, words:words, stem:stem, dist:dist, wq:wq, query:query, score:score, snippet:snippet, lit:lit, esc:esc};
+  /* the whole text, every lit word marked (the expanded search shows full text) */
+  function hl(text,Q){
+    text=String(text||'').replace(/\s+/g,' ').trim();
+    var re=/[A-Za-z0-9\u00C0-\u024F]+(?:['.\-][A-Za-z0-9\u00C0-\u024F]+)*/g, m, out='', at=0;
+    while((m=re.exec(text))){ if(lit(Q,m[0])){ out+=esc(text.slice(at,m.index))+'<mark>'+esc(m[0])+'</mark>'; at=m.index+m[0].length; } }
+    return out+esc(text.slice(at));
+  }
+  window._altoMatch={norm:norm, words:words, stem:stem, dist:dist, wq:wq, query:query, score:score, snippet:snippet, lit:lit, esc:esc, hl:hl};
 })();
 """
 
@@ -247,6 +255,7 @@ TIMELINE_SEARCH_JS = r"""
       var parent=(O.parent&&O.parent[n.id])||'';
       /* a title many cards share ("Liable") is shown with the card it sits under */
       var shown=(dup[(n.title||'').toLowerCase()]>1 && parent) ? titles[parent]+' \u203a '+n.title : (n.title||n.id);
+      var unit=''; try{ if(typeof PHASE_META!=='undefined'&&typeof NODE_ACT!=='undefined'){ var a=PHASE_META[NODE_ACT[n.id]]; unit=a?strip(a.label):''; } }catch(e){}
       var chips=[];
       [['char',n.chars],['env',n.envs],['theme',n.themes]].forEach(function(p){
         (p[1]||[]).forEach(function(id){ var nm=chipName(p[0],id); if(nm) chips.push({k:p[0],id:id,name:nm}); });
@@ -258,13 +267,13 @@ TIMELINE_SEARCH_JS = r"""
                 {w:4,text:n.tag||''},{w:3.2,text:n.desc||'',key:'desc'},
                 {w:3,text:chips.map(function(c){ return c.name; }).join(' \u00b7 '),key:'chips'},
                 {w:2.6,text:chipAlias.join(' \u00b7 ')}],
-        desc:n.desc||'', chips:chips});
+        desc:n.desc||'', chips:chips, num:onum||num, unit:unit, parent:parent?titles[parent]:''});
       /* its page: everything written there beyond the card */
       var d=(typeof NODE_DETAILS!=='undefined'&&NODE_DETAILS[n.id])||{}, ss=secs(d.sections);
       if(ss.length){
         INDEX.push({group:1, target:'page', type:'node', id:n.id, kind:'Details', title:shown, ord:ordOf(n.id),
           fields:[{w:8,text:n.title||''}].concat(ss.map(function(s){ return {w:1.6,text:strip(s.t),h:strip(s.h)}; })).concat(ss.map(function(s){ return {w:4,text:strip(s.h),h:strip(s.h)}; })),
-          body:true});
+          body:true, num:onum||num, unit:unit, parent:parent?titles[parent]:''});
       }
     });
     [['char',typeof CHARS!=='undefined'?CHARS:null,typeof CHAR_PAGES!=='undefined'?CHAR_PAGES:{}],
@@ -278,7 +287,7 @@ TIMELINE_SEARCH_JS = r"""
           fields:[{w:10,text:strip(v.name),ac:1},{w:9,text:al.join(' \u00b7 ')},{w:3,text:strip(v.role||'')},
                   {w:2.5,text:kind(p[0])+' '+((CFG.labels||{})[p[0]]||'')}]
             .concat(ss.map(function(s){ return {w:1.6,text:strip(s.t),h:strip(s.h)}; })),
-          body:true});
+          body:true, role:strip(v.role||'')});
       });
     });
     try{
@@ -350,12 +359,45 @@ TIMELINE_SEARCH_JS = r"""
   }
   /* rows for any of the three search surfaces, with a heading per group */
   function rowsHtml(res,attr){
+    if(big()) return res.map(function(o,i){ return richRow(o,attr,i); }).join('');
     var html='', g=-1;
     res.forEach(function(o,i){
       html+='<button type="button" class="search-result" '+attr+'="'+i+'"><span class="sr-kind">'+M.esc(o.r.kind)+'</span>'
           +'<span class="sr-title">'+M.esc(o.r.title)+'</span><span class="sr-snip">'+o.snip+'</span></button>';
     });
     return html;
+  }
+  /* the expanded desktop search: more of each hit (class set by the expand control) */
+  function big(){ var h=document.documentElement; return h.classList.contains('sx-big') && !h.classList.contains('mobile'); }
+  /* up to n sections of a page that mention the words, each with room to read */
+  function passages(o,Q,n){
+    var r=o.r, hs=r.fields.filter(function(f){ return f.h && f.text!==f.h && f.text; }), best=r.fields[o.s.field];
+    var at=hs.indexOf(best); if(at>0){ hs.splice(at,1); hs.unshift(best); }
+    var got=[];
+    for(var i=0;i<hs.length && got.length<n && i<80;i++){
+      var sn=M.snippet(hs[i].text,Q,360);
+      if(sn.indexOf('<mark>')>=0) got.push('<span class="sr-pass"><b>'+M.hl(hs[i].h,Q)+'</b>'+sn+'</span>');
+    }
+    if(!got.length) hs.slice(0,2).forEach(function(f){ got.push('<span class="sr-pass"><b>'+M.hl(f.h,Q)+'</b>'+M.snippet(f.text,Q,300)+'</span>'); });
+    return got.join('');
+  }
+  function richRow(o,attr,i){
+    var r=o.r, Q=M.query(o.q||''), meta=[], body='';
+    if(r.unit) meta.push(r.unit);
+    if(r.target==='node'){
+      if(r.parent) meta.push(r.parent);
+      body='<span class="sr-full">'+M.hl(r.desc,Q)+'</span>';
+      if(r.chips.length) body+='<span class="sr-chips">'+r.chips.map(function(c){
+        return '<span class="sr-chip'+(M.lit(Q,c.name)?' lit':'')+'" title="'+M.esc(kind(c.k))+'">'+M.hl(c.name,Q)+'</span>'; }).join('')+'</span>';
+    } else if(r.target==='page'){
+      if(r.role) meta.push(r.role);
+      body=passages(o,Q,4);
+    } else {
+      body='<span class="sr-full">'+M.snippet(r.fields[1].text,Q,700)+'</span>';
+    }
+    return '<button type="button" class="search-result sr-rich" '+attr+'="'+i+'"><span class="sr-head"><span class="sr-kind">'+M.esc(r.kind)+'</span>'
+      +(r.num?'<span class="sr-num">'+M.esc(r.num)+'</span>':'')+'<span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
+      +(meta.length?'<span class="sr-meta">'+meta.map(M.esc).join(' · ')+'</span>':'')+body+'</button>';
   }
 
   // ---- landing ----
@@ -494,6 +536,142 @@ SEARCH_CSS = """<style id="alto-search-css">
 </style>"""
 
 
+# ── the expanded desktop search (timeline and homepage) ─────────────────────
+# A control in the search box grows the results into a large centred panel with
+# bigger type and more of each hit (rowsHtml / richRow above; the homepage's
+# own row below). The choice is remembered in localStorage. Desktop only.
+_SX_CSS_SRC = """<style id="alto-sx-css">
+#sx-toggle{display:none;flex:0 0 auto;align-items:center;justify-content:center;gap:7px;height:26px;min-width:26px;margin:0 6px 0 0;
+  padding:0 5px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font:inherit;}
+#sx-toggle:hover,#sx-toggle:focus-visible{color:var(--text);border-color:var(--muted);outline:none;}
+#sx-toggle svg{width:15px;height:15px;display:block;}
+#sx-toggle .sx-i-shrink,html.sx-big #sx-toggle .sx-i-grow{display:none;}
+html.sx-big #sx-toggle .sx-i-shrink{display:block;}
+#search-btn.expanded #sx-toggle{display:flex;}
+.sx-hint{display:none;font-size:11.5px;color:var(--muted);white-space:nowrap;}
+#sx-scrim{display:none;}
+.search-result.sx-active{background:var(--btn-hover-bg);}
+@media (min-width:641px){
+html:not(.mobile).sx-big.sx-open #sx-scrim{display:block;position:fixed;inset:0;z-index:599;background:rgba(16,18,32,.30);}
+html.dark:not(.mobile).sx-big.sx-open #sx-scrim{background:rgba(0,0,0,.48);}
+/* sizes are true pixels: --sx-k undoes the page zoom, --sx-w/--sx-h are the viewport in the page's own px (set by the script) */
+html:not(.mobile).sx-big #search-btn.expanded{position:fixed;
+  width:min(@960,calc(var(--sx-w,1200px) * .84));top:max(@64,calc(var(--sx-h,800px) * .08));right:auto !important;bottom:auto !important;
+  height:@58;border-radius:@16;z-index:600 !important;transition:none;}
+html:not(.mobile).sx-big #search-btn.expanded,html:not(.mobile).sx-big #search-btn.expanded #search-results{background:rgba(251,251,255,.985);}
+html.dark:not(.mobile).sx-big #search-btn.expanded,html.dark:not(.mobile).sx-big #search-btn.expanded #search-results{background:rgba(21,23,35,.985);}
+html:not(.mobile).sx-big #search-btn.expanded #search-glyph{flex:0 0 @58;width:@58;height:@58;}
+html:not(.mobile).sx-big #search-btn.expanded #search-glyph svg{width:@23;height:@23;}
+html:not(.mobile).sx-big #search-btn.expanded #search-input{font-size:@20;padding-right:@12;}
+html:not(.mobile).sx-big #search-btn.expanded .sx-hint{display:inline;margin-right:@12;font-size:@11.5;}
+html:not(.mobile).sx-big #sx-toggle{height:@32;min-width:@32;margin-right:@12;border-radius:@8;}
+html:not(.mobile).sx-big #sx-toggle svg{width:@18;height:@18;}
+html:not(.mobile).sx-big #search-btn.expanded #search-results{position:absolute;left:0;right:auto;top:calc(100% + @8);bottom:auto;width:100%;
+  max-height:min(calc(var(--sx-h,800px) - max(@64,calc(var(--sx-h,800px) * .08)) - @94),calc(var(--sx-h,800px) * .8 - @66));padding:@8;border-radius:@16;}
+html:not(.mobile).sx-big .search-empty{font-size:@15;padding:@18;}
+html:not(.mobile).sx-big .search-result{padding:@14 @18;border-radius:@12;}
+html:not(.mobile).sx-big .search-result + .search-result{box-shadow:0 -1px 0 var(--border);}
+html:not(.mobile).sx-big .search-result:hover,html:not(.mobile).sx-big .search-result.sx-active{background:var(--btn-hover-bg);box-shadow:none;}
+html:not(.mobile).sx-big .search-result:hover + .search-result,html:not(.mobile).sx-big .search-result.sx-active + .search-result{box-shadow:none;}
+.sr-rich .sr-head{display:flex;align-items:baseline;gap:@10;flex-wrap:wrap;}
+.sr-rich .sr-kind{font-size:@10;margin-right:0;}
+.sr-rich .sr-num{font-size:@13;color:var(--muted);font-variant-numeric:tabular-nums;}
+.sr-rich .sr-title{font-size:@18;font-weight:600;line-height:1.3;}
+.sr-rich .sr-meta{display:block;font-size:@12.5;color:var(--muted);margin-top:@3;}
+.sr-rich .sr-full{display:block;font-size:@14.5;line-height:1.65;color:var(--text);opacity:.9;margin-top:@9;}
+.sr-rich .sr-chips{display:flex;flex-wrap:wrap;gap:@6;margin-top:@10;}
+.sr-rich .sr-chip{font-size:@11.5;border:1px solid var(--border);border-radius:999px;padding:@2 @10;color:var(--muted);}
+.sr-rich .sr-chip.lit{color:var(--text);border-color:var(--muted);}
+.sr-rich .sr-pass{display:block;margin-top:@10;padding-left:@13;border-left:2px solid var(--border);font-size:@14;line-height:1.65;color:var(--text);opacity:.9;}
+.sr-rich .sr-pass b{display:block;font-size:@11;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:@2;opacity:1;}
+html:not(.mobile).sx-big .search-result mark{background:rgba(167,139,250,.38);}
+}
+html.mobile #sx-toggle,html.mobile #sx-scrim,html.mobile .sx-hint{display:none !important;}
+</style>"""
+# "@14.5" = 14.5 px at the viewer's true size, whatever the page zoom is
+SX_CSS = re.sub(r"@(\d+(?:\.\d+)?)", r"calc(\1px * var(--sx-k,1))", _SX_CSS_SRC)
+
+SX_JS = r"""
+(function(){
+  var root=document.documentElement;
+  if(root.classList.contains('mobile') || window._altoSX) return;
+  var btn=document.getElementById('search-btn'), input=document.getElementById('search-input'), res=document.getElementById('search-results');
+  if(!btn||!input||!res) return;
+  var KEY='alto-search-big', on=false, act=-1, ZV='--alto-'+'zoom';   /* the timeline's page zoom; the homepage has none */
+  try{ on=localStorage.getItem(KEY)==='1'; }catch(e){}
+  var tg=document.createElement('button'); tg.type='button'; tg.id='sx-toggle';
+  tg.innerHTML='<span class="sx-hint">↑↓ move · Enter open · Esc shrink</span>'
+    +'<svg class="sx-i-grow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2H14v4.5M14 2L9 7M6.5 14H2V9.5M2 14l5-5"/></svg>'
+    +'<svg class="sx-i-shrink" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6.5H9.5V2M9.5 6.5L14 2M2 9.5h4.5V14M6.5 9.5L2 14"/></svg>';
+  btn.insertBefore(tg,res);
+  var scrim=document.createElement('div'); scrim.id='sx-scrim'; document.body.appendChild(scrim);
+  /* the viewport in the page's own px (the timeline runs at a zoom; vw/vh differ per engine) */
+  function fit(){
+    var z=parseFloat(getComputedStyle(root).getPropertyValue(ZV))||1, st=root.style;
+    st.setProperty('--sx-k',String(1/z)); st.setProperty('--sx-w',(window.innerWidth/z)+'px'); st.setProperty('--sx-h',(window.innerHeight/z)+'px');
+  }
+  /* the page's own control alignment pins the box with inline !important right/left, so
+     the centring is set the same way (and handed back when the box shrinks or closes) */
+  var placed=false;
+  function place(){
+    if(on && btn.classList.contains('expanded')){
+      var z=parseFloat(getComputedStyle(root).getPropertyValue(ZV))||1, w=window.innerWidth/z, bw=Math.min(960/z,w*.84);
+      var v=((w-bw)/2)+'px'; placed=true;
+      if(btn.style.getPropertyValue('left')!==v || btn.style.getPropertyPriority('left')!=='important') btn.style.setProperty('left',v,'important');
+    } else if(placed){ placed=false; btn.style.setProperty('left','auto','important'); }
+  }
+  fit(); window.addEventListener('resize',function(){ fit(); setTimeout(place,0); });
+  function label(){ var t=on?'Collapse search':'Expand search'; tg.title=t; tg.setAttribute('aria-label',t); tg.setAttribute('aria-pressed',on?'true':'false'); }
+  function render(){ var f=window._altoSearchRender||window._homeSearchRender, v=input.value; if(f && v.trim().length>=2) f(v); }
+  var pref=on;   /* the saved choice; Esc shrinks for now without changing it */
+  function set(v,temp){
+    on=!!v; root.classList.toggle('sx-big',on); label(); act=-1;
+    if(!temp){ pref=on; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }
+    place(); render(); try{ input.focus({preventScroll:true}); }catch(e){}
+  }
+  root.classList.toggle('sx-big',on); label();
+  tg.addEventListener('click',function(e){ e.stopPropagation(); set(!on); });
+  new MutationObserver(function(){
+    var open=btn.classList.contains('expanded');
+    if(!open && on!==pref){ on=pref; root.classList.toggle('sx-big',on); label(); }
+    fit(); place(); root.classList.toggle('sx-open',open); })
+    .observe(btn,{attributes:true,attributeFilter:['class','style']});
+  new MutationObserver(function(){ act=-1; }).observe(res,{childList:true});
+  function rows(){ return res.querySelectorAll('.search-result'); }
+  function mark(i){
+    var rs=rows(); if(!rs.length) return;
+    if(act>=0 && rs[act]) rs[act].classList.remove('sx-active');
+    act=(i+rs.length)%rs.length; rs[act].classList.add('sx-active');
+    try{ rs[act].scrollIntoView({block:'nearest'}); }catch(e){}
+  }
+  btn.addEventListener('keydown',function(e){
+    if(!btn.classList.contains('expanded')) return;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); mark(act<0?(e.key==='ArrowDown'?0:-1):act+(e.key==='ArrowDown'?1:-1)); }
+    else if(e.key==='Enter' && act>=0){ var rs=rows(); if(rs[act]){ e.preventDefault(); e.stopPropagation(); rs[act].click(); } }
+    else if(e.key==='Escape' && on){ e.preventDefault(); e.stopPropagation(); set(false,true); }
+  },true);
+  function collapse(){ if(on && btn.classList.contains('expanded')){ set(false,true); return true; } return false; }
+  window._altoSXCollapse=collapse;
+  window._altoSX={big:function(){ return on; }, set:set, collapse:collapse};
+})();
+"""
+
+# the homepage's own result row, expanded: full text with the matched words lit
+HOME_ROW_JS = r"""
+window._altoSXHomeRow=function(r,q){
+  var M=window._altoMatch, Q=M.query(q||'');
+  return '<span class="sr-head"><span class="sr-kind">'+M.esc(r.kind)+'</span><span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
+    +(r.proj?'<span class="sr-meta">'+M.esc(r.proj)+'</span>':'')
+    +(r.text?'<span class="sr-full">'+M.hl(r.text,Q)+'</span>':'');
+};
+"""
+
+
+def sx_block(extra: str = "") -> str:
+    """CSS + script for the expand control (after the page's own search)."""
+    return SX_CSS + "\n<script id=\"alto-sx\">" + extra + SX_JS + "</script>\n"
+
+
 def search_config(b: Brief) -> str:
     """What the index needs that the page does not already carry: every
     entity / axis value's aliases, and what to call each kind of page."""
@@ -515,4 +693,4 @@ def search_config(b: Brief) -> str:
     return ("<script>window._ALTO_SEARCH="
             + js_json(cfg) + ";</script>\n"
             + SEARCH_CSS + "\n<script id=\"alto-search-core\">" + MATCH_JS
-            + TIMELINE_SEARCH_JS + "</script>\n")
+            + TIMELINE_SEARCH_JS + "</script>\n" + sx_block())

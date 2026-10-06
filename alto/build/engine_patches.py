@@ -2249,6 +2249,18 @@ PATCHES += [
     {"name": "search-mobile-lands", "old": _SR_M_NAV_OLD, "new": _SR_M_NAV_NEW, "count": 1},
 ]
 
+# The desktop box can grow into a large panel (search.py, SX_*): the expand
+# control re-renders the rows in place, and Esc shrinks it before it closes.
+_SX_RENDER_OLD = "  window._searchClose=closeSearch;\n"
+_SX_RENDER_NEW = _SX_RENDER_OLD + "  window._altoSearchRender=render;\n"
+_SX_ESC_OLD = "    var fn=window[TOGGLES[open[0]]];\n"
+_SX_ESC_NEW = ("    if(open[0]==='search' && window._altoSXCollapse && window._altoSXCollapse()) return true;\n"
+               + _SX_ESC_OLD)
+PATCHES += [
+    {"name": "search-expose-render", "old": _SX_RENDER_OLD, "new": _SX_RENDER_NEW, "count": 1},
+    {"name": "search-esc-shrinks-first", "old": _SX_ESC_OLD, "new": _SX_ESC_NEW, "count": 1},
+]
+
 
 # ── the ✎ Edit timeline tile sits inside the timeline's own background ──────
 # detail_extras.EDIT_TILE hangs the tile after the last unit. Below the glass
