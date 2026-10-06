@@ -18,12 +18,15 @@ Field keys ("|"-separated; ids are slugs):
   u|<i>|label                             a unit's name
   dt|<tree key>|<step>|title  text  edge  a decision-tree step (subtree.py)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
+  p|<id>|slide                            a card slid along its own line, [dx, dy] (it alone)
   n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
   dt|<owner>-new-…|tree                   a new section's decision tree
   nn|card-…   nd|<id>                     a card added here / a built card taken out
   fl|list   fn|<id>   fx|off              the owner's filters, a card's, the ones taken out
   nu|unit-…   nl|unit-…                   a unit added here, its name
   rp|<id>                                 a card (and its progeny) moved under another card
+  so|<parent>                             the order of a card's children, [ids]
+  sx|<id>                                 a card that traded places with its parent (the value)
   ch|<id>|chars  envs  themes             a card's sub-chips
   ne|c|<id>  ne|env|<id>  ne|theme|<id>   a chip made here (an entity, an axis value)
 A section's `i` is its index among the object's OWN sections (the page also
@@ -34,7 +37,10 @@ connector finds it by name to record its path (edits.find_file).
 
 A drag lays the whole tree out again with the card where it is held
 (TREE_GLUE _altoTreeCalc), so the cards it lands on step aside
-(layout.make_room) and go back once it moves on.
+(layout.make_room) and go back once it moves on; no two cards are left
+touching (layout.separate). Held close to its own line (the one from its
+parent), a card slides along it alone (slide); taken off it, the cards under
+it come along (shift).
 
 Desktop: everything. Phones: text on the page being read (no dragging, no
 cards, filters or sections to add, no Claude half). Shares and copies opened from disk never offer it.
@@ -196,6 +202,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;}
+  html.alto-editing:not(.mobile) #canvas .node-card .node-order{pointer-events:auto;cursor:text;border-radius:4px;padding:0 3px;margin:-1px -3px;transition:background .15s;}
+  html.alto-editing:not(.mobile) #canvas .node-card .node-order:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);}
   .node.aed-moving .node-card{box-shadow:0 18px 44px var(--node-hover-shadow) !important;}
   .aed-body{font-size:17.5px;line-height:35px;min-height:35px;}
   .aed-para{white-space:pre-wrap;}
@@ -550,6 +558,9 @@ MANUAL_JS = r"""<script id="alto-manual">
   // units added here (in the order they were made), cards moved under
   // another card (the id moved: its new parent), and what that moved
   var NEWU = {}, NEWUO = [], REPAR = {}, REPO = [], MOVED = [], OUTP = {}, PLAN0 = null;
+  // children put in another order (so|), cards swapped with their parent
+  // (sx|), and what that did to the page, for laying it out (placeSwaps)
+  var SO = {}, SOO = [], SX = {}, SXO = [], SWAPPED = [], REORD = [];
   // units taken out (a built one by its number), cards moved to another unit
   // (a unit's top card, or any card of a timeline: its unit), the built units
   // no longer on the page, and the classic layout's place of a moved card
@@ -705,6 +716,42 @@ MANUAL_JS = r"""<script id="alto-manual">
       BASEY0[id] = [mine.baseY, liveBy0[id] ? liveBy0[id].y : null];
       var y = (ys.length ? Math.max.apply(null, ys) : 300) + 1 + k;
       mine.baseY = y; if(liveBy0[id]){ liveBy0[id].baseY = y; liveBy0[id].y = y; } }); });
+    // cards swapped with their parent: each takes the other's place, so the
+    // parent and its other children go under it, and its own children under
+    // the parent (sx|); then children in the order set here (so|)
+    SWAPPED = []; REORD = [];
+    if(kids){
+      // in the order they were made: a swap moves what an order named, and the other way round
+      var opT = function(k){ return ((typeof STORE !== 'undefined' && STORE.ops[k]) || {}).t || 0; };
+      var evs = SXO.map(function(c){ return ['x', c, opT('sx|' + c)]; }).concat(SOO.map(function(q){ return ['o', q, opT('so|' + q)]; }))
+        .sort(function(a, b){ return a[2] - b[2]; });
+      var swapOne = function(c){
+        var p = SX[c]; if(!p || par[c] !== p || cardGone(c) || cardGone(p) || act[c] == null || act[c] !== act[p]) return;
+        var g = par[p] || null, S = (kids[p] || []).slice(), K = (kids[c] || []).slice();
+        if(g){ kids[g] = kids[g].map(function(x){ return x === p ? c : x; }); par[c] = g; } else delete par[c];
+        kids[c] = S.map(function(x){ return x === c ? p : x; }); kids[c].forEach(function(x){ par[x] = c; });
+        if(K.length){ kids[p] = K; K.forEach(function(x){ par[x] = p; }); } else delete kids[p];
+        SWAPPED.push([c, p, g]);
+      };
+      var orderOne = function(p){
+        var want = SO[p], have = kids[p]; if(!want || !have || cardGone(p)) return;
+        // the cards it names, in its order, in the turns they hold; the rest keep theirs (edits.in_order)
+        var q = want.filter(function(x){ return have.indexOf(x) >= 0; }), next = have.map(function(x){ return want.indexOf(x) >= 0 ? q.shift() : x; });
+        if(next.join('|') === have.join('|')) return;
+        REORD.push({p: p, before: have.slice(), after: next}); kids[p] = next;
+      };
+      evs.forEach(function(e){ if(e[0] === 'x') swapOne(e[1]); else orderOne(e[1]); });
+      if(SWAPPED.length || REORD.length){
+        // reading order: each unit's cards depth first, as the outline now goes
+        seqs = seqs.map(function(q){ var inQ = {}, out = [], seen = {}; q.forEach(function(i){ inQ[i] = 1; });
+          q.forEach(function(i){ if(par[i] && inQ[par[i]]) return;
+            (function walk(x){ if(seen[x] || !inQ[x]) return; seen[x] = 1; out.push(x); (kids[x] || []).forEach(walk); })(i); });
+          q.forEach(function(i){ if(!seen[i]) out.push(i); }); return out; });
+        var at = {}; seqs.forEach(function(q, a){ q.forEach(function(i, j){ at[i] = a * 1e5 + j; }); });
+        src = src.map(function(n, j){ return [n, j]; }).sort(function(A, Bb){
+          var a = at[A[0].id], b = at[Bb[0].id]; return (a == null || b == null) ? A[1] - Bb[1] : (a - b) || (A[1] - Bb[1]); }).map(function(e){ return e[0]; });
+      }
+    }
     // units taken out, once nothing is left in them
     var gone = [];
     for(var bu = 0; bu < B.units.length; bu++) if(GONEU[bu] && seqs[bu] && !seqs[bu].length) gone.push(bu);
@@ -724,13 +771,21 @@ MANUAL_JS = r"""<script id="alto-manual">
       spines.concat(B.conns.filter(function(c){ return !cardGone(c[0]) && !cardGone(c[1]); }).map(function(c){
         var mv = moves.filter(function(m){ return m.id === c[1] && m.from === c[0] && c[2] === 'spine'; })[0];
         return mv ? (mv.np ? [mv.np, c[1], 'spine'] : null) : c; }).filter(Boolean))));
+    // a swap: every line into the two cards and their children hangs from the parent they have now
+    if(B.conns && SWAPPED.length && par){
+      var hit = {}; SWAPPED.forEach(function(w){ [w[0], w[1]].forEach(function(i){ hit[i] = 1; (kids[i] || []).forEach(function(k){ hit[k] = 1; }); }); });
+      var why = {}; CONNECTIONS.forEach(function(c){ if(c[2] === 'spine' && c[3]){ why[c[0] + '|' + c[1]] = c[3]; why[c[1] + '|' + c[0]] = c[3]; } });
+      var keep = CONNECTIONS.filter(function(c){ return !(c[2] === 'spine' && hit[c[1]]); });
+      Object.keys(hit).forEach(function(i){ if(par[i]){ var c = [par[i], i, 'spine']; if(why[par[i] + '|' + i]) c.push(why[par[i] + '|' + i]); keep.push(c); } });
+      CONNECTIONS.splice.apply(CONNECTIONS, [0, CONNECTIONS.length].concat(keep));
+    }
     // the units: the page's own, then the ones added here
     var baseU = B.units.filter(function(pm, i){ return gone.indexOf(i) < 0; });
     if(gone.length) baseU = baseU.map(function(pm, i){ return Object.assign({}, pm, {numeral: romanOf(i + 1)}); });
     if(typeof PHASE_META !== 'undefined') PHASE_META.splice.apply(PHASE_META, [0, PHASE_META.length].concat(baseU,
       nu.map(function(u, j){ var pm = NEWU[u].pm, i = baseU.length + j; pm.numeral = romanOf(i + 1); pm.cssVar = pm.colorRaw || 'var(--phase' + (i + 1) + ')'; return pm; })));
     UNITS_OUT = gone;
-    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0 || nu.length > 0 || moves.length > 0 || uam.length > 0 || gone.length > 0;
+    var changed = NEWO.some(isNew) || Object.keys(GONE).length > 0 || nu.length > 0 || moves.length > 0 || uam.length > 0 || gone.length > 0 || SWAPPED.length > 0 || REORD.length > 0;
     if(OUT){
       fill(OUT.kids, kids); fill(OUT.parent, par);
       if(!changed){ fill(OUT.num, B.num); fill(OUT.label, B.label); }
@@ -932,11 +987,12 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   // Cards moved under another card: laid out among themselves as they were,
   // hung under the new parent's last card, everything below moving down.
-  function placeMoved(R, h, shift){
+  function placeMoved(R, h, shift, slide){
     var T = plan(); if(!T || !MOVED.length || !PLAN0) return;
-    var R0 = window._altoTreeCalc(h, null, Object.assign({}, T, {acts: PLAN0}), true); if(!R0) return;
+    var R0 = window._altoTreeCalc(h, null, Object.assign({}, T, {acts: PLAN0}), null); if(!R0) return;
     var gap = T.row_gap || 40, P = (OUT && OUT.parent) || {};
     if(shift === undefined) shift = T.shift;
+    if(slide === undefined) slide = T.slide;
     MOVED.forEach(function(mv){
       var inS = {}; mv.S.forEach(function(i){ inS[i] = 1; });
       var S = mv.S.filter(function(i){ return !isNew(i) && R0.y[i] != null && h[i] != null; });
@@ -953,16 +1009,63 @@ MANUAL_JS = r"""<script id="alto-manual">
       S.forEach(function(i){
         var ox = 0, oy = 0, c = i;
         while(c && inS[c]){ var s = shift && shift[c]; if(s){ ox += s[0]; oy += s[1]; } if(c === mv.id) break; c = P[c]; }
+        var sl = slide && slide[i]; if(sl){ ox += sl[0]; oy += sl[1]; }
         R.y[i] = cand + (R0.y[i] - h[i] / 2 - minT) + h[i] / 2 + oy; R.x[i] = R0.x[i] + dx + ox; });
       Object.keys(R.etx).forEach(function(k){ var c = k.split('|')[1];
         if(c === mv.id) delete R.etx[k]; else if(inS[c] && R0.etx[k] != null) R.etx[k] = R0.etx[k] + dx; });
     });
   }
+  // Swaps, until the next build lays them out: a card and its parent trade
+  // places; children in a new order each take the place of the one that had
+  // that turn (one under the other: stacked afresh in the new order), with
+  // what hangs under them. Then no two cards touch (_altoSeparate).
+  function placeSwaps(R, h){
+    var T = plan(), gap = (T && T.row_gap) || 40, P = (OUT && OUT.parent) || {}, K = (OUT && OUT.kids) || {};
+    var y0 = Object.assign({}, R.y), x0 = Object.assign({}, R.x), E0 = Object.assign({}, R.etx || {});
+    function top(i){ return R.y[i] - h[i] / 2; }
+    function block(i){ return dfsOf(K, i).filter(function(q){ return R.y[q] != null && h[q] != null; }); }
+    SWAPPED.forEach(function(w){ var c = w[0], p = w[1], g = w[2]; if(R.y[c] == null || R.y[p] == null) return;
+      var ct = top(c), pt = top(p), cx = R.x[c];
+      R.x[c] = R.x[p]; R.y[c] = pt + h[c] / 2; R.x[p] = cx; R.y[p] = ct + h[p] / 2;
+      // the lines' ends go with the places
+      Object.keys(E0).forEach(function(k){ var e = k.split('|'), a = e[0], b = e[1], na = a, nb = b;
+        if(a === p) na = c; else if(a === c) na = p;
+        if(b === c) nb = p; else if(b === p) nb = c;
+        if(a === p && b === c){ na = c; nb = p; }
+        if(na !== a || nb !== b){ delete R.etx[k]; R.etx[na + '|' + nb] = E0[k]; } });
+    });
+    REORD.forEach(function(o){
+      var B = o.before.filter(function(i){ return R.y[i] != null; }), A = o.after.filter(function(i){ return R.y[i] != null; });
+      if(B.length < 2 || B.length !== A.length) return;
+      var bl = {}; B.forEach(function(i){ var q = block(i); bl[i] = {ids: q, t: Math.min.apply(null, q.map(top)), b: Math.max.apply(null, q.map(function(j){ return R.y[j] + h[j] / 2; }))}; });
+      var byTop = B.slice().sort(function(a, b){ return bl[a].t - bl[b].t; });
+      var stacked = B.every(function(i){ return Math.abs(R.x[i] - R.x[B[0]]) < 1; }) &&
+        byTop.every(function(i, j){ return !j || bl[byTop[j - 1]].b <= bl[i].t; }) && byTop.join('|') === B.join('|');
+      var mv = {};
+      if(stacked){
+        var cur = bl[B[0]].t, gaps = B.slice(1).map(function(i, j){ return bl[i].t - bl[B[j]].b; });
+        A.forEach(function(i, j){ mv[i] = [0, cur - bl[i].t]; cur += bl[i].b - bl[i].t + (gaps[j] != null ? gaps[j] : gap); });
+      } else A.forEach(function(i, j){ var s = B[j]; mv[i] = [R.x[s] - R.x[i], top(s) - top(i)]; });
+      A.forEach(function(i){ var d = mv[i]; bl[i].ids.forEach(function(q){ R.x[q] += d[0]; R.y[q] += d[1]; }); });
+      // fanned lines' ends belong to the turn, not the card
+      A.forEach(function(i, j){ var k0 = o.p + '|' + B[j]; if(E0[k0] != null) R.etx[o.p + '|' + i] = E0[k0]; });
+    });
+    var acts = {}; Object.keys(R.y).forEach(function(i){ if(h[i] != null) (acts[NODE_ACT[i]] = acts[NODE_ACT[i]] || []).push(i); });
+    Object.keys(acts).forEach(function(a){ window._altoSeparate(R.y, R.x, h, (T && T.w) || {}, acts[a], y0, x0, P, gap); });
+    // a unit that grew pushes the ones below it down
+    var low = null, ag = (T && T.act_gap) || 210;
+    Object.keys(acts).map(Number).sort(function(a, b){ return a - b; }).forEach(function(a){
+      var ids = acts[a], t = Math.min.apply(null, ids.map(top));
+      if(low != null && t < low + ag){ var d = low + ag - t; ids.forEach(function(i){ R.y[i] += d; }); }
+      low = Math.max.apply(null, ids.map(function(i){ return R.y[i] + h[i] / 2; })); });
+    R.bottom = Math.max.apply(null, Object.keys(R.y).filter(function(i){ return h[i] != null; }).map(function(i){ return R.y[i] + h[i] / 2; }));
+  }
   // The tree as this page has it: laid out, then the cards moved and added here.
-  function layoutAll(h, shift){
-    var R = window._altoTreeCalc(h, shift); if(!R) return null;
+  function layoutAll(h, shift, slide){
+    var R = window._altoTreeCalc(h, shift, undefined, slide); if(!R) return null;
     if(MOVED.length || NEWO.length){ R.etx = Object.assign({}, R.etx);
-      try{ placeMoved(R, h, shift); }catch(e){} try{ placeNew(R, h); }catch(e){} }
+      try{ placeMoved(R, h, shift, slide); }catch(e){} try{ placeNew(R, h); }catch(e){} }
+    if(SWAPPED.length || REORD.length){ R.etx = Object.assign({}, R.etx); try{ placeSwaps(R, h); }catch(e){} }
     return R;
   }
   if(typeof window._altoTreeCalc === 'function' && typeof window._altoTreeWrite === 'function'){
@@ -1151,6 +1254,18 @@ MANUAL_JS = r"""<script id="alto-manual">
       return {kind:'card', get:function(){ return REPAR[id] != null ? REPAR[id] : (B4.par[id] || ''); },
         set:function(v){ if(v == null || v === (B4.par[id] || '')) delete REPAR[id]; else { REPAR[id] = v; if(REPO.indexOf(id) < 0) REPO.push(id); } syncCards(); }};
     }
+    if(kind === 'so' && p.length === 2){
+      var B7 = cardsBase(); if(!B7 || !OUT || !B7.kids || !(B7.kids[id] || []).length) return null;
+      var so0 = B7.kids[id].slice();
+      return {kind:'card', sig:function(){ return so0; }, get:function(){ return SO[id] ? SO[id].slice() : so0.slice(); },
+        set:function(v){ if(!v || v.join('|') === so0.join('|')) delete SO[id]; else { SO[id] = v.slice(); if(SOO.indexOf(id) < 0) SOO.push(id); } syncCards(); }};
+    }
+    if(kind === 'sx' && p.length === 2){
+      var B8 = cardsBase(); if(!B8 || !OUT || !B8.par || !B8.par[id]) return null;
+      var sx0 = B8.par[id];
+      return {kind:'card', sig:function(){ return sx0; }, get:function(){ return SX[id] || null; },
+        set:function(v){ if(!v) delete SX[id]; else { SX[id] = v; if(SXO.indexOf(id) < 0) SXO.push(id); } syncCards(); }};
+    }
     if(kind === 'xe' && p.length === 3 && RF[id] && CHIP0[id].indexOf(p[2]) >= 0){
       var xk = id + '|' + p[2];
       return {kind:'card', get:function(){ return XGONE[xk] ? 1 : 0; },
@@ -1197,10 +1312,10 @@ MANUAL_JS = r"""<script id="alto-manual">
         get:function(){ return NEWE[k] && !NEWE[k].off ? JSON.parse(JSON.stringify(NEWE[k].v)) : null; },
         set:function(v){ setChip(id, p[2], v, k); }};
     }
-    if(kind === 'p' && p[2] === 'shift'){
-      var T = plan(); if(!T || !srcNode(id)) return null;
-      return {kind:'shift', get:function(){ return (T.shift && T.shift[id]) ? T.shift[id].slice() : null; },
-        set:function(v){ T.shift = T.shift || {}; if(v && (v[0] || v[1])) T.shift[id] = v.slice(); else delete T.shift[id]; }};
+    if(kind === 'p' && (p[2] === 'shift' || p[2] === 'slide')){
+      var T = plan(), hk = p[2]; if(!T || !srcNode(id)) return null;
+      return {kind:'shift', get:function(){ return (T[hk] && T[hk][id]) ? T[hk][id].slice() : null; },
+        set:function(v){ T[hk] = T[hk] || {}; if(v && (v[0] || v[1])) T[hk][id] = v.slice(); else delete T[hk][id]; }};
     }
     return null;
   }
@@ -1224,6 +1339,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(p[0] === 'rp') return -1.5;
     if(p[0] === 'ua') return -1.45;
     if(p[0] === 'ud') return -1.4;
+    if(p[0] === 'sx') return -1.35;
+    if(p[0] === 'so') return -1.3;
     if(p[0] === 'fl') return -1;
     if(p[0] === 'dt' && p[2] === 'tree') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
@@ -1354,7 +1471,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
       return;
     }
-    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || kind === 'ua' || kind === 'ud'){
+    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || kind === 'ua' || kind === 'ud' || kind === 'so' || kind === 'sx'){
       relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
       if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
       else if(P) { rerenderPage(P); repaint(); }
@@ -1657,6 +1774,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var items = [];
     if(OUT) items.push(['addc', '+', 'Add a card under this one']);
     if(OUT && (OUT.parent || {})[id]) items.push(['linkc', '⇄', 'Move it, and the cards under it, under another card']);
+    if(OUT && (OUT.parent || {})[id]) items.push(['swapc', '⇅', 'Swap places with a card beside it, or with the card it sits under']);
     items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
     items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
@@ -1730,13 +1848,91 @@ MANUAL_JS = r"""<script id="alto-manual">
     var ok, to = srcNode(np);
     if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.p = np; sp.a = unitKeyOf(NODE_ACT[np]); ok = change('nn|' + id, sp); }
     else {
-      var L = [['rp|' + id, np]], sf = field('p|' + id + '|shift');
-      if(sf && sf.get()) L.push(['p|' + id + '|shift', null]);
+      var L = [['rp|' + id, np]];
+      ['shift', 'slide'].forEach(function(hk){ var sf = field('p|' + id + '|' + hk); if(sf && sf.get()) L.push(['p|' + id + '|' + hk, null]); });
       ok = changes(L);
     }
     endLink();
     if(ok) toast('Moved under “' + (to ? to.title : '') + '” — ⌘Z puts it back.');
     return ok;
+  }
+  /* swapping places: with a card under the same card, or with that card */
+  function numOf(id){ return (typeof NODE_ORDER_MAP !== 'undefined' && NODE_ORDER_MAP[id]) || ''; }
+  // every card's number as it would be with the outline changed by fn(kids, par)
+  function numsIf(fn){
+    var K = JSON.parse(JSON.stringify((OUT && OUT.kids) || {})), P = Object.assign({}, (OUT && OUT.parent) || {}); fn(K, P);
+    var out = {};
+    ACT_SEQS.forEach(function(q, a){ var inQ = {}, j = 0, seen = {}; q.forEach(function(i){ inQ[i] = 1; });
+      q.forEach(function(i){ if(P[i] && inQ[P[i]]) return;
+        (function walk(x){ if(seen[x] || !inQ[x]) return; seen[x] = 1; out[x] = (a + 1) + '.' + (++j); (K[x] || []).forEach(walk); })(i); });
+      q.forEach(function(i){ if(!seen[i]) out[i] = (a + 1) + '.' + (++j); }); });
+    return out;
+  }
+  function orderWith(p, list){ return function(K){ K[p] = list.slice(); }; }
+  function swapSibs(id, other, how){
+    var p = ((OUT && OUT.parent) || {})[id], list = kidsOf(p).slice(), i = list.indexOf(id), j = list.indexOf(other);
+    if(i < 0 || j < 0) return null;
+    if(how === 'move'){ list.splice(i, 1); list.splice(j, 0, id); }        // it takes that turn; the ones between move along
+    else { list[i] = other; list[j] = id; }
+    return list;
+  }
+  function doOrder(id, list, what){
+    var p = ((OUT && OUT.parent) || {})[id];
+    if(change('so|' + p, list)) toast(what + ' — ⌘Z puts them back.');
+  }
+  function doParentSwap(id){
+    var p = ((OUT && OUT.parent) || {})[id]; if(!p) return;
+    var L = [['sx|' + id, p]];
+    [id, p].forEach(function(i){ ['shift', 'slide'].forEach(function(hk){ var sf = field('p|' + i + '|' + hk); if(sf && sf.get()) L.push(['p|' + i + '|' + hk, null]); }); });
+    if(!field('sx|' + id)){ toast('Only a card the page was built with can trade places with its parent — ask Claude to do it, or build first.'); return; }
+    if(changes(L)) toast('“' + titleOf(id) + '” and “' + titleOf(p) + '” traded places — ⌘Z puts them back.');
+  }
+  function swapChoices(id){
+    var P = (OUT && OUT.parent) || {}, p = P[id], A = [];
+    if(!p) return A;
+    var sib = kidsOf(p).filter(function(k){ return !cardGone(k); }), i = sib.indexOf(id);
+    if(!field('so|' + p)) sib = [];
+    sib.forEach(function(k, j){ if(k === id) return;
+      var list = swapSibs(id, k, 'swap'), nn = numsIf(orderWith(p, list));
+      A.push({t: 'Swap with ' + (numOf(k) ? numOf(k) + ' ' : '') + '“' + titleOf(k) + '”' + (j === i - 1 ? ' (above)' : j === i + 1 ? ' (below)' : ''),
+        sub: 'It becomes ' + nn[id] + ', and “' + titleOf(k) + '” ' + nn[k] + '. The cards under each go with it.',
+        fn: function(){ doOrder(id, list, 'Swapped'); }}); });
+    var g = P[p];
+    A.push({label: 'Its parent'});
+    var nx = numsIf(function(K, Q){ var S = (K[p] || []).slice(), Kc = (K[id] || []).slice(), gg = Q[p];
+      if(gg){ K[gg] = K[gg].map(function(x){ return x === p ? id : x; }); Q[id] = gg; } else delete Q[id];
+      K[id] = S.map(function(x){ return x === id ? p : x; }); K[id].forEach(function(x){ Q[x] = id; });
+      if(Kc.length){ K[p] = Kc; Kc.forEach(function(x){ Q[x] = p; }); } else delete K[p]; });
+    var kn = liveKids(id).length;
+    A.push({t: 'Trade places with ' + (numOf(p) ? numOf(p) + ' ' : '') + '“' + titleOf(p) + '”', off: !field('sx|' + id), why: 'Cards added here trade places once the timeline is built again.',
+      sub: 'It becomes ' + nx[id] + (g ? '' : ', the top of its unit') + '; “' + titleOf(p) + '” and the cards under it go under it, as ' + nx[p] +
+        (kn ? '. The ' + (kn === 1 ? 'card' : kn + ' cards') + ' under this one go under “' + titleOf(p) + '”.' : '.'),
+      fn: function(){ doParentSwap(id); }});
+    return A;
+  }
+  function swapMenu(id){
+    var A = swapChoices(id); if(!A.length) return;
+    ask('Swap “' + titleOf(id) + '” (' + numOf(id) + ') with…', 'Cards trade places with a card under the same card, or with the card they sit under. You can also click a card’s number and type the one it should have.', A);
+  }
+  // A card's number, typed: the card that has that number now is the one it trades with.
+  function renumber(id, typed){
+    var want = String(typed || '').trim().replace(/[.\s]+$/, ''); if(!want || want === numOf(id)) return;
+    if(!/^\d+\.\d+$/.test(want)){ toast('Type a number like ' + (numOf(id) || '1.3') + ' — its unit, then its place.'); return; }
+    var other = Object.keys(NODE_ORDER_MAP).filter(function(k){ return NODE_ORDER_MAP[k] === want && srcNode(k) && !cardGone(k); })[0];
+    if(!other){ toast('No card is numbered ' + want + '.'); return; }
+    var P = (OUT && OUT.parent) || {}, p = P[id];
+    if(p && P[other] === p && field('so|' + p)){
+      var sw = swapSibs(id, other, 'swap'), mvL = swapSibs(id, other, 'move');
+      var n1 = numsIf(orderWith(p, sw)), n2 = numsIf(orderWith(p, mvL)), A = [];
+      A.push({t: '“' + titleOf(other) + '” becomes ' + n1[other], sub: 'The two trade places (this one becomes ' + n1[id] + ').', fn: function(){ doOrder(id, sw, 'Swapped'); }});
+      var between = Math.abs(kidsOf(p).indexOf(id) - kidsOf(p).indexOf(other)) > 1;
+      if(between) A.push({t: '“' + titleOf(other) + '” becomes ' + n2[other], sub: 'This one takes its turn (' + n2[id] + '), and the cards from there on move along one.', fn: function(){ doOrder(id, mvL, 'Moved'); }});
+      ask(want + ' is “' + titleOf(other) + '”. Where should it go?', '“' + titleOf(id) + '” becomes ' + n1[id] + '. The cards under each go with it.', A);
+      return;
+    }
+    if(p && other === p){ var C = swapChoices(id).filter(function(a){ return a.t && a.t.indexOf('Trade places') === 0; });
+      ask(want + ' is “' + titleOf(other) + '”, the card this one sits under.', 'Trade the two places?', C); return; }
+    toast(want + ' is “' + titleOf(other) + '”, which is not under the same card as this one, or the card it sits under. Use ⇄ to move a card under another one.');
   }
   /* asking: a title, a line, and the answers (the last one cancels) */
   function ask(title, note, answers){
@@ -2819,7 +3015,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(x === 'navx'){ navRemove(b); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');
-      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'chipc') chipPop(cid, b);
+      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'chipc') chipPop(cid, b);
       return;
     }
     if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }
@@ -2895,6 +3091,11 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(pn){ e.stopPropagation(); e.preventDefault(); var pid = pn.id.replace(/^node-/, ''); if(srcNode(pid)){ toggleFlag(pid, PICK); paintPick(); } return; }
       if(t.closest('#canvas')){ e.stopPropagation(); e.preventDefault(); return; }
     }
+    // a card's number: type the one it should have
+    var ordEl = structOK() && OUT && t.closest('#canvas .node-card .node-order');
+    if(ordEl){ var on = ordEl.closest('.node'), oid = on && on.id.slice(5);
+      if(oid && srcNode(oid) && ((OUT.parent || {})[oid])){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true);
+        askName(ordEl, 'Type its new number', numOf(oid), function(v){ renumber(oid, v); }); return; } }
     // a card's chips on the timeline: clicking one opens the card's chips to change
     var chipEl = structOK() && t.closest('#canvas .node-card .csym-btn,#canvas .node-card .esym-btn,#canvas .node-card .tsym-btn');
     if(chipEl){ var cn = chipEl.closest('.node'); if(cn && srcNode(cn.id.slice(5))){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); chipPop(cn.id.slice(5), chipEl); return; } }
@@ -2930,8 +3131,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     });
   }
 
-  // Drag a card of an outline (desktop): it and its progeny move together.
-  var drag = null, dragJustEnded = false;
+  // Drag a card of an outline (desktop). Held close to its own line (the one
+  // from its parent: down a spine, or across to a card beside its parent) it
+  // slides along it alone, the cards under it staying put; taken off the line
+  // it moves with all of them. A card with nothing under it moves freely.
+  var drag = null, dragJustEnded = false, LINE_OFF = 44, LINE_ON = 26;
   function subtree(id){ var K = (window._ALTO_OUTLINE || {}).kids || {}, out = [id];
     for(var i = 0; i < out.length; i++) (K[out[i]] || []).forEach(function(c){ out.push(c); }); return out; }
   // Screen px per world px, measured on the card itself: a 100px nudge and how
@@ -2944,42 +3148,81 @@ MANUAL_JS = r"""<script id="alto-manual">
       var k = (b - a) / 100; return k > 0.05 && k < 20 ? k : 1;
     }catch(e){ return 1; }
   }
+  // the way its line runs: across for a card beside its parent, else down
+  function lineOf(id){
+    var G = window._altoTreeGeo, p = ((OUT && OUT.parent) || {})[id];
+    if(G && p && G.y[p] != null && G.y[id] != null && Math.abs(G.y[p] - G.y[id]) < 1) return {ax: 'x', p: p};
+    return {ax: 'y', p: p || null};
+  }
   window.addEventListener('pointerdown', function(e){
     if(!editing() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-rz')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
-    drag = {id:id, x0:e.clientX, y0:e.clientY, k:scale(nodeEl), on:false, els: subtree(id).map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean)};
+    var L = lineOf(id), sub = subtree(id);
+    drag = {id:id, x0:e.clientX, y0:e.clientY, k:scale(nodeEl), on:false, ax:L.ax, p:L.p, mode:'tree', n:sub.length - 1,
+      self:nodeEl, els: sub.map(function(i){ return document.getElementById('node-' + i); }).filter(Boolean)};
   }, true);
+  function dragTip(d, e){
+    var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
+    b.textContent = !d.n ? 'Drop it anywhere — the cards it lands on make room'
+      : d.mode === 'line' ? 'Sliding along its line — the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it stay'
+      : 'Moving with the ' + (d.n === 1 ? 'card' : d.n + ' cards') + ' under it — back on its line to slide it alone';
+    b.style.left = (e.clientX + 16) + 'px'; b.style.top = (e.clientY + 16) + 'px'; b.classList.add('show');
+  }
   window.addEventListener('pointermove', function(e){
     if(!drag) return;
     var dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
     if(!drag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; drag.on = true; if(cur) endField(true);
-      root.classList.add('alto-dragging'); drag.els.forEach(function(el){ el.classList.add('aed-moving'); }); }
+      root.classList.add('alto-dragging'); }
     e.preventDefault();
+    // off its line by more than a little: everything under it comes along
+    var off = drag.ax === 'y' ? Math.abs(dx) : Math.abs(dy);
+    var mode = !drag.n ? 'tree' : drag.mode === 'line' ? (off > LINE_OFF ? 'tree' : 'line') : (off < LINE_ON ? 'line' : 'tree');
+    if(!drag.n || mode !== drag.mode || !drag.painted){ drag.mode = mode; drag.painted = true;
+      drag.els.forEach(function(el){ el.classList.toggle('aed-moving', mode === 'tree' || el === drag.self); }); }
     drag.wx = dx / drag.k; drag.wy = dy / drag.k;
+    if(drag.mode === 'line'){ if(drag.ax === 'y') drag.wx = 0; else drag.wy = 0; clampLine(drag); }
+    dragTip(drag, e);
     if(!drag.raf) drag.raf = requestAnimationFrame(function(){ if(drag){ drag.raf = 0; preview(drag); } });
   }, true);
+  // Along its line it stays on its side of its parent: below it on a spine,
+  // clear of it when it sits beside it.
+  function clampLine(d){
+    var G = window._altoTreeGeo; if(!G || !d.p || G.y[d.p] == null || G.y[d.id] == null) return;
+    var gap = (plan() || {}).row_gap || 40;
+    if(d.ax === 'y'){
+      if(G.y[d.p] >= G.y[d.id]) return;
+      var lo = G.y[d.p] + G.h[d.p] / 2 + gap - (G.y[d.id] - G.h[d.id] / 2);
+      if(d.wy < lo) d.wy = lo;
+    } else {
+      var side = G.x[d.id] > G.x[d.p] ? 1 : -1, room = (wOf(d.id) + wOf(d.p)) / 2 + 24;
+      var nx = G.x[d.id] + d.wx; if(side * (nx - G.x[d.p]) < room) d.wx = G.x[d.p] + side * room - G.x[d.id];
+    }
+  }
+  // the drag as hints: [shift, slide] with this card's own changed by (wx, wy)
+  function hintsWith(d, wx, wy){
+    var T = plan() || {}, sh = Object.assign({}, T.shift || {}), sl = Object.assign({}, T.slide || {});
+    var M = d.mode === 'line' ? sl : sh, o = M[d.id] || [0, 0];
+    M[d.id] = [o[0] + wx, o[1] + wy];
+    return [sh, sl];
+  }
   // The whole tree as it would be with the card dropped here: the cards in its
   // way step aside, and go back once it has moved on.
   function preview(d){
     var G = window._altoTreeGeo, T = plan(), R = null;
-    if(G && T){
-      var sh = Object.assign({}, T.shift || {}), o = sh[d.id] || [0, 0];
-      sh[d.id] = [o[0] + d.wx, o[1] + d.wy];
-      try{ R = layoutAll(G.h, sh); }catch(e){ R = null; }
-    }
-    if(!R){ d.els.forEach(function(el){ el.style.translate = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px'; }); return; }
-    var mine = {}; d.els.forEach(function(el){ mine[el.id] = 1; });
+    if(G && T){ var H = hintsWith(d, d.wx, d.wy); try{ R = layoutAll(G.h, H[0], H[1]); }catch(e){ R = null; } }
+    if(!R){ (d.mode === 'line' ? [d.self] : d.els).forEach(function(el){ el.style.translate = Math.round(d.wx) + 'px ' + Math.round(d.wy) + 'px'; }); return; }
     document.querySelectorAll('#world .node').forEach(function(el){
       var i = el.id.slice(5); if(G.y[i] == null || R.y[i] == null) return;
       var tx = Math.round(R.x[i] - G.x[i]), ty = Math.round(R.y[i] - G.y[i]);
-      if(!mine[el.id] && (tx || ty || el.style.translate)) el.classList.add('aed-room');
+      if(!el.classList.contains('aed-moving') && (tx || ty || el.style.translate)) el.classList.add('aed-room');
       el.style.translate = (tx || ty) ? tx + 'px ' + ty + 'px' : '';
     });
   }
   function clearPreview(){
     document.querySelectorAll('#world .node').forEach(function(el){ el.classList.remove('aed-room', 'aed-moving'); el.style.translate = ''; });
+    var b = document.getElementById('aed-rztip'); if(b) b.classList.remove('show');
   }
   function endDrag(){
     if(!drag) return; var d = drag; drag = null;
@@ -2987,14 +3230,24 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!d.on) return;
     dragJustEnded = true; setTimeout(function(){ dragJustEnded = false; }, 400);
     root.classList.remove('alto-dragging');
-    var f = field('p|' + d.id + '|shift'); if(!f){ clearPreview(); return; }
-    var old = f.get() || [0, 0], v = [Math.round(old[0] + (d.wx || 0)), Math.round(old[1] + (d.wy || 0))];
+    var hk = d.mode === 'line' ? 'slide' : 'shift';
+    var f = field('p|' + d.id + '|' + hk); if(!f){ clearPreview(); return; }
+    var wx = d.wx || 0, wy = d.wy || 0;
     // keep the card on the page
     var n = liveNode(d.id), el = document.getElementById('node-' + d.id), card = el && el.querySelector('.node-card');
-    if(n && card){ var cx = (n.displayX != null ? n.displayX : 850) + (d.wx || 0), hw = card.offsetWidth / 2;
-      var lo = hw + 30, hi = 1700 - hw - 30; if(cx < lo) v[0] += Math.round(lo - cx); if(cx > hi) v[0] -= Math.round(cx - hi); }
+    if(n && card){ var cx = (n.displayX != null ? n.displayX : 850) + wx, hw = card.offsetWidth / 2;
+      var lo = hw + 30, hi = 1700 - hw - 30; if(cx < lo) wx += lo - cx; if(cx > hi) wx -= cx - hi; }
+    // and in its unit: nothing above the unit's first card
+    var G = window._altoTreeGeo;
+    if(G){ try{
+      var a = NODE_ACT[d.id], H = hintsWith(d, wx, wy), R1 = layoutAll(G.h, H[0], H[1]), R0 = layoutAll(G.h, {}, {});
+      var top = function(R){ return Math.min.apply(null, Object.keys(R.y).filter(function(i){ return NODE_ACT[i] === a && G.h[i] != null; })
+        .map(function(i){ return R.y[i] - G.h[i] / 2; })); };
+      if(R0 && R1){ var t0 = top(R0), t1 = top(R1); if(isFinite(t0) && isFinite(t1) && t1 < t0 - 0.5) wy += t0 - t1; }
+    }catch(e){} }
+    var old = f.get() || [0, 0], v = [Math.round(old[0] + wx), Math.round(old[1] + wy)];
     // laid out at once where it was dropped, so nothing jumps back first
-    if(change('p|' + d.id + '|shift', (v[0] || v[1]) ? v : null)){ clearTimeout(relayT); document.querySelectorAll('#world .node').forEach(function(x){ x.classList.remove('aed-room'); }); relayout(); }
+    if(change('p|' + d.id + '|' + hk, (v[0] || v[1]) ? v : null)){ clearTimeout(relayT); document.querySelectorAll('#world .node').forEach(function(x){ x.classList.remove('aed-room'); }); relayout(); }
     clearPreview();
   }
   window.addEventListener('pointerup', endDrag, true);

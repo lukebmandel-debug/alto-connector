@@ -296,3 +296,42 @@ def test_a_timeline_started_on_the_homepage_builds_with_what_was_written_in_it(m
     assert nodes["card-ee33ff"]["act"] == 2
     assert (nodes["card-aa11bb"]["parent"], nodes["card-aa11bb"]["act"]) == ("card-ee33ff", 2)
     assert nodes["unit-2-start"]["act"] == 1
+
+
+def test_swaps_and_slides_made_on_the_page_fold_and_build(monkeypatch):
+    """1.9.53: children put in another order (so|), a card that traded places
+    with its parent (sx|) and a card slid along its line (p|…|slide), folded
+    through the tool in the order they were made, then built."""
+    outline = json.loads((ROOT / "samples" / "outline_brief.json").read_text(encoding="utf-8"))
+    pid = srv.create_project("Law School", "1L year", "studying")["project_id"]
+    tid = srv.create_timeline(pid, outline["brief"])["timeline_id"]
+    srv.record_materials_consent(tid, [{"name": "notes", "kind": "notes"}], True)
+    srv.add_nodes(tid, outline["nodes"])
+    st = srv.get_store()
+    store = {}
+    monkeypatch.setattr(type(st), "get_edits", lambda self, u, t: json.loads(json.dumps(store.get(t))) if t in store else None, raising=False)
+    monkeypatch.setattr(type(st), "put_edits", lambda self, u, t, d: store.__setitem__(t, json.loads(json.dumps(d))), raising=False)
+    built = ["definiteness", "preliminary-negotiations", "offer", "acceptance"]
+    store[tid] = {"v": 1, "ops": {
+        # the order first, naming offer; then revocation takes offer's place
+        "so|formation": {"b": built, "v": ["preliminary-negotiations", "definiteness", "offer", "acceptance"], "t": 1},
+        "sx|revocation": {"b": "offer", "v": "offer", "t": 2},
+        "p|definiteness|slide": {"b": None, "v": [0, 60], "t": 3}}}
+    r = srv.build_timeline(tid)
+    me = r["manual_edits"]
+    assert r.get("verify") == "passed" and me.get("folded") == 3 and not me["conflicts"], me
+    assert me["cards_swapped_with_parent"][0]["id"] == "revocation"
+    nodes = {n["id"]: n for n in srv.get_store().list_nodes(srv.uid(), tid)}
+    assert nodes["revocation"]["parent"] == "formation" and nodes["offer"]["parent"] == "revocation"
+    assert nodes["option-contracts"]["parent"] == "revocation"
+    from alto.edits import kids_in_order, published
+    brief = srv.get_store().get_timeline(srv.uid(), tid)["brief"]
+    assert kids_in_order(list(nodes.values()), brief, "formation") == [
+        "preliminary-negotiations", "definiteness", "revocation", "acceptance"]
+    assert kids_in_order(list(nodes.values()), brief, "revocation")[0] == "offer"    # in its place
+    assert brief["placement"]["definiteness"]["slide"] == [0, 60]
+    html = srv.get_store().get_timeline(srv.uid(), tid)
+    assert published(srv.get_store(), srv.uid(), tid) == 3
+    # built again, nothing is left to fold
+    r2 = srv.build_timeline(tid)
+    assert not (r2.get("manual_edits") or {}).get("folded")

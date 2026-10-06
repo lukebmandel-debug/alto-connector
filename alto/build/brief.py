@@ -246,7 +246,7 @@ OUTCOME_LAYOUTS = ("stack", "beside")
 # this module, so it cannot be imported here; a test holds the two equal).
 ARRANGEMENTS = ("auto", "column", "row", "branches")
 PLACE_KEYS = ("arrange", "x", "dx", "y", "dy", "w", "child_w", "float", "order", "tier",
-              "shift")
+              "shift", "slide")
 PLACE_WORLD_W = 1700
 PLACE_MAX_SHIFT = 2000
 PLACE_MAX_Y = 40000
@@ -831,14 +831,15 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
                 number(nid, key, v, 0, PLACE_MAX_Y)
             elif key in ("w", "child_w"):
                 number(nid, key, v, *PLACE_WIDTHS)
-            elif key == "shift":
+            elif key in ("shift", "slide"):
                 # [dx, dy]: a card dragged on the page (manual edit mode). It
-                # and its progeny move after the unit is laid out; nothing
-                # else in the unit moves.
+                # and its progeny move after the unit is laid out (shift), or
+                # it alone, slid along its line (slide); nothing else in the
+                # unit moves but what makes room.
                 if not isinstance(v, (list, tuple)) or len(v) != 2:
-                    raise BriefError(f"placement {nid}: shift must be [dx, dy]")
-                number(nid, "shift dx", v[0], -PLACE_WORLD_W, PLACE_WORLD_W)
-                number(nid, "shift dy", v[1], -PLACE_MAX_Y, PLACE_MAX_Y)
+                    raise BriefError(f"placement {nid}: {key} must be [dx, dy]")
+                number(nid, f"{key} dx", v[0], -PLACE_WORLD_W, PLACE_WORLD_W)
+                number(nid, f"{key} dy", v[1], -PLACE_MAX_Y, PLACE_MAX_Y)
             elif key == "float" and not isinstance(v, bool):
                 raise BriefError(f"placement {nid}: float must be true or false")
             elif key in ("order", "tier") and (isinstance(v, bool) or not isinstance(v, int) or v < 1):

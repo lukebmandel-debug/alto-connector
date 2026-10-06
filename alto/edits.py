@@ -312,6 +312,10 @@ def _target(key, brief, by_id, conns):
         return (by_id[p[1]], "parent", "reparent") if p[1] in by_id else None
     if kind == "ua" and len(p) == 2:
         return (by_id[p[1]], "act", "unitmove") if p[1] in by_id else None
+    if kind == "so" and len(p) == 2:
+        return (by_id[p[1]], None, "kidorder") if p[1] in by_id else None
+    if kind == "sx" and len(p) == 2:
+        return (by_id[p[1]], "parent", "parentswap") if p[1] in by_id else None
     if kind == "ud" and len(p) == 2 and p[1].isdigit():
         return None, None, "unitdel"
     if kind in ("na", "xa") and len(p) == 2 and p[1] in ("axis1", "axis2"):
@@ -377,8 +381,8 @@ def _target(key, brief, by_id, conns):
         steps = ((t[0].get("tree") or {}).get("nodes")) or []
         st = next((s for s in steps if s.get("id") == p[2]), None)
         return (st, p[3], "plain") if st is not None else None
-    if kind == "p" and len(p) == 3 and p[2] == "shift" and p[1] in by_id:
-        return brief.setdefault("placement", {}), p[1], "shift"
+    if kind == "p" and len(p) == 3 and p[2] in ("shift", "slide") and p[1] in by_id:
+        return brief.setdefault("placement", {}), p[1], p[2]
     if kind == "cx" and len(p) == 4 and p[3].isdigit():
         j, n = int(p[3]), 0
         for c in conns:
@@ -458,6 +462,26 @@ def _flag_list(v) -> list:
     return out
 
 
+def kids_in_order(nodes, brief, pid) -> list:
+    """A card's children as the build orders them: the material's order,
+    except a child with a placement `order` n sits n-th (layout._siblings_in_order)."""
+    from .build.layout import _siblings_in_order
+
+    class _N:
+        def __init__(self, i):
+            self.id = i
+    ks = [_N(n["id"]) for n in nodes if (n.get("parent") or "") == pid]
+    return [k.id for k in _siblings_in_order(ks, brief.get("placement") or {})]
+
+
+def in_order(have: list, want: list) -> list:
+    """`have` with the cards `want` names in want's order, in the turns they
+    hold now; the rest keep theirs (one swapped in since keeps the turn of
+    the one it replaced). MANUAL_JS orderOne is the same."""
+    q = [x for x in want if x in have]
+    return [q.pop(0) if x in want else x for x in have]
+
+
 def fold(store, uid, tid) -> "dict | None":
     """Write the page's edits into the draft. Returns a report, or None when
     there is nothing to fold."""
@@ -483,7 +507,7 @@ def fold(store, uid, tid) -> "dict | None":
     brief = doc["brief"]
     written, already, conflicts, missing, no_file = [], [], [], [], []
     touched = {"nodes": set(), "brief": False, "conns": False}
-    created, removed, units_made, moved, chips_made = [], [], [], [], []
+    created, removed, units_made, moved, chips_made, reordered = [], [], [], [], [], []
     units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
 
     def touch(key):
@@ -694,7 +718,7 @@ def fold(store, uid, tid) -> "dict | None":
             pl = brief.get("placement") or {}
             if cid in pl:
                 h = {kk: vv for kk, vv in pl[cid].items()
-                     if kk not in ("shift", "x", "dx", "y", "dy", "tier", "float", "order")}
+                     if kk not in ("shift", "slide", "x", "dx", "y", "dy", "tier", "float", "order")}
                 brief["placement"] = {**pl, cid: h}
                 touched["brief"] = True
             touched["nodes"].add(cid)
@@ -725,7 +749,7 @@ def fold(store, uid, tid) -> "dict | None":
         # dragged to, or set by hand, belonged to its old place
         pl = brief.get("placement") or {}
         h = {kk: vv for kk, vv in (pl.get(cid) or {}).items()
-             if kk not in ("shift", "x", "dx", "y", "dy", "tier", "float", "order")}
+             if kk not in ("shift", "slide", "x", "dx", "y", "dy", "tier", "float", "order")}
         h["order"] = len(kid_of.get(v, [])) + 1
         brief["placement"] = {**pl, cid: h}
         touched["brief"] = True
@@ -779,10 +803,82 @@ def fold(store, uid, tid) -> "dict | None":
         pl = brief.get("placement") or {}
         if cid in pl:
             brief["placement"] = {**pl, cid: {kk: vv for kk, vv in pl[cid].items()
-                                              if kk not in ("shift", "x", "dx", "y", "dy", "tier", "float", "order")}}
+                                              if kk not in ("shift", "slide", "x", "dx", "y", "dy", "tier", "float", "order")}}
             touched["brief"] = True
         written.append(k)
         to_unit.append({"id": cid, "unit": t})
+
+    # 0e. a card that traded places with its parent: it takes the parent's
+    #     place, the parent and its other children go under it, and its own
+    #     children under the parent (each keeping its turn)
+    swapped = []
+
+    def _swap(k):
+        cid, v, b = k.split("|")[1], live[k].get("v"), live[k].get("b")
+        n, pn = by_id.get(cid), by_id.get(v or "")
+        if n is None or (v and pn is None):
+            return missing.append(k)
+        if not v or (pn.get("parent") or "") == cid:
+            return already.append(k)
+        if (n.get("parent") or "") != v or v != b or n["act"] != pn["act"]:
+            return conflicts.append(k)
+        g = pn.get("parent") or ""
+        sib, mine = kids_in_order(nodes, brief, v), kids_in_order(nodes, brief, cid)
+        up = kids_in_order(nodes, brief, g) if g else []
+        if g:
+            n["parent"] = g
+        else:
+            n.pop("parent", None)
+        pn["parent"] = cid
+        for x in sib:
+            if x != cid:
+                by_id[x]["parent"] = cid
+        for x in mine:
+            by_id[x]["parent"] = v
+        pl = dict(brief.get("placement") or {})
+        hc, hp = dict(pl.get(cid) or {}), dict(pl.get(v) or {})
+        for kk in ("arrange", "child_w"):                     # how its children are arranged: the place's
+            hc.pop(kk, None), hp.pop(kk, None)
+            if (pl.get(v) or {}).get(kk) is not None:
+                hc[kk] = pl[v][kk]
+            if (pl.get(cid) or {}).get(kk) is not None:
+                hp[kk] = pl[cid][kk]
+        for hh in (hc, hp):
+            for kk in ("shift", "slide", "x", "dx", "y", "dy", "tier", "float", "order"):
+                hh.pop(kk, None)
+        pl[cid], pl[v] = hc, hp
+        for lst in ([x if x != v else cid for x in up], [x if x != cid else v for x in sib], mine):
+            for j, x in enumerate(lst):
+                pl[x] = {**(pl.get(x) or {}), "order": j + 1}
+        brief["placement"] = {i: h for i, h in pl.items() if h}
+        for x in [cid, v] + sib + mine:
+            touched["nodes"].add(x)
+        touched["brief"] = True
+        written.append(k)
+        swapped.append({"id": cid, "with": v})
+
+    # 0f. a card's children in the order set on the page
+    def _order(k):
+        pid, v, b = k.split("|")[1], live[k].get("v"), live[k].get("b")
+        if pid not in by_id or not isinstance(v, list):
+            return missing.append(k)
+        have = kids_in_order(nodes, brief, pid)
+        want = in_order(have, v)
+        if want == have:
+            return already.append(k)
+        if [x for x in (b or []) if x in have] != [x for x in have if x in (b or [])]:
+            return conflicts.append(k)
+        pl = dict(brief.get("placement") or {})
+        for j, x in enumerate(want):
+            pl[x] = {**(pl.get(x) or {}), "order": j + 1}
+        brief["placement"] = pl
+        touched["brief"] = True
+        written.append(k)
+        reordered.append(pid)
+
+    # in the order they were made: a swap moves what an order named, and the other way round
+    for k in by_time([k for k in live if k.startswith(("sx|", "so|"))]):
+        (_swap if k.startswith("sx|") else _order)(k)
 
     kinds = {k: (_target(k, brief, by_id, conns) or (None, None, None))[2] for k in live}
 
@@ -814,7 +910,7 @@ def fold(store, uid, tid) -> "dict | None":
                                                     "newtree", "newtreef", "newunit", "unitname",
                                                     "newchip", "reparent", "unitmove", "unitdel",
                                                     "newaxis", "axisdel", "chipdel", "cardsize")
-               and not k.startswith(("nn|", "nu|", "nl|", "ne|", "rp|", "ua|", "ud|", "na|", "xa|", "xe|", "sz|"))]
+               and not k.startswith(("nn|", "nu|", "nl|", "ne|", "rp|", "so|", "sx|", "ua|", "ud|", "na|", "xa|", "xe|", "sz|"))]
     for k in sorted(singles, key=lambda k: (0 if kinds[k] == "flags" else 1, live[k].get("t") or 0)):
         o = live[k]
         t = _target(k, brief, by_id, conns)
@@ -845,8 +941,8 @@ def fold(store, uid, tid) -> "dict | None":
                 holder[f] = norm(v)
             else:
                 holder.pop(f, None)
-        elif kind == "shift":
-            cur = (holder.get(f) or {}).get("shift")
+        elif kind in ("shift", "slide"):
+            cur = (holder.get(f) or {}).get(kind)
             if _same(cur, v):
                 already.append(k)
                 continue
@@ -855,9 +951,9 @@ def fold(store, uid, tid) -> "dict | None":
                 continue
             h = dict(holder.get(f) or {})
             if v and (v[0] or v[1]):
-                h["shift"] = [round(float(v[0]), 1), round(float(v[1]), 1)]
+                h[kind] = [round(float(v[0]), 1), round(float(v[1]), 1)]
             else:
-                h.pop("shift", None)
+                h.pop(kind, None)
             if h:
                 holder[f] = h
             else:
@@ -1165,6 +1261,17 @@ def fold(store, uid, tid) -> "dict | None":
                                        "unit": (acts[m["unit"]].get("label") if m["unit"] < len(acts) else "")}
                                       for m in to_unit]
         rep["note"] += (" The owner moved cards into another unit (cards_moved_to_unit).")
+    if swapped:
+        for m in swapped:
+            m["title"], m["with_title"] = titles.get(m["id"]), titles.get(m["with"])
+        rep["cards_swapped_with_parent"] = swapped
+        rep["note"] += (" The owner had cards trade places with the card they sat under "
+                        "(cards_swapped_with_parent): the parent and its other children now "
+                        "hang under the card, and the card's own children under the parent.")
+    if reordered:
+        rep["children_reordered"] = [{"id": i, "title": titles.get(i)} for i in reordered]
+        rep["note"] += (" The owner put some cards' children in another order "
+                        "(children_reordered, placement order) — keep it.")
     if units_gone:
         rep["units_deleted"] = units_gone
         rep["note"] += (" The owner deleted units on the page (units_deleted); their "
@@ -1254,8 +1361,14 @@ def published(store, uid, tid) -> int:
             pass                 # by its ORIGINAL place: a reorder moves it, so trust the fold
         elif t is not None and t[2] in ("plain", "para"):
             carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
-        elif t is not None and t[2] == "shift":
-            carried = _same((t[0].get(t[1]) or {}).get("shift"), o.get("v"))
+        elif t is not None and t[2] in ("shift", "slide"):
+            carried = _same((t[0].get(t[1]) or {}).get(t[2]), o.get("v"))
+        elif t is not None and t[2] == "parentswap":
+            pn = by_id.get(o.get("v") or "")
+            carried = bool(pn) and (pn.get("parent") or "") == p[1]
+        elif t is not None and t[2] == "kidorder":
+            have = kids_in_order(nodes, doc.get("brief") or {}, p[1])
+            carried = in_order(have, o.get("v") or []) == have
         elif t is not None and t[2] == "flags":
             carried = _flag_list(t[0].get(t[1])) == _flag_list(o.get("v"))
         elif t is not None and t[2] == "list":

@@ -94,11 +94,36 @@ window._altoMakeRoom = function(y, x, h, w, ids, moved, parent, gap, top){
   });
   return changed;
 };
-/* the tree's places over these heights (layout.run_plan); `shift` stands in
-   for the plan's own while a card is being dragged */
-window._altoTreeCalc = function(h, shift, TP){
+/* no two cards of a unit touch once cards were dragged (layout.separate) */
+window._altoSeparate = function(y, x, h, w, ids, y0, x0, parent, gap){
+  ids=ids.filter(function(i){ return y[i]!=null; });
+  function ww(i){ return (w&&w[i])||270; }
+  var kids={}; ids.forEach(function(i){ var p=parent[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
+  function kept(i, j){ return Math.abs((y[i]-y[j])-(y0[i]-y0[j]))<0.5 && Math.abs((x[i]-x[j])-(x0[i]-x0[j]))<0.5; }
+  function group(j){ var out=[], q=[j];
+    while(q.length){ var c=q.shift(); if(out.indexOf(c)>=0) continue; out.push(c);
+      q=q.concat(kids[c]||[]).concat(ids.filter(function(k){ return out.indexOf(k)<0 && Math.abs(y[k]-y[c])<0.5 && kept(c, k); })); }
+    return out; }
+  var changed=false;
+  for(var g=0; g<ids.length*ids.length+1; g++){
+    var order=ids.slice().sort(function(a, b){ return ((y[a]-h[a]/2)-(y[b]-h[b]/2)) || (x[a]-x[b]) || (a<b?-1:a>b?1:0); });
+    var hit=null;
+    for(var a=0; a<order.length && !hit; a++){ var i=order[a];
+      for(var b=a+1; b<order.length; b++){ var j=order[b];
+        if(Math.abs(x[i]-x[j]) < (ww(i)+ww(j))/2+12 && y[j]-h[j]/2 < y[i]+h[i]/2+gap && !kept(i, j)){ hit=[i, j]; break; } } }
+    if(!hit) break;
+    var G=group(hit[1]); if(G.indexOf(hit[0])>=0) G=[hit[1]];
+    var d=y[hit[0]]+h[hit[0]]/2+gap+h[hit[1]]/2-y[hit[1]];
+    G.forEach(function(k){ y[k]+=d; }); changed=true;
+  }
+  return changed;
+};
+/* the tree's places over these heights (layout.run_plan); `shift` and
+   `slide` stand in for the plan's own while a card is being dragged */
+window._altoTreeCalc = function(h, shift, TP, slide){
   var T=TP||window._ALTO_TREE_PLAN; if(!T || typeof NODES==='undefined') return null;
   if(shift===undefined) shift=T.shift;
+  if(slide===undefined) slide=T.slide;
   var y={}, x={}, bottom=0;
   Object.keys(T.x).forEach(function(i){ x[i]=T.x[i]; });
   function put(i,top,rowH){ y[i]=top+(rowH!=null?rowH:h[i])/2; bottom=Math.max(bottom,y[i]+h[i]/2); }
@@ -149,11 +174,12 @@ window._altoTreeCalc = function(h, shift, TP){
     run(op[1],op.length>2?op[2]:c); return c;                 // float / pinned: takes no room
   }
   /* `shift` hints (layout.shift_offsets): a card and its progeny move after
-     their unit is laid out; nothing else in it moves */
+     their unit is laid out; nothing else in it moves. `slide`: the card alone */
   var off={}, P0=(window._ALTO_OUTLINE||{}).parent||{};
-  if(shift) Object.keys(NODE_ACT).forEach(function(i){
+  if(shift || slide) Object.keys(NODE_ACT).forEach(function(i){
     var dx=0, dy=0, c=i, seen={};
-    while(c && !seen[c]){ seen[c]=1; var s=shift[c]; if(s){ dx+=s[0]; dy+=s[1]; } c=P0[c]||''; }
+    if(shift) while(c && !seen[c]){ seen[c]=1; var s=shift[c]; if(s){ dx+=s[0]; dy+=s[1]; } c=P0[c]||''; }
+    var l=slide&&slide[i]; if(l){ dx+=l[0]; dy+=l[1]; }
     if(dx || dy) off[i]=[dx,dy];
   });
   var cur=T.top;
@@ -163,10 +189,11 @@ window._altoTreeCalc = function(h, shift, TP){
     ops.forEach(function(o){ cur=run(o,cur); });
     var moved=Object.keys(off).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; });
     if(moved.length){
-      var mv={};
+      var mv={}, mine=NODES.map(function(n){ return n.id; }).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; }), y0={}, x0={};
+      mine.forEach(function(i){ y0[i]=y[i]; x0[i]=x[i]; });
       moved.forEach(function(i){ x[i]+=off[i][0]; y[i]+=off[i][1]; mv[i]=1; });
-      window._altoMakeRoom(y, x, h, T.w, NODES.map(function(n){ return n.id; }).filter(function(i){ return NODE_ACT[i]===a && y[i]!=null; }),
-        mv, P0, T.row_gap, start);
+      window._altoMakeRoom(y, x, h, T.w, mine, mv, P0, T.row_gap, start);
+      window._altoSeparate(y, x, h, T.w, mine, y0, x0, P0, T.row_gap);
       bottom=Math.max.apply(null, Object.keys(y).map(function(i){ return y[i]+h[i]/2; }));
     }
   });
@@ -174,7 +201,7 @@ window._altoTreeCalc = function(h, shift, TP){
     if(y[n.id]==null){ y[n.id]=bottom+T.row_gap+h[n.id]/2; x[n.id]=T.cx; bottom=y[n.id]+h[n.id]/2; }
   });
   var etx=T.etx||{};
-  if(shift){ etx={}; Object.keys(T.etx||{}).forEach(function(k){ var c=k.split('|')[1]; etx[k]=T.etx[k]+(off[c]?off[c][0]:0); }); }
+  if(shift || slide){ etx={}; Object.keys(T.etx||{}).forEach(function(k){ var c=k.split('|')[1]; etx[k]=T.etx[k]+(off[c]?off[c][0]:0); }); }
   return {y:y, x:x, etx:etx, bottom:bottom};
 };
 window._altoTreeWrite = function(R, pos, h){

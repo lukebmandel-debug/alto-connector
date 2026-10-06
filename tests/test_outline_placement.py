@@ -852,7 +852,11 @@ def test_a_shift_moves_the_card_and_its_progeny_and_the_rest_make_room():
         dx = (120 if _under(par, i, "breach") else 0) + (-30 if _under(par, i, "custom") else 0)
         dy = (340 if _under(par, i, "breach") else 0) + (15 if _under(par, i, "custom") else 0)
         assert x1[i] == pytest.approx(x0[i] + dx), i
-        assert y1[i] == pytest.approx(y0[i] + dy), i
+        # where it was put — or lower, when it would touch another dragged card
+        assert y1[i] >= y0[i] + dy - 1e-6, i
+    assert y1["breach"] == pytest.approx(y0["breach"] + 340)
+    assert y1["custom"] == pytest.approx(y0["custom"] + 355)
+    _no_two_touch(y1, x1, h, plan["w"], y0, x0, act0)
     # every other card is where it was, or out of the dragged cards' way
     for i in act0:
         if i in moved:
@@ -865,6 +869,15 @@ def test_a_shift_moves_the_card_and_its_progeny_and_the_rest_make_room():
     low0 = max(y1[i] + h[i] / 2 for i in act0)
     assert min(y1[i] - h[i] / 2 for i in ("r2", "a2", "a2-l")) > low0
     assert x1["a2-l"] == pytest.approx(x0["a2-l"] - 200)
+
+
+def _no_two_touch(y, x, h, w, y0, x0, ids, gap=40):
+    """Every pair of cards is apart, or as the unit's own layout set them."""
+    for a in ids:
+        for b in ids:
+            if a < b and _clash(y, x, h, w, a, b, gap):
+                assert (abs((y[a] - y[b]) - (y0[a] - y0[b])) < 0.5
+                        and abs((x[a] - x[b]) - (x0[a] - x0[b])) < 0.5), (a, b)
 
 
 def test_cards_that_made_room_go_back_once_the_card_moves_on():
@@ -907,7 +920,9 @@ def test_no_shift_leaves_the_plan_as_it_was():
 
 
 SHIFTS = [None, {"risks": [240, 0]}, {"cause": [-240, -200], "dam": [-600, 40]},
-          {"alt": [-120, -500]}, {"breach": [0, -260], "prox": [-360, 300]}]
+          {"alt": [-120, -500]}, {"breach": [0, -260], "prox": [-360, 300]},
+          {"slide:breach": [0, 260]}, {"slide:cause": [0, -150], "risks": [200, 30]},
+          {"slide:custom": [0, 420], "slide:hub": [0, 90]}]
 
 
 @needs_node
@@ -915,7 +930,9 @@ SHIFTS = [None, {"risks": [240, 0]}, {"cause": [-240, -200], "dam": [-600, 40]},
 def test_the_browser_shifts_exactly_as_the_builder_does(tmp_path, extra):
     ns, hints = _shift_case()
     if extra:
-        hints = {**hints, **{k: {**hints.get(k, {}), "shift": v} for k, v in extra.items()}}
+        for k, v in extra.items():
+            hk, i = ("slide", k[6:]) if k.startswith("slide:") else ("shift", k)
+            hints = {**hints, i: {**hints.get(i, {}), hk: v}}
     plan = outline_plan(ns, 2, hints)
     h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
     y, x, _ = run_plan(plan, ns, h)
@@ -936,9 +953,48 @@ def test_the_browser_shifts_exactly_as_the_builder_does(tmp_path, extra):
         assert out["y"][n.id] == pytest.approx(y[n.id]), n.id
         assert out["x"][n.id] == pytest.approx(x[n.id]), n.id
     from alto.build.layout import shift_offsets
-    off = shift_offsets(plan["shift"], {n.id: n.parent for n in ns})
+    off = shift_offsets(plan.get("shift"), {n.id: n.parent for n in ns}, plan.get("slide"))
     for k, v in plan["etx"].items():
         assert out["etx"][k] == pytest.approx(v + off.get(k.split("|")[1], (0, 0))[0]), k
+
+
+def test_a_slide_moves_the_card_alone_and_nothing_touches():
+    """A card slid along its line moves alone: what hangs under it stays
+    (unless it is in the way, then it makes room), and no two cards touch."""
+    ns, hints = _shift_case()
+    hints = {"hub": {"arrange": "row"}}
+    h = {n.id: 110 + (len(n.id) % 5) * 23 for n in ns}
+    y0, x0, _ = run_plan(outline_plan(ns, 2, hints), ns, h)
+    par = {n.id: n.parent for n in ns}
+    act0 = [n.id for n in ns if n.act == 0]
+    for dy in (60, 400, 900):
+        plan = outline_plan(ns, 2, {**hints, "breach": {"slide": [0, dy]}})
+        assert plan["slide"] == {"breach": [0.0, float(dy)]} and plan_js(plan)["slide"] == plan["slide"]
+        y1, x1, _ = run_plan(plan, ns, h)
+        assert y1["breach"] == pytest.approx(y0["breach"] + dy) and x1["breach"] == pytest.approx(x0["breach"])
+        # what hangs under it is not carried: it stays, or steps down out of its way
+        for k in act0:
+            if k != "breach" and _under(par, k, "breach"):
+                assert x1[k] == pytest.approx(x0[k]) and y1[k] >= y0[k] - 1e-6, k
+        _no_two_touch(y1, x1, h, plan["w"], y0, x0, act0)
+    # slid far, it carries nothing: its progeny stay or make room downwards only
+    y2, _, _ = run_plan(outline_plan(ns, 2, {**hints, "breach": {"slide": [0, 900]}}), ns, h)
+    assert all(y2[i] >= y0[i] - 1e-6 for i in act0 if _under(par, i, "breach") and i != "breach")
+
+
+def test_separate_parts_two_dragged_cards_and_keeps_a_row_together():
+    from alto.build.layout import separate
+    y = {"a": 300.0, "b": 330.0, "b-l": 330.0, "c": 560.0}
+    x = {"a": 850.0, "b": 850.0, "b-l": 1150.0, "c": 850.0}
+    h = {k: 100.0 for k in y}
+    w = {k: 270 for k in y}
+    y0, x0 = {"a": 100.0, "b": 330.0, "b-l": 330.0, "c": 560.0}, dict(x)
+    assert separate(y, x, h, w, list(y), y0, x0, {"b-l": "b"}, 40)
+    assert y["b"] == pytest.approx(300 + 50 + 40 + 50) and y["b-l"] == y["b"]   # the row went together
+    assert y["c"] == pytest.approx(y["b"] + 50 + 40 + 50)                         # and pushed the next
+    y = {"a": 300.0, "b": 380.0}
+    assert not separate(y, {"a": 850.0, "b": 850.0}, {"a": 100.0, "b": 100.0}, {}, ["a", "b"],
+                        {"a": 300.0, "b": 380.0}, {"a": 850.0, "b": 850.0}, {}, 40)   # as the layout set them
 
 
 def test_a_bad_shift_is_refused():
@@ -946,3 +1002,6 @@ def test_a_bad_shift_is_refused():
         with pytest.raises(BriefError, match="shift"):
             validate_brief(_brief(placement={"a": {"shift": bad}}))
     validate_brief(_brief(placement={"a": {"shift": [-40, 300.5]}}))
+    with pytest.raises(BriefError, match="slide"):
+        validate_brief(_brief(placement={"a": {"slide": [1]}}))
+    validate_brief(_brief(placement={"a": {"slide": [0, -120]}}))

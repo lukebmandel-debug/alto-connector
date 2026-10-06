@@ -945,10 +945,11 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     out = {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
            "act_gap": T["ACT_GAP"], "row_gap": T["ROW_GAP"], "cx": T["CX"],
            "bus_span": T["BUS_SPAN"], "bus_above": T["BUS_ABOVE"], "warnings": warns}
-    shift = {i: [float(h["shift"][0]), float(h["shift"][1])] for i, h in H.items()
-             if i in by_id and isinstance(h, dict) and h.get("shift")}
-    if shift:
-        out["shift"] = shift
+    for hk in ("shift", "slide"):
+        hv = {i: [float(h[hk][0]), float(h[hk][1])] for i, h in H.items()
+              if i in by_id and isinstance(h, dict) and h.get(hk)}
+        if hv:
+            out[hk] = hv
     return out
 
 
@@ -956,17 +957,20 @@ def plan_js(plan: dict) -> dict:
     """The part of a plan the page needs (it measures heights itself)."""
     out = {k: plan[k] for k in ("x", "w", "acts", "etx", "top", "act_gap", "row_gap", "cx",
                                 "bus_span", "bus_above")}
-    if plan.get("shift"):
-        out["shift"] = plan["shift"]
+    for hk in ("shift", "slide"):
+        if plan.get(hk):
+            out[hk] = plan[hk]
     return out
 
 
-def shift_offsets(shift: dict, parent: dict) -> dict:
+def shift_offsets(shift: dict, parent: dict, slide: dict = None) -> dict:
     """Each card's total move from `shift` hints: its own plus every
-    ancestor's, so a moved card carries its progeny with it. {id: (dx, dy)}
-    for every card that moves; TREE_GLUE computes the same in the page."""
+    ancestor's, so a moved card carries its progeny with it — plus its own
+    `slide` (a card slid along its line: it moves alone). {id: (dx, dy)} for
+    every card that moves; TREE_GLUE computes the same in the page."""
     out = {}
-    for i in parent.keys() | shift.keys():
+    shift, slide = shift or {}, slide or {}
+    for i in parent.keys() | shift.keys() | slide.keys():
         dx = dy = 0.0
         cur, seen = i, set()
         while cur and cur not in seen:
@@ -976,6 +980,10 @@ def shift_offsets(shift: dict, parent: dict) -> dict:
                 dx += s_[0]
                 dy += s_[1]
             cur = parent.get(cur) or ""
+        s_ = slide.get(i)
+        if s_:
+            dx += s_[0]
+            dy += s_[1]
         if dx or dy:
             out[i] = (dx, dy)
     return out
@@ -1094,6 +1102,62 @@ def make_room(y: dict, x: dict, h: dict, w: dict, ids: list, moved: set,
     return changed
 
 
+def separate(y: dict, x: dict, h: dict, w: dict, ids: list, y0: dict, x0: dict,
+             parent: dict, gap: float) -> bool:
+    """No two cards of a unit touch once cards have been dragged: after the
+    drag and make_room, any two still closer than `gap` (ROOM_HGAP across)
+    are parted. The lower one goes down below the other, with what hangs
+    under it and the cards on its row (which may move the next one in turn);
+    if the other is one of those, it goes alone. A pair that keeps the place
+    the unit's own layout gave them, one to the other, is left alone (the
+    layout set them so). TREE_GLUE's _altoSeparate is the same."""
+    ids = [i for i in ids if i in y]
+    ww = lambda i: w.get(i) or TREE["CARD_W"]
+    kids: dict = {}
+    for i in ids:
+        if parent.get(i):
+            kids.setdefault(parent[i], []).append(i)
+
+    def kept(i, j):
+        return (abs((y[i] - y[j]) - (y0[i] - y0[j])) < 0.5
+                and abs((x[i] - x[j]) - (x0[i] - x0[j])) < 0.5)
+
+    def group(j):
+        out, q = [], [j]
+        while q:
+            c = q.pop(0)
+            if c in out:
+                continue
+            out.append(c)
+            q += kids.get(c, [])
+            q += [k for k in ids if k not in out and abs(y[k] - y[c]) < 0.5 and kept(c, k)]
+        return out
+
+    changed = False
+    for _ in range(len(ids) * len(ids) + 1):
+        order = sorted(ids, key=lambda i: (y[i] - h[i] / 2, x[i], i))
+        hit = None
+        for a, i in enumerate(order):
+            for j in order[a + 1:]:
+                if (abs(x[i] - x[j]) < (ww(i) + ww(j)) / 2 + ROOM_HGAP
+                        and y[j] - h[j] / 2 < y[i] + h[i] / 2 + gap and not kept(i, j)):
+                    hit = (i, j)
+                    break
+            if hit:
+                break
+        if not hit:
+            break
+        i, j = hit
+        g = group(j)
+        if i in g:
+            g = [j]
+        d = y[i] + h[i] / 2 + gap + h[j] / 2 - y[j]
+        for k in g:
+            y[k] += d
+        changed = True
+    return changed
+
+
 def run_plan(plan: dict, nodes, heights: dict):
     """Run a plan over card heights. Returns (centres, xs, world_height);
     centres are card-centre y like resolve()'s positions. The page's _altoTree
@@ -1164,7 +1228,8 @@ def run_plan(plan: dict, nodes, heights: dict):
     # nothing else in the unit moves, and the units below start under it.
     # Cards they land on make room (make_room); the units below start under it.
     par = {n.id: n.parent for n in nodes}
-    off = shift_offsets(plan.get("shift") or {}, par) if plan.get("shift") else {}
+    off = (shift_offsets(plan.get("shift"), par, plan.get("slide"))
+           if plan.get("shift") or plan.get("slide") else {})
     act_of = {n.id: n.act for n in nodes}
     cur = plan["top"]
     for a, ops in enumerate(plan["acts"]):
@@ -1175,12 +1240,14 @@ def run_plan(plan: dict, nodes, heights: dict):
             cur = run(op, cur)
         moved = [i for i in off if act_of.get(i) == a and i in y]
         if moved:
+            mine = [n.id for n in nodes if n.act == a and n.id in y]
+            y0, x0 = {i: y[i] for i in mine}, {i: x[i] for i in mine}
             for i in moved:
                 x[i] += off[i][0]
                 y[i] += off[i][1]
-            mine = [n.id for n in nodes if n.act == a and n.id in y]
             make_room(y, x, h, plan.get("w") or {}, mine, set(moved), par,
                       row_gap, start)
+            separate(y, x, h, plan.get("w") or {}, mine, y0, x0, par, row_gap)
             bottom[0] = max(y[i] + h[i] / 2 for i in y)
     # anything outside the tree (verify rejects it; still never drop a card)
     for n in nodes:
