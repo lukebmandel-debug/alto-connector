@@ -43,8 +43,9 @@ def test_the_cloud_accepts_lanes_and_defaults_the_rest_to_outline():
     assert "(o.kind === 'timeline' || o.kind === 'lanes') ? o.kind : 'outline'" in js
 
 
-def test_the_lanes_starter_waits_for_the_engine():
+def test_the_lanes_starter_is_a_main_line_with_a_branch():
     s = starter._STARTERS["lanes"]
     assert s["brief"]["mode"] == "lanes" and len(s["brief"]["acts"]) == 2
-    assert len(s["nodes"]) == 2 and all(n["when"] for n in s["nodes"])
-    assert ("lanes" in starter.KINDS) == ("lanes" in MODES)
+    assert all(n["when"] for n in s["nodes"]) and "lanes" in starter.KINDS and "lanes" in MODES
+    ln = s["brief"]["lines"][0]
+    assert ln["from"] == "part-1-start" and ln["to"] == "part-2-start"

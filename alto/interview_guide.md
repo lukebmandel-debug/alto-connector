@@ -299,8 +299,38 @@ Two ways to organize the same material, and the answer changes what §C, §D and
 > Cases attach to concepts as chips rather than being cards of their own.
 > Which fits how you actually study this?"
 
-Unsure → timeline. → `mode` in the `create_timeline` brief; outline mode then
-routes §D to **§D-Outline** below.
+A timeline has two forms — offer both when the material is a story or a
+history:
+
+> "A timeline can be a **sketch** — events in order down the page, good for
+> roughly laying things out and organizing your thoughts — or **horizontal** —
+> time running left to right to scale along one main line, with each
+> character's or thread's own line running alongside at the same time,
+> branching off the main line and joining back in where they meet (a flashback
+> joins where the story brings it up)."
+
+Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
+(`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
+**§D-Outline** below, horizontal to **§D-Lanes**.
+
+### §D-Lanes. A horizontal timeline (`mode: 'lanes'`)
+- One **main line** (`main_line`: its label, e.g. "The town", or "") and
+  `lines: [{id, label, color?, side?: 'above'|'below', from?, to?}]` — every
+  other line is an off-branch: `from` = the event on another line where it
+  splits away, `to` = the event where it converges back. A flashback has no
+  `from`; its events are far back in time and `to` is where the story brings
+  it up. Lines that never run at the same time share a track automatically.
+- Each node: `line` (a line id; omit for the main line) and `when` exactly as
+  the material dates it ("1852", "1852-06-14", "March 1852", "500 BC",
+  "Day 3"). Time is drawn to scale wherever events are dated and long empty
+  stretches are squeezed (marked ≈); an undated event sits by its order
+  between the dated ones around it. Never invent a date — leave `when` out.
+- Bands (`acts`) are stretches of time (parts, eras), shown as columns.
+- Ask: "Whose storylines run side by side, and where do they meet the main
+  line?" Map each person/thread to a line only where the material follows
+  them separately; everything else stays on the main line.
+- The owner can change any event's date or line, add lines and set where a
+  line branches and joins in the page (✎ Edit manually).
 
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.

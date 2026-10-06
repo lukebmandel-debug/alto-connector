@@ -28,10 +28,7 @@ import json
 
 TID, TITLE, LABEL = "zqtidqz", "Zqtitleqz", "Zqlabelqz"
 MAILTO = "subject=" + TITLE
-from .brief import MODES
-
-# "lanes" (horizontal, to-scale) joins once the engine knows the mode.
-KINDS = ("outline", "timeline") + (("lanes",) if "lanes" in MODES else ())
+KINDS = ("outline", "timeline", "lanes")
 
 # What each kind starts with: two units (a timeline needs two), one card each.
 _STARTERS = {
@@ -57,18 +54,23 @@ _STARTERS = {
                   {"id": "part-2-start", "act": 1, "title": "First event", "tag": "", "desc": "",
                    "col": "center"}],
     },
-    # What the lead's lanes engine must accept: mode "lanes", two units, one dated card each
-    # (`when` is the placeholder date the horizontal axis is drawn from).
+    # The horizontal timeline: a main line and one line that branches off it
+    # and joins back in, so the shape is there to see and change (lanes.py).
     "lanes": {
         "brief": {"mode": "lanes", "columns": 3,
-                  "node_noun": "Event", "period_noun": "Line",
+                  "node_noun": "Event", "period_noun": "Part",
                   "entity_axis_label": "People", "entity_axis_singular": "Person",
-                  "acts": [{"label": "Main line", "short": "Main"},
-                           {"label": "Second line", "short": "Second"}]},
-        "nodes": [{"id": "main-start", "act": 0, "title": "First event", "tag": "", "desc": "",
+                  "main_line": "Main line",
+                  "lines": [{"id": "second", "label": "A second line", "side": "above",
+                             "from": "part-1-start", "to": "part-2-start"}],
+                  "acts": [{"label": "Part 1", "short": "Part 1"},
+                           {"label": "Part 2", "short": "Part 2"}]},
+        "nodes": [{"id": "part-1-start", "act": 0, "title": "First event", "tag": "", "desc": "",
                    "when": "Year 1"},
-                  {"id": "second-start", "act": 1, "title": "First event", "tag": "", "desc": "",
-                   "when": "Year 2"}],
+                  {"id": "second-start", "act": 0, "title": "Meanwhile", "tag": "", "desc": "",
+                   "line": "second", "when": "Year 2"},
+                  {"id": "part-2-start", "act": 1, "title": "Where they meet", "tag": "", "desc": "",
+                   "when": "Year 3"}],
     },
 }
 

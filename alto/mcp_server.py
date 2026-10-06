@@ -1001,10 +1001,16 @@ def create_timeline(project_id: str, brief: dict) -> dict:
      accent?, entity_axis_label?, entity_axis_singular?,
      acts: [{label, short?, color?, summary?}] (2-7; `summary` = that section's
       Overview paragraph — normally sent later with set_overview),
-     mode?: 'linear'|'outline' — 'linear' (default) flows nodes through the
-      bands in sequence; 'outline' makes them concepts that CONTAIN one
-      another, one family per band, structure carried by node `parent`,
-      §D-Outline,
+     mode?: 'linear'|'outline'|'lanes' — 'linear' (default; "sketch") flows
+      nodes through the bands in sequence; 'outline' makes them concepts that
+      CONTAIN one another, one family per band, structure carried by node
+      `parent`, §D-Outline; 'lanes' is the horizontal timeline: time left to
+      right to scale along one main line, other lines branching off and
+      converging back, each node placed by its `when` on its `line`, §D-Lanes,
+     main_line?, lines?: [{id, label, color?, side?: 'above'|'below', from?:
+      node id, to?: node id}] (lanes only: the main line's label, and the
+      storylines that branch off it at `from` and converge into it at `to`; a
+      flashback has only `to`),
      axes?: [{label, singular, hide_nav?: bool, values:[{id,name,...}]}] (≤2;
       hide_nav drops the axis from the nav bar, drawer and legend but KEEPS its
       card chips and detail pages, and labels those chips with the value name —
@@ -1334,7 +1340,10 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     {id, act (0-based), tag, title, desc, col?, parent?, entity_ids?,
      axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
      flags?: [flag id] (several allowed; declared with set_flags),
-     sections?: [{h,t,prov?}], sources?: [source id]}.
+     sections?: [{h,t,prov?}], sources?: [source id],
+     line?, when? (mode 'lanes': the line it is on — omit for the main line —
+     and when it happened exactly as the material dates it, e.g. "1852-06" or
+     "Day 3"; never invent a date)}.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
     head a section "Text" unless it is a quote — head it for what it is.
