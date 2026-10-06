@@ -14,6 +14,7 @@ from .brief import Brief, PALETTE, period_words
 from .emit import emit
 from .sanitize import js_json
 from .runway import runway_script
+from .search import HOME_ROW_JS, sx_block
 
 from ..engine import template as engine_template
 
@@ -148,6 +149,18 @@ def _home_search_new() -> str:
             "    }\n")
 
 
+# ── homepage search: the expanded desktop panel (search.py, SX_*) ───────────
+_HOME_ROW_OLD = ("      row.innerHTML = '<span class=\"sr-kind\">' + r.kind + '</span><span class=\"sr-title\">' + esc(r.title) + '</span>' +\n"
+                 "                      '<span class=\"sr-snip\">' + snippet(r.text, ql) + '</span>';\n")
+_HOME_ROW_NEW = ("      if(window._altoSX && window._altoSX.big() && window._altoSXHomeRow){\n"
+                 "        row.className = 'search-result sr-rich'; row.innerHTML = window._altoSXHomeRow(r, q);\n"
+                 "      } else\n" + _HOME_ROW_OLD)
+_HOME_CLOSE_OLD = "  window._homeSearchClose = closeSearch;"
+_HOME_CLOSE_NEW = "  window._homeSearchRender = render;\n" + _HOME_CLOSE_OLD
+_HOME_PROJ_OLD = "out.push({_x:true, kind:t.label || t.title, title:n.t || '', text:n.d || '',"
+_HOME_PROJ_NEW = "out.push({_x:true, proj:t.project || '', kind:t.label || t.title, title:n.t || '', text:n.d || '',"
+
+
 class PageError(RuntimeError):
     pass
 
@@ -250,8 +263,13 @@ def build_home(projects: list[dict]) -> str:
                     _HOME_SNIP_OLD + "    if(window._altoMatch) return window._altoMatch.snippet(text, window._altoMatch.query(q||''));\n",
                     1, "home search snippet")
     template = _rep(template, _HOME_SEARCH_OLD, _home_search_new(), 1, "home search ranking")
+    # expanded desktop search: bigger rows with the full text, state remembered
+    template = _rep(template, _HOME_ROW_OLD, _HOME_ROW_NEW, 1, "home search expanded rows")
+    template = _rep(template, _HOME_CLOSE_OLD, _HOME_CLOSE_NEW, 1, "home search render hook")
+    template = _rep(template, _HOME_PROJ_OLD, _HOME_PROJ_NEW, 1, "home search card project")
     template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
-    template = _rep(template, _HOME_RW_TAIL_OLD, _HOME_RW_TAIL_NEW, 1, "home runway (script)")
+    template = _rep(template, _HOME_RW_TAIL_OLD, sx_block(HOME_ROW_JS) + _HOME_RW_TAIL_NEW, 1,
+                    "home runway (script)")
     regions = {
         "projects": projects_const(projects),
         "search_course_fn": SEARCH_COURSE_FN,
