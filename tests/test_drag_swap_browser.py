@@ -126,16 +126,18 @@ def test_cards_swap_with_a_sibling_or_their_parent_and_by_number(page):
     assert page.evaluate("_ALTO_OUTLINE.parent['revocation']") == "formation"
     assert page.evaluate("_ALTO_OUTLINE.kids['formation']")[2] == "revocation"      # in offer's turn
     assert num()["revocation"] == n0["offer"]
-    # typed: the last of acceptance's cards takes the first's number
+    # typed: the last of acceptance's cards takes the first's number; asked
+    # first, it goes there and the others move along one
     kids = page.evaluate("_ALTO_OUTLINE.kids['acceptance']")
     n2 = num()
     page.click(f"#node-{kids[-1]} .node-order")
     page.fill("#aed-name input", n2[kids[0]])
     page.keyboard.press("Enter")
     page.wait_for_timeout(250)
-    assert "Where should it go" in page.evaluate("document.querySelector('#aed-ask h4').textContent")
-    _pick(page, "“")
-    assert page.evaluate("_ALTO_OUTLINE.kids['acceptance']") == [kids[-1]] + kids[1:-1] + [kids[0]]
+    assert page.evaluate("document.querySelector('#aed-ask h4').textContent").startswith("Move ")
+    _pick(page, "Yes, make it")
+    assert page.evaluate("_ALTO_OUTLINE.kids['acceptance']") == [kids[-1]] + kids[:-1]
+    assert num()[kids[-1]] == n2[kids[0]]
     ops = _ops(page)
     assert {"so|formation", "sx|revocation", "so|acceptance"} <= set(ops)
     assert _touching(page.evaluate(GEO)) == []
