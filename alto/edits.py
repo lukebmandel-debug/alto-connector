@@ -244,6 +244,37 @@ class _View:
         return out.replace("&nbsp;", "\xa0")
 
 
+_LINK_OK = re.compile(r"^https?://[^\s<>\"']{3,2000}$")
+
+
+def _authority_fields(v) -> dict:
+    """What a case / statute / Restatement section made on the page carries
+    beyond its name: its citation (cite.note, the page's "Citation" section and
+    the index row's tail), its note under the heading the axis's other entries
+    use, a link, and the list (group) it sits in. The words are the owner's;
+    nothing is added to them."""
+    from .build.sanitize import plain_text
+    out: dict = {}
+    cite = plain_text(v.get("cite") or "").strip()[:300]
+    if cite:
+        out["cite"] = {"note": cite, "short": cite}
+    secs = []
+    note = plain_text(v.get("t") or "").strip()[:5000]
+    if note:
+        secs.append({"h": plain_text(v.get("h") or "").strip()[:300] or "Notes",
+                     "t": _html.escape(note, quote=False)})
+    link = str(v.get("link") or "").strip()
+    if _LINK_OK.match(link):
+        secs.append({"h": "Link", "t": f'<a href="{_html.escape(link, quote=True)}">'
+                                       f'{_html.escape(link, quote=False)}</a>'})
+    if secs:
+        out["sections"] = secs
+    grp = plain_text(v.get("grp") or "").strip()[:300]
+    if grp:
+        out["group"] = grp
+    return out
+
+
 def _jdump(v) -> str:
     return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
 
@@ -605,6 +636,8 @@ def fold(store, uid, tid) -> "dict | None":
         from .build.glyphs import from_library
         if from_library(v.get("svg")):           # one of the library's, never page markup
             e["symbol_svg"] = v["svg"]
+        if rk != "c":
+            e.update(_authority_fields(v))
         holder.append(e)
         touched["brief"] = True
         written.append(k)
@@ -988,13 +1021,17 @@ def fold(store, uid, tid) -> "dict | None":
         p = k.split("|")
         obj = _owner(p[0], p[1], brief, by_id)
         pv = pristine.owner(p[0], p[1])
-        shown = _shown(pv) if pv is not None else []
+        # an owner made on the page (a case added there) has its sections only
+        # in the draft the fold is writing: they are what the page showed
+        fresh = pv is None and obj is not None and p[0] != "n"
+        shown = _shown(pv) if pv is not None else (
+            [j for j, s_ in enumerate(obj.get("sections") or []) if s_.get("t")] if fresh else [])
         sig = order_sig(pv) if pv is not None else jhash("[]")
         v = [str(x) for x in (live[k].get("v") or [])]
         if v == [str(j) for j in shown]:
             already.append(k)
             continue
-        if sig != live[k].get("b"):
+        if sig != live[k].get("b") and not fresh:
             conflicts.append(k)
             continue
         secs = obj.setdefault("sections", [])
@@ -1292,8 +1329,9 @@ def fold(store, uid, tid) -> "dict | None":
                         "and from the top bar, their pages with them.")
     if chips_made:
         rep["chips_added"] = chips_made
-        rep["note"] += (" The owner made new chips (chips_added): each has only its "
-                        "name, and a page of its own with nothing on it yet.")
+        rep["note"] += (" The owner made new chips (chips_added): each has its name and a page of "
+                        "its own — for a case, statute or Restatement section, the citation, note "
+                        "and link the owner typed, nothing more. Do not add to them.")
     if removed:
         rep["cards_removed"] = removed
         rep["note"] += (" The owner removed cards on the page (cards_removed); they and "
