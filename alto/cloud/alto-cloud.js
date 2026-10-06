@@ -714,7 +714,7 @@
   async function _createTimeline(o) {
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
-    const kind = o.kind === 'timeline' ? 'timeline' : 'outline';
+    const kind = (o.kind === 'timeline' || o.kind === 'lanes') ? o.kind : 'outline';
     const title = _cleanTitle(o.title) || 'Untitled timeline';
     const pname = String(o.project || '').replace(/\s+/g, ' ').trim().slice(0, 120) || title;
     const [hr, jr] = await Promise.all([fetch('/new/' + kind + '.html', { cache: 'no-cache' }),

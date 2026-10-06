@@ -28,7 +28,10 @@ import json
 
 TID, TITLE, LABEL = "zqtidqz", "Zqtitleqz", "Zqlabelqz"
 MAILTO = "subject=" + TITLE
-KINDS = ("outline", "timeline")
+from .brief import MODES
+
+# "lanes" (horizontal, to-scale) joins once the engine knows the mode.
+KINDS = ("outline", "timeline") + (("lanes",) if "lanes" in MODES else ())
 
 # What each kind starts with: two units (a timeline needs two), one card each.
 _STARTERS = {
@@ -53,6 +56,19 @@ _STARTERS = {
                    "col": "center"},
                   {"id": "part-2-start", "act": 1, "title": "First event", "tag": "", "desc": "",
                    "col": "center"}],
+    },
+    # What the lead's lanes engine must accept: mode "lanes", two units, one dated card each
+    # (`when` is the placeholder date the horizontal axis is drawn from).
+    "lanes": {
+        "brief": {"mode": "lanes", "columns": 3,
+                  "node_noun": "Event", "period_noun": "Line",
+                  "entity_axis_label": "People", "entity_axis_singular": "Person",
+                  "acts": [{"label": "Main line", "short": "Main"},
+                           {"label": "Second line", "short": "Second"}]},
+        "nodes": [{"id": "main-start", "act": 0, "title": "First event", "tag": "", "desc": "",
+                   "when": "Year 1"},
+                  {"id": "second-start", "act": 1, "title": "First event", "tag": "", "desc": "",
+                   "when": "Year 2"}],
     },
 }
 
