@@ -32,7 +32,14 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
   html:not(.mobile) #notes-panel.fw-mode{width:var(--fw-w,460px) !important;max-width:calc(100vw - 110px);}
   html.mobile #notes-panel.fw-mode{background:var(--bg) !important;}   /* a sheet to write on: nothing of the page may show through the text */
   html:not(.mobile) #notes-panel.fw-dragging{transition:none !important;}
-  html:not(.mobile).fw-open #detail-page{padding-right:calc(var(--fw-w,460px) + 24px) !important;}   /* the page being read stays beside the box, not under it */
+  html:not(.mobile).fw-open #detail-page{padding-right:calc(var(--fw-w,460px) + 62px) !important;}   /* the page being read stays beside the box, not under it */
+  /* While the panel is open on a desktop the floating controls (engine_patches desktop-controls-row, via
+     --np-dock) and the right-edge tabs sit just left of it; the Notes tab itself is redundant (the panel's x closes it). */
+  html:not(.mobile).np-docked #tab-rail{right:var(--np-dock,0px);}
+  html:not(.mobile).np-docked #notes-toggle{display:none !important;}
+  html:not(.mobile).np-docked #ef-panel{right:calc(46px + var(--np-dock,0px));}
+  html:not(.mobile).np-docked #world::after{content:"";position:absolute;left:100%;top:0;width:var(--np-dock,0px);height:1px;pointer-events:none;}   /* scroll room: the cards can always be brought out from under the panel */
+  html.mobile.np-open #scroll-hint{display:none !important;}   /* the "Swipe to navigate" hint must not float over the sheet */
   #fw-resize{display:none;position:absolute;left:-4px;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3;touch-action:none;}
   #fw-resize::after{content:"";position:absolute;left:3px;top:50%;width:3px;height:36px;margin-top:-18px;border-radius:2px;
     background:var(--border);opacity:0;transition:opacity .15s ease;}
@@ -42,7 +49,9 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
   #fw-tools button{box-sizing:border-box;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;
     color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font:inherit;font-size:13px;line-height:1;
     -webkit-tap-highlight-color:transparent;}
-  html.mobile #fw-tools button{width:36px;height:36px;font-size:15px;}
+  html.mobile #fw-tools button{width:36px;height:36px;font-size:15px;flex:none;}
+  html.mobile #fw-tools{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;}   /* one row; the rest scrolls sideways */
+  html.mobile #fw-tools::-webkit-scrollbar{display:none;}
   #fw-tools button svg{display:block;pointer-events:none;}
   #fw-tools button:disabled{opacity:.35;cursor:default;}
   #fw-tools button.on{color:var(--text);background:var(--surface);border-color:var(--border);}
@@ -342,12 +351,20 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     return r > 0 && c > 0 ? c / r : 1;
   }
   function width(w, keep){                              // w in CSS px
-    var max = Math.max(320, Math.min(900, window.innerWidth * ratio() - 140));
+    var max = Math.max(320, Math.min(900, window.innerWidth * ratio() - 260));
     W = Math.max(320, Math.min(max, Math.round(w)));
     document.documentElement.style.setProperty('--fw-w', W + 'px');
     if(!keep) saveUi();
+    dock();
   }
-  function flag(){ document.documentElement.classList.toggle('fw-open', !!(panel && MODE === 'fw' && panel.classList.contains('open') && !mobile())); }
+  function flag(){ document.documentElement.classList.toggle('fw-open', !!(panel && MODE === 'fw' && panel.classList.contains('open') && !mobile())); dock(); }
+  function dock(){                                      // desktop: how far the open panel reaches in from the right (CSS px); 0 when shut
+    var r = document.documentElement, p = $('notes-panel'), open = !!(p && p.classList.contains('open')), d = 0;
+    if(open && !mobile()){ d = MODE === 'fw' ? Math.min(W, Math.max(0, window.innerWidth * ratio() - 260)) : parseFloat(getComputedStyle(p).width) || 0; }
+    r.classList.toggle('np-open', open); r.classList.toggle('np-docked', d > 0);
+    r.style.setProperty('--np-dock', Math.round(d) + 'px');
+    if(window._altoAlignInfo) window._altoAlignInfo();
+  }
   function layout(){                                    // a phone's keyboard covers the page without resizing it: keep the box above it
     if(!panel || !mobile()) return;
     var v = window.visualViewport, on = !!v && MODE === 'fw' && panel.classList.contains('open');

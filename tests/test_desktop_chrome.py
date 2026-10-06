@@ -155,3 +155,82 @@ def test_phones_get_none_of_it(browser, pages):
     pg.wait_for_timeout(700)
     assert pg.evaluate("getComputedStyle(document.getElementById('desk-back')).display") == "none"
     assert pg.evaluate("getComputedStyle(document.getElementById('mode-toggle')).display") == "none"
+
+
+# ── the Notes / Freewrite panel docks the row and the right-edge tabs ───────
+
+PANEL = """()=>{const q=i=>{const e=document.getElementById(i);if(!e||!e.offsetWidth)return null;const r=e.getBoundingClientRect();return {l:r.left,r:r.right,t:r.top,b:r.bottom}};
+ return {p:q('notes-panel'),pill:q('alto-edit-pill'),mode:q('mode-toggle'),info:q('info-btn'),search:q('search-btn'),rail:q('tab-rail'),
+  ov:q('overview-toggle'),flt:q('filter-toggle'),nt:q('notes-toggle'),W:innerWidth}}"""
+
+
+def _row_clear_of_panel(r):
+    gap = r["p"]["l"] - r["pill"]["r"]
+    assert 22 < gap < 27, gap                                    # the corner inset, from the panel's edge
+    row = [r[k] for k in ("search", "info", "mode", "pill")]
+    assert all(a["r"] < b["l"] for a, b in zip(row, row[1:]))
+    assert max(x["r"] for x in row) < r["p"]["l"]
+    assert r["rail"]["r"] <= r["p"]["l"] + 0.6 and r["ov"]["l"] > 0 and r["flt"]["l"] > 0
+
+
+@pytest.mark.parametrize("mode", ["fw", "notes"])
+def test_the_row_and_tabs_sit_left_of_the_open_panel_and_follow_it(browser, pages, mode):
+    pg = open_page(browser, pages / "own.html", w=1100, h=800)
+    pg.click("#notes-toggle"); pg.wait_for_timeout(500)
+    if mode == "fw":
+        pg.click("#fw-seg button[data-m=fw]"); pg.wait_for_timeout(500)
+    r = pg.evaluate(PANEL)
+    _row_clear_of_panel(r)
+    assert r["nt"] is None                                       # the Notes tab is redundant while the panel is up
+    # the tabs are really on top: a click lands on them, not on the panel or a card
+    for k in ("ov", "flt"):
+        c = r[k]
+        assert pg.evaluate(f"(()=>{{const e=document.elementFromPoint({(c['l']+c['r'])/2},{(c['t']+c['b'])/2});return !!e&&!!e.closest('#overview-toggle,#filter-toggle')}})()")
+    if mode == "fw":                                             # drag it wider: the row keeps up live
+        box = pg.locator("#fw-resize").bounding_box()
+        pg.mouse.move(box["x"] + 4, box["y"] + 200); pg.mouse.down(); pg.mouse.move(box["x"] - 120, box["y"] + 200, steps=4)
+        r2 = pg.evaluate(PANEL)
+        assert r2["p"]["l"] < r["p"]["l"] - 80
+        _row_clear_of_panel(r2)
+        pg.mouse.up()
+        pg.reload(); pg.wait_for_timeout(1800)                    # Freewrite reopens by itself
+        _row_clear_of_panel(pg.evaluate(PANEL))
+    pg.click("#notes-close"); pg.wait_for_timeout(600)
+    r = pg.evaluate(PANEL)
+    assert abs(r["W"] - r["pill"]["r"] - 24) < 1.5 and r["nt"] is not None and r["rail"]["r"] > r["W"] - 1
+
+
+def test_expanded_info_and_search_stay_on_screen_beside_the_panel(browser, pages):
+    pg = open_page(browser, pages / "own.html", w=1100, h=800)
+    pg.click("#notes-toggle"); pg.wait_for_timeout(500)
+    pg.click("#fw-seg button[data-m=fw]"); pg.wait_for_timeout(500)
+    for btn in ("info-btn", "search-btn"):
+        pg.click("#" + btn); pg.wait_for_timeout(700)
+        b = pg.evaluate("(id)=>{const r=document.getElementById(id).getBoundingClientRect();return [r.left,r.right,r.top,r.bottom,document.getElementById('notes-panel').getBoundingClientRect().left]}", btn)
+        assert b[0] >= 0 and b[1] <= b[4] + 0.6 and b[2] >= 0 and b[3] <= 800, b
+        pg.mouse.click(200, 400); pg.wait_for_timeout(400)
+
+
+def test_cards_can_always_be_scrolled_out_from_under_the_panel(browser, pages):
+    pg = open_page(browser, pages / "own.html", w=1400, h=900)
+    sw = lambda: pg.evaluate("(()=>{const c=document.getElementById('canvas');return c.scrollWidth-c.clientWidth})()")
+    before = sw()
+    pg.click("#notes-toggle"); pg.wait_for_timeout(500)
+    pg.click("#fw-seg button[data-m=fw]"); pg.wait_for_timeout(500)
+    assert sw() > before + 300
+
+
+def test_back_button_stays_put_and_clear_of_the_widest_panel(browser, pages):
+    pg = open_page(browser, pages / "own.html", w=1400, h=900)
+    pg.evaluate("showDetail('node','offer')"); pg.wait_for_timeout(700)
+    a = pg.evaluate(RECTS)["desk-back"]
+    pg.click("#notes-toggle"); pg.wait_for_timeout(500)
+    pg.click("#fw-seg button[data-m=fw]"); pg.wait_for_timeout(500)
+    pg.evaluate("document.getElementById('fw-resize').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft'}))")
+    for _ in range(40):
+        pg.evaluate("document.getElementById('fw-resize').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft'}))")
+    pg.wait_for_timeout(500)
+    b = pg.evaluate(RECTS)
+    assert b["desk-back"] == a and b["desk-back"]["r"] < pg.evaluate("document.getElementById('notes-panel').getBoundingClientRect().left") - 20
+    pg.click("#desk-back"); pg.wait_for_timeout(500)
+    assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")

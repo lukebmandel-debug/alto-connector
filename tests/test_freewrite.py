@@ -511,3 +511,20 @@ def test_phone_box_rises_above_the_keyboard(phone):
       Object.defineProperty(window, 'visualViewport', {value: fake, configurable: true}); window.dispatchEvent(new Event('resize')); }""")
     pg.wait_for_timeout(200)
     assert pg.evaluate(foot) <= 500 + 2 < full
+
+
+def test_phone_hides_the_swipe_hint_and_keeps_the_toolbar_on_one_row(phone):
+    pg = phone
+    for mode in ("notes", "fw"):
+        pg.evaluate("""()=>{if(!document.getElementById('scroll-hint')){var h=document.createElement('div');h.id='scroll-hint';h.textContent='Swipe to navigate';document.body.appendChild(h);}
+          document.getElementById('scroll-hint').classList.add('show');}""")
+        if not state(pg)["panel"]:
+            pg.tap("#notes-toggle"); pg.wait_for_timeout(500)
+        pg.tap(f"#fw-seg button[data-m={mode}]"); pg.wait_for_timeout(400)
+        assert pg.evaluate("getComputedStyle(document.getElementById('scroll-hint')).display") == "none"
+    t = pg.evaluate("""(()=>{var b=document.getElementById('fw-tools'),r=[].map.call(b.querySelectorAll('button'),x=>x.getBoundingClientRect());
+      return {h:b.offsetHeight,tops:new Set(r.map(x=>Math.round(x.top))).size,minw:Math.min.apply(0,r.map(x=>x.width)),minh:Math.min.apply(0,r.map(x=>x.height)),sw:b.scrollWidth,cw:b.clientWidth}})()""")
+    assert t["tops"] == 1 and t["minw"] >= 36 and t["minh"] >= 36 and t["sw"] > t["cw"], t
+    pg.tap("#notes-close"); pg.wait_for_timeout(500)
+    pg.evaluate("document.getElementById('scroll-hint').classList.add('show')")
+    assert pg.evaluate("getComputedStyle(document.getElementById('scroll-hint')).display") != "none"
