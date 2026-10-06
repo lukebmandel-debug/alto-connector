@@ -359,6 +359,8 @@ def _target(key, brief, by_id, conns):
         if p[1] in by_id:
             return by_id[p[1]], CHIP_ATTR[p[2]], "list"
         return (None, None, "pending") if NEW_CARD.match(p[1]) else None
+    if kind == "ln" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]) and p[1] != "main":
+        return brief, p[1], "lane"
     if kind == "nd" and len(p) == 2:
         return (by_id[p[1]], None, "delnode") if p[1] in by_id else None
     if key == "fl|list":
@@ -375,7 +377,7 @@ def _target(key, brief, by_id, conns):
             return None
         return None, None, "newtree" if len(p) == 3 and p[2] == "tree" else "newtreef"
     if kind in ("n", "c", "env", "theme") and len(p) == 3:
-        ok = {"n": ("title", "tag", "desc"), "c": ("name", "role"),
+        ok = {"n": ("title", "tag", "desc", "when", "line"), "c": ("name", "role"),
               "env": ("name", "role"), "theme": ("name", "role")}[kind]
         o = _owner(kind, p[1], brief, by_id)
         if o is None:
@@ -974,6 +976,28 @@ def fold(store, uid, tid) -> "dict | None":
                 holder[f] = norm(v)
             else:
                 holder.pop(f, None)
+        elif kind == "lane":
+            # a line of a horizontal timeline (lanes.py): the whole line, or None to remove it
+            from .build.lanes import norm_line
+            lines = holder.setdefault("lines", [])
+            at = next((j for j, q in enumerate(lines) if q.get("id") == f), None)
+            cur = norm_line(lines[at], at) if at is not None else None
+            nb = norm_line(dict(b, id=f), 0) if isinstance(b, dict) else None
+            nv = norm_line(dict(v, id=f), 0) if isinstance(v, dict) else None
+            if _same(cur, nv):
+                already.append(k)
+                continue
+            if not _same(cur, nb):
+                conflicts.append(k)
+                continue
+            if nv is None:
+                lines.pop(at)
+            else:
+                keep = {kk: nv[kk] for kk in ("id", "label", "color", "side", "from", "to") if nv[kk]}
+                if at is None:
+                    lines.append(keep)
+                else:
+                    lines[at] = keep
         elif kind in ("shift", "slide"):
             cur = (holder.get(f) or {}).get(kind)
             if _same(cur, v):

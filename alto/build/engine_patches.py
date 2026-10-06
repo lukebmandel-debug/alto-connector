@@ -949,7 +949,29 @@ _ORDER_MAP_OLD = "    NODE_ORDER_MAP[id] = `${actIdx+1}.${seqIdx+1}`;"
 _ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALTO_OUTLINE.num && window._ALTO_OUTLINE.num[id])"
                   " || `${actIdx+1}.${seqIdx+1}`;")
 
+# ── the horizontal timeline takes over the layout (lanes.py) ───────────────
+# Once every card is measured, a lanes page lays its cards along its lines in
+# time instead of down the engine's columns; nothing else in initLayout runs.
+_LANES_HOOK_OLD = "    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
+_LANES_CENTRE_OLD = "  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;"
+_LANES_CENTRE_NEW = ("  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;\n"
+                     "    if(window._altoLanesGeo) return;   // a horizontal timeline opens at its start")
+_LANES_HOOK_NEW = ("    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
+                   "  if(window._altoLanes && window._altoLanes(nodeHeights)) return;\n")
+
 PATCHES = [
+    {
+        "name": "lanes-open-at-the-start",
+        "old": _LANES_CENTRE_OLD,
+        "new": _LANES_CENTRE_NEW,
+        "count": 1,
+    },
+    {
+        "name": "lanes-layout-hook",
+        "old": _LANES_HOOK_OLD,
+        "new": _LANES_HOOK_NEW,
+        "count": 1,
+    },
     {
         "name": "outline-path-numbers",
         "old": _ORDER_MAP_OLD,
@@ -1907,6 +1929,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
     var ta=_DIRANG[dir]; if(ta===undefined) return;
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
+    if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
     // Every node's resting box in world px: style.left/top is its centre however
     // it is placed (margins, fly transform, tree), the card its size unzoomed.
     function g(n){

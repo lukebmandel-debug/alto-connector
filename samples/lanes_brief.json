@@ -1,0 +1,271 @@
+{
+ "brief": {
+  "title": "North Point (sample)",
+  "subject": "A made-up story for testing the horizontal timeline",
+  "timeline_id": "north-point",
+  "mode": "lanes",
+  "columns": 3,
+  "node_noun": "Event",
+  "period_noun": "Part",
+  "entity_axis_label": "People",
+  "entity_axis_singular": "Person",
+  "accent": "#5b8def",
+  "main_line": "The town",
+  "lines": [
+   {
+    "id": "tomas",
+    "label": "Tomas",
+    "side": "above",
+    "from": "letter",
+    "to": "council"
+   },
+   {
+    "id": "ilse",
+    "label": "Ilse",
+    "side": "below",
+    "from": "letter",
+    "to": "council"
+   },
+   {
+    "id": "flashback",
+    "label": "The storm of 1810",
+    "side": "below",
+    "to": "memory",
+    "color": "#9a7b4f"
+   }
+  ],
+  "acts": [
+   {
+    "label": "PART ONE \u2014 ARRIVAL",
+    "short": "Arrival",
+    "color": "#4a9eff"
+   },
+   {
+    "label": "PART TWO \u2014 WORK",
+    "short": "Work",
+    "color": "#22c55e"
+   },
+   {
+    "label": "PART THREE \u2014 THE LIGHT",
+    "short": "The light",
+    "color": "#f59e0b"
+   }
+  ],
+  "entities": [
+   {
+    "id": "mara",
+    "name": "Mara",
+    "role": "Heir",
+    "color": "#e07a5f"
+   },
+   {
+    "id": "tomas",
+    "name": "Tomas",
+    "role": "Sailor",
+    "color": "#8a6fd1"
+   },
+   {
+    "id": "ilse",
+    "name": "Ilse",
+    "role": "Teacher",
+    "color": "#3d9a8b"
+   },
+   {
+    "id": "ada",
+    "name": "The harbour master",
+    "role": "Keeper of the bay",
+    "color": "#9a7b4f"
+   }
+  ],
+  "relations": [
+   {
+    "key": "spine",
+    "label": "leads to"
+   },
+   {
+    "key": "echoes",
+    "label": "echoes",
+    "color": "#a78bfa"
+   }
+  ]
+ },
+ "nodes": [
+  {
+   "id": "storm-1810",
+   "act": 0,
+   "line": "flashback",
+   "when": "1810",
+   "tag": "Event",
+   "title": "The great storm",
+   "desc": "The old lighthouse falls in a winter storm; the harbour master's brother is lost at sea.",
+   "entity_ids": [
+    "ada"
+   ]
+  },
+  {
+   "id": "vow-1811",
+   "act": 0,
+   "line": "flashback",
+   "when": "1811",
+   "tag": "Event",
+   "title": "A vow at the shore",
+   "desc": "The harbour master swears no ship will founder in the bay again.",
+   "entity_ids": [
+    "ada"
+   ]
+  },
+  {
+   "id": "arrive",
+   "act": 0,
+   "line": "",
+   "when": "1852",
+   "tag": "Event",
+   "title": "Mara arrives",
+   "desc": "Mara steps off the ferry with a sealed letter and no plan beyond reading it.",
+   "entity_ids": [
+    "mara"
+   ]
+  },
+  {
+   "id": "letter",
+   "act": 0,
+   "line": "",
+   "when": "1852-06",
+   "tag": "Event",
+   "title": "The letter is read",
+   "desc": "The letter names an inheritance: a ruined lighthouse on the north point.",
+   "entity_ids": [
+    "mara"
+   ]
+  },
+  {
+   "id": "tomas-leaves",
+   "act": 0,
+   "line": "tomas",
+   "when": "1852-07",
+   "tag": "Event",
+   "title": "Tomas sails north",
+   "desc": "Tomas takes the supply boat to the logging camps, chasing debts.",
+   "entity_ids": [
+    "tomas"
+   ]
+  },
+  {
+   "id": "ilse-school",
+   "act": 0,
+   "line": "ilse",
+   "when": "1852-08",
+   "tag": "Event",
+   "title": "Ilse opens a school",
+   "desc": "Ilse opens a schoolroom above the chandlery.",
+   "entity_ids": [
+    "ilse"
+   ]
+  },
+  {
+   "id": "tomas-camp",
+   "act": 1,
+   "line": "tomas",
+   "when": "1853",
+   "tag": "Event",
+   "title": "Trouble at the camp",
+   "desc": "A fire at the camp leaves Tomas owing the foreman a season's wages.",
+   "entity_ids": [
+    "tomas"
+   ]
+  },
+  {
+   "id": "ilse-map",
+   "act": 1,
+   "line": "ilse",
+   "when": "1853-04",
+   "tag": "Event",
+   "title": "An old map",
+   "desc": "A pupil brings Ilse a chart showing a channel nobody uses.",
+   "entity_ids": [
+    "ilse"
+   ]
+  },
+  {
+   "id": "repair",
+   "act": 1,
+   "line": "",
+   "when": "1853-05",
+   "tag": "Event",
+   "title": "Repairs begin",
+   "desc": "Mara hires the town's carpenters to rebuild the lighthouse tower.",
+   "entity_ids": [
+    "mara"
+   ]
+  },
+  {
+   "id": "tomas-return",
+   "act": 1,
+   "line": "tomas",
+   "when": "1854",
+   "tag": "Event",
+   "title": "Tomas comes back",
+   "desc": "Tomas returns with the foreman's men on his heels.",
+   "entity_ids": [
+    "tomas"
+   ]
+  },
+  {
+   "id": "council",
+   "act": 2,
+   "line": "",
+   "when": "1854-03",
+   "tag": "Event",
+   "title": "The harbour council",
+   "desc": "Mara, Ilse and Tomas face the council over who owns the north point.",
+   "entity_ids": [
+    "mara",
+    "ilse",
+    "tomas"
+   ]
+  },
+  {
+   "id": "memory",
+   "act": 2,
+   "line": "",
+   "when": "1854-04",
+   "tag": "Event",
+   "title": "The harbour master remembers",
+   "desc": "Asked about the north point, the old harbour master tells of the storm of 1810.",
+   "entity_ids": [
+    "ada"
+   ]
+  },
+  {
+   "id": "light",
+   "act": 2,
+   "line": "",
+   "when": "1855",
+   "tag": "Event",
+   "title": "The light is lit",
+   "desc": "The rebuilt lighthouse is lit for the first time; the old channel is marked.",
+   "entity_ids": [
+    "mara",
+    "ilse"
+   ]
+  },
+  {
+   "id": "undated-1",
+   "act": 2,
+   "line": "",
+   "when": "",
+   "tag": "Event",
+   "title": "A quiet winter",
+   "desc": "The town settles; the ferry runs twice a week.",
+   "entity_ids": []
+  }
+ ],
+ "connections": [
+  [
+   "ilse-map",
+   "light",
+   "echoes",
+   "The chart's channel is the one the light marks."
+  ]
+ ]
+}

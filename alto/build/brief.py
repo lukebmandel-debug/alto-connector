@@ -233,7 +233,7 @@ class FilterSpec:
 FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
                   "custom")
 
-MODES = ("linear", "outline")
+MODES = ("linear", "outline", "lanes")
 LAYOUTS = ("auto", "tree", "flow")
 TREE_LINES = ("fan", "trunk")
 # How an outline's outcome cards (Liable / Not Liable: a leaf whose tag differs
@@ -306,6 +306,10 @@ class Node:
     # ("I.A.2") would be silently invalidated by inserting a sibling, so the
     # numbering is derived at build and never stored.
     parent: str = ""
+    # Lanes mode (lanes.py): the line this event is on ("" = the main line)
+    # and when it happened, in the material's own words ("1842", "Day 3").
+    line: str = ""
+    when: str = ""
     # Brief.source_docs ids this node was built from. In outline mode a node
     # with none inherits its nearest ancestor's (ALTO-011).
     sources: list[str] = field(default_factory=list)
@@ -416,6 +420,11 @@ class Brief:
     # other source with a local copy, without touching source_docs — which,
     # when empty, the consent manifest fills.
     linked_files: list[dict] = field(default_factory=list)
+    # Lanes mode (lanes.py): the storylines that branch off the main line and
+    # converge back into it, [{id, label, color?, side?, from?, to?}], and the
+    # main line's own label ("" = none).
+    lines: list[dict] = field(default_factory=list)
+    main_line: str = ""
 
 
 def _check_sections(sections, what, warnings=None) -> None:
@@ -600,6 +609,8 @@ def validate_brief(b: Brief) -> list[str]:
                          "from the nodes' parents")
     _check_placement(b, warnings)
     _check_card_size(b)
+    from .lanes import check_lines
+    check_lines(b, warnings)
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -1049,6 +1060,8 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
 
     if b.mode == "outline":
         warnings += _validate_outline_tree(b, nodes)
+    from .lanes import check_nodes
+    check_nodes(b, nodes, warnings)
     doc_ids = {d.get("id") for d in b.source_docs if isinstance(d, dict)}
     for n in nodes:
         _check_refs(n.sources, doc_ids, f"node {n.id}", warnings)

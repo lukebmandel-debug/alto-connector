@@ -1184,6 +1184,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
+    if(LN && (kind === 'ln' || (kind === 'n' && p.length === 3 && (p[2] === 'when' || p[2] === 'line')))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
       return {kind:'plain', get:function(){ return n[p[2]] || ''; }, set:function(v){
@@ -1369,6 +1370,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // cards, then the filters' list, then structure (a section list, a tree; a
   // new section's tree after its section), new sections' words, the rest
   function pri(k){ var p = k.split('|');
+    if(p[0] === 'ln') return -1.6;
     if(p[0] === 'na') return -5;
     if(p[0] === 'sz') return 1.5;
     if(p[0] === 'nu') return -4;
@@ -1503,7 +1505,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   var TYPE = {n:'node', c:'char', env:'env', theme:'theme'};
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
-    if(kind === 'nl'){ relayoutSoon(); return; }
+    if(kind === 'nl' || kind === 'ln' || (kind === 'n' && (p[2] === 'when' || p[2] === 'line'))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
       if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
@@ -1808,6 +1810,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(OUT) items.push(['addc', '+', 'Add a card under this one']);
     if(OUT && (OUT.parent || {})[id]) items.push(['linkc', '⇄', 'Move it, and the cards under it, under another card']);
     if(OUT && (OUT.parent || {})[id]) items.push(['swapc', '⇅', 'Swap places with a card beside it, or with the card it sits under']);
+    if(LN) items.push(['linec', '⟿', 'Put it on another line — or start a new line']);
     items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
     items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
@@ -1889,6 +1892,89 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(ok) toast('Moved under “' + (to ? to.title : '') + '” — ⌘Z puts it back.');
     return ok;
   }
+  /* ── a horizontal timeline (lanes.py): when, which line, the lines ───── */
+  var LN = window._ALTO_LANES || null, LN0 = LN ? JSON.parse(JSON.stringify(LN)) : null, LPICK = null;
+  function lanesWhen(s){                                 // lanes.parse_when, the common cases
+    s = String(s || '').trim().toLowerCase(); if(!s) return null;
+    var m = /^(-?\d{1,6})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/.exec(s);
+    if(m){ var y = +m[1], mo = +(m[2] || 0), d = +(m[3] || 0); if(!mo) return y;
+      var D = [31,28,31,30,31,30,31,31,30,31,30,31], n = 0; for(var i = 0; i < Math.min(12, mo) - 1; i++) n += D[i]; return y + (n + Math.max(0, (d || 1) - 1)) / 365; }
+    var bc = /(\d+)\s*b\.?\s?c/.exec(s); if(bc) return -(+bc[1]);
+    var x = /-?\d+(?:\.\d+)?/.exec(s); return x ? +x[0] : null;
+  }
+  function laneOf(id){ var l = null; (LN.lines || []).forEach(function(q){ if(q.id === id) l = q; }); return l; }
+  function laneField(kind, id, f){
+    if(kind === 'ln'){
+      var l0 = null; (LN0.lines || []).forEach(function(q){ if(q.id === id) l0 = q; });
+      return {kind:'card', sig:function(){ return l0; }, get:function(){ var l = laneOf(id); return l ? JSON.parse(JSON.stringify(l)) : null; },
+        set:function(v){ var i = -1; LN.lines.forEach(function(q, j){ if(q.id === id) i = j; });
+          if(!v){ if(i >= 0) LN.lines.splice(i, 1); } else if(i >= 0) LN.lines[i] = Object.assign({}, v, {id: id}); else LN.lines.push(Object.assign({}, v, {id: id})); }};
+    }
+    if(!srcNode(id)) return null;
+    var e0 = (LN0.ev || {})[id] || {l: 'main', w: '', t: null};
+    var ev = function(){ return LN.ev[id] = LN.ev[id] || {l: 'main', w: '', t: null}; };
+    if(f === 'when') return {kind:'plain', sig:function(){ return e0.w || ''; }, get:function(){ return ev().w || ''; },
+      set:function(v){ var q = ev(); q.w = String(v || '').trim(); q.t = lanesWhen(q.w); }};
+    return {kind:'card', sig:function(){ return e0.l === 'main' ? '' : e0.l; }, get:function(){ var l = ev().l; return l === 'main' ? '' : l; },
+      set:function(v){ ev().l = v || 'main'; }};
+  }
+  function lineName(lid){ if(!lid || lid === 'main') return LN.main || 'The main line'; var l = laneOf(lid); return l ? l.label : lid; }
+  function lineMenu(id){
+    var at = (LN.ev[id] || {}).l || 'main', A = [];
+    [{id: 'main'}].concat(LN.lines).forEach(function(l){ if(l.id === at) return;
+      A.push({t: 'Onto “' + lineName(l.id) + '”', sub: l.id === 'main' ? 'The line everything else branches off.' : 'It keeps its date; the line runs through it.',
+        fn: function(){ if(change('n|' + id + '|line', l.id === 'main' ? '' : l.id)) toast('“' + titleOf(id) + '” is on “' + lineName(l.id) + '” now — ⌘Z puts it back.'); }}); });
+    A.push({t: '+ A new line for it…', sub: 'A storyline of its own — a person, a place, a flashback. You choose where it branches off and joins the main line next.',
+      fn: function(){ newLine(id); }});
+    ask('Which line is “' + titleOf(id) + '” on?', 'Now: “' + lineName(at) + '”.', A);
+  }
+  var LINE_COLORS = ['#e07a5f', '#3d9a8b', '#8a6fd1', '#d4a017', '#4a90d9', '#c2577a', '#5a9e4b', '#b8763e'];
+  function newLine(id){
+    var nd = srcNode(id), at = (nd && nd.id && document.getElementById('node-' + id)) || document.body;
+    askName(at, 'Name the new line', '', function(v){
+      v = String(v || '').replace(/\s+/g, ' ').trim(); if(!v) return;
+      var lid = 'line-' + Math.random().toString(36).slice(2, 7), n = LN.lines.length;
+      var spec = {id: lid, label: v, color: LINE_COLORS[n % LINE_COLORS.length], side: n % 2 ? 'below' : 'above', from: '', to: ''};
+      if(changes([['ln|' + lid, spec], ['n|' + id + '|line', lid]])) toast('“' + v + '” is a new line — click its label to choose where it branches off and joins.');
+    });
+  }
+  function laneMenu(lid){
+    if(lid === 'main'){ var el = document.querySelector('.lanes-tag[data-ln-tag=main]');
+      toast('The main line runs through everything — its name is changed by Claude for now.'); return; }
+    var l = laneOf(lid); if(!l) return;
+    var has = Object.keys(LN.ev).some(function(i){ return LN.ev[i].l === lid && srcNode(i) && !cardGone(i); });
+    var put = function(ch, msg){ var v = Object.assign({}, l, ch); if(change('ln|' + lid, v)) toast(msg + ' — ⌘Z puts it back.'); };
+    var A = [
+      {t: 'Rename it…', fn: function(){ askName(document.querySelector('.lanes-tag[data-ln-tag="' + lid + '"]') || document.body, 'Name this line', l.label, function(v){
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== l.label) put({label: v}, 'Renamed'); }); }},
+      {t: l.from ? 'It branches off at “' + titleOf(l.from) + '” — change…' : 'Branch it off an event…', sub: 'Click the event on another line where it splits away.',
+        fn: function(){ startLinePick(lid, 'from'); }},
+      {t: l.to ? 'It joins at “' + titleOf(l.to) + '” — change…' : 'Join it into an event…', sub: 'Click the event where it converges — for a flashback, where the story brings it up.',
+        fn: function(){ startLinePick(lid, 'to'); }}];
+    if(l.from) A.push({t: 'Start it on its own', sub: 'No branch point: it begins just before its first event.', fn: function(){ put({from: ''}, 'It starts on its own'); }});
+    if(l.to) A.push({t: 'Let it run on', sub: 'It does not join another line.', fn: function(){ put({to: ''}, 'It runs on'); }});
+    A.push({t: 'Move it ' + (l.side === 'below' ? 'above' : 'below') + ' the main line', fn: function(){ put({side: l.side === 'below' ? 'above' : 'below'}, 'Moved'); }});
+    A.push({t: 'Remove this line', cls: 'aa-danger', off: has, why: 'Put its events on another line first.', fn: function(){ if(change('ln|' + lid, null)) toast('Line removed — ⌘Z puts it back.'); }});
+    ask('The line “' + l.label + '”', has ? '' : 'It has no events yet: put one on it with ⟿ on a card.', A);
+  }
+  function startLinePick(lid, which){
+    LPICK = {lid: lid, which: which};
+    var b = document.getElementById('aed-linkbar');
+    if(!b){ b = document.createElement('div'); b.id = 'aed-linkbar';
+      b.innerHTML = '<span class="ap-t"></span><button type="button">Cancel</button>';
+      b.querySelector('button').addEventListener('click', function(e){ e.stopPropagation(); endLinePick(); endLink(); });
+      document.body.appendChild(b); }
+    b.querySelector('.ap-t').textContent = (which === 'from' ? 'Click the event “' + lineName(lid) + '” branches off from' : 'Click the event “' + lineName(lid) + '” joins into') + ' · Esc to cancel';
+    b.classList.add('show');
+  }
+  function endLinePick(){ LPICK = null; var b = document.getElementById('aed-linkbar'); if(b && !LINK) b.classList.remove('show'); }
+  function linePicked(id){
+    var P = LPICK; endLinePick(); var l = laneOf(P.lid); if(!l) return;
+    if(((LN.ev[id] || {}).l || 'main') === P.lid){ toast('That event is on this line — pick one on the line it ' + (P.which === 'from' ? 'branches off' : 'joins') + '.'); return; }
+    var ch = {}; ch[P.which] = id;
+    if(change('ln|' + P.lid, Object.assign({}, l, ch))) toast('“' + l.label + '” ' + (P.which === 'from' ? 'branches off at' : 'joins at') + ' “' + titleOf(id) + '” — ⌘Z puts it back.');
+  }
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && LPICK){ e.preventDefault(); e.stopPropagation(); endLinePick(); } }, true);
   /* swapping places: with a card under the same card, or with that card */
   function numOf(id){ return (typeof NODE_ORDER_MAP !== 'undefined' && NODE_ORDER_MAP[id]) || ''; }
   // every card's number as it would be with the outline changed by fn(kids, par)
@@ -2848,6 +2934,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   var cur = null;    // {el, k, kind, orig, body?, hidden?}
   function canvasKey(t){
     var nodeEl = t.closest('.node'); if(!nodeEl || !t.closest('#canvas')) return null;
+    var wc = LN && t.closest('.lanes-when'); if(wc) return {el: wc, k: 'n|' + nodeEl.id.replace(/^node-/, '') + '|when'};
     var id = nodeEl.id.replace(/^node-/, ''), f = t.closest('.node-title,.node-tag,.node-desc'); if(!f) return null;
     return {el: f, k: 'n|' + id + '|' + f.className.match(/node-(title|tag|desc)/)[1]};
   }
@@ -3324,7 +3411,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(x === 'navx'){ navRemove(b); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');
-      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'chipc') chipPop(cid, b);
+      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'linec') lineMenu(cid); else if(x === 'chipc') chipPop(cid, b);
       return;
     }
     if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }
@@ -3395,6 +3482,12 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(ln){ e.stopPropagation(); e.preventDefault(); var lid = ln.id.replace(/^node-/, ''); if(srcNode(lid)) relink(LINK.id, lid); return; }
       if(t.closest('#canvas')){ e.stopPropagation(); e.preventDefault(); return; }
     }
+    if(LN && LPICK){
+      var lpn = t.closest('#canvas .node'); e.stopPropagation(); e.preventDefault();
+      if(lpn){ var lpid = lpn.id.replace(/^node-/, ''); if(srcNode(lpid)) linePicked(lpid); } return;
+    }
+    var lt = LN && structOK() && t.closest('.lanes-tag');
+    if(lt){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); laneMenu(lt.getAttribute('data-ln-tag')); return; }
     if(PICK){
       var pn = t.closest('#canvas .node');
       if(pn){ e.stopPropagation(); e.preventDefault(); var pid = pn.id.replace(/^node-/, ''); if(srcNode(pid)){ toggleFlag(pid, PICK); paintPick(); } return; }

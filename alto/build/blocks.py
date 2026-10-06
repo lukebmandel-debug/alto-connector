@@ -20,6 +20,7 @@ from urllib.parse import quote as url_q
 
 from .brief import Brief, Node, Section, COL_SETS, roman
 from .numbering import NUM_JS, path_numbers
+from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
 
@@ -1544,6 +1545,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + NUM_JS + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
                    + (dx.tree_glue(plan_js(tree_plan)) if tree else dx.HUBS_ABOVE_GLUE))
+    if b.mode == "lanes":
+        # The horizontal timeline (lanes.py): lines, times, and the layout
+        # the engine's initLayout hands over to on desktop.
+        orders += lanes_data(b, nodes) + LANES_JS
     if index_axes:
         orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
     if rel_key_items:
@@ -1590,6 +1595,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "#nav .nav-btn svg,.char-chip svg,.drawer-icon svg"
         "{width:1em;height:1em;margin:0;flex-shrink:0;}"
         "\n  #nav .nav-btn svg,.char-chip svg{vertical-align:-2px;margin-right:5px;}")
+    if b.mode == "lanes":
+        nav_char_css += LANES_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (
         "\n  .doc-meta{opacity:.75;font-size:.9em;margin-bottom:8px;}"
