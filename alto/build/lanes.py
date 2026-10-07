@@ -190,13 +190,27 @@ LANES_CSS = """
   html.mobile #lanes-svg,html.mobile .lanes-unit,html.mobile .lanes-tag{display:none !important;}
   #lanes-svg .ln-main{stroke:var(--accent);stroke-width:6;fill:none;stroke-linecap:round;}
   #lanes-svg .ln-br{stroke-width:4;fill:none;stroke-linecap:round;}
-  #lanes-svg .ln-ghost{stroke-dasharray:2 9;stroke-width:3.2;opacity:.8;}
+  #lanes-svg .ln-wait{stroke-dasharray:9 7;stroke-width:3.5;}
+  #lanes-svg .ln-hit{stroke:transparent;stroke-width:22;fill:none;pointer-events:stroke;cursor:pointer;}
+  #lanes-svg g{transition:opacity .2s;}
+  .node[data-ln] .node-card{transition:opacity .2s;}
+  #lanes-key{position:fixed;left:16px;bottom:64px;z-index:310;max-width:290px;max-height:44vh;overflow:auto;padding:10px 12px;border-radius:14px;
+    background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.18);
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font-size:12px;line-height:1.35;color:var(--text);}
+  #lanes-key h5{margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer;display:flex;justify-content:space-between;gap:12px;}
+  #lanes-key.shut .lk-body{display:none;}
+  #lanes-key .lk-row{display:flex;gap:9px;align-items:flex-start;padding:5px 4px;border-radius:8px;cursor:pointer;}
+  #lanes-key .lk-row:hover,#lanes-key .lk-row.ln-on{background:color-mix(in srgb,var(--text) 7%,transparent);}
+  #lanes-key svg{flex:none;margin-top:3px;}
+  #lanes-key small{display:block;color:var(--muted);font-size:11px;}
+  #lanes-key .lk-sep{border-top:1px solid var(--border);margin:6px 0 4px;}
+  html.mobile #lanes-key,html.printing #lanes-key,html.detail-open #lanes-key{display:none !important;}
   #lanes-svg .ln-stem{stroke-width:1.5;opacity:.55;}
   #lanes-svg .ln-dot{stroke:var(--surface);stroke-width:2.5;}
   #lanes-svg .ln-tick{stroke:var(--muted);stroke-width:1;opacity:.6;}
   #lanes-svg .ln-ticklbl{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
   #lanes-svg .ln-break{stroke:var(--muted);stroke-width:1.6;fill:none;opacity:.8;}
-  #lanes-svg .ln-rel{fill:none;stroke-width:1.6;stroke-dasharray:5 5;opacity:.55;}
+  #lanes-svg .ln-rel{fill:none;stroke-width:2.2;stroke-dasharray:7 5;opacity:.85;}
   #lanes-svg .ln-merge{stroke:var(--surface);stroke-width:2.5;}
   .lanes-tag{position:absolute;z-index:7;transform:translate(0,-50%);white-space:nowrap;
     font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:999px;
@@ -210,7 +224,7 @@ LANES_CSS = """
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
     background:color-mix(in srgb,var(--surface) 80%,transparent);border:1.5px solid color-mix(in srgb,var(--unit-color) 45%,transparent);}
   .lanes-unit .lu-chip b{font-weight:800;opacity:.6;margin-right:7px;}
-  html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;line-clamp:5;overflow:hidden;}
+  html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
   html.alto-editing .node-card .lanes-when:empty{display:block;}
   html.alto-editing .node-card .lanes-when:empty::before{content:'+ When';opacity:.7;}
@@ -219,8 +233,9 @@ LANES_CSS = """
   html.alto-editing .lanes-tag{cursor:context-menu;}
   .node-card .lanes-when{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--muted);
     margin:-2px 0 4px;font-variant-numeric:tabular-nums;}
-  html.alto-lanes #canvas.ln-dimline .node[data-ln]:not(.ln-on) .node-card{opacity:.22 !important;}
-  html.alto-lanes #canvas.ln-dimline #lanes-svg [data-ln]:not(.ln-on){opacity:.15;}
+  html.alto-lanes #canvas.ln-dimline .node[data-ln]:not(.ln-on) .node-card{opacity:.16 !important;}
+  html.alto-lanes #canvas.ln-dimline #lanes-svg g[data-ln]:not(.ln-on){opacity:.1;}
+  html.alto-lanes #canvas.ln-dimline .lanes-tag:not(.ln-on){opacity:.3;}
 """
 
 
@@ -230,7 +245,7 @@ var L=window._ALTO_LANES; if(!L) return;
 var de=document.documentElement;
 if(!de.classList.contains('mobile')) de.classList.add('alto-lanes');
 var NS='http://www.w3.org/2000/svg';
-var STEM=40, TIER_GAP=16, CARD_PAD=14, TRACK_GAP=52, LEFT=330, RIGHT=420, TOP=104, BOTTOM=120;
+var STEM=30, TIER_GAP=10, CARD_PAD=12, TRACK_GAP=30, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
 var SPAN=250, MAXPX=1000, BREAK=190;
 window._altoLanesGeo=null;
 function med(a){ if(!a.length) return 0; a=a.slice().sort(function(x,y){ return x-y; }); var m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
@@ -255,7 +270,8 @@ function times(order){
 function scale(tv){
   var T=Object.keys(tv).map(function(k){ return tv[k]; }).sort(function(a,b){ return a-b; }).filter(function(v,i,a){ return !i || v>a[i-1]+1e-9; });
   var g=[]; for(var i=1;i<T.length;i++) g.push(T[i]-T[i-1]);
-  var s=SPAN/(med(g)||1), X={}, breaks=[], x=LEFT, segs=[{t0:T[0], x0:LEFT}];
+  var undated=!Object.keys(L.ev).some(function(k){ return L.ev[k].t!=null; });
+  var s=(undated?310:SPAN)/(med(g)||1), X={}, breaks=[], x=LEFT, segs=[{t0:T[0], x0:LEFT}];
   T.forEach(function(v,i){
     if(i){ var px=(v-T[i-1])*s;
       if(px>MAXPX){ breaks.push(x+BREAK/2); x+=BREAK; segs[segs.length-1].t1=T[i-1]; segs[segs.length-1].x1=X[T[i-1]]; segs.push({t0:v, x0:x}); }
@@ -386,11 +402,13 @@ function draw(world, lines, order, X, pos, h, S, W, H){
     var runEnd=l.tx!=null?l.tx-R:l.x1;
     d+=' L'+runEnd+' '+y;
     if(l.tx!=null) d+=' C'+(l.tx-R*.4)+' '+y+' '+(l.tx-R*.6)+' '+py+' '+l.tx+' '+py;
-    el('path',{'class':'ln-br', d:d, stroke:c},g);
-    /* stretches with no event of its own (waiting to be brought up) are dotted over */
-    var e0=l.ev.length?l.e0:null, e1=l.ev.length?l.e1:null;
-    if(e1!=null && l.tx!=null && runEnd-e1>40) el('path',{'class':'ln-br ln-ghost', d:'M'+(e1+14)+' '+y+' L'+runEnd+' '+y, stroke:'var(--surface)'},g);
-    if(e0!=null && l.fx!=null && e0-(l.fx+R)>40) el('path',{'class':'ln-br ln-ghost', d:'M'+(l.fx+R)+' '+y+' L'+(e0-14)+' '+y, stroke:'var(--surface)'},g);
+    var e0=l.ev.length?l.e0:null, e1=l.ev.length?l.e1:null, sx=l.fx!=null?l.fx+R:l.x0;
+    /* solid where it has events of its own (and its branch / join curves); dashed where it only waits */
+    el('path',{'class':'ln-hit', d:d},g);
+    el('path',{'class':'ln-br ln-wait', d:'M'+sx+' '+y+' L'+runEnd+' '+y, stroke:c},g);
+    if(l.fx!=null) el('path',{'class':'ln-br', d:'M'+l.fx+' '+py+' C'+(l.fx+R*.6)+' '+py+' '+(l.fx+R*.4)+' '+y+' '+(l.fx+R)+' '+y, stroke:c},g);
+    if(l.tx!=null) el('path',{'class':'ln-br', d:'M'+runEnd+' '+y+' C'+(l.tx-R*.4)+' '+y+' '+(l.tx-R*.6)+' '+py+' '+l.tx+' '+py, stroke:c},g);
+    if(e0!=null) el('path',{'class':'ln-br', d:'M'+Math.max(sx,e0)+' '+y+' L'+Math.min(runEnd,e1)+' '+y, stroke:c},g);
     if(l.tx!=null) el('circle',{'class':'ln-merge', cx:l.tx, cy:py, r:6, fill:c},g);
     if(l.fx==null) el('circle',{cx:l.x0, cy:y, r:4.5, fill:c},g);
     if(l.tx==null){ el('path',{d:'M'+(l.x1-2)+' '+(y-7)+' L'+(l.x1+9)+' '+y+' L'+(l.x1-2)+' '+(y+7)+' Z', fill:c},g); }
@@ -425,7 +443,8 @@ function draw(world, lines, order, X, pos, h, S, W, H){
     var la=lineOf(lines,cn[0]), lb=lineOf(lines,cn[1]); if(!la||!lb || la===lb) return;   // the line itself already joins them
     var ax=X[cn[0]], ay=la.y+P, bx=X[cn[1]], by=lb.y+P, mx=(ax+bx)/2, bow=Math.min(160, Math.abs(bx-ax)/3+30);
     var c=(typeof COLOR_MAP!=='undefined' && COLOR_MAP[cn[2]]) ? COLOR_MAP[cn[2]] : 'var(--muted)';
-    el('path',{'class':'ln-rel', d:'M'+ax+' '+ay+' Q'+mx+' '+(Math.min(ay,by)-bow)+' '+bx+' '+by, stroke:c},svg);
+    var rg=el('g',{'data-ln':la.id+' '+lb.id},svg);
+    el('path',{'class':'ln-rel', d:'M'+ax+' '+ay+' Q'+mx+' '+(Math.min(ay,by)-bow)+' '+bx+' '+by, stroke:c},rg);
   });
 }
 /* the card says when (and, on a phone, which line it is on) */
@@ -513,15 +532,62 @@ document.addEventListener('wheel', function(e){
   if(e.shiftKey){ cv.scrollTop+=e.deltaY; e.preventDefault(); return; }
   cv.scrollLeft+=e.deltaY*(e.deltaMode===1?40:1); e.preventDefault();
 }, {passive:false});
-/* a line's label: show only that line's events (again: all) */
-document.addEventListener('click', function(e){
-  var t=e.target.closest && e.target.closest('.lanes-tag'); if(!t || de.classList.contains('alto-editing')) return;
-  e.stopPropagation(); var id=t.getAttribute('data-ln-tag'), cv=document.getElementById('canvas');
-  var on=cv.classList.contains('ln-dimline') && cv.getAttribute('data-ln-only')===id;
+/* isolating a line: its events, its curves, where it branches and joins, the
+   arcs to it. A click keeps it; hovering shows it for as long as you point. */
+var _lock=null, _ht=null;
+function isolate(id){
+  var cv=document.getElementById('canvas'); if(!cv) return;
   document.querySelectorAll('.ln-on').forEach(function(x){ x.classList.remove('ln-on'); });
-  if(on){ cv.classList.remove('ln-dimline'); cv.removeAttribute('data-ln-only'); return; }
-  cv.classList.add('ln-dimline'); cv.setAttribute('data-ln-only', id);
-  document.querySelectorAll('[data-ln="'+id+'"]').forEach(function(x){ x.classList.add('ln-on'); });
+  if(!id){ cv.classList.remove('ln-dimline'); return; }
+  cv.classList.add('ln-dimline');
+  document.querySelectorAll('[data-ln~="'+id+'"],[data-ln-tag="'+id+'"],.lk-row[data-k="'+id+'"]').forEach(function(x){ x.classList.add('ln-on'); });
+  var l=null; L.lines.forEach(function(q){ if(q.id===id) l=q; });
+  if(l) [l.from,l.to].forEach(function(f){ var n=f && document.getElementById('node-'+f); if(n) n.classList.add('ln-on'); });
+}
+function lnOf(t){
+  if(!t || !t.closest) return null;
+  var k=t.closest('.lk-row[data-k],.lanes-tag'); if(k) return k.getAttribute('data-k')||k.getAttribute('data-ln-tag');
+  var h=t.closest('#lanes-svg g[data-ln]'); if(h && t.classList.contains('ln-hit')) return h.getAttribute('data-ln');
+  var n=t.closest('#canvas .node[data-ln]'); return n ? n.getAttribute('data-ln') : null;
+}
+document.addEventListener('mouseover', function(e){
+  if(_lock || de.classList.contains('mobile') || !window._altoLanesGeo) return;
+  var id=lnOf(e.target), cv=document.getElementById('canvas');
+  if(cv && cv.classList.contains('focus-mode')) return;
+  clearTimeout(_ht); _ht=setTimeout(function(){ if(!_lock) isolate(id); }, id ? 140 : 220);
+});
+document.addEventListener('click', function(e){
+  var t=e.target.closest && e.target.closest('.lanes-tag,.lk-row[data-k]'); if(!t || de.classList.contains('alto-editing')) return;
+  e.stopPropagation(); var id=t.getAttribute('data-ln-tag')||t.getAttribute('data-k');
+  _lock=(_lock===id)?null:id; isolate(_lock||id);
 }, true);
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && _lock){ _lock=null; isolate(null); } });
+/* the key: what each line follows, where it branches and joins, what each kind of line means */
+function key(){
+  if(de.classList.contains('mobile')) return;
+  var k=document.getElementById('lanes-key'); if(k) k.remove();
+  k=document.createElement('div'); k.id='lanes-key';
+  var T=function(id){ var n=(typeof NODES_SRC!=='undefined'?NODES_SRC:[]).filter(function(q){ return q.id===id; })[0]; return n?n.title:''; };
+  var esc=function(v){ return String(v||'').replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var sw=function(c,dash,w){ return '<svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="'+c+'" stroke-width="'+(w||4)+'" stroke-linecap="round"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/></svg>'; };
+  var h='<h5><span>Lines</span><span>▾</span></h5><div class="lk-body">';
+  h+='<div class="lk-row" data-k="main">'+sw('var(--accent)','',6)+'<div><b>'+esc(L.main||'Main line')+'</b><small>The main line — every other line branches off it</small></div></div>';
+  L.lines.forEach(function(l){
+    var w=[l.from?'branches off at “'+esc(T(l.from))+'”':'begins on its own', l.to?'joins at “'+esc(T(l.to))+'”':'runs on'].join(' · ');
+    h+='<div class="lk-row" data-k="'+esc(l.id)+'">'+sw(l.color)+'<div><b>'+esc(l.label)+'</b><small>'+w+'</small></div></div>';
+  });
+  h+='<div class="lk-sep"></div>';
+  h+='<div class="lk-row">'+sw('var(--muted)')+'<div>Solid: the line through its own events</div></div>';
+  h+='<div class="lk-row">'+sw('var(--muted)','9 7',3.5)+'<div>Dashed: no events of its own here — waiting to branch off or join</div></div>';
+  var rels={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(c){ if(c && c[2]!=='spine') rels[c[2]]=1; });
+  Object.keys(rels).forEach(function(r){ var c=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--muted)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
+    h+='<div class="lk-row">'+sw(c,'7 5',2.2)+'<div>Arc: '+esc(lb)+' <small>a link between events on different lines</small></div></div>'; });
+  h+='<div class="lk-row"><span style="width:26px;text-align:center;flex:none">≈</span><div>Time squeezed — a long stretch with nothing in it</div></div>';
+  h+='<small style="margin-top:4px">Point at a line, its label or a card to follow it; click a label to keep it.</small></div>';
+  k.innerHTML=h; document.body.appendChild(k);
+  k.querySelector('h5').addEventListener('click', function(){ k.classList.toggle('shut'); try{ localStorage.setItem('alto-lanes-key', k.classList.contains('shut')?'0':'1'); }catch(e){} });
+  try{ if(localStorage.getItem('alto-lanes-key')==='0') k.classList.add('shut'); }catch(e){}
+}
+window.addEventListener('load', function(){ setTimeout(key, 300); });
 })();
 """
