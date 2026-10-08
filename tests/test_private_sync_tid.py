@@ -14,7 +14,7 @@ def test_shell_names_the_timeline_before_writing_the_page():
 
 
 def test_cloud_layer_can_be_told_its_timeline():
-    src = SOURCE.read_text()
+    src = SOURCE.read_text(encoding="utf-8")
     assert "let TID" in src and "setTid:" in src
     assert "function subscribeTl" in src
     assert src.count("subscribeTl(") >= 3      # definition + sign-in + setTid

@@ -42,7 +42,7 @@ def test_deletes_are_caught_by_wrapping_not_by_overriding_setItem(html):
 
 
 def test_cloud_layer_syncs_the_trash_and_hooks_safari():
-    src = SOURCE.read_text()
+    src = SOURCE.read_text(encoding="utf-8")
     assert "TR_KEY" in src and "hl_trash" in src and "hl_trash_purged" in src
     assert "function mergeTrash" in src
     assert "Storage.prototype.setItem = function" in src
