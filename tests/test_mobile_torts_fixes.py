@@ -56,11 +56,6 @@ def test_every_mobile_card_is_labelled_with_its_unit():
         assert "node-crumb" not in html
 
 
-def test_search_pill_moves_below_the_filter_bar():
-    _, html = _build(SAMPLE)
-    assert "html.mobile.filter-active #m-search{ top:136px; }" in html
-
-
 def test_swipe_preview_copies_the_detail_page_background():
     _, html = _build(SAMPLE)
     assert "var _dcs = getComputedStyle(detailPage);" in html

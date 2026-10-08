@@ -209,8 +209,9 @@ def resolve_filters(b: Brief, nodes: list[Node],
 # Two jobs the frozen engine no longer does itself:
 #   1. bind clicks for the drawer's [data-sd-axis] filter chips (ConLaw bound
 #      them at creation; the frozen drawer builder emits none of its own);
-#   2. re-label the desktop active-filter banner, whose label maps are
-#      pre-template fossils with a raw-id fallback.
+#   2. re-patch the phone's prev/next labels when a filter changes.
+# (The engine's active-filter bar at the top of the page is gone: what is on
+# is shown by the Filter toggle's count, see engine_patches.py.)
 FILTER_GLUE = """
 (function(){
   document.addEventListener('click', function(e){
@@ -221,24 +222,6 @@ FILTER_GLUE = """
       window.setMobileFilter(b.getAttribute('data-sd-axis'), b.getAttribute('data-sd-id'));
     }
   }, true);
-  /* The engine's _activeFilters is script-scoped, so mirror the toggle by
-     wrapping filterCanvas; the banner relabel falls back to a reverse lookup
-     on the rendered raw id when the mirror is stale (direct clears). */
-  var state = {};
-  var of = window.filterCanvas;
-  if(typeof of === 'function'){
-    window.filterCanvas = function(axis, value){
-      if(state[axis]===value) delete state[axis]; else state[axis]=value;
-      return of.apply(this, arguments);
-    };
-  }
-  function relabel(seg, key, labels){
-    if(!seg || seg.hasAttribute('hidden')) return;
-    var sp = seg.querySelector('span');
-    if(!sp) return;
-    var name = labels[state[key]] || labels[sp.textContent];
-    if(name) sp.textContent = name;
-  }
   /* A filter change does not navigate, so the engine's post-navigation label
      patch never runs: the mobile prev/next strip keeps naming the neighbours
      the filter just hid, and its tap targets still point at them. Every
@@ -250,22 +233,6 @@ FILTER_GLUE = """
     window.setMobileFilter = function(){
       var r = omf.apply(this, arguments);
       try{ if(window._patchTimelineLabels) window._patchTimelineLabels(); }catch(_){}
-      return r;
-    };
-  })();
-  var tries = 0;
-  (function wrap(){
-    var orig = window._updateDesktopFilterBar;
-    if(typeof orig !== 'function'){ if(++tries < 80) setTimeout(wrap, 250); return; }
-    window._updateDesktopFilterBar = function(){
-      var r = orig.apply(this, arguments);
-      try{
-        var row = document.getElementById('desktop-banner-row');
-        if(row){
-          relabel(row.querySelector('.dbr-era'), 'era', ERA_LABELS);
-          relabel(row.querySelector('.dbr-weight'), 'weight', WEIGHT_LABELS);
-        }
-      }catch(_){}
       return r;
     };
   })();
@@ -1498,18 +1465,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         f"const ENV_ORDER   = {json.dumps([v.id for v in ax1.values] if ax1 else [])};\n"
         f"const THEME_ORDER = {json.dumps([v.id for v in ax2.values] if ax2 else [])};")
     if resolved_filters:
-        def _label_map(slot):
-            rf = next((r for r in resolved_filters if r["slot"] == slot), None)
-            if not rf:
-                return "{}"
-            return "{" + ",".join(f"'{vid}':{js_str(name)}"
-                                  for vid, name in rf["values"]) + "}"
-        # ERA_LABELS/WEIGHT_LABELS are the free globals the engine's mobile
-        # filter bar reads; FILTER_GLUE binds drawer chips + fixes the desktop
-        # banner labels.
-        orders += ("\nvar ERA_LABELS=" + _label_map("era") + ";"
-                   "\nvar WEIGHT_LABELS=" + _label_map("weight") + ";"
-                   + FILTER_GLUE)
+        orders += "\n" + FILTER_GLUE
     # Relation labels (quoted keys — relation keys may be hyphenated) + node noun,
     # consumed by the doctrine-page auto-body (and the interactive line key).
     # Only relations a connection actually uses — an unused relation's label

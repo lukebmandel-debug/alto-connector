@@ -16,6 +16,11 @@ Desktop: a tab on the right edge in a rail with the overview star and Notes
 (overview on top, Notes in the middle, Filter at the bottom), opening a panel.
 Mobile: a tile at the bottom-left in the account toggle's old place, styled as
 the INFO tile above it, opening a sheet.
+
+Nothing else shows what is filtered (the engine's bar of active filters across
+the top of the page is gone): the toggle's count says how many are on. A
+double-click (a double-tap on a phone) on the toggle switches every filter off,
+and the next one brings back exactly what was on.
 """
 
 # The three right-edge tabs stack in one rail, in a fixed order. They were three
@@ -144,6 +149,44 @@ FILTER_PANEL_GLUE = """
     });
     try{ document.dispatchEvent(new CustomEvent('alto-filter-drawn')); }catch(e){}
   }
+  // Every filter off: the panel's "Clear all", and the double-click.
+  function clearAll(){
+    Object.keys(sel).forEach(function(k){ sel[k]={}; });
+    secs().forEach(function(s){
+      if(s.kind!=='slot') return; var v=slotVal(s.slot); if(!v) return;
+      if(mobile()){ if(window.setMobileFilter) window.setMobileFilter(s.slot, v); }
+      else if(window.filterCanvas) window.filterCanvas(s.slot, v);
+    });
+    Array.prototype.forEach.call(activeLines(), function(b){ b.click(); });
+    refresh(); refeature();
+  }
+  // What a double-click switched off, to put back by the next one: the chips
+  // picked, each declared filter's value, the lines isolated.
+  var stash=null;
+  function snapshot(){
+    var o={chips:{}, slots:{}, lines:[]};
+    chipKeys().forEach(function(k){ o.chips[k]=Object.keys(sel[k]); });
+    secs().forEach(function(s){ if(s.kind==='slot'){ var v=slotVal(s.slot); if(v) o.slots[s.slot]=v; } });
+    Array.prototype.forEach.call(activeLines(), function(b){ o.lines.push(b.getAttribute('data-rel-key')); });
+    return o;
+  }
+  function restore(o){
+    Object.keys(o.chips).forEach(function(k){ if(sel[k]) o.chips[k].forEach(function(id){ sel[k][id]=1; }); });
+    Object.keys(o.slots).forEach(function(slot){
+      if(slotVal(slot)===o.slots[slot]) return;
+      if(mobile()){ if(window.setMobileFilter) window.setMobileFilter(slot, o.slots[slot]); }
+      else if(window.filterCanvas) window.filterCanvas(slot, o.slots[slot]);
+    });
+    o.lines.forEach(function(k){
+      var b=document.querySelector('#ef-panel .line-key-btn[data-rel-key="'+k+'"]');
+      if(b && !b.classList.contains('active')) b.click();
+    });
+    refresh(); refeature();
+  }
+  function quickToggle(){
+    if(activeCount()>0){ stash=snapshot(); clearAll(); }
+    else if(stash){ var o=stash; stash=null; restore(o); }
+  }
   function open(v){
     var panel=document.getElementById('ef-panel'), tab=document.getElementById('filter-toggle'); if(!panel) return;
     panel.classList.toggle('open', v); if(tab) tab.setAttribute('aria-expanded', v?'true':'false');
@@ -156,7 +199,7 @@ FILTER_PANEL_GLUE = """
     root.classList.add('has-filter-tab');
     var tab=document.createElement('button');
     tab.id='filter-toggle'; tab.type='button';
-    tab.title='Filter'; tab.setAttribute('aria-label','Filter'); tab.setAttribute('aria-expanded','false');
+    tab.title='Filter \u2014 double-click to switch filters off or on'; tab.setAttribute('aria-label','Filter'); tab.setAttribute('aria-expanded','false');
     tab.innerHTML='<svg viewBox="0 0 20 20" width="17" height="17" style="display:block" fill="currentColor" aria-hidden="true"><path d="M2 3.5h16l-6.2 7.4v5.1l-3.6 1.9v-7z"/></svg><span>FILTER</span>';
     var panel=document.createElement('div');
     panel.id='ef-panel'; panel.setAttribute('role','dialog'); panel.setAttribute('aria-label','Filter');
@@ -174,18 +217,36 @@ FILTER_PANEL_GLUE = """
     document.body.appendChild(panel);
     var rail=document.getElementById('tab-rail');
     (rail && !mobile() ? rail : document.body).appendChild(tab);
-    tab.addEventListener('click', function(e){ e.stopPropagation(); open(!panel.classList.contains('open')); });
-    cls.addEventListener('click', function(){ open(false); });
-    clr.addEventListener('click', function(){
-      Object.keys(sel).forEach(function(k){ sel[k]={}; });
-      secs().forEach(function(s){
-        if(s.kind!=='slot') return; var v=slotVal(s.slot); if(!v) return;
-        if(mobile()){ if(window.setMobileFilter) window.setMobileFilter(s.slot, v); }
-        else if(window.filterCanvas) window.filterCanvas(s.slot, v);
-      });
-      Array.prototype.forEach.call(activeLines(), function(b){ b.click(); });
-      refresh(); refeature();
+    // A click opens or closes the panel at once, with no wait to see whether a
+    // second is coming. If one is, within 400ms and on the same spot, it is a
+    // double-click: the panel goes back to how it was and the filters switch
+    // off or on. The second one is caught on the document in the capture phase,
+    // by its touch as well as its click: on a phone the sheet is already
+    // sliding over the tile, and WebKit sends that second tap no click at all.
+    var firstAt=0, firstBox=null, wasOpen=false, hush=0;
+    function second(x, y){
+      if(!firstAt || Date.now()-firstAt>400) return false;
+      var r=firstBox;
+      if(!r || x<r.left-6 || x>r.right+6 || y<r.top-6 || y>r.bottom+6) return false;
+      firstAt=0; hush=Date.now()+700;
+      open(wasOpen); quickToggle();
+      return true;
+    }
+    tab.addEventListener('click', function(e){
+      e.stopPropagation();
+      firstAt=Date.now(); firstBox=tab.getBoundingClientRect();
+      wasOpen=panel.classList.contains('open');
+      open(!wasOpen);
     });
+    document.addEventListener('touchend', function(e){
+      var t=e.changedTouches && e.changedTouches[0];
+      if(t && second(t.clientX, t.clientY)) e.preventDefault();      // no click, no double-tap zoom
+    }, {capture:true, passive:false});
+    document.addEventListener('click', function(e){
+      if(Date.now()<hush || second(e.clientX, e.clientY)){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+    }, true);
+    cls.addEventListener('click', function(){ open(false); });
+    clr.addEventListener('click', clearAll);
     document.addEventListener('click', function(e){
       if(panel.classList.contains('open') && !e.target.closest('#ef-panel') && !e.target.closest('#filter-toggle')) open(false);
     });
@@ -283,6 +344,7 @@ def filter_panel_css() -> str:
         "border:1px solid var(--card-glass-border, var(--border));border-right:none;"
         "border-radius:6px 0 0 6px;color:var(--muted);"
         "box-shadow:0 10px 26px var(--node-rest-shadow);}"
+        "\n  #filter-toggle{touch-action:manipulation;}"
         "\n  html:not(.mobile) #filter-toggle span{display:none;}"
         "\n  html:not(.mobile) #filter-toggle:hover{color:var(--text);border-color:var(--muted);}"
         "\n  #filter-toggle.active{color:var(--accent);border-color:var(--accent);}"
@@ -324,6 +386,7 @@ def filter_panel_css() -> str:
         "-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);"
         "box-shadow:none;transition:transform .22s cubic-bezier(.4,0,.2,1);-webkit-overflow-scrolling:touch;}"
         "\n  html.mobile #ef-panel.open{pointer-events:auto;transform:none;}"
+        "\n  html.mobile #ef-panel{touch-action:manipulation;}"
         # opened directly (engine_patches.py, mobile-runway-behind-bars): no sticky header
         "\n  html.mobile.rw #ef-panel{display:flex;flex-direction:column;overflow:hidden;}"
         "\n  html.mobile.rw #ef-panel .ef-head{position:relative;flex:none;}"

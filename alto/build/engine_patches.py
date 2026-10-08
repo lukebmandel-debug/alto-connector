@@ -1717,7 +1717,19 @@ _CTRL_NEW = (_CTRL_OLD + "\n"
              "html:not(.mobile) #desk-back svg{ display:block; flex:none; }\n"
              "@media (max-width:1100px){ html:not(.mobile) #desk-back{ width:35px; padding:0; }\n"
              "  html:not(.mobile) #desk-back .db-label{ display:none; } }\n"
-             "html.printing #desk-back{ display:none !important; }")
+             "html.printing #desk-back{ display:none !important; }\n"
+             # The right-edge tabs, the clef, the wordmark and the timeline's name all
+             # lead somewhere, and each says so with the same hair line round it on
+             # hover. The overview star was the one tab without it: its glass border
+             # is !important, so the plain :hover rule never showed (the same trap as
+             # light/dark and Notes above). The clef and wordmark go to the homepage,
+             # the name to the top of the timeline.
+             "html:not(.mobile) #overview-toggle:hover{ border-color:var(--muted) !important; }\n"
+             "html:not(.mobile) #title-bar .brand-mark, html:not(.mobile) #title-bar .brand-word,\n"
+             "html:not(.mobile) #title-text{ border-radius:9px; outline:1px solid transparent; outline-offset:3px;\n"
+             "  transition:outline-color .18s; }\n"
+             "html:not(.mobile) #title-bar .brand-mark:hover, html:not(.mobile) #title-bar .brand-word:hover,\n"
+             "html:not(.mobile) #title-text:hover{ outline-color:var(--muted); }")
 _MODE_BTN_OLD = '<button id="mode-toggle" onclick="toggleMode()">\u263d Dark</button>'
 _MODE_BTN_NEW = (
     '<button id="mode-toggle" type="button" onclick="toggleMode()" aria-label="Light or dark" title="Light or dark">'
@@ -2194,7 +2206,7 @@ _HELP_D_TAIL_OLD = (
 _HELP_D_TAIL_NEW = (
     '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; Timeline</em> or Escape goes back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
@@ -2234,23 +2246,13 @@ _HELP_M_TAIL_NEW = (
     "    '    <h3>Overview</h3>',\n"
     "    '    <p>Tap <strong>Overview</strong> in <strong>MENU</strong> to read the summary. Tap a phrase there to jump to its card.</p>',\n"
     "    '    <h3>Search and filter</h3>',\n"
-    "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards.</p>',\n"
+    "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards; double-tap it to switch every filter off, and again to bring them back.</p>',\n"
     "    '    <h3>MARK and NOTES</h3>',\n"
     "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"
     "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy of this timeline or print it.</p>',\n"
     "    '    <h3>Making and editing</h3>',\n"
     "    '    <p>You can build a timeline entirely by hand on a computer, but the suggested route is to have Claude build it from your own notes, outlines or readings, then make small adjustments and revisions yourself. On your own timeline, <strong>Edit this page</strong> (at the foot of a page) changes its words right here.</p>',\n")
-
-# ── mobile search drops below the filter bar ────────────────────────────────
-# A slot filter (e.g. Liability Outcome) docks the engine's filter bar across
-# the screen at 90..128px, right where the search pill sits (104px): the pill
-# covered the bar's label. While the bar shows, the pill and its results move
-# down below it.
-_MS_FILTER_OLD = _MS_DOCK_NEW
-_MS_FILTER_NEW = ("html.mobile.filter-active #m-search{ top:136px; }\n"
-                  "html.mobile.filter-active #m-search-results{ top:182px; }\n"
-                  + _MS_DOCK_NEW)
 
 # ── detail-page swipe preview matches the page it becomes ──────────────────
 # The page sliding in under the finger was painted a flat var(--bg) (near-black
@@ -2271,9 +2273,66 @@ PATCHES += [
     {"name": "help-info-tail", "old": _HELP_D_TAIL_OLD, "new": _HELP_D_TAIL_NEW, "count": 1},
     {"name": "help-sheet-head", "old": _HELP_M_HEAD_OLD, "new": _HELP_M_HEAD_NEW, "count": 1},
     {"name": "help-sheet-tail", "old": _HELP_M_TAIL_OLD, "new": _HELP_M_TAIL_NEW, "count": 1},
-    {"name": "mobile-search-below-filter-bar", "old": _MS_FILTER_OLD, "new": _MS_FILTER_NEW, "count": 1},
     {"name": "detail-peek-matches-page", "old": _PEEK_BG_OLD, "new": _PEEK_BG_NEW, "count": 1},
 ]
+
+# ── no pop-up bar of active filters ─────────────────────────────────────────
+# The engine showed what was filtered as a bar across the top of the page, a
+# segment per filter with an ✕ to clear it (a desktop banner beside "Back to
+# Overview", a docked bar on a phone). Filters live in the Filter toggle now:
+# its count says what is on, its panel changes it, a double-click turns every
+# filter off and on again (filter_panel.py). The segments are never shown, and
+# the phone's `filter-active` class, which moved the search pill and the detail
+# page down to make room for the bar, is never set. Back to Overview and Back to
+# <previous page> share the desktop row and are untouched.
+_NOBAR_D_OLD = ("    window._updateDesktopFilterBar = function(){\n"
+                "      var s = _ensureSegments();\n"
+                "      var f = _activeFilters || {};\n")
+_NOBAR_D_NEW = ("    window._updateDesktopFilterBar = function(){\n"
+                "      var s = _ensureSegments();\n"
+                "      var f = {};   // active filters are shown by the Filter toggle, never as a bar\n")
+_NOBAR_M_OLD = r"""  // ── Mobile filter bar (Patch 4) ─────────────────────────────────────────
+  function _ensureFilterBar(){
+    if(document.getElementById('mobile-filter-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'mobile-filter-bar';
+    bar.innerHTML = '<button class="mfb-zone mfb-era" hidden></button><button class="mfb-zone mfb-weight" hidden></button>';
+    document.body.appendChild(bar);
+    bar.querySelector('.mfb-era').addEventListener('click', function(e){
+      e.stopPropagation();
+      var era = window._mobileFilter.era;
+      if(era) window.setMobileFilter('era', era); // toggle off
+    });
+    bar.querySelector('.mfb-weight').addEventListener('click', function(e){
+      e.stopPropagation();
+      var w = window._mobileFilter.weight;
+      if(w) window.setMobileFilter('weight', w); // toggle off
+    });
+  }
+  window._updateMobileFilterBar = function(){
+    _ensureFilterBar();
+    var bar = document.getElementById('mobile-filter-bar'); if(!bar) return;
+    var f = window._mobileFilter;
+    var era = bar.querySelector('.mfb-era');
+    var w   = bar.querySelector('.mfb-weight');
+    if(f.era){ era.removeAttribute('hidden'); era.textContent = '\u2715 ' + (ERA_LABELS[f.era]||f.era); }
+    else { era.setAttribute('hidden',''); }
+    if(f.weight){ w.removeAttribute('hidden'); w.textContent = '\u2715 ' + (WEIGHT_LABELS[f.weight]||f.weight); }
+    else { w.setAttribute('hidden',''); }
+    var anyActive = !!(f.era || f.weight);
+    bar.classList.toggle('active', anyActive);
+    document.documentElement.classList.toggle('filter-active', anyActive);
+  };
+"""
+_NOBAR_M_NEW = ("  // Active filters are shown by the Filter tile (its count), never as a bar.\n"
+                "  window._updateMobileFilterBar = function(){\n"
+                "    document.documentElement.classList.remove('filter-active');\n"
+                "  };\n")
+PATCHES += [
+    {"name": "filters-never-show-a-bar-desktop", "old": _NOBAR_D_OLD, "new": _NOBAR_D_NEW, "count": 1},
+    {"name": "filters-never-show-a-bar-mobile", "old": _NOBAR_M_OLD, "new": _NOBAR_M_NEW, "count": 1},
+]
+
 
 def apply_patches(html: str) -> str:
     for p in PATCHES:

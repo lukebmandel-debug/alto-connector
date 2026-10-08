@@ -48,10 +48,9 @@ def test_axis1_filter_emits_chips_fields_labels():
     assert 'class="nav-btn filter-btn"' not in html      # not a nav row any more
     # node fields (first axis1 value)
     assert "era:'ny'" in html
-    # label globals + glue
-    assert "var ERA_LABELS={'ny':'New York','eng':'England'};" in html
-    assert "var WEIGHT_LABELS={};" in html
-    assert "_updateDesktopFilterBar" in html
+    # the bar of active filters is gone: no label maps for it, no relabel glue
+    assert "var ERA_LABELS" not in html and "var WEIGHT_LABELS" not in html
+    assert "relabel(row.querySelector('.dbr-era')" not in html
     # and not a drawer section either: the Filter tile opens the same panel
     assert 'data-sd-axis="era" data-sd-id="ny"' not in html
     # nav axis group still present (replace_nav not set)
@@ -104,7 +103,6 @@ def test_entity_and_custom_filters_both_slots():
     html, report = _build(d)
     assert "era:'offer'" in html                # entity-derived, era slot
     assert "examWeight:'heavy'" in html         # custom, weight slot
-    assert "'heavy':'Heavy'" in html            # WEIGHT_LABELS
     from panel import slot_ids
     assert "background" in slot_ids(html, "weight")
 
@@ -113,7 +111,7 @@ def test_acts_filter_derives_from_act_index():
     html, _ = _build(_sample(filters=[
         {"id": "unit", "label": "Unit", "source": "acts"}]))
     assert "era:'act-1'" in html
-    assert "'act-2':'Unit Two" in html          # ERA_LABELS from act.short
+    assert "era:'act-2'" in html
 
 
 def test_custom_unassigned_node_warns():
@@ -192,3 +190,46 @@ def test_hyphenated_entity_ids_emit_parseable_chars():
     html, _ = _build(d)
     assert "\n  'offer-rule': {name:" in html
     assert "\n  offer-rule: {" not in html
+
+
+def test_active_filters_never_show_as_a_bar():
+    """Filters are shown by the Filter toggle only (its count); the engine's
+    segment-per-filter bar across the top of the page — a desktop banner beside
+    Back to Overview, a docked bar on a phone — is never drawn, and the phone's
+    `filter-active` class (which made room for it) is never set. Back to
+    Overview and Back to <previous page> share the desktop row and stay."""
+    html, _ = _build(_sample(filters=[
+        {"id": "court", "label": "Filter by Court", "source": "axis1"}]))
+    assert "var f = {};   // active filters are shown by the Filter toggle, never as a bar" in html
+    assert "var f = _activeFilters || {};\n      if(f.era){" not in html
+    assert ("  window._updateMobileFilterBar = function(){\n"
+            "    document.documentElement.classList.remove('filter-active');\n  };") in html
+    assert "bar.classList.toggle('active', anyActive)" not in html
+    assert "classList.toggle('filter-active'" not in html
+    assert "html.mobile.filter-active #m-search{ top:136px; }" not in html
+    assert "dbr-back" in html and "alto-back-prev" in html
+
+
+def test_double_clicking_the_filter_toggle_switches_filters_off_and_on():
+    from alto.build.filter_panel import FILTER_PANEL_GLUE as G, filter_panel_css
+    assert "function quickToggle(){" in G
+    assert "if(activeCount()>0){ stash=snapshot(); clearAll(); }" in G
+    assert "else if(stash){ var o=stash; stash=null; restore(o); }" in G
+    # a click opens at once; a second within 400ms on the same spot is the double
+    assert "Date.now()-firstAt>400" in G
+    assert "open(wasOpen); quickToggle();" in G
+    assert "clr.addEventListener('click', clearAll);" in G
+    assert "double-click to switch filters off or on" in G
+    assert "#filter-toggle{touch-action:manipulation;}" in filter_panel_css()
+
+
+def test_every_control_that_leads_somewhere_draws_a_hover_line():
+    """The overview star's !important glass border swallowed its plain :hover
+    rule, so it was the one right-edge tab with no hover line. The clef, the
+    wordmark (both go to the homepage) and the timeline's name (the top of the
+    timeline) draw the same hair line round them."""
+    html, _ = _build(_sample())
+    assert "html:not(.mobile) #overview-toggle:hover{ border-color:var(--muted) !important; }" in html
+    assert "html:not(.mobile) #title-text{ border-radius:9px; outline:1px solid transparent; outline-offset:3px;" in html
+    assert ("html:not(.mobile) #title-bar .brand-mark:hover, html:not(.mobile) #title-bar .brand-word:hover,\n"
+            "html:not(.mobile) #title-text:hover{ outline-color:var(--muted); }") in html

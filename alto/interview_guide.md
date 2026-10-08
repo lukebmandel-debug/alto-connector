@@ -352,7 +352,10 @@ Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 Every timeline has one **Filter** toggle — a tab on the right edge on desktop
 (under Notes), a tile at the bottom-left on a phone — and every filter lives in
 it, one section each. Nothing filter-shaped goes in the nav bar or the mobile
-menu.
+menu, and nothing pops up at the top of the page to list what is on: the
+toggle's count says how many are. Double-clicking the toggle (double-tapping
+the tile on a phone) switches every filter off, and the next double-click
+brings back exactly what was on.
 - A section per kind of **sub-chip** the cards carry: the entity axis
   (characters, doctrines…) and each extra axis (environments, themes…). These
   chips have detail pages of their own, so any of them is a fair thing to
