@@ -1644,6 +1644,31 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                 f"html:not(.mobile) #node-{i} .esym-btn,"
                 f"html:not(.mobile) #node-{i} .tsym-btn" for i in _fl)
                 + "{max-width:100%;}")
+    # An outline's path number (2.e.6.2-1c) is the card's address, not a
+    # decoration: larger, upright, near full ink, so it reads at a glance on a
+    # card that is not enlarged. (Stories keep the engine's small order badge.)
+    if b.mode == "outline":
+        nav_char_css += (
+            "\n  html:not(.mobile) #canvas .node-card .node-order{font-size:12.5px;font-style:normal;"
+            "font-weight:600;letter-spacing:.02em;opacity:.8;color:var(--text);"
+            "font-variant-numeric:tabular-nums;top:8px;right:11px;}"
+            # the tag leaves room for the number, so a long tag on a narrow card
+            # (Implied consent / 2.a.1.1) wraps instead of running under it
+            "\n  html:not(.mobile) #canvas .node-card .node-tag{padding-right:6.2em;box-sizing:border-box;}"
+            "\n  html.mobile .node .node-card .node-order{font-size:11px;font-style:normal;font-weight:600;"
+            "letter-spacing:.02em;opacity:.8;color:var(--text);}")
+    # On a narrow (flank) card the number takes its place beside the tag as a
+    # float, so a tag too wide to share the line drops below it instead of
+    # running under the number (Outcome / 2.b.1.1-1 on a 180px card).
+    if tree and b.mode == "outline":
+        _nar = sorted(i for i, _w in tree_plan["w"].items() if _w != TREE["CARD_W"])
+        if _nar:
+            nav_char_css += ("\n  " + ",".join(
+                f"html:not(.mobile) #canvas #node-{i} .node-card .node-order" for i in _nar)
+                + "{position:static;float:right;margin:0 -2px 0 14px;}"
+                + "\n  " + ",".join(
+                    f"html:not(.mobile) #canvas #node-{i} .node-card .node-tag" for i in _nar)
+                + "{padding-right:0;}")
     # A card sized by its owner (brief.card_size): its width, and the least
     # height it takes. After the tree's widths above, so it wins.
     _ids = {n.id for n in nodes}

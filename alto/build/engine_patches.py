@@ -1966,6 +1966,13 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     function kidsBelow(){
       var ks=(K[id]||[]).map(byId).filter(function(q){ return q && q.t>=C.b-1; });
       ks.sort(function(a,b){ return (Math.abs(a.x-C.x)-Math.abs(b.x-C.x)) || (a.t-b.t); });
+      // none straight under it (a root whose children are split over two spines):
+      // the first in the notes' order, not whichever spine happens to be nearer
+      if(ks.length && Math.abs(ks[0].x-C.x)>=40){
+        var kk=(K[id]||[]), first=null;
+        for(var q2=0;q2<kk.length && !first;q2++) first=ks.filter(function(z){ return z.id===kk[q2]; })[0]||null;
+        if(first) return first.id;
+      }
       return ks.length ? ks[0].id : null;
     }
     var best=null, tree=!!window._altoTreeOn;
@@ -1978,10 +1985,44 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
         var sc=null, as=anc(id);
         for(var k=0;k<as.length;k++){ var aq=byId(as[k]); if(aq && aq.b<=C.t+1){ sc=aq; break; } }
         var inScope=function(q){ return !!sc && (q.id===sc.id || anc(q.id).indexOf(sc.id)>=0); };
+        // Outline reading order, for when the straight line misses: the next
+        // sibling of this card (or of the nearest ancestor that has one) that
+        // lies below it in the branch. A third leaf stacked in a flank lane has
+        // nothing straight below it but ANOTHER concept's flank, which skipped
+        // that concept altogether.
+        var nextOutline=function(){
+          for(var q=id; P[q]; q=P[q]){
+            var sibs=K[P[q]]||[], at=sibs.indexOf(q);
+            for(var j=at+1;j<sibs.length;j++){ var c=byId(sibs[j]); if(c && c.y>C.y+1) return c.id; }
+            // the last of a spine: on to the next sibling, even when it begins the
+            // other spine (a long list of concepts is split across two columns)
+            for(var j2=at+1;j2<sibs.length;j2++){ var c2=byId(sibs[j2]); if(c2) return c2.id; }
+          }
+          // the last card of its unit: on to the head of the next unit
+          if(typeof ACT_SEQS!=='undefined'){
+            for(var a=0;a<ACT_SEQS.length;a++){ if(ACT_SEQS[a].indexOf(id)<0) continue;
+              for(var b=a+1;b<ACT_SEQS.length;b++){ var f=ACT_SEQS[b][0]; if(f && byId(f)) return f; }
+              break; }
+          }
+          return null;
+        };
+        // …and back the same way: from a spine card, the last card stacked under
+        // its previous sibling (the third leaf), else that sibling itself.
+        var prevOutline=function(){
+          if((((window._ALTO_TREE_PLAN||{}).w||{})[id]||0)<250 || !P[id]) return null;   // a flank keeps its straight lane
+          var sibs=K[P[id]]||[], at=sibs.indexOf(id);
+          for(var j=at-1;j>=0;j--){
+            var c=byId(sibs[j]); if(!c || !inScope(c) || c.y>=C.y-1) continue;
+            var low=(K[c.id]||[]).map(byId).filter(function(q){ return q && q.t>=c.b-1 && q.y<C.y-1; });
+            low.sort(function(a,b){ return b.y-a.y; });
+            return low.length ? low[0].id : c.id;
+          }
+          return null;
+        };
         if(dir==='s'){
-          best=kidsBelow() || aligned(all.filter(inScope),true,1);
+          best=kidsBelow() || aligned(all.filter(inScope),true,1) || nextOutline();
         } else {
-          best=aligned(all.filter(inScope),true,-1);
+          best=prevOutline() || aligned(all.filter(inScope),true,-1);
           if(!best && sc) best=sc.id;                   // up to the branch's head
         }
       } else if(vert){

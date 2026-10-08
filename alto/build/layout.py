@@ -340,6 +340,8 @@ TREE = {
     # child, unless that gap is longer than BUS_SPAN: then the bus runs
     # BUS_ABOVE over the children, so the long drop is in the parent's own column
     "BUS_SPAN": 160, "BUS_ABOVE": 50,
+    # a root with this many concepts/leaves and no sections splits them over two spines
+    "SPLIT_DIRECT": 5,
 }
 
 
@@ -649,8 +651,17 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
             br = [[k] for k in ks if not leaf(k) and not concept(k)]
             direct = [k for k in ks if leaf(k) or concept(k)]
             if direct:
-                br.append(direct)
                 spine[p] = direct
+                # A root whose children are all concepts and leaves (no sections
+                # to set side by side) would otherwise be ONE long column: nine
+                # concepts ran 3,600 px down the middle with an empty page either
+                # side. From SPLIT_DIRECT cards up they take two spines, the
+                # first half left and the rest right, in the notes' order.
+                if len(direct) >= T["SPLIT_DIRECT"] and hint(p, "arrange", "auto") == "auto":
+                    half = -(-len(direct) // 2)
+                    br += [direct[:half], direct[half:]]
+                else:
+                    br.append(direct)
             br.sort(key=lambda b: ks.index(b[0]))
             body = []
             for g in range(0, len(br), 2):
@@ -933,9 +944,14 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
     # corners). A child off the spine's axis, or floated, gets an ordinary line.
     etx = {}
     if lines == "fan":
+        groups = []
         for p, ks in spine.items():
             ks = [k for k in ks if k not in floated]
-            ks = [k for k in ks if abs(x[k] - x[ks[0]]) < 1]
+            while ks:                       # one fan per spine the children sit on
+                col = [k for k in ks if abs(x[k] - x[ks[0]]) < 1]
+                ks = [k for k in ks if k not in col]
+                groups.append((p, col))
+        for p, ks in groups:
             if len(ks) < 2:
                 continue
             half = -(-(len(ks) - 1) // 2)

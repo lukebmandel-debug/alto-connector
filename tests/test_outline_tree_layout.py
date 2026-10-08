@@ -239,5 +239,20 @@ def test_fanned_lines_always_end_inside_their_own_card(kids):
         k = key.split("|")[1]
         assert abs(ex - plan["x"][k]) <= plan["w"][k] / 2 - 12, (kids, key)
     if kids <= 9:
-        assert len(plan["etx"]) == kids - 1      # every child still gets its own lane
-        assert len(set(plan["etx"].values())) == kids - 1
+        spines = 2 if kids >= TREE["SPLIT_DIRECT"] else 1
+        assert len(plan["etx"]) == kids - spines     # every child but each spine's first gets a lane
+
+
+@pytest.mark.parametrize("kids,columns", [(3, 1), (4, 1), (5, 2), (9, 2)])
+def test_a_root_of_many_plain_concepts_is_two_balanced_spines_not_one_column(kids, columns):
+    """Civ Pro's Pleadings had nine concepts and no sections, so the tree put
+    all nine in one 3,600 px column down the middle. Past SPLIT_DIRECT they take
+    two spines, side by side, the notes' order running down the left then the right."""
+    ns = [_n("root")] + [_n(f"c{i}", "root") for i in range(kids)]
+    plan = outline_plan(ns, 1)
+    xs = [plan["x"][f"c{i}"] for i in range(kids)]
+    assert len(set(xs)) == columns
+    if columns == 2:
+        half = -(-kids // 2)
+        assert len({x for x in xs[:half]}) == 1 and len({x for x in xs[half:]}) == 1
+        assert xs[0] < xs[-1]

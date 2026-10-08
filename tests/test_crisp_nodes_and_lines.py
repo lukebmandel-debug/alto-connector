@@ -94,7 +94,7 @@ def test_arrow_keys_follow_structure_then_reading_order_then_alignment():
     f = html[html.index("  function focusNeighbor(dir){"):]
     f = f[:f.index("    if(best) enterFocus(best);")]
     t = f.index("if(vert && tree){")                      # a tree: within the branch
-    k = f.index("best=kidsBelow() || aligned(all.filter(inScope),true,1);")
+    k = f.index("best=kidsBelow() || aligned(all.filter(inScope),true,1) || nextOutline();")
     h = f.index("if(!best && sc) best=sc.id;")           # …else up to the branch's head
     r = f.index("var seq=[].concat.apply([],ACT_SEQS)")  # a flowing page: reading order
     a = f.index("if(!best) best=aligned(all,vert,sg);")  # then straight ahead
@@ -146,3 +146,22 @@ def test_cut_boxes_are_resting_boxes_so_a_hop_cuts_once():
     assert "if(atRest(n,c) && c.offsetWidth)" in html
     assert "var ax=parseFloat(n.style.left), ay=parseFloat(n.style.top);" in html
     assert "touching(R,e._bb)" in html
+
+
+def test_tree_arrows_read_in_outline_order_when_the_straight_line_misses():
+    """Civ Pro's Pleadings: ↓ from the third leaf stacked in a flank lane found
+    nothing below it in the lane except ANOTHER concept's flank, so it skipped
+    the next concept (and the last card of a unit skipped the next unit)."""
+    html = _html()
+    f = html[html.index("  function focusNeighbor(dir){"):]
+    f = f[:f.index("    if(best) enterFocus(best);")]
+    assert "var nextOutline=function(){" in f and "var prevOutline=function(){" in f
+    assert "|| nextOutline();" in f and "best=prevOutline() ||" in f
+    assert "the last card of its unit: on to the head of the next unit" in f
+    assert "the first in the notes' order, not whichever spine happens to be nearer" in f
+
+
+def test_an_outline_card_number_is_large_and_upright():
+    from alto.build.builder import load_brief, build_timeline
+    html, _ = build_timeline(*load_brief(json.loads((ROOT / "samples" / "outline_brief.json").read_text(encoding="utf-8"))))
+    assert "html:not(.mobile) #canvas .node-card .node-order{font-size:12.5px;font-style:normal;font-weight:600" in html
