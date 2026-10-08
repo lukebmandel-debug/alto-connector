@@ -226,3 +226,18 @@ def test_side_by_side_branches_keep_a_clear_margin_at_both_edges():
         for b in ids[i + 1:]:
             A, B = boxes[a], boxes[b]
             assert not (A[0] < B[2] and B[0] < A[2] and A[1] < B[3] and B[1] < A[3]), (a, b)
+
+
+@pytest.mark.parametrize("kids", [3, 6, 9, 14, 30])
+def test_fanned_lines_always_end_inside_their_own_card(kids):
+    """A root with many children down one spine (Civ Pro's Pleadings has 9):
+    every fanned line must end within its child's width, never in the empty
+    space beside the card, whatever the child count."""
+    ns = [_n("root")] + [_n(f"c{i}", "root") for i in range(kids)]
+    plan = outline_plan(ns, 1)
+    for key, ex in plan["etx"].items():
+        k = key.split("|")[1]
+        assert abs(ex - plan["x"][k]) <= plan["w"][k] / 2 - 12, (kids, key)
+    if kids <= 9:
+        assert len(plan["etx"]) == kids - 1      # every child still gets its own lane
+        assert len(set(plan["etx"].values())) == kids - 1

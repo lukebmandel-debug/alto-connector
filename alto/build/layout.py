@@ -940,6 +940,15 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                 continue
             half = -(-(len(ks) - 1) // 2)
             s = (w[ks[0]] / 2 - 20) / 115 * max(40, min(80, 115 / half))
+            # Every lane must end INSIDE its own child's width as well as the
+            # first card's, or the line stops in empty space beside the card
+            # (a root with 9 children spaced 40 px apart reached 160 px out on
+            # 270 px cards). Squeeze the spacing to fit; past a hair's width
+            # the rest keep ordinary straight lines rather than poke out.
+            lim = min(w[k] for k in ks) / 2 - 20
+            s = min(s, lim / half)
+            if s < 8:
+                continue
             for j, k in enumerate(ks[1:], 1):
                 etx[f"{p}|{k}"] = round(x[ks[0]] + -(-j // 2) * s * (-1 if j % 2 else 1), 2)
     out = {"x": x, "w": w, "acts": acts, "etx": etx, "top": T["TOP"],
