@@ -89,7 +89,7 @@ def test_timeline_keeps_unit_dot_place():
 
 
 @pytest.mark.skipif(find_node() is None, reason="node not installed")
-def test_js_matches_python():
+def test_js_matches_python(tmp_path):
     cases = []
     for depth in (3, 6, 10):
         seqs, kids, parent, _ = _chain(depth, width=30)
@@ -100,7 +100,10 @@ def test_js_matches_python():
         "console.log(JSON.stringify({n:C.map(c=>globalThis._altoPathNums(c[0],c[1],c[2])),"
         "p:T.map(t=>{const r=globalThis._altoParseNum(t);return r?[r.unit,r.idx]:null;}),"
         "f:T.map(t=>{const r=globalThis._altoParseNum(t);return r?globalThis._altoFormatNum(r.unit,r.idx):null;})}));")
-    out = json.loads(subprocess.run([find_node(), "-e", js], capture_output=True, text=True, check=True).stdout)
+    # a file, not `node -e`: the script is longer than Windows allows on a command line
+    f = tmp_path / "num.js"
+    f.write_text(js, encoding="utf-8")
+    out = json.loads(subprocess.run([find_node(), str(f)], capture_output=True, text=True, check=True).stdout)
     assert out["n"] == [path_numbers(*c) for c in cases]
     py = [parse_num(t) for t in texts]
     assert out["p"] == [[u, i] if r else None for r in py for (u, i) in [r or (0, 0)]]
