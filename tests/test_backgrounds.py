@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from alto.build import backgrounds as bg                       # noqa: E402
-from alto.build.backgrounds_catalog import PHOTOS              # noqa: E402
+from alto.build.backgrounds_catalog import COLOURS, PATTERNS, SCENES   # noqa: E402
 from alto.build.blocks import ID_PATTERNS                      # noqa: E402
 from alto.build.builder import build_timeline, load_brief      # noqa: E402
 from alto.build.pages import build_home, build_reports         # noqa: E402
@@ -36,44 +36,90 @@ def timeline():
 
 # ── the photographs ─────────────────────────────────────────────────────────
 
-def test_a_combination_of_space_nature_and_city():
+def _variants():
+    for sc in SCENES:
+        for m in ("l", "d"):
+            yield sc["id"], m, sc[m]
+
+
+def test_a_combination_of_space_nature_and_city_each_with_a_light_and_a_dark_picture():
     groups = {}
-    for p in PHOTOS:
-        groups.setdefault(p["group"], []).append(p["id"])
+    for sc in SCENES:
+        groups.setdefault(sc["group"], []).append(sc["id"])
+        assert set(sc) >= {"l", "d"}, sc["id"]
     assert set(groups) == {"Space", "Nature", "City"}
     assert all(len(v) >= 5 for v in groups.values()), groups
 
 
 def test_every_photo_is_on_disk_and_light_enough():
-    for p in PHOTOS:
-        full, thumb = ASSETS / f"{p['id']}.jpg", ASSETS / "t" / f"{p['id']}.jpg"
-        assert full.is_file() and thumb.is_file(), p["id"]
-        assert full.stat().st_size <= 450 * 1024, f"{p['id']} is {full.stat().st_size} bytes"
-        assert thumb.stat().st_size <= 40 * 1024, p["id"]
+    for sid, m, v in _variants():
+        full, thumb = ASSETS / f"{sid}-{m}.jpg", ASSETS / "t" / f"{sid}-{m}.jpg"
+        assert full.is_file() and thumb.is_file(), (sid, m)
+        assert full.stat().st_size <= 470 * 1024, f"{sid}-{m} is {full.stat().st_size} bytes"
+        assert thumb.stat().st_size <= 40 * 1024, (sid, m)
         assert full.read_bytes()[:3] == b"\xff\xd8\xff"            # a JPEG
-    assert not {f.stem for f in ASSETS.glob("*.jpg")} - {p["id"] for p in PHOTOS}, "a file with no catalogue entry"
+    want = {f"{sid}-{m}" for sid, m, _ in _variants()}
+    assert {f.stem for f in ASSETS.glob("*.jpg")} == want, "a file with no catalogue entry, or an entry with no file"
+
+
+def test_the_light_pictures_are_bright_and_the_dark_ones_are_dim_enough():
+    """The point of two pictures: the light theme gets a bright photograph and the dark theme a dim one."""
+    for sid, m, v in _variants():
+        if m == "l":
+            assert v["L50"] >= 0.40 and v["L10"] >= 0.05, (sid, v["L10"], v["L50"])
+        else:
+            assert v["L50"] <= 0.52, (sid, v["L50"])
 
 
 def test_only_licences_that_allow_this_use_and_every_photo_is_credited():
-    for p in PHOTOS:
-        assert re.fullmatch(r"Public domain|CC0|CC BY \d\.\d", p["lic"]), (p["id"], p["lic"])
-        assert p["by"].strip() and p["name"].strip()
-        assert p["url"].startswith("https://commons.wikimedia.org/wiki/File:"), p["id"]
-        assert re.fullmatch(r"[a-z][a-z0-9-]{1,40}", p["id"])
-    assert len({p["id"] for p in PHOTOS}) == len(PHOTOS)
+    for sid, m, v in _variants():
+        assert re.fullmatch(r"Public domain|CC0|CC BY \d\.\d", v["lic"]), (sid, m, v["lic"])
+        assert v["by"].strip() and v["name"].strip()
+        assert v["url"].startswith("https://commons.wikimedia.org/wiki/File:"), (sid, m)
+        assert 0 < v["fx"] < 1 and 0 < v["fy"] < 1
+    ids = [sc["id"] for sc in SCENES]
+    assert len(set(ids)) == len(ids) and all(re.fullmatch(r"[a-z][a-z0-9-]{1,40}", i) for i in ids)
 
 
 def test_the_veil_and_lift_keep_the_engines_contrast_assumptions():
     """Light mode wants a pale ground and dark mode a deep one whatever the photo."""
-    for p in PHOTOS:
-        t = bg.tune(p)
-        assert 0.22 <= t["vl"] <= 0.70 and 0.20 <= t["vd"] <= 0.70, (p["id"], t)
-        assert 1.0 <= t["bl"] <= 2.0 and 0.55 <= t["bd"] <= 1.0, (p["id"], t)
-        for k in ("ql", "qd", "tl", "td"):
-            assert re.fullmatch(r"#[0-9a-f]{6}", t[k]), (p["id"], k)
-        # composed at rest the page is pale in light mode and deep in dark
-        lum = lambda hx: sum(int(hx[i:i + 2], 16) * w for i, w in ((1, .2126), (3, .7152), (5, .0722))) / 255
-        assert lum(t["ql"]) > 0.45 and lum(t["qd"]) < 0.40, (p["id"], t["ql"], t["qd"])
+    lum = lambda hx: sum(int(hx[i:i + 2], 16) * w for i, w in ((1, .2126), (3, .7152), (5, .0722))) / 255
+    for sid, m, v in _variants():
+        t = bg.tune(v, m)
+        if m == "l":
+            assert 0.10 <= t["v"] <= 0.70 and 1.0 <= t["b"] <= 2.0, (sid, t)
+            assert lum(t["q"]) > 0.45, (sid, t["q"])
+        else:
+            assert 0.20 <= t["v"] <= 0.70 and 0.55 <= t["b"] <= 1.0, (sid, t)
+            assert lum(t["q"]) < 0.40, (sid, t["q"])
+        for k in ("q", "s", "a"):
+            assert re.fullmatch(r"#[0-9a-f]{6}", t[k]), (sid, k)
+
+
+def test_colours_and_patterns_are_pale_in_light_and_deep_in_dark():
+    lum = lambda hx: sum(int(hx[i:i + 2], 16) * w for i, w in ((1, .2126), (3, .7152), (5, .0722))) / 255
+    assert len(COLOURS) >= 10 and len(PATTERNS) >= 6
+    for c in COLOURS + PATTERNS:
+        assert re.fullmatch(r"[cp]-[a-z]+", c["id"]) and c["name"].strip()
+        assert all(lum(h) > 0.70 for h in c["l"][:2]), (c["id"], c["l"])
+        assert all(lum(h) < 0.30 for h in c["d"][:2]), (c["id"], c["d"])
+    for c in PATTERNS:
+        assert c["kind"] in ("dots", "grid", "lines", "waves", "hex", "chevron", "diamond", "paper")
+        assert 0 < c["l"][3] < 0.5 and 0 < c["d"][3] < 0.5
+    ids = [c["id"] for c in COLOURS + PATTERNS] + [sc["id"] for sc in SCENES]
+    assert len(set(ids)) == len(ids)
+
+
+def test_the_client_catalogue_has_everything_a_page_needs():
+    C = bg.client_catalog()
+    assert len(C) == len(SCENES) + len(COLOURS) + len(PATTERNS)
+    for sc in SCENES:
+        e = C[sc["id"]]
+        assert e["k"] == "p" and e["g"] == sc["group"]
+        for m in ("l", "d"):
+            assert e[m]["f"] == f"{sc['id']}-{m}.jpg" and 0 < e[m]["x"] < 1 and 0 < e[m]["y"] < 1
+    assert C["c-ocean"]["k"] == "c" and C["p-dots"]["k"] == "x" and C["p-dots"]["p"] == "dots"
+    assert "</" not in bg.catalog_json()
 
 
 # ── what a page carries ─────────────────────────────────────────────────────
@@ -241,7 +287,7 @@ def site(timeline, tmp_path_factory):
 
 
 STATE = """()=>({on:document.documentElement.classList.contains('alto-bg'), id:window._altoBgId,
-  img:getComputedStyle(document.documentElement).getPropertyValue('--alto-img').trim(),
+  img:getComputedStyle(document.documentElement).getPropertyValue('--alto-bg').trim(),
   meta:(document.getElementById('meta-theme')||{}).content})"""
 
 
@@ -255,28 +301,112 @@ def test_choosing_a_photograph_sticks_follows_the_theme_and_can_be_undone(browse
     assert pg.evaluate("[...document.querySelectorAll('#tab-rail > *')].map(e=>e.id).pop()") == "bg-toggle"
     pg.click("#bg-toggle"); pg.wait_for_timeout(400)
     assert pg.evaluate("document.getElementById('bg-panel').classList.contains('open')")
-    assert pg.evaluate("document.querySelectorAll('.bg-tile').length") == len(PHOTOS) + 1
+    assert pg.evaluate("document.querySelectorAll('.bg-tile').length") == len(SCENES) + len(COLOURS) + 1 + len(PATTERNS) + 1
     pg.click('.bg-tile[data-bg="aurora-lofoten"]'); pg.wait_for_timeout(500)
     s = pg.evaluate(STATE)
-    assert s["on"] and s["id"] == "aurora-lofoten" and "/bg/v1/aurora-lofoten.jpg" in s["img"]
+    assert s["on"] and s["id"] == "aurora-lofoten" and "/bg/v2/aurora-lofoten-l.jpg" in s["img"]
     assert json.loads(pg.evaluate(f"localStorage.getItem('alto-hl-{tid}-bg')"))["v"] == "aurora-lofoten"
-    assert "Johannes Groll" in pg.evaluate("document.querySelector('.bg-foot').textContent")
+    assert "Jules Henze" in pg.evaluate("document.querySelector('.bg-foot').textContent")      # the light picture's
     # the photograph itself loads
-    assert pg.evaluate("new Promise(r=>{const i=new Image();i.onload=()=>r(i.naturalWidth);i.onerror=()=>r(0);i.src='/bg/v1/aurora-lofoten.jpg'})") > 1000
+    assert pg.evaluate("new Promise(r=>{const i=new Image();i.onload=()=>r(i.naturalWidth);i.onerror=()=>r(0);i.src='/bg/v2/aurora-lofoten-l.jpg'})") > 1000
     # it survives a reload, and the status bar follows the theme
     pg.reload(); pg.wait_for_timeout(2500)
     assert pg.evaluate(STATE)["id"] == "aurora-lofoten"
     light = pg.evaluate(STATE)["meta"]
     pg.click("#mode-toggle"); pg.wait_for_timeout(600)
-    dark = pg.evaluate(STATE)["meta"]
-    assert light != dark and re.fullmatch(r"#[0-9a-f]{6}", dark)
+    dark = pg.evaluate(STATE)
+    assert light != dark["meta"] and re.fullmatch(r"#[0-9a-f]{6}", dark["meta"])
+    # the same choice, the other theme's picture
+    assert "/bg/v2/aurora-lofoten-d.jpg" in dark["img"] and "Johannes Groll" in pg.evaluate("document.querySelector('.bg-foot').textContent")
     # back to the Alto wallpaper: nothing of the choice is left on the page
     pg.click("#bg-toggle"); pg.wait_for_timeout(300)
     pg.click(".bg-tile.bg-def"); pg.wait_for_timeout(500)
     s = pg.evaluate(STATE)
     assert not s["on"] and s["id"] == "" and s["img"] == "" and s["meta"] == "#6b4326"
-    assert not re.search(r"--alto-(img|mean|veil|bright|q-)", pg.evaluate("document.documentElement.style.cssText"))
+    assert not re.search(r"--alto-(bg|top|q|veil|bright|blur|t|mask)\b", pg.evaluate("document.documentElement.style.cssText"))
     pg.close()
+
+
+@needs_browser
+def test_colours_patterns_and_a_colour_of_your_own_can_be_chosen_and_follow_the_theme(browser, site):
+    base, tid = site
+    pg = browser.new_page(viewport={"width": 1500, "height": 900})
+    pg.goto(base + "/t.html"); pg.wait_for_timeout(2500)
+    bgval = lambda: pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--alto-bg').trim()")
+    for cid, kind in (("c-ocean", "linear-gradient"), ("p-dots", "radial-gradient"), ("p-waves", "data:image/svg+xml"),
+                      ("p-paper", "feTurbulence"), ("p-hex", "data:image/svg+xml")):
+        pg.evaluate("id=>window._altoBg.choose(id)", cid); pg.wait_for_timeout(200)
+        v = bgval()
+        assert pg.evaluate(STATE)["on"] and (kind in v or kind in __import__("urllib.parse").parse.unquote(v)), (cid, v[:120])
+        assert pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--alto-blur').trim()") == "0px"
+    # the same pattern, the other theme's ground
+    pg.evaluate("window._altoBg.choose('c-sunrise')")
+    light = bgval()
+    pg.evaluate("document.documentElement.classList.add('dark')"); pg.wait_for_timeout(200)
+    dark = bgval()
+    assert light != dark and "#6a2f17" in dark and "#fde4d4" in light
+    # a colour of the user's own: pale in light, deep in dark; anything else is ignored
+    pg.evaluate("window._altoBg.choose('c:d94a6b')"); pg.wait_for_timeout(200)
+    assert pg.evaluate(STATE)["on"] and pg.evaluate(STATE)["id"] == "c:d94a6b"
+    dk = bgval()
+    pg.evaluate("document.documentElement.classList.remove('dark')"); pg.wait_for_timeout(200)
+    lt = bgval()
+    lum = lambda hx: sum(int(hx[i:i + 2], 16) * w for i, w in ((1, .2126), (3, .7152), (5, .0722))) / 255
+    first = lambda v: re.search(r"#[0-9a-f]{6}", v).group(0)
+    assert lum(first(lt)) > 0.7 and lum(first(dk)) < 0.3, (lt, dk)
+    for bad in ("c:zzzzzz", "c:d94a6b;}body{display:none", "c:12345", "url(javascript:1)", "tokyo-tower-x"):
+        pg.evaluate("id=>window._altoBg.apply(id)", bad); pg.wait_for_timeout(100)
+        assert not pg.evaluate(STATE)["on"], bad
+    # and the picker offers them
+    pg.click("#bg-toggle"); pg.wait_for_timeout(300)
+    assert pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].map(e=>e.textContent)") == ["Colors", "Patterns", "Space", "Nature", "City"]
+    assert pg.evaluate("!!document.querySelector('#bg-panel input[type=color]')")
+    pg.evaluate("(()=>{const i=document.querySelector('#bg-panel input[type=color]'); i.value='#3366cc'; i.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate(STATE)["id"] == "c:3366cc" and pg.evaluate("document.querySelector('.bg-custom').classList.contains('active')")
+    pg.close()
+
+
+@needs_browser
+def test_the_picker_shows_the_pictures_of_the_theme_in_use(browser, site):
+    base, _ = site
+    pg = browser.new_page(viewport={"width": 1500, "height": 900})
+    pg.goto(base + "/t.html"); pg.wait_for_timeout(2500)
+    pg.click("#bg-toggle"); pg.wait_for_timeout(300)
+    src = lambda: pg.evaluate("document.querySelector('.bg-tile[data-bg=\"tokyo-tower\"] img').getAttribute('src')")
+    name = lambda: pg.evaluate("document.querySelector('.bg-tile[data-bg=\"tokyo-tower\"] .bg-name').textContent")
+    assert src().endswith("/t/tokyo-tower-l.jpg")
+    pg.evaluate("document.documentElement.classList.add('dark')"); pg.wait_for_timeout(300)
+    assert src().endswith("/t/tokyo-tower-d.jpg")
+    assert name() == next(sc for sc in SCENES if sc["id"] == "tokyo-tower")["d"]["name"]
+    pg.close()
+
+
+@needs_browser
+def test_a_photographs_subject_lands_clear_of_the_top_bars_whatever_the_window(browser, site):
+    """The photograph starts below the title bar and the unit bar, and is placed so what it is a
+    picture OF (the catalogue's x/y) lands in the open area, in both themes and at every size."""
+    base, _ = site
+    for w, h in ((1500, 900), (1180, 720), (1920, 1080)):
+        pg = browser.new_page(viewport={"width": w, "height": h})
+        pg.goto(base + "/t.html"); pg.wait_for_timeout(2500)
+        probe = """(args)=>{ const [id]=args, B=window._altoBg, root=document.documentElement; B.choose(id);
+          const st=getComputedStyle(root), m=/ ([-\\d.]+)px ([-\\d.]+)px \\/ ([\\d.]+)px ([\\d.]+)px/.exec(st.getPropertyValue('--alto-bg'));
+          const c=B.get(id), v=B.dark()?c.d:c.l, pb=document.getElementById('page-bg'), q=pb.getBoundingClientRect(), z=q.height/pb.clientHeight;
+          const T=parseFloat(st.getPropertyValue('--alto-t'));
+          const bars=Math.max(...['title-bar','nav'].map(i=>{const e=document.getElementById(i);return e?e.getBoundingClientRect().bottom:0}));
+          const oy=parseFloat(m[2]), ih=parseFloat(m[4]), iw=parseFloat(m[3]), ox=parseFloat(m[1]);
+          const subjY=((T-40)+oy+v.y*ih)*z+q.top, subjX=(-40+ox+v.x*iw)*z+q.left;
+          return {T:T*z+q.top, bars, subjY, subjX, h:innerHeight, w:innerWidth, covers: ox<=0 && oy<=0 && (ox+iw)>=pb.clientWidth+80-1 && (oy+ih)>=(pb.clientHeight-T+80)-1}; }"""
+        for dark in (False, True):
+            pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false")); pg.wait_for_timeout(150)
+            for sc in SCENES:
+                r = pg.evaluate(probe, [sc["id"]])
+                assert r["T"] >= r["bars"] - 1.5, (sc["id"], dark, w, r)                  # starts below the bars
+                assert r["bars"] < r["subjY"] < r["h"], (sc["id"], dark, w, r)            # the subject is in the open area
+                assert 0 < r["subjX"] < r["w"], (sc["id"], dark, w, r)
+                assert r["covers"], (sc["id"], dark, w, r)                               # and the picture still fills it
+        pg.close()
 
 
 @needs_browser

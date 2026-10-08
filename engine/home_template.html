@@ -181,6 +181,14 @@
     margin-bottom:26px;
   }
 
+  .slab-kicker .slab-rename{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin:-4px 0 -4px 10px;
+    vertical-align:middle; padding:0; border:0; border-radius:50%; background:none; color:var(--muted); cursor:pointer;
+    opacity:0; transition:opacity .15s, color .15s, background .15s; }
+  .project-slab:hover .slab-rename, .slab-rename:focus-visible{ opacity:.8; }
+  .slab-kicker .slab-rename:hover{ opacity:1; color:var(--text); background:rgba(127,127,127,.16); }
+  @media (hover:none){ .slab-kicker .slab-rename{ opacity:.7; } }
+  @media print{ .slab-rename{ display:none !important; } }
+
   .course-grid{
     display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:26px;
   }
@@ -251,7 +259,7 @@
   /* ── Mode toggle, same placement/feel as the course app.
      36px tall to match the 36px search / info / account bubbles exactly. ── */
   #mode-toggle{
-    position:fixed; bottom:30px; right:30px; z-index:310;
+    position:fixed; bottom:24px; right:24px; z-index:310;
     width:35px; height:35px; padding:0; display:flex; align-items:center; justify-content:center;
     white-space:nowrap; border-radius:50%; font-size:15px; letter-spacing:.06em;
     color:var(--text); cursor:pointer; font-family:inherit;
@@ -269,7 +277,7 @@
      (same recipe as the course app's #search-btn; right is set by alignSearch JS
      so it tracks the toggle's width with the 12px rhythm). ── */
   #search-btn{
-    position:fixed; bottom:30px; right:125px; z-index:310;
+    position:fixed; bottom:24px; right:119px; z-index:310;
     width:35px; height:35px; border-radius:50%;
     /* Frosted glass. NO saturate() — over the homepage's vivid wallpaper it over-vivifies
        the tint into "lit-up yellow"; without it the tint stays muted like the timeline
@@ -319,7 +327,7 @@
   /* ── INFO — 36px circle that expands up+left into the Alto guide panel
      (same recipe as the course app's #info-btn, in homepage glass). ── */
   #info-btn{
-    position:fixed; bottom:30px; right:77.5px; z-index:310;
+    position:fixed; bottom:24px; right:71.5px; z-index:310;
     width:35px; max-height:35px; border-radius:50%;
     /* Frosted glass, no saturate() — see #search-btn note. */
     background:var(--card-glass-bg); border:1px solid var(--card-glass-border);
@@ -1578,6 +1586,75 @@ function altoPrintMenu(pg){
   body.appendChild(cancel);
 }
 
+// ── Renaming: a timeline from the ⋯ on its card, a project from the pencil by its name.
+// One small dialog for both. The name is cleaned the way a new timeline's is (typographic
+// quotes, no markup); the cloud writes it where the name lives (alto-cloud.js renameTimeline /
+// renameProject) and the list is drawn again from what the account then holds.
+function altoRenameDialog(o){
+  const sc = document.createElement('div');
+  sc.className = 'share-scrim';
+  sc.innerHTML = '<div class="share-menu" role="dialog" aria-modal="true">' +
+    '<div class="sm-title"></div><div class="sm-body"></div><p class="sm-status"></p></div>';
+  document.body.appendChild(sc);
+  const box = sc.querySelector('.share-menu'), body = sc.querySelector('.sm-body'),
+        status = sc.querySelector('.sm-status');
+  sc.querySelector('.sm-title').textContent = o.title;
+  const close = () => { sc.remove(); document.removeEventListener('keydown', onKey, true); };
+  function onKey(e){ if(e.key === 'Escape'){ e.preventDefault(); close(); } }
+  document.addEventListener('keydown', onKey, true);
+  sc.addEventListener('click', e => { if(e.target === sc) close(); });
+  const l = document.createElement('div'); l.className = 'sm-label'; l.textContent = o.label; body.appendChild(l);
+  const row = document.createElement('div'); row.className = 'sm-row';
+  const inp = document.createElement('input'); inp.className = 'sm-link'; inp.type = 'text'; inp.maxLength = 120;
+  inp.value = o.value || ''; inp.setAttribute('aria-label', o.label); inp.autocomplete = 'off';
+  const go = document.createElement('button'); go.type = 'button'; go.textContent = 'Save';
+  async function save(){
+    const v = inp.value.replace(/\s+/g, ' ').trim();
+    if(!v){ inp.focus(); return; }
+    if(v === (o.value || '')){ close(); return; }
+    inp.disabled = go.disabled = true; status.textContent = 'Saving…';
+    try{ await o.save(v); close(); }
+    catch(e){ status.textContent = ((e && e.message) || String(e)); inp.disabled = go.disabled = false; inp.focus(); }
+  }
+  go.addEventListener('click', e => { e.stopPropagation(); save(); });
+  inp.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); save(); } });
+  row.appendChild(inp); row.appendChild(go); body.appendChild(row);
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'sm-quiet'; cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', e => { e.stopPropagation(); close(); });
+  body.appendChild(cancel);
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+}
+function altoRenameTimeline(pg){
+  const c = window.AltoCloud;
+  if(!c || !c.renameTimeline) return;
+  altoRenameDialog({
+    title: 'Rename timeline', label: 'Timeline name',
+    value: pg.heading || pg.title || '',
+    save: async v => {
+      const r = await c.renameTimeline(pg.key, pg.tid || '', v);
+      pg.heading = r.title;
+      _listCacheSet('pages', lastPrivatePages);
+      showToast('Renamed'); renderPrivate();
+    }
+  });
+}
+function altoRenameProject(name){
+  const c = window.AltoCloud;
+  if(!c || !c.renameProject) return;
+  altoRenameDialog({
+    title: 'Rename project', label: 'Project name', value: name,
+    save: async v => {
+      const r = await c.renameProject(name, v);
+      const was = String(name).trim().toLowerCase();
+      (lastPrivatePages || []).forEach(p => {
+        if(String(p.project || p.title || p.heading || '').trim().toLowerCase() === was){ p.project = r.project; p.title = r.project; }
+      });
+      _listCacheSet('pages', lastPrivatePages);
+      showToast('Renamed'); renderPrivate();
+    }
+  });
+}
+
 // ── Move or delete a private timeline (the ⋯ on its card) ─────────────────
 // Moving rewrites the project the page, its listing record and its draft name
 // (alto-cloud.js moveTimeline). Deleting never removes anything at once: the
@@ -1615,6 +1692,7 @@ function altoTileMenu(pg){
     body.innerHTML = ''; status.textContent = '';
     const where = pg.project || pg.title || '';
     if(where) body.appendChild(note('In ' + where + '.'));
+    body.appendChild(btn('Rename timeline…', '', () => { close(); altoRenameTimeline(pg); }));
     body.appendChild(btn('Move to another project…', '', moveView));
     body.appendChild(btn('Print…', '', () => { close(); altoPrintMenu(pg); }));
     body.appendChild(btn('Delete timeline…', 'sm-danger', deleteView));
@@ -1986,6 +2064,12 @@ function drawPrivate(all){
     if(projects.length > 1) group.firstChild.appendChild(sortControl());
     projects.forEach(pj => {
     const { slab, grid } = projectSlab(pj.name, 'private-slab');
+    const pen = document.createElement('button');
+    pen.type = 'button'; pen.className = 'slab-rename'; pen.title = 'Rename project';
+    pen.setAttribute('aria-label', pj.name + ' — rename project');
+    pen.innerHTML = '<svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l1-4 9.5-9.5a1.6 1.6 0 0 1 2.3 0l.7.7a1.6 1.6 0 0 1 0 2.3L7 16z"/><path d="M12 5.5l2.5 2.5"/></svg>';
+    pen.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); altoRenameProject(pj.name); });
+    slab.querySelector('.slab-kicker').appendChild(pen);
     group.appendChild(slab);
     pj.items.forEach(pg => {
       const el = document.createElement('a');
@@ -2035,8 +2119,8 @@ function drawPrivate(all){
 
       const mob = document.createElement('button');
       mob.className = 'tile-more';
-      mob.title = 'Move or delete';
-      mob.setAttribute('aria-label', heading + ' — move or delete');
+      mob.title = 'Rename, move or delete';
+      mob.setAttribute('aria-label', heading + ' — rename, move or delete');
       mob.textContent = '\u22EF';
       mob.addEventListener('click', e => {
         e.preventDefault(); e.stopPropagation();
@@ -2120,20 +2204,17 @@ function alignSearch(){
   const mt = document.getElementById('mode-toggle');
   if(!mt || !mt.offsetWidth) return;
   if(window.innerWidth <= 640) return;   // mobile: the media-query layout owns positions
-  // Same arithmetic as the timeline's alignInfo (engine_patches.py), in the same CSS px:
-  // 35px circles, 12.5 apart, the row inset 30 from the corner. The timeline keeps its
-  // edit toggle in that corner (a 112.5px slot, 99.4 wide + 12.5 gap rounded to the
-  // zoomed pixel grid); a page here has none, but the row stays where it is on the
-  // timeline so nothing jumps on the way in or out. Set EDIT_SLOT to 0 to sit flush right.
-  const GAP = 12.5, W = 35, EDIT_SLOT = 112.5;
-  let right = 30 + EDIT_SLOT;
-  mt.style.right = right + 'px'; mt.style.bottom = '30px';
+  // 35px circles, 12.5 apart. The mode toggle is the account toggle's mirror image: the same 24px
+  // in from the corner and up from the bottom, on the right (the account sits bottom-left).
+  const GAP = 12.5, W = 35, INSET = 24;
+  let right = INSET;
+  mt.style.right = right + 'px'; mt.style.bottom = INSET + 'px';
   right += W + GAP;
   ['info-btn', 'search-btn'].forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
     el.style.right = right + 'px';
-    el.style.bottom = '30px';
+    el.style.bottom = INSET + 'px';
     right += W + GAP;
   });
 }

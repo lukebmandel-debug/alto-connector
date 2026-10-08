@@ -1,6 +1,6 @@
-"""The clef, the wordmark and the timeline's name each draw a hover line, drawn beside
-them so their boxes (and the homepage's parity with them) do not change. The browser
-parts are skipped when Playwright is not installed."""
+"""The clef, the wordmark and the timeline's name each draw a hover line that follows the
+shape of what is hovered (never a box), and no box on the page changes when it shows. The
+browser parts are skipped when Playwright is not installed."""
 import json
 import re
 from pathlib import Path
@@ -21,11 +21,13 @@ def html():
 
 def test_the_hover_lines_are_in_the_page_and_never_on_a_phone_or_in_print(html):
     assert html.count('<style id="alto-hl-css">') == 1 and html.count('<script id="alto-hl-js">') == 1
-    assert "html.mobile #title-bar .alto-hl, html.printing #title-bar .alto-hl{ display:none; }" in html
-    assert "#title-text:hover::after{ border-color:var(--muted); }" in html
-    # one visual pixel, as a border (an <svg> outline paints only its corners in WebKit)
-    assert "border:var(--chip-rule, 1px) solid transparent" in hover_lines.CSS
-    assert "outline" not in hover_lines.CSS
+    css = hover_lines.CSS
+    # every rule that shows a line is for a computer, outside print
+    for sel in ("brand-mark:hover .alto-ring", "brand-word:hover .alto-word", "#title-text:hover::before"):
+        line = next(l for l in css.splitlines() if sel in l)
+        assert "html:not(.mobile):not(.printing)" in line, sel
+    # a line that follows the shape: no box, no outline (an <svg> outline paints only its corners in WebKit)
+    assert "outline" not in css and "border" not in css and "alto-hl-mark" not in html
 
 
 try:
@@ -54,32 +56,57 @@ def browser(request):
 
 
 @needs_browser
-@pytest.mark.parametrize("w,h", [(1280, 800), (1500, 900), (1920, 1080)])
-def test_each_line_fits_its_mark_and_shows_on_hover(browser, html, tmp_path, w, h):
+@pytest.mark.parametrize("w,h", [(1280, 800), (1920, 1080)])
+@pytest.mark.parametrize("dark", [False, True])
+def test_each_line_hugs_its_shape_shows_on_hover_and_moves_nothing(browser, html, tmp_path, w, h, dark):
     f = tmp_path / "t.html"
     f.write_text(html, encoding="utf-8")
     pg = browser.new_page(viewport={"width": w, "height": h})
     pg.goto(f.as_uri()); pg.wait_for_timeout(2000)
-    probe = """(sel)=>{const m=document.querySelector(sel[0]), r=document.querySelector(sel[1]);
-      const a=m.getBoundingClientRect(), b=r.getBoundingClientRect(), c=getComputedStyle(r);
-      return {dl:a.left-b.left, dr:b.right-a.right, dt:a.top-b.top, db:b.bottom-a.bottom,
-              color:c.borderTopColor, width:c.borderTopWidth, inner:getComputedStyle(r,'::after')?1:0}}"""
-    for mark, ring in (("#title-bar .brand-mark", "#alto-hl-mark"), ("#title-bar .brand-word", "#alto-hl-word")):
-        z = pg.evaluate("parseFloat(document.documentElement.style.getPropertyValue('--alto-zoom'))||0.8")
-        before = pg.evaluate(probe, [mark, ring])
-        # the ring surrounds the mark with a little room each side, tight (not loose)
-        for k in ("dl", "dr"):
-            assert 2.0 * z <= before[k] <= 7.5 * z, (mark, k, before)
-        for k in ("dt", "db"):
-            assert 0.8 * z <= before[k] <= 5.5 * z, (mark, k, before)
-        assert before["color"] == "rgba(0, 0, 0, 0)"
-        pg.hover(mark); pg.wait_for_timeout(450)
-        after = pg.evaluate(probe, [mark, ring])
-        assert after["color"] != "rgba(0, 0, 0, 0)" and float(after["width"][:-2]) >= 0.9, (mark, after)
-        pg.mouse.move(w // 2, h - 5); pg.wait_for_timeout(450)
-    # the name: the line is a pseudo-element, so its own box is not touched
-    box0 = pg.evaluate("JSON.stringify(document.getElementById('title-text').getBoundingClientRect())")
-    pg.hover("#title-text"); pg.wait_for_timeout(450)
-    assert pg.evaluate("getComputedStyle(document.getElementById('title-text'),'::after').borderTopColor") != "rgba(0, 0, 0, 0)"
-    assert pg.evaluate("JSON.stringify(document.getElementById('title-text').getBoundingClientRect())") == box0
+    if dark:
+        pg.evaluate("document.documentElement.classList.add('dark')")
+    boxes = """()=>JSON.stringify(['#title-bar .brand-mark','#title-bar #title-text','#title-bar .brand-word','#back','#desk-back']
+        .map(s=>{const e=document.querySelector(s);if(!e)return null;const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height]}))"""
+    before = pg.evaluate(boxes)
+    # the clef: a copy of its strokes, a little wider, in the muted ink, behind it
+    ring = "document.querySelector('#title-bar .brand-mark .alto-ring')"
+    assert pg.evaluate(f"getComputedStyle({ring}).display") == "none"
+    pg.hover("#title-bar .brand-mark"); pg.wait_for_timeout(300)
+    assert pg.evaluate(f"getComputedStyle({ring}).display") != "none"
+    widths = pg.evaluate(f"[...{ring}.querySelectorAll('path')].map(p=>[+p.getAttribute('data-w'), +p.getAttribute('stroke-width')])")
+    assert len(widths) >= 8 and all(b > a > 0 for a, b in widths if a), widths
+    paint = pg.evaluate(f"getComputedStyle({ring}.querySelector('path')).stroke")
+    muted = pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--muted').trim()")
+    assert paint and paint != "none" and paint.startswith("rgb")
+    assert pg.evaluate(f"{ring}.nextElementSibling.classList.contains('alto-ink')")          # drawn behind the ink
+    pg.mouse.move(w // 2, h - 5); pg.wait_for_timeout(300)
+    assert pg.evaluate(f"getComputedStyle({ring}).display") == "none"
+    # the wordmark: its own letters take a stroke behind their fill
+    word = "document.querySelector('#title-bar .brand-word .alto-word')"
+    assert pg.evaluate(f"getComputedStyle({word}).stroke") == "none"
+    pg.hover("#title-bar .brand-word"); pg.wait_for_timeout(300)
+    assert pg.evaluate(f"getComputedStyle({word}).stroke") != "none"
+    assert float(pg.evaluate(f"getComputedStyle({word}).strokeWidth").rstrip("px")) > 0.5
+    assert pg.evaluate(f"getComputedStyle({word}).paintOrder").startswith("stroke")
+    pg.mouse.move(w // 2, h - 5); pg.wait_for_timeout(300)
+    # the name: a copy of its letters with a text stroke sits behind it
+    name = pg.evaluate("document.getElementById('title-text').textContent")
+    pg.hover("#title-text"); pg.wait_for_timeout(300)
+    assert pg.evaluate("getComputedStyle(document.getElementById('title-text'),'::before').content") == json.dumps(name)
+    assert float(pg.evaluate("getComputedStyle(document.getElementById('title-text'),'::before').webkitTextStrokeWidth").rstrip("px")) > 0.3
+    assert pg.evaluate("getComputedStyle(document.getElementById('title-text'),'::before').zIndex") == "-1"
+    # nothing moved
+    assert pg.evaluate(boxes) == before
+    pg.close()
+
+
+@needs_browser
+def test_the_name_has_no_hover_line_while_it_is_being_edited(browser, html, tmp_path):
+    f = tmp_path / "t.html"
+    f.write_text(html, encoding="utf-8")
+    pg = browser.new_page(viewport={"width": 1440, "height": 900})
+    pg.goto(f.as_uri()); pg.wait_for_timeout(2000)
+    pg.evaluate("document.documentElement.classList.add('alto-editing')")
+    pg.hover("#title-text"); pg.wait_for_timeout(300)
+    assert pg.evaluate("getComputedStyle(document.getElementById('title-text'),'::before').content") in ("none", "normal")
     pg.close()

@@ -180,6 +180,32 @@ def test_fold_writes_matching_edits_and_reports_conflicts():
     build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))
 
 
+def test_the_timelines_own_name_folds_into_the_draft_and_the_rebuilt_page_wears_it():
+    st = Store(_d())
+    t0 = st.doc["brief"]["title"]
+    st.edits = {"v": 1, "ops": {"bt|title": {"b": t0, "v": "Contract Law", "t": 1}}}
+    r = fold(st, "u", "t1")
+    assert r["folded"] == 1 and st.doc["brief"]["title"] == "Contract Law"
+    page = build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))[0]
+    assert '<span id="title-text">Contract Law</span>' in page and "<title>Contract Law \u2014 Alto Timeline</title>" in page
+    again = fold(st, "u", "t1")
+    assert again is None or again["folded"] == 0
+    # an edit made against another name than the draft's is a conflict: the draft wins
+    st2 = Store(_d())
+    st2.edits = {"v": 1, "ops": {"bt|title": {"b": "Some other name", "v": "X", "t": 1}}}
+    r2 = fold(st2, "u", "t1")
+    assert r2["conflicts"] == ["bt|title"] and st2.doc["brief"]["title"] == t0
+
+
+def test_the_page_lets_its_owner_rename_the_timeline_by_clicking_the_name():
+    from alto.build.manual_edit import MANUAL_JS, MANUAL_CSS
+    assert "if(kind === 'bt' && id === 'title' && p.length === 2)" in MANUAL_JS
+    assert MANUAL_JS.count("canvasKey(t) || unitKey(t) || titleKey(t)") == 2
+    assert "{el: te, k: 'bt|title'}" in MANUAL_JS and "root.classList.contains('mobile')) return null" in MANUAL_JS
+    assert "html.alto-editing:not(.mobile) #title-text" in MANUAL_CSS
+    assert "c.setHeading(m[1]" in MANUAL_JS
+
+
 def test_a_tree_step_and_an_entity_page_fold():
     d = _d()
     d["nodes"][0]["sections"].append({"h": "Tree", "t": "", "tree": {"nodes": [

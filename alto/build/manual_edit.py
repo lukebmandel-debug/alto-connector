@@ -16,6 +16,7 @@ Field keys ("|"-separated; ids are slugs):
   c|<id>|name  role   c|<id>|s|<i>|h  t   an entity page
   env|… theme|…                           an axis value's page (axis 1, axis 2)
   u|<i>|label                             a unit's name
+  bt|title                                the timeline's own name (the title bar; Brief.title)
   dt|<tree key>|<step>|title  text  edge  a decision-tree step (subtree.py)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
   p|<id>|slide                            a card slid along its own line, [dx, dy] (it alone)
@@ -225,6 +226,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing:not(.mobile) #canvas .node-card .node-tag:hover,
   html.alto-editing:not(.mobile) #canvas .node-card .node-desc:hover,
   html.alto-editing:not(.mobile) #canvas .phase-label-float:hover{outline-color:color-mix(in srgb,var(--accent,#a78bfa) 70%,transparent);}
+  html.alto-editing:not(.mobile) #title-text{outline:1.5px dashed transparent;outline-offset:5px;border-radius:3px;cursor:text;}
+  html.alto-editing:not(.mobile) #title-text:hover{outline-color:color-mix(in srgb,var(--accent,#a78bfa) 70%,transparent);}
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;}
@@ -1188,6 +1191,22 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   function slug(s){ return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, ''); }
 
+  // The timeline's own name: the title bar, the browser tab, the drawer on a phone. The
+  // homepage's list reads it from the account's listing record, which is told once it settles.
+  function setTimelineTitle(v){
+    v = String(v || '').replace(/\s+/g, ' ').trim();
+    var te = document.getElementById('title-text'); if(te) te.textContent = v;
+    var dt = document.getElementById('nav-drawer-title'); if(dt) dt.textContent = v;
+    if(v) document.title = v + ' \u2014 Alto Timeline';
+  }
+  var headT = null;
+  function headingSoon(){
+    clearTimeout(headT);
+    headT = setTimeout(function(){
+      var c = window.AltoCloud, m = /^\/pv\/([^\/]+)/.exec(location.pathname || ''), te = document.getElementById('title-text');
+      if(c && c.setHeading && m && te){ try{ c.setHeading(m[1], (te.textContent || '').replace(/\s+/g, ' ').trim()); }catch(e){} }
+    }, 600);
+  }
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
@@ -1222,6 +1241,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     }
     if(kind === 'u' && p[2] === 'short' && EDK.sh && (id in EDK.sh)){
       return {kind:'plain', get:function(){ return EDK.sh[id] || ''; }, set:function(v){ EDK.sh[id] = v; drawOvHead(+id); }};
+    }
+    if(kind === 'bt' && id === 'title' && p.length === 2){
+      var te = document.getElementById('title-text'); if(!te) return null;
+      return {kind:'plain', get:function(){ return (te.textContent || '').replace(/\s+/g, ' ').trim(); }, set:setTimelineTitle};
     }
     if(kind === 'ov' && id === 'html' && EDK.ov === 'authored' && OVROOT){
       return {kind:'ovhtml', sig:function(){ return EDK.ovh; }, get:function(){ return OVCUR; },
@@ -1514,6 +1537,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   var TYPE = {n:'node', c:'char', env:'env', theme:'theme'};
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
+    if(kind === 'bt'){ headingSoon(); return; }
     if(kind === 'nl' || kind === 'ln' || (kind === 'n' && (p[2] === 'when' || p[2] === 'line'))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
@@ -2964,6 +2988,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     var id = nodeEl.id.replace(/^node-/, ''), f = t.closest('.node-title,.node-tag,.node-desc'); if(!f) return null;
     return {el: f, k: 'n|' + id + '|' + f.className.match(/node-(title|tag|desc)/)[1]};
   }
+  function titleKey(t){
+    if(root.classList.contains('mobile')) return null;
+    var te = t.closest('#title-text'); return te ? {el: te, k: 'bt|title'} : null;
+  }
   function unitKey(t){
     var lb = t.closest('.phase-label-float'); if(!lb || !t.closest('#canvas')) return null;
     var all = Array.prototype.slice.call(document.querySelectorAll('#world .phase-label-float'));
@@ -3491,7 +3519,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing()) return;
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
-    var ck = canvasKey(t) || unitKey(t);
+    var ck = canvasKey(t) || unitKey(t) || titleKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
     if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
@@ -3531,7 +3559,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(stb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); openStudyEditor(stb.getAttribute('data-sk')); return; }
     var sb = t.closest('.aed-sc button,.aed-tc button,.aed-cc button,.aed-add,.aed-uc,.aed-flags button,.aed-chips button,.aed-nadd,.aed-nx');
     if(sb){ e.stopPropagation(); e.preventDefault(); if(cur) endField(true); structure(sb); return; }
-    var ck = canvasKey(t) || unitKey(t);
+    var ck = canvasKey(t) || unitKey(t) || titleKey(t);
     if(ck){ e.stopPropagation(); e.preventDefault(); startField(ck.el, ck.k); return; }
     var f = t.closest('[data-aed]');
     if(f){ e.stopPropagation(); e.preventDefault(); startField(f, f.getAttribute('data-aed')); return; }

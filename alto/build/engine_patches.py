@@ -2200,7 +2200,7 @@ _HELP_D_TAIL_NEW = (
     '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; Timeline</em> or Escape goes back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a photograph of space, nature or a city behind this timeline. Each timeline keeps its own.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this timeline (a bright picture in the light theme, a dim one in the dark). Each timeline keeps its own.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
@@ -2242,7 +2242,7 @@ _HELP_M_TAIL_NEW = (
     "    '    <h3>Search and filter</h3>',\n"
     "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards; double-tap it to switch every filter off, and again to bring them back.</p>',\n"
     "    '    <h3>Background</h3>',\n"
-    "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a photograph of space, nature or a city behind this timeline. Each timeline keeps its own.</p>',\n"
+    "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a colour, a pattern or a photograph behind this timeline. Each timeline keeps its own.</p>',\n"
     "    '    <h3>MARK and NOTES</h3>',\n"
     "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"

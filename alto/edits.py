@@ -416,6 +416,8 @@ def _target(key, brief, by_id, conns):
         return acts[i], p[2], "para" if p[2] == "summary" else "plain"
     if key == "ov|html":
         return brief, "overview_html", "ovhtml"
+    if key == "bt|title":
+        return brief, "title", "plain"
     if kind == "dt" and len(p) == 3 and p[2] == "tree":
         t = _dt_section(p[1], brief, by_id)
         return (t[0], "tree", "tree") if t and (t[0].get("tree") or {}).get("nodes") else None

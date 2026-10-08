@@ -349,13 +349,16 @@ Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
   own cluster labels, so the noun never appears there.
 
 ### B1b. Backgrounds (the owner's own choice, not part of the build)
-Every timeline, and the homepage, lets its owner put a photograph behind it:
-space, nature or a city (six of each). On a computer it is the picture tab at
-the foot of the right-hand rail; on a phone the SCENE tile above INFO. The
-choice is per timeline, kept on every device the owner uses, needs no rebuild,
-and a share's viewers choose for themselves. Each photograph is public domain,
-CC0 or CC BY, credited in the picker. Never offer to set one for the user, and
-never describe it as part of building a timeline: it is theirs to pick.
+Every timeline, and the homepage, lets its owner choose what is behind it: a
+plain color (twelve, or one of their own), a pattern (eight), or a photograph
+of space, nature or a city (six of each, each with a bright picture for the
+light theme and a dim one for the dark; the picker shows the pair for the theme
+in use). On a computer it is the picture tab at the foot of the right-hand rail;
+on a phone the SCENE tile above INFO. The choice is per timeline, kept on every
+device the owner uses, needs no rebuild, and a share's viewers choose for
+themselves. Each photograph is public domain, CC0 or CC BY, credited in the
+picker. Never offer to set one for the user, and never describe it as part of
+building a timeline: it is theirs to pick.
 
 ### B2. The Filter toggle (`chip_filters`, `line_filter`)
 Every timeline has one **Filter** toggle — a tab on the right edge on desktop
@@ -918,6 +921,14 @@ account". If the prompt names a site (the address after "page:") that no
 account lists, `connect_account` it. Never tell the user it does not exist.
 Then ask what they want changed, or take the notes they bring, and go on as
 above. A share link someone else opens has no edit toggle.
+
+**Renaming on the homepage and in a timeline.** The ⋯ on a private timeline's
+card has Rename timeline…, and the pencil beside a project's name renames the
+project (all its timelines follow; two projects are never merged by a rename).
+In a timeline, in edit mode, clicking its name in the top bar renames it. A
+rename made on the homepage rewrites the page and the draft's title at once; one
+made in the timeline's edit mode is an edit that is folded into the draft the next
+time the timeline is built. Neither needs Claude, and neither needs a rebuild.
 
 **Moving and deleting timelines on the homepage.** The ⋯ on a private
 timeline's card moves it to another project (or a new one) — its page, its

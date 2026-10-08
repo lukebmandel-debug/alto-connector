@@ -105,6 +105,25 @@
       if (!configured) throw new Error('sync not configured');
       await ready; return _moveTimeline(key, tid, project);
     },
+    renameTimeline: async (key, tid, title) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _renameTimeline(key, tid, title);
+    },
+    // the listing record's name for a timeline, told by the page when its owner renames it there
+    setHeading: async (key, heading) => {
+      if (!configured) return false;
+      await ready;
+      const u = auth.currentUser;
+      if (!u || !key || !/^[A-Za-z0-9_-]{8,64}$/.test(key)) return false;
+      const h = _cleanTitle(heading);
+      if (!h) return false;
+      await setDoc(doc(db, 'users', u.uid, 'pagemeta', key), { heading: h }, { merge: true });
+      return true;
+    },
+    renameProject: async (from, to) => {
+      if (!configured) throw new Error('sync not configured');
+      await ready; return _renameProject(from, to);
+    },
     binTimeline: async (key) => {
       if (!configured) throw new Error('sync not configured');
       await ready; return _binTimeline(key);
@@ -898,6 +917,81 @@
     }
     await setDoc(doc(db, 'users', uid, 'pagemeta', key), { project: pname, title: pname }, { merge: true });
     return { project: pname };
+  }
+  /* ── renaming ─────────────────────────────────────────────────────────────
+     A timeline's name is the page's <title>, its title bar and drawer, and —
+     where the connector keeps drafts in the account — the draft's brief title,
+     so the next build from the draft keeps the new name. A project's name is
+     the project record's name and, on each of its timelines, the page's
+     alto-label (the same rewrite a move makes). Nothing else is touched, and a
+     share link's copy keeps the name it was shared under until it is updated. */
+  function _retitle(html, name) {
+    const esc = _attr(name);
+    let out = String(html);
+    out = out.replace(/(<title>)([^<]*?)(\s*—\s*Alto(?:\s+Timeline)?\s*)(<\/title>)/i,
+                      (m, a, b, c, d) => a + esc + c + d);
+    out = out.replace(/(<span id="title-text">)([^<]*)(<\/span>)/, (m, a, b, c) => a + esc + c);
+    out = out.replace(/(<span id="nav-drawer-title">)([^<]*)(<\/span>)/, (m, a, b, c) => a + esc + c);
+    return out;
+  }
+  async function _renameTimeline(key, tid, title) {
+    const uid = _uidOrThrow();
+    const name = _cleanTitle(title);
+    if (!name) throw new Error('no name');
+    if (tid && /^[a-z0-9][a-z0-9-]{0,63}$/.test(tid)) {
+      const tref = doc(db, 'users', uid, 'alto_timelines', tid);
+      const ts = await getDoc(tref);
+      if (ts.exists()) {
+        let t = null; try { t = JSON.parse((ts.data() || {}).data || 'null'); } catch (e) {}
+        if (t && t.brief) {
+          t.brief.title = name;
+          await setDoc(tref, { data: JSON.stringify(t) }, { merge: true });
+        }
+      }
+    }
+    const pref = doc(db, 'users', uid, 'pages', key);
+    const ps = await getDoc(pref);
+    let wrote = false;
+    if (ps.exists()) {
+      const html = await _unpackPage(ps.data());
+      const share = (ps.data() || {}).shareKey || '';
+      if (html) {
+        const out = _retitle(html, name);
+        await _putPage(key, out, _metaOf(out).project || '');
+        if (share) await setDoc(pref, { shareKey: share }, { merge: true });
+        wrote = true;
+      }
+    }
+    if (!wrote) await setDoc(doc(db, 'users', uid, 'pagemeta', key), { heading: name }, { merge: true });
+    return { title: name };
+  }
+  async function _renameProject(from, to) {
+    const uid = _uidOrThrow();
+    const oldName = _cleanProject(from), pname = _cleanProject(to);
+    if (!pname) throw new Error('no name');
+    const lc = (x) => String(x).toLowerCase();
+    const mine = [];
+    let clash = false;
+    (await getDocs(collection(db, 'users', uid, 'pagemeta'))).forEach((d) => {
+      const v = d.data() || {};
+      const p = _cleanProject(v.project || v.title || v.heading || '');
+      if (lc(p) === lc(oldName)) mine.push({ key: d.id, tid: v.tid || '' });
+      else if (lc(p) === lc(pname)) clash = true;
+    });
+    if (clash) throw new Error('There is already a project called “' + pname + '”.');
+    if (!mine.length) throw new Error('That project has no timelines to rename.');
+    // the project records first, so each move below finds the renamed one
+    const recs = [];
+    (await getDocs(collection(db, 'users', uid, 'alto_projects'))).forEach((d) => {
+      let v = null; try { v = JSON.parse((d.data() || {}).data || 'null'); } catch (e) {}
+      if (v && lc(_cleanProject(v.name)) === lc(oldName)) {
+        v.name = pname;
+        recs.push(setDoc(d.ref, { data: JSON.stringify(v) }, { merge: true }));
+      }
+    });
+    await Promise.all(recs);
+    for (const t of mine) await _moveTimeline(t.key, t.tid, pname);
+    return { project: pname, moved: mine.length };
   }
   async function _binTimeline(key) {
     const uid = _uidOrThrow();

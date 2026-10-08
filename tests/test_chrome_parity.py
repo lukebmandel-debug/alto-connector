@@ -88,6 +88,7 @@ SHARED = {"clef": "#title-bar .brand-mark", "word": "#title-bar .brand-word", "b
           "search": "#search-btn", "search-svg": "#search-btn svg", "info": "#info-btn",
           "info-svg": "#info-icon svg", "mode": "#mode-toggle", "mode-svg": "#mode-toggle svg.mode-glyph:not([style*=none])",
           "account": "#account-btn", "account-svg": "#account-btn svg"}
+TOGGLES = {"search", "search-svg", "info", "info-svg", "mode", "mode-svg"}
 RECT = """(sel)=>{const o={};for(const [n,s] of Object.entries(sel)){const e=[...document.querySelectorAll(s)]
   .find(x=>x.getBoundingClientRect().width>0);if(!e){o[n]=null;continue}const r=e.getBoundingClientRect(),c=getComputedStyle(e);
   o[n]=[r.x,r.y,r.width,r.height,parseFloat(c.fontSize),parseFloat(c.borderTopLeftRadius)||0,c.borderRadius]}return o}"""
@@ -137,6 +138,10 @@ def test_shared_chrome_is_identical_on_the_homepage_and_a_timeline(browser, file
         assert a[name] and b[name], name
         for i, (u, v) in enumerate(zip(a[name][:6], b[name][:6])):
             if name == "bar" and i == 5:
+                continue
+            # the homepage's bottom-right toggles sit where the account toggle's mirror image is (1.9.60), not
+            # where the timeline keeps them beside its edit toggle: only their size, type and shape are shared
+            if name in TOGGLES and i < 2:
                 continue
             assert abs(u - v) < 0.06, (name, i, a[name], b[name])
         assert a[name][6] == b[name][6], (name, a[name][6], b[name][6])
