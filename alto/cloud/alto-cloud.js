@@ -6,8 +6,8 @@
    per id with {deleted} tombstones, 25-newest cap; theme last-change-wins),
    generalized to many timelines per user:
 
-     users/{uid}                      — { theme, homeSort, homeSortAt }   (account-wide)
-     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, updatedAt }
+     users/{uid}                      — { theme, homeSort, homeSortAt, homeBg, homeBgAt }   (account-wide)
+     users/{uid}/tl/{tid}             — { highlights, hl_removed, hl_trash, hl_trash_purged, fw, study, bg, bgAt, updatedAt }
      users/{uid}/tl/{tid}/reports/{id}— { data, deleted, ts }
      users/{uid}/pages/{key}          — { html, updatedAt }
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
@@ -240,6 +240,8 @@
   let ST_KEY = TID ? `alto-hl-${TID}-st` : null;      // flash-card marks and quiz scores (study.py)
   const TH_KEY = 'alto-theme-v1';
   const SORT_KEY = 'alto-home-sort-v1';       // the homepage's project order
+  const HBG_KEY = 'alto-bg-home-v1';          // the homepage's (and reports') background: {v, t}
+  let BG_KEY = TID ? `alto-hl-${TID}-bg` : null;   // this timeline's background: {v, t}
   let META_KEY = TID ? `alto-cloud-meta-v3-${TID}` : 'alto-cloud-meta-v3';
   const RP_CAP = 25, TOMB_CAP = 800, TRASH_CAP = 200;
 
@@ -427,8 +429,41 @@
         }
       }
 
+      /* ---- homepage background (account-wide; the newest choice wins) ----
+         The same {v, t} pair as the homepage sort: kept locally, carried by the
+         account document, and the later t wins in both directions. v is a
+         backgrounds.py id, or '' for the Alto wallpaper (a choice too). */
+      {
+        let ls = null;
+        try { ls = JSON.parse(origGet(HBG_KEY) || 'null'); } catch (e) {}
+        const rs = remoteUser && remoteUser.homeBgAt
+          ? { v: String(remoteUser.homeBg || ''), t: Number(remoteUser.homeBgAt) || 0 } : null;
+        if (ls && typeof ls.v === 'string' && (!rs || (Number(ls.t) || 0) > rs.t)) {
+          await setDoc(userRef, { homeBg: ls.v, homeBgAt: Number(ls.t) || Date.now(),
+                                  updatedAt: serverTimestamp() }, { merge: true });
+        } else if (rs && (!ls || rs.t > (Number(ls.t) || 0))) {
+          origSet(HBG_KEY, JSON.stringify(rs));
+          try { window.dispatchEvent(new Event('alto-bg')); } catch (e) {}
+        }
+      }
+
       if (TID) {
         const mainRef = doc(db, 'users', uid, 'tl', TID);
+
+        /* ---- this timeline's background (the newest choice wins) ---- */
+        if (BG_KEY) {
+          let ls = null;
+          try { ls = JSON.parse(origGet(BG_KEY) || 'null'); } catch (e) {}
+          const rs = remoteMain && remoteMain.bgAt
+            ? { v: String(remoteMain.bg || ''), t: Number(remoteMain.bgAt) || 0 } : null;
+          if (ls && typeof ls.v === 'string' && (!rs || (Number(ls.t) || 0) > rs.t)) {
+            await setDoc(mainRef, { bg: ls.v, bgAt: Number(ls.t) || Date.now(),
+                                    updatedAt: serverTimestamp() }, { merge: true });
+          } else if (rs && (!ls || rs.t > (Number(ls.t) || 0))) {
+            origSet(BG_KEY, JSON.stringify(rs));
+            try { window.dispatchEvent(new Event('alto-bg')); } catch (e) {}
+          }
+        }
 
         /* ---- highlights ---- */
         // A note still being typed (the "+" placeholder, flagged `pending`) stays
@@ -547,7 +582,7 @@
   // the method on the object itself, so local changes never triggered a sync there.
   Storage.prototype.setItem = function (k, v) {
     nativeSet.call(this, k, v);
-    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY)) requestSync('local-change');
+    if (this === localStorage && cloud.user && (k === HL_KEY || k === TR_KEY || k === FW_KEY || k === ST_KEY || k === RP_KEY || k === TH_KEY || k === SORT_KEY || k === HBG_KEY || (BG_KEY && k === BG_KEY))) requestSync('local-change');
   };
 
   window.addEventListener('storage', ev => {
@@ -1220,7 +1255,7 @@
     tid = String(tid || '');
     if (!tid || tid === TID) return false;
     TID = tid; cloud.tid = tid;
-    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`;
+    HL_KEY = `alto-hl-${tid}`; RP_KEY = `alto-rp-${tid}`; TR_KEY = `alto-hl-${tid}-trash`; FW_KEY = `alto-hl-${tid}-fw`; ST_KEY = `alto-hl-${tid}-st`; BG_KEY = `alto-hl-${tid}-bg`;
     META_KEY = `alto-cloud-meta-v3-${tid}`;
     meta = loadMeta();
     if (cloud.user) subscribeTl(cloud.user);

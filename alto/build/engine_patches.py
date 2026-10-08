@@ -1718,18 +1718,11 @@ _CTRL_NEW = (_CTRL_OLD + "\n"
              "@media (max-width:1100px){ html:not(.mobile) #desk-back{ width:35px; padding:0; }\n"
              "  html:not(.mobile) #desk-back .db-label{ display:none; } }\n"
              "html.printing #desk-back{ display:none !important; }\n"
-             # The right-edge tabs, the clef, the wordmark and the timeline's name all
-             # lead somewhere, and each says so with the same hair line round it on
-             # hover. The overview star was the one tab without it: its glass border
-             # is !important, so the plain :hover rule never showed (the same trap as
-             # light/dark and Notes above). The clef and wordmark go to the homepage,
-             # the name to the top of the timeline.
-             "html:not(.mobile) #overview-toggle:hover{ border-color:var(--muted) !important; }\n"
-             "html:not(.mobile) #title-bar .brand-mark, html:not(.mobile) #title-bar .brand-word,\n"
-             "html:not(.mobile) #title-text{ border-radius:9px; outline:1px solid transparent; outline-offset:3px;\n"
-             "  transition:outline-color .18s; }\n"
-             "html:not(.mobile) #title-bar .brand-mark:hover, html:not(.mobile) #title-bar .brand-word:hover,\n"
-             "html:not(.mobile) #title-text:hover{ outline-color:var(--muted); }")
+             # The overview star was the one right-edge tab with no hover line: its glass
+             # border is !important, so the plain :hover rule never showed (the same trap as
+             # light/dark and Notes above). The clef, the wordmark and the timeline's name
+             # have theirs in hover_lines.py.
+             "html:not(.mobile) #overview-toggle:hover{ border-color:var(--muted) !important; }")
 _MODE_BTN_OLD = '<button id="mode-toggle" onclick="toggleMode()">\u263d Dark</button>'
 _MODE_BTN_NEW = (
     '<button id="mode-toggle" type="button" onclick="toggleMode()" aria-label="Light or dark" title="Light or dark">'
@@ -1840,7 +1833,7 @@ _RW_FIXED = ("#title-bar, #nav-drawer-overlay, #nav-drawer, #nav, #timeline-labe
              "#hl-color-palette, #hl-dot-btn, #tutorial-toggle, #tutorial-wrap, #info-btn, "
              "#timeline-return-pill, #wrap-warn-bar, #alto-icon-tip, #m-search, #m-search-results, "
              "#share-dialog, #account-btn, #account-scrim, #msp, #search-toggle, #ef-panel, "
-             "#filter-toggle")
+             "#filter-toggle, #bg-panel, #bg-toggle")
 # body overflow-x:clip: the closed panels wait just off the right edge, and as
 # part of the page they made it twice the screen's width, which an iPhone pans
 # into (overflow-x:hidden on the root does not stop a finger in iOS Safari).
@@ -1867,12 +1860,12 @@ html.mobile.rw #nav:not(#_)::before{ content:''; position:absolute; left:0; righ
   -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%); }
 html.mobile.rw :is(""" + _RW_FIXED + """):not(#_), html.mobile.rw .rw-abs:not(#_){ position:absolute !important; }
 html.mobile.rw :is(#nav-drawer, #nav-drawer-overlay, #notes-panel, #minimap-wrap, #tutorial-wrap, #msp,
-  #ef-panel, #account-scrim):not(#_){ top:-80px !important; bottom:-140px !important; height:auto !important;
+  #ef-panel, #bg-panel, #account-scrim):not(#_){ top:-80px !important; bottom:-140px !important; height:auto !important;
   padding-bottom:140px !important; }
-html.mobile.rw #ef-panel:not(#_){ padding-bottom:0 !important; }
+html.mobile.rw :is(#ef-panel, #bg-panel):not(#_){ padding-bottom:0 !important; }
 html.mobile.rw :is(#minimap-header, #tutorial-header):not(#_){ position:relative !important; }
 html.mobile.rw #msp:not(#_){ padding-top:80px !important; }
-html.mobile.rw :is(#notes-header, #minimap-header, #tutorial-header, #ef-panel > .ef-head):not(#_){
+html.mobile.rw :is(#notes-header, #minimap-header, #tutorial-header, #ef-panel > .ef-head, #bg-panel > .bg-head):not(#_){
   padding-top:96px !important; height:auto !important; }
 html.mobile.rw #nav-drawer-header:not(#_){ padding-top:98px !important; height:auto !important; }
 html.mobile.rw #detail-page:not(#_){ bottom:-140px !important; padding-bottom:240px !important; }
@@ -2207,6 +2200,7 @@ _HELP_D_TAIL_NEW = (
     '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; Timeline</em> or Escape goes back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a photograph of space, nature or a city behind this timeline. Each timeline keeps its own.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
@@ -2247,6 +2241,8 @@ _HELP_M_TAIL_NEW = (
     "    '    <p>Tap <strong>Overview</strong> in <strong>MENU</strong> to read the summary. Tap a phrase there to jump to its card.</p>',\n"
     "    '    <h3>Search and filter</h3>',\n"
     "    '    <p>Tap <strong>Search</strong> at the top to find a card, page or phrase (on a detail page it is <strong>FIND</strong>, bottom-left). <strong>FILTER</strong> narrows the cards; double-tap it to switch every filter off, and again to bring them back.</p>',\n"
+    "    '    <h3>Background</h3>',\n"
+    "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a photograph of space, nature or a city behind this timeline. Each timeline keeps its own.</p>',\n"
     "    '    <h3>MARK and NOTES</h3>',\n"
     "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"

@@ -72,6 +72,8 @@ PACKAGE_INCLUDE = [
     ("alto/cloud", "*.js"),
     ("alto/assets", "*.svg"),
     ("alto/assets/png", "*.png"),
+    ("alto/assets/backgrounds", "*.jpg"),
+    ("alto/assets/backgrounds/t", "*.jpg"),
 ]
 
 

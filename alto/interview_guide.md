@@ -348,6 +348,15 @@ Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
   homepage tile shows it ("6 Units"); the bands themselves show numerals + your
   own cluster labels, so the noun never appears there.
 
+### B1b. Backgrounds (the owner's own choice, not part of the build)
+Every timeline, and the homepage, lets its owner put a photograph behind it:
+space, nature or a city (six of each). On a computer it is the picture tab at
+the foot of the right-hand rail; on a phone the SCENE tile above INFO. The
+choice is per timeline, kept on every device the owner uses, needs no rebuild,
+and a share's viewers choose for themselves. Each photograph is public domain,
+CC0 or CC BY, credited in the picker. Never offer to set one for the user, and
+never describe it as part of building a timeline: it is theirs to pick.
+
 ### B2. The Filter toggle (`chip_filters`, `line_filter`)
 Every timeline has one **Filter** toggle — a tab on the right edge on desktop
 (under Notes), a tile at the bottom-left on a phone — and every filter lives in

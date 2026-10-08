@@ -259,6 +259,15 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # Emitted, not copied: the Firebase project comes from the publisher's own
     # ALTO_FIREBASE_CONFIG, and is empty (sync off) when they have not set one.
     write_cloud_js(site / "alto-cloud.js")
+    # The photographs a user can choose as a background (build/backgrounds.py),
+    # in a versioned folder the headers let browsers keep for a year.
+    from .build.backgrounds import BG_V
+    bg_src = Path(__file__).resolve().parent / "assets" / "backgrounds"
+    bg_out = site / "bg"
+    if bg_out.exists():
+        shutil.rmtree(bg_out)
+    if bg_src.is_dir():
+        shutil.copytree(bg_src, bg_out / f"v{BG_V}")
     pdir = site / "privacy"
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
@@ -332,6 +341,11 @@ def _headers(csp: str, connect_csp: str) -> list[dict]:
             # file this site serves is HTML or JS, so no-cache costs one
             # conditional request and makes a publish mean what it says.
             {"key": "Cache-Control", "value": "no-cache"},
+        ]},
+        # The background photographs are versioned by folder (/bg/v1/) and never
+        # change under that name, so they are kept, unlike the pages around them.
+        {"source": "/bg/**", "headers": [
+            {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
         ]},
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).

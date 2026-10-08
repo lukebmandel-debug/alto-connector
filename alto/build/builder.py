@@ -7,7 +7,8 @@ from pathlib import Path
 
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes
-from .blocks import timeline_blocks, connections_block
+from .blocks import timeline_blocks, connections_block, ID_PATTERNS
+from . import backgrounds, hover_lines
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
@@ -209,6 +210,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     template = engine_template("timeline_template.html")
     html = apply_patches(emit(template, regions, tokens))
     html = _add_tail(html, brief, nodes, warnings, trees, study)
+    html = _add_background_head(html, brief)
 
     # Deep links that survived sanitize (unknown ones were demoted) must reach
     # the output as engine chip markup — assert each one did.
@@ -233,6 +235,19 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
         "connections": len(connections),
     }
     return html, report
+
+
+def _add_background_head(html: str, brief: Brief) -> str:
+    """The script that applies this timeline's chosen background before first
+    paint (backgrounds.py). Its key is spelled with the page's own hl key, so a
+    share, which re-stamps that, keeps its own choice apart from the master's."""
+    key = ID_PATTERNS["hl_key"].format(tid=brief.timeline_id) + "-bg"
+    anchor = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
+    if html.count(anchor) != 1:
+        raise VerifyError(["page has no single theme-color tag for the background script"])
+    # ahead of the tag, not after it: engine_patches appends the mobile runway
+    # right behind it and every patch's text must stay in one piece
+    return html.replace(anchor, backgrounds.head_block(key) + "\n" + anchor, 1)
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
@@ -261,7 +276,8 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {})
-            + manual_edit(brief, nodes) + print_views())
+            + manual_edit(brief, nodes) + print_views()
+            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block())
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])

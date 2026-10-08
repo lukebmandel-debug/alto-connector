@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import backgrounds
 from .brief import Brief, PALETTE, period_words
 from .emit import emit
 from .sanitize import js_json
@@ -186,8 +187,8 @@ def _rep(html: str, old: str, new: str, n: int, label: str) -> str:
 _HOME_RW_HEAD_OLD = '<meta name="theme-color" id="meta-theme" content="#ffc59e">'
 _RW_FIXED = ("#page-bg, #page-glass, #title-bar, #search-btn, #account-btn, #info-btn, "
              "#mode-toggle, #account-scrim")
-_HOME_RW_FIXED = _RW_FIXED + ", #dl-scrim, #download-all, #claude-toast, .share-scrim"
-_REPORTS_RW_FIXED = _RW_FIXED + ", #repo-toast"
+_HOME_RW_FIXED = _RW_FIXED + ", #dl-scrim, #download-all, #claude-toast, .share-scrim, #bg-toggle, #bg-panel"
+_REPORTS_RW_FIXED = _RW_FIXED + ", #repo-toast, #bg-toggle, #bg-panel"
 
 
 def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
@@ -229,18 +230,22 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
 </style>"""
 
 
-_HOME_RW_HEAD_NEW = _HOME_RW_HEAD_OLD + _rw_head(
-    "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim")
+# The homepage's and the reports page's background choice (backgrounds.py): one key
+# for both, applied in <head> ahead of everything else.
+HOME_BG_KEY = "alto-bg-home-v1"
+_HOME_RW_HEAD_NEW = backgrounds.head_block(HOME_BG_KEY) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
+    "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim, #bg-panel")
 # Reports had none of the runway, and not even viewport-fit=cover until a
 # script re-applied the viewport 100ms after load — so Safari painted flat
 # bars top and bottom there. Its viewport tag gets cover from the start, and
 # the same head block (it has no theme-color tag to anchor on).
 _REPORTS_RW_HEAD_OLD = '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
 _REPORTS_RW_HEAD_NEW = ('<meta name="viewport" content="width=device-width, initial-scale=1.0, '
-                        'viewport-fit=cover">' + _rw_head("#reports-wrap", _REPORTS_RW_FIXED,
-                                                          "#account-scrim"))
+                        'viewport-fit=cover">' + backgrounds.head_block(HOME_BG_KEY)
+                        + _rw_head("#reports-wrap", _REPORTS_RW_FIXED, "#account-scrim, #bg-panel"))
 _HOME_RW_TAIL_OLD = "</body>"
 _HOME_RW_TAIL_NEW = runway_script() + "</body>"
+_BG_UI = backgrounds.ui_block("Homepage and reports", rail=False)
 
 
 def build_home(projects: list[dict]) -> str:
@@ -268,7 +273,7 @@ def build_home(projects: list[dict]) -> str:
     template = _rep(template, _HOME_CLOSE_OLD, _HOME_CLOSE_NEW, 1, "home search render hook")
     template = _rep(template, _HOME_PROJ_OLD, _HOME_PROJ_NEW, 1, "home search card project")
     template = _rep(template, _HOME_RW_HEAD_OLD, _HOME_RW_HEAD_NEW, 1, "home runway (head)")
-    template = _rep(template, _HOME_RW_TAIL_OLD, sx_block(HOME_ROW_JS) + _HOME_RW_TAIL_NEW, 1,
+    template = _rep(template, _HOME_RW_TAIL_OLD, sx_block(HOME_ROW_JS) + _BG_UI + _HOME_RW_TAIL_NEW, 1,
                     "home runway (script)")
     regions = {
         "projects": projects_const(projects),
@@ -306,7 +311,7 @@ def build_reports(courses: list[dict], default_course: str) -> str:
     template = _rep(template, _REPORTS_RW_HEAD_OLD, _REPORTS_RW_HEAD_NEW, 1, "reports runway (head)")
     # the page's own "</body>" also appears inside a JS string (the print
     # document it assembles), so anchor on the closing pair
-    template = _rep(template, "</body>\n</html>", runway_script() + "</body>\n</html>", 1,
+    template = _rep(template, "</body>\n</html>", _BG_UI + runway_script() + "</body>\n</html>", 1,
                     "reports runway (script)")
     regions = {"course_meta": course_meta_const(courses)}
     tokens = {"default_course":

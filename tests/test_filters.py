@@ -223,13 +223,9 @@ def test_double_clicking_the_filter_toggle_switches_filters_off_and_on():
     assert "#filter-toggle{touch-action:manipulation;}" in filter_panel_css()
 
 
-def test_every_control_that_leads_somewhere_draws_a_hover_line():
+def test_the_overview_star_draws_a_hover_line_like_its_neighbours():
     """The overview star's !important glass border swallowed its plain :hover
-    rule, so it was the one right-edge tab with no hover line. The clef, the
-    wordmark (both go to the homepage) and the timeline's name (the top of the
-    timeline) draw the same hair line round them."""
+    rule, so it was the one right-edge tab with no hover line. (The clef, the
+    wordmark and the timeline's name have theirs in hover_lines.py.)"""
     html, _ = _build(_sample())
     assert "html:not(.mobile) #overview-toggle:hover{ border-color:var(--muted) !important; }" in html
-    assert "html:not(.mobile) #title-text{ border-radius:9px; outline:1px solid transparent; outline-offset:3px;" in html
-    assert ("html:not(.mobile) #title-bar .brand-mark:hover, html:not(.mobile) #title-bar .brand-word:hover,\n"
-            "html:not(.mobile) #title-text:hover{ outline-color:var(--muted); }") in html

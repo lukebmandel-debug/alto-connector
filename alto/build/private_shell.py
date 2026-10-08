@@ -132,11 +132,20 @@ _JS = """
   // longer than QUIET_MS, and for anything the owner has to read or do.
   var QUIET_MS = 1500, root = document.documentElement;
   function quiet(){
+    var dark = false;
     root.classList.add('alto-quiet');
-    try{ if(localStorage.getItem('alto-theme-v1') === 'dark') root.classList.add('alto-quiet-dark'); }catch(e){}
+    try{ dark = localStorage.getItem('alto-theme-v1') === 'dark'; if(dark) root.classList.add('alto-quiet-dark'); }catch(e){}
+    // A timeline whose owner chose a photograph for its background opens on that
+    // photograph's colour, not the Alto wallpaper (the page remembers it: backgrounds.py).
+    try{
+      var q = (JSON.parse(localStorage.getItem('alto-bgq-v1') || '{}') || {})['pv/' + KEY];
+      if(q && q[dark ? 1 : 0]){ root.style.background = q[dark ? 1 : 0]; (document.body || root).style.background = q[dark ? 1 : 0]; }
+    }catch(e){}
     setTimeout(loud, QUIET_MS);
   }
-  function loud(){ root.classList.remove('alto-quiet'); }
+  function loud(){
+    root.classList.remove('alto-quiet'); root.style.background = ''; if(document.body) document.body.style.background = '';
+  }
 
   // The deploy this shell came from. Every publish redeploys the site, so a
   // cached copy stored under an older deploy may be older than the page in
