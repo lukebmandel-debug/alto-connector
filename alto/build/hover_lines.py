@@ -16,7 +16,7 @@ and pixel density:
     fill would only make the name bold.
 
 The stroke is sized from the mark's drawn size (the title bar is drawn at the page
-zoom), so it is about a pixel and a half wherever the page is zoomed. No box around
+zoom), so it is about half a pixel wherever the page is zoomed. No box around
 anything changes (the way-back button keeps its distance from the clef; the homepage
 and a timeline keep their title bars identical), and a phone has no hover.
 
@@ -49,8 +49,8 @@ html:not(.mobile):not(.printing):not(.alto-editing) #title-bar #title-text:hover
 
 # The line is this many drawn pixels wide outside the shape; the strokes below are twice it
 # (half of a stroke is under the shape).
-LINE = 1.0
-TLINE = 0.6      # the name's letters are thin serifs: a finer line
+LINE = 0.4
+TLINE = 0.25     # the name's letters are thin serifs: a finer line
 
 JS = r"""(function(){
   var bar=document.getElementById('title-bar'); if(!bar || bar.getAttribute('data-hl')) return; bar.setAttribute('data-hl','1');

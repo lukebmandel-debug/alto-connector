@@ -277,6 +277,12 @@ html.alto-bg #page-bg::after{ content:''; position:absolute; inset:0; pointer-ev
 html.alto-bg #page-glass:not(#_){ background:none !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 html.alto-bg:not(.mobile) #glass-slab{ -webkit-backdrop-filter:none !important; backdrop-filter:none !important; opacity:.5; }
 html.alto-bg:not(.mobile) .phase-band{ opacity:.35; }
+/* A node's detail page is glass over the wallpaper too (a dark or pale tint and a 50px blur that left a
+   photograph as a smudge); with a background chosen it is the photograph itself, as in the timeline. */
+html.alto-bg #detail-page:not(#_){ background:none !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
+/* Enlarging a card pans the board a little; the slab counter-moves sideways only, so on a photograph its top
+   edge came down below the bars and left a strip of bare, darker photograph above it. Here it holds still. */
+html.alto-bg:not(.mobile) #world #glass-slab:not(#_){ translate:calc(-1 * var(--pan-x,0px)) calc(-1 * var(--pan-y,0px)); }
 html.printing.alto-bg #page-bg::before, html.printing.alto-bg #page-bg::after{ display:none; }
 """
 

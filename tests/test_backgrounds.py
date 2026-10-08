@@ -137,8 +137,9 @@ def test_a_timeline_applies_its_choice_before_first_paint_and_carries_the_picker
 
 
 def test_every_rule_of_the_photo_css_is_inert_without_the_class():
-    sel = [s.strip() for blk in re.findall(r"([^{}]+)\{", bg.CSS) for s in blk.split(",")]
-    sel = [s for s in sel if s and not s.startswith("/*") and "*/" not in s]
+    css = re.sub(r"/\*.*?\*/", "", bg.CSS, flags=re.S)
+    sel = [s.strip() for blk in re.findall(r"([^{}]+)\{", css) for s in blk.split(",")]
+    sel = [s for s in sel if s]
     assert sel and all(re.match(r"html\.(printing\.)?alto-bg", s) for s in sel), \
         [s for s in sel if not re.match(r"html\.(printing\.)?alto-bg", s)]
 
@@ -407,6 +408,43 @@ def test_a_photographs_subject_lands_clear_of_the_top_bars_whatever_the_window(b
                 assert 0 < r["subjX"] < r["w"], (sc["id"], dark, w, r)
                 assert r["covers"], (sc["id"], dark, w, r)                               # and the picture still fills it
         pg.close()
+
+
+@needs_browser
+def test_a_detail_page_shows_the_photograph_in_full_and_an_enlarged_card_leaves_no_bare_strip(browser, site):
+    """The detail page used to be dark/pale glass with a 50px blur over the wallpaper (a smudge of the
+    photograph), and enlarging the first card panned the board down while the unit-colour slab only
+    held still sideways: a darker strip of bare photograph opened under the bars."""
+    base, _ = site
+    pg = browser.new_page(viewport={"width": 1180, "height": 720})
+    pg.goto(base + "/t.html"); pg.wait_for_timeout(2500)
+    pg.evaluate("window._altoBg.choose('aurora-lofoten')"); pg.wait_for_timeout(600)
+    first = "(()=>{const n=document.querySelector('#world .node'); return n.id.replace(/^node-/,'')})()"
+    for dark in (False, True):
+        pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false")); pg.wait_for_timeout(300)
+        # an enlarged first card: the slab still reaches up to the bars
+        pg.evaluate("id=>enterFocus(id)", pg.evaluate(first)); pg.wait_for_timeout(1800)
+        r = pg.evaluate("""()=>{const g=document.getElementById('glass-slab').getBoundingClientRect(),
+          nav=document.getElementById('nav').getBoundingClientRect(), w=document.getElementById('world');
+          return {slab:g.top, nav:nav.bottom, pan:getComputedStyle(w).translate}}""")
+        assert r["slab"] <= r["nav"] + 3 and r["pan"] != "0px 0px", (dark, r)      # (the board is panned; the slab did not follow)
+        pg.evaluate("exitFocus()"); pg.wait_for_timeout(900)
+        # the detail page is the photograph, with no tint or frost of its own
+        pg.evaluate("(()=>{const n=document.querySelector('#world .node'); (n.querySelector('.node-card')||n).click()})()"); pg.wait_for_timeout(900)
+        d = pg.evaluate("""()=>{const e=document.getElementById('detail-page'), c=getComputedStyle(e);
+          return {open:document.documentElement.classList.contains('detail-open'), bg:c.backgroundColor, bgi:c.backgroundImage,
+                  bf:c.backdropFilter||c.webkitBackdropFilter||'none'}}""")
+        assert d["open"] and d["bg"] in ("rgba(0, 0, 0, 0)", "transparent") and d["bgi"] == "none" and d["bf"] == "none", (dark, d)
+        pg.evaluate("document.documentElement.classList.contains('detail-open') && (window.closeDetail ? closeDetail() : document.querySelector('#back-to-overview-bar, .detail-back, #detail-back')?.click())")
+        pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
+    pg.close()
+
+
+def test_the_top_bar_hover_lines_are_as_fine_as_the_toggles():
+    """A toggle's hover line is one drawn pixel; the clef/wordmark/name lines hug a shape that is itself
+    only a stroke or two wide, so any more than a hair read as a bold outline."""
+    from alto.build import hover_lines
+    assert hover_lines.LINE <= 0.5 and hover_lines.TLINE <= 0.3
 
 
 @needs_browser
