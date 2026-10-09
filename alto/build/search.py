@@ -587,6 +587,8 @@ html:not(.mobile).sx-big .search-result:hover + .search-result,html:not(.mobile)
 html:not(.mobile).sx-big .search-result mark{background:rgba(167,139,250,.38);}
 }
 html.mobile #sx-toggle,html.mobile #sx-scrim,html.mobile .sx-hint{display:none !important;}
+/* the homepage never carries .mobile; its phone layout is this media query, and a phone has no expanded panel */
+@media (max-width:640px){#sx-toggle,#sx-scrim,.sx-hint{display:none !important;}}
 </style>"""
 # "@14.5" = 14.5 px at the viewer's true size, whatever the page zoom is
 SX_CSS = re.sub(r"@(\d+(?:\.\d+)?)", r"calc(\1px * var(--sx-k,1))", _SX_CSS_SRC)
@@ -599,6 +601,10 @@ SX_JS = r"""
   if(!btn||!input||!res) return;
   var KEY='alto-search-big', on=false, act=-1, ZV='--alto-'+'zoom';   /* the timeline's page zoom; the homepage has none */
   try{ on=localStorage.getItem(KEY)==='1'; }catch(e){}
+  /* A phone never gets the large panel (the homepage's phone layout is a media query, not .mobile): the saved choice is
+     kept for the desktop, but nothing of it applies here, so the pill and its list stay the phone's own. */
+  function phone(){ return window.innerWidth<=640; }
+  function big(){ return on && !phone(); }
   var tg=document.createElement('button'); tg.type='button'; tg.id='sx-toggle';
   tg.innerHTML='<span class="sx-hint">↑↓ move · Enter open · Esc shrink</span>'
     +'<svg class="sx-i-grow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2H14v4.5M14 2L9 7M6.5 14H2V9.5M2 14l5-5"/></svg>'
@@ -614,26 +620,26 @@ SX_JS = r"""
      the centring is set the same way (and handed back when the box shrinks or closes) */
   var placed=false;
   function place(){
-    if(on && btn.classList.contains('expanded')){
+    if(big() && btn.classList.contains('expanded')){
       var z=parseFloat(getComputedStyle(root).getPropertyValue(ZV))||1, w=window.innerWidth/z, bw=Math.min(960/z,w*.84);
       var v=((w-bw)/2)+'px'; placed=true;
       if(btn.style.getPropertyValue('left')!==v || btn.style.getPropertyPriority('left')!=='important') btn.style.setProperty('left',v,'important');
     } else if(placed){ placed=false; btn.style.setProperty('left','auto','important'); }
   }
-  fit(); window.addEventListener('resize',function(){ fit(); setTimeout(place,0); });
+  fit(); window.addEventListener('resize',function(){ fit(); root.classList.toggle('sx-big',big()); setTimeout(place,0); });
   function label(){ var t=on?'Collapse search':'Expand search'; tg.title=t; tg.setAttribute('aria-label',t); tg.setAttribute('aria-pressed',on?'true':'false'); }
   function render(){ var f=window._altoSearchRender||window._homeSearchRender, v=input.value; if(f && v.trim().length>=2) f(v); }
   var pref=on;   /* the saved choice; Esc shrinks for now without changing it */
   function set(v,temp){
-    on=!!v; root.classList.toggle('sx-big',on); label(); act=-1;
+    on=!!v; root.classList.toggle('sx-big',big()); label(); act=-1;
     if(!temp){ pref=on; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }
     place(); render(); try{ input.focus({preventScroll:true}); }catch(e){}
   }
-  root.classList.toggle('sx-big',on); label();
+  root.classList.toggle('sx-big',big()); label();
   tg.addEventListener('click',function(e){ e.stopPropagation(); set(!on); });
   new MutationObserver(function(){
     var open=btn.classList.contains('expanded');
-    if(!open && on!==pref){ on=pref; root.classList.toggle('sx-big',on); label(); }
+    if(!open && on!==pref){ on=pref; root.classList.toggle('sx-big',big()); label(); }
     fit(); place(); root.classList.toggle('sx-open',open); })
     .observe(btn,{attributes:true,attributeFilter:['class','style']});
   new MutationObserver(function(){ act=-1; }).observe(res,{childList:true});
@@ -648,11 +654,11 @@ SX_JS = r"""
     if(!btn.classList.contains('expanded')) return;
     if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); mark(act<0?(e.key==='ArrowDown'?0:-1):act+(e.key==='ArrowDown'?1:-1)); }
     else if(e.key==='Enter' && act>=0){ var rs=rows(); if(rs[act]){ e.preventDefault(); e.stopPropagation(); rs[act].click(); } }
-    else if(e.key==='Escape' && on){ e.preventDefault(); e.stopPropagation(); set(false,true); }
+    else if(e.key==='Escape' && big()){ e.preventDefault(); e.stopPropagation(); set(false,true); }
   },true);
-  function collapse(){ if(on && btn.classList.contains('expanded')){ set(false,true); return true; } return false; }
+  function collapse(){ if(big() && btn.classList.contains('expanded')){ set(false,true); return true; } return false; }
   window._altoSXCollapse=collapse;
-  window._altoSX={big:function(){ return on; }, set:set, collapse:collapse};
+  window._altoSX={big:big, set:set, collapse:collapse};
 })();
 """
 

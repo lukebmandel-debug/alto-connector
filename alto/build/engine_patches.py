@@ -2202,7 +2202,7 @@ _HELP_D_TAIL_NEW = (
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this timeline (a bright picture in the light theme, a dim one in the dark). Each timeline keeps its own.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Highlight &amp; note</strong> &#8212; drag over text to highlight it (the dot at bottom center sets the color); click a highlight to add a note.</p>\n'
-    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse.</p>\n'
+    '      <p class="info-desktop" style="margin:5px 0"><strong>Notes</strong> &#8212; the <em>Notes</em> tab holds your highlights and reports, and shares or prints. Its <em>Freewrite</em> mode is for writing an outline or answer as you browse; tick <em>Attach my Freewrite</em> above <em>Generate Report</em> to put it in a report too.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Edit</strong> &#8212; <em>Edit with Claude</em>: bigger changes. <em>Edit manually</em>: small ones. Click words, drag, swap or move cards, add list entries. &#8984;Z undoes.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Controls</strong> &#8212; bottom right: search, this &#9432;, light or dark, Edit. Bottom left signs you in; the Alto clef or wordmark opens your homepage.</p>\n'
     '    </div>\n')
@@ -2244,7 +2244,7 @@ _HELP_M_TAIL_NEW = (
     "    '    <h3>Background</h3>',\n"
     "    '    <p>Tap <strong>SCENE</strong> (left edge, above INFO) to put a colour, a pattern or a photograph behind this timeline. Each timeline keeps its own.</p>',\n"
     "    '    <h3>MARK and NOTES</h3>',\n"
-    "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around.</p>',\n"
+    "    '    <p>Tap <strong>MARK</strong> (bottom-right), then drag over text to highlight it; the dot at the bottom sets the color. Tap <strong>NOTES</strong> to see everything you&#8217;ve saved; tap a highlight there to add a note. Its <strong>Freewrite</strong> switch opens a page for writing an outline or answer as you move around; tick <strong>Attach my Freewrite</strong> above <strong>Generate Report</strong> to put it in a report too.</p>',\n"
     "    '    <h3>Share &amp; Print</h3>',\n"
     "    '    <p>Open <strong>NOTES</strong> and tap the share arrow in its header to send a copy of this timeline or print it.</p>',\n"
     "    '    <h3>Making and editing</h3>',\n"
@@ -2673,4 +2673,46 @@ PATCHES += [
     {"name": "freewrite-escape-spares-the-panel", "old": _FW_ISOPEN_OLD, "new": _FW_ISOPEN_NEW, "count": 1},
     {"name": "freewrite-wheel-swipe-spares-the-panel", "old": _FW_WHEEL_OLD, "new": _FW_WHEEL_NEW, "count": 1},
     {"name": "freewrite-phone-swipe-spares-the-panel", "old": _FW_SWIPE_OLD, "new": _FW_SWIPE_NEW, "count": 1},
+]
+
+
+# ── a report can carry the Freewrite (alto/build/freewrite.py) ─────────────────
+# generateNotesReport asks window._altoFwReport() for the writer's Freewrite: it
+# answers only when the reader ticked "Attach my Freewrite" in the Notes panel (or
+# pressed Report in the Freewrite pane itself) and something is written, and what
+# it returns is already rebuilt from the whitelist (b i u s h1 h2 p div br ul ol
+# li, no attributes). A report may now hold the Freewrite alone.
+_FWR_GUARD_OLD = ("  if(highlights.length === 0){\n"
+                  "    alert('Nothing to export yet. Add a note or highlight first.');\n"
+                  "    return;\n"
+                  "  }\n")
+_FWR_GUARD_NEW = ("  var _fw = null; try{ _fw = window._altoFwReport ? window._altoFwReport() : null; }catch(_e){}   // the Freewrite, when attached\n"
+                  "  if(highlights.length === 0 && !_fw){\n"
+                  "    alert('Nothing to export yet. Add a note or highlight first' + (window._altoFwReport ? ', or write something in Freewrite.' : '.'));\n"
+                  "    return;\n"
+                  "  }\n")
+_FWR_CSS_OLD = "  .footer{font-size:10px;color:#bbb;margin-top:60px;"
+_FWR_CSS_NEW = ("  .fw-body{font-size:15px;line-height:1.7;}\n"
+                "  .fw-body p,.fw-body div{margin:0 0 6px;}\n"
+                "  .fw-body h1{font-size:18px;margin:22px 0 6px;} .fw-body h2{font-size:16px;margin:18px 0 5px;}\n"
+                "  .fw-body ul,.fw-body ol{margin:4px 0 10px;padding-left:26px;} .fw-body li{margin:2px 0;}\n"
+                "  .fw-body ul{list-style:disc;} .fw-body ul ul{list-style:circle;} .fw-body ul ul ul{list-style:square;}\n"
+                "  .fw-body ol{list-style:decimal;} .fw-body ol ol{list-style:lower-alpha;} .fw-body ol ol ol{list-style:lower-roman;}\n"
+                "  @media print{.fw-body h1,.fw-body h2{break-after:avoid;} .fw-body li{break-inside:avoid;}}\n"
+                + _FWR_CSS_OLD)
+_FWR_TEXT_OLD = ("      'HIGHLIGHTS & NOTES:',\n"
+                 "      highlights.map(function(h){ return '\"' + h.quote + '\"' + (h.note ? ', ' + h.note : ''); }).join('\\n\\n')\n"
+                 "    ];\n")
+_FWR_TEXT_NEW = ("      (highlights.length ? 'HIGHLIGHTS & NOTES:' : ''),\n"
+                 "      highlights.map(function(h){ return '\"' + h.quote + '\"' + (h.note ? ', ' + h.note : ''); }).join('\\n\\n')\n"
+                 "    ].concat(_fw ? ['', 'FREEWRITE:', _fw.text] : []);\n")
+_FWR_BODY_OLD = ("<div class=\"section-header\">Your Highlights &amp; Notes</div>\n"
+                 "${hlHtml}\n")
+_FWR_BODY_NEW = ("${highlights.length ? '<div class=\"section-header\">Your Highlights &amp; Notes</div>\\n' : ''}${hlHtml}\n"
+                 "${_fw ? '<div class=\"section-header\">Your Freewrite' + (_fw.words ? ' &middot; ' + _fw.words + (_fw.words === 1 ? ' word' : ' words') : '') + '</div><div class=\"fw-body\">' + _fw.html + '</div>\\n' : ''}")
+PATCHES += [
+    {"name": "freewrite-report-guard", "old": _FWR_GUARD_OLD, "new": _FWR_GUARD_NEW, "count": 1},
+    {"name": "freewrite-report-css", "old": _FWR_CSS_OLD, "new": _FWR_CSS_NEW, "count": 1},
+    {"name": "freewrite-report-mail-text", "old": _FWR_TEXT_OLD, "new": _FWR_TEXT_NEW, "count": 1},
+    {"name": "freewrite-report-section", "old": _FWR_BODY_OLD, "new": _FWR_BODY_NEW, "count": 1},
 ]

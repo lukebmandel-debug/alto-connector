@@ -155,28 +155,60 @@ def test_the_ink_saver_picture_is_white_and_grey(browser, built, dark):
 def test_the_picture_fits_the_sheet_or_goes_across_several(browser, built):
     _, f = built
     pg = _open(browser, f)
-    plan = lambda w, h, boxes="[]": pg.evaluate(f"window._altoInkPlan({w},{h},{boxes})")
+    plan = lambda w, h, boxes="[]", segs="[]": pg.evaluate(f"window._altoInkPlan({w},{h},{boxes},{segs})")
     one = plan(900, 500)                                    # small: one sheet, landscape
     assert one["orient"] == "landscape" and len(one["rows"]) == 1 and one["cols"] == 1 and one["s"] >= 0.9
+    # a tall picture is still on landscape sheets: one strip running down them, never cut through a card
     tall = plan(1000, 7000, "[{x:0,y:100,w:200,h:100},{x:0,y:900,w:200,h:100}]")
-    assert tall["orient"] == "portrait" and len(tall["rows"]) > 3 and tall["s"] >= 0.42
-    # a cut falls between cards, never through one
+    assert tall["orient"] == "landscape" and len(tall["rows"]) > 3 and tall["s"] >= 0.42 and tall["cols"] == 1
     for _, end in tall["rows"][:-1]:
         assert not (100 < end < 200 or 900 < end < 1000)
-    wide = plan(3000, 400)
-    assert wide["orient"] == "landscape" and wide["cols"] >= 2     # too wide for one sheet at a legible size
+    wide = plan(3000, 400)                                  # a long thin picture: a strip across, no more sheets than it needs
+    assert wide["orient"] == "landscape" and wide["cols"] == 2 and len(wide["rows"]) == 1
+
+
+def test_every_sheet_of_a_picture_has_the_same_scale_and_lines_up(browser, built):
+    """The pieces tile the picture exactly, and every one is cut at a gap (no card) when there is one."""
+    _, f = built
+    pg = _open(browser, f)
+    boxes = "[" + ",".join(f"{{x:0,y:{y},w:300,h:120}}" for y in range(0, 4000, 200)) + "]"      # cards every 200, gaps of 80
+    plan = pg.evaluate(f"window._altoInkPlan(1400, 4100, {boxes}, [])")
+    rows = plan["rows"]
+    assert rows[0][0] == 0 and abs(rows[-1][1] - 4100) < 1
+    for (_, e), (s2, _) in zip(rows, rows[1:]):
+        assert e == s2                                              # no gap and no overlap between pieces
+    cap = plan["h"] / plan["s"]
+    assert all(e - s <= cap + 1 for s, e in rows)                    # every piece fits its sheet
+    for _, e in rows[:-1]:
+        assert not any(y < e < y + 120 for y in range(0, 4000, 200))   # never through a card
+    sizes = [e - s for s, e in rows]
+    assert max(sizes) - min(sizes[:-1] or sizes) < cap * 0.5        # even pieces, not one full sheet and a sliver
+
+
+def test_a_cut_prefers_the_gap_the_fewest_lines_cross(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    spans = "[[0,600],[700,1200],[1300,1600]]"                # clean gaps at 608/692 and 1208 within one 1250px sheet
+    free = pg.evaluate(f"window._altoInkCuts(1600, 1250, {spans}, [])")
+    assert abs(free[0][1] - 1208) < 1                          # nothing crosses either: the later gap, a fuller sheet
+    busy = "[" + ",".join("[1180,1230]" for _ in range(6)) + "]"   # six lines run across the later gap
+    cut = pg.evaluate(f"window._altoInkCuts(1600, 1250, {spans}, {busy})")
+    assert abs(cut[0][1] - 692) < 1                            # so the cut moves to the clear one
+    assert cut[-1][1] == 1600 and all(cut[i][1] == cut[i + 1][0] for i in range(len(cut) - 1))
 
 
 def test_a_tall_timeline_prints_across_pages_without_a_blank_one(browser, built):
     _, f = built
-    pg = _open(browser, f)
-    pg.evaluate("window.altoPrint('ink')")
-    pg.wait_for_timeout(300)
-    plan = pg.evaluate("window._altoInkLast")
-    assert pg.evaluate("document.querySelectorAll('.ink-tile').length") == len(plan["rows"]) * plan["cols"]
-    pg.emulate_media(media="print")
-    pdf = pg.pdf(prefer_css_page_size=True)
-    assert _pages(pdf) == len(plan["rows"]) * plan["cols"]        # one sheet per tile, none left over
+    for fmt in ("Letter", "A4"):                                  # the two sheets the plan must fit
+        pg = _open(browser, f)
+        pg.evaluate("window.altoPrint('ink')")
+        pg.wait_for_timeout(300)
+        plan = pg.evaluate("window._altoInkLast")
+        assert plan["orient"] == "landscape"
+        assert pg.evaluate("document.querySelectorAll('.ink-tile').length") == len(plan["rows"]) * plan["cols"]
+        pg.emulate_media(media="print")
+        pdf = pg.pdf(prefer_css_page_size=True, format=fmt)
+        assert _pages(pdf) == len(plan["rows"]) * plan["cols"], fmt   # one sheet per tile, none left over
 
 
 def test_outline_and_all_detail_pages_come_in_outline_order(browser, built):

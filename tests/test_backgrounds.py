@@ -474,7 +474,7 @@ def test_a_page_opened_from_a_file_keeps_the_alto_wallpaper(browser, timeline, t
 
 
 @needs_browser
-def test_a_phone_gets_a_tile_and_a_sheet(browser, site):
+def test_a_phone_gets_a_menu_item_and_a_sheet(browser, site):
     base, _ = site
     if browser.browser_type.name != "webkit":
         pytest.skip("phone emulation is checked in WebKit")
@@ -484,16 +484,41 @@ def test_a_phone_gets_a_tile_and_a_sheet(browser, site):
                    "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
     pg = ctx.new_page()
     pg.goto(base + "/t.html"); pg.wait_for_timeout(3000)
-    r = pg.evaluate("(()=>{const r=document.getElementById('bg-toggle').getBoundingClientRect();return [r.left,r.top]})()")
-    info = pg.evaluate("document.getElementById('tutorial-toggle').getBoundingClientRect().top")
-    assert r[0] == 0 and r[1] < info, (r, info)               # above INFO, on the left edge
-    pg.tap("#bg-toggle"); pg.wait_for_timeout(600)
-    assert pg.evaluate("document.getElementById('bg-panel').classList.contains('open')")
+    # no tile on the page; Scene is in the MENU, directly under Dark / Light
+    assert pg.evaluate("getComputedStyle(document.getElementById('bg-toggle')).display") == "none"
+    assert pg.evaluate("document.getElementById('drawer-mode-btn').nextElementSibling.id") == "drawer-scene-btn"
+    pg.tap("#hamburger-tab"); pg.wait_for_timeout(500)
+    assert pg.evaluate("document.getElementById('nav-drawer').classList.contains('open')")
+    pg.tap("#drawer-scene-btn"); pg.wait_for_timeout(700)
+    assert pg.evaluate("document.getElementById('bg-panel').classList.contains('open')")          # and it stays open
+    assert not pg.evaluate("document.getElementById('nav-drawer').classList.contains('open')")
     pg.tap('.bg-tile[data-bg="paris-dusk"]'); pg.wait_for_timeout(400)
     pg.tap("#bg-close"); pg.wait_for_timeout(500)
     s = pg.evaluate(STATE)
     assert s["on"] and s["id"] == "paris-dusk"
     assert not pg.evaluate("document.getElementById('bg-panel').classList.contains('open')")
+    ctx.close()
+
+
+@needs_browser
+def test_on_a_phone_homepage_the_tab_joins_the_top_row_of_toggles(browser, site):
+    base, _ = site
+    if browser.browser_type.name != "webkit":
+        pytest.skip("phone emulation is checked in WebKit")
+    ctx = browser.new_context(
+        viewport={"width": 390, "height": 664}, device_scale_factor=3, is_mobile=True, has_touch=True,
+        user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                   "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+    pg = ctx.new_page()
+    pg.goto(base + "/home.html"); pg.wait_for_timeout(3000)
+    r = pg.evaluate("""(()=>{const q=i=>{const r=document.getElementById(i).getBoundingClientRect();return [r.left,r.top,r.width,r.height]};
+      return {bg:q('bg-toggle'), info:q('info-btn'), mode:q('mode-toggle')}})()""")
+    assert r["bg"][1] == r["info"][1] == r["mode"][1]                        # one row
+    assert r["bg"][2] == r["bg"][3] == r["info"][2] == 34                     # the same little box
+    assert r["bg"][0] + r["bg"][2] + 8 == r["info"][0]                        # 8px beside info, which sits left of light/dark
+    assert pg.evaluate("parseFloat(getComputedStyle(document.getElementById('bg-toggle')).borderTopLeftRadius)") == 10
+    pg.tap("#bg-toggle"); pg.wait_for_timeout(600)
+    assert pg.evaluate("document.getElementById('bg-panel').classList.contains('open')")
     ctx.close()
 
 

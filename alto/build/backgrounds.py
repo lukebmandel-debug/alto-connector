@@ -288,7 +288,7 @@ html.printing.alto-bg #page-bg::before, html.printing.alto-bg #page-bg::after{ d
 
 # ── the Background tab and its picker ───────────────────────────────────────
 UI_CSS = """
-/* the Background tab: the right rail's fourth (desktop), the tile above INFO (phone) */
+/* the Background tab: the right rail's fourth (desktop); on a phone, the Scene item in the MENU */
 #bg-toggle{ touch-action:manipulation; }
 html:not(.mobile) #bg-toggle{ width:34px; height:34px; box-sizing:border-box; padding:0; display:flex;
   align-items:center; justify-content:center; cursor:pointer; position:relative;
@@ -300,18 +300,8 @@ html:not(.mobile) #bg-toggle span{ display:none; }
 html:not(.mobile) #bg-toggle:hover{ color:var(--text); border-color:var(--muted); }
 html:not(.mobile) #tab-rail > #bg-toggle{ position:static; }
 #bg-toggle.active{ color:var(--accent, #6d5bd0); border-color:var(--accent, #6d5bd0); }
-html.mobile #bg-toggle{ position:fixed; left:0; bottom:calc(66px + env(safe-area-inset-bottom, 0px)); z-index:295;
-  min-width:36px; height:49px; box-sizing:border-box; padding:10px 4px; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:4px; background:var(--card-glass-bg);
-  -webkit-backdrop-filter:blur(12px) saturate(170%); backdrop-filter:blur(12px) saturate(170%);
-  border:1px solid var(--border); border-left:none; border-radius:0 6px 6px 0;
-  box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);
-  color:var(--text); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase;
-  font-family:-apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; -webkit-tap-highlight-color:transparent;
-  transition:opacity .15s; }
-html.mobile.has-filter-tab #bg-toggle{ bottom:calc(124px + env(safe-area-inset-bottom, 0px)); }
-html.mobile #bg-toggle svg{ width:14px; height:14px; }
-html.mobile #bg-toggle:active{ opacity:.6; }
+/* a phone timeline has no tile for it: the MENU carries a Scene item under Dark / Light (UI_JS), and the tab stays only as the sheet's state holder */
+html.mobile #bg-toggle{ display:none !important; }
 html.mobile.detail-open #bg-toggle, html.mobile.summary-open #bg-toggle,
 html.mobile.detail-open #bg-panel, html.mobile.summary-open #bg-panel{ display:none !important; }
 /* the picker */
@@ -449,6 +439,24 @@ UI_JS = r"""(function(){
     head.appendChild(mk('span','bg-t','Background')); head.appendChild(act); panel.appendChild(head);
     body=mk('div','bg-body'); foot=mk('div','bg-foot'); panel.appendChild(body); panel.appendChild(foot);
     document.body.appendChild(panel);
+    // A phone timeline: no tile, a Scene item in the MENU directly under Dark / Light. The engine moves Dark / Light up
+    // under Overview once the drawer is built, so Scene follows it there (and again if the drawer is redrawn). The tap
+    // that picks it is kept from the document's click-away handler below, which would shut the sheet the moment it opened.
+    var dbody=document.getElementById('nav-drawer-body');
+    if(mobile() && dbody && !document.getElementById('drawer-scene-btn')){
+      var sb=mk('button','drawer-btn'); sb.id='drawer-scene-btn'; sb.type='button';
+      sb.innerHTML='<span class="drawer-icon">'+ICON.replace('width="17" height="17"','width="20" height="20"')+'</span><span class="drawer-label">Scene</span>';
+      sb.addEventListener('click', function(e){ e.stopPropagation(); if(typeof window.closeNavDrawer==='function') window.closeNavDrawer(); open(true); });
+      var place=function(){
+        var dm=document.getElementById('drawer-mode-btn');
+        if(dm && dm.parentNode && (sb.parentNode!==dm.parentNode || sb.previousElementSibling!==dm)){
+          dm.parentNode.insertBefore(sb, dm.nextSibling);
+          sb.style.marginTop='2px';
+        }
+      };
+      place();
+      new MutationObserver(place).observe(dbody,{childList:true});
+    }
     // Desktop: the fourth tab of the rail, after Filter. Filter's own script may add its tab later, so keep ours last.
     var rail=document.getElementById('tab-rail');
     if(RAIL && !mobile() && rail){
@@ -486,7 +494,16 @@ UI_JS = r"""(function(){
 HOME_CSS = """
 html:not(.mobile) body > #bg-toggle{ position:fixed; right:0; top:calc(50% - 17px); z-index:300; }
 @media (max-width:640px){
-  /* a phone gets the full-screen sheet the timeline's tile opens (see html.mobile above) */
+  /* On a phone the tab joins the top row of toggles as a little rounded box: [account] [search] ... [scene] [info] [light/dark],
+     the same 34px box, 8px gap and glass as its neighbours (info sits at right 56, light/dark at right 14). */
+  html:not(.mobile) body > #bg-toggle, html:not(.mobile) #bg-toggle{ position:fixed; top:calc(63px + env(safe-area-inset-top,0px)); right:98px; bottom:auto; left:auto;
+    width:34px; height:34px; z-index:300; border-radius:10px; border:1px solid var(--card-glass-border); box-shadow:none; color:var(--muted);
+    background:var(--card-glass-bg); -webkit-backdrop-filter:blur(14px) saturate(160%); backdrop-filter:blur(14px) saturate(160%); }
+  html:not(.mobile) #bg-toggle svg{ width:18px; height:18px; }
+  html:not(.mobile) #bg-toggle.active{ color:var(--accent, #6d5bd0); border-color:var(--accent, #6d5bd0); }
+  /* the search pill grows rightward over this tile's place (it keeps its old reach, up to the info tile); the tile steps aside while it is open */
+  html:not(.mobile) #search-btn.expanded ~ #bg-toggle{ opacity:0; pointer-events:none; }
+  /* a phone gets the full-screen sheet the timeline's menu opens (see html.mobile above) */
   html:not(.mobile) #bg-panel{ left:0; right:0; top:0; bottom:0; width:auto; max-height:none; padding:0 0 calc(14px + env(safe-area-inset-bottom, 0px));
     border-radius:0; border:0; z-index:401; opacity:1; transform:translateX(-100%); box-shadow:none;
     -webkit-backdrop-filter:blur(24px) saturate(185%); backdrop-filter:blur(24px) saturate(185%);

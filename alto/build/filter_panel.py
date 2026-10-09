@@ -20,7 +20,9 @@ the INFO tile above it, opening a sheet.
 Nothing else shows what is filtered (the engine's bar of active filters across
 the top of the page is gone): the toggle's count says how many are on. A
 double-click (a double-tap on a phone) on the toggle switches every filter off,
-and the next one brings back exactly what was on.
+and the next one brings back exactly what was on. Only a single click or tap
+opens the panel: it waits a moment to see whether a second is coming, and a
+double-click never opens or closes it.
 """
 
 # The three right-edge tabs stack in one rail, in a fixed order. They were three
@@ -217,26 +219,28 @@ FILTER_PANEL_GLUE = """
     document.body.appendChild(panel);
     var rail=document.getElementById('tab-rail');
     (rail && !mobile() ? rail : document.body).appendChild(tab);
-    // A click opens or closes the panel at once, with no wait to see whether a
-    // second is coming. If one is, within 400ms and on the same spot, it is a
-    // double-click: the panel goes back to how it was and the filters switch
-    // off or on. The second one is caught on the document in the capture phase,
-    // by its touch as well as its click: on a phone the sheet is already
-    // sliding over the tile, and WebKit sends that second tap no click at all.
-    var firstAt=0, firstBox=null, wasOpen=false, hush=0;
+    // One click or tap opens or closes the panel, after a short wait (DBL ms) to see
+    // whether a second is coming. If it does, on the same spot, it is a double-click:
+    // the panel is left exactly as it was (the first click's open or close never
+    // happens) and the filters switch off or on. The second one is caught on the
+    // document in the capture phase, by its touch as well as its click: on a phone
+    // WebKit can send that second tap no click at all.
+    var DBL=280, firstAt=0, firstBox=null, pend=0, hush=0;
     function second(x, y){
-      if(!firstAt || Date.now()-firstAt>400) return false;
+      if(!firstAt || Date.now()-firstAt>DBL) return false;
       var r=firstBox;
       if(!r || x<r.left-6 || x>r.right+6 || y<r.top-6 || y>r.bottom+6) return false;
       firstAt=0; hush=Date.now()+700;
-      open(wasOpen); quickToggle();
+      if(pend){ clearTimeout(pend); pend=0; }
+      quickToggle();
       return true;
     }
     tab.addEventListener('click', function(e){
       e.stopPropagation();
       firstAt=Date.now(); firstBox=tab.getBoundingClientRect();
-      wasOpen=panel.classList.contains('open');
-      open(!wasOpen);
+      var want=!panel.classList.contains('open');
+      if(pend) clearTimeout(pend);
+      pend=setTimeout(function(){ pend=0; firstAt=0; open(want); }, DBL);
     });
     document.addEventListener('touchend', function(e){
       var t=e.changedTouches && e.changedTouches[0];

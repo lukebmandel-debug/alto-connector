@@ -15,6 +15,12 @@ timeline and moving between detail pages.
   engine_patches.py, and the open state is remembered across reloads.
 * Stored and pasted HTML is rebuilt from a whitelist (b i u s h1 h2 p div br ul
   ol li); no attribute, script or style survives.
+* A report can carry it: the Notes panel's footer offers "Attach my Freewrite"
+  (shown only once there is something written, remembered with the panel's
+  other choices) and the Freewrite pane's own footer has a Report button that
+  makes a report with it attached. The engine's generateNotesReport (patched in
+  engine_patches.py, freewrite-report-*) asks window._altoFwReport() for the
+  document; what comes back is already rebuilt from the whitelist.
 """
 from __future__ import annotations
 
@@ -81,6 +87,13 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     border:1px solid var(--border);color:var(--text);-webkit-tap-highlight-color:transparent;}
   html.mobile #fw-foot button{font-size:13px;padding:7px 14px;}
   @media (hover:hover){#fw-foot button:hover{border-color:var(--muted);}}
+  #fw-attach{display:none;align-items:center;gap:8px;font-size:12px;letter-spacing:.02em;color:var(--muted);cursor:pointer;
+    user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;}
+  #fw-attach.has{display:flex;}
+  #fw-attach input{margin:0;width:14px;height:14px;accent-color:var(--accent,#6d5bd0);cursor:pointer;}
+  #fw-attach .fw-n{opacity:.75;}
+  html.mobile #fw-attach{font-size:14px;padding:4px 0;gap:10px;} html.mobile #fw-attach input{width:20px;height:20px;}
+  #notes-panel.trash-mode #fw-attach{display:none !important;}
   #fw-print-host{display:none;}
   @media print{
     html.fw-printing body > *:not(#fw-print-host){display:none !important;}
@@ -103,7 +116,7 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
   var LAB = {notes:'Notes & highlights', fw:'Freewrite', ph:'Write freely: an outline, an answer, anything. It saves on its own and stays here as you move between pages.',
     bold:'Bold (⌘B)', italic:'Italic (⌘I)', underline:'Underline (⌘U)', strike:'Strikethrough', h1:'Heading 1', h2:'Heading 2',
     ul:'Bulleted list', ol:'Numbered list', indent:'Indent list item (Tab)', outdent:'Outdent list item (Shift+Tab)', clear:'Clear formatting',
-    copy:'Copy', print:'Print', saved:'Saved', saving:'Saving…', copied:'Copied', big:'Too long to save', resize:'Drag to resize'};
+    copy:'Copy', print:'Print', report:'Report', reportTip:'Make a report with this Freewrite attached', attach:'Attach my Freewrite', saved:'Saved', saving:'Saving…', copied:'Copied', big:'Too long to save', resize:'Drag to resize'};
   function jp(s, d){ try { var v = JSON.parse(s); return v == null ? d : v; } catch(e){ return d; } }
   function rd(k, d){ try { return jp(ls.getItem(k), d); } catch(e){ return d; } }
   function wr(k, v){ try { ls.setItem(k, v); return true; } catch(e){ return false; } }
@@ -173,9 +186,9 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
 
   /* ── state ───────────────────────────────────────────────────────────── */
   var ui = rd(UKEY, {}); if(!ui || typeof ui !== 'object') ui = {};
-  var MODE = ui.mode === 'fw' ? 'fw' : 'notes', W = +ui.w || DEF_W;
+  var MODE = ui.mode === 'fw' ? 'fw' : 'notes', W = +ui.w || DEF_W, ATT = !!ui.att;
   var ed = null, panel = null, T = 0, dirty = false, LASTMOD = 0, lastRange = null, FORCE = false, stateTimer = 0;
-  function saveUi(){ var p = $('notes-panel'); wr(UKEY, JSON.stringify({mode: MODE, open: !!(p && p.classList.contains('open')) && MODE === 'fw', w: W})); }
+  function saveUi(){ var p = $('notes-panel'); wr(UKEY, JSON.stringify({mode: MODE, open: !!(p && p.classList.contains('open')) && MODE === 'fw', w: W, att: ATT})); }
   function pinned(){ return MODE === 'fw' && typeof notesOpen !== 'undefined' && !!notesOpen; }
   function stored(){ var o = rd(FKEY, null); return o && typeof o === 'object' ? {html: String(o.html || ''), mod: Number(o.mod) || 0} : {html: '', mod: 0}; }
 
@@ -188,6 +201,26 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     var n = t ? t.split(/\s+/).length : 0;
     var c = $('fw-count'); if(c) c.textContent = n + (n === 1 ? ' word' : ' words');
     ed.classList.toggle('fw-empty', !t && !ed.querySelector('li,h1,h2'));
+    attachRow(!!t || !!ed.querySelector('li,h1,h2'), n);
+  }
+  /* the footer's "Attach my Freewrite": there only once something is written */
+  function attachRow(has, n){
+    var a = $('fw-attach'); if(!a) return;
+    a.classList.toggle('has', !!has);
+    var c = $('fw-attach-n'); if(c) c.textContent = '(' + n + (n === 1 ? ' word' : ' words') + ')';
+    var i = a.querySelector('input'); if(i) i.checked = ATT;
+  }
+  /* What a report takes from here: {html, text, words}, or null when it is not wanted (or nothing is written).
+     `force` is the Freewrite pane's own Report button. The document is flushed and rebuilt from the whitelist first. */
+  function forReport(force){
+    if(!ed || !(force || ATT)) return null;
+    flush();
+    var h = sanitize(stored().html || ed.innerHTML);
+    if(!h) return null;
+    var box = document.createElement('div'); box.innerHTML = h;
+    var t = plain(box); if(!t) return null;
+    var w = t.replace(/^\s*(?:[-*\u2022]|\d+[.)])\s+/gm, '').trim();
+    return {html: h, text: t, words: w ? w.split(/\s+/).length : 0};
   }
   function ensure(){                                    // an empty box still holds one line, so typing starts inside a block
     if(!ed.firstChild){ ed.innerHTML = '<div><br></div>'; if(document.activeElement === ed){ try { var r = document.createRange(); r.setStart(ed.firstChild, 0); r.collapse(true); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch(e){} } }
@@ -421,10 +454,19 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     var cnt = el('span', {id:'fw-count'}, '0 words'), st = el('span', {id:'fw-state', 'aria-live':'polite', 'class':'idle'}, LAB.saved);
     var cp = el('button', {type:'button', id:'fw-copy'}); cp.textContent = LAB.copy;
     var pr = el('button', {type:'button', id:'fw-print'}); pr.textContent = LAB.print;
+    var rp = el('button', {type:'button', id:'fw-report', title:LAB.reportTip}); rp.textContent = LAB.report;
     cp.addEventListener('click', doCopy); pr.addEventListener('click', doPrint);
-    foo.appendChild(cnt); foo.appendChild(st); foo.appendChild(el('span', {'class':'fw-grow'})); foo.appendChild(cp); foo.appendChild(pr);
+    rp.addEventListener('click', function(){ flush(); window._altoFwForce = true; try { if(typeof generateNotesReport === 'function') generateNotesReport(); } finally { setTimeout(function(){ window._altoFwForce = false; }, 0); } });
+    foo.appendChild(cnt); foo.appendChild(st); foo.appendChild(el('span', {'class':'fw-grow'})); foo.appendChild(cp); foo.appendChild(pr); foo.appendChild(rp);
     var pane = el('div', {id:'fw-pane'}); pane.appendChild(bar); pane.appendChild(ed); pane.appendChild(foo);
     foot.parentNode.insertBefore(pane, foot);
+    var rb = $('notes-report-btn');
+    if(rb && rb.parentNode){
+      var at = el('label', {id:'fw-attach'}), ck = el('input', {type:'checkbox', 'aria-label':LAB.attach});
+      at.appendChild(ck); at.appendChild(document.createTextNode(LAB.attach + ' ')); at.appendChild(el('span', {id:'fw-attach-n', 'class':'fw-n'}, ''));
+      ck.addEventListener('change', function(){ ATT = ck.checked; saveUi(); });
+      rb.parentNode.insertBefore(at, rb);
+    }
     var rz = el('div', {id:'fw-resize', role:'separator', 'aria-orientation':'vertical', 'aria-label':LAB.resize, title:LAB.resize, tabindex:'0'});
     panel.appendChild(rz);
 
@@ -472,7 +514,8 @@ FREEWRITE = r"""<style id="alto-freewrite-css">
     // Reopen where the writer left off.
     if(ui.open && MODE === 'fw') setTimeout(function(){ if(typeof notesOpen !== 'undefined' && !notesOpen && typeof toggleNotes === 'function'){ toggleNotes(); } layout(); }, 250);
   }
-  window._altoFw = {pinned: pinned, mode: function(){ return MODE; }, setMode: function(m){ setMode(m, false); }, flush: flush, sanitize: sanitize, plain: plain,
+  window._altoFwReport = function(force){ return forReport(force || !!window._altoFwForce); };
+  window._altoFw = {pinned: pinned, report: forReport, mode: function(){ return MODE; }, setMode: function(m){ setMode(m, false); }, flush: flush, sanitize: sanitize, plain: plain,
                     labels: LAB, keys: {FW: FKEY, UI: UKEY}};
   function boot(){ install(); setTimeout(guard, 900); setTimeout(guard, 3000); }
   if(document.readyState === 'complete') boot(); else window.addEventListener('load', boot);

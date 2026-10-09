@@ -215,9 +215,11 @@ def test_double_clicking_the_filter_toggle_switches_filters_off_and_on():
     assert "function quickToggle(){" in G
     assert "if(activeCount()>0){ stash=snapshot(); clearAll(); }" in G
     assert "else if(stash){ var o=stash; stash=null; restore(o); }" in G
-    # a click opens at once; a second within 400ms on the same spot is the double
-    assert "Date.now()-firstAt>400" in G
-    assert "open(wasOpen); quickToggle();" in G
+    # a click waits DBL ms for a second; a second on the same spot is the double and the panel never moves
+    assert "var DBL=280" in G and "Date.now()-firstAt>DBL" in G
+    assert "pend=setTimeout(function(){ pend=0; firstAt=0; open(want); }, DBL);" in G
+    assert "if(pend){ clearTimeout(pend); pend=0; }\n      quickToggle();" in G
+    assert "open(wasOpen)" not in G
     assert "clr.addEventListener('click', clearAll);" in G
     assert "double-click to switch filters off or on" in G
     assert "#filter-toggle{touch-action:manipulation;}" in filter_panel_css()

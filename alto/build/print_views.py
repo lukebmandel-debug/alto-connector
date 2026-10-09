@@ -10,9 +10,13 @@ two ways in share one piece of code:
 
 `ink` is the timeline PICTURE (cards and lines) on white paper with no colour,
 no glass, no shadows: a copy of the canvas placed in the document (so every card
-rule still applies) and then stripped to black and grey. It is scaled to the
-sheet; one that cannot be read on one sheet goes across several, cut between
-cards rather than through them, in portrait or landscape whichever reads larger.
+rule still applies) and then stripped to black and grey. It always prints on
+LANDSCAPE sheets with narrow margins, at the largest scale that reads: a picture
+that fits one sheet is one sheet, anything else is laid out as one continuous
+strip (tall pictures run down it, wide ones across it) and cut in as few, as
+even pieces as it can, only where no card is, at the gap the fewest connector
+lines cross. Every piece keeps the same scale and the same offset, so a line
+that crosses a cut leaves one sheet and arrives on the next at the same place.
 
 `full` (the outline, then every detail page in order) is staged by the engine
 patch `print-views-engine` in engine_patches.py, which can see the engine's own
@@ -67,52 +71,81 @@ PRINT_CSS = r"""<style id="alto-print-views">
 PRINT_JS = r"""<script id="alto-print-views-js">
 (function(){
   if(window._altoInkStage) return;
-  var PORT = {w:705, h:960, name:'portrait'}, LAND = {w:960, h:705, name:'landscape'};   // CSS px a sheet always holds, 11mm margins
+  // Landscape sheets only. What a sheet always holds in CSS px with 0.25in margins on Letter or A4 (whichever is smaller each way).
+  var LAND = {w:1004, h:741, name:'landscape'};
   var MIN_ONE = 0.5, MIN_READ = 0.42;                                                      // below these a sheet is too small to read
 
   function pageStyle(orient){
     var s = document.getElementById('alto-ink-page');
     if(!s){ s = document.createElement('style'); s.id = 'alto-ink-page'; document.head.appendChild(s); }
-    s.textContent = '@media print{@page{size:' + orient + ';margin:11mm;}}';
+    s.textContent = '@media print{@page{size:' + orient + ';margin:0.25in;}}';
   }
 
+  // Where to cut a run of length `total` into pieces of at most `cap`, as few and as even as it can, never
+  // through a box (`spans`: [start, end] of every card along this axis) and at the gap the fewest lines
+  // cross (`segs`: [a, b] of every line segment along this axis; one that straddles a cut crosses it).
+  // Pure, so it can be tested. Returns [[0, c1], [c1, c2], ... [cn, total]].
+  function cuts(total, cap, spans, segs){
+    if(total <= cap + 1) return [[0, total]];
+    var out = [], y = 0;
+    var cand = [];
+    spans.forEach(function(b){ cand.push(b[0] - 8, b[1] + 8); });
+    function crossings(c){
+      var k = 0;
+      for(var i = 0; i < segs.length; i++){ var a = segs[i][0], b = segs[i][1]; if((a < c && b >= c) || (b < c && a >= c)) k++; }
+      return k;
+    }
+    function clear(c){
+      for(var i = 0; i < spans.length; i++) if(spans[i][0] < c && c < spans[i][1]) return false;
+      return true;
+    }
+    while(y < total - 1){
+      var left = Math.ceil((total - y) / cap - 1e-6), ideal = y + (total - y) / left;     // an even share of what is left
+      var limit = Math.min(y + cap, total);
+      if(limit >= total - 1){ out.push([y, total]); y = total; break; }
+      var best = -1, bestCost = 1e18;
+      cand.forEach(function(c){
+        if(c <= y + cap * 0.55 || c > limit || !clear(c)) return;
+        // a line crossed costs one; a third of a sheet left unused costs three; running past the even share costs a little
+        var cost = crossings(c) + 9 * (limit - c) / cap + 2 * Math.abs(c - ideal) / cap;
+        if(cost < bestCost){ bestCost = cost; best = c; }
+      });
+      var end = best > 0 ? best : limit;                              // no clean gap: the cut falls at the sheet's edge
+      out.push([y, end]); y = end;
+    }
+    if(y < total - 1) out.push([y, total]);
+    return out;
+  }
+  window._altoInkCuts = cuts;
+
   // Which sheet, what scale, and where the cuts fall. Pure, so it can be tested.
-  window._altoInkPlan = function(w, h, boxes){
-    var o, s, best = null;
-    // the sheet that matches the picture's shape; the other only if it reads 50% larger
-    var first = w > h ? LAND : PORT, second = w > h ? PORT : LAND;
-    [first, second].forEach(function(c){
-      var s1 = Math.min(1, c.w / w, c.h / h);
-      if(!best || s1 > best.s1 * 1.5) best = {c:c, s1:s1};
-    });
-    var cols = 1, rows;
-    if(best.s1 >= MIN_ONE){
-      o = best.c; s = best.s1; rows = [[0, h]];
-    } else {
-      var pw = Math.min(1, PORT.w / w), lw = Math.min(1, LAND.w / w);
-      o = (w > h) ? ((pw > lw * 1.5) ? PORT : LAND) : ((lw > pw * 1.5) ? LAND : PORT);
-      s = Math.max(Math.min(1, o.w / w), MIN_READ);
-      cols = Math.max(1, Math.ceil(w * s / o.w - 1e-6));
-      var cap = 40;                                                 // never an unbounded stack of sheets
-      while(cols * Math.ceil(h * s / o.h) > cap && s > 0.1){ s *= 0.9; cols = Math.max(1, Math.ceil(w * s / o.w - 1e-6)); }
-      var Hw = o.h / s, y = 0; rows = [];
-      while(y < h - 1){
-        var end = Math.min(y + Hw, h);
-        if(end < h){                                                // cut between cards, as late as fits
-          var cand = [];
-          boxes.forEach(function(b){ cand.push(b.y - 8, b.y + b.h + 8); });
-          var cut = -1;
-          cand.forEach(function(c){
-            if(c <= y + Hw * 0.35 || c > end || c < cut) return;
-            for(var i = 0; i < boxes.length; i++) if(boxes[i].y < c && c < boxes[i].y + boxes[i].h) return;
-            cut = c;
-          });
-          if(cut > 0) end = cut;
-        }
-        rows.push([y, end]); y = end;
+  // boxes: [{x,y,w,h}] of every card; segs: optional [[x0,y0,x1,y1]] pieces of the connector lines.
+  window._altoInkPlan = function(w, h, boxes, segs){
+    var o = LAND, s, cols, rows, colCuts;
+    segs = segs || [];
+    var s1 = Math.min(1, o.w / w, o.h / h);
+    if(s1 >= MIN_ONE){ s = s1; rows = [[0, h]]; colCuts = [[0, w]]; }
+    else {
+      // one continuous strip. The largest useful scale is the one that makes the picture as wide, or as tall, as a sheet
+      // (never past life size); within a legible range (down to 60% of that, never below MIN_READ) take the largest scale
+      // that needs the fewest sheets, so a long thin picture is not spread over more sheets than it has to be.
+      var hi = Math.min(1, Math.max(o.w / w, o.h / h)), lo = Math.max(MIN_READ, Math.min(hi, 0.6)), least = 1e9;
+      hi = Math.max(hi, MIN_READ); s = hi;
+      for(var t = hi; t >= lo - 1e-9; t -= 0.005){
+        var np = Math.ceil(w * t / o.w - 1e-6) * Math.ceil(h * t / o.h - 1e-6);
+        if(np < least){ least = np; s = t; }
+      }
+      var cap = 40;                                                   // never an unbounded stack of sheets
+      for(var guard = 0; guard < 40; guard++){
+        var pw = o.w / s, ph = o.h / s;
+        colCuts = cuts(w, pw, boxes.map(function(b){ return [b.x, b.x + b.w]; }), segs.map(function(g){ return [g[0], g[2]]; }));
+        rows = cuts(h, ph, boxes.map(function(b){ return [b.y, b.y + b.h]; }), segs.map(function(g){ return [g[1], g[3]]; }));
+        if(colCuts.length * rows.length <= cap || s <= 0.1) break;
+        s *= 0.9;
       }
     }
-    return {orient:o.name, w:o.w, h:o.h, s:s, cols:cols, rows:rows};
+    cols = colCuts.length;
+    return {orient:o.name, w:o.w, h:o.h, s:s, cols:cols, colCuts:colCuts, rows:rows};
   };
 
   var inkPrev = null;
@@ -151,7 +184,34 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     X1 = Math.ceil(X1 + 16); Y1 = Math.ceil(Y1 + 16);
     var W = X1 - X0, H = Y1 - Y0;
     boxes.forEach(function(b){ b.x -= X0; b.y -= Y0; });
-    var plan = window._altoInkPlan(W, H, boxes);
+
+    // The connector lines, as short straight pieces in the picture's own coordinates, so the cuts can keep clear of them.
+    var segs = [];
+    try{
+      var paths = [], budget = 0;
+      world.querySelectorAll('svg path, svg line, svg polyline').forEach(function(el){
+        if(el.closest('defs, mask, clipPath, marker')) return;
+        var cs = getComputedStyle(el);
+        if(cs.stroke === 'none' || cs.fill !== 'none' && cs.fill !== 'rgba(0, 0, 0, 0)') return;
+        var sm = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cs.stroke);
+        if(sm && (+sm[1] + +sm[2] + +sm[3]) / 3 > 190) return;                // the thin highlight laid over each line
+        if(typeof el.getTotalLength !== 'function') return;
+        var len = 0; try{ len = el.getTotalLength(); }catch(e){}
+        if(len > 0){ paths.push([el, len]); budget += len; }
+      });
+      var step = Math.max(12, budget / 12000);                                 // at most about twelve thousand pieces
+      paths.forEach(function(pl){
+        var el = pl[0], len = pl[1], m = el.getScreenCTM(), svg = el.ownerSVGElement; if(!m || !svg) return;
+        var prev = null;
+        for(var d = 0; d <= len + 0.01; d += step){
+          var pt = svg.createSVGPoint(); var q = el.getPointAtLength(Math.min(d, len)); pt.x = q.x; pt.y = q.y;
+          var sp = pt.matrixTransform(m), cur = [(sp.x - wr.left) / k - X0, (sp.y - wr.top) / k - Y0];
+          if(prev) segs.push([prev[0], prev[1], cur[0], cur[1]]);
+          prev = cur;
+        }
+      });
+    }catch(e){ segs = []; }
+    var plan = window._altoInkPlan(W, H, boxes, segs);
 
     // One grey copy of the canvas. SVG paint comes from the LIVE computed style
     // (theme and state decide it, not an attribute) and is turned to grey; the
@@ -176,16 +236,19 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     proto.classList.add('ink-world');
     proto.style.cssText += ';position:relative;width:' + world.offsetWidth + 'px;height:' + world.offsetHeight + 'px;transform:none;margin:0;';
 
+    // Every piece: the same scale, the same top-left origin on the sheet (a lone column is centred), the piece's own window
+    // onto the picture. Pieces of one picture therefore line up edge to edge.
     var host = document.createElement('div'); host.id = 'alto-ink-host';
     var offX = plan.cols === 1 ? Math.max(0, (plan.w - W * plan.s) / 2) : 0;
     var n = 0;
     plan.rows.forEach(function(row){
-      for(var c = 0; c < plan.cols; c++){
+      plan.colCuts.forEach(function(col){
         var tile = document.createElement('div'); tile.className = 'ink-tile';
-        tile.style.cssText = 'width:' + plan.w + 'px;height:' + Math.min(plan.h, Math.ceil((row[1] - row[0]) * plan.s) + 1) + 'px;';
+        tile.style.cssText = 'width:' + Math.min(plan.w, Math.ceil((col[1] - col[0]) * plan.s) + 1) + 'px;height:' +
+          Math.min(plan.h, Math.ceil((row[1] - row[0]) * plan.s) + 1) + 'px;';
         var inner = document.createElement('div'); inner.className = 'ink-in';
         inner.style.cssText = 'left:' + offX + 'px;top:0;width:' + world.offsetWidth + 'px;height:' + world.offsetHeight + 'px;' +
-          'transform:scale(' + plan.s + ') translate(' + (-(X0 + c * plan.w / plan.s)) + 'px,' + (-(Y0 + row[0])) + 'px);';
+          'transform:scale(' + plan.s + ') translate(' + (-(X0 + col[0])) + 'px,' + (-(Y0 + row[0])) + 'px);';
         var cl = proto.cloneNode(true);
         // ids inside the svg (the card mask) must be unique per copy, with their references
         var map = {};
@@ -198,7 +261,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
         });
         n++;
         inner.appendChild(cl); tile.appendChild(inner); host.appendChild(tile);
-      }
+      });
     });
     document.body.appendChild(host);
     pageStyle(plan.orient);
