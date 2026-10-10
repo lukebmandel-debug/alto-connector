@@ -623,3 +623,34 @@ def test_the_tab_a_print_opens_in_says_so_at_once_instead_of_sitting_blank(brows
     pg.wait_for_timeout(500)
     assert "alto-quiet" in pg.evaluate("document.documentElement.className")
     ctx.close()
+
+
+def test_the_print_list_in_a_timeline_gives_the_same_message_and_choice(browser, built):
+    """The share button opens the dialog by itself (not through AltoShare.open) and its Print buttons call the engine's own
+    function: both used to go without the message and, the first, without the sheets choice."""
+    _, f = built
+    pg = _open(browser, f)
+    pg.evaluate("window.print = function(){ window.__printed++; window.__shown = document.getElementById('alto-print-msg').classList.contains('on'); }; 0")
+    pg.evaluate("document.getElementById('notes-share-btn').click(); 0")
+    assert pg.locator("#share-dialog #ink-sheets").count() == 1
+    pg.locator("#share-dialog #ink-sheets").select_option("2")
+    pg.locator('#share-dialog .print-opt[data-print="ink"]').click()
+    assert pg.evaluate("document.getElementById('alto-print-msg').classList.contains('on')")        # up the moment it is clicked
+    pg.wait_for_function("window.__printed > 0")
+    assert pg.evaluate("window.__shown") is True and pg.evaluate("window._altoInkLast.sheets") == 2
+    assert pg.evaluate("document.getElementById('share-dialog').classList.contains('visible')") is False   # and the dialog is gone
+    for mode in ("timeline",):                              # the other prints get it too (all builds every page: slow under load)
+        pg.evaluate("window._altoPrep.hide(); document.getElementById('notes-share-btn').click(); 0")
+        pg.locator(f'#share-dialog .print-opt[data-print="{mode}"]').click()
+        assert pg.evaluate("document.getElementById('alto-print-msg').classList.contains('on')")
+
+
+def test_a_print_that_fails_says_so_on_screen(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    pg.evaluate("window._altoPrep.fail(new Error('boom')); 0")
+    assert pg.evaluate("document.querySelector('#alto-print-msg .apm-s').textContent") == "The print could not be prepared."
+    assert "boom" in pg.evaluate("document.querySelector('#alto-print-msg .apm-h').textContent")
+    assert pg.evaluate("getComputedStyle(document.querySelector('#alto-print-msg .apm-bar')).display") == "none"
+    pg.evaluate("window._altoPrep.show(0.5, 'next'); 0")
+    assert "err" not in pg.evaluate("document.getElementById('alto-print-msg').className")

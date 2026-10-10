@@ -61,6 +61,7 @@ PRINT_CSS = r"""<style id="alto-print-views">
   @keyframes apmCreep{from{transform:scaleX(.88);}to{transform:scaleX(.985);}}
   #alto-print-msg .apm-h{display:block;margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted,#666);}
   #alto-print-msg .apm-h:empty{display:none;}
+  #alto-print-msg.err .apm-bar{display:none;}
   #alto-print-msg .apm-x{display:inline-block;margin-top:10px;font-size:11.5px;color:var(--muted,#666);text-decoration:underline;cursor:pointer;}
   /* The outline sheets. The same rules on screen (where every card is measured, off to the side) and on paper. */
   #alto-ink-measure{position:absolute;left:-30000px;top:0;visibility:hidden;pointer-events:none;}
@@ -300,7 +301,20 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       sh.open = function(){ var r = open0.apply(this, arguments); try{ sheetsSelect(); }catch(e){} return r; };
     }
     sheetsSelect();
+    // the dialog is also opened by the share button itself, which does not come through AltoShare.open
+    try{
+      new MutationObserver(function(){ if(!document.getElementById('ink-sheets')) try{ sheetsSelect(); }catch(e){} })
+        .observe(document.body, {childList:true});
+    }catch(e){}
   })();
+  // The dialog's own Print buttons call the engine's function directly (not window.altoPrint), so they went without the message:
+  // take their clicks first and send them through it.
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest && e.target.closest('#share-dialog .print-opt[data-print]');
+    if(!b || typeof window.altoPrint !== 'function' || !window.altoPrint._altoPrep) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    window.altoPrint(b.getAttribute('data-print'));
+  }, true);
 
   // Auto: as few sheets as still read (the scale at which the description text is about 4.3pt on paper; a crib sheet's own limit).
   // SLACK: the scale the sheets are drawn at, of the largest that fits.
@@ -601,7 +615,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     show: function(p, text, hint){
       if(!msg) return;
       var i = msg.querySelector('.apm-bar i'), t = msg.querySelector('.apm-s'), h = msg.querySelector('.apm-h');
-      msg.classList.remove('creep'); msg.classList.add('on');
+      msg.classList.remove('creep', 'err'); msg.classList.add('on');
       if(i) i.style.transform = 'scaleX(' + Math.max(0.03, Math.min(p, 0.88)) + ')';
       if(t && text != null) t.textContent = text;
       if(h && hint != null) h.textContent = hint;
@@ -612,7 +626,14 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       void msg.offsetWidth;
       msg.classList.add('creep');
     },
-    hide: function(){ if(msg) msg.classList.remove('on', 'creep'); }
+    hide: function(){ if(msg) msg.classList.remove('on', 'creep', 'err'); },
+    // something went wrong: say so, and what (a print that does nothing and says nothing cannot be reported or fixed)
+    fail: function(e){
+      if(!msg) return;
+      this.show(0.03, 'The print could not be prepared.', String((e && (e.message || e)) || 'unknown error').slice(0, 200));
+      msg.classList.add('err');
+      try{ if(window.console) console.error('[alto print]', e); }catch(x){}
+    }
   };
   window._altoPrep = prep;
   if(msg){
@@ -633,7 +654,8 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       prep.show(0.7, ink ? 'Fitting the cards to the sheets…' : 'Laying out the pages…', ink ? INK_HINT : '');
       var go = function(){
         setTimeout(function(){
-          try{ orig.apply(self, args); }catch(e){ prep.hide(); throw e; }
+          try{ orig.apply(self, args); }
+          catch(e){ prep.fail(e); return; }
           prep.creep('Opening the print window…');
         }, 60);
       };
