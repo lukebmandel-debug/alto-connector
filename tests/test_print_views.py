@@ -2,7 +2,8 @@
 
   outline                      the numbered outline (the engine's own print)
   outline + all detail pages   that, then every detail page in outline order
-  timeline picture, ink-saver  cards and lines, white paper, black and grey
+  timeline picture, ink-saver  white paper, black and grey. An outline is re-set in compact columns that
+                               fill the number of sheets asked for; any other timeline is its picture, scaled
 
 The page owns the code (alto/build/print_views.py + the `print-views-*` engine
 patches). Two things ask it: the notes panel's share dialog (its PRINT list) and
@@ -28,6 +29,7 @@ from alto.build.engine_patches import PATCHES  # noqa: E402
 from alto.build import print_views  # noqa: E402
 
 OUTLINE = ROOT / "samples" / "outline_brief.json"
+LANES = ROOT / "samples" / "lanes_brief.json"           # not an outline: drawn as the picture, not re-flowed
 HOME = ROOT / "alto" / "engine" / "home_template.html"
 
 
@@ -91,6 +93,14 @@ def built(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
+def built_lanes(tmp_path_factory):
+    html, _ = _build(LANES)
+    f = tmp_path_factory.mktemp("print-lanes") / "page.html"
+    f.write_text(html, encoding="utf-8")
+    return html, f
+
+
+@pytest.fixture(scope="module")
 def browser():
     with pw.sync_playwright() as p:
         try:
@@ -128,9 +138,10 @@ GREY_CHECK = """() => {
 }"""
 
 
+@pytest.mark.parametrize("fixture", ["built", "built_lanes"])
 @pytest.mark.parametrize("dark", [False, True], ids=["light", "dark"])
-def test_the_ink_saver_picture_is_white_and_grey(browser, built, dark):
-    _, f = built
+def test_the_ink_saver_picture_is_white_and_grey(browser, request, fixture, dark):
+    _, f = request.getfixturevalue(fixture)
     pg = _open(browser, f, dark)
     assert pg.evaluate("window._altoInkStage()") is True
     pg.evaluate("document.documentElement.classList.add('printing','print-ink')")
@@ -197,8 +208,8 @@ def test_a_cut_prefers_the_gap_the_fewest_lines_cross(browser, built):
     assert cut[-1][1] == 1600 and all(cut[i][1] == cut[i + 1][0] for i in range(len(cut) - 1))
 
 
-def test_a_tall_timeline_prints_across_pages_without_a_blank_one(browser, built):
-    _, f = built
+def test_a_tall_timeline_prints_across_pages_without_a_blank_one(browser, built_lanes):
+    _, f = built_lanes
     for fmt in ("Letter", "A4"):                                  # the two sheets the plan must fit
         pg = _open(browser, f)
         pg.evaluate("window.altoPrint('ink')")
@@ -266,6 +277,143 @@ def test_printing_from_an_open_detail_page_returns_to_it(browser, built):
     assert pg.evaluate("window._currentDetailId") == pg.evaluate("NODE_ORDER[2]")
     assert pg.evaluate("document.getElementById('alto-ink-host')") is None
 
+
+
+# ── an outline is re-flowed into the sheets asked for, not cut out of its picture ──
+
+def _stage(pg, sheets, fmt=None):
+    pg.evaluate(f"window._altoInkSheets = {sheets}")
+    assert pg.evaluate("window._altoInkStage()") is True
+    pg.evaluate("document.documentElement.classList.add('printing','print-ink')")
+    pg.emulate_media(media="print")
+    return pg.evaluate("window._altoInkLast")
+
+
+def test_an_outline_fills_exactly_the_sheets_asked_for_and_is_larger_with_more(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    scales = []
+    for n in (1, 2, 3):
+        for fmt in ("Letter", "A4"):                      # printing closes the staged copy (afterprint): stage it for each
+            plan = _stage(pg, n)
+            assert plan["flow"] and plan["sheets"] == n and plan["orient"] == "landscape"
+            assert pg.evaluate("document.querySelectorAll('.ink-tile').length") == n
+            assert _pages(pg.pdf(prefer_css_page_size=True, format=fmt)) == n, (n, fmt)   # no blank sheet, none spilling over
+        scales.append(plan["s"])
+    assert scales == sorted(scales) and scales[0] < scales[-1]
+
+
+def test_every_card_is_on_the_sheets_once_inside_its_sheet_and_none_touch(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    _stage(pg, 2)
+    got = pg.evaluate("""() => {
+      const out = [];
+      document.querySelectorAll('.ink-tile').forEach((t, ti) => {
+        const tr = t.getBoundingClientRect();
+        t.querySelectorAll('.ink-card').forEach(c => { const r = c.getBoundingClientRect();
+          out.push({t: ti, x0: r.left - tr.left, y0: r.top - tr.top, x1: r.right - tr.left, y1: r.bottom - tr.top,
+                    w: tr.width, h: tr.height, title: c.querySelector('.node-title').textContent}); });
+      });
+      return {cards: out, n: NODES.length};
+    }""")
+    cards = got["cards"]
+    assert len(cards) == got["n"] and all(c["title"].strip() for c in cards)       # every card, once
+    for c in cards:
+        assert c["x0"] >= -0.5 and c["y0"] >= -0.5 and c["x1"] <= c["w"] + 0.5 and c["y1"] <= c["h"] + 0.5
+    for i, a in enumerate(cards):
+        for b in cards[i + 1:]:
+            if a["t"] != b["t"]:
+                continue
+            apart = a["x1"] <= b["x0"] + 0.5 or b["x1"] <= a["x0"] + 0.5 or a["y1"] <= b["y0"] + 0.5 or b["y1"] <= a["y0"] + 0.5
+            assert apart, (a["title"], b["title"])
+
+
+def test_the_print_is_not_shrunk_to_fit_a_page_wider_than_the_sheet(browser, built, built_lanes):
+    """The page sizes <body> as 100vw / zoom: on paper that is wider than the sheet and the browser shrinks the whole print
+    to fit it (the first outline sheets came out at 88% of the size asked for, and with the engine's 11mm margin)."""
+    for _, f in (built, built_lanes):
+        pg = _open(browser, f)
+        _stage(pg, 2)
+        assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+        assert pg.evaluate("getComputedStyle(document.documentElement).zoom") == "1"
+        assert pg.evaluate("document.querySelector('.ink-tile').getBoundingClientRect().left") == 24      # a quarter inch in
+        assert "margin: 0" in pg.evaluate("document.getElementById('alto-ink-page').textContent").replace("margin:0", "margin: 0")
+
+
+def test_columns_break_between_branches_and_never_through_a_card(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    pack = lambda h, d, first, k, cap: pg.evaluate(
+        f"window._altoInkPack({h}, {d}, {first}, {k}, {cap}, {{GAP:5, HDR:10}})")
+    # two units of four cards: the break falls between the units, not inside one
+    cols = pack([100] * 8, [0, 1, 2, 2, 0, 1, 2, 2], [0, 1, 1, 0, 0, 1, 1, 0], 2, 470)
+    assert cols == [[0, 4], [4, 8]]
+    # a column that could hold three cards: the break is not made right after a parent, leaving it alone at the foot
+    cols = pack([100] * 5, [0, 1, 2, 2, 2], [0, 1, 1, 0, 0], 2, 330)
+    assert cols == [[0, 3], [3, 5]]
+    assert pack([100] * 8, [0] * 8, [0] * 8, 2, 300) is None            # two cards to a column: it will not fit, no answer, not a bad one
+    cols = pack([60, 90, 80, 120, 70, 100, 50, 110, 90], [0, 1, 1, 1, 0, 1, 2, 2, 1], [0, 1, 0, 0, 0, 1, 1, 0, 0], 3, 400)
+    assert cols[0][0] == 0 and cols[-1][1] == 9 and all(a[1] == b[0] for a, b in zip(cols, cols[1:]))   # in order, whole
+
+
+def test_a_column_that_starts_inside_a_branch_says_which(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    _stage(pg, 3)
+    texts = pg.evaluate("[...document.querySelectorAll('#alto-ink-host .ink-crumb')].map(e => e.textContent)")
+    cols = pg.evaluate("window._altoInkLast.breaks")
+    depth = pg.evaluate("""(() => { const P = window._ALTO_OUTLINE.parent || {}, d = id => { let n = 0; while(P[id]){ id = P[id]; n++; } return n; };
+      const order = []; const walk = id => { order.push(id); ((window._ALTO_OUTLINE.kids || {})[id] || []).forEach(walk); };
+      NODES.filter(n => !P[n.id]).forEach(n => walk(n.id));
+      return order.map(d); })()""")
+    inside = [c for c in cols if depth[c[0]] > 0]
+    assert inside                                          # the sample is small, but not that small
+    assert len(texts) == len(inside) and all(t.endswith("(continued)") for t in texts)   # one line for each column that begins mid-branch, none otherwise
+
+
+def test_links_that_are_not_part_of_the_tree_are_kept_as_see_also(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    _stage(pg, 2)
+    texts = pg.evaluate("[...document.querySelectorAll('#alto-ink-host .ink-see')].map(e => e.textContent)")
+    assert texts and all(t.startswith("See also ") and len(t) > 9 for t in texts)
+    assert len(texts) >= 4                               # the sample's four cross links, at both ends
+
+
+def test_a_link_asks_for_the_sheets_and_the_page_keeps_to_them(browser, built):
+    _, f = built
+    pg = _open(browser, f, hash_="#altoprint=ink&sheets=3")
+    pg.wait_for_function("window.__printed > 0", timeout=20000)
+    assert pg.evaluate("window._altoInkLast.sheets") == 3
+    assert pg.evaluate("document.querySelectorAll('.ink-tile').length") == 3
+    pg = _open(browser, f, hash_="#altoprint=ink&sheets=0")        # 0: as few as still read
+    pg.wait_for_function("window.__printed > 0", timeout=20000)
+    plan = pg.evaluate("window._altoInkLast")
+    assert plan["flow"] and plan["s"] >= 0.5 or plan["sheets"] == 8
+
+
+def test_the_picture_of_a_timeline_that_is_not_an_outline_keeps_to_the_sheets_asked_for(browser, built_lanes):
+    _, f = built_lanes
+    pg = _open(browser, f)
+    for n in (1, 2):
+        plan = _stage(pg, n)
+        assert not plan.get("flow") and len(plan["rows"]) * plan["cols"] <= n
+        assert _pages(pg.pdf(prefer_css_page_size=True)) <= n
+        pg.evaluate("window._altoInkUnstage()")
+
+
+def test_the_notes_panel_list_has_the_sheet_choice_and_remembers_it(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    pg.evaluate("window.AltoShare.open()")
+    sel = pg.locator("#share-dialog #ink-sheets")
+    assert sel.count() == 1
+    sel.select_option("2")
+    pg.locator('#share-dialog .print-opt[data-print="ink"]').click()
+    pg.wait_for_function("window.__printed > 0")
+    assert pg.evaluate("window._altoInkLast.sheets") == 2
+    assert pg.evaluate("localStorage.getItem('alto-ink-sheets')") == "2"
 
 # ── the homepage, signed in to a stand-in account, through the private shell ──
 
@@ -349,3 +497,17 @@ def test_the_dialog_can_be_dismissed_without_opening_anything(homepage):
     n = len(ctx.pages)
     pg.keyboard.press("Escape")
     assert not pg.locator(".share-scrim").count() and len(ctx.pages) == n
+
+
+def test_the_homepage_dialog_passes_the_sheet_choice_to_the_page(homepage):
+    ctx, pg, errors = homepage
+    pg.locator("a.course-tile.live .tile-share").click()
+    pg.locator('.share-menu button[data-a="print"]').click()
+    pg.locator(".share-menu .sm-sheets select").select_option("2")
+    with ctx.expect_page() as popup:
+        pg.locator(".share-menu .sm-pick", has_text="Timeline picture, ink-saver").first.click()
+    tab = popup.value
+    tab.wait_for_function("window.__printed > 0", timeout=30000)
+    assert tab.evaluate("window._altoInkLast.sheets") == 2
+    assert pg.evaluate("localStorage.getItem('alto-ink-sheets')") == "2"      # and the next print starts from it
+    assert errors == []

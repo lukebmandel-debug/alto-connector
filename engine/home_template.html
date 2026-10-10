@@ -779,6 +779,9 @@
   .share-menu .sm-warn{ font-size:12.5px; line-height:1.6; margin:0 0 14px; }
   /* Print: each choice names itself and says what it prints */
   .share-menu .sm-pick{ height:auto; padding:10px 14px; text-align:left; }
+  .share-menu .sm-sheets{ display:flex; align-items:center; gap:8px; margin:2px 0 4px; font-size:12.5px; color:var(--muted); }
+  .share-menu .sm-sheets select{ flex:1; height:32px; padding:0 8px; border-radius:10px; border:1px solid var(--btn-border);
+    background:var(--chip-glass-bg); color:var(--text); font:inherit; font-size:12.5px; }
   .share-menu .sm-pick small{ display:block; margin-top:3px; font-size:11.5px; line-height:1.45; color:var(--muted); white-space:normal; }
   .share-menu .sm-warn b{ font-weight:600; }
   /* Recently deleted: under your own projects, folded until opened */
@@ -1547,10 +1550,12 @@ function privateHref(pg){ return '/pv/' + encodeURIComponent(pg.key) + '/'; }
 const PRINT_CHOICES = [
   ['outline', 'Outline', 'The numbered outline: every card with its title and short description.'],
   ['full', 'Outline + all detail pages', 'The outline, then every detail page in outline order, one to a sheet.'],
-  ['ink', 'Timeline picture, ink-saver', 'The cards and lines as drawn, on white with no color or shading. Scaled to the sheet.']
+  ['ink', 'Timeline picture, ink-saver', 'On white with no color or shading, as large as the sheets allow. An outline is set in compact columns, a whole branch to a column, that fill the number of sheets you choose below.']
 ];
+// how many sheets the ink-saver print may use: 0 = as few as still read. Remembered, and passed in the link.
+function altoInkSheets(){ try{ return Math.max(0, Math.min(8, +localStorage.getItem('alto-ink-sheets') || 0)); }catch(e){ return 0; } }
 function altoPrintUrl(pg, mode){
-  return privateHref(pg) + '#altoprint=' + mode;
+  return privateHref(pg) + '#altoprint=' + mode + (mode === 'ink' ? '&sheets=' + altoInkSheets() : '');
 }
 function altoPrintMenu(pg){
   const sc = document.createElement('div');
@@ -1580,6 +1585,17 @@ function altoPrintMenu(pg){
     });
     body.appendChild(b);
   });
+  const sh = document.createElement('label'); sh.className = 'sm-sheets';
+  sh.appendChild(document.createTextNode('Ink-saver: fit to '));
+  const sel = document.createElement('select');
+  [['0', 'as few sheets as still read'], ['1', '1 sheet'], ['2', '2 sheets'], ['3', '3 sheets'], ['4', '4 sheets'], ['6', '6 sheets']].forEach(o => {
+    const op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op);
+  });
+  sel.value = String(altoInkSheets());
+  if(sel.value !== String(altoInkSheets())) sel.value = '0';
+  sel.addEventListener('change', () => { try{ localStorage.setItem('alto-ink-sheets', sel.value); }catch(e){} });
+  sel.addEventListener('click', e => e.stopPropagation());
+  sh.appendChild(sel); body.appendChild(sh);
   const cancel = document.createElement('button');
   cancel.type = 'button'; cancel.className = 'sm-quiet'; cancel.textContent = 'Cancel';
   cancel.addEventListener('click', e => { e.stopPropagation(); close(); });
