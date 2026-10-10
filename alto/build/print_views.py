@@ -482,6 +482,8 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     return true;
   }
 
+  // stepping the page away and back is not the person moving through the timeline: the browser's history is left alone (history_nav.py)
+  function nav(fn){ if(window._altoNav && window._altoNav.quiet) window._altoNav.quiet(fn); else fn(); }
   var inkPrev = null;
   window._altoInkUnstage = function(){
     var h = document.getElementById('alto-ink-host'); if(h) h.remove();
@@ -489,7 +491,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     var p = document.getElementById('alto-ink-page'); if(p) p.remove();
     if(inkPrev){
       var pv = inkPrev; inkPrev = null;
-      try{ if(typeof window.showDetail === 'function') window.showDetail(pv[0], pv[1]); }catch(e){}
+      try{ if(typeof window.showDetail === 'function') nav(function(){ window.showDetail(pv[0], pv[1]); }); }catch(e){}
     }
   };
 
@@ -500,7 +502,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
     if(!world) return false;
     if(window._currentDetailId && typeof window.showTimeline === 'function'){
       inkPrev = [window._currentDetailType, window._currentDetailId];
-      try{ window.showTimeline(); }catch(e){}
+      try{ nav(function(){ window.showTimeline(); }); }catch(e){}
     }
     try{ if(flowStage()) return true; }catch(e){ var ms2 = document.getElementById('alto-ink-measure'); if(ms2) ms2.remove(); }
     var wr = world.getBoundingClientRect();

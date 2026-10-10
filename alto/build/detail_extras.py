@@ -1379,3 +1379,25 @@ def axes_config(b, index_axes) -> str:
         if key != kind:
             cfg[key]["ids"] = ids
     return ("\nwindow._ALTO_AXES=" + js_json(cfg) + ";")
+
+# ── a card enlarged while the cards are drawn again ─────────────────────────
+# initLayout redraws every card (an edit saved, a chip added, a filter or theme
+# change). A card that is enlarged at that moment is an element that no longer
+# exists afterwards: the page kept its focus state (the rest of the cards faded
+# to 14%, the enlarged card's shadow standing alone, the card itself faded too).
+# Leave focus first, through the engine's own exit, so there is nothing to go
+# stale; the timeline then comes up whole.
+FOCUS_SETTLE = """<script id="alto-focus-settle">
+(function(){
+  var il = window.initLayout;
+  if(typeof il !== 'function' || il._altoSettle) return;
+  window.initLayout = function(){
+    try{
+      var cv = document.getElementById('canvas');
+      if(window._focusedNodeId && cv && getComputedStyle(cv).display !== 'none' && typeof window.exitFocus === 'function') window.exitFocus();
+    }catch(e){}
+    return il.apply(this, arguments);
+  };
+  window.initLayout._altoSettle = 1;
+})();
+</script>"""

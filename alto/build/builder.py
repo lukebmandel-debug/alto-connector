@@ -265,6 +265,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .study import study_block_for
     from .manual_edit import manual_edit
     from .print_views import print_views
+    from .history_nav import history_nav
     table = dx.autolink_table(brief)
     # Sources with a copy on the author's computer (empty when none have one).
     local, local_warnings = dx.local_sources(brief)
@@ -273,11 +274,12 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     tail = (local + "<script>window._ALTO_AUTOLINK="
             + js_json(table)
             + ";</script>\n" + dx.AUTOLINK + "\n" + dx.BANNER_CLEARANCE
-            + "\n" + dx.BACK_PREV + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
+            + "\n" + dx.BACK_PREV + "\n" + dx.FOCUS_SETTLE + "\n" + dx.BOOK_JUMP + "\n" + search_config(brief)
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {})
             + manual_edit(brief, nodes) + print_views()
-            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block())
+            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
+            + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])
