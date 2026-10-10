@@ -48,9 +48,20 @@ PRINT_CSS = r"""<style id="alto-print-views">
   .print-sheets{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:12px;color:var(--muted,#888);}
   .print-sheets select{flex:1;min-width:0;padding:5px 7px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--surface,#fff);
     color:var(--text,#222);font:inherit;font-size:12px;}
-  #alto-print-msg.on{display:block;position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:9999;
-    padding:14px 22px;border-radius:14px;background:var(--surface,#fff);color:var(--text,#222);
-    border:1px solid var(--border,#ccc);box-shadow:0 10px 30px rgba(0,0,0,.25);font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  #alto-print-msg.on{display:block;position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:2147483000;
+    width:min(380px,88vw);box-sizing:border-box;padding:18px 22px 16px;border-radius:16px;background:var(--surface,#fff);color:var(--text,#222);
+    border:1px solid var(--border,#ccc);box-shadow:0 14px 40px rgba(0,0,0,.3);font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  #alto-print-msg b{display:block;font-size:15px;font-weight:600;margin:0 0 3px;}
+  #alto-print-msg .apm-s{display:block;min-height:1.4em;margin:0 0 12px;font-size:12.5px;color:var(--muted,#666);}
+  #alto-print-msg .apm-bar{height:6px;border-radius:3px;background:var(--border,#d4d4de);overflow:hidden;}
+  #alto-print-msg .apm-bar i{display:block;width:100%;height:100%;border-radius:3px;background:var(--text,#222);transform-origin:0 50%;
+    transform:scaleX(.03);transition:transform .45s cubic-bezier(.2,.7,.3,1);}
+  /* the browser's own work (building the preview) can stop the page for seconds: this keeps moving on the compositor */
+  #alto-print-msg.creep .apm-bar i{transition:none;animation:apmCreep 45s cubic-bezier(.08,.5,.2,1) forwards;}
+  @keyframes apmCreep{from{transform:scaleX(.88);}to{transform:scaleX(.985);}}
+  #alto-print-msg .apm-h{display:block;margin:12px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted,#666);}
+  #alto-print-msg .apm-h:empty{display:none;}
+  #alto-print-msg .apm-x{display:inline-block;margin-top:10px;font-size:11.5px;color:var(--muted,#666);text-decoration:underline;cursor:pointer;}
   /* The outline sheets. The same rules on screen (where every card is measured, off to the side) and on paper. */
   #alto-ink-measure{position:absolute;left:-30000px;top:0;visibility:hidden;pointer-events:none;}
   html :is(#alto-ink-host,#alto-ink-measure) .ink-card{position:absolute !important;box-sizing:border-box !important;margin:0 !important;padding:5px 8px 6px !important;
@@ -117,18 +128,23 @@ PRINT_CSS = r"""<style id="alto-print-views">
     html.printing.print-ink #alto-ink-host .ink-card .node-order,html.printing.print-ink #alto-ink-host .ink-see,
     html.printing.print-ink #alto-ink-host .ink-crumb{color:#333 !important;-webkit-text-fill-color:#333 !important;}
     html.printing.print-ink #alto-ink-host .ink-card .node-title{color:#000 !important;-webkit-text-fill-color:#000 !important;}
+    /* nothing but the sheets is laid out: a lighter preview for the browser to build, and nothing wider than the sheets to be scaled to */
+    html.printing.print-ink body > *:not(#alto-ink-host){display:none !important;}
     html.printing.print-ink #alto-ink-host svg.ink-lines{display:block !important;}
     html.printing.print-ink #alto-ink-host svg.ink-lines line{stroke:#555 !important;fill:none !important;}
   }
 </style>
-<div id="alto-print-msg" role="status">Preparing your print…</div>
+<div id="alto-print-msg" role="status" aria-live="polite"><b>Preparing your print…</b><span class="apm-s"></span><div class="apm-bar"><i></i></div><span class="apm-h"></span><a class="apm-x" role="button">Hide this</a></div>
 """
 
 PRINT_JS = r"""<script id="alto-print-views-js">
 (function(){
   if(window._altoInkStage) return;
-  // Landscape sheets only. What a sheet always holds in CSS px inside a quarter-inch margin on Letter or A4 (whichever is smaller each way).
-  var LAND = {w:1004, h:741, name:'landscape'};
+  // Landscape sheets only. What a sheet holds in CSS px: A4 landscape, less a quarter inch all round. Safari scales a print so that
+  // the document's width is the paper's, so a sheet that runs to the edge of the document runs to the edge of the paper: the
+  // document is the sheet plus a quarter inch on each side (the host's width, below). On Letter, which is narrower and taller,
+  // the browser scales the same sheets down by 5% to fit the width, and they then stand clear of its height too.
+  var LAND = {w:1066, h:745, name:'landscape'};
   var MIN_ONE = 0.5, MIN_READ = 0.42;                                                      // below these a sheet is too small to read
 
   function pageStyle(orient){
@@ -445,6 +461,7 @@ PRINT_JS = r"""<script id="alto-print-views-js">
       tile.appendChild(inner); host.appendChild(tile);
     }
     meas.remove();
+    host.style.width = (SHEET_W + 48) + 'px';
     document.body.appendChild(host);
     pageStyle('landscape');
     window._altoInkLast = {orient:'landscape', flow:true, w:SHEET_W, h:SHEET_H, s:s, cols:C, sheets:result.sheets, breaks:result.cols};
@@ -568,11 +585,64 @@ PRINT_JS = r"""<script id="alto-print-views-js">
         inner.appendChild(cl); tile.appendChild(inner); host.appendChild(tile);
       });
     });
+    host.style.width = (plan.w + 48) + 'px';
     document.body.appendChild(host);
     pageStyle(plan.orient);
     window._altoInkLast = plan;
     return true;
   };
+
+  // The message that says the print is being prepared, and how far along it is. Opening a page, laying out the cards and the browser
+  // building its preview can take seconds each, and the page can be stopped for most of the last: nothing on screen looks like a
+  // hang. The bar fills as the steps are done, then keeps creeping on the compositor (it moves while the page is stopped).
+  var msg = document.getElementById('alto-print-msg');
+  var CHROMIUM = /Chrome\/|Chromium\/|Edg\//.test(navigator.userAgent || '');
+  var prep = {
+    show: function(p, text, hint){
+      if(!msg) return;
+      var i = msg.querySelector('.apm-bar i'), t = msg.querySelector('.apm-s'), h = msg.querySelector('.apm-h');
+      msg.classList.remove('creep'); msg.classList.add('on');
+      if(i) i.style.transform = 'scaleX(' + Math.max(0.03, Math.min(p, 0.88)) + ')';
+      if(t && text != null) t.textContent = text;
+      if(h && hint != null) h.textContent = hint;
+    },
+    creep: function(text){
+      if(!msg) return;
+      this.show(0.88, text);
+      void msg.offsetWidth;
+      msg.classList.add('creep');
+    },
+    hide: function(){ if(msg) msg.classList.remove('on', 'creep'); }
+  };
+  window._altoPrep = prep;
+  if(msg){
+    var hideBtn = msg.querySelector('.apm-x');
+    if(hideBtn) hideBtn.addEventListener('click', function(){ prep.hide(); });
+  }
+  // Safari cannot be told which way to print (it ignores the page's @page size and shows its dialog in portrait), and a page cannot
+  // tell which way the person chose: so, for the picture, say it while they wait.
+  var INK_HINT = CHROMIUM ? '' : 'Safari cannot choose the orientation for you: pick Landscape in the print window. ' +
+    'Presets ▸ Save Current Settings as Preset… there makes it one click next time.';
+
+  // Everything that prints goes through altoPrint: show the message first, give the browser a frame to paint it, then stage and print.
+  (function(){
+    var orig = window.altoPrint;
+    if(typeof orig !== 'function' || orig._altoPrep) return;
+    var wrapped = function(mode){
+      var self = this, args = arguments, ink = mode === 'ink';
+      prep.show(0.7, ink ? 'Fitting the cards to the sheets…' : 'Laying out the pages…', ink ? INK_HINT : '');
+      var go = function(){
+        setTimeout(function(){
+          try{ orig.apply(self, args); }catch(e){ prep.hide(); throw e; }
+          prep.creep('Opening the print window…');
+        }, 60);
+      };
+      if(window.requestAnimationFrame) window.requestAnimationFrame(go); else go();
+    };
+    wrapped._altoPrep = 1;
+    window.altoPrint = wrapped;
+  })();
+  window.addEventListener('afterprint', function(){ prep.hide(); });
 
   // #altoprint=outline|full|ink: the homepage asks the page to print itself.
   function hashNow(){
@@ -584,24 +654,23 @@ PRINT_JS = r"""<script id="alto-print-views-js">
   if(ms) window._altoInkSheets = +ms[1];                          // how many sheets the ink-saver print may use (0 = as few as read)
   var MODE = {outline:'timeline', full:'full', ink:'ink'}[m[1]];
   try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}   // a reload must not print again
-  var msg = document.getElementById('alto-print-msg');
-  function note(on){ if(msg) msg.classList.toggle('on', !!on); }
   window.addEventListener('afterprint', function(){
-    note(false);
     if(window.opener){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 250); }     // the tab the homepage opened for this
   });
   var tries = 0, lastSig = '';
+  prep.show(0.35, 'Opening your timeline…', MODE === 'ink' ? INK_HINT : '');
   (function wait(){
     var w = document.getElementById('world');
     var ready = document.readyState === 'complete' && typeof window.altoPrint === 'function' && w &&
                 w.querySelectorAll('.node').length > 0;
     var sig = ready ? (w.offsetHeight + ':' + w.querySelectorAll('.node').length) : '';
     if((ready && sig === lastSig) || ++tries > 80){
-      var go = function(){ note(false); try{ window.altoPrint(MODE); }catch(e){} };
+      prep.show(0.55, 'Loading fonts…');
+      var go = function(){ prep.show(0.65, 'Almost ready…'); try{ window.altoPrint(MODE); }catch(e){ prep.hide(); } };
       (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function(){ setTimeout(go, 300); });
       return;
     }
-    lastSig = sig; note(true);
+    lastSig = sig; prep.show(Math.min(0.5, 0.35 + tries * 0.01), 'Opening your timeline…');
     setTimeout(wait, 150);
   })();
 })();

@@ -303,6 +303,15 @@ def test_an_outline_fills_exactly_the_sheets_asked_for_and_is_larger_with_more(b
     assert scales == sorted(scales) and scales[0] < scales[-1]
 
 
+def test_nothing_but_the_sheets_is_laid_out_on_paper(browser, built):
+    """A lighter preview for the browser to build, and nothing wider than the sheets for it to scale to."""
+    _, f = built
+    pg = _open(browser, f)
+    _stage(pg, 2)
+    shown = pg.evaluate("[...document.body.children].filter(e => getComputedStyle(e).display !== 'none').map(e => e.id)")
+    assert shown == ["alto-ink-host"]
+
+
 def test_every_card_is_on_the_sheets_once_inside_its_sheet_and_none_touch(browser, built):
     _, f = built
     pg = _open(browser, f)
@@ -338,6 +347,12 @@ def test_the_print_is_not_shrunk_to_fit_a_page_wider_than_the_sheet(browser, bui
         assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
         assert pg.evaluate("getComputedStyle(document.documentElement).zoom") == "1"
         assert pg.evaluate("document.querySelector('.ink-tile').getBoundingClientRect().left") == 24      # a quarter inch in
+        # and a quarter inch to spare on the right: Safari scales a print so that the document's width is the paper's, so a sheet
+        # that ran to the edge of the document (it did) ran to the edge of the paper
+        got = pg.evaluate("""() => { const t = document.querySelector('.ink-tile').getBoundingClientRect(), h = document.getElementById('alto-ink-host').getBoundingClientRect();
+          const wide = [...document.querySelectorAll('body *')].filter(e => getComputedStyle(e).display !== 'none' && !e.closest('.ink-tile') && e.getBoundingClientRect().right > h.right + 1).length;
+          return {gap: h.right - t.right, left: t.left - h.left, wide}; }""")
+        assert got["gap"] >= 24 and got["left"] == 24 and got["wide"] == 0       # nothing on the page is wider than the sheets
         assert "margin: 0" in pg.evaluate("document.getElementById('alto-ink-page').textContent").replace("margin:0", "margin: 0")
 
 
@@ -511,3 +526,100 @@ def test_the_homepage_dialog_passes_the_sheet_choice_to_the_page(homepage):
     assert tab.evaluate("window._altoInkLast.sheets") == 2
     assert pg.evaluate("localStorage.getItem('alto-ink-sheets')") == "2"      # and the next print starts from it
     assert errors == []
+
+
+# ── the print is said to be on its way ──────────────────────────────────────
+
+def test_a_message_with_a_bar_is_up_from_the_click_until_the_print_is_done(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    pg.evaluate("window.print = function(){ window.__printed++; window.__shown = document.getElementById('alto-print-msg').classList.contains('on'); }; 0")      # (a function it is handed, evaluate would call)
+    pg.evaluate("window.altoPrint('ink')")
+    # up at once, before anything is staged, with a bar that has started
+    assert pg.evaluate("document.getElementById('alto-print-msg').classList.contains('on')")
+    assert abs(float(pg.evaluate("getComputedStyle(document.querySelector('#alto-print-msg .apm-bar')).height")[:-2]) - 6) < 0.2
+    pg.wait_for_function("window.__printed > 0")
+    assert pg.evaluate("window.__shown") is True                       # still up when the browser's own print starts
+    assert "creep" in pg.evaluate("document.getElementById('alto-print-msg').className")    # and its bar keeps moving
+    assert pg.evaluate("document.querySelector('#alto-print-msg .apm-s').textContent").startswith("Opening the print window")
+    pg.evaluate("window.dispatchEvent(new Event('afterprint'))")
+    assert not pg.evaluate("document.getElementById('alto-print-msg').classList.contains('on')")
+    assert not pg.evaluate("document.getElementById('alto-print-msg').offsetParent")
+
+
+def test_the_message_is_never_on_the_paper(browser, built):
+    _, f = built
+    pg = _open(browser, f)
+    pg.evaluate("window._altoPrep.show(0.5, 'x')")
+    pg.emulate_media(media="print")
+    assert pg.evaluate("getComputedStyle(document.getElementById('alto-print-msg')).display") == "none"
+
+
+def test_a_link_that_prints_shows_how_far_it_has_got_while_it_waits(browser, built):
+    _, f = built
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    ctx.add_init_script("window.__printed=0;window.print=function(){window.__printed++;};window.__seen=[];"
+                        "new MutationObserver(function(){var m=document.getElementById('alto-print-msg');"
+                        "if(m&&m.classList.contains('on')){var i=m.querySelector('.apm-bar i');window.__seen.push(m.querySelector('.apm-s').textContent+'|'+(i&&i.style.transform));}"
+                        "}).observe(document,{subtree:true,attributes:true,childList:true,characterData:true});")
+    pg = ctx.new_page()
+    pg.goto(f.as_uri() + "#altoprint=ink&sheets=2")
+    pg.wait_for_function("window.__printed > 0", timeout=20000)
+    seen = pg.evaluate("window.__seen")
+    steps = {s.split("|")[0] for s in seen}
+    assert {"Opening your timeline\u2026", "Fitting the cards to the sheets\u2026", "Opening the print window\u2026"} <= steps
+    bars = [float(re.search(r"scaleX\(([\d.]+)\)", s.split("|")[1]).group(1)) for s in seen if "scaleX" in s]
+    assert bars[0] < bars[-1] and min(bars) >= 0.03 and max(bars) <= 0.88           # it only goes forward
+    ctx.close()
+
+
+def test_safari_is_told_to_choose_landscape_and_chrome_is_not_bothered(browser, built):
+    _, f = built
+    for ua, says in (("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15", True),
+                     ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36", False)):
+        ctx = browser.new_context(viewport={"width": 1400, "height": 900}, user_agent=ua)
+        ctx.add_init_script(STUB_PRINT)
+        pg = ctx.new_page()
+        pg.goto(f.as_uri())
+        pg.wait_for_timeout(800)
+        pg.evaluate("window.altoPrint('ink')")
+        hint = pg.evaluate("document.querySelector('#alto-print-msg .apm-h').textContent")
+        assert ("Landscape" in hint) is says, ua
+        ctx.close()
+
+
+def test_the_tab_a_print_opens_in_says_so_at_once_instead_of_sitting_blank(browser):
+    """The homepage opens the timeline in a new tab and the shell fetches the page before it can say anything of its own: until
+    then the tab used to be the bare backdrop, and nothing looked as if it were happening."""
+    from alto.build import private_shell
+    shell = private_shell.shell()
+    stub = CLOUD_STUB.replace("getPage: async()=>await (await fetch('/__page')).text()", "getPage: () => new Promise(()=>{})")
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    ctx.add_init_script("try{localStorage.setItem('alto-account-v1',JSON.stringify({provider:'google',name:'Me',email:'me@x.test',ts:'2026-10-06',v:1}))}catch(e){}")
+    def route(r):
+        path = r.request.url.split("#")[0].split("alto.test", 1)[-1]
+        if path.startswith("/alto-cloud.js"):
+            return r.fulfill(body=stub, content_type="text/javascript")
+        if path.startswith("/pv/"):
+            return r.fulfill(body=shell, content_type="text/html")
+        return r.fulfill(status=404, body="")
+    ctx.route("http://alto.test/**", route)
+    pg = ctx.new_page()
+    pg.goto("http://alto.test/pv/K1/#altoprint=ink&sheets=2")
+    pg.wait_for_timeout(700)
+    assert "alto-quiet" not in pg.evaluate("document.documentElement.className")      # not the bare backdrop
+    assert pg.locator("#gate-body h1").text_content().startswith("Preparing your print")
+    assert pg.locator("#gate-body .pbar i").count() == 1
+    assert pg.evaluate("getComputedStyle(document.querySelector('#gate .card')).visibility") == "visible"
+    pg.wait_for_timeout(1800)                                                           # and it is still there, not "Opening…"
+    assert pg.locator("#gate-body h1").text_content().startswith("Preparing your print")
+    ctx.close()
+    # an ordinary open is untouched
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    ctx.add_init_script("try{localStorage.setItem('alto-account-v1',JSON.stringify({provider:'google',name:'Me',email:'me@x.test',ts:'2026-10-06',v:1}))}catch(e){}")
+    ctx.route("http://alto.test/**", route)
+    pg = ctx.new_page()
+    pg.goto("http://alto.test/pv/K1/")
+    pg.wait_for_timeout(500)
+    assert "alto-quiet" in pg.evaluate("document.documentElement.className")
+    ctx.close()

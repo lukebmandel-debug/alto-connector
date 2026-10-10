@@ -94,6 +94,10 @@ html.alto-quiet.alto-quiet-dark,html.alto-quiet.alto-quiet-dark body{background:
   linear-gradient(150deg,#1f5a96 0%,#6b4326 23%,#6e2438 41%,#3b2f72 59%,#156a4c 78%,
   #6b4220 100%) fixed}
 html.alto-quiet #gate .card{visibility:hidden}
+.pbar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:2px 0 0}
+.pbar i{display:block;width:100%;height:100%;border-radius:3px;background:var(--text);transform-origin:0 50%;
+  animation:pgrow 30s cubic-bezier(.1,.6,.2,1) forwards}
+@keyframes pgrow{from{transform:scaleX(.03)}to{transform:scaleX(.34)}}
 """
 
 # Shown over a page that is older than the site serving it. It is put up after
@@ -122,7 +126,16 @@ _JS = """
   var STALE_CSS = __STALE_CSS__;
 
   function show(h){ body.innerHTML = h; }
-  function waiting(msg){ show('<h1>Private timeline</h1><p>' + msg + '</p>'); }
+  // Opened by the homepage's Print… (#altoprint=<mode>): say at once that the print is on its way, with a bar that keeps moving.
+  // The page puts up its own message, carrying on from here, once it has replaced this document.
+  var PRINTING = /[#&]altoprint=/.test(location.hash || '');
+  function printCard(){
+    show('<h1>Preparing your print\u2026</h1><p>Opening your timeline\u2026</p><div class="pbar"><i></i></div>');
+  }
+  function waiting(msg){
+    if(PRINTING && /^(Opening|Checking)/.test(msg)) return;       // the print card stays up while it opens
+    show('<h1>Private timeline</h1><p>' + msg + '</p>');
+  }
 
   // Opening for a remembered account shows no card: a reload used to flash
   // "Private timeline / Opening…" for the ~250ms the sign-in library takes to
@@ -543,7 +556,8 @@ _JS = """
 
   // A remembered session means the cached page (above) is about to appear,
   // so there is nothing to check out loud; otherwise say what is happening.
-  if(remembered()){ quiet(); waiting('Opening\\u2026'); }
+  if(PRINTING){ printCard(); }
+  else if(remembered()){ quiet(); waiting('Opening\\u2026'); }
   else waiting('Checking your account\\u2026');
 
   // alto-cloud.js drives renderAccount from onAuthStateChanged, but it returns
