@@ -313,6 +313,46 @@ Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
 **§D-Outline** below, horizontal to **§D-Lanes**.
 
+A third shape, only when the user asks for it by name (a **Mind Palace**, a
+memory palace, "put my outline on a city") — never offered unprompted:
+`mode: 'palace'`, **§D-Palace**. Only Claude can start one; the homepage's
+"+ New timeline" has no Mind Palace starter.
+
+### §D-Palace. A Mind Palace (`mode: 'palace'`)
+The method of loci on a real map: each section is a district of a real city,
+each concept a building on one of its blocks, and what sits under a concept
+its floors, reached by an elevator inside the building.
+- **Ask which city or town** (and, if they like, which part of it — "Center
+  City, Front to 49th"). Any place OpenStreetMap knows works; a part of a
+  city they know well works best. Don't ask for coordinates: work the box
+  out yourself from the streets they name.
+- **Buildings and floors.** A node with no `parent` is a building; a node
+  with a `parent` is a floor of the building above it (nested floors stack
+  in reading order). It is the user's call where a concept stops being a
+  floor and becomes a building of its own: propose a list (from an outline,
+  usually each section's top concept and the concepts directly under it are
+  buildings, everything deeper floors; a concept with many levels under it
+  may stand as its own building) and let them choose before you build.
+  Every node stays in its own section (a floor in its building's).
+- Put each building's floors right after it in node order, so prev/next
+  inside a building rides the floors.
+- **Then `set_up_palace`**: `place`, `area` (their words), `bbox`
+  [south, west, north, east], one district per section — a real
+  neighborhood inside the box, sized to how many buildings the section has,
+  the districts in reading order along a walk through the city (the first
+  section where the walk starts) — the city's main streets as `majors`
+  (OpenStreetMap's spelling) and a handful of `landmarks` that make the city
+  recognizable at a glance (its city hall, main station, famous museum,
+  river front). It fetches the map once and stores it.
+- Connections are not drawn between cards: pointing at a building lights
+  routes along the streets to the buildings it connects with, in the
+  relation's color. Relations, chips, flags, filters, the Overview, search,
+  quizzes, notes and reports all work as on any timeline.
+- The user can move a building to another lot, make a building a floor of
+  another (drag it onto it) and let a floor out into a building of its own
+  in the page (✎ Edit manually), as well as edit words as anywhere else.
+- Map data is © OpenStreetMap contributors; the page credits it.
+
 ### §D-Lanes. A horizontal timeline (`mode: 'lanes'`)
 - One **main line** (`main_line`: its label, e.g. "The town", or "") and
   `lines: [{id, label, color?, side?: 'above'|'below', from?, to?}]` — every

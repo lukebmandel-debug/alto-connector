@@ -430,6 +430,11 @@ def _target(key, brief, by_id, conns):
         return (st, p[3], "plain") if st is not None else None
     if kind == "p" and len(p) == 3 and p[2] in ("shift", "slide") and p[1] in by_id:
         return brief.setdefault("placement", {}), p[1], p[2]
+    # a Mind Palace (palace.py): the lot a building stands on, the building a floor is in
+    if kind == "p" and len(p) == 3 and p[2] == "lot" and p[1] in by_id and brief.get("mode") == "palace":
+        return brief.setdefault("placement", {}), p[1], "lot"
+    if kind == "pf" and len(p) == 2 and p[1] in by_id and brief.get("mode") == "palace":
+        return by_id[p[1]], "parent", "floor"
     if kind == "cx" and len(p) == 4 and p[3].isdigit():
         j, n = int(p[3]), 0
         for c in conns:
@@ -561,7 +566,7 @@ def fold(store, uid, tid) -> "dict | None":
         p = key.split("|")
         m = DT_KEY.match(p[1]) if p[0] in ("dt", "sd") else None
         mn = NEW_TREE.match(p[1]) if p[0] in ("dt", "sd") else None
-        if p[0] in ("n", "fn", "ch"):
+        if p[0] in ("n", "fn", "ch", "pf"):
             touched["nodes"].add(p[1])
         elif mn and mn.group(1) == "n":
             touched["nodes"].add(mn.group(2))
@@ -1036,6 +1041,45 @@ def fold(store, uid, tid) -> "dict | None":
                     lines.append(keep)
                 else:
                     lines[at] = keep
+        elif kind == "lot":
+            cur = (holder.get(f) or {}).get("lot")
+            if (cur or None) == (v or None):
+                already.append(k)
+                continue
+            if (cur or None) != (b or None):
+                conflicts.append(k)
+                continue
+            h = dict(holder.get(f) or {})
+            if v:
+                h["lot"] = str(v)
+            else:
+                h.pop("lot", None)
+            if h:
+                holder[f] = h
+            else:
+                holder.pop(f, None)
+        elif kind == "floor":
+            # made a floor of another building (v), or let out into one of its own ("")
+            cur = holder.get("parent") or ""
+            if cur == (v or ""):
+                already.append(k)
+                continue
+            if cur != (b or ""):
+                conflicts.append(k)
+                continue
+            if v:
+                tgt, seen = by_id.get(v), {holder["id"]}
+                ok = tgt is not None and tgt.get("act") == holder.get("act")
+                while ok and tgt is not None:
+                    if tgt["id"] in seen:
+                        ok = False
+                        break
+                    seen.add(tgt["id"])
+                    tgt = by_id.get(tgt.get("parent") or "")
+                if not ok:
+                    conflicts.append(k)
+                    continue
+            holder["parent"] = v or ""
         elif kind in ("shift", "slide"):
             cur = (holder.get(f) or {}).get(kind)
             if _same(cur, v):
@@ -1473,6 +1517,10 @@ def published(store, uid, tid) -> int:
             carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
         elif t is not None and t[2] in ("shift", "slide"):
             carried = _same((t[0].get(t[1]) or {}).get(t[2]), o.get("v"))
+        elif t is not None and t[2] == "lot":
+            carried = ((t[0].get(t[1]) or {}).get("lot") or None) == (o.get("v") or None)
+        elif t is not None and t[2] == "floor":
+            carried = (t[0].get("parent") or "") == (o.get("v") or "")
         elif t is not None and t[2] == "parentswap":
             pn = by_id.get(o.get("v") or "")
             carried = bool(pn) and (pn.get("parent") or "") == p[1]

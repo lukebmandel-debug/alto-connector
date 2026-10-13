@@ -947,6 +947,7 @@ _BACK_PILL_NEW = (
 # timelines keep the engine's.
 _ORDER_MAP_OLD = "    NODE_ORDER_MAP[id] = `${actIdx+1}.${seqIdx+1}`;"
 _ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALTO_OUTLINE.num && window._ALTO_OUTLINE.num[id])"
+                  " || (window._ALTO_PALACE && window._ALTO_PALACE.num && window._ALTO_PALACE.num[id])"
                   " || `${actIdx+1}.${seqIdx+1}`;")
 
 # ── the horizontal timeline takes over the layout (lanes.py) ───────────────
@@ -955,9 +956,9 @@ _ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALT
 _LANES_HOOK_OLD = "    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
 _LANES_CENTRE_OLD = "  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;"
 _LANES_CENTRE_NEW = ("  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;\n"
-                     "    if(window._altoLanesGeo) return;   // a horizontal timeline opens at its start")
+                     "    if(window._altoLanesGeo || window._altoPalaceGeo) return;   // a horizontal timeline opens at its start; a Mind Palace on its city")
 _LANES_HOOK_NEW = ("    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
-                   "  if(window._altoLanes && window._altoLanes(nodeHeights)) return;\n")
+                   "  if((window._altoLanes && window._altoLanes(nodeHeights)) || (window._altoPalace && window._altoPalace(nodeHeights))) return;\n")
 
 PATCHES = [
     {
@@ -1941,6 +1942,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var ta=_DIRANG[dir]; if(ta===undefined) return;
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
     if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
+    if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Mind Palace: the nearest building that way
     // Every node's resting box in world px: style.left/top is its centre however
     // it is placed (margins, fly transform, tree), the card its size unzoomed.
     function g(n){
@@ -2256,12 +2258,19 @@ _HELP_M_TAIL_NEW = (
 # gradient — so every swipe showed a flat page that then "flashed" into the
 # glass one on landing. Give the preview the detail page's own computed
 # background, blur and box (absolute under the runway, reaching under the
-# bottom bar), so the page that lands is the page you saw sliding in.
+# bottom bar), so the page that lands is the page you saw sliding in. With a
+# Scene (background) chosen the detail page is clear — the photograph is the
+# page — so the preview is clear as well; it used to stay var(--bg), black in
+# dark mode, until the swipe settled.
 _PEEK_BG_OLD = "      var inner = '';\n      var actNames = "
 _PEEK_BG_NEW = (
     "      var _dcs = getComputedStyle(detailPage);\n"
     "      if(_dcs.backgroundColor !== 'rgba(0, 0, 0, 0)'){ el.style.background = _dcs.backgroundColor;\n"
     "        el.style.webkitBackdropFilter = el.style.backdropFilter = _dcs.backdropFilter || _dcs.webkitBackdropFilter || ''; }\n"
+    # with a background chosen the page itself is clear (backgrounds.py), so the preview is too:
+    # the photograph shows through it, instead of the flat var(--bg) it is painted with
+    "      else if(document.documentElement.classList.contains('alto-bg')){ el.style.background = 'none';\n"
+    "        el.style.webkitBackdropFilter = el.style.backdropFilter = 'none'; }\n"
     "      el.style.position = _dcs.position; el.style.bottom = _dcs.bottom;\n"
     + _PEEK_BG_OLD)
 PATCHES += [

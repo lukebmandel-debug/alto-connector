@@ -80,7 +80,7 @@ def edit_keys(b, nodes=()) -> str:
     if b.overview_html:
         edk["ov"] = "authored"
         edk["ovh"] = jhash(b.overview_html)
-    elif b.mode == "outline":
+    elif b.mode in ("outline", "palace"):
         acts = [i for i, a in enumerate(b.acts)
                 if any(n.act == i and not n.parent for n in nodes)]
         edk["ov"] = "composed"
@@ -1210,6 +1210,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
+    if(window._altoPalaceField && (kind === 'pf' || (kind === 'p' && p[2] === 'lot'))) return window._altoPalaceField(k);
     if(LN && (kind === 'ln' || (kind === 'n' && p.length === 3 && (p[2] === 'when' || p[2] === 'line')))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
@@ -1414,6 +1415,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(p[0] === 'sx') return -1.35;
     if(p[0] === 'so') return -1.3;
     if(p[0] === 'fl') return -1;
+    if(p[0] === 'pf') return -0.9;
     if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
   function overlay(){
@@ -1522,6 +1524,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     syncHist(); return true;
   }
   function change(k, v){ return changes([[k, v]]); }
+  window._altoEditChanges = changes;      // a Mind Palace's drags (palace.py)
   function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; h.slice().reverse().forEach(function(e){ apply(e.k, e.a); }); syncHist(); return true; }
   function redo(){ if(HP >= HIST.length) return false; var h = HIST[HP++]; h.forEach(function(e){ apply(e.k, e.b); }); syncHist(); return true; }
   function syncHist(){
@@ -1538,6 +1541,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'bt'){ headingSoon(); return; }
+    if(kind === 'pf' || (kind === 'p' && p[2] === 'lot')){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
     if(kind === 'nl' || kind === 'ln' || (kind === 'n' && (p[2] === 'when' || p[2] === 'line'))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();

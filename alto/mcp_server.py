@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.66"
+__version__ = "1.9.67"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1001,12 +1001,16 @@ def create_timeline(project_id: str, brief: dict) -> dict:
      accent?, entity_axis_label?, entity_axis_singular?,
      acts: [{label, short?, color?, summary?}] (2-7; `summary` = that section's
       Overview paragraph — normally sent later with set_overview),
-     mode?: 'linear'|'outline'|'lanes' — 'linear' (default; "sketch") flows
+     mode?: 'linear'|'outline'|'lanes'|'palace' — 'linear' (default; "sketch") flows
       nodes through the bands in sequence; 'outline' makes them concepts that
       CONTAIN one another, one family per band, structure carried by node
       `parent`, §D-Outline; 'lanes' is the horizontal timeline: time left to
       right to scale along one main line, other lines branching off and
-      converging back, each node placed by its `when` on its `line`, §D-Lanes,
+      converging back, each node placed by its `when` on its `line`, §D-Lanes;
+      'palace' is the Mind Palace: a real city the user names, each section a
+      district, each node with no `parent` a building in it and each node with
+      a `parent` a floor of that building — then set_up_palace, §D-Palace.
+      Only Claude starts one (the homepage has no Mind Palace starter),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below', from?:
       node id, to?: node id}] (lanes only: the main line's label, and the
       storylines that branch off it at `from` and converge into it at `to`; a
@@ -1503,6 +1507,110 @@ def set_flags(timeline_id: str, flags: list[dict],
         st.put_nodes(uid(), timeline_id, rebuilt)
     counts = {f: sum(1 for n in all_nodes if f in n.flags) for f in fids}
     return {"ok": True, "flags": counts, "warnings": warnings}
+
+
+@mcp.tool(title="Set up a Mind Palace city", annotations=RW)
+@accounted
+def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
+                  area: str = "", districts: list[dict] | None = None,
+                  majors: list[str] | None = None,
+                  landmarks: list[str] | None = None,
+                  diagonals: list[str] | None = None,
+                  rail_lines: list[dict] | None = None,
+                  landmark_buildings: list[dict] | None = None) -> dict:
+    """The city a Mind Palace (mode 'palace', §D-Palace) is drawn on: fetches
+    its streets, rivers, parks, railways, stations and landmarks from
+    OpenStreetMap, finds its blocks and building lots, and stores them with the
+    timeline (nothing is fetched again at build). Run it once the timeline
+    exists; run it again to change the city or its districts.
+
+    place: the city or town the user named ("Philadelphia"). area: the part of
+    it in their words ("Front St to 49th St, South St to Spring Garden St").
+    bbox: [south, west, north, east] in degrees for that area — work it out
+    from the streets they name; omitted, the place is looked up and a box sized
+    to the timeline is taken around its centre. districts: one per section,
+    [{unit: section index, name: neighborhood, bounds: [s, w, n, e]}] — real
+    neighborhoods inside the box, in reading order along a walk through the
+    city, sized to how many buildings each section has; omitted, the box is
+    cut into strips west to east. majors: the street names (as OpenStreetMap
+    spells them, e.g. "Market Street", "John F. Kennedy Boulevard") that keep
+    their labels at every zoom — the city's main streets; omitted, the
+    biggest roads. landmarks: names of places to draw and label ("City
+    Hall", "Philadelphia Museum of Art") so the city is known at a glance.
+    The drawing is an even grid (graph paper): the city's numbered and main
+    north–south streets are its columns, its named cross streets its rows,
+    each drawn only where it really runs; every block a rounded tile.
+    diagonals: the one or two famous slanting streets to keep ("Benjamin
+    Franklin Parkway"). rail_lines: the railways to draw, straight and above
+    ground — they may be hypothetical: [{name, color?, stops: [station or
+    landmark names in order]}]. landmark_buildings: the city's few major
+    landmark buildings, [{name, page?}] — each takes a whole block and, with
+    `page`, opens one of the timeline's own pages ("index:<key>" an Index
+    list such as cases or statutes, "char:<entity id>", "node:<node id>"):
+    the place to keep a list the outline points into.
+    The map data is © OpenStreetMap contributors; the page credits it."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    brief = doc["brief"]
+    if brief.get("mode") != "palace":
+        return {"error": "not_a_palace", "message": "this timeline's mode is "
+                f"{brief.get('mode') or 'linear'!r}; a Mind Palace is created with mode 'palace'"}
+    from .build import palace as pal_mod
+    from . import palace_map
+    nodes = get_store().list_nodes(uid(), timeline_id)
+    n_bld = max(1, sum(1 for n in nodes if not n.get("parent")))
+    if not bbox:
+        g = palace_map.geocode(" ".join(x for x in (area, place) if x))
+        if not g:
+            return {"error": "place_not_found", "message": f"OpenStreetMap does not know {place!r}"
+                    " — ask the user to name it another way (town, county, country)"}
+        import math
+        lat, lon = float(g["lat"]), float(g["lon"])
+        # big enough for about one building in every third block
+        side_km = max(1.6, min(7.0, math.sqrt(n_bld * 0.09)))
+        dlat, dlon = side_km / 2 / 111.0, side_km * 1.25 / 2 / (111.0 * math.cos(math.radians(lat)))
+        bbox = [lat - dlat, lon - dlon, lat + dlat, lon + dlon]
+    if not (isinstance(bbox, list) and len(bbox) == 4 and bbox[0] < bbox[2] and bbox[1] < bbox[3]):
+        return {"error": "invalid_bbox", "message": "bbox is [south, west, north, east]"}
+    if (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) > 0.02:
+        return {"error": "area_too_big", "message": "that box is bigger than a city centre "
+                "(~0.02 square degrees at most) — narrow it to the part of the city the user named"}
+    n_acts = len(brief.get("acts") or [])
+    if not districts:
+        w = (bbox[3] - bbox[1]) / max(1, n_acts)
+        districts = [{"unit": i, "name": "", "bounds": [bbox[0], bbox[1] + i * w, bbox[2], bbox[1] + (i + 1) * w]}
+                     for i in range(n_acts)]
+    cache = Path.home() / ".cache" / "alto" / "osm"
+    cache.mkdir(parents=True, exist_ok=True)
+    try:
+        names = list(landmarks or []) + [b.get("name") for b in landmark_buildings or [] if b.get("name")]
+        names += [s for ln in rail_lines or [] for s in ln.get("stops") or []]
+        pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
+                             landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
+                             diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings)
+    except Exception as e:                              # noqa: BLE001 — network, Overpass
+        return {"error": "map_unavailable", "message": f"could not fetch the map: {e}. "
+                "OpenStreetMap's server may be busy — try again in a minute."}
+    if area:
+        pal["area"] = area
+    pal["made"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    new = {**brief, "palace": pal}
+    try:
+        b, _, _ = load_brief({"brief": _checked(doc, new)})
+        from .build.brief import validate_brief
+        warnings = validate_brief(b)
+    except BriefError as e:
+        return {"error": "invalid_palace", "message": str(e)}
+    doc["brief"] = new
+    get_store().put_timeline(uid(), timeline_id, doc)
+    info = pal_mod.summary(pal)
+    lots = (info.get("city") or {}).get("lots", 0) if isinstance(info.get("city"), dict) else 0
+    if lots < n_bld * 3:
+        warnings = list(warnings) + [f"only {lots} lots for {n_bld} buildings — a bigger box gives "
+                                     "the walk room to breathe"]
+    return {"ok": True, "palace": info, "buildings": n_bld, "warnings": warnings,
+            "next": "build_timeline, then publish_timeline(…, 'private-web')"}
 
 
 @mcp.tool(title="Set overview", annotations=RW)
@@ -2261,7 +2369,7 @@ def get_timeline(timeline_id: str) -> dict:
         **({"manual_edits": edits} if edits else {}),
         "timeline_id": timeline_id,
         "project_id": doc.get("project_id"),
-        "brief": doc.get("brief"),
+        "brief": _brief_out(doc.get("brief")),
         "consent": doc.get("consent"),
         "node_ids": [n["id"] for n in nodes],
         "connection_count": len(conns),
@@ -2269,6 +2377,14 @@ def get_timeline(timeline_id: str) -> dict:
         "urls": doc.get("urls", {}),
         **_completeness(doc, nodes, conns),
     }
+
+
+def _brief_out(brief):
+    """A brief as a tool hands it back: a Mind Palace's packed city summarised."""
+    if isinstance(brief, dict) and (brief.get("palace") or {}).get("data_z"):
+        from .build.palace import summary
+        return {**brief, "palace": summary(brief["palace"])}
+    return brief
 
 
 @mcp.tool(title="Restore a published timeline's draft", annotations=RW)

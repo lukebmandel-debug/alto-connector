@@ -43,7 +43,7 @@ def test_sample_validates_and_builds_with_the_layout():
     assert any("no `when`" in x for x in w)                # the one undated event is named
     html, _ = build_timeline(b, nodes, conns)
     assert "window._ALTO_LANES=" in html and "window._altoLanes=function" in html
-    assert "if(window._altoLanes && window._altoLanes(nodeHeights)) return;" in html
+    assert "(window._altoLanes && window._altoLanes(nodeHeights))" in html
     data = json.loads(re.search(r"window\._ALTO_LANES=(\{.*?\});\n", html).group(1))
     assert data["ev"]["storm-1810"] == {"l": "flashback", "w": "1810", "t": 1810.0}
     assert {l["id"]: l["to"] for l in data["lines"]}["flashback"] == "memory"

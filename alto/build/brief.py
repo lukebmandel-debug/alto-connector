@@ -239,7 +239,7 @@ class FilterSpec:
 FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
                   "custom")
 
-MODES = ("linear", "outline", "lanes")
+MODES = ("linear", "outline", "lanes", "palace")
 LAYOUTS = ("auto", "tree", "flow")
 TREE_LINES = ("fan", "trunk")
 # How an outline's outcome cards (Liable / Not Liable: a leaf whose tag differs
@@ -431,6 +431,10 @@ class Brief:
     # main line's own label ("" = none).
     lines: list[dict] = field(default_factory=list)
     main_line: str = ""
+    # Mind Palace mode (palace.py): the city — {place, area?, bbox, districts:
+    # [{unit, name, bounds}], majors, landmarks, scale, data_z (the fetched map
+    # and its lots, packed; set_up_palace writes it)}.
+    palace: dict = field(default_factory=dict)
 
 
 def _check_sections(sections, what, warnings=None) -> None:
@@ -624,6 +628,8 @@ def validate_brief(b: Brief) -> list[str]:
     _check_card_size(b)
     from .lanes import check_lines
     check_lines(b, warnings)
+    from .palace import check_palace
+    check_palace(b, warnings)
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -826,6 +832,12 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
     if not isinstance(pl, dict):
         raise BriefError("placement: must be an object {node id: {hint: value}}")
     if not pl:
+        return
+    if b.mode == "palace":
+        for nid, hints in pl.items():
+            if not isinstance(hints, dict) or set(hints) - {"lot"} or not isinstance(hints.get("lot", ""), str):
+                raise BriefError(f"placement {nid}: a Mind Palace places a building by "
+                                 "{\"lot\": \"<block>.<lot>\"} only")
         return
     if b.mode != "outline":
         raise BriefError("placement needs mode 'outline': it positions the "
@@ -1075,6 +1087,8 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
         warnings += _validate_outline_tree(b, nodes)
     from .lanes import check_nodes
     check_nodes(b, nodes, warnings)
+    from .palace import check_nodes as palace_nodes
+    palace_nodes(b, nodes, warnings)
     doc_ids = {d.get("id") for d in b.source_docs if isinstance(d, dict)}
     for n in nodes:
         _check_refs(n.sources, doc_ids, f"node {n.id}", warnings)

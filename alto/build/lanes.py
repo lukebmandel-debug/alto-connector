@@ -31,6 +31,7 @@ from __future__ import annotations
 import re
 
 from .brief import BriefError
+from .key_toggle import KEY_CSS, KEY_JS
 from .sanitize import js_json
 
 MAIN = "main"
@@ -181,36 +182,35 @@ def lanes_data(b, nodes) -> str:
                                                separators=(",", ":")) + ";")
 
 
-LANES_CSS = """
+LANES_CSS = KEY_CSS + """
   html.alto-lanes:not(.mobile) #world{margin:0 !important;}
   html.alto-lanes:not(.mobile) #glass-slab{left:0 !important;transform:none !important;width:var(--lanes-w,1700px) !important;}
   html.alto-lanes:not(.mobile) #world .phase-band,html.alto-lanes:not(.mobile) #world .phase-label-float,html.alto-lanes:not(.mobile) #world .unit-bar{display:none !important;}
   html.alto-lanes:not(.mobile) #river-svg{display:none !important;}
   #lanes-svg{position:absolute;left:0;top:0;z-index:6;pointer-events:none;overflow:visible;}
   html.mobile #lanes-svg,html.mobile .lanes-unit,html.mobile .lanes-tag{display:none !important;}
-  #lanes-svg .ln-main{stroke:var(--accent);stroke-width:6;fill:none;stroke-linecap:round;}
-  #lanes-svg .ln-br{stroke-width:4;fill:none;stroke-linecap:round;}
-  #lanes-svg .ln-wait{stroke-dasharray:9 7;stroke-width:3.5;}
+  #lanes-svg .ln-main{stroke:var(--accent);stroke-width:5;fill:none;stroke-linecap:round;}
+  #lanes-svg .ln-br{stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  #lanes-svg .ln-fb{stroke-dasharray:11 9;}
+  #lanes-svg .ln-rule{stroke:var(--muted);stroke-width:1.2;opacity:.55;}
   #lanes-svg .ln-hit{stroke:transparent;stroke-width:22;fill:none;pointer-events:stroke;cursor:pointer;}
   #lanes-svg g{transition:opacity .2s;}
   .node[data-ln] .node-card{transition:opacity .2s;}
-  #lanes-key{position:fixed;left:16px;bottom:64px;z-index:310;max-width:290px;max-height:44vh;overflow:auto;padding:10px 12px;border-radius:14px;
-    background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.18);
-    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font-size:12px;line-height:1.35;color:var(--text);}
-  #lanes-key h5{margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer;display:flex;justify-content:space-between;gap:12px;}
+  /* the key is a floating toggle's panel (key_toggle.py) */
+  #lanes-key h5{margin:0 0 4px;}
   #lanes-key.shut .lk-body{display:none;}
   #lanes-key .lk-row{display:flex;gap:9px;align-items:flex-start;padding:5px 4px;border-radius:8px;cursor:pointer;}
   #lanes-key .lk-row:hover,#lanes-key .lk-row.ln-on{background:color-mix(in srgb,var(--text) 7%,transparent);}
   #lanes-key svg{flex:none;margin-top:3px;}
   #lanes-key small{display:block;color:var(--muted);font-size:11px;}
   #lanes-key .lk-sep{border-top:1px solid var(--border);margin:6px 0 4px;}
-  html.mobile #lanes-key,html.printing #lanes-key,html.detail-open #lanes-key{display:none !important;}
   #lanes-svg .ln-stem{stroke-width:1.5;opacity:.55;}
   #lanes-svg .ln-dot{stroke:var(--surface);stroke-width:2.5;}
   #lanes-svg .ln-tick{stroke:var(--muted);stroke-width:1;opacity:.6;}
-  #lanes-svg .ln-ticklbl{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+  #lanes-svg .ln-ticklbl{fill:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;}
   #lanes-svg .ln-break{stroke:var(--muted);stroke-width:1.6;fill:none;opacity:.8;}
-  #lanes-svg .ln-rel{fill:none;stroke-width:2.2;stroke-dasharray:7 5;opacity:.85;}
+  #lanes-svg .ln-rel{fill:none;stroke-width:2;stroke-dasharray:7 5;opacity:.26;transition:opacity .2s;}
+  #lanes-svg g.ln-on .ln-rel{opacity:.9;}
   #lanes-svg .ln-merge{stroke:var(--surface);stroke-width:2.5;}
   .lanes-tag{position:absolute;z-index:7;transform:translate(0,-50%);white-space:nowrap;
     font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:999px;
@@ -239,7 +239,7 @@ LANES_CSS = """
 """
 
 
-LANES_JS = r"""
+LANES_JS = KEY_JS + r"""
 (function(){
 var L=window._ALTO_LANES; if(!L) return;
 var de=document.documentElement;
@@ -379,40 +379,45 @@ function draw(world, lines, order, X, pos, h, S, W, H){
   var P=WORLD_PAD_TOP, svg=el('svg',{id:'lanes-svg', width:W, height:H+P}), main=lines[0];
   world.insertBefore(svg, world.firstChild.nextSibling);
   var col=function(l){ return l.id==='main'?'var(--accent)':l.color; };
-  /* the time axis along the main line: ticks where the numbers are round */
-  var my=main.y+P, tk=el('g',{'class':'ln-axis'},svg);
+  /* the time axis: a ruler along the bottom of the page, ticks where the numbers are round */
+  var my=main.y+P, ay=H+P-52, tk=el('g',{'class':'ln-axis'},svg);
   var nums=order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); })
   if(!order.some(function(id){ return L.ev[id].t!=null; })) nums=false;   // nothing dated: no clock to show
+  if(nums) el('line',{'class':'ln-rule', x1:main.x0, x2:main.x1, y1:ay, y2:ay},tk);
   S.segs.forEach(function(sg){
     if(sg.t1==null || sg.t1<=sg.t0 || !nums) return;
     var step=nice(220/S.s); if(step<1) step=1;
     for(var v=Math.ceil(sg.t0/step)*step; v<=sg.t1+1e-9; v+=step){
       var x=sg.x0+(v-sg.t0)*S.s; if(x<main.x0+30 || x>main.x1-30) continue;
-      el('line',{'class':'ln-tick', x1:x, x2:x, y1:my-7, y2:my+7},tk);
-      var tl=el('text',{'class':'ln-ticklbl', x:x+5, y:my+19},tk); tl.textContent=String(Math.round(v*100)/100);
+      el('line',{'class':'ln-tick', x1:x, x2:x, y1:ay, y2:ay+8},tk);
+      var tl=el('text',{'class':'ln-ticklbl', x:x, y:ay+22, 'text-anchor':'middle'},tk); tl.textContent=String(Math.round(v*100)/100);
     }
   });
-  /* each side line: branching off, its run, converging */
+  /* each side line: branching off, its run, converging. The curves are the
+     New timeline preview's: a smooth S whose run is ~.62 of its rise (so a line
+     far from the main line leans away gently instead of dropping straight
+     down), tightened only where an event sits close to the branch or the join.
+     Solid all the way; only a flashback (a line that comes in from the past
+     with no branch of its own) is dashed. */
   lines.slice(1).forEach(function(l){
-    var y=l.y+P, g=el('g',{'data-ln':l.id},svg), c=col(l), R=110;
-    var py=main.y+P, d='';
-    var a=l.fx!=null?l.fx:l.x0, b=l.tx!=null?l.tx:l.x1;
-    if(l.fx!=null) d+='M'+l.fx+' '+py+' C'+(l.fx+R*.6)+' '+py+' '+(l.fx+R*.4)+' '+y+' '+(l.fx+R)+' '+y;
+    var y=l.y+P, g=el('g',{'data-ln':l.id},svg), c=col(l);
+    var py=main.y+P, rise=Math.abs(y-py), R0=Math.max(70,Math.min(300,rise*.62)), Rb=R0, Rj=R0;
+    if(l.fx!=null && l.tx!=null){ var half=(l.tx-l.fx)/2-8; Rb=Math.max(40,Math.min(Rb,half)); Rj=Math.max(40,Math.min(Rj,half)); }
+    if(l.fx!=null && l.ev.length) Rb=Math.max(60,Math.min(Rb,l.e0-l.fx-26));
+    if(l.tx!=null && l.ev.length) Rj=Math.max(60,Math.min(Rj,l.tx-l.e1-26));
+    l.Rb=Rb; l.Rj=Rj;
+    var sx=l.fx!=null?l.fx+Rb:l.x0, runEnd=l.tx!=null?l.tx-Rj:l.x1, d='';
+    if(l.fx!=null) d+='M'+l.fx+' '+py+' C'+(l.fx+Rb*.6)+' '+py+' '+(l.fx+Rb*.4)+' '+y+' '+(l.fx+Rb)+' '+y;
     else d+='M'+l.x0+' '+y;
-    var runEnd=l.tx!=null?l.tx-R:l.x1;
     d+=' L'+runEnd+' '+y;
-    if(l.tx!=null) d+=' C'+(l.tx-R*.4)+' '+y+' '+(l.tx-R*.6)+' '+py+' '+l.tx+' '+py;
-    var e0=l.ev.length?l.e0:null, e1=l.ev.length?l.e1:null, sx=l.fx!=null?l.fx+R:l.x0;
-    /* solid where it has events of its own (and its branch / join curves); dashed where it only waits */
+    if(l.tx!=null) d+=' C'+(l.tx-Rj*.4)+' '+y+' '+(l.tx-Rj*.6)+' '+py+' '+l.tx+' '+py;
+    var fb=l.fx==null && l.tx!=null;
     el('path',{'class':'ln-hit', d:d},g);
-    el('path',{'class':'ln-br ln-wait', d:'M'+sx+' '+y+' L'+runEnd+' '+y, stroke:c},g);
-    if(l.fx!=null) el('path',{'class':'ln-br', d:'M'+l.fx+' '+py+' C'+(l.fx+R*.6)+' '+py+' '+(l.fx+R*.4)+' '+y+' '+(l.fx+R)+' '+y, stroke:c},g);
-    if(l.tx!=null) el('path',{'class':'ln-br', d:'M'+runEnd+' '+y+' C'+(l.tx-R*.4)+' '+y+' '+(l.tx-R*.6)+' '+py+' '+l.tx+' '+py, stroke:c},g);
-    if(e0!=null) el('path',{'class':'ln-br', d:'M'+Math.max(sx,e0)+' '+y+' L'+Math.min(runEnd,e1)+' '+y, stroke:c},g);
+    el('path',{'class':'ln-br'+(fb?' ln-fb':''), d:d, stroke:c},g);
     if(l.tx!=null) el('circle',{'class':'ln-merge', cx:l.tx, cy:py, r:6, fill:c},g);
     if(l.fx==null) el('circle',{cx:l.x0, cy:y, r:4.5, fill:c},g);
     if(l.tx==null){ el('path',{d:'M'+(l.x1-2)+' '+(y-7)+' L'+(l.x1+9)+' '+y+' L'+(l.x1-2)+' '+(y+7)+' Z', fill:c},g); }
-    tag(world, l, (l.fx!=null?l.fx+R:l.x0)+16, y-l.sd*22, c, 0);
+    tag(world, l, sx+16, y-l.sd*22, c, 0);
   });
   /* the main line on top of the branches' ends */
   var mg=el('g',{'data-ln':'main'},svg);
@@ -488,6 +493,7 @@ function units(world, order, X, w, H, W){
     u.style.left=cuts[a]+'px'; u.style.width=(cuts[a+1]-cuts[a])+'px'; u.style.height=(H+WORLD_PAD_TOP)+'px';
     u.style.setProperty('--unit-color', pm.colorRaw);
     u.innerHTML='<div class="lu-chip"><b></b><span></span></div>';
+    if(cuts[a]<=0) u.querySelector('.lu-chip').style.left='66px';   // clear of the key's toggle at the top left
     u.querySelector('b').textContent=pm.numeral; u.querySelector('span').textContent=(pm.label.split(' — ')[1]||pm.label);
     world.insertBefore(u, world.firstChild);
     stops.push(pm.colorRaw+'b3 '+((cuts[a]+cuts[a+1])/2/W*100).toFixed(1)+'%');
@@ -521,6 +527,60 @@ window._altoLanesNav=function(id, dir){
   }
   return null;
 };
+/* arrow keys with no card enlarged: the page slides, gently, to the next event
+   that way and comes to rest on it — never the browser's free scroll. Along a
+   line the arrows go in time, up and down to the nearest event on the next line
+   over (_altoLanesNav); Enter enlarges the one it is on. A press during a slide
+   carries on from where the last one was heading. */
+var _slide=null, _sCur=null, _sLand=null, _sNext=0;
+var _curve=(function(){ var M=400, c=[0], t=0, i, x; for(i=0;i<M;i++){ x=(i+.5)/M; t+=Math.pow(x,.4)*Math.pow(1-x,1.6); c.push(t); } for(i=0;i<=M;i++) c[i]/=t; return c; })();
+function _ease(p){ if(p<=0) return 0; if(p>=1) return 1; var f=p*400, i=Math.floor(f); return _curve[i]+(_curve[i+1]-_curve[i])*(f-i); }
+function _stopSlide(){ if(_slide){ cancelAnimationFrame(_slide); _slide=null; } }
+function _liveCard(i){ var c=document.querySelector('#node-'+i+' .node-card'); return !!c && !c.classList.contains('dimmed') && !c.classList.contains('ent-dimmed') && !c.classList.contains('rel-dimmed'); }
+function _nodeXY(id, cv){
+  var G=window._altoLanesGeo; if(!G || G.x[id]==null) return null;
+  var w=document.getElementById('world'), ox=0, oy=0, q=w; while(q && q!==cv){ ox+=q.offsetLeft; oy+=q.offsetTop; q=q.offsetParent; }
+  return {x:G.x[id]+ox, y:G.y[id]+(typeof WORLD_PAD_TOP!=='undefined'?WORLD_PAD_TOP:0)+oy};
+}
+function _nearest(cv){
+  var G=window._altoLanesGeo, vx=cv.scrollLeft+cv.clientWidth/2, vy=cv.scrollTop+cv.clientHeight/2, best=null, bd=Infinity;
+  Object.keys(G.x).forEach(function(k){ if(!_liveCard(k)) return; var a=_nodeXY(k,cv); if(!a) return; var d=(a.x-vx)*(a.x-vx)+(a.y-vy)*(a.y-vy); if(d<bd){ bd=d; best=k; } });
+  return best;
+}
+function _slideTo(id){
+  var cv=document.getElementById('canvas'), a=_nodeXY(id,cv); if(!cv || !a) return;
+  var cw=cv.clientWidth, ch=cv.clientHeight;
+  var tl=Math.max(0,Math.min(Math.round(a.x-cw/2), Math.max(0,cv.scrollWidth-cw))), tt=Math.max(0,Math.min(Math.round(a.y-ch/2), Math.max(0,cv.scrollHeight-ch)));
+  var l0=cv.scrollLeft, t0=cv.scrollTop, dist=Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0)), dur=Math.round(Math.min(1500,Math.max(560,460+.2*dist)));   // longer hops take longer: gentle, never a rush
+  _stopSlide(); _sCur=id; _sLand=null;
+  var s0=performance.now();
+  function step(now){
+    var p=Math.min(1,(now-s0)/dur), k=_ease(p);
+    cv.scrollLeft=Math.round(l0+(tl-l0)*k); cv.scrollTop=Math.round(t0+(tt-t0)*k);
+    if(p<1) _slide=requestAnimationFrame(step); else { _slide=null; _sLand=[cv.scrollLeft, cv.scrollTop]; }
+  }
+  _slide=requestAnimationFrame(step);
+}
+['wheel','mousedown','touchstart'].forEach(function(t){ document.addEventListener(t, function(e){ if(!_slide) return; var cv=document.getElementById('canvas'); if(cv && cv.contains(e.target)){ _stopSlide(); _sCur=null; } }, {passive:true, capture:true}); });
+document.addEventListener('keydown', function(e){
+  if(de.classList.contains('mobile') || !window._altoLanesGeo || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || window._focusedNodeId) return;
+  var k=e.key, d=k==='ArrowLeft'?'w':k==='ArrowRight'?'e':k==='ArrowUp'?'n':k==='ArrowDown'?'s':null;
+  if(!d && k!=='Enter') return;
+  if(de.classList.contains('detail-open') || de.classList.contains('alto-editing') || de.classList.contains('printing')) return;
+  var ae=document.activeElement, tg=ae && ae.tagName; if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
+  if(k==='Enter' && (tg==='BUTTON' || tg==='A')) return;
+  if(document.querySelector('#notes-panel.open,#summary-wrap.open,#ef-panel.open,#bg-panel.open,#note-dialog.visible,#search-btn.expanded,#share-dialog.visible')) return;
+  var cv=document.getElementById('canvas'); if(!cv) return;
+  var cur=_sCur;
+  if(cur && !_slide && _sLand && (Math.abs(cv.scrollLeft-_sLand[0])>80 || Math.abs(cv.scrollTop-_sLand[1])>80)) cur=null;   // scrolled away by hand since
+  if(!cur || !_liveCard(cur)) cur=_nearest(cv);
+  if(!cur) return;
+  e.preventDefault();
+  if(k==='Enter'){ if(window.enterFocus) window.enterFocus(cur); return; }
+  var now=Date.now(); if(e.repeat && now<_sNext) return; _sNext=now+260;
+  var nx=window._altoLanesNav(cur, d);
+  if(nx) _slideTo(nx); else if(!_sCur){ _slideTo(cur); }
+}, true);
 /* the wheel: a mouse wheel scrolls the page sideways (Shift: up and down);
    a trackpad, which scrolls both ways by itself, is left alone */
 var _tp=0;
@@ -570,23 +630,20 @@ function key(){
   var T=function(id){ var n=(typeof NODES_SRC!=='undefined'?NODES_SRC:[]).filter(function(q){ return q.id===id; })[0]; return n?n.title:''; };
   var esc=function(v){ return String(v||'').replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
   var sw=function(c,dash,w){ return '<svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="'+c+'" stroke-width="'+(w||4)+'" stroke-linecap="round"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/></svg>'; };
-  var h='<h5><span>Lines</span><span>▾</span></h5><div class="lk-body">';
-  h+='<div class="lk-row" data-k="main">'+sw('var(--accent)','',6)+'<div><b>'+esc(L.main||'Main line')+'</b><small>The main line — every other line branches off it</small></div></div>';
+  var h='<h5><span>Lines</span><span></span></h5><div class="lk-body">';
+  h+='<div class="lk-row" data-k="main">'+sw('var(--accent)','',5)+'<div><b>'+esc(L.main||'Main line')+'</b><small>The main line — every other line branches off it</small></div></div>';
   L.lines.forEach(function(l){
     var w=[l.from?'branches off at “'+esc(T(l.from))+'”':'begins on its own', l.to?'joins at “'+esc(T(l.to))+'”':'runs on'].join(' · ');
-    h+='<div class="lk-row" data-k="'+esc(l.id)+'">'+sw(l.color)+'<div><b>'+esc(l.label)+'</b><small>'+w+'</small></div></div>';
+    h+='<div class="lk-row" data-k="'+esc(l.id)+'">'+sw(l.color,'',5)+'<div><b>'+esc(l.label)+'</b><small>'+w+'</small></div></div>';
   });
   h+='<div class="lk-sep"></div>';
-  h+='<div class="lk-row">'+sw('var(--muted)')+'<div>Solid: the line through its own events</div></div>';
-  h+='<div class="lk-row">'+sw('var(--muted)','9 7',3.5)+'<div>Dashed: no events of its own here — waiting to branch off or join</div></div>';
+  if(L.lines.some(function(l){ return !l.from && l.to; })) h+='<div class="lk-row">'+sw('var(--muted)','11 9',4)+'<div>Dashed: a flashback — a line from the past that comes into the main line</div></div>';
   var rels={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(c){ if(c && c[2]!=='spine') rels[c[2]]=1; });
   Object.keys(rels).forEach(function(r){ var c=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--muted)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
-    h+='<div class="lk-row">'+sw(c,'7 5',2.2)+'<div>Arc: '+esc(lb)+' <small>a link between events on different lines</small></div></div>'; });
+    h+='<div class="lk-row">'+sw(c,'7 5',2)+'<div>Arc: '+esc(lb)+' <small>a link between events on different lines; it brightens when you point at either line</small></div></div>'; });
   h+='<div class="lk-row"><span style="width:26px;text-align:center;flex:none">≈</span><div>Time squeezed — a long stretch with nothing in it</div></div>';
   h+='<small style="margin-top:4px">Point at a line, its label or a card to follow it; click a label to keep it.</small></div>';
-  k.innerHTML=h; document.body.appendChild(k);
-  k.querySelector('h5').addEventListener('click', function(){ k.classList.toggle('shut'); try{ localStorage.setItem('alto-lanes-key', k.classList.contains('shut')?'0':'1'); }catch(e){} });
-  try{ if(localStorage.getItem('alto-lanes-key')==='0') k.classList.add('shut'); }catch(e){}
+  k.innerHTML=h; window._altoKeyToggle(k, 'alto-lanes-key', 'Key to the lines');
 }
 window.addEventListener('load', function(){ setTimeout(key, 300); });
 })();

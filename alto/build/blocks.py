@@ -21,6 +21,7 @@ from urllib.parse import quote as url_q
 from .brief import Brief, Node, Section, COL_SETS, roman
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
+from .palace import PALACE_CSS, PALACE_JS, palace_data
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
 
@@ -1296,7 +1297,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
 
     overview_html = b.overview_html
     if not overview_html:
-        if b.mode == "outline":
+        # A Mind Palace's Overview reads like an outline's: each district's
+        # buildings, and the floors in each.
+        if b.mode in ("outline", "palace"):
             overview_html = dx.outline_overview(b, nodes)
             _bare = [(x.short or x.label) for i, x in enumerate(b.acts)
                      if not (x.summary or "").strip()
@@ -1505,6 +1508,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # The horizontal timeline (lanes.py): lines, times, and the layout
         # the engine's initLayout hands over to on desktop.
         orders += lanes_data(b, nodes) + LANES_JS
+    if b.mode == "palace":
+        # The Mind Palace (palace.py): the city, its buildings and floors,
+        # the layout initLayout hands over to on desktop, the elevator.
+        orders += palace_data(b, nodes) + PALACE_JS
     if index_axes:
         orders += dx.AXIS_INDEX_GLUE + dx.axes_config(b, index_axes)
     if rel_key_items:
@@ -1553,6 +1560,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "\n  #nav .nav-btn svg,.char-chip svg{vertical-align:-2px;margin-right:5px;}")
     if b.mode == "lanes":
         nav_char_css += LANES_CSS
+    if b.mode == "palace":
+        nav_char_css += PALACE_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (
         "\n  .doc-meta{opacity:.75;font-size:.9em;margin-bottom:8px;}"
