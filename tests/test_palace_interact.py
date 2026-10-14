@@ -36,8 +36,6 @@ def html():
 
 # ── what the page carries ───────────────────────────────────────────────────
 def test_the_engine_centres_card_and_building_together(html):
-    names = {p["name"] for p in PATCHES}
-    assert {"palace-focus-centres-card-and-building", "palace-focus-centres-card-and-building-fly"} <= names
     assert html.count("window._altoFocusShift(el)") == 2
 
 

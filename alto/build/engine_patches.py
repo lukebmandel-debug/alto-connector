@@ -346,6 +346,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      ~420ms — the two beats again). Same arithmetic as flyTo. */
   function _flyPlanMs(el){
     var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);
+    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }   // a Mind Palace: centre the card and its building together
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -715,6 +716,7 @@ _FLY_SCROLL_OLD = """    var tl=_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.
 _FLY_SCROLL_NEW = """    // Where the card sits on the board at rest (_canvasXY reads layout, which
     // the pan's transform does not change).
     var ax=a.x, ay=a.y;
+    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }   // a Mind Palace: centre the card and its building together (palace.py, RISE)
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(ax-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(ay-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -2726,24 +2728,3 @@ PATCHES += [
     {"name": "freewrite-report-section", "old": _FWR_BODY_OLD, "new": _FWR_BODY_NEW, "count": 1},
 ]
 
-
-# ── a Mind Palace card rises above its building (palace.py, RISE) ───────────
-# The engine flies the enlarged node's anchor to the middle of the window. On a
-# Mind Palace the anchor is the BUILDING and the enlarged card stands above it,
-# so what should be centred is the pair — the card and the building under it.
-# window._altoFocusShift(node) (palace.py; absent on every other page) returns
-# [dx, dy]: how far from the anchor the point to centre lies. The pan and the
-# scroll are worked out from that point, so the building ends below the middle
-# of the window by exactly the amount that centres card and building together.
-_RISE_PLAN_OLD = "    var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);\n    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n"
-_RISE_PLAN_NEW = ("    var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);\n"
-                  "    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }\n"
-                  "    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n")
-_RISE_FLY_OLD = "    var ax=a.x, ay=a.y;\n    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n"
-_RISE_FLY_NEW = ("    var ax=a.x, ay=a.y;\n"
-                 "    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }\n"
-                 "    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n")
-PATCHES += [
-    {"name": "palace-focus-centres-card-and-building", "old": _RISE_PLAN_OLD, "new": _RISE_PLAN_NEW, "count": 1},
-    {"name": "palace-focus-centres-card-and-building-fly", "old": _RISE_FLY_OLD, "new": _RISE_FLY_NEW, "count": 1},
-]
