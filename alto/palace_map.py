@@ -663,6 +663,165 @@ def _ring_out_xy(pts, inner, W, H, tol):
     return pts
 
 
+# --------------------------------------------------------------------------- a wide river
+
+WIDE_RIVER_M = 350.0              # metres across: a river this wide is the edge of a city, not a street to cross
+FAR_BANK_SHARE = 0.4              # the dropped bank holds at most this share of the streets
+
+
+def _main_piece(rivers, name):
+    """The longest piece of a named river: [(x, y), ...] real px, with its length."""
+    best, bl = None, 0.0
+    for r in rivers:
+        if r.get("n") != name:
+            continue
+        p = [(r["p"][i], r["p"][i + 1]) for i in range(0, len(r["p"]) - 1, 2)]
+        L = poly_len(p)
+        if L > bl:
+            best, bl = p, L
+    return best, bl
+
+
+def _in_ring(pt, ring):
+    x, y = pt
+    c = False
+    n = len(ring)
+    for i in range(n):
+        (x0, y0), (x1, y1) = ring[i], ring[(i + 1) % n]
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            c = not c
+    return c
+
+
+def _side_of(line):
+    """f(x, y) -> signed distance-ish side of a polyline (positive on its left in screen
+    coordinates, by the nearest piece of the line, which is extended past its ends)."""
+    segs = list(zip(line, line[1:]))
+
+    def f(x, y):
+        best, bd = 0.0, 1e30
+        for (ax, ay), (bx, by) in segs:
+            dx, dy = bx - ax, by - ay
+            L2 = dx * dx + dy * dy or 1e-9
+            t = ((x - ax) * dx + (y - ay) * dy) / L2
+            tc = max(0.0, min(1.0, t))
+            d = (ax + tc * dx - x) ** 2 + (ay + tc * dy - y) ** 2
+            if d < bd:
+                best, bd = ((x - ax) * dy - (y - ay) * dx) / math.sqrt(L2), d
+        return best
+    return f
+
+
+def _keep_side(pts, f, keep):
+    """The parts of a polyline on the kept side of f (keep = +1 / -1), cut where it crosses."""
+    out, cur = [], []
+    prev, pv = None, None
+    for q in pts:
+        v = f(*q) * keep
+        if prev is not None and (pv > 0) != (v > 0):
+            lo, hi = 0.0, 1.0                                  # where it crosses: bisect
+            for _ in range(14):
+                mid = (lo + hi) / 2
+                x, y = prev[0] + (q[0] - prev[0]) * mid, prev[1] + (q[1] - prev[1]) * mid
+                if (f(x, y) * keep > 0) == (pv > 0):
+                    lo = mid
+                else:
+                    hi = mid
+            c = (prev[0] + (q[0] - prev[0]) * hi, prev[1] + (q[1] - prev[1]) * hi)
+            if pv > 0:
+                cur.append(c)
+                out.append(cur)
+                cur = []
+            else:
+                cur = [c]
+        if v > 0:
+            cur.append(q)
+        prev, pv = q, v
+    if len(cur) >= 2:
+        out.append(cur)
+    return [c for c in out if len(c) >= 2 and poly_len(c) >= MIN_LINE_LEN]
+
+
+def _across_wide_river(out, scale):
+    """A wide named river that runs across the box (the Delaware at Philadelphia) is the
+    edge of the city: the land across it is cut away (it would otherwise add a second
+    city's streets to the grid) and out["bank"] = {n, w, side} says which edge it is.
+    Only when the far bank holds a minority of the streets; otherwise the box is left alone."""
+    W, H = out["W"], out["H"]
+    best = None
+    for name in {r.get("n") for r in out["rivers"] if r.get("n")}:
+        line, L = _main_piece(out["rivers"], name)
+        if not line or L < 0.6 * min(W, H):
+            continue
+        # how wide: the area of the water polygon it runs in, over its length
+        mids = [line[len(line) // 4], line[len(line) // 2], line[3 * len(line) // 4]]
+        area = 0.0
+        for ring in out["water"]:
+            rp = [(ring[i], ring[i + 1]) for i in range(0, len(ring) - 1, 2)]
+            if sum(_in_ring(q, rp) for q in mids) >= 2:
+                area = max(area, abs(ring_area(rp)))
+        width = area / L if L else 0.0
+        if width >= WIDE_RIVER_M * scale and (best is None or width > best[0]):
+            best = (width, name, line)
+    if not best:
+        return out
+    width, name, line = best
+    f = _side_of(line)
+    side_len = [0.0, 0.0]
+    for s in out["streets"]:
+        p = s["p"]
+        for i in range(0, len(p) - 2, 2):
+            mx, my = (p[i] + p[i + 2]) / 2, (p[i + 1] + p[i + 3]) / 2
+            side_len[1 if f(mx, my) > 0 else 0] += math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1])
+    tot = sum(side_len)
+    if not tot:
+        return out
+    minor = 1 if side_len[1] < side_len[0] else 0
+    if side_len[minor] / tot > FAR_BANK_SHARE:
+        return out
+    keep = -1 if minor == 1 else 1
+
+    def kept(x, y):
+        return f(x, y) * keep > 0
+
+    def lines_of(items, key="p"):
+        res = []
+        for it in items:
+            p = it[key]
+            pts = [(p[i], p[i + 1]) for i in range(0, len(p) - 1, 2)]
+            for c in _keep_side(pts, f, keep):
+                res.append({**it, key: _flat(c)})
+        return res
+    out["streets"] = lines_of(out["streets"])
+    out["trails"] = lines_of(out["trails"])
+    out["rails"] = lines_of(out["rails"])
+    out["parks"] = [pk for pk in out["parks"] if pk["r"] and kept(*_ring_mid(pk["r"][0]))]
+    out["stations"] = [s for s in out["stations"] if kept(s["x"], s["y"])]
+    out["landmarks"] = [l for l in out["landmarks"] if kept(l["x"], l["y"])]
+    keep_rings = []
+    for ring in out["water"]:
+        rp = [(ring[i], ring[i + 1]) for i in range(0, len(ring) - 1, 2)]
+        if abs(ring_area(rp)) > 100000 * scale * scale or kept(*_ring_mid(ring)):
+            keep_rings.append(ring)
+    out["water"] = keep_rings
+    # which edge of the box the river is: where it lies from the middle of the kept streets
+    kx = ky = n_ = 0.0
+    for s in out["streets"]:
+        for i in range(0, len(s["p"]) - 1, 2):
+            kx += s["p"][i]; ky += s["p"][i + 1]; n_ += 1
+    kx, ky = kx / max(1, n_), ky / max(1, n_)
+    mx, my = line[len(line) // 2]
+    dx, dy = (mx - kx) / max(1.0, W), (my - ky) / max(1.0, H)
+    edge = ("e" if dx > 0 else "w") if abs(dx) >= abs(dy) else ("s" if dy > 0 else "n")
+    out["bank"] = {"n": name, "w": round(width), "side": edge}
+    return out
+
+
+def _ring_mid(ring):
+    xs, ys = ring[0::2], ring[1::2]
+    return sum(xs) / len(xs), sum(ys) / len(ys)
+
+
 def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
     bbox = tuple(float(v) for v in bbox)
     proj, Wf, Hf = _projector(bbox, scale)
@@ -870,7 +1029,7 @@ def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
         "trails": trails, "rails": rails, "stations": stations, "landmarks": landmark_out,
         "majors": pick_majors(merged_street_len, majors),
     }
-    return out
+    return _across_wide_river(out, scale)
 
 
 def build_map(raw, bbox, place="", scale=1.0, majors=None, landmarks=None) -> dict:

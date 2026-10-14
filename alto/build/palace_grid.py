@@ -27,6 +27,8 @@ import math
 import re
 from bisect import bisect_left
 
+from .palace_river import rivers
+
 CW, CH = 240, 170          # one block, grid px: big enough that a building's number fits inside it
 PAD = 110                  # margin around the grid
 LEAD = 40                  # how far a turned end runs along the street it joins
@@ -390,33 +392,8 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
         lb = (b[0] + math.copysign(LEAD, dx), b[1]) if abs(dx) >= abs(dy) else (b[0], b[1] + math.copysign(LEAD, dy))
         streets.append({"n": n, "k": 0, "d": 1, "p": [round(v, 1) for q in (la, a, b, lb) for v in q]})
 
-    # ── the river: one very thick connecting line along its course, its pieces
-    #    chained in order and smoothed so it curves where the river does ──
-    river = []
-    by_name: dict = {}
-    for r in m.get("rivers", []):
-        pts = [mp(x, y) for x, y in _pairs(r["p"])]
-        if len(pts) >= 2:
-            by_name.setdefault(r["n"], []).append(pts)
-    for n, pieces in by_name.items():
-        # one path through all its points: from its top end, always on to the
-        # nearest point not yet passed (side channels and both banks fold in)
-        P = [q for pc in pieces for q in pc]
-        cur = min(P, key=lambda q: (q[1], q[0]))
-        chain, left = [cur], [q for q in P if q is not cur]
-        while left:
-            nxt = min(left, key=lambda q: (q[0] - cur[0]) ** 2 + (q[1] - cur[1]) ** 2)
-            if math.dist(nxt, cur) > 900:
-                break
-            chain.append(nxt); cur = nxt
-            left = [q for q in left if math.dist(q, cur) > 90]
-        chain = _chaikin(_dp(chain, 70), 4)
-        river.append({"n": n, "w": RIVER_W, "p": [round(v, 1) for q in chain for v in q]})
-    # water past the grid's last column (a city on a river front) is a river along that edge
-    if water and xg:
-        east = max(x for w in water for x, y in w)
-        if east > xg[-1] + CW * .4:
-            river.append({"n": "", "w": RIVER_W, "p": [xg[-1] + CW * .75, yg[0] - CH * .6, xg[-1] + CW * .75, yg[-1] + CH * .6]})
+    # ── the rivers: smooth bands (palace_river), each run off the glass at both ends ──
+    river, W = rivers(m, mp, xg, yg, CW, CH, W, H)
 
     over = []
     for o, lines_, pos_, spans_ in (("v", cols, xg, csp), ("h", rows, yg, rsp)):
@@ -424,13 +401,18 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
             for s0, s1 in spans_[li]:
                 a = (pos_[li], s0) if o == "v" else (s0, pos_[li])
                 b = (pos_[li], s1) if o == "v" else (s1, pos_[li])
+                done = []
                 for rv in river:
                     q = _pairs(rv["p"])
                     for c, d in zip(q, q[1:]):
                         hit = _xing(a, b, c, d)
-                        if hit is None:
+                        if hit is None or any(math.dist(hit, h_) < 30 for h_ in done):
                             continue
-                        half = rv["w"] / 2 + 22
+                        done.append(hit)
+                        # a river crossed on the slant is crossed over more of the street
+                        rl = math.dist(c, d) or 1.0
+                        sin = abs((d[0] - c[0]) / rl) if o == "v" else abs((d[1] - c[1]) / rl)
+                        half = rv["w"] / 2 / max(.5, sin) + 22
                         p0 = (hit[0], hit[1] - half) if o == "v" else (hit[0] - half, hit[1])
                         p1 = (hit[0], hit[1] + half) if o == "v" else (hit[0] + half, hit[1])
                         over.append({"n": l["n"], "k": 0 if l["major"] else 1, "o": 1,

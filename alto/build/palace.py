@@ -255,9 +255,9 @@ def summary(pal: dict) -> dict:
 
 # ── the page ───────────────────────────────────────────────────────────────
 PALACE_CSS = KEY_CSS + r"""
-  html{--pal-river:#7fb6e8;--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
+  html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-rv-lite:#d4e9fb;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
     --pal-park:rgba(255,255,255,.20);--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;}
-  html.dark{--pal-river:#3f78b4;--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
+  html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-rv-lite:#5f9bd6;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
     --pal-park:rgba(255,255,255,.06);--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;}
   html.alto-palace:not(.mobile) #world{margin:0 !important;}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
@@ -268,7 +268,11 @@ PALACE_CSS = KEY_CSS + r"""
   #canvas.focus-mode #palace-svg{opacity:.55;}
   .pal-svg .pl-glass{fill:var(--pal-glass);stroke:var(--pal-glass-edge);stroke-width:1.5;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-water{fill:var(--pal-water);}
-  .pal-svg .pl-river-g .pl-sheen{opacity:.8;}
+  .pal-svg .pl-river-g path{fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .pal-svg .pl-rv-rim{stroke:var(--pal-rv-rim);}
+  .pal-svg .pl-rv-body{stroke:var(--pal-river);}
+  .pal-svg .pl-rv-lite{stroke:var(--pal-rv-lite);stroke-opacity:.55;}
+  .pal-svg .pl-rv-sheen{stroke:var(--pal-rv-sheen);}
   .pal-svg .pl-lmb{pointer-events:all;cursor:default;}
   .pal-svg .pl-lmb.has-page{cursor:pointer;}
   .pal-svg .pl-lmb .lm-shadow{fill:rgba(20,26,55,.16);}
@@ -292,8 +296,8 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg text{fill:var(--pal-text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     paint-order:stroke;stroke:var(--pal-halo);stroke-linejoin:round;}
   .pal-svg .pl-st{font-size:calc(11.5px / var(--pz,1));font-weight:650;stroke-width:calc(3.4px / var(--pz,1));letter-spacing:.03em;}
-  .pal-svg .pl-river{font-size:calc(14px / var(--pz,1));font-style:italic;fill:#3e6f99;stroke-width:calc(3px / var(--pz,1));letter-spacing:.14em;}
-  html.dark .pal-svg .pl-river{fill:#9cc4e6;}
+  .pal-svg .pl-river{font-weight:750;text-transform:uppercase;fill:#21507f;stroke:none;letter-spacing:.3em;pointer-events:none;}
+  html.dark .pal-svg .pl-river{fill:#d6e8fa;}
   .pal-svg .pl-chip-bg{fill:var(--pal-halo);stroke-width:1.4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-lmt{font-size:calc(11px / var(--pz,1));font-weight:650;stroke:none;letter-spacing:.02em;}
   .pal-svg .pl-stt{font-size:calc(11px / var(--pz,1));font-weight:700;stroke-width:calc(3px / var(--pz,1));}
@@ -591,6 +595,24 @@ function runsOf(p){ var out=[], cur=null, run=null;
     for(var k=0;k<n;k++){ var t0=k/n, t1=(k+1)/n, ax=x0+(x1-x0)*t0, ay=y0+(y1-y0)*t0, bx=x0+(x1-x0)*t1, by=y0+(y1-y0)*t1;
       var u=distAt((ax+bx)/2,(ay+by)/2); if(i===0 && k===0){ run=[ax,ay]; cur=u; } if(u!==cur){ out.push({u:cur, p:run.concat([ax,ay])}); run=[ax,ay]; cur=u; } run.push(bx,by); } }
   if(run) out.push({u:cur, p:run}); return out; }
+/* a smooth path through points (Catmull-Rom as cubic curves): a river bends in wide, even curves */
+function smoothD(a){ var n=a.length>>1, d='M'+a[0]+' '+a[1];
+  for(var i=0;i<n-1;i++){ var i0=Math.max(0,i-1), i3=Math.min(n-1,i+2), x0=a[2*i0], y0=a[2*i0+1], x1=a[2*i], y1=a[2*i+1], x2=a[2*i+2], y2=a[2*i+3], x3=a[2*i3], y3=a[2*i3+1];
+    d+='C'+(x1+(x2-x0)/6).toFixed(1)+' '+(y1+(y2-y0)/6).toFixed(1)+' '+(x2-(x3-x1)/6).toFixed(1)+' '+(y2-(y3-y1)/6).toFixed(1)+' '+x2+' '+y2; }
+  return d; }
+/* a river's name set along the band, as often as its length on the glass allows, reading upward (or rightward) */
+function riverLabels(svg, defs, parent, r, k){
+  var p=r.p, n=p.length>>1, cum=[0], i;
+  for(i=1;i<n;i++) cum.push(cum[i-1]+Math.hypot(p[2*i]-p[2*i-2],p[2*i+1]-p[2*i-1]));
+  var lo=-1, hi=-1; for(i=0;i<n;i++){ var x=p[2*i], y=p[2*i+1], on=x>40 && x<M.W-40 && y>40 && y<M.H-40; if(on){ if(lo<0) lo=i; hi=i; } }
+  if(lo<0 || hi-lo<4) return;
+  var s0=cum[lo], s1=cum[hi], fs=Math.max(20, (r.w||100)*.21), tot=cum[n-1], L=s1-s0;
+  var fw=null, bw=null, cnt=Math.max(1,Math.round(L/(fs*r.n.length*1.5+1500)));
+  function tangent(s){ for(var q=1;q<n-1 && cum[q]<s;q++); var a=Math.max(0,q-3), b=Math.min(n-1,q+3); return [p[2*b]-p[2*a], p[2*b+1]-p[2*a+1]]; }
+  for(var j=0;j<cnt;j++){ var s=s0+L*(j+.5)/cnt, tg=tangent(s), tl=Math.hypot(tg[0],tg[1])||1, rev=tg[0]<-.35*tl?true:tg[0]>.35*tl?false:tg[1]>0, id='plr'+(svg._sid||'')+k+(rev?'b':'f');
+    if(rev? !bw : !fw){ var pp=p; if(rev){ pp=[]; for(i=n-1;i>=0;i--) pp.push(p[2*i],p[2*i+1]); } el('path',{id:id, d:smoothD(pp)},defs); if(rev) bw=1; else fw=1; }
+    var t=el('text',{'class':'pl-river', dy:'.35em', style:'font-size:max(calc(13px / var(--pz,1)),'+fs.toFixed(0)+'px)'},parent), tp=el('textPath',{href:'#'+id, startOffset:(rev?tot-s:s).toFixed(0), 'text-anchor':'middle'},t);
+    tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=r.n; } }
 function tube(parent, d, col, w, op, cls){
   var t=el('path',{'class':'pl-tube'+(cls?' '+cls:''), d:d, stroke:col, 'stroke-width':w},parent); if(op<1) t.setAttribute('stroke-opacity',op);
   el('path',{'class':'pl-sheen'+(cls?' '+cls:''), d:d, stroke:sheen(), 'stroke-width':Math.max(.9, w*.34)},parent); return t; }
@@ -610,9 +632,15 @@ function drawCity(svg){
   Object.keys(byU).forEach(function(u){ tube(sg, byU[u], tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()), TUBE, .95); });
   /* the diagonals: one clean line, joining the grid with rounded elbows */
   M.streets.forEach(function(st){ if(st.d) tube(sg, rp(st.p), tubeCol(dcol(distAt(st.p[2],st.p[3]))||NEUTRAL()), TUBE, .95); });
-  /* the river: a very thick connecting line along its course; the bridges over it */
-  var rv=el('g',{'class':'pl-river-g'},svg);
-  (M.river||[]).forEach(function(r){ tube(rv, rp(r.p, 12), 'var(--pal-river)', r.w||64, 1, 'river'); });
+  /* the rivers: each a broad glass band (a connecting line grown wide: edge, body, a light
+     centre, a sheen) on a smooth course, run off the glass at its ends; the bridges over it */
+  var cp=el('clipPath',{id:'plclip'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},cp);
+  var rv=el('g',{'class':'pl-river-g','clip-path':'url(#plclip'+(svg._sid||'')+')'},svg);
+  (M.river||[]).forEach(function(r){ var d=smoothD(r.p), w=r.w||100;
+    el('path',{'class':'pl-rv-rim', d:d, 'stroke-width':w+12},rv);
+    el('path',{'class':'pl-rv-body', d:d, 'stroke-width':w},rv);
+    el('path',{'class':'pl-rv-lite', d:d, 'stroke-width':w*.62},rv);
+    el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.14)},rv); });
   var bridges=el('g',{'class':'pl-bridges'},svg);
   M.streets.forEach(function(st){ if(st.o) tube(bridges, pts(st.p), tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), TUBE, .95); });
   var lg=el('g',{'class':'pl-lms'},svg);
@@ -633,9 +661,7 @@ function drawCity(svg){
     lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x+(hub?18:11), s.y-(hub?15:9), 'start');
   });
   var labels=el('g',{},svg);
-  (M.rivers||[]).forEach(function(r,i){ var p=r.p; if(p.length<4) return; var L=0; for(var j=0;j+3<p.length;j+=2) L+=Math.hypot(p[j+2]-p[j],p[j+3]-p[j+1]); if(L<500) return;
-    var id='plr'+(svg._sid||'')+i; el('path',{id:id, d:pts(p)},defs);
-    var t=el('text',{'class':'pl-river', dy:'.35em'},labels), tp=el('textPath',{href:'#'+id, startOffset:'50%', 'text-anchor':'middle'},t); tp.textContent=r.n; });
+  (M.river||[]).forEach(function(r,i){ if(r.n) riverLabels(svg, defs, labels, r, i); });
   streetLabels(svg, defs, labels);
   /* landmark buildings: each fills its block, named; one with a page opens it */
   (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL(), ins=14;
