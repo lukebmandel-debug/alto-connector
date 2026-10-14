@@ -28,6 +28,7 @@ import re
 from bisect import bisect_left
 
 from .palace_river import rivers
+from .palace_transit import snap as snap_transit
 
 CW, CH = 240, 170          # one block, grid px: big enough that a building's number fits inside it
 PAD = 110                  # margin around the grid
@@ -541,12 +542,13 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
                       "y": round((l_["box"][1] + l_["box"][3]) / 2, 1), "r": [], "box": l_["box"],
                       "page": l_["page"]} for l_ in lms]
     g = {k: v for k, v in m.items() if k not in ("streets", "water", "rivers", "rails", "trails", "stations",
-                                                 "landmarks", "parks", "W", "H", "majors")}
+                                                 "landmarks", "parks", "W", "H", "majors", "transit")}
     g.update(W=W, H=H, streets=streets + over, rails=rails, trails=[], parks=[], stations=stations,
              landmarks=landmarks_out, rivers=[], river=river, water=[], tiles=tiles, edges=edges,
              majors=sorted({norm(x) for x in majors} | {norm(s_["n"]) for s_ in streets if s_["k"] == 0} | bridge_names),
              grid=mp.tables(), cols=[c["n"] for c in cols], rows=[r["n"] for r in rows])
     lm_cells = lm_all
+    g["transit"] = snap_transit(m.get("transit"), mp, xg, yg, W, H)
     g["blocks"] = blocks(g, csp, rsp, xg, yg, water, lambda p: near_river(p, 6), lm_cells, rail_y)
     return g
 

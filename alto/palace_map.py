@@ -847,6 +847,102 @@ def _ring_mid(ring):
     return sum(xs) / len(xs), sum(ys) / len(ys)
 
 
+# ── the real transit: SEPTA (and PATCO) lines read from the route relations ────
+# id, name, colour, kind, network, route kind, refs (None: any)
+_TRANSIT_FAMILIES = (
+    ("mfl", "Market–Frankford Line", "#0097d6", "metro", "SEPTA", "subway", ("L",)),
+    ("bsl", "Broad Street Line", "#f58220", "metro", "SEPTA", "subway", ("B1", "B2")),
+    ("brs", "Broad–Ridge Spur", "#f58220", "metro", "SEPTA", "subway", ("B3",)),
+    ("trl", "Subway-Surface Trolleys", "#6ea516", "tram", "SEPTA", "tram", ("T1", "T2", "T3", "T4", "T5")),
+    ("rr", "Regional Rail", "#4c748c", "rail", "SEPTA", "train", None),
+    ("pat", "PATCO Speedline", "#db5450", "metro", "PATCO", "subway", None),
+)
+
+
+def _transit(els, proj, Wf, Hf):
+    """The real lines inside the box, in map px: {lines: [{id, n, c, k, w: [flat
+    polylines, one per rail way], s: [stop index, ride order]}], stops: [{n, x, y, l: [line ids]}]}.
+    One line per family (a trunk and its branches), each way once, cut where it leaves the box."""
+    def inside(x, y):
+        return -2 <= x <= Wf + 2 and -2 <= y <= Hf + 2
+    lines, stops = [], []
+    node_at = {i: e for (t, i), e in els.items() if t == "node" and "lat" in e}
+
+    def stop_idx(name, x, y, lid):
+        nn = _norm(name)
+        for k, s in enumerate(stops):
+            if _norm(s["n"]) == nn and math.hypot(s["x"] - x, s["y"] - y) < 260:
+                if lid not in s["l"]:
+                    s["l"].append(lid)
+                s["_a"].append((x, y))
+                s["x"] = sum(q[0] for q in s["_a"]) / len(s["_a"])
+                s["y"] = sum(q[1] for q in s["_a"]) / len(s["_a"])
+                return k
+        stops.append({"n": name, "x": x, "y": y, "l": [lid], "_a": [(x, y)]})
+        return len(stops) - 1
+
+    def stops_of(e):
+        out = []
+        for m in e.get("members") or ():
+            if m.get("type") == "node" and m.get("role", "").split("_")[0] in ("stop", "platform") \
+                    and m["ref"] in node_at:
+                nd = node_at[m["ref"]]
+                nm = (nd.get("tags") or {}).get("name")
+                if nm:
+                    x, y = proj((nd["lat"], nd["lon"]))
+                    if inside(x, y):
+                        out.append((nm, x, y))
+        return out
+
+    for fid, fname, fcol, fkind, net, rk, refs in _TRANSIT_FAMILIES:
+        way_ids, best, all_stops = [], [], []
+        for (t, i), e in sorted(els.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+            tg = e.get("tags") or {}
+            if t != "relation" or tg.get("type") != "route" or tg.get("route") != rk:
+                continue
+            if net.lower() not in (tg.get("network") or "").lower() or "diverted" in (tg.get("name") or "").lower():
+                continue
+            if refs and (tg.get("ref") or "").strip() not in refs:
+                continue
+            for m in e.get("members") or ():
+                if m.get("type") == "way" and m["ref"] not in way_ids and ("way", m["ref"]) in els:
+                    way_ids.append(m["ref"])
+            seq = stops_of(e)
+            all_stops += seq
+            if len(seq) > len(best):
+                best = seq
+        polys = []
+        for wid in way_ids:
+            if (els[("way", wid)].get("tags") or {}).get("service") in _RAIL_SKIP_SERVICE:
+                continue
+            cur = []
+            for q in _pts(els[("way", wid)].get("geometry")):
+                x, y = proj(q)
+                if inside(x, y):
+                    cur.append((round(x, 1), round(y, 1)))
+                else:
+                    if len(cur) > 1:
+                        polys.append(cur)
+                    cur = []
+            if len(cur) > 1:
+                polys.append(cur)
+        if not polys:
+            continue
+        ride = []
+        for nm, x, y in best:
+            k = stop_idx(nm, x, y, fid)
+            if k not in ride:
+                ride.append(k)
+        for nm, x, y in all_stops:                 # the branches' stops too
+            stop_idx(nm, x, y, fid)
+        lines.append({"id": fid, "n": fname, "c": fcol, "k": fkind,
+                      "w": [_flat(p) for p in polys], "s": ride})
+    for s in stops:
+        s.pop("_a", None)
+        s["x"], s["y"] = _r1(s["x"]), _r1(s["y"])
+    return {"lines": lines, "stops": stops}
+
+
 def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
     bbox = tuple(float(v) for v in bbox)
     proj, Wf, Hf = _projector(bbox, scale)
@@ -1052,6 +1148,7 @@ def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
         "attribution": ATTRIBUTION,
         "water": water, "rivers": rivers, "parks": parks, "streets": streets,
         "trails": trails, "rails": rails, "stations": stations, "landmarks": landmark_out,
+        "transit": _transit(els, proj, Wf, Hf),
         "majors": pick_majors(merged_street_len, majors),
     }
     return _across_wide_river(out, scale)

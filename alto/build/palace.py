@@ -34,6 +34,7 @@ import re
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
+from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .sanitize import js_json
 from . import palace_place as pp
 
@@ -549,10 +550,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS
+""" + LANDMARK_CSS + TRANSIT_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -643,6 +644,9 @@ function route(a,b){
 }
 var ENT={};
 function entrance(id){ var L=lot(P.at[bOf(id)]); if(!L) return -1; var k=P.at[bOf(id)]; if(ENT[k]==null) ENT[k]=nearest(L[0],L[1],1,300); return ENT[k]; }
+/* the real transit (palace_transit_js.py) is given the palace's own parts */
+window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z){ flyMap(x,y,z); },
+  Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
 
 /* ── the city, drawn once into an <svg> (a page may hold two: the desktop board, a phone's map page) ── */
 function lbl(parent, cls, text, x, y, anchor){ var t=el('text',{'class':cls, x:x, y:y, 'text-anchor':anchor||'middle'},parent); t.textContent=text; return t; }
@@ -784,6 +788,7 @@ function drawCity(svg){
   var rg=el('g',{'class':'pl-rails'},svg);
   (M.rails||[]).forEach(function(r){ var d=pts(r.p), c=r.c||NEUTRAL();
     el('path',{'class':'pl-ties', d:d, stroke:c},rg); tube(rg, d, c, 4.6, .95, 'r-line'); });
+  window._palTr.lines(svg);                    /* the real lines: SEPTA, PATCO (palace_transit.py) */
   var bg=el('g',{'class':'pl-blds'},svg);
   var route=el('g',{'class':'pl-routes'},svg);
   /* stations: Alto's ring (a tube bent into a circle, its sheen on top); a hub is a double ring */
@@ -797,6 +802,7 @@ function drawCity(svg){
     else { el('circle',{'class':'pl-ring', cx:0, cy:0, r:6.5, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:6.5},sg_); }
     lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x, s.y, 'start');
   });
+  window._palTr.stations(svg);
   var labels=el('g',{},svg);
   (M.river||[]).forEach(function(r,i){ if(r.n) riverLabels(svg, defs, labels, r, i); });
   streetLabels(svg, defs, labels);
@@ -811,9 +817,11 @@ function drawCity(svg){
   lbl(labels,'pl-credit','Map data © OpenStreetMap contributors', M.W+MX-18, M.H+MY-18, 'end');
   var hits=el('g',{'class':'pl-hits'},svg);
   M.streets.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hits); h._n=s.n; });
+  window._palTr.hits(svg);
   svg._b=bg; svg._r=route;
   drawBuildings(svg);
   sizeChips(svg);
+  if(svg===svgD) window._palTr.ready();
 }
 /* chips keep a constant size on screen: re-measured when the zoom settles */
 function sizeChips(svg){ var z=svg===svgD?Z:(MM.z||1);
@@ -1036,6 +1044,7 @@ function cornerAt(svg, e, street){
 /* routes: from a building along the streets to each building it connects with */
 var hotB=null;
 function drawRoutes(svg, id, walkUnit){
+  if(svg===svgD && window._palTr.holds()) return;       /* an Element chip's tour is up: it takes precedence */
   var g=svg._r; if(!g) return; g.innerHTML=''; if(svg._rh) svg._rh.innerHTML='';
   function bl(svg, id){ return svg===svgD ? document.getElementById('node-'+id) : svg.querySelector('.pl-bld[data-id="'+id+'"]'); }
   function all(svg){ return svg===svgD ? document.querySelectorAll('#world .node') : svg.querySelectorAll('.pl-bld'); }
@@ -1218,9 +1227,10 @@ function ctl(){
     h+='<div class="pk-row" data-u="'+d.u+'"><span class="pk-sw" style="background:'+pm.colorRaw+'"></span><div><b>'+esc(d.n||pm.label)+'</b><small>Unit '+esc(pm.numeral)+' · '+esc(pm.label)+'</small></div></div>'; });
   var sw=function(s){ return '<svg width="26" height="12" style="flex:none">'+s+'</svg>'; };
   h+='<div class="pk-sep"></div>';
+  if(window._palTr.has()) h+=window._palTr.keyHtml(sw); else {
   h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#59616c" stroke-width="7" stroke-dasharray="1.4 4.6"/><line x1="1" y1="6" x2="25" y2="6" stroke="#59616c" stroke-width="2.6"/>')+'<div>Railway <small>above ground — the cross-ties mark a train line</small></div></div>';
   h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#3d6fb6" stroke-width="2.6" stroke-dasharray="6 4" opacity=".7"/>')+'<div>Subway or tunnel</div></div>';
-  h+='<div class="pk-row">'+sw('<circle cx="13" cy="6" r="5" fill="#fff" stroke="#2f3338" stroke-width="2.5"/><circle cx="13" cy="6" r="2" fill="#2f3338"/>')+'<div>Station <small>a big ring is a hub</small></div></div>';
+  h+='<div class="pk-row">'+sw('<circle cx="13" cy="6" r="5" fill="#fff" stroke="#2f3338" stroke-width="2.5"/><circle cx="13" cy="6" r="2" fill="#2f3338"/>')+'<div>Station <small>a big ring is a hub</small></div></div>'; }
   h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="var(--pal-trail)" stroke-width="2.6" stroke-dasharray="6 3"/>')+'<div>Trail</div></div>';
   h+=window._palLm.keyRow();
   var rk={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(x){ if(x && x[2]!=='spine') rk[x[2]]=1; });

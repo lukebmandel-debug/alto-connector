@@ -91,6 +91,8 @@ FILTER_PANEL_GLUE = """
   // stepping through the timeline skips what the filter has hidden.
   window._altoChipOn=function(){ return chipKeys().length>0; };
   window._altoChipKeep=keep;
+  // The picked chips, {section key: [chip ids]} (the Mind Palace lights what they tag).
+  window._altoChipSel=function(){ var o={}; chipKeys().forEach(function(k){ o[k]=Object.keys(sel[k]); }); return o; };
   function slotVal(slot){ return mobile() ? ((window._mobileFilter||{})[slot]||null) : (slotState[slot]||null); }
   function activeLines(){ return document.querySelectorAll('#ef-panel .line-key-btn.active'); }
   function activeCount(){
@@ -117,6 +119,7 @@ FILTER_PANEL_GLUE = """
     var n=activeCount(), tab=document.getElementById('filter-toggle');
     if(tab){ tab.classList.toggle('active', n>0); tab.setAttribute('data-n', n||''); }
     var clr=document.getElementById('ef-clear'); if(clr) clr.hidden=!n;
+    try{ document.dispatchEvent(new CustomEvent('alto-filter-changed')); }catch(e){}
   }
   function refeature(){
     // A phone shows one card at a time: if the filter just hid it, move to the
