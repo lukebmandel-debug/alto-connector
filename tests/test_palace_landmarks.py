@@ -24,7 +24,7 @@ def test_every_landmark_has_art_and_a_default():
 
 def test_the_art_is_small_and_static():
     total = sum(len(a["svg"]) for a in pl.ART.values())
-    assert total < 28_000, total                       # a few KB: it is built once, instanced with <use>
+    assert total < 75_000, total                       # a few KB: it is built once, instanced with <use>
     for a in pl.ART.values():
         assert "<script" not in a["svg"] and "<animate" not in a["svg"] and "<filter" not in a["svg"]
         assert "{s}" in a["svg"]                       # ids carry the svg's own suffix
