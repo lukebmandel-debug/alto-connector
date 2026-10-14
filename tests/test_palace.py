@@ -795,3 +795,50 @@ def test_in_a_browser_streets_weigh_more_than_a_hair_and_a_district_pops_up_its_
     finally:
         b.close()
         p.stop()
+
+
+# ── 9. the whole city in the window, and bridges with a deck ────────────────
+def _wide_page():
+    from alto.build import palace_grid
+    g = palace_grid.grid(_wide_city(), majors=["Market Street"])
+    blocks = g.pop("blocks")
+    d = bundle()
+    d["brief"]["palace"]["data_z"] = palace.pack({"map": g, "blocks": blocks})
+    return build_timeline(*load(d))[0]
+
+
+def test_the_board_zooms_out_to_the_whole_city_and_a_bridge_has_a_deck_rails_piers_and_a_name():
+    page = _wide_page()
+    # the farthest zoom is the whole city in the window, not where a building's number stops being readable
+    assert "function zmin(){ return fitZ()*.97;" in page
+    assert "Math.max(fitZ()*.92, ZREAD)" not in page
+    # far out the lines thin so a whole city of blocks stays a grid
+    assert "Math.max(.34, Math.min(1, z/.24))" in page
+    # a bridge: deck over rails over piers, then its street's own line; named
+    for needle in ("pl-br-pier", "pl-br-edge", "pl-casing", "pl-brn", "--pal-br-edge"):
+        assert needle in page, needle
+    assert page.count("--pal-br-edge:") == 2           # light and dark
+
+
+def test_in_a_browser_the_city_button_shows_the_whole_city_and_bridges_are_decked(tmp_path):
+    f = tmp_path / "p.html"
+    f.write_text(_wide_page(), encoding="utf-8")
+    p, b = _chrome()
+    try:
+        pg = b.new_page(viewport={"width": 1400, "height": 800})
+        errs = []
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(f.as_uri())
+        pg.wait_for_timeout(1500)
+        pg.click("#pal-ctl [data-z=fit]")
+        pg.wait_for_timeout(900)
+        r = pg.evaluate("""()=>{ var cv=document.getElementById('canvas'), s=document.getElementById('palace-svg').getBoundingClientRect();
+          return {cw:cv.clientWidth, ch:cv.clientHeight, w:s.width, h:s.height, top:cv.scrollTop, left:cv.scrollLeft}; }""")
+        assert r["w"] <= r["cw"] + 1 and r["h"] <= r["ch"] + 1, r          # all of it, at once
+        deck = pg.evaluate("""()=>({pier:document.querySelectorAll('#palace-svg .pl-br-pier').length, edge:document.querySelectorAll('#palace-svg .pl-br-edge').length,
+          deck:document.querySelectorAll('#palace-svg .pl-bridges .pl-casing').length})""")
+        assert deck["pier"] == deck["edge"] == deck["deck"] and deck["deck"] >= 1, deck
+        assert not errs, errs
+    finally:
+        b.close()
+        p.stop()

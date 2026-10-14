@@ -258,9 +258,9 @@ def summary(pal: dict) -> dict:
 
 # ── the page ───────────────────────────────────────────────────────────────
 PALACE_CSS = KEY_CSS + r"""
-  html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-casing:rgba(255,255,255,.93);--pal-rv-lite:#ffffff;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
+  html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-casing:rgba(255,255,255,.93);--pal-br-edge:rgba(44,52,84,.62);--pal-br-pier:rgba(44,52,84,.42);--pal-br-text:#2a3358;--pal-rv-lite:#ffffff;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
     --pal-park:rgba(255,255,255,.20);--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;--pal-ground:238,238,242;}
-  html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
+  html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-br-edge:rgba(214,222,244,.62);--pal-br-pier:rgba(214,222,244,.42);--pal-br-text:#dfe6fa;--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
     --pal-park:rgba(255,255,255,.06);--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;--pal-ground:28,30,40;}
   html.alto-palace:not(.mobile) #world{margin:0 !important;translate:var(--ppan-x,0px) var(--ppan-y,0px);}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
@@ -284,7 +284,15 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-lmb.has-page:hover .lm-card{stroke-width:4;}
   .pal-svg .pl-lmb .lm-name{font-weight:800;letter-spacing:.01em;stroke:none;}
   .pal-svg .pl-bridges .pl-tube{filter:drop-shadow(0 1px 2px rgba(20,26,55,.35));}
-  .pal-svg .pl-casing{fill:none;stroke:var(--pal-casing);stroke-width:13;stroke-linecap:round;}
+  /* a bridge: a deck (a light band) between two fine rail lines, piers ticked out into the water either side, its name beside it;
+     all measured on the screen (--tw), so it keeps its look at every zoom */
+  .pal-svg .pl-casing{fill:none;stroke:var(--pal-casing);stroke-width:calc(var(--tw,1) * 12.5px);stroke-linecap:round;}
+  .pal-svg .pl-br-edge{fill:none;stroke:var(--pal-br-edge);stroke-width:calc(var(--tw,1) * 14.5px);stroke-linecap:round;}
+  .pal-svg .pl-br-pier{fill:none;stroke:var(--pal-br-pier);stroke-width:calc(var(--tw,1) * 21px);stroke-linecap:butt;
+    stroke-dasharray:calc(var(--tw,1) * 1.7px) calc(var(--tw,1) * 17px);}
+  .pal-svg .pl-brn{font-size:calc(9.5px / var(--pz,1));font-weight:750;letter-spacing:.09em;text-transform:uppercase;fill:var(--pal-br-text);
+    stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
+  .pal-svg.far .pl-brn:not(.big){display:none;}
   .pal-svg .pl-water-edge{fill:none;stroke:var(--pal-water-edge);stroke-width:2;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-park{fill:var(--pal-park);stroke-width:1.2;stroke-opacity:.45;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-lm{fill:var(--pal-lm);stroke-width:1.8;stroke-opacity:.8;vector-effect:non-scaling-stroke;}
@@ -776,9 +784,23 @@ function drawCity(svg){
     /* the glass: lighter toward the middle in soft steps, then the sheen of Alto's own connecting lines */
     [[.84,.10],[.68,.12],[.52,.14],[.36,.18]].forEach(function(l){ el('path',{'class':'pl-rv-lite', d:d, 'stroke-width':w*l[0], 'stroke-opacity':l[1]},rv); });
     el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.13)},rv); });
-  var bridges=el('g',{'class':'pl-bridges'},svg);
-  /* a bridge is cased in white, so it reads over the water in any colour */
-  M.streets.forEach(function(st){ if(st.o){ el('path',{'class':'pl-casing', d:pts(st.p)},bridges); tube(bridges, pts(st.p), tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), 5.6, .95, 't-maj'); } });
+  var bridges=el('g',{'class':'pl-bridges'},svg), labels0=el('g',{'class':'pl-brnames'},svg);
+  /* a bridge has a deck, so it reads over the water in any colour: piers, rail lines, the deck, then the street's own line on it; the big ones are named */
+  var brSeen=[];
+  M.streets.forEach(function(st){ if(!st.o) return; var d=pts(st.p);
+    el('path',{'class':'pl-br-pier', d:d},bridges); el('path',{'class':'pl-br-edge', d:d},bridges); el('path',{'class':'pl-casing', d:d},bridges);
+    tube(bridges, d, tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), 5.6, .95, 't-maj'); });
+  M.streets.forEach(function(st){ if(!st.o || !st.n || st.k>0) return; var p=st.p, n=p.length, L=0, i;
+    for(i=0;i+3<n;i+=2) L+=Math.hypot(p[i+2]-p[i],p[i+3]-p[i+1]); if(L<120) return;
+    var mx=(p[0]+p[n-2])/2, my=(p[1]+p[n-1])/2, nm=/bridge/i.test(st.n)?st.n:st.n+' Bridge';
+    if(brSeen.some(function(q){ return q.n===nm && Math.hypot(q.x-mx,q.y-my)<400; })) return; brSeen.push({n:nm,x:mx,y:my});
+    var q=p.slice(); if(q[n-2]<q[0] || (Math.abs(q[n-2]-q[0])<1 && q[n-1]>q[1])){ q=[]; for(i=n-2;i>=0;i-=2) q.push(p[i],p[i+1]); }
+    /* the name's path runs a little past both ends of the deck, so a long name is never cut short */
+    var dx=q[q.length-2]-q[0], dy=q[q.length-1]-q[1], dl=Math.hypot(dx,dy)||1, ex=dx/dl*240, ey=dy/dl*240;
+    q=[q[0]-ex,q[1]-ey].concat(q,[q[q.length-2]+ex,q[q.length-1]+ey]);
+    var id='plb'+(svg._sid||'')+'-'+brSeen.length; el('path',{id:id, d:pts(q)},defs);
+    var t=el('text',{'class':'pl-brn'+(st.br?' big':''), dy:'-1.25em'},labels0), tp=el('textPath',{href:'#'+id, startOffset:'50%', 'text-anchor':'middle'},t);
+    tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=nm; });
   var lg=el('g',{'class':'pl-lms'},svg);
   /* the railway: straight, above ground, a connecting line with ties */
   var rg=el('g',{'class':'pl-rails'},svg);
@@ -847,13 +869,13 @@ function drawBuildings(svg){
 
 /* ── the board: the city under the cards, at the current zoom ── */
 var svgD=null;
-function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; return Math.max(.08, Math.min(cv.clientWidth/VW, cv.clientHeight/VH)); }
-/* the farthest the board zooms out: where a building's number is still 10px tall */
+function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; return Math.max(.01, Math.min(cv.clientWidth/VW, cv.clientHeight/VH)); }
+/* the zoom a building's number is first 10px tall: where the board opens (it zooms out past it, to the whole city) */
 var ZREAD=(function(){ var L=null; for(var i=0;i<P.b.length && !L;i++) if(P.b[i] && P.b[i][0]) L=P.b[i][0]; if(!L) return .1;
   return Math.max(10/(L[3]*.55), 10*(4*.62+.6)/L[2]); })();
 /* one screen px in map units, a touch more on screen as the map comes close (lines and rings keep their weight, not their scale) */
-function tw(z){ return (Math.max(.88, Math.min(1.4, Math.pow(z,.3)))/z).toFixed(4); }
-function zmin(){ return Math.max(fitZ()*.92, ZREAD); }
+function tw(z){ return (Math.max(.88, Math.min(1.4, Math.pow(z,.3)))/z*Math.max(.34, Math.min(1, z/.24))).toFixed(4); }   /* far out the lines thin too, so a whole city of blocks stays a grid and not a blur */
+function zmin(){ return fitZ()*.97; }       /* the farthest the board zooms out is the whole city in the window (a thin margin of glass round it) */
 function setClasses(){ de.classList.toggle('pz-far', Z<.42); de.classList.toggle('pz-mid', Z<.8);
   if(svgD){ svgD.classList.toggle('far', Z<.42); svgD.classList.toggle('mid', Z<.8); } ctlState(); }
 /* the zoom buttons say where the board is: no farther at the whole city, no closer at the nearest */
@@ -926,7 +948,10 @@ window._altoPalace=function(h){
   var r=document.getElementById('river-svg'); if(r) r.innerHTML='';
   window._altoPalaceGeo={Z:Z};
   if(!opened){ opened=1; requestAnimationFrame(function(){ var cv=document.getElementById('canvas'); if(cv && !window._focusedNodeId){
-    cv.scrollLeft=Math.max(0,(VW*Z-cv.clientWidth)/2); cv.scrollTop=Math.max(0,(VH*Z-cv.clientHeight)/2); } }); }
+    /* it opens on the buildings' own neighbourhoods, which a city grown past them leaves off-centre */
+    var D=P.d||[], bx0=1e9, by0=1e9, bx1=-1e9, by1=-1e9; D.forEach(function(d){ var b=d.box; bx0=Math.min(bx0,b[0]); by0=Math.min(by0,b[1]); bx1=Math.max(bx1,b[2]); by1=Math.max(by1,b[3]); });
+    var mx=D.length?(bx0+bx1)/2+MX:VW/2, my=D.length?(by0+by1)/2+MY:VH/2;
+    cv.scrollLeft=Math.max(0,mx*Z-cv.clientWidth/2); cv.scrollTop=Math.max(0,my*Z-cv.clientHeight/2); } }); }
   ctl();
   return true;
 };
