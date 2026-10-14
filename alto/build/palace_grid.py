@@ -418,6 +418,20 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
                         over.append({"n": l["n"], "k": 0 if l["major"] else 1, "o": 1,
                                      "p": [round(v, 1) for v in p0 + p1]})
 
+    # a bridge over the wide river, from the east end of the street it leaves to the far side
+    bridge_names = set()
+    for br in (m.get("bank") or {}).get("bridges", []):
+        gx, gy = mp(*br["at"])
+        best = None
+        for j, y in enumerate(yg):
+            if rsp[j] and abs(y - gy) < CH * 1.1:
+                e = max(b_ for a_, b_ in rsp[j])
+                if e >= xg[-1] - CW * 4 and (best is None or abs(y - gy) < best[0]):
+                    best = (abs(y - gy), e, y)
+        if best:
+            over.append({"n": br["n"], "k": 0, "o": 1, "br": 1, "p": [round(best[1], 1), round(best[2], 1), W + 50, round(best[2], 1)]})
+            bridge_names.add(norm(br["n"]))
+
     def near_river(p, extra=0):
         for rv in river:
             q = _pairs(rv["p"])
@@ -530,7 +544,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
                                                  "landmarks", "parks", "W", "H", "majors")}
     g.update(W=W, H=H, streets=streets + over, rails=rails, trails=[], parks=[], stations=stations,
              landmarks=landmarks_out, rivers=[], river=river, water=[], tiles=tiles, edges=edges,
-             majors=sorted({norm(x) for x in majors} | {norm(s_["n"]) for s_ in streets if s_["k"] == 0}),
+             majors=sorted({norm(x) for x in majors} | {norm(s_["n"]) for s_ in streets if s_["k"] == 0} | bridge_names),
              grid=mp.tables(), cols=[c["n"] for c in cols], rows=[r["n"] for r in rows])
     lm_cells = lm_all
     g["blocks"] = blocks(g, csp, rsp, xg, yg, water, lambda p: near_river(p, 6), lm_cells, rail_y)

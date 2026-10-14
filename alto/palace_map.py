@@ -792,6 +792,22 @@ def _across_wide_river(out, scale):
             for c in _keep_side(pts, f, keep):
                 res.append({**it, key: _flat(c)})
         return res
+    # the bridges across it (a street or walkway named ... Bridge that is cut by the river's line):
+    # the name and where it leaves the kept bank, for the grid to draw across the river
+    bridges, seen_b = [], set()
+    for it in out["streets"] + out["trails"]:
+        nm = re.sub(r"\s*(\(.*?\)|walkway.*|pedestrian.*|path.*)$", "", it.get("n") or "", flags=re.I).strip()
+        if not re.search(r"\bbridge\b", nm, re.I) or nm.lower() in seen_b:
+            continue
+        pts = [(it["p"][i], it["p"][i + 1]) for i in range(0, len(it["p"]) - 1, 2)]
+        sides = {f(*q) * keep > 0 for q in pts}
+        if len(sides) < 2:
+            continue                                          # it does not reach across
+        kp = max((c for c in _keep_side(pts, f, keep)), key=poly_len, default=None)
+        if kp:
+            seen_b.add(nm.lower())
+            far = max(kp, key=lambda q: abs(f(*q)))           # the end farthest from the river's line
+            bridges.append({"n": nm, "at": [round(far[0], 1), round(far[1], 1)]})
     out["streets"] = lines_of(out["streets"])
     out["trails"] = lines_of(out["trails"])
     out["rails"] = lines_of(out["rails"])
@@ -810,11 +826,20 @@ def _across_wide_river(out, scale):
         for i in range(0, len(s["p"]) - 1, 2):
             kx += s["p"][i]; ky += s["p"][i + 1]; n_ += 1
     kx, ky = kx / max(1, n_), ky / max(1, n_)
-    mx, my = line[len(line) // 2]
+    mx, my = min(_dense(line), key=lambda q: (q[0] - kx) ** 2 + (q[1] - ky) ** 2)
     dx, dy = (mx - kx) / max(1.0, W), (my - ky) / max(1.0, H)
     edge = ("e" if dx > 0 else "w") if abs(dx) >= abs(dy) else ("s" if dy > 0 else "n")
-    out["bank"] = {"n": name, "w": round(width), "side": edge}
+    out["bank"] = {"n": name, "w": round(width), "side": edge, "bridges": bridges}
     return out
+
+
+def _dense(line, step=50.0):
+    """Points along a polyline about `step` apart."""
+    out = []
+    for a, b in zip(line, line[1:]):
+        n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) // step))
+        out += [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n)]
+    return out + [line[-1]]
 
 
 def _ring_mid(ring):

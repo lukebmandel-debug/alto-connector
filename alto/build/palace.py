@@ -255,9 +255,9 @@ def summary(pal: dict) -> dict:
 
 # ── the page ───────────────────────────────────────────────────────────────
 PALACE_CSS = KEY_CSS + r"""
-  html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-rv-lite:#d4e9fb;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
+  html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-casing:rgba(255,255,255,.93);--pal-rv-lite:#ffffff;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
     --pal-park:rgba(255,255,255,.20);--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;}
-  html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-rv-lite:#5f9bd6;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
+  html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
     --pal-park:rgba(255,255,255,.06);--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;}
   html.alto-palace:not(.mobile) #world{margin:0 !important;}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
@@ -271,7 +271,7 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-river-g path{fill:none;stroke-linecap:round;stroke-linejoin:round;}
   .pal-svg .pl-rv-rim{stroke:var(--pal-rv-rim);}
   .pal-svg .pl-rv-body{stroke:var(--pal-river);}
-  .pal-svg .pl-rv-lite{stroke:var(--pal-rv-lite);stroke-opacity:.55;}
+  .pal-svg .pl-rv-lite{stroke:var(--pal-rv-lite);}
   .pal-svg .pl-rv-sheen{stroke:var(--pal-rv-sheen);}
   .pal-svg .pl-lmb{pointer-events:all;cursor:default;}
   .pal-svg .pl-lmb.has-page{cursor:pointer;}
@@ -281,6 +281,7 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-lmb.has-page:hover .lm-card{stroke-width:4;}
   .pal-svg .pl-lmb .lm-name{font-weight:800;letter-spacing:.01em;stroke:none;}
   .pal-svg .pl-bridges .pl-tube{filter:drop-shadow(0 1px 2px rgba(20,26,55,.35));}
+  .pal-svg .pl-casing{fill:none;stroke:var(--pal-casing);stroke-width:13;stroke-linecap:round;}
   .pal-svg .pl-water-edge{fill:none;stroke:var(--pal-water-edge);stroke-width:2;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-park{fill:var(--pal-park);stroke-width:1.2;stroke-opacity:.45;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-lm{fill:var(--pal-lm);stroke-width:1.8;stroke-opacity:.8;vector-effect:non-scaling-stroke;}
@@ -639,10 +640,12 @@ function drawCity(svg){
   (M.river||[]).forEach(function(r){ var d=smoothD(r.p), w=r.w||100;
     el('path',{'class':'pl-rv-rim', d:d, 'stroke-width':w+12},rv);
     el('path',{'class':'pl-rv-body', d:d, 'stroke-width':w},rv);
-    el('path',{'class':'pl-rv-lite', d:d, 'stroke-width':w*.62},rv);
-    el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.14)},rv); });
+    /* the glass: lighter toward the middle in soft steps, then the sheen of Alto's own connecting lines */
+    [[.84,.10],[.68,.12],[.52,.14],[.36,.18]].forEach(function(l){ el('path',{'class':'pl-rv-lite', d:d, 'stroke-width':w*l[0], 'stroke-opacity':l[1]},rv); });
+    el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.13)},rv); });
   var bridges=el('g',{'class':'pl-bridges'},svg);
-  M.streets.forEach(function(st){ if(st.o) tube(bridges, pts(st.p), tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), TUBE, .95); });
+  /* a bridge is cased in white, so it reads over the water in any colour */
+  M.streets.forEach(function(st){ if(st.o){ el('path',{'class':'pl-casing', d:pts(st.p)},bridges); tube(bridges, pts(st.p), tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), TUBE, .95); } });
   var lg=el('g',{'class':'pl-lms'},svg);
   /* the railway: straight, above ground, a connecting line with ties */
   var rg=el('g',{'class':'pl-rails'},svg);

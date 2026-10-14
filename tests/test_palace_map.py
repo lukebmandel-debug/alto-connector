@@ -238,3 +238,47 @@ def test_geocode(monkeypatch):
     assert g["bbox"] == [39.8, -75.3, 40.1, -74.9] and g["name"] == "Philadelphia"
     monkeypatch.setattr(pm.urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(b"[]"))
     assert pm.geocode("zzzz") is None
+
+
+# ── a wide river that is the edge of the city (the Delaware at Philadelphia) ──
+def wide_map(east_len=300.0):
+    """A 2000 x 800 box: a 400 px wide river runs down it at x=1200; three long streets on the
+    west bank, one short street (and a station) on the far bank, and a bridge walkway across."""
+    W, H = 2000, 800
+    return {
+        "W": W, "H": H, "scale": 1.0,
+        "water": [[1000, 0, 1400, 0, 1400, 800, 1000, 800]],
+        "rivers": [{"n": "Big River", "p": [1200, 800, 1200, 0]}],
+        "streets": [{"n": "West %d" % i, "k": 3, "p": [100, 100 + 200 * i, 950, 100 + 200 * i]} for i in range(3)]
+                   + [{"n": "Far Street", "k": 3, "p": [1500, 100, 1500, 100 + east_len]}],
+        "trails": [{"n": "Test Bridge Walkway (North)", "p": [900, 300, 1100, 300, 1300, 300, 1700, 300]}],
+        "rails": [], "parks": [], "landmarks": [],
+        "stations": [{"n": "Far Station", "x": 1600, "y": 400, "k": "rail", "l": []},
+                     {"n": "Near Station", "x": 500, "y": 400, "k": "rail", "l": []}],
+    }
+
+
+def test_a_wide_river_across_the_box_cuts_away_the_far_bank():
+    out = pm._across_wide_river(wide_map(), 1.0)
+    assert out["bank"]["n"] == "Big River" and out["bank"]["side"] == "e"
+    assert out["bank"]["w"] == pytest.approx(400, abs=5)
+    assert [s["n"] for s in out["streets"]] == ["West 0", "West 1", "West 2"]
+    assert [s["n"] for s in out["stations"]] == ["Near Station"]
+    # the walkway is cut at the river's line, and is named as a bridge, where it leaves the near bank
+    (tr,) = out["trails"]
+    assert tr["p"][-2] == pytest.approx(1200, abs=1) and tr["p"][0] == 900
+    assert out["bank"]["bridges"] == [{"n": "Test Bridge", "at": [900.0, 300.0]}]
+
+
+def test_a_river_the_streets_mostly_lie_across_leaves_the_box_alone():
+    m = wide_map(east_len=700.0)                    # the far bank holds as many streets as the near one
+    m["streets"] += [{"n": "Far %d" % i, "k": 3, "p": [1500, 0, 1500, 700]} for i in range(3)]
+    out = pm._across_wide_river(m, 1.0)
+    assert "bank" not in out and len(out["streets"]) == 7
+
+
+def test_a_narrow_river_is_not_a_bank():
+    m = wide_map()
+    m["water"] = [[1150, 0, 1250, 0, 1250, 800, 1150, 800]]          # 100 px across
+    out = pm._across_wide_river(m, 1.0)
+    assert "bank" not in out and any(s["n"] == "Far Street" for s in out["streets"])

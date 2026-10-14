@@ -234,6 +234,60 @@ def test_lots_finds_the_blocks_of_the_grid():
                 assert abs(cy - y) > 12
 
 
+# ── the rivers (palace_river) ───────────────────────────────────────────────
+def _turn_degrees(flat):
+    pts = list(zip(flat[0::2], flat[1::2]))
+    worst = 0.0
+    for a, b, c in zip(pts, pts[1:], pts[2:]):
+        t1 = math.atan2(b[1] - a[1], b[0] - a[0])
+        t2 = math.atan2(c[1] - b[1], c[0] - b[0])
+        worst = max(worst, abs(math.degrees((t2 - t1 + math.pi) % (2 * math.pi) - math.pi)))
+    return worst
+
+
+def test_a_river_course_is_smooth_and_runs_off_both_ends():
+    from alto.build import palace_river as pr
+    # a lumpy real centre line: a bend with a kink and a little loop of noise in it
+    wob = [(0, 0), (300, 40), (600, 10), (900, 120), (1000, 480), (1040, 520), (1010, 560), (1100, 900), (1500, 1300), (2000, 1330)]
+    c = pr.course(wob)
+    assert _turn_degrees([v for q in c for v in q]) < 6            # no kink: every step bends a few degrees at most
+    assert c[0][0] < wob[0][0] - 500 and c[-1][0] > wob[-1][0] + 500   # carried well past the ends, off the glass
+    # its two ends stay where the river was
+    assert any(math.dist(q, wob[0]) < 1 for q in c) and any(math.dist(q, wob[-1]) < 1 for q in c)
+
+
+def _wide_city():
+    m = city_map()
+    m["water"] = []
+    m["rivers"] = [{"n": "Big River", "p": [1100, 600, 1060, 300, 1100, 0]}]
+    m["bank"] = {"n": "Big River", "w": 600, "side": "e", "bridges": [{"n": "Test Bridge", "at": [700, 300]}]}
+    return m
+
+
+def test_a_wide_river_is_a_broad_band_along_the_east_edge_the_glass_holds():
+    from alto.build import palace_grid, palace_river as pr
+    g = palace_grid.grid(_wide_city(), majors=["Market Street"])
+    base = palace_grid.grid({**_wide_city(), "bank": None, "rivers": []})
+    last_col = base["W"] - palace_grid.PAD
+    (rv,) = g["river"]
+    assert rv["n"] == "Big River" and rv["w"] == pr.WIDE_W
+    xs = rv["p"][0::2]
+    assert min(xs) - rv["w"] / 2 >= last_col                       # its near bank is east of the last street
+    assert g["W"] >= max(x for x, y in zip(xs, rv["p"][1::2]) if 0 <= y <= g["H"]) + rv["w"] / 2   # the glass holds it
+    assert g["W"] > base["W"]
+
+
+def test_a_bridge_over_the_wide_river_leaves_the_end_of_a_street_and_is_named():
+    from alto.build import palace_grid
+    g = palace_grid.grid(_wide_city(), majors=["Market Street"])
+    (br,) = [s for s in g["streets"] if s.get("br")]
+    assert br["n"] == "Test Bridge" and br["o"] == 1 and br["p"][1] == br["p"][3]       # straight, east
+    assert br["p"][2] > g["W"]                                                        # across to the far side
+    assert "Test Bridge" in g["majors"]                                               # so the page labels it
+    rows = {palace_grid.PAD + j * palace_grid.CH for j in range(len(g["rows"]))}
+    assert br["p"][1] in rows                                                         # it begins on a street's own row
+
+
 def test_lots_are_deterministic_and_keep_clear_of_water_and_park():
     m = city_map()
     assert pp.lots(m) == pp.lots(copy.deepcopy(m))
@@ -650,3 +704,16 @@ def test_set_up_palace_stores_the_city(store):
     assert got["brief"]["palace"]["city"]["blocks"] == 6
     assert "data_z" not in got["brief"]["palace"]
     assert "next" in r
+
+
+def test_the_page_draws_the_rivers_as_bands_with_names_and_cased_bridges():
+    from alto.build import palace_grid
+    m = _wide_city()
+    g = palace_grid.grid(m, majors=["Market Street"])
+    blocks = g.pop("blocks")
+    d = bundle()
+    d["brief"]["palace"]["data_z"] = palace.pack({"map": g, "blocks": blocks})
+    html, _ = build_timeline(*load(d))
+    assert '"river":[{"n":"Big River","w":230' in html
+    for needle in ("function smoothD(", "function riverLabels(", "pl-rv-body", "pl-rv-sheen", "pl-casing", "clip-path"):
+        assert needle in html
