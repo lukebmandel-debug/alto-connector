@@ -1517,7 +1517,8 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   landmarks: list[str] | None = None,
                   diagonals: list[str] | None = None,
                   rail_lines: list[dict] | None = None,
-                  landmark_buildings: list[dict] | None = None) -> dict:
+                  landmark_buildings: list[dict] | None = None,
+                  parks: list[str] | None = None) -> dict:
     """The city a Mind Palace (mode 'palace', §D-Palace) is drawn on: fetches
     its streets, rivers, parks, railways, stations and landmarks from
     OpenStreetMap, finds its blocks and building lots, and stores them with the
@@ -1547,7 +1548,9 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     landmark buildings, [{name, page?}] — each takes a whole block and, with
     `page`, opens one of the timeline's own pages ("index:<key>" an Index
     list such as cases or statutes, "char:<entity id>", "node:<node id>"):
-    the place to keep a list the outline points into.
+    the place to keep a list the outline points into. parks: names of parks to
+    draw as green glass with their paths whatever their size ("Rittenhouse
+    Square"); the big ones (15 ha and up) are drawn anyway.
     The map data is © OpenStreetMap contributors; the page credits it."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -1588,7 +1591,8 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         names += [s for ln in rail_lines or [] for s in ln.get("stops") or []]
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                              landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
-                             diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings)
+                             diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
+                             parks=parks)
     except Exception as e:                              # noqa: BLE001 — network, Overpass
         return {"error": "map_unavailable", "message": f"could not fetch the map: {e}. "
                 "OpenStreetMap's server may be busy — try again in a minute."}
