@@ -39,7 +39,7 @@ from .sanitize import js_json
 from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
-               "buildings", "scale", "data_z", "made"}
+               "buildings", "parks", "scale", "data_z", "made"}
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -204,6 +204,11 @@ def palace_data(b, nodes) -> str:
         x0, y0, x1, y1 = pp.district_box(m, d)
         dist.append({"u": d["unit"], "n": d.get("name") or "", "box": [round(x0), round(y0), round(x1), round(y1)]})
     mp = {k: v for k, v in m.items() if k not in ("bbox",)}
+    # the parks, less the blocks a building stands on (a park never moves a building)
+    from .palace_parks import shape as shape_parks
+    g_ = m.get("grid") or {}
+    mp["parks"] = shape_parks(m.get("parks"), g_.get("xg") or [], g_.get("yg") or [],
+                              [(by_key[k][0], by_key[k][1]) for k in at.values() if k in by_key])
     mp["streets"] = [{**s, "n": short(s.get("n") or "")} for s in m.get("streets", [])]
     mp["majors"] = [short(s) for s in m.get("majors", [])]
     mp["cols"] = [short(s) for s in m.get("cols", [])]      # the grid's streets by column / row, to tell a major from a minor one
@@ -216,9 +221,10 @@ def palace_data(b, nodes) -> str:
 
 
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
-           cache_dir=None, diagonals=None, lines=None, buildings=None) -> dict:
+           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
-    the landmark buildings [{name, page?, label?}] (palace_grid.grid)."""
+    the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
+    of parks to draw whatever their size (palace_parks; the big ones are drawn anyway)."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
     raw = pm.fetch_osm(tuple(bbox), cache_dir=cache_dir, landmarks=landmarks or None)
@@ -232,11 +238,11 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     # the drawing: an even grid of the city's streets, the river and a few
     # diagonals the only exceptions (palace_grid)
     from .palace_grid import grid
-    m = grid(m, majors=majors or (), diagonals=diagonals or (), lines=lines or (), landmarks=buildings or ())
+    m = grid(m, majors=majors or (), diagonals=diagonals or (), lines=lines or (), landmarks=buildings or (), parks=parks or ())
     blocks = m.pop("blocks")
     return {"place": place, "bbox": list(bbox), "districts": districts or [],
             "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
-            "lines": lines or [], "buildings": buildings or [], "scale": scale,
+            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "scale": scale,
             "data_z": pack({"map": m, "blocks": blocks})}
 
 
@@ -260,9 +266,9 @@ def summary(pal: dict) -> dict:
 # ── the page ───────────────────────────────────────────────────────────────
 PALACE_CSS = KEY_CSS + r"""
   html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-casing:rgba(255,255,255,.93);--pal-br-edge:rgba(44,52,84,.62);--pal-br-pier:rgba(44,52,84,.42);--pal-br-text:#2a3358;--pal-rv-lite:#ffffff;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
-    --pal-park:rgba(255,255,255,.20);--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;--pal-ground:238,238,242;}
+    --pal-park:rgba(255,255,255,.20);--pal-pk:rgba(86,170,98,.42);--pal-pk-edge:rgba(255,255,255,.78);--pal-pk-path:rgba(255,255,255,.82);--pal-pk-txt:#2c6a3a;--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;--pal-ground:238,238,242;}
   html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-br-edge:rgba(214,222,244,.62);--pal-br-pier:rgba(214,222,244,.42);--pal-br-text:#dfe6fa;--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
-    --pal-park:rgba(255,255,255,.06);--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;--pal-ground:28,30,40;}
+    --pal-park:rgba(255,255,255,.06);--pal-pk:rgba(86,178,104,.26);--pal-pk-edge:rgba(255,255,255,.2);--pal-pk-path:rgba(214,240,214,.5);--pal-pk-txt:#a8e0b0;--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;--pal-ground:28,30,40;}
   html.alto-palace:not(.mobile) #world{margin:0 !important;translate:var(--ppan-x,0px) var(--ppan-y,0px);}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
   html.alto-palace:not(.mobile) #world .phase-band,html.alto-palace:not(.mobile) #world .phase-label-float,
@@ -296,6 +302,13 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg.far .pl-brn:not(.big){display:none;}
   .pal-svg .pl-water-edge{fill:none;stroke:var(--pal-water-edge);stroke-width:2;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-park{fill:var(--pal-park);stroke-width:1.2;stroke-opacity:.45;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
+  /* parks (palace_parks.py): green glass with a thin light edge, under the streets; walkways and plazas in light line */
+  .pal-svg .pl-pk{fill:var(--pal-pk);stroke:var(--pal-pk-edge);stroke-width:1.5;vector-effect:non-scaling-stroke;fill-rule:evenodd;pointer-events:none;}
+  .pal-svg .pl-pkp{fill:none;stroke:var(--pal-pk-path);stroke-width:calc(var(--tw,1) * 2.6px);stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
+  .pal-svg .pl-pko{fill:var(--pal-pk);stroke:var(--pal-pk-path);stroke-width:calc(var(--tw,1) * 2.2px);pointer-events:none;}
+  .pal-svg .pl-pkt{font-size:calc(10.5px / var(--pz,1));font-weight:750;letter-spacing:.14em;text-transform:uppercase;fill:var(--pal-pk-txt);
+    stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
+  .pal-svg.far .pl-pkt:not(.big){display:none;}
   .pal-svg .pl-lm{fill:var(--pal-lm);stroke-width:1.8;stroke-opacity:.8;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-tube,.pal-svg .pl-sheen{fill:none;stroke-linecap:round;stroke-linejoin:round;}
   /* the streets weigh what an ordinary timeline's connecting lines weigh (5px tube, a frosted centre line
@@ -785,6 +798,16 @@ function drawCity(svg){
   var wash=el('g',{'class':'pl-washes'},svg);
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u], b=d.box; if(!pm||!b) return; var ins=16;
     el('rect',{'class':'pl-dtint', x:b[0]+ins, y:b[1]+ins, width:Math.max(10,b[2]-b[0]-2*ins), height:Math.max(10,b[3]-b[1]-2*ins), rx:34, fill:pm.colorRaw, 'data-u':d.u},wash); });
+  /* ── parks: green glass shapes snapped to the grid, their walkways and plazas; above the washes, under every street ── */
+  var pkg=el('g',{'class':'pl-parks'},svg);
+  function rpc(a, r){ var n=a.length>>1, d=''; for(var i=0;i<n;i++){ var x=a[2*i], y=a[2*i+1], px=a[2*((i+n-1)%n)], py=a[2*((i+n-1)%n)+1], nx=a[2*((i+1)%n)], ny=a[2*((i+1)%n)+1],
+      l1=Math.hypot(x-px,y-py)||1, l2=Math.hypot(nx-x,ny-y)||1, rr=Math.min(r,l1/2,l2/2), sx=x+(px-x)/l1*rr, sy=y+(py-y)/l1*rr;
+    d+=(i?'L':'M')+sx+' '+sy+'Q'+x+' '+y+' '+(x+(nx-x)/l2*rr)+' '+(y+(ny-y)/l2*rr); } return d+'Z'; }
+  (M.parks||[]).forEach(function(pk){ var g=el('g',{'class':'pl-pk-g','data-name':pk.n},pkg);
+    el('path',{'class':'pl-pk', d:(pk.r||[]).map(function(r){ return rpc(r, R); }).join('')},g);
+    (pk.p||[]).forEach(function(p){ el('path',{'class':'pl-pkp', d:rp(p)},g); });
+    (pk.o||[]).forEach(function(o){ el('circle',{'class':'pl-pko', cx:o[0], cy:o[1], r:o[2]},g); }); });
+  /* ── /parks ── */
   /* the streets: every block a rounded tile of connecting line, so each street
      curves at every intersection; the tiles in their district's colour */
   var sg=el('g',{'class':'pl-streets'},svg), byU={};
@@ -862,6 +885,7 @@ function drawCity(svg){
   var labels=el('g',{},svg);
   (M.river||[]).forEach(function(r,i){ if(r.n) riverLabels(svg, defs, labels, r, i); });
   streetLabels(svg, defs, labels);
+  (M.parks||[]).forEach(function(pk){ if(pk.n && pk.t) lbl(labels, 'pl-pkt'+(pk.z>3?' big':''), pk.n, pk.t[0], pk.t[1]); });
   /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
   (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);

@@ -245,12 +245,13 @@ RIVER_W = 100               # the river: a very thick connecting line
 LANDMARK_KEYS = ("name", "page")
 
 
-def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
+def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     """lines: the railways to draw, [{name, color?, stops: [station or landmark
     names]}] — straight, above ground, through their stops (they need not be
     real). landmarks: the landmark buildings, [{name, page?}] — each takes a
     whole block; `page` is what opening it shows ("index:<key>", "char:<id>",
-    "node:<id>")."""
+    "node:<id>"). parks: names of parks to draw whatever their size (the
+    big ones are drawn anyway) — palace_parks."""
     rail_specs, lm_specs = list(lines or ()), list(landmarks or ())
     th = grid_angle(m)
     L, diag, turn = _lines(m, th, majors, diagonals)
@@ -541,9 +542,11 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=()) -> dict:
     landmarks_out = [{"n": l_["n"], "x": round((l_["box"][0] + l_["box"][2]) / 2, 1),
                       "y": round((l_["box"][1] + l_["box"][3]) / 2, 1), "r": [], "box": l_["box"],
                       "page": l_["page"]} for l_ in lms]
+    from .palace_parks import pick as pick_parks
+    park_cells = pick_parks(m, mp, xg, yg, parks or (), lm_all, lambda p: near_river(p, 0))
     g = {k: v for k, v in m.items() if k not in ("streets", "water", "rivers", "rails", "trails", "stations",
                                                  "landmarks", "parks", "W", "H", "majors", "transit")}
-    g.update(W=W, H=H, streets=streets + over, rails=rails, trails=[], parks=[], stations=stations,
+    g.update(W=W, H=H, streets=streets + over, rails=rails, trails=[], parks=park_cells, stations=stations,
              landmarks=landmarks_out, rivers=[], river=river, water=[], tiles=tiles, edges=edges,
              majors=sorted({norm(x) for x in majors} | {norm(s_["n"]) for s_ in streets if s_["k"] == 0} | bridge_names),
              grid=mp.tables(), cols=[c["n"] for c in cols], rows=[r["n"] for r in rows])
