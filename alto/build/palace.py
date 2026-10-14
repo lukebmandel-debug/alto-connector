@@ -259,10 +259,10 @@ def summary(pal: dict) -> dict:
 # ── the page ───────────────────────────────────────────────────────────────
 PALACE_CSS = KEY_CSS + r"""
   html{--pal-river:#7fb6e8;--pal-rv-rim:rgba(255,255,255,.7);--pal-casing:rgba(255,255,255,.93);--pal-rv-lite:#ffffff;--pal-rv-sheen:rgba(255,255,255,.7);--pal-glass:rgba(255,255,255,.34);--pal-glass-edge:rgba(255,255,255,.75);--pal-water:rgba(196,222,246,.92);--pal-water-edge:rgba(255,255,255,.85);
-    --pal-park:rgba(255,255,255,.20);--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;}
+    --pal-park:rgba(255,255,255,.20);--pal-lm:rgba(255,255,255,.38);--pal-text:#2c2f3d;--pal-halo:rgba(255,255,255,.88);--pal-trail:#4f9a4a;--pal-ground:238,238,242;}
   html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
-    --pal-park:rgba(255,255,255,.06);--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;}
-  html.alto-palace:not(.mobile) #world{margin:0 !important;}
+    --pal-park:rgba(255,255,255,.06);--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;--pal-ground:28,30,40;}
+  html.alto-palace:not(.mobile) #world{margin:0 !important;translate:var(--ppan-x,0px) var(--ppan-y,0px);}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
   html.alto-palace:not(.mobile) #world .phase-band,html.alto-palace:not(.mobile) #world .phase-label-float,
   html.alto-palace:not(.mobile) #world .unit-bar{display:none !important;}
@@ -369,12 +369,35 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-tip .pt-unit i,.pm-card .pt-unit i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline;}
   .pal-tip .pt-rel{display:block;margin-top:3px;font-size:12px;}
   .pal-tip .pt-rel i{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px;}
-  #pal-ctl{position:fixed;left:16px;bottom:18px;z-index:310;display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:300px;}
-  #pal-ctl .pc-z{display:flex;gap:6px;}
-  #pal-ctl button{font:inherit;font-size:15px;font-weight:700;min-width:34px;height:34px;padding:0 10px;border-radius:10px;cursor:pointer;
-    color:var(--text);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--border);
-    box-shadow:0 4px 14px rgba(0,0,0,.14);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
-  #pal-ctl button:hover{background:var(--surface);}
+  /* the zoom controls: Alto's round glass (the search / info / key buttons), in a row beside the account toggle —
+     the same inset, the same 35px, the same centre line; a grouped pill for closer / farther with a divider, and
+     the whole city as a pill of its own. left = the account toggle's 24 + 35 + the row's 12.5 gap. */
+  #pal-ctl{position:fixed;left:71.5px;bottom:24px;z-index:310;display:flex;align-items:center;gap:12.5px;height:35px;}
+  #pal-ctl .pc-pill,#pal-ctl .pc-city{position:relative;height:35px;box-sizing:border-box;display:inline-flex;align-items:stretch;border-radius:17.5px;
+    background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
+    -webkit-backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));backdrop-filter:blur(18px) saturate(190%) brightness(var(--card-glass-bright,1));
+    box-shadow:0 10px 26px var(--node-rest-shadow),inset 0 0 0 .5px var(--card-glass-rim);}
+  #pal-ctl .pc-pill:hover,#pal-ctl .pc-city:hover{border-color:var(--muted);}
+  #pal-ctl button{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;margin:0;padding:0;border:0;background:none;color:inherit;
+    font:inherit;font-size:14px;letter-spacing:.04em;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
+    -webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;transition:color .12s,background .12s,opacity .12s;}
+  #pal-ctl .pc-pill button{width:40px;min-width:0;height:100%;}
+  #pal-ctl .pc-pill button:first-child{border-radius:17px 0 0 17px;}
+  #pal-ctl .pc-pill button:last-child{border-radius:0 17px 17px 0;}
+  #pal-ctl .pc-city{min-width:0;height:35px;padding:0 15px 0 12px;border-radius:17.5px;align-items:center;justify-content:center;gap:7px;}
+  #pal-ctl .pc-city span{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;font-weight:600;letter-spacing:.02em;line-height:1;}
+  #pal-ctl button:hover,#pal-ctl button:focus-visible{color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent);outline:none;}
+  #pal-ctl button:active{background:color-mix(in srgb,var(--text) 13%,transparent);}
+  #pal-ctl .pc-city:hover,#pal-ctl .pc-city:focus-visible,#pal-ctl .pc-city:active{background:color-mix(in srgb,var(--text) 7%,var(--card-glass-bg,var(--surface)));}
+  #pal-ctl button:focus-visible{box-shadow:inset 0 0 0 2px var(--accent,#6d5bd0);}
+  #pal-ctl .pc-div{width:1px;margin:8px 0;background:color-mix(in srgb,var(--muted) 45%,transparent);}
+  #pal-ctl button.off{opacity:.38;cursor:default;pointer-events:none;}
+  #pal-ctl .pc-city.on{color:var(--accent,#6d5bd0);border-color:color-mix(in srgb,var(--accent,#6d5bd0) 55%,transparent);}
+  #pal-ctl svg{display:block;flex:none;}
+  #pal-ctl button::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 12px);left:50%;transform:translateX(-50%);padding:5px 10px;border-radius:8px;
+    background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:12px;letter-spacing:.02em;white-space:nowrap;
+    box-shadow:0 6px 18px var(--node-rest-shadow);opacity:0;pointer-events:none;transition:opacity .12s;}
+  #pal-ctl button:hover::after,#pal-ctl button:focus-visible::after{opacity:1;}
   /* the key is a floating toggle's panel (key_toggle.py) */
   #pal-key h5{margin:0 0 4px;}
   #pal-key .pk-row{display:flex;gap:9px;align-items:center;padding:4px 3px;border-radius:7px;}
@@ -445,12 +468,22 @@ PALACE_CSS = KEY_CSS + r"""
   /* phones: the city on its own page */
   #pal-mmap{position:fixed;left:0;right:0;bottom:0;z-index:400;display:none;background:var(--page-grad,var(--bg));background-attachment:fixed;}
   #pal-mmap.on{display:block;}
+  html.alto-bg-map #pal-mmap{background:var(--alto-bg);background-attachment:scroll;}   /* the map ground chosen for this city (palace_backgrounds.py) */
   #pal-mmap .pm-scroll{position:absolute;inset:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
-  #pal-mmap .pm-close{position:absolute;right:12px;top:10px;z-index:3;width:40px;height:40px;border-radius:20px;font-size:20px;
-    background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,.2);}
-  #pal-mmap .pm-zoom{position:absolute;right:12px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:3;display:flex;flex-direction:column;gap:8px;}
-  #pal-mmap .pm-zoom button{width:44px;height:44px;border-radius:12px;font-size:22px;font-weight:700;background:var(--surface);color:var(--text);
-    border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,.2);}
+  /* the phone's map page wears the same glass as the desktop's zoom row: a round close, a grouped pill (closer over farther), the whole city */
+  #pal-mmap .pm-close,#pal-mmap .pm-pill,#pal-mmap .pm-city{background:var(--card-glass-bg,var(--surface));color:var(--muted);border:1px solid var(--card-glass-border,var(--border));
+    -webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);box-shadow:0 10px 26px var(--node-rest-shadow),inset 0 0 0 .5px var(--card-glass-rim);}
+  #pal-mmap .pm-close{position:absolute;right:12px;top:10px;z-index:3;width:44px;height:44px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;}
+  #pal-mmap .pm-zoom{position:absolute;right:12px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:3;display:flex;flex-direction:column;align-items:center;gap:12px;}
+  #pal-mmap .pm-pill{display:flex;flex-direction:column;width:44px;border-radius:22px;}
+  #pal-mmap .pm-zoom button{display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;background:none;color:inherit;-webkit-tap-highlight-color:transparent;}
+  #pal-mmap .pm-pill button{width:44px;height:48px;}
+  #pal-mmap .pm-pill button:first-child{border-radius:22px 22px 0 0;}
+  #pal-mmap .pm-pill button:last-child{border-radius:0 0 22px 22px;}
+  #pal-mmap .pm-div{height:1px;margin:0 10px;background:color-mix(in srgb,var(--muted) 45%,transparent);}
+  #pal-mmap .pm-city{width:44px;height:44px;border-radius:50%;padding:0;}
+  #pal-mmap .pm-zoom button:active,#pal-mmap .pm-close:active{color:var(--text);background:color-mix(in srgb,var(--text) 10%,transparent);}
+  #pal-mmap svg.pm-ic{display:block;}
   #pal-mmap .pm-card{position:absolute;left:12px;right:68px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:3;display:none;
     padding:10px 12px;border-radius:14px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;}
   #pal-mmap .pm-card.on{display:block;}
@@ -644,8 +677,11 @@ function rgbOf(c){ c=String(c||'').trim(); if(c[0]==='#'){ var h=c.slice(1); if(
   return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
   var m=/rgba?\(([^)]+)\)/.exec(c); return m?m[1].split(',').slice(0,3).map(function(v){ return parseFloat(v)|0; }):[120,120,140]; }
 function lum(r){ return (.2126*r[0]+.7152*r[1]+.0722*r[2])/255; }
+/* the colour the map stands on (--pal-ground: the chosen map ground's, palace_backgrounds.py), what the lines are checked against */
+var GR=null;
+function groundNow(){ var v=getComputedStyle(de).getPropertyValue('--pal-ground').trim(); return v?v.split(',').map(function(q){ return parseFloat(q)||0; }):null; }
 /* the engine's contrast rule (_lineAdapt): a line is pushed away from the glass behind it */
-function tubeCol(c){ var r=rgbOf(c), bg=dk()?[28,30,40]:[238,238,242], d=lum(r)-lum(bg), MIN=.3;
+function tubeCol(c){ var r=rgbOf(c), bg=GR&&GR.length===3?GR:(dk()?[28,30,40]:[238,238,242]), d=lum(r)-lum(bg), MIN=.3;
   if(Math.abs(d)<MIN){ var dir=lum(bg)>=.5?-1:1, amt=(MIN-Math.abs(d))*255; r=r.map(function(v){ return Math.max(0,Math.min(255,Math.round(v+dir*amt))); }); }
   return 'rgb('+r[0]+','+r[1]+','+r[2]+')'; }
 function sheen(){ return dk()?'rgba(255,255,255,0.50)':'rgba(255,255,255,0.72)'; }
@@ -692,10 +728,13 @@ function tube(parent, d, col, w, op, cls){
   var t=el('path',{'class':'pl-tube'+(cls?' '+cls:''), d:d, stroke:col, 'stroke-width':w},parent); if(op<1) t.setAttribute('stroke-opacity',op);
   el('path',{'class':'pl-sheen'+(cls?' '+cls:''), d:d, stroke:sheen(), 'stroke-width':Math.max(.9, w*.34)},parent); return t; }
 function drawCity(svg){
+  GR=groundNow();
   svg.innerHTML='';
   var defs=el('defs',{},svg);
   /* the glass the city stands on */
-  el('rect',{'class':'pl-glass', x:-MX, y:-MY, width:VW, height:VH, rx:34},svg);
+  /* it runs on past the city's edge (the page never scrolls that far): an enlarged building at the
+     very edge of the city pulls the board a little off-centre, and what shows there is more glass */
+  var BL=1600; el('rect',{'class':'pl-glass', x:-MX-BL, y:-MY-BL, width:VW+2*BL, height:VH+2*BL, rx:34},svg);
   /* each neighbourhood's ground, unseen: pointing at it names the unit it holds */
   var wash=el('g',{'class':'pl-washes'},svg);
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u], b=d.box; if(!pm||!b) return; var ins=16;
@@ -816,14 +855,24 @@ var ZREAD=(function(){ var L=null; for(var i=0;i<P.b.length && !L;i++) if(P.b[i]
 function tw(z){ return (Math.max(.88, Math.min(1.4, Math.pow(z,.3)))/z).toFixed(4); }
 function zmin(){ return Math.max(fitZ()*.92, ZREAD); }
 function setClasses(){ de.classList.toggle('pz-far', Z<.42); de.classList.toggle('pz-mid', Z<.8);
-  if(svgD){ svgD.classList.toggle('far', Z<.42); svgD.classList.toggle('mid', Z<.8); } }
+  if(svgD){ svgD.classList.toggle('far', Z<.42); svgD.classList.toggle('mid', Z<.8); } ctlState(); }
+/* the zoom buttons say where the board is: no farther at the whole city, no closer at the nearest */
+function ctlState(){ var c=document.getElementById('pal-ctl'); if(!c || Z==null) return; var lo=Z<=zmin()*1.004, hi=Z>=2.4*.996;
+  var o=c.querySelector('[data-z=out]'), i=c.querySelector('[data-z=in]'), f=c.querySelector('[data-z=fit]');
+  if(o) o.classList.toggle('off', lo); if(i) i.classList.toggle('off', hi); if(f) f.classList.toggle('on', lo); }
+/* where the city's top edge sits in the canvas's scroll range: 0, or the gap that centres a short city */
+function gy(){ var cv=document.getElementById('canvas'); return cv?Math.max(0,Math.round((cv.clientHeight-VH*Z)/2)):0; }
 function placeAll(){
   var world=document.getElementById('world'); if(!world) return;
   world.style.setProperty('width', Math.round(VW*Z)+'px', 'important'); world.style.minHeight=Math.round(VH*Z+WORLD_PAD_TOP)+'px';
   /* a city smaller than the window sits in the middle of it */
   var cv=document.getElementById('canvas'), gap=cv?Math.max(0,(cv.clientWidth-VW*Z)/2):0;
   world.style.setProperty('margin-left', Math.round(gap)+'px', 'important');
-  if(svgD){ svgD.setAttribute('width', VW*Z); svgD.setAttribute('height', VH*Z); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.top=WORLD_PAD_TOP+'px'; }
+  /* the board's top pad (the engine's WORLD_PAD_TOP) is pulled up out of the scroll range: the
+     city's own top edge is where the page stops scrolling, so panning up never shows bare
+     background between the bars and the map. A city shorter than the window is centred. */
+  world.style.setProperty('margin-top', Math.round(gy()-WORLD_PAD_TOP)+'px', 'important');
+  if(svgD){ svgD.setAttribute('width', Math.round(VW*Z)); svgD.setAttribute('height', Math.round(VH*Z+WORLD_PAD_TOP)-WORLD_PAD_TOP); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.top=WORLD_PAD_TOP+'px'; }
   setClasses(); if(svgD) sizeChips(svgD);
   (typeof NODES!=='undefined'?NODES:[]).forEach(function(n){
     var e=document.getElementById('node-'+n.id); if(!e) return;
@@ -842,9 +891,30 @@ function placeAll(){
     if(sh.length) e.style.setProperty('--pfl', sh.join(',')); else e.style.removeProperty('--pfl');
   });
 }
+/* Enlarging a building asks the engine to pan the board (--pan-x/--pan-y) until the card is in the
+   middle of the window. Near the city's edge that pulls the edge inwards and shows the bare page
+   behind it, so the pan the board actually takes (--ppan-x/--ppan-y) is held to what keeps the
+   city over the whole window — except as far as the enlarged card itself needs, so it is never
+   cut off by the bars: it then sits nearer the edge than the middle, with the city under it. */
+var panLast='', focW=0, focH=0;
+function holdPan(){
+  var w=document.getElementById('world'), cv=document.getElementById('canvas'); if(!w||!cv||!svgD) return;
+  var px=parseFloat(w.style.getPropertyValue('--pan-x'))||0, py=parseFloat(w.style.getPropertyValue('--pan-y'))||0;
+  var f=w.querySelector('.node.focused .node-card'), k=(cv.getBoundingClientRect().height/cv.clientHeight)||1;
+  if(f){ var r=f.getBoundingClientRect(); focW=r.width/k; focH=r.height/k; } else if(!px && !py){ focW=focH=0; }
+  function hold(p, near, view, size, card){
+    var hi=Math.max(0,-near), lo=Math.min(0,view-size-near), c=Math.max(lo, Math.min(hi, p)), room=Math.max(0,(view-card)/2-24);
+    return Math.abs(p-c)>room ? p-(p>c?room:-room) : c; }
+  var ox=w.offsetLeft-cv.scrollLeft, oy=w.offsetTop+WORLD_PAD_TOP-cv.scrollTop;     /* where the city's corner is in the window at rest */
+  var cx=hold(px, ox, cv.clientWidth, VW*Z, focW), cy=hold(py, oy, cv.clientHeight, VH*Z, focH);
+  var key=cx+','+cy; if(key===panLast) return; panLast=key;
+  if(cx||cy){ w.style.setProperty('--ppan-x', cx+'px'); w.style.setProperty('--ppan-y', cy+'px'); }
+  else { w.style.removeProperty('--ppan-x'); w.style.removeProperty('--ppan-y'); }
+}
 window._altoPalace=function(h){
   if(mob()) return false;
   var world=document.getElementById('world'); if(!world) return false;
+  if(!world._holdPan){ world._holdPan=1; new MutationObserver(holdPan).observe(world, {attributes:true, attributeFilter:['style']}); }
   if(Z==null) Z=Math.max(fitZ(), ZREAD);
   if(P._dirty){ P._dirty=0; restructure(true); if(svgD) drawBuildings(svgD); }
   if(!svgD){ svgD=el('svg',{id:'palace-svg', 'class':'pal-svg', viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none'}); svgD._sid='d'; drawCity(svgD); }
@@ -856,15 +926,17 @@ window._altoPalace=function(h){
   var r=document.getElementById('river-svg'); if(r) r.innerHTML='';
   window._altoPalaceGeo={Z:Z};
   if(!opened){ opened=1; requestAnimationFrame(function(){ var cv=document.getElementById('canvas'); if(cv && !window._focusedNodeId){
-    cv.scrollLeft=Math.max(0,(VW*Z-cv.clientWidth)/2); cv.scrollTop=Math.max(0,(VH*Z+WORLD_PAD_TOP-cv.clientHeight)/2); } }); }
+    cv.scrollLeft=Math.max(0,(VW*Z-cv.clientWidth)/2); cv.scrollTop=Math.max(0,(VH*Z-cv.clientHeight)/2); } }); }
   ctl();
   return true;
 };
 
 /* light/dark: the lines take their contrast from the glass behind them, so the city is drawn again */
-var wasDark=dk();
-new MutationObserver(function(){ if(dk()===wasDark) return; wasDark=dk();
-  if(svgD){ drawCity(svgD); placeAll(); } if(MM.svg){ drawCity(MM.svg); } }).observe(de, {attributes:true, attributeFilter:['class']});
+var wasDark=dk(), wasGround=groundNow()+'';
+function redraw(){ if(dk()===wasDark && groundNow()+''===wasGround) return; wasDark=dk(); wasGround=groundNow()+'';
+  if(svgD){ drawCity(svgD); placeAll(); } if(MM.svg){ drawCity(MM.svg); } }
+new MutationObserver(redraw).observe(de, {attributes:true, attributeFilter:['class']});
+window.addEventListener('alto-bg-painted', redraw);   /* another map ground: the streets are checked against it again */
 
 /* ── zoom: the board drawn larger or smaller about a point, the cards keep their size ── */
 function canvasPt(cv, cx, cy){ var r=cv.getBoundingClientRect(); return [(cx-r.left)/r.width*cv.clientWidth, (cy-r.top)/r.height*cv.clientHeight]; }
@@ -872,9 +944,9 @@ function zoomTo(z, ax, ay){
   var cv=document.getElementById('canvas'); if(!cv || !svgD) return;
   z=Math.max(zmin(), Math.min(2.4, z)); if(Math.abs(z-Z)<1e-4) return;
   if(ax==null){ ax=cv.clientWidth/2; ay=cv.clientHeight/2; }
-  var mx=(cv.scrollLeft+ax)/Z, my=(cv.scrollTop+ay-WORLD_PAD_TOP)/Z;
+  var mx=(cv.scrollLeft+ax)/Z, my=(cv.scrollTop+ay-gy())/Z;
   Z=z; placeAll();
-  cv.scrollLeft=mx*Z-ax; cv.scrollTop=my*Z+WORLD_PAD_TOP-ay;
+  cv.scrollLeft=mx*Z-ax; cv.scrollTop=my*Z+gy()-ay;
   if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
 }
 var zAnim=null;
@@ -892,12 +964,12 @@ function flyMap(mx, my, z, done){
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ms=1;
   var cx=cv.clientWidth/2, cy=cv.clientHeight/2;
   /* the map point at the centre now */
-  var fx=(sx0+cx)/z0-MX, fy=(sy0+cy-WORLD_PAD_TOP)/z0-MY;
+  var fx=(sx0+cx)/z0-MX, fy=(sy0+cy-gy())/z0-MY;
   cancelAnimationFrame(zAnim);
   (function step(t){ var k=Math.min(1,(t-t0)/ms), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
     var zz=Math.exp(Math.log(z0)+(Math.log(z)-Math.log(z0))*e), px=fx+(mx-fx)*e, py=fy+(my-fy)*e;
     Z=Math.max(zmin(),Math.min(2.4,zz)); placeAll();
-    cv.scrollLeft=(px+MX)*Z-cx; cv.scrollTop=(py+MY)*Z+WORLD_PAD_TOP-cy;
+    cv.scrollLeft=(px+MX)*Z-cx; cv.scrollTop=(py+MY)*Z+gy()-cy;
     if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
     if(k<1) zAnim=requestAnimationFrame(step); else if(done) done(); })(t0);
 }
@@ -1156,11 +1228,20 @@ function ctl(){
     h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="'+col+'" stroke-width="4" stroke-dasharray="7 4"/>')+'<div>Route: '+esc(lb)+'</div></div>'; });
   h+='<small style="margin-top:4px">Point at a building for its name and its routes; click to enlarge it, again to go inside. Point at a street for its name.</small>';
   h+='<div class="pk-credit">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>';
-  var z='<div class="pc-z"><button data-z="in" title="Closer (⌘ +)">+</button><button data-z="out" title="Farther (⌘ −)">−</button><button data-z="fit" title="The whole city (⌘ 0)">⤢ City</button></div>';
-  c.innerHTML=z; document.body.appendChild(c);
+  var ic=function(d){ return '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };
+  var z='<div class="pc-pill" role="group" aria-label="Zoom">'
+    +'<button type="button" data-z="in" data-tip="Closer · ⌘ +" aria-label="Zoom in">'+ic('<path d="M10 4.5v11M4.5 10h11"/>')+'</button><span class="pc-div"></span>'
+    +'<button type="button" data-z="out" data-tip="Farther · ⌘ −" aria-label="Zoom out">'+ic('<path d="M4.5 10h11"/>')+'</button></div>'
+    +'<button type="button" class="pc-city" data-z="fit" data-tip="The whole city · ⌘ 0" aria-label="Show the whole city">'
+    +ic('<path d="M3.5 7.3V5.4a1.9 1.9 0 0 1 1.9-1.9h1.9M12.7 3.5h1.9a1.9 1.9 0 0 1 1.9 1.9v1.9M16.5 12.7v1.9a1.9 1.9 0 0 1-1.9 1.9h-1.9M7.3 16.5H5.4a1.9 1.9 0 0 1-1.9-1.9v-1.9"/>'
+      +'<rect x="7.2" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>'
+      +'<rect x="7.2" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>')
+    +'<span>City</span></button>';
+  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c);
   /* the key is a toggle floating at the top left (key_toggle.py); its rows act like the buttons' neighbours did */
   var k=document.createElement('div'); k.id='pal-key'; k.innerHTML=h;
   window._altoKeyToggle(k, 'alto-palace-key', 'Key to the city');
+  ctlState();
   [c,k].forEach(function(c){
   c.addEventListener('click', function(e){ var b=e.target.closest('[data-z]'); if(b){ var z=b.getAttribute('data-z'); if(window._focusedNodeId && window.exitFocus) window.exitFocus();
       zoomAnim(z==='fit'?zmin():Z*(z==='in'?1.6:1/1.6)); return; }
@@ -1354,13 +1435,18 @@ var MM={z:.46, svg:null, box:null};
 function mmapOpen(){
   var box=document.getElementById('pal-mmap');
   if(!box){ box=document.createElement('div'); box.id='pal-mmap';
-    box.innerHTML='<div class="pm-scroll"></div><button class="pm-close" aria-label="Close">✕</button><div class="pm-zoom"><button data-z="in">+</button><button data-z="out">−</button></div><div class="pm-card"></div>';
+    var pi=function(d){ return '<svg class="pm-ic" viewBox="0 0 20 20" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };
+    box.innerHTML='<div class="pm-scroll"></div><button class="pm-close" aria-label="Close">'+pi('<path d="M5 5l10 10M15 5L5 15"/>')+'</button>'
+      +'<div class="pm-zoom"><div class="pm-pill"><button type="button" data-z="in" aria-label="Zoom in">'+pi('<path d="M10 4.5v11M4.5 10h11"/>')+'</button><span class="pm-div"></span>'
+      +'<button type="button" data-z="out" aria-label="Zoom out">'+pi('<path d="M4.5 10h11"/>')+'</button></div>'
+      +'<button type="button" class="pm-city" data-z="fit" aria-label="The whole city">'+pi('<path d="M3.5 7.3V5.4a1.9 1.9 0 0 1 1.9-1.9h1.9M12.7 3.5h1.9a1.9 1.9 0 0 1 1.9 1.9v1.9M16.5 12.7v1.9a1.9 1.9 0 0 1-1.9 1.9h-1.9M7.3 16.5H5.4a1.9 1.9 0 0 1-1.9-1.9v-1.9"/>'
+        +'<rect x="7.2" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="7.2" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>')+'</button></div><div class="pm-card"></div>';
     document.body.appendChild(box); MM.box=box;
     MM.svg=el('svg',{viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none', id:'palace-svg-m', 'class':'pal-svg'}); MM.svg._sid='m'; drawCity(MM.svg);
     MM.svg.style.setProperty('--pz', MM.z); MM.svg.style.setProperty('--tw', tw(MM.z));
     box.querySelector('.pm-scroll').appendChild(MM.svg);
     box.querySelector('.pm-close').addEventListener('click', mmapClose);
-    box.querySelector('.pm-zoom').addEventListener('click', function(e){ var b=e.target.closest('[data-z]'); if(!b) return; var sc=box.querySelector('.pm-scroll'); mz(MM.z*(b.getAttribute('data-z')==='in'?1.6:1/1.6), sc.clientWidth/2, sc.clientHeight/2); });
+    box.querySelector('.pm-zoom').addEventListener('click', function(e){ var b=e.target.closest('[data-z]'); if(!b) return; var sc=box.querySelector('.pm-scroll'), k=b.getAttribute('data-z'); mz(k==='fit'?Math.min(sc.clientWidth/VW, sc.clientHeight/VH):MM.z*(k==='in'?1.6:1/1.6), sc.clientWidth/2, sc.clientHeight/2); });
     var sc=box.querySelector('.pm-scroll'), d0=0, z0=0, mid=null;
     sc.addEventListener('touchstart', function(e){ if(e.touches.length===2){ d0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); z0=MM.z;
       var r=sc.getBoundingClientRect(); mid=[(e.touches[0].clientX+e.touches[1].clientX)/2-r.left, (e.touches[0].clientY+e.touches[1].clientY)/2-r.top]; } }, {passive:true});
