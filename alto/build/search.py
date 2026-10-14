@@ -510,7 +510,7 @@ TIMELINE_SEARCH_JS = r"""
     setTimeout(clearRing,1200);
   },{passive:true,capture:true});
 
-  window._altoSearch={build:build, search:search, go:go, land:land, rowsHtml:rowsHtml,
+  window._altoSearch={reset:function(){ INDEX=null; }, build:build, search:search, go:go, land:land, rowsHtml:rowsHtml,
     snippet:function(text,q){ return M.snippet(text,M.query(q)); }};
 })();
 """

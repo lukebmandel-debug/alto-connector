@@ -1525,6 +1525,10 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   function change(k, v){ return changes([[k, v]]); }
   window._altoEditChanges = changes;      // a Mind Palace's drags (palace.py)
+  // what a Mind Palace needs to add a building or a floor: a fresh card id, the units to choose
+  // from (and the key the page stores one under), the glass form, the toast
+  window._altoEdit = {rid: rid, ask: function(){ return askForm.apply(null, arguments); }, toast: toast, editing: editing,
+    units: function(){ var out = []; for(var i = 0; i < ACT_SEQS.length; i++) out.push({i: i, key: unitKeyOf(i), name: unitName(i)}); return out; }};
   function undo(){ if(HP <= 0) return false; var h = HIST[--HP]; h.slice().reverse().forEach(function(e){ apply(e.k, e.a); }); syncHist(); return true; }
   function redo(){ if(HP >= HIST.length) return false; var h = HIST[HP++]; h.forEach(function(e){ apply(e.k, e.b); }); syncHist(); return true; }
   function syncHist(){
@@ -1541,6 +1545,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function refresh(k){
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'bt'){ headingSoon(); return; }
+    if((kind === 'n' || kind === 'nn' || kind === 'nd') && window._altoSearch && window._altoSearch.reset) window._altoSearch.reset();     // the search index: the cards as they are now
     if(kind === 'pf' || (kind === 'p' && p[2] === 'lot')){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
     if(kind === 'nl' || kind === 'ln' || (kind === 'n' && (p[2] === 'when' || p[2] === 'line'))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
@@ -1549,6 +1554,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       return;
     }
     if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || kind === 'ua' || kind === 'ud' || kind === 'so' || kind === 'sx'){
+      if(window._altoPalaceDirty) window._altoPalaceDirty();      // a Mind Palace: its buildings and numbers again
       relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
       if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
       else if(P) { rerenderPage(P); repaint(); }
@@ -1853,6 +1859,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!card || card.querySelector(':scope > .aed-cc') || !srcNode(id)) return;
     var items = [];
     if(OUT) items.push(['addc', '+', 'Add a card under this one']);
+    else if(window._altoPalaceAddFloor && root.classList.contains('alto-palace')) items.push(['addf', '+', 'Add a floor to this building']);
     if(OUT && (OUT.parent || {})[id]) items.push(['linkc', '⇄', 'Move it, and the cards under it, under another card']);
     if(OUT && (OUT.parent || {})[id]) items.push(['swapc', '⇅', 'Swap places with a card beside it, or with the card it sits under']);
     if(LN) items.push(['linec', '⟿', 'Put it on another line — or start a new line']);
@@ -3469,7 +3476,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(x === 'navx'){ navRemove(b); return; }
     if(w && w.hasAttribute('data-cid')){
       var cid = w.getAttribute('data-cid');
-      if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'linec') lineMenu(cid); else if(x === 'chipc') chipPop(cid, b);
+      if(x === 'addf'){ if(window._altoPalaceAddFloor) window._altoPalaceAddFloor(cid, b); } else if(x === 'addc') addCard(cid, null); else if(x === 'delc') removeCard(cid); else if(x === 'linkc') startLink(cid); else if(x === 'swapc') swapMenu(cid); else if(x === 'linec') lineMenu(cid); else if(x === 'chipc') chipPop(cid, b);
       return;
     }
     if(x === 'fltoggle'){ var P0 = page(); if(P0) toggleFlag(P0.id, b.getAttribute('data-fl')); return; }
