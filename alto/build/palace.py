@@ -33,6 +33,7 @@ import re
 
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
+from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
 from .sanitize import js_json
 from . import palace_place as pp
 
@@ -437,10 +438,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-mmap .pm-card small{display:block;color:var(--muted);margin-top:2px;}
   #pal-mmap .pm-card button{margin-top:8px;font:inherit;font-weight:700;padding:7px 14px;border-radius:9px;border:0;background:var(--accent);color:#fff;}
   #pal-mmap svg{display:block;}
-"""
+""" + LANDMARK_CSS
 
 
-PALACE_JS = KEY_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -637,18 +638,10 @@ function drawCity(svg){
     var id='plr'+(svg._sid||'')+i; el('path',{id:id, d:pts(p)},defs);
     var t=el('text',{'class':'pl-river', dy:'.35em'},labels), tp=el('textPath',{href:'#'+id, startOffset:'50%', 'text-anchor':'middle'},t); tp.textContent=r.n; });
   streetLabels(svg, defs, labels);
-  /* landmark buildings: each fills its block, named; one with a page opens it */
-  (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL(), ins=14;
+  /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
+  (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);
-    el('rect',{'class':'lm-shadow', x:b[0]+ins+4, y:b[1]+ins+5, width:b[2]-b[0]-2*ins, height:b[3]-b[1]-2*ins, rx:9},g);
-    el('rect',{'class':'lm-card', x:b[0]+ins, y:b[1]+ins, width:b[2]-b[0]-2*ins, height:b[3]-b[1]-2*ins, rx:9, stroke:c},g);
-    el('rect',{'class':'lm-top', x:b[0]+ins+3, y:b[1]+ins, width:b[2]-b[0]-2*ins-6, height:5, rx:2.5, fill:c},g);
-    /* its name inside it: a word to a line where that reads better, as big as the building allows */
-    var bw=b[2]-b[0]-2*ins-16, bh=b[3]-b[1]-2*ins-14, words=String(l.n).split(' ');
-    var lines=words.length>1 && bw/bh<4 ? words : [String(l.n)], longest=Math.max.apply(null, lines.map(function(q){ return q.length; }));
-    var fs=Math.min(34, bw/(longest*.62), bh/(lines.length*1.2));
-    var t=el('text',{'class':'lm-name', x:l.x, y:l.y-(lines.length-1)*fs*.6, 'text-anchor':'middle', 'font-size':fs.toFixed(1)},g);
-    lines.forEach(function(s_,i){ var ts=el('tspan',{x:l.x, dy:i?'1.2em':'.35em'},t); ts.textContent=s_; }); });
+    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, pageName:pageName, open:openPage}); });
   /* districts: the section's name over its buildings, as a unit's label floats over its band */
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
     var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:pm.colorRaw, 'data-u':d.u},labels);
@@ -664,6 +657,7 @@ function drawCity(svg){
 }
 /* chips keep a constant size on screen: re-measured when the zoom settles */
 function sizeChips(svg){ var z=svg===svgD?Z:(MM.z||1);
+  if(window._palLm) window._palLm.relayout(svg, z);
   svg.querySelectorAll('.pl-chip').forEach(function(g){ var t=g._t, bx=g._bx; if(!t) return; var w=0; try{ w=t.getComputedTextLength(); }catch(e){}
     if(!w) w=String(t.textContent).length*6.4/z; var h=20/z, pad=9/z;
     bx.setAttribute('x', -w/2-pad); bx.setAttribute('y', -h/2); bx.setAttribute('width', w+2*pad); bx.setAttribute('height', h); bx.setAttribute('rx', h/2); }); }
@@ -832,7 +826,7 @@ function pageName(pg){ var q=String(pg||'').split(':'), k=q.slice(1).join(':');
   return k; }
 function openPage(pg){ var q=String(pg||'').split(':'), k=q.slice(1).join(':'); if(!k) return;
   if(q[0]==='index' && window.showAxisIndex) window.showAxisIndex(k); else if(q[0]==='char') window.showDetail('char',k); else if(q[0]==='node') window.showDetail('node',k); }
-function lmTip(g){ var pg=g.getAttribute('data-page'); return '<b>'+esc(g.getAttribute('data-name'))+'</b>'+(pg?'<small>Inside: '+esc(pageName(pg))+' · click to go in</small>':''); }
+function lmTip(g){ return window._palLm.tip(g, esc, pageName); }
 function svgPt(svg, e){ var r=svg.getBoundingClientRect(), vb=svg.viewBox.baseVal; return [vb.x+(e.clientX-r.left)/r.width*vb.width, vb.y+(e.clientY-r.top)/r.height*vb.height]; }
 function cornerAt(svg, e, street){
   var p=svgPt(svg,e), g=graph(), zz=(svg===svgD?Z:(MM.z||1)), n=nearest(p[0],p[1],2,16/zz);
@@ -935,6 +929,7 @@ function ctl(){
   h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#3d6fb6" stroke-width="2.6" stroke-dasharray="6 4" opacity=".7"/>')+'<div>Subway or tunnel</div></div>';
   h+='<div class="pk-row">'+sw('<circle cx="13" cy="6" r="5" fill="#fff" stroke="#2f3338" stroke-width="2.5"/><circle cx="13" cy="6" r="2" fill="#2f3338"/>')+'<div>Station <small>a big ring is a hub</small></div></div>';
   h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="var(--pal-trail)" stroke-width="2.6" stroke-dasharray="6 3"/>')+'<div>Trail</div></div>';
+  h+=window._palLm.keyRow();
   var rk={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(x){ if(x && x[2]!=='spine') rk[x[2]]=1; });
   Object.keys(rk).forEach(function(r){ var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--accent)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
     h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="'+col+'" stroke-width="4" stroke-dasharray="7 4"/>')+'<div>Route: '+esc(lb)+'</div></div>'; });
