@@ -346,6 +346,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      ~420ms — the two beats again). Same arithmetic as flyTo. */
   function _flyPlanMs(el){
     var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);
+    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }   // a Mind Palace: centre the card and its building together
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -715,6 +716,7 @@ _FLY_SCROLL_OLD = """    var tl=_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.
 _FLY_SCROLL_NEW = """    // Where the card sits on the board at rest (_canvasXY reads layout, which
     // the pan's transform does not change).
     var ax=a.x, ay=a.y;
+    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }   // a Mind Palace: centre the card and its building together (palace.py, RISE)
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(ax-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(ay-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -2725,3 +2727,4 @@ PATCHES += [
     {"name": "freewrite-report-mail-text", "old": _FWR_TEXT_OLD, "new": _FWR_TEXT_NEW, "count": 1},
     {"name": "freewrite-report-section", "old": _FWR_BODY_OLD, "new": _FWR_BODY_NEW, "count": 1},
 ]
+
