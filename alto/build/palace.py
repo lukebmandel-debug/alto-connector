@@ -773,7 +773,16 @@ function riverLabels(svg, defs, parent, r, k){
 function tube(parent, d, col, w, op, cls){
   var t=el('path',{'class':'pl-tube'+(cls?' '+cls:''), d:d, stroke:col, 'stroke-width':w},parent); if(op<1) t.setAttribute('stroke-opacity',op);
   el('path',{'class':'pl-sheen'+(cls?' '+cls:''), d:d, stroke:sheen(), 'stroke-width':Math.max(.9, w*.34)},parent); return t; }
+/* the lines (rails, transit, tours, routes, stops) tuck BEHIND the landmark buildings and the building chips: they stay the last two layers
+   (before the invisible hit paths and the hover pill), however late something else is added to the map */
+function stackLayers(svg){
+  var lm=svg.querySelector(':scope > .pl-lms'), bl=svg.querySelector(':scope > .pl-blds'); if(!lm || !bl) return;
+  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov'); }), n=ch.length;
+  if(ch[n-2]===lm && ch[n-1]===bl) return;
+  svg.appendChild(lm); svg.appendChild(bl);
+  [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
 function drawCity(svg){
+  if(!svg._stk){ svg._stk=new MutationObserver(function(){ stackLayers(svg); }); svg._stk.observe(svg,{childList:true}); }
   GR=groundNow();
   svg.innerHTML='';
   var defs=el('defs',{},svg);
@@ -1067,6 +1076,16 @@ var tipT=null, labEl=null, litEls=[], dock=null, dockU=null, lastB=null;
 function labelB(id){ var n=id?document.getElementById('node-'+id):null; if(labEl && labEl!==n) labEl.classList.remove('pal-lab'); labEl=n; if(n && !n.classList.contains('focused')) n.classList.add('pal-lab'); }
 function lit(list){ litEls.forEach(function(x){ x.classList.remove('pal-lit'); }); litEls=list||[]; litEls.forEach(function(x){ x.classList.add('pal-lit'); }); }
 function litStreet(nm){ if(!svgD||!nm) return lit(null); lit([].slice.call(svgD.querySelectorAll('.pl-st,.pl-stt')).filter(function(x){ return x.getAttribute('data-n')===nm; })); }
+/* pointing at a street (or a block's side): its name in the same quiet in-place label a building gets, two names at a corner */
+var stPill=0;
+function streetPill(h, e){
+  var svg=svgD; if(!svg || !window._palHover) return;
+  var pt=svgPt(svg,e), m=svg._hp; if(!m || m.parentNode!==svg){ m=svg._hp=el('circle',{'class':'pl-hovpt', r:1, fill:'none', 'pointer-events':'none'},svg); }
+  m.setAttribute('cx',pt[0]); m.setAttribute('cy',pt[1]);
+  var c=cornerAt(svg, e, h._n); window._palHover(m, c&&c.length>1 ? c.join(' & ') : h._n); stPill=1; }
+function streetPillOff(){ if(stPill){ stPill=0; if(window._palHover) window._palHover(null); } }
+document.addEventListener('mousemove', function(e){ if(!stPill || !palaceOn()) return; var h=e.target.closest && e.target.closest('#palace-svg .pl-hit'); if(!h){ streetPillOff(); return; }
+  var m=svgD&&svgD._hp, pt=svgPt(svgD,e); if(m && Math.hypot(+m.getAttribute('cx')-pt[0], +m.getAttribute('cy')-pt[1])*Z > 36) streetPill(h, e); });
 function litDist(u){ lit(svgD?[].slice.call(svgD.querySelectorAll('.pl-dist')).filter(function(x){ return +x.getAttribute('data-u')===u; }):null); }
 /* window._palHover(el, text): label ANY svg element of the map in place (a quiet pill just above it, never following the cursor).
    Call it from a hover / focus handler with the text; call it with no text to clear. One pill at a time; returns the pill's <g> or null. */
@@ -1132,7 +1151,8 @@ function drawRoutes(svg, id, walkUnit){
   function idOf(e){ return e.getAttribute('data-id') || (e.id||'').replace(/^node-/,''); }
   all(svg).forEach(function(b){ b.classList.remove('pal-hot','pal-dim'); });
   if(id==null && walkUnit==null) return;
-  function path(a,b){ var A=lot(P.at[a]), B=lot(P.at[b]); if(!A||!B) return null; var r=route(entrance(a), entrance(b)), gg=graph();
+  function path(a,b){ var A=lot(P.at[a]), B=lot(P.at[b]); if(!A||!B) return null; var q=window._palTR&&window._palTR(a,b); if(q) return q;
+    var r=route(entrance(a), entrance(b)), gg=graph();
     var d='M'+A[0]+' '+A[1]; (r||[]).forEach(function(n){ d+='L'+gg.X[n]+' '+gg.Y[n]; }); return d+'L'+B[0]+' '+B[1]; }
   if(walkUnit!=null){
     var ids=(P.units||[])[walkUnit]||[], col=PHASE_META[walkUnit]?PHASE_META[walkUnit].colorRaw:'var(--accent)';
@@ -1162,7 +1182,8 @@ document.addEventListener('mouseover', function(e){
   if(rh){ lit(null); return; }                                  /* its far building (lit by routeHot) shows its pill */
   if(id){ lit(null); tipT=setTimeout(function(){ if(!focused()){ hotB=id; drawRoutes(svgD, id); } }, 110); return; }
   if(du){ litDist(+du.getAttribute('data-u')); return; }
-  if(st){ litStreet(st._n); return; }
+  if(st){ litStreet(st._n); streetPill(st, e); return; }
+  streetPillOff();
   if(da){ litDist(+da.getAttribute('data-u')); }                /* the neighbourhood's own ground (under streets, buildings, landmarks) */
   else lit(null);
   tipT=setTimeout(function(){ if(!focused() && hotB){ hotB=null; drawRoutes(svgD, null, dockU); } else if(!focused() && dockU==null && svgD && svgD._r && svgD._r.firstChild) drawRoutes(svgD, null); }, 120);

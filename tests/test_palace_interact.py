@@ -420,3 +420,20 @@ def test_double_click_a_building_opens_its_page_and_single_click_enlarges(browse
     assert pg.evaluate("window._currentDetailId") == "alpha"
     assert pg.evaluate("document.documentElement.classList.contains('detail-open')")
     assert not pg.errs, pg.errs
+
+
+def test_pointing_at_a_street_names_it_in_place(browser, page_file):
+    """A street under the pointer shows its name in the quiet in-place label (two names at a corner), and the label goes when the pointer leaves."""
+    pg = _open(browser, page_file)
+    pts = pg.evaluate("""()=>{const out=[]; document.querySelectorAll('#palace-svg .pl-hit').forEach(h=>{ if(out.length>1) return; const L=h.getTotalLength(), m=h.getScreenCTM();
+      for(const f of [.3,.5,.7]){ const q=h.getPointAtLength(L*f), x=q.x*m.a+q.y*m.c+m.e, y=q.x*m.b+q.y*m.d+m.f;
+        if(x>60&&x<1440&&y>200&&y<800){ out.push([x,y,h._n]); break; } } }); return out}""")
+    assert pts
+    x, y, name = pts[0]
+    pg.mouse.move(x, y); pg.wait_for_timeout(400)
+    txt = pg.evaluate("()=>{const g=document.querySelector('#palace-svg .pl-hov'); return g?g.textContent:null}")
+    assert txt and name in txt
+    assert not pg.evaluate("()=>!!document.querySelector('.pal-tip')")      # never a box following the cursor
+    pg.mouse.move(5, 5); pg.wait_for_timeout(300)
+    assert not pg.evaluate("()=>!!document.querySelector('#palace-svg .pl-hov')")
+    pg.close()
