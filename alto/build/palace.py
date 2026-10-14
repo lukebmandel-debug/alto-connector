@@ -346,6 +346,13 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-route-sh{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.4;vector-effect:non-scaling-stroke;
     stroke:rgba(255,255,255,.8);stroke-dasharray:10 12;animation:pal-flow 1.1s linear infinite;}
   .pal-svg .pl-walk{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:4;vector-effect:non-scaling-stroke;stroke-dasharray:2 7;}
+  .pal-svg .pl-addr{fill:var(--accent);fill-opacity:.12;stroke:var(--accent);stroke-width:1.5;stroke-dasharray:4 3;vector-effect:non-scaling-stroke;pointer-events:none;}
+  .pal-svg .pl-addpend{fill-opacity:.32;stroke-width:2;stroke-dasharray:none;}
+  .pal-svg .pl-addr0{fill-opacity:.05;stroke-opacity:.55;}
+  .pal-svg .pl-addp{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke;pointer-events:none;}
+  .pal-svg.pl-adding{cursor:copy;}
+  #alto-edit-exit .ee-addb{width:auto;padding:0 10px;line-height:1.2;font:inherit;font-size:12.5px;white-space:nowrap;}
+  #alto-edit-exit .ee-addb.on{background:var(--accent);color:#fff;}
   .pal-svg .pl-slot{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   @keyframes pal-flow{to{stroke-dashoffset:-22;}}
   @media (prefers-reduced-motion: reduce){.pal-svg .pl-route-sh{animation:none;}}
@@ -1608,6 +1615,7 @@ document.addEventListener('touchend', function(e){
 var dragging=null, moved=false;
 window._altoPalaceField=function(k){
   var p=k.split('|');
+  if(p[1] && !TT[p[1]]) tables();                    // a building just added on the page
   if(p[0]==='p' && p[2]==='lot' && TT[p[1]]) return {kind:'card', get:function(){ return P.at[p[1]]||null; },
     set:function(v){ if(v) P.at[p[1]]=v; else delete P.at[p[1]]; P._dirty=1; }};
   if(p[0]==='pf' && TT[p[1]]) return {kind:'card', get:function(){ return P.par[p[1]]||''; },
@@ -1618,6 +1626,7 @@ window._altoPalaceRefresh=function(){ P._dirty=0; restructure(true); if(svgD){ d
     labels.forEach(function(t){ var u=+t.getAttribute('data-u'), d=(P.d||[]).filter(function(q){ return q.u===u; })[0]; if(!d) return; var c=districtCentre(d);
       t.setAttribute('x',c[0]); t.setAttribute('y',c[1]); [].forEach.call(t.querySelectorAll('tspan'),function(s){ s.setAttribute('x',c[0]); }); }); }
   ENT={}; placeAll(); if(de.classList.contains('pal-elev-on') && cur){ drawElev(cur); } };
+window._altoPalaceDirty=function(){ P._dirty=1; };
 function chg(list){ if(window._altoEditChanges) return window._altoEditChanges(list); return false; }
 function letOut(fid){
   var b=bOf(fid), L=lot(P.at[b]), key=freeLot(L?L[0]:M.W/2, L?L[1]:M.H/2);
@@ -1657,5 +1666,98 @@ window.addEventListener('mouseup', function(e){
   else if(d.key && d.key!==P.at[d.id]) ok=chg([['p|'+d.id+'|lot', d.key]]);
   if(!ok) window._altoPalaceRefresh();
 }, true);
+
+/* ── manual edit mode: add a building on a free lot, or a floor on a building ──
+   A free lot shows a faint + under the pointer (and every free lot does while "Add building" is on);
+   choosing one opens the glass form. The card is made the way any card is (nn|card-…, with the lot as
+   p|card-…|lot, or pf|card-… for a floor), so Save, undo, reload and republish already know it. */
+var addMode=false, ghost=null, ghostKey=null, freeLayer=null, addBtn=null, formAt=null;
+function lotAt(p){
+  var t=taken();
+  for(var i=0;i<P.b.length;i++){ var ls=P.b[i]; for(var k=0;k<ls.length;k++){ var L=ls[k], r=Math.max(L[2],L[3]);
+    if(Math.abs(p[0]-L[0])>r || Math.abs(p[1]-L[1])>r) continue;
+    var a=-L[4]*Math.PI/180, dx=p[0]-L[0], dy=p[1]-L[1], c=Math.cos(a), s=Math.sin(a), rx=dx*c-dy*s, ry=dx*s+dy*c;
+    if(Math.abs(rx)<=L[2]/2+4 && Math.abs(ry)<=L[3]/2+4){ var key=i+'.'+k; return {key:key, L:L, by:t[key]||null}; } } }
+  return null;
+}
+function lotRect(L, cls, parent, pad){ pad=pad||0;
+  return el('rect',{'class':cls, x:L[0]-L[2]/2-pad, y:L[1]-L[3]/2-pad, width:L[2]+2*pad, height:L[3]+2*pad, rx:3, transform:'rotate('+L[4]+' '+L[0]+' '+L[1]+')'},parent); }
+function addLayer(){ if(!svgD) return null; if(!svgD._a || svgD._a.parentNode!==svgD) svgD._a=el('g',{'class':'pl-addlayer'},svgD); return svgD._a; }
+function hideGhost(){ if(ghost){ ghost.remove(); ghost=null; } ghostKey=null; }
+function showGhost(hit){
+  if(ghostKey===hit.key && ghost && ghost.parentNode) return; hideGhost(); if(!addLayer()) return; ghostKey=hit.key;
+  var L=hit.L, g=el('g',{'class':'pl-addg'},addLayer()); lotRect(L,'pl-addr',g,2);
+  var h=Math.min(L[2],L[3])*.3+2; el('path',{'class':'pl-addp', d:'M'+(L[0]-h)+' '+L[1]+'L'+(L[0]+h)+' '+L[1]+'M'+L[0]+' '+(L[1]-h)+'L'+L[0]+' '+(L[1]+h)},g); ghost=g; }
+function addUnitAt(L){
+  var best=null, bd=1e18;
+  (P.d||[]).forEach(function(d){ var b=d.box; if(best==null && L[0]>=b[0]&&L[0]<=b[2]&&L[1]>=b[1]&&L[1]<=b[3]) best=d.u; });
+  if(best==null) (P.d||[]).forEach(function(d){ var c=districtCentre(d), dd=Math.hypot(c[0]-L[0],c[1]-L[1]); if(dd<bd){ bd=dd; best=d.u; } });
+  return best==null?0:best;
+}
+function anchorAt(x,y){ return {getBoundingClientRect:function(){ return {left:x, right:x, top:y, bottom:y}; }}; }
+/* the form: a new building on lot `key`, or (floorOf) a floor of that building */
+function addForm(key, floorOf, at){
+  var E=window._altoEdit; if(!E || !E.editing()) return;
+  var L=key?lot(key):null; if(!floorOf && (!L || taken()[key])){ E.toast('That lot is taken — pick an empty one.'); return; }
+  var us=E.units(), def=floorOf?ACT[floorOf]:addUnitAt(L);
+  var fields=[{k:'title',l:'Title',req:1,ph:floorOf?'What is on this floor':'What stands here'},
+              {k:'desc',l:'Short description (optional)',type:'area'}];
+  if(!floorOf) fields.push({k:'unit',l:'Section',type:'select',val:String(def),
+    opts:us.map(function(u){ var n=(P.units[u.i]||[]).length; return [String(u.i), (u.i+1)+'. '+u.name+' ('+n+')']; })});
+  fields.push({k:'tag',l:'Tag (optional)',ph:'e.g. RULE'});
+  var pend=null; if(L && !floorOf && addLayer()){ pend=lotRect(L,'pl-addr pl-addpend',addLayer(),2); }
+  var gone=function(){ if(pend){ pend.remove(); pend=null; } };
+  var head=floorOf?'Add a floor to '+num(floorOf)+' '+title(floorOf):'Add a building';
+  E.ask(at, head, fields, 'Add', function(v){
+    gone();
+    var ui=floorOf?ACT[floorOf]:(+v.unit), id=E.rid('card-'), uk=(us.filter(function(u){ return u.i===ui; })[0]||{}).key;
+    if(uk==null) return;
+    var like=(P.units[ui]||[]).map(function(i){ return TT[i]; })[0];
+    var spec={p:floorOf||'', a:uk, t:v.title, g:v.tag||'', d:v.desc||'', c:(like&&like.color)||'var(--accent)'};
+    var list=[['nn|'+id, spec]];
+    if(floorOf) list.push(['pf|'+id, floorOf]); else list.push(['p|'+id+'|lot', key]);
+    if(!chg(list)){ E.toast('That could not be added.'); return; }
+    addMode=false; syncAdd();
+    setTimeout(function(){ E.toast('Added '+num(id)+' '+v.title+' — ⌘Z takes it back.'); }, 60);
+  });
+  var fm=document.getElementById('aed-form');       // the marker goes with the form, however it closes
+  if(fm){ var mo=new MutationObserver(function(){ if(!fm.classList.contains('show')){ gone(); mo.disconnect(); } }); mo.observe(fm,{attributes:true,attributeFilter:['class']}); }
+}
+window._altoPalaceAddFloor=function(id, btn){
+  var b=bOf(id), r=btn&&btn.getBoundingClientRect?btn.getBoundingClientRect():{left:innerWidth/2,bottom:innerHeight/3,top:innerHeight/3,right:innerWidth/2};
+  addForm(null, b, anchorAt(r.left, r.bottom)); };
+function syncAdd(){
+  var on=palaceOn() && editing();
+  if(freeLayer){ freeLayer.remove(); freeLayer=null; }
+  if(svgD) svgD.classList.toggle('pl-adding', !!(addMode&&on));
+  if(addMode && on && addLayer()){
+    freeLayer=el('g',{'class':'pl-addfree'},addLayer()); var t=taken();
+    /* the empty lots in and around the neighbourhoods (the whole city has thousands) */
+    var D=(P.d||[]).map(function(d){ return d.box; });
+    P.b.forEach(function(ls,i){ ls.forEach(function(L,k){ if(t[i+'.'+k]) return;
+      if(D.some(function(b){ return L[0]>=b[0]-50 && L[0]<=b[2]+50 && L[1]>=b[1]-50 && L[1]<=b[3]+50; })) lotRect(L,'pl-addr pl-addr0',freeLayer,1); }); }); }
+  if(!on) hideGhost();
+  var bar=document.getElementById('alto-edit-exit');
+  if(bar && on && !bar.querySelector('.ee-addb')){
+    addBtn=document.createElement('button'); addBtn.type='button'; addBtn.className='ee-h ee-addb'; addBtn.textContent='+ Add building';
+    addBtn.title='Then click an empty lot'; var done=bar.querySelector('.ee-done'); bar.insertBefore(addBtn, done);
+    addBtn.addEventListener('click', function(e){ e.stopPropagation(); addMode=!addMode; syncAdd(); }); }
+  var ab=bar&&bar.querySelector('.ee-addb'); if(ab){ ab.style.display=on?'':'none'; ab.classList.toggle('on', !!(addMode&&on)); }
+  if(addMode&&on){ var E=window._altoEdit; if(E) E.toast('Click an empty lot to put a building there · Esc to cancel'); }
+}
+new MutationObserver(function(){ if(!editing()) addMode=false; syncAdd(); }).observe(de,{attributes:true,attributeFilter:['class']});
+window.addEventListener('mousemove', function(e){
+  if(dragging || !palaceOn() || !editing() || focused() || !svgD){ if(ghost) hideGhost(); return; }
+  if(!e.target.closest || !e.target.closest('#canvas') || e.target.closest('.node,.aed-cc,button') || bAt(e.target)){ hideGhost(); return; }
+  var hit=lotAt(svgPt(svgD,e)); if(hit && !hit.by) showGhost(hit); else hideGhost();
+});
+window.addEventListener('click', function(e){
+  if(!palaceOn() || !editing() || focused() || moved || !svgD || e.button!==0) return;
+  var t=e.target; if(!t.closest || !t.closest('#canvas') || t.closest('.node,.aed-cc,button,input,select,textarea,a') || bAt(t)) return;
+  var hit=lotAt(svgPt(svgD,e)); if(!hit) return;
+  if(hit.by){ if(addMode){ e.stopImmediatePropagation(); var E=window._altoEdit; if(E) E.toast('That lot is taken — pick an empty one.'); } return; }
+  e.preventDefault(); e.stopImmediatePropagation(); hideGhost(); formAt=hit.key; addForm(hit.key, null, anchorAt(e.clientX+14, e.clientY+14));
+}, true);
+window.addEventListener('keydown', function(e){ if(e.key==='Escape' && addMode){ addMode=false; syncAdd(); } }, true);
 })();
 """
