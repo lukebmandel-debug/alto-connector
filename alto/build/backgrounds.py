@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 
 from .backgrounds_catalog import COLOURS, PATTERNS, SCENES
+from . import palace_backgrounds as pbg
 
 BG_V = "2"
 BG_BASE = f"/bg/v{BG_V}/"
@@ -98,13 +99,16 @@ def tune(p: dict, theme: str) -> dict:
     }
 
 
-def client_catalog() -> dict:
+def client_catalog(palace: bool = False) -> dict:
     """What a page needs to know about each background, as compactly as it can.
+    A Mind Palace page (palace=True) also carries the maps' own set (palace_backgrounds.py), first.
     A photograph (k "p"): g group, and for each theme (l, d) {n name, f file, w/h size, x/y where its
     subject sits, by author, lic licence, u source page, m mean colour, b lift, v veil, q gate colour,
     s status-bar colour, a top-strip colour}. A colour (k "c"): n, l and d = [from, to]. A pattern
-    (k "x"): n, p kind, l and d = [from, to, ink, ink alpha]."""
-    out = {}
+    (k "x"): n, p kind, l and d = [from, to, ink, ink alpha]. A map background (k "m", Mind Palace pages
+    only): n, and for each theme {b CSS background, a top colour, q gate colour, s status-bar colour, v the
+    map's custom properties}."""
+    out = dict(pbg.client_entries()) if palace else {}
     for sc in SCENES:
         e = {"g": sc["group"], "k": "p"}
         for m in ("l", "d"):
@@ -121,8 +125,8 @@ def client_catalog() -> dict:
     return out
 
 
-def catalog_json() -> str:
-    return json.dumps(client_catalog(), separators=(",", ":"), ensure_ascii=False
+def catalog_json(palace: bool = False) -> str:
+    return json.dumps(client_catalog(palace), separators=(",", ":"), ensure_ascii=False
                       ).replace("</", "<\\/")
 
 
@@ -139,15 +143,17 @@ def catalog_json() -> str:
 #   pattern     — a repeating mark over a gradient, built here from the catalog's kind.
 #   custom      — "c:rrggbb": a colour of the user's own, drawn like the presets (pale in light, deep in dark).
 HEAD_JS = r"""(function(){
-  var C=__CATALOG__, KEY=__KEY__, BASE=__BASE__, r=document.documentElement;
+  var C=__CATALOG__, KEY=__KEY__, BASE=__BASE__, DEF=__DEFAULT__, r=document.documentElement;
   var VARS=['--alto-bg','--alto-top','--alto-q','--alto-veil','--alto-bright','--alto-blur','--alto-t','--alto-mask'];
-  var cur='', sig='', touched=false;
+  var cur='', sig='', touched=false, PV=[];
   var HEX=/^c:([0-9a-f]{6})$/;
   function isDark(){ return r.classList.contains('dark'); }
   // On a web address. A share is shown in a srcdoc frame whose own address is about:srcdoc, so ask the
   // base URL it inherits (the same question the page's local-file links ask); a downloaded copy is file:.
   function web(){ return /^https?:/i.test(document.baseURI || location.href); }
-  function read(){ try{ var s=JSON.parse(localStorage.getItem(KEY)||'null'); return (s && s.v) || ''; }catch(e){ return ''; } }
+  // what was chosen; with no choice recorded, the page's own default (a Mind Palace's first map ground, else none).
+  // A recorded choice of '' is the Alto wallpaper, chosen.
+  function read(){ try{ var s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s && typeof s.v==='string') return s.v; }catch(e){} return DEF; }
   // the opaque key in a private or shared page's address: what a gate knows about this page before it has it
   function gate(){ var p=location.pathname.split('/').filter(Boolean); return (p[0]==='pv' || p[0]==='s') && p[1] ? p[0]+'/'+p[1] : ''; }
   function h2n(h){ return parseInt(h.slice(1),16); }
@@ -181,7 +187,7 @@ HEAD_JS = r"""(function(){
     try{
       var m=JSON.parse(localStorage.getItem('alto-bgq-v1')||'{}') || {};
       if(!c && !(k in m)) return;          // nothing chosen, nothing remembered: no write
-      if(c) m[k]=[c.k==='p' ? c.l.q : c.l[0], c.k==='p' ? c.d.q : c.d[0]]; else delete m[k];
+      if(c) m[k]=[c.k==='p'||c.k==='m' ? c.l.q : c.l[0], c.k==='p'||c.k==='m' ? c.d.q : c.d[0]]; else delete m[k];
       var ks=Object.keys(m); if(ks.length>60) delete m[ks[0]];
       localStorage.setItem('alto-bgq-v1',JSON.stringify(m));
     }catch(e){}
@@ -192,7 +198,7 @@ HEAD_JS = r"""(function(){
     var c=cur && get(cur), dark=isDark();
     if(!c && !touched) return;             // never chosen: the engine's own colour, untouched
     touched=!!c;
-    var v=c && (c.k==='p' ? (dark ? c.d.s : c.l.s) : (dark ? c.d[0] : c.l[0]));
+    var v=c && (c.k==='p'||c.k==='m' ? (dark ? c.d.s : c.l.s) : (dark ? c.d[0] : c.l[0]));
     m.setAttribute('content', v || (dark ? '#6b4326' : '#ffc59e'));
   }
   // The bars across the top, as far down as they reach, in the page-bg layer's own pixels.
@@ -217,29 +223,36 @@ HEAD_JS = r"""(function(){
   }
   function clear(){
     cur=''; sig='';
-    if(r.classList.contains('alto-bg')){ r.classList.remove('alto-bg'); VARS.forEach(function(v){ r.style.removeProperty(v); }); bar(); }
+    if(r.classList.contains('alto-bg')){ r.classList.remove('alto-bg'); r.classList.remove('alto-bg-map'); VARS.concat(PV).forEach(function(v){ r.style.removeProperty(v); }); PV=[]; bar(); tell(); }
     window._altoBgId=''; remember(null);
   }
+  // a map ground changes what the map draws against (palace.py listens)
+  function tell(){ try{ window.dispatchEvent(new Event('alto-bg-painted')); }catch(e){} }
   // draw what is chosen, for the theme in use; cheap when nothing it depends on has changed
   function paint(){
-    var c=cur && get(cur); if(!c || !web()){ if(cur || r.classList.contains('alto-bg')) clear(); return; }
-    var dark=isDark(), st=r.style, key, bg, top, q, veil='transparent', bright=1, blur='0px', T=0, mask='none';
+    var c=cur && get(cur); if(!c || (c.k!=='m' && !web())){ if(cur || r.classList.contains('alto-bg')) clear(); return; }
+    var dark=isDark(), st=r.style, key, bg, top, q, veil='transparent', bright=1, blur='0px', T=0, mask='none', pv={};
     if(c.k==='p'){
       var v=dark ? c.d : c.l, g=geometry(v);
       key=[cur,dark,g?g.bg:'',g?g.T:''].join('|'); if(key===sig) return; sig=key;
       bg=g ? g.bg : 'url('+BASE+v.f+') '+(v.x*100)+'% '+(v.y*100)+'% / cover no-repeat'; T=g ? g.T : (r.classList.contains('mobile') ? 132 : 84);
       top=v.a; q=v.q; bright=v.b; blur='6px'; mask='linear-gradient(transparent,#000 40px)';
       veil=(dark ? 'rgba(8,10,18,' : 'rgba(247,249,253,')+v.v+')';
+    } else if(c.k==='m'){
+      var m=dark ? c.d : c.l; key=[cur,dark].join('|'); if(key===sig) return; sig=key;
+      bg=m.b; top=m.a; q=m.q; pv=m.v||{};
     } else {
       var w=dark ? c.d : c.l; key=[cur,dark].join('|'); if(key===sig) return; sig=key;
       bg=c.k==='x' ? pattern(c.p, w) : 'linear-gradient(160deg,'+w[0]+','+w[1]+')'; top=w[0]; q=w[0];
     }
+    PV.forEach(function(n){ if(!(n in pv)) st.removeProperty(n); }); Object.keys(pv).forEach(function(n){ st.setProperty(n,pv[n]); }); PV=Object.keys(pv);
+    r.classList.toggle('alto-bg-map', c.k==='m');
     st.setProperty('--alto-bg',bg); st.setProperty('--alto-top',top); st.setProperty('--alto-q',q); st.setProperty('--alto-veil',veil);
     st.setProperty('--alto-bright',bright); st.setProperty('--alto-blur',blur); st.setProperty('--alto-t',T+'px'); st.setProperty('--alto-mask',mask);
-    r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c);
+    r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
   }
   function apply(id){ cur=get(id) ? id : ''; sig=''; paint(); }
-  window._altoBg={C:C, key:KEY, base:BASE, read:read, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern,
+  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern,
     choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(id); }};
   window._altoBgId='';
   apply(read());
@@ -256,10 +269,12 @@ HEAD_JS = r"""(function(){
 })();"""
 
 
-def head_block(key: str) -> str:
-    """The <script> for <head>. `key` is the localStorage key of this page's choice."""
-    js = (HEAD_JS.replace("__CATALOG__", catalog_json())
-          .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE)))
+def head_block(key: str, palace: bool = False) -> str:
+    """The <script> for <head>. `key` is the localStorage key of this page's choice; a Mind Palace
+    page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it."""
+    js = (HEAD_JS.replace("__CATALOG__", catalog_json(palace))
+          .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE))
+          .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else "")))
     return '<script id="alto-bg-head">' + js + "</script>"
 
 
@@ -369,6 +384,7 @@ UI_JS = r"""(function(){
   function credit(){
     var id=B.read(), c=B.get(id); foot.textContent='';
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
+    if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map, for the light and the dark theme.'; return; }
     if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+' — for the light and the dark theme.'; return; }
     var v=variant(c);
     foot.appendChild(document.createTextNode(v.n+' — '+v.by+' · '+v.lic+' · '));
@@ -379,7 +395,7 @@ UI_JS = r"""(function(){
     tiles.forEach(function(t){ var id=t.getAttribute('data-bg')||'', on=id===cur || (id==='c:' && custom);
       t.classList.toggle('active',on); t.setAttribute('aria-pressed',on?'true':'false'); });
     if(customTile){ var h=custom ? '#'+cur.slice(2) : ''; customTile.classList.toggle('set', !!h); if(h) customTile.style.setProperty('--bg-custom', h); else customTile.style.removeProperty('--bg-custom'); if(customInput && h) customInput.value=h; }
-    if(tab) tab.classList.toggle('active', !!cur);
+    if(tab) tab.classList.toggle('active', !!cur && cur!==B.def);
     if(foot) credit();
   }
   // the tiles take the theme in use: a photograph's light or dark picture, a colour's or pattern's own
@@ -388,7 +404,8 @@ UI_JS = r"""(function(){
     if(c.k==='p'){
       var v=variant(c), im=t.querySelector('img'), nm=t.querySelector('.bg-name');
       var src=B.base+'t/'+v.f; if(im && im.getAttribute('src')!==src) im.src=src; if(nm) nm.textContent=v.n; t.setAttribute('aria-label',v.n+', '+c.g);
-    } else if(c.k==='c'){ var w=dark() ? c.d : c.l; t.style.background='linear-gradient(160deg,'+w[0]+','+w[1]+')'; }
+    } else if(c.k==='m'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', for the map'); }
+    else if(c.k==='c'){ var w=dark() ? c.d : c.l; t.style.background='linear-gradient(160deg,'+w[0]+','+w[1]+')'; }
     else { var q=B.pattern(c.p, dark() ? c.d : c.l); t.style.background=q; }
   }
   function tile(id, c){
@@ -416,11 +433,13 @@ UI_JS = r"""(function(){
       var s=mk('div','bg-sec'); if(title) s.appendChild(mk('div','bg-h',title));
       var g=mk('div','bg-grid'); ids.forEach(function(id){ g.appendChild(tile(id, B.C[id])); }); if(extra) g.appendChild(extra); s.appendChild(g); return s;
     }
-    var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0);
-    body.appendChild(first);
-    // colours and patterns first (they are the quick ones), then the photographs
+    // a Mind Palace's own grounds for the map come first, the one it opens on at the head of them; the Alto wallpaper
+    // is the ninth tile of that set, not a section of its own
+    if(by['Mind Palace']) body.appendChild(sec('Mind Palace', by['Mind Palace'], tile('',null)));
+    else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
+    // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
-    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns') body.appendChild(sec(g, by[g])); });
+    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Mind Palace') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
   function open(v){

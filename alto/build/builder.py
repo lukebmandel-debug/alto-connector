@@ -247,7 +247,7 @@ def _add_background_head(html: str, brief: Brief) -> str:
         raise VerifyError(["page has no single theme-color tag for the background script"])
     # ahead of the tag, not after it: engine_patches appends the mobile runway
     # right behind it and every patch's text must stay in one piece
-    return html.replace(anchor, backgrounds.head_block(key) + "\n" + anchor, 1)
+    return html.replace(anchor, backgrounds.head_block(key, palace=(brief.mode == "palace")) + "\n" + anchor, 1)
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
