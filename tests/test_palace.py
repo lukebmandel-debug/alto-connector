@@ -650,3 +650,81 @@ def test_set_up_palace_stores_the_city(store):
     assert got["brief"]["palace"]["city"]["blocks"] == 6
     assert "data_z" not in got["brief"]["palace"]
     assert "next" in r
+
+
+# ── 8. the look: street weights and neighbourhood names ─────────────────────
+def _grid_bundle(**kw):
+    from alto.build.palace_grid import grid
+    m = grid(city_map(), majors=["John F. Kennedy Boulevard", "Market Street", "South 16th Street"])
+    blocks = m.pop("blocks")
+    d = bundle(**kw)
+    d["brief"]["palace"]["data_z"] = palace.pack({"map": m, "blocks": blocks})
+    d["brief"]["palace"]["districts"] = [
+        {**x, "name": n} for x, n in zip(districts(), ("Old City", "Center City", "Mantua"))]
+    return d
+
+
+def test_streets_are_drawn_in_two_weights_on_the_screen():
+    page = build_timeline(*load(_grid_bundle()))[0]
+    # a major street and a minor one, each a connecting-line tube with its sheen, sized in screen px
+    for cls, px in (("t-min", "3.6px"), ("t-maj", "5.6px")):
+        assert f".pal-svg .pl-tube.{cls}{{stroke-width:calc(var(--tw,1) * {px});}}" in page
+    assert "tube(sg, byM[u], tc(u), 5.6, .95, 't-maj')" in page
+    assert "M.cols[i]" in page and "--tw" in page
+
+
+def test_the_page_carries_the_grids_street_names_by_column_and_row():
+    page = build_timeline(*load(_grid_bundle()))[0]
+    data = json.loads(re.search(r"window\._ALTO_PALACE=(\{.*?\});\n", page, re.S).group(1))
+    m = data["m"]
+    assert m["cols"] and m["rows"] and all(isinstance(x, str) for x in m["cols"] + m["rows"])
+    assert "Market St" in m["rows"] and "Market St" in m["majors"]
+    assert "16th St" in m["cols"] and "16th St" in m["majors"]      # the grid names a street once, by its number
+
+
+def test_districts_are_named_not_numbered_and_carry_their_unit_in_a_popup():
+    page = build_timeline(*load(_grid_bundle()))[0]
+    data = json.loads(re.search(r"window\._ALTO_PALACE=(\{.*?\});\n", page, re.S).group(1))
+    assert [d["n"] for d in data["d"]] == ["Old City", "Center City", "Mantua"]
+    assert "t.textContent=d.n || pm.label;" in page            # the name, not the numeral
+    assert "pm.numeral+' · '" not in page
+    assert "function distTip(u)" in page and "Unit '+esc(pm.numeral)" in page
+    assert "pl-dtint" in page                                    # its ground answers the pointer too
+
+
+def _chrome():
+    sync_api = pytest.importorskip("playwright.sync_api")
+    p = sync_api.sync_playwright().start()
+    for launch in (lambda: p.chromium.launch(), lambda: p.chromium.launch(channel="chrome"), lambda: p.webkit.launch()):
+        try:
+            return p, launch()
+        except Exception:                                    # noqa: BLE001
+            continue
+    p.stop()
+    pytest.skip("no browser to drive")
+
+
+def test_in_a_browser_streets_weigh_more_than_a_hair_and_a_district_pops_up_its_unit(tmp_path):
+    page = build_timeline(*load(_grid_bundle()))[0]
+    f = tmp_path / "p.html"
+    f.write_text(page, encoding="utf-8")
+    p, b = _chrome()
+    try:
+        pg = b.new_page(viewport={"width": 1400, "height": 800})
+        errs = []
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(f.as_uri())
+        pg.wait_for_timeout(1500)
+        w = pg.evaluate("""()=>{ var z=window._altoPalaceGeo.Z, q=function(s){ var e=document.querySelector(s); return e?parseFloat(getComputedStyle(e).strokeWidth)*z:0; };
+          return {min:q('#palace-svg .pl-tube.t-min'), maj:q('#palace-svg .pl-tube.t-maj'), sh:q('#palace-svg .pl-sheen.t-min')}; }""")
+        assert 3 <= w["min"] < w["maj"] and w["maj"] >= 5 and w["sh"] >= 1.2, w          # screen px, whatever the zoom
+        names = pg.evaluate("[...document.querySelectorAll('#palace-svg .pl-dist')].map(t=>t.textContent)")
+        assert names == ["Old City", "Center City", "Mantua"]
+        pg.evaluate("document.querySelector('#palace-svg .pl-dist[data-u=\"1\"]').dispatchEvent(new MouseEvent('mouseover',{bubbles:true,clientX:400,clientY:300}))")
+        pg.wait_for_timeout(400)
+        tip = pg.evaluate("(document.querySelector('.pal-tip')||{}).innerText")
+        assert "Center City" in tip and "Unit II" in tip and "TWO" in tip, tip
+        assert not errs, errs
+    finally:
+        b.close()
+        p.stop()
