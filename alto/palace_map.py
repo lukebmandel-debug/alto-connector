@@ -7,7 +7,8 @@ trails, rail lines, stations, landmarks). Pure standard library (urllib), no
 shapely or numpy. Map data (c) OpenStreetMap contributors, ODbL: the dict
 carries the attribution string and the page must show it.
 
-  fetch_osm(bbox, cache_dir=None, timeout=180, landmarks=None)
+  fetch_osm(bbox, cache_dir=None, timeout=180, landmarks=None, light=False)
+  fetch_tiled(bbox, cache_dir=None, ...)   small cached light tiles, merged (dense areas)
         one Overpass query for the box (cached on disk when cache_dir is
         given); returns the raw Overpass JSON. bbox = (south, west, north, east)
   build_map(raw, bbox, place="", scale=1.0, majors=None, landmarks=None)
@@ -120,16 +121,40 @@ def _ql_regex(name: str) -> str:
     return "".join(out)
 
 
-def build_query(bbox, landmarks=None, timeout: int = 180) -> str:
+# the streets a light query keeps: everything the grid is drawn from (palace_grid
+# takes a column from a numbered or major street and a row from a major or k<=3
+# one), so residential streets only when they are numbered (or Front Street)
+_LIGHT_HW = "motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link"
+_LIGHT_NUMBERED = "^((North|South|East|West) )?([0-9]+(st|nd|rd|th)|Front) "
+
+
+def build_query(bbox, landmarks=None, timeout: int = 180, light: bool = False, streets=None) -> str:
+    """light=True is for dense areas where the full query times out: no service
+    roads, trails, minor residential streets, parks other than leisure=park, and
+    no landmark outlines; rails, route relations, stations and water stay.
+    streets: names (the page's majors) kept whatever their class in a light query."""
     b = "(%r,%r,%r,%r)" % tuple(float(v) for v in bbox)
     hw = "|".join(k for k in _HIGHWAY_K if k != "service")
+    if light:
+        landmarks = None
+        named = sorted({str(n) for n in (streets or ()) if n})
+        rx = _LIGHT_NUMBERED
+        if named:
+            rx = "(%s)|(%s)" % (rx, "^(%s)$" % "|".join(_ql_regex(n) for n in named))
+        ways = [
+            '  way[highway~"^(%s)$"][area!=yes]%s;' % (_LIGHT_HW, b),
+            '  way[highway~"^(residential|unclassified|living_street)$"][name~"%s"][area!=yes]%s;' % (rx, b),
+        ]
+    else:
+        ways = [
+            '  way[highway~"^(%s)$"][area!=yes]%s;' % (hw, b),
+            "  way[highway=service][name][area!=yes]%s;" % b,
+            '  way[highway~"^(footway|cycleway|path)$"][name][area!=yes]%s;' % b,
+        ]
     q = [
         "[out:json][timeout:%d];" % timeout,
         # streets and named trails
-        "(",
-        '  way[highway~"^(%s)$"][area!=yes]%s;' % (hw, b),
-        "  way[highway=service][name][area!=yes]%s;" % b,
-        '  way[highway~"^(footway|cycleway|path)$"][name][area!=yes]%s;' % b,
+        "(", *ways,
         ");", "out geom;",
         # rail ways
         "(",
@@ -153,6 +178,10 @@ def build_query(bbox, landmarks=None, timeout: int = 180) -> str:
             q.append("  %s%s%s;" % (t, f, b))
     q += ["  way[waterway=river]%s;" % b, ");", "out geom;", "("]
     for t in ("way", "rel"):
+        if light:
+            q.append('  %s[leisure=park]%s;' % (t, b))
+            q.append('  %s[landuse=cemetery]%s;' % (t, b))
+            continue
         q.append('  %s[leisure~"^(park|garden)$"]%s;' % (t, b))
         q.append('  %s[landuse~"^(grass|recreation_ground|cemetery)$"]%s;' % (t, b))
     q += [");", "out geom;"]
@@ -165,13 +194,22 @@ def build_query(bbox, landmarks=None, timeout: int = 180) -> str:
     return "\n".join(q)
 
 
-def fetch_osm(bbox, cache_dir=None, timeout=180, landmarks=None) -> dict:
+def fetch_osm(bbox, cache_dir=None, timeout=180, landmarks=None, light=False, streets=None) -> dict:
     """Raw Overpass JSON for bbox = (south, west, north, east). With cache_dir the
-    answer is stored as osm-<rounded bbox>[-<landmark hash>].json and reused."""
+    answer is stored as osm-<rounded bbox>[-light][-<landmark hash>].json and reused.
+    light=True: the lighter query for dense areas (build_query)."""
     bbox = tuple(float(v) for v in bbox)
     path = None
+    if light:
+        landmarks = None
+    else:
+        streets = None
     if cache_dir:
         tag = "osm-%.4f_%.4f_%.4f_%.4f" % bbox
+        if light:
+            tag += "-light"
+            if streets:
+                tag += "-" + hashlib.sha1("\n".join(sorted(map(str, streets))).encode()).hexdigest()[:8]
         if landmarks:
             tag += "-" + hashlib.sha1("\n".join(sorted(landmarks)).encode()).hexdigest()[:8]
         path = Path(cache_dir) / (tag + ".json")
@@ -180,13 +218,57 @@ def fetch_osm(bbox, cache_dir=None, timeout=180, landmarks=None) -> dict:
                 return json.loads(path.read_text("utf-8"))
             except (OSError, ValueError):
                 pass
-    raw = _post_overpass(build_query(bbox, landmarks, timeout), timeout)
+    raw = _post_overpass(build_query(bbox, landmarks, timeout, light, streets), timeout)
     if path is not None:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(raw, separators=(",", ":")), "utf-8")
         os.replace(tmp, path)
     return raw
+
+
+def merge_raw(*raws) -> dict:
+    """Several Overpass answers as one: an element seen twice (a street crossing a
+    tile edge) is kept once, preferring the copy that carries geometry/members."""
+    els: dict = {}
+    for raw in raws:
+        for el in (raw or {}).get("elements", []):
+            k = (el.get("type"), el.get("id"))
+            old = els.get(k)
+            if old is None or ("geometry" in el and "geometry" not in old) \
+                    or ("members" in el and "members" not in old):
+                els[k] = el
+    return {"version": 0.6, "elements": list(els.values())}
+
+
+def tile_boxes(bbox, tile_lat: float = 0.02, tile_lon: float = 0.04):
+    """bbox cut into tiles of about tile_lat x tile_lon degrees (south-west first)."""
+    s, w, n, e = (float(v) for v in bbox)
+    rows = max(1, math.ceil((n - s) / tile_lat - 1e-9))
+    cols = max(1, math.ceil((e - w) / tile_lon - 1e-9))
+    return [tuple(round(v, 5) for v in (s + (n - s) * i / rows, w + (e - w) * j / cols,
+                                        s + (n - s) * (i + 1) / rows, w + (e - w) * (j + 1) / cols))
+            for i in range(rows) for j in range(cols)]
+
+
+def fetch_tiled(bbox, cache_dir=None, timeout=90, landmarks=None, light=True, streets=None,
+                tile_lat: float = 0.02, tile_lon: float = 0.04, log=None) -> dict:
+    """fetch_osm over small tiles, merged. Each tile is cached on its own (so a rerun
+    after a failure only fetches what is missing); a tile that fails all its retries
+    raises RuntimeError naming it, after the others have been stored."""
+    raws, failed = [], []
+    for tb in tile_boxes(bbox, tile_lat, tile_lon):
+        try:
+            raws.append(fetch_osm(tb, cache_dir=cache_dir, timeout=timeout, landmarks=landmarks, light=light, streets=streets))
+            if log:
+                log("ok %s" % (tb,))
+        except RuntimeError as e:
+            failed.append("%s: %s" % (tb, str(e)[:80]))
+            if log:
+                log("FAIL %s" % failed[-1])
+    if failed:
+        raise RuntimeError("tiles failed: " + "; ".join(failed))
+    return merge_raw(*raws)
 
 
 def geocode(query: str, timeout: int = 30):

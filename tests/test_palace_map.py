@@ -282,3 +282,35 @@ def test_a_narrow_river_is_not_a_bank():
     m["water"] = [[1150, 0, 1250, 0, 1250, 800, 1150, 800]]          # 100 px across
     out = pm._across_wide_river(m, 1.0)
     assert "bank" not in out and any(s["n"] == "Far Street" for s in out["streets"])
+
+
+def test_light_query_and_tiles(tmp_path, monkeypatch):
+    q = pm.build_query((40.0, -75.2, 40.02, -75.1), landmarks=["City Hall"], light=True,
+                       streets=["Germantown Avenue"])
+    assert "highway=service" not in q and "footway" not in q and "City Hall" not in q
+    assert "Germantown Avenue" in q and "tertiary" in q and "route" in q
+    full = pm.build_query((40.0, -75.2, 40.02, -75.1), landmarks=["City Hall"])
+    assert len(q) < len(full) and "highway=service" in full
+    tiles = pm.tile_boxes((39.9683, -75.245, 40.005, -75.085))
+    assert len(tiles) == 8 and tiles[0][0] == 39.9683 and tiles[-1][2:] == (40.005, -75.085)
+    seen = []
+
+    def post(query, t):
+        seen.append(query)
+        i = len(seen)
+        return {"elements": [{"type": "way", "id": 1, "tags": {}},                    # on every tile edge
+                             {"type": "way", "id": 10 + i, "tags": {}, "geometry": [1]}]}
+    monkeypatch.setattr(pm, "_post_overpass", post)
+    raw = pm.fetch_tiled((39.9683, -75.245, 40.005, -75.085), cache_dir=tmp_path)
+    assert len(seen) == 8 and len(raw["elements"]) == 9           # the shared way is kept once
+    pm.fetch_tiled((39.9683, -75.245, 40.005, -75.085), cache_dir=tmp_path)
+    assert len(seen) == 8                                         # every tile came from the cache
+    assert len(list(tmp_path.glob("osm-*-light.json"))) == 8
+
+
+def test_fetch_tiled_names_the_failed_tile(tmp_path, monkeypatch):
+    def post(q, t):
+        raise RuntimeError("Overpass failed")
+    monkeypatch.setattr(pm, "_post_overpass", post)
+    with pytest.raises(RuntimeError, match="tiles failed"):
+        pm.fetch_tiled((40.0, -75.2, 40.02, -75.16), cache_dir=tmp_path)
