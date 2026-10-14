@@ -359,16 +359,50 @@ PALACE_CSS = KEY_CSS + r"""
   html.alto-palace:not(.mobile) #world .node.pal-hot:not(.focused) .node-card{outline:3px solid var(--pc,#888);outline-offset:2px;}
   html.alto-palace:not(.mobile) #world .node.pal-dim:not(.focused){opacity:.3;}
   #canvas.focus-mode .node.pal-floor{display:none !important;}
-  .pal-tip{position:fixed;z-index:9999;pointer-events:none;display:none;background:var(--surface);color:var(--text);
-    border:1px solid var(--border);border-radius:9px;padding:7px 10px;font-size:12.5px;line-height:1.35;max-width:320px;
-    box-shadow:0 6px 22px rgba(0,0,0,.22);}
-  .pal-tip b{display:block;font-size:13px;}
-  .pal-tip .pt-num{color:var(--muted);font-weight:800;margin-right:6px;}
-  .pal-tip small{display:block;color:var(--muted);margin-top:2px;}
-  .pal-tip .pt-unit,.pm-card .pt-unit{font-weight:650;color:var(--text);}
-  .pal-tip .pt-unit i,.pm-card .pt-unit i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline;}
-  .pal-tip .pt-rel{display:block;margin-top:3px;font-size:12px;}
-  .pal-tip .pt-rel i{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px;}
+  /* pointing is quiet: no box follows the cursor. A building under the pointer (or focused) lifts with a soft glow and its
+     chip widens in place into a pill with its number and title; a street / neighbourhood name just brightens; the unit a
+     neighbourhood holds comes in the docked card (#pal-dock), pinned bottom centre until dismissed. */
+  html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused),html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused){z-index:9;}
+  html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused) .node-card,
+  html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused) .node-card,
+  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card:focus-visible{
+    position:absolute !important;left:calc(var(--pw,40px) / 2);top:calc(var(--ph,26px) / 2);translate:-50% calc(-50% - 2px);rotate:0deg !important;
+    width:max-content !important;height:auto !important;min-width:var(--pw,40px) !important;min-height:var(--ph,26px) !important;max-width:270px !important;
+    padding:3px 11px !important;gap:6px;border-radius:999px !important;border:2px solid var(--pc,#888) !important;background:var(--surface) !important;
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--pc,#888) 26%,transparent),0 0 20px color-mix(in srgb,var(--pc,#888) 55%,transparent),0 7px 18px rgba(20,26,55,.28) !important;
+    outline:none;animation:pal-pill-in .14s ease-out;}
+  html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused) .node-card > .node-title,
+  html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused) .node-card > .node-title,
+  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card:focus-visible > .node-title{
+    display:block !important;position:static !important;margin:0 !important;padding:0 !important;font-size:12.5px !important;line-height:1.25 !important;font-weight:700 !important;
+    color:var(--text) !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;-webkit-line-clamp:unset !important;transform:none !important;}
+  html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused) .node-order,
+  html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused) .node-order,
+  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card:focus-visible .node-order{font-size:12px !important;color:var(--muted) !important;rotate:0deg !important;}
+  @keyframes pal-pill-in{from{opacity:.4;scale:.9;}to{opacity:1;scale:1;}}
+  @media (prefers-reduced-motion: reduce){html.alto-palace #world .node-card{animation:none !important;}}
+  .pal-svg .pl-st.pal-lit,.pal-svg .pl-stt.pal-lit{fill:var(--accent);font-weight:850;}
+  .pal-svg .pl-dist{transition:filter .15s;}
+  .pal-svg .pl-dist:hover,.pal-svg .pl-dist.pal-lit{filter:brightness(1.22) saturate(1.25) drop-shadow(0 0 calc(5px / var(--pz,1)) var(--pal-halo));}
+  .pal-svg .pl-hov{pointer-events:none;}
+  .pal-svg .pl-hov rect{fill:var(--surface);stroke:var(--border);stroke-width:1.2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25));}
+  .pal-svg .pl-hov text{font-size:calc(12px / var(--pz,1));font-weight:700;stroke:none;fill:var(--text);}
+  #pal-dock{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:305;display:none;width:min(380px,calc(100vw - 32px));box-sizing:border-box;
+    padding:11px 38px 11px 14px;border-radius:16px;color:var(--text);font-size:12.5px;line-height:1.35;
+    background:color-mix(in srgb,var(--surface) 80%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.5);backdrop-filter:blur(16px) saturate(1.5);
+    border:1px solid color-mix(in srgb,var(--border) 70%,transparent);box-shadow:0 10px 30px rgba(0,0,0,.22);}
+  #pal-dock.on{display:block;animation:pal-pill-in .16s ease-out;}
+  html.mobile #pal-dock,html.detail-open #pal-dock,html.printing #pal-dock,html:not(.alto-palace) #pal-dock{display:none !important;}
+  #pal-dock b{display:block;font-size:13px;}
+  #pal-dock .pt-num{color:var(--muted);font-weight:800;margin-right:6px;}
+  #pal-dock small{display:block;color:var(--muted);margin-top:2px;}
+  #pal-dock .pd-x{position:absolute;top:6px;right:6px;width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:var(--muted);font:inherit;font-size:17px;line-height:1;cursor:pointer;}
+  #pal-dock .pd-x:hover{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text);}
+  #pal-dock.hint .pd-x{display:none;}
+  #pal-dock .pt-unit,.pm-card .pt-unit{font-weight:650;color:var(--text);}
+  #pal-dock .pt-unit i,.pm-card .pt-unit i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline;}
+  #pal-dock .pt-rel,.pm-card .pt-rel{display:block;margin-top:3px;font-size:12px;}
+  #pal-dock .pt-rel i,.pm-card .pt-rel i{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px;}
   /* the zoom controls: Alto's round glass (the search / info / key buttons), in a row beside the account toggle —
      the same inset, the same 35px, the same centre line; a grouped pill for closer / farther with a divider, and
      the whole city as a pill of its own. left = the account toggle's 24 + 35 + the row's 12.5 gap. */
@@ -663,7 +697,7 @@ function streetLabels(svg, defs, g){
       var every=1150, n0=Math.max(1,Math.floor(q.L/every));
       for(var j=0;j<n0;j++){ var off=(q.L/n0)*(j+.5);
         var t=el('text',{'class':'pl-st'+(TOP[n]?' top':'')+(q.k>=2?' minor':'')+(pi===0 && j===(n0>>1)?' r0':''), dy:'.35em'},g);
-        var tp=el('textPath',{href:'#'+id, startOffset:off, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=n; }
+        t.setAttribute('data-n', n); var tp=el('textPath',{href:'#'+id, startOffset:off, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=n; }
     });
   });
 }
@@ -795,7 +829,7 @@ function drawCity(svg){
     if(hub){ el('circle',{'class':'pl-ring hub', cx:0, cy:0, r:13, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:13},sg_);
       el('circle',{'class':'pl-ring', cx:0, cy:0, r:6, stroke:c},sg_); }
     else { el('circle',{'class':'pl-ring', cx:0, cy:0, r:6.5, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:6.5},sg_); }
-    lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x, s.y, 'start');
+    lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x, s.y, 'start').setAttribute('data-n', s.n);
   });
   var labels=el('g',{},svg);
   (M.river||[]).forEach(function(r,i){ if(r.n) riverLabels(svg, defs, labels, r, i); });
@@ -883,6 +917,7 @@ function placeAll(){
     e.style.left=x+'px'; e.style.top=(y+WORLD_PAD_TOP)+'px';
     e.style.setProperty('--pw', Math.max(10, L[2]*Z).toFixed(1)+'px'); e.style.setProperty('--ph', Math.max(8, L[3]*Z).toFixed(1)+'px');
     e.style.setProperty('--pr', L[4]+'deg'); e.style.setProperty('--pc', ucol(n.id));
+    var cd=e.querySelector('.node-card'); if(cd && !mob()){ cd.tabIndex=0; cd.setAttribute('role','button'); cd.setAttribute('aria-label', num(n.id)+' '+title(n.id)); }   /* focus shows the same in-place pill */
     /* its number always inside it: as big as the building allows, up to 18px */
     var nl=String(num(n.id)).length||3, f=Math.min(18, L[3]*Z*.55, L[2]*Z/(nl*.62+.6));
     e.style.setProperty('--pf', Math.max(6, f).toFixed(1)+'px');
@@ -994,12 +1029,33 @@ window.addEventListener('keydown', function(e){
 }, true);
 
 /* ── pointing: a building's name, a street's, a corner's ── */
-var tip=null, tipT=null;
-function showTip(html, x, y){ if(!tip){ tip=document.createElement('div'); tip.className='pal-tip'; document.body.appendChild(tip); }
-  tip.innerHTML=html; tip.style.display='block'; moveTip(x,y); }
-function moveTip(x,y){ if(!tip||tip.style.display!=='block') return; var w=tip.offsetWidth, h=tip.offsetHeight;
-  var X=x+14, Y=y+16; if(X+w>innerWidth-8) X=x-w-14; if(Y+h>innerHeight-8) Y=y-h-14; tip.style.left=X+'px'; tip.style.top=Y+'px'; }
-function hideTip(){ if(tip) tip.style.display='none'; }
+var tipT=null, labEl=null, litEls=[], dock=null, dockU=null, lastB=null;
+/* a building's chip widens in place into a pill (CSS .pal-lab); a street's / neighbourhood's name brightens (.pal-lit) */
+function labelB(id){ var n=id?document.getElementById('node-'+id):null; if(labEl && labEl!==n) labEl.classList.remove('pal-lab'); labEl=n; if(n && !n.classList.contains('focused')) n.classList.add('pal-lab'); }
+function lit(list){ litEls.forEach(function(x){ x.classList.remove('pal-lit'); }); litEls=list||[]; litEls.forEach(function(x){ x.classList.add('pal-lit'); }); }
+function litStreet(nm){ if(!svgD||!nm) return lit(null); lit([].slice.call(svgD.querySelectorAll('.pl-st,.pl-stt')).filter(function(x){ return x.getAttribute('data-n')===nm; })); }
+function litDist(u){ lit(svgD?[].slice.call(svgD.querySelectorAll('.pl-dist')).filter(function(x){ return +x.getAttribute('data-u')===u; }):null); }
+/* window._palHover(el, text): label ANY svg element of the map in place (a quiet pill just above it, never following the cursor).
+   Call it from a hover / focus handler with the text; call it with no text to clear. One pill at a time; returns the pill's <g> or null. */
+var hov=null;
+window._palHover=function(elm, text){
+  if(hov){ hov.remove(); hov=null; }
+  if(!elm || !text) return null;
+  var svg=elm.ownerSVGElement||(elm.tagName==='svg'?elm:null); if(!svg) return null;
+  var z=(svg===svgD?Z:(MM.z||1))||1, r=elm.getBoundingClientRect(), p=svgPt(svg,{clientX:r.left+r.width/2, clientY:r.top});
+  var g=el('g',{'class':'pl-hov', transform:'translate('+p[0]+' '+p[1]+')'},svg), rc=el('rect',{},g), t=el('text',{'text-anchor':'middle'},g); t.textContent=text;
+  var k=1/z, b=t.getBBox(), pw=8*k, ph=4*k; t.setAttribute('y', -(b.height+8*k+ph)+(-b.y)); rc.setAttribute('rx', (b.height+2*ph)/2);
+  rc.setAttribute('x', b.x-pw); rc.setAttribute('width', b.width+2*pw); rc.setAttribute('y', -(b.height+8*k+2*ph)); rc.setAttribute('height', b.height+2*ph);
+  hov=g; return g; };
+/* the docked card: the one box left, pinned bottom centre above the controls, until Esc / a click away / its x */
+function dockEl(){ if(!dock){ dock=document.createElement('div'); dock.id='pal-dock'; dock.setAttribute('role','dialog'); document.body.appendChild(dock);
+  dock.addEventListener('click', function(e){ if(e.target.closest('.pd-x')) closeDock(); }); } return dock; }
+function openDock(u){ var d=dockEl(); dockU=u; d.className='on'; d.setAttribute('aria-label', 'Neighbourhood: '+((P.d||[]).filter(function(q){ return q.u===u; })[0]||{}).n);
+  d.innerHTML='<button type="button" class="pd-x" aria-label="Close">×</button>'+distTip(u)+'<small>The dotted line is the walk through them in order.</small>'; if(!focused()) drawRoutes(svgD, null, u); }
+function closeDock(){ if(!dock || dockU==null) return; dockU=null; dock.className=''; if(!focused() && svgD) drawRoutes(svgD, null); }
+/* a transient hint in the same docked spot (a drag's "make it a floor of …") */
+function hint(html){ var d=dockEl(); d.className='on hint'; d.innerHTML=html; }
+function unhint(){ if(!dock || !dock.classList.contains('hint')) return; if(dockU!=null) openDock(dockU); else dock.className=''; }
 function rels(id){
   var mine={}; mine[id]=1; (P.fl[id]||[]).forEach(function(f){ mine[f]=1; });
   return (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).filter(function(c){ return c && c[2]!=='spine' && (mine[c[0]]||mine[c[1]]) && bOf(c[0])!==bOf(c[1]); });
@@ -1064,46 +1120,51 @@ function bAt(t){ if(!t||!t.closest) return null; var b=t.closest('.pl-bld[data-i
   var n=t.closest('#world .node[id^="node-"]'); if(n && !n.classList.contains('focused')){ var id=n.id.slice(5); return isB(id)?id:null; } return null; }
 document.addEventListener('mouseover', function(e){
   if(!palaceOn() || dragging) return;
-  var id=bAt(e.target), st=e.target.closest && e.target.closest('#palace-svg .pl-hit'), du=e.target.closest && e.target.closest('#palace-svg .pl-dist'),
-      da=e.target.closest && e.target.closest('#palace-svg .pl-dtint');
-  var lm=e.target.closest && e.target.closest('#palace-svg .pl-lmb');
+  var T=e.target, cl=function(q){ return T.closest && T.closest(q); };
+  var id=bAt(T), st=cl('#palace-svg .pl-hit'), du=cl('#palace-svg .pl-dist'), da=cl('#palace-svg .pl-dtint'), rh=cl('#palace-svg .pl-route-hit');
   clearTimeout(tipT);
-  var rh=e.target.closest && e.target.closest('#palace-svg .pl-route-hit');
   routeHot(rh);
-  if(rh){ showTip(routeTip(rh._rt), e.clientX, e.clientY); return; }
-  if(lm){ tipT=setTimeout(function(){ showTip(lmTip(lm), e.clientX, e.clientY); }, 90); return; }
-  if(id){ tipT=setTimeout(function(){ showTip(bTip(id), e.clientX, e.clientY); if(!focused()){ hotB=id; drawRoutes(svgD, id); } }, 110); return; }
-  if(du){ var u=+du.getAttribute('data-u'); tipT=setTimeout(function(){ if(!focused()) drawRoutes(svgD, null, u);
-    showTip(distTip(u)+'<small>The dotted line is the walk through them in order · click to go there</small>', e.clientX, e.clientY); }, 110); return; }
-  if(st){ var nm=st._n; tipT=setTimeout(function(){ var c=cornerAt(svgD, e, nm); showTip('<b>'+esc(c?c.join(' & '):nm)+'</b>', e.clientX, e.clientY); }, 90); return; }
-  /* the neighbourhood's own ground (under the streets, buildings and landmarks, so those win) */
-  if(da){ var ua=+da.getAttribute('data-u'); tipT=setTimeout(function(){ if(!focused() && hotB){ hotB=null; drawRoutes(svgD, null); } showTip(distTip(ua), e.clientX, e.clientY); }, 140); return; }
-  tipT=setTimeout(function(){ hideTip(); if(!focused() && hotB){ hotB=null; drawRoutes(svgD, null); } else if(!focused() && svgD && svgD._r && svgD._r.firstChild) drawRoutes(svgD, null); }, 120);
+  labelB(id);
+  if(rh){ lit(null); return; }                                  /* its far building (lit by routeHot) shows its pill */
+  if(id){ lit(null); tipT=setTimeout(function(){ if(!focused()){ hotB=id; drawRoutes(svgD, id); } }, 110); return; }
+  if(du){ litDist(+du.getAttribute('data-u')); return; }
+  if(st){ litStreet(st._n); return; }
+  if(da){ litDist(+da.getAttribute('data-u')); }                /* the neighbourhood's own ground (under streets, buildings, landmarks) */
+  else lit(null);
+  tipT=setTimeout(function(){ if(!focused() && hotB){ hotB=null; drawRoutes(svgD, null, dockU); } else if(!focused() && dockU==null && svgD && svgD._r && svgD._r.firstChild) drawRoutes(svgD, null); }, 120);
 });
-document.addEventListener('mousemove', function(e){
-  if(!tip || tip.style.display!=='block') return; moveTip(e.clientX, e.clientY);
-  var st=e.target.closest && e.target.closest('#palace-svg .pl-hit'); if(st){ var c=cornerAt(svgD, e, st._n); var b=tip.querySelector('b'); if(b) b.textContent=c?c.join(' & '):st._n; }
-});
-/* a click on a building enlarges it (the map comes closer first); a click on the enlarged card, or a double click, goes inside */
+window.addEventListener('keydown', function(e){
+  if(!palaceOn()) return;
+  if(e.key==='Escape' && dockU!=null && !de.classList.contains('detail-open')){ e.preventDefault(); e.stopPropagation(); closeDock(); return; }
+  if((e.key==='Enter'||e.key===' ') && !mob() && !e.metaKey && !e.ctrlKey && !e.altKey){ var c=e.target.closest && e.target.closest('#world .node:not(.focused) .node-card'), n=c&&c.closest('.node');
+    if(c && c===e.target && n && n.id && isB(n.id.slice(5))){ e.preventDefault(); e.stopPropagation(); enlarge(n.id.slice(5)); } }
+}, true);
+document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTimeout(tipT); labelB(null); lit(null); } });
+/* a click on a building enlarges it (the map comes closer first); a double click goes inside: the second click of the pair
+   (it lands on the rising card, its ghost, or the moving map) never toggles anything, it opens the building's page */
 function enlarge(id){
-  var L=lot(P.at[id]); if(!L) return; hideTip();
+  var L=lot(P.at[id]); if(!L) return; labelB(null); closeDock();
   if(Z<.85) flyMap(L[0], L[1], 1.05, function(){ window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); });
   else { window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); }
 }
 document.addEventListener('click', function(e){
   if(!palaceOn() || de.classList.contains('alto-editing') && moved) return;
+  if(dockU!=null && !e.target.closest('#pal-dock,#palace-svg .pl-dist')) closeDock();            /* a click away dismisses the docked card */
+  var now=Date.now(), recent=lastB && now-lastB.t<(e.detail>=2?900:450);
+  if(recent){ var fn=e.target.closest && e.target.closest('#world .node.focused[id^="node-"]');
+    if(e.detail>=2 || (fn && fn.id==='node-'+lastB.id) || bAt(e.target)===lastB.id){ var did=lastB.id; lastB=null;
+      e.stopPropagation(); e.preventDefault(); window.showDetail('node', did); return; } }
   var rh=e.target.closest && e.target.closest('#palace-svg .pl-route-hit');
   if(rh){ e.stopPropagation(); e.preventDefault(); followRoute(e); return; }
   var gh=e.target.closest && e.target.closest('.pal-ghost');
   if(gh){ e.stopPropagation(); e.preventDefault(); if(window.exitFocus) window.exitFocus(); return; }
   var lmc=e.target.closest && e.target.closest('#palace-svg .pl-lmb.has-page');
-  if(lmc){ e.stopPropagation(); hideTip(); openPage(lmc.getAttribute('data-page')); return; }
+  if(lmc){ e.stopPropagation(); openPage(lmc.getAttribute('data-page')); return; }
   var du=e.target.closest && e.target.closest('#palace-svg .pl-dist');
-  if(du){ e.stopPropagation(); var d=(P.d||[]).filter(function(q){ return q.u===+du.getAttribute('data-u'); })[0]; if(d) flyToBox(d.box); return; }
+  if(du){ e.stopPropagation(); var d=(P.d||[]).filter(function(q){ return q.u===+du.getAttribute('data-u'); })[0]; if(!mob()) openDock(+du.getAttribute('data-u')); if(d) flyToBox(d.box); return; }
   var id=bAt(e.target); if(!id) return;
   e.stopPropagation(); e.preventDefault();
-  if(e.detail>=2){ window.showDetail('node', id); return; }
-  enlarge(id);
+  lastB={id:id, t:now}; enlarge(id);
 }, true);
 /* ═══ ROUTES (interaction pass): a lit route is a line you can follow ═══
    On an ordinary timeline a click on a connecting line flies to the node at its far end (blocks.py, LINE_NAV_GLUE).
@@ -1114,8 +1175,6 @@ function routeHot(h){ if(h===hotR) return;
   if(hotR && hotR._rt){ hotR._rt.g.classList.remove('hot'); var o=document.getElementById('node-'+hotR._rt.to); if(o) o.classList.remove('pal-dest'); }
   hotR=h||null;
   if(hotR){ hotR._rt.g.classList.add('hot'); var n=document.getElementById('node-'+hotR._rt.to); if(n) n.classList.add('pal-dest'); } }
-function routeTip(r){ var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS[r.rel]:null, col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r.rel])||'var(--accent)';
-  return '<b><span class="pt-num">'+esc(num(r.to))+'</span> '+esc(title(r.to))+'</b><span class="pt-rel"><i style="background:'+col+'"></i>'+esc(rl||r.rel)+' · click to go there</span>'; }
 function polyOf(d){ var v=(d.match(/-?\d*\.?\d+/g)||[]).map(parseFloat), a=[]; for(var i=0;i+1<v.length;i+=2) a.push([v[i],v[i+1]]); return a; }
 /* how far along a route (from its start) the point nearest p lies, and the route's whole length */
 function alongRoute(pl, p){ var tot=0, best=1e18, at=0, run=0;
@@ -1124,7 +1183,6 @@ function alongRoute(pl, p){ var tot=0, best=1e18, at=0, run=0;
     if(q<best){ best=q; at=run+t*L; } run+=L; }
   return {s:at, len:run}; }
 function followRoute(e){
-  hideTip();
   var hits=document.elementsFromPoint(e.clientX, e.clientY).filter(function(x){ return x.classList && x.classList.contains('pl-route-hit') && x._rt; });
   if(!hits.length) return;
   var p=svgPt(svgD, e), best=null, bd=1e18;
@@ -1188,7 +1246,8 @@ function flyToBox(b){ var cv=document.getElementById('canvas'); if(!cv) return;
   var z=Math.min(1.3, Math.min(cv.clientWidth/((b[2]-b[0])+260), cv.clientHeight/((b[3]-b[1])+260)));
   flyMap((b[0]+b[2])/2, (b[1]+b[3])/2, Math.max(z, zmin())); }
 document.addEventListener('dblclick', function(e){
-  if(!palaceOn() || focused() || bAt(e.target)) return;
+  if(!palaceOn() || focused() || bAt(e.target) || (lastB && Date.now()-lastB.t<900)) return;
+  if(e.target.closest && e.target.closest('#palace-svg .pl-lmb,#pal-dock,.pal-ghost,#detail-page')) return;
   var cv=document.getElementById('canvas'); if(!cv || !cv.contains(e.target) || (e.target.closest && e.target.closest('.node'))) return;
   var p=canvasPt(cv, e.clientX, e.clientY); zoomAnim(Z*1.8, p[0], p[1]);
 });
@@ -1514,7 +1573,7 @@ window.addEventListener('mousedown', function(e){
   if(!palaceOn() || !editing() || e.button!==0 || focused()) return;
   var id=bAt(e.target); if(!id) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  dragging={id:id, x:e.clientX, y:e.clientY}; moved=false; hideTip();
+  dragging={id:id, x:e.clientX, y:e.clientY}; moved=false; unhint();
 }, true);
 window.addEventListener('mousemove', function(e){
   if(!dragging) return;
@@ -1527,13 +1586,13 @@ window.addEventListener('mousemove', function(e){
     if(Math.abs(p[0]-B[0])<B[2]/2+4 && Math.abs(p[1]-B[1])<B[3]/2+4) onto=o; });
   if(slot) slot.remove(); slot=null; dragging.onto=onto; dragging.key=null;
   if(onto){ var B=lot(P.at[onto]); slot=el('rect',{'class':'pl-slot', x:B[0]-B[2]/2-5, y:B[1]-B[3]/2-5, width:B[2]+10, height:B[3]+10, rx:5, transform:'rotate('+B[4]+' '+B[0]+' '+B[1]+')'},svgD._r);
-    showTip('<b>Make it a floor of '+esc(num(onto)+' '+title(onto))+'</b><small>Its own floors come with it.</small>', e.clientX, e.clientY); }
+    hint('<b>Make it a floor of '+esc(num(onto)+' '+title(onto))+'</b><small>Its own floors come with it.</small>'); }
   else { var key=freeLot(p[0], p[1], id), K=lot(key); if(K && Math.hypot(K[0]-p[0],K[1]-p[1])<140){ dragging.key=key;
       slot=el('rect',{'class':'pl-slot', x:K[0]-K[2]/2, y:K[1]-K[3]/2, width:K[2], height:K[3], rx:3, transform:'rotate('+K[4]+' '+K[0]+' '+K[1]+')'},svgD._r); }
-    hideTip(); }
+    unhint(); }
 }, true);
 window.addEventListener('mouseup', function(e){
-  if(!dragging) return; var d=dragging; dragging=null; if(slot){ slot.remove(); slot=null; } hideTip();
+  if(!dragging) return; var d=dragging; dragging=null; if(slot){ slot.remove(); slot=null; } unhint();
   if(!moved) { return; }
   e.preventDefault(); e.stopImmediatePropagation();
   setTimeout(function(){ moved=false; }, 50);

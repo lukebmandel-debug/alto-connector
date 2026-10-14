@@ -168,7 +168,8 @@ def test_clicking_a_lit_route_goes_to_the_building_at_its_other_end(browser, pag
     pg.mouse.move(*r["pt"], steps=6)
     pg.wait_for_timeout(300)
     assert pg.evaluate("!!document.querySelector('.pl-rt.hot')")  # and lights under the pointer
-    assert "click to go there" in pg.evaluate("document.querySelector('.pal-tip').innerText")
+    assert not pg.evaluate("!!document.querySelector('.pal-tip')")  # no cursor-following box: the far building shows its pill
+    assert pg.evaluate("!!document.querySelector('#world .node.pal-dest')")
     pg.mouse.click(*r["pt"])
     pg.wait_for_timeout(1800)
     assert pg.evaluate("window._focusedNodeId") == r["to"]
@@ -320,3 +321,102 @@ def test_a_swipe_down_at_the_top_of_a_page_goes_up_a_floor_on_a_phone(browser, p
     swipe(520, 380)                                  # finger up at the bottom: down a floor
     _wait_at(pg, "alpha")
     assert not pg.errs
+
+
+# ── pointing is quiet: pills in place, a docked card, double click = the building's page ────────────────
+def test_no_cursor_following_tooltip_remains(html):
+    assert "pal-tip" not in html and "function showTip" not in html and "function moveTip" not in html
+    assert "window._palHover=" in html and "#pal-dock" in html
+
+
+def test_a_hovered_building_widens_in_place_into_a_pill(browser, page_file):
+    pg = _open(browser, page_file)
+    pg.evaluate("document.getElementById('canvas').scrollTo(0, 0)")
+    a = _centre(pg, "1.1")
+    assert a
+    pg.mouse.move(*a)
+    pg.wait_for_timeout(400)
+    r = pg.evaluate("""() => { const n = document.querySelector('#world .node.pal-lab'); if (!n) return null;
+      const c = n.querySelector('.node-card'), t = n.querySelector('.node-title'), cs = getComputedStyle(c);
+      return { id: n.id, wide: c.getBoundingClientRect().width, tw: getComputedStyle(t).display, txt: t.textContent,
+               pw: parseFloat(n.style.getPropertyValue('--pw')), glow: cs.boxShadow !== 'none', tip: !!document.querySelector('.pal-tip') }; }""")
+    assert r and r["id"] == "node-alpha" and r["tw"] == "block" and r["glow"] and not r["tip"], r
+    assert r["wide"] > r["pw"] and r["txt"], r
+    pg.mouse.move(5, 450)
+    pg.wait_for_timeout(300)
+    assert not pg.evaluate("!!document.querySelector('#world .node.pal-lab')")
+    assert not pg.errs, pg.errs
+
+
+def test_a_focused_building_shows_the_same_pill_and_has_a_label(browser, page_file):
+    pg = _open(browser, page_file)
+    r = pg.evaluate("""() => { const c = document.querySelector('#node-alpha .node-card'); c.focus({focusVisible: true});
+      return { lab: c.getAttribute('aria-label'), role: c.getAttribute('role'), tab: c.tabIndex }; }""")
+    assert r["role"] == "button" and r["tab"] == 0 and r["lab"].startswith("1.1"), r
+    w = pg.evaluate("() => [document.querySelector('#node-alpha .node-card').getBoundingClientRect().width, parseFloat(document.getElementById('node-alpha').style.getPropertyValue('--pw'))]")
+    assert w[0] > w[1], w
+
+
+def test_a_neighbourhood_name_brightens_and_click_docks_its_card(browser, page_file):
+    pg = _open(browser, page_file)
+    pg.evaluate("document.getElementById('canvas').scrollTo(0, 0)")
+    box = pg.evaluate("""() => { const t = document.querySelector('#palace-svg .pl-dist'); const r = t.getBoundingClientRect();
+      return [r.left + r.width / 2, r.top + r.height / 2]; }""")
+    pg.mouse.move(*box)
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("!!document.querySelector('#palace-svg .pl-dist.pal-lit')") and not pg.evaluate("!!document.querySelector('.pal-tip')")
+    assert not pg.evaluate("!!document.querySelector('#pal-dock.on')")          # hover alone opens nothing
+    pg.mouse.click(*box)
+    pg.wait_for_timeout(900)
+    d = pg.evaluate("""() => { const d = document.getElementById('pal-dock'), r = d.getBoundingClientRect();
+      return { on: d.classList.contains('on'), txt: d.innerText, cx: r.left + r.width / 2, bot: innerHeight - r.bottom, fixed: getComputedStyle(d).position }; }""")
+    assert d["on"] and "Unit" in d["txt"] and d["fixed"] == "fixed" and abs(d["cx"] - 750) < 2 and d["bot"] > 40, d
+    pg.mouse.move(300, 600)                                                       # pinned: the pointer leaving does not close it
+    pg.wait_for_timeout(400)
+    assert pg.evaluate("document.getElementById('pal-dock').classList.contains('on')")
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(200)
+    assert not pg.evaluate("document.getElementById('pal-dock').classList.contains('on')")
+    pg.mouse.click(*box)
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("document.getElementById('pal-dock').classList.contains('on')")
+    pg.mouse.click(40, 450)                                                       # a click away dismisses it
+    pg.wait_for_timeout(200)
+    assert not pg.evaluate("document.getElementById('pal-dock').classList.contains('on')")
+    assert not pg.errs, pg.errs
+
+
+def test_a_street_hover_brightens_its_label_without_a_box(browser, page_file):
+    pg = _open(browser, page_file)
+    r = pg.evaluate("""() => { const h = [...document.querySelectorAll('#palace-svg .pl-hit')].find(x => x._n && document.querySelector('#palace-svg .pl-st[data-n="' + x._n + '"]'));
+      if (!h) return null; h.dispatchEvent(new MouseEvent('mouseover', {bubbles: true})); return { n: h._n, lit: !!document.querySelector('#palace-svg .pl-st.pal-lit[data-n="' + h._n + '"]'),
+        tip: !!document.querySelector('.pal-tip') }; }""")
+    assert r is None or (r["lit"] and not r["tip"]), r
+
+
+def test_palhover_labels_an_svg_element_in_place(browser, page_file):
+    pg = _open(browser, page_file)
+    n = pg.evaluate("""() => { const e = document.querySelector('#palace-svg .pl-dist'); const g = window._palHover(e, 'Hello pill');
+      const n = document.querySelectorAll('#palace-svg .pl-hov').length; window._palHover(e, 'Again'); const m = document.querySelectorAll('#palace-svg .pl-hov').length;
+      const t = document.querySelector('#palace-svg .pl-hov text').textContent; window._palHover(null, ''); return [n, m, t, document.querySelectorAll('#palace-svg .pl-hov').length]; }""")
+    assert n == [1, 1, "Again", 0], n
+
+
+def test_double_click_a_building_opens_its_page_and_single_click_enlarges(browser, page_file):
+    pg = _open(browser, page_file)
+    pg.evaluate("document.getElementById('canvas').scrollTo(0, 0)")
+    a = _centre(pg, "1.1")
+    pg.mouse.click(*a)
+    pg.wait_for_timeout(1800)
+    assert pg.evaluate("window._focusedNodeId") == "alpha"                         # one click: the card rises
+    assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")
+    pg.mouse.click(40, 450)                                                        # (away: closes it)
+    pg.wait_for_timeout(900)
+    pg.evaluate("document.getElementById('canvas').scrollTo(0, 0)")
+    a = _centre(pg, "1.1")
+    pg.mouse.dblclick(*a)
+    pg.wait_for_function("window._currentDetailId === 'alpha'", timeout=6000)
+    pg.wait_for_timeout(600)
+    assert pg.evaluate("window._currentDetailId") == "alpha"
+    assert pg.evaluate("document.documentElement.classList.contains('detail-open')")
+    assert not pg.errs, pg.errs
