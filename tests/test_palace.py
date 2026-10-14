@@ -787,9 +787,9 @@ def test_in_a_browser_streets_weigh_more_than_a_hair_and_a_district_pops_up_its_
         assert 3 <= w["min"] < w["maj"] and w["maj"] >= 5 and w["sh"] >= 1.2, w          # screen px, whatever the zoom
         names = pg.evaluate("[...document.querySelectorAll('#palace-svg .pl-dist')].map(t=>t.textContent)")
         assert names == ["Old City", "Center City", "Mantua"]
-        pg.evaluate("document.querySelector('#palace-svg .pl-dist[data-u=\"1\"]').dispatchEvent(new MouseEvent('mouseover',{bubbles:true,clientX:400,clientY:300}))")
+        pg.evaluate("document.querySelector('#palace-svg .pl-dist[data-u=\"1\"]').dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:400,clientY:300}))")
         pg.wait_for_timeout(400)
-        tip = pg.evaluate("(document.querySelector('.pal-tip')||{}).innerText")
+        tip = pg.evaluate("(document.querySelector('#pal-dock.on')||{}).innerText")      # the docked card (no cursor-following box)
         assert "Center City" in tip and "Unit II" in tip and "TWO" in tip, tip
         assert not errs, errs
     finally:
