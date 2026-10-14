@@ -104,6 +104,43 @@ def _paths(edges):
     return out
 
 
+def _trunk(es, pts):
+    """A line's track between its own stops. OSM carries every siding and yard a
+    route touches, and on the grid they read as boxy loops; the shortest ways
+    between the line's stops are the line. `pts` are the stops' nodes. A line
+    that does not connect up (or has under two stops) keeps all its edges."""
+    from collections import deque
+    adj = {}
+    for a, b in es:
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    nodes = list(adj)
+    if len(pts) < 2 or not nodes:
+        return es
+    snapped = []
+    for x, y in pts:
+        snapped.append(min(nodes, key=lambda n: (n[0] - x) ** 2 + (n[1] - y) ** 2))
+    snapped = list(dict.fromkeys(snapped))
+    keep = set()
+    for i, src in enumerate(snapped):
+        prev = {src: None}
+        q = deque([src])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if v not in prev:
+                    prev[v] = u
+                    q.append(v)
+        for dst in snapped[i + 1:]:
+            if dst not in prev:
+                continue
+            u = dst
+            while prev[u] is not None:
+                keep.add((u, prev[u]) if (u, prev[u]) in es else (prev[u], u))
+                u = prev[u]
+    return keep or es
+
+
 def snap(tr, mp, xg, yg, W, H):
     if not tr or not tr.get("lines"):
         return {"lines": [], "stops": []}
@@ -113,6 +150,15 @@ def snap(tr, mp, xg, yg, W, H):
         for w in ln["w"]:
             es |= _edges_of(w, mp, xg, yg)
         edges[ln["id"]] = es
+
+    # each line keeps the track between its own stops (no yards or sidings)
+    for ln in tr["lines"]:
+        pts = []
+        for k in ln["s"]:
+            st = tr["stops"][k]
+            gx, gy = mp(st["x"], st["y"])
+            pts.append((_near(gx, xg), _near(gy, yg)))
+        edges[ln["id"]] = _trunk(edges[ln["id"]], pts)
 
     # lanes: lines sharing a grid line (a street) run side by side
     use = {}                                             # (axis, index) -> {line id: edges}

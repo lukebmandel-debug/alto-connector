@@ -239,8 +239,9 @@ def test_the_zoom_row_sits_beside_the_account_toggle_and_covers_nothing(browser,
 def test_the_zoom_row_zooms_and_says_where_the_board_is(browser, page_file):
     pg = open_page(browser, page_file)
     z = lambda: pg.evaluate("window._altoPalaceGeo.Z")
+    pg.click("#pal-ctl [data-z=fit]"); pg.wait_for_timeout(900)          # the page opens on the neighbourhoods; City is the farthest (the whole city)
     z0 = z()
-    assert pg.evaluate("document.querySelector('#pal-ctl [data-z=out]').classList.contains('off')")      # opened at the farthest
+    assert pg.evaluate("document.querySelector('#pal-ctl [data-z=out]').classList.contains('off')")      # at the farthest
     assert pg.evaluate("document.querySelector('#pal-ctl [data-z=fit]').classList.contains('on')")
     pg.click("#pal-ctl [data-z=in]"); pg.wait_for_timeout(700)
     z1 = z()
