@@ -2728,3 +2728,17 @@ PATCHES += [
     {"name": "freewrite-report-section", "old": _FWR_BODY_OLD, "new": _FWR_BODY_NEW, "count": 1},
 ]
 
+
+# ── pages with no detail-nav bar sit flush under the top bar ───────────────
+# #detail-page starts 185px down so the prev/next bar (#node-nav-bar, which sits
+# at --nav-bottom) has its own strip above it. An index page (Cases, § 28 U.S.C.,
+# Federal Rules) is not a node and hides that bar (updateNodeNavBar(null)), which
+# left an empty band under the top bar and let the page's heading ride up under
+# it. With no bar showing, the page starts at the top bar's own bottom edge.
+# Pages that do show the bar keep their start.
+_IDX_TOP_OLD = "html:not(.mobile) #detail-page{ top:185px !important; }"
+_IDX_TOP_NEW = (_IDX_TOP_OLD + "\nhtml:not(.mobile):has(#node-nav-bar:not(.visible)) #detail-page"
+                "{ top: var(--nav-bottom, 127px) !important; }")
+PATCHES += [
+    {"name": "detail-page-flush-when-no-node-nav", "old": _IDX_TOP_OLD, "new": _IDX_TOP_NEW, "count": 1},
+]
