@@ -2725,3 +2725,25 @@ PATCHES += [
     {"name": "freewrite-report-mail-text", "old": _FWR_TEXT_OLD, "new": _FWR_TEXT_NEW, "count": 1},
     {"name": "freewrite-report-section", "old": _FWR_BODY_OLD, "new": _FWR_BODY_NEW, "count": 1},
 ]
+
+
+# ── a Mind Palace card rises above its building (palace.py, RISE) ───────────
+# The engine flies the enlarged node's anchor to the middle of the window. On a
+# Mind Palace the anchor is the BUILDING and the enlarged card stands above it,
+# so what should be centred is the pair — the card and the building under it.
+# window._altoFocusShift(node) (palace.py; absent on every other page) returns
+# [dx, dy]: how far from the anchor the point to centre lies. The pan and the
+# scroll are worked out from that point, so the building ends below the middle
+# of the window by exactly the amount that centres card and building together.
+_RISE_PLAN_OLD = "    var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);\n    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n"
+_RISE_PLAN_NEW = ("    var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);\n"
+                  "    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }\n"
+                  "    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n")
+_RISE_FLY_OLD = "    var ax=a.x, ay=a.y;\n    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n"
+_RISE_FLY_NEW = ("    var ax=a.x, ay=a.y;\n"
+                 "    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }\n"
+                 "    var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');\n")
+PATCHES += [
+    {"name": "palace-focus-centres-card-and-building", "old": _RISE_PLAN_OLD, "new": _RISE_PLAN_NEW, "count": 1},
+    {"name": "palace-focus-centres-card-and-building-fly", "old": _RISE_FLY_OLD, "new": _RISE_FLY_NEW, "count": 1},
+]

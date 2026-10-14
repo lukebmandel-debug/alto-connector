@@ -437,6 +437,64 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-mmap .pm-card small{display:block;color:var(--muted);margin-top:2px;}
   #pal-mmap .pm-card button{margin-top:8px;font:inherit;font-weight:700;padding:7px 14px;border-radius:9px;border:0;background:var(--accent);color:#fff;}
   #pal-mmap svg{display:block;}
+  /* ═══ INTERACTION (rise · routes · elevator): delimited block ═══ */
+  /* an enlarged building's card stands ABOVE it; the building stays, with a notch pointing down onto it */
+  html.alto-palace:not(.mobile) #world .node .pal-ghost,html.alto-palace:not(.mobile) #world .node .pal-tail{display:none;}
+  html.alto-palace:not(.mobile) #world .alto-fshadow{display:none !important;}
+  html.alto-palace:not(.mobile) #world .node.focused{pointer-events:none;}
+  html.alto-palace:not(.mobile) #world .node.focused .node-card{pointer-events:auto;top:var(--rt,0px);left:var(--rl,0px);
+    box-shadow:0 26px 60px var(--node-hover-shadow),0 2px 10px rgba(20,26,55,.10) !important;}
+  html.alto-palace:not(.mobile) #world .node.focused .pal-ghost{display:flex;position:absolute;left:50%;top:50%;width:var(--pw,40px);height:var(--ph,26px);
+    box-sizing:border-box;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer;border-radius:5px;
+    transform:translate(-50%,-50%) rotate(var(--pr,0deg));background:var(--node-glass-bg,var(--card-glass-bg,rgba(255,255,255,.9)));
+    border:1.5px solid color-mix(in srgb,var(--pc,#888) 70%,transparent);border-top:3px solid var(--pc,#888);
+    box-shadow:var(--pfl,0 0 0 transparent),0 0 0 3px color-mix(in srgb,var(--pc,#888) 28%,transparent),0 3px 10px rgba(20,26,55,.18);
+    animation:pal-ghost-in .3s ease-out both;}
+  html.alto-palace:not(.mobile) #world .node.focused .pal-ghost span{display:block;rotate:calc(-1 * var(--pr,0deg));font-size:var(--pf,11px);line-height:1.1;
+    font-weight:800;letter-spacing:.01em;color:var(--text);white-space:nowrap;font-family:var(--serif,Georgia,serif);font-style:italic;pointer-events:none;}
+  html.alto-palace:not(.mobile) #world .node.focused .pal-tail{display:block;position:absolute;left:50%;top:calc(50% - var(--pe,13px) - var(--pt,13px) - 1px);
+    width:28px;height:14px;margin-left:-14px;overflow:hidden;pointer-events:none;animation:pal-tail-in .22s ease-out .16s both;}
+  html.alto-palace:not(.mobile) #world .node.focused .pal-tail i{position:absolute;left:4px;top:-10px;width:20px;height:20px;box-sizing:border-box;rotate:45deg;
+    background:var(--node-glass-bg,var(--panel-glass-bg,rgba(255,255,255,.92)));border-right:1px solid var(--card-glass-border,rgba(0,0,0,.12));border-bottom:1px solid var(--card-glass-border,rgba(0,0,0,.12));
+    border-bottom-right-radius:2px;}
+  /* no room above: the card goes below the building and the notch points up */
+  html.alto-palace:not(.mobile) #world .node.focused.pal-below .pal-tail{top:calc(50% + var(--pe,13px) + var(--pt,13px) - 13px);}
+  html.alto-palace:not(.mobile) #world .node.focused.pal-below .pal-tail i{top:auto;bottom:-10px;rotate:225deg;}
+  @keyframes pal-ghost-in{from{opacity:.4;}to{opacity:1;}}
+  @keyframes pal-tail-in{from{opacity:0;}to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){html.alto-palace #world .node.focused .pal-ghost,html.alto-palace #world .node.focused .pal-tail{animation:none;}}
+  /* the lit routes: clickable, like a line on an ordinary timeline */
+  .pal-svg .pl-route-hit{fill:none;stroke:transparent;stroke-width:18;stroke-linecap:round;stroke-linejoin:round;pointer-events:stroke;cursor:pointer;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-rt.hot .pl-route{stroke-width:11;}
+  .pal-svg .pl-rt.hot .pl-route-sh{stroke-width:3.4;}
+  #canvas.focus-mode #palace-svg{opacity:1;}
+  #canvas.focus-mode #palace-svg > *:not(.pl-routes):not(.pl-route-hits){opacity:.55;}
+  html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused) .node-card{outline:4px solid var(--pc,#888);outline-offset:3px;}
+  /* the elevator: where the car is, and the other ways to move it */
+  #pal-elev .pe-shaft{flex:1 1 auto;min-height:0;} #pal-elev .pe-roof,#pal-elev .pe-call,#pal-elev .pe-street{flex:none;}
+  #pal-elev .pe-roof{cursor:pointer;}
+  #pal-elev .pe-where{display:block;margin-top:6px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.9;}
+  #pal-elev .pe-fl{position:relative;transition:background .2s;}
+  #pal-elev .pe-fl.on{box-shadow:inset 3px 0 0 var(--pal-car,var(--accent));}
+  #pal-elev .pe-fl.on .pe-n{color:#fff;background:var(--pal-car,var(--accent));border-radius:6px;text-align:center;padding:1px 5px;}
+  #pal-elev .pe-fl.pass{background:color-mix(in srgb,var(--pal-car,var(--accent)) 24%,transparent);}
+  #pal-elev .pe-fl.aim{outline:2px solid var(--pal-car,var(--accent));outline-offset:-2px;background:color-mix(in srgb,var(--pal-car,var(--accent)) 18%,transparent);}
+  #pal-elev .pe-car{cursor:grab;touch-action:none;z-index:2;}
+  #pal-elev .pe-car::before{content:'';position:absolute;left:-8px;right:-8px;top:-5px;bottom:-5px;}
+  #pal-elev.pe-drag{user-select:none;-webkit-user-select:none;} #pal-elev.pe-drag .pe-car{cursor:grabbing;transition:none;box-shadow:0 6px 16px rgba(0,0,0,.4),inset 0 0 0 2px rgba(255,255,255,.7);}
+  #pal-elev .pe-call{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:7px 10px 8px;border-top:1px solid var(--border);}
+  #pal-elev .pe-call button{width:34px;height:28px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:11px;padding:0;}
+  #pal-elev .pe-call button:hover:not(:disabled){background:color-mix(in srgb,var(--pal-car,var(--accent)) 18%,transparent);}
+  #pal-elev .pe-call button:disabled{opacity:.28;cursor:default;}
+  #pal-elev .pe-call small{flex:1 0 100%;font-size:10.5px;line-height:1.3;color:var(--muted);}
+  html.mobile #pal-elev .pe-call,html.mobile #pal-elev .pe-where{display:none;}
+  #pal-pull{position:fixed;z-index:61;display:none;left:calc(50% + 118px);transform:translateX(-50%);align-items:center;gap:9px;padding:8px 16px;border-radius:999px;
+    font-size:12.5px;color:var(--text);pointer-events:none;max-width:70vw;white-space:nowrap;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--pal-car,var(--accent)) 38%,var(--surface)) calc(var(--p,0) * 100%),var(--surface) calc(var(--p,0) * 100%));
+    border:1px solid var(--border);box-shadow:0 8px 26px rgba(0,0,0,.2);}
+  #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
+  #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
+  html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
 """
 
 
@@ -842,7 +900,7 @@ function cornerAt(svg, e, street){
 /* routes: from a building along the streets to each building it connects with */
 var hotB=null;
 function drawRoutes(svg, id, walkUnit){
-  var g=svg._r; if(!g) return; g.innerHTML='';
+  var g=svg._r; if(!g) return; g.innerHTML=''; if(svg._rh) svg._rh.innerHTML='';
   function bl(svg, id){ return svg===svgD ? document.getElementById('node-'+id) : svg.querySelector('.pl-bld[data-id="'+id+'"]'); }
   function all(svg){ return svg===svgD ? document.querySelectorAll('#world .node') : svg.querySelectorAll('.pl-bld'); }
   function idOf(e){ return e.getAttribute('data-id') || (e.id||'').replace(/^node-/,''); }
@@ -859,9 +917,13 @@ function drawRoutes(svg, id, walkUnit){
   var me=bl(svg, id); if(me) me.classList.add('pal-hot');
   rels(id).forEach(function(c){ var other=bOf(bOf(c[0])===id?c[1]:c[0]), d=path(id, other); if(!d) return;
     var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
-    el('path',{'class':'pl-route', d:d, stroke:col},g); el('path',{'class':'pl-route-sh', d:d},g);
+    var rt=el('g',{'class':'pl-rt'},g);
+    el('path',{'class':'pl-route', d:d, stroke:col},rt); el('path',{'class':'pl-route-sh', d:d},rt);
+    if(svg===svgD){ var h=el('path',{'class':'pl-route-hit', d:d},rtHits(svg)); h._rt={from:id, to:other, rel:c[2], g:rt, d:d}; }
     var ob=bl(svg, other); if(ob) ob.classList.add('pal-hot'); });
 }
+/* each lit route has a wide invisible path over it (above every street's own) so it can be pointed at and clicked */
+function rtHits(svg){ var h=svg._rh; if(!h || h.parentNode!==svg){ h=svg._rh=el('g',{'class':'pl-route-hits'},svg); } else svg.appendChild(h); return h; }
 function bAt(t){ if(!t||!t.closest) return null; var b=t.closest('.pl-bld[data-id]'); if(b) return b.getAttribute('data-id');
   var n=t.closest('#world .node[id^="node-"]'); if(n && !n.classList.contains('focused')){ var id=n.id.slice(5); return isB(id)?id:null; } return null; }
 document.addEventListener('mouseover', function(e){
@@ -869,6 +931,9 @@ document.addEventListener('mouseover', function(e){
   var id=bAt(e.target), st=e.target.closest && e.target.closest('#palace-svg .pl-hit'), du=e.target.closest && e.target.closest('#palace-svg .pl-dist');
   var lm=e.target.closest && e.target.closest('#palace-svg .pl-lmb');
   clearTimeout(tipT);
+  var rh=e.target.closest && e.target.closest('#palace-svg .pl-route-hit');
+  routeHot(rh);
+  if(rh){ showTip(routeTip(rh._rt), e.clientX, e.clientY); return; }
   if(lm){ tipT=setTimeout(function(){ showTip(lmTip(lm), e.clientX, e.clientY); }, 90); return; }
   if(id){ tipT=setTimeout(function(){ showTip(bTip(id), e.clientX, e.clientY); if(!focused()){ hotB=id; drawRoutes(svgD, id); } }, 110); return; }
   if(du){ var u=+du.getAttribute('data-u'); tipT=setTimeout(function(){ if(!focused()) drawRoutes(svgD, null, u);
@@ -888,6 +953,10 @@ function enlarge(id){
 }
 document.addEventListener('click', function(e){
   if(!palaceOn() || de.classList.contains('alto-editing') && moved) return;
+  var rh=e.target.closest && e.target.closest('#palace-svg .pl-route-hit');
+  if(rh){ e.stopPropagation(); e.preventDefault(); followRoute(e); return; }
+  var gh=e.target.closest && e.target.closest('.pal-ghost');
+  if(gh){ e.stopPropagation(); e.preventDefault(); if(window.exitFocus) window.exitFocus(); return; }
   var lmc=e.target.closest && e.target.closest('#palace-svg .pl-lmb.has-page');
   if(lmc){ e.stopPropagation(); hideTip(); openPage(lmc.getAttribute('data-page')); return; }
   var du=e.target.closest && e.target.closest('#palace-svg .pl-dist');
@@ -897,6 +966,85 @@ document.addEventListener('click', function(e){
   if(e.detail>=2){ window.showDetail('node', id); return; }
   enlarge(id);
 }, true);
+/* ═══ ROUTES (interaction pass): a lit route is a line you can follow ═══
+   On an ordinary timeline a click on a connecting line flies to the node at its far end (blocks.py, LINE_NAV_GLUE).
+   Here the routes all start at the building you are pointing at or have enlarged, so the far end is always the other
+   building. Where several routes share a street, the click picks the one whose building is nearest along the line. */
+var hotR=null;
+function routeHot(h){ if(h===hotR) return;
+  if(hotR && hotR._rt){ hotR._rt.g.classList.remove('hot'); var o=document.getElementById('node-'+hotR._rt.to); if(o) o.classList.remove('pal-dest'); }
+  hotR=h||null;
+  if(hotR){ hotR._rt.g.classList.add('hot'); var n=document.getElementById('node-'+hotR._rt.to); if(n) n.classList.add('pal-dest'); } }
+function routeTip(r){ var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS[r.rel]:null, col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r.rel])||'var(--accent)';
+  return '<b><span class="pt-num">'+esc(num(r.to))+'</span> '+esc(title(r.to))+'</b><span class="pt-rel"><i style="background:'+col+'"></i>'+esc(rl||r.rel)+' · click to go there</span>'; }
+function polyOf(d){ var v=(d.match(/-?\d*\.?\d+/g)||[]).map(parseFloat), a=[]; for(var i=0;i+1<v.length;i+=2) a.push([v[i],v[i+1]]); return a; }
+/* how far along a route (from its start) the point nearest p lies, and the route's whole length */
+function alongRoute(pl, p){ var tot=0, best=1e18, at=0, run=0;
+  for(var i=0;i+1<pl.length;i++){ var a=pl[i], b=pl[i+1], dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy)||1e-6,
+      t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(L*L))), q=Math.hypot(a[0]+dx*t-p[0], a[1]+dy*t-p[1]);
+    if(q<best){ best=q; at=run+t*L; } run+=L; }
+  return {s:at, len:run}; }
+function followRoute(e){
+  hideTip();
+  var hits=document.elementsFromPoint(e.clientX, e.clientY).filter(function(x){ return x.classList && x.classList.contains('pl-route-hit') && x._rt; });
+  if(!hits.length) return;
+  var p=svgPt(svgD, e), best=null, bd=1e18;
+  hits.forEach(function(h){ var r=h._rt; if(!r._pl) r._pl=polyOf(r.d); var a=alongRoute(r._pl, p), rest=a.len-a.s; if(rest<bd){ bd=rest; best=r; } });
+  if(!best) return; routeHot(null);
+  enlarge(best.to);
+}
+/* ═══ RISE (interaction pass): an enlarged building's card stands ABOVE its building ═══
+   The enlarged card is still the node's ordinary card; it is moved up (top/left on the card, which the engine's CSS zoom
+   scales along with it) so its bottom edge clears the building, and the building is drawn again under it (.pal-ghost)
+   with a notch (.pal-tail) pointing down onto it. The engine centres the card and building TOGETHER because
+   _altoFocusShift moves the point it centres (engine_patches.py, palace-focus-centres-card-and-building). */
+var RISE_T=15, FK=1.7;
+function riseEls(el, id){
+  var g=el.querySelector(':scope > .pal-ghost'), t=el.querySelector(':scope > .pal-tail');
+  if(!g){ g=document.createElement('div'); g.className='pal-ghost'; g.setAttribute('title','Close the card'); el.appendChild(g); }
+  g.innerHTML='<span>'+esc(num(id))+'</span>';
+  if(!t){ t=document.createElement('div'); t.className='pal-tail'; t.innerHTML='<i></i>'; el.appendChild(t); }
+}
+function riseVars(el, up){ var R=el._rise; if(!R) return;
+  var top=(up?-1:1)*((R.pe+RISE_T)/FK+R.h/2);
+  el.style.setProperty('--pe', R.pe.toFixed(1)+'px'); el.style.setProperty('--pt', RISE_T+'px'); el.style.setProperty('--rt', top.toFixed(1)+'px'); el.style.setProperty('--rl', (R.rl/FK).toFixed(1)+'px');
+  el.classList.toggle('pal-below', !up); R.up=up; }
+window._altoFocusShift=function(el){
+  if(mob() || !de.classList.contains('alto-palace') || !el) return null;
+  var id=el.id.slice(5); if(!isB(id)) return null;
+  var R=el._rise; if(R && performance.now()-R.t<120) return R.shift;
+  var card=el.querySelector('.node-card'); if(!card) return null;
+  riseEls(el, id);
+  /* the card as the enlarged one is — measured at the enlarged zoom with .focused on, as the engine measures its shadow */
+  var had=el.classList.contains('focused'), z0=card.style.zoom;
+  if(!had) el.classList.add('focused'); card.style.zoom=String(FK);
+  var h0=card.offsetHeight; card.style.zoom=z0; if(!had) el.classList.remove('focused');
+  var w=parseFloat(el.style.getPropertyValue('--pw'))||40, hh=parseFloat(el.style.getPropertyValue('--ph'))||26, th=(parseFloat(el.style.getPropertyValue('--pr'))||0)*Math.PI/180;
+  var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2;
+  var cv=document.getElementById('canvas'), ch=cv.clientHeight, par=el.offsetParent, ay=(parseFloat(el.style.top)||0)+((par&&par!==cv)?par.offsetTop:0);
+  var H=h0*FK, d=(RISE_T+H)/2;
+  function resid(sy){ var a=ay+sy, tt=Math.max(0,Math.min(Math.round(a-ch/2), Math.max(0,cv.scrollHeight-ch))); return Math.abs(a-(tt+ch/2)); }
+  var up=resid(-d)<=resid(d)+36;
+  R=el._rise={t:performance.now(), h:h0, pe:pe, rl:0, up:up, shift:[0, up?-d:d]};
+  riseVars(el, up); return R.shift;
+};
+/* once it has landed (and on a resize): inside the window, the notch still over the building */
+function riseFit(){
+  var id=window._focusedNodeId, el=id&&document.getElementById('node-'+id), card=el&&el.querySelector('.node-card'), cv=document.getElementById('canvas');
+  if(!el || !el._rise || !card || !cv || mob()) return;
+  var R=el._rise, cr=cv.getBoundingClientRect(), r=card.getBoundingClientRect(), m=10;
+  if(r.width<20) return;
+  if(r.top<cr.top+m && R.up){ el.classList.add('pal-below'); riseVars(el,false); var r2=card.getBoundingClientRect();
+    if(r2.bottom>cr.bottom-m && r2.bottom>r.bottom+0){ riseVars(el,true); } }
+  else if(r.bottom>cr.bottom-m && !R.up){ riseVars(el,true); var r3=card.getBoundingClientRect(); if(r3.top<cr.top+m) riseVars(el,false); }
+  r=card.getBoundingClientRect();
+  var dx=0; if(r.left<cr.left+m) dx=cr.left+m-r.left; else if(r.right>cr.right-m) dx=cr.right-m-r.right;
+  if(dx){ var z=parseFloat(getComputedStyle(de).zoom)||1, lim=r.width/2/z-26; R.rl=Math.max(-lim, Math.min(lim, R.rl+dx/z)); riseVars(el, R.up); }
+}
+function riseSoon(){ clearTimeout(riseSoon.t); riseSoon.t=setTimeout(riseFit, (window._altoFlyMs||420)+120); }
+new MutationObserver(function(ms){ for(var i=0;i<ms.length;i++){ var n=ms[i].target; if(n.classList && n.classList.contains('focused') && n.classList.contains('node') && n._rise){ n._rise.rl=0; riseSoon(); return; } } })
+  .observe(document.getElementById('world')||document.documentElement, {attributes:true, subtree:true, attributeFilter:['class']});
+window.addEventListener('resize', function(){ if(window._focusedNodeId){ var el=document.getElementById('node-'+window._focusedNodeId); if(el && el._rise){ el._rise.t=0; el._rise.rl=0; riseSoon(); } } });
 function flyToBox(b){ var cv=document.getElementById('canvas'); if(!cv) return;
   var z=Math.min(1.3, Math.min(cv.clientWidth/((b[2]-b[0])+260), cv.clientHeight/((b[3]-b[1])+260)));
   flyMap((b[0]+b[2])/2, (b[1]+b[3])/2, Math.max(z, zmin())); }
@@ -958,7 +1106,7 @@ function ctl(){
 var cur=null, riding=false, elev=null, doors=null;
 function stack(id){ var b=bOf(id); return [b].concat(P.fl[b]||[]); }
 function buildElev(){
-  if(elev) return; elev=document.createElement('div'); elev.id='pal-elev'; document.body.appendChild(elev);
+  if(elev) return; elev=document.createElement('div'); elev.id='pal-elev'; document.body.appendChild(elev); elevWire(elev);
   doors=document.createElement('div'); doors.id='pal-doors'; doors.innerHTML='<div class="pd pd-l"></div><div class="pd pd-r"></div><div class="pd-ind"></div>'; document.body.appendChild(doors);
   elev.addEventListener('click', function(e){
     var out=e.target.closest('.pe-out'); if(out){ e.stopPropagation(); letOut(out.getAttribute('data-id')); return; }
@@ -970,18 +1118,20 @@ function editing(){ return de.classList.contains('alto-editing'); }
 function drawElev(id){
   buildElev(); var s=stack(id), b=s[0], c=ucol(b);
   elev.style.setProperty('--pal-car', c);
-  var h='<div class="pe-roof" style="background:'+c+'">'+esc(num(b))+'<span class="pe-sec"> · '+esc(PHASE_META[ACT[b]]?(PHASE_META[ACT[b]].label.split(' — ')[1]||PHASE_META[ACT[b]].label):'')+'</span><small>'+esc(title(b))+'</small></div><div class="pe-shaft"><div class="pe-car"></div>';
+  var h='<div class="pe-roof" style="background:'+c+'">'+esc(num(b))+'<span class="pe-sec"> · '+esc(PHASE_META[ACT[b]]?(PHASE_META[ACT[b]].label.split(' — ')[1]||PHASE_META[ACT[b]].label):'')+'</span><small>'+esc(title(b))+'</small><span class="pe-where"></span></div><div class="pe-shaft"><div class="pe-car" title="Drag to another floor"></div>';
   for(var i=s.length-1;i>=0;i--){ var f=s[i];
     h+='<button class="pe-fl'+(f===id?' on':'')+'" data-id="'+esc(f)+'"><span class="pe-n">'+(i===0?'G':i)+'</span><span class="pe-t">'+esc(title(f))+'</span>'
       +(i>0 && editing() && !mob()?'<span class="pe-out" data-id="'+esc(f)+'" title="Let this floor out into a building of its own">⇱</span>':'')+'</button>'; }
   var where=(P.near||{})[b];
-  h+='</div><button class="pe-street">⌂ Out to the street<small>'+esc(where||'')+'</small></button>';
+  h+='</div><div class="pe-call"><button class="pe-up" title="Up a floor (↑)" aria-label="Up a floor">▲</button><button class="pe-dn" title="Down a floor (↓)" aria-label="Down a floor">▼</button>'
+    +'<small>↑ ↓ keys · drag the car · scroll past an edge</small></div><button class="pe-street">⌂ Out to the street<small>'+esc(where||'')+'</small></button>';
   elev.innerHTML=h; place(); carTo(id, true);
 }
 function carTo(id, now){ if(!elev) return; var row=elev.querySelector('.pe-fl[data-id="'+id+'"]'), car=elev.querySelector('.pe-car'); if(!row||!car) return;
   if(now){ car.style.transition='none'; car.style.top=(row.offsetTop+row.offsetHeight/2-15)+'px'; car.offsetTop; car.style.transition=''; }
   else car.style.top=(row.offsetTop+row.offsetHeight/2-15)+'px';
   elev.querySelectorAll('.pe-fl').forEach(function(r){ r.classList.toggle('on', r===row); });
+  elevState(id);
   var sh=elev.querySelector('.pe-shaft'); if(sh && !mob()){ var t=row.offsetTop-sh.clientHeight/2; sh.scrollTop=Math.max(0,t); }
 }
 function place(){
@@ -1012,7 +1162,7 @@ function ride(to){
     var floors=Math.abs(b-a), per=Math.max(180, Math.min(420, 1100/floors)), car=elev.querySelector('.pe-car');
     if(car) car.style.transitionDuration=(per*floors)+'ms';
     carTo(to);
-    var i=a; var tick=setInterval(function(){ i+=up?1:-1; ind.textContent=(up?'▲ ':'▼ ')+(i===0?'G':i); if(i===b){ clearInterval(tick); } }, per);
+    var i=a; var tick=setInterval(function(){ i+=up?1:-1; ind.textContent=(up?'▲ ':'▼ ')+(i===0?'G':i); elevPass(s[i]); if(i===b){ clearInterval(tick); } }, per);
     setTimeout(function(){
       window.showDetail('node', to); var dp=document.getElementById('detail-page'); if(dp) dp.scrollTop=0;
       ind.textContent=(b===0?'G':b)+(b===s.length-1?' · top':'');
@@ -1029,6 +1179,101 @@ function watch(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', watch); else watch();
 
+/* ═══ ELEVATOR (interaction pass): more ways to change floors, and the car's place made plain ═══
+   The floor buttons stay. Added: the call buttons ▲ ▼; ↑ ↓ / PgUp PgDn (when the page cannot scroll further that way, or with Alt);
+   scrolling or swiping PAST the top or bottom edge of the page (a pull shows where it leads, a gesture that began mid-page
+   never counts, so momentum does not carry you through a floor); the wheel over the elevator; dragging the car; the roof is
+   the ground floor. ← → keep their meaning (the previous / next card, as on every detail page). Up = the next floor above:
+   scroll past the TOP of a floor and you go up, past the BOTTOM and you go down. */
+function elevOn(){ return de.classList.contains('pal-elev-on') && !riding && !!cur; }
+function stepFloor(d){ if(!elevOn()) return false; var s=stack(cur), i=s.indexOf(cur)+d; if(i<0||i>=s.length) return false; ride(s[i]); return true; }
+function elevState(id){ if(!elev) return; var s=stack(id), i=s.indexOf(id);
+  var w=elev.querySelector('.pe-where'); if(w) w.textContent=i===0?'Ground floor':'Floor '+i+' of '+(s.length-1);
+  var up=elev.querySelector('.pe-up'), dn=elev.querySelector('.pe-dn'); if(up) up.disabled=i>=s.length-1; if(dn) dn.disabled=i<=0;
+  var rf=elev.querySelector('.pe-roof'); if(rf) rf.title=i===0?'':'Back to the ground floor';
+  elev.querySelectorAll('.pe-fl.pass').forEach(function(r){ r.classList.remove('pass'); }); }
+function elevPass(id){ if(!elev) return; elev.querySelectorAll('.pe-fl').forEach(function(r){ r.classList.toggle('pass', r.getAttribute('data-id')===id); }); }
+function dpEl(){ return document.getElementById('detail-page'); }
+/* is the detail page at its top (dir -1) or bottom (dir 1) edge? (a page that does not scroll is at both) */
+function edgeAt(dir){ var dp=dpEl(); if(!dp) return false; var max=dp.scrollHeight-dp.clientHeight; return dir<0 ? dp.scrollTop<=1 : dp.scrollTop>=max-1; }
+var pull=null, PULL=110;
+function pullShow(dir, p){
+  if(!pull){ pull=document.createElement('div'); pull.id='pal-pull'; document.body.appendChild(pull); }
+  if(!(p>0) || !cur){ pull.classList.remove('on','go'); return; }
+  var s=stack(cur), i=s.indexOf(cur)+(dir<0?1:-1); if(i<0||i>=s.length){ pull.classList.remove('on','go'); return; }
+  var dp=dpEl(); pull.style.setProperty('--pal-car', ucol(s[0])); pull.style.setProperty('--dpt', ((dp&&dp.offsetTop)||96)+'px'); pull.style.setProperty('--p', Math.min(1,p));
+  pull.className='on '+(dir<0?'pp-up':'pp-dn')+(p>=1?' go':'');
+  pull.innerHTML='<b>'+(dir<0?'▲':'▼')+' '+(i===0?'G':i)+'</b><span>'+esc(title(s[i]))+'</span>'; }
+var pAcc=0, pDir=0, pLast=-1e9, pStart=false, pLock=0, pDecay=null;
+window.addEventListener('wheel', function(e){
+  if(mob() || !elevOn() || e.ctrlKey) return;
+  var dp=dpEl(); if(!dp || !dp.contains(e.target)) return;
+  var dy=e.deltaY*(e.deltaMode===1?16:1); if(!dy || Math.abs(dy)<=Math.abs(e.deltaX)) return;
+  var dir=dy<0?-1:1, now=e.timeStamp;
+  if(now-pLast>140){ pStart=now>=pLock && edgeAt(dir); }           /* a new gesture: only one that BEGINS at the edge can pull */
+  pLast=now; if(!pStart) return;
+  if(pDir!==dir){ pAcc=0; pDir=dir; }
+  pAcc+=Math.abs(dy); pullShow(dir, pAcc/PULL);
+  clearTimeout(pDecay); pDecay=setTimeout(function(){ pAcc=0; pullShow(dir,0); }, 650);
+  if(pAcc>=PULL){ pAcc=0; pullShow(dir,0); pLock=now+900; pStart=false; stepFloor(dir<0?1:-1); }
+}, {passive:true});
+window.addEventListener('keydown', function(e){
+  if(mob() || !elevOn() || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  var k=e.key, up=(k==='ArrowUp'||k==='PageUp'), dn=(k==='ArrowDown'||k==='PageDown'); if(!up && !dn) return;
+  var a=document.activeElement, tg=a&&a.tagName; if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT'||(a&&a.isContentEditable)) return;
+  var dir=up?-1:1; if(!e.altKey && !edgeAt(dir)) return;           /* the page still has room: let it scroll */
+  if(e.repeat){ e.preventDefault(); return; }
+  if(stepFloor(dir<0?1:-1)){ e.preventDefault(); e.stopPropagation(); }
+}, true);
+function elevWire(el){
+  var eAcc=0, eLast=-1e9, eLock=false, drag=null;
+  el.addEventListener('wheel', function(e){
+    if(mob() || e.ctrlKey) return; e.preventDefault();
+    var dy=e.deltaY*(e.deltaMode===1?16:1); if(!dy || Math.abs(dy)<Math.abs(e.deltaX)) return;
+    var now=e.timeStamp; if(now-eLast>160){ eAcc=0; eLock=false; } eLast=now; if(eLock) return;
+    eAcc+=dy; if(Math.abs(eAcc)>=45){ eLock=true; eAcc=0; stepFloor(dy>0?-1:1); }
+  }, {passive:false});
+  el.addEventListener('click', function(e){
+    if(e.target.closest('.pe-up')){ stepFloor(1); return; }
+    if(e.target.closest('.pe-dn')){ stepFloor(-1); return; }
+    if(e.target.closest('.pe-roof') && cur){ var s=stack(cur); if(s[0]!==cur) ride(s[0]); }
+  });
+  /* dragging the car: it follows the pointer, the floor it would stop at lights, and on release it rides there */
+  el.addEventListener('pointerdown', function(e){
+    var car=e.target.closest && e.target.closest('.pe-car'); if(!car || mob() || riding || e.button) return;
+    var sh=el.querySelector('.pe-shaft'); e.preventDefault(); try{ car.setPointerCapture(e.pointerId); }catch(x){}
+    var r=sh.getBoundingClientRect(), sc=(r.height/sh.offsetHeight)||1, cr=car.getBoundingClientRect();
+    drag={car:car, sh:sh, sc:sc, grab:(e.clientY-cr.top)/sc, y0:e.clientY, moved:false, to:null};
+    car.style.transition='none'; el.classList.add('pe-drag'); });
+  el.addEventListener('pointermove', function(e){
+    if(!drag) return; if(Math.abs(e.clientY-drag.y0)>3) drag.moved=true;
+    var rows=[].slice.call(el.querySelectorAll('.pe-fl')); if(!rows.length) return;
+    var cents=rows.map(function(q){ return q.offsetTop+q.offsetHeight/2; }), r=drag.sh.getBoundingClientRect();
+    var t=(e.clientY-r.top)/drag.sc+drag.sh.scrollTop-drag.grab+15;
+    t=Math.max(cents[0], Math.min(cents[cents.length-1], t)); drag.car.style.top=(t-15)+'px';
+    var bi=0, bd=1e9; cents.forEach(function(c,i){ var d=Math.abs(c-t); if(d<bd){ bd=d; bi=i; } });
+    rows.forEach(function(q,i){ q.classList.toggle('aim', drag.moved && i===bi); }); drag.to=rows[bi].getAttribute('data-id'); });
+  function endDrag(e){ if(!drag) return; var d=drag; drag=null; el.classList.remove('pe-drag');
+    el.querySelectorAll('.pe-fl.aim').forEach(function(q){ q.classList.remove('aim'); });
+    d.car.style.transition=''; try{ d.car.releasePointerCapture(e.pointerId); }catch(x){}
+    if(d.moved && d.to && d.to!==cur) ride(d.to); else if(cur) carTo(cur); }
+  el.addEventListener('pointerup', endDrag); el.addEventListener('pointercancel', endDrag);
+  touchWire();
+}
+/* a swipe past an edge of the page, on a phone: finger down at the top = up a floor, finger up at the bottom = down a floor */
+function touchWire(){
+  var dp=dpEl(); if(!dp || dp._palTouch) return; dp._palTouch=1;
+  var y0=null, x0=0, atTop=false, atBot=false, tDir=0, tP=0;
+  dp.addEventListener('touchstart', function(e){ if(!elevOn() || e.touches.length!==1){ y0=null; return; }
+    y0=e.touches[0].clientY; x0=e.touches[0].clientX; atTop=edgeAt(-1); atBot=edgeAt(1); tDir=0; tP=0; }, {passive:true});
+  dp.addEventListener('touchmove', function(e){ if(y0==null || e.touches.length!==1) return;
+    var dy=e.touches[0].clientY-y0, dx=e.touches[0].clientX-x0;
+    if(Math.abs(dx)>20 && Math.abs(dx)>Math.abs(dy)*.8){ y0=null; pullShow(0,0); return; }     /* sideways: the page-to-page swipe */
+    var dir=dy>0?-1:1; if(!(dir<0?atTop:atBot)){ pullShow(0,0); return; }
+    tDir=dir; tP=Math.abs(dy)/110; pullShow(dir, tP); }, {passive:true});
+  function end(){ if(y0!=null && tP>=1) stepFloor(tDir<0?1:-1); pullShow(0,0); y0=null; tP=0; }
+  dp.addEventListener('touchend', end, {passive:true}); dp.addEventListener('touchcancel', function(){ pullShow(0,0); y0=null; tP=0; }, {passive:true});
+}
 /* ── phones: each card says where it stands; the MAP button opens the city ── */
 function phoneWhere(){ if(!mob()) return;
   document.querySelectorAll('.node[id^="node-"]').forEach(function(n){ var id=n.id.slice(5), c=n.querySelector('.node-card'); if(!c || c.querySelector('.pal-where')) return;
