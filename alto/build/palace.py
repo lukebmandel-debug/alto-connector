@@ -204,6 +204,8 @@ def palace_data(b, nodes) -> str:
     mp = {k: v for k, v in m.items() if k not in ("bbox",)}
     mp["streets"] = [{**s, "n": short(s.get("n") or "")} for s in m.get("streets", [])]
     mp["majors"] = [short(s) for s in m.get("majors", [])]
+    mp["cols"] = [short(s) for s in m.get("cols", [])]      # the grid's streets by column / row, to tell a major from a minor one
+    mp["rows"] = [short(s) for s in m.get("rows", [])]
     mp["top"] = sorted({short(s.get("n")) for s in m.get("streets", [])
                         if s.get("n") and s.get("k", 9) <= 1 and short(s.get("n")) in mp["majors"]})
     out = {"m": mp, "b": [bl["lots"] for bl in blocks], "at": at, "fl": floors, "of": of,
@@ -286,9 +288,20 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-park{fill:var(--pal-park);stroke-width:1.2;stroke-opacity:.45;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-lm{fill:var(--pal-lm);stroke-width:1.8;stroke-opacity:.8;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-tube,.pal-svg .pl-sheen{fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  /* the streets weigh what an ordinary timeline's connecting lines weigh (5px tube, a frosted centre line
+     a third as wide), measured on the SCREEN: --tw is the unit the page gives one screen px (placeAll),
+     so a street keeps its weight at every zoom instead of thinning with the map. A major street is the
+     full tube; a minor one a lighter tube of the same family. */
+  .pal-svg .pl-tube.t-min{stroke-width:calc(var(--tw,1) * 3.6px);}
+  .pal-svg .pl-sheen.t-min{stroke-width:calc(var(--tw,1) * 1.3px);}
+  .pal-svg .pl-tube.t-maj{stroke-width:calc(var(--tw,1) * 5.6px);}
+  .pal-svg .pl-sheen.t-maj{stroke-width:calc(var(--tw,1) * 1.9px);}
+  .pal-svg .pl-tube.r-line{stroke-width:calc(var(--tw,1) * 4.4px);}
+  .pal-svg .pl-sheen.r-line{stroke-width:calc(var(--tw,1) * 1.5px);}
+  .pal-svg .pl-stn{transform:translate(var(--sx),var(--sy)) scale(var(--tw,1));}
   .pal-svg .pl-tun{fill:none;stroke-width:2;stroke-dasharray:6 6;stroke-opacity:.35;}
   .pal-svg .pl-trail{fill:none;stroke:var(--pal-trail);stroke-width:2.6;stroke-dasharray:7 5;stroke-linecap:round;opacity:.85;}
-  .pal-svg .pl-ties{fill:none;stroke-width:11;stroke-dasharray:1.8 7;stroke-opacity:.75;}
+  .pal-svg .pl-ties{fill:none;stroke-width:calc(var(--tw,1) * 9px);stroke-dasharray:calc(var(--tw,1) * 1.4px) calc(var(--tw,1) * 5.6px);stroke-opacity:.75;}
   .pal-svg .pl-tube.r-under{stroke-dasharray:10 8;}
   .pal-svg .pl-sheen.r-under{stroke-dasharray:10 8;opacity:.6;}
   .pal-svg .pl-ring{fill:var(--pal-halo);stroke-width:4;}
@@ -303,12 +316,12 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-lmt{font-size:calc(11px / var(--pz,1));font-weight:650;stroke:none;letter-spacing:.02em;}
   .pal-svg .pl-stt{font-size:calc(11px / var(--pz,1));font-weight:700;stroke-width:calc(3px / var(--pz,1));}
   .pal-svg .pl-stt.hub{font-size:calc(13px / var(--pz,1));font-weight:800;}
-  .pal-svg .pl-dist{font-size:calc(19px / var(--pz,1));font-weight:850;letter-spacing:.14em;text-transform:uppercase;
-    stroke-width:calc(5px / var(--pz,1));pointer-events:all;cursor:pointer;}
-  .pal-svg .pl-dist tspan.only{display:none;}
-  .pal-svg.far .pl-dist tspan.full,.pal-svg.far .pl-dist tspan.nb{display:none;}
-  .pal-svg.far .pl-dist tspan.only{display:inline;font-size:calc(26px / var(--pz,1));}
-  .pal-svg .pl-dist tspan.nb{font-size:calc(12px / var(--pz,1));font-weight:600;letter-spacing:.08em;fill:var(--pal-text);opacity:.75;}
+  .pal-svg .pl-stt{transform:translate(calc(var(--tw,1) * 13px),calc(var(--tw,1) * -9px));}
+  .pal-svg .pl-stt.hub{transform:translate(calc(var(--tw,1) * 20px),calc(var(--tw,1) * -15px));}
+  .pal-svg .pl-dtint{fill-opacity:0;pointer-events:all;}
+  .pal-svg .pl-dist{font-size:calc(26px / var(--pz,1));font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+    stroke-width:calc(7px / var(--pz,1));pointer-events:all;cursor:pointer;}
+  .pal-svg.far .pl-dist{font-size:calc(30px / var(--pz,1));}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
   .pal-svg .pl-bld .b-card{fill:rgba(255,255,255,.9);stroke-width:1.4;vector-effect:non-scaling-stroke;}
@@ -351,6 +364,8 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-tip b{display:block;font-size:13px;}
   .pal-tip .pt-num{color:var(--muted);font-weight:800;margin-right:6px;}
   .pal-tip small{display:block;color:var(--muted);margin-top:2px;}
+  .pal-tip .pt-unit,.pm-card .pt-unit{font-weight:650;color:var(--text);}
+  .pal-tip .pt-unit i,.pm-card .pt-unit i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline;}
   .pal-tip .pt-rel{display:block;margin-top:3px;font-size:12px;}
   .pal-tip .pt-rel i{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px;}
   #pal-ctl{position:fixed;left:16px;bottom:18px;z-index:310;display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:300px;}
@@ -622,17 +637,37 @@ function drawCity(svg){
   var defs=el('defs',{},svg);
   /* the glass the city stands on */
   el('rect',{'class':'pl-glass', x:-MX, y:-MY, width:VW, height:VH, rx:34},svg);
+  /* each neighbourhood's ground, unseen: pointing at it names the unit it holds */
+  var wash=el('g',{'class':'pl-washes'},svg);
+  (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u], b=d.box; if(!pm||!b) return; var ins=16;
+    el('rect',{'class':'pl-dtint', x:b[0]+ins, y:b[1]+ins, width:Math.max(10,b[2]-b[0]-2*ins), height:Math.max(10,b[3]-b[1]-2*ins), rx:34, fill:pm.colorRaw, 'data-u':d.u},wash); });
   /* the streets: every block a rounded tile of connecting line, so each street
      curves at every intersection; the tiles in their district's colour */
   var sg=el('g',{'class':'pl-streets'},svg), byU={};
   function tileD(t){ var x0=t[0], y0=t[1], x1=t[2], y1=t[3], r=Math.min(R, (x1-x0)/2, (y1-y0)/2);
     return 'M'+(x0+r)+' '+y0+'H'+(x1-r)+'Q'+x1+' '+y0+' '+x1+' '+(y0+r)+'V'+(y1-r)+'Q'+x1+' '+y1+' '+(x1-r)+' '+y1
       +'H'+(x0+r)+'Q'+x0+' '+y1+' '+x0+' '+(y1-r)+'V'+(y0+r)+'Q'+x0+' '+y0+' '+(x0+r)+' '+y0+'Z'; }
-  (M.tiles||[]).forEach(function(t){ var u=distAt((t[0]+t[2])/2,(t[1]+t[3])/2); byU[u]=(byU[u]||'')+tileD(t); });
-  (M.edges||[]).forEach(function(e){ var u=distAt((e[0]+e[2])/2,(e[1]+e[3])/2); byU[u]=(byU[u]||'')+'M'+e[0]+' '+e[1]+'L'+e[2]+' '+e[3]; });
-  Object.keys(byU).forEach(function(u){ tube(sg, byU[u], tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()), TUBE, .95); });
+  /* two weights, as the connecting lines have: every block's outline is a minor street; the sides that
+     lie on a major street (the grid's columns and rows are named in M.cols / M.rows) are drawn again,
+     heavier, over it, so a major street runs straight through the junctions and the minor ones curve into it */
+  var MJs={}; (M.majors||[]).forEach(function(n){ MJs[n]=1; });
+  var gx=[], gy=[]; (M.tiles||[]).concat(M.edges||[]).forEach(function(t){ gx.push(t[0],t[2]); gy.push(t[1],t[3]); });
+  function uniq(a){ return a.sort(function(p,q){ return p-q; }).filter(function(v,i,r){ return !i || v!==r[i-1]; }); }
+  gx=uniq(gx); gy=uniq(gy);
+  var colMaj={}, rowMaj={}, okGrid=(M.cols||[]).length===gx.length && (M.rows||[]).length===gy.length;
+  if(okGrid){ gx.forEach(function(v,i){ colMaj[v]=!!MJs[M.cols[i]]; }); gy.forEach(function(v,i){ rowMaj[v]=!!MJs[M.rows[i]]; }); }
+  var byM={}, seen={};
+  function major(x0,y0,x1,y1){ if(!okGrid) return; var k=x0+','+y0+','+x1+','+y1; if(seen[k]) return; seen[k]=1;
+    if(x0===x1? !colMaj[x0] : !rowMaj[y0]) return;
+    var u=distAt((x0+x1)/2,(y0+y1)/2); byM[u]=(byM[u]||'')+'M'+x0+' '+y0+'L'+x1+' '+y1; }
+  (M.tiles||[]).forEach(function(t){ var u=distAt((t[0]+t[2])/2,(t[1]+t[3])/2); byU[u]=(byU[u]||'')+tileD(t);
+    major(t[0],t[1],t[2],t[1]); major(t[0],t[3],t[2],t[3]); major(t[0],t[1],t[0],t[3]); major(t[2],t[1],t[2],t[3]); });
+  (M.edges||[]).forEach(function(e){ var u=distAt((e[0]+e[2])/2,(e[1]+e[3])/2); byU[u]=(byU[u]||'')+'M'+e[0]+' '+e[1]+'L'+e[2]+' '+e[3]; major(e[0],e[1],e[2],e[3]); });
+  function tc(u){ return tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()); }
+  Object.keys(byU).forEach(function(u){ tube(sg, byU[u], tc(u), 3.6, .95, 't-min'); });
+  Object.keys(byM).forEach(function(u){ tube(sg, byM[u], tc(u), 5.6, .95, 't-maj'); });
   /* the diagonals: one clean line, joining the grid with rounded elbows */
-  M.streets.forEach(function(st){ if(st.d) tube(sg, rp(st.p), tubeCol(dcol(distAt(st.p[2],st.p[3]))||NEUTRAL()), TUBE, .95); });
+  M.streets.forEach(function(st){ if(st.d) tube(sg, rp(st.p), tubeCol(dcol(distAt(st.p[2],st.p[3]))||NEUTRAL()), 5.6, .95, 't-maj'); });
   /* the rivers: each a broad glass band (a connecting line grown wide: edge, body, a light
      centre, a sheen) on a smooth course, run off the glass at its ends; the bridges over it */
   var cp=el('clipPath',{id:'plclip'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},cp);
@@ -645,7 +680,7 @@ function drawCity(svg){
     el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.13)},rv); });
   var bridges=el('g',{'class':'pl-bridges'},svg);
   /* a bridge is cased in white, so it reads over the water in any colour */
-  M.streets.forEach(function(st){ if(st.o){ el('path',{'class':'pl-casing', d:pts(st.p)},bridges); tube(bridges, pts(st.p), tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), TUBE, .95); } });
+  M.streets.forEach(function(st){ if(st.o){ el('path',{'class':'pl-casing', d:pts(st.p)},bridges); tube(bridges, pts(st.p), tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), 5.6, .95, 't-maj'); } });
   var lg=el('g',{'class':'pl-lms'},svg);
   /* the railway: straight, above ground, a connecting line with ties */
   var rg=el('g',{'class':'pl-rails'},svg);
@@ -657,11 +692,12 @@ function drawCity(svg){
   var stl=el('g',{'class':'pl-stns'},svg);
   (M.stations||[]).forEach(function(s){
     var hub=s.hub || s.k==='rail';
-    var c=NEUTRAL();
-    if(hub){ el('circle',{'class':'pl-ring hub', cx:s.x, cy:s.y, r:13, stroke:c},stl); el('circle',{'class':'pl-ring-sh', cx:s.x, cy:s.y, r:13},stl);
-      el('circle',{'class':'pl-ring', cx:s.x, cy:s.y, r:6, stroke:c},stl); }
-    else { el('circle',{'class':'pl-ring', cx:s.x, cy:s.y, r:6.5, stroke:c},stl); el('circle',{'class':'pl-ring-sh', cx:s.x, cy:s.y, r:6.5},stl); }
-    lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x+(hub?18:11), s.y-(hub?15:9), 'start');
+    var c=NEUTRAL(), sg_=el('g',{'class':'pl-stn', style:'--sx:'+s.x+'px;--sy:'+s.y+'px'},stl);
+    /* a ring is drawn at the origin of its own group, which the page scales to the screen (a ring keeps its size at every zoom) */
+    if(hub){ el('circle',{'class':'pl-ring hub', cx:0, cy:0, r:13, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:13},sg_);
+      el('circle',{'class':'pl-ring', cx:0, cy:0, r:6, stroke:c},sg_); }
+    else { el('circle',{'class':'pl-ring', cx:0, cy:0, r:6.5, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:6.5},sg_); }
+    lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x, s.y, 'start');
   });
   var labels=el('g',{},svg);
   (M.river||[]).forEach(function(r,i){ if(r.n) riverLabels(svg, defs, labels, r, i); });
@@ -678,12 +714,10 @@ function drawCity(svg){
     var fs=Math.min(34, bw/(longest*.62), bh/(lines.length*1.2));
     var t=el('text',{'class':'lm-name', x:l.x, y:l.y-(lines.length-1)*fs*.6, 'text-anchor':'middle', 'font-size':fs.toFixed(1)},g);
     lines.forEach(function(s_,i){ var ts=el('tspan',{x:l.x, dy:i?'1.2em':'.35em'},t); ts.textContent=s_; }); });
-  /* districts: the section's name over its buildings, as a unit's label floats over its band */
+  /* districts: the neighbourhood's own name over its buildings (the unit it holds is in its pop-up) */
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
-    var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:pm.colorRaw, 'data-u':d.u},labels);
-    var a=el('tspan',{'class':'full', x:c[0]},t); a.textContent=pm.numeral+' · '+(pm.label.split(' — ')[1]||pm.label);
-    var a2=el('tspan',{'class':'only', x:c[0]},t); a2.textContent=pm.numeral;
-    if(d.n){ var b=el('tspan',{'class':'nb', x:c[0], dy:'1.35em'},t); b.textContent=d.n; } });
+    var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:tubeCol(pm.colorRaw), 'data-u':d.u},labels);
+    t.textContent=d.n || pm.label; });
   lbl(labels,'pl-credit','Map data © OpenStreetMap contributors', M.W+MX-18, M.H+MY-18, 'end');
   var hits=el('g',{'class':'pl-hits'},svg);
   M.streets.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hits); h._n=s.n; });
@@ -726,6 +760,8 @@ function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; re
 /* the farthest the board zooms out: where a building's number is still 10px tall */
 var ZREAD=(function(){ var L=null; for(var i=0;i<P.b.length && !L;i++) if(P.b[i] && P.b[i][0]) L=P.b[i][0]; if(!L) return .1;
   return Math.max(10/(L[3]*.55), 10*(4*.62+.6)/L[2]); })();
+/* one screen px in map units, a touch more on screen as the map comes close (lines and rings keep their weight, not their scale) */
+function tw(z){ return (Math.max(.88, Math.min(1.4, Math.pow(z,.3)))/z).toFixed(4); }
 function zmin(){ return Math.max(fitZ()*.92, ZREAD); }
 function setClasses(){ de.classList.toggle('pz-far', Z<.42); de.classList.toggle('pz-mid', Z<.8);
   if(svgD){ svgD.classList.toggle('far', Z<.42); svgD.classList.toggle('mid', Z<.8); } }
@@ -735,7 +771,7 @@ function placeAll(){
   /* a city smaller than the window sits in the middle of it */
   var cv=document.getElementById('canvas'), gap=cv?Math.max(0,(cv.clientWidth-VW*Z)/2):0;
   world.style.setProperty('margin-left', Math.round(gap)+'px', 'important');
-  if(svgD){ svgD.setAttribute('width', VW*Z); svgD.setAttribute('height', VH*Z); svgD.style.setProperty('--pz', Z); svgD.style.top=WORLD_PAD_TOP+'px'; }
+  if(svgD){ svgD.setAttribute('width', VW*Z); svgD.setAttribute('height', VH*Z); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.top=WORLD_PAD_TOP+'px'; }
   setClasses(); if(svgD) sizeChips(svgD);
   (typeof NODES!=='undefined'?NODES:[]).forEach(function(n){
     var e=document.getElementById('node-'+n.id); if(!e) return;
@@ -862,6 +898,11 @@ function pageName(pg){ var q=String(pg||'').split(':'), k=q.slice(1).join(':');
 function openPage(pg){ var q=String(pg||'').split(':'), k=q.slice(1).join(':'); if(!k) return;
   if(q[0]==='index' && window.showAxisIndex) window.showAxisIndex(k); else if(q[0]==='char') window.showDetail('char',k); else if(q[0]==='node') window.showDetail('node',k); }
 function lmTip(g){ var pg=g.getAttribute('data-page'); return '<b>'+esc(g.getAttribute('data-name'))+'</b>'+(pg?'<small>Inside: '+esc(pageName(pg))+' · click to go in</small>':''); }
+/* a neighbourhood's pop-up: its name, the unit it holds (number and label), and what stands in it */
+function distTip(u){ var pm=PHASE_META[u]; if(!pm) return ''; var d=(P.d||[]).filter(function(q){ return q.u===u; })[0]||{}, ids=(P.units||[])[u]||[];
+  var h='<b>'+esc(d.n||pm.label)+'</b><small class="pt-unit"><i style="background:'+esc(tubeCol(pm.colorRaw))+'"></i>Unit '+esc(pm.numeral)+' · '+esc(pm.label)+'</small>';
+  h+='<small>'+ids.length+' building'+(ids.length===1?'':'s')+': '+ids.slice(0,3).map(function(id){ return esc(num(id)+' '+title(id)); }).join(' · ')+(ids.length>3?' …':'')+'</small>';
+  return h; }
 function svgPt(svg, e){ var r=svg.getBoundingClientRect(), vb=svg.viewBox.baseVal; return [vb.x+(e.clientX-r.left)/r.width*vb.width, vb.y+(e.clientY-r.top)/r.height*vb.height]; }
 function cornerAt(svg, e, street){
   var p=svgPt(svg,e), g=graph(), zz=(svg===svgD?Z:(MM.z||1)), n=nearest(p[0],p[1],2,16/zz);
@@ -895,14 +936,17 @@ function bAt(t){ if(!t||!t.closest) return null; var b=t.closest('.pl-bld[data-i
   var n=t.closest('#world .node[id^="node-"]'); if(n && !n.classList.contains('focused')){ var id=n.id.slice(5); return isB(id)?id:null; } return null; }
 document.addEventListener('mouseover', function(e){
   if(!palaceOn() || dragging) return;
-  var id=bAt(e.target), st=e.target.closest && e.target.closest('#palace-svg .pl-hit'), du=e.target.closest && e.target.closest('#palace-svg .pl-dist');
+  var id=bAt(e.target), st=e.target.closest && e.target.closest('#palace-svg .pl-hit'), du=e.target.closest && e.target.closest('#palace-svg .pl-dist'),
+      da=e.target.closest && e.target.closest('#palace-svg .pl-dtint');
   var lm=e.target.closest && e.target.closest('#palace-svg .pl-lmb');
   clearTimeout(tipT);
   if(lm){ tipT=setTimeout(function(){ showTip(lmTip(lm), e.clientX, e.clientY); }, 90); return; }
   if(id){ tipT=setTimeout(function(){ showTip(bTip(id), e.clientX, e.clientY); if(!focused()){ hotB=id; drawRoutes(svgD, id); } }, 110); return; }
   if(du){ var u=+du.getAttribute('data-u'); tipT=setTimeout(function(){ if(!focused()) drawRoutes(svgD, null, u);
-    showTip('<b>'+esc(du.textContent)+'</b><small>'+(((P.units||[])[u]||[]).length)+' buildings · the dotted line is the walk through them in order · click to go there</small>', e.clientX, e.clientY); }, 110); return; }
+    showTip(distTip(u)+'<small>The dotted line is the walk through them in order · click to go there</small>', e.clientX, e.clientY); }, 110); return; }
   if(st){ var nm=st._n; tipT=setTimeout(function(){ var c=cornerAt(svgD, e, nm); showTip('<b>'+esc(c?c.join(' & '):nm)+'</b>', e.clientX, e.clientY); }, 90); return; }
+  /* the neighbourhood's own ground (under the streets, buildings and landmarks, so those win) */
+  if(da){ var ua=+da.getAttribute('data-u'); tipT=setTimeout(function(){ if(!focused() && hotB){ hotB=null; drawRoutes(svgD, null); } showTip(distTip(ua), e.clientX, e.clientY); }, 140); return; }
   tipT=setTimeout(function(){ hideTip(); if(!focused() && hotB){ hotB=null; drawRoutes(svgD, null); } else if(!focused() && svgD && svgD._r && svgD._r.firstChild) drawRoutes(svgD, null); }, 120);
 });
 document.addEventListener('mousemove', function(e){
@@ -957,7 +1001,7 @@ function ctl(){
   var c=document.createElement('div'); c.id='pal-ctl';
   var h='<h5><span>'+esc(P.place||'The city')+'</span><span></span></h5><div class="pk-body">';
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
-    h+='<div class="pk-row" data-u="'+d.u+'"><span class="pk-sw" style="background:'+pm.colorRaw+'"></span><div><b>'+esc(pm.numeral+' · '+(pm.label.split(' — ')[1]||pm.label))+'</b><small>'+esc(d.n)+'</small></div></div>'; });
+    h+='<div class="pk-row" data-u="'+d.u+'"><span class="pk-sw" style="background:'+pm.colorRaw+'"></span><div><b>'+esc(d.n||pm.label)+'</b><small>Unit '+esc(pm.numeral)+' · '+esc(pm.label)+'</small></div></div>'; });
   var sw=function(s){ return '<svg width="26" height="12" style="flex:none">'+s+'</svg>'; };
   h+='<div class="pk-sep"></div>';
   h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="#59616c" stroke-width="7" stroke-dasharray="1.4 4.6"/><line x1="1" y1="6" x2="25" y2="6" stroke="#59616c" stroke-width="2.6"/>')+'<div>Railway <small>above ground — the cross-ties mark a train line</small></div></div>';
@@ -1073,7 +1117,7 @@ function mmapOpen(){
     box.innerHTML='<div class="pm-scroll"></div><button class="pm-close" aria-label="Close">✕</button><div class="pm-zoom"><button data-z="in">+</button><button data-z="out">−</button></div><div class="pm-card"></div>';
     document.body.appendChild(box); MM.box=box;
     MM.svg=el('svg',{viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none', id:'palace-svg-m', 'class':'pal-svg'}); MM.svg._sid='m'; drawCity(MM.svg);
-    MM.svg.style.setProperty('--pz', MM.z);
+    MM.svg.style.setProperty('--pz', MM.z); MM.svg.style.setProperty('--tw', tw(MM.z));
     box.querySelector('.pm-scroll').appendChild(MM.svg);
     box.querySelector('.pm-close').addEventListener('click', mmapClose);
     box.querySelector('.pm-zoom').addEventListener('click', function(e){ var b=e.target.closest('[data-z]'); if(!b) return; var sc=box.querySelector('.pm-scroll'); mz(MM.z*(b.getAttribute('data-z')==='in'?1.6:1/1.6), sc.clientWidth/2, sc.clientHeight/2); });
@@ -1089,7 +1133,8 @@ function mmapOpen(){
       var h=e.target.closest('.pl-hit'); if(h){ var c=cornerAt(MM.svg, e, h._n); card.innerHTML='<b>'+esc(c?c.join(' & '):h._n)+'</b>'; card.classList.add('on'); return; }
       var lmb=e.target.closest('.pl-lmb'); if(lmb){ var pg=lmb.getAttribute('data-page');
         card.innerHTML=lmTip(lmb)+(pg?'<button data-page="'+esc(pg)+'">Go inside</button>':''); card.classList.add('on'); return; }
-      var du=e.target.closest('.pl-dist'); if(du){ drawRoutes(MM.svg, null, +du.getAttribute('data-u')); card.innerHTML='<b>'+esc(du.textContent)+'</b><small>The dotted line walks through its buildings in order.</small>'; card.classList.add('on'); return; }
+      var du=e.target.closest('.pl-dist'); if(du){ drawRoutes(MM.svg, null, +du.getAttribute('data-u')); card.innerHTML=distTip(+du.getAttribute('data-u'))+'<small>The dotted line walks through its buildings in order.</small>'; card.classList.add('on'); return; }
+      var dt=e.target.closest('.pl-dtint'); if(dt){ card.innerHTML=distTip(+dt.getAttribute('data-u')); card.classList.add('on'); return; }
       card.classList.remove('on'); drawRoutes(MM.svg, null);
     });
     box.querySelector('.pm-card').addEventListener('click', function(e){ var pgb=e.target.closest('[data-page]'); if(pgb){ mmapClose(); openPage(pgb.getAttribute('data-page')); return; }
@@ -1105,7 +1150,7 @@ function mmapOpen(){
 }
 function mz(z, ax, ay, keep){ var sc=MM.box.querySelector('.pm-scroll'); z=Math.max(ZREAD, Math.min(1.6, z));
   var mx=(sc.scrollLeft+ax)/MM.z, my=(sc.scrollTop+ay)/MM.z; MM.z=z;
-  MM.svg.setAttribute('width', VW*z); MM.svg.setAttribute('height', VH*z); MM.svg.style.setProperty('--pz', z);
+  MM.svg.setAttribute('width', VW*z); MM.svg.setAttribute('height', VH*z); MM.svg.style.setProperty('--pz', z); MM.svg.style.setProperty('--tw', tw(z));
   MM.svg.classList.toggle('far', z<.42); MM.svg.classList.toggle('mid', z<.8);
   if(!keep){ sc.scrollLeft=mx*z-ax; sc.scrollTop=my*z-ay; } }
 function mmapClose(){ if(MM.box) MM.box.classList.remove('on'); }
