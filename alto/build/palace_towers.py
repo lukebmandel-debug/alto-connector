@@ -378,7 +378,8 @@ def apply_towers(b, nodes) -> list:
                             "is not on the map (run set_up_palace again so the landmark is found) — "
                             "that section keeps its buildings")
     for u, (s, lm) in on_map.items():
-        roots = [n for n in nodes if n.act == u and not n.parent]
+        out = {k for k, h in (b.placement or {}).items() if isinstance(h, dict) and h.get("out")}   # floors let out of the tower
+        roots = [n for n in nodes if n.act == u and not n.parent and n.id not in out]
         if not roots:
             from .brief import Node
             title = s.get("label") or s["name"]
@@ -390,32 +391,66 @@ def apply_towers(b, nodes) -> list:
         hub = roots[0]
         for n in roots[1:]:
             n.parent = hub.id
+            b.__dict__.setdefault("_tower_kids", set()).add(n.id)       # (the page tells these from a floor's own children)
     return warnings
 
 
-def floor_numbers(floors: list, top: int) -> dict:
-    """{floor id: its real floor number}: the floors in reading order spread over 2..top (gaps allowed)."""
+def floor_numbers(floors: list, top: int, fixed: dict | None = None) -> dict:
+    """{floor id: its real floor number}: the floors in reading order spread over 2..top (gaps allowed).
+    `fixed` {floor id: number} are numbers the user chose; the other floors keep their place in the
+    spread, moving up to the next free number if a chosen one sits on theirs."""
     m = len(floors)
     if not m:
         return {}
     top = max(top, m + 1)
-    if m == 1:
-        return {floors[0]: top}
-    return {f: 2 + round(i * (top - 2) / (m - 1)) for i, f in enumerate(floors)}
+    spread = {floors[0]: top} if m == 1 else {f: 2 + round(i * (top - 2) / (m - 1)) for i, f in enumerate(floors)}
+    fixed = {f: int(n) for f, n in (fixed or {}).items() if f in spread and isinstance(n, int) and not isinstance(n, bool) and n >= 2}
+    if not fixed:
+        return spread
+    used = set(fixed.values())
+    out = dict(fixed)
+    for f in floors:
+        if f in out:
+            continue
+        n = spread[f]
+        while n in used:
+            n += 1
+        used.add(n)
+        out[f] = n
+    return out
 
 
 def tower_data(b, units, floors) -> tuple:
-    """({hub id: {n: landmark name, u: unit, top: real floors}}, {floor id: real floor number}) for the page."""
+    """({hub id: {n: landmark name, u: unit, top: real floors}}, {floor id: real floor number}) for the page.
+    The floors of each tower are put in floor order (in place)."""
     tw, fn = {}, {}
+    pl = b.placement or {}
     for u, (s, lm) in placed(b).items():
         hub = units[u][0] if u < len(units) and units[u] else None
         if not hub:
             continue
         fl = floors.get(hub, [])
         top = max(real_floors(s), len(fl) + 1)
+        fixed = {f: (pl.get(f) or {}).get("fno") for f in fl}
+        nums = floor_numbers(fl, top, {f: n for f, n in fixed.items() if n})
+        top = max([top] + list(nums.values()))
+        fl.sort(key=lambda f: nums[f])
         tw[hub] = {"n": lm["n"], "u": u, "top": top}
-        fn.update(floor_numbers(fl, top))
+        fn.update(nums)
     return tw, fn
+
+
+def landmark_state(b, m: dict) -> dict:
+    """What the page needs to house a unit in a landmark: {lm: {name: its stored {unit, floors} or None}, top: {name: the
+    real floor count it would have}} for each landmark with a block on the map."""
+    pal = b.palace or {}
+    cur = {}
+    for u, (s, lm) in placed(b).items():
+        raw = next((e for e in pal.get("buildings") or [] if isinstance(e, dict) and e.get("unit") == u), {})
+        cur[lm["n"]] = {"unit": u, "floors": raw.get("floors") if isinstance(raw.get("floors"), int) else None}
+    names = [l["n"] for l in m.get("landmarks", []) if l.get("box") and l.get("n")]
+    return {"lm": {n: cur.get(n) for n in names},
+            "top": {n: (real_floors({"name": n}) if n not in cur or cur[n]["floors"] is None else cur[n]["floors"]) for n in names}}
 
 
 def tower_lots(m: dict, blocks: list, at: dict, tw: dict) -> list:

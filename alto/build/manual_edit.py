@@ -1210,7 +1210,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
-    if(window._altoPalaceField && (kind === 'pf' || (kind === 'p' && p[2] === 'lot'))) return window._altoPalaceField(k);
+    if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out)$/.test(p[2] || '')))) return window._altoPalaceField(k);
     if(LN && (kind === 'ln' || (kind === 'n' && p.length === 3 && (p[2] === 'when' || p[2] === 'line')))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
@@ -1415,6 +1415,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(p[0] === 'sx') return -1.35;
     if(p[0] === 'so') return -1.3;
     if(p[0] === 'fl') return -1;
+    if(p[0] === 'pu') return -2.5;
     if(p[0] === 'pf') return -0.9;
     if((p[0] === 'dt' && p[2] === 'tree') || p[0] === 'sd') return NEWT.test(p[1]) ? 0.5 : 0;
     return p[2] === 'order' ? 0 : (p[2] === 's' && /^new-/.test(p[3] || '')) ? 1 : 2; }
@@ -1546,7 +1547,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'bt'){ headingSoon(); return; }
     if((kind === 'n' || kind === 'nn' || kind === 'nd') && window._altoSearch && window._altoSearch.reset) window._altoSearch.reset();     // the search index: the cards as they are now
-    if(kind === 'pf' || (kind === 'p' && p[2] === 'lot')){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
+    if(kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
     if(kind === 'nl' || kind === 'ln' || (kind === 'n' && (p[2] === 'when' || p[2] === 'line'))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
@@ -2771,7 +2772,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     return best || 'Notes';
   }
   /* a box of a few labelled fields: fields [{k, l, type: text|area|select, val, opts, hint}] */
-  function askForm(at, title, fields, ok, done){
+  function askForm(at, title, fields, ok, done, check){
     hideMenus();
     var b = document.getElementById('aed-form');
     if(!b){ b = document.createElement('div'); b.id = 'aed-form';
@@ -2787,9 +2788,11 @@ MANUAL_JS = r"""<script id="alto-manual">
       b.querySelectorAll('[data-f]').forEach(function(el){ var k = el.getAttribute('data-f'); vals[k] = String(el.value || '').replace(/[ \t]+/g, ' ').trim();
         var fd = b._fields.filter(function(x){ return x.k === k; })[0]; if(fd && fd.req && !vals[k] && !bad) bad = el; });
       if(bad){ bad.focus(); bad.classList.add('bad'); return; }
+      var er = b.querySelector('.aed-err'), msg = b._check ? b._check(vals) : '';
+      if(msg){ if(er){ er.textContent = msg; er.style.display = 'block'; } return; }
       var fn = b._done; b.classList.remove('show'); if(fn) fn(vals);
     }
-    b._fields = fields; b._done = done;
+    b._fields = fields; b._done = done; b._check = check || null;
     var h = '<h5></h5>';
     fields.forEach(function(f){
       h += '<label><span>' + esc(f.l) + '</span>';
@@ -2798,9 +2801,9 @@ MANUAL_JS = r"""<script id="alto-manual">
       else h += '<input data-f="' + f.k + '" type="text" maxlength="300" autocomplete="off" placeholder="' + esc(f.ph || '').replace(/"/g, '&quot;') + '" value="' + esc(f.val || '').replace(/"/g, '&quot;') + '">';
       if(f.hint) h += '<small>' + esc(f.hint) + '</small>';
       h += '</label>'; });
-    h += '<div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="ok" class="ab-ok">' + esc(ok || 'Add') + '</button></div>';
+    h += '<div class="aed-err" style="display:none;color:#b3261e;font-size:12px;font-weight:600;margin:2px 0 6px"></div><div class="al-go"><button type="button" data-a="cancel">Cancel</button><button type="button" data-a="ok" class="ab-ok">' + esc(ok || 'Add') + '</button></div>';
     b.innerHTML = h; b.querySelector('h5').textContent = title;
-    b.querySelectorAll('input,textarea').forEach(function(el){ el.addEventListener('input', function(){ el.classList.remove('bad'); }); });
+    b.querySelectorAll('input,textarea').forEach(function(el){ el.addEventListener('input', function(){ el.classList.remove('bad'); var er = b.querySelector('.aed-err'); if(er) er.style.display = 'none'; }); });
     b.classList.add('show'); placeNear(b, at);
     var first = b.querySelector('input,textarea'); if(first) setTimeout(function(){ first.focus(); first.select && first.select(); }, 0);
   }
