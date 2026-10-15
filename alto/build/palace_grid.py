@@ -34,7 +34,6 @@ CW, CH = 240, 170          # one block, grid px: big enough that a building's nu
 PAD = 110                  # margin around the grid
 LEAD = 40                  # how far a turned end runs along the street it joins
 SNAP_DEG = 25
-ROW_RESIDENTIAL_MIN = 3000   # real px: how long a plain residential street must run to be a row of the grid
 _DIR = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(?=\S+\s)", re.I)
 _NUM = re.compile(r"^(\d+)(st|nd|rd|th)\b", re.I)
 
@@ -172,7 +171,6 @@ def _lines(m, th, majors, diagonals):
     segs = {"v": {}, "h": {}}
     diag = {}
     dirlen: dict = {}          # each name's length running each way (h, v, d)
-    kmin: dict = {}            # each row name's best street class
     for st in m.get("streets", []):
         if st.get("t") or not st.get("n"):
             continue
@@ -185,23 +183,14 @@ def _lines(m, th, majors, diagonals):
                 continue
             ang = math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) % 180
             kd = "h" if (ang < SNAP_DEG or ang > 180 - SNAP_DEG) else "v" if abs(ang - 90) < SNAP_DEG else "d"
+            t3 = dirlen.setdefault(n, {"h": 0.0, "v": 0.0, "d": 0.0}); t3[kd] += L
             if n in diag_n:
-                t3 = dirlen.setdefault(n, {"h": 0.0, "v": 0.0, "d": 0.0}); t3[kd] += L
                 diag.setdefault(n, []).append((a, b))
                 continue
-            # a street that runs on the slant (south-west Philadelphia's own grid is turned half
-            # a right angle from the city's) is still a column or a row: the numbered streets
-            # are columns, the named ones rows (unless they run nearer north-south)
-            if kd == "d":
-                if k == 0 and not numbered(n):         # a slanting expressway stays off the grid
-                    continue
-                kd = "v" if (numbered(n) or 45 <= ang <= 65) else "h"
-            t3 = dirlen.setdefault(n, {"h": 0.0, "v": 0.0, "d": 0.0}); t3[kd] += L
             if kd == "v" and (numbered(n) or n in majors_n or k <= 2):
                 segs["v"].setdefault(n, []).append((a, b, L, bool(st.get("b"))))
-            elif kd == "h" and (n in majors_n or k <= 3 or k == 4):
+            elif kd == "h" and (n in majors_n or k <= 3):
                 segs["h"].setdefault(n, []).append((a, b, L, bool(st.get("b"))))
-                kmin[n] = min(kmin.get(n, 9), k)
     out = {}
     for o in ("v", "h"):
         lines = []
@@ -220,11 +209,7 @@ def _lines(m, th, majors, diagonals):
             groups.append(cur)
             for g in groups:
                 tot = sum(it[3] for it in g)
-                if tot < 380 and n not in majors_n or tot < 250:
-                    continue
-                # a plain residential cross street is a row only if it is a long one (a main street
-                # of its neighbourhood: Larchwood, Cedar, Paschall ...), not one of a block's alleys
-                if o == "h" and n not in majors_n and kmin.get(n, 9) >= 4 and tot < ROW_RESIDENTIAL_MIN:
+                if tot < 380 and n not in majors_n:
                     continue
                 pos = sum(it[0] * it[3] for it in g) / tot
                 iv = sorted(tuple(sorted((it[1][1], it[2][1]) if o == "v" else (it[1][0], it[2][0]))) + (it[4],) for it in g)
