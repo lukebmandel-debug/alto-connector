@@ -342,9 +342,12 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-stt{transform:translate(calc(var(--tw,1) * 13px),calc(var(--tw,1) * -9px));}
   .pal-svg .pl-stt.hub{transform:translate(calc(var(--tw,1) * 20px),calc(var(--tw,1) * -15px));}
   .pal-svg .pl-dtint{fill-opacity:0;pointer-events:all;}
-  .pal-svg .pl-dist{font-size:calc(26px / var(--pz,1));font-weight:700;letter-spacing:.2em;text-transform:uppercase;
-    stroke-width:calc(7px / var(--pz,1));pointer-events:all;cursor:pointer;}
-  .pal-svg.far .pl-dist{font-size:calc(30px / var(--pz,1));}
+  /* a neighbourhood's name is an area label, as on an ordinary map: small and light at the whole-city zoom (about 11px on the screen),
+     growing gently as you come closer (to 20px), tracked only a little, with a halo; at the far zoom it lets every click through to
+     the streets and buildings under it (the Key's rows still fly to a neighbourhood) */
+  .pal-svg .pl-dist{--dfs:clamp(11px, calc(10.5px + 8px * var(--pz,1)), 20px);font-size:calc(var(--dfs) / var(--pz,1));font-weight:650;letter-spacing:.07em;text-transform:uppercase;
+    opacity:.8;stroke-width:calc(3.2px / var(--pz,1));pointer-events:all;cursor:pointer;}
+  .pal-svg.far .pl-dist{opacity:.6;pointer-events:none;}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
   .pal-svg .pl-bld .b-card{fill:rgba(255,255,255,.9);stroke-width:1.4;vector-effect:non-scaling-stroke;}
@@ -752,8 +755,10 @@ function tubeCol(c){ var r=rgbOf(c), bg=GR&&GR.length===3?GR:(dk()?[28,30,40]:[2
   return 'rgb('+r[0]+','+r[1]+','+r[2]+')'; }
 function sheen(){ return dk()?'rgba(255,255,255,0.50)':'rgba(255,255,255,0.72)'; }
 var NEUTRAL=function(){ return dk()?'rgb(208,212,226)':'rgb(60,64,84)'; };
-/* which district a point lies in: inside a district's box, else the nearest one */
-function distAt(x,y){ var D=P.d||[], best=null, bd=1e18;
+/* which district a point lies in: inside a district's box, or within a block of it (the streets just outside an edge keep its colour);
+   farther out the city is nobody's (neutral): a neighbourhood is as big as its box, not everything south of it */
+var DIST_REACH=200;
+function distAt(x,y){ var D=P.d||[], best=null, bd=DIST_REACH*DIST_REACH;
   for(var i=0;i<D.length;i++){ var b=D[i].box; if(x>=b[0]&&x<=b[2]&&y>=b[1]&&y<=b[3]) return D[i].u;
     var cx=Math.max(b[0],Math.min(x,b[2])), cy=Math.max(b[1],Math.min(y,b[3])), d=(cx-x)*(cx-x)+(cy-y)*(cy-y); if(d<bd){ bd=d; best=D[i].u; } }
   return best; }
