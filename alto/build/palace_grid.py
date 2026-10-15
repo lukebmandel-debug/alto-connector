@@ -539,6 +539,22 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
             if ("h", j, i) not in used and has(rsp[j], (xg[i] + xg[i + 1]) / 2) and not in_lm(xg[i], yg[j], xg[i + 1], yg[j]):
                 edges.append([xg[i], yg[j], xg[i + 1], yg[j]])
 
+    # a transit line runs along a street: wherever its track follows a grid line that no street was
+    # drawn on (the real street was a diagonal avenue or a lane the grid leaves out), the line gets its
+    # street, so no line crosses a void and no stop hangs in the middle of nowhere
+    transit = snap_transit(m.get("transit"), mp, xg, yg, W, H)
+    have = {(round(e[0]), round(e[1]), round(e[2]), round(e[3])) for e in edges}
+    for i0, j0, i1, j1 in transit.pop("ge", []):
+        x0, y0, x1, y1 = xg[i0], yg[j0], xg[i1], yg[j1]
+        key = ("v", i0, min(j0, j1)) if x0 == x1 else ("h", j0, min(i0, i1))
+        if key in used or (round(min(x0, x1)), round(min(y0, y1)), round(max(x0, x1)), round(max(y0, y1))) in have:
+            continue
+        if in_lm(x0, y0, x1, y1):
+            continue
+        used.add(key)
+        edges.append([min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)])
+        have.add((round(min(x0, x1)), round(min(y0, y1)), round(max(x0, x1)), round(max(y0, y1))))
+
     landmarks_out = [{"n": l_["n"], "x": round((l_["box"][0] + l_["box"][2]) / 2, 1),
                       "y": round((l_["box"][1] + l_["box"][3]) / 2, 1), "r": [], "box": l_["box"],
                       "page": l_["page"]} for l_ in lms]
@@ -551,7 +567,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
              majors=sorted({norm(x) for x in majors} | {norm(s_["n"]) for s_ in streets if s_["k"] == 0} | bridge_names),
              grid=mp.tables(), cols=[c["n"] for c in cols], rows=[r["n"] for r in rows])
     lm_cells = lm_all
-    g["transit"] = snap_transit(m.get("transit"), mp, xg, yg, W, H)
+    g["transit"] = transit
     g["blocks"] = blocks(g, csp, rsp, xg, yg, water, lambda p: near_river(p, 6), lm_cells, rail_y)
     return g
 

@@ -389,6 +389,21 @@ def test_place_a_crowded_district_spills_over_without_losing_anyone():
     assert len(set(at.values())) == total
 
 
+def test_a_small_district_stacks_its_buildings_instead_of_spilling_out_of_its_box():
+    m = city_map()
+    blocks = pp.lots(m)
+    ds = districts()
+    x0, y0, x1, y1 = pp.district_box(m, ds[0])
+    inside = [b for b in blocks if x0 <= b["x"] <= x1 and y0 <= b["y"] <= y1 and len(b["lots"]) >= 3]
+    assert len(inside) >= 2
+    n = len(inside) * pp.PER + 1                   # more than PER to a block would hold, fewer than all its lots
+    ids = [f"n{i}" for i in range(n)]
+    at = pp.place(m, blocks, [ids, [], []], ds)
+    by_key = {f"{b['id']}.{k}": b for b in blocks for k in range(len(b["lots"]))}
+    assert len(set(at.values())) == n
+    assert all(x0 <= by_key[at[i]]["x"] <= x1 and y0 <= by_key[at[i]]["y"] <= y1 for i in ids)
+
+
 def test_district_box_and_to_px():
     m = city_map()
     assert pp.to_px(m, BBOX[2], BBOX[1]) == pytest.approx((0, 0), abs=1e-6)

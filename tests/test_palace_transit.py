@@ -91,6 +91,69 @@ def test_a_turn_is_square_and_lines_sharing_a_street_run_in_lanes():
     assert ya != yb and abs(list(ya)[0] - list(yb)[0]) >= 6      # side by side, not on top of each other
 
 
+def _off(polys, x, y):
+    """Distance from (x, y) to the nearest drawn run of a line."""
+    best = 1e18
+    for f in polys:
+        for k in range(0, len(f) - 3, 2):
+            ax, ay, bx, by = f[k:k + 4]
+            dx, dy = bx - ax, by - ay
+            t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / ((dx * dx + dy * dy) or 1e-9)))
+            best = min(best, ((ax + t * dx - x) ** 2 + (ay + t * dy - y) ** 2) ** .5)
+    return best
+
+
+def test_a_stop_where_two_lines_part_company_gets_a_dot_on_each_track():
+    tr = _tr([[100, 270, 580, 270]], [[100, 440, 580, 440]])
+    tr["stops"][0].update(x=170, y=355)                           # halfway between the two rows
+    tr["lines"][1]["s"] = [0]
+    g = snap(tr, _Id(), XG, YG, 920, 540)
+    s1 = [s for s in g["stops"] if s["n"] == "S1"]
+    assert len(s1) == 2 and sorted(l for s in s1 for l in s["l"]) == ["a", "b"]    # not one dot floating between the tracks
+    for s in s1:
+        (lid,) = s["l"]
+        (ln,) = [l for l in g["lines"] if l["id"] == lid]
+        assert _off(ln["p"], s["x"], s["y"]) < 1
+
+
+def test_a_stop_whose_track_is_not_there_is_not_drawn_and_a_line_lists_only_stops_it_reaches():
+    g = snap(_tr([[110, 262, 360, 280, 570, 275]]), _Id(), XG, YG, 920, 540)
+    assert "Far" not in [s["n"] for s in g["stops"]]
+    (l,) = g["lines"]
+    assert [g["stops"][i]["n"] for i in l["s"]] == ["S1", "S2"]
+    assert g["ge"] and all(len(e) == 4 for e in g["ge"])           # the grid edges it runs along (palace_grid gives them streets)
+
+
+def test_no_stop_floats_off_its_lines_in_the_civ_pro_bundle():
+    """Every dot on the real Civ Pro Mind Palace stands on each line it names (to within the lane gap), every line lists
+    only stops that list it back, and every line runs along drawn streets (never through a void)."""
+    import json
+    import os
+    path = Path(os.environ.get("ALTO_CIVPRO_PALACE", "/private/tmp/claude-501/-Users-lukemandel-Desktop-Terrarium-Alto/"
+                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p3.json"))
+    if not path.exists():
+        pytest.skip("the Civ Pro bundle is not on this machine")
+    m = palace.unpack(json.loads(path.read_text())["brief"]["palace"]["data_z"])["map"]
+    tr = m["transit"]
+    lines = {l["id"]: l for l in tr["lines"]}
+    assert tr["stops"] and lines
+    for i, s in enumerate(tr["stops"]):
+        assert s["l"] and all(l in lines for l in s["l"]), s["n"]          # a dot only where a line is drawn
+        for lid in s["l"]:
+            assert i in lines[lid]["s"], (s["n"], lid)
+            assert _off(lines[lid]["p"], s["x"], s["y"]) <= 7.5, (s["n"], lid)       # on it (an interchange sits between lanes)
+    for l in tr["lines"]:
+        assert all(l["id"] in tr["stops"][k]["l"] for k in l["s"])
+    drawn = [[t[0], t[1], t[2], t[1]] for t in m["tiles"]] + [[t[0], t[3], t[2], t[3]] for t in m["tiles"]] \
+        + [[t[0], t[1], t[0], t[3]] for t in m["tiles"]] + [[t[2], t[1], t[2], t[3]] for t in m["tiles"]] + m["edges"]
+    for l in tr["lines"]:
+        for f in l["p"]:
+            for k in range(0, len(f) - 3, 2):
+                mx, my = (f[k] + f[k + 2]) / 2, (f[k + 1] + f[k + 3]) / 2
+                assert any(min(a, c) - 16 <= mx <= max(a, c) + 16 and min(b, d) - 16 <= my <= max(b, d) + 16 for a, b, c, d in drawn), \
+                    (l["id"], round(mx), round(my))                              # a street under every stretch of track
+
+
 # ── the page ───────────────────────────────────────────────────────
 def _bundle():
     d = tp.bundle()

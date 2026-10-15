@@ -6,7 +6,9 @@ line that shares a street with another runs in its own lane beside it, and the
 stations stand on their lines.
 
     snap(tr, mp, xg, yg, W, H) -> {"lines": [{id, n, c, k, p: [flat polylines], s: [stop idx]}],
-                                    "stops": [{n, x, y, l: [line ids]}]}
+                                    "stops": [{n, x, y, l: [line ids]}],
+                                    "ge": [(i0, j0, i1, j1)]  # the grid edges the lines run along (palace_grid draws a street
+                                                              # under any that has none: a line never runs through a void)}
 """
 from __future__ import annotations
 
@@ -14,7 +16,7 @@ import math
 from bisect import bisect_left
 
 LANE = 7.0              # px between two lines that share a street
-MAX_STOP_GAP = 260.0    # a stop farther than this from its line is not drawn
+MAX_STOP_GAP = 130.0    # a stop farther than this from its line (about half a block) is not drawn: its track was trimmed or never fetched
 
 
 def _near(v, G):
@@ -143,7 +145,7 @@ def _trunk(es, pts):
 
 def snap(tr, mp, xg, yg, W, H):
     if not tr or not tr.get("lines"):
-        return {"lines": [], "stops": []}
+        return {"lines": [], "stops": [], "ge": []}
     edges = {}                                           # line id -> set of unit edges
     for ln in tr["lines"]:
         es = set()
@@ -226,19 +228,36 @@ def snap(tr, mp, xg, yg, W, H):
                     best, bd = (px, py), d
         return best, bd
 
-    stops_out, remap = [], {}
+    # a stop stands ON its line: at the nearest point of every line that calls there. Lines that
+    # share the street (their lanes a few px apart) share one dot, between the lanes; lines that
+    # part company there (the dot would float between them) each get their own dot on their own
+    # track. A line whose track never reaches the stop (it was trimmed, or its tiles never came)
+    # does not call there: no dot for a stop nobody's line passes.
+    stops_out, remap = [], {}                            # remap: (old stop idx, line id) -> new idx
+    calls = {ln["id"]: set(ln["s"]) for ln in tr["lines"]}
     for si, s in enumerate(tr["stops"]):
         gx, gy = mp(s["x"], s["y"])
-        ps = []
+        found = []
         for lid in s["l"]:
+            if si not in calls.get(lid, ()):                 # a stop is a line's only if the line lists it back
+                continue
             p, d = onto(geo.get(lid, []), gx, gy)
             if p and d <= MAX_STOP_GAP:
-                ps.append(p)
-        if not ps:
-            continue
-        remap[si] = len(stops_out)
-        stops_out.append({"n": s["n"], "x": round(sum(p[0] for p in ps) / len(ps), 1),
-                          "y": round(sum(p[1] for p in ps) / len(ps), 1), "l": list(s["l"])})
+                found.append((lid, p))
+        groups = []
+        for lid, p in found:
+            for g in groups:
+                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= 2 * LANE + .1 for _, q in g):
+                    g.append((lid, p))
+                    break
+            else:
+                groups.append([(lid, p)])
+        for g in groups:
+            for lid, _ in g:
+                remap[(si, lid)] = len(stops_out)
+            stops_out.append({"n": s["n"], "x": round(sum(p[0] for _, p in g) / len(g), 1),
+                              "y": round(sum(p[1] for _, p in g) / len(g), 1), "l": [lid for lid, _ in g]})
     for ln in lines_out:
-        ln["s"] = [remap[k] for k in ln["s"] if k in remap]
-    return {"lines": lines_out, "stops": stops_out}
+        ln["s"] = list(dict.fromkeys(remap[(k, ln["id"])] for k in ln["s"] if (k, ln["id"]) in remap))
+    ge = sorted({(a[0], a[1], b[0], b[1]) for es in edges.values() for a, b in es})
+    return {"lines": lines_out, "stops": stops_out, "ge": ge}      # ge: every grid edge a line runs along (index pairs)

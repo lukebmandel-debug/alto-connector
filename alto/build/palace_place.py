@@ -320,11 +320,22 @@ def to_px(m, lat, lon):
 
 
 def district_box(m, d) -> tuple:
-    """A district's box in map px from its [south, west, north, east]."""
+    """A district's box in map px from its [south, west, north, east]. The city is
+    drawn turned square to its streets, so the district's real rectangle comes out
+    a little tilted; the box is the largest upright rectangle INSIDE it (not the one
+    around it, which would reach a block or two past every edge, far south of a
+    district that stops at South Street). Falls back to the box around when the
+    inscribed one is under a block."""
     s, w, n, e = d["bounds"]
-    pts = [to_px(m, la, lo) for la in (s, n) for lo in (w, e)]
+    sw, se, nw, ne = to_px(m, s, w), to_px(m, s, e), to_px(m, n, w), to_px(m, n, e)
+    pts = (sw, se, nw, ne)
     xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-    return (min(xs), min(ys), max(xs), max(ys))
+    around = (min(xs), min(ys), max(xs), max(ys))
+    x0, x1 = max(sw[0], nw[0]), min(se[0], ne[0])
+    y0, y1 = max(nw[1], ne[1]), min(sw[1], se[1])
+    if x1 - x0 < 150 or y1 - y0 < 110:
+        return around
+    return (x0, y0, x1, y1)
 
 
 def walk(blocks, box, start=None):
@@ -380,18 +391,23 @@ def place(m, blocks, units, districts, fixed=None) -> dict:
         d = dmap.get(ui)
         box = district_box(m, d) if d else (0, 0, m["W"], m["H"])
         order = [b for b in walk(blocks, box, prev) if b["id"] not in taken_blocks]
-        if len(order) < len(need):         # a crowded district spills into lots of taken blocks, then anywhere
+        # the buildings stand PER to a block, like row houses; a small district (a tight real boundary) with
+        # fewer blocks than that needs stacks them more to a block (up to its lots) before anything spills out of it
+        n = len(need)
+        per = PER
+        if order and len(order) * per < n:
+            per = min(max(len(b["lots"]) for b in order), -(-n // len(order)))
+        if len(order) * per < n:           # a crowded district spills into lots of taken blocks, then anywhere
             order += [b for b in walk(blocks, box, prev) if b["id"] in taken_blocks]
             order += [b for b in blocks if b not in order]
-        # the buildings stand PER to a block, like row houses, the blocks
-        # spread evenly along the walk
-        n, N = len(need), len(order)
-        nb = max(1, -(-n // PER))
+        # the blocks spread evenly along the walk
+        N = len(order)
+        nb = max(1, -(-n // per))
         chosen = [order[min(N - 1, int((j + .5) * N / nb))] for j in range(nb)] if nb <= N else order
         slots = []
         for b in chosen:
             free = [f"{b['id']}.{k}" for k in range(len(b["lots"])) if f"{b['id']}.{k}" not in used]
-            slots += free[:PER]
+            slots += free[:per]
         for nid in need:
             key = slots.pop(0) if slots else next((k for k in by_key if k not in used), None)
             if key is None:
