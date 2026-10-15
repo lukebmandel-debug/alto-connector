@@ -1548,7 +1548,18 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     landmark buildings, [{name, page?}] — each takes a whole block and, with
     `page`, opens one of the timeline's own pages ("index:<key>" an Index
     list such as cases or statutes, "char:<entity id>", "node:<node id>"):
-    the place to keep a list the outline points into. parks: names of parks to
+    the place to keep a list the outline points into. Big Center City
+    skyscrapers are landmark buildings with their own art (One Liberty Place,
+    Two Liberty Place, Comcast Center, Comcast Technology Center, BNY Mellon
+    Center, Three Logan Square, Cira Centre, FMC Tower): name them as
+    OpenStreetMap does. A landmark building may carry `unit` (0-based section
+    index) and optionally `floors` (its real floor count; the famous towers
+    are known): that section's buildings then become the TOWER's floors — its
+    first building is the tower on the landmark's block, the rest are floors
+    numbered up the real building between 2 and the roof, so the elevator
+    shows 17, 34, 60 (gaps allowed). Without `unit` the landmark is just a
+    landmark; one section has one tower. [{name, label?, page?, unit?,
+    floors?}]. parks: names of parks to
     draw as green glass with their paths whatever their size ("Rittenhouse
     Square"); the big ones (15 ha and up) are drawn anyway.
     The map data is © OpenStreetMap contributors; the page credits it."""
@@ -1580,6 +1591,11 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         return {"error": "area_too_big", "message": "that box is bigger than a city centre "
                 "(~0.02 square degrees at most) — narrow it to the part of the city the user named"}
     n_acts = len(brief.get("acts") or [])
+    from .build.palace_towers import check_buildings, placed as _towers_placed, specs as _tower_specs
+    try:
+        check_buildings({"buildings": landmark_buildings or []}, n_acts)
+    except BriefError as e:
+        return {"error": "invalid_landmark_buildings", "message": str(e)}
     if not districts:
         w = (bbox[3] - bbox[1]) / max(1, n_acts)
         districts = [{"unit": i, "name": "", "bounds": [bbox[0], bbox[1] + i * w, bbox[2], bbox[1] + (i + 1) * w]}
@@ -1613,7 +1629,18 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     if lots < n_bld * 3:
         warnings = list(warnings) + [f"only {lots} lots for {n_bld} buildings — a bigger box gives "
                                      "the walk room to breathe"]
+    towers = []
+    if _tower_specs(pal):
+        on = _towers_placed(b)
+        for sp in _tower_specs(pal):
+            towers.append({"name": sp.get("label") or sp["name"], "unit": sp["unit"], "floors": sp["floors"],
+                           "on_map": sp["unit"] in on})
+        if not all(t["on_map"] for t in towers):
+            warnings = list(warnings) + [f"{t['name']!r} was not found on the map (or shares its block with another "
+                                         "landmark), so section " + str(t["unit"]) + " keeps its buildings — "
+                                         "name it as OpenStreetMap does" for t in towers if not t["on_map"]]
     return {"ok": True, "palace": info, "buildings": n_bld, "warnings": warnings,
+            **({"towers": towers} if towers else {}),
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
 
 

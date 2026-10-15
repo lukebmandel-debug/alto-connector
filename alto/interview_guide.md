@@ -344,6 +344,19 @@ its floors, reached by an elevator inside the building.
   (OpenStreetMap's spelling) and a handful of `landmarks` that make the city
   recognizable at a glance (its city hall, main station, famous museum,
   river front). It fetches the map once and stores it.
+- **Landmark buildings and towers** (`landmark_buildings`: `[{name, label?,
+  page?, unit?, floors?}]`). Each takes a block with a little 3D drawing of
+  the real building (City Hall, the Art Museum, and for a big city's
+  skyscrapers — One and Two Liberty Place, Comcast Center, Comcast
+  Technology Center, BNY Mellon Center, Three Logan Square, Cira Centre, FMC
+  Tower — a tall glass tower of its own). `page` makes it the way into a page
+  of the timeline. **`unit`** (the 0-based section number) turns it into the
+  tower of that section: ask the user which skyscraper they want for which
+  section ("make the Comcast Technology Center my Jurisdiction unit"). That
+  section's buildings then stand inside it as its floors, numbered up the
+  real building from 2 to the roof (`floors`, the real count; the famous
+  towers are known), and the elevator shows the real floor numbers. A
+  landmark with no `unit` stays a plain landmark. One section has one tower.
 - Connections are not drawn between cards: pointing at a building lights
   routes along the streets to the buildings it connects with, in the
   relation's color. Relations, chips, flags, filters, the Overview, search,

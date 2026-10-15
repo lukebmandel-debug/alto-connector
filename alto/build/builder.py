@@ -160,6 +160,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     """Returns (html, report). Raises VerifyError/BriefError on any failure."""
     warnings = validate_brief(brief)
     warnings += validate_nodes(brief, nodes)
+    from .palace import apply_towers          # a unit assigned to a skyscraper: its buildings become its floors
+    warnings += apply_towers(brief, nodes)
 
     # Validation first (it reads raw values and fills defaults), then make the
     # content inert. Everything downstream of here — blocks.py, emit, the

@@ -479,6 +479,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     #    (City Hall the whole square it stands in, streets and all); one with
     #    no outline takes the block it stands in ──
     lms = []
+    from .palace_towers import tower_key
     for spec in lm_specs:
         f = find(spec.get("name") or "")
         if not f:
@@ -502,7 +503,20 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
             j0 = max(0, min(len(yg) - 2, int((((gy0 + gy1) / 2) - PAD) // CH))); j1 = j0 + 1
         cells = {(i, j) for i in range(i0, i1) for j in range(j0, j1)}
         if any(cells & l_["cells"] for l_ in lms):
-            continue
+            # one cell wide and taken (two towers on one block of the grid): the free neighbour nearest its real spot
+            if len(cells) == 1 and tower_key(spec.get("name") or ""):
+                cx_, cy_ = (gx0 + gx1) / 2, (gy0 + gy1) / 2
+                (ci, cj), = cells
+                near_ = sorted(((ci + di, cj + dj) for di, dj in ((0, 1), (0, -1), (1, 0), (-1, 0))
+                                if 0 <= ci + di < len(xg) - 1 and 0 <= cj + dj < len(yg) - 1),
+                               key=lambda c: (cx_ - (xg[c[0]] + xg[c[0] + 1]) / 2) ** 2 + (cy_ - (yg[c[1]] + yg[c[1] + 1]) / 2) ** 2)
+                free_ = [c for c in near_ if not any(c in l_["cells"] for l_ in lms)]
+                if not free_:
+                    continue
+                i0, j0 = free_[0]; i1, j1 = i0 + 1, j0 + 1
+                cells = {(i0, j0)}
+            else:
+                continue
         lms.append({"n": spec.get("label") or spec["name"], "page": spec.get("page") or "", "cells": cells,
                     "cell": [i0, j0], "box": [xg[i0], yg[j0], xg[i1], yg[j1]]})
     lm_all = set().union(*[l_["cells"] for l_ in lms]) if lms else set()
