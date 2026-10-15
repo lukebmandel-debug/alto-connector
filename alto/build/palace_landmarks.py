@@ -107,6 +107,8 @@ def landmark_css() -> str:
   .pal-svg .pl-lmb:focus-visible .lm-card{stroke-width:4;}
   .pal-svg .pl-lmb:focus-visible .lm-focus{display:inline;}
   .pal-svg .pl-lmb .lm-focus{display:none;fill:none;stroke:var(--lm-col,var(--accent,#6d5bd0));stroke-width:2.5px;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-lmb.is-tower{cursor:pointer;}
+  .pal-svg .pl-lmb.is-tower:hover .lm-card{stroke-width:4;}
   /* the key's row for them */
 """
 
@@ -524,13 +526,14 @@ def _generic() -> dict:
 
 def _build_art() -> dict:
     return {"ind": _independence(), "city": _cityhall(), "art": _art(), "frank": _franklin(),
-            "conv": _convention(), "stn": _station(), "gen": _generic()}
+            "conv": _convention(), "stn": _station(), "gen": _generic(), **_towers.build_art()}
 
 
+from . import palace_towers as _towers      # (the skyscrapers: palace_towers.py)
 ART = _build_art()
 # which landmark names get which art (the page's own label, case-insensitive)
 MATCH = [["ind", r"independence hall"], ["city", r"city hall"], ["art", r"art museum|museum of art|philadelphia museum"],
-         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"]]
+         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"]] + _towers.MATCH
 
 
 def landmark_gradients() -> str:
@@ -560,6 +563,7 @@ _JS = r"""
 (function(){
 var NS='http://www.w3.org/2000/svg', XL='http://www.w3.org/1999/xlink';
 var ART=__ART__, GRAD='__GRAD__';
+var TALL=__TALL__;
 var MATCH=__MATCH__.map(function(m){ return [m[0], new RegExp(m[1],'i')]; });
 function E(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
 function artKey(n){ for(var i=0;i<MATCH.length;i++) if(MATCH[i][1].test(n)) return MATCH[i][0]; return 'gen'; }
@@ -591,6 +595,9 @@ function label(name, i){ return name+(i?' — inside: '+i.name+(i.count?', '+i.c
 
 function draw(g, l, o){
   var b=l.box, ins=o.ins, x=b[0]+ins, y=b[1]+ins, w=b[2]-b[0]-2*ins, h=b[3]-b[1]-2*ins, c=o.color, nm=String(l.n);
+  /* a skyscraper's card is tall and narrow, centred on its block (its building chip stands to the left of it) */
+  var tall=TALL.indexOf(artKey(nm))>=0;
+  if(tall){ var nw=Math.min(w, h*.55); x+=(w-nw)/2; w=nw; }
   var info=l.page?pageInfo(l.page, o.pageName):null;
   g.style.setProperty('--lm-edge', c); g.style.setProperty('--lz-line', c); g.style.setProperty('--lm-col', info?info.col:c); if(info) g.style.setProperty('--lz-door', info.col);
   /* the card: a glass slab with a thickness, lit from the top left, a soft shadow to the lower right */
@@ -617,11 +624,12 @@ function draw(g, l, o){
     tag._p=tp;
   }
   E('rect',{'class':'lm-focus', x:x-6, y:y-6, width:w+12, height:h+12, rx:14},g);
-  g._lm={x:x,y:y,w:w,h:h,name:nm,info:info,page:l.page,strip:strip,art:art,use:use,nameT:name,sub:sub,tag:tag,tbg:tbg,tn:tn,to:to,pn:o.pageName};
+  g._lm={tall:tall,tower:o.tower||null,x:x,y:y,w:w,h:h,name:nm,info:info,page:l.page,strip:strip,art:art,use:use,nameT:name,sub:sub,tag:tag,tbg:tbg,tn:tn,to:to,pn:o.pageName};
   /* keyboard and screen readers */
   g.setAttribute('aria-label', label(nm, info));
   if(info){ g.setAttribute('role','link'); g.setAttribute('tabindex','0');
     g.addEventListener('keydown', function(e){ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); o.open(l.page); } }); }
+  else if(o.tower){ g.classList.add('is-tower'); g.setAttribute('role','img'); g.setAttribute('aria-label', nm+' — tower of '+o.tower.num+' '+o.tower.title+', '+o.tower.top+' floors'); }
   else g.setAttribute('role','img');
 }
 /* the layout that depends on the zoom: names and tags keep a size on the screen, so where they would not
@@ -630,12 +638,12 @@ function relayout(svg, Z){
   Z=Z||1; var u=1/Z, far=Z<.42, near=Z>=.8;
   svg.querySelectorAll('.pl-lmb').forEach(function(g){ var L=g._lm; if(!L) return;
     if(L.page && L.info && !L.info.count){ L.info=pageInfo(L.page, L.pn); g.setAttribute('aria-label', label(L.name, L.info)); }
-    var x=L.x, y=L.y, w=L.w, h=L.h, n=L.name.length, fit=Math.min(26, w*.94/(Math.max(n,3)*.6));
+    var x=L.x, y=L.y, w=L.w, h=L.h, n=L.name.length, fit=Math.min(26, (L.tall?w*2.8:w)*.94/(Math.max(n,3)*.6));
     g.style.setProperty('--lm-nat', fit.toFixed(1)+'px');
     var fn=Math.min(Math.max(11.5*u, fit), 21*u), words=L.name.split(' '), lines=[L.name];
     if(n*.6*fn>w*.98 && words.length>1){ var half=Math.ceil(words.length/2); lines=[words.slice(0,half).join(' '), words.slice(half).join(' ')]; }
     var wide=Math.max.apply(null, lines.map(function(s){ return s.length; }))*.6*fn;
-    var subH=(L.sub && near)?13*u:0, stripH=lines.length*fn*1.22+fn*.42+subH, hang=(wide>w*1.02) || stripH>h*.46;
+    var subH=(L.sub && near)?13*u:0, stripH=lines.length*fn*1.22+fn*.42+subH, hang=L.tall || (wide>w*1.02) || stripH>h*.46;
     var cx=x+w/2, top=y-h*.22, bottom;
     while(L.nameT.firstChild) L.nameT.removeChild(L.nameT.firstChild);
     if(hang){
@@ -661,6 +669,7 @@ function relayout(svg, Z){
 }
 function tip(g, esc, pn){
   var L=g._lm, nm=g.getAttribute('data-name'), pg=g.getAttribute('data-page'), i=L&&L.info;
+  if(L && L.tower && !pg) return '<b>'+esc(nm)+'</b><small>Tower of '+esc(L.tower.num+' '+L.tower.title)+' · '+L.tower.top+' floors</small><small><b>Click to ride the elevator ›</b></small>';
   if(!pg) return '<b>'+esc(nm)+'</b>';
   if(!i) i=pageInfo(pg, pn);
   return '<b>'+esc(nm)+'</b><small>Inside: '+esc(i.name)+(i.count?' · '+i.count+' '+esc(i.unit):'')+'</small><small><b>Click to open ›</b></small>';
@@ -679,7 +688,8 @@ window._palLm={draw:draw, relayout:relayout, tip:tip, keyRow:keyRow, pageInfo:pa
 def landmark_js() -> str:
     return (_JS.replace("__ART__", json.dumps(ART, separators=(",", ":")))
             .replace("__GRAD__", landmark_gradients())
-            .replace("__MATCH__", json.dumps(MATCH)))
+            .replace("__MATCH__", json.dumps(MATCH))
+            .replace("__TALL__", json.dumps(sorted(_towers.FLOORS))))
 
 
 LANDMARK_JS = landmark_js()

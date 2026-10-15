@@ -34,6 +34,7 @@ import re
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
+from .palace_towers import tower_data, tower_lots, apply_towers      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .sanitize import js_json
 from . import palace_place as pp
@@ -82,6 +83,8 @@ def check_palace(b, warnings: list) -> None:
     if not pal.get("data_z"):
         warnings.append("palace: no city yet — run set_up_palace(timeline_id, place, …) "
                         "before building; the page has nothing to draw until then")
+    from .palace_towers import check_buildings            # (towers: a landmark entry with a unit)
+    check_buildings(pal, len(b.acts))
     for i, d in enumerate(pal.get("districts") or []):
         if not isinstance(d, dict) or not isinstance(d.get("unit"), int):
             raise BriefError(f"palace.districts[{i}]: needs unit (the section's index)")
@@ -140,14 +143,16 @@ def structure(b, nodes):
     return units, floors, of
 
 
-def numbers(units, floors) -> dict:
-    """"3.4" for the 4th building of section 3; "3.4-2" for its 2nd floor up."""
+def numbers(units, floors, fn=None) -> dict:
+    """"3.4" for the 4th building of section 3; "3.4-2" for its 2nd floor up (fn: a tower's floors
+    carry their real floor number instead, "3.1-17")."""
     num = {}
+    fn = fn or {}
     for a, ids in enumerate(units):
         for k, bid in enumerate(ids):
             num[bid] = f"{a + 1}.{k + 1}"
             for j, f in enumerate(floors.get(bid, [])):
-                num[f] = f"{a + 1}.{k + 1}-{j + 1}"
+                num[f] = f"{a + 1}.{k + 1}-{fn.get(f, j + 1)}"
     return num
 
 
@@ -183,7 +188,8 @@ def palace_data(b, nodes) -> str:
     pal = b.palace or {}
     data = unpack(pal["data_z"]) if pal.get("data_z") else None
     units, floors, of = structure(b, nodes)
-    num = numbers(units, floors)
+    tw, fn = tower_data(b, units, floors)          # towers: {hub: {n, top}}, {floor: its real number}
+    num = numbers(units, floors, fn)
     par = {n.id: n.parent for n in nodes if n.parent}
     if not data:
         return ("\nwindow._ALTO_PALACE=" + js_json({"none": 1, "fl": floors, "of": of, "num": num,
@@ -192,6 +198,7 @@ def palace_data(b, nodes) -> str:
     fixed = {k: v["lot"] for k, v in (b.placement or {}).items() if isinstance(v, dict) and v.get("lot")}
     districts = [d for d in pal.get("districts") or []]
     at = pp.place(m, blocks, units, districts, fixed)
+    blocks = tower_lots(m, blocks, at, tw)         # a tower stands on its landmark's block, not on a lot
     by_key = {f"{bl['id']}.{k}": lt for bl in blocks for k, lt in enumerate(bl["lots"])}
     graph = pp.graph(m)
     kmin: dict = {}
@@ -216,7 +223,7 @@ def palace_data(b, nodes) -> str:
     mp["top"] = sorted({short(s.get("n")) for s in m.get("streets", [])
                         if s.get("n") and s.get("k", 9) <= 1 and short(s.get("n")) in mp["majors"]})
     out = {"m": mp, "b": [bl["lots"] for bl in blocks], "at": at, "fl": floors, "of": of,
-           "par": par, "num": num, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or ""}
+           "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or ""}
     return "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
 
 
@@ -638,6 +645,8 @@ function title(id){ var n=TT[id]; return n?n.title:id; }
 function num(id){ return (P.num||{})[id]||''; }
 function lot(k){ var p=String(k||'').split('.'), b=P.b[+p[0]]; return b?b[+(p[1]||0)]:null; }
 function bOf(id){ return P.of[id]||id; }
+function towerOf(id){ return (P.tw||{})[bOf(id)]||null; }                          /* the skyscraper a building stands for, if it is one */
+function floorNo(id){ var b=bOf(id); return (P.tw&&P.tw[b]&&P.fn[id]!=null)?P.fn[id]:((P.fl[b]||[]).indexOf(id)+1); }
 function isB(id){ return !P.of[id] && !!TT[id]; }
 function pts(a){ var s=''; for(var i=0;i<a.length;i+=2) s+=(i?'L':'M')+a[i]+' '+a[i+1]; return s; }
 
@@ -650,7 +659,12 @@ function restructure(live){
     var out=[], st=(kids[id]||[]).slice().reverse();
     while(st.length){ var f=st.pop(); out.push(f); of[f]=id; (kids[f]||[]).slice().reverse().forEach(function(k){ st.push(k); }); }
     if(out.length) fl[id]=out; });
-  var nm={}; units.forEach(function(ids,a){ ids.forEach(function(b,k){ nm[b]=(a+1)+'.'+(k+1); (fl[b]||[]).forEach(function(f,j){ nm[f]=(a+1)+'.'+(k+1)+'-'+(j+1); }); }); });
+  /* a tower's floors carry real floor numbers (P.fn); one added in edit mode takes the next one up, and the floors stand in order */
+  P.fn=P.fn||{}; Object.keys(P.tw||{}).forEach(function(b){ var t=P.tw[b], l=fl[b]; if(!l) return;
+    var top=0; l.forEach(function(f){ if(P.fn[f]!=null) top=Math.max(top,P.fn[f]); });
+    l.forEach(function(f){ if(P.fn[f]==null) P.fn[f]=++top; });
+    l.sort(function(x,y){ return P.fn[x]-P.fn[y]; }); t.top=Math.max(t.top||0, top); });
+  var nm={}; units.forEach(function(ids,a){ ids.forEach(function(b,k){ nm[b]=(a+1)+'.'+(k+1); (fl[b]||[]).forEach(function(f,j){ nm[f]=(a+1)+'.'+(k+1)+'-'+(P.tw&&P.tw[b]&&P.fn[f]!=null?P.fn[f]:j+1); }); }); });
   P.fl=fl; P.of=of; P.num=nm; P.units=units;
   if(live && typeof NODE_ORDER_MAP!=='undefined') Object.keys(nm).forEach(function(id){ NODE_ORDER_MAP[id]=nm[id];
     var o=document.querySelector('#node-'+id+' .node-order'); if(o) o.textContent=nm[id]; });
@@ -910,7 +924,9 @@ function drawCity(svg){
   /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
   (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);
-    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, pageName:pageName, open:openPage}); });
+    var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
+    if(tw_) g.setAttribute('data-tower', tw_);
+    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
   /* districts: the neighbourhood's own name over its buildings (the unit it holds is in its pop-up) */
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
     var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:tubeCol(pm.colorRaw), 'data-u':d.u},labels);
@@ -1149,8 +1165,8 @@ function rels(id){
   return (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).filter(function(c){ return c && c[2]!=='spine' && (mine[c[0]]||mine[c[1]]) && bOf(c[0])!==bOf(c[1]); });
 }
 function bTip(id){
-  var fl=P.fl[id]||[], h='<b><span class="pt-num">'+esc(num(id))+'</span> '+esc(title(id))+'</b>';
-  var where=(P.near||{})[id]; h+='<small>'+(where?esc(where)+' · ':'')+(fl.length?(fl.length+1)+' floors':'one floor')+'</small>';
+  var fl=P.fl[id]||[], tw_=towerOf(id), h='<b><span class="pt-num">'+esc(num(id))+'</span> '+esc(title(id))+'</b>';
+  var where=(P.near||{})[id]; h+='<small>'+(where?esc(where)+' · ':'')+(tw_?tw_.top+' floors':fl.length?(fl.length+1)+' floors':'one floor')+'</small>';
   if(fl.length){ h+='<small>'+fl.slice(0,4).map(function(f,i){ return (i+1)+'. '+esc(title(f)); }).join('<br>')+(fl.length>4?'<br>…':'')+'</small>'; }
   var rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
   rels(id).slice(0,5).forEach(function(c){ var other=bOf(c[0])===id?c[1]:c[0], col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
@@ -1251,6 +1267,8 @@ document.addEventListener('click', function(e){
   if(gh){ e.stopPropagation(); e.preventDefault(); if(window.exitFocus) window.exitFocus(); return; }
   var lmc=e.target.closest && e.target.closest('#palace-svg .pl-lmb.has-page');
   if(lmc){ e.stopPropagation(); openPage(lmc.getAttribute('data-page')); return; }
+  var tcl=e.target.closest && e.target.closest('#palace-svg .pl-lmb[data-tower]');         /* a tower's card: the same as its building chip */
+  if(tcl && !editing()){ e.stopPropagation(); e.preventDefault(); lastB={id:tcl.getAttribute('data-tower'), t:now}; enlarge(tcl.getAttribute('data-tower')); return; }
   var du=e.target.closest && e.target.closest('#palace-svg .pl-dist');
   if(du){ e.stopPropagation(); var d=(P.d||[]).filter(function(q){ return q.u===+du.getAttribute('data-u'); })[0]; if(!mob()) openDock(+du.getAttribute('data-u')); if(d) flyToBox(d.box); return; }
   var id=bAt(e.target); if(!id) return;
@@ -1416,12 +1434,13 @@ function buildElev(){
 }
 function editing(){ return de.classList.contains('alto-editing'); }
 function drawElev(id){
-  buildElev(); var s=stack(id), b=s[0], c=ucol(b);
+  buildElev(); var s=stack(id), b=s[0], c=ucol(b), tw=towerOf(b);
   elev.style.setProperty('--pal-car', c);
-  var h='<div class="pe-roof" style="background:'+c+'">'+esc(num(b))+'<span class="pe-sec"> · '+esc(PHASE_META[ACT[b]]?(PHASE_META[ACT[b]].label.split(' — ')[1]||PHASE_META[ACT[b]].label):'')+'</span><small>'+esc(title(b))+'</small><span class="pe-where"></span></div><div class="pe-shaft"><div class="pe-car" title="Drag to another floor"></div>';
-  for(var i=s.length-1;i>=0;i--){ var f=s[i];
-    h+='<button class="pe-fl'+(f===id?' on':'')+'" data-id="'+esc(f)+'"><span class="pe-n">'+(i===0?'G':i)+'</span><span class="pe-t">'+esc(title(f))+'</span>'
-      +(i>0 && editing() && !mob()?'<span class="pe-out" data-id="'+esc(f)+'" title="Let this floor out into a building of its own">⇱</span>':'')+'</button>'; }
+  var h='<div class="pe-roof" style="background:'+c+'">'+esc(num(b))+'<span class="pe-sec"> · '+esc(PHASE_META[ACT[b]]?(PHASE_META[ACT[b]].label.split(' — ')[1]||PHASE_META[ACT[b]].label):'')+'</span><small>'+esc(title(b))+(tw?' · tower, '+tw.top+' floors':'')+'</small><span class="pe-where"></span></div><div class="pe-shaft"><div class="pe-car" title="Drag to another floor"></div>';
+  for(var i=s.length-1;i>=0;i--){ var f=s[i], gap=(tw&&i>1)?floorNo(f)-floorNo(s[i-1])-1:(tw&&i===1?floorNo(f)-1:0);
+    /* in a tower the floors are spaced by how many real floors lie between them */
+    h+='<button class="pe-fl'+(f===id?' on':'')+(gap>0?' gap':'')+'"'+(gap>0?' style="margin-bottom:'+Math.min(26,gap*3)+'px"':'')+' data-id="'+esc(f)+'"><span class="pe-n">'+(i===0?'G':floorNo(f))+'</span><span class="pe-t">'+esc(title(f))+'</span>'
+      +(i>0 && !tw && editing() && !mob()?'<span class="pe-out" data-id="'+esc(f)+'" title="Let this floor out into a building of its own">⇱</span>':'')+'</button>'; }
   var where=(P.near||{})[b];
   h+='</div><div class="pe-call"><button class="pe-up" title="Up a floor (↑)" aria-label="Up a floor">▲</button><button class="pe-dn" title="Down a floor (↓)" aria-label="Down a floor">▼</button>'
     +'<small>↑ ↓ keys · drag the car · scroll past an edge</small></div><button class="pe-street">⌂ Out to the street<small>'+esc(where||'')+'</small></button>';
@@ -1488,7 +1507,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 function elevOn(){ return de.classList.contains('pal-elev-on') && !riding && !!cur; }
 function stepFloor(d){ if(!elevOn()) return false; var s=stack(cur), i=s.indexOf(cur)+d; if(i<0||i>=s.length) return false; ride(s[i]); return true; }
 function elevState(id){ if(!elev) return; var s=stack(id), i=s.indexOf(id);
-  var w=elev.querySelector('.pe-where'); if(w) w.textContent=i===0?'Ground floor':'Floor '+i+' of '+(s.length-1);
+  var w=elev.querySelector('.pe-where'), tw=towerOf(id); if(w) w.textContent=i===0?'Ground floor':(tw?'Floor '+floorNo(id)+' of '+tw.top:'Floor '+i+' of '+(s.length-1));
   var up=elev.querySelector('.pe-up'), dn=elev.querySelector('.pe-dn'); if(up) up.disabled=i>=s.length-1; if(dn) dn.disabled=i<=0;
   var rf=elev.querySelector('.pe-roof'); if(rf) rf.title=i===0?'':'Back to the ground floor';
   elev.querySelectorAll('.pe-fl.pass').forEach(function(r){ r.classList.remove('pass'); }); }
@@ -1578,8 +1597,8 @@ function touchWire(){
 function phoneWhere(){ if(!mob()) return;
   document.querySelectorAll('.node[id^="node-"]').forEach(function(n){ var id=n.id.slice(5), c=n.querySelector('.node-card'); if(!c || c.querySelector('.pal-where')) return;
     var d=document.createElement('div'); d.className='pal-where';
-    if(P.of[id]){ var s=stack(id); d.textContent='Floor '+s.indexOf(id)+' of '+num(s[0])+' '+title(s[0]); }
-    else d.textContent=((P.near||{})[id]||'')+((P.fl[id]||[]).length?' · '+((P.fl[id]||[]).length+1)+' floors':'');
+    if(P.of[id]){ var s=stack(id); d.textContent='Floor '+floorNo(id)+' of '+num(s[0])+' '+title(s[0]); }
+    else d.textContent=((P.near||{})[id]||'')+((P.fl[id]||[]).length?' · '+((towerOf(id)||{}).top||((P.fl[id]||[]).length+1))+' floors':'');
     if(!d.textContent) return; var tg=c.querySelector('.node-tag'); c.insertBefore(d, tg||c.firstChild); }); }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, function(){ phoneWhere(); setTimeout(phoneWhere, 400); }); });
 var MM={z:.46, svg:null, box:null};
@@ -1666,6 +1685,7 @@ var slot=null;
 window.addEventListener('mousedown', function(e){
   if(!palaceOn() || !editing() || e.button!==0 || focused()) return;
   var id=bAt(e.target); if(!id) return;
+  if(P.tw && P.tw[id]) return;                       /* a tower stands on its landmark: it is not moved, and nothing is dropped onto it by mistake */
   e.preventDefault(); e.stopImmediatePropagation();
   dragging={id:id, x:e.clientX, y:e.clientY}; moved=false; unhint();
 }, true);
@@ -1676,7 +1696,7 @@ window.addEventListener('mousemove', function(e){
   var p=svgPt(svgD, e), id=dragging.id;
   var nd=document.getElementById('node-'+id); if(nd){ nd.style.left=((p[0]+MX)*Z)+'px'; nd.style.top=((p[1]+MY)*Z+WORLD_PAD_TOP)+'px'; }
   /* onto another building: a floor of it; else the nearest free lot */
-  var onto=null; (P.units[ACT[id]]||[]).forEach(function(o){ if(o===id || within(id).indexOf(o)>=0) return; var B=lot(P.at[o]); if(!B) return;
+  var onto=null; (P.units[ACT[id]]||[]).forEach(function(o){ if(o===id || within(id).indexOf(o)>=0 || (P.tw && P.tw[o])) return; var B=lot(P.at[o]); if(!B) return;
     if(Math.abs(p[0]-B[0])<B[2]/2+4 && Math.abs(p[1]-B[1])<B[3]/2+4) onto=o; });
   if(slot) slot.remove(); slot=null; dragging.onto=onto; dragging.key=null;
   if(onto){ var B=lot(P.at[onto]); slot=el('rect',{'class':'pl-slot', x:B[0]-B[2]/2-5, y:B[1]-B[3]/2-5, width:B[2]+10, height:B[3]+10, rx:5, transform:'rotate('+B[4]+' '+B[0]+' '+B[1]+')'},svgD._r);
