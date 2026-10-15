@@ -35,7 +35,7 @@ from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
 from .palace_directions import DIR_CSS, DIR_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
-from .palace_towers import tower_data, tower_lots, apply_towers      # noqa: F401  (towers: a unit inside a skyscraper)
+from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .sanitize import js_json
@@ -118,9 +118,9 @@ def check_nodes(b, nodes, warnings: list) -> None:
             if cur.parent in seen:
                 raise BriefError(f"node {n.id}: its floors loop back on themselves")
             seen.add(cur.id); cur = by.get(cur.parent)
-    bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot"}]
+    bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot", "fno", "out"}]
     if bad:
-        raise BriefError(f"placement: a Mind Palace places buildings by lot only ({', '.join(bad[:5])})")
+        raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})")
 
 
 # ── structure ──────────────────────────────────────────────────────────────
@@ -200,6 +200,7 @@ def palace_data(b, nodes) -> str:
     fixed = {k: v["lot"] for k, v in (b.placement or {}).items() if isinstance(v, dict) and v.get("lot")}
     districts = [d for d in pal.get("districts") or []]
     at = pp.place(m, blocks, units, districts, fixed)
+    nb0 = len(blocks)
     blocks = tower_lots(m, blocks, at, tw)         # a tower stands on its landmark's block, not on a lot
     by_key = {f"{bl['id']}.{k}": lt for bl in blocks for k, lt in enumerate(bl["lots"])}
     graph = pp.graph(m)
@@ -224,8 +225,13 @@ def palace_data(b, nodes) -> str:
     mp["rows"] = [short(s) for s in m.get("rows", [])]
     mp["top"] = sorted({short(s.get("n")) for s in m.get("streets", [])
                         if s.get("n") and s.get("k", 9) <= 1 and short(s.get("n")) in mp["majors"]})
+    ls = landmark_state(b, m)
+    pl0 = {k: {x: v[x] for x in ("lot", "fno", "out") if v.get(x)} for k, v in (b.placement or {}).items()
+           if isinstance(v, dict) and (v.get("lot") or v.get("fno") or v.get("out"))}
     out = {"m": mp, "b": [bl["lots"] for bl in blocks], "at": at, "fl": floors, "of": of,
-           "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or ""}
+           "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or "",
+           "lm0": ls["lm"], "lmtop": ls["top"], "pl0": pl0,
+           "tk": sorted(getattr(b, "_tower_kids", ())), "nb": nb0}
     return "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
 
 
@@ -374,6 +380,13 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-addr{fill:var(--accent);fill-opacity:.12;stroke:var(--accent);stroke-width:1.5;stroke-dasharray:4 3;vector-effect:non-scaling-stroke;pointer-events:none;}
   .pal-svg .pl-addpend{fill-opacity:.32;stroke-width:2;stroke-dasharray:none;}
   .pal-svg .pl-addr0{fill-opacity:.05;stroke-opacity:.55;}
+  #pl-lmbar{position:fixed;z-index:60;display:none;gap:4px;padding:4px;border-radius:12px;background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);
+    border:1px solid rgba(0,0,0,.12);box-shadow:0 6px 22px rgba(0,0,0,.18);}
+  #pl-lmbar.show{display:flex;}
+  #pl-lmbar button{font:700 12px/1 system-ui,sans-serif;padding:7px 10px;border-radius:8px;border:0;background:transparent;color:#1d1d1f;cursor:pointer;white-space:nowrap;}
+  #pl-lmbar button:hover{background:rgba(0,0,0,.07);}
+  #pl-lmbar button[data-a=add]{background:var(--accent,#2d6cdf);color:#fff;}
+  #pl-lmbar button[data-a=add]:hover{filter:brightness(1.08);}
   .pal-svg .pl-addp{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke;pointer-events:none;}
   .pal-svg.pl-adding{cursor:copy;}
   #alto-edit-exit .ee-addb{width:auto;padding:0 10px;line-height:1.2;font:inherit;font-size:12.5px;white-space:nowrap;}
@@ -506,6 +519,9 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-elev .pe-n{flex:none;min-width:22px;font-size:11px;font-weight:800;color:var(--muted);padding-top:1px;}
   #pal-elev .pe-out{flex:none;margin-left:auto;font-size:12px;opacity:.6;padding:0 3px;}
   #pal-elev .pe-out:hover{opacity:1;}
+  #pal-elev .pe-no{flex:none;margin-left:auto;font-size:12px;font-weight:800;opacity:.6;padding:0 4px;}
+  #pal-elev .pe-no + .pe-out{margin-left:0;}
+  #pal-elev .pe-no:hover{opacity:1;}
   #pal-elev .pe-street{display:block;width:100%;font:inherit;font-size:12px;padding:9px 12px;border:0;border-top:1px solid var(--border);
     background:color-mix(in srgb,var(--text) 5%,transparent);color:var(--text);cursor:pointer;text-align:left;}
   #pal-elev .pe-street:hover{background:color-mix(in srgb,var(--text) 10%,transparent);}
@@ -639,9 +655,10 @@ function restructure(live){
     if(out.length) fl[id]=out; });
   /* a tower's floors carry real floor numbers (P.fn); one added in edit mode takes the next one up, and the floors stand in order */
   P.fn=P.fn||{}; Object.keys(P.tw||{}).forEach(function(b){ var t=P.tw[b], l=fl[b]; if(!l) return;
+    l.forEach(function(f){ if(P.fx[f]!=null) P.fn[f]=P.fx[f]; });             /* a number the user chose stays */
     var top=0; l.forEach(function(f){ if(P.fn[f]!=null) top=Math.max(top,P.fn[f]); });
     l.forEach(function(f){ if(P.fn[f]==null) P.fn[f]=++top; });
-    l.sort(function(x,y){ return P.fn[x]-P.fn[y]; }); t.top=Math.max(t.top||0, top); });
+    l.sort(function(x,y){ return P.fn[x]-P.fn[y]; }); t.top=Math.max(t.top0||0, top); });
   var nm={}; units.forEach(function(ids,a){ ids.forEach(function(b,k){ nm[b]=(a+1)+'.'+(k+1); (fl[b]||[]).forEach(function(f,j){ nm[f]=(a+1)+'.'+(k+1)+'-'+(P.tw&&P.tw[b]&&P.fn[f]!=null?P.fn[f]:j+1); }); }); });
   P.fl=fl; P.of=of; P.num=nm; P.units=units;
   if(live && typeof NODE_ORDER_MAP!=='undefined') Object.keys(nm).forEach(function(id){ NODE_ORDER_MAP[id]=nm[id];
@@ -653,11 +670,17 @@ function restructure(live){
     near=freeLot(home?home[0]:M.W/2, home?home[1]:M.H/2); if(near) P.at[id]=near; }); });
 }
 function taken(){ var t={}; Object.keys(P.at).forEach(function(id){ if(isB(id)) t[P.at[id]]=id; }); return t; }
-function freeLot(x,y,skip){ var t=taken(), best=null, bd=1e18;
-  P.b.forEach(function(ls,i){ ls.forEach(function(L,k){ var key=i+'.'+k; if(t[key] && t[key]!==skip) return;
+function freeLot(x,y,skip,extra){ var t=taken(), best=null, bd=1e18;
+  P.b.forEach(function(ls,i){ ls.forEach(function(L,k){ var key=i+'.'+k; if(t[key] && t[key]!==skip) return; if(extra && extra[key]) return;
     var d=(L[0]-x)*(L[0]-x)+(L[1]-y)*(L[1]-y); if(d<bd){ bd=d; best=key; } }); });
   return best; }
-P.par=P.par||{}; P.par0=JSON.parse(JSON.stringify(P.par)); restructure();
+P.par=P.par||{}; P.par0=JSON.parse(JSON.stringify(P.par));
+/* what edit mode can change on a landmark: the unit it houses (P.lm), a tower floor's chosen number (P.fx) and whether it was let out (P.out) */
+var tk0=Array.isArray(P.tk)?P.tk:[]; P.fx={}; P.out={}; P.tk={}; P.prevAt={}; P.fn=P.fn||{}; P.fn0=JSON.parse(JSON.stringify(P.fn)); P.lm=JSON.parse(JSON.stringify(P.lm0||{}));
+Object.keys(P.pl0||{}).forEach(function(k){ if(P.pl0[k].fno) P.fx[k]=P.pl0[k].fno; if(P.pl0[k].out) P.out[k]=1; });
+tk0.forEach(function(k){ P.tk[k]=1; });
+Object.keys(P.tw||{}).forEach(function(h){ P.tw[h].top0=P.tw[h].top; });
+restructure();
 
 /* ── the street graph, built once from the streets: crossings split them ── */
 var G=null;
@@ -1021,6 +1044,7 @@ window._altoPalace=function(h){
   if(!world._holdPan){ world._holdPan=1; new MutationObserver(holdPan).observe(world, {attributes:true, attributeFilter:['style']}); }
   if(Z==null) Z=Math.max(fitZ(), ZREAD);
   if(P._dirty){ P._dirty=0; restructure(true); if(svgD) drawBuildings(svgD); }
+  if(P._lmDirty && svgD){ P._lmDirty=0; drawCity(svgD); if(MM.svg) drawCity(MM.svg); }
   if(!svgD){ svgD=el('svg',{id:'palace-svg', 'class':'pal-svg', viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none'}); svgD._sid='d'; drawCity(svgD); }
   if(svgD.parentNode!==world) world.insertBefore(svgD, world.firstChild);
   placeAll();
@@ -1406,6 +1430,7 @@ function buildElev(){
   doors=document.createElement('div'); doors.id='pal-doors'; doors.innerHTML='<div class="pd pd-l"></div><div class="pd pd-r"></div><div class="pd-ind"></div>'; document.body.appendChild(doors);
   elev.addEventListener('click', function(e){
     var out=e.target.closest('.pe-out'); if(out){ e.stopPropagation(); letOut(out.getAttribute('data-id')); return; }
+    var pno=e.target.closest('.pe-no'); if(pno){ e.stopPropagation(); var rr=pno.getBoundingClientRect(); numberForm(pno.getAttribute('data-id'), anchorAt(rr.left, rr.bottom)); return; }
     var f=e.target.closest('.pe-fl'); if(f){ ride(f.getAttribute('data-id')); return; }
     if(e.target.closest('.pe-street')){ var b=bOf(cur); if(window.showTimeline) window.showTimeline(); setTimeout(function(){ if(!mob() && isB(b)) enlarge(b); else if(mob() && window.featureNode) window.featureNode(b,true); }, 80); }
   });
@@ -1418,7 +1443,8 @@ function drawElev(id){
   for(var i=s.length-1;i>=0;i--){ var f=s[i], gap=(tw&&i>1)?floorNo(f)-floorNo(s[i-1])-1:(tw&&i===1?floorNo(f)-1:0);
     /* in a tower the floors are spaced by how many real floors lie between them */
     h+='<button class="pe-fl'+(f===id?' on':'')+(gap>0?' gap':'')+'"'+(gap>0?' style="margin-bottom:'+Math.min(26,gap*3)+'px"':'')+' data-id="'+esc(f)+'"><span class="pe-n">'+(i===0?'G':floorNo(f))+'</span><span class="pe-t">'+esc(title(f))+'</span>'
-      +(i>0 && !tw && editing() && !mob()?'<span class="pe-out" data-id="'+esc(f)+'" title="Let this floor out into a building of its own">⇱</span>':'')+'</button>'; }
+      +(i>0 && tw && editing() && !mob()?'<span class="pe-no" data-id="'+esc(f)+'" title="Change this floor\'s number">#</span>':'')
+      +(i>0 && editing() && !mob()?'<span class="pe-out" data-id="'+esc(f)+'" title="Let this floor out into a building of its own">⇱</span>':'')+'</button>'; }
   var where=(P.near||{})[b];
   h+='</div><div class="pe-call"><button class="pe-up" title="Up a floor (↑)" aria-label="Up a floor">▲</button><button class="pe-dn" title="Down a floor (↓)" aria-label="Down a floor">▼</button>'
     +'<small>↑ ↓ keys · drag the car · scroll past an edge</small></div><button class="pe-street">⌂ Out to the street<small>'+esc(where||'')+'</small></button>';
@@ -1595,13 +1621,24 @@ var dragging=null, moved=false;
 window._altoPalaceField=function(k){
   var p=k.split('|');
   if(p[1] && !TT[p[1]]) tables();                    // a building just added on the page
-  if(p[0]==='p' && p[2]==='lot' && TT[p[1]]) return {kind:'card', get:function(){ return P.at[p[1]]||null; },
+  if(p[0]==='p' && p[2]==='lot' && TT[p[1]]) return {kind:'card', sig:function(){ var h=(P.pl0||{})[p[1]]; return h&&h.lot?h.lot:null; }, get:function(){ return P.at[p[1]]||null; },
     set:function(v){ if(v) P.at[p[1]]=v; else delete P.at[p[1]]; P._dirty=1; }};
+  /* a tower floor's real number (null: the spread's own) */
+  if(p[0]==='p' && p[2]==='fno' && TT[p[1]]) return {kind:'card', sig:function(){ var h=(P.pl0||{})[p[1]]; return h&&h.fno?h.fno:null; }, get:function(){ return P.fx[p[1]]!=null?P.fx[p[1]]:null; },
+    set:function(v){ var id=p[1]; if(v){ P.fx[id]=+v; P.fn[id]=+v; } else { delete P.fx[id]; if(P.fn0[id]!=null) P.fn[id]=P.fn0[id]; else delete P.fn[id]; } P._dirty=1; }};
+  /* a floor let out of its tower (an ordinary building of its section again) */
+  if(p[0]==='p' && p[2]==='out' && TT[p[1]]) return {kind:'card', sig:function(){ var h=(P.pl0||{})[p[1]]; return h&&h.out?1:null; }, get:function(){ return P.out[p[1]]?1:null; },
+    set:function(v){ var id=p[1]; if(v){ P.out[id]=1; P.par[id]=''; } else { delete P.out[id]; var th=towerOfUnit(ACT[id]); if(th) P.par[id]=th; } P._dirty=1; }};
+  /* the unit a landmark houses: {unit, floors} (null: none) */
+  if(p[0]==='pu' && lmOf(p[1])){ var nm=p[1], one=function(s){ return s?{unit:s.unit, floors:s.floors==null?null:s.floors}:null; };
+    return {kind:'card', sig:function(){ return one((P.lm0||{})[nm]); }, get:function(){ return one(P.lm[nm]); }, set:function(v){ applyTower(nm, v); }}; }
   if(p[0]==='pf' && TT[p[1]]) return {kind:'card', get:function(){ return P.par[p[1]]||''; },
     set:function(v){ if(v) P.par[p[1]]=v; else delete P.par[p[1]]; P._dirty=1; }};
   return null;
 };
-window._altoPalaceRefresh=function(){ P._dirty=0; restructure(true); if(svgD){ drawBuildings(svgD); var labels=svgD.querySelectorAll('.pl-dist');
+window._altoPalaceRefresh=function(){ P._dirty=0; restructure(true);
+  if(P._lmDirty && svgD){ P._lmDirty=0; drawCity(svgD); if(MM.svg) drawCity(MM.svg); }
+  if(svgD){ drawBuildings(svgD); var labels=svgD.querySelectorAll('.pl-dist');
     labels.forEach(function(t){ var u=+t.getAttribute('data-u'), d=(P.d||[]).filter(function(q){ return q.u===u; })[0]; if(!d) return; var c=districtCentre(d);
       t.setAttribute('x',c[0]); t.setAttribute('y',c[1]); [].forEach.call(t.querySelectorAll('tspan'),function(s){ s.setAttribute('x',c[0]); }); }); }
   ENT={}; placeAll(); if(de.classList.contains('pal-elev-on') && cur){ drawElev(cur); } };
@@ -1609,7 +1646,101 @@ window._altoPalaceDirty=function(){ P._dirty=1; };
 function chg(list){ if(window._altoEditChanges) return window._altoEditChanges(list); return false; }
 function letOut(fid){
   var b=bOf(fid), L=lot(P.at[b]), key=freeLot(L?L[0]:M.W/2, L?L[1]:M.H/2);
+  if(towerOf(fid)){ var l=lmOf(towerOf(fid).n), k2=l?freeLot(l.x,l.y):key;                 /* a tower's floor: out to a lot beside its landmark; the rest keep their numbers */
+    var list=(P.tk[fid]?[]:[['pf|'+fid, '']]).concat([['p|'+fid+'|out', 1], ['p|'+fid+'|lot', k2], ['p|'+fid+'|fno', null]]);    /* (a floor of a floor leaves its parent too) */
+    chg(list.concat(freezeOps(b, fid))); return; }
   chg([['pf|'+fid, ''], ['p|'+fid+'|lot', key]]);
+}
+/* ── a landmark that houses a unit: its floors are that unit's buildings (palace_towers.py); edit mode can house one, move it out,
+   add a floor, give a floor another real number or let it out. The edits are P.lm / P.fx / P.out, laid over the built page. ── */
+function lmOf(name){ var r=null; (M.landmarks||[]).forEach(function(l){ if(l.box && l.n===name) r=l; }); return r; }
+function towerHub(name){ var h=null; Object.keys(P.tw||{}).forEach(function(k){ if(P.tw[k].n===name) h=k; }); return h; }
+function towerOfUnit(u){ var h=null; Object.keys(P.tw||{}).forEach(function(k){ if(P.tw[k].u===u) h=k; }); return h; }
+function pyRound(x){ var f=Math.floor(x), d=x-f; return d<.5?f:d>.5?f+1:(f%2===0?f:f+1); }
+/* the real floor numbers of a tower's floors in reading order: spread over 2..top, a chosen number kept, the rest moved up past it (palace_towers.floor_numbers) */
+function spreadNo(ids, top, fixed){ var m=ids.length, out={}, used={}, sp={}; if(!m) return out; top=Math.max(top, m+1);
+  ids.forEach(function(f,i){ sp[f]=m===1?top:2+pyRound(i*(top-2)/(m-1)); });
+  ids.forEach(function(f){ if(fixed && fixed[f]!=null){ out[f]=fixed[f]; used[fixed[f]]=1; } });
+  ids.forEach(function(f){ if(out[f]!=null) return; var n=sp[f]; while(used[n]) n++; used[n]=1; out[f]=n; });
+  return out; }
+function floorsOf(h){ var kids={}; ORDER.forEach(function(id){ var q=P.par[id]; if(q && TT[q]) (kids[q]=kids[q]||[]).push(id); });
+  var out=[], st=(kids[h]||[]).slice().reverse(); while(st.length){ var f=st.pop(); out.push(f); (kids[f]||[]).slice().reverse().forEach(function(k){ st.push(k); }); } return out; }
+/* a tower's chip stands in the corner of its landmark's card: one more block, one lot (palace_towers.tower_lots) */
+function chipLot(name){ var l=lmOf(name); if(!l) return null; var lots=[]; P.b.forEach(function(ls){ if(ls && ls.length) lots.push(ls[0]); }); lots=lots.slice(0,50);
+  var ws=lots.map(function(q){ return q[2]; }).sort(function(a,b){ return a-b; }), hs=lots.map(function(q){ return q[3]; }).sort(function(a,b){ return a-b; });
+  var lw=lots.length?ws[lots.length>>1]:24, lh=lots.length?hs[lots.length>>1]:16, x0=l.box[0], y0=l.box[1], x1=l.box[2], y1=l.box[3];
+  var w0=(x1-x0)-28, h0=(y1-y0)-28, nw=Math.min(w0,h0*.55), w=Math.max(30,Math.min(lw,(w0-nw)/2-4)), h=lh*w/lw, left=x0+14+(w0-nw)/2, r=function(v){ return Math.round(v*10)/10; };
+  return [r(left+10-w/2), r(y0+14+22+h/2), r(w), r(h), 0]; }
+function applyTower(name, v){
+  var h=towerHub(name); if(!lmOf(name)) return;
+  if(h){                                                  /* move the unit out: its buildings are buildings again */
+    var bi=parseInt(String(P.at[h]||'').split('.')[0],10); if(!isNaN(bi) && bi>=(P.nb||0)) P.b[bi]=[];
+    Object.keys(P.tk).forEach(function(id){ if(P.par[id]===h){ P.par[id]=''; P.par0[id]=''; delete P.fn[id]; var pa=P.prevAt[id]; if(pa && !lotUsed(pa)) P.at[id]=pa; } });
+    delete P.at[h]; var pa=P.prevAt[h]; if(pa && !lotUsed(pa)) P.at[h]=pa;
+    delete P.tw[h]; P.lm[name]=null; }
+  if(v){
+    var u=+v.unit, roots=((P.units||[])[u]||[]).filter(function(id){ return !P.out[id] && !P.tw[id]; });
+    if(roots.length){ var hub=roots[0], cl=chipLot(name), top0=v.floors||(P.lmtop||{})[name]||30;
+      roots.slice(1).forEach(function(r){ P.prevAt[r]=P.at[r]; delete P.at[r]; P.par[r]=hub; P.tk[r]=1; });
+      P.prevAt[hub]=P.at[hub]; P.tw[hub]={n:name, u:u, top:top0, top0:top0}; P.lm[name]={unit:u, floors:v.floors||null};
+      if(cl){ P.b.push([cl]); P.at[hub]=(P.b.length-1)+'.0'; }
+      var fl=floorsOf(hub), nums=spreadNo(fl, Math.max(top0,fl.length+1), P.fx), top=Math.max(top0, fl.length+1);
+      fl.forEach(function(f){ P.fn[f]=nums[f]; top=Math.max(top, nums[f]); }); P.tw[hub].top=top; P.tw[hub].top0=Math.min(top0, top); } }
+  P._dirty=1; P._lmDirty=1;
+}
+function lotUsed(key){ var u=false; Object.keys(P.at).forEach(function(id){ if(P.at[id]===key && !P.par[id]) u=true; }); return u; }
+/* the numbers of a tower's floors that come from the spread, written down (so adding, removing or renumbering a floor leaves the others where they are) */
+function freezeOps(h, ex){ var ops=[]; (P.fl[h]||[]).forEach(function(f){ if(f!==ex && P.fx[f]==null && P.fn[f]!=null) ops.push(['p|'+f+'|fno', P.fn[f]]); }); return ops; }
+function nextNo(h){ var t=P.tw[h], used={}, mx=1; (P.fl[h]||[]).forEach(function(f){ var n=P.fn[f]; used[n]=1; if(n>mx) mx=n; });
+  if(mx+1<=t.top) return mx+1; for(var n=t.top;n>=2;n--) if(!used[n]) return n; return null; }
+function pickLots(ids, x, y){ var ex={}, ops=[]; ids.forEach(function(id){ var k=freeLot(x,y,null,ex); if(k){ ex[k]=1; ops.push(['p|'+id+'|lot', k]); } }); return ops; }
+function houseUnits(name){ var E=window._altoEdit; if(!E) return []; return E.units().filter(function(u){ return (P.units[u.i]||[]).filter(function(id){ return !P.out[id]; }).length && !towerOfUnit(u.i); }); }
+function moveUnitOut(name){
+  var h=towerHub(name), l=lmOf(name), E=window._altoEdit; if(!h || !l || !E) return;
+  var ids=[h].concat(Object.keys(P.tk).filter(function(id){ return P.par[id]===h; }));
+  var list=[['pu|'+name, null]].concat(pickLots(ids, l.x, l.y));
+  if(chg(list)) E.toast('Moved the unit out of '+name+' — ⌘Z takes it back.'); }
+function houseForm(name, at, withFloor){
+  var E=window._altoEdit; if(!E || !E.editing()) return; var l=lmOf(name); if(!l) return;
+  var h=towerHub(name); if(h){ if(withFloor) addForm(null, h, at); return; }
+  var us=houseUnits(name); if(!us.length){ E.toast('Every section with a building already has a tower — or has none yet.'); return; }
+  var def=addUnitAt([l.x,l.y]); if(!us.some(function(u){ return u.i===def; })) def=us[0].i;
+  var top0=(P.lmtop||{})[name]||30, top=top0;
+  var fields=[{k:'unit', l:'Which unit does this building house?', type:'select', val:String(def), hint:'Its buildings will become floors of '+name+', numbered up the tower from 2 to '+top+'.',
+    opts:us.map(function(u){ return [String(u.i), (u.i+1)+'. '+u.name+' ('+(P.units[u.i]||[]).length+')']; })}];
+  fields.push({k:'floors', l:'Real floors of the building (optional)', ph:'default '+top, hint:'The top of the tower: floors are numbered from 2 up to it.'});
+  if(withFloor) fields.push({k:'title', l:'New floor — title', req:1, ph:'What is on this floor'}, {k:'desc', l:'Short description (optional)', type:'area'}, {k:'tag', l:'Tag (optional)', ph:'e.g. RULE'});
+  E.ask(at, withFloor?'Add a floor to '+name:'House a unit in '+name, fields, withFloor?'House it and add':'House it', function(v){
+    var ui=+v.unit, roots=(P.units[ui]||[]).filter(function(id){ return !P.out[id]; }), hub=roots[0]; if(!hub) return;
+    var fl0=v.floors?+v.floors:null, top=fl0||top0; var list=[['pu|'+name, {unit:ui, floors:fl0}]];
+    if(withFloor){
+      var id=E.rid('card-'), uk=(E.units().filter(function(u){ return u.i===ui; })[0]||{}).key, like=TT[hub]; if(uk==null) return;
+      /* the numbers the unit's buildings will have as floors (so the new one can take the next) */
+      var sim={}, kids={}; Object.keys(P.par).forEach(function(q){ sim[q]=P.par[q]; }); roots.slice(1).forEach(function(r){ sim[r]=hub; });
+      ORDER.forEach(function(q){ var pp=sim[q]; if(pp && TT[pp]) (kids[pp]=kids[pp]||[]).push(q); });
+      var order=[], st=(kids[hub]||[]).slice().reverse();
+      while(st.length){ var f=st.pop(); order.push(f); (kids[f]||[]).slice().reverse().forEach(function(k){ st.push(k); }); }
+      var nums=spreadNo(order, Math.max(top, order.length+1), P.fx), mx=1, used={};
+      order.forEach(function(f){ used[nums[f]]=1; if(nums[f]>mx) mx=nums[f]; });
+      var nn=mx+1<=top?mx+1:null; for(var q=top; nn==null && q>=2; q--) if(!used[q]) nn=q;
+      if(nn==null){ E.toast('That tower has no free floor number left.'); return; }
+      list.push(['nn|'+id, {p:hub, a:uk, t:v.title, g:v.tag||'', d:v.desc||'', c:(like&&like.color)||'var(--accent)'}], ['pf|'+id, hub], ['p|'+id+'|fno', nn]);
+      order.forEach(function(f){ if(P.fx[f]==null) list.push(['p|'+f+'|fno', nums[f]]); });
+      if(!chg(list)){ E.toast('That could not be added.'); return; }
+      setTimeout(function(){ E.toast('Added floor '+nn+' to '+name+' — ⌘Z takes it back.'); }, 60);
+    } else if(chg(list)) E.toast(name+' now houses section '+(ui+1)+' — ⌘Z takes it back.');
+  }, function(v){ if(v.floors && (!/^\d+$/.test(v.floors) || +v.floors<2 || +v.floors>250)) return 'Floors: a whole number from 2 to 250.';
+    return ''; });
+}
+/* a floor's number in its tower: its own small form */
+function numberForm(id, at){
+  var E=window._altoEdit, t=towerOf(id), h=bOf(id); if(!E || !t) return;
+  var others=(P.fl[h]||[]).filter(function(f){ return f!==id; }).map(function(f){ return P.fn[f]; }).sort(function(a,b){ return a-b; });
+  E.ask(at, 'Floor number of '+num(id)+' '+title(id), [{k:'fno', l:'Real floor number', req:1, val:String(floorNo(id)), hint:'From 2 to '+t.top+'. Taken: '+(others.join(', ')||'none')+'.'}], 'Change', function(v){
+    var n=+v.fno; if(n===floorNo(id)) return;
+    if(chg([['p|'+id+'|fno', n]].concat(freezeOps(h, id)))) E.toast('Floor '+n+' — ⌘Z takes it back.'); },
+    function(v){ var n=+v.fno; if(!/^\d+$/.test(v.fno) || n<2 || n>t.top) return 'A whole number from 2 to '+t.top+'.';
+      if(others.indexOf(n)>=0) return 'Floor '+n+' is taken.'; return ''; });
 }
 function within(a){ var s=[a], i=0; while(i<s.length){ var x=s[i++]; ORDER.forEach(function(id){ if(P.par[id]===x) s.push(id); }); } return s; }
 var slot=null;
@@ -1685,6 +1816,8 @@ function addForm(key, floorOf, at){
   if(!floorOf) fields.push({k:'unit',l:'Section',type:'select',val:String(def),
     opts:us.map(function(u){ var n=(P.units[u.i]||[]).length; return [String(u.i), (u.i+1)+'. '+u.name+' ('+n+')']; })});
   fields.push({k:'tag',l:'Tag (optional)',ph:'e.g. RULE'});
+  var twr=floorOf&&P.tw&&P.tw[floorOf]?P.tw[floorOf]:null, taken_=twr?(P.fl[floorOf]||[]).map(function(f){ return P.fn[f]; }):[], nxt=twr?nextNo(floorOf):null;
+  if(twr) fields.splice(2,0,{k:'fno', l:'Floor number (optional)', ph:nxt!=null?'next: '+nxt:'none free', hint:'The tower has floors 2 to '+twr.top+'. Taken: '+(taken_.slice().sort(function(a,b){ return a-b; }).join(', ')||'none')+'.'});
   var pend=null; if(L && !floorOf && addLayer()){ pend=lotRect(L,'pl-addr pl-addpend',addLayer(),2); }
   var gone=function(){ if(pend){ pend.remove(); pend=null; } };
   var head=floorOf?'Add a floor to '+num(floorOf)+' '+title(floorOf):'Add a building';
@@ -1692,14 +1825,18 @@ function addForm(key, floorOf, at){
     gone();
     var ui=floorOf?ACT[floorOf]:(+v.unit), id=E.rid('card-'), uk=(us.filter(function(u){ return u.i===ui; })[0]||{}).key;
     if(uk==null) return;
+    var fno=twr?(v.fno?+v.fno:nxt):null; if(twr && fno==null){ E.toast('That tower has no free floor number left.'); return; }
     var like=(P.units[ui]||[]).map(function(i){ return TT[i]; })[0];
     var spec={p:floorOf||'', a:uk, t:v.title, g:v.tag||'', d:v.desc||'', c:(like&&like.color)||'var(--accent)'};
     var list=[['nn|'+id, spec]];
     if(floorOf) list.push(['pf|'+id, floorOf]); else list.push(['p|'+id+'|lot', key]);
+    if(twr){ list.push(['p|'+id+'|fno', fno]); freezeOps(floorOf).forEach(function(o){ list.push(o); }); }
     if(!chg(list)){ E.toast('That could not be added.'); return; }
     addMode=false; syncAdd();
     setTimeout(function(){ E.toast('Added '+num(id)+' '+v.title+' — ⌘Z takes it back.'); }, 60);
-  });
+  }, twr?function(v){ if(!v.fno) return nxt==null?'No floor number is free — type one.':'';
+    var n=+v.fno; if(!/^\d+$/.test(v.fno) || n<2 || n>twr.top) return 'A whole number from 2 to '+twr.top+'.';
+    return taken_.indexOf(n)>=0?'Floor '+n+' is taken.':''; }:null);
   var fm=document.getElementById('aed-form');       // the marker goes with the form, however it closes
   if(fm){ var mo=new MutationObserver(function(){ if(!fm.classList.contains('show')){ gone(); mo.disconnect(); } }); mo.observe(fm,{attributes:true,attributeFilter:['class']}); }
 }
@@ -1739,6 +1876,43 @@ window.addEventListener('click', function(e){
   e.preventDefault(); e.stopImmediatePropagation(); hideGhost(); formAt=hit.key; addForm(hit.key, null, anchorAt(e.clientX+14, e.clientY+14));
 }, true);
 window.addEventListener('keydown', function(e){ if(e.key==='Escape' && addMode){ addMode=false; syncAdd(); } }, true);
+
+/* ── manual edit mode: a landmark building offers "Add a floor" (and houses a unit, or moves it out) ──
+   Hover a landmark — or a tower's own chip — and a small glass bar stands over it. A landmark with no unit asks which unit it
+   houses first; a tower adds a floor of its unit, with the next real floor number or the one typed. */
+var lmBar=null, lmFor=null, lmT=null;
+function lmBarEl(){
+  if(lmBar && lmBar.parentNode) return lmBar;
+  lmBar=document.createElement('div'); lmBar.id='pl-lmbar'; lmBar.setAttribute('role','toolbar');
+  lmBar.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+  lmBar.addEventListener('mouseenter', function(){ clearTimeout(lmT); });
+  lmBar.addEventListener('mouseleave', function(){ lmHideSoon(); });
+  lmBar.addEventListener('click', function(e){ e.stopPropagation(); var b=e.target.closest('button'); if(!b || !lmFor) return;
+    var r=b.getBoundingClientRect(), at=anchorAt(r.left, r.bottom+6), name=lmFor, a=b.getAttribute('data-a'); lmHide();
+    if(a==='add') houseForm(name, at, true); else if(a==='house') houseForm(name, at, false); else if(a==='out') moveUnitOut(name); });
+  document.body.appendChild(lmBar); return lmBar; }
+function lmHide(){ clearTimeout(lmT); if(lmBar) lmBar.classList.remove('show'); lmFor=null; }
+function lmHideSoon(){ clearTimeout(lmT); lmT=setTimeout(lmHide, 380); }
+function lmShow(name, g){
+  clearTimeout(lmT); var bar=lmBarEl(); if(lmFor===name && bar.classList.contains('show')) return; lmFor=name;
+  var h=towerHub(name);
+  bar.innerHTML='<button type="button" data-a="add" title="'+(h?'A new floor of the tower':'Choose the unit this building houses, then add a floor')+'">+ Add a floor</button>'
+    +(h?'<button type="button" data-a="out" title="Its buildings go back to their own lots">Move the unit out</button>':'<button type="button" data-a="house" title="Its buildings become the floors of this one">House a unit here</button>');
+  var r=g.getBoundingClientRect(), w=bar.offsetWidth||250; bar.classList.add('show');
+  bar.style.left=Math.max(8, Math.min(innerWidth-w-8, r.left+r.width/2-(bar.offsetWidth||250)/2))+'px';
+  bar.style.top=Math.max(8, Math.min(innerHeight-44, r.top+8))+'px'; }
+document.addEventListener('mousemove', function(e){
+  if(!palaceOn() || !editing() || dragging || focused() || !svgD){ if(lmFor) lmHide(); return; }
+  var t=e.target; if(!t.closest || t.closest('#pl-lmbar,#aed-form,.aed-cc')) return;
+  if(!t.closest('#canvas')){ if(lmFor) lmHideSoon(); return; }
+  var nd=t.closest('.node'), name=null, id=nd?nd.id.replace(/^node-/,''):null;
+  if(id && P.tw && P.tw[id]) name=P.tw[id].n;                                     /* a tower's own chip */
+  else if(!nd){ var p=svgPt(svgD,e);                                               /* the pointer over a landmark's block (whatever layer is on top there) */
+    (M.landmarks||[]).forEach(function(l){ var b=l.box; if(b && p[0]>=b[0] && p[0]<=b[2] && p[1]>=b[1] && p[1]<=b[3]) name=l.n; }); }
+  var g=name?[].filter.call(svgD.querySelectorAll('.pl-lmb'), function(q){ return q.getAttribute('data-name')===name; })[0]:null;
+  if(g) lmShow(name, g); else if(lmFor) lmHideSoon();
+});
+new MutationObserver(function(){ if(!editing()) lmHide(); }).observe(de,{attributes:true,attributeFilter:['class']});
 """ + DIR_JS + MOBILE_JS + r"""
 })();
 """

@@ -433,6 +433,11 @@ def _target(key, brief, by_id, conns):
     # a Mind Palace (palace.py): the lot a building stands on, the building a floor is in
     if kind == "p" and len(p) == 3 and p[2] == "lot" and p[1] in by_id and brief.get("mode") == "palace":
         return brief.setdefault("placement", {}), p[1], "lot"
+    # a floor's real number in a tower, a floor let out of its tower (placement hints); a landmark's unit
+    if kind == "p" and len(p) == 3 and p[2] in ("fno", "out") and p[1] in by_id and brief.get("mode") == "palace":
+        return brief.setdefault("placement", {}), p[1], p[2]
+    if kind == "pu" and len(p) == 2 and p[1] and brief.get("mode") == "palace":
+        return brief.setdefault("palace", {}), p[1], "tower"
     if kind == "pf" and len(p) == 2 and p[1] in by_id and brief.get("mode") == "palace":
         return by_id[p[1]], "parent", "floor"
     if kind == "cx" and len(p) == 4 and p[3].isdigit():
@@ -1041,8 +1046,8 @@ def fold(store, uid, tid) -> "dict | None":
                     lines.append(keep)
                 else:
                     lines[at] = keep
-        elif kind == "lot":
-            cur = (holder.get(f) or {}).get("lot")
+        elif kind in ("lot", "fno", "out"):
+            cur = (holder.get(f) or {}).get(kind)
             if (cur or None) == (v or None):
                 already.append(k)
                 continue
@@ -1051,9 +1056,9 @@ def fold(store, uid, tid) -> "dict | None":
                 continue
             h = dict(holder.get(f) or {})
             if v:
-                h["lot"] = str(v)
+                h[kind] = str(v) if kind == "lot" else (True if kind == "out" else int(v))
             else:
-                h.pop("lot", None)
+                h.pop(kind, None)
             if h:
                 holder[f] = h
             else:
@@ -1080,6 +1085,33 @@ def fold(store, uid, tid) -> "dict | None":
                     conflicts.append(k)
                     continue
             holder["parent"] = v or ""
+        elif kind == "tower":
+            # a landmark housing a unit: {"unit": n, "floors": n|None} on its palace.buildings entry (None: no unit)
+            ents = holder.setdefault("buildings", [])
+            at = next((j for j, e in enumerate(ents) if isinstance(e, dict) and (e.get("label") or e.get("name")) == f), None)
+            ent = ents[at] if at is not None else None
+            cur = ({"unit": ent["unit"], "floors": ent.get("floors")} if ent and ent.get("unit") is not None else None)
+            if _same(cur, v):
+                already.append(k)
+                continue
+            if not _same(cur, b):
+                conflicts.append(k)
+                continue
+            if v is None:
+                if ent is not None:
+                    ent.pop("unit", None)
+                    ent.pop("floors", None)
+                    if set(ent) <= {"name"}:
+                        ents.pop(at)
+            else:
+                if ent is None:
+                    ent = {"name": f}
+                    ents.append(ent)
+                ent["unit"] = int(v["unit"])
+                if v.get("floors"):
+                    ent["floors"] = int(v["floors"])
+                else:
+                    ent.pop("floors", None)
         elif kind in ("shift", "slide"):
             cur = (holder.get(f) or {}).get(kind)
             if _same(cur, v):
@@ -1517,8 +1549,12 @@ def published(store, uid, tid) -> int:
             carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
         elif t is not None and t[2] in ("shift", "slide"):
             carried = _same((t[0].get(t[1]) or {}).get(t[2]), o.get("v"))
-        elif t is not None and t[2] == "lot":
-            carried = ((t[0].get(t[1]) or {}).get("lot") or None) == (o.get("v") or None)
+        elif t is not None and t[2] in ("lot", "fno", "out"):
+            carried = ((t[0].get(t[1]) or {}).get(t[2]) or None) == (o.get("v") or None)
+        elif t is not None and t[2] == "tower":
+            e = next((x for x in (t[0].get("buildings") or []) if isinstance(x, dict) and (x.get("label") or x.get("name")) == t[1]), None)
+            have = {"unit": e["unit"], "floors": e.get("floors")} if e and e.get("unit") is not None else None
+            carried = _same(have, o.get("v"))
         elif t is not None and t[2] == "floor":
             carried = (t[0].get("parent") or "") == (o.get("v") or "")
         elif t is not None and t[2] == "parentswap":

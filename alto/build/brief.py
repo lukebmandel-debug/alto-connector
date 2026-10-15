@@ -835,9 +835,12 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
         return
     if b.mode == "palace":
         for nid, hints in pl.items():
-            if not isinstance(hints, dict) or set(hints) - {"lot"} or not isinstance(hints.get("lot", ""), str):
+            if (not isinstance(hints, dict) or set(hints) - {"lot", "fno", "out"} or not isinstance(hints.get("lot", ""), str)
+                    or not (hints.get("fno") is None or (isinstance(hints["fno"], int) and not isinstance(hints["fno"], bool)
+                                                         and 2 <= hints["fno"] <= 250))):
                 raise BriefError(f"placement {nid}: a Mind Palace places a building by "
-                                 "{\"lot\": \"<block>.<lot>\"} only")
+                                 "{\"lot\": \"<block>.<lot>\"}; a tower's floor may also carry "
+                                 "{\"fno\": its real floor number} and {\"out\": true} (let out of the tower)")
         return
     if b.mode != "outline":
         raise BriefError("placement needs mode 'outline': it positions the "
