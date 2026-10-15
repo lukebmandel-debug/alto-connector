@@ -1518,7 +1518,8 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   diagonals: list[str] | None = None,
                   rail_lines: list[dict] | None = None,
                   landmark_buildings: list[dict] | None = None,
-                  parks: list[str] | None = None) -> dict:
+                  parks: list[str] | None = None,
+                  areas: list[dict] | None = None) -> dict:
     """The city a Mind Palace (mode 'palace', §D-Palace) is drawn on: fetches
     its streets, rivers, parks, railways, stations and landmarks from
     OpenStreetMap, finds its blocks and building lots, and stores them with the
@@ -1561,7 +1562,12 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     landmark; one section has one tower. [{name, label?, page?, unit?,
     floors?}]. parks: names of parks to
     draw as green glass with their paths whatever their size ("Rittenhouse
-    Square"); the big ones (15 ha and up) are drawn anyway.
+    Square"); the big ones (15 ha and up) are drawn anyway. areas: the
+    city's named neighborhoods, drawn as small label-only names,
+    [{name, lat, lon, rank}] (the neighborhood's middle in degrees; rank 1 a
+    major name shown at the whole-city zoom … 4 a minor one shown up close;
+    overlapping names are hidden by rank); omitted, Philadelphia's own list
+    is used, [] draws none.
     The map data is © OpenStreetMap contributors; the page credits it."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -1608,7 +1614,9 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                              landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
-                             parks=parks)
+                             parks=parks, areas=areas)
+    except BriefError as e:
+        return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass
         return {"error": "map_unavailable", "message": f"could not fetch the map: {e}. "
                 "OpenStreetMap's server may be busy — try again in a minute."}
