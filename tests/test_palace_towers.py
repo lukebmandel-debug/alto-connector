@@ -42,7 +42,7 @@ def test_every_tower_has_its_art_and_a_name_pattern():
     assert len(keys) == 8
     for k in keys:
         a = pl.ART[k]
-        assert a["h"] > a["w"] * 1.8 and "<" in a["svg"] and "{s}" in a["svg"]        # tall and narrow
+        assert a["h"] > a["w"] * 1.6 and "<" in a["svg"] and "{s}" in a["svg"]        # tall and narrow
         assert "<script" not in a["svg"] and "<filter" not in a["svg"]
     for k, p in pl.MATCH:
         assert isinstance(re.compile(p, re.I), re.Pattern)
@@ -51,6 +51,8 @@ def test_every_tower_has_its_art_and_a_name_pattern():
                       ("Cira Centre", "cira"), ("FMC Tower", "fmc")]:
         assert pt.tower_key(name) == key, name
     assert len({pl.ART[k]["svg"] for k in keys}) == 8                                  # each its own silhouette
+    hs = [pl.ART[k]["h"] for k in ("ctc", "ccc", "lib1", "lib2", "bny", "tls", "fmc", "cira")]
+    assert hs == sorted(hs, reverse=True)                                              # true proportions: Comcast Technology Center tallest, Cira shortest
 
 
 def test_real_floor_counts():

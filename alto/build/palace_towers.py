@@ -49,202 +49,261 @@ def real_floors(spec: dict) -> int:
 
 
 # ── the art ─────────────────────────────────────────────────────────────────
-def _curtain(a: _Art, x, y, w, h, fh=5.2, mw=6.4, m=None):
-    """A glass curtain wall over a face: a floor line every fh, a mullion every mw."""
-    hs = "".join(f"M{_f(x)} {_f(y + k * fh)}h{_f(w)}" for k in range(1, int((h - 1) / fh) + 1))
-    vs = "".join(f"M{_f(x + k * mw)} {_f(y)}v{_f(h)}" for k in range(1, int((w - 1) / mw) + 1))
-    a.add(f'<path class="lz-mu" d="{hs}{vs}" style="stroke-width:.6px"/>')
+# One common scale (0.8 px per metre of real height) so the eight stand in true proportion: Comcast
+# Technology Center (342 m) tallest, Cira Centre (133 m) shortest. Each canvas is its tip-to-ground
+# height plus a margin. Sources: the buildings' own architects' notes (Jahn, Stern, Foster, KPF,
+# Pelli Clarke Pelli) as summarised on Wikipedia / Skyscraper Center / Philadelphia YIMBY.
+def _grid(a: _Art, y0, y1, l0, r0, l1, r1, fh=5.0, nv=7, sw=.6, band=0, op=1.0):
+    """A curtain-wall grid over a (maybe tapered) front face, floor lines counted up from the foot:
+    l0/r0 are the edges at the top y0, l1/r1 at the foot y1; every `band`th floor a pale spandrel strip."""
+    hs = bs = vs = ""
+    k = 1
+    while y1 - k * fh > y0 + .5:
+        y = y1 - k * fh
+        t = (y - y0) / (y1 - y0)
+        l, r = l0 + (l1 - l0) * t, r0 + (r1 - r0) * t
+        hs += f"M{_f(l)} {_f(y)}H{_f(r)}"
+        if band and k % band == 0:
+            bs += f"M{_f(l)} {_f(y - .7)}H{_f(r)}v1.4H{_f(l)}z"
+        k += 1
+    for j in range(1, nv):
+        u = j / nv
+        vs += f"M{_f(l0 + (r0 - l0) * u)} {_f(y0)}L{_f(l1 + (r1 - l1) * u)} {_f(y1)}"
+    if bs:
+        a.add(f'<path class="lz-sl" d="{bs}" opacity=".7"/>')
+    a.add(f'<path class="lz-mu" d="{hs}{vs}" style="stroke-width:{sw}px" opacity="{op}"/>')
 
 
-def _glints(a: _Art, x, y, w, h):
-    a.add(f'<path class="lz-hi" d="M{_f(x + w * .14)} {_f(y + h * .94)}l{_f(w * .5)} {_f(-h * .36)}M{_f(x + w * .46)} {_f(y + h * .94)}l{_f(w * .5)} {_f(-h * .36)}"/>')
+def _prism(a: _Art, y0, y1, l0, r0, l1, r1, m, d=8.0, top=True):
+    """A shaft whose edges may lean (an obelisk, a taper): its right face, its top, then its front."""
+    dx, dy = d, -d * .5
+    a.face([(r0, y0), (r0 + dx, y0 + dy), (r1 + dx, y1 + dy), (r1, y1)], m, "s")
+    if top:
+        a.face([(l0, y0), (l0 + dx, y0 + dy), (r0 + dx, y0 + dy), (r0, y0)], m, "t")
+    a.poly([(l0, y0), (r0, y0), (r1, y1), (l1, y1)], m)
 
 
-def _shaft(a: _Art, x, y, w, h, m, d=8.0, fh=5.2, mw=6.4):
-    a.solid(x, y, w, h, m, d=d)
-    _curtain(a, x, y, w, h, fh, mw)
-    _glints(a, x, y, w, h)
+def _gable(a: _Art, xc, yb, w, wall, m, d=7.0, rise=.42):
+    """One gabled stage of a crown (the ridge running back): the roof slope behind, then the lit front gable."""
+    hw, ap = w / 2, yb - wall - w * rise
+    a.face([(xc + hw, yb), (xc + hw + d, yb - d / 2), (xc + hw + d, yb - wall - d / 2), (xc + d, ap - d / 2),
+            (xc, ap), (xc + hw, yb - wall)], m, "s")
+    a.poly([(xc - hw, yb), (xc - hw, yb - wall), (xc, ap), (xc + hw, yb - wall), (xc + hw, yb)], m)
+    a.line(f"M{_f(xc - hw + 2.4)} {_f(yb - wall + .4)}L{_f(xc)} {_f(ap + 3)}L{_f(xc + hw - 2.4)} {_f(yb - wall + .4)}")
+    return ap
 
 
 def _podium(a: _Art, x, w, base, m="granite", h=20, d=8.0):
     a.solid(x, base - h, w, h, m, d=d, course="ashlar")
-    a.add(f'<path class="lz-win" d="M{_f(x + 5)} {_f(base - h + 6)}h{_f(w - 10)}v{_f(h - 12)}h{_f(-(w - 10))}z" opacity=".8"/>')
-    a.add(f'<path class="lz-door" d="M{_f(x + w / 2 - 5)} {_f(base)}v-10a5 5 0 0 1 10 0v10z"/>')
+    a.add(f'<path class="lz-win" d="M{_f(x + 5)} {_f(base - h + 5)}h{_f(w - 10)}v{_f(max(2, h - 11))}h{_f(-(w - 10))}z" opacity=".8"/>')
+    a.add(f'<path class="lz-door" d="M{_f(x + w / 2 - 4)} {_f(base)}v-7a4 4 0 0 1 8 0v7z"/>')
     a.front(x - 2, base - h - 1.6, w + 4, 2.4, "trim")
 
 
 def _lib1() -> dict:
-    """One Liberty Place: a pale-glass shaft with deep setbacks, then the crown of diagonal
-    facets that comes to a point, with a mast."""
-    a = _Art(100, 262)
-    base = 252
-    a.shadow(6, 94, base, 8)
-    _podium(a, 10, 80, base)
-    _shaft(a, 26, 96, 48, base - 20 - 96, "glass")
-    # the setbacks: two narrower stages
-    a.front(24, 94, 52, 2.4, "trim")
-    _shaft(a, 31, 62, 38, 34, "glass", d=7)
-    a.front(29, 60.4, 42, 2.2, "trim")
-    # the crown: facets cut on the diagonal, the left lit, the right in shade, the side face behind
-    a.face([(69, 60), (76, 56.5), (76, 38), (62.5, 14), (57, 4), (50, 8)], "glass", "s")
-    a.poly([(31, 60), (31, 40), (50, 6), (50, 60)], "trim")
-    a.poly([(50, 6), (69, 40), (69, 60), (50, 60)], "granite")
-    a.line("M31 40L50 60M69 40L50 60M40.5 23L50 60M59.5 23L50 60M31 50h38M36 32h28M43 18h14")
-    a.add('<path class="lz-hi" d="M34 56l14 -44"/>')
-    a.line("M50 6V-2")
+    """One Liberty Place (Jahn, 945 ft, 61 floors): sapphire glass in horizontal bands of glass and
+    pale granite, chamfered corners, three deep setbacks, then a crown of four stacked gables (straight,
+    angular chevrons, after the Chrysler Building) running up to a steel spire."""
+    a = _Art(84, 248)
+    base = 236
+    a.shadow(6, 78, base, 8)
+    _podium(a, 6, 72, base, h=16)
+    a.solid(17, 96, 46, base - 16 - 96, "sapphire", d=8)
+    _grid(a, 96, base - 16, 17, 63, 17, 63, fh=4.4, nv=8, band=3)
+    for x in (17, 57.5):                                                # the chamfered corners
+        a.add(f'<path class="lz-sl" d="M{x} 96h5.5v{base - 16 - 96}h-5.5z" opacity=".34"/>')
+    a.add(f'<path class="lz-hi" d="M30 {base - 24}L28 108M48 {base - 24}L46 108"/>')
+    a.front(15, 94.4, 50, 2.4, "trim")
+    a.solid(22, 58, 36, 38, "sapphire", d=7)
+    _grid(a, 58, 96, 22, 58, 22, 58, fh=4.4, nv=6, band=3)
+    a.front(20, 56.4, 40, 2.2, "trim")
+    a.solid(27, 44, 26, 14, "sapphire", d=6)
+    _grid(a, 44, 58, 27, 53, 27, 53, fh=4.4, nv=4)
+    for xc, yb, w, wall in ((40, 44, 26, 5), (40, 34, 20, 5), (40, 26, 14, 4), (40, 19, 8, 3)):
+        ap = _gable(a, xc, yb, w, wall, "sapphire", d=6)
+    a.line(f"M40 {_f(ap)}V2")
     return a.out()
 
 
 def _lib2() -> dict:
-    """Two Liberty Place: a green-glass shaft under twin crowns, two stepped peaks side by side."""
-    a = _Art(92, 236)
-    base = 226
-    a.shadow(6, 86, base, 8)
-    _podium(a, 8, 76, base, h=18)
-    _shaft(a, 22, 70, 48, base - 18 - 70, "green", fh=5.6, mw=6.0)
-    # the twin crown: two slim stepped peaks and the notch between
-    for x in (22, 48):
-        a.solid(x, 46, 22, 24, "green", d=6, top=False)
-        a.front(x - 1, 44.4, 24, 2.2, "trim")
-        a.poly([(x + 1, 44), (x + 4, 24), (x + 11, 8), (x + 18, 24), (x + 21, 44)], "trim")
-        a.line(f"M{x + 11} 8V44M{x + 4} 24h14")
-    a.face([(70, 70), (76, 67), (76, 21), (62.5, 5), (59, 8)], "green", "s")
-    a.line("M33 8V0M59 8V0")
+    """Two Liberty Place (Jahn, 848 ft, 58 floors): the same blue steel-and-glass skin over a stone
+    base, a lower slab wing beside it, and a shorter, squatter crown of three gables and a stub of spire."""
+    a = _Art(100, 225)
+    base = 213
+    a.shadow(6, 94, base, 8)
+    _podium(a, 6, 88, base, h=16)
+    a.solid(8, 118, 30, base - 16 - 118, "silver", d=6)                  # the slab wing, behind
+    _grid(a, 118, base - 16, 8, 38, 8, 38, fh=4.4, nv=5)
+    a.front(6, 116.4, 34, 2.2, "trim")
+    a.solid(36, 56, 44, base - 16 - 56, "sapphire", d=8)
+    _grid(a, 56, base - 16, 36, 80, 36, 80, fh=4.4, nv=8, band=3)
+    a.front(36, base - 16 - 22, 44, 22, "granite", extra=' opacity=".95"')   # stone on the lower levels
+    a.course(36, base - 16 - 22, 44, 22, "ashlar")
+    a.add(f'<path class="lz-hi" d="M48 {base - 46}L46 70M66 {base - 46}L64 70"/>')
+    a.front(34, 54.4, 48, 2.4, "trim")
+    a.solid(41, 40, 34, 16, "sapphire", d=7)
+    _grid(a, 40, 56, 41, 75, 41, 75, fh=4.4, nv=5)
+    for yb, w, wall in ((40, 26, 4), (31, 18, 3), (24, 10, 2)):
+        ap = _gable(a, 58, yb, w, wall, "sapphire", d=6)
+    a.line(f"M58 {_f(ap)}V8")
     return a.out()
 
 
 def _ccc() -> dict:
-    """Comcast Center: a clean, flat-topped glass slab; low at its foot a wall of glass slopes out
-    over the entrance, and a fine grid of mullions runs the whole height."""
-    a = _Art(84, 244)
-    base = 234
-    a.shadow(4, 78, base, 8)
-    _shaft(a, 18, 30, 46, base - 30 - 22, "glass", d=9, fh=4.8, mw=5.8)
-    a.front(16, 28.2, 50, 2.6, "trim")
-    a.add('<path class="lz-win" d="M20 33h42v4H20z" opacity=".9"/>')
-    # the sloped glass wall at the foot: leaning out over the lobby
-    a.face([(64, base - 22), (73, base - 26.5), (73, base - 6), (64, base)], "glass", "s")
-    a.poly([(6, base), (18, base - 22), (64, base - 22), (78, base)], "glass")
-    a.add(f'<path class="lz-mu" d="M12 {base - 8}H72M16 {base - 15}H69M30 {base - 22}L24 {base}M44 {base - 22}L44 {base}M58 {base - 22}L64 {base}"/>')
-    a.add(f'<path class="lz-door" d="M37 {base}v-9h10v9z"/>')
-    a.front(4, base, 76, 3, "granite")
+    """Comcast Center (Stern, 975 ft, 57 floors): a slab of lightly tinted silver glass, its corners
+    and its glass-box crown in ultra-clear glass, the shaft tapering in under two notches cut near the
+    top (the taller on the south), over a low three-storey glass winter garden."""
+    a = _Art(78, 256)
+    base = 244
+    a.shadow(4, 72, base, 8)
+    a.solid(6, base - 20, 66, 20, "glass", d=7)                           # the winter garden
+    _grid(a, base - 20, base, 6, 72, 6, 72, fh=6.6, nv=9, sw=.7)
+    a.add(f'<path class="lz-door" d="M34 {base}v-9h10v9z"/>')
+    a.front(4, base - 21.6, 70, 2, "trim")
+    ly = base - 20
+    _prism(a, 64, ly, 16, 62, 16, 62, "silver", d=8, top=False)           # the straight shaft
+    _prism(a, 24, 64, 20, 58, 16, 62, "silver", d=8)                      # tapering in under the crown
+    _grid(a, 64, ly, 16, 62, 16, 62, fh=4.2, nv=10, sw=.55, op=.9)
+    _grid(a, 24, 64, 20, 58, 16, 62, fh=4.2, nv=10, sw=.55, op=.9)
+    a.add(f'<path class="lz-win" d="M54 38h8v26h-8zM16 54h5v8h-5z" opacity=".5"/>')   # the two notches
+    a.front(16, 26, 3.2, ly - 26, "trim", ' opacity=".55"')               # ultra-clear corners
+    a.front(58.8, 26, 3.2, ly - 26, "trim", ' opacity=".55"')
+    a.add('<path class="lz-hi" d="M30 214L26 70M46 214L44 70"/>')
+    a.solid(19, 8, 40, 16, "trim", d=7)                                   # the glass-box crown
+    a.add('<path class="lz-mu" d="M19 8L59 24M59 8L19 24M39 8V24" style="stroke-width:.7px"/>')
+    a.front(17, 22.4, 44, 2.2, "trim")
     return a.out()
 
 
 def _ctc() -> dict:
-    """Comcast Technology Center: a glass tower that tapers as it climbs in long folded planes, its
-    top cut with a deep notch and capped by a crown of glass."""
-    a = _Art(96, 270)
-    base = 260
-    a.shadow(6, 90, base, 8)
-    _podium(a, 8, 78, base, "granite", h=16)
-    # the shaft narrows: a tapering front, the shaded side behind it
-    a.face([(70, 12), (78, 8), (80, base - 16 - 4), (74, base - 16)], "teal", "s")
-    a.poly([(24, base - 16), (30, 12), (70, 12), (74, base - 16)], "teal")
-    n = 30
-    ln = ""
-    for k in range(1, n):
-        t = k / n
-        y = 12 + (base - 16 - 12) * t
-        ln += f"M{_f(30 - 6 * t)} {_f(y)}H{_f(70 + 4 * t)}"
-    for k in range(1, 9):
-        t = k / 9
-        ln += f"M{_f(30 + 40 * t)} 12L{_f(24 + 50 * t)} {base - 16}"
-    a.add(f'<path class="lz-mu" d="{ln}" style="stroke-width:.55px"/>')
-    # the folds: one lit plane running up the front
-    a.add(f'<path class="lz-hi" d="M40 {base - 24}L38 24M60 {base - 24}L63 24"/>')
-    # the notch at the top and the crown above it
-    a.poly([(30, 12), (30, 22), (50, 36), (70, 22), (70, 12), (60, 12), (50, 26), (40, 12)], "glass")
-    a.add('<path class="lz-win" d="M40 12L50 26L60 12z" opacity=".55"/>')
-    a.poly([(34, 12), (38, 4), (44, 12)], "trim")
-    a.poly([(56, 12), (62, 4), (66, 12)], "trim")
-    a.line("M30 22L50 36L70 22")
+    """Comcast Technology Center (Foster + Partners, 1,121 ft): a slim tower in lightly tinted glass
+    wrapped in a zigzag corset of cross-bracing, easing in as it climbs, rising on columns from a long
+    corrugated podium and ending in a lantern of glass blades."""
+    a = _Art(100, 291)
+    base = 279
+    a.shadow(4, 96, base, 8)
+    a.solid(4, base - 16, 92, 16, "granite", d=8)                         # the podium, ribbed like a train car
+    a.add(f'<path class="lz-ln" d="' + "".join(f"M4 {base - 16 + 2.6 * k}h92" for k in range(1, 6)) + '" opacity=".5"/>')
+    a.add(f'<path class="lz-win" d="M8 {base - 12}h18v3H8zM74 {base - 12}h18v3H74z" opacity=".7"/>')
+    a.front(2, base - 17.6, 96, 2.2, "trim")
+    ty, by = 40, base - 16
+    _prism(a, ty, by, 32, 68, 29, 71, "green", d=8)
+    _grid(a, ty, by, 32, 68, 29, 71, fh=4.8, nv=9, sw=.5, op=.5)
+    z = ""                                                                # the corset: four zigzag bands of X-bracing
+    n = 5
+    for k in range(n):
+        ya, yb = ty + (by - ty) * k / n, ty + (by - ty) * (k + 1) / n
+        la, ra = 32 - 3 * k / n, 68 + 3 * k / n
+        lb, rb = 32 - 3 * (k + 1) / n, 68 + 3 * (k + 1) / n
+        z += f"M{_f(la)} {_f(ya)}L{_f(rb)} {_f(yb)}M{_f(ra)} {_f(ya)}L{_f(lb)} {_f(yb)}"
+    a.add(f'<path class="lz-mu" d="{z}" style="stroke-width:1.3px"/>')
+    a.add(f'<path class="lz-hi" d="M40 {by - 8}L38 {ty + 8}"/>')
+    a.front(30.4, ty - 1.8, 39.2, 2.2, "trim")
+    for x, top in ((33, 28), (39.5, 20), (46, 8), (52.5, 20), (59, 28)):  # the lantern of glass blades, the centre tallest
+        a.front(x, top, 3.6, ty - 1.8 - top, "trim")
+    a.add('<path class="lz-hi" d="M47.8 12V34M41.3 24V34M54.3 24V34"/>')
     return a.out()
 
 
 def _bny() -> dict:
-    """BNY Mellon Center (the old Mellon Bank Center): a dark granite shaft with a stepped crown,
-    each stage narrower, ending in a pyramid roof."""
-    a = _Art(96, 240)
-    base = 230
-    a.shadow(6, 90, base, 8)
-    _podium(a, 8, 78, base, "granite", h=20)
-    a.solid(22, 72, 52, base - 20 - 72, "granite", d=9)
-    ps = "".join(f"M{_f(26 + 6.4 * k)} 74v{base - 20 - 76}" for k in range(7))
-    a.add(f'<path class="lz-win" d="{ps}" style="stroke:var(--lz-win);stroke-width:3.4;opacity:.8"/>')
-    a.add(f'<path class="lz-mu" d="M22 90h52M22 130h52M22 170h52"/>')
-    a.front(20, 70.4, 56, 2.4, "trim")
-    for i, (x, w, y, h) in enumerate([(28, 40, 50, 22), (34, 28, 34, 16)]):
-        a.solid(x, y, w, h, "granite", d=8 - i)
-        a.front(x - 1, y - 1.6, w + 2, 2.2, "trim")
-        a.add(f'<path class="lz-win" d="M{x + 4} {y + 4}h{w - 8}v{h - 8}h{-(w - 8)}z" opacity=".7"/>')
-    a.face([(62, 34), (70, 30), (56, 8)], "granite", "s")
-    a.poly([(34, 34), (48, 6), (62, 34)], "trim")
-    a.line("M48 6V34M41 20h14")
-    a.line("M48 6V-1")
+    """BNY Mellon Center (KPF, 792 ft, 54 floors): an obelisk, a five-storey stone podium, a silver
+    metal-and-glass tower tapering as it rises with its columns and corner straps showing, a sweeping
+    cornice and a pyramid of metal."""
+    a = _Art(84, 211)
+    base = 199
+    a.shadow(5, 78, base, 8)
+    _podium(a, 5, 74, base, h=20)
+    ty, by = 44, base - 20
+    _prism(a, ty, by, 22, 62, 15, 69, "silver", d=8)
+    _grid(a, ty, by, 22, 62, 15, 69, fh=4.6, nv=9, sw=.5, op=.8)
+    cols = ""
+    for u in (.3333, .6667):                                              # the central columns
+        cols += f"M{_f(22 + 40 * u)} {ty}L{_f(15 + 54 * u)} {by}"
+    a.add(f'<path class="lz-mu" d="{cols}" style="stroke-width:1.5px"/>')
+    straps = ""
+    for k in range(1, 9):                                                 # the corner straps
+        y = by - k * 16.6
+        t = (y - ty) / (by - ty)
+        l, r = 22 - 7 * t, 62 + 7 * t
+        straps += f"M{_f(l)} {_f(y)}h4.4v1.8h-4.4zM{_f(r - 4.4)} {_f(y)}h4.4v1.8h-4.4z"
+    a.add(f'<path class="lz-win" d="{straps}" opacity=".8"/>')
+    a.add(f'<path class="lz-hi" d="M30 {by - 6}L33 {ty + 8}"/>')
+    a.face([(62, ty), (70, ty - 4), (70, ty - 10), (62, ty - 6)], "silver", "s")                          # the cornice
+    a.poly([(22, ty), (19.5, ty - 6), (65, ty - 6), (62, ty)], "trim")
+    a.face([(61, ty - 6), (68, ty - 9.5), (49, 6), (42, 8)], "silver", "s")                              # the pyramid
+    a.poly([(23, ty - 6), (42, 8), (61, ty - 6)], "silver")
+    a.line(f"M42 8V{ty - 6}M33 {ty - 21}h18M28 {ty - 12}h28")
+    a.add('<path class="lz-hi" d="M30 ' + str(ty - 8) + 'L41 14"/>')
+    a.line("M42 8V1")
     return a.out()
 
 
 def _tls() -> dict:
-    """Three Logan Square: a pale tower of horizontal bands, a chamfered corner, the flat roof held
-    up by a row of columns and a deep recess."""
-    a = _Art(92, 232)
-    base = 222
-    a.shadow(6, 86, base, 8)
-    _podium(a, 8, 76, base, "sand", h=18)
-    a.solid(20, 40, 52, base - 18 - 40, "sand", d=9)
-    bands = "".join(f"M20 {_f(46 + 5.6 * k)}h52" for k in range(int((base - 18 - 46) / 5.6)))
-    a.add(f'<path class="lz-mu" d="{bands}" style="stroke-width:.7px"/>')
-    a.add(f'<path class="lz-win" d="' + "".join(f"M20 {_f(48.6 + 11.2 * k)}h52v3h-52z" for k in range(int((base - 18 - 48) / 11.2))) + '" opacity=".75"/>')
-    a.add('<path class="lz-hi" d="M24 200L52 120M42 200L70 120"/>')
-    # the chamfered corner: a lit diagonal down the left edge
-    a.poly([(20, 40), (26, 40), (26, base - 18), (20, base - 18)], "trim")
-    # the crown: a recessed top with a ring of columns
-    a.front(18, 38.4, 56, 2.6, "trim")
-    a.solid(24, 22, 44, 17, "sand", d=8)
-    a.add('<path class="lz-win" d="M27 25h38v11H27z" opacity=".9"/>')
-    a.cols(29, 25, 6, 6.6, 3.2, 11, cap=False)
-    a.front(22, 20.4, 48, 2.2, "trim")
+    """Three Logan Square (Kling Lindquist, 739 ft, 55 floors): red granite in ribbons of dark glazing,
+    stepping in twice to a crown whose top corners are cut at an angle."""
+    a = _Art(84, 198)
+    base = 186
+    a.shadow(5, 78, base, 8)
+    _podium(a, 6, 72, base, "garnet", h=16)
+
+    def ribbons(x, y0, y1, w, fh=5.2):
+        n = int((y1 - y0 - 2) / fh)
+        a.add('<path class="lz-win" d="' + "".join(f"M{_f(x + 1.5)} {_f(y1 - 3.4 - k * fh)}h{_f(w - 3)}v2.8h{_f(-(w - 3))}z" for k in range(n)) + '" opacity=".85"/>')
+        a.add('<path class="lz-mu" d="' + "".join(f"M{_f(x + w * j / 5)} {_f(y0)}v{_f(y1 - y0)}" for j in range(1, 5)) + '" style="stroke-width:.5px" opacity=".55"/>')
+
+    a.solid(18, 40, 46, base - 16 - 40, "garnet", d=8)
+    ribbons(18, 40, base - 16, 46)
+    a.add(f'<path class="lz-hi" d="M24 {base - 26}L22 56"/>')
+    a.front(16, 38.4, 50, 2.4, "trim")
+    a.solid(22, 24, 38, 16, "garnet", d=7)
+    ribbons(22, 24, 40, 38, 5.2)
+    a.front(20, 22.4, 42, 2.2, "trim")
+    a.face([(51, 6), (58, 2.5), (63, 9.5), (63, 20.5), (56, 24), (56, 13)], "garnet", "s")          # the crown: top corners cut away
+    a.face([(31, 6), (38, 2.5), (58, 2.5), (51, 6)], "garnet", "t")
+    a.poly([(26, 24), (26, 13), (31, 6), (51, 6), (56, 13), (56, 24)], "garnet")
+    a.add('<path class="lz-win" d="M30 14h22v6H30z" opacity=".85"/>')
+    a.line("M26 13L31 6M56 13L51 6M31 6H51")
     return a.out()
 
 
 def _cira() -> dict:
-    """Cira Centre: a glass box whose faces are cut on the diagonal, a lattice of crossing
-    mullions and the top sliced into one long sloping plane."""
-    a = _Art(92, 192)
-    base = 182
-    a.shadow(6, 86, base, 8)
-    _podium(a, 10, 72, base, "glass", h=14)
-    # the sloping top: higher at the right than the left
-    a.face([(70, 54), (79, 49.5), (79, base - 18), (70, base - 14)], "glass", "s")
-    a.poly([(22, base - 14), (22, 70), (70, 40), (70, base - 14)], "glass")
-    lat = ""
-    for k in range(-4, 9):
-        lat += f"M{_f(22 + k * 8)} {base - 14}L{_f(22 + k * 8 + 40)} 60M{_f(22 + k * 8)} 60L{_f(22 + k * 8 + 40)} {base - 14}"
-    a.add(f'<clipPath id="cira-c-{{s}}"><path d="M22 {base - 14}V70L70 40V{base - 14}z"/></clipPath>'
-          f'<path class="lz-mu" clip-path="url(#cira-c-{{s}})" d="{lat}" style="stroke-width:.6px"/>')
-    a.add(f'<path class="lz-hi" d="M26 {base - 22}L66 60"/>')
-    a.add('<path class="lz-tp lz-t-glass" d="M22 70L70 40l9 -4.5L31 65.5z"/>')
-    a.line("M22 70L70 40")
+    """Cira Centre (Pelli, 437 ft, 29 floors): a glass prism of bright blue-green, its roof cut in one
+    long diagonal, a white lattice of crossing diagonals over the faces and a lit facet at each corner."""
+    a = _Art(66, 124)
+    base = 112
+    a.shadow(4, 58, base, 8)
+    yb = base - 3
+    a.face([(50, yb), (58, yb - 4), (58, 4), (50, 8)], "aqua", "s")
+    a.face([(6, 38), (14, 34), (58, 4), (50, 8)], "aqua", "t")
+    a.poly([(6, yb), (6, 38), (50, 8), (50, yb)], "aqua")
+    a.add(f'<clipPath id="cira-c-{{s}}"><path d="M6 {yb}V38L50 8V{yb}z"/></clipPath>')
+    lat = "".join(f"M{6 + k * 11} {yb}L{6 + k * 11 + 44} {yb - 88}M{6 + k * 11} {yb - 88}L{6 + k * 11 + 44} {yb}" for k in range(-4, 5))
+    a.add(f'<path class="lz-mu" clip-path="url(#cira-c-{{s}})" d="{lat}" style="stroke-width:.8px"/>')
+    a.add(f'<path class="lz-win" d="M6 {yb}L6 {yb - 34}L28 {yb}zM50 8V40L30 21.6z" opacity=".22"/>')
+    a.add(f'<path class="lz-hi" d="M12 {yb - 12}L44 36"/>')
+    a.line(f"M50 8V{yb}M6 38L50 8")
+    a.front(3, yb, 52, 3, "trim")
     return a.out()
 
 
 def _fmc() -> dict:
-    """FMC Tower: a slim bronze-glass shaft that steps in twice and ends in an open lattice crown
-    with a spire."""
-    a = _Art(84, 224)
-    base = 214
-    a.shadow(6, 78, base, 8)
-    _podium(a, 8, 68, base, "bronze", h=16)
-    _shaft(a, 24, 64, 36, base - 16 - 64, "bronze", d=8, fh=5.0, mw=6.0)
-    a.front(22, 62.4, 40, 2.2, "trim")
-    _shaft(a, 29, 42, 26, 22, "bronze", d=7, fh=5.0, mw=6.0)
-    a.front(27, 40.4, 30, 2.2, "trim")
-    # the open crown: four stays of a lattice and the spire
-    a.face([(55, 40), (62, 36.5), (51, 14)], "bronze", "s")
-    a.poly([(29, 40), (42, 8), (55, 40)], "bronze")
-    a.add('<path class="lz-win" d="M36 40L42 18L48 40z" opacity=".8"/>')
-    a.line("M29 40L42 8L55 40M35 40L42 14L49 40M42 8V-2M33 28h18")
+    """FMC Tower (Pelli Clarke Pelli, 730 ft, 49 floors): a slender sculptural tower in reflective
+    steel-blue glass, its faces folded into creased planes (one lit, one in shade) and its roof sliced
+    at an angle, standing over a lower wing."""
+    a = _Art(60, 196)
+    base = 184
+    a.shadow(4, 54, base, 8)
+    a.solid(4, 150, 26, base - 150, "steel", d=6)                         # the lower wing
+    _grid(a, 150, base, 4, 30, 4, 30, fh=4.4, nv=4)
+    a.front(2, 148.4, 30, 2.2, "trim")
+    a.face([(46, base), (52, base - 3), (52, 3), (46, 6)], "steel", "s")
+    a.face([(18, 20), (24, 17), (52, 3), (46, 6)], "steel", "t")
+    a.poly([(18, base), (18, 20), (46, 6), (46, base)], "steel")
+    _grid(a, 20, base, 18, 46, 18, 46, fh=4.4, nv=7, sw=.5, op=.8)
+    a.add(f'<path class="lz-f" d="M18 {base}V20L27 16V{base}z" fill="url(#lzg-trim-{{s}})" opacity=".32"/>')
+    a.add(f'<path class="lz-gs" d="M38 {base}V10L46 6V{base}z"/>')
+    a.add(f'<path class="lz-hi" d="M21 {base - 8}L24 28M31 {base - 14}L33 40"/>')
+    a.line(f"M27 16V{base}M38 10V{base}M18 20L46 6")
     return a.out()
 
 

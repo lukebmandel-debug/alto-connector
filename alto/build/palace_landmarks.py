@@ -37,6 +37,12 @@ _MATS = {
     "granite": (("#cdd0d8", "#9ea3b0", "#838998", "#dadde4"), ("#4c5068", "#383c52", "#2a2d40", "#5b607a")),
     "teal": (("#7fc1b8", "#3f8f88", "#2f726c", "#9dd3cb"), ("#3e7d78", "#2a5c58", "#1f4744", "#4e8f89")),
     "green": (("#cfe3dc", "#8fb8ac", "#74a094", "#e0f0ea"), ("#4f7d70", "#33574d", "#26433b", "#5f8f81")),
+    # the skyscrapers' own skins (palace_towers.py): sapphire glass, silver metal, red granite, aqua and steel-blue glass
+    "sapphire": (("#d6e6f7", "#86a9dc", "#6489bf", "#e6f0fb"), ("#4a6d9f", "#2f4d7a", "#243c61", "#5c82b6")),
+    "silver": (("#f1f4f6", "#c3ccd4", "#a4afba", "#fafcfd"), ("#7a8696", "#576273", "#434c5b", "#8b98a9")),
+    "garnet": (("#cf9684", "#96503f", "#783d30", "#dca796"), ("#8f5a4c", "#6c3d32", "#512b23", "#a06b5c")),
+    "aqua": (("#d4f6f1", "#72cdc6", "#4fb0ac", "#e6faf7"), ("#3f8f8d", "#2a6d6c", "#1f5252", "#52a3a1")),
+    "steel": (("#dbe8f0", "#8eb0c8", "#7095af", "#e8f1f7"), ("#4d7391", "#315069", "#263f55", "#5f87a8")),
 }
 _MATS["stone"] = (_MATS["stone"][0], ("#5d627c", "#3f4459", "#2c2f41", "#70768f"))
 
