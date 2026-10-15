@@ -357,6 +357,13 @@ its floors, reached by an elevator inside the building.
   real building from 2 to the roof (`floors`, the real count; the famous
   towers are known), and the elevator shows the real floor numbers. A
   landmark with no `unit` stays a plain landmark. One section has one tower.
+- **Neighborhood names** (`areas`: `[{name, lat, lon, rank}]`, rank 1 major
+  to 4 minor): every well-known named neighborhood of the city is drawn as a
+  small label-only name (no tint, no hover; major names at the whole-city
+  zoom, minor ones appearing as you zoom in, never overlapping the
+  districts, landmarks or buildings). Philadelphia's are built in; for
+  another city pass the list (the neighborhood's middle in degrees), and a
+  name a district already carries is not drawn twice.
 - Connections are not drawn between cards: pointing at a building lights
   routes along the streets to the buildings it connects with, in the
   relation's color. Relations, chips, flags, filters, the Overview, search,

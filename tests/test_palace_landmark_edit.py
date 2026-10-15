@@ -384,3 +384,104 @@ def test_nothing_is_offered_outside_edit_mode(browser, urls):
     pg.wait_for_timeout(700)
     assert pg.evaluate("document.querySelectorAll('#pal-elev .pe-no, #pal-elev .pe-out').length") == 0
     ctx.close()
+
+
+# ── the bar must be reachable (the pointer crosses no gap, the bar waits for it) and can be pinned ──
+def _lm_centre(pg):
+    return pg.evaluate("""()=>{ var g=document.querySelector('#palace-svg .pl-lmb'); var r=g.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height*.7]; }""")
+
+
+def _bar_state(pg):
+    return pg.evaluate("""()=>{ var b=document.getElementById('pl-lmbar'); if(!b) return null; var r=b.getBoundingClientRect(),
+      g=document.querySelector('#palace-svg .pl-lmb').getBoundingClientRect(), a=b.querySelector('[data-a=add]').getBoundingClientRect();
+      return {show:b.classList.contains('show'), l:r.left, t:r.top, r:r.right, b:r.bottom, ax:a.left+a.width/2, ay:a.top+a.height/2,
+              overlap: Math.min(r.bottom,g.bottom)-Math.max(r.top,g.top), vw:innerWidth, vh:innerHeight}; }""")
+
+
+def _walk(pg, a, b, steps=14, ms=70):
+    for i in range(1, steps + 1):
+        pg.mouse.move(a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps)
+        pg.wait_for_timeout(ms)
+
+
+def test_the_bar_is_reached_in_slow_steps_from_the_landmark_and_add_a_floor_is_clicked(browser, urls):
+    pg = _open(browser, urls["pure"])
+    _hover_landmark(pg)
+    s = _bar_state(pg)
+    assert s and s["show"] and s["overlap"] > 4, s                       # it straddles the landmark's edge: no gap to cross
+    assert 0 <= s["l"] and s["r"] <= s["vw"] and 0 <= s["t"] and s["b"] <= s["vh"], s
+    start = _lm_centre(pg)
+    _walk(pg, start, [s["ax"], s["ay"]])                                  # ~1 s on the way: longer than the old 380 ms grace
+    assert _bar_state(pg)["show"]
+    pg.mouse.click(s["ax"], s["ay"])
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.getElementById('aed-form').classList.contains('show')")
+    assert "Which unit does this building house?" in pg.inner_text("#aed-form")
+    assert not pg.errs, pg.errs
+    pg.context.close()
+
+
+def test_the_bar_waits_a_moment_after_the_pointer_leaves_then_goes(browser, urls):
+    pg = _open(browser, urls["pure"])
+    _hover_landmark(pg)
+    assert _bar_state(pg)["show"]
+    pg.mouse.move(60, 700)
+    pg.wait_for_timeout(120)
+    assert _bar_state(pg)["show"]                                         # a grace delay, not an instant hide
+    pg.wait_for_timeout(600)
+    assert not _bar_state(pg)["show"]
+    pg.context.close()
+
+
+def test_a_click_on_the_landmark_pins_the_bar_until_escape_or_a_click_away(browser, urls):
+    pg = _open(browser, urls["pure"])
+    c = _lm_centre(pg)
+    pg.mouse.move(c[0], c[1])
+    pg.mouse.click(c[0], c[1])
+    pg.wait_for_timeout(200)
+    pg.mouse.move(60, 700)
+    pg.wait_for_timeout(900)
+    assert _bar_state(pg)["show"]                                         # pinned: the pointer is far away and it stays
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(150)
+    assert not _bar_state(pg)["show"]
+    pg.mouse.click(c[0], c[1])                                            # pin again, then click the empty map
+    pg.wait_for_timeout(150)
+    assert _bar_state(pg)["show"]
+    pg.mouse.click(60, 700)
+    pg.wait_for_timeout(150)
+    assert not _bar_state(pg)["show"]
+    assert not pg.errs, pg.errs
+    pg.context.close()
+
+
+def test_the_pinned_bar_follows_the_landmark_when_the_map_zooms_and_stays_on_screen(browser, urls):
+    pg = _open(browser, urls["pure"])
+    c = _lm_centre(pg)
+    pg.mouse.click(c[0], c[1])
+    pg.wait_for_timeout(200)
+    w0 = pg.evaluate("document.querySelector('#palace-svg .pl-lmb').getBoundingClientRect().width")
+    for key in ("Control+=", "Meta+="):
+        pg.keyboard.press(key)
+        pg.wait_for_timeout(700)
+    pg.wait_for_timeout(500)
+    s = _bar_state(pg)
+    assert abs(pg.evaluate("document.querySelector('#palace-svg .pl-lmb').getBoundingClientRect().width") - w0) > 3   # the map did zoom
+    assert s and s["show"] and s["overlap"] > 0, s                        # still on the landmark after the zoom
+    assert 0 <= s["l"] and s["r"] <= s["vw"] and 0 <= s["t"] and s["b"] <= s["vh"], s
+    pg.context.close()
+
+
+def test_the_bar_is_reached_by_keyboard_focus(browser, urls):
+    pg = _open(browser, urls["pure"])
+    assert pg.evaluate("document.querySelector('#palace-svg .pl-lmb').getAttribute('tabindex')") == "0"
+    pg.keyboard.press("Shift")
+    pg.evaluate("document.querySelector('#palace-svg .pl-lmb').focus()")
+    pg.wait_for_timeout(200)
+    assert _bar_state(pg)["show"]
+    pg.keyboard.press("Enter")                                            # Enter moves into the bar
+    assert pg.evaluate("document.activeElement.getAttribute('data-a')") == "add"
+    pg.keyboard.press("Enter")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.getElementById('aed-form').classList.contains('show')")
+    pg.context.close()

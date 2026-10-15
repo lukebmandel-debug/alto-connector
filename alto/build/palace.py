@@ -42,7 +42,7 @@ from .sanitize import js_json
 from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
-               "buildings", "parks", "scale", "data_z", "made"}
+               "buildings", "parks", "areas", "scale", "data_z", "made"}
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -87,6 +87,8 @@ def check_palace(b, warnings: list) -> None:
                         "before building; the page has nothing to draw until then")
     from .palace_towers import check_buildings            # (towers: a landmark entry with a unit)
     check_buildings(pal, len(b.acts))
+    from .palace_areas import check_areas                  # (neighbourhood names drawn label-only)
+    check_areas(pal.get("areas"))
     for i, d in enumerate(pal.get("districts") or []):
         if not isinstance(d, dict) or not isinstance(d.get("unit"), int):
             raise BriefError(f"palace.districts[{i}]: needs unit (the section's index)")
@@ -214,6 +216,8 @@ def palace_data(b, nodes) -> str:
         x0, y0, x1, y1 = pp.district_box(m, d)
         dist.append({"u": d["unit"], "n": d.get("name") or "", "box": [round(x0), round(y0), round(x1), round(y1)]})
     mp = {k: v for k, v in m.items() if k not in ("bbox",)}
+    from .palace_areas import layout as area_layout
+    mp["areas"] = area_layout(m, pal.get("areas"), [d.get("name") or "" for d in districts])
     # the parks, less the blocks a building stands on (a park never moves a building)
     from .palace_parks import shape as shape_parks
     g_ = m.get("grid") or {}
@@ -236,12 +240,16 @@ def palace_data(b, nodes) -> str:
 
 
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
-           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None) -> dict:
+           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
-    of parks to draw whatever their size (palace_parks; the big ones are drawn anyway)."""
+    of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
+    neighbourhood names drawn label-only, [{name, lat, lon, rank 1-4}] (palace_areas; omitted: Philadelphia's own)."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
+    from .palace_areas import check_areas, default_areas
+    areas = default_areas(place, bbox) if areas is None else areas
+    check_areas(areas)
     raw = pm.fetch_osm(tuple(bbox), cache_dir=cache_dir, landmarks=landmarks or None)
     m = pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None,
                      landmarks=landmarks or None)
@@ -257,7 +265,7 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     blocks = m.pop("blocks")
     return {"place": place, "bbox": list(bbox), "districts": districts or [],
             "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
-            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "scale": scale,
+            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "scale": scale,
             "data_z": pack({"map": m, "blocks": blocks})}
 
 
@@ -303,7 +311,8 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-lmb .lm-shadow{fill:rgba(20,26,55,.16);}
   .pal-svg .pl-lmb .lm-card{fill:rgba(255,255,255,.92);stroke-width:2.5;vector-effect:non-scaling-stroke;}
   html.dark .pal-svg .pl-lmb .lm-card{fill:rgba(34,36,48,.94);}
-  .pal-svg .pl-lmb.has-page:hover .lm-card{stroke-width:4;}
+  .pal-svg .pl-lmb.has-page:hover .lm-card,.pal-svg .pl-lmb:focus-visible .lm-card{stroke-width:4;}
+  .pal-svg .pl-lmb:focus{outline:none;}
   .pal-svg .pl-lmb .lm-name{font-weight:800;letter-spacing:.01em;stroke:none;}
   .pal-svg .pl-bridges .pl-tube{filter:drop-shadow(0 1px 2px rgba(20,26,55,.35));}
   /* a bridge: a deck (a light band) between two fine rail lines, piers ticked out into the water either side, its name beside it;
@@ -363,6 +372,10 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-dist{--dfs:clamp(11px, calc(10.5px + 8px * var(--pz,1)), 20px);font-size:calc(var(--dfs) / var(--pz,1));font-weight:650;letter-spacing:.07em;text-transform:uppercase;
     opacity:.8;stroke-width:calc(3.2px / var(--pz,1));pointer-events:all;cursor:pointer;}
   .pal-svg.far .pl-dist{opacity:.6;pointer-events:none;}
+  /* neighbourhood names (palace_areas.py): label-only, smaller and lighter than the units' names, never a click target; which show is decided by rank and room (areaFit) */
+  .pal-svg .pl-area{--afs:clamp(9px, calc(7.5px + 5px * var(--pz,1)), 13px);font-size:calc(var(--afs) / var(--pz,1));font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+    opacity:.74;stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
+  #palace-svg-m .pl-area{--afs:clamp(10.5px, calc(8.5px + 5px * var(--pz,1)), 13px);opacity:.7;}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
   .pal-svg .pl-bld .b-card{fill:rgba(255,255,255,.9);stroke-width:1.4;vector-effect:non-scaling-stroke;}
@@ -380,7 +393,7 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-addr{fill:var(--accent);fill-opacity:.12;stroke:var(--accent);stroke-width:1.5;stroke-dasharray:4 3;vector-effect:non-scaling-stroke;pointer-events:none;}
   .pal-svg .pl-addpend{fill-opacity:.32;stroke-width:2;stroke-dasharray:none;}
   .pal-svg .pl-addr0{fill-opacity:.05;stroke-opacity:.55;}
-  #pl-lmbar{position:fixed;z-index:60;display:none;gap:4px;padding:4px;border-radius:12px;background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);
+  #pl-lmbar{position:fixed;z-index:70;display:none;gap:4px;padding:4px;border-radius:12px;background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);
     border:1px solid rgba(0,0,0,.12);box-shadow:0 6px 22px rgba(0,0,0,.18);}
   #pl-lmbar.show{display:flex;}
   #pl-lmbar button{font:700 12px/1 system-ui,sans-serif;padding:7px 10px;border-radius:8px;border:0;background:transparent;color:#1d1d1f;cursor:pointer;white-space:nowrap;}
@@ -932,6 +945,9 @@ function drawCity(svg){
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
     var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:tubeCol(pm.colorRaw), 'data-u':d.u},labels);
     t.textContent=d.n || pm.label; });
+  /* ── neighbourhood names: label only ── */
+  (M.areas||[]).forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':a.r||2, 'aria-hidden':'true'},labels); t.textContent=a.n; });
+  /* ── /neighbourhood names ── */
   lbl(labels,'pl-credit','Map data © OpenStreetMap contributors', M.W+MX-18, M.H+MY-18, 'end');
   var hits=el('g',{'class':'pl-hits'},svg);
   M.streets.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hits); h._n=s.n; });
@@ -941,12 +957,30 @@ function drawCity(svg){
   sizeChips(svg);
   if(svg===svgD) window._palTr.ready();
 }
+/* ── neighbourhood names: which show. A name of rank r appears once the board is zoomed AREA_K[r] times in from the whole city; then, in rank order,
+   any name that would touch a district's name, a landmark, a building or a name already kept is hidden. ── */
+var AREA_K=[0, 0, 2, 4, 8];
+function areaSoon(svg){ if(!svg.querySelector('.pl-area')) return; clearTimeout(svg._arT); svg._arT=setTimeout(function(){ areaFit(svg); }, 90); }
+function areaFit(svg){
+  var tx=[].slice.call(svg.querySelectorAll('.pl-area')); if(!tx.length || !svg.getBoundingClientRect().width) return;
+  var z=svg===svgD?Z:(MM.z||1), zf=svg===svgD?zmin():(typeof pmZmin==='function'?pmZmin():(MM.z||1)*.4);
+  tx.forEach(function(t){ t.style.display=''; });
+  var rk=tx.map(function(t){ return +t.getAttribute('data-r')||2; }), rc=tx.map(function(t){ return t.getBoundingClientRect(); }), blk=[];
+  function add(n){ var r=n.getBoundingClientRect(); if(r.width>0 && r.height>0) blk.push(r); }
+  [].forEach.call(svg.querySelectorAll('.pl-dist,.pl-lmt,.pl-lmb,.pl-chip,.pl-pkt'), add);
+  if(svg===svgD) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), add);
+  var P4=4, kept=[], order=tx.map(function(t,i){ return i; }).sort(function(a,b){ return rk[a]-rk[b] || a-b; });
+  function hits(b, r){ return !(b.right+P4<r.left || b.left-P4>r.right || b.bottom+P4<r.top || b.top-P4>r.bottom); }
+  order.forEach(function(i){ var t=tx[i], b=rc[i], ok=z>=zf*AREA_K[Math.min(4,Math.max(1,rk[i]))]*.999 && b.width>0;
+    if(ok) ok=!blk.some(function(r){ return hits(b, r); }) && !kept.some(function(r){ return hits(b, r); });
+    if(ok) kept.push(b); t.style.display=ok?'':'none'; }); }
 /* chips keep a constant size on screen: re-measured when the zoom settles */
 function sizeChips(svg){ var z=svg===svgD?Z:(MM.z||1);
   if(window._palLm) window._palLm.relayout(svg, z);
   svg.querySelectorAll('.pl-chip').forEach(function(g){ var t=g._t, bx=g._bx; if(!t) return; var w=0; try{ w=t.getComputedTextLength(); }catch(e){}
     if(!w) w=String(t.textContent).length*6.4/z; var h=20/z, pad=9/z;
-    bx.setAttribute('x', -w/2-pad); bx.setAttribute('y', -h/2); bx.setAttribute('width', w+2*pad); bx.setAttribute('height', h); bx.setAttribute('rx', h/2); }); }
+    bx.setAttribute('x', -w/2-pad); bx.setAttribute('y', -h/2); bx.setAttribute('width', w+2*pad); bx.setAttribute('height', h); bx.setAttribute('rx', h/2); });
+  areaSoon(svg); }
 function districtCentre(d){
   var xs=[], ys=[]; ((P.units||[])[d.u]||[]).forEach(function(id){ var L=lot(P.at[id]); if(L){ xs.push(L[0]); ys.push(L[1]); } });
   if(!xs.length) return [(d.box[0]+d.box[2])/2, (d.box[1]+d.box[3])/2];
@@ -1878,41 +1912,82 @@ window.addEventListener('click', function(e){
 window.addEventListener('keydown', function(e){ if(e.key==='Escape' && addMode){ addMode=false; syncAdd(); } }, true);
 
 /* ── manual edit mode: a landmark building offers "Add a floor" (and houses a unit, or moves it out) ──
-   Hover a landmark — or a tower's own chip — and a small glass bar stands over it. A landmark with no unit asks which unit it
-   houses first; a tower adds a floor of its unit, with the next real floor number or the one typed. */
-var lmBar=null, lmFor=null, lmT=null;
+   Hover a landmark — or a tower's own chip — and a small glass bar straddles its lower edge (so the pointer never has to cross a gap),
+   it waits 350 ms after the pointer leaves both, a click on the landmark pins it open (until Esc, a click away or another landmark),
+   keyboard focus and a touch tap reach it too, and it follows the landmark as the map pans and zooms, flipping inside the viewport
+   edge. A landmark with no unit asks which unit it houses first; a tower adds a floor of its unit, with the next real floor number
+   or the one typed. */
+var lmBar=null, lmFor=null, lmT=null, lmPin=false, lmRaf=0, lmKey='';
 function lmBarEl(){
   if(lmBar && lmBar.parentNode) return lmBar;
-  lmBar=document.createElement('div'); lmBar.id='pl-lmbar'; lmBar.setAttribute('role','toolbar');
-  lmBar.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+  lmBar=document.createElement('div'); lmBar.id='pl-lmbar'; lmBar.setAttribute('role','toolbar'); lmBar.setAttribute('aria-label','Landmark building');
+  ['mousedown','dblclick'].forEach(function(n){ lmBar.addEventListener(n, function(e){ e.stopPropagation(); }); });
   lmBar.addEventListener('mouseenter', function(){ clearTimeout(lmT); });
   lmBar.addEventListener('mouseleave', function(){ lmHideSoon(); });
   lmBar.addEventListener('click', function(e){ e.stopPropagation(); var b=e.target.closest('button'); if(!b || !lmFor) return;
     var r=b.getBoundingClientRect(), at=anchorAt(r.left, r.bottom+6), name=lmFor, a=b.getAttribute('data-a'); lmHide();
     if(a==='add') houseForm(name, at, true); else if(a==='house') houseForm(name, at, false); else if(a==='out') moveUnitOut(name); });
   document.body.appendChild(lmBar); return lmBar; }
-function lmHide(){ clearTimeout(lmT); if(lmBar) lmBar.classList.remove('show'); lmFor=null; }
-function lmHideSoon(){ clearTimeout(lmT); lmT=setTimeout(lmHide, 380); }
-function lmShow(name, g){
-  clearTimeout(lmT); var bar=lmBarEl(); if(lmFor===name && bar.classList.contains('show')) return; lmFor=name;
+function lmHide(){ clearTimeout(lmT); lmPin=false; lmFor=null; lmKey=''; if(lmRaf){ cancelAnimationFrame(lmRaf); lmRaf=0; } if(lmBar) lmBar.classList.remove('show'); }
+function lmHideSoon(){ if(lmPin) return; clearTimeout(lmT); lmT=setTimeout(function(){ if(!lmPin) lmHide(); }, 350); }
+function lmG(name){ return svgD?[].filter.call(svgD.querySelectorAll('.pl-lmb'), function(q){ return q.getAttribute('data-name')===name; })[0]||null:null; }
+function lmRect(name){                                                           /* the landmark's block on screen (what the pointer test uses too) */
+  var l=lmOf(name), m=svgD && svgD.getScreenCTM && svgD.getScreenCTM();
+  if(l && m && svgD.createSVGPoint){ var b=l.box, p=svgD.createSVGPoint(); p.x=b[0]; p.y=b[1]; var a=p.matrixTransform(m); p.x=b[2]; p.y=b[3]; var c=p.matrixTransform(m);
+    return {left:Math.min(a.x,c.x), right:Math.max(a.x,c.x), top:Math.min(a.y,c.y), bottom:Math.max(a.y,c.y)}; }
+  var g=lmG(name); return g?g.getBoundingClientRect():null; }
+function lmPlace(){
+  if(!lmFor || !lmBar) return; var r=lmRect(lmFor); if(!r) return;
+  var bw=lmBar.offsetWidth||250, bh=lmBar.offsetHeight||34, vw=innerWidth, vh=innerHeight;
+  var off=r.right<0 || r.left>vw || r.bottom<0 || r.top>vh;
+  var x=Math.max(8, Math.min(vw-bw-8, (r.left+r.right)/2-bw/2));
+  var y=r.bottom-bh*.55;                                                           /* straddling the card's lower edge */
+  if(y+bh>vh-8) y=r.top-bh*.45;                                                    /* no room below: its upper edge */
+  if(y<8) y=r.bottom-bh-6;                                                         /* none there either: inside the card's foot */
+  y=Math.max(8, Math.min(vh-bh-8, y));
+  var k=Math.round(x)+','+Math.round(y)+','+off;
+  if(k!==lmKey){ lmKey=k; lmBar.style.left=x+'px'; lmBar.style.top=y+'px'; lmBar.style.visibility=off?'hidden':''; } }
+function lmLoop(){ if(!lmFor){ lmRaf=0; return; } if(!palaceOn() || !editing() || focused()){ lmHide(); return; } lmPlace(); lmRaf=requestAnimationFrame(lmLoop); }
+function lmShow(name){
+  clearTimeout(lmT); var bar=lmBarEl(); if(lmFor===name && bar.classList.contains('show')) return; lmFor=name; lmKey='';
   var h=towerHub(name);
   bar.innerHTML='<button type="button" data-a="add" title="'+(h?'A new floor of the tower':'Choose the unit this building houses, then add a floor')+'">+ Add a floor</button>'
     +(h?'<button type="button" data-a="out" title="Its buildings go back to their own lots">Move the unit out</button>':'<button type="button" data-a="house" title="Its buildings become the floors of this one">House a unit here</button>');
-  var r=g.getBoundingClientRect(), w=bar.offsetWidth||250; bar.classList.add('show');
-  bar.style.left=Math.max(8, Math.min(innerWidth-w-8, r.left+r.width/2-(bar.offsetWidth||250)/2))+'px';
-  bar.style.top=Math.max(8, Math.min(innerHeight-44, r.top+8))+'px'; }
+  bar.classList.add('show'); lmPlace(); if(!lmRaf) lmRaf=requestAnimationFrame(lmLoop); }
+function lmNameAt(t, e){                                                          /* the landmark under the pointer: a tower's chip, or its block (whatever layer is on top there) */
+  var nd=t.closest('.node'); if(nd){ var id=nd.id.replace(/^node-/,''); return P.tw && P.tw[id]?P.tw[id].n:null; }
+  var p=svgPt(svgD,e), hit=null, ha=1e18, cur=null;
+  (M.landmarks||[]).forEach(function(l){ var b=l.box; if(b && p[0]>=b[0] && p[0]<=b[2] && p[1]>=b[1] && p[1]<=b[3]){ if(l.n===lmFor) cur=l.n; var a=(b[2]-b[0])*(b[3]-b[1]); if(a<ha){ ha=a; hit=l.n; } } });
+  return cur||hit; }
+function lmTab(){ if(svgD) [].forEach.call(svgD.querySelectorAll('.pl-lmb'), function(g){ if(editing()) g.setAttribute('tabindex','0'); else g.removeAttribute('tabindex'); }); }
 document.addEventListener('mousemove', function(e){
   if(!palaceOn() || !editing() || dragging || focused() || !svgD){ if(lmFor) lmHide(); return; }
+  if(lmPin) return;
   var t=e.target; if(!t.closest || t.closest('#pl-lmbar,#aed-form,.aed-cc')) return;
   if(!t.closest('#canvas')){ if(lmFor) lmHideSoon(); return; }
-  var nd=t.closest('.node'), name=null, id=nd?nd.id.replace(/^node-/,''):null;
-  if(id && P.tw && P.tw[id]) name=P.tw[id].n;                                     /* a tower's own chip */
-  else if(!nd){ var p=svgPt(svgD,e);                                               /* the pointer over a landmark's block (whatever layer is on top there) */
-    (M.landmarks||[]).forEach(function(l){ var b=l.box; if(b && p[0]>=b[0] && p[0]<=b[2] && p[1]>=b[1] && p[1]<=b[3]) name=l.n; }); }
-  var g=name?[].filter.call(svgD.querySelectorAll('.pl-lmb'), function(q){ return q.getAttribute('data-name')===name; })[0]:null;
-  if(g) lmShow(name, g); else if(lmFor) lmHideSoon();
+  var name=lmNameAt(t, e);
+  if(name && lmG(name)) lmShow(name); else if(lmFor) lmHideSoon();
 });
-new MutationObserver(function(){ if(!editing()) lmHide(); }).observe(de,{attributes:true,attributeFilter:['class']});
+document.addEventListener('click', function(e){                                    /* a click (or a touch tap) on a landmark pins the bar open */
+  if(!palaceOn() || !editing() || !svgD){ if(lmFor) lmHide(); return; }
+  var t=e.target; if(!t.closest || t.closest('#pl-lmbar,#aed-form,.aed-cc')) return;
+  var name=t.closest('#canvas')?lmNameAt(t, e):null;
+  if(name && lmG(name)){ lmPin=true; lmShow(name); var g=lmG(name); if(g.classList.contains('has-page')) e.stopPropagation(); }
+  else if(lmFor) lmHide();
+}, true);
+window.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && lmFor){ lmHide(); return; }
+  if(e.key==='Tab' && editing()) lmTab();
+  if((e.key==='Enter' || e.key===' ' || e.key==='ArrowDown') && lmFor && e.target.closest && e.target.closest('.pl-lmb') && lmBar){
+    var b=lmBar.querySelector('button'); if(b){ e.preventDefault(); b.focus(); } }
+}, true);
+document.addEventListener('focusin', function(e){                                   /* keyboard focus on a landmark opens (and pins) its bar */
+  if(!palaceOn() || !editing() || !svgD || !e.target.closest) return;
+  var g=e.target.closest('.pl-lmb'); if(!g || !svgD.contains(g) || !(e.target.matches && e.target.matches(':focus-visible'))) return;
+  lmPin=true; lmShow(g.getAttribute('data-name')); });
+document.addEventListener('focusout', function(e){
+  var to=e.relatedTarget; if(lmFor && lmPin && to && to.closest && !to.closest('#pl-lmbar,.pl-lmb')) lmHide(); });
+new MutationObserver(function(){ if(!editing()) lmHide(); lmTab(); }).observe(de,{attributes:true,attributeFilter:['class']});
 """ + DIR_JS + MOBILE_JS + r"""
 })();
 """
