@@ -19,7 +19,9 @@ DIR_CSS = r"""
   .pal-svg .dr-walk{fill:none;stroke:var(--accent,#6d5bd0);stroke-width:4.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:7 8;vector-effect:non-scaling-stroke;}
   .pal-svg .dr-ride{fill:none;stroke-width:8;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
   .pal-svg .dr-rsh{fill:none;stroke:rgba(255,255,255,.7);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
-  .pal-svg .dr-mk{transform:translate(var(--sx),var(--sy)) scale(calc(1 / var(--pz,1)));}
+  /* a marker sits at its map point by its transform ATTRIBUTE (map units) and keeps its screen size by a unitless CSS scale on
+     its inner .dr-sc — never px in a CSS transform, which Safari multiplies by the page's CSS zoom (see palace.py .pl-sc) */
+  .pal-svg .dr-sc{transform:scale(calc(1 / var(--pz,1)));}
   .pal-svg .dr-mk circle{vector-effect:none;}
   .pal-svg .dr-stop circle{fill:#fff;stroke-width:3.4;}
   .pal-svg .dr-a circle.o{fill:#fff;stroke:var(--accent,#6d5bd0);stroke-width:3;} .pal-svg .dr-a circle.i{fill:var(--accent,#6d5bd0);}
@@ -166,7 +168,8 @@ function plan(A, B){ if(!A||!B) return null; var g=TX&&TX.graph(), out=[];
   return out.length?out:null; }
 
 /* ── on the map ── */
-function mk(parent, cls, x, y, inner){ var gg=el('g',{'class':'dr-mk '+cls, style:'--sx:'+x+'px;--sy:'+y+'px'},parent); gg.innerHTML=inner; return gg; }
+function mk(parent, cls, x, y, inner){ var gg=el('g',{'class':'dr-mk '+cls, transform:'translate('+(+x)+' '+(+y)+')'},parent); el('g',{'class':'dr-sc'},gg).innerHTML=inner; return gg; }
+function mkAt(gg, x, y){ gg.setAttribute('transform', 'translate('+(+x)+' '+(+y)+')'); }
 function draw(){ var ad=S.ad; if(!ad) return; var svg=ad.svg(); if(!svg) return;
   var g=svg._dir; if(!g || g.parentNode!==svg){ g=svg._dir=el('g',{'class':'pl-dir'},svg); } else svg.appendChild(g);
   g.innerHTML=''; var opt=S.plans&&S.plans[S.opt], hot=[];
@@ -178,10 +181,10 @@ function draw(){ var ad=S.ad; if(!ad) return; var svg=ad.svg(); if(!svg) return;
       [l.board,l.alight].forEach(function(s){ mk(g,'dr-stop',s.x,s.y,'<circle r="6.5" stroke="'+l.color+'"/>'); }); }); }
   if(S.from){ mk(g,'dr-a',S.from.x,S.from.y,'<circle class="o" r="9"/><circle class="i" r="4"/>'); if(S.from.k==='b') hot.push(S.from.id); }
   if(S.to){ mk(g,'dr-b',S.to.x,S.to.y,'<path d="M0 0C-10-12-12-22-6-27 0-31 6-27 8-22 11-13 4-8 0 0z" transform="translate(-1 0)"/><circle cx="0" cy="-17" r="3.4"/>'); if(S.to.k==='b') hot.push(S.to.id); }
-  S.cur=null; var cg=el('g',{'class':'dr-mk dr-cur', style:'--sx:-999px;--sy:-999px'},g); cg.innerHTML='<circle class="p" r="12"/><circle r="12"/>'; S.cur=cg;
+  S.cur=mk(g,'dr-cur',-999,-999,'<circle class="p" r="12"/><circle r="12"/>');
   if(ad.hot) ad.hot(hot); }
 function showStep(i){ var opt=S.plans&&S.plans[S.opt]; if(!opt) return; var s=opt.steps[i]; if(!s) return;
-  if(S.cur){ S.cur.style.setProperty('--sx', s.x+'px'); S.cur.style.setProperty('--sy', s.y+'px'); }
+  if(S.cur) mkAt(S.cur, s.x, s.y);
   S.step=i; S.ad.fly(s.x, s.y, 'step'); }
 
 /* ── the panel ── */

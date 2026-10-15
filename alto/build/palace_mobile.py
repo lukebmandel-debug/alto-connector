@@ -209,7 +209,7 @@ function pmTapEl(el, x, y){ var p=pmHit(x, y, el);
 
 /* ── the selection: lit on the map, a card in the sheet ── */
 function pmMark(p){ var sv=MM.svg, g=sv._sel; if(!g || g.parentNode!==sv){ g=sv._sel=el('g',{'class':'pl-sel pl-dir'},sv); } else sv.appendChild(g); g.innerHTML='';
-  if(p && p.x!=null){ var m=el('g',{'class':'dr-mk dr-cur', style:'--sx:'+p.x+'px;--sy:'+p.y+'px'},g); m.innerHTML='<circle class="p" r="12"/><circle r="12"/>'; } }
+  if(p && p.x!=null){ var m=el('g',{'class':'dr-mk dr-cur', transform:'translate('+(+p.x)+' '+(+p.y)+')'},g); el('g',{'class':'dr-sc'},m).innerHTML='<circle class="p" r="12"/><circle r="12"/>'; } }
 function pmDeselect(){ PM.sel=null; if(MM.svg){ drawRoutes(MM.svg, null); pmMark(null); MM.svg.querySelectorAll('.pm-sel').forEach(function(n){ n.classList.remove('pm-sel'); }); }
   if(PM.mode==='place'){ pmMode('home'); if(PM.det!=='peek') pmSnap('peek'); } }
 function pmSelect(p, fly){ PM.sel=p; var sv=MM.svg;

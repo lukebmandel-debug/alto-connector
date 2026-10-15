@@ -81,8 +81,10 @@ def landmark_css() -> str:
   html.dark .pal-svg .pl-lmb .lm-card{fill:rgba(30,33,46,.92);}
   .pal-svg .pl-lmb .lm-sheen{fill:none;stroke:rgba(255,255,255,.85);stroke-width:1;vector-effect:non-scaling-stroke;}
   html.dark .pal-svg .pl-lmb .lm-sheen{stroke:rgba(255,255,255,.18);}
-  .pal-svg .pl-lmb .lm-art{transition:transform .25s ease;}
-  .pal-svg .pl-lmb.has-page:hover .lm-art,.pal-svg .pl-lmb.has-page:focus-visible .lm-art{transform:translateY(-3px);}
+  /* the lift on hover: the individual translate property, which every engine resolves in map units — never px inside a CSS
+     transform on SVG content, which Safari multiplies by the page's CSS zoom (palace.py .pl-sc) */
+  .pal-svg .pl-lmb .lm-art{transition:translate .25s ease;}
+  .pal-svg .pl-lmb.has-page:hover .lm-art,.pal-svg .pl-lmb.has-page:focus-visible .lm-art{translate:0 -3px;}
   .pal-svg .pl-lmb .lm-strip{fill:var(--lm-edge,#667);fill-opacity:.10;stroke:none;}
   .pal-svg .pl-lmb .lm-name{font-size:min(max(calc(11.5px / var(--pz,1)), var(--lm-nat,12px)), calc(21px / var(--pz,1)));font-weight:780;letter-spacing:.01em;stroke:var(--pal-halo);stroke-width:calc(3px / var(--pz,1));paint-order:stroke;stroke-linejoin:round;}
   .pal-svg .pl-lmb .lm-name.in{stroke:none;}

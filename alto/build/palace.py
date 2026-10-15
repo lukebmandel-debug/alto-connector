@@ -345,7 +345,11 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-sheen.t-maj{stroke-width:calc(var(--tw,1) * 1.9px);}
   .pal-svg .pl-tube.r-line{stroke-width:calc(var(--tw,1) * 4.4px);}
   .pal-svg .pl-sheen.r-line{stroke-width:calc(var(--tw,1) * 1.5px);}
-  .pal-svg .pl-stn{transform:translate(var(--sx),var(--sy)) scale(var(--tw,1));}
+  /* a stop / station sits at its map point by the SVG transform ATTRIBUTE (map units, which no CSS zoom touches), and keeps
+     its size on the screen by a UNITLESS CSS scale on an inner group (.pl-sc). Never a CSS translate in px here: Safari
+     multiplies px inside an SVG element's CSS transform by the page's CSS zoom (html{zoom:.8–1}), so a stop at map x
+     drew at x·zoom — rings strung across empty map, ever farther off toward the city's far corner. */
+  .pal-svg .pl-sc{transform:scale(var(--tw,1));}
   .pal-svg .pl-tun{fill:none;stroke-width:2;stroke-dasharray:6 6;stroke-opacity:.35;}
   .pal-svg .pl-trail{fill:none;stroke:var(--pal-trail);stroke-width:2.6;stroke-dasharray:7 5;stroke-linecap:round;opacity:.85;}
   .pal-svg .pl-ties{fill:none;stroke-width:calc(var(--tw,1) * 9px);stroke-dasharray:calc(var(--tw,1) * 1.4px) calc(var(--tw,1) * 5.6px);stroke-opacity:.75;}
@@ -363,8 +367,9 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-lmt{font-size:calc(11px / var(--pz,1));font-weight:650;stroke:none;letter-spacing:.02em;}
   .pal-svg .pl-stt{font-size:calc(11px / var(--pz,1));font-weight:700;stroke-width:calc(3px / var(--pz,1));}
   .pal-svg .pl-stt.hub{font-size:calc(13px / var(--pz,1));font-weight:800;}
-  .pal-svg .pl-stt{transform:translate(calc(var(--tw,1) * 13px),calc(var(--tw,1) * -9px));}
-  .pal-svg .pl-stt.hub{transform:translate(calc(var(--tw,1) * 20px),calc(var(--tw,1) * -15px));}
+  /* a station's name: placed beside its ring inside the ring's scaled group (stLbl), the text un-scaled again so its own
+     font size (per --pz) holds — no px in any transform (see .pl-sc) */
+  .pal-svg .pl-stt{transform:scale(calc(1 / var(--tw,1)));}
   .pal-svg .pl-dtint{fill-opacity:0;pointer-events:all;}
   /* a neighbourhood's name is an area label, as on an ordinary map: small and light at the whole-city zoom (about 11px on the screen),
      growing gently as you come closer (to 20px), tracked only a little, with a halo; at the far zoom it lets every click through to
@@ -739,9 +744,17 @@ var ENT={};
 function entrance(id){ var L=lot(P.at[bOf(id)]); if(!L) return -1; var k=P.at[bOf(id)]; if(ENT[k]==null) ENT[k]=nearest(L[0],L[1],1,300); return ENT[k]; }
 /* the real transit (palace_transit_js.py) is given the palace's own parts */
 window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z){ flyMap(x,y,z); },
-  Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
+  Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
 
 /* ── the city, drawn once into an <svg> (a page may hold two: the desktop board, a phone's map page) ── */
+/* a thing that keeps its size on the screen, at map point (x,y): <g class=cls transform="translate(x y)"><g class="pl-sc">…</g></g>.
+   The position is an SVG attribute in map units; the size a unitless CSS scale (--tw) — so the page's CSS zoom cannot move it in
+   any browser (Safari zooms px inside an SVG element's CSS transform; Chrome does not). Returns the inner, scaled group. */
+function pin(parent, cls, x, y, attrs){ var o={'class':cls, transform:'translate('+(+x)+' '+(+y)+')'}; for(var k in attrs||{}) o[k]=attrs[k];
+  var g=el('g',o,parent); return el('g',{'class':'pl-sc'},g); }
+/* a station's name beside its ring: dx,dy screen px from the stop, scaled with the ring; the text itself un-scaled (.pl-stt) */
+function stLbl(parent, cls, text, x, y, hub, attrs){ var g=pin(parent, 'pl-stl', x, y, attrs), o=el('g',{transform:hub?'translate(20 -15)':'translate(13 -9)'},g);
+  var t=el('text',{'class':cls, x:0, y:0, 'text-anchor':'start'},o); t.textContent=text; return t; }
 function lbl(parent, cls, text, x, y, anchor){ var t=el('text',{'class':cls, x:x, y:y, 'text-anchor':anchor||'middle'},parent); t.textContent=text; return t; }
 function streetLabels(svg, defs, g){
   var by={}, MJ={}, TOP={}; (M.majors||[]).forEach(function(n){ MJ[n]=1; }); (M.top||[]).forEach(function(n){ TOP[n]=1; });
@@ -923,12 +936,12 @@ function drawCity(svg){
   var stl=el('g',{'class':'pl-stns'},svg);
   (M.stations||[]).forEach(function(s){
     var hub=s.hub || s.k==='rail';
-    var c=NEUTRAL(), sg_=el('g',{'class':'pl-stn', style:'--sx:'+s.x+'px;--sy:'+s.y+'px'},stl);
+    var c=NEUTRAL(), sg_=pin(stl, 'pl-stn', s.x, s.y);
     /* a ring is drawn at the origin of its own group, which the page scales to the screen (a ring keeps its size at every zoom) */
     if(hub){ el('circle',{'class':'pl-ring hub', cx:0, cy:0, r:13, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:13},sg_);
       el('circle',{'class':'pl-ring', cx:0, cy:0, r:6, stroke:c},sg_); }
     else { el('circle',{'class':'pl-ring', cx:0, cy:0, r:6.5, stroke:c},sg_); el('circle',{'class':'pl-ring-sh', cx:0, cy:0, r:6.5},sg_); }
-    lbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x, s.y, 'start').setAttribute('data-n', s.n);
+    stLbl(stl, 'pl-stt'+(hub?' hub':''), s.n, s.x, s.y, hub).setAttribute('data-n', s.n);
   });
   window._palTr.stations(svg);
   var labels=el('g',{},svg);
@@ -1938,15 +1951,18 @@ function lmRect(name){                                                          
   var g=lmG(name); return g?g.getBoundingClientRect():null; }
 function lmPlace(){
   if(!lmFor || !lmBar) return; var r=lmRect(lmFor); if(!r) return;
-  var bw=lmBar.offsetWidth||250, bh=lmBar.offsetHeight||34, vw=innerWidth, vh=innerHeight;
+  /* all in window px (what getScreenCTM and getBoundingClientRect give); the bar's left/top are CSS px, which the page's CSS
+     zoom scales (html{zoom:.8–1}, in Chrome and Safari alike) — so k, the window px per CSS px, measured, converts back */
+  var br=lmBar.getBoundingClientRect(), k=(lmBar.offsetWidth && br.width)?br.width/lmBar.offsetWidth:1;
+  var bw=br.width||250, bh=br.height||34, vw=innerWidth, vh=innerHeight;
   var off=r.right<0 || r.left>vw || r.bottom<0 || r.top>vh;
   var x=Math.max(8, Math.min(vw-bw-8, (r.left+r.right)/2-bw/2));
   var y=r.bottom-bh*.55;                                                           /* straddling the card's lower edge */
   if(y+bh>vh-8) y=r.top-bh*.45;                                                    /* no room below: its upper edge */
   if(y<8) y=r.bottom-bh-6;                                                         /* none there either: inside the card's foot */
   y=Math.max(8, Math.min(vh-bh-8, y));
-  var k=Math.round(x)+','+Math.round(y)+','+off;
-  if(k!==lmKey){ lmKey=k; lmBar.style.left=x+'px'; lmBar.style.top=y+'px'; lmBar.style.visibility=off?'hidden':''; } }
+  var key=Math.round(x)+','+Math.round(y)+','+off;
+  if(key!==lmKey){ lmKey=key; lmBar.style.left=(x/k).toFixed(1)+'px'; lmBar.style.top=(y/k).toFixed(1)+'px'; lmBar.style.visibility=off?'hidden':''; } }
 function lmLoop(){ if(!lmFor){ lmRaf=0; return; } if(!palaceOn() || !editing() || focused()){ lmHide(); return; } lmPlace(); lmRaf=requestAnimationFrame(lmLoop); }
 function lmShow(name){
   clearTimeout(lmT); var bar=lmBarEl(); if(lmFor===name && bar.classList.contains('show')) return; lmFor=name; lmKey='';

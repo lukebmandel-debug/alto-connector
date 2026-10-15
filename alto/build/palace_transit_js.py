@@ -47,7 +47,7 @@ TRANSIT_CSS = r"""
   .pal-svg .tr-lbl.cur{font-size:calc(14px / var(--pz,1));font-weight:800;}
   .pal-svg .pl-tl-hit{fill:none;stroke:transparent;stroke-width:calc(var(--tw,1) * 13px);stroke-linecap:round;stroke-linejoin:round;pointer-events:stroke;cursor:pointer;}
   .pal-svg .pl-stn-hit circle{fill:transparent;pointer-events:all;cursor:pointer;}
-  .pal-svg .pl-stn-hit{transform:translate(var(--sx),var(--sy)) scale(var(--tw,1));}
+  /* .pl-stn-hit, like a stop, is placed by its transform attribute and sized by its inner .pl-sc (palace.py pin()) */
   /* the chip route: a tube in the chip's colour, a moving sheen and direction ticks */
   .pal-svg .pl-crt{fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
   .pal-svg .pl-crt.case{stroke:var(--pal-halo);stroke-width:11;vector-effect:non-scaling-stroke;stroke-opacity:.85;}
@@ -123,7 +123,7 @@ var RIN=4.6, RHUB=8;
 function stations(svg){
   if(!T) return; var stl=el('g',{'class':'pl-stns pl-tstns'},svg); svg._tst=stl;
   T.stops.forEach(function(s,i){ var ls=s.l.map(lineOf).filter(Boolean), hub=ls.length>1, c0=ls.length?col(ls[0]):E.NEUTRAL();
-    var g=el('g',{'class':'pl-stn tr-stn'+(hub?' hub':''), 'data-s':i, style:'--sx:'+s.x+'px;--sy:'+s.y+'px;--tc:'+c0},stl);
+    var g=E.pin(stl, 'pl-stn tr-stn'+(hub?' hub':''), s.x, s.y, {'data-s':i, style:'--tc:'+c0});
     var d=el('g',{'class':'tr-dot'},g);
     if(hub){ el('circle',{'class':'tr-ring hubr', r:RHUB, stroke:E.NEUTRAL()},d);
       ls.forEach(function(l,k){ var a0=k/ls.length*Math.PI*2-Math.PI/2, a1=(k+1)/ls.length*Math.PI*2-Math.PI/2-.12, r=RHUB;
@@ -131,13 +131,13 @@ function stations(svg){
       el('circle',{'class':'tr-sh', r:RHUB},d); }
     else { el('circle',{'class':'tr-ring', r:RIN, stroke:c0},d); el('circle',{'class':'tr-sh', r:RIN},d); }
     el('circle',{'class':'tr-pulse', r:8},g);
-    var t=el('text',{'class':'pl-stt tr-lbl'+(hub?' hub':''), 'data-s':i, x:s.x, y:s.y, 'text-anchor':'start'},stl); t.textContent=s.n; });
+    E.stLbl(stl, 'pl-stt tr-lbl'+(hub?' hub':''), s.n, s.x, s.y, hub).setAttribute('data-s', i); });
 }
 /* the chip route sits above the street hits and below the stops */
 function hits(svg){
   if(!T || svg._sid!=='d') return; var h=el('g',{'class':'pl-tr-hits'},svg);
   T.lines.forEach(function(l){ l.p.forEach(function(a){ var p=el('path',{'class':'pl-tl-hit', d:E.pts(a),'data-l':l.id},h); }); });
-  T.stops.forEach(function(s,i){ var g=el('g',{'class':'pl-stn-hit', 'data-s':i, style:'--sx:'+s.x+'px;--sy:'+s.y+'px'},h); el('circle',{r:12},g); });
+  T.stops.forEach(function(s,i){ el('circle',{r:12}, E.pin(h, 'pl-stn-hit', s.x, s.y, {'data-s':i})); });
   var cr=el('g',{'class':'pl-chiprt'},svg); svg._cr=cr; svg.insertBefore(cr, svg._tst||null);
   svg.classList.toggle('tr-focus', false); paint();
 }

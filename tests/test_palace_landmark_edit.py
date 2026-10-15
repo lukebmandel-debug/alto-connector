@@ -485,3 +485,42 @@ def test_the_bar_is_reached_by_keyboard_focus(browser, urls):
     pg.wait_for_timeout(300)
     assert pg.evaluate("document.getElementById('aed-form').classList.contains('show')")
     pg.context.close()
+
+
+@pytest.mark.parametrize("zoom", [None, "0.8", "1"])
+def test_the_bar_is_centred_on_its_landmark_under_the_pages_css_zoom(browser, urls, zoom):
+    """The bar is placed from window px (getScreenCTM) into left/top, which the page's CSS zoom (html{zoom:.8–1}, the same in
+    Chrome and Safari) scales: without converting back it drifted toward the window's corner by (1 − zoom) of its distance."""
+    pg = _open(browser, urls["pure"])
+    if zoom:
+        pg.evaluate("z => { document.documentElement.style.zoom = z; }", zoom)
+        pg.wait_for_timeout(300)
+    _hover_landmark(pg)
+    s = _bar_state(pg)
+    g = pg.evaluate("(()=>{ var r=document.querySelector('#palace-svg .pl-lmb').getBoundingClientRect(); return [r.left+r.width/2, r.bottom]; })()")
+    assert s and s["show"], s
+    cx = (s["l"] + s["r"]) / 2
+    if 8 < s["l"] and s["r"] < s["vw"] - 8:                               # not held in at the window's edge
+        assert abs(cx - g[0]) < 2, (zoom, cx, g, s)
+    assert abs((s["t"] + s["b"]) / 2 - g[1]) < (s["b"] - s["t"]), (zoom, s, g)   # it straddles the landmark's lower edge
+    pg.context.close()
+
+
+@pytest.mark.parametrize("zoom", [None, "0.8"])
+def test_the_form_opens_at_the_bars_button_under_the_pages_css_zoom(browser, urls, zoom):
+    """manual_edit placeNear: the anchor is in window px, the form's left/top in CSS px (scaled by the zoom) — it opened at
+    zoom × the button's position, a hundred px and more toward the window's corner."""
+    pg = _open(browser, urls["pure"])
+    if zoom:
+        pg.evaluate("z => { document.documentElement.style.zoom = z; }", zoom)
+        pg.wait_for_timeout(300)
+    _hover_landmark(pg)
+    a = pg.evaluate("(()=>{ var r=document.querySelector('#pl-lmbar [data-a=add]').getBoundingClientRect(); return [r.left, r.top, r.bottom]; })()")
+    pg.click("#pl-lmbar [data-a=add]")
+    pg.wait_for_timeout(300)
+    f = pg.evaluate("(()=>{ var r=document.getElementById('aed-form').getBoundingClientRect(); return {l:r.left, t:r.top, r:r.right, b:r.bottom, vw:innerWidth, vh:innerHeight}; })()")
+    if f["r"] < f["vw"] - 9:                                               # not held in at the right edge
+        assert abs(f["l"] - a[0]) < 2, (zoom, a, f)
+    assert f["t"] >= a[2] - 1 or f["b"] <= a[2] + 6, (zoom, a, f)          # below the button, or (no room) above its anchor
+    assert 0 <= f["l"] and f["r"] <= f["vw"] and 0 <= f["t"] and f["b"] <= f["vh"], (zoom, f)
+    pg.context.close()

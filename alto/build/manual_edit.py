@@ -2677,10 +2677,16 @@ MANUAL_JS = r"""<script id="alto-manual">
   /*__STUDY_EDIT__*/
   /* a small box asking for a name; a menu of kinds of section */
   function hideMenus(){ ['aed-name', 'aed-form', 'aed-kinds', 'aed-chip', 'aed-chpop', 'aed-glyph'].forEach(function(id){ var b = document.getElementById(id); if(b) b.classList.remove('show'); }); }
+  /* the page's CSS zoom on n (html{zoom:.8–1}): window px per CSS px of n's own left/top/offsetWidth */
+  function zoomOf(n){ var z = 1; for(; n && n.nodeType === 1; n = n.parentNode){ var v = parseFloat(getComputedStyle(n).zoom); if(v > 0) z *= v; } return z; }
+  /* the anchor's rect, innerWidth/innerHeight are window px; the box's offset size and its left/top are CSS px, which the
+     zoom scales (Chrome and Safari alike) — so it is all worked in window px and converted back, or the box lands at
+     zoom × where it belongs */
   function placeNear(b, at){
-    var r = at.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
+    var z = zoomOf(b), r = at.getBoundingClientRect(), w = b.offsetWidth * z, h = b.offsetHeight * z;
     var top = r.bottom + 8; if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
-    b.style.top = Math.round(top) + 'px'; b.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left))) + 'px';
+    var left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left));
+    b.style.top = Math.round(top / z) + 'px'; b.style.left = Math.round(left / z) + 'px';
   }
   function askName(at, title, val, done){
     hideMenus();
