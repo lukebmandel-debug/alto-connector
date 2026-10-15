@@ -235,7 +235,7 @@ function bigG(){
   Object.keys(at).forEach(function(si){ var s=T.stops[si], st=E.nearest(s.x,s.y,1,600);
     at[si].forEach(function(q){ if(st>=0){ var d=Math.hypot(X[st]-X[q.n],Y[st]-Y[q.n]); add(st,q.n,d*WALK+BOARD,null); } });
     for(var a=0;a<at[si].length;a++) for(var b=a+1;b<at[si].length;b++) add(at[si][a].n, at[si][b].n, XFER, null); });
-  GG={X:X,Y:Y,adj:adj,lid:lid,N:N}; return GG;
+  GG={X:X,Y:Y,adj:adj,lid:lid,N:N,at:at}; return GG;
 }
 function dijk(a,b){
   var g=bigG(); if(a<0||b<0) return null; if(a===b) return [a];
@@ -310,6 +310,8 @@ function routeD(a,b,used){
   r.forEach(function(q,k){ d+='L'+g.X[q]+' '+g.Y[q]; if(used && k>0 && g.lid[q] && g.lid[q]===g.lid[r[k-1]]) used[g.lid[q]]=1; });
   return d+'L'+B[0]+' '+B[1]; }
 window._palTR=function(a,b){ return (E && T) ? routeD(a,b) : null; };
+/* the routing graph for Directions (palace_directions.py): the walk/ride/board costs above, its stops and lines */
+window._palTRx={graph:function(){ return (E&&T)?bigG():null; }, dijk:dijk, stops:function(){ return T?T.stops:[]; }, lines:function(){ return T?T.lines:[]; }, lineOf:lineOf, col:function(l){ return col(l); }, has:has};
 /* the lines a tour or a relation filter rides stay lit; the rest of the network fades */
 function paintUsed(){
   var svg=E.svg(); if(!svg || !T) return; var u={}, k;

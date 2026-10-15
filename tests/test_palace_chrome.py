@@ -425,10 +425,11 @@ def test_the_phone_map_page_has_the_same_controls_and_they_cover_nothing(browser
         assert min(b) >= 43                                                         # a thumb's size
     assert zoom["r"] <= size[0] and zoom["b"] <= size[1]
     # a building's card, once one is tapped, stops short of the zoom column
-    pg.evaluate("document.querySelector('#palace-svg-m .pl-bld').dispatchEvent(new MouseEvent('click', {bubbles:true}))"); pg.wait_for_timeout(300)
+    pg.evaluate("document.querySelector('#palace-svg-m .pl-bld').dispatchEvent(new MouseEvent('click', {bubbles:true}))"); pg.wait_for_timeout(1200)   # the sheet rises on a spring
     card = pg.evaluate(RECT, "#pal-mmap .pm-card")
+    zoom = pg.evaluate(RECT, "#pal-mmap .pm-zoom")                                 # the zoom column rides above the sheet as it rises
     assert card and not hit(card, zoom) and not hit(card, close)
     z0 = pg.evaluate("document.getElementById('palace-svg-m').getAttribute('width')")
-    pg.evaluate("document.querySelector('#pal-mmap [data-z=in]').click()"); pg.wait_for_timeout(200)
+    pg.evaluate("document.querySelector('#pal-mmap [data-z=in]').click()"); pg.wait_for_timeout(700)
     assert float(pg.evaluate("document.getElementById('palace-svg-m').getAttribute('width')")) > float(z0)
     ctx.close()

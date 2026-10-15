@@ -33,7 +33,9 @@ import re
 
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
+from .palace_directions import DIR_CSS, DIR_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
+from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .sanitize import js_json
 from . import palace_place as pp
@@ -529,31 +531,7 @@ PALACE_CSS = KEY_CSS + r"""
   .node-card .pal-where{display:none;}
   html.mobile .node-card .pal-where{display:block;font-size:10.5px;font-weight:700;letter-spacing:.04em;color:var(--muted);margin:-2px 0 4px;}
   /* phones: the city on its own page */
-  #pal-mmap{position:fixed;left:0;right:0;bottom:0;z-index:400;display:none;background:var(--page-grad,var(--bg));background-attachment:fixed;}
-  #pal-mmap.on{display:block;}
-  html.alto-bg-map #pal-mmap{background:var(--alto-bg);background-attachment:scroll;}   /* the map ground chosen for this city (palace_backgrounds.py) */
-  #pal-mmap .pm-scroll{position:absolute;inset:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
-  /* the phone's map page wears the same glass as the desktop's zoom row: a round close, a grouped pill (closer over farther), the whole city */
-  #pal-mmap .pm-close,#pal-mmap .pm-pill,#pal-mmap .pm-city{background:var(--card-glass-bg,var(--surface));color:var(--muted);border:1px solid var(--card-glass-border,var(--border));
-    -webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);box-shadow:0 10px 26px var(--node-rest-shadow),inset 0 0 0 .5px var(--card-glass-rim);}
-  #pal-mmap .pm-close{position:absolute;right:12px;top:10px;z-index:3;width:44px;height:44px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;}
-  #pal-mmap .pm-zoom{position:absolute;right:12px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:3;display:flex;flex-direction:column;align-items:center;gap:12px;}
-  #pal-mmap .pm-pill{display:flex;flex-direction:column;width:44px;border-radius:22px;}
-  #pal-mmap .pm-zoom button{display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;background:none;color:inherit;-webkit-tap-highlight-color:transparent;}
-  #pal-mmap .pm-pill button{width:44px;height:48px;}
-  #pal-mmap .pm-pill button:first-child{border-radius:22px 22px 0 0;}
-  #pal-mmap .pm-pill button:last-child{border-radius:0 0 22px 22px;}
-  #pal-mmap .pm-div{height:1px;margin:0 10px;background:color-mix(in srgb,var(--muted) 45%,transparent);}
-  #pal-mmap .pm-city{width:44px;height:44px;border-radius:50%;padding:0;}
-  #pal-mmap .pm-zoom button:active,#pal-mmap .pm-close:active{color:var(--text);background:color-mix(in srgb,var(--text) 10%,transparent);}
-  #pal-mmap svg.pm-ic{display:block;}
-  #pal-mmap .pm-card{position:absolute;left:12px;right:68px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:3;display:none;
-    padding:10px 12px;border-radius:14px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;}
-  #pal-mmap .pm-card.on{display:block;}
-  #pal-mmap .pm-card b{display:block;font-size:14px;}
-  #pal-mmap .pm-card small{display:block;color:var(--muted);margin-top:2px;}
-  #pal-mmap .pm-card button{margin-top:8px;font:inherit;font-weight:700;padding:7px 14px;border-radius:9px;border:0;background:var(--accent);color:#fff;}
-  #pal-mmap svg{display:block;}
+  /* the phone's map page and its bottom sheet: palace_mobile.py */
   /* ═══ INTERACTION (rise · routes · elevator): delimited block ═══ */
   /* an enlarged building's card stands ABOVE it; the building stays, with a notch pointing down onto it */
   html.alto-palace:not(.mobile) #world .node .pal-ghost,html.alto-palace:not(.mobile) #world .node .pal-tail{display:none;}
@@ -612,7 +590,7 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + TRANSIT_CSS
+""" + LANDMARK_CSS + TRANSIT_CSS + DIR_CSS + MOBILE_CSS
 
 
 PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + r"""
@@ -1383,7 +1361,7 @@ function ctl(){
       +'<rect x="7.2" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>'
       +'<rect x="7.2" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>')
     +'<span>City</span></button>';
-  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c);
+  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c); window._palDirMount(c);
   /* the key is a toggle floating at the top left (key_toggle.py); its rows act like the buttons' neighbours did */
   var k=document.createElement('div'); k.id='pal-key'; k.innerHTML=h;
   window._altoKeyToggle(k, 'alto-palace-key', 'Key to the city');
@@ -1578,54 +1556,7 @@ function phoneWhere(){ if(!mob()) return;
     if(!d.textContent) return; var tg=c.querySelector('.node-tag'); c.insertBefore(d, tg||c.firstChild); }); }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, function(){ phoneWhere(); setTimeout(phoneWhere, 400); }); });
 var MM={z:.46, svg:null, box:null};
-function mmapOpen(){
-  var box=document.getElementById('pal-mmap');
-  if(!box){ box=document.createElement('div'); box.id='pal-mmap';
-    var pi=function(d){ return '<svg class="pm-ic" viewBox="0 0 20 20" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };
-    box.innerHTML='<div class="pm-scroll"></div><button class="pm-close" aria-label="Close">'+pi('<path d="M5 5l10 10M15 5L5 15"/>')+'</button>'
-      +'<div class="pm-zoom"><div class="pm-pill"><button type="button" data-z="in" aria-label="Zoom in">'+pi('<path d="M10 4.5v11M4.5 10h11"/>')+'</button><span class="pm-div"></span>'
-      +'<button type="button" data-z="out" aria-label="Zoom out">'+pi('<path d="M4.5 10h11"/>')+'</button></div>'
-      +'<button type="button" class="pm-city" data-z="fit" aria-label="The whole city">'+pi('<path d="M3.5 7.3V5.4a1.9 1.9 0 0 1 1.9-1.9h1.9M12.7 3.5h1.9a1.9 1.9 0 0 1 1.9 1.9v1.9M16.5 12.7v1.9a1.9 1.9 0 0 1-1.9 1.9h-1.9M7.3 16.5H5.4a1.9 1.9 0 0 1-1.9-1.9v-1.9"/>'
-        +'<rect x="7.2" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="7.2" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>')+'</button></div><div class="pm-card"></div>';
-    document.body.appendChild(box); MM.box=box;
-    MM.svg=el('svg',{viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none', id:'palace-svg-m', 'class':'pal-svg'}); MM.svg._sid='m'; drawCity(MM.svg);
-    MM.svg.style.setProperty('--pz', MM.z); MM.svg.style.setProperty('--tw', tw(MM.z));
-    box.querySelector('.pm-scroll').appendChild(MM.svg);
-    box.querySelector('.pm-close').addEventListener('click', mmapClose);
-    box.querySelector('.pm-zoom').addEventListener('click', function(e){ var b=e.target.closest('[data-z]'); if(!b) return; var sc=box.querySelector('.pm-scroll'), k=b.getAttribute('data-z'); mz(k==='fit'?Math.min(sc.clientWidth/VW, sc.clientHeight/VH):MM.z*(k==='in'?1.6:1/1.6), sc.clientWidth/2, sc.clientHeight/2); });
-    var sc=box.querySelector('.pm-scroll'), d0=0, z0=0, mid=null;
-    sc.addEventListener('touchstart', function(e){ if(e.touches.length===2){ d0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); z0=MM.z;
-      var r=sc.getBoundingClientRect(); mid=[(e.touches[0].clientX+e.touches[1].clientX)/2-r.left, (e.touches[0].clientY+e.touches[1].clientY)/2-r.top]; } }, {passive:true});
-    sc.addEventListener('touchmove', function(e){ if(e.touches.length===2 && d0){ e.preventDefault(); var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); mz(z0*d/d0, mid[0], mid[1]); } }, {passive:false});
-    sc.addEventListener('touchend', function(e){ if(e.touches.length<2) d0=0; });
-    sc.addEventListener('click', function(e){
-      var card=box.querySelector('.pm-card'), b=e.target.closest('.pl-bld[data-id]');
-      if(b){ var id=b.getAttribute('data-id'); drawRoutes(MM.svg, id);
-        card.innerHTML=bTip(id).replace('<small>','<small>')+'<button data-open="'+esc(id)+'">Go inside</button>'; card.classList.add('on'); return; }
-      var h=e.target.closest('.pl-hit'); if(h){ var c=cornerAt(MM.svg, e, h._n); card.innerHTML='<b>'+esc(c?c.join(' & '):h._n)+'</b>'; card.classList.add('on'); return; }
-      var lmb=e.target.closest('.pl-lmb'); if(lmb){ var pg=lmb.getAttribute('data-page');
-        card.innerHTML=lmTip(lmb)+(pg?'<button data-page="'+esc(pg)+'">Go inside</button>':''); card.classList.add('on'); return; }
-      var du=e.target.closest('.pl-dist'); if(du){ drawRoutes(MM.svg, null, +du.getAttribute('data-u')); card.innerHTML=distTip(+du.getAttribute('data-u'))+'<small>The dotted line walks through its buildings in order.</small>'; card.classList.add('on'); return; }
-      var dt=e.target.closest('.pl-dtint'); if(dt){ card.innerHTML=distTip(+dt.getAttribute('data-u')); card.classList.add('on'); return; }
-      card.classList.remove('on'); drawRoutes(MM.svg, null);
-    });
-    box.querySelector('.pm-card').addEventListener('click', function(e){ var pgb=e.target.closest('[data-page]'); if(pgb){ mmapClose(); openPage(pgb.getAttribute('data-page')); return; }
-      var o=e.target.closest('[data-open]'); if(!o) return; var id=o.getAttribute('data-open'); mmapClose();
-      if(window.featureNode) try{ window.featureNode(id, true); }catch(x){} setTimeout(function(){ window.showDetail('node', id); }, 60); });
-  }
-  var top=0, tb=document.getElementById('title-bar'); if(tb) top=tb.getBoundingClientRect().bottom;
-  box.style.top=Math.max(56, top)+'px';
-  box.classList.add('on'); mz(MM.z, 0, 0, true);
-  /* open on the card being read */
-  var f=window._featuredNodeId, L=f?lot(P.at[bOf(f)]):null, sc=box.querySelector('.pm-scroll');
-  if(L){ sc.scrollLeft=(L[0]+MX)*MM.z-sc.clientWidth/2; sc.scrollTop=(L[1]+MY)*MM.z-sc.clientHeight/2; drawRoutes(MM.svg, bOf(f)); }
-}
-function mz(z, ax, ay, keep){ var sc=MM.box.querySelector('.pm-scroll'); z=Math.max(ZREAD, Math.min(1.6, z));
-  var mx=(sc.scrollLeft+ax)/MM.z, my=(sc.scrollTop+ay)/MM.z; MM.z=z;
-  MM.svg.setAttribute('width', VW*z); MM.svg.setAttribute('height', VH*z); MM.svg.style.setProperty('--pz', z); MM.svg.style.setProperty('--tw', tw(z));
-  MM.svg.classList.toggle('far', z<.42); MM.svg.classList.toggle('mid', z<.8);
-  if(!keep){ sc.scrollLeft=mx*z-ax; sc.scrollTop=my*z-ay; } }
-function mmapClose(){ if(MM.box) MM.box.classList.remove('on'); }
+/* the map page itself (mmapOpen, mmapClose and the sheet) is palace_mobile.py's; Directions is palace_directions.py's */
 document.addEventListener('click', function(e){
   if(!mob()) return; var t=e.target.closest && e.target.closest('#minimap-toggle'); if(!t) return;
   e.preventDefault(); e.stopImmediatePropagation(); mmapOpen();
@@ -1783,5 +1714,6 @@ window.addEventListener('click', function(e){
   e.preventDefault(); e.stopImmediatePropagation(); hideGhost(); formAt=hit.key; addForm(hit.key, null, anchorAt(e.clientX+14, e.clientY+14));
 }, true);
 window.addEventListener('keydown', function(e){ if(e.key==='Escape' && addMode){ addMode=false; syncAdd(); } }, true);
+""" + DIR_JS + MOBILE_JS + r"""
 })();
 """
