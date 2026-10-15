@@ -1,13 +1,16 @@
 """The palace's real transit, drawn like its streets: the lines palace_map reads
 from the route relations (SEPTA's subways, trolleys and Regional Rail, PATCO)
-are carried onto the palace's even grid. Every rail way is snapped to the grid
-lines (straight runs, square turns — the page rounds them like its streets), a
+are carried onto the palace's even grid. A trolley runs ON a street: palace_transit_route
+routes it along the streets the grid really draws (grid edges and the clean diagonal avenues) and
+drops a stop no drawn street supports; it never makes a street. The grade-separated lines (subway,
+el, PATCO, Regional Rail) are snapped to the grid lines (straight runs, square turns — the page
+rounds them like its streets), a
 line that shares a street with another runs in its own lane beside it, and the
 stations stand on their lines.
 
     snap(tr, mp, xg, yg, W, H) -> {"lines": [{id, n, c, k, p: [flat polylines], s: [stop idx]}],
                                     "stops": [{n, x, y, l: [line ids]}],
-                                    "ge": [(i0, j0, i1, j1)]  # the grid edges the lines run along (palace_grid draws a street
+                                    "ge": [(i0, j0, i1, j1)]  # the grid edges the grade-separated lines run along (palace_grid draws a street
                                                               # under any that has none: a line never runs through a void)}
 """
 from __future__ import annotations
@@ -15,6 +18,9 @@ from __future__ import annotations
 import math
 from bisect import bisect_left
 
+STOP_R = 85.0           # a trolley stop with no drawn street this near (grid px) is dropped: it would float
+DEV_AVG = 60.0          # px: how far a street may stray from the real track before the router stops liking it
+MAX_DEV = 150.0         # px: a routed stretch whose mean distance from the real track is more than this is not used
 LANE = 7.0              # px between two lines that share a street
 MAX_STOP_GAP = 130.0    # a stop farther than this from its line (about half a block) is not drawn: its track was trimmed or never fetched
 
@@ -184,39 +190,70 @@ def _prune(es, stopn):
     return {(a, b) for a in adj for b in adj[a] if a < b}
 
 
-def snap(tr, mp, xg, yg, W, H):
+def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
     if not tr or not tr.get("lines"):
         return {"lines": [], "stops": [], "ge": []}
-    edges = {}                                           # line id -> set of unit edges
+    P = lambda n: (round(xg[n[0]], 1), round(yg[n[1]], 1))             # grid index node -> point
+    edges = {}                                           # line id -> set of edges between points
+    tunnels = {}                                         # line id -> the pieces that run underground, under no street
+    ge, dropped = set(), set()                           # ge: grid edges (index pairs) drawn lines run along that may need a street
+    surface = [ln for ln in tr["lines"] if ln["k"] == "tram"]
+    if surface:
+        from .palace_transit_route import street_graph, real_points, route
+        diag = []
+        for st in streets:
+            if st.get("d"):                              # [lead] a ... b [lead]: the clean avenue is a -> b
+                q = st["p"]
+                j = st.get("j", (1, 1))
+                q = q[(2 if j[0] else 0):len(q) - (2 if j[1] else 0)]
+                diag += [tuple(q[k:k + 4]) for k in range(0, len(q) - 3, 2)]
+        adj = street_graph(list(edges_), diag)
+
     for ln in tr["lines"]:
+        if ln["k"] == "tram":
+            # a trolley runs on a street: its track is routed along the streets the grid draws; a stop no drawn
+            # street comes near, or that the track cannot reach, is not drawn
+            stops = [mp(st["x"], st["y"]) for st in tr["stops"]]
+            under = {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}      # the subway-surface tunnel's stations and portals
+            es, kept, tun = route(adj, real_points(ln["w"], mp), stops, ln.get("b") or [ln["s"]],
+                                  STOP_R, DEV_AVG, MAX_DEV, under)
+            edges[ln["id"]] = es
+            tunnels[ln["id"]] = tun
+            for si in ln["s"]:
+                if si not in kept:
+                    dropped.add((si, ln["id"]))
+            continue
         es = set()
         for w in ln["w"]:
             es |= _edges_of(w, mp, xg, yg)
-        edges[ln["id"]] = es
-
-    # each line keeps the track between its own stops (no yards or sidings), branch by branch
-    for ln in tr["lines"]:
+        # the line keeps the track between its own stops (no yards or sidings), branch by branch
         branches = []
         for br in ln.get("b") or [ln["s"]]:
             pts = []
             for k in br:
                 st = tr["stops"][k]
                 gx, gy = mp(st["x"], st["y"])
-                # a stop with no track of its line near it is not a stop of the drawn line
-                node = _stop_node(edges[ln["id"]], xg, yg, gx, gy)
+                node = _stop_node(es, xg, yg, gx, gy)      # a stop with no track of its line near it is not a stop of the drawn line
                 if node:
                     pts.append(node)
             branches.append(pts)
-        edges[ln["id"]] = _trunk(edges[ln["id"]], branches)
+        es = _trunk(es, branches)
+        ge |= {(a[0], a[1], b[0], b[1]) for a, b in es}
+        edges[ln["id"]] = {(P(a), P(b)) if P(a) < P(b) else (P(b), P(a)) for a, b in es}
 
     # lanes: lines sharing a grid line (a street) run side by side
-    use = {}                                             # (axis, index) -> {line id: edges}
+    use = {}                                             # (axis, coordinate) -> {line id: edges}
     for lid, es in edges.items():
         for a, b in es:
-            key = ("h", a[1]) if a[1] == b[1] else ("v", a[0])
+            if a[1] == b[1]:
+                key = ("h", a[1])
+            elif a[0] == b[0]:
+                key = ("v", a[0])
+            else:
+                continue                                 # a diagonal avenue: a line keeps its centre
             use.setdefault(key, {}).setdefault(lid, set()).add((a, b))
     order = [ln["id"] for ln in tr["lines"]]
-    off = {}                                             # (line id, axis, index) -> px
+    off = {}                                             # (line id, axis, coordinate) -> px
     for key, per in use.items():
         lanes = {}
         for lid in order:
@@ -231,12 +268,19 @@ def snap(tr, mp, xg, yg, W, H):
         for lid, k in lanes.items():
             off[(lid, key[0], key[1])] = (k - (n - 1) / 2) * LANE
 
-    def at(lid, node, es_nodes):
-        i, j = node
-        hz, vt = es_nodes
-        x = xg[i] + (off.get((lid, "v", i), 0) if vt else 0)
-        y = yg[j] + (off.get((lid, "h", j), 0) if hz else 0)
+    def at(lid, node, fl):
+        hz, vt, dg = fl
+        if dg:
+            return node
+        x = node[0] + (off.get((lid, "v", node[0]), 0) if vt else 0)
+        y = node[1] + (off.get((lid, "h", node[1]), 0) if hz else 0)
         return (round(x, 1), round(y, 1))
+
+    def straight(a, p, c):
+        """p lies on the straight run a -> c (the polyline needs only the run's ends)."""
+        cr = (p[0] - a[0]) * (c[1] - p[1]) - (p[1] - a[1]) * (c[0] - p[0])
+        dt = (p[0] - a[0]) * (c[0] - p[0]) + (p[1] - a[1]) * (c[1] - p[1])
+        return abs(cr) < 0.5 and dt > 0
 
     lines_out, geo = [], {}
     for ln in tr["lines"]:
@@ -246,20 +290,21 @@ def snap(tr, mp, xg, yg, W, H):
         inc = {}
         for a, b in es:
             for n, o in ((a, b), (b, a)):
-                f = inc.setdefault(n, [False, False])
-                f[0 if a[1] == b[1] else 1] = True       # [horizontal edge here, vertical edge here]
+                f = inc.setdefault(n, [False, False, False])
+                f[0 if a[1] == b[1] else 1 if a[0] == b[0] else 2] = True    # [horizontal edge here, vertical edge here, diagonal here]
         polys = []
         for path in _paths(es):
             pts = [at(ln["id"], n, inc[n]) for n in path]
             flat = []
             for k, p in enumerate(pts):                  # straight runs: only their ends
-                if 0 < k < len(pts) - 1 and ((pts[k - 1][0] == p[0] == pts[k + 1][0]) or
-                                             (pts[k - 1][1] == p[1] == pts[k + 1][1])):
+                if 0 < k < len(pts) - 1 and straight(pts[k - 1], p, pts[k + 1]):
                     continue
                 flat += [p[0], p[1]]
             polys.append(flat)
         geo[ln["id"]] = polys
         lines_out.append({"id": ln["id"], "n": ln["n"], "c": ln["c"], "k": ln["k"], "p": polys, "s": ln["s"]})
+        if tunnels.get(ln["id"]):                        # the tunnel pieces, whole (the audit does not look for a street over them)
+            lines_out[-1]["u"] = [[v for pt in e for v in pt] for e in sorted(tunnels[ln["id"]])]
 
     def onto(polys, x, y):
         best, bd = None, 1e18
@@ -286,7 +331,7 @@ def snap(tr, mp, xg, yg, W, H):
         gx, gy = mp(s["x"], s["y"])
         found = []
         for lid in s["l"]:
-            if si not in calls.get(lid, ()):                 # a stop is a line's only if the line lists it back
+            if si not in calls.get(lid, ()) or (si, lid) in dropped:     # a stop is a line's only if the line lists it back (and a street carries it)
                 continue
             p, d = onto(geo.get(lid, []), gx, gy)
             if p and d <= MAX_STOP_GAP:
@@ -309,5 +354,4 @@ def snap(tr, mp, xg, yg, W, H):
               for br in (src.get("b") or [src["s"]])]
         ln["b"] = [b for b in bs if b]
         ln["s"] = list(dict.fromkeys(k for b in ln["b"] for k in b))
-    ge = sorted({(a[0], a[1], b[0], b[1]) for es in edges.values() for a, b in es})
-    return {"lines": lines_out, "stops": stops_out, "ge": ge}      # ge: every grid edge a line runs along (index pairs)
+    return {"lines": lines_out, "stops": stops_out, "ge": sorted(ge)}      # ge: the grid edges the grade-separated lines run along (index pairs)

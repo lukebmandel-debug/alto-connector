@@ -64,7 +64,7 @@ XG, YG = [100, 340, 580, 820], [100, 270, 440]
 def _tr(ways_a, ways_b=None):
     lines = [{"id": "a", "n": "A", "c": "#0097d6", "k": "metro", "w": ways_a, "s": [0, 1]}]
     if ways_b:
-        lines.append({"id": "b", "n": "B", "c": "#6ea516", "k": "tram", "w": ways_b, "s": [0]})
+        lines.append({"id": "b", "n": "B", "c": "#6ea516", "k": "metro", "w": ways_b, "s": [0]})
     return {"lines": lines, "stops": [{"n": "S1", "x": 170, "y": 280, "l": ["a", "b"] if ways_b else ["a"]},
                                       {"n": "S2", "x": 600, "y": 260, "l": ["a"]},
                                       {"n": "Far", "x": 5000, "y": 5000, "l": ["a"]}]}
@@ -126,11 +126,11 @@ def test_a_stop_whose_track_is_not_there_is_not_drawn_and_a_line_lists_only_stop
 
 def test_no_stop_floats_off_its_lines_in_the_civ_pro_bundle():
     """Every dot on the real Civ Pro Mind Palace stands on each line it names (to within the lane gap), every line lists
-    only stops that list it back, and every line runs along drawn streets (never through a void)."""
+    only stops that list it back, (a trolley's street is checked by test_the_civ_pro_bundles_trolleys_run_on_streets)."""
     import json
     import os
     path = Path(os.environ.get("ALTO_CIVPRO_PALACE", "/private/tmp/claude-501/-Users-lukemandel-Desktop-Terrarium-Alto/"
-                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p3.json"))
+                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p8.json"))
     if not path.exists():
         pytest.skip("the Civ Pro bundle is not on this machine")
     m = palace.unpack(json.loads(path.read_text())["brief"]["palace"]["data_z"])["map"]
@@ -144,14 +144,6 @@ def test_no_stop_floats_off_its_lines_in_the_civ_pro_bundle():
             assert _off(lines[lid]["p"], s["x"], s["y"]) <= 7.5, (s["n"], lid)       # on it (an interchange sits between lanes)
     for l in tr["lines"]:
         assert all(l["id"] in tr["stops"][k]["l"] for k in l["s"])
-    drawn = [[t[0], t[1], t[2], t[1]] for t in m["tiles"]] + [[t[0], t[3], t[2], t[3]] for t in m["tiles"]] \
-        + [[t[0], t[1], t[0], t[3]] for t in m["tiles"]] + [[t[2], t[1], t[2], t[3]] for t in m["tiles"]] + m["edges"]
-    for l in tr["lines"]:
-        for f in l["p"]:
-            for k in range(0, len(f) - 3, 2):
-                mx, my = (f[k] + f[k + 2]) / 2, (f[k + 1] + f[k + 3]) / 2
-                assert any(min(a, c) - 16 <= mx <= max(a, c) + 16 and min(b, d) - 16 <= my <= max(b, d) + 16 for a, b, c, d in drawn), \
-                    (l["id"], round(mx), round(my))                              # a street under every stretch of track
 
 
 def test_a_line_runs_only_between_its_stops_and_a_branch_never_joins_a_neighbours():
@@ -160,7 +152,7 @@ def test_a_line_runs_only_between_its_stops_and_a_branch_never_joins_a_neighbour
     xg, yg = [100, 340, 580, 820, 1060], [100, 270, 440]
     way_a = [100, 270, 1060, 270]                                 # a street the line runs along: 4 blocks
     way_b = [340, 270, 340, 440, 820, 440, 820, 270]              # a loop of track beside it (a yard)
-    tr = {"lines": [{"id": "a", "n": "A", "c": "#0097d6", "k": "tram", "w": [way_a, way_b], "s": [0, 1, 2, 3],
+    tr = {"lines": [{"id": "a", "n": "A", "c": "#0097d6", "k": "metro", "w": [way_a, way_b], "s": [0, 1, 2, 3],
                      "b": [[0, 1], [2, 3]]}],
           "stops": [{"n": "S%d" % i, "x": x, "y": 270, "l": ["a"]} for i, x in enumerate((100, 340, 820, 1060))]}
     g = snap(tr, _Id(), xg, yg, 1160, 540)
@@ -192,7 +184,7 @@ def test_the_civ_pro_bundles_transit_passes_the_audit():
     import os
     from alto.build.palace_transit_audit import audit
     path = Path(os.environ.get("ALTO_CIVPRO_PALACE_P6", "/private/tmp/claude-501/-Users-lukemandel-Desktop-Terrarium-Alto/"
-                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p6.json"))
+                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p8.json"))
     if not path.exists():
         pytest.skip("the Civ Pro bundle is not on this machine")
     m = palace.unpack(json.loads(path.read_text())["brief"]["palace"]["data_z"])["map"]
@@ -331,3 +323,74 @@ def test_a_filter_keeps_the_tour_up_and_beats_the_hover_routes(page):
     page.wait_for_timeout(200)
     assert page.evaluate("() => document.querySelectorAll('#palace-svg .pl-crt.base').length") == 0
     assert page.evaluate("() => window._palTr.holds()") is False
+
+
+# ── a trolley runs ON a street ─────────────────────────────────────
+def _street_grid():
+    """Every unit edge of XG x YG, as the page draws them (tiles' sides and loose edges)."""
+    es = [[XG[i], y, XG[i + 1], y] for y in YG for i in range(len(XG) - 1)]
+    return es + [[x, YG[j], x, YG[j + 1]] for x in XG for j in range(len(YG) - 1)]
+
+
+def _trolley(stops, ways):
+    return {"lines": [{"id": "trl", "n": "Trolleys", "c": "#6ea516", "k": "tram", "w": ways, "s": list(range(len(stops))),
+                       "b": [list(range(len(stops)))]}],
+            "stops": [{"n": "%s & X" % n, "x": x, "y": y, "l": ["trl"]} for n, x, y in stops]}
+
+
+def test_a_trolley_is_routed_along_drawn_streets_and_a_stop_with_no_street_is_dropped():
+    es = _street_grid()
+    tr = _trolley([("A", 110, 262), ("B", 570, 275), ("C", 600, 440), ("Void", 5000, 5000)],
+                  [[110, 262, 360, 280, 570, 275, 600, 440]])
+    g = snap(tr, _Id(), XG, YG, 920, 540, streets=[], edges_=es)
+    (l,) = g["lines"]
+    assert [g["stops"][i]["n"] for i in l["s"]] == ["A & X", "B & X", "C & X"]          # nothing for the stop in the void
+    assert g["ge"] == []                                                                  # a trolley never makes a street
+    from alto.build.palace_transit_audit import street_cover
+    c = street_cover({"tiles": [], "edges": es, "streets": [], "transit": g})["trl"]
+    assert c["runs"] == [] and c["stops"] == []                                           # a street under every stretch and every stop
+
+
+def test_a_trolley_follows_a_diagonal_avenue_as_one_line_not_stairs():
+    es = _street_grid()
+    diag = {"n": "Diag", "k": 0, "d": 1, "j": [0, 0], "p": [100, 100, 580, 440]}           # from (100,100) to (580,440)
+    stops = [("A", 100, 100), ("B", 340, 270), ("C", 580, 440)]
+    tr = _trolley(stops, [[100, 100, 340, 270, 580, 440]])
+    g = snap(tr, _Id(), XG, YG, 920, 540, streets=[diag], edges_=es)
+    (l,) = g["lines"]
+    (p,) = l["p"]
+    assert p == [100.0, 100.0, 580.0, 440.0] or p == [580.0, 440.0, 100.0, 100.0]          # one straight diagonal
+
+
+def test_the_audit_flags_a_trolley_stop_in_blank_space_and_track_over_a_void():
+    from alto.build.palace_transit_audit import audit, street_cover
+    m = {"tiles": [], "edges": [[0, 0, 1000, 0]], "streets": [],
+         "transit": {"lines": [{"id": "trl", "n": "Trolleys", "c": "#6ea516", "k": "tram", "s": [0, 1],
+                                "p": [[0, 0, 1000, 0], [1000, 0, 1000, 600]]}],
+                     "stops": [{"n": "On Street", "x": 300, "y": 0, "l": ["trl"]},
+                               {"n": "Floating", "x": 1000, "y": 300, "l": ["trl"]}]}}
+    c = street_cover(m)["trl"]
+    assert [s[0] for s in c["stops"]] == ["Floating"]                                     # the dot with no street under it
+    assert len(c["runs"]) == 1 and c["runs"][0][0] >= 560                                  # the 600 px of track over nothing
+    assert any("has no street under it" in p for p in audit(m)["problems"])
+
+
+def test_the_civ_pro_bundles_trolleys_run_on_streets():
+    """The real Civ Pro Mind Palace: every stretch of trolley track (sampled every 20 px) and every trolley stop has a drawn
+    street under it, none of it runs on a street the grid drew only for the line, and the grid is not grown for it."""
+    import json
+    import os
+    from alto.build.palace_transit_audit import street_cover
+    path = Path(os.environ.get("ALTO_CIVPRO_PALACE_P8", "/private/tmp/claude-501/-Users-lukemandel-Desktop-Terrarium-Alto/"
+                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p8.json"))
+    if not path.exists():
+        pytest.skip("the Civ Pro bundle is not on this machine")
+    m = palace.unpack(json.loads(path.read_text())["brief"]["palace"]["data_z"])["map"]
+    c = street_cover(m)
+    assert c, "no surface line in the bundle"
+    for lid, r in c.items():
+        assert r["track"] > 0
+        assert not r["runs"], (lid, r["runs"])                                             # track over a void
+        assert not r["stops"], (lid, r["stops"])                                           # a floating stop
+        assert r["invented"] <= 60, (lid, r["invented"])                                   # a street drawn for the trolley
+    assert len(m["cols"]) <= 70 and len(m["rows"]) <= 65                                    # the grid did not sprawl for it

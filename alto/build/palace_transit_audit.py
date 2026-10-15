@@ -32,9 +32,14 @@ ROUTE = {
 }
 # the trolleys (10 Lancaster, 11 Woodland, 13 Chester, 34 Baltimore, 36 Elmwood): five branches, each runs its own street
 # out to the subway-surface portal and then the Market Street tunnel in order, and no branch is another's stops
-BRANCH_STREETS = ("Lancaster", "Woodland", "Chester", "Baltimore", "Elmwood")
+BRANCH_STREETS = ("Lancaster", "Woodland", "Chester", "Baltimore")   # (the Elmwood trolley runs out the Woodland stops; its own street has no drawn street to join)
 TUNNEL = ["33rd", "30th", "22nd", "19th", "15th", "13th"]
 ONE_PIECE = ("mfl", "bsl", "pat", "rr")          # lines that must be one connected track
+STREET_TOL = 8.0         # px: a surface line's track (and its stops) must lie on a drawn street this close (two lanes sit 3.5 px either side of one street)
+STREET_STEP = 20.0       # px: the track is sampled this often
+INVENTED_MAX = 60.0      # px of surface track that may lie on a street the grid drew only for the line (none, bar a lane jog)
+RUN_MIN = 40.0           # px: an uncovered run shorter than this (a lane jog at a corner) is not reported
+SURFACE = ("tram",)      # kinds of line that run ON streets (a subway, an el, PATCO and Regional Rail are grade separated)
 
 
 def _seg_d(x, y, ax, ay, bx, by):
@@ -111,6 +116,97 @@ def _river_crossings(polys, rivers):
     return out
 
 
+def drawn_segments(m, invented=True):
+    """Every street piece the page draws: each block's outline (tiles), the loose edges, the diagonal avenues and the
+    bridges over the river. The named `streets` that are not diagonals or bridges are not drawn (only the tiles and edges are)."""
+    segs = []
+    for a, b, c, d in m.get("tiles", []):
+        segs += [(a, b, c, b), (a, d, c, d), (a, b, a, d), (c, b, c, d)]
+    segs += [tuple(e) for e in m.get("edges", [])]
+    if not invented:                                    # only the streets the grid has of itself
+        new = {tuple(e) for e in (m.get("transit") or {}).get("new", [])}
+        segs = [sg for sg in segs if tuple(sg) not in new]
+    for st in m.get("streets", []):
+        if st.get("d") or st.get("o"):
+            p = st["p"]
+            segs += [(p[k], p[k + 1], p[k + 2], p[k + 3]) for k in range(0, len(p) - 3, 2)]
+    return segs
+
+
+class _Streets:
+    def __init__(self, segs, cell=120.0):
+        self.cell, self.grid = cell, {}
+        for sg in segs:
+            x0, x1 = sorted((sg[0], sg[2]))
+            y0, y1 = sorted((sg[1], sg[3]))
+            for i in range(int(x0 // cell) - 1, int(x1 // cell) + 2):
+                for j in range(int(y0 // cell) - 1, int(y1 // cell) + 2):
+                    self.grid.setdefault((i, j), []).append(sg)
+
+    def dist(self, x, y):
+        best = 1e18
+        for ax, ay, bx, by in self.grid.get((int(x // self.cell), int(y // self.cell)), ()):
+            d, _ = _seg_d(x, y, ax, ay, bx, by)
+            if d < best:
+                best = d
+        return best
+
+
+def _invented(m):
+    """Segments of streets the grid drew only because a line ran there (palace_grid records them in transit['new'])."""
+    return [tuple(e) for e in (m.get("transit") or {}).get("new", [])]
+
+
+def street_cover(m, tol=STREET_TOL, step=STREET_STEP):
+    """For every surface line: the runs of its track with no drawn street under them and the stops with none under them.
+    -> {line id: {"track": px, "runs": [(length, x0, y0, x1, y1)], "stops": [(name, x, y, distance)]}}"""
+    tr = m.get("transit") or {}
+    st = _Streets(drawn_segments(m))
+    inv = _Streets(_invented(m))
+    own = _Streets(drawn_segments(m, invented=False))
+    out = {}
+    stops_ = tr.get("stops", [])
+    for ln in tr.get("lines", []):
+        if ln.get("k") not in SURFACE:
+            continue
+        runs, total, borrowed = [], 0.0, 0.0
+        tun = _Streets([(u[0], u[1], u[2], u[3]) for u in ln.get("u", [])])    # a tunnel runs under no street
+        under = {si for si in ln["s"] if " & " not in stops_[si]["n"]} if ln.get("u") else set()
+        for f in ln["p"]:
+            cur = None                                  # [start point, end point, length]
+            for k in range(0, len(f) - 3, 2):
+                ax, ay, bx, by = f[k:k + 4]
+                L = math.hypot(bx - ax, by - ay)
+                total += L
+                n = max(1, int(L // step))
+                for i in range(n + 1):
+                    x, y = ax + (bx - ax) * i / n, ay + (by - ay) * i / n
+                    if inv.grid and inv.dist(x, y) <= tol and own.dist(x, y) > tol:
+                        borrowed += L / n               # a street invented for the trolley: not a street
+                    if st.dist(x, y) > tol and not (tun.grid and tun.dist(x, y) <= 1.5):
+                        if cur is None:
+                            cur = [(x, y), (x, y), 0.0]
+                        else:
+                            cur[2] += math.hypot(x - cur[1][0], y - cur[1][1])
+                            cur[1] = (x, y)
+                    elif cur is not None:
+                        runs.append(cur); cur = None
+            if cur is not None:
+                runs.append(cur)
+        bad = []
+        for si in ln["s"]:
+            s = tr["stops"][si]
+            d = st.dist(s["x"], s["y"])
+            if d > tol and si not in under:
+                bad.append((s["n"], round(s["x"]), round(s["y"]), round(d, 1)))
+        out[ln["id"]] = {"track": round(total),
+                         "runs": [(round(r[2]), round(r[0][0]), round(r[0][1]), round(r[1][0]), round(r[1][1]))
+                                  for r in runs if r[2] >= RUN_MIN],
+                         "stops": bad, "invented": round(borrowed),
+                         "all_runs": len(runs)}
+    return out
+
+
 def _subseq(want, names):
     i = 0
     for n in names:
@@ -124,6 +220,7 @@ def audit(m) -> dict:
     stops = tr.get("stops", [])
     rivers = m.get("river") or []
     problems, lines = [], {}
+    cover = street_cover(m)
     in_line = {i: [] for i in range(len(stops))}
     for ln in tr.get("lines", []):
         lid = ln["id"]
@@ -205,6 +302,17 @@ def audit(m) -> dict:
                 pa, pb = _near(polys, sa["x"], sa["y"])[1], _near(polys, sb["x"], sb["y"])[1]
                 if piece_of.get(pa) != piece_of.get(pb):
                     iss.append("stops %r and %r are joined by no track" % (sa["n"], sb["n"]))
+        # a surface line runs ON a street: every stretch of its track and every one of its stops has a drawn street under it
+        if ln.get("k") in SURFACE:
+            cov = cover.get(lid) or {}
+            for r in cov.get("runs", []):
+                iss.append("%d px of the track has no street under it, from (%d, %d) to (%d, %d)" % r)
+            for sn in cov.get("stops", []):
+                iss.append("stop %r at (%d, %d) has no street under it (%.1f px from the nearest)" % sn)
+            if cov.get("invented", 0) > INVENTED_MAX:
+                iss.append("%d px of the track runs on streets drawn only for it (the real street is not in the grid)" % cov["invented"])
+            rep["no_street_px"] = sum(r[0] for r in cov.get("runs", []))
+            rep["no_street_stops"] = len(cov.get("stops", []))
         # rivers
         for rv, cnt in _river_crossings(polys, rivers).items():
             ok = RIVER_OK.get(lid, {}).get(rv, 0)

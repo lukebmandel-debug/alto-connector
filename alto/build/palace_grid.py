@@ -374,6 +374,12 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 if d < bd:
                     best, bd = (x, y), d
         return best or p
+    # the avenues a trolley runs on follow where they really lie (so its stops stand on them); the others are chords
+    trolley_n = set()
+    for ln_ in (m.get("transit") or {}).get("lines", []):
+        if ln_.get("k") == "tram":
+            for st_ in (m["transit"]).get("stops", []):
+                trolley_n |= {norm(part) for part in st_["n"].split(" & ")}
     for n, ss in diag.items():
         ptsall = [mp.turned(*a) for a, b in ss] + [mp.turned(*b) for a, b in ss]
         if len(ptsall) < 2:
@@ -385,14 +391,70 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 d = (ptsall[i][0] - ptsall[j][0]) ** 2 + (ptsall[i][1] - ptsall[j][1]) ** 2
                 if d > bd:
                     best, bd = (ptsall[i], ptsall[j]), d
-        a, b = nearest_x(best[0]), nearest_x(best[1])
-        if a == b:
+        def chord():
+            """A plain avenue: the chord between the two intersections nearest its ends."""
+            a, b = nearest_x(best[0]), nearest_x(best[1])
+            if a == b:
+                return
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            la = (a[0] - math.copysign(LEAD, dx), a[1]) if abs(dx) >= abs(dy) else (a[0], a[1] - math.copysign(LEAD, dy))
+            lb = (b[0] + math.copysign(LEAD, dx), b[1]) if abs(dx) >= abs(dy) else (b[0], b[1] + math.copysign(LEAD, dy))
+            streets.append({"n": n, "k": 0, "d": 1, "p": [round(v, 1) for q in (la, a, b, lb) for v in q]})
+        if n not in trolley_n:
+            chord()
             continue
+        # the avenue follows where its real stretches lie (mapped onto the grid), as one clean line: a few gentle
+        # bends at most. Each end lands on the nearest intersection when one is within a block and a half; an avenue
+        # that runs on past the drawn streets (a trolley avenue out through the south-west) keeps its own end.
+        # (what it follows: the stops of its trolleys, which stand where the trolley really runs, when there are enough)
+        cpts = [mp(st_["x"], st_["y"]) for st_ in m["transit"]["stops"]
+                if n in {norm(part) for part in st_["n"].split(" & ")}]
+        if len(cpts) >= 3:
+            ptsall = cpts
+            e0, e1, bd = cpts[0], cpts[1], -1
+            for i in range(len(cpts)):
+                for j in range(i + 1, len(cpts)):
+                    d = (cpts[i][0] - cpts[j][0]) ** 2 + (cpts[i][1] - cpts[j][1]) ** 2
+                    if d > bd:
+                        e0, e1, bd = cpts[i], cpts[j], d
+            for q in best:                      # the street's own end carries on past the last stop (to where it meets the grid)
+                d0, d1, dd = math.dist(q, e0), math.dist(q, e1), math.dist(e0, e1)
+                if min(d0, d1) <= 800:
+                    if d0 < d1 and d1 > dd:
+                        e0 = q
+                    elif d1 <= d0 and d0 > dd:
+                        e1 = q
+        else:
+            e0, e1 = best
+        ux, uy = e1[0] - e0[0], e1[1] - e0[1]
+        ul = math.hypot(ux, uy) or 1.0
+        ux, uy = ux / ul, uy / ul
+        bins = {}
+        for p_ in ptsall:
+            tt = (p_[0] - e0[0]) * ux + (p_[1] - e0[1]) * uy
+            oo = (p_[1] - e0[1]) * ux - (p_[0] - e0[0]) * uy
+            bins.setdefault(int(tt // 260), []).append((tt, oo))
+        curve = [(0.0, 0.0)] + [(sum(q[0] for q in v) / len(v), sum(q[1] for q in v) / len(v))
+                                for _, v in sorted(bins.items())] + [(ul, 0.0)]
+        mid = [(e0[0] + ux * tt - uy * oo, e0[1] + uy * tt + ux * oo) for tt, oo in curve]
+        mid = _dp([e0] + mid[1:-1] + [e1], 55)
+
+        def end_at(q, other):
+            q = (min(max(q[0], PAD), xg[-1]), min(max(q[1], PAD), yg[-1]))
+            x_ = nearest_x(q)
+            return (x_, True) if math.hypot(x_[0] - q[0], x_[1] - q[1]) <= 1.5 * CW else (q, False)
+        (a, ja), (b, jb) = end_at(mid[0], mid[1]), end_at(mid[-1], mid[-2])
+        if a == b or not (ja or jb):             # joined to the grid at neither end: it would hang in the void
+            chord()
+            continue
+        path = [a] + mid[1:-1] + [b]
         # it joins the grid by turning out of a street at each end (leads along the grid)
-        dx, dy = b[0] - a[0], b[1] - a[1]
+        dx, dy = path[1][0] - a[0], path[1][1] - a[1]
+        ex, ey = b[0] - path[-2][0], b[1] - path[-2][1]
         la = (a[0] - math.copysign(LEAD, dx), a[1]) if abs(dx) >= abs(dy) else (a[0], a[1] - math.copysign(LEAD, dy))
-        lb = (b[0] + math.copysign(LEAD, dx), b[1]) if abs(dx) >= abs(dy) else (b[0], b[1] + math.copysign(LEAD, dy))
-        streets.append({"n": n, "k": 0, "d": 1, "p": [round(v, 1) for q in (la, a, b, lb) for v in q]})
+        lb = (b[0] + math.copysign(LEAD, ex), b[1]) if abs(ex) >= abs(ey) else (b[0], b[1] + math.copysign(LEAD, ey))
+        pts_ = ([la] if ja else []) + path + ([lb] if jb else [])
+        streets.append({"n": n, "k": 0, "d": 1, "j": [int(ja), int(jb)], "p": [round(v, 1) for q in pts_ for v in q]})
 
     # ── the rivers: smooth bands (palace_river), each run off the glass at both ends ──
     river, W = rivers(m, mp, xg, yg, CW, CH, W, H)
@@ -556,8 +618,13 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     # a transit line runs along a street: wherever its track follows a grid line that no street was
     # drawn on (the real street was a diagonal avenue or a lane the grid leaves out), the line gets its
     # street, so no line crosses a void and no stop hangs in the middle of nowhere
-    transit = snap_transit(m.get("transit"), mp, xg, yg, W, H)
+    # (the glass the page draws is every block's outline plus these edges; the trolleys are routed along both)
+    drawn = {(min(a, c), min(b, d), max(a, c), max(b, d)) for a, b, c, d in edges}
+    for a, b, c, d in tiles:
+        drawn |= {(a, b, c, b), (a, d, c, d), (a, b, a, d), (c, b, c, d)}
+    transit = snap_transit(m.get("transit"), mp, xg, yg, W, H, streets=streets, edges_=sorted(drawn))
     have = {(round(e[0]), round(e[1]), round(e[2]), round(e[3])) for e in edges}
+    new_streets = []
     for i0, j0, i1, j1 in transit.pop("ge", []):
         x0, y0, x1, y1 = xg[i0], yg[j0], xg[i1], yg[j1]
         key = ("v", i0, min(j0, j1)) if x0 == x1 else ("h", j0, min(i0, i1))
@@ -567,6 +634,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
             continue
         used.add(key)
         edges.append([min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)])
+        new_streets.append([min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)])
         have.add((round(min(x0, x1)), round(min(y0, y1)), round(max(x0, x1)), round(max(y0, y1))))
 
     landmarks_out = [{"n": l_["n"], "x": round((l_["box"][0] + l_["box"][2]) / 2, 1),
@@ -581,6 +649,8 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
              majors=sorted({norm(x) for x in majors} | {norm(s_["n"]) for s_ in streets if s_["k"] == 0} | bridge_names),
              grid=mp.tables(), cols=[c["n"] for c in cols], rows=[r["n"] for r in rows])
     lm_cells = lm_all
+    if transit.get("lines"):
+        transit["new"] = new_streets                      # the streets drawn only because a line runs there (the audit counts them)
     g["transit"] = transit
     g["blocks"] = blocks(g, csp, rsp, xg, yg, water, lambda p: near_river(p, 6), lm_cells, rail_y)
     return g
