@@ -29,6 +29,21 @@ def _near(v, G):
     return i if G[i] - v < v - G[i - 1] else i - 1
 
 
+def _stop_node(es, xg, yg, gx, gy):
+    """The grid node a stop at (gx, gy) hangs on: the nearer end of the track edge nearest to it,
+    or None when no track edge passes within MAX_STOP_GAP of it."""
+    best, bd = None, MAX_STOP_GAP
+    for a, b in es:
+        ax, ay, bx, by = xg[a[0]], yg[a[1]], xg[b[0]], yg[b[1]]
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy or 1e-9
+        t = max(0.0, min(1.0, ((gx - ax) * dx + (gy - ay) * dy) / L2))
+        d = math.hypot(ax + t * dx - gx, ay + t * dy - gy)
+        if d <= bd:
+            bd, best = d, (a if t < .5 else b)
+    return best
+
+
 def _walk(a, b, first_h):
     """Grid nodes from a to b by straight runs along grid lines: keep going the way
     the line was going, then turn once."""
@@ -106,41 +121,67 @@ def _paths(edges):
     return out
 
 
-def _trunk(es, pts):
+def _trunk(es, branches):
     """A line's track between its own stops. OSM carries every siding and yard a
-    route touches, and on the grid they read as boxy loops; the shortest ways
-    between the line's stops are the line. `pts` are the stops' nodes. A line
-    that does not connect up (or has under two stops) keeps all its edges."""
+    route touches, and on the grid they read as boxy loops; the shortest way
+    from each stop to the next one *of the same branch* is the line (never a
+    shortcut between stops that are not neighbours, never a link between two
+    branches). `branches` are lists of nodes, one per stop that has track near
+    it, in ride order. Track left dangling past the last stop of a branch (a
+    yard lead, the part of a line that runs off the map) is cut back to that
+    stop. A line that does not connect up (or has under two stops) keeps all
+    its edges."""
     from collections import deque
     adj = {}
     for a, b in es:
         adj.setdefault(a, []).append(b)
         adj.setdefault(b, []).append(a)
-    nodes = list(adj)
-    if len(pts) < 2 or not nodes:
+    if not adj:
         return es
-    snapped = []
-    for x, y in pts:
-        snapped.append(min(nodes, key=lambda n: (n[0] - x) ** 2 + (n[1] - y) ** 2))
-    snapped = list(dict.fromkeys(snapped))
-    keep = set()
-    for i, src in enumerate(snapped):
-        prev = {src: None}
-        q = deque([src])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if v not in prev:
-                    prev[v] = u
-                    q.append(v)
-        for dst in snapped[i + 1:]:
+    pts = [list(dict.fromkeys(br)) for br in branches]
+    if sum(len(p) for p in pts) < 2:
+        return es
+    keep, stopn = set(), {n for p in pts for n in p}
+    for br in pts:
+        for src, dst in zip(br, br[1:]):
+            prev = {src: None}
+            q = deque([src])
+            while q and dst not in prev:
+                u = q.popleft()
+                for v in adj[u]:
+                    if v not in prev:
+                        prev[v] = u
+                        q.append(v)
             if dst not in prev:
                 continue
             u = dst
             while prev[u] is not None:
                 keep.add((u, prev[u]) if (u, prev[u]) in es else (prev[u], u))
                 u = prev[u]
-    return keep or es
+    if not keep:
+        return es
+    return _prune(keep, stopn)
+
+
+def _prune(es, stopn):
+    """Cut dangling track: a chain that ends in a free end with no stop on it goes."""
+    adj = {}
+    for a, b in es:
+        adj.setdefault(a, set()).add(b)
+        adj.setdefault(b, set()).add(a)
+    work = [n for n, v in adj.items() if len(v) == 1 and n not in stopn]
+    while work:
+        n = work.pop()
+        if n not in adj or len(adj[n]) != 1 or n in stopn:
+            continue
+        (m,) = adj[n]
+        adj[m].discard(n)
+        del adj[n]
+        if len(adj[m]) == 1 and m not in stopn:
+            work.append(m)
+        elif not adj[m]:
+            del adj[m]
+    return {(a, b) for a in adj for b in adj[a] if a < b}
 
 
 def snap(tr, mp, xg, yg, W, H):
@@ -153,14 +194,20 @@ def snap(tr, mp, xg, yg, W, H):
             es |= _edges_of(w, mp, xg, yg)
         edges[ln["id"]] = es
 
-    # each line keeps the track between its own stops (no yards or sidings)
+    # each line keeps the track between its own stops (no yards or sidings), branch by branch
     for ln in tr["lines"]:
-        pts = []
-        for k in ln["s"]:
-            st = tr["stops"][k]
-            gx, gy = mp(st["x"], st["y"])
-            pts.append((_near(gx, xg), _near(gy, yg)))
-        edges[ln["id"]] = _trunk(edges[ln["id"]], pts)
+        branches = []
+        for br in ln.get("b") or [ln["s"]]:
+            pts = []
+            for k in br:
+                st = tr["stops"][k]
+                gx, gy = mp(st["x"], st["y"])
+                # a stop with no track of its line near it is not a stop of the drawn line
+                node = _stop_node(edges[ln["id"]], xg, yg, gx, gy)
+                if node:
+                    pts.append(node)
+            branches.append(pts)
+        edges[ln["id"]] = _trunk(edges[ln["id"]], branches)
 
     # lanes: lines sharing a grid line (a street) run side by side
     use = {}                                             # (axis, index) -> {line id: edges}
@@ -257,7 +304,10 @@ def snap(tr, mp, xg, yg, W, H):
                 remap[(si, lid)] = len(stops_out)
             stops_out.append({"n": s["n"], "x": round(sum(p[0] for _, p in g) / len(g), 1),
                               "y": round(sum(p[1] for _, p in g) / len(g), 1), "l": [lid for lid, _ in g]})
-    for ln in lines_out:
-        ln["s"] = list(dict.fromkeys(remap[(k, ln["id"])] for k in ln["s"] if (k, ln["id"]) in remap))
+    for ln, src in zip(lines_out, [x for x in tr["lines"] if edges[x["id"]]]):
+        bs = [list(dict.fromkeys(remap[(k, ln["id"])] for k in br if (k, ln["id"]) in remap))
+              for br in (src.get("b") or [src["s"]])]
+        ln["b"] = [b for b in bs if b]
+        ln["s"] = list(dict.fromkeys(k for b in ln["b"] for k in b))
     ge = sorted({(a[0], a[1], b[0], b[1]) for es in edges.values() for a, b in es})
     return {"lines": lines_out, "stops": stops_out, "ge": ge}      # ge: every grid edge a line runs along (index pairs)

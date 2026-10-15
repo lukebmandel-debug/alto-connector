@@ -941,6 +941,10 @@ _TRANSIT_FAMILIES = (
 )
 
 
+# a spur ends where it joins its trunk (the rest of its relation rides the trunk's own track, drawn by the trunk's line)
+_TRANSIT_END = {"brs": "girard"}
+
+
 def _transit(els, proj, Wf, Hf):
     """The real lines inside the box, in map px: {lines: [{id, n, c, k, w: [flat
     polylines, one per rail way], s: [stop index, ride order]}], stops: [{n, x, y, l: [line ids]}]}.
@@ -977,7 +981,7 @@ def _transit(els, proj, Wf, Hf):
         return out
 
     for fid, fname, fcol, fkind, net, rk, refs in _TRANSIT_FAMILIES:
-        way_ids, best, all_stops = [], [], []
+        way_ids, best, all_stops, seqs = [], [], [], {}
         for (t, i), e in sorted(els.items(), key=lambda kv: (kv[0][0], kv[0][1])):
             tg = e.get("tags") or {}
             if t != "relation" or tg.get("type") != "route" or tg.get("route") != rk:
@@ -993,6 +997,9 @@ def _transit(els, proj, Wf, Hf):
             all_stops += seq
             if len(seq) > len(best):
                 best = seq
+            ref = (tg.get("ref") or "").strip()
+            if len(seq) > len(seqs.get(ref, ())):
+                seqs[ref] = seq                      # a route's longest run (its two directions are one route)
         polys = []
         for wid in way_ids:
             if (els[("way", wid)].get("tags") or {}).get("service") in _RAIL_SKIP_SERVICE:
@@ -1010,15 +1017,30 @@ def _transit(els, proj, Wf, Hf):
                 polys.append(cur)
         if not polys:
             continue
-        ride = []
-        for nm, x, y in best:
-            k = stop_idx(nm, x, y, fid)
-            if k not in ride:
-                ride.append(k)
+        def run_of(seq):
+            run = []
+            for nm, x, y in seq:
+                k = stop_idx(nm, x, y, fid)
+                if k not in run:
+                    run.append(k)
+            end = _TRANSIT_END.get(fid)
+            if end:                                  # the spur stops where it joins its trunk
+                at = [i for i, k in enumerate(run) if _norm(stops[k]["n"]).startswith(end)]
+                if at:
+                    run = run[:at[0] + 1]
+            return run
+        ride = run_of(best)
+        branches = [ride]
+        if fid == "trl":                            # every trolley route is a branch of its own: its stops are
+            for ref, seq in sorted(seqs.items(), key=lambda kv: -len(kv[1])):    # joined only to each other
+                r = run_of(seq)
+                if r and r != ride:
+                    branches.append(r)
+                    ride = ride + [k for k in r if k not in ride]
         for nm, x, y in all_stops:                 # the branches' stops too
             stop_idx(nm, x, y, fid)
         lines.append({"id": fid, "n": fname, "c": fcol, "k": fkind,
-                      "w": [_flat(p) for p in polys], "s": ride})
+                      "w": [_flat(p) for p in polys], "s": ride, "b": branches})
     for s in stops:
         s.pop("_a", None)
         s["x"], s["y"] = _r1(s["x"]), _r1(s["y"])

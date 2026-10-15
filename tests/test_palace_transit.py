@@ -154,6 +154,53 @@ def test_no_stop_floats_off_its_lines_in_the_civ_pro_bundle():
                     (l["id"], round(mx), round(my))                              # a street under every stretch of track
 
 
+def test_a_line_runs_only_between_its_stops_and_a_branch_never_joins_a_neighbours():
+    """Track left dangling past a line's last stop is cut back to it, and the stops of one branch are joined only to
+    each other (never to a stop of another branch by the shortest way through the grid)."""
+    xg, yg = [100, 340, 580, 820, 1060], [100, 270, 440]
+    way_a = [100, 270, 1060, 270]                                 # a street the line runs along: 4 blocks
+    way_b = [340, 270, 340, 440, 820, 440, 820, 270]              # a loop of track beside it (a yard)
+    tr = {"lines": [{"id": "a", "n": "A", "c": "#0097d6", "k": "tram", "w": [way_a, way_b], "s": [0, 1, 2, 3],
+                     "b": [[0, 1], [2, 3]]}],
+          "stops": [{"n": "S%d" % i, "x": x, "y": 270, "l": ["a"]} for i, x in enumerate((100, 340, 820, 1060))]}
+    g = snap(tr, _Id(), xg, yg, 1160, 540)
+    (l,) = g["lines"]
+    assert l["b"] == [[0, 1], [2, 3]] and l["s"] == [0, 1, 2, 3]
+    # the loop below the street is not a branch's shortest way: no stub or yard remains under row 440
+    assert all(max(f[1::2]) <= 270 + 1 for f in l["p"])
+
+
+def test_the_audit_names_a_floating_stop_a_stub_and_a_river_crossing():
+    from alto.build.palace_transit_audit import audit
+    tr = {"lines": [{"id": "trl", "n": "Trolleys", "c": "#6ea516", "k": "tram", "p": [[0, 0, 2000, 0, 2000, 3000]], "s": [0, 1, 2]}],
+          "stops": [{"n": "On", "x": 500, "y": 0, "l": ["trl"]}, {"n": "Floating", "x": 1000, "y": 40, "l": ["trl"]},
+                    {"n": "Last", "x": 2000, "y": 500, "l": ["trl"]}, {"n": "Orphan", "x": 5, "y": 5, "l": []}]}
+    river = [{"n": "Schuylkill River", "w": 100, "p": [1500, -100, 1500, 100]},
+             {"n": "Delaware River", "w": 100, "p": [1500, -100, 1500, 100]}]
+    bad = " | ".join(audit({"transit": tr, "river": river})["problems"])
+    assert "'Floating' is 40.0 px from the line's track" in bad
+    assert "track past the last stop" in bad                       # 2500 px of track beyond 'Last'
+    assert "lists no line" in bad                                  # a dot no line passes
+    assert "Delaware 1 time(s)" in bad and "Schuylkill" not in bad  # a trolley may tunnel the Schuylkill, not cross the Delaware
+
+
+def test_the_civ_pro_bundles_transit_passes_the_audit():
+    """Every line of the real Civ Pro Mind Palace: its stops stand on its track and list it back, no piece of track is left
+    without a stop, no stub runs past a last stop, no line crosses a river without a tunnel or bridge, consecutive stops are
+    joined by track, and each line runs its real route's stops in order (palace_transit_audit)."""
+    import json
+    import os
+    from alto.build.palace_transit_audit import audit
+    path = Path(os.environ.get("ALTO_CIVPRO_PALACE_P6", "/private/tmp/claude-501/-Users-lukemandel-Desktop-Terrarium-Alto/"
+                                "d7a9f909-c367-4dd8-a20f-98d2861a343b/scratchpad/kit/civ_palace_p6.json"))
+    if not path.exists():
+        pytest.skip("the Civ Pro bundle is not on this machine")
+    m = palace.unpack(json.loads(path.read_text())["brief"]["palace"]["data_z"])["map"]
+    r = audit(m)
+    assert {"mfl", "bsl", "brs", "trl", "rr", "pat"} <= set(r["lines"])
+    assert not r["problems"], "\n".join(r["problems"])
+
+
 # ── the page ───────────────────────────────────────────────────────
 def _bundle():
     d = tp.bundle()
