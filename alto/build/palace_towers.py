@@ -14,6 +14,7 @@ elevator a unit can take from one.
 """
 from __future__ import annotations
 
+import math
 import re
 
 from .palace_landmarks import _Art, _f
@@ -473,6 +474,12 @@ def tower_lots(m: dict, blocks: list, at: dict, tw: dict) -> list:
         h = lh * w / lw
         left = x0 + 14 + (w0 - nw) / 2                              # the chip stands left of it, a little over its edge
         bid = len(blocks)
-        blocks.append({"id": bid, "lots": [[round(left + 10 - w / 2, 1), round(y0 + 14 + 22 + h / 2, 1), round(w, 1), round(h, 1), 0]]})
+        cx, cy, deg = left + 10 - w / 2, y0 + 14 + 22 + h / 2, 0
+        if lm.get("a"):                                             # a landmark of a tilted domain (city_lattice): turned with it
+            deg = lm["a"]
+            r = math.radians(deg)
+            mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+            cx, cy = mx + (cx - mx) * math.cos(r) - (cy - my) * math.sin(r), my + (cx - mx) * math.sin(r) + (cy - my) * math.cos(r)
+        blocks.append({"id": bid, "lots": [[round(cx, 1), round(cy, 1), round(w, 1), round(h, 1), deg]]})
         at[hub] = f"{bid}.0"
     return blocks

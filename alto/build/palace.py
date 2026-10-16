@@ -436,7 +436,7 @@ PALACE_CSS = KEY_CSS + r"""
   html.alto-palace #world .node.pal-floor{display:none !important;}
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card{width:var(--pw,40px) !important;height:var(--ph,26px) !important;
     min-width:0 !important;max-width:none !important;min-height:0 !important;padding:0 !important;border-radius:5px !important;
-    display:flex !important;align-items:center;justify-content:center;overflow:hidden !important;rotate:var(--pr,0deg);
+    display:flex !important;align-items:center;justify-content:center;overflow:hidden !important;rotate:var(--pr,0deg);transform-origin:50% 50% !important;
     border:1.5px solid color-mix(in srgb,var(--pc,#888) 70%,transparent) !important;border-top:3px solid var(--pc,#888) !important;
     box-shadow:var(--pfl,0 0 0 transparent),0 3px 10px rgba(20,26,55,.18) !important;}
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card > *:not(.node-order):not(.aed-cc){display:none !important;}
@@ -833,6 +833,16 @@ function runsOf(p){ var out=[], cur=null, run=null;
     for(var k=0;k<n;k++){ var t0=k/n, t1=(k+1)/n, ax=x0+(x1-x0)*t0, ay=y0+(y1-y0)*t0, bx=x0+(x1-x0)*t1, by=y0+(y1-y0)*t1;
       var u=distAt((ax+bx)/2,(ay+by)/2); if(i===0 && k===0){ run=[ax,ay]; cur=u; } if(u!==cur){ out.push({u:cur, p:run.concat([ax,ay])}); run=[ax,ay]; cur=u; } run.push(bx,by); } }
   if(run) out.push({u:cur, p:run}); return out; }
+/* v2: a polyline cut where it passes from one district into the next, keeping its own corners (so each run is rounded where the line turns) */
+function lruns(p){ var out=[], cur, run=null;
+  for(var i=0;i+3<p.length;i+=2){ var x0=p[i], y0=p[i+1], x1=p[i+2], y1=p[i+3], n=Math.max(1, Math.ceil(Math.hypot(x1-x0,y1-y0)/60));
+    for(var k=0;k<n;k++){ var ax=x0+(x1-x0)*k/n, ay=y0+(y1-y0)*k/n, bx=x0+(x1-x0)*(k+1)/n, by=y0+(y1-y0)*(k+1)/n, u=distAt((ax+bx)/2,(ay+by)/2);
+      if(!run){ run=[x0,y0]; cur=u; }
+      if(u!==cur){ if(k) run.push(ax,ay); out.push({u:cur, p:run}); run=[ax,ay]; cur=u; }
+      if(k===n-1) run.push(bx,by); } }
+  if(run) out.push({u:cur, p:run}); return out.filter(function(r){ return r.p.length>=4; }); }
+/* the centre of a flat ring [x0,y0,x1,y1,...] (its vertices' mean: a tile's district) */
+function ringC(a){ var n=a.length>>1, x=0, y=0; for(var i=0;i<n;i++){ x+=a[2*i]; y+=a[2*i+1]; } return [x/n, y/n]; }
 /* a smooth path through points (Catmull-Rom as cubic curves): a river bends in wide, even curves */
 function smoothD(a){ var n=a.length>>1, d='M'+a[0]+' '+a[1];
   for(var i=0;i<n-1;i++){ var i0=Math.max(0,i-1), i3=Math.min(n-1,i+2), x0=a[2*i0], y0=a[2*i0+1], x1=a[2*i], y1=a[2*i+1], x2=a[2*i+2], y2=a[2*i+3], x3=a[2*i3], y3=a[2*i3+1];
@@ -901,15 +911,25 @@ function drawCity(svg){
   var colMaj={}, rowMaj={}, okGrid=(M.cols||[]).length===gx.length && (M.rows||[]).length===gy.length;
   if(okGrid){ gx.forEach(function(v,i){ colMaj[v]=!!MJs[M.cols[i]]; }); gy.forEach(function(v,i){ rowMaj[v]=!!MJs[M.rows[i]]; }); }
   var byM={}, seen={};
-  function major(x0,y0,x1,y1){ if(!okGrid) return; var k=x0+','+y0+','+x1+','+y1; if(seen[k]) return; seen[k]=1;
+  /* v2 (city_lattice.py): when any street carries L (a heavy lattice line, in any domain) the heavy lines are drawn from those
+     streets and this overlay of the upright tiles' edges is off */
+  var hasL=M.streets.some(function(st){ return st.L; });
+  function major(x0,y0,x1,y1){ if(!okGrid || hasL) return; var k=x0+','+y0+','+x1+','+y1; if(seen[k]) return; seen[k]=1;
     if(x0===x1? !colMaj[x0] : !rowMaj[y0]) return;
     var u=distAt((x0+x1)/2,(y0+y1)/2); byM[u]=(byM[u]||'')+'M'+x0+' '+y0+'L'+x1+' '+y1; }
   (M.tiles||[]).forEach(function(t){ var u=distAt((t[0]+t[2])/2,(t[1]+t[3])/2); byU[u]=(byU[u]||'')+tileD(t);
     major(t[0],t[1],t[2],t[1]); major(t[0],t[3],t[2],t[3]); major(t[0],t[1],t[0],t[3]); major(t[2],t[1],t[2],t[3]); });
   (M.edges||[]).forEach(function(e){ var u=distAt((e[0]+e[2])/2,(e[1]+e[3])/2); byU[u]=(byU[u]||'')+'M'+e[0]+' '+e[1]+'L'+e[2]+' '+e[3]; major(e[0],e[1],e[2],e[3]); });
+  /* v2 (city_lattice.py): a tilted domain's blocks and every block a seam cuts are polygon tiles (M.tq: flat rings), rounded at
+     each corner like any tile; the loose lines of those domains are polylines (M.te), rounded where they turn (a T onto a seam) */
+  (M.tq||[]).forEach(function(a){ var c=ringC(a), u=distAt(c[0],c[1]); byU[u]=(byU[u]||'')+rpc(a, R); });
+  (M.te||[]).forEach(function(p){ if(p.length<4) return; var u=distAt((p[0]+p[p.length-2])/2,(p[1]+p[p.length-1])/2); byU[u]=(byU[u]||'')+rp(p); });
   function tc(u){ return tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()); }
   Object.keys(byU).forEach(function(u){ tube(sg, byU[u], tc(u), 3.6, .95, 't-min'); });
   Object.keys(byM).forEach(function(u){ tube(sg, byM[u], tc(u), 5.6, .95, 't-maj'); });
+  /* v2: a heavy lattice line (st.L) runs straight through its crossings and turns, rounded, where it bends; in each district's colour */
+  if(hasL){ var byL={}; M.streets.forEach(function(st){ if(st.L) lruns(st.p).forEach(function(r){ byL[r.u]=(byL[r.u]||'')+rp(r.p); }); });
+    Object.keys(byL).forEach(function(u){ tube(sg, byL[u], tc(u), 5.6, .95, 't-maj'); }); }
   /* the diagonals: one clean line, joining the grid with rounded elbows */
   M.streets.forEach(function(st){ if(st.d) tube(sg, rp(st.p), tubeCol(dcol(distAt(st.p[2],st.p[3]))||NEUTRAL()), 5.6, .95, 't-maj'); });
   /* the rivers: each a broad glass band (a connecting line grown wide: edge, body, a light
@@ -966,6 +986,7 @@ function drawCity(svg){
   /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
   (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);
+    if(l.a){ var lc_=lmC(l); g.setAttribute('transform','rotate('+(+l.a)+' '+lc_[0]+' '+lc_[1]+')'); }   /* v2: a landmark of a tilted domain stands square to its blocks (an SVG attribute, never CSS px) */
     var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
     if(tw_) g.setAttribute('data-tower', tw_);
     window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
@@ -1716,6 +1737,12 @@ function letOut(fid){
 /* ── a landmark that houses a unit: its floors are that unit's buildings (palace_towers.py); edit mode can house one, move it out,
    add a floor, give a floor another real number or let it out. The edits are P.lm / P.fx / P.out, laid over the built page. ── */
 function lmOf(name){ var r=null; (M.landmarks||[]).forEach(function(l){ if(l.box && l.n===name) r=l; }); return r; }
+/* v2: a landmark turned by l.a (degrees, about its box's centre): its box is in its own upright frame, so a map point is turned back
+   by -a before it is tested against the box, and a point of the box is turned by a to reach the map */
+function lmC(l){ var b=l.box; return [(b[0]+b[2])/2, (b[1]+b[3])/2]; }
+function lmTurn(l, p, sgn){ if(!l.a) return p; var c=lmC(l), r=sgn*l.a*Math.PI/180, co=Math.cos(r), si=Math.sin(r), dx=p[0]-c[0], dy=p[1]-c[1];
+  return [c[0]+dx*co-dy*si, c[1]+dx*si+dy*co]; }
+function lmLocal(l, p){ return lmTurn(l, p, -1); }
 function towerHub(name){ var h=null; Object.keys(P.tw||{}).forEach(function(k){ if(P.tw[k].n===name) h=k; }); return h; }
 function towerOfUnit(u){ var h=null; Object.keys(P.tw||{}).forEach(function(k){ if(P.tw[k].u===u) h=k; }); return h; }
 function pyRound(x){ var f=Math.floor(x), d=x-f; return d<.5?f:d>.5?f+1:(f%2===0?f:f+1); }
@@ -1732,7 +1759,8 @@ function chipLot(name){ var l=lmOf(name); if(!l) return null; var lots=[]; P.b.f
   var ws=lots.map(function(q){ return q[2]; }).sort(function(a,b){ return a-b; }), hs=lots.map(function(q){ return q[3]; }).sort(function(a,b){ return a-b; });
   var lw=lots.length?ws[lots.length>>1]:24, lh=lots.length?hs[lots.length>>1]:16, x0=l.box[0], y0=l.box[1], x1=l.box[2], y1=l.box[3];
   var w0=(x1-x0)-28, h0=(y1-y0)-28, nw=Math.min(w0,h0*.55), w=Math.max(30,Math.min(lw,(w0-nw)/2-4)), h=lh*w/lw, left=x0+14+(w0-nw)/2, r=function(v){ return Math.round(v*10)/10; };
-  return [r(left+10-w/2), r(y0+14+22+h/2), r(w), r(h), 0]; }
+  var cx=left+10-w/2, cy=y0+14+22+h/2; if(l.a){ var q=lmTurn(l, [cx,cy], 1); cx=q[0]; cy=q[1]; }
+  return [r(cx), r(cy), r(w), r(h), l.a?+l.a:0]; }
 function applyTower(name, v){
   var h=towerHub(name); if(!lmOf(name)) return;
   if(h){                                                  /* move the unit out: its buildings are buildings again */
@@ -1961,8 +1989,9 @@ function lmHideSoon(){ if(lmPin) return; clearTimeout(lmT); lmT=setTimeout(funct
 function lmG(name){ return svgD?[].filter.call(svgD.querySelectorAll('.pl-lmb'), function(q){ return q.getAttribute('data-name')===name; })[0]||null:null; }
 function lmRect(name){                                                           /* the landmark's block on screen (what the pointer test uses too) */
   var l=lmOf(name), m=svgD && svgD.getScreenCTM && svgD.getScreenCTM();
-  if(l && m && svgD.createSVGPoint){ var b=l.box, p=svgD.createSVGPoint(); p.x=b[0]; p.y=b[1]; var a=p.matrixTransform(m); p.x=b[2]; p.y=b[3]; var c=p.matrixTransform(m);
-    return {left:Math.min(a.x,c.x), right:Math.max(a.x,c.x), top:Math.min(a.y,c.y), bottom:Math.max(a.y,c.y)}; }
+  if(l && m && svgD.createSVGPoint){ var b=l.box, p=svgD.createSVGPoint(), xs=[], ys=[];
+    [[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]].forEach(function(q){ q=lmTurn(l, q, 1); p.x=q[0]; p.y=q[1]; var s=p.matrixTransform(m); xs.push(s.x); ys.push(s.y); });
+    return {left:Math.min.apply(null,xs), right:Math.max.apply(null,xs), top:Math.min.apply(null,ys), bottom:Math.max.apply(null,ys)}; }
   var g=lmG(name); return g?g.getBoundingClientRect():null; }
 function lmPlace(){
   if(!lmFor || !lmBar) return; var r=lmRect(lmFor); if(!r) return;
@@ -1988,7 +2017,7 @@ function lmShow(name){
 function lmNameAt(t, e){                                                          /* the landmark under the pointer: a tower's chip, or its block (whatever layer is on top there) */
   var nd=t.closest('.node'); if(nd){ var id=nd.id.replace(/^node-/,''); return P.tw && P.tw[id]?P.tw[id].n:null; }
   var p=svgPt(svgD,e), hit=null, ha=1e18, cur=null;
-  (M.landmarks||[]).forEach(function(l){ var b=l.box; if(b && p[0]>=b[0] && p[0]<=b[2] && p[1]>=b[1] && p[1]<=b[3]){ if(l.n===lmFor) cur=l.n; var a=(b[2]-b[0])*(b[3]-b[1]); if(a<ha){ ha=a; hit=l.n; } } });
+  (M.landmarks||[]).forEach(function(l){ var b=l.box, q=b?lmLocal(l, p):p; if(b && q[0]>=b[0] && q[0]<=b[2] && q[1]>=b[1] && q[1]<=b[3]){ if(l.n===lmFor) cur=l.n; var a=(b[2]-b[0])*(b[3]-b[1]); if(a<ha){ ha=a; hit=l.n; } } });
   return cur||hit; }
 function lmTab(){ if(svgD) [].forEach.call(svgD.querySelectorAll('.pl-lmb'), function(g){ if(editing()) g.setAttribute('tabindex','0'); else g.removeAttribute('tabindex'); }); }
 document.addEventListener('mousemove', function(e){
