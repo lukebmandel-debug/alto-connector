@@ -93,7 +93,7 @@ NAV_JS = r"""
 var L=window._ALTO_LANES; if(!L) return;
 var de=document.documentElement;
 if(de.classList.contains('mobile')) return;          // phones: the engine's card-by-card view and swipe-peek
-var NOTCH=40, GAP=120, TRAVEL=30, GRACE=110, SHORT=70, SPIKE=1.6, RETRAVEL=34, QMAX=3, OV_MIN=0.14;
+var NOTCH=40, GAP=120, LULL=320, TRAVEL=30, GRACE=110, SHORT=70, SPIKE=1.6, RETRAVEL=34, QMAX=3, OV_MIN=0.14;
 var RM=window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 function reduced(){ return !!(RM && RM.matches); }
 function cv(){ return document.getElementById('canvas'); }
@@ -332,7 +332,9 @@ function onWheel(e){
   var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, ts=e.timeStamp;
   if(e.shiftKey && !dx){ dx=dy; dy=0; }
   var gap=ts-W.last; W.last=ts;
-  if(gap>GAP){                                              // a new gesture
+  /* a stream that has stepped stays one gesture across a stall of up to LULL ms (a slow
+     frame mid-inertia must not read as a new flick); a real new flick spikes anyway */
+  if(gap>(W.stream && W.fired ? LULL : GAP)){                 // a new gesture
     W.stream=false; W.fired=false; W.ax=W.ay=0; W.bt.length=0; W.bm.length=0; W.valley=1e9; W.peak=0; W.armed=false;
   }
   if(gap>=NOTCH && !W.stream){
