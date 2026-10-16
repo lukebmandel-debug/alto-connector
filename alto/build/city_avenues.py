@@ -58,8 +58,55 @@ def segd(p, a, b):
     return math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1])
 
 
+class PolyIndex:
+    """A polyline's segments in a bucket grid: poly_d(p, index) gives exactly poly_d(p, pts), fast for long chains."""
+
+    def __init__(self, pts, cell=120.0):
+        self.pts, self.cell, self.b = list(pts), cell, {}
+        for a, b in zip(self.pts, self.pts[1:]):
+            i0, i1 = sorted((int(a[0] // cell), int(b[0] // cell)))
+            j0, j1 = sorted((int(a[1] // cell), int(b[1] // cell)))
+            for i in range(i0, i1 + 1):
+                for j in range(j0, j1 + 1):
+                    self.b.setdefault((i, j), []).append((a, b))
+        xs = [q[0] for q in self.pts]; ys = [q[1] for q in self.pts]
+        self.box = (min(xs) - 2 * cell, min(ys) - 2 * cell, max(xs) + 2 * cell, max(ys) + 2 * cell) if xs else (0, 0, 0, 0)
+        self.rmax = int(max(self.box[2] - self.box[0], self.box[3] - self.box[1]) // cell) + 2
+
+    def _brute(self, p):
+        return min(segd(p, a, b) for a, b in zip(self.pts, self.pts[1:]))
+
+    def dist(self, p, limit=None):
+        """Exact distance to the polyline; with `limit`, any value >= limit when the polyline is farther than that."""
+        if len(self.pts) == 1:
+            return math.dist(p, self.pts[0])
+        x0, y0, x1, y1 = self.box
+        if not (x0 <= p[0] <= x1 and y0 <= p[1] <= y1):
+            if limit is not None and (max(x0 - p[0], p[0] - x1, 0) > limit or max(y0 - p[1], p[1] - y1, 0) > limit):
+                return limit
+            return self._brute(p)
+        c = self.cell
+        ci, cj = int(p[0] // c), int(p[1] // c)
+        best = None
+        for r in range(self.rmax + 1):
+            for i in range(ci - r, ci + r + 1):
+                for j in (range(cj - r, cj + r + 1) if i in (ci - r, ci + r) else (cj - r, cj + r)):
+                    for a, b in self.b.get((i, j), ()):
+                        d = segd(p, a, b)
+                        if best is None or d < best:
+                            best = d
+            # every segment not yet seen is more than r * cell away
+            if best is not None and best <= r * c:
+                return best
+            if limit is not None and r * c > limit:
+                return limit if best is None else min(best, limit)
+        return self._brute(p)
+
+
 def poly_d(p, pts):
     """Distance from p to a polyline."""
+    if isinstance(pts, PolyIndex):
+        return pts.dist(p)
     if len(pts) == 1:
         return math.dist(p, pts[0])
     return min(segd(p, a, b) for a, b in zip(pts, pts[1:]))
@@ -410,7 +457,11 @@ def shared(path, avoid, tol=3.0):
         if L < 1:
             continue
         ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        bx0, bx1 = min(a[0], b[0]) - tol, max(a[0], b[0]) + tol
+        by0, by1 = min(a[1], b[1]) - tol, max(a[1], b[1]) + tol
         for c, d in avoid:
+            if max(c[0], d[0]) < bx0 or min(c[0], d[0]) > bx1 or max(c[1], d[1]) < by0 or min(c[1], d[1]) > by1:
+                continue                                  # (exact: such a segment is farther than tol everywhere)
             if segd(c, a, b) > tol and segd(d, a, b) > tol and segd(a, c, d) > tol and segd(b, c, d) > tol:
                 continue
             if abs((c[0] - a[0]) * uy - (c[1] - a[1]) * ux) > tol or abs((d[0] - a[0]) * uy - (d[1] - a[1]) * ux) > tol:
@@ -420,9 +471,26 @@ def shared(path, avoid, tol=3.0):
     return tot
 
 
-def _cost(path, S, back):
+def _cost(path, S, back, bound=None):
     """Mean distance of the chain samples to the path, and of the path's samples to the chain (both ways, so a path
-    cannot cut a corner the avenue really turns, nor wander where it never goes)."""
+    cannot cut a corner the avenue really turns, nor wander where it never goes). bound: stop early (returning a value
+    >= bound) once the cost is sure to reach it (the sums only grow, so the pruning is exact)."""
+    if bound is not None:
+        lim = 2 * bound * len(S)
+        d1 = 0.0
+        for p in S:
+            d1 += poly_d(p, path)
+            if d1 >= lim:
+                return bound
+        d1 /= len(S)
+        Q = [(x, y) for x, y, _ in resample(path, max(20.0, plen(path) / 30))]
+        lim2 = (2 * bound - d1) * max(1, len(Q))
+        d2 = 0.0
+        for q in Q:
+            d2 += poly_d(q, back)
+            if d2 >= lim2:
+                return bound
+        return (d1 + d2 / max(1, len(Q))) / 2
     d1 = sum(poly_d(p, path) for p in S) / len(S)
     Q = [(x, y) for x, y, _ in resample(path, max(20.0, plen(path) / 30))]
     d2 = sum(poly_d(q, back) for q in Q) / max(1, len(Q))
@@ -476,7 +544,12 @@ def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.
                             p2 = (p1[0] + v[0] * s[0], p1[1] + v[1] * s[0])
                             cands.append([a, p1, p2, b])
             for path in cands:
-                c = _cost(path, S, back) + bend_px * (len(path) - 2) + 0.15 * (ia + ib) * bend_px
+                pen = bend_px * (len(path) - 2) + 0.15 * (ia + ib) * bend_px
+                if best is not None and pen >= best["cost"]:
+                    continue
+                c = _cost(path, S, back, None if best is None else best["cost"] - pen) + pen
+                if best is not None and c >= best["cost"]:
+                    continue
                 if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
                     c += shared(path, avoid) / cw * 3 * bend_px
                 if best is None or c < best["cost"]:

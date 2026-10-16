@@ -203,6 +203,16 @@ class Lattice:
     def inside(self, x, y):
         return True if self.clip is None else inside(self.clip, x, y)
 
+    own = False                    # True: a lattice segment is drawn only beside a drawn cell (city_engine.DomLattice)
+
+    def seg_in(self, a, b):
+        """The parts of page segment ab inside the domain's region: [(t0, t1), ...]."""
+        return seg_in_poly(self.clip, a, b)
+
+    def clip_poly(self, poly):
+        """A convex page polygon clipped to the domain's region."""
+        return clip_convex(self.clip, poly) if self.clip else poly
+
     def frac(self, poly, i, j):
         full = (self.xg[i + 1] - self.xg[i]) * (self.yg[j + 1] - self.yg[j])
         return abs(area(poly)) / full if poly and full else 0.0
@@ -282,7 +292,7 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
                               ("v", i, j, (i - 1, j)), ("v", i + 1, j, (i + 1, j))):
             a, b = lat.seg(fam, k, m)
             L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
-            ins = sum(t1 - t0 for t0, t1 in seg_in_poly(lat.clip, a, b)) if lat.clip else 1.0
+            ins = sum(t1 - t0 for t0, t1 in lat.seg_in(a, b))
             if 1e-6 < ins < 1 - 1e-6 and cells.get(nb) in ("full", "cut"):
                 cand.append((ins * L, fam, k, m, nb))
         if not cand:
@@ -298,7 +308,7 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
         i1, j1 = max(i, nb[0]) + 1, max(j, nb[1]) + 1
         big = [lat.page(lat.xg[i0], lat.yg[j0]), lat.page(lat.xg[i1], lat.yg[j0]),
                lat.page(lat.xg[i1], lat.yg[j1]), lat.page(lat.xg[i0], lat.yg[j1])]
-        polys[nb] = clip_convex(lat.clip, big) if lat.clip else big
+        polys[nb] = lat.clip_poly(big)
         cells[nb] = "cut"
         cells[(i, j)] = "merged"
         polys.pop((i, j), None)
@@ -321,6 +331,10 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
             return (k - 1, m) in drawn or (k, m) in drawn
         return (m, k - 1) in drawn or (m, k) in drawn
 
+    def lm_side(fam, k, m):
+        sides = ((k - 1, m), (k, m)) if fam == "v" else ((m, k - 1), (m, k))
+        return any(s in lat.lm_cells for s in sides)
+
     def in_lm(fam, k, m):
         """A segment strictly inside a landmark's footprint (both sides are landmark cells)."""
         sides = ((k - 1, m), (k, m)) if fam == "v" else ((m, k - 1), (m, k))
@@ -337,7 +351,9 @@ def emit(lat: Lattice, names=None, majors=(), through=(), root=None, lots=True, 
                     pieces.append(None)
                     continue
                 a, b = lat.seg(fam, k, m)
-                ivs = seg_in_poly(lat.clip, a, b)
+                ivs = lat.seg_in(a, b)
+                if lat.own and not covered(fam, k, m) and not lm_side(fam, k, m):
+                    ivs = []
                 if not ivs:
                     pieces.append(None)
                 for t0, t1 in ivs:

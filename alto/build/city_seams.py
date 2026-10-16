@@ -46,6 +46,7 @@ RANSAC_TOL = 60.0       # px: a bend on the hinge line
 HINGE_MIN = 4           # bends on one line to make a hinge seam
 AV_NEAR, AV_DEG, AV_SHARE = 90.0, 14.0, 0.4     # the seam avenue: near, parallel, covering 40%
 SNAP45 = 4.0            # a tilt this close to 45 degrees is 45
+SNAP0 = 1.0             # a tilt this close to 0 is 0 (one grid split only by a river: Center City | West Philadelphia)
 TEE_SNAP = 6.0          # a tee seam snaps to a nearby axis/45/fold within this
 ADJ_D = 300.0           # px: polygons this close touch
 SAMPLE = 50.0           # px between boundary samples
@@ -191,6 +192,8 @@ def tilt(theta_p, theta_q):
     raw = ((theta_q - theta_p + 45.0) % 90.0) - 45.0
     if abs(abs(raw) - 45.0) <= SNAP45:
         return raw, (45.0 if raw > 0 else -45.0)
+    if abs(raw) <= SNAP0:
+        return raw, 0.0
     return raw, round(raw * 2) / 2
 
 
