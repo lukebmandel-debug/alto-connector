@@ -35,6 +35,8 @@ SEAM_NEAR = 1.5         # blocks: near a seam the Layout alone decides (the real
 SEAM_FAR = 6.0          # blocks: up to here a cell whose real place is in the domain across the seam is still drawn
 MIN_LINES = 3           # a grid domain needs this many lines a family to be a lattice (else it is a void)
 RASTER = 40.0           # page px: the occupancy raster that keeps two domains' blocks from overlapping
+FAN_ERR = 12.0          # degrees: a hinge seam with no avenue drawn this far off its real angle is a fan, not a seam;
+                        # its child joins the parent's lattice (design 1.4: the West/NW fan merges into the main grid)
 
 
 # ── small geometry ──────────────────────────────────────────────────────────
@@ -184,14 +186,22 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     T["avenues"] = time.time() - t0
     # 4-6. lines per domain, seams, layout (E3); a grid domain too small for a lattice is a void
     grid_doms = [d for d in doms_all if d.kind == "grid" and d.poly]
-    voids = []
-    for _ in range(3):
+    voids, merged_fans = [], []
+    for _ in range(4):
         sl, lines, lay = city_seams.plan(grid_doms, avenues=av_keep, majors=majors, rivers=m.get("rivers"))
         bad = [d for d in grid_doms if min(len(lines[d.id]["v"]), len(lines[d.id]["h"])) < MIN_LINES]
-        if not bad:
+        if bad:
+            voids += bad
+            grid_doms = [d for d in grid_doms if d not in bad]
+            continue
+        fans = [sm for sm in sl if sm.kind == "hinge" and not sm.avenue and sm.b in {d.id for d in grid_doms}
+                and _seam_err(sm, lay) > FAN_ERR]
+        if not fans:
             break
-        voids += bad
-        grid_doms = [d for d in grid_doms if d not in bad]
+        for sm in fans:
+            merged_fans.append((sm.b, sm.a, round(_seam_err(sm, lay), 1)))
+            _merge(det, next(d for d in grid_doms if d.id == sm.a), next(d for d in grid_doms if d.id == sm.b), m)
+            grid_doms = [d for d in grid_doms if d.id != sm.b]
     T["plan"] = time.time() - t0 - T["avenues"]
     by_id = {d.id: d for d in grid_doms}
     root = sl[0].info["root"] if sl else max(grid_doms, key=lambda d: ring_area(d.poly)).id
@@ -429,9 +439,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     for did, d in by_id.items():
         clip = lay.region.get(did)
         if clip is None and did != root:
-            lat = lats[did]
-            cs_ = [c for c, kd in outs[did]["cells"].items() if kd in ("full", "cut", "plaza", "lm")]
-            clip = _hull([p for c in cs_ for p in lat.cell_rect(*c)])
+            clip = _outline(lats[did], outs[did]["cells"])
         tdoms[did] = SimpleNamespace(id=did, kind="grid", poly=d.poly, holes=d.holes, mapping=maps[did].loc,
                                      a=maps[did].a, o=maps[did].o, clip=clip if did != root else None,
                                      theta=d.theta)
@@ -605,16 +613,90 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
              majors=sorted(majors_n | {norm(s_["n"]) for s_ in streets if s_.get("k") == 0 and s_.get("n")} | bridge_names),
              grid=tables, cols=[n for n in _names(lines[root], "v") if n], rows=[n for n in _names(lines[root], "h") if n])
     g["doms"] = [_dom_out(tdoms[did], lats[did], maps[did], did == root) for did in sorted(by_id)]
-    g["seams"] = [_seam_out(sm) for sm in sl]
+    g["seams"] = [_seam_out(sm) for sm in sl if _main_kind(sm) != "water" and sm.segs]
     g["transit"] = transit
     g["blocks"] = blocks
     T["total"] = time.time() - t0
-    g["engine"] = {"path": "v2", "domains": len(by_id), "voids": [d.id for d in voids],
+    g["engine"] = {"path": "v2", "domains": len(by_id), "voids": [d.id for d in voids], "fans_merged": merged_fans,
                    "free": [d.id for d in doms_all if d.kind == "free"],
                    "seams": [{"a": sm.a, "b": sm.b, "kind": sm.kind, "avenue": sm.avenue, "phi": round(sm.phi, 2),
                               "hinges": len(sm.hinge)} for sm in sl],
                    "t": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in T.items()}}
     return g
+
+
+def _outline(lat, cells, px=20.0):
+    """The page outline of a domain's drawn cells (the largest ring), traced on a px raster and simplified: the page
+    region of a domain that no seam bounds (a domain across the river)."""
+    from .palace_grid import _dp
+    polys = [lat.cell_poly(*c) if kd != "full" else lat.cell_rect(*c)
+             for c, kd in cells.items() if kd in ("full", "cut", "plaza", "lm")]
+    polys = [q for q in polys if q]
+    if not polys:
+        return None
+    on = set()
+    for q in polys:
+        xs, ys = [p[0] for p in q], [p[1] for p in q]
+        for i in range(int(min(xs) // px), int(max(xs) // px) + 1):
+            for j in range(int(min(ys) // px), int(max(ys) // px) + 1):
+                if (i, j) not in on and ring_inside(q, (i + .5) * px, (j + .5) * px):
+                    on.add((i, j))
+    nxt = {}
+    for i, j in on:                                   # boundary edges, clockwise on the screen (inside on the right)
+        if (i, j - 1) not in on:
+            nxt[(i, j)] = (i + 1, j)
+        if (i + 1, j) not in on:
+            nxt[(i + 1, j)] = (i + 1, j + 1)
+        if (i, j + 1) not in on:
+            nxt[(i + 1, j + 1)] = (i, j + 1)
+        if (i - 1, j) not in on:
+            nxt[(i, j + 1)] = (i, j)
+    best, seen = [], set()
+    for st in list(nxt):
+        if st in seen:
+            continue
+        ring, cur = [], st
+        while cur not in seen and cur in nxt:
+            seen.add(cur)
+            ring.append(cur)
+            cur = nxt[cur]
+        if len(ring) > len(best):
+            best = ring
+    pts = [(x * px, y * px) for x, y in best]
+    if len(pts) < 3:
+        return None
+    k = min(range(len(pts)), key=lambda i: pts[i])
+    pts = pts[k:] + pts[:k] + [pts[k]]
+    pts = _dp(pts, px * .75)[:-1]
+    return pts if len(pts) >= 3 else None
+
+
+def _seam_err(sm, lay):
+    """How far the drawn seam is from the real one, degrees: the layout's own number, or the real seam's ends carried by
+    the parent's mapping against the drawn segment (city_report's seam_fidelity), whichever is worse."""
+    e = (lay.report.get((sm.a, sm.b)) or {}).get("err_true", 0.0) or 0.0
+    k = _main_part_index(sm)
+    if k is not None and sm.real and len(sm.real) >= 2:
+        q0, q1 = lay.maps[sm.a](*sm.real[0]), lay.maps[sm.a](*sm.real[-1])
+        x0, y0, x1, y1 = sm.segs[k]
+        ar = math.degrees(math.atan2(q1[1] - q0[1], q1[0] - q0[0]))
+        ap = math.degrees(math.atan2(y1 - y0, x1 - x0))
+        e = max(e, abs((ar - ap + 90) % 180 - 90))
+    return e
+
+
+def _merge(det, P, Q, m):
+    """Domain Q joins domain P: its cells, its streets, one outline."""
+    from . import city_domains as cdm
+    C = det.field.C
+    P.cells = set(P.cells or ()) | set(Q.cells or ())
+    rings = cdm._rings(P.cells, C, m["W"], m["H"])
+    if rings:
+        P.poly = [(round(x, 1), round(y, 1)) for x, y in cdm._dp_ring(rings[0], cdm.POLY_TOL * C)]
+        P.holes = [[(round(x, 1), round(y, 1)) for x, y in cdm._dp_ring(r, cdm.POLY_TOL * C)] for r in rings[1:]
+                   if abs(cdm.ring_area(r)) >= 2 * C * C]
+    P.streets = list(P.streets or ()) + list(Q.streets or ())
+    P.area = round((P.area or 0) + (Q.area or 0), 2)
 
 
 def _ring_c(flat):
@@ -764,8 +846,10 @@ def _dom_out(td, lat, mp, is_root):
 
 
 def _seam_out(sm):
+    k = _main_part_index(sm)
+    segs = [sm.segs[k]] if k is not None else sm.segs[:1]                 # the part the domains are clipped by
     return {"a": sm.a, "b": sm.b, "kind": sm.kind, "avenue": sm.avenue, "phi": round(sm.phi, 3),
-            "segs": [[round(v, 1) for v in s] for s in sm.segs], "ratio": round(sm.ratio, 4), "err": round(sm.err, 3),
+            "segs": [[round(v, 1) for v in s] for s in segs], "parts": len(sm.segs), "ratio": round(sm.ratio, 4), "err": round(sm.err, 3),
             "real": [[round(x, 1), round(y, 1)] for x, y in (sm.real or [])],
             "hinge": [{"n": h["n"], "at": [round(h["at"][0], 1), round(h["at"][1], 1)]} for h in sm.hinge if isinstance(h, dict)],
             "phi_real": round(sm.info.get("phi_real", sm.phi) if isinstance(sm.info, dict) else sm.phi, 3)}
