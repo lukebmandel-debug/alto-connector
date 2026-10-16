@@ -277,7 +277,8 @@ window._altoLanesNav=function(id, dir){
 document.addEventListener('keydown', function(e){
   if(!on() || e.metaKey || e.ctrlKey || e.altKey) return;
   var k=e.key;
-  if(k==='Escape' && _ov){ e.preventDefault(); e.stopPropagation(); ovLeave(current()); return; }
+  if(k==='Escape' && _ov){ e.preventDefault(); e.stopPropagation(); ovLeave(null); return; }
+  if(k==='Escape'){ setTimeout(function(){ ui(current(),0); },0); return; }     // lanes.py lets go of a kept line: all events again
   if(window._focusedNodeId || busyElsewhere()) return;
   var ae=document.activeElement, tg=ae && ae.tagName;
   if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
@@ -437,7 +438,7 @@ function buildRail(){
      thumb:n.querySelector('.lnv-thumb'), ov:n.querySelector('.lnv-ov'), prev:n.querySelector('.lnv-prev'), next:n.querySelector('.lnv-next'), sr:n.querySelector('.lnv-sr')};
   R.prev.addEventListener('click', function(){ step(-1,'rail'); });
   R.next.addEventListener('click', function(){ step(1,'rail'); });
-  R.ov.addEventListener('click', function(){ if(_ov) ovLeave(current()); else ovEnter(); });
+  R.ov.addEventListener('click', function(){ if(_ov) ovLeave(null); else ovEnter(); });
   R.thumb.addEventListener('keydown', function(e){
     var d=e.key==='ArrowRight'||e.key==='ArrowUp'?1:e.key==='ArrowLeft'||e.key==='ArrowDown'?-1:0;
     if(d){ e.preventDefault(); e.stopPropagation(); step(d,'rail',e.repeat); }
@@ -541,6 +542,7 @@ function ovEnter(){
   if(!on() || _ov) return;
   if(window._focusedNodeId && window.exitFocus) window.exitFocus();
   cancelAll();
+  var here=current(); if(here) setCur(here);                 // Esc / the toggle come back to this one
   var c=cv(), off=worldOff(c), from={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop}, to=ovFit();
   _ov=to;
   ovSet(from); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
