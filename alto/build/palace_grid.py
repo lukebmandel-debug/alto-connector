@@ -318,6 +318,39 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 best, bd = i, d
         return best
 
+    # ── the rivers: smooth bands (palace_river), each run off the glass at both ends ──
+    river, W = rivers(m, mp, xg, yg, CW, CH, W, H)
+
+    def river_between(o, at, a, b):
+        n = max(2, int(abs(b - a) // 40))
+        for k in range(n + 1):
+            t = a + (b - a) * k / n
+            p = (at, t) if o == "v" else (t, at)
+            for rv in river:
+                q = _pairs(rv["p"])
+                if any(_segd(p, u, w) < rv["w"] / 2 + 8 for u, w in zip(q, q[1:])):
+                    return True
+        return False
+
+    def complete(o, at, merged, cpos):
+        """Graph paper: a street runs the whole grid, so no block is left open. The only breaks are the rivers
+        (a street a river interrupts stays interrupted; the bridges are drawn separately)."""
+        if not merged or not cpos:
+            return merged
+        res = [list(merged[0])]
+        for seg in merged[1:]:
+            prev = res[-1]
+            if not river_between(o, at, prev[1], seg[0]):
+                prev[1], prev[3] = seg[1], seg[3]
+            else:
+                res.append(list(seg))
+        lo, hi = cpos[0], cpos[-1]
+        if res[0][0] > lo + 1 and not river_between(o, at, lo, res[0][0]):
+            res[0][0], res[0][2] = lo, 0
+        if res[-1][1] < hi - 1 and not river_between(o, at, res[-1][1], hi):
+            res[-1][1], res[-1][3] = hi, len(cpos) - 1
+        return res
+
     streets = []
     ends = {"v": [], "h": []}
     for o, lines, spans, pos, cpos, cspans, step in (("v", cols, csp, xg, yg, rsp, CH), ("h", rows, rsp, yg, xg, csp, CW)):
@@ -335,6 +368,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                     merged[-1][1] = max(merged[-1][1], eb); merged[-1][3] = sb
                 else:
                     merged.append([ea, eb, sa, sb])
+            merged = complete(o, at, merged, cpos)
             spans[li] = [[a, b] for a, b, _, _ in merged]
             ends[o].append(merged)
     # draw: each span, with a turn at an end that joins a crossing line which
@@ -470,8 +504,6 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
         pts_ = ([la] if ja else []) + path + ([lb] if jb else [])
         streets.append({"n": n, "k": 0, "d": 1, "j": [int(ja), int(jb)], "p": [round(v, 1) for q in pts_ for v in q]})
 
-    # ── the rivers: smooth bands (palace_river), each run off the glass at both ends ──
-    river, W = rivers(m, mp, xg, yg, CW, CH, W, H)
 
     over = []
     for o, lines_, pos_, spans_ in (("v", cols, xg, csp), ("h", rows, yg, rsp)):
