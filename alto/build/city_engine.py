@@ -593,8 +593,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     # 10c. parks: the root domain's lattice (the page shapes parks on g["grid"]'s columns and rows)
     from .palace_parks import pick as pick_parks
     rl = lats[root]
-    rxg = [rl.page(x, 0)[0] for x in rl.xg]
-    ryg = [rl.page(0, y)[1] for y in rl.yg]
+    rxg = [x + rmp.o[0] for x in rmp.loc.xg]          # the root's lines on the page (a = 0): the mapping tables
+    ryg = [y + rmp.o[1] for y in rmp.loc.yg]          # and the cells parks are shaped on
     root_d = by_id[root]
     m_root = dict(m, parks=[pk for pk in m.get("parks", []) if pk.get("r") and pk["r"][0] and
                             owner(*_ring_c(pk["r"][0])) is root_d])
