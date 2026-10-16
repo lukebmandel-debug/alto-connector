@@ -37,8 +37,8 @@ def _check_contract(m, det):
     assert doms and all(isinstance(d, Domain) for d in doms)
     assert [d.id for d in doms] == list(range(len(doms)))
     grids = [d for d in doms if d.kind == "grid"]
-    assert grids and doms[0] is grids[0]
-    assert all(doms[0].area >= d.area for d in grids)
+    if grids:                                  # the root is the largest grid domain (a free-only city has none)
+        assert doms[0] is grids[0] and all(doms[0].area >= d.area for d in grids)
     for d in doms:
         assert d.kind in ("grid", "free")
         assert -math.pi / 4 - 1e-9 < d.theta <= math.pi / 4 + 1e-9
@@ -223,3 +223,24 @@ def test_chicago_one_angle_split_only_by_the_river():
     assert all(abs(_deg(d)) < 3 for d in grids)
     assert not [d for d in det.domains if d.kind == "free"]
     assert len(grids) >= 2 and det.across and det.rivers
+
+
+def _free_share(det):
+    tot = sum(d.area for d in det.domains) or 1
+    return sum(d.area for d in det.domains if d.kind == "free") / tot
+
+
+def test_paris_is_mostly_free_with_small_grid_patches():
+    m = _city("paris")
+    det = cd.detect(m)
+    _check_contract(m, det)
+    assert _free_share(det) >= .6
+    assert all(d.area < 8 for d in det.domains if d.kind == "grid")
+    assert any("Seine" in n for n, _, _ in det.rivers)
+
+
+def test_london_is_free():
+    m = _city("london")
+    det = cd.detect(m)
+    _check_contract(m, det)
+    assert _free_share(det) >= .8

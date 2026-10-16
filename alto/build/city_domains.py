@@ -799,7 +799,16 @@ def _seams(m, f, dom, doms, cls, water):
             pts = [q for l in lines for q in l]
             ang, rms, c = _fit_line(pts)
             s.angle, s.rms, s.centre, s.fit, s.hinges = round(ang, 1), round(rms, 1), c, "boundary", 0
+        s.boundary = s.real                       # the shared cell boundary (staircase at C, DP at SEAM_TOL)
         s.avenue = _seam_avenue(m, s, sc) if b != "water" else None
+        if s.avenue and getattr(s, "avenue_line", None):
+            s.real = s.avenue_line                # the avenue itself, where it runs along the seam
+        elif s.fit == "bends":                    # the straight line through the bends, over the seam's extent
+            th = math.radians(s.angle)
+            ux, uy = math.cos(th), math.sin(th)
+            cx, cy = s.centre
+            ts = [(p[0] - cx) * ux + (p[1] - cy) * uy for l in lines for p in l]
+            s.real = [(round(cx + ux * t, 1), round(cy + uy * t, 1)) for t in (min(ts), max(ts))]
         out.append(s)
     out.sort(key=lambda s: (s.b == "water", -s.length))
     # domains facing each other across water: both touch one water component
@@ -842,6 +851,7 @@ def _seam_avenue(m, s, sc):
     ts = [(p[0] - cx) * ux + (p[1] - cy) * uy for p in pts]
     t0, t1 = min(ts) - 100 * sc, max(ts) + 100 * sc
     per = collections.Counter()
+    segs = collections.defaultdict(list)
     for st in m.get("streets") or []:
         if st.get("k", 9) > 3 or not st.get("n"):
             continue
@@ -864,11 +874,23 @@ def _seam_avenue(m, s, sc):
                 dist = min(math.dist((mx, my), q) for q in _dense(pts, 100 * sc))
             if dist <= tol:
                 per[st["n"]] += L
+                segs[st["n"]].append((t, (ax, ay), (bx, by)))
     if not per:
         return None
     n, L = per.most_common(1)[0]
     s.avenue_len = round(L / sc)
-    return n if L >= .4 * s.length * sc else None
+    if L < .4 * s.length * sc:
+        return None
+    # the avenue's own line along the seam: its pieces in order along the seam, joined
+    line = []
+    for _, a, b in sorted(segs[n]):
+        if (b[0] - a[0]) * ux + (b[1] - a[1]) * uy < 0:
+            a, b = b, a
+        for q in (a, b):
+            if not line or math.dist(line[-1], q) > 2 * sc:
+                line.append(q)
+    s.avenue_line = [(round(x, 1), round(y, 1)) for x, y in _dp(line, 3 * sc)]
+    return n
 
 
 def _dense(pts, step):
