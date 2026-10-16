@@ -44,10 +44,10 @@ runs there. prefers-reduced-motion jumps instead of gliding.
 
 Geometry read from window._altoLanesGeo (lanes.py; agent B's drawing keeps
 it): x[id], y[id] (card centre, world px without WORLD_PAD_TOP), h[id], lines
-[{id, y, ev}], W, H. Optional, used when present (same frame as y):
-  anchor[id] = {x, y}  where the event sits on its line — on the main line,
-                       on a flashback's lowered detour, or on a character line.
-Without it the event's own line's y is used (no dip for flashbacks).
+[{id, y, ev}], W, H, and (lanes v2 drawing) at[id] = {x, y, line, flash}: where
+the event sits on its line — the main line's dot, on a flashback's lowered past
+track, or on a character's track. Without `at` the event's own line's y is
+used (no dip for flashbacks).
 """
 
 NAV_CSS = """
@@ -170,7 +170,7 @@ function band(c){
 }
 function lineY(G, id){ for(var i=0;i<G.lines.length;i++){ var l=G.lines[i]; if(l.ev && l.ev.indexOf(id)>=0) return l.y; } return G.lines[0] ? G.lines[0].y : G.y[id]; }
 function anchor(id){
-  var G=geo(), a=G.anchor && G.anchor[id];
+  var G=geo(), a=(G.at && G.at[id]) || (G.anchor && G.anchor[id]);
   if(a && a.x!=null && a.y!=null) return {x:a.x, y:a.y};
   return {x:G.x[id], y:lineY(G,id)};
 }
@@ -193,12 +193,12 @@ function camFor(id, B){
   var tt=ay-home(c,B);                          // the line stays where the main line has always been
   if(hi-tt>B.b) tt=hi-B.b;                      // the card would run under the rail: up just enough
   if(lo-tt<B.t) tt=lo-B.t;                      // ... or under the bars (the top of the card wins)
-  return {l:Math.max(0,Math.min(tl, c.scrollWidth-cw)), t:Math.max(0,Math.min(tt, c.scrollHeight-ch))};
+  return {l:Math.max(0,Math.min(tl, c.scrollWidth-cw)), t:Math.max(0,Math.min(tt, c.scrollHeight-ch)), ml:c.scrollWidth-cw, mt:c.scrollHeight-ch};
 }
 
 /* rest on whole DEVICE pixels (CSS px x page zoom x dpr), so the cards come to rest crisp;
    Safari's axis then takes the nearest offset it can really scroll to */
-function dev(v){ var z=zk(cv())*(window.devicePixelRatio||1); return z>0 ? Math.round(v*z)/z : v; }
+function dev(v, max){ var z=zk(cv())*(window.devicePixelRatio||1); if(!(z>0)) return v; var r=Math.round(v*z)/z; if(max!=null && r>max) r=Math.floor(max*z)/z; return Math.max(0,r); }
 /* ── where the steps are ─────────────────────────────────────────────────── */
 var _cur=null, _land=null, _trust=false, _anim=null, _busy=false, _q=[], _landT=0, _gl=null;
 function moved(c){ return !_land || Math.abs(c.scrollLeft-_land[0])>3 || Math.abs(c.scrollTop-_land[1])>3; }
@@ -225,7 +225,7 @@ function glideTo(id, opt, done){
   var c=cv(); if(!c || !geo() || geo().x[id]==null){ if(done) done(); return; }
   stopGlide();
   var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop');
-  var tl=qx.stop(dev(t.l)), tt=qy.stop(dev(t.t)), l0=qx.at(), t0=qy.at(), d=Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0));
+  var tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt)), l0=qx.at(), t0=qy.at(), d=Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0));
   setCur(id); _trust=true; ui(id, opt.instant||reduced()||d<0.5 ? 0 : glideMs(d));
   var finish=function(){ _anim=null; _gl=null; _land=[c.scrollLeft, c.scrollTop]; _trust=false; _landT=performance.now(); announce(id); if(done) done(); };
   if(opt.instant || reduced() || d<0.5){ qx.go(tl); qy.go(tt); finish(); return; }
@@ -556,7 +556,7 @@ function ovLeave(id, instant){
   var w=document.getElementById('world'), off=worldOff(c);
   /* where the camera will rest, worked out as if the board were at scale 1 */
   w.style.transform='none';
-  var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop'), tl=qx.stop(dev(t.l)), tt=qy.stop(dev(t.t));
+  var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop'), tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt));
   ovSet(from);
   var fin=function(){ w.style.transform=''; qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); };
   if(instant){ fin(); return; }
