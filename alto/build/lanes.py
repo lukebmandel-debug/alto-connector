@@ -188,10 +188,21 @@ LANES_CSS = KEY_CSS + """
   html.alto-lanes:not(.mobile) #world .phase-band,html.alto-lanes:not(.mobile) #world .phase-label-float,html.alto-lanes:not(.mobile) #world .unit-bar{display:none !important;}
   html.alto-lanes:not(.mobile) #river-svg{display:none !important;}
   #lanes-svg{position:absolute;left:0;top:0;z-index:6;pointer-events:none;overflow:visible;}
-  html.mobile #lanes-svg,html.mobile .lanes-unit,html.mobile .lanes-tag{display:none !important;}
+  html.mobile #lanes-svg,html.mobile .lanes-unit,html.mobile .lanes-tag,html.mobile .lanes-past{display:none !important;}
   #lanes-svg .ln-main{stroke:var(--accent);stroke-width:5;fill:none;stroke-linecap:round;}
-  #lanes-svg .ln-br{stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
-  #lanes-svg .ln-fb{stroke-dasharray:11 9;}
+  /* every line is solid: the main line (the page), the characters (off it). The
+     one dashed thing left is .ln-rel below. */
+  #lanes-svg .ln-br{stroke-width:4.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  #lanes-svg .ln-ring{fill:var(--surface);stroke-width:3.2;}
+  /* the past: a sunken, frosted strip behind the detour, its label a pill on the past track */
+  #lanes-svg .ln-past-band{fill:var(--surface);fill-opacity:.34;stroke:var(--accent);stroke-opacity:.45;stroke-width:1.2;}
+  .lanes-past{position:absolute;z-index:7;transform:translate(0,-50%);white-space:nowrap;pointer-events:auto;cursor:default;
+    font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--accent);padding:4px 11px 4px 9px;border-radius:999px;
+    background:color-mix(in srgb,var(--surface) 92%,transparent);border:1.5px solid currentColor;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:opacity .2s;}
+  .lanes-past i{font-style:normal;font-weight:800;margin-right:6px;}
+  .lanes-past span{color:var(--muted);font-weight:600;margin-left:8px;font-variant-numeric:tabular-nums;}
+  .lanes-past span:empty{display:none;}
   #lanes-svg .ln-rule{stroke:var(--muted);stroke-width:1.2;opacity:.55;}
   #lanes-svg .ln-hit{stroke:transparent;stroke-width:22;fill:none;pointer-events:stroke;cursor:pointer;}
   #lanes-svg g{transition:opacity .2s;}
@@ -209,6 +220,8 @@ LANES_CSS = KEY_CSS + """
   #lanes-svg .ln-tick{stroke:var(--muted);stroke-width:1;opacity:.6;}
   #lanes-svg .ln-ticklbl{fill:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;}
   #lanes-svg .ln-break{stroke:var(--muted);stroke-width:1.6;fill:none;opacity:.8;}
+  /* dashed on purpose: an arc is a link the material draws between two events,
+     not a path anyone travels — the dash keeps it from reading as a character */
   #lanes-svg .ln-rel{fill:none;stroke-width:2;stroke-dasharray:7 5;opacity:.26;transition:opacity .2s;}
   #lanes-svg g.ln-on .ln-rel{opacity:.9;}
   #lanes-svg .ln-merge{stroke:var(--surface);stroke-width:2.5;}
@@ -218,7 +231,7 @@ LANES_CSS = KEY_CSS + """
     pointer-events:auto;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   .lanes-tag:hover{background:var(--surface);}
   .lanes-tag.ln-main-tag{color:var(--accent);}
-  .lanes-unit{position:absolute;z-index:6;top:0;border-left:1.5px dashed color-mix(in srgb,var(--unit-color) 55%,transparent);pointer-events:none;}
+  .lanes-unit{position:absolute;z-index:6;top:0;border-left:1.5px solid color-mix(in srgb,var(--unit-color) 30%,transparent);pointer-events:none;}
   .lanes-unit:first-child{border-left:0;}
   .lanes-unit .lu-chip{position:absolute;left:14px;top:22px;white-space:nowrap;font-size:12px;font-weight:800;
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
@@ -235,6 +248,8 @@ LANES_CSS = KEY_CSS + """
     margin:-2px 0 4px;font-variant-numeric:tabular-nums;}
   html.alto-lanes #canvas.ln-dimline .node[data-ln]:not(.ln-on) .node-card{opacity:.16 !important;}
   html.alto-lanes #canvas.ln-dimline #lanes-svg g[data-ln]:not(.ln-on){opacity:.1;}
+  html.alto-lanes #canvas.ln-dimline #lanes-svg g[data-ln=main]:not(.ln-on){opacity:.3;}   /* the page stays in view under a character */
+  html.alto-lanes #canvas.ln-dimline .lanes-past{opacity:.45;}
   html.alto-lanes #canvas.ln-dimline .lanes-tag:not(.ln-on){opacity:.3;}
 """
 
@@ -245,8 +260,16 @@ var L=window._ALTO_LANES; if(!L) return;
 var de=document.documentElement;
 if(!de.classList.contains('mobile')) de.classList.add('alto-lanes');
 var NS='http://www.w3.org/2000/svg';
-var STEM=30, TIER_GAP=10, CARD_PAD=12, TRACK_GAP=30, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
+var STEM=30, CARD_GAP=10, CARD_PAD=12, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
 var SPAN=250, MAXPX=1000, BREAK=190;
+/* the band between the main line and the cards: the characters' tracks, track k
+   of a side BAND0+k*TRACK from the main line (the past track of the flashbacks,
+   PAST below the main line, comes first on the lower side). Cards hang beyond
+   the band, so a character's line never has to cross a card to reach the page. */
+var BAND0=46, TRACK=34, PAST=60, RAMP_MIN=56, RAMP_MAX=130, SPREAD=22, HUG0=9, HUG_STEP=6, MINRUN=24;
+/* a flashback's detour: lead-in, the S down to the past track, room for its
+   label, its events (FB_STEP apart at the median), the S back up, lead-out */
+var DLEAD=70, DRAMP=130, DOUT=70, FB_STEP=240;
 window._altoLanesGeo=null;
 function med(a){ if(!a.length) return 0; a=a.slice().sort(function(x,y){ return x-y; }); var m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
 /* every event's time: dated as dated; undated spread evenly between the dated
@@ -283,76 +306,154 @@ function scale(tv){
 }
 function nice(span){ var p=Math.pow(10,Math.floor(Math.log(span)/Math.LN10)), m=span/p; return (m<1.5?1:m<3.5?2:m<7.5?5:10)*p; }
 function el(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
+/* the contract's derived fields (lines[].events / presence, flashbacks[].nodes),
+   fresh on every layout: lanes.py's _altoLanesDerive when the page has it, else
+   the same rules here (v1 data: presence = legacy from / to on the main line) */
+function derive(){
+  if(window._altoLanesDerive){ try{ window._altoLanesDerive(L); return; }catch(e){} }
+  var order=[].concat.apply([],ACT_SEQS), lids={};
+  L.lines.forEach(function(l){ lids[l.id]=1; });
+  var mains=order.filter(function(i){ var e=L.ev[i]; return e && !lids[e.l]; });
+  L.lines.forEach(function(l){
+    l.events=order.filter(function(i){ return L.ev[i] && L.ev[i].l===l.id; });
+    l.presence=mains.filter(function(i){ return (L.ev[i].present||[]).indexOf(l.id)>=0 || i===l.from || i===l.to; });
+  });
+  L.flashbacks=(L.flashbacks||[]).map(function(f){ f.nodes=mains.filter(function(i){ return L.ev[i].flash===f.id; }); return f; });
+}
+/* a flashback's story dates, as the material writes them: "1987–1994" */
+function fbRange(ids){
+  var d=ids.map(function(i){ return L.ev[i]; }).filter(function(e){ return e && e.t!=null && e.w; });
+  if(!d.length) return '';
+  d.sort(function(a,b){ return a.t-b.t; });
+  var a=String(d[0].w).trim(), b=String(d[d.length-1].w).trim(), ya=a.match(/^-?\d{3,4}\b/), yb=b.match(/^-?\d{3,4}\b/);
+  if(ya && yb){ a=ya[0]; b=yb[0]; }
+  return a===b ? a : a+'–'+b;
+}
 
+/* ── the layout ─────────────────────────────────────────────────────────────
+   x: the main line is the page, in page order. Present-day events (and the
+   characters' own events) are placed to scale by their time; each flashback is
+   a detour spliced in after the present event it follows, its own events
+   spaced by their story time inside it, and everything later moves right by
+   the detour's width.
+   y: the main line at 0; the characters' tracks in a band either side of it
+   (sharing a track when they never run at the same time); every card beyond
+   the band on its side, packed outward where it would overlap another. */
 window._altoLanes=function(h){
   if(de.classList.contains('mobile')) return false;
   var world=document.getElementById('world'); if(!world) return false;
+  derive();
   var order=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id); });
   NODES.forEach(function(n){ if(order.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id)) order.push(n.id); });
-  var tv=times(order), S=scale(tv), w={};
-  order.forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card'); w[id]=c?c.offsetWidth:270; });
-  var lines=[{id:'main', label:L.main, color:'', side:'both'}].concat(L.lines), LB={};
-  lines.forEach(function(l){ LB[l.id]=l; l.ev=[]; });
-  order.forEach(function(id){ var l=LB[L.ev[id].l]||LB.main; l.ev.push(id); });
-  var X={}; order.forEach(function(id){ X[id]=S.x(tv[id]); });
-  /* tiers: each card hangs off its line at its own time, in the first tier it fits */
-  var tierOf={}, sideOf={};
-  lines.forEach(function(l){
-    l.ev.sort(function(a,b){ return X[a]-X[b] || order.indexOf(a)-order.indexOf(b); });
-    var sides=l.id==='main'?[-1,1]:[l.side==='below'?1:-1], tiers={'-1':[], '1':[]}, alt=0;
-    l.ev.forEach(function(id){
-      var lo=X[id]-w[id]/2-CARD_PAD, hi=X[id]+w[id]/2+CARD_PAD, best=null;
-      sides.forEach(function(sd, si){
-        var tr=tiers[sd], k=0; while(k<tr.length && tr[k]>lo) k++;
-        if(!best || k<best.k || (k===best.k && si===alt)) best={sd:sd, k:k};
-      });
-      tiers[best.sd][best.k]=hi; tierOf[id]=best.k; sideOf[id]=best.sd; alt=1-alt;
-    });
-    l.th={'-1':[], '1':[]};
-    l.ev.forEach(function(id){ var a=l.th[sideOf[id]]; a[tierOf[id]]=Math.max(a[tierOf[id]]||0, h[id]||120); });
-    l.ext={'-1':0, '1':0};
-    ['-1','1'].forEach(function(sd){ var a=l.th[sd]; if(a.length) l.ext[sd]=STEM+a.reduce(function(s,v){ return s+(v||0)+TIER_GAP; },0); });
-    /* where the line runs: from its branch point (or just before its first
-       event) to where it converges (or just after its last) */
-    if(l.id==='main'){
-      /* the main line runs from its first event (or the first branch off it) to its last */
-      var xs=l.ev.map(function(i){ return X[i]; });
-      L.lines.forEach(function(q){ [q.from,q.to].forEach(function(f){ if(f && X[f]!=null && (L.ev[f]||{}).l==='main') xs.push(X[f]); }); });
-      if(!xs.length) xs=order.map(function(i){ return X[i]; });
-      l.x0=Math.min.apply(null,xs)-200; l.x1=Math.max.apply(null,xs)+200; }
-    else {
-      var fx=l.from&&X[l.from]!=null?X[l.from]:null, tx=l.to&&X[l.to]!=null?X[l.to]:null;
-      var e0=l.ev.length?X[l.ev[0]]:(fx!=null?fx+120:tx-120), e1=l.ev.length?X[l.ev[l.ev.length-1]]:(tx!=null?tx-120:fx+120);
-      l.x0=fx!=null?Math.min(fx,e0-60):e0-110; l.x1=tx!=null?Math.max(tx,e1+60):e1+110;
-      l.fx=fx; l.tx=tx; l.e0=e0; l.e1=e1;
-    }
+  var idx={}; order.forEach(function(id,i){ idx[id]=i; });
+  var w={}; order.forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card'); w[id]=c?c.offsetWidth:270; });
+  var main={id:'main', label:L.main, color:'', side:'both'}, LB={main:main};
+  L.lines.forEach(function(l){ LB[l.id]=l; });
+  var lines=[main].concat(L.lines);
+  lines.forEach(function(l){ l.ev=[]; });
+  var lineOfEv=function(id){ return LB[L.ev[id].l]||main; };
+  order.forEach(function(id){ lineOfEv(id).ev.push(id); });
+  var mains=main.ev.slice(), fbOf={};
+  mains.forEach(function(i){ if(L.ev[i].flash) fbOf[i]=L.ev[i].flash; });
+  /* the flashbacks: each run of consecutive main-line events with one flash id */
+  var FBL={}; (L.flashbacks||[]).forEach(function(f){ FBL[f.id]=f; });
+  var runs=[], cur=null;
+  mains.forEach(function(i){ var f=fbOf[i]||'';
+    if(f && cur && cur.id===f) cur.nodes.push(i);
+    else if(f){ cur={id:f, label:(FBL[f]||{}).label||'', nodes:[i]}; runs.push(cur); }
+    else cur=null; });
+  var pres=order.filter(function(i){ return !fbOf[i]; });
+  var tv=times(pres), S=scale(tv), Xr={};
+  pres.forEach(function(id){ Xr[id]=S.x(tv[id]); });
+  /* labels first: their widths decide where lines start and how much room a detour's label needs */
+  world.querySelectorAll('.lanes-tag,.lanes-past').forEach(function(e){ e.remove(); });
+  L.lines.forEach(function(l){ l.tagEl=tag(world, l, 0, 0, l.color, 0); l.tagW=l.tagEl.offsetWidth||60; });
+  var shiftBefore=0;
+  runs.forEach(function(r){
+    var k0=mains.indexOf(r.nodes[0]), k1=mains.indexOf(r.nodes[r.nodes.length-1]), p=null, n=null, k;
+    for(k=k0-1;k>=0;k--) if(!fbOf[mains[k]]){ p=mains[k]; break; }
+    for(k=k1+1;k<mains.length;k++) if(!fbOf[mains[k]]){ n=mains[k]; break; }
+    r.prev=p; r.next=n; r.last=idx[r.nodes[r.nodes.length-1]]; r.range=fbRange(r.nodes);
+    r.tagEl=pastTag(world, r); r.tagW=r.tagEl.offsetWidth||160;
+    /* inside: story time to scale (its own scale), undated evenly */
+    var ft=times(r.nodes), gs=[], off=[0];
+    for(k=1;k<r.nodes.length;k++){ var g=ft[r.nodes[k]]-ft[r.nodes[k-1]]; if(g>0) gs.push(g); }
+    var s=FB_STEP/(med(gs)||1);
+    for(k=1;k<r.nodes.length;k++){ var dt=ft[r.nodes[k]]-ft[r.nodes[k-1]]; off.push(off[k-1]+(dt>0?Math.max(180,Math.min(560,dt*s)):FB_STEP)); }
+    r.pin=r.tagW+46;
+    r.Wd=DLEAD+DRAMP+r.pin+off[off.length-1]+DOUT+DRAMP+DLEAD;
+    r.xa=p?Xr[p]:-Infinity;
+    r.x0=(p?Xr[p]:LEFT-DLEAD+40)+shiftBefore; r.x1=r.x0+r.Wd;
+    r.d0=r.x0+DLEAD; r.d1=r.x1-DLEAD;                 // where the main line leaves and rejoins the present
+    r.f0=r.d0+DRAMP; r.f1=r.d1-DRAMP;                 // the flat past stretch
+    r.off=off; shiftBefore+=r.Wd;
   });
-  /* tracks: lines on each side of the main line, nearest first, sharing a
-     track when they never run at the same time */
-  var main=LB.main, track={'-1':[], '1':[]};
+  function shift(raw, i){ var s=0; runs.forEach(function(r){ if(raw>r.xa || (raw===r.xa && i>r.last)) s+=r.Wd; }); return s; }
+  var X={};
+  pres.forEach(function(id){ X[id]=Xr[id]+shift(Xr[id], idx[id]); });
+  runs.forEach(function(r){ r.nodes.forEach(function(id,k){ X[id]=r.f0+r.pin+r.off[k]; }); });
+  /* the main line: 200px either side of its events; a story that opens in a
+     flashback starts just before the dip (a short present, then down) */
+  var mx=mains.filter(function(i){ return !fbOf[i]; }).map(function(i){ return X[i]; }), dx=runs.map(function(r){ return r.x0; });
+  if(!mx.length && !dx.length) mx=order.map(function(i){ return X[i]; });
+  main.x0=Math.min(mx.length?Math.min.apply(null,mx)-200:Infinity, dx.length?Math.min.apply(null,dx)-30:Infinity);
+  main.x1=Math.max(mx.length?Math.max.apply(null,mx)+200:-Infinity, runs.length?runs[runs.length-1].x1+60:-Infinity);
+  var hasPast=runs.length>0;
+  /* each character: where it is on the page (its presence, plus a legacy
+     from / to on another character's line) and its own events */
   L.lines.forEach(function(l){
-    var sd=l.side==='below'?'1':'-1', T=track[sd], k=0;
-    for(;k<T.length;k++){ if(T[k].every(function(o){ return l.x1+90<o.x0 || o.x1+90<l.x0; })) break; }
-    (T[k]=T[k]||[]).push(l); l.track=k; l.sd=+sd;
+    var pr=(l.presence||[]).filter(function(i){ return X[i]!=null; });
+    [l.from,l.to].forEach(function(f){ if(f && X[f]!=null && pr.indexOf(f)<0 && L.ev[f].l!==l.id) pr.push(f); });
+    l.pr=pr; l.sd=l.side==='below'?1:-1;
+    var xs=pr.map(function(i){ return X[i]; }).concat(l.ev.map(function(i){ return X[i]; }));
+    l.drawn=xs.length>0;
+    if(!xs.length){ l.x0=l.x1=null; return; }
+    var a=Math.min.apply(null,xs), b=Math.max.apply(null,xs);
+    var lead=pr.some(function(i){ return X[i]===a; }) ? RAMP_MAX+SPREAD*2 : 30;
+    var tail=pr.some(function(i){ return X[i]===b; }) ? RAMP_MAX+SPREAD*2+40 : 70;
+    l.x0=a-lead-l.tagW-6; l.x1=b+tail;
   });
-  /* y: the main line at 0; each track's line beyond the previous track's cards */
-  main.y=0;
-  ['-1','1'].forEach(function(sd){
-    var edge=main.ext[sd], s=+sd;
-    track[sd].forEach(function(T){
-      var ext=Math.max.apply(null,T.map(function(l){ return l.ext[sd]; }));
-      var y=s*(edge+TRACK_GAP); T.forEach(function(l){ l.y=y; }); edge=edge+TRACK_GAP+Math.max(ext,40);
+  /* tracks: nearest the main line first, a track shared by lines that never run at the same time */
+  var track={'-1':[], '1':[]};
+  L.lines.forEach(function(l){
+    if(!l.drawn) return;
+    var T=track[String(l.sd)], k=0;
+    for(;k<T.length;k++){ if(T[k].every(function(o){ return l.x1+40<o.x0 || o.x1+40<l.x0; })) break; }
+    (T[k]=T[k]||[]).push(l); l.track=k;
+  });
+  main.y=0; var pastY=PAST;
+  var base={'-1':BAND0, '1':hasPast?PAST+BAND0-8:BAND0};
+  L.lines.forEach(function(l){ if(l.drawn) l.y=l.sd*(base[String(l.sd)]+l.track*TRACK); else l.y=0; });
+  var band={'-1':track['-1'].length?base['-1']+(track['-1'].length-1)*TRACK+14:0,
+            '1':track['1'].length?base['1']+(track['1'].length-1)*TRACK+14:(hasPast?PAST+14:0)};
+  /* the cards: beyond the band, packed outward wherever one would overlap another */
+  var placed={'-1':[], '1':[]}, sideOf={}, offOf={}, alt=0;
+  function fit(sd, id, minOff){
+    var lo=X[id]-w[id]/2-CARD_PAD, hi=X[id]+w[id]/2+CARD_PAD, hh=h[id]||120, off=minOff, moved=true;
+    while(moved){ moved=false;
+      placed[sd].forEach(function(r){ if(lo<r.hi && hi>r.lo && off<r.y1+CARD_GAP && off+hh+CARD_GAP>r.y0){ off=r.y1+CARD_GAP; moved=true; } }); }
+    return {off:off, lo:lo, hi:hi, y0:off, y1:off+hh};
+  }
+  order.slice().sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }).forEach(function(id){
+    var ln=lineOfEv(id), sides=ln===main ? (fbOf[id]?['1']:['-1','1']) : [String(ln.sd)], best=null;
+    sides.forEach(function(sd, si){
+      var from=ln===main ? (fbOf[id]?pastY:0) : Math.abs(ln.y);
+      var c=fit(sd, id, Math.max(band[sd], ln===main&&!fbOf[id]?0:from)+STEM);
+      if(!best || c.off<best.c.off-1 || (Math.abs(c.off-best.c.off)<=1 && si===alt)) best={sd:sd, c:c};
     });
+    placed[best.sd].push(best.c); sideOf[id]=+best.sd; offOf[id]=best.c.off;
+    if(ln===main && !fbOf[id]) alt=1-alt;
   });
-  var cy={}; lines.forEach(function(l){
-    l.ev.forEach(function(id){ var sd=String(sideOf[id]), a=l.th[sd], off=STEM;
-      for(var k=0;k<tierOf[id];k++) off+=(a[k]||0)+TIER_GAP;
-      cy[id]=l.y+sideOf[id]*(off+(h[id]||120)/2); });
-  });
-  var ys=[]; lines.forEach(function(l){ ys.push(l.y); }); order.forEach(function(id){ ys.push(cy[id]-(h[id]||120)/2, cy[id]+(h[id]||120)/2); });
+  var cy={};
+  order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||120)/2); });
+  var ys=[0, hasPast?pastY+30:0];
+  L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-16, l.y+16); });
+  order.forEach(function(id){ ys.push(cy[id]-(h[id]||120)/2, cy[id]+(h[id]||120)/2); });
   var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys), dy=TOP-y0;
-  var W=Math.max(S.end, main.x1)+RIGHT, H=y1+dy+BOTTOM;
-  lines.forEach(function(l){ l.y+=dy; });
+  var xe=[S.end, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
+  var W=Math.max.apply(null,xe)+RIGHT, H=y1+dy+BOTTOM;
+  lines.forEach(function(l){ l.y+=dy; }); pastY+=dy;
+  runs.forEach(function(r){ r.y=pastY; });
   /* the cards */
   var pos={};
   order.forEach(function(id){
@@ -360,104 +461,208 @@ window._altoLanes=function(h){
     pos[id]=y; if(n){ n.displayX=X[id]; n.y=y; }
     var e=document.getElementById('node-'+id); if(!e) return;
     e.style.left=X[id]+'px'; e.style.top=(y+WORLD_PAD_TOP)+'px'; e.setAttribute('data-ln', L.ev[id].l);
+    var lp=L.lines.filter(function(l){ return l.pr && l.pr.indexOf(id)>=0; }).map(function(l){ return l.id; });
+    if(fbOf[id]) lp.push('fb:'+fbOf[id]);
+    if(lp.length) e.setAttribute('data-lp', lp.join(' ')); else e.removeAttribute('data-lp');
     whenChip(e.querySelector('.node-card'), id);
   });
   world.style.setProperty('width',W+'px','important'); world.style.minHeight=(H+WORLD_PAD_TOP)+'px';
   de.style.setProperty('--lanes-w',W+'px');
-  draw(world, lines, order, X, pos, h, S, W, H);
+  main.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; });
+  L.lines.forEach(function(l){ l.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }); });
+  var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
+                       pastY:pastY, sideOf:sideOf, shift:shift});
   units(world, order, X, w, H, W);
-  window._altoLanesGeo={x:X, y:pos, h:h, lines:lines, W:W, H:H};
+  /* window._altoLanesGeo — the drawing's geometry, for navigation (stepping,
+     the camera) and anything else that needs to know where things are. All
+     coordinates are #world layout px WITHOUT WORLD_PAD_TOP (add it for a node's
+     style.top / the svg's y); never screen px.
+       x[id]        the event's x (its stem, its dot on its line)
+       y[id]        its card's centre y
+       h[id]        its card's height
+       W, H         the drawing's size
+       mainY        the main line's y in the present
+       lines[]      main first, then the characters: {id, label, color, side,
+                    from, to, ev: [own event ids, by x], y: track y (main: mainY),
+                    x0, x1: where the line runs, sd: -1 above / 1 below,
+                    pr: [the main-line events where it is on the page]}
+       at[id]       {x, y, line, flash}: where the event sits on its line — the
+                    main line's dot (on the past track for a flashback event,
+                    flash = its flashback id), or the character's track
+       presence[lineId]  [{id, x, y}] in x order: where the character's line
+                    meets the main line (x is spread around the event's x when
+                    several characters are there; y the main / past track)
+       detours[]    one per flashback run, by x: {id, label, range ("1987–1994"),
+                    nodes: [ids], x0, x1 (the whole detour, lead-in to lead-out),
+                    d0, d1 (where the main line leaves / rejoins the present y),
+                    f0, f1 (the flat past stretch), y (the past track's y),
+                    prev, next (the present events either side, or null)} */
+  window._altoLanesGeo={x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
+    detours:runs.map(function(r){ return {id:r.id, label:r.label, range:r.range, nodes:r.nodes.slice(), x0:r.x0, x1:r.x1,
+      d0:r.d0, d1:r.d1, f0:r.f0, f1:r.f1, y:r.y, prev:r.prev, next:r.next}; })};
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:H}; });
   /* the first time: open at the start of time, not the engine's centre */
   if(!window._altoLanesOpened){ window._altoLanesOpened=1; var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=0; setTimeout(function(){ if(!window._focusedNodeId) cv.scrollLeft=0; }, 60); } }
   var svgR=document.getElementById('river-svg'); if(svgR) svgR.innerHTML='';
   return true;
 };
-function draw(world, lines, order, X, pos, h, S, W, H){
+/* a smooth path through levels [{x0, x1, y}]: flat along each, an S between
+   one and the next whose ends are level (so a dip meets the main line square
+   on, and leaves it the same way) */
+function levelsPath(lv){
+  var d='M'+lv[0].x0+' '+lv[0].y;
+  lv.forEach(function(v,i){
+    if(i){ var p=lv[i-1];
+      if(Math.abs(p.y-v.y)<.5) d+=' L'+v.x0+' '+v.y;
+      else { var m=(p.x1+v.x0)/2; d+=' C'+m+' '+p.y+' '+m+' '+v.y+' '+v.x0+' '+v.y; } }
+    if(v.x1>v.x0+.5) d+=' L'+v.x1+' '+v.y;
+  });
+  return d;
+}
+function draw(world, G){
+  var lines=G.lines, main=G.main, order=G.order, X=G.X, pos=G.pos, h=G.h, S=G.S, W=G.W, H=G.H, runs=G.runs, fbOf=G.fbOf;
   var old=document.getElementById('lanes-svg'); if(old) old.remove();
-  world.querySelectorAll('.lanes-tag').forEach(function(e){ e.remove(); });
-  var P=WORLD_PAD_TOP, svg=el('svg',{id:'lanes-svg', width:W, height:H+P}), main=lines[0];
+  var P=WORLD_PAD_TOP, svg=el('svg',{id:'lanes-svg', width:W, height:H+P});
   world.insertBefore(svg, world.firstChild.nextSibling);
   var col=function(l){ return l.id==='main'?'var(--accent)':l.color; };
-  /* the time axis: a ruler along the bottom of the page, ticks where the numbers are round */
-  var my=main.y+P, ay=H+P-52, tk=el('g',{'class':'ln-axis'},svg);
-  var nums=order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); })
-  if(!order.some(function(id){ return L.ev[id].t!=null; })) nums=false;   // nothing dated: no clock to show
-  if(nums) el('line',{'class':'ln-rule', x1:main.x0, x2:main.x1, y1:ay, y2:ay},tk);
+  var my=main.y+P, py=G.pastY+P, at={}, presence={};
+  var LB={}; lines.forEach(function(l){ LB[l.id]=l; });
+  var lineOfEv=function(id){ return LB[L.ev[id].l]||main; };
+  /* where each event sits on its line */
+  order.forEach(function(id){ var ln=lineOfEv(id);
+    at[id]={x:X[id], y:ln===main?(fbOf[id]?G.pastY:main.y):ln.y, line:ln.id, flash:fbOf[id]||''}; });
+  /* the past: a tinted band behind each detour, its label at the start of the flat stretch */
+  runs.forEach(function(r){
+    var g=el('g',{'data-ln':'main', 'class':'ln-past', 'data-fb':r.id},svg);
+    el('rect',{'class':'ln-past-band', x:r.d0+DRAMP*.42, y:my+9, width:Math.max(10,r.d1-r.d0-DRAMP*.84), height:py-my+21, rx:14},g);
+    r.tagEl.style.left=(r.f0+4)+'px'; r.tagEl.style.top=py+'px';   // on the past track, as a character's label sits on its line
+  });
+  /* the time axis: a ruler along the bottom of the page, ticks where the numbers
+     are round; it stops at each detour — the present's clock does not run there */
+  var ay=H+P-52, tk=el('g',{'class':'ln-axis'},svg);
+  var nums=order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); });
+  if(!order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; })) nums=false;   // nothing dated: no clock to show
+  var inDetour=function(x){ return runs.some(function(r){ return x>r.x0-4 && x<r.x1+4; }); };
+  if(nums){ var cuts=[main.x0]; runs.forEach(function(r){ cuts.push(r.x0, r.x1); }); cuts.push(main.x1);
+    for(var c=0;c+1<cuts.length;c+=2) if(cuts[c+1]>cuts[c]+60) el('line',{'class':'ln-rule', x1:cuts[c], x2:cuts[c+1], y1:ay, y2:ay},tk); }
   S.segs.forEach(function(sg){
     if(sg.t1==null || sg.t1<=sg.t0 || !nums) return;
     var step=nice(220/S.s); if(step<1) step=1;
     for(var v=Math.ceil(sg.t0/step)*step; v<=sg.t1+1e-9; v+=step){
-      var x=sg.x0+(v-sg.t0)*S.s; if(x<main.x0+30 || x>main.x1-30) continue;
+      var raw=sg.x0+(v-sg.t0)*S.s, x=raw+G.shift(raw, -1); if(x<main.x0+30 || x>main.x1-30 || inDetour(x)) continue;
       el('line',{'class':'ln-tick', x1:x, x2:x, y1:ay, y2:ay+8},tk);
       var tl=el('text',{'class':'ln-ticklbl', x:x, y:ay+22, 'text-anchor':'middle'},tk); tl.textContent=String(Math.round(v*100)/100);
     }
   });
-  /* each side line: branching off, its run, converging. The curves are the
-     New timeline preview's: a smooth S whose run is ~.62 of its rise (so a line
-     far from the main line leans away gently instead of dropping straight
-     down), tightened only where an event sits close to the branch or the join.
-     Solid all the way; only a flashback (a line that comes in from the past
-     with no branch of its own) is dashed. */
-  lines.slice(1).forEach(function(l){
-    var y=l.y+P, g=el('g',{'data-ln':l.id},svg), c=col(l);
-    var py=main.y+P, rise=Math.abs(y-py), R0=Math.max(70,Math.min(300,rise*.62)), Rb=R0, Rj=R0;
-    if(l.fx!=null && l.tx!=null){ var half=(l.tx-l.fx)/2-8; Rb=Math.max(40,Math.min(Rb,half)); Rj=Math.max(40,Math.min(Rj,half)); }
-    if(l.fx!=null && l.ev.length) Rb=Math.max(60,Math.min(Rb,l.e0-l.fx-26));
-    if(l.tx!=null && l.ev.length) Rj=Math.max(60,Math.min(Rj,l.tx-l.e1-26));
-    l.Rb=Rb; l.Rj=Rj;
-    var sx=l.fx!=null?l.fx+Rb:l.x0, runEnd=l.tx!=null?l.tx-Rj:l.x1, d='';
-    if(l.fx!=null) d+='M'+l.fx+' '+py+' C'+(l.fx+Rb*.6)+' '+py+' '+(l.fx+Rb*.4)+' '+y+' '+(l.fx+Rb)+' '+y;
-    else d+='M'+l.x0+' '+y;
-    d+=' L'+runEnd+' '+y;
-    if(l.tx!=null) d+=' C'+(l.tx-Rj*.4)+' '+y+' '+(l.tx-Rj*.6)+' '+py+' '+l.tx+' '+py;
-    var fb=l.fx==null && l.tx!=null;
-    el('path',{'class':'ln-hit', d:d},g);
-    el('path',{'class':'ln-br'+(fb?' ln-fb':''), d:d, stroke:c},g);
-    if(l.tx!=null) el('circle',{'class':'ln-merge', cx:l.tx, cy:py, r:6, fill:c},g);
-    if(l.fx==null) el('circle',{cx:l.x0, cy:y, r:4.5, fill:c},g);
-    if(l.tx==null){ el('path',{d:'M'+(l.x1-2)+' '+(y-7)+' L'+(l.x1+9)+' '+y+' L'+(l.x1-2)+' '+(y+7)+' Z', fill:c},g); }
-    tag(world, l, sx+16, y-l.sd*22, c, 0);
+  /* who is on the page at each main-line event, spread around its stem: lines
+     from above to the left of lines from below, the outermost track outermost */
+  var at0={};
+  order.forEach(function(id){
+    var here=lines.slice(1).filter(function(l){ return l.drawn && l.pr.indexOf(id)>=0; });
+    here.sort(function(a,b){ return (a.sd-b.sd) || (a.sd<0 ? b.track-a.track : a.track-b.track); });
+    here.forEach(function(l,k){ (at0[l.id]=at0[l.id]||{})[id]=X[id]+(k-(here.length-1)/2)*SPREAD; });
   });
-  /* the main line on top of the branches' ends */
-  var mg=el('g',{'data-ln':'main'},svg);
-  el('path',{'class':'ln-main', d:'M'+main.x0+' '+my+' L'+main.x1+' '+my},mg);
+  /* each character: a solid line along its track that dips onto the main line
+     wherever the character is on the page — meeting it square on, marked with a
+     ring — and leaves again; at adjacent events it rides along beside the main
+     line instead of bouncing up and down. Its own events sit on its track. */
+  var marks=[];
+  lines.slice(1).forEach(function(l){
+    if(!l.drawn){ if(l.tagEl) l.tagEl.remove(); return; }
+    var ty=l.y+P, g=el('g',{'data-ln':l.id},svg), c=col(l);
+    var stops=l.pr.map(function(id){ var ln=lineOfEv(id);
+      return {a:1, id:id, x:at0[l.id][id], y:(ln===main ? (fbOf[id]?py:my) : ln.y+P), main:ln===main, fb:fbOf[id]||''}; })
+      .concat(l.ev.map(function(id){ return {a:0, id:id, x:X[id], y:ty}; }))
+      .sort(function(p,q){ return p.x-q.x || q.a-p.a; });
+    var R=function(s){ return Math.max(RAMP_MIN, Math.min(RAMP_MAX, Math.abs(ty-s.y)*1.25)); };
+    var x0=l.x0+l.tagW+4, lv=[{x0:x0, x1:x0, y:ty}], top=function(){ return lv[lv.length-1]; };
+    var hug=HUG0+l.track*HUG_STEP;
+    stops.forEach(function(s,i){
+      var p=stops[i-1], q=stops[i+1];
+      if(!s.a){ if(top().y!==ty) lv.push({x0:s.x, x1:s.x, y:ty}); else top().x1=s.x; return; }
+      var Rin=R(s), Rout=R(s);
+      if(p && p.a && p.low){ /* already beside the main line: down onto this event */ }
+      else if(p && p.a && p.direct){ }
+      else {
+        if(p && !p.a) Rin=Math.max(22, Math.min(Rin, s.x-p.x-14));
+        else if(p && p.a) Rin=p.rq||Rin;
+        top().x1=Math.max(top().x0, s.x-Rin);
+      }
+      lv.push({x0:s.x, x1:s.x, y:s.y});
+      if(q && q.a){
+        var gap=q.x-s.x, adj=s.main && q.main && Math.abs(s.y-q.y)<.5 && (s.fb||'')===(q.fb||'') &&
+          Math.abs(G.mains.indexOf(s.id)-G.mains.indexOf(q.id))<=1;
+        if(adj){ s.low=1; var r=Math.min(30, gap/3), sg=ty>s.y?1:-1;
+          if(gap>2*r+6) lv.push({x0:s.x+r, x1:q.x-r, y:s.y+sg*hug});
+          return; }
+        if(Math.abs(s.y-q.y)>.5 && gap<R(s)+R(q)+MINRUN){ s.direct=1; return; }
+        var k=Math.min(1, (gap-MINRUN)/(R(s)+R(q))); Rout=Math.max(18, R(s)*k); s.rq=Math.max(18, R(q)*k);
+      } else if(q){ Rout=Math.max(22, Math.min(Rout, q.x-s.x-14)); }
+      lv.push({x0:s.x+Rout, x1:s.x+Rout, y:ty});
+    });
+    if(top().y!==ty) lv.push({x0:top().x1+RAMP_MAX, x1:top().x1+RAMP_MAX, y:ty});
+    top().x1=Math.max(top().x1, l.x1);
+    var d=levelsPath(lv);
+    el('path',{'class':'ln-hit', d:d},g);
+    el('path',{'class':'ln-br', d:d, stroke:c},g);
+    el('circle',{'class':'ln-end', cx:l.x1, cy:ty, r:3.6, fill:c},g);   // where the line stops: a plain end, not a ring
+    l.lv=lv;
+    presence[l.id]=stops.filter(function(s){ return s.a; }).map(function(s){ return {id:s.id, x:s.x, y:s.y-P}; });
+    stops.forEach(function(s){ if(s.a) marks.push({l:l, x:s.x, y:s.y, c:c, id:s.id}); });
+    l.tagEl.style.left=l.x0+'px'; l.tagEl.style.top=ty+'px';
+  });
+  /* the main line, over the characters' dips: straight through the present, an S
+     down to the past track and back up for each flashback */
+  var mg=el('g',{'data-ln':'main'},svg), md='M'+main.x0+' '+my;
+  runs.slice().sort(function(a,b){ return a.x0-b.x0; }).forEach(function(r){
+    var m0=r.d0+DRAMP/2, m1=r.d1-DRAMP/2;
+    md+=' L'+r.d0+' '+my+' C'+m0+' '+my+' '+m0+' '+py+' '+r.f0+' '+py+' L'+r.f1+' '+py+' C'+m1+' '+py+' '+m1+' '+my+' '+r.d1+' '+my; });
+  md+=' L'+main.x1+' '+my;
+  el('path',{'class':'ln-main', d:md},mg);
   el('path',{d:'M'+(main.x1-3)+' '+(my-10)+' L'+(main.x1+13)+' '+my+' L'+(main.x1-3)+' '+(my+10)+' Z', fill:'var(--accent)'},mg);
   if(main.label) tag(world, main, main.x0-14, my, 'var(--accent)', 1);
-  /* squeezed stretches: a ≈ across every line that runs through them */
-  S.breaks.forEach(function(bx){
-    lines.forEach(function(l){
-      /* only where the line has something on both sides of the squeeze */
-      var pts=l.ev.map(function(i){ return X[i]; }).concat([l.fx,l.tx].filter(function(v){ return v!=null; }));
-      if(l.id==='main') L.lines.forEach(function(q){ [q.from,q.to].forEach(function(f){ if(f && X[f]!=null) pts.push(X[f]); }); });
-      if(!pts.some(function(v){ return v<bx; }) || !pts.some(function(v){ return v>bx; })) return;
-      var y=l.y+P;
-      el('path',{'class':'ln-break', d:'M'+(bx-9)+' '+(y-9)+' q4.5 -5 9 0 t9 0 M'+(bx-9)+' '+(y+1)+' q4.5 -5 9 0 t9 0'},svg); });
+  /* squeezed stretches: a ≈ across every line that runs straight through them */
+  S.breaks.forEach(function(raw){
+    var bx=raw+G.shift(raw, -1);
+    if(G.mains.some(function(i){ return X[i]<bx; }) && G.mains.some(function(i){ return X[i]>bx; }) && !inDetour(bx)) brk(svg, bx, my);
+    lines.slice(1).forEach(function(l){
+      if(!l.drawn || !l.lv) return;
+      if(l.lv.some(function(v){ return Math.abs(v.y-(l.y+P))<.5 && bx>v.x0+12 && bx<v.x1-12; })) brk(svg, bx, l.y+P);
+    });
   });
-  /* stems + dots at each event's exact time */
+  var meets={}; marks.forEach(function(m){ meets[m.id]=1; });
+  /* stems + dots at each event: the main line's (on the past track inside a
+     flashback), the characters' own on their tracks */
   order.forEach(function(id){
-    var l=null; lines.forEach(function(q){ if(q.ev.indexOf(id)>=0) l=q; }); if(!l) return;
-    var x=X[id], ly=l.y+P, cyy=pos[id]+P, hh=(h[id]||120)/2, edge=cyy+(cyy<ly?hh:-hh), c=col(l);
+    var l=lineOfEv(id), x=X[id], ly=at[id].y+P, cyy=pos[id]+P, hh=(h[id]||120)/2, edge=cyy+(cyy<ly?hh:-hh), c=col(l);
     var g=el('g',{'data-ln':l.id},svg);
     el('line',{'class':'ln-stem', x1:x, x2:x, y1:ly, y2:edge, stroke:c},g);
-    el('circle',{'class':'ln-dot', cx:x, cy:ly, r:6.5, fill:c},g);
+    if(!meets[id]) el('circle',{'class':'ln-dot', cx:x, cy:ly, r:6.5, fill:c},g);   // with characters there, their rings mark it
+  });
+  /* where a character meets the page: a ring in its colour, on top of everything */
+  marks.forEach(function(m){
+    var g=el('g',{'data-ln':m.l.id, 'class':'ln-meet'},svg);
+    el('circle',{'class':'ln-ring', cx:m.x, cy:m.y, r:5.5, stroke:m.c},g);
   });
   /* connections the material draws between events (not the lines themselves) */
   (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(cn){
     if(!cn || cn[2]==='spine' || X[cn[0]]==null || X[cn[1]]==null) return;
     var la=lineOf(lines,cn[0]), lb=lineOf(lines,cn[1]); if(!la||!lb || la===lb) return;   // the line itself already joins them
-    var ax=X[cn[0]], ay=la.y+P, bx=X[cn[1]], by=lb.y+P, mx=(ax+bx)/2, bow=Math.min(160, Math.abs(bx-ax)/3+30);
+    var ax=X[cn[0]], ayy=at[cn[0]].y+P, bx=X[cn[1]], by=at[cn[1]].y+P, mx=(ax+bx)/2, bow=Math.min(160, Math.abs(bx-ax)/3+30);
     var c=(typeof COLOR_MAP!=='undefined' && COLOR_MAP[cn[2]]) ? COLOR_MAP[cn[2]] : 'var(--muted)';
     var rg=el('g',{'data-ln':la.id+' '+lb.id},svg);
-    el('path',{'class':'ln-rel', d:'M'+ax+' '+ay+' Q'+mx+' '+(Math.min(ay,by)-bow)+' '+bx+' '+by, stroke:c},rg);
+    el('path',{'class':'ln-rel', d:'M'+ax+' '+ayy+' Q'+mx+' '+(Math.min(ayy,by)-bow)+' '+bx+' '+by, stroke:c},rg);
   });
+  return {at:at, presence:presence};
 }
+function brk(svg, bx, y){ el('path',{'class':'ln-break', d:'M'+(bx-9)+' '+(y-9)+' q4.5 -5 9 0 t9 0 M'+(bx-9)+' '+(y+1)+' q4.5 -5 9 0 t9 0'},svg); }
 /* the card says when (and, on a phone, which line it is on) */
 function whenChip(c, id){
   var ev=L.ev[id]; if(!c || !ev || c.querySelector('.lanes-when')) return;
   var ln=null; L.lines.forEach(function(q){ if(q.id===ev.l) ln=q; });
   var txt=ev.w || '', mob=de.classList.contains('mobile');
   if(mob && ev.l!=='main' && ln) txt=(txt ? txt+' · ' : '')+ln.label;
+  else if(mob && ev.flash){ var fb=(L.flashbacks||[]).filter(function(f){ return f.id===ev.flash; })[0]; txt=(txt ? txt+' · ' : '')+'↺ '+((fb&&fb.label)||'Flashback'); }
   else if(mob && L.main && !txt) txt=L.main;
   if(!txt && mob) return;
   var d=document.createElement('div'); d.className='lanes-when'; d.textContent=txt;
@@ -473,6 +678,16 @@ function tag(world, l, x, y, c, before){
   t.style.color=c; t.textContent=l.label||''; t.setAttribute('data-ln-tag', l.id);
   t.title='Show only this line — click again for all';
   world.appendChild(t);
+  return t;
+}
+/* a flashback's label, at the start of its past stretch: ↺ what it is · when */
+function pastTag(world, r){
+  var t=document.createElement('div'); t.className='lanes-past'; t.setAttribute('data-fb', r.id);
+  t.innerHTML='<i>↺</i><b></b><span></span>';
+  t.querySelector('b').textContent=r.label||'Flashback'; t.querySelector('span').textContent=r.range||'';
+  t.title='A flashback: the main line drops back in time here and comes back to the present after it';
+  world.appendChild(t);
+  return t;
 }
 /* the units: columns of time, each from its first event to its last */
 function units(world, order, X, w, H, W){
@@ -600,7 +815,8 @@ function isolate(id){
   document.querySelectorAll('.ln-on').forEach(function(x){ x.classList.remove('ln-on'); });
   if(!id){ cv.classList.remove('ln-dimline'); return; }
   cv.classList.add('ln-dimline');
-  document.querySelectorAll('[data-ln~="'+id+'"],[data-ln-tag="'+id+'"],.lk-row[data-k="'+id+'"]').forEach(function(x){ x.classList.add('ln-on'); });
+  /* the line, its own events, and the main-line events where it is on the page (data-lp) */
+  document.querySelectorAll('[data-ln~="'+id+'"],[data-lp~="'+id+'"],[data-ln-tag="'+id+'"],.lk-row[data-k="'+id+'"]').forEach(function(x){ x.classList.add('ln-on'); });
   var l=null; L.lines.forEach(function(q){ if(q.id===id) l=q; });
   if(l) [l.from,l.to].forEach(function(f){ var n=f && document.getElementById('node-'+f); if(n) n.classList.add('ln-on'); });
 }
@@ -622,7 +838,7 @@ document.addEventListener('click', function(e){
   _lock=(_lock===id)?null:id; isolate(_lock||id);
 }, true);
 document.addEventListener('keydown', function(e){ if(e.key==='Escape' && _lock){ _lock=null; isolate(null); } });
-/* the key: what each line follows, where it branches and joins, what each kind of line means */
+/* the key: what each line follows, where it is on the page, what each shape means */
 function key(){
   if(de.classList.contains('mobile')) return;
   var k=document.getElementById('lanes-key'); if(k) k.remove();
@@ -630,17 +846,28 @@ function key(){
   var T=function(id){ var n=(typeof NODES_SRC!=='undefined'?NODES_SRC:[]).filter(function(q){ return q.id===id; })[0]; return n?n.title:''; };
   var esc=function(v){ return String(v||'').replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
   var sw=function(c,dash,w){ return '<svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="'+c+'" stroke-width="'+(w||4)+'" stroke-linecap="round"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/></svg>'; };
+  /* the picture's own language, drawn small: a dip onto the page, a detour into the past */
+  var dip=function(c){ return '<svg width="26" height="16"><line x1="1" y1="12" x2="25" y2="12" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>'+
+    '<path d="M1 3 C7 3 8 12 13 12 C18 12 19 3 25 3" fill="none" stroke="'+c+'" stroke-width="3" stroke-linecap="round"/>'+
+    '<circle cx="13" cy="12" r="3.4" fill="var(--surface)" stroke="'+c+'" stroke-width="2"/></svg>'; };
+  var det='<svg width="26" height="18"><rect x="7" y="7" width="12" height="10" rx="3" fill="var(--accent)" fill-opacity=".16"/>'+
+    '<path d="M0 4 L3 4 C8 4 6 14 11 14 L15 14 C20 14 18 4 23 4 L26 4" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/></svg>';
   var h='<h5><span>Lines</span><span></span></h5><div class="lk-body">';
-  h+='<div class="lk-row" data-k="main">'+sw('var(--accent)','',5)+'<div><b>'+esc(L.main||'Main line')+'</b><small>The main line — every other line branches off it</small></div></div>';
+  h+='<div class="lk-row" data-k="main">'+sw('var(--accent)','',5)+'<div><b>'+esc(L.main||'Main line')+'</b><small>The main line: what is on the page, in the order the story tells it</small></div></div>';
   L.lines.forEach(function(l){
-    var w=[l.from?'branches off at “'+esc(T(l.from))+'”':'begins on its own', l.to?'joins at “'+esc(T(l.to))+'”':'runs on'].join(' · ');
-    h+='<div class="lk-row" data-k="'+esc(l.id)+'">'+sw(l.color,'',5)+'<div><b>'+esc(l.label)+'</b><small>'+w+'</small></div></div>';
+    var n=(l.presence||[]).length, o=(l.events||[]).length, w=[];
+    if(n) w.push('on the page at '+n+' event'+(n>1?'s':'')+((l.presence||[])[0]?', first at “'+esc(T(l.presence[0]))+'”':''));
+    if(o) w.push(o+' event'+(o>1?'s':'')+' of its own');
+    h+='<div class="lk-row" data-k="'+esc(l.id)+'">'+sw(l.color,'',5)+'<div><b>'+esc(l.label)+'</b><small>'+(w.join(' · ')||'not on the page yet')+'</small></div></div>';
   });
   h+='<div class="lk-sep"></div>';
-  if(L.lines.some(function(l){ return !l.from && l.to; })) h+='<div class="lk-row">'+sw('var(--muted)','11 9',4)+'<div>Dashed: a flashback — a line from the past that comes into the main line</div></div>';
+  if(L.lines.length) h+='<div class="lk-row">'+sw('var(--muted)','',4)+'<div>A coloured line: a character while they are off the page</div></div>'+
+    '<div class="lk-row">'+dip((L.lines[0]||{}).color||'var(--muted)')+'<div>A dip onto the main line, ringed: they are on the page at that event</div></div>';
+  if((L.flashbacks||[]).some(function(f){ return (f.nodes||[]).length; }))
+    h+='<div class="lk-row">'+det+'<div>A detour down: a flashback <small>the main line drops into the past (its dates beside it) and comes back up where the present resumes</small></div></div>';
   var rels={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(c){ if(c && c[2]!=='spine') rels[c[2]]=1; });
   Object.keys(rels).forEach(function(r){ var c=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--muted)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
-    h+='<div class="lk-row">'+sw(c,'7 5',2)+'<div>Arc: '+esc(lb)+' <small>a link between events on different lines; it brightens when you point at either line</small></div></div>'; });
+    h+='<div class="lk-row">'+sw(c,'7 5',2)+'<div>Dashed arc: '+esc(lb)+' <small>a link the material draws between events on different lines; it brightens when you point at either line</small></div></div>'; });
   h+='<div class="lk-row"><span style="width:26px;text-align:center;flex:none">≈</span><div>Time squeezed — a long stretch with nothing in it</div></div>';
   h+='<small style="margin-top:4px">Point at a line, its label or a card to follow it; click a label to keep it.</small></div>';
   k.innerHTML=h; window._altoKeyToggle(k, 'alto-lanes-key', 'Key to the lines');
