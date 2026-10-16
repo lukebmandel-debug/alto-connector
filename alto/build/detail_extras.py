@@ -958,7 +958,9 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     // A timeline shorter than the window would still show page below its
     // end: lengthen the last band until the background fills the window.
     var cv = document.getElementById('canvas');
-    var k = (world.getBoundingClientRect().height / world.offsetHeight) || 1;   // CSS zoom
+    // CSS zoom, read off the canvas: the board itself may be scaled (a horizontal
+    // timeline's whole-timeline view, lanes_nav.py), which is not the page being short
+    var k = cv && cv.offsetHeight ? (cv.getBoundingClientRect().height / cv.offsetHeight) || 1 : 1;
     var short = cv ? Math.ceil(cv.clientHeight / k - end) : 0;
     if(short > 0 && typeof initLayout === 'function' && !place._relaying){
       window._altoEditRoom = (window._altoEditRoom || ROOM) + short;

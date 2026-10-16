@@ -83,7 +83,7 @@ NAV_CSS = """
   /* the event the steps are on */
   html.alto-lanes.ln-stepped:not(.mobile) #world .node.ln-cur:not(.focused) .node-card{ box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 60%,transparent), 0 10px 26px var(--node-rest-shadow); }
   /* the whole timeline, fitted to the window */
-  html.alto-lanes #canvas.ln-ov{ cursor:zoom-in; overflow:hidden !important; }
+  html.alto-lanes #canvas.ln-ov{ cursor:zoom-in; }
   html.alto-lanes #canvas.ln-ov.ln-drag{ cursor:grabbing; }
   html.alto-lanes #canvas.ln-ov #world, html.alto-lanes #canvas.ln-ovanim #world{ pointer-events:none; transform-origin:0 0; will-change:transform; }
 """
@@ -267,10 +267,9 @@ function focusCard(id){
 var _navPrev=window._altoLanesNav;
 window._altoLanesNav=function(id, dir){
   if(!geo() || de.classList.contains('mobile')) return null;
-  if(dir==='e'||dir==='w'){ var r=neighbour(id, dir==='e'?1:-1); if(r){ setCur(r); _trust=true; } return r; }
-  var n=_navPrev ? _navPrev(id, dir) : null;
-  if(n){ setCur(n); _trust=true; }
-  return n;
+  var r=(dir==='e'||dir==='w') ? neighbour(id, dir==='e'?1:-1) : (_navPrev ? _navPrev(id, dir) : null);
+  if(r && window._focusedNodeId){ setCur(r); _trust=true; ui(r,0); }     // the engine is hopping the enlarged card there
+  return r;
 };
 
 /* ── keys ──────────────────────────────────────────────────────────────── */
@@ -547,7 +546,7 @@ function ovEnter(){
   var here=current(); if(here) setCur(here);                 // Esc / the toggle come back to this one
   var c=cv(), off=worldOff(c), from={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop}, to=ovFit();
   _ov=to;
-  ovSet(from); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
+  ovHold(true); ovSet(from); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
   if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title='Back to the events'; }
   ovAnim(from, to, function(){});
 }
@@ -562,11 +561,24 @@ function ovLeave(id, instant){
   w.style.transform='none';
   var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop'), tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt));
   ovSet(from);
-  var fin=function(){ w.style.transform=''; qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); };
+  var fin=function(){ w.style.transform=''; ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); };
   if(instant){ fin(); return; }
   de.classList.add('ln-stepped');
   ovAnim(from, {s:1, tx:off.x-tl, ty:off.y-tt}, fin);
 }
+/* The scaled board no longer overflows the canvas, so where scrollbars take room (Safari
+   with a mouse plugged in, "always show scrollbars") they would vanish, the canvas would
+   change size and the engine would lay the whole page out again mid-zoom. A spacer the
+   board's full size holds the canvas's scroll extent as it was. */
+function ovHold(on){
+  var c=cv(), sp=document.getElementById('lanes-ov-hold');
+  if(!on){ if(sp) sp.remove(); return; }
+  if(!sp){ sp=document.createElement('div'); sp.id='lanes-ov-hold'; sp.setAttribute('aria-hidden','true');
+    sp.style.cssText='position:absolute;left:0;top:0;width:1px;height:1px;visibility:hidden;pointer-events:none;'; c.appendChild(sp); }
+  sp.style.width=c.scrollWidth+'px'; sp.style.height=c.scrollHeight+'px';
+}
+/* the board is moved by its transform there, never scrolled (a scrollbar drag is undone) */
+function ovNoScroll(){ var c=cv(); if(!c || c._lnOvS) return; c._lnOvS=1; c.addEventListener('scroll', function(){ if(_ov && (c.scrollLeft || c.scrollTop)){ c.scrollLeft=0; c.scrollTop=0; } }, {passive:true}); }
 function ovWheel(e){
   e.preventDefault();
   if(_ovA) return;
@@ -611,7 +623,7 @@ function ovPoint(cx, cy){
 /* ── after every layout ─────────────────────────────────────────────────── */
 function relaid(first){
   var G=geo(); if(!G) return;
-  hookWheel(); watchFocus(); buildRail();
+  hookWheel(); watchFocus(); buildRail(); ovNoScroll();
   document.querySelectorAll('#world .node[data-ln] .node-card').forEach(function(c){ if(!c.hasAttribute('tabindex')) c.setAttribute('tabindex','0'); });
   if(_cur && !document.getElementById('node-'+_cur)) _cur=null;
   if(_cur){ var n=document.getElementById('node-'+_cur); if(n) n.classList.add('ln-cur'); }
