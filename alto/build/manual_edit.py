@@ -2016,20 +2016,23 @@ MANUAL_JS = r"""<script id="alto-manual">
     return (LN.order || []).filter(function(i){ var e = LN.ev[i]; return e && srcNode(i) && !cardGone(i) && (e.l === 'main' || !lids[e.l]); }); }
   function flashItems(id, A){
     var E = LN.ev[id] || {}, M = mainsNow(), k = M.indexOf(id), nb = [M[k - 1], M[k + 1]].map(function(i){ return i ? (LN.ev[i].flash || '') : ''; });
+    // the middle of a flashback cannot leave it: the rest would be two runs
+    var mid = !!E.flash && nb[0] === E.flash && nb[1] === E.flash;
     A.push({label: 'Flashback'});
     (LN.flashbacks || []).forEach(function(f){
       if(f.id === E.flash) return;
       var used = M.some(function(i){ return LN.ev[i].flash === f.id; }), next = nb.indexOf(f.id) >= 0;
-      A.push({t: 'Into “' + f.label + '”', sub: 'Told out of time: the main line dips into the past here.', off: used && !next,
-        why: 'A flashback is one run of events in a row — this event is not next to it.',
+      A.push({t: 'Into “' + f.label + '”', sub: 'Told out of time: the main line dips into the past here.', off: mid || (used && !next),
+        why: mid ? 'Only the first or last event of a flashback can leave it.' : 'A flashback is one run of events in a row — this event is not next to it.',
         fn: function(){ if(change('n|' + id + '|flash', f.id)) toast('“' + titleOf(id) + '” is in the flashback “' + f.label + '” — ⌘Z puts it back.'); }}); });
-    A.push({t: '+ A new flashback from here…', sub: 'Name it (e.g. “Ten years earlier”); give its events the dates they happened.',
+    A.push({t: '+ A new flashback from here…', sub: 'Name it (e.g. “Ten years earlier”); give its events the dates they happened.', off: mid,
+      why: 'Only the first or last event of a flashback can leave it.',
       fn: function(){ askName(document.getElementById('node-' + id) || document.body, 'Name the flashback', '', function(v){
         v = String(v || '').replace(/\s+/g, ' ').trim(); if(!v) return;
         var fid = 'fb-' + Math.random().toString(36).slice(2, 7);
         if(changes([['fb|' + fid, {id: fid, label: v}], ['n|' + id + '|flash', fid]])) toast('“' + v + '” starts at “' + titleOf(id) + '” — put the events next to it in it too.'); }); }});
     if(E.flash && fbOf(E.flash)){
-      var fl = fbOf(E.flash), run = M.filter(function(i){ return LN.ev[i].flash === fl.id; }), mid = run.length > 2 && run[0] !== id && run[run.length - 1] !== id;
+      var fl = fbOf(E.flash), run = M.filter(function(i){ return LN.ev[i].flash === fl.id; });
       A.push({t: 'Not in a flashback', sub: mid ? 'Only the first or last event of a flashback can leave it.' : 'Back in the present.', off: mid,
         fn: function(){ if(change('n|' + id + '|flash', '')) toast('“' + titleOf(id) + '” is back in the present — ⌘Z puts it back.'); }});
       A.push({t: 'Rename “' + fl.label + '”…', fn: function(){ askName(document.getElementById('node-' + id) || document.body, 'Name the flashback', fl.label, function(v){
