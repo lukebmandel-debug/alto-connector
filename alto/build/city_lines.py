@@ -73,6 +73,8 @@ def candidates(streets, theta, center, majors=(), must=()):
         if st.get("t") or not st.get("n"):
             continue
         k = st.get("k", 9)
+        if k == 0 and norm(st["n"]) not in majors_n and norm(st["n"]) not in must_n:
+            continue                    # a motorway is no grid line (Chicago's Kennedy Expressway), unless the brief says so
         if k > 4:
             continue
         n = norm(st["n"])

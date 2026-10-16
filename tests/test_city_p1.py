@@ -152,3 +152,40 @@ def test_report_has_spacing_and_fronts(phil):
     rep = city_report.report(g, m)
     assert {"spacing", "fronts"} <= set(rep["checks"])
     assert not any("could not run" in rep["checks"][k]["msg"] for k in ("spacing", "fronts"))
+
+
+def test_norm_keeps_a_direction_that_is_the_name():
+    from alto.build.palace_grid import norm
+    assert norm("N Street Northwest") == "N Street Northwest" and norm("E Street Northwest") != norm("N Street Northwest")
+    assert norm("West End Avenue") == "West End Avenue"
+    assert norm("South 15th Street") == "15th Street" and norm("West Girard Avenue") == "Girard Avenue"
+    assert norm("N 5th St") == "5th St"
+
+
+def test_grid_angle_ignores_motorways():
+    from alto.build.palace_grid import grid_angle
+    grid = [{"n": "R%d" % i, "k": 3, "p": [0, i * 100, 2000, i * 100]} for i in range(10)]
+    hw = [{"n": "I-1", "k": 0, "p": [0, 0, 3000, 3000]} for _ in range(20)]
+    assert abs(math.degrees(grid_angle({"streets": grid + hw}))) < 0.5
+
+
+def test_motorway_is_no_grid_line_unless_asked():
+    st = [{"n": "Kennedy Expressway", "k": 0, "p": [500, 0, 500, 3000]},
+          {"n": "Damen Avenue", "k": 2, "p": [900, 0, 900, 3000]}]
+    c = city_lines.candidates(st, 0.0, (1000, 1500))
+    assert [l["n"] for l in c["v"]] == ["Damen Avenue"]
+    c = city_lines.candidates(st, 0.0, (1000, 1500), majors=["Kennedy Expressway"])
+    assert len(c["v"]) == 2
+
+
+def test_palace_grid_imports_on_its_own():
+    import subprocess
+    code = ("import sys; sys.path.insert(0, %r); from alto.build import palace_grid, city_types; "
+            "city_types.ENGINE_V2 = True; "
+            "m = {'W': 2000, 'H': 2000, 'scale': 1.0, 'streets': [{'n': 'R%%d' %% i, 'k': 3, 'p': [0, i * 150, 2000, i * 150]} "
+            "for i in range(12)] + [{'n': '%%dth Street' %% i, 'k': 3, 'p': [i * 150, 0, i * 150, 2000]} for i in range(12)], "
+            "'rivers': [], 'water': [], 'rails': [], 'stations': [], 'landmarks': [{'n': 'One Tower', 'x': 700, 'y': 700, 'r': []}], "
+            "'parks': [], 'majors': []}; "
+            "g = palace_grid.grid(m, landmarks=[{'name': 'One Tower'}]); print('ok', len(g['streets']))") % str(ROOT)
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert "ok" in r.stdout, r.stderr[-800:]
