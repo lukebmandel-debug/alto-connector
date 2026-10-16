@@ -533,6 +533,9 @@ window._altoLanesNav=function(id, dir){
 /* isolating a line: its events, its curves, where it branches and joins, the
    arcs to it. A click keeps it; hovering shows it for as long as you point. */
 var _lock=null, _ht=null;
+/* the kept line, for stepping (lanes_nav.py: a character's events only); with an
+   argument, keep that line (null: all of them again) */
+window._altoLanesLock=function(id){ if(arguments.length){ _lock=id||null; isolate(_lock); } return _lock; };
 function isolate(id){
   var cv=document.getElementById('canvas'); if(!cv) return;
   document.querySelectorAll('.ln-on').forEach(function(x){ x.classList.remove('ln-on'); });
@@ -560,9 +563,6 @@ document.addEventListener('click', function(e){
   _lock=(_lock===id)?null:id; isolate(_lock||id);
 }, true);
 document.addEventListener('keydown', function(e){ if(e.key==='Escape' && _lock){ _lock=null; isolate(null); } });
-/* the kept line, for stepping (lanes_nav.py: a character's events only); with an
-   argument, keep that line (null: all of them again) */
-window._altoLanesLock=function(id){ if(arguments.length){ _lock=id||null; isolate(_lock); } return _lock; };
 /* the key: what each line follows, where it branches and joins, what each kind of line means */
 function key(){
   if(de.classList.contains('mobile')) return;
