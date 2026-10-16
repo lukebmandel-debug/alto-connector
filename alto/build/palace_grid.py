@@ -38,6 +38,8 @@ SNAP_DEG = 25
 # (numbered, a main street, or class <= 2 / <= 3) left West and Southwest Philadelphia nearly
 # empty. There, any named street long enough to read as a through street is a column or a row.
 FILL_LON = -75.19          # the fill region: west of this longitude
+TILT_BOX = (0.0, 6000.0, 3000.0, 1e9)   # West / Southwest Philadelphia in map px (x0, y0, x1, y1): its whole street grid runs on an angle
+TILT_DEG = 40.0                         # the angle that grid is turned from the city's grid (measured from the real streets)
 FILL_MIN = 700.0           # px of street (about half a kilometre) before a residential street counts
 _DIR = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(?=\S+\s)", re.I)
 _NUM = re.compile(r"^(\d+)(st|nd|rd|th)\b", re.I)
@@ -351,6 +353,32 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
             res[-1][1], res[-1][3] = hi, len(cpos) - 1
         return res
 
+    # the tilted district: the columns and rows inside it are not drawn on the square grid
+    # (they would cut across the real, turned street grid); a turned lattice is drawn instead
+    tx0, ty0, tx1, ty1 = TILT_BOX
+    ix = mp(tx1, ty0)[0] if tx1 < 1e8 else xg[-1]
+    jy = mp(tx0 + 1, ty0)[1]
+    iE = next((i for i, x in enumerate(xg) if x >= ix), len(xg) - 1)     # first column right of the district (kept: its edge)
+    jT = max(0, max((j for j, y in enumerate(yg) if y <= jy), default=0))   # last row above it (kept: its top edge)
+    tilt = TILT_DEG > 0 and 0 < iE and jT < len(yg) - 2
+    def cut_tilt(o, li, merged):
+        if not tilt:
+            return merged
+        out = []
+        for a, b, sa, sb in merged:
+            if o == "v" and li < iE:                      # a column inside: keep only above the district
+                if a >= yg[jT] - 1:
+                    continue
+                if b > yg[jT]:
+                    b, sb = yg[jT], jT
+            elif o == "h" and li > jT:                    # a row inside: keep only right of the district
+                if b <= xg[iE] + 1:
+                    continue
+                if a < xg[iE]:
+                    a, sa = xg[iE], iE
+            out.append([a, b, sa, sb])
+        return out
+
     streets = []
     ends = {"v": [], "h": []}
     for o, lines, spans, pos, cpos, cspans, step in (("v", cols, csp, xg, yg, rsp, CH), ("h", rows, rsp, yg, xg, csp, CW)):
@@ -369,6 +397,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 else:
                     merged.append([ea, eb, sa, sb])
             merged = complete(o, at, merged, cpos)
+            merged = cut_tilt(o, li, merged)
             spans[li] = [[a, b] for a, b, _, _ in merged]
             ends[o].append(merged)
     # draw: each span, with a turn at an end that joins a crossing line which
@@ -637,6 +666,45 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 if (x0 == x1 and bx0 < x0 < bx1) or (y0 == y1 and by0 < y0 < by1):
                     return True
         return False
+
+    if tilt:
+        rx0, ry0, rx1, ry1 = xg[0], yg[jT], xg[iE], yg[-1]
+        cx0, cy0 = (rx0 + rx1) / 2, (ry0 + ry1) / 2
+        ca, sa_ = math.cos(math.radians(TILT_DEG)), math.sin(math.radians(TILT_DEG))
+        R_ = math.hypot(rx1 - rx0, ry1 - ry0) / 2 + max(CW, CH)
+        def clip(p, q):                                    # Liang–Barsky: the part of pq inside the district
+            t0, t1 = 0.0, 1.0
+            dx, dy = q[0] - p[0], q[1] - p[1]
+            for pp, qq in ((-dx, p[0] - rx0), (dx, rx1 - p[0]), (-dy, p[1] - ry0), (dy, ry1 - p[1])):
+                if abs(pp) < 1e-9:
+                    if qq < 0:
+                        return None
+                    continue
+                t = qq / pp
+                if pp < 0:
+                    t0 = max(t0, t)
+                else:
+                    t1 = min(t1, t)
+                if t0 > t1:
+                    return None
+            return ((p[0] + t0 * dx, p[1] + t0 * dy), (p[0] + t1 * dx, p[1] + t1 * dy))
+        def in_r(x, y):
+            return rx0 - 1 <= x <= rx1 + 1 and ry0 + 1 <= y <= ry1 + 1
+        # the avenues are the district's own lines now (they no longer cut across it)
+        streets[:] = [s_ for s_ in streets if not (s_.get("d") and s_.get("n") and len(s_["p"]) >= 4 and
+                      in_r(sum(s_["p"][0::2]) / len(s_["p"][0::2]), sum(s_["p"][1::2]) / len(s_["p"][1::2])))]
+        for fam, step in (("u", CH), ("v", CW)):
+            n = int(R_ // step) + 1
+            for k in range(-n, n + 1):
+                off = k * step
+                a, b = (-R_, off), (R_, off)
+                if fam == "v":
+                    a, b = (off, -R_), (off, R_)
+                P0 = (cx0 + a[0] * ca - a[1] * sa_, cy0 + a[0] * sa_ + a[1] * ca)
+                P1 = (cx0 + b[0] * ca - b[1] * sa_, cy0 + b[0] * sa_ + b[1] * ca)
+                seg = clip(P0, P1)
+                if seg and math.hypot(seg[1][0] - seg[0][0], seg[1][1] - seg[0][1]) > 30:
+                    streets.append({"n": "", "k": 1, "d": 1, "p": [round(seg[0][0], 1), round(seg[0][1], 1), round(seg[1][0], 1), round(seg[1][1], 1)]})
 
     # ── the drawing: every block a rounded tile (each street curves at every
     #    intersection); edges no block uses drawn on their own ──
