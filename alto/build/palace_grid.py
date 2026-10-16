@@ -476,7 +476,17 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
             dx, dy = b[0] - a[0], b[1] - a[1]
             la = (a[0] - math.copysign(LEAD, dx), a[1]) if abs(dx) >= abs(dy) else (a[0], a[1] - math.copysign(LEAD, dy))
             lb = (b[0] + math.copysign(LEAD, dx), b[1]) if abs(dx) >= abs(dy) else (b[0], b[1] + math.copysign(LEAD, dy))
-            streets.append({"n": n, "k": 0, "d": 1, "p": [round(v, 1) for q in (la, a, b, lb) for v in q]})
+            # R4: an avenue is drawn along the grid's axes and at 45 degrees only (an axis run, a diagonal, an axis run)
+            adx, ady = abs(dx), abs(dy)
+            sx_, sy_ = math.copysign(1, dx), math.copysign(1, dy)
+            if adx >= ady:
+                h_ = (adx - ady) / 2
+                mids = [(a[0] + sx_ * h_, a[1]), (a[0] + sx_ * (h_ + ady), a[1] + sy_ * ady)]
+            else:
+                h_ = (ady - adx) / 2
+                mids = [(a[0], a[1] + sy_ * h_), (a[0] + sx_ * adx, a[1] + sy_ * (h_ + adx))]
+            route = [la, a] + [q for q in mids if math.dist(q, a) > 1 and math.dist(q, b) > 1] + [b, lb]
+            streets.append({"n": n, "k": 0, "d": 1, "p": [round(v, 1) for q in route for v in q]})
         if n not in trolley_n:
             chord()
             continue
@@ -668,6 +678,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
         return False
 
     if tilt:
+        majors_n_ = {norm(x) for x in majors} | {norm(x) for x in diagonals}
         rx0, ry0, rx1, ry1 = xg[0], yg[jT], xg[iE], yg[-1]
         cx0, cy0 = (rx0 + rx1) / 2, (ry0 + ry1) / 2
         ca, sa_ = math.cos(math.radians(TILT_DEG)), math.sin(math.radians(TILT_DEG))
@@ -693,6 +704,39 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
         # the avenues are the district's own lines now (they no longer cut across it)
         streets[:] = [s_ for s_ in streets if not (s_.get("d") and s_.get("n") and len(s_["p"]) >= 4 and
                       in_r(sum(s_["p"][0::2]) / len(s_["p"][0::2]), sum(s_["p"][1::2]) / len(s_["p"][1::2])))]
+        # name the lattice lines after the real streets that run along them: each real through-street (an avenue, a
+        # numbered street, a main road) of the district votes for the lattice line nearest its middle, in its own family
+        base = math.degrees(th)
+        cand = {}
+        for st in m.get("streets", []):
+            nm = norm(st.get("n") or "")
+            if not nm or st.get("t") or (st.get("k", 9) > 3 and not numbered(nm) and nm not in majors_n_):
+                continue
+            acc = {"u": [0.0, 0.0, 0.0], "v": [0.0, 0.0, 0.0]}
+            P_ = _pairs(st["p"])
+            for (ax, ay), (bx, by) in zip(P_, P_[1:]):
+                mx_, my_ = (ax + bx) / 2, (ay + by) / 2
+                if not (tx0 <= mx_ <= tx1 and ty0 <= my_ <= ty1):
+                    continue
+                L_ = math.hypot(bx - ax, by - ay)
+                if L_ < 4:
+                    continue
+                ang = (math.degrees(math.atan2(by - ay, bx - ax)) - base) % 180
+                fam = "u" if abs(((ang - TILT_DEG + 90) % 180) - 90) < 22.5 else "v" if abs(((ang - TILT_DEG) % 180) - 90) < 22.5 else None
+                if fam:
+                    gx_, gy_ = mp(mx_, my_)
+                    acc[fam][0] += L_; acc[fam][1] += gx_ * L_; acc[fam][2] += gy_ * L_
+            for fam, (tot, sx_, sy_) in acc.items():
+                if tot < 500:
+                    continue
+                dx_, dy_ = sx_ / tot - cx0, sy_ / tot - cy0
+                nrm = (-sa_, ca) if fam == "u" else (ca, sa_)       # the normal of that family's lines
+                off = dx_ * nrm[0] + dy_ * nrm[1]
+                k_ = round(off / (CH if fam == "u" else CW))
+                key = (fam, k_)
+                rank = (0 if nm in majors_n_ else 1 if st.get("k", 9) <= 1 else 2, -tot)
+                if key not in cand or rank < cand[key][0]:
+                    cand[key] = (rank, nm)
         for fam, step in (("u", CH), ("v", CW)):
             n = int(R_ // step) + 1
             for k in range(-n, n + 1):
@@ -704,7 +748,8 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 P1 = (cx0 + b[0] * ca - b[1] * sa_, cy0 + b[0] * sa_ + b[1] * ca)
                 seg = clip(P0, P1)
                 if seg and math.hypot(seg[1][0] - seg[0][0], seg[1][1] - seg[0][1]) > 30:
-                    streets.append({"n": "", "k": 1, "d": 1, "p": [round(seg[0][0], 1), round(seg[0][1], 1), round(seg[1][0], 1), round(seg[1][1], 1)]})
+                    nm_ = (cand.get((fam, k)) or (None, ""))[1]
+                    streets.append({"n": nm_, "k": 0 if nm_ in majors_n_ else 1, "d": 1, "p": [round(seg[0][0], 1), round(seg[0][1], 1), round(seg[1][0], 1), round(seg[1][1], 1)]})
 
     # ── the drawing: every block a rounded tile (each street curves at every
     #    intersection); edges no block uses drawn on their own ──
