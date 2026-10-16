@@ -274,7 +274,7 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
     return out
 
 
-def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE):
+def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0.0):
     """Lanes, polylines and stops of the routed lines. edges: {line id: {(a, b)}} page points; keyf(a, b): the lattice
     line a piece runs along ((dom, "h"|"v", index) or the square grid's ("h", y) / ("v", x)), None for a diagonal or a
     seam (a line keeps its centre there); normal(key): the page unit vector its lanes shift along."""
@@ -319,6 +319,8 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE):
         """p lies on the straight run a -> c (the polyline needs only the run's ends)."""
         cr = (p[0] - a[0]) * (c[1] - p[1]) - (p[1] - a[1]) * (c[0] - p[0])
         dt = (p[0] - a[0]) * (c[0] - p[0]) + (p[1] - a[1]) * (c[1] - p[1])
+        if rel and dt > 0:                               # a turned lattice: its rounded nodes are collinear to within rel
+            return abs(cr) < 0.5 or abs(cr) < rel * math.hypot(p[0] - a[0], p[1] - a[1]) * math.hypot(c[0] - p[0], c[1] - p[1])
         return abs(cr) < 0.5 and dt > 0
 
     lines_out, geo = [], {}
@@ -428,6 +430,6 @@ def _snap_octi(tr, doms, streets, edges_, segs):
     def keyf(a, b):
         e = (a, b) if a < b else (b, a)
         return rkey[e] if e in rkey else cm.lane_key(a, b)
-    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE)   # one dot per pair of next lanes: on both tracks
+    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3)   # one dot per pair of next lanes: on both tracks
     out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
     return out

@@ -473,8 +473,9 @@ def picture(m, step=PIC_STEP, tol=STREET_TOL) -> dict:
     grade-separated line, on a straight run along its domain's axes or diagonals (a legal rail corridor through blocks).
     -> {"stops": [(name, x, y, px)], "runs": [(line id, px, x0, y0, x1, y1)], "track": px, "ok": bool}"""
     tr = m.get("transit") or {}
-    st = _Streets(drawn_segments(m))
     doms = _octi_angles(m)
+    seams = [(r[k][0], r[k][1], r[(k + 1) % len(r)][0], r[(k + 1) % len(r)][1]) for r, _ in doms if r for k in range(len(r))]
+    st = _Streets(drawn_segments(m) + seams)              # a seam is a drawn line (its avenue)
     lines = {ln["id"]: ln for ln in tr.get("lines", [])}
 
     def legal(x, y, ang):

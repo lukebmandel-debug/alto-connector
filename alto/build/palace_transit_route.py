@@ -543,7 +543,7 @@ DIRS = ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1))
 CORR = 2.0              # blocks: the lattice nodes this near the real track are the router's candidates
 SEAM_R = 1.25           # blocks: a node this near a seam may run straight to it (on an axis or diagonal of its domain)
 DEV_R = 70.0            # px: how far a grade-separated run may stray from the real track before the router dislikes it
-BEND = 160.0            # px: the cost of one bend (a stair-step of n blocks costs 2n bends; a diagonal run costs 2)
+BEND = 250.0            # px: the cost of one bend (a stair-step of n blocks costs 2n bends; a diagonal run costs 2)
 STOP_NODE = 1.0         # blocks: a station stands on a lattice node this near it, or is not drawn
 
 
