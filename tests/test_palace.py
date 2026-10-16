@@ -700,7 +700,7 @@ def test_set_up_palace_refuses_a_backwards_box(store):
 
 def test_set_up_palace_stores_the_city(store):
     tid = _draft()
-    r = srv.set_up_palace(tid, "Testville", bbox=BBOX, area="the middle")
+    r = srv.set_up_palace(tid, "Testville", bbox=BBOX, area="the middle", auto=False)
     assert r.get("ok") is True, r
     assert store == [("fetch", tuple(BBOX))]
     city = r["palace"]["city"]

@@ -44,7 +44,7 @@ from .sanitize import js_json
 from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
-               "buildings", "parks", "areas", "portals", "scale", "data_z", "made"}
+               "buildings", "parks", "areas", "portals", "scale", "data_z", "made", "transit", "preset"}
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -192,6 +192,8 @@ def check_palace(b, warnings: list) -> None:
     check_buildings(pal, len(b.acts))
     from .palace_areas import check_areas                  # (neighbourhood names drawn label-only)
     check_areas(pal.get("areas"))
+    from .city_presets import check_transit                # (the real networks: city presets / generic set-up)
+    check_transit(pal.get("transit"))
     for i, d in enumerate(pal.get("districts") or []):
         if not isinstance(d, dict) or not isinstance(d.get("unit"), int):
             raise BriefError(f"palace.districts[{i}]: needs unit (the section's index)")
@@ -358,19 +360,37 @@ def check_portals(portals) -> list:
 
 
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
-           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None) -> dict:
+           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
+           raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
+           far_bank: bool = False) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
-    neighbourhood names drawn label-only, [{name, lat, lon, rank 1-4}] (palace_areas; omitted: Philadelphia's own)."""
+    neighbourhood names drawn label-only, [{name, lat, lon, rank 1-4}] (palace_areas; omitted: Philadelphia's own).
+    raw: the Overpass answer already fetched (nothing is fetched). tiled: fetch with city_setup.fetch_city (every
+    cached tile reused, the missing ones fetched one at a time, landmarks by name on their own); offline: never
+    touch the network. transit: the real networks to draw (city_presets' `transit` field), kept with the city for
+    the transit reader. preset: the city preset's id (or "auto" for the generic set-up), kept for the record.
+    far_bank: keep the land across a wide river (Brooklyn and Queens facing Manhattan, Cambridge across the
+    Charles) instead of cutting it away as the city's edge (palace_map's wide-river rule)."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
     from .palace_areas import check_areas, default_areas
     areas = default_areas(place, bbox) if areas is None else areas
     check_areas(areas)
-    raw = pm.fetch_osm(tuple(bbox), cache_dir=cache_dir, landmarks=landmarks or None)
-    m = pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None,
-                     landmarks=landmarks or None)
+    if raw is None and (tiled or offline):
+        from .city_setup import fetch_city
+        raw = fetch_city(tuple(bbox), cache_dir=cache_dir, names=landmarks or None, offline=offline)
+    elif raw is None:
+        raw = pm.fetch_osm(tuple(bbox), cache_dir=cache_dir, landmarks=landmarks or None)
+    share = pm.FAR_BANK_SHARE
+    if far_bank:
+        pm.FAR_BANK_SHARE = -1.0                      # palace_map keeps a far bank holding more than this share
+    try:
+        m = pm.build_map(raw, tuple(bbox), place=place, scale=scale, majors=majors or None,
+                         landmarks=landmarks or None)
+    finally:
+        pm.FAR_BANK_SHARE = share
     # a landmark found both as an outline and as a point (a station node beside
     # its building) is named once, by its outline
     lms = m.get("landmarks", [])
@@ -387,6 +407,7 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     return {"place": place, "bbox": list(bbox), "districts": districts or [],
             "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
             "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
+            **({"transit": transit} if transit else {}), **({"preset": preset} if preset else {}),
             "data_z": pack({"map": m, "blocks": blocks})}
 
 
