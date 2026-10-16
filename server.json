@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lukebmandel-debug/alto-connector",
   "description": "Build an interactive timeline from your own materials \u2014 never from invented content.",
-  "version": "1.9.78",
+  "version": "1.9.79",
   "repository": {
     "url": "https://github.com/lukebmandel-debug/alto-connector",
     "source": "github"
@@ -11,8 +11,8 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.78/Alto-macos-arm64.mcpb",
-      "version": "1.9.78",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.79/Alto-macos-arm64.mcpb",
+      "version": "1.9.79",
       "fileSha256": "9f0b09aaa76005657257c511ddd45e87917d9d7d53ed6c673caee01393c41077",
       "transport": {
         "type": "stdio"
@@ -20,8 +20,8 @@
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.78/Alto-macos-x64.mcpb",
-      "version": "1.9.78",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.79/Alto-macos-x64.mcpb",
+      "version": "1.9.79",
       "fileSha256": "09387cfb4e9629e765c3afb80e83e097f95f75551b7e2266674774b7a754a12f",
       "transport": {
         "type": "stdio"
@@ -29,8 +29,8 @@
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.78/Alto-windows-x64.mcpb",
-      "version": "1.9.78",
+      "identifier": "https://github.com/lukebmandel-debug/alto-connector/releases/download/v1.9.79/Alto-windows-x64.mcpb",
+      "version": "1.9.79",
       "fileSha256": "65e47f7988234b7af7f0dbb12ff5d461542c285607f0324254c0576feb56914e",
       "transport": {
         "type": "stdio"

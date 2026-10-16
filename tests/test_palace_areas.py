@@ -237,3 +237,41 @@ def test_the_phone_map_draws_the_names_too(browser, url):
     fs = pg.evaluate("parseFloat(getComputedStyle(document.querySelector('#palace-svg-m .pl-area')).fontSize) * parseFloat(document.querySelector('#palace-svg-m').style.getPropertyValue('--pz'))")
     assert fs >= 10, fs                                                                        # readable on the phone (px on the screen at the map's zoom)
     ctx.close()
+
+
+LBL = """()=>{ const s=document.getElementById('palace-svg'), all=[...s.querySelectorAll('text')];
+  const shown=t=>t.style.display!=='none' && getComputedStyle(t).display!=='none' && t.getBoundingClientRect().width>0;
+  const flat=[...s.querySelectorAll('.pl-area,.pl-dist,.pl-pkt')].filter(shown).map(t=>{const r=t.getBoundingClientRect(); return {n:t.textContent,d:t.classList.contains('pl-dist'),l:r.left,t:r.top,r:r.right,b:r.bottom};});
+  return {texts:all.length, laid:all.filter(t=>getComputedStyle(t).display!=='none').length, flat,
+          managed:(s._li||[]).length, hidden:(s._li||[]).filter(i=>!i.keep).length, ms:(window._palT||{}).lbl}; }"""
+
+
+def test_names_are_decluttered_and_only_names_near_the_window_are_laid_out(browser, url):
+    """The label pass (lblFit): names in priority order, a colliding lower one hidden, none of the flat names overlapping;
+    and names far from the window are not laid out (display:none) until a pan brings them near."""
+    ctx = browser.new_context(viewport={"width": 1300, "height": 850})
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(url)
+    pg.wait_for_timeout(1800)
+    for _ in range(2):
+        pg.click("#pal-ctl [data-z=in]")
+        pg.wait_for_timeout(700)
+    pg.wait_for_timeout(500)
+    near = pg.evaluate(LBL)
+    assert near["managed"] > 0 and near["laid"] < near["texts"], near
+    for i, a in enumerate(near["flat"]):
+        for b in near["flat"][i + 1:]:
+            if a["d"] and b["d"]:
+                continue                                                               # two units' own names are never hidden
+            assert a["r"] <= b["l"] or b["r"] <= a["l"] or a["b"] <= b["t"] or b["b"] <= a["t"], (a["n"], b["n"])
+    far = _whole_city(pg) and pg.evaluate(LBL)
+    for i, a in enumerate(far["flat"]):
+        for b in far["flat"][i + 1:]:
+            if a["d"] and b["d"]:
+                continue
+            assert a["r"] <= b["l"] or b["r"] <= a["l"] or a["b"] <= b["t"] or b["b"] <= a["t"], (a["n"], b["n"])
+    assert far["hidden"] >= 1, far                                                     # the whole city has names to hide
+    assert not errs, errs
+    ctx.close()
