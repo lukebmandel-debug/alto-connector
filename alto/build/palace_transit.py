@@ -38,6 +38,7 @@ V2 = {"stop_r": 85.0 / 205, "dev_avg": 0.5, "max_dev": 0.9, "ramp": 500.0 / 205,
       "named": 1.0,     # a stop "A & B" stands where the drawn streets A and B cross, if they cross this near it
       "along": 0.75,    # else on the drawn street A (or B) it names, if that runs this near it (and the real track too)
       "far": 1.5}       # the street a line's stops share (it runs along it): the stop stands on it this far off at most
+CORNER = 16.0           # px (engine v2): the page rounds a line's turns with a 14 px radius; a dot stays this far from a turn
 MAX_STOP_GAP = 130.0    # a stop farther than this from its line (about half a block) is not drawn: its track was trimmed or never fetched
 
 
@@ -282,11 +283,14 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
     return out
 
 
-def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0.0, anchor=None, gap=MAX_STOP_GAP):
+def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0.0, anchor=None, gap=MAX_STOP_GAP,
+            corner=0.0):
     """Lanes, polylines and stops of the routed lines. edges: {line id: {(a, b)}} page points; keyf(a, b): the lattice
     line a piece runs along ((dom, "h"|"v", index) or the square grid's ("h", y) / ("v", x)), None for a diagonal or a
     seam (a line keeps its centre there); normal(key): the page unit vector its lanes shift along. anchor: {(stop index,
-    line id): page node} the router stood the stop on (its dot goes on the track there, in ride order); gap: px."""
+    line id): page node} the router stood the stop on (its dot goes on the track there, in ride order); gap: px;
+    corner (px, 0 = off): the radius the page rounds a line's turns with (palace_transit_js E.rp): a dot that would
+    stand within it of a turn slides along its run to just outside it, so it is on the rounded line the page draws."""
     # lanes: lines sharing a grid line (a street) run side by side
     use = {}                                             # lattice line -> {line id: edges}
     for lid, es in edges.items():
@@ -357,7 +361,7 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
             lines_out[-1]["u"] = [[v for pt in e for v in pt] for e in sorted(tunnels[ln["id"]])]
 
     def onto(polys, x, y):
-        best, bd = None, 1e18
+        best, bd, at_ = None, 1e18, None
         for f in polys:
             for k in range(0, len(f) - 3, 2):
                 ax, ay, bx, by = f[k], f[k + 1], f[k + 2], f[k + 3]
@@ -367,8 +371,31 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
                 px, py = ax + t * dx, ay + t * dy
                 d = math.hypot(px - x, py - y)
                 if d < bd:
-                    best, bd = (px, py), d
+                    best, bd, at_ = (px, py), d, (f, k)
+        if corner and best is not None:
+            best = off_corner(best, *at_)
         return best, bd
+
+    def turn_at(f, k):
+        """True when the polyline f turns at its vertex k (flat index)."""
+        if k < 2 or k > len(f) - 4:
+            return False
+        a = math.atan2(f[k + 1] - f[k - 1], f[k] - f[k - 2])
+        b = math.atan2(f[k + 3] - f[k + 1], f[k + 2] - f[k])
+        return abs((math.degrees(b - a) + 180.0) % 360.0 - 180.0) > 20.0
+
+    def off_corner(p, f, k):
+        ax, ay, bx, by = f[k], f[k + 1], f[k + 2], f[k + 3]
+        L = math.hypot(bx - ax, by - ay)
+        if L < 1e-6:
+            return p
+        t = math.hypot(p[0] - ax, p[1] - ay) / L
+        lo = corner / L if turn_at(f, k) else 0.0
+        hi = 1.0 - corner / L if turn_at(f, k + 2) else 1.0
+        if lo > hi:                                      # a run shorter than two corners: its middle
+            lo = hi = 0.5
+        t2 = min(max(t, lo), hi)
+        return p if t2 == t else (ax + t2 * (bx - ax), ay + t2 * (by - ay))
 
     # a stop stands ON its line: at the nearest point of every line that calls there. Lines that
     # share the street (their lanes a few px apart) share one dot, between the lanes; lines that
@@ -615,6 +642,6 @@ def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
         e = (a, b) if a < b else (b, a)
         return rkey[e] if e in rkey else cm.lane_key(a, b)
     out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3,   # one dot per pair of next lanes
-                  anchor=anchor, gap=V2["gap"] * blk)
+                  anchor=anchor, gap=V2["gap"] * blk, corner=CORNER)
     out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
     return out
