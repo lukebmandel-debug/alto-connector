@@ -40,12 +40,17 @@ SNAP_DEG = 25
 FILL_LON = -75.19          # the fill region: west of this longitude
 FILL_MIN = 700.0           # px of street (about half a kilometre) before a residential street counts
 _DIR = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(?=\S+\s)", re.I)
+# the rest is the name only when it is not a street-type word: "N Street Northwest" (DC) and "West End Avenue"
+# (Manhattan) keep their first word
+_DIR_KEEP = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(Street|St|Avenue|Ave|Road|Rd|Place|Pl|Drive|Dr|"
+                       r"Boulevard|Blvd|Lane|Ln|Way|Court|Ct|Terrace|End|Side|Park|Circle)\b", re.I)
 _NUM = re.compile(r"^(\d+)(st|nd|rd|th)\b", re.I)
 
 
 def norm(name: str) -> str:
     """One name for one street: "South 15th Street" and "North 15th Street" are 15th Street."""
-    return _DIR.sub("", str(name or "").strip())
+    n = str(name or "").strip()
+    return n if _DIR_KEEP.match(n) else _DIR.sub("", n)
 
 
 def numbered(name: str) -> bool:
@@ -108,8 +113,8 @@ def _inside(pt, rings):
 def grid_angle(m) -> float:
     sx = sy = 0.0
     for s in m.get("streets", []):
-        if s.get("t") or s.get("k", 9) > 3:
-            continue
+        if s.get("t") or s.get("k", 9) > 3 or s.get("k", 9) == 0:
+            continue                                   # motorways (k 0) follow no grid: they skew the angle
         p = s["p"]
         for i in range(0, len(p) - 2, 2):
             L = math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1])

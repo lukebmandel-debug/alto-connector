@@ -34,6 +34,7 @@ cells (set of (cx, cy)), share (of the city's domain area), coherence, label.
 """
 from __future__ import annotations
 
+from . import palace_landmarks as _palace_landmarks  # noqa: F401,E402 (palace_towers <-> palace_landmarks: this order works)
 import collections
 import math
 from dataclasses import dataclass, field as _dc_field
