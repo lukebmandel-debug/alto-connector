@@ -698,10 +698,13 @@ def c_avenues(g, m, M):
 def c_transit(g, m, M):
     if not (g.get("transit") or {}).get("lines"):
         return "ok", "no transit", {}
-    from .palace_transit_audit import audit
+    from .palace_transit_audit import audit, measure
     a = audit(g)
     probs = a.get("problems") or []
-    return ("fail" if probs else "ok"), "%d transit problems" % len(probs), {"problems": probs[:12]}
+    st = measure(g, real=m.get("transit"), to_page=M["to_page"])      # turns per line, max stray from the real track
+    num = ", ".join("%s %d turns%s" % (lid, r["turns"], " stray %.1f" % r["stray"] if "stray" in r else "")
+                    for lid, r in st.items())
+    return ("fail" if probs else "ok"), "%d transit problems (%s)" % (len(probs), num), {"problems": probs[:12], "lines": st}
 
 
 def c_cut(g, m, M, blocks):

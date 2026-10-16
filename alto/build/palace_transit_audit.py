@@ -106,7 +106,7 @@ def _cross(a, b, c, d):
     return o(a, b, c) * o(a, b, d) < 0 and o(c, d, a) * o(c, d, b) < 0
 
 
-def _river_crossings(polys, rivers):
+def _river_crossings(polys, rivers, merge=150.0):
     """{river name: number of places the line's track crosses the river's centre line}."""
     out = {}
     for rv in rivers:
@@ -120,7 +120,7 @@ def _river_crossings(polys, rivers):
                         hits.append(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))
         merged = []
         for h in hits:
-            if not any(math.hypot(h[0] - g[0], h[1] - g[1]) < 150 for g in merged):
+            if not any(math.hypot(h[0] - g[0], h[1] - g[1]) < merge for g in merged):
                 merged.append(h)
         key = rv["n"].replace(" River", "")
         out[key] = out.get(key, 0) + len(merged)
@@ -236,6 +236,110 @@ def _philly(m):
     return not pl or "philadelphia" in str(pl).lower()
 
 
+def _blk(m):
+    """px of one block of this page: the root domain's (column step + row step) / 2 (bundle `doms` cwch), else the square
+    grid's (CW_ + CH_) / 2 = BLOCK. Every distance the audit judges by is scaled by it (any block shape)."""
+    ds = m.get("doms") or []
+    root = next((d for d in ds if not d.get("clip")), ds[0] if ds else None)
+    cw, ch = ((root or {}).get("cwch") or (CW_, CH_))[:2]
+    return (float(cw) + float(ch)) / 2.0
+
+
+def _dp(pts, tol):
+    """Douglas-Peucker: the polyline's shape with wiggles under tol px (lane jogs) taken out."""
+    if len(pts) < 3:
+        return list(pts)
+    keep, stack = {0, len(pts) - 1}, [(0, len(pts) - 1)]
+    while stack:
+        i, j = stack.pop()
+        (ax, ay), (bx, by) = pts[i], pts[j]
+        L = math.hypot(bx - ax, by - ay)
+        best, bk = -1.0, None
+        for k in range(i + 1, j):
+            px, py = pts[k]
+            d = abs((px - ax) * (by - ay) - (py - ay) * (bx - ax)) / L if L > 1e-9 else math.hypot(px - ax, py - ay)
+            if d > best:
+                best, bk = d, k
+        if bk is not None and best > tol:
+            keep.add(bk)
+            stack += [(i, bk), (bk, j)]
+    return [pts[k] for k in sorted(keep)]
+
+
+TURN_TOL, TURN_DEG = 8.0, 10.0   # px, degrees: a turn is a change of direction of more than TURN_DEG once lane jogs (< TURN_TOL) are out
+
+
+def turns(f):
+    """How many times a drawn polyline (flat) turns, lane jogs left out."""
+    q = _dp([(f[k], f[k + 1]) for k in range(0, len(f) - 1, 2)], TURN_TOL)
+    n = 0
+    for a, b, c in zip(q, q[1:], q[2:]):
+        t = math.degrees(math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(b[1] - a[1], b[0] - a[0]))
+        if abs((t + 180.0) % 360.0 - 180.0) > TURN_DEG:
+            n += 1
+    return n
+
+
+class _PtIndex:
+    """Points in buckets: the distance from any point to the nearest of them, up to a cap."""
+
+    def __init__(self, pts, cell):
+        self.c, self.b = max(20.0, cell), {}
+        for x, y in pts:
+            self.b.setdefault((int(x // self.c), int(y // self.c)), []).append((x, y))
+
+    def d(self, x, y, cap):
+        c = self.c
+        cx, cy = int(x // c), int(y // c)
+        best, r = cap, 0
+        while (r - 1) * c <= best and r <= 64:
+            for i in range(-r, r + 1):
+                for j in (range(-r, r + 1) if abs(i) == r else (-r, r)):
+                    for px, py in self.b.get((cx + i, cy + j), ()):
+                        best = min(best, math.hypot(px - x, py - y))
+            r += 1
+        return best
+
+
+def measure(m, real=None, to_page=None, step=20.0) -> dict:
+    """The numbers of each drawn line: {line id: {turns, length (px), blocks (length in blocks), stops: [on its track,
+    listed], stray: max blocks the drawn track strays from the real track, stray90: its 90th percentile}} (the strays
+    only when the real transit and real px -> page px are given)."""
+    tr = m.get("transit") or {}
+    stops = tr.get("stops", [])
+    blk = _blk(m)
+    raw = {ln["id"]: ln for ln in (real or {}).get("lines", [])}
+    out = {}
+    for ln in tr.get("lines", []):
+        polys = ln.get("p") or []
+        L = sum(_length(f) for f in polys)
+        on = sum(1 for si in ln.get("s", []) if polys and _near(polys, stops[si]["x"], stops[si]["y"])[0] <= TOL)
+        rec = {"turns": sum(turns(f) for f in polys), "length": round(L), "blocks": round(L / blk, 1),
+               "stops": [on, len(ln.get("s", []))]}
+        rl = raw.get(ln["id"])
+        if rl is not None and to_page is not None and polys:
+            rp = []
+            for w in rl.get("w", []):
+                pts = [to_page(w[k], w[k + 1]) for k in range(0, len(w) - 1, 2)]
+                pts = [p for p in pts if p is not None]
+                for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+                    n = max(1, int(math.hypot(bx - ax, by - ay) // step))
+                    rp += [(ax + (bx - ax) * i / n, ay + (by - ay) * i / n) for i in range(n + 1)]
+            if rp:
+                idx = _PtIndex(rp, blk / 2)
+                ds = []
+                for f in polys:
+                    for k in range(0, len(f) - 3, 2):
+                        ax, ay, bx, by = f[k:k + 4]
+                        n = max(1, int(math.hypot(bx - ax, by - ay) // step))
+                        ds += [idx.d(ax + (bx - ax) * i / n, ay + (by - ay) * i / n, 6 * blk) for i in range(n + 1)]
+                ds.sort()
+                rec["stray"] = round(ds[-1] / blk, 2)
+                rec["stray90"] = round(ds[int(0.9 * (len(ds) - 1))] / blk, 2)
+        out[ln["id"]] = rec
+    return out
+
+
 def audit(m, table=None, real=None, to_page=None) -> dict:
     """table: one city's extra checks (PHILADELPHIA, or {}); None picks PHILADELPHIA for a Philadelphia bundle (or one
     that names no place). real: palace_map's raw transit ({lines: [{id, w, s, b}], stops}) for the checks against the
@@ -247,6 +351,8 @@ def audit(m, table=None, real=None, to_page=None) -> dict:
     stops = tr.get("stops", [])
     rivers = m.get("river") or []
     problems, lines = [], {}
+    blk = _blk(m)
+    sc = blk / BLOCK                                 # the px thresholds below are for a 205 px block: scaled to this page's
     cover = street_cover(m)
     pic = picture(m)
     raw = {ln["id"]: ln for ln in (real or {}).get("lines", [])}
@@ -315,14 +421,14 @@ def audit(m, table=None, real=None, to_page=None) -> dict:
                 continue
             for at in free:
                 gap = min(abs(at - a) for a in arcs)
-                if gap > STUB_BLOCKS * BLOCK:
+                if gap > STUB_BLOCKS * blk:
                     iss.append("%d px of track past the last stop at an end near (%d, %d)"
                                % (gap, f[0] if at == 0.0 else f[-2], f[1] if at == 0.0 else f[-1]))
             for a0, a1 in zip(arcs, arcs[1:]):
-                if a1 - a0 > GAP_PX.get(lid, GAP_PX["default"]):
+                if a1 - a0 > GAP_PX.get(lid, GAP_PX["default"]) * sc:
                     iss.append("%d px of track between two stops with none on it" % (a1 - a0))
         # consecutive stops of a branch: close enough, and on one connected piece of the track
-        mx = GAP_PX.get(lid, GAP_PX["default"])
+        mx = GAP_PX.get(lid, GAP_PX["default"]) * sc
         piece_of = {}
         for q, pc in enumerate(pieces):
             for pi in pc:
@@ -348,10 +454,10 @@ def audit(m, table=None, real=None, to_page=None) -> dict:
             rep["no_street_px"] = sum(r[0] for r in cov.get("runs", []))
             rep["no_street_stops"] = len(cov.get("stops", []))
         # rivers
-        for rv, cnt in _river_crossings(polys, rivers).items():
+        for rv, cnt in _river_crossings(polys, rivers, 150.0 * sc).items():
             ok = RIVER_OK_.get(lid, {}).get(rv, 0)
             if rl is not None and to_page is not None:      # the real track's own crossings (a bridge or a tunnel)
-                ok = max(ok, _real_crossings(rl, to_page, rivers).get(rv, 0))
+                ok = max(ok, _real_crossings(rl, to_page, rivers, 150.0 * sc).get(rv, 0))
             if cnt > ok:
                 iss.append("crosses the %s %d time(s) (a tunnel or bridge allows %d)" % (rv, cnt, ok))
         # the real route
@@ -392,7 +498,11 @@ def audit(m, table=None, real=None, to_page=None) -> dict:
             ln = lines.get(lid)
             if ln is None:
                 problems.append("stop %r lists the unknown line %r" % (s["n"], lid))
-    return {"lines": lines, "problems": problems}
+    stats = measure(m, real, to_page)
+    for lid, rec in stats.items():                   # the numbers of each line: turns, length, stray from the real track
+        if lid in lines:
+            lines[lid].update({k: v for k, v in rec.items() if k != "stops"})
+    return {"lines": lines, "problems": problems, "stats": stats}
 
 
 # ── city-generic checks ────────────────────────────────────────────────────────────────────────────────────────────
@@ -436,12 +546,12 @@ def _vs_real(ln, stops, rl, rstops):
     return out
 
 
-def _real_crossings(rl, to_page, rivers):
+def _real_crossings(rl, to_page, rivers, merge=150.0):
     polys = []
     for w in rl.get("w", []):
         pts = [to_page(w[k], w[k + 1]) for k in range(0, len(w) - 1, 2)]
-        polys.append([v for p in pts for v in p])
-    return _river_crossings(polys, rivers)
+        polys.append([v for p in pts if p is not None for v in p])
+    return _river_crossings(polys, rivers, merge)
 
 
 def _octi_angles(m):

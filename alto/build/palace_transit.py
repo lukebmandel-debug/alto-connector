@@ -31,6 +31,13 @@ MAX_DEV = 150.0         # px: a routed stretch whose mean distance from the real
 LANE = 7.0              # px between two lines that share a street
 RAMP = 500.0            # px (engine v2 only): an underground station off every street reaches its first street by a tunnel ramp this long at most
 TRAM_BEND = 70.0        # px (engine v2 only): what one turn costs a trolley (no stair-step under a diagonal real track)
+# engine v2 (several domains): the same sizes in BLOCKS of the page (the root lattice's (column step + row step) / 2), so
+# they hold on any block shape; 1 block = 205 px on the 240 x 170 page
+V2 = {"stop_r": 85.0 / 205, "dev_avg": 0.5, "max_dev": 0.9, "ramp": 500.0 / 205, "bend": 0.9,
+      "split": 0.15, "gap": 130.0 / 205, "slack": 450.0 / 205,
+      "named": 1.0,     # a stop "A & B" stands where the drawn streets A and B cross, if they cross this near it
+      "along": 0.75,    # else on the drawn street A (or B) it names, if that runs this near it (and the real track too)
+      "far": 1.5}       # the street a line's stops share (it runs along it): the stop stands on it this far off at most
 MAX_STOP_GAP = 130.0    # a stop farther than this from its line (about half a block) is not drawn: its track was trimmed or never fetched
 
 
@@ -199,15 +206,16 @@ def _prune(es, stopn):
     return {(a, b) for a in adj for b in adj[a] if a < b}
 
 
-def snap(tr, mp, xg, yg, W, H, streets=(), edges_=(), doms=None, segs=None, octi=None):
+def snap(tr, mp, xg, yg, W, H, streets=(), edges_=(), doms=None, segs=None, octi=None, rivers=()):
     """octi: None = octilinear per domain when there are several domains (else the square path); True forces the
-    per-domain path even for one domain (a single-domain city whose rail should not stair-step either)."""
+    per-domain path even for one domain (a single-domain city whose rail should not stair-step either). rivers (engine v2):
+    the page's river centre lines [{p: flat}], so a grade-separated line crosses one only where its real track does."""
     if not tr or not tr.get("lines"):
         return {"lines": [], "stops": [], "ge": []}
     if octi is None:
         octi = bool(doms) and len(doms) > 1
     if octi:
-        return _snap_octi(tr, doms, streets, edges_, segs)
+        return _snap_octi(tr, doms, streets, edges_, segs, rivers)
     if mp is None and doms:                              # one domain: the root (page == its local frame)
         d, lat = doms[0]
         mp, xg, yg = d.mapping, list(lat.xg), list(lat.yg)
@@ -274,10 +282,11 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
     return out
 
 
-def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0.0):
+def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0.0, anchor=None, gap=MAX_STOP_GAP):
     """Lanes, polylines and stops of the routed lines. edges: {line id: {(a, b)}} page points; keyf(a, b): the lattice
     line a piece runs along ((dom, "h"|"v", index) or the square grid's ("h", y) / ("v", x)), None for a diagonal or a
-    seam (a line keeps its centre there); normal(key): the page unit vector its lanes shift along."""
+    seam (a line keeps its centre there); normal(key): the page unit vector its lanes shift along. anchor: {(stop index,
+    line id): page node} the router stood the stop on (its dot goes on the track there, in ride order); gap: px."""
     # lanes: lines sharing a grid line (a street) run side by side
     use = {}                                             # lattice line -> {line id: edges}
     for lid, es in edges.items():
@@ -374,8 +383,9 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
         for lid in s["l"]:
             if si not in calls.get(lid, ()) or (si, lid) in dropped:     # a stop is a line's only if the line lists it back (and a street carries it)
                 continue
-            p, d = onto(geo.get(lid, []), gx, gy)
-            if p and d <= MAX_STOP_GAP:
+            ax, ay = anchor.get((si, lid), (gx, gy)) if anchor else (gx, gy)
+            p, d = onto(geo.get(lid, []), ax, ay)
+            if p and d <= gap:
                 found.append((lid, p))
         groups = []
         for lid, p in found:
@@ -398,38 +408,213 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
     return {"lines": lines_out, "stops": stops_out}
 
 
-def _snap_octi(tr, doms, streets, edges_, segs):
+def _norm_name(n):
+    n = " " + n.lower().replace(".", "").replace("-", " ") + " "
+    for a, b in ((" street ", " st "), (" avenue ", " ave "), (" boulevard ", " blvd "), (" road ", " rd "),
+                 (" drive ", " dr "), (" north ", " n "), (" south ", " s "), (" east ", " e "), (" west ", " w ")):
+        n = n.replace(a, b)
+    return " ".join(n.split())
+
+
+def _named(streets):
+    """{normalised name: [[(x, y), ...] page polylines]} of the drawn named streets."""
+    out = {}
+    for st in streets:
+        if st.get("n") and len(st.get("p", ())) >= 4:
+            p = st["p"]
+            out.setdefault(_norm_name(st["n"]), []).append([(p[k], p[k + 1]) for k in range(0, len(p) - 1, 2)])
+    return out
+
+
+def _seg_d(x, y, a0, a1):
+    dx, dy = a1[0] - a0[0], a1[1] - a0[1]
+    L2 = dx * dx + dy * dy or 1e-9
+    t = max(0.0, min(1.0, ((x - a0[0]) * dx + (y - a0[1]) * dy) / L2))
+    return math.hypot(a0[0] + t * dx - x, a0[1] + t * dy - y)
+
+
+def _poly_d(poly, x, y):
+    return min((_seg_d(x, y, a, b) for a, b in zip(poly, poly[1:])), default=1e18)
+
+
+def _stop_points(named, tr, ln, stops, r_cross, r_along, r_far):
+    """Where each stop "A & B" of a trolley line stands on its drawn streets -> ({stop index: (page point, along)},
+    [the drawn polylines the line runs along]). The street a run of stops shares (A of "A & 49th", "A & 50th" ...) is the
+    street the line runs along: the stop stands where the drawn A crosses the drawn B (within r_cross), else on the drawn
+    A (within r_far: the line rides its own street even where the domain mapping drew it a block off), never on B alone.
+    Where A is drawn more than once near the line (a seam and a lattice line one block apart), every stop takes the copy
+    most of the branch's stops lie along, so the line does not hop between the two. A stop with no shared street takes
+    the crossing of its two streets, else the nearer of them within r_along (along = False: the caller checks it is on
+    the real track)."""
+    out, polys = {}, {}
+    for br in ln.get("b") or [ln["s"]]:
+        names = [[_norm_name(p) for p in tr["stops"][si]["n"].split(" & ")] for si in br]
+        along = []
+        for k, nm in enumerate(names):
+            nb = [set(names[k2]) for k2 in (k - 1, k + 1) if 0 <= k2 < len(names)]
+            sh = [n for n in nm if any(n in o for o in nb)]
+            along.append(sh[0] if len(nm) == 2 and sh else None)
+        pop = {}                                         # (name, polyline index) -> stops of this branch along it
+        for si, a in zip(br, along):
+            for pi, poly in enumerate(named.get(a, ()) if a else ()):
+                if _poly_d(poly, *stops[si]) <= r_far:
+                    pop[(a, pi)] = pop.get((a, pi), 0) + 1
+        for si, a, nm in zip(br, along, names):
+            if si in out or len(nm) != 2:
+                continue
+            if a:
+                A = named.get(a, ())
+                near = [(pop.get((a, pi), 0), -_poly_d(poly, *stops[si]), pi) for pi, poly in enumerate(A)
+                        if _poly_d(poly, *stops[si]) <= r_far]
+                if not near:
+                    continue
+                pi = max(near)[2]
+                other = nm[1] if nm[0] == a else nm[0]
+                q = _at_named({"a": [A[pi]], "b": named.get(other, ())}, "a & b", *stops[si], r_cross, r_far, only_a=True)
+                if q is not None:
+                    out[si] = (q, True)
+                    polys[(a, pi)] = A[pi]
+            else:
+                q = _at_named(named, tr["stops"][si]["n"], *stops[si], r_cross, r_along)
+                if q is not None:
+                    out[si] = (q, False)
+    return out, list(polys.values())
+
+
+def _at_named(named, name, x, y, r_cross, r_along, only_a=False):
+    """Where a stop called "A & B" stands on the drawn streets: the crossing of A and B nearest (x, y) within r_cross,
+    else the nearest point of A (or B; only_a: A only) within r_along; None when its streets are not drawn near it."""
+    parts = [_norm_name(p) for p in name.split(" & ")]
+    if len(parts) != 2:
+        return None
+    A, B = named.get(parts[0], ()), named.get(parts[1], ())
+    best, bd = None, r_cross
+    for pa in A:
+        for a0, a1 in zip(pa, pa[1:]):
+            if min(math.hypot(a0[0] - x, a0[1] - y), math.hypot(a1[0] - x, a1[1] - y)) > r_cross + math.hypot(a1[0] - a0[0], a1[1] - a0[1]):
+                continue
+            for pb in B:
+                for b0, b1 in zip(pb, pb[1:]):
+                    rx, ry, sx, sy = a1[0] - a0[0], a1[1] - a0[1], b1[0] - b0[0], b1[1] - b0[1]
+                    den = rx * sy - ry * sx
+                    if abs(den) < 1e-9:
+                        continue
+                    t = ((b0[0] - a0[0]) * sy - (b0[1] - a0[1]) * sx) / den
+                    u = ((b0[0] - a0[0]) * ry - (b0[1] - a0[1]) * rx) / den
+                    if -1e-6 <= t <= 1 + 1e-6 and -1e-6 <= u <= 1 + 1e-6:
+                        px, py = a0[0] + t * rx, a0[1] + t * ry
+                        d = math.hypot(px - x, py - y)
+                        if d < bd:
+                            best, bd = (px, py), d
+    if best is not None:
+        return best
+    bd = r_along
+    for poly in list(A) + ([] if only_a else list(B)):
+        for a0, a1 in zip(poly, poly[1:]):
+            dx, dy = a1[0] - a0[0], a1[1] - a0[1]
+            L2 = dx * dx + dy * dy or 1e-9
+            t = max(0.0, min(1.0, ((x - a0[0]) * dx + (y - a0[1]) * dy) / L2))
+            px, py = a0[0] + t * dx, a0[1] + t * dy
+            d = math.hypot(px - x, py - y)
+            if d < bd:
+                best, bd = (px, py), d
+    return best
+
+
+def _on_polys(polys, tol=1.5):
+    """u, v -> True when the street piece u-v lies on one of the page polylines (the streets a trolley's stops name)."""
+    segs = [(a, b) for p in polys for a, b in zip(p, p[1:])]
+    if not segs:
+        return None
+    cell = 400.0
+    idx = {}
+    for k, (a, b) in enumerate(segs):
+        for c in _cells(a, b, cell):
+            idx.setdefault(c, []).append(k)
+
+    def on(u, v):
+        cx, cy = int((u[0] + v[0]) / 2 // cell), int((u[1] + v[1]) / 2 // cell)
+        for k in idx.get((cx, cy), ()):
+            a, b = segs[k]
+            if _seg_d(u[0], u[1], a, b) <= tol and _seg_d(v[0], v[1], a, b) <= tol:
+                return True
+        return False
+    return on
+
+
+def _cells(a, b, cell):
+    n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) // (cell / 2)) + 1)
+    return {(int((a[0] + (b[0] - a[0]) * k / n) // cell), int((a[1] + (b[1] - a[1]) * k / n) // cell)) for k in range(n + 1)}
+
+
+def _track_dir(real, x, y):
+    """The unit direction of the real track (page samples) where it passes nearest (x, y), or None."""
+    if len(real) < 3:
+        return None
+    k = min(range(len(real)), key=lambda i: (real[i][0] - x) ** 2 + (real[i][1] - y) ** 2)
+    a, b = real[max(0, k - 2)], real[min(len(real) - 1, k + 2)]
+    L = math.hypot(b[0] - a[0], b[1] - a[1])
+    return ((b[0] - a[0]) / L, (b[1] - a[1]) / L) if L > 1e-6 else None
+
+
+def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
     """Several domains: trolleys on the drawn streets at any angle, grade-separated lines octilinear per domain."""
-    from .palace_transit_route import CityMap, street_graph, drawn_segs, real_points, route, octi_route
+    from .palace_transit_route import CityMap, street_graph, drawn_segs, real_points, route, octi_route, _Track, _split_node, octi2_in
     cm = CityMap(doms)
-    edges, tunnels, dropped, ge, rkey = {}, {}, set(), set(), {}
+    blk = cm.blk                                         # every size in blocks of this page (any CW x CH)
+    edges, tunnels, dropped, ge, rkey, anchor = {}, {}, set(), set(), {}, {}
     if any(ln["k"] == "tram" for ln in tr["lines"]):
         adj = street_graph(list(segs if segs is not None else drawn_segs(edges=edges_, streets=streets)))
     stops = [cm(st["x"], st["y"]) for st in tr["stops"]]
+    pre, pref = {}, {}                                   # every trolley stop on its street first (the piece cut there),
+    named = _named(streets) if any(ln["k"] == "tram" for ln in tr["lines"]) else {}
+    for ln in tr["lines"]:                               # so no line's track holds a piece another line's stop later cuts
+        if ln["k"] == "tram":
+            real = real_points(ln["w"], cm)
+            trk = _Track(real, blk / 2)
+            onst, along = _stop_points(named, tr, ln, stops, V2["named"] * blk, V2["along"] * blk, V2["far"] * blk)
+            pref[ln["id"]] = along
+            for si in dict.fromkeys(k for br in (ln.get("b") or [ln["s"]]) for k in br):
+                n = None
+                q, al = onst.get(si, (None, False))
+                if q is not None and (al or trk.d(q[0], q[1], blk) <= V2["along"] * blk):     # its own streets, as drawn, on its track
+                    n = _split_node(adj, q[0], q[1], 2.0, V2["split"] * blk)
+                if n is None:
+                    n = _split_node(adj, stops[si][0], stops[si][1], V2["stop_r"] * blk, V2["split"] * blk,
+                                    _track_dir(real, *stops[si]))
+                if n is not None:
+                    pre[(si, ln["id"])] = n
     for ln in tr["lines"]:
+        real = real_points(ln["w"], cm)
+        at = {si: n for (si, lid), n in pre.items() if lid == ln["id"]}
         if ln["k"] == "tram":
             under = {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}
-            es, kept, tun = route(adj, real_points(ln["w"], cm), stops, ln.get("b") or [ln["s"]],
-                                  STOP_R, DEV_AVG, MAX_DEV, under, ramp=RAMP, bend=TRAM_BEND)
+            es, kept, tun = route(adj, real, stops, ln.get("b") or [ln["s"]],
+                                  V2["stop_r"] * blk, V2["dev_avg"] * blk, V2["max_dev"] * blk, under,
+                                  ramp=V2["ramp"] * blk, bend=V2["bend"] * blk, split=V2["split"] * blk, carry=True,
+                                  anchors=at, track=_Track(real, blk / 2), slack=V2["slack"] * blk, share=0.5,
+                                  tunnels_first=True, pref=_on_polys(pref.get(ln["id"], ())), octi2=octi2_in(cm))
             edges[ln["id"]] = es
             tunnels[ln["id"]] = tun
             dropped |= {(si, ln["id"]) for si in ln["s"] if si not in kept}
-            continue
-        es, kept, info = octi_route(cm, real_points(ln["w"], cm), stops, ln.get("b") or [ln["s"]])
-        edges[ln["id"]] = es
-        for e, inf in info.items():
-            if inf is None:
-                continue
-            d, i0, j0, i1, j1 = inf
-            if j0 == j1 or i0 == i1:
-                rkey[e] = (d, "h", j0) if j0 == j1 else (d, "v", i0)
-                ge.add((d,) + min((i0, j0), (i1, j1)) + max((i0, j0), (i1, j1)))
-            else:
-                rkey[e] = None
+        else:
+            es, kept, info = octi_route(cm, real, stops, ln.get("b") or [ln["s"]], anchors=at, rivers=rivers)
+            edges[ln["id"]] = es
+            for e, inf in info.items():
+                if inf is None:
+                    continue
+                d, i0, j0, i1, j1 = inf
+                if j0 == j1 or i0 == i1:
+                    rkey[e] = (d, "h", j0) if j0 == j1 else (d, "v", i0)
+                    ge.add((d,) + min((i0, j0), (i1, j1)) + max((i0, j0), (i1, j1)))
+                else:
+                    rkey[e] = None
+        anchor.update({(si, ln["id"]): p for si, p in at.items()})
 
     def keyf(a, b):
         e = (a, b) if a < b else (b, a)
         return rkey[e] if e in rkey else cm.lane_key(a, b)
-    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3)   # one dot per pair of next lanes: on both tracks
+    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3,   # one dot per pair of next lanes
+                  anchor=anchor, gap=V2["gap"] * blk)
     out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
     return out

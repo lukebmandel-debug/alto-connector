@@ -561,7 +561,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     tr_doms = [(tdoms[did], lats[did]) for did in sorted(by_id, key=lambda i: (i != root, i))]
     segs = drawn_segs(tiles, tq, edges, te, streets + over)
     transit = snap_transit(m.get("transit"), None, None, None, W, H, streets=streets, edges_=edges,
-                           doms=tr_doms, segs=segs)
+                           doms=tr_doms, segs=segs, rivers=river)
     new_streets = []
     have = set()
     for e in edges:

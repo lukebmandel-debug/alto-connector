@@ -163,7 +163,9 @@ def _dijkstra(adj, cost, src, dst):
     return path[::-1]
 
 
-def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, under=(), why=None, ramp=0.0, bend=0.0):
+def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, under=(), why=None, ramp=0.0, bend=0.0,
+          split=0.0, carry=False, anchors=None, track=None, slack=450.0, share=1.0, tunnels_first=False, pref=None,
+          octi2=None):
     """stops: [(x, y)] in grid px; branches: lists of indices into stops, in ride order; under: the indices of the stops
     that are underground stations (a tunnel needs no street: two such stops that no street joins are joined by a straight
     tunnel). Returns (edges, kept, tunnel) where edges is a set of ((x, y), (x, y)) pieces (each ordered low to high),
@@ -171,28 +173,54 @@ def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, 
     collects why a pair of stops was not joined. ramp (px, 0 = off): an underground station off every street (a portal)
     is joined to its surface neighbour by a short tunnel ramp to the street node within `ramp` px of it nearest the real
     track, then by the streets. bend (px, 0 = off): what a turn costs, so that a trolley on a square grid under a
-    diagonal real track takes one or two turns, not a stair-step at every corner."""
+    diagonal real track takes one or two turns, not a stair-step at every corner. The engine-v2 options (all off on the
+    square path): split (px): a stop stands at the foot of its perpendicular on the nearest street piece (the piece is cut
+    there) unless that is within `split` px of the piece's end, so a stop on a long seam or avenue piece does not pull
+    the line off it; carry: the line keeps its heading through a stop (a turn at a stop costs like any other); anchors: a
+    dict filled with {stop index: node}; track: a _Track of the real track (true distances, not the 250 px capped
+    buckets); slack (px): how much longer than 2.2x the straight line a join may be; share: a later branch rides
+    street pieces an earlier branch of the line already takes at this share of the cost (branches share their trunk);
+    tunnels_first: two underground stations whose street join turns more than once are joined by their straight tunnel
+    (the real tunnel runs under the blocks; it is not drawn as a stair-step of streets); pref(u, v): True for a piece of
+    a street the line's stops name (it rides its own street: no stray cost there, wherever the mapping drew it);
+    octi2(a, b, dv) -> [a, corner, b]: the shape of a tunnel (default: straight)."""
     b = _bucket(real)
     memo = {}
 
     def dv(u, v):
         key = (u, v) if u < v else (v, u)
         if key not in memo:
-            memo[key] = _edge_dev(b, *key)
+            if pref is not None and pref(*key):
+                memo[key] = 0.0
+            elif track is None:
+                memo[key] = _edge_dev(b, *key)
+            else:
+                (ux, uy), (vx, vy) = key
+                n = max(2, int(math.hypot(vx - ux, vy - uy) // 40) + 1)
+                memo[key] = sum(track.d(ux + (vx - ux) * i / n, uy + (vy - uy) * i / n, 4 * max_dev)
+                                for i in range(n + 1)) / (n + 1)
         return memo[key]
 
-    def cost(u, v, L):
-        return L * (1 + (dv(u, v) / dev_avg) ** 2)
     es, kept, tunnel = set(), set(), set()
+
+    def cost(u, v, L):
+        c = L * (1 + (dv(u, v) / dev_avg) ** 2)
+        if share != 1.0 and ((u, v) if u < v else (v, u)) in es:
+            c *= share
+        return c
     for br in branches:
         nodes = []                              # (stop index, node)
         for si in br:
-            n = stop_node(adj, b, stops[si][0], stops[si][1], radius)
+            if anchors and si in anchors:       # the caller already stood this stop on its street
+                n = anchors[si]
+            else:
+                n = (_split_node(adj, stops[si][0], stops[si][1], radius, split) if split
+                     else stop_node(adj, b, stops[si][0], stops[si][1], radius))
             if n is None and si in under:       # an underground station off every street stands where it is
                 n = _k(*stops[si])
             if n is not None:
                 nodes.append((si, n))
-        runs, cur = [], None                    # unbroken runs of stops: [stop indices, edges, tunnel edges]
+        runs, cur, head = [], None, None        # unbroken runs of stops: [stop indices, edges, tunnel edges]
         for k in range(len(nodes)):
             if cur is None:
                 cur = [[nodes[k][0]], set(), set()]
@@ -216,7 +244,8 @@ def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, 
                         na, nb = (on, nb) if off_ == na else (na, on)
                 path = None
                 if na in adj and nb in adj:
-                    path = _dijkstra_bends(adj, cost, na, nb, bend) if bend else _dijkstra(adj, cost, na, nb)
+                    h0 = head if (carry and not ramps and cur is not None and len(cur[0]) > 1) else None
+                    path = _dijkstra_bends(adj, cost, na, nb, bend, h0) if bend else _dijkstra(adj, cost, na, nb)
                 if ramps and path is not None and len(path) == 1:
                     path = None
                 straight = math.hypot(na[0] - nb[0], na[1] - nb[1])
@@ -228,18 +257,25 @@ def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, 
                     mdev = sum(dv(u, v) * adj[u][v] for u, v in zip(path, path[1:])) / (plen or 1)
                     if mdev > max_dev:
                         bad = "the streets between them stray %d px from the real track" % mdev
-                    elif plen > 2.2 * straight + 450:
+                    elif plen > 2.2 * straight + slack:
                         bad = "the streets between them are a %d px detour for %d px" % (plen, straight)
+                if tunnels_first and sa in under and sb in under and na != nb and \
+                        (bad or sum(1 for a_, b_, c_ in zip(path, path[1:], path[2:])
+                                    if _turn(_ang(a_, b_), _ang(b_, c_)) > 2) > 1):
+                    bad = bad or "the streets between two underground stations turn more than once"
                 if not bad:
                     got = ({(u, v) if u < v else (v, u) for u, v in zip(path, path[1:])} | ramps, ramps)
+                    head = _ang(path[-2], path[-1]) if len(path) > 1 else head
                 elif sa in under and sb in under:   # a tunnel between two underground stations
-                    e = (na, nb) if na < nb else (nb, na)
-                    got = ({e}, {e})
+                    pts = octi2(na, nb, dv) if octi2 else [na, nb]
+                    tes = {(u, v) if u < v else (v, u) for u, v in zip(pts, pts[1:]) if u != v}
+                    got = (tes, tes)
+                    head = None
                 elif why is not None:
                     why.append((sa, sb, bad))
             if got is None:                     # no track joins them: the ride ends here, a new run starts
                 runs.append(cur)
-                cur = None
+                cur, head = None, None
                 continue
             cur[0].append(sb)
             cur[1] |= got[0]
@@ -254,7 +290,53 @@ def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, 
                 kept |= set(best[0])
                 es |= best[1]
                 tunnel |= best[2]
+                if anchors is not None:
+                    node = dict(nodes)
+                    anchors.update({si: node[si] for si in best[0] if si in node})
     return es, kept, tunnel
+
+
+def _split_node(adj, x, y, radius, end, dirn=None):
+    """The street node a stop at (x, y) stands on: the foot of its perpendicular on the nearest drawn street piece within
+    `radius` (the piece is cut there, so the stop is ON the street and the line need not leave it), or that piece's end
+    when the foot is within `end` px of it; None when no street runs within `radius`. dirn: the real track's direction
+    there (a unit vector): a piece across it (more than 50 degrees off) counts `radius` farther (the stop stands on the
+    street the line runs along, not on a cross street a spur away)."""
+    best, bd = None, 2 * radius if dirn else radius
+    for u, nb in adj.items():
+        if abs(u[0] - x) > radius + 2000 or abs(u[1] - y) > radius + 2000:
+            continue
+        for v in nb:
+            if v < u:
+                continue
+            dx, dy = v[0] - u[0], v[1] - u[1]
+            L2 = dx * dx + dy * dy or 1e-9
+            t = max(0.0, min(1.0, ((x - u[0]) * dx + (y - u[1]) * dy) / L2))
+            d = math.hypot(u[0] + t * dx - x, u[1] + t * dy - y)
+            if d > radius:
+                continue
+            if dirn and abs(dx * dirn[0] + dy * dirn[1]) < 0.64 * math.sqrt(L2):
+                d += radius
+            if d <= bd:
+                bd, best = d, (u, v, t)
+    if best is None:
+        return None
+    u, v, t = best
+    L = math.hypot(v[0] - u[0], v[1] - u[1])
+    if t * L <= end:
+        return u
+    if (1 - t) * L <= end:
+        return v
+    p = _k(u[0] + t * (v[0] - u[0]), u[1] + t * (v[1] - u[1]))
+    if p in adj:
+        return p
+    del adj[u][v]
+    del adj[v][u]
+    for a in (u, v):
+        d = math.hypot(a[0] - p[0], a[1] - p[1])
+        adj.setdefault(p, {})[a] = d
+        adj[a][p] = d
+    return p
 
 
 # ── any angle: the generic street graph ─────────────────────────────────────────────────────────────────────────────
@@ -461,8 +543,10 @@ class _Dom:
         if self.clip:
             xs, ys = [p[0] for p in self.clip], [p[1] for p in self.clip]
             self.cbox = (min(xs), min(ys), max(xs), max(ys))
-        self.step = max(abs(self.xg[1] - self.xg[0]) if len(self.xg) > 1 else 240.0,
-                        abs(self.yg[1] - self.yg[0]) if len(self.yg) > 1 else 170.0)
+        self.cw, self.ch = _spacing(self.xg), _spacing(self.yg)        # the block, from the lattice (any CW x CH)
+        self.step = max(self.cw, self.ch)
+        self.blk = (self.cw + self.ch) / 2.0
+        self.m45 = _m45(self.cw, self.ch)
 
     def owns_real(self, x, y):
         if not self.poly:
@@ -483,6 +567,8 @@ class CityMap:
     def __init__(self, doms):
         self.ds = [_Dom(d, l) for d, l in doms]
         self.rest = [d for d in self.ds if not d.clip]           # the domain(s) with no clip: everything no clip claims
+        root = self.rest[0] if self.rest else max(self.ds, key=lambda d: d.area)
+        self.blk = root.blk                                      # px of one block (the root's), the unit of every distance
 
     def dom_real(self, x, y):
         own = [d for d in self.ds if d.owns_real(x, y)]
@@ -529,6 +615,12 @@ class CityMap:
         return d.uy if key[1] == "h" else d.ux
 
 
+def _spacing(G):
+    """A lattice's line step (the median gap; lattices are even), 205 px when it has one line."""
+    gaps = sorted(abs(b - a) for a, b in zip(G, G[1:]) if abs(b - a) > 1e-6)
+    return gaps[len(gaps) // 2] if gaps else 205.0
+
+
 def _nearest(G, v):
     from bisect import bisect_left
     i = bisect_left(G, v)
@@ -540,11 +632,18 @@ def _nearest(G, v):
 
 
 DIRS = ((1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1))
-CORR = 2.0              # blocks: the lattice nodes this near the real track are the router's candidates
+# every size below is in BLOCKS of the domain (Lattice spacing: (column step + row step) / 2), never page px, so the router
+# reads the same on any block shape (CW x CH)
+CORR = 2.25             # blocks: the lattice nodes this near the real track are the router's candidates
 SEAM_R = 1.25           # blocks: a node this near a seam may run straight to it (on an axis or diagonal of its domain)
-DEV_R = 140.0           # px: how far a grade-separated run may stray from the real track before the router dislikes it
-BEND = 400.0            # px: the cost of one bend (a stair-step of n blocks costs 2n bends; a diagonal run costs 2)
+DEV_R = 1.0             # blocks: how far a grade-separated run may stray from the real track before the router dislikes it
+BEND = 4.0              # blocks: the cost of one 45-degree bend (a 90-degree bend costs 1.8x, a near-U-turn 8x)
 STOP_NODE = 1.0         # blocks: a station stands on a lattice node this near it, or is not drawn
+STOP_W = 1.5            # cost of each px a station is moved from its real place
+STRAY_MAX = 2.5         # blocks: no run strays farther than this from the real track
+NEAR45 = 0.8            # degrees: a lattice move (p columns, q rows) this close to 45 degrees is a 45-degree run
+SHARE = 0.4             # a branch runs on track another branch of its line already uses at this share of the cost
+RIVER_X = 4.0           # blocks: what crossing a river costs (a line crosses where its real track does, not back and forth)
 
 
 def _ang(u, v):
@@ -556,10 +655,52 @@ def _turn(a, b):
     return d
 
 
+def _m45(cw, ch):
+    """The smallest lattice move (p columns, q rows) whose page angle is within NEAR45 of a true 45 degrees, or None
+    (a square lattice: its index diagonal is already 45)."""
+    best = None
+    for p in range(1, 9):
+        for q in range(1, 9):
+            if math.gcd(p, q) != 1:
+                continue
+            if abs(math.degrees(math.atan2(q * ch, p * cw)) - 45.0) <= NEAR45:
+                L = math.hypot(p * cw, q * ch)
+                if best is None or L < best[2]:
+                    best = (p, q, L)
+    return None if best is None or best[:2] == (1, 1) else best[:2]
+
+
+class _Track:
+    """The real track (page px samples): the distance from any point to it, up to a cap."""
+
+    def __init__(self, pts, cell):
+        self.c = max(20.0, float(cell))
+        self.b = {}
+        for x, y in pts:
+            self.b.setdefault((int(x // self.c), int(y // self.c)), []).append((x, y))
+
+    def d(self, x, y, cap):
+        c = self.c
+        cx, cy = int(x // c), int(y // c)
+        best, r = cap, 0
+        while (r - 1) * c <= best:
+            for i in range(-r, r + 1):
+                for j in (range(-r, r + 1) if abs(i) == r else (-r, r)):
+                    for px, py in self.b.get((cx + i, cy + j), ()):
+                        dd = math.hypot(px - x, py - y)
+                        if dd < best:
+                            best = dd
+            r += 1
+            if r > 64:
+                break
+        return best
+
+
 def octi_graph(cmap, real):
     """The lattice graph a grade-separated line may run on: the nodes of every domain within CORR blocks of the real
-    track (page px samples `real`), stepping along the domain's axes and diagonals; where the track nears a seam, rays
-    from the nodes along those same directions to the seam, and runs along the seam between the points they reach.
+    track (page px samples `real`), stepping along the domain's axes, its index diagonals and its 45-degree moves
+    (_m45); where the track nears a seam, rays from the nodes along the axes and diagonals to the seam, and runs along
+    the seam between the points they reach.
     -> (adj {node: {node: length}}, info {(u, v): (dom id, i0, j0, i1, j1) | None})  (nodes: page (x, y) rounded 0.1)"""
     adj, info = {}, {}
     valid = {}
@@ -582,7 +723,7 @@ def octi_graph(cmap, real):
     pts = real[::2] if len(real) > 4000 else real
     for d in cmap.ds:
         got = nodes.setdefault(d.id, set())
-        R = CORR * d.step
+        R = CORR * d.blk
         for x, y in pts:
             if d.cbox and not (d.cbox[0] - R <= x <= d.cbox[2] + R and d.cbox[1] - R <= y <= d.cbox[3] + R):
                 continue
@@ -602,13 +743,18 @@ def octi_graph(cmap, real):
     for d in cmap.ds:
         got = nodes[d.id]
         P = {n: _k(*d.lat.page(d.xg[n[0]], d.yg[n[1]])) for n in got}
+        moves = list(DIRS[:4])
+        if d.m45:
+            moves += [d.m45, (d.m45[0], -d.m45[1])]
         for (i, j) in got:
-            for di, dj in DIRS[:4]:
+            for di, dj in moves:
                 n2 = (i + di, j + dj)
                 if n2 not in got:
                     continue
                 u, v = P[(i, j)], P[n2]
-                if ok(d, (u[0] + v[0]) / 2, (u[1] + v[1]) / 2):
+                long_ = abs(di) > 1 or abs(dj) > 1
+                if all(ok(d, u[0] + (v[0] - u[0]) * f, u[1] + (v[1] - u[1]) * f)
+                       for f in ((0.2, 0.4, 0.5, 0.6, 0.8) if long_ else (0.5,))):
                     link(u, v, (d.id, i, j, n2[0], n2[1]))
     # seams: a node near a domain's clip ring runs on along each of its directions to the ring; the points reached on
     # one ring edge are joined in order along it (the seam is a drawn line)
@@ -617,7 +763,7 @@ def octi_graph(cmap, real):
         return adj, info
     on_edge = {}                                     # (ring index, edge index) -> [(t, node)]
     for d in cmap.ds:
-        R = SEAM_R * d.step
+        R = SEAM_R * d.blk
         for (i, j) in nodes[d.id]:
             p = d.lat.page(d.xg[i], d.yg[j])
             near = [(ri, r) for ri, r in enumerate(rings) if _ring_d(r, *p) <= R]
@@ -652,13 +798,14 @@ def octi_graph(cmap, real):
                 sk = _k(*s)
                 link(u, sk, None)
                 on_edge.setdefault((best[2], best[3]), []).append((best[1], sk))
+    gap = 1.5 * max(d.step for d in cmap.ds)
     for (ri, ei), lst in on_edge.items():
         lst = sorted(set(lst))
         r = rings[ri]
         a, b = r[ei], r[(ei + 1) % len(r)]
         L = math.hypot(b[0] - a[0], b[1] - a[1])
         for (t0, u), (t1, v) in zip(lst, lst[1:]):
-            if (t1 - t0) * L <= 1.5 * max(d.step for d in cmap.ds):
+            if (t1 - t0) * L <= gap:
                 link(u, v, None)
     return adj, info
 
@@ -683,10 +830,11 @@ def _ray(p, d, a, b):
     return s, t
 
 
-def _dijkstra_bends(adj, cost, src, dst, bend=None):
-    """Cheapest path src -> dst where a bend costs BEND scaled by how sharp it is (states: node, heading)."""
-    B = BEND if bend is None else bend
-    start = (src, None)
+def _dijkstra_bends(adj, cost, src, dst, bend=None, h0=None):
+    """Cheapest path src -> dst where a bend costs `bend` (px) scaled by how sharp it is (states: node, heading). h0: the
+    heading the line arrives at src with (a turn right at src costs too); None: any."""
+    B = 400.0 if bend is None else bend
+    start = (src, None if h0 is None else round(h0))
     dist, prev, q, n = {start: 0.0}, {}, [(0.0, 0, start)], 0
     while q:
         c, _, st = heapq.heappop(q)
@@ -717,54 +865,193 @@ def _dijkstra_bends(adj, cost, src, dst, bend=None):
     return None
 
 
-def octi_route(cmap, real, stops, branches, dev=DEV_R):
-    """A grade-separated line over the domains' lattices: each station on the lattice node nearest it (within STOP_NODE
-    blocks, else it is not drawn), consecutive stations of each branch joined by the cheapest octilinear way (close to
-    the real track, few bends). real: the real track in page px; stops: [(x, y)] page px.
+def _bend_pen(t, B):
+    """What a turn of t degrees costs a grade-separated line: nothing straight on, one B for a 45-degree bend, 1.8 B for
+    a square corner, a near-U-turn 8 B (a transit map line bends seldom and gently)."""
+    if t <= 2.0:
+        return 0.0
+    if t <= 60.0:
+        return B * (0.5 + t / 90.0)
+    if t <= 95.0:
+        return 1.2 * B * (0.5 + t / 90.0)
+    return 8.0 * B
+
+
+def _octi_seg(adj, cost, srcs, dsts, B):
+    """Cheapest path from any (node, heading, start cost) in srcs to any node of dsts {node: arrival cost}, a bend
+    costing _bend_pen. -> (path, heading at the end) or None."""
+    dist, prev, q, n = {}, {}, [], 0
+    for u, h, c0 in srcs:
+        st = (u, h)
+        if c0 < dist.get(st, 1e18):
+            dist[st] = c0
+            n += 1
+            heapq.heappush(q, (c0, n, st))
+    while q:
+        c, _, st = heapq.heappop(q)
+        if st[0] == "T":
+            st = prev[st]
+            h = st[1]
+            path = [st[0]]
+            while st in prev:
+                st = prev[st]
+                path.append(st[0])
+            return path[::-1], h
+        if c > dist.get(st, 1e18):
+            continue
+        u, h = st
+        if u in dsts:
+            tst = ("T", u, h)
+            c2 = c + dsts[u]
+            if c2 < dist.get(tst, 1e18):
+                dist[tst], prev[tst] = c2, st
+                n += 1
+                heapq.heappush(q, (c2, n, tst))
+        for v, L in adj[u].items():
+            a = round(_ang(u, v))
+            pen = 0.0 if h is None else _bend_pen(_turn(h, a), B)
+            ec = cost(u, v, L)
+            if ec is None:
+                continue
+            c2 = c + ec + pen
+            s2 = (v, a)
+            if c2 < dist.get(s2, 1e18):
+                dist[s2], prev[s2] = c2, st
+                n += 1
+                heapq.heappush(q, (c2, n, s2))
+    return None
+
+
+def octi_route(cmap, real, stops, branches, dev=None, anchors=None, rivers=()):
+    """A grade-separated line over the domains' lattices, branch by branch in ride order: each station on a lattice node
+    (or seam point) within STOP_NODE blocks of it, chosen with the route (cost: how far it moves), the line carrying
+    its heading through the station (a bend at a station costs like any other), consecutive stations joined by the
+    cheapest octilinear way (close to the real track, few and gentle bends, never more than STRAY_MAX blocks from it);
+    a later branch rides the track an earlier one laid at a discount, so branches share their trunk.
+    real: the real track in page px; stops: [(x, y)] page px; anchors: a dict filled with {stop index: node};
+    rivers: [{p: flat page polyline}] (the centre lines a crossing is counted on).
     -> (edges {(u, v)}, kept stop indices, info {(u, v): (dom id, i0, j0, i1, j1) | None})"""
     adj, info = octi_graph(cmap, real)
-    b = _bucket(real)
-    memo = {}
+    blk = cmap.blk
+    trk = _Track(real, blk / 2)
+    DEV = (dev if dev is not None else DEV_R * blk)
+    cap = (STRAY_MAX + 1.0) * blk
+    memo, used = {}, set()
+    rcell = 2 * blk
+    rsegs = {}
+    for rv in rivers or ():
+        rp = rv["p"]
+        for q in range(0, len(rp) - 3, 2):
+            sg = (rp[q], rp[q + 1], rp[q + 2], rp[q + 3])
+            for c in _cells_along(*sg, rcell):
+                rsegs.setdefault(c, []).append(sg)
 
-    def dv(u, v):
+    def crossings(u, v):
+        if not rsegs:
+            return 0
+        seen = set()
+        for c in _cells_along(u[0], u[1], v[0], v[1], rcell):
+            for sg in rsegs.get(c, ()):
+                if sg not in seen and _hits((u[0], u[1], v[0], v[1]), sg, tol=0.0):
+                    seen.add(sg)
+        return len(seen)
+
+    def dvm(u, v):
         key = (u, v) if u < v else (v, u)
         if key not in memo:
-            memo[key] = _edge_dev(b, *key)
+            L = math.hypot(v[0] - u[0], v[1] - u[1])
+            n = max(2, int(L // (blk / 4)) + 1)
+            ds = [trk.d(u[0] + (v[0] - u[0]) * i / n, u[1] + (v[1] - u[1]) * i / n, cap) for i in range(n + 1)]
+            memo[key] = (sum(ds) / len(ds), max(ds), crossings(u, v))
         return memo[key]
 
     def cost(u, v, L):
-        return L * (1 + (dv(u, v) / dev) ** 2)
-    lat_nodes = {u for (u, v), inf in info.items() if inf is not None}
+        mean, mx, nx = dvm(u, v)
+        if mx > STRAY_MAX * blk:
+            return None
+        c = L * (1 + (mean / DEV) ** 2) + nx * RIVER_X * blk
+        return c * SHARE if ((u, v) if u < v else (v, u)) in used else c
     nb = {}
-    for u in lat_nodes:
-        nb.setdefault((int(u[0] // 200), int(u[1] // 200)), []).append(u)
+    cell = max(100.0, blk)
+    for u in adj:
+        nb.setdefault((int(u[0] // cell), int(u[1] // cell)), []).append(u)
 
-    def node_of(x, y):
-        d = cmap.dom_page(x, y)
-        R = STOP_NODE * d.step
-        best, bc = None, 1e18
-        cx, cy = int(x // 200), int(y // 200)
-        k = int(R // 200) + 1
+    def cands(x, y):
+        R = STOP_NODE * cmap.dom_page(x, y).blk
+        out = {}
+        cx, cy = int(x // cell), int(y // cell)
+        k = int(R // cell) + 1
         for i in range(-k, k + 1):
             for j in range(-k, k + 1):
                 for u in nb.get((cx + i, cy + j), ()):
                     dd = math.hypot(u[0] - x, u[1] - y)
                     if dd <= R:
-                        c = dd + _dev(b, *u)
-                        if c < bc:
-                            best, bc = u, c
-        return best
-    es, kept = set(), set()
+                        out[u] = STOP_W * dd + 0.5 * trk.d(u[0], u[1], cap)
+        return out
+    B = BEND * blk
+    es, kept, fixed = set(), set(), {}
     for br in branches:
-        nodes = [(si, node_of(*stops[si])) for si in br]
-        nodes = [(si, n) for si, n in nodes if n is not None]
-        for (sa, na), (sb, nb_) in zip(nodes, nodes[1:]):
-            if na == nb_:
-                kept |= {sa, sb}
-                continue
-            path = _dijkstra_bends(adj, cost, na, nb_)
-            if not path:
-                continue
-            kept |= {sa, sb}
-            es |= {(u, v) if u < v else (v, u) for u, v in zip(path, path[1:])}
+        seq = []
+        for si in br:
+            c = {fixed[si]: 0.0} if si in fixed else cands(*stops[si])
+            if c:
+                seq.append((si, c))
+        if len(seq) < 2:
+            if seq and seq[0][0] in fixed:
+                kept.add(seq[0][0])
+            continue
+        si0, c0 = seq[0]
+        srcs, cur = [(u, None, c) for u, c in c0.items()], None
+        for si, cs in seq[1:]:
+            dsts = dict(cs)
+            taken = set(fixed.values()) - ({fixed[si]} if si in fixed else set())
+            if cur is not None:
+                taken.add(cur)
+            if any(u not in taken for u in dsts):
+                dsts = {u: c for u, c in dsts.items() if u not in taken}
+            got = _octi_seg(adj, cost, srcs, dsts, B)
+            if got is None:
+                continue                                 # unreachable: this station is not drawn, the line goes on
+            path, h = got
+            if cur is None:
+                fixed.setdefault(si0, path[0])
+                kept.add(si0)
+            fixed.setdefault(si, path[-1])
+            kept.add(si)
+            for u, v in zip(path, path[1:]):
+                e = (u, v) if u < v else (v, u)
+                es.add(e)
+                used.add(e)
+            cur = path[-1]
+            srcs = [(cur, h, 0.0)]
+    if anchors is not None:
+        anchors.update({si: fixed[si] for si in kept if si in fixed})
     return es, kept, {e: info.get(e) for e in es}
+
+
+def octi2_in(cmap):
+    """A tunnel between two underground stations drawn like an avenue: a run along its domain's axis and a 45-degree run
+    (of the domain at its middle), the corner on the side nearer the real track. -> octi2(a, b, dv) for route()."""
+    def f(a, b, dv):
+        d = cmap.dom_page((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        ux, uy = d.ux, d.uy
+        L = math.hypot(*ux) or 1.0
+        ux, uy = (ux[0] / L, ux[1] / L), (uy[0] / L, uy[1] / L)
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        lx, ly = dx * ux[0] + dy * ux[1], dx * uy[0] + dy * uy[1]          # the step in the domain's own frame
+        m = min(abs(lx), abs(ly))
+        if m < 1.0 or abs(abs(lx) - abs(ly)) < 1.0:
+            return [a, b]
+        sx, sy = math.copysign(m, lx), math.copysign(m, ly)                # the 45-degree part
+        best = None
+        for first in (True, False):
+            if first:                                                     # 45 first, then the axis run
+                c = (a[0] + sx * ux[0] + sy * uy[0], a[1] + sx * ux[1] + sy * uy[1])
+            else:                                                         # the axis run, then 45
+                c = (b[0] - sx * ux[0] - sy * uy[0], b[1] - sx * ux[1] - sy * uy[1])
+            c = _k(*c)
+            cost = dv(a, c) * math.hypot(c[0] - a[0], c[1] - a[1]) + dv(c, b) * math.hypot(b[0] - c[0], b[1] - c[1])
+            if best is None or cost < best[0]:
+                best = (cost, c)
+        return [a, best[1], b]
+    return f

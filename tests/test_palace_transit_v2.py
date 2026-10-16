@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import math
+import pytest
 import sys
 from pathlib import Path
 
@@ -244,3 +245,85 @@ def test_the_finished_picture_flags_rail_off_its_axes_and_a_dot_off_its_line():
     tr["lines"][0]["p"] = [[0, 0, 1000, 0, 1240, 170]]                 # a lattice diagonal (one block across) is legal
     tr["stops"][1]["y"] = 0
     assert AU.picture({"tiles": [], "edges": [], "streets": [], "transit": tr})["ok"]
+
+
+# ── polish (P2): smooth rail, any block shape, trolleys on their named streets, the numbers ─────
+def _one_dom(cw=240.0, ch=170.0, n=40):
+    """One upright domain (octi forced): a lattice of cw x ch blocks."""
+    root = Domain(id=0, kind="grid", theta=0.0, poly=[(-1e5, -1e5), (1e5, -1e5), (1e5, 1e5), (-1e5, 1e5)], mapping=Id())
+    return [(root, F.Lat(root, [k * cw for k in range(n)], [k * ch for k in range(n)]))]
+
+
+def _rail_on(doms, pts, k=(0, 2, 4)):
+    track = [v for p in pts for v in p]
+    st = [{"n": "S%d" % i, "x": pts[i][0], "y": pts[i][1], "l": ["rr"]} for i in k]
+    tr = {"lines": [{"id": "rr", "n": "Rail", "c": "#000", "k": "rail", "w": [track], "s": list(range(len(k))),
+                     "b": [list(range(len(k)))]}], "stops": st}
+    return snap(tr, None, None, None, 9000, 9000, doms=doms, segs=[], octi=True)
+
+
+@pytest.mark.parametrize("cw,ch", [(240.0, 170.0), (240.0, 300.0)])
+def test_rail_on_a_45_degree_track_is_one_straight_45_run_on_any_block_shape(cw, ch):
+    doms = _one_dom(cw, ch)
+    p, q = RT._m45(cw, ch)                                     # 240 x 170: 5 columns by 7 rows; 240 x 300: 5 by 4
+    step = (p * cw, q * ch)
+    pts = [(2 * cw + i * step[0], 2 * ch + i * step[1]) for i in range(5)]
+    g = _rail_on(doms, pts)
+    (ln,) = g["lines"]
+    assert [g["stops"][i]["n"] for i in ln["s"]] == ["S0", "S2", "S4"]          # every station, in order
+    assert sum(AU.turns(f) for f in ln["p"]) == 0                               # no stair-step: one run
+    f = ln["p"][0]
+    ang = math.degrees(math.atan2(f[-1] - f[1], f[-2] - f[0]))
+    assert abs(((ang - 45.0) + 90.0) % 180.0 - 90.0) < RT.NEAR45 + 0.01
+    m = {"tiles": [], "edges": [], "streets": [], "transit": g, "doms": [{"a": 0.0, "cwch": [cw, ch]}]}
+    assert AU.picture(m)["ok"]
+
+
+def test_the_router_reads_the_block_from_the_lattice():
+    cm = RT.CityMap(_one_dom(240.0, 300.0))
+    assert cm.blk == 270.0 and cm.ds[0].m45 == (5, 4)
+    cm = RT.CityMap(_one_dom(240.0, 170.0))
+    assert cm.blk == 205.0 and cm.ds[0].m45 == (5, 7)
+    assert RT._m45(200.0, 200.0) is None                                       # square blocks: the index diagonal is 45
+
+
+def test_rail_keeps_its_heading_through_a_station():
+    """A gentle real curve with a station on it: the line bends at most twice, never a step at the station."""
+    doms = _one_dom()
+    pts = [(480.0, 3400.0), (2400.0, 3400.0), (4320.0, 3420.0), (6000.0, 3330.0), (7680.0, 3240.0)]
+    g = _rail_on(doms, pts)
+    (ln,) = g["lines"]
+    assert len(ln["s"]) == 3 and sum(AU.turns(f) for f in ln["p"]) <= 2
+
+
+def test_a_trolley_stop_stands_on_the_copy_of_its_street_the_line_runs_along():
+    from alto.build import palace_transit as PT
+    named = {"baltimore ave": [[(0.0, 0.0), (4000.0, 0.0)], [(1500.0, 170.0), (2600.0, 170.0)]],
+             "50th st": [[(1000.0, -500.0), (1000.0, 500.0)]], "49th st": [[(2000.0, -500.0), (2000.0, 500.0)]],
+             "48th st": [[(3000.0, -500.0), (3000.0, 500.0)]]}
+    tr = {"stops": [{"n": "Baltimore Avenue & 50th Street"}, {"n": "Baltimore Avenue & 49th Street"},
+                    {"n": "Baltimore Avenue & 48th Street"}]}
+    ln = {"s": [0, 1, 2], "b": [[0, 1, 2]]}
+    stops = [(1010.0, 40.0), (2010.0, 120.0), (2990.0, 30.0)]                  # 49th maps nearer the short copy
+    out, polys = PT._stop_points(named, tr, ln, stops, 205.0, 150.0, 300.0)
+    assert [out[i][0] for i in range(3)] == [(1000.0, 0.0), (2000.0, 0.0), (3000.0, 0.0)]   # all on the long copy
+    assert polys == [named["baltimore ave"][0]]
+    # a stop whose cross street is not drawn stands on the street it runs along, never on the cross street alone
+    named.pop("49th st")
+    out, _ = PT._stop_points(named, tr, ln, stops, 205.0, 150.0, 300.0)
+    assert out[1][1] and out[1][0] == pytest.approx((2010.0, 0.0))
+
+
+def test_the_audit_counts_turns_and_measures_the_stray_in_blocks():
+    m = {"place": "Springfield", "tiles": [], "edges": [[0, 0, 2000, 0], [2000, 0, 2000, 2000]], "streets": [],
+         "doms": [{"a": 0.0, "cwch": [240, 300]}],
+         "transit": {"lines": [{"id": "x1", "n": "X", "c": "#000", "k": "metro", "p": [[0, 0, 1000, 3, 2000, 0, 2000, 2000]],
+                                "s": [0, 1], "b": [[0, 1]]}],
+                     "stops": [{"n": "A", "x": 0, "y": 0, "l": ["x1"]}, {"n": "B", "x": 2000, "y": 2000, "l": ["x1"]}]}}
+    real = {"lines": [{"id": "x1", "w": [[0, 270, 2000, 270, 2000, 2000]], "s": [0, 1]}],
+            "stops": [{"n": "A", "x": 0, "y": 0}, {"n": "B", "x": 2000, "y": 2000}]}
+    st = AU.measure(m, real, lambda x, y: (x, y))["x1"]
+    assert st["turns"] == 1                                    # the 3 px lane jog is not a turn; the corner is
+    assert st["stray"] == 1.0 and st["stops"] == [2, 2]       # 270 px off = one 240 x 300 block
+    a = AU.audit(m, real=real, to_page=lambda x, y: (x, y))
+    assert a["stats"]["x1"]["turns"] == 1 and a["lines"]["x1"]["stray"] == 1.0
