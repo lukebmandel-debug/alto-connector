@@ -365,3 +365,30 @@ def test_tidy_keeps_only_the_first_run_of_a_flashback():
     _nd(d, "council")["flash"] = "storm"
     assert tidy(d["brief"], d["nodes"]) == ["council"]
     assert "flash" not in _nd(d, "council") and _nd(d, "lamp-dark")["flash"] == "storm"
+
+
+def test_set_lines_and_add_nodes_carry_presence_and_flashbacks(tmp_path):
+    """The chat's way in: create_timeline with lines + flashbacks, add_nodes
+    with present / flash, set_lines to change them later (on a folder)."""
+    from alto import mcp_server as srv
+    from alto.store.local import LocalStore
+    srv.set_store(LocalStore(tmp_path))
+    d = _v2()
+    pid = srv.create_project("Stories", "a novel", "writing")["project_id"]
+    tid = srv.create_timeline(pid, d["brief"])["timeline_id"]
+    srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes"}], True)
+    r = srv.add_nodes(tid, d["nodes"])
+    assert "error" not in r, r
+    bad = dict(_nd(d, "arrive"), flash="nope")
+    assert "not one of the brief's flashbacks" in srv.add_nodes(tid, [bad])["message"]
+    # a flashback still in use cannot be removed; one more can be added, the main line renamed
+    r = srv.set_lines(tid, d["brief"]["lines"], flashbacks=[])
+    assert r["error"] == "invalid_lines" and "storm" in r["message"]
+    r = srv.set_lines(tid, d["brief"]["lines"] + [{"id": "mayor", "label": "The mayor"}],
+                      flashbacks=d["brief"]["flashbacks"] + [{"id": "youth", "label": "Ada as a girl"}],
+                      main_line="The novel")
+    assert r["ok"] and r["lines"][-1] == "mayor" and r["flashbacks"] == ["storm", "youth"], r
+    assert any("flashback youth: has no events" in w for w in r["warnings"])
+    doc = srv.get_store().get_timeline(srv.uid(), tid)
+    assert doc["brief"]["main_line"] == "The novel" and len(doc["brief"]["flashbacks"]) == 2
+    srv.set_store(None)

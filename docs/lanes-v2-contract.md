@@ -116,6 +116,26 @@ mutated in place, and computes exactly what Python computed (tested). Manual
 edit mode already calls it before its relayout. Drawing code (B) should read
 derived fields fresh on each layout pass rather than caching them.
 
+## Tools (Claude's side)
+
+- `create_timeline` brief: `main_line`, `lines`, `flashbacks`.
+- `add_nodes`: `line`, `when`, `present`, `flash` per node (validated against the brief).
+- `set_lines(timeline_id, lines, flashbacks?, main_line?)` (NEW tool): replaces
+  lines (and flashbacks / main_line when given); refused while an event still
+  names something it would remove.
+- Interview guide §D-Lanes asks: "Who is on the page in each scene, and where
+  does the story jump back in time?"
+
+## Samples
+
+- `samples/lanes_v2_brief.json` — v2: three characters (one with no own
+  events, only presence), a two-event flashback mid-story, character-line
+  events between main-line ones. Use it for drawing / navigation work.
+- `samples/lanes_brief.json` — v1 (legacy from/to, a to-only "flashback"
+  line); must keep building and look sensible.
+- The homepage "lanes" starter (`alto/build/starter.py`) is v2: two
+  characters, one off-page event, a one-event flashback.
+
 ## Back-compat (v1 timelines and briefs)
 
 - `from`/`to` still validate as before (must name a node not on the line

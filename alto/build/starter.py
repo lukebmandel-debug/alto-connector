@@ -54,23 +54,27 @@ _STARTERS = {
                   {"id": "part-2-start", "act": 1, "title": "First event", "tag": "", "desc": "",
                    "col": "center"}],
     },
-    # The horizontal timeline: a main line and one line that branches off it
-    # and joins back in, so the shape is there to see and change (lanes.py).
+    # The horizontal timeline (lanes.py): the main line is the story as it is
+    # told; two characters whose lines come onto it where they are on the
+    # page, and a short flashback — so the shape is there to see and change.
     "lanes": {
         "brief": {"mode": "lanes", "columns": 3,
                   "node_noun": "Event", "period_noun": "Part",
                   "entity_axis_label": "People", "entity_axis_singular": "Person",
-                  "main_line": "Main line",
-                  "lines": [{"id": "second", "label": "A second line", "side": "above",
-                             "from": "part-1-start", "to": "part-2-start"}],
+                  "main_line": "The story",
+                  "lines": [{"id": "first", "label": "First character", "side": "above"},
+                            {"id": "second", "label": "Second character", "side": "below"}],
+                  "flashbacks": [{"id": "earlier", "label": "Years earlier"}],
                   "acts": [{"label": "Part 1", "short": "Part 1"},
                            {"label": "Part 2", "short": "Part 2"}]},
-        "nodes": [{"id": "part-1-start", "act": 0, "title": "First event", "tag": "", "desc": "",
-                   "when": "Year 1"},
-                  {"id": "second-start", "act": 0, "title": "Meanwhile", "tag": "", "desc": "",
-                   "line": "second", "when": "Year 2"},
+        "nodes": [{"id": "part-1-start", "act": 0, "title": "The story opens", "tag": "", "desc": "",
+                   "when": "Year 10", "present": ["first"]},
+                  {"id": "a-memory", "act": 0, "title": "A memory", "tag": "", "desc": "",
+                   "when": "Year 2", "present": ["first", "second"], "flash": "earlier"},
+                  {"id": "second-start", "act": 0, "title": "Meanwhile, off the page", "tag": "", "desc": "",
+                   "line": "second", "when": "Year 11"},
                   {"id": "part-2-start", "act": 1, "title": "Where they meet", "tag": "", "desc": "",
-                   "when": "Year 3"}],
+                   "when": "Year 12", "present": ["first", "second"]}],
     },
 }
 

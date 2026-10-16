@@ -561,7 +561,7 @@ def test_two_sites_of_one_project_list_its_data_once(world):
 
 STORE_TOOLS = ("get_interview_guide", "sign_in", "list_projects", "create_project",
                "create_timeline", "record_materials_consent", "set_entities",
-               "set_axis_values", "add_nodes", "add_connections", "set_flags",
+               "set_axis_values", "add_nodes", "add_connections", "set_flags", "set_lines",
                "set_overview", "run_layout_preview", "build_timeline",
                "preview_timeline", "publish_timeline", "get_timeline",
                "import_timeline", "delete_nodes", "delete_timeline", "delete_project")

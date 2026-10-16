@@ -39,7 +39,7 @@ def test_the_starter_draft_is_a_timeline_that_builds(kind):
     b, nodes, _ = load_brief(d)
     validate_brief(b)
     validate_nodes(b, nodes)
-    assert len(b.acts) == 2 and len(nodes) == (3 if kind == "lanes" else 2)
+    assert len(b.acts) == 2 and len(nodes) == (4 if kind == "lanes" else 2)
     assert b.mode == {"outline": "outline", "timeline": "linear", "lanes": "lanes"}[kind]
 
 

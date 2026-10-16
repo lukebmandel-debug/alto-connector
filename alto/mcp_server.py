@@ -1004,17 +1004,23 @@ def create_timeline(project_id: str, brief: dict) -> dict:
      mode?: 'linear'|'outline'|'lanes'|'palace' — 'linear' (default; "sketch") flows
       nodes through the bands in sequence; 'outline' makes them concepts that
       CONTAIN one another, one family per band, structure carried by node
-      `parent`, §D-Outline; 'lanes' is the horizontal timeline: time left to
-      right to scale along one main line, other lines branching off and
-      converging back, each node placed by its `when` on its `line`, §D-Lanes;
+      `parent`, §D-Outline; 'lanes' is the horizontal timeline: the main line
+      is the story as it is told, left to right; each character (or place,
+      thread) has a line of its own that comes down onto the main line where
+      they are on the page (node `present`) and runs alongside while they are
+      not; a flashback is a labelled dip of the main line into the past (node
+      `flash`), §D-Lanes;
       'palace' is the Mind Palace: a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
       Only Claude starts one (the homepage has no Mind Palace starter),
-     main_line?, lines?: [{id, label, color?, side?: 'above'|'below', from?:
-      node id, to?: node id}] (lanes only: the main line's label, and the
-      storylines that branch off it at `from` and converge into it at `to`; a
-      flashback has only `to`),
+     main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
+      flashbacks?: [{id, label}] (lanes only: the main line's label; the
+      characters / places / threads, one line each; the flashbacks, each a
+      labelled past detour of the main line, e.g. "Ten years earlier". Change
+      them later with set_lines. A line's `from?`/`to?` node ids are LEGACY
+      branch / join points — accepted, shown as where it is on the page; use
+      node `present` instead),
      axes?: [{label, singular, hide_nav?: bool, values:[{id,name,...}]}] (≤2;
       hide_nav drops the axis from the nav bar, drawer and legend but KEEPS its
       card chips and detail pages, and labels those chips with the value name —
@@ -1348,9 +1354,15 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
      axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
      flags?: [flag id] (several allowed; declared with set_flags),
      sections?: [{h,t,prov?}], sources?: [source id],
-     line?, when? (mode 'lanes': the line it is on — omit for the main line —
-     and when it happened exactly as the material dates it, e.g. "1852-06" or
-     "Day 3"; never invent a date)}.
+     line?, when?, present?, flash? (mode 'lanes'. `line`: omit for the main
+     line — the story as told, on the page — or a line id for a character's
+     own event while they are off the page (backstory, what they do
+     elsewhere). `when`: when it happened exactly as the material dates it,
+     e.g. "1852-06" or "Day 3" — story time, inside a flashback too; never
+     invent a date. Main-line events only: `present`: [line ids] — who is on
+     the page in this scene; `flash`: a flashback id (declared in the brief,
+     or with set_lines) when the story tells this event out of time — a
+     flashback's events must be consecutive on the main line)}.
     `prov` says what a section's text is: 'quoted' (the source's own words,
     present in the material), 'notes' (the user's notes) or 'summary'. Never
     head a section "Text" unless it is a quote — head it for what it is.
@@ -1544,6 +1556,52 @@ def set_flags(timeline_id: str, flags: list[dict],
         st.put_nodes(uid(), timeline_id, rebuilt)
     counts = {f: sum(1 for n in all_nodes if f in n.flags) for f in fids}
     return {"ok": True, "flags": counts, "warnings": warnings}
+
+
+@mcp.tool(title="Set lines and flashbacks", annotations=RW)
+@accounted
+def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None = None,
+              main_line: str | None = None) -> dict:
+    """A horizontal timeline's (mode 'lanes') lines and flashbacks, replacing
+    the stored ones (§D-Lanes).
+
+    lines: [{id, label, color?, side?: 'above'|'below'}] — each character,
+    place or thread that has a line of its own (a lowercase slug id; never
+    'main'). flashbacks: [{id, label}] — each a labelled past detour of the
+    main line ("Ten years earlier"); omit to keep the stored ones, [] to
+    remove them all. main_line: the main line's label; omit to keep it.
+    Then mark events with add_nodes: `present` (who is on the page),
+    `flash` (which flashback), `line` (a character's own event off the
+    page). Refused, with the reason, while an event still names a line or
+    flashback this would remove — move those events first."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    if not _consent_ok(doc):
+        return CONSENT_ERROR
+    if doc["brief"].get("mode") != "lanes":
+        return {"error": "invalid_lines", "message": "set_lines is for a horizontal timeline (mode 'lanes')"}
+    brief = {**doc["brief"], "lines": [dict(x) if isinstance(x, dict) else x for x in lines or []]}
+    if flashbacks is not None:
+        brief["flashbacks"] = [dict(x) if isinstance(x, dict) else x for x in flashbacks]
+        if not brief["flashbacks"]:
+            brief.pop("flashbacks")
+    if main_line is not None:
+        brief["main_line"] = str(main_line)
+    st = get_store()
+    existing = st.list_nodes(uid(), timeline_id)
+    try:
+        b, all_nodes, _ = load_brief({
+            "brief": _checked(doc, brief),
+            "nodes": [{k: v for k, v in n.items() if not k.startswith("_")} for n in existing]})
+        from .build.brief import validate_brief, validate_nodes
+        warnings = validate_brief(b) + validate_nodes(b, all_nodes)
+    except (BriefError, TypeError) as e:
+        return {"error": "invalid_lines", "message": str(e)}
+    doc["brief"] = brief
+    st.put_timeline(uid(), timeline_id, doc)
+    return {"ok": True, "lines": [x["id"] for x in b.lines],
+            "flashbacks": [x["id"] for x in b.flashbacks or []], "warnings": warnings}
 
 
 @mcp.tool(title="Set up a Mind Palace city", annotations=RW)
