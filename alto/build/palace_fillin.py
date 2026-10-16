@@ -11,7 +11,7 @@ user's buildings.
   Level 1  Skyline         towers: height >= 60 m (or >= 18 storeys)            SVG, named on hover
   Level 2  Notable         + tall (>= 25 m), named non-houses, civic / large    SVG, named on hover
   Level 3  Most            + every footprint >= 300 m2 or >= 14 m              one window-sized canvas
-  Level 4  Every building  + every footprint >= 20 m2 (row houses)             one window-sized canvas
+  Level 4  Every building  + every row house, as ONE shape per block front      one window-sized canvas
 
 New palaces open on level 1 (fill["lvl"]); a viewer's own choice is kept per timeline in localStorage.
 Nothing is emitted unless fill_z is present, so a page without it is byte-identical to before.
@@ -154,7 +154,8 @@ class Dom:
 
     def __init__(self, k, a, o, tables, x0, nx, gv, y0, ny, gh, clip=None, poly=None):
         self.k, self.a, self.o = k, float(a or 0.0), (float(o[0]), float(o[1]))
-        self.mp = mapping_from(tables)
+        self.free = tables is None                     # a free domain (smoothed real streets, no lattice): nothing is filled in there yet
+        self.mp = None if self.free else mapping_from(tables)
         self.x0, self.nx, self.gv, self.y0, self.ny, self.gh = x0, nx, gv, y0, ny, gh
         self.clip = [tuple(p) for p in clip] if clip else None
         self.poly = [tuple(p) for p in poly] if poly else None
@@ -169,6 +170,8 @@ class Dom:
         return (x * self.c + y * self.s, -x * self.s + y * self.c)
 
     def cell(self, lx, ly):
+        if self.free:
+            return None
         i, j = math.floor((lx - self.x0) / self.gv), math.floor((ly - self.y0) / self.gh)
         return (i, j) if 0 <= i < self.nx - 1 and 0 <= j < self.ny - 1 else None
 
@@ -180,9 +183,14 @@ def domains(m) -> list:
     """The map's lattices: m["doms"] (engine v2: mapping tables, page angle a, origin o, cwch, xg/yg = [first, count],
     clip = the child's page ring, poly = its real ring) or the one v1 grid."""
     if m.get("doms"):
-        return [Dom(k, d.get("a"), d.get("o") or (0, 0), d["mapping"], float(d["xg"][0]), int(d["xg"][1]), float(d["cwch"][0]),
-                    float(d["yg"][0]), int(d["yg"][1]), float(d["cwch"][1]), d.get("clip"), d.get("poly"))
-                for k, d in enumerate(m["doms"])]
+        out = []
+        for k, d in enumerate(m["doms"]):
+            if d.get("kind", "grid") == "grid" and d.get("xg") and d.get("yg"):
+                out.append(Dom(k, d.get("a"), d.get("o") or (0, 0), d["mapping"], float(d["xg"][0]), int(d["xg"][1]), float(d["cwch"][0]),
+                               float(d["yg"][0]), int(d["yg"][1]), float(d["cwch"][1]), d.get("clip"), d.get("poly")))
+            else:
+                out.append(Dom(k, d.get("a"), d.get("o") or (0, 0), None, 0.0, 0, 240.0, 0.0, 0, 170.0, d.get("clip"), d.get("poly")))
+        return out
     g = m["grid"]
     xg, yg = g["xg"], g["yg"]
     return [Dom(0, 0.0, (0.0, 0.0), g, float(xg[0]), len(xg), float(xg[1] - xg[0]) if len(xg) > 1 else 240.0,
@@ -191,7 +199,7 @@ def domains(m) -> list:
 
 def _owners(doms):
     kids = [d for d in doms if d.clip]
-    root = next((d for d in doms if not d.clip), doms[0])
+    root = next((d for d in doms if not d.clip and not d.free), doms[0])
 
     def by_page(X, Y):
         for d in kids:
@@ -305,6 +313,7 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
 
     recs = [[], [], [], []]              # per level: (dom, j, i, points in units, height, name)
     turned = []                          # turned boxes (levels 3-4): (level, dom, cell, mbr, height)
+    fronts = {}                          # level 4: (dom, cell) -> the boxes of its row houses (local px)
     for ring, tags, area, h in buildings(raw):
         t = tier_of(tags, area, h)
         if t is None:
@@ -314,6 +323,8 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
             real = real[:-1]
         rx, ry = sum(p[0] for p in real) / len(real), sum(p[1] for p in real) / len(real)
         d = by_real(rx, ry)
+        if d.free:
+            continue
         loc = [d.mp(x, y) for x, y in real]
         lx, ly = sum(p[0] for p in loc) / len(loc), sum(p[1] for p in loc) / len(loc)
         ij = d.cell(lx, ly)
@@ -326,6 +337,9 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
             continue
         g = _clip(_snap(loc), x0 + ins, y0 + ins, x1 - ins, y1 - ins)
         if not g:
+            continue
+        if t == 4:                                    # level 4 is drawn as one shape per block front (fronts() below)
+            fronts.setdefault((d.k, ij), []).append((min(p[0] for p in g), min(p[1] for p in g), max(p[0] for p in g), max(p[1] for p in g)))
             continue
         if len(g) > 4 and not _rectilinear([(round(x), round(y)) for x, y in g]):
             if t >= 3:                                # the canvas levels: a nearly boxy building is drawn as its box
@@ -368,6 +382,14 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
         if bw / q < .5 or bh / q < .5:
             continue
         recs[t - 1].append((dk, ij[1], ij[0], ("t", int(round(cx / q)), int(round(cy / q)), k_, max(1, int(round(bw / q))), max(1, int(round(bh / q)))), h, ""))
+    q4, dk_ = QUANT[3], {d.k: d for d in doms}
+    root_ = next((d for d in doms if not d.free), doms[0])
+    for (dk, ij), boxes in sorted(fronts.items()):
+        for r in block_fronts(boxes, *dk_[dk].rect(*ij), ins):
+            u = _clean([(int(round(r[0] / q4)), int(round(r[1] / q4))), (int(round(r[2] / q4)), int(round(r[1] / q4))),
+                        (int(round(r[2] / q4)), int(round(r[3] / q4))), (int(round(r[0] / q4)), int(round(r[3] / q4)))])
+            if u:
+                recs[3].append((dk, ij[1], ij[0], u, 0, ""))
     L, H, N, C = [], [], [], []
     for lv in range(4):
         s, hs, ns, cnt = _encode(recs[lv], strips=lv >= 2)
@@ -379,7 +401,35 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
             ix = sorted(int(k) for k in ns)
             N.append([",".join(str(b - a) for a, b in zip([0] + ix, ix)), "|".join(ns[str(k)].replace("|", "/") for k in ix)])
     return {"v": 2, "doms": [[round(d.a, 4), round(d.o[0], 2), round(d.o[1], 2)] for d in doms], "q": list(QUANT),
-            "L": L, "h": H, "n": N, "c": C, "ch": [chunk * doms[0].gv, chunk * doms[0].gh], "lvl": 0}
+            "L": L, "h": H, "n": N, "c": C, "ch": [chunk * root_.gv, chunk * root_.gh], "lvl": 0}
+
+
+def block_fronts(boxes, x0, y0, x1, y1, ins=INSET):
+    """Level 4: a block's row houses as ONE shape per front — each house goes to the front it stands nearest; a front
+    is a box from its first house to its last, as deep as its houses' median depth (at most half the block). The side
+    fronts stop where the top and bottom ones begin, so no two shapes overlap."""
+    X0, Y0, X1, Y1 = x0 + ins, y0 + ins, x1 - ins, y1 - ins
+    F = {0: [], 1: [], 2: [], 3: []}                   # top, bottom, left, right
+    for b in boxes:
+        d = (b[1] - Y0, Y1 - b[3], b[0] - X0, X1 - b[2])
+        F[min(range(4), key=lambda k: d[k])].append(b)
+
+    def med(v):
+        v = sorted(v)
+        return v[len(v) // 2]
+    out, dep = [], {}
+    for o in (0, 1):
+        if F[o]:
+            dep[o] = min(med([(b[3] - Y0) if o == 0 else (Y1 - b[1]) for b in F[o]]), (Y1 - Y0) / 2)
+            a, z = min(b[0] for b in F[o]), max(b[2] for b in F[o])
+            out.append((a, Y0, z, Y0 + dep[o]) if o == 0 else (a, Y1 - dep[o], z, Y1))
+    for o in (2, 3):
+        if F[o]:
+            w = min(med([(b[2] - X0) if o == 2 else (X1 - b[0]) for b in F[o]]), (X1 - X0) / 2)
+            a, z = max(min(b[1] for b in F[o]), Y0 + dep.get(0, 0)), min(max(b[3] for b in F[o]), Y1 - dep.get(1, 0))
+            if z - a > 2:
+                out.append((X0, a, X0 + w, z) if o == 2 else (X1 - w, a, X1, z))
+    return [r for r in out if r[2] - r[0] > 1 and r[3] - r[1] > 1]
 
 
 # ── the stream ──────────────────────────────────────────────────────────────
@@ -755,7 +805,7 @@ function fillGroups(){ var sg=fillSig(); if(FG && FGsig===sg) return FG; FGsig=s
   var CH=FILL.ch, taken=fillTaken(), grid={};
   taken.forEach(function(b){ for(var i=Math.floor(b[0]/CH[0]);i<=Math.floor(b[2]/CH[0]);i++) for(var j=Math.floor(b[1]/CH[1]);j<=Math.floor(b[3]/CH[1]);j++) (grid[i+','+j]=grid[i+','+j]||[]).push(b); });
   for(var lv=1;lv<=4;lv++) S[lv].forEach(function(s){ var b=s.b, ci=Math.floor((b[0]+b[2])/2/CH[0]), cj=Math.floor((b[1]+b[3])/2/CH[1]), key=ci+','+cj, tk=grid[key];
-    if(tk) for(var q=0;q<tk.length;q++){ var t=tk[q]; if(b[0]<t[2] && b[2]>t[0] && b[1]<t[3] && b[3]>t[1]) return; }
+    if(tk && lv<4) for(var q=0;q<tk.length;q++){ var t=tk[q]; if(b[0]<t[2] && b[2]>t[0] && b[1]<t[3] && b[3]>t[1]) return; }
     var C=FG[lv][key]||(FG[lv][key]={ci:ci, cj:cj, u:{}}), u=distAt((b[0]+b[2])/2,(b[1]+b[3])/2); (C.u[u]=C.u[u]||[]).push(s); });
   if(FC) FC.cache={}; return FG; }
 function ringD(p){ var d='M'+p[0]+' '+p[1]; for(var k=2;k<p.length;k+=2) d+='L'+p[k]+' '+p[k+1]; return d+'Z'; }
@@ -800,12 +850,17 @@ function fillPaint(){
   var sx=dpr*Z, ox=dpr*(MX*Z-left), oy=dpr*(WORLD_PAD_TOP+MY*Z-topw); x.setTransform(sx,0,0,sx,ox,oy);
   var mx0=left/Z-MX, my0=(topw-WORLD_PAD_TOP)/Z-MY, mx1=mx0+cw/Z, my1=my0+chh/Z; F.rect=[mx0,my0,mx1,my1];
   var dark=dk(), G=fillGroups(), CH=FILL.ch; x.lineJoin='round'; x.lineWidth=1.1/Z;
-  for(var lv=lv0;lv<=lv1;lv++){ x.fillStyle=dark?'rgba(64,68,90,.78)':(lv===3?'rgba(255,255,255,.8)':'rgba(255,255,255,.72)');
+  for(var lv=lv1;lv>=lv0;lv--){ x.fillStyle=dark?'rgba(64,68,90,.78)':(lv===3?'rgba(255,255,255,.8)':'rgba(255,255,255,.72)');
     Object.keys(G[lv]).forEach(function(key){ var C=G[lv][key], cx0=C.ci*CH[0], cy0=C.cj*CH[1];
       if(cx0>mx1 || cx0+CH[0]<mx0 || cy0>my1 || cy0+CH[1]<my0) return;
       Object.keys(C.u).forEach(function(u){ var ck=lv+'|'+key+'|'+u, P2=F.cache[ck];
         if(!P2){ P2=new Path2D(); C.u[u].forEach(function(s){ var p=s.p; P2.moveTo(p[0],p[1]); for(var n=2;n<p.length;n+=2) P2.lineTo(p[n],p[n+1]); P2.closePath(); }); F.cache[ck]=P2; }
         x.fill(P2); x.strokeStyle=tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()); x.globalAlpha=lv===3?.72:.55; x.stroke(P2); x.globalAlpha=1; }); }); }
+  /* a block front's shape runs along the street the user's buildings stand on: their lots (8 px round, turned with their domain) are cut out of it */
+  if(lv1>=4){ x.globalCompositeOperation='destination-out'; x.beginPath();
+    Object.keys(P.at||{}).forEach(function(id){ var L=lot(P.at[id]); if(!L || L[0]<mx0-400 || L[0]>mx1+400 || L[1]<my0-400 || L[1]>my1+400) return; var a=(L[4]||0)*Math.PI/180, c=Math.cos(a), s=Math.sin(a), hw=L[2]/2+8, hh=L[3]/2+8;
+      [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].forEach(function(p,i){ var X=L[0]+p[0]*c-p[1]*s, Y=L[1]+p[0]*s+p[1]*c; if(i) x.lineTo(X,Y); else x.moveTo(X,Y); }); x.closePath(); });
+    x.fill(); x.globalCompositeOperation='source-over'; }
   window._fillPaintMs=performance.now()-t0; }
 /* a pan that runs past what the canvas covers draws it again (at most every 100 ms while it runs, and once when it stops) */
 var fillLastPaint=0, fillScrollT=null;

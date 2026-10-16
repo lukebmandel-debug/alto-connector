@@ -154,3 +154,16 @@ def test_set_up_fills_in_and_opens_on_skyline(monkeypatch):
     assert pf.fill_for(m, [], [], bbox) is None
     s = pal.summary({"fill_z": z})
     assert s["fill"]["opens_on"] == 1 and "fill_z" not in s
+
+
+def test_level_4_is_one_shape_per_block_front():
+    houses = [(x, 12, x + 10, 12 + d) for x, d in ((20, 40), (30, 44), (40, 40))]          # the top front
+    houses += [(x, 158 - 50, x + 12, 158) for x in (100, 112)]                              # the bottom front
+    houses += [(12, 70, 52, 80)]                                                            # the left front
+    fr = pf.block_fronts(houses, 0, 0, 240, 170)
+    assert len(fr) == 3
+    top = [r for r in fr if r[1] == 12][0]
+    assert top[0] == 20 and top[2] == 50 and top[3] == 12 + 40                            # first to last house, the median depth
+    for i, a in enumerate(fr):                                                              # no two shapes overlap
+        for b in fr[i + 1:]:
+            assert not (a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3])
