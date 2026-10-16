@@ -33,9 +33,12 @@ from .palace_river import course, resample, _main_piece, _len, NARROW_W, WIDE_W,
 OWN_TOL = 150.0         # real px: a cell whose centre is this close outside its domain's outline still belongs to it
 SEAM_NEAR = 1.5         # blocks: near a seam the Layout alone decides (the real outline is only a coarse ring)
 SEAM_FAR = 6.0          # blocks: up to here a cell whose real place is in the domain across the seam is still drawn
+FAN_TILT = 20.0         # degrees: a hinge seam with no avenue between grids this little apart is a fan (the streets
+                        # turn gradually, no street divides them: West/NW Philadelphia, 17 deg): the child joins its parent
+SEAM_AV = 150.0         # real px: a seam's own avenue is the seam this close to the seam's real line
 MIN_LINES = 3           # a grid domain needs this many lines a family to be a lattice (else it is a void)
 RASTER = 40.0           # page px: the occupancy raster that keeps two domains' blocks from overlapping
-FAN_ERR = 12.0          # degrees: a hinge seam with no avenue drawn this far off its real angle is a fan, not a seam;
+FAN_ERR = 6.0           # degrees: a hinge seam with no avenue drawn this far off its real angle is a fan, not a seam;
                         # its child joins the parent's lattice (design 1.4: the West/NW fan merges into the main grid)
 
 
@@ -109,8 +112,50 @@ def clip_cell(lay, did, poly):
         pieces = [q for q in city_seams._minus_convex(P, K) if len(q) >= 3 and abs(ring_area(q)) > 1e-6]
         if not pieces:
             return []
-        P = max(pieces, key=lambda q: abs(ring_area(q)))
+        if len(pieces) == 1:
+            P = pieces[0]
+            continue
+        one = _minus_one(P, K)            # an L-shaped cell at a seam's corner or end: one ring, no hole beside it
+        P = one if one else max(pieces, key=lambda q: abs(ring_area(q)))
     return P
+
+
+def _ccw(R):
+    return list(R) if ring_area(R) > 0 else list(R)[::-1]
+
+
+def _minus_one(P, K):
+    """Convex P minus convex K as ONE ring, when K's outline crosses P's exactly twice (a seam chain's corner or a
+    slab's end inside a cell); None otherwise. From where P leaves K, walk P counter-clockwise to where it enters K,
+    then K's outline clockwise back to the exit."""
+    P, K = _ccw(P), _ccw(K)
+    n, k = len(P), len(K)
+    hits = []                                    # (P edge, t, K edge, u, point, entering?)
+    for i in range(n):
+        a, b = P[i], P[(i + 1) % n]
+        r = (b[0] - a[0], b[1] - a[1])
+        for j in range(k):
+            c, d = K[j], K[(j + 1) % k]
+            sv = (d[0] - c[0], d[1] - c[1])
+            den = r[0] * sv[1] - r[1] * sv[0]
+            if abs(den) < 1e-12:
+                continue
+            t = ((c[0] - a[0]) * sv[1] - (c[1] - a[1]) * sv[0]) / den
+            u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den
+            if 1e-9 < t < 1 - 1e-9 and 1e-9 < u < 1 - 1e-9:
+                enter = (sv[0] * r[1] - sv[1] * r[0]) > 0          # P heads to the left of K (its inside: K is ccw)
+                hits.append((i, t, j, u, (a[0] + t * r[0], a[1] + t * r[1]), enter))
+    if len(hits) != 2 or hits[0][5] == hits[1][5]:
+        return None
+    ie, te, je, ue, qe, _ = next(h for h in hits if h[5])
+    ix, tx, jx, ux, qx, _ = next(h for h in hits if not h[5])
+    cp = ((ie - ix) % n) if ie != ix else (0 if tx < te else n)
+    ck = ((je - jx) % k) if je != jx else (0 if ux < ue else k)
+    out = [qx] + [P[(ix + 1 + s_) % n] for s_ in range(cp)] + [qe] + [K[(je - s_) % k] for s_ in range(ck)]
+    out = [q for q_i, q in enumerate(out) if q_i == 0 or math.dist(q, out[q_i - 1]) > 1e-6]
+    if len(out) < 3 or ring_area(out) < 1e-6:
+        return None
+    return out
 
 
 # ── one domain's lattice, clipped by the Layout, its real outline and the river ──
@@ -195,13 +240,16 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
             grid_doms = [d for d in grid_doms if d not in bad]
             continue
         fans = [sm for sm in sl if sm.kind == "hinge" and not sm.avenue and sm.b in {d.id for d in grid_doms}
-                and _seam_err(sm, lay) > FAN_ERR]
+                and (_seam_err(sm, lay) > FAN_ERR or abs(sm.info.get("tilt_raw", 90.0)) <= FAN_TILT)]
         if not fans:
             break
         for sm in fans:
             merged_fans.append((sm.b, sm.a, round(_seam_err(sm, lay), 1)))
             _merge(det, next(d for d in grid_doms if d.id == sm.a), next(d for d in grid_doms if d.id == sm.b), m)
             grid_doms = [d for d in grid_doms if d.id != sm.b]
+    if merged_fans:                                 # a merged fan's avenues belong to the domain it joined
+        gone = {q for q, _, _ in merged_fans}
+        recs = city_avenues.classify(m, [d for d in doms_all if d.id not in gone], majors, diagonals)
     T["plan"] = time.time() - t0 - T["avenues"]
     by_id = {d.id: d for d in grid_doms}
     root = sl[0].info["root"] if sl else max(grid_doms, key=lambda d: ring_area(d.poly)).id
@@ -210,9 +258,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     # 7a. which cells each domain draws: the Layout's region (the seams), the real outline (with a little slack, never
     #     into another domain's outline) and no overlap with a domain that owns the place for certain
     seam_segs = {}
-    for sm in sl:                                   # only the part that clips (multi-part seams: E3's main part)
-        k = _main_part_index(sm) if sm.info.get("parts") else None
-        if k is not None and _main_kind(sm) != "water":
+    for sm in sl:                                   # the parts that clip: the chain (city_seams.clip_chain)
+        for k in _clip_idx(sm):
             for did in (sm.a, sm.b):
                 seam_segs.setdefault(did, []).append(sm.segs[k])
     # a parent loses the child's slab only near the seam (beyond, the real outlines and the occupancy decide):
@@ -221,6 +268,9 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     for sm in sl:
         part = city_seams._main_part(sm) if sm.info.get("parts") else None
         if not part or part["kind"] == "water" or not subs.get(sm.a):
+            continue
+        if len(_clip_idx(sm)) > 1:                   # a chain bounds the slab on every side it faces the parent
+            subs[sm.a].pop(0)
             continue
         K = subs[sm.a].pop(0)
         pg = part["page"]
@@ -326,7 +376,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     for did, keep in ok.items():
         for ij in keep:
             cents.append(city_lattice.centroid(claim[did][ij][1]))
-    river, W = _rivers(m, cmap, W, H, [(x + 0.0, y + 0.0) for x, y in cents])
+    river, W = _rivers(m, cmap, W, H, [(x + 0.0, y + 0.0) for x, y in cents], blk=(rmp.loc.gv, rmp.loc.gh))
 
     r_ix = [(city_avenues.PolyIndex(rv["_q"], 200.0), rv["w"]) for rv in river if len(rv["_q"]) > 1]
 
@@ -378,6 +428,10 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
             a0 = max(0, min(nx - 1, int(((lx0 + lx1) / 2 - xg[0]) // gv))); a1 = a0 + 1
         if b1 <= b0:
             b0 = max(0, min(ny - 1, int(((ly0 + ly1) / 2 - yg[0]) // gh))); b1 = b0 + 1
+        if tower_key(spec.get("name") or ""):            # a tower is one cell: the block between the real streets
+            tc = _tower_cell(d, mp, lines[d.id], i0, j0, nx, ny, f)  # that bound it (PLACEMENT.md 6b), not its outline
+            if tc:
+                a0, b0 = tc; a1, b1 = a0 + 1, b0 + 1
         cells = {(i, j) for i in range(a0, a1) for j in range(b0, b1)}
         if any(cells & l_["cells"] for l_ in lms if l_["dom"] == d.id):
             if len(cells) == 1 and tower_key(spec.get("name") or ""):
@@ -427,9 +481,10 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     for sm in sl:
         if _main_kind(sm) == "water" or not sm.segs:
             continue
-        n = norm(sm.avenue) if sm.avenue else ""
-        for s in sm.segs[:1] if _main_part_index(sm) is None else [sm.segs[_main_part_index(sm)]]:
-            st = {"n": n, "k": 0 if n else 1, "sm": 1, "p": [round(v, 1) for v in s]}
+        km = _main_part_index(sm)
+        for k in _clip_idx(sm) or [0]:
+            n = norm(sm.avenue) if (sm.avenue and k == km) else ""
+            st = {"n": n, "k": 0 if n else 1, "sm": 1, "p": [round(v, 1) for v in sm.segs[k]]}
             if n:
                 st["L"] = 1
             streets.append(st)
@@ -456,6 +511,30 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
                 pts |= {(lat.xg[i], lat.yg[j]), (lat.xg[i + 1], lat.yg[j]), (lat.xg[i], lat.yg[j + 1]),
                         (lat.xg[i + 1], lat.yg[j + 1])}
         nodes[did] = sorted(pts)
+    # a seam's own avenue is drawn by the seam: its diagonal pieces keep only their stretch off the seam (Baltimore Ave
+    # east of 46th St, which leaves the seam at the chain's corner), so no second Baltimore runs beside the seam
+    seam_real = [(norm(sm.avenue), sm.real[0], sm.real[-1]) for sm in sl if sm.avenue and sm.real and len(sm.real) >= 2]
+    for r in recs:
+        for n_, a_, b_ in seam_real:
+            if r["n"] != n_:
+                continue
+            for pc in r["pieces"]:
+                if pc["kind"] != "diagonal":
+                    continue
+                off = [_segd(q, a_, b_) > SEAM_AV for q in pc["pts"]]
+                runs_, cur = [], []
+                for q, o in zip(pc["pts"], off):
+                    if o:
+                        cur.append(q)
+                    elif cur:
+                        runs_.append(cur); cur = []
+                if cur:
+                    runs_.append(cur)
+                best = max(runs_, key=len) if runs_ else []
+                if len(best) < 2 or math.dist(best[0], best[-1]) < 2 * SEAM_AV:
+                    pc["kind"] = "seam"
+                else:
+                    pc["pts"] = best
     av_recs = [r for r in recs if any(pc["kind"] == "diagonal" and pc["dom"] in by_id for pc in r["pieces"])]
     try:
         avs = city_avenues.draw(av_recs, list(tdoms.values()), nodes, sl)
@@ -463,6 +542,9 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         avs, T["avenue_error"] = [], repr(ex)[:200]
     # an avenue runs only where blocks are drawn: a free end that runs out into a void, a park or past the city's edge is
     # cut back to the last lattice node it passes (so it ends on a street, never in nothing)
+    def blk_of(did):
+        loc = maps[did].loc if did in maps else None
+        return min(loc.gv, loc.gh) if loc is not None else CH
     nb = {}
     for did, pts in nodes.items():
         lat = lats[did]
@@ -479,6 +561,16 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         i, j = int(p[0] // 200), int(p[1] // 200)
         return any(q[2] in ds and math.dist(p, q[:2]) <= r for a in (i - 1, i, i + 1) for b in (j - 1, j, j + 1)
                    for q in nb.get((a, b), ()))
+    def in_grid(p, ds, blk):
+        """Inside the drawn blocks of one of the avenue's domains: drawn nodes on every side within a block."""
+        i, j = int(p[0] // 200), int(p[1] // 200)
+        q4 = set()
+        for a in range(i - 2, i + 3):
+            for b in range(j - 2, j + 3):
+                for q in nb.get((a, b), ()):
+                    if q[2] in ds and math.dist(p, q[:2]) <= blk:
+                        q4.add((q[0] > p[0], q[1] > p[1]))
+        return len(q4) == 4
     for a_ in avs:
         ds_ = av_doms.get(a_["n"], set()) | {a_.get("dom")}
         P = _pairs(a_["p"])
@@ -492,7 +584,13 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         if core:
             S.append((core[-1], len(core) - 1))
         hit = [i for i, (q, _) in enumerate(S) if at_node(q, ds_)]
-        if len(hit) < 2 or math.dist(S[hit[0]][0], S[hit[-1]][0]) < CH:
+        # a 45-degree run meets lattice nodes rarely (240 x 310 blocks): a stretch inside the drawn blocks counts
+        # too, so a long diagonal (Lancaster Ave across West Philadelphia) is not cut back to its last node
+        blk_ = max([blk_of(d_) for d_ in ds_ if d_ in maps] or [CH])
+        inner = [i for i, (q, _) in enumerate(S) if in_grid(q, ds_, blk_)]
+        if inner:
+            hit = sorted(set(hit) | {inner[0], inner[-1]})
+        if len(hit) < 2 or math.dist(S[hit[0]][0], S[hit[-1]][0]) < min([blk_of(d_) for d_ in ds_ if d_ in maps] or [CH]):
             continue
         a0, a1 = hit[0], hit[-1]
         pa, ka = S[a0]; pb, kb = S[a1]
@@ -590,16 +688,36 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         transit["new"] = new_streets
     T["transit"] = time.time() - t0 - sum(T.values())
 
-    # 10c. parks: the root domain's lattice (the page shapes parks on g["grid"]'s columns and rows)
+    # 10c. parks, per domain: each park on the lattice of the domain its real outline mostly stands in (by area),
+    #      only on cells that domain draws (inside its region, out of its children's slabs, off the river); the
+    #      record carries the domain's frame ("f": a, o, the lattice origin, block, size) so the page shapes it there
     from .palace_parks import pick as pick_parks
-    rl = lats[root]
     rxg = [x + rmp.o[0] for x in rmp.loc.xg]          # the root's lines on the page (a = 0): the mapping tables
-    ryg = [y + rmp.o[1] for y in rmp.loc.yg]          # and the cells parks are shaped on
-    root_d = by_id[root]
-    m_root = dict(m, parks=[pk for pk in m.get("parks", []) if pk.get("r") and pk["r"][0] and
-                            owner(*_ring_c(pk["r"][0])) is root_d])
-    rmap = Mapping(rmp.loc.th, rmp.loc.cx, rmp.loc.cy, rmp.loc.xr, rxg, rmp.loc.yr, ryg)
-    park_cells = pick_parks(m_root, rmap, rxg, ryg, parks or (), lm_cells[root], lambda p: near_river(p, 0))
+    ryg = [y + rmp.o[1] for y in rmp.loc.yg]
+    park_cells = []
+    taken_pk = set()
+    for did in sorted(by_id, key=lambda i: (i != root, i)):
+        d, lat, mp = by_id[did], lats[did], maps[did]
+        mine = []
+        for pk in m.get("parks", []):
+            rings = [r for r in pk.get("r") or [] if r and len(r) >= 6]
+            if not rings or (pk.get("n") or "") in taken_pk:
+                continue
+            if owner(*_ring_c(max(rings, key=lambda r: abs(ring_area(_pairs(r)))))) is d:
+                mine.append(pk)
+        if not mine:
+            continue
+        nx_, ny_ = len(lat.xg) - 1, len(lat.yg) - 1
+        drawn = lambda c, lat=lat: lat.inside(*lat.page((lat.xg[c[0]] + lat.xg[c[0] + 1]) / 2,   # noqa: E731
+                                                        (lat.yg[c[1]] + lat.yg[c[1] + 1]) / 2))
+        wet_l = lambda q, lat=lat: near_river(lat.page(*q), 0)                                     # noqa: E731
+        blocked = set(lm_cells[did]) | {(i, j) for i in range(nx_) for j in range(ny_) if not drawn((i, j))}
+        for pk in pick_parks(dict(m, parks=mine), mp.loc, lat.xg, lat.yg, parks or (), blocked, wet_l):
+            pk["f"] = [round(mp.a, 6), round(mp.o[0], 2), round(mp.o[1], 2), round(lat.xg[0], 2),
+                       round(lat.xg[1] - lat.xg[0], 4), len(lat.xg), round(lat.yg[0], 2), round(lat.yg[1] - lat.yg[0], 4),
+                       len(lat.yg)]
+            park_cells.append(pk)
+            taken_pk.add(pk["n"])
 
     # 12. blocks and lots of every domain (cut blocks at the seams and the river included)
     blocks = []
@@ -710,6 +828,55 @@ def _merge(det, P, Q, m):
     P.area = round((P.area or 0) + (Q.area or 0), 2)
 
 
+def _tower_cell(d, mp, L, i0, j0, nx, ny, f, reach=1.0):
+    """The one cell a tower stands in: per family, the drawn lines of the nearest real streets on either side of its
+    real centre (named lines of the domain within `reach` blocks), else the cell its centre maps into. -> (a, b) local
+    cell indices, or None."""
+    loc = mp.loc
+    cx, cy = f["x"], f["y"]
+    rings = [q for q in (f.get("r") or []) if q]
+    if rings:
+        q = _pairs(rings[0])
+        cx, cy = sum(p[0] for p in q) / len(q), sum(p[1] for p in q) / len(q)
+    lx, ly = loc(cx, cy)
+    out = []
+    for fam, v, g, base, n_ in (("v", lx, loc.gv, i0, nx), ("h", ly, loc.gh, j0, ny)):
+        idx = {}
+        for l in L[fam]:
+            if l.get("n"):
+                idx.setdefault(norm(l["n"]), []).append(l.get("i", 0))
+        lo = hi = None
+        for st in d.streets or ():
+            n = norm(st.get("n") or "")
+            if n not in idx or st.get("t"):
+                continue
+            P = [loc(x, y) for x, y in _pairs(st["p"])]
+            for a, b in zip(P, P[1:]):
+                pa, pb = (a[0], b[0]) if fam == "v" else (a[1], b[1])        # across the family
+                qa, qb = (a[1], b[1]) if fam == "v" else (a[0], b[0])        # along it
+                other = ly if fam == "v" else lx
+                if abs(pa - pb) > 0.3 * abs(qa - qb) or not (min(qa, qb) - 30 <= other <= max(qa, qb) + 30):
+                    continue                                                 # not a stretch of this family passing it
+                p = (pa + pb) / 2
+                if abs(p - v) > reach * g:
+                    continue
+                k = min(idx[n], key=lambda i: abs(i * g - p))
+                if p <= v and (lo is None or p > lo[0]):
+                    lo = (p, k)
+                if p > v and (hi is None or p < hi[0]):
+                    hi = (p, k)
+        if lo and hi and hi[1] == lo[1] + 1:
+            c = lo[1]
+        elif lo and (not hi or v - lo[0] <= hi[0] - v):
+            c = lo[1] if lo[1] * g <= v + g else int(math.floor(v / g))
+        elif hi:
+            c = hi[1] - 1 if hi[1] * g >= v - g else int(math.floor(v / g))
+        else:
+            c = int(math.floor(v / g))
+        out.append(max(0, min(n_ - 1, c - base)))
+    return tuple(out)
+
+
 def _ring_c(flat):
     q = _pairs(flat)
     return (sum(p[0] for p in q) / len(q), sum(p[1] for p in q) / len(q))
@@ -725,6 +892,15 @@ def _main_part_index(sm):
     return parts.index(mp) if mp is not None and mp in parts and parts.index(mp) < len(sm.segs) else None
 
 
+def _clip_idx(sm):
+    """The indices of a seam's clipping parts (its chain), the main part first."""
+    if not sm.info.get("parts") or _main_kind(sm) == "water":
+        return []
+    km = _main_part_index(sm)
+    ch = [k for k in (sm.info.get("clip") or ([km] if km is not None else [])) if k is not None and k < len(sm.segs)]
+    return sorted(ch, key=lambda k: k != km)
+
+
 def _main_kind(sm):
     parts = sm.info.get("parts") or []
     if not parts:
@@ -733,7 +909,7 @@ def _main_kind(sm):
     return mp["kind"] if mp else "water"
 
 
-def _hug(pts, cents, w):
+def _hug(pts, cents, w, blk=(CW, CH)):
     """The wide river (the city's edge) along the drawn blocks: each mapped point moved to w/2 + a gap off the nearest
     block, on its own side (the real distance from the last street to the river is not kept, as in v1)."""
     cell = 400.0
@@ -757,15 +933,15 @@ def _hug(pts, cents, w):
             out.append(p)
             continue
         d, c = best
-        if d < 0.6 * CH:
+        if d < 0.6 * min(blk):
             continue                                  # mapped into the blocks: the neighbours carry the course
         u = ((p[0] - c[0]) / d, (p[1] - c[1]) / d)
-        off = 0.5 * (abs(u[0]) * CW + abs(u[1]) * CH) + RIVER_GAP + w / 2
+        off = 0.5 * (abs(u[0]) * blk[0] + abs(u[1]) * blk[1]) + RIVER_GAP + w / 2
         out.append((c[0] + u[0] * off, c[1] + u[1] * off))
     return out or pts
 
 
-def _rivers(m, cmap, W, H, cents=()):
+def _rivers(m, cmap, W, H, cents=(), blk=(CW, CH)):
     """[{n, w, p, _q}] and the glass width: every long river's centre line through CityMapping, smoothed."""
     out = []
     bank = m.get("bank") or {}
@@ -783,7 +959,7 @@ def _rivers(m, cmap, W, H, cents=()):
         wide = bank.get("n") == name and bank.get("side") == "e"
         pts = [cmap(x, y) for x, y in real]
         if wide and cents:
-            pts = _hug(pts, cents, WIDE_W)
+            pts = _hug(pts, cents, WIDE_W, blk)
         c = course(pts, 320.0 * (1.4 if wide else 1.0))
         w = WIDE_W if wide else NARROW_W
         if wide:
@@ -857,8 +1033,7 @@ def _dom_out(td, lat, mp, is_root):
 
 
 def _seam_out(sm):
-    k = _main_part_index(sm)
-    segs = [sm.segs[k]] if k is not None else sm.segs[:1]                 # the part the domains are clipped by
+    segs = [sm.segs[k] for k in _clip_idx(sm)] or sm.segs[:1]             # the parts the domains are clipped by
     return {"a": sm.a, "b": sm.b, "kind": sm.kind, "avenue": sm.avenue, "phi": round(sm.phi, 3),
             "segs": [[round(v, 1) for v in s] for s in segs], "parts": len(sm.segs), "ratio": round(sm.ratio, 4), "err": round(sm.err, 3),
             "real": [[round(x, 1), round(y, 1)] for x, y in (sm.real or [])],

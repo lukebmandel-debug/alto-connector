@@ -28,6 +28,8 @@ TH = {
     "cut_warn": .05, "cut_fail": .10,
     "size_warn": 1.5, "size_fail": 3.0,
     "overlap_blocks": .1,
+    "spacing_ratio": 1.5, "spacing_excess": 1.5, "spacing_aniso": 1.25, "spacing_km": 2.5,
+    "fronts_fail": 1.0, "fronts_reach_m": 80.0,
 }
 # Philadelphia 1.9.78 (measured by this report on the release data): packed kB of {"map", "blocks"} and its real bbox km²
 BASE_KB, BASE_KM2 = 162.0, 166.1
@@ -530,8 +532,8 @@ def c_seam_fidelity(g, m, M):
             if mp is not None:
                 Q = [_page(a_dom, mp(x, y)) for x, y in real]
                 ang_r = math.degrees(math.atan2(Q[-1][1] - Q[0][1], Q[-1][0] - Q[0][0]))
-                L = sum(math.hypot(q[2] - q[0], q[3] - q[1]) for q in segs) or 1
-                ang_p = math.degrees(math.atan2(sum(q[3] - q[1] for q in segs), sum(q[2] - q[0] for q in segs)))
+                main = segs[:1]          # "real" is the main part's; a chain's other parts (v2: segs[1:]) turn off it
+                ang_p = math.degrees(math.atan2(sum(q[3] - q[1] for q in main), sum(q[2] - q[0] for q in main)))
                 e = abs((ang_r - ang_p + 90) % 180 - 90)
                 err = e if err in (None, 0.0) else err
         r = _dget(s, "ratio", 1.0) or 1.0
@@ -764,6 +766,171 @@ def c_overlap(g, m, M):
     return ("fail" if bad else "ok"), "%d overlapping domain pairs" % len(bad), {"bad": bad}
 
 
+# ── landmark spacing in blocks, and the street a landmark fronts (PLACEMENT.md section 7) ──
+def _dom_frame(d, m):
+    """A grid domain's frame for the two checks below: (turn real px into its axes, page px into its axes, (gv, gh))."""
+    t = _dget(d, "mapping")
+    t = t.tables() if hasattr(t, "tables") else (t or {})
+    th = t.get("t", _dget(d, "theta", 0.0) or 0.0)
+    cx, cy = t.get("cx", m["W"] / 2), t.get("cy", m["H"] / 2)
+    c, s = math.cos(-th), math.sin(-th)
+    a = math.radians(_dget(d, "a", 0.0) or 0.0)
+    ca, sa = math.cos(-a), math.sin(-a)
+    cwch = _dget(d, "cwch") or [t.get("gv", CW), t.get("gh", CH)]
+    return (lambda x, y: ((x - cx) * c - (y - cy) * s + cx, (x - cx) * s + (y - cy) * c + cy),
+            lambda x, y: (x * ca - y * sa, x * sa + y * ca), (float(cwch[0]), float(cwch[1])), th, (cx, cy))
+
+
+def _real_lines(m, majors, th, ctr, cache={}):
+    from .city_lines import candidates, SAME_LINE
+    key = (id(m), round(th, 6), round(ctr[0]), round(ctr[1]))
+    if key not in cache:
+        streets = [s for s in m.get("streets", []) if not s.get("t")]
+        cand = candidates(streets, th, ctr, majors)
+        B = {}
+        for o in ("v", "h"):
+            ps = [l["pos"] for l in cand[o] if l["must"]]
+            gaps = sorted(b - a for a, b in zip(ps, ps[1:]) if b - a > SAME_LINE)
+            if len(gaps) < 3:
+                B[o] = None
+                continue
+            md = gaps[len(gaps) // 2]
+            gaps = [x for x in gaps if x <= 3 * md]
+            B[o] = gaps[len(gaps) // 2]
+        cache.clear()
+        cache[key] = (cand, B)
+    return cache[key]
+
+
+def _lm_doms(g, m, M, aliases):
+    """Matched landmarks grouped by the grid domain their real place is in: {dom id: [(name, real, page record)]}."""
+    lm, _ = _match_landmarks(g, m, aliases)
+    rec = {l["n"]: l for l in g.get("landmarks", [])}
+    out = {}
+    for n, r, _, _ in lm:
+        i = M["finder"](*r)
+        d = M["by_id"].get(i) or M["doms"][0]
+        if _dget(d, "kind", "grid") != "grid" or _dget(d, "legacy"):
+            d = M["doms"][0]
+        out.setdefault(_dget(d, "id"), []).append((n, r, rec[n]))
+    return out
+
+
+def c_spacing(g, m, M, aliases):
+    """Every pair of landmarks of one domain within TH spacing_km: their distance on the page in blocks, per axis of the
+    domain, against the real blocks between them (the must streets crossed on an L walk, or the metric distance over
+    the median real block where a void has no streets). Catches what displacement cannot (it maps both ends through
+    the same mapping): half-block alleys drawn as full rows."""
+    sc = m.get("scale") or 1.0
+    rows, n_pairs = [], 0
+    for did, L in _lm_doms(g, m, M, aliases).items():
+        if len(L) < 2:
+            continue
+        d = M["by_id"].get(did) or M["doms"][0]
+        turn, pturn, (gv, gh), th, ctr = _dom_frame(d, m)
+        cand, B = _real_lines(m, (), th, ctr)       # a block is between numbered / k <= 1 streets (not every major)
+        if not B["v"] or not B["h"]:
+            continue
+        real = {n: turn(*r) for n, r, _ in L}
+        page = {n: pturn(l["x"], l["y"]) for n, _, l in L}
+        names = [n for n, _, _ in L]
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                a, b = names[i], names[j]
+                if math.dist(real[a], real[b]) > TH["spacing_km"] * 1000 * sc:
+                    continue
+                n_pairs += 1
+                for o, i0, i1, blk, gg in (("v", 0, 1, B["v"], gv), ("h", 1, 0, B["h"], gh)):
+                    lo, hi = sorted((real[a][i0], real[b][i0]))
+                    at = real[a][i1] if o == "h" else real[b][i1]
+                    crossed = sum(1 for l in cand[o] if l["must"] and lo < l["pos"] < hi and
+                                  any(s0 - 60 * sc <= at <= s1 + 60 * sc for s0, s1 in l["spans"]))
+                    r_ = max(crossed, (hi - lo) / blk)
+                    d_ = abs(page[a][i0] - page[b][i0]) / gg
+                    if r_ >= 2 or d_ >= 3:
+                        rows.append((round(d_ / max(r_, 1e-9), 2), a, b, "E-W" if o == "v" else "N-S", round(r_, 1),
+                                     round(d_, 1), round(d_ - r_, 1)))
+    if not rows:
+        return "ok", "no landmark pairs to compare", {}
+    bad = [r for r in rows if (r[0] >= TH["spacing_ratio"] and r[6] >= TH["spacing_excess"]) or
+           (r[0] <= 1 / TH["spacing_ratio"] and r[6] <= -TH["spacing_excess"])]
+    med = {}
+    for ax in ("N-S", "E-W"):
+        q = sorted(r[0] for r in rows if r[3] == ax)
+        med[ax] = q[len(q) // 2] if q else None
+    aniso = med["N-S"] and med["E-W"] and max(med["N-S"], med["E-W"]) / min(med["N-S"], med["E-W"]) > TH["spacing_aniso"]
+    st = "fail" if bad else "warn" if aniso else "ok"
+    bad.sort(key=lambda r: -abs(r[6]))
+    return st, "%d landmark pair-axes; %d drawn too far or too close in blocks; median drawn/real N-S %s, E-W %s" % (
+        len(rows), len(bad), med["N-S"], med["E-W"]), {"bad": bad[:15], "median": med, "pairs": n_pairs}
+
+
+def c_fronts(g, m, M, aliases):
+    """Each landmark against the street it really stands on, found locally (the nearest named major/k<=3/numbered
+    stretch of each family within TH fronts_reach_m of its real place): the page distance in blocks from its box to
+    the drawn line of that name and family. A name with no drawn line of that family (a diagonal) is skipped."""
+    from .palace_grid import numbered
+    maj = {norm(x) for x in g.get("majors") or ()}
+    sc = m.get("scale") or 1.0
+    reach = TH["fronts_reach_m"] * sc
+    out, bad = [], []
+    for did, L in _lm_doms(g, m, M, aliases).items():
+        d = M["by_id"].get(did) or M["doms"][0]
+        turn, pturn, (gv, gh), th, ctr = _dom_frame(d, m)
+        segs = []
+        for st in m.get("streets", []):
+            n = norm(st.get("n") or "")
+            if st.get("t") or not n or not (st.get("k", 9) <= 3 or numbered(n) or n in maj):
+                continue
+            P = [turn(*q) for q in _pairs(st["p"])]
+            segs += [(n, a, b) for a, b in zip(P, P[1:])]
+        drawn = {}
+        for s in M["streets"]:
+            if s.get("d") or not s.get("n"):
+                continue
+            P = [pturn(*q) for q in _pairs(s["p"])]
+            for a, b in zip(P, P[1:]):
+                if abs(a[0] - b[0]) < 2 and abs(a[1] - b[1]) > 2:
+                    drawn.setdefault((norm(s["n"]), "v"), []).append((a[0], min(a[1], b[1]), max(a[1], b[1])))
+                elif abs(a[1] - b[1]) < 2 and abs(a[0] - b[0]) > 2:
+                    drawn.setdefault((norm(s["n"]), "h"), []).append((a[1], min(a[0], b[0]), max(a[0], b[0])))
+        for n, r, l in L:
+            px, py = turn(*r)
+            cx, cy = pturn(l["x"], l["y"])
+            bx = l.get("box") or [l["x"] - gv / 2, l["y"] - gh / 2, l["x"] + gv / 2, l["y"] + gh / 2]
+            hw, hh = (bx[2] - bx[0]) / 2, (bx[3] - bx[1]) / 2
+            for o in ("v", "h"):
+                best = None
+                for nm, a, b in segs:
+                    ang = math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) % 180
+                    if o == "v" and abs(ang - 90) < 25 and min(a[1], b[1]) - 40 * sc <= py <= max(a[1], b[1]) + 40 * sc:
+                        dd = abs((a[0] + b[0]) / 2 - px)
+                    elif o == "h" and (ang < 25 or ang > 155) and min(a[0], b[0]) - 40 * sc <= px <= max(a[0], b[0]) + 40 * sc:
+                        dd = abs((a[1] + b[1]) / 2 - py)
+                    else:
+                        continue
+                    if dd < reach and (best is None or dd < best[0]):
+                        best = (dd, nm)
+                if not best:
+                    continue
+                cand = drawn.get((best[1], o), [])
+                if o == "v":
+                    ds = [max(0.0, abs(x - cx) - hw) / gv for x, y0, y1 in cand if y0 - 2 * gh <= cy <= y1 + 2 * gh]
+                else:
+                    ds = [max(0.0, abs(y - cy) - hh) / gh for y, x0, x1 in cand if x0 - 2 * gv <= cx <= x1 + 2 * gv]
+                if not ds:
+                    continue
+                row = (round(min(ds), 2), n, best[1], o)
+                out.append(row)
+                if row[0] > TH["fronts_fail"]:
+                    bad.append(row)
+    if not out:
+        return "ok", "no landmark fronts a drawn line", {}
+    bad.sort(key=lambda r: -r[0])
+    return ("fail" if bad else "ok"), "%d landmark fronts; %d over %.1f block from the line of the street they stand on" % (
+        len(out), len(bad), TH["fronts_fail"]), {"bad": bad[:15]}
+
+
 def report(g, m, doms=None, seams=None, aliases=None, blocks=None) -> dict:
     """R10. aliases: {page landmark label: real name} (the brief's buildings), for matching landmarks."""
     blocks = blocks if blocks is not None else g.get("blocks")
@@ -775,7 +942,8 @@ def report(g, m, doms=None, seams=None, aliases=None, blocks=None) -> dict:
             ("tjoin", lambda: c_tjoin(g, m, M)), ("ends", lambda: c_ends(g, m, M)),
             ("cross_seam", lambda: c_cross_seam(g, m, M)), ("avenues", lambda: c_avenues(g, m, M)),
             ("transit", lambda: c_transit(g, m, M)), ("cut", lambda: c_cut(g, m, M, blocks)),
-            ("size", lambda: c_size(g, m, M, blocks)), ("overlap", lambda: c_overlap(g, m, M))]
+            ("size", lambda: c_size(g, m, M, blocks)), ("overlap", lambda: c_overlap(g, m, M)),
+            ("spacing", lambda: c_spacing(g, m, M, aliases)), ("fronts", lambda: c_fronts(g, m, M, aliases))]
     for name, fn in plan:
         try:
             st, msg, data = fn()

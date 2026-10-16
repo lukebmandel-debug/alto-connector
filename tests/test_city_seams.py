@@ -112,7 +112,7 @@ def synth(psi, delta, hinge_fam="v", gap_v=150.0, gap_h=106.25, size=3600.0):
 
 def _run(psi, delta, hinge_fam, sigma=1.6, tol=cs.R_TOL):
     P, Q = synth(psi, delta, hinge_fam)
-    sl, lines, lay = cs.plan([P, Q], sigma=sigma, tol=tol)
+    sl, lines, lay = cs.plan([P, Q], sigma=sigma, tol=tol, aspect=False)    # E3's fixed 240 x 170 block
     assert len(sl) == 1
     return P, Q, sl[0], lines, lay
 
