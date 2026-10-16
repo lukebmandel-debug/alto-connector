@@ -90,11 +90,16 @@ def test_the_kept_line_is_readable_for_character_focus():
 
 # ── in a browser ────────────────────────────────────────────────────────────
 
-pw = pytest.importorskip("playwright.sync_api")
+try:                                               # the browser tests only: the checks above run anywhere
+    import playwright.sync_api as pw
+except ImportError:                                # pragma: no cover
+    pw = None
 
 
 @pytest.fixture(scope="module", params=["chromium", "webkit"])
 def browser(request):
+    if pw is None:
+        pytest.skip("Playwright is not installed")
     with pw.sync_playwright() as p:
         try:
             b = getattr(p, request.param).launch()

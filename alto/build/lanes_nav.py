@@ -62,6 +62,8 @@ NAV_CSS = """
   #lanes-nav button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
   #lanes-nav button[aria-pressed="true"]{ color:var(--accent); }
   #lanes-nav button:disabled{ opacity:.3; cursor:default; background:none; }
+  #lanes-nav{ transition:opacity .25s; }
+  #lanes-nav.lnv-away{ opacity:0; pointer-events:none; }
   #lanes-nav .lnv-mid{ display:flex; flex-direction:column; justify-content:center; gap:4px; width:250px; padding:0 4px; }
   #lanes-nav .lnv-txt{ display:flex; align-items:baseline; gap:7px; white-space:nowrap; overflow:hidden; font-variant-numeric:tabular-nums; line-height:1; }
   #lanes-nav .lnv-txt b{ color:var(--text); font-weight:700; }
@@ -290,7 +292,7 @@ document.addEventListener('keydown', function(e){
   else if((k==='ArrowUp' || k==='ArrowDown') && !sh) d=k==='ArrowUp'?'n':'s';
   else if(k==='Enter' && !onCtl){
     var cur=current(); if(!cur) return;
-    e.preventDefault(); stopGlide(); if(window.enterFocus) window.enterFocus(cur); return;
+    e.preventDefault(); cancelAll(); if(window.enterFocus) window.enterFocus(cur); return;
   }
   if(d==null) return;
   if(_ov){ e.preventDefault(); return; }
@@ -383,6 +385,11 @@ document.addEventListener('pointerup', function(e){
 }, true);
 document.addEventListener('pointercancel', function(){ T=null; }, true);
 
+/* cards gliding under a still pointer are not pointed at (the engine's hover asks the
+   same; here it keeps lanes.py from isolating whichever line slides under it) */
+document.addEventListener('mouseover', function(e){
+  if(on() && window._altoPointerStill && window._altoPointerStill(e) && cv() && cv().contains(e.target)) e.stopPropagation();
+}, true);
 /* a hand on the board stops a glide; a drag of the background is the explicit free pan */
 document.addEventListener('mousedown', function(e){
   var c=cv(); if(!c || !c.contains(e.target) || _ov) return;
@@ -416,6 +423,7 @@ var _lastFocus=null;
 function watchFocus(){
   var c=cv(); if(!c || c._lnObs || !window.MutationObserver) return; c._lnObs=1;
   new MutationObserver(function(){
+    if(R) R.el.classList.toggle('lnv-away', c.classList.contains('focus-mode'));    // an enlarged card has the stage
     if(c.classList.contains('focus-mode')){ if(_anim || _busy) cancelAll(); if(window._focusedNodeId){ _lastFocus=window._focusedNodeId; setCur(_lastFocus); _trust=true; ui(_lastFocus,0); } }
     else if(_lastFocus){ setCur(_cur||_lastFocus); _trust=true; _lastFocus=null; }
   }).observe(c,{attributes:true, attributeFilter:['class']});
@@ -630,7 +638,7 @@ function relaid(first){
   railMarks();
   if(_ov){ var c=cv(); _ov=ovFit(); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; ui(current(),0); return; }
   /* a re-layout (a resize, an edit) keeps the view on the event the steps were on */
-  if(!first && _cur && de.classList.contains('ln-stepped') && on() && !window._focusedNodeId && !_anim){ _home=null; glideTo(_cur,{instant:true}); }
+  if(!first && _cur && de.classList.contains('ln-stepped') && on() && !window._focusedNodeId && !_anim){ glideTo(_cur,{instant:true}); }
   else ui(current(),0);
 }
 var _lay=window._altoLanes, _laid=0;
