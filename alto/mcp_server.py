@@ -1557,7 +1557,10 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   landmark_buildings: list[dict] | None = None,
                   parks: list[str] | None = None,
                   areas: list[dict] | None = None,
-                  portals: list[dict] | None = None) -> dict:
+                  portals: list[dict] | None = None,
+                  transit: list[dict] | None = None,
+                  auto: bool = True,
+                  subject: str | None = None) -> dict:
     """The city a Mind Palace (mode 'palace', §D-Palace) is drawn on: fetches
     its streets, rivers, parks, railways, stations and landmarks from
     OpenStreetMap, finds its blocks and building lots, and stores them with the
@@ -1608,6 +1611,20 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     major name shown at the whole-city zoom … 4 a minor one shown up close;
     overlapping names are hidden by rank); omitted, Philadelphia's own list
     is used, [] draws none.
+    Built-in cities: "New York City" (also "NYC", "New York", "Manhattan"), "Boston" and "Washington, D.C."
+    (also "Washington", "DC") come with everything above already chosen (box, main streets, landmarks and
+    towers with their real floors, diagonals, parks, neighbourhoods, and the real transit networks: MTA subway,
+    PATH, LIRR, Metro-North; MBTA; WMATA Metro, MARC, VRE) — pass only districts (and any field to change).
+    Any other city is set up on demand by the same rules from OpenStreetMap alone: every field left out is
+    worked out (main streets by class and length, landmarks and towers by their tags, parks by size,
+    neighbourhood names from the map, diagonals from the street grid). auto=False: no preset and no
+    worked-out fields (only what is passed). transit: the real networks to draw, [{id, name, colour, kind,
+    network, operator, route, refs}] (omitted: the preset's, or the box's own route relations).
+    subject: what the timeline studies; "law" (also read from the title, purpose and section names: law,
+    courts, civil procedure, torts ...) makes the city's real courthouses landmark buildings, by level —
+    federal (U.S. courthouses, courts of appeals, the Supreme Court), state (state supreme / appellate / trial
+    courts) and city (municipal, county, family, superior / district courts, a City Hall with courts) — each
+    opening the timeline's own matching Index (federal law, state law / cases, local rules) when it has one.
     The map data is © OpenStreetMap contributors; the page credits it."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
@@ -1620,6 +1637,28 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     from . import palace_map
     nodes = get_store().list_nodes(uid(), timeline_id)
     n_bld = max(1, sum(1 for n in nodes if not n.get("parent")))
+    from .build import city_presets, city_setup
+    pre = city_presets.get(place) if auto else None
+    pid = city_presets.find(place) if pre else ("auto" if auto else None)
+    if pre:
+        # a built-in city: its fields stand in for every argument left out
+        place, bbox, area = pre["place"], bbox or pre["bbox"], area or pre["area"]
+        majors = pre["majors"] if majors is None else majors
+        landmarks = pre["landmarks"] if landmarks is None else landmarks
+        diagonals = pre["diagonals"] if diagonals is None else diagonals
+        parks = pre["parks"] if parks is None else parks
+        areas = pre["areas"] if areas is None else areas
+        transit = pre["transit"] if transit is None else transit
+        landmark_buildings = city_presets.buildings_for(pre, landmark_buildings)
+    if not bbox and auto and not area:
+        # a city the engine has no preset for: Nominatim's box and the size rule (5-8 km a side)
+        try:
+            bbox = city_setup.bbox_for(place)
+        except Exception:                               # noqa: BLE001 — network
+            bbox = None
+        if not bbox:
+            return {"error": "place_not_found", "message": f"OpenStreetMap does not know {place!r}"
+                    " — ask the user to name it another way (town, county, country)"}
     if not bbox:
         g = palace_map.geocode(" ".join(x for x in (area, place) if x))
         if not g:
@@ -1648,13 +1687,37 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                      for i in range(n_acts)]
     cache = Path.home() / ".cache" / "alto" / "osm"
     cache.mkdir(parents=True, exist_ok=True)
+    auto_info = None
     try:
+        if not pre and auto and any(v is None for v in (majors, landmarks, landmark_buildings, diagonals, parks,
+                                                        areas, transit)):
+            # the generic set-up: every field left out is worked out from the map itself (city_setup)
+            from .build.palace_areas import default_areas
+            raw0 = city_setup.fetch_city(tuple(bbox), cache_dir=str(cache))
+            disc = city_setup.discover(tuple(bbox), cache_dir=str(cache))
+            ap = city_setup.auto_params(palace_map.merge_raw(raw0, disc), bbox, place)
+            del raw0
+            majors = ap["majors"] if majors is None else majors
+            landmarks = ap["landmarks"] if landmarks is None else landmarks
+            landmark_buildings = city_presets.buildings_for(ap, landmark_buildings)
+            diagonals = ap["diagonals"] if diagonals is None else diagonals
+            parks = ap["parks"] if parks is None else parks
+            if areas is None and not default_areas(place, bbox):
+                areas = ap["areas"]
+            transit = ap["transit"] if transit is None else transit
+            auto_info = {k: len(ap[k]) for k in ("majors", "landmarks", "landmark_buildings", "diagonals", "parks",
+                                                 "areas", "transit")}
+        court_info = _courthouses(doc, brief, place, pid if pre else None, bbox, cache, subject, landmark_buildings)
+        if court_info:
+            landmark_buildings = court_info.pop("buildings")
         names = list(landmarks or []) + [b.get("name") for b in landmark_buildings or [] if b.get("name")]
         names += [s for ln in rail_lines or [] for s in ln.get("stops") or []]
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                              landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
-                             parks=parks, areas=areas, portals=portals)
+                             parks=parks, areas=areas, portals=portals, transit=transit,
+                             tiled=bool(pre or auto_info), preset=pid if (pre or auto_info) else None,
+                             far_bank=bool(pre and pre.get("far_bank")), fill=True)
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass
@@ -1664,6 +1727,10 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         pal["area"] = area
     pal["made"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     new = {**brief, "palace": pal}
+    old_pal = brief.get("palace") or {}
+    if old_pal.get("data_z") and brief.get("placement"):
+        # the city was drawn again (block numbers change): saved building lots move to the same real place
+        new["placement"], _mig = pal_mod.migrate_placements(old_pal, pal, brief.get("placement"))
     try:
         b, _, _ = load_brief({"brief": _checked(doc, new)})
         from .build.brief import validate_brief
@@ -1689,7 +1756,44 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                                          "name it as OpenStreetMap does" for t in towers if not t["on_map"]]
     return {"ok": True, "palace": info, "buildings": n_bld, "warnings": warnings,
             **({"towers": towers} if towers else {}),
+            **({"preset": pid} if pre else {}), **({"worked_out": auto_info} if auto_info else {}),
+            **({"courthouses": court_info} if court_info else {}),
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
+
+
+def _courthouses(doc, brief, place, pid, bbox, cache, subject, given):
+    """A law palace's courthouses (city_courts) merged into the landmark buildings: {buildings, courts: [{name,
+    level, page?, on_osm?}], source} or None when the timeline is not about law."""
+    import re as _re
+    from .build import city_courts, city_presets
+    texts = city_courts.brief_texts(brief) + [doc.get(k) for k in ("title", "name") if doc.get(k)]
+    if not city_courts.is_law(texts, subject):
+        return None
+    try:
+        b0, _, _ = load_brief({"brief": _checked(doc, brief)})
+        keys = city_courts.index_keys(b0)
+    except Exception:                                   # noqa: BLE001 — a draft brief: no index pages to link
+        keys = []
+    ckey = pid or ("philadelphia" if _re.search(r"philadelphia", str(place or ""), _re.I) else None)
+    try:
+        els = city_courts.fetch_courts(tuple(bbox), cache_dir=str(cache)).get("elements", [])
+    except Exception:                                   # noqa: BLE001 — Overpass busy: the preset's own names stand
+        els = []
+    if ckey in city_presets.COURTS:
+        b = bbox
+        courts = [c for c in city_courts.match_names(city_presets.COURTS[ckey], els)
+                  if b[0] <= c["lat"] <= b[2] and b[1] <= c["lon"] <= b[3]]
+        source = "preset"
+    else:
+        courts, source = city_courts.courts_of(els, bbox), "osm"
+    if not courts:
+        return None
+    blds = city_courts.buildings(courts, keys, given)
+    pages = {str(x.get("name")).lower(): x.get("page") for x in blds}
+    return {"buildings": blds, "source": source,
+            "courts": [{"name": c["name"], "level": c["level"], **({"page": pages.get(c["name"].lower())}
+                        if pages.get(c["name"].lower()) else {}), **({"on_osm": c["osm"]} if "osm" in c else {})}
+                       for c in courts]}
 
 
 @mcp.tool(title="Set overview", annotations=RW)

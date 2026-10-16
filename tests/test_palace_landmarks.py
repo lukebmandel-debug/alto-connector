@@ -138,14 +138,14 @@ def test_the_tip_says_inside_with_the_count(browser):
     pg.close()
 
 
-def test_the_name_hangs_under_a_small_card_and_sits_in_a_big_one(browser):
+def test_the_name_hangs_under_the_card_at_every_zoom(browser):
     pg = draw_all(browser, LMS)
     far = pg.evaluate("""()=>{ window._palLm.relayout(document.getElementById('s'), .25);
-      return Array.from(document.querySelectorAll('.pl-lmb')).map(g=>g.querySelector('.lm-name').getAttribute('class')); }""")
+      return Array.from(document.querySelectorAll('.lm-name')).map(t=>t.getAttribute('class')); }""")
     assert all(c == "lm-name" for c in far)                                 # far away every name hangs under its card
     near = pg.evaluate("""()=>{ window._palLm.relayout(document.getElementById('s'), 1.4);
-      return Array.from(document.querySelectorAll('.pl-lmb')).map(g=>g.querySelector('.lm-name').getAttribute('class')); }""")
-    assert "lm-name in" in near                                             # close up the big ones carry it inside
+      return Array.from(document.querySelectorAll('.lm-name')).map(t=>t.getAttribute('class')); }""")
+    assert all(c == "lm-name" for c in near)                                # close up too: the card hugs the building's footprint, the name hangs under it
     pg.close()
 
 
@@ -154,3 +154,32 @@ def test_the_key_row(browser):
     row = pg.evaluate("window._palLm.keyRow()")
     assert "reference material inside" in row and "pk-row" in row
     pg.close()
+
+
+def test_courthouses_by_type_and_level():
+    """Law classes: federal / state / city courts as landmarks — named Philadelphia ones, any city's by name or kind."""
+    from alto.build import palace_skyline as sk
+    assert pl.art_key({"n": "James A. Byrne United States Courthouse"}) == "usch"
+    assert pl.art_key({"n": "Robert N.C. Nix Sr. Federal Building"}) == "nix"
+    assert pl.art_key({"n": "Criminal Justice Center"}) == "cjc"
+    assert pl.art_key({"n": "Suffolk County Courthouse"}) == "ct-classical-city"
+    assert pl.art_key({"n": "Supreme Court of Pennsylvania"}) == "ct-classical-state"
+    assert pl.art_key({"n": "Anywhere", "kind": "courthouse", "lv": "federal", "hm": 120}) == "ct-tower-federal"
+    for st in sk.COURT_STYLES:
+        for lv in sk.LEVELS:
+            a = pl.ART[f"ct-{st}-{lv}"]
+            assert f"lz-seal-{lv}" in a["svg"] and a["fp"][2] > a["fp"][0]
+    assert sk.spec_from_osm({"amenity": "courthouse", "name": "Moakley United States Courthouse", "building:levels": "10"})["level"] == "federal"
+    assert "lz-seal-city" in pl.ART["city"]["svg"] and "lz-seal-state" in pl.ART["city"]["svg"]   # City Hall holds city and state courts
+
+
+def test_a_courthouse_entrys_art_hints_reach_its_map_record():
+    """C1's landmark_buildings entries carry kind / level / height_m; the engines copy them onto the map record as the
+    page's kind / lv / hm (palace_skyline.art_hints), so a court whose name says nothing still gets its court art."""
+    from alto.build.palace_skyline import art_hints
+    from alto.build.palace_landmarks import art_key
+    h = art_hints({"name": "Philadelphia Justice Center", "label": "Juanita Kidd Stout Center", "kind": "courthouse",
+                   "level": "state", "levels": ["state", "city"], "height_m": "82"})
+    assert h == {"kind": "courthouse", "lv": "state", "hm": 82.0}
+    assert art_key({"n": "Juanita Kidd Stout Center", **h}).startswith("ct-tower-")
+    assert art_hints({"name": "Cira Centre", "page": ""}) == {}

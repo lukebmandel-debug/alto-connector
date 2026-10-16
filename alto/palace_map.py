@@ -128,6 +128,16 @@ _LIGHT_HW = "motorway|motorway_link|trunk|trunk_link|primary|primary_link|second
 _LIGHT_NUMBERED = "^((North|South|East|West) )?([0-9]+(st|nd|rd|th)|Front) "
 
 
+def _hw_query(b):
+    from .build.city_highways import query_lines
+    return query_lines(b)
+
+
+def _highways(els, proj, W, H):
+    from .build.city_highways import read
+    return read(els, proj, W, H)
+
+
 def build_query(bbox, landmarks=None, timeout: int = 180, light: bool = False, streets=None) -> str:
     """light=True is for dense areas where the full query times out: no service
     roads, trails, minor residential streets, parks other than leisure=park, and
@@ -165,6 +175,7 @@ def build_query(bbox, landmarks=None, timeout: int = 180, light: bool = False, s
         'rel[route~"^(%s)$"]%s->.routes;' % ("|".join(_ROUTE_KINDS), b),
         ".routes out body;",
         "node(r.routes)%s;" % b, "out body;",
+        *_hw_query(b),                                   # C3: exit nodes, road route relations (city_highways)
         # stations
         "(",
         "  node[railway=station]%s;" % b, "  node[public_transport=station]%s;" % b,
@@ -269,6 +280,64 @@ def fetch_tiled(bbox, cache_dir=None, timeout=90, landmarks=None, light=True, st
     if failed:
         raise RuntimeError("tiles failed: " + "; ".join(failed))
     return merge_raw(*raws)
+
+
+# ── building footprints (fill-in: palace_fillin.py) ────────────────────────
+BLD_TILE = (0.015, 0.03)          # degrees: row-house districts are dense (0.03 x 0.05 deg of Center City was 24 MB, 26,790 ways)
+BLD_PAUSE = 2.0                   # seconds between two tiles fetched from Overpass (cached tiles cost nothing)
+BLD_BACKOFF = (20, 60)            # seconds waited after a tile fails; after the last, Overpass is left alone
+
+
+def building_query(bbox, timeout: int = 170) -> str:
+    b = "(%r,%r,%r,%r)" % tuple(float(v) for v in bbox)
+    return "\n".join(["[out:json][timeout:%d];" % timeout, "(",
+                       "  way[building]%s;" % b, "  rel[building]%s;" % b, '  way["building:part"]%s;' % b,
+                       ");", "out geom qt;"])
+
+
+def fetch_buildings(bbox, cache_dir=None, timeout: int = 170, log=None, offline: bool = False) -> dict:
+    """Building footprints (building=* ways and relations, building:part ways) in bbox, fetched tile by tile
+    (BLD_TILE), each tile cached as bld-<tile>.json and never asked for again. Polite: BLD_PAUSE between
+    fetched tiles; a failed tile waits BLD_BACKOFF before the next one is tried, and once a tile has failed
+    after the last wait, nothing more is asked of Overpass this time. Returns the merged answer plus
+    "missing": the tiles not fetched (a later set_up fills them in from the cache it leaves)."""
+    raws, missing, fails, asked = [], [], 0, False
+    for tb in tile_boxes(bbox, *BLD_TILE):
+        path = Path(cache_dir) / ("bld-%.4f_%.4f_%.4f_%.4f.json" % tb) if cache_dir else None
+        if path is not None and path.exists():
+            try:
+                raws.append(json.loads(path.read_text("utf-8")))
+                continue
+            except (OSError, ValueError):
+                pass
+        if offline or fails > len(BLD_BACKOFF):                     # offline: the cache only, never the network
+            missing.append(list(tb))
+            continue
+        if asked:
+            _sleep(BLD_PAUSE)
+        asked = True
+        try:
+            raw = _post_overpass(building_query(tb, timeout), timeout + 20)
+        except RuntimeError as e:
+            missing.append(list(tb))
+            if log:
+                log("FAIL %s %s" % (tb, str(e)[:80]))
+            fails += 1
+            if fails <= len(BLD_BACKOFF):
+                _sleep(BLD_BACKOFF[fails - 1])
+            continue
+        fails = 0
+        if log:
+            log("ok %s %d" % (tb, len(raw.get("elements") or [])))
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(raw, separators=(",", ":")), "utf-8")
+            os.replace(tmp, path)
+        raws.append(raw)
+    out = merge_raw(*raws)
+    out["missing"] = missing
+    return out
 
 
 def geocode(query: str, timeout: int = 30):
@@ -929,77 +998,104 @@ def _ring_mid(ring):
     return sum(xs) / len(xs), sum(ys) / len(ys)
 
 
-# ── the real transit: SEPTA (and PATCO) lines read from the route relations ────
-# id, name, colour, kind, network, route kind, refs (None: any)
-_TRANSIT_FAMILIES = (
-    ("mfl", "Market–Frankford Line", "#0097d6", "metro", "SEPTA", "subway", ("L",)),
-    ("bsl", "Broad Street Line", "#f58220", "metro", "SEPTA", "subway", ("B1", "B2")),
-    ("brs", "Broad–Ridge Spur", "#f58220", "metro", "SEPTA", "subway", ("B3",)),
-    ("trl", "Subway-Surface Trolleys", "#6ea516", "tram", "SEPTA", "tram", ("T1", "T2", "T3", "T4", "T5")),
-    ("rr", "Regional Rail", "#4c748c", "rail", "SEPTA", "train", None),
-    ("pat", "PATCO Speedline", "#db5450", "metro", "PATCO", "subway", None),
-)
+# ── the real transit: the lines read from the route relations, for any city ─────────────────────────────────────
+# Which relations make which line (a family) is city_transit_data's: a preset (Philadelphia's SEPTA/PATCO table is
+# city_transit_data.PHILADELPHIA, read here exactly as in 1.9.78) or auto-discovery from the relations' tags.
+_STOP_ROLES = ("stop", "platform")
 
 
-# a spur ends where it joins its trunk (the rest of its relation rides the trunk's own track, drawn by the trunk's line)
-_TRANSIT_END = {"brs": "girard"}
+def _neg(v):
+    try:
+        return float(str(v).split(";")[0]) < 0
+    except ValueError:
+        return False
 
 
-def _transit(els, proj, Wf, Hf):
-    """The real lines inside the box, in map px: {lines: [{id, n, c, k, w: [flat
-    polylines, one per rail way], s: [stop index, ride order]}], stops: [{n, x, y, l: [line ids]}]}.
-    One line per family (a trunk and its branches), each way once, cut where it leaves the box."""
+def _underground(tags):
+    return (tags.get("location") == "underground" or tags.get("tunnel") not in (None, "no")
+            or _neg(tags.get("level")) or _neg(tags.get("layer")))
+
+
+def _local(r, branches):
+    """The run r with, between two consecutive stops that an earlier branch also calls at (in the same order, either
+    way round), that branch's stops between them: an express run drawn on its trunk's local stops."""
+    out = [r[0]] if r else []
+    for a, b in zip(r, r[1:]):
+        mid = []
+        for br in branches:
+            if a in br and b in br:
+                i, j = br.index(a), br.index(b)
+                mid = br[i + 1:j] if i < j else br[j + 1:i][::-1]
+                break
+        out += [k for k in mid if k not in out and k not in r] + [b]
+    return out
+
+
+def _transit(els, proj, Wf, Hf, place="", preset=None):
+    """The real lines inside the box, in map px: {lines: [{id, n, c, k, w: [flat polylines, one per rail way],
+    s: [stop index, ride order], b: [branch stop runs]}], stops: [{n, x, y, l: [line ids]}]}. One line per family (a
+    trunk and its branches), each way once, cut where it leaves the box. preset: city_transit_data preset (None: by
+    place; False: auto-discovery alone). A non-legacy reading also has "v": 2 and stops "u": 1 (underground)."""
+    from .build import city_transit_data as ctd
+
     def inside(x, y):
         return -2 <= x <= Wf + 2 and -2 <= y <= Hf + 2
     lines, stops = [], []
     node_at = {i: e for (t, i), e in els.items() if t == "node" and "lat" in e}
+    rels = [(i, e.get("tags") or {}, [m["ref"] for m in e.get("members") or () if m.get("type") == "way"])
+            for (t, i), e in sorted(els.items(), key=lambda kv: (kv[0][0], kv[0][1]))
+            if t == "relation" and (e.get("tags") or {}).get("type") == "route"]
+    rel_el = {i: els[("relation", i)] for i, _, _ in rels}
 
-    def stop_idx(name, x, y, lid):
+    def stop_idx(name, x, y, lid, u=False):
         nn = _norm(name)
         for k, s in enumerate(stops):
             if _norm(s["n"]) == nn and math.hypot(s["x"] - x, s["y"] - y) < 260:
                 if lid not in s["l"]:
                     s["l"].append(lid)
                 s["_a"].append((x, y))
+                s.setdefault("_lp", {}).setdefault(lid, []).append((x, y))
                 s["x"] = sum(q[0] for q in s["_a"]) / len(s["_a"])
                 s["y"] = sum(q[1] for q in s["_a"]) / len(s["_a"])
+                if u:
+                    s["_u"] = True
                 return k
-        stops.append({"n": name, "x": x, "y": y, "l": [lid], "_a": [(x, y)]})
+        stops.append({"n": name, "x": x, "y": y, "l": [lid], "_a": [(x, y)], "_lp": {lid: [(x, y)]}})
+        if u:
+            stops[-1]["_u"] = True
         return len(stops) - 1
 
-    def stops_of(e):
+    under_nodes = set()                                  # stop nodes on a tunnel way (generic reading)
+
+    def stops_of(e, generic=False):
         out = []
-        for m in e.get("members") or ():
-            if m.get("type") == "node" and m.get("role", "").split("_")[0] in ("stop", "platform") \
-                    and m["ref"] in node_at:
-                nd = node_at[m["ref"]]
-                nm = (nd.get("tags") or {}).get("name")
-                if nm:
-                    x, y = proj((nd["lat"], nd["lon"]))
-                    if inside(x, y):
-                        out.append((nm, x, y))
+        mem = [m for m in e.get("members") or () if m.get("type") == "node" and m["ref"] in node_at]
+        roles = [m for m in mem if m.get("role", "").split("_")[0] in _STOP_ROLES]
+        if generic and not roles:                        # an old-style route: its station / stop nodes, any role
+            roles = [m for m in mem if (node_at[m["ref"]].get("tags") or {}).get("railway") in ("station", "halt", "stop", "tram_stop")
+                     or (node_at[m["ref"]].get("tags") or {}).get("public_transport") in ("stop_position", "station")]
+        if generic:                                      # every stop member, those outside the box (not fetched) too:
+            allr = [m for m in e.get("members") or () if m.get("type") == "node"
+                    and m.get("role", "").split("_")[0] in _STOP_ROLES]
+            roles = allr if any(m in roles for m in allr) else roles
+        gap = False
+        for m in roles:
+            nd = node_at.get(m["ref"])
+            tg = (nd or {}).get("tags") or {}
+            nm = tg.get("name")
+            x, y = proj((nd["lat"], nd["lon"])) if nd else (-1e9, -1e9)
+            if nd is None or not inside(x, y):
+                gap = bool(out)                          # the line leaves the drawn box between two of its stops
+                continue
+            if nm:
+                if generic:
+                    out.append((nm, x, y, _underground(tg) or m["ref"] in under_nodes, gap))
+                    gap = False
+                else:
+                    out.append((nm, x, y))
         return out
 
-    for fid, fname, fcol, fkind, net, rk, refs in _TRANSIT_FAMILIES:
-        way_ids, best, all_stops, seqs = [], [], [], {}
-        for (t, i), e in sorted(els.items(), key=lambda kv: (kv[0][0], kv[0][1])):
-            tg = e.get("tags") or {}
-            if t != "relation" or tg.get("type") != "route" or tg.get("route") != rk:
-                continue
-            if net.lower() not in (tg.get("network") or "").lower() or "diverted" in (tg.get("name") or "").lower():
-                continue
-            if refs and (tg.get("ref") or "").strip() not in refs:
-                continue
-            for m in e.get("members") or ():
-                if m.get("type") == "way" and m["ref"] not in way_ids and ("way", m["ref"]) in els:
-                    way_ids.append(m["ref"])
-            seq = stops_of(e)
-            all_stops += seq
-            if len(seq) > len(best):
-                best = seq
-            ref = (tg.get("ref") or "").strip()
-            if len(seq) > len(seqs.get(ref, ())):
-                seqs[ref] = seq                      # a route's longest run (its two directions are one route)
+    def ways_of(way_ids):
         polys = []
         for wid in way_ids:
             if (els[("way", wid)].get("tags") or {}).get("service") in _RAIL_SKIP_SERVICE:
@@ -1015,39 +1111,110 @@ def _transit(els, proj, Wf, Hf):
                     cur = []
             if len(cur) > 1:
                 polys.append(cur)
+        return polys
+
+    def way_of(i):
+        return els.get(("way", i))
+    trunks = [(_line_name(tg), set(w)) for _, tg, w in rels if tg.get("route") == "railway" and tg.get("name")]
+    preset_ = preset
+    if preset is None:
+        preset_ = ctd.preset_for(place)
+    legacy = bool(preset_ and preset_.get("legacy"))
+    if not legacy:
+        for _, tg, wids in rels:
+            if ctd.is_candidate(tg):
+                for wid in wids:
+                    w = els.get(("way", wid))
+                    if w and _underground(w.get("tags") or {}):
+                        under_nodes.update(w.get("nodes") or ())
+    fams, legacy = ctd.plan(rels, place=place, preset=preset_ if preset_ is not None else False, way_of=way_of,
+                            stops_of=lambda r: [s[0] for s in stops_of(rel_el[r], True)], trunks=trunks)
+
+    for fam in fams:
+        fid = fam["id"]
+        way_ids, best, all_stops, seqs = [], [], [], {}
+        for rid in fam["rels"]:
+            e = rel_el[rid]
+            tg = e.get("tags") or {}
+            for m in e.get("members") or ():
+                if m.get("type") == "way" and m["ref"] not in way_ids and ("way", m["ref"]) in els:
+                    way_ids.append(m["ref"])
+            seq = stops_of(e, not legacy)
+            all_stops += seq
+            if len(seq) > len(best):
+                best = seq
+            ref = (tg.get("ref") or "").strip()
+            if len(seq) > len(seqs.get(ref, ())):
+                seqs[ref] = seq                          # a route's longest run (its two directions are one route)
+        polys = ways_of(way_ids)
         if not polys:
             continue
+        if not legacy and len({_norm(q[0]) for q in all_stops}) < (ctd.MIN_STOPS_RAIL if fam.get("auto") and fam["k"] == "rail"
+                                                                     else ctd.MIN_STOPS):
+            continue                                     # rule e: a line with no ride in the box is not drawn
+        end = fam.get("end")
+
         def run_of(seq):
             run = []
-            for nm, x, y in seq:
-                k = stop_idx(nm, x, y, fid)
+            for q in seq:
+                k = stop_idx(q[0], q[1], q[2], fid, *q[3:4])
                 if k not in run:
                     run.append(k)
-            end = _TRANSIT_END.get(fid)
-            if end:                                  # the spur stops where it joins its trunk
+            if end:                                      # the spur stops where it joins its trunk
                 at = [i for i, k in enumerate(run) if _norm(stops[k]["n"]).startswith(end)]
                 if at:
                     run = run[:at[0] + 1]
             return run
+        mode = fam.get("branches", "routes")
+        if not legacy:                                   # a route that leaves the box between two stops is two runs
+            def runs(seq):
+                out_, cur = [], []
+                for q in seq:
+                    if q[4] and cur:
+                        out_.append(cur)
+                        cur = []
+                    cur.append(q)
+                return [r for r in out_ + [cur] if len({_norm(q[0]) for q in r}) >= 2]
+            parts = sorted((r for sq in seqs.values() for r in runs(sq)), key=lambda r: -len(r))
+            if not parts:
+                continue
+            best = parts[0]
+            seqs = {i: r for i, r in enumerate(parts)}
         ride = run_of(best)
         branches = [ride]
-        if fid == "trl":                            # every trolley route is a branch of its own: its stops are
-            for ref, seq in sorted(seqs.items(), key=lambda kv: -len(kv[1])):    # joined only to each other
+        if mode in ("per_ref", "routes"):                # every route is a branch of its own: its stops are joined
+            for ref, seq in sorted(seqs.items(), key=lambda kv: -len(kv[1])):    # only to each other
                 r = run_of(seq)
-                if r and r != ride:
-                    branches.append(r)
-                    ride = ride + [k for k in r if k not in ride]
-        for nm, x, y in all_stops:                 # the branches' stops too
-            stop_idx(nm, x, y, fid)
-        lines.append({"id": fid, "n": fname, "c": fcol, "k": fkind,
+                if not r or r == ride:
+                    continue
+                if mode == "routes" and any(set(r) <= set(b) for b in branches):
+                    continue                             # rule d: express runs, short turns, the other direction
+                if mode == "routes":                     # an express run calls at the local stops of the trunk it
+                    r = _local(r, branches)              # shares with an earlier branch: one track, one way to draw it
+                branches.append(r)
+                ride = ride + [k for k in r if k not in ride]
+        if legacy:
+            for nm, x, y in all_stops:                   # the branches' stops too
+                stop_idx(nm, x, y, fid)
+        lines.append({"id": fid, "n": fam["n"], "c": fam["c"], "k": fam["k"],
                       "w": [_flat(p) for p in polys], "s": ride, "b": branches})
     for s in stops:
         s.pop("_a", None)
+        lp = s.pop("_lp", {})
+        if s.pop("_u", None):
+            s["u"] = 1
+        if not legacy and len(lp) > 1:                   # a station of several lines: each line's own platform
+            pos = {lid: (sum(q[0] for q in v) / len(v), sum(q[1] for q in v) / len(v)) for lid, v in lp.items()}
+            if max(math.hypot(p[0] - s["x"], p[1] - s["y"]) for p in pos.values()) > 20:
+                s["lp"] = {lid: [_r1(p[0]), _r1(p[1])] for lid, p in pos.items()}
         s["x"], s["y"] = _r1(s["x"]), _r1(s["y"])
-    return {"lines": lines, "stops": stops}
+    out = {"lines": lines, "stops": stops}
+    if not legacy:
+        out["v"] = 2
+    return out
 
 
-def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
+def _build(raw, bbox, place, scale, majors, landmarks, tol_minor, transit=None):
     bbox = tuple(float(v) for v in bbox)
     proj, Wf, Hf = _projector(bbox, scale)
     els = _merge_elements(raw)
@@ -1252,13 +1419,14 @@ def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
         "attribution": ATTRIBUTION,
         "water": water, "rivers": rivers, "parks": parks, "streets": streets,
         "trails": trails, "rails": rails, "stations": stations, "landmarks": landmark_out,
-        "transit": _transit(els, proj, Wf, Hf),
+        "transit": _transit(els, proj, Wf, Hf, place=place, preset=transit),
+        "highways": _highways(els, proj, Wf, Hf),         # C3: the real highways (city_highways.read)
         "majors": pick_majors(merged_street_len, majors),
     }
     return _across_wide_river(out, scale)
 
 
-def build_map(raw, bbox, place="", scale=1.0, majors=None, landmarks=None) -> dict:
+def build_map(raw, bbox, place="", scale=1.0, majors=None, landmarks=None, transit=None) -> dict:
     """Raw Overpass JSON -> the compact map dict:
 
       v, place, bbox [s,w,n,e], scale, W, H (px), attribution,
@@ -1270,9 +1438,11 @@ def build_map(raw, bbox, place="", scale=1.0, majors=None, landmarks=None) -> di
       rails   [{n, r, c, k, p, u?, e?}],
       stations [{n, x, y, k, l: [line names]}],
       landmarks [{n, x, y, r: [ring,...]}],
-      majors  [street names that are always labelled].
+      majors  [street names that are always labelled],
+      transit {lines, stops} (_transit; `transit`: a city_transit_data preset, False = auto-discovery alone,
+              None = the preset of `place`).
     """
-    out = _build(raw, bbox, place, scale, majors, landmarks, TOL)
+    out = _build(raw, bbox, place, scale, majors, landmarks, TOL, transit)
     if len(json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode()) > SIZE_TARGET:
-        out = _build(raw, bbox, place, scale, majors, landmarks, TOL_MINOR)
+        out = _build(raw, bbox, place, scale, majors, landmarks, TOL_MINOR, transit)
     return out

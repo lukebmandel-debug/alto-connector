@@ -663,6 +663,7 @@ def store(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(palace_map, "fetch_osm", lambda bbox, **kw: calls.append(("fetch", tuple(bbox))) or {"elements": []})
     monkeypatch.setattr(palace_map, "build_map", lambda raw, bbox, **kw: city_map())
+    monkeypatch.setattr(palace_map, "fetch_buildings", lambda box, **kw: {"elements": []})
     monkeypatch.setattr(palace_map, "geocode", lambda *a, **k: pytest.fail("no network"))
     yield calls
     srv.set_store(None)
@@ -700,7 +701,7 @@ def test_set_up_palace_refuses_a_backwards_box(store):
 
 def test_set_up_palace_stores_the_city(store):
     tid = _draft()
-    r = srv.set_up_palace(tid, "Testville", bbox=BBOX, area="the middle")
+    r = srv.set_up_palace(tid, "Testville", bbox=BBOX, area="the middle", auto=False)
     assert r.get("ok") is True, r
     assert store == [("fetch", tuple(BBOX))]
     city = r["palace"]["city"]
@@ -751,7 +752,7 @@ def test_streets_are_drawn_in_two_weights_on_the_screen():
     # a major street and a minor one, each a connecting-line tube with its sheen, sized in screen px
     for cls, px in (("t-min", "3.6px"), ("t-maj", "5.6px")):
         assert f".pal-svg .pl-tube.{cls}{{stroke-width:calc(var(--tw,1) * {px});}}" in page
-    assert "tube(sg, byM[u], tc(u), 5.6, .95, 't-maj')" in page
+    assert "stubes(sg, byM, tc, 5.6, 't-maj')" in page and "stubes(sg, byU, tc, 3.6, 't-min')" in page
     assert "M.cols[i]" in page and "--tw" in page
 
 

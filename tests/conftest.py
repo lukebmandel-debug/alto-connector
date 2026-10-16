@@ -20,8 +20,15 @@ sys.path.insert(0, str(ROOT))
 
 
 @pytest.fixture(autouse=True)
-def _isolate_global_server_state(tmp_path_factory, monkeypatch):
+def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
     from alto import mcp_server as srv
+
+    # set_up / set_up_palace fetch the fill-in footprints (palace_fillin) from Overpass: a test that stubs the
+    # city fetch must not reach the network through them (it hung the suite on a live Overpass). A test that
+    # exercises fetch_buildings itself stubs _post_overpass and is left alone.
+    if request.module.__name__.rsplit(".", 1)[-1] != "test_palace_fillin":
+        from alto import palace_map as _pm
+        monkeypatch.setattr(_pm, "fetch_buildings", lambda box, **kw: {"elements": [], "missing": []})
 
     # Point the default store at a temp directory for EVERY test. Without
     # this, any test that exercises a code path reaching get_store() without

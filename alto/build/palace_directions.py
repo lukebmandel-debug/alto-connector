@@ -107,6 +107,7 @@ function index(){ var out=[];
   ORDER.forEach(function(id){ if(!P.of[id]) return; var p=bldPlace(P.of[id]); if(!p) return; var f=Object.create(p); f.name=title(id); f.num=num(id); f.sub='Floor of '+p.num+' '+p.name; f.fl=1; out.push(f); });
   (M.landmarks||[]).forEach(function(l){ if(l.n && (l.box||l.x!=null)) out.push(lmPlace(l)); });
   if(TX&&TX.has()) TX.stops().forEach(function(s,i){ if(s.n) out.push(stPlace(i)); });
+  if(window._palHw&&window._palHw.has()) out=out.concat(window._palHw.places());   /* C3: highways and their exits */
   return out; }
 function search(q, lim){ q=String(q||'').trim().toLowerCase(); if(!q) return []; var tk=q.split(/\s+/), all=index(), out=[];
   all.forEach(function(p){ var nm=p.name.toLowerCase(), nu=String(p.num||'').toLowerCase(), h=(nu+' '+nm+' '+String(p.sub||'').toLowerCase()), s=0;
@@ -164,6 +165,7 @@ function plan(A, B){ if(!A||!B) return null; var g=TX&&TX.graph(), out=[];
   if(!g || A.node<0 || B.node<0) return null;
   var tp=TX.dijk(A.node, B.node); if(tp){ var o=option(tp, A, B, g, 'transit'); if(o.rides) out.push(o); }
   var wp=route(A.node, B.node); if(wp){ var w=option(wp, A, B, g, 'walk'); out.push(w); }
+  if(window._palHw&&window._palHw.has()){ var dv=window._palHw.drive(A, B); if(dv) out.push(dv); }   /* C3: drive by the highways */
   out.sort(function(a,b){ return a.min-b.min; });
   return out.length?out:null; }
 
@@ -204,7 +206,7 @@ function mainHtml(){ var h='';
   var opt=S.plans&&S.plans[S.opt];
   if(S.from && S.to && !S.plans) return '<p class="dr-hint">No way to get from '+esc(S.from.name)+' to '+esc(S.to.name)+' on these streets.</p>';
   if(!opt) return '<p class="dr-hint">'+(S.focus==='from'?'Choose where you start':'Choose where you are going')+' — tap a building on the map, or type a name or a number.</p>';
-  if(S.plans.length>1) h+='<div class="dr-opts">'+S.plans.map(function(o,i){ return '<button type="button" class="dr-opt'+(i===S.opt?' on':'')+'" data-o="'+i+'">'+(o.kind==='walk'?'Walk':'Transit')+'<small>'+o.min+' min</small></button>'; }).join('')+'</div>';
+  if(S.plans.length>1) h+='<div class="dr-opts">'+S.plans.map(function(o,i){ return '<button type="button" class="dr-opt'+(i===S.opt?' on':'')+'" data-o="'+i+'">'+(o.kind==='walk'?'Walk':o.kind==='drive'?'Drive':'Transit')+'<small>'+o.min+' min</small></button>'; }).join('')+'</div>';
   h+='<div class="dr-sum"><div><b>'+esc(opt.summary.split(' · ')[0])+'</b><small>'+esc(opt.summary.split(' · ').slice(1).join(' · '))+'</small></div><button type="button" class="dr-go">Start</button></div>';
   h+='<ol class="dr-st">'+opt.steps.map(function(s,i){ return '<li data-i="'+i+'"'+(S.step===i?' class="cur"':'')+'>'+ico(s.ic,s.c)+'<div><b>'+esc(s.text)+'</b>'+(s.sub?'<small>'+esc(s.sub)+'</small>':'')+'</div></li>'; }).join('')+'</ol>';
   return h; }

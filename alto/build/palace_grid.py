@@ -38,16 +38,19 @@ SNAP_DEG = 25
 # (numbered, a main street, or class <= 2 / <= 3) left West and Southwest Philadelphia nearly
 # empty. There, any named street long enough to read as a through street is a column or a row.
 FILL_LON = -75.19          # the fill region: west of this longitude
-TILT_BOX = (0.0, 6000.0, 3000.0, 1e9)   # West / Southwest Philadelphia in map px (x0, y0, x1, y1): its whole street grid runs on an angle
-TILT_DEG = 40.0                         # the angle that grid is turned from the city's grid (measured from the real streets)
 FILL_MIN = 700.0           # px of street (about half a kilometre) before a residential street counts
 _DIR = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(?=\S+\s)", re.I)
+# the rest is the name only when it is not a street-type word: "N Street Northwest" (DC) and "West End Avenue"
+# (Manhattan) keep their first word
+_DIR_KEEP = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(Street|St|Avenue|Ave|Road|Rd|Place|Pl|Drive|Dr|"
+                       r"Boulevard|Blvd|Lane|Ln|Way|Court|Ct|Terrace|End|Side|Park|Circle)\b", re.I)
 _NUM = re.compile(r"^(\d+)(st|nd|rd|th)\b", re.I)
 
 
 def norm(name: str) -> str:
     """One name for one street: "South 15th Street" and "North 15th Street" are 15th Street."""
-    return _DIR.sub("", str(name or "").strip())
+    n = str(name or "").strip()
+    return n if _DIR_KEEP.match(n) else _DIR.sub("", n)
 
 
 def numbered(name: str) -> bool:
@@ -110,8 +113,8 @@ def _inside(pt, rings):
 def grid_angle(m) -> float:
     sx = sy = 0.0
     for s in m.get("streets", []):
-        if s.get("t") or s.get("k", 9) > 3:
-            continue
+        if s.get("t") or s.get("k", 9) > 3 or s.get("k", 9) == 0:
+            continue                                   # motorways (k 0) follow no grid: they skew the angle
         p = s["p"]
         for i in range(0, len(p) - 2, 2):
             L = math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1])
@@ -269,6 +272,14 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     "node:<id>"). parks: names of parks to draw whatever their size (the
     big ones are drawn anyway) — palace_parks."""
     rail_specs, lm_specs = list(lines or ()), list(landmarks or ())
+    # city engine v2: a city of several street grids (or a grid beside an irregular old town) is drawn per domain,
+    # with angled seams (city_engine); a city of one grid takes the code below, unchanged (tests/test_grid_snapshot.py)
+    from .city_types import ENGINE_V2
+    if ENGINE_V2 and m.get("streets"):
+        from . import city_domains, city_engine
+        det = city_domains.detect(m)
+        if city_engine.multi(det):
+            return city_engine.build(m, det, majors, diagonals, rail_specs, lm_specs, parks)
     th = grid_angle(m)
     L, diag, turn = _lines(m, th, majors, diagonals)
     cols, rows = L["v"], L["h"]
@@ -353,32 +364,6 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
             res[-1][1], res[-1][3] = hi, len(cpos) - 1
         return res
 
-    # the tilted district: the columns and rows inside it are not drawn on the square grid
-    # (they would cut across the real, turned street grid); a turned lattice is drawn instead
-    tx0, ty0, tx1, ty1 = TILT_BOX
-    ix = mp(tx1, ty0)[0] if tx1 < 1e8 else xg[-1]
-    jy = mp(tx0 + 1, ty0)[1]
-    iE = next((i for i, x in enumerate(xg) if x >= ix), len(xg) - 1)     # first column right of the district (kept: its edge)
-    jT = max(0, max((j for j, y in enumerate(yg) if y <= jy), default=0))   # last row above it (kept: its top edge)
-    tilt = TILT_DEG > 0 and 0 < iE and jT < len(yg) - 2
-    def cut_tilt(o, li, merged):
-        if not tilt:
-            return merged
-        out = []
-        for a, b, sa, sb in merged:
-            if o == "v" and li < iE:                      # a column inside: keep only above the district
-                if a >= yg[jT] - 1:
-                    continue
-                if b > yg[jT]:
-                    b, sb = yg[jT], jT
-            elif o == "h" and li > jT:                    # a row inside: keep only right of the district
-                if b <= xg[iE] + 1:
-                    continue
-                if a < xg[iE]:
-                    a, sa = xg[iE], iE
-            out.append([a, b, sa, sb])
-        return out
-
     streets = []
     ends = {"v": [], "h": []}
     for o, lines, spans, pos, cpos, cspans, step in (("v", cols, csp, xg, yg, rsp, CH), ("h", rows, rsp, yg, xg, csp, CW)):
@@ -397,7 +382,6 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 else:
                     merged.append([ea, eb, sa, sb])
             merged = complete(o, at, merged, cpos)
-            merged = cut_tilt(o, li, merged)
             spans[li] = [[a, b] for a, b, _, _ in merged]
             ends[o].append(merged)
     # draw: each span, with a turn at an end that joins a crossing line which
@@ -664,8 +648,9 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 cells = {(i0, j0)}
             else:
                 continue
+        from .palace_skyline import art_hints
         lms.append({"n": spec.get("label") or spec["name"], "page": spec.get("page") or "", "cells": cells,
-                    "cell": [i0, j0], "box": [xg[i0], yg[j0], xg[i1], yg[j1]]})
+                    "cell": [i0, j0], "box": [xg[i0], yg[j0], xg[i1], yg[j1]], "hint": art_hints(spec)})
     lm_all = set().union(*[l_["cells"] for l_ in lms]) if lms else set()
 
     def in_lm(x0, y0, x1, y1):
@@ -676,80 +661,6 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 if (x0 == x1 and bx0 < x0 < bx1) or (y0 == y1 and by0 < y0 < by1):
                     return True
         return False
-
-    if tilt:
-        majors_n_ = {norm(x) for x in majors} | {norm(x) for x in diagonals}
-        rx0, ry0, rx1, ry1 = xg[0], yg[jT], xg[iE], yg[-1]
-        cx0, cy0 = (rx0 + rx1) / 2, (ry0 + ry1) / 2
-        ca, sa_ = math.cos(math.radians(TILT_DEG)), math.sin(math.radians(TILT_DEG))
-        R_ = math.hypot(rx1 - rx0, ry1 - ry0) / 2 + max(CW, CH)
-        def clip(p, q):                                    # Liang–Barsky: the part of pq inside the district
-            t0, t1 = 0.0, 1.0
-            dx, dy = q[0] - p[0], q[1] - p[1]
-            for pp, qq in ((-dx, p[0] - rx0), (dx, rx1 - p[0]), (-dy, p[1] - ry0), (dy, ry1 - p[1])):
-                if abs(pp) < 1e-9:
-                    if qq < 0:
-                        return None
-                    continue
-                t = qq / pp
-                if pp < 0:
-                    t0 = max(t0, t)
-                else:
-                    t1 = min(t1, t)
-                if t0 > t1:
-                    return None
-            return ((p[0] + t0 * dx, p[1] + t0 * dy), (p[0] + t1 * dx, p[1] + t1 * dy))
-        def in_r(x, y):
-            return rx0 - 1 <= x <= rx1 + 1 and ry0 + 1 <= y <= ry1 + 1
-        # the avenues are the district's own lines now (they no longer cut across it)
-        streets[:] = [s_ for s_ in streets if not (s_.get("d") and s_.get("n") and len(s_["p"]) >= 4 and
-                      in_r(sum(s_["p"][0::2]) / len(s_["p"][0::2]), sum(s_["p"][1::2]) / len(s_["p"][1::2])))]
-        # name the lattice lines after the real streets that run along them: each real through-street (an avenue, a
-        # numbered street, a main road) of the district votes for the lattice line nearest its middle, in its own family
-        base = math.degrees(th)
-        cand = {}
-        for st in m.get("streets", []):
-            nm = norm(st.get("n") or "")
-            if not nm or st.get("t") or (st.get("k", 9) > 3 and not numbered(nm) and nm not in majors_n_):
-                continue
-            acc = {"u": [0.0, 0.0, 0.0], "v": [0.0, 0.0, 0.0]}
-            P_ = _pairs(st["p"])
-            for (ax, ay), (bx, by) in zip(P_, P_[1:]):
-                mx_, my_ = (ax + bx) / 2, (ay + by) / 2
-                if not (tx0 <= mx_ <= tx1 and ty0 <= my_ <= ty1):
-                    continue
-                L_ = math.hypot(bx - ax, by - ay)
-                if L_ < 4:
-                    continue
-                ang = (math.degrees(math.atan2(by - ay, bx - ax)) - base) % 180
-                fam = "u" if abs(((ang - TILT_DEG + 90) % 180) - 90) < 22.5 else "v" if abs(((ang - TILT_DEG) % 180) - 90) < 22.5 else None
-                if fam:
-                    gx_, gy_ = mp(mx_, my_)
-                    acc[fam][0] += L_; acc[fam][1] += gx_ * L_; acc[fam][2] += gy_ * L_
-            for fam, (tot, sx_, sy_) in acc.items():
-                if tot < 500:
-                    continue
-                dx_, dy_ = sx_ / tot - cx0, sy_ / tot - cy0
-                nrm = (-sa_, ca) if fam == "u" else (ca, sa_)       # the normal of that family's lines
-                off = dx_ * nrm[0] + dy_ * nrm[1]
-                k_ = round(off / (CH if fam == "u" else CW))
-                key = (fam, k_)
-                rank = (0 if nm in majors_n_ else 1 if st.get("k", 9) <= 1 else 2, -tot)
-                if key not in cand or rank < cand[key][0]:
-                    cand[key] = (rank, nm)
-        for fam, step in (("u", CH), ("v", CW)):
-            n = int(R_ // step) + 1
-            for k in range(-n, n + 1):
-                off = k * step
-                a, b = (-R_, off), (R_, off)
-                if fam == "v":
-                    a, b = (off, -R_), (off, R_)
-                P0 = (cx0 + a[0] * ca - a[1] * sa_, cy0 + a[0] * sa_ + a[1] * ca)
-                P1 = (cx0 + b[0] * ca - b[1] * sa_, cy0 + b[0] * sa_ + b[1] * ca)
-                seg = clip(P0, P1)
-                if seg and math.hypot(seg[1][0] - seg[0][0], seg[1][1] - seg[0][1]) > 30:
-                    nm_ = (cand.get((fam, k)) or (None, ""))[1]
-                    streets.append({"n": nm_, "k": 0 if nm_ in majors_n_ else 1, "d": 1, "p": [round(seg[0][0], 1), round(seg[0][1], 1), round(seg[1][0], 1), round(seg[1][1], 1)]})
 
     # ── the drawing: every block a rounded tile (each street curves at every
     #    intersection); edges no block uses drawn on their own ──
@@ -798,7 +709,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
 
     landmarks_out = [{"n": l_["n"], "x": round((l_["box"][0] + l_["box"][2]) / 2, 1),
                       "y": round((l_["box"][1] + l_["box"][3]) / 2, 1), "r": [], "box": l_["box"],
-                      "page": l_["page"]} for l_ in lms]
+                      "page": l_["page"], **(l_.get("hint") or {})} for l_ in lms]
     from .palace_parks import pick as pick_parks
     park_cells = pick_parks(m, mp, xg, yg, parks or (), lm_all, lambda p: near_river(p, 0))
     g = {k: v for k, v in m.items() if k not in ("streets", "water", "rivers", "rails", "trails", "stations",
