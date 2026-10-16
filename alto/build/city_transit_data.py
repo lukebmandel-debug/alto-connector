@@ -80,7 +80,7 @@ PHILADELPHIA = {
          "match": {"network": "SEPTA", "route": "subway", "ref": ["B3"]}},
         {"id": "trl", "n": "Subway-Surface Trolleys", "c": "#6ea516", "k": "tram", "branches": "per_ref",
          "match": {"network": "SEPTA", "route": "tram", "ref": ["T1", "T2", "T3", "T4", "T5"]}},
-        {"id": "rr", "n": "Regional Rail", "c": "#4c748c", "k": "rail", "branches": "longest",
+        {"id": "rr", "n": "Regional Rail", "c": "#4c748c", "k": "rail", "branches": "routes",
          "match": {"network": "SEPTA", "route": "train"}},
         {"id": "pat", "n": "PATCO Speedline", "c": "#db5450", "k": "metro", "branches": "longest",
          "match": {"network": "PATCO", "route": "subway"}},

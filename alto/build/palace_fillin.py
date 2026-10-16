@@ -13,7 +13,9 @@ user's buildings.
   Level 3  Most            + every footprint >= 300 m2 or >= 14 m              one window-sized canvas
   Level 4  Every building  + every row house, as ONE shape per block front      one window-sized canvas
 
-New palaces open on level 1 (fill["lvl"]); a viewer's own choice is kept per timeline in localStorage.
+The slider is a percentage (0 = landmarks only, 100 = every building) and opens on AUTO: 90% in the downtown (the user's neighbourhoods and a couple of
+blocks round them), 40% beyond it; the buildings kept are an even draw of each level, never the user's own lots. A viewer's own choice (a percentage, or
+Auto) is kept per timeline in localStorage.
 Nothing is emitted unless fill_z is present, so a page without it is byte-identical to before.
 
 Packed form (fill_data): {"v": 2, "doms": [[a, ox, oy], ...], "q": [q1..q4], "L": [s1..s4], "h": [digits, digits],
@@ -761,7 +763,11 @@ FILL_CSS = r"""
   #pal-key .pk-fill .pkf-h b{font-weight:650;white-space:nowrap;}
   #pal-key .pk-fill .pkf-v{white-space:nowrap;opacity:.75;flex:none;}
   #pal-key .pk-fill input[type=range]{display:block;box-sizing:border-box;width:100%;max-width:100%;margin:6px 0 2px;accent-color:var(--accent,#5b6cff);}
-  #pal-key .pk-fill .pkf-ticks{display:flex;justify-content:space-between;gap:6px;font-size:10px;opacity:.6;white-space:nowrap;}
+  #pal-key .pk-fill .pkf-ticks{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;white-space:nowrap;}
+  #pal-key .pk-fill .pkf-ticks>span{opacity:.6;}
+  #pal-key .pk-fill .pkf-auto{font:inherit;font-size:10.5px;font-weight:650;padding:1px 9px;border-radius:999px;border:1px solid color-mix(in srgb,var(--text) 25%,transparent);background:transparent;color:var(--text);cursor:pointer;}
+  #pal-key .pk-fill .pkf-auto[aria-pressed=true]{background:var(--accent,#5b6cff);border-color:var(--accent,#5b6cff);color:#fff;}
+  #pal-key .pk-fill input.auto{opacity:.55;}
   #pal-mmap .pkf-seg{display:flex;gap:4px;margin:4px 0 2px;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--text) 6%,transparent);}
   #pal-mmap .pkf-seg button{flex:1;min-width:0;height:34px;border:0;border-radius:9px;background:transparent;color:var(--text);font:inherit;font-size:11.5px;font-weight:600;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   #pal-mmap .pkf-seg button[aria-checked=true]{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.18);}
@@ -771,8 +777,19 @@ FILL_CSS = r"""
 # function definitions, spliced inside the palace page's closure (palace_js below)
 FILL_FUNCS = r"""
 /* ── fill-in (palace_fillin.py): the rest of the city as simulated buildings, by level ── */
-var FILL=window._ALTO_FILL||null, FILL_KEY='alto-palace-fill:'+location.pathname, FILL_NAMES=['Landmarks','Skyline','Notable','Most','Every building'];
-var fillLevel=(function(){ var v=null; try{ v=localStorage.getItem(FILL_KEY); }catch(e){} v=v==null?(FILL&&FILL.lvl)||0:+v; return Math.max(0,Math.min(4,v|0)); })();
+var FILL=window._ALTO_FILL||null, FILL_KEY='alto-palace-fill2:'+location.pathname, FILL_NAMES=['Landmarks','Skyline','Notable','Most','Every building'];
+/* the slider is a percentage of the city's buildings (0 = landmarks only, 100 = every building). AUTO, the opening setting
+   in any city: 90% in the downtown (the user's own neighbourhoods and a couple of blocks round them), 40% beyond it. The
+   user's own buildings keep their lots either way: nothing simulated stands on one. */
+var FILL_DT=90, FILL_OUT=40, fillAuto=true, fillPct=FILL_OUT;
+(function(){ var v=null; try{ v=localStorage.getItem(FILL_KEY); }catch(e){} if(v!=null && v!=='auto'){ var n=parseFloat(v); if(isFinite(n)){ fillAuto=false; fillPct=Math.max(0,Math.min(100,n)); } } })();
+function downtownAt(x,y){ var D=P.d||[]; for(var i=0;i<D.length;i++){ var b=D[i].box; if(b && x>=b[0]-300 && x<=b[2]+300 && y>=b[1]-300 && y<=b[3]+300) return true; } return false; }
+function fillLevelAt(x,y){ return (fillAuto?(downtownAt(x,y)?FILL_DT:FILL_OUT):fillPct)/25; }   /* 0..4 */
+function fillTop(){ return Math.min(4, Math.ceil((fillAuto?Math.max(FILL_DT,FILL_OUT):fillPct)/25-1e-9)); }   /* the highest tier anything of which shows */
+var fillLevel=fillTop();
+/* a building's place in the order the slider takes them in: a fixed, evenly spread draw (not the biggest first, so a city fills in everywhere at once) */
+function fillRank(i,lv){ return ((Math.imul(i+1,2654435761)^Math.imul(lv,40503))>>>0)%1000/1000; }
+function fillPctText(){ return fillAuto?('Auto · '+FILL_DT+'% downtown, '+FILL_OUT+'% beyond'):(fillPct+'%'); }
 var FILL_ZMIN=[0, 0, 0, .07, .15];            /* a level shows from the zoom its smallest buildings are a couple of px across */
 /* the packed footprints (palace_fillin._encode): page rings per level, each with its box, height and name */
 var FS=null;
@@ -798,13 +815,14 @@ function fillShapes(){ if(FS || !FILL) return FS; FS=[null,[],[],[],[]];
 /* a building of the user's stands on its lot; nothing simulated touches it (8 px of clear glass round it, the lot's box turned with its domain) */
 function fillTaken(){ var r=[]; Object.keys(P.at||{}).forEach(function(id){ var L=lot(P.at[id]); if(!L) return; var a=(L[4]||0)*Math.PI/180, c=Math.abs(Math.cos(a)), s=Math.abs(Math.sin(a)),
     hw=(L[2]*c+L[3]*s)/2+8, hh=(L[2]*s+L[3]*c)/2+8; r.push([L[0]-hw, L[1]-hh, L[0]+hw, L[1]+hh]); }); return r; }
-function fillSig(){ return JSON.stringify(P.at||{}); }
+function fillSig(){ return JSON.stringify(P.at||{})+'|'+(fillAuto?'a':fillPct); }
 /* per level: chunk -> district -> shapes not on a user's lot */
 var FG=null, FGsig='';
 function fillGroups(){ var sg=fillSig(); if(FG && FGsig===sg) return FG; FGsig=sg; FG=[null,{},{},{},{}]; var S=fillShapes(); if(!S) return FG;
   var CH=FILL.ch, taken=fillTaken(), grid={};
   taken.forEach(function(b){ for(var i=Math.floor(b[0]/CH[0]);i<=Math.floor(b[2]/CH[0]);i++) for(var j=Math.floor(b[1]/CH[1]);j<=Math.floor(b[3]/CH[1]);j++) (grid[i+','+j]=grid[i+','+j]||[]).push(b); });
-  for(var lv=1;lv<=4;lv++) S[lv].forEach(function(s){ var b=s.b, ci=Math.floor((b[0]+b[2])/2/CH[0]), cj=Math.floor((b[1]+b[3])/2/CH[1]), key=ci+','+cj, tk=grid[key];
+  for(var lv=1;lv<=4;lv++) S[lv].forEach(function(s,si){ var b=s.b, ci=Math.floor((b[0]+b[2])/2/CH[0]), cj=Math.floor((b[1]+b[3])/2/CH[1]), key=ci+','+cj, tk=grid[key];
+    if((lv-1)+fillRank(si,lv) >= fillLevelAt((b[0]+b[2])/2,(b[1]+b[3])/2)) return;       /* past the slider's share of this part of the city */
     if(tk && lv<4) for(var q=0;q<tk.length;q++){ var t=tk[q]; if(b[0]<t[2] && b[2]>t[0] && b[1]<t[3] && b[3]>t[1]) return; }
     var C=FG[lv][key]||(FG[lv][key]={ci:ci, cj:cj, u:{}}), u=distAt((b[0]+b[2])/2,(b[1]+b[3])/2); (C.u[u]=C.u[u]||[]).push(s); });
   if(FC) FC.cache={}; return FG; }
@@ -875,32 +893,36 @@ function fillHover(e){ if(fillHovRaf) return; var cx=e.clientX, cy=e.clientY, tg
   var name='', hit=null;
   if(svgD && fillLevel>=1 && !mob() && !(tg && tg.closest && tg.closest('.node,.pl-lmb,.pl-hit,.pl-chip,#pal-key,#pal-ctl,#pal-dock,#pal-lmbar,.pl-route-hit,.pl-tr-hit'))){
     var r=svgD.getBoundingClientRect(); if(r.width){ var mx=(cx-r.left)/r.width*VW-MX, my=(cy-r.top)/r.height*VH-MY, S=fillShapes();
-      for(var lv=1;lv<=Math.min(2,fillLevel) && !hit;lv++) for(var i=0;i<S[lv].length;i++){ var s=S[lv][i], b=s.b; if(!s.n || mx<b[0]||mx>b[2]||my<b[1]||my>b[3]) continue;
+      for(var lv=1;lv<=Math.min(2,fillLevel) && !hit;lv++) for(var i=0;i<S[lv].length;i++){ var s=S[lv][i], b=s.b; if(!s.n || mx<b[0]||mx>b[2]||my<b[1]||my>b[3] || (lv-1)+fillRank(i,lv)>=fillLevelAt((b[0]+b[2])/2,(b[1]+b[3])/2)) continue;
         var p=s.p, c=false; for(var a=0,n=p.length,j=n-2;a<n;j=a,a+=2){ if((p[a+1]>my)!==(p[j+1]>my) && mx<p[a]+(my-p[a+1])*(p[j]-p[a])/(p[j+1]-p[a+1])) c=!c; }
         if(c){ hit=s; break; } } } }
   if(hit){ if(fillHov===hit) return; fillHov=hit; var b=hit.b, rc=svgD.querySelector(':scope > .pl-fhit')||el('rect',{'class':'pl-fhit'},svgD);
     rc.setAttribute('x',b[0]); rc.setAttribute('y',b[1]); rc.setAttribute('width',b[2]-b[0]); rc.setAttribute('height',b[3]-b[1]); window._palHover(rc, hit.n); fillHovOn=true; }
   else if(fillHovOn){ fillHov=null; fillHovOn=false; window._palHover(null); } }); }
-function fillSet(v){ fillLevel=Math.max(0,Math.min(4,v|0)); try{ localStorage.setItem(FILL_KEY, String(fillLevel)); }catch(e){}
-  if(svgD){ fillLOD(svgD); fillSoon(); } if(MM.svg) fillLOD(MM.svg);
-  [].forEach.call(document.querySelectorAll('.pk-fill input'), function(r){ r.value=fillLevel; });
-  [].forEach.call(document.querySelectorAll('.pk-fill .pkf-v'), function(l){ l.textContent=FILL_NAMES[fillLevel]; });
-  [].forEach.call(document.querySelectorAll('.pkf-seg button'), function(b){ b.setAttribute('aria-checked', String(+b.getAttribute('data-fl')===fillLevel)); }); }
+function fillSet(v){ if(v==='auto'){ fillAuto=true; } else { fillAuto=false; fillPct=Math.max(0,Math.min(100,+v||0)); }
+  try{ localStorage.setItem(FILL_KEY, fillAuto?'auto':String(fillPct)); }catch(e){}
+  fillLevel=fillTop(); FG=null; if(FC) FC.cache={};
+  if(svgD){ fillDraw(svgD); fillLOD(svgD); fillSoon(); } if(MM.svg){ fillDraw(MM.svg); fillLOD(MM.svg); }
+  [].forEach.call(document.querySelectorAll('.pk-fill input'), function(r){ r.value=fillAuto?(FILL_DT*.5+FILL_OUT*.5):fillPct; r.classList.toggle('auto', fillAuto); });
+  [].forEach.call(document.querySelectorAll('.pk-fill .pkf-v'), function(l){ l.textContent=fillPctText(); });
+  [].forEach.call(document.querySelectorAll('.pk-fill .pkf-auto'), function(b){ b.setAttribute('aria-pressed', String(fillAuto)); });
+  [].forEach.call(document.querySelectorAll('.pkf-seg button'), function(b){ var d=b.getAttribute('data-fl'); b.setAttribute('aria-checked', String(d==='auto'?fillAuto:(!fillAuto && +d===fillPct))); }); }
 function fillWire(k){
   if(!FILL) return;
   var cv=document.getElementById('canvas'); if(cv) cv.addEventListener('scroll', fillOnScroll, {passive:true});
   document.addEventListener('mousemove', fillHover, {passive:true});
-  var r=k.querySelector('.pk-fill input'); if(r) r.addEventListener('input', function(){ fillSet(+r.value); }); }
+  var r=k.querySelector('.pk-fill input'); if(r) r.addEventListener('input', function(){ fillSet(+r.value); });
+  var a=k.querySelector('.pk-fill .pkf-auto'); if(a) a.addEventListener('click', function(e){ e.preventDefault(); fillSet('auto'); }); }
 function fillKeyRow(){ if(!FILL) return '';
-  return '<div class="pk-sep"></div><label class="pk-fill"><span class="pkf-h"><b>Fill in the city</b><small class="pkf-v">'+FILL_NAMES[fillLevel]+'</small></span>'
-    +'<input type="range" min="0" max="4" step="1" value="'+fillLevel+'" aria-label="How much of the city to fill in with buildings" aria-valuetext="'+FILL_NAMES[fillLevel]+'">'
-    +'<span class="pkf-ticks"><span>Landmarks</span><span>Every building</span></span></label>'; }
+  return '<div class="pk-sep"></div><label class="pk-fill"><span class="pkf-h"><b>Fill in the city</b><small class="pkf-v">'+fillPctText()+'</small></span>'
+    +'<input type="range" min="0" max="100" step="5" value="'+(fillAuto?(FILL_DT*.5+FILL_OUT*.5):fillPct)+'" class="'+(fillAuto?'auto':'')+'" aria-label="How much of the city to fill in with buildings, in percent">'
+    +'<span class="pkf-ticks"><span>Landmarks</span><button type="button" class="pkf-auto" aria-pressed="'+fillAuto+'">Auto</button><span>Every building</span></span></label>'; }
 /* the phone's sheet: five stops, a tap each (a range thumb is fiddly under a finger) */
-function fillPhoneRow(){ if(!FILL) return ''; var short=['Landmarks','Skyline','Notable','Most','All'], h='<div class="pm-h6">Fill in the city</div><div class="pkf-seg" role="radiogroup" aria-label="How much of the city to fill in">';
-  for(var i=0;i<5;i++) h+='<button type="button" role="radio" data-fl="'+i+'" aria-checked="'+(i===fillLevel)+'" aria-label="'+FILL_NAMES[i]+'">'+short[i]+'</button>';
-  return h+'</div><small class="pkf-note">The city’s real buildings, drawn around yours. Yours keep their numbers.</small>'; }
-window._altoFill={shapes:function(){ return fillShapes(); }, set:function(v){ fillSet(v); }, level:function(){ return fillLevel; }};
-function fillWirePhone(box){ if(!FILL || !box) return; box.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('.pkf-seg [data-fl]'); if(!b) return; e.stopPropagation(); fillSet(+b.getAttribute('data-fl')); }, true); }
+function fillPhoneRow(){ if(!FILL) return ''; var st=[['auto','Auto'],[0,'0%'],[25,'25%'],[50,'50%'],[75,'75%'],[100,'All']], h='<div class="pm-h6">Fill in the city</div><div class="pkf-seg" role="radiogroup" aria-label="How much of the city to fill in">';
+  st.forEach(function(q){ h+='<button type="button" role="radio" data-fl="'+q[0]+'" aria-checked="'+(q[0]==='auto'?fillAuto:(!fillAuto && q[0]===fillPct))+'" aria-label="'+(q[0]==='auto'?'Automatic: '+FILL_DT+'% downtown, '+FILL_OUT+'% beyond':q[1])+'">'+q[1]+'</button>'; });
+  return h+'</div><small class="pkf-note">The city’s real buildings, drawn around yours: '+FILL_DT+'% downtown, '+FILL_OUT+'% beyond. Yours keep their numbers.</small>'; }
+window._altoFill={shapes:function(){ return fillShapes(); }, set:function(v){ fillSet(v); }, level:function(){ return fillLevel; }, pct:function(){ return fillAuto?'auto':fillPct; }, at:function(x,y){ return fillLevelAt(x,y)*25; }};
+function fillWirePhone(box){ if(!FILL || !box) return; box.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('.pkf-seg [data-fl]'); if(!b) return; e.stopPropagation(); var d=b.getAttribute('data-fl'); fillSet(d==='auto'?'auto':+d); }, true); }
 """
 
 # where the hooks go in PALACE_JS (each anchor must be found exactly once)

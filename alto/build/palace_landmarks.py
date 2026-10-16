@@ -341,7 +341,7 @@ function relayout(svg, Z){
     if(L.tag){ var full=L.info.count?(String(L.info.count).length+(far?0:L.info.unit.length+1)):6, tw=Math.max(full,6)*6.6+34;
       L.tbg.setAttribute('width',tw); L.tag.querySelector('.lm-tag-sh').setAttribute('width',tw);
       L.tag.querySelector('.lm-tag-sh').setAttribute('x',2); L.tag.querySelector('.lm-tag-sh').setAttribute('y',-5);
-      L.tag._p.setAttribute('transform','translate('+(x+w)+' '+y+')'); L.tag.setAttribute('transform','translate('+(-tw-3)+' 0)'); }
+      L.tag._p.setAttribute('transform','translate('+(x+w)+' '+y+')'); L.tag.setAttribute('transform','translate(5 -4)'); }   /* off the building's corner, never over its art */
   });
 }
 function tip(g, esc, pn){

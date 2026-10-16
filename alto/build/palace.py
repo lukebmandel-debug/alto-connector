@@ -38,6 +38,7 @@ from .palace_directions import DIR_CSS, DIR_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
+from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .palace_highway_js import HIGHWAY_CSS, HIGHWAY_JS     # C3 highways
 from .sanitize import js_json
@@ -373,8 +374,12 @@ def check_portals(portals) -> list:
         sts = [str(x).strip() for x in (po.get("stations") or []) if str(x).strip()]
         if not sts:
             raise BriefError(f"portal '{po['name']}' needs the stations it is reached from")
-        out.append({"id": str(po.get("id") or f"portal{i + 1}"), "name": str(po["name"]).strip(),
-                    "via": str(po.get("via") or "").strip(), "line": str(po.get("line") or "").strip(), "stations": sts})
+        name = str(po["name"]).strip()
+        out.append({"id": str(po.get("id") or f"portal{i + 1}"), "name": name,
+                    "via": str(po.get("via") or "").strip(), "line": str(po.get("line") or "").strip(), "stations": sts,
+                    **({"code": str(po["code"]).strip().upper()[:4]} if po.get("code") else {}),
+                    **({"kind": "airport"} if "airport" in name.lower() or po.get("kind") == "airport" else {}),
+                    "destinations": clean_destinations(po.get("destinations"))})
     return out
 
 
@@ -845,10 +850,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + TRANSIT_CSS + HIGHWAY_CSS + DIR_CSS + MOBILE_CSS
+""" + LANDMARK_CSS + TRANSIT_CSS + HIGHWAY_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + HIGHWAY_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + HIGHWAY_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -954,9 +959,10 @@ function route(a,b){
 var ENT={};
 function entrance(id){ var L=lot(P.at[bOf(id)]); if(!L) return -1; var k=P.at[bOf(id)]; if(ENT[k]==null) ENT[k]=nearest(L[0],L[1],1,300); return ENT[k]; }
 /* the real transit (palace_transit_js.py) is given the palace's own parts */
-window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z){ flyMap(x,y,z); },
+window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z){ flyAway(x,y,z); }, leave:leaveBoard,
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
-window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyMap(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
+window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
+window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
 
 /* ── the city, drawn once into an <svg> (a page may hold two: the desktop board, a phone's map page) ── */
 /* a thing that keeps its size on the screen, at map point (x,y): <g class=cls transform="translate(x y)"><g class="pl-sc">…</g></g>.
@@ -1111,9 +1117,10 @@ function tube(parent, d, col, w, op, cls){
 /* the lines (rails, transit, tours, routes, stops) tuck BEHIND the landmark buildings and the building chips: they stay the last two layers
    (before the invisible hit paths and the hover pill), however late something else is added to the map */
 function stackLayers(svg){
-  var lm=svg.querySelector(':scope > .pl-lms'), bl=svg.querySelector(':scope > .pl-blds'); if(!lm || !bl) return;
+  var lm=svg.querySelector(':scope > .pl-lms'), bl=svg.querySelector(':scope > .pl-blds'), ts=svg.querySelector(':scope > .pl-tstns'); if(!lm || !bl) return;
   var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov'); }), n=ch.length;
-  if(ch[n-2]===lm && ch[n-1]===bl) return;
+  if(ch[n-2]===lm && ch[n-1]===bl && (!ts || ch[n-3]===ts)) return;
+  if(ts) svg.appendChild(ts);                       /* the stations over the highways and street names, under the landmarks */
   svg.appendChild(lm); svg.appendChild(bl);
   [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
 function drawCity(svg){
@@ -1422,11 +1429,21 @@ function gy(){ var cv=document.getElementById('canvas'); return cv?Math.max(0,Ma
    repainting the whole city took ~200 ms a frame, so a zoom was three jumps. The board (#world: the city and its cards) is
    only SCALED and shifted by a transform while the zoom runs, and laid out for real once when it settles (placeAll). */
 var PV=null, pvTimer=null;
+/* where the board's left edge / top edge sit (the margins placeBoard gives a city smaller than the window) at zoom z */
+function gapAt(z, cw){ return Math.max(0,(cw-VW*z)/2); }
+function gyAt(z, ch){ return Math.max(0,Math.round((ch-VH*z)/2)); }
 function pvSet(z, sxT, syT){
   var cv=document.getElementById('canvas'), world=document.getElementById('world'); if(!cv || !world) return;
-  if(!PV){ PV={zc:Z, sx:cv.scrollLeft, sy:cv.scrollTop}; world.style.transformOrigin='0 0'; }
+  var cw=cvSize(cv)[0], ch=cvSize(cv)[1];
+  if(!PV){ PV={zc:Z, sx:cv.scrollLeft, sy:cv.scrollTop, gx:gapAt(Z,cw), gy:gyAt(Z,ch)}; world.style.transformOrigin='0 '+WORLD_PAD_TOP+'px'; }
+  /* the scroll the settled board can take: the page stops scrolling at the city's edge, so the preview stops there too
+     (else it shows bare glass past the edge and then jumps back when it is laid out for real) */
+  var gx=gapAt(z,cw), g=gyAt(z,ch);
+  sxT=Math.max(0, Math.min(sxT, Math.max(0, Math.round(VW*z)+Math.round(gx)*2-cw)));
+  syT=Math.max(0, Math.min(syT, Math.max(0, g+Math.round(VH*z)-ch)));
   PV.tx=sxT; PV.ty=syT; Z=z;
-  world.style.transform='translate('+(PV.sx-sxT)+'px,'+(PV.sy-syT)+'px) scale('+(z/PV.zc)+')';
+  /* scaled about the city's top-left corner (the pad above it stays put), shifted by what the margins and the scroll will do */
+  world.style.transform='translate('+(PV.sx-sxT+Math.round(gx)-Math.round(PV.gx))+'px,'+(PV.sy-syT+g-PV.gy)+'px) scale('+(z/PV.zc)+')';
   if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
   clearTimeout(pvTimer); pvTimer=setTimeout(function(){ if(PV) placeAll(); }, 160);
 }
@@ -1460,7 +1477,10 @@ function placeBoard(world, cv){
     e.classList.remove('pal-floor');
     var x=(L[0]+MX)*Z, y=(L[1]+MY)*Z; n.displayX=x; n.y=y;
     e.style.left=x+'px'; e.style.top=(y+WORLD_PAD_TOP)+'px';
-    e.style.setProperty('--pw', Math.max(10, L[2]*Z).toFixed(1)+'px'); e.style.setProperty('--ph', Math.max(8, L[3]*Z).toFixed(1)+'px');
+    var pw=Math.max(10, L[2]*Z), ph=Math.max(8, L[3]*Z);
+    e.style.setProperty('--pw', pw.toFixed(1)+'px'); e.style.setProperty('--ph', ph.toFixed(1)+'px');
+    /* centred now, not a frame later when the engine's resize watcher sees the new size (the city jittered as a zoom landed) */
+    if(!e.classList.contains('focused') && e._hov==null){ e.style.setProperty('--mx', (-Math.round(+pw.toFixed(1))/2)+'px'); e.style.setProperty('--my', (-Math.round(+ph.toFixed(1))/2)+'px'); }
     e.style.setProperty('--pr', L[4]+'deg'); e.style.setProperty('--pc', ucol(n.id));
     var cd=e.querySelector('.node-card'); if(cd && !mob()){ cd.tabIndex=0; cd.setAttribute('role','button'); cd.setAttribute('aria-label', num(n.id)+' '+title(n.id)); }   /* focus shows the same in-place pill */
     /* its number always inside it: as big as the building allows, up to 18px */
@@ -1534,8 +1554,8 @@ function zoomTo(z, ax, ay){
   z=Math.max(zmin(), Math.min(2.4, z)); if(Math.abs(z-Z)<1e-4) return;
   if(ax==null){ ax=cv.clientWidth/2; ay=cv.clientHeight/2; }
   var sx=PV?PV.tx:cv.scrollLeft, sy=PV?PV.ty:cv.scrollTop;
-  var mx=(sx+ax)/Z, my=(sy+ay-gy())/Z;
-  pvSet(z, mx*z-ax, my*z+gy()-ay);
+  var cw=cvSize(cv)[0], ch=cvSize(cv)[1], mx=(sx+ax-gapAt(Z,cw))/Z, my=(sy+ay-gyAt(Z,ch))/Z;
+  pvSet(z, mx*z+gapAt(z,cw)-ax, my*z+gyAt(z,ch)-ay);
 }
 var zAnim=null;
 function zoomAnim(z, ax, ay, ms, done){
@@ -1552,14 +1572,22 @@ function flyMap(mx, my, z, done){
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ms=1;
   var cx=cv.clientWidth/2, cy=cv.clientHeight/2;
   /* the map point at the centre now */
-  var fx=(sx0+cx)/z0-MX, fy=(sy0+cy-gy())/z0-MY;
+  var fx=(sx0+cx-gapAt(z0,cv.clientWidth))/z0-MX, fy=(sy0+cy-gyAt(z0,cv.clientHeight))/z0-MY;
   cancelAnimationFrame(zAnim);
   (function step(t){ var k=Math.min(1,(t-t0)/ms), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
     var zz=Math.exp(Math.log(z0)+(Math.log(z)-Math.log(z0))*e), px=fx+(mx-fx)*e, py=fy+(my-fy)*e;
     var zc=Math.max(zmin(),Math.min(2.4,zz));
-    pvSet(zc, (px+MX)*zc-cx, (py+MY)*zc+gy()-cy);
+    pvSet(zc, (px+MX)*zc+gapAt(zc,cv.clientWidth)-cx, (py+MY)*zc+gyAt(zc,cv.clientHeight)-cy);
     if(k<1) zAnim=requestAnimationFrame(step); else { placeAll(); if(done) done(); } })(t0);
 }
+/* a fly that works from anywhere: a detail page open or a building enlarged is left first (the board is not under the window then) */
+function leaveBoard(then){
+  var wait=0;
+  if(de.classList.contains('detail-open') && typeof showTimeline==='function'){ try{ showTimeline(); }catch(e){} wait=160; }
+  if(window._focusedNodeId && window.exitFocus){ try{ window.exitFocus(); }catch(e){} wait=Math.max(wait, 380); }
+  if(!wait) then(); else setTimeout(then, wait);
+}
+function flyAway(mx, my, z, done){ leaveBoard(function(){ flyMap(mx, my, z, done); }); }
 function palaceOn(){ return de.classList.contains('alto-palace') && !mob() && !de.classList.contains('detail-open'); }
 function focused(){ var cv=document.getElementById('canvas'); return !!(cv && cv.classList.contains('focus-mode')); }
 window.addEventListener('wheel', function(e){

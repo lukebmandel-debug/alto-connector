@@ -255,7 +255,7 @@ function pan(){ var p=document.getElementById('pal-dir'); if(p) return p;
   document.body.appendChild(p); DIR.wire(p); return p; }
 function adapter(){ var p=pan(), body=p.querySelector('.dr-body');
   return {desktop:true, host:body, navEl:null, svg:function(){ return svgD; },
-    fly:function(x,y,m){ flyMap(x, y, m==='step'?Math.max(Z,1.1):Math.max(Z,.9)); },
+    fly:function(x,y,m){ flyAway(x, y, m==='step'?Math.max(Z,1.1):Math.max(Z,.9)); },
     fit:function(b){ flyToBox(b); },
     hot:function(ids){ document.querySelectorAll('#world .node.pal-hot').forEach(function(n){ n.classList.remove('pal-hot'); });
       ids.forEach(function(id){ var n=document.getElementById('node-'+id); if(n) n.classList.add('pal-hot'); }); },

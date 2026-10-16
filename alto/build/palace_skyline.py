@@ -610,19 +610,21 @@ def _fmc():
 
 def _cityhall():
     """City Hall (McArthur, 1901; 148 x 145 m, 167 m to the top of William Penn): the Second Empire block
-    in pale grey-white marble round its courtyard under mansards of the same cool grey (one material story:
-    walls, mansards, tower and dome in one hue, the roofs a shade darker; the clock and the bronze Penn the
-    only accents), corner and centre pavilions, and the tower
-    over the north wing — five times the block's height — in a shaft, a clock stage, an open colonnade
-    and a dome, with Penn on top."""
-    tw = 125.0                                                     # the tower's plan centre (north wing)
+    in pale grey-white marble — four wings round an OPEN courtyard (a ring, not a slab), a mansard roof on every
+    wing, a taller pavilion at each corner and one midway along each side, the entrance pavilion with its
+    columns and arch on the south front, and the tower rising from the north wing: a shaft, the clock stage,
+    an open colonnade and a dome, with the bronze Penn on top. One material story: walls, mansards, tower
+    and dome in one cool hue, the roofs a shade darker; the clock and Penn the only accents."""
+    tw = 127.0                                                     # the tower's plan centre (the north wing's middle)
+    wing = lambda **k: [{"k": "box", "y0": 0, "y1": 34, "m": "marble", "solid": 1, "fl": 11.5, "mu": k.pop("mu", 8), "top": False, **k},
+                        {"k": "hip", "y0": 34, "y1": 43, "inset": 9, "m": "mansard", **{q: k[q] for q in ("x", "w", "v", "d")}}]
+    pav = lambda x, v, **k: [{"k": "box", "x": x, "w": 36, "v": v, "d": 36, "y0": 0, "y1": 39, "m": "marble", "solid": 1, "fl": 11.5, "mu": 3, "sheen": False, **k},
+                             {"k": "hip", "x": x, "w": 36, "v": v, "d": 36, "y0": 39, "y1": 51, "inset": 8, "m": "mansard"}]
     return {"h": 167, "D": 145, "parts": [
-        *[{"k": "box", "x": x, "w": 24, "v": 121, "d": 24, "y0": 0, "y1": 39, "m": "marble", "solid": 1, "sheen": False} for x in (-62, 62)],
-        *[{"k": "hip", "x": x, "w": 24, "v": 121, "d": 24, "y0": 39, "y1": 50, "inset": 6, "m": "mansard"} for x in (-62, 62)],
-        {"k": "box", "w": 148, "v": 4, "d": 137, "y0": 0, "y1": 34, "m": "marble", "solid": 1, "fl": 11.5, "mu": 12, "top": False},
-        {"k": "hip", "w": 148, "v": 4, "d": 137, "y0": 34, "y1": 43, "inset": 9, "m": "mansard"},
-        {"k": "court", "w": 64, "v": 42, "d": 62, "y0": 43, "op": .16},
-        {"k": "box", "w": 27, "cv": tw, "d": 27, "y0": 43, "y1": 102, "m": "marble", "solid": 1, "mu": 2},
+        {"k": "court", "x": 0, "w": 76, "v": 36, "d": 73, "y0": 0, "op": .5},           # the open courtyard, seen from above
+        *wing(x=0, w=76, v=109, d=36),                                                    # north wing, then its corner pavilions
+        *pav(-56, 109), *pav(56, 109),
+        {"k": "box", "w": 27, "cv": tw, "d": 27, "y0": 34, "y1": 102, "m": "marble", "solid": 1, "mu": 2},     # the tower
         {"k": "box", "w": 23, "cv": tw, "d": 23, "y0": 102, "y1": 117, "m": "marble", "solid": 1, "sheen": False},
         {"k": "clock", "y": 109.5, "r": 5.2},
         {"k": "box", "w": 18, "cv": tw, "d": 18, "y0": 117, "y1": 131, "m": "marble", "solid": 1, "sheen": False},
@@ -630,9 +632,13 @@ def _cityhall():
         {"k": "dome", "w": 17, "cv": tw, "d": 17, "y0": 131, "y1": 148, "m": "mansard"},
         {"k": "spire", "cv": tw, "y0": 148, "y1": 152, "w": 4, "m": "marble"},
         {"k": "statue", "cv": tw, "y0": 152, "y1": 167},
-        *[q for x in (-62, 62) for q in (
-            {"k": "box", "x": x, "w": 24, "v": 0, "d": 24, "y0": 0, "y1": 39, "m": "marble", "solid": 1, "fl": 11.5, "mu": 2, "sheen": False},
-            {"k": "hip", "x": x, "w": 24, "v": 0, "d": 24, "y0": 39, "y1": 50, "inset": 6, "m": "mansard"})],
+        *wing(x=-56, w=36, v=36, d=73, mu=5),                                             # the side wings, each with a midway pavilion
+        *wing(x=56, w=36, v=36, d=73, mu=5),
+        *[q for x in (-56, 56) for q in (
+            {"k": "box", "x": x, "w": 38, "v": 54, "d": 36, "y0": 0, "y1": 38, "m": "marble", "solid": 1, "fl": 11.5, "mu": 3, "sheen": False},
+            {"k": "hip", "x": x, "w": 38, "v": 54, "d": 36, "y0": 38, "y1": 48, "inset": 8, "m": "mansard"})],
+        *wing(x=0, w=76, v=0, d=36),                                                      # the south front
+        *pav(-56, 0), *pav(56, 0),
         {"k": "box", "w": 40, "v": 0, "d": 20, "y0": 0, "y1": 38, "m": "marble", "solid": 1},
         {"k": "cols", "w": 36, "y0": 4, "y1": 34, "n": 8},
         {"k": "hip", "w": 40, "v": 0, "d": 20, "y0": 38, "y1": 47, "inset": 7, "m": "mansard"},

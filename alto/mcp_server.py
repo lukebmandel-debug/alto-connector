@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.80"
+__version__ = "1.9.81"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1546,6 +1546,47 @@ def set_flags(timeline_id: str, flags: list[dict],
     return {"ok": True, "flags": counts, "warnings": warnings}
 
 
+def _own_palaces(exclude_tid: str, place: str) -> list:
+    """The user's other Mind Palaces, as airport destinations: [{city, code, timeline, url}] (url relative, a private link)."""
+    from .build.palace_airport import code_for
+    out, seen = [], {(place or "").strip().lower()}
+    try:
+        rows = get_store().list_timelines(uid())
+    except Exception:                                       # noqa: BLE001 — a destination list is never worth failing a set-up
+        return out
+    for t in rows:
+        tid = t.get("timeline_id") or t.get("id")
+        if not tid or tid == exclude_tid:
+            continue
+        try:
+            doc = get_store().get_timeline(uid(), tid) or {}
+        except Exception:                                   # noqa: BLE001
+            continue
+        pal = (doc.get("brief") or {}).get("palace") or {}
+        city = str(pal.get("place") or "").strip()
+        if not city or city.lower() in seen or not pal.get("data_z"):
+            continue
+        seen.add(city.lower())
+        key = doc.get("private_key")
+        out.append({"city": city, "code": code_for(city), "timeline": tid, **({"url": f"../{key}/"} if key else {})})
+    return out
+
+
+def _with_destinations(portals, tid: str, place: str):
+    """An airport portal that names no destinations gets the board: the user's own palaces, then the cities Alto builds."""
+    if not portals:
+        return portals
+    from .build.palace_airport import default_destinations
+    own = None
+    out = []
+    for po in portals:
+        if isinstance(po, dict) and not po.get("destinations") and ("airport" in str(po.get("name") or "").lower() or po.get("kind") == "airport"):
+            own = _own_palaces(tid, place) if own is None else own
+            po = {**po, "destinations": default_destinations(place, own)}
+        out.append(po)
+    return out
+
+
 @mcp.tool(title="Set up a Mind Palace city", annotations=RW)
 @accounted
 def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
@@ -1604,8 +1645,11 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     floors?}]. parks: names of parks to
     draw as green glass with their paths whatever their size ("Rittenhouse
     Square"); the big ones (15 ha and up) are drawn anyway. portals: gateways to places off the
-    map (an airport, another city), [{name, stations: [station names], via?, line?}] — each named
-    station shows a portal pin whose card names the place and the stations it is reached from. areas: the
+    map (an airport, another city), [{name, stations: [station names], via?, line?, code?, destinations?}] — each named
+    station shows a portal pin; clicking it makes the trip (the camera goes to the station, a plane lifts off, and an AIRPORT
+    scene opens with a departures board of cities: a city that has a Mind Palace in the user's account boards straight into
+    it; one without says what to ask Claude for). An airport portal that names no destinations gets the board automatically:
+    the user's other palaces, then New York, Boston, Washington, Chicago, Los Angeles, London, Paris. code: the airport's IATA code (PHL). areas: the
     city's named neighborhoods, drawn as small label-only names,
     [{name, lat, lon, rank}] (the neighborhood's middle in degrees; rank 1 a
     major name shown at the whole-city zoom … 4 a minor one shown up close;
@@ -1712,6 +1756,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             landmark_buildings = court_info.pop("buildings")
         names = list(landmarks or []) + [b.get("name") for b in landmark_buildings or [] if b.get("name")]
         names += [s for ln in rail_lines or [] for s in ln.get("stops") or []]
+        portals = _with_destinations(portals, timeline_id, place)
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                              landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
