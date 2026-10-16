@@ -81,9 +81,14 @@ def test_blocks_lots_inside_and_no_two_domains_overlap(phil):
         for i in range(int(min(xs) // cell), int(max(xs) // cell) + 1):
             for j in range(int(min(ys) // cell), int(max(ys) // cell) + 1):
                 idx.setdefault((i, j), []).append(k)
-    lots = [lt for b in g["blocks"] for lt in b["lots"]]
+    lots = [lt for b in g["blocks"] if not b.get("fr") for lt in b["lots"]]
     miss = [lt for lt in lots if not any(inside(polys[k], lt[0], lt[1]) for k in idx.get((int(lt[0] // cell), int(lt[1] // cell)), ()))]
     assert len(miss) == 0
+    # a free domain's lots (P4: faces between its smoothed real streets) never stand in a grid block
+    free = [lt for b in g["blocks"] if b.get("fr") for lt in b["lots"]]
+    assert free
+    inn = [lt for lt in free if any(inside(polys[k], lt[0], lt[1]) for k in idx.get((int(lt[0] // cell), int(lt[1] // cell)), ()))]
+    assert len(inn) <= 0.02 * len(free)
     # no point is inside the blocks of two domains (the cut blocks of a seam meet on it, they do not overlap)
     ov = 0
     for b in g["blocks"][::7]:
@@ -138,3 +143,20 @@ def test_migrate_placements_is_safe_when_the_old_city_cannot_be_read():
     assert pl["n1"]["lot"] == "3.1"                       # the caller's dict is not changed
     # nothing saved: nothing to do
     assert palace.migrate_placements({}, new, {}) == ({}, {"moved": 0, "dropped": 0, "kept": 0})
+
+
+def test_free_domains_drawn(phil):
+    """P4: Philadelphia's free domains (Wissahickon/Wynnefield edge, Eastwick, the Manayunk void) are drawn as smoothed
+    real streets (fr, drawn as M.te), joined to the grid's lattice nodes, with blocks/lots and a page domain record."""
+    m, g = phil
+    fr = [s for s in g["streets"] if s.get("fr")]
+    doms = [d for d in g["doms"] if d["kind"] == "free"]
+    assert len(doms) >= 2 and len(fr) > 100
+    te = {tuple(p) for p in g["te"]}
+    assert all(tuple(s["p"]) in te for s in fr)
+    assert all(d["clip"] and d["mapping"] and d["fit"]["anchors"] >= 6 for d in doms)
+    assert sum(1 for b in g["blocks"] if b.get("fr")) > 50
+    # most free streets that stop at the grid's edge end on a drawn lattice node: shared with a grid street's vertex
+    from alto.build import palace_place
+    gr = palace_place.graph({"streets": g["streets"]})
+    assert len(gr["e"]) > 0

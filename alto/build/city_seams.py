@@ -758,6 +758,9 @@ def _anchor_pts(part, step=100.0):
     return [(mx + u[0] * (t0 + (t1 - t0) * k / (n - 1)), my + u[1] * (t0 + (t1 - t0) * k / (n - 1))) for k in range(n)]
 
 
+CHILD_CAPS = False      # P4: True restores E3/P1's perpendicular caps on the child region
+
+
 def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL, natural=False):
     """Place every domain: the root at angle 0, each child by its seam with the parent (hinge: the hinge streets
     meet exactly on the seam; tee / strip / water: least squares on the seam samples and on same-named lines).
@@ -1036,7 +1039,13 @@ def _regions(lay, doms, seam_list, root):
                 caps.append((o, b if o == a else a))
         for o, inner in caps:
             u = (inner[0] - o[0], inner[1] - o[1]); L = math.hypot(*u) or 1.0; u = (u[0] / L, u[1] / L)
-            S = clip_half(S, u, _dot(u, o), "ge"); Ssub = clip_half(Ssub, u, _dot(u, o), "ge")
+            Ssub = clip_half(Ssub, u, _dot(u, o), "ge")
+            if not CHILD_CAPS:
+                continue
+            S = clip_half(S, u, _dot(u, o), "ge")
+        # the child's own region is NOT capped at the chain's ends (P4): a cap there cut the SW grid off a few blocks
+        # past the Woodland tee (Kingsessing, Elmwood, Eastwick undrawn); beyond the seam's ends the real outlines and
+        # the occupancy raster (city_engine 7a) decide which domain draws a place
         ring = _clip_convex(_rect_ring(mpQ, ext), S)
         lay.region[cid] = ring
         lay.rect[cid] = ext

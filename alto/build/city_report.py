@@ -607,11 +607,15 @@ def c_ends(g, m, M):
         edges += [((q[0], q[1]), (q[2], q[3])) for q in (_dget(s, "segs") or [])]
     lms = [l["box"] for l in g.get("landmarks", []) if l.get("box")]
     clips = [[tuple(q) for q in _dget(d, "clip")] for d in M["doms"] if _dget(d, "clip")]
-    bad, over = [], []
+    bad, over, free_ends = [], [], 0
     for pi, P in enumerate(polys):
         if len(P) < 2:
             continue
         for e in (P[0], P[-1]):
+            if M["streets"][pi].get("fr"):         # a free domain draws real geometry: a real dead end stays one
+                if not idx.near(e, 3.0, skip=pi):
+                    free_ends += 1
+                continue
             if idx.near(e, 3.0, skip=pi):
                 continue
             if any(segd(e, a, b) <= 3.0 for a, b in edges):
@@ -624,7 +628,7 @@ def c_ends(g, m, M):
             (bad if any(_inside(e, [c]) for c in clips) else over).append(row)
     st = "fail" if bad else "warn" if over else "ok"
     return st, "%d line ends land on nothing inside the grid; %d run past its edge" % (len(bad), len(over)), \
-        {"n": len(bad), "examples": bad[:15], "overhang": len(over), "overhang_examples": over[:8]}
+        {"n": len(bad), "examples": bad[:15], "overhang": len(over), "overhang_examples": over[:8], "free_dead_ends": free_ends}
 
 
 def c_cross_seam(g, m, M):
@@ -716,7 +720,7 @@ def c_cut(g, m, M, blocks):
         cut, tot = sum(1 for q in tq if len(q) != 8), len(tq) + len(tiles)
     else:
         full = {(round((t[0] + t[2]) / 2), round((t[1] + t[3]) / 2)) for t in tiles}
-        bl = blocks or []
+        bl = [b for b in (blocks or []) if not b.get("fr")]     # a free domain's blocks are faces, never tiles
         tot = len(bl)
         cut = sum(1 for b in bl if (round(b["x"]), round(b["y"])) not in full)
     sh = cut / max(1, tot)
@@ -738,8 +742,10 @@ def c_size(g, m, M, blocks):
 
 
 def c_overlap(g, m, M):
+    # a free domain's page ring is its real outline mapped: the grid's drawn blocks win where they overlap it and the
+    # free streets are cut out of them (city_free.streets_in), so it is not a page region that can double-draw
     clips = [(_dget(d, "id"), [tuple(q) for q in _dget(d, "clip")]) for d in M["doms"]
-             if _dget(d, "clip") and not _dget(d, "legacy")]
+             if _dget(d, "clip") and not _dget(d, "legacy") and _dget(d, "kind", "grid") != "free"]
     if len(clips) < 2:
         return "ok", "one page region", {}
     step = min(CW, CH) / 6
