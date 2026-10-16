@@ -1,6 +1,12 @@
 """An audit of the palace's drawn transit (the `map.transit` of a palace bundle, grid px).
 
-    audit(m) -> {"lines": {id: report}, "problems": [str]}
+    audit(m, table=None, real=None, to_page=None) -> {"lines": {id: report}, "problems": [str]}
+    picture(m) -> {"stops": [...], "runs": [...], "track": px, "ok": bool}     the finished picture, any city
+
+It is city-generic: what a line's real route is comes from data (the stop order of the OSM route relations: the drawn
+line's own branches `b`, and, when the raw transit `real` of palace_map is passed, its branches before snapping), and
+the Philadelphia tables below (ROUTE, BRANCH_STREETS, RIVER_OK, ONE_PIECE) are one city's extra checks (`table`,
+PHILADELPHIA by default for a Philadelphia bundle, `{}` for none).
 
 It reads what the page will draw and says what is wrong with it: a stop with no
 track under it, a stop its line does not list (or the other way round), track
@@ -40,6 +46,11 @@ STREET_STEP = 20.0       # px: the track is sampled this often
 INVENTED_MAX = 60.0      # px of surface track that may lie on a street the grid drew only for the line (none, bar a lane jog)
 RUN_MIN = 40.0           # px: an uncovered run shorter than this (a lane jog at a corner) is not reported
 SURFACE = ("tram",)      # kinds of line that run ON streets (a subway, an el, PATCO and Regional Rail are grade separated)
+PHILADELPHIA = {"route": ROUTE, "branch_streets": BRANCH_STREETS, "tunnel": TUNNEL, "river_ok": RIVER_OK,
+                "one_piece": ONE_PIECE, "branch_line": "trl"}
+PIC_STEP = 10.0          # px: the finished picture's track is sampled this often
+ANG_TOL = 1.5            # degrees: a grade-separated run is on its domain's axes or diagonals to within this
+CW_, CH_ = 240.0, 170.0  # the page block (palace_grid.CW, CH) when a domain does not say
 
 
 def _seg_d(x, y, ax, ay, bx, by):
@@ -127,9 +138,14 @@ def drawn_segments(m, invented=True):
         new = {tuple(e) for e in (m.get("transit") or {}).get("new", [])}
         segs = [sg for sg in segs if tuple(sg) not in new]
     for st in m.get("streets", []):
-        if st.get("d") or st.get("o"):
+        if st.get("d") or st.get("o") or st.get("L") or st.get("sm"):
             p = st["p"]
             segs += [(p[k], p[k + 1], p[k + 2], p[k + 3]) for k in range(0, len(p) - 3, 2)]
+    for f in m.get("tq", []):                           # engine v2: polygon tiles (a tilted domain's blocks, cut blocks)
+        r = [(f[k], f[k + 1]) for k in range(0, len(f) - 1, 2)]
+        segs += [(a[0], a[1], b[0], b[1]) for a, b in zip(r, r[1:] + r[:1]) if a != b]
+    for f in m.get("te", []):                           # engine v2: loose edges of tilted domains
+        segs += [(f[k], f[k + 1], f[k + 2], f[k + 3]) for k in range(0, len(f) - 3, 2)]
     return segs
 
 
@@ -215,12 +231,28 @@ def _subseq(want, names):
     return i
 
 
-def audit(m) -> dict:
+def _philly(m):
+    pl = m.get("place")
+    return not pl or "philadelphia" in str(pl).lower()
+
+
+def audit(m, table=None, real=None, to_page=None) -> dict:
+    """table: one city's extra checks (PHILADELPHIA, or {}); None picks PHILADELPHIA for a Philadelphia bundle (or one
+    that names no place). real: palace_map's raw transit ({lines: [{id, w, s, b}], stops}) for the checks against the
+    real routes (order, lost branches, river crossings); to_page: real px -> page px (default: the bundle's grid tables)."""
+    if table is None:
+        table = PHILADELPHIA if _philly(m) else {}
+    ROUTE_, RIVER_OK_, ONE_PIECE_ = table.get("route", {}), table.get("river_ok", {}), table.get("one_piece", ())
     tr = m.get("transit") or {}
     stops = tr.get("stops", [])
     rivers = m.get("river") or []
     problems, lines = [], {}
     cover = street_cover(m)
+    pic = picture(m)
+    raw = {ln["id"]: ln for ln in (real or {}).get("lines", [])}
+    if real and to_page is None and m.get("grid"):
+        from .palace_grid import mapping_from
+        to_page = mapping_from(m["grid"])
     in_line = {i: [] for i in range(len(stops))}
     for ln in tr.get("lines", []):
         lid = ln["id"]
@@ -261,7 +293,9 @@ def audit(m) -> dict:
                 for q, pc in enumerate(pieces):
                     if pi in pc:
                         on_piece[q].add(k)
-        if lid in ONE_PIECE and len(pieces) > 1:
+        rl = raw.get(lid)
+        one = lid in ONE_PIECE_ or (rl is not None and ln.get("k") not in SURFACE and len(rl.get("b") or [rl["s"]]) <= 1)
+        if one and len(pieces) > 1:
             iss.append("the track falls into %d pieces" % len(pieces))
         for q, pc in enumerate(pieces):
             if len(on_piece[q]) == 0:
@@ -315,26 +349,36 @@ def audit(m) -> dict:
             rep["no_street_stops"] = len(cov.get("stops", []))
         # rivers
         for rv, cnt in _river_crossings(polys, rivers).items():
-            ok = RIVER_OK.get(lid, {}).get(rv, 0)
+            ok = RIVER_OK_.get(lid, {}).get(rv, 0)
+            if rl is not None and to_page is not None:      # the real track's own crossings (a bridge or a tunnel)
+                ok = max(ok, _real_crossings(rl, to_page, rivers).get(rv, 0))
             if cnt > ok:
                 iss.append("crosses the %s %d time(s) (a tunnel or bridge allows %d)" % (rv, cnt, ok))
         # the real route
-        want = ROUTE.get(lid)
+        want = ROUTE_.get(lid)
         if want:
             got = max(_subseq(want, names), _subseq(want, names[::-1]))
             if got < len(want):
                 iss.append("the ride %s does not run the real route's stops in order (stopped at %r)"
                            % ([n for n in names], want[got]))
-        if lid == "trl":
+        iss += _order(ln, stops)                     # each branch's stops lie along its track in ride order
+        if rl is not None:
+            iss += _vs_real(ln, stops, rl, real["stops"])
+        if ln.get("k") not in SURFACE:              # the finished picture: track on a street or on its domain's axes
+            for r in pic["runs"]:
+                if r[0] == lid:
+                    iss.append("%d px of the track is on no street and off its domain's axes and diagonals, from (%d, %d) to (%d, %d)" % r[1:])
+        if lid == table.get("branch_line"):
             seen = set()
+            BS_, TUN_ = table.get("branch_streets", ()), table.get("tunnel", [])
             for br in ln.get("b") or []:
                 nm = [stops[i]["n"] for i in br]
-                for st in BRANCH_STREETS:
+                for st in BS_:
                     if sum(st in n for n in nm) >= 5:
                         seen.add(st)
-                        if max(_subseq(TUNNEL, nm), _subseq(TUNNEL, nm[::-1])) < len(TUNNEL):
+                        if max(_subseq(TUN_, nm), _subseq(TUN_, nm[::-1])) < len(TUN_):
                             iss.append("the %s branch does not run the Market Street tunnel stops in order" % st)
-            for st in BRANCH_STREETS:
+            for st in BS_:
                 if st not in seen:
                     iss.append("no branch runs the %s trolley" % st)
         for i in iss:
@@ -349,3 +393,132 @@ def audit(m) -> dict:
             if ln is None:
                 problems.append("stop %r lists the unknown line %r" % (s["n"], lid))
     return {"lines": lines, "problems": problems}
+
+
+# ── city-generic checks ────────────────────────────────────────────────────────────────────────────────────────────
+def _order(ln, stops):
+    """Each branch's stops, where they stand on one polyline of the track, come along it in ride order (either way)."""
+    out = []
+    polys = ln["p"]
+    for br in ln.get("b") or [ln["s"]]:
+        at = {}
+        for k, si in enumerate(br):
+            d, pi, arc = _near(polys, stops[si]["x"], stops[si]["y"])
+            if d <= TOL:
+                at.setdefault(pi, []).append((k, arc, stops[si]["n"]))
+        for pi, lst in at.items():
+            arcs = [a for _, a, _ in sorted(lst)]
+            up = all(b >= a - 1 for a, b in zip(arcs, arcs[1:]))
+            dn = all(b <= a + 1 for a, b in zip(arcs, arcs[1:]))
+            if not (up or dn):
+                names = [n for _, _, n in sorted(lst)]
+                out.append("the stops %s are not in ride order along the track" % names)
+                break
+    return out
+
+
+def _vs_real(ln, stops, rl, rstops):
+    """The drawn line against its real route relations: no stop out of the real order, no real branch lost."""
+    out = []
+    drawn = [[stops[i]["n"] for i in br] for br in ln.get("b") or [ln["s"]]]
+    for rb in rl.get("b") or [rl["s"]]:
+        names = [rstops[i]["n"] for i in rb]
+        if len(names) < 3:
+            continue
+        pos = {n: k for k, n in enumerate(names)}
+        best = max(drawn, key=lambda d: sum(1 for n in d if n in pos), default=[])
+        got = [pos[n] for n in best if n in pos]
+        if len(got) < max(2, len(names) // 2):
+            out.append("the real branch %s .. %s is not drawn (%d of its %d stops)" % (names[0], names[-1], len(got), len(names)))
+            continue
+        if not (all(b > a for a, b in zip(got, got[1:])) or all(b < a for a, b in zip(got, got[1:]))):
+            out.append("the branch %s .. %s does not run its real stops in order" % (names[0], names[-1]))
+    return out
+
+
+def _real_crossings(rl, to_page, rivers):
+    polys = []
+    for w in rl.get("w", []):
+        pts = [to_page(w[k], w[k + 1]) for k in range(0, len(w) - 1, 2)]
+        polys.append([v for p in pts for v in p])
+    return _river_crossings(polys, rivers)
+
+
+def _octi_angles(m):
+    """[(page clip ring or None, [allowed run angles mod 180])] per domain (bundle `doms`, else the square grid)."""
+    out = []
+    for d in m.get("doms") or [{"a": 0.0}]:
+        a = float(d.get("a", 0.0))
+        cw, ch = (d.get("cwch") or (CW_, CH_))[:2]
+        dg = math.degrees(math.atan2(ch, cw))
+        ring = d.get("clip")
+        if ring and isinstance(ring[0], (int, float)):
+            ring = [(ring[k], ring[k + 1]) for k in range(0, len(ring) - 1, 2)]
+        out.append((ring, [(a + v) % 180.0 for v in (0.0, 90.0, dg, -dg, 45.0, -45.0)]))
+    return out
+
+
+def _in_ring(r, x, y):
+    ins = False
+    for k in range(len(r)):
+        (ax, ay), (bx, by) = r[k], r[(k + 1) % len(r)]
+        if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
+            ins = not ins
+    return ins
+
+
+def picture(m, step=PIC_STEP, tol=STREET_TOL) -> dict:
+    """The finished picture, for any city: every stop dot within TOL px of the drawn track of a line it lists, and every
+    track sample (every `step` px) over a drawn street (within `tol` px), over the line's own tunnel, or, for a
+    grade-separated line, on a straight run along its domain's axes or diagonals (a legal rail corridor through blocks).
+    -> {"stops": [(name, x, y, px)], "runs": [(line id, px, x0, y0, x1, y1)], "track": px, "ok": bool}"""
+    tr = m.get("transit") or {}
+    doms = _octi_angles(m)
+    seams = [(r[k][0], r[k][1], r[(k + 1) % len(r)][0], r[(k + 1) % len(r)][1]) for r, _ in doms if r for k in range(len(r))]
+    st = _Streets(drawn_segments(m) + seams)              # a seam is a drawn line (its avenue)
+    lines = {ln["id"]: ln for ln in tr.get("lines", [])}
+
+    def legal(x, y, ang):
+        allowed = doms[-1][1]
+        for ring, al in doms:
+            if ring and _in_ring(ring, x, y):
+                allowed = al
+                break
+        else:
+            allowed = next((al for ring, al in doms if not ring), allowed)
+        return any(abs(((ang - a) + 90.0) % 180.0 - 90.0) <= ANG_TOL for a in allowed)
+    bad_stops, runs, total = [], [], 0.0
+    for s in tr.get("stops", []):
+        ds = [_near(lines[l]["p"], s["x"], s["y"])[0] for l in s.get("l", []) if l in lines and lines[l]["p"]]
+        if not ds or min(ds) > TOL:
+            bad_stops.append((s["n"], round(s["x"]), round(s["y"]), round(min(ds), 1) if ds else None))
+    for ln in tr.get("lines", []):
+        tun = _Streets([(u[0], u[1], u[2], u[3]) for u in ln.get("u", [])])
+        grade = ln.get("k") not in SURFACE
+        cur = None                                       # an uncovered run: [x0, y0, x1, y1, length]
+
+        def close():
+            if cur is not None:
+                runs.append((ln["id"], round(cur[4]), round(cur[0]), round(cur[1]), round(cur[2]), round(cur[3])))
+        for f in ln["p"]:
+            for k in range(0, len(f) - 3, 2):
+                ax, ay, bx, by = f[k:k + 4]
+                L = math.hypot(bx - ax, by - ay)
+                total += L
+                ang = math.degrees(math.atan2(by - ay, bx - ax)) % 180.0
+                n = max(1, int(L // step))
+                for i in range(n + 1):
+                    x, y = ax + (bx - ax) * i / n, ay + (by - ay) * i / n
+                    ok = st.dist(x, y) <= tol or (tun.grid and tun.dist(x, y) <= 1.5) or (grade and legal(x, y, ang))
+                    if ok:
+                        close()
+                        cur = None
+                    elif cur is None:
+                        cur = [x, y, x, y, 0.0]
+                    else:
+                        cur[4] += math.hypot(x - cur[2], y - cur[3])
+                        cur[2], cur[3] = x, y
+            close()
+            cur = None
+    runs = [tuple(r) for r in runs if r[1] >= RUN_MIN]
+    return {"stops": bad_stops, "runs": runs, "track": round(total), "ok": not bad_stops and not runs}

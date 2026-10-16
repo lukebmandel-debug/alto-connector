@@ -12,6 +12,13 @@ stations stand on their lines.
                                     "stops": [{n, x, y, l: [line ids]}],
                                     "ge": [(i0, j0, i1, j1)]  # the grid edges the grade-separated lines run along (palace_grid draws a street
                                                               # under any that has none: a line never runs through a void)}
+
+A city of several street-grid domains (engine v2) passes doms=[(Domain, Lattice)] (city_types.Domain: .id, .poly real
+ring, .mapping real -> local, .clip page ring; city_lattice.Lattice: page(), local(), node(), xg, yg) and the drawn
+segments `segs` (palace_transit_route.drawn_segs: tiles, tq, edges, te, d/L/sm/o streets). Then a trolley is routed on
+the drawn streets at any angle, and a grade-separated line runs on each domain's own axes and diagonals (octilinear in
+its domain, joined along the seam where it crosses one), and "ge" holds (dom, i0, j0, i1, j1) axis edges. One square
+domain (or no doms) takes the square path above, unchanged: its output is byte-identical to 1.9.78's.
 """
 from __future__ import annotations
 
@@ -22,6 +29,8 @@ STOP_R = 85.0           # a trolley stop with no drawn street this near (grid px
 DEV_AVG = 60.0          # px: how far a street may stray from the real track before the router stops liking it
 MAX_DEV = 150.0         # px: a routed stretch whose mean distance from the real track is more than this is not used
 LANE = 7.0              # px between two lines that share a street
+RAMP = 500.0            # px (engine v2 only): an underground station off every street reaches its first street by a tunnel ramp this long at most
+TRAM_BEND = 70.0        # px (engine v2 only): what one turn costs a trolley (no stair-step under a diagonal real track)
 MAX_STOP_GAP = 130.0    # a stop farther than this from its line (about half a block) is not drawn: its track was trimmed or never fetched
 
 
@@ -190,9 +199,22 @@ def _prune(es, stopn):
     return {(a, b) for a in adj for b in adj[a] if a < b}
 
 
-def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
+def snap(tr, mp, xg, yg, W, H, streets=(), edges_=(), doms=None, segs=None, octi=None):
+    """octi: None = octilinear per domain when there are several domains (else the square path); True forces the
+    per-domain path even for one domain (a single-domain city whose rail should not stair-step either)."""
     if not tr or not tr.get("lines"):
         return {"lines": [], "stops": [], "ge": []}
+    if octi is None:
+        octi = bool(doms) and len(doms) > 1
+    if octi:
+        return _snap_octi(tr, doms, streets, edges_, segs)
+    if mp is None and doms:                              # one domain: the root (page == its local frame)
+        d, lat = doms[0]
+        mp, xg, yg = d.mapping, list(lat.xg), list(lat.yg)
+    return _snap_square(tr, mp, xg, yg, W, H, streets, edges_)
+
+
+def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
     P = lambda n: (round(xg[n[0]], 1), round(yg[n[1]], 1))             # grid index node -> point
     edges = {}                                           # line id -> set of edges between points
     tunnels = {}                                         # line id -> the pieces that run underground, under no street
@@ -241,19 +263,31 @@ def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
         ge |= {(a[0], a[1], b[0], b[1]) for a, b in es}
         edges[ln["id"]] = {(P(a), P(b)) if P(a) < P(b) else (P(b), P(a)) for a, b in es}
 
+    def keyf(a, b):
+        if a[1] == b[1]:
+            return ("h", a[1])
+        if a[0] == b[0]:
+            return ("v", a[0])
+        return None                                      # a diagonal avenue: a line keeps its centre
+    out = _finish(tr, edges, tunnels, dropped, mp, keyf, lambda k: (0.0, 1.0) if k[0] == "h" else (1.0, 0.0))
+    out["ge"] = sorted(ge)                               # ge: the grid edges the grade-separated lines run along (index pairs)
+    return out
+
+
+def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0.0):
+    """Lanes, polylines and stops of the routed lines. edges: {line id: {(a, b)}} page points; keyf(a, b): the lattice
+    line a piece runs along ((dom, "h"|"v", index) or the square grid's ("h", y) / ("v", x)), None for a diagonal or a
+    seam (a line keeps its centre there); normal(key): the page unit vector its lanes shift along."""
     # lanes: lines sharing a grid line (a street) run side by side
-    use = {}                                             # (axis, coordinate) -> {line id: edges}
+    use = {}                                             # lattice line -> {line id: edges}
     for lid, es in edges.items():
         for a, b in es:
-            if a[1] == b[1]:
-                key = ("h", a[1])
-            elif a[0] == b[0]:
-                key = ("v", a[0])
-            else:
-                continue                                 # a diagonal avenue: a line keeps its centre
+            key = keyf(a, b)
+            if key is None:
+                continue
             use.setdefault(key, {}).setdefault(lid, set()).add((a, b))
     order = [ln["id"] for ln in tr["lines"]]
-    off = {}                                             # (line id, axis, coordinate) -> px
+    off = {}                                             # (line id, *key) -> px
     for key, per in use.items():
         lanes = {}
         for lid in order:
@@ -266,20 +300,27 @@ def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
             lanes[lid] = k
         n = max(lanes.values()) + 1
         for lid, k in lanes.items():
-            off[(lid, key[0], key[1])] = (k - (n - 1) / 2) * LANE
+            off[(lid,) + tuple(key)] = (k - (n - 1) / 2) * LANE
 
-    def at(lid, node, fl):
-        hz, vt, dg = fl
-        if dg:
-            return node
-        x = node[0] + (off.get((lid, "v", node[0]), 0) if vt else 0)
-        y = node[1] + (off.get((lid, "h", node[1]), 0) if hz else 0)
+    def at(lid, node, keys):
+        if None in keys or len({k[0] for k in keys if len(k) == 3}) > 1:
+            return node                                  # a diagonal (or two domains' lines) here: the centre
+        x, y = node
+        for k in sorted(keys, key=str):
+            o = off.get((lid,) + tuple(k), 0)
+            nx, ny = normal(k)
+            if nx:
+                x = x + o * nx
+            if ny:
+                y = y + o * ny
         return (round(x, 1), round(y, 1))
 
     def straight(a, p, c):
         """p lies on the straight run a -> c (the polyline needs only the run's ends)."""
         cr = (p[0] - a[0]) * (c[1] - p[1]) - (p[1] - a[1]) * (c[0] - p[0])
         dt = (p[0] - a[0]) * (c[0] - p[0]) + (p[1] - a[1]) * (c[1] - p[1])
+        if rel and dt > 0:                               # a turned lattice: its rounded nodes are collinear to within rel
+            return abs(cr) < 0.5 or abs(cr) < rel * math.hypot(p[0] - a[0], p[1] - a[1]) * math.hypot(c[0] - p[0], c[1] - p[1])
         return abs(cr) < 0.5 and dt > 0
 
     lines_out, geo = [], {}
@@ -289,9 +330,9 @@ def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
             continue
         inc = {}
         for a, b in es:
-            for n, o in ((a, b), (b, a)):
-                f = inc.setdefault(n, [False, False, False])
-                f[0 if a[1] == b[1] else 1 if a[0] == b[0] else 2] = True    # [horizontal edge here, vertical edge here, diagonal here]
+            k = keyf(a, b)
+            for n in (a, b):
+                inc.setdefault(n, set()).add(k)          # the lattice lines (None: a diagonal) the line has here
         polys = []
         for path in _paths(es):
             pts = [at(ln["id"], n, inc[n]) for n in path]
@@ -339,7 +380,7 @@ def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
         groups = []
         for lid, p in found:
             for g in groups:
-                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= 2 * LANE + .1 for _, q in g):
+                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= group + .1 for _, q in g):
                     g.append((lid, p))
                     break
             else:
@@ -354,4 +395,41 @@ def snap(tr, mp, xg, yg, W, H, streets=(), edges_=()):
               for br in (src.get("b") or [src["s"]])]
         ln["b"] = [b for b in bs if b]
         ln["s"] = list(dict.fromkeys(k for b in ln["b"] for k in b))
-    return {"lines": lines_out, "stops": stops_out, "ge": sorted(ge)}      # ge: the grid edges the grade-separated lines run along (index pairs)
+    return {"lines": lines_out, "stops": stops_out}
+
+
+def _snap_octi(tr, doms, streets, edges_, segs):
+    """Several domains: trolleys on the drawn streets at any angle, grade-separated lines octilinear per domain."""
+    from .palace_transit_route import CityMap, street_graph, drawn_segs, real_points, route, octi_route
+    cm = CityMap(doms)
+    edges, tunnels, dropped, ge, rkey = {}, {}, set(), set(), {}
+    if any(ln["k"] == "tram" for ln in tr["lines"]):
+        adj = street_graph(list(segs if segs is not None else drawn_segs(edges=edges_, streets=streets)))
+    stops = [cm(st["x"], st["y"]) for st in tr["stops"]]
+    for ln in tr["lines"]:
+        if ln["k"] == "tram":
+            under = {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}
+            es, kept, tun = route(adj, real_points(ln["w"], cm), stops, ln.get("b") or [ln["s"]],
+                                  STOP_R, DEV_AVG, MAX_DEV, under, ramp=RAMP, bend=TRAM_BEND)
+            edges[ln["id"]] = es
+            tunnels[ln["id"]] = tun
+            dropped |= {(si, ln["id"]) for si in ln["s"] if si not in kept}
+            continue
+        es, kept, info = octi_route(cm, real_points(ln["w"], cm), stops, ln.get("b") or [ln["s"]])
+        edges[ln["id"]] = es
+        for e, inf in info.items():
+            if inf is None:
+                continue
+            d, i0, j0, i1, j1 = inf
+            if j0 == j1 or i0 == i1:
+                rkey[e] = (d, "h", j0) if j0 == j1 else (d, "v", i0)
+                ge.add((d,) + min((i0, j0), (i1, j1)) + max((i0, j0), (i1, j1)))
+            else:
+                rkey[e] = None
+
+    def keyf(a, b):
+        e = (a, b) if a < b else (b, a)
+        return rkey[e] if e in rkey else cm.lane_key(a, b)
+    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3)   # one dot per pair of next lanes: on both tracks
+    out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
+    return out
