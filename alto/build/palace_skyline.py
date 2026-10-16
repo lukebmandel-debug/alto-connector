@@ -297,7 +297,7 @@ class Sky:
         x, w, z = p.get("x", 0), p["w"], p["y0"]
         dx, dy = self.back(p["d"])
         l, r, Y = self.X(x - w / 2), self.X(x + w / 2), self.Y(z)
-        self.add(f'<path class="lz-win" d="{self.pts([(l, Y), (l + dx, Y - dy), (r + dx, Y - dy), (r, Y)])}" opacity=".55"/>')
+        self.add(f'<path class="lz-win" d="{self.pts([(l, Y), (l + dx, Y - dy), (r + dx, Y - dy), (r, Y)])}" opacity="{p.get("op", .55)}"/>')
 
     def _dome(self, p):
         """A dome over its plan centre (its silhouette, drawn on the plane through the centre)."""
@@ -610,33 +610,35 @@ def _fmc():
 
 def _cityhall():
     """City Hall (McArthur, 1901; 148 x 145 m, 167 m to the top of William Penn): the Second Empire block
-    in white marble round its courtyard under slate mansards, corner and centre pavilions, and the tower
+    in pale grey-white marble round its courtyard under mansards of the same cool grey (one material story:
+    walls, mansards, tower and dome in one hue, the roofs a shade darker; the clock and the bronze Penn the
+    only accents), corner and centre pavilions, and the tower
     over the north wing — five times the block's height — in a shaft, a clock stage, an open colonnade
     and a dome, with Penn on top."""
     tw = 125.0                                                     # the tower's plan centre (north wing)
     return {"h": 167, "D": 145, "parts": [
         *[{"k": "box", "x": x, "w": 24, "v": 121, "d": 24, "y0": 0, "y1": 39, "m": "marble", "solid": 1, "sheen": False} for x in (-62, 62)],
-        *[{"k": "hip", "x": x, "w": 24, "v": 121, "d": 24, "y0": 39, "y1": 50, "inset": 6} for x in (-62, 62)],
+        *[{"k": "hip", "x": x, "w": 24, "v": 121, "d": 24, "y0": 39, "y1": 50, "inset": 6, "m": "mansard"} for x in (-62, 62)],
         {"k": "box", "w": 148, "v": 4, "d": 137, "y0": 0, "y1": 34, "m": "marble", "solid": 1, "fl": 11.5, "mu": 12, "top": False},
-        {"k": "hip", "w": 148, "v": 4, "d": 137, "y0": 34, "y1": 43, "inset": 9},
-        {"k": "court", "w": 64, "v": 42, "d": 62, "y0": 43},
+        {"k": "hip", "w": 148, "v": 4, "d": 137, "y0": 34, "y1": 43, "inset": 9, "m": "mansard"},
+        {"k": "court", "w": 64, "v": 42, "d": 62, "y0": 43, "op": .16},
         {"k": "box", "w": 27, "cv": tw, "d": 27, "y0": 43, "y1": 102, "m": "marble", "solid": 1, "mu": 2},
         {"k": "box", "w": 23, "cv": tw, "d": 23, "y0": 102, "y1": 117, "m": "marble", "solid": 1, "sheen": False},
         {"k": "clock", "y": 109.5, "r": 5.2},
-        {"k": "box", "w": 18, "cv": tw, "d": 18, "y0": 117, "y1": 131, "m": "trim", "solid": 1, "sheen": False},
+        {"k": "box", "w": 18, "cv": tw, "d": 18, "y0": 117, "y1": 131, "m": "marble", "solid": 1, "sheen": False},
         {"k": "cols", "w": 15, "y0": 118, "y1": 130, "n": 5},
-        {"k": "dome", "w": 17, "cv": tw, "d": 17, "y0": 131, "y1": 148, "m": "slate"},
-        {"k": "spire", "cv": tw, "y0": 148, "y1": 152, "w": 4, "m": "trim"},
+        {"k": "dome", "w": 17, "cv": tw, "d": 17, "y0": 131, "y1": 148, "m": "mansard"},
+        {"k": "spire", "cv": tw, "y0": 148, "y1": 152, "w": 4, "m": "marble"},
         {"k": "statue", "cv": tw, "y0": 152, "y1": 167},
         *[q for x in (-62, 62) for q in (
             {"k": "box", "x": x, "w": 24, "v": 0, "d": 24, "y0": 0, "y1": 39, "m": "marble", "solid": 1, "fl": 11.5, "mu": 2, "sheen": False},
-            {"k": "hip", "x": x, "w": 24, "v": 0, "d": 24, "y0": 39, "y1": 50, "inset": 6})],
+            {"k": "hip", "x": x, "w": 24, "v": 0, "d": 24, "y0": 39, "y1": 50, "inset": 6, "m": "mansard"})],
         {"k": "box", "w": 40, "v": 0, "d": 20, "y0": 0, "y1": 38, "m": "marble", "solid": 1},
         {"k": "cols", "w": 36, "y0": 4, "y1": 34, "n": 8},
-        {"k": "hip", "w": 40, "v": 0, "d": 20, "y0": 38, "y1": 47, "inset": 7},
+        {"k": "hip", "w": 40, "v": 0, "d": 20, "y0": 38, "y1": 47, "inset": 7, "m": "mansard"},
         {"k": "door", "v": 0, "w": 9, "h": 14},
-        {"k": "seal", "x": -6, "y": 42.5, "r": 2.4, "lv": "city"},                # the courts inside: city (Common Pleas) and state
-        {"k": "seal", "x": 6, "y": 42.5, "r": 2.4, "lv": "state"}]}
+        {"k": "seal", "x": -6, "y": 42.5, "r": 2, "lv": "city"},                # the courts inside: city (Common Pleas) and state
+        {"k": "seal", "x": 6, "y": 42.5, "r": 2, "lv": "state"}]}
 
 
 def _independence():

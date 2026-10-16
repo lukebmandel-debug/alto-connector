@@ -46,6 +46,8 @@ _MATS = {
     "aqua": (("#d4f6f1", "#72cdc6", "#4fb0ac", "#e6faf7"), ("#3f8f8d", "#2a6d6c", "#1f5252", "#52a3a1")),
     "steel": (("#dbe8f0", "#8eb0c8", "#7095af", "#e8f1f7"), ("#4d7391", "#315069", "#263f55", "#5f87a8")),
 }
+# City Hall's mansards: the marble's own cool grey, a shade darker (one material story, no separate roof colour)
+_MATS["mansard"] = (("#d6dae1", "#b9bec8", "#a5abb7", "#e1e4ea"), ("#5c627e", "#444962", "#32364d", "#6a7090"))
 _MATS["stone"] = (_MATS["stone"][0], ("#5d627c", "#3f4459", "#2c2f41", "#70768f"))
 
 
