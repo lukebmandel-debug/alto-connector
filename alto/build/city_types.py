@@ -18,13 +18,19 @@ class Domain:
     lines: dict | None = None       # {"v": [...], "h": [...]} selected lattice lines
     mapping: object = None          # per-domain palace_grid.Mapping
     clip: list | None = None        # page clip ring
+    holes: list = field(default_factory=list)   # rings cut out of poly (real px): water, other domains inside it (E1)
+    area: float = 0.0               # km2 (E1)
+    mode: float | None = None       # the orientation-field mode the domain was labelled with, degrees (E1)
+    cells: list = field(default_factory=list)   # the field cells (i, j) of the domain (E1)
+    gv: float = 0.0                 # local column spacing (page px; CW, or CH when the roles are swapped) (E3)
+    gh: float = 0.0                 # local row spacing (E3)
 
 
 @dataclass
 class Seam:
     a: int                          # domain id on one side
     b: object                       # domain id on the other side, or None for a free/void side
-    kind: str                       # "fold" | "diag45" | "shear" | "strip" ...
+    kind: str                       # detection: "grid" | "strip" | "free" | "water"; layout: "hinge" | "tee" | "strip" | "water"
     real: list = field(default_factory=list)   # the real boundary polyline (real px)
     avenue: str | None = None       # the avenue the seam follows, when one does
     phi: float = 0.0                # page angle of the seam, degrees
@@ -32,6 +38,11 @@ class Seam:
     hinge: list = field(default_factory=list)  # (line in a, line in b) pairs that continue across the seam
     ratio: float = 1.0
     err: float = 0.0
+    info: dict = field(default_factory=dict)    # layout data per seam (city_seams: root, tilt, parts, equalise ...)
+    bends: list = field(default_factory=list)   # the real kink points of the hinge streets (E1)
+    angle: float = 0.0                          # real seam angle, degrees (E1)
+    rms: float = 0.0                            # px: the bends' distance from the seam line (E1)
+    boundary: list = field(default_factory=list)  # the cell boundary between the two domains (real px) (E1)
 
 
-ENGINE_V2 = False                   # the lead flips this when the pipeline is integrated
+ENGINE_V2 = True                    # the v2 pipeline in palace_grid.grid() (a one-domain city takes the v1 fast path)
