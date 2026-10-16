@@ -983,11 +983,12 @@ function drawCity(svg){
   streetLabels(svg, defs, labels);
   (M.parks||[]).forEach(function(pk){ if(pk.n && pk.t) lbl(labels, 'pl-pkt'+(pk.z>3?' big':''), pk.n, pk.t[0], pk.t[1]); });
   /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
-  (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
+  /* back to front (the ground line further down the map stands in front): a tower rises over the blocks behind it */
+  (M.landmarks||[]).slice().sort(function(p,q){ return ((p.box||[0,0,0,0])[3])-((q.box||[0,0,0,0])[3]); }).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);
     var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
     if(tw_) g.setAttribute('data-tower', tw_);
-    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
+    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, all:M.landmarks||[], pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
   /* districts: the neighbourhood's own name over its buildings (the unit it holds is in its pop-up) */
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
     var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:tubeCol(pm.colorRaw), 'data-u':d.u},labels);
@@ -1766,8 +1767,8 @@ function floorsOf(h){ var kids={}; ORDER.forEach(function(id){ var q=P.par[id]; 
 function chipLot(name){ var l=lmOf(name); if(!l) return null; var lots=[]; P.b.forEach(function(ls){ if(ls && ls.length) lots.push(ls[0]); }); lots=lots.slice(0,50);
   var ws=lots.map(function(q){ return q[2]; }).sort(function(a,b){ return a-b; }), hs=lots.map(function(q){ return q[3]; }).sort(function(a,b){ return a-b; });
   var lw=lots.length?ws[lots.length>>1]:24, lh=lots.length?hs[lots.length>>1]:16, x0=l.box[0], y0=l.box[1], x1=l.box[2], y1=l.box[3];
-  var w0=(x1-x0)-28, h0=(y1-y0)-28, nw=Math.min(w0,h0*.55), w=Math.max(30,Math.min(lw,(w0-nw)/2-4)), h=lh*w/lw, left=x0+14+(w0-nw)/2, r=function(v){ return Math.round(v*10)/10; };
-  return [r(left+10-w/2), r(y0+14+22+h/2), r(w), r(h), 0]; }
+  var C=window._palLm.tallCard(l.box, window._palLm.fw(name)), left=C[0]+window._palLm.dx(M.landmarks||[], name), w=Math.max(30,Math.min(lw,left-x0-18)), h=lh*w/lw, r=function(v){ return Math.round(v*10)/10; };
+  return [r(left+10-w/2), r(C[1]+22+h/2), r(w), r(h), 0]; }
 function applyTower(name, v){
   var h=towerHub(name); if(!lmOf(name)) return;
   if(h){                                                  /* move the unit out: its buildings are buildings again */

@@ -388,7 +388,8 @@ def test_nothing_is_offered_outside_edit_mode(browser, urls):
 
 # ── the bar must be reachable (the pointer crosses no gap, the bar waits for it) and can be pinned ──
 def _lm_centre(pg):
-    return pg.evaluate("""()=>{ var g=document.querySelector('#palace-svg .pl-lmb'); var r=g.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height*.7]; }""")
+    # the landmark's card (its plot): a tower's art rises far above its block and takes no pointer
+    return pg.evaluate("""()=>{ var g=document.querySelector('#palace-svg .pl-lmb .lm-card'); var r=g.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height*.7]; }""")
 
 
 def _bar_state(pg):
