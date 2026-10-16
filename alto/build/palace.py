@@ -1050,7 +1050,25 @@ function ctlState(){ var c=document.getElementById('pal-ctl'); if(!c || Z==null)
   if(o) o.classList.toggle('off', lo); if(i) i.classList.toggle('off', hi); if(f) f.classList.toggle('on', lo); }
 /* where the city's top edge sits in the canvas's scroll range: 0, or the gap that centres a short city */
 function gy(){ var cv=document.getElementById('canvas'); return cv?Math.max(0,Math.round((cv.clientHeight-VH*Z)/2)):0; }
+/* While the board is being zoomed (a glide, a pinch, the wheel) it is not laid out again on every frame: laying out and
+   repainting the whole city took ~200 ms a frame, so a zoom was three jumps. The board (#world: the city and its cards) is
+   only SCALED and shifted by a transform while the zoom runs, and laid out for real once when it settles (placeAll). */
+var PV=null, pvTimer=null;
+function pvSet(z, sxT, syT){
+  var cv=document.getElementById('canvas'), world=document.getElementById('world'); if(!cv || !world) return;
+  if(!PV){ PV={zc:Z, sx:cv.scrollLeft, sy:cv.scrollTop}; world.style.transformOrigin='0 0'; world.style.willChange='transform'; }
+  PV.tx=sxT; PV.ty=syT; Z=z;
+  world.style.transform='translate('+(PV.sx-sxT)+'px,'+(PV.sy-syT)+'px) scale('+(z/PV.zc)+')';
+  if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
+  clearTimeout(pvTimer); pvTimer=setTimeout(function(){ if(PV) placeAll(); }, 160);
+}
 function placeAll(){
+  if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
+    if(w){ w.style.transform=''; w.style.willChange=''; }
+    placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
+  placeAllReal();
+}
+function placeAllReal(){
   var world=document.getElementById('world'); if(!world) return;
   world.style.setProperty('width', Math.round(VW*Z)+'px', 'important'); world.style.minHeight=Math.round(VH*Z+WORLD_PAD_TOP)+'px';
   /* a city smaller than the window sits in the middle of it */
@@ -1137,10 +1155,9 @@ function zoomTo(z, ax, ay){
   var cv=document.getElementById('canvas'); if(!cv || !svgD) return;
   z=Math.max(zmin(), Math.min(2.4, z)); if(Math.abs(z-Z)<1e-4) return;
   if(ax==null){ ax=cv.clientWidth/2; ay=cv.clientHeight/2; }
-  var mx=(cv.scrollLeft+ax)/Z, my=(cv.scrollTop+ay-gy())/Z;
-  Z=z; placeAll();
-  cv.scrollLeft=mx*Z-ax; cv.scrollTop=my*Z+gy()-ay;
-  if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
+  var sx=PV?PV.tx:cv.scrollLeft, sy=PV?PV.ty:cv.scrollTop;
+  var mx=(sx+ax)/Z, my=(sy+ay-gy())/Z;
+  pvSet(z, mx*z-ax, my*z+gy()-ay);
 }
 var zAnim=null;
 function zoomAnim(z, ax, ay, ms, done){
@@ -1148,7 +1165,7 @@ function zoomAnim(z, ax, ay, ms, done){
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ms=1;
   (function step(t){ var k=Math.min(1,(t-t0)/ms), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
     zoomTo(Math.exp(Math.log(z0)+(Math.log(z)-Math.log(z0))*e), ax, ay);
-    if(k<1) zAnim=requestAnimationFrame(step); else if(done) done(); })(t0);
+    if(k<1) zAnim=requestAnimationFrame(step); else { if(PV) placeAll(); if(done) done(); } })(t0);
 }
 /* centre a map point at zoom z, gliding */
 function flyMap(mx, my, z, done){
@@ -1161,10 +1178,9 @@ function flyMap(mx, my, z, done){
   cancelAnimationFrame(zAnim);
   (function step(t){ var k=Math.min(1,(t-t0)/ms), e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
     var zz=Math.exp(Math.log(z0)+(Math.log(z)-Math.log(z0))*e), px=fx+(mx-fx)*e, py=fy+(my-fy)*e;
-    Z=Math.max(zmin(),Math.min(2.4,zz)); placeAll();
-    cv.scrollLeft=(px+MX)*Z-cx; cv.scrollTop=(py+MY)*Z+gy()-cy;
-    if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
-    if(k<1) zAnim=requestAnimationFrame(step); else if(done) done(); })(t0);
+    var zc=Math.max(zmin(),Math.min(2.4,zz));
+    pvSet(zc, (px+MX)*zc-cx, (py+MY)*zc+gy()-cy);
+    if(k<1) zAnim=requestAnimationFrame(step); else { placeAll(); if(done) done(); } })(t0);
 }
 function palaceOn(){ return de.classList.contains('alto-palace') && !mob() && !de.classList.contains('detail-open'); }
 function focused(){ var cv=document.getElementById('canvas'); return !!(cv && cv.classList.contains('focus-mode')); }
