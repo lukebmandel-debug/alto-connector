@@ -745,6 +745,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     g["seams"] = [_seam_out(sm) for sm in sl if _main_kind(sm) != "water" and sm.segs]
     g["transit"] = transit
     g["blocks"] = blocks
+    from .city_highways import attach as attach_highways      # C3: the highways as named route lines (g["hw"])
+    attach_highways(g, m)
     T["total"] = time.time() - t0
     g["engine"] = {"path": "v2", "domains": len(by_id), "voids": [d.id for d in voids], "fans_merged": merged_fans,
                    "free": [d.id for d in doms_all if d.kind == "free"],

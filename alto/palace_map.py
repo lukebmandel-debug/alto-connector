@@ -128,6 +128,16 @@ _LIGHT_HW = "motorway|motorway_link|trunk|trunk_link|primary|primary_link|second
 _LIGHT_NUMBERED = "^((North|South|East|West) )?([0-9]+(st|nd|rd|th)|Front) "
 
 
+def _hw_query(b):
+    from .build.city_highways import query_lines
+    return query_lines(b)
+
+
+def _highways(els, proj, W, H):
+    from .build.city_highways import read
+    return read(els, proj, W, H)
+
+
 def build_query(bbox, landmarks=None, timeout: int = 180, light: bool = False, streets=None) -> str:
     """light=True is for dense areas where the full query times out: no service
     roads, trails, minor residential streets, parks other than leisure=park, and
@@ -165,6 +175,7 @@ def build_query(bbox, landmarks=None, timeout: int = 180, light: bool = False, s
         'rel[route~"^(%s)$"]%s->.routes;' % ("|".join(_ROUTE_KINDS), b),
         ".routes out body;",
         "node(r.routes)%s;" % b, "out body;",
+        *_hw_query(b),                                   # C3: exit nodes, road route relations (city_highways)
         # stations
         "(",
         "  node[railway=station]%s;" % b, "  node[public_transport=station]%s;" % b,
@@ -1253,6 +1264,7 @@ def _build(raw, bbox, place, scale, majors, landmarks, tol_minor):
         "water": water, "rivers": rivers, "parks": parks, "streets": streets,
         "trails": trails, "rails": rails, "stations": stations, "landmarks": landmark_out,
         "transit": _transit(els, proj, Wf, Hf),
+        "highways": _highways(els, proj, Wf, Hf),         # C3: the real highways (city_highways.read)
         "majors": pick_majors(merged_street_len, majors),
     }
     return _across_wide_river(out, scale)
