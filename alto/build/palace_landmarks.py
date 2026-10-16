@@ -90,13 +90,12 @@ def landmark_css() -> str:
   .pal-svg .pl-lmb .lm-name.in{stroke:none;}
   .pal-svg .pl-lmb .lm-sub{font-size:calc(10px / var(--pz,1));font-weight:600;letter-spacing:.02em;stroke:none;fill:var(--lm-col,var(--pal-text));}
   .pal-svg.mid .pl-lmb .lm-sub{display:none;}
-  /* "there is something inside": a glow in the page's colour, breathing slowly */
-  .pal-svg .pl-lmb .lm-glow{fill:none;stroke:var(--lm-col);stroke-width:10px;stroke-opacity:.30;vector-effect:non-scaling-stroke;pointer-events:none;animation:lm-breathe 4.2s ease-in-out infinite;}
+  /* "there is something inside": a glow in the page's colour. Still, not animated: three infinite stroke-opacity animations kept WebKit repainting the whole city every frame (idle 50 ms vs 17 ms) and heated laptops. */
+  .pal-svg .pl-lmb .lm-glow{fill:none;stroke:var(--lm-col);stroke-width:10px;stroke-opacity:.30;vector-effect:non-scaling-stroke;pointer-events:none;}
   .pal-svg .pl-lmb .lm-glow2{fill:none;stroke:var(--lm-col);stroke-width:2.5px;stroke-opacity:.85;vector-effect:non-scaling-stroke;pointer-events:none;}
-  .pal-svg .pl-lmb.has-page:hover .lm-glow,.pal-svg .pl-lmb.has-page:focus-visible .lm-glow{animation:none;stroke-width:14px;stroke-opacity:.45;}
+  .pal-svg .pl-lmb.has-page:hover .lm-glow,.pal-svg .pl-lmb.has-page:focus-visible .lm-glow{stroke-width:14px;stroke-opacity:.45;}
   .pal-svg .pl-lmb.has-page:hover .lm-card,.pal-svg .pl-lmb.has-page:focus-visible .lm-card{stroke-width:3.5;}
-  @keyframes lm-breathe{0%,100%{stroke-opacity:.16;}50%{stroke-opacity:.42;}}
-  @media (prefers-reduced-motion:reduce){ .pal-svg .pl-lmb .lm-glow{animation:none;} .pal-svg .pl-lmb .lm-art{transition:none;} }
+  @media (prefers-reduced-motion:reduce){ .pal-svg .pl-lmb .lm-art{transition:none;} }
   /* the tag: a glass door on the building's corner, the same size on screen at every zoom */
   .pal-svg .pl-lmb .lm-tagz{transform:scale(calc(1 / var(--pz,1)));}
   .pal-svg .lm-tag-sh{fill:rgba(20,26,55,.20);stroke:none;}

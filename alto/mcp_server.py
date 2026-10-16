@@ -1392,9 +1392,20 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
         return err
     if not _consent_ok(doc):
         return CONSENT_ERROR
+    for i, n in enumerate(nodes):
+        nid = n.get("id") if isinstance(n, dict) else None
+        if not isinstance(n, dict) or not isinstance(nid, str) or not nid:
+            return {"error": "invalid_nodes", "message": f"node #{i} needs a string id"}
+        if isinstance(n.get("act"), bool) or not isinstance(n.get("act"), int):
+            return {"error": "invalid_nodes",
+                    "message": f"node '{nid}': act must be a whole number (the 0-based section/unit index), got {n.get('act')!r}"}
+        for f in ("tag", "title", "desc"):
+            if not isinstance(n.get(f), str):
+                return {"error": "invalid_nodes", "message": f"node '{nid}': {f} is required (a string)"}
     st = get_store()
     existing = st.list_nodes(uid(), timeline_id)
     merged = {n["id"]: n for n in existing}
+    old_by_id = dict(merged)
     for n in nodes:
         merged[n.get("id", "")] = {**n}
     if len(merged) > MAX_NODES:
@@ -1409,8 +1420,28 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     except BriefError as e:
         return {"error": "invalid_nodes", "message": str(e),
                 "hint": "fix the listed node and resend just that node"}
+    except TypeError as e:      # a field no node has (e.g. `lot`, `summary`)
+        return {"error": "invalid_nodes", "message": f"a node has a field Alto does not know: {e}",
+                "hint": "send only the fields listed in add_nodes's description"}
+    warnings = list(warnings or [])
+    updated = [n["id"] for n in nodes if n["id"] in old_by_id]
+    for n in nodes:
+        o = old_by_id.get(n["id"])
+        if o:
+            lost = sorted(k for k in o if not k.startswith("_") and k not in n and o.get(k) not in (None, "", [], {}))
+            if lost:
+                warnings.append(f"'{n['id']}' already existed and was REPLACED; fields not re-sent were dropped: "
+                                + ", ".join(lost) + " (send the full node to keep them)")
+    titles = {}
+    for m_ in merged.values():
+        titles.setdefault((m_.get("title") or "").strip().lower(), []).append(m_["id"])
+    for n in nodes:
+        same = [i for i in titles.get((n.get("title") or "").strip().lower(), []) if i != n["id"]]
+        if same:
+            warnings.append(f"'{n['id']}' has the same title as existing node(s): {', '.join(same[:4])}")
     st.put_nodes(uid(), timeline_id, nodes)
     return {"accepted": [n["id"] for n in nodes],
+            "added": [n["id"] for n in nodes if n["id"] not in old_by_id], "updated": updated,
             "total_nodes": len(merged), "warnings": warnings}
 
 
@@ -1446,8 +1477,14 @@ def add_connections(timeline_id: str, connections: list[list[str]]) -> dict:
                 if "has no nodes" not in f]      # act coverage checked at build
     if failures:
         return {"error": "invalid_connections", "failures": failures}
+    before = st.get_connections(uid(), timeline_id)
     st.put_connections(uid(), timeline_id, connections)
-    return {"accepted": len(connections)}
+    out = {"accepted": len(connections), "replaced": len(before)}
+    if len(connections) < len(before):
+        kept = {tuple(c[:2]) for c in connections}
+        out["warnings"] = [f"this REPLACED the stored list: {len(before)} connection(s) before, {len(connections)} now; "
+                           f"dropped: " + ", ".join(f"{c[0]}->{c[1]}" for c in before if tuple(c[:2]) not in kept)[:600]]
+    return out
 
 
 @mcp.tool(title="Set flags", annotations=RW)
@@ -2502,7 +2539,7 @@ def delete_nodes(timeline_id: str, node_ids: list[str]) -> dict:
     if err:
         return err
     st = get_store()
-    if (doc.get("brief") or {}).get("mode") == "outline":
+    if (doc.get("brief") or {}).get("mode") in ("outline", "palace"):
         going = set(node_ids)
         orphaned = {}
         for n in st.list_nodes(uid(), timeline_id):
@@ -2516,13 +2553,23 @@ def delete_nodes(timeline_id: str, node_ids: list[str]) -> dict:
                     "children": orphaned,
                     "hint": "delete the whole subtree, or re-parent the "
                             "children with add_nodes first"}
-    st.delete_nodes(uid(), timeline_id, node_ids)
+    have = {n["id"] for n in st.list_nodes(uid(), timeline_id)}
+    missing = [i for i in node_ids if i not in have]
+    gone = [i for i in node_ids if i in have]
+    st.delete_nodes(uid(), timeline_id, gone)
     remaining = {n["id"] for n in st.list_nodes(uid(), timeline_id)}
-    conns = [c for c in st.get_connections(uid(), timeline_id)
-             if c[0] in remaining and c[1] in remaining]
+    before = st.get_connections(uid(), timeline_id)
+    conns = [c for c in before if c[0] in remaining and c[1] in remaining]
     st.put_connections(uid(), timeline_id, conns)
-    return {"deleted": node_ids, "remaining_nodes": len(remaining),
-            "remaining_connections": len(conns)}
+    out = {"deleted": gone, "remaining_nodes": len(remaining),
+           "remaining_connections": len(conns)}
+    if missing:
+        out["not_found"] = missing
+        out["warnings"] = ["no node with these ids, nothing deleted for them: " + ", ".join(missing)]
+    if len(before) != len(conns):
+        out.setdefault("warnings", []).append(
+            f"{len(before) - len(conns)} connection(s) touching the deleted nodes were dropped too")
+    return out
 
 
 DESTRUCTIVE = ToolAnnotations(destructiveHint=True, idempotentHint=True)

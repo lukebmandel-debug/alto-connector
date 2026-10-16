@@ -424,7 +424,7 @@ PALACE_CSS = KEY_CSS + r"""
     display:flex !important;align-items:center;justify-content:center;overflow:hidden !important;rotate:var(--pr,0deg);
     border:1.5px solid color-mix(in srgb,var(--pc,#888) 70%,transparent) !important;border-top:3px solid var(--pc,#888) !important;
     box-shadow:var(--pfl,0 0 0 transparent),0 3px 10px rgba(20,26,55,.18) !important;}
-  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card > *:not(.node-order){display:none !important;}
+  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card > *:not(.node-order):not(.aed-cc){display:none !important;}
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-order{position:static !important;display:block !important;margin:0 !important;
     font-size:var(--pf,11px) !important;line-height:1.1 !important;font-weight:800 !important;letter-spacing:.01em;color:var(--text) !important;
     opacity:1 !important;white-space:nowrap;transform:none !important;rotate:calc(-1 * var(--pr,0deg));}
@@ -454,8 +454,8 @@ PALACE_CSS = KEY_CSS + r"""
   @keyframes pal-pill-in{from{opacity:.4;scale:.9;}to{opacity:1;scale:1;}}
   @media (prefers-reduced-motion: reduce){html.alto-palace #world .node-card{animation:none !important;}}
   .pal-svg .pl-st.pal-lit,.pal-svg .pl-stt.pal-lit{fill:var(--accent);font-weight:850;}
-  .pal-svg .pl-dist{transition:filter .15s;}
-  .pal-svg .pl-dist:hover,.pal-svg .pl-dist.pal-lit{filter:brightness(1.22) saturate(1.25) drop-shadow(0 0 calc(5px / var(--pz,1)) var(--pal-halo));}
+  /* no CSS filter here: a filter on the hovered neighbourhood name made WebKit re-rasterise the whole city layer on every pan frame (p90 68 ms vs 19 ms) */
+  .pal-svg .pl-dist:hover,.pal-svg .pl-dist.pal-lit{font-weight:800;stroke:var(--pal-halo);stroke-width:calc(5px / var(--pz,1));paint-order:stroke;stroke-linejoin:round;}
   .pal-svg .pl-hov{pointer-events:none;}
   .pal-svg .pl-hov rect{fill:var(--surface);stroke:var(--border);stroke-width:1.2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25));}
   .pal-svg .pl-hov text{font-size:calc(12px / var(--pz,1));font-weight:700;stroke:none;fill:var(--text);}
