@@ -247,7 +247,7 @@ def test_the_page_carries_the_v2_keys_and_draws_them_optionally():
     assert d["m"]["landmarks"][0]["a"] == TILT
     assert any(L[4] == TILT for ls in d["b"] for L in ls)
     for frag in ("(M.tq||[]).forEach", "(M.te||[]).forEach", "if(!okGrid || hasL) return;", "function lmLocal(l, p)",
-                 "g.setAttribute('transform','rotate('+(+l.a)+' '"):
+                 "base=E('g',{'class':'lm-base', transform:'rotate('+(+l.a)+' '", "up=E('g',{'class':'lm-up'"):
         assert frag in html, frag
 
 
@@ -298,14 +298,20 @@ GEO = """()=>{ var P=window._ALTO_PALACE, M=P.m, svg=document.getElementById('pa
   var lm=svg.querySelector('.pl-lmb[data-name="Bartram Hall"]');
   var t=0; svg.querySelectorAll('.pl-streets .pl-tube').forEach(function(p){ t+=(p.getAttribute('d').match(/Z/g)||[]).length; });
   return {tq:M.tq.length, tiles:M.tiles.length, closed:t, maj:svg.querySelectorAll('.pl-streets .pl-tube.t-maj').length,
-          lmT:lm&&lm.getAttribute('transform'), dir:!!window._palDir}; }"""
+          lmT:lm&&lm.querySelector('.lm-base')&&lm.querySelector('.lm-base').getAttribute('transform'), gT:lm&&lm.getAttribute('transform'),
+          artUp:lm&&lm.querySelector('.lm-up > .lm-art')?1:0, dir:!!window._palDir,
+          cardX:lm&&(function(r){ return r.left+r.width/2; })(lm.querySelector('.lm-card').getBoundingClientRect()),
+          artX:lm&&(function(r){ return r.left+r.width/2; })(lm.querySelector('.lm-art').getBoundingClientRect()),
+          cardW:lm&&lm.querySelector('.lm-card').getBoundingClientRect().width}; }"""
 
 
 def test_the_page_draws_polygon_tiles_heavy_lines_and_a_turned_landmark(pg):
     g = pg.evaluate(GEO)
     assert g["closed"] == g["tq"] + g["tiles"], g          # every tile and polygon tile drawn, once
     assert g["maj"] >= 3
-    assert g["lmT"] and g["lmT"].startswith(f"rotate({TILT:g} "), g
+    assert g["lmT"] and g["lmT"].startswith(f"rotate({TILT:g} "), g     # the card turns with its blocks ...
+    assert not g["gT"] and g["artUp"], g                                # ... the building stays upright, standing on it (once, not twice)
+    assert abs(g["artX"] - g["cardX"]) < .25 * g["cardW"] + 4, g          # on the turned card's middle, not where the upright card was
     assert not pg.errs, pg.errs
 
 

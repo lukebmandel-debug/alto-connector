@@ -648,8 +648,9 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                 cells = {(i0, j0)}
             else:
                 continue
+        from .palace_skyline import art_hints
         lms.append({"n": spec.get("label") or spec["name"], "page": spec.get("page") or "", "cells": cells,
-                    "cell": [i0, j0], "box": [xg[i0], yg[j0], xg[i1], yg[j1]]})
+                    "cell": [i0, j0], "box": [xg[i0], yg[j0], xg[i1], yg[j1]], "hint": art_hints(spec)})
     lm_all = set().union(*[l_["cells"] for l_ in lms]) if lms else set()
 
     def in_lm(x0, y0, x1, y1):
@@ -708,7 +709,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
 
     landmarks_out = [{"n": l_["n"], "x": round((l_["box"][0] + l_["box"][2]) / 2, 1),
                       "y": round((l_["box"][1] + l_["box"][3]) / 2, 1), "r": [], "box": l_["box"],
-                      "page": l_["page"]} for l_ in lms]
+                      "page": l_["page"], **(l_.get("hint") or {})} for l_ in lms]
     from .palace_parks import pick as pick_parks
     park_cells = pick_parks(m, mp, xg, yg, parks or (), lm_all, lambda p: near_river(p, 0))
     g = {k: v for k, v in m.items() if k not in ("streets", "water", "rivers", "rails", "trails", "stations",

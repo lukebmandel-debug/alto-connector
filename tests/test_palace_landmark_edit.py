@@ -388,7 +388,8 @@ def test_nothing_is_offered_outside_edit_mode(browser, urls):
 
 # ── the bar must be reachable (the pointer crosses no gap, the bar waits for it) and can be pinned ──
 def _lm_centre(pg):
-    return pg.evaluate("""()=>{ var g=document.querySelector('#palace-svg .pl-lmb'); var r=g.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height*.7]; }""")
+    # the landmark's card (its plot): a tower's art rises far above its block and takes no pointer
+    return pg.evaluate("""()=>{ var g=document.querySelector('#palace-svg .pl-lmb .lm-card'); var r=g.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height*.7]; }""")
 
 
 def _bar_state(pg):
@@ -497,7 +498,8 @@ def test_the_bar_is_centred_on_its_landmark_under_the_pages_css_zoom(browser, ur
         pg.wait_for_timeout(300)
     _hover_landmark(pg)
     s = _bar_state(pg)
-    g = pg.evaluate("(()=>{ var r=document.querySelector('#palace-svg .pl-lmb').getBoundingClientRect(); return [r.left+r.width/2, r.bottom]; })()")
+    # the landmark's middle is its card's (its name now hangs in the names layer over every building, outside the <g>)
+    g = pg.evaluate("(()=>{ var r=document.querySelector('#palace-svg .pl-lmb').getBoundingClientRect(), c=document.querySelector('#palace-svg .pl-lmb .lm-card').getBoundingClientRect(); return [c.left+c.width/2, r.bottom]; })()")
     assert s and s["show"], s
     cx = (s["l"] + s["r"]) / 2
     if 8 < s["l"] and s["r"] < s["vw"] - 8:                               # not held in at the window's edge

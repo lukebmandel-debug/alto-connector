@@ -589,8 +589,9 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                 cells = {(a0, b0)}
             else:
                 continue
+        from .palace_skyline import art_hints
         lms.append({"n": spec.get("label") or spec["name"], "page": spec.get("page") or "", "cells": cells,
-                    "dom": d.id, "ij": (a0, b0, a1, b1)})
+                    "dom": d.id, "ij": (a0, b0, a1, b1), "hint": art_hints(spec)})
         lm_cells[d.id] |= cells
         ok[d.id] |= cells
 
@@ -846,6 +847,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     for l_ in lms:
         a0, b0, a1, b1 = l_["ij"]
         rec = city_lattice.landmark(lats[l_["dom"]], a0, b0, a1, b1, l_["n"], l_["page"])
+        rec.update(l_.get("hint") or {})                      # kind / lv / hm / cs: the art's hints (palace_skyline)
         landmarks_out.append(rec)
 
     # 11. transit (E4) on the drawn domains, after the avenues are drawn (the trolleys run on them)

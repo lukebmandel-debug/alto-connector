@@ -663,6 +663,7 @@ def store(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(palace_map, "fetch_osm", lambda bbox, **kw: calls.append(("fetch", tuple(bbox))) or {"elements": []})
     monkeypatch.setattr(palace_map, "build_map", lambda raw, bbox, **kw: city_map())
+    monkeypatch.setattr(palace_map, "fetch_buildings", lambda box, **kw: {"elements": []})
     monkeypatch.setattr(palace_map, "geocode", lambda *a, **k: pytest.fail("no network"))
     yield calls
     srv.set_store(None)

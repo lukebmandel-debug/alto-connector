@@ -44,7 +44,8 @@ from .sanitize import js_json
 from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
-               "buildings", "parks", "areas", "portals", "scale", "data_z", "made", "transit", "preset"}
+               "buildings", "parks", "areas", "portals", "scale", "data_z", "made", "transit", "preset",
+               "fill_z"}                    # fill_z: the simulated buildings (palace_fillin.py; absent = off)
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -341,7 +342,25 @@ def palace_data(b, nodes) -> str:
            "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or "",
            "lm0": ls["lm"], "lmtop": ls["top"], "pl0": pl0,
            "tk": sorted(getattr(b, "_tower_kids", ())), "nb": nb0, "po": check_portals(pal.get("portals"))}
-    return "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
+    js = "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
+    if pal.get("fill_z"):                           # fill-in (palace_fillin.py): only a palace that has it says anything
+        js += "\nwindow._ALTO_FILL=" + js_json(unpack(pal["fill_z"]), separators=(",", ":")) + ";"
+    return js
+
+
+def palace_js(b) -> str:
+    """PALACE_JS, with the fill-in hooks spliced in when the palace has simulated buildings (else unchanged)."""
+    if (b.palace or {}).get("fill_z"):
+        from .palace_fillin import patch_js
+        return patch_js(PALACE_JS)
+    return PALACE_JS
+
+
+def palace_css(b) -> str:
+    if (b.palace or {}).get("fill_z"):
+        from .palace_fillin import FILL_CSS
+        return PALACE_CSS + FILL_CSS
+    return PALACE_CSS
 
 
 def check_portals(portals) -> list:
@@ -362,7 +381,7 @@ def check_portals(portals) -> list:
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
            cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
            raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
-           far_bank: bool = False) -> dict:
+           far_bank: bool = False, fill: bool = False) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
@@ -404,11 +423,22 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     from .city_highways import attach as attach_highways              # C3 (a no-op when city_engine attached them)
     attach_highways(m, {"highways": hw_real})
     blocks = m.pop("blocks")
-    return {"place": place, "bbox": list(bbox), "districts": districts or [],
-            "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
-            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
-            **({"transit": transit} if transit else {}), **({"preset": preset} if preset else {}),
-            "data_z": pack({"map": m, "blocks": blocks})}
+    out = {"place": place, "bbox": list(bbox), "districts": districts or [],
+           "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
+           "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
+           **({"transit": transit} if transit else {}), **({"preset": preset} if preset else {}),
+           "data_z": pack({"map": m, "blocks": blocks})}
+    if fill:
+        # fill-in (palace_fillin.py): the real buildings of the districts + 1 km, opening on level 1 (Skyline).
+        # Never fatal: a busy Overpass leaves the palace without them (set_up_palace again adds them).
+        try:
+            from .palace_fillin import fill_for
+            fz = fill_for(m, blocks, districts or [], bbox, cache_dir=cache_dir, offline=offline)
+            if fz:
+                out["fill_z"] = fz
+        except Exception:                                   # noqa: BLE001 — network, Overpass
+            pass
+    return out
 
 
 def migrate_placements(old_pal: dict, new_pal: dict, placement: dict) -> tuple:
@@ -443,7 +473,14 @@ def summary(pal: dict) -> dict:
     """What get_timeline shows of the city instead of the packed data."""
     if not pal:
         return pal
-    out = {k: v for k, v in pal.items() if k != "data_z"}
+    out = {k: v for k, v in pal.items() if k not in ("data_z", "fill_z")}
+    if pal.get("fill_z"):
+        try:
+            f = unpack(pal["fill_z"])
+            out["fill"] = {"buildings_per_level": f.get("c"), "opens_on": f.get("lvl"), "reach": f.get("reach"),
+                           "stored_kb": round(len(pal["fill_z"]) / 1024), **({"missing_tiles": len(f["missing"])} if f.get("missing") else {})}
+        except Exception:                                   # noqa: BLE001
+            out["fill"] = "unreadable"
     if pal.get("data_z"):
         try:
             d = unpack(pal["data_z"])
@@ -480,13 +517,14 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-rv-lite{stroke:var(--pal-rv-lite);}
   .pal-svg .pl-rv-sheen{stroke:var(--pal-rv-sheen);}
   .pal-svg .pl-lmb{pointer-events:all;cursor:default;}
+  .pal-svg .pl-lmn{pointer-events:none;}               /* the names layer over the buildings: a label, never a target */
   .pal-svg .pl-lmb.has-page{cursor:pointer;}
   .pal-svg .pl-lmb .lm-shadow{fill:rgba(20,26,55,.16);}
   .pal-svg .pl-lmb .lm-card{fill:rgba(255,255,255,.92);stroke-width:2.5;vector-effect:non-scaling-stroke;}
   html.dark .pal-svg .pl-lmb .lm-card{fill:rgba(34,36,48,.94);}
   .pal-svg .pl-lmb.has-page:hover .lm-card,.pal-svg .pl-lmb:focus-visible .lm-card{stroke-width:4;}
   .pal-svg .pl-lmb:focus{outline:none;}
-  .pal-svg .pl-lmb .lm-name{font-weight:800;letter-spacing:.01em;stroke:none;}
+  .pal-svg :is(.pl-lmb,.pl-lmn) .lm-name{font-weight:800;letter-spacing:.01em;stroke:none;}
   .pal-svg .pl-bridges .pl-tube{filter:drop-shadow(0 1px 2px rgba(20,26,55,.35));}
   /* a bridge: a deck (a light band) between two fine rail lines, piers ticked out into the water either side, its name beside it;
      all measured on the screen (--tw), so it keeps its look at every zoom */
@@ -1209,12 +1247,22 @@ function drawCity(svg){
   streetLabels(svg, defs, labels);
   (M.parks||[]).forEach(function(pk){ if(pk.n && pk.t){ var t=lbl(labels, 'pl-pkt'+(pk.z>3?' big':''), pk.n, pk.t[0], pk.t[1]); t._g=[pk.t[0], pk.t[1], 0]; t._up=.35; } });
   /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
-  (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
+  /* back to front (the ground line further down the map stands in front): a tower rises over the blocks behind it */
+  (M.landmarks||[]).slice().sort(function(p,q){ return ((p.box||[0,0,0,0])[3])-((q.box||[0,0,0,0])[3]); }).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);
-    if(l.a){ var lc_=lmC(l); g.setAttribute('transform','rotate('+(+l.a)+' '+lc_[0]+' '+lc_[1]+')'); }   /* v2: a landmark of a tilted domain stands square to its blocks (an SVG attribute, never CSS px) */
+    /* v2: a landmark of a tilted domain (l.a): palace_landmarks.draw turns its CARD square to its blocks (an SVG attribute, never CSS px)
+       and stands the building upright on the turned card's middle (the 3/4 view's up is the page's up) */
     var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
     if(tw_) g.setAttribute('data-tower', tw_);
-    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
+    window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, all:M.landmarks||[], pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
+  /* the landmark names over every building: a tower in front (the next block down a column of towers, rising 300 m+ at
+     true scale, more than a row) would otherwise hide the name hanging under the card behind it. Each name keeps its
+     landmark's colours, --lm-nat and (tilted district) offset on its own .pl-lmn wrapper, data-name tying it back */
+  var lmn=el('g',{'class':'pl-lmns'},lg);
+  [].forEach.call(lg.querySelectorAll('.pl-lmb'), function(g){ var L=g._lm; if(!L || !L.nameT) return; var up=L.nameT.parentNode;
+    var w=el('g',{'class':'pl-lmn'+(g.classList.contains('has-page')?' has-page':''), 'data-name':g.getAttribute('data-name')||'', 'data-page':g.getAttribute('data-page')||''},lmn);
+    w.setAttribute('style', g.getAttribute('style')||''); if(up!==g && up.getAttribute('transform')) w.setAttribute('transform', up.getAttribute('transform'));
+    w.appendChild(L.nameT); if(L.sub) w.appendChild(L.sub); });
   /* districts: the neighbourhood's own name over its buildings (the unit it holds is in its pop-up) */
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
     var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:tubeCol(pm.colorRaw), 'data-u':d.u},labels);
@@ -1304,7 +1352,7 @@ function lblFit(svg, viewOnly){
         if(!it.qm) it.q=it.n*((LBL_UP[it.k]?.68:.56)+(LBL_LS[it.k]||0));
         function boxAt(q){ var a=q[2]||0; return obb((q[0]+MX)*k+Math.sin(a)*up*fs, (q[1]+MY)*k-Math.cos(a)*up*fs, a, it.q*fs/2+P4, fs*.6+P4); }
         function free(b){ return !hitKept(b)
-          && !obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && o.own && o.own!==t.parentNode)) && obbHit(b, o); })   /* a landmark's name never under another's card */
+          && !obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && o.own && o.own.getAttribute('data-name')!==t.parentNode.getAttribute('data-name'))) && obbHit(b, o); })   /* a landmark's name never under another's card */
           && !((it.k==='pl-area' || it.k==='lm-name') && nodes.some(function(o){ return obbHit(b, o); })); }
         var b=boxAt(g);
         if(!it.fixed && !free(b)){ ok=false; if(alt){ var b2=boxAt(alt); if(free(b2)){ ok=true; b=b2; t.setAttribute('y', altY); } } }
@@ -2084,8 +2132,8 @@ function floorsOf(h){ var kids={}; ORDER.forEach(function(id){ var q=P.par[id]; 
 function chipLot(name){ var l=lmOf(name); if(!l) return null; var lots=[]; P.b.forEach(function(ls){ if(ls && ls.length) lots.push(ls[0]); }); lots=lots.slice(0,50);
   var ws=lots.map(function(q){ return q[2]; }).sort(function(a,b){ return a-b; }), hs=lots.map(function(q){ return q[3]; }).sort(function(a,b){ return a-b; });
   var lw=lots.length?ws[lots.length>>1]:24, lh=lots.length?hs[lots.length>>1]:16, x0=l.box[0], y0=l.box[1], x1=l.box[2], y1=l.box[3];
-  var w0=(x1-x0)-28, h0=(y1-y0)-28, nw=Math.min(w0,h0*.55), w=Math.max(30,Math.min(lw,(w0-nw)/2-4)), h=lh*w/lw, left=x0+14+(w0-nw)/2, r=function(v){ return Math.round(v*10)/10; };
-  var cx=left+10-w/2, cy=y0+14+22+h/2; if(l.a){ var q=lmTurn(l, [cx,cy], 1); cx=q[0]; cy=q[1]; }
+  var C=window._palLm.cardOf(l, M.landmarks||[]), left=C[0], w=Math.max(30,Math.min(lw,left-x0-18)), h=lh*w/lw, r=function(v){ return Math.round(v*10)/10; };
+  var cx=left+10-w/2, cy=C[1]+22+h/2; if(l.a){ var q=lmTurn(l, [cx,cy], 1); cx=q[0]; cy=q[1]; }
   return [r(cx), r(cy), r(w), r(h), l.a?+l.a:0]; }
 function applyTower(name, v){
   var h=towerHub(name); if(!lmOf(name)) return;
