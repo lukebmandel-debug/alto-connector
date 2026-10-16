@@ -2078,6 +2078,17 @@ PATCHES += [
     {"name": "arrows-one-hop-at-a-time", "old": _HOP_KEY_OLD, "new": _HOP_KEY_NEW, "count": 1},
 ]
 
+# ── a horizontal timeline steps on the engine's own glide (lanes_nav.py) ────
+# Stepping event to event moves the camera with the same curve, and through the
+# same whole-px scroll axis, as an enlarged card's glide: one motion language,
+# and none of Safari's scroll flooring (fly-scrolls-in-whole-px).
+_SHARE_GLIDE_OLD = "  window.enterFocus=enterFocus; window.exitFocus=exitFocus;\n"
+_SHARE_GLIDE_NEW = (_SHARE_GLIDE_OLD
+                    + "  window._altoEase=_altoEase; window._altoScrollAxis=_scrollAxis;   // lanes_nav.py: the step glide\n")
+PATCHES += [
+    {"name": "lanes-share-the-glide", "old": _SHARE_GLIDE_OLD, "new": _SHARE_GLIDE_NEW, "count": 1},
+]
+
 # ── outline: the desktop tree replaces the resolver's positions ─────────────
 # detail_extras.TREE_GLUE lays an outline out as a tree (layout.outline_tree)
 # over the measured heights and sets each node's displayX; the numeral check
