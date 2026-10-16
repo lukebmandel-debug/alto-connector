@@ -154,3 +154,20 @@ def test_the_key_row(browser):
     row = pg.evaluate("window._palLm.keyRow()")
     assert "reference material inside" in row and "pk-row" in row
     pg.close()
+
+
+def test_courthouses_by_type_and_level():
+    """Law classes: federal / state / city courts as landmarks — named Philadelphia ones, any city's by name or kind."""
+    from alto.build import palace_skyline as sk
+    assert pl.art_key({"n": "James A. Byrne United States Courthouse"}) == "usch"
+    assert pl.art_key({"n": "Robert N.C. Nix Sr. Federal Building"}) == "nix"
+    assert pl.art_key({"n": "Criminal Justice Center"}) == "cjc"
+    assert pl.art_key({"n": "Suffolk County Courthouse"}) == "ct-classical-city"
+    assert pl.art_key({"n": "Supreme Court of Pennsylvania"}) == "ct-classical-state"
+    assert pl.art_key({"n": "Anywhere", "kind": "courthouse", "lv": "federal", "hm": 120}) == "ct-tower-federal"
+    for st in sk.COURT_STYLES:
+        for lv in sk.LEVELS:
+            a = pl.ART[f"ct-{st}-{lv}"]
+            assert f"lz-seal-{lv}" in a["svg"] and a["fp"][2] > a["fp"][0]
+    assert sk.spec_from_osm({"amenity": "courthouse", "name": "Moakley United States Courthouse", "building:levels": "10"})["level"] == "federal"
+    assert "lz-seal-city" in pl.ART["city"]["svg"] and "lz-seal-state" in pl.ART["city"]["svg"]   # City Hall holds city and state courts

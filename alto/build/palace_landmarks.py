@@ -79,6 +79,10 @@ def landmark_css() -> str:
   .lz-col{stroke:none;}
   /* (the art is instanced with <use>, whose clones cannot match an ancestor selector: these rules stand alone, and the lit door is a variable set on the building's group) */
   .lz-door{fill:var(--lz-door,var(--lz-win));stroke:none;}
+  /* a courthouse's level: a small calm seal (federal blue, state green, city terracotta) */
+  .lz-seal{stroke:rgba(255,255,255,.9);stroke-width:1;vector-effect:non-scaling-stroke;}
+  .lz-seal-federal{fill:#4a67a8;} .lz-seal-state{fill:#3f8a6e;} .lz-seal-city{fill:#b0703c;}
+  .lz-seal-g{fill:#fff;stroke:none;}
   /* the card the building stands on: glass with a thickness, a soft shadow, and the district's edge */
   .pal-svg .pl-lmb .lm-shadow{fill:rgba(20,26,55,.14);}
   .pal-svg .pl-lmb .lm-slab{stroke:none;fill-opacity:.38;}
@@ -136,8 +140,12 @@ from . import palace_towers as _towers      # (the skyscrapers: palace_towers.py
 from . import palace_skyline as _sky        # (every building's art: the generator, one scale)
 ART = _sky.build_all()
 # which landmark names get which art (the page's own label, case-insensitive)
-MATCH = [["ind", r"independence hall"], ["city", r"city hall"], ["art", r"art museum|museum of art|philadelphia museum"],
+MATCH = [["usch", r"byrne|601 market|united states court ?house.*philadelphia"], ["nix", r"\bnix\b|900 market"],
+         ["cjc", r"criminal justice center|1301 filbert"], ["ind", r"independence hall"], ["city", r"city hall"], ["art", r"art museum|museum of art|philadelphia museum"],
          ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"]] + _towers.MATCH
+
+
+COURT_RX = r"court ?house|courts? building|justice cent(er|re)|hall of justice|palace of justice|supreme court|court of appeals"
 
 
 def art_key(l: dict) -> str:
@@ -152,6 +160,9 @@ def art_key(l: dict) -> str:
         hm = float(l.get("hm") or 0)
     except (TypeError, ValueError):
         hm = 0
+    if str(l.get("kind") or "").lower() == "courthouse" or re.search(COURT_RX, n, re.I):
+        from .palace_skyline import court_level, court_style
+        return f"ct-{court_style(hm, 0, l.get('cs'))}-{court_level(n, l.get('lv'))}"
     if hm > 0:
         k = "g-" + str(l.get("rs") or "flat")
         return k if k in ART else "g-flat"
@@ -191,10 +202,20 @@ function E(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k 
 function artKey(n){ for(var i=0;i<MATCH.length;i++) if(MATCH[i][1].test(n)) return MATCH[i][0]; return 'gen'; }
 /* a mapped building with no art of its own but a real height (l.hm m, l.fw m wide, l.rs roof shape: OSM tags) takes the
    generic building of its roof shape, stretched to its own height and width at the same scale */
-function keyOf(l){ var k=artKey(String(l.n)); if(k==='gen' && +l.hm>0) k='g-'+(ART['g-'+(l.rs||'flat')]?(l.rs||'flat'):'flat'); return k; }
-function isTall(l){ var k=keyOf(l); return TALL.indexOf(k)>=0 || (/^g-/.test(k) && +l.hm>=60); }
+/* a courthouse (kind: courthouse from the city preset, or its name) with no art of its own: the court of its type and level
+   (palace_skyline.court_style / court_level, mirrored) */
+var COURT=new RegExp(__COURT__,'i');
+function courtLevel(n, h){ h=String(h||'').toLowerCase(); if(h==='federal'||h==='state'||h==='city') return h; n=String(n||'').toLowerCase();
+  if(/united states|\bu\.? ?s\.?\b|federal|supreme court of the united states/.test(n)) return 'federal';
+  if(/county|city|municipal|criminal justice|traffic|family court|housing court|magistrate/.test(n)) return 'city'; return 'state'; }
+function courtStyle(hm, h){ h=String(h||'').toLowerCase(); if(h==='classical'||h==='modern'||h==='tower') return h; hm=+hm||0;
+  return hm>=60?'tower':(hm && hm<=32)?'classical':hm?'modern':'classical'; }
+function keyOf(l){ var n=String(l.n), k=artKey(n);
+  if(k==='gen' && (String(l.kind||'').toLowerCase()==='courthouse' || COURT.test(n))) return 'ct-'+courtStyle(l.hm, l.cs)+'-'+courtLevel(n, l.lv);
+  if(k==='gen' && +l.hm>0) k='g-'+(ART['g-'+(l.rs||'flat')]?(l.rs||'flat'):'flat'); return k; }
+function isTall(l){ var k=keyOf(l); return TALL.indexOf(k)>=0 || (/^(g|ct)-/.test(k) && +l.hm>=60); }
 /* map px per canvas metre (across, up): S both ways; a generic building stretched to the record's own height and width */
-function scaleOf(l, key, a){ if(/^g-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
+function scaleOf(l, key, a){ if(/^(g|ct)-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
 /* a landmark's card: its footprint's projected bounding box (a.fp) at the one scale — from the footprint's metres, never the
    cell count — centred across its block, standing on the block's front edge (palace_skyline.card, exactly) */
 function cardBase(l){ var key=keyOf(l), a=ART[key]||ART.gen, b=l.box, k=scaleOf(l, key, a), w=(a.fp[2]-a.fp[0])*k[0], h=(a.fp[3]-a.fp[1])*k[1];
@@ -341,7 +362,8 @@ def landmark_js() -> str:
             .replace("__GRAD__", landmark_gradients())
             .replace("__MATCH__", json.dumps(MATCH))
             .replace("__TALL__", json.dumps(sorted(_towers.FLOORS)))
-            .replace("__SCALE__", json.dumps(_sky.SCALE)))
+            .replace("__SCALE__", json.dumps(_sky.SCALE))
+            .replace("__COURT__", json.dumps(COURT_RX)))
 
 
 LANDMARK_JS = landmark_js()

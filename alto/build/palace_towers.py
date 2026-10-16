@@ -200,7 +200,7 @@ def landmark_state(b, m: dict) -> dict:
 def lm_dx(m: dict) -> dict:
     """{landmark name: dx} the page slides each tower card by (palace_skyline.stagger; palace_landmarks plan() mirrors it)."""
     from .palace_skyline import stagger
-    return stagger(m.get("landmarks", []), lm_art, lambda l: lm_art(l)["_k"] in FLOORS or (lm_art(l)["_k"].startswith("g-") and float(l.get("hm") or 0) >= 60))
+    return stagger(m.get("landmarks", []), lm_art, lambda l: lm_art(l)["_k"] in FLOORS or (lm_art(l)["_k"].startswith(("g-", "ct-")) and float(l.get("hm") or 0) >= 60))
 
 
 def lm_art(l: dict) -> dict:

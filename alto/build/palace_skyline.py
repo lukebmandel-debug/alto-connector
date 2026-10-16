@@ -34,6 +34,7 @@ parts are simplified silhouettes, not copies of any drawing or photograph.
 """
 from __future__ import annotations
 
+import math
 import re
 
 SCALE = 1.3      # map px per real metre: width, plan depth and height, EVERY building (about the grid's own scale)
@@ -382,6 +383,22 @@ class Sky:
                  f'<circle class="lz-f" cx="{_f(x)}" cy="{_f(b - h * .82)}" r="{_f(h * .1)}" fill="url(#lzg-bronze-{{s}})"/>'
                  f'<path class="lz-ln" d="M{_f(x - h * .16)} {_f(b - h * .9)}h{_f(h * .32)}"/>')
 
+    def _seal(self, p):
+        """The court's level, calm: a small disc in the level's accent with a white glyph (federal: a star,
+        state: a diamond, city: a rounded square) on the pediment or over the door."""
+        lv = p.get("lv", "state")
+        cx, cy, r = self.X(p.get("x", 0)), self.Y(p["y"]), p.get("r", 2.6)
+        self._rec(cx - r, cy - r); self._rec(cx + r, cy + r)
+        if lv == "federal":
+            g = "".join(f"{'M' if i == 0 else 'L'}{_f(cx + r * .62 * (1 if i % 2 == 0 else .42) * _sin(i))} {_f(cy - r * .62 * (1 if i % 2 == 0 else .42) * _cos(i))}" for i in range(10)) + "z"
+        elif lv == "city":
+            q = r * .42
+            g = f"M{_f(cx - q)} {_f(cy - q)}h{_f(2 * q)}v{_f(2 * q)}h{_f(-2 * q)}z"
+        else:
+            q = r * .55
+            g = f"M{_f(cx)} {_f(cy - q)}L{_f(cx + q)} {_f(cy)}L{_f(cx)} {_f(cy + q)}L{_f(cx - q)} {_f(cy)}z"
+        self.add(f'<circle class="lz-seal lz-seal-{lv}" cx="{_f(cx)}" cy="{_f(cy)}" r="{_f(r)}"/><path class="lz-seal-g" d="{g}"/>')
+
     def _door(self, p):
         x, w, h = self.X(p.get("x", 0)), p["w"], p["h"]
         g = self.Y(0)
@@ -393,6 +410,14 @@ class Sky:
         fp = [round(self.cx + self.u0, 2), round(self.G - self.D, 2), round(self.cx + self.u1 + self.D * KV, 2), round(self.G, 2)]
         return {"w": self.W, "h": self.H, "svg": "".join(self.parts), "hm": self.tip, "fp": fp,
                 "fw": round(self.u1 - self.u0, 1), "fd": round(self.D, 1), **meta}
+
+
+def _sin(i):
+    return math.sin(i * math.pi / 5)
+
+
+def _cos(i):
+    return math.cos(i * math.pi / 5)
 
 
 def _cut(roof, a, b, y):
@@ -445,6 +470,10 @@ def spec_from_osm(tags: dict, width_m: float | None = None, depth_m: float | Non
     height, building:levels, roof:shape, roof:height, building:material). width_m / depth_m: its footprint
     (the outline's extent across and back), when known."""
     t = tags or {}
+    if str(t.get("amenity") or "").lower() == "courthouse" or str(t.get("kind") or "").lower() == "courthouse":
+        hh = parse_height(t.get("height")) or (parse_height(t.get("building:levels")) * 3.8)
+        st = court_style(hh, 0, t.get("court_style"), t)
+        return {**courthouse_spec(st, court_level(t.get("name"), t.get("level")), width_m or 0, depth_m or 0, hh or 0), "shape": "court-" + st}
     h = parse_height(t.get("height"))
     lv = parse_height(t.get("building:levels"))
     rh = parse_height(t.get("roof:height"))
@@ -605,7 +634,9 @@ def _cityhall():
         {"k": "box", "w": 40, "v": 0, "d": 20, "y0": 0, "y1": 38, "m": "marble", "solid": 1},
         {"k": "cols", "w": 36, "y0": 4, "y1": 34, "n": 8},
         {"k": "hip", "w": 40, "v": 0, "d": 20, "y0": 38, "y1": 47, "inset": 7},
-        {"k": "door", "v": 0, "w": 9, "h": 14}]}
+        {"k": "door", "v": 0, "w": 9, "h": 14},
+        {"k": "seal", "x": -6, "y": 42.5, "r": 2.4, "lv": "city"},                # the courts inside: city (Common Pleas) and state
+        {"k": "seal", "x": 6, "y": 42.5, "r": 2.4, "lv": "state"}]}
 
 
 def _independence():
@@ -688,6 +719,117 @@ def _station():
         {"k": "box", "w": 70, "cv": 50, "d": 40, "y0": 26, "y1": 32, "m": "stone", "solid": 1, "sheen": False}]}
 
 
+# ── courthouses (law classes: federal / state / city courts as landmarks) ───
+LEVELS = ("federal", "state", "city")
+COURT_STYLES = ("classical", "modern", "tower")
+
+
+def court_level(name: str = "", hint: str = "") -> str:
+    """federal | state | city: the preset's hint (C1's city presets: level=...), else read from the name."""
+    h = str(hint or "").lower()
+    if h in LEVELS:
+        return h
+    n = str(name or "").lower()
+    if re.search(r"united states|\bu\.? ?s\.?\b|federal|supreme court of the united states", n):
+        return "federal"
+    if re.search(r"county|city|municipal|criminal justice|traffic|family court|housing court|magistrate", n):
+        return "city"
+    return "state"
+
+
+def court_style(h: float = 0, levels: float = 0, hint: str = "", tags: dict | None = None) -> str:
+    """classical | modern | tower, from a hint, the architecture tag, or the height."""
+    s = str(hint or "").lower()
+    if s in COURT_STYLES:
+        return s
+    arch = str((tags or {}).get("building:architecture") or "").lower()
+    if re.search(r"classic|revival|beaux|georgian|federal|greek|roman|historic", arch):
+        return "classical"
+    hh = h or (levels * 3.8 if levels else 0)
+    if hh >= 60:
+        return "tower"
+    if hh and hh <= 32:
+        return "classical"
+    return "modern" if hh else "classical"
+
+
+def courthouse_spec(style: str = "classical", level: str = "state", W: float = 0, D: float = 0, h: float = 0, dome: bool = False) -> dict:
+    """A courthouse on its footprint, W x D m, h m to the top, in one of three types:
+    - classical: a columned portico and pediment on steps between flanking wings, a dome or cupola when asked
+      (US Supreme Court, Suffolk County Courthouse, Prettyman);
+    - modern: a stone podium and a glass-and-stone slab with a glass atrium on the street (Moakley,
+      Moynihan, Thurgood Marshall);
+    - tower: a granite podium with a ribbon-windowed tower above (Criminal Justice Center, 60 Centre St as a
+      municipal court building).
+    The level shows as a small seal in its accent (federal / state / city), on the pediment or over the door."""
+    lv = level if level in LEVELS else "state"
+    if style == "modern":
+        W, D, h = W or 80, D or 55, h or 60
+        return {"h": h, "D": D, "kind": "courthouse", "level": lv, "parts": [
+            {"k": "box", "w": W, "v": 0, "d": D, "y0": 0, "y1": 12, "m": "granite", "solid": 1, "mu": 6, "sheen": False},
+            {"k": "box", "w": W * .78, "cv": D * .55, "d": D * .62, "y0": 12, "y1": h, "m": "stone", "solid": 1, "fl": 8, "mu": 5},
+            {"k": "box", "x": -W * .12, "w": W * .42, "cv": D * .55 - D * .31 - 3, "d": 6, "y0": 12, "y1": h * .82, "m": "glass", "fl": 8, "mu": 4},
+            {"k": "box", "w": W * .5, "v": 0, "d": 8, "y0": 0, "y1": 14, "m": "glass", "fl": 7, "mu": 5, "sheen": False},
+            {"k": "door", "w": 6, "h": 7},
+            {"k": "seal", "y": 10.5, "r": 2.6, "lv": lv}]}
+    if style == "tower":
+        W, D, h = W or 80, D or 60, h or 80
+        return {"h": h, "D": D, "kind": "courthouse", "level": lv, "parts": [
+            {"k": "box", "w": W, "v": 0, "d": D, "y0": 0, "y1": 20, "m": "granite", "solid": 1, "mu": 7, "sheen": False},
+            {"k": "box", "w": W * .58, "cv": D * .55, "d": D * .55, "y0": 20, "y1": h - 4, "m": "granite", "solid": 1, "rib": 4.2, "mu": 3},
+            {"k": "box", "w": W * .5, "cv": D * .55, "d": D * .47, "y0": h - 4, "y1": h, "m": "trim", "solid": 1, "sheen": False},
+            {"k": "box", "w": W * .36, "v": 0, "d": 7, "y0": 0, "y1": 16, "m": "glass", "fl": 5, "mu": 4, "sheen": False},
+            {"k": "door", "w": 6, "h": 7},
+            {"k": "seal", "y": 18, "r": 2.8, "lv": lv}]}
+    W, D, h = W or 90, D or 45, h or (40 if dome else 28)
+    body = h * (.52 if dome else .7)
+    pw = min(W * .58, 70)
+    parts = [
+        {"k": "box", "w": W, "v": 10, "d": D - 10, "y0": 0, "y1": body, "m": "stone", "solid": 1, "mu": 8, "fl": body / 2.2, "top": False},
+        {"k": "hip", "w": W, "v": 10, "d": D - 10, "y0": body, "y1": body + 3.5, "m": "marble", "inset": 5},
+    ]
+    if dome:
+        parts += [{"k": "box", "w": W * .24, "cv": D * .55, "d": W * .24, "y0": body, "y1": body + h * .14, "m": "stone", "solid": 1, "sheen": False},
+                  {"k": "dome", "w": W * .22, "cv": D * .55, "d": W * .22, "y0": body + h * .14, "y1": h - 2, "m": "slate"},
+                  {"k": "spire", "cv": D * .55, "y0": h - 2.5, "y1": h, "w": 1.2}]
+    parts += [
+        {"k": "box", "w": pw + 8, "v": 0, "d": 6, "y0": 0, "y1": 2, "m": "stone", "solid": 1, "sheen": False, "top": True},
+        {"k": "box", "w": pw, "v": 2, "d": 12, "y0": 2, "y1": body + 1, "m": "marble", "solid": 1, "sheen": False, "top": False},
+        {"k": "hip", "w": pw, "v": 2, "d": 12, "y0": body + 1, "y1": body + pw * .22, "m": "marble", "inset": pw * .5 - .6},
+        {"k": "cols", "w": pw * .9, "y0": 2.5, "y1": body - .5, "n": 6 if pw < 45 else 8},
+        {"k": "pediment", "w": pw + 3, "y0": body + 1, "y1": body + 1 + pw * .22},
+        {"k": "door", "w": 4, "h": 7},
+        {"k": "seal", "y": body + 1 + pw * .08, "r": min(3.6, pw * .07), "lv": lv}]
+    return {"h": max(h, body + 1 + pw * .22), "D": D, "kind": "courthouse", "level": lv, "parts": parts}
+
+
+def _usch():
+    """James A. Byrne United States Courthouse (601 Market St, 1975): the modern federal courthouse of
+    the Eastern District of Pennsylvania and the Third Circuit, a stone-and-glass slab over a podium
+    (height and plan approximate)."""
+    return courthouse_spec("modern", "federal", 100, 60, 75)
+
+
+def _nix():
+    """Robert N.C. Nix Sr. Federal Building and US Courthouse (900 Market St, 1941): stripped classical
+    limestone, pilasters running the full height of its Market Street front, a set-back top storey
+    (height and plan approximate)."""
+    W, D, h = 120, 60, 45
+    return {"h": h, "D": D, "kind": "courthouse", "level": "federal", "parts": [
+        {"k": "box", "w": W, "v": 0, "d": D, "y0": 0, "y1": h - 6, "m": "stone", "solid": 1, "fl": 13},
+        {"k": "cols", "w": W * .7, "y0": 4, "y1": h - 9, "n": 14},
+        {"k": "box", "w": W * .8, "cv": D / 2 + 2, "d": D - 10, "y0": h - 6, "y1": h, "m": "stone", "solid": 1, "sheen": False},
+        {"k": "box", "w": 22, "v": 0, "d": 3, "y0": 0, "y1": 9, "m": "trim", "solid": 1, "sheen": False, "top": False},
+        {"k": "door", "w": 7, "h": 8},
+        {"k": "seal", "y": h - 9 + 2, "r": 3, "lv": "federal"}]}
+
+
+def _cjc():
+    """Criminal Justice Center (1301 Filbert St, 1995): the courts of the First Judicial District, a
+    granite tower in ribbons of glazing over a granite podium (height and plan approximate)."""
+    return courthouse_spec("tower", "city", 80, 60, 82)
+
+
 def _generic():
     s = spec_from_osm({"height": "25", "roof:shape": "gabled", "building:material": "stone"}, 60, 40)
     s["parts"].append({"k": "door", "v": (40 - 40) / 2, "w": 8, "h": 10})
@@ -695,20 +837,29 @@ def _generic():
 
 
 LANDMARKS = {"ind": _independence, "city": _cityhall, "art": _artmuseum, "frank": _franklin, "conv": _convention,
-             "stn": _station, "gen": _generic,
+             "stn": _station, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
              "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc}
+
+
+COURTS = {}     # the page's courthouse for any city: one per type and level, stretched to the record's height / width
+for _st in COURT_STYLES:
+    for _lv in LEVELS:
+        COURTS[f"ct-{_st}-{_lv}"] = None
 
 
 def build_all() -> dict:
     out = {k: build(f()) for k, f in LANDMARKS.items()}
     out.update(GENERIC)
+    for k in COURTS:
+        _, st, lv = k.split("-")
+        out[k] = build(courthouse_spec(st, lv))
     return out
 
 
 def scale_of(art: dict, l: dict | None = None) -> tuple:
     """(sx, sy): map px per canvas metre across and up for a landmark record — SCALE both ways, except a
     generic g-* building (art["_k"]) stretched to the record's own height hm (and width fw, when given)."""
-    if l and art.get("fp") and str(art.get("_k", "")).startswith("g-"):
+    if l and art.get("fp") and str(art.get("_k", "")).startswith(("g-", "ct-")):
         try:
             hm = float(l.get("hm") or 0)
             fw = float(l.get("fw") or 0)
@@ -761,4 +912,4 @@ def drawn_height(art: dict) -> float:
 
 
 __all__ = ["SCALE", "KV", "build", "build_all", "spec_from_osm", "parse_height", "card", "stagger", "scale_of",
-           "drawn_height", "LANDMARKS", "GENERIC"]
+           "drawn_height", "LANDMARKS", "GENERIC", "courthouse_spec", "court_level", "court_style"]
