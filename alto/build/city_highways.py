@@ -740,6 +740,8 @@ def city_map(g):
     doms = []
     if g.get("doms"):
         for d in g["doms"]:
+            if "xg" not in d or "cwch" not in d:      # a free domain has no lattice
+                continue
             cw, ch = d["cwch"]
             xg = [d["xg"][0] + k * cw for k in range(int(d["xg"][1]))]
             yg = [d["yg"][0] + k * ch for k in range(int(d["yg"][1]))]
