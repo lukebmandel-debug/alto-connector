@@ -1767,7 +1767,7 @@ function floorsOf(h){ var kids={}; ORDER.forEach(function(id){ var q=P.par[id]; 
 function chipLot(name){ var l=lmOf(name); if(!l) return null; var lots=[]; P.b.forEach(function(ls){ if(ls && ls.length) lots.push(ls[0]); }); lots=lots.slice(0,50);
   var ws=lots.map(function(q){ return q[2]; }).sort(function(a,b){ return a-b; }), hs=lots.map(function(q){ return q[3]; }).sort(function(a,b){ return a-b; });
   var lw=lots.length?ws[lots.length>>1]:24, lh=lots.length?hs[lots.length>>1]:16, x0=l.box[0], y0=l.box[1], x1=l.box[2], y1=l.box[3];
-  var C=window._palLm.tallCard(l.box, window._palLm.fw(name)), left=C[0]+window._palLm.dx(M.landmarks||[], name), w=Math.max(30,Math.min(lw,left-x0-18)), h=lh*w/lw, r=function(v){ return Math.round(v*10)/10; };
+  var C=window._palLm.cardOf(l, M.landmarks||[]), left=C[0], w=Math.max(30,Math.min(lw,left-x0-18)), h=lh*w/lw, r=function(v){ return Math.round(v*10)/10; };
   return [r(left+10-w/2), r(C[1]+22+h/2), r(w), r(h), 0]; }
 function applyTower(name, v){
   var h=towerHub(name); if(!lmOf(name)) return;

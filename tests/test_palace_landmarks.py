@@ -138,14 +138,14 @@ def test_the_tip_says_inside_with_the_count(browser):
     pg.close()
 
 
-def test_the_name_hangs_under_a_small_card_and_sits_in_a_big_one(browser):
+def test_the_name_hangs_under_the_card_at_every_zoom(browser):
     pg = draw_all(browser, LMS)
     far = pg.evaluate("""()=>{ window._palLm.relayout(document.getElementById('s'), .25);
       return Array.from(document.querySelectorAll('.pl-lmb')).map(g=>g.querySelector('.lm-name').getAttribute('class')); }""")
     assert all(c == "lm-name" for c in far)                                 # far away every name hangs under its card
     near = pg.evaluate("""()=>{ window._palLm.relayout(document.getElementById('s'), 1.4);
       return Array.from(document.querySelectorAll('.pl-lmb')).map(g=>g.querySelector('.lm-name').getAttribute('class')); }""")
-    assert "lm-name in" in near                                             # close up the big ones carry it inside
+    assert all(c == "lm-name" for c in near)                                # close up too: the card hugs the building's footprint, the name hangs under it
     pg.close()
 
 

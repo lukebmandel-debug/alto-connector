@@ -192,13 +192,18 @@ function artKey(n){ for(var i=0;i<MATCH.length;i++) if(MATCH[i][1].test(n)) retu
 /* a mapped building with no art of its own but a real height (l.hm m, l.fw m wide, l.rs roof shape: OSM tags) takes the
    generic building of its roof shape, stretched to its own height and width at the same scale */
 function keyOf(l){ var k=artKey(String(l.n)); if(k==='gen' && +l.hm>0) k='g-'+(ART['g-'+(l.rs||'flat')]?(l.rs||'flat'):'flat'); return k; }
-function fw(name){ var a=ART[artKey(String(name))]; return a&&a.fw?a.fw:50; }
 function isTall(l){ var k=keyOf(l); return TALL.indexOf(k)>=0 || (/^g-/.test(k) && +l.hm>=60); }
+/* map px per canvas metre (across, up): S both ways; a generic building stretched to the record's own height and width */
+function scaleOf(l, key, a){ if(/^g-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
+/* a landmark's card: its footprint's projected bounding box (a.fp) at the one scale — from the footprint's metres, never the
+   cell count — centred across its block, standing on the block's front edge (palace_skyline.card, exactly) */
+function cardBase(l){ var key=keyOf(l), a=ART[key]||ART.gen, b=l.box, k=scaleOf(l, key, a), w=(a.fp[2]-a.fp[0])*k[0], h=(a.fp[3]-a.fp[1])*k[1];
+  return [(b[0]+b[2])/2-w/2, b[3]-14-h, w, h]; }
 /* {name: dx}: a tower in front of / behind another in the same column slides to one side of its block (palace_skyline.stagger, exactly) */
 function plan(lms){ if(lms._lzPlan) return lms._lzPlan; var out={}, placed=[];
   var ts=lms.filter(function(l){ return l.box && isTall(l); }).sort(function(p,q){ return p.box[3]-q.box[3] || p.box[0]-q.box[0] || (String(p.n)<String(q.n)?-1:String(p.n)>String(q.n)?1:0); });
-  ts.forEach(function(l){ var a=ART[keyOf(l)]||ART.gen, b=l.box, f=a.fw||40, C=tallCard(b, f), x=C[0], y=C[1], w=C[2], h=C[3];
-    var room=Math.max(0, (b[2]-b[0]-28-w)/2), bw=f*S*.8, top=(a.hm||100)*S, gy=y+h-6, best=0, bo=null;
+  ts.forEach(function(l){ var a=ART[keyOf(l)]||ART.gen, b=l.box, C=cardBase(l), x=C[0], y=C[1], w=C[2], h=C[3];
+    var room=Math.max(0, (b[2]-b[0]-28-w)/2), bw=w*.7, top=(a.hm||100)*S, gy=y+h, best=0, bo=null;
     [0, -room, room].forEach(function(dx){ var cx=x+w/2+dx, o=0;
       placed.forEach(function(q){ o+=Math.max(0, Math.min(cx+bw/2, q[1])-Math.max(cx-bw/2, q[0]))*Math.max(0, Math.min(gy, q[3])-Math.max(gy-top, q[2])); });
       if(bo===null || o<bo-1e-6){ best=dx; bo=o; } });
@@ -206,14 +211,12 @@ function plan(lms){ if(lms._lzPlan) return lms._lzPlan; var out={}, placed=[];
   try{ Object.defineProperty(lms, '_lzPlan', {value:out, enumerable:false, configurable:true}); }catch(e){}
   return out; }
 function dxOf(lms, name){ return lms?(plan(lms)[name]||0):0; }
-/* a tower's plot: one block's card, as narrow as its podium allows, centred across its cells on their front edge (palace_skyline.tall_card) */
-function tallCard(box, f){ var ins=14, x=box[0]+ins, y=box[1]+ins, w=box[2]-box[0]-2*ins, h=box[3]-box[1]-2*ins,
-  nw=Math.min(w, Math.max(72, f*S+36)), nh=Math.min(h, 142); return [x+(w-nw)/2, y+h-nh, nw, nh]; }
+function cardOf(l, lms){ var C=cardBase(l); if(isTall(l)) C[0]+=dxOf(lms, l.n); return C; }
 /* the shared gradients, and the building's <symbol>, in this svg's own <defs> (once each) */
 function ensure(defs, sid, key){
   if(!defs._lz){ defs._lz={}; var d=E('defs',{},defs); d.innerHTML=GRAD.replace(/\{s\}/g, sid); }
   if(!defs._lz[key]){ defs._lz[key]=1; var a=ART[key];
-    var s=E('symbol',{id:'lz-'+key+'-'+sid, viewBox:'-6 -8 '+(a.w+12)+' '+(a.h+14), preserveAspectRatio:/^g-/.test(key)?'none':'xMidYMax meet', overflow:'visible'},defs);
+    var s=E('symbol',{id:'lz-'+key+'-'+sid, viewBox:'-6 -8 '+(a.w+12)+' '+(a.h+14), preserveAspectRatio:'none', overflow:'visible'},defs);
     s.innerHTML=a.svg.replace(/\{s\}/g, sid); }
 }
 /* what is inside a landmark's page, read from the page's own Index chips (the counts those show) */
@@ -239,8 +242,9 @@ function draw(g, l, o){
   var b=l.box, ins=o.ins, x=b[0]+ins, y=b[1]+ins, w=b[2]-b[0]-2*ins, h=b[3]-b[1]-2*ins, c=o.color, nm=String(l.n), key=keyOf(l);
   /* a skyscraper (or any mapped building of 60 m and up) stands on a plot of one size, its card, centred on its block however
      many cells its outline covers (its building chip stands to the left of it); the tower rises above the card to its real height */
-  var tall=isTall(l);
-  if(tall){ var C=tallCard(b, ART[key].fw||(+l.fw)||40); x=C[0]+dxOf(o.all, nm); y=C[1]; w=C[2]; h=C[3]; }
+  /* the card is the building's own footprint at the one scale (the building fills it, standing on it in a 3/4 view); whatever is tall
+     (a tower, City Hall's tower) rises above it as far as it really does; a tower in a column of towers slides aside (plan) */
+  var tall=isTall(l), C=cardOf(l, o.all); x=C[0]; y=C[1]; w=C[2]; h=C[3];
   /* a block of a turned (tilted) district: the card turns with its streets (an SVG transform attribute, never CSS), the building stays upright */
   var base=g; if(+l.a){ base=E('g',{'class':'lm-base', transform:'rotate('+(+l.a)+' '+((b[0]+b[2])/2)+' '+((b[1]+b[3])/2)+')'},g); }
   var info=l.page?pageInfo(l.page, o.pageName):null;
@@ -269,7 +273,7 @@ function draw(g, l, o){
     tag._p=tp;
   }
   E('rect',{'class':'lm-focus', x:x-6, y:y-6, width:w+12, height:h+12, rx:14},g);
-  g._lm={tall:tall,key:key,hm:+l.hm||0,fw:+l.fw||0,tower:o.tower||null,x:x,y:y,w:w,h:h,name:nm,info:info,page:l.page,strip:strip,art:art,use:use,nameT:name,sub:sub,tag:tag,tbg:tbg,tn:tn,to:to,pn:o.pageName};
+  g._lm={tall:tall,key:key,l:l,tower:o.tower||null,x:x,y:y,w:w,h:h,name:nm,info:info,page:l.page,strip:strip,art:art,use:use,nameT:name,sub:sub,tag:tag,tbg:tbg,tn:tn,to:to,pn:o.pageName};
   /* keyboard and screen readers */
   g.setAttribute('aria-label', label(nm, info));
   if(info){ g.setAttribute('role','link'); g.setAttribute('tabindex','0');
@@ -288,7 +292,7 @@ function relayout(svg, Z){
     var fn=Math.min(Math.max(11.5*u, fit), 21*u), words=L.name.split(' '), lines=[L.name];
     if(n*.6*fn>w*.98 && words.length>1){ var half=Math.ceil(words.length/2); lines=[words.slice(0,half).join(' '), words.slice(half).join(' ')]; }
     var wide=Math.max.apply(null, lines.map(function(s){ return s.length; }))*.6*fn;
-    var subH=(L.sub && near)?13*u:0, stripH=lines.length*fn*1.22+fn*.42+subH, hang=L.tall || (wide>w*1.02) || stripH>h*.46;
+    var subH=(L.sub && near)?13*u:0, stripH=lines.length*fn*1.22+fn*.42+subH, hang=true;   /* the card hugs the building: its name hangs under it */
     var cx=x+w/2, top=y-h*.22, bottom;
     while(L.nameT.firstChild) L.nameT.removeChild(L.nameT.firstChild);
     if(hang){
@@ -305,14 +309,9 @@ function relayout(svg, Z){
         var t1='Inside: '+L.info.name, t2=L.info.count?L.info.count+' '+L.info.unit+' inside':'', fitC=w/(5.7*u);
         t1=t1.length<=fitC?t1:(t2.length<=fitC?t2:''); L.sub.textContent=t1; } else L.sub.setAttribute('display','none'); }
     }
-    /* the building at the ONE scale: S map px per real metre, its ground line on the card's floor, centred; only a low landmark
-       wider than its card is shrunk to fit (marked data-fit) — never a tower, never to fill a card */
-    var a=ART[L.key], k=S, vw=(a.w+12), vh=(a.h+14), uw, uh;
-    if(/^g-/.test(L.key)){ uh=L.hm*S*vh/a.hm; uw=(L.fw||Math.max(18,Math.min(60,L.hm*.3)))*S*vw/a.fw; }
-    else { if(!L.tall && vw*S>w*1.08) k=w*1.08/vw; uw=vw*k; uh=vh*k; }
-    if(k<S) L.use.setAttribute('data-fit', (k/S).toFixed(2)); else L.use.removeAttribute('data-fit');
-    var gy=(L.tall?y+h-6:bottom);
-    L.use.setAttribute('x',cx-uw/2); L.use.setAttribute('y',gy-uh*(a.h+5)/vh); L.use.setAttribute('width',uw); L.use.setAttribute('height',uh);
+    /* the building at the ONE scale: its footprint (a.fp in the symbol) laid exactly on its card */
+    var a=ART[L.key], k=scaleOf(L.l, L.key, a), fp=a.fp;
+    L.use.setAttribute('x', L.x-(fp[0]+6)*k[0]); L.use.setAttribute('y', L.y-(fp[1]+8)*k[1]); L.use.setAttribute('width', (a.w+12)*k[0]); L.use.setAttribute('height', (a.h+14)*k[1]);
     if(L.tag){ var full=L.info.count?(String(L.info.count).length+(far?0:L.info.unit.length+1)):6, tw=Math.max(full,6)*6.6+34;
       L.tbg.setAttribute('width',tw); L.tag.querySelector('.lm-tag-sh').setAttribute('width',tw);
       L.tag.querySelector('.lm-tag-sh').setAttribute('x',2); L.tag.querySelector('.lm-tag-sh').setAttribute('y',-5);
@@ -332,7 +331,7 @@ function keyRow(){
     +'<rect x="21" y="6" width="8" height="2" rx="1" fill="var(--theme-color,#6d28d9)"/><rect x="21" y="10" width="6" height="2" rx="1" fill="var(--theme-color,#6d28d9)" opacity=".6"/></svg>';
   return '<div class="pk-row">'+sw+'<div>Landmark with reference material inside <small>A glowing tag on a building says what is inside and how many (20 rules, 193 cases). Point at it for Open; click to go in. Tab to a tag and press Enter.</small></div></div>';
 }
-window._palLm={draw:draw, relayout:relayout, tip:tip, keyRow:keyRow, pageInfo:pageInfo, artKey:artKey, tallCard:tallCard, fw:fw, dx:dxOf, S:S};
+window._palLm={draw:draw, relayout:relayout, tip:tip, keyRow:keyRow, pageInfo:pageInfo, artKey:artKey, cardOf:cardOf, dx:dxOf, S:S};
 })();
 """
 

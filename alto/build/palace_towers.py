@@ -199,13 +199,15 @@ def landmark_state(b, m: dict) -> dict:
 
 def lm_dx(m: dict) -> dict:
     """{landmark name: dx} the page slides each tower card by (palace_skyline.stagger; palace_landmarks plan() mirrors it)."""
-    from .palace_landmarks import ART, art_key
     from .palace_skyline import stagger
+    return stagger(m.get("landmarks", []), lm_art, lambda l: lm_art(l)["_k"] in FLOORS or (lm_art(l)["_k"].startswith("g-") and float(l.get("hm") or 0) >= 60))
 
-    def art(l):
-        k = art_key(l)
-        return ART.get(k) or ART["gen"]
-    return stagger(m.get("landmarks", []), art, lambda l: art_key(l) in FLOORS or (art_key(l).startswith("g-") and float(l.get("hm") or 0) >= 60))
+
+def lm_art(l: dict) -> dict:
+    """The art a map landmark record gets, with its key as "_k" (the page's keyOf)."""
+    from .palace_landmarks import ART, art_key
+    k = art_key(l)
+    return {**(ART.get(k) or ART["gen"]), "_k": k}
 
 
 def tower_lots(m: dict, blocks: list, at: dict, tw: dict) -> list:
@@ -221,9 +223,8 @@ def tower_lots(m: dict, blocks: list, at: dict, tw: dict) -> list:
         lm = next((l for l in m.get("landmarks", []) if l.get("n") == t["n"] and l.get("box")), None)
         if not lm:
             continue
-        from .palace_landmarks import ART
-        from .palace_skyline import tall_card
-        left, cy, _nw, _nh = tall_card(lm["box"], ART.get(tower_key(t["n"]), {}).get("fw", 50))   # the tower's plot (its card) ...
+        from .palace_skyline import card
+        left, cy, _nw, _nh = card(lm["box"], lm_art(lm), lm)          # the tower's card (its footprint) ...
         left += lm_dx(m).get(t["n"], 0.0)                           # ... slid aside of a tower in front / behind
         w = max(30.0, min(lw, left - lm["box"][0] - 18))
         h = lh * w / lw                                             # the chip stands at the card's left edge, a little over it
