@@ -15,7 +15,7 @@ from alto.build.palace_grid import grid, Mapping, mapping_from
 from city_synth_e5 import grid_city
 
 CHECKS = {"domains", "phantom", "displacement", "order", "side", "seam_fidelity", "tjoin", "ends", "cross_seam",
-          "avenues", "transit", "cut", "size", "overlap"}
+          "avenues", "transit", "cut", "size", "overlap", "spacing", "fronts"}
 
 
 def _built(**kw):

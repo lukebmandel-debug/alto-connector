@@ -308,17 +308,47 @@ def _paths(kind, comp, xg, yg, ok):
     return paths, plaza
 
 
+def _frame(f):
+    """A v2 park's domain frame f = [a, ox, oy, x0, gv, nx, y0, gh, ny]: (local xg, yg, local -> page, page -> local)."""
+    a, ox, oy, x0, gv, nx, y0, gh, ny = f
+    xg = [x0 + gv * i for i in range(int(nx))]
+    yg = [y0 + gh * j for j in range(int(ny))]
+    c, s = math.cos(math.radians(a)), math.sin(math.radians(a))
+    fwd = lambda x, y: (x * c - y * s + ox, x * s + y * c + oy)                       # noqa: E731
+    back = lambda x, y: ((x - ox) * c + (y - oy) * s, -(x - ox) * s + (y - oy) * c)   # noqa: E731
+    return xg, yg, fwd, back
+
+
+def _to_page(rec, fwd):
+    """A shaped park drawn in its domain's local frame, turned onto the page."""
+    def ring(r):
+        out = []
+        for k in range(0, len(r) - 1, 2):
+            x, y = fwd(r[k], r[k + 1])
+            out += [round(x), round(y)]
+        return out
+    rec["r"] = [ring(r) for r in rec["r"]]
+    rec["p"] = [ring(p) for p in rec["p"]]
+    rec["o"] = [[round(fwd(o[0], o[1])[0]), round(fwd(o[0], o[1])[1]), o[2]] for o in rec["o"]]
+    tx, ty = fwd(*rec["t"])
+    rec["t"] = [round(tx), round(ty)]
+    return rec
+
+
 def shape(raw, xg, yg, used=(), min_pts=0) -> list:
-    """The parks to draw: raw (from pick) less the cells of `used` (points: building lots)."""
-    cut = set()
-    for x, y in used:
-        c = _cell(xg, yg, x, y)
-        if c:
-            cut.add(c)
+    """The parks to draw: raw (from pick) less the cells of `used` (points: building lots). A park with a domain frame
+    ("f", city engine v2: a park on a turned district's lattice) is shaped on that lattice and turned onto the page;
+    the others on the page grid xg, yg."""
     out = []
     for pk in raw or []:
         if not pk.get("c"):                                # an old city's raw OSM rings: not for drawing
             continue
+        if pk.get("f"):
+            lxg, lyg, fwd, back = _frame(pk["f"])
+            for rec in shape([{k: v for k, v in pk.items() if k != "f"}], lxg, lyg, [back(x, y) for x, y in used], min_pts):
+                out.append(_to_page(rec, fwd))
+            continue
+        cut = {c for c in (_cell(xg, yg, x, y) for x, y in used) if c}
         cells = _cells_of(pk["c"]) - cut
         for comp in _components(cells):
             def ok(x, y, comp=comp):

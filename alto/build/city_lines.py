@@ -221,6 +221,63 @@ def _must_gap(lines):
     return gaps[len(gaps) // 2]
 
 
+ASPECT_MAX = 2.0        # a page block is at most this many CH in its long family (a city of very long blocks keeps 2 rows)
+
+
+ASPECT_MIN_GAPS = 6     # a family needs this many gaps between its block streets before its block size is trusted
+
+
+def _block_gap(lines):
+    """The real block of one family: the median gap between consecutive must lines, after a must line closer than
+    0.45 of the median to the last kept one is dropped (a diagonal avenue's median position between two rows is not a
+    row); gaps over 3x the median are breaks, not blocks. -> (gap or None, number of gaps)."""
+    ps = sorted(l["pos"] for l in lines if l["must"])
+    gaps = sorted(b - a for a, b in zip(ps, ps[1:]) if b - a > SAME_LINE)
+    if len(gaps) < 3:
+        return None, len(gaps)
+    md = gaps[len(gaps) // 2]
+    kept = ps[:1]
+    for p in ps[1:]:
+        if p - kept[-1] >= 0.45 * md:
+            kept.append(p)
+    gaps = sorted(b - a for a, b in zip(kept, kept[1:]))
+    if not gaps:
+        return None, 0
+    md = gaps[len(gaps) // 2]
+    gaps = [x for x in gaps if x <= 3 * md]
+    return gaps[len(gaps) // 2], len(gaps)
+
+
+def real_gaps(domain, majors=(), theta=None, center=None, min_gaps=3):
+    """The domain's real block: (the column family's block gap, the row family's), real px, in the domain's own frame
+    (_block_gap); a family with fewer than min_gaps gaps gives None."""
+    th = domain.theta if theta is None else theta
+    cand = candidates(domain.streets or [], th, center or centroid(domain.poly), majors)
+    out = []
+    for o in ("v", "h"):
+        g, n = _block_gap(cand[o])
+        out.append(g if g and n >= min_gaps else None)
+    return tuple(out)
+
+
+def block_aspect(domain, majors=(), theta=None, center=None, min_gaps=ASPECT_MIN_GAPS):
+    """The real block's height over its width in the domain's frame (rows' block-street gap / columns'), or None
+    when either family has too few block streets to say (a tilted district whose one family is all minor streets).
+    Philadelphia's main grid: 1.27 (173 x 136 m blocks, taller than wide)."""
+    rv, rh = real_gaps(domain, majors, theta, center, min_gaps)
+    return rh / rv if rv and rh else None
+
+
+def block_ch(aspect, cw=CW, ch=CH, roles="vh"):
+    """The page size of the family that does not get cw, so that one page block is one real block of the domain's
+    shape (design rule: a row is one real block; the half-block alleys then thin out by themselves). roles "vh": the
+    rows take it (cw x cw*aspect), "hv": the columns (cw/aspect). Never below ch, never above ASPECT_MAX * ch."""
+    if not aspect:
+        return ch
+    a = aspect if (roles or "vh")[0] == "v" else 1.0 / aspect
+    return float(max(ch, min(ASPECT_MAX * ch, round(cw * a / 10.0) * 10.0)))
+
+
 def fill(kept, g, at=FILL_AT):
     """A gap of at least `at` targets gets round(gap / g) - 1 unnamed slots ({"slot": True, "spans": []}), so
     the page keeps real distance across a park or a void instead of folding it into one block. Slots carry the

@@ -34,7 +34,8 @@ import math
 import random
 from collections import Counter, deque
 
-from .city_lines import CW, CH, centroid, mapping as local_mapping, select as select_lines, scale as city_scale
+from .city_lines import CW, CH, centroid, mapping as local_mapping, select as select_lines, scale as city_scale, \
+    block_aspect, block_ch, ASPECT_MAX
 from .city_types import Seam
 from .palace_grid import PAD, LEAD, _dp, _pairs, norm
 
@@ -414,7 +415,7 @@ def _river_near(p, rivers, w=200.0):
     return False
 
 
-def seams(domains, lines=None, avenues=None, rivers=None, sigma=1.0, cw=CW, ch=CH):
+def seams(domains, lines=None, avenues=None, rivers=None, sigma=1.0, cw=CW, ch=CH, aspect=None, majors=()):
     """Every seam between adjacent grid domains, oriented parent -> child along the layout tree. This also
     normalises each child's theta (within 45 deg of its parent's) and sets each child's roles (which family
     gets CW) from the seam-angle rule. With `lines` ({id: select output}) the hinge pairs are equalised."""
@@ -499,10 +500,19 @@ def seams(domains, lines=None, avenues=None, rivers=None, sigma=1.0, cw=CW, ch=C
         hp = next((pt for pt in parts if pt["kind"] == "hinge"), None)
         if hp:
             proles = getattr(P, "roles", "vh") or "vh"
-            g_p = cw if (hp["fa"] == "v") == (proles[0] == "v") else ch
+            asp = aspect or {}
+            g_p = cw if (hp["fa"] == "v") == (proles[0] == "v") else block_ch(asp.get(P.id), cw, ch, proles)
             d_p = 0.0 if hp["fa"] == "h" else 90.0
             d_q = snap + (0.0 if hp["fb"] == "h" else 90.0)
-            sol = solve_phi(hp["phi_rel"], d_p, d_q, g_p, (cw, ch))
+            # the child's hinge family takes cw, or the spacing the real seam angle gives it on an even page (a
+            # 45-degree seam off a parent family of block b continues as a child family of b*sqrt2: Kensington's long
+            # blocks), kept within [ch, ASPECT_MAX*cw]; without the block-aspect rule, the child's real block shape
+            chq = block_ch(asp.get(Q.id), cw, ch, "hv" if hp["fb"] == "v" else "vh")
+            if aspect is not None:
+                g0 = spacing_ratio(hp["phi_rel"], d_p, d_q) * g_p
+                chq = float(max(ch, min(ASPECT_MAX * cw, round(g0 / 10.0) * 10.0)))
+            sol = solve_phi(hp["phi_rel"], d_p, d_q, g_p, (cw, chq))
+            Q.ch_page = None if sol["nominal"] == cw else sol["nominal"]
             hp["solve_rel"] = sol
             gets_cw = sol["nominal"] == cw
             roles = ("vh" if gets_cw else "hv") if hp["fb"] == "v" else ("hv" if gets_cw else "vh")
@@ -748,7 +758,7 @@ def _anchor_pts(part, step=100.0):
     return [(mx + u[0] * (t0 + (t1 - t0) * k / (n - 1)), my + u[1] * (t0 + (t1 - t0) * k / (n - 1))) for k in range(n)]
 
 
-def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL):
+def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL, natural=False):
     """Place every domain: the root at angle 0, each child by its seam with the parent (hinge: the hinge streets
     meet exactly on the seam; tee / strip / water: least squares on the seam samples and on same-named lines).
     Sets d.a, d.o, d.mapping, d.clip and seam.phi / segs / ratio / err / hinge; returns a Layout."""
@@ -788,7 +798,11 @@ def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL):
                 d_q = aQ + (0.0 if fb == "h" else 90.0)
                 g_p = gs[sm.a][fa]
                 nominal = lines[sm.b]["gv" if fb == "v" else "gh"]
-                sol = solve_phi(phi_real, d_p, d_q, g_p, (nominal,), tol)
+                noms = (nominal,)
+                if natural:                    # an even page: the child family takes the real seam's spacing
+                    g0 = spacing_ratio(phi_real, d_p, d_q) * g_p
+                    noms = (nominal, max(ch, min(ASPECT_MAX * cw, g0)))
+                sol = solve_phi(phi_real, d_p, d_q, g_p, noms, tol)
                 phi = sol["phi"]
                 gs[sm.b][fb] = sol["g"]
                 pt["solve"] = sol
@@ -910,29 +924,98 @@ def _snap_tee(phi_real, a_p, a_q):
     return round(phi_real * 2) / 2
 
 
+CHAIN_MIN_DEG = 20.0    # a neighbouring part joins the clipping chain only when it turns at least this much
+CHAIN_EXT = 6.0         # blocks: a lattice grows this far to reach its chain's corner (3 for a one-part seam)
+CHAIN_GAP = 3.0         # blocks: ... and when its corner with the chain lies this close to both parts' ends
+
+
+def _corner(pa, pb):
+    """The page point where two parts' page lines meet (None when they are nearly parallel)."""
+    A, B = pa["page"], pb["page"]
+    if abs(_ldiff(A["phi"], B["phi"])) < CHAIN_MIN_DEG:
+        return None
+    return _isect(A["n"], A["c"], B["n"], B["c"])
+
+
+def clip_chain(sm, lay=None, cpg=None, blk=CW):
+    """The parts of a seam that clip, in boundary order: the main part (the hinge, else the longest tee/strip) and
+    each tee/strip part right beside it that turns off it at a convex corner of the child's region (design 2.6:
+    the seam is a chain of segments; the corner where they meet is where the real boundary turns, as Baltimore Ave
+    turns down Woodland Ave's side at the 40th Street junction). -> (part indices, {(i, j): corner page point})."""
+    parts = sm.info["parts"]
+    main = _main_part(sm)
+    if main is None or main["kind"] == "water":
+        return [], {}
+    km = parts.index(main)
+    chain, corners = [km], {}
+    if cpg is None or "page" not in main:
+        return chain, corners
+
+    def side(pt, p):
+        pg = pt["page"]
+        return _dot(pg["n"], p) - pg["c"]
+    for step in (-1, 1):
+        k = km + step
+        if not (0 <= k < len(parts)):
+            continue
+        nb = parts[k]
+        if nb["kind"] not in ("tee", "strip") or "page" not in nb or k >= len(sm.segs) or km >= len(sm.segs):
+            continue
+        q = _corner(main, nb)
+        if q is None:
+            continue
+        sa, sb = sm.segs[km], sm.segs[k]
+        da = min(math.dist(q, sa[:2]), math.dist(q, sa[2:]))
+        db = min(math.dist(q, sb[:2]), math.dist(q, sb[2:]))
+        if da > CHAIN_GAP * blk or db > CHAIN_GAP * blk:
+            continue
+        # convex for the child: the child lies on its side of both lines, and neither part's far end is cut by the other
+        fa = max((sa[:2], sa[2:]), key=lambda e: math.dist(e, q))
+        fb = max((sb[:2], sb[2:]), key=lambda e: math.dist(e, q))
+        sm_, sn_ = side(main, cpg), side(nb, cpg)
+        if sm_ == 0 or sn_ == 0 or side(nb, fa) * sn_ < 0 or side(main, fb) * sm_ < 0:
+            continue
+        # the corner never cuts a hinge street off: every kink lies on the child's side of the turning part
+        if any(isinstance(h, dict) and side(nb, h["at"]) * sn_ < -1.0 for h in sm.hinge):
+            continue
+        chain = [k] + chain if step < 0 else chain + [k]
+        corners[tuple(sorted((km, k)))] = q
+    return chain, corners
+
+
 def _regions(lay, doms, seam_list, root):
     """Child region: its lattice rect, extended EXT blocks toward the seams it faces, cut by its side of every
-    seam part where it is the child. Parent: minus each child's region."""
+    clipping part of the seam (the chain: the main part and its convex neighbours, meeting at their corners) and by
+    the perpendiculars at the chain's two outer ends. Parent: minus each child's region."""
     for sm in seam_list:
         cid = sm.b
         mpQ, mpP = lay.maps[cid], lay.maps[sm.a]
-        L = lay.lines[cid]
-        x0, y0, x1, y1 = lay.rect[cid]
-        gv, gh = mpQ.loc.gv, mpQ.loc.gh
         main = _main_part(sm)
-        parts = [main] if main and main["kind"] != "water" else []
-        if not parts:
+        if not main or main["kind"] == "water":
+            sm.info["clip"], sm.info["corners"] = [], {}
             continue
         # which side of the seam the child is on: its own centre, mapped by the parent
         cq = centroid(doms[cid].poly)
         cpg = mpP(*cq)
-        ext = _extend(lay, cid, sm)
-        _extend(lay, sm.a, sm)
-        # S: the child's side of the whole seam chain, between the perpendiculars at its two outer ends
+        blk = max(mpP.loc.gv, mpP.loc.gh)
+        chain, corners = clip_chain(sm, lay, cpg, blk)
+        ext = _extend(lay, cid, sm, cap=CHAIN_EXT if len(chain) > 1 else 3.0, segs=[sm.segs[k] for k in chain])
+        _extend(lay, sm.a, sm, cap=CHAIN_EXT if len(chain) > 1 else 3.0, segs=[sm.segs[k] for k in chain])
+        allp = sm.info["parts"]
+        # the corners become the parts' shared ends
+        for (i, j), q in corners.items():
+            for k in (i, j):
+                x0, y0, x1, y1 = sm.segs[k]
+                if math.dist(q, (x0, y0)) <= math.dist(q, (x1, y1)):
+                    sm.segs[k] = (q[0], q[1], x1, y1)
+                else:
+                    sm.segs[k] = (x0, y0, q[0], q[1])
+        sm.info["clip"], sm.info["corners"] = chain, {"%d-%d" % k: q for k, q in corners.items()}
         big = 1e7
         S = [(-big, -big), (big, -big), (big, big), (-big, big)]
         Ssub = list(S)
-        for pt in parts:
+        for k in chain:
+            pt = allp[k]
             pg = pt["page"]
             sgn = _dot(pg["n"], cpg) - pg["c"]
             w = 0.0 if pt["kind"] != "strip" else pt.get("width", 0.0) * 0.5 * lay.lines[sm.a].get("sigma", 1.0)
@@ -940,29 +1023,24 @@ def _regions(lay, doms, seam_list, root):
                 S = clip_half(S, pg["n"], pg["c"] + w, "ge"); Ssub = clip_half(Ssub, pg["n"], pg["c"] - w, "ge")
             else:
                 S = clip_half(S, pg["n"], pg["c"] - w, "le"); Ssub = clip_half(Ssub, pg["n"], pg["c"] + w, "le")
-        k_main = sm.info["parts"].index(main)
-        segs = [((s_[0], s_[1]), (s_[2], s_[3])) for s_ in sm.segs[k_main:k_main + 1]]
-        if segs:
-            def outer(k, nb):
-                a, b = segs[k]
-                if nb is None:
-                    return a, b
-                o = max((a, b), key=lambda q: min(math.dist(q, segs[nb][0]), math.dist(q, segs[nb][1])))
-                return o, (b if o == a else a)
-            for o, inner in (outer(0, 1 if len(segs) > 1 else None), outer(len(segs) - 1, len(segs) - 2 if len(segs) > 1 else None)):
-                u = (inner[0] - o[0], inner[1] - o[1]); L = math.hypot(*u) or 1.0; u = (u[0] / L, u[1] / L)
-                S = clip_half(S, u, _dot(u, o), "ge"); Ssub = clip_half(Ssub, u, _dot(u, o), "ge")
-                if len(segs) == 1:
-                    break
-            if len(segs) == 1:
-                a, b = segs[0]
-                u = (a[0] - b[0], a[1] - b[1]); L = math.hypot(*u) or 1.0; u = (u[0] / L, u[1] / L)
-                S = clip_half(S, u, _dot(u, b), "ge"); Ssub = clip_half(Ssub, u, _dot(u, b), "ge")
+        # the perpendiculars at the chain's outer ends (a single part: at both of its ends)
+        segs = [((sm.segs[k][0], sm.segs[k][1]), (sm.segs[k][2], sm.segs[k][3])) for k in chain]
+        if len(segs) == 1:
+            a, b = segs[0]
+            caps = [(a, b), (b, a)]
+        else:
+            caps = []
+            for k_, nb_ in ((0, 1), (len(segs) - 1, len(segs) - 2)):
+                a, b = segs[k_]
+                o = max((a, b), key=lambda q: min(math.dist(q, segs[nb_][0]), math.dist(q, segs[nb_][1])))
+                caps.append((o, b if o == a else a))
+        for o, inner in caps:
+            u = (inner[0] - o[0], inner[1] - o[1]); L = math.hypot(*u) or 1.0; u = (u[0] / L, u[1] / L)
+            S = clip_half(S, u, _dot(u, o), "ge"); Ssub = clip_half(Ssub, u, _dot(u, o), "ge")
         ring = _clip_convex(_rect_ring(mpQ, ext), S)
-        sub = Ssub
         lay.region[cid] = ring
         lay.rect[cid] = ext
-        lay.subtract.setdefault(sm.a, []).append(sub)
+        lay.subtract.setdefault(sm.a, []).append(Ssub)
 
 
 def _main_part(sm):
@@ -976,7 +1054,7 @@ def _main_part(sm):
     return max(ps, key=lambda pt: pt["t"][1] - pt["t"][0]) if ps else None
 
 
-def _extend(lay, did, sm, cap=3.0):
+def _extend(lay, did, sm, cap=3.0, segs=None):
     """Grow domain did's lattice rect toward a seam it does not reach (at most `cap` blocks a side), so every
     line that meets the seam really reaches it (the extra lines are unnamed graph-paper slots)."""
     mp = lay.maps[did]
@@ -986,7 +1064,7 @@ def _extend(lay, did, sm, cap=3.0):
     if not main:
         return lay.rect[did]
     k = sm.info["parts"].index(main)
-    sg = sm.segs[k:k + 1]
+    sg = segs if segs else sm.segs[k:k + 1]
     pts = [mp.to_local(s_[0], s_[1]) for s_ in sg] + [mp.to_local(s_[2], s_[3]) for s_ in sg]
     if not pts:
         return lay.rect[did]
@@ -1091,20 +1169,25 @@ def paths(lay, did, lead=LEAD):
 
 
 # ── S4-S6 in order ──────────────────────────────────────────────────────────
-def plan(domains, avenues=None, majors=(), sigma=None, rivers=None, cw=CW, ch=CH, tol=R_TOL):
+def plan(domains, avenues=None, majors=(), sigma=None, rivers=None, cw=CW, ch=CH, tol=R_TOL, aspect=True):
     """seams (roles, frames) -> per-domain line selection (keeping hinge streets and seam avenues) ->
     slot equalisation -> layout. -> (seams, lines, Layout)."""
     grid = [d for d in domains if d.kind == "grid" and d.poly]
+    # every domain's page block takes its real block's shape (a row is one real block, city_lines.block_ch)
+    asp = {d.id: (block_aspect(d, majors) if aspect else None) for d in grid}
     if sigma is None:
         root = max(grid, key=lambda d: area(d.poly))
-        sigma = city_scale(root, majors, cw, ch=ch)
-    sl = seams(grid, None, avenues, rivers, sigma, cw, ch)
+        sigma = city_scale(root, majors, cw, ch=block_ch(asp[root.id], cw, ch, getattr(root, "roles", "vh") or "vh"))
+    for d in grid:
+        d.ch_page = None
+    sl = seams(grid, None, avenues, rivers, sigma, cw, ch, aspect=asp if aspect else None, majors=majors)
     lines = {}
     for d in grid:
-        lines[d.id] = select_lines(d, avenues, majors, sigma, must_names(sl, d.id), cw, ch)
+        chd = getattr(d, "ch_page", None) or block_ch(asp[d.id], cw, ch, getattr(d, "roles", "vh") or "vh")
+        lines[d.id] = select_lines(d, avenues, majors, sigma, must_names(sl, d.id), cw, chd)
     for sm in sl:
         equalise(sm, lines[sm.a], lines[sm.b])
-    lay = layout(grid, sl, lines, cw=cw, ch=ch, tol=tol)
+    lay = layout(grid, sl, lines, cw=cw, ch=ch, tol=tol, natural=bool(aspect))
     lay.sigma = sigma
     return sl, lines, lay
 

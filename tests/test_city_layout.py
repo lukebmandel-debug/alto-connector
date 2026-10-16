@@ -96,7 +96,7 @@ def phil_domains(m, band=450.0):
 def phil():
     m = load("philadelphia")
     doms = phil_domains(m)
-    sl, lines, lay = cs.plan(doms, majors=m.get("majors") or ())
+    sl, lines, lay = cs.plan(doms, majors=m.get("majors") or (), aspect=False)   # E3's fixed 240 x 170 block
     return m, doms, sl, lines, lay
 
 

@@ -227,11 +227,24 @@ def _dup(a, b, tol=60.0):
     return sum(1 for x, y, _ in S if poly_d((x, y), b) <= tol) / max(1, len(S))
 
 
+def _one_way(P, back=0.5):
+    """A path that goes out and comes back (the two carriageways of a divided road joined at both ends, the
+    Benjamin Franklin Parkway's loop round Logan Circle): cut at its far point, keeping the leg out. A path whose end
+    is less than `back` of its far point's distance from its start comes back."""
+    if len(P) < 3:
+        return P
+    k = max(range(len(P)), key=lambda i: (P[i][0] - P[0][0]) ** 2 + (P[i][1] - P[0][1]) ** 2)
+    far = math.dist(P[k], P[0])
+    if 0 < k < len(P) - 1 and far > 0 and math.dist(P[-1], P[0]) < back * far:
+        return P[:k + 1]
+    return P
+
+
 def chains(m, names=None, gap=GAP):
     """{name: [polyline, ...]} each name's real course, longest first. names: a set of norm() names, or None (all)."""
     out = {}
     for n, ws in _ways(m, names).items():
-        paths = sorted(_longest_path([P for P, _ in ws]), key=plen, reverse=True)
+        paths = sorted((_one_way(P) for P in _longest_path([P for P, _ in ws])), key=plen, reverse=True)
         acc = []
         for P in paths:
             if any(_dup(P, Q) > .6 for Q in acc):
