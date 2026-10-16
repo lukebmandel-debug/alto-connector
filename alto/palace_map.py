@@ -271,6 +271,64 @@ def fetch_tiled(bbox, cache_dir=None, timeout=90, landmarks=None, light=True, st
     return merge_raw(*raws)
 
 
+# ── building footprints (fill-in: palace_fillin.py) ────────────────────────
+BLD_TILE = (0.015, 0.03)          # degrees: row-house districts are dense (0.03 x 0.05 deg of Center City was 24 MB, 26,790 ways)
+BLD_PAUSE = 2.0                   # seconds between two tiles fetched from Overpass (cached tiles cost nothing)
+BLD_BACKOFF = (20, 60)            # seconds waited after a tile fails; after the last, Overpass is left alone
+
+
+def building_query(bbox, timeout: int = 170) -> str:
+    b = "(%r,%r,%r,%r)" % tuple(float(v) for v in bbox)
+    return "\n".join(["[out:json][timeout:%d];" % timeout, "(",
+                       "  way[building]%s;" % b, "  rel[building]%s;" % b, '  way["building:part"]%s;' % b,
+                       ");", "out geom qt;"])
+
+
+def fetch_buildings(bbox, cache_dir=None, timeout: int = 170, log=None) -> dict:
+    """Building footprints (building=* ways and relations, building:part ways) in bbox, fetched tile by tile
+    (BLD_TILE), each tile cached as bld-<tile>.json and never asked for again. Polite: BLD_PAUSE between
+    fetched tiles; a failed tile waits BLD_BACKOFF before the next one is tried, and once a tile has failed
+    after the last wait, nothing more is asked of Overpass this time. Returns the merged answer plus
+    "missing": the tiles not fetched (a later set_up fills them in from the cache it leaves)."""
+    raws, missing, fails, asked = [], [], 0, False
+    for tb in tile_boxes(bbox, *BLD_TILE):
+        path = Path(cache_dir) / ("bld-%.4f_%.4f_%.4f_%.4f.json" % tb) if cache_dir else None
+        if path is not None and path.exists():
+            try:
+                raws.append(json.loads(path.read_text("utf-8")))
+                continue
+            except (OSError, ValueError):
+                pass
+        if fails > len(BLD_BACKOFF):
+            missing.append(list(tb))
+            continue
+        if asked:
+            _sleep(BLD_PAUSE)
+        asked = True
+        try:
+            raw = _post_overpass(building_query(tb, timeout), timeout + 20)
+        except RuntimeError as e:
+            missing.append(list(tb))
+            if log:
+                log("FAIL %s %s" % (tb, str(e)[:80]))
+            fails += 1
+            if fails <= len(BLD_BACKOFF):
+                _sleep(BLD_BACKOFF[fails - 1])
+            continue
+        fails = 0
+        if log:
+            log("ok %s %d" % (tb, len(raw.get("elements") or [])))
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(raw, separators=(",", ":")), "utf-8")
+            os.replace(tmp, path)
+        raws.append(raw)
+    out = merge_raw(*raws)
+    out["missing"] = missing
+    return out
+
+
 def geocode(query: str, timeout: int = 30):
     """Nominatim lookup of one place: {"lat", "lon", "bbox": [s, w, n, e], "name"} or None."""
     url = NOMINATIM + "?" + urllib.parse.urlencode({"format": "json", "limit": 1, "q": query})

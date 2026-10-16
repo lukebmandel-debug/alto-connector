@@ -274,7 +274,8 @@ def check_portals(portals) -> list:
 
 
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
-           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None) -> dict:
+           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
+           fill: bool = False) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
@@ -297,17 +298,35 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     from .palace_grid import grid
     m = grid(m, majors=majors or (), diagonals=diagonals or (), lines=lines or (), landmarks=buildings or (), parks=parks or ())
     blocks = m.pop("blocks")
-    return {"place": place, "bbox": list(bbox), "districts": districts or [],
-            "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
-            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
-            "data_z": pack({"map": m, "blocks": blocks})}
+    out = {"place": place, "bbox": list(bbox), "districts": districts or [],
+           "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
+           "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
+           "data_z": pack({"map": m, "blocks": blocks})}
+    if fill:
+        # fill-in (palace_fillin.py): the real buildings of the districts + 1 km, opening on level 1 (Skyline).
+        # Never fatal: a busy Overpass leaves the palace without them (set_up_palace again adds them).
+        try:
+            from .palace_fillin import fill_for
+            fz = fill_for(m, blocks, districts or [], bbox, cache_dir=cache_dir)
+            if fz:
+                out["fill_z"] = fz
+        except Exception:                                   # noqa: BLE001 — network, Overpass
+            pass
+    return out
 
 
 def summary(pal: dict) -> dict:
     """What get_timeline shows of the city instead of the packed data."""
     if not pal:
         return pal
-    out = {k: v for k, v in pal.items() if k != "data_z"}
+    out = {k: v for k, v in pal.items() if k not in ("data_z", "fill_z")}
+    if pal.get("fill_z"):
+        try:
+            f = unpack(pal["fill_z"])
+            out["fill"] = {"buildings_per_level": f.get("c"), "opens_on": f.get("lvl"), "reach": f.get("reach"),
+                           "stored_kb": round(len(pal["fill_z"]) / 1024), **({"missing_tiles": len(f["missing"])} if f.get("missing") else {})}
+        except Exception:                                   # noqa: BLE001
+            out["fill"] = "unreadable"
     if pal.get("data_z"):
         try:
             d = unpack(pal["data_z"])

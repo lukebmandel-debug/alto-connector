@@ -1654,7 +1654,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                              landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
-                             parks=parks, areas=areas, portals=portals)
+                             parks=parks, areas=areas, portals=portals, fill=True)
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass
