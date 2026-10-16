@@ -210,10 +210,11 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     # 7a. which cells each domain draws: the Layout's region (the seams), the real outline (with a little slack, never
     #     into another domain's outline) and no overlap with a domain that owns the place for certain
     seam_segs = {}
-    for sm in sl:
-        if sm.info.get("parts") and _main_kind(sm) != "water":
+    for sm in sl:                                   # only the part that clips (multi-part seams: E3's main part)
+        k = _main_part_index(sm) if sm.info.get("parts") else None
+        if k is not None and _main_kind(sm) != "water":
             for did in (sm.a, sm.b):
-                seam_segs.setdefault(did, []).extend(sm.segs)
+                seam_segs.setdefault(did, []).append(sm.segs[k])
     # a parent loses the child's slab only near the seam (beyond, the real outlines and the occupancy decide):
     # the Layout's slab runs on between the perpendiculars at the seam's ends, through the parent's own blocks
     subs = {k: list(v) for k, v in lay.subtract.items()}
@@ -259,9 +260,12 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
                 pc = city_lattice.centroid(piece)
                 ds = min((_segd(pc, (s_[0], s_[1]), (s_[2], s_[3])) for s_ in segs), default=1e18)
                 rx, ry = unlocal(mp.loc, lx, ly)
-                if ds < SEAM_NEAR * blk or _in_real(d, rx, ry) or \
-                        (ds < SEAM_FAR * blk and any(_in_real(o, rx, ry) for o in pdoms)):
+                if ds < SEAM_NEAR * blk:
+                    cl[(i, j)] = (3, piece, ds)
+                elif _in_real(d, rx, ry):
                     cl[(i, j)] = (2, piece, ds)
+                elif ds < SEAM_FAR * blk and any(_in_real(o, rx, ry) for o in pdoms):
+                    cl[(i, j)] = (1.5, piece, ds)
                 elif d.poly and _ring_d((rx, ry), d.poly) < OWN_TOL * (m.get("scale") or 1.0) and \
                         not any(o is not d and o not in pdoms and _in_real(o, rx, ry) for o in others_real):
                     cl[(i, j)] = (1, piece, ds)
@@ -284,12 +288,12 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     ok = {}
     for did, cl in claim.items():
         keep = set()
-        far = SEAM_FAR * max(lay.maps[did].loc.gv, lay.maps[did].loc.gh)
+        near1 = max(lay.maps[did].loc.gv, lay.maps[did].loc.gh)          # across a seam's own line the Layout decides
         for ij, (st, piece, ds) in cl.items():
             lose = False
             for x, y in samples(piece):
                 cur = occ.get((int(x // RASTER), int(y // RASTER)))
-                if cur and cur[1] != did and (ds >= far or cur[1] not in partners.get(did, ())) and cur[0] > (st, prio[did]):
+                if cur and cur[1] != did and (ds >= near1 or cur[1] not in partners.get(did, ())) and cur[0] > (st, prio[did]):
                     lose = True
                     break
             if not lose:

@@ -1664,6 +1664,10 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         pal["area"] = area
     pal["made"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     new = {**brief, "palace": pal}
+    old_pal = brief.get("palace") or {}
+    if old_pal.get("data_z") and brief.get("placement"):
+        # the city was drawn again (block numbers change): saved building lots move to the same real place
+        new["placement"], _mig = pal_mod.migrate_placements(old_pal, pal, brief.get("placement"))
     try:
         b, _, _ = load_brief({"brief": _checked(doc, new)})
         from .build.brief import validate_brief

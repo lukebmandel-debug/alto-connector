@@ -308,6 +308,8 @@ def to_px(m, lat, lon):
     lat0 = math.radians((s + n) / 2)
     sc = m.get("scale", 1.0)
     x, y = (lon - w) * math.cos(lat0) * 111320 * sc, (n - lat) * 110574 * sc
+    if m.get("doms"):          # city engine v2: through the domain the point is in (its lattice, turned and placed)
+        return page_of(m, x, y)
     if m.get("grid"):          # the even grid (palace_grid): turned, then carried through its streets
         from .palace_grid import mapping_from
         return mapping_from(m["grid"])(x, y)
@@ -317,6 +319,111 @@ def to_px(m, lat, lon):
         x, y = x - r["cx"], y - r["cy"]
         x, y = x * c - y * s_ + r["cx"] - r["dx"], x * s_ + y * c + r["cy"] - r["dy"]
     return (x, y)
+
+
+def _in_ring(r, x, y):
+    c = False
+    n = len(r)
+    for i in range(n):
+        (x0, y0), (x1, y1) = r[i], r[(i + 1) % n]
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            c = not c
+    return c
+
+
+def _ring_dist(r, x, y):
+    best = 1e18
+    n = len(r)
+    for i in range(n):
+        (ax, ay), (bx, by) = r[i], r[(i + 1) % n]
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy or 1e-12
+        t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / L2))
+        best = min(best, math.hypot(ax + t * dx - x, ay + t * dy - y))
+    return best
+
+
+def _dom_of_real(m, x, y):
+    ds = [d for d in m["doms"] if d.get("poly")]
+    own = [d for d in ds if _in_ring(d["poly"], x, y) and not any(_in_ring(h, x, y) for h in d.get("holes") or ())]
+    if own:
+        return min(own, key=lambda d: abs(sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(d["poly"], d["poly"][1:] + d["poly"][:1]))))
+    return min(ds, key=lambda d: _ring_dist(d["poly"], x, y))
+
+
+def page_of(m, x, y):
+    """Real map px -> page px on a v2 map (m["doms"]: mapping tables, page angle a, origin o)."""
+    from .palace_grid import mapping_from
+    d = _dom_of_real(m, x, y)
+    lx, ly = mapping_from(d["mapping"])(x, y)
+    a = math.radians(d.get("a") or 0.0)
+    c, s_ = math.cos(a), math.sin(a)
+    o = d.get("o") or (0.0, 0.0)
+    return (lx * c - ly * s_ + o[0], lx * s_ + ly * c + o[1])
+
+
+def real_of(m, X, Y):
+    """Page px -> real map px (the inverse of to_px's mapping), on a v1 or a v2 map; None when the map has neither."""
+    from .city_report import unmap
+    if m.get("doms"):
+        doms = m["doms"]
+        d = next((d for d in doms if d.get("clip") and _in_ring(d["clip"], X, Y)), None) or \
+            next((d for d in doms if not d.get("clip")), doms[0])
+        a = math.radians(d.get("a") or 0.0)
+        c, s_ = math.cos(a), math.sin(a)
+        o = d.get("o") or (0.0, 0.0)
+        dx, dy = X - o[0], Y - o[1]
+        lx, ly = dx * c + dy * s_, -dx * s_ + dy * c
+        return unmap(d["mapping"], lx, ly)
+    if m.get("grid"):
+        return unmap(m["grid"], X, Y)
+    return None
+
+
+MIGRATE_MAX = 1.5            # blocks: a saved lot farther than this from every new lot is not carried over
+
+
+def migrate(old_m, old_blocks, new_m, new_blocks, keys):
+    """Saved building lots ("<block>.<lot>") of an old city drawing -> lots of the new drawing (the city was set up
+    again: block numbers change). A lot that existed before goes to the free new lot nearest the same real place
+    (old page -> real -> new page). -> {old key: new key or None}; None (the old lot is gone, or either map has no
+    mapping) means: drop the fixed lot, the building is placed afresh — never a stale key that now points elsewhere."""
+    from .palace_grid import CW
+    old = {f"{b['id']}.{k}": lt for b in old_blocks or () for k, lt in enumerate(b["lots"])}
+    new = [(f"{b['id']}.{k}", lt[0], lt[1]) for b in new_blocks or () for k, lt in enumerate(b["lots"])]
+    cell = 400.0
+    idx = {}
+    for key, x, y in new:
+        idx.setdefault((int(x // cell), int(y // cell)), []).append((key, x, y))
+    out, taken = {}, set()
+    for key in keys:
+        lt = old.get(key)
+        rp = real_of(old_m, lt[0], lt[1]) if lt else None
+        if rp is None or not (new_m.get("doms") or new_m.get("grid")):
+            out[key] = None
+            continue
+        px, py = (page_of(new_m, *rp) if new_m.get("doms") else to_px_real(new_m, *rp))
+        best = None
+        ci, cj = int(px // cell), int(py // cell)
+        R = int(MIGRATE_MAX * CW // cell) + 1
+        for i in range(ci - R, ci + R + 1):
+            for j in range(cj - R, cj + R + 1):
+                for k2, x, y in idx.get((i, j), ()):
+                    if k2 in taken:
+                        continue
+                    d = math.hypot(x - px, y - py)
+                    if d <= MIGRATE_MAX * CW and (best is None or d < best[0]):
+                        best = (d, k2)
+        out[key] = best[1] if best else None
+        if best:
+            taken.add(best[1])
+    return out
+
+
+def to_px_real(m, x, y):
+    """Real map px -> page px on a v1 map (the even grid's tables)."""
+    from .palace_grid import mapping_from
+    return mapping_from(m["grid"])(x, y) if m.get("grid") else (x, y)
 
 
 def district_box(m, d) -> tuple:

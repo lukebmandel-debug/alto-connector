@@ -284,6 +284,34 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
             "data_z": pack({"map": m, "blocks": blocks})}
 
 
+def migrate_placements(old_pal: dict, new_pal: dict, placement: dict) -> tuple:
+    """A city set up again keeps its saved building lots (palace_place.migrate): each fixed "lot" moves to the new lot
+    at the nearest real place; one that cannot be carried over loses only its lot (the building is placed afresh, its
+    floor and other settings stay). -> (placement, {"moved", "dropped", "kept"})."""
+    from . import palace_place as pp
+    placement = {k: dict(v) if isinstance(v, dict) else v for k, v in (placement or {}).items()}
+    keys = [v["lot"] for v in placement.values() if isinstance(v, dict) and v.get("lot")]
+    rep = {"moved": 0, "dropped": 0, "kept": 0}
+    if not keys:
+        return placement, rep
+    try:
+        od, nd = unpack(old_pal["data_z"]), unpack(new_pal["data_z"])
+        mp = pp.migrate(dict(od["map"], bbox=old_pal.get("bbox")), od["blocks"],
+                        dict(nd["map"], bbox=new_pal.get("bbox")), nd["blocks"], keys)
+    except Exception:                                       # noqa: BLE001 — an old city that cannot be read
+        mp = {k: None for k in keys}
+    for v in placement.values():
+        if isinstance(v, dict) and v.get("lot"):
+            nk = mp.get(v["lot"])
+            if nk is None:
+                v.pop("lot", None); rep["dropped"] += 1
+            else:
+                rep["kept" if nk == v["lot"] else "moved"] += 1
+                v["lot"] = nk
+    placement = {k: v for k, v in placement.items() if not (isinstance(v, dict) and not v)}
+    return placement, rep
+
+
 def summary(pal: dict) -> dict:
     """What get_timeline shows of the city instead of the packed data."""
     if not pal:
