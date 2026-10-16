@@ -1,0 +1,165 @@
+{
+  "brief": {
+    "title": "The Lighthouse",
+    "subject": "A sample story for the horizontal timeline",
+    "mode": "lanes",
+    "columns": 3,
+    "node_noun": "Event",
+    "period_noun": "Part",
+    "entity_axis_label": "People",
+    "entity_axis_singular": "Person",
+    "main_line": "The story",
+    "lines": [
+      {
+        "id": "ada",
+        "label": "Ada",
+        "side": "above"
+      },
+      {
+        "id": "ben",
+        "label": "Ben",
+        "side": "below"
+      },
+      {
+        "id": "keeper",
+        "label": "The keeper",
+        "side": "above",
+        "color": "#9a7b4f"
+      }
+    ],
+    "flashbacks": [
+      {
+        "id": "storm",
+        "label": "Twenty years earlier"
+      }
+    ],
+    "acts": [
+      {
+        "label": "Part 1 — Arrival",
+        "short": "Arrival"
+      },
+      {
+        "label": "Part 2 — The storm years",
+        "short": "The storm"
+      },
+      {
+        "label": "Part 3 — The light returns",
+        "short": "The light"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "arrive",
+      "act": 0,
+      "tag": "Arrival",
+      "title": "Ada arrives in the harbour town",
+      "desc": "She takes a room above the chandler's.",
+      "when": "1890-04",
+      "present": [
+        "ada"
+      ]
+    },
+    {
+      "id": "ben-letter",
+      "act": 0,
+      "tag": "Letter",
+      "title": "Ben writes from the city",
+      "desc": "He has not yet decided to come.",
+      "when": "1890-05",
+      "line": "ben"
+    },
+    {
+      "id": "warning",
+      "act": 0,
+      "tag": "Warning",
+      "title": "The keeper's warning",
+      "desc": "Stay off the point after dark.",
+      "when": "1890-06",
+      "present": [
+        "ada",
+        "keeper"
+      ]
+    },
+    {
+      "id": "great-storm",
+      "act": 1,
+      "tag": "Flashback",
+      "title": "The great storm",
+      "desc": "The night the harbour wall broke.",
+      "when": "1870-10",
+      "flash": "storm",
+      "present": [
+        "keeper"
+      ]
+    },
+    {
+      "id": "lamp-dark",
+      "act": 1,
+      "tag": "Flashback",
+      "title": "The lamp goes dark",
+      "desc": "The keeper's lamp fails at the worst hour.",
+      "when": "1870-11",
+      "flash": "storm",
+      "present": [
+        "keeper"
+      ]
+    },
+    {
+      "id": "quay",
+      "act": 1,
+      "tag": "Meeting",
+      "title": "Ada meets Ben at the quay",
+      "desc": "He has come after all.",
+      "when": "1890-09",
+      "present": [
+        "ada",
+        "ben"
+      ]
+    },
+    {
+      "id": "logbooks",
+      "act": 1,
+      "tag": "Study",
+      "title": "Ada reads the old logbooks",
+      "desc": "She finds the night of the storm.",
+      "when": "1890-10",
+      "line": "ada"
+    },
+    {
+      "id": "council",
+      "act": 2,
+      "tag": "Council",
+      "title": "The town council meets",
+      "desc": "The lighthouse is to be repaired.",
+      "when": "1891-01",
+      "present": [
+        "ada",
+        "ben",
+        "keeper"
+      ]
+    },
+    {
+      "id": "relight",
+      "act": 2,
+      "tag": "Light",
+      "title": "The lamp is lit again",
+      "desc": "The point is bright for the first time in twenty years.",
+      "when": "1891-03",
+      "present": [
+        "ada",
+        "keeper"
+      ]
+    },
+    {
+      "id": "ben-leaves",
+      "act": 2,
+      "tag": "Departure",
+      "title": "Ben goes back to the city",
+      "desc": "The repairs are done; his work is elsewhere.",
+      "when": "1891-04",
+      "line": "ben"
+    }
+  ],
+  "connections": []
+}

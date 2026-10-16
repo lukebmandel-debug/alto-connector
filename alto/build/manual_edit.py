@@ -1211,7 +1211,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out)$/.test(p[2] || '')))) return window._altoPalaceField(k);
-    if(LN && (kind === 'ln' || (kind === 'n' && p.length === 3 && (p[2] === 'when' || p[2] === 'line')))) return laneField(kind, id, p[2]);
+    if(LN && (kind === 'ln' || kind === 'fb' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
       return {kind:'plain', get:function(){ return n[p[2]] || ''; }, set:function(v){
@@ -1548,7 +1548,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(kind === 'bt'){ headingSoon(); return; }
     if((kind === 'n' || kind === 'nn' || kind === 'nd') && window._altoSearch && window._altoSearch.reset) window._altoSearch.reset();     // the search index: the cards as they are now
     if(kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
-    if(kind === 'nl' || kind === 'ln' || (kind === 'n' && (p[2] === 'when' || p[2] === 'line'))){ relayoutSoon(); return; }
+    if(kind === 'nl' || kind === 'ln' || kind === 'fb' || (kind === 'n' && /^(when|line|present|flash)$/.test(p[2] || ''))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
       if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
@@ -1956,30 +1956,88 @@ MANUAL_JS = r"""<script id="alto-manual">
     var x = /-?\d+(?:\.\d+)?/.exec(s); return x ? +x[0] : null;
   }
   function laneOf(id){ var l = null; (LN.lines || []).forEach(function(q){ if(q.id === id) l = q; }); return l; }
+  function fbOf(id){ var f = null; (LN.flashbacks || []).forEach(function(q){ if(q.id === id) f = q; }); return f; }
+  // the page data's derived fields (lanes.derive) after every change: who is where, each flashback's run
+  function lnSync(){ if(window._altoLanesDerive) try{ window._altoLanesDerive(LN); }catch(e){} }
+  // a line as stored: only its authored keys (lanes.norm_line), never the derived ones
+  function lineSpec(l){ return l ? {id: l.id, label: l.label || '', color: l.color || '', side: l.side || '', from: l.from || '', to: l.to || ''} : null; }
   function laneField(kind, id, f){
     if(kind === 'ln'){
       var l0 = null; (LN0.lines || []).forEach(function(q){ if(q.id === id) l0 = q; });
-      return {kind:'card', sig:function(){ return l0; }, get:function(){ var l = laneOf(id); return l ? JSON.parse(JSON.stringify(l)) : null; },
+      return {kind:'card', sig:function(){ return lineSpec(l0); }, get:function(){ return lineSpec(laneOf(id)); },
         set:function(v){ var i = -1; LN.lines.forEach(function(q, j){ if(q.id === id) i = j; });
-          if(!v){ if(i >= 0) LN.lines.splice(i, 1); } else if(i >= 0) LN.lines[i] = Object.assign({}, v, {id: id}); else LN.lines.push(Object.assign({}, v, {id: id})); }};
+          if(!v){ if(i >= 0) LN.lines.splice(i, 1); } else if(i >= 0) LN.lines[i] = Object.assign({}, lineSpec(v), {id: id}); else LN.lines.push(Object.assign({}, lineSpec(v), {id: id}));
+          lnSync(); }};
+    }
+    if(kind === 'fb'){                                   // a flashback, whole: {id, label} or null
+      var f0 = null; (LN0.flashbacks || []).forEach(function(q){ if(q.id === id) f0 = q; });
+      var fspec = function(q){ return q ? {id: id, label: q.label || ''} : null; };
+      return {kind:'card', sig:function(){ return fspec(f0); }, get:function(){ return fspec(fbOf(id)); },
+        set:function(v){ LN.flashbacks = LN.flashbacks || []; var i = -1; LN.flashbacks.forEach(function(q, j){ if(q.id === id) i = j; });
+          if(!v){ if(i >= 0) LN.flashbacks.splice(i, 1); } else if(i >= 0) LN.flashbacks[i].label = v.label || ''; else LN.flashbacks.push(fspec(v));
+          lnSync(); }};
     }
     if(!srcNode(id)) return null;
-    var e0 = (LN0.ev || {})[id] || {l: 'main', w: '', t: null};
-    var ev = function(){ return LN.ev[id] = LN.ev[id] || {l: 'main', w: '', t: null}; };
+    var e0 = (LN0.ev || {})[id] || {l: 'main', w: '', t: null, present: [], flash: ''};
+    var ev = function(){ return LN.ev[id] = LN.ev[id] || {l: 'main', w: '', t: null, present: [], flash: ''}; };
     if(f === 'when') return {kind:'plain', sig:function(){ return e0.w || ''; }, get:function(){ return ev().w || ''; },
-      set:function(v){ var q = ev(); q.w = String(v || '').trim(); q.t = lanesWhen(q.w); }};
+      set:function(v){ var q = ev(); q.w = String(v || '').trim(); q.t = lanesWhen(q.w); lnSync(); }};
+    if(f === 'present') return {kind:'card', sig:function(){ return (e0.present || []).slice(); }, get:function(){ return (ev().present || []).slice(); },
+      set:function(v){ ev().present = (v || []).slice(); lnSync(); }};
+    if(f === 'flash') return {kind:'card', sig:function(){ return e0.flash || ''; }, get:function(){ return ev().flash || ''; },
+      set:function(v){ ev().flash = v || ''; lnSync(); }};
     return {kind:'card', sig:function(){ return e0.l === 'main' ? '' : e0.l; }, get:function(){ var l = ev().l; return l === 'main' ? '' : l; },
-      set:function(v){ ev().l = v || 'main'; }};
+      set:function(v){ ev().l = v || 'main'; lnSync(); }};
   }
   function lineName(lid){ if(!lid || lid === 'main') return LN.main || 'The main line'; var l = laneOf(lid); return l ? l.label : lid; }
   function lineMenu(id){
-    var at = (LN.ev[id] || {}).l || 'main', A = [];
+    var E = LN.ev[id] || {}, at = E.l || 'main', A = [], pr = E.present || [];
+    if(at === 'main' && LN.lines.length){
+      // who is on the page at this event: their line dips onto the main line here (lanes v2)
+      A.push({label: 'On the page here'});
+      LN.lines.forEach(function(l){ var on = pr.indexOf(l.id) >= 0;
+        A.push({t: (on ? '✓ ' : '') + l.label, sub: on ? 'Take them off the page here.' : 'Their line comes down onto the main line at this event.',
+          fn: function(){ var nv = on ? pr.filter(function(x){ return x !== l.id; }) : LN.lines.map(function(q){ return q.id; }).filter(function(x){ return x === l.id || pr.indexOf(x) >= 0; });
+            if(change('n|' + id + '|present', nv)) toast('“' + l.label + '” is ' + (on ? 'off' : 'on') + ' the page at “' + titleOf(id) + '” — ⌘Z puts it back.'); }}); });
+    }
+    if(at === 'main') flashItems(id, A);
+    A.push({label: 'Which line it is on'});
     [{id: 'main'}].concat(LN.lines).forEach(function(l){ if(l.id === at) return;
-      A.push({t: 'Onto “' + lineName(l.id) + '”', sub: l.id === 'main' ? 'The line everything else branches off.' : 'It keeps its date; the line runs through it.',
-        fn: function(){ if(change('n|' + id + '|line', l.id === 'main' ? '' : l.id)) toast('“' + titleOf(id) + '” is on “' + lineName(l.id) + '” now — ⌘Z puts it back.'); }}); });
-    A.push({t: '+ A new line for it…', sub: 'A storyline of its own — a person, a place, a flashback. You choose where it branches off and joins the main line next.',
+      A.push({t: 'Onto “' + lineName(l.id) + '”', sub: l.id === 'main' ? 'On the page: the story as it is told.' : 'Off the page: their own event. It keeps its date.',
+        fn: function(){ var L = [['n|' + id + '|line', l.id === 'main' ? '' : l.id]];
+          if(l.id !== 'main'){ if(pr.length) L.push(['n|' + id + '|present', []]); if(E.flash) L.push(['n|' + id + '|flash', '']); }
+          if(changes(L)) toast('“' + titleOf(id) + '” is on “' + lineName(l.id) + '” now — ⌘Z puts it back.'); }}); });
+    A.push({t: '+ A new line for it…', sub: 'A character, a place or a thread of its own — its line runs alongside while it is off the page.',
       fn: function(){ newLine(id); }});
-    ask('Which line is “' + titleOf(id) + '” on?', 'Now: “' + lineName(at) + '”.', A);
+    ask('“' + titleOf(id) + '”', 'On “' + lineName(at) + '”' + (E.flash && fbOf(E.flash) ? ', in the flashback “' + fbOf(E.flash).label + '”' : '') + '.', A);
+  }
+  /* flashbacks (lanes v2): consecutive main-line events the story tells out of time */
+  function mainsNow(){ lnSync(); var lids = {}; LN.lines.forEach(function(l){ lids[l.id] = 1; });
+    return (LN.order || []).filter(function(i){ var e = LN.ev[i]; return e && srcNode(i) && !cardGone(i) && (e.l === 'main' || !lids[e.l]); }); }
+  function flashItems(id, A){
+    var E = LN.ev[id] || {}, M = mainsNow(), k = M.indexOf(id), nb = [M[k - 1], M[k + 1]].map(function(i){ return i ? (LN.ev[i].flash || '') : ''; });
+    A.push({label: 'Flashback'});
+    (LN.flashbacks || []).forEach(function(f){
+      if(f.id === E.flash) return;
+      var used = M.some(function(i){ return LN.ev[i].flash === f.id; }), next = nb.indexOf(f.id) >= 0;
+      A.push({t: 'Into “' + f.label + '”', sub: 'Told out of time: the main line dips into the past here.', off: used && !next,
+        why: 'A flashback is one run of events in a row — this event is not next to it.',
+        fn: function(){ if(change('n|' + id + '|flash', f.id)) toast('“' + titleOf(id) + '” is in the flashback “' + f.label + '” — ⌘Z puts it back.'); }}); });
+    A.push({t: '+ A new flashback from here…', sub: 'Name it (e.g. “Ten years earlier”); give its events the dates they happened.',
+      fn: function(){ askName(document.getElementById('node-' + id) || document.body, 'Name the flashback', '', function(v){
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(!v) return;
+        var fid = 'fb-' + Math.random().toString(36).slice(2, 7);
+        if(changes([['fb|' + fid, {id: fid, label: v}], ['n|' + id + '|flash', fid]])) toast('“' + v + '” starts at “' + titleOf(id) + '” — put the events next to it in it too.'); }); }});
+    if(E.flash && fbOf(E.flash)){
+      var fl = fbOf(E.flash), run = M.filter(function(i){ return LN.ev[i].flash === fl.id; }), mid = run.length > 2 && run[0] !== id && run[run.length - 1] !== id;
+      A.push({t: 'Not in a flashback', sub: mid ? 'Only the first or last event of a flashback can leave it.' : 'Back in the present.', off: mid,
+        fn: function(){ if(change('n|' + id + '|flash', '')) toast('“' + titleOf(id) + '” is back in the present — ⌘Z puts it back.'); }});
+      A.push({t: 'Rename “' + fl.label + '”…', fn: function(){ askName(document.getElementById('node-' + id) || document.body, 'Name the flashback', fl.label, function(v){
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== fl.label && change('fb|' + fl.id, {id: fl.id, label: v})) toast('Renamed — ⌘Z puts it back.'); }); }});
+      A.push({t: 'Undo the whole flashback', cls: 'aa-danger', sub: 'All ' + run.length + ' of its events go back to the present.',
+        fn: function(){ var L = run.map(function(i){ return ['n|' + i + '|flash', '']; }); L.push(['fb|' + fl.id, null]);
+          if(changes(L)) toast('The flashback is gone — ⌘Z puts it back.'); }});
+    }
   }
   var LINE_COLORS = ['#e07a5f', '#3d9a8b', '#8a6fd1', '#d4a017', '#4a90d9', '#c2577a', '#5a9e4b', '#b8763e'];
   function newLine(id){
@@ -1987,8 +2045,10 @@ MANUAL_JS = r"""<script id="alto-manual">
     askName(at, 'Name the new line', '', function(v){
       v = String(v || '').replace(/\s+/g, ' ').trim(); if(!v) return;
       var lid = 'line-' + Math.random().toString(36).slice(2, 7), n = LN.lines.length;
-      var spec = {id: lid, label: v, color: LINE_COLORS[n % LINE_COLORS.length], side: n % 2 ? 'below' : 'above', from: '', to: ''};
-      if(changes([['ln|' + lid, spec], ['n|' + id + '|line', lid]])) toast('“' + v + '” is a new line — click its label to choose where it branches off and joins.');
+      var spec = {id: lid, label: v, color: LINE_COLORS[n % LINE_COLORS.length], side: n % 2 ? 'below' : 'above', from: '', to: ''}, E = LN.ev[id] || {};
+      var L = [['ln|' + lid, spec], ['n|' + id + '|line', lid]];
+      if((E.present || []).length) L.push(['n|' + id + '|present', []]); if(E.flash) L.push(['n|' + id + '|flash', '']);
+      if(changes(L)) toast('“' + v + '” is a new line — put it on the page at an event from that card’s ⟿ menu.');
     });
   }
   function laneMenu(lid){
@@ -1996,19 +2056,21 @@ MANUAL_JS = r"""<script id="alto-manual">
       toast('The main line runs through everything — its name is changed by Claude for now.'); return; }
     var l = laneOf(lid); if(!l) return;
     var has = Object.keys(LN.ev).some(function(i){ return LN.ev[i].l === lid && srcNode(i) && !cardGone(i); });
-    var put = function(ch, msg){ var v = Object.assign({}, l, ch); if(change('ln|' + lid, v)) toast(msg + ' — ⌘Z puts it back.'); };
+    var put = function(ch, msg){ var v = Object.assign({}, lineSpec(l), ch); if(change('ln|' + lid, v)) toast(msg + ' — ⌘Z puts it back.'); };
     var A = [
       {t: 'Rename it…', fn: function(){ askName(document.querySelector('.lanes-tag[data-ln-tag="' + lid + '"]') || document.body, 'Name this line', l.label, function(v){
-        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== l.label) put({label: v}, 'Renamed'); }); }},
-      {t: l.from ? 'It branches off at “' + titleOf(l.from) + '” — change…' : 'Branch it off an event…', sub: 'Click the event on another line where it splits away.',
-        fn: function(){ startLinePick(lid, 'from'); }},
-      {t: l.to ? 'It joins at “' + titleOf(l.to) + '” — change…' : 'Join it into an event…', sub: 'Click the event where it converges — for a flashback, where the story brings it up.',
-        fn: function(){ startLinePick(lid, 'to'); }}];
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== l.label) put({label: v}, 'Renamed'); }); }}];
+    // legacy (lanes v1) branch / join points: shown only on a line that has them, to change or clear;
+    // a line is on the page wherever a main-line event has it in `present` (the card's ⟿ menu)
+    if(l.from) A.push({t: 'It branches off at “' + titleOf(l.from) + '” — change…', sub: 'Click the event on another line where it splits away.',
+        fn: function(){ startLinePick(lid, 'from'); }});
+    if(l.to) A.push({t: 'It joins at “' + titleOf(l.to) + '” — change…', sub: 'Click the event where it converges.',
+        fn: function(){ startLinePick(lid, 'to'); }});
     if(l.from) A.push({t: 'Start it on its own', sub: 'No branch point: it begins just before its first event.', fn: function(){ put({from: ''}, 'It starts on its own'); }});
     if(l.to) A.push({t: 'Let it run on', sub: 'It does not join another line.', fn: function(){ put({to: ''}, 'It runs on'); }});
     A.push({t: 'Move it ' + (l.side === 'below' ? 'above' : 'below') + ' the main line', fn: function(){ put({side: l.side === 'below' ? 'above' : 'below'}, 'Moved'); }});
     A.push({t: 'Remove this line', cls: 'aa-danger', off: has, why: 'Put its events on another line first.', fn: function(){ if(change('ln|' + lid, null)) toast('Line removed — ⌘Z puts it back.'); }});
-    ask('The line “' + l.label + '”', has ? '' : 'It has no events yet: put one on it with ⟿ on a card.', A);
+    ask('The line “' + l.label + '”', has || (l.presence || []).length ? '' : 'Nothing yet: put it on the page at an event, or give it an event of its own, with ⟿ on a card.', A);
   }
   function startLinePick(lid, which){
     LPICK = {lid: lid, which: which};
@@ -2025,7 +2087,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var P = LPICK; endLinePick(); var l = laneOf(P.lid); if(!l) return;
     if(((LN.ev[id] || {}).l || 'main') === P.lid){ toast('That event is on this line — pick one on the line it ' + (P.which === 'from' ? 'branches off' : 'joins') + '.'); return; }
     var ch = {}; ch[P.which] = id;
-    if(change('ln|' + P.lid, Object.assign({}, l, ch))) toast('“' + l.label + '” ' + (P.which === 'from' ? 'branches off at' : 'joins at') + ' “' + titleOf(id) + '” — ⌘Z puts it back.');
+    if(change('ln|' + P.lid, Object.assign({}, lineSpec(l), ch))) toast('“' + l.label + '” ' + (P.which === 'from' ? 'branches off at' : 'joins at') + ' “' + titleOf(id) + '” — ⌘Z puts it back.');
   }
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && LPICK){ e.preventDefault(); e.stopPropagation(); endLinePick(); } }, true);
   /* swapping places: with a card under the same card, or with that card */
