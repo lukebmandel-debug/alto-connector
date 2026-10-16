@@ -12,7 +12,8 @@ for it, byte-identical, tests/test_grid_snapshot.py).
     10   landmarks / stations / parks           per domain through T_d
     11   palace_transit.snap(doms=...)          transit on the drawn domains, after the avenues  (E4)
     12   blocks/lots per domain (cut blocks included)
-    13   free domains                           voids (no lattice; their own streets are not drawn)
+    13   free domains + voids                   city_free: smoothed real streets (M.te), parks, blocks/lots, joined
+                                                to the grid's lattice nodes at its edge (FreeMap: similarity + IDW)
     14   city_report                            the summary is stored in g["engine"]["report"]
 
 build(m, det, majors, diagonals, lines, landmarks, parks) -> the map dict the page draws (v1 keys plus tq, te, doms,
@@ -25,7 +26,7 @@ import time
 from bisect import bisect_left
 from types import SimpleNamespace
 
-from . import city_avenues, city_lattice, city_seams
+from . import city_avenues, city_free, city_lattice, city_seams
 from .city_lattice import Lattice, emit, join_hinges, inside as ring_inside, area as ring_area
 from .palace_grid import CW, CH, PAD, LEAD, norm, _pairs, _segd, Mapping
 from .palace_river import course, resample, _main_piece, _len, NARROW_W, WIDE_W, GAP as RIVER_GAP, EDGE as RIVER_EDGE
@@ -36,6 +37,15 @@ SEAM_FAR = 6.0          # blocks: up to here a cell whose real place is in the d
 FAN_TILT = 20.0         # degrees: a hinge seam with no avenue between grids this little apart is a fan (the streets
                         # turn gradually, no street divides them: West/NW Philadelphia, 17 deg): the child joins its parent
 SEAM_AV = 150.0         # real px: a seam's own avenue is the seam this close to the seam's real line
+DBG_FREE = False        # True: g["engine"]["free_dbg"] keeps every free-edge sample (real, domain, page, nearest block)
+ACROSS_DEG = 1.5        # degrees: two grids across a river this close in angle ...
+ACROSS_ASPECT = 0.12    # ... with real block shapes this close (ratio)
+ACROSS_NAMES = 3        # ... sharing this many named streets are one grid (Chicago at the river)
+ACROSS_FILL = 4         # field cells: the water between them, filled so the merged outline is one ring
+FREE_SHARE = 0.72       # a grid domain with less of its street length on its axes than this is drawn free
+FREE_ACROSS = 4.0       # ... a free domain across water from a placed one reaches this many times farther
+FREE_REACH = 400.0      # real px: an edge point of a free domain this close to a grid domain is an anchor of its map
+FREE_DRAWN = 2.5        # blocks: ... when that domain draws a block this close to where it maps the point
 MIN_LINES = 3           # a grid domain needs this many lines a family to be a lattice (else it is a void)
 RASTER = 40.0           # page px: the occupancy raster that keeps two domains' blocks from overlapping
 FAN_ERR = 6.0           # degrees: a hinge seam with no avenue drawn this far off its real angle is a fan, not a seam;
@@ -43,6 +53,35 @@ FAN_ERR = 6.0           # degrees: a hinge seam with no avenue drawn this far of
 
 
 # ── small geometry ──────────────────────────────────────────────────────────
+def _axis_share(d, m, tol=12.0):
+    """The share of a domain's street length (k 1-4, no trails) within tol degrees of its lattice axes."""
+    tot = al = 0.0
+    th = math.degrees(d.theta or 0.0)
+    xs = [p[0] for p in d.poly]; ys = [p[1] for p in d.poly]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    for st in m.get("streets", []):
+        if st.get("t") or not 1 <= st.get("k", 9) <= 4:
+            continue
+        P = _pairs(st["p"])
+        for a, b in zip(P, P[1:]):
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            if not (x0 <= mx <= x1 and y0 <= my <= y1) or not ring_inside(d.poly, mx, my):
+                continue
+            L = math.dist(a, b)
+            ang = (math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) - th) % 90
+            tot += L
+            al += L if min(ang, 90 - ang) <= tol else 0.0
+    return al / tot if tot > 0 else None
+
+
+def _ring_samples(ring, step):
+    out = []
+    for a, b in zip(ring, ring[1:] + ring[:1]):
+        n = max(1, int(math.dist(a, b) // step))
+        out += [(a[0] + (b[0] - a[0]) * t / n, a[1] + (b[1] - a[1]) * t / n) for t in range(n)]
+    return out
+
+
 def _ring_d(p, ring):
     n = len(ring)
     return min(_segd(p, ring[i], ring[(i + 1) % n]) for i in range(n)) if n > 1 else 1e18
@@ -220,11 +259,44 @@ def multi(det) -> bool:
 
 
 # ── the pipeline ────────────────────────────────────────────────────────────
-def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> dict:
+def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(), free_share=None) -> dict:
     T = {}
+    free_share = FREE_SHARE if free_share is None else free_share
     t0 = time.time()
     doms_all = list(det.domains)
     majors_n = {norm(x) for x in majors}
+    # Luke: where the streets form no grid (London, central Paris) the graph paper is abandoned. A grid domain whose
+    # street length runs on its axes less than FREE_SHARE of the time is drawn free (the best-aligned one stays a
+    # grid: the page needs one lattice to stand on; the others are anchored to it in turn)
+    shares = {d.id: _axis_share(d, m) for d in doms_all if d.kind == "grid" and d.poly}
+    loose = [i for i, v in shares.items() if v is not None and v < free_share]
+    if loose and len(loose) == len(shares):
+        loose.remove(max(loose, key=lambda i: shares[i]))
+    for d in doms_all:
+        if d.id in loose:
+            d.kind = "free"
+    # 2b. one grid split by a river (Chicago): two grid domains facing each other across water on the same angle, whose
+    #     banks share named streets, are one lattice (the river is drawn over it; its bridges join the same lines)
+    across_merged = []
+    for a_id, b_id in list(getattr(det, "across", ()) or ()):
+        P_ = next((d for d in doms_all if d.id == a_id), None); Q_ = next((d for d in doms_all if d.id == b_id), None)
+        if not P_ or not Q_ or P_.kind != "grid" or Q_.kind != "grid" or not P_.poly or not Q_.poly:
+            continue
+        dth = abs(((math.degrees(P_.theta - Q_.theta) + 45) % 90) - 45)
+        if dth > ACROSS_DEG or _shared_names(P_, Q_, m) < ACROSS_NAMES:
+            continue
+        # the lattices align only when the blocks are the same shape too (a row is one real block per domain, P1):
+        # West Philadelphia's blocks (1.04) are not Center City's (1.29), so the Schuylkill stays a seam there
+        from .city_lines import block_aspect
+        ra, rb = block_aspect(P_, majors), block_aspect(Q_, majors)
+        if ra and rb and abs(math.log(ra / rb)) > math.log(1 + ACROSS_ASPECT):
+            continue
+        if abs(ring_area(Q_.poly)) > abs(ring_area(P_.poly)):
+            P_, Q_ = Q_, P_
+        _merge_across(det, P_, Q_, m, [d for d in doms_all if d not in (P_, Q_)])
+        doms_all = [d for d in doms_all if d is not Q_]
+        det.domains = [d for d in det.domains if d is not Q_]
+        across_merged.append((Q_.id, P_.id, round(dth, 2)))
     # 3. avenues (E5): every avenue's pieces per domain; the lattice / seam pieces must be kept as lines
     recs = city_avenues.classify(m, doms_all, majors, diagonals)
     av_keep = [{"n": r["n"], "dom": pc["dom"], "kind": pc["kind"]} for r in recs for pc in r["pieces"]]
@@ -235,6 +307,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     for _ in range(4):
         sl, lines, lay = city_seams.plan(grid_doms, avenues=av_keep, majors=majors, rivers=m.get("rivers"))
         bad = [d for d in grid_doms if min(len(lines[d.id]["v"]), len(lines[d.id]["h"])) < MIN_LINES]
+        if len(bad) == len(grid_doms):                 # the page needs one lattice to stand on: keep the biggest
+            bad.remove(max(bad, key=lambda d: (min(len(lines[d.id]["v"]), len(lines[d.id]["h"])), abs(ring_area(d.poly)))))
         if bad:
             voids += bad
             grid_doms = [d for d in grid_doms if d not in bad]
@@ -335,22 +409,80 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
                 rank = (st, prio[did])
                 if cur is None or rank > cur[0]:
                     occ[k] = (rank, did)
+    # the seams' outer ends: the child's region is not capped there (city_seams.CHILD_CAPS), so beside an end the
+    # stronger claim decides even between seam partners (else both draw the cells past the end: overlapping blocks)
+    ends_ = [(e, sm.a, sm.b) for sm in sl for k in _clip_idx(sm) for e in ((sm.segs[k][0], sm.segs[k][1]), (sm.segs[k][2], sm.segs[k][3]))]
     ok = {}
     for did, cl in claim.items():
         keep = set()
         near1 = max(lay.maps[did].loc.gv, lay.maps[did].loc.gh)          # across a seam's own line the Layout decides
         for ij, (st, piece, ds) in cl.items():
             lose = False
+            pc_ = city_lattice.centroid(piece)
+            at_end = any(did in (a_, b_) and math.dist(pc_, e_) < 1.5 * near1 for e_, a_, b_ in ends_)
             for x, y in samples(piece):
                 cur = occ.get((int(x // RASTER), int(y // RASTER)))
-                if cur and cur[1] != did and (ds >= near1 or cur[1] not in partners.get(did, ())) and cur[0] > (st, prio[did]):
+                if cur and cur[1] != did and (ds >= near1 or at_end or cur[1] not in partners.get(did, ())) and cur[0] > (st, prio[did]):
                     lose = True
                     break
             if not lose:
                 keep.add(ij)
         ok[did] = keep
-    # page origin: the drawn cells start PAD from the top-left
+    # 13a. free domains (design 6; Luke: where the streets form no grid, smoothed real geometry joined to the grid at
+    #      its edge): a void grid domain too is drawn free. Each gets a FreeMap fitted to anchors on its edge (where the
+    #      neighbouring grid domain draws those real points); its page ring counts for the page's size
+    frees, free_try = [], []
+    dbg_free = {} if DBG_FREE else None
+    cent_b = {}
+    for did, keep in ok.items():
+        blk_ = max(lay.maps[did].loc.gv, lay.maps[did].loc.gh)
+        for ij in keep:
+            c_ = city_lattice.centroid(claim[did][ij][1])
+            cent_b.setdefault((did, int(c_[0] // 400), int(c_[1] // 400)), []).append(c_)
+    sc_ = m.get("scale") or 1.0
+    todo = [d for d in doms_all if d.kind == "free" and d.poly] + [d for d in voids if d.poly]
+    placed = set()
+    for _pass in range(len(todo)):
+      for F in todo:
+        if F.id in placed:
+            continue
+        src, dst, n_near = [], [], 0
+        for p in _ring_samples(F.poly, 60.0 * sc_):
+            # a free domain next to one already placed (Manayunk's void beside Wissahickon) takes its map there
+            # (from the second pass on, also across a river: London's south bank from the north bank)
+            reach_ = 0.5 * FREE_REACH * sc_ * (1 if _pass == 0 else FREE_ACROSS)
+            nf = next((fm_ for F_, fm_, _r in frees if _ring_d(p, F_.poly) < reach_), None)
+            if nf is not None:
+                src.append(p); dst.append(nf(*p)); continue
+            best = None
+            for d in grid_doms:
+                dd = 0.0 if _in_real(d, *p) else _ring_d(p, d.poly)
+                if dd < FREE_REACH * sc_ and (best is None or dd < best[0]):
+                    best = (dd, d)
+            if best is None:
+                continue
+            n_near += 1
+            did = best[1].id
+            q = lay.maps[did](*p)
+            if dbg_free is not None:
+                dmin_ = min((math.dist(q, c_) for k_, v_ in cent_b.items() if k_[0] == did for c_ in v_), default=-1)
+                dbg_free.setdefault(F.id, []).append((round(p[0]), round(p[1]), did, round(q[0]), round(q[1]), round(dmin_)))
+            r_ = FREE_DRAWN * max(lay.maps[did].loc.gv, lay.maps[did].loc.gh)
+            if any(math.dist(q, c_) <= r_ for i in (-1, 0, 1) for j in (-1, 0, 1)
+                   for c_ in cent_b.get((did, int(q[0] // 400) + i, int(q[1] // 400) + j), ())):
+                src.append(p); dst.append(q)
+        if _pass == len(todo) - 1 or len(src) >= 6:
+            free_try.append({"id": F.id, "anchors": len(src), "near": n_near})
+        if len(src) < 6:
+            continue
+        fm = city_free.FreeMap(src, dst)
+        ring = [fm(*p) for p in F.poly]
+        frees.append((F, fm, ring))
+        placed.add(F.id)
+    # page origin: the drawn cells (and the free domains) start PAD from the top-left
     xs, ys = [], []
+    for _F, _fm, ring in frees:
+        xs += [p[0] for p in ring]; ys += [p[1] for p in ring]
     for did, keep in ok.items():
         mp = lay.maps[did]
         i0, j0, xg, yg = lat_ix[did]
@@ -358,8 +490,18 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
             for a, b in ((i, j), (i + 1, j + 1), (i + 1, j), (i, j + 1)):
                 p = mp.page(xg[a], yg[b])
                 xs.append(p[0]); ys.append(p[1])
+    if not xs:                                       # the one lattice kept draws nothing: draw the loose grids as grids
+        if loose:
+            for d in doms_all:
+                if d.id in loose:
+                    d.kind = "grid"
+            return build(m, det, majors, diagonals, rail_specs, lm_specs, parks, free_share=0.0)
+        raise ValueError("city engine: no domain draws a block")
     dx, dy = PAD - min(xs), PAD - min(ys)
     city_seams._shift(lay, {d.id: d for d in grid_doms}, sl, dx, dy)
+    for _F, fm, ring in frees:
+        fm.shift = (dx, dy)
+        ring[:] = [(x + dx, y + dy) for x, y in ring]
     for did, cl in claim.items():
         for ij in list(cl):
             st_, piece, ds_ = cl[ij]
@@ -492,6 +634,59 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     edges = [e for did in outs for e in outs[did]["edges"]]
     tq = [q for did in outs for q in outs[did]["tq"]]
     te = [q for did in outs for q in outs[did]["te"]]
+
+    # 13b. the free domains' streets (city_free): real streets smoothed, cut out of the grid's drawn blocks and the
+    #      river, ends at the grid's edge joined to its lattice nodes; drawn as M.te polylines (heavy when L), routed
+    #      by palace_place.graph and the transit snap like any street; parks as page rings; blocks/lots between them
+    free_out = {"parks": [], "blocks": [], "doms": []}
+    if frees:
+        tf = time.time()
+        from .palace_place import _Grid
+        occ_g = _Grid(W, H, 20)
+        rings_g, bnodes = [], []
+        for did, out in outs.items():
+            lat = lats[did]
+            R = _outline(lat, out["cells"])
+            if R:
+                rings_g.append([v for q in R for v in q])
+            cnt = {}
+            for (i, j), kd in out["cells"].items():
+                if kd in ("full", "cut", "plaza", "lm"):
+                    for nd in ((i, j), (i + 1, j), (i, j + 1), (i + 1, j + 1)):
+                        cnt[nd] = cnt.get(nd, 0) + 1
+            bnodes += [lat.node(i, j) for (i, j), c_ in cnt.items() if c_ < 4]
+        occ_g.fill(rings_g)
+
+        def bad(p):
+            if not (0 <= p[0] < W and 0 <= p[1] < H):
+                return True
+            gx, gy = int(p[0] // 20), int(p[1] // 20)
+            return bool(occ_g.a[gy * occ_g.w + gx]) or near_river(p, 4)
+        blk0 = (rmp.loc.gv + rmp.loc.gh) / 2
+        for F, fm, ring in frees:
+            fst = city_free.streets_in(m, F.poly, fm, bad, bnodes, blk0, majors)
+            fpk = city_free.parks_in(m, F.poly, fm, names=[p_ if isinstance(p_, str) else (p_.get("name") or "")
+                                                            for p_ in (parks or ())])
+            streets += fst
+            te += [list(s_["p"]) for s_ in fst]
+            keep = lambda x, y: not bad((x, y))                                   # noqa: E731
+            fbl = city_free.blocks_in(fst, ring, rings_g, fpk, keep)
+            for b_ in fbl:
+                b_["r"] = [round(v, 1) for v in fm.inverse(b_["x"], b_["y"])]
+                b_["dom"] = F.id
+            free_out["parks"] += fpk
+            free_out["blocks"] += fbl
+            tb, a_deg, o_ = fm.tables()
+            free_out["doms"].append({"id": F.id, "kind": "free", "theta": 0.0, "a": round(a_deg, 4),
+                                     "o": [round(o_[0], 2), round(o_[1], 2)], "mapping": tb,
+                                     "clip": [[round(x, 1), round(y, 1)] for x, y in ring],
+                                     "poly": [[round(x), round(y)] for x, y in F.poly],
+                                     "holes": [[[round(x), round(y)] for x, y in h] for h in (F.holes or []) if h],
+                                     "cwch": [round(rmp.loc.gv, 2), round(rmp.loc.gh, 2)],
+                                     "fit": {"sigma": round(fm.T[0], 4), "rot": round(a_deg, 2), "rms": round(fm.rms, 1),
+                                             "anchors": len(fm.src), "streets": len(fst), "blocks": len(fbl),
+                                             "parks": len(fpk)}})
+        T["free"] = round(time.time() - tf, 2)
 
     # 8. the avenues (E5): octilinear in their domains, joined at the seams
     tdoms = {}
@@ -694,8 +889,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     from .palace_parks import pick as pick_parks
     rxg = [x + rmp.o[0] for x in rmp.loc.xg]          # the root's lines on the page (a = 0): the mapping tables
     ryg = [y + rmp.o[1] for y in rmp.loc.yg]
-    park_cells = []
-    taken_pk = set()
+    park_cells = list(free_out["parks"])
+    taken_pk = {pk["_full"] for pk in park_cells}
     for did in sorted(by_id, key=lambda i: (i != root, i)):
         d, lat, mp = by_id[did], lats[did], maps[did]
         mine = []
@@ -727,6 +922,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
             b.pop("cell", None)
             b["lots"] = [lt for lt in b["lots"] if not any(abs(lt[1] - ry) < 30 for ry in rail_y)] or b["lots"]
             blocks.append(b)
+    blocks += free_out["blocks"]
     blocks.sort(key=lambda b: (b["y"], b["x"]))
     for k, b in enumerate(blocks):
         b["id"] = k
@@ -741,13 +937,14 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
              landmarks=landmarks_out, rivers=[], river=river, water=[], tiles=tiles, edges=edges, tq=tq, te=te,
              majors=sorted(majors_n | {norm(s_["n"]) for s_ in streets if s_.get("k") == 0 and s_.get("n")} | bridge_names),
              grid=tables, cols=[n for n in _names(lines[root], "v") if n], rows=[n for n in _names(lines[root], "h") if n])
-    g["doms"] = [_dom_out(tdoms[did], lats[did], maps[did], did == root) for did in sorted(by_id)]
+    g["doms"] = [_dom_out(tdoms[did], lats[did], maps[did], did == root) for did in sorted(by_id)] + free_out["doms"]
     g["seams"] = [_seam_out(sm) for sm in sl if _main_kind(sm) != "water" and sm.segs]
     g["transit"] = transit
     g["blocks"] = blocks
     T["total"] = time.time() - t0
     g["engine"] = {"path": "v2", "domains": len(by_id), "voids": [d.id for d in voids], "fans_merged": merged_fans,
-                   "free": [d.id for d in doms_all if d.kind == "free"],
+                   "free": [d.id for d in doms_all if d.kind == "free"], "free_fit": free_try, "axis_share": {i: round(v, 3) for i, v in shares.items() if v is not None},
+                   "loose": loose, "across_merged": across_merged, "free_dbg": dbg_free,
                    "seams": [{"a": sm.a, "b": sm.b, "kind": sm.kind, "avenue": sm.avenue, "phi": round(sm.phi, 2),
                               "hinges": len(sm.hinge)} for sm in sl],
                    "t": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in T.items()}}
@@ -826,6 +1023,48 @@ def _merge(det, P, Q, m):
                    if abs(cdm.ring_area(r)) >= 2 * C * C]
     P.streets = list(P.streets or ()) + list(Q.streets or ())
     P.area = round((P.area or 0) + (Q.area or 0), 2)
+
+
+def _shared_names(P, Q, m):
+    """How many named streets (k <= 3) run in both domains."""
+    def names(d):
+        out = set()
+        xs = [p[0] for p in d.poly]; ys = [p[1] for p in d.poly]
+        for st in m.get("streets", []):
+            if st.get("t") or not st.get("n") or st.get("k", 9) > 3:
+                continue
+            for x, y in _pairs(st["p"])[::3]:
+                if min(xs) <= x <= max(xs) and min(ys) <= y <= max(ys) and ring_inside(d.poly, x, y):
+                    out.add(norm(st["n"])); break
+        return out
+    return len(names(P) & names(Q))
+
+
+def _merge_across(det, P, Q, m, others):
+    """Q joins P across the water between them: their cells, plus the unowned cells between the two banks (so the
+    merged outline is one ring), then _merge."""
+    C = det.field.C
+    PS, QS = set(P.cells or ()), set(Q.cells or ())
+    taken = set()
+    for d in others:
+        taken |= set(d.cells or ())
+    fill = set()
+    xs = [c[0] for c in PS | QS]; ys = [c[1] for c in PS | QS]
+    for i in range(min(xs), max(xs) + 1):
+        for j in range(min(ys), max(ys) + 1):
+            c = (i, j)
+            if c in PS or c in QS or c in taken:
+                continue
+            hp = hq = False
+            for r in range(1, ACROSS_FILL + 1):
+                for u, v in ((r, 0), (-r, 0), (0, r), (0, -r)):
+                    q = (i + u, j + v)
+                    hp = hp or q in PS
+                    hq = hq or q in QS
+            if hp and hq:
+                fill.add(c)
+    P.cells = PS | fill
+    _merge(det, P, Q, m)
 
 
 def _tower_cell(d, mp, L, i0, j0, nx, ny, f, reach=1.0):

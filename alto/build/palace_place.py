@@ -159,11 +159,12 @@ def _max_rect(rows):
     return best[1]
 
 
-def lots(m) -> list[dict]:
+def lots(m, cell=CELL) -> list[dict]:
     """Every block that can hold a building: [{id, x, y, lots: [[cx, cy, w, h, deg], ...]}].
-    Block ids number blocks top-left to bottom-right; a lot's key is "<id>.<k>"."""
+    Block ids number blocks top-left to bottom-right; a lot's key is "<id>.<k>". cell: the raster (a city engine
+    free domain uses a coarser one: its window is large)."""
     W, H = m["W"], m["H"]
-    g = _Grid(W, H)
+    g = _Grid(W, H, cell)
     for s in m.get("streets", []):
         if not s.get("t"):
             g.stroke(s["p"], STREET_HALF.get(s.get("k", 4), 4) + MARGIN)

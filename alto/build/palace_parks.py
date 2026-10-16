@@ -341,6 +341,9 @@ def shape(raw, xg, yg, used=(), min_pts=0) -> list:
     the others on the page grid xg, yg."""
     out = []
     for pk in raw or []:
+        if pk.get("pg"):                                   # city engine v2 free domain: already page rings, as drawn
+            out.append({k: v for k, v in pk.items() if k not in ("pg", "_full")})
+            continue
         if not pk.get("c"):                                # an old city's raw OSM rings: not for drawing
             continue
         if pk.get("f"):

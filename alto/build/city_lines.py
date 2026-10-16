@@ -130,10 +130,14 @@ def candidates(streets, theta, center, majors=(), must=()):
         for l in lines:
             if kept and l["pos"] - kept[-1]["pos"] < SAME_LINE:
                 q = kept[-1]
-                keep, drop = (q, l) if (q["must"], q["major"], q["len"]) >= (l["must"], l["major"], l["len"]) else (l, q)
+                # a motorway over a street (I-95 above Front Street) never takes the street's line: the street is what
+                # stations and addresses name (P4: the Market-Frankford jog between Spring Garden and Girard)
+                rank = lambda z: (z.get("k", 9) != 0, z["must"], z["major"], z["len"])          # noqa: E731
+                keep, drop = (q, l) if rank(q) >= rank(l) else (l, q)
                 keep["spans"] = sorted(keep["spans"] + drop["spans"])
                 keep["bridges"] += drop["bridges"]
                 keep["must"] = keep["must"] or drop["must"]
+                keep["major"] = keep["major"] or drop["major"]
                 kept[-1] = keep
                 continue
             kept.append(l)
