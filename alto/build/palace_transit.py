@@ -29,6 +29,8 @@ STOP_R = 85.0           # a trolley stop with no drawn street this near (grid px
 DEV_AVG = 60.0          # px: how far a street may stray from the real track before the router stops liking it
 MAX_DEV = 150.0         # px: a routed stretch whose mean distance from the real track is more than this is not used
 LANE = 7.0              # px between two lines that share a street
+RAMP = 500.0            # px (engine v2 only): an underground station off every street reaches its first street by a tunnel ramp this long at most
+TRAM_BEND = 70.0        # px (engine v2 only): what one turn costs a trolley (no stair-step under a diagonal real track)
 MAX_STOP_GAP = 130.0    # a stop farther than this from its line (about half a block) is not drawn: its track was trimmed or never fetched
 
 
@@ -272,7 +274,7 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
     return out
 
 
-def _finish(tr, edges, tunnels, dropped, mp, keyf, normal):
+def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE):
     """Lanes, polylines and stops of the routed lines. edges: {line id: {(a, b)}} page points; keyf(a, b): the lattice
     line a piece runs along ((dom, "h"|"v", index) or the square grid's ("h", y) / ("v", x)), None for a diagonal or a
     seam (a line keeps its centre there); normal(key): the page unit vector its lanes shift along."""
@@ -376,7 +378,7 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal):
         groups = []
         for lid, p in found:
             for g in groups:
-                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= 2 * LANE + .1 for _, q in g):
+                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= group + .1 for _, q in g):
                     g.append((lid, p))
                     break
             else:
@@ -406,7 +408,7 @@ def _snap_octi(tr, doms, streets, edges_, segs):
         if ln["k"] == "tram":
             under = {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}
             es, kept, tun = route(adj, real_points(ln["w"], cm), stops, ln.get("b") or [ln["s"]],
-                                  STOP_R, DEV_AVG, MAX_DEV, under)
+                                  STOP_R, DEV_AVG, MAX_DEV, under, ramp=RAMP, bend=TRAM_BEND)
             edges[ln["id"]] = es
             tunnels[ln["id"]] = tun
             dropped |= {(si, ln["id"]) for si in ln["s"] if si not in kept}
@@ -426,6 +428,6 @@ def _snap_octi(tr, doms, streets, edges_, segs):
     def keyf(a, b):
         e = (a, b) if a < b else (b, a)
         return rkey[e] if e in rkey else cm.lane_key(a, b)
-    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal)
+    out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE)   # one dot per pair of next lanes: on both tracks
     out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
     return out

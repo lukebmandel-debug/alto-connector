@@ -163,12 +163,15 @@ def _dijkstra(adj, cost, src, dst):
     return path[::-1]
 
 
-def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, under=(), why=None):
+def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, under=(), why=None, ramp=0.0, bend=0.0):
     """stops: [(x, y)] in grid px; branches: lists of indices into stops, in ride order; under: the indices of the stops
     that are underground stations (a tunnel needs no street: two such stops that no street joins are joined by a straight
     tunnel). Returns (edges, kept, tunnel) where edges is a set of ((x, y), (x, y)) pieces (each ordered low to high),
     kept the set of stop indices the line calls at and tunnel the pieces that run under no street. why: a list that
-    collects why a pair of stops was not joined."""
+    collects why a pair of stops was not joined. ramp (px, 0 = off): an underground station off every street (a portal)
+    is joined to its surface neighbour by a short tunnel ramp to the street node within `ramp` px of it nearest the real
+    track, then by the streets. bend (px, 0 = off): what a turn costs, so that a trolley on a square grid under a
+    diagonal real track takes one or two turns, not a stair-step at every corner."""
     b = _bucket(real)
     memo = {}
 
@@ -201,7 +204,21 @@ def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, 
             if na == nb:
                 got = (set(), set())
             else:
-                path = _dijkstra(adj, cost, na, nb) if na in adj and nb in adj else None
+                ramps = set()
+                if ramp and (na in adj) != (nb in adj) and (sa if na not in adj else sb) in under:
+                    off_ = na if na not in adj else nb
+                    cand = [(math.hypot(u[0] - off_[0], u[1] - off_[1]) + 2 * _dev(b, *u), u) for u in adj
+                            if abs(u[0] - off_[0]) <= ramp and abs(u[1] - off_[1]) <= ramp
+                            and math.hypot(u[0] - off_[0], u[1] - off_[1]) <= ramp]
+                    if cand:
+                        on = min(cand)[1]
+                        ramps = {(off_, on) if off_ < on else (on, off_)}
+                        na, nb = (on, nb) if off_ == na else (na, on)
+                path = None
+                if na in adj and nb in adj:
+                    path = _dijkstra_bends(adj, cost, na, nb, bend) if bend else _dijkstra(adj, cost, na, nb)
+                if ramps and path is not None and len(path) == 1:
+                    path = None
                 straight = math.hypot(na[0] - nb[0], na[1] - nb[1])
                 bad = None
                 if not path:
@@ -214,7 +231,7 @@ def route(adj, real, stops, branches, radius=85.0, dev_avg=60.0, max_dev=110.0, 
                     elif plen > 2.2 * straight + 450:
                         bad = "the streets between them are a %d px detour for %d px" % (plen, straight)
                 if not bad:
-                    got = ({(u, v) if u < v else (v, u) for u, v in zip(path, path[1:])}, set())
+                    got = ({(u, v) if u < v else (v, u) for u, v in zip(path, path[1:])} | ramps, ramps)
                 elif sa in under and sb in under:   # a tunnel between two underground stations
                     e = (na, nb) if na < nb else (nb, na)
                     got = ({e}, {e})
@@ -438,6 +455,8 @@ class _Dom:
         if self.poly:
             xs, ys = [p[0] for p in self.poly], [p[1] for p in self.poly]
             self.pbox = (min(xs), min(ys), max(xs), max(ys))
+        self.area = abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(self.poly, self.poly[1:] + self.poly[:1]))) / 2 \
+            if self.poly else 0.0
         self.cbox = None
         if self.clip:
             xs, ys = [p[0] for p in self.clip], [p[1] for p in self.clip]
@@ -466,9 +485,9 @@ class CityMap:
         self.rest = [d for d in self.ds if not d.clip]           # the domain(s) with no clip: everything no clip claims
 
     def dom_real(self, x, y):
-        for d in self.ds:
-            if d.owns_real(x, y):
-                return d
+        own = [d for d in self.ds if d.owns_real(x, y)]
+        if own:                                          # nested polygons: the innermost (the smallest) owns it
+            return own[0] if len(own) == 1 else min(own, key=lambda d: d.area)
         return min(self.ds, key=lambda d: _ring_d(d.poly, x, y) if d.poly else 1e17)
 
     def __call__(self, x, y):
@@ -664,8 +683,9 @@ def _ray(p, d, a, b):
     return s, t
 
 
-def _dijkstra_bends(adj, cost, src, dst):
+def _dijkstra_bends(adj, cost, src, dst, bend=None):
     """Cheapest path src -> dst where a bend costs BEND scaled by how sharp it is (states: node, heading)."""
+    B = BEND if bend is None else bend
     start = (src, None)
     dist, prev, q, n = {start: 0.0}, {}, [(0.0, 0, start)], 0
     while q:
@@ -683,9 +703,9 @@ def _dijkstra_bends(adj, cost, src, dst):
             a = round(_ang(u, v))
             t = 0.0 if h is None else _turn(h, a)
             if t > 100:
-                pen = 4 * BEND
+                pen = 4 * B
             elif t > 2:
-                pen = BEND * (0.6 + 0.4 * t / 90.0)
+                pen = B * (0.6 + 0.4 * t / 90.0)
             else:
                 pen = 0.0
             c2 = c + cost(u, v, L) + pen
