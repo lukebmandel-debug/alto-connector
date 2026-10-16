@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.76"
+__version__ = "1.9.77"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1556,7 +1556,8 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   rail_lines: list[dict] | None = None,
                   landmark_buildings: list[dict] | None = None,
                   parks: list[str] | None = None,
-                  areas: list[dict] | None = None) -> dict:
+                  areas: list[dict] | None = None,
+                  portals: list[dict] | None = None) -> dict:
     """The city a Mind Palace (mode 'palace', §D-Palace) is drawn on: fetches
     its streets, rivers, parks, railways, stations and landmarks from
     OpenStreetMap, finds its blocks and building lots, and stores them with the
@@ -1599,7 +1600,9 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     landmark; one section has one tower. [{name, label?, page?, unit?,
     floors?}]. parks: names of parks to
     draw as green glass with their paths whatever their size ("Rittenhouse
-    Square"); the big ones (15 ha and up) are drawn anyway. areas: the
+    Square"); the big ones (15 ha and up) are drawn anyway. portals: gateways to places off the
+    map (an airport, another city), [{name, stations: [station names], via?, line?}] — each named
+    station shows a portal pin whose card names the place and the stations it is reached from. areas: the
     city's named neighborhoods, drawn as small label-only names,
     [{name, lat, lon, rank}] (the neighborhood's middle in degrees; rank 1 a
     major name shown at the whole-city zoom … 4 a minor one shown up close;
@@ -1651,7 +1654,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
                              landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
-                             parks=parks, areas=areas)
+                             parks=parks, areas=areas, portals=portals)
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass

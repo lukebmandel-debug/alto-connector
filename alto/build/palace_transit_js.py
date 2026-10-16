@@ -29,6 +29,12 @@ TRANSIT_CSS = r"""
   .pal-svg .pl-tl.hot .pl-tube{filter:drop-shadow(0 0 3px var(--tc,#888));}
   .pal-svg.tr-focus .pl-tl:not(.hot){opacity:.22;}
   .pal-svg.tr-focus .tr-stn:not(.lit){opacity:.25;}
+  /* a portal: a gateway at a station to a place off the map */
+  .pal-svg .pl-portal{pointer-events:auto;cursor:pointer;}
+  .pal-svg .pl-portal circle{fill:var(--surface,#fff);stroke:var(--accent,#6d5bd0);stroke-width:2;}
+  .pal-svg .pl-portal text{font-size:12px;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:var(--accent,#6d5bd0);}
+  .pal-svg .pl-portal line{stroke:var(--accent,#6d5bd0);stroke-width:1.5;stroke-dasharray:3 3;}
+  .pal-svg .pl-portal:hover circle{fill:var(--accent,#6d5bd0);} .pal-svg .pl-portal:hover text{fill:#fff;}
   /* a line (or a filter that rides lines) in view: everything not on it steps back */
   .pal-svg.tr-focus .pl-streets,.pal-svg.tr-focus .pl-parks,.pal-svg.tr-focus .pl-washes,.pal-svg.tr-focus .pl-lms,.pal-svg.tr-focus .pl-lmb,.pal-svg.tr-focus .pl-blds,.pal-svg.tr-focus .pl-rails{opacity:.3;transition:opacity .2s;}
   html.alto-palace.tr-solo:not(.mobile) #world .node:not(.focused):not(.pal-chip-hot):not(.pal-hot){opacity:.3;}
@@ -102,7 +108,7 @@ TRANSIT_JS = r"""
 if(window._palTr) return;
 var E=null, T=null, NS='http://www.w3.org/2000/svg';
 var WALK=1, RIDE=.2, BOARD=120, XFER=70;
-var S={line:null, stop:null, ride:null, chipH:null, chipF:null};   /* a line picked; a stop picked; riding {l,i}; the chip pointed at; the chips filtered */
+var S={portal:null, line:null, stop:null, ride:null, chipH:null, chipF:null};   /* a line picked; a stop picked; riding {l,i}; the chip pointed at; the chips filtered */
 function el(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function col(l){ return E.tubeCol(l.c); }
@@ -170,7 +176,17 @@ function stations(svg){
     else { el('circle',{'class':'tr-ring', r:RIN, stroke:c0},d); el('circle',{'class':'tr-sh', r:RIN},d); }
     el('circle',{'class':'tr-pulse', r:8},g);
     E.stLbl(stl, 'pl-stt tr-lbl'+(hub?' hub':''), s.n, s.x, s.y, hub).setAttribute('data-s', i); });
+  (E.P.po||[]).forEach(function(po,pi){ portalStops(po).forEach(function(i){ var s=T.stops[i];
+    var g=E.pin(stl,'pl-portal',s.x,s.y,{'data-po':pi,'data-s':i}); el('line',{x1:0,y1:-6,x2:13,y2:-17},g);
+    var c=el('circle',{cx:16,cy:-20,r:11},g); el('text',{x:16,y:-20},g).textContent='\u2708'; var t=el('title',{},g); t.textContent='Portal: '+po.name; }); });
 }
+/* the stops a portal opens from: named stations (on its line, when it names one) */
+function pnk(n){ return String(n||'').toLowerCase().replace(/philadelphia|station|street|\bst\b/g,'').replace(/[^a-z0-9]/g,''); }
+function portalStops(po){ var want=(po.stations||[]).map(pnk).filter(Boolean), out=[];
+  T.stops.forEach(function(s,i){ var k=pnk(s.n); if(!k) return;
+    if(po.line && !s.l.some(function(id){ var l=lineOf(id); return l && String(l.n).toLowerCase().indexOf(String(po.line).toLowerCase())>=0; })) return;
+    if(want.some(function(w){ return k===w || k.indexOf(w)>=0 || w.indexOf(k)>=0; })) out.push(i); });
+  return out; }
 /* the chip route sits above the street hits and below the stops */
 function hits(svg){
   if(!T || svg._sid!=='d') return; var h=el('g',{'class':'pl-tr-hits'},svg);
@@ -198,12 +214,19 @@ function lineTip(l){ return l.n+' · '+l.s.length+' stops'; }
 /* ── the panel ── */
 function panel(){ var p=document.getElementById('pal-tr'); if(!p){ p=document.createElement('div'); p.id='pal-tr'; document.body.appendChild(p);
   p.addEventListener('click', function(e){ var b=e.target.closest('[data-a]'); if(!b) return; var a=b.getAttribute('data-a'), v=b.getAttribute('data-v');
-    if(a==='x') clear(); else if(a==='ride') ride(v, +b.getAttribute('data-i')||0); else if(a==='next') step(1); else if(a==='prev') step(-1);
+    if(a==='x') clear(); else if(a==='ride') ride(v, +b.getAttribute('data-i')||0); else if(a==='next') step(1); else if(a==='prev') step(-1); else if(a==='portal'){ S.portal=+v; S.ride=null; S.line=null; S.stop=null; paint(); } else if(a==='pstop') pickStop(+b.getAttribute('data-s'), true);
     else if(a==='stop') { var l=lineOf(v||S.line); if(S.ride){ ride(S.ride.l, +b.getAttribute('data-i')); } else if(l) pickStop(+b.getAttribute('data-s'), true); }
     else if(a==='line') pickLine(v, true); }); }
   return p; }
+function paintPortal(p){ var po=(E.P.po||[])[S.portal]; if(!po) return false; var sts=portalStops(po);
+  p.style.setProperty('--tc','var(--accent,#6d5bd0)');
+  p.innerHTML='<div class="tr-h"><span class="tr-sw" style="background:var(--accent,#6d5bd0)"></span>\u2708 '+esc(po.name)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">\u2715</span></div>'
+    +'<div class="tr-sub">A portal \u00b7 this place is off the map'+(po.via?' \u00b7 reached by '+esc(po.via):'')+'</div>'
+    +'<div class="tr-sub" style="margin:0 0 4px">Reached from</div><div class="tr-stops">'+sts.map(function(i){ return '<div class="tr-st" data-a="pstop" data-s="'+i+'"><i></i>'+esc(T.stops[i].n)+'</div>'; }).join('')+'</div>';
+  p.classList.add('on'); return true; }
 function paint(){
   var p=panel(); lit();
+  if(S.portal!=null && !S.ride && !S.line && S.stop==null && paintPortal(p)) return;
   if(S.ride){ var l=lineOf(S.ride.l), ss=stopsOn(l), s=ss[S.ride.i], c=col(l), si=T.stops.indexOf(s);
     var others=s.l.filter(function(q){ return q!==l.id; }).map(lineOf).filter(Boolean);
     p.style.setProperty('--tc', c);
@@ -224,13 +247,15 @@ function paint(){
     p.innerHTML='<div class="tr-h">'+esc(s3.n)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">✕</span></div>'
       +'<div class="tr-sub">'+(ls.length>1?'Transfer between '+ls.length+' lines':'A stop on one line')+'</div>'
       +'<div class="tr-chips">'+ls.map(function(o){ return '<span class="tr-chip" data-a="ride" data-v="'+o.id+'" data-i="'+Math.max(0,o.s.indexOf(S.stop))+'" style="--tc:'+col(o)+'"><b></b>'+esc(o.n)+' ▶</span>'; }).join('')+'</div>'
+      +(portalsAt(S.stop).map(function(pi){ return '<div class="tr-chips"><span class="tr-chip" data-a="portal" data-v="'+pi+'" style="--tc:var(--accent,#6d5bd0)"><b></b>\u2708 Portal: '+esc(E.P.po[pi].name)+' \u203a</span></div>'; }).join(''))
       +'<div class="tr-sub" style="margin:0">Pick a line to ride from here.</div>';
     p.classList.add('on'); return; }
   p.classList.remove('on');
 }
-function clear(){ S.line=null; S.stop=null; S.ride=null; paint(); }
-function pickLine(id, fly){ S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
-function pickStop(i, fly){ S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }
+function clear(){ S.portal=null; S.line=null; S.stop=null; S.ride=null; paint(); }
+function portalsAt(i){ var o=[]; (E.P.po||[]).forEach(function(po,pi){ if(portalStops(po).indexOf(i)>=0) o.push(pi); }); return o; }
+function pickLine(id, fly){ S.portal=null; S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
+function pickStop(i, fly){ S.portal=null; S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }
 function glide(i){ var s=T.stops[i]; if(s) E.flyMap(s.x, s.y, Math.max(E.Z(), 1.0)); }
 function ride(id, i){ var l=lineOf(id); if(!l || !l.s.length) return; i=Math.max(0, Math.min(l.s.length-1, i|0)); S.ride={l:id, i:i}; S.line=id; S.stop=l.s[i]; glide(l.s[i]); paint(); }
 /* an arrow key goes where it points: with the next stop to the left of you, Left is "next" (the direction of travel) */
@@ -416,6 +441,7 @@ function bind(){
   document.addEventListener('click', function(e){
     if(!E || !T || !E.palaceOn()) return;
     var kr=e.target.closest && e.target.closest('.pk-row[data-tl]'); if(kr){ e.stopPropagation(); pickLine(kr.getAttribute('data-tl')); var l=lineOf(S.line), sp=T.stops[l.s[0]]; if(sp) E.flyMap(sp.x, sp.y, Math.max(E.Z(), .8)); return; }
+    var ph=e.target.closest && e.target.closest('#palace-svg .pl-portal'); if(ph){ e.stopPropagation(); e.preventDefault(); tipAt(''); S.portal=+ph.getAttribute('data-po'); S.ride=null; S.line=null; S.stop=null; paint(); return; }
     var sh=e.target.closest && e.target.closest('#palace-svg .pl-stn-hit'); if(sh){ e.stopPropagation(); e.preventDefault(); tipAt(''); var i=+sh.getAttribute('data-s'); S.line=null; pickStop(i, true); return; }
     var lh=e.target.closest && e.target.closest('#palace-svg .pl-tl-hit'); if(lh){ e.stopPropagation(); e.preventDefault(); tipAt(''); pickLine(lh.getAttribute('data-l')); return; }
   }, true);

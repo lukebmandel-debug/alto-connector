@@ -42,7 +42,7 @@ from .sanitize import js_json
 from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
-               "buildings", "parks", "areas", "scale", "data_z", "made"}
+               "buildings", "parks", "areas", "portals", "scale", "data_z", "made"}
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -235,12 +235,27 @@ def palace_data(b, nodes) -> str:
     out = {"m": mp, "b": [bl["lots"] for bl in blocks], "at": at, "fl": floors, "of": of,
            "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or "",
            "lm0": ls["lm"], "lmtop": ls["top"], "pl0": pl0,
-           "tk": sorted(getattr(b, "_tower_kids", ())), "nb": nb0}
+           "tk": sorted(getattr(b, "_tower_kids", ())), "nb": nb0, "po": check_portals(pal.get("portals"))}
     return "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
 
 
+def check_portals(portals) -> list:
+    """Gateways to places off the map: [{id, name, via?, line?, stations: [names]}]. A station named here shows a
+    portal pin; its card names the place and the stations it is reached from. Nothing else is invented."""
+    out = []
+    for i, po in enumerate(portals or []):
+        if not isinstance(po, dict) or not str(po.get("name") or "").strip():
+            raise BriefError(f"portals[{i}] needs a name")
+        sts = [str(x).strip() for x in (po.get("stations") or []) if str(x).strip()]
+        if not sts:
+            raise BriefError(f"portal '{po['name']}' needs the stations it is reached from")
+        out.append({"id": str(po.get("id") or f"portal{i + 1}"), "name": str(po["name"]).strip(),
+                    "via": str(po.get("via") or "").strip(), "line": str(po.get("line") or "").strip(), "stations": sts})
+    return out
+
+
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
-           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None) -> dict:
+           cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
@@ -265,7 +280,7 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     blocks = m.pop("blocks")
     return {"place": place, "bbox": list(bbox), "districts": districts or [],
             "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
-            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "scale": scale,
+            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
             "data_z": pack({"map": m, "blocks": blocks})}
 
 
