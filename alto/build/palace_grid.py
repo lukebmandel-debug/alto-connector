@@ -34,6 +34,11 @@ CW, CH = 240, 170          # one block, grid px: big enough that a building's nu
 PAD = 110                  # margin around the grid
 LEAD = 40                  # how far a turned end runs along the street it joins
 SNAP_DEG = 25
+# West of the Schuylkill the neighbourhood streets are residential (class 4) and the old rule
+# (numbered, a main street, or class <= 2 / <= 3) left West and Southwest Philadelphia nearly
+# empty. There, any named street long enough to read as a through street is a column or a row.
+FILL_LON = -75.19          # the fill region: west of this longitude
+FILL_MIN = 700.0           # px of street (about half a kilometre) before a residential street counts
 _DIR = re.compile(r"^(North|South|East|West|N|S|E|W)\.?\s+(?=\S+\s)", re.I)
 _NUM = re.compile(r"^(\d+)(st|nd|rd|th)\b", re.I)
 
@@ -171,11 +176,16 @@ def _lines(m, th, majors, diagonals):
     segs = {"v": {}, "h": {}}
     diag = {}
     dirlen: dict = {}          # each name's length running each way (h, v, d)
+    bb, W0 = m.get("bbox"), m.get("W") or 1
+    fill_x = ((FILL_LON - bb[1]) / (bb[3] - bb[1]) * W0) if bb and len(bb) == 4 and bb[3] > bb[1] else None
+    fillonly: set = set()
     for st in m.get("streets", []):
         if st.get("t") or not st.get("n"):
             continue
         n = norm(st["n"])
         k = st.get("k", 9)
+        P = _pairs(st["p"])
+        fill = fill_x is not None and k <= 4 and bool(P) and sum(x for x, _ in P) / len(P) < fill_x
         pts = _dp([turn(x, y) for x, y in _pairs(st["p"])], 10)
         for a, b in zip(pts, pts[1:]):
             L = math.hypot(b[0] - a[0], b[1] - a[1])
@@ -187,10 +197,14 @@ def _lines(m, th, majors, diagonals):
             if n in diag_n:
                 diag.setdefault(n, []).append((a, b))
                 continue
-            if kd == "v" and (numbered(n) or n in majors_n or k <= 2):
+            if kd == "v" and (numbered(n) or n in majors_n or k <= 2 or fill):
                 segs["v"].setdefault(n, []).append((a, b, L, bool(st.get("b"))))
-            elif kd == "h" and (n in majors_n or k <= 3):
+                if not (numbered(n) or n in majors_n or k <= 2):
+                    fillonly.add(n)
+            elif kd == "h" and (n in majors_n or k <= 3 or fill):
                 segs["h"].setdefault(n, []).append((a, b, L, bool(st.get("b"))))
+                if not (n in majors_n or k <= 3):
+                    fillonly.add(n)
     out = {}
     for o in ("v", "h"):
         lines = []
@@ -209,7 +223,7 @@ def _lines(m, th, majors, diagonals):
             groups.append(cur)
             for g in groups:
                 tot = sum(it[3] for it in g)
-                if tot < 380 and n not in majors_n:
+                if tot < (FILL_MIN if n in fillonly and not numbered(n) else 380) and n not in majors_n:
                     continue
                 pos = sum(it[0] * it[3] for it in g) / tot
                 iv = sorted(tuple(sorted((it[1][1], it[2][1]) if o == "v" else (it[1][0], it[2][0]))) + (it[4],) for it in g)

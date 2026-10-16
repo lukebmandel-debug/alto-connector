@@ -29,6 +29,9 @@ TRANSIT_CSS = r"""
   .pal-svg .pl-tl.hot .pl-tube{filter:drop-shadow(0 0 3px var(--tc,#888));}
   .pal-svg.tr-focus .pl-tl:not(.hot){opacity:.22;}
   .pal-svg.tr-focus .tr-stn:not(.lit){opacity:.25;}
+  /* a line (or a filter that rides lines) in view: everything not on it steps back */
+  .pal-svg.tr-focus .pl-streets,.pal-svg.tr-focus .pl-parks,.pal-svg.tr-focus .pl-washes,.pal-svg.tr-focus .pl-lms,.pal-svg.tr-focus .pl-lmb,.pal-svg.tr-focus .pl-blds,.pal-svg.tr-focus .pl-rails{opacity:.3;transition:opacity .2s;}
+  html.alto-palace.tr-solo:not(.mobile) #world .node:not(.focused):not(.pal-chip-hot):not(.pal-hot){opacity:.3;}
   .pal-svg.tr-focus .tr-lbl:not(.lit){display:none;}
   .pal-svg .tr-ring{fill:var(--pal-halo);stroke-width:2.8;}
   .pal-svg .tr-ring.hubr{stroke-width:3.2;}
@@ -105,9 +108,44 @@ function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ retu
 function col(l){ return E.tubeCol(l.c); }
 function lineOf(id){ return T&&T.byId[id]; }
 function stopsOn(l){ return (l.s||[]).map(function(i){ return T.stops[i]; }); }
+/* The stops of a line in the order you meet them riding along its drawn track, so "next stop" is always the
+   one ahead in the direction of travel (the stored order could run back and forth along a branched line). */
+function orderStops(l){
+  if(!l.s || l.s.length<3 || !l.p || !l.p.length) return;
+  var polys=l.p.filter(function(a){ return a && a.length>=4; }), lens=polys.map(function(a){ var L=0; for(var k=0;k+3<a.length;k+=2) L+=Math.hypot(a[k+2]-a[k],a[k+3]-a[k+1]); return L; });
+  if(!polys.length) return;
+  /* each piece runs away from what came before it: a piece's start is its end nearer the earlier pieces
+     (pieces that continue one another chain; branches leave the shared trunk) */
+  var rev=[];
+  polys.forEach(function(a,i){ var r=false;
+    if(i>0){ var nearer=function(x,y){ var m=1e18; for(var j=0;j<i;j++){ var q=projSeg(polys[j],x,y); if(q.d<m) m=q.d; } return m; };
+      r = nearer(a[a.length-2],a[a.length-1]) < nearer(a[0],a[1]); }
+    rev.push(r); });
+  var items=l.s.map(function(si,oi){ var st=T.stops[si], best=null, bp=0;
+    polys.forEach(function(a,pi){ var q=projSeg(a, st.x, st.y); if(!best || q.d<best.d-6){ best=q; bp=pi; } });   /* a stop on the shared trunk belongs to the first piece */
+    var a=polys[bp], pos=0; for(var k=0;k<best.k;k+=2) pos+=Math.hypot(a[k+2]-a[k],a[k+3]-a[k+1]);
+    pos+=best.t*Math.hypot(a[best.k+2]-a[best.k],a[best.k+3]-a[best.k+1]);
+    if(rev[bp]) pos=lens[bp]-pos;
+    return {si:si, oi:oi, key:bp*1e7+pos}; });
+  items.sort(function(x,y){ return x.key-y.key; });
+  var up=0, dn=0; for(var i=1;i<items.length;i++){ if(items[i].oi>items[i-1].oi) up++; else dn++; }
+  if(dn>up) items.reverse();
+  l.s=items.map(function(x){ return x.si; });
+}
 function init(e){ E=e; var t=E.M.transit; T=null;
-  if(t && t.lines && t.lines.length){ T={lines:t.lines, stops:t.stops, byId:{}}; t.lines.forEach(function(l){ T.byId[l.id]=l; }); }
+  if(t && t.lines && t.lines.length){ T={lines:t.lines, stops:t.stops, byId:{}}; t.lines.forEach(function(l){ T.byId[l.id]=l; });
+    T.lines.forEach(function(l){ try{ orderStops(l); }catch(x){} }); }
   return !!T; }
+/* take the camera onto the lines in view: fit their track (and stops) in the window */
+function fitLines(ids){
+  var cv=document.getElementById('canvas'); if(!cv || !T || !ids || !ids.length) return;
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  ids.forEach(function(id){ var l=lineOf(id); if(!l) return;
+    (l.p||[]).forEach(function(a){ for(var k=0;k+1<a.length;k+=2){ x0=Math.min(x0,a[k]); x1=Math.max(x1,a[k]); y0=Math.min(y0,a[k+1]); y1=Math.max(y1,a[k+1]); } }); });
+  if(x0>x1) return;
+  var w=Math.max(x1-x0,300), h=Math.max(y1-y0,300), z=Math.min((cv.clientWidth-120)/w, (cv.clientHeight-200)/h);
+  E.flyMap((x0+x1)/2, (y0+y1)/2, Math.max(.05, Math.min(2.4, z)));
+}
 function has(){ return !!T; }
 
 /* ── drawing: the lines under the buildings, the stops over them ── */
@@ -149,7 +187,7 @@ function lit(){
   if(l) T.stops.forEach(function(st,i){ if(st.l.indexOf(l)>=0) ids[i]=1; });
   if(s!=null){ ids[s]=1; }
   var focus=!!(l||s!=null);
-  svg.classList.toggle('tr-focus', focus);
+  svg.classList.toggle('tr-focus', focus); document.documentElement.classList.toggle('tr-solo', focus);
   svg.querySelectorAll('.pl-tl').forEach(function(g){ var on=g.getAttribute('data-l')===l || (s!=null && T.stops[s].l.indexOf(g.getAttribute('data-l'))>=0); g.classList.toggle('hot', !!on); });
   svg.querySelectorAll('.tr-stn,.tr-lbl').forEach(function(g){ var i=+g.getAttribute('data-s'); g.classList.toggle('lit', !!ids[i]); g.classList.toggle('cur', i===curI || (!S.ride && i===s)); });
 }
@@ -191,11 +229,21 @@ function paint(){
   p.classList.remove('on');
 }
 function clear(){ S.line=null; S.stop=null; S.ride=null; paint(); }
-function pickLine(id, fly){ S.ride=null; S.line=id; S.stop=null; paint(); }
+function pickLine(id, fly){ S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
 function pickStop(i, fly){ S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }
 function glide(i){ var s=T.stops[i]; if(s) E.flyMap(s.x, s.y, Math.max(E.Z(), 1.0)); }
 function ride(id, i){ var l=lineOf(id); if(!l || !l.s.length) return; i=Math.max(0, Math.min(l.s.length-1, i|0)); S.ride={l:id, i:i}; S.line=id; S.stop=l.s[i]; glide(l.s[i]); paint(); }
-function step(d){ if(!S.ride) return; var l=lineOf(S.ride.l), i=S.ride.i+d; if(i<0||i>=l.s.length) return; ride(S.ride.l, i); }
+/* an arrow key goes where it points: with the next stop to the left of you, Left is "next" (the direction of travel) */
+function arrowDir(k, d){
+  var l=lineOf(S.ride.l), i=S.ride.i, cur=T.stops[l.s[i]], nx=T.stops[l.s[i+1]], pv=T.stops[l.s[i-1]];
+  var horiz=(k==='ArrowLeft'||k==='ArrowRight'), sg=(k==='ArrowRight'||k==='ArrowDown')?1:-1;
+  function comp(s){ return s ? (horiz ? s.x-cur.x : s.y-cur.y) : 0; }
+  var cn=comp(nx), cp=comp(pv);
+  if(nx && pv){ return (cn*sg >= cp*sg) ? 1 : -1; }          /* both ways open: the one the key points toward */
+  if(nx) return (cn*sg > 0 || Math.abs(cn)<20) ? 1 : (sg*cn<0 ? 0 : 1);
+  if(pv) return (cp*sg > 0 || Math.abs(cp)<20) ? -1 : 0;
+  return d; }
+function step(d){ if(!S.ride || !d) return; var l=lineOf(S.ride.l), i=S.ride.i+d; if(i<0||i>=l.s.length) return; ride(S.ride.l, i); }
 
 /* ── the key: the lines and what a dot means ── */
 function keyHtml(sw){ if(!T) return '';
@@ -316,9 +364,10 @@ window._palTRx={graph:function(){ return (E&&T)?bigG():null; }, dijk:dijk, stops
 function paintUsed(){
   var svg=E.svg(); if(!svg || !T) return; var u={}, k;
   for(k in (S.uT||{})) u[k]=1; for(k in (S.uR||{})) u[k]=1;
-  if(!Object.keys(u).length){ lit(); return; }
+  if(!Object.keys(u).length){ S.fitSig=''; lit(); return; }
   if(S.line || S.stop!=null || S.ride) return;
-  svg.classList.toggle('tr-focus', true);
+  svg.classList.toggle('tr-focus', true); document.documentElement.classList.add('tr-solo');
+  var sig=Object.keys(u).sort().join('|'); if(sig!==S.fitSig){ S.fitSig=sig; fitLines(Object.keys(u)); }
   svg.querySelectorAll('.pl-tl').forEach(function(g){ g.classList.toggle('hot', !!u[g.getAttribute('data-l')]); });
   svg.querySelectorAll('.tr-stn,.tr-lbl').forEach(function(g){ var i=+g.getAttribute('data-s'); var on=T.stops[i].l.some(function(l){ return u[l]; }); g.classList.toggle('lit', on); });
 }
@@ -373,6 +422,7 @@ function bind(){
   window.addEventListener('keydown', function(e){
     if(!S.ride || !E || e.metaKey || e.ctrlKey || e.altKey) return; var t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
     var k=e.key, d=(k==='ArrowRight'||k==='ArrowDown')?1:(k==='ArrowLeft'||k==='ArrowUp')?-1:0;
+    if(d && S.ride){ d=arrowDir(k, d); }
     if(d){ e.preventDefault(); e.stopImmediatePropagation(); step(d); } else if(k==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); clear(); } }, true);
   document.addEventListener('alto-filter-changed', function(){ chipRefresh(); renderRel(); });
   window.addEventListener('click', function(e){ if(!E || !T) return; if(e.target.closest && e.target.closest('#ef-panel')) setTimeout(renderRel, 40); }, true);
