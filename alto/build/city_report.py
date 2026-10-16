@@ -653,6 +653,11 @@ def c_avenues(g, m, M):
     polys = [_pairs(s["p"]) for s in M["streets"]]
     idx = _Segs(polys)
     leg = {id(s) for s in M["legacy"]}
+    clips = [[tuple(q) for q in _dget(d, "clip")] for d in M["doms"] if _dget(d, "clip")]
+
+    def _in_clips(e):        # an end past every domain's page region ends on the edge, not mid-block
+        return any(_inside(e, [c]) and min(segd(e, c[i], c[(i + 1) % len(c)]) for i in range(len(c))) > 3
+                   for c in clips)
     rows, bad = {}, []
     for pi, s in enumerate(M["streets"]):
         if not s.get("d") or id(s) in leg:
@@ -668,13 +673,23 @@ def c_avenues(g, m, M):
                 nb += 1
         bends = s.get("bends") or [nb]
         non_octi = sum(1 for a, b in zip(core, core[1:]) if math.dist(a, b) > 1 and not _octi(a, b, base))
-        dangling = sum(1 for e in (P[0], P[-1]) if not idx.near(e, 3.0, skip=pi))
+        dangling = sum(1 for e in (P[0], P[-1]) if not idx.near(e, 3.0, skip=pi) and _in_clips(e))
         n = s.get("n") or "(unnamed)"
         r = rows.setdefault(n, {"pieces": 0, "bends": [], "non_octi": 0, "dangling": 0, "len": 0})
         r["pieces"] += 1; r["bends"] += list(bends); r["non_octi"] += non_octi; r["dangling"] += dangling
         r["len"] += round(plen(P))
         if max(bends) > TH["bends_max"] or non_octi or dangling:
             bad.append("%s (bends %s, %d off-angle runs, %d dangling ends)" % (n, bends, non_octi, dangling))
+    # two avenues on one run (one drawn on top of the other)
+    from .city_avenues import shared
+    avs = [(s.get("n"), polys[i]) for i, s in enumerate(M["streets"]) if s.get("d") and id(s) not in leg]
+    for i in range(len(avs)):
+        for j in range(i + 1, len(avs)):
+            if avs[i][0] == avs[j][0]:
+                continue
+            sh = shared(avs[i][1], list(zip(avs[j][1], avs[j][1][1:])))
+            if sh > BLOCK:
+                bad.append("%s and %s share %.1f blocks" % (avs[i][0], avs[j][0], sh / BLOCK))
     st = "fail" if bad else "ok"
     return st, "%d avenues; %d break the rules%s" % (len(rows), len(bad), (": " + "; ".join(bad[:5])) if bad else ""), \
         {"avenues": rows, "bad": bad}

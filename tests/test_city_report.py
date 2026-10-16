@@ -61,8 +61,9 @@ def test_side_of_a_line():
 def test_a_bent_or_off_angle_or_dangling_avenue_fails():
     m, g = _built()
     g2 = copy.deepcopy(g)
-    g2["streets"].append({"n": "Bad Avenue", "k": 0, "d": 1, "p": [3000, 3000, 3100, 3070, 3300, 3100, 3400, 3300,
-                                                                   3500, 3350]})
+    x0, y0 = g2["grid"]["xg"][2] + 60, g2["grid"]["yg"][2] + 50          # mid-block, inside the grid
+    g2["streets"].append({"n": "Bad Avenue", "k": 0, "d": 1, "p": [x0, y0, x0 + 100, y0 + 70, x0 + 300, y0 + 100,
+                                                                   x0 + 400, y0 + 300, x0 + 500, y0 + 350]})
     a = cr.report(g2, m)["checks"]["avenues"]
     assert a["status"] == "fail" and "Bad Avenue" in a["msg"]
     row = a["data"]["avenues"]["Bad Avenue"]

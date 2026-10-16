@@ -147,3 +147,16 @@ def test_labels_read_left_to_right_and_do_not_overlap():
     assert all(-90 < l["a"] <= 90 for l in lab)
     assert {l["n"] for l in lab} >= {"Grand Avenue", "Main Street"}
     assert "Over Street" not in {l["n"] for l in lab}       # it would sit on Main Street's label
+
+
+def test_two_avenues_never_share_a_run():
+    # two parallel avenues a third of a block apart: the second takes its own row
+    nodes = [(x, y) for x in range(0, 2401, 240) for y in range(0, 1701, 170)]
+    dom = Domain(id=0, kind="grid", theta=0.0, poly=[(-100, -100), (2600, -100), (2600, 1900), (-100, 1900)])
+    recs = [{"n": "First Avenue", "len": 2000, "pieces": [{"dom": 0, "kind": "diagonal",
+             "pts": [(0, 330), (1200, 350), (2400, 340)]}]},
+            {"n": "Second Avenue", "len": 1900, "pieces": [{"dom": 0, "kind": "diagonal",
+             "pts": [(0, 380), (1200, 400), (2400, 390)]}]}]
+    out = ca.draw(recs, [dom], {0: nodes})
+    a, b = (list(zip(s["p"][0::2], s["p"][1::2])) for s in out)
+    assert ca.shared(a, list(zip(b, b[1:]))) < CW

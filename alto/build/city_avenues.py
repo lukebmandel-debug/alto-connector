@@ -402,6 +402,24 @@ def _solve(u, v, D):
     return l1, l2
 
 
+def shared(path, avoid, tol=3.0):
+    """Length of path that runs along (collinear with, on top of) the segments in avoid."""
+    tot = 0.0
+    for a, b in zip(path, path[1:]):
+        L = math.dist(a, b)
+        if L < 1:
+            continue
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        for c, d in avoid:
+            if segd(c, a, b) > tol and segd(d, a, b) > tol and segd(a, c, d) > tol and segd(b, c, d) > tol:
+                continue
+            if abs((c[0] - a[0]) * uy - (c[1] - a[1]) * ux) > tol or abs((d[0] - a[0]) * uy - (d[1] - a[1]) * ux) > tol:
+                continue
+            t0, t1 = sorted(((c[0] - a[0]) * ux + (c[1] - a[1]) * uy, (d[0] - a[0]) * ux + (d[1] - a[1]) * uy))
+            tot += max(0.0, min(L, t1) - max(0.0, t0))
+    return tot
+
+
 def _cost(path, S, back):
     """Mean distance of the chain samples to the path, and of the path's samples to the chain (both ways, so a path
     cannot cut a corner the avenue really turns, nor wander where it never goes)."""
@@ -411,7 +429,7 @@ def _cost(path, S, back):
     return (d1 + d2) / 2
 
 
-def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.0, cw=CW, ch=CH):
+def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.0, cw=CW, ch=CH, avoid=()):
     """Best path of at most 3 runs from one of ends_a to one of ends_b, fitted to `chain` (page or local px).
     -> {"p": [pts], "bends", "cost", "a", "b"} or None. ends_*: [(x, y)] candidate end nodes (nearest first)."""
     if len(chain) < 2:
@@ -459,6 +477,8 @@ def octi_path(chain, ends_a, ends_b, bend_px=BEND_PX, mode="page45", min_run=30.
                             cands.append([a, p1, p2, b])
             for path in cands:
                 c = _cost(path, S, back) + bend_px * (len(path) - 2) + 0.15 * (ia + ib) * bend_px
+                if avoid:       # two avenues never share a run (1.9.78 drew Chester and Kingsessing on one row)
+                    c += shared(path, avoid) / cw * 3 * bend_px
                 if best is None or c < best["cost"]:
                     best = {"p": path, "bends": len(path) - 2, "cost": c, "a": ia, "b": ib}
     if best:
@@ -481,7 +501,7 @@ def lead(a, nxt, axes=((1, 0), (0, 1))):
     return (a[0], a[1] - math.copysign(LEAD, dy or 1))
 
 
-def draw_piece(pts_local, nodes, fixed=(None, None), mode="page45", bend_px=BEND_PX, reach=1.5, clip=None):
+def draw_piece(pts_local, nodes, fixed=(None, None), mode="page45", bend_px=BEND_PX, reach=1.5, clip=None, avoid=()):
     """One diagonal piece in its domain's local frame. pts_local: the mapped chain. nodes: drawn lattice nodes (local).
     fixed: a given end (a seam node, local) instead of a lattice node. -> {"p", "j": [ja, jb], "bends", "fit"} or None."""
     r = reach * max(CW, CH)
@@ -490,12 +510,12 @@ def draw_piece(pts_local, nodes, fixed=(None, None), mode="page45", bend_px=BEND
         if fx is not None:
             ends.append([fx]); joined.append(2)
             continue
-        nn = near_nodes(q, nodes, r)
+        nn = near_nodes(q, nodes, r) or near_nodes(q, nodes, 2 * r, k=1)
         if nn:
             ends.append(nn); joined.append(1)
         else:
-            ends.append([q]); joined.append(0)      # ends on the domain edge (or where the street ends)
-    best = octi_path(pts_local, ends[0], ends[1], bend_px=bend_px, mode=mode)
+            ends.append([q]); joined.append(0)      # past the drawn lattice: it ends on the domain's edge
+    best = octi_path(pts_local, ends[0], ends[1], bend_px=bend_px, mode=mode, avoid=avoid)
     if not best:
         return None
     P = list(best["p"])
@@ -537,7 +557,8 @@ def draw(recs, domains, nodes, seams=None, mode="page45", bend_px=BEND_PX):
     for s in seams or []:
         seam_by[tuple(sorted((_dget(s, "a"), _dget(s, "b"))))] = s
     out = []
-    for rec in recs:
+    taken = {}                     # dom -> local segments of avenues drawn so far (longest avenue first)
+    for rec in sorted(recs, key=lambda r: -r.get("len", 0)):
         pcs = rec["pieces"]
         drawn = []
         for i, pc in enumerate(pcs):
@@ -567,9 +588,11 @@ def draw(recs, domains, nodes, seams=None, mode="page45", bend_px=BEND_PX):
                                  and isinstance(h[0], (list, tuple)) else [])]
                     node = seam_node(mid, _dget(s, "segs") if s is not None else None, snaps)
                     fixed[side] = to_local(dom, node)
-            res = draw_piece(loc, nodes.get(pc["dom"], []), tuple(fixed), mode=mode, bend_px=bend_px)
+            res = draw_piece(loc, nodes.get(pc["dom"], []), tuple(fixed), mode=mode, bend_px=bend_px,
+                             avoid=taken.get(pc["dom"], ()))
             if not res:
                 continue
+            taken.setdefault(pc["dom"], []).extend(zip(res["p"][1:-2], res["p"][2:-1]))
             page = [to_page(dom, q) for q in res["p"]]
             drawn.append((i, page, res, pc["dom"]))
         # pieces that meet at a seam node are one street
