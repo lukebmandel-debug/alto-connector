@@ -21,7 +21,7 @@ from urllib.parse import quote as url_q
 from .brief import Brief, Node, Section, COL_SETS, roman
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
-from .palace import PALACE_CSS, PALACE_JS, palace_data
+from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
@@ -1512,7 +1512,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
-        orders += palace_data(b, nodes) + PALACE_JS + DOORS_JS
+        orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
     if index_axes:
         orders += (palace_index_glue() if b.mode == "palace" else dx.AXIS_INDEX_GLUE) + dx.axes_config(b, index_axes)
     if rel_key_items:
@@ -1562,7 +1562,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if b.mode == "lanes":
         nav_char_css += LANES_CSS
     if b.mode == "palace":
-        nav_char_css += PALACE_CSS + DOORS_CSS
+        nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (
         "\n  .doc-meta{opacity:.75;font-size:.9em;margin-bottom:8px;}"

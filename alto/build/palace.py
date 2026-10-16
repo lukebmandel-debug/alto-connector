@@ -42,7 +42,8 @@ from .sanitize import js_json
 from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
-               "buildings", "parks", "areas", "portals", "scale", "data_z", "made"}
+               "buildings", "parks", "areas", "portals", "scale", "data_z", "made",
+               "fill_z"}                    # fill_z: the simulated buildings (palace_fillin.py, prototype; absent = off)
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -236,7 +237,25 @@ def palace_data(b, nodes) -> str:
            "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or "",
            "lm0": ls["lm"], "lmtop": ls["top"], "pl0": pl0,
            "tk": sorted(getattr(b, "_tower_kids", ())), "nb": nb0, "po": check_portals(pal.get("portals"))}
-    return "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
+    js = "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
+    if pal.get("fill_z"):                           # fill-in (palace_fillin.py): only a palace that has it says anything
+        js += "\nwindow._ALTO_FILL=" + js_json(unpack(pal["fill_z"]), separators=(",", ":")) + ";"
+    return js
+
+
+def palace_js(b) -> str:
+    """PALACE_JS, with the fill-in hooks spliced in when the palace has simulated buildings (else unchanged)."""
+    if (b.palace or {}).get("fill_z"):
+        from .palace_fillin import patch_js
+        return patch_js(PALACE_JS)
+    return PALACE_JS
+
+
+def palace_css(b) -> str:
+    if (b.palace or {}).get("fill_z"):
+        from .palace_fillin import FILL_CSS
+        return PALACE_CSS + FILL_CSS
+    return PALACE_CSS
 
 
 def check_portals(portals) -> list:
