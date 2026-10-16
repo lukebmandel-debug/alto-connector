@@ -26,6 +26,7 @@ Map data © OpenStreetMap contributors (ODbL) — the page carries the credit.
 from __future__ import annotations
 
 import base64
+import lzma
 import gzip
 import json
 import math
@@ -46,12 +47,113 @@ PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "dia
 
 
 # ── the packed city ────────────────────────────────────────────────────────
+# A city is mostly numbers in long runs (lots, blocks, polylines), every one on a 0.1 map-unit grid. pack() stores them as
+# columns of whole-number steps (a lot's x after the last lot's x, a polyline's point after the one before), which xz squeezes
+# to a fraction of the gzip'd JSON (Philadelphia v2: 432 kB -> about 165 kB). The shape round-trips exactly; a value off the
+# 0.1 grid is kept as it is. "xz2:" marks the format; an older palace (base64 gzip JSON) still unpacks.
+_PACK2 = "xz2:"
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _ints(vals):
+    """[numbers] -> (1, ints) when all are ints, (10, ints) when all are floats on the 0.1 grid, else None."""
+    if all(isinstance(v, int) and not isinstance(v, bool) for v in vals):
+        return 1, list(vals)
+    out = []
+    for v in vals:
+        if not isinstance(v, float) or v != v or abs(v) > 1e12:          # a mix of ints and floats stays as it is (types kept)
+            return None
+        q = round(v * 10)
+        if abs(q / 10 - v) > 1e-9:
+            return None
+        out.append(q)
+    return 10, out
+
+
+def _delta(a, stride):
+    return a[:stride] + [a[i] - a[i - stride] for i in range(stride, len(a))]
+
+
+def _undelta(a, stride):
+    a = list(a)
+    for i in range(stride, len(a)):
+        a[i] += a[i - stride]
+    return a
+
+
+def _enc(o):
+    if isinstance(o, dict):
+        return {k: _enc(v) for k, v in o.items()}
+    if not isinstance(o, list) or not o:
+        return o
+    if len(o) >= 6 and all(_num(v) for v in o):                        # a polyline / flat ring: x,y steps
+        q = _ints(o)
+        if q:
+            return {"~n": q[0], "d": _delta(q[1], 2)}
+    if len(o) >= 4 and all(isinstance(r, list) and r and all(_num(v) for v in r) for r in o) and len({len(r) for r in o}) == 1:
+        cols = [list(c) for c in zip(*o)]                                # a table of rows (tiles, lots): one column at a time
+        qs = [_ints(c) for c in cols]
+        if all(qs):
+            return {"~t": [q[0] for q in qs], "c": [_delta(q[1], 1) for q in qs]}
+    if len(o) >= 4 and all(isinstance(r, dict) for r in o) and len({tuple(r) for r in o}) == 1:
+        keys = list(o[0])                                                # records with the same fields (blocks): by field
+        return {"~r": keys, "c": [_enc_col([r[k] for r in o]) for k in keys]}
+    return [_enc(v) for v in o]
+
+
+def _enc_col(col):
+    if len(col) >= 4 and all(_num(v) for v in col):
+        q = _ints(col)
+        if q:
+            return {"~v": q[0], "d": _delta(q[1], 1)}
+    if all(isinstance(v, list) for v in col):                           # e.g. each block's lots: one table, cut by counts
+        flat = [x for v in col for x in v]
+        return {"~s": [len(v) for v in col], "v": _enc(flat)}
+    return _enc(col)
+
+
+def _scale(vals, sc):
+    return list(vals) if sc == 1 else [v / 10 for v in vals]
+
+
+def _dec(o):
+    if isinstance(o, list):
+        return [_dec(v) for v in o]
+    if not isinstance(o, dict):
+        return o
+    if "~n" in o:
+        return _scale(_undelta(o["d"], 2), o["~n"])
+    if "~t" in o:
+        cols = [_scale(_undelta(c, 1), sc) for c, sc in zip(o["c"], o["~t"])]
+        return [list(r) for r in zip(*cols)]
+    if "~r" in o:
+        cols = [_dec_col(c) for c in o["c"]]
+        return [dict(zip(o["~r"], vals)) for vals in zip(*cols)]
+    return {k: _dec(v) for k, v in o.items()}
+
+
+def _dec_col(c):
+    if isinstance(c, dict) and "~v" in c:
+        return _scale(_undelta(c["d"], 1), c["~v"])
+    if isinstance(c, dict) and "~s" in c:
+        flat, out, i = _dec(c["v"]), [], 0
+        for n in c["~s"]:
+            out.append(flat[i:i + n]); i += n
+        return out
+    return _dec(c)
+
+
 def pack(data: dict) -> str:
-    raw = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    return base64.b64encode(gzip.compress(raw, 9, mtime=0)).decode("ascii")
+    raw = json.dumps(_enc(data), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return _PACK2 + base64.b64encode(lzma.compress(raw, preset=9 | lzma.PRESET_EXTREME)).decode("ascii")
 
 
 def unpack(z: str) -> dict:
+    if z.startswith(_PACK2):
+        return _dec(json.loads(lzma.decompress(base64.b64decode(z[len(_PACK2):])).decode("utf-8")))
     return json.loads(gzip.decompress(base64.b64decode(z)).decode("utf-8"))
 
 
@@ -336,6 +438,9 @@ PALACE_CSS = KEY_CSS + r"""
   html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-br-edge:rgba(214,222,244,.62);--pal-br-pier:rgba(214,222,244,.42);--pal-br-text:#dfe6fa;--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
     --pal-park:rgba(255,255,255,.06);--pal-pk:rgba(86,178,104,.26);--pal-pk-edge:rgba(255,255,255,.2);--pal-pk-path:rgba(214,240,214,.5);--pal-pk-txt:#a8e0b0;--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;--pal-ground:28,30,40;}
   html.alto-palace:not(.mobile) #world{margin:0 !important;translate:var(--ppan-x,0px) var(--ppan-y,0px);}
+  /* the board is its own compositing layer all the time (it already is a stacking context: translate): made one only for a zoom,
+     WebKit painted the whole window into the new layer on a zoom's first frame and into the old one again at its end (~100 ms each) */
+  html.alto-palace:not(.mobile) #world{will-change:transform;}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
   html.alto-palace:not(.mobile) #world .phase-band,html.alto-palace:not(.mobile) #world .phase-label-float,
   html.alto-palace:not(.mobile) #world .unit-bar{display:none !important;}
@@ -816,6 +921,7 @@ function streetLabels(svg, defs, g){
       var every=1150, n0=Math.max(1,Math.floor(q.L/every));
       for(var j=0;j<n0;j++){ var off=(q.L/n0)*(j+.5);
         var t=el('text',{'class':'pl-st'+(TOP[n]?' top':'')+(q.k>=2?' minor':'')+(pi===0 && j===(n0>>1)?' r0':''), dy:'.35em'},g);
+        t._g=atLen(p, off); t._pr=(TOP[n]?600:q.k>=2?150:300)+Math.min(90, q.L/400)+(pi===0 && j===(n0>>1)?5:0)-pi;   /* the label pass (lblFit) */
         t.setAttribute('data-n', n); var tp=el('textPath',{href:'#'+id, startOffset:off, 'text-anchor':'middle'},t); tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=n; }
     });
   });
@@ -870,12 +976,48 @@ function lruns(p){ var out=[], cur, run=null;
       if(k===n-1) run.push(bx,by); } }
   if(run) out.push({u:cur, p:run}); return out.filter(function(r){ return r.p.length>=4; }); }
 /* the centre of a flat ring [x0,y0,x1,y1,...] (its vertices' mean: a tile's district) */
+function bbx(p){ var b=[1e18,1e18,-1e18,-1e18]; for(var i=0;i+1<p.length;i+=2){ if(p[i]<b[0]) b[0]=p[i]; if(p[i]>b[2]) b[2]=p[i]; if(p[i+1]<b[1]) b[1]=p[i+1]; if(p[i+1]>b[3]) b[3]=p[i+1]; } return b; }
+/* Which super-block each tile is in: tiles that share a side not under a heavy line are joined (union-find), so the chunks'
+   borders all run under heavy lines; a super-block wider than SB_MAX is cut on its own heavy lines only (never through a street). */
+function superBlocks(rings, heavy){
+  var n=rings.length, par=new Int32Array(n), HC=64, hz={}, E={}, i, j;
+  for(i=0;i<n;i++) par[i]=i;
+  function find(a){ while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; }
+  heavy.forEach(function(h){ var x0=Math.min(h[0],h[2]), x1=Math.max(h[0],h[2]), y0=Math.min(h[1],h[3]), y1=Math.max(h[1],h[3]);
+    for(var a=Math.floor((x0-2)/HC);a<=Math.floor((x1+2)/HC);a++) for(var b=Math.floor((y0-2)/HC);b<=Math.floor((y1+2)/HC);b++) (hz[a+','+b]=hz[a+','+b]||[]).push(h); });
+  function onHeavy(x, y, dx, dy){ var c=hz[Math.floor(x/HC)+','+Math.floor(y/HC)]; if(!c) return false; var L=Math.hypot(dx,dy)||1;
+    return c.some(function(h){ var hx=h[2]-h[0], hy=h[3]-h[1], hl=Math.hypot(hx,hy)||1; if(Math.abs(hx*dy-hy*dx)/(hl*L)>.02) return false;
+      var t=((x-h[0])*hx+(y-h[1])*hy)/(hl*hl); if(t<-1e-3 || t>1+1e-3) return false; return Math.abs((x-h[0])*hy-(y-h[1])*hx)/hl<2; }); }
+  /* every side, hashed by the cell of its middle: collinear overlapping sides of two tiles are a shared street */
+  rings.forEach(function(r, k){ var a=r.t?[r.t[0],r.t[1],r.t[2],r.t[1],r.t[2],r.t[3],r.t[0],r.t[3]]:r.q, m=a.length>>1;
+    for(var q=0;q<m;q++){ var x0=a[2*q], y0=a[2*q+1], x1=a[2*((q+1)%m)], y1=a[2*((q+1)%m)+1]; if(Math.hypot(x1-x0,y1-y0)<1) continue;
+      var key=Math.round((x0+x1)/2/HC)+','+Math.round((y0+y1)/2/HC); (E[key]=E[key]||[]).push([k,x0,y0,x1,y1]); } });
+  function coll(A, B){ var dx=A[3]-A[1], dy=A[4]-A[2], L=Math.hypot(dx,dy)||1;
+    function off(x,y){ return Math.abs((x-A[1])*dy-(y-A[2])*dx)/L; } if(off(B[1],B[2])>.6 || off(B[3],B[4])>.6) return null;
+    var t0=((B[1]-A[1])*dx+(B[2]-A[2])*dy)/L, t1=((B[3]-A[1])*dx+(B[4]-A[2])*dy)/L, lo=Math.max(0,Math.min(t0,t1)), hi=Math.min(L,Math.max(t0,t1));
+    return hi-lo>1?[A[1]+dx/L*(lo+hi)/2, A[2]+dy/L*(lo+hi)/2, dx, dy]:null; }
+  Object.keys(E).forEach(function(key){ var p=key.split(','), px=+p[0], py=+p[1], here=E[key];
+    for(var a=-1;a<=1;a++) for(var b=-1;b<=1;b++){ var there=E[(px+a)+','+(py+b)]; if(!there) continue;
+      here.forEach(function(A){ there.forEach(function(B){ if(A[0]>=B[0]) return; var m=coll(A, B); if(m && !onHeavy(m[0], m[1], m[2], m[3])){ var ra=find(A[0]), rb=find(B[0]); if(ra!==rb) par[ra]=rb; } }); }); } });
+  var out=new Array(n); for(i=0;i<n;i++) out[i]=find(i); return out; }
+/* the point s along a polyline and the direction there (radians): where a label on a path sits */
+function atLen(p, s){ for(var i=0;i+3<p.length;i+=2){ var dx=p[i+2]-p[i], dy=p[i+3]-p[i+1], l=Math.hypot(dx,dy);
+    if(s<=l || i+4>=p.length){ var f=l?Math.max(0,Math.min(1,s/l)):0; return [p[i]+dx*f, p[i+1]+dy*f, Math.atan2(dy,dx)]; } s-=l; }
+  return [p[0]||0, p[1]||0, 0]; }
 function ringC(a){ var n=a.length>>1, x=0, y=0; for(var i=0;i<n;i++){ x+=a[2*i]; y+=a[2*i+1]; } return [x/n, y/n]; }
 /* a smooth path through points (Catmull-Rom as cubic curves): a river bends in wide, even curves */
-function smoothD(a){ var n=a.length>>1, d='M'+a[0]+' '+a[1];
-  for(var i=0;i<n-1;i++){ var i0=Math.max(0,i-1), i3=Math.min(n-1,i+2), x0=a[2*i0], y0=a[2*i0+1], x1=a[2*i], y1=a[2*i+1], x2=a[2*i+2], y2=a[2*i+3], x3=a[2*i3], y3=a[2*i3+1];
+function smoothD(a, i0, i1){ var n=a.length>>1; i0=i0||0; i1=(i1==null)?n-1:i1; var d='M'+a[2*i0]+' '+a[2*i0+1];
+  for(var i=i0;i<i1;i++){ var i0=Math.max(0,i-1), i3=Math.min(n-1,i+2), x0=a[2*i0], y0=a[2*i0+1], x1=a[2*i], y1=a[2*i+1], x2=a[2*i+2], y2=a[2*i+3], x3=a[2*i3], y3=a[2*i3+1];
     d+='C'+(x1+(x2-x0)/6).toFixed(1)+' '+(y1+(y2-y0)/6).toFixed(1)+' '+(x2-(x3-x1)/6).toFixed(1)+' '+(y2-(y3-y1)/6).toFixed(1)+' '+x2+' '+y2; }
   return d; }
+/* the river's bands as opaque colours (the water, each light step laid over it, the sheen over those), or null where the water is not opaque */
+function rgbaOf(c){ c=String(c||'').trim(); if(c[0]==='#'){ var r=rgbOf(c); return [r[0],r[1],r[2],1]; }
+  var m=/rgba?\(([^)]+)\)/.exec(c); if(!m) return null; var v=m[1].split(',').map(function(q){ return parseFloat(q); }); return [v[0],v[1],v[2],v.length>3?v[3]:1]; }
+function riverBands(LITE){ var cs=getComputedStyle(de), b=rgbaOf(cs.getPropertyValue('--pal-river')), l=rgbaOf(cs.getPropertyValue('--pal-rv-lite')), sh=rgbaOf(cs.getPropertyValue('--pal-rv-sheen'));
+  if(!b || !l || !sh || b[3]<1) return null;
+  function over(c, o, a){ return [0,1,2].map(function(i){ return c[i]*(1-a)+o[i]*a; }); }
+  function css(c){ return 'rgb('+c.map(function(v){ return Math.round(v); }).join(',')+')'; }
+  var out=[css(b)], c=b.slice(0,3); LITE.forEach(function(q){ c=over(c, l, q[1]*l[3]); out.push(css(c)); }); out.push(css(over(c, sh, sh[3]))); return out; }
 /* a river's name set along the band, as often as its length on the glass allows, reading upward (or rightward) */
 function riverLabels(svg, defs, parent, r, k){
   var p=r.p, n=p.length>>1, cum=[0], i;
@@ -888,7 +1030,17 @@ function riverLabels(svg, defs, parent, r, k){
   for(var j=0;j<cnt;j++){ var s=s0+L*(j+.5)/cnt, tg=tangent(s), tl=Math.hypot(tg[0],tg[1])||1, rev=tg[0]<-.35*tl?true:tg[0]>.35*tl?false:tg[1]>0, id='plr'+(svg._sid||'')+k+(rev?'b':'f');
     if(rev? !bw : !fw){ var pp=p; if(rev){ pp=[]; for(i=n-1;i>=0;i--) pp.push(p[2*i],p[2*i+1]); } el('path',{id:id, d:smoothD(pp)},defs); if(rev) bw=1; else fw=1; }
     var t=el('text',{'class':'pl-river', dy:'.35em', style:'font-size:max(calc(13px / var(--pz,1)),'+fs.toFixed(0)+'px)'},parent), tp=el('textPath',{href:'#'+id, startOffset:(rev?tot-s:s).toFixed(0), 'text-anchor':'middle'},t);
+    t._g=atLen(p, s); t._fs=fs; t._pr=800-j-k*.1;
     tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=r.n; } }
+/* the streets' tubes, chunk by chunk ({'district|chunk': d}): the .95 tube over the ground and the sheen over it are worked out as
+   opaque colours, and each district's tubes are all drawn before its sheens, so the chunks look exactly as one path per district
+   did (where two chunks meet on a street, or two lines overlap, a line is drawn twice in one colour: no darker seam, no lost sheen) */
+function stubes(parent, by, tc, w, cls){ var g=GR&&GR.length===3?GR:(dk()?[28,30,40]:[238,238,242]), sh=rgbaOf(sheen())||[255,255,255,.7], us=[], ks={};
+  function css(a){ return 'rgb('+a.map(function(v){ return Math.round(v); }).join(',')+')'; }
+  Object.keys(by).forEach(function(k){ var u=String(k).split('|')[0]; if(!ks[u]){ ks[u]=[]; us.push(u); } ks[u].push(k); });
+  us.forEach(function(u){ var c=rgbOf(tc(ks[u][0])), t=[0,1,2].map(function(i){ return c[i]*.95+g[i]*.05; }), s2=t.map(function(v,i){ return v*(1-sh[3])+sh[i]*sh[3]; });
+    ks[u].forEach(function(k){ el('path',{'class':'pl-tube '+cls, d:by[k], stroke:css(t), 'stroke-width':w},parent); });
+    ks[u].forEach(function(k){ el('path',{'class':'pl-sheen '+cls, d:by[k], stroke:css(s2), 'stroke-width':Math.max(.9, w*.34)},parent); }); }); }
 function tube(parent, d, col, w, op, cls){
   var t=el('path',{'class':'pl-tube'+(cls?' '+cls:''), d:d, stroke:col, 'stroke-width':w},parent); if(op<1) t.setAttribute('stroke-opacity',op);
   el('path',{'class':'pl-sheen'+(cls?' '+cls:''), d:d, stroke:sheen(), 'stroke-width':Math.max(.9, w*.34)},parent); return t; }
@@ -902,8 +1054,8 @@ function stackLayers(svg){
   [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
 function drawCity(svg){
   if(!svg._stk){ svg._stk=new MutationObserver(function(){ stackLayers(svg); }); svg._stk.observe(svg,{childList:true}); }
-  GR=groundNow();
-  svg.innerHTML='';
+  GR=groundNow(); var tD0=performance.now();
+  svg.innerHTML=''; svg._li=null; svg._dcKey=null;
   var defs=el('defs',{},svg);
   /* the glass the city stands on */
   /* it runs on past the city's edge (the page never scrolls that far): an enlarged building at the
@@ -925,6 +1077,11 @@ function drawCity(svg){
   /* ── /parks ── */
   /* the streets: every block a rounded tile of connecting line, so each street
      curves at every intersection; the tiles in their district's colour */
+  /* Each colour's blocks were one path per district: WebKit stroked all of it again for every 512 px tile it repainted (a zoom's
+     end or a pan exposing new tiles cost 150-400 ms). They are now one path per district per SUPER-BLOCK (the blocks between
+     heavy lines, superBlocks), which a repainted tile skips unless it shows it. Two blocks side by side share a street; drawn in
+     two paths that street would be stroked twice (its anti-aliased edge darker), so every border between two chunks runs under a
+     heavy line, which is drawn over it. The heavy lines, loose edges and the tubes' colours stay as they were (per district). */
   var sg=el('g',{'class':'pl-streets'},svg), byU={};
   function tileD(t){ var x0=t[0], y0=t[1], x1=t[2], y1=t[3], r=Math.min(R, (x1-x0)/2, (y1-y0)/2);
     return 'M'+(x0+r)+' '+y0+'H'+(x1-r)+'Q'+x1+' '+y0+' '+x1+' '+(y0+r)+'V'+(y1-r)+'Q'+x1+' '+y1+' '+(x1-r)+' '+y1
@@ -938,38 +1095,49 @@ function drawCity(svg){
   gx=uniq(gx); gy=uniq(gy);
   var colMaj={}, rowMaj={}, okGrid=(M.cols||[]).length===gx.length && (M.rows||[]).length===gy.length;
   if(okGrid){ gx.forEach(function(v,i){ colMaj[v]=!!MJs[M.cols[i]]; }); gy.forEach(function(v,i){ rowMaj[v]=!!MJs[M.rows[i]]; }); }
-  var byM={}, seen={};
+  var byM={}, seen={}, heavy=[];
   /* v2 (city_lattice.py): when any street carries L (a heavy lattice line, in any domain) the heavy lines are drawn from those
      streets and this overlay of the upright tiles' edges is off */
   var hasL=M.streets.some(function(st){ return st.L; });
   function major(x0,y0,x1,y1){ if(!okGrid || hasL) return; var k=x0+','+y0+','+x1+','+y1; if(seen[k]) return; seen[k]=1;
     if(x0===x1? !colMaj[x0] : !rowMaj[y0]) return;
-    var u=distAt((x0+x1)/2,(y0+y1)/2); byM[u]=(byM[u]||'')+'M'+x0+' '+y0+'L'+x1+' '+y1; }
-  (M.tiles||[]).forEach(function(t){ var u=distAt((t[0]+t[2])/2,(t[1]+t[3])/2); byU[u]=(byU[u]||'')+tileD(t);
+    var u=distAt((x0+x1)/2,(y0+y1)/2); byM[u]=(byM[u]||'')+'M'+x0+' '+y0+'L'+x1+' '+y1; heavy.push([x0,y0,x1,y1]); }
+  var rings=[];
+  (M.tiles||[]).forEach(function(t){ rings.push({t:t, c:[(t[0]+t[2])/2,(t[1]+t[3])/2]});
     major(t[0],t[1],t[2],t[1]); major(t[0],t[3],t[2],t[3]); major(t[0],t[1],t[0],t[3]); major(t[2],t[1],t[2],t[3]); });
   (M.edges||[]).forEach(function(e){ var u=distAt((e[0]+e[2])/2,(e[1]+e[3])/2); byU[u]=(byU[u]||'')+'M'+e[0]+' '+e[1]+'L'+e[2]+' '+e[3]; major(e[0],e[1],e[2],e[3]); });
   /* v2 (city_lattice.py): a tilted domain's blocks and every block a seam cuts are polygon tiles (M.tq: flat rings), rounded at
      each corner like any tile; the loose lines of those domains are polylines (M.te), rounded where they turn (a T onto a seam) */
-  (M.tq||[]).forEach(function(a){ var c=ringC(a), u=distAt(c[0],c[1]); byU[u]=(byU[u]||'')+rpc(a, R); });
+  (M.tq||[]).forEach(function(a){ rings.push({q:a, c:ringC(a)}); });
   (M.te||[]).forEach(function(p){ if(p.length<4) return; var u=distAt((p[0]+p[p.length-2])/2,(p[1]+p[p.length-1])/2); byU[u]=(byU[u]||'')+rp(p); });
-  function tc(u){ return tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()); }
-  Object.keys(byU).forEach(function(u){ tube(sg, byU[u], tc(u), 3.6, .95, 't-min'); });
-  Object.keys(byM).forEach(function(u){ tube(sg, byM[u], tc(u), 5.6, .95, 't-maj'); });
+  if(hasL) M.streets.forEach(function(st){ if(st.L) for(var i=0;i+3<st.p.length;i+=2) heavy.push([st.p[i],st.p[i+1],st.p[i+2],st.p[i+3]]); });
+  var sbk=superBlocks(rings, heavy);
+  rings.forEach(function(r, i){ var u=distAt(r.c[0], r.c[1]), k=u+'|'+sbk[i]; byU[k]=(byU[k]||'')+(r.t?tileD(r.t):rpc(r.q, R)); });
+  function tc(k){ var u=String(k).split('|')[0]; return tubeCol(dcol(u==='null'?null:+u)||NEUTRAL()); }
+  stubes(sg, byU, tc, 3.6, 't-min'); stubes(sg, byM, tc, 5.6, 't-maj');
   /* v2: a heavy lattice line (st.L) runs straight through its crossings and turns, rounded, where it bends; in each district's colour */
   if(hasL){ var byL={}; M.streets.forEach(function(st){ if(st.L) lruns(st.p).forEach(function(r){ byL[r.u]=(byL[r.u]||'')+rp(r.p); }); });
-    Object.keys(byL).forEach(function(u){ tube(sg, byL[u], tc(u), 5.6, .95, 't-maj'); }); }
+    stubes(sg, byL, tc, 5.6, 't-maj'); }
   /* the diagonals: one clean line, joining the grid with rounded elbows */
   M.streets.forEach(function(st){ if(st.d) tube(sg, rp(st.p), tubeCol(dcol(distAt(st.p[2],st.p[3]))||NEUTRAL()), 5.6, .95, 't-maj'); });
   /* the rivers: each a broad glass band (a connecting line grown wide: edge, body, a light
      centre, a sheen) on a smooth course, run off the glass at its ends; the bridges over it */
   var cp=el('clipPath',{id:'plclip'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},cp);
   var rv=el('g',{'class':'pl-river-g','clip-path':'url(#plclip'+(svg._sid||'')+')'},svg);
+  /* the glass: lighter toward the middle in soft steps, then the sheen of Alto's own connecting lines. The steps are the light
+     laid over the (opaque) water at .10/.12/.14/.18, the sheen over them: each band's colour is worked out here and drawn opaque,
+     in pieces of the course, so a repainted tile strokes only the pieces it shows (one whole river's five wide strokes, for every
+     tile, were a third of a frame); opaque pieces of one colour overlap with no seam. The rim (translucent, over the ground) stays whole. */
+  var LITE=[[.84,.10],[.68,.12],[.52,.14],[.36,.18]], bands=riverBands(LITE);
   (M.river||[]).forEach(function(r){ var d=smoothD(r.p), w=r.w||100;
     el('path',{'class':'pl-rv-rim', d:d, 'stroke-width':w+12},rv);
-    el('path',{'class':'pl-rv-body', d:d, 'stroke-width':w},rv);
-    /* the glass: lighter toward the middle in soft steps, then the sheen of Alto's own connecting lines */
-    [[.84,.10],[.68,.12],[.52,.14],[.36,.18]].forEach(function(l){ el('path',{'class':'pl-rv-lite', d:d, 'stroke-width':w*l[0], 'stroke-opacity':l[1]},rv); });
-    el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.13)},rv); });
+    if(!bands){ el('path',{'class':'pl-rv-body', d:d, 'stroke-width':w},rv);
+      LITE.forEach(function(l){ el('path',{'class':'pl-rv-lite', d:d, 'stroke-width':w*l[0], 'stroke-opacity':l[1]},rv); });
+      el('path',{'class':'pl-rv-sheen', d:d, 'stroke-width':Math.max(2, w*.13)},rv); return; }
+    var n=r.p.length>>1, cut=[0], acc=0; for(var i=1;i<n;i++){ acc+=Math.hypot(r.p[2*i]-r.p[2*i-2], r.p[2*i+1]-r.p[2*i-1]); if(acc>=1800 && i<n-1){ cut.push(i); acc=0; } } cut.push(n-1);
+    var parts=[]; for(var c=0;c+1<cut.length;c++) parts.push(smoothD(r.p, cut[c], cut[c+1]));
+    var ws=[w].concat(LITE.map(function(l){ return w*l[0]; }), [Math.max(2, w*.13)]), cls=['pl-rv-body','pl-rv-lite','pl-rv-lite','pl-rv-lite','pl-rv-lite','pl-rv-sheen'];
+    ws.forEach(function(sw, li){ parts.forEach(function(pd){ el('path',{'class':cls[li]+' rv-op', d:pd, 'stroke-width':sw, style:'stroke:'+bands[li]+';stroke-opacity:1'},rv); }); }); });
   var bridges=el('g',{'class':'pl-bridges'},svg), labels0=el('g',{'class':'pl-brnames'},svg);
   /* a bridge has a deck, so it reads over the water in any colour: piers, rail lines, the deck, then the street's own line on it; the big ones are named */
   var brSeen=[];
@@ -986,6 +1154,7 @@ function drawCity(svg){
     q=[q[0]-ex,q[1]-ey].concat(q,[q[q.length-2]+ex,q[q.length-1]+ey]);
     var id='plb'+(svg._sid||'')+'-'+brSeen.length; el('path',{id:id, d:pts(q)},defs);
     var t=el('text',{'class':'pl-brn'+(st.br?' big':''), dy:'-1.25em'},labels0), tp=el('textPath',{href:'#'+id, startOffset:'50%', 'text-anchor':'middle'},t);
+    var ql=0; for(i=0;i+3<q.length;i+=2) ql+=Math.hypot(q[i+2]-q[i],q[i+3]-q[i+1]); t._g=atLen(q, ql/2); t._up=1.6;
     tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=nm; });
   var lg=el('g',{'class':'pl-lms'},svg);
   /* the railway: straight, above ground, a connecting line with ties */
@@ -1010,7 +1179,7 @@ function drawCity(svg){
   var labels=el('g',{},svg);
   (M.river||[]).forEach(function(r,i){ if(r.n) riverLabels(svg, defs, labels, r, i); });
   streetLabels(svg, defs, labels);
-  (M.parks||[]).forEach(function(pk){ if(pk.n && pk.t) lbl(labels, 'pl-pkt'+(pk.z>3?' big':''), pk.n, pk.t[0], pk.t[1]); });
+  (M.parks||[]).forEach(function(pk){ if(pk.n && pk.t){ var t=lbl(labels, 'pl-pkt'+(pk.z>3?' big':''), pk.n, pk.t[0], pk.t[1]); t._g=[pk.t[0], pk.t[1], 0]; t._up=.35; } });
   /* landmark buildings: each fills its block with a little 3D of the real building, named (palace_landmarks.py); one with a page shows what is inside and opens it */
   (M.landmarks||[]).forEach(function(l){ var b=l.box; if(!b) return; var c=dcol(distAt(l.x,l.y))||NEUTRAL();
     var g=el('g',{'class':'pl-lmb'+(l.page?' has-page':''), 'data-page':l.page||'', 'data-name':l.n},lg);
@@ -1021,9 +1190,10 @@ function drawCity(svg){
   /* districts: the neighbourhood's own name over its buildings (the unit it holds is in its pop-up) */
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u]; if(!pm) return;
     var c=districtCentre(d), t=el('text',{'class':'pl-dist', x:c[0], y:c[1], 'text-anchor':'middle', fill:tubeCol(pm.colorRaw), 'data-u':d.u},labels);
+    t._g=[c[0], c[1], 0]; t._up=.35;
     t.textContent=d.n || pm.label; });
   /* ── neighbourhood names: label only ── */
-  (M.areas||[]).forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':a.r||2, 'aria-hidden':'true'},labels); t.textContent=a.n; });
+  (M.areas||[]).forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':a.r||2, 'aria-hidden':'true'},labels); t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; });
   /* ── /neighbourhood names ── */
   lbl(labels,'pl-credit','Map data © OpenStreetMap contributors', M.W+MX-18, M.H+MY-18, 'end');
   var hits=el('g',{'class':'pl-hits'},svg);
@@ -1033,24 +1203,92 @@ function drawCity(svg){
   drawBuildings(svg);
   sizeChips(svg);
   if(svg===svgD) window._palTr.ready();
+  (window._palT=window._palT||{}).draw=Math.round(performance.now()-tD0);
 }
-/* ── neighbourhood names: which show. A name of rank r appears once the board is zoomed AREA_K[r] times in from the whole city; then, in rank order,
-   any name that would touch a district's name, a landmark, a building or a name already kept is hidden. ── */
+/* ── the names on the map: which show. Every name keeps its size on the screen, so far out they would pile up (Center City:
+   the towers', the neighbourhoods', the streets'). When a zoom settles the names are taken in priority order: a unit's district
+   (always), a landmark (one with a page, a tower, the bigger first), a river, a main street (the longer first), a neighbourhood
+   by rank, a big bridge or park, the other streets, the small bridges and parks, the minor streets; one that would touch a name
+   already kept is hidden (a landmark's card, a chip, a station's name shown and, for a neighbourhood, a building also count).
+   A name of rank r appears once the board is zoomed AREA_K[r] times in from the whole city. Each name's box (turned along its
+   street) is worked out from the map, not measured from the page, so a hidden name costs nothing; and only names within reach of
+   the window are laid out at all (display), checked again when a pan stops: the page lays out tens of names, not a thousand. ── */
 var AREA_K=[0, 0, 2, 4, 8];
-function areaSoon(svg){ if(!svg.querySelector('.pl-area')) return; clearTimeout(svg._arT); svg._arT=setTimeout(function(){ areaFit(svg); }, 90); }
-function areaFit(svg){
-  var tx=[].slice.call(svg.querySelectorAll('.pl-area')); if(!tx.length || !svg.getBoundingClientRect().width) return;
-  var z=svg===svgD?Z:(MM.z||1), zf=svg===svgD?zmin():(typeof pmZmin==='function'?pmZmin():(MM.z||1)*.4);
-  tx.forEach(function(t){ t.style.display=''; });
-  var rk=tx.map(function(t){ return +t.getAttribute('data-r')||2; }), rc=tx.map(function(t){ return t.getBoundingClientRect(); }), blk=[];
-  function add(n){ var r=n.getBoundingClientRect(); if(r.width>0 && r.height>0) blk.push(r); }
-  [].forEach.call(svg.querySelectorAll('.pl-dist,.pl-lmt,.pl-lmb,.pl-chip,.pl-pkt'), add);
-  if(svg===svgD) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), add);
-  var P4=4, kept=[], order=tx.map(function(t,i){ return i; }).sort(function(a,b){ return rk[a]-rk[b] || a-b; });
-  function hits(b, r){ return !(b.right+P4<r.left || b.left-P4>r.right || b.bottom+P4<r.top || b.top-P4>r.bottom); }
-  order.forEach(function(i){ var t=tx[i], b=rc[i], ok=z>=zf*AREA_K[Math.min(4,Math.max(1,rk[i]))]*.999 && b.width>0;
-    if(ok) ok=!blk.some(function(r){ return hits(b, r); }) && !kept.some(function(r){ return hits(b, r); });
-    if(ok) kept.push(b); t.style.display=ok?'':'none'; }); }
+function areaSoon(svg){ clearTimeout(svg._arT); svg._arT=setTimeout(function(){ if(svg===svgD && PV){ areaSoon(svg); return; } lblFit(svg); }, 90); }
+function areaFit(svg){ lblFit(svg); }
+var LBL_UP={'pl-area':1,'pl-dist':1,'pl-river':1,'pl-brn':1,'pl-pkt':1}, LBL_LS={'pl-st':.03,'pl-area':.09,'pl-dist':.07,'pl-river':.3,'pl-brn':.09,'pl-pkt':.14,'lm-name':.01};
+/* a name's size on the screen in px (as its CSS sets it) */
+function lblFS(it, z, phone){ var t=it.t; switch(it.k){ case 'pl-st': return 11.5; case 'pl-brn': return 9.5; case 'pl-pkt': return 10.5;
+  case 'pl-dist': return Math.max(11, Math.min(20, 10.5+8*z)); case 'pl-area': return phone?Math.max(10.5, Math.min(13, 8.5+5*z)):Math.max(9, Math.min(13, 7.5+5*z));
+  case 'pl-river': return Math.max(13, (t._fs||20)*z);
+  case 'lm-name': var n=parseFloat(t.parentNode.style.getPropertyValue('--lm-nat'))||12; return Math.min(Math.max(11.5, n*z), 21); } return 11; }
+function lblItems(svg){ if(svg._li) return svg._li; var L=[];
+  function add(t, k, pr, fixed){ if(t) L.push({t:t, k:k, pr:pr, fixed:!!fixed, q:0, n:(t.textContent||'').length, vis:t.style.display!=='none'}); }
+  svg.querySelectorAll('text.pl-dist').forEach(function(t){ add(t, 'pl-dist', 1000, 1); });
+  svg.querySelectorAll('.pl-lmb').forEach(function(g){ var m=g._lm; if(m) add(m.nameT, 'lm-name', 900+(m.page?50:0)+(m.tower?30:0)+Math.min(40, m.w*m.h/2e4)); });
+  svg.querySelectorAll('text.pl-river').forEach(function(t){ add(t, 'pl-river', t._pr||800); });
+  svg.querySelectorAll('text.pl-st').forEach(function(t){ add(t, 'pl-st', t._pr||300); });
+  svg.querySelectorAll('text.pl-area').forEach(function(t){ add(t, 'pl-area', 560-40*Math.min(4, Math.max(1, +t.getAttribute('data-r')||2))); });
+  svg.querySelectorAll('text.pl-brn,text.pl-pkt').forEach(function(t){ add(t, t.classList.contains('pl-brn')?'pl-brn':'pl-pkt', t.classList.contains('big')?500:250); });
+  L.sort(function(a,b){ return b.pr-a.pr; }); return svg._li=L; }
+/* what the zoom's own rules (the CSS: .far / .mid) let show */
+function lblLod(it, svg, z, zf){ var c=it.t.classList, far=svg.classList.contains('far'), mid=svg.classList.contains('mid');
+  switch(it.k){ case 'pl-st': return far?(c.contains('top') && c.contains('r0')):mid?!c.contains('minor'):true;
+    case 'pl-brn': case 'pl-pkt': return !far || c.contains('big');
+    case 'pl-area': return z>=zf*AREA_K[Math.min(4, Math.max(1, +it.t.getAttribute('data-r')||2))]*.999; }
+  return true; }
+function obb(x, y, a, hl, hh){ var c=Math.cos(a), s=Math.sin(a), ex=Math.abs(c)*hl+Math.abs(s)*hh, ey=Math.abs(s)*hl+Math.abs(c)*hh;
+  return {x:x, y:y, c:c, s:s, hl:hl, hh:hh, l:x-ex, t:y-ey, r:x+ex, b:y+ey}; }
+function rbox(r, sr){ var x=(r.left+r.right)/2-sr.left, y=(r.top+r.bottom)/2-sr.top; return obb(x, y, 0, r.width/2, r.height/2); }
+/* two turned boxes touch (separating axes) */
+function obbHit(A, B){ if(A.r<B.l || B.r<A.l || A.b<B.t || B.b<A.t) return false;
+  var ax=[[A.c,A.s],[-A.s,A.c],[B.c,B.s],[-B.s,B.c]], dx=B.x-A.x, dy=B.y-A.y;
+  for(var i=0;i<4;i++){ var u=ax[i][0], v=ax[i][1], d=Math.abs(dx*u+dy*v);
+    var ra=A.hl*Math.abs(A.c*u+A.s*v)+A.hh*Math.abs(-A.s*u+A.c*v), rb=B.hl*Math.abs(B.c*u+B.s*v)+B.hh*Math.abs(-B.s*u+B.c*v);
+    if(d>ra+rb) return false; }
+  return true; }
+function lblFit(svg, viewOnly){
+  var sr=svg.getBoundingClientRect(); if(!sr.width) return;
+  var t0=performance.now(), phone=svg!==svgD, z=phone?(MM.z||1):Z, zf=phone?(typeof pmZmin==='function'?pmZmin():(MM.z||1)*.4):zmin();
+  var k=sr.width/VW, items=lblItems(svg), key=z.toFixed(5)+svg.getAttribute('class');
+  if(!viewOnly || svg._dcKey!==key){
+    svg._dcKey=key;
+    var P4=4, CELL=128, grid={}, obs=[], nodes=[];
+    function cells(b, f){ for(var i=Math.floor(b.l/CELL);i<=Math.floor(b.r/CELL);i++) for(var j=Math.floor(b.t/CELL);j<=Math.floor(b.b/CELL);j++) f(i+','+j); }
+    function put(b){ cells(b, function(c){ (grid[c]=grid[c]||[]).push(b); }); }
+    function hitKept(b){ var hit=false; cells(b, function(c){ if(!hit) (grid[c]||[]).some(function(o){ return (hit=obbHit(b, o)); }); }); return hit; }
+    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); obs.push(b); } });
+    if(!phone) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0) nodes.push(rbox(r, sr)); });
+    items.forEach(function(it){
+      var t=it.t, ok=lblLod(it, svg, z, zf), g=t._g, up=t._up||0; it.box=null;
+      var alt=null, altY=0;
+      if(ok && it.k==='lm-name'){ if(/\bin\b/.test(t.getAttribute('class')||'')){ it.keep=true; return; }
+        /* a landmark's name hangs under its card; where that is taken, over it */
+        var ts=t.firstChild, lm=t.parentNode._lm, fn0=lblFS(it, z, phone)/z; if(it.y0==null || it.yz!==z){ it.y0=+t.getAttribute('y')||0; it.yz=z; } else t.setAttribute('y', it.y0);
+        g=ts?[+ts.getAttribute('x')||0, it.y0, 0]:null; up=.35; if(g && lm){ altY=lm.y-fn0*.42; alt=[g[0], altY, 0]; }
+        var rot=t.parentNode.getAttribute('transform'), mm=rot&&/rotate\(([-\d.e]+) ([-\d.e]+) ([-\d.e]+)\)/.exec(rot);
+        if(g && mm){ var ra=mm[1]*Math.PI/180, rx=+mm[2], ry=+mm[3]; [g, alt].forEach(function(q){ if(!q) return; var dx=q[0]-rx, dy=q[1]-ry;
+          q[0]=rx+dx*Math.cos(ra)-dy*Math.sin(ra); q[1]=ry+dx*Math.sin(ra)+dy*Math.cos(ra); q[2]=ra; }); } }
+      if(ok && !g) ok=false;
+      if(ok){ var fs=lblFS(it, z, phone);
+        if(!it.qm && it.vis){ var w=0; try{ w=t.getComputedTextLength(); }catch(e){} if(w>0){ it.q=w*z/fs+it.n*(LBL_LS[it.k]||0); it.qm=1; } }   /* WebKit's text length leaves the letter-spacing out */
+        if(!it.qm) it.q=it.n*((LBL_UP[it.k]?.68:.56)+(LBL_LS[it.k]||0));
+        function boxAt(q){ var a=q[2]||0; return obb((q[0]+MX)*k+Math.sin(a)*up*fs, (q[1]+MY)*k-Math.cos(a)*up*fs, a, it.q*fs/2+P4, fs*.6+P4); }
+        function free(b){ return !hitKept(b)
+          && !obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && o.own && o.own!==t.parentNode)) && obbHit(b, o); })   /* a landmark's name never under another's card */
+          && !((it.k==='pl-area' || it.k==='lm-name') && nodes.some(function(o){ return obbHit(b, o); })); }
+        var b=boxAt(g);
+        if(!it.fixed && !free(b)){ ok=false; if(alt){ var b2=boxAt(alt); if(free(b2)){ ok=true; b=b2; t.setAttribute('y', altY); } } }
+        if(ok){ it.box=b; put(b); } }
+      it.keep=ok; });
+  }
+  /* only what is within reach of the window is laid out */
+  var cv=document.getElementById('canvas'), v=null;
+  if(!phone && cv){ var cr=cv.getBoundingClientRect(), m=.75*Math.max(cr.width, cr.height); v=[cr.left-sr.left-m, cr.top-sr.top-m, cr.right-sr.left+m, cr.bottom-sr.top+m]; }
+  items.forEach(function(it){ var b=it.box, show=it.keep && (!v || it.fixed || !b || (b.r>=v[0] && b.l<=v[2] && b.b>=v[1] && b.t<=v[3]));
+    if(show!==it.vis){ it.t.style.display=show?'':'none'; it.vis=show; } });
+  (window._palT=window._palT||{}).lbl=Math.round(performance.now()-t0);
+}
 /* chips keep a constant size on screen: re-measured when the zoom settles */
 function sizeChips(svg){ var z=svg===svgD?Z:(MM.z||1);
   if(window._palLm) window._palLm.relayout(svg, z);
@@ -1084,7 +1322,11 @@ function drawBuildings(svg){
 
 /* ── the board: the city under the cards, at the current zoom ── */
 var svgD=null;
-function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; return Math.max(.01, Math.min(cv.clientWidth/VW, cv.clientHeight/VH)); }
+/* the canvas's size, read once while placeAll lays the board out (CVS): each read of it after a write forced the page to lay
+   out the whole city again (four times in one zoom's last frame) */
+var CVS=null;
+function cvSize(cv){ return CVS||[cv.clientWidth, cv.clientHeight]; }
+function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; var c=cvSize(cv); return Math.max(.01, Math.min(c[0]/VW, c[1]/VH)); }
 /* the zoom a building's number is first 10px tall: where the board opens (it zooms out past it, to the whole city) */
 var ZREAD=(function(){ var L=null; for(var i=0;i<P.b.length && !L;i++) if(P.b[i] && P.b[i][0]) L=P.b[i][0]; if(!L) return .1;
   return Math.max(10/(L[3]*.55), 10*(4*.62+.6)/L[2]); })();
@@ -1098,14 +1340,14 @@ function ctlState(){ var c=document.getElementById('pal-ctl'); if(!c || Z==null)
   var o=c.querySelector('[data-z=out]'), i=c.querySelector('[data-z=in]'), f=c.querySelector('[data-z=fit]');
   if(o) o.classList.toggle('off', lo); if(i) i.classList.toggle('off', hi); if(f) f.classList.toggle('on', lo); }
 /* where the city's top edge sits in the canvas's scroll range: 0, or the gap that centres a short city */
-function gy(){ var cv=document.getElementById('canvas'); return cv?Math.max(0,Math.round((cv.clientHeight-VH*Z)/2)):0; }
+function gy(){ var cv=document.getElementById('canvas'); return cv?Math.max(0,Math.round((cvSize(cv)[1]-VH*Z)/2)):0; }
 /* While the board is being zoomed (a glide, a pinch, the wheel) it is not laid out again on every frame: laying out and
    repainting the whole city took ~200 ms a frame, so a zoom was three jumps. The board (#world: the city and its cards) is
    only SCALED and shifted by a transform while the zoom runs, and laid out for real once when it settles (placeAll). */
 var PV=null, pvTimer=null;
 function pvSet(z, sxT, syT){
   var cv=document.getElementById('canvas'), world=document.getElementById('world'); if(!cv || !world) return;
-  if(!PV){ PV={zc:Z, sx:cv.scrollLeft, sy:cv.scrollTop}; world.style.transformOrigin='0 0'; world.style.willChange='transform'; }
+  if(!PV){ PV={zc:Z, sx:cv.scrollLeft, sy:cv.scrollTop}; world.style.transformOrigin='0 0'; }
   PV.tx=sxT; PV.ty=syT; Z=z;
   world.style.transform='translate('+(PV.sx-sxT)+'px,'+(PV.sy-syT)+'px) scale('+(z/PV.zc)+')';
   if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
@@ -1113,22 +1355,27 @@ function pvSet(z, sxT, syT){
 }
 function placeAll(){
   if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
-    if(w){ w.style.transform=''; w.style.willChange=''; }
+    if(w) w.style.transform='';
     placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
   placeAllReal();
 }
 function placeAllReal(){
-  var world=document.getElementById('world'); if(!world) return;
+  var world=document.getElementById('world'); if(!world) return; var tP0=performance.now();
+  var cv=document.getElementById('canvas'); CVS=cv?[cv.clientWidth, cv.clientHeight]:null;
+  try{ placeBoard(world, cv); } finally { CVS=null; }
+  (window._palT=window._palT||{}).place=Math.round(performance.now()-tP0);
+}
+function placeBoard(world, cv){
   world.style.setProperty('width', Math.round(VW*Z)+'px', 'important'); world.style.minHeight=Math.round(VH*Z+WORLD_PAD_TOP)+'px';
   /* a city smaller than the window sits in the middle of it */
-  var cv=document.getElementById('canvas'), gap=cv?Math.max(0,(cv.clientWidth-VW*Z)/2):0;
+  var gap=cv?Math.max(0,(CVS[0]-VW*Z)/2):0;
   world.style.setProperty('margin-left', Math.round(gap)+'px', 'important');
   /* the board's top pad (the engine's WORLD_PAD_TOP) is pulled up out of the scroll range: the
      city's own top edge is where the page stops scrolling, so panning up never shows bare
      background between the bars and the map. A city shorter than the window is centred. */
   world.style.setProperty('margin-top', Math.round(gy()-WORLD_PAD_TOP)+'px', 'important');
   if(svgD){ svgD.setAttribute('width', Math.round(VW*Z)); svgD.setAttribute('height', Math.round(VH*Z+WORLD_PAD_TOP)-WORLD_PAD_TOP); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.top=WORLD_PAD_TOP+'px'; }
-  setClasses(); if(svgD) sizeChips(svgD);
+  setClasses();
   (typeof NODES!=='undefined'?NODES:[]).forEach(function(n){
     var e=document.getElementById('node-'+n.id); if(!e) return;
     var L=isB(n.id)?lot(P.at[n.id]):null;
@@ -1146,6 +1393,8 @@ function placeAllReal(){
     for(var i=1;i<=f;i++){ var q=(i*o).toFixed(1); sh.push(q+'px '+q+'px 0 0 rgba(255,255,255,.8)', q+'px '+q+'px 0 1px '+ucol(n.id)); }
     if(sh.length) e.style.setProperty('--pfl', sh.join(',')); else e.style.removeProperty('--pfl');
   });
+  /* last: the chips and landmark names measure the page (one layout, after every write above) */
+  if(svgD) sizeChips(svgD);
 }
 /* Enlarging a building asks the engine to pan the board (--pan-x/--pan-y) until the card is in the
    middle of the window. Near the city's edge that pulls the edge inwards and shows the bare page
@@ -1176,6 +1425,9 @@ window._altoPalace=function(h){
   if(P._lmDirty && svgD){ P._lmDirty=0; drawCity(svgD); if(MM.svg) drawCity(MM.svg); }
   if(!svgD){ svgD=el('svg',{id:'palace-svg', 'class':'pal-svg', viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none'}); svgD._sid='d'; drawCity(svgD); }
   if(svgD.parentNode!==world) world.insertBefore(svgD, world.firstChild);
+  /* a pan that stops brings in the names now within reach of the window (lblFit) */
+  var cvL=document.getElementById('canvas'); if(cvL && !cvL._lblScroll){ cvL._lblScroll=1; cvL.addEventListener('scroll', function(){ if(!svgD) return; clearTimeout(cvL._lblT);
+    cvL._lblT=setTimeout(function(){ if(svgD && !PV && palaceOn()) lblFit(svgD, true); }, 120); }, {passive:true}); }
   placeAll();
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:VH*Z}; });
   window._headerTint={slabTop:0, slabH:VH*Z, stops:[{p:0,c:PHASE_META[0].colorRaw},{p:100,c:PHASE_META[0].colorRaw}]};

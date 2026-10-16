@@ -751,7 +751,7 @@ def test_streets_are_drawn_in_two_weights_on_the_screen():
     # a major street and a minor one, each a connecting-line tube with its sheen, sized in screen px
     for cls, px in (("t-min", "3.6px"), ("t-maj", "5.6px")):
         assert f".pal-svg .pl-tube.{cls}{{stroke-width:calc(var(--tw,1) * {px});}}" in page
-    assert "tube(sg, byM[u], tc(u), 5.6, .95, 't-maj')" in page
+    assert "stubes(sg, byM, tc, 5.6, 't-maj')" in page and "stubes(sg, byU, tc, 3.6, 't-min')" in page
     assert "M.cols[i]" in page and "--tw" in page
 
 
