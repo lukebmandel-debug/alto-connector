@@ -182,10 +182,10 @@ def test_synthetic_line_ends():
     a, b = (sm.segs[0][0], sm.segs[0][1]), (sm.segs[0][2], sm.segs[0][3])
 
     def cross(p, q):
-        def o(u, v, w):
-            return (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])
+        def o(u, v, w):              # signed distance of w from the line u-v, px
+            return ((v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])) / max(1e-9, math.dist(u, v))
         d1, d2, d3, d4 = o(a, b, p), o(a, b, q), o(p, q, a), o(p, q, b)
-        return d1 * d2 < -1e-6 and d3 * d4 < -1e-6
+        return min(abs(d1), abs(d2)) > 1e-6 and d1 * d2 < 0 and d3 * d4 < 0
     for ps in (pa, pb):
         for p in ps:
             assert not any(cross(u, v) for u, v in zip(p["p"], p["p"][1:])), p

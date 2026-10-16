@@ -186,9 +186,10 @@ def thin(lines, g):
 
 def _stats(kept, g, total):
     gaps = [(b["pos"] - a["pos"]) / g for a, b in zip(kept, kept[1:])]
+    real = sum(1 for l in kept if not l.get("slot"))
     if not gaps:
-        return {"lines": len(kept), "dropped": total - len(kept)}
-    return {"lines": len(kept), "dropped": total - len(kept), "gap_min": round(min(gaps), 3),
+        return {"lines": len(kept), "dropped": total - real}
+    return {"lines": real, "slots": len(kept) - real, "dropped": total - real, "gap_min": round(min(gaps), 3),
             "gap_max": round(max(gaps), 3), "gap_median": round(sorted(gaps)[len(gaps) // 2], 3),
             "gap_dev": round(sum(abs(x - 1) for x in gaps) / len(gaps), 3)}
 
@@ -206,9 +207,44 @@ def _must_names(domain, avenues, must):
     return out
 
 
-def select(domain, avenues=None, majors=(), sigma=1.0, must=(), cw=CW, ch=CH, theta=None, center=None):
+FILL_AT = 1.6           # a kept gap this many targets wide is filled with unnamed slots (see fill)
+ISO_SLACK = 1.10        # a family whose median kept gap exceeds this many targets sets the domain's own (smaller) scale
+
+
+def _must_gap(lines):
+    ps = [l["pos"] for l in lines if l["must"]]
+    gaps = sorted(b - a for a, b in zip(ps, ps[1:]) if b - a > SAME_LINE)
+    if len(gaps) < 3:
+        return None
+    med = gaps[len(gaps) // 2]
+    gaps = [x for x in gaps if x <= 3 * med]
+    return gaps[len(gaps) // 2]
+
+
+def fill(kept, g, at=FILL_AT):
+    """A gap of at least `at` targets gets round(gap / g) - 1 unnamed slots ({"slot": True, "spans": []}), so
+    the page keeps real distance across a park or a void instead of folding it into one block. Slots carry the
+    mapping only; they are drawn only where something (graph-paper completion inside the domain) asks."""
+    out = []
+    for a, b in zip(kept, kept[1:] + [None]):
+        out.append(a)
+        if b is None:
+            continue
+        gap = b["pos"] - a["pos"]
+        n = int(round(gap / g)) - 1 if gap >= at * g else 0
+        for k in range(1, n + 1):
+            out.append({"n": None, "pos": a["pos"] + gap * k / (n + 1), "spans": [], "major": False, "len": 0.0,
+                        "bridges": [], "k": 9, "must": False, "slot": True})
+    return out
+
+
+def select(domain, avenues=None, majors=(), sigma=1.0, must=(), cw=CW, ch=CH, theta=None, center=None, iso=True,
+           slots=True):
     """The lines of one domain from its own streets. roles "vh": columns get cw, rows ch; "hv": swapped.
-    sigma: page px per real px (one per city, see scale()); the target real gaps are page spacing / sigma."""
+    sigma: page px per real px (one per city, see scale()); the target real gaps are page spacing / sigma.
+    iso: when a family cannot reach the target density (its median kept gap is over ISO_SLACK targets), the
+    whole domain takes the scale that family imposes, so its page stays isotropic (angles on the page = real
+    angles) instead of squeezing one axis; the domain's sigma is in the result."""
     th = domain.theta if theta is None else theta
     ctr = center or centroid(domain.poly)
     mn = _must_names(domain, avenues, must)
@@ -216,10 +252,32 @@ def select(domain, avenues=None, majors=(), sigma=1.0, must=(), cw=CW, ch=CH, th
     roles = getattr(domain, "roles", "vh") or "vh"
     gv = (cw if roles[0] == "v" else ch)
     gh = (ch if roles[0] == "v" else cw)
-    tg = {"v": gv / sigma, "h": gh / sigma}
-    out = {"theta": th, "center": ctr, "gv": gv, "gh": gh, "sigma": sigma, "stats": {}}
+    sig = sigma
+    if iso:
+        # one family may be unable to reach the target density (West Philadelphia's numbered streets are 178 m
+        # apart and nothing runs between them; Manhattan's avenues are 3 streets apart): the domain then takes
+        # the scale that keeps the page most nearly isotropic, min over s of max(|log rho_v(s)|, |log rho_h(s)|)
+        # with rho = median kept gap / target (optional lines re-thin at every s; must lines cannot)
+        def rho(sg):
+            out = []
+            for o, g in (("v", gv), ("h", gh)):
+                kept = thin(cand[o], g / sg)
+                gaps = sorted((b["pos"] - a["pos"]) * sg / g for a, b in zip(kept, kept[1:]))
+                out.append(gaps[len(gaps) // 2] if len(gaps) >= 4 else 1.0)
+            return out
+        r0 = rho(sigma)
+        if max(r0) > ISO_SLACK:
+            best = (max(abs(math.log(x)) for x in r0), sigma)
+            for k in range(1, 31):
+                sg = sigma / (max(r0) ** (k / 30.0))
+                e = max(abs(math.log(x)) for x in rho(sg))
+                if e < best[0] - 1e-9:
+                    best = (e, sg)
+            sig = best[1]
+    tg = {"v": gv / sig, "h": gh / sig}
+    out = {"theta": th, "center": ctr, "gv": gv, "gh": gh, "sigma": sig, "sigma_city": sigma, "stats": {}}
     for o in ("v", "h"):
-        kept = thin(cand[o], tg[o])
+        kept = fill(thin(cand[o], tg[o]), tg[o]) if slots else thin(cand[o], tg[o])
         for i, l in enumerate(kept):
             l["i"] = i
         out[o] = kept
@@ -227,12 +285,14 @@ def select(domain, avenues=None, majors=(), sigma=1.0, must=(), cw=CW, ch=CH, th
     return out
 
 
-def scale(domain, majors=(), cw=CW, theta=None, center=None):
-    """sigma = cw / the median real gap between consecutive must columns (numbered/major streets) of the
-    domain (gaps over 3x the median are breaks, not blocks). 1.0 when the domain has too few."""
+def scale(domain, majors=(), cw=CW, theta=None, center=None, ch=CH):
+    """sigma = the family's block size (cw for columns, ch for rows) / the median real gap between its consecutive
+    must lines (numbered/major streets), for the family with the most of them (gaps over 3x the median are breaks,
+    not blocks). 1.0 when the domain has too few."""
     th = domain.theta if theta is None else theta
     cand = candidates(domain.streets, th, center or centroid(domain.poly), majors)
     best = None
+    roles = getattr(domain, "roles", "vh") or "vh"
     for o in ("v", "h"):
         ps = [l["pos"] for l in cand[o] if l["must"]]
         gaps = sorted(b - a for a, b in zip(ps, ps[1:]) if b - a > SAME_LINE)
@@ -240,9 +300,10 @@ def scale(domain, majors=(), cw=CW, theta=None, center=None):
             med = gaps[len(gaps) // 2]
             gaps = [x for x in gaps if x <= 3 * med]
             med = gaps[len(gaps) // 2]
+            nominal = cw if (o == "v") == (roles[0] == "v") else ch
             if best is None or len(gaps) > best[1]:
-                best = (med, len(gaps))
-    return cw / best[0] if best else 1.0
+                best = (nominal / med, len(gaps))
+    return best[0] if best else 1.0
 
 
 class LocalMapping(Mapping):

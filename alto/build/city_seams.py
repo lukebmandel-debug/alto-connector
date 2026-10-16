@@ -372,7 +372,7 @@ def shared(P, Q, dmax=ADJ_D):
     small, big = (P, Q) if area(P.poly) <= area(Q.poly) else (Q, P)
     s = _samples(small.poly)
     hits = [(i, p, _ring_d(p, big.poly)) for i, p in enumerate(s)]
-    near = [(i, p, d) for i, p, d in hits if d <= dmax or _inside(p, big.poly)]
+    near = [(i, p, (0.0 if _inside(p, big.poly) else d)) for i, p, d in hits if d <= dmax or _inside(p, big.poly)]
     if not near:
         return [], 0.0
     # ring order, starting after the largest index gap (so a run that wraps the ring start stays contiguous)
@@ -448,6 +448,10 @@ def seams(domains, lines=None, avenues=None, rivers=None, sigma=1.0, cw=CW, ch=C
             if near:
                 t0, t1 = min(t0, min(_lpos(p, line) for p in near)), max(t1, max(_lpos(p, line) for p in near))
             av = seam_avenue((P.streets or []) + (Q.streets or []), line, t0, t1)
+            if av:                        # the seam runs as far as its avenue does along the hinge line
+                ta = [_lpos(p, line) for p in av[2] if _ldist(p, line) < AV_NEAR]
+                if ta:
+                    t0, t1 = min(t0, min(ta)), max(t1, max(ta))
             used = {i for i, p in enumerate(samples) if _ldist(p, line) < 2.5 * RANSAC_TOL + 0.5 * cw / max(sigma, 1e-9)}
             parts.append({"kind": "hinge", "line": line, "rms": rms, "t": (t0, t1),
                           "bends": [bl[k] for k in inl], "fa": fams[0], "fb": fams[1],
@@ -483,7 +487,8 @@ def seams(domains, lines=None, avenues=None, rivers=None, sigma=1.0, cw=CW, ch=C
         # order the parts along the boundary
         parts.sort(key=lambda pt: min(range(len(samples)), key=lambda i: _ldist(samples[i], pt["line"]) + abs(
             _lpos(samples[i], pt["line"]) - pt["t"][0]) * 0.01))
-        main = parts[0] if parts[0]["kind"] == "hinge" else max(parts, key=lambda pt: pt["t"][1] - pt["t"][0])
+        main = next((pt for pt in parts if pt["kind"] == "hinge"), None) or \
+            max(parts, key=lambda pt: pt["t"][1] - pt["t"][0])
         for pt in parts:
             pt["phi_rel"] = _ldiff(pt["line"][2], tp)       # real angle relative to the parent's frame
         # the child's roles from the hinge part (relative frame: parent rows at 0, columns at 90)
@@ -785,7 +790,8 @@ def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL):
                 gs[sm.b][fb] = sol["g"]
                 pt["solve"] = sol
                 rep.update(phi_real=phi_real, phi=phi, fold=sol["fold"], t=sol["t"], r=sol["r"],
-                           block_ratio=sol["ratio"], err=sol["err"])
+                           block_ratio=sol["ratio"], err=sol["err"], phi_true=ref,
+                           err_true=abs(_ldiff(phi, ref)))
             else:
                 phi = _snap_tee(phi_real, mpP.a, aQ)
             phi = ref + _ldiff(phi, ref)                     # keep the real orientation (for the sides)
@@ -794,7 +800,8 @@ def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL):
             pt["page"] = {"phi": phi, "u": u, "n": n, "c": c, "phi_real": phi_real}
         # the child's offsets: least squares on seam samples, then the hinge family exactly through Q_k
         mpQ = make(sm.b, aQ, (0.0, 0.0))
-        anch = [p for pt in parts if pt["kind"] != "water" for p in _anchor_pts(pt)]
+        mainp = _main_part(sm)
+        anch = _anchor_pts(mainp) if mainp else []
         cv = ch_ = None
         if any(pt["kind"] == "water" for pt in parts):
             cv, ch_ = _named_offsets(lay, sm.a, sm.b)
@@ -832,6 +839,25 @@ def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL):
         rep["tilt"] = sm.info["tilt"]; rep["roles"] = getattr(Q, "roles", "vh")
         rep["g_child"] = dict(gs[sm.b])
         lay.report[(sm.a, sm.b)] = rep
+    # a grid domain no seam reaches (an island of grid in a free area): turned by its own tilt against the
+    # root, placed so its outline lands where the root's mapping puts it
+    for did in lines:
+        if did in lay.maps or did not in doms:
+            continue
+        d, mpR = doms[did], lay.maps[root]
+        raw, snap = tilt(math.degrees(doms[root].theta), math.degrees(d.theta))
+        if abs(math.degrees(d.theta) - (math.degrees(doms[root].theta) + raw)) > 1e-6:
+            pass                                   # theta is used as selected (lines were built in it)
+        mpQ = make(did, mpR.a + _ldiff(math.degrees(lines[did]["theta"]), math.degrees(doms[root].theta)), (0.0, 0.0))
+        anch = _samples(d.poly, 100.0) if d.poly else []
+        offs = {}
+        for fam in ("v", "h"):
+            nq = mpQ.normal(fam)
+            vals = sorted(_dot(nq, mpR(*p)) - (mpQ.local(*p)[0] if fam == "v" else mpQ.local(*p)[1]) for p in anch)
+            offs[fam] = vals[len(vals) // 2] if vals else 0.0
+        nv, nh = mpQ.normal("v"), mpQ.normal("h")
+        make(did, mpQ.a, (offs["v"] * nv[0] + offs["h"] * nh[0], offs["v"] * nv[1] + offs["h"] * nh[1]))
+        lay.report[(None, did)] = {"kind": "unconnected", "tilt": mpQ.a}
     # page segments of every part (corners where consecutive parts meet), regions
     for sm in seam_list:
         mpP = lay.maps[sm.a]
@@ -844,14 +870,6 @@ def layout(domains, seam_list, lines, pad=PAD, cw=CW, ch=CH, tol=R_TOL):
             base = (pg["n"][0] * pg["c"], pg["n"][1] * pg["c"])
             segs.append([(base[0] + pg["u"][0] * t0, base[1] + pg["u"][1] * t0),
                          (base[0] + pg["u"][0] * t1, base[1] + pg["u"][1] * t1)])
-        for i in range(len(parts) - 1):                     # consecutive parts meet at their lines' crossing
-            a, b = parts[i]["page"], parts[i + 1]["page"]
-            j = _isect(a["n"], a["c"], b["n"], b["c"])
-            if j is None:
-                continue
-            for k, s in ((i, segs[i]), (i + 1, segs[i + 1])):
-                e = min((0, 1), key=lambda q: math.dist(s[q], j))
-                s[e] = j
         sm.segs = [(s[0][0], s[0][1], s[1][0], s[1][1]) for s in segs]
     _regions(lay, doms, seam_list, root)
     # global shift: the smallest page coordinate of any region becomes pad
@@ -898,7 +916,8 @@ def _regions(lay, doms, seam_list, root):
         L = lay.lines[cid]
         x0, y0, x1, y1 = lay.rect[cid]
         gv, gh = mpQ.loc.gv, mpQ.loc.gh
-        parts = [pt for pt in sm.info["parts"] if pt["kind"] != "water"]
+        main = _main_part(sm)
+        parts = [main] if main and main["kind"] != "water" else []
         if not parts:
             continue
         # which side of the seam the child is on: its own centre, mapped by the parent
@@ -918,7 +937,8 @@ def _regions(lay, doms, seam_list, root):
                 S = clip_half(S, pg["n"], pg["c"] + w, "ge"); Ssub = clip_half(Ssub, pg["n"], pg["c"] - w, "ge")
             else:
                 S = clip_half(S, pg["n"], pg["c"] - w, "le"); Ssub = clip_half(Ssub, pg["n"], pg["c"] + w, "le")
-        segs = [((s_[0], s_[1]), (s_[2], s_[3])) for s_ in sm.segs]
+        k_main = sm.info["parts"].index(main)
+        segs = [((s_[0], s_[1]), (s_[2], s_[3])) for s_ in sm.segs[k_main:k_main + 1]]
         if segs:
             def outer(k, nb):
                 a, b = segs[k]
@@ -942,13 +962,29 @@ def _regions(lay, doms, seam_list, root):
         lay.subtract.setdefault(sm.a, []).append(sub)
 
 
+def _main_part(sm):
+    """The part of a seam that clips: the hinge part, else the longest tee/strip part (the other parts are
+    recorded in seam.info for the report; multi-part clipping is not done yet)."""
+    ps = sm.info["parts"]
+    hp = next((pt for pt in ps if pt["kind"] == "hinge"), None)
+    if hp:
+        return hp
+    ps = [pt for pt in ps if pt["kind"] != "water"]
+    return max(ps, key=lambda pt: pt["t"][1] - pt["t"][0]) if ps else None
+
+
 def _extend(lay, did, sm, cap=3.0):
     """Grow domain did's lattice rect toward a seam it does not reach (at most `cap` blocks a side), so every
     line that meets the seam really reaches it (the extra lines are unnamed graph-paper slots)."""
     mp = lay.maps[did]
     x0, y0, x1, y1 = lay.rect[did]
     gv, gh = mp.loc.gv, mp.loc.gh
-    pts = [mp.to_local(s_[0], s_[1]) for s_ in sm.segs] + [mp.to_local(s_[2], s_[3]) for s_ in sm.segs]
+    main = _main_part(sm)
+    if not main:
+        return lay.rect[did]
+    k = sm.info["parts"].index(main)
+    sg = sm.segs[k:k + 1]
+    pts = [mp.to_local(s_[0], s_[1]) for s_ in sg] + [mp.to_local(s_[2], s_[3]) for s_ in sg]
     if not pts:
         return lay.rect[did]
     lx = [p[0] for p in pts]; ly = [p[1] for p in pts]
@@ -1035,9 +1071,8 @@ def paths(lay, did, lead=LEAD):
             for t0, t1 in lay.segment(did, a, b):
                 p0 = (a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0)
                 p1 = (a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1)
-                pts, ends = [p0, p1], [None, None]
-                for e in (0, 1):
-                    q = pts[e]
+                ends, lead_pt = [None, None], [None, None]
+                for e, (q, other) in enumerate(((p0, p1), (p1, p0))):
                     sm, pt = _on_seam(lay, did, q)
                     if not sm:
                         continue
@@ -1046,12 +1081,8 @@ def paths(lay, did, lead=LEAD):
                         ends[e] = "hinge"
                         continue
                     ends[e] = "tee"
-                    other = pts[1 - e]
-                    tj = t_join(other, q, pt["page"]["u"], lead)
-                    if e == 1:
-                        pts = pts[:1] + tj[1:]
-                    else:
-                        pts = list(reversed(tj[1:])) + pts[1:]
+                    lead_pt[e] = t_join(other, q, pt["page"]["u"], lead)[2]
+                pts = ([lead_pt[0]] if lead_pt[0] else []) + [p0, p1] + ([lead_pt[1]] if lead_pt[1] else [])
                 out.append({"n": names.get(i), "fam": fam, "i": i, "p": pts, "ends": ends})
     return out
 
@@ -1063,7 +1094,7 @@ def plan(domains, avenues=None, majors=(), sigma=None, rivers=None, cw=CW, ch=CH
     grid = [d for d in domains if d.kind == "grid" and d.poly]
     if sigma is None:
         root = max(grid, key=lambda d: area(d.poly))
-        sigma = city_scale(root, majors, cw)
+        sigma = city_scale(root, majors, cw, ch=ch)
     sl = seams(grid, None, avenues, rivers, sigma, cw, ch)
     lines = {}
     for d in grid:
@@ -1073,3 +1104,80 @@ def plan(domains, avenues=None, majors=(), sigma=None, rivers=None, cw=CW, ch=CH
     lay = layout(grid, sl, lines, cw=cw, ch=ch, tol=tol)
     lay.sigma = sigma
     return sl, lines, lay
+
+
+# ── quality numbers (for R10 / the report) ──────────────────────────────────
+def _unturn(L, tx, ty):
+    th = L["theta"]; cx, cy = L["center"]
+    c, s = math.cos(th), math.sin(th); x, y = tx - cx, ty - cy
+    return (x * c - y * s + cx, x * s + y * c + cy)
+
+
+def crossings(lay, did, tol=60.0):
+    """Real crossings of the domain's named lines (both spans cover the point): [(real point, page point)]."""
+    L, mp, out = lay.lines[did], lay.maps[did], []
+    for v in L["v"]:
+        if v.get("slot") or not v.get("n"):
+            continue
+        for h in L["h"]:
+            if h.get("slot") or not h.get("n"):
+                continue
+            if any(a - tol <= h["pos"] <= b + tol for a, b in v["spans"]) and \
+               any(a - tol <= v["pos"] <= b + tol for a, b in h["spans"]):
+                r = _unturn(L, v["pos"], h["pos"])
+                out.append((r, mp(*r)))
+    return out
+
+
+def _similarity(pairs):
+    z = [complex(*r) for r, _ in pairs]; w = [complex(*p) for _, p in pairs]
+    zm, wm = sum(z) / len(z), sum(w) / len(w)
+    a = sum((wi - wm) * (zi - zm).conjugate() for zi, wi in zip(z, w)) / max(1e-9, sum(abs(zi - zm) ** 2 for zi in z))
+    return lambda p: a * (complex(*p) - zm) + wm
+
+
+def _dstats(res, block):
+    r = sorted(x / block for x in res)
+    if not r:
+        return None
+    return {"n": len(r), "median": round(r[len(r) // 2], 2), "p90": round(r[int(0.9 * (len(r) - 1))], 2),
+            "max": round(r[-1], 2)}
+
+
+def domain_quality(lay, did, block=CW):
+    """Displacement of the domain's real crossings from the best similarity (scale, turn, shift) of the real map
+    onto its page, in blocks: how far the even lattice moves real places."""
+    pr = crossings(lay, did)
+    if len(pr) < 4:
+        return None
+    S = _similarity(pr)
+    return _dstats([abs(S(r) - complex(*p)) for r, p in pr], block)
+
+
+def seam_quality(lay, sm, dist=1500.0, block=CW):
+    """For a hinge seam: displacement of both sides' crossings within `dist` real px of the seam and of the kink
+    points from one best similarity (blocks), the order of the hinge streets along the seam (inversions against
+    the real order), the drawn angle against the real one and the child's block-width ratio."""
+    hp = next((pt for pt in sm.info["parts"] if pt["kind"] == "hinge"), None)
+    rep = dict(lay.report.get((sm.a, sm.b), {}))
+    if not hp or not sm.hinge:
+        return {"kind": sm.kind, "report": rep}
+    line, (t0, t1) = hp["line"], hp["t"]
+    near = [(r, p) for did in (sm.a, sm.b) for r, p in crossings(lay, did)
+            if _ldist(r, line) < dist and t0 - dist < _lpos(r, line) < t1 + dist]
+    bend = {}
+    for b in hp["bends"]:
+        bend.setdefault(b["n"], (b["x"], b["y"]))
+    hpairs = [(bend[h["n"]], h["at"]) for h in sm.hinge if h["n"] in bend]
+    S = _similarity(near + hpairs)
+    real = [h["n"] for h in sorted(sm.hinge, key=lambda h: _lpos(bend.get(h["n"], (0, 0)), line))]
+    u = hp["page"]["u"]
+    page = [h["n"] for h in sorted(sm.hinge, key=lambda h: _dot(u, h["at"]))]
+    if page and real and page.index(real[0]) > page.index(real[-1]):
+        page.reverse()
+    inv = sum(1 for i in range(len(real)) for j in range(i + 1, len(real)) if page.index(real[i]) > page.index(real[j]))
+    return {"kind": sm.kind, "avenue": sm.avenue, "pairs": len(sm.hinge), "names": [h["n"] for h in sm.hinge],
+            "order_inversions": inv, "near_seam": _dstats([abs(S(r) - complex(*p)) for r, p in near], block),
+            "kinks": _dstats([abs(S(r) - complex(*p)) for r, p in hpairs], block),
+            "phi": sm.phi, "phi_true": rep.get("phi_true"), "err_true": rep.get("err_true"),
+            "block_ratio": sm.ratio, "t": rep.get("t"), "tilt": sm.info.get("tilt"), "report": rep}
