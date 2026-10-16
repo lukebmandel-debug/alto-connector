@@ -468,12 +468,19 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         lat = lats[did]
         for lx, ly in pts:
             x, y = lat.page(lx, ly)
-            nb.setdefault((int(x // 200), int(y // 200)), []).append((x, y))
+            nb.setdefault((int(x // 200), int(y // 200)), []).append((x, y, did))
+    av_doms = {}
+    for r in recs:
+        av_doms.setdefault(r["n"], set()).update(pc["dom"] for pc in r["pieces"] if pc["kind"] != "void")
 
-    def at_node(p, r=25.0):
+    def at_node(p, ds, r=25.0):
+        """On a drawn lattice node of one of the avenue's own domains (an avenue drawn in one domain's frame never
+        counts the nodes of the domain next to it: off its axes there, it would cut across that grid)."""
         i, j = int(p[0] // 200), int(p[1] // 200)
-        return any(math.dist(p, q) <= r for a in (i - 1, i, i + 1) for b in (j - 1, j, j + 1) for q in nb.get((a, b), ()))
+        return any(q[2] in ds and math.dist(p, q[:2]) <= r for a in (i - 1, i, i + 1) for b in (j - 1, j, j + 1)
+                   for q in nb.get((a, b), ()))
     for a_ in avs:
+        ds_ = av_doms.get(a_["n"], set()) | {a_.get("dom")}
         P = _pairs(a_["p"])
         j = [int(bool(v)) for v in (a_.get("j") or (1, 1))]
         core = P[(1 if j[0] else 0):len(P) - (1 if j[1] else 0)]          # without the leads
@@ -484,7 +491,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
             S += [((a[0] + (b[0] - a[0]) * t / n, a[1] + (b[1] - a[1]) * t / n), k) for t in range(n)]
         if core:
             S.append((core[-1], len(core) - 1))
-        hit = [i for i, (q, _) in enumerate(S) if at_node(q)]
+        hit = [i for i, (q, _) in enumerate(S) if at_node(q, ds_)]
         if len(hit) < 2 or math.dist(S[hit[0]][0], S[hit[-1]][0]) < CH:
             continue
         a0, a1 = hit[0], hit[-1]
