@@ -89,6 +89,28 @@ def unlocal(loc, lx, ly):
     return (tx * c - ty * s + loc.cx, tx * s + ty * c + loc.cy)
 
 
+def clip_cell(lay, did, poly):
+    """A convex page polygon clipped to domain did's region minus its children's slabs: one polygon ([] when nothing
+    is left). Layout.clip splits a polygon along the extended edges of every slab even when the slab does not touch it
+    (its convex pieces cover the polygon); here a slab that does not overlap the polygon is skipped, and where a
+    slab really cuts it the largest remaining piece is the cell (a cell at a seam's very end)."""
+    own = lay.region.get(did)
+    P = list(poly)
+    if own:
+        P = city_seams._clip_convex(P, own)
+        if len(P) < 3 or abs(ring_area(P)) < 1e-6:
+            return []
+    for K in lay.subtract.get(did, ()):
+        inter = city_seams._clip_convex(P, K)
+        if len(inter) < 3 or abs(ring_area(inter)) < 1e-6:
+            continue
+        pieces = [q for q in city_seams._minus_convex(P, K) if len(q) >= 3 and abs(ring_area(q)) > 1e-6]
+        if not pieces:
+            return []
+        P = max(pieces, key=lambda q: abs(ring_area(q)))
+    return P
+
+
 # ── one domain's lattice, clipped by the Layout, its real outline and the river ──
 class DomLattice(Lattice):
     own = True
@@ -102,11 +124,7 @@ class DomLattice(Lattice):
     def cell_poly(self, i, j):
         if (i, j) not in self.ok:
             return []
-        q = self.cell_rect(i, j)
-        pieces = self.lay.clip(self.did, q)
-        if not pieces:
-            return []
-        return max(pieces, key=lambda p: abs(ring_area(p)))
+        return clip_cell(self.lay, self.did, self.cell_rect(i, j))
 
     def inside(self, x, y):
         reg = self.lay.region.get(self.did)
@@ -118,8 +136,7 @@ class DomLattice(Lattice):
         return self.lay.segment(self.did, a, b)
 
     def clip_poly(self, poly):
-        pieces = self.lay.clip(self.did, poly)
-        return max(pieces, key=lambda p: abs(ring_area(p))) if pieces else []
+        return clip_cell(self.lay, self.did, poly)
 
 
 class CityMapping(Mapping):
@@ -187,6 +204,21 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         if sm.info.get("parts") and _main_kind(sm) != "water":
             for did in (sm.a, sm.b):
                 seam_segs.setdefault(did, []).extend(sm.segs)
+    # a parent loses the child's slab only near the seam (beyond, the real outlines and the occupancy decide):
+    # the Layout's slab runs on between the perpendiculars at the seam's ends, through the parent's own blocks
+    subs = {k: list(v) for k, v in lay.subtract.items()}
+    for sm in sl:
+        part = city_seams._main_part(sm) if sm.info.get("parts") else None
+        if not part or part["kind"] == "water" or not subs.get(sm.a):
+            continue
+        K = subs[sm.a].pop(0)
+        pg = part["page"]
+        D = SEAM_FAR * max(lay.maps[sm.a].loc.gv, lay.maps[sm.a].loc.gh)
+        cq = lay.maps[sm.a](*city_lattice.centroid(by_id[sm.b].poly)) if sm.b in by_id else None
+        side = 1.0 if cq is None or (pg["n"][0] * cq[0] + pg["n"][1] * cq[1] - pg["c"]) >= 0 else -1.0
+        K2 = city_seams.clip_half(K, pg["n"], pg["c"] + side * D, "le" if side > 0 else "ge")
+        i = lay.subtract[sm.a].index(K)
+        lay.subtract[sm.a][i] = K2 if len(K2) >= 3 else K
     partners = {}
     for sm in sl:
         if _main_kind(sm) != "water":
@@ -211,19 +243,18 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
                 lx, ly = (xg[i] + xg[i + 1]) / 2, (yg[j] + yg[j + 1]) / 2
                 rect = [mp.page(xg[i], yg[j]), mp.page(xg[i + 1], yg[j]), mp.page(xg[i + 1], yg[j + 1]),
                         mp.page(xg[i], yg[j + 1])]
-                pieces = lay.clip(did, rect)
-                if not pieces:
+                piece = clip_cell(lay, did, rect)
+                if not piece:
                     continue
-                piece = max(pieces, key=lambda q: abs(ring_area(q)))
                 pc = city_lattice.centroid(piece)
                 ds = min((_segd(pc, (s_[0], s_[1]), (s_[2], s_[3])) for s_ in segs), default=1e18)
                 rx, ry = unlocal(mp.loc, lx, ly)
                 if ds < SEAM_NEAR * blk or _in_real(d, rx, ry) or \
                         (ds < SEAM_FAR * blk and any(_in_real(o, rx, ry) for o in pdoms)):
-                    cl[(i, j)] = (2, piece)
+                    cl[(i, j)] = (2, piece, ds)
                 elif d.poly and _ring_d((rx, ry), d.poly) < OWN_TOL * (m.get("scale") or 1.0) and \
                         not any(o is not d and o not in pdoms and _in_real(o, rx, ry) for o in others_real):
-                    cl[(i, j)] = (1, piece)
+                    cl[(i, j)] = (1, piece, ds)
         claim[did] = cl
     # occupancy: where two domains that share no seam both claim a place, the stronger claim (then the root, then
     # the larger domain) keeps it; seam partners are already kept apart by the Layout
@@ -233,7 +264,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         c = city_lattice.centroid(piece)
         return [c] + [(c[0] + .55 * (q[0] - c[0]), c[1] + .55 * (q[1] - c[1])) for q in piece]
     for did, cl in claim.items():
-        for ij, (st, piece) in cl.items():
+        for ij, (st, piece, _) in cl.items():
             for x, y in samples(piece):
                 k = (int(x // RASTER), int(y // RASTER))
                 cur = occ.get(k)
@@ -243,11 +274,12 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     ok = {}
     for did, cl in claim.items():
         keep = set()
-        for ij, (st, piece) in cl.items():
+        far = SEAM_FAR * max(lay.maps[did].loc.gv, lay.maps[did].loc.gh)
+        for ij, (st, piece, ds) in cl.items():
             lose = False
             for x, y in samples(piece):
                 cur = occ.get((int(x // RASTER), int(y // RASTER)))
-                if cur and cur[1] != did and cur[1] not in partners.get(did, ()) and cur[0] > (st, prio[did]):
+                if cur and cur[1] != did and (ds >= far or cur[1] not in partners.get(did, ())) and cur[0] > (st, prio[did]):
                     lose = True
                     break
             if not lose:
@@ -266,8 +298,8 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
     city_seams._shift(lay, {d.id: d for d in grid_doms}, sl, dx, dy)
     for did, cl in claim.items():
         for ij in list(cl):
-            st_, piece = cl[ij]
-            cl[ij] = (st_, [(x + dx, y + dy) for x, y in piece])
+            st_, piece, ds_ = cl[ij]
+            cl[ij] = (st_, [(x + dx, y + dy) for x, y in piece], ds_)
     maps = lay.maps
     W, H = int(max(xs) + dx + PAD), int(max(ys) + dy + PAD)
     rmp = maps[root]
@@ -417,10 +449,43 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=())
         avs = city_avenues.draw(av_recs, list(tdoms.values()), nodes, sl)
     except Exception as ex:                                       # noqa: BLE001  (an avenue never fails a build)
         avs, T["avenue_error"] = [], repr(ex)[:200]
+    # an avenue runs only where blocks are drawn: a free end that runs out into a void, a park or past the city's edge is
+    # cut back to the last lattice node it passes (so it ends on a street, never in nothing)
+    nb = {}
+    for did, pts in nodes.items():
+        lat = lats[did]
+        for lx, ly in pts:
+            x, y = lat.page(lx, ly)
+            nb.setdefault((int(x // 200), int(y // 200)), []).append((x, y))
+
+    def at_node(p, r=25.0):
+        i, j = int(p[0] // 200), int(p[1] // 200)
+        return any(math.dist(p, q) <= r for a in (i - 1, i, i + 1) for b in (j - 1, j, j + 1) for q in nb.get((a, b), ()))
     for a_ in avs:
-        st = {"n": norm(a_["n"]), "k": 0, "d": 1, "p": [round(v, 1) for v in a_["p"]]}
-        if a_.get("j"):
-            st["j"] = [int(bool(v)) for v in a_["j"]]
+        P = _pairs(a_["p"])
+        j = [int(bool(v)) for v in (a_.get("j") or (1, 1))]
+        core = P[(1 if j[0] else 0):len(P) - (1 if j[1] else 0)]          # without the leads
+        S = []                                                         # samples along the core: (point, seg index)
+        for k in range(len(core) - 1):
+            a, b = core[k], core[k + 1]
+            n = max(1, int(math.dist(a, b) // 20))
+            S += [((a[0] + (b[0] - a[0]) * t / n, a[1] + (b[1] - a[1]) * t / n), k) for t in range(n)]
+        if core:
+            S.append((core[-1], len(core) - 1))
+        hit = [i for i, (q, _) in enumerate(S) if at_node(q)]
+        if len(hit) < 2 or math.dist(S[hit[0]][0], S[hit[-1]][0]) < CH:
+            continue
+        a0, a1 = hit[0], hit[-1]
+        pa, ka = S[a0]; pb, kb = S[a1]
+        pts = [pa] + core[ka + 1:kb + 1] + ([pb] if math.dist(pb, core[kb]) > 0.5 else [])
+        pts = [q for k, q in enumerate(pts) if k == 0 or math.dist(q, pts[k - 1]) > 0.5]
+        if len(pts) < 2:
+            continue
+        lead_a = P[:1] if (j[0] and a0 == 0) else []
+        lead_b = P[-1:] if (j[1] and a1 == len(S) - 1) else []
+        line = lead_a + pts + lead_b
+        st = {"n": norm(a_["n"]), "k": 0, "d": 1, "j": [int(bool(lead_a)), int(bool(lead_b))],
+              "p": [round(v, 1) for q in line for v in q]}
         streets.append(st)
     T["avenues_draw"] = time.time() - t0 - sum(T.values())
 
