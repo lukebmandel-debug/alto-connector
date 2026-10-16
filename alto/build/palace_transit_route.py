@@ -641,8 +641,13 @@ BEND = 4.0              # blocks: the cost of one 45-degree bend (a 90-degree be
 STOP_NODE = 1.0         # blocks: a station stands on a lattice node this near it, or is not drawn
 STOP_W = 1.5            # cost of each px a station is moved from its real place
 STRAY_MAX = 2.5         # blocks: no run strays farther than this from the real track
+STOP_FAR = 1.5          # blocks: a station with no lattice node within STOP_NODE (at the edge of the drawn lattice) stands
+                        # on one this near instead (the position rule: <= ~1.5 blocks), rather than not being drawn
+STRAY_FAR = 4.0         # blocks: a leg no run within STRAY_MAX reaches (the real track mapped badly near a seam or the
+                        # page edge) is tried once more with this cap before its station is given up
 NEAR45 = 0.8            # degrees: a lattice move (p columns, q rows) this close to 45 degrees is a 45-degree run
 SHARE = 0.4             # a branch runs on track another branch of its line already uses at this share of the cost
+SHARE_LINES = 0.7       # a line runs on track another line already uses at this share (generic readings: one trunk)
 RIVER_X = 4.0           # blocks: what crossing a river costs (a line crosses where its real track does, not back and forth)
 
 
@@ -922,20 +927,22 @@ def _octi_seg(adj, cost, srcs, dsts, B):
     return None
 
 
-def octi_route(cmap, real, stops, branches, dev=None, anchors=None, rivers=()):
+def octi_route(cmap, real, stops, branches, dev=None, anchors=None, rivers=(), shared=None, prefer=None):
     """A grade-separated line over the domains' lattices, branch by branch in ride order: each station on a lattice node
     (or seam point) within STOP_NODE blocks of it, chosen with the route (cost: how far it moves), the line carrying
     its heading through the station (a bend at a station costs like any other), consecutive stations joined by the
     cheapest octilinear way (close to the real track, few and gentle bends, never more than STRAY_MAX blocks from it);
     a later branch rides the track an earlier one laid at a discount, so branches share their trunk.
     real: the real track in page px; stops: [(x, y)] page px; anchors: a dict filled with {stop index: node};
-    rivers: [{p: flat page polyline}] (the centre lines a crossing is counted on).
+    rivers: [{p: flat page polyline}] (the centre lines a crossing is counted on). shared: edges other lines already
+    run on (ridden at SHARE_LINES of the cost: lines on one real trunk are drawn on one corridor, in lanes); prefer:
+    {stop index: node} where another line stood the station (preferred: one station, one place).
     -> (edges {(u, v)}, kept stop indices, info {(u, v): (dom id, i0, j0, i1, j1) | None})"""
     adj, info = octi_graph(cmap, real)
     blk = cmap.blk
     trk = _Track(real, blk / 2)
     DEV = (dev if dev is not None else DEV_R * blk)
-    cap = (STRAY_MAX + 1.0) * blk
+    cap = (STRAY_FAR + 1.0) * blk
     memo, used = {}, set()
     rcell = 2 * blk
     rsegs = {}
@@ -965,19 +972,24 @@ def octi_route(cmap, real, stops, branches, dev=None, anchors=None, rivers=()):
             memo[key] = (sum(ds) / len(ds), max(ds), crossings(u, v))
         return memo[key]
 
+    lim = [STRAY_MAX * blk]
+
     def cost(u, v, L):
         mean, mx, nx = dvm(u, v)
-        if mx > STRAY_MAX * blk:
+        if mx > lim[0]:
             return None
         c = L * (1 + (mean / DEV) ** 2) + nx * RIVER_X * blk
-        return c * SHARE if ((u, v) if u < v else (v, u)) in used else c
+        e = (u, v) if u < v else (v, u)
+        if e in used:
+            return c * SHARE
+        return c * SHARE_LINES if shared and e in shared else c
     nb = {}
     cell = max(100.0, blk)
     for u in adj:
         nb.setdefault((int(u[0] // cell), int(u[1] // cell)), []).append(u)
 
-    def cands(x, y):
-        R = STOP_NODE * cmap.dom_page(x, y).blk
+    def cands(x, y, far=1.0):
+        R = STOP_NODE * far * cmap.dom_page(x, y).blk
         out = {}
         cx, cy = int(x // cell), int(y // cell)
         k = int(R // cell) + 1
@@ -993,7 +1005,9 @@ def octi_route(cmap, real, stops, branches, dev=None, anchors=None, rivers=()):
     for br in branches:
         seq = []
         for si in br:
-            c = {fixed[si]: 0.0} if si in fixed else cands(*stops[si])
+            c = {fixed[si]: 0.0} if si in fixed else (cands(*stops[si]) or cands(*stops[si], STOP_FAR / STOP_NODE))
+            if prefer and si in prefer and prefer[si] in c and si not in fixed:
+                c[prefer[si]] = min(c.values())          # where another line stands this station: as good as the best
             if c:
                 seq.append((si, c))
         if len(seq) < 2:
@@ -1010,7 +1024,13 @@ def octi_route(cmap, real, stops, branches, dev=None, anchors=None, rivers=()):
             if any(u not in taken for u in dsts):
                 dsts = {u: c for u, c in dsts.items() if u not in taken}
             got = _octi_seg(adj, cost, srcs, dsts, B)
+            if got is None:                              # unreachable within STRAY_MAX: once more with STRAY_FAR
+                lim[0] = STRAY_FAR * blk
+                got = _octi_seg(adj, cost, srcs, dsts, B)
+                lim[0] = STRAY_MAX * blk
             if got is None:
+                if cur is None:                          # the first station reaches nothing: the branch starts here
+                    si0, srcs = si, [(u, None, c) for u, c in cs.items()]
                 continue                                 # unreachable: this station is not drawn, the line goes on
             path, h = got
             if cur is None:

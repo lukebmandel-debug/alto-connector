@@ -25,6 +25,7 @@ TOL = 3.6                # px: a stop is on its line when it is within this of i
 BLOCK = 205.0            # px: about one block of the grid (a column step is 240, a row step 170)
 STUB_BLOCKS = 3.0        # track left standing past a line's last stop, in blocks
 GAP_PX = {"default": 7000.0, "rr": 14000.0, "trl": 4000.0}   # consecutive stops of a ride, |dx| + |dy| in grid px (a mile is about 4000)
+GAP_KIND = {"rail": 14000.0, "tram": 4000.0}   # the same by kind of line, for any city (a line id in GAP_PX wins)
 # the rivers a line may cross (a tunnel or a bridge), and how many times at most
 RIVER_OK = {"mfl": {"Schuylkill": 1}, "rr": {"Schuylkill": 1}, "trl": {"Schuylkill": 1}, "pat": {"Delaware": 1}}
 # the stops of each line's real route, in order from one end (a subsequence of the drawn ride, either way round)
@@ -232,8 +233,13 @@ def _subseq(want, names):
 
 
 def _philly(m):
-    pl = m.get("place")
-    return not pl or "philadelphia" in str(pl).lower()
+    from .city_transit_data import PHILADELPHIA, preset_for
+    return preset_for(m.get("place")) is PHILADELPHIA
+
+
+def _gap(lid, ln):
+    """px (on a 205 px block) two consecutive stops of a ride may be apart: by line id (GAP_PX), else by kind."""
+    return GAP_PX.get(lid) or GAP_KIND.get(ln.get("k"), GAP_PX["default"])
 
 
 def _blk(m):
@@ -266,6 +272,7 @@ def _dp(pts, tol):
     return [pts[k] for k in sorted(keep)]
 
 
+LANE_JOG = 14.0          # px: two lanes (palace_transit.LANE = 7): the sideways step a lane jog may make
 TURN_TOL, TURN_DEG = 8.0, 10.0   # px, degrees: a turn is a change of direction of more than TURN_DEG once lane jogs (< TURN_TOL) are out
 
 
@@ -425,10 +432,10 @@ def audit(m, table=None, real=None, to_page=None) -> dict:
                     iss.append("%d px of track past the last stop at an end near (%d, %d)"
                                % (gap, f[0] if at == 0.0 else f[-2], f[1] if at == 0.0 else f[-1]))
             for a0, a1 in zip(arcs, arcs[1:]):
-                if a1 - a0 > GAP_PX.get(lid, GAP_PX["default"]) * sc:
+                if a1 - a0 > _gap(lid, ln) * sc:
                     iss.append("%d px of track between two stops with none on it" % (a1 - a0))
         # consecutive stops of a branch: close enough, and on one connected piece of the track
-        mx = GAP_PX.get(lid, GAP_PX["default"]) * sc
+        mx = _gap(lid, ln) * sc
         piece_of = {}
         for q, pc in enumerate(pieces):
             for pi in pc:
@@ -454,10 +461,15 @@ def audit(m, table=None, real=None, to_page=None) -> dict:
             rep["no_street_px"] = sum(r[0] for r in cov.get("runs", []))
             rep["no_street_stops"] = len(cov.get("stops", []))
         # rivers
+        rx_cross = None
         for rv, cnt in _river_crossings(polys, rivers, 150.0 * sc).items():
             ok = RIVER_OK_.get(lid, {}).get(rv, 0)
             if rl is not None and to_page is not None:      # the real track's own crossings (a bridge or a tunnel)
                 ok = max(ok, _real_crossings(rl, to_page, rivers, 150.0 * sc).get(rv, 0))
+            if ln.get("rx"):                                # the same from the real track the snap carried onto the page
+                if rx_cross is None:
+                    rx_cross = _river_crossings(ln["rx"], rivers, 150.0 * sc)
+                ok = max(ok, rx_cross.get(rv, 0))
             if cnt > ok:
                 iss.append("crosses the %s %d time(s) (a tunnel or bridge allows %d)" % (rv, cnt, ok))
         # the real route
@@ -588,6 +600,14 @@ def picture(m, step=PIC_STEP, tol=STREET_TOL) -> dict:
     st = _Streets(drawn_segments(m) + seams)              # a seam is a drawn line (its avenue)
     lines = {ln["id"]: ln for ln in tr.get("lines", [])}
 
+    blk_ = _blk(m)
+
+    def allowed_at(x, y):
+        for ring, al in doms:
+            if ring and _in_ring(ring, x, y):
+                return al
+        return next((al for ring, al in doms if not ring), doms[0][1] if doms else [0.0, 90.0])
+
     def legal(x, y, ang):
         allowed = doms[-1][1]
         for ring, al in doms:
@@ -597,6 +617,14 @@ def picture(m, step=PIC_STEP, tol=STREET_TOL) -> dict:
         else:
             allowed = next((al for ring, al in doms if not ring), allowed)
         return any(abs(((ang - a) + 90.0) % 180.0 - 90.0) <= ANG_TOL for a in allowed)
+
+    def jog(x, y, ang, L):
+        """A lane jog: a piece of at most 1.5 blocks that leaves an allowed direction sideways by at most LANE_JOG px
+        (a line moving over one or two lanes where it joins a shared corridor, or ending on its centre where it also
+        has a diagonal)."""
+        if L > 1.5 * blk_:
+            return False
+        return legal(x, y, ang) or any(L * abs(math.sin(math.radians(ang - a))) <= LANE_JOG for a in allowed_at(x, y))
     bad_stops, runs, total = [], [], 0.0
     for s in tr.get("stops", []):
         ds = [_near(lines[l]["p"], s["x"], s["y"])[0] for l in s.get("l", []) if l in lines and lines[l]["p"]]
@@ -617,9 +645,10 @@ def picture(m, step=PIC_STEP, tol=STREET_TOL) -> dict:
                 total += L
                 ang = math.degrees(math.atan2(by - ay, bx - ax)) % 180.0
                 n = max(1, int(L // step))
+                jg = grade and jog((ax + bx) / 2, (ay + by) / 2, ang, L)
                 for i in range(n + 1):
                     x, y = ax + (bx - ax) * i / n, ay + (by - ay) * i / n
-                    ok = st.dist(x, y) <= tol or (tun.grid and tun.dist(x, y) <= 1.5) or (grade and legal(x, y, ang))
+                    ok = st.dist(x, y) <= tol or (tun.grid and tun.dist(x, y) <= 1.5) or (grade and (jg or legal(x, y, ang)))
                     if ok:
                         close()
                         cur = None
