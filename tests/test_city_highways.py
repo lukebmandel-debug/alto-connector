@@ -144,5 +144,5 @@ def test_page_and_directions_hooks():
     for call in ("window._palHw.lines(svg)", "window._palHw.stops(svg)", "window._palHw.hits(svg)", "window._palHw.keyHtml(sw)"):
         assert call in palace.PALACE_JS
     assert ".pl-tube.hw" in HIGHWAY_CSS
-    src = Path(palace_directions.__file__).read_text()
+    src = Path(palace_directions.__file__).read_text(encoding="utf-8")
     assert "window._palHw.drive(A, B)" in src and "window._palHw.places()" in src and "'Drive'" in src
