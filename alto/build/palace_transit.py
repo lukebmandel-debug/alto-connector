@@ -213,14 +213,46 @@ def snap(tr, mp, xg, yg, W, H, streets=(), edges_=(), doms=None, segs=None, octi
     the page's river centre lines [{p: flat}], so a grade-separated line crosses one only where its real track does."""
     if not tr or not tr.get("lines"):
         return {"lines": [], "stops": [], "ge": []}
+    square = False
     if octi is None:
         octi = bool(doms) and len(doms) > 1
+        if not octi and not doms and mp is not None and tr.get("v", 1) >= 2:
+            # a generic reading (any city but 1.9.78 Philadelphia) on the one-domain square grid: its rail runs
+            # octilinear on that grid too (axis, 45 degree and index-diagonal runs, no stair-steps under a diagonal track)
+            doms, octi, square = [(_RootDom(mp), _SquareLattice(xg, yg))], True, True
     if octi:
-        return _snap_octi(tr, doms, streets, edges_, segs, rivers)
+        out = _snap_octi(tr, doms, streets, edges_, segs, rivers)
+        if square:                                       # the square grid's ge: (i0, j0, i1, j1) as palace_grid draws them
+            out["ge"] = sorted({tuple(e[1:]) for e in out["ge"]})
+        return out
     if mp is None and doms:                              # one domain: the root (page == its local frame)
         d, lat = doms[0]
         mp, xg, yg = d.mapping, list(lat.xg), list(lat.yg)
     return _snap_square(tr, mp, xg, yg, W, H, streets, edges_)
+
+
+class _RootDom:
+    """The one square domain of a v1 grid as a city_types.Domain for the router: real px -> grid px is `mp`."""
+    id, poly, clip, holes = 0, None, None, ()
+
+    def __init__(self, mp):
+        self.mapping = mp
+
+
+class _SquareLattice:
+    """The v1 square grid as a Lattice: page == local, lines at xg / yg."""
+
+    def __init__(self, xg, yg):
+        self.xg, self.yg = list(xg), list(yg)
+
+    def page(self, lx, ly):
+        return (lx, ly)
+
+    def local(self, x, y):
+        return (x, y)
+
+    def node(self, i, j):
+        return (self.xg[i], self.yg[j])
 
 
 def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
@@ -245,7 +277,7 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
             # a trolley runs on a street: its track is routed along the streets the grid draws; a stop no drawn
             # street comes near, or that the track cannot reach, is not drawn
             stops = [mp(st["x"], st["y"]) for st in tr["stops"]]
-            under = {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}      # the subway-surface tunnel's stations and portals
+            under = _under(tr, ln)                       # the subway-surface tunnel's stations and portals
             es, kept, tun = route(adj, real_points(ln["w"], mp), stops, ln.get("b") or [ln["s"]],
                                   STOP_R, DEV_AVG, MAX_DEV, under)
             edges[ln["id"]] = es
@@ -279,7 +311,95 @@ def _snap_square(tr, mp, xg, yg, W, H, streets, edges_):
             return ("v", a[0])
         return None                                      # a diagonal avenue: a line keeps its centre
     out = _finish(tr, edges, tunnels, dropped, mp, keyf, lambda k: (0.0, 1.0) if k[0] == "h" else (1.0, 0.0))
+    _real_on_page(tr, out, mp)
     out["ge"] = sorted(ge)                               # ge: the grid edges the grade-separated lines run along (index pairs)
+    return out
+
+
+def _under(tr, ln):
+    """The stops of a trolley that may stand underground (reached by a tunnel ramp, no street under them). A generic
+    reading (tr["v"] == 2) says so per stop from OSM ("u": a stop on a tunnel way, or tagged underground / below
+    ground level); Philadelphia's 1.9.78 reading has no such flag: there every stop not named "A & B" (a street
+    corner) is a tunnel station or a portal."""
+    if tr.get("v", 1) >= 2:
+        return {si for si in ln["s"] if tr["stops"][si].get("u")}
+    return {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}
+
+
+RX_TOL = 0.4             # blocks: the real track carried onto the page (line "rx") is simplified this much
+
+
+def _real_on_page(tr, out, f, blk=205.0):
+    """A generic reading (tr["v"] == 2): each drawn line carries its real track mapped onto the page ("rx": flat
+    polylines, simplified), so the audit can allow exactly the river crossings the real track makes (a tunnel or a
+    bridge) without the raw map. The 1.9.78 reading (no "v") is left byte-identical."""
+    if tr.get("v", 1) < 2:
+        return
+    from .palace_transit_audit import _dp
+    src = {ln["id"]: ln for ln in tr["lines"]}
+    for ln in out["lines"]:
+        rx = []
+        for w in src[ln["id"]]["w"]:
+            pts = [f(w[k], w[k + 1]) for k in range(0, len(w) - 1, 2)]
+            pts = [p for p in pts if p is not None]
+            if len(pts) > 1:
+                rx.append([round(v) for p in _dp(pts, RX_TOL * blk) for v in p])
+        ln["rx"] = rx
+    out["v"] = 2
+
+
+def _gap_chords(ln, stops, f, blk):
+    """Points along the chord between two consecutive stops of a branch whose real track has a gap between them (the
+    route relation in OSM misses a way: they stand on track pieces that do not join), so the router can still join
+    them; a generic reading only. Pieces join where their ends are within a quarter block."""
+    polys = []
+    for w in ln["w"]:
+        pts = [f(w[k], w[k + 1]) for k in range(0, len(w) - 1, 2)]
+        pts = [p for p in pts if p is not None]
+        if pts:
+            polys.append(pts)
+    if not polys:
+        return []
+    par = list(range(len(polys)))
+
+    def find(i):
+        while par[i] != i:
+            par[i] = par[par[i]]
+            i = par[i]
+        return i
+    ends = [(i, p) for i, q in enumerate(polys) for p in (q[0], q[-1])]
+    tol = blk / 4
+    cell = {}
+    for i, p in ends:
+        cell.setdefault((int(p[0] // tol), int(p[1] // tol)), []).append((i, p))
+    for i, p in ends:
+        cx, cy = int(p[0] // tol), int(p[1] // tol)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for j, q in cell.get((cx + dx, cy + dy), ()):
+                    if j != i and math.hypot(p[0] - q[0], p[1] - q[1]) <= tol:
+                        par[find(i)] = find(j)
+    for i, q in enumerate(polys):                         # a piece that touches another mid-way (a junction) joins it too
+        for j, r in enumerate(polys):
+            if i < j and find(i) != find(j) and any(math.hypot(a[0] - b[0], a[1] - b[1]) <= tol
+                                                     for a in (q[0], q[-1]) for b in r[::max(1, len(r) // 40)]):
+                par[find(i)] = find(j)
+
+    def piece(x, y):
+        best, bi = 1e18, None
+        for i, q in enumerate(polys):
+            for a in q[::max(1, len(q) // 60)]:
+                d = (a[0] - x) ** 2 + (a[1] - y) ** 2
+                if d < best:
+                    best, bi = d, i
+        return find(bi) if bi is not None else None
+    out = []
+    for br in ln.get("b") or [ln["s"]]:
+        for a, b in zip(br, br[1:]):
+            (ax, ay), (bx, by) = stops[a], stops[b]
+            if piece(ax, ay) != piece(bx, by):
+                n = max(1, int(math.hypot(bx - ax, by - ay) // (blk / 4)))
+                out += [(ax + (bx - ax) * i / n, ay + (by - ay) * i / n) for i in range(n + 1)]
     return out
 
 
@@ -403,6 +523,7 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
     # track. A line whose track never reaches the stop (it was trimmed, or its tiles never came)
     # does not call there: no dot for a stop nobody's line passes.
     stops_out, remap = [], {}                            # remap: (old stop idx, line id) -> new idx
+    strict = tr.get("v", 1) >= 2                         # a generic reading: a shared dot is on every line it serves
     calls = {ln["id"]: set(ln["s"]) for ln in tr["lines"]}
     for si, s in enumerate(tr["stops"]):
         gx, gy = mp(s["x"], s["y"])
@@ -417,7 +538,7 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
         groups = []
         for lid, p in found:
             for g in groups:
-                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= group + .1 for _, q in g):
+                if all(math.hypot(p[0] - q[0], p[1] - q[1]) <= group + .1 for _, q in g) and (not strict or _mean_ok(g + [(lid, p)])):
                     g.append((lid, p))
                     break
             else:
@@ -433,6 +554,16 @@ def _finish(tr, edges, tunnels, dropped, mp, keyf, normal, group=2 * LANE, rel=0
         ln["b"] = [b for b in bs if b]
         ln["s"] = list(dict.fromkeys(k for b in ln["b"] for k in b))
     return {"lines": lines_out, "stops": stops_out}
+
+
+DOT_TOL = 3.6           # px: a shared stop dot stands this near every line it serves (palace_transit_audit.TOL)
+
+
+def _mean_ok(g):
+    """A group of lines may share one dot only if the dot (their mean point) is on each of them: two lanes 7 px apart
+    share it, the outer two of three lanes on one street do not (they get their own dots)."""
+    mx, my = sum(p[0] for _, p in g) / len(g), sum(p[1] for _, p in g) / len(g)
+    return all(math.hypot(p[0] - mx, p[1] - my) <= DOT_TOL for _, p in g)
 
 
 def _norm_name(n):
@@ -590,13 +721,22 @@ def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
     cm = CityMap(doms)
     blk = cm.blk                                         # every size in blocks of this page (any CW x CH)
     edges, tunnels, dropped, ge, rkey, anchor = {}, {}, set(), set(), {}, {}
+    laid, stood = set(), {}                              # edges and station nodes earlier grade-separated lines took
     if any(ln["k"] == "tram" for ln in tr["lines"]):
         adj = street_graph(list(segs if segs is not None else drawn_segs(edges=edges_, streets=streets)))
-    stops = [cm(st["x"], st["y"]) for st in tr["stops"]]
+    stops0 = [cm(st["x"], st["y"]) for st in tr["stops"]]
+
+    def stops_for(lid):
+        """The stops in page px as this line sees them: a station of several lines (a generic reading) stands at the
+        line's own platform ("lp"), not at the middle of the whole complex."""
+        if not any(st.get("lp") for st in tr["stops"]):
+            return stops0
+        return [cm(*st["lp"][lid]) if lid in (st.get("lp") or {}) else p for st, p in zip(tr["stops"], stops0)]
     pre, pref = {}, {}                                   # every trolley stop on its street first (the piece cut there),
     named = _named(streets) if any(ln["k"] == "tram" for ln in tr["lines"]) else {}
     for ln in tr["lines"]:                               # so no line's track holds a piece another line's stop later cuts
         if ln["k"] == "tram":
+            stops = stops_for(ln["id"])
             real = real_points(ln["w"], cm)
             trk = _Track(real, blk / 2)
             onst, along = _stop_points(named, tr, ln, stops, V2["named"] * blk, V2["along"] * blk, V2["far"] * blk)
@@ -612,10 +752,13 @@ def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
                 if n is not None:
                     pre[(si, ln["id"])] = n
     for ln in tr["lines"]:
+        stops = stops_for(ln["id"])
         real = real_points(ln["w"], cm)
+        if tr.get("v", 1) >= 2:
+            real = real + _gap_chords(ln, stops, cm, blk)
         at = {si: n for (si, lid), n in pre.items() if lid == ln["id"]}
         if ln["k"] == "tram":
-            under = {si for si in ln["s"] if " & " not in tr["stops"][si]["n"]}
+            under = _under(tr, ln)
             es, kept, tun = route(adj, real, stops, ln.get("b") or [ln["s"]],
                                   V2["stop_r"] * blk, V2["dev_avg"] * blk, V2["max_dev"] * blk, under,
                                   ramp=V2["ramp"] * blk, bend=V2["bend"] * blk, split=V2["split"] * blk, carry=True,
@@ -625,7 +768,12 @@ def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
             tunnels[ln["id"]] = tun
             dropped |= {(si, ln["id"]) for si in ln["s"] if si not in kept}
         else:
-            es, kept, info = octi_route(cm, real, stops, ln.get("b") or [ln["s"]], anchors=at, rivers=rivers)
+            gen = tr.get("v", 1) >= 2                   # a generic reading: lines on one real trunk share its corridor
+            es, kept, info = octi_route(cm, real, stops, ln.get("b") or [ln["s"]], anchors=at, rivers=rivers,
+                                        shared=laid if gen else None, prefer=stood if gen else None)
+            laid |= es
+            for si, n in at.items():
+                stood.setdefault(si, n)
             edges[ln["id"]] = es
             for e, inf in info.items():
                 if inf is None:
@@ -643,5 +791,6 @@ def _snap_octi(tr, doms, streets, edges_, segs, rivers=()):
         return rkey[e] if e in rkey else cm.lane_key(a, b)
     out = _finish(tr, edges, tunnels, dropped, cm, keyf, cm.normal, group=LANE, rel=2e-3,   # one dot per pair of next lanes
                   anchor=anchor, gap=V2["gap"] * blk, corner=CORNER)
+    _real_on_page(tr, out, cm, blk)
     out["ge"] = sorted(ge)                               # (dom, i0, j0, i1, j1): lattice edges a grade-separated line runs along
     return out
