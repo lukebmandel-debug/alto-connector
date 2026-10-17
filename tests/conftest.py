@@ -29,6 +29,7 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
     if request.module.__name__.rsplit(".", 1)[-1] != "test_palace_fillin":
         from alto import palace_map as _pm
         monkeypatch.setattr(_pm, "fetch_buildings", lambda box, **kw: {"elements": [], "missing": []})
+        monkeypatch.setattr(_pm, "_sleep", lambda s: None)       # (fetch_footprints waits BLD_PAUSE between the cells it asks for: not here)
 
     # Point the default store at a temp directory for EVERY test. Without
     # this, any test that exercises a code path reaching get_store() without
