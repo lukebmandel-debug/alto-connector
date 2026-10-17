@@ -202,7 +202,7 @@ function treeAt(m, x, y, sp, sz, h, season, lod, lobe){
   else if(sp===2){ th=3+g*1; R=5.6+g*1.6; rz=R*.72; prof=[[-.5,.7],[0,1],[.45,.85],[.9,0]]; }                    /* oak: wide */
   else if(sp===4){ th=2.1+g*.5; R=2.5+g*.6; rz=R*.8; prof=[[-.5,.6],[0,1],[.5,.8],[1,0]]; seg=6; }               /* ornamental cherry: small */
   else { th=2.4; R=1.5+g*.3; rz=R*3.4; prof=[[-.4,.5],[.1,1],[.8,.8],[1.2,.35],[1.4,0]]; seg=6; }                /* columnar */
-  fcyl(m,0,0,0,th+.6,.30*(1+g*.2),.2,5,MAT.trunk,ttr,true);
+  fcyl(m,0,0,0,th+.6,.30*(1+g*.2),.2,5,MAT.trunk,ttr,true); if(!lod) contact(m,0,0,Math.min(R*.4,1.1),Math.min(R*.4,1.1),.02);
   var cz=th+rz*.45;
   if(_rec) _rec.push(x,y,(cz+rz)*UM*sz,R*UM*sz,season===2?3:2);
   if(!lod && sp!==5){                                    /* a dark core of leaves with clusters of leaf cards over it */
@@ -221,7 +221,7 @@ function treeAt(m, x, y, sp, sz, h, season, lod, lobe){
 /* a cobra-head street lamp: the pole at the origin, arm and head out along +x (toward the street) */
 function lampAt(m, x, y, ox, oy, h){   /* (ox,oy) unit vector toward the street */
   frameV(x,y,SZ_SW,ox,oy,UM); var ph=7.6; if(_rec) _rec.push(x,y,ph*UM,1,1); if(_lamps) _lamps.push(x+ox*2.1*UM,y+oy*2.1*UM,SZ_SW+(ph-.3)*UM);
-  fcyl(m,0,0,0,ph,.13,.085,5,MAT.metal,PC.rail,false);
+  fcyl(m,0,0,0,ph,.13,.085,5,MAT.metal,PC.rail,false); contact(m,0,0,.55,.55,.02);
   fbox(m,0,-.045,ph-.12,2.3,.045,ph+.06,MAT.metal,PC.rail);                    /* the arm */
   fbox(m,1.55,-.2,ph-.22,2.7,.2,ph-.04,MAT.metal,PC.rail,MAT.metal,PC.rail);   /* the head */
   var hx=WX(2.1,0), hy=WY(2.1,0);
@@ -232,14 +232,14 @@ function lampPark(m, x, y){
   fcyl(m,0,0,3.55,4.0,.22,.16,6,MAT.lamp,PC.lampW,true); }
 function benchAt(m, x, y, ox, oy){          /* seat facing (ox,oy) */
   frameV(x,y,SZ_SW,ox,oy,UM);
-  fbox(m,-.1,-.8,.42,.36,.8,.47,MAT.wood,PC.bench,MAT.wood,PC.bench);
+  contact(m,.1,0,.5,.85,.02); fbox(m,-.1,-.8,.42,.36,.8,.47,MAT.wood,PC.bench,MAT.wood,PC.bench);
   fbox(m,-.18,-.8,.47,-.12,.8,.92,MAT.wood,PC.bench);
   fbox(m,-.05,-.72,0,.05,-.62,.42,MAT.metal,PC.rail); fbox(m,-.05,.62,0,.05,.72,.42,MAT.metal,PC.rail); }
 function hydrantAt(m, x, y, ox, oy, h){
   frameV(x,y,SZ_SW,ox,oy,UM); var c=PC.hyd[h<.7?0:1];
-  fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
+  contact(m,0,0,.42,.42,.02); fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
 function trashAt(m, x, y){
-  frame(x,y,SZ_SW,0,UM); fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
+  frame(x,y,SZ_SW,0,UM); contact(m,0,0,.5,.5,.02); fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
 function manholeAt(m, x, y){ var n=8, i, r=.5*UM; for(i=0;i<n;i++){ var a0=i/n*6.28318, a1=(i+1)/n*6.28318; tr(m,x,y,SZ_RD+.01,x+Math.cos(a0)*r,y+Math.sin(a0)*r,SZ_RD+.01,x+Math.cos(a1)*r,y+Math.sin(a1)*r,SZ_RD+.01,MAT.sign,PC.manh,x,y,-1); } }
 function mailboxAt(m, x, y, ox, oy){
   frameV(x,y,SZ_SW,ox,oy,UM); fbox(m,-.26,-.28,0,.26,.28,.15,MAT.metal,PC.rail);
@@ -310,6 +310,13 @@ var CAR_T=[   /* L, W, ls = lower body stations [x, top z, half width], cs = cab
   {n:'van',    L:5.2, W:2.0,  ls:[[0,.8,.9],[.25,1.02,.98],[4.7,1.0,.98],[5.2,.78,.9]],   cs:[[.3,1.02,.93],[.45,2.12,.89],[4.35,2.12,.89],[4.75,1.3,.9]]},
   {n:'coupe',  L:4.4, W:1.8,  ls:[[0,.6,.76],[.4,.88,.9],[3.6,.86,.9],[4.4,.62,.78]],     cs:[[1.25,.88,.76],[2.0,1.32,.66],[2.75,1.32,.66],[3.3,.86,.76]]}
 ];
+var CAR_W=[16,18,18,12,6,6,5,2,3,3,8,3], CAR_WS=CAR_W.reduce(function(a,b){ return a+b; },0);
+function carColour(h){ var t=h*CAR_WS, i=0; for(;i<CAR_W.length-1;i++){ if(t<CAR_W[i]) break; t-=CAR_W[i]; } return i; }     /* silver, black, white and grey mostly; some blue and red */
+/* a soft contact shadow: a stippled dark patch on the ground (material 50 dissolves its edge), centred at local (cx,cy), half sizes hl, hw */
+function contact(m, cx,cy, hl, hw, lz){ var z=WZ(lz||.02);
+  function V(x,y,u,v){ sv(m,WX(x,y),WY(x,y),z,0,0,1,u,v,50,PC.rubber); }
+  V(cx-hl,cy-hw,0,0); V(cx+hl,cy-hw,1,0); V(cx+hl,cy+hw,1,1);
+  V(cx-hl,cy-hw,0,0); V(cx+hl,cy+hw,1,1); V(cx-hl,cy+hw,0,1); }
 /* a car at its frame (the caller sets frame(): x forward, rear bumper at 0); detail adds wheels and lights */
 function lowTop(ls,x){ for(var i=0;i+1<ls.length;i++){ if(x<=ls[i+1][0]){ var t=(x-ls[i][0])/((ls[i+1][0]-ls[i][0])||1); return ls[i][1]+(ls[i+1][1]-ls[i][1])*t; } } return ls[ls.length-1][1]; }
 function carBody(m, T, tint, detail, taxi){
@@ -330,6 +337,15 @@ function carBody(m, T, tint, detail, taxi){
   [ls[0],ls[nl-1]].forEach(function(S){ Q(P(S[0],-S[2]*.93,zb),P(S[0],S[2]*.93,zb),P(S[0],S[2],S[1]),P(S[0],-S[2],S[1]),MAT.car,tint); });
   for(i=0;i+1<cs.length;i++) Q(P(cs[i][0],-cs[i][2],cs[i][1]),P(cs[i+1][0],-cs[i+1][2],cs[i+1][1]),P(cs[i+1][0],cs[i+1][2],cs[i+1][1]),P(cs[i][0],cs[i][2],cs[i][1]),MAT.car,i===1?tint:PC.glass);
   if(taxi){ var rz2=cs[1][1]; fbox(m,cs[1][0]+.5,-.22,rz2,cs[1][0]+.95,.22,rz2+.2,MAT.car,PC.signW,MAT.lamp,PC.lampOr); }
+  /* dark plates, a grille, and mirrors: on every car */
+  { var zq=ls[nl-1][1], zr2=ls[0][1], hw2=hw*.9;
+    function Qx(x,y0,y1,z0,z1,mat,t){ Q(P(x,y0,z0),P(x,y1,z0),P(x,y1,z1),P(x,y0,z1),mat,t); }
+    Qx(L+.012,-.26,.26,.42,.54,MAT.car,PC.rubber); Qx(-.012,-.26,.26,.45,.57,MAT.car,PC.rubber);              /* plates */
+    Qx(L+.012,-hw*.4,hw*.4,zq-.2,zq-.06,MAT.car,PC.rubber);                                                  /* grille */
+    if(!taxi){ Qx(L+.014,-hw2,-hw2*.55,zq-.2,zq-.1,MAT.lamp,PC.head); Qx(L+.014,hw2*.55,hw2,zq-.2,zq-.1,MAT.lamp,PC.head); Qx(-.014,-hw2,-hw2*.55,zr2-.22,zr2-.1,MAT.lamp,PC.tail); Qx(-.014,hw2*.55,hw2,zr2-.22,zr2-.1,MAT.lamp,PC.tail); }
+    for(sd=-1;sd<=1;sd+=2){ var mx0=cs[3][0]-.1, my0=sd*(cs[3][2]+.12), mz0=lowTop(ls,cs[3][0])+.14;
+      Q(P(mx0,my0,mz0),P(mx0+.12,my0,mz0),P(mx0+.12,my0+sd*.14,mz0+.02),P(mx0,my0+sd*.14,mz0+.02),MAT.car,tint); } }
+  if(!detail) contact(m,L*.5,0,L*.5+.3,hw+.2,.02);
   if(detail){
     var wz=.33, wx0=.85, wx1=L-.85;
     [[wx0,1],[wx0,-1],[wx1,1],[wx1,-1]].forEach(function(w){ fdisc(m,w[0],w[1]*(hw*.94+.005),wz,.33,8,w[1],MAT.car,PC.tyre); fdisc(m,w[0],w[1]*(hw*.94+.012),wz,.19,6,w[1],MAT.car,PC.chrome); });
@@ -417,7 +433,7 @@ function atlasPaint(A){ if(typeof document==='undefined') return; var c=document
 
 /* ── cells: one static mesh per cell (and one text mesh) so the renderer can cull ── */
 var CAP_FULL=14500, CAP_LOW=5600;
-SCN.budget={trees:6200, cars:4600, roofs:1500, vTree:340, vCar:140, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
+SCN.budget={trees:6200, cars:5400, roofs:1500, vTree:340, vCar:200, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
 function cellOf(S, x, y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=S.cells[k];
   if(!c){ c=S.cells[k]={m:sb(4096), t:sb(256), ci:ci, cj:cj, lod:S.lodOf(ci,cj), cap:0}; c.cap=c.lod?CAP_LOW:CAP_FULL; }
   return c; }
@@ -555,7 +571,7 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
     for(s=cc+1.5; s<L-cc-6; ){ var ti2=(hash(Math.round(s*7)+ei*37+Math.round(mx))*6)|0, T=CAR_T[ti2], len=T.L*UM, h1=hash(Math.round(s*11)+ei*53+Math.round(my));
       if(h1<fill && free(s+len/2,len/2+.3)){ bcand(bp.c); var cx2=px(s+len/2,-1.8), cy2=py(s+len/2,-1.8), cl2=cellOf(S,cx2,cy2);
         if(room(cl2,200) && !S.inPark(cx2,cy2) && !trackNear(cx2,cy2,2.5) && !trackNear(cx2+ux*len*.35,cy2+uy*len*.35,2.1) && !trackNear(cx2-ux*len*.35,cy2-uy*len*.35,2.1) && bpass(bp.c,hk(cx2,cy2,92))){
-          var ci=(hash(Math.round(cx2*3)+Math.round(cy2*5))*PC.car.length)|0, taxi=(rank<=1 && hash(Math.round(cx2)+Math.round(cy2*7))<.07);
+          var ci=carColour(hash(Math.round(cx2*3)+Math.round(cy2*5))), taxi=(rank<=1 && hash(Math.round(cx2)+Math.round(cy2*7))<.07);
           var n2=cl2.m.n; carParked(cl2.m,cx2,cy2,ux,uy,ti2,ci,taxi); stat.cars++; vc(stat,'cars',cl2.m.n-n2); bspent(bp.c,cl2.m.n-n2); } }
       s+=len+.9+hash(Math.round(s*5)+ei)*2.4+(h1<fill?0:5); } } }
 
@@ -748,7 +764,7 @@ function moversGather(S, W, M, stat, SI){
       for(var s=0;s<L.Lp;s+=6){ loopAt(L,s,o); if(S.trackNear(o.x,o.y,3.9)||S.inPark(o.x,o.y)||S.onWater(o.x,o.y,1)){ L.dead=true; break; } }
       if(L.dead) return;
       var nC=Math.max(1,Math.min(4,Math.round(L.Lp/380))), v=(L.rank<=1?12.5:10.5)+3*lh; L.v=v; L.vc=5.2;
-      for(var q=0;q<nC;q++){ var h=hk(L.cx+q*17,L.cy,52+q), bus=(L.rank<=1 && h<.12), ti=(hk(L.cx,L.cy+q*13,53)*6)|0, ci=(hk(L.cx*3,L.cy,54+q)*PC.car.length)|0, taxi=(L.rank<=1 && h>.88);
+      for(var q=0;q<nC;q++){ var h=hk(L.cx+q*17,L.cy,52+q), bus=(L.rank<=1 && h<.12), ti=(hk(L.cx,L.cy+q*13,53)*6)|0, ci=carColour(hk(L.cx*3,L.cy,54+q)), taxi=(L.rank<=1 && h>.88);
         var car={kind:0, a:carTpl(ti,ci,taxi,bus), x:0,y:0,z:0,yaw:0, loop:L, len:bus?11.6*UM:CAR_T[ti].L*UM, s0:(q+.2+.6*hk(L.cx,L.cy,55+q))/nC*L.Lp, s:0, v:v, nj:0, vs:v*(.9+.2*hk(L.cx,L.cy+q,56)), cx:L.cx, cy:L.cy};
         L.cars.push(car); mv.cars.push(car); } });
   }

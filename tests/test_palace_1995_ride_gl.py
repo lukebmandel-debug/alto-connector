@@ -219,3 +219,12 @@ def test_2000_look_pass_three_leaf_cards_pale_bark_and_stop_signs():
     g = palace_ride_g.JS_G
     for needed in ("function cardAt(", ",49,tint)", "function stopSignAt(", "trunkP:pal(", "stopSignAt(m,stx,sty,-aux,-auy)"):
         assert needed in g
+
+
+def test_2000_look_pass_four_car_colours_contact_shadows():
+    f = palace_ride_gl_shaders.FS_WORLD
+    assert "a contact shadow on the ground" in f and "if(dn>a) discard;" in f
+    from alto.build import palace_ride_g
+    g = palace_ride_g.JS_G
+    for needed in ("function carColour(", "function contact(", "dark plates, a grille, and mirrors", "contact(m,0,0,.55,.55,.02)", "ci=carColour("):
+        assert needed in g

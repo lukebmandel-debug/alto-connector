@@ -364,7 +364,7 @@ void main(){
     emi=lc*uSunCol*.10*(1.-uNight)*smoothstep(.5,1.,clump)*max(dot(-V,uSun),0.);   /* sun through the thin leaves */
   } else if(id<19.5){   /* car paint, glass, tyres, lamps: palette colours, glossy */
     vec3 pc=palCol(T); float lum=dot(pc,vec3(.3,.59,.11));
-    alb=pc; refl=(.10+.35*pow(1.-ndv,3.))*(lum<.2?1.3:1.); spec=1.;
+    alb=pc; refl=(.07+.24*pow(1.-ndv,3.))*(lum<.2?1.6:1.); spec=1.;
     if(pc.r>.9&&pc.g>.9&&pc.b>.75){ emi=pc*(.3+uNight*2.); } else if(pc.r>.75&&pc.g<.2&&pc.b<.2){ emi=pc*(.2+uNight*1.6); }
   } else if(id<20.5){   /* skin, hair and clothes */
     alb=palCol(T);
@@ -415,12 +415,16 @@ void main(){
     if(vHA.y>.5){ }
   } else if(id<48.5){   /* crosswalk bars */
     alb=mix(vec3(.2),vec3(.9,.9,.86),smoothstep(.1,.5,nz(gp*3.))*.5+.45);
-  } else {              /* a leaf card: dissolves into a ragged cluster of leaves */
+  } else if(id<49.5){   /* a leaf card: dissolves into a ragged cluster of leaves */
     vec2 q=vUV*2.-1.; float rr=length(q); float nn=nz(vUV*7.+T*40.);
     if(1.-rr+(nn-.5)*1.1<.14) discard;
     vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.72)*vec3(.95,.98,.88);
     alb=lc*(.58+.46*nn)*(.88+.14*(1.-rr)); wrap=.7;
     ao*=(.5+.5*smoothstep(.0,4.,vP.z/UMc))*(.8+.2*(N.z*.5+.5));
+  } else {              /* a contact shadow on the ground: a stippled dark patch, its edge dissolved by a screen-space dither */
+    vec2 q=abs(vUV*2.-1.); float d=pow(q.x,3.)+pow(q.y,3.); float a=.7*(1.-smoothstep(.15,1.,d));
+    float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); if(dn>a) discard;
+    alb=vec3(.02); ao=1.;
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
   else if(id>20.5&&id<22.5) ao*=mix(.55,1.,smoothstep(.0,.7,vP.z/UMc));              /* a pole or a bin where it meets the ground */
