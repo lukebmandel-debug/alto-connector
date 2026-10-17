@@ -55,3 +55,10 @@ def test_the_real_art_is_put_away_and_restored_and_the_tag_stays_hidden_while_ru
     assert "if(t>=T.end){ r.kill(); continue; }" in JS and "if(!r.S.host.isConnected){ r.kill(); continue; }" in JS
     assert "if(el_._con) el_._con.kill();" in JS                                      # a second hit restarts, never doubles
     assert ".nb-pr,.nb-pr *{pointer-events:none !important;}" in palace_construct.CONSTRUCT_CSS
+
+
+def test_the_ends_of_the_sequence_are_the_real_building_so_nothing_pops():
+    # the first frame is a whole copy of the art, the last is a whole copy cross-faded in before the layer is removed (checked pixel for pixel in QA: _qa/w95/b95_swap.py)
+    assert "gFull" in JS and "xfade:[18600,19700]" in JS and "setO(gFull, 1-st)" in JS and "setO(gFull, x); setO(gBuilt, 1-x);" in JS
+    assert "gCladL" in JS and "isLine(k)" in JS                                          # floor lines / sheen are cut between storey lines, drawn over all the glass
+    assert "setProperty('opacity', tk, 'important')" in JS                              # the number tag fades out and back, never pops
