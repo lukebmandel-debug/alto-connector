@@ -144,7 +144,14 @@ function glExpand(a){
     var x=a[s], y=a[s+1], z=a[s+2]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; if(z<z0)z0=z; if(z>z1)z1=z; }
   return {a:o, n:nv, x0:x0,x1:x1,y0:y0,y1:y1,z0:z0,z1:z1}; }
 /* a scenery mesh (10-float format) appended to a cell chunk; flat paint laid on the ground gets the decal depth bias */
-function glAppend(b,a){ glDC(null); _gH=0; _gL=0; for(var i=0;i+9<a.length;i+=10){ var z=a[i+2], nz=a[i+5], bias=(nz>.9&&z<.45)?2:0; gv(b,a[i],a[i+1],z,a[i+3],a[i+4],nz,a[i+6],a[i+7],a[i+8]+64*bias,a[i+9]); } }
+function glAppend(b,a){
+  glDC(null); _gH=0; _gL=0; var i, n=a.length, sm=null;
+  /* foliage and trunks are shaded smooth: the normals of vertices at one place are averaged (the scenery part writes flat faces) */
+  for(i=0;i+9<n;i+=10){ var mt=a[i+8]; if(mt===18||mt===17){ if(!sm) sm=new Map(); var k=(Math.round(a[i]*6)*73856093)^(Math.round(a[i+1]*6)*19349663)^(Math.round(a[i+2]*6)*83492791)^(mt*7919), e=sm.get(k);
+      if(!e){ e=[0,0,0]; sm.set(k,e); } e[0]+=a[i+3]; e[1]+=a[i+4]; e[2]+=a[i+5]; } }
+  for(i=0;i+9<n;i+=10){ var z=a[i+2], nx=a[i+3], ny=a[i+4], nz=a[i+5], mt2=a[i+8];
+    if(sm && (mt2===18||mt2===17)){ var k2=(Math.round(a[i]*6)*73856093)^(Math.round(a[i+1]*6)*19349663)^(Math.round(a[i+2]*6)*83492791)^(mt2*7919), q=sm.get(k2), l=Math.sqrt(q[0]*q[0]+q[1]*q[1]+q[2]*q[2]); if(l>1e-4){ nx=q[0]/l; ny=q[1]/l; nz=q[2]/l; } }
+    var bias=(nz>.9&&z<.45)?2:0; gv(b,a[i],a[i+1],z,nx,ny,nz,a[i+6],a[i+7],mt2+64*bias,a[i+9]); } }
 function glUpload(b){
   var gl=GLX.gl; var buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); var arr=b.a.length===b.n?b.a:b.a.subarray(0,b.n); gl.bufferData(gl.ARRAY_BUFFER,arr,gl.STATIC_DRAW);
   var n=b.n/15|0; var cx=(b.x0+b.x1)/2, cy=(b.y0+b.y1)/2, cz=(b.z0+b.z1)/2, r=Math.sqrt(Math.pow(b.x1-b.x0,2)+Math.pow(b.y1-b.y0,2)+Math.pow(b.z1-b.z0,2))/2;
@@ -397,7 +404,7 @@ function glCamera(){
 function glLin(c){ return [Math.pow(c[0]/255,2.2), Math.pow(c[1]/255,2.2), Math.pow(c[2]/255,2.2)]; }
 function glLight(P){
   var dk=P.dk, L={dk:dk};
-  if(dk){ L.sun=[-.5,-.42,.76]; L.sunCol=[.20,.27,.55]; L.skyA=[.055,.07,.13]; L.gndA=[.028,.03,.045]; L.exp=1.35; }
+  if(dk){ L.sun=[-.5,-.42,.76]; L.sunCol=[.14,.19,.42]; L.skyA=[.055,.07,.13]; L.gndA=[.028,.03,.045]; L.exp=1.35; }
   else { L.sun=[-.55,-.66,.62]; L.sunCol=[2.9,2.55,2.05]; L.skyA=[.42,.49,.60]; L.gndA=[.28,.265,.24]; L.exp=1.0; }
   var l=Math.hypot(L.sun[0],L.sun[1],L.sun[2]); L.sun=[L.sun[0]/l,L.sun[1]/l,L.sun[2]/l];
   L.zen=glLin(P.zen); L.hor=glLin(P.hor); L.fog=glLin(P.fog); L.gnd=dk?[.016,.017,.022]:[.12,.115,.11];
@@ -506,6 +513,8 @@ function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   glDrawWorld(gl,Wd,L,tm,vp);
   var tE=performance.now(), pk=GLX.st.pk||(GLX.st.pk={way:0,work:0,shadow:0,draw:0});
   pk.way=Math.max(pk.way,tB-tA); pk.work=Math.max(pk.work,tC-tB); pk.shadow=Math.max(pk.shadow,tD-tC); pk.draw=Math.max(pk.draw,tE-tD);
+  /* a still frame (reduced motion, a held arrival) has no loop to finish the chunks still being built: ask for one more render */
+  if(GLX.st.pending>0 && !GLX.retry && R.M && !R.playing && !R.quiet){ GLX.retry=setTimeout(function(){ GLX.retry=0; if(R.active && R.M && !R.raf && !R.playing){ R.last=0; R.raf=requestAnimationFrame(loop); } },30); }
   GLX.st.ms=performance.now()-t0; return true; }
 GLX.flush=function(){ var gl=GLX.gl; if(gl && GLX.on){ var px=new Uint8Array(4); gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px); } };
 GLX.newWorld=function(){ GLX.fresh=true; };

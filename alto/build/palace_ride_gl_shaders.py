@@ -398,7 +398,7 @@ void main(){
   vec3 L=lin(clamp(alb,0.,1.));
   /* sun on the surface, ambient from the sky; a touch of bounce from the street onto walls */
   vec3 col=L*(amb*ao+uSunCol*nlw*ao*mix(1.,.85,wrap)*shd) +emi*1.0;
-  if(uNight>.5){ for(int i=0;i<12;i++){ vec4 lp=uLamp[i]; if(lp.w>.5){ vec3 dl=lp.xyz-vP; float dd=dot(dl,dl); float dis=sqrt(dd); float att=exp(-dd*(1./(27.*27.)))*(1.-smoothstep(70.,120.,dis)); float nlL=max(dot(N,dl/max(dis,.01)),0.)*.8+.2*step(.5,N.z); col+=L*uLampC*att*nlL*.9; } } }
+  if(uNight>.5){ for(int i=0;i<12;i++){ vec4 lp=uLamp[i]; if(lp.w>.5){ vec3 dl=lp.xyz-vP; float dd=dot(dl,dl); float dis=sqrt(dd); float att=exp(-dd*(1./(27.*27.)))*(1.-smoothstep(70.,120.,dis)); float nlL=max(dot(N,dl/max(dis,.01)),0.)*.8+.2*step(.5,N.z); col+=L*uLampC*att*nlL*.6; } } }
   if(spec>.5){ vec3 H=normalize(uSun+V); col+=uSunCol*pow(max(dot(N,H),0.),70.)*.45*(1.-uNight*.7)*shd; }
   if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z)); col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
   float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/260.,.0,1.); f*=mix(.5,1.,hf);
