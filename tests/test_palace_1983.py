@@ -107,7 +107,7 @@ def test_the_battleship_fires_and_what_it_hits_is_rebuilt_over_twenty_seconds():
     js, css = palace.PALACE_JS, palace.PALACE_CSS
     assert "new jersey|\\biowa\\b|missouri|wisconsin|battleship" in js and "g.classList.add('bb')" in js
     assert "function nbFire(" in js and "function fxRuin(" in js and "function fxBoom(" in js and "function fxShell(" in js
-    assert "{duration:20000, fill:'none'}" in js and "easing:'steps('+steps+', end)'" in js            # rebuilt a storey at a time, over 20 s
+    assert "end:20000" in js and "gClad" in js and "clip-path" in js                                    # rebuilt a storey at a time, over 20 s (1.9.95: a construction site, palace_construct.py)
     assert js.index("function nbFire(") < js.index("a click on a building enlarges it")                   # the guns hear the click before the map's own handler
     assert ".pl-boat.bb{pointer-events:all" in css and "#pal-fxbar" in css and ".node.nb-ruin .node-card" in css
 

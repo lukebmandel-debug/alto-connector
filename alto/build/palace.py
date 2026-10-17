@@ -36,6 +36,7 @@ from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
 from .palace_directions import DIR_CSS, DIR_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
+from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of a shelled building (1.9.95)
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
@@ -973,10 +974,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + TRANSIT_CSS + HIGHWAY_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
+""" + LANDMARK_CSS + CONSTRUCT_CSS + TRANSIT_CSS + HIGHWAY_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + HIGHWAY_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + CONSTRUCT_JS + TRANSIT_JS + HIGHWAY_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -1717,7 +1718,7 @@ function nbDraw(parent, L, H, ox, oy, uid){
     var nm=Math.max(1, Math.round(Math.hypot(B[0]-A[0], B[1]-A[1])/22));                                           /* window mullions */
     for(var m=1;m<nm;m++){ var u=m/nm, bx=A[0]+(B[0]-A[0])*u, by=A[1]+(B[1]-A[1])*u; ln([bx,by], [bx+o[0],by+o[1]], 'nb-l'); } });
   el('polygon',{'class':'nb-r', style:'fill:url(#'+gid+'r)', points:P4(C.map(function(q){ return [q[0]+o[0], q[1]+o[1]]; }))},parent);
-  return [x0,y0,x1,y1,yb];
+  var res=[x0,y0,x1,y1,yb]; res.C=C; return res;                      /* (the footprint is kept: the rebuild after a hit works from it) */
 }
 /* on the desktop board: an <svg> inside the building's card wrapper, drawn once and scaled by CSS (--z) */
 function nbBuild(e, id, L, H){
@@ -1727,7 +1728,7 @@ function nbBuild(e, id, L, H){
   s.setAttribute('viewBox', x0.toFixed(1)+' '+y0.toFixed(1)+' '+(x1-x0).toFixed(1)+' '+(y1-y0).toFixed(1));
   s.style.setProperty('--ox', ((0-x0)/(x1-x0)*100).toFixed(2)+'%'); s.style.setProperty('--oy', ((b[4]-y0)/(y1-y0)*100).toFixed(2)+'%');
   s.style.setProperty('--nbx', x0.toFixed(1)); s.style.setProperty('--nby', y0.toFixed(1)); s.style.setProperty('--nbw', (x1-x0).toFixed(1)); s.style.setProperty('--nbh', (y1-y0).toFixed(1));
-  e.insertBefore(s, e.firstChild); return b;
+  s._nb={C:b.C, H:H, id:id}; e.insertBefore(s, e.firstChild); return b;
 }
 
 /* ── seeing what a building hides: a node building that stands in front of another and covers a good part of it is drawn as glass, and
@@ -2075,19 +2076,12 @@ function fxShell(x0, y0, x1, y1, ms, hit){
   var d=Math.hypot(x1-x0, y1-y0), h=Math.min(260, d*.28);
   fxTween(ms, function(k){ o.setAttribute('transform','translate('+(x0+(x1-x0)*k).toFixed(1)+' '+(y0+(y1-y0)*k-4*h*k*(1-k)).toFixed(1)+')'); }, function(){ o.remove(); if(hit) hit(); });
 }
-/* a building struck: it collapses at once, and rises again in 20 s, a storey at a time (a node building is its own svg; a landmark is its group) */
-function fxRuin(el_, tagEl){
-  if(!el_ || !el_.animate) return; if(el_._ruin){ try{ el_._ruin.cancel(); }catch(x){} }
-  if(el_.style){ el_.style.transformBox='fill-box'; el_.style.transformOrigin=el_.style.transformOrigin||'50% 100%'; }
-  var steps=Math.max(10, Math.min(24, Math.round(((el_._storeys)||12)))), a=el_.animate([
-    {offset:0, transform:'scaleY(1) skewX(0deg)', filter:'none', easing:'cubic-bezier(.6,0,1,.6)'},
-    {offset:.012, transform:'scaleY(.07) skewX(5deg)', filter:'grayscale(.7) brightness(.85)', easing:'steps('+steps+', end)'},
-    {offset:1, transform:'scaleY(1) skewX(0deg)', filter:'grayscale(0) brightness(1)'}], {duration:20000, fill:'none'});
-  el_._ruin=a; if(tagEl){ tagEl.classList.add('nb-ruin'); } a.onfinish=a.oncancel=function(){ el_._ruin=null; if(tagEl) tagEl.classList.remove('nb-ruin'); };
-}
+/* a building struck: it pancakes into rubble and is rebuilt as a construction site over 20 s (palace_construct.py): foundation, crane, steel frame,
+   scaffold, glass hung storey by storey, roof last. A node building is its own svg; a landmark is its group. */
+function fxRuin(el_, tagEl){ if(el_ && window._palCon) window._palCon.run(el_, tagEl); }
 function fxTarget(t){
-  var n=t.closest&&t.closest('#world .node[id^="node-"]'); if(n && n._nbS && !n.classList.contains('pal-floor')){ var S_=n._nbS; return {x:(S_[0]+S_[2])/2, y:S_[3]-(S_[3]-S_[1])*.35, ruin:function(){ var b=n.querySelector(':scope > .nb3d'); if(b){ b._storeys=Math.round((n._nbH||40)/6); fxRuin(b, n); } }}; }
-  var lm=t.closest&&t.closest('#palace-svg .pl-lmb'); if(lm && lm._lm){ var L=lm._lm; return {x:L.x+L.w/2, y:L.y+L.h/2, ruin:function(){ lm._storeys=16; fxRuin(lm, null); }}; }
+  var n=t.closest&&t.closest('#world .node[id^="node-"]'); if(n && n._nbS && !n.classList.contains('pal-floor')){ var S_=n._nbS; return {x:(S_[0]+S_[2])/2, y:S_[3]-(S_[3]-S_[1])*.35, ruin:function(){ var b=n.querySelector(':scope > .nb3d'); if(b) fxRuin(b, n); }}; }
+  var lm=t.closest&&t.closest('#palace-svg .pl-lmb'); if(lm && lm._lm){ var L=lm._lm; return {x:L.x+L.w/2, y:L.y+L.h/2, ruin:function(){ fxRuin(lm, null); }}; }
   return null;
 }
 function nbFire(tg, boatG){
