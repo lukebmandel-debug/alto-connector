@@ -212,6 +212,7 @@ function portals(svg){
       else { g=E.pin(pg,'pl-portal',x,y,{'data-po':pi,'data-s':i}); el('line',{x1:0,y1:-6,x2:-13,y2:-17},g);       /* up and to the left: the station's name reads to the right */
         el('circle',{cx:-16,cy:-20,r:11},g); el('text',{x:-16,y:-20},g).textContent='\u2708'; }
       var t=el('title',{},g); t.textContent='Go to '+po.name+(best?' \u00b7 from '+best.name:'');
+      g.parentNode.setAttribute('data-x', x); g.parentNode.setAttribute('data-y', y);                       /* each portal goes from where it stands */
       if(!po._at) po._at={x:x, y:y}; }); });
 }
 /* the stops a portal opens from: named stations (on its line, when it names one) */
@@ -289,8 +290,11 @@ function paint(){
 }
 function clear(){ endTrip(); S.portal=null; S.line=null; S.stop=null; S.ride=null; paint(); }
 /* a portal is taken: the trip to the place it names (palace_airport.py) */
-function takePortal(pi, pin){ endTrip(); var po=(E.P.po||[])[pi]; if(!po) return; var g=pin||document.querySelector('#palace-svg .pl-portal[data-po="'+pi+'"]');
-  if(window._palAirport) window._palAirport.go(po, g); else { S.portal=pi; S.ride=null; S.line=null; S.stop=null; paint(); } }
+function takePortal(pi, pin){ endTrip(); var po=(E.P.po||[])[pi]; if(!po) return; var g=pin;
+  if(!g){ var all=[].slice.call(document.querySelectorAll('#palace-svg .pl-portal[data-po="'+pi+'"]')), cs=S.stop!=null&&T?T.stops[S.stop]:null, bd=1e18;   /* from a stop's panel: the portal at that stop */
+    all.forEach(function(q){ var d=cs?Math.hypot(+q.getAttribute('data-x')-cs.x, +q.getAttribute('data-y')-cs.y):0; if(d<bd){ bd=d; g=q; } }); }
+  var at=g&&g.getAttribute&&g.getAttribute('data-x')!=null?{x:+g.getAttribute('data-x'), y:+g.getAttribute('data-y')}:null;
+  if(window._palAirport) window._palAirport.go(po, g, at); else { S.portal=pi; S.ride=null; S.line=null; S.stop=null; paint(); } }
 function portalsAt(i){ var o=[]; (E.P.po||[]).forEach(function(po,pi){ if(portalStops(po).indexOf(i)>=0) o.push(pi); }); return o; }
 function pickLine(id, fly){ endTrip(); S.portal=null; S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
 function pickStop(i, fly){ endTrip(); S.portal=null; S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }

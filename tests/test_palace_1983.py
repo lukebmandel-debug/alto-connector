@@ -7,7 +7,7 @@ def test_the_view_is_remembered_across_a_detail_page_and_put_back():
     js = palace.PALACE_JS
     assert "function wrapDetail()" in js and "holdView={z:Z, x:cv.scrollLeft, y:cv.scrollTop}" in js
     assert "cancelAnimationFrame(zAnim)" in js                                  # a glide to the building does not land on the hidden board
-    assert "placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; }" in js
+    assert "placeAllReal(); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; }" in js
     assert "pendEnl=flyId" in js and "enlarge(pe)" in js                         # a double-click's unfinished enlarge resumes on return
     assert "if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;" in js   # nothing is laid out against the hidden canvas
 
@@ -41,3 +41,12 @@ def test_jefferson_station_is_a_glass_concourse_with_a_skylight_and_canopy():
     assert kinds.count("box") >= 3 and "hip" in kinds and "cols" in kinds and "door" in kinds
     art = palace_skyline.Sky(spec)
     assert 80 < art.W < 130 and art.H < 80
+
+
+def test_each_portal_goes_from_where_it_stands_and_a_return_never_lands_on_the_corner():
+    from alto.build import palace_airport
+    t = palace_transit_js.TRANSIT_JS
+    assert "setAttribute('data-x', x)" in t and "window._palAirport.go(po, g, at)" in t
+    assert "function go(po, pin, at)" in palace_airport.AIRPORT_JS and "var s=at||po._at;" in palace_airport.AIRPORT_JS
+    js = palace.PALACE_JS
+    assert "function centreCity(cv)" in js and "centreCity(cv); }" in js

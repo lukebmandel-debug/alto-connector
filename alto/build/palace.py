@@ -1518,6 +1518,11 @@ function holdPan(){
   if(cx||cy){ w.style.setProperty('--ppan-x', cx+'px'); w.style.setProperty('--ppan-y', cy+'px'); }
   else { w.style.removeProperty('--ppan-x'); w.style.removeProperty('--ppan-y'); }
 }
+/* the middle of the buildings' own neighbourhoods, which a city grown past them leaves off-centre */
+function centreCity(cv){
+  var D=P.d||[], bx0=1e9, by0=1e9, bx1=-1e9, by1=-1e9; D.forEach(function(d){ var b=d.box; bx0=Math.min(bx0,b[0]); by0=Math.min(by0,b[1]); bx1=Math.max(bx1,b[2]); by1=Math.max(by1,b[3]); });
+  var mx=D.length?(bx0+bx1)/2+MX:VW/2, my=D.length?(by0+by1)/2+MY:VH/2;
+  cv.scrollLeft=Math.max(0,mx*Z-cv.clientWidth/2); cv.scrollTop=Math.max(0,my*Z-cv.clientHeight/2); }
 window._altoPalace=function(h){
   if(mob()) return false;
   var world=document.getElementById('world'); if(!world) return false;
@@ -1538,9 +1543,7 @@ window._altoPalace=function(h){
   window._altoPalaceGeo={Z:Z};
   if(!opened){ opened=1; requestAnimationFrame(function(){ var cv=document.getElementById('canvas'); if(cv && !window._focusedNodeId){
     /* it opens on the buildings' own neighbourhoods, which a city grown past them leaves off-centre */
-    var D=P.d||[], bx0=1e9, by0=1e9, bx1=-1e9, by1=-1e9; D.forEach(function(d){ var b=d.box; bx0=Math.min(bx0,b[0]); by0=Math.min(by0,b[1]); bx1=Math.max(bx1,b[2]); by1=Math.max(by1,b[3]); });
-    var mx=D.length?(bx0+bx1)/2+MX:VW/2, my=D.length?(by0+by1)/2+MY:VH/2;
-    cv.scrollLeft=Math.max(0,mx*Z-cv.clientWidth/2); cv.scrollTop=Math.max(0,my*Z-cv.clientHeight/2); } }); }
+    centreCity(cv); } }); }
   ctl();
   return true;
 };
@@ -1873,7 +1876,10 @@ function wrapDetail(){ var sd=window.showDetail, st=window.showTimeline; if(!sd 
   window.showTimeline=function(){
     var r=st.apply(this, arguments), hv=holdView, pe=pendEnl; holdView=null; pendEnl=null;
     if(!mob() && de.classList.contains('alto-palace')){
-      if(hv){ Z=hv.z; placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; } if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z; }
+      var cv=document.getElementById('canvas');
+      if(hv){ Z=hv.z; placeAllReal(); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; } if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z; }
+      /* never the empty top-left corner: with no remembered view (or one parked at the corner) it is the middle of the city */
+      if(cv && (!hv || (!cv.scrollLeft && !cv.scrollTop)) && !window._focusedNodeId && !pe && (cv.scrollWidth>cv.clientWidth+4 || cv.scrollHeight>cv.clientHeight+4)){ if(!hv) placeAllReal(); centreCity(cv); }
       if(pe && !window._focusedNodeId) setTimeout(function(){ if(!de.classList.contains('detail-open')) enlarge(pe); }, 60);
     }
     return r; };
