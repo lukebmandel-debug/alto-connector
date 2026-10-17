@@ -9,6 +9,13 @@ Everything comes from coordinates (hash, never Math.random). The contract with t
 """
 
 JS_G = r"""
+/* The scenery lives in its own function scope, so none of its many small helpers can collide with the names of the other parts of the ride (one shared scope).
+   Only the three hooks the other parts call are public; _palScn at the end is a read-only door for the QA kit and the tests. */
+var _scn=null;
+function sceneryGather(W, set){ return _scn?_scn.gather(W,set):null; }
+function sceneryUpdate(W, tm, Cam){ return _scn?_scn.update(W,tm,Cam):0; }
+function sceneryDraw(ctx, W, P, Cam, tm){ if(_scn) _scn.draw(ctx,W,P,Cam,tm); }
+(function(){
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
    SCENERY (palace_ride_g.py): street trees, lamps, signals, signs, crosswalks, parked cars, furniture, rooftops, park trees and paths,
    river railings, tram wires (static meshes -> W.meshes) and cars, people, birds (W.movers, moved every frame by sceneryUpdate).
@@ -21,7 +28,8 @@ JS_G = r"""
      vertices use u,v = 0..1 coordinates into the canvas W.atlas.canvas (street names white on green), drawn unlit; a renderer that has no
      atlas support just skips entries with tex.
    - W.movers entries: {a, x, y, z, yaw, k}  a = shared local mesh (x forward, z up, around 0,0,0), yaw about +z (radians, x towards +y at yaw pi/2).
-     sceneryUpdate keeps W.movers = the movers near the camera (<= 60), reusing the array and the objects (no allocation per frame).
+     sceneryUpdate keeps W.movers = the movers near the camera (<= 72), reusing the array and the objects (no allocation per frame).
+   - W.lamps = Float32Array [x,y,z, x,y,z ...]: the lit head of every street and park lamp (map units), for light pools or glow sprites at night.
    - ground paint (crosswalks, stop lines, arrows) sits at z=0.07 above the road (z=0); sidewalk furniture stands at z=0.12.
    ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 var MAT_TEXT=24, SZ_SW=.12, SZ_RD=.07, SCN_CELL=300;
@@ -46,9 +54,9 @@ var PC={
   signG:pal(14,92,70), signB:pal(24,70,130), signR:pal(190,34,34), signY:pal(236,198,40), signW:pal(240,240,236), signK:pal(24,26,30), signBr:pal(120,84,52),
   lampW:pal(255,236,190), lampR:pal(255,50,40), lampRd:pal(70,16,14), lampY:pal(255,196,40), lampYd:pal(70,52,10), lampG:pal(60,255,120), lampGd:pal(14,60,28), lampOr:pal(255,168,70),
   hyd:[pal(190,36,32),pal(220,190,40)], mail:pal(28,56,120), metal:.5, rail:pal(52,58,66), bird:[pal(150,152,160),pal(226,226,226),pal(96,92,100)],
-  bench:pal(110,76,48), shelter:pal(70,80,92), tank:pal(120,84,52), roofW:pal(210,212,214), hvac:pal(170,174,178), hvacD:pal(120,124,130), tar:pal(44,44,48)
+  bench:pal(110,76,48), trash:pal(40,78,60), manh:pal(46,48,52), shelter:pal(70,80,92), tank:pal(120,84,52), roofW:pal(210,212,214), hvac:pal(170,174,178), hvacD:pal(120,124,130), tar:pal(44,44,48)
 };
-var _rec=null;      /* when set, trees and lamps are also noted here (x,y,height,radius,kind) for the 2D fallback */
+var _rec=null, _lamps=null;      /* when set, trees and lamps are also noted here (x,y,height,radius,kind) for the 2D fallback */
 
 /* ── a growable mesh (Float32Array backed, 10 floats a vertex) ── */
 function sb(cap){ return {a:new Float32Array(cap||2048), n:0}; }
@@ -161,7 +169,7 @@ function fblob(m, cx,cy,cz, rx,ry,rz, prof, seg, mat, fam, jit, seed){
     else if(B.length===1){ for(i=0;i<seg;i++) emit(A[i],NA[i],A[(i+1)%seg],NA[(i+1)%seg],B[0],NB[0], pick(k+.5,i)); }
     else for(i=0;i<seg;i++){ var i1=(i+1)%seg; emit(A[i],NA[i],A[i1],NA[i1],B[i1],NB[i1], pick(k+.3,i)); emit(A[i],NA[i],B[i1],NB[i1],B[i],NB[i], pick(k+.6,i)); } } }
 /* one tree at (x,y) on the ground: sp species, sz scale (1 = ordinary), h = a hash 0..1 for the variants, season: 0 summer 1 olive 2 autumn 3 bare 4 blossom */
-function treeAt(m, x, y, sp, sz, h, season, lod){
+function treeAt(m, x, y, sp, sz, h, season, lod, lobe){
   frame(x, y, SZ_SW, h*6.28, UM*sz); var g=hash(Math.round(x*3)+Math.round(y*5)*977), seed=Math.round(x*5+y*3), ttr=PC.trunk[(g*5)|0], fam;
   if(season===0) fam=PC.leaf[(g*PC.leaf.length*3.1|0)%PC.leaf.length]; else if(season===1) fam=PC.leafY[(g*2)|0]; else if(season===2) fam=PC.leafA[(g*4)|0]; else if(season===4) fam=PC.leafB[(g*2)|0]; else fam=PC.leaf[0];
   if(sp===3){                                            /* conifer: three tiers */
@@ -184,12 +192,12 @@ function treeAt(m, x, y, sp, sz, h, season, lod){
   var cz=th+rz*.45;
   if(_rec) _rec.push(x,y,(cz+rz)*UM*sz,R*UM*sz,season===2?3:2);
   fblob(m,0,0,cz,R,R,rz,prof,seg,MAT.leaf,fam,.16,seed);
-  if(!lod && (sp===0||sp===2) && g>.35){ var a3=g*17;
+  if(!lod && lobe && (sp===0||sp===2) && g>.35){ var a3=g*17;
     fblob(m,Math.cos(a3)*R*.62,Math.sin(a3)*R*.62,cz+rz*.12,R*.62,R*.62,rz*.7,[[-.4,.6],[0,1],[.5,.7],[1,0]],6,MAT.leaf,fam,.18,seed+9); } }
 
 /* a cobra-head street lamp: the pole at the origin, arm and head out along +x (toward the street) */
 function lampAt(m, x, y, ox, oy, h){   /* (ox,oy) unit vector toward the street */
-  frameV(x,y,SZ_SW,ox,oy,UM); var ph=7.6; if(_rec) _rec.push(x,y,ph*UM,1,1);
+  frameV(x,y,SZ_SW,ox,oy,UM); var ph=7.6; if(_rec) _rec.push(x,y,ph*UM,1,1); if(_lamps) _lamps.push(x+ox*2.1*UM,y+oy*2.1*UM,SZ_SW+(ph-.3)*UM);
   fcyl(m,0,0,0,ph,.13,.085,5,MAT.metal,PC.rail,false);
   fbox(m,0,-.045,ph-.12,2.3,.045,ph+.06,MAT.metal,PC.rail);                    /* the arm */
   fbox(m,1.55,-.2,ph-.22,2.7,.2,ph-.04,MAT.metal,PC.rail,MAT.metal,PC.rail);   /* the head */
@@ -197,7 +205,7 @@ function lampAt(m, x, y, ox, oy, h){   /* (ox,oy) unit vector toward the street 
   qd(m,WX(1.58,-.17),WY(1.58,-.17),WZ(ph-.225),WX(2.65,-.17),WY(2.65,-.17),WZ(ph-.225),WX(2.65,.17),WY(2.65,.17),WZ(ph-.225),WX(1.58,.17),WY(1.58,.17),WZ(ph-.225),MAT.lamp,PC.lampW,hx,hy,WZ(ph+2)); }
 /* a post-top lamp for park paths and plazas */
 function lampPark(m, x, y){
-  frame(x,y,SZ_SW,0,UM); if(_rec) _rec.push(x,y,4*UM,1,0); fcyl(m,0,0,0,3.4,.1,.07,5,MAT.metal,PC.rail,false); fcyl(m,0,0,3.4,3.55,.2,.2,6,MAT.metal,PC.rail,false);
+  frame(x,y,SZ_SW,0,UM); if(_rec) _rec.push(x,y,4*UM,1,0); if(_lamps) _lamps.push(x,y,SZ_SW+3.8*UM); fcyl(m,0,0,0,3.4,.1,.07,5,MAT.metal,PC.rail,false); fcyl(m,0,0,3.4,3.55,.2,.2,6,MAT.metal,PC.rail,false);
   fcyl(m,0,0,3.55,4.0,.22,.16,6,MAT.lamp,PC.lampW,true); }
 function benchAt(m, x, y, ox, oy){          /* seat facing (ox,oy) */
   frameV(x,y,SZ_SW,ox,oy,UM);
@@ -207,6 +215,9 @@ function benchAt(m, x, y, ox, oy){          /* seat facing (ox,oy) */
 function hydrantAt(m, x, y, ox, oy, h){
   frameV(x,y,SZ_SW,ox,oy,UM); var c=PC.hyd[h<.7?0:1];
   fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
+function trashAt(m, x, y){
+  frame(x,y,SZ_SW,0,UM); fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
+function manholeAt(m, x, y){ var n=8, i, r=.5*UM; for(i=0;i<n;i++){ var a0=i/n*6.28318, a1=(i+1)/n*6.28318; tr(m,x,y,SZ_RD+.01,x+Math.cos(a0)*r,y+Math.sin(a0)*r,SZ_RD+.01,x+Math.cos(a1)*r,y+Math.sin(a1)*r,SZ_RD+.01,MAT.sign,PC.manh,x,y,-1); } }
 function mailboxAt(m, x, y, ox, oy){
   frameV(x,y,SZ_SW,ox,oy,UM); fbox(m,-.26,-.28,0,.26,.28,.15,MAT.metal,PC.rail);
   ffr(m,-.26,-.28,.26,.28,.15,-.2,-.28,.2,.28,1.05,MAT.sign,PC.mail,MAT.sign,PC.mail); }
@@ -269,27 +280,31 @@ var CAR_T=[   /* L, W, ls = lower body stations [x, top z, half width], cs = cab
 /* a car at its frame (the caller sets frame(): x forward, rear bumper at 0); detail adds wheels and lights */
 function lowTop(ls,x){ for(var i=0;i+1<ls.length;i++){ if(x<=ls[i+1][0]){ var t=(x-ls[i][0])/((ls[i+1][0]-ls[i][0])||1); return ls[i][1]+(ls[i+1][1]-ls[i][1])*t; } } return ls[ls.length-1][1]; }
 function carBody(m, T, tint, detail, taxi){
-  var L=T.L, ls=T.ls, cs=T.cs, i, zb=.27, zs=.46, A, B, hx=WX(L/2,0), hy=WY(L/2,0), hz=WZ(.7), hw=T.W/2;
+  var L=T.L, ls=T.ls, cs=T.cs, i, zb=.27, zs=.46, hx=WX(L/2,0), hy=WY(L/2,0), hz=WZ(.7), hw=T.W/2, sd, nl=ls.length;
   function P(x,y,z){ return [WX(x,y),WY(x,y),WZ(z)]; }
   function Q(a,b,c,d,mat,t){ qd(m,a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2],d[0],d[1],d[2],mat,t,hx,hy,hz); }
-  for(i=0;i+1<ls.length;i++){ A=ls[i]; B=ls[i+1];
-    for(var sd=-1;sd<=1;sd+=2){
-      Q(P(A[0],sd*A[2]*.93,zb),P(B[0],sd*B[2]*.93,zb),P(B[0],sd*B[2]*.94,zs),P(A[0],sd*A[2]*.94,zs),MAT.car,PC.rubber);           /* the dark skirt */
-      Q(P(A[0],sd*A[2]*.94,zs),P(B[0],sd*B[2]*.94,zs),P(B[0],sd*B[2],B[1]),P(A[0],sd*A[2],A[1]),MAT.car,tint); }                 /* the painted flank */
-    Q(P(A[0],-A[2],A[1]),P(B[0],-B[2],B[1]),P(B[0],B[2],B[1]),P(A[0],A[2],A[1]),MAT.car,tint); }                                    /* hood, deck, trunk */
-  [ls[0],ls[ls.length-1]].forEach(function(S){ Q(P(S[0],-S[2]*.93,zb),P(S[0],S[2]*.93,zb),P(S[0],S[2],S[1]),P(S[0],-S[2],S[1]),MAT.car,tint); });
-  for(i=0;i+1<cs.length;i++){ A=cs[i]; B=cs[i+1]; var bA=lowTop(ls,A[0]), bB=lowTop(ls,B[0]);
-    for(sd=-1;sd<=1;sd+=2) Q(P(A[0],sd*(A[2]+.1),bA),P(B[0],sd*(B[2]+.1),bB),P(B[0],sd*B[2],B[1]),P(A[0],sd*A[2],A[1]),MAT.car,PC.glass);   /* the side glass */
-    Q(P(A[0],-A[2],A[1]),P(B[0],-B[2],B[1]),P(B[0],B[2],B[1]),P(A[0],A[2],A[1]),MAT.car,i===1?tint:PC.glass); }                       /* rear glass, roof, windshield */
+  function Tri(a,b,c,mat,t){ tr(m,a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2],mat,t,hx,hy,hz); }
+  for(sd=-1;sd<=1;sd+=2){
+    /* the dark skirt, and the flank as one painted fan (bottom edge at the skirt's top, top edge the line of hood, deck and trunk) */
+    Q(P(0,sd*ls[0][2]*.93,zb),P(L,sd*ls[nl-1][2]*.93,zb),P(L,sd*ls[nl-1][2]*.94,zs),P(0,sd*ls[0][2]*.94,zs),MAT.car,PC.rubber);
+    var pr=[P(0,sd*ls[0][2]*.94,zs)]; for(i=0;i<nl;i++) pr.push(P(ls[i][0],sd*ls[i][2],ls[i][1])); pr.push(P(L,sd*ls[nl-1][2]*.94,zs));
+    for(i=1;i+1<pr.length;i++) Tri(pr[0],pr[i],pr[i+1],MAT.car,tint);
+    /* the cabin's side glass: one trapezoid from the rear base to the front base over the roof line */
+    var bA=lowTop(ls,cs[0][0]), bB=lowTop(ls,cs[3][0]);
+    Q(P(cs[0][0],sd*(cs[0][2]+.1),bA),P(cs[3][0],sd*(cs[3][2]+.1),bB),P(cs[2][0],sd*cs[2][2],cs[2][1]),P(cs[1][0],sd*cs[1][2],cs[1][1]),MAT.car,PC.glass); }
+  /* the top: hood, deck and trunk; the ends; the cabin's rear glass, roof and windshield */
+  for(i=0;i+1<nl;i++) Q(P(ls[i][0],-ls[i][2],ls[i][1]),P(ls[i+1][0],-ls[i+1][2],ls[i+1][1]),P(ls[i+1][0],ls[i+1][2],ls[i+1][1]),P(ls[i][0],ls[i][2],ls[i][1]),MAT.car,tint);
+  [ls[0],ls[nl-1]].forEach(function(S){ Q(P(S[0],-S[2]*.93,zb),P(S[0],S[2]*.93,zb),P(S[0],S[2],S[1]),P(S[0],-S[2],S[1]),MAT.car,tint); });
+  for(i=0;i+1<cs.length;i++) Q(P(cs[i][0],-cs[i][2],cs[i][1]),P(cs[i+1][0],-cs[i+1][2],cs[i+1][1]),P(cs[i+1][0],cs[i+1][2],cs[i+1][1]),P(cs[i][0],cs[i][2],cs[i][1]),MAT.car,i===1?tint:PC.glass);
   if(taxi){ var rz2=cs[1][1]; fbox(m,cs[1][0]+.5,-.22,rz2,cs[1][0]+.95,.22,rz2+.2,MAT.car,PC.signW,MAT.lamp,PC.lampOr); }
   if(detail){
     var wz=.33, wx0=.85, wx1=L-.85;
     [[wx0,1],[wx0,-1],[wx1,1],[wx1,-1]].forEach(function(w){ fdisc(m,w[0],w[1]*(hw*.94+.005),wz,.33,8,w[1],MAT.car,PC.tyre); fdisc(m,w[0],w[1]*(hw*.94+.012),wz,.19,6,w[1],MAT.car,PC.chrome); });
-    var zl=ls[ls.length-1][1], zr=ls[0][1];
+    var zl=ls[nl-1][1], zr=ls[0][1];
     function lamp(x,y0,y1,z0,z1,t){ Q(P(x,y0,z0),P(x,y1,z0),P(x,y1,z1),P(x,y0,z1),MAT.lamp,t); }
     lamp(L+.01,-hw*.8,-hw*.45,zl-.2,zl-.08,PC.head); lamp(L+.01,hw*.45,hw*.8,zl-.2,zl-.08,PC.head);
     lamp(-.01,-hw*.8,-hw*.45,zr-.22,zr-.1,PC.tail); lamp(-.01,hw*.45,hw*.8,zr-.22,zr-.1,PC.tail); }
-  else { [.9,L-.85].forEach(function(wx){ [-1,1].forEach(function(s2){ fdisc(m,wx,s2*(hw*.94+.01),.32,.33,6,s2,MAT.car,PC.tyre); }); }); } }
+  else { [.9,L-.85].forEach(function(wx){ for(sd=-1;sd<=1;sd+=2){ var y=sd*(hw*.94+.012); Q(P(wx-.3,y,.05),P(wx+.3,y,.05),P(wx+.3,y,.62),P(wx-.3,y,.62),MAT.car,PC.tyre); } }); } }
 /* a parked car at (x,y) heading (ux,uy), model type ti, colour index ci */
 function carParked(m, x, y, ux, uy, ti, ci, taxi){
   var T=CAR_T[ti]; frameV(x-ux*T.L*.5*UM,y-uy*T.L*.5*UM,SZ_SW,ux,uy,UM); carBody(m,T,taxi?PC.taxi:PC.car[ci],false,taxi); }
@@ -362,19 +377,25 @@ function nearStreet(SI,x,y,r){ var l=SI.g[Math.floor(x/SI.cs)+','+Math.floor(y/S
 function atlasNew(){ var A={names:{}, list:[], w:1024, h:1024, cw:256, ch:40, canvas:null, n:0, dirty:true}; return A; }
 function atlasRect(A, name){ var r=A.names[name]; if(r) return r; var cols=Math.floor(A.w/A.cw), rows=Math.floor(A.h/A.ch); if(A.n>=cols*rows) return null;
   var i=A.n++, cx=(i%cols)*A.cw, cy=Math.floor(i/cols)*A.ch; r=A.names[name]=[(cx+2)/A.w,(cy+2)/A.h,(cx+A.cw-2)/A.w,(cy+A.ch-2)/A.h]; A.list.push({name:name,x:cx,y:cy}); return r; }
-function atlasPaint(A){ if(typeof document==='undefined') return; var c=document.createElement('canvas'); c.width=A.w; c.height=A.h; var g=c.getContext('2d'); if(!g) return;
-  g.fillStyle='#0e5c46'; g.fillRect(0,0,A.w,A.h);
+function atlasPaint(A){ if(typeof document==='undefined') return; var c=document.createElement('canvas'); c.width=A.w; c.height=A.hf||A.h; var g=c.getContext('2d'); if(!g) return;
+  g.fillStyle='#0e5c46'; g.fillRect(0,0,A.w,A.hf||A.h);
   A.list.forEach(function(e){ g.fillStyle='#0e5c46'; g.fillRect(e.x,e.y,A.cw,A.ch); g.strokeStyle='#f4f4ee'; g.lineWidth=2; g.strokeRect(e.x+3,e.y+3,A.cw-6,A.ch-6);
     var t=String(e.name).toUpperCase(), fs=22; g.font='700 '+fs+'px "Helvetica Neue",Helvetica,Arial,sans-serif'; while(g.measureText(t).width>A.cw-24 && fs>10){ fs-=1; g.font='700 '+fs+'px "Helvetica Neue",Helvetica,Arial,sans-serif'; }
     g.fillStyle='#f6f6f0'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(t,e.x+A.cw/2,e.y+A.ch/2+1); });
   A.canvas=c; A.dirty=false; }
 
 /* ── cells: one static mesh per cell (and one text mesh) so the renderer can cull ── */
-var CAP_FULL=19000, CAP_LOW=5600;
+var CAP_FULL=14500, CAP_LOW=5600;
+SCN.budget={trees:6200, cars:4600, roofs:1500, vTree:140, vCar:140, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
 function cellOf(S, x, y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=S.cells[k];
   if(!c){ c=S.cells[k]={m:sb(4096), t:sb(256), ci:ci, cj:cj, lod:S.lodOf(ci,cj), cap:0}; c.cap=c.lod?CAP_LOW:CAP_FULL; }
   return c; }
 function room(c, n, lim){ return c.m.n/10+n<=(lim||c.cap); }
+
+/* a candidate of category P (a plan record): note it, and say whether the budget still has room for it, thinning so what is left is spread evenly */
+function bcand(P){ P.rem--; P.seen++; }
+function bpass(P, h){ P.ok++; var okr=(P.ok+1)/(P.seen+2), exp=Math.max(0,P.rem)*okr+1, p=(P.B-P.used)/(exp*P.v); return p>=1 || h<p; }
+function bspent(P, f){ var n=f/10; P.used+=n; P.n++; P.v=(P.v*3+n)/4; }     /* f: floats written (10 a vertex) */
 
 /* ── tile edges: the curb of every block, in clockwise order so that the block is on the right of the way ── */
 function cwRing(r){ if(MB.area(r)>0) return r; var o=[]; for(var i=r.length-2;i>=0;i-=2) o.push(r[i],r[i+1]); return o; }
@@ -390,8 +411,9 @@ function extraObstacles(O, set){
   if(P&&P.at) Object.keys(P.at).forEach(function(id){ var key=P.at[id]; if(seenK[key]) return; seenK[key]=1; var L=E.lot(key); if(!L) return; if(inSet(set,L[0],L[1])) return; var ci=Math.floor(L[0]/SCN_CELL), cj=Math.floor(L[1]/SCN_CELL), near=false; for(var i=-1;i<=1&&!near;i++) for(var j=-1;j<=1;j++) if(set[(ci+i)+','+(cj+j)]){ near=true; break; } if(near) obAddRing(O,turnedRing(L),0); });
   if(Mp&&Mp.landmarks) Mp.landmarks.forEach(function(l){ if(!l.box) return; var cx=(l.box[0]+l.box[2])/2, cy=(l.box[1]+l.box[3])/2; if(inSet(set,cx,cy)) return; var ci=Math.floor(cx/SCN_CELL), cj=Math.floor(cy/SCN_CELL), near=false; for(var i=-1;i<=1&&!near;i++) for(var j=-1;j<=1;j++) if(set[(ci+i)+','+(cj+j)]){ near=true; break; } if(near) obAddRing(O,boxRing(l.box[0],l.box[1],l.box[2],l.box[3]),0); }); }
 
-function sceneryGather(W, set){
-  var t0=performance.now(), M=(typeof R!=='undefined'&&R)?R.M:null, S={cells:{}, W:W, set:set, track:null, heads:[], tscale:M?2.2:1}, SI=streetIndex(), A=atlasNew(); _rec=[];
+function gatherSafe(W, set){ try{ return gatherMain(W, set); }catch(x){ _rec=null; _lamps=null; if(window.console) console.warn('scenery', x); if(!W.movers) W.movers=[]; return null; } }
+function gatherMain(W, set){
+  var t0=performance.now(), M=(typeof R!=='undefined'&&R)?R.M:null, S={cells:{}, W:W, set:set, track:null, heads:[], tscale:M?2.2:1}, SI=streetIndex(), A=atlasNew(); _rec=[]; _lamps=[];
   W.pal=PAL; W.atlas=null; var stat={trees:0,lamps:0,cars:0,signals:0,signs:0,roofs:0,furn:0,paint:0,park:0,rail:0,wire:0};
   /* the ride's own camera track: nothing stands on it */
   var TR={g:{},cs:16}, trN=0;
@@ -400,12 +422,12 @@ function sceneryGather(W, set){
   if(M && M.D){ var D=M.D, o={x:0,y:0}, sec;
     for(var s=0, cnt=0;s<=D.L;s+=1.6, cnt++){ pathAt(D,s,o); var h=headAt(D,s,6), sc=null; for(var q=0;q<M.secs.length;q++){ if(s>=M.secs[q].s0-.5 && s<=M.secs[q].s1+.5){ sc=M.secs[q]; break; } }
       var off=sc?(VEH[sc.veh]||VEH.walk).off:0, px=o.x-Math.sin(h)*off, py=o.y+Math.cos(h)*off; trAdd(px,py); trAdd(o.x,o.y); if(sc&&sc.veh==='bus'){ trAdd(o.x-Math.sin(h)*(off+8),o.y+Math.cos(h)*(off+8)); }
-      if(cnt%22===0) trSamp.push(px,py); } }
+      if(cnt%22===0){ var under=false; if(sc&&sc.ug) for(var u=0;u<sc.ug.length;u++){ if(s>=sc.ug[u][0]-10 && s<=sc.ug[u][1]+10){ under=true; break; } } if(!under) trSamp.push(px,py); } } }
   S.TR=TR;
   function trackNear(x,y,m){ if(!trN) return false; var i0=Math.floor((x-m)/16), i1=Math.floor((x+m)/16), j0=Math.floor((y-m)/16), j1=Math.floor((y+m)/16), m2=m*m;
     for(var a=i0;a<=i1;a++) for(var b=j0;b<=j1;b++){ var l=TR.g[a+','+b]; if(!l) continue; for(var i=0;i<l.length;i+=2){ var dx=l[i]-x, dy=l[i+1]-y; if(dx*dx+dy*dy<m2) return true; } } return false; }
   S.trackNear=trackNear;
-  S.lodOf=function(ci,cj){ if(!trSamp.length) return 0; var cx=(ci+.5)*SCN_CELL, cy=(cj+.5)*SCN_CELL, best=1e18; for(var i=0;i<trSamp.length;i+=2){ var dx=trSamp[i]-cx, dy=trSamp[i+1]-cy, d=dx*dx+dy*dy; if(d<best) best=d; } return best<460*460?0:1; };
+  S.lodOf=function(ci,cj){ if(!trSamp.length) return M?1:0; var cx=(ci+.5)*SCN_CELL, cy=(cj+.5)*SCN_CELL, best=1e18; for(var i=0;i<trSamp.length;i+=2){ var dx=trSamp[i]-cx, dy=trSamp[i+1]-cy, d=dx*dx+dy*dy; if(d<best) best=d; } return best<460*460?0:1; };
   /* obstacles */
   var O=obNew(); S.O=O;
   W.solids.forEach(function(s){ if(s.kind==='pole'||s.kind==='sign'||s.kind==='canopy') return; obAddRing(O,s.ring,0,s.h); });
@@ -417,6 +439,12 @@ function sceneryGather(W, set){
   S.blocked=function(x,y,m){ return obHit(O,x,y,m,0); };
   var Sd=SCN.stats; Sd.cells=0;
   var tilesGathered=W.tiles.length;
+  /* the plan: how many trees, parked cars and roofs each cell could take, against what it may spend, so they are thinned EVENLY (not first come first served) */
+  var PLAN={}, BUD=SCN.budget;
+  function rec(k){ var p=PLAN[k]; if(!p) p=PLAN[k]={t:{rem:0,seen:0,ok:0,used:0,n:0,B:BUD.trees,v:BUD.vTree},c:{rem:0,seen:0,ok:0,used:0,n:0,B:BUD.cars,v:BUD.vCar},r:{rem:0,seen:0,ok:0,used:0,n:0,B:BUD.roofs,v:BUD.vRoof}}; return p; }
+  W.tiles.forEach(function(T){ var rg=cwRing(T.ring), nn=rg.length/2; for(var e=0;e<nn;e++){ var ax=rg[2*e], ay=rg[2*e+1], bx=rg[2*((e+1)%nn)], by=rg[2*((e+1)%nn)+1], l=Math.hypot(bx-ax,by-ay); if(l<30) continue; var p=rec(Math.floor((ax+bx)/2/SCN_CELL)+','+Math.floor((ay+by)/2/SCN_CELL)); p.t.rem+=Math.max(0,(l-33)/18+1); p.c.rem+=Math.max(0,(l-38)/9.5); } });
+  W.solids.forEach(function(s){ if((s.kind==='fill'||s.kind==='node') && s.h>=14) rec(Math.floor(s.cx/SCN_CELL)+','+Math.floor(s.cy/SCN_CELL)).r.rem++; });
+  S.bud=function(x,y){ return rec(Math.floor(x/SCN_CELL)+','+Math.floor(y/SCN_CELL)); };
   /* ── parks ── */
   if(SCN.trees) W.parks.forEach(function(pk){ parkItems(S, W, SI, pk, set, stat, trackNear); });
   /* ── the blocks ── */
@@ -437,18 +465,22 @@ function sceneryGather(W, set){
   riverRails(S, W, SI, stat);
   if(M && SCN.wires) tramWires(S, W, M, stat);
   /* ── done: one mesh per cell, text apart ── */
-  atlasPaint(A); if(A.n) W.atlas=A;
+  /* the atlas only as tall as its rows need (a power of two): the text's v coordinates were laid out for the full height, so they are rescaled */
+  if(A.n){ var rowsN=Math.ceil(A.n/Math.floor(A.w/A.cw)), hf=64; while(hf<rowsN*A.ch) hf*=2; if(hf>A.h) hf=A.h; A.hf=hf;
+    if(hf!==A.h) Object.keys(S.cells).forEach(function(k){ var t=S.cells[k].t, a=t.a; for(var q=0;q+9<t.n;q+=10) a[q+7]*=A.h/hf; }); }
+  atlasPaint(A); if(A.n){ A.h=A.hf||A.h; W.atlas=A; }
   var keys=Object.keys(S.cells), tv=0;
   keys.forEach(function(k){ var c=S.cells[k]; var cx=(c.ci+.5)*SCN_CELL, cy=(c.cj+.5)*SCN_CELL, r=SCN_CELL*.75;
     if(c.m.n) { W.meshes.push({a:sfin(c.m), id:'scn:'+k, cx:cx, cy:cy, r:r}); tv+=c.m.n/10; }
     if(c.t.n && W.atlas) W.meshes.push({a:sfin(c.t), id:'scn-txt:'+k, cx:cx, cy:cy, r:r, tex:'atlas'}); });
   Sd.verts=tv; Sd.cellsN=keys.length; Sd.ms=performance.now()-t0; Sd.stat=stat;
-  S.stat=stat; W._scn=S; W.scenery={t:new Float32Array(_rec)}; _rec=null;
+  S.plan=PLAN; S.stat=stat; W._scn=S; W.scenery={t:new Float32Array(_rec)}; W.lamps=new Float32Array(_lamps); _rec=null; _lamps=null;
   moversGather(S, W, M, stat, SI);
   Sd.msAll=performance.now()-t0; S.cells=null; S.O=null; S.TR=null; S.trackNear=null; S.blocked=null; S.onWater=null; S.inPark=null; S.lodOf=null;
   return S; }
 
 /* ── species of a street, season and size of a tree ── */
+function vc(stat,k,n){ var o=stat.vc||(stat.vc={}); o[k]=(o[k]||0)+n/10; }
 function pickSpecies(sid, rank, h){ var q=sid>=0?hn(sid,3):h; if(rank<=1){ return q<.5?0:q<.8?1:q<.9?2:q<.95?4:3; } return q<.3?0:q<.5?1:q<.62?2:q<.8?4:q<.9?5:3; }
 function pickSeason(g, sp){ if(sp===3) return 0; if(sp===4 && g<.5) return 4; return g<.74?0:g<.85?1:g<.97?2:g<.975?3:0; }
 
@@ -459,15 +491,15 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
   function free(s,w){ for(var q=0;q<busy.length;q+=2) if(s+w>busy[q] && s-w<busy[q+1]) return false; return true; }
   function use(s,w){ busy.push(s-w,s+w); }
   function px(s,off){ return vx+ux*s+ix*off; } function py(s,off){ return vy+uy*s+iy*off; }
-  var c0=cellOf(S,mx,my), low=!!c0.lod;
+  var c0=cellOf(S,mx,my), low=!!c0.lod, bp=S.bud(mx,my);
   /* trees (also in the cells away from the ride: sparser) */
   if(SCN.trees){
     var sp=pickSpecies(sid,rank,hk(mx,my,3)), gap=low?36:17.5, eseason=pickSeason(hn((sid>=0?sid:7)*31+Math.floor((mx+my)/700),5),sp);
     for(s=cc+hk(mx,my,4)*6; s<L-cc; s+=gap*(.88+.24*hash(Math.round(s*3)+ei*131))){
-      var x=px(s,2.4), y=py(s,2.4), g=hash(Math.round(x*3)*7+Math.round(y*3)); if(g<.1) continue; var cell=cellOf(S,x,y); if(!room(cell,200)) continue;
-      if(S.blocked(x,y,1.7)||trackNear(x,y,1.15)) continue;
-      var sp2=g>.93?(sp+1)%6:sp, sz=.86+.3*hash(Math.round(x*5)+Math.round(y*11)), season=(sp2===sp && hash(Math.round(x*9)+Math.round(y*13)+3)>.14)?eseason:pickSeason(hash(Math.round(x*9)+Math.round(y*13)+3), sp2); if(sp2===4&&season===0&&eseason===4) season=4;
-      treeAt(cell.m,x,y,sp2,sz,hash(Math.round(x)+Math.round(y)*31),season,low); use(s,3.2); stat.trees++; } }
+      if(!low) bcand(bp.t); var x=px(s,2.4), y=py(s,2.4), g=hash(Math.round(x*3)*7+Math.round(y*3)); if(g<.1) continue; var cell=cellOf(S,x,y); if(!room(cell,200)) continue;
+      if(S.blocked(x,y,1.7)||trackNear(x,y,1.15)) continue; if(!low && !bpass(bp.t,hk(x,y,91))) continue;
+      var sp2=g>.93?(sp+1)%6:sp, sz=.76+.26*hash(Math.round(x*5)+Math.round(y*11)), season=(sp2===sp && hash(Math.round(x*9)+Math.round(y*13)+3)>.14)?eseason:pickSeason(hash(Math.round(x*9)+Math.round(y*13)+3), sp2); if(sp2===4&&season===0&&eseason===4) season=4;
+      var n0=cell.m.n; treeAt(cell.m,x,y,sp2,sz,hash(Math.round(x)+Math.round(y)*31),season,low,false); use(s,3.2); stat.trees++; vc(stat,'trees',cell.m.n-n0); if(!low) bspent(bp.t,cell.m.n-n0); } }
   if(low) return;
   /* hydrants */
   if(hk(mx,my,8)<.62){ s=cc+6+hk(mx,my,9)*(L-2*cc-12), x=px(s,.95), y=py(s,.95); var cl=cellOf(S,x,y);
@@ -475,6 +507,10 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
   /* a mailbox near a corner */
   if(hk(mx,my,11)<.3){ s=hk(mx,my,12)<.5?cc+3:L-cc-3; x=px(s,1.0); y=py(s,1.0); cl=cellOf(S,x,y);
     if(free(s,2.5) && room(cl,100) && !S.blocked(x,y,.9) && !trackNear(x,y,1.3)){ mailboxAt(cl.m,x,y,ox,oy); use(s,2.5); stat.furn++; } }
+  /* a litter bin near a corner, a manhole cover in the lane */
+  if(hk(mx,my,17)<.55){ s=hk(mx,my,18)<.5?cc+9:L-cc-9; x=px(s,1.1); y=py(s,1.1); cl=cellOf(S,x,y);
+    if(free(s,2) && room(cl,80) && !S.blocked(x,y,.8) && !trackNear(x,y,1.2)){ trashAt(cl.m,x,y); use(s,2); stat.furn++; } }
+  if(hk(mx,my,19)<.7){ s=L*(.2+.6*hk(mx,my,24)); x=px(s,-5.8); y=py(s,-5.8); cl=cellOf(S,x,y); if(room(cl,40) && !S.inPark(x,y)){ manholeAt(cl.m,x,y); stat.paint++; } }
   /* a bus shelter on the main streets, a bench elsewhere */
   if(rank<=1 && hk(mx,my,13)<.3){ s=L*(.3+.4*hk(mx,my,14)); x=px(s,2.2); y=py(s,2.2); cl=cellOf(S,x,y);
     if(free(s,7) && room(cl,300) && !S.blocked(x,y,2.2) && !S.blocked(px(s-4,1.6),py(s-4,1.6),.8) && !S.blocked(px(s+4,1.6),py(s+4,1.6),.8) && !trackNear(x,y,2.6)){ shelterAt(cl.m,x,y,ox,oy); use(s,7); stat.furn++; } }
@@ -482,14 +518,14 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
     if(free(s,3) && room(cl,160) && !S.blocked(x,y,1.5) && !trackNear(x,y,1.6)){ benchAt(cl.m,x,y,ox,oy); use(s,3); stat.furn++; } }
   /* street lamps: both sides, about every 45 units */
   for(s=cc+5+hk(mx,my,16)*10; s<L-cc; s+=44*(.9+.2*hash(Math.round(s)+ei*17))){ x=px(s,.75); y=py(s,.75); cl=cellOf(S,x,y);
-    if(!free(s,2.4) || !room(cl,90) || S.blocked(x,y,.8) || trackNear(x,y,1.2)) continue; lampAt(cl.m,x,y,ox,oy); use(s,2.4); stat.lamps++; }
+    if(!free(s,2.4) || !room(cl,90) || S.blocked(x,y,.8) || trackNear(x,y,1.2)) continue; var n1=cl.m.n; lampAt(cl.m,x,y,ox,oy); use(s,2.4); stat.lamps++; vc(stat,'lamps',cl.m.n-n1); }
   /* parked cars in the parking lane */
   if(SCN.cars){ var fill=rank<=1?.5:.38, pk=[];
     for(s=cc+1.5; s<L-cc-6; ){ var ti2=(hash(Math.round(s*7)+ei*37+Math.round(mx))*6)|0, T=CAR_T[ti2], len=T.L*UM, h1=hash(Math.round(s*11)+ei*53+Math.round(my));
-      if(h1<fill && free(s+len/2,len/2+.3)){ var cx2=px(s+len/2,-1.8), cy2=py(s+len/2,-1.8), cl2=cellOf(S,cx2,cy2);
-        if(room(cl2,200) && !S.inPark(cx2,cy2) && !trackNear(cx2,cy2,2.5) && !trackNear(cx2+ux*len*.35,cy2+uy*len*.35,2.1) && !trackNear(cx2-ux*len*.35,cy2-uy*len*.35,2.1)){
+      if(h1<fill && free(s+len/2,len/2+.3)){ bcand(bp.c); var cx2=px(s+len/2,-1.8), cy2=py(s+len/2,-1.8), cl2=cellOf(S,cx2,cy2);
+        if(room(cl2,200) && !S.inPark(cx2,cy2) && !trackNear(cx2,cy2,2.5) && !trackNear(cx2+ux*len*.35,cy2+uy*len*.35,2.1) && !trackNear(cx2-ux*len*.35,cy2-uy*len*.35,2.1) && bpass(bp.c,hk(cx2,cy2,92))){
           var ci=(hash(Math.round(cx2*3)+Math.round(cy2*5))*PC.car.length)|0, taxi=(rank<=1 && hash(Math.round(cx2)+Math.round(cy2*7))<.07);
-          carParked(cl2.m,cx2,cy2,ux,uy,ti2,ci,taxi); stat.cars++; } }
+          var n2=cl2.m.n; carParked(cl2.m,cx2,cy2,ux,uy,ti2,ci,taxi); stat.cars++; vc(stat,'cars',cl2.m.n-n2); bspent(bp.c,cl2.m.n-n2); } }
       s+=len+.9+hash(Math.round(s*5)+ei)*2.4+(h1<fill?0:5); } } }
 
 /* ── a corner: crosswalks, the stop line and an arrow on the approach, a signal pole and a street-name pole ── */
@@ -550,21 +586,21 @@ function parkItems(S, W, SI, pk, set, stat, trackNear){
         lampPark(cl2.m,lx,ly); stat.lamps++; if(hash(Math.round(lx*3)+Math.round(ly))<.55){ var bx2=sx+uxp*(t+13)+uyp*3, by2=sy+uyp*(t+13)-uxp*3, cl3=cellOf(S,bx2,by2); if(!cl3.lod && room(cl3,170) && inSet(set,bx2,by2) && inside(bx2,by2) && !S.blocked(bx2,by2,1.6) && !trackNear(bx2,by2,1.6)){ benchAt(cl3.m,bx2,by2,-uyp,uxp); stat.furn++; } } }
       carry=Math.max(0,carry+38*Math.ceil((sl-carry)/38)-sl); } });
   /* trees: thick near the edge and in clumps, a lawn left open in the middle */
-  var sp=14, count=0, CAPT=2500, keys=Object.keys(set), rr=Math.max(10,side*.5);
-  for(var kk=0;kk<keys.length && count<CAPT;kk++){ var kc=keys[kk].split(','), ci=+kc[0], cj=+kc[1], bx0=Math.max(ci*cs,x0), by0=Math.max(cj*cs,y0), bx1=Math.min((ci+1)*cs,x1), by1=Math.min((cj+1)*cs,y1); if(bx1<=bx0||by1<=by0) continue;
+  var sp=14, count=0, keys=Object.keys(set), rr=Math.max(10,side*.5);
+  for(var kk=0;kk<keys.length;kk++){ var cellN=0; var kc=keys[kk].split(','), ci=+kc[0], cj=+kc[1], bx0=Math.max(ci*cs,x0), by0=Math.max(cj*cs,y0), bx1=Math.min((ci+1)*cs,x1), by1=Math.min((cj+1)*cs,y1); if(bx1<=bx0||by1<=by0) continue;
     var cl4=cellOf(S,(bx0+bx1)/2,(by0+by1)/2), spc=cl4.lod?sp*1.9:sp, g0=Math.floor(bx0/spc), g1=Math.ceil(bx1/spc), h0=Math.floor(by0/spc), h1=Math.ceil(by1/spc);
-    for(var gi=g0;gi<=g1;gi++) for(var gj=h0;gj<=h1;gj++){ var x=(gi+.15+.7*hash(gi*37+gj*911+5))*spc, y=(gj+.15+.7*hash(gi*53+gj*313+7))*spc;
+    for(var gi=g0;gi<=g1;gi++) for(var gj=h0;gj<=h1;gj++){ if(cellN>380) break; var x=(gi+.15+.7*hash(gi*37+gj*911+5))*spc, y=(gj+.15+.7*hash(gi*53+gj*313+7))*spc;
       if(x<bx0||x>=bx1||y<by0||y>=by1) continue; if(!inside(x,y)) continue;
-      var de=ringD(x,y,ring), edge=1-Math.min(1,de/(rr*.55)), dens=.12+.5*vnoise(x/90+3,y/90)+.62*edge; if(hash(gi*17+gj*131+11)>dens) continue;
-      var cl5=cellOf(S,x,y); if(!room(cl5,230,cl5.lod?cl5.cap:PK+9000)) continue;
+      var de=ringD(x,y,ring), edge=Math.max(0,1-de/26), cl=vnoise(x/85+3,y/85)*.62+vnoise(x/30+9,y/30)*.38, dens=.05+.95*Math.min(1,Math.max(0,(cl-.38)/.34))+.32*edge; if(hash(gi*17+gj*131+11)>dens) continue;
+      var cl5=cellOf(S,x,y); if(!room(cl5,230,cl5.cap)) continue;
       if(S.blocked(x,y,2.6)||S.onWater(x,y,2.2)||trackNear(x,y,1.3)||onPath(x,y,3.6)) continue;
       var nz=vnoise(x/140+11,y/140+5), g=hash(gi*7+gj*19+3), spp=nz>.72?3:g<.45?2:g<.78?0:g<.92?1:4, sz=.8+.5*hash(gi*5+gj*23+2), season=pickSeason(hash(gi*3+gj*29+8),spp);
-      treeAt(cl5.m,x,y,spp,sz,hash(gi*11+gj*13),season,!!cl5.lod); count++; stat.park++; } } }
+      treeAt(cl5.m,x,y,spp,sz,hash(gi*11+gj*13),season,!!cl5.lod,true); count++; cellN++; stat.park++; } } }
 
 /* ── rooftops ── */
 function roofItems(S, s, stat){
-  if(s.kind!=='fill' && s.kind!=='node') return; var h=s.h; if(h<14 || s.n<3) return; var cell=cellOf(S,s.cx,s.cy); if(cell.lod || !room(cell,320)) return;
-  var m=cell.m, r=s.ring, n=s.n, area=Math.abs(MB.area(r)), g=hk(s.cx,s.cy,21); if(area<80) return;
+  if(s.kind!=='fill' && s.kind!=='node') return; var h=s.h; if(h<14 || s.n<3) return; var cell=cellOf(S,s.cx,s.cy); if(cell.lod || !room(cell,320)) return; var rp=S.bud(s.cx,s.cy).r; bcand(rp); if(!bpass(rp,hk(s.cx,s.cy,93))) return;
+  var m=cell.m, r=s.ring, n=s.n, area=Math.abs(MB.area(r)), g=hk(s.cx,s.cy,21), nr0=m.n; if(area<80) return; var done=function(){ vc(stat,'roofs',m.n-nr0); bspent(rp,m.n-nr0); };
   var x0=1e18,y0=1e18,x1=-1e18,y1=-1e18,i; for(i=0;i<n;i++){ var x=r[2*i], y=r[2*i+1]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
   function spot(seed, mg){ for(var a=0;a<7;a++){ var px=x0+(x1-x0)*hk(s.cx,s.cy,seed+a*3), py=y0+(y1-y0)*hk(s.cx,s.cy,seed+a*3+1); if(inRingP(px,py,r) && ringD(px,py,r)>mg) return [px,py]; } return null; }
   var nh=Math.min(4,1+Math.floor(area/700)), k, q;
@@ -581,7 +617,7 @@ function roofItems(S, s, stat){
     for(i=0;i<nn;i++){ var j=(i+1)%nn, ax=rg[2*i], ay=rg[2*i+1], bx=rg[2*j], by=rg[2*j+1], cx2=rin[2*j], cy2=rin[2*j+1], dx2=rin[2*i], dy2=rin[2*i+1];
       qd(m,ax,ay,h,bx,by,h,bx,by,h+ph,ax,ay,h+ph,MAT.roof,.5,(ax+bx)/2+(cx-(ax+bx)/2)*.5,(ay+by)/2+(cy-(ay+by)/2)*.5,h+ph/2);
       qd(m,dx2,dy2,h,cx2,cy2,h,cx2,cy2,h+ph,dx2,dy2,h+ph,MAT.roof,.5,(ax+bx)/2+((ax+bx)/2-cx)*.5,(ay+by)/2+((ay+by)/2-cy)*.5,h+ph/2);
-      qd(m,ax,ay,h+ph,bx,by,h+ph,cx2,cy2,h+ph,dx2,dy2,h+ph,MAT.roof,.5,(ax+bx)/2,(ay+by)/2,h); } stat.roofs++; } }
+      qd(m,ax,ay,h+ph,bx,by,h+ph,cx2,cy2,h+ph,dx2,dy2,h+ph,MAT.roof,.5,(ax+bx)/2,(ay+by)/2,h); } stat.roofs++; } done(); }
 
 /* ── railings along the river banks ── */
 function riverRails(S, W, SI, stat){
@@ -661,7 +697,7 @@ function moversGather(S, W, M, stat, SI){
   /* ── car loops around groups of rectangular blocks ── */
   if(SCN.cars){
     var rects={}, list=[];
-    W.tiles.forEach(function(T){ var r=T.ring; if(r.length!==8) return; var x0=Math.min(r[0],r[2],r[4],r[6]), x1=Math.max(r[0],r[2],r[4],r[6]), y0=Math.min(r[1],r[3],r[5],r[7]), y1=Math.max(r[1],r[3],r[5],r[7]);
+    W.tiles.forEach(function(T){ var r=T.ring; if(r.length!==8) return; for(var e=0;e<4;e++){ if(Math.abs(r[2*e]-r[2*((e+1)%4)])>.5 && Math.abs(r[2*e+1]-r[2*((e+1)%4)+1])>.5) return; } var x0=Math.min(r[0],r[2],r[4],r[6]), x1=Math.max(r[0],r[2],r[4],r[6]), y0=Math.min(r[1],r[3],r[5],r[7]), y1=Math.max(r[1],r[3],r[5],r[7]);
       if(Math.abs((x1-x0)-(r[0]===r[2]?Math.abs(r[0]-r[4]):Math.abs(r[0]-r[2])))>400) return; var t={x0:x0-STREET_HW,y0:y0-STREET_HW,x1:x1+STREET_HW,y1:y1+STREET_HW,used:false}; rects[Math.round(t.x0)+','+Math.round(t.y0)]=t; list.push(t); });
     list.sort(function(a,b){ return a.x0-b.x0||a.y0-b.y0; });
     function near(t,dx,dy){ var key=Math.round(dx)+','+Math.round(dy); var q=rects[key]; return q&&!q.used&&Math.abs(q.x1-q.x0-(t.x1-t.x0))<2&&Math.abs(q.y1-q.y0-(t.y1-t.y0))<2?q:null; }
@@ -703,15 +739,15 @@ function moversGather(S, W, M, stat, SI){
       chains.forEach(function(LP,ci){ var np=LP.closed?(th<.4?1:th<.75?2:3):(LP.Lp>200?2:1);
         for(var w=0;w<np;w++){ var hh=hk(T.cx+w*7+ci*3,T.cy,61+w), type=hh<.12?2:hh<.58?0:1, look=LOOKS[(hk(T.cx,T.cy+w*5+ci,62+w)*LOOKS.length)|0];
           var pp=LP.x, ox=LP.closed?pp[0]:(pp[0]+pp[pp.length-2])/2, oy=LP.closed?pp[1]:(pp[1]+pp[pp.length-1])/2;
-          var po={kind:1, loop:LP, type:type, look:look, a:personTpl(type,look,0), x:ox,y:oy,z:SZ_SW,yaw:0, dir:hk(T.cx,T.cy,63+w+ci)<.5?1:-1, spd:(1.5+.5*hk(T.cx,T.cy,64+w+ci))*(type===2?.8:1), ph:hk(T.cx+w,T.cy+ci,65)*LP.Lp*(LP.closed?1:2), cx:ox, cy:oy, pose:-1, stride:type===2?1.4:1.9};
+          var po={kind:1, loop:LP, type:type, look:look, poses:[0,1,2,3,4,5].map(function(p){ return personTpl(type,look,p); }), a:personTpl(type,look,0), x:ox,y:oy,z:SZ_SW,yaw:0, dir:hk(T.cx,T.cy,63+w+ci)<.5?1:-1, spd:(1.5+.5*hk(T.cx,T.cy,64+w+ci))*(type===2?.8:1), ph:hk(T.cx+w,T.cy+ci,65)*LP.Lp*(LP.closed?1:2), cx:ox, cy:oy, pose:-1, stride:type===2?1.4:1.9};
           mv.walk.push(po); put(po); } }); });
   }
   /* ── birds ── */
   if(SCN.birds){ var keys=Object.keys(S.cells); keys.forEach(function(k){ var c=S.cells[k]; if(c.lod) return; var h=hn(c.ci*977+c.cj*131,70); if(h>.55) return; var nb=1+((hn(c.ci*31+c.cj*17,71)*3)|0);
-      for(var b=0;b<nb;b++){ var kind=hn(c.ci+b*9+c.cj*5,72)<.7?0:1, bo={kind:2, bk:kind, a:birdTpl(kind,0), x:0,y:0,z:0,yaw:0, ox:(c.ci+.15+.7*hn(c.ci*7+b,73))*SCN_CELL, oy:(c.cj+.15+.7*hn(c.cj*7+b,74))*SCN_CELL, R:40+60*hn(c.ci*3+c.cj*5+b,75), w:(.22+.2*hn(c.ci*13+c.cj+b*3,76))*(hn(c.ci+c.cj*3+b,77)<.5?1:-1), p0:hn(c.ci*5+b,78)*6.283, zc:0, zr:28+30*hn(c.ci+c.cj*9+b,79), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, wing:0};
+      for(var b=0;b<nb;b++){ var kind=hn(c.ci+b*9+c.cj*5,72)<.7?0:1, bo={kind:2, bk:kind, bw:[birdTpl(kind,-1),birdTpl(kind,0),birdTpl(kind,1)], a:birdTpl(kind,0), x:0,y:0,z:0,yaw:0, ox:(c.ci+.15+.7*hn(c.ci*7+b,73))*SCN_CELL, oy:(c.cj+.15+.7*hn(c.cj*7+b,74))*SCN_CELL, R:40+60*hn(c.ci*3+c.cj*5+b,75), w:(.22+.2*hn(c.ci*13+c.cj+b*3,76))*(hn(c.ci+c.cj*3+b,77)<.5?1:-1), p0:hn(c.ci*5+b,78)*6.283, zc:0, zr:28+30*hn(c.ci+c.cj*9+b,79), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, wing:0};
         bo.zc=Math.max(bo.zr, obMaxH(O,bo.ox-bo.R,bo.oy-bo.R,bo.ox+bo.R,bo.oy+bo.R)+6+8*hn(c.ci+b*3+c.cj,80)); mv.birds.push(bo); put(bo); } }); }
   /* ── signal lamps (the three states) as movers on the poles that cornerItems recorded ── */
-  mv.heads.forEach(function(hd){ hd.kind=3; hd.a=sigTpl(1); hd.cx=hd.x; hd.cy=hd.y; hd.z=0; hd.st=1; hd.x=hd.x; put(hd); });
+  var SIGT=[sigTpl(0),sigTpl(1),sigTpl(2)]; mv.sigt=SIGT; mv.heads.forEach(function(hd){ hd.kind=3; hd.a=SIGT[1]; hd.cx=hd.x; hd.cy=hd.y; hd.z=0; hd.st=1; hd.x=hd.x; put(hd); });
   mv.cars.forEach(function(c){ put(c); });
   W.movers=[]; mv.t=-1; mv.nc=mv.cars.length; resetCars(mv); stat.cars+=0; stat.movers=mv.cars.length+mv.walk.length+mv.birds.length+mv.heads.length; }
 function resetCars(mv){ mv.t=0; var o={x:0,y:0,h:0}; mv.cars.forEach(function(c){ var L=c.loop; c.s=c.s0; c.v=c.vs*.8; c.nj=0; var bd=1e18; for(var j=0;j<L.juns.length;j++){ var d=((L.juns[j].sStop-c.s)%L.Lp+L.Lp)%L.Lp; if(d<bd){ bd=d; c.nj=j; } } c.lead=null; });
@@ -723,45 +759,49 @@ function stepCars(mv, dt, t){
     var lim=L.vc+.2*dA; if(lim<vd) vd=lim;
     var jn=L.juns[c.nj]; if(jn){ var ds=jn.sStop-s; if(ds<0) ds+=Lp;
       if(ds>Lp-8){ c.nj=(c.nj+1)%L.juns.length; jn=L.juns[c.nj]; ds=jn.sStop-s; if(ds<0) ds+=Lp; }
-      if(ds<90 && ds>1.0){ var st=sigState(jn.axisH,jn.jx,jn.jy,t); if(st===0 || (st===2 && ds>v*v/(2*CAR_B*1.3)+2)){ var ls=Math.sqrt(2*CAR_B*Math.max(ds-.2,0)); if(ls<vd) vd=ls; } } }
+      if(ds<90){ var st=sigState(jn.axisH,jn.jx,jn.jy,t); if(st===0 || (st===2 && ds>v*v/(2*CAR_B*1.3)+2)){ var ls=Math.sqrt(2*CAR_B*Math.max(ds-.2,0)); if(ls<vd) vd=ls; } } }
     var ld=c.lead; if(ld){ var gap=ld.s-s; if(gap<0) gap+=Lp; gap-=(c.len+ld.len)*.5; var lf=Math.sqrt(2*CAR_B*Math.max(gap-2.2,0)); if(lf<vd) vd=lf; }
     if(v<vd){ v+=CAR_A*dt; if(v>vd) v=vd; } else { v-=CAR_B*1.6*dt; if(v<vd) v=vd; }
     if(v<0) v=0; s+=v*dt; if(s>=Lp) s-=Lp; c.s=s; c.v=v; } }
 
 var _lo={x:0,y:0,h:0}, _lo2={x:0,y:0,h:0};
-function sceneryUpdate(W, tm, Cam){
+function updateSafe(W, tm, Cam){ try{ return updateMain(W, tm, Cam); }catch(x){ if(!updateSafe.warned){ updateSafe.warned=1; if(window.console) console.warn('scenery update', x); } if(W&&W.movers) W.movers.length=0; return 0; } }
+function updateMain(W, tm, Cam){
   var mv=W&&W._mv; if(!mv||!Cam) return; var out=W.movers, i, j, k;
   /* the cars live in the world's own time: fixed steps of 1/30 s up to tm */
   var tt=tm>0?tm*(W._scn&&W._scn.tscale||1):0; if(mv.t<0||tt<mv.t-1e-6){ resetCars(mv); } if(tt-mv.t>20) mv.t=tt-20;
   while(mv.t+1/30<=tt+1e-9){ stepCars(mv,1/30,mv.t); mv.t+=1/30; }
-  var cx=Cam.x, cy=Cam.y, ci=Math.floor(cx/SCN_CELL), cj=Math.floor(cy/SCN_CELL), n=0, MAXM=64;
+  var cx=Cam.x, cy=Cam.y, ci=Math.floor(cx/SCN_CELL), cj=Math.floor(cy/SCN_CELL), n=0, MAXM=72;
   out.length=0;
   for(i=-1;i<=1;i++) for(j=-1;j<=1;j++){ var l=mv.cell[(ci+i)+','+(cj+j)]; if(!l) continue;
     for(k=0;k<l.length && n<MAXM;k++){ var ob=l[k], dx, dy, d2;
-      if(ob.kind===0){ if(ob.loop.dead) continue; loopAt(ob.loop,ob.s,_lo); ob.x=_lo.x; ob.y=_lo.y; ob.yaw=_lo.h; ob.z=0; dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>340*340) continue; }
+      if(ob.kind===0){ if(ob.loop.dead) continue; loopAt(ob.loop,ob.s,_lo); ob.x=_lo.x; ob.y=_lo.y; ob.yaw=_lo.h; ob.z=0; dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>460*460) continue; }
       else if(ob.kind===1){ var LP=ob.loop, u, dd=ob.dir; if(LP.closed) u=ob.ph+dd*ob.spd*tt; else { var w2=(ob.ph+ob.spd*tt)%(2*LP.Lp); if(w2<LP.Lp){ u=w2; dd=1; } else { u=2*LP.Lp-w2; dd=-1; } }
-        walkAt(LP,u,_lo); ob.x=_lo.x; ob.y=_lo.y; dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>190*190) continue;
-        walkAt(LP,u+dd*1.3,_lo2); ob.yaw=Math.atan2(_lo2.y-_lo.y,_lo2.x-_lo.x); var ps=Math.floor((((u*dd)/ob.stride)%1+1)%1*6)%6; if(ps!==ob.pose){ ob.pose=ps; ob.a=personTpl(ob.type,ob.look,ps); } }
-      else if(ob.kind===2){ var ang=ob.p0+ob.w*tt; ob.x=ob.ox+Math.cos(ang)*ob.R; ob.y=ob.oy+Math.sin(ang)*ob.R; ob.z=ob.zc+3*Math.sin(tt*1.3+ob.p0); ob.yaw=ang+(ob.w>0?1.5708:-1.5708); dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>320*320) continue;
-        var wp=Math.floor(tt*5+ob.p0)&3, w=wp===0?1:wp===2?-1:0; if(w!==ob.wing){ ob.wing=w; ob.a=birdTpl(ob.bk,w); } }
-      else { dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>130*130) continue; var st=sigState(ob.axisH,ob.jx,ob.jy,tt); if(st!==ob.st){ ob.st=st; ob.a=sigTpl(st); } }
+        walkAt(LP,u,_lo); ob.x=_lo.x; ob.y=_lo.y; dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>230*230) continue;
+        walkAt(LP,u+dd*1.3,_lo2); ob.yaw=Math.atan2(_lo2.y-_lo.y,_lo2.x-_lo.x); var ps=Math.floor((((u*dd)/ob.stride)%1+1)%1*6)%6; if(ps!==ob.pose){ ob.pose=ps; ob.a=ob.poses[ps]; } }
+      else if(ob.kind===2){ var ang=ob.p0+ob.w*tt; ob.x=ob.ox+Math.cos(ang)*ob.R; ob.y=ob.oy+Math.sin(ang)*ob.R; ob.z=ob.zc+3*Math.sin(tt*1.3+ob.p0); ob.yaw=ang+(ob.w>0?1.5708:-1.5708); dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>380*380) continue;
+        var wp=Math.floor(tt*5+ob.p0)&3, w=wp===0?1:wp===2?-1:0; if(w!==ob.wing){ ob.wing=w; ob.a=ob.bw[w+1]; } }
+      else { dx=ob.x-cx; dy=ob.y-cy; d2=dx*dx+dy*dy; if(d2>160*160) continue; var st=sigState(ob.axisH,ob.jx,ob.jy,tt); if(st!==ob.st){ ob.st=st; ob.a=mv.sigt[st]; } }
       out[n++]=ob; } }
   return n; }
 
 /* ── the 2D fallback (no WebGL): trees, lamps and the movers as small shapes; skipped when the GL renderer draws the meshes ── */
 var _glc=null;
 function glActive(W){ if(W.glOn!=null) return !!W.glOn; if(!_glc||!_glc.isConnected) _glc=(typeof document!=='undefined')?document.querySelector('#pal-ride .pr-gl'):null; return !!(_glc && _glc.style.display!=='none'); }
-function sceneryDraw(ctx, W, P, Cam, tm){
+function drawFallback(ctx, W, P, Cam, tm){
   if(!W||!W.scenery||glActive(W)) return; var sc=W.scenery, o={x:0,y:0,k:0,d:0}, i, t=sc.t, fog=P.fog||[200,210,220];
-  ctx.lineWidth=1;
-  for(i=0;i<t.length;i+=5){ var x=t[i], y=t[i+1], dx=x-Cam.x, dy=y-Cam.y, zc=dx*Cam.fx+dy*Cam.fy; if(zc<NEARZ||zc>520) continue; if(Math.abs(dx*Cam.rx+dy*Cam.ry)>zc*Cam.tan*1.3+10) continue;
-    var h=t[i+2], r=t[i+3], kind=t[i+4]; if(!project(x,y,0,o)) continue; var k=o.k, ox=o.x, oy=o.y; var f=1-Math.exp(-zc/FOGD);
+  ctx.lineWidth=1; var drawn=0;
+  for(i=0;i<t.length && drawn<150;i+=5){ var x=t[i], y=t[i+1], dx=x-Cam.x, dy=y-Cam.y, zc=dx*Cam.fx+dy*Cam.fy; if(zc<NEARZ||zc>520) continue; if(Math.abs(dx*Cam.rx+dy*Cam.ry)>zc*Cam.tan*1.3+10) continue;
+    var h=t[i+2], r=t[i+3], kind=t[i+4]; if(!project(x,y,0,o)) continue; drawn++; var k=o.k, ox=o.x, oy=o.y; var f=1-Math.exp(-zc/FOGD);
     if(kind>=2){ ctx.fillStyle='rgb(70,56,44)'; ctx.fillRect(ox-.18*k,oy-h*.5*k,.36*k,h*.5*k); ctx.fillStyle=css(mixC(kind===3?[190,120,60]:[78,126,60],fog,f)); ctx.beginPath(); ctx.ellipse(ox,oy-h*.72*k,r*k,r*.8*k,0,0,6.2832); ctx.fill(); }
     else { ctx.fillStyle='rgb(60,64,72)'; ctx.fillRect(ox-.08*k,oy-h*k,.16*k,h*k); if(kind===1){ ctx.fillStyle='rgb(255,236,170)'; ctx.fillRect(ox-.3*k,oy-h*k,.9*k,.2*k); } } }
   var mvl=W.movers||[]; for(i=0;i<mvl.length;i++){ var mo=mvl[i]; if(!project(mo.x,mo.y,0,o)) continue; var kk=o.k;
     if(mo.kind===0){ ctx.fillStyle='rgb(150,40,40)'; ctx.fillRect(o.x-1.4*kk,o.y-1.5*kk,2.8*kk,1.5*kk); } else if(mo.kind===1){ ctx.fillStyle='rgb(60,70,110)'; ctx.fillRect(o.x-.35*kk,o.y-1.9*kk,.7*kk,1.9*kk); } } }
 
 /* a read-only door for the QA kit and the tests (window._palScn): the world of the ride, a world gathered by hand, the movers' update, the options */
-window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gather:function(set){ return gatherWorld(set, null); }, cam:function(){ return C; }, hash:hash, SCN:SCN, update:sceneryUpdate, PAL:PAL, CAR_T:CAR_T, tpl:function(){ return _TPL; }, sig:sigState, S:function(){ return R.W&&R.W._scn; }, SW:function(W){ return W._scn; }, obHit:obHit, cwRing:cwRing, noRide:function(f){ var m=R.M; R.M=null; try{ return f(); } finally{ R.M=m; } }, setRide:function(M){ var o=R.M; R.M=M; return o; }};
+window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gather:function(set){ return gatherWorld(set, null); }, cam:function(){ return C; }, hash:hash, SCN:SCN, update:updateSafe, PAL:PAL, CAR_T:CAR_T, tpl:function(){ return _TPL; }, sig:sigState, pos:function(c,o){ return loopAt(c.loop,c.s,o); }, S:function(){ return R.W&&R.W._scn; }, SW:function(W){ return W._scn; }, obHit:obHit, cwRing:cwRing, noRide:function(f){ var m=R.M; R.M=null; try{ return f(); } finally{ R.M=m; } }, setRide:function(M){ var o=R.M; R.M=M; return o; }};
+
+_scn={gather:gatherSafe, update:updateSafe, draw:drawFallback};
+})();
 """
 CSS_G = ""

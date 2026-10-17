@@ -52,7 +52,7 @@ def test_every_kind_of_scenery_the_brief_names_is_built():
 
 def test_budgets_are_in_the_source():
     assert "CAP_FULL=" in G and "CAP_LOW=" in G
-    assert "MAXM=64" in G                                              # at most 64 movers in W.movers
+    assert "MAXM=72" in G                                              # at most 72 movers in W.movers
     assert "cell.cap" in G or "c.cap" in G
 
 
@@ -175,7 +175,7 @@ def test_movers_are_bounded_and_cheap_and_the_signals_never_clash(tmp_path):
       var clash=0, greens=0; for(var t=0;t<400;t+=.25) for(var a=0;a<4;a++){ var x=X0+a*TW, y=Y0+a*TH; var h=window._palScn.sig(true,x,y,t), v=window._palScn.sig(false,x,y,t); if(h===1&&v===1) clash++; if(h===1) greens++; }
       var cw=0, loops=W._mv.loops.filter(function(L){ return !L.dead; }); loops.forEach(function(L){ var a=0; for(var k=0;k<L.n;k++){ var j=(k+1)%L.n; a+=L.x[2*k]*L.x[2*j+1]-L.x[2*j]*L.x[2*k+1]; } if(a>0) cw++; });
       return {max:mx, ms:ms, clash:clash, greens:greens, loops:loops.length, clockwise:cw};""")
-    assert out["max"] <= 64
+    assert out["max"] <= 72
     assert out["ms"] < 2.0                                  # the brief: at most 2 ms a frame (node is slower than WebKit here, it is ~0.01 ms)
     assert out["clash"] == 0 and out["greens"] > 100       # the two axes are never both green
     assert out["loops"] > 0 and out["clockwise"] == out["loops"]      # right-hand traffic: every lane loop runs clockwise round its block
@@ -202,3 +202,16 @@ def test_the_river_gets_railings_and_a_ride_keeps_its_own_path_clear(tmp_path):
     assert out["rails"] > 0
     assert out["near"] == 0                                 # no trunk, pole or hydrant stands in the walker's corridor
     assert out["noRideLoops"] == 0
+
+
+def test_cars_wait_at_red_never_overlap_and_never_cross_each_others_lanes(tmp_path):
+    out = _run(tmp_path, r"""
+      var W=world(), mv=W._mv, cars=mv.cars.filter(function(c){ return !c.loop.dead; }), o={x:0,y:0,h:0}, minX=1e9, minSame=1e9, stopped=0, samples=0, C={x:X0+480,y:Y0+480}, ran=0;
+      for(var tt=0;tt<400;tt+=.5){ window._palScn.update(W,tt,C); for(var i=0;i<cars.length;i++){ window._palScn.pos(cars[i],o); cars[i]._x=o.x; cars[i]._y=o.y; }
+        for(var i=0;i<cars.length;i++){ samples++; if(cars[i].v<.2) stopped++; else ran++;
+          for(var j=i+1;j<cars.length;j++){ var d=Math.hypot(cars[i]._x-cars[j]._x,cars[i]._y-cars[j]._y), sl=(cars[i].len+cars[j].len)/2; if(cars[i].loop===cars[j].loop){ if(d-sl<minSame) minSame=d-sl; } else if(d<minX) minX=d; } } }
+      return {n:cars.length, minX:minX, minSame:minSame, stopFrac:stopped/samples};""")
+    assert out["n"] > 5
+    assert out["minX"] > 8                                  # cars of two loops are never closer than a lane's width (signals keep the axes apart)
+    assert out["minSame"] > 0.5                             # car-following: a queue never overlaps
+    assert 0.02 < out["stopFrac"] < 0.6                     # and they do wait at the lights
