@@ -163,6 +163,7 @@ _JS_GL_BUILD = r"""
 /* ── what the buildings, ground and way are made of ── */
 var GZ_SIDE=.14, GZ_PARK=.1;
 function glDC(col){ if(!col){ _gdr=_gdg=_gdb=1; return; } var m=(col[0]+col[1]+col[2])/3||1; _gdr=clamp(col[0]/m,.45,1.7); _gdg=clamp(col[1]/m,.45,1.7); _gdb=clamp(col[2]/m,.45,1.7); }
+var GL_MATS={brick:1,brownstone:2,stone:2,tile:2,stucco:4,painted:4,plaster:4,concrete:4,cladding:4,metal:4,wood:4,glass:3};
 function glStyle(s){
   var hm=(s.h-(s.z0||0))/UM, hh=hashXY(s.cx,s.cy), t=hashXY(s.cx*1.31+7,s.cy*.77+3), k=s.kind, st={mat:1, aux:0, t:t, roof:5, dc:s.col, hm:hm};
   if(k==='node'){ st.mat=3; st.aux=1; return st; }
@@ -171,6 +172,8 @@ function glStyle(s){
   if(k==='pole'){ st.mat=6; st.roof=6; st.dc=null; return st; }
   if(k==='sign'){ st.mat=22; st.roof=22; st.dc=s.col2?rgbOf(s.col2):null; if(st.dc) st.dc=[st.dc[0]*.7,st.dc[1]*.7,st.dc[2]*.7]; return st; }
   if(k==='lm'){ st.mat=hm>70?3:2; st.aux=0; return st; }
+  /* the street data's material (palace_street_style.MATERIALS) -> the shader's facade: brick 1, stone 2, glass 3, concrete 4 (stucco, painted, plaster, cladding, metal, wood are pale/painted walls: 4, tinted by the real colour) */
+  var mc=s.mat; if(mc && GL_MATS[mc]){ st.mat=GL_MATS[mc]; if(mc==='brownstone') st.dc=mixC(s.col||[160,120,96],[118,80,62],.55); else if(mc==='tile') st.dc=mixC(s.col||[190,170,150],[150,110,92],.35); return st; }
   if(hm<9) st.mat=1;
   else if(hm<28) st.mat=hh<.55?1:hh<.8?2:4;
   else if(hm<70) st.mat=hh<.28?2:hh<.62?4:3;
@@ -206,7 +209,25 @@ function glSolid(b,s){
       _gL=0; gflat(b,r2,zt2+h2,st.roof,T,true);
       if(hm>180){ _gH=0; gbox(b,c[0],c[1],.5,.5,zt2+h2,zt2+h2+32*UM,0,6,T,true); } } }
   _gH=0;
-  if(s.door) glDoor(b,s); }
+  if(s.door) glDoor(b,s);
+  if(s.shop) glShop(b,s); }
+
+/* a shopfront on the street-facing wall of a storefront building (the street data's flag): a dark bulkhead, lit shop glass (material 25) in mullions, a fascia the name is painted on
+   (palace_ride_g.py shopFront draws the lettering on the atlas), and an awning in a hue taken from the name. Metres, as glDoor. */
+var AWN=[[196,46,44],[36,74,126],[38,102,70],[214,170,52],[120,40,60],[70,70,76],[206,112,48],[34,110,118]];
+function glShop(b,s){
+  var d=s.shop; if(!d) return; var nx=d.nx, ny=d.ny, tx=ny, ty=-nx, yaw=Math.atan2(ty,tx), K=UM, hw=Math.min(d.len/K/2-.35, 7.5); if(hw<1.4) return;
+  glDC(null); _gH=0; _gL=0;
+  function bx(a0,a1,d0,d1,z0,z1,pk,roof){ gbox(b, d.x+(tx*(a0+a1)+nx*(d0+d1))/2*K, d.y+(ty*(a0+a1)+ny*(d0+d1))/2*K, (a1-a0)/2*K, (d1-d0)/2*K, z0*K, z1*K, yaw, pk, 0, roof); }
+  bx(-hw,hw,.02,.14,0,.5,15); bx(-hw,hw,.02,.07,.5,2.9,25);
+  for(var a=-hw; a<=hw+.01; a+=Math.max(1.6,hw*2/Math.ceil(hw*2/2.6))) bx(a-.05,a+.05,.02,.14,.5,2.9,15);
+  bx(-hw,hw,.02,.45,2.9,3.55,15);
+  var col=AWN[Math.floor(d.hue*AWN.length)%AWN.length]; glDC(col);
+  var pt=function(a,dd,z){ return [d.x+(tx*a+nx*dd)*K, d.y+(ty*a+ny*dd)*K, z*K]; }, A0=pt(-hw+.2,.5,2.85), A1=pt(hw-.2,.5,2.85), B1=pt(hw-.2,1.7,2.35), B0=pt(-hw+.2,1.7,2.35), sl=Math.atan2(.5,1.2), sn=Math.sin(sl), cs=Math.cos(sl);
+  gtri(b,A0,A1,B1,nx*sn,ny*sn,cs,0,0,1,0,1,1,22,0); gtri(b,A0,B1,B0,nx*sn,ny*sn,cs,0,0,1,1,0,1,22,0);
+  var F0=pt(-hw+.2,1.7,2.35), F1=pt(hw-.2,1.7,2.35), F2=pt(hw-.2,1.7,2.1), F3=pt(-hw+.2,1.7,2.1);                               /* the valance */
+  gtri(b,F0,F1,F2,nx,ny,0,0,0,1,0,1,1,22,0); gtri(b,F0,F2,F3,nx,ny,0,0,0,1,1,0,1,22,0);
+  glDC(null); }
 
 /* the ground of a cell: asphalt under everything, kerbed sidewalks with their yards, parks, water with quays, highway ribbons, lane dashes, crosswalks */
 function glBase(b,cell,W){
@@ -414,7 +435,7 @@ function glUni(gl,pg,L,tm,vp){
   var u=pg.u;
   if(u.uVP) gl.uniformMatrix4fv(u.uVP,false,vp);
   gl.uniform3f(u.uEye,C.x,C.y,C.z); gl.uniform3fv(u.uSun,L.sun); gl.uniform3fv(u.uSunCol,L.sunCol); gl.uniform3fv(u.uSkyA,L.skyA); gl.uniform3fv(u.uGndA,L.gndA);
-  gl.uniform3fv(u.uZen,L.zen); gl.uniform3fv(u.uHor,L.hor); gl.uniform3fv(u.uFog,L.fog); gl.uniform1f(u.uFogD,FOGD*1.2); gl.uniform1f(u.uNight,L.dk?1:0); gl.uniform1f(u.uTime,tm||0);
+  gl.uniform3fv(u.uZen,L.zen); gl.uniform3fv(u.uHor,L.hor); gl.uniform3fv(u.uFog,L.fog); gl.uniform1f(u.uFogD,FOGD*1.2/(1+6*(GLX.edge||0))); gl.uniform1f(u.uNight,L.dk?1:0); gl.uniform1f(u.uTime,tm||0);
   if(u.uPix) gl.uniform1f(u.uPix,1/C.foc); gl.uniform1f(u.uExp,L.exp); gl.uniform1i(u.uNz,0); if(u.uSh) gl.uniform1i(u.uSh,1); if(u.uSq) gl.uniform1i(u.uSq,2); }
 function glSphVis(cx,cy,cz,r){
   var cm=GLX.cam, dx=cx-C.x, dy=cy-C.y, dz=cz-C.z, d=dx*cm.F[0]+dy*cm.F[1]+dz*cm.F[2]; if(d+r<GL_NEAR || d-r>FARZ) return false;

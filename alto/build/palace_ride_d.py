@@ -79,16 +79,28 @@ function drawCity(ctx, W, H, P, Wd, yaw, tm, way){
   drawLabels(ctx, Wd.labels, P, H/900);
   if(Wd.stopLabels) drawLabels(ctx, Wd.stopLabels, P, H/900);
 }
+/* ── a leg in the real street frame (2.0.0 FPV): legs that stay in bounds (REAL.legInBounds) walk D.real (REAL.match) in the world REAL.gather builds; the rest keep the lattice ── */
+var _rq={x:0,y:0,h:0}, RRD={R:380, regather:105};
+function rideRealPrep(M){
+  M.rl=0; M.rlWhy=''; if(typeof REAL==='undefined' || !REAL || typeof rlInit!=='function' || !rlInit()){ M.rlWhy='no real data'; return; }
+  var lb=REAL.legInBounds(M.D); if(!lb.ok){ M.rlWhy='leg leaves the in-bounds region ('+lb.out+' of '+lb.n+' samples)'; M.D.oob=true; return; }
+  var go=function(){ if(R.M!==M) return false; if(!REAL.match(M.D)){ M.rlWhy='no match'; return false; } if(M.rl||M.rlPend!=null) return true; M.rlPend=R.t+.35; M._cuts.push(M.rlPend); M.rlWhy=''; return true; };
+  if(REAL.street && REAL.street()){ M.rlWait=1; REAL.prepareLeg(M.D).then(function(ok){ M.rlWait=0; if(ok) go(); else M.rlWhy='street data not available'; }, function(){ M.rlWait=0; M.rlWhy='street data failed'; }); }
+  else if(REAL.on && REAL.chunks){ if(!go()) return; if(reduced()){ M.rl=1; M.rlPend=null; } } else M.rlWhy='no real data'; }
+function rideRealWorld(rq){
+  var W=R.W, c=R.rc, far=!c||Math.hypot(rq.x-c[0],rq.y-c[1])>RRD.regather*UM;
+  if(!W || W._rlM!==R.M || far){ var t0=performance.now(); W=REAL.gather(0,0,RRD.R,{x:rq.x/UM,y:rq.y/UM,k:0}); W._rlM=R.M; W.ver=(R.rv=(R.rv||0)+1); W.stopLabels=null; R.W=W; R.rc=[rq.x,rq.y]; R.rms=performance.now()-t0; R.rn=(R.rn||0)+1; if(!c||W._rlM!==R.M) { try{ GLX.newWorld(); }catch(e){} } } }
 function render(dt){
-  var M=R.M; if(!M || !R.ctx) return; var t0=performance.now(); sizeCheck(); RIDE_M=M;
+  var M=R.M; if(!M || !R.ctx) return; var t0=performance.now();
+  if(M.rlPend!=null && R.t>=M.rlPend){ M.rlPend=null; M.rl=1; R.W=null; R.rc=null; } sizeCheck(); RIDE_M=M;
   var ctx=R.ctx, W=R.w, H=R.h, dpr=R.dpr, P=R.PAL, st=evalAt(M, R.t), D=M.D, ev=st.ev;
   var secI=st.sec, sec=M.secs[secI]||M.secs[0], veh=(st.dwell?(M.secs[st.dwell.sec]||sec).veh:st.veh)||sec.veh, spec=VEH[veh]||VEH.walk, s=st.s;
   if(glOk()){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,R.cv.width,R.cv.height); }          /* the 2D canvas is transparent over the GL city */
   ctx.setTransform(dpr,0,0,dpr,0,0);
   /* camera */
-  var hT=headAt(D, s, 14+(spec.fil>60?30:6));
+  var rq=(M.rl&&D.real&&REAL.pathAt(D,s,_rq))?_rq:null, hT=rq?rq.h:headAt(D, s, 14+(spec.fil>60?30:6));
   if(R.yaw==null) R.yaw=hT; else R.yaw=angLerp(R.yaw, hT, dt>0?1-Math.exp(-dt*(veh==='walk'?7:10)):0);
-  pathAt(D, s, _pa); var off=spec.off+(veh==='bus'?pullAt(sec,s)*8:0), L=lift(M,s), spd=clamp(st.v/((spec.vmax||100)*1.1),0,1);
+  pathAt(D, s, _pa); if(rq){ _pa.x=rq.x; _pa.y=rq.y; } var off=spec.off+(veh==='bus'?pullAt(sec,s)*8:0), L=rq?0:lift(M,s), spd=clamp(st.v/((spec.vmax||100)*1.1),0,1);
   var px=_pa.x-Math.sin(hT)*off, py=_pa.y+Math.cos(hT)*off, tm=R.t, bob=0, swx=0, swy=0, roll=0;
   if(veh==='walk'){ /* a footfall every step of a person walking (stepHz, palace_ride_b), however fast the leg plays: the bob fades out once the leg runs faster than a jog (nothing shakes at 5 Hz) */
     R.wph=(R.wph||0)+(dt>0?stepHz(st.v/UM)*6.2832*dt:0); var ph=R.wph, a=clamp(st.v/2,0,1)*(1-sstep(9,40,st.v)); bob=Math.sin(ph)*.03*a; swx=Math.sin(ph*.5)*H*.0022*a; swy=Math.abs(Math.sin(ph))*H*.0034*a; roll=Math.sin(ph*.5)*.002*a; }
@@ -99,9 +111,10 @@ function render(dt){
   setCam(px, py, camZ, R.yaw, W, H, veh==='bus'?.43:.455, 0, veh==='walk'?fpFoc(W,H):0);
   ctx.save(); ctx.translate(W/2+swx,H/2+swy); ctx.rotate(roll); ctx.scale(1.012,1.012); ctx.translate(-W/2,-H/2);
   if(alpha<.999){
-    if(!R.W){ R.W=gather(M); GLX.newWorld(); }
+    if(rq) rideRealWorld(rq); else if(!R.W||R.W._rlM){ R.W=gather(M); GLX.newWorld(); }
     C.shk={x:swx, y:swy, r:roll, s:1.012};
     drawCity(ctx, W, H, P, R.W, R.yaw, tm, function(g){
+      if(rq) return;                                  /* the real world has its own roads */
       if(g){ g.way(M); return; }                    /* GL: the way is a static mesh of the model (palace_ride_gl.py) */
       drawWay(ctx, M, P, s, sec, off);
       if(M._br) drawBridges(ctx, M, P, s);
@@ -167,7 +180,7 @@ function startModel(M, cb, opts){
   var cont=R.active && R.hold && R.M && R.shown && opts.continueFrom && Math.hypot(R.M.D.X[R.M.D.X.length-1]-M.D.X[0], R.M.D.Y[R.M.D.Y.length-1]-M.D.Y[0])<3;
   if(R.M && R.M!==M) glFreeWay(R.M);
   M._noFade=!!cont; R.fresh=!cont; R.M=M; R.W=null; R.t=opts.t0||0; R.cb=cb||null; R.sig=''; R.lastEv=null; R.yaw=null; R.hold=false; R.line=opts.line||null;
-  var W=gather(M); R.W=W; GLX.newWorld(); M._br=bridgeSpans(M, W); if(M._br.length){ M._br.forEach(function(g){ M._lifts.push([g[0],g[1],5,40]); }); }
+  var W=gather(M); R.W=W; GLX.newWorld(); try{ rideRealPrep(M); }catch(err){ if(window.console) console.warn('real leg', err); } M._br=bridgeSpans(M, W); if(M._br.length){ M._br.forEach(function(g){ M._lifts.push([g[0],g[1],5,40]); }); }
   W.stopLabels=[]; M.secs.forEach(function(sec){ if(!sec.line||sec.veh==='walk') return; sec.stops.forEach(function(q,qi){ if(sec.ug.some(function(g){ return q.s>=g[0]&&q.s<=g[1]; })) return; var o={x:0,y:0}; pathAt(M.D,q.s,o); W.stopLabels.push({x:o.x,y:o.y,z:12,text:q.n,col:sec.color}); }); });
   if(reduced()){ R.t=M.T; R.playing=false; R.hold=true; R.fresh=false; render(0); showNow(); if(cb){ R.cb=null; var D=M.D; setTimeout(function(){ cb(D.X[D.X.length-1], D.Y[D.Y.length-1]); }, 700); } return; }
   R.playing=opts.hold?false:true; kick(); }

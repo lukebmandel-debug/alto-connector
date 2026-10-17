@@ -428,10 +428,15 @@ function nearStreet(SI,x,y,r){ var l=SI.g[Math.floor(x/SI.cs)+','+Math.floor(y/S
 /* ── the atlas of street names ── */
 function atlasNew(){ var A={names:{}, list:[], w:1024, h:1024, cw:256, ch:40, canvas:null, n:0, dirty:true}; return A; }
 function atlasRect(A, name){ var r=A.names[name]; if(r) return r; var cols=Math.floor(A.w/A.cw), rows=Math.floor(A.h/A.ch); if(A.n>=cols*rows) return null;
-  var i=A.n++, cx=(i%cols)*A.cw, cy=Math.floor(i/cols)*A.ch; r=A.names[name]=[(cx+2)/A.w,(cy+2)/A.h,(cx+A.cw-2)/A.w,(cy+A.ch-2)/A.h]; A.list.push({name:name,x:cx,y:cy}); return r; }
+  var i=A.n++, cx=(i%cols)*A.cw, cy=Math.floor(i/cols)*A.ch; r=A.names[name]=[(cx+2)/A.w,(cy+2)/A.h,(cx+A.cw-2)/A.w,(cy+A.ch-2)/A.h]; A.list.push({name:name,x:cx,y:cy,hue:A.hue&&A.hue[name]||0}); return r; }
 function atlasPaint(A){ if(typeof document==='undefined') return; var c=document.createElement('canvas'); c.width=A.w; c.height=A.hf||A.h; var g=c.getContext('2d'); if(!g) return;
   g.fillStyle='#0e5c46'; g.fillRect(0,0,A.w,A.hf||A.h);
-  A.list.forEach(function(e){ g.fillStyle='#0e5c46'; g.fillRect(e.x,e.y,A.cw,A.ch); g.strokeStyle='#f4f4ee'; g.lineWidth=2; g.strokeRect(e.x+3,e.y+3,A.cw-6,A.ch-6);
+  A.list.forEach(function(e){ var shop=String(e.name).charAt(0)==='\u0001';
+    if(shop){ var hh=e.hue||0, FA=['#1d2a3a','#3a1d22','#1f3a2c','#2d2a24','#2a1f3a','#101214','#3a2f1a','#12303a'], TC=['#fff3d6','#ffe9c9','#eaffef','#fff','#f6e9ff','#ffd978','#fff6df','#d9f6ff'], ix=Math.floor(hh*FA.length)%FA.length;
+      g.fillStyle=FA[ix]; g.fillRect(e.x,e.y,A.cw,A.ch); g.strokeStyle='rgba(255,255,255,.22)'; g.lineWidth=1.5; g.strokeRect(e.x+2.5,e.y+2.5,A.cw-5,A.ch-5);
+      var tt=String(e.name).slice(1), up=hh>.5, t0=up?tt.toUpperCase():tt, fs0=26, ff=up?'700 ':'600 ', fam='"Helvetica Neue",Helvetica,Arial,sans-serif'; g.font=ff+fs0+'px '+fam; while(g.measureText(t0).width>A.cw-22 && fs0>9){ fs0-=1; g.font=ff+fs0+'px '+fam; }
+      g.fillStyle=TC[ix]; g.textAlign='center'; g.textBaseline='middle'; g.fillText(t0,e.x+A.cw/2,e.y+A.ch/2+1); return; }
+    g.fillStyle='#0e5c46'; g.fillRect(e.x,e.y,A.cw,A.ch); g.strokeStyle='#f4f4ee'; g.lineWidth=2; g.strokeRect(e.x+3,e.y+3,A.cw-6,A.ch-6);
     var t=String(e.name).toUpperCase(), fs=22; g.font='700 '+fs+'px "Helvetica Neue",Helvetica,Arial,sans-serif'; while(g.measureText(t).width>A.cw-24 && fs>10){ fs-=1; g.font='700 '+fs+'px "Helvetica Neue",Helvetica,Arial,sans-serif'; }
     g.fillStyle='#f6f6f0'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(t,e.x+A.cw/2,e.y+A.ch/2+1); });
   A.canvas=c; A.dirty=false; }
@@ -858,7 +863,9 @@ window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gath
 /* ── the real-geometry world's furniture: the same models, at the given points ── */
 function placeReal(W, it){
   var cells={}, cnt={trees:0,lamps:0,signals:0,stops:0,furn:0}, lampsN=[], keep=_lamps;
-  function mm(x,y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=cells[k]; if(!c) c=cells[k]={m:sb(8192),ci:ci,cj:cj}; return c.m; }
+  function cc(x,y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=cells[k]; if(!c) c=cells[k]={m:sb(8192),t:null,ci:ci,cj:cj}; return c; }
+  function mm(x,y){ return cc(x,y).m; }
+  var A=null;
   W.pal=PAL; _lamps=lampsN; _rec=null;
   try{
     (it.trees||[]).forEach(function(t){ var g=hash(Math.round(t[0]*3)+Math.round(t[1]*5)*977), sp=t[2]|0, season=pickSeason(hash(Math.round(t[0]*9)+Math.round(t[1]*13)+3), sp);
@@ -870,8 +877,16 @@ function placeReal(W, it){
     (it.hydrants||[]).forEach(function(l){ hydrantAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3],hash(Math.round(l[0])+Math.round(l[1]))); cnt.furn++; });
     (it.bins||[]).forEach(function(l){ trashAt(mm(l[0],l[1]),l[0],l[1]); cnt.furn++; });
     (it.boxes||[]).forEach(function(l){ mailboxAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3]); cnt.furn++; });
+    (it.shops||[]).forEach(function(d){ try{ shopFront(cc(d.x,d.y), d, it); cnt.shops=(cnt.shops||0)+1; }catch(e){} });
   } finally { _lamps=keep; }
-  Object.keys(cells).forEach(function(k){ var c=cells[k]; if(c.m.n) W.meshes.push({a:sfin(c.m), id:'scn-real:'+k+':'+(it.id||''), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75}); });
+  function shopFront(c, d, it){ var K=UM, nx=d.nx, ny=d.ny, tx=ny, ty=-nx, x=d.x, y=d.y, hw=Math.min(d.len/2-.4*K, 1.75*K), P=[0,0,0,0,0,0,0,0,0,0,0,0], hx=x-nx*K, hy=y-ny*K, z0=2.98*K, z1=3.5*K, dd=.47*K;
+    if(!d.name || hw<.9*K) return; if(!A){ A=atlasNew(); A.hue={}; } var key='\u0001'+d.name; A.hue[key]=d.hue; var rect=atlasRect(A,key); if(!rect) return; if(!c.t) c.t=sb(2048);
+    P[0]=x-tx*hw+nx*dd; P[1]=y-ty*hw+ny*dd; P[2]=z0; P[3]=x+tx*hw+nx*dd; P[4]=y+ty*hw+ny*dd; P[5]=z0; P[6]=P[3]; P[7]=P[4]; P[8]=z1; P[9]=P[0]; P[10]=P[1]; P[11]=z1;
+    quv(c.t,P,MAT_TEXT,0,hx,hy,(z0+z1)/2,[rect[0],rect[3],rect[2],rect[3],rect[2],rect[1],rect[0],rect[1]]); }
+  if(A && A.n){ var rowsN=Math.ceil(A.n/Math.floor(A.w/A.cw)), hf=64; while(hf<rowsN*A.ch) hf*=2; if(hf>A.h) hf=A.h; A.hf=hf;
+    Object.keys(cells).forEach(function(k){ var t=cells[k].t; if(t) for(var q=0;q+9<t.n;q+=10) t.a[q+7]*=A.h/hf; }); atlasPaint(A); A.h=A.hf||A.h; W.atlas=A; }
+  Object.keys(cells).forEach(function(k){ var c=cells[k]; if(c.m.n) W.meshes.push({a:sfin(c.m), id:'scn-real:'+k+':'+(it.id||''), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75});
+    if(c.t && c.t.n && W.atlas) W.meshes.push({a:sfin(c.t), id:'scn-real-txt:'+k+':'+(it.id||''), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75, tex:'atlas'}); });
   W.lamps=new Float32Array(lampsN); return cnt; }
 /* the species the ride would give a street tree at (x,y): the plane tree on the avenues, the oval and the oak among them (pickSpecies' own mix, by position) */
 function treeKindAt(x,y,h){ return pickSpecies(-1,2,h==null?hash(Math.round(x*3)+Math.round(y*7)):h); }

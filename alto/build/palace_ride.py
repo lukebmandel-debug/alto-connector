@@ -64,7 +64,10 @@ RIDE_CSS_MAIN = r"""
 RIDE_CSS = RIDE_CSS_MAIN + CSS_GL + CSS_E + CSS_F + CSS_G
 
 _API = r"""
-function init(e){ E=e; RIDE_M=null; if(!init.done){ init.done=1; bind(); } return true; }
+function init(e){ E=e; RIDE_M=null; if(!init.done){ init.done=1; bind(); }
+  /* the street data of the real-geometry view (palace_street.py): the manifest named by the page's map data; the shards follow on demand. Without it (or if it cannot be fetched) the ride and the walk stay on the lattice. */
+  try{ var sh=e&&e.M&&e.M.street&&e.M.street.h; if(sh && window._palStreet && !window._palStreet.ready() && !init.sl){ init.sl=1; window._palStreet.load('/street/palace-street-'+sh+'.json').then(null,function(){ init.sl=0; }); } }catch(x){}
+  return true; }
 function stats(){ var a=(R.samples||[]).slice().sort(function(p,q){ return p-q; }), n=a.length; return {avg:R.ms, worst:R.worst, frames:R.frames, n:n, p50:n?a[n>>1]:0, p95:n?a[Math.min(n-1,Math.floor(n*.95))]:0, max:n?a[n-1]:0}; }
 function resetStats(){ R.samples=[]; R.worst=0; R.frames=0; R.ms=0; }
 /* tests and the QA kit: play a leg between two buildings by name, seek to a time, read the model */

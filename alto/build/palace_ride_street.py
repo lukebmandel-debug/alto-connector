@@ -25,21 +25,22 @@ REAL.load=function(blob){ var C=REAL.cell, ch={}; REAL.nB=0; REAL.nR=0; REAL.way
   function cellOf(kind,f,x,y){ var k=Math.floor(x/C)+','+Math.floor(y/C); var c=ch[k]||(ch[k]={b:[],r:[]}); if(c[kind].indexOf(f)<0) c[kind].push(f); }
   (blob.b||[]).forEach(function(f){ cellOf('b',f,f[1],f[2]); REAL.nB++; });
   (blob.r||[]).forEach(function(f,wi){ f.n=(blob.rn&&blob.rn[wi])||''; f.wid=wi; REAL.ways.push(f); for(var i=1;i+1<f.length;i+=2) cellOf('r',f,f[i],f[i+1]); REAL.nR++; });
-  REAL.trees=blob.t||[]; REAL.furn=blob.f||[]; REAL.tf=null;
+  REAL.trees=blob.t||[]; REAL.furn=blob.f||[]; REAL.pois=blob.p||[]; REAL.poiG=null; REAL.tf=null;
   REAL.chunks=ch; REAL.on=true; REAL.segIdx=null; return {b:REAL.nB, r:REAL.nR, t:REAL.trees.length, f:REAL.furn.length}; };
 /* ── the hosted street data (window._palStreet, palace_street_js.py) -> the blob above, in real px (map px, y down). Needs the shards under the points loaded:
    REAL.prepare(points, r) fetches them (a Promise) and loads the blob; without _palStreet (or a manifest) it resolves false and the ride keeps today's world. ── */
 REAL.street=function(){ return !!(window._palStreet && window._palStreet.ready && window._palStreet.ready()); };
-REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[];
+REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[], po=[];
   function mp(a){ var o=[]; for(var i=0;i<a.length;i++){ var m=S.toMap(a[i][0],a[i][1],1); o.push(m[0],m[1]); } return o; }
-  pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtf');
+  pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtfp');
     N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; b.push(a); });
     N.r.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.line), a=[d.hw||'residential'].concat(g); a.wd=d.wd?d.wd*.1:0; a.br=d.br; a.tn=d.tn; rr.push(a); rn.push(d.nm||''); });
     N.t.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); t.push([m[0],m[1],d.sp||'',d.lf||'']); });
-    N.f.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); f.push([m[0],m[1],d.kind||'',d.dir==null?-1:d.dir]); }); });
-  return {b:b, r:rr, rn:rn, t:t, f:f}; };
+    N.f.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); f.push([m[0],m[1],d.kind||'',d.dir==null?-1:d.dir]); });
+    (N.p||[]).forEach(function(d){ if(seenO.has(d)||!d.name) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); po.push([m[0],m[1],d.name,d.cat||'']); }); });
+  return {b:b, r:rr, rn:rn, t:t, f:f, p:po}; };
 REAL.prepare=function(pts, r){ r=r||520; if(!REAL.street()) return Promise.resolve(false); var S=window._palStreet, Hm=S.toMap(0,0,1)[1];
-  return Promise.all(pts.map(function(q){ return S.need(q[0],Hm-q[1],r); })).then(function(){ REAL.load(REAL.fromStreet(pts,r)); REAL.src='street'; return true; }); };
+  return Promise.all(pts.map(function(q){ return S.need(q[0],Hm-q[1],r); })).then(function(){ REAL.load(REAL.fromStreet(pts,r)); REAL.src='street'; REAL.have=pts.map(function(q){ return [q[0],q[1],r]; }); return true; }); };
 REAL.prepareLeg=function(D){ var pts=[], o={x:0,y:0,k:0}, p={x:0,y:0}, last=null; for(var s=0;s<=D.L+1;s+=60){ pathAt(D,Math.min(s,D.L),p); realOf(p.x,p.y,o); if(!last||Math.hypot(o.x-last[0],o.y-last[1])>350){ pts.push([o.x,o.y]); last=[o.x,o.y]; } } return REAL.prepare(pts,520); };
 REAL.isOn=function(){ return !!(REAL.on && rlInit() && REAL.chunks); };
 REAL.legOn=function(D){ return !!(REAL.isOn() && D && (D.real || (D.real===undefined && REAL.match(D)))); };    /* this leg is walked in the real frame (matched and in bounds) */
@@ -140,18 +141,35 @@ function rlInF(ring,x,y){ var c=false, n=ring.length/2; for(var i=0,j=n-1;i<n;j=
 /* a point grid for "is there one of these within r m" */
 function rlPG(pts,G){ var g={}; pts.forEach(function(p){ var k=Math.floor(p[0]/G)+','+Math.floor(p[1]/G); (g[k]||(g[k]=[])).push(p); }); g.G=G; return g; }
 function rlPGnear(g,x,y,r){ var G=g.G, i0=Math.floor((x-r)/G), i1=Math.floor((x+r)/G), j0=Math.floor((y-r)/G), j1=Math.floor((y+r)/G); for(var i=i0;i<=i1;i++) for(var j=j0;j<=j1;j++){ var l=g[i+','+j]; if(l) for(var q=0;q<l.length;q++) if(Math.hypot(l[q][0]-x,l[q][1]-y)<=r) return true; } return false; }
-function gatherReal(Xp, Yp, R){
-  R=R||480; var o0=realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);
+/* a lot's ring in page px: a claimed footprint (palace_claim L[5], offsets from the centre) when there is one, else the turned rectangle */
+function rlLotRing(L){ if(L[5]&&L[5].length>=3){ var o=[]; L[5].forEach(function(q){ o.push(L[0]+q[0], L[1]+q[1]); }); return o; } return turnedRing(L); }
+/* the door of a node building in the real world: the face of the lot (ring in world units) whose front, 14 units out, is nearest a real street */
+function rlDoor(ring, id){ var n=ring.length/2, cx=0, cy=0, i, best=null; for(i=0;i<n;i++){ cx+=ring[2*i]/n; cy+=ring[2*i+1]/n; }
+  for(i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], bx=ring[2*j], by=ring[2*j+1], ex=bx-ax, ey=by-ay, l=Math.hypot(ex,ey); if(l<8) continue;
+    var mx=(ax+bx)/2, my=(ay+by)/2, nx=ey/l, ny=-ex/l; if(nx*(mx-cx)+ny*(my-cy)<0){ nx=-nx; ny=-ny; }
+    var nr=rlNear((mx+nx*14)/UM,(my+ny*14)/UM,80,true)[0], sc=(nr?nr.d*UM:1e4)-l*.02; if(!best||sc<best.sc) best={sc:sc,x:mx,y:my,nx:nx,ny:ny,w:l}; }
+  return best?{x:best.x,y:best.y,nx:best.nx,ny:best.ny,w:best.w,id:id,name:E.name(id)}:null; }
+/* where a named shop is: the POI nearest the building's street-facing wall within 22 m (real px) */
+function rlPoiNear(x,y,r){ var P=REAL.pois||[], b=null, bd=r*r; for(var i=0;i<P.length;i++){ var dx=P[i][0]-x, dy=P[i][1]-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; b=P[i]; } } return b; }
+/* the street-facing wall of a storefront building (ring in real px, n points): the shopfront {x,y,nx,ny,len (world units), name, hue} on its middle */
+function rlShopFace(ring,n){ var cx=0, cy=0, i, best=null; for(i=0;i<n;i++){ cx+=ring[2*i]/n; cy+=ring[2*i+1]/n; }
+  for(i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], bx=ring[2*j], by=ring[2*j+1], ex=bx-ax, ey=by-ay, l=Math.hypot(ex,ey); if(l<4.5) continue;
+    var mx=(ax+bx)/2, my=(ay+by)/2, nx=ey/l, ny=-ex/l; if(nx*(mx-cx)+ny*(my-cy)<0){ nx=-nx; ny=-ny; }
+    var nr=rlNear(mx+nx*6,my+ny*6,40,true)[0], sc=(nr?nr.d:99)-l*.03; if(nr && nr.d<30 && (!best||sc<best.sc)) best={sc:sc,x:mx,y:my,nx:nx,ny:ny,l:l}; }
+  if(!best) return null; var po=rlPoiNear(best.x,best.y,22), hs=hashXY(best.x*3.1,best.y*1.7);
+  return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po?po[2]:'', cat:po?po[3]:'', hue:hs}; }
+function gatherReal(Xp, Yp, R, at){
+  R=R||480; var o0=at?{x:at.x,y:at.y,k:at.k||0}:realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);
   var W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:false, set:{}, scenery:null, meshes:[], movers:[], dashes:[], rivers:[], real:{cx:cx*K,cy:cy*K,dom:o0.k}};
   var lots=[], seen={};
   Object.keys(P.at||{}).forEach(function(id){ if(E.bOf(id)!==id) return; var key=P.at[id]; if(seen[key]) return; seen[key]=1; var L=E.lot(key); if(!L) return;
-    var pr=turnedRing(L), q=[], tmp={x:0,y:0,k:0}; for(i=0;i<4;i++){ realOf(pr[2*i],pr[2*i+1],tmp); q.push([tmp.x,tmp.y]); }
-    var mx=0,my=0; q.forEach(function(p){ mx+=p[0]/4; my+=p[1]/4; }); if(Math.hypot(mx-cx,my-cy)>R+80) return;
+    var pr=rlLotRing(L), q=[], tmp={x:0,y:0,k:0}, nq=pr.length/2; for(i=0;i<nq;i++){ realOf(pr[2*i],pr[2*i+1],tmp); q.push([tmp.x,tmp.y]); }
+    var mx=0,my=0; q.forEach(function(p){ mx+=p[0]/nq; my+=p[1]/nq; }); if(Math.hypot(mx-cx,my-cy)>R+80) return;
     var xs=q.map(function(p){ return p[0]; }), ys=q.map(function(p){ return p[1]; });
     lots.push({id:id, p:q, x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
   var cleared=0, kept=0, dk=dark(), roofM=MB.mk(), roofs=[0,0,0];
   if(!glOk()) W.tiles.push({ring:[(cx-R)*K,(cy-R)*K,(cx+R)*K,(cy-R)*K,(cx+R)*K,(cy+R)*K,(cx-R)*K,(cy+R)*K], cx:cx*K, cy:cy*K, r:R*1.5*K});
-  var seenR={}, seenB={}, bq=[], procW=[];
+  var seenR={}, seenB={}, bq=[], procW=[], shops=[];
   for(var ci=ci0-1; ci<=ci1+1; ci++) for(var cj=cj0-1; cj<=cj1+1; cj++){ var ch=REAL.chunks[ci+','+cj]; if(!ch) continue;
     ch.r.forEach(function(f){ if(seenR[f.wid]) return; seenR[f.wid]=1; var w=((f.wd>0?f.wd:(RCLS[f[0]]||[7,.2])[0]))*K, sw=(RCLS[f[0]]||[7,.2])[1];
       for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, mx=(x0+x1)/2, my=(y0+y1)/2; if(Math.abs(mx/K-cx)>R||Math.abs(my/K-cy)>R) continue; var l=Math.hypot(x1-x0,y1-y0); if(l<.5) continue;
@@ -165,10 +183,10 @@ function gatherReal(Xp, Yp, R){
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
+      var sol=solid(wr, eave, col, 'b', ''); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
      has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
-  try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
+  try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops,id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
       hasB=function(x,y){ for(var q=0;q<bq.length;q++){ var b=bq[q]; if(x>=b.x0-1&&x<=b.x1+1&&y>=b.y0-1&&y<=b.y1+1 && rlInF(b.ring,x,y)) return true; } return false; },
       bearing=function(d){ var a=(d||0)*Math.PI/180; return [Math.sin(a),-Math.cos(a)]; },
       toRoad=function(x,y,any){ var nr=rlNear(x,y,40,any)[0]; if(!nr) return null; var d=Math.max(.1,nr.d); return {ox:(nr.x-x)/d, oy:(nr.y-y)/d, tx:Math.cos(nr.ang), ty:Math.sin(nr.ang), w:((RCLS[nr.f[0]]||[7])[0]), d:nr.d, x:nr.x, y:nr.y}; };
@@ -198,7 +216,7 @@ function gatherReal(Xp, Yp, R){
   }catch(e){ if(window.console) console.warn('real street furniture',e); }
   if(roofM.a.length) W.meshes.push({a:MB.done(roofM), id:'real:roof:'+Math.round(cx)+','+Math.round(cy)});
   lots.forEach(function(L){ var id=L.id, tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*.42, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dk?[150,162,200]:[255,255,255], dk?.30:.5), ring=[]; L.p.forEach(function(p){ ring.push(p[0]*K,p[1]*K); });
-    var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); W.solids.push(s); });
+    var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); try{ s.door=rlDoor(ring,id); }catch(x){ s.door=null; } W.solids.push(s); });
   W.real.cleared=cleared; W.real.kept=kept; W.real.lots=lots.length; W.real.roads=W.roads.length; W.real.roofs={flat:roofs[0],gable:roofs[1],hip:roofs[2]};
   return W; }
 REAL.gather=gatherReal;

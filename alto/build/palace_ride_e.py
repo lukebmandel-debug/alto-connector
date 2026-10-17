@@ -43,7 +43,7 @@ var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:1.95, brisk:5.2, jog:9.1, hurryAfter:
   waterGap:17, waterOff:8, deckHW:9.5, bob:.03, crossAt:34, gridC:160, stayZoom:.6 };
 var MXC=90;                                     /* palace.py MX = MY = 90: the margin round the drawn city; scroll = (x + MX) * zoom + gap - viewport / 2 */
 var S={ on:false, hold:false, x:0, y:0, yaw:0, pitch:0, vx:0, vy:0, run:false, hurry:0, keys:{}, tm:0, last:0, raf:0, phase:0, walked:0, speed:0, drag:null, cells:{}, queue:[], bigs:[],
-  W:null, plan:{x:-1e9,y:-1e9}, dirty:false, built:0, evicted:0, merges:0, plans:0, bms:[], lbms:[], mms:[], fr:[], view:null, hud:null, hudAt:0, hint:0, lastDark:null, spawned:null, sync:false, ver:0, loc:null, said:'' };
+  W:null, real:null, plan:{x:-1e9,y:-1e9}, dirty:false, built:0, evicted:0, merges:0, plans:0, bms:[], lbms:[], mms:[], fr:[], view:null, hud:null, hudAt:0, hint:0, lastDark:null, spawned:null, sync:false, ver:0, loc:null, said:'' };
 var QUAL=['b','node','fill','lm'], BIGR=CELL*.4;
 /* the player circle: 1.3 units (1 m) with the GL renderer, whose near plane is .5 (palace_ride_gl.py GL_NEAR) so a wall can be walked right up to; 2.4 for the 2D fallback (near plane 1.8) */
 function PRX(){ return S.pr||CFG.PR; }
@@ -85,6 +85,7 @@ function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Ma
   return listHit(S.bigs,x,y,PR,pr2); }
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
 function blockedAt(x,y){
+  if(S.real) return buildingHit(x,y);
   if(x<CFG.edge || y<CFG.edge || x>E.M.W-CFG.edge || y>E.M.H-CFG.edge) return true;
   if(inWaterZone(x,y,0) && !onDeck(x,y)) return true;
   return buildingHit(x,y); }
@@ -130,6 +131,7 @@ function addBridges(Wc, ci, cj){
     Wc.solids.push(solid(strip(ax,ay,bx,by,hw*2,0), .45, dk?[74,78,92]:[150,152,160], 'plat', d.n));
     [-1,1].forEach(function(sd){ var ox=-uy*sd*(hw-.8), oy=ux*sd*(hw-.8); Wc.solids.push(solid(strip(ax+ox,ay+oy,bx+ox,by+oy,.8,0), 1.7, dk?[96,102,120]:[196,198,206], 'plat', d.n)); }); }); }
 function plan(force){
+  if(S.real) return;
   var x=S.x, y=S.y, p=S.plan; if(!force && Math.hypot(x-p.x,y-p.y)<40) return; p.x=x; p.y=y; S.plans++;
   var c0=Math.floor(x/CELL), r0=Math.floor(y/CELL), R_=Math.ceil(CFG.keep/CELL)+1, MW=E.M.W, MH=E.M.H, i, j, k, want=[];
   for(i=-R_;i<=R_;i++) for(j=-R_;j<=R_;j++){ var ci=c0+i, cj=r0+j; if(ci<0||cj<0||ci*CELL>MW||cj*CELL>MH) continue; var d=cellBoxDist(ci,cj,x,y);
@@ -137,6 +139,7 @@ function plan(force){
   want.sort(function(a,b){ return a[0]-b[0]; }); S.queue=want;
   Object.keys(S.cells).forEach(function(key){ var c=S.cells[key]; if(cellBoxDist(c.ci,c.cj,x,y)>CFG.keep){ delete S.cells[key]; S.evicted++; S.dirty=true; } }); }
 function stream(sync){
+  if(S.real){ realStream(sync); return; }
   var t0=performance.now(), n=0;
   while(S.queue.length){ var q=S.queue[0]; if(!sync && n>0 && performance.now()-t0>CFG.budget) break;
     S.queue.shift(); if(S.cells[q[1]+','+q[2]]) continue; buildCell(q[1],q[2]); n++; }
@@ -163,6 +166,7 @@ function merge(){
 /* \u2500\u2500 where am I: streets, cross streets, district \u2500\u2500 */
 function nearSegs(x,y,rad){ var I=idx(), c0=cellOf(x), r0=cellOf(y), out=[], seen=[], i, j, k, l; for(i=-rad;i<=rad;i++) for(j=-rad;j<=rad;j++){ l=I.st[(c0+i)+','+(r0+j)]; if(!l) continue; for(k=0;k<l.length;k++) if(seen.indexOf(l[k])<0){ seen.push(l[k]); out.push(l[k]); } } return out; }
 function locate(x,y){
+  if(S.real) return locateReal(x,y);
   var segs=nearSegs(x,y,1), best=null, bd=1e18, i; if(!segs.length) segs=nearSegs(x,y,3);
   for(i=0;i<segs.length;i++){ var g=segs[i], d=segDist2(x,y,g.x0,g.y0,g.dx,g.dy,g.l*g.l); if(d<bd){ bd=d; best=g; } }
   var o={street:null, dist:Math.sqrt(bd), at:null, before:null, after:null, area:areaAt(x,y), head:null};
@@ -184,6 +188,67 @@ function streetHeading(x,y,prefer){ var o=locate(x,y); if(o.head==null) return p
   if(prefer==null) return o.head; var d=Math.cos(o.head-prefer); return d>=0?o.head:o.head+Math.PI; }
 function whereText(o){ if(!o.street) return {a:'',b:''}; var b=''; if(o.at) b='at '+o.at; else if(o.before&&o.after) b='between '+o.before+' & '+o.after; else if(o.before||o.after) b='near '+(o.before||o.after); return {a:o.street, b:b}; }
 
+
+/* ── REAL mode (2.0.0 FPV): the walk happens in the real street frame (palace_ride_real.py / palace_ride_street.py) where the street data covers the place and the place is
+   in bounds (REAL.inBounds); S.x / S.y are then world units = real metres x UM. The lattice walk above stays as the fallback (real off, data not loaded, out of bounds):
+   it starts first and the real world takes over once the shards under the walker arrive (a cross-fade), so nothing is ever glitchy while loading. ── */
+var RW={R:380, regather:105, have:null, busy:false, fade:null, edge:0, k:0, cx:0, cy:0, n:0, ms:0, maxMs:0};
+function realCan(){ return typeof REAL!=='undefined' && REAL && typeof rlInit==='function' && rlInit() && (REAL.on || (REAL.street&&REAL.street())); }
+function realNear(rx,ry){ if(REAL.street && REAL.street()){ var H=REAL.have||[]; if(!(REAL.on&&REAL.chunks)) return false; for(var i=0;i<H.length;i++) if(Math.hypot(rx-H[i][0],ry-H[i][1])<H[i][2]-RW.R*.55) return true; return false; } return !!(REAL.on && REAL.chunks && REAL.ways); }
+/* load the data under (rx,ry) real px; resolves true when the real world can be gathered there */
+function realLoad(rx,ry){
+  if(!REAL.street || !REAL.street()) return Promise.resolve(!!(REAL.on && REAL.chunks && REAL.ways));
+  if(realNear(rx,ry)) return Promise.resolve(true);
+  return REAL.prepare([[rx,ry]],520).then(function(ok){ return !!ok; }, function(){ return false; }); }
+function realBuckets(Wn){
+  var cg={}; Wn.solids.forEach(function(sd){ if(!(QUAL.indexOf(sd.kind)>=0 || sd.collide)) return; var ci=Math.floor(sd.cx/CELL), cj=Math.floor(sd.cy/CELL), k=ci+','+cj, c=cg[k]||(cg[k]={small:[],big:[],doors:[],col:[],ci:ci,cj:cj,key:k});
+    c.col.push(sd); (sd.r<=BIGR?c.small:c.big).push(sd); if(sd.door) c.doors.push(sd); });
+  S.bigs=[]; Object.keys(cg).forEach(function(k){ S.bigs=S.bigs.concat(cg[k].big); }); S.cells=cg; }
+function realGather(){
+  var t0=performance.now(), Wn=REAL.gather(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k});
+  realBuckets(Wn); var Wd=S.W; ['tiles','parks','water','roads','dashes','props','poles','labels','solids','meshes','movers'].forEach(function(f){ Wd[f]=Wn[f]||[]; });
+  Wd.scenery=Wn.scenery||null; Wd.set=Wn.set||{}; Wd.real=Wn.real; Wd.pal=Wn.pal; Wd.atlas=Wn.atlas||null; Wd.lamps=Wn.lamps||null; Wd.cells=null; Wd.rivers=[]; Wd.tunn=false; Wd.stopLabels=null; Wd.ver=++S.ver; Wd._gl=null; Wd._mv=null;
+  RW.cx=S.x; RW.cy=S.y; RW.n++; RW.ms=performance.now()-t0; RW.maxMs=Math.max(RW.maxMs,RW.ms); S.merges++; S.dirty=false; }
+/* every step in real mode: keep the world centred near the walker, fetch the shards ahead; hold the walker inside the in-bounds region */
+function realStream(sync){
+  if(RW.busy || Math.hypot(S.x-RW.cx,S.y-RW.cy)<RW.regather*UM) return;
+  var rx=S.x/UM, ry=S.y/UM;
+  if(sync || !(REAL.street&&REAL.street()) || realNear(rx,ry)){ if(!sync && REAL.street&&REAL.street()&&!realNear(rx,ry)) return; realGather(); return; }
+  RW.busy=true; realLoad(rx,ry).then(function(ok){ RW.busy=false; if(ok && S.on && S.real) realGather(); }, function(){ RW.busy=false; }); }
+function realBound(dt){
+  var rx=S.x/UM, ry=S.y/UM, ed=REAL.edgeDist(rx,ry), e=1-clamp(ed/60,0,1);
+  RW.edge+=(e-RW.edge)*(1-Math.exp(-dt/.35)); if(RW.edge<.002) RW.edge=0;
+  if(e>0 && ed>0){ var sl=1-.55*e; S.vx*=sl+(1-sl)*Math.exp(-dt*4); S.vy*=sl+(1-sl)*Math.exp(-dt*4); }
+  if(!REAL.inBounds(rx,ry)){ var o=REAL.clamp(rx,ry,{}); if(o.moved){ var nx=o.x*UM, ny=o.y*UM; if(!blockedAt(nx,ny)){ S.x=nx; S.y=ny; } S.vx*=.3; S.vy*=.3; RW.edge=Math.max(RW.edge,.95); } } }
+function locateReal(x,y){
+  var cs=rlNear(x/UM,y/UM,60,true), c=cs[0], i; for(i=0;i<cs.length;i++){ var cl=RCLS[cs[i].f[0]]; if(cs[i].f.n && cl && cl[0]>=7 && cs[i].d<cs[0].d+14){ c=cs[i]; break; } }
+  var pg=REAL.toPage(x/UM,y/UM), o={street:null, dist:c?c.d*UM:1e9, at:null, before:null, after:null, area:areaAt(pg[0],pg[1]), head:null};
+  if(c){ o.head=c.ang; var nm=c.f&&c.f.n; if(nm) o.street=nm; } return o; }
+/* make the walk real: (x, y) in world units. Data must be loaded around it. */
+function goReal(x,y,k){
+  S.real=RW; RW.k=k||0; RW.cx=RW.cy=1e12; RW.edge=0; S.cells={}; S.queue=[]; S.bigs=[]; S.x=x; S.y=y; S.vx=S.vy=0; S.W.ver=S.ver; realGather();
+  if(blockedAt(S.x,S.y)){ var fr=freeNear(S.x,S.y); S.x=fr[0]; S.y=fr[1]; } S.dirty=false; try{ GLX.newWorld(); }catch(e){} }
+function snapOver(){
+  try{ var ov=R.ov, c=document.createElement('canvas'), cv=R.cv; c.width=cv.width; c.height=cv.height; c.className='rm-xf'; var g=c.getContext('2d');
+    if(typeof GLX!=='undefined' && GLX.cv && GLX.on) g.drawImage(GLX.cv,0,0,c.width,c.height); g.drawImage(cv,0,0); ov.appendChild(c); return c; }catch(e){ return null; } }
+function fadeSnap(c){ if(!c) return; void c.offsetHeight; c.style.opacity='0'; setTimeout(function(){ if(c.parentNode) c.parentNode.removeChild(c); }, 900); }
+/* the upgrade from the lattice walk the moment the data is there; at = {x,y} world units to land on exactly (the way back from a detail page) */
+function realUpgrade(xp,yp,hp,at){
+  if(!realCan()) return null;
+  var r=realOf(xp,yp,{x:0,y:0,k:0}); if(!REAL.inBounds(r.x,r.y)) { S.realWhy='out of bounds'; return null; }
+  var fin=function(ok){
+    if(!ok || !S.on || S.real) return false;
+    var pos; if(at) pos={x:at.x,y:at.y,h:at.h}; else { var e=REAL.enter(xp,yp,hp,40); pos={x:e.x,y:e.y,h:e.h}; sidewalk(pos,r.x,r.y); if(!REAL.inBounds(pos.x/UM,pos.y/UM)) { S.realWhy='snap out of bounds'; return false; } }
+    S.pendingReal={x:pos.x,y:pos.y,k:r.k,at:!!at};
+    if(S.hold||at||reduced()){ doSwitch(); } else S.xf=1;                       /* the frame loop snapshots the old world, then switches */
+    return true; };
+  if((at||S.hold) && realNear(r.x,r.y)) return Promise.resolve(fin(true));       /* the data is already here: no wait */
+  return realLoad(r.x,r.y).then(fin); }
+/* stand on the pavement beside the road the walk was snapped to, on the side the asker was on */
+function sidewalk(pos,ox,oy){ var rx=pos.x/UM, ry=pos.y/UM, c=rlNear(rx,ry,6,true)[0]; if(!c) return; var cl=RCLS[c.f[0]], w=cl?cl[0]:0; if(!cl||w<7||cl[1]<.2) return;
+  var nx=-Math.sin(c.ang), ny=Math.cos(c.ang), side=((ox-rx)*nx+(oy-ry)*ny)>=0?1:-1, off=w/2+1.7; pos.x=(rx+nx*side*off)*UM; pos.y=(ry+ny*side*off)*UM; }
+function doSwitch(){ var q=S.pendingReal; S.pendingReal=null; if(!q||!S.on||S.real) return; goReal(q.x,q.y,q.k); if(S.autoYaw && !q.at) S.yaw=q.h; S.spawned2={x:q.x,y:q.y}; hudFrame(true); }
+
 /* \u2500\u2500 the HUD \u2500\u2500 */
 var DIRS=['N','NE','E','SE','S','SW','W','NW'];
 function ensureHud(){
@@ -194,9 +259,10 @@ function ensureHud(){
     +'<div class="rm-left"><div class="rm-where" aria-hidden="true"><b class="rm-st"></b><span class="rm-cx"></span><em class="rm-ar"></em></div>'
     +'<button type="button" class="rm-pin" data-roam="door" aria-hidden="true" tabindex="-1"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18s5.6-4.9 5.6-9.3a5.6 5.6 0 0 0-11.2 0C4.4 13.1 10 18 10 18z"/><circle cx="10" cy="8.6" r="2"/></svg><b class="rm-pn"></b><kbd aria-hidden="true">E</kbd></button></div>'
     +'<div class="rm-btns"><button type="button" data-roam="exit">Back to the map \u00b7 Esc</button><button type="button" data-roam="stay">Stay here</button></div>'
+    +'<div class="rm-edge" aria-hidden="true">edge of the palace</div>'
     +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 \u2190 \u2192 turn \u00b7 drag to look \u00b7 Shift to walk faster \u00b7 Esc to leave</div>'
     +'<div class="pr-live rm-live" aria-live="polite"></div>';
-  R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), live:h.querySelector('.rm-live')};
+  R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), edge:h.querySelector('.rm-edge'), live:h.querySelector('.rm-live')};
   h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); if(b.getAttribute('data-roam')==='door'){ openDoor(); return; } ROAMAPI.exit(b.getAttribute('data-roam')==='stay'); });
   ['click','dblclick','contextmenu','mousedown','mouseup'].forEach(function(t){ R.ov.addEventListener(t, function(e){ if(S.on){ e.stopPropagation(); if(t==='contextmenu') e.preventDefault(); } }); });
   var cv=R.cv; cv.addEventListener('pointerdown', function(e){ if(!S.on||e.button>0||DR.busy) return; S.drag={id:e.pointerId,x:e.clientX,y:e.clientY,mv:0}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} R.ov.classList.add('drag'); e.preventDefault(); });
@@ -247,6 +313,7 @@ function tick(dt, sync){
   var x0=S.x, y0=S.y; if(Math.abs(S.vx)>.01||Math.abs(S.vy)>.01) moveBy(S.vx*dt,S.vy*dt);
   var mv=Math.hypot(S.x-x0,S.y-y0); S.speed=dt>0?mv/dt:0;
   if(dt>0 && mv<Math.hypot(S.vx,S.vy)*dt*.5){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; }       /* pressed against a wall: no speed stored up */
+  if(S.real) realBound(dt);
   S.phase+=stepHz(S.speed/UM)*6.2832*dt; S.walked+=mv; S.tm+=dt;
   plan(false); stream(!!sync); }
 function draw(){
@@ -255,6 +322,7 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   var a=clamp(S.speed/CFG.walk,0,1.4), a1=Math.min(a,1), bob=reduced()?0:Math.sin(S.phase)*CFG.bob*a, sway=reduced()?0:Math.sin(S.phase*.5)*.004*a1;
   var pitch=S.pitch+(reduced()?0:Math.abs(Math.sin(S.phase))*.004*a);
+  var ee=S.real?RW.edge:0; if(typeof GLX!=='undefined') GLX.edge=ee; if(S.hud&&S.hud.edge){ var eo=ee<.12?0:Math.min(.9,(ee-.12)*1.4); if(S._eo!==eo){ S._eo=eo; S.hud.edge.style.opacity=String(eo); } }
   S.camZ=CFG.eye+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,pitch,W,H);
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
@@ -268,13 +336,14 @@ function frame(now){
   var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
   if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy) tick(dt,false);
   hudFrame(false); doorFrame(dt); draw(); showNow();
+  if(S.xf && S.pendingReal){ S.xf=0; var sn=snapOver(); doSwitch(); draw(); showNow(); fadeSnap(sn); }
   if(S.on) S.raf=requestAnimationFrame(frame); }
 
 /*@DOORS@*/
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0;
+  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.xf=0; S.pendingReal=null; RW.busy=false; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
@@ -287,7 +356,7 @@ function enter(x,y,heading,opts){
   var cs=document.activeElement; if(cs&&cs.blur&&cs!==document.body) cs.blur();
   R.saved=view; R.M=null; R.W=null; R.hold=false; R.shown=false; R.playing=false; R.line=null;
   R.ov.classList.add('rm'); S.W={solids:[],tiles:[],parks:[],water:[],roads:[],props:[],poles:[],labels:[],dashes:[],meshes:[],movers:[],set:{},cells:S.cells,scenery:null,rivers:E.M.river||[],tunn:false,ver:0};
-  S.cells={}; S.W.cells=S.cells; S.queue=[]; S.bigs=[]; S.dirty=false; S.plan={x:-1e9,y:-1e9}; S.tm=0; S.phase=0; S.walked=0; S.speed=0; S.hurry=0; S.vx=S.vy=0; S.pitch=CFG.pitch0; S.hud._sig=''; S.said=''; S.lastDark=null; S.built=0; S.evicted=0; S.merges=0; S.plans=0; S.bms=[]; S.lbms=[]; S.mms=[]; S.fr=[]; S.view=view; S.entering=true;
+  S.cells={}; S.W.cells=S.cells; S.queue=[]; S.bigs=[]; S.dirty=false; S.plan={x:-1e9,y:-1e9}; S.real=null; S.xf=0; S.pendingReal=null; S.realWhy=''; S.tm=0; S.phase=0; S.walked=0; S.speed=0; S.hurry=0; S.vx=S.vy=0; S.pitch=CFG.pitch0; S.hud._sig=''; S.said=''; S.lastDark=null; S.built=0; S.evicted=0; S.merges=0; S.plans=0; S.bms=[]; S.lbms=[]; S.mms=[]; S.fr=[]; S.view=view; S.entering=true;
   /* the first cells round the spawn point are built before the first frame (nearest first), the rest stream in */
   S.x=clamp(x,CFG.edge+1,E.M.W-CFG.edge-1); S.y=clamp(y,CFG.edge+1,E.M.H-CFG.edge-1);
   plan(true); var near=S.queue.filter(function(q){ return q[0]<=CFG.sync; }); S.queue=S.queue.filter(function(q){ return q[0]>CFG.sync; }); near.forEach(function(q){ if(!S.cells[q[1]+','+q[2]]) buildCell(q[1],q[2]); }); merge();
@@ -295,6 +364,8 @@ function enter(x,y,heading,opts){
   S.entering=false; S.yaw=(heading==null||!isFinite(+heading))?streetHeading(S.x,S.y,null):+heading; S.on=true; S.hold=!!opts.hold; S.last=0; S.hint=1;
   R.PAL=palette(); S.lastDark=dark();
   hudFrame(true); draw(); showNow();
+  S.autoYaw=(heading==null||!isFinite(+heading));
+  if(opts.real!==false){ try{ S.upgrade=realUpgrade(S.x,S.y,S.yaw,opts.at||null); }catch(err){ S.upgrade=null; if(window.console) console.warn('roam real',err); } }
   S.hud.hint.classList.remove('gone'); clearTimeout(S.hintT); S.hintT=setTimeout(function(){ if(S.hud) S.hud.hint.classList.add('gone'); }, 9000);
   if(!S.hold) S.raf=requestAnimationFrame(frame);
   try{ R.ov.setAttribute('tabindex','-1'); R.ov.focus({preventScroll:true}); }catch(e){}
@@ -306,12 +377,12 @@ function viewFor(x,y,z){ var cv=document.getElementById('canvas'); if(!cv) retur
 function exit(stay){ exitCore(stay); }
 function exitCore(stay){
   if(!S.on) return; clearTimeout(S.hintT);
-  var x=S.x, y=S.y, v=S.view;
+  var x=S.x, y=S.y, v=S.view; if(S.real){ var pg=REAL.exit(S.x,S.y); x=pg[0]; y=pg[1]; }
   if(stay){ var z=Math.max(v&&v.z||0, CFG.stayZoom); var sv=viewFor(x,y,z); if(sv) R.saved=sv; }
   else R.saved=v;
   shutdown(); closeNow(true,false); }
 var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetHeading:streetHeading, locate:locate, viewFor:viewFor, cfg:CFG,
-  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
+  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, real:!!S.real, realWhy:S.realWhy||'', edge:RW.edge, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
   stats:function(){ var f=S.fr.slice().sort(function(p,q){ return p-q; }), n=f.length, b=S.bms.slice().sort(function(p,q){ return p-q; }), m=S.mms.slice().sort(function(p,q){ return p-q; });
     return {built:S.built, evicted:S.evicted, merges:S.merges, plans:S.plans, cells:Object.keys(S.cells).length, queue:S.queue.length, buildAvg:b.length?b.reduce(function(p,q){ return p+q; },0)/b.length:0, buildMax:b.length?b[b.length-1]:0, streamMax:S.lbms.length?Math.max.apply(null,S.lbms):0, streamN:S.lbms.length, buildP95:b.length?b[Math.floor(b.length*.95)]:0, mergeMax:m.length?m[m.length-1]:0, mergeAvg:m.length?m.reduce(function(p,q){ return p+q; },0)/m.length:0,
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
@@ -323,6 +394,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
   sim:function(keys, seconds, dt, run){ S.keys={}; String(keys||'').split(',').forEach(function(q){ if(q) S.keys[q]=1; }); S.run=!!run; dt=dt||1/60; var n=Math.round(seconds/dt), bad=0; for(var i=0;i<n;i++){ tick(dt,true); if(blockedAt(S.x,S.y)) bad++; } S.keys={}; S.run=false; return {x:S.x,y:S.y,bad:bad,n:n}; },
   place:function(x,y,yaw){ S.x=x; S.y=y; if(yaw!=null) S.yaw=yaw; S.vx=S.vy=0; plan(true); stream(true); var f=freeNear(S.x,S.y); S.x=f[0]; S.y=f[1]; },
   look:function(yaw,pitch){ if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); },
+  real:{ on:function(){ return !!S.real; }, upgrade:function(){ return S.upgrade||Promise.resolve(false); }, stats:function(){ return {n:RW.n, ms:RW.ms, maxMs:RW.maxMs, edge:RW.edge, R:RW.R, solids:S.W?S.W.solids.length:0}; }, gather:realGather, bound:realBound, toPage:function(){ return S.real?REAL.exit(S.x,S.y):[S.x,S.y]; } },
   settle:function(){ var g=0; while(S.queue.length && g++<500) stream(true); stream(true); },
   draw:function(){ hudFrame(true); draw(); showNow(); },
   blocked:blockedAt, free:freeNear, world:function(){ return S.W; }, dbg:function(){ return E; }, deckSegs:function(){ return idx().decks; },
@@ -358,6 +430,8 @@ _CSS_E = r"""
   #pal-ride .rm-btns button:focus-visible{outline:2px solid #ffd166;outline-offset:2px;}
   #pal-ride .rm-hint{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);padding:7px 15px;border-radius:999px;background:rgba(14,16,26,.55);border:1px solid rgba(255,255,255,.14);font-weight:500;font-size:12px;white-space:nowrap;opacity:.9;transition:opacity .9s ease;}
   #pal-ride .rm-hint.gone{opacity:0;}
+  #pal-ride .rm-edge{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);font-weight:500;font-size:12px;letter-spacing:.02em;opacity:0;transition:opacity .5s ease;pointer-events:none;white-space:nowrap;}
+  #pal-ride .rm-xf{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;opacity:1;transition:opacity .7s ease;z-index:1;}
   @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }
 """

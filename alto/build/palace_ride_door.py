@@ -121,7 +121,7 @@ function openDoor(){
   var d=DR.cur; if(!d || DR.busy || !S.on || typeof window.showDetail!=='function') return false;
   DR.busy=1; var tok=++DR.tok, rd=reduced(), stop=PRX()+1.1, ex=d.x+d.nx*stop, ey=d.y+d.ny*stop;
   if(blockedAt(ex,ey)){ ex=S.x; ey=S.y; }
-  DR.mem={x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, view:S.view, id:d.id, name:d.name, ex:ex, ey:ey, eyaw:Math.atan2(-d.ny,-d.nx)};
+  DR.mem={x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, view:S.view, id:d.id, name:d.name, ex:ex, ey:ey, eyaw:Math.atan2(-d.ny,-d.nx), real:!!S.real};
   clearKeys(); S.drag=null; if(R.ov) R.ov.classList.remove('drag');
   var dur=rd?0:DOLLY_MS; veil(1, rd?FADE_MS:DOLLY_MS);
   DR.cine={el:0, dur:rd?FADE_MS:dur, from:{x:S.x,y:S.y,yaw:S.yaw,pitch:S.pitch}, to:rd?{x:S.x,y:S.y,yaw:S.yaw,pitch:S.pitch}:{x:ex,y:ey,yaw:DR.mem.eyaw,pitch:0}, then:function(){ finishOpen(tok); }};
@@ -144,10 +144,12 @@ function comeBack(){
   var r=DR.ret; DR.ret=null; if(!r) return; clearTimeout(r.tm); var mem=r.mem, h=de_();
   if(S.on || R.active || !h.classList.contains('alto-palace') || h.classList.contains('mobile') || h.classList.contains('printing')){ veil(0,150); return; }
   veil(1, 0);
-  var ok=false; try{ ok=!!enter(mem.ex, mem.ey, mem.eyaw, {view:mem.view, hold:false}); }catch(err){ if(window.console) console.warn('door', err); }
+  var ok=false, pg=mem.real&&typeof REAL!=='undefined'?REAL.exit(mem.ex,mem.ey):[mem.ex,mem.ey];
+  try{ ok=!!enter(pg[0], pg[1], mem.eyaw, mem.real?{view:mem.view, hold:false, at:{x:mem.ex,y:mem.ey,h:mem.eyaw}}:{view:mem.view, hold:false}); }catch(err){ if(window.console) console.warn('door', err); }
   if(!ok){ veil(0,200); return; }
   try{ if(typeof UIX!=='undefined' && UIX && UIX.sync) UIX.sync(); }catch(x){}
   var rd=reduced(), tk=++DR.tok; S.pitch=mem.pitch; DR.busy=3;
+  if(mem.real && !S.real){ DR.busy=0; veil(0, FADE_MS); return; }                       /* the real data is gone: stand where the lattice put us */
   var dur=rd?0:DOLLY_MS; S.yaw=rd?mem.yaw:mem.eyaw;
   if(rd){ S.x=mem.x; S.y=mem.y; var fr=freeNear(S.x,S.y); S.x=fr[0]; S.y=fr[1]; plan(true); stream(true); DR.busy=0; veil(0, FADE_MS); return; }
   DR.cine={el:0, dur:dur, from:{x:S.x,y:S.y,yaw:S.yaw,pitch:S.pitch}, to:{x:mem.x,y:mem.y,yaw:mem.yaw,pitch:mem.pitch}, then:function(){ if(tk===DR.tok) DR.busy=0; }};
