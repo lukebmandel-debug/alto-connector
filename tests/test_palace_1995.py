@@ -53,7 +53,9 @@ def test_stadiums_arena_convention_center_and_city_hall_art():
 
 
 def test_ui_bits_of_the_lead():
-    assert "fx-x" in palace.PALACE_JS and "fxBar(false)" in palace.PALACE_JS
+    from alto.build import palace_fleet_fx, palace_fleet_css                  # (the guns bar moved into the hosted fleet script in 1.9.99)
+    fx = palace_fleet_fx.__dict__.get("FLEET_JS") or "".join(str(v) for v in vars(palace_fleet_fx).values() if isinstance(v, str))
+    assert "fx-x" in fx + str(vars(palace_fleet_css)) and "fxBar(false)" in fx
     assert "kp-sz" in key_toggle.KEY_JS and "--kp-s" in key_toggle.KEY_CSS
     assert "HOVER_DWELL" in palace_transit_js.TRANSIT_JS and "S.dwT" in palace_transit_js.TRANSIT_JS
     assert "pa-copy" in palace_airport.AIRPORT_JS and "copyText" in palace_airport.AIRPORT_JS and "execCommand('copy')" in palace_airport.AIRPORT_JS
