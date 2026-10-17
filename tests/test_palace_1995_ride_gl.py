@@ -210,3 +210,12 @@ def test_2000_look_pass_two_facade_variety_trees_and_markings():
     from alto.build import palace_ride_g
     g = palace_ride_g.JS_G
     assert "a second lobe: the crown is not one ball" in g and "gap*(.66+.7*hash(" in g
+
+
+def test_2000_look_pass_three_leaf_cards_pale_bark_and_stop_signs():
+    f = palace_ride_gl_shaders.FS_WORLD
+    assert "a leaf card: dissolves into a ragged cluster of leaves" in f and "discard;" in f and "float pale=" in f
+    from alto.build import palace_ride_g
+    g = palace_ride_g.JS_G
+    for needed in ("function cardAt(", ",49,tint)", "function stopSignAt(", "trunkP:pal(", "stopSignAt(m,stx,sty,-aux,-auy)"):
+        assert needed in g

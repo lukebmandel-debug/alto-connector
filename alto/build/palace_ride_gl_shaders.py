@@ -281,7 +281,7 @@ vec3 asphalt(vec2 gp, float fpx){
   vec3 a=vec3(.30,.302,.31)*(.88+.2*lo)*(.95+.1*mid)+vec3(.05)*(gr-.8)*.5;
   a=mix(a,vec3(.23,.23,.24),patch*.3);
   float stain=smoothstep(.7,.85,nz(gp*.3+11.)); a*=1.-.14*stain;
-  if(fpx<.2){ float cr=abs(nz(gp*.42+31.)-.5)*1.5; float crack=(1.-smoothstep(.006,.03+fpx*.4,cr))*(1.-smoothstep(.1,.5,fpx*4.)); a*=1.-.5*crack;
+  if(fpx<.2){ float cr=abs(nz(gp*.42+31.)-.5)+abs(nz(gp*.29+5.)-.5); float crack=(1.-smoothstep(.006,.03+fpx*.4,cr))*(1.-smoothstep(.1,.5,fpx*4.)); a*=1.-.5*crack;
     float seam=1.-smoothstep(.02,.05+fpx*.3,abs(fract(gp.y/9.)-.5)*2.-.9); a=mix(a,vec3(.12,.12,.13),clamp(seam,0.,1.)*.2); }
   float pt=smoothstep(.55,.57,nz(gp*.07+17.)); a=mix(a,vec3(.18,.18,.19)*(.95+.1*nz(gp*3.)),pt*.55);
   return a; }
@@ -351,7 +351,9 @@ void main(){
   } else if(id<16.5){   /* roof tile */
     float rowv=fract(vUV.y/.32); alb=mix(vec3(.45,.2,.14),vec3(.3,.13,.1),smoothstep(.0,.35,rowv))*(.85+.3*h21(floor(vUV*vec2(3.,3.1))));
   } else if(id<17.5){   /* trunk: the scenery palette colour, barked */
-    alb=palCol(T)*(.78+.5*nz(vec2(vUV.x*14.,vUV.y*2.6))); ao*=mix(.45,1.,smoothstep(.0,1.6,vP.z/UMc));
+    vec3 bk=palCol(T); float pale=smoothstep(.4,.6,dot(bk,vec3(.3,.59,.11)));
+    float mot=smoothstep(.35,.65,nz(vec2(vP.x+vP.y,vP.z)*.8))*(1.-smoothstep(.5,1.5,fpx*10.));
+    alb=bk*(.78+.5*nz(vec2(vUV.x*14.,vUV.y*2.6))); alb=mix(alb,mix(vec3(.45,.44,.34),vec3(.62,.6,.5),mot)*(.8+.4*nz(vP.xy*2.+vP.z)),pale*(.55+.4*mot)); ao*=mix(.45,1.,smoothstep(.0,1.6,vP.z/UMc));
   } else if(id<18.5){   /* leaves: the palette colour (three shades a tree), broken up by noise */
     vec2 lq=(abs(N.x)>abs(N.y)?vP.yz:vP.xz)*.9+vec2(vP.z*.37,vP.x*.21); float cl=nz(lq*1.1)*.6+nz(lq*3.9)*.4; float cl2=nz(lq*13.)*(1.-smoothstep(.02,.1,fpx));
     vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.7)*vec3(.95,.98,.88);
@@ -411,8 +413,14 @@ void main(){
   } else if(id<47.5){   /* plain concrete */
     alb=vec3(.45,.45,.44)*(.84+.26*nz(gp*.8)+.08*nz(vec2(vUV.x*3.,vUV.y*.8)));
     if(vHA.y>.5){ }
-  } else {              /* crosswalk bars */
+  } else if(id<48.5){   /* crosswalk bars */
     alb=mix(vec3(.2),vec3(.9,.9,.86),smoothstep(.1,.5,nz(gp*3.))*.5+.45);
+  } else {              /* a leaf card: dissolves into a ragged cluster of leaves */
+    vec2 q=vUV*2.-1.; float rr=length(q); float nn=nz(vUV*7.+T*40.);
+    if(1.-rr+(nn-.5)*1.1<.14) discard;
+    vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.72)*vec3(.95,.98,.88);
+    alb=lc*(.58+.46*nn)*(.88+.14*(1.-rr)); wrap=.7;
+    ao*=(.5+.5*smoothstep(.0,4.,vP.z/UMc))*(.8+.2*(N.z*.5+.5));
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
   else if(id>20.5&&id<22.5) ao*=mix(.55,1.,smoothstep(.0,.7,vP.z/UMc));              /* a pole or a bin where it meets the ground */
