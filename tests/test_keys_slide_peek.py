@@ -49,11 +49,11 @@ def test_both_keys_are_a_toggle_not_a_fixed_panel():
     assert "border-radius:50%" in key_toggle.KEY_CSS and "backdrop-filter:blur(18px)" in key_toggle.KEY_CSS
 
 
-def test_horizontal_lines_are_solid_with_the_previews_curves_and_a_ruler():
+def test_horizontal_lines_are_solid_with_curves_and_a_ruler():
     js, css = lanes.LANES_JS, lanes.LANES_CSS
     assert "ln-wait" not in js and "ln-wait" not in css            # no dashed "waiting" stretches
-    assert "rise*.62" in js                                         # the preview's lean: run = .62 of the rise
-    assert "ln-fb" in js and "ln-rule" in js                        # only a flashback is dashed; the time ruler
+    assert "ln-fb" not in js and "ln-fb" not in css                 # lanes v2: a flashback is a solid detour of the main line, never dashed
+    assert "ln-rule" in js                                          # the time ruler
     assert "ay=H+P-52" in js
 
 
