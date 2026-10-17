@@ -22,6 +22,7 @@ PROBE = """async () => {
   out.volley= stats(await render(() => { S.f(1000); S.f(900); S.f(1200); }, 6));
   out.near  = stats(await render(() => S.b(300, 0), 6));
   out.far   = stats(await render(() => S.b(6000, 0), 6));
+  out.scream= stats(await render(() => S.sc(1), 4));
   out.all   = stats(await render(() => { S.f(1000); S.f(900); S.f(1200); S.b(300, 0); S.b(320, 10); S.b(280, 5); }, 6));
   Object.defineProperty(document, 'hidden', {get: () => true, configurable: true});     // a hidden tab: nothing is scheduled
   out.hidden = stats(await render(() => { S.f(1000); S.b(300, 0); }, 3));

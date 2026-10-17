@@ -38,13 +38,18 @@ def test_the_page_hooks_are_one_liners_tied_to_the_real_shots():
 
 
 def test_what_the_synthesis_is_made_of():
-    for needle in ("createDynamicsCompressor", "'lowpass',6000,150", "sn(t,90,30", "'bandpass',2800,900", "createDelay", "createBiquadFilter",
+    for needle in ("createDynamicsCompressor", "'lowpass',6000,150", "sn(t,90,30", "'bandpass',2800,900", "createDelay", "createBiquadFilter", "sawtooth", "[800,1200]", "[600,2300]", "sc:sc",
                    "webkitAudioContext", "document.hidden", "'alto-palace-sound'", "visibilitychange", "c.close()", "'Mute battleship sound'", "'Unmute battleship sound'"):
         assert needle in JS, needle
     assert "autoplay" not in JS.lower()
     # the context is only made in u(), which the arming / firing clicks call; nothing creates one at load
     assert JS.count("new A()") == 1 and "function u(" in JS
     assert "try{ var A=window.AudioContext" in JS                                  # never throws when Web Audio is missing
+
+
+def test_the_impact_screams_once_per_strike_and_scream_is_exposed():
+    assert "if(t-Z>.9){ Z=t; sc(a,t-C.currentTime+.12); }" in JS     # one crowd per landing, not one per shell
+    assert "function sc(v,w){ if(!ok()) return;" in JS               # the same toggle / hidden / no-audio rules
 
 
 @pytest.mark.skipif(not NODE.exists(), reason="node not installed")
@@ -77,7 +82,7 @@ def blank():
 def test_offline_render_levels_silence_and_distance(blank, eng):
     r = blank[eng]
     assert r["errors"] == []
-    for k in ("one", "volley", "near", "far", "all"):
+    for k in ("one", "volley", "near", "far", "scream", "all"):
         assert not r[k].get("bad"), k
         assert 0.02 < r[k]["peak"] < 1.0, (k, r[k])                     # audible, never clips
         assert r[k]["tail"] < 0.002, (k, r[k])                          # ends near silence (> 5 s render, last quarter second)
@@ -86,6 +91,8 @@ def test_offline_render_levels_silence_and_distance(blank, eng):
     assert r["far"]["peak"] < r["near"]["peak"] * 0.8                   # farther is quieter...
     assert r["far"]["first"] > r["near"]["first"] + 0.3                 # ...and later
     assert r["one"]["first"] < 0.02                                     # the report starts at once (no pre-delay)
+    assert r["scream"]["peak"] < 0.2 and r["scream"]["peak"] < r["one"]["peak"]   # a crowd, quiet and far away: below a gun report
+    assert 0.4 < r["scream"]["loud"] < 2.6                           # about two seconds of panic
     assert r["hidden"]["peak"] == 0                                     # a hidden tab schedules nothing
 
 
