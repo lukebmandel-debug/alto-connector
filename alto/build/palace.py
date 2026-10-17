@@ -39,6 +39,7 @@ from .palace_pan import PAN_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
 from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of a shelled building (1.9.95)
 from .palace_sound import SOUND_JS                              # the guns' synthesised sound (1.9.97)
+from .palace_panic import PANIC_JS                              # the crowd that runs from it (1.9.97)
 from .palace_labels import LABELS_CSS, LABELS_JS
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
@@ -982,7 +983,7 @@ PALACE_CSS = KEY_CSS + r"""
 """ + LANDMARK_CSS + LABELS_CSS + CONSTRUCT_CSS + TRANSIT_CSS + RIDE_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + SOUND_JS + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + SOUND_JS + PANIC_JS + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -2091,7 +2092,7 @@ function fxLayer(){ var g=svgD&&svgD._fx; if(!g || g.parentNode!==svgD){ g=svgD.
 function fxBar(on){ var b=document.getElementById('pal-fxbar'); if(!b){ b=document.createElement('div'); b.id='pal-fxbar'; b.setAttribute('role','status'); document.body.appendChild(b);
     b.innerHTML='<span class="fx-t"></span><button type="button" class="fx-x" aria-label="Stand the guns down" title="Stand down (Esc)">\u00d7</button>';
     b.addEventListener('click', function(e){ if(e.target.closest('.fx-x')){ e.stopPropagation(); e.preventDefault(); fxBar(false); } }); }
-  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.querySelector('.fx-t').textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' \u2014 click a building to fire \u00b7 Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; SND.bar(b, on); }
+  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.querySelector('.fx-t').textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' \u2014 click a building to fire \u00b7 Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; SND.bar(b, on); if(!on && window._palPanic) window._palPanic.stop(); }
 function fxTween(ms, fn, done){ var t0=performance.now(); (function f(t){ var k=Math.min(1,(t-t0)/ms); fn(k); if(k<1) requestAnimationFrame(f); else if(done) done(); })(t0); }
 function fxPin(x, y, cls){ var g=pin(fxLayer(), cls, x, y, {}); return g; }
 function fxBoom(x, y){
@@ -2111,6 +2112,8 @@ function fxShell(x0, y0, x1, y1, ms, hit){
 /* a building struck: it pancakes into rubble and is rebuilt as a construction site over 20 s (palace_construct.py): foundation, crane, steel frame,
    scaffold, glass hung storey by storey, roof last. A node building is its own svg; a landmark is its group. */
 function fxRuin(el_, tagEl){ if(el_ && window._palCon) window._palCon.run(el_, tagEl); }
+/* the people in it run for their lives (palace_panic.py) */
+var fxRuin0=fxRuin; fxRuin=function(el_, tagEl){ fxRuin0(el_, tagEl); if(window._palPanic) window._palPanic.go({svg:svgD, el:el, pin:pin, Z:Z, graph:graph, nearest:nearest, route:route, dk:dk()}, el_, tagEl); };
 function fxTarget(t){
   var n=t.closest&&t.closest('#world .node[id^="node-"]'); if(n && n._nbS && !n.classList.contains('pal-floor')){ var S_=n._nbS; return {x:(S_[0]+S_[2])/2, y:S_[3]-(S_[3]-S_[1])*.35, ruin:function(){ var b=n.querySelector(':scope > .nb3d'); if(b) fxRuin(b, n); }}; }
   var lm=t.closest&&t.closest('#palace-svg .pl-lmb'); if(lm && lm._lm){ var L=lm._lm; return {x:L.x+L.w/2, y:L.y+L.h/2, ruin:function(){ fxRuin(lm, null); }}; }
