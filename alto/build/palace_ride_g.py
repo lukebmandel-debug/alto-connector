@@ -160,7 +160,7 @@ function fblob(m, cx,cy,cz, rx,ry,rz, prof, seg, mat, fam, jit, seed){
   function W3(p){ return [WX(p[0],p[1]), WY(p[0],p[1]), WZ(p[2])]; }
   function WN(n){ return [n[0]*ca-n[1]*sa, n[0]*sa+n[1]*ca, n[2]]; }
   var isF=(typeof fam==='object'), K1=Math.max(1,K-1);
-  function pick(k,i){ if(!isF) return fam; var v=k/K1+(hash(seed*37+k*11+i*3)-.5)*.55; return v<.34?fam[0]:v<.72?fam[1]:fam[2]; }
+  function pick(k,i){ if(!isF) return fam; var v=k/K1+(hash(seed*37+k*11+i*3)-.5)*.55; return v<.22?fam[0]:v<.84?fam[1]:fam[2]; }
   function emit(p0,n0,p1,n1,p2,n2,tt){ var a=W3(p0), b=W3(p1), c=W3(p2), na=WN(n0), nb=WN(n1), nc=WN(n2); trw(m,a[0],a[1],a[2],na[0],na[1],na[2],b[0],b[1],b[2],nb[0],nb[1],nb[2],c[0],c[1],c[2],nc[0],nc[1],nc[2],mat,tt); }
   /* the underside: a fan to the centre of the first ring */
   if(P[0].length>1){ var ctr=[cx,cy,cz+rz*prof[0][0]], nd=[0,0,-1]; for(i=0;i<seg;i++){ emit(P[0][i],nd,P[0][(i+1)%seg],nd,ctr,nd, pick(0,i)); } }
@@ -192,6 +192,7 @@ function treeAt(m, x, y, sp, sz, h, season, lod, lobe){
   var cz=th+rz*.45;
   if(_rec) _rec.push(x,y,(cz+rz)*UM*sz,R*UM*sz,season===2?3:2);
   fblob(m,0,0,cz,R,R,rz,prof,seg,MAT.leaf,fam,.16,seed);
+  if(!lod && sp!==5 && sp!==4 && g>.12){ var a4=g*29+1.3, d4=R*(.5+.25*hash(seed+4)); fblob(m,Math.cos(a4)*d4,Math.sin(a4)*d4,cz-rz*(.1+.3*hash(seed+5)),R*.55,R*.55,rz*.58,[[-.5,.6],[0,1],[1,0]],5,MAT.leaf,fam,.24,seed+7); }      /* a second lobe: the crown is not one ball */
   if(!lod && lobe && (sp===0||sp===2) && g>.35){ var a3=g*17;
     fblob(m,Math.cos(a3)*R*.62,Math.sin(a3)*R*.62,cz+rz*.12,R*.62,R*.62,rz*.7,[[-.4,.6],[0,1],[.5,.7],[1,0]],6,MAT.leaf,fam,.18,seed+9); } }
 
@@ -384,7 +385,7 @@ function atlasPaint(A){ if(typeof document==='undefined') return; var c=document
 
 /* ── cells: one static mesh per cell (and one text mesh) so the renderer can cull ── */
 var CAP_FULL=14500, CAP_LOW=5600;
-SCN.budget={trees:6200, cars:4600, roofs:1500, vTree:140, vCar:140, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
+SCN.budget={trees:6200, cars:4600, roofs:1500, vTree:190, vCar:140, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
 function cellOf(S, x, y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=S.cells[k];
   if(!c){ c=S.cells[k]={m:sb(4096), t:sb(256), ci:ci, cj:cj, lod:S.lodOf(ci,cj), cap:0}; c.cap=c.lod?CAP_LOW:CAP_FULL; }
   return c; }
@@ -493,7 +494,7 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
   /* trees (also in the cells away from the ride: sparser) */
   if(SCN.trees){
     var sp=pickSpecies(sid,rank,hk(mx,my,3)), gap=low?36:17.5, eseason=pickSeason(hn((sid>=0?sid:7)*31+Math.floor((mx+my)/700),5),sp);
-    for(s=cc+hk(mx,my,4)*6; s<L-cc; s+=gap*(.88+.24*hash(Math.round(s*3)+ei*131))){
+    for(s=cc+hk(mx,my,4)*6; s<L-cc; s+=gap*(.66+.7*hash(Math.round(s*3)+ei*131))){
       if(!low) bcand(bp.t); var x=px(s,2.4), y=py(s,2.4), g=hash(Math.round(x*3)*7+Math.round(y*3)); if(g<.1) continue; var cell=cellOf(S,x,y); if(!room(cell,200)) continue;
       if(S.blocked(x,y,1.7)||trackNear(x,y,1.15)) continue; if(!low && !bpass(bp.t,hk(x,y,91))) continue;
       var sp2=g>.93?(sp+1)%6:sp, sz=.76+.26*hash(Math.round(x*5)+Math.round(y*11)), season=(sp2===sp && hash(Math.round(x*9)+Math.round(y*13)+3)>.14)?eseason:pickSeason(hash(Math.round(x*9)+Math.round(y*13)+3), sp2); if(sp2===4&&season===0&&eseason===4) season=4;

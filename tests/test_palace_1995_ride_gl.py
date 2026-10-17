@@ -201,3 +201,12 @@ def test_2000_look_pass_street_materials_and_atmosphere():
     assert "smoothstep(0.,vHA.x" in f                                    # no reversed-edge smoothstep (undefined in GLSL ES)
     from alto.build import palace_ride_g
     assert "#pal-ride.on::after" in palace_ride_g.CSS_G and "radial-gradient" in palace_ride_g.CSS_G
+
+
+def test_2000_look_pass_two_facade_variety_trees_and_markings():
+    f = palace_ride_gl_shaders.FS_WORLD
+    for needed in ("float cbh=", "vec3 frC=", "float bulk=", "float trn=", "float ak=", "the basement areaway window", "the building's corners", "the dark under a car", "float wr="):
+        assert needed in f
+    from alto.build import palace_ride_g
+    g = palace_ride_g.JS_G
+    assert "a second lobe: the crown is not one ball" in g and "gap*(.66+.7*hash(" in g

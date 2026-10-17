@@ -186,6 +186,8 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       refl=(.10+.34*fres)*glM*(1.-blind*.6)*(.75+.5*h21(vec2(fi*3.1,bi*1.9+T*3.+floor(ul/(bwa*.5)))));
     } else {
       float ww=isConc?bwa-.55:(isStone?bwa*.40:bwa*.40+.15); float wh=isConc?1.55:(isStone?2.05:1.95);
+      float rk=fract(T*29.7); if(!isConc){ ww*=.84+.3*rk; wh*=.9+.2*fract(T*17.9); }
+      float fk=fract(T*53.1); vec3 frC=fk<.45?vec3(.78,.76,.70):fk<.65?vec3(.10,.12,.11):fk<.85?vec3(.22,.30,.25):vec3(.62,.52,.38);
       float cy=fh*.5+.15;
       vec2 ws=vec2(ww*.5,wh*.5);
       float w1=rectm(loc,vec2(bwa*.5,cy),ws,fw);
@@ -195,7 +197,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       float mull=rectm(loc,vec2(bwa*.5,cy),vec2(.025,ws.y),fw)*w1;
       winM=w1; glM=clamp(w1-mull*.7,0.,1.); frM=f1;
       float stn=rectm(loc,vec2(bwa*.5,cy-ws.y-.7),vec2(ws.x*.75,.7),vec2(.3,.5))*(1.-w1); alb*=1.-.15*stn*(isConc?.6:1.);
-      if(isConc){ alb=mix(alb,vec3(.30,.31,.33),frM); } else { alb=mix(alb,trim,clamp(max(li,si),0.,1.)); alb=mix(alb,isStone?vec3(.46,.44,.40):vec3(.78,.76,.70),frM); }
+      if(isConc){ alb=mix(alb,vec3(.30,.31,.33),frM); } else { alb=mix(alb,trim,clamp(max(li,si),0.,1.)); alb=mix(alb,isStone?vec3(.46,.44,.40):frC,frM); }
       float acb=step(.93,h21(vec2(fi*5.+bi*3.,T*37.)))*rectm(loc,vec2(bwa*.5+ws.x*.5,cy-ws.y*.5),vec2(.4,.22),fw); alb=mix(alb,vec3(.55,.56,.57),acb*(1.-w1));
       alb=mix(alb,vec3(.30,.31,.32),mull*.5);
       float on=step(lit1,litP)*night; float blind=step(.78,h21(vec2(fi+bi*3.,T*5.)));
@@ -225,8 +227,10 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       alb=mix(alb*.75,inter*.5,pane); alb=mix(alb,sc*.7,sign);
       float strip=rectm(vec2(ul,v),vec2(bwa*.5,gh-.6),vec2(bwa*.5-.4,.09),fw); float letter=step(.3,h21(vec2(floor(ul*4.),bi+T*3.)))*strip*sign;
       alb=mix(alb,vec3(.8,.78,.7),letter);
-      float awn=step(.68,h21(vec2(bi,T*13.)))*rectm(vec2(ul,v),vec2(bwa*.5,sg-.22),vec2(bwa*.5-.2,.24),fw)*(pier?0.:1.);
-      vec3 ac=mix(vec3(.55,.1,.1),mix(vec3(.1,.35,.2),vec3(.12,.2,.45),fract(T*9.)),step(.5,fract(T*21.+bi*.1)));
+      float bulk=rectm(vec2(ul,v),vec2(bwa*.5,.3),vec2(bwa*.5-.28,.3),fw)*(pier?0.:1.); alb=mix(alb,mix(stonePal(T+.5)*.62,vec3(.07,.09,.08),step(.5,fract(T*19.))),bulk*(1.-pane*.0));
+      float trn=rectm(vec2(ul,v),vec2(bwa*.5,sg-.5),vec2(bwa*.5-.28,.035),fw)*(pier?0.:1.); alb=mix(alb,vec3(.12,.12,.12),trn*pane);
+      float awn=step(.5,h21(vec2(bi,T*13.)))*rectm(vec2(ul,v),vec2(bwa*.5,sg-.22),vec2(bwa*.5-.2,.24),fw)*(pier?0.:1.);
+      float ak=fract(T*9.+bi*.173); vec3 ac=ak<.2?vec3(.55,.1,.1):ak<.4?vec3(.1,.35,.2):ak<.6?vec3(.12,.2,.45):ak<.8?vec3(.62,.44,.10):vec3(.30,.12,.30);
       alb=mix(alb,mix(ac,vec3(.85),step(.5,fract(ul/.32)))*.8,awn);
       emi=vec3(1.,.82,.55)*inter*pane*(1.-awn)*lit2*(night*2.4+.25)+vec3(1.,.95,.8)*letter*night*1.4+sc*sign*night*.5;
       refl=(.05+.3*fres)*pane*(1.-awn);
@@ -252,6 +256,9 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
     float on=step(h21(vec2(bi*7.,T*91.)),litP+.1)*night;
     alb=mix(alb,ga,w2); emi=vec3(1.,.74,.42)*(.6+.4*h11(bi*3.+T))*on*(w2*.9+dtr*(1.-door)*.5);
     refl=(.1+.3*fres)*w2*(1.-blind*.6);
+    { float stp=rectm(vec2(ul,v),vec2(c1,.5),vec2(.95,.5),fw)*(1.-door); float ln=1.-smoothstep(.008,.02+fp.y,abs(fract(v/.22)-.5)*.22-.09); alb=mix(alb,stonePal(T+.2)*(.75+.35*ln),stp*.9); alb*=1.-.35*stp*(1.-ln)*step(.3,v)*.0;
+      float bsw=rectm(vec2(ul,v),vec2(c2,.3),vec2(.46,.2),fw); float bar=step(.5,fract(ul/.14)); alb=mix(alb,mix(vec3(.02,.02,.03),vec3(.1),bar*.7),bsw);   /* the basement areaway window, barred */
+      alb*=1.-.3*rectm(vec2(ul,v),vec2(c2,.28),vec2(.62,.32),vec2(.25,.2))*(1.-bsw); }
     /* the water table: a stone course along the foot */
     float wt=1.-smoothstep(.9,.95,v); alb=mix(alb,stonePal(T+.3)*.85,wt*step(0.,v));
   }
@@ -259,10 +266,12 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
   if(!tall){ }
   /* cornice and parapet band at the top */
   if(tall){
-    float cb=smoothstep(Hh-.95,Hh-.9,v);
+    float cbh=.55+.8*fract(T*37.3);                                          /* cornice depth differs per building */
+    float cb=smoothstep(Hh-cbh,Hh-cbh+.05,v);
+    if(!isGlass && Hh>6.){ alb*=1.-.28*(1.-smoothstep(0.,.55,Hh-cbh-v))*step(v,Hh-cbh); }   /* shadow line under the cornice */
     if(!isGlass) alb=mix(alb,mix(trim,body,.35)*1.02,cb);
     else alb=mix(alb,vec3(.30,.31,.33)*mix(vec3(1.),tf,.3),smoothstep(Hh-.6,Hh-.55,v));
-    if(!isGlass && cb>.5){ float dent=step(.5,fract(u/.38)); alb*=.9+.1*dent*(1.-smoothstep(.5,2.,fp.x)); emi*=0.; refl*=0.; }
+    if(!isGlass && cb>.5){ float dent=mix(1.,step(.5,fract(u/.38)),step(.4,fract(T*11.7))); alb*=.9+.1*dent*(1.-smoothstep(.5,2.,fp.x)); emi*=0.; refl*=0.; }
   }
 }
 
@@ -272,8 +281,8 @@ vec3 asphalt(vec2 gp, float fpx){
   vec3 a=vec3(.30,.302,.31)*(.88+.2*lo)*(.95+.1*mid)+vec3(.05)*(gr-.8)*.5;
   a=mix(a,vec3(.23,.23,.24),patch*.3);
   float stain=smoothstep(.7,.85,nz(gp*.3+11.)); a*=1.-.14*stain;
-  float cr=abs(nz(gp*.42+31.)-.5)+abs(nz(gp*.31+5.)-.5)*.6; float crack=(1.-smoothstep(.006,.03+fpx*.4,cr))*(1.-smoothstep(.1,.5,fpx*4.)); a*=1.-.5*crack;
-  float seam=1.-smoothstep(.02,.05+fpx*.3,abs(fract(gp.y/9.+nz(gp*.02)*.2)-.5)*2.-.9); a=mix(a,vec3(.12,.12,.13),clamp(seam,0.,1.)*.35);
+  if(fpx<.2){ float cr=abs(nz(gp*.42+31.)-.5)*1.5; float crack=(1.-smoothstep(.006,.03+fpx*.4,cr))*(1.-smoothstep(.1,.5,fpx*4.)); a*=1.-.5*crack;
+    float seam=1.-smoothstep(.02,.05+fpx*.3,abs(fract(gp.y/9.)-.5)*2.-.9); a=mix(a,vec3(.12,.12,.13),clamp(seam,0.,1.)*.2); }
   float pt=smoothstep(.55,.57,nz(gp*.07+17.)); a=mix(a,vec3(.18,.18,.19)*(.95+.1*nz(gp*3.)),pt*.55);
   return a; }
 void main(){
@@ -294,6 +303,7 @@ void main(){
     if(id>2.5&&id<3.5&&N.z>.55){ alb=vec3(.22,.22,.23)*(.8+.4*nz(gp*.8)); }
     else if(wallLike){ wallFacade(id,vUV,vHA.y,vHA.x,T,fp,vDC,aux,V,N,alb,emi,refl);
       { float stk=nz(vec2(vUV.x*2.3+T*40.,vUV.y*.055)); float fadeS=1.-smoothstep(50.,200.,dist); if(fadeS>0.) alb*=1.-fadeS*.11*smoothstep(.5,.9,stk)*(.4+.6*(1.-smoothstep(0.,vHA.x>.5?vHA.x*.8:30.,vUV.y))); }
+      if(vHA.y>3.){ float eu=min(vUV.x,vHA.y-vUV.x); ao*=mix(.72,1.,smoothstep(0.,1.6,eu)); }               /* the building's corners */
       if(vHA.x>.5){ float vv=vUV.y; ao*=mix(.62,1.,smoothstep(.0,2.2,vv)); ao*=mix(.78,1.,smoothstep(vHA.x-1.9,vHA.x-1.0,vv)+step(vHA.x-1.0,vv)); } }
     else if(N.z<=-.55){ alb=vec3(.46,.45,.43)*(.9+.2*nz(gp)); ao=.7; }
     else { /* a roof */ float g=nz(gp*.55)*.6+nz(gp*2.9)*.4*(1.-smoothstep(.02,.1,fpx)); alb=vec3(.27,.265,.26)*(.86+.3*g)*mix(vec3(1.),tf,.12); alb=mix(alb,vec3(.5,.5,.48),smoothstep(.62,.8,nz(gp*.09+3.))*.4); }
@@ -326,7 +336,7 @@ void main(){
     float fq=dist/uFogD; float f=1.-exp(-fq*fq); colL=mix(colL,uFog,f);
     colL=aces(colL*uExp); gl_FragColor=vec4(pow(colL,vec3(1./2.2)),1.); return;
   } else if(id<11.5){   /* asphalt */
-    alb=asphalt(gp,fpx);
+    alb=asphalt(gp,fpx); refl=(.02+.14*pow(1.-ndv,4.))*(.4+nz(gp*.17+5.));
   } else if(id<12.5){   /* paving: concrete slabs */
     vec2 q=gp/1.55; vec2 f=abs(fract(q)-.5); float j=max(f.x,f.y);
     float wd=.012+fpx/1.55*.6; float joint=smoothstep(.5-wd*1.6,.5-wd*.2,j)*(1.-smoothstep(.02,.4,fpx*4.));
@@ -341,10 +351,10 @@ void main(){
   } else if(id<16.5){   /* roof tile */
     float rowv=fract(vUV.y/.32); alb=mix(vec3(.45,.2,.14),vec3(.3,.13,.1),smoothstep(.0,.35,rowv))*(.85+.3*h21(floor(vUV*vec2(3.,3.1))));
   } else if(id<17.5){   /* trunk: the scenery palette colour, barked */
-    alb=palCol(T)*.78*(.55+.9*nz(vec2(vUV.x*14.+vP.x*.0,vUV.y*2.6))*nz(vec2(vUV.x*31.,vUV.y*.7))*1.6); ao*=mix(.45,1.,smoothstep(.0,1.6,vP.z/UMc));
+    alb=palCol(T)*(.78+.5*nz(vec2(vUV.x*14.,vUV.y*2.6))); ao*=mix(.45,1.,smoothstep(.0,1.6,vP.z/UMc));
   } else if(id<18.5){   /* leaves: the palette colour (three shades a tree), broken up by noise */
-    vec2 lq=vP.xy*.9+vec2(vP.z*1.7,vP.z*-1.3); float cl=nz(lq*1.1)*.6+nz(lq*3.9)*.4; float cl2=nz(lq*13.)*(1.-smoothstep(.02,.1,fpx));
-    vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.82)*vec3(.97,1.,.9);
+    vec2 lq=(abs(N.x)>abs(N.y)?vP.yz:vP.xz)*.9+vec2(vP.z*.37,vP.x*.21); float cl=nz(lq*1.1)*.6+nz(lq*3.9)*.4; float cl2=nz(lq*13.)*(1.-smoothstep(.02,.1,fpx));
+    vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.7)*vec3(.95,.98,.88);
     float clump=smoothstep(.25,.75,cl);
     alb=lc*(.68+.46*cl)*(.86+.2*cl2)*(.88+.2*clump);
     N=normalize(N+vec3(cl-.5,cl2-.5,cl-cl2)*.42*(1.-smoothstep(40.,160.,dist)));   /* puffy clusters, not smooth facets */
@@ -359,14 +369,14 @@ void main(){
   } else if(id<21.5){   /* lamp heads and signal lenses: lit ones glow */
     vec3 pc=palCol(T); float mx=max(pc.r,max(pc.g,pc.b)); alb=pc*.5; emi=mix(vec3(0.),pc,step(.8,mx))*(.9+uNight*3.4);
   } else if(id<22.5){   /* paint, plates, hydrants, bins */
-    vec3 sc=palCol(T); if(vDC.r<.99||vDC.g<.99||vDC.b<.99) sc=vDC; alb=sc; emi=sc*uNight*.07;
+    vec3 sc=palCol(T); if(vDC.r<.99||vDC.g<.99||vDC.b<.99) sc=vDC; alb=sc*(.88+.18*nz(vec2(vP.x+vP.y,vP.z*3.)*.5)); alb*=1.-.25*(1.-smoothstep(.0,1.2,vP.z/UMc)); emi=sc*uNight*.07; refl=.04+.1*pow(1.-ndv,3.);
   } else if(id<23.5){   /* red brick */
     alb=brickTex(vUV,T*.1+.01,fp);
   } else if(id<24.5){   /* street-name text from the atlas, unlit */
     vec3 tc=texture2D(uAtl,vUV*uAtlS).rgb; alb=vec3(0.); emi=lin(tc)*(.8+.2*(1.-uNight)); refl=0.;
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
-    vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7); alb=mix(vec3(.26),pc,smoothstep(.08,.4,wear)*.22+.76);
+    vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7)*.6+nz(gp*9.)*.4*(1.-smoothstep(.02,.1,fpx)); alb=mix(vec3(.27)*(.85+.3*nz(gp*.8)),pc*.9,(.5+.35*smoothstep(.25,.6,wear))*(.85+.15*nz(gp*.3)));
   } else if(id<41.5){   /* ballast and ties */
     float u=vUV.x; float v=vUV.y; float w=.02+fpx*.6;
     float ph=fract(v/.65)*.65; float tie=smoothstep(.0,w+.01,ph)*(1.-smoothstep(.26,.26+w+.01,ph))*(1.-smoothstep(1.35,1.5,abs(u)));
@@ -386,7 +396,9 @@ void main(){
     float dbl=(1.-smoothstep(.07-w,.07+w,abs(a-.14)))*hw;
     float edge=(1.-smoothstep(.07-w,.07+w,abs(a-vDC.g)))*step(.5,hw);
     vec3 pc=vec3(.88,.87,.8); vec3 yc=vec3(.93,.74,.15);
-    alb=mix(alb,pc,cen*.9); alb=mix(alb,yc,dbl*.9); alb=mix(alb,pc,edge*.9);
+    float wr=.55+.35*smoothstep(.3,.65,nz(gp*2.3)*.6+nz(gp*8.)*.4*(1.-smoothstep(.02,.1,fpx)));
+    alb=mix(alb,pc*.92,cen*wr); alb=mix(alb,yc*.9,dbl*wr); alb=mix(alb,pc*.92,edge*wr);
+    refl=(.02+.14*pow(1.-ndv,4.))*(.4+nz(gp*.17+5.));
   } else if(id<44.5){   /* the mouth of a tunnel */
     vec2 q=vUV; float r=length(vec2(q.x/7.,(q.y-5.)/6.)); vec3 c=vDC;
     alb=vec3(.01,.01,.02); emi=mix(c*.2,c*1.6,(1.-smoothstep(.0,.9,r)))*(1.+uNight*.4)+vec3(.02);
@@ -402,6 +414,8 @@ void main(){
   } else {              /* crosswalk bars */
     alb=mix(vec3(.2),vec3(.9,.9,.86),smoothstep(.1,.5,nz(gp*3.))*.5+.45);
   }
+  if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
+  else if(id>20.5&&id<22.5) ao*=mix(.55,1.,smoothstep(.0,.7,vP.z/UMc));              /* a pole or a bin where it meets the ground */
   float nl=max(dot(N,uSun),0.); float nlw=max(dot(N,uSun)*(1.-wrap)+wrap,0.);
   float shd=nl>.001?shadowAt(nl):1.;
   vec3 amb=mix(uGndA,uSkyA,N.z*.5+.5); amb=mix(amb,amb*vec3(.9,.98,1.12),1.-uNight);      /* cool blue fill from the sky dome */
