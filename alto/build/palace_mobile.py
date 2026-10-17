@@ -97,7 +97,7 @@ function pmCommit(z){ var sv=MM.svg; MM.z=z; sv.setAttribute('width', VW*z); sv.
   PM.relT=setTimeout(function(){ if(window._palLm) window._palLm.relayout(sv, MM.z); sizeChips(sv); }, 140); }
 function pmApply(z, sx, sy){ var c=pmClamp(z, sx, sy); z=c[0]; sx=c[1]; sy=c[2]; PM.z=z; PM.sx=sx; PM.sy=sy;
   var s=z/MM.z; if(s<.55 || s>1.8){ pmCommit(z); s=1; }
-  MM.svg.style.transform='translate('+(-sx).toFixed(2)+'px,'+(-sy).toFixed(2)+'px) scale('+s.toFixed(5)+')'; }
+  MM.svg.style.transform='translate('+(-sx).toFixed(2)+'px,'+(-sy).toFixed(2)+'px) scale('+s.toFixed(5)+')'; if(window._nbMoving) window._nbMoving(); }
 function pmSettle(){ if(Math.abs(PM.z-MM.z)>1e-6){ pmCommit(PM.z); MM.svg.style.transform='translate('+(-PM.sx).toFixed(2)+'px,'+(-PM.sy).toFixed(2)+'px) scale(1)'; } }
 function pmStop(){ if(PM.anim){ cancelAnimationFrame(PM.anim); PM.anim=null; pmSettle(); } if(PM.mom){ cancelAnimationFrame(PM.mom); PM.mom=null; } }
 /* a map point at the middle of the part of the map the sheet leaves free, at zoom z, gliding */
