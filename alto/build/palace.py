@@ -38,6 +38,7 @@ from .palace_directions import DIR_CSS, DIR_JS
 from .palace_pan import PAN_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
 from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of a shelled building (1.9.95)
+from .palace_labels import LABELS_CSS, LABELS_JS
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
@@ -975,10 +976,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + CONSTRUCT_CSS + TRANSIT_CSS + HIGHWAY_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
+""" + LANDMARK_CSS + LABELS_CSS + CONSTRUCT_CSS + TRANSIT_CSS + HIGHWAY_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + CONSTRUCT_JS + TRANSIT_JS + HIGHWAY_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + TRANSIT_JS + HIGHWAY_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -1404,6 +1405,7 @@ function drawCity(svg){
   var lmn=el('g',{'class':'pl-lmns'},lg);
   [].forEach.call(lg.querySelectorAll('.pl-lmb'), function(g){ var L=g._lm; if(!L || !L.nameT) return; var up=L.nameT.parentNode;
     var w=el('g',{'class':'pl-lmn'+(g.classList.contains('has-page')?' has-page':''), 'data-name':g.getAttribute('data-name')||'', 'data-page':g.getAttribute('data-page')||''},lmn);
+    w._lm=L;   /* the name's wrapper knows its landmark (lblFit reads the card from it: the over-the-card spot needs it) */
     w.setAttribute('style', g.getAttribute('style')||''); if(up!==g && up.getAttribute('transform')) w.setAttribute('transform', up.getAttribute('transform'));
     w.appendChild(L.nameT); if(L.sub) w.appendChild(L.sub); });
   /* districts: the neighbourhood's own name over its buildings (the unit it holds is in its pop-up) */
@@ -1478,37 +1480,55 @@ function lblFit(svg, viewOnly){
     var P4=4, CELL=128, grid={}, obs=[], nodes=[];
     function cells(b, f){ for(var i=Math.floor(b.l/CELL);i<=Math.floor(b.r/CELL);i++) for(var j=Math.floor(b.t/CELL);j<=Math.floor(b.b/CELL);j++) f(i+','+j); }
     function put(b){ cells(b, function(c){ (grid[c]=grid[c]||[]).push(b); }); }
-    function hitKept(b){ var hit=false; cells(b, function(c){ if(!hit) (grid[c]||[]).some(function(o){ return (hit=obbHit(b, o)); }); }); return hit; }
-    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); obs.push(b); } });
-    if(!phone) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0) nodes.push(rbox(r, sr)); });
+    var hitBy=null;
+    function hitKept(b){ var hit=false; cells(b, function(c){ if(!hit) (grid[c]||[]).some(function(o){ return (hit=obbHit(b, o)) && (hitBy=o); }); }); return hit; }
+    [].forEach.call(svg.querySelectorAll('.pl-lmb .lm-card,.pl-chip,.pl-stt,.tr-lbl,.pl-portal'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0){ var b=rbox(r, sr); b.own=e.closest('.pl-lmb'); b.el=e; b.portal=e.classList.contains('pl-portal'); obs.push(b); } });
+    if(!phone) [].forEach.call(document.querySelectorAll('#world .node:not(.pal-floor)'), function(e){ var r=e.getBoundingClientRect(); if(r.width>0 && r.height>0) { var nb=rbox(r, sr); nb.el=e; nodes.push(nb);
+      /* a landmark's name also keeps off what hangs over the node's box: its number card above it and its tall building (the 3D art) */
+      var u=[r.left, r.top, r.right, r.bottom]; [].forEach.call(e.querySelectorAll(':scope > .nb3d, :scope > .node-card'), function(c){ var q=c.getBoundingClientRect(); if(q.width>0 && q.height>0){ u[0]=Math.min(u[0], q.left); u[1]=Math.min(u[1], q.top); u[2]=Math.max(u[2], q.right); u[3]=Math.max(u[3], q.bottom); } });
+      nb.ext=rbox({left:u[0], top:u[1], right:u[2], bottom:u[3], width:u[2]-u[0], height:u[3]-u[1]}, sr); } });
+    /* a landmark name that was showing goes first among its equals: when two compete for a spot, the one already there stays (no swapping while zooming) */
+    items.sort(function(a, b){ return (b.pr+(b.k==='lm-name' && b.keep?45:0))-(a.pr+(a.k==='lm-name' && a.keep?45:0)); });
     items.forEach(function(it){
       var t=it.t, ok=lblLod(it, svg, z, zf), g=t._g, up=t._up||0; it.box=null;
-      var alt=null, altY=0;
+      var alt=null, altY=0, held=it.keep, spots=null, card=null, tf=null;
       if(ok && it.k==='lm-name'){ if(/\bin\b/.test(t.getAttribute('class')||'')){ it.keep=true; return; }
-        /* a landmark's name hangs under its card; where that is taken, over it */
-        var ts=t.firstChild, lm=t.parentNode._lm, fn0=lblFS(it, z, phone)/z; if(it.y0==null || it.yz!==z){ it.y0=+t.getAttribute('y')||0; it.yz=z; } else t.setAttribute('y', it.y0);
-        g=ts?[+ts.getAttribute('x')||0, it.y0, 0]:null; up=.35; if(g && lm){ altY=lm.y-fn0*.42; alt=[g[0], altY, 0]; }
-        var rot=t.parentNode.getAttribute('transform'), mm=rot&&/rotate\(([-\d.e]+) ([-\d.e]+) ([-\d.e]+)\)/.exec(rot);
-        if(g && mm){ var ra=mm[1]*Math.PI/180, rx=+mm[2], ry=+mm[3]; [g, alt].forEach(function(q){ if(!q) return; var dx=q[0]-rx, dy=q[1]-ry;
-          q[0]=rx+dx*Math.cos(ra)-dy*Math.sin(ra); q[1]=ry+dx*Math.sin(ra)+dy*Math.cos(ra); q[2]=ra; }); } }
+        /* a landmark's name hangs under its card; where that is taken it slides to the nearest free place (palace_labels.py) */
+        var ts=t.firstChild, lm=t.parentNode._lm, fn0=lblFS(it, z, phone)/z;
+        if(it.y0==null || it.yz!==z){ it.y0=+t.getAttribute('y')||0; it.x0=ts?(+ts.getAttribute('x')||0):0; it.yz=z; } else { t.setAttribute('y', it.y0); if(ts){ t.setAttribute('x', it.x0); ts.setAttribute('x', it.x0); } }
+        g=ts?[it.x0, it.y0, 0]:null; up=.35; tf=t.parentNode.getAttribute('transform');
+        if(g && lm){ altY=lm.y-fn0*.42; alt=[g[0], altY]; card={x:lm.x, y:lm.y, w:lm.w, h:lm.h}; } }
       if(ok && !g) ok=false;
       if(ok){ var fs=lblFS(it, z, phone);
         if(!it.qm && it.vis){ var w=0; try{ w=t.getComputedTextLength(); }catch(e){} if(w>0){ it.q=w*z/fs+it.n*(LBL_LS[it.k]||0); it.qm=1; } }   /* WebKit's text length leaves the letter-spacing out */
         if(!it.qm) it.q=it.n*((LBL_UP[it.k]?.68:.56)+(LBL_LS[it.k]||0));
-        function boxAt(q){ var a=q[2]||0; return obb((q[0]+MX)*k+Math.sin(a)*up*fs, (q[1]+MY)*k-Math.cos(a)*up*fs, a, it.q*fs/2+P4, fs*.6+P4); }
-        function free(b){ return !hitKept(b)
-          && !obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && o.own && o.own.getAttribute('data-name')!==t.parentNode.getAttribute('data-name'))) && obbHit(b, o); })   /* a landmark's name never under another's card */
-          && !((it.k==='pl-area' || it.k==='lm-name') && nodes.some(function(o){ return obbHit(b, o); })); }
-        var b=boxAt(g);
-        if(!it.fixed && !free(b)){ ok=false; if(alt){ var b2=boxAt(alt); if(free(b2)){ ok=true; b=b2; t.setAttribute('y', altY); } } }
-        if(ok){ it.box=b; put(b); } }
+        var pad=(it.k==='lm-name' && held)?1:P4;   /* a name that was showing keeps its place with a thinner margin: no blinking at a zoom step's edge */
+        function boxAt(q){ var a=q[2]||0; return obb((q[0]+MX)*k+Math.sin(a)*up*fs, (q[1]+MY)*k-Math.cos(a)*up*fs, a, it.q*fs/2+pad, fs*.6+pad); }
+        function free(b, relax){ it.why='';
+          if(hitKept(b)){ it.why='name:'+(hitBy.it?hitBy.it.t.textContent:''); return false; }
+          var ho=null; if(obs.some(function(o){ return (it.pr<800 || (it.k==='lm-name' && ((o.own && !(relax && o.el.classList.contains('lm-card')) && o.own.getAttribute('data-name')!==t.parentNode.getAttribute('data-name')) || o.portal))) && obbHit(b, o) && (ho=o); })){ it.why='card:'+(ho.el.getAttribute('class')||'')+':'+(ho.own?ho.own.getAttribute('data-name'):''); return false; }   /* a landmark's name never under another's card (unless nothing else is free) */
+          var hn=null; if((it.k==='pl-area' || it.k==='lm-name') && nodes.some(function(o){ return obbHit(b, (it.k==='lm-name' && o.ext) || o) && (hn=o); })){ it.why='node:'+(hn.el?hn.el.getAttribute('data-id')||hn.el.id:''); return false; }
+          return true; }
+        var b=null;
+        if(card){ spots=lmSpots(card, [g[0], g[1]], alt, fs, it.q*fs, z, it.spot); ok=false;
+          for(var tier=0;tier<2 && !ok;tier++) for(var si=0;si<spots.length;si++){ var sp=spots[si], q=lmToBoard([sp.x, sp.y], tf);
+            if(tf && !/rotate/.test(tf)) q[2]=0; b=boxAt(q); if(free(b, tier)){ ok=true; it.spot=sp.id; it.tier=tier;
+              t.setAttribute('y', sp.y); t.setAttribute('x', sp.x); if(t.firstChild) t.firstChild.setAttribute('x', sp.x);
+              var ld=lmLead(card, sp.x, sp.y, fs, it.q*fs, z), ln=t._lead;
+              if(ld){ if(!ln){ ln=t._lead=document.createElementNS('http://www.w3.org/2000/svg','line'); ln.setAttribute('class','lm-lead'); t.parentNode.insertBefore(ln, t); }
+                ln.setAttribute('x1', ld[0]); ln.setAttribute('y1', ld[1]); ln.setAttribute('x2', ld[2]); ln.setAttribute('y2', ld[3]); ln._on=1; } else if(ln) ln._on=0;
+              break; } }
+          if(!ok) it.spot=null; }
+        else { b=boxAt(g); if(!it.fixed && !free(b)){ ok=false; if(alt){ var b2=boxAt(alt); if(free(b2)){ ok=true; b=b2; t.setAttribute('y', altY); } } } }
+        if(ok){ it.box=b; b.it=it; put(b); } }
       it.keep=ok; });
   }
   /* only what is within reach of the window is laid out */
   var cv=document.getElementById('canvas'), v=null;
   if(!phone && cv){ var cr=cv.getBoundingClientRect(), m=.75*Math.max(cr.width, cr.height); v=[cr.left-sr.left-m, cr.top-sr.top-m, cr.right-sr.left+m, cr.bottom-sr.top+m]; }
   items.forEach(function(it){ var b=it.box, show=it.keep && (!v || it.fixed || !b || (b.r>=v[0] && b.l<=v[2] && b.b>=v[1] && b.t<=v[3]));
-    if(show!==it.vis){ it.t.style.display=show?'':'none'; it.vis=show; } });
+    var ln=it.t._lead; if(ln) lmFade(ln, !!(show && ln._on));
+    if(show!==it.vis){ if(it.k==='lm-name') lmFade(it.t, show); else it.t.style.display=show?'':'none'; it.vis=show; } });
   (window._palT=window._palT||{}).lbl=Math.round(performance.now()-t0);
 }
 /* chips keep a constant size on screen: re-measured when the zoom settles */
