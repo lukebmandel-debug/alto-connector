@@ -37,9 +37,7 @@ from .key_toggle import KEY_CSS, KEY_JS
 from .palace_directions import DIR_CSS, DIR_JS
 from .palace_pan import PAN_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
-from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of a shelled building (1.9.95)
-from .palace_sound import SOUND_JS                              # the guns' synthesised sound (1.9.97)
-from .palace_panic import PANIC_JS                              # the crowd that runs from it (1.9.97)
+from .palace_fleet_asset import FLEET_LOADER                     # the toy fleet is a hosted script (1.9.99): boats, bases, their weapons, sound, crowd, rebuild
 from .palace_labels import LABELS_CSS, LABELS_JS
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
@@ -479,6 +477,12 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
             m["landmarks"] = [l for l in m.get("landmarks", []) if l.get("n") not in nm]
     except Exception:                                       # noqa: BLE001 — a city whose water cannot be read keeps its boats off the map
         pass
+    # the fleet (palace_fleet.py): museum warships the building tiles missed and military bases, each a toy that attacks (the hosted palace_fleet_asset.py)
+    try:
+        from . import palace_fleet
+        palace_fleet.attach(m, palace_fleet.fetch(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline), bbox)
+    except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with neither: no fleet beyond the boats found
+        pass
     # buses (palace_buses.py): the main routes, drawn along the page's streets from their real stops, ridden like any line
     try:
         from . import palace_buses
@@ -655,55 +659,6 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-banner{font-weight:900;letter-spacing:.04em;fill:rgba(176,38,28,.5);stroke:rgba(255,255,255,.55);stroke-width:calc(5px / var(--pz,1));paint-order:stroke;stroke-linejoin:round;pointer-events:none;text-transform:none;}
   html.dark .pal-svg .pl-banner{fill:rgba(255,110,90,.55);stroke:rgba(0,0,0,.4);}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
-  .pal-svg .pl-boat{pointer-events:none;}
-  .pal-svg .pl-boat.bb{pointer-events:all;cursor:pointer;}
-  .pal-svg .pl-boat .bb-tur{fill:#69748c;stroke:#232c44;stroke-width:1.6;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat.bb .nb-gf0{stop-color:#8d97ab;} .pal-svg .pl-boat.bb .nb-gf1{stop-color:#5c677f;} .pal-svg .pl-boat.bb .nb-gs0{stop-color:#4b556c;} .pal-svg .pl-boat.bb .nb-gs1{stop-color:#2f374b;}
-  .pal-svg .pl-boat.bb .nb-gr0{stop-color:#a4adbf;} .pal-svg .pl-boat.bb .nb-gr1{stop-color:#7c869b;} .pal-svg .pl-boat.bb .nb-f,.pal-svg .pl-boat.bb .nb-s,.pal-svg .pl-boat.bb .nb-r{stroke:#1d2538;}
-  .pal-svg .pl-boat.bb .bt-fb{fill:#5b657d;stroke:#1d2538;} .pal-svg .pl-boat.bb .bt-ft{fill:#8c96ac;} .pal-svg .pl-boat.bb .bt-mast,.pal-svg .pl-boat.bb .bt-yard{stroke:#1d2538;}
-  .pal-svg .pl-boat .bb-wall{stroke:#8a919d;stroke-width:.8;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-plastic{fill:#d2d6dc;stroke:#8f96a2;stroke-width:1.4;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-pdeck{fill:#cbd0d7;stroke:#aab0ba;stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-gloss{fill:rgba(255,255,255,.4);stroke:none;}
-  .pal-svg .pl-boat .bb-eng{stroke:#a3a9b4;stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-m{fill:#dde1e6;stroke:#a0a7b2;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bb-ms{fill:rgba(60,68,86,.3);stroke:none;}
-  .pal-svg .pl-boat .bb-hole{fill:#a7adb8;stroke:#868d99;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bb-hole2{fill:#c4c9d1;} .pal-svg .pl-boat .bb-hl{fill:none;stroke:#f1f3f6;stroke-width:1.6;stroke-linecap:round;}
-  .pal-svg .pl-boat .bb-barrel-o{stroke:#8d94a0;stroke-width:5.2;stroke-linecap:round;} .pal-svg .pl-boat .bb-barrel{stroke:#d7dbe1;stroke-width:3.4;stroke-linecap:round;}
-  html.dark .pal-svg .pl-boat .bb-plastic{fill:#9aa1ad;} html.dark .pal-svg .pl-boat .bb-pdeck{fill:#949ba7;} html.dark .pal-svg .pl-boat .bb-m{fill:#a8afbb;} html.dark .pal-svg .pl-boat .bb-hole{fill:#7c8390;} html.dark .pal-svg .pl-boat .bb-hole2{fill:#8f96a2;}
-  .pal-svg .pl-boat .bb-barrel{stroke:#4a5160;stroke-width:3.4;stroke-linecap:round;} .pal-svg .pl-boat .bb-bore{fill:#05070d;}
-  .pal-svg .pl-boat .bb-sec{fill:#6a748b;stroke:#2b3652;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bb-sb{stroke:#151b2b;stroke-width:2;stroke-linecap:round;}
-  .pal-svg .pl-boat .bb-abl{fill:#454f66;stroke:#1d2538;stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-pad{fill:none;stroke:rgba(255,255,255,.65);stroke-width:1.6;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-radar{fill:#2f3850;stroke:#c7d0e2;stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat.bb .bt-hull{fill:#323a4b;stroke:#161c2b;} .pal-svg .pl-boat.bb .bt-deck{fill:#7c869b;stroke:#4c566e;} .pal-svg .pl-boat.bb .bt-boot{stroke:#a3322d;stroke-width:2.2;}
-  html.fx-armed .pal-svg .pl-lmb .lm-art{pointer-events:all;}                                       /* a tower's body, not only its card, can be hit */
-  html.fx-armed .pal-svg .pl-boat.bb .bt-hull{stroke:#ff5a3c;stroke-width:3.2;}
-  html.fx-armed .pal-svg .pl-boat.bb{filter:drop-shadow(0 0 7px rgba(255,70,40,.75));}
-  html.fx-armed #world .node,html.fx-armed .pal-svg .pl-lmb,html.fx-armed #world .node .nb3d *{cursor:crosshair !important;}
-  #pal-fxbar{position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:312;display:none;padding:7px 15px;border-radius:999px;font-size:12px;font-weight:650;color:var(--text);
-    background:var(--panel-glass-bg,var(--surface));-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);border:1px solid #ff7a3c;box-shadow:0 12px 32px var(--node-hover-shadow);}
-  #pal-fxbar .fx-x{margin:-3px -9px -3px 10px;width:24px;height:24px;border-radius:50%;border:1px solid color-mix(in srgb,var(--text) 22%,transparent);background:transparent;color:var(--text);font:inherit;font-size:16px;line-height:1;cursor:pointer;padding:0;vertical-align:middle;}
-  #pal-fxbar .fx-x:hover{background:#ff7a3c;border-color:#ff7a3c;color:#fff;}
-  html.fx-armed #pal-fxbar{display:block;} html.mobile #pal-fxbar{display:none !important;}
-  .node.nb-ruin .node-card{opacity:0 !important;pointer-events:none;}
-  .pal-svg .pl-fx{pointer-events:none;}
-  .pal-svg .pl-boat .bt-foam{fill:rgba(255,255,255,.62);stroke:none;}
-  .pal-svg .pl-boat .bt-bowwave{fill:none;stroke:rgba(255,255,255,.7);stroke-width:1.6;stroke-linecap:round;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-hull{fill:#4c5b78;stroke:#2b3652;stroke-width:1.3;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat.tall .bt-hull{fill:#3f3a38;} .pal-svg .pl-boat.sub .bt-hull{fill:#2f3a48;}
-  .pal-svg .pl-boat .bt-boot{fill:none;stroke:#9c3f3a;stroke-width:1.6;stroke-opacity:.85;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-deck{fill:#a9b4c8;stroke:#74829f;stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-deck.wood{fill:#cdb88f;stroke:#8d7852;} .pal-svg .pl-boat .bt-deck.sub{fill:#455264;stroke:#2b3652;}
-  .pal-svg .pl-boat .bt-cl{stroke:rgba(40,52,80,.35);stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bt-cl.w{stroke:rgba(255,255,255,.8);stroke-dasharray:6 5;}
-  .pal-svg .pl-boat .bt-fd{fill:#8693ab;stroke:#5d6a86;stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-plank{stroke:rgba(110,86,50,.45);stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-mast{stroke:#4a3f36;stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-yard{stroke:#4a3f36;stroke-width:1.6;stroke-linecap:round;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-sail{fill:rgba(250,247,238,.8);stroke:rgba(120,108,88,.55);stroke-width:1;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-fb{fill:#8e9bb3;stroke:#52607e;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bt-ft{fill:#c5cddb;stroke:#52607e;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bt-fh{fill:#2f3850;}
-  html.dark .pal-svg .pl-boat .bt-foam{fill:rgba(255,255,255,.2);} html.dark .pal-svg .pl-boat .bt-deck{fill:#6f7b96;} html.dark .pal-svg .pl-boat .bt-deck.wood{fill:#8b7a58;} html.dark .pal-svg .pl-boat .bt-sail{fill:rgba(230,226,214,.7);}
-  .pal-svg .pl-boat-l text{font-size:11px;font-weight:800;fill:var(--text,#222);stroke:var(--pal-halo,#fff);stroke-width:3.2px;paint-order:stroke;stroke-linejoin:round;}
-  .pal-svg.far .pl-boat-l{display:none;}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
   .pal-svg .pl-bld .b-card{fill:rgba(255,255,255,.9);stroke-width:1.4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-bld .b-floor{fill:rgba(255,255,255,.75);stroke-width:1;stroke-opacity:.6;vector-effect:non-scaling-stroke;}
@@ -989,10 +944,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + LABELS_CSS + CONSTRUCT_CSS + TRANSIT_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
+""" + LANDMARK_CSS + LABELS_CSS + TRANSIT_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + SOUND_JS + PANIC_JS + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + FLEET_LOADER + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -1416,9 +1371,9 @@ function drawCity(svg){
     var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
     if(tw_) g.setAttribute('data-tower', tw_);
     window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, all:M.landmarks||[], pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
-  /* boats (palace_boats.py): moored in the river's water, along it. Each is drawn for what it is (drawBoat): a battleship, a cruiser, a submarine, a tall ship,
-     a carrier, a small craft — a hull with its bow and its wake, a deck, and the upright parts (towers, funnels, masts and sails) in the buildings' own lean */
-  (M.boats||[]).forEach(function(b,bi){ drawBoat(lg, b, bi, pin); });
+  /* boats (palace_boats.py) and bases (palace_fleet.py): the hosted fleet script draws them, each for what it is — a battleship, a carrier, a submarine, a tall ship — and arms the warships */
+  if(!window._palFleet && ((M.boats&&M.boats.length)||(M.bases&&M.bases.length))) palLoadFleet();
+  if(window._palFleet) window._palFleet.draw(lg, M, fleetHost());
   /* the landmark names over every building: a tower in front (the next block down a column of towers, rising 300 m+ at
      true scale, more than a row) would otherwise hide the name hanging under the card behind it. Each name keeps its
      landmark's colours, --lm-nat and (tilted district) offset on its own .pl-lmn wrapper, data-name tying it back */
@@ -1639,93 +1594,10 @@ function placeAllReal(){
   (window._palT=window._palT||{}).place=Math.round(performance.now()-tP0);
 }
 
-/* ── a boat, drawn for what it is. Plan parts (hull, deck, turrets) turn with it; upright parts (towers, funnels, masts) stand straight up and lean as every building does ── */
-function boatKind(n, L, W){ n=String(n||'');
-  if(/new jersey|\biowa\b|missouri|wisconsin|battleship/i.test(n)) return 'bb';
-  if(/becuna|submarine|growler|\bSS-|nautilus|\bUSS [A-Z][a-z]+ \(SS/i.test(n)) return 'sub';
-  if(/intrepid|carrier|midway|lexington|yorktown|hornet/i.test(n)) return 'carrier';
-  if(/olympia|cruiser|cassin|destroyer|laffey|kidd|the sullivans|frigate/i.test(n)) return 'cruiser';
-  if(/moshulu|wavertree|gazela|constitution|barque|schooner|clipper|\bpioneer\b|kalmar|peking/i.test(n)) return 'tall';
-  if(/fireboat|lightship|lilac|nantucket|frying pan|ambrose|tug|ferry/i.test(n) || L<90) return 'small';
-  return 'ship'; }
-
-/* ── USS New Jersey, drawn as the piece of the board game Battleship (the grey plastic one), from above: a lens-shaped hull pointed at the bow and the stern,
-   four peg dimples down its deck — at the stern, in a raised block, in the bridge and at the bow — a twin-gun mount fore and aft, a funnel and
-   a bridge in relief, and engraved lines along the stern. All one grey, moulded. The mounts still turn and fire. ── */
-function drawToyBB(g, b, bi, pin){
-  var L=b.len, W=Math.max(46, L/4.2), q=W/2, a=b.a*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), h=Math.max(6, W*.1), N=5; b.wid=W;
-  g.classList.add('bb'); g._b=b; g.setAttribute('aria-label', b.n+' — click, then click a building to fire'); g.style.setProperty('--pc','#8a93a3');
-  function wp(fx, fy, up){ return [b.x+ca*fx-sa*fy, b.y+sa*fx+ca*fy-(up||0)]; }
-  function lens(k){ var x0=-L/2+k*1.2, x1=L/2-k*1.2, w=q-k; return 'M'+x0+' 0C'+(-L*.38)+' '+(-w*.98)+' '+(-L*.1)+' '+(-w*1.02)+' '+(L*.12)+' '+(-w*.92)+'C'+(L*.3)+' '+(-w*.8)+' '+(L*.44)+' '+(-w*.34)+' '+x1+' 0C'+(L*.44)+' '+(w*.34)+' '+(L*.3)+' '+(w*.8)+' '+(L*.12)+' '+(w*.92)+'C'+(-L*.1)+' '+(w*1.02)+' '+(-L*.38)+' '+(w*.98)+' '+x0+' 0Z'; }
-  function layer(up){ return el('g',{transform:'translate('+b.x+' '+(b.y-up)+') rotate('+b.a+')'},g); }
-  var water=layer(0); el('path',{'class':'bt-foam', d:lens(-4)},water);
-  el('path',{'class':'bt-bowwave', d:'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(-q*1.1)+' '+(L/2-L*.2)+' '+(-q*1.4)+'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(q*1.1)+' '+(L/2-L*.2)+' '+(q*1.4)},water);
-  for(var i=0;i<N;i++){ var up=h*i/N, f=Math.round(136+i*8); el('path',{'class':'bb-wall', d:lens(0), style:'fill:rgb('+f+','+(f+3)+','+(f+10)+')'},layer(up)); }    /* the plastic's thick edge */
-  var top=layer(h);
-  el('path',{'class':'bb-plastic', d:lens(0)},top); el('path',{'class':'bb-pdeck', d:lens(W*.06)},top);
-  el('path',{'class':'bb-gloss', d:'M'+(-L*.3)+' '+(-q*.74)+'C'+(-L*.1)+' '+(-q*.84)+' '+(L*.1)+' '+(-q*.78)+' '+(L*.3)+' '+(-q*.55)+'L'+(L*.28)+' '+(-q*.5)+'C'+(L*.1)+' '+(-q*.68)+' '+(-L*.1)+' '+(-q*.72)+' '+(-L*.3)+' '+(-q*.64)+'Z'},top);
-  for(var k=0;k<6;k++){ var yy=(k-2.5)*q*.17; el('line',{'class':'bb-eng', x1:(-L*.46+Math.abs(yy)*.5).toFixed(1), y1:yy.toFixed(1), x2:(-L*.31).toFixed(1), y2:yy.toFixed(1)},top); }             /* the engraved lines at the stern */
-  function relief(d){ var sh=el('path',{'class':'bb-ms', d:d, transform:'translate(1.6 2.4)'},top); var m=el('path',{'class':'bb-m', d:d},top); return m; }
-  function rr(cx, cy, w, hh, r){ return 'M'+(cx-w/2+r)+' '+(cy-hh/2)+'L'+(cx+w/2-r)+' '+(cy-hh/2)+'Q'+(cx+w/2)+' '+(cy-hh/2)+' '+(cx+w/2)+' '+(cy-hh/2+r)+'L'+(cx+w/2)+' '+(cy+hh/2-r)+'Q'+(cx+w/2)+' '+(cy+hh/2)+' '+(cx+w/2-r)+' '+(cy+hh/2)+'L'+(cx-w/2+r)+' '+(cy+hh/2)+'Q'+(cx-w/2)+' '+(cy+hh/2)+' '+(cx-w/2)+' '+(cy+hh/2-r)+'L'+(cx-w/2)+' '+(cy-hh/2+r)+'Q'+(cx-w/2)+' '+(cy-hh/2)+' '+(cx-w/2+r)+' '+(cy-hh/2)+'Z'; }
-  /* the moulded structures: a raised block round the second peg hole, the funnel's bumps, the bridge (with its prow) round the third */
-  relief(rr(-.13*L, 0, L*.125, W*.5, W*.16));
-  [[-.04*L,-W*.1,W*.1],[-.035*L,W*.12,W*.08],[.016*L,0,W*.07]].forEach(function(c){ var cs=el('circle',{'class':'bb-ms', cx:c[0]+1.6, cy:c[1]+2.4, r:c[2]},top); el('circle',{'class':'bb-m', cx:c[0], cy:c[1], r:c[2]},top); });
-  relief('M'+(.06*L)+' '+(-W*.2)+'L'+(.15*L)+' '+(-W*.22)+'Q'+(.21*L)+' '+(-W*.1)+' '+(.235*L)+' 0Q'+(.21*L)+' '+(W*.1)+' '+(.15*L)+' '+(W*.22)+'L'+(.06*L)+' '+(W*.2)+'Q'+(.04*L)+' 0 '+(.06*L)+' '+(-W*.2)+'Z');
-  relief(rr(-.245*L, 0, L*.06, W*.4, W*.1)); relief(rr(.29*L, 0, L*.07, W*.36, W*.12));                                           /* the bases of the two gun mounts */
-  [-.40,-.13,.125,.38].forEach(function(f){ var hg=el('g',{transform:'translate('+(f*L).toFixed(1)+' 0)'},top);                    /* the four peg dimples */
-    el('circle',{'class':'bb-hole', r:(W*.12).toFixed(1)},hg); el('circle',{'class':'bb-hole2', cx:(W*.012).toFixed(1), cy:(W*.016).toFixed(1), r:(W*.092).toFixed(1)},hg); el('path',{'class':'bb-hl', d:'M'+(-W*.07)+' '+(W*.045)+'A'+(W*.09)+' '+(W*.09)+' 0 0 0 '+(W*.045)+' '+(W*.075)},hg); });
-  b._tur=[];
-  function mount(f, r, fwd){ var c=wp(f*L, 0, h+2), tg=el('g',{},g), len=2.0;
-    var bar=el('g',{'class':'bb-bar', transform:'translate('+c[0].toFixed(1)+' '+c[1].toFixed(1)+') rotate('+(b.a+(fwd?0:180))+')'},tg), bls=[];
-    [-.5,.5].forEach(function(o){ el('line',{'class':'bb-barrel-o', x1:(r*.3).toFixed(1), y1:(o*r*.9).toFixed(1), x2:(r*len).toFixed(1), y2:(o*r*.9).toFixed(1)},bar); bls.push(el('line',{'class':'bb-barrel', x1:(r*.3).toFixed(1), y1:(o*r*.9).toFixed(1), x2:(r*len).toFixed(1), y2:(o*r*.9).toFixed(1)},bar)); });
-    b._tur.push({x:f*L, bar:bar, bl:bls, r:r, len:len, abs:[c[0], c[1]]}); }
-  mount(.29, W*.17, true); mount(-.245, W*.17, false);
-  el('title',{},g).textContent=(b.n||'A boat')+' — click to man the guns';
-  if(b.n){ var s1=wp(0, q+12), s2=wp(0, -(q+12)), sp=s1[0]>=s2[0]?s1:s2, tg2=pin(g,'pl-boat-l', sp[0], sp[1], {}); var t=el('text',{x:0,y:0,'text-anchor':'start'},tg2); t.textContent=b.n; }
-}
-function drawBoat(lg, b, bi, pin){
-  var kind=boatKind(b.n, b.len, b.wid), L=b.len, W=b.wid, a=b.a*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), u=L/100, q=W/2;
-  var g=el('g',{'class':'pl-boat '+kind,'data-name':b.n||'','data-kind':kind},lg); g.style.setProperty('--pc', kind==='tall'?'#7b6a54':'#5d6f92');
-  if(kind==='bb'){ drawToyBB(g, b, bi, pin); return; }
-  function wp(fx, fy){ return [b.x+ca*fx-sa*fy, b.y+sa*fx+ca*fy]; }                        /* hull coordinates (bow +x, port -y) -> the map */
-  function hull(k, bowK, sternK){ var x0=-L/2+k, x1=L/2-k*.3, w=q-k, bl=Math.max(L*bowK-k, 4), sw=w*sternK;                  /* bow tapers over bl with a curve; stern is a rounded transom */
-    return 'M'+x0+' '+(-sw)+'L'+(x1-bl)+' '+(-w)+'C'+(x1-bl*.5)+' '+(-w)+' '+(x1-bl*.14)+' '+(-w*.62)+' '+x1+' 0C'+(x1-bl*.14)+' '+(w*.62)+' '+(x1-bl*.5)+' '+w+' '+(x1-bl)+' '+w+'L'+x0+' '+sw+'Q'+(x0-k*.5-3)+' 0 '+x0+' '+(-sw)+'Z'; }
-  var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g), bowK=kind==='sub'?.34:kind==='tall'?.2:kind==='carrier'?.14:kind==='small'?.22:kind==='bb'?.3:.26, stern=kind==='sub'?.5:kind==='carrier'?.95:kind==='bb'?.78:.82;
-  /* foam round the hull, a bow wave and a thin wake behind: it is moored, so the water only laps it */
-  el('path',{'class':'bt-foam', d:hull(-4, bowK, Math.min(1,stern+.08))},rot);
-  var bw=el('path',{'class':'bt-bowwave', d:'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(-q*1.15)+' '+(L/2-L*.2)+' '+(-q*1.5)+'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(q*1.15)+' '+(L/2-L*.2)+' '+(q*1.5)},rot);
-  el('path',{'class':'bt-hull', d:hull(0, bowK, stern)},rot);
-  el('path',{'class':'bt-boot', d:hull(1.6, bowK, stern)},rot);                                                              /* the red waterline stripe */
-  var dk=el('path',{'class':'bt-deck '+(kind==='tall'?'wood':kind==='sub'?'sub':''), d:hull(Math.min(5, W*.16), bowK*1.02, stern)},rot);
-  el('line',{'class':'bt-cl', x1:-L/2+W*.2, y1:0, x2:L/2-L*bowK*.7, y2:0},rot);                                              /* the keel line along the deck */
-  if(kind==='tall'){ for(var k=-L/2+L*.1; k<L/2-L*.22; k+=Math.max(5, L*.045)) el('line',{'class':'bt-plank', x1:k, y1:-q*.8, x2:k, y2:q*.8},rot); }
-  if(kind==='carrier'){ el('path',{'class':'bt-fd', d:'M'+(-L*.42)+' '+(-q*.7)+'L'+(L*.36)+' '+(-q*.7)+'L'+(L*.44)+' '+(-q*.25)+'L'+(-L*.42)+' '+(q*.7)+'Z'},rot); el('line',{'class':'bt-cl w', x1:-L*.4, y1:-q*.3, x2:L*.4, y2:-q*.3},rot); }
-  /* plan parts: turrets (a battleship's three of three barrels, a cruiser's two of two) */
-  b._tur=[];
-  function turret(f, r, nb, len){ var tx=f*L, tg=el('g',{transform:'translate('+tx.toFixed(1)+' 0)'},rot); el('rect',{'class':'bb-tur', x:(-r*1.15).toFixed(1), y:(-r*1.05).toFixed(1), width:(r*2.3).toFixed(1), height:(r*2.1).toFixed(1), rx:(r*.55).toFixed(1)},tg);
-    var bar=el('g',{'class':'bb-bar'},tg), bl=[]; for(var i=0;i<nb;i++){ var o=(i-(nb-1)/2)*r*.62, ln=el('line',{'class':'bb-barrel', x1:(r*.5).toFixed(1), y1:o.toFixed(1), x2:(r*(len||3.1)).toFixed(1), y2:o.toFixed(1)},bar); el('circle',{'class':'bb-bore', cx:(r*(len||3.1)).toFixed(1), cy:o.toFixed(1), r:(r*.13).toFixed(1)},bar); bl.push(ln); } b._tur.push({x:tx, bar:bar, bl:bl, r:r, len:len||3.1}); }
-  if(kind==='cruiser'){ turret(.27, W*.15, 2); turret(-.30, W*.15, 2); }
-  /* upright parts: a block of the buildings' own glass (nbDraw) turned to the hull, a funnel, a mast (a line straight up) */
-  var seq=0; function block(fx, fy, bl, bwid, h){ var c=wp(fx, fy); nbDraw(g, [0,0,bl,bwid,b.a], h, c[0], c[1], 'boat'+bi+'_'+(seq++)); return c; }
-  function funnel(fx, fy, r, h){ var c=wp(fx, fy), lean=NB_SK*r; var d=el('g',{'class':'bt-fun'},g);
-    el('path',{'class':'bt-fb', d:'M'+(c[0]-r)+' '+c[1]+'L'+(c[0]-r)+' '+(c[1]-h)+'A'+r+' '+(r*.45)+' 0 0 1 '+(c[0]+r)+' '+(c[1]-h)+'L'+(c[0]+r)+' '+c[1]+'A'+r+' '+(r*.45)+' 0 0 1 '+(c[0]-r)+' '+c[1]+'Z'},d);
-    el('ellipse',{'class':'bt-ft', cx:c[0], cy:c[1]-h, rx:r, ry:r*.45},d); el('ellipse',{'class':'bt-fh', cx:c[0], cy:c[1]-h, rx:r*.62, ry:r*.26},d); }
-  function mast(fx, fy, h){ var c=wp(fx, fy); el('line',{'class':'bt-mast', x1:c[0], y1:c[1], x2:c[0], y2:c[1]-h},g); return c; }
-  var H0=Math.max(16, Math.min(60, L*.17));
-  if(kind==='cruiser'){ funnel(.04, 0, W*.17, H0*.95); funnel(-.08, 0, W*.17, H0*.95); block(.17, 0, L*.09, W*.34, H0*.85); mast(.17, 0, H0*2.2); mast(-.2, 0, H0*1.8); }
-  else if(kind==='carrier'){ block(.12, q*.62, L*.1, W*.2, H0*1.7); mast(.12, q*.62, H0*2.8); block(-.1, q*.62, L*.04, W*.12, H0*.8); }
-  else if(kind==='sub'){ block(.04, 0, L*.12, W*.3, H0*.9); mast(.07, 0, H0*1.6); mast(.01, 0, H0*1.25); }
-  else if(kind==='tall'){ var n=Math.max(2, Math.min(4, Math.round(L/42))), top=Math.max(30, Math.min(L*.27, W*2.8)), yards=[.4,.62,.82,1];
-    for(var i=0;i<n;i++){ var fx=(-.30+(.58*i/(n-1||1)))*L, c=mast(fx, 0, top);
-      yards.forEach(function(f, yi){ var h=top*f, wd=q*(1.3-yi*.12); var p1=[c[0]+(-sa*-wd), c[1]-h+(ca*-wd)], p2=[c[0]+(-sa*wd), c[1]-h+(ca*wd)];
-        el('line',{'class':'bt-yard', x1:p1[0], y1:p1[1], x2:p2[0], y2:p2[1]},g);
-        if(yi>0){ var h0=top*yards[yi-1], w0=q*(1.3-(yi-1)*.12), a1=[c[0]+(-sa*-w0), c[1]-h0+(ca*-w0)], a2=[c[0]+(-sa*w0), c[1]-h0+(ca*w0)];
-          el('polygon',{'class':'bt-sail', points:[a1,a2,p2,p1].map(function(v){ return v[0].toFixed(1)+','+v[1].toFixed(1); }).join(' ')},g); } }); }
-    block(.36, 0, L*.06, W*.4, H0*.45); }
-  else { block(.02, 0, L*.22, W*.5, H0*(kind==='small'?.7:1)); if(kind!=='small') funnel(-.12, 0, W*.13, H0*.9); mast(.12, 0, H0*1.7); }
-  el('title',{},g).textContent=(b.n||'A boat')+(g.classList.contains('bb')?' — click to man the guns':'');
-  if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-H0*(kind==='tall'?1.0:1.5)-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; }
-}
+/* the toy fleet (palace_fleet_*.py, a hosted script: boats and bases, and what the armed ones do): it draws the boats and bases, and is handed the page's own parts */
+var FHO=null;
+function fleetHost(){ return FHO||(FHO={el:el, pin:pin, nbDraw:nbDraw, svgPt:svgPt, de:de, palaceOn:palaceOn, mob:mob, graph:graph, nearest:nearest, route:route, dk:dk,
+  get svg(){ return svgD; }, get Z(){ return Z; }, get sk(){ return NB_SK; }}); }
 /* ── node buildings: a glass block on each lot, as tall as what is inside it ── */
 var NB_SK=.25;     /* the landmarks' 3/4 view: a building's depth leans right by this much, so its right wall shows; walls stand straight up */
 function nbWeight(id){ var t=TT[id]||{}, w=(t.envs||[]).length+(t.themes||[]).length; (P.fl[id]||[]).forEach(function(f){ var q=TT[f]||{}; w+=(q.envs||[]).length+(q.themes||[]).length; }); return w; }
@@ -2094,61 +1966,6 @@ window.addEventListener('keydown', function(e){
     if(c && c===e.target && n && n.id && isB(n.id.slice(5))){ e.preventDefault(); e.stopPropagation(); enlarge(n.id.slice(5)); } }
 }, true);
 document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTimeout(tipT); labelB(null); lit(null); } });
-/* ── the battleship's guns (a fun extra): click the ship, then a building. Its turrets turn, shells arc to it, it is blown apart — and rebuilt,
-   storey by storey, over 20 seconds. Node buildings and landmark buildings can be hit; nothing is lost. ── */
-var FXARM=false, FXLAST=0, SND=window._palSnd;
-function fxLayer(){ var g=svgD&&svgD._fx; if(!g || g.parentNode!==svgD){ g=svgD._fx=el('g',{'class':'pl-fx'},svgD); } svgD.appendChild(g); return g; }
-function fxBar(on){ var b=document.getElementById('pal-fxbar'); if(!b){ b=document.createElement('div'); b.id='pal-fxbar'; b.setAttribute('role','status'); document.body.appendChild(b);
-    b.innerHTML='<span class="fx-t"></span><button type="button" class="fx-x" aria-label="Stand the guns down" title="Stand down (Esc)">\u00d7</button>';
-    b.addEventListener('click', function(e){ if(e.target.closest('.fx-x')){ e.stopPropagation(); e.preventDefault(); fxBar(false); } }); }
-  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.querySelector('.fx-t').textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' \u2014 click a building to fire \u00b7 Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; SND.bar(b, on); if(!on && window._palPanic) window._palPanic.stop(); }
-function fxTween(ms, fn, done){ var t0=performance.now(); (function f(t){ var k=Math.min(1,(t-t0)/ms); fn(k); if(k<1) requestAnimationFrame(f); else if(done) done(); })(t0); }
-function fxPin(x, y, cls){ var g=pin(fxLayer(), cls, x, y, {}); return g; }
-function fxBoom(x, y){
-  SND.b(x, y);
-  var g=fxPin(x, y, 'fx-boom'), o=g.parentNode;
-  [['#ffd34a',14,520],['#ff7a3c',22,760],['#6b6f7a',30,1500]].forEach(function(c,i){ var k=el('circle',{r:c[1], fill:c[0], 'fill-opacity':i===2?.55:.9},g); k.style.transformBox='fill-box'; k.style.transformOrigin='center';
-    k.animate([{transform:'scale(.15)',opacity:1},{transform:'scale('+(i===2?2.6:1.9)+')',opacity:0}],{duration:c[2],easing:'ease-out',fill:'forwards'}); });
-  var parts=[]; for(var i=0;i<9;i++){ var a=Math.random()*Math.PI*2, v=40+Math.random()*90; parts.push({e:el('rect',{x:-3,y:-3,width:6,height:6,fill:'#44404a'},fxLayer()), vx:Math.cos(a)*v, vy:Math.sin(a)*v-80, x:x, y:y}); }
-  fxTween(1100, function(k){ parts.forEach(function(p){ var t=k*1.1, px=p.x+p.vx*t/Z*.6, py=p.y+(p.vy*t+260*t*t)/Z*.6; p.e.setAttribute('transform','translate('+px.toFixed(1)+' '+py.toFixed(1)+') scale('+(Math.max(.1,1-k)/Z*.9).toFixed(3)+')'); p.e.setAttribute('opacity', (1-k).toFixed(2)); }); },
-    function(){ parts.forEach(function(p){ p.e.remove(); }); setTimeout(function(){ o.remove(); }, 900); });
-}
-function fxShell(x0, y0, x1, y1, ms, hit){
-  var g=fxPin(x0, y0, 'fx-shell'), o=g.parentNode; el('circle',{r:4.2,fill:'#2b2f3b',stroke:'#fff','stroke-width':1.2},g);
-  var d=Math.hypot(x1-x0, y1-y0), h=Math.min(260, d*.28);
-  fxTween(ms, function(k){ o.setAttribute('transform','translate('+(x0+(x1-x0)*k).toFixed(1)+' '+(y0+(y1-y0)*k-4*h*k*(1-k)).toFixed(1)+')'); }, function(){ o.remove(); if(hit) hit(); });
-}
-/* a building struck: it pancakes into rubble and is rebuilt as a construction site over 20 s (palace_construct.py): foundation, crane, steel frame,
-   scaffold, glass hung storey by storey, roof last. A node building is its own svg; a landmark is its group. */
-function fxRuin(el_, tagEl){ if(el_ && window._palCon) window._palCon.run(el_, tagEl); }
-/* the people in it run for their lives (palace_panic.py) */
-var fxRuin0=fxRuin; fxRuin=function(el_, tagEl){ fxRuin0(el_, tagEl); if(window._palPanic) window._palPanic.go({svg:svgD, el:el, pin:pin, Z:Z, graph:graph, nearest:nearest, route:route, dk:dk()}, el_, tagEl); };
-function fxTarget(t){
-  var n=t.closest&&t.closest('#world .node[id^="node-"]'); if(n && n._nbS && !n.classList.contains('pal-floor')){ var S_=n._nbS; return {x:(S_[0]+S_[2])/2, y:S_[3]-(S_[3]-S_[1])*.35, ruin:function(){ var b=n.querySelector(':scope > .nb3d'); if(b) fxRuin(b, n); }}; }
-  var lm=t.closest&&t.closest('#palace-svg .pl-lmb'); if(lm && lm._lm){ var L=lm._lm; return {x:L.x+L.w/2, y:L.y+L.h/2, ruin:function(){ fxRuin(lm, null); }}; }
-  return null;
-}
-function nbFire(tg, boatG){
-  var b=boatG._b, a=b.a*Math.PI/180, now=performance.now(); if(now-FXLAST<1100) return; FXLAST=now; SND.u(b.x, b.y);
-  b._tur.forEach(function(t, i){ var wx=t.abs?t.abs[0]:b.x+Math.cos(a)*t.x, wy=t.abs?t.abs[1]:b.y+Math.sin(a)*t.x, th=Math.atan2(tg.y-wy, tg.x-wx);
-    t.bar.setAttribute('transform', t.abs ? 'translate('+t.abs[0].toFixed(1)+' '+t.abs[1].toFixed(1)+') rotate('+(th*180/Math.PI).toFixed(1)+')' : 'rotate('+(th*180/Math.PI-b.a).toFixed(1)+')');
-    var reach=(t.r&&t.len)?t.r*t.len:b.wid*.62, mx=wx+Math.cos(th)*reach, my=wy+Math.sin(th)*reach;
-    setTimeout(function(){ var f=fxPin(mx, my, 'fx-flash'), q=f.parentNode; el('circle',{r:16,fill:'#ff8a3c','fill-opacity':.55},f); el('circle',{r:11,fill:'#ffe08a'},f); el('circle',{r:5.5,fill:'#fff'},f); setTimeout(function(){ q.remove(); }, 210);
-      var sm=fxPin(mx, my, 'fx-smoke'), sq=sm.parentNode, sc=el('circle',{r:14,fill:'#7b7f8a','fill-opacity':.5},sm); sc.style.transformBox='fill-box'; sc.style.transformOrigin='center'; sc.animate([{transform:'scale(.4)',opacity:.8},{transform:'scale(3.2)',opacity:0}],{duration:1500,easing:'ease-out'}).onfinish=function(){ sq.remove(); };
-      (t.bl||[]).forEach(function(ln){ var r0=t.r*(t.len||3.1); fxTween(380, function(k){ var rc=k<.2?k/.2:(1-k)/.8; ln.setAttribute('x2', (r0-rc*t.r*.7).toFixed(1)); ln.setAttribute('x1', (t.r*.5-rc*t.r*.7).toFixed(1)); }); });
-      var j=(i-1)*26/Z, d=Math.hypot(tg.x-mx, tg.y-my), ms=Math.max(700, Math.min(1500, 500+d*.6)); SND.f(ms);
-      fxShell(mx, my, tg.x+j, tg.y+j*.4, ms, i===0 ? function(){ fxBoom(tg.x, tg.y); tg.ruin(); } : function(){ fxBoom(tg.x+j, tg.y+j*.4); }); }, 140*i); });
-}
-document.addEventListener('click', function(e){
-  if(mob() || !palaceOn()) return;
-  var bb=e.target.closest&&e.target.closest('#palace-svg .pl-boat.bb');
-  if(bb){ e.stopImmediatePropagation(); e.preventDefault(); fxBar(!FXARM); return; }
-  if(!FXARM) return;
-  var tg=fxTarget(e.target); if(!tg){ return; }
-  var cp=svgPt(svgD, e); tg.x=cp[0]; tg.y=cp[1];                                     /* the shells go where the aimer was clicked, not to the building's middle */
-  e.stopImmediatePropagation(); e.preventDefault(); var boat=svgD.querySelector('.pl-boat.bb'); if(boat && boat._b) nbFire(tg, boat);
-}, true);
-window.addEventListener('keydown', function(e){ if(FXARM && e.key==='Escape'){ e.stopImmediatePropagation(); e.preventDefault(); fxBar(false); } }, true);
 /* a click on a building enlarges it (the map comes closer first); a double click goes inside: the second click of the pair
    (it lands on the rising card, its ghost, or the moving map) never toggles anything, it opens the building's page */
 /* a building's page opened while the glide to it was still running (a double-click) must not let that glide land on the hidden board */

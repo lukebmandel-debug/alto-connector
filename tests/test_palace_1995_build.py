@@ -1,16 +1,19 @@
 """1.9.95: a building the battleship shells is rebuilt as a construction site (palace_construct.py), not stretched back up."""
 import re
 
-from alto.build import palace, palace_construct
+from alto.build import palace, palace_construct, palace_fleet_asset
 
 JS = palace_construct.CONSTRUCT_JS
 
 
 def test_the_module_is_wired_into_the_page_and_the_old_stretch_is_gone():
-    assert palace_construct.CONSTRUCT_JS in palace.PALACE_JS and palace_construct.CONSTRUCT_CSS in palace.PALACE_CSS
-    assert "function fxRuin(el_, tagEl){ if(el_ && window._palCon) window._palCon.run(el_, tagEl); }" in palace.PALACE_JS
-    assert "scaleY(" not in palace.PALACE_JS.split("function fxRuin")[1].split("function fxTarget")[0]       # never stretch the building
-    assert "_storeys" not in palace.PALACE_JS
+    # 1.9.99: the rebuild is part of the hosted fleet script (palace_fleet_asset.py), not of the page
+    fj = palace_fleet_asset.FLEET_JS
+    assert palace_construct.CONSTRUCT_JS in palace_fleet_asset.FLEET_ASSET and palace_construct.CONSTRUCT_CSS in palace_fleet_asset.FLEET_CSS_ALL
+    assert palace_construct.CONSTRUCT_JS not in palace.PALACE_JS and palace_construct.CONSTRUCT_CSS not in palace.PALACE_CSS
+    assert "function fxRuin(el_, tagEl){ if(el_ && window._palCon) window._palCon.run(el_, tagEl); }" in fj
+    assert "scaleY(" not in fj.split("function fxRuin")[1].split("function fxTarget")[0]       # never stretch the building
+    assert "_storeys" not in palace.PALACE_JS and "_storeys" not in fj
 
 
 def test_the_node_building_keeps_its_footprint_for_the_rebuild():
@@ -51,7 +54,7 @@ def test_safari_safe_drawing():
 def test_the_real_art_is_put_away_and_restored_and_the_tag_stays_hidden_while_ruined():
     assert "k.style.display='none'" in JS and "k.style.display=''" in JS
     assert "tagEl.classList.add('nb-ruin')" in JS and "tagEl.classList.remove('nb-ruin')" in JS
-    assert ".node.nb-ruin .node-card{opacity:0 !important;pointer-events:none;}" in palace.PALACE_CSS
+    assert ".node.nb-ruin .node-card{opacity:0 !important;pointer-events:none;}" in palace_fleet_asset.FLEET_CSS_ALL
     assert "if(t>=T.end){ r.kill(); continue; }" in JS and "if(!r.S.host.isConnected){ r.kill(); continue; }" in JS
     assert "if(el_._con) el_._con.kill();" in JS                                      # a second hit restarts, never doubles
     assert ".nb-pr,.nb-pr *{pointer-events:none !important;}" in palace_construct.CONSTRUCT_CSS

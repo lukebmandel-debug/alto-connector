@@ -2,7 +2,7 @@
 import gzip
 import re
 
-from alto.build import palace, palace_panic
+from alto.build import palace, palace_fleet_asset, palace_panic
 
 JS = palace_panic.PANIC_JS
 
@@ -12,10 +12,10 @@ def _code(js):
 
 
 def test_the_module_is_wired_in_with_a_few_hooks_and_the_old_fx_line_is_untouched():
-    assert JS in palace.PALACE_JS
-    p = palace.PALACE_JS
+    assert JS in palace_fleet_asset.FLEET_ASSET and JS not in palace.PALACE_JS          # 1.9.99: hosted with the fleet, not in the page
+    p = palace_fleet_asset.FLEET_JS
     assert "function fxRuin(el_, tagEl){ if(el_ && window._palCon) window._palCon.run(el_, tagEl); }" in p        # (test_palace_1995_build asserts this line)
-    assert "window._palPanic.go({svg:svgD, el:el, pin:pin, Z:Z, graph:graph, nearest:nearest, route:route, dk:dk()}, el_, tagEl)" in p
+    assert "window._palPanic.go({svg:H.svg, el:el, pin:pin, Z:H.Z, graph:H.graph, nearest:H.nearest, route:H.route, dk:H.dk()}, el_, tagEl)" in p
     assert "if(!on && window._palPanic) window._palPanic.stop();" in p                                          # Esc / stand down
     assert "'class':'pl-fx pl-panic'" in JS                                                                     # stackLayers keeps .pl-fx on top, never clickable
 
