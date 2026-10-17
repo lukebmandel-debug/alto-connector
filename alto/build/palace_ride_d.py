@@ -16,13 +16,13 @@ function finishModel(M){
     if(sec.veh==='metro'){ var cur=sec.s0; sec.ug.concat([[sec.s1,sec.s1]]).forEach(function(g){ if(g[0]-cur>=40) M._lifts.push([cur,g[0],15,80]); cur=Math.max(cur,g[1]); }); } });
   return M; }
 function sizeCheck(){ var vw=window.innerWidth||document.documentElement.clientWidth, vh=window.innerHeight||document.documentElement.clientHeight;
-  var dpr=Math.min(window.devicePixelRatio||1, Math.sqrt(1.9e6/(vw*vh))); dpr=Math.max(.7, dpr);
-  if(vw!==R.w || vh!==R.h || Math.abs(dpr-R.dpr)>.02){ R.w=vw; R.h=vh; R.dpr=dpr; R.cv.width=Math.round(vw*dpr); R.cv.height=Math.round(vh*dpr); } }
+  var dpr=Math.min(window.devicePixelRatio||1, Math.sqrt((glOk()?2.3e6:1.9e6)/(vw*vh))); dpr=Math.max(.7, dpr);
+  if(vw!==R.w || vh!==R.h || Math.abs(dpr-R.dpr)>.02){ R.w=vw; R.h=vh; R.dpr=dpr; R.cv.width=Math.round(vw*dpr); R.cv.height=Math.round(vh*dpr); glSize(R.cv.width,R.cv.height); } }
 function ensureOverlay(){
   if(R.ov) return;
   var ov=document.createElement('div'); ov.id='pal-ride'; ov.setAttribute('role','region'); ov.setAttribute('aria-label','First-person ride');
   ov.innerHTML='<canvas class="pr-cv" aria-hidden="true"></canvas><div class="pr-chip" aria-hidden="true"></div><div class="pr-btns"><button type="button" data-ride="view"></button><button type="button" data-ride="snd"></button><button type="button" data-ride="exit">Exit ride · Esc</button></div><div class="pr-live" aria-live="polite"></div>';
-  document.body.appendChild(ov); R.ov=ov; R.cv=ov.querySelector('canvas'); R.ctx=R.cv.getContext('2d'); R.chip=ov.querySelector('.pr-chip'); R.live=ov.querySelector('.pr-live'); labelBtns(); }
+  document.body.appendChild(ov); R.ov=ov; R.cv=ov.querySelector('canvas'); R.ctx=R.cv.getContext('2d'); R.chip=ov.querySelector('.pr-chip'); R.live=ov.querySelector('.pr-live'); glAttach(ov); labelBtns(); }
 function labelBtns(){ var fp=pref()==='fp';
   [].forEach.call(document.querySelectorAll('[data-ride=view]'), function(b){ b.textContent=fp?'Map view · V':'Ride view · V'; b.setAttribute('aria-pressed', String(fp)); });
   [].forEach.call(document.querySelectorAll('[data-ride=snd]'), function(b){ b.textContent=sndOn()?'Sound on':'Sound off'; }); }
@@ -30,7 +30,7 @@ function openOv(){ ensureOverlay(); if(R.active) return; R.active=true; document
 function showNow(){ if(!R.shown){ R.shown=true; requestAnimationFrame(function(){ if(R.ov && R.active) R.ov.classList.add('on'); }); } }
 function closeNow(restore, keep){
   if(R.raf){ cancelAnimationFrame(R.raf); R.raf=0; }
-  var ov=R.ov, view=R.saved; R.playing=false; R.cb=null; R.M=null; R.W=null; R.hold=false; R.shown=false; R.yaw=null; R.line=null; TN=null; R.lastEv=null;
+  var ov=R.ov, view=R.saved; if(R.M) glFreeWay(R.M); R.playing=false; R.cb=null; R.M=null; R.W=null; R.hold=false; R.shown=false; R.yaw=null; R.line=null; TN=null; R.lastEv=null;
   document.documentElement.classList.remove('pal-fp'); R.active=false; if(!keep) R.saved=null;
   if(restore && view && E.putView) E.putView(view);                       /* the map as it was when the ride began; the overlay fades out over it */
   if(ov){ ov.classList.remove('on'); }
@@ -64,6 +64,12 @@ function drawEl(ctx, M, P, s){        /* the viaduct under an elevated stretch: 
 /* the city around the camera (C, set by setCam): sky, ground, whatever `way` draws on the ground (track, road, nothing), buildings, labels.
    Used by the rides (palace_ride_d.py render) and by free roaming. W is a world from gather()/the roamer's streaming. */
 function drawCity(ctx, W, H, P, Wd, yaw, tm, way){
+  /* WebGL when the overlay has it (the city goes to the .pr-gl canvas under this one; `way` is then called with the GL api, `g`, instead of nothing);
+     the 2D painter below stays as the fallback (no WebGL, context lost) */
+  if(ctx===R.ctx && glFrame(ctx, W, H, P, Wd, yaw, tm, way)){
+    drawLabels(ctx, Wd.labels, P, H/900);
+    if(Wd.stopLabels) drawLabels(ctx, Wd.stopLabels, P, H/900);
+    return; }
   drawSky(ctx, W, H, P, yaw, tm);
   drawGround(ctx, Wd, P, null, null);
   if(way) way();
@@ -76,6 +82,7 @@ function render(dt){
   var M=R.M; if(!M || !R.ctx) return; var t0=performance.now(); sizeCheck(); RIDE_M=M;
   var ctx=R.ctx, W=R.w, H=R.h, dpr=R.dpr, P=R.PAL, st=evalAt(M, R.t), D=M.D, ev=st.ev;
   var secI=st.sec, sec=M.secs[secI]||M.secs[0], veh=(st.dwell?(M.secs[st.dwell.sec]||sec).veh:st.veh)||sec.veh, spec=VEH[veh]||VEH.walk, s=st.s;
+  if(glOk()){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,R.cv.width,R.cv.height); }          /* the 2D canvas is transparent over the GL city */
   ctx.setTransform(dpr,0,0,dpr,0,0);
   /* camera */
   var hT=headAt(D, s, 14+(spec.fil>60?30:6));
@@ -90,12 +97,15 @@ function render(dt){
   setCam(px, py, camZ, R.yaw, W, H, veh==='bus'?.43:.455);
   ctx.save(); ctx.translate(W/2+swx,H/2+swy); ctx.rotate(roll); ctx.scale(1.012,1.012); ctx.translate(-W/2,-H/2);
   if(alpha<.999){
-    if(!R.W) R.W=gather(M);
-    drawCity(ctx, W, H, P, R.W, R.yaw, tm, function(){
+    if(!R.W){ R.W=gather(M); GLX.newWorld(); }
+    C.shk={x:swx, y:swy, r:roll, s:1.012};
+    drawCity(ctx, W, H, P, R.W, R.yaw, tm, function(g){
+      if(g){ g.way(M); return; }                    /* GL: the way is a static mesh of the model (palace_ride_gl.py) */
       drawWay(ctx, M, P, s, sec, off);
       if(M._br) drawBridges(ctx, M, P, s);
       if(M._lifts.length) drawEl(ctx, M, P, s);
       if(ug.ahead>=0 && ug.ahead-s<520 && ug.ahead-s>2 && sec.line) drawPortal(ctx, M, P, ug.ahead, sec.veh, sec.color); });
+    C.shk=null;
   }
   if(alpha>.001){
     var calm=0; if(veh!=='walk'&&veh!=='car') calm=1-sstep(.03,.4,spd);
@@ -117,6 +127,7 @@ function render(dt){
   /* sound and words */
   if(st.dwell && st.dwell!==R.lastEv && st.u>.08 && st.u<.5 && (st.dwell.kind==='board'||st.dwell.kind==='stop'||st.dwell.kind==='alight')){ R.lastEv=st.dwell; if(!R.quiet) chime(); }
   chipUpdate(M, sec, veh, s, st, nxt);
+  if(R.quiet && glOk()) GLX.flush();                                    /* tests and bench(): make the GPU finish before the clock stops */
   var ms=performance.now()-t0; R.ms=R.ms?R.ms*.9+ms*.1:ms; R.frames++; if(ms>R.worst) R.worst=ms; (R.samples=R.samples||[]).push(ms); if(R.samples.length>600) R.samples.shift();
 }
 function signText(sec, M){ var last=sec.stops&&sec.stops.length?sec.stops[sec.stops.length-1].n:''; var nm=sec.line?sec.line.n:'';
@@ -148,8 +159,9 @@ function startModel(M, cb, opts){
   opts=opts||{}; openOv(); finishModel(M);
   M._cuts=[]; M.ev.forEach(function(e,i){ if(e.k==='dwell' && e.kind==='board') M._cuts.push(e.t0); if(e.k==='dwell' && e.kind==='alight') M._cuts.push(e.t1); });
   var cont=R.active && R.hold && R.M && R.shown && opts.continueFrom && Math.hypot(R.M.D.X[R.M.D.X.length-1]-M.D.X[0], R.M.D.Y[R.M.D.Y.length-1]-M.D.Y[0])<3;
+  if(R.M && R.M!==M) glFreeWay(R.M);
   M._noFade=!!cont; R.fresh=!cont; R.M=M; R.W=null; R.t=opts.t0||0; R.cb=cb||null; R.sig=''; R.lastEv=null; R.yaw=null; R.hold=false; R.line=opts.line||null;
-  var W=gather(M); R.W=W; M._br=bridgeSpans(M, W); if(M._br.length){ M._br.forEach(function(g){ M._lifts.push([g[0],g[1],5,40]); }); }
+  var W=gather(M); R.W=W; GLX.newWorld(); M._br=bridgeSpans(M, W); if(M._br.length){ M._br.forEach(function(g){ M._lifts.push([g[0],g[1],5,40]); }); }
   W.stopLabels=[]; M.secs.forEach(function(sec){ if(!sec.line||sec.veh==='walk') return; sec.stops.forEach(function(q,qi){ if(sec.ug.some(function(g){ return q.s>=g[0]&&q.s<=g[1]; })) return; var o={x:0,y:0}; pathAt(M.D,q.s,o); W.stopLabels.push({x:o.x,y:o.y,z:12,text:q.n,col:sec.color}); }); });
   if(reduced()){ R.t=M.T; R.playing=false; R.hold=true; R.fresh=false; render(0); showNow(); if(cb){ R.cb=null; var D=M.D; setTimeout(function(){ cb(D.X[D.X.length-1], D.Y[D.Y.length-1]); }, 700); } return; }
   R.playing=opts.hold?false:true; kick(); }

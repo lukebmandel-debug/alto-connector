@@ -96,8 +96,9 @@ function gatherWorld(set, M){
   return W; }
 
 /* ── the camera and the 3D drawing ── */
-var C={x:0,y:0,z:2,fx:1,fy:0,rx:0,ry:1,foc:800,hx:0,hy:0,W:0,H:0,tan:1,yaw:0};
-function setCam(x,y,z,yaw,W,H,hz){ C.x=x; C.y=y; C.z=z; C.yaw=yaw; C.fx=Math.cos(yaw); C.fy=Math.sin(yaw); C.rx=-C.fy; C.ry=C.fx; C.W=W; C.H=H; C.foc=H*.98; C.hx=W/2; C.hy=H*hz; C.tan=(W/2)/C.foc; }
+var C={x:0,y:0,z:2,fx:1,fy:0,rx:0,ry:1,foc:800,hx:0,hy:0,W:0,H:0,tan:1,yaw:0,pitch:0,shk:null};
+/* pitch (radians, up positive) tilts the GL view; the 2D fallback ignores it */
+function setCam(x,y,z,yaw,W,H,hz,pitch){ C.x=x; C.y=y; C.z=z; C.yaw=yaw; C.pitch=pitch||0; C.fx=Math.cos(yaw); C.fy=Math.sin(yaw); C.rx=-C.fy; C.ry=C.fx; C.W=W; C.H=H; C.foc=H*.98; C.hx=W/2; C.hy=H*hz; C.tan=(W/2)/C.foc; }
 function vis(cx,cy,r){ var dx=cx-C.x, dy=cy-C.y, zc=dx*C.fx+dy*C.fy; if(zc+r<NEARZ || zc-r>FARZ) return false; var xc=dx*C.rx+dy*C.ry; return Math.abs(xc)-r < (zc+r)*C.tan*1.18+r*.2; }
 var _wx=new Float64Array(1024), _wz=new Float64Array(1024), _wy=new Float64Array(1024), _ox=new Float64Array(1024), _oz=new Float64Array(1024), _oy=new Float64Array(1024);
 /* a flat polygon (ring x,y,x,y…) at height zh (or the per-vertex heights zs), clipped at the near plane; leaves the path on ctx, false when nothing shows */
@@ -119,7 +120,9 @@ function wallPath(ctx, ax,ay,bx,by,z0,z1){
   if(za<NEARZ){ t=(NEARZ-za)/(zb-za); xa+=(xb-xa)*t; za=NEARZ; } else if(zb<NEARZ){ t=(NEARZ-zb)/(za-zb); xb+=(xa-xb)*t; zb=NEARZ; }
   var ka=C.foc/za, kb=C.foc/zb, sa=C.hx+xa*ka, sb=C.hx+xb*kb;
   ctx.beginPath(); ctx.moveTo(sa, C.hy-(z0-C.z)*ka); ctx.lineTo(sb, C.hy-(z0-C.z)*kb); ctx.lineTo(sb, C.hy-(z1-C.z)*kb); ctx.lineTo(sa, C.hy-(z1-C.z)*ka); ctx.closePath(); return true; }
-function project(x,y,z,o){ var dx=x-C.x, dy=y-C.y, zc=dx*C.fx+dy*C.fy; if(zc<NEARZ) return false; var xc=dx*C.rx+dy*C.ry, k=C.foc/zc; o.x=C.hx+xc*k; o.y=C.hy-(z-C.z)*k; o.k=k; o.d=zc; return true; }
+function project(x,y,z,o){ var dx=x-C.x, dy=y-C.y, zc, yc, p=C.pitch;
+  if(p){ var cp=Math.cos(p), sp=Math.sin(p), dz=z-C.z, fd=dx*C.fx+dy*C.fy; zc=fd*cp+dz*sp; yc=dz*cp-fd*sp; } else { zc=dx*C.fx+dy*C.fy; yc=z-C.z; }
+  if(zc<NEARZ) return false; var xc=dx*C.rx+dy*C.ry, k=C.foc/zc; o.x=C.hx+xc*k; o.y=C.hy-yc*k; o.k=k; o.d=zc; return true; }
 var _pr={x:0,y:0,k:0,d:0};
 function strip(ax,ay,bx,by,w,ext){ var dx=bx-ax, dy=by-ay, l=Math.hypot(dx,dy)||1, ux=dx/l, uy=dy/l, nx=-uy*w/2, ny=ux*w/2; ax-=ux*(ext||0); ay-=uy*(ext||0); bx+=ux*(ext||0); by+=uy*(ext||0);
   return [ax+nx,ay+ny, bx+nx,by+ny, bx-nx,by-ny, ax-nx,ay-ny]; }

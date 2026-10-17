@@ -26,6 +26,7 @@ from .palace_ride_d import JS_D
 from .palace_ride_e import JS_E, CSS_E
 from .palace_ride_f import JS_F, CSS_F
 from .palace_ride_g import JS_G, CSS_G
+from .palace_ride_gl import CSS_GL, JS_GL
 from .palace_ride_h import JS_H
 from .palace_ride_mesh import JS_MB
 
@@ -51,7 +52,7 @@ RIDE_CSS_MAIN = r"""
   @media (prefers-reduced-motion: reduce){#pal-ride{transition:none;}}
 """
 
-RIDE_CSS = RIDE_CSS_MAIN + CSS_E + CSS_F + CSS_G
+RIDE_CSS = RIDE_CSS_MAIN + CSS_GL + CSS_E + CSS_F + CSS_G
 
 _API = r"""
 function init(e){ E=e; RIDE_M=null; if(!init.done){ init.done=1; bind(); } return true; }
@@ -74,4 +75,4 @@ window._palRide={roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(typeof UIX!=='u
   canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; }};
 """
 
-RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + _API + "})();\n"
+RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + _API + "})();\n"
