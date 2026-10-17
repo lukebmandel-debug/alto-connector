@@ -55,7 +55,7 @@ def test_each_portal_goes_from_where_it_stands_and_a_return_never_lands_on_the_c
 def test_node_buildings_are_glass_blocks_as_tall_as_what_is_inside():
     js, css = palace.PALACE_JS, palace.PALACE_CSS
     assert "function nbDraw(" in js and "function nbBuild(" in js and "function nbHeight(id)" in js
-    assert "(t.envs||[]).length)+(t.themes||[]).length" in js                      # height = the cases and sections under the node (and its floors)
+    assert "(t.envs||[]).length+(t.themes||[]).length" in js                      # height = the cases and sections under the node (and its floors)
     assert "Math.min(100, 28+9*nbWeight(id))" in js                               # low-to-mid rise: always far below the landmark towers
     assert "nzRank" in js and "'--nz'" in js                                       # back to front, so a building stands in front of those behind it
     assert ".node .nb3d{position:absolute" in css and "translate:calc(-50% + var(--z,1)" in css      # the number is a tag floating over the roof
