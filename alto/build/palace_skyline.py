@@ -1012,7 +1012,7 @@ def _arena():
 def _stadium():
     """A generic open stadium (any city's ground without its own art; about 260 x 220 m): an oval bowl of stands round an open pitch."""
     W, D = 260.0, 220.0
-    R = _ccw(_super(W, D, 2.2, 56))
+    R = _ccw(_super(W, D, 2.2, 36))
     O = _inset(R, 46)
     return {"h": 62, "D": D, "fit": 1, "parts": [
         {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 30, "m": "stone", "fl": 7.5, "mu": 2, "top": False},
@@ -1026,7 +1026,7 @@ def _lff():
     """Lincoln Financial Field (Eagles, 2003; its OSM outline 252 x 285 m, the roof about 60 m): a rounded oval bowl of glass-and-silver stands,
     the open pitch inside with its end zones, the roof's edge sweeping up over the sidelines and down at the ends, floodlight masts on it."""
     W, D = 252.0, 285.0
-    R = _ccw(_super(W, D, 2.35, 64))
+    R = _ccw(_super(W, D, 2.35, 44))
     O = _inset(R, 50)
     I = _inset(R, 34)
     r5 = _inset(R, 5)
@@ -1042,7 +1042,7 @@ def _lff():
 def _cbp():
     """Citizens Bank Park (Phillies, 2004; its OSM outline 281 x 263 m): a red-brick and sandstone ballpark — the grandstand tall behind home
     plate and round the infield, falling to a low outfield; inside, the diamond with its fan of grass and the fence at its uneven distance."""
-    R = _ccw(_chaikin(_CBP, 3))
+    R = _ccw(_chaikin(_CBP, 2))
     W, D = 281.0, 263.0
     hp = (-10.0, 96.0)
     face = {"base": 14.0, "amp": 24.0, "dir": (-0.25, -1.0), "c": (0.0, 131.0), "pow": 1.4}
