@@ -29,6 +29,8 @@ from .palace_ride_g import JS_G, CSS_G
 from .palace_ride_gl import CSS_GL, JS_GL
 from .palace_ride_h import JS_H
 from .palace_ride_mesh import JS_MB
+from .palace_ride_real import JS_REAL
+from .palace_ride_street import JS_STREET
 
 RIDE_CSS_MAIN = r"""
   #pal-ride{position:fixed;left:0;top:0;right:0;bottom:0;z-index:399;background:#05060a;opacity:0;pointer-events:none;transition:opacity .28s ease;}
@@ -69,13 +71,13 @@ function bench(n){ var M=R.M; if(!M) return null; R.quiet=1; var t=[], ctx=R.ctx
   t.sort(function(p,q){ return p-q; }); return {n:n, avg:t.reduce(function(p,q){ return p+q; },0)/n, p50:t[n>>1], p95:t[Math.floor(n*.95)], max:t[n-1], w:R.w, h:R.h, dpr:R.dpr}; }
 function play(){ if(R.M){ R.playing=true; kick(); } }
 function pause(){ R.playing=false; }
-window._palRide={roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(typeof UIX!=='undefined'?UIX:null), mb:MB, init:init, leg:leg, lineEnter:lineEnter, lineStep:lineStep, exit:exit, mark:mark, switchHtml:switchHtml, toggle:toggle,
+window._palRide={real:REAL, roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(typeof UIX!=='undefined'?UIX:null), mb:MB, init:init, leg:leg, lineEnter:lineEnter, lineStep:lineStep, exit:exit, mark:mark, switchHtml:switchHtml, toggle:toggle,
   active:function(){ return R.active; }, pref:pref, setPref:function(v){ setPref(v); labelBtns(); }, stats:stats, resetStats:resetStats, demo:demo, simTo:simTo, bench:bench, play:play, pause:pause,
   model:function(){ return R.M; }, time:function(){ return R.t; }, flash:function(){ return {RING_HZ:RING_HZ, MAX_FLASH_HZ:MAX_FLASH_HZ, BAR_HZ:BAR_HZ, HUE_DPS:HUE_DPS}; }, build:buildModel,
   canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; }};
 """
 
-RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + _API + "})();\n"
+RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + JS_REAL + JS_STREET + _API + "})();\n"
 
 
 # ── the ride is code the page loads, not part of the page ──────────────────
