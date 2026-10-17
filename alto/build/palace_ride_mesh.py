@@ -24,7 +24,7 @@ var MB={
   v:function(m,x,y,z,nx,ny,nz,u,v,mat,tint){ m.a.push(x,y,z,nx,ny,nz,u,v,mat,tint||0); },
   tri:function(m,A,B,C,nx,ny,nz,mat,tint,uvA,uvB,uvC){ MB.v(m,A[0],A[1],A[2],nx,ny,nz,uvA[0],uvA[1],mat,tint); MB.v(m,B[0],B[1],B[2],nx,ny,nz,uvB[0],uvB[1],mat,tint); MB.v(m,C[0],C[1],C[2],nx,ny,nz,uvC[0],uvC[1],mat,tint); },
   /* a quad A B C D (counter-clockwise seen from the front), normal from the corners; uv: u runs A->B in metres, v runs A->D in metres */
-  quad:function(m,A,B,C,D,mat,tint,uv){ var ux=B[0]-A[0], uy=B[1]-A[1], uz=B[2]-A[2], vx=D[0]-A[0], vy=D[1]-A[1], vz=D[2]-A[2], nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx, l=-(Math.sqrt(nx*nx+ny*ny+nz*nz)||1); nx/=l; ny/=l; nz/=l;       /* negative: the right-handed cross of CCW-seen corners points INTO the surface (x east, y south, z up is a left-handed frame) */
+  quad:function(m,A,B,C,D,mat,tint,uv){ var ux=B[0]-A[0], uy=B[1]-A[1], uz=B[2]-A[2], vx=D[0]-A[0], vy=D[1]-A[1], vz=D[2]-A[2], nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx, l=-Math.sqrt(nx*nx+ny*ny+nz*nz)||-1; nx/=l; ny/=l; nz/=l;      /* winding is clockwise seen from outside (right-hand cross points INWARD), so the outward normal is its negative */
     var lu=(uv&&uv.w!=null)?uv.w:Math.sqrt(ux*ux+uy*uy+uz*uz)/UM, lv=(uv&&uv.h!=null)?uv.h:Math.sqrt(vx*vx+vy*vy+vz*vz)/UM, u0=uv&&uv.u0||0, v0=uv&&uv.v0||0;
     MB.tri(m,A,B,C,nx,ny,nz,mat,tint,[u0,v0],[u0+lu,v0],[u0+lu,v0+lv]); MB.tri(m,A,C,D,nx,ny,nz,mat,tint,[u0,v0],[u0+lu,v0+lv],[u0,v0+lv]); },
   /* a wall from (ax,ay) to (bx,by), from z0 up to z1; its outward side is to the LEFT of A->B seen from above with y down (see ringCCW) */

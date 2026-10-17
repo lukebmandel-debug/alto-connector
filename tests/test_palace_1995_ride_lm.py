@@ -99,7 +99,7 @@ def test_mesh_builders_are_added_and_the_winding_is_stated():
     for fn in ("MB.trin=", "MB.face=", "MB.slab=", "MB.cap=", "MB.loft=", "MB.band=", "MB.roofTiers=", "MB.lathe=", "MB.col=", "MB.decal=", "MB.pediment=", "MB.steps="):
         assert fn in js, fn
     assert "WINDING" in palace_ride_mesh.__doc__ and "counter-clockwise for a viewer standing OUTSIDE" in palace_ride_mesh.__doc__
-    assert "l=-(Math.sqrt(nx*nx+ny*ny+nz*nz)||1)" in js                 # quad(): the normal points OUT (the old one pointed into the building)
+    assert "l=-Math.sqrt(nx*nx+ny*ny+nz*nz)||-1" in js                 # quad(): the normal points OUT (the old one pointed into the building)
     for sig in ("mk:function(){", "v:function(m,x,y,z,nx,ny,nz,u,v,mat,tint)", "quad:function(m,A,B,C,D,mat,tint,uv)", "prism:function(m,ring,z0,z1,wallMat,roofMat,tint)",
                 "box:function(m,x0,y0,z0,x1,y1,z1,wallMat,roofMat,tint)", "cyl:function(m,cx,cy,z0,z1,r,seg,mat,roofMat,tint)", "dome:function(m,cx,cy,z,r,rings,seg,mat,tint)"):
         assert sig in js, sig                                           # no existing signature changed
