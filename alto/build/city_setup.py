@@ -391,6 +391,41 @@ def landmarks_of(els, bbox, n_max=16, skip_names=()):
     return out
 
 
+def stations_of(els, bbox, n_max=3):
+    """The city's main-line railway stations (named, trains calling, not a subway or tram stop) as landmark names, the
+    biggest first: an outline or an intercity operator or a famous one, 200 m apart at least."""
+    rows = []
+    for e in els:
+        t = e.get("tags") or {}
+        n = t.get("name")
+        if not n or len(n) > 60:
+            continue
+        if not (t.get("railway") == "station" or t.get("public_transport") == "station"):
+            continue
+        if t.get("subway") == "yes" or t.get("light_rail") == "yes" or t.get("tram") == "yes" or t.get("station") in ("subway", "light_rail", "tram"):
+            continue
+        if not (t.get("train") == "yes" or t.get("station") == "train" or re.search(r"amtrak|rail|nj ?transit|metra|marc|vre|mbta commuter", str(t.get("network") or "") + " " + str(t.get("operator") or ""), re.I)):
+            continue
+        ll = _latlon(e)
+        if not _in(bbox, ll):
+            continue
+        sc = 3 * bool(re.search(r"amtrak", str(t.get("network") or "") + str(t.get("operator") or ""), re.I)) \
+            + 2 * (e.get("type") in ("way", "relation")) + 2 * bool(t.get("wikidata") or t.get("wikipedia")) \
+            + bool(re.search(r"station|terminal|union", n, re.I)) + (_num(t.get("height")) or 0) / 100.0
+        rows.append((sc, n, ll))
+    rows.sort(key=lambda r: (-r[0], r[1]))
+    out, seen = [], set()
+    for sc, n, ll in rows:
+        k = re.sub(r"(?i)^philadelphia |\bstation\b|[^a-z0-9]", "", n.lower())
+        if k in seen or any(_dist_m(ll, o[1]) < 200 for o in out):
+            continue
+        seen.add(k)
+        out.append((n, ll))
+        if len(out) >= n_max:
+            break
+    return [n for n, _ll in out]
+
+
 def towers_of(els, bbox, n_max=8):
     """Named buildings >= 120 m or >= 35 floors, tallest first: [{name, floors?, height_m?}]."""
     rows = {}
@@ -525,7 +560,9 @@ def auto_params(raw, bbox, place, m=None, n_landmarks=16) -> dict:
         if e.get("type") in ("way", "relation") and (t.get("building") or t.get("historic") or t.get("amenity")) \
                 and n.lower() not in tower_names:
             blds.append({"name": n})
-    landmarks = list(dict.fromkeys([n for _s, n, _l, _e in lms] + [t["name"] for t in towers]))
+    stn = [n for n in stations_of(els, bbox) if n.lower() not in tower_names and n.lower() not in {x[1].lower() for x in lms}]
+    blds += [{"name": n} for n in stn]                  # the main-line stations are landmark buildings too (art: stations)
+    landmarks = list(dict.fromkeys([n for _s, n, _l, _e in lms] + [t["name"] for t in towers] + stn))
     return {"place": place, "bbox": [round(v, 5) for v in bbox], "majors": majors, "landmarks": landmarks,
             "landmark_buildings": blds, "diagonals": diagonals_of(m, majors), "parks": parks, "areas": areas,
             "rail_lines": [], "transit": transit_of(els), "auto": True}

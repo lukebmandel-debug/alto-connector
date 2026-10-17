@@ -144,7 +144,7 @@ ART = _sky.build_all()
 # which landmark names get which art (the page's own label, case-insensitive)
 MATCH = [["usch", r"byrne|601 market|united states court ?house.*philadelphia"], ["nix", r"\bnix\b|900 market"],
          ["cjc", r"criminal justice center|1301 filbert"], ["ind", r"independence hall"], ["city", r"city hall"], ["art", r"art museum|museum of art|philadelphia museum"],
-         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"]] + _towers.MATCH
+         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"], ["sub", r"suburban station"], ["jef", r"jefferson station"]] + _towers.MATCH
 
 
 COURT_RX = r"court ?house|courts? building|justice cent(er|re)|hall of justice|palace of justice|supreme court|court of appeals"

@@ -33,6 +33,13 @@ MATCH = [[k, p] for k, p, _ in TOWERS]
 FLOORS = {k: n for k, _, n in TOWERS}
 
 
+def is_station(name: str) -> bool:
+    """A railway station building (30th Street Station, Penn Center Suburban Station, Jefferson Station): a landmark that,
+    when its footprint overlaps another landmark's block, settles on the one free block of it nearest its real spot."""
+    import re
+    return bool(re.search(r"\bstation\b|\bterminal\b", str(name or ""), re.I))
+
+
 def tower_key(name: str) -> str:
     for k, p, _ in TOWERS:
         if re.search(p, name or "", re.I):

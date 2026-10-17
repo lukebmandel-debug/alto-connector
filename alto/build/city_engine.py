@@ -548,7 +548,7 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
         if own:
             return min(own, key=lambda d: abs(ring_area(d.poly)))
         return min(grid_doms, key=lambda d: _ring_d((x, y), d.poly))
-    from .palace_towers import tower_key
+    from .palace_towers import tower_key, is_station
     lms = []
     lm_cells = {did: set() for did in by_id}
     for spec in lm_specs or ():
@@ -586,6 +586,14 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                 if not free_:
                     continue
                 (a0, b0), = free_[:1]; a1, b1 = a0 + 1, b0 + 1
+                cells = {(a0, b0)}
+            elif is_station(spec.get("name") or ""):          # a station beside a tower: the free block of its footprint nearest its real spot
+                taken_ = set().union(*[l_["cells"] for l_ in lms if l_["dom"] == d.id])
+                cx_, cy_ = (lx0 + lx1) / 2, (ly0 + ly1) / 2
+                free_ = sorted(cells - taken_, key=lambda c: (cx_ - (xg[c[0]] + xg[c[0] + 1]) / 2) ** 2 + (cy_ - (yg[c[1]] + yg[c[1] + 1]) / 2) ** 2)
+                if not free_:
+                    continue
+                a0, b0 = free_[0]; a1, b1 = a0 + 1, b0 + 1
                 cells = {(a0, b0)}
             else:
                 continue

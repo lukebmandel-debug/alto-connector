@@ -717,14 +717,39 @@ def _convention():
 
 
 def _station():
-    """30th Street Station (1933; about 195 x 100 m, 32 m): the long block of pale stone, its giant
-    columns, the stepped parapet."""
-    return {"h": 32, "D": 100, "parts": [
-        {"k": "box", "w": 195, "v": 0, "d": 100, "y0": 0, "y1": 26, "m": "stone", "solid": 1},
-        {"k": "strip", "w": 170, "y0": 3, "y1": 21, "t": "win", "op": .55},
-        {"k": "cols", "w": 172, "y0": 2, "y1": 22, "n": 12},
-        {"k": "door", "w": 9, "h": 12},
-        {"k": "box", "w": 70, "cv": 50, "d": 40, "y0": 26, "y1": 32, "m": "stone", "solid": 1, "sheen": False}]}
+    """William H. Gray III 30th Street Station (1933, Graham, Anderson, Probst & White; about 190 x 100 m, 36 m): the
+    long Neoclassical block of pale stone — a central concourse block behind a front of giant columns, a cornice
+    and a low slate roof, a lower wing at each end with its own colonnade."""
+    return {"h": 36, "D": 100, "parts": [
+        *[q for x in (-70, 70) for q in (
+            {"k": "box", "x": x, "w": 50, "v": 0, "d": 100, "y0": 0, "y1": 23, "m": "stone", "solid": 1, "fl": 7.5, "sheen": False},
+            {"k": "cols", "x": x, "w": 46, "y0": 2, "y1": 21, "n": 5},
+            {"k": "box", "x": x, "w": 50, "v": 0, "d": 100, "y0": 23, "y1": 25, "m": "trim", "sheen": False, "top": False})],
+        {"k": "box", "w": 92, "v": 0, "d": 100, "y0": 0, "y1": 29, "m": "stone", "solid": 1, "fl": 9.5},
+        {"k": "strip", "w": 84, "y0": 4, "y1": 23, "t": "win", "op": .42},
+        {"k": "cols", "w": 90, "y0": 2, "y1": 27, "n": 10},
+        {"k": "box", "w": 92, "v": 0, "d": 100, "y0": 29, "y1": 31.5, "m": "trim", "sheen": False, "top": False},
+        {"k": "hip", "w": 88, "v": 6, "d": 88, "y0": 31.5, "y1": 35, "inset": 26, "m": "mansard"},
+        {"k": "door", "w": 10, "h": 13}]}
+
+
+def _suburban():
+    """Penn Center Suburban Station (1930 Art Deco office building over the commuter station; 78 m): a broad limestone
+    base, two setbacks and a small slate cap."""
+    return {"h": 78, "D": 46, "parts": [
+        {"k": "box", "w": 92, "v": 0, "d": 46, "y0": 0, "y1": 40, "m": "stone", "solid": 1, "fl": 6.5, "mu": 9, "sheen": False},
+        {"k": "box", "w": 66, "cv": 23, "d": 32, "y0": 40, "y1": 60, "m": "stone", "solid": 1, "fl": 6.5, "mu": 6},
+        {"k": "box", "w": 42, "cv": 23, "d": 22, "y0": 60, "y1": 73, "m": "stone", "solid": 1, "mu": 4, "sheen": False},
+        {"k": "hip", "w": 40, "cv": 23, "d": 20, "y0": 73, "y1": 78, "inset": 9, "m": "mansard"},
+        {"k": "door", "w": 8, "h": 9}]}
+
+
+def _jefferson():
+    """Jefferson Station (Market East): a low glass concourse pavilion under a flat canopy, the way down to the trains."""
+    return {"h": 16, "D": 56, "parts": [
+        {"k": "box", "w": 70, "v": 0, "d": 56, "y0": 0, "y1": 13, "m": "glass", "fl": 6.5, "mu": 9, "top": False},
+        {"k": "hip", "w": 70, "v": 0, "d": 56, "y0": 13, "y1": 17, "inset": 12, "m": "glass"},
+        {"k": "door", "w": 9, "h": 9}]}
 
 
 # ── courthouses (law classes: federal / state / city courts as landmarks) ───
@@ -845,7 +870,7 @@ def _generic():
 
 
 LANDMARKS = {"ind": _independence, "city": _cityhall, "art": _artmuseum, "frank": _franklin, "conv": _convention,
-             "stn": _station, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
+             "stn": _station, "sub": _suburban, "jef": _jefferson, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
              "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc}
 
 

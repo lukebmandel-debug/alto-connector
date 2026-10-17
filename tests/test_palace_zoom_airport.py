@@ -50,3 +50,18 @@ def test_city_hall_is_a_ring_round_an_open_courtyard():
     ws = [p for p in spec["parts"] if p["k"] == "box" and p.get("top") is False]
     assert len(ws) >= 4                                                           # south, north and two side wings
     assert palace_skyline.Sky(spec).H > 250                                      # the tower still rises over the block
+
+
+def test_main_line_stations_are_landmarks_with_their_own_art():
+    from alto.build import palace_landmarks, palace_towers, city_setup
+    assert {"stn", "sub", "jef"} <= set(palace_skyline.LANDMARKS)
+    for k in ("stn", "sub", "jef"):
+        palace_skyline.Sky(palace_skyline.LANDMARKS[k]())                         # each draws
+    assert palace_landmarks.art_key({"n": "William H. Gray III 30th Street Station"}) == "stn"
+    assert palace_landmarks.art_key({"n": "Penn Center Suburban Station"}) == "sub"
+    assert palace_landmarks.art_key({"n": "Jefferson Station"}) == "jef"
+    assert palace_towers.is_station("Penn Center Suburban Station") and not palace_towers.is_station("Cira Centre")
+    els = [{"type": "way", "id": 1, "tags": {"name": "Union Station", "railway": "station", "train": "yes", "network": "Amtrak"},
+            "geometry": [{"lat": 38.8975, "lon": -77.0}, {"lat": 38.8976, "lon": -77.0001}]},
+           {"type": "node", "id": 2, "lat": 38.9, "lon": -77.02, "tags": {"name": "Metro Center", "railway": "station", "subway": "yes"}}]
+    assert city_setup.stations_of(els, (38.8, -77.2, 39.0, -76.9)) == ["Union Station"]       # a subway stop is not a main-line station
