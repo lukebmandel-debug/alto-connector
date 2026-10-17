@@ -604,8 +604,11 @@ PALACE_CSS = KEY_CSS + r"""
   html.dark .pal-svg .pl-bld .b-card{fill:rgba(36,38,50,.92);}
   html.dark .pal-svg .pl-bld .b-floor{fill:rgba(36,38,50,.75);}
   .pal-svg .pl-bld .b-num{font-weight:800;stroke:none;}
+  .pal-svg .pl-bld .b-tag{fill:var(--surface,#fff);stroke-width:1.5;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-bld.pal-hot .b-tag,.pal-svg .pl-bld:hover .b-tag{stroke-width:3;}
   .pal-svg .pl-bld.pal-hot .b-card,.pal-svg .pl-bld:hover .b-card{stroke-width:3;}
   .pal-svg .pl-bld.pal-dim{opacity:.3;}
+  .pal-svg .pl-bld{transition:opacity .22s ease;} .pal-svg .pl-bld.nb-see{opacity:.2;}
   .pal-svg .pl-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-route{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:7;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-route-sh{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.4;vector-effect:non-scaling-stroke;
@@ -635,27 +638,52 @@ PALACE_CSS = KEY_CSS + r"""
      its number on it, its floors stacked behind it; enlarged it is the ordinary card */
   html.alto-palace #world .node{z-index:3;}
   html.alto-palace #world .node.pal-floor{display:none !important;}
-  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card{width:var(--pw,40px) !important;height:var(--ph,26px) !important;
-    min-width:0 !important;max-width:none !important;min-height:0 !important;padding:0 !important;border-radius:5px !important;
-    display:flex !important;align-items:center;justify-content:center;overflow:hidden !important;rotate:var(--pr,0deg);transform-origin:50% 50% !important;
-    border:1.5px solid color-mix(in srgb,var(--pc,#888) 70%,transparent) !important;border-top:3px solid var(--pc,#888) !important;
-    box-shadow:var(--pfl,0 0 0 transparent),0 3px 10px rgba(20,26,55,.18) !important;}
+  /* v1.9.85+: a building is a glass block on its lot (.nb3d, drawn once per lot by nbBuild, scaled by --z), as tall as what is inside it;
+     its card is a number TAG floating above the roof (the same size at every zoom), so the number is never hidden by the 3D part */
+  html.alto-palace:not(.mobile) #world .node:not(.focused){width:var(--pw,40px);height:var(--ph,26px);z-index:var(--nz,3);}
+  html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card{position:absolute !important;left:50%;top:50%;width:max-content !important;height:auto !important;
+    translate:calc(-50% + var(--z,1) * var(--bx,0) * 1px) calc(-50% - var(--z,1) * var(--by,0) * 1px - 12px);
+    min-width:24px !important;max-width:none !important;min-height:0 !important;padding:2px 7px !important;border-radius:999px !important;
+    display:flex !important;align-items:center;justify-content:center;overflow:hidden !important;rotate:0deg;transform-origin:50% 50% !important;
+    border:1.5px solid var(--pc,#888) !important;background:var(--surface,#fff) !important;
+    box-shadow:0 3px 9px rgba(20,26,55,.22) !important;}
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card > *:not(.node-order):not(.aed-cc){display:none !important;}
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-order{position:static !important;display:block !important;margin:0 !important;
-    font-size:var(--pf,11px) !important;line-height:1.1 !important;font-weight:800 !important;letter-spacing:.01em;color:var(--text) !important;
-    opacity:1 !important;white-space:nowrap;transform:none !important;rotate:calc(-1 * var(--pr,0deg));}
+    font-size:var(--pf,11px) !important;line-height:1.15 !important;font-weight:800 !important;letter-spacing:.01em;color:var(--text) !important;
+    opacity:1 !important;white-space:nowrap;transform:none !important;rotate:0deg;}
+  .node .nb3d{position:absolute;left:50%;top:50%;overflow:visible;pointer-events:none;
+    width:calc(var(--z,1) * var(--nbw,1) * 1px);height:calc(var(--z,1) * var(--nbh,1) * 1px);margin-left:calc(var(--z,1) * var(--nbx,0) * 1px);margin-top:calc(var(--z,1) * var(--nby,0) * 1px);
+    transition:opacity .22s ease;}
+  html:not(.alto-palace) .node .nb3d,html.mobile .node .nb3d,.node.focused .nb3d{display:none;}
+  .nb3d *{pointer-events:all;cursor:pointer;}
+  .nb-f,.nb-s,.nb-r{stroke:var(--pc,#888);stroke-width:1.4;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
+  .nb-gf0{stop-color:color-mix(in srgb,var(--pc,#888) 10%,#f2f7ff);} .nb-gf1{stop-color:color-mix(in srgb,var(--pc,#888) 34%,#bcd0ee);}
+  .nb-gs0{stop-color:color-mix(in srgb,var(--pc,#888) 44%,#a9b8d6);} .nb-gs1{stop-color:color-mix(in srgb,var(--pc,#888) 62%,#7f8fb2);}
+  .nb-gr0{stop-color:color-mix(in srgb,var(--pc,#888) 5%,#ffffff);} .nb-gr1{stop-color:color-mix(in srgb,var(--pc,#888) 16%,#eaf1fc);}
+  .nb-f,.nb-s{fill-opacity:.94;}
+  .nb-sheen{fill:#fff;fill-opacity:.38;stroke:none;pointer-events:none;}
+  .nb-l{stroke:var(--pc,#888);stroke-opacity:.35;stroke-width:1;vector-effect:non-scaling-stroke;fill:none;pointer-events:none;}
+  .nb-sh{fill:rgba(20,26,55,.16);stroke:none;pointer-events:none;}
+  html.dark .nb-gf0{stop-color:color-mix(in srgb,var(--pc,#888) 26%,#2c3146);} html.dark .nb-gf1{stop-color:color-mix(in srgb,var(--pc,#888) 38%,#1c2030);}
+  html.dark .nb-gs0{stop-color:color-mix(in srgb,var(--pc,#888) 30%,#1a1d2b);} html.dark .nb-gs1{stop-color:color-mix(in srgb,var(--pc,#888) 40%,#10121b);}
+  html.dark .nb-gr0{stop-color:color-mix(in srgb,var(--pc,#888) 24%,#3a3f58);} html.dark .nb-gr1{stop-color:color-mix(in srgb,var(--pc,#888) 30%,#2c3046);}
+  html.dark .nb-sheen{fill-opacity:.12;}
+  .node.pal-hot .nb-r,.node.pal-dest .nb-r,.pl-bld.pal-hot .nb-r{stroke-width:3.4;}
+  .node.pal-dim .nb3d{opacity:.3;}
+  /* the see-through lens: buildings under the pointer fade to glass so what stands behind them shows */
+  .node.nb-see .nb3d{opacity:.2;}
   html.alto-palace:not(.mobile) #world .node.pal-hot:not(.focused) .node-card{outline:3px solid var(--pc,#888);outline-offset:2px;}
   html.alto-palace:not(.mobile) #world .node.pal-dim:not(.focused){opacity:.3;}
   #canvas.focus-mode .node.pal-floor{display:none !important;}
   /* pointing is quiet: no box follows the cursor. A building under the pointer (or focused) lifts with a soft glow and its
      chip widens in place into a pill with its number and title; a street / neighbourhood name just brightens; the unit a
      neighbourhood holds comes in the docked card (#pal-dock), pinned bottom centre until dismissed. */
-  html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused),html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused){z-index:9;}
+  html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused),html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused){z-index:calc(var(--nz,3) + 1000);}
   html.alto-palace:not(.mobile) #world .node.pal-lab:not(.focused) .node-card,
   html.alto-palace:not(.mobile) #world .node.pal-dest:not(.focused) .node-card,
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-card:focus-visible{
-    position:absolute !important;left:calc(var(--pw,40px) / 2);top:calc(var(--ph,26px) / 2);translate:-50% calc(-50% - 2px);rotate:0deg !important;
-    width:max-content !important;height:auto !important;min-width:var(--pw,40px) !important;min-height:var(--ph,26px) !important;max-width:270px !important;
+    position:absolute !important;left:50%;top:50%;translate:calc(-50% + var(--z,1) * var(--bx,0) * 1px) calc(-50% - var(--z,1) * var(--by,0) * 1px - 12px);rotate:0deg !important;
+    width:max-content !important;height:auto !important;min-width:24px !important;min-height:0 !important;max-width:270px !important;
     padding:3px 11px !important;gap:6px;border-radius:999px !important;border:2px solid var(--pc,#888) !important;background:var(--surface) !important;
     box-shadow:0 0 0 4px color-mix(in srgb,var(--pc,#888) 26%,transparent),0 0 20px color-mix(in srgb,var(--pc,#888) 55%,transparent),0 7px 18px rgba(20,26,55,.28) !important;
     outline:none;animation:pal-pill-in .14s ease-out;}
@@ -799,7 +827,7 @@ PALACE_CSS = KEY_CSS + r"""
   html.alto-palace:not(.mobile) #world .node.focused{pointer-events:none;}
   html.alto-palace:not(.mobile) #world .node.focused .node-card{pointer-events:auto;top:var(--rt,0px);left:var(--rl,0px);
     box-shadow:0 26px 60px var(--node-hover-shadow),0 2px 10px rgba(20,26,55,.10) !important;}
-  html.alto-palace:not(.mobile) #world .node.focused .pal-ghost{display:flex;position:absolute;left:50%;top:50%;width:var(--pw,40px);height:var(--ph,26px);
+  html.alto-palace:not(.mobile) #world .node.focused .pal-ghost{display:none;position:absolute;left:50%;top:50%;width:var(--pw,40px);height:var(--ph,26px);
     box-sizing:border-box;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer;border-radius:5px;
     transform:translate(-50%,-50%) rotate(var(--pr,0deg));background:var(--node-glass-bg,var(--card-glass-bg,rgba(255,255,255,.9)));
     border:1.5px solid color-mix(in srgb,var(--pc,#888) 70%,transparent);border-top:3px solid var(--pc,#888);
@@ -959,7 +987,9 @@ function route(a,b){
 var ENT={};
 function entrance(id){ var L=lot(P.at[bOf(id)]); if(!L) return -1; var k=P.at[bOf(id)]; if(ENT[k]==null) ENT[k]=nearest(L[0],L[1],1,300); return ENT[k]; }
 /* the real transit (palace_transit_js.py) is given the palace's own parts */
-window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z){ flyAway(x,y,z); }, leave:leaveBoard,
+window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z,done){ flyAway(x,y,z,done); }, leave:leaveBoard,
+  center:function(x,y){ var cv=document.getElementById('canvas'); if(!cv) return; if(PV) placeAll(); cv.scrollLeft=(x+MX)*Z+gapAt(Z,cv.clientWidth)-cv.clientWidth/2; cv.scrollTop=(y+MY)*Z+gyAt(Z,cv.clientHeight)-cv.clientHeight/2; },
+  name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
 window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
 window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
@@ -1118,10 +1148,11 @@ function tube(parent, d, col, w, op, cls){
    (before the invisible hit paths and the hover pill), however late something else is added to the map */
 function stackLayers(svg){
   var lm=svg.querySelector(':scope > .pl-lms'), bl=svg.querySelector(':scope > .pl-blds'), ts=svg.querySelector(':scope > .pl-tstns'); if(!lm || !bl) return;
-  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov'); }), n=ch.length;
+  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov,.pl-portals'); }), n=ch.length;
   if(ch[n-2]===lm && ch[n-1]===bl && (!ts || ch[n-3]===ts)) return;
   if(ts) svg.appendChild(ts);                       /* the stations over the highways and street names, under the landmarks */
   svg.appendChild(lm); svg.appendChild(bl);
+  [].forEach.call(svg.querySelectorAll(':scope > .pl-portals'), function(h){ svg.appendChild(h); });      /* the airport portals ride over the buildings they stand on */
   [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
 function drawCity(svg){
   if(!svg._stk){ svg._stk=new MutationObserver(function(){ stackLayers(svg); }); svg._stk.observe(svg,{childList:true}); }
@@ -1283,6 +1314,7 @@ function drawCity(svg){
   M.streets.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hits); h._n=s.n; });
   window._palTr.hits(svg);
   window._palHw.hits(svg);
+  window._palTr.portals(svg);                  /* the airport portals, over the stations' buildings (palace_transit_js.py) */
   svg._b=bg; svg._r=route;
   drawBuildings(svg);
   sizeChips(svg);
@@ -1395,12 +1427,12 @@ function drawBuildings(svg){
   (P.units||[]).forEach(function(ids){ ids.forEach(function(id, k){
     var L=lot(P.at[id]); if(!L) return;
     var c=ucol(id), fl=Math.min(5,(P.fl[id]||[]).length);
-    var b=el('g',{'class':'pl-bld'+(k===0?' hub':''), 'data-id':id, transform:'rotate('+L[4]+' '+L[0]+' '+L[1]+')'},g);
-    for(var i=fl;i>=1;i--) el('rect',{'class':'b-floor', x:L[0]-L[2]/2+i*2.2, y:L[1]-L[3]/2+i*2.2, width:L[2], height:L[3], rx:5, stroke:c},b);
-    el('rect',{'class':'b-card', x:L[0]-L[2]/2, y:L[1]-L[3]/2, width:L[2], height:L[3], rx:5, stroke:c},b);
-    el('rect',{'class':'b-top', x:L[0]-L[2]/2+2, y:L[1]-L[3]/2, width:L[2]-4, height:3.2, rx:1.6, fill:c},b);
-    var nl=String(num(id)).length||3, fz=Math.min(L[3]*.55, L[2]/(nl*.62+.6));
-    var t=el('text',{'class':'b-num', x:L[0], y:L[1], 'text-anchor':'middle', dy:'.35em', 'font-size':fz.toFixed(1)},b); t.textContent=num(id);
+    var H=nbHeight(id), b=el('g',{'class':'pl-bld'+(k===0?' hub':''), 'data-id':id, style:'--pc:'+c},g);
+    nbDraw(b, L, H, L[0], L[1], id);
+    /* its number: a tag over the roof, the same size on the screen at every zoom */
+    var tg=pin(b, 'pl-nbtag', L[0]+NB_SK*L[3]/2, L[1]-H-L[3]/2, {}), nl=String(num(id)).length||3, tw_=Math.max(24, nl*7.4+12);
+    el('rect',{'class':'b-tag', x:-tw_/2, y:-24, width:tw_, height:18, rx:9, stroke:c},tg);
+    var t=el('text',{'class':'b-num', x:0, y:-15, 'text-anchor':'middle', dy:'.35em', 'font-size':11},tg); t.textContent=num(id);
   }); });
 }
 
@@ -1448,6 +1480,7 @@ function pvSet(z, sxT, syT){
   clearTimeout(pvTimer); pvTimer=setTimeout(function(){ if(PV) placeAll(); }, 160);
 }
 function placeAll(){
+  var cvh=document.getElementById('canvas'); if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;   /* hidden under a detail page: laid out when it closes */
   if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
     if(w) w.style.transform='';
     placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
@@ -1459,8 +1492,49 @@ function placeAllReal(){
   try{ placeBoard(world, cv); } finally { CVS=null; }
   (window._palT=window._palT||{}).place=Math.round(performance.now()-tP0);
 }
+/* ── node buildings: a glass block on each lot, as tall as what is inside it ── */
+var NB_SK=.14;     /* the landmarks' 3/4 view: a building's depth leans right by this much, so its right wall shows; walls stand straight up */
+function nbWeight(id){ var t=TT[id]||{}, w=(t.envs||[]).length+(t.themes||[]).length; (P.fl[id]||[]).forEach(function(f){ var q=TT[f]||{}; w+=(q.envs||[]).length+(q.themes||[]).length; }); return w; }
+function nbHeight(id){ return Math.round(Math.min(100, 28+9*nbWeight(id))); }
+/* the block's shapes into `parent`, its lot centre at (ox,oy); returns its box [x0,y0,x1,y1] relative to the centre */
+function nbDraw(parent, L, H, ox, oy, uid){
+  var w=L[2]/2, h=L[3]/2, a=(+L[4]||0)*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), o=[0, -H];
+  var C=[[-w,-h],[w,-h],[w,h],[-w,h]].map(function(q){ return [q[0]*ca-q[1]*sa, q[0]*sa+q[1]*ca]; });
+  var yb=Math.max.apply(null, C.map(function(q){ return q[1]; }));
+  C=C.map(function(q){ return [q[0]+NB_SK*(yb-q[1]), q[1]]; });                 /* the back leans right: the footprint is a parallelogram on its lot */
+  var x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  C.forEach(function(q){ [q, [q[0]+o[0], q[1]+o[1]]].forEach(function(r){ x0=Math.min(x0,r[0]); x1=Math.max(x1,r[0]); y0=Math.min(y0,r[1]); y1=Math.max(y1,r[1]); }); });
+  function P4(pts){ return pts.map(function(q){ return (q[0]+ox).toFixed(1)+','+(q[1]+oy).toFixed(1); }).join(' '); }
+  function ln(A,B,cls){ return el('line',{'class':cls, x1:(A[0]+ox).toFixed(1), y1:(A[1]+oy).toFixed(1), x2:(B[0]+ox).toFixed(1), y2:(B[1]+oy).toFixed(1)},parent); }
+  var gid='nbg'+String(uid||'').replace(/[^a-z0-9]/gi,'_'), dfs=el('defs',{},parent);
+  function grad(k, x2, y2){ var g=el('linearGradient',{id:gid+k, x1:0, y1:0, x2:x2, y2:y2},dfs); el('stop',{offset:0, 'class':'nb-g'+k+'0'},g); el('stop',{offset:1, 'class':'nb-g'+k+'1'},g); }
+  grad('f',0,1); grad('s',1,0); grad('r',1,1);                          /* glass: lighter at the top of a wall, darker down it; the right wall darker; the roof palest */
+  el('polygon',{'class':'nb-sh', points:P4(C.map(function(q){ return [q[0]+5, q[1]+6]; }))},parent);                    /* its shadow on the ground */
+  var st=Math.max(2, Math.round(H/9)), faces=[];
+  for(var i=0;i<4;i++){ var A=C[i], B=C[(i+1)%4], nx=B[1]-A[1], ny=-(B[0]-A[0]); if(nx*o[0]+ny*o[1]<0) faces.push({A:A, B:B}); }
+  faces.sort(function(p,q){ return (p.A[1]+p.B[1])-(q.A[1]+q.B[1]); });        /* the wall further back first */
+  faces.forEach(function(f){ var A=f.A, B=f.B, up=[A[0]+o[0],A[1]+o[1]], ub=[B[0]+o[0],B[1]+o[1]];
+    var front=Math.abs(B[0]-A[0])>=Math.abs(B[1]-A[1]);
+    el('polygon',{'class':front?'nb-f':'nb-s', style:'fill:url(#'+gid+(front?'f':'s')+')', points:P4([A,B,ub,up])},parent);
+    if(front){ var d1=[A[0]+(B[0]-A[0])*.12, A[1]+(B[1]-A[1])*.12], d2=[A[0]+(B[0]-A[0])*.34, A[1]+(B[1]-A[1])*.34];            /* a soft diagonal sheen */
+      el('polygon',{'class':'nb-sheen', points:P4([d1, d2, [d2[0]+o[0]*.8,d2[1]+o[1]*.8], [d1[0]+o[0]*.8,d1[1]+o[1]*.8]])},parent); }
+    for(var k=1;k<st;k++){ var t=k/st; ln([A[0]+o[0]*t, A[1]+o[1]*t], [B[0]+o[0]*t, B[1]+o[1]*t], 'nb-l'); }
+    var nm=Math.max(1, Math.round(Math.hypot(B[0]-A[0], B[1]-A[1])/22));                                           /* window mullions */
+    for(var m=1;m<nm;m++){ var u=m/nm, bx=A[0]+(B[0]-A[0])*u, by=A[1]+(B[1]-A[1])*u; ln([bx,by], [bx+o[0],by+o[1]], 'nb-l'); } });
+  el('polygon',{'class':'nb-r', style:'fill:url(#'+gid+'r)', points:P4(C.map(function(q){ return [q[0]+o[0], q[1]+o[1]]; }))},parent);
+  return [x0,y0,x1,y1];
+}
+/* on the desktop board: an <svg> inside the building's card wrapper, drawn once and scaled by CSS (--z) */
+function nbBuild(e, id, L, H){
+  var old=e.querySelector(':scope > .nb3d'); if(old) old.remove();
+  var s=el('svg',{'class':'nb3d', 'aria-hidden':'true', preserveAspectRatio:'none'}), b=nbDraw(s, L, H, 0, 0, id);
+  var x0=b[0]-3, y0=b[1]-3, x1=b[2]+8, y1=b[3]+9;
+  s.setAttribute('viewBox', x0.toFixed(1)+' '+y0.toFixed(1)+' '+(x1-x0).toFixed(1)+' '+(y1-y0).toFixed(1));
+  s.style.setProperty('--nbx', x0.toFixed(1)); s.style.setProperty('--nby', y0.toFixed(1)); s.style.setProperty('--nbw', (x1-x0).toFixed(1)); s.style.setProperty('--nbh', (y1-y0).toFixed(1));
+  e.insertBefore(s, e.firstChild);
+}
 function placeBoard(world, cv){
-  world.style.setProperty('width', Math.round(VW*Z)+'px', 'important'); world.style.minHeight=Math.round(VH*Z+WORLD_PAD_TOP)+'px';
+  world.style.setProperty('--z', Z); world.style.setProperty('width', Math.round(VW*Z)+'px', 'important'); world.style.minHeight=Math.round(VH*Z+WORLD_PAD_TOP)+'px';
   /* a city smaller than the window sits in the middle of it */
   var gap=cv?Math.max(0,(CVS[0]-VW*Z)/2):0;
   world.style.setProperty('margin-left', Math.round(gap)+'px', 'important');
@@ -1470,6 +1544,8 @@ function placeBoard(world, cv){
   world.style.setProperty('margin-top', Math.round(gy()-WORLD_PAD_TOP)+'px', 'important');
   if(svgD){ svgD.setAttribute('width', Math.round(VW*Z)); svgD.setAttribute('height', Math.round(VH*Z+WORLD_PAD_TOP)-WORLD_PAD_TOP); svgD.style.setProperty('--pz', Z); svgD.style.setProperty('--tw', tw(Z)); svgD.style.top=WORLD_PAD_TOP+'px'; }
   setClasses();
+  var nzRank={}; (typeof NODES!=='undefined'?NODES:[]).map(function(n){ var q=isB(n.id)?lot(P.at[n.id]):null; return q?[n.id, q[1]+q[3]/2]:null; }).filter(Boolean)
+    .sort(function(p,q){ return p[1]-q[1]; }).forEach(function(p,i){ nzRank[p[0]]=i; });       /* back to front: a building stands in front of the ones behind it */
   (typeof NODES!=='undefined'?NODES:[]).forEach(function(n){
     var e=document.getElementById('node-'+n.id); if(!e) return;
     var L=isB(n.id)?lot(P.at[n.id]):null;
@@ -1482,10 +1558,12 @@ function placeBoard(world, cv){
     /* centred now, not a frame later when the engine's resize watcher sees the new size (the city jittered as a zoom landed) */
     if(!e.classList.contains('focused') && e._hov==null){ e.style.setProperty('--mx', (-Math.round(+pw.toFixed(1))/2)+'px'); e.style.setProperty('--my', (-Math.round(+ph.toFixed(1))/2)+'px'); }
     e.style.setProperty('--pr', L[4]+'deg'); e.style.setProperty('--pc', ucol(n.id));
+    var H=nbHeight(n.id), key=[L[0],L[1],L[2],L[3],L[4],H].join('|');
+    if(e._nbk!==key || !e.querySelector(':scope > .nb3d')){ e._nbk=key; e._nbH=H; nbBuild(e, n.id, L, H); }
+    e.style.setProperty('--bx', (NB_SK*L[3]/2).toFixed(1)); e.style.setProperty('--by', (H+L[3]/2).toFixed(1)); e.style.setProperty('--bh', H); e.style.setProperty('--nz', 3+(nzRank[n.id]||0));
     var cd=e.querySelector('.node-card'); if(cd && !mob()){ cd.tabIndex=0; cd.setAttribute('role','button'); cd.setAttribute('aria-label', num(n.id)+' '+title(n.id)); }   /* focus shows the same in-place pill */
     /* its number always inside it: as big as the building allows, up to 18px */
-    var nl=String(num(n.id)).length||3, f=Math.min(18, L[3]*Z*.55, L[2]*Z/(nl*.62+.6));
-    e.style.setProperty('--pf', Math.max(6, f).toFixed(1)+'px');
+    e.style.setProperty('--pf', Math.max(9, Math.min(13, 8+Z*9)).toFixed(1)+'px');                 /* the tag's number: easy to read, a touch larger as you come closer */
     var f=Math.min(5,(P.fl[n.id]||[]).length), sh=[], o=Math.max(1.5, Math.min(3.2, 3.2*Z));
     for(var i=1;i<=f;i++){ var q=(i*o).toFixed(1); sh.push(q+'px '+q+'px 0 0 rgba(255,255,255,.8)', q+'px '+q+'px 0 1px '+ucol(n.id)); }
     if(sh.length) e.style.setProperty('--pfl', sh.join(',')); else e.style.removeProperty('--pfl');
@@ -1513,6 +1591,11 @@ function holdPan(){
   if(cx||cy){ w.style.setProperty('--ppan-x', cx+'px'); w.style.setProperty('--ppan-y', cy+'px'); }
   else { w.style.removeProperty('--ppan-x'); w.style.removeProperty('--ppan-y'); }
 }
+/* the middle of the buildings' own neighbourhoods, which a city grown past them leaves off-centre */
+function centreCity(cv){
+  var D=P.d||[], bx0=1e9, by0=1e9, bx1=-1e9, by1=-1e9; D.forEach(function(d){ var b=d.box; bx0=Math.min(bx0,b[0]); by0=Math.min(by0,b[1]); bx1=Math.max(bx1,b[2]); by1=Math.max(by1,b[3]); });
+  var mx=D.length?(bx0+bx1)/2+MX:VW/2, my=D.length?(by0+by1)/2+MY:VH/2;
+  cv.scrollLeft=Math.max(0,mx*Z-cv.clientWidth/2); cv.scrollTop=Math.max(0,my*Z-cv.clientHeight/2); }
 window._altoPalace=function(h){
   if(mob()) return false;
   var world=document.getElementById('world'); if(!world) return false;
@@ -1533,9 +1616,7 @@ window._altoPalace=function(h){
   window._altoPalaceGeo={Z:Z};
   if(!opened){ opened=1; requestAnimationFrame(function(){ var cv=document.getElementById('canvas'); if(cv && !window._focusedNodeId){
     /* it opens on the buildings' own neighbourhoods, which a city grown past them leaves off-centre */
-    var D=P.d||[], bx0=1e9, by0=1e9, bx1=-1e9, by1=-1e9; D.forEach(function(d){ var b=d.box; bx0=Math.min(bx0,b[0]); by0=Math.min(by0,b[1]); bx1=Math.max(bx1,b[2]); by1=Math.max(by1,b[3]); });
-    var mx=D.length?(bx0+bx1)/2+MX:VW/2, my=D.length?(by0+by1)/2+MY:VH/2;
-    cv.scrollLeft=Math.max(0,mx*Z-cv.clientWidth/2); cv.scrollTop=Math.max(0,my*Z-cv.clientHeight/2); } }); }
+    centreCity(cv); } }); }
   ctl();
   return true;
 };
@@ -1735,9 +1816,11 @@ window.addEventListener('keydown', function(e){
 document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTimeout(tipT); labelB(null); lit(null); } });
 /* a click on a building enlarges it (the map comes closer first); a double click goes inside: the second click of the pair
    (it lands on the rising card, its ghost, or the moving map) never toggles anything, it opens the building's page */
+/* a building's page opened while the glide to it was still running (a double-click) must not let that glide land on the hidden board */
+var flyId=null, pendEnl=null, holdView=null;
 function enlarge(id){
   var L=lot(P.at[id]); if(!L) return; labelB(null); closeDock();
-  if(Z<.85) flyMap(L[0], L[1], 1.05, function(){ window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); });
+  if(Z<.85){ flyId=id; flyMap(L[0], L[1], 1.05, function(){ flyId=null; if(de.classList.contains('detail-open')){ pendEnl=id; return; } window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); }); }
   else { window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); }
 }
 document.addEventListener('click', function(e){
@@ -1812,7 +1895,7 @@ window._altoFocusShift=function(el){
   if(!had) el.classList.add('focused'); card.style.zoom=String(FK);
   var h0=card.offsetHeight; card.style.zoom=z0; if(!had) el.classList.remove('focused');
   var w=parseFloat(el.style.getPropertyValue('--pw'))||40, hh=parseFloat(el.style.getPropertyValue('--ph'))||26, th=(parseFloat(el.style.getPropertyValue('--pr'))||0)*Math.PI/180;
-  var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2;
+  var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2+(el._nbH||0)*Z;
   var cv=document.getElementById('canvas'), ch=cv.clientHeight, par=el.offsetParent, ay=(parseFloat(el.style.top)||0)+((par&&par!==cv)?par.offsetTop:0);
   var H=h0*FK, d=(RISE_T+H)/2;
   function resid(sy){ var a=ay+sy, tt=Math.max(0,Math.min(Math.round(a-ch/2), Math.max(0,cv.scrollHeight-ch))); return Math.abs(a-(tt+ch/2)); }
@@ -1846,10 +1929,54 @@ document.addEventListener('dblclick', function(e){
   var cv=document.getElementById('canvas'); if(!cv || !cv.contains(e.target) || (e.target.closest && e.target.closest('.node'))) return;
   var p=canvasPt(cv, e.clientX, e.clientY); zoomAnim(Z*1.8, p[0], p[1]);
 });
+
+/* ── the see-through lens: buildings near the pointer (the finger, on a phone) turn to glass, so what stands behind a taller one shows ── */
+(function(){
+  var R=120, raf=0, px=-1, py=-1, cur=[], hold=0;
+  function items(){ return mob() ? [].slice.call(document.querySelectorAll('#pal-mmap .pl-bld')) : [].slice.call(document.querySelectorAll('#world .node:not(.pal-floor):not(.focused)')).filter(function(e){ return e.querySelector(':scope > .nb3d'); }); }
+  function clearLens(){ cur.forEach(function(e){ e.classList.remove('nb-see'); }); cur=[]; }
+  function run(){ raf=0;
+    if(px<0 || !de.classList.contains('alto-palace') || de.classList.contains('detail-open') || (!mob() && focused())){ clearLens(); return; }
+    var next=[]; items().forEach(function(e){ var t=mob()?e:e.querySelector(':scope > .nb3d'), r=t.getBoundingClientRect(); if(!r.width) return;
+      var cx=Math.max(r.left, Math.min(px, r.right)), cy=Math.max(r.top, Math.min(py, r.bottom)); if(Math.hypot(cx-px, cy-py)<R) next.push(e); });
+    cur.forEach(function(e){ if(next.indexOf(e)<0) e.classList.remove('nb-see'); }); next.forEach(function(e){ e.classList.add('nb-see'); }); cur=next; }
+  function at(x,y){ px=x; py=y; clearTimeout(hold); if(!raf) raf=requestAnimationFrame(run); }
+  document.addEventListener('mousemove', function(e){ at(e.clientX, e.clientY); }, {passive:true});
+  document.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(t) at(t.clientX, t.clientY); }, {passive:true});
+  document.addEventListener('touchstart', function(e){ var t=e.touches[0]; if(t) at(t.clientX, t.clientY); }, {passive:true});
+  document.addEventListener('touchend', function(){ clearTimeout(hold); hold=setTimeout(function(){ px=-1; if(!raf) raf=requestAnimationFrame(run); }, 1400); }, {passive:true});
+  document.addEventListener('mouseleave', function(){ px=-1; if(!raf) raf=requestAnimationFrame(run); });
+  document.addEventListener('alto-focus-exit', function(){ if(!raf) raf=requestAnimationFrame(run); });
+})();
 /* a floor has no card on the map: finding one (search, a link) goes inside its building at that floor */
 function wrapFocus(){ var _ef=window.enterFocus; if(!_ef || _ef._pal) return;
   window.enterFocus=function(id){ if(P.of[id] && !mob()){ return window.showDetail('node', id); } return _ef.apply(this, arguments); }; window.enterFocus._pal=1; }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, wrapFocus); });
+/* The board is not under the window while a detail page is open (the canvas is display:none: no size, no scroll). So the view is
+   settled and remembered before the page opens, nothing is laid out against the hidden canvas, and the view is put back, laid out
+   for real, when the page closes — else the map came back scrolled to its empty top-left corner. */
+function wrapDetail(){ var sd=window.showDetail, st=window.showTimeline; if(!sd || !st || sd._pal) return;
+  window.showDetail=function(){
+    if(!mob() && de.classList.contains('alto-palace') && !de.classList.contains('detail-open')){
+      var cv=document.getElementById('canvas');
+      if(flyId){ pendEnl=flyId; flyId=null; }
+      cancelAnimationFrame(zAnim);
+      if(cv && cv.clientWidth){ if(PV) placeAll(); holdView={z:Z, x:cv.scrollLeft, y:cv.scrollTop}; }
+    }
+    return sd.apply(this, arguments); };
+  window.showDetail._pal=1;
+  window.showTimeline=function(){
+    var r=st.apply(this, arguments), hv=holdView, pe=pendEnl; holdView=null; pendEnl=null;
+    if(!mob() && de.classList.contains('alto-palace')){
+      var cv=document.getElementById('canvas');
+      if(hv){ Z=hv.z; placeAllReal(); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; } if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z; }
+      /* never the empty top-left corner: with no remembered view (or one parked at the corner) it is the middle of the city */
+      if(cv && (!hv || (!cv.scrollLeft && !cv.scrollTop)) && !window._focusedNodeId && !pe && (cv.scrollWidth>cv.clientWidth+4 || cv.scrollHeight>cv.clientHeight+4)){ if(!hv) placeAllReal(); centreCity(cv); }
+      if(pe && !window._focusedNodeId) setTimeout(function(){ if(!de.classList.contains('detail-open')) enlarge(pe); }, 60);
+    }
+    return r; };
+  window.showTimeline._pal=1; }
+['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, wrapDetail); });
 document.addEventListener('alto-focus-exit', function(){ drawRoutes(svgD, null); });
 /* arrows while a building is enlarged: to the nearest building that way */
 window._altoPalaceNav=function(id, dir){

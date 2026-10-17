@@ -148,7 +148,7 @@ function show(po){
 }
 function close(){ if(!root) return; root.classList.remove('show'); setTimeout(function(){ root.classList.remove('on'); }, 560); openPo=null; }
 /* the trip: to the station, the plane lifts off its pin, then the airport */
-function go(po, pin){
+function go(po, pin, at){
   if(!po || !E) return; if(!po.destinations) po.destinations=[];
   var run=function(){
     var rect=pin&&pin.getBoundingClientRect?pin.getBoundingClientRect():null;
@@ -160,7 +160,7 @@ function go(po, pin){
     setTimeout(function(){ show(po); }, 520); a.onfinish=function(){ t.style.display='none'; };
   };
   /* the camera goes to the station first (from a detail page or an enlarged building too), then lifts off */
-  var s=po._at; if(s) E.fly(s.x, s.y, Math.max(.45, Math.min(E.Z(), 1.1)), function(){ setTimeout(run, 80); }); else run();
+  var s=at||po._at; if(s) E.fly(s.x, s.y, Math.max(.45, Math.min(E.Z(), 1.1)), function(){ setTimeout(run, 80); }); else run();
 }
 window._palAirport={init:function(e){ E=e; }, go:go, show:show, close:close, isOpen:function(){ return !!(root && root.classList.contains('on')); }};
 })();

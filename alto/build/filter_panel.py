@@ -328,8 +328,14 @@ FILTER_PANEL_GLUE = """
   // A re-render (theme toggle, back from a detail page) rebuilds the cards; put
   // the filter back on them.
   var queued=false;
-  new MutationObserver(function(){
-    if(queued || !window._altoChipOn()) return; queued=true;
+  // (Not the Mind Palace's own drawing — its route pill, panel and map svg are rewritten BY the filter-changed
+  // event this sends, which would call it again every frame, for ever.)
+  new MutationObserver(function(rs){
+    if(queued || !window._altoChipOn()) return;
+    var hit=false;
+    for(var i=0;i<rs.length && !hit;i++){ var t=rs[i].target; if(t && t.nodeType!==1) t=t.parentNode;
+      if(!t || !t.closest || !t.closest('svg,#pal-chiprt,#pal-relrt,#pal-tr,#pal-airport,#pal-dock')) hit=true; }
+    if(!hit) return; queued=true;
     requestAnimationFrame(function(){ queued=false; refresh(); });
   }).observe(document.body, {childList:true, subtree:true});
   window._altoFilterRefresh=refresh;
