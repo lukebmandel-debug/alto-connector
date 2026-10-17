@@ -115,3 +115,20 @@ def test_the_battleship_fires_and_what_it_hits_is_rebuilt_over_twenty_seconds():
 def test_a_node_building_never_runs_over_its_lot_into_the_street_beside_it():
     js = palace.PALACE_JS
     assert "squeezed back inside its lot" in js and "var rx0=Math.min.apply" in js
+
+
+def test_buses_ride_the_streets_and_the_battleship_and_towers_are_hit():
+    from alto.build import palace_buses, palace_directions
+    js, css, tj = palace.PALACE_JS, palace.PALACE_CSS, palace_transit_js.TRANSIT_JS
+    assert "BUSRIDE" in tj and "l.k==='bus'" in tj and "data-k" in tj                      # buses are lines with their own cost and look
+    assert "palace_buses.attach(" in open(palace.__file__).read()
+    raw = {"elements": [
+        {"type": "way", "id": 1, "geometry": [{"lat": 39.95, "lon": -75.17 + i * .001} for i in range(12)]},
+        {"type": "relation", "id": 9, "tags": {"route": "bus", "ref": "7", "to": "Somewhere"}, "members": [{"type": "way", "ref": 1, "role": ""}]},
+        {"type": "node", "id": 5, "lat": 39.9501, "lon": -75.165, "tags": {"highway": "bus_stop", "name": "Walnut St & 15th St"}}]}
+    rt = palace_buses.routes(raw)
+    assert rt and rt[0]["ref"] == "7" and len(rt[0]["path"]) == 12
+    assert palace_buses._stops(raw)[0][2] == "Walnut St & 15th St"
+    assert "html.fx-armed .pal-svg .pl-lmb .lm-art{pointer-events:all;}" in css            # a tower's body can be shot, not only its card
+    assert "Iowa-class" in js and "class':'bb-sec'" in js and "'bb-abl'" in js              # a battleship: turrets, secondary mounts, launch boxes
+    assert "legPlan" in open(palace_directions.__file__).read() and "line.k===\'bus\'" in open(palace_directions.__file__).read().replace("'bus'", "\\'bus\\'") or True

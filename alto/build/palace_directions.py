@@ -147,7 +147,7 @@ function option(path, A, B, g, kind){
         steps.push({k:'walk', ic:'walk', text:nx&&nx.k==='ride'&&ns[nx.n[0]]!=null?'Walk to '+stops[ns[nx.n[0]]].n:'Walk to '+B.name, x:l.pts[0][0], y:l.pts[0][1]}); } }
     else if(l.k==='ride'){ var line=TX.lineOf(l.l), c=lineCol(l.l), si=l.n.map(function(n){ return ns[n]; }).filter(function(v,k,a){ return v!=null && a.indexOf(v)===k; });
       if(si.length<2){ return; } rides++; rideStops+=si.length-1; names.push(line.n);
-      var ord=(line.s||[]), i0=ord.indexOf(si[0]), i1=ord.indexOf(si[si.length-1]), toward=(i0>=0&&i1>=0)?stops[ord[i1>i0?ord.length-1:0]].n:'';
+      var ord=(line.s||[]), i0=ord.indexOf(si[0]), i1=ord.indexOf(si[si.length-1]), toward=(i0>=0&&i1>=0)?stops[ord[i1>i0?ord.length-1:0]].n:''; if(line.k==='bus' && line.to && i1>i0) toward=line.to;
       var prev=legs[i-1], bs=stops[si[0]], as=stops[si[si.length-1]];
       steps.push({k:'board', ic:'rail', c:c, l:l.l, text:'Board '+line.n+(toward&&toward!==bs.n?' toward '+toward:'')+' at '+bs.n, x:bs.x, y:bs.y});
       steps.push({k:'ride', ic:'ride', c:c, l:l.l, text:'Ride '+(si.length-1)+' stop'+(si.length>2?'s':''), sub:si.slice(1).map(function(v){ return stops[v].n; }).join(' · '), x:bs.x, y:bs.y});

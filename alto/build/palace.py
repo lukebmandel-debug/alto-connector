@@ -452,6 +452,12 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
             m["landmarks"] = [l for l in m.get("landmarks", []) if l.get("n") not in nm]
     except Exception:                                       # noqa: BLE001 — a city whose water cannot be read keeps its boats off the map
         pass
+    # buses (palace_buses.py): the main routes, drawn along the page's streets from their real stops, ridden like any line
+    try:
+        from . import palace_buses
+        palace_buses.attach(m, palace_buses.fetch(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline))
+    except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with no bus relations: no buses
+        pass
     out = {"place": place, "bbox": list(bbox), "districts": districts or [],
            "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
@@ -616,9 +622,19 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-boat{pointer-events:none;}
   .pal-svg .pl-boat.bb{pointer-events:all;cursor:pointer;}
-  .pal-svg .pl-boat .bb-tur{fill:#8a97b1;stroke:#3a4666;stroke-width:1.4;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bb-barrel{stroke:#2c3858;stroke-width:3.2;stroke-linecap:round;}
-  html.fx-armed .pal-svg .pl-boat.bb .bt-hull{stroke:#ff7a3c;stroke-width:3;}
+  .pal-svg .pl-boat .bb-tur{fill:#69748c;stroke:#232c44;stroke-width:1.6;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat.bb .nb-gf0{stop-color:#8d97ab;} .pal-svg .pl-boat.bb .nb-gf1{stop-color:#5c677f;} .pal-svg .pl-boat.bb .nb-gs0{stop-color:#4b556c;} .pal-svg .pl-boat.bb .nb-gs1{stop-color:#2f374b;}
+  .pal-svg .pl-boat.bb .nb-gr0{stop-color:#a4adbf;} .pal-svg .pl-boat.bb .nb-gr1{stop-color:#7c869b;} .pal-svg .pl-boat.bb .nb-f,.pal-svg .pl-boat.bb .nb-s,.pal-svg .pl-boat.bb .nb-r{stroke:#1d2538;}
+  .pal-svg .pl-boat.bb .bt-fb{fill:#5b657d;stroke:#1d2538;} .pal-svg .pl-boat.bb .bt-ft{fill:#8c96ac;} .pal-svg .pl-boat.bb .bt-mast,.pal-svg .pl-boat.bb .bt-yard{stroke:#1d2538;}
+  .pal-svg .pl-boat .bb-barrel{stroke:#141a2a;stroke-width:4.2;stroke-linecap:butt;} .pal-svg .pl-boat .bb-bore{fill:#05070d;}
+  .pal-svg .pl-boat .bb-sec{fill:#6a748b;stroke:#2b3652;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bb-sb{stroke:#151b2b;stroke-width:2;stroke-linecap:round;}
+  .pal-svg .pl-boat .bb-abl{fill:#454f66;stroke:#1d2538;stroke-width:1;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bb-pad{fill:none;stroke:rgba(255,255,255,.65);stroke-width:1.6;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bb-radar{fill:#2f3850;stroke:#c7d0e2;stroke-width:1;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat.bb .bt-hull{fill:#323a4b;stroke:#161c2b;} .pal-svg .pl-boat.bb .bt-deck{fill:#7c869b;stroke:#4c566e;} .pal-svg .pl-boat.bb .bt-boot{stroke:#a3322d;stroke-width:2.2;}
+  html.fx-armed .pal-svg .pl-lmb .lm-art{pointer-events:all;}                                       /* a tower's body, not only its card, can be hit */
+  html.fx-armed .pal-svg .pl-boat.bb .bt-hull{stroke:#ff5a3c;stroke-width:3.2;}
+  html.fx-armed .pal-svg .pl-boat.bb{filter:drop-shadow(0 0 7px rgba(255,70,40,.75));}
   html.fx-armed #world .node,html.fx-armed .pal-svg .pl-lmb,html.fx-armed #world .node .nb3d *{cursor:crosshair !important;}
   #pal-fxbar{position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:312;display:none;padding:7px 15px;border-radius:999px;font-size:12px;font-weight:650;color:var(--text);
     background:var(--panel-glass-bg,var(--surface));-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);border:1px solid #ff7a3c;box-shadow:0 12px 32px var(--node-hover-shadow);}
@@ -1556,11 +1572,12 @@ function boatKind(n, L, W){ n=String(n||'');
   return 'ship'; }
 function drawBoat(lg, b, bi, pin){
   var kind=boatKind(b.n, b.len, b.wid), L=b.len, W=b.wid, a=b.a*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), u=L/100, q=W/2;
+  if(kind==='bb') W=Math.max(34, Math.min(W, L/7.4));                                  /* an Iowa-class hull: 270 m long, 33 m across */
   var g=el('g',{'class':'pl-boat '+kind,'data-name':b.n||'','data-kind':kind},lg); g.style.setProperty('--pc', kind==='tall'?'#7b6a54':'#5d6f92');
   function wp(fx, fy){ return [b.x+ca*fx-sa*fy, b.y+sa*fx+ca*fy]; }                        /* hull coordinates (bow +x, port -y) -> the map */
   function hull(k, bowK, sternK){ var x0=-L/2+k, x1=L/2-k*.3, w=q-k, bl=Math.max(L*bowK-k, 4), sw=w*sternK;                  /* bow tapers over bl with a curve; stern is a rounded transom */
     return 'M'+x0+' '+(-sw)+'L'+(x1-bl)+' '+(-w)+'C'+(x1-bl*.5)+' '+(-w)+' '+(x1-bl*.14)+' '+(-w*.62)+' '+x1+' 0C'+(x1-bl*.14)+' '+(w*.62)+' '+(x1-bl*.5)+' '+w+' '+(x1-bl)+' '+w+'L'+x0+' '+sw+'Q'+(x0-k*.5-3)+' 0 '+x0+' '+(-sw)+'Z'; }
-  var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g), bowK=kind==='sub'?.34:kind==='tall'?.2:kind==='carrier'?.14:kind==='small'?.22:kind==='bb'?.24:.26, stern=kind==='sub'?.5:kind==='carrier'?.95:.82;
+  var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g), bowK=kind==='sub'?.34:kind==='tall'?.2:kind==='carrier'?.14:kind==='small'?.22:kind==='bb'?.3:.26, stern=kind==='sub'?.5:kind==='carrier'?.95:kind==='bb'?.78:.82;
   /* foam round the hull, a bow wave and a thin wake behind: it is moored, so the water only laps it */
   el('path',{'class':'bt-foam', d:hull(-4, bowK, Math.min(1,stern+.08))},rot);
   var bw=el('path',{'class':'bt-bowwave', d:'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(-q*1.15)+' '+(L/2-L*.2)+' '+(-q*1.5)+'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(q*1.15)+' '+(L/2-L*.2)+' '+(q*1.5)},rot);
@@ -1572,9 +1589,15 @@ function drawBoat(lg, b, bi, pin){
   if(kind==='carrier'){ el('path',{'class':'bt-fd', d:'M'+(-L*.42)+' '+(-q*.7)+'L'+(L*.36)+' '+(-q*.7)+'L'+(L*.44)+' '+(-q*.25)+'L'+(-L*.42)+' '+(q*.7)+'Z'},rot); el('line',{'class':'bt-cl w', x1:-L*.4, y1:-q*.3, x2:L*.4, y2:-q*.3},rot); }
   /* plan parts: turrets (a battleship's three of three barrels, a cruiser's two of two) */
   b._tur=[];
-  function turret(f, r, nb){ var tx=f*L, tg=el('g',{transform:'translate('+tx.toFixed(1)+' 0)'},rot); el('circle',{'class':'bb-tur', r:r.toFixed(1)},tg);
-    var bar=el('g',{'class':'bb-bar'},tg); for(var i=0;i<nb;i++){ var o=(i-(nb-1)/2)*r*.55; el('line',{'class':'bb-barrel', x1:0, y1:o.toFixed(1), x2:(r*3.1).toFixed(1), y2:o.toFixed(1)},bar); } b._tur.push({x:tx, bar:bar}); }
-  if(kind==='bb'){ turret(.30, W*.2, 3); turret(.15, W*.2, 3); turret(-.31, W*.2, 3); g.classList.add('bb'); g._b=b; g.setAttribute('aria-label', b.n+' — click, then click a building to fire'); }
+  function turret(f, r, nb, len){ var tx=f*L, tg=el('g',{transform:'translate('+tx.toFixed(1)+' 0)'},rot); el('rect',{'class':'bb-tur', x:(-r*1.15).toFixed(1), y:(-r*1.05).toFixed(1), width:(r*2.3).toFixed(1), height:(r*2.1).toFixed(1), rx:(r*.55).toFixed(1)},tg);
+    var bar=el('g',{'class':'bb-bar'},tg), bl=[]; for(var i=0;i<nb;i++){ var o=(i-(nb-1)/2)*r*.62, ln=el('line',{'class':'bb-barrel', x1:(r*.5).toFixed(1), y1:o.toFixed(1), x2:(r*(len||3.1)).toFixed(1), y2:o.toFixed(1)},bar); el('circle',{'class':'bb-bore', cx:(r*(len||3.1)).toFixed(1), cy:o.toFixed(1), r:(r*.13).toFixed(1)},bar); bl.push(ln); } b._tur.push({x:tx, bar:bar, bl:bl, r:r, len:len||3.1}); }
+  if(kind==='bb'){
+    /* the secondary battery: five twin 5-inch mounts a side, a helicopter pad aft, and the armoured launch boxes of its missiles */
+    [.13,.06,-.01,-.09,-.16].forEach(function(f){ [-1,1].forEach(function(sd){ var mx=f*L, my=sd*q*.62, mg=el('g',{transform:'translate('+mx.toFixed(1)+' '+my.toFixed(1)+')'},rot); el('circle',{'class':'bb-sec', r:(q*.13).toFixed(1)},mg);
+      el('line',{'class':'bb-sb', x1:0, y1:-q*.04, x2:q*.34, y2:-q*.04},mg); el('line',{'class':'bb-sb', x1:0, y1:q*.04, x2:q*.34, y2:q*.04},mg); }); });
+    for(var ab=0; ab<4; ab++) el('rect',{'class':'bb-abl', x:(-L*.235+ab*L*.032).toFixed(1), y:(-q*.34).toFixed(1), width:(L*.026).toFixed(1), height:(q*.68).toFixed(1)},rot);
+    el('circle',{'class':'bb-pad', cx:(-L*.405).toFixed(1), cy:0, r:(q*.46).toFixed(1)},rot);
+    turret(.31, W*.2, 3, 3.5); turret(.175, W*.2, 3, 3.5); turret(-.32, W*.2, 3, 3.5); g.classList.add('bb'); g._b=b; g.setAttribute('aria-label', b.n+' — click, then click a building to fire'); }
   if(kind==='cruiser'){ turret(.27, W*.15, 2); turret(-.30, W*.15, 2); }
   /* upright parts: a block of the buildings' own glass (nbDraw) turned to the hull, a funnel, a mast (a line straight up) */
   var seq=0; function block(fx, fy, bl, bwid, h){ var c=wp(fx, fy); nbDraw(g, [0,0,bl,bwid,b.a], h, c[0], c[1], 'boat'+bi+'_'+(seq++)); return c; }
@@ -1583,7 +1606,8 @@ function drawBoat(lg, b, bi, pin){
     el('ellipse',{'class':'bt-ft', cx:c[0], cy:c[1]-h, rx:r, ry:r*.45},d); el('ellipse',{'class':'bt-fh', cx:c[0], cy:c[1]-h, rx:r*.62, ry:r*.26},d); }
   function mast(fx, fy, h){ var c=wp(fx, fy); el('line',{'class':'bt-mast', x1:c[0], y1:c[1], x2:c[0], y2:c[1]-h},g); return c; }
   var H0=Math.max(16, Math.min(60, L*.17));
-  if(kind==='bb'){ funnel(-.02, 0, W*.17, H0*.95); funnel(-.15, 0, W*.17, H0*.9); block(.09, 0, L*.11, W*.34, H0*1.5); block(.09, 0, L*.05, W*.2, H0*2.1); block(-.40, 0, L*.06, W*.26, H0*.6); mast(.09, 0, H0*3.1); mast(-.14, 0, H0*2.2); }
+  if(kind==='bb'){ funnel(-.05, 0, W*.2, H0*1.0); funnel(-.14, 0, W*.2, H0*.95); block(.075, 0, L*.12, W*.4, H0*1.1); block(.07, 0, L*.075, W*.3, H0*1.75); block(.065, 0, L*.045, W*.2, H0*2.35); block(-.20, 0, L*.05, W*.24, H0*.7);
+    var mt=mast(.06, 0, H0*3.4); mast(-.115, 0, H0*2.5); var yd=wp(.06, 0); el('line',{'class':'bt-yard', x1:yd[0]+(-sa*-W*.42), y1:yd[1]-H0*3.0+(ca*-W*.42), x2:yd[0]+(-sa*W*.42), y2:yd[1]-H0*3.0+(ca*W*.42)},g); var rd=el('ellipse',{'class':'bb-radar', cx:mt[0], cy:mt[1]-H0*3.45, rx:W*.2, ry:W*.07},g); }
   else if(kind==='cruiser'){ funnel(.04, 0, W*.17, H0*.95); funnel(-.08, 0, W*.17, H0*.95); block(.17, 0, L*.09, W*.34, H0*.85); mast(.17, 0, H0*2.2); mast(-.2, 0, H0*1.8); }
   else if(kind==='carrier'){ block(.12, q*.62, L*.1, W*.2, H0*1.7); mast(.12, q*.62, H0*2.8); block(-.1, q*.62, L*.04, W*.12, H0*.8); }
   else if(kind==='sub'){ block(.04, 0, L*.12, W*.3, H0*.9); mast(.07, 0, H0*1.6); mast(.01, 0, H0*1.25); }
@@ -2007,7 +2031,9 @@ function nbFire(tg, boatG){
   b._tur.forEach(function(t, i){ var wx=b.x+Math.cos(a)*t.x, wy=b.y+Math.sin(a)*t.x, th=Math.atan2(tg.y-wy, tg.x-wx);
     t.bar.setAttribute('transform','rotate('+(th*180/Math.PI-b.a).toFixed(1)+')');
     var mx=wx+Math.cos(th)*b.wid*.62, my=wy+Math.sin(th)*b.wid*.62;
-    setTimeout(function(){ var f=fxPin(mx, my, 'fx-flash'), q=f.parentNode; el('circle',{r:9,fill:'#ffe08a'},f); el('circle',{r:5,fill:'#fff'},f); setTimeout(function(){ q.remove(); }, 170);
+    setTimeout(function(){ var f=fxPin(mx, my, 'fx-flash'), q=f.parentNode; el('circle',{r:16,fill:'#ff8a3c','fill-opacity':.55},f); el('circle',{r:11,fill:'#ffe08a'},f); el('circle',{r:5.5,fill:'#fff'},f); setTimeout(function(){ q.remove(); }, 210);
+      var sm=fxPin(mx, my, 'fx-smoke'), sq=sm.parentNode, sc=el('circle',{r:14,fill:'#7b7f8a','fill-opacity':.5},sm); sc.style.transformBox='fill-box'; sc.style.transformOrigin='center'; sc.animate([{transform:'scale(.4)',opacity:.8},{transform:'scale(3.2)',opacity:0}],{duration:1500,easing:'ease-out'}).onfinish=function(){ sq.remove(); };
+      (t.bl||[]).forEach(function(ln){ var r0=t.r*(t.len||3.1); fxTween(380, function(k){ var rc=k<.2?k/.2:(1-k)/.8; ln.setAttribute('x2', (r0-rc*t.r*.7).toFixed(1)); ln.setAttribute('x1', (t.r*.5-rc*t.r*.7).toFixed(1)); }); });
       var j=(i-1)*26/Z, d=Math.hypot(tg.x-mx, tg.y-my), ms=Math.max(700, Math.min(1500, 500+d*.6));
       fxShell(mx, my, tg.x+j, tg.y+j*.4, ms, i===0 ? function(){ fxBoom(tg.x, tg.y); tg.ruin(); } : function(){ fxBoom(tg.x+j, tg.y+j*.4); }); }, 140*i); });
 }
