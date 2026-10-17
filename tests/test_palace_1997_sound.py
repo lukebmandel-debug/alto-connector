@@ -12,14 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from alto.build import palace, palace_sound
+from alto.build import palace, palace_fleet_asset, palace_sound
 
 QA = Path.home() / "Desktop" / "Alto Development" / "_qa"
 NODE = Path.home() / ".local" / "node" / "bin" / "node"
 HERE = Path(__file__).parent
 KITPY = QA / "kit" / "py"
 JS = palace_sound.SOUND_JS
-PJS = palace.PALACE_JS
+PJS = palace_fleet_asset.FLEET_JS                                  # 1.9.99: the toys, the sound and the rest are one hosted script
 
 
 def test_the_module_is_small_and_no_audio_files_or_network():
@@ -29,17 +29,18 @@ def test_the_module_is_small_and_no_audio_files_or_network():
 
 
 def test_the_page_hooks_are_one_liners_tied_to_the_real_shots():
-    assert "CONSTRUCT_JS + SOUND_JS + PANIC_JS + TRANSIT_JS" in Path(palace.__file__).read_text()
+    assert "CONSTRUCT_JS + SOUND_JS + PANIC_JS + FLEET_JS" in Path(palace_fleet_asset.__file__).read_text()
+    assert JS in palace_fleet_asset.FLEET_ASSET and JS not in palace.PALACE_JS
     assert "SND=window._palSnd" in PJS
-    assert "FXARM=on; SND.bar(b, on);" in PJS                                    # arming / standing down (Esc, ×, the ship again)
+    assert "SND.bar(b, on, WP[w].snd); if(!on && window._palPanic)" in PJS                                    # arming / standing down (Esc, ×, the ship again)
     assert "function fxBoom(x, y){\n  SND.b(x, y);" in PJS                            # at the moment of impact
-    assert "FXLAST=now; SND.u(b.x, b.y);" in PJS                                    # inside the firing click, with the ship's place
+    assert "LAST=now; var b=toy._b; SND.u(b.x, b.y);" in PJS                                    # inside the firing click, with the ship's place
     assert re.search(r"ms=Math\.max\(700, Math\.min\(1500, 500\+d\*\.6\)\); SND\.f\(ms\);\n\s+fxShell\(mx, my,", PJS)   # at each mount's own shot, whistle = flight time
 
 
 def test_what_the_synthesis_is_made_of():
     for needle in ("createDynamicsCompressor", "'lowpass',6000,150", "sn(t,90,30", "'bandpass',2800,900", "createDelay", "createBiquadFilter", "sawtooth", "[800,1200]", "[600,2300]", "sc:sc",
-                   "webkitAudioContext", "document.hidden", "'alto-palace-sound'", "visibilitychange", "c.close()", "'Mute battleship sound'", "'Unmute battleship sound'"):
+                   "webkitAudioContext", "document.hidden", "'alto-palace-sound'", "visibilitychange", "c.close()", "(on?'Mute ':'Unmute ')+W+' sound'", "W='battleship'"):
         assert needle in JS, needle
     assert "autoplay" not in JS.lower()
     # the context is only made in u(), which the arming / firing clicks call; nothing creates one at load

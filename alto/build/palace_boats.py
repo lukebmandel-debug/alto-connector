@@ -3,8 +3,8 @@ block. It is found by its tags, taken out of the fill-in and out of the landmark
 nearest to where the real ship lies, on the bank side, turned along the river. The page draws it (palace.py drawBoats): a hull, its deck, a
 glass superstructure, and a name above it.
 
-  find(raw, bbox, scale)      -> [{n, rx, ry, len_m, wid_m, ang}]   real-px centre, metres, the hull's angle in the real frame
-  place(m, ships, doms)       -> [{n, x, y, a, len, wid}]           on the page: centre, angle (deg), px
+  find(raw, bbox, scale)      -> [{n, rx, ry, len_m, wid_m, ang, k}] real-px centre, metres, the hull's angle in the real frame, k = weapon class (palace_fleet.vessel_class)
+  place(m, ships, doms)       -> [{n, x, y, a, len, wid, k?}]       on the page: centre, angle (deg), px; k (bb|cv|dd|sub) only for a warship
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ SCALE = 1.3          # px per metre, as every building (palace_skyline.SCALE)
 
 def is_ship(tags: dict) -> bool:
     t = tags or {}
-    return t.get("building") == "ship" or t.get("historic") == "ship"
+    return t.get("building") == "ship" or t.get("historic") == "ship" or bool(t.get("ship:type") and t.get("name"))
 
 
 def _metres(ring):
@@ -61,7 +61,8 @@ def find(raw, bbox, scale: float = 1.0, names=()) -> list:
                 continue
             real = [pmap.project(la, lo, bbox, scale) for la, lo in ring]
             rx, ry = sum(p[0] for p in real) / len(real), sum(p[1] for p in real) / len(real)
-            out.append({"n": str(t.get("name") or ""), "rx": rx, "ry": ry, "len_m": round(ln, 1), "wid_m": round(wd, 1), "ang": ang})
+            from .palace_fleet import vessel_class
+            out.append({"n": str(t.get("name") or ""), "rx": rx, "ry": ry, "len_m": round(ln, 1), "wid_m": round(wd, 1), "ang": ang, "k": vessel_class(t, str(t.get("name") or ""), ln) or ""})
     return out
 
 
@@ -117,7 +118,7 @@ def place(m: dict, ships: list, doms=None) -> list:
             a -= 180
         elif a < -90:
             a += 180
-        out.append({"n": s["n"], "x": round(cx, 1), "y": round(cy, 1), "a": round(a, 1), "len": round(ln, 1), "wid": round(wd, 1)})
+        out.append({"n": s["n"], "x": round(cx, 1), "y": round(cy, 1), "a": round(a, 1), "len": round(ln, 1), "wid": round(wd, 1), **({"k": s["k"]} if s.get("k") else {})})
     # boats along one bank sit side by side, not on one another: each slides along the river from the ones placed before it
     placed = []
     for b in out:

@@ -268,14 +268,16 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         shutil.rmtree(bg_out)
     if bg_src.is_dir():
         shutil.copytree(bg_src, bg_out / f"v{BG_V}")
-    # The Mind Palace's first-person ride: code, not page (build/palace_ride.py), in a folder named by its content hash.
-    from .build.palace_ride import ride_asset
-    ride_out = site / "ride"
-    if ride_out.exists():
-        shutil.rmtree(ride_out)
-    ride_out.mkdir()
-    rname, rjs = ride_asset()
-    (ride_out / rname).write_text(rjs, encoding="utf-8")
+    # The Mind Palace's hosted scripts (build/palace_assets.py: the first-person ride, the fleet's toy weapons): code, not page, each in a
+    # folder named by the content hash of its file.
+    from .build.palace_assets import assets as palace_assets, folders as palace_folders
+    for folder in palace_folders():
+        out_ = site / folder
+        if out_.exists():
+            shutil.rmtree(out_)
+        out_.mkdir()
+    for folder, aname, atext in palace_assets():
+        (site / folder / aname).write_text(atext, encoding="utf-8")
     pdir = site / "privacy"
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
@@ -331,6 +333,11 @@ def _csp(form_action: str) -> str:
     ])
 
 
+def _palace_folders() -> list:
+    from .build.palace_assets import folders
+    return folders()
+
+
 def _headers(csp: str, connect_csp: str) -> list[dict]:
     return [
         {"source": "**", "headers": [
@@ -355,10 +362,10 @@ def _headers(csp: str, connect_csp: str) -> list[dict]:
         {"source": "/bg/**", "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
         ]},
-        # The ride's script is named by a hash of its own text: it never changes under that name.
-        {"source": "/ride/**", "headers": [
+        # A hosted palace script (the ride, the fleet) is named by a hash of its own text: it never changes under that name.
+        *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
-        ]},
+        ]} for f in _palace_folders()),
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).
         {"source": "/connect/**", "headers": [

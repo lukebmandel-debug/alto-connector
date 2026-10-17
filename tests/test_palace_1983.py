@@ -97,19 +97,23 @@ def test_ships_are_boats_in_the_water_not_buildings_on_blocks():
         pf.domains, pf._owners = old
     assert b and abs(b[0]["x"]) < 100 and abs(b[0]["a"]) in (90.0, -90.0)             # inside the 200 px river, turned along it
     js = palace.PALACE_JS
-    assert "(M.boats||[]).forEach" in js and "'pl-boat '+kind" in js and "function drawBoat(" in js
+    from alto.build import palace_fleet_asset
+    fj = palace_fleet_asset.FLEET_JS                                                  # 1.9.99: the boats are drawn by the hosted fleet script
+    assert "window._palFleet.draw(lg, M, fleetHost())" in js and "function drawBoat(" not in js
+    assert "(M.boats||[]).forEach" in fj and "'pl-boat '+kind" in fj and "function drawBoat(" in fj
     assert "function nbOcclude()" in js and "'#palace-svg .pl-lmn'" in js              # a node building over a landmark's name turns to glass
     t = palace_transit_js.TRANSIT_JS
     assert "data-mode" in t and "function legRoute(" in t and "data-pillx" in t        # transit / drive / walk, the real path, a close button
 
 
 def test_the_battleship_fires_and_what_it_hits_is_rebuilt_over_twenty_seconds():
-    js, css = palace.PALACE_JS, palace.PALACE_CSS
-    assert "new jersey|\\biowa\\b|missouri|wisconsin|battleship" in js and "g.classList.add('bb')" in js
-    assert "function nbFire(" in js and "function fxRuin(" in js and "function fxBoom(" in js and "function fxShell(" in js
+    from alto.build import palace_fleet_asset
+    js, css = palace_fleet_asset.FLEET_ASSET, palace_fleet_asset.FLEET_CSS_ALL                           # 1.9.99: all of it is the hosted fleet script
+    assert "new jersey|\\biowa\\b|missouri|wisconsin|battleship" in js and "'pl-boat wp '+wk" in js and "WP.bb=" in js
+    assert "function fireGuns(" in js and "function fxRuin(" in js and "function fxBoom(" in js and "function fxShell(" in js
     assert "end:20000" in js and "gClad" in js and "clip-path" in js                                    # rebuilt a storey at a time, over 20 s (1.9.95: a construction site, palace_construct.py)
-    assert js.index("function nbFire(") < js.index("a click on a building enlarges it")                   # the guns hear the click before the map's own handler
-    assert ".pl-boat.bb{pointer-events:all" in css and "#pal-fxbar" in css and ".node.nb-ruin .node-card" in css
+    assert "window.addEventListener('click', function(e){\n    if(H.mob() || !H.palaceOn()) return;" in js        # the guns hear the click (window, capture) before the map's own (document) handlers
+    assert ".pl-boat.wp{pointer-events:all" in css and "#pal-fxbar" in css and ".node.nb-ruin .node-card" in css
 
 
 def test_a_node_building_never_runs_over_its_lot_into_the_street_beside_it():
@@ -119,7 +123,8 @@ def test_a_node_building_never_runs_over_its_lot_into_the_street_beside_it():
 
 def test_buses_ride_the_streets_and_the_battleship_and_towers_are_hit():
     from alto.build import palace_buses, palace_directions
-    js, css, tj = palace.PALACE_JS, palace.PALACE_CSS, palace_transit_js.TRANSIT_JS
+    from alto.build import palace_fleet_asset
+    js, css, tj = palace_fleet_asset.FLEET_ASSET, palace_fleet_asset.FLEET_CSS_ALL, palace_transit_js.TRANSIT_JS
     assert "BUSRIDE" in tj and "l.k==='bus'" in tj and "data-k" in tj                      # buses are lines with their own cost and look
     assert "palace_buses.attach(" in open(palace.__file__).read()
     raw = {"elements": [
@@ -130,7 +135,7 @@ def test_buses_ride_the_streets_and_the_battleship_and_towers_are_hit():
     assert rt and rt[0]["ref"] == "7" and len(rt[0]["path"]) == 12
     assert palace_buses._stops(raw)[0][2] == "Walnut St & 15th St"
     assert "html.fx-armed .pal-svg .pl-lmb .lm-art{pointer-events:all;}" in css            # a tower's body can be shot, not only its card
-    assert "function drawToyBB(" in js and "'bb-hole'" in js and "four peg dimples" in js     # the board game's battleship, from above
+    assert "function toyBB(" in js and "'bb-hole'" in js and "four peg dimples" in js     # the board game's battleship, from above
     assert "tg.x=cp[0]; tg.y=cp[1];" in js                                                  # the shells go where the aimer was clicked
     assert "legPlan" in open(palace_directions.__file__).read() and "line.k===\'bus\'" in open(palace_directions.__file__).read().replace("'bus'", "\\'bus\\'") or True
 
