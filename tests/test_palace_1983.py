@@ -101,3 +101,12 @@ def test_ships_are_boats_in_the_water_not_buildings_on_blocks():
     assert "function nbOcclude()" in js and "'#palace-svg .pl-lmn'" in js              # a node building over a landmark's name turns to glass
     t = palace_transit_js.TRANSIT_JS
     assert "data-mode" in t and "function legRoute(" in t and "data-pillx" in t        # transit / drive / walk, the real path, a close button
+
+
+def test_the_battleship_fires_and_what_it_hits_is_rebuilt_over_twenty_seconds():
+    js, css = palace.PALACE_JS, palace.PALACE_CSS
+    assert "new jersey|\\biowa\\b|missouri|wisconsin|battleship" in js and "g.classList.add('bb')" in js
+    assert "function nbFire(" in js and "function fxRuin(" in js and "function fxBoom(" in js and "function fxShell(" in js
+    assert "{duration:20000, fill:'none'}" in js and "easing:'steps('+steps+', end)'" in js            # rebuilt a storey at a time, over 20 s
+    assert js.index("function nbFire(") < js.index("a click on a building enlarges it")                   # the guns hear the click before the map's own handler
+    assert ".pl-boat.bb{pointer-events:all" in css and "#pal-fxbar" in css and ".node.nb-ruin .node-card" in css

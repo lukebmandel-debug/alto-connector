@@ -615,6 +615,16 @@ PALACE_CSS = KEY_CSS + r"""
   #palace-svg-m .pl-area{--afs:clamp(10.5px, calc(8.5px + 5px * var(--pz,1)), 13px);opacity:.7;}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-boat{pointer-events:none;}
+  .pal-svg .pl-boat.bb{pointer-events:all;cursor:pointer;}
+  .pal-svg .pl-boat .bb-tur{fill:#46567a;stroke:var(--pal-halo,#fff);stroke-width:1.5;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bb-barrel{stroke:#2c3858;stroke-width:3.2;stroke-linecap:round;}
+  html.fx-armed .pal-svg .pl-boat.bb .bt-hull{stroke:#ff7a3c;stroke-width:3;}
+  html.fx-armed #world .node,html.fx-armed .pal-svg .pl-lmb,html.fx-armed #world .node .nb3d *{cursor:crosshair !important;}
+  #pal-fxbar{position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:312;display:none;padding:7px 15px;border-radius:999px;font-size:12px;font-weight:650;color:var(--text);
+    background:var(--panel-glass-bg,var(--surface));-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);border:1px solid #ff7a3c;box-shadow:0 12px 32px var(--node-hover-shadow);}
+  html.fx-armed #pal-fxbar{display:block;} html.mobile #pal-fxbar{display:none !important;}
+  .node.nb-ruin .node-card{opacity:0 !important;pointer-events:none;}
+  .pal-svg .pl-fx{pointer-events:none;}
   .pal-svg .pl-boat .bt-wake{fill:rgba(255,255,255,.55);stroke:none;}
   .pal-svg .pl-boat .bt-hull{fill:#56668a;stroke:var(--pal-halo,#fff);stroke-width:2;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-boat .bt-deck{fill:#b8c2d6;stroke:#6f7ea0;stroke-width:1;vector-effect:non-scaling-stroke;}
@@ -682,7 +692,7 @@ PALACE_CSS = KEY_CSS + r"""
   html.nb-far:not(.mobile) #world .node:not(.focused):not(.pal-hot):not(.pal-chip-hot):not(.pal-lab):not(.pal-dest) .node-card,html.nb-far .node .nb-ld{display:none !important;}
   .node .nb3d{position:absolute;left:50%;top:50%;overflow:visible;pointer-events:none;
     width:calc(var(--z,1) * var(--nbw,1) * 1px);height:calc(var(--z,1) * var(--nbh,1) * 1px);margin-left:calc(var(--z,1) * var(--nbx,0) * 1px);margin-top:calc(var(--z,1) * var(--nby,0) * 1px);
-    transition:opacity .22s ease;}
+    transition:opacity .22s ease;transform-origin:var(--ox,50%) var(--oy,100%);}
   html:not(.alto-palace) .node .nb3d,html.mobile .node .nb3d{display:none;}
   .nb3d *{pointer-events:all;cursor:pointer;}
   .nb-f,.nb-s,.nb-r{stroke:var(--pc,#888);stroke-width:2.2;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
@@ -1176,11 +1186,11 @@ function tube(parent, d, col, w, op, cls){
    (before the invisible hit paths and the hover pill), however late something else is added to the map */
 function stackLayers(svg){
   var lm=svg.querySelector(':scope > .pl-lms'), bl=svg.querySelector(':scope > .pl-blds'), ts=svg.querySelector(':scope > .pl-tstns'); if(!lm || !bl) return;
-  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov,.pl-portals'); }), n=ch.length;
+  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov,.pl-portals,.pl-fx'); }), n=ch.length;
   if(ch[n-2]===lm && ch[n-1]===bl && (!ts || ch[n-3]===ts)) return;
   if(ts) svg.appendChild(ts);                       /* the stations over the highways and street names, under the landmarks */
   svg.appendChild(lm); svg.appendChild(bl);
-  [].forEach.call(svg.querySelectorAll(':scope > .pl-portals'), function(h){ svg.appendChild(h); });      /* the airport portals ride over the buildings they stand on */
+  [].forEach.call(svg.querySelectorAll(':scope > .pl-portals,:scope > .pl-fx'), function(h){ svg.appendChild(h); });      /* the airport portals ride over the buildings they stand on */
   [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
 function drawCity(svg){
   if(!svg._stk){ svg._stk=new MutationObserver(function(){ stackLayers(svg); }); svg._stk.observe(svg,{childList:true}); }
@@ -1327,9 +1337,13 @@ function drawCity(svg){
     var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g);
     function hullP(k){ var x0=-L/2+k, x1=L/2-k*.4, w=q-k, bw=Math.max(bow-k, 4); return 'M'+x0+' '+(-w)+'L'+(x1-bw)+' '+(-w)+'Q'+(x1-bw*.1)+' '+(-w)+' '+x1+' 0Q'+(x1-bw*.1)+' '+w+' '+(x1-bw)+' '+w+'L'+x0+' '+w+'Z'; }
     el('path',{'class':'bt-wake', d:hullP(-5)},rot); el('path',{'class':'bt-hull', d:hullP(0)},rot); el('path',{'class':'bt-deck', d:hullP(Math.min(5, W*.18))},rot);
+    /* a battleship (USS New Jersey, Iowa, Missouri, Wisconsin) has its guns: three turrets of two barrels, which turn to what they fire at (nbFire) */
+    if(/new jersey|\biowa\b|missouri|wisconsin|battleship/i.test(b.n||'')){ g.classList.add('bb'); g._b=b; b._tur=[]; g.setAttribute('aria-label', b.n+' — click, then click a building to fire');
+      [.30,.15,-.30].forEach(function(f){ var tx=f*L, tg=el('g',{transform:'translate('+tx.toFixed(1)+' 0)'},rot); el('circle',{'class':'bb-tur', r:(W*.2).toFixed(1)},tg);
+        var bar=el('g',{'class':'bb-bar'},tg); [-.05,.05].forEach(function(o){ el('line',{'class':'bb-barrel', x1:0, y1:(W*o).toFixed(1), x2:(W*.62).toFixed(1), y2:(W*o).toFixed(1)},bar); }); b._tur.push({x:tx, bar:bar}); }); }
     var H=Math.max(14, Math.min(44, L*.15));
     nbDraw(g, [0,0,L*.34,W*.5,b.a], H, b.x-Math.cos(a)*L*.06, b.y-Math.sin(a)*L*.06, 'boat'+bi);
-    el('title',{},g).textContent=b.n||'A boat';
+    el('title',{},g).textContent=(b.n||'A boat')+(g.classList.contains('bb')?' \u2014 click to man the guns':'');
     if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-H-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; } });
   /* the landmark names over every building: a tower in front (the next block down a column of towers, rising 300 m+ at
      true scale, more than a row) would otherwise hide the name hanging under the card behind it. Each name keeps its
@@ -1568,6 +1582,7 @@ function nbBuild(e, id, L, H){
   var s=el('svg',{'class':'nb3d', 'aria-hidden':'true', preserveAspectRatio:'none'}), b=nbDraw(s, L, H, 0, 0, id);
   var x0=b[0]-3, y0=b[1]-3, x1=b[2]+8, y1=b[3]+9;
   s.setAttribute('viewBox', x0.toFixed(1)+' '+y0.toFixed(1)+' '+(x1-x0).toFixed(1)+' '+(y1-y0).toFixed(1));
+  s.style.setProperty('--ox', ((0-x0)/(x1-x0)*100).toFixed(2)+'%'); s.style.setProperty('--oy', ((b[4]-y0)/(y1-y0)*100).toFixed(2)+'%');
   s.style.setProperty('--nbx', x0.toFixed(1)); s.style.setProperty('--nby', y0.toFixed(1)); s.style.setProperty('--nbw', (x1-x0).toFixed(1)); s.style.setProperty('--nbh', (y1-y0).toFixed(1));
   e.insertBefore(s, e.firstChild); return b;
 }
@@ -1894,6 +1909,60 @@ window.addEventListener('keydown', function(e){
     if(c && c===e.target && n && n.id && isB(n.id.slice(5))){ e.preventDefault(); e.stopPropagation(); enlarge(n.id.slice(5)); } }
 }, true);
 document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTimeout(tipT); labelB(null); lit(null); } });
+/* ── the battleship's guns (a fun extra): click the ship, then a building. Its turrets turn, shells arc to it, it is blown apart — and rebuilt,
+   storey by storey, over 20 seconds. Node buildings and landmark buildings can be hit; nothing is lost. ── */
+var FXARM=false, FXLAST=0;
+function fxLayer(){ var g=svgD&&svgD._fx; if(!g || g.parentNode!==svgD){ g=svgD._fx=el('g',{'class':'pl-fx'},svgD); } svgD.appendChild(g); return g; }
+function fxBar(on){ var b=document.getElementById('pal-fxbar'); if(!b){ b=document.createElement('div'); b.id='pal-fxbar'; b.setAttribute('role','status'); document.body.appendChild(b); }
+  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' — click a building to fire · Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; }
+function fxTween(ms, fn, done){ var t0=performance.now(); (function f(t){ var k=Math.min(1,(t-t0)/ms); fn(k); if(k<1) requestAnimationFrame(f); else if(done) done(); })(t0); }
+function fxPin(x, y, cls){ var g=pin(fxLayer(), cls, x, y, {}); return g; }
+function fxBoom(x, y){
+  var g=fxPin(x, y, 'fx-boom'), o=g.parentNode;
+  [['#ffd34a',14,520],['#ff7a3c',22,760],['#6b6f7a',30,1500]].forEach(function(c,i){ var k=el('circle',{r:c[1], fill:c[0], 'fill-opacity':i===2?.55:.9},g); k.style.transformBox='fill-box'; k.style.transformOrigin='center';
+    k.animate([{transform:'scale(.15)',opacity:1},{transform:'scale('+(i===2?2.6:1.9)+')',opacity:0}],{duration:c[2],easing:'ease-out',fill:'forwards'}); });
+  var parts=[]; for(var i=0;i<9;i++){ var a=Math.random()*Math.PI*2, v=40+Math.random()*90; parts.push({e:el('rect',{x:-3,y:-3,width:6,height:6,fill:'#44404a'},fxLayer()), vx:Math.cos(a)*v, vy:Math.sin(a)*v-80, x:x, y:y}); }
+  fxTween(1100, function(k){ parts.forEach(function(p){ var t=k*1.1, px=p.x+p.vx*t/Z*.6, py=p.y+(p.vy*t+260*t*t)/Z*.6; p.e.setAttribute('transform','translate('+px.toFixed(1)+' '+py.toFixed(1)+') scale('+(Math.max(.1,1-k)/Z*.9).toFixed(3)+')'); p.e.setAttribute('opacity', (1-k).toFixed(2)); }); },
+    function(){ parts.forEach(function(p){ p.e.remove(); }); setTimeout(function(){ o.remove(); }, 900); });
+}
+function fxShell(x0, y0, x1, y1, ms, hit){
+  var g=fxPin(x0, y0, 'fx-shell'), o=g.parentNode; el('circle',{r:4.2,fill:'#2b2f3b',stroke:'#fff','stroke-width':1.2},g);
+  var d=Math.hypot(x1-x0, y1-y0), h=Math.min(260, d*.28);
+  fxTween(ms, function(k){ o.setAttribute('transform','translate('+(x0+(x1-x0)*k).toFixed(1)+' '+(y0+(y1-y0)*k-4*h*k*(1-k)).toFixed(1)+')'); }, function(){ o.remove(); if(hit) hit(); });
+}
+/* a building struck: it collapses at once, and rises again in 20 s, a storey at a time (a node building is its own svg; a landmark is its group) */
+function fxRuin(el_, tagEl){
+  if(!el_ || !el_.animate) return; if(el_._ruin){ try{ el_._ruin.cancel(); }catch(x){} }
+  if(el_.style){ el_.style.transformBox='fill-box'; el_.style.transformOrigin=el_.style.transformOrigin||'50% 100%'; }
+  var steps=Math.max(10, Math.min(24, Math.round(((el_._storeys)||12)))), a=el_.animate([
+    {offset:0, transform:'scaleY(1) skewX(0deg)', filter:'none', easing:'cubic-bezier(.6,0,1,.6)'},
+    {offset:.012, transform:'scaleY(.07) skewX(5deg)', filter:'grayscale(.7) brightness(.85)', easing:'steps('+steps+', end)'},
+    {offset:1, transform:'scaleY(1) skewX(0deg)', filter:'grayscale(0) brightness(1)'}], {duration:20000, fill:'none'});
+  el_._ruin=a; if(tagEl){ tagEl.classList.add('nb-ruin'); } a.onfinish=a.oncancel=function(){ el_._ruin=null; if(tagEl) tagEl.classList.remove('nb-ruin'); };
+}
+function fxTarget(t){
+  var n=t.closest&&t.closest('#world .node[id^="node-"]'); if(n && n._nbS && !n.classList.contains('pal-floor')){ var S_=n._nbS; return {x:(S_[0]+S_[2])/2, y:S_[3]-(S_[3]-S_[1])*.35, ruin:function(){ var b=n.querySelector(':scope > .nb3d'); if(b){ b._storeys=Math.round((n._nbH||40)/6); fxRuin(b, n); } }}; }
+  var lm=t.closest&&t.closest('#palace-svg .pl-lmb'); if(lm && lm._lm){ var L=lm._lm; return {x:L.x+L.w/2, y:L.y+L.h/2, ruin:function(){ lm._storeys=16; fxRuin(lm, null); }}; }
+  return null;
+}
+function nbFire(tg, boatG){
+  var b=boatG._b, a=b.a*Math.PI/180, now=performance.now(); if(now-FXLAST<1100) return; FXLAST=now;
+  b._tur.forEach(function(t, i){ var wx=b.x+Math.cos(a)*t.x, wy=b.y+Math.sin(a)*t.x, th=Math.atan2(tg.y-wy, tg.x-wx);
+    t.bar.setAttribute('transform','rotate('+(th*180/Math.PI-b.a).toFixed(1)+')');
+    var mx=wx+Math.cos(th)*b.wid*.62, my=wy+Math.sin(th)*b.wid*.62;
+    setTimeout(function(){ var f=fxPin(mx, my, 'fx-flash'), q=f.parentNode; el('circle',{r:9,fill:'#ffe08a'},f); el('circle',{r:5,fill:'#fff'},f); setTimeout(function(){ q.remove(); }, 170);
+      var j=(i-1)*26/Z, d=Math.hypot(tg.x-mx, tg.y-my), ms=Math.max(700, Math.min(1500, 500+d*.6));
+      fxShell(mx, my, tg.x+j, tg.y+j*.4, ms, i===0 ? function(){ fxBoom(tg.x, tg.y); tg.ruin(); } : function(){ fxBoom(tg.x+j, tg.y+j*.4); }); }, 140*i); });
+}
+document.addEventListener('click', function(e){
+  if(mob() || !palaceOn()) return;
+  var bb=e.target.closest&&e.target.closest('#palace-svg .pl-boat.bb');
+  if(bb){ e.stopImmediatePropagation(); e.preventDefault(); fxBar(!FXARM); return; }
+  if(!FXARM) return;
+  var tg=fxTarget(e.target); if(!tg){ return; }
+  e.stopImmediatePropagation(); e.preventDefault(); var boat=svgD.querySelector('.pl-boat.bb'); if(boat && boat._b) nbFire(tg, boat);
+}, true);
+window.addEventListener('keydown', function(e){ if(FXARM && e.key==='Escape'){ e.stopImmediatePropagation(); e.preventDefault(); fxBar(false); } }, true);
 /* a click on a building enlarges it (the map comes closer first); a double click goes inside: the second click of the pair
    (it lands on the rising card, its ghost, or the moving map) never toggles anything, it opens the building's page */
 /* a building's page opened while the glide to it was still running (a double-click) must not let that glide land on the hidden board */
@@ -2009,6 +2078,7 @@ document.addEventListener('dblclick', function(e){
   var cv=document.getElementById('canvas'); if(!cv || !cv.contains(e.target) || (e.target.closest && e.target.closest('.node'))) return;
   var p=canvasPt(cv, e.clientX, e.clientY); zoomAnim(Z*1.8, p[0], p[1]);
 });
+
 
 /* a floor has no card on the map: finding one (search, a link) goes inside its building at that floor */
 function wrapFocus(){ var _ef=window.enterFocus; if(!_ef || _ef._pal) return;
