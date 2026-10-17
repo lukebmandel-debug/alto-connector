@@ -50,3 +50,16 @@ def test_each_portal_goes_from_where_it_stands_and_a_return_never_lands_on_the_c
     assert "function go(po, pin, at)" in palace_airport.AIRPORT_JS and "var s=at||po._at;" in palace_airport.AIRPORT_JS
     js = palace.PALACE_JS
     assert "function centreCity(cv)" in js and "centreCity(cv); }" in js
+
+
+def test_node_buildings_are_glass_blocks_as_tall_as_what_is_inside():
+    js, css = palace.PALACE_JS, palace.PALACE_CSS
+    assert "function nbDraw(" in js and "function nbBuild(" in js and "function nbHeight(id)" in js
+    assert "(t.envs||[]).length)+(t.themes||[]).length" in js                      # height = the cases and sections under the node (and its floors)
+    assert "Math.min(100, 28+9*nbWeight(id))" in js                               # low-to-mid rise: always far below the landmark towers
+    assert "nzRank" in js and "'--nz'" in js                                       # back to front, so a building stands in front of those behind it
+    assert ".node .nb3d{position:absolute" in css and "translate:calc(-50% + var(--z,1)" in css      # the number is a tag floating over the roof
+    assert "html.mobile .node .nb3d" in css and "nbDraw(b, L, H, L[0], L[1], id)" in js    # the phone's map draws them too
+    assert "pin(b, 'pl-nbtag'" in js                                               # a tag the same size at every zoom, on the phone as well
+    assert ".node.nb-see .nb3d{opacity:.2;}" in css and "the see-through lens" in js     # buildings near the pointer turn to glass
+    assert "var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2+(el._nbH||0)*Z;" in js   # an enlarged card stands over the roof

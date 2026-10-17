@@ -37,7 +37,7 @@ MOBILE_CSS = r"""
   #pal-mmap .pm-zoom button:active,#pal-mmap .pm-close:active{color:var(--text);background:color-mix(in srgb,var(--text) 10%,transparent);}
   #pal-mmap svg.pm-ic{display:block;}
   #pal-mmap svg{display:block;}
-  #pal-mmap .pm-sel .b-card{stroke-width:3.4;}
+  #pal-mmap .pm-sel .nb-r,#pal-mmap .pm-sel .b-tag{stroke-width:3.4;}
   .pal-svg .pl-sel{pointer-events:none;}
 
   /* the bottom sheet: peek (a search field) · half · full, on a spring */
