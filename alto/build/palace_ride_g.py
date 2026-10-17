@@ -15,6 +15,11 @@ var _scn=null;
 function sceneryGather(W, set){ return _scn?_scn.gather(W,set):null; }
 function sceneryUpdate(W, tm, Cam){ return _scn?_scn.update(W,tm,Cam):0; }
 function sceneryDraw(ctx, W, P, Cam, tm){ if(_scn) _scn.draw(ctx,W,P,Cam,tm); }
+/* the scenery's own trees, lamps, signals and furniture at given points (the real-geometry world, palace_ride_street.py, places them where the street data has them):
+   sceneryPlace(W, {trees:[[x,y,species 0..5,size,hash 0..1,season,lod]], lamps:[[x,y,ox,oy]], signals:[[x,y,ax,ay,fx,fy]], stops:[[x,y,fx,fy]], benches/hydrants/bins/boxes:[[x,y,ox,oy]]})
+   fills W.pal and adds one mesh per 300 unit cell to W.meshes (ids 'scn-real:'); the lit lamp heads go to W.lamps. -> {trees, lamps, ...} counts */
+function sceneryPlace(W, it){ return _scn&&_scn.place?_scn.place(W,it):null; }
+function sceneryTreeAt(x, y, h){ return _scn&&_scn.treeKind?_scn.treeKind(x,y,h):0; }
 (function(){
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
    SCENERY (palace_ride_g.py): street trees, lamps, signals, signs, crosswalks, parked cars, furniture, rooftops, park trees and paths,
@@ -850,7 +855,27 @@ function drawFallback(ctx, W, P, Cam, tm){
 /* a read-only door for the QA kit and the tests (window._palScn): the world of the ride, a world gathered by hand, the movers' update, the options */
 window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gather:function(set){ return gatherWorld(set, null); }, cam:function(){ return C; }, hash:hash, SCN:SCN, update:updateSafe, PAL:PAL, CAR_T:CAR_T, tpl:function(){ return _TPL; }, sig:sigState, pos:function(c,o){ return loopAt(c.loop,c.s,o); }, S:function(){ return R.W&&R.W._scn; }, SW:function(W){ return W._scn; }, obHit:obHit, cwRing:cwRing, noRide:function(f){ var m=R.M; R.M=null; try{ return f(); } finally{ R.M=m; } }, setRide:function(M){ var o=R.M; R.M=M; return o; }};
 
-_scn={gather:gatherSafe, update:updateSafe, draw:drawFallback};
+/* ── the real-geometry world's furniture: the same models, at the given points ── */
+function placeReal(W, it){
+  var cells={}, cnt={trees:0,lamps:0,signals:0,stops:0,furn:0}, lampsN=[], keep=_lamps;
+  function mm(x,y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=cells[k]; if(!c) c=cells[k]={m:sb(8192),ci:ci,cj:cj}; return c.m; }
+  W.pal=PAL; _lamps=lampsN; _rec=null;
+  try{
+    (it.trees||[]).forEach(function(t){ var g=hash(Math.round(t[0]*3)+Math.round(t[1]*5)*977), sp=t[2]|0, season=pickSeason(hash(Math.round(t[0]*9)+Math.round(t[1]*13)+3), sp);
+      treeAt(mm(t[0],t[1]),t[0],t[1],sp,t[3]==null?.76+.26*g:t[3],t[4]==null?g:t[4],t[5]==null?season:t[5],!!t[6],false); cnt.trees++; });
+    (it.lamps||[]).forEach(function(l){ lampAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3]); cnt.lamps++; });
+    (it.signals||[]).forEach(function(l){ signalAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3],l[4],l[5],-1); cnt.signals++; });
+    (it.stops||[]).forEach(function(l){ stopSignAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3]); cnt.stops++; });
+    (it.benches||[]).forEach(function(l){ benchAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3]); cnt.furn++; });
+    (it.hydrants||[]).forEach(function(l){ hydrantAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3],hash(Math.round(l[0])+Math.round(l[1]))); cnt.furn++; });
+    (it.bins||[]).forEach(function(l){ trashAt(mm(l[0],l[1]),l[0],l[1]); cnt.furn++; });
+    (it.boxes||[]).forEach(function(l){ mailboxAt(mm(l[0],l[1]),l[0],l[1],l[2],l[3]); cnt.furn++; });
+  } finally { _lamps=keep; }
+  Object.keys(cells).forEach(function(k){ var c=cells[k]; if(c.m.n) W.meshes.push({a:sfin(c.m), id:'scn-real:'+k+':'+(it.id||''), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75}); });
+  W.lamps=new Float32Array(lampsN); return cnt; }
+/* the species the ride would give a street tree at (x,y): the plane tree on the avenues, the oval and the oak among them (pickSpecies' own mix, by position) */
+function treeKindAt(x,y,h){ return pickSpecies(-1,2,h==null?hash(Math.round(x*3)+Math.round(y*7)):h); }
+_scn={gather:gatherSafe, update:updateSafe, draw:drawFallback, place:placeReal, treeKind:treeKindAt};
 })();
 """
 CSS_G = """

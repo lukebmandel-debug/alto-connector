@@ -487,7 +487,12 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     # the street-level data of the first-person view (palace_street.py): one hosted, content-hashed blob; the page holds only its 10 character hash (m["street"])
     try:
         from . import palace_street
-        palace_street.attach(m, bbox, cache_dir=cache_dir, offline=offline)
+        try:
+            from .palace_ride_real import scope_for
+            scope = scope_for(m, districts or [], bbox)      # first-person view scope: only the districts with nodes, the fleet and the landmarks (+ buffer) get street data
+        except Exception:                                   # noqa: BLE001 — a map the scope cannot be read from keeps the whole box
+            scope = None
+        palace_street.attach(m, bbox, cache_dir=cache_dir, offline=offline, scope=scope)
     except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with nothing: no street data, the ride is as before
         pass
     # buses (palace_buses.py): the main routes, drawn along the page's streets from their real stops, ridden like any line

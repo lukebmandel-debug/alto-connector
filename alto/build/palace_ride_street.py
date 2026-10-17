@@ -42,6 +42,7 @@ REAL.prepare=function(pts, r){ r=r||520; if(!REAL.street()) return Promise.resol
   return Promise.all(pts.map(function(q){ return S.need(q[0],Hm-q[1],r); })).then(function(){ REAL.load(REAL.fromStreet(pts,r)); REAL.src='street'; return true; }); };
 REAL.prepareLeg=function(D){ var pts=[], o={x:0,y:0,k:0}, p={x:0,y:0}, last=null; for(var s=0;s<=D.L+1;s+=60){ pathAt(D,Math.min(s,D.L),p); realOf(p.x,p.y,o); if(!last||Math.hypot(o.x-last[0],o.y-last[1])>350){ pts.push([o.x,o.y]); last=[o.x,o.y]; } } return REAL.prepare(pts,520); };
 REAL.isOn=function(){ return !!(REAL.on && rlInit() && REAL.chunks); };
+REAL.legOn=function(D){ return !!(REAL.isOn() && D && (D.real || (D.real===undefined && REAL.match(D)))); };    /* this leg is walked in the real frame (matched and in bounds) */
 function rlNorm(n){ if(!n) return ''; n=String(n).toLowerCase().replace(/\b(north|south|east|west|n|s|e|w)\b\.?/g,' ').replace(/\b(street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|place|pl|lane|ln|way|court|ct|terrace|ter|parkway|pkwy)\b\.?/g,' ').replace(/(\d+)(st|nd|rd|th)\b/g,'$1').replace(/[^a-z0-9]+/g,' ').trim(); return n; }
 /* a spatial index of every road segment (50 m cells) */
 function rlSegs(){ if(REAL.segIdx) return REAL.segIdx; var I={}, G=50; REAL.ways.forEach(function(f){ var nn=rlNorm(f.n);
@@ -73,7 +74,8 @@ function pageNameAt(X,Y){ if(!PGRID){ PGRID={}; var G=120; (E.M.streets||[]).for
   return best<30?nm:''; }
 REAL.CUT=80; REAL.SPACING=30; REAL.SNAP=40;
 REAL.match=function(D){
-  if(!REAL.isOn()||!D||!D.L) return null; var sp=REAL.SPACING, n=Math.max(2,Math.round(D.L/sp)+1), o={x:0,y:0,k:0}, raw=[], i, p={x:0,y:0}, ps=[];
+  if(!REAL.isOn()||!D||!D.L) return null; if(REAL.legInBounds && !REAL.legInBounds(D).ok){ D.real=null; D.oob=true; return null; }    /* a leg that leaves the region keeps today's lattice world */
+  var sp=REAL.SPACING, n=Math.max(2,Math.round(D.L/sp)+1), o={x:0,y:0,k:0}, raw=[], i, p={x:0,y:0}, ps=[];
   for(i=0;i<n;i++){ var s=Math.min(D.L,i*D.L/(n-1)); pathAt(D,s,p); realOf(p.x,p.y,o); raw.push({x:o.x,y:o.y,k:o.k,s:s,nm:pageNameAt(p.x,p.y)}); }
   for(i=0;i<n;i++){ var a=raw[Math.max(0,i-1)], b=raw[Math.min(n-1,i+1)]; raw[i].h=Math.atan2(b.y-a.y,b.x-a.x); }
   var steps=[]; for(i=1;i<n;i++) steps.push(Math.hypot(raw[i].x-raw[i-1].x,raw[i].y-raw[i-1].y)); steps.sort(function(a,b){ return a-b; }); var med=steps[steps.length>>1]||10, cuts=[];
@@ -134,11 +136,10 @@ function rlPolyHit(q, ring, x0,y0,x1,y1){          /* a real footprint against a
   for(i=0;i<n;i++) if(rlIn(q.p,ring[2*i],ring[2*i+1])) return true;
   var rr=[]; for(i=0;i<n;i++) rr.push([ring[2*i],ring[2*i+1]]); for(i=0;i<q.p.length;i++) if(rlIn(rr,q.p[i][0],q.p[i][1])) return true;
   return false; }
-/* simple street trees and lamps (the scenery's own treeAt/lampAt are private to palace_ride_g.py's scope; asked its owner to export them, these are the stand-ins) */
-function rlTree(m,x,y,sp,h){ var u=K, tall=(sp===3?9:sp===1?7.5:sp===2?7:6)*u*(.85+.3*h), r=(sp===3?2.2:sp===1?2.6:sp===2?4.4:sp===4?2.4:3.8)*u*(.85+.3*h);
-  MB.cyl(m,x,y,0,tall*.45,.22*u,5,MAT.trunk,MAT.trunk,h); MB.dome(m,x,y,tall*.35,r,3,8,MAT.leaf,h);
-  if(sp===3) MB.dome(m,x,y,tall*.62,r*.65,3,8,MAT.leaf,h); else MB.dome(m,x,y,tall*.62,r*.7,3,8,MAT.leaf,h); }
-function rlLamp(m,x,y,ox,oy,pts){ var u=K; MB.cyl(m,x,y,0,7.4*u,.1*u,5,MAT.metal,MAT.metal,.3); var hx=x+ox*2.1*u, hy=y+oy*2.1*u; MB.box(m,hx-.35*u,hy-.2*u,7.2*u,hx+.35*u,hy+.2*u,7.45*u,MAT.metal,MAT.metal,.3); pts.push(hx,hy,7.1*u); }
+function rlInF(ring,x,y){ var c=false, n=ring.length/2; for(var i=0,j=n-1;i<n;j=i++){ var ax=ring[2*i], ay=ring[2*i+1], bx=ring[2*j], by=ring[2*j+1]; if((ay>y)!==(by>y) && x<ax+(y-ay)*(bx-ax)/(by-ay)) c=!c; } return c; }
+/* a point grid for "is there one of these within r m" */
+function rlPG(pts,G){ var g={}; pts.forEach(function(p){ var k=Math.floor(p[0]/G)+','+Math.floor(p[1]/G); (g[k]||(g[k]=[])).push(p); }); g.G=G; return g; }
+function rlPGnear(g,x,y,r){ var G=g.G, i0=Math.floor((x-r)/G), i1=Math.floor((x+r)/G), j0=Math.floor((y-r)/G), j1=Math.floor((y+r)/G); for(var i=i0;i<=i1;i++) for(var j=j0;j<=j1;j++){ var l=g[i+','+j]; if(l) for(var q=0;q<l.length;q++) if(Math.hypot(l[q][0]-x,l[q][1]-y)<=r) return true; } return false; }
 function gatherReal(Xp, Yp, R){
   R=R||480; var o0=realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);
   var W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:false, set:{}, scenery:null, meshes:[], movers:[], dashes:[], rivers:[], real:{cx:cx*K,cy:cy*K,dom:o0.k}};
@@ -150,12 +151,13 @@ function gatherReal(Xp, Yp, R){
     lots.push({id:id, p:q, x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
   var cleared=0, kept=0, dk=dark(), roofM=MB.mk(), roofs=[0,0,0];
   if(!glOk()) W.tiles.push({ring:[(cx-R)*K,(cy-R)*K,(cx+R)*K,(cy-R)*K,(cx+R)*K,(cy+R)*K,(cx-R)*K,(cy+R)*K], cx:cx*K, cy:cy*K, r:R*1.5*K});
-  var seenR={}, seenB={};
+  var seenR={}, seenB={}, bq=[], procW=[];
   for(var ci=ci0-1; ci<=ci1+1; ci++) for(var cj=cj0-1; cj<=cj1+1; cj++){ var ch=REAL.chunks[ci+','+cj]; if(!ch) continue;
     ch.r.forEach(function(f){ if(seenR[f.wid]) return; seenR[f.wid]=1; var w=((f.wd>0?f.wd:(RCLS[f[0]]||[7,.2])[0]))*K, sw=(RCLS[f[0]]||[7,.2])[1];
       for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, mx=(x0+x1)/2, my=(y0+y1)/2; if(Math.abs(mx/K-cx)>R||Math.abs(my/K-cy)>R) continue; var l=Math.hypot(x1-x0,y1-y0); if(l<.5) continue;
         if(sw>0){ var nx=-(y1-y0)/l, ny=(x1-x0)/l, off=w/2+1.6*K; [-1,1].forEach(function(sd){ W.tiles.push({ring:strip(x0+nx*off*sd,y0+ny*off*sd,x1+nx*off*sd,y1+ny*off*sd,3.2*K,w*.18), cx:mx+nx*off*sd, cy:my+ny*off*sd, r:l/2+w, sw:1}); }); }
         W.roads.push({x0:x0,y0:y0,x1:x1,y1:y1,w:w,cx:mx,cy:my,r:l/2+w, cls:f[0]});
+        if(a===1 && sw>0 && w>=7*K) procW.push(f);
         if(sw>=.3 && w>=9*K && l>30*K){ var ux=(x1-x0)/l, uy=(y1-y0)/l; for(var p=8*K;p<l-8*K;p+=22*K){ var ax=x0+ux*p, ay=y0+uy*p; W.dashes.push({ring:strip(ax,ay,ax+ux*9*K,ay+uy*9*K,.35*K,0), cx:ax, cy:ay}); } } } });
     ch.b.forEach(function(f){ if(seenB[f.bid||(f.bid=f[1]+','+f[2])]) return; seenB[f.bid]=1; var n=(f.length-1)/2, ring=new Array(n*2), x0=1e9,y0=1e9,x1=-1e9,y1=-1e9, sx=0, sy=0; for(k=0;k<n;k++){ var x=f[1+2*k], y=f[2+2*k]; ring[2*k]=x; ring[2*k+1]=y; sx+=x; sy+=y; x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
       var bx=sx/n, by=sy/n; if(Math.abs(bx-cx)>R||Math.abs(by-cy)>R) return; if(n>1 && ring[0]===ring[2*n-2] && ring[1]===ring[2*n-1]){ n--; ring.length=n*2; } if(n<3) return;
@@ -163,14 +165,37 @@ function gatherReal(Xp, Yp, R){
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; } if(f.mh>0) sol.z0=f.mh*K; W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
-  /* street trees and lamps from the street data (the ride's own treeAt / lampAt, palace_ride_g.py); cap per world */
-  if(REAL.trees&&(REAL.trees.length||REAL.furn.length)){ var tm=MB.mk(), nt=0, nl=0, lampPts=[];
-    try{ REAL.trees.forEach(function(t){ if(nt>=700||Math.abs(t[0]-cx)>R||Math.abs(t[1]-cy)>R) return; var sp=/needle/i.test(t[3])?3:/platan|sycamore/i.test(t[2])?0:/quercus|oak/i.test(t[2])?2:/prunus|pyrus|cherry|pear/i.test(t[2])?4:/zelkova|gleditsia|honey|ginkgo/i.test(t[2])?1:(hashXY(t[0],t[1])<.5?0:1);
-        rlTree(tm,t[0]*K,t[1]*K,sp,hashXY(t[0]*3,t[1]*3)); nt++; });
-      REAL.furn.forEach(function(q){ if(nl>=400||q[2]!=='street_lamp'||Math.abs(q[0]-cx)>R||Math.abs(q[1]-cy)>R) return; var nr=rlNear(q[0],q[1],30,false)[0], ox=1, oy=0; if(nr&&nr.d>.1){ ox=(nr.x-q[0])/nr.d; oy=(nr.y-q[1])/nr.d; } rlLamp(tm,q[0]*K,q[1]*K,ox,oy,lampPts); nl++; });
-    }catch(e){ if(window.console) console.warn('real street furniture',e); }
-    if(tm.a.length){ W.meshes.push({a:MB.done(tm), id:'real:tree:'+Math.round(cx)+','+Math.round(cy)}); W.lamps=new Float32Array(lampPts); } W.real.trees=nt; W.real.lamps=nl; }
+      var sol=solid(wr, eave, col, 'b', ''); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
+  /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
+     has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
+  try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
+      hasB=function(x,y){ for(var q=0;q<bq.length;q++){ var b=bq[q]; if(x>=b.x0-1&&x<=b.x1+1&&y>=b.y0-1&&y<=b.y1+1 && rlInF(b.ring,x,y)) return true; } return false; },
+      bearing=function(d){ var a=(d||0)*Math.PI/180; return [Math.sin(a),-Math.cos(a)]; },
+      toRoad=function(x,y,any){ var nr=rlNear(x,y,40,any)[0]; if(!nr) return null; var d=Math.max(.1,nr.d); return {ox:(nr.x-x)/d, oy:(nr.y-y)/d, tx:Math.cos(nr.ang), ty:Math.sin(nr.ang), w:((RCLS[nr.f[0]]||[7])[0]), d:nr.d, x:nr.x, y:nr.y}; };
+    var dt=REAL.trees||[], df=REAL.furn||[];
+    var haveT=rlPG(dt.map(function(t){ return [t[0],t[1]]; }),20), haveL=rlPG(df.filter(function(q){ return q[2]==='street_lamp'; }).map(function(q){ return [q[0],q[1]]; }),30);
+    dt.forEach(function(t){ if(!inR(t[0],t[1],R)) return; if(it.trees.length>=700) return; var d=Math.hypot(t[0]-cx,t[1]-cy), sp=/needle/i.test(t[3])?3:/platan|sycamore/i.test(t[2])?0:/quercus|oak/i.test(t[2])?2:/prunus|pyrus|cherry|pear/i.test(t[2])?4:/zelkova|gleditsia|honey|ginkgo/i.test(t[2])?1:sceneryTreeAt(t[0],t[1]);
+      var lod=d>110||nTf>=140; if(!lod) nTf++; it.trees.push([t[0]*K,t[1]*K,sp,null,null,null,lod]); nT++; });
+    df.forEach(function(q){ if(!inR(q[0],q[1],R)) return; var k=q[2], rd=toRoad(q[0],q[1],true), br=q[3]>=0?bearing(q[3]):null, X=q[0]*K, Y=q[1]*K;
+      if(k==='street_lamp'){ if(it.lamps.length<400) it.lamps.push([X,Y,rd?rd.ox:1,rd?rd.oy:0]); }
+      else if(k==='traffic_signals'&&rd){ if(it.signals.length<60){ var f=br||[rd.tx,rd.ty]; it.signals.push([X,Y,rd.ox,rd.oy,f[0],f[1]]); } }
+      else if(k==='stop'&&rd){ if(it.stops.length<60){ var f2=br||[rd.tx,rd.ty]; it.stops.push([X,Y,f2[0],f2[1]]); } }
+      else if(k==='crossing'&&rd&&rd.d<rd.w*.6){ var nx=-rd.ty, ny=rd.tx, hw=Math.min(rd.w,14)/2; for(var b=-3;b<=3;b++){ var ax=rd.x+rd.tx*b*.9, ay=rd.y+rd.ty*b*.9; W.dashes.push({ring:strip((ax-nx*hw)*K,(ay-ny*hw)*K,(ax+nx*hw)*K,(ay+ny*hw)*K,.5*K,0), cx:ax*K, cy:ay*K}); } }
+      else if(k==='bench'&&rd){ it.benches.push([X,Y,rd.ox,rd.oy]); } else if(k==='fire_hydrant'&&rd){ it.hydrants.push([X,Y,rd.ox,rd.oy]); }
+      else if(k==='waste_basket'){ it.bins.push([X,Y]); } else if(k==='post_box'&&rd){ it.boxes.push([X,Y,rd.ox,rd.oy]); } });
+    /* the jittered rows */
+    var nP=0, nL=0;
+    procW.sort(function(p,q){ return Math.hypot(p[1]-cx,p[2]-cy)-Math.hypot(q[1]-cx,q[2]-cy); });     /* the streets nearest the camera first: the caps spend on them */
+    procW.forEach(function(f){ var acc=0, gapT=(14+12*hashXY(f[1],f[2]))*K, gapL=(36+16*hashXY(f[2],f[1]))*K*.5, accL=gapL*hashXY(f[1]*3,f[2]), side=hashXY(f[1],f[2]*5)<.5?1:-1, w=((f.wd>0?f.wd:(RCLS[f[0]]||[7,.2])[0]))*K;
+      for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, l=Math.hypot(x1-x0,y1-y0); if(l<1) continue; var ux=(x1-x0)/l, uy=(y1-y0)/l, nx=-uy, ny=ux;
+        for(var s=0;s<l;s+=1){ acc+=1; accL+=1;
+          if(acc>=gapT){ acc=0; gapT=(14+12*hashXY(x0+s,y0))*K; [1,-1].forEach(function(sd){ var px=(x0+ux*s+nx*(w/2+1.0*K)*sd)/K, py=(y0+uy*s+ny*(w/2+1.0*K)*sd)/K; if(!inR(px,py,R)||nP>=300) return;
+              if(rlPGnear(haveT,px,py,9)||hasB(px,py)) return; var nr=rlNear(px,py,w/K/2+1.2,true)[0]; if(nr&&nr.f!==f) return;
+              var d=Math.hypot(px-cx,py-cy), lod=d>110||nTf>=140; if(!lod) nTf++; it.trees.push([px*K,py*K,sceneryTreeAt(px,py),null,null,null,lod]); nP++; }); }
+          if(accL>=gapL){ accL=0; gapL=(36+16*hashXY(x0,y0+s))*K*.5; side=-side; var lx=(x0+ux*s+nx*(w/2+.75*K)*side)/K, ly=(y0+uy*s+ny*(w/2+.75*K)*side)/K; if(!inR(lx,ly,R*.8)||nL>=240||it.lamps.length>=400) continue;
+            if(rlPGnear(haveL,lx,ly,20)||hasB(lx,ly)) continue; it.lamps.push([lx*K,ly*K,-nx*side,-ny*side]); nL++; } } } });
+    var cn=sceneryPlace(W,it); if(cn){ W.real.trees=cn.trees; W.real.lamps=cn.lamps; W.real.signals=cn.signals; W.real.stops=cn.stops; W.real.furn=cn.furn; W.real.procTrees=nP; W.real.procLamps=nL; }
+  }catch(e){ if(window.console) console.warn('real street furniture',e); }
   if(roofM.a.length) W.meshes.push({a:MB.done(roofM), id:'real:roof:'+Math.round(cx)+','+Math.round(cy)});
   lots.forEach(function(L){ var id=L.id, tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*.42, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dk?[150,162,200]:[255,255,255], dk?.30:.5), ring=[]; L.p.forEach(function(p){ ring.push(p[0]*K,p[1]*K); });
     var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); W.solids.push(s); });

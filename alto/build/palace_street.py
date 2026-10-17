@@ -92,11 +92,13 @@ def _tile_path(cache_dir, tb):
     return Path(cache_dir) / ("street-%.4f_%.4f_%.4f_%.4f.json" % tuple(tb)) if cache_dir else None
 
 
-def fetch(bbox, cache_dir=None, offline: bool = False, log=None) -> dict:
+def fetch(bbox, cache_dir=None, offline: bool = False, log=None, scope=None) -> dict:
     """The street answers of the box, tile by tile, each cached as street-<tile>.json and never asked for again. Polite: a pause between fetched tiles, a failed tile
     waits and after two failures in a row nothing more is asked this time. offline: the cache only. Returns the merged answer plus "missing" (the tiles not fetched)."""
     raws, missing, fails, asked = [], [], 0, False
     for tb in pmap.tile_boxes(bbox, *STREET_TILE):
+        if scope is not None and not scope.tile_ok(tb):          # out of bounds (palace_ride_real.Scope): nothing is asked for it
+            continue
         path = _tile_path(cache_dir, tb)
         if path is not None and path.exists():
             try:
@@ -134,9 +136,10 @@ def fetch(bbox, cache_dir=None, offline: bool = False, log=None) -> dict:
     return out
 
 
-def buildings(bbox, cache_dir=None, offline: bool = False, log=None) -> dict:
-    """The building tiles (bld-<tile>.json) the fill-in cached, one by one through palace_map.fetch_buildings (a cached tile costs nothing)."""
-    raws = [pmap.fetch_buildings(tb, cache_dir=cache_dir, offline=offline, log=log) for tb in pmap.tile_boxes(bbox, *pmap.BLD_TILE)]
+def buildings(bbox, cache_dir=None, offline: bool = False, log=None, scope=None) -> dict:
+    """The building tiles (bld-<tile>.json) the fill-in cached, one by one through palace_map.fetch_buildings (a cached tile costs nothing); only the tiles in bounds with a scope."""
+    raws = [pmap.fetch_buildings(tb, cache_dir=cache_dir, offline=offline, log=log) for tb in pmap.tile_boxes(bbox, *pmap.BLD_TILE)
+            if scope is None or scope.tile_ok(tb)]
     return pmap.merge_raw(*raws) if raws else {"elements": []}
 
 
@@ -403,7 +406,7 @@ def _conv(v, S):
 GROUP = 2                      # cells per shard side (a shard is a 1000 m x 1000 m square of cells)
 
 
-def build(bbox, bld_raw: dict, street_raw: dict, preset=None):
+def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
     """(manifest, shards) for the box: shards {id: {"S": [...], "c": {cell key: cell}}} (one per GROUP x GROUP cells, each with its own string table, named by the hash
     of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}."""
     from . import palace_street_style as sty
@@ -539,6 +542,18 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None):
             rec.append(hs)
         put(k, "a", rec)
 
+    ib = None
+    if scope is not None:                                       # out of bounds: a cell that does not touch the region (+ buffer) is not written, the manifest says what is
+        keep = scope.cells(CS * Q, fr.nx, fr.ny)
+        cells = {k: v for k, v in cells.items() if tuple(int(t) for t in k.split(",")) in keep}
+        runs: dict = {}
+        for ix, iy in sorted(keep, key=lambda c: (c[1], c[0])):
+            r = runs.setdefault(iy, [])
+            if r and r[-1][1] == ix - 1:
+                r[-1][1] = ix
+            else:
+                r.append([ix, ix])
+        ib = {"b": int(scope.buffer), "r": [[iy, a, b] for iy in sorted(runs) for a, b in runs[iy]]}
     # shards: GROUP x GROUP cells each, a string table of their own
     groups: dict = {}
     for ck in sorted(cells, key=lambda s: tuple(int(v) for v in s.split(","))):
@@ -557,6 +572,8 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None):
             cmap[ck] = sid
     manifest = {"v": VERSION, "a": ATTRIBUTION, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
                 "preset": preset, "f": {k: files[k] for k in sorted(files)}, "c": cmap}
+    if ib is not None:
+        manifest["ib"] = ib                                     # the in-bounds extent: the street cells [iy, ix0, ix1] runs of the region (with b metres of buffer)
     return manifest, shards
 
 
@@ -648,19 +665,19 @@ def load(h: str, directory=None):
     return man, {sid: json.loads((d / file_name(sid)).read_text("utf-8")) for sid in man["f"]}
 
 
-def make(bbox, cache_dir=None, offline: bool = False, log=None, directory=None):
+def make(bbox, cache_dir=None, offline: bool = False, log=None, directory=None, scope=None):
     """Fetch (cached), build and store the street data of the box. Returns (manifest hash, total bytes of the manifest and its shards) or None when the box has nothing."""
-    man, shards = build(bbox, buildings(bbox, cache_dir, offline, log), fetch(bbox, cache_dir=cache_dir, offline=offline, log=log))
+    man, shards = build(bbox, buildings(bbox, cache_dir, offline, log, scope=scope), fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope)
     if not man["c"]:
         return None
     h = store(man, shards, directory)
     return h, len(encode(man).encode("utf-8")) + sum(man["f"].values())
 
 
-def attach(m: dict, bbox, cache_dir=None, offline: bool = False) -> None:
+def attach(m: dict, bbox, cache_dir=None, offline: bool = False, scope=None) -> None:
     """Builds the street data for the map's box and records it on the page's map data: m["street"] = {"h": "<12 hex>"} (the manifest). Never fatal."""
     try:
-        r = make(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline)
+        r = make(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline, scope=scope)
     except Exception:                                       # noqa: BLE001 — a busy Overpass or a box with nothing: the ride simply has no street data
         return
     if r:

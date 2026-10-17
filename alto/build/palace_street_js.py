@@ -20,6 +20,7 @@ STREET_JS defines  window._palStreet  (a no-op when it already exists):
   near(x, y, r, kinds)   every feature of the LOADED cells under the circle that has a point within r of it (a polygon/line: any vertex or edge point) —
                          {b:[], r:[], t:[], f:[], p:[], e:[], a:[], w:[], l:[]}; `kinds` optionally a string such as 'btf' limiting which lists are filled
   fromLatLon(lat, lon)   -> [x, y] metres     toLatLon(x, y) -> [lat, lon]
+  inScope(x, y)          metres; true when the point lies in the cells the data was written for (manifest "ib"; always true without it)   bounds()  the manifest's ib or null
   toMap(x, y, scale)     -> [px, py] in the palace map's px (y down, like palace_map.project: x*scale, ((north-south)*ky - y)*scale)
 Cells are decoded when first asked for, so a ride that stays in one district decodes a few KB.
 """
@@ -29,7 +30,10 @@ STREET_JS = r"""
 if(window._palStreet) return;
 var B=null, CELLS={}, SH={}, INFL={}, PROM=null, BASE='';
 var MATS=['','brick','stone','stucco','painted','concrete','glass','metal','wood','brownstone','cladding','tile','plaster'];
-function use(b,shards){ if(!b||b.v!==2||!b.c||!b.f) throw new Error('street manifest'); B=b; CELLS={}; SH=shards||{}; INFL={}; return API; }
+var IB=null;
+function use(b,shards){ if(!b||b.v!==2||!b.c||!b.f) throw new Error('street manifest'); B=b; CELLS={}; SH=shards||{}; INFL={}; IB=null; return API; }
+/* the in-bounds extent the data was written for (manifest ib: runs [iy, ix0, ix1] of cells, buffered b metres): true without ib (the whole box) */
+function inScope(x,y){ if(!B||!B.ib) return true; if(!IB){ IB={}; B.ib.r.forEach(function(r){ IB[r[0]]=(IB[r[0]]||[]).concat([[r[1],r[2]]]); }); } var q=B.q*B.cs, ix=Math.floor(x/q), iy=Math.floor(y/q), L=IB[iy]; if(!L) return false; for(var i=0;i<L.length;i++) if(ix>=L[i][0]&&ix<=L[i][1]) return true; return false; }
 function line(a,ox,oy,q){ var o=[], x=0, y=0; for(var i=0;i<a.length;i+=2){ if(i===0){ x=a[0]; y=a[1]; } else { x+=a[i]; y+=a[i+1]; } o.push([(x+ox)*q,(y+oy)*q]); } return o; }
 var BF=['k','lv','h','bc','bm','rs','rc','rm','rl','nm','ad','po','sd','wd','fl','mh'], RF=['hw','nm','ln','wd','ow','sw','cy','sf','ms','lt','sl','sr','cl','cr','br','tn','la'],
     AF=['k','nm','sp','sf'], WF=['k','ht','mt'], LF=['sp','lf'];
@@ -84,7 +88,7 @@ function load(url){
   BASE=url.replace(/[^\/]*$/,'');
   return PROM=fetch(url).then(function(r){ if(!r.ok) throw new Error('street '+r.status); return r.json(); }).then(function(m){ return use(m); },function(e){ PROM=null; throw e; });
 }
-var API={load:load,use:use,ready:function(){ return !!B; },attribution:function(){ return B?B.a:''; },cell:cell,near:near,need:need,loaded:loaded,fromLatLon:fromLatLon,toLatLon:toLatLon,toMap:toMap};
+var API={inScope:inScope,bounds:function(){ return B&&B.ib||null; },load:load,use:use,ready:function(){ return !!B; },attribution:function(){ return B?B.a:''; },cell:cell,near:near,need:need,loaded:loaded,fromLatLon:fromLatLon,toLatLon:toLatLon,toMap:toMap};
 window._palStreet=API;
 })();
 """

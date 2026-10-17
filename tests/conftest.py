@@ -32,7 +32,7 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
         monkeypatch.setattr(_pm, "_sleep", lambda s: None)       # (fetch_footprints waits BLD_PAUSE between the cells it asks for: not here)
 
     # set_up fetches the street tiles (palace_street.fetch) too: no network from a test that stubs the city fetch (test_palace_street stubs _post_overpass itself)
-    if request.module.__name__.rsplit(".", 1)[-1] != "test_palace_street":
+    if request.module.__name__.rsplit(".", 1)[-1] not in ("test_palace_street", "test_palace_ride_bounds"):
         from alto.build import palace_street as _ps
         monkeypatch.setattr(_ps, "fetch", lambda box, **kw: {"elements": [], "missing": []})
 
