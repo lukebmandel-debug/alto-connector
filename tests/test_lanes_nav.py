@@ -376,16 +376,23 @@ def test_up_and_down_input_is_the_same_travel(browser, v2_file):
     assert not errs
 
 
+def _bare(pg, y):
+    """An x on row y with only the board's background under it (no card, line, tag or button) and room to drag leftward."""
+    return pg.evaluate("""(y) => { for (let x = 1500; x > 700; x -= 10) { const e = document.elementFromPoint(x, y);
+        if (e && (e.id === 'canvas' || e.id === 'world' || e.id === 'glass-slab' || e.id === 'lanes-svg' || e.classList.contains('lanes-unit'))) return x; } return 1200; }""", y)
+
+
 def test_dragging_the_background_travels_and_settles(browser, v2_file):
     pg, errs = _desk(browser, v2_file)
     S = pg.evaluate(STOPS)
     _at(pg, S[1])
     y = pg.evaluate("document.getElementById('lanes-nav').getBoundingClientRect().top - 30")
     t0 = pg.evaluate("document.getElementById('canvas').scrollTop")
-    pg.mouse.move(1200, y)
+    x0 = _bare(pg, y)                                                            # events sit close now: start where there is only background
+    pg.mouse.move(x0, y)
     pg.mouse.down()
     for k in range(1, 21):
-        pg.mouse.move(1200 - k * 25, y + k * 3)                                  # a slightly sloping drag leftward
+        pg.mouse.move(x0 - k * 25, y + k * 3)                                    # a slightly sloping drag leftward
         pg.wait_for_timeout(16)
     pg.wait_for_timeout(150)                                                     # held still, then let go: no throw
     pg.mouse.up()
@@ -395,10 +402,11 @@ def test_dragging_the_background_travels_and_settles(browser, v2_file):
     r = pg.evaluate(RESTED, cur)
     assert _rested_ok(r), r
     i0 = S.index(cur)
-    pg.mouse.move(1200, y)
+    x0 = _bare(pg, y)
+    pg.mouse.move(x0, y)
     pg.mouse.down()
     for k in range(1, 8):
-        pg.mouse.move(1200 - k * 40, y)
+        pg.mouse.move(x0 - k * 40, y)
         pg.wait_for_timeout(16)
     pg.mouse.up()                                                                # thrown: it coasts on, then rests
     pg.wait_for_timeout(2000)
@@ -501,12 +509,13 @@ def test_the_whole_timeline_and_back_down(browser, page_file):
     assert pg.evaluate("document.getElementById('world').style.transform") == ""
     pg.evaluate(WHEEL, _trackpad(120))                                           # travel goes on from there
     pg.wait_for_timeout(1300)
-    assert S.index(pg.evaluate(CUR)) == S.index(tgt) + 1
+    ahead = pg.evaluate(CUR)
+    assert S.index(ahead) > S.index(tgt)                                       # it went on ahead (how many events 120px is depends on the spacing)
     pg.click("#lanes-nav .lnv-ov")
     pg.wait_for_timeout(900)
     pg.keyboard.press("Escape")                                                # Esc: back where the camera was
     pg.wait_for_timeout(1000)
-    assert pg.evaluate(CUR) == S[S.index(tgt) + 1]
+    assert pg.evaluate(CUR) == ahead
     assert not errs
 
 
@@ -556,6 +565,9 @@ def test_a_character_in_the_key_restricts_the_steps(browser, page_file):
     pg.click("#key-toggle")
     mine = pg.evaluate("""() => { const L=_ALTO_LANES, t=L.lines.find(l=>l.id==='tomas');
         return [].concat.apply([],ACT_SEQS).filter(id => L.ev[id].l==='tomas' || t.from===id || t.to===id); }""")
+    pg.evaluate("document.activeElement && document.activeElement.blur()")       # (a focused button keeps the key for itself)
+    pg.keyboard.press("Home")                                                    # the first of theirs, wherever the view happened to be
+    pg.wait_for_timeout(1300)
     seen = [pg.evaluate(CUR)]
     for _ in range(len(mine) + 1):
         pg.keyboard.press("ArrowRight")

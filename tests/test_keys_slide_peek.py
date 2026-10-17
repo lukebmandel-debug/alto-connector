@@ -124,10 +124,7 @@ def test_an_arrow_slides_to_the_next_event_and_comes_to_rest_on_it(browser, lane
     pg, errs = _desk(browser, lanes_page)
     pg.evaluate("""() => { window._rec = []; const cv = document.getElementById('canvas');
       (function f() { window._rec.push(cv.scrollLeft); requestAnimationFrame(f); })(); }""")
-    first = pg.evaluate("""() => { const cv = document.getElementById('canvas'), G = window._altoLanesGeo;
-      const vx = cv.scrollLeft + cv.clientWidth / 2; let best = null, bd = 1e9;
-      for (const k in G.x) { const d = Math.abs(G.x[k] - vx); if (d < bd) { bd = d; best = k; } }
-      return window._altoLanesNav(best, 'e'); }""")
+    first = pg.evaluate("() => window._altoLanesNav(window._altoLanesCurrent(), 'e')")    # the event the step from where the view is will reach
     pg.keyboard.press("ArrowRight")
     pg.wait_for_timeout(2200)
     s = pg.evaluate("""() => { const cv = document.getElementById('canvas'), G = window._altoLanesGeo;
