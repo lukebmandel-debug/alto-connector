@@ -484,6 +484,12 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
         palace_fleet.attach(m, palace_fleet.fetch(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline), bbox)
     except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with neither: no fleet beyond the boats found
         pass
+    # the street-level data of the first-person view (palace_street.py): one hosted, content-hashed blob; the page holds only its 10 character hash (m["street"])
+    try:
+        from . import palace_street
+        palace_street.attach(m, bbox, cache_dir=cache_dir, offline=offline)
+    except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with nothing: no street data, the ride is as before
+        pass
     # buses (palace_buses.py): the main routes, drawn along the page's streets from their real stops, ridden like any line
     try:
         from . import palace_buses
