@@ -153,8 +153,8 @@ def test_a_river_has_banks_and_a_trail_and_no_street_runs_through_it_but_a_bridg
 
 def test_sports_venues_are_landmarks_with_their_own_art_and_share_blocks():
     from alto.build import palace_landmarks, palace_towers, palace_skyline
-    assert palace_landmarks.art_key({"n": "Lincoln Financial Field"}) == "stad" and palace_landmarks.art_key({"n": "Citizens Bank Park"}) == "stad"
+    assert palace_landmarks.art_key({"n": "Lincoln Financial Field"}) == "lff" and palace_landmarks.art_key({"n": "Citizens Bank Park"}) == "cbp"
     assert palace_landmarks.art_key({"n": "Xfinity Mobile Arena"}) == "arena"
-    for k in ("arena", "stad"):
+    for k in ("arena", "stad", "lff", "cbp"):
         palace_skyline.Sky(palace_skyline.LANDMARKS[k]())
     assert palace_towers.is_venue("Lincoln Financial Field") and palace_towers.is_venue("Xfinity Mobile Arena") and not palace_towers.is_venue("Jefferson Station")

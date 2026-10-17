@@ -224,7 +224,7 @@ function keyOf(l){ var n=String(l.n), k=artKey(n);
   if(k==='gen' && +l.hm>0) k='g-'+(ART['g-'+(l.rs||'flat')]?(l.rs||'flat'):'flat'); return k; }
 function isTall(l){ var k=keyOf(l); return TALL.indexOf(k)>=0 || (/^(g|ct)-/.test(k) && +l.hm>=60); }
 /* map px per canvas metre (across, up): S both ways; a generic building stretched to the record's own height and width */
-function scaleOf(l, key, a){ if(a.sq){ var sy0=S*(+a.sq); return [sy0*(a.fp[3]-a.fp[1])/(a.fp[2]-a.fp[0]), sy0]; } if(/^(g|ct)-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
+function scaleOf(l, key, a){ if(a.sq){ var sy0=S*(+a.sq); return [sy0*(a.fp[3]-a.fp[1])/(a.fp[2]-a.fp[0]), sy0]; } if(a.fit && l.box){ var sf=Math.min(S, Math.max(.6, (l.box[3]-l.box[1]-26)/Math.max(1, a.fp[3]-a.fp[1]))); return [sf, sf]; } if(/^(g|ct)-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
 /* a landmark's card: its footprint's projected bounding box (a.fp) at the one scale — from the footprint's metres, never the
    cell count — centred across its block, standing on the block's front edge (palace_skyline.card, exactly) */
 function cardBase(l){ var key=keyOf(l), a=ART[key]||ART.gen, b=l.box, k=scaleOf(l, key, a), w=(a.fp[2]-a.fp[0])*k[0], h=(a.fp[3]-a.fp[1])*k[1];

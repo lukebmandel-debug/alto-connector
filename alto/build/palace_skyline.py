@@ -56,6 +56,7 @@ class Sky:
     def __init__(self, spec: dict):
         self.tip = spec["h"]
         self.sq = spec.get("sq")
+        self.fit = spec.get("fit")
         raw = spec["parts"]
         ground = [p for p in raw if p["k"] in SOLID and p.get("y0", 0) == 0]
         self.D = float(spec.get("D") or max((p.get("d", p.get("w", 0)) for p in ground), default=20))
@@ -582,7 +583,7 @@ class Sky:
         fw / fd (the footprint's width and depth, m)."""
         fp = [round(self.cx + self.u0, 2), round(self.G - self.D, 2), round(self.cx + self.u1 + self.D * KV, 2), round(self.G, 2)]
         return {"w": self.W, "h": self.H, "svg": "".join(self.parts), "hm": self.tip, "fp": fp,
-                "fw": round(self.u1 - self.u0, 1), "fd": round(self.D, 1), **({"sq": self.sq} if self.sq else {}), **meta}
+                "fw": round(self.u1 - self.u0, 1), "fd": round(self.D, 1), **({"sq": self.sq} if self.sq else {}), **({"fit": 1} if self.fit else {}), **meta}
 
 
 def _sin(i):
@@ -995,7 +996,7 @@ def _arena():
     plan, glass-and-steel walls in two bands, a lower roof stepping up to the flat lid, a canopy over the entrance on the street."""
     W, D = 174.0, 163.0
     R = _ccw(_chaikin(_super(W, D, 2.8, 20), 2))
-    return {"h": 42, "D": D, "parts": [
+    return {"h": 42, "D": D, "fit": 1, "parts": [
         {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 24, "m": "glass", "fl": 8, "mu": 4, "top": False},
         {"k": "drum", "ring": _inset(R, 4), "x": 0, "w": W - 8, "v": 4, "d": D - 8, "y0": 24, "h": 33, "m": "silver", "fl": 4.5, "mu": 6, "top": False},
         {"k": "drum", "ring": _inset(R, 18), "x": 0, "w": W - 36, "v": 18, "d": D - 36, "y0": 33, "h": 40, "m": "silver", "tm": "silver", "mu": 5},
@@ -1013,7 +1014,7 @@ def _stadium():
     W, D = 260.0, 220.0
     R = _ccw(_super(W, D, 2.2, 56))
     O = _inset(R, 46)
-    return {"h": 62, "D": D, "parts": [
+    return {"h": 62, "D": D, "fit": 1, "parts": [
         {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 30, "m": "stone", "fl": 7.5, "mu": 2, "top": False},
         {"k": "drum", "ring": _inset(R, 6), "x": 0, "w": W - 12, "v": 6, "d": D - 12, "y0": 30, "h": 40, "m": "glass", "hole": O, "mu": 2, "fl": 5},
         {"k": "pit", "id": "stad", "ring": O, "top": 40, "floor": 1, "tiers": 7, "pit": .55, "field": "football"},
@@ -1029,7 +1030,7 @@ def _lff():
     O = _inset(R, 50)
     I = _inset(R, 34)
     r5 = _inset(R, 5)
-    return {"h": 66, "D": D, "parts": [
+    return {"h": 66, "D": D, "fit": 1, "parts": [
         {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 28, "m": "glass", "fl": 7, "mu": 2, "top": False},
         {"k": "drum", "ring": r5, "x": 0, "w": W - 10, "v": 5, "d": D - 10, "y0": 28, "h": 38, "m": "silver", "fl": 5, "mu": 2, "top": False},
         {"k": "pit", "id": "lff", "ring": O, "top": 38, "floor": 1, "tiers": 8, "pit": .56, "field": "football", "fw": 24.5, "fl": 55.0},
@@ -1046,7 +1047,7 @@ def _cbp():
     hp = (-10.0, 96.0)
     face = {"base": 14.0, "amp": 24.0, "dir": (-0.25, -1.0), "c": (0.0, 131.0), "pow": 1.4}
     O = _inset(R, lambda x, v: 12 + 34 * max(0.0, min(1.0, .5 + .5 * ((x * -0.25 + (v - 131) * -1.0) / 135.0))))
-    return {"h": 52, "D": D, "parts": [
+    return {"h": 52, "D": D, "fit": 1, "parts": [
         {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": face, "m": "brick", "fl": 6, "mu": 3, "hole": O, "tm": "sand"},
         {"k": "pit", "id": "cbp", "ring": O, "top": face, "floor": 1, "tiers": 6, "pit": .5, "pc": hp, "field": "diamond", "home": hp, "axis": 64.0},
         *[{"k": "mast", "x": _on(R, a_, 14)[0], "v": _on(R, a_, 14)[1], "y0": 14, "y1": 52, "w": 2.8} for a_ in (200, 330, 85, 20)],
@@ -1199,6 +1200,12 @@ def scale_of(art: dict, l: dict | None = None) -> tuple:
         fp = art["fp"]
         sy = SCALE * float(art["sq"])
         return sy * (fp[3] - fp[1]) / (fp[2] - fp[0]), sy
+    if art.get("fit") and l and l.get("box"):
+        # a ground bigger than its block (a stadium on one block): drawn smaller, only as small as it takes to stand inside the block front to back
+        # (it may spill sideways over its neighbours' empty blocks, never over another card)
+        b, fp = l["box"], art["fp"]
+        s_ = min(SCALE, max(.6, (b[3] - b[1] - 26) / max(1.0, fp[3] - fp[1])))
+        return s_, s_
     if l and art.get("fp") and str(art.get("_k", "")).startswith(("g-", "ct-")):
         try:
             hm = float(l.get("hm") or 0)
