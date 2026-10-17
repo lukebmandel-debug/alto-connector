@@ -46,7 +46,7 @@ void main(){
 
 FS_WORLD = r"""
 varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ;
-uniform sampler2D uPal; uniform sampler2D uAtl; uniform vec2 uAtlS; uniform vec4 uLamp[12]; uniform vec3 uLampC;
+uniform sampler2D uPal; uniform sampler2D uAtl; uniform vec2 uAtlS; uniform vec4 uLamp[12]; uniform vec3 uLampC; uniform float uIn;
 varying float vFade;
 uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size of the far map, z: its depth bias, w: the near map's depth bias */
 uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
@@ -377,10 +377,23 @@ void main(){
   } else if(id<24.5){   /* street-name text from the atlas, unlit */
     vec3 tc=texture2D(uAtl,vUV*uAtlS).rgb; alb=vec3(0.); emi=lin(tc)*(.8+.2*(1.-uNight)); refl=0.;
   } else if(id<25.5){   /* the glass leaves of a node building's door: dark glass, a warm room behind it, the sky in it */
+    if(uIn>.5) discard;                      /* seen from inside the building the doors are open air (palace_ride_inside.py) */
     float vh=clamp(vUV.y/2.2,0.,1.); float gl=.45+.55*sin(vh*3.14159); alb=vec3(.045,.05,.055);
     emi=vec3(1.,.66,.34)*(.2+uNight*1.1)*gl*(.88+.2*nz(vUV*2.6)); refl=.16+.34*pow(1.-ndv,3.); spec=1.;
   } else if(id<26.5){   /* the soft light under a canopy */
     alb=vec3(.09,.085,.08); emi=vec3(1.,.7,.4)*(.07+uNight*.7);
+  } else if(id<31.5){   /* the inside of a node building (palace_ride_inside.py): lobby plaster with a wainscot, polished floor, ceiling lights, the directory board; lit by the room */
+    if(id<27.5){ float hh=vUV.y; alb=vec3(.80,.77,.71)*(.94+.1*nz(gp*.7));
+      alb=mix(vec3(.60,.55,.48)*(.94+.1*nz(vec2(vUV.x*1.5,hh*9.))),alb,smoothstep(.94,1.0,hh));
+      float rl=smoothstep(.96,1.0,hh)*(1.-smoothstep(1.05,1.09,hh)); alb=mix(alb,vec3(.5,.42,.33),rl);
+      ao=mix(.7,1.,smoothstep(.0,.45,hh))*mix(1.,.8,smoothstep(2.9,3.15,hh));
+    } else if(id<28.5){ vec2 q=floor(gp/1.2); float ck=mod(q.x+q.y,2.); vec3 a1=mix(vec3(.64,.62,.58),vec3(.36,.35,.34),ck); float fine=1.-smoothstep(.15,.7,fpx*1.4);
+      alb=mix(vec3(.50,.485,.46),a1,fine)*(.9+.14*nz(gp*.55)); vec2 fg=abs(fract(gp/1.2)-.5)*2.; alb*=1.-.22*fine*smoothstep(.97,.995,max(fg.x,fg.y));
+    } else if(id<29.5){ alb=vec3(.88,.87,.84); vec2 c=fract(gp/3.)-.5; float pn=(1.-smoothstep(.16,.2,abs(c.x)))*(1.-smoothstep(.06,.1,abs(c.y))); emi=vec3(1.,.96,.88)*1.7*pn; alb=mix(alb,vec3(.95),pn);
+    } else if(id<30.5){ float u=vUV.x; float v=vUV.y; alb=vec3(.035,.045,.07); float hd=smoothstep(1.46,1.5,v)*(1.-smoothstep(1.62,1.66,v))*step(.1,u)*step(u,1.3);
+      float row=floor(v*7.); float ln=smoothstep(.12,.2,fract(v*7.))*(1.-smoothstep(.5,.58,fract(v*7.)))*step(.12,u)*step(u,.14+(.35+.6*h11(row))*1.1)*step(v,1.4)*step(.1,v);
+      emi=vec3(1.,.78,.46)*(.42*ln+.8*hd)+vec3(.02,.025,.04); float ed=1.-smoothstep(.0,.05,min(min(u,1.4-u),min(v,1.7-v))); alb=mix(alb,vec3(.5,.42,.3),ed);
+    } else { alb=vec3(.16,.15,.15)*(.9+.2*nz(gp*2.)); }
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
     vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7)*.6+nz(gp*9.)*.4*(1.-smoothstep(.02,.1,fpx)); alb=mix(vec3(.27)*(.85+.3*nz(gp*.8)),pc*.9,(.5+.35*smoothstep(.25,.6,wear))*(.85+.15*nz(gp*.3)));
@@ -433,6 +446,7 @@ void main(){
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
   else if(id>20.5&&id<22.5) ao*=mix(.55,1.,smoothstep(.0,.7,vP.z/UMc));              /* a pole or a bin where it meets the ground */
+  if(id>26.5&&id<31.5){ vec3 amb2=mix(vec3(.30,.285,.26),vec3(.68,.64,.58),N.z*.5+.5)*(.55+.45*ao); vec3 c2=lin(clamp(alb,0.,1.))*amb2*1.7+emi; c2=aces(c2*uExp); gl_FragColor=vec4(pow(c2,vec3(1./2.2)),1.); return; }
   float nl=max(dot(N,uSun),0.); float nlw=max(dot(N,uSun)*(1.-wrap)+wrap,0.);
   float shd=nl>.001?shadowAt(nl):1.;
   vec3 amb=mix(uGndA,uSkyA,N.z*.5+.5); amb=mix(amb,amb*vec3(.9,.98,1.12),1.-uNight);      /* cool blue fill from the sky dome */

@@ -36,10 +36,11 @@ for a cell that stays loaded.
 """
 
 from .palace_ride_door import CSS_DOOR, JS_DOORS
+from .palace_ride_inside import CSS_INSIDE, JS_INSIDE, JS_INSIDE_GL      # FPV phase 2: looking up / down, going inside a node building
 
 _JS_E = r"""
 var ROAM=(function(){
-var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:1.95, brisk:5.2, jog:9.1, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:.42, pitch0:-.03, edge:8,
+var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:1.95, brisk:5.2, jog:9.1, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:1.4835, pitch0:-.03, edge:8,
   waterGap:17, waterOff:8, deckHW:9.5, bob:.03, crossAt:34, gridC:160, stayZoom:.6 };
 var MXC=90;                                     /* palace.py MX = MY = 90: the margin round the drawn city; scroll = (x + MX) * zoom + gap - viewport / 2 */
 var S={ on:false, hold:false, x:0, y:0, yaw:0, pitch:0, vx:0, vy:0, run:false, hurry:0, keys:{}, tm:0, last:0, raf:0, phase:0, walked:0, speed:0, drag:null, cells:{}, queue:[], bigs:[],
@@ -85,6 +86,7 @@ function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Ma
   return listHit(S.bigs,x,y,PR,pr2); }
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
 function blockedAt(x,y){
+  if(IN.on) return insideBlocked(x,y);                             /* inside a building: its footprint is the room (palace_ride_inside.py) */
   if(x<CFG.edge || y<CFG.edge || x>E.M.W-CFG.edge || y>E.M.H-CFG.edge) return true;
   if(inWaterZone(x,y,0) && !onDeck(x,y)) return true;
   return buildingHit(x,y); }
@@ -255,7 +257,7 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   var a=clamp(S.speed/CFG.walk,0,1.4), a1=Math.min(a,1), bob=reduced()?0:Math.sin(S.phase)*CFG.bob*a, sway=reduced()?0:Math.sin(S.phase*.5)*.004*a1;
   var pitch=S.pitch+(reduced()?0:Math.abs(Math.sin(S.phase))*.004*a);
-  S.camZ=CFG.eye+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,pitch,W,H);
+  S.camZ=CFG.eye+(IN.on?IN.z:0)+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,glOk()?pitch:clamp(pitch,-.42,.42),W,H);
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
   ctx.setTransform(dpr,0,0,dpr,0,0); doorGlow(ctx);
@@ -267,10 +269,11 @@ function frame(now){
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */
   var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
   if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy) tick(dt,false);
-  hudFrame(false); doorFrame(dt); draw(); showNow();
+  hudFrame(false); if(IN.on) insideFrame(dt); else doorFrame(dt); draw(); showNow();
   if(S.on) S.raf=requestAnimationFrame(frame); }
 
 /*@DOORS@*/
+/*@INSIDE@*/
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
@@ -316,6 +319,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
     return {built:S.built, evicted:S.evicted, merges:S.merges, plans:S.plans, cells:Object.keys(S.cells).length, queue:S.queue.length, buildAvg:b.length?b.reduce(function(p,q){ return p+q; },0)/b.length:0, buildMax:b.length?b[b.length-1]:0, streamMax:S.lbms.length?Math.max.apply(null,S.lbms):0, streamN:S.lbms.length, buildP95:b.length?b[Math.floor(b.length*.95)]:0, mergeMax:m.length?m[m.length-1]:0, mergeAvg:m.length?m.reduce(function(p,q){ return p+q; },0)/m.length:0,
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
   /* the doors (palace_ride_door.py): tests drive the dolly with step(ms) and the prompt with frame(dt) */
+  inside:INSIDEAPI,
   door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
     state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
   /* tests and the QA kit */
@@ -331,7 +335,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
 return ROAMAPI; })();
 """
 
-JS_E = _JS_E.replace("/*@DOORS@*/", JS_DOORS)
+JS_E = JS_INSIDE_GL + _JS_E.replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE)
 
 _CSS_E = r"""
   #pal-ride.rm .pr-chip,#pal-ride.rm .pr-btns{display:none;}
@@ -361,4 +365,4 @@ _CSS_E = r"""
   @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }
 """
-CSS_E = _CSS_E + CSS_DOOR
+CSS_E = _CSS_E + CSS_DOOR + CSS_INSIDE

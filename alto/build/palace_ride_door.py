@@ -129,6 +129,9 @@ function openDoor(){
 function abortOpen(){ if(DR.busy!==1) return false; DR.tok++; DR.busy=0; DR.cine=null; veil(0, 200); return true; }
 function finishOpen(tok){
   if(tok!==DR.tok || DR.busy!==1) return; DR.busy=2; var mem=DR.mem;
+  if(insideEnter(mem)){ DR.busy=0; return; }                  /* [inside] the building's lobby; its directory opens the page (insideOpen -> openDetail). No GL / no room: straight to the page, as before */
+  openDetail(mem); }
+function openDetail(mem){
   DR.ret={mem:mem, opened:false, tm:0}; watchClose();
   exitCore(false);
   try{ window.showDetail('node', mem.id); }catch(err){ if(window.console) console.warn('door', err); }
@@ -154,11 +157,12 @@ function comeBack(){
   veil(0, dur); }
 /* the key: E goes in, Esc during the dolly cancels it, nothing else is heard while the camera is moving by itself */
 function doorKey(e){
+  if(IN.on) return insideKey(e);
   if(DR.busy){ if(e.key==='Escape'){ if(DR.busy===1) abortOpen(); else if(DR.busy===3 && DR.cine) cineStep(1e9); } return true; }
   if(DR.cur && !e.repeat && (e.code==='KeyE' || e.key==='e' || e.key==='E')){ openDoor(); return true; }
   return false; }
 /* leaving roam by any other road ends whatever the doors were doing */
-function doorReset(){ var was=DR.busy; DR.tok++; DR.busy=0; DR.cine=null; DR.cur=null; DR.t=0; DR.glow=0; DR.hit=null; if(S.hud && S.hud.pin) pinShow(null); if(was && !DR.ret && DR.veil) veil(0,150); }
+function doorReset(){ insideReset(); var was=DR.busy; DR.tok++; DR.busy=0; DR.cine=null; DR.cur=null; DR.t=0; DR.glow=0; DR.hit=null; if(S.hud && S.hud.pin) pinShow(null); if(was && !DR.ret && DR.veil) veil(0,150); }
 function doorClick(e){
   if(!S.on || DR.busy) return false; if(!inHit(e.clientX,e.clientY)) return false; return openDoor(); }
 function doorHover(e){ var on=!!(S.on && !DR.busy && DR.cur && inHit(e.clientX,e.clientY)); if(R.ov && R.ov.classList.contains('rm-dh')!==on) R.ov.classList.toggle('rm-dh', on); }

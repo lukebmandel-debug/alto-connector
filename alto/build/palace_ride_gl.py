@@ -55,7 +55,7 @@ function glSetup(restore){
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
   GLX.inst=gl.getExtension('ANGLE_instanced_arrays');
   try{
-    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC']);
+    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC','uIn']);
     GLX.shp=glProgram(gl, GLS.vsh, GLS.fsh, ['aP'], ['uLP']);
     GLX.sky=glProgram(gl, GLS.vss, GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']);
   }catch(x){ GLX.err=String(x&&x.message||x); if(window.console) console.warn('ride GL', GLX.err); return glFail(true); }
@@ -195,15 +195,15 @@ function glSolid(b,s){
       gwall(b,ax,ay,bx,by,cz0,h,-dy/l,dx/l,zb,pk,T);
       var A=[r[2*i],r[2*i+1],cz0], B=[r[2*j2],r[2*j2+1],cz0], B2=[bx,by,cz0], A2=[ax,ay,cz0];
       gtri(b,A,B,B2,0,0,-1,A[0]/UM,A[1]/UM,B[0]/UM,B[1]/UM,B2[0]/UM,B2[1]/UM,pk,T); gtri(b,A,B2,A2,0,0,-1,A[0]/UM,A[1]/UM,B2[0]/UM,B2[1]/UM,A2[0]/UM,A2[1]/UM,pk,T); } }
-  _gL=0; gflat(b,top,h,st.roof,T,true);
+  _gL=0; gflat(b,top,h,st.roof,T,true); if(hm>6) gflat(b,top,h-.03,47,T,false);                /* and its underside, so looking up from the street is not looking through the roof */
   /* a stepped crown on a glass tower, a thin mast on the tallest */
   if(st.mat===3 && hm>46 && n<=14 && s.kind!=='lm'){ var c=glCenterOf(r), tH=Math.min(hm*.07,16)*UM; var tier=glScaleRing(r,c[0],c[1],.8), zt=h;
     glDC(st.dc); _gH=tH/UM; var rr=MB.ringOut(tier), m=rr.length/2;
     for(i=0;i<m;i++){ var j3=(i+1)%m; ax=rr[2*i]; ay=rr[2*i+1]; bx=rr[2*j3]; by=rr[2*j3+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue; gwall(b,ax,ay,bx,by,zt,zt+tH,-dy/l,dx/l,zt,pk,T); }
-    _gL=0; gflat(b,rr,zt+tH,st.roof,T,true);
+    _gL=0; gflat(b,rr,zt+tH,st.roof,T,true); gflat(b,rr,zt+tH-.03,47,T,false);
     if(hm>110){ var t2=glScaleRing(r,c[0],c[1],.5), zt2=zt+tH, h2=Math.min(hm*.06,14)*UM, r2=MB.ringOut(t2), m2=r2.length/2; _gH=h2/UM;
       for(i=0;i<m2;i++){ var j4=(i+1)%m2; ax=r2[2*i]; ay=r2[2*i+1]; bx=r2[2*j4]; by=r2[2*j4+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue; gwall(b,ax,ay,bx,by,zt2,zt2+h2,-dy/l,dx/l,zt2,pk,T); }
-      _gL=0; gflat(b,r2,zt2+h2,st.roof,T,true);
+      _gL=0; gflat(b,r2,zt2+h2,st.roof,T,true); gflat(b,r2,zt2+h2-.03,47,T,false);
       if(hm>180){ _gH=0; gbox(b,c[0],c[1],.5,.5,zt2+h2,zt2+h2+32*UM,0,6,T,true); } } }
   _gH=0;
   if(s.door) glDoor(b,s); }
@@ -447,6 +447,8 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   _gvis.sort(function(p,q){ return (Math.pow(p.cx-C.x,2)+Math.pow(p.cy-C.y,2))-(Math.pow(q.cx-C.x,2)+Math.pow(q.cy-C.y,2)); });
   gl.enable(gl.CULL_FACE);
   for(i=0;i<_gvis.length;i++){ var o=_gvis[i]; glBind(gl,pg,o); gl.drawArrays(gl.TRIANGLES,0,o.n); draws++; tris+=o.n/3; }
+  /* the inside of a node building (palace_ride_inside.py): its own buffer, both faces, not in the shadow pass */
+  if(GLX.inside && GLX.inside.buf){ gl.disable(gl.CULL_FACE); glBind(gl,pg,GLX.inside); gl.drawArrays(gl.TRIANGLES,0,GLX.inside.n); draws++; tris+=GLX.inside.n/3; gl.enable(gl.CULL_FACE); }
   /* the ride's way */
   var wy=GLX.curWay; if(wy && wy.segs){ for(i=0;i<wy.segs.length;i++){ var s=wy.segs[i]; if(!glSphVis(s.cx,s.cy,s.cz,s.r)) continue; glBind(gl,pg,s); gl.drawArrays(gl.TRIANGLES,0,s.n); draws++; tris+=s.n/3; } }
   /* meshes from the landmark and scenery parts: no culling (their winding is not ours to trust) */
@@ -480,7 +482,7 @@ function glSceneryUni(gl,pg,Wd,L){
     for(li=0;li<lsets.length;li++){ la=lsets[li]; for(i=0;i+2<la.length;i+=3){ var dx=la[i]-C.x, dy=la[i+1]-C.y, d2=dx*dx+dy*dy; if(d2>200*200) continue;
       if(best.length<12 || d2<best[best.length-1].d){ var at2=best.length; while(at2>0 && best[at2-1].d>d2) at2--; best.splice(at2,0,{x:la[i],y:la[i+1],z:la[i+2],d:d2}); if(best.length>12) best.pop(); } } }
     for(var j=0;j<best.length;j++){ lb[4*j]=best[j].x; lb[4*j+1]=best[j].y; lb[4*j+2]=best[j].z; lb[4*j+3]=1; } }
-  gl.uniform4fv(pg.u.uLamp,lb); gl.uniform3f(pg.u.uLampC,1.0,.72,.38); }
+  gl.uniform4fv(pg.u.uLamp,lb); gl.uniform3f(pg.u.uLampC,1.0,.72,.38); if(pg.u.uIn) gl.uniform1f(pg.u.uIn,GLX.inside?1.:0.); }
 /* movers: grouped by mesh, instanced where the browser has ANGLE_instanced_arrays, else one draw each */
 var _gmg=[];
 function glDrawMovers(gl,pg,Wd){
