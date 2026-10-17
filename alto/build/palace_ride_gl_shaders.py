@@ -133,6 +133,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       /* curtain wall: spandrel band below each pane, mullions between */
       float spw=.95; float pane=rectm(loc,vec2(bwa*.5,spw+(fh-spw)*.5),vec2(bwa*.5-.045,(fh-spw)*.5-.03),fw);
       float spand=rectm(loc,vec2(bwa*.5,spw*.5),vec2(bwa*.5-.045,spw*.5-.02),fw);
+      float louv=step(19.,mod(fi,20.))*step(60.,Hh); pane*=1.-louv; spand*=1.-louv;
       glM=pane; winM=pane;
       vec3 gtint=mix(vec3(.30,.42,.50),vec3(.20,.34,.36),fract(T*5.))*mix(vec3(1.),tf,.7);
       if(aux>.5) gtint=mix(gtint,gtint*tf*1.1,.8);
@@ -140,6 +141,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       glassAlb=gtint*.30*pv;
       alb=mix(vec3(.30,.31,.33)*mix(vec3(1.),tf,.35),mix(glassAlb,gtint*.17,.5),1.);
       alb=mix(vec3(.20,.21,.23),alb,pane+spand);       /* mullions are metal */
+      alb=mix(alb,vec3(.34,.35,.37)*(.6+.4*step(.5,fract(vl*2.5))),louv);
       alb=mix(alb,gtint*.12*pv,spand);
       refl=((.34+.42*fres)*pane+.2*spand)*(.78+.34*h21(vec2(fi*1.7+3.,bi*2.3+T*7.)))*(.85+.3*clamp(vl/fh,0.,1.));
       float on=step(lit1,litP)*night; glEmi=vec3(1.,.82,.52)*(.5+.6*h11(fi*3.+bi))*on*.9;
@@ -155,6 +157,8 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       float si1=rectm(loc,vec2(c1,cy-ws.y-.07),vec2(ws.x+.14,.06),fw); float si2=rectm(loc,vec2(c2,cy-ws.y-.07),vec2(ws.x+.14,.06),fw);
       winM=max(w1,w2); glM=winM; frM=max(f1,f2);
       alb=mix(alb,trim,clamp(max(max(li1,li2),max(si1,si2)),0.,1.));
+      float st1=rectm(loc,vec2(c1,cy-ws.y-.55),vec2(ws.x*.8,.55),vec2(.25,.4))*(1.-w1); float st2=rectm(loc,vec2(c2,cy-ws.y-.55),vec2(ws.x*.8,.55),vec2(.25,.4))*(1.-w2); alb*=1.-.16*max(st1,st2);
+      float acb=step(.9,h21(vec2(fi*5.+bi*3.,T*37.)))*rectm(loc,vec2(c2,cy-ws.y*.55),vec2(.34,.2),fw); alb=mix(alb,vec3(.55,.56,.57),acb*(1.-w2));
       alb=mix(alb,vec3(.80,.78,.72),frM);
       /* sash bars */
       float bar=rectm(loc,vec2(c1,cy),vec2(ws.x,.02),fw)+rectm(loc,vec2(c2,cy),vec2(ws.x,.02),fw);
@@ -176,7 +180,9 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       float si=rectm(loc,vec2(bwa*.5,cy-ws.y-.08),vec2(ws.x+.15,.07),fw);
       float mull=rectm(loc,vec2(bwa*.5,cy),vec2(.025,ws.y),fw)*w1;
       winM=w1; glM=clamp(w1-mull*.7,0.,1.); frM=f1;
+      float stn=rectm(loc,vec2(bwa*.5,cy-ws.y-.7),vec2(ws.x*.75,.7),vec2(.3,.5))*(1.-w1); alb*=1.-.15*stn*(isConc?.6:1.);
       if(isConc){ alb=mix(alb,vec3(.30,.31,.33),frM); } else { alb=mix(alb,trim,clamp(max(li,si),0.,1.)); alb=mix(alb,isStone?vec3(.46,.44,.40):vec3(.78,.76,.70),frM); }
+      float acb=step(.93,h21(vec2(fi*5.+bi*3.,T*37.)))*rectm(loc,vec2(bwa*.5+ws.x*.5,cy-ws.y*.5),vec2(.4,.22),fw); alb=mix(alb,vec3(.55,.56,.57),acb*(1.-w1));
       alb=mix(alb,vec3(.30,.31,.32),mull*.5);
       float on=step(lit1,litP)*night; float blind=step(.78,h21(vec2(fi+bi*3.,T*5.)));
       glassAlb=mix(vec3(.028,.036,.045),vec3(.40,.42,.45)*.4,blind);
@@ -191,20 +197,25 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
     else if(isGlass){
       float pane=rectm(vec2(mod(u-mg,bw*.0+1.5),v),vec2(.75,gh*.5+.2),vec2(.75-.05,gh*.5-.2),fw)*(pier?0.:1.);
       vec3 gtint=vec3(.30,.42,.50)*mix(vec3(1.),tf,.7);
-      alb=mix(vec3(.2,.21,.23),gtint*.22,pane); refl=(.3+.4*fres)*pane;
-      emi=vec3(1.,.9,.7)*night*.55*pane;
+      float plinth=smoothstep(.95,.9,v); vec3 inter=mix(vec3(.05,.045,.04),vec3(.3,.24,.17),h21(vec2(floor(u/1.5),floor(v*1.8)+T)));
+      alb=mix(vec3(.2,.21,.23),gtint*.15,pane); alb=mix(alb,stonePal(T+.6)*.8,plinth); pane*=1.-plinth;
+      refl=(.14+.34*fres)*pane; emi=inter*pane*(night*2.2+.3);
     } else {
-      /* storefront: piers, glass, a sign band above */
+      /* storefront: piers, glass over a lit interior, an awning on some, a sign band above */
       float sg=gh-1.05;
       float pane=rectm(vec2(ul,v),vec2(bwa*.5,.35+(sg-.35)*.5),vec2(bwa*.5-.28,(sg-.35)*.5),fw)*(pier?0.:1.);
       float sign=rectm(vec2(ul,v),vec2(bwa*.5,gh-.6),vec2(bwa*.5-.12,.36),fw)*(pier?0.:1.);
-      float lit2=step(h21(vec2(bi,T*53.)),.85);
+      float lit2=step(h21(vec2(bi,T*53.)),.8);
       vec3 sc=mix(mix(vec3(.12,.2,.16),vec3(.16,.2,.34),fract(T*3.3+bi*.37)),mix(vec3(.4,.1,.12),vec3(.1,.1,.11),fract(T*5.1+bi*.23)),step(.5,fract(T*7.7+bi*.51)));
-      vec3 glass=vec3(.03,.04,.05);
-      alb=mix(alb*.75,glass,pane); alb=mix(alb,sc*.7,sign);
-      float letters=step(.5,h21(floor(vec2(ul*3.,v*6.))+bi))*step(.5,h21(vec2(floor(ul*3.),bi)+T));
-      emi=(vec3(1.,.88,.62)*(.5+.5*h11(bi+T*9.))*pane*lit2*(night*.9+.12)) + sc*(.2+1.1*night)*sign*letters*.9;
-      refl=(.12+.3*fres)*pane;
+      vec3 inter=mix(vec3(.07,.055,.045),vec3(.32,.24,.15),h21(vec2(bi*3.1,T*17.))*h21(vec2(floor(v*1.7),bi+T)));
+      alb=mix(alb*.75,inter*.5,pane); alb=mix(alb,sc*.7,sign);
+      float strip=rectm(vec2(ul,v),vec2(bwa*.5,gh-.6),vec2(bwa*.5-.4,.09),fw); float letter=step(.3,h21(vec2(floor(ul*4.),bi+T*3.)))*strip*sign;
+      alb=mix(alb,vec3(.8,.78,.7),letter);
+      float awn=step(.68,h21(vec2(bi,T*13.)))*rectm(vec2(ul,v),vec2(bwa*.5,sg-.22),vec2(bwa*.5-.2,.24),fw)*(pier?0.:1.);
+      vec3 ac=mix(vec3(.55,.1,.1),mix(vec3(.1,.35,.2),vec3(.12,.2,.45),fract(T*9.)),step(.5,fract(T*21.+bi*.1)));
+      alb=mix(alb,mix(ac,vec3(.85),step(.5,fract(ul/.32)))*.8,awn);
+      emi=vec3(1.,.82,.55)*inter*pane*(1.-awn)*lit2*(night*2.4+.25)+vec3(1.,.95,.8)*letter*night*1.4+sc*sign*night*.5;
+      refl=(.05+.3*fres)*pane*(1.-awn);
       alb=mix(alb,vec3(.22,.22,.24),rectm(vec2(u,v),vec2(u,.2),vec2(1e3,.2),fw)*.5);
     }
   }
@@ -243,8 +254,8 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
 vec3 asphalt(vec2 gp, float fpx){
   float lo=nz(gp*.11+7.); float mid=nz(gp*.9); float gr=nz(gp*11.)*(1.-smoothstep(.01,.06,fpx))+nz(gp*37.)*(1.-smoothstep(.003,.02,fpx));
   float patch=smoothstep(.62,.75,nz(gp*.045+2.));
-  vec3 a=vec3(.17,.172,.18)*(.82+.34*lo)*(.93+.14*mid)+vec3(.05)*(gr-.8)*.5;
-  a=mix(a,vec3(.11,.11,.12),patch*.55);
+  vec3 a=vec3(.30,.302,.31)*(.84+.3*lo)*(.93+.14*mid)+vec3(.05)*(gr-.8)*.5;
+  a=mix(a,vec3(.2,.2,.21),patch*.55);
   float stain=smoothstep(.7,.85,nz(gp*.3+11.)); a*=1.-.25*stain;
   return a; }
 void main(){
@@ -282,7 +293,7 @@ void main(){
     vec2 g1=vec2(nz(q*.55+vec2(t*.35,t*.21))-.5, nz(q*.55+7.+vec2(-t*.27,t*.33))-.5);
     vec2 g2=vec2(nz(q*1.7+vec2(-t*.6,t*.4))-.5, nz(q*1.7+3.+vec2(t*.5,-t*.45))-.5);
     float calm=1.-smoothstep(.05,.7,fpx*2.);
-    vec3 wn=normalize(vec3((g1.x*.5+g2.x*.35)*calm*1.0,(g1.y*.5+g2.y*.35)*calm*1.0,1.));
+    vec3 wn=normalize(vec3((g1.x*.30+g2.x*.14)*calm,(g1.y*.30+g2.y*.14)*calm,1.));
     vec3 R=reflect(-V,wn);
     float fr=.03+.97*pow(1.-max(dot(wn,V),0.),5.);
     vec3 deep=vec3(.045,.10,.13)*mix(1.,.35,uNight);
@@ -330,13 +341,13 @@ void main(){
     alb=brickTex(vUV,T*.1+.01,fp);
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
-    vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7); alb=mix(vec3(.2),pc,smoothstep(.12,.45,wear)*.65+.32);
+    vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7); alb=mix(vec3(.26),pc,smoothstep(.08,.4,wear)*.22+.76);
   } else if(id<41.5){   /* ballast and ties */
     float u=vUV.x; float v=vUV.y; float w=.02+fpx*.6;
     float ph=fract(v/.65)*.65; float tie=smoothstep(.0,w+.01,ph)*(1.-smoothstep(.26,.26+w+.01,ph))*(1.-smoothstep(1.35,1.5,abs(u)));
     tie=clamp(tie,0.,1.)*(1.-smoothstep(.1,.5,fpx*3.));
-    float gr=nz(gp*3.1)*.5+nz(gp*.7)*.5;
-    vec3 ball=vec3(.36,.35,.34)*(.7+.6*gr);
+    float gr=nz(gp*.7)*.3+nz(gp*3.1)*.3+nz(gp*13.)*.25*(1.-smoothstep(.01,.06,fpx))+nz(gp*47.)*.15*(1.-smoothstep(.004,.02,fpx));
+    vec3 ball=vec3(.33,.325,.32)*(.62+.8*gr);
     alb=mix(ball,vec3(.20,.15,.11)*(.8+.4*nz(gp*8.)),tie*.9);
     float sh=smoothstep(2.4,3.2,abs(u)); alb=mix(alb,ball*.8,sh);
   } else if(id<42.5){   /* rail */
@@ -374,7 +385,8 @@ void main(){
   if(spec>.5){ vec3 H=normalize(uSun+V); col+=uSunCol*pow(max(dot(N,H),0.),70.)*.45*(1.-uNight*.7)*shd; }
   if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z)); col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
   float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/280.,.0,1.); f*=mix(.7,1.,hf);
-  col=mix(col,uFog,clamp(f,0.,1.));
+  vec3 fogc=uFog+uSunCol*.045*pow(max(dot(-V,uSun),0.),5.)*(1.-uNight);
+  col=mix(col,fogc,clamp(f,0.,1.));
   col=aces(col*uExp);
   gl_FragColor=vec4(pow(col,vec3(1./2.2)),1.);
 }

@@ -16,7 +16,7 @@ function finishModel(M){
     if(sec.veh==='metro'){ var cur=sec.s0; sec.ug.concat([[sec.s1,sec.s1]]).forEach(function(g){ if(g[0]-cur>=40) M._lifts.push([cur,g[0],15,80]); cur=Math.max(cur,g[1]); }); } });
   return M; }
 function sizeCheck(){ var vw=window.innerWidth||document.documentElement.clientWidth, vh=window.innerHeight||document.documentElement.clientHeight;
-  var dpr=Math.min(window.devicePixelRatio||1, Math.sqrt(1.9e6/(vw*vh))); dpr=Math.max(.7, dpr);
+  var dpr=Math.min(window.devicePixelRatio||1, Math.sqrt((glOk()?2.3e6:1.9e6)/(vw*vh))); dpr=Math.max(.7, dpr);
   if(vw!==R.w || vh!==R.h || Math.abs(dpr-R.dpr)>.02){ R.w=vw; R.h=vh; R.dpr=dpr; R.cv.width=Math.round(vw*dpr); R.cv.height=Math.round(vh*dpr); glSize(R.cv.width,R.cv.height); } }
 function ensureOverlay(){
   if(R.ov) return;

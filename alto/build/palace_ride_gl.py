@@ -29,7 +29,7 @@ _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
 var GLX={ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
   st:{draws:0, tris:0, built:0, pending:0, ms:0, chunks:0}, ready:false, fresh:true, inst:null, instBuf:null, ibuf:null};
-var GL_NEAR=1.2, GL_FAR=4600, GL_MAXCACHE=190;
+var GL_NEAR=1.2, GL_FAR=4600, GL_MAXCACHE=260;
 function glAttach(ov){
   var cv=document.createElement('canvas'); cv.className='pr-gl'; cv.setAttribute('aria-hidden','true'); var c2=ov.querySelector('.pr-cv'); ov.insertBefore(cv,c2); GLX.cv=cv;
   cv.addEventListener('webglcontextlost', function(e){ e.preventDefault(); GLX.lost=true; GLX.on=false; ov.classList.remove('pr-glon'); GLX.err='context lost'; });
@@ -40,15 +40,17 @@ function glSetup(restore){
   if(!cv) return false; if(window._palRideNoGL){ GLX.err='disabled'; return glFail(); }
   var opt={alpha:false, antialias:true, depth:true, stencil:false, powerPreference:'high-performance', preserveDrawingBuffer:false};
   try{ gl=cv.getContext('webgl',opt)||cv.getContext('experimental-webgl',opt); }catch(x){ gl=null; }
-  if(!gl || gl.isContextLost()){ GLX.err='no webgl'; return glFail(); }
+  if(!gl || gl.isContextLost()){ GLX.err='no webgl'; return glFail(true); }
   GLX.gl=gl; GLX.gen++; GLX.cache={}; GLX.nCache=0; GLX.mc=(typeof WeakMap!=='undefined')?new WeakMap():null; GLX.queue=[]; GLX.wayq=[];
+  var fp=gl.getShaderPrecisionFormat&&gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER,gl.HIGH_FLOAT); if(!fp || !fp.precision){ GLX.err='no highp fragment precision'; return glFail(true); }
+  if(gl.getParameter(gl.MAX_VERTEX_ATTRIBS)<8){ GLX.err='too few vertex attributes'; return glFail(true); }
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
   GLX.inst=gl.getExtension('ANGLE_instanced_arrays');
   try{
     GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uNOff','uSh','uShP']);
     GLX.shp=glProgram(gl, GLS.vsh, GLS.fsh, ['aP'], ['uLP']);
     GLX.sky=glProgram(gl, GLS.vss, GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']);
-  }catch(x){ GLX.err=String(x&&x.message||x); return glFail(); }
+  }catch(x){ GLX.err=String(x&&x.message||x); if(window.console) console.warn('ride GL', GLX.err); return glFail(true); }
   /* the noise texture: random bytes, filtered and mip-mapped, read for value noise in the shaders */
   var N=128, px=new Uint8Array(N*N*4), i, s=12345;
   for(i=0;i<px.length;i++){ s=(Math.imul(s,1664525)+1013904223)|0; px[i]=(s>>>16)&255; }
@@ -61,7 +63,7 @@ function glSetup(restore){
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW); gl.clearColor(.5,.55,.6,1);
   GLX.on=true; GLX.lost=false; GLX.ready=true; GLX.err=''; GLX.fresh=true; if(GLX.cv&&GLX.cv.parentNode) GLX.cv.parentNode.classList.add('pr-glon');
   return true; }
-function glFail(){ GLX.on=false; GLX.ready=false; if(GLX.cv&&GLX.cv.parentNode) GLX.cv.parentNode.classList.remove('pr-glon'); return false; }
+function glFail(drop){ GLX.on=false; GLX.ready=false; var cv=GLX.cv; if(cv&&cv.parentNode){ cv.parentNode.classList.remove('pr-glon'); if(drop||!GLX.gl) { cv.parentNode.removeChild(cv); } } return false; }
 function glProgram(gl, vs, fs, attrs, unis){
   function mk(t,src){ var s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ var l=gl.getShaderInfoLog(s); gl.deleteShader(s); throw new Error((t===gl.VERTEX_SHADER?'vertex: ':'fragment: ')+l); } return s; }
   var p=gl.createProgram(); gl.attachShader(p,mk(gl.VERTEX_SHADER,vs)); gl.attachShader(p,mk(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p);
@@ -265,11 +267,16 @@ function glWork(W,budget){
     for(var i=0;i<pend.length;i++){ if(performance.now()>deadline && !(GLX.fresh&&pend[i].d<CELL*1.2)) break; if(glCellStep(W,pend[i],GLX.fresh&&pend[i].d<CELL*1.2?t0+400:deadline)) continue; break; }
     left=glPending(W).length; }
   /* meshes from other parts (landmarks, scenery) and the ride's way, as time allows */
-  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length) return; if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a); });
+  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length) return; if(glMeshPeek(m.a)){ glMeshPeek(m.a).use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a,m.id); });
   GLX.st.pending=left; return left; }
-function glMeshGet(a){
-  var mc=GLX.mc, o=mc?mc.get(a):null; if(o && o.gen===GLX.gen) return o;
-  var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); if(mc) mc.set(a,o); return o; }
+/* a mesh from another part (landmarks, scenery, a mover's model) as a GL buffer: by array identity, else by id + size + a few sampled values, so a world that is
+   re-gathered with identical scenery reuses the buffers it already has */
+function glMeshPeek(a){ var o=GLX.mc?GLX.mc.get(a):null; return (o && o.gen===GLX.gen && o.buf)?o:null; }
+function glMeshGet(a,id){
+  var o=glMeshPeek(a); if(o){ o.use=GLX.frame; return o; }
+  var n=a.length, key='m:'+(id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+',';
+  var c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); return c; }
+  var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); GLX.cache[key]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); return o; }
 """
 
 _JS_GL_WAY = r"""
@@ -372,7 +379,7 @@ function glLin(c){ return [Math.pow(c[0]/255,2.2), Math.pow(c[1]/255,2.2), Math.
 function glLight(P){
   var dk=P.dk, L={dk:dk};
   if(dk){ L.sun=[-.5,-.42,.76]; L.sunCol=[.20,.27,.55]; L.skyA=[.055,.07,.13]; L.gndA=[.028,.03,.045]; L.exp=1.35; }
-  else { L.sun=[-.55,-.66,.62]; L.sunCol=[2.7,2.4,1.95]; L.skyA=[.34,.44,.62]; L.gndA=[.2,.19,.18]; L.exp=1.0; }
+  else { L.sun=[-.55,-.66,.62]; L.sunCol=[2.9,2.55,2.05]; L.skyA=[.42,.49,.60]; L.gndA=[.28,.265,.24]; L.exp=1.0; }
   var l=Math.hypot(L.sun[0],L.sun[1],L.sun[2]); L.sun=[L.sun[0]/l,L.sun[1]/l,L.sun[2]/l];
   L.zen=glLin(P.zen); L.hor=glLin(P.hor); L.fog=glLin(P.fog); L.gnd=dk?[.016,.017,.022]:[.12,.115,.11];
   return L; }
@@ -415,7 +422,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   var wy=GLX.curWay; if(wy && wy.segs){ for(i=0;i<wy.segs.length;i++){ var s=wy.segs[i]; if(!glSphVis(s.cx,s.cy,s.cz,s.r)) continue; glBind(gl,pg,s); gl.drawArrays(gl.TRIANGLES,0,s.n); draws++; tris+=s.n/3; } }
   /* meshes from the landmark and scenery parts: no culling (their winding is not ours to trust) */
   gl.disable(gl.CULL_FACE);
-  (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length) return; var mc=GLX.mc?GLX.mc.get(m.a):null; if(!mc||mc.gen!==GLX.gen) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
+  (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length) return; var mc=glMeshPeek(m.a); if(!mc) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
   draws+=glDrawMovers(gl,pg,Wd); gl.enable(gl.CULL_FACE);
   st.draws=draws; st.tris=tris|0; st.chunks=_gvis.length;
   names.forEach(function(n){ gl.disableVertexAttribArray(a[n]); }); }
@@ -423,7 +430,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
 var _gmg=[];
 function glDrawMovers(gl,pg,Wd){
   var mv=Wd.movers; if(!mv||!mv.length) return 0; var a=pg.a, ext=GLX.inst, groups=[], map=GLX.mc, i, draws=0, lim2=Math.pow(FARZ*.42,2);
-  for(i=0;i<mv.length;i++){ var m=mv[i]; if(!m||!m.a||!m.a.length) continue; var dx=m.x-C.x, dy=m.y-C.y; if(dx*dx+dy*dy>lim2) continue; var o=glMeshGet(m.a); if(!glSphVis(m.x,m.y,(m.z||0)+o.cz,o.r+2)) continue;
+  for(i=0;i<mv.length;i++){ var m=mv[i]; if(!m||!m.a||!m.a.length) continue; var dx=m.x-C.x, dy=m.y-C.y; if(dx*dx+dy*dy>lim2) continue; var o=glMeshGet(m.a,'mv'); if(!glSphVis(m.x,m.y,(m.z||0)+o.cz,o.r+2)) continue;
     var gr=null; for(var q=0;q<groups.length;q++) if(groups[q].o===o){ gr=groups[q]; break; } if(!gr){ gr={o:o,l:[]}; groups.push(gr); } gr.l.push(m); }
   gl.uniform1f(pg.u.uInst,1);
   groups.forEach(function(gr){ var l=gr.l, o=gr.o; glBind(gl,pg,o);
@@ -473,7 +480,7 @@ window._palRideGL=GLX;
 _JS_GL_SHADOW = r"""
 /* ── one sun shadow map (WEBGL_depth_texture): 2048^2 over ~360 units round a point ahead of the camera, snapped to texels so it never crawls; redrawn only when
    the snapped centre or the set of built chunks changes ── */
-var GL_SHS=2048, GL_SHR=360;
+var GL_SHS=2048, GL_SHR=400, GL_SHSNAP=128;
 function glShadowSetup(gl){
   GLX.shd={ok:false}; if(window._palRideNoShadow) return;
   var ext=gl.getExtension('WEBGL_depth_texture')||gl.getExtension('WEBKIT_WEBGL_depth_texture'); if(!ext) return;
@@ -486,7 +493,7 @@ function glShadowSetup(gl){
 function glShadowPass(gl,Wd,L,cw,ch){
   var sd=GLX.shd; if(!sd||!sd.ok||L.dk){ if(sd) sd.on=0; return; }
   var Ls=L.sun, h=Math.hypot(Ls[0],Ls[1]), a=[-Ls[1]/h, Ls[0]/h, 0], b=[-Ls[2]*Ls[0]/h, -Ls[2]*Ls[1]/h, h], Rs=GL_SHR, S=sd.S, texel=2*Rs/S;
-  var ox=C.x+Math.cos(C.yaw)*170, oy=C.y+Math.sin(C.yaw)*170, oa=Math.round((a[0]*ox+a[1]*oy)/texel)*texel, ob=Math.round((b[0]*ox+b[1]*oy)/texel)*texel;
+  var ox=C.x+Math.cos(C.yaw)*190, oy=C.y+Math.sin(C.yaw)*190, snap=texel*GL_SHSNAP, oa=Math.round((a[0]*ox+a[1]*oy)/snap)*snap, ob=Math.round((b[0]*ox+b[1]*oy)/snap)*snap;
   var cb=Ls[0]*ox+Ls[1]*oy, cMin=cb-500, cMax=cb+440, k=2/(cMax-cMin), G=glPlan(Wd), n=GLX.st.built;
   var key=oa+'|'+ob+'|'+n+'|'+GLX.gen+'|'+((Wd.meshes||[]).length)+'|'+G.keys.length+'|'+L.sun[0];
   var m=sd.lp; m[0]=a[0]/Rs; m[4]=a[1]/Rs; m[8]=a[2]/Rs; m[12]=-oa/Rs; m[1]=b[0]/Rs; m[5]=b[1]/Rs; m[9]=b[2]/Rs; m[13]=-ob/Rs; m[2]=-Ls[0]*k; m[6]=-Ls[1]*k; m[10]=-Ls[2]*k; m[14]=cMax*k-1; m[3]=0; m[7]=0; m[11]=0; m[15]=1;
@@ -499,7 +506,7 @@ function glShadowPass(gl,Wd,L,cw,ch){
   function lat(o){ var ca=a[0]*o.cx+a[1]*o.cy-oa, cbb=b[0]*o.cx+b[1]*o.cy+b[2]*o.cz-ob; return Math.abs(ca)-o.r<Rs && Math.abs(cbb)-o.r<Rs; }
   function draw(o){ gl.bindBuffer(gl.ARRAY_BUFFER,o.buf); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,60,0); gl.drawArrays(gl.TRIANGLES,0,o.n); }
   var nd=0; G.keys.forEach(function(kk){ var o=GLX.cache[G.cells[kk].ck]; if(o && lat(o)){ draw(o); nd++; } });
-  (Wd.meshes||[]).forEach(function(mm){ if(!mm||!mm.a) return; var o=GLX.mc?GLX.mc.get(mm.a):null; if(o && o.gen===GLX.gen && lat(o)){ draw(o); nd++; } });
+  (Wd.meshes||[]).forEach(function(mm){ if(!mm||!mm.a) return; var o=glMeshPeek(mm.a); if(o && lat(o)){ draw(o); nd++; } });
   gl.disableVertexAttribArray(ap); gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true,true,true,true); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); GLX.st.shadowDraws=nd; GLX.st.shadowPasses=(GLX.st.shadowPasses||0)+1; }
 """
 
