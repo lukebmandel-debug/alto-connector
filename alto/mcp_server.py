@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.94"
+__version__ = "1.9.95"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1354,12 +1354,17 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
      axis1_values?, axis2_values?, filters?: {custom_filter_id: value_id},
      flags?: [flag id] (several allowed; declared with set_flags),
      sections?: [{h,t,prov?}], sources?: [source id],
-     line?, when?, present?, flash? (mode 'lanes'. `line`: omit for the main
+     line?, when?, gap?, present?, flash? (mode 'lanes'. `line`: omit for the main
      line — the story as told, on the page — or a line id for a character's
      own event while they are off the page (backstory, what they do
      elsewhere). `when`: when it happened exactly as the material dates it,
      e.g. "1852-06" or "Day 3" — story time, inside a flashback too; never
-     invent a date. Main-line events only: `present`: [line ids] — who is on
+     invent a date. `gap`: for an undated event, how long after the event
+     before it this one happens, only when the material says so — 'moments',
+     'hours', 'day', 'days', 'weeks', 'months' or 'years' ("that night" =
+     hours, "next day" = day, "two years later" = years): a fast stretch of
+     the story is drawn close together, a jump far apart; leave it out when
+     the material does not say. Main-line events only: `present`: [line ids] — who is on
      the page in this scene; `flash`: a flashback id (declared in the brief,
      or with set_lines) when the story tells this event out of time — a
      flashback's events must be consecutive on the main line)}.

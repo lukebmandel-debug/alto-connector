@@ -217,6 +217,40 @@ def test_v2_lines_dip_onto_the_page_and_flashbacks_detour(browser, tmp_path):
     assert on == ["node-p3", "node-p4", "node-p5", "node-w2"], on
 
 
+def _undated_doc(gaps):
+    d = _v2_doc()
+    d["brief"].pop("flashbacks"); 
+    d["nodes"] = [n for n in d["nodes"] if not n.get("flash") and n["line"] == ""]
+    for n in d["nodes"]:
+        n["when"] = ""
+        n.pop("flash", None)
+    for nid, g in gaps.items():
+        next(n for n in d["nodes"] if n["id"] == nid)["gap"] = g
+    return d
+
+
+def test_the_pace_of_the_story_sets_how_close_events_sit(browser, tmp_path):
+    ids = [n["id"] for n in _undated_doc({})["nodes"]]
+    X = "() => { const G = window._altoLanesGeo; return G.x; }"
+    pg, errs = _open(browser, _page(_undated_doc({})), tmp_path)
+    plain = pg.evaluate(X)
+    steps = [plain[b] - plain[a] for a, b in zip(ids, ids[1:])]
+    assert max(steps) - min(steps) < 1.5 and 120 < steps[0] < 260              # undated and unmarked: one ordinary, fairly close step
+    pg2, errs2 = _open(browser, _page(_undated_doc({ids[1]: "hours", ids[2]: "years"})), tmp_path)
+    x = pg2.evaluate(X)
+    quick, jump, even = x[ids[1]] - x[ids[0]], x[ids[2]] - x[ids[1]], x[ids[3]] - x[ids[2]]
+    assert quick < 0.6 * steps[0] and jump > 2 * steps[0] and abs(even - steps[0]) < 1.5, (quick, jump, even, steps[0])
+    assert not [e for e in errs + errs2 if "ResizeObserver" not in e]       # (WebKit's loop notice is benign here)
+
+
+def test_the_main_line_is_the_heaviest_thing_on_the_board(browser, tmp_path):
+    pg, errs = _open(browser, _page(_v2_doc()), tmp_path)
+    w = pg.evaluate("""() => { const sw = c => parseFloat(getComputedStyle(document.querySelector(c)).strokeWidth);
+      return {main: sw('#lanes-svg .ln-main'), halo: sw('#lanes-svg .ln-main-halo'), chars: sw('#lanes-svg .ln-br')}; }""")
+    assert w["main"] >= 2.5 * w["chars"] and w["halo"] > w["main"], w
+    assert not errs
+
+
 def test_a_legacy_timeline_still_draws_its_branches_as_dips(browser, tmp_path):
     pg, errs = _open(browser, build_timeline(*load_brief(copy.deepcopy(LEGACY)))[0], tmp_path)
     r = pg.evaluate(GEOMETRY)
