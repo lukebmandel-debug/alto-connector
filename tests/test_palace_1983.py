@@ -97,7 +97,7 @@ def test_ships_are_boats_in_the_water_not_buildings_on_blocks():
         pf.domains, pf._owners = old
     assert b and abs(b[0]["x"]) < 100 and abs(b[0]["a"]) in (90.0, -90.0)             # inside the 200 px river, turned along it
     js = palace.PALACE_JS
-    assert "(M.boats||[]).forEach" in js and "'pl-boat'" in js
+    assert "(M.boats||[]).forEach" in js and "'pl-boat '+kind" in js and "function drawBoat(" in js
     assert "function nbOcclude()" in js and "'#palace-svg .pl-lmn'" in js              # a node building over a landmark's name turns to glass
     t = palace_transit_js.TRANSIT_JS
     assert "data-mode" in t and "function legRoute(" in t and "data-pillx" in t        # transit / drive / walk, the real path, a close button
@@ -110,3 +110,8 @@ def test_the_battleship_fires_and_what_it_hits_is_rebuilt_over_twenty_seconds():
     assert "{duration:20000, fill:'none'}" in js and "easing:'steps('+steps+', end)'" in js            # rebuilt a storey at a time, over 20 s
     assert js.index("function nbFire(") < js.index("a click on a building enlarges it")                   # the guns hear the click before the map's own handler
     assert ".pl-boat.bb{pointer-events:all" in css and "#pal-fxbar" in css and ".node.nb-ruin .node-card" in css
+
+
+def test_a_node_building_never_runs_over_its_lot_into_the_street_beside_it():
+    js = palace.PALACE_JS
+    assert "squeezed back inside its lot" in js and "var rx0=Math.min.apply" in js

@@ -616,7 +616,7 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
   .pal-svg .pl-boat{pointer-events:none;}
   .pal-svg .pl-boat.bb{pointer-events:all;cursor:pointer;}
-  .pal-svg .pl-boat .bb-tur{fill:#46567a;stroke:var(--pal-halo,#fff);stroke-width:1.5;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bb-tur{fill:#8a97b1;stroke:#3a4666;stroke-width:1.4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-boat .bb-barrel{stroke:#2c3858;stroke-width:3.2;stroke-linecap:round;}
   html.fx-armed .pal-svg .pl-boat.bb .bt-hull{stroke:#ff7a3c;stroke-width:3;}
   html.fx-armed #world .node,html.fx-armed .pal-svg .pl-lmb,html.fx-armed #world .node .nb3d *{cursor:crosshair !important;}
@@ -625,10 +625,21 @@ PALACE_CSS = KEY_CSS + r"""
   html.fx-armed #pal-fxbar{display:block;} html.mobile #pal-fxbar{display:none !important;}
   .node.nb-ruin .node-card{opacity:0 !important;pointer-events:none;}
   .pal-svg .pl-fx{pointer-events:none;}
-  .pal-svg .pl-boat .bt-wake{fill:rgba(255,255,255,.55);stroke:none;}
-  .pal-svg .pl-boat .bt-hull{fill:#56668a;stroke:var(--pal-halo,#fff);stroke-width:2;vector-effect:non-scaling-stroke;}
-  .pal-svg .pl-boat .bt-deck{fill:#b8c2d6;stroke:#6f7ea0;stroke-width:1;vector-effect:non-scaling-stroke;}
-  html.dark .pal-svg .pl-boat .bt-wake{fill:rgba(255,255,255,.18);} html.dark .pal-svg .pl-boat .bt-deck{fill:#6a7794;}
+  .pal-svg .pl-boat .bt-foam{fill:rgba(255,255,255,.62);stroke:none;}
+  .pal-svg .pl-boat .bt-bowwave{fill:none;stroke:rgba(255,255,255,.7);stroke-width:1.6;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-hull{fill:#4c5b78;stroke:#2b3652;stroke-width:1.3;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat.tall .bt-hull{fill:#3f3a38;} .pal-svg .pl-boat.sub .bt-hull{fill:#2f3a48;}
+  .pal-svg .pl-boat .bt-boot{fill:none;stroke:#9c3f3a;stroke-width:1.6;stroke-opacity:.85;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-deck{fill:#a9b4c8;stroke:#74829f;stroke-width:1;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-deck.wood{fill:#cdb88f;stroke:#8d7852;} .pal-svg .pl-boat .bt-deck.sub{fill:#455264;stroke:#2b3652;}
+  .pal-svg .pl-boat .bt-cl{stroke:rgba(40,52,80,.35);stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bt-cl.w{stroke:rgba(255,255,255,.8);stroke-dasharray:6 5;}
+  .pal-svg .pl-boat .bt-fd{fill:#8693ab;stroke:#5d6a86;stroke-width:1;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-plank{stroke:rgba(110,86,50,.45);stroke-width:1;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-mast{stroke:#4a3f36;stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-yard{stroke:#4a3f36;stroke-width:1.6;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-sail{fill:rgba(250,247,238,.8);stroke:rgba(120,108,88,.55);stroke-width:1;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-fb{fill:#8e9bb3;stroke:#52607e;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bt-ft{fill:#c5cddb;stroke:#52607e;stroke-width:1;vector-effect:non-scaling-stroke;} .pal-svg .pl-boat .bt-fh{fill:#2f3850;}
+  html.dark .pal-svg .pl-boat .bt-foam{fill:rgba(255,255,255,.2);} html.dark .pal-svg .pl-boat .bt-deck{fill:#6f7b96;} html.dark .pal-svg .pl-boat .bt-deck.wood{fill:#8b7a58;} html.dark .pal-svg .pl-boat .bt-sail{fill:rgba(230,226,214,.7);}
   .pal-svg .pl-boat-l text{font-size:11px;font-weight:800;fill:var(--text,#222);stroke:var(--pal-halo,#fff);stroke-width:3.2px;paint-order:stroke;stroke-linejoin:round;}
   .pal-svg.far .pl-boat-l{display:none;}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
@@ -1331,20 +1342,9 @@ function drawCity(svg){
     var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
     if(tw_) g.setAttribute('data-tower', tw_);
     window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, all:M.landmarks||[], pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
-  /* boats (palace_boats.py): moored in the river's water, along it — a hull, its deck, a glass superstructure, a name */
-  (M.boats||[]).forEach(function(b,bi){ var g=el('g',{'class':'pl-boat','data-name':b.n||''},lg), a=b.a*Math.PI/180, L=b.len, W=b.wid, bow=Math.min(L*.3, W*1.4), q=W/2;
-    g.style.setProperty('--pc','#5d6f92');
-    var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g);
-    function hullP(k){ var x0=-L/2+k, x1=L/2-k*.4, w=q-k, bw=Math.max(bow-k, 4); return 'M'+x0+' '+(-w)+'L'+(x1-bw)+' '+(-w)+'Q'+(x1-bw*.1)+' '+(-w)+' '+x1+' 0Q'+(x1-bw*.1)+' '+w+' '+(x1-bw)+' '+w+'L'+x0+' '+w+'Z'; }
-    el('path',{'class':'bt-wake', d:hullP(-5)},rot); el('path',{'class':'bt-hull', d:hullP(0)},rot); el('path',{'class':'bt-deck', d:hullP(Math.min(5, W*.18))},rot);
-    /* a battleship (USS New Jersey, Iowa, Missouri, Wisconsin) has its guns: three turrets of two barrels, which turn to what they fire at (nbFire) */
-    if(/new jersey|\biowa\b|missouri|wisconsin|battleship/i.test(b.n||'')){ g.classList.add('bb'); g._b=b; b._tur=[]; g.setAttribute('aria-label', b.n+' — click, then click a building to fire');
-      [.30,.15,-.30].forEach(function(f){ var tx=f*L, tg=el('g',{transform:'translate('+tx.toFixed(1)+' 0)'},rot); el('circle',{'class':'bb-tur', r:(W*.2).toFixed(1)},tg);
-        var bar=el('g',{'class':'bb-bar'},tg); [-.05,.05].forEach(function(o){ el('line',{'class':'bb-barrel', x1:0, y1:(W*o).toFixed(1), x2:(W*.62).toFixed(1), y2:(W*o).toFixed(1)},bar); }); b._tur.push({x:tx, bar:bar}); }); }
-    var H=Math.max(14, Math.min(44, L*.15));
-    nbDraw(g, [0,0,L*.34,W*.5,b.a], H, b.x-Math.cos(a)*L*.06, b.y-Math.sin(a)*L*.06, 'boat'+bi);
-    el('title',{},g).textContent=(b.n||'A boat')+(g.classList.contains('bb')?' \u2014 click to man the guns':'');
-    if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-H-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; } });
+  /* boats (palace_boats.py): moored in the river's water, along it. Each is drawn for what it is (drawBoat): a battleship, a cruiser, a submarine, a tall ship,
+     a carrier, a small craft — a hull with its bow and its wake, a deck, and the upright parts (towers, funnels, masts and sails) in the buildings' own lean */
+  (M.boats||[]).forEach(function(b,bi){ drawBoat(lg, b, bi, pin); });
   /* the landmark names over every building: a tower in front (the next block down a column of towers, rising 300 m+ at
      true scale, more than a row) would otherwise hide the name hanging under the card behind it. Each name keeps its
      landmark's colours, --lm-nat and (tilted district) offset on its own .pl-lmn wrapper, data-name tying it back */
@@ -1544,6 +1544,60 @@ function placeAllReal(){
   try{ placeBoard(world, cv); } finally { CVS=null; }
   (window._palT=window._palT||{}).place=Math.round(performance.now()-tP0);
 }
+
+/* ── a boat, drawn for what it is. Plan parts (hull, deck, turrets) turn with it; upright parts (towers, funnels, masts) stand straight up and lean as every building does ── */
+function boatKind(n, L, W){ n=String(n||'');
+  if(/new jersey|\biowa\b|missouri|wisconsin|battleship/i.test(n)) return 'bb';
+  if(/becuna|submarine|growler|\bSS-|nautilus|\bUSS [A-Z][a-z]+ \(SS/i.test(n)) return 'sub';
+  if(/intrepid|carrier|midway|lexington|yorktown|hornet/i.test(n)) return 'carrier';
+  if(/olympia|cruiser|cassin|destroyer|laffey|kidd|the sullivans|frigate/i.test(n)) return 'cruiser';
+  if(/moshulu|wavertree|gazela|constitution|barque|schooner|clipper|\bpioneer\b|kalmar|peking/i.test(n)) return 'tall';
+  if(/fireboat|lightship|lilac|nantucket|frying pan|ambrose|tug|ferry/i.test(n) || L<90) return 'small';
+  return 'ship'; }
+function drawBoat(lg, b, bi, pin){
+  var kind=boatKind(b.n, b.len, b.wid), L=b.len, W=b.wid, a=b.a*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), u=L/100, q=W/2;
+  var g=el('g',{'class':'pl-boat '+kind,'data-name':b.n||'','data-kind':kind},lg); g.style.setProperty('--pc', kind==='tall'?'#7b6a54':'#5d6f92');
+  function wp(fx, fy){ return [b.x+ca*fx-sa*fy, b.y+sa*fx+ca*fy]; }                        /* hull coordinates (bow +x, port -y) -> the map */
+  function hull(k, bowK, sternK){ var x0=-L/2+k, x1=L/2-k*.3, w=q-k, bl=Math.max(L*bowK-k, 4), sw=w*sternK;                  /* bow tapers over bl with a curve; stern is a rounded transom */
+    return 'M'+x0+' '+(-sw)+'L'+(x1-bl)+' '+(-w)+'C'+(x1-bl*.5)+' '+(-w)+' '+(x1-bl*.14)+' '+(-w*.62)+' '+x1+' 0C'+(x1-bl*.14)+' '+(w*.62)+' '+(x1-bl*.5)+' '+w+' '+(x1-bl)+' '+w+'L'+x0+' '+sw+'Q'+(x0-k*.5-3)+' 0 '+x0+' '+(-sw)+'Z'; }
+  var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g), bowK=kind==='sub'?.34:kind==='tall'?.2:kind==='carrier'?.14:kind==='small'?.22:kind==='bb'?.24:.26, stern=kind==='sub'?.5:kind==='carrier'?.95:.82;
+  /* foam round the hull, a bow wave and a thin wake behind: it is moored, so the water only laps it */
+  el('path',{'class':'bt-foam', d:hull(-4, bowK, Math.min(1,stern+.08))},rot);
+  var bw=el('path',{'class':'bt-bowwave', d:'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(-q*1.15)+' '+(L/2-L*.2)+' '+(-q*1.5)+'M'+(L/2+3)+' 0Q'+(L/2-L*.1)+' '+(q*1.15)+' '+(L/2-L*.2)+' '+(q*1.5)},rot);
+  el('path',{'class':'bt-hull', d:hull(0, bowK, stern)},rot);
+  el('path',{'class':'bt-boot', d:hull(1.6, bowK, stern)},rot);                                                              /* the red waterline stripe */
+  var dk=el('path',{'class':'bt-deck '+(kind==='tall'?'wood':kind==='sub'?'sub':''), d:hull(Math.min(5, W*.16), bowK*1.02, stern)},rot);
+  el('line',{'class':'bt-cl', x1:-L/2+W*.2, y1:0, x2:L/2-L*bowK*.7, y2:0},rot);                                              /* the keel line along the deck */
+  if(kind==='tall'){ for(var k=-L/2+L*.1; k<L/2-L*.22; k+=Math.max(5, L*.045)) el('line',{'class':'bt-plank', x1:k, y1:-q*.8, x2:k, y2:q*.8},rot); }
+  if(kind==='carrier'){ el('path',{'class':'bt-fd', d:'M'+(-L*.42)+' '+(-q*.7)+'L'+(L*.36)+' '+(-q*.7)+'L'+(L*.44)+' '+(-q*.25)+'L'+(-L*.42)+' '+(q*.7)+'Z'},rot); el('line',{'class':'bt-cl w', x1:-L*.4, y1:-q*.3, x2:L*.4, y2:-q*.3},rot); }
+  /* plan parts: turrets (a battleship's three of three barrels, a cruiser's two of two) */
+  b._tur=[];
+  function turret(f, r, nb){ var tx=f*L, tg=el('g',{transform:'translate('+tx.toFixed(1)+' 0)'},rot); el('circle',{'class':'bb-tur', r:r.toFixed(1)},tg);
+    var bar=el('g',{'class':'bb-bar'},tg); for(var i=0;i<nb;i++){ var o=(i-(nb-1)/2)*r*.55; el('line',{'class':'bb-barrel', x1:0, y1:o.toFixed(1), x2:(r*3.1).toFixed(1), y2:o.toFixed(1)},bar); } b._tur.push({x:tx, bar:bar}); }
+  if(kind==='bb'){ turret(.30, W*.2, 3); turret(.15, W*.2, 3); turret(-.31, W*.2, 3); g.classList.add('bb'); g._b=b; g.setAttribute('aria-label', b.n+' — click, then click a building to fire'); }
+  if(kind==='cruiser'){ turret(.27, W*.15, 2); turret(-.30, W*.15, 2); }
+  /* upright parts: a block of the buildings' own glass (nbDraw) turned to the hull, a funnel, a mast (a line straight up) */
+  var seq=0; function block(fx, fy, bl, bwid, h){ var c=wp(fx, fy); nbDraw(g, [0,0,bl,bwid,b.a], h, c[0], c[1], 'boat'+bi+'_'+(seq++)); return c; }
+  function funnel(fx, fy, r, h){ var c=wp(fx, fy), lean=NB_SK*r; var d=el('g',{'class':'bt-fun'},g);
+    el('path',{'class':'bt-fb', d:'M'+(c[0]-r)+' '+c[1]+'L'+(c[0]-r)+' '+(c[1]-h)+'A'+r+' '+(r*.45)+' 0 0 1 '+(c[0]+r)+' '+(c[1]-h)+'L'+(c[0]+r)+' '+c[1]+'A'+r+' '+(r*.45)+' 0 0 1 '+(c[0]-r)+' '+c[1]+'Z'},d);
+    el('ellipse',{'class':'bt-ft', cx:c[0], cy:c[1]-h, rx:r, ry:r*.45},d); el('ellipse',{'class':'bt-fh', cx:c[0], cy:c[1]-h, rx:r*.62, ry:r*.26},d); }
+  function mast(fx, fy, h){ var c=wp(fx, fy); el('line',{'class':'bt-mast', x1:c[0], y1:c[1], x2:c[0], y2:c[1]-h},g); return c; }
+  var H0=Math.max(16, Math.min(60, L*.17));
+  if(kind==='bb'){ funnel(-.02, 0, W*.17, H0*.95); funnel(-.15, 0, W*.17, H0*.9); block(.09, 0, L*.11, W*.34, H0*1.5); block(.09, 0, L*.05, W*.2, H0*2.1); block(-.40, 0, L*.06, W*.26, H0*.6); mast(.09, 0, H0*3.1); mast(-.14, 0, H0*2.2); }
+  else if(kind==='cruiser'){ funnel(.04, 0, W*.17, H0*.95); funnel(-.08, 0, W*.17, H0*.95); block(.17, 0, L*.09, W*.34, H0*.85); mast(.17, 0, H0*2.2); mast(-.2, 0, H0*1.8); }
+  else if(kind==='carrier'){ block(.12, q*.62, L*.1, W*.2, H0*1.7); mast(.12, q*.62, H0*2.8); block(-.1, q*.62, L*.04, W*.12, H0*.8); }
+  else if(kind==='sub'){ block(.04, 0, L*.12, W*.3, H0*.9); mast(.07, 0, H0*1.6); mast(.01, 0, H0*1.25); }
+  else if(kind==='tall'){ var n=Math.max(2, Math.min(4, Math.round(L/42))), top=Math.max(30, Math.min(L*.27, W*2.8)), yards=[.4,.62,.82,1];
+    for(var i=0;i<n;i++){ var fx=(-.30+(.58*i/(n-1||1)))*L, c=mast(fx, 0, top);
+      yards.forEach(function(f, yi){ var h=top*f, wd=q*(1.3-yi*.12); var p1=[c[0]+(-sa*-wd), c[1]-h+(ca*-wd)], p2=[c[0]+(-sa*wd), c[1]-h+(ca*wd)];
+        el('line',{'class':'bt-yard', x1:p1[0], y1:p1[1], x2:p2[0], y2:p2[1]},g);
+        if(yi>0){ var h0=top*yards[yi-1], w0=q*(1.3-(yi-1)*.12), a1=[c[0]+(-sa*-w0), c[1]-h0+(ca*-w0)], a2=[c[0]+(-sa*w0), c[1]-h0+(ca*w0)];
+          el('polygon',{'class':'bt-sail', points:[a1,a2,p2,p1].map(function(v){ return v[0].toFixed(1)+','+v[1].toFixed(1); }).join(' ')},g); } }); }
+    block(.36, 0, L*.06, W*.4, H0*.45); }
+  else { block(.02, 0, L*.22, W*.5, H0*(kind==='small'?.7:1)); if(kind!=='small') funnel(-.12, 0, W*.13, H0*.9); mast(.12, 0, H0*1.7); }
+  el('title',{},g).textContent=(b.n||'A boat')+(g.classList.contains('bb')?' — click to man the guns':'');
+  if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-H0*(kind==='tall'?1.0:1.5)-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; }
+}
 /* ── node buildings: a glass block on each lot, as tall as what is inside it ── */
 var NB_SK=.25;     /* the landmarks' 3/4 view: a building's depth leans right by this much, so its right wall shows; walls stand straight up */
 function nbWeight(id){ var t=TT[id]||{}, w=(t.envs||[]).length+(t.themes||[]).length; (P.fl[id]||[]).forEach(function(f){ var q=TT[f]||{}; w+=(q.envs||[]).length+(q.themes||[]).length; }); return w; }
@@ -1553,7 +1607,10 @@ function nbDraw(parent, L, H, ox, oy, uid){
   var w=L[2]/2, h=L[3]/2, a=(+L[4]||0)*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), o=[0, -H];
   var C=[[-w,-h],[w,-h],[w,h],[-w,h]].map(function(q){ return [q[0]*ca-q[1]*sa, q[0]*sa+q[1]*ca]; });
   var yb=Math.max.apply(null, C.map(function(q){ return q[1]; }));
-  C=C.map(function(q){ return [q[0]+NB_SK*(yb-q[1]), q[1]]; });                 /* the back leans right: the footprint is a parallelogram on its lot */
+  var rx0=Math.min.apply(null, C.map(function(q){ return q[0]; })), rx1=Math.max.apply(null, C.map(function(q){ return q[0]; }));
+  C=C.map(function(q){ return [q[0]+NB_SK*(yb-q[1]), q[1]]; });                 /* the back leans right: the footprint is a parallelogram ... */
+  var sx0=Math.min.apply(null, C.map(function(q){ return q[0]; })), sx1=Math.max.apply(null, C.map(function(q){ return q[0]; })), fw=(rx1-rx0)/((sx1-sx0)||1);
+  C=C.map(function(q){ return [(q[0]-(sx0+sx1)/2)*fw+(rx0+rx1)/2, q[1]]; });    /* ... squeezed back inside its lot, so it never runs over into the street beside it (a curved or angled block's lot is as wide as it is) */
   var x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
   C.forEach(function(q){ [q, [q[0]+o[0], q[1]+o[1]]].forEach(function(r){ x0=Math.min(x0,r[0]); x1=Math.max(x1,r[0]); y0=Math.min(y0,r[1]); y1=Math.max(y1,r[1]); }); });
   function P4(pts){ return pts.map(function(q){ return (q[0]+ox).toFixed(1)+','+(q[1]+oy).toFixed(1); }).join(' '); }
