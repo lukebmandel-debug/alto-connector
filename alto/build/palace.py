@@ -1090,7 +1090,9 @@ window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, l
 window._palRide.init({M:M, P:P, lot:lot, bOf:bOf, ucol:ucol, dcol:dcol, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }, nbH:nbHeight, name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
   fillGroups:(typeof fillGroups==='function'?function(){ return fillGroups(); }:null),
   curView:function(){ var cv=document.getElementById('canvas'); if(!cv||!cv.clientWidth) return null; if(PV) placeAll(); return {z:Z, x:cv.scrollLeft, y:cv.scrollTop}; },
-  putView:function(v){ if(!v) return; holdView={z:v.z, x:v.x, y:v.y}; restoreView(); }});   /* the first-person ride (palace_ride.py) */
+  putView:function(v){ if(!v) return; holdView={z:v.z, x:v.x, y:v.y}; restoreView(); },
+  fly:function(x,y,z,done){ flyAway(x,y,z,done); }, Z:function(){ return Z; }, palaceOn:function(){ return palaceOn(); },   /* drop in from the aerial view (palace_ride_f.py) */
+  mapAt:function(cx,cy){ var cv=document.getElementById('canvas'); if(!cv||!cv.clientWidth) return null; var p=canvasPt(cv,cx,cy), sx=PV?PV.tx:cv.scrollLeft, sy=PV?PV.ty:cv.scrollTop, sz=cvSize(cv); return [(sx+p[0]-gapAt(Z,sz[0]))/Z-MX, (sy+p[1]-gyAt(Z,sz[1]))/Z-MY]; }});   /* the first-person ride (palace_ride.py) */
 window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
 window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
 
@@ -2313,6 +2315,7 @@ function ctl(){
   var rk={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(x){ if(x && x[2]!=='spine') rk[x[2]]=1; });
   Object.keys(rk).forEach(function(r){ var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--accent)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
     h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="'+col+'" stroke-width="4" stroke-dasharray="7 4"/>')+'<div>Route: '+esc(lb)+'</div></div>'; });
+  if(window._palRide&&window._palRide.ui&&window._palRide.ui.keyRows) h+=window._palRide.ui.keyRows();   /* aerial / first-person, first-person rides (palace_ride_f.py) */
   h+='<small style="margin-top:4px">Point at a building for its name and its routes; click to enlarge it, again to go inside. Point at a street for its name.</small>';
   h+='<div class="pk-credit">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>';
   var ic=function(d){ return '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };
@@ -2324,7 +2327,7 @@ function ctl(){
       +'<rect x="7.2" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>'
       +'<rect x="7.2" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>')
     +'<span>City</span></button>';
-  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c); window._palDirMount(c);
+  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c); window._palDirMount(c); if(window._palRide&&window._palRide.ui&&window._palRide.ui.mount) window._palRide.ui.mount(c);
   /* the key is a toggle floating at the top left (key_toggle.py); its rows act like the buttons' neighbours did */
   var k=document.createElement('div'); k.id='pal-key'; k.innerHTML=h;
   window._altoKeyToggle(k, 'alto-palace-key', 'Key to the city');
