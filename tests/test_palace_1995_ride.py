@@ -13,7 +13,7 @@ def _js():
 
 def test_the_ride_is_loaded_by_the_page_and_hooked_in_one_line_each():
     assert "window._palRide.init(" in palace.PALACE_JS and palace_ride.RIDE_LOADER in palace.PALACE_JS and palace_ride.RIDE_JS not in palace.PALACE_JS
-    assert "#pal-ride{" in palace.PALACE_CSS
+    assert "#pal-ride{" not in palace.PALACE_CSS and "#pal-ride{" in palace_ride.RIDE_ASSET       # (its rules ride in the hosted asset)
     t = palace_transit_js.TRANSIT_JS
     assert "window._palRide.leg(leg, rev, function(x,y)" in t          # animLeg: first-person beside the map ride, not instead of it
     assert "window._palRide.mark()" in t and "window._palRide.exit()" in t

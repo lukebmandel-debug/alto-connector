@@ -86,7 +86,12 @@ RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B 
 # (every use is guarded by `window._palRide`), a ride simply is not offered.
 import hashlib as _hashlib
 
-RIDE_V = _hashlib.sha256(RIDE_JS.encode("utf-8")).hexdigest()[:10]
+import json as _json
+
+# the ride's own rules go with it (a style element added before its script runs): ~3 KB gzipped less in the page
+RIDE_ASSET = ("(function(){var s=document.createElement('style');s.id='pal-ride-css';s.textContent=" + _json.dumps(RIDE_CSS)
+              + ";(document.head||document.documentElement).appendChild(s);})();\n" + RIDE_JS)
+RIDE_V = _hashlib.sha256(RIDE_ASSET.encode("utf-8")).hexdigest()[:10]
 RIDE_PATH = f"/ride/palace-ride-{RIDE_V}.js"
 # Loaded where RIDE_JS stood, before the palace's own code runs (which calls _palRide.init at once): a synchronous request answered from the
 # browser's cache after the first visit, then the text run as an inline script (CSP allows inline scripts, not eval; document.write would
@@ -98,4 +103,4 @@ RIDE_LOADER = ("\n(function(){ if(window._palRide) return; try{ var x=new XMLHtt
 
 def ride_asset() -> tuple[str, str]:
     """(file name under /ride/, the script) for the site."""
-    return RIDE_PATH.rsplit("/", 1)[1], RIDE_JS
+    return RIDE_PATH.rsplit("/", 1)[1], RIDE_ASSET

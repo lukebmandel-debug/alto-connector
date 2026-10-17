@@ -23,7 +23,7 @@ def test_the_page_carries_the_loader_not_the_ride():
     assert palace_ride.RIDE_JS not in palace.PALACE_JS
     assert "(function(){\nif(window._palRide) return;" not in palace.PALACE_JS        # none of the ride's own source
     assert len(palace_ride.RIDE_LOADER) < 600 and len(palace_ride.RIDE_JS) > 300_000
-    assert palace_ride.RIDE_CSS in palace.PALACE_CSS                                   # the ride's styles are small and stay in the page
+    assert palace_ride.RIDE_CSS not in palace.PALACE_CSS and __import__("json").dumps(palace_ride.RIDE_CSS) in palace_ride.RIDE_ASSET   # the ride's rules ride in the asset
     # the loader comes before the palace's own code, which calls _palRide.init at once
     assert palace.PALACE_JS.index(palace_ride.RIDE_LOADER) < palace.PALACE_JS.index("if(window._palRide) window._palRide.init(")
 
@@ -40,7 +40,7 @@ def test_the_loader_is_a_synchronous_request_and_an_inline_script():
 def test_the_asset_is_named_by_a_hash_of_its_own_text():
     import hashlib
     name, js = palace_ride.ride_asset()
-    assert js == palace_ride.RIDE_JS
+    assert js == palace_ride.RIDE_ASSET and palace_ride.RIDE_JS in js
     assert name == "palace-ride-" + hashlib.sha256(js.encode("utf-8")).hexdigest()[:10] + ".js"
     assert palace_ride.RIDE_PATH == "/ride/" + name and palace_ride.RIDE_V in name
     assert re.fullmatch(r"/ride/palace-ride-[0-9a-f]{10}\.js", palace_ride.RIDE_PATH)
