@@ -359,7 +359,7 @@ def lanes_payload(b, nodes) -> dict:
     for n in nodes:
         ev[n.id] = {"l": n.line or MAIN, "w": n.when or "", "t": parse_when(n.when), "i": 0,
                     "present": [str(x) for x in (n.present or [])], "flash": n.flash or "",
-                    "g": GAPS.get(n.gap or "", 0)}
+                    "g": GAPS.get(n.gap or "", 0), "gap": n.gap or ""}
     L = {"v": 2, "main": b.main_line or "",
          "order": [n.id for n in page_order(b, nodes)],
          "lines": [norm_line(ln, i) for i, ln in enumerate(b.lines)],
@@ -454,6 +454,10 @@ LANES_CSS = KEY_CSS + """
     background:color-mix(in srgb,var(--surface) 88%,transparent);border:1.5px solid currentColor;
     pointer-events:auto;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   .lanes-tag:hover{background:var(--surface);}
+  .lanes-gap{position:absolute;z-index:8;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;
+    font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 9px;border-radius:999px;color:var(--text);
+    background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid color-mix(in srgb,var(--text) 22%,transparent);}
+  html.mobile .lanes-gap{display:none !important;}
   .lanes-tag.ln-main-tag{color:var(--accent);}
   .lanes-unit{position:absolute;z-index:6;top:0;border-left:1.5px solid color-mix(in srgb,var(--unit-color) 30%,transparent);pointer-events:none;}
   .lanes-unit:first-child{border-left:0;}
@@ -594,7 +598,7 @@ window._altoLanes=function(h){
   var tv=times(pres), S=scale(tv), Xr={};
   pres.forEach(function(id){ Xr[id]=S.x(tv[id]); });
   /* labels first: their widths decide where lines start and how much room a detour's label needs */
-  world.querySelectorAll('.lanes-tag,.lanes-past').forEach(function(e){ e.remove(); });
+  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap').forEach(function(e){ e.remove(); });
   L.lines.forEach(function(l){ l.tagEl=tag(world, l, 0, 0, l.color, 0); l.tagW=l.tagEl.offsetWidth||60; });
   var shiftBefore=0;
   runs.forEach(function(r){
@@ -850,6 +854,19 @@ function draw(world, G){
   el('path',{'class':'ln-main', d:md},mg);
   el('path',{d:'M'+(main.x1-4)+' '+(my-15)+' L'+(main.x1+20)+' '+my+' L'+(main.x1-4)+' '+(my+15)+' Z', fill:'color-mix(in srgb,var(--accent) 62%,var(--text))'},mg);
   if(main.label) tag(world, main, main.x0-14, my, 'var(--accent)', 1);
+  /* the pace, said on the line: where the material says how soon an event follows the one
+     before it, a small caption sits on the main line between them (not for ordinary steps) */
+  var GL={moments:'same time', hours:'hours later', day:'next day', days:'days later', weeks:'weeks later', months:'months later', years:'years later'};
+  var pg=[];                                                   // runs of events that follow one another at one pace share one caption
+  G.mains.forEach(function(id,k){ var g=(L.ev[id]||{}).gap, p=G.mains[k-1];
+    if(!g || !GL[g] || !p || fbOf[id] || fbOf[p]) return;
+    var last=pg[pg.length-1];
+    if(last && last.g===g && last.to===p) last.to=id; else pg.push({g:g, from:p, to:id}); });
+  pg.forEach(function(q){
+    var c=document.createElement('div'); c.className='lanes-gap'; c.textContent=GL[q.g]; c.setAttribute('data-gap', q.g);
+    c.style.left=((X[q.from]+X[q.to])/2)+'px'; c.style.top=my+'px'; world.appendChild(c);
+    if(c.offsetWidth+30 > X[q.to]-X[q.from]) c.remove();       // it would cover the events either side: the spacing says it alone
+  });
   /* squeezed stretches: a ≈ across every line that runs straight through them */
   S.breaks.forEach(function(raw){
     var bx=raw+G.shift(raw, -1);

@@ -211,8 +211,31 @@ def _at(pg, id_):
 
 
 def _rested_ok(r):
+    # centred across (unless the board's end stops it), marked, still. Not asked: that the card clears the rail or the bars —
+    # the camera stays with the MAIN LINE and never moves up or down to suit one event's card (test_the_camera_stays_with_the_main_line)
     return ((abs(r["dx"]) < 1.5 or r["l"] <= 0.5 or r["l"] >= r["max"] - 1)
-            and r["bottom"] <= r["navTop"] + 0.5 and r["top"] >= r["cTop"] - 0.5 and r["ring"] and not r["moving"])
+            and r["ring"] and not r["moving"])
+
+
+MAINSCREEN = """(id) => { const G=window._altoLanesGeo, cv=document.getElementById('canvas'), ev=G.at && G.at[id];
+  return ((ev && ev.line === 'main') ? ev.y : G.mainY) - cv.scrollTop; }"""
+
+
+def test_the_camera_stays_with_the_main_line(browser, v2_file):
+    """No bounce: at every stop the main line is at the same height on screen — except that it follows a flashback's dip."""
+    pg, errs = _desk(browser, v2_file)
+    S = pg.evaluate(STOPS)
+    ys, dips = [], pg.evaluate("() => (window._altoLanesGeo.detours || []).map(d => d.nodes)")
+    inside = {i for d in dips for i in d}
+    for id_ in S:
+        _at(pg, id_)
+        ys.append((id_, pg.evaluate(MAINSCREEN, id_)))
+    plain = [y for i, y in ys if i not in inside]
+    assert plain and max(plain) - min(plain) <= 1.5, ys                         # the page's own events: one height
+    for i, y in ys:
+        if i in inside:                                                          # a flashback: the main line is down on the past track, the camera went with it
+            assert abs(y - plain[0]) <= 1.5, ys
+    assert not errs
 
 
 def test_a_small_scroll_moves_less_than_a_big_one(browser, v2_file):
