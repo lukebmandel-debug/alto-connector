@@ -17,6 +17,14 @@ from test_palace_2000_fpv import page, roam, DOOR1, LOTS  # noqa: E402,F401  (fi
 K = 1.3
 
 
+def open_from_lobby(pg):
+    """As the FPV tests' helper, for a held frame loop: stand in front of the directory board, tick the lobby, press E."""
+    b = pg.evaluate("() => window._palRide.roam.inside.state().board")
+    pg.evaluate("([x,y,yaw]) => { var R=window._palRide.roam; R.place(x,y,yaw); R.look(yaw,0); for(var i=0;i<12;i++) R.inside.frame(.05); }", [b["x"] + b["nx"] * 4, b["y"] + b["ny"] * 4, math.atan2(-b["ny"], -b["nx"])])
+    assert pg.evaluate("() => window._palRide.roam.inside.state().near")
+    pg.keyboard.press("e")
+
+
 def test_source_contract():
     e = palace_ride_e.JS_E
     for f in ("function realUpgrade(", "function goReal(", "function realBound(", "REAL.clamp(", "REAL.edgeDist(", "REAL.exit(", "edge of the palace", "function sidewalk(", "function locateReal("):
@@ -68,6 +76,9 @@ def test_roam_goes_real_keeps_inside_and_doors_work(roam):
     pg.evaluate("()=>window._palRide.roam.door.open()")
     pg.evaluate("()=>{ var R=window._palRide.roam; for(var i=0;i<20;i++) R.door.step(60); }")
     pg.wait_for_timeout(500)
+    assert pg.evaluate("()=>window._palRide.roam.inside.on()") is True and pg.evaluate("()=>window.__detail.length") == 0   # E goes inside, not straight to the page
+    open_from_lobby(pg)
+    pg.wait_for_timeout(900)
     assert pg.evaluate("()=>window.__detail.length") == 1
     pg.evaluate("()=>window.closeDetail()")
     pg.wait_for_timeout(900)
@@ -75,6 +86,38 @@ def test_roam_goes_real_keeps_inside_and_doors_work(roam):
     pg.wait_for_timeout(500)
     st = pg.evaluate("()=>window._palRide.roam.state()")
     assert st["real"] is True                                                    # back in the real world after the detail page
+
+
+def test_inside_a_real_building_rings_floors_clamp_and_leave(roam):
+    pg = roam
+    pg.evaluate(SETUP, _blob())
+    pg.evaluate("([x,y])=>{ var R=window._palRide.roam; R.enter(x,y,Math.PI,{hold:true}); }", [DOOR1[0] + 14, DOOR1[1]])
+    pg.evaluate("()=>window._palRide.roam.real.upgrade()")
+    d = pg.evaluate("()=>{ var s=window._palRide.roam.world().solids.filter(function(q){return q.door;})[0]; return [s.door.x,s.door.y,s.door.nx,s.door.ny]; }")
+    yaw = math.atan2(-d[3], -d[2])
+    pg.evaluate("([x,y,yaw])=>{ var R=window._palRide.roam; R.place(x,y,yaw); R.look(yaw,0); R.settle(); for(var i=0;i<30;i++) R.door.frame(.05); }", [d[0] + d[2] * 8, d[1] + d[3] * 8, yaw])
+    pg.evaluate("()=>window._palRide.roam.door.open()")
+    pg.evaluate("()=>{ var R=window._palRide.roam; for(var i=0;i<20;i++) R.door.step(60); }")
+    pg.wait_for_timeout(500)
+    ins = pg.evaluate("()=>window._palRide.roam.inside.state()")
+    assert ins["on"] and ins["shell"] and ins["board"], ins
+    assert pg.evaluate("()=>window._palRide.roam.state().real") is True
+    # the walk is bounded by the (real-frame) footprint and the real clamp does not fight it: no edge fog inside, and every step ends in a free spot
+    r = pg.evaluate("""()=>{ var R=window._palRide.roam, I=R.inside, bad=0, moved=0, s0=R.state();
+      for(var a=0;a<8;a++){ R.look(a*.785,0); var q=R.sim('f',1.5,1/30,false); if(I.blocked(R.state().x,R.state().y)) bad++; } var s1=R.state(); return {bad:bad, edge:s1.edge, d:Math.hypot(s1.x-s0.x,s1.y-s0.y), real:s1.real}; }""")
+    assert r["bad"] == 0 and r["edge"] == 0 and r["real"] is True, r
+    wins = pg.evaluate("()=>window._palRide.roam.inside.windows().length")
+    assert wins > 3
+    # floors: the eye glides up and the shell follows
+    pg.evaluate("()=>window._palRide.roam.inside.go(1)")
+    pg.evaluate("()=>window._palRide.roam.inside.step(700)")
+    up = pg.evaluate("()=>window._palRide.roam.inside.state()")
+    assert up["floor"] == 1 and up["z"] > ins["z"], up
+    # leave: back on the real doorstep
+    pg.evaluate("()=>window._palRide.roam.inside.leave()")
+    pg.wait_for_timeout(900)
+    st = pg.evaluate("()=>({on:window._palRide.roam.inside.on(), real:window._palRide.roam.state().real, a:window._palRide.roam.active()})")
+    assert st == {"on": False, "real": True, "a": True}, st
 
 
 def test_roam_is_held_in_bounds_and_fog_rises(roam):

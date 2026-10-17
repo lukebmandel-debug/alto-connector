@@ -152,12 +152,14 @@ function rlDoor(ring, id){ var n=ring.length/2, cx=0, cy=0, i, best=null; for(i=
 /* where a named shop is: the POI nearest the building's street-facing wall within 22 m (real px) */
 function rlPoiNear(x,y,r){ var P=REAL.pois||[], b=null, bd=r*r; for(var i=0;i<P.length;i++){ var dx=P[i][0]-x, dy=P[i][1]-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; b=P[i]; } } return b; }
 /* the street-facing wall of a storefront building (ring in real px, n points): the shopfront {x,y,nx,ny,len (world units), name, hue} on its middle */
+var RL_CIVIC=/worship|school|college|university|parking|hospital|library|townhall|courthouse|grave|monastery|kindergarten|place_of|community_centre|police|fire_station|post_office|bank=|public_building|museum|theatre|arts_centre|clinic|doctors|dentist|social_facility|shelter|toilets|bus_station|fuel|charging/;
 function rlShopFace(ring,n){ var cx=0, cy=0, i, best=null; for(i=0;i<n;i++){ cx+=ring[2*i]/n; cy+=ring[2*i+1]/n; }
   for(i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], bx=ring[2*j], by=ring[2*j+1], ex=bx-ax, ey=by-ay, l=Math.hypot(ex,ey); if(l<4.5) continue;
     var mx=(ax+bx)/2, my=(ay+by)/2, nx=ey/l, ny=-ex/l; if(nx*(mx-cx)+ny*(my-cy)<0){ nx=-nx; ny=-ny; }
     var nr=rlNear(mx+nx*6,my+ny*6,40,true)[0], sc=(nr?nr.d:99)-l*.03; if(nr && nr.d<30 && (!best||sc<best.sc)) best={sc:sc,x:mx,y:my,nx:nx,ny:ny,l:l}; }
   if(!best) return null; var po=rlPoiNear(best.x,best.y,22), hs=hashXY(best.x*3.1,best.y*1.7);
-  var cat=po?po[3]:'', civic=/worship|school|college|university|parking|hospital|library|townhall|courthouse|grave|monastery|kindergarten/.test(cat);
+  if(po && RL_CIVIC.test(po[3]||'')) return null;                                  /* a church, school, library... is not a shop: no shop glass, no awning */
+  var cat=po?po[3]:'', civic=false;
   return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po&&!civic?po[2]:'', cat:cat, hue:hs}; }
 function gatherReal(Xp, Yp, R, at){
   R=R||480; var o0=at?{x:at.x,y:at.y,k:at.k||0}:realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);

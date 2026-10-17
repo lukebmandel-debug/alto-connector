@@ -141,7 +141,7 @@ function plan(force){
   want.sort(function(a,b){ return a[0]-b[0]; }); S.queue=want;
   Object.keys(S.cells).forEach(function(key){ var c=S.cells[key]; if(cellBoxDist(c.ci,c.cj,x,y)>CFG.keep){ delete S.cells[key]; S.evicted++; S.dirty=true; } }); }
 function stream(sync){
-  if(S.real){ realStream(sync); return; }
+  if(S.real){ if(!IN.on) realStream(sync); return; }
   var t0=performance.now(), n=0;
   while(S.queue.length){ var q=S.queue[0]; if(!sync && n>0 && performance.now()-t0>CFG.budget) break;
     S.queue.shift(); if(S.cells[q[1]+','+q[2]]) continue; buildCell(q[1],q[2]); n++; }
@@ -315,7 +315,7 @@ function tick(dt, sync){
   var x0=S.x, y0=S.y; if(Math.abs(S.vx)>.01||Math.abs(S.vy)>.01) moveBy(S.vx*dt,S.vy*dt);
   var mv=Math.hypot(S.x-x0,S.y-y0); S.speed=dt>0?mv/dt:0;
   if(dt>0 && mv<Math.hypot(S.vx,S.vy)*dt*.5){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; }       /* pressed against a wall: no speed stored up */
-  if(S.real) realBound(dt);
+  if(S.real && !IN.on) realBound(dt); else if(IN.on) RW.edge=0;       /* inside a building the footprint is the room: no edge fog, no clamp */
   S.phase+=stepHz(S.speed/UM)*6.2832*dt; S.walked+=mv; S.tm+=dt;
   plan(false); stream(!!sync); }
 function draw(){
@@ -324,7 +324,7 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   var a=clamp(S.speed/CFG.walk,0,1.4), a1=Math.min(a,1), bob=reduced()?0:Math.sin(S.phase)*CFG.bob*a, sway=reduced()?0:Math.sin(S.phase*.5)*.004*a1;
   var pitch=S.pitch+(reduced()?0:Math.abs(Math.sin(S.phase))*.004*a);
-  var ee=S.real?RW.edge:0; if(typeof GLX!=='undefined') GLX.edge=ee; if(S.hud&&S.hud.edge){ var eo=ee<.12?0:Math.min(.9,(ee-.12)*1.4); if(S._eo!==eo){ S._eo=eo; S.hud.edge.style.opacity=String(eo); } }
+  var ee=(S.real&&!IN.on)?RW.edge:0; if(typeof GLX!=='undefined') GLX.edge=ee; if(S.hud&&S.hud.edge){ var eo=ee<.12?0:Math.min(.9,(ee-.12)*1.4); if(S._eo!==eo){ S._eo=eo; S.hud.edge.style.opacity=String(eo); } }
   S.camZ=CFG.eye+(IN.on?IN.z:0)+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,glOk()?pitch:clamp(pitch,-.42,.42),W,H);
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);

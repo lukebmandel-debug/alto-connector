@@ -214,7 +214,7 @@ function glSolid(b,s){
 
 /* a shopfront on the street-facing wall of a storefront building (the street data's flag): a dark bulkhead, lit shop glass (material 25) in mullions, a fascia the name is painted on
    (palace_ride_g.py shopFront draws the lettering on the atlas), and an awning in a hue taken from the name. Metres, as glDoor. */
-var AWN=[[196,46,44],[36,74,126],[38,102,70],[214,170,52],[120,40,60],[70,70,76],[206,112,48],[34,110,118]];
+var AWN=[[.20,.34,.24],[.17,.22,.38],[.40,.14,.17],[.22,.23,.25],[.66,.62,.52],[.46,.24,.15],[.34,.42,.32]];      /* albedo: muted forest, navy, burgundy, charcoal, cream, rust, sage */
 function glShop(b,s){
   var d=s.shop; if(!d) return; var nx=d.nx, ny=d.ny, tx=ny, ty=-nx, yaw=Math.atan2(ty,tx), K=UM, hw=Math.min(d.len/K/2-.35, 7.5); if(hw<1.4) return;
   glDC(null); _gH=0; _gL=0;
@@ -222,7 +222,7 @@ function glShop(b,s){
   bx(-hw,hw,.02,.14,0,.5,15); bx(-hw,hw,.02,.07,.5,2.9,25);
   for(var a=-hw; a<=hw+.01; a+=Math.max(1.6,hw*2/Math.ceil(hw*2/2.6))) bx(a-.05,a+.05,.02,.14,.5,2.9,15);
   bx(-hw,hw,.02,.45,2.9,3.55,15);
-  var col=AWN[Math.floor(d.hue*AWN.length)%AWN.length]; glDC(col);
+  var col=AWN[Math.floor(d.hue*AWN.length)%AWN.length]; glDC(null); _gdr=col[0]; _gdg=col[1]; _gdb=col[2];
   var pt=function(a,dd,z){ return [d.x+(tx*a+nx*dd)*K, d.y+(ty*a+ny*dd)*K, z*K]; }, A0=pt(-hw+.2,.5,2.85), A1=pt(hw-.2,.5,2.85), B1=pt(hw-.2,1.7,2.35), B0=pt(-hw+.2,1.7,2.35), sl=Math.atan2(.5,1.2), sn=Math.sin(sl), cs=Math.cos(sl);
   gtri(b,A0,A1,B1,nx*sn,ny*sn,cs,0,0,1,0,1,1,22,0); gtri(b,A0,B1,B0,nx*sn,ny*sn,cs,0,0,1,1,0,1,22,0);
   var F0=pt(-hw+.2,1.7,2.35), F1=pt(hw-.2,1.7,2.35), F2=pt(hw-.2,1.7,2.1), F3=pt(-hw+.2,1.7,2.1);                               /* the valance */
