@@ -43,6 +43,7 @@ from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state 
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
+from .palace_ride import RIDE_CSS, RIDE_JS
 from .palace_highway_js import HIGHWAY_CSS, HIGHWAY_JS     # C3 highways
 from .palace_bridges import BRIDGE_CSS, BRIDGE_JS          # bridge design elements
 from .sanitize import js_json
@@ -977,10 +978,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + LABELS_CSS + CONSTRUCT_CSS + TRANSIT_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
+""" + LANDMARK_CSS + LABELS_CSS + CONSTRUCT_CSS + TRANSIT_CSS + RIDE_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + TRANSIT_JS + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + TRANSIT_JS + RIDE_JS + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -1090,6 +1091,12 @@ window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, l
   center:function(x,y){ var cv=document.getElementById('canvas'); if(!cv) return; if(PV) placeAll(); cv.scrollLeft=(x+MX)*Z+gapAt(Z,cv.clientWidth)-cv.clientWidth/2; cv.scrollTop=(y+MY)*Z+gyAt(Z,cv.clientHeight)-cv.clientHeight/2; },
   name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
+window._palRide.init({M:M, P:P, lot:lot, bOf:bOf, ucol:ucol, dcol:dcol, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }, nbH:nbHeight, name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
+  fillGroups:(typeof fillGroups==='function'?function(){ return fillGroups(); }:null),
+  curView:function(){ var cv=document.getElementById('canvas'); if(!cv||!cv.clientWidth) return null; if(PV) placeAll(); return {z:Z, x:cv.scrollLeft, y:cv.scrollTop}; },
+  putView:function(v){ if(!v) return; holdView={z:v.z, x:v.x, y:v.y}; restoreView(); },
+  fly:function(x,y,z,done){ flyAway(x,y,z,done); }, Z:function(){ return Z; }, palaceOn:function(){ return palaceOn(); },   /* drop in from the aerial view (palace_ride_f.py) */
+  mapAt:function(cx,cy){ var cv=document.getElementById('canvas'); if(!cv||!cv.clientWidth) return null; var p=canvasPt(cv,cx,cy), sx=PV?PV.tx:cv.scrollLeft, sy=PV?PV.ty:cv.scrollTop, sz=cvSize(cv); return [(sx+p[0]-gapAt(Z,sz[0]))/Z-MX, (sy+p[1]-gyAt(Z,sz[1]))/Z-MY]; }});   /* the first-person ride (palace_ride.py) */
 window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
 window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
 window._palBr.init({M:M, el:el, pts:pts, pin:pin});     /* the bridges' design elements (palace_bridges.py) */
@@ -2327,6 +2334,7 @@ function ctl(){
   var rk={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(x){ if(x && x[2]!=='spine') rk[x[2]]=1; });
   Object.keys(rk).forEach(function(r){ var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--accent)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
     h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="'+col+'" stroke-width="4" stroke-dasharray="7 4"/>')+'<div>Route: '+esc(lb)+'</div></div>'; });
+  if(window._palRide&&window._palRide.ui&&window._palRide.ui.keyRows) h+=window._palRide.ui.keyRows();   /* aerial / first-person, first-person rides (palace_ride_f.py) */
   h+='<small style="margin-top:4px">Point at a building for its name and its routes; click to enlarge it, again to go inside. Point at a street for its name.</small>';
   h+='<div class="pk-credit">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>';
   var ic=function(d){ return '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };
@@ -2338,7 +2346,7 @@ function ctl(){
       +'<rect x="7.2" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="7.2" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>'
       +'<rect x="7.2" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/><rect x="10.5" y="10.5" width="2.3" height="2.3" rx=".7" fill="currentColor" stroke="none"/>')
     +'<span>City</span></button>';
-  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c); window._palDirMount(c);
+  c.setAttribute('role','toolbar'); c.setAttribute('aria-label','Map zoom'); c.innerHTML=z; document.body.appendChild(c); window._palDirMount(c); if(window._palRide&&window._palRide.ui&&window._palRide.ui.mount) window._palRide.ui.mount(c);
   /* the key is a toggle floating at the top left (key_toggle.py); its rows act like the buttons' neighbours did */
   var k=document.createElement('div'); k.id='pal-key'; k.innerHTML=h;
   window._altoKeyToggle(k, 'alto-palace-key', 'Key to the city');

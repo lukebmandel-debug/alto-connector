@@ -290,7 +290,7 @@ function paint(){
       +'<div style="font-size:15px;font-weight:800;margin-bottom:3px">'+esc(s.n)+'</div>'
       +(others.length?'<div class="tr-sub" style="margin:0 0 4px">Change here for</div><div class="tr-chips">'+others.map(function(o){ return '<span class="tr-chip" data-a="line" data-v="'+o.id+'" style="--tc:'+col(o)+'"><b></b>'+esc(o.n)+'</span>'; }).join('')+'</div>':'<div style="height:6px"></div>')
       +'<div class="tr-btns"><button class="tr-b" data-a="prev" '+(S.ride.i<=0?'disabled':'')+'>◀ '+(ss[S.ride.i-1]?esc(ss[S.ride.i-1].n):'')+'</button><button class="tr-b go" data-a="next" '+(S.ride.i>=ss.length-1?'disabled':'')+'>'+(ss[S.ride.i+1]?esc(ss[S.ride.i+1].n):'End')+' ▶</button></div>'
-      +'<div class="tr-sub" style="margin:7px 0 0">← → or ↑ ↓ step along · Esc to get off</div>';
+      +(window._palRide?window._palRide.switchHtml():'')+'<div class="tr-sub" style="margin:7px 0 0">← → or ↑ ↓ step along · V first-person rides on / off · Esc to get off</div>';
     p.classList.add('on'); return; }
   if(S.line){ var L=lineOf(S.line), c2=col(L), ss2=stopsOn(L); p.style.setProperty('--tc', c2);
     p.innerHTML='<div class="tr-h"><span class="tr-sw" style="background:'+c2+'"></span>'+esc(L.n)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">✕</span></div>'
@@ -318,7 +318,9 @@ function portalsAt(i){ var o=[]; (E.P.po||[]).forEach(function(po,pi){ if(portal
 function pickLine(id, fly){ endTrip(); S.portal=null; S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
 function pickStop(i, fly){ endTrip(); S.portal=null; S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }
 function glide(i){ var s=T.stops[i]; if(s) E.flyMap(s.x, s.y, Math.max(E.Z(), 1.0)); }
-function ride(id, i){ endTrip(); var l=lineOf(id); if(!l || !l.s.length) return; i=Math.max(0, Math.min(l.s.length-1, i|0)); S.ride={l:id, i:i}; S.line=id; S.stop=l.s[i]; glide(l.s[i]); paint(); }
+function ride(id, i){ var rr=window._palRide, was=rr&&rr.active(); if(rr&&!was) rr.mark(); endTrip(); var l=lineOf(id); if(!l || !l.s.length) return; i=Math.max(0, Math.min(l.s.length-1, i|0)); S.ride={l:id, i:i}; S.line=id; S.stop=l.s[i];
+  if(rr && rr.lineEnter(id, i)) { paint(); return; }   /* first-person: the platform at this stop (palace_ride.py) */
+  glide(l.s[i]); paint(); }
 /* an arrow key goes where it points: with the next stop to the left of you, Left is "next" (the direction of travel) */
 function arrowDir(k, d){
   var l=lineOf(S.ride.l), i=S.ride.i, cur=T.stops[l.s[i]], nx=T.stops[l.s[i+1]], pv=T.stops[l.s[i-1]];
@@ -329,7 +331,9 @@ function arrowDir(k, d){
   if(nx) return (cn*sg > 0 || Math.abs(cn)<20) ? 1 : (sg*cn<0 ? 0 : 1);
   if(pv) return (cp*sg > 0 || Math.abs(cp)<20) ? -1 : 0;
   return d; }
-function step(d){ if(!S.ride || !d) return; var l=lineOf(S.ride.l), i=S.ride.i+d; if(i<0||i>=l.s.length) return; ride(S.ride.l, i); }
+function step(d){ if(!S.ride || !d) return; var l=lineOf(S.ride.l), i=S.ride.i+d; if(i<0||i>=l.s.length) return;
+  if(window._palRide && window._palRide.active() && !S.ride.busy){ var i0=S.ride.i; S.ride.busy=true; if(window._palRide.lineStep(S.ride.l, i0, i, function(){ if(!S.ride) return; S.ride.busy=false; S.ride.i=i; S.stop=l.s[i]; paint(); })) return; S.ride.busy=false; }   /* first-person */
+  if(S.ride.busy) return; ride(S.ride.l, i); }
 
 /* ── the key: the lines and what a dot means ── */
 function keyHtml(sw){ if(!T) return '';
@@ -429,7 +433,7 @@ function renderChip(){
     el('path',{'class':'pl-crt case', d:d},cr); el('path',{'class':'pl-crt base', d:d, stroke:c},cr); el('path',{'class':'pl-crt sh', d:d},cr); el('path',{'class':'pl-crt tk', d:d},cr); }
   if(pill){ var ul=Object.keys(used).map(lineOf).filter(Boolean);
     pill.style.setProperty('--cc', c); pill.innerHTML='<i></i><span><b>'+esc(w.name||'Filter')+'</b> · '+n+' building'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
-    +(!S.chipH && S.tourLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="chip">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' this route \u25b6</button>':'')
+    +(!S.chipH && S.tourLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="chip">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' this route \u25b6</button>'+(window._palRide&&window._palRide.ui?window._palRide.ui.pillHtml():''):'')
     +(!S.chipH?'<button class="tr-px" type="button" data-pillx="1" aria-label="Clear the filter" title="Clear the filter">\u2715</button>':''); pill.classList.add('on'); }
   S.uT=used; paintUsed();
 }
@@ -496,7 +500,7 @@ function renderRel(){
   var ul=Object.keys(S.uR).map(lineOf).filter(Boolean);
   pill.style.setProperty('--cc', 'var(--accent)'); pill.classList.toggle('above', !!document.getElementById('pal-chiprt') && document.getElementById('pal-chiprt').classList.contains('on'));
   pill.innerHTML='<i></i><span><b>'+keys.map(function(k){ return esc(rl[k]||k); }).join(' + ')+'</b> · '+n+' route'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
-    +(S.relLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="rel">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' \u25b6</button>':'')
+    +(S.relLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="rel">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' \u25b6</button>'+(window._palRide&&window._palRide.ui?window._palRide.ui.pillHtml():''):'')
     +'<button class="tr-px" type="button" data-pillx="1" aria-label="Clear the filter" title="Clear the filter">\u2715</button>';
   pill.classList.add('on'); paintUsed();
 }
@@ -509,10 +513,11 @@ function stopAnim(){ cancelAnimationFrame(tripRaf); tripRaf=0; clearTimeout(trip
 function riderG(){ var svg=E.svg(); if(!svg) return null; var g=svg._rd; if(!g || g.parentNode!==svg){ g=svg._rd=el('g',{'class':'pl-rd'},svg); } svg.appendChild(g); return g; }
 function markCur(id){ document.querySelectorAll('#world .node.pal-trip-cur').forEach(function(n){ n.classList.remove('pal-trip-cur'); });
   var n=id!=null?document.getElementById('node-'+E.bOf(id)):null; if(n){ n.classList.add('pal-trip-cur'); n.style.setProperty('--cc', (S.trip&&S.trip.color)||'var(--accent)'); } }
-function endTrip(){ if(!S.trip && !tripRaf) return; stopAnim(); S.trip=null; document.documentElement.classList.remove('pal-tripping'); markCur(null);
+function endTrip(){ if(window._palRide) window._palRide.exit(); if(!S.trip && !tripRaf) return; stopAnim(); S.trip=null; document.documentElement.classList.remove('pal-tripping'); markCur(null);
   var svg=E&&E.svg(); if(svg && svg._rd) svg._rd.innerHTML=''; }
 function startTrip(kind){
   var L=((kind==='rel'?S.relLegs:S.tourLegs)||[]).slice(); if(!L.length || !E) return;
+  if(window._palRide) window._palRide.mark();
   S.portal=null; S.line=null; S.stop=null; S.ride=null; stopAnim();
   S.trip={legs:L, at:-1, kind:kind, color:kind==='rel'?L[0].color:S.tourCol, name:kind==='rel'?'Routes':S.tourName, auto:false, busy:false, x:0, y:0};
   document.documentElement.classList.add('pal-tripping');
@@ -527,6 +532,7 @@ function animLeg(leg, rev, done){
   var p=el('path',{d:leg.d, fill:'none', stroke:'none'}, g), len=p.getTotalLength(); if(!(len>0)){ p.remove(); done(); return; }
   var reduce=window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, ms=reduce?1:Math.max(1000, Math.min(4200, 800+len/5)), t0=performance.now();
   S.trip.busy=true;
+  if(window._palRide && window._palRide.leg(leg, rev, function(x,y){ p.remove(); if(!S.trip) return; S.trip.busy=false; rider(x, y); S.trip.x=x; S.trip.y=y; if(E.center) E.center(x, y); done(); })) return;     /* first-person (palace_ride.py) */
   (function frame(t){ if(!S.trip){ p.remove(); return; }
     var k=Math.min(1,(t-t0)/ms), e=k*k*(3-2*k), q=p.getPointAtLength((rev?1-e:e)*len);
     rider(q.x, q.y); S.trip.x=q.x; S.trip.y=q.y; if(E.center) E.center(q.x, q.y);
@@ -556,7 +562,7 @@ function paintTrip(p){
     +(nx?'<div class="tr-sub" style="margin:0 0 4px">'+(rel?esc(nx.label||'Next')+': '+esc(nameOf(nx.a))+' \u2192 '+esc(nameOf(nx.b)):'Next: '+esc(nameOf(nx.b)))+(nx.lines&&nx.lines.length?' \u00b7 rides '+linesOn(nx.lines):(S.mode==='drive'?' \u00b7 by car':' \u00b7 on foot'))+'</div>'+stepsHtml(nx):'<div class="tr-sub" style="margin:0 0 6px">End of the route</div>')
     +'<div class="tr-btns"><button class="tr-b" data-a="tprev" '+(at<0||T0.busy?'disabled':'')+'>\u25c0</button><button class="tr-b go" data-a="tnext" '+(!nx||T0.busy?'disabled':'')+'>'+(nx?(rel?'Next route':'Next stop')+' \u25b6':'End')+'</button>'
     +(nx?'<button class="tr-b" data-a="tauto">'+(T0.auto?'Pause':'Ride it all')+'</button>':'')+'</div>'
-    +'<div class="tr-sub" style="margin:7px 0 0">\u2190 \u2192 step along \u00b7 Space rides it all \u00b7 Esc to get off</div>';
+    +(window._palRide?window._palRide.switchHtml():'')+'<div class="tr-sub" style="margin:7px 0 0">\u2190 \u2192 step along \u00b7 Space rides it all \u00b7 V first-person rides on / off \u00b7 Esc to get off</div>';
   p.classList.add('on'); }
 /* ── pointing and clicking ── */
 function chipOf(t){ var b=t.closest && t.closest('#nav .nav-btn'); if(!b) return null;
