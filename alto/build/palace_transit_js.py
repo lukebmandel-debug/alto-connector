@@ -290,7 +290,7 @@ function paint(){
       +'<div style="font-size:15px;font-weight:800;margin-bottom:3px">'+esc(s.n)+'</div>'
       +(others.length?'<div class="tr-sub" style="margin:0 0 4px">Change here for</div><div class="tr-chips">'+others.map(function(o){ return '<span class="tr-chip" data-a="line" data-v="'+o.id+'" style="--tc:'+col(o)+'"><b></b>'+esc(o.n)+'</span>'; }).join('')+'</div>':'<div style="height:6px"></div>')
       +'<div class="tr-btns"><button class="tr-b" data-a="prev" '+(S.ride.i<=0?'disabled':'')+'>◀ '+(ss[S.ride.i-1]?esc(ss[S.ride.i-1].n):'')+'</button><button class="tr-b go" data-a="next" '+(S.ride.i>=ss.length-1?'disabled':'')+'>'+(ss[S.ride.i+1]?esc(ss[S.ride.i+1].n):'End')+' ▶</button></div>'
-      +(window._palRide?window._palRide.switchHtml():'')+'<div class="tr-sub" style="margin:7px 0 0">← → or ↑ ↓ step along · V first-person / map · Esc to get off</div>';
+      +(window._palRide?window._palRide.switchHtml():'')+'<div class="tr-sub" style="margin:7px 0 0">← → or ↑ ↓ step along · V first-person rides on / off · Esc to get off</div>';
     p.classList.add('on'); return; }
   if(S.line){ var L=lineOf(S.line), c2=col(L), ss2=stopsOn(L); p.style.setProperty('--tc', c2);
     p.innerHTML='<div class="tr-h"><span class="tr-sw" style="background:'+c2+'"></span>'+esc(L.n)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">✕</span></div>'
@@ -433,7 +433,7 @@ function renderChip(){
     el('path',{'class':'pl-crt case', d:d},cr); el('path',{'class':'pl-crt base', d:d, stroke:c},cr); el('path',{'class':'pl-crt sh', d:d},cr); el('path',{'class':'pl-crt tk', d:d},cr); }
   if(pill){ var ul=Object.keys(used).map(lineOf).filter(Boolean);
     pill.style.setProperty('--cc', c); pill.innerHTML='<i></i><span><b>'+esc(w.name||'Filter')+'</b> · '+n+' building'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
-    +(!S.chipH && S.tourLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="chip">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' this route \u25b6</button>':'')
+    +(!S.chipH && S.tourLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="chip">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' this route \u25b6</button>'+(window._palRide&&window._palRide.ui?window._palRide.ui.pillHtml():''):'')
     +(!S.chipH?'<button class="tr-px" type="button" data-pillx="1" aria-label="Clear the filter" title="Clear the filter">\u2715</button>':''); pill.classList.add('on'); }
   S.uT=used; paintUsed();
 }
@@ -500,7 +500,7 @@ function renderRel(){
   var ul=Object.keys(S.uR).map(lineOf).filter(Boolean);
   pill.style.setProperty('--cc', 'var(--accent)'); pill.classList.toggle('above', !!document.getElementById('pal-chiprt') && document.getElementById('pal-chiprt').classList.contains('on'));
   pill.innerHTML='<i></i><span><b>'+keys.map(function(k){ return esc(rl[k]||k); }).join(' + ')+'</b> · '+n+' route'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
-    +(S.relLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="rel">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' \u25b6</button>':'')
+    +(S.relLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="rel">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' \u25b6</button>'+(window._palRide&&window._palRide.ui?window._palRide.ui.pillHtml():''):'')
     +'<button class="tr-px" type="button" data-pillx="1" aria-label="Clear the filter" title="Clear the filter">\u2715</button>';
   pill.classList.add('on'); paintUsed();
 }
@@ -562,7 +562,7 @@ function paintTrip(p){
     +(nx?'<div class="tr-sub" style="margin:0 0 4px">'+(rel?esc(nx.label||'Next')+': '+esc(nameOf(nx.a))+' \u2192 '+esc(nameOf(nx.b)):'Next: '+esc(nameOf(nx.b)))+(nx.lines&&nx.lines.length?' \u00b7 rides '+linesOn(nx.lines):(S.mode==='drive'?' \u00b7 by car':' \u00b7 on foot'))+'</div>'+stepsHtml(nx):'<div class="tr-sub" style="margin:0 0 6px">End of the route</div>')
     +'<div class="tr-btns"><button class="tr-b" data-a="tprev" '+(at<0||T0.busy?'disabled':'')+'>\u25c0</button><button class="tr-b go" data-a="tnext" '+(!nx||T0.busy?'disabled':'')+'>'+(nx?(rel?'Next route':'Next stop')+' \u25b6':'End')+'</button>'
     +(nx?'<button class="tr-b" data-a="tauto">'+(T0.auto?'Pause':'Ride it all')+'</button>':'')+'</div>'
-    +(window._palRide?window._palRide.switchHtml():'')+'<div class="tr-sub" style="margin:7px 0 0">\u2190 \u2192 step along \u00b7 Space rides it all \u00b7 V first-person / map \u00b7 Esc to get off</div>';
+    +(window._palRide?window._palRide.switchHtml():'')+'<div class="tr-sub" style="margin:7px 0 0">\u2190 \u2192 step along \u00b7 Space rides it all \u00b7 V first-person rides on / off \u00b7 Esc to get off</div>';
   p.classList.add('on'); }
 /* ── pointing and clicking ── */
 function chipOf(t){ var b=t.closest && t.closest('#nav .nav-btn'); if(!b) return null;
