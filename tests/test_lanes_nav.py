@@ -248,6 +248,29 @@ def test_the_whole_timeline_and_back_down(browser, page_file):
     assert not errs
 
 
+SKY = """() => { const k=document.getElementById('lanes-ov-sky'), e=document.getElementById('glass-slab'), c=document.getElementById('canvas').getBoundingClientRect();
+  const r=k && k.getBoundingClientRect();
+  return {sky: !!k, t:r&&r.top, b:r&&r.bottom, l:r&&r.left, r:r&&r.right, ct:c.top, cb:c.bottom, op:k&&getComputedStyle(k).opacity, slabOp:getComputedStyle(e).opacity,
+          slab:[e.style.top, e.style.height, e.style.getPropertyValue('width'), e.style.getPropertyValue('left')], world:document.getElementById('world').offsetHeight}; }"""
+
+
+def test_zoomed_out_a_backdrop_fills_the_window_and_leaves_with_the_zoom(browser, page_file):
+    pg, errs = _desk(browser, page_file)
+    before = pg.evaluate(SKY)
+    assert not before["sky"]
+    pg.click("#lanes-nav .lnv-ov")
+    pg.wait_for_timeout(1100)
+    z = pg.evaluate(SKY)
+    assert z["sky"] and z["t"] <= z["ct"] + 1 and z["b"] >= z["cb"] - 1 and z["l"] <= 1 and z["r"] >= 1500   # no bare page around the board
+    assert float(z["op"]) > 0.5 and float(z["slabOp"]) == 0                                               # the slab hands over to it
+    assert z["slab"] == before["slab"] and z["world"] == before["world"]                                    # nothing is resized (the page's height follows the slab)
+    pg.click("#lanes-nav .lnv-ov")
+    pg.wait_for_timeout(1100)
+    after = pg.evaluate(SKY)
+    assert not after["sky"] and float(after["slabOp"]) == float(before["slabOp"]) and after["slab"] == before["slab"]
+    assert not errs
+
+
 def test_reduced_motion_steps_in_one_frame(browser, page_file):
     pg, errs = _desk(browser, page_file, reduced_motion="reduce")
     pg.evaluate("""() => { window._rec=[]; const cv=document.getElementById('canvas');

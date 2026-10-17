@@ -475,13 +475,13 @@ var L=window._ALTO_LANES; if(!L) return;
 var de=document.documentElement;
 if(!de.classList.contains('mobile')) de.classList.add('alto-lanes');
 var NS='http://www.w3.org/2000/svg';
-var STEM=30, CARD_GAP=10, CARD_PAD=12, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
+var STEM=36, CARD_GAP=12, CARD_PAD=12, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
 var SPAN=250, MAXPX=1000, BREAK=190;
 /* the band between the main line and the cards: the characters' tracks, track k
    of a side BAND0+k*TRACK from the main line (the past track of the flashbacks,
    PAST below the main line, comes first on the lower side). Cards hang beyond
    the band, so a character's line never has to cross a card to reach the page. */
-var BAND0=46, TRACK=34, PAST=60, RAMP_MIN=56, RAMP_MAX=130, SPREAD=22, HUG0=9, HUG_STEP=6, MINRUN=24;
+var BAND0=55, TRACK=41, PAST=72, RAMP_MIN=56, RAMP_MAX=130, SPREAD=22, HUG0=11, HUG_STEP=7, MINRUN=24;
 /* a flashback's detour: lead-in, the S down to the past track, room for its
    label, its events (FB_STEP apart at the median), the S back up, lead-out */
 var DLEAD=70, DRAMP=130, DOUT=70, FB_STEP=240;
@@ -637,10 +637,10 @@ window._altoLanes=function(h){
     (T[k]=T[k]||[]).push(l); l.track=k;
   });
   main.y=0; var pastY=PAST;
-  var base={'-1':BAND0, '1':hasPast?PAST+BAND0-8:BAND0};
+  var base={'-1':BAND0, '1':hasPast?PAST+BAND0-10:BAND0};
   L.lines.forEach(function(l){ if(l.drawn) l.y=l.sd*(base[String(l.sd)]+l.track*TRACK); else l.y=0; });
-  var band={'-1':track['-1'].length?base['-1']+(track['-1'].length-1)*TRACK+14:0,
-            '1':track['1'].length?base['1']+(track['1'].length-1)*TRACK+14:(hasPast?PAST+14:0)};
+  var band={'-1':track['-1'].length?base['-1']+(track['-1'].length-1)*TRACK+17:0,
+            '1':track['1'].length?base['1']+(track['1'].length-1)*TRACK+17:(hasPast?PAST+17:0)};
   /* the cards: beyond the band, packed outward wherever one would overlap another */
   var placed={'-1':[], '1':[]}, sideOf={}, offOf={}, alt=0;
   function fit(sd, id, minOff){

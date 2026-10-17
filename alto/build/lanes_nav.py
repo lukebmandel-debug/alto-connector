@@ -523,6 +523,32 @@ var _ov=null, _ovA=null;
 function ovSet(o){
   var w=document.getElementById('world'), c=cv(), off=worldOff(c);
   w.style.transform='translate('+(o.tx-off.x)+'px,'+(o.ty-off.y)+'px) scale('+o.s+')';
+  ovSlab(o);
+}
+/* The glass slab is the timeline's own backdrop. Shrunk with the board it becomes a thin
+   ribbon floating on the empty page. Zoomed out, a layer of the same colours covers the
+   whole window instead (the slab fades out as it fades in), so the timeline reads as one
+   landscape seen from above. The slab itself is never resized: the page's height follows
+   its bottom edge. The layer is fixed under the canvas, so it adds nothing to what scrolls. */
+var _sky=null;
+function ovSkyOn(){
+  var sl=document.getElementById('glass-slab'), c=cv(); if(!sl || !c || _sky) return;
+  _sky=document.createElement('div'); _sky.id='lanes-ov-sky'; _sky.setAttribute('aria-hidden','true');
+  _sky._a=parseFloat(getComputedStyle(sl).opacity); if(!(_sky._a>0)) _sky._a=1;
+  _sky.style.cssText='position:fixed;left:0;right:0;bottom:0;top:var(--nav-bottom,112px);pointer-events:none;background-repeat:no-repeat;background-image:'+sl.style.backgroundImage+';opacity:0;'
+    +(reduced()?'':'transition:opacity .62s cubic-bezier(.25,.2,.4,1);');
+  c.parentNode.insertBefore(_sky, c);
+  if(!reduced()) sl.style.transition='opacity .62s cubic-bezier(.25,.2,.4,1)';
+  void _sky.offsetWidth; _sky.style.opacity=String(_sky._a); sl.style.opacity='0';
+}
+function ovSkyFade(){ var sl=document.getElementById('glass-slab'); if(_sky) _sky.style.opacity='0'; if(sl) sl.style.opacity=''; }
+function ovSlab(o){
+  var sl=document.getElementById('glass-slab'), c=cv();
+  if(!o || o.s>=0.999){ if(_sky){ _sky.remove(); _sky=null; } if(sl){ sl.style.opacity=''; sl.style.transition=''; } return; }
+  if(!sl || !c) return;
+  if(!_sky) ovSkyOn();
+  var W=geo().W*o.s, cw=c.clientWidth, gl=Math.max(0,o.tx), gr=Math.max(0,cw-(o.tx+W));   // a gap left or right of the board is covered by stretching the colours to the window's edge
+  _sky.style.backgroundSize=(W+gl+gr).toFixed(1)+'px 100%'; _sky.style.backgroundPositionX=Math.min(0,o.tx).toFixed(1)+'px';
 }
 function ovFit(){
   var c=cv(), G=geo(), B=band(c), cw=c.clientWidth, P=PAD(), H=G.H+P;
@@ -568,8 +594,8 @@ function ovLeave(id, instant){
   /* where the camera will rest, worked out as if the board were at scale 1 */
   w.style.transform='none';
   var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop'), tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt));
-  ovSet(from);
-  var fin=function(){ w.style.transform=''; ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); };
+  ovSet(from); ovSkyFade();
+  var fin=function(){ w.style.transform=''; ovSlab(null); ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); };
   if(instant){ fin(); return; }
   de.classList.add('ln-stepped');
   ovAnim(from, {s:1, tx:off.x-tl, ty:off.y-tt}, fin);
