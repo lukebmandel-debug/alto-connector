@@ -38,6 +38,7 @@ from .palace_directions import DIR_CSS, DIR_JS
 from .palace_pan import PAN_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
 from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of a shelled building (1.9.95)
+from .palace_sound import SOUND_JS                              # the guns' synthesised sound (1.9.97)
 from .palace_labels import LABELS_CSS, LABELS_JS
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
@@ -981,7 +982,7 @@ PALACE_CSS = KEY_CSS + r"""
 """ + LANDMARK_CSS + LABELS_CSS + CONSTRUCT_CSS + TRANSIT_CSS + RIDE_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + CONSTRUCT_JS + SOUND_JS + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -2085,15 +2086,16 @@ window.addEventListener('keydown', function(e){
 document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTimeout(tipT); labelB(null); lit(null); } });
 /* ── the battleship's guns (a fun extra): click the ship, then a building. Its turrets turn, shells arc to it, it is blown apart — and rebuilt,
    storey by storey, over 20 seconds. Node buildings and landmark buildings can be hit; nothing is lost. ── */
-var FXARM=false, FXLAST=0;
+var FXARM=false, FXLAST=0, SND=window._palSnd;
 function fxLayer(){ var g=svgD&&svgD._fx; if(!g || g.parentNode!==svgD){ g=svgD._fx=el('g',{'class':'pl-fx'},svgD); } svgD.appendChild(g); return g; }
 function fxBar(on){ var b=document.getElementById('pal-fxbar'); if(!b){ b=document.createElement('div'); b.id='pal-fxbar'; b.setAttribute('role','status'); document.body.appendChild(b);
     b.innerHTML='<span class="fx-t"></span><button type="button" class="fx-x" aria-label="Stand the guns down" title="Stand down (Esc)">\u00d7</button>';
     b.addEventListener('click', function(e){ if(e.target.closest('.fx-x')){ e.stopPropagation(); e.preventDefault(); fxBar(false); } }); }
-  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.querySelector('.fx-t').textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' \u2014 click a building to fire \u00b7 Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; }
+  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.querySelector('.fx-t').textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' \u2014 click a building to fire \u00b7 Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; SND.bar(b, on); }
 function fxTween(ms, fn, done){ var t0=performance.now(); (function f(t){ var k=Math.min(1,(t-t0)/ms); fn(k); if(k<1) requestAnimationFrame(f); else if(done) done(); })(t0); }
 function fxPin(x, y, cls){ var g=pin(fxLayer(), cls, x, y, {}); return g; }
 function fxBoom(x, y){
+  SND.b(x, y);
   var g=fxPin(x, y, 'fx-boom'), o=g.parentNode;
   [['#ffd34a',14,520],['#ff7a3c',22,760],['#6b6f7a',30,1500]].forEach(function(c,i){ var k=el('circle',{r:c[1], fill:c[0], 'fill-opacity':i===2?.55:.9},g); k.style.transformBox='fill-box'; k.style.transformOrigin='center';
     k.animate([{transform:'scale(.15)',opacity:1},{transform:'scale('+(i===2?2.6:1.9)+')',opacity:0}],{duration:c[2],easing:'ease-out',fill:'forwards'}); });
@@ -2115,14 +2117,14 @@ function fxTarget(t){
   return null;
 }
 function nbFire(tg, boatG){
-  var b=boatG._b, a=b.a*Math.PI/180, now=performance.now(); if(now-FXLAST<1100) return; FXLAST=now;
+  var b=boatG._b, a=b.a*Math.PI/180, now=performance.now(); if(now-FXLAST<1100) return; FXLAST=now; SND.u(b.x, b.y);
   b._tur.forEach(function(t, i){ var wx=t.abs?t.abs[0]:b.x+Math.cos(a)*t.x, wy=t.abs?t.abs[1]:b.y+Math.sin(a)*t.x, th=Math.atan2(tg.y-wy, tg.x-wx);
     t.bar.setAttribute('transform', t.abs ? 'translate('+t.abs[0].toFixed(1)+' '+t.abs[1].toFixed(1)+') rotate('+(th*180/Math.PI).toFixed(1)+')' : 'rotate('+(th*180/Math.PI-b.a).toFixed(1)+')');
     var reach=(t.r&&t.len)?t.r*t.len:b.wid*.62, mx=wx+Math.cos(th)*reach, my=wy+Math.sin(th)*reach;
     setTimeout(function(){ var f=fxPin(mx, my, 'fx-flash'), q=f.parentNode; el('circle',{r:16,fill:'#ff8a3c','fill-opacity':.55},f); el('circle',{r:11,fill:'#ffe08a'},f); el('circle',{r:5.5,fill:'#fff'},f); setTimeout(function(){ q.remove(); }, 210);
       var sm=fxPin(mx, my, 'fx-smoke'), sq=sm.parentNode, sc=el('circle',{r:14,fill:'#7b7f8a','fill-opacity':.5},sm); sc.style.transformBox='fill-box'; sc.style.transformOrigin='center'; sc.animate([{transform:'scale(.4)',opacity:.8},{transform:'scale(3.2)',opacity:0}],{duration:1500,easing:'ease-out'}).onfinish=function(){ sq.remove(); };
       (t.bl||[]).forEach(function(ln){ var r0=t.r*(t.len||3.1); fxTween(380, function(k){ var rc=k<.2?k/.2:(1-k)/.8; ln.setAttribute('x2', (r0-rc*t.r*.7).toFixed(1)); ln.setAttribute('x1', (t.r*.5-rc*t.r*.7).toFixed(1)); }); });
-      var j=(i-1)*26/Z, d=Math.hypot(tg.x-mx, tg.y-my), ms=Math.max(700, Math.min(1500, 500+d*.6));
+      var j=(i-1)*26/Z, d=Math.hypot(tg.x-mx, tg.y-my), ms=Math.max(700, Math.min(1500, 500+d*.6)); SND.f(ms);
       fxShell(mx, my, tg.x+j, tg.y+j*.4, ms, i===0 ? function(){ fxBoom(tg.x, tg.y); tg.ruin(); } : function(){ fxBoom(tg.x+j, tg.y+j*.4); }); }, 140*i); });
 }
 document.addEventListener('click', function(e){
