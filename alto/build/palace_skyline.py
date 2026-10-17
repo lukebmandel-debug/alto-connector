@@ -40,7 +40,7 @@ import re
 SCALE = 1.3      # map px per real metre: width, plan depth and height, EVERY building (about the grid's own scale)
 KV = 0.25        # 3/4 view: how far (m across) a metre of plan depth leans to the right, so the right sides show
 TOP, FOOT, SIDE = 3.0, 2.0, 3.0     # canvas margins (m): above the top, below the ground line, each side
-SOLID = ("box", "slice", "cut", "gables", "pyramid", "dome", "vault", "hip", "court")
+SOLID = ("box", "slice", "cut", "gables", "pyramid", "dome", "vault", "hip", "court", "drum")
 CENTRED = ("spire", "statue", "blades")          # these stand on the plan centre of the part under them
 
 
@@ -55,6 +55,7 @@ class Sky:
 
     def __init__(self, spec: dict):
         self.tip = spec["h"]
+        self.sq = spec.get("sq")
         raw = spec["parts"]
         ground = [p for p in raw if p["k"] in SOLID and p.get("y0", 0) == 0]
         self.D = float(spec.get("D") or max((p.get("d", p.get("w", 0)) for p in ground), default=20))
@@ -399,6 +400,178 @@ class Sky:
             g = f"M{_f(cx)} {_f(cy - q)}L{_f(cx + q)} {_f(cy)}L{_f(cx)} {_f(cy + q)}L{_f(cx - q)} {_f(cy)}z"
         self.add(f'<circle class="lz-seal lz-seal-{lv}" cx="{_f(cx)}" cy="{_f(cy)}" r="{_f(r)}"/><path class="lz-seal-g" d="{g}"/>')
 
+    # ── stadiums and arenas: prisms on a rounded plan outline (not boxes) ──
+    def P3(self, x, v, z):
+        """The screen point of plan point (x across, v back from the footprint's front edge) at height z (m)."""
+        X, Y = self.cx + x + v * KV, self.G - z - v
+        if self.rec:
+            self._rec(X, Y)
+        return X, Y
+
+    def _path(self, pts):
+        return "M" + "L".join(f"{_f(a)} {_f(b)}" for a, b in pts) + "z"
+
+    def _hz(self, p, x, v, key="h"):
+        """A wall's height at a plan point: p[key] (a number), or {base, amp, dir:(dx, dv), c:(cx, cv)}: base + amp over the side that faces dir."""
+        h = p[key]
+        if isinstance(h, dict):
+            c = h.get("c", (0.0, self.D / 2))
+            dx, dv = x - c[0], v - c[1]
+            r = math.hypot(dx, dv) or 1.0
+            k = .5 + .5 * (dx * h["dir"][0] + dv * h["dir"][1]) / (r * (math.hypot(*h["dir"]) or 1.0))
+            return h["base"] + h["amp"] * k ** h.get("pow", 1.0)
+        return h
+
+    def _drum(self, p):
+        """A prism on the plan outline p['ring'] (a closed ring of (x, v) metres), from y0 up to p['h'] (a number, or a height that changes
+        round the ring); the walls that face the viewer in one glass skin with floors and mullions, the top a ring (or a full lid)."""
+        R, y0, m = p["ring"], p.get("y0", 0), p.get("m", "glass")
+        n = len(R)
+        zt = [self._hz(p, x, v) for x, v in R]
+        vis = []
+        for i in range(n):
+            (ax, av), (bx, bv) = R[i], R[(i + 1) % n]
+            dx, dv = bx - ax, bv - av
+            nx, nv = dv, -dx                                                     # outward normal of a counter-clockwise ring
+            vis.append(KV * nx - nv > 0)
+        runs, i = [], 0
+        start = next((k for k in range(n) if not vis[k]), None)
+        if start is None:
+            return
+        order = [(start + 1 + k) % n for k in range(n)]
+        cur = []
+        for k in order:
+            if vis[k]:
+                cur.append(k)
+            elif cur:
+                runs.append(cur)
+                cur = []
+        if cur:
+            runs.append(cur)
+        for run in runs:                                                         # the wall: bottom edge there, top edge back
+            lo = [self.P3(R[k][0], R[k][1], y0) for k in run] + [self.P3(R[(run[-1] + 1) % n][0], R[(run[-1] + 1) % n][1], y0)]
+            hi = [self.P3(R[k][0], R[k][1], zt[k]) for k in run] + [self.P3(R[(run[-1] + 1) % n][0], R[(run[-1] + 1) % n][1], zt[(run[-1] + 1) % n])]
+            self.add(f'<path class="lz-f lz-gl" d="{self._path(lo + hi[::-1])}" fill="url(#lzg-{m}-{{s}})"/>')
+            d = ""
+            fl = p.get("fl", 0)
+            if fl:                                                               # floors: the same lift above the base all round
+                zz = y0 + fl
+                while zz < min(zt) - fl * .35:
+                    d += "M" + "L".join(f"{_f(self.P3(R[k][0], R[k][1], zz)[0])} {_f(self.P3(R[k][0], R[k][1], zz)[1])}"
+                                        for k in run + [(run[-1] + 1) % n]) + ""
+                    zz += fl
+            mu = p.get("mu", 0)
+            if mu:                                                               # mullions: one every `mu` ring vertices
+                for k in run[::max(1, mu)]:
+                    a, b = self.P3(R[k][0], R[k][1], y0), self.P3(R[k][0], R[k][1], zt[k])
+                    d += f"M{_f(a[0])} {_f(a[1])}L{_f(b[0])} {_f(b[1])}"
+            if d:
+                self.add(f'<path class="lz-mu" d="{d}"/>')
+        if p.get("top", True):
+            hole = p.get("hole")
+            top = [self.P3(x, v, z) for (x, v), z in zip(R, zt)]
+            d = self._path(top)
+            if hole:
+                d += self._path([self.P3(x, v, self._hz(p, x, v)) for x, v in hole])
+            self.add(f'<path class="lz-tp lz-t-{p.get("tm", m)}" fill-rule="evenodd" d="{d}"/>')
+
+    def _pit(self, p):
+        """The open bowl inside a stadium: the opening (p['ring'], at height p['top']) with the seats stepping down to the pitch, clipped to the
+        opening so the near stand hides the near seats; the pitch (football or baseball) laid on the floor."""
+        R, ztop = p["ring"], p["top"]
+        zf = p.get("floor", 1.0)
+        cx = sum(x for x, v in R) / len(R)
+        cv = sum(v for x, v in R) / len(R)
+        zt = [self._hz(p, x, v, "top") for x, v in R]
+        cid = f"pit-{p['id']}-{{s}}"
+        if not self.rec:
+            self.add(f'<clipPath id="{cid}"><path d="{self._path([self.P3(x, v, z) for (x, v), z in zip(R, zt)])}"/></clipPath>')
+        g = ""
+        tiers = p.get("tiers", 6)
+        pit = p.get("pit", .62)                                                 # the pitch ring: this share of the opening, about its middle
+        pc = p.get("pc", (cx, cv))
+        def ring_at(t):
+            s = 1 - (1 - pit) * t
+            return [(pc[0] + (x - pc[0]) * s, pc[1] + (v - pc[1]) * s) for x, v in R]
+        def zat(t, k):
+            return zt[k] - (zt[k] - zf) * t
+        g += f'<path class="lz-seat-d" d="{self._path([self.P3(x, v, z) for (x, v), z in zip(R, zt)])}"/>'
+        for j in range(tiers):
+            t = (j + 1) / (tiers + 1) * 1.0
+            rr = ring_at(t)
+            g += f'<path class="lz-seat-{"a" if j % 2 == 0 else "b"}" d="{self._path([self.P3(x, v, zat(t, k)) for k, (x, v) in enumerate(rr)])}"/>'
+        rr = ring_at(1.0)
+        g += f'<path class="lz-pitch" d="{self._path([self.P3(x, v, zf) for x, v in rr])}"/>'
+        self.add(f'<g clip-path="url(#{cid})">{g}{self._field(p, rr, zf)}</g>')
+        self.add(f'<path class="lz-ln" d="{self._path([self.P3(x, v, z) for (x, v), z in zip(R, zt)])}"/>')
+
+    def _field(self, p, rr, zf):
+        kind = p.get("field")
+        out = ""
+        if kind == "football":                                                  # a pitch down its length: end zones, yard stripes, the 50
+            xs, vs = [x for x, v in rr], [v for x, v in rr]
+            cx, cv = (min(xs) + max(xs)) / 2, (min(vs) + max(vs)) / 2
+            hw, hl = p.get("fw", 24.5), p.get("fl", 55.0)
+            def rect(x0, x1, v0, v1):
+                return self._path([self.P3(cx + x0, cv + v0, zf + .2), self.P3(cx + x1, cv + v0, zf + .2), self.P3(cx + x1, cv + v1, zf + .2), self.P3(cx + x0, cv + v1, zf + .2)])
+            out += f'<path class="lz-grass" d="{rect(-hw - 6, hw + 6, -hl - 14, hl + 14)}"/>'
+            out += f'<path class="lz-endz" d="{rect(-hw, hw, -hl - 10, -hl)}{rect(-hw, hw, hl, hl + 10)}"/>'
+            d = "".join(f"M{_f(self.P3(cx - hw, cv + k, zf + .3)[0])} {_f(self.P3(cx - hw, cv + k, zf + .3)[1])}L{_f(self.P3(cx + hw, cv + k, zf + .3)[0])} {_f(self.P3(cx + hw, cv + k, zf + .3)[1])}"
+                        for k in range(-int(hl), int(hl) + 1, 11))
+            out += f'<path class="lz-mark" d="{d}"/>'
+        elif kind == "diamond":                                                 # a ballpark: outfield, warning track, foul lines, infield dirt, the diamond
+            hp = p.get("home", (rr[0][0], rr[0][1]))
+            ang = math.radians(p.get("axis", 62.0))                             # centre field's bearing from home plate, from +x towards +v
+            ux, uv = math.cos(ang), math.sin(ang)
+            wx, wv = -uv, ux
+            wall = p.get("wall", [112, 106, 101, 98, 97, 100, 106, 114, 121])   # the fence's distance at -45 .. +45 degrees from the axis (an asymmetric outfield)
+
+            def L(u, w, dz=.2):
+                return self.P3(hp[0] + u * ux + w * wx, hp[1] + u * uv + w * wv, zf + dz)
+
+            def arc(off):
+                return [L((r - off) * math.cos(math.radians(-45 + 90 * k / (len(wall) - 1))), (r - off) * math.sin(math.radians(-45 + 90 * k / (len(wall) - 1))))
+                        for k, r in enumerate(wall)]
+            fence, track = arc(0), arc(7)
+            out += f'<path class="lz-dirt" d="{self._path([L(0, 0)] + fence)}"/>'                   # the whole fan is dirt, the grass laid inside it
+            out += f'<path class="lz-grass" d="{self._path([L(8, 0)] + track)}"/>'
+            out += f'<path class="lz-dirt" d="{self._path([L(20 + 27 * math.cos(t * math.pi / 12), 27 * math.sin(t * math.pi / 12)) for t in range(24)])}"/>'
+            out += f'<path class="lz-grass2" d="{self._path([L(4.5, 0), L(19.4, 15), L(34.3, 0), L(19.4, -15)])}"/>'
+            out += f'<path class="lz-dirt" d="{self._path([L(0 + 8 * math.cos(t * math.pi / 6), 8 * math.sin(t * math.pi / 6)) for t in range(12)])}"/>'
+            out += f'<path class="lz-mark" d="M{_f(L(0, 0)[0])} {_f(L(0, 0)[1])}L{_f(fence[0][0])} {_f(fence[0][1])}M{_f(L(0, 0)[0])} {_f(L(0, 0)[1])}L{_f(fence[-1][0])} {_f(fence[-1][1])}"/>'
+            out += f'<path class="lz-mark" d="{self._path([L(0, 0), L(19.4, 19.4), L(38.8, 0), L(19.4, -19.4)])}"/>'
+            out += f'<path class="lz-ln" d="M{"L".join(f"{_f(a)} {_f(b)}" for a, b in fence)}"/>'
+            bases = "".join(self._path([(b[0] - 1.8, b[1] - 1.2), (b[0] + 1.8, b[1] - 1.2), (b[0] + 1.8, b[1] + 1.2), (b[0] - 1.8, b[1] + 1.2)])
+                            for b in (L(0, 0), L(19.4, 19.4), L(38.8, 0), L(19.4, -19.4)))
+            out += f'<path class="lz-base" d="{bases}"/>'
+        return out
+
+    def _ribbon(self, p):
+        """A roof band round the rim: its outer edge at the wall top, its inner edge `inset` m inside and `lift` higher, swept up over the long
+        sides and down at the ends (Lincoln Financial Field's swoop). p['ring'] outer, p['inner'] inner ring (same count)."""
+        R, I = p["ring"], p["inner"]
+        z0 = [self._hz(p, x, v, "h") for x, v in R]
+        c = p.get("c", (0.0, self.D / 2))
+        hw, hd = p.get("sw", 125.0), p.get("sd", 142.0)
+        def zi(k):
+            x, v = I[k]
+            side = 1 - ((v - c[1]) / hd) ** 2                                    # high mid-way along a sideline, down at the ends
+            return z0[k] + p.get("lift", 18.0) * max(0.0, side) * min(1.0, abs(x - c[0]) / (hw * .55))
+        outer = [self.P3(x, v, z) for (x, v), z in zip(R, z0)]
+        inner = [self.P3(x, v, zi(k)) for k, (x, v) in enumerate(I)]
+        m = p.get("m", "trim")
+        self.add(f'<path class="lz-tp lz-t-{m}" fill-rule="evenodd" d="{self._path(outer)}{self._path(inner)}"/>')
+        d = "".join(f"M{_f(outer[k][0])} {_f(outer[k][1])}L{_f(inner[k][0])} {_f(inner[k][1])}" for k in range(0, len(R), max(1, p.get("rb", 2))))
+        self.add(f'<path class="lz-mu" d="{d}"/>')
+        self.add(f'<path class="lz-ln" d="{self._path(inner)}"/>')
+
+    def _mast(self, p):
+        """A floodlight mast on the plan: a slim shaft with a head of lamps."""
+        a, b = self.P3(p["x"], p["v"], p["y0"]), self.P3(p["x"], p["v"], p["y1"])
+        w = p.get("w", 2.4)
+        self.add(f'<path class="lz-ln" d="M{_f(a[0])} {_f(a[1])}L{_f(b[0])} {_f(b[1])}" stroke-width="1.6"/>')
+        self.add(f'<path class="lz-f" d="{self._path([(b[0] - w * 1.6, b[1]), (b[0] + w * 1.6, b[1]), (b[0] + w * 1.6, b[1] + w * 1.3), (b[0] - w * 1.6, b[1] + w * 1.3)])}" fill="url(#lzg-trim-{{s}})"/>')
+
     def _door(self, p):
         x, w, h = self.X(p.get("x", 0)), p["w"], p["h"]
         g = self.Y(0)
@@ -409,7 +582,7 @@ class Sky:
         fw / fd (the footprint's width and depth, m)."""
         fp = [round(self.cx + self.u0, 2), round(self.G - self.D, 2), round(self.cx + self.u1 + self.D * KV, 2), round(self.G, 2)]
         return {"w": self.W, "h": self.H, "svg": "".join(self.parts), "hm": self.tip, "fp": fp,
-                "fw": round(self.u1 - self.u0, 1), "fd": round(self.D, 1), **meta}
+                "fw": round(self.u1 - self.u0, 1), "fd": round(self.D, 1), **({"sq": self.sq} if self.sq else {}), **meta}
 
 
 def _sin(i):
@@ -620,7 +793,7 @@ def _cityhall():
                         {"k": "hip", "y0": 34, "y1": 43, "inset": 9, "m": "mansard", **{q: k[q] for q in ("x", "w", "v", "d")}}]
     pav = lambda x, v, **k: [{"k": "box", "x": x, "w": 36, "v": v, "d": 36, "y0": 0, "y1": 39, "m": "marble", "solid": 1, "fl": 11.5, "mu": 3, "sheen": False, **k},
                              {"k": "hip", "x": x, "w": 36, "v": v, "d": 36, "y0": 39, "y1": 51, "inset": 8, "m": "mansard"}]
-    return {"h": 167, "D": 145, "parts": [
+    return {"h": 167, "D": 145, "sq": 1.45, "parts": [
         {"k": "court", "x": 0, "w": 76, "v": 36, "d": 73, "y0": 0, "op": .5},           # the open courtyard, seen from above
         *wing(x=0, w=76, v=109, d=36),                                                    # north wing, then its corner pavilions
         *pav(-56, 109), *pav(56, 109),
@@ -705,15 +878,19 @@ def _franklin():
 
 
 def _convention():
-    """Pennsylvania Convention Center (about 230 x 260 m as drawn): the Reading Terminal headhouse of red
-    brick on Market Street, the great glass barrel vault of the train shed running back behind it, and the
-    long glass exhibition halls beyond."""
-    return {"h": 36, "D": 260, "parts": [
-        {"k": "box", "w": 230, "v": 120, "d": 140, "y0": 0, "y1": 28, "m": "glass", "fl": 9, "mu": 10},
-        {"k": "vault", "w": 80, "v": 28, "d": 150, "y0": 0, "y1": 32},
-        {"k": "box", "w": 62, "v": 0, "d": 30, "y0": 0, "y1": 27, "m": "brick", "solid": 1, "fl": 9, "mu": 7, "top": False},
-        {"k": "hip", "w": 62, "v": 0, "d": 30, "y0": 27, "y1": 31, "m": "slate"},
-        {"k": "door", "w": 8, "h": 14}]}
+    """Pennsylvania Convention Center (about 250 x 190 m as drawn): the Reading Terminal headhouse of red brick, arched and mansarded, at the
+    front on Market Street; beside it the sloping glass-and-steel lobby of the Arch Street front; behind them the great exhibition halls — a
+    wide low hall of silver panels under a row of glass barrel vaults, and the old train shed's arch running back between them."""
+    return {"h": 40, "D": 190, "parts": [
+        {"k": "box", "x": 0, "w": 250, "v": 44, "d": 146, "y0": 0, "y1": 21, "m": "silver", "fl": 5.2, "mu": 16, "top": False},
+        *[{"k": "vault", "x": x, "w": 74, "v": 52, "d": 130, "y0": 21, "y1": 33, "m": "glass"} for x in (-84, 84)],
+        {"k": "vault", "x": 0, "w": 82, "v": 40, "d": 150, "y0": 21, "y1": 40, "m": "glass"},
+        {"k": "box", "x": -62, "w": 76, "v": 0, "d": 44, "y0": 0, "y1": 30, "m": "brick", "solid": 1, "fl": 7.5, "mu": 7, "top": False},
+        {"k": "strip", "x": -62, "w": 60, "y0": 4, "y1": 12, "t": "win", "op": .5},
+        {"k": "hip", "x": -62, "w": 76, "v": 0, "d": 44, "y0": 30, "y1": 40, "inset": 13, "m": "slate"},
+        {"k": "slice", "x": 52, "w": 128, "v": 0, "d": 38, "y0": 0, "yl": 12, "yr": 27, "m": "glass", "facets": "conv", "fl": 7, "mu": 11},
+        {"k": "box", "x": 52, "w": 30, "v": 0, "d": 7, "y0": 9, "y1": 10.6, "m": "trim", "sheen": False},
+        {"k": "door", "x": -62, "w": 9, "h": 12}]}
 
 
 def _station():
@@ -756,30 +933,124 @@ def _jefferson():
         {"k": "door", "w": 10, "h": 7}]}
 
 
+
+# ── plan outlines for the stadiums and the arena ────────────────────────────
+def _ccw(R):
+    s = sum(R[i][0] * R[(i + 1) % len(R)][1] - R[(i + 1) % len(R)][0] * R[i][1] for i in range(len(R)))
+    return R if s > 0 else R[::-1]
+
+
+def _chaikin(R, k=2):
+    """A closed ring with its corners rounded: every edge cut at a quarter and three quarters, k times."""
+    for _ in range(k):
+        out = []
+        for i in range(len(R)):
+            (ax, av), (bx, bv) = R[i], R[(i + 1) % len(R)]
+            out.append((.75 * ax + .25 * bx, .75 * av + .25 * bv))
+            out.append((.25 * ax + .75 * bx, .25 * av + .75 * bv))
+        R = out
+    return [(round(x, 1), round(v, 1)) for x, v in R]
+
+
+def _inset(R, d):
+    """The ring moved in by d metres (a number, or d(x, v)) along each vertex's outward normal (a counter-clockwise ring)."""
+    n, out = len(R), []
+    for i in range(n):
+        (px, pv), (ax, av), (bx, bv) = R[i - 1], R[i], R[(i + 1) % n]
+        tx, tv = bx - px, bv - pv
+        L = math.hypot(tx, tv) or 1.0
+        dd = d(ax, av) if callable(d) else d
+        out.append((round(ax - tv / L * dd, 1), round(av + tx / L * dd, 1)))
+    return out
+
+
+def _super(w, d, e=2.6, n=72, cv=None):
+    """A rounded plan (a superellipse of exponent e) w across and d deep, its front edge on v = 0."""
+    cv = d / 2 if cv is None else cv
+    out = []
+    for i in range(n):
+        t = 2 * math.pi * i / n
+        c, s = math.cos(t), math.sin(t)
+        out.append((round(w / 2 * math.copysign(abs(c) ** (2 / e), c), 1), round(cv + d / 2 * math.copysign(abs(s) ** (2 / e), s), 1)))
+    return out
+
+
+def _on(R, deg, inset=8.0):
+    """The point of a ring in the direction deg (from +x towards +v) from its middle, moved in by inset metres."""
+    cx, cv = sum(x for x, v in R) / len(R), sum(v for x, v in R) / len(R)
+    ux, uv = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    best = max(R, key=lambda q: (q[0] - cx) * ux + (q[1] - cv) * uv)
+    L = math.hypot(best[0] - cx, best[1] - cv) or 1.0
+    k = max(0.0, 1 - inset / L)
+    return (round(cx + (best[0] - cx) * k, 1), round(cv + (best[1] - cv) * k, 1))
+
+
+# Lincoln Financial Field, Citizens Bank Park and the Xfinity Mobile Arena: their OpenStreetMap outlines (ways 32891768, 255489463, 25312366),
+# reduced to the corners that matter, x across (east) and v back (north) from the south edge, in metres
+_CBP = [(-135, 100), (-124, 196), (-96, 246), (-40, 258), (58, 250), (112, 238), (138, 214), (131, 150), (120, 90), (101, 36), (40, 8), (-22, 4), (-86, 24), (-126, 62)]
+
+
 def _arena():
-    """An indoor arena (Wells Fargo Center; about 200 x 150 m, 35 m): a broad glass-and-steel drum under a low shallow roof, a banded concourse
-    at its foot and a pair of entrance canopies on the street."""
-    return {"h": 38, "D": 150, "parts": [
-        {"k": "box", "w": 200, "v": 0, "d": 150, "y0": 0, "y1": 24, "m": "glass", "fl": 8, "mu": 12, "top": False},
-        {"k": "box", "w": 178, "v": 8, "d": 134, "y0": 24, "y1": 31, "m": "trim", "sheen": False, "top": False},
-        {"k": "vault", "w": 156, "v": 16, "d": 118, "y0": 31, "y1": 38},
-        {"k": "box", "w": 40, "v": 0, "d": 12, "y0": 12, "y1": 14, "m": "trim", "sheen": False},
-        {"k": "door", "w": 16, "h": 10}]}
+    """An indoor arena (Xfinity Mobile Arena, formerly Wells Fargo Center; its OSM outline 174 x 163 m, about 40 m high): a closed drum — a rounded
+    plan, glass-and-steel walls in two bands, a lower roof stepping up to the flat lid, a canopy over the entrance on the street."""
+    W, D = 174.0, 163.0
+    R = _ccw(_chaikin(_super(W, D, 2.8, 20), 2))
+    return {"h": 42, "D": D, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 24, "m": "glass", "fl": 8, "mu": 4, "top": False},
+        {"k": "drum", "ring": _inset(R, 4), "x": 0, "w": W - 8, "v": 4, "d": D - 8, "y0": 24, "h": 33, "m": "silver", "fl": 4.5, "mu": 6, "top": False},
+        {"k": "drum", "ring": _inset(R, 18), "x": 0, "w": W - 36, "v": 18, "d": D - 36, "y0": 33, "h": 40, "m": "silver", "tm": "silver", "mu": 5},
+        {"k": "drum", "ring": _inset(R, 34), "x": 0, "w": W - 68, "v": 34, "d": D - 68, "y0": 40, "h": 42, "m": "trim", "tm": "trim", "mu": 99},
+        {"k": "box", "w": 70, "v": 62, "d": 14, "y0": 42, "y1": 43.4, "m": "glass", "sheen": False, "x": -12},
+        {"k": "box", "w": 70, "v": 84, "d": 14, "y0": 42, "y1": 43.4, "m": "glass", "sheen": False, "x": -12},
+        {"k": "box", "w": 16, "v": 100, "d": 12, "y0": 42, "y1": 46, "m": "silver", "sheen": False, "x": 30},
+        {"k": "box", "w": 44, "v": 0, "d": 14, "y0": 12, "y1": 14.4, "m": "trim", "sheen": False},
+        {"k": "cols", "w": 40, "y0": 0.5, "y1": 12, "n": 5},
+        {"k": "door", "w": 14, "h": 10}]}
 
 
 def _stadium():
-    """An open stadium (Lincoln Financial Field, Citizens Bank Park; about 260 x 220 m, 40 m): a bowl of stands round an open pitch, the pitch seen from
-    above, a floodlight mast at each corner."""
-    ring = [
-        {"k": "box", "w": 260, "v": 0, "d": 46, "y0": 0, "y1": 38, "m": "stone", "solid": 1, "fl": 9, "mu": 14, "top": False},
-        {"k": "box", "w": 260, "v": 174, "d": 46, "y0": 0, "y1": 38, "m": "stone", "solid": 1, "fl": 9, "mu": 14, "top": False},
-        {"k": "box", "x": -107, "w": 46, "v": 46, "d": 128, "y0": 0, "y1": 34, "m": "stone", "solid": 1, "fl": 9, "mu": 5, "top": False},
-        {"k": "box", "x": 107, "w": 46, "v": 46, "d": 128, "y0": 0, "y1": 34, "m": "stone", "solid": 1, "fl": 9, "mu": 5, "top": False}]
-    return {"h": 62, "D": 220, "parts": [
-        {"k": "court", "x": 0, "w": 168, "v": 46, "d": 128, "y0": 0, "op": .6},
-        *ring,
-        *[{"k": "spire", "x": x, "cv": v, "y0": 34, "y1": 62, "w": 3, "m": "trim"} for x in (-118, 118) for v in (12, 208)],
+    """A generic open stadium (any city's ground without its own art; about 260 x 220 m): an oval bowl of stands round an open pitch."""
+    W, D = 260.0, 220.0
+    R = _ccw(_super(W, D, 2.2, 56))
+    O = _inset(R, 46)
+    return {"h": 62, "D": D, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 30, "m": "stone", "fl": 7.5, "mu": 2, "top": False},
+        {"k": "drum", "ring": _inset(R, 6), "x": 0, "w": W - 12, "v": 6, "d": D - 12, "y0": 30, "h": 40, "m": "glass", "hole": O, "mu": 2, "fl": 5},
+        {"k": "pit", "id": "stad", "ring": O, "top": 40, "floor": 1, "tiers": 7, "pit": .55, "field": "football"},
+        *[{"k": "mast", "x": _on(R, a_, 20)[0], "v": _on(R, a_, 20)[1], "y0": 40, "y1": 64} for a_ in (35, 145, 215, 325)],
         {"k": "door", "w": 18, "h": 12}]}
+
+
+def _lff():
+    """Lincoln Financial Field (Eagles, 2003; its OSM outline 252 x 285 m, the roof about 60 m): a rounded oval bowl of glass-and-silver stands,
+    the open pitch inside with its end zones, the roof's edge sweeping up over the sidelines and down at the ends, floodlight masts on it."""
+    W, D = 252.0, 285.0
+    R = _ccw(_super(W, D, 2.35, 64))
+    O = _inset(R, 50)
+    I = _inset(R, 34)
+    r5 = _inset(R, 5)
+    return {"h": 66, "D": D, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 28, "m": "glass", "fl": 7, "mu": 2, "top": False},
+        {"k": "drum", "ring": r5, "x": 0, "w": W - 10, "v": 5, "d": D - 10, "y0": 28, "h": 38, "m": "silver", "fl": 5, "mu": 2, "top": False},
+        {"k": "pit", "id": "lff", "ring": O, "top": 38, "floor": 1, "tiers": 8, "pit": .56, "field": "football", "fw": 24.5, "fl": 55.0},
+        {"k": "ribbon", "ring": r5, "inner": I, "h": 38, "lift": 32, "c": (0.0, D / 2), "sw": W / 2, "sd": D / 2, "m": "granite", "rb": 2},
+        *[{"k": "mast", "x": _on(R, a_, 22)[0], "v": _on(R, a_, 22)[1], "y0": 44, "y1": 70, "w": 2.6} for a_ in (35, 145, 215, 325)],
+        {"k": "door", "w": 18, "h": 12}]}
+
+
+def _cbp():
+    """Citizens Bank Park (Phillies, 2004; its OSM outline 281 x 263 m): a red-brick and sandstone ballpark — the grandstand tall behind home
+    plate and round the infield, falling to a low outfield; inside, the diamond with its fan of grass and the fence at its uneven distance."""
+    R = _ccw(_chaikin(_CBP, 3))
+    W, D = 281.0, 263.0
+    hp = (-10.0, 96.0)
+    face = {"base": 14.0, "amp": 24.0, "dir": (-0.25, -1.0), "c": (0.0, 131.0), "pow": 1.4}
+    O = _inset(R, lambda x, v: 12 + 34 * max(0.0, min(1.0, .5 + .5 * ((x * -0.25 + (v - 131) * -1.0) / 135.0))))
+    return {"h": 52, "D": D, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": face, "m": "brick", "fl": 6, "mu": 3, "hole": O, "tm": "sand"},
+        {"k": "pit", "id": "cbp", "ring": O, "top": face, "floor": 1, "tiers": 6, "pit": .5, "pc": hp, "field": "diamond", "home": hp, "axis": 64.0},
+        *[{"k": "mast", "x": _on(R, a_, 14)[0], "v": _on(R, a_, 14)[1], "y0": 14, "y1": 52, "w": 2.8} for a_ in (200, 330, 85, 20)],
+        {"k": "door", "w": 16, "h": 11}]}
 
 
 # ── courthouses (law classes: federal / state / city courts as landmarks) ───
@@ -900,7 +1171,7 @@ def _generic():
 
 
 LANDMARKS = {"ind": _independence, "city": _cityhall, "art": _artmuseum, "frank": _franklin, "conv": _convention,
-             "stn": _station, "sub": _suburban, "jef": _jefferson, "arena": _arena, "stad": _stadium, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
+             "stn": _station, "sub": _suburban, "jef": _jefferson, "arena": _arena, "stad": _stadium, "lff": _lff, "cbp": _cbp, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
              "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc}
 
 
@@ -921,7 +1192,13 @@ def build_all() -> dict:
 
 def scale_of(art: dict, l: dict | None = None) -> tuple:
     """(sx, sy): map px per canvas metre across and up for a landmark record — SCALE both ways, except a
-    generic g-* building (art["_k"]) stretched to the record's own height hm (and width fw, when given)."""
+    generic g-* building (art["_k"]) stretched to the record's own height hm (and width fw, when given), and a
+    building with art["sq"] (City Hall): drawn sq times larger, its card a SQUARE (the lean of the 3/4 view
+    squeezed out of the width) so it stands as a square in the middle of the square blocks it sits in."""
+    if art.get("sq"):
+        fp = art["fp"]
+        sy = SCALE * float(art["sq"])
+        return sy * (fp[3] - fp[1]) / (fp[2] - fp[0]), sy
     if l and art.get("fp") and str(art.get("_k", "")).startswith(("g-", "ct-")):
         try:
             hm = float(l.get("hm") or 0)
@@ -937,10 +1214,13 @@ def scale_of(art: dict, l: dict | None = None) -> tuple:
 def card(box: list, art: dict, l: dict | None = None) -> tuple:
     """A landmark's card (x, y, w, h): its footprint's projected bounding box at the one scale (from the
     footprint's METRES, never from the cell count), centred across its block and standing on the block's
-    front (lower) edge. palace_landmarks' cardOf() (the page) and palace.py's chipLot() mirror this."""
+    front (lower) edge — except art["sq"] (City Hall), centred in its block both ways.
+    palace_landmarks' cardOf() (the page) and palace.py's chipLot() mirror this."""
     sx, sy = scale_of(art, l)
     fp = art["fp"]
     w, h = (fp[2] - fp[0]) * sx, (fp[3] - fp[1]) * sy
+    if art.get("sq"):
+        return (box[0] + box[2]) / 2 - w / 2, (box[1] + box[3]) / 2 - h / 2, w, h
     return (box[0] + box[2]) / 2 - w / 2, box[3] - 14 - h, w, h
 
 

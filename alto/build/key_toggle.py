@@ -30,6 +30,14 @@ KEY_CSS = """
     -webkit-backdrop-filter:blur(30px) saturate(185%); backdrop-filter:blur(30px) saturate(185%);
     border:1px solid var(--card-glass-border, var(--border)); box-shadow:0 18px 48px var(--node-hover-shadow); }
   .key-pop.open{ display:block; }
+  /* the text size: A- / A+ in the heading scale the whole panel from its top-left corner (a transform, so it stays put) */
+  .key-pop{ transform-origin:0 0; transform:scale(var(--kp-s,1)); max-height:calc(min(62vh, 560px) / var(--kp-s,1)); }
+  .key-pop .kp-sz{ margin-left:auto; display:inline-flex; gap:2px; letter-spacing:0; text-transform:none; }
+  .key-pop .kp-sz button{ font:inherit; font-weight:700; line-height:1; min-width:24px; height:20px; padding:0 5px; border-radius:6px; cursor:pointer; color:var(--muted);
+    background:transparent; border:1px solid color-mix(in srgb, var(--muted) 40%, transparent); }
+  .key-pop .kp-sz button:hover:not(:disabled){ color:var(--text); border-color:var(--muted); }
+  .key-pop .kp-sz button:disabled{ opacity:.35; cursor:default; }
+  .key-pop .kp-sz .kp-sm{ font-size:10px; } .key-pop .kp-sz .kp-lg{ font-size:14px; }
   .key-pop h5{ margin:0 0 4px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; justify-content:space-between; gap:14px; }
   .key-pop h5 .kp-x{ cursor:pointer; letter-spacing:0; padding:0 2px; }
   .key-pop h5 .kp-x:hover{ color:var(--text); }
@@ -57,6 +65,12 @@ window._altoKeyToggle=function(panel, store, title){
   b.addEventListener('click', function(e){ e.stopPropagation(); set(!panel.classList.contains('open')); });
   var h=panel.querySelector('h5'); if(h){ var x=h.querySelector('span:last-child'); if(x){ x.className='kp-x'; x.textContent='✕'; x.setAttribute('role','button'); x.setAttribute('aria-label','Close');
     x.addEventListener('click', function(e){ e.stopPropagation(); set(false); }); } }
+  var SIZES=[1,1.2,1.4,1.65], si=0; try{ si=Math.max(0,Math.min(SIZES.length-1, parseInt(localStorage.getItem('alto-key-size')||'0',10)||0)); }catch(e){}
+  var sz=document.createElement('span'); sz.className='kp-sz'; sz.innerHTML='<button type="button" class="kp-sm" aria-label="Smaller text" title="Smaller text">A</button><button type="button" class="kp-lg" aria-label="Larger text" title="Larger text">A</button>';
+  function size(i){ si=Math.max(0,Math.min(SIZES.length-1,i)); panel.style.setProperty('--kp-s', SIZES[si]); sz.querySelector('.kp-sm').disabled=si===0; sz.querySelector('.kp-lg').disabled=si===SIZES.length-1;
+    try{ localStorage.setItem('alto-key-size', String(si)); }catch(e){} }
+  sz.addEventListener('click', function(e){ e.stopPropagation(); var bt=e.target.closest('button'); if(bt) size(si+(bt.classList.contains('kp-lg')?1:-1)); });
+  if(h){ var xx=h.querySelector('.kp-x'); h.insertBefore(sz, xx||null); } size(si);
   document.addEventListener('keydown', function(e){ if(e.key==='Escape' && panel.classList.contains('open') && !window._focusedNodeId) set(false); });
   document.body.appendChild(b); document.body.appendChild(panel);
   var was=false; try{ was=localStorage.getItem(store)==='1'; }catch(e){}

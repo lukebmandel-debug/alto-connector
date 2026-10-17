@@ -429,13 +429,14 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     from .palace_grid import grid
     hw_real = m.get("highways")                                     # C3: the highways ride through the grid
     real_trails = [dict(t) for t in (m.get("trails") or [])]                     # the grid drawing drops every path: the river trails are kept (palace_banks.py)
+    real_rivers = [dict(r) for r in (m.get("rivers") or [])]                     # (and the real river lines, to read which bank a trail keeps)
     m = grid(m, majors=majors or (), diagonals=diagonals or (), lines=lines or (), landmarks=buildings or (), parks=parks or ())
     from .city_highways import attach as attach_highways              # C3 (a no-op when city_engine attached them)
     attach_highways(m, {"highways": hw_real})
     try:
         from .palace_banks import clip_streets, trails_on_page
         clip_streets(m)                                      # no street runs through a river but a bridge
-        m["rtrails"] = trails_on_page(m, real_trails)        # the Schuylkill River Trail along its bank
+        m["rtrails"] = trails_on_page(m, real_trails, real_rivers)        # the Schuylkill River Trail along its bank
     except Exception:                                       # noqa: BLE001 — a river that cannot be read keeps the streets as drawn
         pass
     blocks = m.pop("blocks")
@@ -665,6 +666,8 @@ PALACE_CSS = KEY_CSS + r"""
   html.fx-armed #world .node,html.fx-armed .pal-svg .pl-lmb,html.fx-armed #world .node .nb3d *{cursor:crosshair !important;}
   #pal-fxbar{position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:312;display:none;padding:7px 15px;border-radius:999px;font-size:12px;font-weight:650;color:var(--text);
     background:var(--panel-glass-bg,var(--surface));-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);border:1px solid #ff7a3c;box-shadow:0 12px 32px var(--node-hover-shadow);}
+  #pal-fxbar .fx-x{margin:-3px -9px -3px 10px;width:24px;height:24px;border-radius:50%;border:1px solid color-mix(in srgb,var(--text) 22%,transparent);background:transparent;color:var(--text);font:inherit;font-size:16px;line-height:1;cursor:pointer;padding:0;vertical-align:middle;}
+  #pal-fxbar .fx-x:hover{background:#ff7a3c;border-color:#ff7a3c;color:#fff;}
   html.fx-armed #pal-fxbar{display:block;} html.mobile #pal-fxbar{display:none !important;}
   .node.nb-ruin .node-card{opacity:0 !important;pointer-events:none;}
   .pal-svg .pl-fx{pointer-events:none;}
@@ -2053,8 +2056,10 @@ document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTi
    storey by storey, over 20 seconds. Node buildings and landmark buildings can be hit; nothing is lost. ── */
 var FXARM=false, FXLAST=0;
 function fxLayer(){ var g=svgD&&svgD._fx; if(!g || g.parentNode!==svgD){ g=svgD._fx=el('g',{'class':'pl-fx'},svgD); } svgD.appendChild(g); return g; }
-function fxBar(on){ var b=document.getElementById('pal-fxbar'); if(!b){ b=document.createElement('div'); b.id='pal-fxbar'; b.setAttribute('role','status'); document.body.appendChild(b); }
-  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' — click a building to fire · Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; }
+function fxBar(on){ var b=document.getElementById('pal-fxbar'); if(!b){ b=document.createElement('div'); b.id='pal-fxbar'; b.setAttribute('role','status'); document.body.appendChild(b);
+    b.innerHTML='<span class="fx-t"></span><button type="button" class="fx-x" aria-label="Stand the guns down" title="Stand down (Esc)">\u00d7</button>';
+    b.addEventListener('click', function(e){ if(e.target.closest('.fx-x')){ e.stopPropagation(); e.preventDefault(); fxBar(false); } }); }
+  var bb=svgD&&svgD.querySelector('.pl-boat.bb'); b.querySelector('.fx-t').textContent=((bb&&bb._b&&bb._b.n)||'The battleship')+' \u2014 click a building to fire \u00b7 Esc to stand down'; de.classList.toggle('fx-armed', on); FXARM=on; }
 function fxTween(ms, fn, done){ var t0=performance.now(); (function f(t){ var k=Math.min(1,(t-t0)/ms); fn(k); if(k<1) requestAnimationFrame(f); else if(done) done(); })(t0); }
 function fxPin(x, y, cls){ var g=pin(fxLayer(), cls, x, y, {}); return g; }
 function fxBoom(x, y){

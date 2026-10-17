@@ -12,8 +12,7 @@ from __future__ import annotations
 import math
 import re
 
-BANK_GAP = 7.0          # px: a street stops this far from the water's edge (the rim stroke)
-TRAIL_OFF = 15.0        # px: the trail runs this far outside the band's edge
+BANK_GAP = 34.0         # px: a street stops this far from the water's edge: just past the green bank (the strip is 32 px wide)
 
 
 class _Riv:
@@ -127,61 +126,142 @@ def _page(m):
     return lambda x, y: mp(x, y)
 
 
-def trails_on_page(m: dict, real_trails) -> list:
-    """The named trails that follow a river (their name has the river's name, or 'river'), as thin lines along that river's bank on the side
-    they lie. Real vertices are carried onto the page, then laid at the bank: the course keeps the trail's own length along the river."""
+def _along(R, ri, s, side, off):
+    """The point at s (a fractional vertex index) along river ri, off metres out on `side` (+1 / -1 of its direction), and the unit tangent."""
+    r, hw = R.rs[ri]
+    pr = r["p"]
+    npts = len(pr) // 2
+    j = max(0, min(npts - 2, int(math.floor(s))))
+    t = max(0.0, min(1.0, s - j))
+    ax, ay, bx, by = pr[2 * j], pr[2 * j + 1], pr[2 * j + 2], pr[2 * j + 3]
+    x, y = ax + (bx - ax) * t, ay + (by - ay) * t
+    # the tangent: the river's own course around this point (a few vertices each way), so a kinked polyline does not kink the trail
+    k0, k1 = max(0, j - 2), min(npts - 1, j + 3)
+    tx, ty = pr[2 * k1] - pr[2 * k0], pr[2 * k1 + 1] - pr[2 * k0 + 1]
+    L = math.hypot(tx, ty) or 1.0
+    tx, ty = tx / L, ty / L
+    return x + (-ty) * side * off, y + tx * side * off
+
+
+def _real_side(real_rivers, name, vertices):
+    """+1 / -1 / 0: which side of the REAL river (its direction as drawn in real px) the real trail vertices lie on, by majority. The page's
+    drawing warps the land, so the side is read before the page touches it."""
+    best = None
+    for r in real_rivers or []:
+        p = r.get("p") or []
+        if str(r.get("n") or "").lower() == name.lower() and len(p) >= 30 and (best is None or len(p) > len(best)):
+            best = p
+    if best is None:
+        return 0, None
+    segs = [(best[i], best[i + 1], best[i + 2], best[i + 3]) for i in range(0, len(best) - 3, 2)]
+    tally = 0
+    for X, Y in vertices:
+        bd, bs = 1e18, 0
+        for ax, ay, bx, by in segs:
+            dx, dy = bx - ax, by - ay
+            L2 = dx * dx + dy * dy or 1e-9
+            t = max(0.0, min(1.0, ((X - ax) * dx + (Y - ay) * dy) / L2))
+            qx, qy = ax + t * dx, ay + t * dy
+            d = math.hypot(qx - X, qy - Y)
+            if d < bd:
+                L = math.sqrt(L2)
+                bd, bs = d, 1 if ((X - qx) * -dy / L + (Y - qy) * dx / L) >= 0 else -1
+        if bd <= 320:
+            tally += bs
+    npt = len(best) // 2
+    ia, ib = npt // 4, (3 * npt) // 4
+    mid = (best[2 * ia], best[2 * ia + 1]), (best[2 * ib], best[2 * ib + 1])
+    return (1 if tally > 0 else -1 if tally < 0 else 0), mid
+
+
+GAP_PX = 2600.0         # page px along the river: a gap in the real trail shorter than this is bridged (about a kilometre)
+
+
+def trails_on_page(m: dict, real_trails, real_rivers=None) -> list:
+    """Each river's trail as ONE line along its bank: the real trail's named pieces (Schuylkill River Trail, Schuylkill Banks Boardwalk,
+    'Christian to Crescent', Delaware River Trail) chained from where the real trail starts to where it ends, the small gaps between pieces
+    bridged, on the single bank the real trail keeps (the Schuylkill River Trail runs on the city side only; read from the real geometry, since
+    the page's warped land can flip a short piece to the far bank). A gap longer than ~1 km starts a new run."""
     R = _Riv(m)
     if not R.rs or not real_trails:
         return []
     page = _page(m)
-    groups = {}
-    for t in real_trails:
-        nm = t.get("n") or ""
-        if not nm:
-            continue
-        key = nm.lower()
-        groups.setdefault(key, {"n": nm, "pts": []})["pts"].append(t.get("p") or [])
     out = []
-    for key, g in groups.items():
-        rname = None
-        for r, hw in R.rs:
-            first = str(r.get("n") or "").split()[0].lower()
-            if first and first in key:
-                rname = first
-        if rname is None and "river" not in key:
+    for ri, (r, hw) in enumerate(R.rs):
+        rn = str(r.get("n") or "")
+        first = rn.split()[0].lower() if rn.split() else ""
+        if not first:
             continue
-        samples = []                                                    # (s along the river, side, river index)
-        for p in g["pts"]:
-            for i in range(0, len(p) - 1, 2):
-                try:
-                    X, Y = page(p[i], p[i + 1])
-                except Exception:                                       # noqa: BLE001
-                    continue
-                n = R.near(X, Y)
-                if n is None or n[0] > 420:
-                    continue
-                slack, ri, (qx, qy), (tx, ty), s = n
-                side = 1 if ((X - qx) * -ty + (Y - qy) * tx) >= 0 else -1
-                samples.append((s, side, ri))
-        if len(samples) < 6:
+        fam = [t for t in real_trails if first in str(t.get("n") or "").lower() and "connector" not in str(t.get("n") or "").lower()
+               and len(t.get("p") or []) >= 4]
+        if not fam:
             continue
-        ri = max(set(s_[2] for s_ in samples), key=lambda v: sum(1 for s_ in samples if s_[2] == v))
-        samples = [s_ for s_ in samples if s_[2] == ri]
-        side = 1 if sum(s_[1] for s_ in samples) >= 0 else -1
-        lo, hi = min(s_[0] for s_ in samples), max(s_[0] for s_ in samples)
-        r, hw = R.rs[ri]
-        pr = r["p"]
-        pts = []
-        npts = len(pr) // 2
-        for j in range(int(math.floor(lo)), min(npts - 1, int(math.ceil(hi))) + 1):
-            x, y = pr[2 * j], pr[2 * j + 1]
-            a = (pr[2 * max(j - 1, 0)], pr[2 * max(j - 1, 0) + 1])
-            b = (pr[2 * min(j + 1, npts - 1)], pr[2 * min(j + 1, npts - 1) + 1])
-            tx, ty = b[0] - a[0], b[1] - a[1]
-            L = math.hypot(tx, ty) or 1
-            nx, ny = -ty / L * side, tx / L * side                      # the normal on the trail's side
-            off = hw + BANK_GAP + TRAIL_OFF
-            pts.extend((round(x + nx * off, 1), round(y + ny * off, 1)))
-        if len(pts) >= 8:
-            out.append({"n": g["n"], "p": _thin(pts)})
+        names = {}
+        for t in fam:
+            names[t["n"]] = names.get(t["n"], 0) + len(t["p"])
+        label = max(names, key=lambda k: (("river trail" in k.lower()), names[k]))
+        verts = [(t["p"][i], t["p"][i + 1]) for t in fam for i in range(0, len(t["p"]) - 1, 2)]
+        ss = []                                                          # (s along this river) for every trail vertex that lies by it
+        pg = []
+        for X0, Y0 in verts:
+            try:
+                X, Y = page(X0, Y0)
+            except Exception:                                           # noqa: BLE001
+                continue
+            n = R.near(X, Y)
+            if n is None or n[1] != ri or n[0] > 420:
+                continue
+            slack, _ri, (qx, qy), (tx, ty), sj = n
+            ss.append(sj)
+            pg.append(1 if ((X - qx) * -ty + (Y - qy) * tx) >= 0 else -1)
+        if len(ss) < 4:
+            continue
+        side, mid = _real_side(real_rivers, rn, verts)
+        if side and mid:
+            try:                                                        # the real river's direction against the drawn river's
+                s_a = R.near(*page(*mid[0]))[4]
+                s_b = R.near(*page(*mid[1]))[4]
+                if s_a > s_b:
+                    side = -side
+            except Exception:                                           # noqa: BLE001
+                side = 0
+        if not side:
+            side = 1 if sum(pg) >= 0 else -1                            # no real river to read: the page's own majority
+        ss.sort()
+        runs, cur = [], [ss[0], ss[0]]
+        npts = len(r["p"]) // 2
+        for v in ss[1:]:
+            if v - cur[1] > 1 and _span(r["p"], cur[1], v) > GAP_PX:
+                runs.append(cur)
+                cur = [v, v]
+            else:
+                cur[1] = v
+        runs.append(cur)
+        off = hw + BANK_GAP / 2 + 6
+        for lo, hi in runs:
+            if _span(r["p"], lo, hi) < 120:
+                continue
+            pts, s = [], lo
+            step = 0.5
+            while s < hi:
+                x, y = _along(R, ri, s, side, off)
+                pts.extend((round(x, 1), round(y, 1)))
+                s += step
+            x, y = _along(R, ri, hi, side, off)
+            pts.extend((round(x, 1), round(y, 1)))
+            if len(pts) >= 8:
+                out.append({"n": label, "p": _thin(pts)})
     return out
+
+
+def _span(pr, a, b):
+    """Page px along a river's polyline between vertex indices a and b."""
+    if b <= a:
+        return 0.0
+    tot, j = 0.0, int(math.floor(a))
+    while j < b and 2 * j + 3 < len(pr):
+        x0, y0, x1, y1 = pr[2 * j], pr[2 * j + 1], pr[2 * j + 2], pr[2 * j + 3]
+        lo, hi = max(a, j), min(b, j + 1)
+        tot += math.hypot(x1 - x0, y1 - y0) * max(0.0, hi - lo)
+        j += 1
+    return tot

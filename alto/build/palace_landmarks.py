@@ -85,6 +85,13 @@ def landmark_css() -> str:
   .lz-seal{stroke:rgba(255,255,255,.9);stroke-width:1;vector-effect:non-scaling-stroke;}
   .lz-seal-federal{fill:#4a67a8;} .lz-seal-state{fill:#3f8a6e;} .lz-seal-city{fill:#b0703c;}
   .lz-seal-g{fill:#fff;stroke:none;}
+  /* stadium bowls: the seats step down in two shades, the pitch is a calm green, the markings white */
+  .pal-svg{--lz-seat-a:#b9c3da;--lz-seat-b:#9eabc9;--lz-seat-d:#7f8db3;--lz-grass:#b7dcae;--lz-grass2:#a3d09a;--lz-dirt:#e6cfa6;--lz-endz:#8fc4a2;--lz-base:#ffffff;}
+  html.dark .pal-svg{--lz-seat-a:#4a5273;--lz-seat-b:#3b4260;--lz-seat-d:#2c3250;--lz-grass:#3d6a44;--lz-grass2:#35603c;--lz-dirt:#7a6a50;--lz-endz:#2f5a45;--lz-base:#dfe3f0;}
+  .lz-seat-a{fill:var(--lz-seat-a);stroke:none;} .lz-seat-b{fill:var(--lz-seat-b);stroke:none;} .lz-seat-d{fill:var(--lz-seat-d);stroke:none;}
+  .lz-pitch,.lz-grass{fill:var(--lz-grass);stroke:none;} .lz-grass2{fill:var(--lz-grass2);stroke:none;} .lz-dirt{fill:var(--lz-dirt);stroke:none;}
+  .lz-endz{fill:var(--lz-endz);stroke:none;} .lz-base{fill:var(--lz-base);stroke:none;}
+  .lz-mark{fill:none;stroke:rgba(255,255,255,.85);stroke-width:.8px;vector-effect:non-scaling-stroke;}
   /* the card the building stands on: glass with a thickness, a soft shadow, and the district's edge */
   .pal-svg .pl-lmb .lm-shadow{fill:rgba(20,26,55,.14);}
   .pal-svg .pl-lmb .lm-slab{stroke:none;fill-opacity:.38;}
@@ -144,7 +151,7 @@ ART = _sky.build_all()
 # which landmark names get which art (the page's own label, case-insensitive)
 MATCH = [["usch", r"byrne|601 market|united states court ?house.*philadelphia"], ["nix", r"\bnix\b|900 market"],
          ["cjc", r"criminal justice center|1301 filbert"], ["ind", r"independence hall"], ["city", r"city hall"], ["art", r"art museum|museum of art|philadelphia museum"],
-         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"], ["sub", r"suburban station"], ["jef", r"jefferson station"], ["arena", r"wells fargo center|\barena\b|spectrum|madison square garden|td garden|united center|capital one arena"], ["stad", r"lincoln financial|citizens bank park|\bstadium\b|ballpark|\bfield$|fenway park|yankee|metlife|nissan stadium|soldier field|wrigley"]] + _towers.MATCH
+         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"], ["sub", r"suburban station"], ["jef", r"jefferson station"], ["lff", r"lincoln financial"], ["cbp", r"citizens bank park"], ["arena", r"xfinity mobile arena|wells fargo center|\barena\b|spectrum|madison square garden|td garden|united center|capital one arena"], ["stad", r"lincoln financial|citizens bank park|\bstadium\b|ballpark|\bfield$|fenway park|yankee|metlife|nissan stadium|soldier field|wrigley"]] + _towers.MATCH
 
 
 COURT_RX = r"court ?house|courts? building|justice cent(er|re)|hall of justice|palace of justice|supreme court|court of appeals"
@@ -217,10 +224,11 @@ function keyOf(l){ var n=String(l.n), k=artKey(n);
   if(k==='gen' && +l.hm>0) k='g-'+(ART['g-'+(l.rs||'flat')]?(l.rs||'flat'):'flat'); return k; }
 function isTall(l){ var k=keyOf(l); return TALL.indexOf(k)>=0 || (/^(g|ct)-/.test(k) && +l.hm>=60); }
 /* map px per canvas metre (across, up): S both ways; a generic building stretched to the record's own height and width */
-function scaleOf(l, key, a){ if(/^(g|ct)-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
+function scaleOf(l, key, a){ if(a.sq){ var sy0=S*(+a.sq); return [sy0*(a.fp[3]-a.fp[1])/(a.fp[2]-a.fp[0]), sy0]; } if(/^(g|ct)-/.test(key) && +l.hm>0){ var sy=S*(+l.hm)/a.hm; return [(+l.fw>0)?S*(+l.fw)/a.fw:sy, sy]; } return [S, S]; }
 /* a landmark's card: its footprint's projected bounding box (a.fp) at the one scale — from the footprint's metres, never the
    cell count — centred across its block, standing on the block's front edge (palace_skyline.card, exactly) */
 function cardBase(l){ var key=keyOf(l), a=ART[key]||ART.gen, b=l.box, k=scaleOf(l, key, a), w=(a.fp[2]-a.fp[0])*k[0], h=(a.fp[3]-a.fp[1])*k[1];
+  if(a.sq) return [(b[0]+b[2])/2-w/2, (b[1]+b[3])/2-h/2, w, h];                       /* City Hall: a square in the middle of its blocks */
   return [(b[0]+b[2])/2-w/2, b[3]-14-h, w, h]; }
 /* {name: dx}: a tower in front of / behind another in the same column slides to one side of its block (palace_skyline.stagger, exactly) */
 function plan(lms){ if(lms._lzPlan) return lms._lzPlan; var out={}, placed=[];
