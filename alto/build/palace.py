@@ -449,9 +449,10 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     from .city_highways import attach as attach_highways              # C3 (a no-op when city_engine attached them)
     attach_highways(m, {"highways": hw_real})
     try:
-        from .palace_banks import clip_streets, trails_on_page
+        from .palace_banks import clip_streets, trails_on_page, cut_outlines, LAST_STATS
         clip_streets(m)                                      # no street runs through a river but a bridge
         m["rtrails"] = trails_on_page(m, real_trails, real_rivers)        # the Schuylkill River Trail along its bank
+        cut_outlines(m, LAST_STATS.get("ext_segs"))          # ...and no block outline is drawn through it (the page draws m.tiles/edges/tq/te, not m.streets)
     except Exception:                                       # noqa: BLE001 — a river that cannot be read keeps the streets as drawn
         pass
     blocks = m.pop("blocks")
@@ -1323,12 +1324,15 @@ function drawCity(svg){
     if(x0===x1? !colMaj[x0] : !rowMaj[y0]) return;
     var u=distAt((x0+x1)/2,(y0+y1)/2); byM[u]=(byM[u]||'')+'M'+x0+' '+y0+'L'+x1+' '+y1; heavy.push([x0,y0,x1,y1]); }
   var rings=[];
-  (M.tiles||[]).forEach(function(t){ rings.push({t:t, c:[(t[0]+t[2])/2,(t[1]+t[3])/2]});
+  /* a block or loose line the river runs through is not drawn whole: palace_banks.cut_outlines lists it (tcut / ecut / qcut) and draws its dry
+     pieces as M.te polylines that end at the bank */
+  var TC={}, EC={}, QC={}; (M.tcut||[]).forEach(function(i){ TC[i]=1; }); (M.ecut||[]).forEach(function(i){ EC[i]=1; }); (M.qcut||[]).forEach(function(i){ QC[i]=1; });
+  (M.tiles||[]).forEach(function(t,ti){ if(TC[ti]) return; rings.push({t:t, c:[(t[0]+t[2])/2,(t[1]+t[3])/2]});
     major(t[0],t[1],t[2],t[1]); major(t[0],t[3],t[2],t[3]); major(t[0],t[1],t[0],t[3]); major(t[2],t[1],t[2],t[3]); });
-  (M.edges||[]).forEach(function(e){ var u=distAt((e[0]+e[2])/2,(e[1]+e[3])/2); byU[u]=(byU[u]||'')+'M'+e[0]+' '+e[1]+'L'+e[2]+' '+e[3]; major(e[0],e[1],e[2],e[3]); });
+  (M.edges||[]).forEach(function(e,ei){ if(EC[ei]) return; var u=distAt((e[0]+e[2])/2,(e[1]+e[3])/2); byU[u]=(byU[u]||'')+'M'+e[0]+' '+e[1]+'L'+e[2]+' '+e[3]; major(e[0],e[1],e[2],e[3]); });
   /* v2 (city_lattice.py): a tilted domain's blocks and every block a seam cuts are polygon tiles (M.tq: flat rings), rounded at
      each corner like any tile; the loose lines of those domains are polylines (M.te), rounded where they turn (a T onto a seam) */
-  (M.tq||[]).forEach(function(a){ rings.push({q:a, c:ringC(a)}); });
+  (M.tq||[]).forEach(function(a,qi){ if(QC[qi]) return; rings.push({q:a, c:ringC(a)}); });
   (M.te||[]).forEach(function(p){ if(p.length<4) return; var u=distAt((p[0]+p[p.length-2])/2,(p[1]+p[p.length-1])/2); byU[u]=(byU[u]||'')+rp(p); });
   if(hasL) M.streets.forEach(function(st){ if(st.L) for(var i=0;i+3<st.p.length;i+=2) heavy.push([st.p[i],st.p[i+1],st.p[i+2],st.p[i+3]]); });
   var sbk=superBlocks(rings, heavy);

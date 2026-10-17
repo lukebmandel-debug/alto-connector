@@ -400,6 +400,7 @@ def tidy_streets(m: dict) -> dict:
                 out.append(ns)
     # the streets that stop in the open short of the water, heading for it, go on to the bank
     ext = 0
+    ext_segs = []
     for ns in out:
         if ns.get("o") or ns.get("t") or len(ns.get("p") or []) < 4:
             continue
@@ -445,10 +446,156 @@ def tidy_streets(m: dict) -> dict:
                 p.extend([ex, ey])
             ext += 1
             log.append(("ext", ex, ey, round(hi)))
+            ext_segs.append([round(x, 1), round(y, 1), ex, ey])
     m["streets"] = out
-    stats.update({"dropped": dropped, "dropped_px": round(dropped_px), "extended": ext, "log": log})
+    stats.update({"dropped": dropped, "dropped_px": round(dropped_px), "extended": ext, "log": log, "ext_segs": ext_segs})
     LAST_STATS.update(stats)
     return stats
+
+
+def _wet(R, x, y):
+    n = R.near(x, y)
+    return n is not None and n[0] < BANK_GAP
+
+
+def cut_outlines(m: dict, ext=None) -> dict:
+    """The page draws the city's lines from the blocks' outlines (m["tiles"] boxes, m["edges"] segments, m["tq"] polygon rings, m["te"] loose
+    polylines), not from m["streets"], so a block the river passes through was still drawn as a whole box with its sides running under the
+    water. Every outline that touches the band (or lies where tidy_streets took a street out) is cut here the way the streets are: it becomes
+    open polylines (appended to m["te"]) that end at the bank's edge, and it is listed in m["tcut"] / m["ecut"] / m["qcut"] so the page does
+    not draw it again. The arrays themselves stay as they are (the fill-in, the districts and the ride read them). `ext`: the segments
+    tidy_streets carried on to the bank, which no outline draws. Returns the counts."""
+    R = _Riv(m, reach=BANK_GAP + SLIVER + 80)
+    stats = {"tcut": 0, "ecut": 0, "qcut": 0, "tecut": 0, "pieces": 0}
+    if not R.rs:
+        return stats
+    CELL = 200.0
+    H: dict = {}
+    segs = []
+    for s in m.get("streets") or []:
+        p = s.get("p") or []
+        if s.get("o") or s.get("t"):
+            continue
+        for i in range(0, len(p) - 3, 2):
+            k = len(segs)
+            segs.append((p[i], p[i + 1], p[i + 2], p[i + 3]))
+            for gx in range(int((min(p[i], p[i + 2]) - 12) // CELL), int((max(p[i], p[i + 2]) + 12) // CELL) + 1):
+                for gy in range(int((min(p[i + 1], p[i + 3]) - 12) // CELL), int((max(p[i + 1], p[i + 3]) + 12) // CELL) + 1):
+                    H.setdefault((gx, gy), []).append(k)
+
+    def covered(x, y):
+        for k in H.get((int(x // CELL), int(y // CELL)), ()):
+            ax, ay, bx, by = segs[k]
+            L2 = (bx - ax) ** 2 + (by - ay) ** 2 or 1e-9
+            t = max(0.0, min(1.0, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / L2))
+            if math.hypot(ax + (bx - ax) * t - x, ay + (by - ay) * t - y) <= 4.0:
+                return True
+        return False
+
+    def near_water(pts, closed=False):
+        n = len(pts)
+        for i in range(n if closed else n - 1):
+            ax, ay = pts[i]
+            bx, by = pts[(i + 1) % n]
+            k = max(1, int(math.hypot(bx - ax, by - ay) // 60))
+            for t in range(k + 1):
+                r = R.near(ax + (bx - ax) * t / k, ay + (by - ay) * t / k)
+                if r is not None and r[0] < BANK_GAP + SLIVER:
+                    return True
+        return False
+
+    def cut(pts, closed):
+        """pts: [(x, y)] an outline. -> None when every sample is kept (nothing to cut), else the list of open pieces ([(x, y)])."""
+        n = len(pts)
+        seq = []                                                      # (x, y, keep, why)
+        last = n if closed else n - 1
+        for i in range(last):
+            ax, ay = pts[i]
+            bx, by = pts[(i + 1) % n]
+            k = max(1, int(math.ceil(math.hypot(bx - ax, by - ay) / 6.0)))
+            for t in range(k):
+                x, y = ax + (bx - ax) * t / k, ay + (by - ay) * t / k
+                if _wet(R, x, y):
+                    seq.append((x, y, False, "w"))
+                elif not covered(x, y):
+                    seq.append((x, y, False, "c"))
+                else:
+                    seq.append((x, y, True, ""))
+        if not closed:
+            x, y = pts[-1]
+            seq.append((x, y, not _wet(R, x, y) and covered(x, y), "w" if _wet(R, x, y) else "c"))
+        if all(q[2] for q in seq):
+            return None
+        if closed:                                                    # start at a dropped sample so no piece wraps round the start
+            j = next(i for i, q in enumerate(seq) if not q[2])
+            seq = seq[j:] + seq[:j]
+            seq.append(seq[0])
+        pieces, cur = [], []
+        for i, (x, y, keep, why) in enumerate(seq):
+            if keep:
+                if not cur and i > 0 and seq[i - 1][3] == "w":        # the piece starts at the water: its end goes to the strip's edge
+                    cur.append(_edge_point(R, seq[i - 1][0], seq[i - 1][1], x, y))        # (wet point, dry point)
+                cur.append((x, y))
+                if i + 1 < len(seq) and not seq[i + 1][2] and seq[i + 1][3] == "w":
+                    cur.append(_edge_point(R, seq[i + 1][0], seq[i + 1][1], x, y))
+            elif cur:
+                pieces.append(cur)
+                cur = []
+        if cur:
+            pieces.append(cur)
+        out = []
+        for pc in pieces:
+            flat = [round(v, 1) for q in pc for v in q]
+            if sum(math.hypot(flat[i + 2] - flat[i], flat[i + 3] - flat[i + 1]) for i in range(0, len(flat) - 3, 2)) >= 40 and len(flat) >= 4:
+                out.append(_thin(flat))
+        return out
+
+    new_te = []
+    for key, closed_rings in (("tiles", True), ("edges", False), ("tq", True)):
+        arr = m.get(key) or []
+        gone = []
+        for i, a in enumerate(arr):
+            if key == "tiles":
+                pts = [(a[0], a[1]), (a[2], a[1]), (a[2], a[3]), (a[0], a[3])]
+            else:
+                pts = [(a[j], a[j + 1]) for j in range(0, len(a) - 1, 2)]
+            if not near_water(pts, closed_rings):
+                continue
+            res = cut(pts, closed_rings)
+            if res is None:
+                continue
+            gone.append(i)
+            new_te.extend(res)
+        if gone:
+            m[{"tiles": "tcut", "edges": "ecut", "tq": "qcut"}[key]] = gone
+            stats[{"tiles": "tcut", "edges": "ecut", "tq": "qcut"}[key]] = len(gone)
+    keep_te = []
+    for p in m.get("te") or []:
+        pts = [(p[j], p[j + 1]) for j in range(0, len(p) - 1, 2)]
+        res = cut(pts, False) if len(pts) >= 2 and near_water(pts) else None
+        if res is None:
+            keep_te.append(p)
+        else:
+            stats["tecut"] += 1
+            new_te.extend(res)
+    for sg in ext or ():
+        new_te.append([round(v, 1) for v in sg])
+    if new_te or stats["tecut"]:
+        m["te"] = keep_te + new_te
+    stats["pieces"] = len(new_te)
+    return stats
+
+
+def _edge_point(R, ax, ay, bx, by):
+    """Between a point a in the water margin and b on the dry side of it: where the strip's outer edge crosses the line a-b."""
+    lo, hi = 0.0, 1.0                                                # a + (b - a) * t: t = 0 is wet, t = 1 dry
+    for _ in range(14):
+        mid = (lo + hi) / 2
+        if _wet(R, ax + (bx - ax) * mid, ay + (by - ay) * mid):
+            lo = mid
+        else:
+            hi = mid
+    return ax + (bx - ax) * hi, ay + (by - ay) * hi
 
 
 def _touches(streets, me, x, y, tol):
