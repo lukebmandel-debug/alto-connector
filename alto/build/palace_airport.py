@@ -95,12 +95,19 @@ AIRPORT_CSS = r"""
   #pal-airport .pa-row .n small{display:block;font-size:11.5px;font-weight:500;opacity:.65;margin-top:1px;}
   #pal-airport .pa-row .s{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;white-space:nowrap;border:1px solid color-mix(in srgb,var(--text,#222) 22%,transparent);}
   #pal-airport .pa-row.go .s{background:var(--accent,#5b6cff);border-color:var(--accent,#5b6cff);color:#fff;}
+  #pal-airport .pa-item{display:flex;flex-direction:column;gap:0;}
+  #pal-airport .pa-item.open>.pa-row{border-bottom-left-radius:4px;border-bottom-right-radius:4px;border-color:var(--accent,#5b6cff);}
   #pal-airport .pa-row.boarding{background:color-mix(in srgb,var(--accent,#5b6cff) 20%,transparent);}
   #pal-airport .pa-row.boarding .s{animation:paBlink .5s steps(2) infinite;}
   @keyframes paBlink{50%{opacity:.35}}
-  #pal-airport .pa-note{display:none;grid-column:1/-1;font-size:13px;line-height:1.45;padding:2px 2px 0;}
-  #pal-airport .pa-row.open .pa-note{display:block;}
-  #pal-airport .pa-note code{display:inline-block;margin-top:5px;padding:5px 9px;border-radius:8px;background:color-mix(in srgb,var(--text,#222) 9%,transparent);font:600 12.5px ui-monospace,Menlo,monospace;user-select:all;}
+  #pal-airport .pa-note{display:none;font-size:13px;line-height:1.45;padding:11px 14px 12px;margin-top:-1px;border:1px solid var(--accent,#5b6cff);border-top:0;border-radius:0 0 13px 13px;
+    background:color-mix(in srgb,var(--accent,#5b6cff) 8%,var(--surface,#fff));}
+  #pal-airport .pa-item.open .pa-note{display:block;}
+  #pal-airport .pa-note p{margin:0 0 8px;}
+  #pal-airport .pa-note code{display:block;margin:0 0 10px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--text,#222) 9%,transparent);font:600 12.5px ui-monospace,Menlo,monospace;user-select:all;-webkit-user-select:all;cursor:text;}
+  #pal-airport .pa-copy{font:inherit;font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;cursor:pointer;color:#fff;background:var(--accent,#5b6cff);border:1px solid var(--accent,#5b6cff);}
+  #pal-airport .pa-copy:hover{filter:brightness(1.08);} #pal-airport .pa-copy.done{background:#2f8f5b;border-color:#2f8f5b;}
+  #pal-airport .pa-note .pa-hint{display:inline-block;margin-left:10px;font-size:12px;opacity:.7;}
   #pal-airport .pa-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;}
   #pal-airport .pa-back{font:inherit;font-weight:650;font-size:13.5px;padding:9px 16px;border-radius:999px;cursor:pointer;color:var(--text,#1b1d26);background:transparent;border:1px solid color-mix(in srgb,var(--text,#222) 26%,transparent);}
   #pal-airport .pa-back:hover{background:color-mix(in srgb,var(--text,#222) 8%,transparent);}
@@ -115,6 +122,9 @@ AIRPORT_JS = r"""
 if(window._palAirport) return;
 var E=null, root=null, openPo=null, esc=function(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
 var PLANE='<svg viewBox="0 0 48 48" width="100%" height="100%" aria-hidden="true"><path fill="currentColor" d="M44 24c0-1.7-1.3-3-3-3H29.5L20 5h-4.2l5.2 16H10l-3-4H3.5l3 7-3 7H7l3-4h11l-5.2 16H20l9.500-16H41c1.700 0 3-1.300 3-3z"/></svg>';
+function copyText(t, done){ function fb(){ var a=document.createElement('textarea'); a.value=t; a.setAttribute('readonly',''); a.style.cssText='position:fixed;left:-9999px;top:0;opacity:0'; document.body.appendChild(a); a.select(); a.setSelectionRange(0,t.length);
+    var ok=false; try{ ok=document.execCommand('copy'); }catch(e){} a.remove(); done(ok); }
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ done(true); }, fb); } else fb(); }
 function reduced(){ return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
 function art(){ return '<svg class="pa-art" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true">'
   +'<rect class="a-rw" x="0" y="238" width="1200" height="62"/><path class="a-ln" d="M0 270H1200"/>'
@@ -124,11 +134,12 @@ function art(){ return '<svg class="pa-art" viewBox="0 0 1200 300" preserveAspec
   +'<g class="a-pl" transform="translate(330 205) scale(2.3)"><path d="M44 24c0-1.700-1.300-3-3-3H29.500L20 5h-4.200l5.200 16H10l-3-4H3.500l3 7-3 7H7l3-4h11l-5.200 16H20l9.500-16H41c1.700 0 3-1.300 3-3z"/></g></svg>'; }
 function build(po){
   var ds=po.destinations||[], code=po.code||'', place=(E&&E.P&&E.P.place)||'';
-  var rows=ds.map(function(d,i){ var go=!!d.url, state=go?'Mind Palace ›':(d.preset?'Build it ›':'No palace yet');
-    var ask=d.preset||!go;
-    return '<button type="button" class="pa-row'+(go?' go':'')+'" data-i="'+i+'"><span class="c">'+esc(d.code||'···')+'</span><span class="n">'+esc(d.city)
-      +'<small>'+(go?'Your Mind Palace of this city':(d.preset?'Alto can draw this city for you':'Not built yet'))+'</small></span><span class="s">'+state+'</span>'
-      +(ask&&!go?'<span class="pa-note">There is no Mind Palace of '+esc(d.city)+' yet. Ask Claude: <code>Set up a Mind Palace for '+esc(d.city)+'</code></span>':'')+'</button>'; }).join('');
+  var rows=ds.map(function(d,i){ var go=!!d.url, state=go?'Mind Palace ›':(d.preset?'Build it ›':'No palace yet'), ask=!go;
+    var ask_txt='Set up a Mind Palace for '+d.city;
+    return '<div class="pa-item" data-i="'+i+'"><button type="button" class="pa-row'+(go?' go':'')+'" data-i="'+i+'" aria-expanded="false"><span class="c">'+esc(d.code||'···')+'</span><span class="n">'+esc(d.city)
+      +'<small>'+(go?'Your Mind Palace of this city':(d.preset?'Alto can draw this city for you':'Not built yet'))+'</small></span><span class="s">'+state+'</span></button>'
+      +(ask?'<div class="pa-note"><p>There is no Mind Palace of '+esc(d.city)+' yet. Claude builds it from your own materials: copy this request and paste it to Claude.</p><code>'+esc(ask_txt)+'</code>'
+        +'<button type="button" class="pa-copy" data-t="'+esc(ask_txt)+'">Copy request for Claude</button><span class="pa-hint" role="status"></span></div>':'')+'</div>'; }).join('');
   root.innerHTML='<div class="pa-plane">'+PLANE+'</div>'+art()
     +'<div class="pa-panel" role="document"><div class="pa-h"><span class="pa-code">'+esc(code||'AIR')+'</span><div><b>'+esc(po.name)+'</b><small>'+esc(place?('Leaving '+place+(po.via?' by '+po.via:'')):(po.via?'Reached by '+po.via:''))+'</small></div></div>'
     +'<div class="pa-sub">Departures</div><div class="pa-board">'+(rows||'<div class="pa-row"><span class="c">···</span><span class="n">No destinations yet<small>Add cities to this portal</small></span><span class="s"> </span></div>')+'</div>'
@@ -138,9 +149,13 @@ function show(po){
   if(!root){ root=document.createElement('div'); root.id='pal-airport'; root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); document.body.appendChild(root);
     root.addEventListener('click', function(e){
       if(e.target.closest('.pa-back')){ close(); return; }
+      var cp=e.target.closest('.pa-copy'); if(cp){ var t=cp.getAttribute('data-t'), hint=cp.parentNode.querySelector('.pa-hint');
+        copyText(t, function(ok){ cp.classList.toggle('done', ok); cp.textContent=ok?'Copied \u2713':'Select the words above and copy'; if(hint) hint.textContent=ok?'Now paste it into Claude.':'Your browser blocked copying.'; }); return; }
       var r=e.target.closest('.pa-row[data-i]'); if(!r || !openPo) return; var d=openPo.destinations[+r.getAttribute('data-i')]; if(!d) return;
       if(d.url){ r.classList.add('boarding'); var s=r.querySelector('.s'); if(s) s.textContent='Boarding…'; setTimeout(function(){ try{ window.location.href=d.url; }catch(x){ window.location.assign(d.url); } }, reduced()?0:700); }
-      else r.classList.toggle('open'); });
+      else { var it=r.closest('.pa-item'), on=!it.classList.contains('open');
+        root.querySelectorAll('.pa-item.open').forEach(function(o){ o.classList.remove('open'); o.querySelector('.pa-row').setAttribute('aria-expanded','false'); });
+        it.classList.toggle('open', on); r.setAttribute('aria-expanded', on?'true':'false'); if(on){ var b=it.querySelector('.pa-copy'); if(b) try{ b.focus({preventScroll:false}); }catch(x){} } } });
     window.addEventListener('keydown', function(e){ if(root.classList.contains('on') && e.key==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); close(); } }, true); }
   openPo=po; build(po); root.setAttribute('aria-label', po.name);
   root.classList.add('on'); void root.offsetWidth; root.classList.add('show');

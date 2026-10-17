@@ -1,5 +1,5 @@
 """1.9.81: the zoom preview agrees with the settled board, a filter flies the camera from anywhere, an airport portal goes
-somewhere, mainline stations are seen, the fill-in opens on 90% downtown / 40% beyond, City Hall is a ring round a courtyard."""
+somewhere, mainline stations are seen, the fill-in opens on 90% downtown / 100% beyond, City Hall is a ring round a courtyard."""
 from alto.build import palace, palace_fillin, palace_skyline, palace_transit_js, palace_airport, city_transit_data
 
 
@@ -29,9 +29,9 @@ def test_mainline_stations_are_marked_and_drawn_over_the_highways():
     assert rr["branches"] == "routes"                                            # every Regional Rail line, not only the longest run
 
 
-def test_fill_in_opens_on_auto_90_downtown_40_beyond():
+def test_fill_in_opens_on_auto_90_downtown_100_beyond():
     js = palace_fillin.FILL_FUNCS
-    assert "FILL_DT=90, FILL_OUT=40, fillAuto=true" in js
+    assert "FILL_DT=90, FILL_OUT=100, fillAuto=true" in js
     assert "function downtownAt(" in js and "function fillRank(" in js
     assert 'type="range" min="0" max="100" step="5"' in js
 

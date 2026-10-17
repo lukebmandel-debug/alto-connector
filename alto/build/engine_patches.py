@@ -2065,11 +2065,29 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
   // a hop wait their turn (up to three), and a held key's auto-repeat adds at
   // most one, so holding a key walks at a readable pace instead of flickering.
   var _hopBusy=0, _hopQ=[];
-  function _hop(dir,repeat){
+  function _hopNow(dir,repeat){
     if(_hopBusy){ if(repeat ? !_hopQ.length : _hopQ.length<3) _hopQ.push(dir); return; }
     _hopBusy=1; focusNeighbor(dir);
-    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hop(_hopQ.shift()); },
+    setTimeout(function(){ _hopBusy=0; if(_hopQ.length) _hopNow(_hopQ.shift()); },
                (window._altoFlyMs||420)+40);   // the next hop waits for this glide
+  }
+  // Two arrows together are a diagonal: Up with Right is north-east. A press
+  // while a perpendicular arrow is down (hold one, tap the other) hops that
+  // diagonal at once; a lone press waits a few ms for a partner key (_HOP_PAIR_MS)
+  // so a plain press still lands at once to the eye.
+  var _HOP_PAIR_MS=60, _arrDn={}, _pend=null, _pendT=0;
+  var _ARR_DIR={ArrowLeft:'w',ArrowRight:'e',ArrowUp:'n',ArrowDown:'s'};
+  window._altoArrowsDown=_arrDn;
+  window.addEventListener('keydown', function(e){ var q=_ARR_DIR[e.key]; if(q) _arrDn[q]=1; }, true);
+  window.addEventListener('keyup', function(e){ var q=_ARR_DIR[e.key]; if(q) delete _arrDn[q]; }, true);
+  window.addEventListener('blur', function(){ for(var q in _arrDn) delete _arrDn[q]; });
+  function _flushPend(){ clearTimeout(_pendT); if(_pend){ var q=_pend; _pend=null; _hopNow(q,false); } }
+  function _hop(dir,repeat){
+    var vert=(dir==='n'||dir==='s'), pr=vert ? (_arrDn.e?'e':_arrDn.w?'w':null) : (_arrDn.n?'n':_arrDn.s?'s':null);
+    if(pr){ clearTimeout(_pendT); _pend=null; _hopNow(vert ? dir+pr : pr+dir, repeat); return; }
+    _flushPend();
+    if(repeat){ _hopNow(dir,true); return; }
+    _pend=dir; _pendT=setTimeout(_flushPend, _HOP_PAIR_MS);
   }"""
 _HOP_KEY_OLD = "    if(!d) return; e.preventDefault(); focusNeighbor(d);"
 _HOP_KEY_NEW = "    if(!d) return; e.preventDefault(); _hop(d, e.repeat);"

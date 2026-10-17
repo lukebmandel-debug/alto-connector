@@ -561,22 +561,27 @@ function paintTrip(p){
 /* ── pointing and clicking ── */
 function chipOf(t){ var b=t.closest && t.closest('#nav .nav-btn'); if(!b) return null;
   var m=/showDetail\('[a-z]+','([^']+)'\)/.exec(b.getAttribute('onclick')||''); return (m && chipNodes(m[1]))?m[1]:null; }
+var HOVER_DWELL=320;      /* ms the pointer must rest on a line / stop before the rest of the city fades */
 function bind(){
   if(bind.done) return; bind.done=1;
   document.addEventListener('mouseover', function(e){
     if(!E || !E.palaceOn()) return;
     var c=chipOf(e.target); if(c){ if(S.chipH!==c){ S.chipH=c; renderChip(); } return; }
     if(S.chipH && !(e.target.closest && e.target.closest('#nav .nav-btn'))){ S.chipH=null; renderChip(); }
-    if(!T) return; var tgt=e.target.closest && e.target.closest('#palace-svg .pl-stn-hit, #palace-svg .pl-tl-hit'); if(!tgt){ if(S.hov){ S.hov=null; tipAt(''); if(!S.line&&S.stop==null&&!S.ride) lit(); } return; }
-    if(tgt.classList.contains('pl-stn-hit')){ var i=+tgt.getAttribute('data-s'); S.hov={s:i}; tipAt(stopTip(i), tgt); var svg=E.svg();
-      if(!S.line && S.stop==null && !S.ride){ var save=[S.line,S.stop]; S.stop=i; lit(); S.stop=save[1]; } }
-    else { var id=tgt.getAttribute('data-l'); S.hov={l:id}; tipAt(lineTip(lineOf(id)), tgt);
-      if(!S.line && S.stop==null && !S.ride){ var sv=S.line; S.line=id; lit(); S.line=sv; } }
+    if(!T) return; var tgt=e.target.closest && e.target.closest('#palace-svg .pl-stn-hit, #palace-svg .pl-tl-hit'); if(!tgt){ clearTimeout(S.dwT); if(S.hov){ S.hov=null; tipAt(''); if(!S.line&&S.stop==null&&!S.ride) lit(); } return; }
+    /* hover INTENT: the line (or stop) fades the rest of the city only once the pointer has rested on it for a moment, not as it passes over */
+    var key=tgt.classList.contains('pl-stn-hit')?'s'+tgt.getAttribute('data-s'):'l'+tgt.getAttribute('data-l'); if(S.hov && S.hov.key===key) return;
+    clearTimeout(S.dwT); S.hov={key:key}; if(S.hovOn){ S.hovOn=0; tipAt(''); if(!S.line&&S.stop==null&&!S.ride) lit(); }
+    S.dwT=setTimeout(function(){ if(!S.hov || S.hov.key!==key || !tgt.isConnected) return; S.hovOn=1;
+      if(tgt.classList.contains('pl-stn-hit')){ var i=+tgt.getAttribute('data-s'); S.hov={key:key, s:i}; tipAt(stopTip(i), tgt);
+        if(!S.line && S.stop==null && !S.ride){ var save=[S.line,S.stop]; S.stop=i; lit(); S.stop=save[1]; } }
+      else { var id=tgt.getAttribute('data-l'); S.hov={key:key, l:id}; tipAt(lineTip(lineOf(id)), tgt);
+        if(!S.line && S.stop==null && !S.ride){ var sv=S.line; S.line=id; lit(); S.line=sv; } } }, HOVER_DWELL);
   });
   document.addEventListener('mouseout', function(e){
     if(!E) return; var c=chipOf(e.target); if(c && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#nav .nav-btn')===e.target.closest('#nav .nav-btn'))){ if(S.chipH===c){ S.chipH=null; renderChip(); } }
     var tgt=e.target.closest && e.target.closest('#palace-svg .pl-stn-hit, #palace-svg .pl-tl-hit');
-    if(tgt && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#palace-svg .pl-stn-hit, #palace-svg .pl-tl-hit'))){ S.hov=null; tipAt(''); lit(); }
+    if(tgt && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#palace-svg .pl-stn-hit, #palace-svg .pl-tl-hit'))){ clearTimeout(S.dwT); S.hov=null; S.hovOn=0; tipAt(''); lit(); }
   });
   document.addEventListener('click', function(e){
     if(!E || !T || !E.palaceOn()) return;

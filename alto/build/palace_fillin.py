@@ -1,8 +1,8 @@
 """Fill-in: the rest of the city as simulated buildings, on a slider (brief.palace.fill_z; absent = off).
 
 The Mind Palace draws only the user's own buildings (numbered cards on lots), the landmark art and the
-towers. Fill-in adds the city's real building footprints (OpenStreetMap building=* ways) inside the
-user's reach (their districts plus about 1 km), carried onto the graph paper by the same mapping the
+towers. Fill-in adds the city's real building footprints (OpenStreetMap building=* ways) of the whole city (every tile
+of its box; past the user's districts + 1 km only the levels the size budget allows), carried onto the graph paper by the same mapping the
 streets go through — per domain on the v2 city engine (a tilted district's lattice) — clipped inside
 their block, and drawn as calm frosted glass that never looks like (and never stands on) one of the
 user's buildings.
@@ -14,7 +14,7 @@ user's buildings.
   Level 4  Every building  + every row house, as ONE shape per block front      one window-sized canvas
 
 The slider is a percentage (0 = landmarks only, 100 = every building) and opens on AUTO: 90% in the downtown (the user's neighbourhoods and a couple of
-blocks round them), 40% beyond it; the buildings kept are an even draw of each level, never the user's own lots. A viewer's own choice (a percentage, or
+blocks round them), 100% beyond it (the whole city is filled in, not only the user's districts + 1 km); the buildings kept are an even draw of each level, never the user's own lots. A viewer's own choice (a percentage, or
 Auto) is kept per timeline in localStorage.
 Nothing is emitted unless fill_z is present, so a page without it is byte-identical to before.
 
@@ -44,7 +44,9 @@ CIVIC = {"cathedral", "church", "hospital", "university", "college", "school", "
 HOUSES = {"house", "terrace", "semidetached_house", "detached", "garage", "garages", "shed", "roof", "hut"}
 QUANT = (1, 2, 2, 3)              # local px per stored unit, levels 1..4 (about 1-1.5 m at levels 2-4: below what a row house needs)
 INSET = 12.0                      # px between a footprint and its block's streets (the lots' own front gap)
-REACH_KM = 1.0                    # the densest levels reach this far past the user's districts
+BUDGET_CHARS = 128_000            # packed fill_z: the page embeds it and a private page is stored gzipped under 976 KB; the civ-pro palace's page was 943 KB with 116 kB of fill, and a kB of fill costs .75 kB of page
+REACH_LADDER = (1.5, 2.0, 2.5, 3.0, 4.0, 6.0)    # km past the districts tried after REACH_KM while the packed fill fits the budget, then the whole city
+REACH_KM = 1.0                    # the user's reach (districts + this): the lattice of building tiles is anchored on it, and past it the size budget drops levels (fill_for)
 B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
 
@@ -139,6 +141,55 @@ def reach(districts, bbox, km: float = REACH_KM):
     return (max(bbox[0], s - dla), max(bbox[1], w - dlo), min(bbox[2], n + dla), min(bbox[3], e + dlo))
 
 
+def lattice(box, bbox):
+    """Tile boxes covering the whole city `bbox`, on the lattice of `box`'s own tiles (pmap.tile_boxes(box, *BLD_TILE): the
+    same steps, anchored at its south-west corner). A cell is named for its box in the cache (fetch_buildings), so the
+    tiles already cached for the reach stay the ones asked for: the lattice only grows past them."""
+    bs, bw, bn, be = (float(v) for v in box)
+    rows = max(1, math.ceil((bn - bs) / pmap.BLD_TILE[0] - 1e-9))
+    cols = max(1, math.ceil((be - bw) / pmap.BLD_TILE[1] - 1e-9))
+    dla, dlo = (bn - bs) / rows, (be - bw) / cols
+    s, w, n, e = (float(v) for v in bbox)
+    r0, r1 = math.floor((s - bs) / dla + 1e-9), math.ceil((n - bs) / dla - 1e-9)
+    c0, c1 = math.floor((w - bw) / dlo + 1e-9), math.ceil((e - bw) / dlo - 1e-9)
+    # the same arithmetic as tile_boxes, so the tiles inside the box are exactly its own (same rounded edges, same cache names)
+    return [tuple(round(v, 5) for v in (bs + (bn - bs) * r / rows, bw + (be - bw) * c / cols,
+                                        bs + (bn - bs) * (r + 1) / rows, bw + (be - bw) * (c + 1) / cols))
+            for r in range(r0, max(r1, r0 + 1)) for c in range(c0, max(c1, c0 + 1))]
+
+
+FAR_FETCH_S = 240.0               # seconds of Overpass asked for the tiles past the reach in one set_up (a cold city is 50+ tiles: the next set_up goes on from the cache)
+
+
+def fetch_footprints(box, bbox, cache_dir=None, offline: bool = False, log=None, far_s: float = FAR_FETCH_S) -> dict:
+    """Footprints of the whole city: fetch_buildings over every cell of lattice(box, bbox), merged. The cells of the reach come
+    first and are always asked for; a cell past it is fetched only while the time spent on such cells is under far_s (the rest
+    are reported missing and a later set_up fills them in from the cache it leaves). Cells cached are free; a fetched one waits
+    BLD_PAUSE first, and two cells in a row that fail leave Overpass alone for the rest. "missing" lists the cells not fetched."""
+    import time
+    from pathlib import Path
+    cells = lattice(box, bbox)
+    inner = [c for c in cells if c[0] < box[2] - 1e-4 and c[2] > box[0] + 1e-4 and c[1] < box[3] - 1e-4 and c[3] > box[1] + 1e-4]    # (cell edges are rounded)
+    cells = inner + [c for c in cells if c not in inner]
+    raws, missing, fails, spent = [], [], 0, 0.0
+    for cell in cells:
+        cached = cache_dir is not None and (Path(cache_dir) / ("bld-%.4f_%.4f_%.4f_%.4f.json" % cell)).exists()
+        far = cell not in inner
+        off = offline or (not cached and (fails >= 2 or (far and spent >= far_s)))
+        if not cached and not off and raws:
+            pmap._sleep(pmap.BLD_PAUSE)
+        t0 = time.monotonic()
+        r = pmap.fetch_buildings(cell, cache_dir=cache_dir, offline=off, log=log)
+        if not cached and not off and far:
+            spent += time.monotonic() - t0 + pmap.BLD_PAUSE
+        fails = fails + 1 if (r.get("missing") and not off) else (0 if not off else fails)
+        missing += r.get("missing") or []
+        raws.append(r)
+    out = pmap.merge_raw(*raws)
+    out["missing"] = missing
+    return out
+
+
 # ── domains: the grid (v1) or each lattice of the v2 city engine ───────────
 def _in_ring(r, x, y):
     c, n = False, len(r)
@@ -157,10 +208,10 @@ class Dom:
     """One lattice: real px -> local lattice px (its Mapping), local -> page (turned by a degrees, moved by o).
     Columns at x0 + i*gv (nx of them), rows at y0 + j*gh."""
 
-    def __init__(self, k, a, o, tables, x0, nx, gv, y0, ny, gh, clip=None, poly=None):
+    def __init__(self, k, a, o, tables, x0, nx, gv, y0, ny, gh, clip=None, poly=None, free=False):
         self.k, self.a, self.o = k, float(a or 0.0), (float(o[0]), float(o[1]))
-        self.free = tables is None                     # a free domain (smoothed real streets, no lattice): nothing is filled in there yet
-        self.mp = None if self.free else mapping_from(tables)
+        self.free = free or tables is None             # a free domain (smoothed real streets, no lattice): footprints go in as they are (free_ring)
+        self.mp = mapping_from(tables) if tables else None
         self.x0, self.nx, self.gv, self.y0, self.ny, self.gh = x0, nx, gv, y0, ny, gh
         self.clip = [tuple(p) for p in clip] if clip else None
         self.poly = [tuple(p) for p in poly] if poly else None
@@ -194,7 +245,7 @@ def domains(m) -> list:
                 out.append(Dom(k, d.get("a"), d.get("o") or (0, 0), d["mapping"], float(d["xg"][0]), int(d["xg"][1]), float(d["cwch"][0]),
                                float(d["yg"][0]), int(d["yg"][1]), float(d["cwch"][1]), d.get("clip"), d.get("poly")))
             else:
-                out.append(Dom(k, d.get("a"), d.get("o") or (0, 0), None, 0.0, 0, 240.0, 0.0, 0, 170.0, d.get("clip"), d.get("poly")))
+                out.append(Dom(k, d.get("a"), d.get("o") or (0, 0), d.get("mapping"), 0.0, 0, 240.0, 0.0, 0, 170.0, d.get("clip"), d.get("poly"), free=True))
         return out
     g = m["grid"]
     xg, yg = g["xg"], g["yg"]
@@ -288,14 +339,70 @@ def _rectilinear(q):
     return n % 2 == 0 and all((q[i][0] == q[(i + 1) % n][0]) != (q[i][1] == q[(i + 1) % n][1]) for i in range(n))
 
 
-def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
+class _Near:
+    """Page polylines (flat x, y lists) in a hash: is a point within `r` px of one of them?"""
+    def __init__(self, lines, cell: float = 160.0):
+        self.cell, self.segs = cell, {}
+        for p in lines:
+            for k in range(0, len(p) - 3, 2):
+                a, b = (p[k], p[k + 1]), (p[k + 2], p[k + 3])
+                for gx in range(int(min(a[0], b[0]) // cell) - 1, int(max(a[0], b[0]) // cell) + 2):
+                    for gy in range(int(min(a[1], b[1]) // cell) - 1, int(max(a[1], b[1]) // cell) + 2):
+                        self.segs.setdefault((gx, gy), []).append((a, b))
+
+    def within(self, x, y, r):
+        for (ax, ay), (bx, by) in self.segs.get((int(x // self.cell), int(y // self.cell)), ()):
+            dx, dy = bx - ax, by - ay
+            t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy or 1e-9)))
+            if math.hypot(ax + t * dx - x, ay + t * dy - y) < r:
+                return True
+        return False
+
+
+def _samples(pts, step: float = 10.0):
+    """The ring's vertices and a point every `step` px along its edges."""
+    n = len(pts)
+    for i in range(n):
+        (ax, ay), (bx, by) = pts[i], pts[(i + 1) % n]
+        k = max(1, int(math.hypot(bx - ax, by - ay) // step))
+        for t in range(k):
+            yield ax + (bx - ax) * t / k, ay + (by - ay) * t / k
+
+
+def _no(why, reason, t):
+    if why is not None:
+        why["%s_t%d" % (reason, t)] += 1
+
+
+def _in_core(core, lat, lon):
+    return core is None or (core[0] <= lat <= core[2] and core[1] <= lon <= core[3])
+
+
+def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None, far_max: int = 4, why=None, far_tiers=None) -> dict:
     """Footprints on the graph paper, packed. Each building goes into the domain that owns its real centre, through
     that domain's mapping into the block (cell) its centre falls in, snapped square where it is nearly square, and
     clipped `ins` px inside the block's streets. None in a landmark's block, in a park, outside a block (a cell
-    with a drawn tile or lots), or where its domain does not own the page (the far side of a seam)."""
+    with a drawn tile or lots), where its domain does not own the page (the far side of a seam), or within a river's
+    green bank (BANK_GAP of the water) or on its trail. A free domain has no blocks: a footprint there is kept as it is
+    where it clears every street, park and river by `ins`.
+    core (s, w, n, e) and far_max: outside `core` only the levels up to far_max are kept (the size budget, see fill_for).
+    why: a Counter that collects why buildings were left out (the report and the tests)."""
+    from .palace_banks import BANK_GAP, _Riv
     bbox, scale = m["bbox"], m.get("scale", 1.0)
     doms = domains(m)
     by_page, by_real = _owners(doms)
+    rivs = _Riv(m)
+    trails = _Near([t.get("p") or [] for t in m.get("rtrails") or []])
+    streets = _Near([s_.get("p") or [] for s_ in m.get("streets") or [] if not s_.get("t")]) if any(d.free for d in doms) else None
+
+    def wet(pts, d):
+        """True when a ring (local px) comes within the river's bank or on its trail."""
+        pp = [d.page(x, y) for x, y in pts]
+        for X, Y in _samples(pp):
+            n = rivs.near(X, Y)
+            if (n is not None and n[0] < BANK_GAP) or trails.within(X, Y, 6.0):
+                return True
+        return False
     valid = set()
     for X, Y in [((t[0] + t[2]) / 2, (t[1] + t[3]) / 2) for t in m.get("tiles") or []] + [(b["x"], b["y"]) for b in blocks or ()]:
         d = by_page(X, Y)
@@ -323,27 +430,47 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
         t = tier_of(tags, area, h)
         if t is None:
             continue
+        if (t > far_max or (far_tiers is not None and t not in far_tiers)) and not _in_core(core, sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)):
+            continue
         real = [pmap.project(la, lo, bbox, scale) for la, lo in ring]
         if len(real) > 3 and real[0] == real[-1]:
             real = real[:-1]
         rx, ry = sum(p[0] for p in real) / len(real), sum(p[1] for p in real) / len(real)
         d = by_real(rx, ry)
-        if d.free:
-            continue
         loc = [d.mp(x, y) for x, y in real]
         lx, ly = sum(p[0] for p in loc) / len(loc), sum(p[1] for p in loc) / len(loc)
-        ij = d.cell(lx, ly)
-        if not ij or (d.k, ij) not in valid:
-            continue
-        x0, y0, x1, y1 = d.rect(*ij)
-        if blocked(*d.page((x0 + x1) / 2, (y0 + y1) / 2)) or blocked(*d.page(lx, ly)):
-            continue
-        if len(doms) > 1 and by_page(*d.page(lx, ly)) is not d:
-            continue
-        g = _clip(_snap(loc), x0 + ins, y0 + ins, x1 - ins, y1 - ins)
+        if d.free:                                    # no lattice: the footprint as it is, in an arbitrary bucket of the local frame
+            ij = (math.floor(lx / 960), math.floor(ly / 1280))
+            PX, PY = d.page(lx, ly)
+            if by_page(PX, PY) is not d or blocked(PX, PY):
+                _no(why, "owned_or_blocked", t)
+                continue
+            x0, y0, x1, y1 = -1e9, -1e9, 1e9, 1e9
+            g = _snap(loc)
+            pp = [d.page(x, y) for x, y in g]
+            if any(blocked(X, Y) or streets.within(X, Y, ins) for X, Y in _samples(pp)) or wet(g, d):
+                _no(why, "free_clearance", t)
+                continue
+        else:
+            ij = d.cell(lx, ly)
+            if not ij or (d.k, ij) not in valid:
+                _no(why, "no_block", t)
+                continue
+            x0, y0, x1, y1 = d.rect(*ij)
+            if blocked(*d.page((x0 + x1) / 2, (y0 + y1) / 2)) or blocked(*d.page(lx, ly)):
+                _no(why, "landmark_or_park", t)
+                continue
+            if len(doms) > 1 and by_page(*d.page(lx, ly)) is not d:
+                _no(why, "other_domain", t)
+                continue
+            g = _clip(_snap(loc), x0 + ins, y0 + ins, x1 - ins, y1 - ins)
+            if g and wet(g, d):
+                _no(why, "river_bank", t)
+                continue
         if not g:
+            _no(why, "outside_inset", t)
             continue
-        if t == 4:                                    # level 4 is drawn as one shape per block front (fronts() below)
+        if t == 4 and not d.free:                     # level 4 is drawn as one shape per block front (fronts() below)
             fronts.setdefault((d.k, ij), []).append((min(p[0] for p in g), min(p[1] for p in g), max(p[0] for p in g), max(p[1] for p in g)))
             continue
         if len(g) > 4 and not _rectilinear([(round(x), round(y)) for x, y in g]):
@@ -391,6 +518,8 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4) -> dict:
     root_ = next((d for d in doms if not d.free), doms[0])
     for (dk, ij), boxes in sorted(fronts.items()):
         for r in block_fronts(boxes, *dk_[dk].rect(*ij), ins):
+            if wet([(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])], dk_[dk]):
+                continue
             u = _clean([(int(round(r[0] / q4)), int(round(r[1] / q4))), (int(round(r[2] / q4)), int(round(r[1] / q4))),
                         (int(round(r[2] / q4)), int(round(r[3] / q4))), (int(round(r[0] / q4)), int(round(r[3] / q4)))])
             if u:
@@ -735,21 +864,40 @@ def counts(fill) -> list:
 
 
 def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline: bool = False, ships_out=None):
-    """set_up's step: fetch the footprints of the reach (districts + REACH_KM) and pack them; None when there are none."""
+    """set_up's step: fetch the footprints round the user's districts and pack them; None when there are none.
+
+    The reach grows step by step (the districts + REACH_KM, then REACH_LADDER, then the whole city) while the packed fill stays
+    inside BUDGET_CHARS: the page carries fill_z as it is and a private page is stored gzipped under 976 KB (mcp_server:
+    MAX_PAGE_BYTES), so on a page that is already big the whole city does not fit, and the largest reach that does is kept. Every
+    level inside the reach; past it only the towers (level 1) of the tiles fetched. Only the tiles a step needs are fetched, nearest
+    first, so a cold city is not fetched whole for a fill that will not take it."""
     from .palace import pack
     box = reach(districts, bbox)
-    raw = pmap.fetch_buildings(box, cache_dir=cache_dir, offline=offline)
-    if ships_out is not None:
-        from .palace_boats import find
-        ships_out.extend(find(raw, m["bbox"], m.get("scale", 1.0)))
-    f = fill_data(raw, m, blocks)
-    if not sum(counts(f)):
-        return None
-    f["lvl"] = level
-    f["reach"] = [round(v, 5) for v in box]
-    if raw.get("missing"):
-        f["missing"] = raw["missing"]
-    return pack(f)
+    best, ships_done = None, False
+    for km in [REACH_KM] + [k for k in REACH_LADDER if k > REACH_KM] + [None]:
+        core = reach(districts, bbox, km) if km is not None else None
+        cover = core or tuple(float(v) for v in bbox)
+        raw = fetch_footprints(box, cover, cache_dir=cache_dir, offline=offline)
+        if ships_out is not None and not ships_done:
+            from .palace_boats import find
+            ships_out.extend(find(raw, m["bbox"], m.get("scale", 1.0)))
+            ships_done = True
+        f = fill_data(raw, m, blocks, core=core, far_tiers={1})
+        if not sum(counts(f)):
+            if best is None and km is None:
+                return None
+            continue
+        f["lvl"] = level
+        f["reach"] = [round(v, 5) for v in (core or bbox)]
+        if raw.get("missing"):
+            f["missing"] = raw["missing"]
+        z = pack(f)
+        if best is not None and len(z) > BUDGET_CHARS:
+            break                                      # the one before is the largest that fits
+        best = z
+        if core is not None and core == reach(districts, bbox, REACH_KM) and not districts:
+            break                                      # no districts: the reach is the whole box already
+    return best
 
 
 # ── the page (only when the palace has fill_z) ─────────────────────────────
@@ -785,9 +933,10 @@ FILL_FUNCS = r"""
 /* ── fill-in (palace_fillin.py): the rest of the city as simulated buildings, by level ── */
 var FILL=window._ALTO_FILL||null, FILL_KEY='alto-palace-fill2:'+location.pathname, FILL_NAMES=['Landmarks','Skyline','Notable','Most','Every building'];
 /* the slider is a percentage of the city's buildings (0 = landmarks only, 100 = every building). AUTO, the opening setting
-   in any city: 90% in the downtown (the user's own neighbourhoods and a couple of blocks round them), 40% beyond it. The
+   in any city: 90% in the downtown (the user's own neighbourhoods and a couple of blocks round them), 100% beyond it (1.9.95: 40% showed only
+   the big buildings past the downtown, never a row house, so whole blocks looked empty). The
    user's own buildings keep their lots either way: nothing simulated stands on one. */
-var FILL_DT=90, FILL_OUT=40, fillAuto=true, fillPct=FILL_OUT;
+var FILL_DT=90, FILL_OUT=100, fillAuto=true, fillPct=FILL_OUT;
 (function(){ var v=null; try{ v=localStorage.getItem(FILL_KEY); }catch(e){} if(v!=null && v!=='auto'){ var n=parseFloat(v); if(isFinite(n)){ fillAuto=false; fillPct=Math.max(0,Math.min(100,n)); } } })();
 function downtownAt(x,y){ var D=P.d||[]; for(var i=0;i<D.length;i++){ var b=D[i].box; if(b && x>=b[0]-300 && x<=b[2]+300 && y>=b[1]-300 && y<=b[3]+300) return true; } return false; }
 function fillLevelAt(x,y){ return (fillAuto?(downtownAt(x,y)?FILL_DT:FILL_OUT):fillPct)/25; }   /* 0..4 */

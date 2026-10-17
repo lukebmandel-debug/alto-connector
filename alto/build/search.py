@@ -673,6 +673,27 @@ window._altoSXHomeRow=function(r,q){
 """
 
 
+FORMAT_NAME_JS = r"""
+/* the way back from a detail page is named for the format the reader is in: Mind Palace, Outline, or Timeline */
+(function(){
+  function fmt(){ return window._ALTO_OUTLINE ? 'Outline' : (window._altoPalace || window._palTr) ? 'Mind Palace' : 'Timeline'; }
+  function set(sel, fn){ var l=document.querySelectorAll(sel); for(var i=0;i<l.length;i++) fn(l[i]); }
+  function apply(){
+    var n=fmt(); if(apply.n===n) return; apply.n=n;
+    var low=n==='Mind Palace'?n:n.toLowerCase();
+    set('#desk-back .db-label', function(e){ e.textContent=n; });
+    set('#desk-back', function(e){ e.setAttribute('aria-label','Back to the '+low); e.title='Back to the '+low; });
+    set('#nav-timeline', function(e){ e.textContent='↩ '+n; });
+    set('#drawer-timeline-btn .drawer-label', function(e){ e.textContent=n; });
+    set('#detail-back-fixed', function(e){ e.setAttribute('aria-label','Back to the '+low); });
+  }
+  apply();
+  document.addEventListener('DOMContentLoaded', apply); window.addEventListener('load', apply);
+  new MutationObserver(apply).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+})();
+"""
+
+
 def sx_block(extra: str = "") -> str:
     """CSS + script for the expand control (after the page's own search)."""
     return SX_CSS + "\n<script id=\"alto-sx\">" + extra + SX_JS + "</script>\n"
@@ -699,4 +720,4 @@ def search_config(b: Brief) -> str:
     return ("<script>window._ALTO_SEARCH="
             + js_json(cfg) + ";</script>\n"
             + SEARCH_CSS + "\n<script id=\"alto-search-core\">" + MATCH_JS
-            + TIMELINE_SEARCH_JS + "</script>\n" + sx_block())
+            + TIMELINE_SEARCH_JS + "</script>\n<script id=\"alto-format-name\">" + FORMAT_NAME_JS + "</script>\n" + sx_block())
