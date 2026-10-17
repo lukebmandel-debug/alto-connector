@@ -151,6 +151,7 @@ var _ringP=[], _ringN=[];
 /* a leaf card: a square of side 2*sd at local (cx,cy,cz), facing along (nx,ny,nz) (outward from the crown: its normal is the crown's, so it shades as part of a volume), turned by rt;
    material 49 dissolves it into a leafy cluster in the shader. One winding: it is seen from outside the crown. */
 function cardAt(m, cx,cy,cz, nx,ny,nz, sd, rt, tint){
+  var nlen=Math.hypot(nx,ny,nz)||1; nx/=nlen; ny/=nlen; nz/=nlen;
   var tx=-ny, ty=nx, tz=0, tl=Math.hypot(tx,ty); if(tl<.01){ tx=1; ty=0; tl=1; } tx/=tl; ty/=tl;
   var bx=ny*tz-nz*ty, by=nz*tx-nx*tz, bz=nx*ty-ny*tx, co=Math.cos(rt), si=Math.sin(rt);
   var ax=tx*co+bx*si, ay=ty*co+by*si, az=tz*co+bz*si, ex=-tx*si+bx*co, ey=-ty*si+by*co, ez=-tz*si+bz*co, k;
@@ -207,10 +208,10 @@ function treeAt(m, x, y, sp, sz, h, season, lod, lobe){
   if(!lod && sp!==5){                                    /* a dark core of leaves with clusters of leaf cards over it */
     fblob(m,0,0,cz,R*.62,R*.62,rz*.62,prof,5,MAT.leaf,fam[1],.1,seed);
     var nc=sp===4?18:32, ci;
-    for(ci=0;ci<nc;ci++){ var ha=hash(seed*13+ci*7+1)*6.2832, hz=-.3+1.28*hash(seed*17+ci*11+2), hr=Math.sqrt(Math.max(0,1-hz*hz)), dx=Math.cos(ha)*hr, dy=Math.sin(ha)*hr, dz=hz, rr=.7+.3*hash(seed*43+ci);
-      var qx=dx*R*rr, qy=dy*R*rr, qz=cz+dz*rz*rr, nx0=dx/R, ny0=dy/R, nz0=dz/rz, nl0=Math.hypot(nx0,ny0,nz0)||1;
+    for(ci=0;ci<nc;ci++){ var ha=hash(seed*13+ci*7+1)*6.2832, hz=-.3+1.28*hash(seed*17+ci*11+2), hr=Math.sqrt(Math.max(0,1-hz*hz)), dx=Math.cos(ha)*hr, dy=Math.sin(ha)*hr, dz=hz, rr=.45+.28*hash(seed*43+ci), csd=R*(.3+.17*hash(seed*23+ci));
+      var qx=dx*R*rr, qy=dy*R*rr, qz=Math.max(cz+dz*rz*rr,2.4+csd*1.45), nx0=dx/R, ny0=dy/R, nz0=dz/rz, nl0=Math.hypot(nx0,ny0,nz0)||1;
       var pk3=hash(seed*19+ci*5+3), tn=pk3<.2?fam[0]:pk3<.75?fam[1]:fam[2];
-      cardAt(m,qx,qy,qz,nx0/nl0+(hash(seed*31+ci)-.5)*.7,ny0/nl0+(hash(seed*37+ci)-.5)*.7,nz0/nl0+.25+(hash(seed*41+ci)-.5)*.6,R*(.38+.24*hash(seed*23+ci)),hash(seed*29+ci)*6.28,tn); } }
+      cardAt(m,qx,qy,qz,nx0/nl0+(hash(seed*31+ci)-.5)*.7,ny0/nl0+(hash(seed*37+ci)-.5)*.7,nz0/nl0+.25+(hash(seed*41+ci)-.5)*.6,csd,hash(seed*29+ci)*6.28,tn); } }
   else fblob(m,0,0,cz,R,R,rz,prof,seg,MAT.leaf,fam,.16,seed);
   if(!lod && sp!==5 && sp!==4 && g>.12){ var a4=g*29+1.3, d4=R*(.5+.25*hash(seed+4)); fblob(m,Math.cos(a4)*d4,Math.sin(a4)*d4,cz-rz*(.1+.3*hash(seed+5)),R*.55,R*.55,rz*.58,[[-.5,.6],[0,1],[1,0]],5,MAT.leaf,fam,.24,seed+7); }      /* a second lobe: the crown is not one ball */
 
@@ -581,8 +582,8 @@ function cornerItems(S, SI, W, vx, vy, aux, auy, bux, buy, jdone, cwdone, A, sta
   if(hk(vx,vy,21)<.78 && room(c,300)){ var px=vx-dgx*1.0, py=vy-dgy*1.0;
     if(!S.blocked(px,py,.8) && !trackNear(px,py,1.2)){ var hc=signalAt(m,px,py,oax,oay,-aux,-auy,-1); stat.signals++;
       S.heads.push({x:hc[0],y:hc[1],yaw:Math.atan2(-auy,-aux),axisH:Math.abs(aux)>Math.abs(auy),jx:kx,jy:ky}); } }
-  if(hk(vx,vy,24)<.55 && room(c,140)){ var stx=vx-aux*8.4-oax*1.7, sty=vy-auy*8.4-oay*1.7;
-    if(!S.blocked(stx,sty,.6) && !trackNear(stx,sty,1.2) && !S.onWater(stx,sty,.5)){ stopSignAt(m,stx,sty,-aux,-auy); stat.signs++; } }
+  if(hk(vx,vy,24)<.55 && room(c,140)){ var stx=vx-aux*8.4-oax*.8, sty=vy-auy*8.4-oay*.8;
+    if(!S.blocked(stx,sty,1.6) && !trackNear(stx,sty,1.6) && !S.onWater(stx,sty,1.5)){ stopSignAt(m,stx,sty,-aux,-auy); stat.signs++; } }
   /* a pole with the two street names, a few units back from the corner on the block side */
   if(SCN.signs && hk(vx,vy,23)<.55 && room(c,200)){ var spx=vx-aux*3.4-oax*1.1, spy=vy-auy*3.4-oay*1.1;
     var nA=streetAt(SI,kx,ky,aux,auy,14,.9), nB=streetAt(SI,kx,ky,bux,buy,14,.9);
