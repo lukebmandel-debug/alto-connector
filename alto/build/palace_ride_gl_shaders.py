@@ -137,7 +137,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
   float winM=0.; float glM=0.; float frM=0.; vec3 glassAlb=vec3(.03,.04,.05); vec3 glEmi=vec3(0.);
   vec2 loc=vec2(ul,vl);
   float lit1=h21(vec2(fi*7.1+bi*1.31,T*91.));
-  float litP=.30+.35*fract(T*3.1);
+  float litP=.16+.34*fract(T*3.1);
   if(!pier && !ground){
     if(isGlass){
       /* curtain wall: spandrel band below each pane, mullions between */
@@ -154,7 +154,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       alb=mix(alb,vec3(.34,.35,.37)*(.6+.4*step(.5,fract(vl*2.5))),louv);
       alb=mix(alb,gtint*.12*pv,spand);
       refl=((.34+.42*fres)*pane+.2*spand)*(.78+.34*h21(vec2(fi*1.7+3.,bi*2.3+T*7.)))*(.85+.3*clamp(vl/fh,0.,1.));
-      float on=step(lit1,litP)*night; glEmi=vec3(1.,.82,.52)*(.5+.6*h11(fi*3.+bi))*on*.9;
+      float on=step(lit1,litP)*night; glEmi=vec3(1.,.82,.52)*(.4+.6*h11(fi*3.+bi))*on*.75;
       emi=glEmi*pane;
     } else if(rowh){
       float s1=ul/bwa;
@@ -178,7 +178,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       float on=step(h21(vec2(fi*7.1+bi*1.31+floor(ul/(bwa*.5)),T*91.)),litP)*night;
       float blind=step(.7,h21(vec2(fi+bi*3.+floor(ul/(bwa*.5))*7.,T*5.)));
       glassAlb=mix(vec3(.025,.032,.04),vec3(.45,.40,.33)*.45,blind);
-      glEmi=vec3(1.,.74,.42)*(.55+.5*h11(fi*3.+bi*5.+floor(ul/(bwa*.5))))*on;
+      glEmi=vec3(1.,.74,.42)*(.4+.55*h11(fi*3.+bi*5.+floor(ul/(bwa*.5))))*on*.85;
       refl=(.10+.34*fres)*glM*(1.-blind*.6)*(.75+.5*h21(vec2(fi*3.1,bi*1.9+T*3.+floor(ul/(bwa*.5)))));
     } else {
       float ww=isConc?bwa-.55:(isStone?bwa*.40:bwa*.40+.15); float wh=isConc?1.55:(isStone?2.05:1.95);
@@ -196,7 +196,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       alb=mix(alb,vec3(.30,.31,.32),mull*.5);
       float on=step(lit1,litP)*night; float blind=step(.78,h21(vec2(fi+bi*3.,T*5.)));
       glassAlb=mix(vec3(.028,.036,.045),vec3(.40,.42,.45)*.4,blind);
-      glEmi=vec3(1.,.78,.48)*(.5+.5*h11(fi*3.+bi*5.))*on;
+      glEmi=vec3(1.,.78,.48)*(.4+.55*h11(fi*3.+bi*5.))*on*.8;
       refl=(.14+.36*fres)*glM*(1.-blind*.6)*(.75+.5*h21(vec2(fi*3.1,bi*1.9+T*3.)))*(.8+.35*clamp(vl/fh*1.2,0.,1.));
       if(isConc){ /* ribbon window bands read as one strip */ }
     }
@@ -207,7 +207,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
     else if(isGlass){
       float pane=rectm(vec2(mod(u-mg,bw*.0+1.5),v),vec2(.75,gh*.5+.2),vec2(.75-.05,gh*.5-.2),fw)*(pier?0.:1.);
       vec3 gtint=vec3(.30,.42,.50)*mix(vec3(1.),tf,.7);
-      float plinth=smoothstep(.95,.9,v); vec3 inter=mix(vec3(.05,.045,.04),vec3(.3,.24,.17),h21(vec2(floor(u/1.5),floor(v*1.8)+T)));
+      float plinth=1.-smoothstep(.9,.95,v); vec3 inter=mix(vec3(.30,.22,.14),vec3(.10,.075,.05),smoothstep(.0,4.2,v))*(.65+.55*h21(vec2(floor((u-mg)/(bw*.0+1.5)),T*9.)));
       alb=mix(vec3(.2,.21,.23),gtint*.15,pane); alb=mix(alb,stonePal(T+.6)*.8,plinth); pane*=1.-plinth;
       refl=(.14+.34*fres)*pane; emi=inter*pane*(night*2.2+.3);
     } else {
@@ -249,7 +249,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
     alb=mix(alb,ga,w2); emi=vec3(1.,.74,.42)*(.6+.4*h11(bi*3.+T))*on*(w2*.9+dtr*(1.-door)*.5);
     refl=(.1+.3*fres)*w2*(1.-blind*.6);
     /* the water table: a stone course along the foot */
-    float wt=smoothstep(.95,.9,v); alb=mix(alb,stonePal(T+.3)*.85,wt*step(0.,v));
+    float wt=1.-smoothstep(.9,.95,v); alb=mix(alb,stonePal(T+.3)*.85,wt*step(0.,v));
   }
   if(tall && gh<=0. && !rowh && !isGlass){ }
   if(!tall){ }
@@ -290,7 +290,7 @@ void main(){
     else { /* a roof */ float g=nz(gp*.55)*.6+nz(gp*2.9)*.4*(1.-smoothstep(.02,.1,fpx)); alb=vec3(.27,.265,.26)*(.86+.3*g)*mix(vec3(1.),tf,.12); alb=mix(alb,vec3(.5,.5,.48),smoothstep(.62,.8,nz(gp*.09+3.))*.4); }
   } else if(id<5.5){    /* roof */
     float g=nz(gp*.55)*.6+nz(gp*2.9)*.4*(1.-smoothstep(.02,.1,fpx)); alb=vec3(.27,.265,.26)*(.86+.3*g);
-    if(!(N.z>.9)){ float rowv=fract(vUV.y/.4); alb=mix(vec3(.26,.2,.18),vec3(.20,.16,.15),smoothstep(.0,.2,rowv)*smoothstep(.45,.25,rowv)); }
+    if(!(N.z>.9)){ float rowv=fract(vUV.y/.4); alb=mix(vec3(.26,.2,.18),vec3(.20,.16,.15),smoothstep(.0,.2,rowv)*(1.-smoothstep(.25,.45,rowv))); }
   } else if(id<6.5){    /* metal */
     alb=vec3(.42,.44,.47)*(.85+.3*nz(gp*3.)); refl=.18+.25*pow(1.-ndv,3.); spec=1.;
   } else if(id<7.5){    /* copper, aged to verdigris */
@@ -374,7 +374,7 @@ void main(){
     alb=mix(alb,pc,cen*.9); alb=mix(alb,yc,dbl*.9); alb=mix(alb,pc,edge*.9);
   } else if(id<44.5){   /* the mouth of a tunnel */
     vec2 q=vUV; float r=length(vec2(q.x/7.,(q.y-5.)/6.)); vec3 c=vDC;
-    alb=vec3(.01,.01,.02); emi=mix(c*.2,c*1.6,smoothstep(.9,.0,r))*(1.+uNight*.4)+vec3(.02);
+    alb=vec3(.01,.01,.02); emi=mix(c*.2,c*1.6,(1.-smoothstep(.0,.9,r)))*(1.+uNight*.4)+vec3(.02);
   } else if(id<45.5){   /* curb */
     alb=vec3(.64,.63,.60)*(.85+.25*nz(gp*1.3));
   } else if(id<46.5){   /* lot / yard */
@@ -382,7 +382,7 @@ void main(){
     float gz=smoothstep(.68,.86,a+.15*(b-.5));
     alb=mix(vec3(.40,.395,.37),vec3(.25,.32,.19),gz*.75)*(.86+.2*b)*(.9+.14*(c-.7));
   } else if(id<47.5){   /* plain concrete */
-    alb=vec3(.58,.57,.55)*(.82+.28*nz(gp*.8)+.1*nz(vec2(vUV.x*3.,vUV.y*.8)));
+    alb=vec3(.45,.45,.44)*(.84+.26*nz(gp*.8)+.08*nz(vec2(vUV.x*3.,vUV.y*.8)));
     if(vHA.y>.5){ }
   } else {              /* crosswalk bars */
     alb=mix(vec3(.2),vec3(.9,.9,.86),smoothstep(.1,.5,nz(gp*3.))*.5+.45);
@@ -424,7 +424,7 @@ void main(){
     float f=fbm(p*1.3);
     float dens=smoothstep(.50,.78,f)*cs;
     float lt=.55+.45*clamp(dot(vec3(d.xy,d.z),uSun)*.6+.5,0.,1.);
-    vec3 cc=mix(vec3(.62,.66,.74),vec3(1.,.99,.96),lt)*(1.-.75*uNight)+vec3(.02,.03,.06)*uNight;
+    vec3 cc=mix(vec3(.62,.66,.74),vec3(1.,.99,.96),lt)*(1.-.88*uNight)+vec3(.035,.045,.085)*uNight;
     cc=mix(cc,uHor*1.05,.25);
     c=mix(c,cc,dens*.82);
     if(uNight>.5){ vec3 sd=floor(d*220.); float st=h21(sd.xy+sd.z*7.3); float tw=.7+.3*sin(uTime*1.3+st*40.); c+=vec3(.9,.92,1.)*step(.9984,st)*tw*(1.-dens)*smoothstep(.02,.2,d.z)*.9; }

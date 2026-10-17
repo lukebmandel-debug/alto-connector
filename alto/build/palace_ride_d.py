@@ -30,7 +30,7 @@ function openOv(){ ensureOverlay(); if(R.active) return; R.active=true; document
 function showNow(){ if(!R.shown){ R.shown=true; requestAnimationFrame(function(){ if(R.ov && R.active) R.ov.classList.add('on'); }); } }
 function closeNow(restore, keep){
   if(R.raf){ cancelAnimationFrame(R.raf); R.raf=0; }
-  var ov=R.ov, view=R.saved; R.playing=false; R.cb=null; R.M=null; R.W=null; R.hold=false; R.shown=false; R.yaw=null; R.line=null; TN=null; R.lastEv=null;
+  var ov=R.ov, view=R.saved; if(R.M) glFreeWay(R.M); R.playing=false; R.cb=null; R.M=null; R.W=null; R.hold=false; R.shown=false; R.yaw=null; R.line=null; TN=null; R.lastEv=null;
   document.documentElement.classList.remove('pal-fp'); R.active=false; if(!keep) R.saved=null;
   if(restore && view && E.putView) E.putView(view);                       /* the map as it was when the ride began; the overlay fades out over it */
   if(ov){ ov.classList.remove('on'); }
@@ -159,6 +159,7 @@ function startModel(M, cb, opts){
   opts=opts||{}; openOv(); finishModel(M);
   M._cuts=[]; M.ev.forEach(function(e,i){ if(e.k==='dwell' && e.kind==='board') M._cuts.push(e.t0); if(e.k==='dwell' && e.kind==='alight') M._cuts.push(e.t1); });
   var cont=R.active && R.hold && R.M && R.shown && opts.continueFrom && Math.hypot(R.M.D.X[R.M.D.X.length-1]-M.D.X[0], R.M.D.Y[R.M.D.Y.length-1]-M.D.Y[0])<3;
+  if(R.M && R.M!==M) glFreeWay(R.M);
   M._noFade=!!cont; R.fresh=!cont; R.M=M; R.W=null; R.t=opts.t0||0; R.cb=cb||null; R.sig=''; R.lastEv=null; R.yaw=null; R.hold=false; R.line=opts.line||null;
   var W=gather(M); R.W=W; GLX.newWorld(); M._br=bridgeSpans(M, W); if(M._br.length){ M._br.forEach(function(g){ M._lifts.push([g[0],g[1],5,40]); }); }
   W.stopLabels=[]; M.secs.forEach(function(sec){ if(!sec.line||sec.veh==='walk') return; sec.stops.forEach(function(q,qi){ if(sec.ug.some(function(g){ return q.s>=g[0]&&q.s<=g[1]; })) return; var o={x:0,y:0}; pathAt(M.D,q.s,o); W.stopLabels.push({x:o.x,y:o.y,z:12,text:q.n,col:sec.color}); }); });

@@ -11,8 +11,16 @@ are procedural (brick bond, window grid per ~3.4 m floor, mullions, storefronts,
 Static geometry is merged per 300-unit cell into one VBO (ground + buildings), built a few milliseconds a frame, nearest first, and cached by the cell's contents so a
 world that is re-gathered (roaming) reuses what it already built; bounding spheres cull what is out of view.
 
-Hooks other parts may use:  GLX.ok() (true while the GL view is in use);  way callback gets `g` (the GL api: g.way(M)) - null for the 2D fallback;
-C.pitch (setCam's 8th argument) tilts the camera;  W.meshes = [{a:Float32Array, id}] and W.movers = [{a, x, y, z, yaw, tint?}] are drawn as the contract says.
+Hooks other parts may use
+  GLX.on / glOk()      true while the GL view is in use (false: no WebGL, context lost - the 2D painter then draws the city and sceneryDraw/lmSolids stay in use)
+  drawCity(..., way)   `way` is called with the GL api `g` (g.way(M) = the ride model's static way mesh); with no argument it paints the 2D ground (fallback)
+  setCam(..., hz, pitch) / C.pitch / C.foc   the camera: pitch in radians (up positive), C.foc = focal length in px (the field of view); C.shk={x,y,r,s} = screen shake
+  W.meshes=[{a:Float32Array(10-float mesh format), id}]   static models, uploaded once (reused by id+size when a world is re-gathered); `lm` stand-in solids are skipped when a
+                                                          mesh of the same id exists; drawn without face culling, normals flipped toward the eye
+  W.movers=[{a, x, y, z, yaw, tint?}]   instanced by `a` (ANGLE_instanced_arrays, else one draw each); sceneryUpdate(W,tm,C) runs every GL frame
+  GLX.crosswalks=false  turn the grid crosswalks off (when the scenery part draws its own);   GLX.newWorld()  mark a new world (the next frame builds its nearest cells whole)
+  window._palRideNoGL / _palRideNoShadow = true  before the overlay is made: force the 2D fallback / no shadows
+QA: GLX.look(x,y,z,yawDeg,pitchDeg,cellsRadius,dark) draws a free camera over a world gathered round (x,y); GLX.lookRide(...) over the current ride; GLX.tAtS(s) time at path position s
 """
 import json
 
@@ -29,7 +37,7 @@ _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
 var GLX={ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
   st:{draws:0, tris:0, built:0, pending:0, ms:0, chunks:0}, ready:false, fresh:true, inst:null, instBuf:null, ibuf:null};
-var GL_NEAR=1.2, GL_FAR=4600, GL_MAXCACHE=260;
+var GL_NEAR=.7, GL_FAR=2000, GL_MAXCACHE=260;
 function glAttach(ov){
   var cv=document.createElement('canvas'); cv.className='pr-gl'; cv.setAttribute('aria-hidden','true'); var c2=ov.querySelector('.pr-cv'); ov.insertBefore(cv,c2); GLX.cv=cv;
   cv.addEventListener('webglcontextlost', function(e){ e.preventDefault(); GLX.lost=true; GLX.on=false; ov.classList.remove('pr-glon'); GLX.err='context lost'; });
@@ -286,6 +294,7 @@ var WAY_SEG=260;
 function glWayGet(M,W){
   var g=M._gw; if(g && g.gen===GLX.gen) return g;
   g={gen:GLX.gen, segs:[], done:false, si:0, s:0, b:null, segN:-1, prev:null, M:M, ug:M._ug||[], pi:0, portals:false, el:null}; M._gw=g; return g; }
+function glFreeWay(M){ var g=M&&M._gw; if(g){ (g.segs||[]).forEach(glFree); g.segs=[]; M._gw=null; } }
 function glInUg(M,sec,s){ for(var i=0;i<sec.ug.length;i++){ var g=sec.ug[i]; if(s>g[0]+16 && s<g[1]-16) return true; } return false; }
 function glInBr(M,s){ var br=M._br||[]; for(var i=0;i<br.length;i++) if(s>=br[i][0]&&s<=br[i][1]) return br[i]; return null; }
 function glRibbon(b,p,q,off,w,zo,pk,t,uc){      /* p,q = frames {x,y,nx,ny,z,s}: a ribbon w wide at offset off between them, u across (m, centred), v along (m) */
