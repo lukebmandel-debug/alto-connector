@@ -59,7 +59,8 @@ def test_horizontal_lines_are_solid_with_the_previews_curves_and_a_ruler():
 
 def test_arrows_slide_instead_of_scrolling():
     js = lanes.LANES_JS
-    assert "function _slideTo" in js and "_altoLanesNav(cur, d)" in js and "window.enterFocus(cur)" in js
+    # lanes_nav.py: arrows step event to event on the engine's glide (see test_lanes_nav.py)
+    assert "function glideTo(" in js and "window._altoLanesNav=function(id, dir)" in js and "window.enterFocus(cur)" in js
 
 
 # ── in a browser ────────────────────────────────────────────────────────────

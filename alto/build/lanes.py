@@ -32,6 +32,7 @@ import re
 
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
+from .lanes_nav import NAV_CSS, NAV_JS
 from .sanitize import js_json
 
 MAIN = "main"
@@ -527,74 +528,14 @@ window._altoLanesNav=function(id, dir){
   }
   return null;
 };
-/* arrow keys with no card enlarged: the page slides, gently, to the next event
-   that way and comes to rest on it — never the browser's free scroll. Along a
-   line the arrows go in time, up and down to the nearest event on the next line
-   over (_altoLanesNav); Enter enlarges the one it is on. A press during a slide
-   carries on from where the last one was heading. */
-var _slide=null, _sCur=null, _sLand=null, _sNext=0;
-var _curve=(function(){ var M=400, c=[0], t=0, i, x; for(i=0;i<M;i++){ x=(i+.5)/M; t+=Math.pow(x,.4)*Math.pow(1-x,1.6); c.push(t); } for(i=0;i<=M;i++) c[i]/=t; return c; })();
-function _ease(p){ if(p<=0) return 0; if(p>=1) return 1; var f=p*400, i=Math.floor(f); return _curve[i]+(_curve[i+1]-_curve[i])*(f-i); }
-function _stopSlide(){ if(_slide){ cancelAnimationFrame(_slide); _slide=null; } }
-function _liveCard(i){ var c=document.querySelector('#node-'+i+' .node-card'); return !!c && !c.classList.contains('dimmed') && !c.classList.contains('ent-dimmed') && !c.classList.contains('rel-dimmed'); }
-function _nodeXY(id, cv){
-  var G=window._altoLanesGeo; if(!G || G.x[id]==null) return null;
-  var w=document.getElementById('world'), ox=0, oy=0, q=w; while(q && q!==cv){ ox+=q.offsetLeft; oy+=q.offsetTop; q=q.offsetParent; }
-  return {x:G.x[id]+ox, y:G.y[id]+(typeof WORLD_PAD_TOP!=='undefined'?WORLD_PAD_TOP:0)+oy};
-}
-function _nearest(cv){
-  var G=window._altoLanesGeo, vx=cv.scrollLeft+cv.clientWidth/2, vy=cv.scrollTop+cv.clientHeight/2, best=null, bd=Infinity;
-  Object.keys(G.x).forEach(function(k){ if(!_liveCard(k)) return; var a=_nodeXY(k,cv); if(!a) return; var d=(a.x-vx)*(a.x-vx)+(a.y-vy)*(a.y-vy); if(d<bd){ bd=d; best=k; } });
-  return best;
-}
-function _slideTo(id){
-  var cv=document.getElementById('canvas'), a=_nodeXY(id,cv); if(!cv || !a) return;
-  var cw=cv.clientWidth, ch=cv.clientHeight;
-  var tl=Math.max(0,Math.min(Math.round(a.x-cw/2), Math.max(0,cv.scrollWidth-cw))), tt=Math.max(0,Math.min(Math.round(a.y-ch/2), Math.max(0,cv.scrollHeight-ch)));
-  var l0=cv.scrollLeft, t0=cv.scrollTop, dist=Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0)), dur=Math.round(Math.min(1500,Math.max(560,460+.2*dist)));   // longer hops take longer: gentle, never a rush
-  _stopSlide(); _sCur=id; _sLand=null;
-  var s0=performance.now();
-  function step(now){
-    var p=Math.min(1,(now-s0)/dur), k=_ease(p);
-    cv.scrollLeft=Math.round(l0+(tl-l0)*k); cv.scrollTop=Math.round(t0+(tt-t0)*k);
-    if(p<1) _slide=requestAnimationFrame(step); else { _slide=null; _sLand=[cv.scrollLeft, cv.scrollTop]; }
-  }
-  _slide=requestAnimationFrame(step);
-}
-['wheel','mousedown','touchstart'].forEach(function(t){ document.addEventListener(t, function(e){ if(!_slide) return; var cv=document.getElementById('canvas'); if(cv && cv.contains(e.target)){ _stopSlide(); _sCur=null; } }, {passive:true, capture:true}); });
-document.addEventListener('keydown', function(e){
-  if(de.classList.contains('mobile') || !window._altoLanesGeo || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || window._focusedNodeId) return;
-  var k=e.key, d=k==='ArrowLeft'?'w':k==='ArrowRight'?'e':k==='ArrowUp'?'n':k==='ArrowDown'?'s':null;
-  if(!d && k!=='Enter') return;
-  if(de.classList.contains('detail-open') || de.classList.contains('alto-editing') || de.classList.contains('printing')) return;
-  var ae=document.activeElement, tg=ae && ae.tagName; if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
-  if(k==='Enter' && (tg==='BUTTON' || tg==='A')) return;
-  if(document.querySelector('#notes-panel.open,#summary-wrap.open,#ef-panel.open,#bg-panel.open,#note-dialog.visible,#search-btn.expanded,#share-dialog.visible')) return;
-  var cv=document.getElementById('canvas'); if(!cv) return;
-  var cur=_sCur;
-  if(cur && !_slide && _sLand && (Math.abs(cv.scrollLeft-_sLand[0])>80 || Math.abs(cv.scrollTop-_sLand[1])>80)) cur=null;   // scrolled away by hand since
-  if(!cur || !_liveCard(cur)) cur=_nearest(cv);
-  if(!cur) return;
-  e.preventDefault();
-  if(k==='Enter'){ if(window.enterFocus) window.enterFocus(cur); return; }
-  var now=Date.now(); if(e.repeat && now<_sNext) return; _sNext=now+260;
-  var nx=window._altoLanesNav(cur, d);
-  if(nx) _slideTo(nx); else if(!_sCur){ _slideTo(cur); }
-}, true);
-/* the wheel: a mouse wheel scrolls the page sideways (Shift: up and down);
-   a trackpad, which scrolls both ways by itself, is left alone */
-var _tp=0;
-document.addEventListener('wheel', function(e){
-  if(de.classList.contains('mobile') || !window._altoLanesGeo || e.ctrlKey || e.metaKey) return;
-  var cv=document.getElementById('canvas'); if(!cv || !cv.contains(e.target) || cv.classList.contains('focus-mode')) return;
-  if(e.deltaX){ _tp=e.timeStamp; return; }
-  if(e.timeStamp-_tp<800) return;
-  if(e.shiftKey){ cv.scrollTop+=e.deltaY; e.preventDefault(); return; }
-  cv.scrollLeft+=e.deltaY*(e.deltaMode===1?40:1); e.preventDefault();
-}, {passive:false});
+/* stepping event to event — keys, wheel, touch, the rail and the whole-timeline
+   view — is lanes_nav.py (NAV_JS, appended to this script) */
 /* isolating a line: its events, its curves, where it branches and joins, the
    arcs to it. A click keeps it; hovering shows it for as long as you point. */
 var _lock=null, _ht=null;
+/* the kept line, for stepping (lanes_nav.py: a character's events only); with an
+   argument, keep that line (null: all of them again) */
+window._altoLanesLock=function(id){ if(arguments.length){ _lock=id||null; isolate(_lock); } return _lock; };
 function isolate(id){
   var cv=document.getElementById('canvas'); if(!cv) return;
   document.querySelectorAll('.ln-on').forEach(function(x){ x.classList.remove('ln-on'); });
@@ -648,3 +589,7 @@ function key(){
 window.addEventListener('load', function(){ setTimeout(key, 300); });
 })();
 """
+
+# going round the timeline: step event to event (lanes_nav.py)
+LANES_CSS += NAV_CSS
+LANES_JS += NAV_JS
