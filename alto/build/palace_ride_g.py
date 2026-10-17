@@ -338,11 +338,9 @@ function personMesh(type, look, pose){
   /* torso, a coat flares to the knee */
   if(type===1) ffr(m,-.15,-.26,.15,.26,.55,-.1,-.22,.1,.22,1.46,MAT.car,top,MAT.car,top);
   else ffr(m,-.12,-.21,.12,.21,.93,-.1,-.25,.1,.25,1.46,MAT.car,top,MAT.car,top);
-  /* arms with hands */
-  [-1,1].forEach(function(sd){ var a=-sd*sw*.9; frot(m,0,sd*.3,1.42,a,-.055,-.05,-.58,.055,.05,0,MAT.car,top,MAT.car,top,[-.04,-.035,.04,.035]); frot(m,0,sd*.3,1.42,a,-.035,-.03,-.7,.035,.03,-.58,MAT.skin,sk,MAT.skin,sk); });
-  /* neck, head (a hexagon), hair */
-  fcyl(m,0,0,1.44,1.54,.055,.05,5,MAT.skin,sk,false);
-  fcyl(m,0,0,1.52,1.74,.098,.09,6,MAT.skin,sk,false);
+  /* arms (the sleeve runs to the hand), head (a hexagon) with a hair cap */
+  [-1,1].forEach(function(sd){ var a=-sd*sw*.9; frot(m,0,sd*.3,1.42,a,-.055,-.05,-.68,.055,.05,0,MAT.car,top,MAT.car,sk,[-.04,-.035,.04,.035]); });
+  fcyl(m,0,0,1.5,1.74,.098,.09,6,MAT.skin,sk,false);
   fcyl(m,0,0,1.64,1.79,.108,.1,6,MAT.skin,hr,true,MAT.skin,hr);
   if(type===1) fbox(m,-.17,-.1,1.36,-.08,.1,1.7,MAT.skin,hr);
   return sfin(m); }
@@ -689,7 +687,7 @@ function offsetRing(ring, off){      /* a clockwise ring moved inward by off (mi
   var n=ring.length/2, o=[], i; for(i=0;i<n;i++){ var p=(i+n-1)%n, q=(i+1)%n, ax=ring[2*i]-ring[2*p], ay=ring[2*i+1]-ring[2*p+1], bx=ring[2*q]-ring[2*i], by=ring[2*q+1]-ring[2*i+1], la=Math.hypot(ax,ay)||1, lb=Math.hypot(bx,by)||1;
     var n1x=-ay/la, n1y=ax/la, n2x=-by/lb, n2y=bx/lb, dd=1+n1x*n2x+n1y*n2y; if(dd<.2) dd=.2; o.push(ring[2*i]+(n1x+n2x)/dd*off, ring[2*i+1]+(n1y+n2y)/dd*off); }
   return o; }
-var LOOKS=[]; (function(){ for(var i=0;i<24;i++) LOOKS.push({skin:(hash(i*7+1)*5)|0, hair:(hash(i*11+2)*6)|0, top:(hash(i*13+3)*PC.cloth.length)|0, bot:(hash(i*17+4)*PC.pants.length)|0}); })();
+var LOOKS=[]; (function(){ for(var i=0;i<10;i++) LOOKS.push({skin:(hash(i*7+1)*5)|0, hair:(hash(i*11+2)*6)|0, top:(hash(i*13+3)*PC.cloth.length)|0, bot:(hash(i*17+4)*PC.pants.length)|0}); })();
 
 function moversGather(S, W, M, stat, SI){
   var mv={cars:[], walk:[], birds:[], heads:S.heads||[], cell:{}, t:-1, act:[], loops:[], nc:0}; W._mv=mv; var O=S.O, i, j, k;
