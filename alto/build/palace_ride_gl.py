@@ -205,7 +205,8 @@ function glSolid(b,s){
       for(i=0;i<m2;i++){ var j4=(i+1)%m2; ax=r2[2*i]; ay=r2[2*i+1]; bx=r2[2*j4]; by=r2[2*j4+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue; gwall(b,ax,ay,bx,by,zt2,zt2+h2,-dy/l,dx/l,zt2,pk,T); }
       _gL=0; gflat(b,r2,zt2+h2,st.roof,T,true);
       if(hm>180){ _gH=0; gbox(b,c[0],c[1],.5,.5,zt2+h2,zt2+h2+32*UM,0,6,T,true); } } }
-  _gH=0; }
+  _gH=0;
+  if(s.door) glDoor(b,s); }
 
 /* the ground of a cell: asphalt under everything, kerbed sidewalks with their yards, parks, water with quays, highway ribbons, lane dashes, crosswalks */
 function glBase(b,cell,W){

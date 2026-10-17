@@ -81,7 +81,7 @@ function gatherWorld(set, M){
   var seen={}, hot={}; if(M&&M.a!=null) hot[E.bOf(M.a)]=1; if(M&&M.b!=null) hot[E.bOf(M.b)]=1;
   Object.keys(P.at||{}).forEach(function(id){ if(E.bOf(id)!==id) return; var key=P.at[id]; if(seen[key]) return; seen[key]=1; var L=E.lot(key); if(!L) return; if(!inSet(set,L[0],L[1])) return;
     var tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*VEX, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dark()?[150,162,200]:[255,255,255], dark()?.30:.5), s=solid(turnedRing(L), h, gc, 'node', E.name(id));
-    s.hot=!!hot[id]; s.id=id; s.col2=E.ucol(id); W.solids.push(s); });
+    s.hot=!!hot[id]; s.id=id; s.col2=E.ucol(id); try{ s.door=nodeDoor(L,id); }catch(x){ s.door=null; } W.solids.push(s); });
   (Mp.landmarks||[]).forEach(function(l){ if(!l.box) return; var cx=(l.box[0]+l.box[2])/2, cy=(l.box[1]+l.box[3])/2; if(!inSet(set,cx,cy)) return; landmarkMeshes(l, (P.lmtop||{})[l.n]||30, W); });
   var FG=E.fillGroups?E.fillGroups():null, cnt=0, CAP=2600;
   if(FG){ for(var lv=4;lv>=1;lv--){ var G=FG[lv]||{}; Object.keys(G).forEach(function(key){ var C=G[key]; Object.keys(C.u).forEach(function(u){ var base=rgbOf(E.tubeCol(E.dcol(u==='null'?null:+u)||E.NEUTRAL()));

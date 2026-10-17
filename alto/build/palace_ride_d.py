@@ -141,8 +141,12 @@ function chipUpdate(M, sec, veh, s, st, nxt){
   if(st.dwell && st.dwell.kind==='end'){ title='Arrived'; sub=M.b!=null?E.name(M.b):''; if(M.line) { sub=M.line.stopName||''; } }
   else if(sec.line){ title=lead; sub=nxt?('Next stop · '+nxt.n):(sec.stops.length?'Last stop · '+sec.stops[sec.stops.length-1].n:''); if(st.dwell&&st.dwell.name) sub=(st.dwell.kind==='stop'?'Stopped · ':'')+st.dwell.name; }
   else { var nsec=M.secs[st.sec+1]; title=veh==='car'?'Driving':'Walking'; sub=nsec&&nsec.line?('To '+((nsec.stops[0]||{}).n||'the station')):(M.b!=null?('To '+E.name(M.b)):''); }
-  var sig=title+'|'+sub+'|'+(sec.color||''); if(sig===R.sig) return; R.sig=sig;
-  R.chip.style.setProperty('--lc', sec.color||'#888'); R.chip.innerHTML='<i></i><b>'+esc(title)+'</b>'+(sub?'<span>'+esc(sub)+'</span>':''); R.live.textContent=title+(sub?'. '+sub:''); }
+  var canE=!!(st.dwell && st.dwell.kind==='end' && !M.line && canOpen(M.b));      /* arrived at a building with a page: E opens it (a very small key cap, nothing more) */
+  var sig=title+'|'+sub+'|'+(sec.color||'')+(canE?'|e':''); if(sig===R.sig) return; R.sig=sig;
+  R.chip.style.setProperty('--lc', sec.color||'#888'); R.chip.innerHTML='<i></i><b>'+esc(title)+'</b>'+(sub?'<span>'+esc(sub)+'</span>':'')+(canE?'<kbd aria-hidden="true">E</kbd>':''); R.live.textContent=title+(sub?'. '+sub:'')+(canE?'. Press E to open its page.':''); }
+/* a node building has a detail page: the ride's destination, once arrived, opens it with E (the trip is ended first, then the page, the way the map's own enter does) */
+function canOpen(id){ try{ return id!=null && typeof window.showDetail==='function' && !!(E.P && E.P.at && E.P.at[E.bOf(id)]); }catch(x){ return false; } }
+function openArrived(id){ var nid=E.bOf(id); if(window._palTr && window._palTr.clear) window._palTr.clear(); setTimeout(function(){ try{ window.showDetail('node', nid); }catch(x){} }, 60); }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function loop(now){
   R.raf=0; if(!R.M) return; var dt=Math.min(.05, R.last?(now-R.last)/1000:.016); R.last=now;
@@ -224,6 +228,7 @@ function bind(){
   document.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-ride]'); if(!b) return; e.preventDefault(); e.stopPropagation(); var a=b.getAttribute('data-ride');
     if(a==='view') toggle(); else if(a==='exit'){ if(window._palTr) window._palTr.clear(); } else if(a==='snd'){ try{ localStorage.setItem(LS_SND, sndOn()?'off':'on'); }catch(x){} labelBtns(); if(sndOn()) chime(); } }, true);
   window.addEventListener('keydown', function(e){ if(e.metaKey||e.ctrlKey||e.altKey) return; var t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
+    if((e.key==='e' || e.key==='E') && !e.repeat && R.active && R.M && !R.playing && R.t>=R.M.T-.05 && !R.M.line && canOpen(R.M.b)){ e.preventDefault(); e.stopImmediatePropagation(); openArrived(R.M.b); return; }
     if(e.key!=='v' && e.key!=='V') return; var S=window._palTr&&window._palTr.state?window._palTr.state():null; if(!S || (!S.trip && !S.ride)) return; e.preventDefault(); e.stopImmediatePropagation(); toggle(); }, true);
   window.addEventListener('resize', function(){ if(R.active && R.M){ kick(); } });
 }
