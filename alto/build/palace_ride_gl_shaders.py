@@ -29,13 +29,14 @@ vec3 aces(vec3 x){ vec3 c=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); fl
 """
 
 VS_WORLD = r"""
-attribute vec3 aP; attribute vec3 aN; attribute vec2 aUV; attribute vec2 aMT; attribute vec3 aDC; attribute vec2 aHA; attribute vec4 aI; attribute float aT2;
+attribute vec3 aP; attribute vec3 aN; attribute vec2 aUV; attribute vec2 aMT; attribute vec3 aDC; attribute vec2 aHA; attribute vec4 aI; attribute vec2 aT2;
 uniform mat4 uVP; uniform vec3 uEye; uniform float uInst; uniform mat4 uLP; uniform mat4 uLQ; uniform vec2 uNOff;
-varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ;
+varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ; varying float vFade;
 void main(){
   float pk=aMT.x; float aux=floor(pk/256.); float r=pk-aux*256.; float bias=floor(r/64.); float id=r-bias*64.;
   vec3 p=aP; vec3 n=aN; float tint=aMT.y;
-  if(uInst>.5){ float c=cos(aI.w); float s=sin(aI.w); p=vec3(c*aP.x-s*aP.y, s*aP.x+c*aP.y, aP.z)+aI.xyz; n=vec3(c*aN.x-s*aN.y, s*aN.x+c*aN.y, aN.z); if(aT2>=0.) tint=aT2; }
+  if(uInst>.5){ float c=cos(aI.w); float s=sin(aI.w); p=vec3(c*aP.x-s*aP.y, s*aP.x+c*aP.y, aP.z)+aI.xyz; n=vec3(c*aN.x-s*aN.y, s*aN.x+c*aN.y, aN.z); if(aT2.x>=0.) tint=aT2.x; }
+  vFade=1.; if(uInst>.5 && aT2.y>0.){ float dm=length(aI.xyz-uEye)/aT2.y; vFade=1.-smoothstep(.74,.98,dm); }
   vP=p; vN=n; vUV=aUV; vM=vec4(id,aux,tint,bias); vDC=aDC; vHA=aHA;
   vec3 q=p+(uEye-p)*bias*0.0022;
   vec3 nn=normalize(n); vSL=(uLP*vec4(p+nn*uNOff.x,1.)).xyz; vSQ=(uLQ*vec4(p+nn*uNOff.y,1.)).xyz;
@@ -45,6 +46,8 @@ void main(){
 
 FS_WORLD = r"""
 varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ;
+uniform sampler2D uPal; uniform sampler2D uAtl; uniform vec2 uAtlS; uniform vec4 uLamp[12]; uniform vec3 uLampC;
+varying float vFade;
 uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size of the far map, z: its depth bias, w: the near map's depth bias */
 uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
 float pcf(sampler2D s, vec2 uv, float z, float ts){
@@ -63,6 +66,7 @@ float shadowAt(float nl){
     vis=mix(vf,v,fq); } else vis=vf;
   return vis; }
 
+vec3 palCol(float t){ return texture2D(uPal,vec2((floor(t*255.+.5)+.5)*(1./256.),.5)).rgb; }
 vec3 lin(vec3 c){ return c*c*(c*.305306011+.682171111)+.012522878; }     /* sRGB -> linear, close to pow 2.2 */
 float rectm(vec2 p, vec2 c, vec2 hs, vec2 w){ vec2 d=abs(p-c)-hs; vec2 k=1.-smoothstep(-w,w,d); return k.x*k.y; }
 vec3 brickPal(float T){
@@ -265,11 +269,12 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
 vec3 asphalt(vec2 gp, float fpx){
   float lo=nz(gp*.11+7.); float mid=nz(gp*.9); float gr=nz(gp*11.)*(1.-smoothstep(.01,.06,fpx))+nz(gp*37.)*(1.-smoothstep(.003,.02,fpx));
   float patch=smoothstep(.62,.75,nz(gp*.045+2.));
-  vec3 a=vec3(.30,.302,.31)*(.84+.3*lo)*(.93+.14*mid)+vec3(.05)*(gr-.8)*.5;
-  a=mix(a,vec3(.2,.2,.21),patch*.55);
-  float stain=smoothstep(.7,.85,nz(gp*.3+11.)); a*=1.-.25*stain;
+  vec3 a=vec3(.30,.302,.31)*(.88+.2*lo)*(.95+.1*mid)+vec3(.05)*(gr-.8)*.5;
+  a=mix(a,vec3(.23,.23,.24),patch*.3);
+  float stain=smoothstep(.7,.85,nz(gp*.3+11.)); a*=1.-.14*stain;
   return a; }
 void main(){
+  if(vFade<1.){ float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); if(vFade<dn) discard; }
   float id=floor(vM.x+.5); float aux=floor(vM.y+.5); float T=vM.z;
   vec3 N=normalize(vN); vec3 toE=uEye-vP; float dist=length(toE); vec3 V=toE/dist;
   if(dot(N,V)<0.) N=-N;
@@ -331,25 +336,25 @@ void main(){
   } else if(id<15.5){ alb=vec3(.07,.07,.08);
   } else if(id<16.5){   /* roof tile */
     float rowv=fract(vUV.y/.32); alb=mix(vec3(.45,.2,.14),vec3(.3,.13,.1),smoothstep(.0,.35,rowv))*(.85+.3*h21(floor(vUV*vec2(3.,3.1))));
-  } else if(id<17.5){   /* trunk */
-    alb=vec3(.20,.14,.10)*(.7+.6*nz(vec2(vUV.x*14.,vUV.y*2.6)));
-  } else if(id<18.5){   /* leaves */
-    float k=fract(T*5.3); vec3 gcol=mix(vec3(.15,.30,.09),vec3(.30,.45,.13),fract(T*11.));
-    if(k>.84) gcol=mix(vec3(.62,.40,.10),vec3(.62,.2,.08),fract(T*23.)); else if(k>.76) gcol=mix(gcol,vec3(.55,.5,.15),.7);
-    float cl=nz(gp*2.2+T*40.); float cl2=nz(gp*7.)*(1.-smoothstep(.03,.12,fpx));
-    alb=gcol*(.7+.5*cl)*(.88+.2*cl2); wrap=.55; ao*=.6+.4*smoothstep(.0,3.,vP.z);
-  } else if(id<19.5){   /* car paint */
-    float k=fract(T*9.7); vec3 pc=k<.2?vec3(.85,.85,.87):k<.38?vec3(.05,.05,.06):k<.52?vec3(.55,.57,.6):k<.64?vec3(.55,.08,.08):k<.76?vec3(.1,.18,.4):k<.86?vec3(.3,.31,.33):k<.93?vec3(.55,.5,.4):vec3(.1,.3,.2);
-    alb=pc; refl=.12+.35*pow(1.-ndv,3.); spec=1.; if(N.z<.2&&vUV.y>.7*0.) { }
-  } else if(id<20.5){   /* skin and clothes */
-    float k=fract(T*7.7); vec3 sc=k<.2?vec3(.55,.37,.28):k<.4?vec3(.8,.6,.5):k<.6?vec3(.36,.22,.16):k<.8?vec3(.7,.5,.4):vec3(.25,.15,.12);
-    float cl=step(.5,fract(vUV.y*.8)); alb=sc; if(vUV.y<1.55&&vUV.y>.06) alb=mix(vec3(.16,.2,.32),vec3(.3,.12,.12),fract(T*3.3))*.9;
-  } else if(id<21.5){   /* lamp */
-    alb=vec3(.6,.6,.58); emi=vec3(1.,.82,.5)*(uNight*3.2+.15);
-  } else if(id<22.5){   /* sign */
-    vec3 sc=mix(vec3(.05,.35,.2),vec3(.07,.2,.5),fract(T*5.)); if(vDC.r<.99||vDC.g<.99||vDC.b<.99) sc=vDC; alb=sc*.8; emi=sc*uNight*.6;
+  } else if(id<17.5){   /* trunk: the scenery palette colour, barked */
+    alb=palCol(T)*(.78+.45*nz(vec2(vUV.x*14.,vUV.y*2.6)));
+  } else if(id<18.5){   /* leaves: the palette colour (three shades a tree), broken up by noise */
+    vec2 lq=vP.xy*.9+vec2(vP.z*1.7,vP.z*-1.3); float cl=nz(lq*1.1)*.6+nz(lq*3.9)*.4; float cl2=nz(lq*13.)*(1.-smoothstep(.02,.1,fpx));
+    alb=palCol(T)*(.7+.62*cl)*(.88+.22*cl2); wrap=.6; ao*=(.62+.38*smoothstep(.0,3.,vP.z))*(.8+.2*(N.z*.5+.5));
+  } else if(id<19.5){   /* car paint, glass, tyres, lamps: palette colours, glossy */
+    vec3 pc=palCol(T); float lum=dot(pc,vec3(.3,.59,.11));
+    alb=pc; refl=(.10+.35*pow(1.-ndv,3.))*(lum<.2?1.3:1.); spec=1.;
+    if(pc.r>.9&&pc.g>.9&&pc.b>.75){ emi=pc*(.3+uNight*2.); } else if(pc.r>.75&&pc.g<.2&&pc.b<.2){ emi=pc*(.2+uNight*1.6); }
+  } else if(id<20.5){   /* skin, hair and clothes */
+    alb=palCol(T);
+  } else if(id<21.5){   /* lamp heads and signal lenses: lit ones glow */
+    vec3 pc=palCol(T); float mx=max(pc.r,max(pc.g,pc.b)); alb=pc*.5; emi=mix(vec3(0.),pc,step(.8,mx))*(.9+uNight*3.4);
+  } else if(id<22.5){   /* paint, plates, hydrants, bins */
+    vec3 sc=palCol(T); if(vDC.r<.99||vDC.g<.99||vDC.b<.99) sc=vDC; alb=sc; emi=sc*uNight*.07;
   } else if(id<23.5){   /* red brick */
     alb=brickTex(vUV,T*.1+.01,fp);
+  } else if(id<24.5){   /* street-name text from the atlas, unlit */
+    vec3 tc=texture2D(uAtl,vUV*uAtlS).rgb; alb=vec3(0.); emi=lin(tc)*(.8+.2*(1.-uNight)); refl=0.;
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
     vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7); alb=mix(vec3(.26),pc,smoothstep(.08,.4,wear)*.22+.76);
@@ -393,9 +398,10 @@ void main(){
   vec3 L=lin(clamp(alb,0.,1.));
   /* sun on the surface, ambient from the sky; a touch of bounce from the street onto walls */
   vec3 col=L*(amb*ao+uSunCol*nlw*ao*mix(1.,.85,wrap)*shd) +emi*1.0;
+  if(uNight>.5){ for(int i=0;i<12;i++){ vec4 lp=uLamp[i]; if(lp.w>.5){ vec3 dl=lp.xyz-vP; float dd=dot(dl,dl); float dis=sqrt(dd); float att=exp(-dd*(1./(27.*27.)))*(1.-smoothstep(70.,120.,dis)); float nlL=max(dot(N,dl/max(dis,.01)),0.)*.8+.2*step(.5,N.z); col+=L*uLampC*att*nlL*.9; } } }
   if(spec>.5){ vec3 H=normalize(uSun+V); col+=uSunCol*pow(max(dot(N,H),0.),70.)*.45*(1.-uNight*.7)*shd; }
   if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z)); col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
-  float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/280.,.0,1.); f*=mix(.7,1.,hf);
+  float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/260.,.0,1.); f*=mix(.5,1.,hf);
   vec3 fogc=uFog+uSunCol*.045*pow(max(dot(-V,uSun),0.),5.)*(1.-uNight);
   col=mix(col,fogc,clamp(f,0.,1.));
   col=aces(col*uExp);

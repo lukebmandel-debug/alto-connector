@@ -35,7 +35,7 @@ CSS_GL = r"""
 
 _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
-var GLX={ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
+var GLX={uid:0, ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
   st:{draws:0, tris:0, built:0, pending:0, ms:0, chunks:0}, ready:false, fresh:true, inst:null, instBuf:null, ibuf:null};
 var GL_NEAR=.7, GL_FAR=2000, GL_MAXCACHE=260;
 function glAttach(ov){
@@ -55,7 +55,7 @@ function glSetup(restore){
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
   GLX.inst=gl.getExtension('ANGLE_instanced_arrays');
   try{
-    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ']);
+    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC']);
     GLX.shp=glProgram(gl, GLS.vsh, GLS.fsh, ['aP'], ['uLP']);
     GLX.sky=glProgram(gl, GLS.vss, GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']);
   }catch(x){ GLX.err=String(x&&x.message||x); if(window.console) console.warn('ride GL', GLX.err); return glFail(true); }
@@ -67,10 +67,13 @@ function glSetup(restore){
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR); gl.generateMipmap(gl.TEXTURE_2D); GLX.noise=tx;
   var q=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,q); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1, 3,-1, -1,3]),gl.STATIC_DRAW); GLX.quad=q;
   glShadowSetup(gl);
-  GLX.ibuf=gl.createBuffer(); GLX.instBuf=new Float32Array(5*600);
+  GLX.palTex=glTex1(gl,new Uint8Array([128,128,128,255]),1,1,false); GLX.atlTex=glTex1(gl,new Uint8Array([255,255,255,255]),1,1,false); GLX.palRef=null; GLX.palN=-1; GLX.atlRef=null; GLX.lampBuf=new Float32Array(48);
+  GLX.ibuf=gl.createBuffer(); GLX.instBuf=new Float32Array(6*600);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW); gl.clearColor(.5,.55,.6,1);
   GLX.on=true; GLX.lost=false; GLX.ready=true; GLX.err=''; GLX.fresh=true; if(GLX.cv&&GLX.cv.parentNode) GLX.cv.parentNode.classList.add('pr-glon');
   return true; }
+function glTex1(gl,px,w,h,mip){ var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,mip?gl.LINEAR:gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR:gl.NEAREST); return tx; }
 function glFail(drop){ GLX.on=false; GLX.ready=false; var cv=GLX.cv; if(cv&&cv.parentNode){ cv.parentNode.classList.remove('pr-glon'); if(drop||!GLX.gl) { cv.parentNode.removeChild(cv); } } return false; }
 function glProgram(gl, vs, fs, attrs, unis){
   function mk(t,src){ var s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ var l=gl.getShaderInfoLog(s); gl.deleteShader(s); throw new Error((t===gl.VERTEX_SHADER?'vertex: ':'fragment: ')+l); } return s; }
@@ -140,6 +143,8 @@ function glExpand(a){
   for(i=0;i<nv;i++){ var s=i*10, d=i*15; for(j=0;j<10;j++) o[d+j]=a[s+j]; o[d+10]=1; o[d+11]=1; o[d+12]=1; o[d+13]=0; o[d+14]=0;
     var x=a[s], y=a[s+1], z=a[s+2]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; if(z<z0)z0=z; if(z>z1)z1=z; }
   return {a:o, n:nv, x0:x0,x1:x1,y0:y0,y1:y1,z0:z0,z1:z1}; }
+/* a scenery mesh (10-float format) appended to a cell chunk; flat paint laid on the ground gets the decal depth bias */
+function glAppend(b,a){ glDC(null); _gH=0; _gL=0; for(var i=0;i+9<a.length;i+=10){ var z=a[i+2], nz=a[i+5], bias=(nz>.9&&z<.45)?2:0; gv(b,a[i],a[i+1],z,a[i+3],a[i+4],nz,a[i+6],a[i+7],a[i+8]+64*bias,a[i+9]); } }
 function glUpload(b){
   var gl=GLX.gl; var buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); var arr=b.a.length===b.n?b.a:b.a.subarray(0,b.n); gl.bufferData(gl.ARRAY_BUFFER,arr,gl.STATIC_DRAW);
   var n=b.n/15|0; var cx=(b.x0+b.x1)/2, cy=(b.y0+b.y1)/2, cz=(b.z0+b.z1)/2, r=Math.sqrt(Math.pow(b.x1-b.x0,2)+Math.pow(b.y1-b.y0,2)+Math.pow(b.z1-b.z0,2))/2;
@@ -149,7 +154,7 @@ function glFree(o){ if(o && o.buf && GLX.gl && o.gen===GLX.gen){ try{ GLX.gl.del
 
 _JS_GL_BUILD = r"""
 /* ── what the buildings, ground and way are made of ── */
-var GZ_SIDE=.22, GZ_PARK=.1;
+var GZ_SIDE=.14, GZ_PARK=.1;
 function glDC(col){ if(!col){ _gdr=_gdg=_gdb=1; return; } var m=(col[0]+col[1]+col[2])/3||1; _gdr=clamp(col[0]/m,.45,1.7); _gdg=clamp(col[1]/m,.45,1.7); _gdb=clamp(col[2]/m,.45,1.7); }
 function glStyle(s){
   var hm=(s.h-(s.z0||0))/UM, hh=hashXY(s.cx,s.cy), t=hashXY(s.cx*1.31+7,s.cy*.77+3), k=s.kind, st={mat:1, aux:0, t:t, roof:5, dc:s.col, hm:hm};
@@ -233,10 +238,12 @@ _JS_GL_CHUNKS = r"""
 function glHashStr(h,v){ return (Math.imul(h,31)+(v|0))|0; }
 function glPlan(W){
   var cnt=(W.solids?W.solids.length:0)+(W.tiles?W.tiles.length:0)+(W.parks?W.parks.length:0)+(W.water?W.water.length:0)+(W.roads?W.roads.length:0);
-  if(W._gl && W._gl.gen===GLX.gen && W._gl.cnt===cnt) return W._gl;
-  var G={gen:GLX.gen, cnt:cnt, cells:{}, keys:[], xs:[], meshes:[], sig:0}, lmMesh={}, i;
+  if(W._gl && W._gl.gen===GLX.gen && W._gl.cnt===cnt && W._gl.ver===W.ver) return W._gl;
+  var G={gen:GLX.gen, cnt:cnt, ver:W.ver, cells:{}, keys:[], xs:[], meshes:[], sig:0}, lmMesh={}, i;
   (W.meshes||[]).forEach(function(m){ if(m && m.id) lmMesh[m.id]=1; });
-  function cell(x,y){ var ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), k=ci+','+cj, c=G.cells[k]; if(!c){ c=G.cells[k]={ci:ci,cj:cj,key:k,sol:[],til:[],par:[],wat:[],rod:[],das:[],xs:[],h:0,rad:0,state:0,job:null}; G.keys.push(k); } return c; }
+  function cell(x,y){ var ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), k=ci+','+cj, c=G.cells[k]; if(!c){ c=G.cells[k]={ci:ci,cj:cj,key:k,msh:[],sol:[],til:[],par:[],wat:[],rod:[],das:[],xs:[],h:0,rad:0,state:0,job:null}; G.keys.push(k); } return c; }
+  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m.tex||typeof m.id!=='string'||m.id.indexOf('scn:')!==0) return; var q=m.id.slice(4).split(','), ci=+q[0], cj=+q[1]; if(!isFinite(ci)||!isFinite(cj)) return;
+    var c=cell((ci+.5)*CELL,(cj+.5)*CELL), n=m.a.length, hh=n; for(var u=0;u<8;u++) hh=glHashStr(hh,Math.round(m.a[Math.floor(u*(n-1)/7)]*50)); c.msh.push(m); m._gm=1; c.h=glHashStr(c.h,hh); });
   (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)); c.rad=Math.max(c.rad,s.r||0); });
   (W.tiles||[]).forEach(function(t){ var c=cell(t.cx,t.cy); c.til.push(t); c.h=glHashStr(c.h,Math.round(t.cx*5)+Math.round(t.cy*3)+t.ring.length); c.rad=Math.max(c.rad,t.r||0); });
   (W.parks||[]).forEach(function(p){ var c=cell(p.cx,p.cy); c.par.push(p); c.h=glHashStr(c.h,Math.round(p.cx*5)+Math.round(p.cy*3)+p.ring.length*11); c.rad=Math.max(c.rad,p.r||0); });
@@ -245,7 +252,7 @@ function glPlan(W){
   (W.dashes||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.das.push(w); c.h=glHashStr(c.h,Math.round(w.cx*3)+Math.round(w.cy*5)+1); });
   /* intersections of the street grid, from the rectangular blocks: a crosswalk on every arm that has a block either side.
      quadrant bits of an intersection: 1 block to the east+south, 2 west+south, 4 east+north, 8 west+north (y grows southward) */
-  if(GLX.crosswalks!==false){ var SW=STREET_HW, X={};
+  if(GLX.crosswalks!==false && !W.pal){ var SW=STREET_HW, X={};
     (W.tiles||[]).forEach(function(t){ var r=t.ring; if(r.length!==8) return;
       if(!((Math.abs(r[0]-r[6])<.01 && Math.abs(r[1]-r[3])<.01 && Math.abs(r[2]-r[4])<.01 && Math.abs(r[5]-r[7])<.01) || (Math.abs(r[1]-r[7])<.01 && Math.abs(r[0]-r[2])<.01 && Math.abs(r[3]-r[5])<.01 && Math.abs(r[4]-r[6])<.01))) return;
       var x0=Math.min(r[0],r[2],r[4],r[6]), x1=Math.max(r[0],r[2],r[4],r[6]), y0=Math.min(r[1],r[3],r[5],r[7]), y1=Math.max(r[1],r[3],r[5],r[7]);
@@ -253,7 +260,7 @@ function glPlan(W){
     Object.keys(X).forEach(function(k){ var e=X[k], q=e.q;
       e.arms=((q&1)&&(q&4)?1:0)|((q&2)&&(q&8)?2:0)|((q&1)&&(q&2)?4:0)|((q&4)&&(q&8)?8:0);       /* east, west, south, north */
       if(e.arms){ var c=cell(e.x,e.y); c.xs.push(e); c.h=glHashStr(c.h,Math.round(e.x*3)+Math.round(e.y*7)+e.arms); } }); }
-  G.keys.forEach(function(k){ var c=G.cells[k]; c.cx=(c.ci+.5)*CELL; c.cy=(c.cj+.5)*CELL; c.ck=k+'|'+c.h+'|'+c.sol.length+','+c.til.length+','+c.par.length+','+c.wat.length+','+c.xs.length; });
+  G.keys.forEach(function(k){ var c=G.cells[k]; c.cx=(c.ci+.5)*CELL; c.cy=(c.cj+.5)*CELL; c.ck=k+'|'+c.h+'|'+c.sol.length+','+c.til.length+','+c.par.length+','+c.wat.length+','+c.xs.length+','+c.msh.length; });
   W._gl=G; return G; }
 /* a cell's build state machine: stage 0 the ground, stage 1 the buildings (a few at a time), then upload */
 function glCellStep(W,c,deadline){
@@ -263,6 +270,7 @@ function glCellStep(W,c,deadline){
   if(j.stage===1){ var sol=c.sol, n=sol.length;
     while(j.i<n){ glSolid(b,sol[j.i++]); if((j.i&3)===0 && performance.now()>deadline) return false; }
     j.stage=2; }
+  for(var mi=0; mi<c.msh.length; mi++) glAppend(b,c.msh[mi].a);
   var o=glUpload(b); o.rad=c.rad; GLX.cache[c.ck]=o; GLX.nCache++; GLX.st.built++; c.job=null; c.state=2; return true; }
 function glEvict(){
   if(GLX.nCache<=GL_MAXCACHE) return; var ks=Object.keys(GLX.cache).sort(function(p,q){ return GLX.cache[p].use-GLX.cache[q].use; });
@@ -276,13 +284,14 @@ function glWork(W,budget){
     for(var i=0;i<pend.length;i++){ if(performance.now()>deadline && !(GLX.fresh&&pend[i].d<CELL*1.2)) break; if(glCellStep(W,pend[i],GLX.fresh&&pend[i].d<CELL*1.2?t0+400:deadline)) continue; break; }
     left=glPending(W).length; }
   /* meshes from other parts (landmarks, scenery) and the ride's way, as time allows */
-  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length) return; if(glMeshPeek(m.a)){ glMeshPeek(m.a).use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a,m.id); });
+  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!W.atlas)) return; if(glMeshPeek(m.a)){ glMeshPeek(m.a).use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a,m.id,m.tex); });
   GLX.st.pending=left; return left; }
 /* a mesh from another part (landmarks, scenery, a mover's model) as a GL buffer: by array identity, else by id + size + a few sampled values, so a world that is
    re-gathered with identical scenery reuses the buffers it already has */
 function glMeshPeek(a){ var o=GLX.mc?GLX.mc.get(a):null; return (o && o.gen===GLX.gen && o.buf)?o:null; }
-function glMeshGet(a,id){
+function glMeshGet(a,id,nokey){
   var o=glMeshPeek(a); if(o){ o.use=GLX.frame; return o; }
+  if(nokey){ var e0=glExpand(a); o=glUpload({a:e0.a, n:e0.a.length, x0:e0.x0,x1:e0.x1,y0:e0.y0,y1:e0.y1,z0:e0.z0,z1:e0.z1}); o.use=GLX.frame; GLX.cache['u:'+(++GLX.uid)]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); return o; }
   var n=a.length, key='m:'+(id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+',';
   var c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); return c; }
   var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); GLX.cache[key]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); return o; }
@@ -350,9 +359,9 @@ function glBridge(b,p,q,v){
   [-1,1].forEach(function(sd){ glSide(b,p,q,sd*hw,p.z-2.6,q.z-2.6,p.z+1.5,q.z+1.5,47,0,sd); glSide(b,p,q,sd*(hw-.5),p.z+.0,q.z+.0,p.z+1.3,q.z+1.3,47,0,-sd); });
   var k0=Math.floor(p.s/70), k1=Math.floor(q.s/70); if(k1!==k0){ gbox(b,q.x,q.y,3,1.4,-3,q.z-2.6,Math.atan2(q.fy,q.fx),47,0,false); } }
 function glPortals(b,M){
-  M.secs.forEach(function(sec){ if(!sec.line) return; var col=rgbOf(sec.color||'#6a5acd'); sec.ug.forEach(function(g){ if(g[0]<=sec.s0+.5) return; glPortal(b,M,sec,g[0],col); }); }); }
-function glPortal(b,M,sec,s,col){
-  var f=glWF(M,s,{}), v=sec.veh, w=v==='tram'?5.5:7.5, ho=v==='tram'?10.5:12, WW=28, HH=26, fx=f.fx, fy=f.fy, nx=f.nx, ny=f.ny, z=f.z;
+  M.secs.forEach(function(sec){ if(!sec.line) return; var col=rgbOf(sec.color||'#6a5acd'); sec.ug.forEach(function(g){ if(g[0]>sec.s0+.5) glPortal(b,M,sec,g[0],col,false); if(g[1]<sec.s1-.5) glPortal(b,M,sec,g[1],col,true); }); }); }
+function glPortal(b,M,sec,s,col,exit){          /* exit: the same mouth turned round, its tunnel behind the camera as it leaves (seen from the other side by the way back) */
+  var f=glWF(M,s,{}), v=sec.veh, w=v==='tram'?5.5:7.5, ho=v==='tram'?10.5:12, WW=28, HH=26, sg=exit?-1:1, fx=f.fx*sg, fy=f.fy*sg, nx=-fy, ny=fx, z=f.z;
   glDC(null); _gH=0; _gL=0;
   function P(l,zz,ds){ return [f.x+nx*l+fx*(ds||0), f.y+ny*l+fy*(ds||0), z+zz]; }
   function face(l0,l1,z0,z1,pk){ gquad(b,P(l0,z0),P(l1,z0),P(l1,z1),P(l0,z1),-fx,-fy,0,l0/UM,l1/UM,z0/UM,z1/UM,pk,0); }
@@ -397,7 +406,7 @@ function glUni(gl,pg,L,tm,vp){
   var u=pg.u;
   if(u.uVP) gl.uniformMatrix4fv(u.uVP,false,vp);
   gl.uniform3f(u.uEye,C.x,C.y,C.z); gl.uniform3fv(u.uSun,L.sun); gl.uniform3fv(u.uSunCol,L.sunCol); gl.uniform3fv(u.uSkyA,L.skyA); gl.uniform3fv(u.uGndA,L.gndA);
-  gl.uniform3fv(u.uZen,L.zen); gl.uniform3fv(u.uHor,L.hor); gl.uniform3fv(u.uFog,L.fog); gl.uniform1f(u.uFogD,FOGD*.95); gl.uniform1f(u.uNight,L.dk?1:0); gl.uniform1f(u.uTime,tm||0);
+  gl.uniform3fv(u.uZen,L.zen); gl.uniform3fv(u.uHor,L.hor); gl.uniform3fv(u.uFog,L.fog); gl.uniform1f(u.uFogD,FOGD*1.2); gl.uniform1f(u.uNight,L.dk?1:0); gl.uniform1f(u.uTime,tm||0);
   if(u.uPix) gl.uniform1f(u.uPix,1/C.foc); gl.uniform1f(u.uExp,L.exp); gl.uniform1i(u.uNz,0); if(u.uSh) gl.uniform1i(u.uSh,1); if(u.uSq) gl.uniform1i(u.uSq,2); }
 function glSphVis(cx,cy,cz,r){
   var cm=GLX.cam, dx=cx-C.x, dy=cy-C.y, dz=cz-C.z, d=dx*cm.F[0]+dy*cm.F[1]+dz*cm.F[2]; if(d+r<GL_NEAR || d-r>FARZ) return false;
@@ -419,7 +428,8 @@ var _gvis=[];
 function glDrawWorld(gl,Wd,L,tm,vp){
   var pg=GLX.prog, a=pg.a, i, st=GLX.st; gl.useProgram(pg.p); glUni(gl,pg,L,tm,vp); gl.uniform1f(pg.u.uInst,0);
   var names=['aP','aN','aUV','aMT','aDC','aHA']; names.forEach(function(n){ gl.enableVertexAttribArray(a[n]); });
-  gl.disableVertexAttribArray(a.aI); gl.disableVertexAttribArray(a.aT2); gl.vertexAttrib4f(a.aI,0,0,0,0); gl.vertexAttrib1f(a.aT2,-1);
+  gl.disableVertexAttribArray(a.aI); gl.disableVertexAttribArray(a.aT2); gl.vertexAttrib4f(a.aI,0,0,0,0); gl.vertexAttrib2f(a.aT2,-1,0);
+  glSceneryUni(gl,pg,Wd,L);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,GLX.noise);
   var sd=GLX.shd; if(sd&&sd.ok&&sd.on){ var cf=sd.c[0], cq=sd.c[1]; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,cf.tex); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,cq.tex); gl.activeTexture(gl.TEXTURE0);
     gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
@@ -433,24 +443,50 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   var wy=GLX.curWay; if(wy && wy.segs){ for(i=0;i<wy.segs.length;i++){ var s=wy.segs[i]; if(!glSphVis(s.cx,s.cy,s.cz,s.r)) continue; glBind(gl,pg,s); gl.drawArrays(gl.TRIANGLES,0,s.n); draws++; tris+=s.n/3; } }
   /* meshes from the landmark and scenery parts: no culling (their winding is not ours to trust) */
   gl.disable(gl.CULL_FACE);
-  (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length) return; var mc=glMeshPeek(m.a); if(!mc) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
+  (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!Wd.atlas)) return; var mc=glMeshPeek(m.a); if(!mc) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
   draws+=glDrawMovers(gl,pg,Wd); gl.enable(gl.CULL_FACE);
   st.draws=draws; st.tris=tris|0; st.chunks=_gvis.length;
   names.forEach(function(n){ gl.disableVertexAttribArray(a[n]); }); }
+/* the scenery part drops movers beyond a distance per kind (cars 460, people 230, birds 380, signal lamps 160): fade them out before that with a dither, so nothing pops */
+function glFadeOf(m){ var k=m.kind; return k===0?460:k===1?230:k===2?380:k==null?0:160; }
+/* the scenery's colours (W.pal), its street-name atlas, and the nearest lit lamps for light pools at night */
+/* a roamed world is one merged world plus its per-cell worlds (W.cells): the palette, the lit lamps and the movers live in the cells */
+function glCellsNear(Wd,rad){ var o=[], cs=Wd.cells; if(!cs) return o; var ci=Math.floor(C.x/CELL), cj=Math.floor(C.y/CELL); for(var i=-rad;i<=rad;i++) for(var j=-rad;j<=rad;j++){ var c=cs[(ci+i)+','+(cj+j)]; if(c) o.push(c); } return o; }
+function glPalOf(Wd){ if(Wd.pal) return Wd.pal; if(Wd._palc) return Wd._palc; var cs=Wd.cells; if(cs) for(var k in cs){ if(cs[k].pal){ Wd._palc=cs[k].pal; return Wd._palc; } } return null; }
+function glMoversOf(Wd,tm){
+  if(Wd._mv || !Wd.cells) { if(typeof sceneryUpdate==='function') sceneryUpdate(Wd,tm,C); return Wd.movers; }
+  var out=Wd._gmv||(Wd._gmv=[]); out.length=0; glCellsNear(Wd,1).forEach(function(c){ if(typeof sceneryUpdate==='function') sceneryUpdate(c,tm,C); if(c.movers) for(var i=0;i<c.movers.length;i++) out.push(c.movers[i]); }); return out; }
+function glSceneryUni(gl,pg,Wd,L){
+  var pal=glPalOf(Wd); if(pal && (GLX.palRef!==pal || GLX.palN!==pal.length)){ var px=new Uint8Array(1024), i; for(i=0;i<pal.length&&i<256;i++){ px[4*i]=pal[i][0]; px[4*i+1]=pal[i][1]; px[4*i+2]=pal[i][2]; px[4*i+3]=255; }
+    gl.bindTexture(gl.TEXTURE_2D,GLX.palTex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,256,1,0,gl.RGBA,gl.UNSIGNED_BYTE,px); GLX.palRef=pal; GLX.palN=pal.length; }
+  var at=Wd.atlas; if(at && at.canvas && (GLX.atlRef!==at.canvas || GLX.atlH!==at.h || at.dirty)){ var h=at.canvas.height, w=at.canvas.width, H2=1; while(H2<h) H2*=2;
+    var cv=document.createElement('canvas'); cv.width=w; cv.height=H2; cv.getContext('2d').drawImage(at.canvas,0,0); gl.bindTexture(gl.TEXTURE_2D,GLX.atlTex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR); gl.generateMipmap(gl.TEXTURE_2D);
+    GLX.atlRef=at.canvas; GLX.atlH=at.h; GLX.atlS=[1,h/H2]; at.dirty=false; }
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,GLX.palTex); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,GLX.atlTex); gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1i(pg.u.uPal,3); gl.uniform1i(pg.u.uAtl,4); var as=GLX.atlS||[1,1]; gl.uniform2f(pg.u.uAtlS,as[0],as[1]);
+  var lb=GLX.lampBuf, n=0; lb.fill(0);
+  var lsets=Wd.lamps?[Wd.lamps]:glCellsNear(Wd,1).map(function(c){ return c.lamps; }).filter(function(q){ return q&&q.length; });
+  if(L.dk && lsets.length){ var best=[], li, la;
+    for(li=0;li<lsets.length;li++){ la=lsets[li]; for(i=0;i+2<la.length;i+=3){ var dx=la[i]-C.x, dy=la[i+1]-C.y, d2=dx*dx+dy*dy; if(d2>200*200) continue;
+      if(best.length<12 || d2<best[best.length-1].d){ var at2=best.length; while(at2>0 && best[at2-1].d>d2) at2--; best.splice(at2,0,{x:la[i],y:la[i+1],z:la[i+2],d:d2}); if(best.length>12) best.pop(); } } }
+    for(var j=0;j<best.length;j++){ lb[4*j]=best[j].x; lb[4*j+1]=best[j].y; lb[4*j+2]=best[j].z; lb[4*j+3]=1; } }
+  gl.uniform4fv(pg.u.uLamp,lb); gl.uniform3f(pg.u.uLampC,1.0,.72,.38); }
 /* movers: grouped by mesh, instanced where the browser has ANGLE_instanced_arrays, else one draw each */
 var _gmg=[];
 function glDrawMovers(gl,pg,Wd){
-  var mv=Wd.movers; if(!mv||!mv.length) return 0; var a=pg.a, ext=GLX.inst, groups=[], map=GLX.mc, i, draws=0, lim2=Math.pow(FARZ*.42,2);
-  for(i=0;i<mv.length;i++){ var m=mv[i]; if(!m||!m.a||!m.a.length) continue; var dx=m.x-C.x, dy=m.y-C.y; if(dx*dx+dy*dy>lim2) continue; var o=glMeshGet(m.a,'mv'); if(!glSphVis(m.x,m.y,(m.z||0)+o.cz,o.r+2)) continue;
+  var mv=Wd._gmv&&!Wd._mv?Wd._gmv:Wd.movers; if(!mv||!mv.length) return 0; var a=pg.a, ext=GLX.inst, groups=[], map=GLX.mc, i, draws=0, lim2=Math.pow(FARZ*.42,2);
+  for(i=0;i<mv.length;i++){ var m=mv[i]; if(!m||!m.a||!m.a.length) continue; var dx=m.x-C.x, dy=m.y-C.y; if(dx*dx+dy*dy>lim2) continue; var o=glMeshGet(m.a,'mv',true); if(!glSphVis(m.x,m.y,(m.z||0)+o.cz,o.r+2)) continue;
     var gr=null; for(var q=0;q<groups.length;q++) if(groups[q].o===o){ gr=groups[q]; break; } if(!gr){ gr={o:o,l:[]}; groups.push(gr); } gr.l.push(m); }
   gl.uniform1f(pg.u.uInst,1);
   groups.forEach(function(gr){ var l=gr.l, o=gr.o; glBind(gl,pg,o);
-    if(ext && l.length>1){ var n=Math.min(l.length,600), ib=GLX.instBuf, k; for(k=0;k<n;k++){ var m=l[k]; ib[5*k]=m.x; ib[5*k+1]=m.y; ib[5*k+2]=m.z||0; ib[5*k+3]=m.yaw||0; ib[5*k+4]=m.tint==null?-1:m.tint; }
-      gl.bindBuffer(gl.ARRAY_BUFFER,GLX.ibuf); gl.bufferData(gl.ARRAY_BUFFER,ib.subarray(0,5*n),gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(a.aI); gl.enableVertexAttribArray(a.aT2); gl.vertexAttribPointer(a.aI,4,gl.FLOAT,false,20,0); gl.vertexAttribPointer(a.aT2,1,gl.FLOAT,false,20,16);
+    if(ext && l.length>1){ var n=Math.min(l.length,600), ib=GLX.instBuf, k; for(k=0;k<n;k++){ var m=l[k]; ib[6*k]=m.x; ib[6*k+1]=m.y; ib[6*k+2]=m.z||0; ib[6*k+3]=m.yaw||0; ib[6*k+4]=m.tint==null?-1:m.tint; ib[6*k+5]=glFadeOf(m); }
+      gl.bindBuffer(gl.ARRAY_BUFFER,GLX.ibuf); gl.bufferData(gl.ARRAY_BUFFER,ib.subarray(0,6*n),gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(a.aI); gl.enableVertexAttribArray(a.aT2); gl.vertexAttribPointer(a.aI,4,gl.FLOAT,false,24,0); gl.vertexAttribPointer(a.aT2,2,gl.FLOAT,false,24,16);
       ext.vertexAttribDivisorANGLE(a.aI,1); ext.vertexAttribDivisorANGLE(a.aT2,1); ext.drawArraysInstancedANGLE(gl.TRIANGLES,0,o.n,n); ext.vertexAttribDivisorANGLE(a.aI,0); ext.vertexAttribDivisorANGLE(a.aT2,0);
       gl.disableVertexAttribArray(a.aI); gl.disableVertexAttribArray(a.aT2); draws++; }
-    else { l.forEach(function(m){ gl.vertexAttrib4f(a.aI,m.x,m.y,m.z||0,m.yaw||0); gl.vertexAttrib1f(a.aT2,m.tint==null?-1:m.tint); gl.drawArrays(gl.TRIANGLES,0,o.n); draws++; }); } });
+    else { l.forEach(function(m){ gl.vertexAttrib4f(a.aI,m.x,m.y,m.z||0,m.yaw||0); gl.vertexAttrib2f(a.aT2,m.tint==null?-1:m.tint,glFadeOf(m)); gl.drawArrays(gl.TRIANGLES,0,o.n); draws++; }); } });
   gl.uniform1f(pg.u.uInst,0); return draws; }
 var GLAPI={ cur:null, way:function(M){ GLX.curWay=M?glWayGet(M):null; return GLX.curWay; } };
 /* the whole city for camera C into the GL canvas; returns false when GL is not usable (the caller then paints with the 2D fallback) */
@@ -459,7 +495,7 @@ function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   GLX.frame++; var cw=R.cv.width, ch=R.cv.height; glSize(cw,ch); gl.viewport(0,0,cw,ch);
   var vp=glCamera(), L=glLight(P);
   GLX.curWay=null; if(way){ way(GLAPI); }
-  if(typeof sceneryUpdate==='function') sceneryUpdate(Wd,tm,C);
+  var mvs=glMoversOf(Wd,tm);
   /* build: a few ms a frame (the first frame of a new world takes the nearest cells whole) */
   var tA=performance.now(), wk=GLX.curWay; if(wk && !wk.done){ var dl=performance.now()+(GLX.fresh?30:1.6); glWayStep(wk,dl); }
   var tB=performance.now(); glWork(Wd, GLX.fresh?40:2.8); GLX.fresh=false;
@@ -523,7 +559,7 @@ function glShadowPass(gl,Wd,L,cw,ch){
     var lat=function(o){ var ca=a[0]*o.cx+a[1]*o.cy-oa, cbb=b[0]*o.cx+b[1]*o.cy+b[2]*o.cz-ob; return Math.abs(ca)-o.r<Rs && Math.abs(cbb)-o.r<Rs; };
     var draw=function(o){ gl.bindBuffer(gl.ARRAY_BUFFER,o.buf); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,60,0); gl.drawArrays(gl.TRIANGLES,0,o.n); drawn++; };
     G.keys.forEach(function(kk){ var o=GLX.cache[G.cells[kk].ck]; if(o && lat(o)) draw(o); });
-    (Wd.meshes||[]).forEach(function(mm){ if(!mm||!mm.a) return; var o=glMeshPeek(mm.a); if(o && lat(o)) draw(o); });
+    (Wd.meshes||[]).forEach(function(mm){ if(!mm||!mm.a||mm._gm||mm.tex) return; var o=glMeshPeek(mm.a); if(o && lat(o)) draw(o); });
     GLX.st.shadowPasses=(GLX.st.shadowPasses||0)+1; }
   if(prepared){ gl.disableVertexAttribArray(ap); gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true,true,true,true); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); GLX.st.shadowDraws=drawn; } }
 """

@@ -55,13 +55,15 @@ def test_the_camera_has_a_pitch_and_the_labels_follow_it():
 def test_the_shaders_are_one_program_for_the_city_and_one_for_the_sky():
     s = palace_ride_gl_shaders
     assert "precision highp float;" in s.SH_COMMON and "uniform sampler2D uNz;" in s.SH_COMMON
-    for mat in ("/* brick 1, stone 2, glass 3, concrete 4 */", "/* water */", "/* asphalt */", "/* grass */", "/* car paint */", "/* the mouth of a tunnel */", "/* crosswalk bars */"):
+    for mat in ("/* brick 1, stone 2, glass 3, concrete 4 */", "/* water */", "/* asphalt */", "/* grass */", "/* car paint, glass, tyres, lamps: palette colours, glossy */", "/* street-name text from the atlas, unlit */", "/* the mouth of a tunnel */", "/* crosswalk bars */"):
         assert mat in s.FS_WORLD
     for needed in ("wallFacade(", "skyAt(", "shadowAt(", "vNight", ) if False else ("wallFacade(", "skyAt(", "shadowAt("):
         assert needed in s.SH_COMMON + s.FS_WORLD
     assert "vec3 skyAt" in s.SH_COMMON and "fbm(" in s.FS_SKY and "uUn" in s.FS_SKY            # clouds, the shake un-done for the sky
     assert "GL_FRAGMENT_PRECISION_HIGH" not in s.FS_WORLD                                       # guarded in JS instead
+    assert "palCol(" in s.FS_WORLD and "uniform sampler2D uPal;" in s.FS_WORLD and "uLamp[12]" in s.FS_WORLD and "vFade" in s.FS_WORLD     # scenery palette, lamp light pools, mover fade
     g = palace_ride_gl.JS_GL
+    assert "glPalOf(" in g and "glFadeOf(" in g and "glAppend(" in g and "'scn:'" in g           # W.pal, distance fade of movers, scenery merged into the cell chunks
     assert g.count("gl.drawArrays") >= 4 and "drawArraysInstancedANGLE" in g
 
 

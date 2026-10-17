@@ -67,6 +67,7 @@ function drawCity(ctx, W, H, P, Wd, yaw, tm, way){
   /* WebGL when the overlay has it (the city goes to the .pr-gl canvas under this one; `way` is then called with the GL api, `g`, instead of nothing);
      the 2D painter below stays as the fallback (no WebGL, context lost) */
   if(ctx===R.ctx && glFrame(ctx, W, H, P, Wd, yaw, tm, way)){
+    ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,R.cv.width,R.cv.height); ctx.restore();          /* the 2D canvas is transparent over the GL city (roaming draws no tunnel or frame over it) */
     drawLabels(ctx, Wd.labels, P, H/900);
     if(Wd.stopLabels) drawLabels(ctx, Wd.stopLabels, P, H/900);
     return; }

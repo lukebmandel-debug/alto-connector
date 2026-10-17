@@ -249,8 +249,8 @@ function draw(){
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
   var ms=performance.now()-t0; S.fr.push(ms); if(S.fr.length>600) S.fr.shift(); }
-/* the one place the camera is set: the renderer sees (x, y, z, yaw, W, H, hz) where the horizon height hz carries the pitch (looking up moves the horizon down) */
-function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5+.98*Math.tan(pitch)); C.pitch=pitch; }
+/* the one place the camera is set: setCam's 8th argument is the real pitch (the GL renderer tilts the view; the 2D fallback has no pitch of its own, so it keeps the old horizon shift) */
+function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5,pitch); }
 function frame(now){
   S.raf=0; if(!S.on) return;
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */

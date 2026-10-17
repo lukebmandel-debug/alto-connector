@@ -98,7 +98,7 @@ function gatherWorld(set, M){
 /* ── the camera and the 3D drawing ── */
 var C={x:0,y:0,z:2,fx:1,fy:0,rx:0,ry:1,foc:800,hx:0,hy:0,W:0,H:0,tan:1,yaw:0,pitch:0,shk:null};
 /* pitch (radians, up positive) tilts the GL view; the 2D fallback ignores it */
-function setCam(x,y,z,yaw,W,H,hz,pitch){ C.x=x; C.y=y; C.z=z; C.yaw=yaw; C.pitch=pitch||0; C.fx=Math.cos(yaw); C.fy=Math.sin(yaw); C.rx=-C.fy; C.ry=C.fx; C.W=W; C.H=H; C.foc=H*.98; C.hx=W/2; C.hy=H*hz; C.tan=(W/2)/C.foc; }
+function setCam(x,y,z,yaw,W,H,hz,pitch){ C.x=x; C.y=y; C.z=z; C.yaw=yaw; C.pitch=pitch||0; if(C.pitch && !glOk()){ hz+=.98*Math.tan(C.pitch); C.pitch=0; } C.fx=Math.cos(yaw); C.fy=Math.sin(yaw); C.rx=-C.fy; C.ry=C.fx; C.W=W; C.H=H; C.foc=H*.98; C.hx=W/2; C.hy=H*hz; C.tan=(W/2)/C.foc; }
 function vis(cx,cy,r){ var dx=cx-C.x, dy=cy-C.y, zc=dx*C.fx+dy*C.fy; if(zc+r<NEARZ || zc-r>FARZ) return false; var xc=dx*C.rx+dy*C.ry; return Math.abs(xc)-r < (zc+r)*C.tan*1.18+r*.2; }
 var _wx=new Float64Array(1024), _wz=new Float64Array(1024), _wy=new Float64Array(1024), _ox=new Float64Array(1024), _oz=new Float64Array(1024), _oy=new Float64Array(1024);
 /* a flat polygon (ring x,y,x,y…) at height zh (or the per-vertex heights zs), clipped at the near plane; leaves the path on ctx, false when nothing shows */
