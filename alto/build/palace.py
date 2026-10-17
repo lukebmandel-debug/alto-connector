@@ -41,6 +41,7 @@ from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .palace_highway_js import HIGHWAY_CSS, HIGHWAY_JS     # C3 highways
+from .palace_bridges import BRIDGE_CSS, BRIDGE_JS          # bridge design elements
 from .sanitize import js_json
 from . import palace_place as pp
 
@@ -973,10 +974,10 @@ PALACE_CSS = KEY_CSS + r"""
   #pal-pull.on{display:flex;} #pal-pull b{font-weight:800;} #pal-pull span{overflow:hidden;text-overflow:ellipsis;}
   #pal-pull.pp-up{top:calc(var(--dpt,96px) + 12px);} #pal-pull.pp-dn{bottom:18px;} #pal-pull.go{border-color:var(--pal-car,var(--accent));}
   html.mobile #pal-pull{left:50%;} html.printing #pal-pull{display:none !important;}
-""" + LANDMARK_CSS + TRANSIT_CSS + HIGHWAY_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
+""" + LANDMARK_CSS + TRANSIT_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + HIGHWAY_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + TRANSIT_JS + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -1088,6 +1089,7 @@ window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, l
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
 window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
 window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
+window._palBr.init({M:M, el:el, pts:pts, pin:pin});     /* the bridges' design elements (palace_bridges.py) */
 
 /* ── the city, drawn once into an <svg> (a page may hold two: the desktop board, a phone's map page) ── */
 /* a thing that keeps its size on the screen, at map point (x,y): <g class=cls transform="translate(x y)"><g class="pl-sc">…</g></g>.
@@ -1344,8 +1346,8 @@ function drawCity(svg){
   /* a bridge has a deck, so it reads over the water in any colour: piers, rail lines, the deck, then the street's own line on it; the big ones are named */
   var brSeen=[];
   M.streets.forEach(function(st){ if(!st.o) return; var d=pts(st.p);
-    el('path',{'class':'pl-br-pier', d:d},bridges); el('path',{'class':'pl-br-edge', d:d},bridges); el('path',{'class':'pl-casing', d:d},bridges);
-    tube(bridges, d, tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), 5.6, .95, 't-maj'); });
+    var plan=window._palBr.under(bridges, st, d);              /* piers or pilasters, cables, the deck, joints or hangers (palace_bridges.py) */
+    tube(bridges, d, tubeCol(dcol(distAt(st.p[0],st.p[1]))||NEUTRAL()), 5.6, .95, 't-maj'); window._palBr.over(bridges, plan); });
   M.streets.forEach(function(st){ if(!st.o || !st.n || st.k>0) return; var p=st.p, n=p.length, L=0, i;
     for(i=0;i+3<n;i+=2) L+=Math.hypot(p[i+2]-p[i],p[i+3]-p[i+1]); if(L<120) return;
     var mx=(p[0]+p[n-2])/2, my=(p[1]+p[n-1])/2, nm=/bridge/i.test(st.n)?st.n:st.n+' Bridge';
