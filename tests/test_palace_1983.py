@@ -7,7 +7,7 @@ def test_the_view_is_remembered_across_a_detail_page_and_put_back():
     js = palace.PALACE_JS
     assert "function wrapDetail()" in js and "holdView={z:Z, x:cv.scrollLeft, y:cv.scrollTop}" in js
     assert "cancelAnimationFrame(zAnim)" in js                                  # a glide to the building does not land on the hidden board
-    assert "placeAllReal(); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; }" in js
+    assert "cv.scrollLeft=hv.x; cv.scrollTop=hv.y;" in js
     assert "pendEnl=flyId" in js and "enlarge(pe)" in js                         # a double-click's unfinished enlarge resumes on return
     assert "if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;" in js   # nothing is laid out against the hidden canvas
 
@@ -62,6 +62,15 @@ def test_node_buildings_are_glass_blocks_as_tall_as_what_is_inside():
     assert "html.mobile .node .nb3d" in css and "nbDraw(body, L, H, L[0], L[1], id)" in js    # the phone's map draws them too
     assert "pin(b, 'pl-nbtag'" in js                                               # a tag the same size at every zoom, on the phone as well
     assert "nb-see" not in js and "nb-see" not in css                              # no cursor lens: buildings never vanish under the pointer
-    assert "window._nbMoving=function" in js and "html.nb-moving .node .nb3d" in css   # while the page moves they turn to glass, so what they hid shows
+    assert "nb-moving" not in js and "nb-moving" not in css                           # nothing flashes between solid and glass
+    assert "function nbOcclude()" in js and ".node.nb-front .nb3d" in css             # only a building covering another is glass
+    assert "function nbSpread()" in js and "'nb-ld'" in js and "var(--tdx,0px)" in css   # far out, tags are moved apart with pointers to their roofs
     assert "var NB_SK=.25;" in js                                                    # every building stands the way the landmarks do (one lean)
     assert "var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2+(el._nbH||0)*Z;" in js   # an enlarged card stands over the roof
+
+
+def test_a_page_over_the_map_puts_the_view_back_however_it_was_opened():
+    js = palace.PALACE_JS
+    assert "function restoreView()" in js and "function trackView()" in js
+    assert "new MutationObserver(function(){ var now=de.classList.contains('detail-open')" in js    # not only showDetail: the class on <html> says a page opened
+    assert "[0,90,320,800].forEach(" in js                                                           # and it is kept there against a late reset
