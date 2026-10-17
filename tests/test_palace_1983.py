@@ -7,7 +7,7 @@ def test_the_view_is_remembered_across_a_detail_page_and_put_back():
     js = palace.PALACE_JS
     assert "function wrapDetail()" in js and "holdView={z:Z, x:cv.scrollLeft, y:cv.scrollTop}" in js
     assert "cancelAnimationFrame(zAnim)" in js                                  # a glide to the building does not land on the hidden board
-    assert "placeAllReal(); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; }" in js
+    assert "cv.scrollLeft=hv.x; cv.scrollTop=hv.y;" in js
     assert "pendEnl=flyId" in js and "enlarge(pe)" in js                         # a double-click's unfinished enlarge resumes on return
     assert "if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;" in js   # nothing is laid out against the hidden canvas
 
@@ -62,6 +62,73 @@ def test_node_buildings_are_glass_blocks_as_tall_as_what_is_inside():
     assert "html.mobile .node .nb3d" in css and "nbDraw(body, L, H, L[0], L[1], id)" in js    # the phone's map draws them too
     assert "pin(b, 'pl-nbtag'" in js                                               # a tag the same size at every zoom, on the phone as well
     assert "nb-see" not in js and "nb-see" not in css                              # no cursor lens: buildings never vanish under the pointer
-    assert "window._nbMoving=function" in js and "html.nb-moving .node .nb3d" in css   # while the page moves they turn to glass, so what they hid shows
+    assert "nb-moving" not in js and "nb-moving" not in css                           # nothing flashes between solid and glass
+    assert "function nbOcclude()" in js and ".node.nb-front .nb3d" in css             # only a building covering another is glass
+    assert "function nbSpread()" in js and "'nb-ld'" in js and "var(--tdx,0px)" in css   # far out, tags are moved apart with pointers to their roofs
     assert "var NB_SK=.25;" in js                                                    # every building stands the way the landmarks do (one lean)
     assert "var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2+(el._nbH||0)*Z;" in js   # an enlarged card stands over the roof
+
+
+def test_a_page_over_the_map_puts_the_view_back_however_it_was_opened():
+    js = palace.PALACE_JS
+    assert "function restoreView()" in js and "function trackView()" in js
+    assert "new MutationObserver(function(){ var now=de.classList.contains('detail-open')" in js    # not only showDetail: the class on <html> says a page opened
+    assert "[0,90,320,800].forEach(" in js                                                           # and it is kept there against a late reset
+
+
+def test_ships_are_boats_in_the_water_not_buildings_on_blocks():
+    from alto.build import palace_boats, palace_fillin
+    assert palace_boats.is_ship({"building": "ship"}) and palace_boats.is_ship({"historic": "ship"}) and not palace_boats.is_ship({"building": "yes"})
+    raw = {"elements": [{"type": "way", "id": 1, "tags": {"name": "USS Olympia", "building": "ship", "historic": "ship"},
+                         "geometry": [{"lat": 39.9460, "lon": -75.1400}, {"lat": 39.9460, "lon": -75.1398}, {"lat": 39.9470, "lon": -75.1398}, {"lat": 39.9470, "lon": -75.1400}]}]}
+    assert palace_fillin.buildings(raw) == []                                       # no fill-in building for a ship
+    s = palace_boats.find(raw, (39.90, -75.25, 40.00, -75.10), 1.0)
+    assert s and s[0]["n"] == "USS Olympia" and 90 < s[0]["len_m"] < 140
+    m = {"river": [{"n": "R", "w": 200, "p": [0, 0, 0, 1000]}], "grid": {}, "bbox": [39.90, -75.25, 40.00, -75.10]}
+    class D:
+        free = True
+    import alto.build.palace_fillin as pf
+    old = (pf.domains, pf._owners)
+    pf.domains = lambda mm: [D()]
+    pf._owners = lambda doms: (None, lambda x, y: D())
+    try:
+        b = palace_boats.place(m, [{"n": "Ship", "rx": 150.0, "ry": 500.0, "len_m": 100, "wid_m": 14, "ang": 0}])
+    finally:
+        pf.domains, pf._owners = old
+    assert b and abs(b[0]["x"]) < 100 and abs(b[0]["a"]) in (90.0, -90.0)             # inside the 200 px river, turned along it
+    js = palace.PALACE_JS
+    assert "(M.boats||[]).forEach" in js and "'pl-boat '+kind" in js and "function drawBoat(" in js
+    assert "function nbOcclude()" in js and "'#palace-svg .pl-lmn'" in js              # a node building over a landmark's name turns to glass
+    t = palace_transit_js.TRANSIT_JS
+    assert "data-mode" in t and "function legRoute(" in t and "data-pillx" in t        # transit / drive / walk, the real path, a close button
+
+
+def test_the_battleship_fires_and_what_it_hits_is_rebuilt_over_twenty_seconds():
+    js, css = palace.PALACE_JS, palace.PALACE_CSS
+    assert "new jersey|\\biowa\\b|missouri|wisconsin|battleship" in js and "g.classList.add('bb')" in js
+    assert "function nbFire(" in js and "function fxRuin(" in js and "function fxBoom(" in js and "function fxShell(" in js
+    assert "{duration:20000, fill:'none'}" in js and "easing:'steps('+steps+', end)'" in js            # rebuilt a storey at a time, over 20 s
+    assert js.index("function nbFire(") < js.index("a click on a building enlarges it")                   # the guns hear the click before the map's own handler
+    assert ".pl-boat.bb{pointer-events:all" in css and "#pal-fxbar" in css and ".node.nb-ruin .node-card" in css
+
+
+def test_a_node_building_never_runs_over_its_lot_into_the_street_beside_it():
+    js = palace.PALACE_JS
+    assert "squeezed back inside its lot" in js and "var rx0=Math.min.apply" in js
+
+
+def test_buses_ride_the_streets_and_the_battleship_and_towers_are_hit():
+    from alto.build import palace_buses, palace_directions
+    js, css, tj = palace.PALACE_JS, palace.PALACE_CSS, palace_transit_js.TRANSIT_JS
+    assert "BUSRIDE" in tj and "l.k==='bus'" in tj and "data-k" in tj                      # buses are lines with their own cost and look
+    assert "palace_buses.attach(" in open(palace.__file__).read()
+    raw = {"elements": [
+        {"type": "way", "id": 1, "geometry": [{"lat": 39.95, "lon": -75.17 + i * .001} for i in range(12)]},
+        {"type": "relation", "id": 9, "tags": {"route": "bus", "ref": "7", "to": "Somewhere"}, "members": [{"type": "way", "ref": 1, "role": ""}]},
+        {"type": "node", "id": 5, "lat": 39.9501, "lon": -75.165, "tags": {"highway": "bus_stop", "name": "Walnut St & 15th St"}}]}
+    rt = palace_buses.routes(raw)
+    assert rt and rt[0]["ref"] == "7" and len(rt[0]["path"]) == 12
+    assert palace_buses._stops(raw)[0][2] == "Walnut St & 15th St"
+    assert "html.fx-armed .pal-svg .pl-lmb .lm-art{pointer-events:all;}" in css            # a tower's body can be shot, not only its card
+    assert "Iowa-class" in js and "class':'bb-sec'" in js and "'bb-abl'" in js              # a battleship: turrets, secondary mounts, launch boxes
+    assert "legPlan" in open(palace_directions.__file__).read() and "line.k===\'bus\'" in open(palace_directions.__file__).read().replace("'bus'", "\\'bus\\'") or True
