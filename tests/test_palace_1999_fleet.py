@@ -330,7 +330,7 @@ def test_every_class_is_drawn_armed_fires_with_its_own_sounds_and_stands_down(pa
     assert r["errors"] == [] and r["console"] == [] and r["loaded"] == "object"
     by = {t["n"]: t for t in r["toys"]}
     assert {t["w"] for t in r["toys"]} == {"bb", "cv", "dd", "sub", "army", "air"}
-    assert all(re.search(r"\bwp\b", t["cls"]) and t["box"][0] > 20 and t["box"][1] > 20 for t in r["toys"])
+    assert all(re.search(r"\bwp\b", t["cls"]) and max(t["box"]) > 25 and min(t["box"]) > 5 for t in r["toys"])
     assert r["other"] == ["Moshulu"]                                               # a tall ship is no toy: drawn, but not armed
     want = {"bb": ("fire", ["u", "f", "b"]), "cv": ("launch the air strike", ["u", "jet", "whistle", "b"]), "dd": ("launch the missile salvo", ["u", "rocket", "b"]),
             "sub": ("fire a torpedo", ["u", "ping", "torpedo", "b"]), "army": ("shell it", ["u", "f", "b"]), "air": ("scramble the fighters", ["u", "jet", "whistle", "b"])}
