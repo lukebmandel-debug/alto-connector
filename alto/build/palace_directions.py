@@ -242,7 +242,14 @@ function wire(root){
       S.nav=Math.max(0,Math.min(opt.steps.length-1,S.nav+(+v))); render(); showStep(S.nav); return; }
     if(t.closest('.dr-x')) close(); });
 }
-var api={state:function(){ return S; }, search:search, plan:plan, index:index, bldPlace:bldPlace, lmPlace:lmPlace, stPlace:stPlace, open:open, close:close, pick:pick, render:render, draw:draw, wire:wire,
+/* one filter-route leg, building to building, as steps: walk / board a line at a stop / ride n stops / get off (the trip panel, palace_transit_js.py) */
+function legPlan(a, b, mode){ var g=TX&&TX.graph(); if(!g) return null; var A=bldPlace(a), B=bldPlace(b); if(!A||!B||A.node<0||B.node<0) return null;
+  if(mode==='walk'){ var wp=route(A.node, B.node); return wp?option(wp, A, B, g, 'walk'):null; }
+  if(mode==='drive'){ var dv=window._palHw&&window._palHw.has()?window._palHw.drive(A, B):null; if(dv) return dv;
+    var dp=route(A.node, B.node); if(!dp) return null; var o=option(dp, A, B, g, 'walk'); o.kind='drive';                      /* no highway on the way: by the streets */
+    o.steps.forEach(function(t){ t.text=t.text.replace(/^Walk/, 'Drive'); }); o.summary=o.summary.replace('walking','driving'); return o; }
+  var tp=TX.dijk(A.node, B.node); return tp?option(tp, A, B, g, 'transit'):null; }
+var api={legPlan:legPlan, state:function(){ return S; }, search:search, plan:plan, index:index, bldPlace:bldPlace, lmPlace:lmPlace, stPlace:stPlace, open:open, close:close, pick:pick, render:render, draw:draw, wire:wire,
   banner:banner, navHtml:navHtml, showStep:showStep, isOn:function(){ return S.on; }, ico:ico, lineCol:lineCol};
 return api; })();
 window._palDir=DIR;

@@ -96,6 +96,12 @@ TRANSIT_CSS = r"""
   #pal-tr .tr-b:hover{border-color:var(--tc,var(--muted));background:color-mix(in srgb,var(--tc,#888) 14%,transparent);}
   #pal-tr .tr-b.go{background:var(--tc,#888);color:#fff;border-color:transparent;}
   #pal-tr .tr-b[disabled]{opacity:.35;pointer-events:none;}
+  #pal-tr .tr-steps{list-style:none;margin:2px -4px 8px;padding:0 4px;max-height:176px;overflow:auto;font-size:11.5px;}
+  #pal-tr .tr-steps li{display:flex;gap:8px;align-items:flex-start;padding:3px 0;line-height:1.3;}
+  #pal-tr .tr-steps li b{flex:none;width:9px;height:9px;margin-top:3px;border-radius:50%;border:2.4px solid var(--sc,var(--muted));box-sizing:border-box;background:var(--pal-halo);}
+  #pal-tr .tr-steps li.walk b{border-style:dotted;border-width:2px;border-color:var(--muted);}
+  #pal-tr .tr-steps li.board span,#pal-tr .tr-steps li.alight span{font-weight:700;}
+  #pal-tr .tr-steps li small{display:block;color:var(--muted);font-weight:500;}
   #pal-tr .tr-hint{color:var(--muted);font-size:11px;margin-left:auto;}
   #pal-chiprt,#pal-relrt{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:311;display:none;align-items:center;gap:9px;padding:7px 15px;border-radius:999px;
     font-size:12px;color:var(--text);background:var(--panel-glass-bg, var(--surface));-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);
@@ -103,6 +109,12 @@ TRANSIT_CSS = r"""
   #pal-chiprt.on,#pal-relrt.on{display:flex;}
   #pal-relrt.above{bottom:70px;}
   /* ride the route a filter draws: a button on the route's pill, a rider on the map */
+  .tr-px{cursor:pointer;flex:none;width:22px;height:22px;border-radius:50%;border:0;padding:0;font-size:12px;line-height:22px;color:var(--muted);background:color-mix(in srgb,var(--text) 8%,transparent);}
+  .tr-px:hover{color:var(--text);background:color-mix(in srgb,var(--text) 16%,transparent);}
+  .tr-md{display:inline-flex;gap:2px;padding:2px;border-radius:999px;background:color-mix(in srgb,var(--text) 8%,transparent);flex:none;}
+  .tr-md button{cursor:pointer;border:0;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700;color:var(--muted);background:transparent;}
+  .tr-md button.on{background:var(--surface,#fff);color:var(--text);box-shadow:0 1px 3px rgba(20,26,55,.25);}
+  #pal-tr .tr-md{margin:0 0 7px;}
   #pal-chiprt .tr-b,#pal-relrt .tr-b{cursor:pointer;border:1px solid transparent;border-radius:999px;padding:4px 12px;font-weight:700;font-size:12px;background:var(--cc,#888);color:#fff;flex:none;}
   #pal-chiprt .tr-b:hover,#pal-relrt .tr-b:hover{filter:brightness(1.08);}
   html.pal-tripping #pal-chiprt .tr-b,html.pal-tripping #pal-relrt .tr-b{display:none;}
@@ -121,7 +133,8 @@ TRANSIT_JS = r"""
 if(window._palTr) return;
 var E=null, T=null, NS='http://www.w3.org/2000/svg';
 var WALK=1, RIDE=.2, BOARD=120, XFER=70;
-var S={portal:null, line:null, stop:null, ride:null, trip:null, chipH:null, chipF:null};   /* a line picked; a stop picked; riding {l,i}; the chip pointed at; the chips filtered */
+var S={portal:null, line:null, stop:null, ride:null, trip:null, chipH:null, chipF:null, mode:'transit'};
+try{ var m0=localStorage.getItem('alto-palace-mode'); if(m0==='drive'||m0==='walk'||m0==='transit') S.mode=m0; }catch(x){}   /* a line picked; a stop picked; riding {l,i}; the chip pointed at; the chips filtered */
 function el(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function col(l){ return E.tubeCol(l.c); }
@@ -399,16 +412,18 @@ function renderChip(){
   bs.forEach(function(b){ var L=E.lot(P.at[b]); if(L){ var r=Math.max(L[2],L[3]); S.cbox=joinBox(S.cbox,[L[0]-r,L[1]-r,L[0]+r,L[1]+r]); } });
   if(cr && T && n>1){ var order=tour(bs), pathPts=[], g=bigG();
     var A0=E.lot(P.at[order[0]]); d='M'+A0[0]+' '+A0[1]; legs=[];
-    for(var i=0;i+1<order.length;i++){ var A=E.lot(P.at[order[i]]), B=E.lot(P.at[order[i+1]]), r=dijk(E.entrance(order[i]), E.entrance(order[i+1])), tail='', lu={};
-      if(!r){ tail='L'+B[0]+' '+B[1]; }
-      else { r.forEach(function(q,k){ tail+='L'+g.X[q]+' '+g.Y[q]; if(k>0 && g.lid[q] && g.lid[q]===g.lid[r[k-1]]){ used[g.lid[q]]=1; lu[g.lid[q]]=1; } });
+    for(var i=0;i+1<order.length;i++){ var A=E.lot(P.at[order[i]]), B=E.lot(P.at[order[i+1]]), rt=legRoute(order[i], order[i+1]), tail='', lu={};
+      if(rt){ tail=rt.d.slice(rt.d.indexOf('L')); rt.lines.forEach(function(k){ used[k]=1; lu[k]=1; }); }
+      else { var r=dijk(E.entrance(order[i]), E.entrance(order[i+1])); tail='';
+        if(r) r.forEach(function(q,k){ tail+='L'+g.X[q]+' '+g.Y[q]; if(k>0 && g.lid[q] && g.lid[q]===g.lid[r[k-1]]){ used[g.lid[q]]=1; lu[g.lid[q]]=1; } });
         tail+='L'+B[0]+' '+B[1]; }
-      d+=tail; legs.push({a:order[i], b:order[i+1], d:'M'+A[0]+' '+A[1]+tail, lines:Object.keys(lu), color:c}); }
+      d+=tail; legs.push({a:order[i], b:order[i+1], d:'M'+A[0]+' '+A[1]+tail, lines:Object.keys(lu), color:c, opt:rt&&rt.opt}); }
     S.cbox=joinBox(S.cbox, boxOf(d)); S.tourLegs=legs;
     el('path',{'class':'pl-crt case', d:d},cr); el('path',{'class':'pl-crt base', d:d, stroke:c},cr); el('path',{'class':'pl-crt sh', d:d},cr); el('path',{'class':'pl-crt tk', d:d},cr); }
   if(pill){ var ul=Object.keys(used).map(lineOf).filter(Boolean);
     pill.style.setProperty('--cc', c); pill.innerHTML='<i></i><span><b>'+esc(w.name||'Filter')+'</b> · '+n+' building'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
-    +(!S.chipH && S.tourLegs.length?'<button class="tr-b" type="button" data-trip="chip">Ride this route \u25b6</button>':''); pill.classList.add('on'); }
+    +(!S.chipH && S.tourLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="chip">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' this route \u25b6</button>':'')
+    +(!S.chipH?'<button class="tr-px" type="button" data-pillx="1" aria-label="Clear the filter" title="Clear the filter">\u2715</button>':''); pill.classList.add('on'); }
   S.uT=used; paintUsed();
 }
 function chipRefresh(){
@@ -422,6 +437,17 @@ function chipRefresh(){
 }
 
 /* ── routes that ride the transit: one building to another (the hover routes, the Lines filters) ── */
+/* a filter's leg building to building, by the way the person chose (transit, driving, walking): its drawn path is the plan's own real path (the
+   track of the line it rides, the highway, the streets), its steps the plan's */
+var MODES=[['transit','Transit'],['drive','Drive'],['walk','Walk']];
+function legRoute(a,b){
+  var A=E.lot(E.P.at[a]), B=E.lot(E.P.at[b]); if(!A||!B) return null; var o=null;
+  try{ o=window._palDir&&window._palDir.legPlan?window._palDir.legPlan(a, b, S.mode):null; }catch(x){}
+  if(!o || !o.legs.length) return null;
+  var d='M'+A[0]+' '+A[1], lu={}; o.legs.forEach(function(l){ l.pts.forEach(function(q){ d+='L'+q[0]+' '+q[1]; }); if(l.k==='ride' && l.l && T && T.byId[l.l]) lu[l.l]=1; });
+  return {d:d+'L'+B[0]+' '+B[1], lines:Object.keys(lu), opt:o}; }
+function modeHtml(){ return '<span class="tr-md" role="group" aria-label="How to get around">'+MODES.map(function(m){ return '<button type="button" data-mode="'+m[0]+'" class="'+(S.mode===m[0]?'on':'')+'">'+m[1]+'</button>'; }).join('')+'</span>'; }
+function setMode(m){ if(S.mode===m) return; S.mode=m; try{ localStorage.setItem('alto-palace-mode', m); }catch(x){} endTrip(); renderChip(); renderRel(); paint(); }
 function routeD(a,b,used){
   var P=E.P, A=E.lot(P.at[a]), B=E.lot(P.at[b]); if(!A||!B) return null;
   var g=bigG(), r=dijk(E.entrance(a), E.entrance(b)); if(!r) return null;
@@ -455,15 +481,16 @@ function renderRel(){
   var seen={}, ends={}, n=0, rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
   CONNECTIONS.forEach(function(c){ if(keys.indexOf(c[2])<0) return; var a=E.bOf(c[0]), b=E.bOf(c[1]); if(a===b || !E.isB(a) || !E.isB(b)) return;
     var id=(a<b?a+'|'+b:b+'|'+a)+'|'+c[2]; if(seen[id]) return; seen[id]=1;
-    var lu={}, d=routeD(a,b,lu); if(!d) return; Object.keys(lu).forEach(function(k){ S.uR[k]=1; }); S.rbox=joinBox(S.rbox, boxOf(d)); var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
-    S.relLegs.push({a:a, b:b, d:d, lines:Object.keys(lu), color:(col.indexOf('var(')<0?E.tubeCol(col):col), label:rl[c[2]]||c[2]});
+    var lu={}, rt=legRoute(a,b), d=rt?rt.d:routeD(a,b,lu); if(!d) return; if(rt) rt.lines.forEach(function(k){ lu[k]=1; }); Object.keys(lu).forEach(function(k){ S.uR[k]=1; }); S.rbox=joinBox(S.rbox, boxOf(d)); var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
+    S.relLegs.push({a:a, b:b, d:d, opt:rt&&rt.opt, lines:Object.keys(lu), color:(col.indexOf('var(')<0?E.tubeCol(col):col), label:rl[c[2]]||c[2]});
     el('path',{'class':'pl-crt case', d:d},rr); el('path',{'class':'pl-crt base', d:d, stroke:col},rr); el('path',{'class':'pl-crt tk', d:d},rr); ends[a]=1; ends[b]=1; n++; });
   if(!holds()){ document.querySelectorAll('#world .node').forEach(function(nd){ var on=!!ends[E.bOf(nd.id.slice(5))]; nd.classList.toggle('pal-hot', on); nd.classList.toggle('pal-dim', !on); nd._relMark=1; }); }
   if(!pill){ pill=document.createElement('div'); pill.id='pal-relrt'; document.body.appendChild(pill); }
   var ul=Object.keys(S.uR).map(lineOf).filter(Boolean);
   pill.style.setProperty('--cc', 'var(--accent)'); pill.classList.toggle('above', !!document.getElementById('pal-chiprt') && document.getElementById('pal-chiprt').classList.contains('on'));
   pill.innerHTML='<i></i><span><b>'+keys.map(function(k){ return esc(rl[k]||k); }).join(' + ')+'</b> · '+n+' route'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
-    +(S.relLegs.length?'<button class="tr-b" type="button" data-trip="rel">Ride \u25b6</button>':'');
+    +(S.relLegs.length?modeHtml()+'<button class="tr-b" type="button" data-trip="rel">'+(S.mode==='drive'?'Drive':S.mode==='walk'?'Walk':'Ride')+' \u25b6</button>':'')
+    +'<button class="tr-px" type="button" data-pillx="1" aria-label="Clear the filter" title="Clear the filter">\u2715</button>';
   pill.classList.add('on'); paintUsed();
 }
 
@@ -508,14 +535,18 @@ function tripStep(d){
   else { if(T0.at<0) return; var lg=L[T0.at]; T0.auto=false; animLeg(lg, true, function(){ T0.at--; markCur(T0.at<0?L[0].a:L[T0.at].b); paint(); }); }
 }
 function tripAuto(){ var T0=S.trip; if(!T0) return; T0.auto=!T0.auto; paint(); if(T0.auto && !T0.busy) tripStep(1); }
+/* how a leg is made: the steps of its real path (walk, board a line at its stop, ride so many stops, get off), from the directions' own planner */
+function legSteps(leg){ if(leg._st===undefined){ var pl=leg.opt||null; try{ if(!pl) pl=window._palDir&&window._palDir.legPlan?window._palDir.legPlan(leg.a, leg.b, S.mode):null; }catch(x){} leg._st=pl?pl.steps.filter(function(t){ return t.k!=='start' && t.k!=='arrive'; }):null; leg._sum=pl?pl.summary:''; } return leg._st; }
+function stepsHtml(leg){ var st=legSteps(leg); if(!st || !st.length) return ''; var cc=function(t){ return t.c?' style="--sc:'+t.c+'"':''; };
+  return '<ol class="tr-steps">'+st.map(function(t){ return '<li class="'+t.k+'"'+cc(t)+'><b></b><span>'+esc(t.text)+(t.sub?'<small>'+esc(t.sub)+'</small>':'')+'</span></li>'; }).join('')+'</ol>'; }
 function paintTrip(p){
   var T0=S.trip, L=T0.legs, at=T0.at, here=at<0?L[0].a:L[at].b, nx=L[at+1], rel=T0.kind==='rel', c=(nx&&nx.color)||T0.color||'#888', n=rel?L.length:L.length+1;
   var linesOn=function(ids){ return (ids||[]).map(lineOf).filter(Boolean).map(function(l){ return esc(l.n); }).join(', '); };
   p.style.setProperty('--tc', c);
-  p.innerHTML='<div class="tr-h"><span class="tr-sw" style="background:'+c+'"></span>'+esc(T0.name)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">\u2715</span></div>'
+  p.innerHTML='<div class="tr-h"><span class="tr-sw" style="background:'+c+'"></span>'+esc(T0.name)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">\u2715</span></div>'+modeHtml()
     +'<div class="tr-sub">'+(rel?(at<0?'Riding '+n+' route'+(n===1?'':'s')+' \u00b7 not started':'Route '+(at+1)+' of '+n):'Stop '+(at+2)+' of '+n).replace('Stop 1 of','Start \u00b7 stop 1 of')+'</div>'
     +'<div style="font-size:15px;font-weight:800;margin-bottom:3px">'+esc(nameOf(here))+'</div>'
-    +(nx?'<div class="tr-sub" style="margin:0 0 6px">'+(rel?esc(nx.label||'Next')+': '+esc(nameOf(nx.a))+' \u2192 '+esc(nameOf(nx.b)):'Next: '+esc(nameOf(nx.b)))+(nx.lines&&nx.lines.length?' \u00b7 rides '+linesOn(nx.lines):' \u00b7 on foot')+'</div>':'<div class="tr-sub" style="margin:0 0 6px">End of the route</div>')
+    +(nx?'<div class="tr-sub" style="margin:0 0 4px">'+(rel?esc(nx.label||'Next')+': '+esc(nameOf(nx.a))+' \u2192 '+esc(nameOf(nx.b)):'Next: '+esc(nameOf(nx.b)))+(nx.lines&&nx.lines.length?' \u00b7 rides '+linesOn(nx.lines):(S.mode==='drive'?' \u00b7 by car':' \u00b7 on foot'))+'</div>'+stepsHtml(nx):'<div class="tr-sub" style="margin:0 0 6px">End of the route</div>')
     +'<div class="tr-btns"><button class="tr-b" data-a="tprev" '+(at<0||T0.busy?'disabled':'')+'>\u25c0</button><button class="tr-b go" data-a="tnext" '+(!nx||T0.busy?'disabled':'')+'>'+(nx?(rel?'Next route':'Next stop')+' \u25b6':'End')+'</button>'
     +(nx?'<button class="tr-b" data-a="tauto">'+(T0.auto?'Pause':'Ride it all')+'</button>':'')+'</div>'
     +'<div class="tr-sub" style="margin:7px 0 0">\u2190 \u2192 step along \u00b7 Space rides it all \u00b7 Esc to get off</div>';
@@ -542,6 +573,8 @@ function bind(){
   });
   document.addEventListener('click', function(e){
     if(!E || !T || !E.palaceOn()) return;
+    var px=e.target.closest && e.target.closest('[data-pillx]'); if(px){ e.stopPropagation(); e.preventDefault(); endTrip(); var cl=document.getElementById('ef-clear'); if(cl) cl.click(); S.chipH=null; paint(); return; }
+    var mb=e.target.closest && e.target.closest('[data-mode]'); if(mb && (mb.closest('#pal-chiprt,#pal-relrt,#pal-tr'))){ e.stopPropagation(); e.preventDefault(); setMode(mb.getAttribute('data-mode')); return; }
     var tb=e.target.closest && e.target.closest('[data-trip]'); if(tb){ e.stopPropagation(); e.preventDefault(); startTrip(tb.getAttribute('data-trip')); return; }
     var kr=e.target.closest && e.target.closest('.pk-row[data-tl]'); if(kr){ e.stopPropagation(); pickLine(kr.getAttribute('data-tl')); return; }
     var ph=e.target.closest && e.target.closest('#palace-svg .pl-portal'); if(ph){ e.stopPropagation(); e.preventDefault(); tipAt(''); takePortal(+ph.getAttribute('data-po'), ph); return; }

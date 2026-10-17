@@ -74,3 +74,30 @@ def test_a_page_over_the_map_puts_the_view_back_however_it_was_opened():
     assert "function restoreView()" in js and "function trackView()" in js
     assert "new MutationObserver(function(){ var now=de.classList.contains('detail-open')" in js    # not only showDetail: the class on <html> says a page opened
     assert "[0,90,320,800].forEach(" in js                                                           # and it is kept there against a late reset
+
+
+def test_ships_are_boats_in_the_water_not_buildings_on_blocks():
+    from alto.build import palace_boats, palace_fillin
+    assert palace_boats.is_ship({"building": "ship"}) and palace_boats.is_ship({"historic": "ship"}) and not palace_boats.is_ship({"building": "yes"})
+    raw = {"elements": [{"type": "way", "id": 1, "tags": {"name": "USS Olympia", "building": "ship", "historic": "ship"},
+                         "geometry": [{"lat": 39.9460, "lon": -75.1400}, {"lat": 39.9460, "lon": -75.1398}, {"lat": 39.9470, "lon": -75.1398}, {"lat": 39.9470, "lon": -75.1400}]}]}
+    assert palace_fillin.buildings(raw) == []                                       # no fill-in building for a ship
+    s = palace_boats.find(raw, (39.90, -75.25, 40.00, -75.10), 1.0)
+    assert s and s[0]["n"] == "USS Olympia" and 90 < s[0]["len_m"] < 140
+    m = {"river": [{"n": "R", "w": 200, "p": [0, 0, 0, 1000]}], "grid": {}, "bbox": [39.90, -75.25, 40.00, -75.10]}
+    class D:
+        free = True
+    import alto.build.palace_fillin as pf
+    old = (pf.domains, pf._owners)
+    pf.domains = lambda mm: [D()]
+    pf._owners = lambda doms: (None, lambda x, y: D())
+    try:
+        b = palace_boats.place(m, [{"n": "Ship", "rx": 150.0, "ry": 500.0, "len_m": 100, "wid_m": 14, "ang": 0}])
+    finally:
+        pf.domains, pf._owners = old
+    assert b and abs(b[0]["x"]) < 100 and abs(b[0]["a"]) in (90.0, -90.0)             # inside the 200 px river, turned along it
+    js = palace.PALACE_JS
+    assert "(M.boats||[]).forEach" in js and "'pl-boat'" in js
+    assert "function nbOcclude()" in js and "'#palace-svg .pl-lmn'" in js              # a node building over a landmark's name turns to glass
+    t = palace_transit_js.TRANSIT_JS
+    assert "data-mode" in t and "function legRoute(" in t and "data-pillx" in t        # transit / drive / walk, the real path, a close button

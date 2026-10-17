@@ -428,21 +428,37 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     from .city_highways import attach as attach_highways              # C3 (a no-op when city_engine attached them)
     attach_highways(m, {"highways": hw_real})
     blocks = m.pop("blocks")
+    # fill-in (palace_fillin.py): the real buildings of the districts + 1 km, opening on level 1 (Skyline).
+    # Never fatal: a busy Overpass leaves the palace without them (set_up_palace again adds them).
+    fz, ships = None, []
+    if fill:
+        try:
+            from .palace_fillin import fill_for
+            fz = fill_for(m, blocks, districts or [], bbox, cache_dir=cache_dir, offline=offline, ships_out=ships)
+        except Exception:                                   # noqa: BLE001 — network, Overpass
+            fz = None
+    # boats (palace_boats.py): a ship is put in the river's water, not on a block, and is no landmark card
+    try:
+        from .palace_boats import find as find_ships, place as place_ships
+        ships += find_ships(raw, m.get("bbox") or bbox, m.get("scale", 1.0))
+        uniq = []
+        for sh in ships:
+            if not any((sh["n"] and sh["n"] == q["n"]) or math.hypot(sh["rx"] - q["rx"], sh["ry"] - q["ry"]) < 25 for q in uniq):
+                uniq.append(sh)
+        boats = place_ships(m, uniq)
+        if boats:
+            m["boats"] = boats
+            nm = {b["n"] for b in boats if b["n"]}
+            m["landmarks"] = [l for l in m.get("landmarks", []) if l.get("n") not in nm]
+    except Exception:                                       # noqa: BLE001 — a city whose water cannot be read keeps its boats off the map
+        pass
     out = {"place": place, "bbox": list(bbox), "districts": districts or [],
            "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
            **({"transit": transit} if transit else {}), **({"preset": preset} if preset else {}),
            "data_z": pack({"map": m, "blocks": blocks})}
-    if fill:
-        # fill-in (palace_fillin.py): the real buildings of the districts + 1 km, opening on level 1 (Skyline).
-        # Never fatal: a busy Overpass leaves the palace without them (set_up_palace again adds them).
-        try:
-            from .palace_fillin import fill_for
-            fz = fill_for(m, blocks, districts or [], bbox, cache_dir=cache_dir, offline=offline)
-            if fz:
-                out["fill_z"] = fz
-        except Exception:                                   # noqa: BLE001 — network, Overpass
-            pass
+    if fz:
+        out["fill_z"] = fz
     return out
 
 
@@ -598,6 +614,13 @@ PALACE_CSS = KEY_CSS + r"""
     opacity:.74;stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
   #palace-svg-m .pl-area{--afs:clamp(10.5px, calc(8.5px + 5px * var(--pz,1)), 13px);opacity:.7;}
   .pal-svg .pl-credit{font-size:calc(10px / var(--pz,1));opacity:.7;stroke-width:calc(2.5px / var(--pz,1));}
+  .pal-svg .pl-boat{pointer-events:none;}
+  .pal-svg .pl-boat .bt-wake{fill:rgba(255,255,255,.55);stroke:none;}
+  .pal-svg .pl-boat .bt-hull{fill:#56668a;stroke:var(--pal-halo,#fff);stroke-width:2;vector-effect:non-scaling-stroke;}
+  .pal-svg .pl-boat .bt-deck{fill:#b8c2d6;stroke:#6f7ea0;stroke-width:1;vector-effect:non-scaling-stroke;}
+  html.dark .pal-svg .pl-boat .bt-wake{fill:rgba(255,255,255,.18);} html.dark .pal-svg .pl-boat .bt-deck{fill:#6a7794;}
+  .pal-svg .pl-boat-l text{font-size:11px;font-weight:800;fill:var(--text,#222);stroke:var(--pal-halo,#fff);stroke-width:3.2px;paint-order:stroke;stroke-linejoin:round;}
+  .pal-svg.far .pl-boat-l{display:none;}
   .pal-svg .pl-bld{pointer-events:all;cursor:pointer;}
   .pal-svg .pl-bld .b-card{fill:rgba(255,255,255,.9);stroke-width:1.4;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-bld .b-floor{fill:rgba(255,255,255,.75);stroke-width:1;stroke-opacity:.6;vector-effect:non-scaling-stroke;}
@@ -1298,6 +1321,16 @@ function drawCity(svg){
     var tw_=null; Object.keys(P.tw||{}).forEach(function(h){ if(P.tw[h].n===l.n) tw_=h; });
     if(tw_) g.setAttribute('data-tower', tw_);
     window._palLm.draw(g, l, {defs:defs, sid:svg._sid||'', color:c, ins:14, all:M.landmarks||[], pageName:pageName, open:openPage, tower:tw_?{hub:tw_, top:P.tw[tw_].top, num:num(tw_), title:title(tw_)}:null}); });
+  /* boats (palace_boats.py): moored in the river's water, along it — a hull, its deck, a glass superstructure, a name */
+  (M.boats||[]).forEach(function(b,bi){ var g=el('g',{'class':'pl-boat','data-name':b.n||''},lg), a=b.a*Math.PI/180, L=b.len, W=b.wid, bow=Math.min(L*.3, W*1.4), q=W/2;
+    g.style.setProperty('--pc','#5d6f92');
+    var rot=el('g',{transform:'translate('+b.x+' '+b.y+') rotate('+b.a+')'},g);
+    function hullP(k){ var x0=-L/2+k, x1=L/2-k*.4, w=q-k, bw=Math.max(bow-k, 4); return 'M'+x0+' '+(-w)+'L'+(x1-bw)+' '+(-w)+'Q'+(x1-bw*.1)+' '+(-w)+' '+x1+' 0Q'+(x1-bw*.1)+' '+w+' '+(x1-bw)+' '+w+'L'+x0+' '+w+'Z'; }
+    el('path',{'class':'bt-wake', d:hullP(-5)},rot); el('path',{'class':'bt-hull', d:hullP(0)},rot); el('path',{'class':'bt-deck', d:hullP(Math.min(5, W*.18))},rot);
+    var H=Math.max(14, Math.min(44, L*.15));
+    nbDraw(g, [0,0,L*.34,W*.5,b.a], H, b.x-Math.cos(a)*L*.06, b.y-Math.sin(a)*L*.06, 'boat'+bi);
+    el('title',{},g).textContent=b.n||'A boat';
+    if(b.n){ var tg=pin(g,'pl-boat-l', b.x, b.y-W*.5-H-2, {}); var t=el('text',{x:0,y:-3,'text-anchor':'middle'},tg); t.textContent=b.n; } });
   /* the landmark names over every building: a tower in front (the next block down a column of towers, rising 300 m+ at
      true scale, more than a row) would otherwise hide the name hanging under the card behind it. Each name keeps its
      landmark's colours, --lm-nat and (tilted district) offset on its own .pl-lmn wrapper, data-name tying it back */
@@ -1546,7 +1579,12 @@ function nbOcclude(){
   els.forEach(function(a){ els.forEach(function(b){ if(a===b || a._nbS[4]<=b._nbS[4]) return;          /* a stands in front of b (nearer: lower on the map) */
     var A=a._nbS, B=b._nbS, ix=Math.min(A[2],B[2])-Math.max(A[0],B[0]), iy=Math.min(A[3],B[3])-Math.max(A[1],B[1]); if(ix<=0 || iy<=0) return;
     if(A[5]>=B[5]*1.0 && ix*iy > .3*(B[2]-B[0])*(B[3]-B[1])) hit[a.id]=1; }); });
-  els.forEach(function(e){ e.classList.toggle('nb-front', !!hit[e.id]); });
+  /* a big landmark's name that a node building would stand over: that building turns to glass, so the name reads (screen boxes, at rest) */
+  var names=[].slice.call(document.querySelectorAll('#palace-svg .pl-lmn')).map(function(n){ var cs=getComputedStyle(n); if(cs.display==='none' || cs.visibility==='hidden' || +cs.opacity<.1) return null; var r=n.getBoundingClientRect(); return r.width>2&&r.height>2?r:null; }).filter(Boolean);
+  els.forEach(function(e){ var v=e.querySelector(':scope > .nb3d'), over=false;
+    if(v && names.length && !e.classList.contains('focused')){ var r=v.getBoundingClientRect();
+      for(var i=0;i<names.length && !over;i++){ var q=names[i]; over = r.left<q.right+2 && r.right>q.left-2 && r.top<q.bottom+2 && r.bottom>q.top-2; } }
+    e.classList.toggle('nb-front', !!hit[e.id] || over); });
 }
 /* ── the tags at a distance: where tags would run into one another each is moved aside, a thin pointer joining it to its roof ── */
 var nbSpT=0;
@@ -1649,7 +1687,7 @@ window._altoPalace=function(h){
   if(svgD.parentNode!==world) world.insertBefore(svgD, world.firstChild);
   /* a pan that stops brings in the names now within reach of the window (lblFit) */
   var cvL=document.getElementById('canvas'); if(cvL && !cvL._lblScroll){ cvL._lblScroll=1; cvL.addEventListener('scroll', function(){ if(!svgD) return; clearTimeout(cvL._lblT);
-    cvL._lblT=setTimeout(function(){ if(svgD && !PV && palaceOn()) lblFit(svgD, true); }, 120); }, {passive:true}); }
+    cvL._lblT=setTimeout(function(){ if(svgD && !PV && palaceOn()){ lblFit(svgD, true); nbSpreadSoon(); } }, 120); }, {passive:true}); }
   placeAll();
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:VH*Z}; });
   window._headerTint={slabTop:0, slabH:VH*Z, stops:[{p:0,c:PHASE_META[0].colorRaw},{p:100,c:PHASE_META[0].colorRaw}]};

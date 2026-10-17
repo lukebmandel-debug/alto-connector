@@ -35,6 +35,7 @@ import math
 from bisect import bisect_right
 
 from .. import palace_map as pmap
+from .palace_boats import is_ship
 from .palace_grid import mapping_from          # read-only use: the grid's own Mapping (and a v2 domain's tables)
 
 TIER_NAMES = ["Landmarks", "Skyline", "Notable", "Most", "Every building"]
@@ -98,6 +99,8 @@ def buildings(raw):
     parts, out = [], []
     for e in raw.get("elements") or []:
         t = e.get("tags") or {}
+        if is_ship(t):                       # a ship is no building on a block: it is drawn in the water (palace_boats.py)
+            continue
         rings = _rings(e)
         if not rings:
             continue
@@ -731,11 +734,14 @@ def counts(fill) -> list:
     return list(fill.get("c") or [0, 0, 0, 0])
 
 
-def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline: bool = False):
+def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline: bool = False, ships_out=None):
     """set_up's step: fetch the footprints of the reach (districts + REACH_KM) and pack them; None when there are none."""
     from .palace import pack
     box = reach(districts, bbox)
     raw = pmap.fetch_buildings(box, cache_dir=cache_dir, offline=offline)
+    if ships_out is not None:
+        from .palace_boats import find
+        ships_out.extend(find(raw, m["bbox"], m.get("scale", 1.0)))
     f = fill_data(raw, m, blocks)
     if not sum(counts(f)):
         return None
