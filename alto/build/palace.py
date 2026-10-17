@@ -41,6 +41,7 @@ from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of 
 from .palace_labels import LABELS_CSS, LABELS_JS
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
 from .palace_mobile import MOBILE_CSS, MOBILE_JS
+from .palace_claim import claimed as claimed_shapes, claim_lots, migrate_shapes      # a node on a background building's footprint
 from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
 from .palace_ride import RIDE_CSS, RIDE_LOADER
@@ -234,7 +235,7 @@ def check_nodes(b, nodes, warnings: list) -> None:
             if cur.parent in seen:
                 raise BriefError(f"node {n.id}: its floors loop back on themselves")
             seen.add(cur.id); cur = by.get(cur.parent)
-    bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot", "fno", "out"}]
+    bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot", "fno", "out", "shape"}]
     if bad:
         raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})")
 
@@ -313,11 +314,13 @@ def palace_data(b, nodes) -> str:
         return ("\nwindow._ALTO_PALACE=" + js_json({"none": 1, "fl": floors, "of": of, "num": num,
                                                     "par": par}, separators=(",", ":")) + ";")
     m, blocks = data["map"], data["blocks"]
-    fixed = {k: v["lot"] for k, v in (b.placement or {}).items() if isinstance(v, dict) and v.get("lot")}
+    claims = claimed_shapes(b.placement, {i for u in units for i in u} - set(tw))      # footprints claimed from the fill-in (palace_claim.py)
+    fixed = {k: v["lot"] for k, v in (b.placement or {}).items() if isinstance(v, dict) and v.get("lot") and k not in claims}
     districts = [d for d in pal.get("districts") or []]
-    at = pp.place(m, blocks, units, districts, fixed)
+    at = pp.place(m, blocks, [[i for i in u if i not in claims] for u in units], districts, fixed)
     nb0 = len(blocks)
     blocks = tower_lots(m, blocks, at, tw)         # a tower stands on its landmark's block, not on a lot
+    blocks = claim_lots(blocks, claims, at)        # a claimed footprint is a block of one lot after them
     by_key = {f"{bl['id']}.{k}": lt for bl in blocks for k, lt in enumerate(bl["lots"])}
     graph = pp.graph(m)
     kmin: dict = {}
@@ -346,8 +349,9 @@ def palace_data(b, nodes) -> str:
     mp["top"] = sorted({short(s.get("n")) for s in m.get("streets", [])
                         if s.get("n") and s.get("k", 9) <= 1 and short(s.get("n")) in mp["majors"]})
     ls = landmark_state(b, m)
-    pl0 = {k: {x: v[x] for x in ("lot", "fno", "out") if v.get(x)} for k, v in (b.placement or {}).items()
-           if isinstance(v, dict) and (v.get("lot") or v.get("fno") or v.get("out"))}
+    pl0 = {k: {x: (claims[k] if x == "shape" else v[x]) for x in ("lot", "fno", "out", "shape") if v.get(x) and (x != "shape" or k in claims)}
+           for k, v in (b.placement or {}).items()
+           if isinstance(v, dict) and (v.get("lot") or v.get("fno") or v.get("out") or k in claims)}
     out = {"m": mp, "b": [bl["lots"] for bl in blocks], "at": at, "fl": floors, "of": of,
            "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or "",
            "lm0": ls["lm"], "lmtop": ls["top"], "pl0": pl0,
@@ -360,10 +364,14 @@ def palace_data(b, nodes) -> str:
 
 def palace_js(b) -> str:
     """PALACE_JS, with the fill-in hooks spliced in when the palace has simulated buildings (else unchanged)."""
+    js = PALACE_JS
     if (b.palace or {}).get("fill_z"):
         from .palace_fillin import patch_js
-        return patch_js(PALACE_JS)
-    return PALACE_JS
+        js = patch_js(js)
+    if (b.palace or {}).get("fill_z") or any(isinstance(v, dict) and v.get("shape") for v in (getattr(b, "placement", None) or {}).values()):
+        from .palace_claim import patch_js as claim_js          # a node on a background building's footprint (palace_claim.py)
+        js = claim_js(js)
+    return js
 
 
 def palace_css(b) -> str:
@@ -494,7 +502,7 @@ def migrate_placements(old_pal: dict, new_pal: dict, placement: dict) -> tuple:
     keys = [v["lot"] for v in placement.values() if isinstance(v, dict) and v.get("lot")]
     rep = {"moved": 0, "dropped": 0, "kept": 0}
     if not keys:
-        return placement, rep
+        return migrate_shapes(old_pal, new_pal, placement), rep
     try:
         od, nd = unpack(old_pal["data_z"]), unpack(new_pal["data_z"])
         mp = pp.migrate(dict(od["map"], bbox=old_pal.get("bbox")), od["blocks"],
@@ -509,6 +517,7 @@ def migrate_placements(old_pal: dict, new_pal: dict, placement: dict) -> tuple:
             else:
                 rep["kept" if nk == v["lot"] else "moved"] += 1
                 v["lot"] = nk
+    placement = migrate_shapes(old_pal, new_pal, placement)
     placement = {k: v for k, v in placement.items() if not (isinstance(v, dict) and not v)}
     return placement, rep
 

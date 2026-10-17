@@ -847,12 +847,16 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
         return
     if b.mode == "palace":
         for nid, hints in pl.items():
-            if (not isinstance(hints, dict) or set(hints) - {"lot", "fno", "out"} or not isinstance(hints.get("lot", ""), str)
+            if isinstance(hints, dict) and hints.get("shape") is not None:
+                from .palace_claim import check_shape
+                check_shape(hints["shape"], f"placement {nid}: shape")          # BriefError: a footprint a node stands on
+            if (not isinstance(hints, dict) or set(hints) - {"lot", "fno", "out", "shape"} or not isinstance(hints.get("lot", ""), str)
                     or not (hints.get("fno") is None or (isinstance(hints["fno"], int) and not isinstance(hints["fno"], bool)
                                                          and 2 <= hints["fno"] <= 250))):
                 raise BriefError(f"placement {nid}: a Mind Palace places a building by "
                                  "{\"lot\": \"<block>.<lot>\"}; a tower's floor may also carry "
-                                 "{\"fno\": its real floor number} and {\"out\": true} (let out of the tower)")
+                                 "{\"fno\": its real floor number} and {\"out\": true} (let out of the tower); "
+                                 "a building may carry {\"shape\": {x, y, a, w, h, r}} instead (the footprint of a background building it stands on)")
         return
     if b.mode != "outline":
         raise BriefError("placement needs mode 'outline': it positions the "

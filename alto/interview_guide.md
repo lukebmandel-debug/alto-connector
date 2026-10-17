@@ -358,6 +358,13 @@ its floors, reached by an elevator inside the building.
   real building from 2 to the roof (`floors`, the real count; the famous
   towers are known), and the elevator shows the real floor numbers. A
   landmark with no `unit` stays a plain landmark. One section has one tower.
+- **Claimed background buildings.** In edit mode the user can turn one of the
+  city's simulated (white) buildings into one of their own: its glass block
+  then keeps that building's real footprint. It is stored in the node's
+  placement hint `shape`: `{x, y, a, w, h, r}` (centre, angle and box in the
+  page's px, and `r` the ring, 3-40 whole-number [x, y] points relative to
+  the centre, clockwise). It is kept through set_up_palace (moved with the
+  real place under it). Never invent one: it comes from the page.
 - **Neighborhood names** (`areas`: `[{name, lat, lon, rank}]`, rank 1 major
   to 4 minor): every well-known named neighborhood of the city is drawn as a
   small label-only name (no tint, no hover; major names at the whole-city

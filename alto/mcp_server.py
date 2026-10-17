@@ -1732,6 +1732,11 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     federal (U.S. courthouses, courts of appeals, the Supreme Court), state (state supreme / appellate / trial
     courts) and city (municipal, county, family, superior / district courts, a City Hall with courts) — each
     opening the timeline's own matching Index (federal law, state law / cases, local rules) when it has one.
+    A building the user claimed from the city's simulated buildings in edit
+    mode carries a `shape` in its placement hint ({x, y, a, w, h, r}: the real
+    footprint's centre, angle, box and ring, 3-40 whole-number points) next to
+    or instead of its `lot`: run again, the city keeps it (the footprint moves
+    with the real place under it, like a saved lot).
     The map data is © OpenStreetMap contributors; the page credits it."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
