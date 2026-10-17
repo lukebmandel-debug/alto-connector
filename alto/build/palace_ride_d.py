@@ -90,12 +90,13 @@ function render(dt){
   if(R.yaw==null) R.yaw=hT; else R.yaw=angLerp(R.yaw, hT, dt>0?1-Math.exp(-dt*(veh==='walk'?7:10)):0);
   pathAt(D, s, _pa); var off=spec.off+(veh==='bus'?pullAt(sec,s)*8:0), L=lift(M,s), spd=clamp(st.v/((spec.vmax||100)*1.1),0,1);
   var px=_pa.x-Math.sin(hT)*off, py=_pa.y+Math.cos(hT)*off, tm=R.t, bob=0, swx=0, swy=0, roll=0;
-  if(veh==='walk'){ var ph=s/6.3*6.2832, a=clamp(st.v/60,0,1); bob=Math.sin(ph)*.085*a; swx=Math.sin(ph*.5)*H*.004*a; swy=Math.abs(Math.sin(ph))*H*.006*a; roll=Math.sin(ph*.5)*.0035*a; }
+  if(veh==='walk'){ /* a footfall every step of a person walking (stepHz, palace_ride_b), however fast the leg plays: the bob fades out once the leg runs faster than a jog (nothing shakes at 5 Hz) */
+    R.wph=(R.wph||0)+(dt>0?stepHz(st.v/UM)*6.2832*dt:0); var ph=R.wph, a=clamp(st.v/2,0,1)*(1-sstep(9,40,st.v)); bob=Math.sin(ph)*.03*a; swx=Math.sin(ph*.5)*H*.0022*a; swy=Math.abs(Math.sin(ph))*H*.0034*a; roll=Math.sin(ph*.5)*.002*a; }
   else if(veh==='car'||veh==='bus'){ swy=Math.sin(tm*13.1+s*.01)*H*.0012*spd; roll=Math.sin(tm*3.7)*.0007*spd; }
   else { swy=(Math.sin(tm*18.3)*.5+Math.sin(tm*6.1)*.5)*H*.0016*spd; roll=Math.sin(tm*2.3)*.0016*spd; if(veh==='tram') swx=Math.sin(tm*9.7)*H*.0012*spd; }
   if(reduced()){ swx=swy=roll=bob=0; }
   var ug=ugAlpha(M, s), alpha=ug.a, camZ=spec.eye+L+bob;
-  setCam(px, py, camZ, R.yaw, W, H, veh==='bus'?.43:.455);
+  setCam(px, py, camZ, R.yaw, W, H, veh==='bus'?.43:.455, 0, veh==='walk'?fpFoc(W,H):0);
   ctx.save(); ctx.translate(W/2+swx,H/2+swy); ctx.rotate(roll); ctx.scale(1.012,1.012); ctx.translate(-W/2,-H/2);
   if(alpha<.999){
     if(!R.W){ R.W=gather(M); GLX.newWorld(); }

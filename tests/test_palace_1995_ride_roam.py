@@ -24,7 +24,7 @@ def test_roam_is_assembled_into_the_ride_and_exported():
 
 
 def test_collision_is_a_free_circle_test_with_a_wall_slide_and_a_near_plane_margin():
-    assert "PR:2.4" in JS                                              # a little more than the renderer's NEARZ (1.8), so a wall never clips away
+    assert "PR:2.4" in JS and "PRGL:1.3" in JS                                              # a little more than the renderer's NEARZ (1.8), so a wall never clips away
     assert "function blockedAt(x,y)" in JS and "function ringHit(" in JS and "function moveStep(dx,dy)" in JS
     assert "function normalAt(" in JS and "function cut(" in JS          # contact by binary search, normal by sampling, then the rest of the move slides
     assert "QUAL=['b','node','fill','lm']" in JS and "s.collide" in JS
@@ -178,6 +178,14 @@ def roam(page):
     yield page
 
 
+@pytest.fixture
+def fast(roam):
+    """The collision, water and streaming checks were written for the 1.9.95 pace (14 and 40 units a second): they keep it so they stay short (the 1.9.100 pace is tested in test_palace_2000_fpv.py)."""
+    roam.evaluate("() => { var c=window._palRide.roam.cfg; window.__cfg0=[c.walk,c.brisk,c.jog]; c.walk=14; c.brisk=40; c.jog=40; }")
+    yield roam
+    roam.evaluate("() => { var c=window._palRide.roam.cfg, o=window.__cfg0; c.walk=o[0]; c.brisk=o[1]; c.jog=o[2]; }")
+
+
 # an independent point-in-ring / distance-to-ring, used to judge the page's own collision
 CHECK = """
 function ringInfo(r, x, y){ var n=r.length/2, ins=false, d2=1e18, j=n-1;
@@ -224,14 +232,14 @@ def test_an_aerial_view_may_be_given_to_restore_and_a_spawn_inside_a_building_is
     pg.evaluate("() => window._palRide.roam.enter(1700, 1000, null, {hold: true, view: {z: 1.25, x: 9, y: 8}})")
     r = pg.evaluate("(CHECK) => { var C=new Function(CHECK)(), R=window._palRide.roam, s=R.state(); return {sp:s.spawned, w:C.worst(R), blocked:R.blocked(s.x,s.y)}; }", CHECK)
     assert r["blocked"] is False and r["w"]["inside"] == 0
-    assert r["w"]["min"] >= 2.4 - 1e-6
+    assert r["w"]["min"] >= pg.evaluate("() => window._palRide.roam.state().pr") - 1e-6
     pg.evaluate("() => window._palRide.roam.exit(false)")
     pg.wait_for_timeout(50)
     assert pg.evaluate("() => window.__put")[-1] == {"z": 1.25, "x": 9, "y": 8}
 
 
-def test_collision_never_ends_inside_a_ring_and_slides_along_walls(roam):
-    pg = roam
+def test_collision_never_ends_inside_a_ring_and_slides_along_walls(fast):
+    pg = fast
     pg.evaluate("() => window._palRide.roam.enter(1500, 1200, 0, {hold: true})")
     res = pg.evaluate("""(CHECK) => { var C=new Function(CHECK)(), R=window._palRide.roam, seed=777, bad=0, inside=0, steps=0, minD=1e9;
       function rnd(){ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; }
@@ -239,7 +247,7 @@ def test_collision_never_ends_inside_a_ring_and_slides_along_walls(roam):
       starts.forEach(function(p){ R.place(p[0],p[1],rnd()*6.28);
         for(var k=0;k<150;k++){ var keys=['f'], q=rnd(); if(q<.2) keys.push('l'); else if(q<.4) keys.push('r'); if(rnd()<.08) keys=['b']; if(rnd()<.3) keys.push(rnd()<.5?'tl':'tr');
           for(var m=0;m<12;m++){ R.tick(1/30, keys.join(','), rnd()<.5); steps++; var w=C.worst(R), s=R.state(); if(w.inside) inside++; if(w.min<minD) minD=w.min; if(R.blocked(s.x,s.y)) bad++; } } });
-      return {steps:steps, inside:inside, bad:bad, minD:minD, PR:R.cfg.PR}; }""", CHECK)
+      return {steps:steps, inside:inside, bad:bad, minD:minD, PR:R.state().pr}; }""", CHECK)
     assert res["steps"] > 12000 and res["inside"] == 0 and res["bad"] == 0
     assert res["minD"] >= res["PR"] - 1e-6                                      # never closer to a wall than the player's radius
     # run straight at a wall, slightly slanted: the player stops at the wall but keeps sliding along it
@@ -248,8 +256,8 @@ def test_collision_never_ends_inside_a_ring_and_slides_along_walls(roam):
     assert r["blocked"] is False and r["by"] > r["ay"] + 5                      # slid sideways (south) along the face
 
 
-def test_the_city_edge_holds(roam):
-    pg = roam
+def test_the_city_edge_holds(fast):
+    pg = fast
     pg.evaluate("() => window._palRide.roam.enter(700, 500, 0, {hold: true})")
     r = pg.evaluate("""() => { var R=window._palRide.roam; var out=[]; [[700,500,Math.PI],[700,500,-Math.PI/2],[5300,3500,0],[5300,3500,Math.PI/2]].forEach(function(p){ R.place(p[0],p[1],p[2]); R.sim('f',60,1/30,true); var s=R.state(); out.push([s.x,s.y]); });
       R.place(20,20,Math.PI); R.sim('f',5,1/30,true); var s=R.state(); out.push([s.x,s.y]); return out; }""")
@@ -257,10 +265,10 @@ def test_the_city_edge_holds(roam):
         assert 8 - 1e-6 <= x <= WW - 8 + 1e-6 and 8 - 1e-6 <= y <= HH - 8 + 1e-6
 
 
-def test_water_is_blocked_except_on_the_bridge(roam):
-    pg = roam
+def test_water_is_blocked_except_on_the_bridge(fast):
+    pg = fast
     pg.evaluate("() => window._palRide.roam.enter(2000, 1000, 0, {hold: true})")
-    lim = 50 + 17 + 8 + 2.4
+    lim = 50 + 17 + 8 + pg.evaluate("() => window._palRide.roam.state().pr")
     # along the street row y=1040 (no bridge): stops on the west bank, never in the water, however long you push
     r = pg.evaluate("""() => { var R=window._palRide.roam; R.place(2900, 1040, 0); var o=R.sim('f', 30, 1/30, true); var s=R.state(); return {x:s.x, y:s.y, water:R.inWater(s.x,s.y), bad:o.bad}; }""")
     assert r["bad"] == 0 and r["water"] is False and r["x"] <= RIVER_X - lim + 1e-6 and r["x"] > RIVER_X - lim - 8
@@ -279,8 +287,8 @@ def test_water_is_blocked_except_on_the_bridge(roam):
     assert n == 3                                                                      # the slab and two parapets
 
 
-def test_streaming_loads_the_cells_ahead_once_and_drops_the_ones_behind(roam):
-    pg = roam
+def test_streaming_loads_the_cells_ahead_once_and_drops_the_ones_behind(fast):
+    pg = fast
     pg.evaluate("() => window._palRide.roam.enter(700, 2000, 0, {hold: true})")
     r = pg.evaluate("""() => { var R=window._palRide.roam, CELL=300, CF=R.cfg; R.settle(); var s0=R.stats(); var seen={}, rebuilt=0, missing=0, ver0=R.world().ver;
       function check(){ var s=R.state(), W=R.world(); var keys=Object.keys(W.cells); keys.forEach(function(k){ if(!seen[k]) seen[k]=0; });
@@ -298,7 +306,7 @@ def test_streaming_loads_the_cells_ahead_once_and_drops_the_ones_behind(roam):
 
 def test_a_real_time_walk_is_smooth_while_the_world_streams(roam):
     pg = roam
-    pg.evaluate("() => { var R=window._palRide.roam; R.cfg.run=320; R.enter(700, 2000, 0, {}); }")
+    pg.evaluate("() => { var R=window._palRide.roam; R.cfg.brisk=320; R.enter(700, 2000, 0, {}); }")
     pg.wait_for_timeout(400)
     pg.evaluate("""() => { window.__gaps=[]; var last=performance.now(); function f(t){ window.__gaps.push(t-last); last=t; if(window._palRide.roam.active()) requestAnimationFrame(f); } requestAnimationFrame(f); }""")
     pg.keyboard.down("Shift")
@@ -306,7 +314,7 @@ def test_a_real_time_walk_is_smooth_while_the_world_streams(roam):
     pg.wait_for_timeout(2500)
     pg.keyboard.up("w")
     pg.keyboard.up("Shift")
-    r = pg.evaluate("""() => { var g=window.__gaps.slice(4).sort(function(a,b){ return a-b; }), n=g.length, st=window._palRide.roam.stats(); window._palRide.roam.cfg.run=40;
+    r = pg.evaluate("""() => { var g=window.__gaps.slice(4).sort(function(a,b){ return a-b; }), n=g.length, st=window._palRide.roam.stats(); window._palRide.roam.cfg.brisk=5.2;
       return {n:n, p50:g[n>>1], max:g[n-1], stats:st, x:window._palRide.roam.state().x}; }""")
     assert r["n"] > 40
     assert r["x"] > 1300                                                                # it moved (fast, to make the world stream)
@@ -347,14 +355,14 @@ def test_wasd_arrows_drag_and_shift_move_and_look(roam):
     w = pg.evaluate(S)
     pg.keyboard.up("w")
     pg.wait_for_timeout(300)
-    assert w["x"] > a["x"] + 3 and abs(w["y"] - a["y"]) < 1                              # forward = where it faces (east)
+    assert w["x"] > a["x"] + 0.8 and abs(w["y"] - a["y"]) < 1                            # forward = where it faces (east); a walk is 1.95 units a second
     pg.keyboard.down("Shift")
     pg.keyboard.down("ArrowUp")
     pg.wait_for_timeout(1200)
     sp = pg.evaluate(S)["speed"]
     pg.keyboard.up("ArrowUp")
     pg.keyboard.up("Shift")
-    assert sp > 30                                                                       # Shift runs
+    assert sp > 4.5                                                                      # Shift hurries (a brisk walk, 5.2 units a second)
     b = pg.evaluate(S)
     pg.keyboard.down("ArrowRight")
     pg.wait_for_timeout(400)
@@ -424,7 +432,7 @@ def test_no_footstep_bob_under_reduced_motion(roam):
     pg.wait_for_timeout(100)
     still = pg.evaluate("""() => new Promise(function(res){ var R=window._palRide.roam, z=[], n=0; function f(){ z.push(R.state().camZ); if(++n<70) requestAnimationFrame(f); else res([Math.min.apply(null,z), Math.max.apply(null,z)]); } requestAnimationFrame(f); })""")
     pg.keyboard.up("w")
-    assert walk[1] - walk[0] > 0.05                                                      # a visible bob when walking
+    assert walk[1] - walk[0] > 0.04                                                      # a visible bob when walking
     assert still[0] == still[1] == 2.15                                                  # none under reduced motion: eye height 2.15 units
     pg.evaluate("() => window._palRide.roam.exit(false)")
 

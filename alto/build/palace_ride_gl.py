@@ -37,7 +37,7 @@ _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
 var GLX={uid:0, ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
   st:{draws:0, tris:0, built:0, pending:0, ms:0, chunks:0}, ready:false, fresh:true, inst:null, instBuf:null, ibuf:null};
-var GL_NEAR=.7, GL_FAR=2000, GL_MAXCACHE=260;
+var GL_NEAR=.5, GL_FAR=2000, GL_MAXCACHE=260;
 function glAttach(ov){
   var cv=document.createElement('canvas'); cv.className='pr-gl'; cv.setAttribute('aria-hidden','true'); var c2=ov.querySelector('.pr-cv'); ov.insertBefore(cv,c2); GLX.cv=cv;
   cv.addEventListener('webglcontextlost', function(e){ e.preventDefault(); GLX.lost=true; GLX.on=false; ov.classList.remove('pr-glon'); GLX.err='context lost'; });
