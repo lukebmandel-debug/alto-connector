@@ -610,7 +610,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     #    (City Hall the whole square it stands in, streets and all); one with
     #    no outline takes the block it stands in ──
     lms = []
-    from .palace_towers import tower_key, is_station
+    from .palace_towers import tower_key, is_station, is_venue
     for spec in lm_specs:
         f = find(spec.get("name") or "")
         if not f:
@@ -646,7 +646,7 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
                     continue
                 i0, j0 = free_[0]; i1, j1 = i0 + 1, j0 + 1
                 cells = {(i0, j0)}
-            elif is_station(spec.get("name") or ""):          # a station beside a tower: the free block of its footprint nearest its real spot
+            elif is_station(spec.get("name") or "") or is_venue(spec.get("name") or ""):          # a station beside a tower (or a stadium beside a stadium): the free block of its footprint nearest its real spot
                 taken_ = set().union(*[l_["cells"] for l_ in lms])
                 cx_, cy_ = (gx0 + gx1) / 2, (gy0 + gy1) / 2
                 free_ = sorted(cells - taken_, key=lambda c: (cx_ - (xg[c[0]] + xg[c[0] + 1]) / 2) ** 2 + (cy_ - (yg[c[1]] + yg[c[1] + 1]) / 2) ** 2)

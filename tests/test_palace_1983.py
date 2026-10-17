@@ -130,5 +130,31 @@ def test_buses_ride_the_streets_and_the_battleship_and_towers_are_hit():
     assert rt and rt[0]["ref"] == "7" and len(rt[0]["path"]) == 12
     assert palace_buses._stops(raw)[0][2] == "Walnut St & 15th St"
     assert "html.fx-armed .pal-svg .pl-lmb .lm-art{pointer-events:all;}" in css            # a tower's body can be shot, not only its card
-    assert "Iowa-class" in js and "class':'bb-sec'" in js and "'bb-abl'" in js              # a battleship: turrets, secondary mounts, launch boxes
+    assert "function drawToyBB(" in js and "'bb-hole'" in js and "four peg dimples" in js     # the board game's battleship, from above
+    assert "tg.x=cp[0]; tg.y=cp[1];" in js                                                  # the shells go where the aimer was clicked
     assert "legPlan" in open(palace_directions.__file__).read() and "line.k===\'bus\'" in open(palace_directions.__file__).read().replace("'bus'", "\\'bus\\'") or True
+
+
+def test_a_river_has_banks_and_a_trail_and_no_street_runs_through_it_but_a_bridge():
+    from alto.build import palace_banks, palace_areas
+    m = {"river": [{"n": "R", "w": 100, "p": [500, 0, 500, 1000]}],
+         "streets": [{"n": "A", "k": 1, "p": [0, 300, 1000, 300]}, {"n": "B", "k": 1, "o": 1, "p": [0, 600, 1000, 600]}, {"n": "C", "k": 1, "p": [0, 900, 300, 900]}]}
+    assert palace_banks.clip_streets(m) == 1
+    ps = [(s["n"], s["p"]) for s in m["streets"]]
+    assert ("B", [0, 600, 1000, 600]) in ps and sum(1 for n, _ in ps if n == "A") == 2           # the bridge stays whole; A is cut in two at the banks
+    assert all(p[-2] <= 445 or p[0] >= 555 for n, p in ps if n == "A")
+    js, css = palace.PALACE_JS, palace.PALACE_CSS
+    assert "pl-rv-bank" in js and "(M.rtrails||[]).forEach" in js and "pl-rtrail" in css
+    out = palace_areas.banners_layout({"river": [{"n": "Delaware River", "w": 200, "p": [800, 0, 800, 2000]}], "landmarks": [{"x": 200, "y": 1000}], "W": 1000, "H": 2000},
+                                       [{"name": "Hell", "river": "Delaware"}])
+    assert out and out[0]["n"] == "Hell" and out[0]["x"] > 800 and out[0]["s"] == 1400            # across the river from the city's middle, giant
+    palace_areas.check_banners([{"name": "Hell", "river": "Delaware"}])
+
+
+def test_sports_venues_are_landmarks_with_their_own_art_and_share_blocks():
+    from alto.build import palace_landmarks, palace_towers, palace_skyline
+    assert palace_landmarks.art_key({"n": "Lincoln Financial Field"}) == "stad" and palace_landmarks.art_key({"n": "Citizens Bank Park"}) == "stad"
+    assert palace_landmarks.art_key({"n": "Xfinity Mobile Arena"}) == "arena"
+    for k in ("arena", "stad"):
+        palace_skyline.Sky(palace_skyline.LANDMARKS[k]())
+    assert palace_towers.is_venue("Lincoln Financial Field") and palace_towers.is_venue("Xfinity Mobile Arena") and not palace_towers.is_venue("Jefferson Station")

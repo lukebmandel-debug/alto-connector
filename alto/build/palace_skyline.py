@@ -756,6 +756,32 @@ def _jefferson():
         {"k": "door", "w": 10, "h": 7}]}
 
 
+def _arena():
+    """An indoor arena (Wells Fargo Center; about 200 x 150 m, 35 m): a broad glass-and-steel drum under a low shallow roof, a banded concourse
+    at its foot and a pair of entrance canopies on the street."""
+    return {"h": 38, "D": 150, "parts": [
+        {"k": "box", "w": 200, "v": 0, "d": 150, "y0": 0, "y1": 24, "m": "glass", "fl": 8, "mu": 12, "top": False},
+        {"k": "box", "w": 178, "v": 8, "d": 134, "y0": 24, "y1": 31, "m": "trim", "sheen": False, "top": False},
+        {"k": "vault", "w": 156, "v": 16, "d": 118, "y0": 31, "y1": 38},
+        {"k": "box", "w": 40, "v": 0, "d": 12, "y0": 12, "y1": 14, "m": "trim", "sheen": False},
+        {"k": "door", "w": 16, "h": 10}]}
+
+
+def _stadium():
+    """An open stadium (Lincoln Financial Field, Citizens Bank Park; about 260 x 220 m, 40 m): a bowl of stands round an open pitch, the pitch seen from
+    above, a floodlight mast at each corner."""
+    ring = [
+        {"k": "box", "w": 260, "v": 0, "d": 46, "y0": 0, "y1": 38, "m": "stone", "solid": 1, "fl": 9, "mu": 14, "top": False},
+        {"k": "box", "w": 260, "v": 174, "d": 46, "y0": 0, "y1": 38, "m": "stone", "solid": 1, "fl": 9, "mu": 14, "top": False},
+        {"k": "box", "x": -107, "w": 46, "v": 46, "d": 128, "y0": 0, "y1": 34, "m": "stone", "solid": 1, "fl": 9, "mu": 5, "top": False},
+        {"k": "box", "x": 107, "w": 46, "v": 46, "d": 128, "y0": 0, "y1": 34, "m": "stone", "solid": 1, "fl": 9, "mu": 5, "top": False}]
+    return {"h": 62, "D": 220, "parts": [
+        {"k": "court", "x": 0, "w": 168, "v": 46, "d": 128, "y0": 0, "op": .6},
+        *ring,
+        *[{"k": "spire", "x": x, "cv": v, "y0": 34, "y1": 62, "w": 3, "m": "trim"} for x in (-118, 118) for v in (12, 208)],
+        {"k": "door", "w": 18, "h": 12}]}
+
+
 # ── courthouses (law classes: federal / state / city courts as landmarks) ───
 LEVELS = ("federal", "state", "city")
 COURT_STYLES = ("classical", "modern", "tower")
@@ -874,7 +900,7 @@ def _generic():
 
 
 LANDMARKS = {"ind": _independence, "city": _cityhall, "art": _artmuseum, "frank": _franklin, "conv": _convention,
-             "stn": _station, "sub": _suburban, "jef": _jefferson, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
+             "stn": _station, "sub": _suburban, "jef": _jefferson, "arena": _arena, "stad": _stadium, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
              "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc}
 
 

@@ -40,6 +40,13 @@ def is_station(name: str) -> bool:
     return bool(re.search(r"\bstation\b|\bterminal\b", str(name or ""), re.I))
 
 
+def is_venue(name: str) -> bool:
+    """A sports venue (Lincoln Financial Field, Citizens Bank Park, the arena beside them): where venues stand shoulder to shoulder (the sports complex) and their
+    footprints cover the same blocks, each settles on the free block of its footprint nearest its real spot, as a station does."""
+    import re
+    return bool(re.search(r"\bstadium\b|\barena\b|\bfield$|ballpark|bank park|wells fargo center|xfinity mobile|\bgarden$|\bcenter$", str(name or ""), re.I)) and not is_station(name)
+
+
 def tower_key(name: str) -> str:
     for k, p, _ in TOWERS:
         if re.search(p, name or "", re.I):
