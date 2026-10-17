@@ -41,10 +41,13 @@ function lmPickTint(F,cons){ if(!cons) return F.tint; var t0=F.tint, fr=function
 function lmFrame(l, S, centred, depthM, front){
   var b=l.box, cx=(b[0]+b[2])/2, fy=b[3]-11-Math.max(3,(front||0)*S);      /* the front face stands on the block's front edge, less what steps and canopies push out (the street is 11 units each side of the edge) */
   if(centred) fy=(b[1]+b[3])/2+depthM*S/2;
-  var F={m:MB.mk(), S:S, cx:cx, fy:fy, box:b, tint:hashXY(cx,(b[1]+b[3])/2), n:0};
+  var F={m:MB.mk(), S:S, cx:cx, fy:fy, box:b, tint:hashXY(cx,(b[1]+b[3])/2), n:0, fp:[]};
   F.m.o=[cx,fy];
   F.X=function(x){ return F.cx+x*S; }; F.Y=function(v){ return F.fy-v*S; }; F.Z=function(z){ return z*S; };
   return F; }
+/* footprints for the stand-in solids (roaming collides with them; the 2D fallback draws them): a local rectangle with its height in metres, or a ring of local [x,v] pairs */
+function lfoot(F,x0,v0,x1,v1,hM){ F.fp.push({r:[F.X(x0),F.Y(v0),F.X(x1),F.Y(v0),F.X(x1),F.Y(v1),F.X(x0),F.Y(v1)], h:hM*F.S}); }
+function lfootRing(F,pts,hM){ F.fp.push({r:lring(F,pts), h:hM*F.S}); }
 /* an axis-aligned block: centre x, front plane v0, w across, d deep, from z0 to z1; skip bits: 1 front 2 back 4 east 8 west 16 top */
 function lbox(F,x,v0,w,d,z0,z1,wm,tm,k,skip){ MB.slab(F.m,F.X(x-w/2),F.Y(v0+d),F.Z(z0),F.X(x+w/2),F.Y(v0),F.Z(z1),wm,tm,F.tint,k||1,skip||0); }
 function lrect(F,x0,v0,x1,v1,z0,z1,wm,tm,k,skip){ lbox(F,(x0+x1)/2,v0,x1-x0,v1-v0,z0,z1,wm,tm,k,skip); }
@@ -149,6 +152,7 @@ function bCityHall(F){
   [-34,-28,-22].concat([22,28,34]).forEach(function(xx){ ldormer(F,'s',xx,-0+.8,35.6,2.2,3.4,1.3,3.6,WH,CP,'dark'); });
   [-34,-28,-22].concat([22,28,34]).forEach(function(xx){ ldormer(F,'n',xx,145-.8,35.6,2.2,3.4,1.3,3.6,WH,CP,'dark'); });
   [-1,1].forEach(function(sd){ [40,46,50,94,99,104].forEach(function(vv){ ldormer(F,sd<0?'w':'e',sd*74-sd*.8,vv,35.6,2.2,3.4,1.3,3.6,WH,CP,'dark'); }); });
+  lfoot(F,-74,0,74,36,45); lfoot(F,-74,109,74,145,45); lfoot(F,-74,36,-38,109,45); lfoot(F,38,36,74,109,45); lfoot(F,-16,111,16,143,167);
   return F.m; }
 """
 
@@ -223,6 +227,7 @@ function bIndependence(F){
   MB.loft(F.m,lring(F,oc.map(function(q){ return [q[0]*1.1,4.5+(q[1]-4.5)*1.1]; })),F.Z(39.2),lring(F,oc.map(function(q){ return [q[0]*1.1,4.5+(q[1]-4.5)*1.1]; })),F.Z(40.4),WH,F.tint,1,WH);
   llathe(F,0,4.5,[[3.5,40.4],[3.6,41.3],[3.1,42.5],[2.1,43.5],[1.4,44.2],[1.4,44.8],[1.1,45],[1.1,46.5],[.9,46.9],[.3,48.2],[.12,49.6],[.1,51]],10,WH);
   llathe(F,0,4.5,[[.45,46.6],[.5,47.0],[.35,47.4],[0,47.5]],8,'metal');
+  lfoot(F,-16.5,8,16.5,22,19); lfoot(F,-4.5,0,4.5,9,51); [-1,1].forEach(function(sd){ lfoot(F,sd*27-6,12,sd*27+6,18,8); lfoot(F,sd*43-9,2,sd*43+9,22,15); });
   return F.m; }
 
 /* ── Philadelphia Museum of Art: the U of tan limestone, three Greek temple fronts, blue-green tiled roofs, the long steps (196 x 110 m, 36 m) ── */
@@ -240,6 +245,7 @@ function bArt(F){
     var xp=sd*84; lrect(F,xp-14,0,xp+14,24,0,23,ST,null,k); lband(F,xp-14,0,xp+14,24,22.2,23.6,.9,WH); lroof(F,xp-14,0,xp+14,24,23.6,[[6,3.4]],CP,1);
     lrect(F,xp-15,-5,xp+15,0,0,2.4,CO,CO,1,0); lcols(F,xp-10,xp+10,-2.2,4,2.4,21.6,1.05,WH,1,8); lrect(F,xp-15,-3.6,xp+15,0,21.6,23.8,WH,WH,1,0);
     MB.pediment(F.m,F.X(xp),F.Y(-3.6),0,1,F.Z(23.8),30*F.S,5.6*F.S,10*F.S,WH,CP,F.tint,1); lsteps(F,'s',xp,-5,24,4,.6,.8,2.4,CO); larch(F,'s',xp,0,2.4,5,10,'dark'); });
+  lfoot(F,-62,53,62,110,36); [-1,1].forEach(function(sd){ lfoot(F,sd*80-13,20,sd*80+13,110,26); lfoot(F,sd*84-14,-3,sd*84+14,24,29); });
   return F.m; }
 
 /* ── The Franklin Institute: a limestone block, the six-column Ionic portico and pediment, the green dome of the Franklin memorial (110 x 70 m, 38 m) ── */
@@ -251,6 +257,7 @@ function bFranklin(F){
   llathe(F,0,36,[[17,26.6],[17.2,28],[16.4,30.4],[14.6,33],[11.4,35.4],[7,37.2],[3,38],[.3,38.5]],20,CP);
   lrect(F,-25,0,25,9,0,21,ST,null,k); lrect(F,-25,-6,25,0,0,2.6,CO,CO,1,0); lcols(F,-19,19,-1.8,6,2.6,19.6,1.05,WH,1,8); lrect(F,-26,-3.2,26,3,19.6,21.6,WH,WH,1,0);
   MB.pediment(F.m,F.X(0),F.Y(-3.2),0,1,F.Z(21.6),54*F.S,7*F.S,12*F.S,WH,'roof',F.tint,1); larch(F,'s',0,0,2.6,6,10,'dark'); lsteps(F,'s',0,-6,50,6,.43,.8,2.6,CO);
+  lfoot(F,-55,8,55,70,26); lfoot(F,-18,18,18,54,38); lfoot(F,-25,-3,25,9,28);
   return F.m; }
 
 /* ── 30th Street Station: the long Neoclassical block of pale stone, a front of giant columns, a cornice and a low roof, a lower wing at each end with its own colonnade (190 x 100 m, 36 m) ── */
@@ -265,6 +272,7 @@ function bStation(F){
   [-1,1].forEach(function(sd){ var xa=sd*70; lrect(F,xa-25,3,xa+25,100,0,23,ST,null,3.4/11); lrect(F,xa-26,-.6,xa+26,3.4,23,25,WH,WH,1,0); lrect(F,xa-26,3,xa+26,100,25,25.6,ST,RF,1,0);
     lcols(F,xa-18,xa+18,1.5,5,1.6,21.6,1.1,WH,1,8); for(i=0;i<4;i++) lrectd(F,'s',xa-13.5+i*9,3.4,3,4.2,15,'dark'); });
   larch(F,'s',0,6,3,9,14,'dark',.5);
+  lfoot(F,-46,0,46,100,35); lfoot(F,-95,0,-45,100,25); lfoot(F,45,0,95,100,25);
   return F.m; }
 
 /* ── Penn Center Suburban Station: the 1930 Art Deco limestone tower over the commuter station: a broad base, two setbacks and a small slate cap (92 x 46 m, 78 m) ── */
@@ -277,6 +285,7 @@ function bSuburban(F){
   lrect(F,-21,12,21,34,60,73,ST,null,k); lband(F,-21,12,21,34,71.6,73.4,.8,WH); for(i=0;i<6;i++){ var x3=-20+i*8; lrect(F,x3-.8,11.4,x3+.8,12.4,60.4,71.6,WH,WH,1,16); }
   lroof(F,-20,13,20,33,73.4,[[8,3],[2,1.6]],RF,1);
   larch(F,'s',0,0,0,8,9,'dark'); lbox(F,0,-3,22,3,0,4,'white','metal',1,0); lcols(F,-9,9,-1.5,4,0,4,.4,WH,1,6);
+  lfoot(F,-46,0,46,46,40); lfoot(F,-33,7,33,39,60); lfoot(F,-21,12,21,34,78);
   return F.m; }
 
 /* ── Jefferson Station: a broad glass concourse with a stepped glazed hall and skylight over its middle and a columned canopy at the entrance (100 x 50 m, 22 m) ── */
@@ -287,6 +296,7 @@ function bJefferson(F){
   lbox(F,0,-9,44,9,7,8.6,'white','metal',1,0); lcols(F,-20,20,-6,5,0,7,.45,'metal',1,6);
   larch(F,'s',0,6,0,9,6,'dark'); for(i=0;i<8;i++) lrect(F,-49+i*14,5.4,-48.3+i*14,6,0,10,'metal','metal',1,0);
   lrect(F,-50,0,50,6,0,.6,'concrete','concrete',1,0);
+  lfoot(F,-50,6,50,50,10); lfoot(F,-31,12,31,40,22);
   return F.m; }
 
 /* ── Pennsylvania Convention Center: the Reading Terminal headhouse of red brick under a mansard, the sloping glass lobby, the great halls under barrel vaults (250 x 190 m, 40 m) ── */
@@ -308,6 +318,7 @@ function bConvention(F){
   MB.face(m,[[X(x0),Y(v0),Z(z0)],[X(x1),Y(v0),Z(z1)],[X(x1),Y(v1),Z(z1)],[X(x0),Y(v1),Z(z0)]],[0,0,1],'glassdome',t,1);
   for(i=0;i<9;i++){ var xs=x0+i*(x1-x0)/8, zs=z0+(z1-z0)*i/8; lrect(F,xs-.3,-.3,xs+.3,.3,0,zs,'metal','metal',1,0); }
   lbox(F,52,-6,30,7,9,10.6,'white','metal',1,0); lcols(F,40,64,-4,3,0,9,.4,'metal',1,6);
+  lfoot(F,-125,44,125,190,40); lfoot(F,-100,0,-24,44,40); lfoot(F,-12,0,116,38,27);
   return F.m; }
 """
 
@@ -329,6 +340,7 @@ function bLiberty(F,o){                                   /* o: p podium, tw tow
   var y=o.crown0, ap=y;
   o.crown.forEach(function(q){ var w=q[0], wall=q[1], rise=w*.42; lcross(F,0,c,w,y,wall,rise,'glass'); ap=y+wall+rise; y=y+wall+rise*.55; });
   llathe(F,0,c,[[1.3,ap-3],[.9,ap+8],[.4,ap+(o.tip-ap)*.6],[.1,o.tip]],8,'metal');
+  lfoot(F,-hp,0,hp,o.p,14); lfoot(F,-tw/2,c-tw/2,tw/2,c+tw/2,o.tip);
   return F.m; }
 function bLib1(F){ return bLiberty(F,{p:64,tw:50,sets:[[176,204,42],[204,222,34]],crown0:222,crown:[[34,4],[27,4],[20,3],[13,3]],tip:288}); }
 function bLib2(F){ return bLiberty(F,{p:56,tw:42,sets:[[194,214,34]],crown0:214,crown:[[32,4],[23,3],[14,3]],tip:258}); }
@@ -340,6 +352,7 @@ function bComcast(F){
   lbox(F,0,11,44,34,279,297,'glass','roof',kt,0);
   lrect(F,-25.8,7.4,-23.4,48.6,22,238,'white','white',1,16); lrect(F,23.4,7.4,25.8,48.6,22,238,'white','white',1,16);
   larch(F,'s',0,0,0,14,10,'dark',.4); lcanopy(F,'s',0,0,24,5,10.4,'white');
+  lfoot(F,-35,0,35,56,22); lfoot(F,-26,8,26,48,297);
   return F.m; }
 /* X-bracing bands on a tapering tower (half width hw0 at za, hw1 at zb; plan half depth hd about v=vc) */
 function lbracing(F,hw0,hw1,za,zb,vc,hd,n){
@@ -358,6 +371,7 @@ function bCTC(F){
   lbracing(F,hw0,hw1,za,zb,vc,20,5); lgear(F,-44,2,44,4.4,20.1,2,5);
   [-16,-8,0,8,16].forEach(function(x,j){ var tops=[318,330,342,330,318]; lbox(F,x,vc-1.6,4.4,3.2,zb,tops[j],'glass','glass',1,0); });
   larch(F,'s',0,0,0,12,10,'dark',.4); lcanopy(F,'s',0,0,22,5,10.6,'white');
+  lfoot(F,-46,0,46,50,20); lfoot(F,-23,5,23,45,342);
   return F.m; }
 function bBNY(F){
   var kt=ktw(F,199,20); lpatchBox(F,'paving',11,.1);
@@ -366,6 +380,7 @@ function bBNY(F){
   bandRing(F,23,23,0,33,199,204,0,'white'); lroof(F,-22,11,22,55,204,[[22,29]],'metal',1,'metal');
   llathe(F,0,33,[[.9,232],[.6,236],[.15,241]],6,'metal'); lgear(F,-32,2,32,5.5,20.1,2,6);
   larch(F,'s',0,0,0,12,9,'dark',.4); lcanopy(F,'s',0,0,20,5,9.6,'white');
+  lfoot(F,-33,0,33,66,20); lfoot(F,-27,6,27,60,241);
   return F.m; }
 function bTLS(F){
   var i, kt=ktw(F,205,14); lpatchBox(F,'paving',11,.1);
@@ -374,6 +389,7 @@ function bTLS(F){
   var c=29, hw=16, cut=8, R=[-hw+cut,c-hw,hw-cut,c-hw,hw,c-hw+cut,hw,c+hw-cut,hw-cut,c+hw,-hw+cut,c+hw,-hw,c+hw-cut,-hw,c-hw+cut], Rm=[]; for(i=0;i<R.length;i+=2) Rm.push(F.X(R[i]),F.Y(R[i+1]));
   MB.loft(F.m,Rm,F.Z(205),Rm,F.Z(225),'brick',F.tint,kt,'roof'); lgear(F,-26,2,26,6,14.1,2,7);
   larch(F,'s',0,0,0,10,8,'dark',.4); lcanopy(F,'s',0,0,18,4.5,8.6,'white');
+  lfoot(F,-29,0,29,58,14); lfoot(F,-22,7,22,51,225);
   return F.m; }
 function bCira(F){
   lpatchBox(F,'paving',11,.1);
@@ -382,6 +398,7 @@ function bCira(F){
   lfacets(F,[x1,0],[x1,d],zr,zr,4,10,bump,'e','glass'); lfacets(F,[x0,d],[x0,0],zl,zl,4,8,bump,'w','glass');
   MB.face(m,[[F.X(x0),F.Y(0),F.Z(zl)],[F.X(x1),F.Y(0),F.Z(zr)],[F.X(x1),F.Y(d),F.Z(zr)],[F.X(x0),F.Y(d),F.Z(zl)]],[0,0,1],'glass',t,1);
   larch(F,'s',0,0,0,10,8,'dark',.4); lcanopy(F,'s',0,0,18,4.5,8.6,'white');
+  lfoot(F,-25,0,25,36,133);
   return F.m; }
 function bFMC(F){
   lpatchBox(F,'paving',11,.1);
@@ -396,6 +413,7 @@ function bFMC(F){
   MB.face(m,[[X(x0),Y(0),Z(0)],[X(x0),Y(d),Z(0)],[X(x0),Y(d),Z(zl)],[X(x0),Y(0),Z(zl)]],[-1,0,0],'glass',t,kt);
   MB.face(m,[[X(x0),Y(0),Z(zl)],[X(x1),Y(0),Z(zr)],[X(x1),Y(d),Z(zr)],[X(x0),Y(d),Z(zl)]],[0,0,1],'glass',t,1);
   larch(F,'s',-15,0,0,9,8,'dark',.4); lcanopy(F,'s',-15,0,16,4.5,8.6,'white');
+  lfoot(F,-28,0,-2,34,40); lfoot(F,-12,0,24,36,223);
   return F.m; }
 """
 
@@ -408,6 +426,7 @@ function bByrne(F){
   lbox(F,0,14.4,78,37.2,12,75,'stone','roof',3.4/4.2,0); lbox(F,-12,11.4,42,6,12,61.5,'glass','roof',3.4/4,0);
   lbox(F,0,-1.6,50,9.6,0,14,'glass','roof',3.4/7,0); larch(F,'s',0,-1.6,0,6,7,'dark'); lrect(F,-39.6,13.8,39.6,52.2,74.4,75.6,'white','white',1,0);
   lsteps(F,'s',0,0,30,3,.2,.8,.6,'concrete');
+  lfoot(F,-50,0,50,60,12); lfoot(F,-39,14.4,39,51.6,75);
   return F.m; }
 /* Nix Federal Building and Courthouse: stripped classical limestone, pilasters the full height of its Market Street front, a set-back top storey (120 x 60 m, 45 m) */
 function bNix(F){
@@ -416,6 +435,7 @@ function bNix(F){
   for(i=0;i<14;i++){ var x=-42+84*(i+.5)/14; lrect(F,x-1.2,-.9,x+1.2,.2,4.4,36.4,'white','white',1,16); }
   lrect(F,-48,3,48,57,39,45,'stone','roof',3.4/6,0); lband(F,-48,3,48,57,44,45.8,.8,'white');
   lbox(F,0,-3,22,3,0,9,'stone','white',3.4/9,0); lband(F,-11,-3,11,0,8.2,9.2,.5,'white'); lrect(F,-11.6,-3.4,-10.2,0,0,8.2,'white','white',1,16); lrect(F,10.2,-3.4,11.6,0,0,8.2,'white','white',1,16); larch(F,'s',0,-3,0,7,8,'dark',.4);
+  lfoot(F,-60,0,60,60,45);
   return F.m; }
 /* Criminal Justice Center: a granite tower in ribbons of glazing over a granite podium (80 x 60 m, 82 m) */
 function bCJC(F){
@@ -423,6 +443,7 @@ function bCJC(F){
   lbox(F,0,0,80,60,0,20,'concrete','roof',3.4/5,0); lband(F,-40,0,40,60,19,20.6,.6,'white');
   lbox(F,0,16.5,46.4,33,20,78,'concrete','roof',3.4/4.2,0); lbox(F,0,17.5,40,28.2,78,82,'white','roof',1,0);
   lbox(F,0,-1.6,28.8,8.6,0,16,'glass','roof',3.4/5,0); larch(F,'s',0,-1.6,0,6,7,'dark');
+  lfoot(F,-40,0,40,60,20); lfoot(F,-23.2,16.5,23.2,49.5,82);
   return F.m; }
 /* a classical courthouse: columned portico and pediment between flanking wings (Family Court; any named courthouse): W x D m, h to the cornice-top */
 function bClassicCourt(F,l,W,D,h){
@@ -434,6 +455,7 @@ function bClassicCourt(F,l,W,D,h){
   lcols(F,-pw*.45,pw*.45,2.4,pw<45?6:8,2,body,1.0+pw*.01,'white',1,8); lrect(F,-pw/2-.8,.6,pw/2+.8,8.4,body-.2,body+1.2,'white','white',1,0);
   MB.pediment(F.m,F.X(0),F.Y(.6),0,1,F.Z(body+1.2),(pw+3)*F.S,pw*.2*F.S,10*F.S,'white','roof',F.tint,1);
   larch(F,'s',0,7,2,4,7,'dark',.4); lsteps(F,'s',0,0,pw*.8,5,.4,.9,2,'concrete');
+  lfoot(F,-hw,6,hw,D,body+4); lfoot(F,-pw/2,0,pw/2,14,body+12);
   return F.m; }
 function bFamily(F,l){ return bClassicCourt(F,l,90,45,28); }
 function bCourt(F,l){ return bClassicCourt(F,l,90,45,28); }
@@ -445,10 +467,11 @@ function bGeneric(F,l){
     lbox(F,0,0,wM,dM,0,14,'stone',null,3.4/6,16); lparapet(F,-hw,0,hw,dM,14,1.1,.5,'white'); lbox(F,0,0,wM,dM,13.9,14.1,'stone','roof',1,15); lgear(F,-hw+2,1,hw-2,dM*.12,14.1,2,1);
     lbox(F,0,(dM-td)/2,tw,td,14,hm*.82,'glass',null,kt,16); lbox(F,0,(dM-td)/2,tw,td,hm*.82-.2,hm*.82+.2,'glass','roof',kt,15);
     lbox(F,0,(dM-cd)/2,cw,cd,hm*.82,hm*.97,'glass','roof',kt,0); llathe(F,0,dM/2,[[.8,hm*.97],[.5,hm*.99],[.12,hm]],6,'metal');
-    larch(F,'s',0,0,0,8,8,'dark',.4); lcanopy(F,'s',0,0,14,4.5,8.6,'white'); return F.m; }
+    larch(F,'s',0,0,0,8,8,'dark',.4); lcanopy(F,'s',0,0,14,4.5,8.6,'white'); lfoot(F,-hw,0,hw,dM,hm);
+    return F.m; }
   lrect(F,-hw,0,hw,dM,0,hm,'stone',null,3.4/Math.max(3.4,Math.min(7,hm/3.5))); lband(F,-hw,0,hw,dM,hm-1.2,hm,.6,'white'); lband(F,-hw,0,hw,dM,0,1.2,.4,'concrete');
   lroof(F,-hw,0,hw,dM,hm,[[Math.min(hw,dM/2)*.55,Math.min(9,hm*.35)]],'roof',1,'roof');
-  larch(F,'s',0,0,0,4,6,'dark',.4); lcanopy(F,'s',0,0,8,3.5,5.2,'white');
+  larch(F,'s',0,0,0,4,6,'dark',.4); lcanopy(F,'s',0,0,8,3.5,5.2,'white'); lfoot(F,-hw,0,hw,dM,hm+Math.min(9,hm*.35));
   return F.m; }
 """
 
@@ -466,6 +489,7 @@ function bArena(F){
   MB.loft(F.m,R3,F.Z(40),R3,F.Z(42),'white',F.tint,1,'roof');
   lbox(F,0,-9,44,15,12,14.4,'white','metal',1,0); lcols(F,-18,18,-6,5,0,12,.6,'metal',1,6); lsteps(F,'s',0,-9,44,3,.25,.9,.75,'concrete');
   lrectd(F,'s',-40,0,0,8,6,'dark',.4); lrectd(F,'s',40,0,0,8,6,'dark',.4);
+  lfootRing(F,R,42);
   return F.m; }
 /* the bowl inside a ring of stands: tiers stepping down from the rim ring Rin (local) at z=top to a field ring, then the grass */
 function lbowl(F,Rin,top,low,tiers,fieldK,cx,cv){ var m=F.m, Z=F.Z, prev=Rin, i, n=Rin.length; var rings=[];
@@ -485,6 +509,7 @@ function bLFF(F){
   for(i=-5;i<=5;i++) lpatch(F,-24,D/2+i*9.1-.25,24,D/2+i*9.1+.25,.62,'white');                        /* the yard lines of the field of play */
   [35,145,215,325].forEach(function(a){ var p=lon(R,a,22); lmast(F,p[0],p[1],0,70,2.6,7); });
   lrectd(F,'s',-30,0,0,10,7,'dark',.4); lrectd(F,'s',30,0,0,10,7,'dark',.4);
+  lfootRing(F,R,56);
   return F.m; }
 /* Citizens Bank Park: a red-brick and sandstone ballpark, the grandstand tall behind home plate and round the infield, falling to a low outfield, the diamond and its fence inside (281 x 263 m, 52 m) */
 function bCBP(F){
@@ -506,6 +531,7 @@ function bCBP(F){
   MB.cap(F.m,lring(F,[[hp[0],hp[1]+4],[hp[0]+14,hp[1]+19],[hp[0],hp[1]+34],[hp[0]-14,hp[1]+19]]),F.Z(.7),'grass',F.tint,1);
   [200,330,85,20].forEach(function(a){ var p=lon(R,a,14); lmast(F,p[0],p[1],0,52,2.8,7); });
   lrectd(F,'s',-20,5,0,8,5,'dark',.4);
+  lfootRing(F,R,45);
   return F.m; }
 """
 JS_H_MAIN = r"""
@@ -516,14 +542,18 @@ function lmBuild(l, floors){
   /* true scale (1.3 map units a metre) unless the model would cover the streets round its block: then every dimension, height too, is scaled by the same factor (the 2D art does that for the grounds) */
   var fw=(b[2]-b[0]-26)/wM, fd=(b[3]-b[1]-26)/(t[1]+fr); S=Math.min(LMV,Math.max(.6,Math.min(fw,fd)));
   var F=lmFrame(l,S,!!t[2],t[1],fr); F.key=key; F.floors=floors; F.tint=lmPickTint(F,LMC[key]);
-  t[0](F,l); return MB.done(F.m); }
+  t[0](F,l); return {a:MB.done(F.m), fp:F.fp}; }
+var LM_FOOT=true;                                             /* the stand-in solids follow the model's real footprint (roaming walks up to the steps; the 2D fallback draws a true-size building) instead of filling the block */
 var LMCACHE={};                                               /* a landmark's model never changes (its box and name are all it depends on): one array for every world, so the renderer keeps one GPU buffer too */
 function landmarkMeshes(l, floors, W){
   var n0=W.solids.length; lmSolids(l, W.solids, floors);
-  if(!l.box) return; var key=l.n+'|'+l.box.join(','), a=LMCACHE[key];
-  if(a===undefined){ a=null; try{ a=lmBuild(l,floors); }catch(e){ a=null; if(window.console&&console.warn) console.warn('landmark model failed',l.n,e&&e.message); } LMCACHE[key]=a; }
-  if(a && a.length){ W.meshes.push({a:a, id:l.n}); for(var i=n0;i<W.solids.length;i++) W.solids[i].mesh=1; } }
-window._palRideLm={key:lmKey, build:lmBuild, mesh:landmarkMeshes, table:LMT};
+  if(!l.box) return; var key=l.n+'|'+l.box.join(','), rec=LMCACHE[key];
+  if(rec===undefined){ rec=null; try{ rec=lmBuild(l,floors); }catch(e){ rec=null; if(window.console&&console.warn) console.warn('landmark model failed',l.n,e&&e.message); } LMCACHE[key]=rec; }
+  if(!rec || !rec.a.length) return;
+  W.meshes.push({a:rec.a, id:l.n}); var i;
+  if(LM_FOOT && rec.fp.length && typeof solid==='function'){ var old=W.solids.splice(n0), col=(old[0]&&old[0].col)||[200,200,208]; rec.fp.forEach(function(f){ var s=solid(f.r, f.h, col, 'lm', l.n); s.mesh=1; W.solids.push(s); }); }
+  else for(i=n0;i<W.solids.length;i++) W.solids[i].mesh=1; }
+window._palRideLm={key:lmKey, build:function(l,f){ return lmBuild(l,f).a; }, mesh:landmarkMeshes, table:LMT};
 """
 
 JS_H_TABLE = r"""

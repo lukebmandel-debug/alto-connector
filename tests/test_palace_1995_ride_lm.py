@@ -46,7 +46,8 @@ function hashXY(x,y){ return hash(Math.round(x*7.13)*31+Math.round(y*3.77)); }
 var LMH=[[/city hall/i,167],[/one liberty/i,288],[/two liberty/i,258],[/comcast tech/i,342],[/comcast center/i,297],[/bny|mellon/i,241],[/three logan/i,200],[/cira/i,128],[/fmc/i,181],
   [/independence/i,41],[/art museum/i,28],[/convention/i,34],[/franklin inst/i,34],[/courthouse|justice|family court/i,55],[/30th street|suburban|jefferson/i,32],[/arena|center\b|centre\b/i,42],[/field|ballpark|bank park/i,46]];
 function lmHeightM(n, floors){ for(var i=0;i<LMH.length;i++) if(LMH[i][0].test(n)) return LMH[i][1]; return floors>=40?floors*4.1:34; }
-function lmSolids(l, out, floors){ if(!l.box) return; out.push({kind:'lm', name:l.n}); out.push({kind:'lm', name:l.n}); }
+function lmSolids(l, out, floors){ if(!l.box) return; out.push({kind:'lm', name:l.n, col:[200,200,200]}); out.push({kind:'lm', name:l.n, col:[200,200,200]}); }
+function solid(ring, h, col, kind, nm){ return {ring:ring, h:h, col:col, kind:kind, name:nm}; }
 %(MB)s
 %(H)s
 var GROUND={0:1,10:1,11:1,12:1,13:1};
@@ -57,7 +58,8 @@ function stats(l){ var W={solids:[],meshes:[]}; landmarkMeshes(l,30,W); var a=W.
   for(i=0;i+30<=n;i+=30){ var P=[0,1,2].map(function(q){ return [a[i+q*10],a[i+q*10+1],a[i+q*10+2]]; }), N=[a[i+3],a[i+4],a[i+5]];
     var e1=[P[1][0]-P[0][0],P[1][1]-P[0][1],P[1][2]-P[0][2]], e2=[P[2][0]-P[0][0],P[2][1]-P[0][1],P[2][2]-P[0][2]], g=[e1[1]*e2[2]-e1[2]*e2[1],e1[2]*e2[0]-e1[0]*e2[2],e1[0]*e2[1]-e1[1]*e2[0]], gl=Math.hypot(g[0],g[1],g[2]);
     if(gl<1e-9) continue; tris++; if((g[0]*N[0]+g[1]*N[1]+g[2]*N[2])/gl>-0.1) wb++; }
-  return {n:l.n, floats:n, verts:n/10, tris:tris, finite:fin, badNormals:nb, badWinding:wb, badMat:matBad, mn:mn, mx:mx, id:W.meshes.length?W.meshes[0].id:null, meshes:W.meshes.length, solids:W.solids.length, marked:W.solids.filter(function(s){ return s.mesh===1; }).length}; }
+  var fpOk=W.solids.every(function(s){ return s.ring && s.ring.length>=8 && s.h>0 && isFinite(s.h); });
+  return {n:l.n, floats:n, verts:n/10, tris:tris, finite:fin, badNormals:nb, badWinding:wb, badMat:matBad, mn:mn, mx:mx, id:W.meshes.length?W.meshes[0].id:null, meshes:W.meshes.length, solids:W.solids.length, marked:W.solids.filter(function(s){ return s.mesh===1; }).length, fpOk:fpOk, fpMax:Math.max.apply(null,W.solids.map(function(s){ return s.h; })), fpBox:W.solids.reduce(function(m,s){ for(var i=0;i<s.ring.length;i+=2){ m[0]=Math.min(m[0],s.ring[i]); m[1]=Math.min(m[1],s.ring[i+1]); m[2]=Math.max(m[2],s.ring[i]); m[3]=Math.max(m[3],s.ring[i+1]); } return m; },[1e9,1e9,-1e9,-1e9])}; }
 var LMS=%(LMS)s, out=LMS.map(function(l){ return stats({n:l[0],box:l[1]}); });
 var gen=stats({n:'Some Unknown Hall', box:[0,0,240,320]}); var nobox=(function(){ var W={solids:[],meshes:[]}; landmarkMeshes({n:'City Hall'},30,W); return {m:W.meshes.length,s:W.solids.length}; })();
 var again=stats({n:LMS[1][0],box:LMS[1][1]});
@@ -89,8 +91,9 @@ def test_every_art_key_has_a_model_and_the_standins_stay():
         assert f"LMT.{k}=" in src, k                                    # one builder per art key of the 2D art
     assert "function landmarkMeshes(l, floors, W)" in src
     assert "lmSolids(l, W.solids, floors)" in src                       # the 2D fallback keeps its extruded stand-in
-    assert "W.meshes.push({a:a, id:l.n})" in src and ".mesh=1" in src   # the model, and the stand-ins marked so the GL renderer skips them
-    assert "try{ a=lmBuild(l,floors); }catch" in src                    # a failing builder never takes the world down
+    assert "W.meshes.push({a:rec.a, id:l.n})" in src and ".mesh=1" in src and "s.mesh=1" in src   # the model, and the stand-ins marked so the GL renderer skips them
+    assert "var LM_FOOT=true" in src and "function lfoot(" in src                       # the stand-ins follow the true footprint (a flag the lead can turn off)
+    assert "try{ rec=lmBuild(l,floors); }catch" in src                    # a failing builder never takes the world down
     assert "palace_ride_h" in Path(palace_ride.__file__).read_text() and palace_ride.JS_H in palace_ride.RIDE_JS
 
 
@@ -121,7 +124,11 @@ def test_every_landmark_yields_a_clean_mesh(built):
         assert o["badNormals"] == 0, o["n"]                                          # unit normals
         assert o["badWinding"] <= 0.002 * o["tris"], (o["n"], o["badWinding"], o["tris"])   # one winding for all: against the normal (see the mesh header)
         assert 50 <= o["tris"] <= 6000, (o["n"], o["tris"])                          # cheap: a few thousand vertices each
-        assert o["solids"] == o["marked"] == 2, o["n"]                               # the stand-ins are kept and marked for the renderer to skip
+        assert o["solids"] == o["marked"] >= 1 and o["fpOk"], o["n"]                   # the stand-ins are kept (now on the true footprint) and marked for the renderer to skip
+        b = dict(LANDMARKS)[o["n"]]
+        assert o["fpBox"][0] >= b[0] - 1 and o["fpBox"][2] <= b[2] + 1 and o["fpBox"][1] >= b[1] - 1 and o["fpBox"][3] <= b[3] + 1, o["n"]      # inside the block, not filling it
+        assert (o["fpBox"][2] - o["fpBox"][0]) < 0.97 * (b[2] - b[0]) or o["n"] in ("Independence Hall",), o["n"]
+        assert abs(o["fpMax"] - o["mx"][2]) <= 0.12 * o["mx"][2] + 20, (o["n"], o["fpMax"], o["mx"][2])        # the tallest stand-in is the model's top
     assert sum(o["verts"] for o in built["out"]) < 120000
 
 
@@ -141,7 +148,7 @@ def test_models_stand_in_their_blocks_at_their_true_heights(built):
 
 def test_unknown_landmarks_get_a_plain_model_and_a_missing_box_gets_none(built):
     g = built["gen"]
-    assert g["meshes"] == 1 and g["tris"] > 40 and g["finite"] and g["badNormals"] == 0 and g["marked"] == 2
+    assert g["meshes"] == 1 and g["tris"] > 40 and g["finite"] and g["badNormals"] == 0 and g["marked"] >= 1
     assert built["nobox"]["m"] == 0 and built["nobox"]["s"] == 0                     # no box: nothing (lmSolids returns before it too in the page)
 
 
