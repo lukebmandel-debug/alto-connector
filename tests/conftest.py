@@ -36,6 +36,11 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
         from alto.build import palace_street as _ps
         monkeypatch.setattr(_ps, "fetch", lambda box, **kw: {"elements": [], "missing": []})
 
+    # set_up fetches the fleet (palace_fleet.fetch: museum ships, military land) from Overpass too: not from a test that stubs the city fetch (it hung on a busy Overpass)
+    if request.module.__name__.rsplit(".", 1)[-1] != "test_palace_1999_fleet":
+        from alto.build import palace_fleet as _pf
+        monkeypatch.setattr(_pf, "fetch", lambda box, **kw: {"elements": []})
+
     # the street blobs (palace_street.py) are written to a folder of the user's cache: never the real one from a test
     monkeypatch.setenv("ALTO_STREET_DIR", str(tmp_path_factory.mktemp("alto-street")))
 
