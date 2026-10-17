@@ -5,18 +5,23 @@ grounds) gets a model of its real silhouette, SIMPLIFIED and cheap (a few thousa
 (palace_skyline.py / palace_towers.py: the specs are the same, in metres) and standing where that art stands: centred across its block, its front (street) face
 on the block's front edge (south), City Hall centred in its block, the grounds scaled down only as far as it takes to fit their block.
 
-MATERIALS (palace_ride_mesh.py MAT) as these models use them, for the renderer's facade shader:
-  stone / brick / brickred / concrete / glass   walls WITH windows: the shader draws the window grid from u,v. Every wall's u,v are "shader metres" = real metres x k,
-                                                 k = 3.4 / the building's real storey height, so the shader's 3.4 m floor is the building's own storey (City Hall 8 m, the
-                                                 Art Museum 12 m ...). brickred is also the red granite of Three Logan Square; stone is the limestone of the courthouses/stations.
-  white                                          plain pale stone or marble WITHOUT windows: columns, cornices, pilasters, pediments, City Hall's tower, the steeple
-  dark                                           openings: doors, arches, window panes cut into a wall (decals 0.12 m off the wall), the recess behind a colonnade
-  copper (verdigris) / roof (slate) / tile / metal / wood / paving / grass / asphalt   as named; metal = steel, bronze, glass-and-steel frames, light masts, spires
-  glassdome                                      the glass of the Convention Center vault and the Jefferson Station hall
-All faces are oriented outward (see palace_ride_mesh.py WINDING). The u of a wall runs to the viewer's right, v is the height above the ground.
+MATERIALS (palace_ride_mesh.py MAT) as these models use them; the GL shader (palace_ride_gl_shaders.py) draws them as follows:
+  brick / stone / glass / concrete (1-4)   walls WITH windows: the shader draws the window grid from u,v (3.4 m floors, bays ~3.3 m brick, 3.7 m stone, 1.5 m glass). Every wall's u,v are
+                                            "shader metres" = real metres x k, k = 3.4 / the building's real storey height, so the shader's floor is the building's own storey (City
+                                            Hall 8 m, the Art Museum 13 m, a tower's 4.5 m from its real floor count). stone is limestone / marble, brick is red brick (also Three Logan
+                                            Square's red granite), concrete is granite / podiums, glass is curtain wall. Flat tops of these are drawn as dark roofs.
+  brickred (23)                             plain brick WITHOUT windows (chimneys); white (14) plain pale stone: columns, cornices, pilasters, pediments, City Hall's tower, the steeple
+  dark (15)                                 a real shadow (the Broad Street portal, City Hall's colonnade core); window and door openings are 'glass' decals (lopen) so they show panes
+  copper (7) verdigris / roof (5) slate / tile / metal (6) / paving (12) / grass (13) / lamp (21, clock faces, glows at night) / glassdome (8, the vaults)   as named
+THE COLOUR of a landmark comes from its tint (a landmark scans for a tint, lmPickTint / LMC): the shader picks the stone palette by fract(T*3.77), brick by fract(T*7.31), glass by fract(T*5).
+If the shader's palette functions change, retune the LMC table below.
+Decals (windows, doors, clock faces) stand 0.3-0.55 map units off their wall (layers .3 / .45 / .55): never two decals at one offset, never two coplanar faces of different materials.
+All faces are oriented outward (see palace_ride_mesh.py WINDING). The u of a wall runs to the viewer's right, v is the height above the ground (u is relative to the landmark's front-centre).
 
-landmarkMeshes(l, floors, W) keeps the extruded stand-in (lmSolids -> W.solids, for the 2D fallback) and, when it has a model for l, pushes {a, id: l.n} to W.meshes and
-marks the stand-in solids `.mesh=1` (the GL renderer must not extrude those: the model replaces them).
+landmarkMeshes(l, floors, W) pushes {a, id: l.n} to W.meshes (one Float32Array per landmark and block, cached for every world) and keeps a stand-in in W.solids for the 2D fallback and for roaming:
+the stand-ins follow the model's real footprint (LM_FOOT; false = the extruded slab lmSolids made) and carry `.mesh=1`: the GL renderer skips them (kind 'lm' named like the model).
+The models are built at true scale (1.3 map units a metre) on the 2D art's footprint (palace_skyline.py specs, in metres) unless that would cover the streets round the block (the 30th Street
+Station, the arena and the two grounds): then every dimension, height too, is scaled by the same factor. Front faces stand on the block's front edge less what steps and canopies push out.
 """
 
 JS_H_KIT = r"""
