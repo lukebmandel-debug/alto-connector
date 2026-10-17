@@ -31,6 +31,12 @@ function lmKey(n){ n=String(n||'');
     ['court',/court ?house|courts? building|justice cent(er|re)|hall of justice|supreme court|court of appeals/i]];
   for(var i=0;i<T.length;i++) if(T[i][1].test(n)) return T[i][0]; return 'gen'; }
 
+
+/* the shader picks a wall's palette from the building's tint T: stone by fract(T*3.77) (<.3 warm grey, <.55 grey, <.8 tan, else pale limestone), brick by fract(T*7.31) (<.5 red-brown ... ), glass by
+   fract(T*5) (blue ... teal): a landmark scans for a tint that gives it its real colours. cons = {s:[lo,hi], b:[lo,hi], g:[lo,hi]} */
+function lmPickTint(F,cons){ if(!cons) return F.tint; var t0=F.tint, fr=function(x){ return x-Math.floor(x); };
+  for(var i=0;i<4000;i++){ var T=fr(t0+i*0.00137); if((!cons.s||(fr(T*3.77)>=cons.s[0]&&fr(T*3.77)<=cons.s[1])) && (!cons.b||(fr(T*7.31)>=cons.b[0]&&fr(T*7.31)<=cons.b[1])) && (!cons.g||(fr(T*5)>=cons.g[0]&&fr(T*5)<=cons.g[1]))) return T; }
+  return F.tint; }
 /* the local frame of one landmark: metres x (across, east), v (back from the front edge, north), z (up); S = map units per metre */
 function lmFrame(l, S, centred, depthM, front){
   var b=l.box, cx=(b[0]+b[2])/2, fy=b[3]-11-Math.max(3,(front||0)*S);      /* the front face stands on the block's front edge, less what steps and canopies push out (the street is 11 units each side of the edge) */
@@ -62,18 +68,19 @@ function lband(F,x0,v0,x1,v1,z0,z1,pr,mat,skip){ lrect(F,x0-pr,v0-pr,x1+pr,v1+pr
 /* a decal on a face: dir = 's' (front, v small), 'n' (back), 'e', 'w'; (x,v) the centre of the wall point, z the base; pts [u,v] in METRES (u to the viewer's right) */
 var LDIR={s:[0,1],n:[0,-1],e:[1,0],w:[-1,0]};
 function ldecal(F,dir,x,v,z,pts,mat,off){ var d=LDIR[dir], S=F.S; MB.decal(F.m,F.X(x),F.Y(v),F.Z(z),d[0],d[1],pts.map(function(q){ return [q[0]*S,q[1]*S]; }),mat,F.tint,(off==null?.3:off),1); }
-function larch(F,dir,x,v,z,w,h,mat,off){ ldecal(F,dir,x,v,z,MB.archPts(w,h,8),mat,off); }
-function lrectd(F,dir,x,v,z,w,h,mat,off){ ldecal(F,dir,x,v,z,[[-w/2,0],[w/2,0],[w/2,h],[-w/2,h]],mat,off); }
+function lopen(mat){ return mat==='dark'?'glass':mat==='void'?'dark':mat; }                   /* openings: 'dark' is a pane of reflective glass (doors, windows); 'void' is a real shadow (a portal) */
+function larch(F,dir,x,v,z,w,h,mat,off){ ldecal(F,dir,x,v,z,MB.archPts(w,h,8),lopen(mat),off); }
+function lrectd(F,dir,x,v,z,w,h,mat,off){ ldecal(F,dir,x,v,z,[[-w/2,0],[w/2,0],[w/2,h],[-w/2,h]],lopen(mat),off); }
 function lcircle(F,dir,x,v,zc,r,mat,off){ ldecal(F,dir,x,v,zc,MB.circPts(r,16),mat,off); }
 /* a clock face: a pale disc in a dark rim with two hands */
-function lclock(F,dir,x,v,zc,r){ lcircle(F,dir,x,v,zc,r*1.12,'dark',.3); lcircle(F,dir,x,v,zc,r,'white',.42); ldecal(F,dir,x,v,zc,[[-.12*r,0],[.12*r,0],[.07*r,.78*r],[-.07*r,.78*r]],'dark',.55); ldecal(F,dir,x,v,zc,[[0,-.11*r],[.62*r,.2*r],[.6*r,.3*r],[0,.1*r]],'dark',.55); }
+function lclock(F,dir,x,v,zc,r){ lcircle(F,dir,x,v,zc,r*1.12,'dark',.3); lcircle(F,dir,x,v,zc,r,'lamp',.42); ldecal(F,dir,x,v,zc,[[-.12*r,0],[.12*r,0],[.07*r,.78*r],[-.07*r,.78*r]],'dark',.55); ldecal(F,dir,x,v,zc,[[0,-.11*r],[.62*r,.2*r],[.6*r,.3*r],[0,.1*r]],'dark',.55); }
 /* a gabled dormer standing out of a roof face: dir 's','n','e','w'; (x,v) its front, z the sill; w wide, h wall height, rise of its little roof */
 function ldormer(F,dir,x,v,z,w,h,rise,depth,wm,rm,glass){ var d=LDIR[dir], S=F.S, m=F.m, t=F.tint, cx=F.X(x), cy=F.Y(v), rx=d[1], ry=-d[0], hw=w/2*S, H=h*S, R=rise*S, D=depth*S, z0=F.Z(z), F_=MB.face;
   var A=[cx-rx*hw,cy-ry*hw,z0], B=[cx+rx*hw,cy+ry*hw,z0], A1=[A[0],A[1],z0+H], B1=[B[0],B[1],z0+H], T=[cx,cy,z0+H+R], bx=-d[0]*D, by=-d[1]*D;
   F_(m,[A,B,B1,T,A1],[d[0],d[1],0],wm,t,1);
   F_(m,[A,[A[0]+bx,A[1]+by,z0],[A1[0]+bx,A1[1]+by,z0+H],A1],[-rx,-ry,0],wm,t,1); F_(m,[B,[B[0]+bx,B[1]+by,z0],[B1[0]+bx,B1[1]+by,z0+H],B1],[rx,ry,0],wm,t,1);
   F_(m,[A1,T,[T[0]+bx,T[1]+by,z0+H+R],[A1[0]+bx,A1[1]+by,z0+H]],[-rx*R,-ry*R,hw],rm,t,1); F_(m,[B1,T,[T[0]+bx,T[1]+by,z0+H+R],[B1[0]+bx,B1[1]+by,z0+H]],[rx*R,ry*R,hw],rm,t,1);
-  if(glass) ldecal(F,dir,x,v,z+h*.12,[[-w*.3,0],[w*.3,0],[w*.3,h*.7],[-w*.3,h*.7]],glass,.3); }
+  if(glass) ldecal(F,dir,x,v,z+h*.12,[[-w*.3,0],[w*.3,0],[w*.3,h*.7],[-w*.3,h*.7]],lopen(glass),.3); }
 /* a small solid dome / ogee as a lathe: points are [r,z] in METRES about local (x,v) */
 function llathe(F,x,v,prof,seg,mat,soft,k){ MB.lathe(F.m,F.X(x),F.Y(v),prof.map(function(q){ return [q[0]*F.S,q[1]*F.S]; }),seg||12,mat,F.tint,k||1,soft!==false); }
 /* a paved or grassed ground patch over a local rectangle (a plaza, a lawn) a hair above the ground tiles */
@@ -114,11 +121,11 @@ function bCityHall(F){
   /* the south entrance: a pavilion with eight columns, the arch of the Broad Street portal, steps */
   lrect(F,-22,-8,22,0,0,3.4,CO,CO,1,0);
   lrect(F,-20,-2,20,20,0,38,ST,null,k); lband(F,-20,-2,20,20,37.2,38.9,1.3,WH); lroof(F,-20,-2,20,20,38.9,[[5,8],[3,1.5]],CP,1);
-  larch(F,'s',0,-2,3.4,11,17,'white',.3); larch(F,'s',0,-2,3.4,9,15,'dark',.45);
+  larch(F,'s',0,-2,3.4,11,17,'white',.3); larch(F,'s',0,-2,3.4,9,15,'void',.45);
   lcols(F,-16.5,16.5,-6.2,8,3.4,35,.85,WH,1,8); lrect(F,-20,-7.6,20,-4.6,35,37.2,WH,WH,1,0);
   lsteps(F,'s',0,-8,40,7,3.4/7,.75,3.4,CO);
   /* the tower: a stone foot (the Broad Street arches north and south), then stages of white marble */
-  lrect(F,-16,111,16,143,0,34.9,ST,null,k); lband(F,-16,111,16,143,33.2,34.9,1.3,WH); larch(F,'n',0,143,3.4,11,17,'white',.3); larch(F,'n',0,143,3.4,9,15,'dark',.45); larch(F,'s',0,111,3.4,11,17,'white',.3); larch(F,'s',0,111,3.4,9,15,'dark',.45);
+  lrect(F,-16,111,16,143,0,34.9,ST,null,k); lband(F,-16,111,16,143,33.2,34.9,1.3,WH); larch(F,'n',0,143,3.4,11,17,'white',.3); larch(F,'n',0,143,3.4,9,15,'void',.45); larch(F,'s',0,111,3.4,11,17,'white',.3); larch(F,'s',0,111,3.4,9,15,'void',.45);
   var tc=127, hw=13.5, z;
   function stage(h2,z0,z1,tex){ lrect(F,-h2,tc-h2,h2,tc+h2,z0,z1,WH,WH,1,0); }
   stage(13.5,34.9,62); lband(F,-13.5,tc-13.5,13.5,tc+13.5,60.8,62.4,1.4,WH);
@@ -191,12 +198,12 @@ function lfacets(F,a,b,za,zb,nu,nv,bump,dir,mat){ var d=LDIR[dir], S=F.S, m=F.m,
 JS_H_CIVIC = r"""
 /* ── Independence Hall: red Flemish-bond brick, white trim, a hipped roof with its pairs of chimneys, the arcades and the two end buildings, the brick tower and the white steeple (104 x 22 m, 51 m) ── */
 function bIndependence(F){
-  var k=3.4/6.5, BR='brickred', WH='white', RF='roof', i;
+  var k=3.4/6.5, BR='brick', WH='white', RF='roof', i;
   lpatchBox(F,'grass',11,.08); lpatch(F,-70,-8,70,2,.14,'paving'); lpatch(F,-4,0,4,100,.14,'paving'); lpatch(F,-60,40,60,43,.14,'paving');
   /* the main building: two storeys and an attic under a hipped roof, a white belt and cornice */
   lrect(F,-16.5,8,16.5,22,0,13,BR,null,k); lband(F,-16.5,8,16.5,22,6.2,6.7,.4,WH); lband(F,-16.5,8,16.5,22,12.2,13.4,.7,WH); lband(F,-16.5,8,16.5,22,0,.9,.4,WH);
   lroof(F,-16.5,8,16.5,22,13.4,[[5.2,5.8]],RF,1);
-  [[-9,11.6],[9,11.6],[-9,18.4],[9,18.4]].forEach(function(c){ lrect(F,c[0]-.9,c[1]-.9,c[0]+.9,c[1]+.9,15,20.5,BR,WH,k,0); lrect(F,c[0]-1.1,c[1]-1.1,c[0]+1.1,c[1]+1.1,20.5,21.1,WH,WH,1,0); });
+  [[-9,11.6],[9,11.6],[-9,18.4],[9,18.4]].forEach(function(c){ lrect(F,c[0]-.9,c[1]-.9,c[0]+.9,c[1]+.9,15,20.5,'brickred',WH,k,0); lrect(F,c[0]-1.1,c[1]-1.1,c[0]+1.1,c[1]+1.1,20.5,21.1,WH,WH,1,0); });
   /* the arcades (the "hyphens") and the end buildings: Congress Hall and Old City Hall */
   [-1,1].forEach(function(sd){ var xa=sd*27;
     lrect(F,xa-6,12,xa+6,18,0,6.5,BR,null,k); lband(F,xa-6,12,xa+6,18,5.9,6.7,.4,WH); lroof(F,xa-6,12,xa+6,18,6.7,[[2.4,1.8]],RF,1);
@@ -284,7 +291,7 @@ function bJefferson(F){
 
 /* ── Pennsylvania Convention Center: the Reading Terminal headhouse of red brick under a mansard, the sloping glass lobby, the great halls under barrel vaults (250 x 190 m, 40 m) ── */
 function bConvention(F){
-  var BR='brickred', i;
+  var BR='brick', i;
   lpatchBox(F,'paving',11,.1);
   lrect(F,-125,44,125,190,0,21,'metal',null,1); lrect(F,-125,44,125,190,21,21.6,'metal','roof',1,0);
   [-84,84].forEach(function(xa){ lvault(F,xa,74,52,182,21.6,11.4,'glassdome','metal',14); }); lvault(F,0,82,40,190,21.6,18.4,'glassdome','metal',16);
@@ -362,10 +369,10 @@ function bBNY(F){
   return F.m; }
 function bTLS(F){
   var i, kt=ktw(F,205,14); lpatchBox(F,'paving',11,.1);
-  lbox(F,0,0,58,58,0,14,'brickred','roof',3.4/4.2,0);
-  lbox(F,0,7,44,44,14,188,'brickred',null,kt,16); lbox(F,0,11,36,36,188,205,'brickred',null,kt,16); lrect(F,-22.6,6.4,22.6,51.6,187.4,189,'brickred','brickred',kt,0);
+  lbox(F,0,0,58,58,0,14,'brick','roof',3.4/4.2,0);
+  lbox(F,0,7,44,44,14,188,'brick',null,kt,16); lbox(F,0,11,36,36,188,205,'brick',null,kt,16); lrect(F,-22.6,6.4,22.6,51.6,187.4,189,'brick','brick',kt,0);
   var c=29, hw=16, cut=8, R=[-hw+cut,c-hw,hw-cut,c-hw,hw,c-hw+cut,hw,c+hw-cut,hw-cut,c+hw,-hw+cut,c+hw,-hw,c+hw-cut,-hw,c-hw+cut], Rm=[]; for(i=0;i<R.length;i+=2) Rm.push(F.X(R[i]),F.Y(R[i+1]));
-  MB.loft(F.m,Rm,F.Z(205),Rm,F.Z(225),'brickred',F.tint,kt,'roof'); lgear(F,-26,2,26,6,14.1,2,7);
+  MB.loft(F.m,Rm,F.Z(205),Rm,F.Z(225),'brick',F.tint,kt,'roof'); lgear(F,-26,2,26,6,14.1,2,7);
   larch(F,'s',0,0,0,10,8,'dark',.4); lcanopy(F,'s',0,0,18,4.5,8.6,'white');
   return F.m; }
 function bCira(F){
@@ -399,7 +406,7 @@ function bByrne(F){
   lpatchBox(F,'paving',11,.1);
   lbox(F,0,0,100,60,0,12,'concrete','roof',3.4/6,0); lband(F,-50,0,50,60,11,12.4,.6,'white');
   lbox(F,0,14.4,78,37.2,12,75,'stone','roof',3.4/4.2,0); lbox(F,-12,11.4,42,6,12,61.5,'glass','roof',3.4/4,0);
-  lbox(F,0,0,50,8,0,14,'glass','roof',3.4/7,0); larch(F,'s',0,0,0,6,7,'dark'); lrect(F,-39.6,13.8,39.6,52.2,74.4,75.6,'white','white',1,0);
+  lbox(F,0,-1.6,50,9.6,0,14,'glass','roof',3.4/7,0); larch(F,'s',0,-1.6,0,6,7,'dark'); lrect(F,-39.6,13.8,39.6,52.2,74.4,75.6,'white','white',1,0);
   lsteps(F,'s',0,0,30,3,.2,.8,.6,'concrete');
   return F.m; }
 /* Nix Federal Building and Courthouse: stripped classical limestone, pilasters the full height of its Market Street front, a set-back top storey (120 x 60 m, 45 m) */
@@ -408,35 +415,40 @@ function bNix(F){
   lrect(F,-60,0,60,60,0,39,'stone',null,3.4/9); lband(F,-60,0,60,60,36.4,38.2,1,'white'); lband(F,-60,0,60,60,3.6,4.4,.5,'white');
   for(i=0;i<14;i++){ var x=-42+84*(i+.5)/14; lrect(F,x-1.2,-.9,x+1.2,.2,4.4,36.4,'white','white',1,16); }
   lrect(F,-48,3,48,57,39,45,'stone','roof',3.4/6,0); lband(F,-48,3,48,57,44,45.8,.8,'white');
-  lbox(F,0,-3,22,3,0,9,'white','white',1,0); larch(F,'s',0,-3,0,7,8,'dark',.4);
+  lbox(F,0,-3,22,3,0,9,'stone','white',3.4/9,0); lband(F,-11,-3,11,0,8.2,9.2,.5,'white'); lrect(F,-11.6,-3.4,-10.2,0,0,8.2,'white','white',1,16); lrect(F,10.2,-3.4,11.6,0,0,8.2,'white','white',1,16); larch(F,'s',0,-3,0,7,8,'dark',.4);
   return F.m; }
 /* Criminal Justice Center: a granite tower in ribbons of glazing over a granite podium (80 x 60 m, 82 m) */
 function bCJC(F){
   lpatchBox(F,'paving',11,.1);
   lbox(F,0,0,80,60,0,20,'concrete','roof',3.4/5,0); lband(F,-40,0,40,60,19,20.6,.6,'white');
   lbox(F,0,16.5,46.4,33,20,78,'concrete','roof',3.4/4.2,0); lbox(F,0,17.5,40,28.2,78,82,'white','roof',1,0);
-  lbox(F,0,0,28.8,7,0,16,'glass','roof',3.4/5,0); larch(F,'s',0,0,0,6,7,'dark');
+  lbox(F,0,-1.6,28.8,8.6,0,16,'glass','roof',3.4/5,0); larch(F,'s',0,-1.6,0,6,7,'dark');
   return F.m; }
 /* a classical courthouse: columned portico and pediment between flanking wings (Family Court; any named courthouse): W x D m, h to the cornice-top */
 function bClassicCourt(F,l,W,D,h){
-  W=W||90; D=D||45; h=h||28; var body=h*.7, pw=Math.min(W*.58,70), hw=W/2;
+  W=W||90; D=D||45; h=h||28; var body=h*.7, pw=Math.min(W*.58,70), hw=W/2, kc=3.4/(body/2.2);
   lpatchBox(F,'paving',11,.1);
-  lrect(F,-hw,10,hw,D,0,body,'stone',null,3.4/(body/2.2)); lband(F,-hw,10,hw,D,body-1.2,body,.8,'white'); lroof(F,-hw,10,hw,D,body,[[5,3.5]],'roof',1);
-  lrect(F,-(pw+8)/2,0,(pw+8)/2,6,0,2,'concrete','concrete',1,0);
-  lrect(F,-pw/2,2,pw/2,14,2,body+1,'white',null,1,0); lcols(F,-pw*.45,pw*.45,2.8,pw<45?6:8,2,body,1.0+pw*.01,'white',1,8);
-  lrect(F,-pw/2-.8,1,pw/2+.8,14,body-.2,body+1.2,'white','white',1,0);
-  MB.pediment(F.m,F.X(0),F.Y(1),0,1,F.Z(body+1.2),(pw+3)*F.S,pw*.2*F.S,13*F.S,'white','roof',F.tint,1);
-  larch(F,'s',0,2,2,4,7,'dark'); lsteps(F,'s',0,0,pw*.8,5,.4,.9,2,'concrete');
+  lrect(F,-hw,10,hw,D,0,body,'stone',null,kc); lband(F,-hw,10,hw,D,body-1.2,body,.8,'white'); lband(F,-hw,10,hw,D,0,1.4,.4,'concrete'); lroof(F,-hw,10,hw,D,body,[[5,3.5]],'roof',1);
+  lrect(F,-(pw+8)/2,0,(pw+8)/2,6.5,0,2,'concrete','concrete',1,0);
+  lrect(F,-pw/2,7,pw/2,14,2,body+1,'stone',null,kc,0); lrect(F,-pw/2,6.2,-pw/2+4,7,2,body+1,'white','white',1,0); lrect(F,pw/2-4,6.2,pw/2,7,2,body+1,'white','white',1,0);   /* the set-back wall of the portico, framed by piers */
+  lcols(F,-pw*.45,pw*.45,2.4,pw<45?6:8,2,body,1.0+pw*.01,'white',1,8); lrect(F,-pw/2-.8,.6,pw/2+.8,8.4,body-.2,body+1.2,'white','white',1,0);
+  MB.pediment(F.m,F.X(0),F.Y(.6),0,1,F.Z(body+1.2),(pw+3)*F.S,pw*.2*F.S,10*F.S,'white','roof',F.tint,1);
+  larch(F,'s',0,7,2,4,7,'dark',.4); lsteps(F,'s',0,0,pw*.8,5,.4,.9,2,'concrete');
   return F.m; }
 function bFamily(F,l){ return bClassicCourt(F,l,90,45,28); }
 function bCourt(F,l){ return bClassicCourt(F,l,90,45,28); }
-/* a plain building for any landmark the models do not know: a plinth, walls with a cornice, a hipped or gabled roof (height from lmHeightM) */
+/* a building for any landmark the models do not know (another city's): height from the record (hm, metres) or lmHeightM, a tower of glass over a podium when tall, else a stone block with a cornice and a hipped roof */
 function bGeneric(F,l){
-  var b=l.box, wM=Math.max(20,Math.min(70,(b[2]-b[0]-40)/LMV*.6)), dM=Math.max(16,Math.min(46,(b[3]-b[1]-40)/LMV*.5)), h=lmHeightM(l.n||'',F.floors||30)*.8, hw=wM/2;
+  var b=l.box, S=F.S, hm=(+l.hm>0)?+l.hm:lmHeightM(l.n||'',F.floors||30), wM=(+l.fw>0)?+l.fw:Math.max(24,Math.min(80,(b[2]-b[0]-40)/LMV*.6)), dM=Math.max(18,Math.min(60,(b[3]-b[1]-40)/LMV*.55)), hw=wM/2;
   lpatchBox(F,'paving',11,.1);
-  lrect(F,-hw,0,hw,dM,0,h,'stone',null,3.4/Math.max(3.4,Math.min(7,h/4))); lband(F,-hw,0,hw,dM,h-1.2,h,.6,'white'); lband(F,-hw,0,hw,dM,0,1.2,.4,'concrete');
-  if(h>60) lroof(F,-hw,0,hw,dM,h,[[Math.min(hw,dM/2)*.7,4]],'roof',1); else lroof(F,-hw,0,hw,dM,h,[[Math.min(hw,dM/2)*.5,Math.min(8,h*.3)]],'roof',1);
-  larch(F,'s',0,0,0,4,6,'dark');
+  if(hm>=70){ var kt=3.4/4.2, tw=wM*.78, td=dM*.78, cw=tw*.62, cd=td*.62;
+    lbox(F,0,0,wM,dM,0,14,'stone',null,3.4/6,16); lparapet(F,-hw,0,hw,dM,14,1.1,.5,'white'); lbox(F,0,0,wM,dM,13.9,14.1,'stone','roof',1,15); lgear(F,-hw+2,1,hw-2,dM*.12,14.1,2,1);
+    lbox(F,0,(dM-td)/2,tw,td,14,hm*.82,'glass',null,kt,16); lbox(F,0,(dM-td)/2,tw,td,hm*.82-.2,hm*.82+.2,'glass','roof',kt,15);
+    lbox(F,0,(dM-cd)/2,cw,cd,hm*.82,hm*.97,'glass','roof',kt,0); llathe(F,0,dM/2,[[.8,hm*.97],[.5,hm*.99],[.12,hm]],6,'metal');
+    larch(F,'s',0,0,0,8,8,'dark',.4); lcanopy(F,'s',0,0,14,4.5,8.6,'white'); return F.m; }
+  lrect(F,-hw,0,hw,dM,0,hm,'stone',null,3.4/Math.max(3.4,Math.min(7,hm/3.5))); lband(F,-hw,0,hw,dM,hm-1.2,hm,.6,'white'); lband(F,-hw,0,hw,dM,0,1.2,.4,'concrete');
+  lroof(F,-hw,0,hw,dM,hm,[[Math.min(hw,dM/2)*.55,Math.min(9,hm*.35)]],'roof',1,'roof');
+  larch(F,'s',0,0,0,4,6,'dark',.4); lcanopy(F,'s',0,0,8,3.5,5.2,'white');
   return F.m; }
 """
 
@@ -453,7 +465,7 @@ function bArena(F){
   MB.loft(F.m,R2,F.Z(33),R2,F.Z(40),'metal',F.tint,1); MB.band(F.m,R2,F.Z(40),R3,F.Z(40),'roof',F.tint,1);
   MB.loft(F.m,R3,F.Z(40),R3,F.Z(42),'white',F.tint,1,'roof');
   lbox(F,0,-9,44,15,12,14.4,'white','metal',1,0); lcols(F,-18,18,-6,5,0,12,.6,'metal',1,6); lsteps(F,'s',0,-9,44,3,.25,.9,.75,'concrete');
-  ldecal(F,'s',0,0,0,[[-9,0],[9,0],[9,11],[-9,11]],'dark',.4);
+  lrectd(F,'s',-40,0,0,8,6,'dark',.4); lrectd(F,'s',40,0,0,8,6,'dark',.4);
   return F.m; }
 /* the bowl inside a ring of stands: tiers stepping down from the rim ring Rin (local) at z=top to a field ring, then the grass */
 function lbowl(F,Rin,top,low,tiers,fieldK,cx,cv){ var m=F.m, Z=F.Z, prev=Rin, i, n=Rin.length; var rings=[];
@@ -472,7 +484,7 @@ function bLFF(F){
   var low=lbowl(F,RO,36,5,8,.5,0,D/2); MB.cap(F.m,lmap(F,low),F.Z(.5),'grass',F.tint,1);
   for(i=-5;i<=5;i++) lpatch(F,-24,D/2+i*9.1-.25,24,D/2+i*9.1+.25,.62,'white');                        /* the yard lines of the field of play */
   [35,145,215,325].forEach(function(a){ var p=lon(R,a,22); lmast(F,p[0],p[1],0,70,2.6,7); });
-  ldecal(F,'s',0,0,0,[[-9,0],[9,0],[9,12],[-9,12]],'dark',.4);
+  lrectd(F,'s',-30,0,0,10,7,'dark',.4); lrectd(F,'s',30,0,0,10,7,'dark',.4);
   return F.m; }
 /* Citizens Bank Park: a red-brick and sandstone ballpark, the grandstand tall behind home plate and round the infield, falling to a low outfield, the diamond and its fence inside (281 x 263 m, 52 m) */
 function bCBP(F){
@@ -483,7 +495,7 @@ function bCBP(F){
   function inn(x,v){ return 12+34*Math.max(0,Math.min(1,.5+.5*((x*-.25+(v-131)*-1)/135))); }
   var RO=linset(R,inn), Rm=lmap(F,R), Rin=lmap(F,RO), zt=R.map(function(q){ return face(q[0],q[1]); });
   lpatchBox(F,'paving',11,.1);
-  lwallZ(F,Rm,lconst(n,0),zt,'brickred',3.4/6);
+  lwallZ(F,Rm,lconst(n,0),zt,'brick',3.4/6);
   lbandZ(F,Rm,zt,Rin,zt,'concrete',1);
   var bowl=RO.map(function(q){ return q; });
   for(i=0;i<5;i++){ var t=i/5, t1=(i+1)/5; var A=RO.map(function(q,j){ return [131*0+(q[0]-0)*(1-.5*t)+0, 131+(q[1]-131)*(1-.5*t)]; }), B=RO.map(function(q){ return [(q[0])*(1-.5*t1), 131+(q[1]-131)*(1-.5*t1)]; });
@@ -493,26 +505,33 @@ function bCBP(F){
   MB.cap(F.m,lring(F,[[hp[0],hp[1]-2],[hp[0]+21,hp[1]+19],[hp[0],hp[1]+40],[hp[0]-21,hp[1]+19]]),F.Z(.65),'tile',F.tint,1);
   MB.cap(F.m,lring(F,[[hp[0],hp[1]+4],[hp[0]+14,hp[1]+19],[hp[0],hp[1]+34],[hp[0]-14,hp[1]+19]]),F.Z(.7),'grass',F.tint,1);
   [200,330,85,20].forEach(function(a){ var p=lon(R,a,14); lmast(F,p[0],p[1],0,52,2.8,7); });
-  ldecal(F,'s',-20,5,0,[[-8,0],[8,0],[8,11],[-8,11]],'dark',.4);
+  lrectd(F,'s',-20,5,0,8,5,'dark',.4);
   return F.m; }
 """
 JS_H_MAIN = r"""
 /* the table of models: key -> [builder, depth in metres, centred in its block?, fit into the block?] */
-var LMT={};
+var LMT={}, LMC={};
 function lmBuild(l, floors){
   var key=lmKey(l.n), t=LMT[key]; if(!t) t=LMT.gen; var b=l.box, S=LMV, wM=t[4]||100, fr=t[5]||0;
   /* true scale (1.3 map units a metre) unless the model would cover the streets round its block: then every dimension, height too, is scaled by the same factor (the 2D art does that for the grounds) */
   var fw=(b[2]-b[0]-26)/wM, fd=(b[3]-b[1]-26)/(t[1]+fr); S=Math.min(LMV,Math.max(.6,Math.min(fw,fd)));
-  var F=lmFrame(l,S,!!t[2],t[1],fr); F.key=key; F.floors=floors;
+  var F=lmFrame(l,S,!!t[2],t[1],fr); F.key=key; F.floors=floors; F.tint=lmPickTint(F,LMC[key]);
   t[0](F,l); return MB.done(F.m); }
+var LMCACHE={};                                               /* a landmark's model never changes (its box and name are all it depends on): one array for every world, so the renderer keeps one GPU buffer too */
 function landmarkMeshes(l, floors, W){
   var n0=W.solids.length; lmSolids(l, W.solids, floors);
-  if(!l.box) return; var a=null; try{ a=lmBuild(l,floors); }catch(e){ a=null; if(window.console&&console.warn) console.warn('landmark model failed',l.n,e&&e.message); }
+  if(!l.box) return; var key=l.n+'|'+l.box.join(','), a=LMCACHE[key];
+  if(a===undefined){ a=null; try{ a=lmBuild(l,floors); }catch(e){ a=null; if(window.console&&console.warn) console.warn('landmark model failed',l.n,e&&e.message); } LMCACHE[key]=a; }
   if(a && a.length){ W.meshes.push({a:a, id:l.n}); for(var i=n0;i<W.solids.length;i++) W.solids[i].mesh=1; } }
 window._palRideLm={key:lmKey, build:lmBuild, mesh:landmarkMeshes, table:LMT};
 """
 
 JS_H_TABLE = r"""
+/* real colours: pale marble (City Hall, stations, Franklin Institute, courthouses), tan limestone (Art Museum), Liberty Place's pink-tan granite, red brick (Independence Hall, Reading Terminal, Citizens Bank Park, Three Logan Square) */
+LMC.city={s:[.84,.98]}; LMC.art={s:[.58,.78]}; LMC.frank={s:[.84,.98]}; LMC.stn={s:[.84,.98]}; LMC.sub={s:[.84,.98]}; LMC.nix={s:[.84,.98]}; LMC.fam={s:[.84,.98]}; LMC.court={s:[.84,.98]}; LMC.usch={s:[.84,.98]};
+LMC.ind={b:[.02,.16]}; LMC.conv={b:[.02,.16],g:[.2,.5]}; LMC.cbp={b:[.02,.16]}; LMC.tls={b:[.02,.16]};
+LMC.lib1={s:[.58,.78],g:[.0,.3]}; LMC.lib2={s:[.58,.78],g:[.0,.3]}; LMC.ccc={g:[.28,.5]}; LMC.ctc={s:[.3,.52],g:[.3,.5]}; LMC.bny={s:[.3,.52],g:[.5,.75]}; LMC.cira={g:[.72,.95]}; LMC.fmc={g:[.12,.34]};
+LMC.jef={g:[.3,.6]}; LMC.arena={g:[.2,.45]}; LMC.lff={g:[.2,.45]}; LMC.stad={g:[.2,.45]};
 /* key -> [builder, plan depth m, centred in its block?, (unused), plan width m, how far steps / canopies push out of the front face m] */
 LMT.city=[bCityHall,145,true,false,148,13.5]; LMT.ind=[bIndependence,22,false,false,105,1.5]; LMT.art=[bArt,110,false,false,198,9]; LMT.frank=[bFranklin,70,false,false,112,11]; LMT.stn=[bStation,100,false,false,192,8];
 LMT.sub=[bSuburban,46,false,false,94,3]; LMT.jef=[bJefferson,50,false,false,100,9]; LMT.conv=[bConvention,190,false,false,250,6];
@@ -521,4 +540,4 @@ LMT.usch=[bByrne,60,false,false,100,3]; LMT.nix=[bNix,60,false,false,122,3]; LMT
 LMT.arena=[bArena,163,false,false,174,12]; LMT.lff=[bLFF,285,false,false,252,0]; LMT.cbp=[bCBP,263,false,false,281,0]; LMT.stad=[bLFF,285,false,false,252,0];
 """
 
-JS_H = JS_H_KIT + JS_H_KIT2 + JS_H_CITY + JS_H_CIVIC + JS_H_TOWERS + JS_H_COURTS + JS_H_VENUES + JS_H_MAIN.replace("var LMT={};", "var LMT={};") + JS_H_TABLE
+JS_H = JS_H_KIT + JS_H_KIT2 + JS_H_CITY + JS_H_CIVIC + JS_H_TOWERS + JS_H_COURTS + JS_H_VENUES + JS_H_MAIN.replace("var LMT={}, LMC={};", "var LMT={}, LMC={};") + JS_H_TABLE
