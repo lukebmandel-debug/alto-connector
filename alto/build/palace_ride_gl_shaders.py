@@ -272,6 +272,9 @@ vec3 asphalt(vec2 gp, float fpx){
   vec3 a=vec3(.30,.302,.31)*(.88+.2*lo)*(.95+.1*mid)+vec3(.05)*(gr-.8)*.5;
   a=mix(a,vec3(.23,.23,.24),patch*.3);
   float stain=smoothstep(.7,.85,nz(gp*.3+11.)); a*=1.-.14*stain;
+  float cr=abs(nz(gp*.42+31.)-.5)+abs(nz(gp*.31+5.)-.5)*.6; float crack=(1.-smoothstep(.006,.03+fpx*.4,cr))*(1.-smoothstep(.1,.5,fpx*4.)); a*=1.-.5*crack;
+  float seam=1.-smoothstep(.02,.05+fpx*.3,abs(fract(gp.y/9.+nz(gp*.02)*.2)-.5)*2.-.9); a=mix(a,vec3(.12,.12,.13),clamp(seam,0.,1.)*.35);
+  float pt=smoothstep(.55,.57,nz(gp*.07+17.)); a=mix(a,vec3(.18,.18,.19)*(.95+.1*nz(gp*3.)),pt*.55);
   return a; }
 void main(){
   if(vFade<1.){ float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); if(vFade<dn) discard; }
@@ -290,6 +293,7 @@ void main(){
     /* brick 1, stone 2, glass 3, concrete 4 */
     if(id>2.5&&id<3.5&&N.z>.55){ alb=vec3(.22,.22,.23)*(.8+.4*nz(gp*.8)); }
     else if(wallLike){ wallFacade(id,vUV,vHA.y,vHA.x,T,fp,vDC,aux,V,N,alb,emi,refl);
+      { float stk=nz(vec2(vUV.x*2.3+T*40.,vUV.y*.055))*.65+nz(vec2(vUV.x*9.1+T*7.,vUV.y*.3))*.35; float fadeS=1.-smoothstep(50.,260.,dist); alb*=1.-fadeS*.2*smoothstep(.45,.85,stk)*(.4+.6*(1.-smoothstep(0.,vHA.x>.5?vHA.x*.8:30.,vUV.y))); }
       if(vHA.x>.5){ float vv=vUV.y; ao*=mix(.62,1.,smoothstep(.0,2.2,vv)); ao*=mix(.78,1.,smoothstep(vHA.x-1.9,vHA.x-1.0,vv)+step(vHA.x-1.0,vv)); } }
     else if(N.z<=-.55){ alb=vec3(.46,.45,.43)*(.9+.2*nz(gp)); ao=.7; }
     else { /* a roof */ float g=nz(gp*.55)*.6+nz(gp*2.9)*.4*(1.-smoothstep(.02,.1,fpx)); alb=vec3(.27,.265,.26)*(.86+.3*g)*mix(vec3(1.),tf,.12); alb=mix(alb,vec3(.5,.5,.48),smoothstep(.62,.8,nz(gp*.09+3.))*.4); }
@@ -330,17 +334,22 @@ void main(){
     alb*=.92+.16*h21(floor(q));
   } else if(id<13.5){   /* grass */
     float a=nz(gp*.35); float b=nz(gp*1.3+4.); float c=nz(gp*6.)*(1.-smoothstep(.03,.18,fpx));
-    vec3 g1=vec3(.19,.30,.14); vec3 g2=vec3(.27,.38,.18); vec3 g3=vec3(.32,.41,.21);
-    alb=mix(g1,g2,a); alb=mix(alb,g3,b*.4); alb*=.92+.22*(c-.5)*2.; alb*=mix(vec3(1.),tf,.04);
+    vec3 g1=vec3(.17,.25,.12); vec3 g2=vec3(.25,.32,.15); vec3 g3=vec3(.33,.36,.19);
+    alb=mix(g1,g2,a); alb=mix(alb,g3,b*.4); alb*=.92+.22*(c-.5)*2.; alb=mix(alb,vec3(.40,.35,.20),smoothstep(.55,.8,nz(gp*.06+13.))*.45); alb*=mix(vec3(1.),tf,.04);
   } else if(id<14.5){ alb=vec3(.88,.88,.86);
   } else if(id<15.5){ alb=vec3(.07,.07,.08);
   } else if(id<16.5){   /* roof tile */
     float rowv=fract(vUV.y/.32); alb=mix(vec3(.45,.2,.14),vec3(.3,.13,.1),smoothstep(.0,.35,rowv))*(.85+.3*h21(floor(vUV*vec2(3.,3.1))));
   } else if(id<17.5){   /* trunk: the scenery palette colour, barked */
-    alb=palCol(T)*(.78+.45*nz(vec2(vUV.x*14.,vUV.y*2.6)));
+    alb=palCol(T)*.78*(.55+.9*nz(vec2(vUV.x*14.+vP.x*.0,vUV.y*2.6))*nz(vec2(vUV.x*31.,vUV.y*.7))*1.6); ao*=mix(.45,1.,smoothstep(.0,1.6,vP.z/UMc));
   } else if(id<18.5){   /* leaves: the palette colour (three shades a tree), broken up by noise */
     vec2 lq=vP.xy*.9+vec2(vP.z*1.7,vP.z*-1.3); float cl=nz(lq*1.1)*.6+nz(lq*3.9)*.4; float cl2=nz(lq*13.)*(1.-smoothstep(.02,.1,fpx));
-    alb=palCol(T)*(.7+.62*cl)*(.88+.22*cl2); wrap=.6; ao*=(.62+.38*smoothstep(.0,3.,vP.z))*(.8+.2*(N.z*.5+.5));
+    vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.82)*vec3(.97,1.,.9);
+    float cl3=nz(lq*.45+3.); float clump=smoothstep(.25,.75,cl3);
+    alb=lc*(.68+.46*cl)*(.86+.2*cl2)*(.88+.2*clump);
+    N=normalize(N+vec3(cl-.5,nz(lq*1.1+9.)-.5,cl2-.5)*.42*(1.-smoothstep(40.,160.,dist)));   /* puffy clusters, not smooth facets */
+    wrap=.7; float hz=smoothstep(.0,3.,vP.z/UMc); ao*=(.55+.45*hz)*(.74+.26*clump)*(.8+.2*(N.z*.5+.5));
+    emi=lc*uSunCol*.10*(1.-uNight)*smoothstep(.5,1.,clump)*max(dot(-V,uSun),0.);   /* sun through the thin leaves */
   } else if(id<19.5){   /* car paint, glass, tyres, lamps: palette colours, glossy */
     vec3 pc=palCol(T); float lum=dot(pc,vec3(.3,.59,.11));
     alb=pc; refl=(.10+.35*pow(1.-ndv,3.))*(lum<.2?1.3:1.); spec=1.;
@@ -370,6 +379,7 @@ void main(){
     alb=vec3(.40,.40,.42); if(N.z>.6) { alb=vec3(.66,.66,.69); spec=1.; } refl=.15;
   } else if(id<43.5){   /* roadway with lane lines */
     alb=asphalt(gp,fpx);
+    { float lw=3.0; float lc=abs(fract(vUV.x/lw)-.5)*lw; float tt=smoothstep(.0,.35,.35-abs(lc-.8)); alb*=1.-.16*tt*(1.-smoothstep(.2,.9,fpx)); }
     float a=abs(vUV.x); float hw=vDC.r; float w=fpx*.8+.02;
     float dash=smoothstep(0.,w+.02,fract(vUV.y/12.)*12.-.0)*smoothstep(0.,w+.02,3.1-fract(vUV.y/12.)*12.);
     float cen=(1.-smoothstep(.07-w,.07+w,a))*dash*(1.-hw);
@@ -381,7 +391,7 @@ void main(){
     vec2 q=vUV; float r=length(vec2(q.x/7.,(q.y-5.)/6.)); vec3 c=vDC;
     alb=vec3(.01,.01,.02); emi=mix(c*.2,c*1.6,(1.-smoothstep(.0,.9,r)))*(1.+uNight*.4)+vec3(.02);
   } else if(id<45.5){   /* curb */
-    alb=vec3(.64,.63,.60)*(.85+.25*nz(gp*1.3));
+    alb=vec3(.60,.59,.56)*(.78+.3*nz(gp*1.3)+.1*nz(gp*5.)*(1.-smoothstep(.02,.1,fpx)))*(1.-.18*smoothstep(.55,.9,nz(gp*.5+4.)));
   } else if(id<46.5){   /* lot / yard */
     float a=nz(gp*.25); float b=nz(gp*1.1+5.); float c=nz(gp*6.7)*(1.-smoothstep(.01,.08,fpx))+nz(gp*23.)*(1.-smoothstep(.004,.03,fpx));
     float gz=smoothstep(.68,.86,a+.15*(b-.5));
@@ -394,16 +404,18 @@ void main(){
   }
   float nl=max(dot(N,uSun),0.); float nlw=max(dot(N,uSun)*(1.-wrap)+wrap,0.);
   float shd=nl>.001?shadowAt(nl):1.;
-  vec3 amb=mix(uGndA,uSkyA,N.z*.5+.5);
+  vec3 amb=mix(uGndA,uSkyA,N.z*.5+.5); amb=mix(amb,amb*vec3(.9,.98,1.12),1.-uNight);      /* cool blue fill from the sky dome */
+  vec3 sunK=uSunCol*mix(vec3(1.),vec3(1.06,1.0,.88),1.-uNight);                           /* warm key */
   vec3 L=lin(clamp(alb,0.,1.));
   /* sun on the surface, ambient from the sky; a touch of bounce from the street onto walls */
-  vec3 col=L*(amb*ao+uSunCol*nlw*ao*mix(1.,.85,wrap)*shd) +emi*1.0;
+  vec3 col=L*(amb*ao+sunK*nlw*ao*mix(1.,.85,wrap)*shd) +emi*1.0;
   if(uNight>.5){ for(int i=0;i<12;i++){ vec4 lp=uLamp[i]; if(lp.w>.5){ vec3 dl=lp.xyz-vP; float dd=dot(dl,dl); float dis=sqrt(dd); float att=exp(-dd*(1./(27.*27.)))*(1.-smoothstep(70.,120.,dis)); float nlL=max(dot(N,dl/max(dis,.01)),0.)*.8+.2*step(.5,N.z); col+=L*uLampC*att*nlL*.6; } } }
   if(spec>.5){ vec3 H=normalize(uSun+V); col+=uSunCol*pow(max(dot(N,H),0.),70.)*.45*(1.-uNight*.7)*shd; }
   if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z)); col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
   float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/260.,.0,1.); f*=mix(.5,1.,hf);
   vec3 fogc=uFog+uSunCol*.045*pow(max(dot(-V,uSun),0.),5.)*(1.-uNight);
-  col=mix(col,fogc,clamp(f,0.,1.));
+  float aer=1.-exp(-dist*dist/(uFogD*uFogD*5.)); col=mix(col,vec3(dot(col,vec3(.2126,.7152,.0722)))*vec3(.92,.97,1.08),aer*.35);
+  col=mix(col,fogc*vec3(.96,.99,1.04),clamp(f,0.,1.));
   col=aces(col*uExp);
   gl_FragColor=vec4(pow(col,vec3(1./2.2)),1.);
 }

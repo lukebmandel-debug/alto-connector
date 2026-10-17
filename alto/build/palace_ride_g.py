@@ -802,4 +802,7 @@ window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gath
 _scn={gather:gatherSafe, update:updateSafe, draw:drawFallback};
 })();
 """
-CSS_G = ""
+CSS_G = """
+  #pal-ride.on::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;background:radial-gradient(ellipse 78% 74% at 50% 52%,rgba(0,0,0,0) 58%,rgba(8,10,18,.30) 100%);}
+  #pal-ride .pr-chip,#pal-ride .pr-btns{z-index:2;}
+"""
