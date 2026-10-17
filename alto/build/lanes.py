@@ -46,6 +46,9 @@ from .sanitize import js_json
 
 MAIN = "main"
 SIDES = ("above", "below")
+# node.gap — how long after the event before it (page order) this one happens, as the material
+# says it. The weight is how far apart they are drawn, in ordinary steps; with no gap it is 1.
+GAPS = {"moments": 0.35, "hours": 0.5, "day": 0.65, "days": 0.85, "weeks": 1.3, "months": 1.7, "years": 2.4}
 
 _MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
@@ -164,8 +167,8 @@ def check_nodes(b, nodes, warnings: list) -> None:
     after the branch."""
     if b.mode != "lanes":
         for n in nodes:
-            if n.line or n.when or n.present or n.flash:
-                raise BriefError(f"node {n.id}: line / when / present / flash need mode 'lanes'")
+            if n.line or n.when or n.present or n.flash or n.gap:
+                raise BriefError(f"node {n.id}: line / when / present / flash / gap need mode 'lanes'")
         return
     by = {n.id: n for n in nodes}
     lids = {ln["id"] for ln in b.lines}
@@ -184,6 +187,9 @@ def check_nodes(b, nodes, warnings: list) -> None:
                             "it is spaced by its order instead")
         if not n.when:
             undated.append(n.id)
+        if n.gap and n.gap not in GAPS:
+            raise BriefError(f"node {n.id}: gap {n.gap!r} must be one of {', '.join(GAPS)} — how long after the "
+                             "event before it this one happens, as the material says it")
         pr = n.present
         if not isinstance(pr, list) or not all(isinstance(x, str) for x in pr):
             raise BriefError(f"node {n.id}: present must be a list of line ids")
@@ -352,7 +358,8 @@ def lanes_payload(b, nodes) -> dict:
     ev = {}
     for n in nodes:
         ev[n.id] = {"l": n.line or MAIN, "w": n.when or "", "t": parse_when(n.when), "i": 0,
-                    "present": [str(x) for x in (n.present or [])], "flash": n.flash or ""}
+                    "present": [str(x) for x in (n.present or [])], "flash": n.flash or "",
+                    "g": GAPS.get(n.gap or "", 0)}
     L = {"v": 2, "main": b.main_line or "",
          "order": [n.id for n in page_order(b, nodes)],
          "lines": [norm_line(ln, i) for i, ln in enumerate(b.lines)],
@@ -404,11 +411,13 @@ LANES_CSS = KEY_CSS + """
   html.alto-lanes:not(.mobile) #river-svg{display:none !important;}
   #lanes-svg{position:absolute;left:0;top:0;z-index:6;pointer-events:none;overflow:visible;}
   html.mobile #lanes-svg,html.mobile .lanes-unit,html.mobile .lanes-tag,html.mobile .lanes-past{display:none !important;}
-  #lanes-svg .ln-main{stroke:var(--accent);stroke-width:5;fill:none;stroke-linecap:round;}
+  /* the page is the heaviest thing on the board: a wide soft halo, then a thick dark core, so it reads first and the characters read as lighter threads beside it */
+  #lanes-svg .ln-main-halo{stroke:var(--accent);stroke-width:26;stroke-opacity:.2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  #lanes-svg .ln-main{stroke:color-mix(in srgb,var(--accent) 62%,var(--text));stroke-width:10;fill:none;stroke-linecap:round;stroke-linejoin:round;}
   /* every line is solid: the main line (the page), the characters (off it). The
      one dashed thing left is .ln-rel below. */
-  #lanes-svg .ln-br{stroke-width:4.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
-  #lanes-svg .ln-ring{fill:var(--surface);stroke-width:3.2;}
+  #lanes-svg .ln-br{stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.9;}
+  #lanes-svg .ln-ring{fill:var(--surface);stroke-width:3;}
   /* the past: a sunken, frosted strip behind the detour, its label a pill on the past track */
   #lanes-svg .ln-past-band{fill:var(--surface);fill-opacity:.34;stroke:var(--accent);stroke-opacity:.45;stroke-width:1.2;}
   .lanes-past{position:absolute;z-index:7;transform:translate(0,-50%);white-space:nowrap;pointer-events:auto;cursor:default;
@@ -476,12 +485,12 @@ var de=document.documentElement;
 if(!de.classList.contains('mobile')) de.classList.add('alto-lanes');
 var NS='http://www.w3.org/2000/svg';
 var STEM=36, CARD_GAP=12, CARD_PAD=12, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
-var SPAN=250, MAXPX=1000, BREAK=190;
+var SPAN=190, MAXPX=1000, BREAK=190, BASE=190;
 /* the band between the main line and the cards: the characters' tracks, track k
    of a side BAND0+k*TRACK from the main line (the past track of the flashbacks,
    PAST below the main line, comes first on the lower side). Cards hang beyond
    the band, so a character's line never has to cross a card to reach the page. */
-var BAND0=55, TRACK=41, PAST=72, RAMP_MIN=56, RAMP_MAX=130, SPREAD=22, HUG0=11, HUG_STEP=7, MINRUN=24;
+var BAND0=92, TRACK=60, PAST=84, RAMP_MIN=56, RAMP_MAX=130, SPREAD=22, HUG0=17, HUG_STEP=8, MINRUN=24;
 /* a flashback's detour: lead-in, the S down to the past track, room for its
    label, its events (FB_STEP apart at the median), the S back up, lead-out */
 var DLEAD=70, DRAMP=130, DOUT=70, FB_STEP=240;
@@ -489,18 +498,22 @@ window._altoLanesGeo=null;
 function med(a){ if(!a.length) return 0; a=a.slice().sort(function(x,y){ return x-y; }); var m=a.length>>1; return a.length%2?a[m]:(a[m-1]+a[m])/2; }
 /* every event's time: dated as dated; undated spread evenly between the dated
    events around it in reading order (lanes.py) */
+/* A story's pace. Where events are dated the page is to scale. Where they are not, each
+   event's `gap` (how long after the one before it: moments … years, node.gap) says how far
+   it sits from it — a rapid run of scenes is drawn close together, a jump of years far
+   apart — and an event with no gap sits one ordinary step on. */
 function times(order){
-  var t={}, dated=[];
-  order.forEach(function(id,i){ var e=L.ev[id]; if(e && e.t!=null){ t[id]=e.t; dated.push(i); } });
+  var t={}, dated=[], W=[], acc=0;
+  order.forEach(function(id,i){ var e=L.ev[id]; if(i) acc+=(e && e.g>0 ? e.g : 1); W[i]=acc; if(e && e.t!=null){ t[id]=e.t; dated.push(i); } });
   var gaps=[]; for(var k=1;k<dated.length;k++){ var g=t[order[dated[k]]]-t[order[dated[k-1]]]; if(g>0) gaps.push(g); }
   var step=med(gaps)||1;
-  if(!dated.length){ order.forEach(function(id,i){ t[id]=i; }); return t; }
+  if(!dated.length){ order.forEach(function(id,i){ t[id]=W[i]; }); return t; }
   order.forEach(function(id,i){
     if(t[id]!=null) return;
     var a=-1,b=-1; for(var k=0;k<dated.length;k++){ if(dated[k]<i) a=dated[k]; else { b=dated[k]; break; } }
-    if(a<0) t[id]=t[order[b]]-(b-i)*step/2;
-    else if(b<0) t[id]=t[order[a]]+(i-a)*step/2;
-    else { var ta=t[order[a]], tb=t[order[b]]; t[id]=ta+(tb-ta)*(i-a)/(b-a); if(tb<=ta) t[id]=ta; }
+    if(a<0) t[id]=t[order[b]]-(W[b]-W[i])*step/2;
+    else if(b<0) t[id]=t[order[a]]+(W[i]-W[a])*step/2;
+    else { var ta=t[order[a]], tb=t[order[b]], dw=W[b]-W[a]; t[id]=ta+(tb-ta)*(dw>0?(W[i]-W[a])/dw:0); if(tb<=ta) t[id]=ta; }
   });
   return t;
 }
@@ -509,7 +522,7 @@ function scale(tv){
   var T=Object.keys(tv).map(function(k){ return tv[k]; }).sort(function(a,b){ return a-b; }).filter(function(v,i,a){ return !i || v>a[i-1]+1e-9; });
   var g=[]; for(var i=1;i<T.length;i++) g.push(T[i]-T[i-1]);
   var undated=!Object.keys(L.ev).some(function(k){ return L.ev[k].t!=null; });
-  var s=(undated?310:SPAN)/(med(g)||1), X={}, breaks=[], x=LEFT, segs=[{t0:T[0], x0:LEFT}];
+  var s=(undated?BASE:SPAN)/(med(g)||1), X={}, breaks=[], x=LEFT, segs=[{t0:T[0], x0:LEFT}];
   T.forEach(function(v,i){
     if(i){ var px=(v-T[i-1])*s;
       if(px>MAXPX){ breaks.push(x+BREAK/2); x+=BREAK; segs[segs.length-1].t1=T[i-1]; segs[segs.length-1].x1=X[T[i-1]]; segs.push({t0:v, x0:x}); }
@@ -637,10 +650,10 @@ window._altoLanes=function(h){
     (T[k]=T[k]||[]).push(l); l.track=k;
   });
   main.y=0; var pastY=PAST;
-  var base={'-1':BAND0, '1':hasPast?PAST+BAND0-10:BAND0};
+  var base={'-1':BAND0, '1':hasPast?PAST+BAND0-14:BAND0};
   L.lines.forEach(function(l){ if(l.drawn) l.y=l.sd*(base[String(l.sd)]+l.track*TRACK); else l.y=0; });
-  var band={'-1':track['-1'].length?base['-1']+(track['-1'].length-1)*TRACK+17:0,
-            '1':track['1'].length?base['1']+(track['1'].length-1)*TRACK+17:(hasPast?PAST+17:0)};
+  var band={'-1':track['-1'].length?base['-1']+(track['-1'].length-1)*TRACK+22:0,
+            '1':track['1'].length?base['1']+(track['1'].length-1)*TRACK+22:(hasPast?PAST+22:0)};
   /* the cards: beyond the band, packed outward wherever one would overlap another */
   var placed={'-1':[], '1':[]}, sideOf={}, offOf={}, alt=0;
   function fit(sd, id, minOff){
@@ -833,8 +846,9 @@ function draw(world, G){
     var m0=r.d0+DRAMP/2, m1=r.d1-DRAMP/2;
     md+=' L'+r.d0+' '+my+' C'+m0+' '+my+' '+m0+' '+py+' '+r.f0+' '+py+' L'+r.f1+' '+py+' C'+m1+' '+py+' '+m1+' '+my+' '+r.d1+' '+my; });
   md+=' L'+main.x1+' '+my;
+  el('path',{'class':'ln-main-halo', d:md},mg);
   el('path',{'class':'ln-main', d:md},mg);
-  el('path',{d:'M'+(main.x1-3)+' '+(my-10)+' L'+(main.x1+13)+' '+my+' L'+(main.x1-3)+' '+(my+10)+' Z', fill:'var(--accent)'},mg);
+  el('path',{d:'M'+(main.x1-4)+' '+(my-15)+' L'+(main.x1+20)+' '+my+' L'+(main.x1-4)+' '+(my+15)+' Z', fill:'color-mix(in srgb,var(--accent) 62%,var(--text))'},mg);
   if(main.label) tag(world, main, main.x0-14, my, 'var(--accent)', 1);
   /* squeezed stretches: a ≈ across every line that runs straight through them */
   S.breaks.forEach(function(raw){

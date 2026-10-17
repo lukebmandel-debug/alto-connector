@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from alto.build.brief import BriefError, validate_brief, validate_nodes  # noqa: E402
 from alto.build.builder import build_timeline, load_brief  # noqa: E402
+from alto.build import lanes  # noqa: E402
 from alto.build.lanes import parse_when  # noqa: E402
 from alto.build.verify import find_node, verify_scripts  # noqa: E402
 
@@ -46,7 +47,7 @@ def test_sample_validates_and_builds_with_the_layout():
     assert "(window._altoLanes && window._altoLanes(nodeHeights))" in html
     data = json.loads(re.search(r"window\._ALTO_LANES=(\{.*?\});\n", html).group(1))
     assert data["ev"]["storm-1810"] == {"l": "flashback", "w": "1810", "t": 1810.0, "i": 0,
-                                         "present": [], "flash": ""}
+                                         "present": [], "flash": "", "g": 0}
     assert {l["id"]: l["to"] for l in data["lines"]}["flashback"] == "memory"
     assert data["main"] == "The town" and data["v"] == 2 and data["flashbacks"] == []
     # v1 branch / join points are where the line is on the page (presence)
@@ -145,7 +146,7 @@ def test_v2_sample_validates_and_carries_presence_and_flashbacks():
     assert L["flashbacks"] == [{"id": "storm", "label": "Twenty years earlier", "nodes": ["great-storm", "lamp-dark"],
                                 "prev": "warning", "next": "quay"}]
     e = L["ev"]["great-storm"]
-    assert e == {"l": "main", "w": "1870-10", "t": e["t"], "i": 3, "present": ["keeper"], "flash": "storm"}
+    assert e == {"l": "main", "w": "1870-10", "t": e["t"], "i": 3, "present": ["keeper"], "flash": "storm", "g": 0}
     assert L["ev"]["logbooks"]["l"] == "ada" and L["ev"]["logbooks"]["present"] == []
 
 
@@ -392,3 +393,53 @@ def test_set_lines_and_add_nodes_carry_presence_and_flashbacks(tmp_path):
     doc = srv.get_store().get_timeline(srv.uid(), tid)
     assert doc["brief"]["main_line"] == "The novel" and len(doc["brief"]["flashbacks"]) == 2
     srv.set_store(None)
+
+
+# ── the pace of the story: node.gap ───────────────────────────────────────
+
+def _story(gaps):
+    brief = json.loads((ROOT / "samples" / "lanes_v2_brief.json").read_text())
+    for n in brief["nodes"]:
+        n.pop("when", None)                                      # undated: the pace is all the page has to go on
+    for nid, g in gaps.items():
+        next(n for n in brief["nodes"] if n["id"] == nid)["gap"] = g
+    return brief
+
+
+def test_a_gap_is_one_of_the_known_paces():
+    brief = _story({})
+    brief["nodes"][1]["gap"] = "soon"
+    with pytest.raises(BriefError, match="gap"):
+        _check(brief)
+
+
+def test_a_gap_is_weighed_on_the_page_and_nothing_else_changes_without_one():
+    brief = _story({})
+    ids = [n["id"] for n in brief["nodes"]]
+    plain = _ev(brief)
+    assert all(plain[i]["g"] == 0 for i in ids)                 # no gap: an ordinary step
+    quick = _ev(_story({ids[1]: "hours", ids[2]: "years"}))
+    assert quick[ids[1]]["g"] == lanes.GAPS["hours"] < 1 < quick[ids[2]]["g"] == lanes.GAPS["years"]
+    assert quick[ids[3]]["g"] == 0
+
+
+def _check(brief):
+    b, nodes, _ = load_brief(brief)
+    return validate_brief(b) + validate_nodes(b, nodes)
+
+
+def _ev(brief):
+    b, nodes, conns = load_brief(brief)
+    return json.loads(re.search(r"window\._ALTO_LANES=(\{.*?\});\n", build_timeline(b, nodes, conns)[0]).group(1))["ev"]
+
+
+def test_gap_needs_lanes_mode():
+    brief = json.loads((ROOT / "samples" / "lanes_v2_brief.json").read_text())
+    brief["brief"]["mode"] = "linear"
+    brief["brief"].pop("lines", None); brief["brief"].pop("flashbacks", None)
+    for n in brief["nodes"]:
+        for k in ("line", "when", "present", "flash"):
+            n.pop(k, None)
+    brief["nodes"][0]["gap"] = "day"
+    with pytest.raises(BriefError, match="gap"):
+        _check(brief)

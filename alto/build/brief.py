@@ -321,6 +321,10 @@ class Node:
     when: str = ""
     present: list[str] = field(default_factory=list)
     flash: str = ""
+    # Lanes mode: how long after the event before it this one happens, as the material
+    # says it (lanes.GAPS: moments / hours / day / days / weeks / months / years) —
+    # a fast stretch of the story is drawn close together. Left out = an ordinary step.
+    gap: str = ""
     # Brief.source_docs ids this node was built from. In outline mode a node
     # with none inherits its nearest ancestor's (ALTO-011).
     sources: list[str] = field(default_factory=list)

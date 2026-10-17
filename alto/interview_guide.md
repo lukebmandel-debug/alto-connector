@@ -398,7 +398,12 @@ its floors, reached by an elevator inside the building.
 - `when` on every event, exactly as the material dates it ("1852",
   "1852-06-14", "March 1852", "500 BC", "Day 3"). Time is drawn to scale
   wherever events are dated and long empty stretches are squeezed (marked ≈);
-  an undated event sits by its order between the dated ones around it. Never
+  an undated event sits by its order between the dated ones around it. When
+  events have no date but the material says how soon one follows another
+  ("that night", "next day", "two years later"), set that event's `gap`
+  (moments / hours / day / days / weeks / months / years): a fast stretch of
+  the story is drawn close together and a jump far apart. Never guess a gap
+  the material does not state — ask, or leave it out. Never
   invent a date — leave `when` out.
 - Bands (`acts`) are parts of the story, shown as columns.
 - Ask: **"Who is on the page in each scene, and where does the story jump back
