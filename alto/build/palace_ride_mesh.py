@@ -20,7 +20,7 @@ var MB={
   v:function(m,x,y,z,nx,ny,nz,u,v,mat,tint){ m.a.push(x,y,z,nx,ny,nz,u,v,mat,tint||0); },
   tri:function(m,A,B,C,nx,ny,nz,mat,tint,uvA,uvB,uvC){ MB.v(m,A[0],A[1],A[2],nx,ny,nz,uvA[0],uvA[1],mat,tint); MB.v(m,B[0],B[1],B[2],nx,ny,nz,uvB[0],uvB[1],mat,tint); MB.v(m,C[0],C[1],C[2],nx,ny,nz,uvC[0],uvC[1],mat,tint); },
   /* a quad A B C D (counter-clockwise seen from the front), normal from the corners; uv: u runs A->B in metres, v runs A->D in metres */
-  quad:function(m,A,B,C,D,mat,tint,uv){ var ux=B[0]-A[0], uy=B[1]-A[1], uz=B[2]-A[2], vx=D[0]-A[0], vy=D[1]-A[1], vz=D[2]-A[2], nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx, l=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; nx/=l; ny/=l; nz/=l;
+  quad:function(m,A,B,C,D,mat,tint,uv){ var ux=B[0]-A[0], uy=B[1]-A[1], uz=B[2]-A[2], vx=D[0]-A[0], vy=D[1]-A[1], vz=D[2]-A[2], nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx, l=-Math.sqrt(nx*nx+ny*ny+nz*nz)||-1; nx/=l; ny/=l; nz/=l;      /* winding is clockwise seen from outside (right-hand cross points INWARD), so the outward normal is its negative */
     var lu=(uv&&uv.w!=null)?uv.w:Math.sqrt(ux*ux+uy*uy+uz*uz)/UM, lv=(uv&&uv.h!=null)?uv.h:Math.sqrt(vx*vx+vy*vy+vz*vz)/UM, u0=uv&&uv.u0||0, v0=uv&&uv.v0||0;
     MB.tri(m,A,B,C,nx,ny,nz,mat,tint,[u0,v0],[u0+lu,v0],[u0+lu,v0+lv]); MB.tri(m,A,C,D,nx,ny,nz,mat,tint,[u0,v0],[u0+lu,v0+lv],[u0,v0+lv]); },
   /* a wall from (ax,ay) to (bx,by), from z0 up to z1; its outward side is to the LEFT of A->B seen from above with y down (see ringCCW) */
@@ -51,7 +51,7 @@ var MB={
   cyl:function(m,cx,cy,z0,z1,r,seg,mat,roofMat,tint){ var pts=[]; for(var i=0;i<seg;i++){ var a=i/seg*6.2832; pts.push(cx+Math.cos(a)*r, cy+Math.sin(a)*r); } return MB.prism(m,pts,z0,z1,mat,roofMat,tint); },
   /* a cone / pyramid over a ring from z0 to the apex at (ax,ay,z1) */
   cone:function(m,ring,z0,ax,ay,z1,mat,tint){ var r=MB.ringOut(ring), n=r.length/2; for(var i=0;i<n;i++){ var j=(i+1)%n, A=[r[2*i],r[2*i+1],z0], B=[r[2*j],r[2*j+1],z0], C=[ax,ay,z1]; var ux=B[0]-A[0], uy=B[1]-A[1], uz=0, vx=C[0]-A[0], vy=C[1]-A[1], vz=C[2]-A[2];
-      var nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx, l=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; var L=Math.hypot(ux,uy)/UM; MB.tri(m,A,B,C,nx/l,ny/l,nz/l,mat,tint,[0,0],[L,0],[L/2,Math.hypot(vx,vy,vz)/UM]); } },
+      var nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx, l=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; var L=Math.hypot(ux,uy)/UM; MB.tri(m,A,B,C,-nx/l,-ny/l,-nz/l,mat,tint,[0,0],[L,0],[L/2,Math.hypot(vx,vy,vz)/UM]); } },
   /* a gable roof over the box x0..x1 x y0..y1 at height z, ridge along 'x' or 'y', rise h; hip: a hipped end instead of a gable */
   gable:function(m,x0,y0,x1,y1,z,h,axis,mat,tint){ var mx=(x0+x1)/2, my=(y0+y1)/2;
     if(axis==='x'){ MB.quad(m,[x0,y1,z],[x1,y1,z],[x1,my,z+h],[x0,my,z+h],mat,tint); MB.quad(m,[x1,y0,z],[x0,y0,z],[x0,my,z+h],[x1,my,z+h],mat,tint);
