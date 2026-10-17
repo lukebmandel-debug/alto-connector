@@ -148,6 +148,8 @@ function bCityHall(F){
   lrect(F,-2.2,tc-2.2,2.2,tc+2.2,152,155.6,WH,WH,1,0);
   llathe(F,0,tc,[[1.2,155.6],[1.35,158.4],[1.05,162],[.85,164],[1.15,165],[.5,165.8]],8,'metal');                       /* William Penn, in bronze: robe, shoulders, head, hat */
   llathe(F,0,tc,[[.7,165],[.85,165.8],[.7,166.5],[0,167]],8,'metal'); llathe(F,0,tc,[[1.5,166.2],[1.5,166.4],[0,166.6]],10,'metal'); lrect(F,-.4,tc-4,.4,tc-1,162,163,'metal','metal',1,0);
+  /* stone chimney stacks above the mansards */
+  [[-30,12],[30,12],[-30,26],[30,26],[-30,119],[30,119],[-30,133],[30,133],[-56,60],[56,60],[-56,86],[56,86]].forEach(function(c){ lrect(F,c[0]-1.4,c[1]-1.4,c[0]+1.4,c[1]+1.4,40,50.5,ST,WH,k,0); lrect(F,c[0]-1.8,c[1]-1.8,c[0]+1.8,c[1]+1.8,50.5,51.4,WH,WH,1,0); });
   /* dormers on the outer faces of the wings */
   [-34,-28,-22].concat([22,28,34]).forEach(function(xx){ ldormer(F,'s',xx,-0+.8,35.6,2.2,3.4,1.3,3.6,WH,CP,'dark'); });
   [-34,-28,-22].concat([22,28,34]).forEach(function(xx){ ldormer(F,'n',xx,145-.8,35.6,2.2,3.4,1.3,3.6,WH,CP,'dark'); });
@@ -206,7 +208,7 @@ function bIndependence(F){
   lpatchBox(F,'grass',11,.08); lpatch(F,-70,-8,70,2,.14,'paving'); lpatch(F,-4,0,4,100,.14,'paving'); lpatch(F,-60,40,60,43,.14,'paving');
   /* the main building: two storeys and an attic under a hipped roof, a white belt and cornice */
   lrect(F,-16.5,8,16.5,22,0,13,BR,null,k); lband(F,-16.5,8,16.5,22,6.2,6.7,.4,WH); lband(F,-16.5,8,16.5,22,12.2,13.4,.7,WH); lband(F,-16.5,8,16.5,22,0,.9,.4,WH);
-  lroof(F,-16.5,8,16.5,22,13.4,[[5.2,5.8]],RF,1);
+  lroof(F,-16.5,8,16.5,22,13.4,[[5.2,5.8]],RF,1); lparapet(F,-11.3,13.2,11.3,16.8,19.2,.9,.28,WH);                      /* the railing round the roof deck */
   [[-9,11.6],[9,11.6],[-9,18.4],[9,18.4]].forEach(function(c){ lrect(F,c[0]-.9,c[1]-.9,c[0]+.9,c[1]+.9,15,20.5,'brickred',WH,k,0); lrect(F,c[0]-1.1,c[1]-1.1,c[0]+1.1,c[1]+1.1,20.5,21.1,WH,WH,1,0); });
   /* the arcades (the "hyphens") and the end buildings: Congress Hall and Old City Hall */
   [-1,1].forEach(function(sd){ var xa=sd*27;
@@ -494,7 +496,7 @@ function bArena(F){
 /* the bowl inside a ring of stands: tiers stepping down from the rim ring Rin (local) at z=top to a field ring, then the grass */
 function lbowl(F,Rin,top,low,tiers,fieldK,cx,cv){ var m=F.m, Z=F.Z, prev=Rin, i, n=Rin.length; var rings=[];
   for(i=0;i<=tiers;i++){ var t=i/tiers, k=1-(1-fieldK)*t, z=top-(top-low)*Math.pow(t,.9); rings.push([Rin.map(function(q){ return [cx+(q[0]-cx)*k, cv+(q[1]-cv)*k]; }), z]); }
-  for(i=0;i<tiers;i++){ var A=lmap(F,rings[i][0]), B=lmap(F,rings[i+1][0]); MB.band(m,A,Z(rings[i][1]),B,Z(rings[i+1][1]),(i&1)?'concrete':'tile',F.tint,1); }
+  for(i=0;i<tiers;i++){ var A=lmap(F,rings[i][0]), B=lmap(F,rings[i+1][0]); MB.band(m,A,Z(rings[i][1]),B,Z(rings[i+1][1]),(i&1)?'concrete':'grass',F.tint,1); }
   return rings[tiers][0]; }
 /* Lincoln Financial Field: a rounded oval bowl of glass and silver stands, the open pitch inside, the roof edge sweeping up over the sidelines (252 x 285 m) */
 function bLFF(F){
@@ -524,7 +526,7 @@ function bCBP(F){
   lbandZ(F,Rm,zt,Rin,zt,'concrete',1);
   var bowl=RO.map(function(q){ return q; });
   for(i=0;i<5;i++){ var t=i/5, t1=(i+1)/5; var A=RO.map(function(q,j){ return [131*0+(q[0]-0)*(1-.5*t)+0, 131+(q[1]-131)*(1-.5*t)]; }), B=RO.map(function(q){ return [(q[0])*(1-.5*t1), 131+(q[1]-131)*(1-.5*t1)]; });
-    MB.band(F.m,lmap(F,A),F.Z(zt[0]*(1-t)*.0+30-i*5.4),lmap(F,B),F.Z(30-(i+1)*5.4),(i&1)?'concrete':'tile',F.tint,1); }
+    MB.band(F.m,lmap(F,A),F.Z(30-i*5.4),lmap(F,B),F.Z(30-(i+1)*5.4),(i&1)?'concrete':'grass',F.tint,1); }
   var floor=RO.map(function(q){ return [q[0]*.5, 131+(q[1]-131)*.5]; }); MB.cap(F.m,lmap(F,floor),F.Z(.5),'grass',F.tint,1);
   var hp=[-10,96]; lpatch(F,hp[0]-3,hp[1]-3,hp[0]+3,hp[1]+3,.6,'tile');
   MB.cap(F.m,lring(F,[[hp[0],hp[1]-2],[hp[0]+21,hp[1]+19],[hp[0],hp[1]+40],[hp[0]-21,hp[1]+19]]),F.Z(.65),'tile',F.tint,1);
