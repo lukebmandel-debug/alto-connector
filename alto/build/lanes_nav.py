@@ -199,15 +199,18 @@ function home(c, B){
   }
   return Math.max(B.t, Math.min(B.b, _home));
 }
-/* where the line rests: the opening height, moved (once, for every event alike) so that
-   the tallest card above its line and the deepest below it both fit between the bars and
-   the rail — then travelling along the main line never bobs up and down. Only if they
-   cannot all fit does each event's own card move the camera (the middle of the misfit) */
+/* where the main line rests: the opening height, moved (once, for every event alike) so that
+   the tallest card above the line and the deepest below it both fit between the bars and the
+   rail; if they cannot all fit, the middle of the misfit. The camera follows the MAIN LINE and
+   nothing else: it never moves up or down to suit one event's card or a character's track
+   (that was the bounce). Only a flashback's dip, which is the main line itself, moves it. */
 var _fit=null;
+function mainAt(id){ var G=geo(), a=anchor(id), ev=G.at && G.at[id];       // the main line's height at this event (a character's own event: the page's height beside it)
+  return (ev && ev.line && ev.line!=='main' && G.mainY!=null) ? G.mainY : a.y; }
 function fitHome(c, B, ids){
   var G=geo(), up=0, dn=0;
-  ids.forEach(function(id){ var a=anchor(id), h=G.h[id]||120, top=(G.y[id]!=null?G.y[id]:a.y)-h/2;
-    up=Math.max(up, a.y-Math.min(a.y,top)); dn=Math.max(dn, Math.max(a.y,top+h)-a.y); });
+  ids.forEach(function(id){ var m=mainAt(id), h=G.h[id]||120, top=(G.y[id]!=null?G.y[id]:m)-h/2;
+    up=Math.max(up, m-Math.min(m,top)); dn=Math.max(dn, Math.max(m,top+h)-m); });
   var lo=B.t+up, hi=B.b-dn, h0=home(c,B);
   return lo<=hi ? Math.max(lo,Math.min(hi,h0)) : (lo+hi)/2;
 }
@@ -218,11 +221,7 @@ function camFor(id, B){
   B=B||band(c);
   var cw=c.clientWidth, ch=c.clientHeight;
   var tl=a.x+off.x-cw/2;
-  var ay=a.y+P+off.y, h=G.h[id]||120, top=(G.y[id]!=null?G.y[id]:a.y)-h/2+P+off.y, bot=top+h;
-  var lo=Math.min(ay,top), hi=Math.max(ay,bot);
-  var tt=ay-lineHome(c,B);                      // the line stays where the main line has always been
-  if(hi-tt>B.b) tt=hi-B.b;                      // the card would run under the rail: up just enough
-  if(lo-tt<B.t) tt=lo-B.t;                      // ... or under the bars (the top of the card wins)
+  var tt=mainAt(id)+P+off.y-lineHome(c,B);      // the main line stays where it rests, whatever this event's card or line does
   return {l:Math.max(0,Math.min(tl, c.scrollWidth-cw)), t:Math.max(0,Math.min(tt, c.scrollHeight-ch)), ml:c.scrollWidth-cw, mt:c.scrollHeight-ch};
 }
 
