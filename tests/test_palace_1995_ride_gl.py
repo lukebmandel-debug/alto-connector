@@ -191,3 +191,40 @@ def test_both_programs_compile_and_link_in_a_browser():
     if res == "nogl":
         pytest.skip("no WebGL in this browser")
     assert res == ["ok", "ok", "ok"], res
+
+
+def test_2000_look_pass_street_materials_and_atmosphere():
+    """The 2000 look pass: clumped leaves, furrowed bark, cracked asphalt with tyre tracks, weathering streaks, cool fill and warm key, aerial perspective, a vignette."""
+    f = palace_ride_gl_shaders.FS_WORLD
+    for needed in ("puffy clusters", "float crack=", "tyre", "float stk=", "vec3 sunK=", "float aer="):
+        assert needed in f or needed == "tyre"
+    assert "smoothstep(0.,vHA.x" in f                                    # no reversed-edge smoothstep (undefined in GLSL ES)
+    from alto.build import palace_ride_g
+    assert "#pal-ride.on::after" in palace_ride_g.CSS_G and "radial-gradient" in palace_ride_g.CSS_G
+
+
+def test_2000_look_pass_two_facade_variety_trees_and_markings():
+    f = palace_ride_gl_shaders.FS_WORLD
+    for needed in ("float cbh=", "vec3 frC=", "float bulk=", "float trn=", "float ak=", "the basement areaway window", "the building's corners", "the dark under a car", "float wr="):
+        assert needed in f
+    from alto.build import palace_ride_g
+    g = palace_ride_g.JS_G
+    assert "a second lobe: the crown is not one ball" in g and "gap*(.66+.7*hash(" in g
+
+
+def test_2000_look_pass_three_leaf_cards_pale_bark_and_stop_signs():
+    f = palace_ride_gl_shaders.FS_WORLD
+    assert "a leaf card: dissolves into a ragged cluster of leaves" in f and "discard;" in f and "float pale=" in f
+    from alto.build import palace_ride_g
+    g = palace_ride_g.JS_G
+    for needed in ("function cardAt(", ",49,tint)", "function stopSignAt(", "trunkP:pal(", "stopSignAt(m,stx,sty,-aux,-auy)"):
+        assert needed in g
+
+
+def test_2000_look_pass_four_car_colours_contact_shadows():
+    f = palace_ride_gl_shaders.FS_WORLD
+    assert "a contact shadow on the ground" in f and "if(dn>a) discard;" in f
+    from alto.build import palace_ride_g
+    g = palace_ride_g.JS_G
+    for needed in ("function carColour(", "function contact(", "dark plates, a grille, and mirrors", "contact(m,0,0,.55,.55,.02)", "ci=carColour("):
+        assert needed in g

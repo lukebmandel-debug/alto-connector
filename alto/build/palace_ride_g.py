@@ -44,7 +44,7 @@ var PC={
   leaf:[[pal(44,84,40),pal(68,118,54),pal(100,150,66)],[pal(52,92,46),pal(84,132,58),pal(116,158,72)],[pal(40,78,44),pal(58,104,50),pal(88,134,62)],[pal(54,96,52),pal(98,142,64),pal(130,168,78)],[pal(48,88,56),pal(74,128,72),pal(104,152,84)],[pal(38,74,48),pal(52,98,62),pal(76,126,80)],[pal(62,100,44),pal(110,150,70),pal(146,176,86)]],
   leafY:[[pal(96,108,40),pal(138,152,58),pal(176,180,80)],[pal(110,112,38),pal(160,156,52),pal(204,190,76)]], leafA:[[pal(170,122,30),pal(216,170,50),pal(240,208,90)],[pal(160,84,28),pal(206,124,40),pal(236,160,70)],[pal(120,38,32),pal(178,66,42),pal(214,100,60)],[pal(140,60,30),pal(198,92,44),pal(230,128,66)]],
   leafB:[[pal(206,150,170),pal(232,184,200),pal(250,214,224)],[pal(218,196,204),pal(246,226,232),pal(255,244,246)]], leafP:[[pal(24,58,42),pal(36,82,58),pal(52,108,76)],[pal(30,68,50),pal(46,94,66),pal(62,120,84)],[pal(22,54,40),pal(30,70,52),pal(44,92,66)]],
-  trunk:[pal(84,66,50),pal(104,82,60),pal(70,58,48),pal(128,112,92),pal(96,88,80)],
+  trunkP:pal(172,164,146), stopR:pal(192,30,34), stopW:pal(236,236,230), trunk:[pal(84,66,50),pal(104,82,60),pal(70,58,48),pal(128,112,92),pal(96,88,80)],
   car:[pal(228,228,224),pal(182,186,192),pal(30,32,36),pal(72,76,82),pal(150,30,36),pal(42,72,132),pal(26,38,74),pal(38,90,66),pal(202,186,152),pal(98,30,42),pal(120,120,126),pal(176,150,110)],
   taxi:pal(240,186,26), glass:pal(30,40,54), tyre:pal(20,20,22), chrome:pal(190,194,200), head:pal(255,244,214), tail:pal(210,28,28), rubber:pal(34,34,38),
   skin:[pal(244,208,176),pal(226,178,138),pal(184,130,96),pal(132,90,66),pal(92,62,46)],
@@ -148,6 +148,20 @@ function trw(m, ax,ay,az,a0,a1,a2, bx,by,bz,b0,b1,b2, cx,cy,cz,c0,c1,c2, mat,tin
   if(nx*(a0+b0+c0)+ny*(a1+b1+c1)+nz*(a2+b2+c2)<0){ q=bx;bx=cx;cx=q; q=by;by=cy;cy=q; q=bz;bz=cz;cz=q; q=b0;b0=c0;c0=q; q=b1;b1=c1;c1=q; q=b2;b2=c2;c2=q; }
   sv(m,ax,ay,az,a0,a1,a2,0,0,mat,tint); sv(m,bx,by,bz,b0,b1,b2,0,0,mat,tint); sv(m,cx,cy,cz,c0,c1,c2,0,0,mat,tint); }
 var _ringP=[], _ringN=[];
+/* a leaf card: a square of side 2*sd at local (cx,cy,cz), facing along (nx,ny,nz) (outward from the crown: its normal is the crown's, so it shades as part of a volume), turned by rt;
+   material 49 dissolves it into a leafy cluster in the shader. One winding: it is seen from outside the crown. */
+function cardAt(m, cx,cy,cz, nx,ny,nz, sd, rt, tint){
+  var nlen=Math.hypot(nx,ny,nz)||1; nx/=nlen; ny/=nlen; nz/=nlen;
+  var tx=-ny, ty=nx, tz=0, tl=Math.hypot(tx,ty); if(tl<.01){ tx=1; ty=0; tl=1; } tx/=tl; ty/=tl;
+  var bx=ny*tz-nz*ty, by=nz*tx-nx*tz, bz=nx*ty-ny*tx, co=Math.cos(rt), si=Math.sin(rt);
+  var ax=tx*co+bx*si, ay=ty*co+by*si, az=tz*co+bz*si, ex=-tx*si+bx*co, ey=-ty*si+by*co, ez=-tz*si+bz*co, k;
+  var px=[],py=[],pz=[]; var sg=[[-1,-1],[1,-1],[1,1],[-1,1]];
+  for(k=0;k<4;k++){ var a=sg[k][0]*sd, b=sg[k][1]*sd, lx=cx+ax*a+ex*b, ly=cy+ay*a+ey*b, lz=cz+az*a+ez*b; px.push(WX(lx,ly)); py.push(WY(lx,ly)); pz.push(WZ(lz)); }
+  var wnx=nx*FR.ca-ny*FR.sa, wny=nx*FR.sa+ny*FR.ca, wnz=nz;
+  var ux=px[1]-px[0], uy=py[1]-py[0], uz=pz[1]-pz[0], vx=px[2]-px[0], vy=py[2]-py[0], vz=pz[2]-pz[0];
+  var flip=((uy*vz-uz*vy)*wnx+(uz*vx-ux*vz)*wny+(ux*vy-uy*vx)*wnz)<0, id=flip?[0,3,2,1]:[0,1,2,3], uv=[[0,0],[1,0],[1,1],[0,1]];
+  var tri=[[0,1,2],[0,2,3]], j;
+  for(j=0;j<2;j++) for(k=0;k<3;k++){ var q=id[tri[j][k]]; sv(m,px[q],py[q],pz[q],wnx,wny,wnz,uv[q][0],uv[q][1],49,tint); } }
 function fblob(m, cx,cy,cz, rx,ry,rz, prof, seg, mat, fam, jit, seed){
   var K=prof.length, k, i, nrg=[], ca=FR.ca, sa=FR.sa;
   var P=[], N=[];
@@ -160,7 +174,7 @@ function fblob(m, cx,cy,cz, rx,ry,rz, prof, seg, mat, fam, jit, seed){
   function W3(p){ return [WX(p[0],p[1]), WY(p[0],p[1]), WZ(p[2])]; }
   function WN(n){ return [n[0]*ca-n[1]*sa, n[0]*sa+n[1]*ca, n[2]]; }
   var isF=(typeof fam==='object'), K1=Math.max(1,K-1);
-  function pick(k,i){ if(!isF) return fam; var v=k/K1+(hash(seed*37+k*11+i*3)-.5)*.55; return v<.34?fam[0]:v<.72?fam[1]:fam[2]; }
+  function pick(k,i){ if(!isF) return fam; var v=k/K1+(hash(seed*37+k*11+i*3)-.5)*.55; return v<.22?fam[0]:v<.84?fam[1]:fam[2]; }
   function emit(p0,n0,p1,n1,p2,n2,tt){ var a=W3(p0), b=W3(p1), c=W3(p2), na=WN(n0), nb=WN(n1), nc=WN(n2); trw(m,a[0],a[1],a[2],na[0],na[1],na[2],b[0],b[1],b[2],nb[0],nb[1],nb[2],c[0],c[1],c[2],nc[0],nc[1],nc[2],mat,tt); }
   /* the underside: a fan to the centre of the first ring */
   if(P[0].length>1){ var ctr=[cx,cy,cz+rz*prof[0][0]], nd=[0,0,-1]; for(i=0;i<seg;i++){ emit(P[0][i],nd,P[0][(i+1)%seg],nd,ctr,nd, pick(0,i)); } }
@@ -182,23 +196,32 @@ function treeAt(m, x, y, sp, sz, h, season, lod, lobe){
     fcyl(m,0,0,0,4,.3,.16,5,MAT.trunk,ttr,true);
     for(var b=0;b<3;b++){ var a=b*2.09+g*6; fblob(m,Math.cos(a)*1.1,Math.sin(a)*1.1,5.0,.3,.3,1.8,[[-1,0],[-.2,1],[1,0]],4,MAT.trunk,ttr,.2,seed+b); }
     if(_rec) _rec.push(x,y,6*UM*sz,1.4*UM*sz,3); return; }
-  var th, R, rz, prof, seg=7;
+  var th, R, rz, prof, seg=7; if(sp===0) ttr=PC.trunkP;
   if(sp===0){ th=3.8+g*1.4; R=4.4+g*1.5; rz=R*.82; prof=[[-.5,.6],[-.05,1],[.5,.82],[1,0]]; }               /* plane tree: broad */
   else if(sp===1){ th=3.4+g*1.2; R=3.2+g*.8; rz=R*1.5; prof=[[-.6,.5],[-.2,.95],[.45,.9],[1,.45],[1.25,0]]; seg=6; }   /* oval (zelkova, honey locust) */
   else if(sp===2){ th=3+g*1; R=5.6+g*1.6; rz=R*.72; prof=[[-.5,.7],[0,1],[.45,.85],[.9,0]]; }                    /* oak: wide */
   else if(sp===4){ th=2.1+g*.5; R=2.5+g*.6; rz=R*.8; prof=[[-.5,.6],[0,1],[.5,.8],[1,0]]; seg=6; }               /* ornamental cherry: small */
   else { th=2.4; R=1.5+g*.3; rz=R*3.4; prof=[[-.4,.5],[.1,1],[.8,.8],[1.2,.35],[1.4,0]]; seg=6; }                /* columnar */
-  fcyl(m,0,0,0,th+.6,.30*(1+g*.2),.2,5,MAT.trunk,ttr,true);
+  fcyl(m,0,0,0,th+.6,.30*(1+g*.2),.2,5,MAT.trunk,ttr,true); if(!lod) contact(m,0,0,Math.min(R*.4,1.1),Math.min(R*.4,1.1),.02);
   var cz=th+rz*.45;
   if(_rec) _rec.push(x,y,(cz+rz)*UM*sz,R*UM*sz,season===2?3:2);
-  fblob(m,0,0,cz,R,R,rz,prof,seg,MAT.leaf,fam,.16,seed);
+  if(!lod && sp!==5){                                    /* a dark core of leaves with clusters of leaf cards over it */
+    fblob(m,0,0,cz,R*.62,R*.62,rz*.62,prof,5,MAT.leaf,fam[1],.1,seed);
+    var nc=sp===4?18:32, ci;
+    for(ci=0;ci<nc;ci++){ var ha=hash(seed*13+ci*7+1)*6.2832, hz=-.3+1.28*hash(seed*17+ci*11+2), hr=Math.sqrt(Math.max(0,1-hz*hz)), dx=Math.cos(ha)*hr, dy=Math.sin(ha)*hr, dz=hz, rr=.45+.28*hash(seed*43+ci), csd=R*(.3+.17*hash(seed*23+ci));
+      var qx=dx*R*rr, qy=dy*R*rr, qz=Math.max(cz+dz*rz*rr,2.4+csd*1.45), nx0=dx/R, ny0=dy/R, nz0=dz/rz, nl0=Math.hypot(nx0,ny0,nz0)||1;
+      var pk3=hash(seed*19+ci*5+3), tn=pk3<.2?fam[0]:pk3<.75?fam[1]:fam[2];
+      cardAt(m,qx,qy,qz,nx0/nl0+(hash(seed*31+ci)-.5)*.7,ny0/nl0+(hash(seed*37+ci)-.5)*.7,nz0/nl0+.25+(hash(seed*41+ci)-.5)*.6,csd,hash(seed*29+ci)*6.28,tn); } }
+  else fblob(m,0,0,cz,R,R,rz,prof,seg,MAT.leaf,fam,.16,seed);
+  if(!lod && sp!==5 && sp!==4 && g>.12){ var a4=g*29+1.3, d4=R*(.5+.25*hash(seed+4)); fblob(m,Math.cos(a4)*d4,Math.sin(a4)*d4,cz-rz*(.1+.3*hash(seed+5)),R*.55,R*.55,rz*.58,[[-.5,.6],[0,1],[1,0]],5,MAT.leaf,fam,.24,seed+7); }      /* a second lobe: the crown is not one ball */
+
   if(!lod && lobe && (sp===0||sp===2) && g>.35){ var a3=g*17;
     fblob(m,Math.cos(a3)*R*.62,Math.sin(a3)*R*.62,cz+rz*.12,R*.62,R*.62,rz*.7,[[-.4,.6],[0,1],[.5,.7],[1,0]],6,MAT.leaf,fam,.18,seed+9); } }
 
 /* a cobra-head street lamp: the pole at the origin, arm and head out along +x (toward the street) */
 function lampAt(m, x, y, ox, oy, h){   /* (ox,oy) unit vector toward the street */
   frameV(x,y,SZ_SW,ox,oy,UM); var ph=7.6; if(_rec) _rec.push(x,y,ph*UM,1,1); if(_lamps) _lamps.push(x+ox*2.1*UM,y+oy*2.1*UM,SZ_SW+(ph-.3)*UM);
-  fcyl(m,0,0,0,ph,.13,.085,5,MAT.metal,PC.rail,false);
+  fcyl(m,0,0,0,ph,.13,.085,5,MAT.metal,PC.rail,false); contact(m,0,0,.55,.55,.02);
   fbox(m,0,-.045,ph-.12,2.3,.045,ph+.06,MAT.metal,PC.rail);                    /* the arm */
   fbox(m,1.55,-.2,ph-.22,2.7,.2,ph-.04,MAT.metal,PC.rail,MAT.metal,PC.rail);   /* the head */
   var hx=WX(2.1,0), hy=WY(2.1,0);
@@ -209,19 +232,29 @@ function lampPark(m, x, y){
   fcyl(m,0,0,3.55,4.0,.22,.16,6,MAT.lamp,PC.lampW,true); }
 function benchAt(m, x, y, ox, oy){          /* seat facing (ox,oy) */
   frameV(x,y,SZ_SW,ox,oy,UM);
-  fbox(m,-.1,-.8,.42,.36,.8,.47,MAT.wood,PC.bench,MAT.wood,PC.bench);
+  contact(m,.1,0,.5,.85,.02); fbox(m,-.1,-.8,.42,.36,.8,.47,MAT.wood,PC.bench,MAT.wood,PC.bench);
   fbox(m,-.18,-.8,.47,-.12,.8,.92,MAT.wood,PC.bench);
   fbox(m,-.05,-.72,0,.05,-.62,.42,MAT.metal,PC.rail); fbox(m,-.05,.62,0,.05,.72,.42,MAT.metal,PC.rail); }
 function hydrantAt(m, x, y, ox, oy, h){
   frameV(x,y,SZ_SW,ox,oy,UM); var c=PC.hyd[h<.7?0:1];
-  fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
+  contact(m,0,0,.42,.42,.02); fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
 function trashAt(m, x, y){
-  frame(x,y,SZ_SW,0,UM); fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
+  frame(x,y,SZ_SW,0,UM); contact(m,0,0,.5,.5,.02); fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
 function manholeAt(m, x, y){ var n=8, i, r=.5*UM; for(i=0;i<n;i++){ var a0=i/n*6.28318, a1=(i+1)/n*6.28318; tr(m,x,y,SZ_RD+.01,x+Math.cos(a0)*r,y+Math.sin(a0)*r,SZ_RD+.01,x+Math.cos(a1)*r,y+Math.sin(a1)*r,SZ_RD+.01,MAT.sign,PC.manh,x,y,-1); } }
 function mailboxAt(m, x, y, ox, oy){
   frameV(x,y,SZ_SW,ox,oy,UM); fbox(m,-.26,-.28,0,.26,.28,.15,MAT.metal,PC.rail);
   ffr(m,-.26,-.28,.26,.28,.15,-.2,-.28,.2,.28,1.05,MAT.sign,PC.mail,MAT.sign,PC.mail); }
 /* a traffic signal pole with a mast arm over the lane and a head facing back along (fx,fy) (the way the traffic comes from) */
+/* a stop sign on its pole at (x,y), the face turned along (fx,fy): a white octagon with a red one set in it and a white bar for the word */
+function stopSignAt(m, x, y, fx, fy){
+  frameV(x,y,SZ_SW,fx,fy,UM); var zc=2.45, k, a0, a1, hxw=WX(-.6,0), hyw=WY(-.6,0), hzw=WZ(zc);
+  fcyl(m,0,0,0,zc,.05,.05,5,MAT.metal,PC.rail,true);
+  /* the local y axis is across the face: points are (xl, yl, z) */
+  function oct(xl,r,tint){ for(k=0;k<8;k++){ a0=(k+.5)/8*6.28318; a1=(k+1.5)/8*6.28318;
+    var y0=r*Math.cos(a0), z0=r*Math.sin(a0), y1=r*Math.cos(a1), z1=r*Math.sin(a1);
+    tr(m,WX(xl,0),WY(xl,0),WZ(zc),WX(xl,y0),WY(xl,y0),WZ(zc+z0),WX(xl,y1),WY(xl,y1),WZ(zc+z1),MAT.sign,tint,hxw,hyw,hzw); } }
+  oct(.07,.4,PC.stopW); oct(.09,.33,PC.stopR);
+  qd(m,WX(.1,-.2),WY(.1,-.2),WZ(zc-.045),WX(.1,.2),WY(.1,.2),WZ(zc-.045),WX(.1,.2),WY(.1,.2),WZ(zc+.045),WX(.1,-.2),WY(.1,-.2),WZ(zc+.045),MAT.sign,PC.stopW,hxw,hyw,hzw); }
 function signalAt(m, x, y, ax, ay, fx, fy, st){      /* (ax,ay): unit toward the lane (over the road); (fx,fy): the head faces this way */
   frameV(x,y,SZ_SW,ax,ay,UM); var ph=5.5;
   fcyl(m,0,0,0,ph,.14,.1,6,MAT.metal,PC.rail,false);
@@ -277,6 +310,13 @@ var CAR_T=[   /* L, W, ls = lower body stations [x, top z, half width], cs = cab
   {n:'van',    L:5.2, W:2.0,  ls:[[0,.8,.9],[.25,1.02,.98],[4.7,1.0,.98],[5.2,.78,.9]],   cs:[[.3,1.02,.93],[.45,2.12,.89],[4.35,2.12,.89],[4.75,1.3,.9]]},
   {n:'coupe',  L:4.4, W:1.8,  ls:[[0,.6,.76],[.4,.88,.9],[3.6,.86,.9],[4.4,.62,.78]],     cs:[[1.25,.88,.76],[2.0,1.32,.66],[2.75,1.32,.66],[3.3,.86,.76]]}
 ];
+var CAR_W=[16,18,18,12,6,6,5,2,3,3,8,3], CAR_WS=CAR_W.reduce(function(a,b){ return a+b; },0);
+function carColour(h){ var t=h*CAR_WS, i=0; for(;i<CAR_W.length-1;i++){ if(t<CAR_W[i]) break; t-=CAR_W[i]; } return i; }     /* silver, black, white and grey mostly; some blue and red */
+/* a soft contact shadow: a stippled dark patch on the ground (material 50 dissolves its edge), centred at local (cx,cy), half sizes hl, hw */
+function contact(m, cx,cy, hl, hw, lz){ var z=WZ(lz||.02);
+  function V(x,y,u,v){ sv(m,WX(x,y),WY(x,y),z,0,0,1,u,v,50,PC.rubber); }
+  V(cx-hl,cy-hw,0,0); V(cx+hl,cy-hw,1,0); V(cx+hl,cy+hw,1,1);
+  V(cx-hl,cy-hw,0,0); V(cx+hl,cy+hw,1,1); V(cx-hl,cy+hw,0,1); }
 /* a car at its frame (the caller sets frame(): x forward, rear bumper at 0); detail adds wheels and lights */
 function lowTop(ls,x){ for(var i=0;i+1<ls.length;i++){ if(x<=ls[i+1][0]){ var t=(x-ls[i][0])/((ls[i+1][0]-ls[i][0])||1); return ls[i][1]+(ls[i+1][1]-ls[i][1])*t; } } return ls[ls.length-1][1]; }
 function carBody(m, T, tint, detail, taxi){
@@ -297,6 +337,15 @@ function carBody(m, T, tint, detail, taxi){
   [ls[0],ls[nl-1]].forEach(function(S){ Q(P(S[0],-S[2]*.93,zb),P(S[0],S[2]*.93,zb),P(S[0],S[2],S[1]),P(S[0],-S[2],S[1]),MAT.car,tint); });
   for(i=0;i+1<cs.length;i++) Q(P(cs[i][0],-cs[i][2],cs[i][1]),P(cs[i+1][0],-cs[i+1][2],cs[i+1][1]),P(cs[i+1][0],cs[i+1][2],cs[i+1][1]),P(cs[i][0],cs[i][2],cs[i][1]),MAT.car,i===1?tint:PC.glass);
   if(taxi){ var rz2=cs[1][1]; fbox(m,cs[1][0]+.5,-.22,rz2,cs[1][0]+.95,.22,rz2+.2,MAT.car,PC.signW,MAT.lamp,PC.lampOr); }
+  /* dark plates, a grille, and mirrors: on every car */
+  { var zq=ls[nl-1][1], zr2=ls[0][1], hw2=hw*.9;
+    function Qx(x,y0,y1,z0,z1,mat,t){ Q(P(x,y0,z0),P(x,y1,z0),P(x,y1,z1),P(x,y0,z1),mat,t); }
+    Qx(L+.012,-.26,.26,.42,.54,MAT.car,PC.rubber); Qx(-.012,-.26,.26,.45,.57,MAT.car,PC.rubber);              /* plates */
+    Qx(L+.012,-hw*.4,hw*.4,zq-.2,zq-.06,MAT.car,PC.rubber);                                                  /* grille */
+    if(!taxi){ Qx(L+.014,-hw2,-hw2*.55,zq-.2,zq-.1,MAT.lamp,PC.head); Qx(L+.014,hw2*.55,hw2,zq-.2,zq-.1,MAT.lamp,PC.head); Qx(-.014,-hw2,-hw2*.55,zr2-.22,zr2-.1,MAT.lamp,PC.tail); Qx(-.014,hw2*.55,hw2,zr2-.22,zr2-.1,MAT.lamp,PC.tail); }
+    for(sd=-1;sd<=1;sd+=2){ var mx0=cs[3][0]-.1, my0=sd*(cs[3][2]+.12), mz0=lowTop(ls,cs[3][0])+.14;
+      Q(P(mx0,my0,mz0),P(mx0+.12,my0,mz0),P(mx0+.12,my0+sd*.14,mz0+.02),P(mx0,my0+sd*.14,mz0+.02),MAT.car,tint); } }
+  if(!detail) contact(m,L*.5,0,L*.5+.3,hw+.2,.02);
   if(detail){
     var wz=.33, wx0=.85, wx1=L-.85;
     [[wx0,1],[wx0,-1],[wx1,1],[wx1,-1]].forEach(function(w){ fdisc(m,w[0],w[1]*(hw*.94+.005),wz,.33,8,w[1],MAT.car,PC.tyre); fdisc(m,w[0],w[1]*(hw*.94+.012),wz,.19,6,w[1],MAT.car,PC.chrome); });
@@ -384,7 +433,7 @@ function atlasPaint(A){ if(typeof document==='undefined') return; var c=document
 
 /* ── cells: one static mesh per cell (and one text mesh) so the renderer can cull ── */
 var CAP_FULL=14500, CAP_LOW=5600;
-SCN.budget={trees:6200, cars:4600, roofs:1500, vTree:140, vCar:140, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
+SCN.budget={trees:6200, cars:5400, roofs:1500, vTree:340, vCar:200, vRoof:170};     /* vertices a cell may spend on each, and what one costs on average (to thin evenly) */
 function cellOf(S, x, y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=S.cells[k];
   if(!c){ c=S.cells[k]={m:sb(4096), t:sb(256), ci:ci, cj:cj, lod:S.lodOf(ci,cj), cap:0}; c.cap=c.lod?CAP_LOW:CAP_FULL; }
   return c; }
@@ -493,7 +542,7 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
   /* trees (also in the cells away from the ride: sparser) */
   if(SCN.trees){
     var sp=pickSpecies(sid,rank,hk(mx,my,3)), gap=low?36:17.5, eseason=pickSeason(hn((sid>=0?sid:7)*31+Math.floor((mx+my)/700),5),sp);
-    for(s=cc+hk(mx,my,4)*6; s<L-cc; s+=gap*(.88+.24*hash(Math.round(s*3)+ei*131))){
+    for(s=cc+hk(mx,my,4)*6; s<L-cc; s+=gap*(.66+.7*hash(Math.round(s*3)+ei*131))){
       if(!low) bcand(bp.t); var x=px(s,2.4), y=py(s,2.4), g=hash(Math.round(x*3)*7+Math.round(y*3)); if(g<.1) continue; var cell=cellOf(S,x,y); if(!room(cell,200)) continue;
       if(S.blocked(x,y,1.7)||trackNear(x,y,1.15)) continue; if(!low && !bpass(bp.t,hk(x,y,91))) continue;
       var sp2=g>.93?(sp+1)%6:sp, sz=.76+.26*hash(Math.round(x*5)+Math.round(y*11)), season=(sp2===sp && hash(Math.round(x*9)+Math.round(y*13)+3)>.14)?eseason:pickSeason(hash(Math.round(x*9)+Math.round(y*13)+3), sp2); if(sp2===4&&season===0&&eseason===4) season=4;
@@ -522,7 +571,7 @@ function edgeItems(S, SI, W, ring, vx, vy, ux, uy, L, stat, ti, ei, M, trackNear
     for(s=cc+1.5; s<L-cc-6; ){ var ti2=(hash(Math.round(s*7)+ei*37+Math.round(mx))*6)|0, T=CAR_T[ti2], len=T.L*UM, h1=hash(Math.round(s*11)+ei*53+Math.round(my));
       if(h1<fill && free(s+len/2,len/2+.3)){ bcand(bp.c); var cx2=px(s+len/2,-1.8), cy2=py(s+len/2,-1.8), cl2=cellOf(S,cx2,cy2);
         if(room(cl2,200) && !S.inPark(cx2,cy2) && !trackNear(cx2,cy2,2.5) && !trackNear(cx2+ux*len*.35,cy2+uy*len*.35,2.1) && !trackNear(cx2-ux*len*.35,cy2-uy*len*.35,2.1) && bpass(bp.c,hk(cx2,cy2,92))){
-          var ci=(hash(Math.round(cx2*3)+Math.round(cy2*5))*PC.car.length)|0, taxi=(rank<=1 && hash(Math.round(cx2)+Math.round(cy2*7))<.07);
+          var ci=carColour(hash(Math.round(cx2*3)+Math.round(cy2*5))), taxi=(rank<=1 && hash(Math.round(cx2)+Math.round(cy2*7))<.07);
           var n2=cl2.m.n; carParked(cl2.m,cx2,cy2,ux,uy,ti2,ci,taxi); stat.cars++; vc(stat,'cars',cl2.m.n-n2); bspent(bp.c,cl2.m.n-n2); } }
       s+=len+.9+hash(Math.round(s*5)+ei)*2.4+(h1<fill?0:5); } } }
 
@@ -549,6 +598,8 @@ function cornerItems(S, SI, W, vx, vy, aux, auy, bux, buy, jdone, cwdone, A, sta
   if(hk(vx,vy,21)<.78 && room(c,300)){ var px=vx-dgx*1.0, py=vy-dgy*1.0;
     if(!S.blocked(px,py,.8) && !trackNear(px,py,1.2)){ var hc=signalAt(m,px,py,oax,oay,-aux,-auy,-1); stat.signals++;
       S.heads.push({x:hc[0],y:hc[1],yaw:Math.atan2(-auy,-aux),axisH:Math.abs(aux)>Math.abs(auy),jx:kx,jy:ky}); } }
+  if(hk(vx,vy,24)<.55 && room(c,140)){ var stx=vx-aux*8.4-oax*.8, sty=vy-auy*8.4-oay*.8;
+    if(!S.blocked(stx,sty,1.6) && !trackNear(stx,sty,1.6) && !S.onWater(stx,sty,1.5)){ stopSignAt(m,stx,sty,-aux,-auy); stat.signs++; } }
   /* a pole with the two street names, a few units back from the corner on the block side */
   if(SCN.signs && hk(vx,vy,23)<.55 && room(c,200)){ var spx=vx-aux*3.4-oax*1.1, spy=vy-auy*3.4-oay*1.1;
     var nA=streetAt(SI,kx,ky,aux,auy,14,.9), nB=streetAt(SI,kx,ky,bux,buy,14,.9);
@@ -713,7 +764,7 @@ function moversGather(S, W, M, stat, SI){
       for(var s=0;s<L.Lp;s+=6){ loopAt(L,s,o); if(S.trackNear(o.x,o.y,3.9)||S.inPark(o.x,o.y)||S.onWater(o.x,o.y,1)){ L.dead=true; break; } }
       if(L.dead) return;
       var nC=Math.max(1,Math.min(4,Math.round(L.Lp/380))), v=(L.rank<=1?12.5:10.5)+3*lh; L.v=v; L.vc=5.2;
-      for(var q=0;q<nC;q++){ var h=hk(L.cx+q*17,L.cy,52+q), bus=(L.rank<=1 && h<.12), ti=(hk(L.cx,L.cy+q*13,53)*6)|0, ci=(hk(L.cx*3,L.cy,54+q)*PC.car.length)|0, taxi=(L.rank<=1 && h>.88);
+      for(var q=0;q<nC;q++){ var h=hk(L.cx+q*17,L.cy,52+q), bus=(L.rank<=1 && h<.12), ti=(hk(L.cx,L.cy+q*13,53)*6)|0, ci=carColour(hk(L.cx*3,L.cy,54+q)), taxi=(L.rank<=1 && h>.88);
         var car={kind:0, a:carTpl(ti,ci,taxi,bus), x:0,y:0,z:0,yaw:0, loop:L, len:bus?11.6*UM:CAR_T[ti].L*UM, s0:(q+.2+.6*hk(L.cx,L.cy,55+q))/nC*L.Lp, s:0, v:v, nj:0, vs:v*(.9+.2*hk(L.cx,L.cy+q,56)), cx:L.cx, cy:L.cy};
         L.cars.push(car); mv.cars.push(car); } });
   }
@@ -802,4 +853,7 @@ window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gath
 _scn={gather:gatherSafe, update:updateSafe, draw:drawFallback};
 })();
 """
-CSS_G = ""
+CSS_G = """
+  #pal-ride.on::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;background:radial-gradient(ellipse 78% 74% at 50% 52%,rgba(0,0,0,0) 58%,rgba(8,10,18,.30) 100%);}
+  #pal-ride .pr-chip,#pal-ride .pr-btns{z-index:2;}
+"""
