@@ -30,28 +30,38 @@ vec3 aces(vec3 x){ vec3 c=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); fl
 
 VS_WORLD = r"""
 attribute vec3 aP; attribute vec3 aN; attribute vec2 aUV; attribute vec2 aMT; attribute vec3 aDC; attribute vec2 aHA; attribute vec4 aI; attribute float aT2;
-uniform mat4 uVP; uniform vec3 uEye; uniform float uInst; uniform mat4 uLP; uniform float uNOff;
-varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL;
+uniform mat4 uVP; uniform vec3 uEye; uniform float uInst; uniform mat4 uLP; uniform mat4 uLQ; uniform vec2 uNOff;
+varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ;
 void main(){
   float pk=aMT.x; float aux=floor(pk/256.); float r=pk-aux*256.; float bias=floor(r/64.); float id=r-bias*64.;
   vec3 p=aP; vec3 n=aN; float tint=aMT.y;
   if(uInst>.5){ float c=cos(aI.w); float s=sin(aI.w); p=vec3(c*aP.x-s*aP.y, s*aP.x+c*aP.y, aP.z)+aI.xyz; n=vec3(c*aN.x-s*aN.y, s*aN.x+c*aN.y, aN.z); if(aT2>=0.) tint=aT2; }
   vP=p; vN=n; vUV=aUV; vM=vec4(id,aux,tint,bias); vDC=aDC; vHA=aHA;
   vec3 q=p+(uEye-p)*bias*0.0022;
-  vSL=(uLP*vec4(p+normalize(n)*uNOff,1.)).xyz;
+  vec3 nn=normalize(n); vSL=(uLP*vec4(p+nn*uNOff.x,1.)).xyz; vSQ=(uLQ*vec4(p+nn*uNOff.y,1.)).xyz;
   gl_Position=uVP*vec4(q,1.);
 }
 """
 
 FS_WORLD = r"""
-varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL;
-uniform sampler2D uSh; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size, z: depth bias, w: unused */
+varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ;
+uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size of the far map, z: its depth bias, w: the near map's depth bias */
+uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
+float pcf(sampler2D s, vec2 uv, float z, float ts){
+  vec2 q=uv/ts-.5; vec2 f=fract(q); vec2 b=(floor(q)+.5)*ts;
+  float a=step(z,texture2D(s,b).r); float c=step(z,texture2D(s,b+vec2(ts,0.)).r); float d=step(z,texture2D(s,b+vec2(0.,ts)).r); float e=step(z,texture2D(s,b+vec2(ts,ts)).r);
+  return mix(mix(a,c,f.x),mix(d,e,f.x),f.y); }
 float shadowAt(float nl){
   if(uShP.x<.5) return 1.;
-  vec3 sc=vSL*.5+.5; float fade=1.-smoothstep(.72,.98,max(abs(vSL.x),abs(vSL.y))); if(fade<=0.||sc.z>=1.||sc.z<=0.) return 1.;
-  float bias=uShP.z*(1.+3.*(1.-nl)); float o=uShP.y; float vis=0.;
-  for(int i=0;i<4;i++){ vec2 d=vec2(i==0||i==2?-.5:.5, i<2?-.5:.5)*o*1.6; vis+=step(sc.z-bias, texture2D(uSh,sc.xy+d).r); vec2 e=vec2(i==0||i==2?-1.5:1.5, i<2?-1.5:1.5)*o*1.6; vis+=step(sc.z-bias, texture2D(uSh,sc.xy+e).r)*.5; }
-  vis/=6.; return mix(1.,vis,fade); }
+  float sl=1.+3.*(1.-nl); float vis=1.; float wq=0.;
+  vec3 sc=vSQ*.5+.5; float fq=1.-smoothstep(.70,.96,max(abs(vSQ.x),abs(vSQ.y)));
+  float vf=1.;
+  { vec3 sf=vSL*.5+.5; float ff=1.-smoothstep(.72,.98,max(abs(vSL.x),abs(vSL.y))); float o=uShP.y*.8; float z=sf.z-uShP.z*sl;
+    if(ff>0.&&sf.z<1.&&sf.z>0.){ float v=(pcf(uSh,sf.xy+vec2(-o,-o),z,uShP.y)+pcf(uSh,sf.xy+vec2(o,-o),z,uShP.y)+pcf(uSh,sf.xy+vec2(-o,o),z,uShP.y)+pcf(uSh,sf.xy+vec2(o,o),z,uShP.y))*.25; vf=mix(1.,v,ff); } }
+  if(fq>0.&&sc.z<1.&&sc.z>0.){ float o=uShQ.x*.8; float z=sc.z-uShP.w*sl;
+    float v=(pcf(uSq,sc.xy+vec2(-o,-o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(o,-o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(-o,o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(o,o),z,uShQ.x))*.25;
+    vis=mix(vf,v,fq); } else vis=vf;
+  return vis; }
 
 vec3 lin(vec3 c){ return c*c*(c*.305306011+.682171111)+.012522878; }     /* sRGB -> linear, close to pow 2.2 */
 float rectm(vec2 p, vec2 c, vec2 hs, vec2 w){ vec2 d=abs(p-c)-hs; vec2 k=1.-smoothstep(-w,w,d); return k.x*k.y; }
@@ -101,7 +111,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
   float night=uNight; alb=vec3(.5); emi=vec3(0.); refl=0.;
   bool isGlass=(type>2.5&&type<3.5); bool isStone=(type>1.5&&type<2.5); bool isConc=(type>3.5); bool isBrick=(type<1.5);
   bool rowh=isBrick&&Hh<9.6&&tall;
-  float gh=0.; if(tall){ gh=isGlass?4.4:(Hh>13.?4.7:(rowh?0.:3.5)); if(Hh<gh+3.) gh=0.; }
+  float gh=0.; if(tall){ gh=isGlass?4.4:(Hh>13.?4.7:(rowh?3.2:3.5)); if(Hh<gh+(rowh?2.:3.)) gh=0.; }
   float fhT=isGlass?3.9:(rowh?3.1:3.5);
   float nF=max(1.,floor((Hh-gh)/fhT+.5)); float fh=tall?(Hh-gh)/nF:3.4;
   float vv=v-gh; bool ground=tall&&gh>0.&&v<gh; float fi=floor(vv/fh); float vl=vv-fi*fh;
@@ -166,7 +176,7 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
       glM=clamp(winM-clamp(bar+bar2,0.,1.)*.8,0.,1.);
       alb=mix(alb,vec3(.78,.76,.70),clamp(bar+bar2,0.,1.)*winM);
       float on=step(h21(vec2(fi*7.1+bi*1.31+floor(ul/(bwa*.5)),T*91.)),litP)*night;
-      float blind=step(.7,h21(vec2(fi+bi*3.,T*5.+ul)));
+      float blind=step(.7,h21(vec2(fi+bi*3.+floor(ul/(bwa*.5))*7.,T*5.)));
       glassAlb=mix(vec3(.025,.032,.04),vec3(.45,.40,.33)*.45,blind);
       glEmi=vec3(1.,.74,.42)*(.55+.5*h11(fi*3.+bi*5.+floor(ul/(bwa*.5))))*on;
       refl=(.10+.34*fres)*glM*(1.-blind*.6)*(.75+.5*h21(vec2(fi*3.1,bi*1.9+T*3.+floor(ul/(bwa*.5)))));
@@ -224,7 +234,8 @@ void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc
     float c1=.27*bwa; float c2=.73*bwa;
     float door=rectm(vec2(ul,v),vec2(c1,1.15),vec2(.50,1.15),fw); float dtr=rectm(vec2(ul,v),vec2(c1,2.55),vec2(.5,.3),fw);
     float df=rectm(vec2(ul,v),vec2(c1,1.2),vec2(.57,1.22),fw)-door;
-    vec3 dcol=mix(vec3(.15,.07,.06),vec3(.07,.16,.12),step(.5,fract(T*17.1)))*mix(vec3(1.),vec3(.6,.5,.4),step(.8,fract(T*41.)));
+    float dk4=fract(T*17.1+bi*.13); vec3 dcol=dk4<.3?vec3(.07,.07,.08):dk4<.55?vec3(.08,.24,.17):dk4<.75?vec3(.38,.08,.08):vec3(.10,.17,.36);
+    dcol*=mix(1.,.55,step(.9,fract(T*41.)));
     alb=mix(alb,vec3(.8,.78,.72),df); alb=mix(alb,dcol,door);
     alb=mix(alb,glassAlb*.7+vec3(.01),dtr*(1.-door));
     vec2 ws=vec2(.5,.78); float cyw=1.55;
@@ -314,7 +325,7 @@ void main(){
     alb*=.92+.16*h21(floor(q));
   } else if(id<13.5){   /* grass */
     float a=nz(gp*.35); float b=nz(gp*1.3+4.); float c=nz(gp*6.)*(1.-smoothstep(.03,.18,fpx));
-    vec3 g1=vec3(.20,.37,.13); vec3 g2=vec3(.31,.47,.17); vec3 g3=vec3(.38,.50,.20);
+    vec3 g1=vec3(.19,.30,.14); vec3 g2=vec3(.27,.38,.18); vec3 g3=vec3(.32,.41,.21);
     alb=mix(g1,g2,a); alb=mix(alb,g3,b*.4); alb*=.92+.22*(c-.5)*2.; alb*=mix(vec3(1.),tf,.04);
   } else if(id<14.5){ alb=vec3(.88,.88,.86);
   } else if(id<15.5){ alb=vec3(.07,.07,.08);
@@ -368,8 +379,8 @@ void main(){
     alb=vec3(.64,.63,.60)*(.85+.25*nz(gp*1.3));
   } else if(id<46.5){   /* lot / yard */
     float a=nz(gp*.25); float b=nz(gp*1.1+5.); float c=nz(gp*6.7)*(1.-smoothstep(.01,.08,fpx))+nz(gp*23.)*(1.-smoothstep(.004,.03,fpx));
-    float gz=smoothstep(.62,.8,a+.15*(b-.5));
-    alb=mix(vec3(.47,.455,.42),vec3(.31,.40,.22),gz*.8)*(.86+.2*b)*(.9+.14*(c-.7));
+    float gz=smoothstep(.68,.86,a+.15*(b-.5));
+    alb=mix(vec3(.40,.395,.37),vec3(.25,.32,.19),gz*.75)*(.86+.2*b)*(.9+.14*(c-.7));
   } else if(id<47.5){   /* plain concrete */
     alb=vec3(.58,.57,.55)*(.82+.28*nz(gp*.8)+.1*nz(vec2(vUV.x*3.,vUV.y*.8)));
     if(vHA.y>.5){ }
