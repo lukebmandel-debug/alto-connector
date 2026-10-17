@@ -1,25 +1,34 @@
-"""The horizontal timeline (brief.mode "lanes"): time runs left to right.
+"""The horizontal timeline (brief.mode "lanes"): the story left to right.
 
-One main line runs through the middle of a page that scrolls sideways. Every
-other line is an off-branch of it: a storyline (a character, a place, a
-thread) that runs alongside the main line at the same time, branching off it
-at an event (`from`) and/or converging back into it at a later one (`to`).
-A flashback is a line whose events are far back in time that converges into
-the main line where the story brings it up.
+The MAIN line is what is on the page, in the order the story tells it (page
+order: unit by unit, the material's order inside each — ACT_SEQS). Every other
+line is a character (or a place, a thread) while they are NOT on the page.
+Where a character is on the page at a main-line event (node.present), their
+solid line dips onto the main line, meets it at that event and leaves again.
+A flashback is a run of consecutive main-line events the story tells out of
+time (node.flash): the main line itself dips onto a labelled past stretch
+whose events carry story dates, then rises back where the present resumes.
+docs/lanes-v2-contract.md is the contract between this data and the page.
 
 Data:
-  brief.lines  [{id, label, color?, side?: "above"|"below", from?: node id,
-                 to?: node id}] — the main line is implicit (id "main",
-                 label brief.main_line).
-  node.line    the line it is on ("" / "main" = the main line).
-  node.when    when it happened, as the material says it: "1842",
-               "1842-03-15", "March 1842", "500 BC", "Year 3", "Day 12".
+  brief.main_line   the main line's label ("" = none).
+  brief.lines       [{id, label, color?, side?: "above"|"below", from?, to?}]
+                    — the characters. from / to are LEGACY (v1: the event a
+                    line branched off at / converged into); still accepted,
+                    and on the page they count as presence. A line with
+                    neither is just a continuous character line.
+  brief.flashbacks  [{id, label}] — labelled past detours of the main line.
+  node.line         the line it is on ("" / "main" = the main line, on the
+                    page; a line id = that character's own event, off it).
+  node.when         when it happened, as the material says it: "1842",
+                    "1842-03-15", "March 1842", "500 BC", "Year 3", "Day 12".
+                    Story time — inside a flashback too.
+  node.present      main-line events: the line ids on the page at it.
+  node.flash        main-line events: the flashback id it is inside.
 
 Time is drawn to scale wherever events are dated; a long empty stretch is
-squeezed and marked ≈ so a flashback 40 years back does not leave metres of
-nothing. Undated events are spaced evenly by their order between the dated
-ones around them. Cards hang off their line on a short stem at their exact
-time, stacked in tiers when they would overlap, so the scale never bends.
+squeezed and marked ≈. Undated events are spaced evenly by their order between
+the dated ones around them. Cards hang off their line on a short stem.
 
 The page side (LANES_JS) runs inside the engine's initLayout once every card
 has been measured (engine patch lanes-layout-hook) and replaces the engine's
@@ -83,9 +92,12 @@ def _frac(y: int, mo: int, d: int) -> float:
     return y + days / 365.0
 
 
+SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
+
+
 def check_lines(b, warnings: list) -> None:
-    """The brief's lines: shape, ids, sides. Which nodes they name is checked
-    with the nodes (check_nodes)."""
+    """The brief's lines and flashbacks: shape, ids, sides. Which nodes they
+    name is checked with the nodes (check_nodes)."""
     lines = b.lines
     if not isinstance(lines, list):
         raise BriefError("lines: must be a list of {id, label, color?, side?, from?, to?}")
@@ -96,7 +108,7 @@ def check_lines(b, warnings: list) -> None:
         if not isinstance(ln, dict):
             raise BriefError(f"lines[{i}]: must be an object")
         lid = str(ln.get("id") or "").strip()
-        if not lid or not re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", lid):
+        if not lid or not SLUG.match(lid):
             raise BriefError(f"lines[{i}]: id {lid!r} must be a short lowercase slug")
         if lid == MAIN:
             raise BriefError("lines: 'main' is the main line itself — don't list it")
@@ -113,20 +125,54 @@ def check_lines(b, warnings: list) -> None:
         c = ln.get("color")
         if c and not re.match(r"^#[0-9a-fA-F]{6}$", str(c)):
             raise BriefError(f"line {lid}: color must be #rrggbb")
+    fbs = b.flashbacks if b.flashbacks is not None else []
+    if not isinstance(fbs, list):
+        raise BriefError("flashbacks: must be a list of {id, label}")
+    if fbs and b.mode != "lanes":
+        raise BriefError("flashbacks need mode 'lanes': they are detours of the horizontal timeline's main line")
+    fseen = set()
+    for i, fb in enumerate(fbs):
+        if not isinstance(fb, dict):
+            raise BriefError(f"flashbacks[{i}]: must be an object {{id, label}}")
+        fid = str(fb.get("id") or "").strip()
+        if not fid or not SLUG.match(fid):
+            raise BriefError(f"flashbacks[{i}]: id {fid!r} must be a short lowercase slug")
+        if fid == MAIN or fid in seen:
+            raise BriefError(f"flashback {fid}: id is already a line's — give the flashback its own id")
+        if fid in fseen:
+            raise BriefError(f"flashbacks: id {fid!r} is used twice")
+        fseen.add(fid)
+        if not str(fb.get("label") or "").strip():
+            raise BriefError(f"flashback {fid}: needs a label (e.g. 'Ten years earlier')")
+        unknown = set(fb) - {"id", "label"}
+        if unknown:
+            raise BriefError(f"flashback {fid}: unknown keys {sorted(unknown)} — a flashback is {{id, label}}; "
+                             "its events say they are in it with node.flash")
+
+
+def page_order(b, nodes) -> list:
+    """The nodes in the order the page tells them: unit by unit, the
+    material's order inside each (blocks.py ACT_SEQS)."""
+    return [nodes[i] for i in sorted(range(len(nodes)), key=lambda i: (nodes[i].act, i))]
 
 
 def check_nodes(b, nodes, warnings: list) -> None:
-    """Each event is on a known line, a line's from/to name events on another
-    line, and its convergence comes after where it branched off."""
+    """Each event is on a known line; who is on the page at a main-line event
+    (present) and which flashback it is in (flash) name known lines and
+    flashbacks; a flashback's events are one consecutive run of the main
+    line; a line's legacy from / to name events on another line, the join
+    after the branch."""
     if b.mode != "lanes":
         for n in nodes:
-            if n.line or n.when:
-                raise BriefError(f"node {n.id}: line / when need mode 'lanes'")
+            if n.line or n.when or n.present or n.flash:
+                raise BriefError(f"node {n.id}: line / when / present / flash need mode 'lanes'")
         return
     by = {n.id: n for n in nodes}
     lids = {ln["id"] for ln in b.lines}
+    fids = {fb["id"] for fb in (b.flashbacks or [])}
     on = {}
     undated = []
+    shown = set()
     for n in nodes:
         ln = n.line or MAIN
         if ln != MAIN and ln not in lids:
@@ -138,6 +184,61 @@ def check_nodes(b, nodes, warnings: list) -> None:
                             "it is spaced by its order instead")
         if not n.when:
             undated.append(n.id)
+        pr = n.present
+        if not isinstance(pr, list) or not all(isinstance(x, str) for x in pr):
+            raise BriefError(f"node {n.id}: present must be a list of line ids")
+        if pr and ln != MAIN:
+            raise BriefError(f"node {n.id}: present is only for main-line events (who is on the page "
+                             f"there) — this event is on {ln!r}'s own line")
+        for x in pr:
+            if x == MAIN:
+                raise BriefError(f"node {n.id}: present lists 'main' — list the characters on the page, "
+                                 "the main line is the page itself")
+            if x not in lids:
+                raise BriefError(f"node {n.id}: present {x!r} is not one of the brief's lines "
+                                 f"({', '.join(sorted(lids)) or 'none yet — add it with lines'})")
+        if len(set(pr)) != len(pr):
+            raise BriefError(f"node {n.id}: present names a line twice")
+        shown.update(pr)
+        if not isinstance(n.flash, str):
+            raise BriefError(f"node {n.id}: flash must be a flashback id")
+        if n.flash:
+            if ln != MAIN:
+                raise BriefError(f"node {n.id}: flash is only for main-line events — a flashback is a "
+                                 f"detour of the main line, and this event is on {ln!r}'s own line")
+            if n.flash not in fids:
+                raise BriefError(f"node {n.id}: flash {n.flash!r} is not one of the brief's flashbacks "
+                                 f"({', '.join(sorted(fids)) or 'none yet — add it with flashbacks'})")
+    # a flashback is one consecutive run of main-line events, set before the present it returns to
+    mains = [n for n in page_order(b, nodes) if (n.line or MAIN) == MAIN]
+    runs = {}
+    for i, n in enumerate(mains):
+        if n.flash:
+            r = runs.setdefault(n.flash, [])
+            if r and r[-1][-1] != i - 1:
+                r.append([i])
+            elif r:
+                r[-1].append(i)
+            else:
+                r.append([i])
+    for fid, r in runs.items():
+        if len(r) > 1:
+            gap = mains[r[0][-1] + 1]
+            raise BriefError(f"flashback {fid}: its events must be consecutive on the main line — "
+                             f"{mains[r[0][-1]].id!r} and {mains[r[1][0]].id!r} have {gap.id!r} "
+                             "between them; use a second flashback for the later one")
+        ts = [parse_when(mains[i].when) for i in r[0]]
+        ts = [t for t in ts if t is not None]
+        after = r[0][-1] + 1
+        if ts and after < len(mains):
+            ta = parse_when(mains[after].when)
+            if ta is not None and max(ts) >= ta:
+                warnings.append(f"flashback {fid}: its events are dated as late as or later than "
+                                f"{mains[after].id!r}, where the story returns — a flashback is "
+                                "usually set before the moment the story comes back to")
+    for fb in b.flashbacks or []:
+        if fb["id"] not in runs:
+            warnings.append(f"flashback {fb['id']}: has no events yet — mark them with flash")
     for ln in b.lines:
         lid = ln["id"]
         for k in ("from", "to"):
@@ -149,8 +250,8 @@ def check_nodes(b, nodes, warnings: list) -> None:
             if (by[v].line or MAIN) == lid:
                 raise BriefError(f"line {lid}: {k} {v!r} is on the line itself — it must be an "
                                  "event on the line it branches from / converges into")
-        if not on.get(lid) and not (ln.get("from") and ln.get("to")):
-            warnings.append(f"line {lid}: has no events yet")
+        if not on.get(lid) and lid not in shown and not (ln.get("from") or ln.get("to")):
+            warnings.append(f"line {lid}: has no events yet and is on the page nowhere")
         f, t = parse_when(by[ln["from"]].when) if ln.get("from") else None, \
             parse_when(by[ln["to"]].when) if ln.get("to") else None
         if f is not None and t is not None and t < f:
@@ -159,6 +260,47 @@ def check_nodes(b, nodes, warnings: list) -> None:
         warnings.append(f"{len(undated)} event(s) have no `when` and are spaced by their order "
                         f"between the dated ones: {', '.join(undated[:8])}"
                         + ("…" if len(undated) > 8 else ""))
+
+
+def tidy(brief: dict, nodes: list) -> list:
+    """Manual edit mode's fold (alto/edits.py), after the page's edits are in:
+    what no longer means anything is dropped rather than refusing every edit —
+    `present` / `flash` on an event moved onto a character's own line, ids of
+    lines / flashbacks that are gone, and a flashback's events after its first
+    consecutive run (a card moved out of the middle of one). Works on the
+    stored dicts; returns the ids of the nodes it changed."""
+    if brief.get("mode") != "lanes":
+        return []
+    lids = {ln.get("id") for ln in brief.get("lines") or [] if isinstance(ln, dict)}
+    fids = {fb.get("id") for fb in brief.get("flashbacks") or [] if isinstance(fb, dict)}
+    changed = set()
+    for n in nodes:
+        main = (n.get("line") or MAIN) == MAIN
+        pr = n.get("present")
+        if pr is not None:
+            keep = [] if not main else [x for i, x in enumerate(pr) if x in lids and x not in pr[:i]]
+            if keep != pr:
+                if keep:
+                    n["present"] = keep
+                else:
+                    n.pop("present")
+                changed.add(n["id"])
+        if "flash" in n and (not n["flash"] or not main or n["flash"] not in fids):
+            n.pop("flash")
+            changed.add(n["id"])
+    order = [nodes[i] for i in sorted(range(len(nodes)), key=lambda i: (int(nodes[i].get("act") or 0), i))]
+    mains = [n for n in order if (n.get("line") or MAIN) == MAIN]
+    ended, cur = set(), None
+    for n in mains:
+        f = n.get("flash") or None
+        if f != cur and cur:
+            ended.add(cur)
+        if f and f in ended:
+            n.pop("flash")
+            changed.add(n["id"])
+            f = None
+        cur = f
+    return sorted(changed)
 
 
 _PALETTE = ["#e07a5f", "#3d9a8b", "#8a6fd1", "#d4a017", "#4a90d9", "#c2577a", "#5a9e4b", "#b8763e"]
@@ -173,14 +315,86 @@ def norm_line(ln: dict, i: int) -> dict:
             "from": ln.get("from") or "", "to": ln.get("to") or ""}
 
 
-def lanes_data(b, nodes) -> str:
-    """window._ALTO_LANES — what the page needs to lay the lines out."""
-    lines = [norm_line(ln, i) for i, ln in enumerate(b.lines)]
+def derive(L: dict, order: "list | None" = None) -> dict:
+    """Fill the page data's derived fields from its authored ones (the
+    contract's "derived": order, ev[].i, lines[].events / presence / span,
+    flashbacks[].nodes / prev / next). LANES_DERIVE_JS is the same on the
+    page, run again after every edit."""
+    ev = L["ev"]
+    order = [i for i in (order if order is not None else L.get("order") or []) if i in ev]
+    have = set(order)
+    order += [i for i in ev if i not in have]
+    L["order"] = order
+    for k, i in enumerate(order):
+        ev[i]["i"] = k
+    lids = {ln["id"] for ln in L["lines"]}
+    mains = [i for i in order if ev[i]["l"] == MAIN or ev[i]["l"] not in lids]
+    for ln in L["lines"]:
+        lid = ln["id"]
+        ln["events"] = [i for i in order if ev[i]["l"] == lid]
+        ln["presence"] = [i for i in mains
+                          if lid in (ev[i].get("present") or []) or i in (ln.get("from"), ln.get("to"))]
+        both = set(ln["events"]) | set(ln["presence"])
+        on = [i for i in order if i in both]
+        ln["span"] = [on[0], on[-1]] if on else []
+    for fb in L["flashbacks"]:
+        ids = [i for i in mains if ev[i].get("flash") == fb["id"]]
+        fb["nodes"] = ids
+        a = mains.index(ids[0]) if ids else -1
+        z = mains.index(ids[-1]) if ids else -1
+        fb["prev"] = mains[a - 1] if a > 0 else ""
+        fb["next"] = mains[z + 1] if ids and z + 1 < len(mains) else ""
+    return L
+
+
+def lanes_payload(b, nodes) -> dict:
+    """The page's data (docs/lanes-v2-contract.md), as a dict."""
     ev = {}
     for n in nodes:
-        ev[n.id] = {"l": n.line or MAIN, "w": n.when or "", "t": parse_when(n.when)}
-    return ("\nwindow._ALTO_LANES=" + js_json({"main": b.main_line or "", "lines": lines, "ev": ev},
-                                               separators=(",", ":")) + ";")
+        ev[n.id] = {"l": n.line or MAIN, "w": n.when or "", "t": parse_when(n.when), "i": 0,
+                    "present": [str(x) for x in (n.present or [])], "flash": n.flash or ""}
+    L = {"v": 2, "main": b.main_line or "",
+         "order": [n.id for n in page_order(b, nodes)],
+         "lines": [norm_line(ln, i) for i, ln in enumerate(b.lines)],
+         "ev": ev,
+         "flashbacks": [{"id": fb["id"], "label": fb.get("label") or ""} for fb in b.flashbacks or []]}
+    return derive(L)
+
+
+# window._altoLanesDerive(L, order?): lanes.derive on the page — manual edit
+# mode calls it after changing who is present, a flashback, a line.
+LANES_DERIVE_JS = r"""
+window._altoLanesDerive=function(L, order){
+  if(!L) return L; var ev=L.ev||{};
+  if(!order) order=(typeof ACT_SEQS!=='undefined') ? [].concat.apply([], ACT_SEQS) : (L.order||[]);
+  order=order.filter(function(i){ return Object.prototype.hasOwnProperty.call(ev,i); });
+  var have={}; order.forEach(function(i){ have[i]=1; });
+  Object.keys(ev).forEach(function(i){ if(!have[i]){ order.push(i); have[i]=1; } });
+  L.order=order; order.forEach(function(i,k){ ev[i].i=k; });
+  var lids={}; (L.lines||[]).forEach(function(l){ lids[l.id]=1; });
+  var mains=order.filter(function(i){ return ev[i].l==='main' || !lids[ev[i].l]; });
+  (L.lines||[]).forEach(function(l){
+    l.events=order.filter(function(i){ return ev[i].l===l.id; });
+    l.presence=mains.filter(function(i){ return (ev[i].present||[]).indexOf(l.id)>=0 || i===l.from || i===l.to; });
+    var both={}; l.events.concat(l.presence).forEach(function(i){ both[i]=1; });
+    var on=order.filter(function(i){ return both[i]; });
+    l.span=on.length ? [on[0], on[on.length-1]] : [];
+  });
+  (L.flashbacks=L.flashbacks||[]).forEach(function(f){
+    var ids=mains.filter(function(i){ return ev[i].flash===f.id; });
+    var a=ids.length?mains.indexOf(ids[0]):-1, z=ids.length?mains.indexOf(ids[ids.length-1]):-1;
+    f.nodes=ids; f.prev=a>0?mains[a-1]:''; f.next=(ids.length && z+1<mains.length)?mains[z+1]:'';
+  });
+  return L;
+};
+"""
+
+
+def lanes_data(b, nodes) -> str:
+    """window._ALTO_LANES — what the page needs to lay the lines out — and
+    window._altoLanesDerive, which keeps its derived fields true after edits."""
+    return ("\nwindow._ALTO_LANES=" + js_json(lanes_payload(b, nodes), separators=(",", ":")) + ";\n"
+            + LANES_DERIVE_JS)
 
 
 LANES_CSS = KEY_CSS + """

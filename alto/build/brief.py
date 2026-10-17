@@ -312,10 +312,15 @@ class Node:
     # ("I.A.2") would be silently invalidated by inserting a sibling, so the
     # numbering is derived at build and never stored.
     parent: str = ""
-    # Lanes mode (lanes.py): the line this event is on ("" = the main line)
-    # and when it happened, in the material's own words ("1842", "Day 3").
+    # Lanes mode (lanes.py): the line this event is on ("" = the main line:
+    # on the page) and when it happened, in the material's own words ("1842",
+    # "Day 3"). A main-line event also says who is on the page at it
+    # (`present`, line ids) and, when the story tells it out of time, which
+    # flashback it is in (`flash`, a Brief.flashbacks id).
     line: str = ""
     when: str = ""
+    present: list[str] = field(default_factory=list)
+    flash: str = ""
     # Brief.source_docs ids this node was built from. In outline mode a node
     # with none inherits its nearest ancestor's (ALTO-011).
     sources: list[str] = field(default_factory=list)
@@ -426,11 +431,14 @@ class Brief:
     # other source with a local copy, without touching source_docs — which,
     # when empty, the consent manifest fills.
     linked_files: list[dict] = field(default_factory=list)
-    # Lanes mode (lanes.py): the storylines that branch off the main line and
-    # converge back into it, [{id, label, color?, side?, from?, to?}], and the
-    # main line's own label ("" = none).
+    # Lanes mode (lanes.py): the characters / places / threads, each a line
+    # while it is off the page, [{id, label, color?, side?, from?, to?}]
+    # (from/to: legacy branch / join points); the main line's own label
+    # ("" = none); and the flashbacks, [{id, label}] — labelled past detours
+    # of the main line that node.flash puts events in.
     lines: list[dict] = field(default_factory=list)
     main_line: str = ""
+    flashbacks: list[dict] = field(default_factory=list)
     # Mind Palace mode (palace.py): the city — {place, area?, bbox, districts:
     # [{unit, name, bounds}], majors, landmarks, scale, data_z (the fetched map
     # and its lots, packed; set_up_palace writes it)}.

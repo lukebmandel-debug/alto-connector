@@ -304,10 +304,11 @@ history:
 
 > "A timeline can be a **sketch** — events in order down the page, good for
 > roughly laying things out and organizing your thoughts — or **horizontal** —
-> time running left to right to scale along one main line, with each
-> character's or thread's own line running alongside at the same time,
-> branching off the main line and joining back in where they meet (a flashback
-> joins where the story brings it up)."
+> the story left to right along one main line, in the order it is told, with
+> each character's own line running alongside while they are off the page and
+> coming down onto the main line in the scenes they are in (a flashback is the
+> main line dipping back into the past, then rising to where the story
+> resumes)."
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
@@ -374,23 +375,43 @@ its floors, reached by an elevator inside the building.
 - Map data is © OpenStreetMap contributors; the page credits it.
 
 ### §D-Lanes. A horizontal timeline (`mode: 'lanes'`)
-- One **main line** (`main_line`: its label, e.g. "The town", or "") and
-  `lines: [{id, label, color?, side?: 'above'|'below', from?, to?}]` — every
-  other line is an off-branch: `from` = the event on another line where it
-  splits away, `to` = the event where it converges back. A flashback has no
-  `from`; its events are far back in time and `to` is where the story brings
-  it up. Lines that never run at the same time share a track automatically.
-- Each node: `line` (a line id; omit for the main line) and `when` exactly as
-  the material dates it ("1852", "1852-06-14", "March 1852", "500 BC",
-  "Day 3"). Time is drawn to scale wherever events are dated and long empty
-  stretches are squeezed (marked ≈); an undated event sits by its order
-  between the dated ones around it. Never invent a date — leave `when` out.
-- Bands (`acts`) are stretches of time (parts, eras), shown as columns.
-- Ask: "Whose storylines run side by side, and where do they meet the main
-  line?" Map each person/thread to a line only where the material follows
-  them separately; everything else stays on the main line.
-- The owner can change any event's date or line, add lines and set where a
-  line branches and joins in the page (✎ Edit manually).
+- The **main line** is what is on the page, in the order the story tells it
+  (unit by unit, the events in the order you send them). Its label is
+  `main_line` (e.g. "The story", or "").
+- Every other line is a **character** (or a place, a thread) while they are
+  NOT on the page: `lines: [{id, label, color?, side?: 'above'|'below'}]`.
+  Where a character is on the page, their line comes down onto the main line
+  at that event and leaves again — that is node `present`, nothing else to
+  draw. Lines that never run at the same time share a track automatically.
+- Each main-line event (no `line`): `present: [line ids]` — who is on the page
+  in that scene, as the material shows it (not everyone mentioned — who is
+  there). An event that belongs to a character's own line while they are off
+  the page (backstory, what they do elsewhere): `line: <their id>` — no
+  `present` / `flash` on it.
+- **Flashbacks**: `flashbacks: [{id, label}]` in the brief (label e.g. "Ten
+  years earlier"), and `flash: <id>` on each main-line event the story tells
+  out of time. A flashback's events must be consecutive on the main line;
+  their `when` is when they HAPPENED (story time) while the events around
+  them keep theirs, so the main line dips into the past and rises back where
+  the present resumes. Characters in a flashback scene are `present` there
+  as anywhere else.
+- `when` on every event, exactly as the material dates it ("1852",
+  "1852-06-14", "March 1852", "500 BC", "Day 3"). Time is drawn to scale
+  wherever events are dated and long empty stretches are squeezed (marked ≈);
+  an undated event sits by its order between the dated ones around it. Never
+  invent a date — leave `when` out.
+- Bands (`acts`) are parts of the story, shown as columns.
+- Ask: **"Who is on the page in each scene, and where does the story jump back
+  in time?"** Give a person/thread a line only where the material follows
+  them; everything told on the page is the main line.
+- Lines and flashbacks go in the `create_timeline` brief; change them later
+  with `set_lines` (declare a flashback there before marking events with it).
+- Older horizontal timelines carry a line's `from` / `to` (the event it
+  branched off at / joined); they still build and count as where it is on
+  the page — new ones use `present`.
+- The owner can, in the page (✎ Edit manually → a card's ⟿), change an
+  event's date or line, put a character on or off the page at it, put it in a
+  flashback (or a new one) or take it out, and add or rename lines.
 
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
@@ -883,6 +904,8 @@ materials in this conversation; custom-filter values ride on each node; in
 outline mode `parent` carries the tree) →
 6. `add_connections` →
 6b. `set_flags` (the user's own marks, §F3 — ask which) →
+6c. horizontal timeline only: `set_lines` when its lines or flashbacks change
+(§D-Lanes) →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
 section** (4-8 sentences: what the section is about, how its main ideas fit
 together, the turning points and tests, in the notes' own terms — a thin

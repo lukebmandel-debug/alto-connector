@@ -367,6 +367,12 @@ def _target(key, brief, by_id, conns):
         return (None, None, "pending") if NEW_CARD.match(p[1]) else None
     if kind == "ln" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]) and p[1] != "main":
         return brief, p[1], "lane"
+    # a horizontal timeline's flashback (lanes.py): the whole {id, label}, or None to remove it
+    if kind == "fb" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]) and p[1] != "main":
+        return brief, p[1], "flashback"
+    # who is on the page at a main-line event: the whole list of line ids
+    if kind == "n" and len(p) == 3 and p[2] == "present":
+        return (by_id[p[1]], "present", "present") if p[1] in by_id else None
     if kind == "nd" and len(p) == 2:
         return (by_id[p[1]], None, "delnode") if p[1] in by_id else None
     if key == "fl|list":
@@ -389,7 +395,7 @@ def _target(key, brief, by_id, conns):
             return None
         return None, None, "newtree" if len(p) == 3 and p[2] == "tree" else "newtreef"
     if kind in ("n", "c", "env", "theme") and len(p) == 3:
-        ok = {"n": ("title", "tag", "desc", "when", "line"), "c": ("name", "role"),
+        ok = {"n": ("title", "tag", "desc", "when", "line", "flash"), "c": ("name", "role"),
               "env": ("name", "role"), "theme": ("name", "role")}[kind]
         o = _owner(kind, p[1], brief, by_id)
         if o is None:
@@ -1040,12 +1046,62 @@ def fold(store, uid, tid) -> "dict | None":
                 continue
             if nv is None:
                 lines.pop(at)
+                # nobody can be on the page as a line that is gone
+                for nd in nodes:
+                    if f in (nd.get("present") or []):
+                        nd["present"] = [x for x in nd["present"] if x != f]
+                        if not nd["present"]:
+                            nd.pop("present")
+                        touched["nodes"].add(nd["id"])
             else:
                 keep = {kk: nv[kk] for kk in ("id", "label", "color", "side", "from", "to") if nv[kk]}
                 if at is None:
                     lines.append(keep)
                 else:
                     lines[at] = keep
+        elif kind == "flashback":
+            # a flashback of a horizontal timeline (lanes.py): {id, label}, or None to remove it
+            fbs = holder.setdefault("flashbacks", [])
+            at = next((j for j, q in enumerate(fbs) if q.get("id") == f), None)
+            norm_fb = (lambda q: {"id": f, "label": str(q.get("label") or "").strip()}
+                       if isinstance(q, dict) else None)
+            cur = norm_fb(fbs[at]) if at is not None else None
+            if cur == norm_fb(v):
+                already.append(k)
+                continue
+            if cur != norm_fb(b):
+                conflicts.append(k)
+                continue
+            if v is None:
+                fbs.pop(at)
+                for nd in nodes:
+                    if nd.get("flash") == f:
+                        nd.pop("flash")
+                        touched["nodes"].add(nd["id"])
+            elif at is None:
+                fbs.append(norm_fb(v))
+            else:
+                fbs[at] = norm_fb(v)
+            if not fbs:
+                holder.pop("flashbacks", None)
+        elif kind == "present":
+            # the characters on the page at a main-line event: compared as a set,
+            # kept in the brief's line order
+            def pset(x):
+                return sorted({str(y) for y in (x or []) if y})
+            cur = pset(holder.get("present"))
+            if cur == pset(v):
+                already.append(k)
+                continue
+            if cur != pset(b):
+                conflicts.append(k)
+                continue
+            rank = {q.get("id"): j for j, q in enumerate(brief.get("lines") or [])}
+            want = sorted(pset(v), key=lambda x: (rank.get(x, len(rank)), x))
+            if want:
+                holder["present"] = want
+            else:
+                holder.pop("present", None)
         elif kind in ("lot", "fno", "out"):
             cur = (holder.get(f) or {}).get(kind)
             if (cur or None) == (v or None):
@@ -1392,6 +1448,11 @@ def fold(store, uid, tid) -> "dict | None":
         if n.get("flags") and any(f not in fids for f in n["flags"]):
             n["flags"] = [f for f in n["flags"] if f in fids]
             touched["nodes"].add(n["id"])
+
+    # a horizontal timeline: presence / flashback marks that no longer mean anything
+    from .build.lanes import tidy as lanes_tidy
+    for i in lanes_tidy(brief, nodes):
+        touched["nodes"].add(i)
 
     if written:
         # the result must still build; if it does not, nothing is written

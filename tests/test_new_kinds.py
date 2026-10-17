@@ -43,9 +43,11 @@ def test_the_cloud_accepts_lanes_and_defaults_the_rest_to_outline():
     assert "(o.kind === 'timeline' || o.kind === 'lanes') ? o.kind : 'outline'" in js
 
 
-def test_the_lanes_starter_is_a_main_line_with_a_branch():
+def test_the_lanes_starter_is_a_story_with_characters_and_a_flashback():
     s = starter._STARTERS["lanes"]
     assert s["brief"]["mode"] == "lanes" and len(s["brief"]["acts"]) == 2
     assert all(n["when"] for n in s["nodes"]) and "lanes" in starter.KINDS and "lanes" in MODES
-    ln = s["brief"]["lines"][0]
-    assert ln["from"] == "part-1-start" and ln["to"] == "part-2-start"
+    assert not any(ln.get("from") or ln.get("to") for ln in s["brief"]["lines"])     # no legacy branch points
+    by = {n["id"]: n for n in s["nodes"]}
+    assert by["part-2-start"]["present"] == ["first", "second"] and by["second-start"]["line"] == "second"
+    assert by["a-memory"]["flash"] == s["brief"]["flashbacks"][0]["id"]
