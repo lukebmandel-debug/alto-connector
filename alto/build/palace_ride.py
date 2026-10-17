@@ -76,3 +76,26 @@ window._palRide={roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(typeof UIX!=='u
 """
 
 RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + _API + "})();\n"
+
+
+# ── the ride is code the page loads, not part of the page ──────────────────
+# RIDE_JS is ~370 KB (130 KB gzipped). A private page is ONE Firestore document (under 1,000,000 stored bytes: private_shell.MAX_PAGE_BYTES), and
+# the palace page is already within ~15 KB of that, so the ride cannot ride inside it. It is a static file of the site instead
+# (/ride/palace-ride-<hash>.js, written by publish_static.regenerate_site, kept by the browser for a year): it holds no timeline content at
+# all (the renderer, the vehicle frames, the landmark models), and the page loads it where RIDE_JS used to stand. The page works without it
+# (every use is guarded by `window._palRide`), a ride simply is not offered.
+import hashlib as _hashlib
+
+RIDE_V = _hashlib.sha256(RIDE_JS.encode("utf-8")).hexdigest()[:10]
+RIDE_PATH = f"/ride/palace-ride-{RIDE_V}.js"
+# Loaded where RIDE_JS stood, before the palace's own code runs (which calls _palRide.init at once): a synchronous request answered from the
+# browser's cache after the first visit, then the text run as an inline script (CSP allows inline scripts, not eval; document.write would
+# run it only after the whole page script ended). A failed request leaves _palRide undefined and every use of it is guarded.
+RIDE_LOADER = ("\n(function(){ if(window._palRide) return; try{ var x=new XMLHttpRequest(); x.open('GET','" + RIDE_PATH + "',false); x.send(null);"
+               " if(x.status===200 && x.responseText){ var s=document.createElement('script'); s.text=x.responseText;"
+               " (document.head||document.documentElement).appendChild(s); if(s.parentNode) s.parentNode.removeChild(s); } }catch(e){} })();\n")
+
+
+def ride_asset() -> tuple[str, str]:
+    """(file name under /ride/, the script) for the site."""
+    return RIDE_PATH.rsplit("/", 1)[1], RIDE_JS

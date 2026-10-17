@@ -268,6 +268,14 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         shutil.rmtree(bg_out)
     if bg_src.is_dir():
         shutil.copytree(bg_src, bg_out / f"v{BG_V}")
+    # The Mind Palace's first-person ride: code, not page (build/palace_ride.py), in a folder named by its content hash.
+    from .build.palace_ride import ride_asset
+    ride_out = site / "ride"
+    if ride_out.exists():
+        shutil.rmtree(ride_out)
+    ride_out.mkdir()
+    rname, rjs = ride_asset()
+    (ride_out / rname).write_text(rjs, encoding="utf-8")
     pdir = site / "privacy"
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
@@ -345,6 +353,10 @@ def _headers(csp: str, connect_csp: str) -> list[dict]:
         # The background photographs are versioned by folder (/bg/v1/) and never
         # change under that name, so they are kept, unlike the pages around them.
         {"source": "/bg/**", "headers": [
+            {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
+        ]},
+        # The ride's script is named by a hash of its own text: it never changes under that name.
+        {"source": "/ride/**", "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
         ]},
         # After "**" so it wins for this path (Hosting applies matching
