@@ -745,11 +745,15 @@ def _suburban():
 
 
 def _jefferson():
-    """Jefferson Station (Market East): a low glass concourse pavilion under a flat canopy, the way down to the trains."""
-    return {"h": 16, "D": 56, "parts": [
-        {"k": "box", "w": 70, "v": 0, "d": 56, "y0": 0, "y1": 13, "m": "glass", "fl": 6.5, "mu": 9, "top": False},
-        {"k": "hip", "w": 70, "v": 0, "d": 56, "y0": 13, "y1": 17, "inset": 12, "m": "glass"},
-        {"k": "door", "w": 9, "h": 9}]}
+    """Jefferson Station (Market East; about 100 x 50 m): the way down to the trains — a broad glass concourse with a stepped
+    glazed hall and skylight over its middle, and a columned steel canopy over the entrance on the street."""
+    return {"h": 22, "D": 50, "parts": [
+        {"k": "box", "w": 100, "v": 6, "d": 44, "y0": 0, "y1": 10, "m": "glass", "fl": 5, "mu": 9, "top": False},
+        {"k": "box", "w": 62, "v": 12, "d": 28, "y0": 10, "y1": 16, "m": "glass", "fl": 6, "mu": 7, "top": False},
+        {"k": "hip", "w": 62, "v": 12, "d": 28, "y0": 16, "y1": 22, "inset": 20, "m": "glass"},
+        {"k": "cols", "w": 40, "y0": 0.5, "y1": 7, "n": 5},
+        {"k": "box", "w": 44, "v": 0, "d": 9, "y0": 7, "y1": 8.6, "m": "trim", "sheen": False},
+        {"k": "door", "w": 10, "h": 7}]}
 
 
 # ── courthouses (law classes: federal / state / city courts as landmarks) ───

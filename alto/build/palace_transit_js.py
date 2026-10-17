@@ -34,6 +34,7 @@ TRANSIT_CSS = r"""
   .pal-svg .pl-portal circle{fill:var(--surface,#fff);stroke:var(--accent,#6d5bd0);stroke-width:2;}
   .pal-svg .pl-portal text{font-size:12px;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:var(--accent,#6d5bd0);}
   .pal-svg .pl-portal line{stroke:var(--accent,#6d5bd0);stroke-width:1.5;stroke-dasharray:3 3;}
+  .pal-svg .pl-portal.on-bldg circle{stroke-width:2.6;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));}
   .pal-svg .pl-portal:hover circle{fill:var(--accent,#6d5bd0);} .pal-svg .pl-portal:hover text{fill:#fff;}
   /* a line (or a filter that rides lines) in view: everything not on it steps back */
   .pal-svg.tr-focus .pl-streets,.pal-svg.tr-focus .pl-parks,.pal-svg.tr-focus .pl-washes,.pal-svg.tr-focus .pl-lms,.pal-svg.tr-focus .pl-lmb,.pal-svg.tr-focus .pl-blds,.pal-svg.tr-focus .pl-rails{opacity:.3;transition:opacity .2s;}
@@ -101,6 +102,14 @@ TRANSIT_CSS = r"""
     border:1px solid var(--card-glass-border, var(--border));box-shadow:0 12px 32px var(--node-hover-shadow);max-width:min(640px,calc(100vw - 460px));}
   #pal-chiprt.on,#pal-relrt.on{display:flex;}
   #pal-relrt.above{bottom:70px;}
+  /* ride the route a filter draws: a button on the route's pill, a rider on the map */
+  #pal-chiprt .tr-b,#pal-relrt .tr-b{cursor:pointer;border:1px solid transparent;border-radius:999px;padding:4px 12px;font-weight:700;font-size:12px;background:var(--cc,#888);color:#fff;flex:none;}
+  #pal-chiprt .tr-b:hover,#pal-relrt .tr-b:hover{filter:brightness(1.08);}
+  html.pal-tripping #pal-chiprt .tr-b,html.pal-tripping #pal-relrt .tr-b{display:none;}
+  .pal-svg .pl-rider circle.rd-o{fill:var(--rc,#888);stroke:#fff;stroke-width:3;}
+  .pal-svg .pl-rider circle.rd-i{fill:#fff;}
+  .pal-svg .pl-rider{pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));}
+  html.alto-palace #world .node.pal-trip-cur:not(.focused) .node-card{outline:5px solid var(--cc,#888);outline-offset:3px;}
   #pal-chiprt i,#pal-relrt i{width:22px;height:6px;border-radius:3px;flex:none;background:var(--cc,#888);}
   #pal-chiprt small,#pal-relrt small{color:var(--muted);}
   html.mobile #pal-tr,html.detail-open #pal-tr,html.printing #pal-tr,html:not(.alto-palace) #pal-tr,
@@ -112,7 +121,7 @@ TRANSIT_JS = r"""
 if(window._palTr) return;
 var E=null, T=null, NS='http://www.w3.org/2000/svg';
 var WALK=1, RIDE=.2, BOARD=120, XFER=70;
-var S={portal:null, line:null, stop:null, ride:null, chipH:null, chipF:null};   /* a line picked; a stop picked; riding {l,i}; the chip pointed at; the chips filtered */
+var S={portal:null, line:null, stop:null, ride:null, trip:null, chipH:null, chipF:null};   /* a line picked; a stop picked; riding {l,i}; the chip pointed at; the chips filtered */
 function el(tag,attrs,parent){ var e=document.createElementNS(NS,tag); for(var k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function col(l){ return E.tubeCol(l.c); }
@@ -186,10 +195,24 @@ function stations(svg){
     else { el('circle',{'class':'tr-ring', r:RIN, stroke:c0},d); el('circle',{'class':'tr-sh', r:RIN},d); }
     el('circle',{'class':'tr-pulse', r:8},g);
     E.stLbl(stl, 'pl-stt tr-lbl'+(hub?' hub':'')+(maj?' maj':''), s.n, s.x, s.y, hub||maj).setAttribute('data-s', i); });
-  (E.P.po||[]).forEach(function(po,pi){ portalStops(po).forEach(function(i){ var s=T.stops[i];
-    if(!po._at) po._at={x:s.x, y:s.y};
-    var g=E.pin(stl,'pl-portal',s.x,s.y,{'data-po':pi,'data-s':i}); el('line',{x1:0,y1:-6,x2:-13,y2:-17},g);       /* up and to the left: the station's name reads to the right */
-    var c=el('circle',{cx:-16,cy:-20,r:11},g); el('text',{x:-16,y:-20},g).textContent='\u2708'; var t=el('title',{},g); t.textContent='Go to '+po.name; }); });
+}
+/* A portal stands ON the station's building when the station is a landmark (30th Street, Suburban, Jefferson: a badge over its roof,
+   drawn above every building), else at the station's stop. One portal per station, however many stops carry its name. */
+function portals(svg){
+  if(!T || !(E.P.po||[]).length) return; var pg=el('g',{'class':'pl-portals'},svg); svg._pt=pg;
+  var lms=[].filter.call(svg.querySelectorAll('.pl-lmb'), function(g){ return g._lm; });
+  (E.P.po||[]).forEach(function(po,pi){ var done={};
+    portalStops(po).forEach(function(i){ var s=T.stops[i], k=pnk(s.n), best=null, bd=1200;
+      lms.forEach(function(g){ var L=g._lm, nk=pnk(L.name); if(!nk || !k || !(nk.indexOf(k)>=0 || k.indexOf(nk)>=0)) return;
+        var d=Math.hypot(L.x+L.w/2-s.x, L.y+L.h/2-s.y); if(d<bd){ bd=d; best=L; } });
+      var key=best?'b:'+best.name:'s:'+i; if(done[key]) return; done[key]=1;
+      var x=s.x, y=s.y, g;
+      if(best){ x=best.x+best.w/2; y=best.y+best.h*.4; g=E.pin(pg,'pl-portal on-bldg',x,y,{'data-po':pi,'data-s':i});
+        el('circle',{cx:0,cy:0,r:12},g); el('text',{x:0,y:0},g).textContent='\u2708'; }
+      else { g=E.pin(pg,'pl-portal',x,y,{'data-po':pi,'data-s':i}); el('line',{x1:0,y1:-6,x2:-13,y2:-17},g);       /* up and to the left: the station's name reads to the right */
+        el('circle',{cx:-16,cy:-20,r:11},g); el('text',{x:-16,y:-20},g).textContent='\u2708'; }
+      var t=el('title',{},g); t.textContent='Go to '+po.name+(best?' \u00b7 from '+best.name:'');
+      if(!po._at) po._at={x:x, y:y}; }); });
 }
 /* the stops a portal opens from: named stations (on its line, when it names one) */
 function pnk(n){ return String(n||'').toLowerCase().replace(/philadelphia|station|street|\bst\b/g,'').replace(/[^a-z0-9]/g,''); }
@@ -225,7 +248,7 @@ function lineTip(l){ return l.n+' · '+l.s.length+' stops'; }
 /* ── the panel ── */
 function panel(){ var p=document.getElementById('pal-tr'); if(!p){ p=document.createElement('div'); p.id='pal-tr'; document.body.appendChild(p);
   p.addEventListener('click', function(e){ var b=e.target.closest('[data-a]'); if(!b) return; var a=b.getAttribute('data-a'), v=b.getAttribute('data-v');
-    if(a==='x') clear(); else if(a==='ride') ride(v, +b.getAttribute('data-i')||0); else if(a==='next') step(1); else if(a==='prev') step(-1); else if(a==='portal'){ takePortal(+v); } else if(a==='pstop') pickStop(+b.getAttribute('data-s'), true);
+    if(a==='x') clear(); else if(a==='tnext') tripStep(1); else if(a==='tprev') tripStep(-1); else if(a==='tauto') tripAuto(); else if(a==='ride') ride(v, +b.getAttribute('data-i')||0); else if(a==='next') step(1); else if(a==='prev') step(-1); else if(a==='portal'){ takePortal(+v); } else if(a==='pstop') pickStop(+b.getAttribute('data-s'), true);
     else if(a==='stop') { var l=lineOf(v||S.line); if(S.ride){ ride(S.ride.l, +b.getAttribute('data-i')); } else if(l) pickStop(+b.getAttribute('data-s'), true); }
     else if(a==='line') pickLine(v, true); }); }
   return p; }
@@ -236,7 +259,8 @@ function paintPortal(p){ var po=(E.P.po||[])[S.portal]; if(!po) return false; va
     +'<div class="tr-sub" style="margin:0 0 4px">Reached from</div><div class="tr-stops">'+sts.map(function(i){ return '<div class="tr-st" data-a="pstop" data-s="'+i+'"><i></i>'+esc(T.stops[i].n)+'</div>'; }).join('')+'</div>';
   p.classList.add('on'); return true; }
 function paint(){
-  var p=panel(); lit();
+  var p=panel(); lit(); if(S.trip) paintUsed();
+  if(S.trip){ paintTrip(p); return; }
   if(S.portal!=null && !S.ride && !S.line && S.stop==null && paintPortal(p)) return;
   if(S.ride){ var l=lineOf(S.ride.l), ss=stopsOn(l), s=ss[S.ride.i], c=col(l), si=T.stops.indexOf(s);
     var others=s.l.filter(function(q){ return q!==l.id; }).map(lineOf).filter(Boolean);
@@ -263,15 +287,15 @@ function paint(){
     p.classList.add('on'); return; }
   p.classList.remove('on');
 }
-function clear(){ S.portal=null; S.line=null; S.stop=null; S.ride=null; paint(); }
+function clear(){ endTrip(); S.portal=null; S.line=null; S.stop=null; S.ride=null; paint(); }
 /* a portal is taken: the trip to the place it names (palace_airport.py) */
-function takePortal(pi, pin){ var po=(E.P.po||[])[pi]; if(!po) return; var g=pin||document.querySelector('#palace-svg .pl-portal[data-po="'+pi+'"]');
+function takePortal(pi, pin){ endTrip(); var po=(E.P.po||[])[pi]; if(!po) return; var g=pin||document.querySelector('#palace-svg .pl-portal[data-po="'+pi+'"]');
   if(window._palAirport) window._palAirport.go(po, g); else { S.portal=pi; S.ride=null; S.line=null; S.stop=null; paint(); } }
 function portalsAt(i){ var o=[]; (E.P.po||[]).forEach(function(po,pi){ if(portalStops(po).indexOf(i)>=0) o.push(pi); }); return o; }
-function pickLine(id, fly){ S.portal=null; S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
-function pickStop(i, fly){ S.portal=null; S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }
+function pickLine(id, fly){ endTrip(); S.portal=null; S.ride=null; S.line=id; S.stop=null; paint(); fitLines([id]); }
+function pickStop(i, fly){ endTrip(); S.portal=null; S.stop=i; if(!S.line && !S.ride){ /* a stop alone */ } S.ride=null; if(fly) glide(i); paint(); }
 function glide(i){ var s=T.stops[i]; if(s) E.flyMap(s.x, s.y, Math.max(E.Z(), 1.0)); }
-function ride(id, i){ var l=lineOf(id); if(!l || !l.s.length) return; i=Math.max(0, Math.min(l.s.length-1, i|0)); S.ride={l:id, i:i}; S.line=id; S.stop=l.s[i]; glide(l.s[i]); paint(); }
+function ride(id, i){ endTrip(); var l=lineOf(id); if(!l || !l.s.length) return; i=Math.max(0, Math.min(l.s.length-1, i|0)); S.ride={l:id, i:i}; S.line=id; S.stop=l.s[i]; glide(l.s[i]); paint(); }
 /* an arrow key goes where it points: with the next stop to the left of you, Left is "next" (the direction of travel) */
 function arrowDir(k, d){
   var l=lineOf(S.ride.l), i=S.ride.i, cur=T.stops[l.s[i]], nx=T.stops[l.s[i+1]], pv=T.stops[l.s[i-1]];
@@ -342,7 +366,7 @@ function chipNodes(id){ var o=null, m=window.FILTER_NODES||{}; Object.keys(m).fo
 function chipColor(id){ var c=null; (window.FILTER_SECTIONS||[]).forEach(function(s){ (s.items||[]).forEach(function(it){ if(it.id===id) c=it.color; }); }); return c; }
 function chipName(id){ var c=null; (window.FILTER_SECTIONS||[]).forEach(function(s){ (s.items||[]).forEach(function(it){ if(it.id===id) c=it.name; }); }); return c; }
 function wanted(){                      /* what to light now: the chip pointed at, else what the filters are showing */
-  if(S.chipH){ var ids=chipNodes(S.chipH)||[]; return {ids:ids, color:chipColor(S.chipH), name:chipName(S.chipH)}; }
+  if(S.chipH && !S.trip){ var ids=chipNodes(S.chipH)||[]; return {ids:ids, color:chipColor(S.chipH), name:chipName(S.chipH)}; }
   if(S.chipF && S.chipF.ids.length) return S.chipF;
   return null; }
 function holds(){ return !!(S.chipH || (S.chipF && S.chipF.ids.length)); }
@@ -367,18 +391,20 @@ function renderChip(){
   nodes.forEach(function(n){ var id=n.id.slice(5), on=!!bset[E.bOf(id)]; n.classList.remove('pal-hot','pal-dim'); n.classList.toggle('pal-chip-hot', on); n.classList.toggle('pal-hot', on); n.classList.toggle('pal-dim', !on);
     n._chipDim=on?0:1; n._chipHot=on?1:0; n.style.setProperty('--cc', w.color||'var(--accent)'); });
   var c=(w.color&&w.color.indexOf('var(')<0)?E.tubeCol(w.color):(w.color||'var(--accent)');
-  var used={}, d='', n=bs.length; S.cbox=null;
+  var used={}, d='', n=bs.length, legs=[]; S.cbox=null; S.tourLegs=[]; S.tourCol=c; S.tourName=w.name||'Filter';
   bs.forEach(function(b){ var L=E.lot(P.at[b]); if(L){ var r=Math.max(L[2],L[3]); S.cbox=joinBox(S.cbox,[L[0]-r,L[1]-r,L[0]+r,L[1]+r]); } });
   if(cr && T && n>1){ var order=tour(bs), pathPts=[], g=bigG();
-    var A0=E.lot(P.at[order[0]]); d='M'+A0[0]+' '+A0[1];
-    for(var i=0;i+1<order.length;i++){ var A=E.lot(P.at[order[i]]), B=E.lot(P.at[order[i+1]]), r=dijk(E.entrance(order[i]), E.entrance(order[i+1]));
-      if(!r){ d+='L'+B[0]+' '+B[1]; continue; }
-      r.forEach(function(q,k){ d+='L'+g.X[q]+' '+g.Y[q]; if(k>0 && g.lid[q] && g.lid[q]===g.lid[r[k-1]]) used[g.lid[q]]=1; });
-      d+='L'+B[0]+' '+B[1]; }
-    S.cbox=joinBox(S.cbox, boxOf(d));
+    var A0=E.lot(P.at[order[0]]); d='M'+A0[0]+' '+A0[1]; legs=[];
+    for(var i=0;i+1<order.length;i++){ var A=E.lot(P.at[order[i]]), B=E.lot(P.at[order[i+1]]), r=dijk(E.entrance(order[i]), E.entrance(order[i+1])), tail='', lu={};
+      if(!r){ tail='L'+B[0]+' '+B[1]; }
+      else { r.forEach(function(q,k){ tail+='L'+g.X[q]+' '+g.Y[q]; if(k>0 && g.lid[q] && g.lid[q]===g.lid[r[k-1]]){ used[g.lid[q]]=1; lu[g.lid[q]]=1; } });
+        tail+='L'+B[0]+' '+B[1]; }
+      d+=tail; legs.push({a:order[i], b:order[i+1], d:'M'+A[0]+' '+A[1]+tail, lines:Object.keys(lu), color:c}); }
+    S.cbox=joinBox(S.cbox, boxOf(d)); S.tourLegs=legs;
     el('path',{'class':'pl-crt case', d:d},cr); el('path',{'class':'pl-crt base', d:d, stroke:c},cr); el('path',{'class':'pl-crt sh', d:d},cr); el('path',{'class':'pl-crt tk', d:d},cr); }
   if(pill){ var ul=Object.keys(used).map(lineOf).filter(Boolean);
-    pill.style.setProperty('--cc', c); pill.innerHTML='<i></i><span><b>'+esc(w.name||'Filter')+'</b> · '+n+' building'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'; pill.classList.add('on'); }
+    pill.style.setProperty('--cc', c); pill.innerHTML='<i></i><span><b>'+esc(w.name||'Filter')+'</b> · '+n+' building'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
+    +(!S.chipH && S.tourLegs.length?'<button class="tr-b" type="button" data-trip="chip">Ride this route \u25b6</button>':''); pill.classList.add('on'); }
   S.uT=used; paintUsed();
 }
 function chipRefresh(){
@@ -417,7 +443,7 @@ function relKeys(){ var k=[]; document.querySelectorAll('.line-key-btn[data-rel-
 function renderRel(){
   var svg=E.svg(); if(!svg || !T) return; var P=E.P, rr=svg._rr;
   if(!rr || rr.parentNode!==svg){ rr=svg._rr=el('g',{'class':'pl-relrt'},svg); svg.insertBefore(rr, svg._tst||null); }
-  rr.innerHTML=''; S.uR={}; S.rbox=null;
+  rr.innerHTML=''; S.uR={}; S.rbox=null; S.relLegs=[];
   var pill=document.getElementById('pal-relrt'), keys=relKeys();
   if(!keys.length || !E.palaceOn() || typeof CONNECTIONS==='undefined'){ if(pill) pill.classList.remove('on');
     if(!holds()) document.querySelectorAll('#world .node').forEach(function(nd){ if(nd._relMark){ nd._relMark=0; nd.classList.remove('pal-hot','pal-dim'); } });
@@ -425,15 +451,71 @@ function renderRel(){
   var seen={}, ends={}, n=0, rl=(typeof REL_LABELS!=='undefined')?REL_LABELS:{};
   CONNECTIONS.forEach(function(c){ if(keys.indexOf(c[2])<0) return; var a=E.bOf(c[0]), b=E.bOf(c[1]); if(a===b || !E.isB(a) || !E.isB(b)) return;
     var id=(a<b?a+'|'+b:b+'|'+a)+'|'+c[2]; if(seen[id]) return; seen[id]=1;
-    var d=routeD(a,b,S.uR); if(!d) return; S.rbox=joinBox(S.rbox, boxOf(d)); var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
+    var lu={}, d=routeD(a,b,lu); if(!d) return; Object.keys(lu).forEach(function(k){ S.uR[k]=1; }); S.rbox=joinBox(S.rbox, boxOf(d)); var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[c[2]])||'var(--accent)';
+    S.relLegs.push({a:a, b:b, d:d, lines:Object.keys(lu), color:(col.indexOf('var(')<0?E.tubeCol(col):col), label:rl[c[2]]||c[2]});
     el('path',{'class':'pl-crt case', d:d},rr); el('path',{'class':'pl-crt base', d:d, stroke:col},rr); el('path',{'class':'pl-crt tk', d:d},rr); ends[a]=1; ends[b]=1; n++; });
   if(!holds()){ document.querySelectorAll('#world .node').forEach(function(nd){ var on=!!ends[E.bOf(nd.id.slice(5))]; nd.classList.toggle('pal-hot', on); nd.classList.toggle('pal-dim', !on); nd._relMark=1; }); }
   if(!pill){ pill=document.createElement('div'); pill.id='pal-relrt'; document.body.appendChild(pill); }
   var ul=Object.keys(S.uR).map(lineOf).filter(Boolean);
   pill.style.setProperty('--cc', 'var(--accent)'); pill.classList.toggle('above', !!document.getElementById('pal-chiprt') && document.getElementById('pal-chiprt').classList.contains('on'));
-  pill.innerHTML='<i></i><span><b>'+keys.map(function(k){ return esc(rl[k]||k); }).join(' + ')+'</b> · '+n+' route'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>';
+  pill.innerHTML='<i></i><span><b>'+keys.map(function(k){ return esc(rl[k]||k); }).join(' + ')+'</b> · '+n+' route'+(n===1?'':'s')+(ul.length?' · rides '+ul.map(function(l){ return esc(l.n); }).join(', '):'')+'</span>'
+    +(S.relLegs.length?'<button class="tr-b" type="button" data-trip="rel">Ride \u25b6</button>':'');
   pill.classList.add('on'); paintUsed();
 }
+
+/* ── riding a filter's route: a guided trip, building to building along the drawn route ──
+   The camera follows a rider along each leg; the panel names where you are and where you go next. */
+var tripRaf=0, tripTimer=0;
+function nameOf(id){ return E.name?E.name(id):id; }
+function stopAnim(){ cancelAnimationFrame(tripRaf); tripRaf=0; clearTimeout(tripTimer); tripTimer=0; }
+function riderG(){ var svg=E.svg(); if(!svg) return null; var g=svg._rd; if(!g || g.parentNode!==svg){ g=svg._rd=el('g',{'class':'pl-rd'},svg); } svg.appendChild(g); return g; }
+function markCur(id){ document.querySelectorAll('#world .node.pal-trip-cur').forEach(function(n){ n.classList.remove('pal-trip-cur'); });
+  var n=id!=null?document.getElementById('node-'+E.bOf(id)):null; if(n){ n.classList.add('pal-trip-cur'); n.style.setProperty('--cc', (S.trip&&S.trip.color)||'var(--accent)'); } }
+function endTrip(){ if(!S.trip && !tripRaf) return; stopAnim(); S.trip=null; document.documentElement.classList.remove('pal-tripping'); markCur(null);
+  var svg=E&&E.svg(); if(svg && svg._rd) svg._rd.innerHTML=''; }
+function startTrip(kind){
+  var L=((kind==='rel'?S.relLegs:S.tourLegs)||[]).slice(); if(!L.length || !E) return;
+  S.portal=null; S.line=null; S.stop=null; S.ride=null; stopAnim();
+  S.trip={legs:L, at:-1, kind:kind, color:kind==='rel'?L[0].color:S.tourCol, name:kind==='rel'?'Routes':S.tourName, auto:false, busy:false, x:0, y:0};
+  document.documentElement.classList.add('pal-tripping');
+  var A=E.lot(E.P.at[L[0].a]); if(A){ S.trip.x=A[0]; S.trip.y=A[1]; E.flyMap(A[0], A[1], Math.max(E.Z(), .9), function(){ rider(A[0], A[1]); }); }
+  markCur(L[0].a); paint(); }
+function rider(x, y){ var g=riderG(); if(!g || !S.trip) return null; var o=g.querySelector('.pl-rider-o');
+  if(!o){ var inner=E.pin(g, 'pl-rider-o', x, y); o=inner.parentNode; var c=el('g',{'class':'pl-rider'},inner); c.style.setProperty('--rc', S.trip.color||'#888');
+    el('circle',{'class':'rd-o', r:11},c); el('circle',{'class':'rd-i', r:4},c); }
+  o.setAttribute('transform','translate('+x+' '+y+')'); o.firstChild.firstChild.style.setProperty('--rc', S.trip.color||'#888'); return o; }
+function animLeg(leg, rev, done){
+  var g=riderG(); if(!g){ done(); return; }
+  var p=el('path',{d:leg.d, fill:'none', stroke:'none'}, g), len=p.getTotalLength(); if(!(len>0)){ p.remove(); done(); return; }
+  var reduce=window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, ms=reduce?1:Math.max(1000, Math.min(4200, 800+len/5)), t0=performance.now();
+  S.trip.busy=true;
+  (function frame(t){ if(!S.trip){ p.remove(); return; }
+    var k=Math.min(1,(t-t0)/ms), e=k*k*(3-2*k), q=p.getPointAtLength((rev?1-e:e)*len);
+    rider(q.x, q.y); S.trip.x=q.x; S.trip.y=q.y; if(E.center) E.center(q.x, q.y);
+    if(k<1) tripRaf=requestAnimationFrame(frame); else { tripRaf=0; p.remove(); S.trip.busy=false; done(); } })(t0);
+}
+function tripStep(d){
+  var T0=S.trip; if(!T0 || T0.busy || !d) return; var L=T0.legs;
+  if(d>0){ var nx=L[T0.at+1]; if(!nx){ T0.auto=false; paint(); return; }
+    var go=function(){ T0.color=nx.color||T0.color; animLeg(nx, false, function(){ T0.at++; markCur(nx.b); paint(); if(T0.auto) tripTimer=setTimeout(function(){ tripStep(1); }, 650); }); };
+    var here=T0.at<0?L[0].a:L[T0.at].b;
+    if(nx.a!==here){ var A=E.lot(E.P.at[nx.a]); if(A){ T0.busy=true; E.flyMap(A[0], A[1], Math.max(E.Z(), .9), function(){ T0.busy=false; rider(A[0], A[1]); markCur(nx.a); go(); }); return; } }
+    go(); }
+  else { if(T0.at<0) return; var lg=L[T0.at]; T0.auto=false; animLeg(lg, true, function(){ T0.at--; markCur(T0.at<0?L[0].a:L[T0.at].b); paint(); }); }
+}
+function tripAuto(){ var T0=S.trip; if(!T0) return; T0.auto=!T0.auto; paint(); if(T0.auto && !T0.busy) tripStep(1); }
+function paintTrip(p){
+  var T0=S.trip, L=T0.legs, at=T0.at, here=at<0?L[0].a:L[at].b, nx=L[at+1], rel=T0.kind==='rel', c=(nx&&nx.color)||T0.color||'#888', n=rel?L.length:L.length+1;
+  var linesOn=function(ids){ return (ids||[]).map(lineOf).filter(Boolean).map(function(l){ return esc(l.n); }).join(', '); };
+  p.style.setProperty('--tc', c);
+  p.innerHTML='<div class="tr-h"><span class="tr-sw" style="background:'+c+'"></span>'+esc(T0.name)+'<span class="tr-x" data-a="x" role="button" aria-label="Close">\u2715</span></div>'
+    +'<div class="tr-sub">'+(rel?(at<0?'Riding '+n+' route'+(n===1?'':'s')+' \u00b7 not started':'Route '+(at+1)+' of '+n):'Stop '+(at+2)+' of '+n).replace('Stop 1 of','Start \u00b7 stop 1 of')+'</div>'
+    +'<div style="font-size:15px;font-weight:800;margin-bottom:3px">'+esc(nameOf(here))+'</div>'
+    +(nx?'<div class="tr-sub" style="margin:0 0 6px">'+(rel?esc(nx.label||'Next')+': '+esc(nameOf(nx.a))+' \u2192 '+esc(nameOf(nx.b)):'Next: '+esc(nameOf(nx.b)))+(nx.lines&&nx.lines.length?' \u00b7 rides '+linesOn(nx.lines):' \u00b7 on foot')+'</div>':'<div class="tr-sub" style="margin:0 0 6px">End of the route</div>')
+    +'<div class="tr-btns"><button class="tr-b" data-a="tprev" '+(at<0||T0.busy?'disabled':'')+'>\u25c0</button><button class="tr-b go" data-a="tnext" '+(!nx||T0.busy?'disabled':'')+'>'+(nx?(rel?'Next route':'Next stop')+' \u25b6':'End')+'</button>'
+    +(nx?'<button class="tr-b" data-a="tauto">'+(T0.auto?'Pause':'Ride it all')+'</button>':'')+'</div>'
+    +'<div class="tr-sub" style="margin:7px 0 0">\u2190 \u2192 step along \u00b7 Space rides it all \u00b7 Esc to get off</div>';
+  p.classList.add('on'); }
 /* ── pointing and clicking ── */
 function chipOf(t){ var b=t.closest && t.closest('#nav .nav-btn'); if(!b) return null;
   var m=/showDetail\('[a-z]+','([^']+)'\)/.exec(b.getAttribute('onclick')||''); return (m && chipNodes(m[1]))?m[1]:null; }
@@ -456,13 +538,16 @@ function bind(){
   });
   document.addEventListener('click', function(e){
     if(!E || !T || !E.palaceOn()) return;
+    var tb=e.target.closest && e.target.closest('[data-trip]'); if(tb){ e.stopPropagation(); e.preventDefault(); startTrip(tb.getAttribute('data-trip')); return; }
     var kr=e.target.closest && e.target.closest('.pk-row[data-tl]'); if(kr){ e.stopPropagation(); pickLine(kr.getAttribute('data-tl')); return; }
     var ph=e.target.closest && e.target.closest('#palace-svg .pl-portal'); if(ph){ e.stopPropagation(); e.preventDefault(); tipAt(''); takePortal(+ph.getAttribute('data-po'), ph); return; }
     var sh=e.target.closest && e.target.closest('#palace-svg .pl-stn-hit'); if(sh){ e.stopPropagation(); e.preventDefault(); tipAt(''); var i=+sh.getAttribute('data-s'); S.line=null; pickStop(i, true); return; }
     var lh=e.target.closest && e.target.closest('#palace-svg .pl-tl-hit'); if(lh){ e.stopPropagation(); e.preventDefault(); tipAt(''); pickLine(lh.getAttribute('data-l')); return; }
   }, true);
   window.addEventListener('keydown', function(e){
-    if(!S.ride || !E || e.metaKey || e.ctrlKey || e.altKey) return; var t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
+    if((!S.ride && !S.trip) || !E || e.metaKey || e.ctrlKey || e.altKey) return; var t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
+    if(S.trip){ var kt=e.key, dt=(kt==='ArrowRight'||kt==='ArrowDown')?1:(kt==='ArrowLeft'||kt==='ArrowUp')?-1:0;
+      if(dt){ e.preventDefault(); e.stopImmediatePropagation(); tripStep(dt); } else if(kt===' '){ e.preventDefault(); e.stopImmediatePropagation(); tripAuto(); } else if(kt==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); clear(); } return; }
     var k=e.key, d=(k==='ArrowRight'||k==='ArrowDown')?1:(k==='ArrowLeft'||k==='ArrowUp')?-1:0;
     if(d && S.ride){ d=arrowDir(k, d); }
     if(d){ e.preventDefault(); e.stopImmediatePropagation(); step(d); } else if(k==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); clear(); } }, true);
@@ -474,7 +559,7 @@ function bind(){
     if(!fresh || !E){ chipRefresh(); renderRel(); return; }
     S.flySig=sig;
     E.leave(function(){
-      S.portal=null; S.line=null; S.stop=null; S.ride=null; paint();         /* a picked line gives way to the filter's route */
+      endTrip(); S.portal=null; S.line=null; S.stop=null; S.ride=null; paint();         /* a picked line gives way to the filter's route */
       chipRefresh(); renderRel();
       var box=joinBox(S.cbox, S.rbox);                                       /* the route itself, not the whole length of every line it rides */
       if(box) fitLines([], [box[0]-60, box[1]-60, box[2]+60, box[3]+60]);
@@ -483,7 +568,7 @@ function bind(){
   window.addEventListener('click', function(e){ if(!E || !T) return; if(e.target.closest && e.target.closest('#ef-panel')) setTimeout(renderRel, 40); }, true);
 }
 function ready(){ bind(); chipRefresh(); renderRel(); }
-window._palTr={init:init, has:has, lines:lines, stations:stations, hits:hits, keyHtml:keyHtml, holds:holds, ready:ready, redraw:function(){ paint(); renderChip(); renderRel(); },
+window._palTr={init:init, has:has, lines:lines, stations:stations, portals:portals, hits:hits, keyHtml:keyHtml, holds:holds, ready:ready, redraw:function(){ endTrip(); paint(); renderChip(); renderRel(); },
   state:function(){ return S; }, nodeNear:function(x,y){ return E.nearest(x,y,1,600); }, ridden:function(p){ var g=bigG(), u={}; p.forEach(function(q,k){ if(k>0 && g.lid[q] && g.lid[q]===g.lid[p[k-1]]) u[g.lid[q]]=1; }); return Object.keys(u); }, ride:ride, pickStop:pickStop, pickLine:pickLine, route:function(a,b){ return dijk(a,b); }, clear:clear};
 })();
 """

@@ -959,7 +959,9 @@ function route(a,b){
 var ENT={};
 function entrance(id){ var L=lot(P.at[bOf(id)]); if(!L) return -1; var k=P.at[bOf(id)]; if(ENT[k]==null) ENT[k]=nearest(L[0],L[1],1,300); return ENT[k]; }
 /* the real transit (palace_transit_js.py) is given the palace's own parts */
-window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z){ flyAway(x,y,z); }, leave:leaveBoard,
+window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z,done){ flyAway(x,y,z,done); }, leave:leaveBoard,
+  center:function(x,y){ var cv=document.getElementById('canvas'); if(!cv) return; if(PV) placeAll(); cv.scrollLeft=(x+MX)*Z+gapAt(Z,cv.clientWidth)-cv.clientWidth/2; cv.scrollTop=(y+MY)*Z+gyAt(Z,cv.clientHeight)-cv.clientHeight/2; },
+  name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
 window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
 window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
@@ -1118,10 +1120,11 @@ function tube(parent, d, col, w, op, cls){
    (before the invisible hit paths and the hover pill), however late something else is added to the map */
 function stackLayers(svg){
   var lm=svg.querySelector(':scope > .pl-lms'), bl=svg.querySelector(':scope > .pl-blds'), ts=svg.querySelector(':scope > .pl-tstns'); if(!lm || !bl) return;
-  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov'); }), n=ch.length;
+  var ch=[].filter.call(svg.children, function(c){ return !c.matches('.pl-route-hits,.pl-tr-hits,.pl-hov,.pl-portals'); }), n=ch.length;
   if(ch[n-2]===lm && ch[n-1]===bl && (!ts || ch[n-3]===ts)) return;
   if(ts) svg.appendChild(ts);                       /* the stations over the highways and street names, under the landmarks */
   svg.appendChild(lm); svg.appendChild(bl);
+  [].forEach.call(svg.querySelectorAll(':scope > .pl-portals'), function(h){ svg.appendChild(h); });      /* the airport portals ride over the buildings they stand on */
   [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
 function drawCity(svg){
   if(!svg._stk){ svg._stk=new MutationObserver(function(){ stackLayers(svg); }); svg._stk.observe(svg,{childList:true}); }
@@ -1283,6 +1286,7 @@ function drawCity(svg){
   M.streets.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hits); h._n=s.n; });
   window._palTr.hits(svg);
   window._palHw.hits(svg);
+  window._palTr.portals(svg);                  /* the airport portals, over the stations' buildings (palace_transit_js.py) */
   svg._b=bg; svg._r=route;
   drawBuildings(svg);
   sizeChips(svg);
@@ -1448,6 +1452,7 @@ function pvSet(z, sxT, syT){
   clearTimeout(pvTimer); pvTimer=setTimeout(function(){ if(PV) placeAll(); }, 160);
 }
 function placeAll(){
+  var cvh=document.getElementById('canvas'); if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;   /* hidden under a detail page: laid out when it closes */
   if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
     if(w) w.style.transform='';
     placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
@@ -1735,9 +1740,11 @@ window.addEventListener('keydown', function(e){
 document.addEventListener('mouseout', function(e){ if(!e.relatedTarget){ clearTimeout(tipT); labelB(null); lit(null); } });
 /* a click on a building enlarges it (the map comes closer first); a double click goes inside: the second click of the pair
    (it lands on the rising card, its ghost, or the moving map) never toggles anything, it opens the building's page */
+/* a building's page opened while the glide to it was still running (a double-click) must not let that glide land on the hidden board */
+var flyId=null, pendEnl=null, holdView=null;
 function enlarge(id){
   var L=lot(P.at[id]); if(!L) return; labelB(null); closeDock();
-  if(Z<.85) flyMap(L[0], L[1], 1.05, function(){ window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); });
+  if(Z<.85){ flyId=id; flyMap(L[0], L[1], 1.05, function(){ flyId=null; if(de.classList.contains('detail-open')){ pendEnl=id; return; } window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); }); }
   else { window.enterFocus(id); setTimeout(function(){ drawRoutes(svgD, id); }, 30); }
 }
 document.addEventListener('click', function(e){
@@ -1850,6 +1857,28 @@ document.addEventListener('dblclick', function(e){
 function wrapFocus(){ var _ef=window.enterFocus; if(!_ef || _ef._pal) return;
   window.enterFocus=function(id){ if(P.of[id] && !mob()){ return window.showDetail('node', id); } return _ef.apply(this, arguments); }; window.enterFocus._pal=1; }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, wrapFocus); });
+/* The board is not under the window while a detail page is open (the canvas is display:none: no size, no scroll). So the view is
+   settled and remembered before the page opens, nothing is laid out against the hidden canvas, and the view is put back, laid out
+   for real, when the page closes — else the map came back scrolled to its empty top-left corner. */
+function wrapDetail(){ var sd=window.showDetail, st=window.showTimeline; if(!sd || !st || sd._pal) return;
+  window.showDetail=function(){
+    if(!mob() && de.classList.contains('alto-palace') && !de.classList.contains('detail-open')){
+      var cv=document.getElementById('canvas');
+      if(flyId){ pendEnl=flyId; flyId=null; }
+      cancelAnimationFrame(zAnim);
+      if(cv && cv.clientWidth){ if(PV) placeAll(); holdView={z:Z, x:cv.scrollLeft, y:cv.scrollTop}; }
+    }
+    return sd.apply(this, arguments); };
+  window.showDetail._pal=1;
+  window.showTimeline=function(){
+    var r=st.apply(this, arguments), hv=holdView, pe=pendEnl; holdView=null; pendEnl=null;
+    if(!mob() && de.classList.contains('alto-palace')){
+      if(hv){ Z=hv.z; placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=hv.x; cv.scrollTop=hv.y; } if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z; }
+      if(pe && !window._focusedNodeId) setTimeout(function(){ if(!de.classList.contains('detail-open')) enlarge(pe); }, 60);
+    }
+    return r; };
+  window.showTimeline._pal=1; }
+['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, wrapDetail); });
 document.addEventListener('alto-focus-exit', function(){ drawRoutes(svgD, null); });
 /* arrows while a building is enlarged: to the nearest building that way */
 window._altoPalaceNav=function(id, dir){
