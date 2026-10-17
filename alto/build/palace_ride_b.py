@@ -62,8 +62,10 @@ function addProps(M, props, polesOf){
       for(var s=sec.s0; s<sec.s1; s+=80){ pathAt(D,s,tmp); var h2=headAt(D,s,14), px=tmp.x-Math.sin(h2)*9, py=tmp.y+Math.cos(h2)*9; props.push(solid(boxRing(px-.45,py-.45,px+.45,py+.45), 9, [72,76,88], 'pole')); polesOf.push([tmp.x,tmp.y,s]); } }
   });
 }
-function gather(M){
-  var D=M.D, set=nearCells(D, 3), W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:M.secs.some(function(s){ return s.ug.length; })};
+function gather(M){ return gatherWorld(nearCells(M.D, 3), M); }
+/* the world inside the cells of `set` ("cx,cy" of CELL units): M is the ride's model (its path, ends and stops) or null for free roaming */
+function gatherWorld(set, M){
+  var W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:M?M.secs.some(function(s){ return s.ug.length; }):false, set:set, scenery:null, meshes:[], movers:[]};
   var P=E.P, Mp=E.M, i, k;
   /* tiles: the blocks the streets run between (the gaps are the roads) */
   var SW=STREET_HW, edgeSeen={}; W.dashes=[];
@@ -76,20 +78,21 @@ function gather(M){
   W.rivers=(Mp.river||[]);
   var hw=Mp.hw&&Mp.hw.roads||[]; hw.forEach(function(r){ var p=r.p||[]; for(i=0;i+3<p.length;i+=2){ var mx=(p[i]+p[i+2])/2, my=(p[i+1]+p[i+3])/2; if(inSet(set,mx,my)) W.roads.push({x0:p[i],y0:p[i+1],x1:p[i+2],y1:p[i+3],w:30,cx:mx,cy:my,r:Math.hypot(p[i+2]-p[i],p[i+3]-p[i+1])/2+15}); } });
   /* buildings: the user's own, as glass blocks on their lots; landmarks; the fill-in */
-  var seen={}, hot={}; if(M.a!=null) hot[E.bOf(M.a)]=1; if(M.b!=null) hot[E.bOf(M.b)]=1;
+  var seen={}, hot={}; if(M&&M.a!=null) hot[E.bOf(M.a)]=1; if(M&&M.b!=null) hot[E.bOf(M.b)]=1;
   Object.keys(P.at||{}).forEach(function(id){ if(E.bOf(id)!==id) return; var key=P.at[id]; if(seen[key]) return; seen[key]=1; var L=E.lot(key); if(!L) return; if(!inSet(set,L[0],L[1])) return;
     var tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*VEX, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dark()?[150,162,200]:[255,255,255], dark()?.30:.5), s=solid(turnedRing(L), h, gc, 'node', E.name(id));
     s.hot=!!hot[id]; s.id=id; s.col2=E.ucol(id); W.solids.push(s); });
-  (Mp.landmarks||[]).forEach(function(l){ if(!l.box) return; var cx=(l.box[0]+l.box[2])/2, cy=(l.box[1]+l.box[3])/2; if(!inSet(set,cx,cy)) return; lmSolids(l, W.solids, (P.lmtop||{})[l.n]||30); });
+  (Mp.landmarks||[]).forEach(function(l){ if(!l.box) return; var cx=(l.box[0]+l.box[2])/2, cy=(l.box[1]+l.box[3])/2; if(!inSet(set,cx,cy)) return; landmarkMeshes(l, (P.lmtop||{})[l.n]||30, W); });
   var FG=E.fillGroups?E.fillGroups():null, cnt=0, CAP=2600;
   if(FG){ for(var lv=4;lv>=1;lv--){ var G=FG[lv]||{}; Object.keys(G).forEach(function(key){ var C=G[key]; Object.keys(C.u).forEach(function(u){ var base=rgbOf(E.tubeCol(E.dcol(u==='null'?null:+u)||E.NEUTRAL()));
       var gc=mixC(base, dark()?[150,162,200]:[255,255,255], dark()?.34:.58);
       C.u[u].forEach(function(s){ if(cnt>=CAP) return; var b=s.b; var cx=(b[0]+b[2])/2, cy=(b[1]+b[3])/2; if(!inSet(set,cx,cy)) return;
         var hh=s.h>0?s.h*22+8:(lv>=4?16+hashXY(cx,cy)*14:lv===3?24+hashXY(cx,cy)*30:40+hashXY(cx,cy)*50); var o=solid(s.p, hh*1.25, gc, 'fill', s.n); W.solids.push(o); cnt++; }); }); }); } }
   /* the targets of a leg: a name floating over each end */
-  [M.a, M.b].forEach(function(id,ix){ if(id==null) return; var L=E.lot(P.at[E.bOf(id)]); if(L) W.labels.push({x:L[0], y:L[1], z:(E.nbH(E.bOf(id))*VEX)+14, text:E.name(id), col:E.ucol(E.bOf(id)), end:ix}); });
-  addProps(M, W.props, W.poles);
+  if(M) [M.a, M.b].forEach(function(id,ix){ if(id==null) return; var L=E.lot(P.at[E.bOf(id)]); if(L) W.labels.push({x:L[0], y:L[1], z:(E.nbH(E.bOf(id))*VEX)+14, text:E.name(id), col:E.ucol(E.bOf(id)), end:ix}); });
+  if(M) addProps(M, W.props, W.poles);
   W.solids=W.solids.concat(W.props);
+  sceneryGather(W, set);
   return W; }
 
 /* ── the camera and the 3D drawing ── */

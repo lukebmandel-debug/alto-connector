@@ -23,8 +23,13 @@ from .palace_ride_a import JS_A
 from .palace_ride_b import JS_B
 from .palace_ride_c import JS_C
 from .palace_ride_d import JS_D
+from .palace_ride_e import JS_E, CSS_E
+from .palace_ride_f import JS_F, CSS_F
+from .palace_ride_g import JS_G, CSS_G
+from .palace_ride_h import JS_H
+from .palace_ride_mesh import JS_MB
 
-RIDE_CSS = r"""
+RIDE_CSS_MAIN = r"""
   #pal-ride{position:fixed;left:0;top:0;right:0;bottom:0;z-index:399;background:#05060a;opacity:0;pointer-events:none;transition:opacity .28s ease;}
   #pal-ride.on{opacity:1;pointer-events:auto;}
   #pal-ride .pr-cv{position:absolute;left:0;top:0;width:100%;height:100%;display:block;}
@@ -46,6 +51,8 @@ RIDE_CSS = r"""
   @media (prefers-reduced-motion: reduce){#pal-ride{transition:none;}}
 """
 
+RIDE_CSS = RIDE_CSS_MAIN + CSS_E + CSS_F + CSS_G
+
 _API = r"""
 function init(e){ E=e; RIDE_M=null; if(!init.done){ init.done=1; bind(); } return true; }
 function stats(){ var a=(R.samples||[]).slice().sort(function(p,q){ return p-q; }), n=a.length; return {avg:R.ms, worst:R.worst, frames:R.frames, n:n, p50:n?a[n>>1]:0, p95:n?a[Math.min(n-1,Math.floor(n*.95))]:0, max:n?a[n-1]:0}; }
@@ -61,10 +68,10 @@ function bench(n){ var M=R.M; if(!M) return null; R.quiet=1; var t=[], ctx=R.ctx
   t.sort(function(p,q){ return p-q; }); return {n:n, avg:t.reduce(function(p,q){ return p+q; },0)/n, p50:t[n>>1], p95:t[Math.floor(n*.95)], max:t[n-1], w:R.w, h:R.h, dpr:R.dpr}; }
 function play(){ if(R.M){ R.playing=true; kick(); } }
 function pause(){ R.playing=false; }
-window._palRide={init:init, leg:leg, lineEnter:lineEnter, lineStep:lineStep, exit:exit, mark:mark, switchHtml:switchHtml, toggle:toggle,
+window._palRide={roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(typeof UIX!=='undefined'?UIX:null), mb:MB, init:init, leg:leg, lineEnter:lineEnter, lineStep:lineStep, exit:exit, mark:mark, switchHtml:switchHtml, toggle:toggle,
   active:function(){ return R.active; }, pref:pref, setPref:function(v){ setPref(v); labelBtns(); }, stats:stats, resetStats:resetStats, demo:demo, simTo:simTo, bench:bench, play:play, pause:pause,
   model:function(){ return R.M; }, time:function(){ return R.t; }, flash:function(){ return {RING_HZ:RING_HZ, MAX_FLASH_HZ:MAX_FLASH_HZ, BAR_HZ:BAR_HZ, HUE_DPS:HUE_DPS}; }, build:buildModel,
   canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; }};
 """
 
-RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_B + JS_C + JS_D + _API + "})();\n"
+RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + JS_A + JS_MB + JS_B + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + _API + "})();\n"

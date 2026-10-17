@@ -67,7 +67,7 @@ function drawCity(ctx, W, H, P, Wd, yaw, tm, way){
   drawSky(ctx, W, H, P, yaw, tm);
   drawGround(ctx, Wd, P, null, null);
   if(way) way();
-  if(Wd.scenery && window._palRide && window._palRide.sceneryDraw) window._palRide.sceneryDraw(ctx, Wd, P, C, tm);
+  if(Wd.scenery) sceneryDraw(ctx, Wd, P, C, tm);
   drawSolids(ctx, Wd.solids, P);
   drawLabels(ctx, Wd.labels, P, H/900);
   if(Wd.stopLabels) drawLabels(ctx, Wd.stopLabels, P, H/900);
