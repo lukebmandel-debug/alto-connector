@@ -1,53 +1,62 @@
-"""Going round a horizontal timeline (brief.mode "lanes"): step event to event.
+"""Going round a horizontal timeline (brief.mode "lanes"): guided travel with a magnetic settle.
 
 Luke (2026-10-16): the horizontal timeline should have "a bit more of an
 automatic feeling for going around it, as opposed to a free form where you can
-scroll wherever you want." So the page is a sequence of STOPS and every way of
-moving — the wheel, a trackpad swipe, a touch swipe, ← / →, Space / PageDown —
-moves one stop along it, with the camera gliding there on the engine's own curve.
+scroll wherever you want". The first answer (1.9.88: every gesture one event,
+locked out until it landed) was, in his words, "too rigid to navigate now". So
+this is the middle: the camera moves as freely and as far as the hand says, but
+only ALONG the story, and when the hand stops it comes to rest on an event.
 
-The stops are the main line's events in page order (the order the story tells
-them: ACT_SEQS flattened), including the events of a flashback, so stepping
-runs down into a flashback's detour and back up out of it as the story does.
-An event on a character's own line (off the page) is reached with ↑ / ↓ or a
-click; a step from it goes on to its page-order neighbour on the main line.
-A timeline with no `present` and no flashbacks yet (a v1 brief) steps through
-every event in page order, since its side lines carry the story.
+The path: the main line's events in page order (ACT_SEQS flattened), each with
+the view it rests in — centred across; up and down the line kept where the main
+line sat when the page opened, moved only as far as it must to keep the card
+clear of the bars at the top and the rail at the bottom. Strung together they are
+the path. Across is the input: wheel, trackpad, a drag (mouse, pen, touch screen)
+move the camera along it one px for one; the height follows by itself, level at
+every event and easing between (so it dips into a flashback's past track and back
+up with the line). Up-and-down input is the same travel (a vertical wheel, a
+vertical drag); nobody scrolls the height by hand. A view off the path (a
+character's own event reached with ↑ / ↓, the page as it opens, a scrollbar)
+is carried as an offset that fades over the next few hundred px of travel.
+
+Inertia: a trackpad's own inertia tail is just more, smaller wheel events, so it
+is more travel, never a new gesture. A mouse notch moves about a third of the gap
+to the next event, chased smoothly; a fast spin adds up. A flung drag coasts and
+slows. Nothing is swallowed and nothing is locked out.
+
+The magnetic settle: SETTLE ms after the last movement the camera glides (the
+engine's curve, _altoEase) on to an event: the next one in the direction of
+travel once BIAS of the gap has been covered toward it (BIAS_MIN..BIAS_MAX px),
+otherwise back onto the one it came from / passed. Any input interrupts the settle
+where it is: a wheel takes over with the glide's speed, a hand stops it dead.
+Resting is exact: the canvas's own whole-px offsets (the engine's scroll axis).
+
+The deliberate steps stay: ← / → / Space / PageUp / PageDown / Home / End and the
+rail's buttons go exactly one event (each landing before the next, up to three
+waiting, like the engine's _hop). ↑ / ↓ go to the nearest event on the next line
+over (lanes.py). A click on a card enlarges it; Enter enlarges the current one.
 
 Character focus: clicking a character in the key, or its label on the page,
-keeps that line (lanes.py isolate) and stepping then visits only that
-character's events: its own and the ones it is on the page for. Click again,
-or Esc, for all of them again.
+keeps that line (lanes.py isolate) and the path is then only that character's
+events: its own and the ones it is on the page for. Click again, or Esc, for all.
+A timeline with no `present` and no flashbacks (a v1 brief) has every event on
+the path, in page order.
 
-The camera: the event is centred left to right; up and down it keeps the line
-the event sits on where the main line sat when the page opened, and moves only
-as far as it must to keep the card clear of the bars at the top and the nav
-rail at the bottom — so stepping along the main line never bobs, and it follows
-a flashback's dip down and back up. Resting is exact: the glide ends on the
-offset the canvas can really take (the engine's whole-px scroll axis).
+The rail: n / N (the nearest event while travelling, the one at rest when still),
+the flashback's name, a thumb that moves with the camera and can be dragged along
+the path, and the toggle for the whole timeline fitted to the window (clicking a
+spot there comes back down to the event nearest it).
 
-The whole timeline: a toggle on the rail fits the timeline to the window;
-clicking a spot there comes back down to the event nearest it. Dragging pans
-there (and the wheel), and in step mode only the rail's thumb or a deliberate
-drag of the background moves the view freely; the wheel never free-scrolls.
+Safari: the wheel is held (non-passive) on #canvas only; every scroll write goes
+through the engine's whole-px axis; the document never scrolls; #glass-slab is
+never resized (the whole timeline's backdrop is a fixed layer of its own).
+Phones keep the engine's card-by-card view and its swipe-peek: none of this runs
+there. prefers-reduced-motion: travel follows the hand with no smoothing, steps
+and settles jump.
 
-The wheel: a gesture (a run of wheel events with no pause) is one step. A
-mouse notch arrives on its own (nothing within NOTCH ms either side) and is a
-step each; a trackpad's stream steps once on its first TRAVEL px and then
-waits: its inertia tail can never step again. A second flick inside the same
-stream (its energy rising again) steps once the glide has landed plus GRACE.
-Steps wait their turn like the engine's arrow hops (_hop): up to three queued,
-a held key adds one at a time, so a burst never skips an event or piles up.
-
-Phones keep the engine's card-by-card view and its swipe-peek: none of this
-runs there. prefers-reduced-motion jumps instead of gliding.
-
-Geometry read from window._altoLanesGeo (lanes.py; agent B's drawing keeps
-it): x[id], y[id] (card centre, world px without WORLD_PAD_TOP), h[id], lines
-[{id, y, ev}], W, H, and (lanes v2 drawing) at[id] = {x, y, line, flash}: where
-the event sits on its line — the main line's dot, on a flashback's lowered past
-track, or on a character's track. Without `at` the event's own line's y is
-used (no dip for flashbacks).
+Geometry read from window._altoLanesGeo (lanes.py): x[id], y[id] (card centre,
+world px without WORLD_PAD_TOP), h[id], lines [{id, y, ev}], W, H, and at[id] =
+{x, y, line, flash}: where the event sits on its line.
 """
 
 NAV_CSS = """
@@ -78,8 +87,9 @@ NAV_CSS = """
   #lanes-nav.scrub .lnv-thumb{ cursor:grabbing; }
   .lnv-sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   html.mobile #lanes-nav, html.detail-open #lanes-nav, html.printing #lanes-nav, html.alto-editing #lanes-nav{ display:none !important; }
-  /* step mode: the camera goes event to event; nothing pans the board by itself */
+  /* the camera keeps to the path: nothing pans the board by itself */
   html.alto-lanes:not(.mobile):not(.alto-editing) #canvas{ touch-action:none; overscroll-behavior:none; }
+  html.alto-lanes:not(.mobile):not(.alto-editing) #canvas.ln-drag{ cursor:grabbing; }
   html.alto-lanes:not(.mobile) #world .node[data-ln] .node-card:focus{ outline:none; }
   html.alto-lanes:not(.mobile) #world .node[data-ln] .node-card:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; }
   /* the event the steps are on */
@@ -95,7 +105,12 @@ NAV_JS = r"""
 var L=window._ALTO_LANES; if(!L) return;
 var de=document.documentElement;
 if(de.classList.contains('mobile')) return;          // phones: the engine's card-by-card view and swipe-peek
-var NOTCH=40, GAP=120, LULL=320, TRAVEL=30, GRACE=110, SHORT=70, SPIKE=1.6, RETRAVEL=34, QMAX=3, OV_MIN=0.14;
+/* travel (see the docstring): the settle waits SETTLE ms of stillness; the wheel is chased
+   with TAU_CHASE; a flung drag coasts as far as TAU_FLING of its speed; the settle goes on to the next event
+   once BIAS of the gap (BIAS_MIN..BIAS_MAX px) is travelled toward it */
+var SETTLE=170, TAU_CHASE=55, TAU_FLING=330, FLING_MIN=.12, FLING_MAX=5, COAST_PW=2.5, OFFLEN=260, MINSEG=56,
+    BIAS=.12, BIAS_MIN=12, BIAS_MAX=48, NOTCH=.34, NOTCH_MIN=90, NOTCH_MAX=240, NOTCH_MS=260, SOFT=12, SFN=4.000244140625, LONE=40, GESTURE=120,
+    QMAX=3, OV_MIN=0.14;
 var RM=window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 function reduced(){ return !!(RM && RM.matches); }
 function cv(){ return document.getElementById('canvas'); }
@@ -184,6 +199,19 @@ function home(c, B){
   }
   return Math.max(B.t, Math.min(B.b, _home));
 }
+/* where the line rests: the opening height, moved (once, for every event alike) so that
+   the tallest card above its line and the deepest below it both fit between the bars and
+   the rail — then travelling along the main line never bobs up and down. Only if they
+   cannot all fit does each event's own card move the camera (the middle of the misfit) */
+var _fit=null;
+function fitHome(c, B, ids){
+  var G=geo(), up=0, dn=0;
+  ids.forEach(function(id){ var a=anchor(id), h=G.h[id]||120, top=(G.y[id]!=null?G.y[id]:a.y)-h/2;
+    up=Math.max(up, a.y-Math.min(a.y,top)); dn=Math.max(dn, Math.max(a.y,top+h)-a.y); });
+  var lo=B.t+up, hi=B.b-dn, h0=home(c,B);
+  return lo<=hi ? Math.max(lo,Math.min(hi,h0)) : (lo+hi)/2;
+}
+function lineHome(c, B){ if(_fit==null || _fit.t!==B.t || _fit.b!==B.b) _fit={t:B.t, b:B.b, y:fitHome(c,B,stops().ids)}; return _fit.y; }
 /* the scroll offsets that put this event where it rests */
 function camFor(id, B){
   var c=cv(), G=geo(), off=worldOff(c), P=PAD(), a=anchor(id);
@@ -192,56 +220,212 @@ function camFor(id, B){
   var tl=a.x+off.x-cw/2;
   var ay=a.y+P+off.y, h=G.h[id]||120, top=(G.y[id]!=null?G.y[id]:a.y)-h/2+P+off.y, bot=top+h;
   var lo=Math.min(ay,top), hi=Math.max(ay,bot);
-  var tt=ay-home(c,B);                          // the line stays where the main line has always been
+  var tt=ay-lineHome(c,B);                      // the line stays where the main line has always been
   if(hi-tt>B.b) tt=hi-B.b;                      // the card would run under the rail: up just enough
   if(lo-tt<B.t) tt=lo-B.t;                      // ... or under the bars (the top of the card wins)
   return {l:Math.max(0,Math.min(tl, c.scrollWidth-cw)), t:Math.max(0,Math.min(tt, c.scrollHeight-ch)), ml:c.scrollWidth-cw, mt:c.scrollHeight-ch};
 }
 
-/* rest on whole DEVICE pixels (CSS px x page zoom x dpr), so the cards come to rest crisp;
-   Safari's axis then takes the nearest offset it can really scroll to */
+/* ── the path: the stops' resting views strung together in page order ──────
+   The camera travels along it. Where it is along the path (u, px) is the only
+   thing the wheel, a drag or a fling change; across and up and down follow from
+   it: across moves with u one for one, up and down eases from one stop's rest
+   height to the next (smoothstep, so it is level at every stop and dips into a
+   flashback's past track and back up with the line). A view that is not on the
+   path (a character's own event, the page as it opened, a scrollbar drag) is an
+   offset (ox, oy) from the nearest point of the path, which fades out over the
+   next few hundred px of travel, so nothing ever jumps back onto the path. */
+var M={u:0, uT:0, pend:[], vel:0, ox:0, oy:0, raf:0, last:0, input:-1e9, dir:1, restU:0, restId:null, gl:null, drag:null, pth:null, wr:null, near:null, stale:false};
+function buildPath(){
+  var c=cv(), S=stops(), B=band(c), ids=S.ids, P=[], U=[], ml=0, mt=0;
+  _fit={t:B.t, b:B.b, y:fitHome(c,B,ids)};
+  for(var i=0;i<ids.length;i++){
+    var t=camFor(ids[i],B); ml=t.ml; mt=t.mt; P.push([t.l,t.t]);
+    U.push(i ? U[i-1]+Math.max(MINSEG, Math.abs(t.l-P[i-1][0])) : 0);
+  }
+  if(!ids.length){ ml=c.scrollWidth-c.clientWidth; mt=c.scrollHeight-c.clientHeight; }
+  return M.pth={ids:ids, P:P, U:U, end:U.length ? U[U.length-1] : 0, ml:ml, mt:mt};
+}
+function seg(u){ var U=M.pth.U, lo=0, hi=U.length-2; if(hi<0) return 0; while(lo<hi){ var m=(lo+hi+1)>>1; if(U[m]<=u) lo=m; else hi=m-1; } return lo; }
+function sm(f){ return f*f*(3-2*f); }
+function pathAt(u){
+  var p=M.pth, P=p.P; if(!P.length) return [cv().scrollLeft, cv().scrollTop]; if(P.length<2) return [P[0][0],P[0][1]];
+  var i=seg(u), a=P[i], b=P[i+1], f=Math.max(0,Math.min(1,(u-p.U[i])/(p.U[i+1]-p.U[i])));
+  return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*sm(f)];
+}
+function fracAt(u){ var U=M.pth.U; if(U.length<2) return 0; var i=seg(u); return i+Math.max(0,Math.min(1,(u-U[i])/(U[i+1]-U[i]))); }
+/* the point of the path nearest a view: across first, then height; ties go to the nearest u */
+function project(L,T){
+  var p=M.pth, P=p.P, U=p.U, n=P.length, best=0, bd=Infinity;
+  if(n<2) return 0;
+  for(var i=0;i<n-1;i++){
+    var a=P[i], b=P[i+1], dl=b[0]-a[0], fs=[0,1,.5];
+    if(Math.abs(dl)>.5) fs.push(Math.max(0,Math.min(1,(L-a[0])/dl)));
+    for(var j=0;j<fs.length;j++){
+      var u=U[i]+(U[i+1]-U[i])*fs[j], q=pathAt(u), d=Math.abs(q[0]-L)+.5*Math.abs(q[1]-T)+.001*Math.abs(u-M.u);
+      if(d<bd){ bd=d; best=u; }
+    }
+  }
+  return best;
+}
+function stopIx(id){ return M.pth ? M.pth.ids.indexOf(id) : -1; }
+/* take the camera from wherever the view is now */
+function resync(){
+  var c=cv(), L=axis('scrollLeft').at(), T=axis('scrollTop').at();
+  buildPath();
+  var k=stopIx(_cur), u=(k>=0 && _land && !moved(c)) ? M.pth.U[k] : project(L,T), q;
+  M.u=M.uT=u; q=pathAt(u); M.ox=L-q[0]; M.oy=T-q[1]; M.pend.length=0; M.vel=0;
+  M.wr=[c.scrollLeft, c.scrollTop]; M.near=null;
+}
+function invalidate(){ _fit=null; if(M.raf) M.stale=true; else M.pth=null; }
+function extMoved(){ var c=cv(); return !M.wr || Math.abs(c.scrollLeft-M.wr[0])>2 || Math.abs(c.scrollTop-M.wr[1])>2; }
+/* any input: the camera is taken from where it is, with no jump. A glide in flight
+   hands its speed on to the travel (grab: a hand on the board stops it dead) */
+function prepare(grab){
+  if(M.gl){
+    var g=M.gl; M.gl=null; if(g.step){ _busy=false; _q.length=0; }
+    M.uT=M.u+(grab||reduced() ? 0 : M.vel*TAU_CHASE);
+  } else if(!M.raf || !M.pth || extMoved()){
+    resync(); M.restU=M.u; M.restId=(_land && !moved(cv())) ? _cur : null;
+  }
+  if(grab){ M.pend.length=0; M.uT=M.u; }
+  de.classList.add('ln-stepped');
+}
+function clampU(u){ return Math.max(0, Math.min(M.pth.end, u)); }
+/* travel by d px; a notch's travel (soft) is let out over NOTCH_MS on a smooth (half-cosine)
+   ramp, so a mouse's discrete clicks still start and stop like a glide */
+function addTravel(d, soft){
+  if(!on() || _ov || window._focusedNodeId) return;
+  prepare(false); if(!d) return;
+  var now=performance.now();
+  M.dir=d>0?1:-1;
+  if(soft && !reduced()) M.pend.push({a:d, t0:now, f:0}); else M.uT=clampU(M.uT+d);
+  M.input=now; wake();
+}
+function release(now){
+  for(var i=M.pend.length-1;i>=0;i--){
+    var q=M.pend[i], p=Math.min(1,(now-q.t0)/NOTCH_MS), f=(1-Math.cos(Math.PI*p))/2;
+    M.uT=clampU(M.uT+q.a*(f-q.f)); q.f=f; if(p>=1) M.pend.splice(i,1);
+  }
+}
+function fade(du){ if(du){ var k=Math.exp(-Math.abs(du)/OFFLEN); M.ox*=k; M.oy*=k; if(Math.abs(M.ox)<.05) M.ox=0; if(Math.abs(M.oy)<.05) M.oy=0; } }
+function setU(u){ u=clampU(u); fade(u-M.u); M.u=M.uT=u; }
+function wake(){ if(!M.raf){ M.last=performance.now(); M.raf=requestAnimationFrame(tick); } }
+function stopLoop(){ if(M.raf) cancelAnimationFrame(M.raf); M.raf=0; M.gl=null; M.pend.length=0; M.uT=M.u; }
+/* write the view: through the engine's whole-px axis (Safari), only when it changes */
+var _drawn=null;
+function draw(){
+  var c=cv(), q=pathAt(M.u), L=Math.max(0,Math.min(M.pth.ml,q[0]+M.ox)), T=Math.max(0,Math.min(M.pth.mt,q[1]+M.oy));
+  if(_drawn && Math.abs(_drawn[0]-L)<.01 && Math.abs(_drawn[1]-T)<.01 && !extMoved()) return;
+  _drawn=[L,T]; axis('scrollLeft').go(L); axis('scrollTop').go(T); M.wr=[c.scrollLeft, c.scrollTop];
+}
+/* the rail and the ring follow the nearest event while travelling */
+function follow(){
+  var p=M.pth, U=p.U, n=U.length; if(!n) return;
+  var i=seg(M.u), k=(n>1 && M.u-U[i]>U[i+1]-M.u) ? i+1 : i, id=p.ids[k];
+  if(id!==M.near){ M.near=id; setCur(id); ui(id,0); }
+}
+function thumb(){ if(!R || !M.pth) return; var N=M.pth.ids.length, f=railFrac(fracAt(M.u),N); R.thumb.style.transition='none'; R.thumb.style.transform='translateX('+(f*R.rail.clientWidth).toFixed(2)+'px)'; }
+function tick(now){
+  M.raf=0;
+  var c=cv();
+  if(!c || !on() || _ov || window._focusedNodeId){ if(M.gl && M.gl.step){ _busy=false; _q.length=0; } M.gl=null; M.pend.length=0; return; }
+  if(M.stale && !M.drag){                                     // laid out again mid-travel: carry on from the view as it is
+    M.stale=false; var g0=M.gl; M.gl=null; resync();
+    if(g0){ glideTo(g0.id, {settle:g0.settle, step:g0.step}, g0.done); return; }
+  }
+  if(!M.pth) resync();
+  var dt=Math.max(1,Math.min(50,now-M.last)), u0=M.u; M.last=now;
+  if(M.gl){
+    var g=M.gl, p=g.ms>0 ? Math.max(0,Math.min(1,(now-g.s0)/g.ms)) : 1, k=g.pw ? 1-Math.pow(1-p,g.pw) : ease(p);
+    M.u=M.uT=g.u0+(g.u1-g.u0)*k; M.ox=g.ox0+(g.ox1-g.ox0)*k; M.oy=g.oy0+(g.oy1-g.oy0)*k; M.vel=(M.u-u0)/dt;
+    if(p>=1){ M.gl=null; land(g); return; }
+    draw(); thumb(); M.raf=requestAnimationFrame(tick); return;
+  }
+  {
+    if(M.pend.length) release(now);
+    var kk=(reduced() || M.drag) ? 1 : 1-Math.exp(-dt/TAU_CHASE), nu2=M.u+(M.uT-M.u)*kk;
+    if(Math.abs(M.uT-nu2)<.05) nu2=M.uT;
+    fade(nu2-M.u); M.u=nu2;
+  }
+  M.vel=(M.u-u0)/dt;
+  draw(); follow(); thumb();
+  var moving=!!M.drag || M.pend.length>0 || Math.abs(M.uT-M.u)>.05;
+  if(!moving && now-M.input>=SETTLE){ settle(); return; }
+  M.raf=requestAnimationFrame(tick);
+}
+/* the magnetic settle: input has stopped, so glide on to the nearest event, leaning the
+   way the travel went (BIAS of the gap, at least BIAS_MIN and at most BIAS_MAX px into it
+   is enough to go on to the next one; less eases back) */
+function pick(u, dir){
+  var p=M.pth, U=p.U, n=U.length; if(!n) return null;
+  if(u==null) u=M.u; if(dir==null) dir=M.dir;
+  if(M.restId && stopIx(M.restId)<0 && Math.abs(u-M.restU)<BIAS_MIN) return M.restId;   // barely moved off a character's event
+  if(n<2 || u<=U[0]) return p.ids[0]; if(u>=U[n-1]) return p.ids[n-1];
+  var i=seg(u), L=U[i+1]-U[i], into=u-U[i], th=Math.min(L/2, Math.max(BIAS_MIN, Math.min(BIAS_MAX, L*BIAS)));
+  if(dir>=0) return p.ids[into>=th ? i+1 : i];
+  return p.ids[(L-into)>=th ? i : i+1];
+}
+function settle(){
+  var id=pick(); if(!id){ M.raf=0; return; }
+  glideTo(id, {settle:true});
+}
+function settleMs(d){ return Math.round(Math.min(700, Math.max(380, 340+.6*d))); }
+/* glide the camera to an event along the path (on the engine's curve); done() when it rests */
+function glideTo(id, opt, done){
+  opt=opt||{};
+  var c=cv(); if(!c || !geo() || geo().x[id]==null){ if(done) done(); return; }
+  if(M.gl){ var gx=M.gl; M.gl=null; if(gx.step && !opt.step){ _busy=false; _q.length=0; } }
+  if(!M.raf || !M.pth || extMoved()) resync();
+  var k=stopIx(id), u1, ox1=0, oy1=0;
+  if(k>=0) u1=M.pth.U[k];
+  else { var t=camFor(id); u1=project(t.l,t.t); var q1=pathAt(u1); ox1=t.l-q1[0]; oy1=t.t-q1[1]; }
+  var q0=pathAt(M.u), q2=pathAt(u1), dx=(q2[0]+ox1)-(q0[0]+M.ox), dy=(q2[1]+oy1)-(q0[1]+M.oy), d=Math.sqrt(dx*dx+dy*dy);
+  var ms=(opt.instant || reduced() || d<.5) ? 0 : opt.ms ? opt.ms : (opt.settle ? settleMs(d) : glideMs(d));
+  setCur(id); M.near=id; _trust=true; M.pend.length=0;
+  var g={id:id, u0:M.u, u1:u1, ox0:M.ox, oy0:M.oy, ox1:ox1, oy1:oy1, s0:performance.now(), ms:ms, done:done, settle:!!opt.settle, step:!!opt.step, quiet:d<.5, pw:opt.pw||0};
+  if(!ms){ if(M.raf){ cancelAnimationFrame(M.raf); M.raf=0; } land(g); return; }
+  M.gl=g; wake(); ui(id,0);
+}
+/* at rest: exactly on the offset the canvas can really take, in whole device px */
+function land(g){
+  var c=cv(), qx=axis('scrollLeft'), qy=axis('scrollTop'), q=pathAt(g.u1);
+  var L=Math.max(0,Math.min(M.pth.ml,q[0]+g.ox1)), T=Math.max(0,Math.min(M.pth.mt,q[1]+g.oy1));
+  qx.go(qx.stop(dev(L,M.pth.ml))); qy.go(qy.stop(dev(T,M.pth.mt)));
+  M.u=M.uT=g.u1; M.ox=g.ox1; M.oy=g.oy1; M.vel=0; M.raf=0; M.gl=null;
+  M.wr=[c.scrollLeft, c.scrollTop]; _drawn=null;
+  var was=_cur;
+  setCur(g.id); M.restU=g.u1; M.restId=g.id; M.near=null;
+  _land=[c.scrollLeft, c.scrollTop]; _trust=false;
+  ui(g.id,0); if(!g.quiet || was!==g.id) announce(g.id);
+  if(g.done) g.done();
+}
 function dev(v, max){ var z=zk(cv())*(window.devicePixelRatio||1); if(!(z>0)) return v; var r=Math.round(v*z)/z; if(max!=null && r>max) r=Math.floor(max*z)/z; return Math.max(0,r); }
-/* ── where the steps are ─────────────────────────────────────────────────── */
-var _cur=null, _land=null, _trust=false, _anim=null, _busy=false, _q=[], _landT=0, _gl=null;
+/* ── where the camera is ──────────────────────────────────────────────────── */
+var _cur=null, _land=null, _trust=false, _busy=false, _q=[];
 function moved(c){ return !_land || Math.abs(c.scrollLeft-_land[0])>3 || Math.abs(c.scrollTop-_land[1])>3; }
-/* the event the view is on: the last one stepped to, unless the view has been moved since;
-   then the stop whose resting view is nearest the view as it is (ties: the first in page
-   order, so the page as it opens is on the first event) */
+/* the event the view is on: a glide's destination; while travelling, the nearest stop;
+   at rest, the last one landed on unless the view has been moved since — then the stop
+   whose resting view is nearest the view as it is (ties: the first in page order, so
+   the page as it opens is on the first event) */
 function current(){
   var c=cv(); if(!c || !geo()) return null;
+  if(M.gl) return M.gl.id;
+  if(M.raf && M.near) return M.near;
   if(_cur && geo().x[_cur]!=null && live(_cur) && (_trust || !moved(c))) return _cur;
   var S=stops().ids, B=band(c), best=null, bd=Infinity;
   for(var i=0;i<S.length;i++){ var t=camFor(S[i],B), d=Math.abs(t.l-c.scrollLeft)+Math.abs(t.t-c.scrollTop); if(d<bd-0.5){ bd=d; best=S[i]; } }
   return best;
 }
-function stopGlide(){ if(_anim){ cancelAnimationFrame(_anim); _anim=null; } }
-function cancelAll(){ stopGlide(); _q.length=0; _busy=false; if(_gl){ var g=_gl; _gl=null; g.cancel(); } }
+function cancelAll(){ var was=!!M.raf; stopLoop(); _q.length=0; _busy=false; M.drag=null; if(was){ _land=null; _trust=false; } }
 function setCur(id){
   if(_cur===id) return;
   document.querySelectorAll('#world .node.ln-cur').forEach(function(n){ n.classList.remove('ln-cur'); });
   _cur=id; var n=id && document.getElementById('node-'+id); if(n) n.classList.add('ln-cur');
 }
-/* glide the camera to an event; done() when it has come to rest */
-function glideTo(id, opt, done){
-  opt=opt||{};
-  var c=cv(); if(!c || !geo() || geo().x[id]==null){ if(done) done(); return; }
-  stopGlide();
-  var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop');
-  var tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt)), l0=qx.at(), t0=qy.at(), d=Math.sqrt((tl-l0)*(tl-l0)+(tt-t0)*(tt-t0));
-  setCur(id); _trust=true; ui(id, opt.instant||reduced()||d<0.5 ? 0 : glideMs(d));
-  var finish=function(){ _anim=null; _gl=null; _land=[c.scrollLeft, c.scrollTop]; _trust=false; _landT=performance.now(); announce(id); if(done) done(); };
-  if(opt.instant || reduced() || d<0.5){ qx.go(tl); qy.go(tt); finish(); return; }
-  var ms=glideMs(d), s0=performance.now();
-  _gl={cancel:function(){ stopGlide(); _land=[c.scrollLeft, c.scrollTop]; _trust=false; }};
-  function fr(now){
-    var p=Math.min(1,(now-s0)/ms), k=ease(p);
-    qx.go(l0+(tl-l0)*k); qy.go(t0+(tt-t0)*k);
-    if(p<1) _anim=requestAnimationFrame(fr); else { qx.go(tl); qy.go(tt); finish(); }
-  }
-  _anim=requestAnimationFrame(fr);
-}
-/* one step at a time, each landing before the next starts (the engine's _hop):
-   up to three wait their turn, a held key's repeat adds at most one */
+/* the deliberate steps (← → Space PageUp PageDown Home End, the rail's buttons): one
+   event each, each landing before the next starts (the engine's _hop): up to three
+   wait their turn, a held key's repeat adds at most one */
 function step(dir, src, repeat){
   if(!on() || _ov) return;
   if(_busy){ if(repeat ? !_q.length : _q.length<QMAX) _q.push([dir,src]); return; }
@@ -250,15 +434,21 @@ function step(dir, src, repeat){
 function run(dir, src){
   var from=current(), nx=null;
   if(typeof dir==='string') nx=dir;
+  else if(M.raf && !M.gl && M.pth && M.pth.ids.length){       // mid-travel: the next event ahead of the camera that way
+    var U=M.pth.U, I=M.pth.ids, k;
+    if(dir>0){ for(k=0;k<U.length && !nx;k++) if(U[k]>M.u+1) nx=I[k]; if(!nx) nx=I[I.length-1]; }
+    else { for(k=U.length-1;k>=0 && !nx;k--) if(U[k]<M.u-1) nx=I[k]; if(!nx) nx=I[0]; }
+  }
   else nx=from ? neighbour(from, dir) : stops().ids[dir>0?0:stops().ids.length-1];
-  if(!nx){ if(from && from!==_cur) glideTo(from); return; }      // the end: rest on the last one
+  if(!nx){ if(from && (from!==_cur || moved(cv()))) glideTo(from,{step:true}); return; }      // the end: rest on the last one
   de.classList.add('ln-stepped');
   _busy=true;
-  glideTo(nx, {}, function(){ _busy=false; var q=_q.shift(); if(q) run(q[0], q[1]); });
+  glideTo(nx, {step:true}, function(){ _busy=false; var q=_q.shift(); if(q) run(q[0], q[1]); });
   if(src==='key') focusCard(nx);
 }
 window._altoLanesStep=function(d){ step(d,'api'); };       // for tests and the rail
 window._altoLanesCurrent=function(){ return current(); };
+window._altoLanesTravel=function(){ return M.pth ? {u:M.u, end:M.pth.end, U:M.pth.U.slice(), ids:M.pth.ids.slice(), P:M.pth.P.map(function(q){ return [Math.round(q[0]),Math.round(q[1])]; }), moving:!!M.raf, settling:!!(M.gl && M.gl.settle)} : null; };   // for tests
 function focusCard(id){
   var c=document.querySelector('#node-'+id+' .node-card'); if(!c) return;
   if(!c.hasAttribute('tabindex')) c.setAttribute('tabindex','0');
@@ -279,7 +469,7 @@ document.addEventListener('keydown', function(e){
   if(!on() || e.metaKey || e.ctrlKey || e.altKey) return;
   var k=e.key;
   if(k==='Escape' && _ov){ e.preventDefault(); e.stopPropagation(); ovLeave(null); return; }
-  if(k==='Escape'){ setTimeout(function(){ ui(current(),0); },0); return; }     // lanes.py lets go of a kept line: all events again
+  if(k==='Escape'){ setTimeout(function(){ invalidate(); ui(current(),0); },0); return; }     // lanes.py lets go of a kept line: all events again
   if(window._focusedNodeId || busyElsewhere()) return;
   var ae=document.activeElement, tg=ae && ae.tagName;
   if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
@@ -320,44 +510,51 @@ document.addEventListener('focusin', function(e){
   _tabAt=null; cancelAll(); step(id,'tab');
 });
 
-/* ── the wheel ─────────────────────────────────────────────────────────── */
-var W={last:-1e9, cand:null, stream:false, fired:false, ax:0, ay:0, bt:[], bm:[], valley:1e9, peak:0, armed:false, sx:0, sy:0, lastFire:-1e9};
-function dirOf(x,y){ var v=Math.abs(x)>Math.abs(y)?x:y; return v>0?1:v<0?-1:0; }
-function wfire(x,y,ts){ var d=dirOf(x,y); if(!d) return; W.fired=true; W.lastFire=ts; W.ax=W.ay=0; W.armed=false; W.valley=W.peak=0; step(d,'wheel'); }
+/* ── the wheel: travel ────────────────────────────────────────────────────
+   Every wheel event is travel along the path, as far as it says: a trackpad's
+   stream (and its inertia tail, which is only more, smaller events) moves the
+   camera one for one, a mouse's notch moves a NOTCH-sized share of the gap to the
+   next event, chased smoothly (TAU_CHASE). Nothing is swallowed and nothing waits
+   its turn. When it all stops, the settle takes the camera to an event. A stream
+   keeps the axis it started on (a horizontal swipe's wobble is not travel back),
+   and up and down are the same travel as across: the camera's height is the path's. */
+var WH={last:-1e9, ax:null, sx:0, sy:0, cand:null};
+function notch(s){
+  var p=M.pth; if(!p || p.U.length<2) return 120;
+  var U=p.U, i=seg(M.uT); if(s<0 && M.uT<=U[i]+.5 && i>0) i--;
+  var L=U[i+1]-U[i];
+  return Math.min(NOTCH_MAX, Math.max(NOTCH*L, Math.min(NOTCH_MIN, .6*L)));
+}
+/* Safari's mouse wheel: whole multiples of 4.000244… px (a trackpad's are not) */
+function sfNotch(a){ var k=Math.round(a/SFN); return k>=1 && Math.abs(a-k*SFN)<1e-4 && Math.abs(a-Math.round(a))>1e-4; }
 function onWheel(e){
   if(!on() || e.ctrlKey || e.metaKey) return;
   if(window._focusedNodeId) return;                         // an enlarged card: the engine's swipe hops (along the stops)
   if(_ov){ ovWheel(e); return; }
   if(busyElsewhere()) return;
-  e.preventDefault();                                       // step mode: the wheel never free-scrolls
-  var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, ts=e.timeStamp;
+  e.preventDefault();                                       // the camera stays on the path: no free scroll
+  if(M.drag) return;
+  var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m, now=performance.now();
   if(e.shiftKey && !dx){ dx=dy; dy=0; }
-  var gap=ts-W.last; W.last=ts;
-  /* a stream that has stepped stays one gesture across a stall of up to LULL ms (a slow
-     frame mid-inertia must not read as a new flick); a real new flick spikes anyway */
-  if(gap>(W.stream && W.fired ? LULL : GAP)){                 // a new gesture
-    W.stream=false; W.fired=false; W.ax=W.ay=0; W.bt.length=0; W.bm.length=0; W.valley=1e9; W.peak=0; W.armed=false;
-  }
-  if(gap>=NOTCH && !W.stream){
-    /* maybe a notch: one only if nothing follows within NOTCH ms */
-    var me=W.cand={x:dx, y:dy, ts:ts};
-    setTimeout(function(){ if(W.cand===me && W.last===me.ts){ W.cand=null; if(Math.abs(me.x)+Math.abs(me.y)>=3) step(dirOf(me.x,me.y),'wheel'); W.fired=true; } }, NOTCH+5);
-    return;
-  }
-  if(W.cand){ dx+=W.cand.x; dy+=W.cand.y; W.cand=null; }  // it was the start of a stream
-  W.stream=true;
-  var mag=Math.abs(dx)+Math.abs(dy);
-  W.bt.push(ts); W.bm.push(mag); while(W.bt.length && W.bt[0]<ts-SHORT){ W.bt.shift(); W.bm.shift(); }
-  var s=0; for(var i=0;i<W.bm.length;i++) s+=W.bm[i]; var cur=W.bm.length?s/W.bm.length:0;
-  W.ax+=dx; W.ay+=dy;
-  if(cur>W.peak){ W.peak=cur; W.valley=cur; } else if(cur<W.valley) W.valley=cur;
-  if(!W.fired){ if(Math.abs(W.ax)+Math.abs(W.ay)>=TRAVEL) wfire(W.ax,W.ay,ts); return; }
-  /* after its step a stream only steps again for a second flick (its energy rising
-     again), and not before the glide has landed and GRACE has passed: inertia never does */
-  if(!W.armed){ if(ts-W.lastFire>150 && cur>=SPIKE*Math.max(W.valley,1)){ W.armed=true; W.sx=W.ax; W.sy=W.ay; } return; }
-  if(_busy || performance.now()-_landT<GRACE) return;
-  var rx=W.ax-W.sx, ry=W.ay-W.sy;
-  if(Math.abs(rx)+Math.abs(ry)>=RETRAVEL) wfire(rx,ry,ts);
+  var gap=now-WH.last; WH.last=now;
+  if(gap>GESTURE){ WH.ax=null; WH.sx=WH.sy=0; }
+  WH.sx+=Math.abs(dx); WH.sy+=Math.abs(dy);
+  if(!WH.ax && WH.sx+WH.sy>=4) WH.ax=WH.sx>=WH.sy ? 'x' : 'y';
+  var d=WH.ax==='x' ? dx : WH.ax==='y' ? dy : (Math.abs(dx)>=Math.abs(dy) ? dx : dy);
+  if(!d) return;
+  prepare(false);
+  var a=Math.abs(d), s=d>0?1:-1;
+  var soft=false;
+  if(e.deltaMode){ d=s*Math.max(a, notch(s)); soft=true; }                          // lines or pages: a notch
+  else if(sfNotch(a)){ d=s*notch(s)*Math.min(3, 1+.35*(Math.round(a/SFN)-1)); soft=true; }   // Safari's notch (faster spins: bigger)
+  else if(gap>=LONE){
+    /* on its own (nothing within LONE ms) it was a mouse's notch: a notch's worth, however
+       big its delta. Until that is known it moves at most a notch; a stream gets the rest */
+    var n0=notch(s), me=WH.cand={t:now, a:a, s:s, held:Math.max(0,a-n0)};
+    d=s*Math.min(a,n0); soft=a>SOFT;
+    setTimeout(function(){ if(WH.cand===me && WH.last===me.t){ WH.cand=null; if(!M.pth) return; if(n0>me.a) addTravel(me.s*(n0-me.a), true); } }, LONE+5);
+  } else if(WH.cand){ if(WH.cand.held && WH.cand.s===s) d+=s*WH.cand.held; WH.cand=null; }
+  addTravel(d, soft);
 }
 /* only the canvas holds the wheel: everywhere else Safari keeps scrolling off the main thread */
 function hookWheel(){ var c=cv(); if(!c || c._lnWheel) return; c._lnWheel=1; c.addEventListener('wheel', onWheel, {passive:false}); }
@@ -370,31 +567,65 @@ document.addEventListener('wheel', function(e){
   c.scrollLeft+=e.deltaY*(e.deltaMode===1?40:1); e.preventDefault();
 }, {passive:false});
 
-/* ── touch (a desktop with a touch screen): a swipe is a step ───────────── */
-var T=null;
+/* ── a drag (mouse, pen, a touch screen): the board follows the hand along the path ──
+   A hand on the board stops the camera where it is. Dragging the background moves
+   it along the path (the hand's across movement, or its up and down if that is how
+   it set off); let go with speed and it coasts (TAU_FLING), then settles. The
+   engine's own free pan never sees the drag. */
+var DR=null, _noClick=0;
 document.addEventListener('pointerdown', function(e){
-  if(e.pointerType!=='touch' || !on() || _ov || window._focusedNodeId) return;
-  var c=cv(); if(!c || !c.contains(e.target)) return;
-  T={x:e.clientX, y:e.clientY, t:e.timeStamp, id:e.pointerId};
+  var c=cv(); if(!c || !c.contains(e.target) || e.button>0) return;
+  if(!on() || _ov || window._focusedNodeId || busyElsewhere()) return;
+  var r=c.getBoundingClientRect(), k=zk(c);
+  if((e.clientX-r.left)/k>c.clientWidth || (e.clientY-r.top)/k>c.clientHeight) return;         // the scrollbars
+  /* the background (a finger or a pen may set off from a card too: a tap is still a tap) */
+  var bg=!(e.target.closest && e.target.closest((e.pointerType==='mouse' ? '.node-card,' : '')+'.lanes-tag,button,a,input,textarea,select,[contenteditable="true"]'));
+  if(!bg){ if(M.raf){ prepare(true); M.input=performance.now(); } return; }   // a card: held still; its click enlarges it, or the settle goes on
+  prepare(true);
+  DR=M.drag={id:e.pointerId, x:e.clientX, y:e.clientY, lx:e.clientX, ly:e.clientY, moved:false, ax:null, smp:[]};
+  M.input=performance.now(); wake();
 }, true);
-document.addEventListener('pointerup', function(e){
-  if(!T || e.pointerId!==T.id) return;
-  var dx=e.clientX-T.x, dy=e.clientY-T.y; T=null;
-  if(Math.abs(dx)>=40 && Math.abs(dx)>1.3*Math.abs(dy)) step(dx<0?1:-1,'touch');
-  else if(Math.abs(dy)>=40 && Math.abs(dy)>1.3*Math.abs(dx)) step(dy<0?1:-1,'touch');
+window.addEventListener('pointermove', function(e){
+  if(!DR || e.pointerId!==DR.id) return;
+  var k=zk(cv()), tx=(e.clientX-DR.x)/k, ty=(e.clientY-DR.y)/k, now=performance.now();
+  if(!DR.moved){ if(Math.abs(tx)+Math.abs(ty)<5) return; DR.moved=true; DR.ax=Math.abs(tx)>=.7*Math.abs(ty) ? 'x' : 'y'; cv().classList.add('ln-drag'); }
+  var d=DR.ax==='x' ? -(e.clientX-DR.lx)/k : -(e.clientY-DR.ly)/k;
+  DR.lx=e.clientX; DR.ly=e.clientY;
+  if(d){ M.dir=d>0?1:-1; setU(M.u+d); }
+  DR.smp.push([now, M.u]); while(DR.smp.length>2 && DR.smp[0][0]<now-90) DR.smp.shift();
+  M.input=now; wake();
 }, true);
-document.addEventListener('pointercancel', function(){ T=null; }, true);
+function dragEnd(e, fling){
+  if(!DR || e.pointerId!==DR.id) return;
+  var d=DR, now=performance.now(); DR=M.drag=null; cv().classList.remove('ln-drag');
+  if(d.moved){
+    _noClick=now;                                            // the drag's mouseup is not a click on what is under it
+    var s=d.smp, a=s[0], b=s[s.length-1];
+    if(fling && !reduced() && s.length>=2 && now-b[0]<60){ var v=(b[1]-a[1])/Math.max(16,b[0]-a[0]); if(Math.abs(v)>FLING_MIN && coast(Math.max(-FLING_MAX,Math.min(FLING_MAX,v)))) return; }
+  }
+  M.input=now; wake();
+}
+/* let go with speed: coast on to the event the throw reaches (where TAU_FLING of the speed
+   would carry it, leaning the throw's way), slowing from the hand's own speed to rest on it
+   (an ease-out whose first frame goes as fast as the hand did) */
+function coast(v){
+  var dir=v>0?1:-1, id=pick(clampU(M.u+v*TAU_FLING), dir), k=stopIx(id);
+  if(k<0) return false;
+  var D=M.pth.U[k]-M.u; if(D*v<=0 || Math.abs(D)<2) return false;
+  var ms=Math.max(260, Math.min(1100, COAST_PW*D/v));
+  M.dir=dir; glideTo(id, {settle:true, ms:ms, pw:Math.max(1.6, Math.min(4, v*ms/D))});
+  return true;
+}
+window.addEventListener('pointerup', function(e){ dragEnd(e, true); }, true);
+window.addEventListener('pointercancel', function(e){ dragEnd(e, false); }, true);
+/* the engine's free pan reads the mouse's moves on window: not while the path has the hand */
+window.addEventListener('mousemove', function(e){ if(DR) e.stopPropagation(); }, true);
+document.addEventListener('click', function(e){ if(_noClick && performance.now()-_noClick<400 && cv() && cv().contains(e.target)){ _noClick=0; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 
 /* cards gliding under a still pointer are not pointed at (the engine's hover asks the
    same; here it keeps lanes.py from isolating whichever line slides under it) */
 document.addEventListener('mouseover', function(e){
   if(on() && window._altoPointerStill && window._altoPointerStill(e) && cv() && cv().contains(e.target)) e.stopPropagation();
-}, true);
-/* a hand on the board stops a glide; a drag of the background is the explicit free pan */
-document.addEventListener('mousedown', function(e){
-  var c=cv(); if(!c || !c.contains(e.target) || _ov) return;
-  if(_anim) cancelAll();
-  if(!(e.target.closest && e.target.closest('.node-card,.lanes-tag'))){ _trust=false; _land=null; }   // the view is about to be moved by hand
 }, true);
 
 /* clicking a card enlarges it (the engine, on the same curve); the steps go on from it */
@@ -409,7 +640,7 @@ document.addEventListener('click', function(e){
   if(!on() || _ov || de.classList.contains('alto-editing')) return;
   var t=e.target.closest && e.target.closest('.lanes-tag,.lk-row[data-k]'); if(!t) return;
   setTimeout(function(){   // after lanes.py's own handler (same node and phase, registered first) has kept or let go of the line
-    var c=charOf(); ui(current(),0);
+    var c=charOf(); invalidate(); ui(current(),0);
     if(!c) return;
     var from=current(); if(from && ofChar(from,c)) return;
     var S=stops(), oi=from!=null ? S.at[from] : -1, nx=null;
@@ -424,7 +655,7 @@ function watchFocus(){
   var c=cv(); if(!c || c._lnObs || !window.MutationObserver) return; c._lnObs=1;
   new MutationObserver(function(){
     if(R) R.el.classList.toggle('lnv-away', c.classList.contains('focus-mode'));    // an enlarged card has the stage
-    if(c.classList.contains('focus-mode')){ if(_anim || _busy) cancelAll(); if(window._focusedNodeId){ _lastFocus=window._focusedNodeId; setCur(_lastFocus); _trust=true; ui(_lastFocus,0); } }
+    if(c.classList.contains('focus-mode')){ if(M.raf || _busy) cancelAll(); if(window._focusedNodeId){ _lastFocus=window._focusedNodeId; setCur(_lastFocus); _trust=true; ui(_lastFocus,0); } }
     else if(_lastFocus){ setCur(_cur||_lastFocus); _trust=true; _lastFocus=null; }
   }).observe(c,{attributes:true, attributeFilter:['class']});
 }
@@ -434,7 +665,7 @@ var R=null;
 function svgI(d){ return '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; }
 function buildRail(){
   if(R || de.classList.contains('mobile')) return;
-  var n=document.createElement('div'); n.id='lanes-nav'; n.setAttribute('role','navigation'); n.setAttribute('aria-label','Step through the timeline');
+  var n=document.createElement('div'); n.id='lanes-nav'; n.setAttribute('role','navigation'); n.setAttribute('aria-label','Go through the timeline');
   n.innerHTML='<button type="button" class="lnv-ov" aria-pressed="false" title="The whole timeline" aria-label="The whole timeline">'
     +svgI('<rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M5.5 10h9M7 7.5h2M11 12.5h2"/>')+'</button>'
     +'<button type="button" class="lnv-prev" title="Previous event (←)" aria-label="Previous event">'+svgI('<path d="M12 5l-5 5 5 5"/>')+'</button>'
@@ -467,7 +698,7 @@ function railMarks(){
     R.rail.insertBefore(m, R.thumb);
   });
 }
-/* the rail says where the steps are; the thumb travels with the glide (same clock, same curve) */
+/* the rail says which event the camera is on (or nearest, travelling); the thumb is where it is */
 function ui(id, ms){
   if(!R) return;
   var S=stops(), N=S.ids.length, i=S.ids.indexOf(id), pos=i;
@@ -475,11 +706,12 @@ function ui(id, ms){
   R.n.textContent=i>=0 ? String(i+1) : (pos>=0 ? (pos+1)+'+' : '–'); R.N.textContent=String(N);
   var fb=id && flashOf(id), ev=id && L.ev[id], ln=ev && ev.l!=='main' ? lineDef(ev.l) : null, c=charOf(), tag='';
   if(c){ tag=(lineDef(c)||{}).label||''; R.tag.innerHTML=''; R.tag.textContent=tag+' only'; var x=document.createElement('button'); x.type='button'; x.textContent='✕'; x.title='All events (Esc)'; x.setAttribute('aria-label','Show all events');
-         x.addEventListener('click', function(e){ e.stopPropagation(); if(window._altoLanesLock) window._altoLanesLock(null); ui(current(),0); }); R.tag.appendChild(x); }
+         x.addEventListener('click', function(e){ e.stopPropagation(); if(window._altoLanesLock) window._altoLanesLock(null); invalidate(); ui(current(),0); }); R.tag.appendChild(x); }
   else { tag=fb ? fb.label : (ln ? ln.label+' · off the page' : ''); R.tag.textContent=tag; }
   R.tag.style.color=c ? (lineDef(c)||{}).color||'' : (ln ? ln.color : '');
   R.prev.disabled=!(N && (i>0 || (i<0 && pos>=0))); R.next.disabled=!(N && (i<N-1 || (i<0 && pos<N-1)));
   var f=railFrac(Math.max(0,i>=0?i:pos+.5), N), w=R.rail.clientWidth;
+  if(M.raf) return;                                          // travelling: the thumb goes with the camera (thumb())
   R.thumb.style.transition=ms ? 'transform '+ms+'ms cubic-bezier(.25,.2,.4,1)' : 'none';
   R.thumb.style.transform='translateX('+(f*w).toFixed(2)+'px)';
   R.thumb.setAttribute('aria-valuemin','1'); R.thumb.setAttribute('aria-valuemax',String(N)); R.thumb.setAttribute('aria-valuenow',String(Math.max(1,(i>=0?i:pos)+1)));
@@ -490,18 +722,17 @@ function announce(id){ if(!R || !id) return; var S=_S||stops(), i=S.ids.indexOf(
 function scrubber(){
   var sc=null;
   function at(e){ var r=R.rail.getBoundingClientRect(); return Math.max(0,Math.min(1,(e.clientX-r.left)/(r.width||1))); }
-  function look(f){
-    var S=sc.S, N=S.length; if(!N) return;
-    var fi=f*(N-1), a=Math.floor(fi), b=Math.min(N-1,a+1), u=fi-a;
-    var A=camFor(S[a],sc.B), Bc=camFor(S[b],sc.B), c=cv();
-    c.scrollLeft=Math.round(A.l+(Bc.l-A.l)*u); c.scrollTop=Math.round(A.t+(Bc.t-A.t)*u);
-    R.thumb.style.transition='none'; R.thumb.style.transform='translateX('+(f*R.rail.clientWidth).toFixed(2)+'px)';
+  function look(f){                                       // along the path, as travel is
+    var S=M.pth.ids, U=M.pth.U, N=S.length; if(!N) return;
+    var fi=f*(N-1), a=Math.floor(fi), b=Math.min(N-1,a+1);
+    setU(U[a]+(U[b]-U[a])*(fi-a)); M.input=performance.now(); wake();
     sc.f=f;
   }
   R.rail.addEventListener('pointerdown', function(e){
     if(!on() || e.button>0) return; e.preventDefault();
     if(_ov) ovLeave(null, true);
-    cancelAll(); sc={S:stops().ids, B:band(cv()), x:e.clientX, moved:false, f:at(e), id:e.pointerId};
+    _q.length=0; _busy=false; prepare(true); M.drag={rail:1};
+    sc={S:M.pth.ids, x:e.clientX, moved:false, f:at(e), id:e.pointerId};
     try{ R.rail.setPointerCapture(e.pointerId); }catch(er){}
     if(e.target===R.thumb){ sc.moved=true; R.el.classList.add('scrub'); }
   });
@@ -512,10 +743,11 @@ function scrubber(){
   });
   function end(e){
     if(!sc || (e && e.pointerId!==sc.id)) return;
-    var f=sc.moved ? sc.f : at(e), S=sc.S, i=Math.round(f*(S.length-1)); sc=null; R.el.classList.remove('scrub');
+    var f=sc.moved ? sc.f : at(e), S=sc.S, i=Math.round(f*(S.length-1)); sc=null; M.drag=null; R.el.classList.remove('scrub');
     if(S[i]) step(S[i],'rail');
   }
-  R.rail.addEventListener('pointerup', end); R.rail.addEventListener('pointercancel', function(){ sc=null; R.el.classList.remove('scrub'); });
+  R.rail.addEventListener('pointerup', end);
+  R.rail.addEventListener('pointercancel', function(){ sc=null; M.drag=null; M.input=performance.now(); wake(); R.el.classList.remove('scrub'); });
 }
 
 /* ── the whole timeline ─────────────────────────────────────────────────── */
@@ -664,7 +896,9 @@ function relaid(first){
   railMarks();
   if(_ov){ var c=cv(); _ov=ovFit(); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; ui(current(),0); return; }
   /* a re-layout (a resize, an edit) keeps the view on the event the steps were on */
-  if(!first && _cur && de.classList.contains('ln-stepped') && on() && !window._focusedNodeId && !_anim){ glideTo(_cur,{instant:true}); }
+  if(M.raf){ M.stale=true; ui(current(),0); return; }        // mid-travel: tick carries on from the view as it is
+  M.pth=null; _fit=null;
+  if(!first && _cur && de.classList.contains('ln-stepped') && on() && !window._focusedNodeId){ glideTo(_cur,{instant:true}); }
   else ui(current(),0);
 }
 var _lay=window._altoLanes, _laid=0;
@@ -673,6 +907,6 @@ if(_lay) window._altoLanes=function(h){
   if(r){ var first=!_laid++; setTimeout(function(){ relaid(first); }, first ? 140 : 0); }   // first: after lanes.py's open-at-the-start
   return r;
 };
-window.addEventListener('resize', function(){ if(R) ui(current(),0); });
+window.addEventListener('resize', function(){ invalidate(); if(R) ui(current(),0); });
 })();
 """
