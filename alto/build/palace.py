@@ -440,7 +440,7 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     except Exception:                                       # noqa: BLE001 — a river that cannot be read keeps the streets as drawn
         pass
     blocks = m.pop("blocks")
-    # fill-in (palace_fillin.py): the real buildings of the districts + 1 km, opening on level 1 (Skyline).
+    # fill-in (palace_fillin.py): the real buildings of the whole city box (past the districts + 1 km as the size budget allows), opening on level 1 (Skyline).
     # Never fatal: a busy Overpass leaves the palace without them (set_up_palace again adds them).
     fz, ships = None, []
     if fill:
