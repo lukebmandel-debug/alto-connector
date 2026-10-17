@@ -380,7 +380,7 @@ def test_wasd_arrows_drag_and_shift_move_and_look(roam):
         pg.mouse.down()
         pg.mouse.move(700, 900, steps=2)
         pg.mouse.up()
-    assert abs(pg.evaluate(S)["pitch"]) <= 0.42 + 1e-9                                   # a little pitch, clamped
+    assert abs(pg.evaluate(S)["pitch"]) <= 1.4835 + 1e-9                                 # pitch is clamped at 85 degrees either way (FPV phase 2; it was +-0.42)
     pg.evaluate("() => window._palRide.roam.exit(false)")
 
 

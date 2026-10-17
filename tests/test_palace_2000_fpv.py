@@ -160,6 +160,20 @@ def stand(pg, dx, yaw, dy=0, door=DOOR1, hold=True):
                 [door[0] + door[2] * dx, door[1] + dy, yaw, hold])
 
 
+def open_from_lobby(pg, how="key"):
+    """E at a door now goes INSIDE (palace_ride_inside.py); the detail page opens from the directory board in the lobby: stand in front of it and press E (or click its button)."""
+    st = pg.evaluate("() => window._palRide.roam.inside.state()")
+    assert st["on"]
+    b = st["board"]
+    pg.evaluate("([x,y,yaw]) => window._palRide.roam.place(x,y,yaw)", [b["x"] + b["nx"] * 4, b["y"] + b["ny"] * 4, math.atan2(-b["ny"], -b["nx"])])
+    pg.wait_for_timeout(250)
+    assert pg.evaluate("() => window._palRide.roam.inside.state().near")
+    if how == "key":
+        pg.keyboard.press("e")
+    else:
+        pg.click(".rm-dgo")
+
+
 def tickdoor(pg, n=30, dt=0.05):
     pg.evaluate("([n,dt]) => { var R=window._palRide.roam; for(var i=0;i<n;i++) R.door.frame(dt); R.draw(); }", [n, dt])
 
@@ -225,6 +239,10 @@ def test_e_goes_in_a_dolly_toward_the_door_then_the_page_opens_over_the_map(roam
     assert mid["s"]["x"] < before["x"] and mid["s"]["x"] > DOOR1[0] + 1.3 - 0.01                 # the camera walks toward the door ... never through the wall (no nearer than the player radius)
     assert pg.evaluate("() => window.__detail") == []
     pg.wait_for_timeout(700)
+    ins = pg.evaluate("() => ({a: window._palRide.roam.active(), i: window._palRide.roam.inside.state()})")
+    assert ins["a"] and ins["i"]["on"] and ins["i"]["name"] == NAMES["n1"] and pg.evaluate("() => window.__detail") == []      # E goes INSIDE, not straight to the page
+    open_from_lobby(pg)
+    pg.wait_for_timeout(900)
     end = pg.evaluate("() => ({a: window._palRide.roam.active(), ride: window._palRide.active(), d: window.__detail, cls: document.documentElement.classList.contains('detail-open'), put: window.__put, st: window._palRide.roam.door.state(), fp: document.documentElement.classList.contains('pal-fp')})")
     assert end["a"] is False and end["ride"] is False and end["fp"] is False                    # roam is off (its key capture with it)
     assert end["d"] == [["node", "n1"]] and end["cls"] is True
@@ -249,6 +267,9 @@ def test_closing_the_page_returns_to_the_same_spot_yaw_and_pitch(roam):
     assert pg.evaluate("() => (window._palRide.roam.door.cur()||{}).name") == NAMES["n1"]
     spot = pg.evaluate("() => window._palRide.roam.state()")
     pg.keyboard.press("e")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => window._palRide.roam.inside.on()") is True
+    open_from_lobby(pg)
     pg.wait_for_timeout(900)
     assert pg.evaluate("() => window._palRide.roam.active()") is False
     pg.evaluate("() => window.closeDetail()")
@@ -276,10 +297,13 @@ def test_reduced_motion_has_no_dolly_only_a_crossfade(roam):
     pg.emulate_media(reduced_motion="reduce")
     pg.keyboard.press("e")
     xs = []
-    for _ in range(4):
-        pg.wait_for_timeout(50)
+    for _ in range(2):                                                                            # (the cross-fade is 220 ms, after it the lobby is the view)
+        pg.wait_for_timeout(40)
         xs.append(pg.evaluate("() => window._palRide.roam.state().x"))
     assert all(x == pytest.approx(spot["x"], abs=1e-6) for x in xs)                              # the camera does not move
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => window._palRide.roam.inside.on()") is True and pg.evaluate("() => window.__detail") == []
+    open_from_lobby(pg)
     pg.wait_for_timeout(500)
     assert pg.evaluate("() => window.__detail") == [["node", "n1"]]
     pg.evaluate("() => window.closeDetail()")
@@ -327,6 +351,9 @@ def test_a_click_on_the_door_or_the_pin_or_enter_on_the_focused_pin_goes_in_but_
     hit = pg.evaluate("() => window._palRide.roam.door.hit()")
     pg.mouse.click((hit[0] + hit[2]) / 2, (hit[1] + hit[3]) / 2)
     pg.wait_for_timeout(1000)
+    assert pg.evaluate("() => window._palRide.roam.inside.on()") is True and pg.evaluate("() => window.__detail") == []
+    open_from_lobby(pg, "click")
+    pg.wait_for_timeout(1000)
     assert pg.evaluate("() => window.__detail") == [["node", "n1"]]
     # the pin: Tab reaches it, Enter on it opens
     pg.evaluate("() => { window.closeDetail(); window.__detail.length=0; }")
@@ -337,6 +364,9 @@ def test_a_click_on_the_door_or_the_pin_or_enter_on_the_focused_pin_goes_in_but_
     pg.keyboard.press("Tab")
     assert pg.evaluate("() => document.activeElement && document.activeElement.className") == "rm-pin on"
     pg.keyboard.press("Enter")
+    pg.wait_for_timeout(1000)
+    assert pg.evaluate("() => window._palRide.roam.inside.on()") is True and pg.evaluate("() => window.__detail") == []
+    open_from_lobby(pg)
     pg.wait_for_timeout(1000)
     assert pg.evaluate("() => window.__detail") == [["node", "n1"]]
 
@@ -396,7 +426,7 @@ def test_pitch_limits_are_kept(roam):
     pg = roam
     pg.evaluate("() => window._palRide.roam.enter(1320, 1900, 0, {hold: true})")
     p = pg.evaluate("() => { var R=window._palRide.roam; R.look(null, 5); var a=R.state().pitch; R.look(null, -5); return [a, R.state().pitch]; }")
-    assert p == [pytest.approx(0.42), pytest.approx(-0.42)]
+    assert p == [pytest.approx(1.4835), pytest.approx(-1.4835)]                                    # 85 degrees either way (palace_ride_inside.py, FPV phase 2)
     pg.evaluate("() => window._palRide.roam.exit(false)")
 
 
