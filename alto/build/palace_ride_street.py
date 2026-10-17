@@ -25,7 +25,22 @@ REAL.load=function(blob){ var C=REAL.cell, ch={}; REAL.nB=0; REAL.nR=0; REAL.way
   function cellOf(kind,f,x,y){ var k=Math.floor(x/C)+','+Math.floor(y/C); var c=ch[k]||(ch[k]={b:[],r:[]}); if(c[kind].indexOf(f)<0) c[kind].push(f); }
   (blob.b||[]).forEach(function(f){ cellOf('b',f,f[1],f[2]); REAL.nB++; });
   (blob.r||[]).forEach(function(f,wi){ f.n=(blob.rn&&blob.rn[wi])||''; f.wid=wi; REAL.ways.push(f); for(var i=1;i+1<f.length;i+=2) cellOf('r',f,f[i],f[i+1]); REAL.nR++; });
-  REAL.chunks=ch; REAL.on=true; REAL.segIdx=null; return {b:REAL.nB, r:REAL.nR}; };
+  REAL.trees=blob.t||[]; REAL.furn=blob.f||[]; REAL.tf=null;
+  REAL.chunks=ch; REAL.on=true; REAL.segIdx=null; return {b:REAL.nB, r:REAL.nR, t:REAL.trees.length, f:REAL.furn.length}; };
+/* ── the hosted street data (window._palStreet, palace_street_js.py) -> the blob above, in real px (map px, y down). Needs the shards under the points loaded:
+   REAL.prepare(points, r) fetches them (a Promise) and loads the blob; without _palStreet (or a manifest) it resolves false and the ride keeps today's world. ── */
+REAL.street=function(){ return !!(window._palStreet && window._palStreet.ready && window._palStreet.ready()); };
+REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[];
+  function mp(a){ var o=[]; for(var i=0;i<a.length;i++){ var m=S.toMap(a[i][0],a[i][1],1); o.push(m[0],m[1]); } return o; }
+  pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtf');
+    N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; b.push(a); });
+    N.r.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.line), a=[d.hw||'residential'].concat(g); a.wd=d.wd?d.wd*.1:0; a.br=d.br; a.tn=d.tn; rr.push(a); rn.push(d.nm||''); });
+    N.t.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); t.push([m[0],m[1],d.sp||'',d.lf||'']); });
+    N.f.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); f.push([m[0],m[1],d.kind||'',d.dir==null?-1:d.dir]); }); });
+  return {b:b, r:rr, rn:rn, t:t, f:f}; };
+REAL.prepare=function(pts, r){ r=r||520; if(!REAL.street()) return Promise.resolve(false); var S=window._palStreet, Hm=S.toMap(0,0,1)[1];
+  return Promise.all(pts.map(function(q){ return S.need(q[0],Hm-q[1],r); })).then(function(){ REAL.load(REAL.fromStreet(pts,r)); REAL.src='street'; return true; }); };
+REAL.prepareLeg=function(D){ var pts=[], o={x:0,y:0,k:0}, p={x:0,y:0}, last=null; for(var s=0;s<=D.L+1;s+=60){ pathAt(D,Math.min(s,D.L),p); realOf(p.x,p.y,o); if(!last||Math.hypot(o.x-last[0],o.y-last[1])>350){ pts.push([o.x,o.y]); last=[o.x,o.y]; } } return REAL.prepare(pts,520); };
 REAL.isOn=function(){ return !!(REAL.on && rlInit() && REAL.chunks); };
 function rlNorm(n){ if(!n) return ''; n=String(n).toLowerCase().replace(/\b(north|south|east|west|n|s|e|w)\b\.?/g,' ').replace(/\b(street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|place|pl|lane|ln|way|court|ct|terrace|ter|parkway|pkwy)\b\.?/g,' ').replace(/(\d+)(st|nd|rd|th)\b/g,'$1').replace(/[^a-z0-9]+/g,' ').trim(); return n; }
 /* a spatial index of every road segment (50 m cells) */
@@ -119,6 +134,11 @@ function rlPolyHit(q, ring, x0,y0,x1,y1){          /* a real footprint against a
   for(i=0;i<n;i++) if(rlIn(q.p,ring[2*i],ring[2*i+1])) return true;
   var rr=[]; for(i=0;i<n;i++) rr.push([ring[2*i],ring[2*i+1]]); for(i=0;i<q.p.length;i++) if(rlIn(rr,q.p[i][0],q.p[i][1])) return true;
   return false; }
+/* simple street trees and lamps (the scenery's own treeAt/lampAt are private to palace_ride_g.py's scope; asked its owner to export them, these are the stand-ins) */
+function rlTree(m,x,y,sp,h){ var u=K, tall=(sp===3?9:sp===1?7.5:sp===2?7:6)*u*(.85+.3*h), r=(sp===3?2.2:sp===1?2.6:sp===2?4.4:sp===4?2.4:3.8)*u*(.85+.3*h);
+  MB.cyl(m,x,y,0,tall*.45,.22*u,5,MAT.trunk,MAT.trunk,h); MB.dome(m,x,y,tall*.35,r,3,8,MAT.leaf,h);
+  if(sp===3) MB.dome(m,x,y,tall*.62,r*.65,3,8,MAT.leaf,h); else MB.dome(m,x,y,tall*.62,r*.7,3,8,MAT.leaf,h); }
+function rlLamp(m,x,y,ox,oy,pts){ var u=K; MB.cyl(m,x,y,0,7.4*u,.1*u,5,MAT.metal,MAT.metal,.3); var hx=x+ox*2.1*u, hy=y+oy*2.1*u; MB.box(m,hx-.35*u,hy-.2*u,7.2*u,hx+.35*u,hy+.2*u,7.45*u,MAT.metal,MAT.metal,.3); pts.push(hx,hy,7.1*u); }
 function gatherReal(Xp, Yp, R){
   R=R||480; var o0=realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);
   var W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:false, set:{}, scenery:null, meshes:[], movers:[], dashes:[], rivers:[], real:{cx:cx*K,cy:cy*K,dom:o0.k}};
@@ -132,7 +152,7 @@ function gatherReal(Xp, Yp, R){
   if(!glOk()) W.tiles.push({ring:[(cx-R)*K,(cy-R)*K,(cx+R)*K,(cy-R)*K,(cx+R)*K,(cy+R)*K,(cx-R)*K,(cy+R)*K], cx:cx*K, cy:cy*K, r:R*1.5*K});
   var seenR={}, seenB={};
   for(var ci=ci0-1; ci<=ci1+1; ci++) for(var cj=cj0-1; cj<=cj1+1; cj++){ var ch=REAL.chunks[ci+','+cj]; if(!ch) continue;
-    ch.r.forEach(function(f){ if(seenR[f.wid]) return; seenR[f.wid]=1; var w=((RCLS[f[0]]||[7,.2])[0])*K, sw=(RCLS[f[0]]||[7,.2])[1];
+    ch.r.forEach(function(f){ if(seenR[f.wid]) return; seenR[f.wid]=1; var w=((f.wd>0?f.wd:(RCLS[f[0]]||[7,.2])[0]))*K, sw=(RCLS[f[0]]||[7,.2])[1];
       for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, mx=(x0+x1)/2, my=(y0+y1)/2; if(Math.abs(mx/K-cx)>R||Math.abs(my/K-cy)>R) continue; var l=Math.hypot(x1-x0,y1-y0); if(l<.5) continue;
         if(sw>0){ var nx=-(y1-y0)/l, ny=(x1-x0)/l, off=w/2+1.6*K; [-1,1].forEach(function(sd){ W.tiles.push({ring:strip(x0+nx*off*sd,y0+ny*off*sd,x1+nx*off*sd,y1+ny*off*sd,3.2*K,w*.18), cx:mx+nx*off*sd, cy:my+ny*off*sd, r:l/2+w, sw:1}); }); }
         W.roads.push({x0:x0,y0:y0,x1:x1,y1:y1,w:w,cx:mx,cy:my,r:l/2+w, cls:f[0]});
@@ -140,10 +160,17 @@ function gatherReal(Xp, Yp, R){
     ch.b.forEach(function(f){ if(seenB[f.bid||(f.bid=f[1]+','+f[2])]) return; seenB[f.bid]=1; var n=(f.length-1)/2, ring=new Array(n*2), x0=1e9,y0=1e9,x1=-1e9,y1=-1e9, sx=0, sy=0; for(k=0;k<n;k++){ var x=f[1+2*k], y=f[2+2*k]; ring[2*k]=x; ring[2*k+1]=y; sx+=x; sy+=y; x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
       var bx=sx/n, by=sy/n; if(Math.abs(bx-cx)>R||Math.abs(by-cy)>R) return; if(n>1 && ring[0]===ring[2*n-2] && ring[1]===ring[2*n-1]){ n--; ring.length=n*2; } if(n<3) return;
       for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; return; }
-      var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3));
+      var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      W.solids.push(solid(wr, eave, col, 'b', '')); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
+      var sol=solid(wr, eave, col, 'b', ''); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; } if(f.mh>0) sol.z0=f.mh*K; W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
+  /* street trees and lamps from the street data (the ride's own treeAt / lampAt, palace_ride_g.py); cap per world */
+  if(REAL.trees&&(REAL.trees.length||REAL.furn.length)){ var tm=MB.mk(), nt=0, nl=0, lampPts=[];
+    try{ REAL.trees.forEach(function(t){ if(nt>=700||Math.abs(t[0]-cx)>R||Math.abs(t[1]-cy)>R) return; var sp=/needle/i.test(t[3])?3:/platan|sycamore/i.test(t[2])?0:/quercus|oak/i.test(t[2])?2:/prunus|pyrus|cherry|pear/i.test(t[2])?4:/zelkova|gleditsia|honey|ginkgo/i.test(t[2])?1:(hashXY(t[0],t[1])<.5?0:1);
+        rlTree(tm,t[0]*K,t[1]*K,sp,hashXY(t[0]*3,t[1]*3)); nt++; });
+      REAL.furn.forEach(function(q){ if(nl>=400||q[2]!=='street_lamp'||Math.abs(q[0]-cx)>R||Math.abs(q[1]-cy)>R) return; var nr=rlNear(q[0],q[1],30,false)[0], ox=1, oy=0; if(nr&&nr.d>.1){ ox=(nr.x-q[0])/nr.d; oy=(nr.y-q[1])/nr.d; } rlLamp(tm,q[0]*K,q[1]*K,ox,oy,lampPts); nl++; });
+    }catch(e){ if(window.console) console.warn('real street furniture',e); }
+    if(tm.a.length){ W.meshes.push({a:MB.done(tm), id:'real:tree:'+Math.round(cx)+','+Math.round(cy)}); W.lamps=new Float32Array(lampPts); } W.real.trees=nt; W.real.lamps=nl; }
   if(roofM.a.length) W.meshes.push({a:MB.done(roofM), id:'real:roof:'+Math.round(cx)+','+Math.round(cy)});
   lots.forEach(function(L){ var id=L.id, tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*.42, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dk?[150,162,200]:[255,255,255], dk?.30:.5), ring=[]; L.p.forEach(function(p){ ring.push(p[0]*K,p[1]*K); });
     var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); W.solids.push(s); });
@@ -159,7 +186,7 @@ REAL.shot=function(Xp, Yp, hp, o){
   else { cvs=document.getElementById('pal-real-cv'); if(!cvs){ cvs=document.createElement('canvas'); cvs.id='pal-real-cv'; cvs.style.cssText='position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:99999;background:#000'; document.body.appendChild(cvs); }
     w=window.innerWidth; h=window.innerHeight; cvs.width=w; cvs.height=h; ctx=cvs.getContext('2d'); }
   setCam(r.x*K, r.y*K, o.z||2.1, yaw+(o.dyaw||0), w, h, .5, o.pitch||0);
-  if(o.gl){ var n=o.frames||24; for(var f=0;f<n;f++){ sceneryUpdate&&W.scenery&&sceneryUpdate(W,f*.05,C); drawCity(ctx,w,h,P,W,yaw,f*.05,null); } }
+  if(o.gl){ var n=o.frames||24; for(var f=0;f<n;f++){ drawCity(ctx,w,h,P,W,yaw,f*.05,null); } }
   else { drawSky(ctx,w,h,P,yaw,0); drawGround(ctx,W,P,null,null); drawSolids(ctx,W.solids,P); }
   return {real:[r.x,r.y], dom:r.k, yaw:yaw, snap:sn&&{d:sn.d,cls:sn.cls}, stats:W.real, solids:W.solids.length, meshes:W.meshes.length, gl:!!o.gl}; };
 REAL.leg=function(step){ var M=R.M; if(!M) return null; var out=[], o={x:0,y:0,k:0}; step=step||40;
