@@ -35,6 +35,7 @@ import re
 from .brief import BriefError
 from .key_toggle import KEY_CSS, KEY_JS
 from .palace_directions import DIR_CSS, DIR_JS
+from .palace_pan import PAN_JS
 from .palace_landmarks import LANDMARK_CSS, LANDMARK_JS
 from .palace_construct import CONSTRUCT_CSS, CONSTRUCT_JS      # the rebuild of a shelled building (1.9.95)
 from .palace_towers import tower_data, tower_lots, apply_towers, landmark_state      # noqa: F401  (towers: a unit inside a skyscraper)
@@ -2274,13 +2275,15 @@ document.addEventListener('alto-focus-exit', function(){ drawRoutes(svgD, null);
 /* arrows while a building is enlarged: to the nearest building that way */
 window._altoPalaceNav=function(id, dir){
   if(mob()) return null; var A=lot(P.at[bOf(id)]); if(!A) return null;
-  var V={e:[1,0],w:[-1,0],n:[0,-1],s:[0,1],ne:[.7,-.7],nw:[-.7,-.7],se:[.7,.7],sw:[-.7,.7]}[dir]; if(!V) return null;
-  var best=null, bd=1e18;
+  var V={e:[1,0],w:[-1,0],n:[0,-1],s:[0,1],ne:[.7071,-.7071],nw:[-.7071,-.7071],se:[.7071,.7071],sw:[-.7071,.7071]}[dir]; if(!V) return null;
+  var best=null, bd=1e18, diag=dir.length===2, near=null, nd=1e18;
   (P.units||[]).forEach(function(ids){ ids.forEach(function(o){ if(o===id) return; var c=document.querySelector('#node-'+o+' .node-card');
     if(c && (c.classList.contains('dimmed')||c.classList.contains('ent-dimmed')||c.classList.contains('rel-dimmed'))) return;
     var B=lot(P.at[o]); if(!B) return; var dx=B[0]-A[0], dy=B[1]-A[1], along=dx*V[0]+dy*V[1]; if(along<=10) return;
-    var across=Math.abs(dx*V[1]-dy*V[0]), cost=along+across*2.2; if(cost<bd){ bd=cost; best=o; } }); });
-  return best;
+    var across=Math.abs(dx*V[1]-dy*V[0]), cost=along+across*2.2; if(cost<bd){ bd=cost; best=o; }
+    /* a diagonal asks for a building on that diagonal (within 35 degrees of it), the nearest of those; none there: the best of any */
+    if(diag && across<=along*.7 && Math.hypot(dx,dy)<nd){ nd=Math.hypot(dx,dy); near=o; } }); });
+  return near||best;
 };
 
 /* ── the key and the zoom buttons ── */
@@ -2870,6 +2873,6 @@ document.addEventListener('focusin', function(e){                               
 document.addEventListener('focusout', function(e){
   var to=e.relatedTarget; if(lmFor && lmPin && to && to.closest && !to.closest('#pl-lmbar,.pl-lmb')) lmHide(); });
 new MutationObserver(function(){ if(!editing()) lmHide(); lmTab(); }).observe(de,{attributes:true,attributeFilter:['class']});
-""" + DIR_JS + MOBILE_JS + r"""
+""" + DIR_JS + MOBILE_JS + PAN_JS + r"""
 })();
 """
