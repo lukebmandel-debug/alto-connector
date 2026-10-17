@@ -5,9 +5,12 @@ var E=null, NS='http://www.w3.org/2000/svg';
 var LS_VIEW='alto-palace-ride-view', LS_SND='alto-palace-ride-sound';
 var STEP=5;                         /* map units between the samples of a ride's path */
 var NEARZ=1.8, FARZ=1500, VEX=1.15, FOGD=950;
+/* walking legs: a brisk walk (5 m/s = 6.5 units/s) up to WALK_FULL units (100 m, 20 s); only the part of a longer walk beyond that is compressed (the whole ride is still held to
+   6-30 s below, so a long walk, or a transit ride with a walk in it, still plays faster than a person walks - a ride is a summary, free roaming is the real pace) */
+var WALK_V=6.5, WALK_FULL=130;
 var RING_HZ=2.4, MAX_FLASH_HZ=3, BAR_HZ=.9, HUE_DPS=38;     /* photosensitivity: rings never pass faster than RING_HZ, nothing pulses faster than 1 Hz */
 var VEH={
-  walk :{vmax:150,  eye:2.15, off:14,  fil:22,  ease:.18},
+  walk :{vmax:150,  eye:2.15, off:14,  fil:22,  ease:.18},     /* eye 2.15 units = 1.65 m at UM=1.3 units a metre; vmax is only the ceiling of a very long walk, see WALK_V */
   metro:{vmax:1500, eye:2.5,  off:0,   fil:110, ease:1},
   rail :{vmax:1700, eye:3.0,  off:0,   fil:120, ease:1},
   tram :{vmax:760,  eye:2.7,  off:0,   fil:46,  ease:1},
@@ -171,7 +174,9 @@ function trimEnds(secs, D, meta){
 /* ── time: stop-to-stop spans with soft starts and stops, a dwell at every stop; the whole ride 6-30 s ── */
 function timeline(M){
   var ev=[], t=0;
-  function span(s0,s1,veh){ var v=VEH[veh]||VEH.walk, D=Math.abs(s1-s0), T=Math.max(.45, D/(v.vmax*(v.ease>=1?.72:.95))); ev.push({k:'move',t0:t,t1:t+T,s0:s0,s1:s1,veh:veh,ease:v.ease,vmax:v.vmax}); t+=T; }
+  function span(s0,s1,veh){ var v=VEH[veh]||VEH.walk, D=Math.abs(s1-s0), T=Math.max(.45, D/(v.vmax*(v.ease>=1?.72:.95)));
+    var tf=T, ts=0; if(veh==='walk'){ ts=Math.max(.45, Math.min(D,WALK_FULL)/(WALK_V*.95)+Math.max(0,D-WALK_FULL)/(v.vmax*.95)); T=ts; }
+    ev.push({k:'move',t0:t,t1:t+T,s0:s0,s1:s1,veh:veh,ease:v.ease,vmax:v.vmax,tf:tf,ts:ts}); t+=T; }
   function dwell(s,kind,T,name,idx,si){ ev.push({k:'dwell',t0:t,t1:t+T,s0:s,s1:s,kind:kind,name:name,idx:idx,sec:si}); t+=T; }
   var si0=0;
   M.secs.forEach(function(sec,si){
@@ -183,6 +188,11 @@ function timeline(M){
     else span(sec.s0, sec.s1, sec.veh);
     if(si===0 && ev.length && ev[0].k==='move') { /* a breath at the start */ ev.unshift({k:'dwell',t0:0,t1:.35,s0:sec.s0,s1:sec.s0,kind:'start',name:'',sec:0}); for(var q=1;q<ev.length;q++){ ev[q].t0+=.35; ev[q].t1+=.35; } t+=.35; } });
   var sEnd=M.secs[M.secs.length-1].s1; ev.push({k:'dwell',t0:t,t1:t+.5,s0:sEnd,s1:sEnd,kind:'end',name:'',sec:M.secs.length-1}); t+=.5;
+  /* a person's pace on foot where the 30 s allow it: only when the walking would push the ride past 30 s are its walks (and only they) sped up, no further than the old fast pace (tf) -
+     so a transit ride with a long walk in it keeps its vehicles at their pace instead of squeezing everything, and a short walk is a real walk */
+  var sS=0, sF=0; ev.forEach(function(e){ if(e.k==='move' && e.ts){ sS+=e.ts; sF+=e.tf; } });
+  if(t>30 && sS>0){ var f=clamp(30-(t-sS), sF, sS)/sS, tt=0;
+    ev.forEach(function(e){ var d=e.t1-e.t0; if(e.k==='move' && e.ts) d=Math.max(e.tf, e.ts*f); e.t0=tt; tt+=d; e.t1=tt; }); t=tt; }
   var k=clamp(t,M.minT||6,30)/t; if(Math.abs(k-1)>1e-3){ ev.forEach(function(e){ e.t0*=k; e.t1*=k; }); t*=k; }
   M.ev=ev; M.T=t; M._i=0; }
 function evalAt(M, t){

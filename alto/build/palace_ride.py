@@ -14,6 +14,11 @@ The transit panel keeps working (Next / back / Ride it all / Esc). 'V' (and a sm
 old top-down map ride; the choice is remembered in localStorage (alto-palace-ride-view, default first-person). Esc / Exit ride
 puts the map back exactly where it was (palace.py restoreView).
 
+FPV phase 1 (1.9.100, palace_ride_door.py): the node buildings have a street-facing door (steps, recessed glass doors with warm light, a canopy); in roam, facing one within ~12 units
+shows its real name under the street card (a small pin, a very small E) and E / a click on it goes in: roam is left, a dark veil and a dolly toward the door lead to the building's detail page, and
+closing the page puts you back at the same spot, yaw and pitch. Human scale: eye 1.65 m, a 1.5 m/s walk (Shift 4 m/s, held longer 7 m/s), Street View's 90-degree view, a bob per footfall only while walking;
+a walking ride leg plays at a walking pace where the 30 s allow (palace_ride_a.py timeline).
+
 Hooks (palace_transit_js.py): animLeg -> _palRide.leg(), ride()/step() -> lineEnter()/lineStep(), startTrip/ride -> mark(), endTrip -> exit().
 palace.py gives it the page's own parts through _palRide.init().
 """
@@ -23,6 +28,7 @@ from .palace_ride_a import JS_A
 from .palace_ride_b import JS_B
 from .palace_ride_c import JS_C
 from .palace_ride_d import JS_D
+from .palace_ride_door import JS_DOOR_GEO
 from .palace_ride_e import JS_E, CSS_E
 from .palace_ride_f import JS_F, CSS_F
 from .palace_ride_g import JS_G, CSS_G
@@ -78,7 +84,7 @@ window._palRide={real:REAL, roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(type
   canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; }};
 """
 
-RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + STREET_JS + JS_A + JS_MB + JS_B + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + JS_REAL + JS_STREET + _API + "})();\n"
+RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + STREET_JS + JS_A + JS_MB + JS_B + JS_DOOR_GEO + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + JS_REAL + JS_STREET + _API + "})();\n"
 
 
 # ── the ride is code the page loads, not part of the page ──────────────────

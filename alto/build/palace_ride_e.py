@@ -10,7 +10,10 @@ window._palRide.roam = { enter(x, y, heading, opts), exit(stay), active(), ... }
                                stay truthy: the map recentres on where you stood (same zoom), the pattern of palace.py flyMap/center.
   active()
 
-Controls: W A S D / Up Down move (A D strafe), Left Right turn, drag the mouse to look (the scene follows the pointer, like Street View; yaw + a little pitch), Shift runs, Esc leaves.
+Controls: W A S D / Up Down move (A D strafe), Left Right turn, drag the mouse to look (the scene follows the pointer, like Street View; yaw + a little pitch), Esc leaves.
+  Pace (1.9.100 / FPV phase 1; 1 m = UM = 1.3 map units): a walk is 1.5 m/s, holding Shift is a brisk 4 m/s, and holding Shift for a few seconds eases into a 7 m/s jog;
+  the eye is 1.65 m up (2.15 units) and bobs only while walking, one bob per footfall; the view is Street View's (90 degrees across, palace_ride_b fpFoc).
+  E (or a click on the door, or the place pin) goes in through the door of a node building you are facing within ~12 units: palace_ride_door.py (JS_DOORS, spliced in below).
 Every key except browser shortcuts (Cmd/Ctrl/Alt combinations) and Tab is swallowed in the capture phase while roaming (stopImmediatePropagation),
 so the page under the overlay never sees it; the listeners are installed at load, ahead of every other window-level capture handler.
 
@@ -32,14 +35,18 @@ worlds in `cells` for a renderer that caches by cell). Cells far behind are drop
 for a cell that stays loaded.
 """
 
-JS_E = r"""
+from .palace_ride_door import CSS_DOOR, JS_DOORS
+
+_JS_E = r"""
 var ROAM=(function(){
-var CFG={ eye:2.15, PR:2.4, walk:14, run:40, tau:.11, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:.42, pitch0:-.03, edge:8,
-  waterGap:17, waterOff:8, deckHW:9.5, bob:.07, stride:5, crossAt:34, gridC:160, stayZoom:.6 };
+var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:1.95, brisk:5.2, jog:9.1, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:.42, pitch0:-.03, edge:8,
+  waterGap:17, waterOff:8, deckHW:9.5, bob:.03, crossAt:34, gridC:160, stayZoom:.6 };
 var MXC=90;                                     /* palace.py MX = MY = 90: the margin round the drawn city; scroll = (x + MX) * zoom + gap - viewport / 2 */
-var S={ on:false, hold:false, x:0, y:0, yaw:0, pitch:0, vx:0, vy:0, run:false, keys:{}, tm:0, last:0, raf:0, phase:0, walked:0, speed:0, drag:null, cells:{}, queue:[], bigs:[],
+var S={ on:false, hold:false, x:0, y:0, yaw:0, pitch:0, vx:0, vy:0, run:false, hurry:0, keys:{}, tm:0, last:0, raf:0, phase:0, walked:0, speed:0, drag:null, cells:{}, queue:[], bigs:[],
   W:null, plan:{x:-1e9,y:-1e9}, dirty:false, built:0, evicted:0, merges:0, plans:0, bms:[], lbms:[], mms:[], fr:[], view:null, hud:null, hudAt:0, hint:0, lastDark:null, spawned:null, sync:false, ver:0, loc:null, said:'' };
 var QUAL=['b','node','fill','lm'], BIGR=CELL*.4;
+/* the player circle: 1.3 units (1 m) with the GL renderer, whose near plane is .5 (palace_ride_gl.py GL_NEAR) so a wall can be walked right up to; 2.4 for the 2D fallback (near plane 1.8) */
+function PRX(){ return S.pr||CFG.PR; }
 
 /* \u2500\u2500 the page's data indexes, built once on first use \u2500\u2500 */
 var IDX=null;
@@ -47,7 +54,7 @@ function cellOf(v){ return Math.floor(v/CFG.gridC); }
 function buildIdx(){
   var M=E.M, I={ riv:{}, decks:[], st:{}, stN:0 }, i, k;
   /* rivers: each segment under the cells it can reach (its drawn half width + the gap + the player radius) */
-  (M.river||[]).forEach(function(rv, ri){ var p=rv.p||[], lim=(rv.w||100)/2+CFG.waterGap+CFG.waterOff+CFG.PR;
+  (M.river||[]).forEach(function(rv, ri){ var p=rv.p||[], lim=(rv.w||100)/2+CFG.waterGap+CFG.waterOff+PRX();
     for(i=0;i+3<p.length;i+=2){ var x0=p[i], y0=p[i+1], x1=p[i+2], y1=p[i+3], seg={x0:x0,y0:y0,x1:x1,y1:y1,lim:lim,l2:Math.max(1e-9,(x1-x0)*(x1-x0)+(y1-y0)*(y1-y0))};
       for(var cx=cellOf(Math.min(x0,x1)-lim); cx<=cellOf(Math.max(x0,x1)+lim); cx++) for(var cy=cellOf(Math.min(y0,y1)-lim); cy<=cellOf(Math.max(y0,y1)+lim); cy++){ k=cx+','+cy; (I.riv[k]=I.riv[k]||[]).push(seg); } } });
   /* bridges: streets the data marks as crossing water */
@@ -73,7 +80,7 @@ function ringHit(s,x,y,pr2){ var ring=s.ring, n=s.n, inside=false, j=n-1;
     j=i; }
   return inside; }
 function listHit(l,x,y,PR,pr2){ for(var i=0;i<l.length;i++){ var s=l[i], dx=x-s.cx, dy=y-s.cy, rr=s.r+PR; if(dx*dx+dy*dy>rr*rr) continue; if(ringHit(s,x,y,pr2)) return true; } return false; }
-function buildingHit(x,y){ var PR=CFG.PR, pr2=PR*PR, ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), a, b, c;
+function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), a, b, c;
   for(a=-1;a<=1;a++) for(b=-1;b<=1;b++){ c=S.cells[(ci+a)+','+(cj+b)]; if(c && listHit(c.small,x,y,PR,pr2)) return true; }
   return listHit(S.bigs,x,y,PR,pr2); }
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
@@ -111,7 +118,7 @@ function buildCell(ci,cj){
   if(!Wc) Wc={solids:[],tiles:[],parks:[],water:[],roads:[],props:[],poles:[],labels:[],dashes:[],meshes:[],movers:[],set:set,scenery:null,rivers:[]};
   addBridges(Wc, ci, cj);
   var col=[]; Wc.solids.forEach(function(s){ if(QUAL.indexOf(s.kind)>=0 || s.collide) col.push(s); });
-  Wc.col=col; Wc.small=col.filter(function(s){ return s.r<=BIGR; }); Wc.big=col.filter(function(s){ return s.r>BIGR; }); Wc.ci=ci; Wc.cj=cj; Wc.key=key; Wc.ms=performance.now()-t0; Wc.late=!!S.on&&!S.entering;
+  Wc.doors=Wc.solids.filter(function(s){ return s.door; }); Wc.col=col; Wc.small=col.filter(function(s){ return s.r<=BIGR; }); Wc.big=col.filter(function(s){ return s.r>BIGR; }); Wc.ci=ci; Wc.cj=cj; Wc.key=key; Wc.ms=performance.now()-t0; Wc.late=!!S.on&&!S.entering;
   S.cells[key]=Wc; S.built++; if(Wc.late){ S.lbms.push(Wc.ms); if(S.lbms.length>400) S.lbms.shift(); } S.bms.push(Wc.ms); if(S.bms.length>400) S.bms.shift(); S.dirty=true; return Wc; }
 /* a bridge deck and its two parapets as low solids, over the water only, in the cell that holds the middle of the deck */
 function addBridges(Wc, ci, cj){
@@ -184,16 +191,17 @@ function ensureHud(){
   var h=document.createElement('div'); h.className='rm-hud'; h.setAttribute('role','group'); h.setAttribute('aria-label','Street-level view');
   var tape='<div class="rm-tape">'; for(var d=-180; d<=540; d+=15){ var m=((d%360)+360)%360, nm=m%45===0?DIRS[m/45]:''; tape+='<i class="'+(nm?'m':'')+(m%90===0?' c':'')+'" style="left:'+(d*3)+'px">'+(nm?'<s>'+nm+'</s>':'')+'</i>'; } tape+='</div>';
   h.innerHTML='<div class="rm-compass" aria-hidden="true"><div class="rm-win">'+tape+'</div><u></u></div>'
-    +'<div class="rm-where" aria-hidden="true"><b class="rm-st"></b><span class="rm-cx"></span><em class="rm-ar"></em></div>'
+    +'<div class="rm-left"><div class="rm-where" aria-hidden="true"><b class="rm-st"></b><span class="rm-cx"></span><em class="rm-ar"></em></div>'
+    +'<button type="button" class="rm-pin" data-roam="door" aria-hidden="true" tabindex="-1"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18s5.6-4.9 5.6-9.3a5.6 5.6 0 0 0-11.2 0C4.4 13.1 10 18 10 18z"/><circle cx="10" cy="8.6" r="2"/></svg><b class="rm-pn"></b><kbd aria-hidden="true">E</kbd></button></div>'
     +'<div class="rm-btns"><button type="button" data-roam="exit">Back to the map \u00b7 Esc</button><button type="button" data-roam="stay">Stay here</button></div>'
-    +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 \u2190 \u2192 turn \u00b7 drag to look \u00b7 Shift to run \u00b7 Esc to leave</div>'
+    +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 \u2190 \u2192 turn \u00b7 drag to look \u00b7 Shift to walk faster \u00b7 Esc to leave</div>'
     +'<div class="pr-live rm-live" aria-live="polite"></div>';
-  R.ov.appendChild(h); S.hud={root:h, tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), live:h.querySelector('.rm-live')};
-  h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); ROAMAPI.exit(b.getAttribute('data-roam')==='stay'); });
+  R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), live:h.querySelector('.rm-live')};
+  h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); if(b.getAttribute('data-roam')==='door'){ openDoor(); return; } ROAMAPI.exit(b.getAttribute('data-roam')==='stay'); });
   ['click','dblclick','contextmenu','mousedown','mouseup'].forEach(function(t){ R.ov.addEventListener(t, function(e){ if(S.on){ e.stopPropagation(); if(t==='contextmenu') e.preventDefault(); } }); });
-  var cv=R.cv; cv.addEventListener('pointerdown', function(e){ if(!S.on||e.button>0) return; S.drag={id:e.pointerId,x:e.clientX,y:e.clientY}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} R.ov.classList.add('drag'); e.preventDefault(); });
-  cv.addEventListener('pointermove', function(e){ var d=S.drag; if(!d||d.id!==e.pointerId) return; var g=CFG.grab?-1:1; S.yaw+=g*(e.clientX-d.x)*CFG.lookX; S.pitch=clamp(S.pitch-g*(e.clientY-d.y)*CFG.lookY,-CFG.pitchMax,CFG.pitchMax); d.x=e.clientX; d.y=e.clientY; });
-  var up=function(e){ if(S.drag&&S.drag.id===e.pointerId){ S.drag=null; R.ov.classList.remove('drag'); try{ cv.releasePointerCapture(e.pointerId); }catch(x){} } };
+  var cv=R.cv; cv.addEventListener('pointerdown', function(e){ if(!S.on||e.button>0||DR.busy) return; S.drag={id:e.pointerId,x:e.clientX,y:e.clientY,mv:0}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} R.ov.classList.add('drag'); e.preventDefault(); });
+  cv.addEventListener('pointermove', function(e){ var d=S.drag; if(!d||d.id!==e.pointerId){ doorHover(e); return; } d.mv+=Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y); var g=CFG.grab?-1:1; S.yaw+=g*(e.clientX-d.x)*CFG.lookX; S.pitch=clamp(S.pitch-g*(e.clientY-d.y)*CFG.lookY,-CFG.pitchMax,CFG.pitchMax); d.x=e.clientX; d.y=e.clientY; });
+  var up=function(e){ if(S.drag&&S.drag.id===e.pointerId){ var mv=S.drag.mv||0; S.drag=null; if(e.type==='pointerup' && mv<6) doorClick(e); R.ov.classList.remove('drag'); try{ cv.releasePointerCapture(e.pointerId); }catch(x){} } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   return S.hud; }
 function bearing(){ var b=Math.atan2(Math.cos(S.yaw), -Math.sin(S.yaw))*180/Math.PI; return (b+360)%360; }
@@ -215,10 +223,11 @@ function onKey(e){
   if(!S.on){ if(e.type==='keyup' && DN[e.key]){ delete DN[e.key]; e.preventDefault(); e.stopImmediatePropagation(); } return; }
   if(e.metaKey||e.ctrlKey||e.altKey) return;                       /* browser shortcuts stay the browser's */
   var t=e.target, inHud=t&&t.closest&&t.closest('.rm-hud');
-  if(e.key==='Tab'){ if(e.type==='keydown'){ e.preventDefault(); e.stopImmediatePropagation(); var bs=[].slice.call(S.hud.root.querySelectorAll('button')), i=bs.indexOf(document.activeElement); bs[(i+(e.shiftKey?bs.length-1:1))%bs.length].focus(); } return; }
+  if(e.key==='Tab'){ if(e.type==='keydown'){ e.preventDefault(); e.stopImmediatePropagation(); var bs=[].slice.call(S.hud.root.querySelectorAll('button')).filter(function(b){ return getComputedStyle(b).visibility!=='hidden'; }), i=bs.indexOf(document.activeElement); bs[(i+(e.shiftKey?bs.length-1:1))%bs.length].focus(); } return; }
   if(inHud && t.tagName==='BUTTON' && (e.key==='Enter'||e.key===' ') ){ e.stopImmediatePropagation(); return; }     /* a focused button keeps its own Enter / Space */
   e.preventDefault(); e.stopImmediatePropagation();
   if(e.type==='keydown') DN[e.key]=1; else delete DN[e.key];
+  if(e.type==='keydown' && doorKey(e)) return;
   if(e.type==='keydown' && e.key==='Escape'){ ROAMAPI.exit(false); return; }
   S.run=!!e.shiftKey;
   setKey(keyName(e), e.type==='keydown'); }
@@ -231,37 +240,41 @@ document.addEventListener('visibilitychange', function(){ if(document.hidden) cl
 function tick(dt, sync){
   var k=S.keys, fx=Math.cos(S.yaw), fy=Math.sin(S.yaw), rx=-fy, ry=fx, ax=(k.f?1:0)-(k.b?1:0), ay=(k.r?1:0)-(k.l?1:0), l=Math.hypot(ax,ay);
   if(k.tl||k.tr) S.yaw+=((k.tr?1:0)-(k.tl?1:0))*CFG.turn*dt*(S.run?1.4:1);
-  var sp=S.run?CFG.run:CFG.walk, tx=0, ty=0; if(l>0){ tx=(fx*ax+rx*ay)/l*sp; ty=(fy*ax+ry*ay)/l*sp; }
+  S.hurry=(S.run&&l>0)?Math.min(S.hurry+dt,CFG.hurryAfter+CFG.hurryRamp):Math.max(0,S.hurry-dt*2);
+  var sp=S.run?mix(CFG.brisk,CFG.jog,sstep(CFG.hurryAfter,CFG.hurryAfter+CFG.hurryRamp,S.hurry)):CFG.walk, tx=0, ty=0; if(l>0){ tx=(fx*ax+rx*ay)/l*sp; ty=(fy*ax+ry*ay)/l*sp; }
   var a=1-Math.exp(-dt/CFG.tau); S.vx+=(tx-S.vx)*a; S.vy+=(ty-S.vy)*a;
   if(blockedAt(S.x,S.y)){ var fr=freeNear(S.x,S.y); S.x=fr[0]; S.y=fr[1]; S.vx=S.vy=0; }                  /* never stand inside anything (a safety net: moves are only ever committed free) */
   var x0=S.x, y0=S.y; if(Math.abs(S.vx)>.01||Math.abs(S.vy)>.01) moveBy(S.vx*dt,S.vy*dt);
   var mv=Math.hypot(S.x-x0,S.y-y0); S.speed=dt>0?mv/dt:0;
   if(dt>0 && mv<Math.hypot(S.vx,S.vy)*dt*.5){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; }       /* pressed against a wall: no speed stored up */
-  S.phase+=mv/CFG.stride*6.2832; S.walked+=mv; S.tm+=dt;
+  S.phase+=stepHz(S.speed/UM)*6.2832*dt; S.walked+=mv; S.tm+=dt;
   plan(false); stream(!!sync); }
 function draw(){
   var t0=performance.now(); sizeCheck(); var ctx=R.ctx, W=R.w, H=R.h, dpr=R.dpr; if(!ctx||!S.W) return;
   var dk=dark(); if(dk!==S.lastDark){ S.lastDark=dk; R.PAL=palette(); }
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  var a=clamp(S.speed/CFG.walk,0,1), bob=reduced()?0:Math.sin(S.phase)*CFG.bob*a, sway=reduced()?0:Math.sin(S.phase*.5)*.004*a;
+  var a=clamp(S.speed/CFG.walk,0,1.4), a1=Math.min(a,1), bob=reduced()?0:Math.sin(S.phase)*CFG.bob*a, sway=reduced()?0:Math.sin(S.phase*.5)*.004*a1;
   var pitch=S.pitch+(reduced()?0:Math.abs(Math.sin(S.phase))*.004*a);
   S.camZ=CFG.eye+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,pitch,W,H);
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
+  ctx.setTransform(dpr,0,0,dpr,0,0); doorGlow(ctx);
   var ms=performance.now()-t0; S.fr.push(ms); if(S.fr.length>600) S.fr.shift(); }
 /* the one place the camera is set: setCam's 8th argument is the real pitch (the GL renderer tilts the view; the 2D fallback has no pitch of its own, so it keeps the old horizon shift) */
-function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5,pitch); }
+function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5,pitch,fpFoc(W,H)); }
 function frame(now){
   S.raf=0; if(!S.on) return;
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */
   var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
-  tick(dt,false); hudFrame(false); draw(); showNow();
+  if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy) tick(dt,false);
+  hudFrame(false); doorFrame(dt); draw(); showNow();
   if(S.on) S.raf=requestAnimationFrame(frame); }
 
+/*@DOORS@*/
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0;
+  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
@@ -270,10 +283,11 @@ function enter(x,y,heading,opts){
   x=+x; y=+y; if(!isFinite(x)||!isFinite(y)) return false;
   var view=opts.view||(E.curView?E.curView():null);
   ensureOverlay(); ensureHud(); openOv();
+  var pr=glOk()?CFG.PRGL:CFG.PR; if(pr!==S.pr){ S.pr=pr; IDX=null; }
   var cs=document.activeElement; if(cs&&cs.blur&&cs!==document.body) cs.blur();
   R.saved=view; R.M=null; R.W=null; R.hold=false; R.shown=false; R.playing=false; R.line=null;
   R.ov.classList.add('rm'); S.W={solids:[],tiles:[],parks:[],water:[],roads:[],props:[],poles:[],labels:[],dashes:[],meshes:[],movers:[],set:{},cells:S.cells,scenery:null,rivers:E.M.river||[],tunn:false,ver:0};
-  S.cells={}; S.W.cells=S.cells; S.queue=[]; S.bigs=[]; S.dirty=false; S.plan={x:-1e9,y:-1e9}; S.tm=0; S.phase=0; S.walked=0; S.speed=0; S.vx=S.vy=0; S.pitch=CFG.pitch0; S.hud._sig=''; S.said=''; S.lastDark=null; S.built=0; S.evicted=0; S.merges=0; S.plans=0; S.bms=[]; S.lbms=[]; S.mms=[]; S.fr=[]; S.view=view; S.entering=true;
+  S.cells={}; S.W.cells=S.cells; S.queue=[]; S.bigs=[]; S.dirty=false; S.plan={x:-1e9,y:-1e9}; S.tm=0; S.phase=0; S.walked=0; S.speed=0; S.hurry=0; S.vx=S.vy=0; S.pitch=CFG.pitch0; S.hud._sig=''; S.said=''; S.lastDark=null; S.built=0; S.evicted=0; S.merges=0; S.plans=0; S.bms=[]; S.lbms=[]; S.mms=[]; S.fr=[]; S.view=view; S.entering=true;
   /* the first cells round the spawn point are built before the first frame (nearest first), the rest stream in */
   S.x=clamp(x,CFG.edge+1,E.M.W-CFG.edge-1); S.y=clamp(y,CFG.edge+1,E.M.H-CFG.edge-1);
   plan(true); var near=S.queue.filter(function(q){ return q[0]<=CFG.sync; }); S.queue=S.queue.filter(function(q){ return q[0]>CFG.sync; }); near.forEach(function(q){ if(!S.cells[q[1]+','+q[2]]) buildCell(q[1],q[2]); }); merge();
@@ -289,17 +303,21 @@ function enter(x,y,heading,opts){
 function viewFor(x,y,z){ var cv=document.getElementById('canvas'); if(!cv) return null; var VW=E.M.W+2*MXC, VH=E.M.H+2*MXC, cw=cv.clientWidth, ch=cv.clientHeight;
   var gx=Math.max(0,(cw-VW*z)/2), gy=Math.max(0,Math.round((ch-VH*z)/2));
   return {z:z, x:Math.max(0,(x+MXC)*z+gx-cw/2), y:Math.max(0,(y+MXC)*z+gy-ch/2)}; }
-function exit(stay){
+function exit(stay){ exitCore(stay); }
+function exitCore(stay){
   if(!S.on) return; clearTimeout(S.hintT);
   var x=S.x, y=S.y, v=S.view;
   if(stay){ var z=Math.max(v&&v.z||0, CFG.stayZoom); var sv=viewFor(x,y,z); if(sv) R.saved=sv; }
   else R.saved=v;
   shutdown(); closeNow(true,false); }
 var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetHeading:streetHeading, locate:locate, viewFor:viewFor, cfg:CFG,
-  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, spawned:S.spawned, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
+  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
   stats:function(){ var f=S.fr.slice().sort(function(p,q){ return p-q; }), n=f.length, b=S.bms.slice().sort(function(p,q){ return p-q; }), m=S.mms.slice().sort(function(p,q){ return p-q; });
     return {built:S.built, evicted:S.evicted, merges:S.merges, plans:S.plans, cells:Object.keys(S.cells).length, queue:S.queue.length, buildAvg:b.length?b.reduce(function(p,q){ return p+q; },0)/b.length:0, buildMax:b.length?b[b.length-1]:0, streamMax:S.lbms.length?Math.max.apply(null,S.lbms):0, streamN:S.lbms.length, buildP95:b.length?b[Math.floor(b.length*.95)]:0, mergeMax:m.length?m[m.length-1]:0, mergeAvg:m.length?m.reduce(function(p,q){ return p+q; },0)/m.length:0,
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
+  /* the doors (palace_ride_door.py): tests drive the dolly with step(ms) and the prompt with frame(dt) */
+  door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
+    state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
   /* tests and the QA kit */
   tick:function(dt, keys, run){ if(keys) { S.keys={}; String(keys).split(',').forEach(function(q){ if(q) S.keys[q]=1; }); } S.run=!!run; tick(dt,true); },
   sim:function(keys, seconds, dt, run){ S.keys={}; String(keys||'').split(',').forEach(function(q){ if(q) S.keys[q]=1; }); S.run=!!run; dt=dt||1/60; var n=Math.round(seconds/dt), bad=0; for(var i=0;i<n;i++){ tick(dt,true); if(blockedAt(S.x,S.y)) bad++; } S.keys={}; S.run=false; return {x:S.x,y:S.y,bad:bad,n:n}; },
@@ -313,7 +331,9 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
 return ROAMAPI; })();
 """
 
-CSS_E = r"""
+JS_E = _JS_E.replace("/*@DOORS@*/", JS_DOORS)
+
+_CSS_E = r"""
   #pal-ride.rm .pr-chip,#pal-ride.rm .pr-btns{display:none;}
   #pal-ride.rm:focus{outline:none;}
   #pal-ride.rm .pr-cv{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;}
@@ -328,7 +348,7 @@ CSS_E = r"""
   #pal-ride .rm-tape i s{position:absolute;left:-14px;width:29px;top:-19px;text-align:center;text-decoration:none;font-size:11px;font-weight:700;line-height:14px;color:#fff;}
   #pal-ride .rm-tape i.c s{color:#ffd166;font-size:13px;top:-20px;}
   #pal-ride .rm-compass u{position:absolute;left:50%;top:25px;width:2px;height:12px;margin-left:-1px;border-radius:1px;background:#ffd166;}
-  #pal-ride .rm-where{position:absolute;left:24px;top:20px;max-width:min(520px,calc(100vw - 420px));padding:9px 16px 9px 15px;border-radius:16px;background:rgba(14,16,26,.62);border:1px solid rgba(255,255,255,.16);}
+  #pal-ride .rm-where{max-width:100%;box-sizing:border-box;padding:9px 16px 9px 15px;border-radius:16px;background:rgba(14,16,26,.62);border:1px solid rgba(255,255,255,.16);}
   #pal-ride .rm-where b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   #pal-ride .rm-where span{display:block;opacity:.85;font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   #pal-ride .rm-where em{display:block;font-style:normal;opacity:.6;font-weight:500;font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -338,6 +358,7 @@ CSS_E = r"""
   #pal-ride .rm-btns button:focus-visible{outline:2px solid #ffd166;outline-offset:2px;}
   #pal-ride .rm-hint{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);padding:7px 15px;border-radius:999px;background:rgba(14,16,26,.55);border:1px solid rgba(255,255,255,.14);font-weight:500;font-size:12px;white-space:nowrap;opacity:.9;transition:opacity .9s ease;}
   #pal-ride .rm-hint.gone{opacity:0;}
-  @media (max-width:900px){ #pal-ride .rm-where{max-width:calc(100vw - 48px);top:64px;} #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
+  @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }
 """
+CSS_E = _CSS_E + CSS_DOOR

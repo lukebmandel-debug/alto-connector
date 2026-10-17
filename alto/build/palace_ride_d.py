@@ -90,12 +90,13 @@ function render(dt){
   if(R.yaw==null) R.yaw=hT; else R.yaw=angLerp(R.yaw, hT, dt>0?1-Math.exp(-dt*(veh==='walk'?7:10)):0);
   pathAt(D, s, _pa); var off=spec.off+(veh==='bus'?pullAt(sec,s)*8:0), L=lift(M,s), spd=clamp(st.v/((spec.vmax||100)*1.1),0,1);
   var px=_pa.x-Math.sin(hT)*off, py=_pa.y+Math.cos(hT)*off, tm=R.t, bob=0, swx=0, swy=0, roll=0;
-  if(veh==='walk'){ var ph=s/6.3*6.2832, a=clamp(st.v/60,0,1); bob=Math.sin(ph)*.085*a; swx=Math.sin(ph*.5)*H*.004*a; swy=Math.abs(Math.sin(ph))*H*.006*a; roll=Math.sin(ph*.5)*.0035*a; }
+  if(veh==='walk'){ /* a footfall every step of a person walking (stepHz, palace_ride_b), however fast the leg plays: the bob fades out once the leg runs faster than a jog (nothing shakes at 5 Hz) */
+    R.wph=(R.wph||0)+(dt>0?stepHz(st.v/UM)*6.2832*dt:0); var ph=R.wph, a=clamp(st.v/2,0,1)*(1-sstep(9,40,st.v)); bob=Math.sin(ph)*.03*a; swx=Math.sin(ph*.5)*H*.0022*a; swy=Math.abs(Math.sin(ph))*H*.0034*a; roll=Math.sin(ph*.5)*.002*a; }
   else if(veh==='car'||veh==='bus'){ swy=Math.sin(tm*13.1+s*.01)*H*.0012*spd; roll=Math.sin(tm*3.7)*.0007*spd; }
   else { swy=(Math.sin(tm*18.3)*.5+Math.sin(tm*6.1)*.5)*H*.0016*spd; roll=Math.sin(tm*2.3)*.0016*spd; if(veh==='tram') swx=Math.sin(tm*9.7)*H*.0012*spd; }
   if(reduced()){ swx=swy=roll=bob=0; }
   var ug=ugAlpha(M, s), alpha=ug.a, camZ=spec.eye+L+bob;
-  setCam(px, py, camZ, R.yaw, W, H, veh==='bus'?.43:.455);
+  setCam(px, py, camZ, R.yaw, W, H, veh==='bus'?.43:.455, 0, veh==='walk'?fpFoc(W,H):0);
   ctx.save(); ctx.translate(W/2+swx,H/2+swy); ctx.rotate(roll); ctx.scale(1.012,1.012); ctx.translate(-W/2,-H/2);
   if(alpha<.999){
     if(!R.W){ R.W=gather(M); GLX.newWorld(); }
@@ -140,8 +141,12 @@ function chipUpdate(M, sec, veh, s, st, nxt){
   if(st.dwell && st.dwell.kind==='end'){ title='Arrived'; sub=M.b!=null?E.name(M.b):''; if(M.line) { sub=M.line.stopName||''; } }
   else if(sec.line){ title=lead; sub=nxt?('Next stop · '+nxt.n):(sec.stops.length?'Last stop · '+sec.stops[sec.stops.length-1].n:''); if(st.dwell&&st.dwell.name) sub=(st.dwell.kind==='stop'?'Stopped · ':'')+st.dwell.name; }
   else { var nsec=M.secs[st.sec+1]; title=veh==='car'?'Driving':'Walking'; sub=nsec&&nsec.line?('To '+((nsec.stops[0]||{}).n||'the station')):(M.b!=null?('To '+E.name(M.b)):''); }
-  var sig=title+'|'+sub+'|'+(sec.color||''); if(sig===R.sig) return; R.sig=sig;
-  R.chip.style.setProperty('--lc', sec.color||'#888'); R.chip.innerHTML='<i></i><b>'+esc(title)+'</b>'+(sub?'<span>'+esc(sub)+'</span>':''); R.live.textContent=title+(sub?'. '+sub:''); }
+  var canE=!!(st.dwell && st.dwell.kind==='end' && !M.line && canOpen(M.b));      /* arrived at a building with a page: E opens it (a very small key cap, nothing more) */
+  var sig=title+'|'+sub+'|'+(sec.color||'')+(canE?'|e':''); if(sig===R.sig) return; R.sig=sig;
+  R.chip.style.setProperty('--lc', sec.color||'#888'); R.chip.innerHTML='<i></i><b>'+esc(title)+'</b>'+(sub?'<span>'+esc(sub)+'</span>':'')+(canE?'<kbd aria-hidden="true">E</kbd>':''); R.live.textContent=title+(sub?'. '+sub:'')+(canE?'. Press E to open its page.':''); }
+/* a node building has a detail page: the ride's destination, once arrived, opens it with E (the trip is ended first, then the page, the way the map's own enter does) */
+function canOpen(id){ try{ return id!=null && typeof window.showDetail==='function' && !!(E.P && E.P.at && E.P.at[E.bOf(id)]); }catch(x){ return false; } }
+function openArrived(id){ var nid=E.bOf(id); if(window._palTr && window._palTr.clear) window._palTr.clear(); setTimeout(function(){ try{ window.showDetail('node', nid); }catch(x){} }, 60); }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function loop(now){
   R.raf=0; if(!R.M) return; var dt=Math.min(.05, R.last?(now-R.last)/1000:.016); R.last=now;
@@ -223,6 +228,7 @@ function bind(){
   document.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-ride]'); if(!b) return; e.preventDefault(); e.stopPropagation(); var a=b.getAttribute('data-ride');
     if(a==='view') toggle(); else if(a==='exit'){ if(window._palTr) window._palTr.clear(); } else if(a==='snd'){ try{ localStorage.setItem(LS_SND, sndOn()?'off':'on'); }catch(x){} labelBtns(); if(sndOn()) chime(); } }, true);
   window.addEventListener('keydown', function(e){ if(e.metaKey||e.ctrlKey||e.altKey) return; var t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
+    if((e.key==='e' || e.key==='E') && !e.repeat && R.active && R.M && !R.playing && R.t>=R.M.T-.05 && !R.M.line && canOpen(R.M.b)){ e.preventDefault(); e.stopImmediatePropagation(); openArrived(R.M.b); return; }
     if(e.key!=='v' && e.key!=='V') return; var S=window._palTr&&window._palTr.state?window._palTr.state():null; if(!S || (!S.trip && !S.ride)) return; e.preventDefault(); e.stopImmediatePropagation(); toggle(); }, true);
   window.addEventListener('resize', function(){ if(R.active && R.M){ kick(); } });
 }

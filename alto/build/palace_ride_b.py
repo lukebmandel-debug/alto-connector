@@ -81,7 +81,7 @@ function gatherWorld(set, M){
   var seen={}, hot={}; if(M&&M.a!=null) hot[E.bOf(M.a)]=1; if(M&&M.b!=null) hot[E.bOf(M.b)]=1;
   Object.keys(P.at||{}).forEach(function(id){ if(E.bOf(id)!==id) return; var key=P.at[id]; if(seen[key]) return; seen[key]=1; var L=E.lot(key); if(!L) return; if(!inSet(set,L[0],L[1])) return;
     var tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*VEX, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dark()?[150,162,200]:[255,255,255], dark()?.30:.5), s=solid(turnedRing(L), h, gc, 'node', E.name(id));
-    s.hot=!!hot[id]; s.id=id; s.col2=E.ucol(id); W.solids.push(s); });
+    s.hot=!!hot[id]; s.id=id; s.col2=E.ucol(id); try{ s.door=nodeDoor(L,id); }catch(x){ s.door=null; } W.solids.push(s); });
   (Mp.landmarks||[]).forEach(function(l){ if(!l.box) return; var cx=(l.box[0]+l.box[2])/2, cy=(l.box[1]+l.box[3])/2; if(!inSet(set,cx,cy)) return; landmarkMeshes(l, (P.lmtop||{})[l.n]||30, W); });
   var FG=E.fillGroups?E.fillGroups():null, cnt=0, CAP=2600;
   if(FG){ for(var lv=4;lv>=1;lv--){ var G=FG[lv]||{}; Object.keys(G).forEach(function(key){ var C=G[key]; Object.keys(C.u).forEach(function(u){ var base=rgbOf(E.tubeCol(E.dcol(u==='null'?null:+u)||E.NEUTRAL()));
@@ -98,7 +98,14 @@ function gatherWorld(set, M){
 /* ── the camera and the 3D drawing ── */
 var C={x:0,y:0,z:2,fx:1,fy:0,rx:0,ry:1,foc:800,hx:0,hy:0,W:0,H:0,tan:1,yaw:0,pitch:0,shk:null};
 /* pitch (radians, up positive) tilts the GL view; the 2D fallback ignores it */
-function setCam(x,y,z,yaw,W,H,hz,pitch){ C.x=x; C.y=y; C.z=z; C.yaw=yaw; C.pitch=pitch||0; if(C.pitch && !glOk()){ hz+=.98*Math.tan(C.pitch); C.pitch=0; } C.fx=Math.cos(yaw); C.fy=Math.sin(yaw); C.rx=-C.fy; C.ry=C.fx; C.W=W; C.H=H; C.foc=H*.98; C.hx=W/2; C.hy=H*hz; C.tan=(W/2)/C.foc; }
+/* fk: the focal length as a multiple of the window height (default .98: the vehicles' ~55 degree vertical view); on foot fpFoc() gives the Street-View one */
+function setCam(x,y,z,yaw,W,H,hz,pitch,fk){ fk=fk||.98; C.x=x; C.y=y; C.z=z; C.yaw=yaw; C.pitch=pitch||0; if(C.pitch && !glOk()){ hz+=fk*Math.tan(C.pitch); C.pitch=0; } C.fx=Math.cos(yaw); C.fy=Math.sin(yaw); C.rx=-C.fy; C.ry=C.fx; C.W=W; C.H=H; C.foc=H*fk; C.hx=W/2; C.hy=H*hz; C.tan=(W/2)/C.foc; }
+/* on foot (roaming and walking legs): a Street-View field of view - 90 degrees across, which is 58.7 degrees up and down at 16:9 - kept between 40 and 70 degrees vertically
+   (a tall window gets a bit less than 90 across, a very wide one a bit more up and down than 40) and never wider than 110 across: no fisheye stretch at the edges */
+/* footfalls per second of a person moving v metres a second: the step grows with the pace (0.7 m at a stroll, 1.3 m at 4 m/s, 1.9 m at a jog), so 2 Hz walking, 3 Hz hurrying */
+function stepHz(v){ return v>.01?v/(.5+.2*v):0; }
+var FOV_H=90, FOV_VMIN=40, FOV_VMAX=70, FOV_HMAX=110;
+function fpFoc(W,H){ var t=Math.PI/180, foc=W/2/Math.tan(FOV_H/2*t), lo=H/2/Math.tan(FOV_VMAX/2*t), hi=H/2/Math.tan(FOV_VMIN/2*t), top=W/2/Math.tan(FOV_HMAX/2*t); foc=Math.max(lo, Math.min(hi, foc)); return Math.max(foc, top)/H; }
 function vis(cx,cy,r){ var dx=cx-C.x, dy=cy-C.y, zc=dx*C.fx+dy*C.fy; if(zc+r<NEARZ || zc-r>FARZ) return false; var xc=dx*C.rx+dy*C.ry; return Math.abs(xc)-r < (zc+r)*C.tan*1.18+r*.2; }
 var _wx=new Float64Array(1024), _wz=new Float64Array(1024), _wy=new Float64Array(1024), _ox=new Float64Array(1024), _oz=new Float64Array(1024), _oy=new Float64Array(1024);
 /* a flat polygon (ring x,y,x,y…) at height zh (or the per-vertex heights zs), clipped at the near plane; leaves the path on ctx, false when nothing shows */

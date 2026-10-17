@@ -47,7 +47,7 @@ def test_drawcity_keeps_its_signature_and_the_2d_painter_stays_as_the_fallback()
 
 def test_the_camera_has_a_pitch_and_the_labels_follow_it():
     b = palace_ride_b.JS_B
-    assert "function setCam(x,y,z,yaw,W,H,hz,pitch)" in b and "C.pitch=pitch||0;" in b
+    assert "function setCam(x,y,z,yaw,W,H,hz,pitch,fk)" in b and "C.pitch=pitch||0;" in b
     proj = b[b.index("function project("):b.index("var _pr=")]
     assert "C.pitch" in proj and "Math.sin(p)" in proj
 
