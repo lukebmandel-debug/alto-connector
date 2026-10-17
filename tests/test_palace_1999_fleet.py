@@ -247,7 +247,7 @@ def test_the_page_is_smaller_than_it_was_with_the_battleship_code_in_it():
 
 # ── the registry the ride shares ────────────────────────────────────────────────────────────────────────
 def test_the_registry_lists_the_ride_and_the_fleet_and_serves_them():
-    assert palace_assets.folders() == ["ride", "fleet"]
+    assert palace_assets.folders() == ["ride", "fleet", "street"]
     got = {(f, n): t for f, n, t in palace_assets.assets()}
     rn, rj = palace_ride.ride_asset()
     fn, fj = palace_fleet_asset.fleet_asset()
@@ -267,10 +267,11 @@ def test_the_site_writes_every_hosted_script_and_keeps_them_for_a_year(tmp_path)
         (site / f / old).write_text("old", encoding="utf-8")                          # an earlier release's file is swept
     regenerate_site(LocalStore(tmp_path / "store"), "local", site)
     for f, n, t in palace_assets.assets():
-        assert sorted(p.name for p in (site / f).iterdir()) == [n]
+        assert n in [p.name for p in (site / f).iterdir()]
         assert (site / f / n).read_text(encoding="utf-8") == t
+    assert sorted(p.name for p in (site / "ride").iterdir()) == [palace_ride.ride_asset()[0]]      # (a folder keeps one script; the street folder keeps every stored blob)
     heads = _headers("csp", "ccsp")
-    for f in ("ride", "fleet"):
+    for f in ("ride", "fleet", "street"):
         rule = next(h for h in heads if h["source"] == "/%s/**" % f)
         assert {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in rule["headers"] and heads.index(rule) > 0
 

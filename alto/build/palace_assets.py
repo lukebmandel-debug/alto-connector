@@ -6,6 +6,8 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
 (an exported single file, an old page that asks for an earlier hash) simply lacks that feature.
 
   ride    the first-person ride (palace_ride.py; its own RIDE_LOADER stands where RIDE_JS used to, loaded at once)
+  street  the street-level data of the city (palace_street.py: buildings with their materials and roofs, shop signs, doors, trees, lamps, lanes) for the first-person view — a
+          content-hashed JSON blob per city, not a script: every blob built so far (palace_street.blobs()) is published, the page holds only m["street"] = its hash
   fleet   the toy weapons: the battleship, destroyers, carriers, submarines and military bases of any city, with their sound, the crowd that
           runs from a collapse and the construction rebuild (palace_fleet_asset.py; loaded only by a city that has a vessel or a base)
 
@@ -24,8 +26,11 @@ ASSETS = (
 )
 
 
+BLOB_FOLDERS = ("street",)
+
+
 def folders() -> list:
-    return [a[0] for a in ASSETS]
+    return [a[0] for a in ASSETS] + list(BLOB_FOLDERS)
 
 
 def assets() -> list:
@@ -34,15 +39,17 @@ def assets() -> list:
     for folder, mod, fn in ASSETS:
         name, text = getattr(importlib.import_module("." + mod, __package__), fn)()
         out.append((folder, name, text))
+    from . import palace_street
+    out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs()]
     return out
 
 
 def find(path: str):
-    """(content type, text) for a request path such as /fleet/palace-fleet-0123456789.js (the QA kit's server uses it), else None."""
+    """(content type, text) for a request path such as /fleet/palace-fleet-0123456789.js (or /street/palace-street-0123456789.json) (the QA kit's server uses it), else None."""
     p = path.split("?")[0]
     for folder, name, text in assets():
         if p == "/" + folder + "/" + name:
-            return "text/javascript; charset=utf-8", text
+            return ("application/json; charset=utf-8" if name.endswith(".json") else "text/javascript; charset=utf-8"), text
     return None
 
 
