@@ -29,7 +29,7 @@ def test_the_module_is_small_and_no_audio_files_or_network():
 
 
 def test_the_page_hooks_are_one_liners_tied_to_the_real_shots():
-    assert "CONSTRUCT_JS + SOUND_JS + TRANSIT_JS" in Path(palace.__file__).read_text()
+    assert "CONSTRUCT_JS + SOUND_JS + PANIC_JS + TRANSIT_JS" in Path(palace.__file__).read_text()
     assert "SND=window._palSnd" in PJS
     assert "FXARM=on; SND.bar(b, on); }" in PJS                                    # arming / standing down (Esc, ×, the ship again)
     assert "function fxBoom(x, y){\n  SND.b(x, y);" in PJS                            # at the moment of impact
