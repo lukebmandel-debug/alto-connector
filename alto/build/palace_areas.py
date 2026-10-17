@@ -80,3 +80,53 @@ def layout(m, areas, district_names) -> list[dict]:
         seen.add(key)
         out.append({"n": a["name"], "x": round(x), "y": round(y), "r": a.get("rank") or 2})
     return sorted(out, key=lambda q: q["r"])
+
+
+# ── banners: a giant word across a river (e.g. the far bank of the Delaware) ────────────────────────
+def check_banners(banners) -> None:
+    if banners in (None, []):
+        return
+    if not isinstance(banners, list) or len(banners) > 8:
+        raise BriefError("palace.banners: a list of at most 8 banners")
+    for i, b in enumerate(banners):
+        if not isinstance(b, dict) or not isinstance(b.get("name"), str) or not b["name"].strip() or len(b["name"]) > 40:
+            raise BriefError(f"palace.banners[{i}]: needs a name (up to 40 characters)")
+        if not isinstance(b.get("river"), str) or not b["river"].strip():
+            raise BriefError(f"palace.banners[{i}] ({b['name']}): river names the river it lies across, e.g. \"Delaware\"")
+        if set(b) - {"name", "river", "size"}:
+            raise BriefError(f"palace.banners[{i}]: only name, river, size")
+
+
+def banners_layout(m, banners) -> list:
+    """[{n, x, y, s}] in map px: each word stands on the far bank of its river — across it from the middle of the drawn city — in letters
+    `size` px tall (default 1400: it fills the far bank)."""
+    import math
+    if not banners:
+        return []
+    rivers = m.get("river") or []
+    cs = [(l["x"], l["y"]) for l in m.get("landmarks", []) if l.get("x") is not None]
+    cx, cy = (sum(c[0] for c in cs) / len(cs), sum(c[1] for c in cs) / len(cs)) if cs else (m.get("W", 0) / 2, m.get("H", 0) / 2)
+    out = []
+    for b in banners:
+        rv = next((r for r in rivers if b["river"].lower() in str(r.get("n", "")).lower()), None)
+        if not rv:
+            continue
+        p = rv.get("p") or []
+        best = None
+        for k in range(0, len(p) - 3, 2):
+            ax, ay, bx, by = p[k], p[k + 1], p[k + 2], p[k + 3]
+            dx, dy = bx - ax, by - ay
+            L2 = dx * dx + dy * dy or 1e-9
+            t = max(0.0, min(1.0, ((cx - ax) * dx + (cy - ay) * dy) / L2))
+            qx, qy = ax + t * dx, ay + t * dy
+            d = math.hypot(qx - cx, qy - cy)
+            if best is None or d < best[0]:
+                best = (d, qx, qy)
+        d, qx, qy = best
+        ux, uy = ((qx - cx) / (d or 1), (qy - cy) / (d or 1))
+        size = float(b.get("size") or 1400)
+        hw = float(rv.get("w") or 100) / 2
+        w = len(b["name"]) * size * .56
+        reach = hw + max(size * .4, w * .5) + 120
+        out.append({"n": b["name"], "x": round(qx + ux * reach, 1), "y": round(qy + uy * reach + size * .32, 1), "s": round(size)})
+    return out
