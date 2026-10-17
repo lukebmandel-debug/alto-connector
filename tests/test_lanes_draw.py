@@ -236,10 +236,14 @@ def test_the_pace_of_the_story_sets_how_close_events_sit(browser, tmp_path):
     plain = pg.evaluate(X)
     steps = [plain[b] - plain[a] for a, b in zip(ids, ids[1:])]
     assert max(steps) - min(steps) < 1.5 and 120 < steps[0] < 260              # undated and unmarked: one ordinary, fairly close step
-    pg2, errs2 = _open(browser, _page(_undated_doc({ids[1]: "hours", ids[2]: "years"})), tmp_path)
+    pg2, errs2 = _open(browser, _page(_undated_doc({ids[1]: "day", ids[2]: "years"})), tmp_path)
     x = pg2.evaluate(X)
     quick, jump, even = x[ids[1]] - x[ids[0]], x[ids[2]] - x[ids[1]], x[ids[3]] - x[ids[2]]
-    assert quick < 0.6 * steps[0] and jump > 2 * steps[0] and abs(even - steps[0]) < 1.5, (quick, jump, even, steps[0])
+    assert quick < 0.75 * steps[0] and jump > 2 * steps[0] and abs(even - steps[0]) < 1.5, (quick, jump, even, steps[0])
+    caps = pg2.evaluate("() => [].map.call(document.querySelectorAll('.lanes-gap'), e => [e.textContent, Math.round(parseFloat(e.style.left))])")
+    assert [c[0] for c in caps] == ["next day", "years later"], caps                      # the pace is said on the line, only where it is stated
+    assert abs(caps[0][1] - (x[ids[0]] + x[ids[1]]) / 2) <= 1 and abs(caps[1][1] - (x[ids[1]] + x[ids[2]]) / 2) <= 1   # each between its two events
+    assert pg.evaluate("document.querySelectorAll('.lanes-gap').length") == 0                # ordinary steps carry no caption
     assert not [e for e in errs + errs2 if "ResizeObserver" not in e]       # (WebKit's loop notice is benign here)
 
 
