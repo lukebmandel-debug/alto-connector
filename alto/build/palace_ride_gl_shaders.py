@@ -293,7 +293,7 @@ void main(){
     /* brick 1, stone 2, glass 3, concrete 4 */
     if(id>2.5&&id<3.5&&N.z>.55){ alb=vec3(.22,.22,.23)*(.8+.4*nz(gp*.8)); }
     else if(wallLike){ wallFacade(id,vUV,vHA.y,vHA.x,T,fp,vDC,aux,V,N,alb,emi,refl);
-      { float stk=nz(vec2(vUV.x*2.3+T*40.,vUV.y*.055))*.65+nz(vec2(vUV.x*9.1+T*7.,vUV.y*.3))*.35; float fadeS=1.-smoothstep(50.,260.,dist); alb*=1.-fadeS*.2*smoothstep(.45,.85,stk)*(.4+.6*(1.-smoothstep(0.,vHA.x>.5?vHA.x*.8:30.,vUV.y))); }
+      { float stk=nz(vec2(vUV.x*2.3+T*40.,vUV.y*.055)); float fadeS=1.-smoothstep(50.,200.,dist); if(fadeS>0.) alb*=1.-fadeS*.11*smoothstep(.5,.9,stk)*(.4+.6*(1.-smoothstep(0.,vHA.x>.5?vHA.x*.8:30.,vUV.y))); }
       if(vHA.x>.5){ float vv=vUV.y; ao*=mix(.62,1.,smoothstep(.0,2.2,vv)); ao*=mix(.78,1.,smoothstep(vHA.x-1.9,vHA.x-1.0,vv)+step(vHA.x-1.0,vv)); } }
     else if(N.z<=-.55){ alb=vec3(.46,.45,.43)*(.9+.2*nz(gp)); ao=.7; }
     else { /* a roof */ float g=nz(gp*.55)*.6+nz(gp*2.9)*.4*(1.-smoothstep(.02,.1,fpx)); alb=vec3(.27,.265,.26)*(.86+.3*g)*mix(vec3(1.),tf,.12); alb=mix(alb,vec3(.5,.5,.48),smoothstep(.62,.8,nz(gp*.09+3.))*.4); }
@@ -345,9 +345,9 @@ void main(){
   } else if(id<18.5){   /* leaves: the palette colour (three shades a tree), broken up by noise */
     vec2 lq=vP.xy*.9+vec2(vP.z*1.7,vP.z*-1.3); float cl=nz(lq*1.1)*.6+nz(lq*3.9)*.4; float cl2=nz(lq*13.)*(1.-smoothstep(.02,.1,fpx));
     vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.82)*vec3(.97,1.,.9);
-    float cl3=nz(lq*.45+3.); float clump=smoothstep(.25,.75,cl3);
+    float clump=smoothstep(.25,.75,cl);
     alb=lc*(.68+.46*cl)*(.86+.2*cl2)*(.88+.2*clump);
-    N=normalize(N+vec3(cl-.5,nz(lq*1.1+9.)-.5,cl2-.5)*.42*(1.-smoothstep(40.,160.,dist)));   /* puffy clusters, not smooth facets */
+    N=normalize(N+vec3(cl-.5,cl2-.5,cl-cl2)*.42*(1.-smoothstep(40.,160.,dist)));   /* puffy clusters, not smooth facets */
     wrap=.7; float hz=smoothstep(.0,3.,vP.z/UMc); ao*=(.55+.45*hz)*(.74+.26*clump)*(.8+.2*(N.z*.5+.5));
     emi=lc*uSunCol*.10*(1.-uNight)*smoothstep(.5,1.,clump)*max(dot(-V,uSun),0.);   /* sun through the thin leaves */
   } else if(id<19.5){   /* car paint, glass, tyres, lamps: palette colours, glossy */
@@ -414,7 +414,7 @@ void main(){
   if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z)); col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
   float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/260.,.0,1.); f*=mix(.5,1.,hf);
   vec3 fogc=uFog+uSunCol*.045*pow(max(dot(-V,uSun),0.),5.)*(1.-uNight);
-  float aer=1.-exp(-dist*dist/(uFogD*uFogD*5.)); col=mix(col,vec3(dot(col,vec3(.2126,.7152,.0722)))*vec3(.92,.97,1.08),aer*.35);
+  float aer=min(dist*dist/(uFogD*uFogD*5.),1.); col=mix(col,vec3(dot(col,vec3(.2126,.7152,.0722)))*vec3(.92,.97,1.08),aer*.35);
   col=mix(col,fogc*vec3(.96,.99,1.04),clamp(f,0.,1.));
   col=aces(col*uExp);
   gl_FragColor=vec4(pow(col,vec3(1./2.2)),1.);

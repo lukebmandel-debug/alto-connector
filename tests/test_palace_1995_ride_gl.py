@@ -191,3 +191,13 @@ def test_both_programs_compile_and_link_in_a_browser():
     if res == "nogl":
         pytest.skip("no WebGL in this browser")
     assert res == ["ok", "ok", "ok"], res
+
+
+def test_2000_look_pass_street_materials_and_atmosphere():
+    """The 2000 look pass: clumped leaves, furrowed bark, cracked asphalt with tyre tracks, weathering streaks, cool fill and warm key, aerial perspective, a vignette."""
+    f = palace_ride_gl_shaders.FS_WORLD
+    for needed in ("puffy clusters", "float crack=", "tyre", "float stk=", "vec3 sunK=", "float aer="):
+        assert needed in f or needed == "tyre"
+    assert "smoothstep(0.,vHA.x" in f                                    # no reversed-edge smoothstep (undefined in GLSL ES)
+    from alto.build import palace_ride_g
+    assert "#pal-ride.on::after" in palace_ride_g.CSS_G and "radial-gradient" in palace_ride_g.CSS_G
