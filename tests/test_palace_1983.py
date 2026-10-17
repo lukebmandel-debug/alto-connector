@@ -59,7 +59,9 @@ def test_node_buildings_are_glass_blocks_as_tall_as_what_is_inside():
     assert "Math.min(100, 28+9*nbWeight(id))" in js                               # low-to-mid rise: always far below the landmark towers
     assert "nzRank" in js and "'--nz'" in js                                       # back to front, so a building stands in front of those behind it
     assert ".node .nb3d{position:absolute" in css and "translate:calc(-50% + var(--z,1)" in css      # the number is a tag floating over the roof
-    assert "html.mobile .node .nb3d" in css and "nbDraw(b, L, H, L[0], L[1], id)" in js    # the phone's map draws them too
+    assert "html.mobile .node .nb3d" in css and "nbDraw(body, L, H, L[0], L[1], id)" in js    # the phone's map draws them too
     assert "pin(b, 'pl-nbtag'" in js                                               # a tag the same size at every zoom, on the phone as well
-    assert ".node.nb-see .nb3d{opacity:.2;}" in css and "the see-through lens" in js     # buildings near the pointer turn to glass
+    assert "nb-see" not in js and "nb-see" not in css                              # no cursor lens: buildings never vanish under the pointer
+    assert "window._nbMoving=function" in js and "html.nb-moving .node .nb3d" in css   # while the page moves they turn to glass, so what they hid shows
+    assert "var NB_SK=.25;" in js                                                    # every building stands the way the landmarks do (one lean)
     assert "var pe=(Math.abs(w*Math.sin(th))+Math.abs(hh*Math.cos(th)))/2+(el._nbH||0)*Z;" in js   # an enlarged card stands over the roof
