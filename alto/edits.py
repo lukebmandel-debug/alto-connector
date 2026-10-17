@@ -440,7 +440,7 @@ def _target(key, brief, by_id, conns):
     if kind == "p" and len(p) == 3 and p[2] == "lot" and p[1] in by_id and brief.get("mode") == "palace":
         return brief.setdefault("placement", {}), p[1], "lot"
     # a floor's real number in a tower, a floor let out of its tower (placement hints); a landmark's unit
-    if kind == "p" and len(p) == 3 and p[2] in ("fno", "out") and p[1] in by_id and brief.get("mode") == "palace":
+    if kind == "p" and len(p) == 3 and p[2] in ("fno", "out", "shape") and p[1] in by_id and brief.get("mode") == "palace":
         return brief.setdefault("placement", {}), p[1], p[2]
     if kind == "pu" and len(p) == 2 and p[1] and brief.get("mode") == "palace":
         return brief.setdefault("palace", {}), p[1], "tower"
@@ -1102,7 +1102,14 @@ def fold(store, uid, tid) -> "dict | None":
                 holder["present"] = want
             else:
                 holder.pop("present", None)
-        elif kind in ("lot", "fno", "out"):
+        elif kind in ("lot", "fno", "out", "shape"):
+            if kind == "shape" and v:
+                from .build.palace_claim import check_shape
+                try:                        # the footprint of a background building a node stands on (palace_claim.py)
+                    v = check_shape(v)
+                except Exception:           # noqa: BLE001 — a bad one is a conflict, never written
+                    conflicts.append(k)
+                    continue
             cur = (holder.get(f) or {}).get(kind)
             if (cur or None) == (v or None):
                 already.append(k)
@@ -1112,7 +1119,9 @@ def fold(store, uid, tid) -> "dict | None":
                 continue
             h = dict(holder.get(f) or {})
             if v:
-                h[kind] = str(v) if kind == "lot" else (True if kind == "out" else int(v))
+                h[kind] = str(v) if kind == "lot" else (True if kind == "out" else v if kind == "shape" else int(v))
+                if kind == "lot":
+                    h.pop("shape", None)            # a building moved to a lot of its own is off its footprint
             else:
                 h.pop(kind, None)
             if h:
@@ -1610,7 +1619,7 @@ def published(store, uid, tid) -> int:
             carried = plain_text(t[0].get(t[1]) or "") == (o.get("v") or "")
         elif t is not None and t[2] in ("shift", "slide"):
             carried = _same((t[0].get(t[1]) or {}).get(t[2]), o.get("v"))
-        elif t is not None and t[2] in ("lot", "fno", "out"):
+        elif t is not None and t[2] in ("lot", "fno", "out", "shape"):
             carried = ((t[0].get(t[1]) or {}).get(t[2]) or None) == (o.get("v") or None)
         elif t is not None and t[2] == "tower":
             e = next((x for x in (t[0].get("buildings") or []) if isinstance(x, dict) and (x.get("label") or x.get("name")) == t[1]), None)

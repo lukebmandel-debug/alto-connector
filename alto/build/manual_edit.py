@@ -1210,7 +1210,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
-    if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out)$/.test(p[2] || '')))) return window._altoPalaceField(k);
+    if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
     if(LN && (kind === 'ln' || kind === 'fb' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
@@ -1547,7 +1547,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'bt'){ headingSoon(); return; }
     if((kind === 'n' || kind === 'nn' || kind === 'nd') && window._altoSearch && window._altoSearch.reset) window._altoSearch.reset();     // the search index: the cards as they are now
-    if(kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
+    if(kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
     if(kind === 'nl' || kind === 'ln' || kind === 'fb' || (kind === 'n' && /^(when|line|present|flash)$/.test(p[2] || ''))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
