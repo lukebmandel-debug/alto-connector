@@ -17,7 +17,7 @@ STREET_JS defines  window._palStreet  (a no-op when it already exists):
   cell(ix, iy)           the decoded cell (cached): undefined while its shard is not loaded yet, an empty cell when the manifest has nothing there, else
                          {b, r, t, f, p, e, a, w, l} — arrays of objects, every coordinate in METRES east (x) and north (y) of the blob origin
                          b: {k, lv, h(units), hm(m), mh, mhm(m), bc, bm, rs, rc, rm, rl, nm, ad, po, sd, wd, fl, colour:'#rrggbb', material:'brick'.., storefront:bool,
-                             ty, yr, er, st, ss, hs, fr(units), frm(m), by, pe, fe, pw, pc, rd, cf, ar, hr, wp, ex, typology:'rowhouse'.., era:'victorian'..,
+                             ty, yr, er, st, ss, hs, fr(units), frm(m), by, pe, fe, pw, pc, rd, cf, ar, hr, wp, ex, sy, tp(units), tpm(m: top, >= hm), typology:'rowhouse'.., era:'victorian'..,
                              party(i): true when ring edge i is a party wall (pe), front: the front edge index or -1,
                              ring:[[x,y]..], holes:[[[x,y]..]..]}      (bc / rc are RGB565 ints, bm a material code; the accuracy block: palace_street.py)
                          r: {hw, nm, ln, wd(units), ow, sw, cy, sf, ms, lt, sl, sr, cl, cr, br, tn, la, line:[[x,y]..]}   t: {x, y, sp, lf}   f: {x, y, kind, dir(deg or null)}
@@ -65,10 +65,10 @@ function use(b,shards){ if(!okManifest(b)) throw new Error('street manifest'); B
 /* the in-bounds extent the data was written for (manifest ib: runs [iy, ix0, ix1] of cells, buffered b metres): true without ib (the whole box) */
 function inScope(x,y){ if(!B||!B.ib) return true; if(!IB){ IB={}; B.ib.r.forEach(function(r){ IB[r[0]]=(IB[r[0]]||[]).concat([[r[1],r[2]]]); }); } var q=B.q*B.cs, ix=Math.floor(x/q), iy=Math.floor(y/q), L=IB[iy]; if(!L) return false; for(var i=0;i<L.length;i++) if(ix>=L[i][0]&&ix<=L[i][1]) return true; return false; }
 function line(a,ox,oy,q){ var o=[], x=0, y=0; for(var i=0;i<a.length;i+=2){ if(i===0){ x=a[0]; y=a[1]; } else { x+=a[i]; y+=a[i+1]; } o.push([(x+ox)*q,(y+oy)*q]); } return o; }
-var BF=['k','lv','h','bc','bm','rs','rc','rm','rl','nm','ad','po','sd','wd','fl','mh','ty','yr','er','st','ss','hs','fr','by','pe','fe','pw','pc','rd','cf','ar','hr','wp','ex'], RF=['hw','nm','ln','wd','ow','sw','cy','sf','ms','lt','sl','sr','cl','cr','br','tn','la'],
+var BF=['k','lv','h','bc','bm','rs','rc','rm','rl','nm','ad','po','sd','wd','fl','mh','ty','yr','er','st','ss','hs','fr','by','pe','fe','pw','pc','rd','cf','ar','hr','wp','ex','sy','tp'], RF=['hw','nm','ln','wd','ow','sw','cy','sf','ms','lt','sl','sr','cl','cr','br','tn','la'],
     AF=['k','nm','sp','sf'], WF=['k','ht','mt'], LF=['sp','lf'];
 function set(a){ var o={}; a.forEach(function(k){ o[k]=1; }); return o; }
-var SB=set(['k','rs','rm','nm','ad','po','sd','wd','ar','hr','wp']), SR=set(['hw','nm','sw','cy','sf','ms','sl','sr','cl','cr']), SA=set(AF), SW=set(['k','mt']), SL=set(LF);
+var SB=set(['k','rs','rm','nm','ad','po','sd','wd','ar','hr','wp','sy']), SR=set(['hw','nm','sw','cy','sf','ms','sl','sr','cl','cr']), SA=set(AF), SW=set(['k','mt']), SL=set(LF);
 function props(names,str,p,S){ var d={}; for(var i=0;i<names.length;i++){ var v=i<p.length?p[i]:0; d[names[i]]=str[names[i]]?S[v]:v; } return d; }
 function hex(v){ var r=(v>>11)&31, g=(v>>5)&63, b=v&31; function h(n){ return ('0'+n.toString(16)).slice(-2); } return '#'+h((r<<3)|(r>>2))+h((g<<2)|(g>>4))+h((b<<3)|(b>>2)); }
 function partyOf(pe){ return function(i){ return i<31 && !!((pe>>>i)&1); }; }
@@ -81,7 +81,7 @@ function cell(ix,iy){
 function decode(key,ix,iy,sh){
   var c=sh.c[key]||{}, q=B.q, ox=ix*B.cs, oy=iy*B.cs, S=sh.S, out=empty(), i, j, d, a;
   (c.b||[]).forEach(function(r){ d=props(BF,SB,r[1],S); d.hm=d.h*q; d.mhm=d.mh*q; d.colour=d.bc?hex(d.bc):''; d.material=MATS[d.bm]||''; d.storefront=!!(d.fl&1);
-    d.frm=d.fr*q; d.typology=TYP[d.ty]||'unknown'; d.era=ERA[d.er]||'unknown'; d.front=d.fe?d.fe-1:-1; d.party=partyOf(d.pe);
+    d.frm=d.fr*q; d.tpm=Math.max(d.tp*q,d.hm); d.typology=TYP[d.ty]||'unknown'; d.era=ERA[d.er]||'unknown'; d.front=d.fe?d.fe-1:-1; d.party=partyOf(d.pe);
     d.ring=line(r[0],ox,oy,q); d.holes=(r[2]||[]).map(function(h){ return line(h,ox,oy,q); }); out.b.push(d); });
   (c.r||[]).forEach(function(r){ d=props(RF,SR,r[1],S); d.line=line(r[0],ox,oy,q); out.r.push(d); });
   (c.w||[]).forEach(function(r){ d=props(WF,SW,r[1],S); d.ht=d.ht*q; d.line=line(r[0],ox,oy,q); out.w.push(d); });

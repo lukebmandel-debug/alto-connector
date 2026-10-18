@@ -218,3 +218,73 @@ def test_spot_check_regressions_landmarks_and_office_codes():
     b = _blds(man, shards)[0]
     assert b["yr"] == 0 and not b["cf"] & acc.CF_YEAR                                                    # a listed building "built in 2015": the record is of something else
     assert b["st"] == 5 and b["ss"] == 4 and b["lv"] == 5                                                # 16 m / 3.3 (an office; no era)
+
+
+# ── Wikidata (stubbed) ──────────────────────────────────────────────────────
+from alto.build import palace_street_wikidata as pwd
+
+
+def _wd_answers(url):
+    if "sparql" in url:
+        return {"results": {"bindings": [{"item": {"value": "http://www.wikidata.org/entity/Q20"}, "coord": {"value": "Point(-75.1696 39.9512)"}},
+                                          {"item": {"value": "http://www.wikidata.org/entity/Q30"}, "coord": {"value": "Point(-75.1690 39.9512)"}}]}}
+    if "props=labels&" in url or url.endswith("props=labels"):
+        return {"entities": {q: {"labels": {"en": {"value": lab}}} for q, lab in (("Q100", "Second Empire architecture"), ("Q101", "John McArthur Jr."),
+                                                                                    ("Q102", "National Historic Landmark"), ("Q103", "city hall"), ("Q104", "organization"))}}
+    def ent(yr, h, fl, inst):
+        tm = lambda y: {"mainsnak": {"datavalue": {"value": {"time": "+%d-00-00T00:00:00Z" % y}}}, "rank": "normal"}
+        return {"labels": {"en": {"value": "x"}}, "claims": {
+            "P571": [tm(yr)], "P580": [tm(yr - 30)] if yr > 1900 else [],
+            "P2048": [{"mainsnak": {"datavalue": {"value": {"amount": "+%s" % h, "unit": "http://www.wikidata.org/entity/Q3710"}}}, "rank": "normal"}] if h else [],
+            "P1101": [{"mainsnak": {"datavalue": {"value": {"amount": "+%d" % fl, "unit": "1"}}}, "rank": "normal"}] if fl else [],
+            "P149": [{"mainsnak": {"datavalue": {"value": {"id": "Q100"}}}, "rank": "normal"}], "P84": [{"mainsnak": {"datavalue": {"value": {"id": "Q101"}}}, "rank": "normal"}],
+            "P1435": [{"mainsnak": {"datavalue": {"value": {"id": "Q102"}}}, "rank": "normal"}], "P31": [{"mainsnak": {"datavalue": {"value": {"id": inst}}}, "rank": "normal"}]}}
+    return {"entities": {"Q10": ent(1901, 548, 9, "Q103"), "Q20": ent(1753, 0, 2, "Q103"), "Q30": ent(1914, 0, 0, "Q104")}}
+
+
+def test_wikidata_overrides_the_parcel_for_landmarks_and_is_cached(tmp_path, monkeypatch):
+    asked = []
+    monkeypatch.setattr(pwd, "_get", lambda url, timeout=60: asked.append(url) or _wd_answers(url))
+    monkeypatch.setattr(pwd, "_sleep", lambda s: None)
+    hall = {"type": "way", "id": 700, "geometry": _box(LA + 0.0010, LO + 0.0010, 0.0004, 0.0004), "tags": {"building": "yes", "wikidata": "Q10", "height": "20"}}
+    tagless = {"type": "way", "id": 701, "geometry": _box(LA + 0.0010, LO + 0.0002, 0.0003, 0.0003), "tags": {"building": "yes"}}
+    org = {"type": "way", "id": 702, "geometry": _box(LA + 0.0010, LO + 0.0008, 0.0001, 0.0003), "tags": {"building": "yes"}}
+    bld = {"elements": [hall, tagless, org]}
+    wd = ps.wikidata_data(BBOX, bld, directory=tmp_path)
+    assert set(wd["wd"]) == {"Q10", "Q20", "Q30"} and len(wd["wdp"]) == 2 and wd["notes"] == []
+    opa = [dict(lat=LA + 0.0012, lon=LO + 0.0012, hn="1", dir="", name="Z", suf="ST", yr=2015, yre=0, st=0, bc="PD PKG LOT COMMERCIAL", bcn="", cat="COMMERCIAL", ex=3,
+                fr=0, dp=0, la=1)]
+    man, shards = ps.build(BBOX, bld, {"elements": []}, city={"opa": opa, "lif": [], "wd": wd["wd"], "wdp": wd["wdp"]})
+    bs = {b["ring"][0][0] // 1: b for b in _blds(man, shards)}
+    h = [b for b in bs.values() if b["wd"] == "Q10"][0]
+    assert h["yr"] == 1871 and h["era"] == "victorian" and h["typology"] == "civic" and h["sy"] == "Second Empire architecture" and h["ar"] == "John McArthur Jr."
+    assert h["hm"] == 20 and abs(h["tpm"] - 548 * 0.3048) < 0.2 and "wd=National Historic Landmark" in h["hr"]
+    t = [b for b in bs.values() if b["wd"] == "" and b["yr"] == 1753]
+    assert len(t) == 1 and t[0]["st"] == 2 and t[0]["ss"] == 5                              # joined by position
+    assert not [b for b in bs.values() if b["yr"] == 1914]                                   # an organisation's point is not a building
+    assert {s["k"] for s in man["src"]} >= {"osm", "wikidata"} and [s for s in man["src"] if s["k"] == "wikidata"][0]["l"] == "CC0 1.0"
+    asked.clear()
+    wd2 = ps.wikidata_data(BBOX, bld, directory=tmp_path, offline=True)                     # cached: offline gives the same, nothing asked
+    assert wd2["wd"] == wd["wd"] and asked == []
+
+
+def test_a_lagged_or_failing_wikidata_is_never_fatal(tmp_path, monkeypatch):
+    calls = []
+
+    def lag(url, timeout=60):
+        calls.append(url)
+        raise RuntimeError("wikidata: {'code': 'maxlag'}")
+    monkeypatch.setattr(pwd, "_get", lag)
+    monkeypatch.setattr(pwd, "_sleep", lambda s: None)
+    recs, note = pwd.items(["Q%d" % i for i in range(1, 200)], directory=tmp_path)
+    assert recs == {} and "not available" in note and len(calls) == 6                      # 2 batches x 3 tries (maxlag retries), then it gives up
+    assert pwd.in_box(BBOX, directory=tmp_path)[0] == [] and pwd.in_box(BBOX, directory=tmp_path, offline=True)[1]
+
+
+def test_a_spire_part_is_the_top_not_the_body():
+    body = {"type": "way", "id": 800, "geometry": _box(LA + 0.002, LO, 0.0004, 0.0004), "tags": {"building": "yes"}}
+    hall = {"type": "way", "id": 801, "geometry": _box(LA + 0.002, LO, 0.0004, 0.0003), "tags": {"building:part": "yes", "height": "15"}}
+    spire = {"type": "way", "id": 802, "geometry": _box(LA + 0.00235, LO + 0.00015, 0.00005, 0.00004), "tags": {"building:part": "yes", "height": "51"}}
+    man, shards = ps.build(BBOX, {"elements": [body, hall, spire]}, {"elements": []})
+    b = [x for x in _blds(man, shards) if x["k"] == "yes"][0]
+    assert b["hm"] == 15 and b["tpm"] == 51 and b["hs"] == 1
