@@ -38,7 +38,8 @@ void main(){
   if(uInst>.5){ float c=cos(aI.w); float s=sin(aI.w); p=vec3(c*aP.x-s*aP.y, s*aP.x+c*aP.y, aP.z)+aI.xyz; n=vec3(c*aN.x-s*aN.y, s*aN.x+c*aN.y, aN.z); if(aT2.x>=0.) tint=aT2.x; }
   vFade=1.; if(uInst>.5 && aT2.y>0.){ float dm=length(aI.xyz-uEye)/aT2.y; vFade=1.-smoothstep(.74,.98,dm); }
   vP=p; vN=n; vUV=aUV; vM=vec4(id,aux,tint,bias); vDC=aDC; vHA=aHA;
-  vec3 q=p+(uEye-p)*bias*0.0022;
+  float bb=bias*0.0022; if(id>42.5&&id<43.5) bb+=(tint-.47)*.0016;     /* roadway ribbons overlap at junctions and bends on one plane: each carries a rank (tint, 0..15/16) that picks the winner, so no lane line flickers in and out */
+  vec3 q=p+(uEye-p)*bb;
   vec3 nn=normalize(n); vSL=(uLP*vec4(p+nn*uNOff.x,1.)).xyz; vSQ=(uLQ*vec4(p+nn*uNOff.y,1.)).xyz;
   gl_Position=uVP*vec4(q,1.);
 }

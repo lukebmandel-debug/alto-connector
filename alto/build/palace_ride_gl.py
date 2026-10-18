@@ -94,6 +94,21 @@ function gwall(b,ax,ay,bx,by,z0,z1,nx,ny,zb,pk,t){
   var L=Math.hypot(bx-ax,by-ay)/UM, va=(z0-zb)/UM, vb=(z1-zb)/UM; _gL=L;
   gv(b,ax,ay,z0,nx,ny,0,0,va,pk,t); gv(b,bx,by,z0,nx,ny,0,L,va,pk,t); gv(b,bx,by,z1,nx,ny,0,L,vb,pk,t);
   gv(b,ax,ay,z0,nx,ny,0,0,va,pk,t); gv(b,bx,by,z1,nx,ny,0,L,vb,pk,t); gv(b,ax,ay,z1,nx,ny,0,0,vb,pk,t); }
+/* the part t0..t1 (0..1) of a wall A->B, uv as on the whole wall (u runs from t0*L to t1*L, L stays the whole wall's length) */
+function gwallP(b,ax,ay,bx,by,z0,z1,nx,ny,zb,pk,t,t0,t1){
+  var L=Math.hypot(bx-ax,by-ay)/UM, va=(z0-zb)/UM, vb=(z1-zb)/UM, dx=bx-ax, dy=by-ay, px=ax+dx*t0, py=ay+dy*t0, qx=ax+dx*t1, qy=ay+dy*t1, u0=L*t0, u1=L*t1; _gL=L;
+  gv(b,px,py,z0,nx,ny,0,u0,va,pk,t); gv(b,qx,qy,z0,nx,ny,0,u1,va,pk,t); gv(b,qx,qy,z1,nx,ny,0,u1,vb,pk,t);
+  gv(b,px,py,z0,nx,ny,0,u0,va,pk,t); gv(b,qx,qy,z1,nx,ny,0,u1,vb,pk,t); gv(b,px,py,z1,nx,ny,0,u0,vb,pk,t); }
+/* the stretches of the wall A->B that are NOT hidden by `hide` ([x0,y0,x1,y1, ...] lying on this wall's line): null when none is (draw it whole), else [t0,t1, t0,t1, ...] in 0..1 (empty: all of it is hidden) */
+function glVis(hide,ax,ay,bx,by){
+  var l=Math.hypot(bx-ax,by-ay); if(l<1e-6) return null; var ux=(bx-ax)/l, uy=(by-ay)/l, cut=[], k;
+  for(k=0;k<hide.length;k+=4){ var p0x=hide[k], p0y=hide[k+1], p1x=hide[k+2], p1y=hide[k+3];
+    if(Math.abs((p0x-ax)*uy-(p0y-ay)*ux)>.08||Math.abs((p1x-ax)*uy-(p1y-ay)*ux)>.08) continue;
+    var t0=((p0x-ax)*ux+(p0y-ay)*uy)/l, t1=((p1x-ax)*ux+(p1y-ay)*uy)/l; if(t0>t1){ var q=t0; t0=t1; t1=q; } t0=Math.max(0,t0); t1=Math.min(1,t1); if(t1-t0>.002) cut.push([t0,t1]); }
+  if(!cut.length) return null;
+  cut.sort(function(p,q){ return p[0]-q[0]; }); var out=[], at=0;
+  for(k=0;k<cut.length;k++){ if(cut[k][0]>at+.002) out.push(at,cut[k][0]); if(cut[k][1]>at) at=cut[k][1]; }
+  if(at<.998) out.push(at,1); return out; }
 /* any triangle: the winding is fixed so that it faces along n (shared convention: the right-hand cross points against the normal) */
 function gtri(b,A,B,C,nx,ny,nz,ua,va,ub,vb,uc,vc,pk,t){
   var cx=(B[1]-A[1])*(C[2]-A[2])-(B[2]-A[2])*(C[1]-A[1]), cy=(B[2]-A[2])*(C[0]-A[0])-(B[0]-A[0])*(C[2]-A[2]), cz=(B[0]-A[0])*(C[1]-A[1])-(B[1]-A[1])*(C[0]-A[0]);
@@ -183,7 +198,8 @@ function glCenterOf(r){ var n=r.length/2, cx=0, cy=0, i; for(i=0;i<n;i++){ cx+=r
 function glScaleRing(r,cx,cy,k){ var o=[]; for(var i=0;i<r.length;i+=2) o.push(cx+(r[i]-cx)*k, cy+(r[i+1]-cy)*k); return o; }
 /* one building: walls with facade uv, a cornice on brick/stone/concrete, a flat roof, a stepped crown on towers */
 function glSolid(b,s){
-  var ring0=s.ring, n=ring0.length/2; if(n<3) return; var zb=s.z0||0, h=s.h; if(!(h>zb+.3)) return;
+  if(s.nodraw) return;                                                     /* an outline its building:parts cover (palace_ride_street.py realDedupe) */
+  var ring0=s.ring, n=ring0.length/2; if(n<3) return; var zb=s.z0||0, h=s.h+(s.roofDz||0); if(!(h>zb+.3)) return;     /* roofDz: the later of two roofs on one plane sits a little lower */
   if(n>90){ var kk=Math.ceil(n/90), q=[]; for(var ii=0;ii<n;ii+=kk) q.push(ring0[2*ii],ring0[2*ii+1]); ring0=q; n=q.length/2; }
   var r=MB.ringOut(ring0), st=glStyle(s), pk=st.mat+256*st.aux, T=st.t, hm=st.hm, i, ax, ay, bx, by, dx, dy, l;
   glDC(st.dc); _gH=hm;
@@ -191,11 +207,13 @@ function glSolid(b,s){
   if(cornice){ var off=.3, ch=.9*UM; co=[]; var nn=[]; for(i=0;i<n;i++){ var p=(i+n-1)%n, q2=(i+1)%n; var d1x=r[2*i]-r[2*p], d1y=r[2*i+1]-r[2*p+1], l1=Math.hypot(d1x,d1y)||1, d2x=r[2*q2]-r[2*i], d2y=r[2*q2+1]-r[2*i+1], l2=Math.hypot(d2x,d2y)||1;
       var n1x=-d1y/l1, n1y=d1x/l1, n2x=-d2y/l2, n2y=d2x/l2, dd=1+n1x*n2x+n1y*n2y, k=dd>.25?1/dd:4; co.push(r[2*i]+(n1x+n2x)*k*off, r[2*i+1]+(n1y+n2y)*k*off); }
     top=co; }
+  var vis=null; if(s.hide){ vis=new Array(n); for(i=0;i<n;i++){ var j0=(i+1)%n; vis[i]=glVis(s.hide,r[2*i],r[2*i+1],r[2*j0],r[2*j0+1]); } }     /* the stretches of a wall that lie on a taller wall's plane are not drawn */
   for(i=0;i<n;i++){ var j=(i+1)%n; ax=r[2*i]; ay=r[2*i+1]; bx=r[2*j]; by=r[2*j+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue;
-    gwall(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pk,T); }
+    var vi=vis?vis[i]:null; if(!vi) gwall(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pk,T); else for(var qa=0;qa<vi.length;qa+=2) gwallP(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pk,T,vi[qa],vi[qa+1]); }
   if(cornice){ var cz0=h-.9*UM; _gL=0;
     for(i=0;i<n;i++){ var j2=(i+1)%n; ax=co[2*i]; ay=co[2*i+1]; bx=co[2*j2]; by=co[2*j2+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue;
-      gwall(b,ax,ay,bx,by,cz0,h,-dy/l,dx/l,zb,pk,T);
+      var vc=vis?vis[i]:null; if(vc && !vc.length) continue;
+      if(!vc) gwall(b,ax,ay,bx,by,cz0,h,-dy/l,dx/l,zb,pk,T); else for(var q2=0;q2<vc.length;q2+=2) gwallP(b,ax,ay,bx,by,cz0,h,-dy/l,dx/l,zb,pk,T,vc[q2],vc[q2+1]);
       var A=[r[2*i],r[2*i+1],cz0], B=[r[2*j2],r[2*j2+1],cz0], B2=[bx,by,cz0], A2=[ax,ay,cz0];
       gtri(b,A,B,B2,0,0,-1,A[0]/UM,A[1]/UM,B[0]/UM,B[1]/UM,B2[0]/UM,B2[1]/UM,pk,T); gtri(b,A,B2,A2,0,0,-1,A[0]/UM,A[1]/UM,B2[0]/UM,B2[1]/UM,A2[0]/UM,A2[1]/UM,pk,T); } }
   _gL=0; gflat(b,top,h,st.roof,T,true); if(hm>6) gflat(b,top,h-.03,47,T,false);                /* and its underside, so looking up from the street is not looking through the roof */
@@ -249,7 +267,8 @@ function glRoadSeg(b,o){
   var dx=o.x1-o.x0, dy=o.y1-o.y0, l=Math.hypot(dx,dy)||1, ux=dx/l, uy=dy/l, nx=-uy, ny=ux, w=o.w+4, ext=2, hw=w/2;
   _gdr=1; _gdg=(o.w/2/UM)-.45; var v0=(o.x0*ux+o.y0*uy-ext)/UM, v1=(o.x1*ux+o.y1*uy+ext)/UM;
   var A=[o.x0-ux*ext-nx*hw,o.y0-uy*ext-ny*hw,.04], B=[o.x0-ux*ext+nx*hw,o.y0-uy*ext+ny*hw,.04], C=[o.x1+ux*ext+nx*hw,o.y1+uy*ext+ny*hw,.04], D=[o.x1+ux*ext-nx*hw,o.y1+uy*ext-ny*hw,.04];
-  gquad(b,A,B,C,D,0,0,1,-hw/UM,hw/UM,v0,v1,43+64,0); _gdr=1; _gdg=1; }
+  var rk=Math.min(7,Math.floor(o.w/UM/3.5))*2+(hashXY(o.cx,o.cy)<.5?0:1);       /* wider roads win a junction; between equals a fixed coin toss */
+  gquad(b,A,B,C,D,0,0,1,-hw/UM,hw/UM,v0,v1,43+64,rk/16); _gdr=1; _gdg=1; }
 var _xwA=[[1,0],[-1,0],[0,1],[0,-1]];
 function glCrosswalk(b,x){
   var X=x.x, Y=x.y, SW=STREET_HW, arms=x.arms, a, k; glDC(null);
@@ -273,7 +292,7 @@ function glPlan(W){
   function cell(x,y){ var ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), k=ci+','+cj, c=G.cells[k]; if(!c){ c=G.cells[k]={ci:ci,cj:cj,key:k,msh:[],sol:[],til:[],par:[],wat:[],rod:[],das:[],xs:[],h:0,rad:0,state:0,job:null}; G.keys.push(k); } return c; }
   (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m.tex||typeof m.id!=='string'||m.id.indexOf('scn:')!==0) return; var q=m.id.slice(4).split(','), ci=+q[0], cj=+q[1]; if(!isFinite(ci)||!isFinite(cj)) return;
     var c=cell((ci+.5)*CELL,(cj+.5)*CELL), n=m.a.length, hh=n; for(var u=0;u<8;u++) hh=glHashStr(hh,Math.round(m.a[Math.floor(u*(n-1)/7)]*50)); c.msh.push(m); m._gm=1; c.h=glHashStr(c.h,hh); });
-  (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)); c.rad=Math.max(c.rad,s.r||0); });
+  (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)+(s.hide?s.hide.length*17:0)+(s.nodraw?29:0)+(s.roofDz?41:0)); c.rad=Math.max(c.rad,s.r||0); });
   (W.tiles||[]).forEach(function(t){ var c=cell(t.cx,t.cy); c.til.push(t); c.h=glHashStr(c.h,Math.round(t.cx*5)+Math.round(t.cy*3)+t.ring.length); c.rad=Math.max(c.rad,t.r||0); });
   (W.parks||[]).forEach(function(p){ var c=cell(p.cx,p.cy); c.par.push(p); c.h=glHashStr(c.h,Math.round(p.cx*5)+Math.round(p.cy*3)+p.ring.length*11); c.rad=Math.max(c.rad,p.r||0); });
   (W.water||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.wat.push(w); c.h=glHashStr(c.h,Math.round(w.cx*5)+Math.round(w.cy*3)+Math.round(w.w)); c.rad=Math.max(c.rad,w.r||0); });

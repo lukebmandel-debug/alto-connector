@@ -161,6 +161,46 @@ function rlShopFace(ring,n){ var cx=0, cy=0, i, best=null; for(i=0;i<n;i++){ cx+
   if(po && RL_CIVIC.test(po[3]||'')) return null;                                  /* a church, school, library... is not a shop: no shop glass, no awning */
   var cat=po?po[3]:'', civic=false;
   return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po&&!civic?po[2]:'', cat:cat, hue:hs}; }
+/* ── z-fighting walls. OpenStreetMap draws a building as its outline AND its building:parts, parts share walls, ways are doubled: two solids with a wall on the very same plane facing the same way fight in the
+   depth buffer, and the winner changes with every step you take (the whole facade flashes). The street data cannot be fixed here (it is hosted), so the world is made before it is drawn:
+     1. an outline that its parts cover (>= 85 % of its footprint, sampled) is not drawn (s.nodraw; it still stops the walker);
+     2. where a wall lies on the plane of another solid's wall that faces the same way and is at least as tall (the taller one wins, a tie goes to the earlier one), that stretch of the lower one is not
+        drawn (s.hide = [x0,y0,x1,y1, ...], world units; palace_ride_gl.py glSolid cuts the wall there);
+     3. two solids of the same height whose footprints overlap would also share a roof plane: the later one's roof is dropped by 12 cm (s.roofDz). ── */
+var DD_TOL=.4, DD_MINL=.6, DD_PAR=.06, DD_DROP=.16;
+function realDedupe(W){
+  var S=W.solids, n=S.length, i, j, k, CG=64, GE={}, GP={}, E=[], t0=performance.now(), nHide=0, nSkip=0, nDrop=0;
+  function put(G,key,v){ (G[key]||(G[key]=[])).push(v); }
+  function box(s){ if(s._bx) return s._bx; var r=s.ring, x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(var q=0;q<r.length;q+=2){ if(r[q]<x0) x0=r[q]; if(r[q]>x1) x1=r[q]; if(r[q+1]<y0) y0=r[q+1]; if(r[q+1]>y1) y1=r[q+1]; } return s._bx=[x0,y0,x1,y1]; }
+  function cells(bx,fn){ for(var a=Math.floor(bx[0]/CG);a<=Math.floor(bx[2]/CG);a++) for(var c=Math.floor(bx[1]/CG);c<=Math.floor(bx[3]/CG);c++) fn(a+','+c); }
+  var sol=[]; for(i=0;i<n;i++){ var s=S[i]; if(s.kind==='b' && s.ring && s.n>=3) sol.push(i); }
+  /* 1: outlines covered by their parts */
+  sol.forEach(function(si){ var s=S[si]; if(s.part) return; cells(box(s),function(c){ put(GP,c,si); }); });
+  var partsOf=[]; sol.forEach(function(si){ var s=S[si]; if(!s.part) return; partsOf.push(si); });
+  if(partsOf.length){ var GQ={}; partsOf.forEach(function(si){ cells(box(S[si]),function(c){ put(GQ,c,si); }); });
+    sol.forEach(function(si){ var s=S[si]; if(s.part||s.nodraw) return; var b=box(s), st=Math.max(2.2,Math.min(b[2]-b[0],b[3]-b[1])/10), inn=0, cov=0, x, y;
+      for(x=b[0]+st/2;x<b[2];x+=st) for(y=b[1]+st/2;y<b[3];y+=st){ if(!rlInF(s.ring,x,y)) continue; inn++; var L=GQ[Math.floor(x/CG)+','+Math.floor(y/CG)]; if(!L) continue; for(var q=0;q<L.length;q++){ var p=S[L[q]]; if(rlInF(p.ring,x,y)){ cov++; break; } } }
+      if(inn>=4 && cov>=inn*.85){ s.nodraw=true; nSkip++; } }); }
+  /* 2: coplanar walls (the solids still drawn) */
+  sol=sol.filter(function(si){ return !S[si].nodraw; });
+  sol.forEach(function(si){ var s=S[si], r=s.ring, m=s.n; for(k=0;k<m;k++){ var l2=(k+1)%m, ax=r[2*k], ay=r[2*k+1], bx=r[2*l2], by=r[2*l2+1], l=Math.hypot(bx-ax,by-ay); if(l<DD_MINL) continue;
+      var e={s:si,k:k,ax:ax,ay:ay,bx:bx,by:by,l:l,ux:(bx-ax)/l,uy:(by-ay)/l,nx:s.nx[k],ny:s.ny[k]}; E.push(e);
+      for(var gx=Math.floor(Math.min(ax,bx)/CG);gx<=Math.floor(Math.max(ax,bx)/CG);gx++) for(var gy=Math.floor(Math.min(ay,by)/CG);gy<=Math.floor(Math.max(ay,by)/CG);gy++) put(GE,gx+','+gy,e); } });
+  E.forEach(function(e){ var si=e.s, a=S[si], seen=[], hz=a.z0||0;
+    for(var gx=Math.floor(Math.min(e.ax,e.bx)/CG);gx<=Math.floor(Math.max(e.ax,e.bx)/CG);gx++) for(var gy=Math.floor(Math.min(e.ay,e.by)/CG);gy<=Math.floor(Math.max(e.ay,e.by)/CG);gy++){ var L=GE[gx+','+gy]; if(!L) continue;
+      for(var q=0;q<L.length;q++){ var f=L[q]; if(f.s===si||seen.indexOf(f)>=0) continue; seen.push(f); var b=S[f.s];
+        if(!((b.h>a.h+.1) || (Math.abs(b.h-a.h)<=.1 && f.s<si))) continue;               /* b covers a: taller, or the same and earlier */
+        if((b.z0||0)>hz+.1) continue;
+        if(f.nx*e.nx+f.ny*e.ny<.9 || Math.abs(f.ux*e.uy-f.uy*e.ux)>DD_PAR) continue;     /* the same way, parallel */
+        var d1=Math.abs((f.ax-e.ax)*e.uy-(f.ay-e.ay)*e.ux), d2=Math.abs((f.bx-e.ax)*e.uy-(f.by-e.ay)*e.ux); if(d1>DD_TOL||d2>DD_TOL) continue;
+        var s0=(f.ax-e.ax)*e.ux+(f.ay-e.ay)*e.uy, s1=(f.bx-e.ax)*e.ux+(f.by-e.ay)*e.uy, lo=Math.max(0,Math.min(s0,s1)), hi=Math.min(e.l,Math.max(s0,s1)); if(hi-lo<DD_MINL) continue;
+        (a.hide||(a.hide=[])).push(e.ax+e.ux*lo,e.ay+e.uy*lo,e.ax+e.ux*hi,e.ay+e.uy*hi); nHide++; } } });
+  /* 3: equal heights over overlapping footprints share a roof plane */
+  var GA={}; sol.forEach(function(si){ cells(box(S[si]),function(c){ put(GA,c,si); }); });
+  sol.forEach(function(si){ var a=S[si], ba=box(a), seen={}, drop=false; cells(ba,function(c){ if(drop) return; var L=GA[c]; for(var q=0;q<L.length&&!drop;q++){ var sj=L[q]; if(sj>=si||seen[sj]) continue; seen[sj]=1; var b=S[sj]; if(Math.abs(b.h-a.h)>.1) continue;
+        var bb=box(b); if(bb[2]<ba[0]||bb[0]>ba[2]||bb[3]<ba[1]||bb[1]>ba[3]) continue; if(rlInF(b.ring,a.cx,a.cy)||rlInF(a.ring,b.cx,b.cy)) drop=true; } });
+    if(drop){ a.roofDz=-DD_DROP; nDrop++; } });
+  W.real&&(W.real.dedupe={skip:nSkip,hide:nHide,drop:nDrop,ms:performance.now()-t0}); }
 function gatherReal(Xp, Yp, R, at){
   R=R||480; var o0=at?{x:at.x,y:at.y,k:at.k||0}:realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);
   var W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:false, set:{}, scenery:null, meshes:[], movers:[], dashes:[], rivers:[], real:{cx:cx*K,cy:cy*K,dom:o0.k}};
@@ -186,7 +226,8 @@ function gatherReal(Xp, Yp, R, at){
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
+      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
+  realDedupe(W);
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
      has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
   try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops,id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
