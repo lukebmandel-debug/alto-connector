@@ -230,3 +230,28 @@ def test_scenery_is_replaced_after_a_regather_not_left_stale(roam):
     assert r["vs"] >= 1 and r["after"] >= 2, r
     assert r["stale"] == [] and r["wrong"] == [], r                       # every mesh draws exactly its own content
     assert r["drawnMid"] >= r["mid"] - 1, r                               # and straight after the swap nothing was missing (stand-ins were drawn)
+
+
+DOLLY = """([x0,y0,yaw,step,n,fresh])=>{ var T=window.__t, R=T.R, G=window._palRideGL, gl=T.gl, cv=document.querySelector('#pal-ride .pr-gl'), W=cv.width, H=cv.height, buf=new Uint8Array(W*H*4), o=[], c=Math.cos(yaw), s=Math.sin(yaw);
+  R.place(x0,y0,yaw); R.look(yaw,-.03); R.settle(); T.warm();
+  for(var f=0;f<n;f++){ R.place(x0+c*step*f, y0+s*step*f, yaw); R.look(yaw,-.03); R.tick(0,'x',false,true); if(fresh) G.shd.c.forEach(function(q){ q.key=''; }); R.draw(); gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+    var t=0,k=0; for(var i=0;i<buf.length;i+=16){ t+=buf[i]+buf[i+1]+buf[i+2]; k++; } o.push(t/k/3); }
+  return o; }"""
+
+
+@pytest.mark.parametrize("step,label", [(14 / 60, "walk"), (40 / 60, "run"), (60 / 60, "jog")])
+def test_the_ground_does_not_flip_between_sun_and_shadow_while_walking(roam, step, label):
+    """The shadow map's depth range used to follow the camera every frame while the map was redrawn only every few units, so the ground went sunlit -> shadowed -> sunlit as you walked. The camera is moved
+    in a straight line at the three paces, a frame at a time, twice: with the shadow maps as the renderer keeps them, and with both maps redrawn every frame. The two pictures may not differ in brightness
+    (what moves in view cancels out; a stale map does not)."""
+    pg = roam
+    _enter(pg, 3945, 2012, 0.0)
+    a = pg.evaluate(DOLLY, [3945 * K, 2012 * K, 0.0, step, 140, False])
+    b = pg.evaluate(DOLLY, [3945 * K, 2012 * K, 0.0, step, 140, True])
+    diffs = [abs(x - y) for x, y in zip(a, b)]
+    assert max(diffs) < 0.35, (label, sorted(diffs)[-5:])
+
+
+def test_the_shadow_depth_range_is_part_of_the_redraw_key():
+    g = palace_ride_gl.JS_GL
+    assert "var DSTEP=32, cb=Math.round(" in g and "var key=oa+'|'+ob+'|'+cb+'|'+n" in g

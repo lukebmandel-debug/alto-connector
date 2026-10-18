@@ -614,10 +614,11 @@ function glShadowPass(gl,Wd,L,cw,ch){
   sd.on=1; var pg=GLX.shp, ap=pg.a.aP, prepared=false;
   for(var ci=0; ci<sd.c.length; ci++){ var c=sd.c[ci], cf=c.cfg, Rs=c.R, S=c.S, texel=c.texel, snap=texel*cf.snap;
     var ox=C.x+Math.cos(C.yaw)*cf.ahead, oy=C.y+Math.sin(C.yaw)*cf.ahead, oa=Math.round((a[0]*ox+a[1]*oy)/snap)*snap, ob=Math.round((b[0]*ox+b[1]*oy)/snap)*snap;
-    var cb=Ls[0]*ox+Ls[1]*oy, cMin=cb-500, cMax=cb+440, k=2/(cMax-cMin), m=c.lp;
+    var DSTEP=32, cb=Math.round((Ls[0]*ox+Ls[1]*oy)/DSTEP)*DSTEP, cMin=cb-500-DSTEP/2, cMax=cb+440+DSTEP/2, k=2/(cMax-cMin), m=c.lp;       /* the depth range is part of what the map was drawn with: it moves in steps, and a step redraws the map (it used to follow the camera
+      every frame while the map was only redrawn every few units: the ground stood sunlit, then in shadow, then sunlit as you walked) */
     m[0]=a[0]/Rs; m[4]=a[1]/Rs; m[8]=a[2]/Rs; m[12]=-oa/Rs; m[1]=b[0]/Rs; m[5]=b[1]/Rs; m[9]=b[2]/Rs; m[13]=-ob/Rs; m[2]=-Ls[0]*k; m[6]=-Ls[1]*k; m[10]=-Ls[2]*k; m[14]=cMax*k-1; m[3]=0; m[7]=0; m[11]=0; m[15]=1;
     c.biasD=cf.bias/(cMax-cMin);
-    var key=oa+'|'+ob+'|'+n+'|'+GLX.gen+'|'+nm+'|'+G.keys.length+'|'+Ls[0]+'|'+(ci?'':'');
+    var key=oa+'|'+ob+'|'+cb+'|'+n+'|'+GLX.gen+'|'+nm+'|'+G.keys.length+'|'+Ls[0]+'|'+(ci?'':'');
     if(key===c.key) continue; c.key=key;
     if(!prepared){ prepared=true; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE0);
       gl.colorMask(false,false,false,false); gl.depthMask(true); gl.useProgram(pg.p); gl.disable(gl.CULL_FACE); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2,4);
