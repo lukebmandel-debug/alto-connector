@@ -201,6 +201,23 @@ function realDedupe(W){
         var bb=box(b); if(bb[2]<ba[0]||bb[0]>ba[2]||bb[3]<ba[1]||bb[1]>ba[3]) continue; if(rlInF(b.ring,a.cx,a.cy)||rlInF(a.ring,b.cx,b.cy)) drop=true; } });
     if(drop){ a.roofDz=-DD_DROP; nDrop++; } });
   W.real&&(W.real.dedupe={skip:nSkip,hide:nHide,drop:nDrop,ms:performance.now()-t0}); }
+/* ── roadway ribbons overlap (a crossing street, the joint of two segments) and lie on one plane with different lane lines: whichever the depth buffer picks flickers. Each ribbon gets a rank 0..31 (o.rk) that
+   palace_ride_gl.py turns into a tiny depth bias: overlapping ribbons always differ, a wider road outranks a narrower one it crosses (its lines run through the junction). Greedy colouring in a fixed order
+   (narrow first, then by position) so the same ribbon gets the same rank in the next gather. ── */
+function realRoadRanks(roads){
+  var n=roads.length, i, j, k, G={}, CG=80, ob=new Array(n), order=[], L=32, col=new Int8Array(n); if(!n) return;
+  for(i=0;i<n;i++){ var o=roads[i], dx=o.x1-o.x0, dy=o.y1-o.y0, l=Math.hypot(dx,dy)||1, ux=dx/l, uy=dy/l, hl=l/2+2, hw=(o.w+4)/2, ex=Math.abs(ux)*hl+Math.abs(uy)*hw, ey=Math.abs(uy)*hl+Math.abs(ux)*hw;
+    ob[i]={x:o.cx,y:o.cy,ux:ux,uy:uy,hl:hl,hw:hw}; o._k=(Math.round(o.cx*8)*73856093)^(Math.round(o.cy*8)*19349663); order.push(i);
+    for(var a=Math.floor((o.cx-ex)/CG);a<=Math.floor((o.cx+ex)/CG);a++) for(var c=Math.floor((o.cy-ey)/CG);c<=Math.floor((o.cy+ey)/CG);c++) (G[a+','+c]||(G[a+','+c]=[])).push(i); }
+  order.sort(function(p,q){ return (roads[p].w-roads[q].w)||(roads[p]._k-roads[q]._k); });
+  function hit(A,B){ var ax=[A.ux,A.uy,-A.uy,A.ux,B.ux,B.uy,-B.uy,B.ux], dx=B.x-A.x, dy=B.y-A.y;
+    for(var t=0;t<8;t+=2){ var X=ax[t], Y=ax[t+1], ra=Math.abs(X*A.ux+Y*A.uy)*A.hl+Math.abs(X*-A.uy+Y*A.ux)*A.hw, rb=Math.abs(X*B.ux+Y*B.uy)*B.hl+Math.abs(X*-B.uy+Y*B.ux)*B.hw; if(Math.abs(dx*X+dy*Y)>=ra+rb-.05) return false; } return true; }
+  col.fill(-1);
+  order.forEach(function(i){ var r=roads[i], A=ob[i], used=0, lo=-1, seen={};
+    for(var a=Math.floor((A.x-A.hl-A.hw)/CG);a<=Math.floor((A.x+A.hl+A.hw)/CG);a++) for(var c=Math.floor((A.y-A.hl-A.hw)/CG);c<=Math.floor((A.y+A.hl+A.hw)/CG);c++){ var Lc=G[a+','+c]; if(!Lc) continue;
+      for(var q=0;q<Lc.length;q++){ var m=Lc[q]; if(m===i||col[m]<0||seen[m]) continue; seen[m]=1; if(!hit(A,ob[m])) continue; used|=(1<<col[m]); if(roads[m].w<r.w-.01) lo=Math.max(lo,col[m]); } }
+    var cc=-1; for(k=lo+1;k<L;k++) if(!((used>>>k)&1)){ cc=k; break; } if(cc<0) for(k=0;k<L;k++) if(!((used>>>k)&1)){ cc=k; break; } if(cc<0) cc=i%L;
+    col[i]=cc; r.rk=cc; }); }
 function gatherReal(Xp, Yp, R, at){
   R=R||480; var o0=at?{x:at.x,y:at.y,k:at.k||0}:realOf(Xp,Yp,{x:0,y:0,k:0}), cx=o0.x, cy=o0.y, C=REAL.cell, P=E.P, i, k, ci0=Math.floor((cx-R)/C), ci1=Math.floor((cx+R)/C), cj0=Math.floor((cy-R)/C), cj1=Math.floor((cy+R)/C);
   var W={solids:[], tiles:[], parks:[], water:[], roads:[], props:[], poles:[], labels:[], tunn:false, set:{}, scenery:null, meshes:[], movers:[], dashes:[], rivers:[], real:{cx:cx*K,cy:cy*K,dom:o0.k}};
@@ -227,7 +244,7 @@ function gatherReal(Xp, Yp, R, at){
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
       var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; }); }
-  realDedupe(W);
+  realDedupe(W); realRoadRanks(W.roads);
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
      has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
   try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops,id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },

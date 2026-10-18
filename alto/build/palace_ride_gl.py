@@ -267,8 +267,7 @@ function glRoadSeg(b,o){
   var dx=o.x1-o.x0, dy=o.y1-o.y0, l=Math.hypot(dx,dy)||1, ux=dx/l, uy=dy/l, nx=-uy, ny=ux, w=o.w+4, ext=2, hw=w/2;
   _gdr=1; _gdg=(o.w/2/UM)-.45; var v0=(o.x0*ux+o.y0*uy-ext)/UM, v1=(o.x1*ux+o.y1*uy+ext)/UM;
   var A=[o.x0-ux*ext-nx*hw,o.y0-uy*ext-ny*hw,.04], B=[o.x0-ux*ext+nx*hw,o.y0-uy*ext+ny*hw,.04], C=[o.x1+ux*ext+nx*hw,o.y1+uy*ext+ny*hw,.04], D=[o.x1+ux*ext-nx*hw,o.y1+uy*ext-ny*hw,.04];
-  var rk=Math.min(7,Math.floor(o.w/UM/3.5))*2+(hashXY(o.cx,o.cy)<.5?0:1);       /* wider roads win a junction; between equals a fixed coin toss */
-  gquad(b,A,B,C,D,0,0,1,-hw/UM,hw/UM,v0,v1,43+64,rk/16); _gdr=1; _gdg=1; }
+  gquad(b,A,B,C,D,0,0,1,-hw/UM,hw/UM,v0,v1,43+64,o.rk==null?.47:(o.rk+.5)/32); _gdr=1; _gdg=1; }      /* o.rk: palace_ride_street.py realRoadRanks (a depth rank for overlapping ribbons) */
 var _xwA=[[1,0],[-1,0],[0,1],[0,-1]];
 function glCrosswalk(b,x){
   var X=x.x, Y=x.y, SW=STREET_HW, arms=x.arms, a, k; glDC(null);
@@ -296,7 +295,7 @@ function glPlan(W){
   (W.tiles||[]).forEach(function(t){ var c=cell(t.cx,t.cy); c.til.push(t); c.h=glHashStr(c.h,Math.round(t.cx*5)+Math.round(t.cy*3)+t.ring.length); c.rad=Math.max(c.rad,t.r||0); });
   (W.parks||[]).forEach(function(p){ var c=cell(p.cx,p.cy); c.par.push(p); c.h=glHashStr(c.h,Math.round(p.cx*5)+Math.round(p.cy*3)+p.ring.length*11); c.rad=Math.max(c.rad,p.r||0); });
   (W.water||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.wat.push(w); c.h=glHashStr(c.h,Math.round(w.cx*5)+Math.round(w.cy*3)+Math.round(w.w)); c.rad=Math.max(c.rad,w.r||0); });
-  (W.roads||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.rod.push(w); c.h=glHashStr(c.h,Math.round(w.cx*5)+Math.round(w.cy*3)+7); c.rad=Math.max(c.rad,w.r||0); });
+  (W.roads||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.rod.push(w); c.h=glHashStr(c.h,Math.round(w.cx*5)+Math.round(w.cy*3)+7+(w.rk|0)*131); c.rad=Math.max(c.rad,w.r||0); });
   (W.dashes||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.das.push(w); c.h=glHashStr(c.h,Math.round(w.cx*3)+Math.round(w.cy*5)+1); });
   /* intersections of the street grid, from the rectangular blocks: a crosswalk on every arm that has a block either side.
      quadrant bits of an intersection: 1 block to the east+south, 2 west+south, 4 east+north, 8 west+north (y grows southward) */
@@ -430,7 +429,7 @@ function glCamera(){
   var W=C.W, H=C.H, y=C.yaw, p=C.pitch||0, cy=Math.cos(y), sy=Math.sin(y), cp=Math.cos(p), sp=Math.sin(p), foc=C.foc, n=GL_NEAR, f=GL_FAR;
   var F=[cy*cp, sy*cp, sp], Rv=[-sy, cy, 0], U=[-sp*cy, -sp*sy, cp];
   var ax=2*foc/W, ox=1-2*C.hx/W, ay=2*foc/H, oy=1-2*C.hy/H, A=(f+n)/(f-n), B=-2*f*n/(f-n);
-  var fe=F[0]*C.x+F[1]*C.y+F[2]*C.z, re=Rv[0]*C.x+Rv[1]*C.y+Rv[2]*C.z, ue=U[0]*C.x+U[1]*C.y+U[2]*C.z;
+  var fe=0, re=0, ue=0;       /* camera-relative: the vertex shader subtracts uEye first. The city's world coordinates are ~1e4 units, so a matrix that carries the camera's translation loses ~1e-3 units of depth in float32 and coplanar surfaces flicker */
   var r0=[ax*Rv[0]+ox*F[0], ax*Rv[1]+ox*F[1], ax*Rv[2]+ox*F[2], -(ax*re+ox*fe)];
   var r1=[ay*U[0]+oy*F[0], ay*U[1]+oy*F[1], ay*U[2]+oy*F[2], -(ay*ue+oy*fe)];
   var r2=[A*F[0], A*F[1], A*F[2], B-A*fe];
