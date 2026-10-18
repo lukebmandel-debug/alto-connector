@@ -104,9 +104,9 @@ function lccw(R){ var s=0; for(var i=0;i<R.length;i++){ var a=R[i], b=R[(i+1)%R.
 """
 
 JS_H_CITY = r"""
-/* ── City Hall: Second Empire, white marble, four wings round a courtyard, a copper-green mansard on every wing, the 167 m tower with Penn on top (148 x 145 m) ── */
+/* ── City Hall: Second Empire, white marble and granite, four wings round a courtyard, a dark slate mansard on every wing (photos: grey slate, not copper), the 167 m tower with Penn on top (148 x 145 m) ── */
 function bCityHall(F){
-  var k=3.4/8, ST='stone', WH='white', CP='copper', CO='concrete', i, x, v;
+  var k=3.4/8, ST='stone', WH='white', CP='roof', CO='concrete', i, x, v;
   lpatchBox(F,'paving',11,.1); lpatch(F,-38,36,38,109,.15,'paving');
   var bodies=[[-74,0,74,36],[-74,109,74,145],[-74,36,-38,109],[38,36,74,109]];
   bodies.forEach(function(r){ lrect(F,r[0]-1,r[1]-1,r[2]+1,r[3]+1,0,3.4,CO,CO,1,16);                 /* the granite base */
@@ -150,7 +150,7 @@ function bCityHall(F){
   lrect(F,-7.5,tc-7.5,7.5,tc+7.5,117.2,130.2,'dark','dark',1,16);                                      /* the open drum: a dark core inside a ring of columns */
   for(i=0;i<5;i++){ var c=-8+i*4; lcolLite(F,c,tc-8,118.4,130.2,.55,WH); lcolLite(F,c,tc+8,118.4,130.2,.55,WH); if(i>0&&i<4){ lcolLite(F,-8,tc+c,118.4,130.2,.55,WH); lcolLite(F,8,tc+c,118.4,130.2,.55,WH); } }
   lrect(F,-9.4,tc-9.4,9.4,tc+9.4,130.2,131.8,WH,WH,1,0);
-  llathe(F,0,tc,[[8.4,131.8],[8.7,133.2],[8.5,135.4],[7.9,137.8],[6.8,140.2],[5.4,142.5],[3.8,144.5],[2.5,146.2],[1.9,147.4],[1.9,148.4],[2.3,148.7],[2.3,149.4],[1.6,150.2],[.5,152]],14,CP);
+  llathe(F,0,tc,[[8.4,131.8],[8.7,133.2],[8.5,135.4],[7.9,137.8],[6.8,140.2],[5.4,142.5],[3.8,144.5],[2.5,146.2],[1.9,147.4],[1.9,148.4],[2.3,148.7],[2.3,149.4],[1.6,150.2],[.5,152]],14,WH);
   lrect(F,-2.2,tc-2.2,2.2,tc+2.2,152,155.6,WH,WH,1,0);
   llathe(F,0,tc,[[1.2,155.6],[1.35,158.4],[1.05,162],[.85,164],[1.15,165],[.5,165.8]],8,'metal');                       /* William Penn, in bronze: robe, shoulders, head, hat */
   llathe(F,0,tc,[[.7,165],[.85,165.8],[.7,166.5],[0,167]],8,'metal'); llathe(F,0,tc,[[1.5,166.2],[1.5,166.4],[0,166.6]],10,'metal'); lrect(F,-.4,tc-4,.4,tc-1,162,163,'metal','metal',1,0);
@@ -210,20 +210,26 @@ function lfacets(F,a,b,za,zb,nu,nv,bump,dir,mat){ var d=LDIR[dir], S=F.S, m=F.m,
 JS_H_CIVIC = r"""
 /* ── Independence Hall: red Flemish-bond brick, white trim, a hipped roof with its pairs of chimneys, the arcades and the two end buildings, the brick tower and the white steeple (104 x 22 m, 51 m) ── */
 function bIndependence(F){
-  var k=3.4/6.5, BR='brick', WH='white', RF='roof', i;
+  /* OSM (12 brick parts): the main block 34 x 19 m, eaves 12.6 m, a low hip to the railed deck at 15.9 m; the tower 10 m square standing 7 m out of the south front, brick to 21.3 m,
+     the wooden stages to 29 m, the steeple to 39.5 m and the spire to 51.4 m; arcades 11 m long (5.2 m, hipped) to the two wings 16 x 12 m (6.2 m + a 2.7 m hip). Congress Hall and
+     Old City Hall are buildings of their own (real mode draws them from OSM; the lattice model keeps them as its end buildings) */
+  var k=3.4/6.3, BR='brick', WH='white', RF='roof', i, R=!!F.real;
   lpatchBox(F,'grass',11,.08); lpatch(F,-70,-8,70,2,.14,'paving'); lpatch(F,-4,0,4,100,.14,'paving'); lpatch(F,-60,40,60,43,.14,'paving');
-  /* the main building: two storeys and an attic under a hipped roof, a white belt and cornice */
-  lrect(F,-16.5,8,16.5,22,0,13,BR,null,k); lband(F,-16.5,8,16.5,22,6.2,6.7,.4,WH); lband(F,-16.5,8,16.5,22,12.2,13.4,.7,WH); lband(F,-16.5,8,16.5,22,0,.9,.4,WH);
-  lroof(F,-16.5,8,16.5,22,13.4,[[5.2,5.8]],RF,1); lparapet(F,-11.3,13.2,11.3,16.8,19.2,.9,.28,WH);                      /* the railing round the roof deck */
-  [[-9,11.6],[9,11.6],[-9,18.4],[9,18.4]].forEach(function(c){ lrect(F,c[0]-.9,c[1]-.9,c[0]+.9,c[1]+.9,15,20.5,'brickred',WH,k,0); lrect(F,c[0]-1.1,c[1]-1.1,c[0]+1.1,c[1]+1.1,20.5,21.1,WH,WH,1,0); });
-  /* the arcades (the "hyphens") and the end buildings: Congress Hall and Old City Hall */
-  [-1,1].forEach(function(sd){ var xa=sd*27;
-    lrect(F,xa-6,12,xa+6,18,0,6.5,BR,null,k); lband(F,xa-6,12,xa+6,18,5.9,6.7,.4,WH); lroof(F,xa-6,12,xa+6,18,6.7,[[2.4,1.8]],RF,1);
-    [-3.6,0,3.6].forEach(function(o){ larch(F,'s',xa+o,12,0,2.3,4.6,'dark'); });
+  /* the main building: two storeys under a low hipped roof, a white belt and cornice */
+  lrect(F,-17,7,17,26,0,12.6,BR,null,k); lband(F,-17,7,17,26,6.1,6.6,.4,WH); lband(F,-17,7,17,26,11.8,13,.7,WH); lband(F,-17,7,17,26,0,.9,.4,WH);
+  lroof(F,-17,7,17,26,13,[[5.6,3.1]],RF,1); lparapet(F,-11.4,12.6,11.4,20.4,16.1,.9,.28,WH);                      /* the railing round the roof deck */
+  [[-10,11],[10,11],[-10,22],[10,22]].forEach(function(c){ lrect(F,c[0]-.9,c[1]-.9,c[0]+.9,c[1]+.9,13.5,18.2,'brickred',WH,k,0); lrect(F,c[0]-1.1,c[1]-1.1,c[0]+1.1,c[1]+1.1,18.2,18.8,WH,WH,1,0); });
+  lrectd(F,'n',0,26,0,1.8,3.2,'void',.45);
+  /* the arcades (the "hyphens") and the wings; the lattice model also keeps Congress Hall and Old City Hall as its end buildings */
+  [-1,1].forEach(function(sd){ var xa=R?sd*22.5:sd*27, aw=R?11:12;
+    lrect(F,xa-aw/2,14,xa+aw/2,20,0,5.2,BR,null,k); lband(F,xa-aw/2,14,xa+aw/2,20,4.7,5.4,.4,WH); lroof(F,xa-aw/2,14,xa+aw/2,20,5.4,[[2.4,1.7]],RF,1);
+    [-3.4,0,3.4].forEach(function(o){ larch(F,'s',xa+o,14,0,2.3,4,'dark'); larch(F,'n',xa+o,20,0,2.3,4,'dark'); });           /* open arches both sides (Chestnut Street and the square) */
+    if(R){ var xw2=sd*36; lrect(F,xw2-8,9,xw2+8,21,0,6.2,BR,null,k); lband(F,xw2-8,9,xw2+8,21,5.6,6.4,.4,WH); lroof(F,xw2-8,9,xw2+8,21,6.4,[[4,2.7]],RF,1);
+      [-4.5,0,4.5].forEach(function(o){ lrectd(F,'s',xw2+o,9,1.4,1.5,2.8,'dark'); }); return; }
     var xe=sd*43; lrect(F,xe-9,2,xe+9,22,0,11,BR,null,3.4/5.5); lband(F,xe-9,2,xe+9,22,5.2,5.7,.4,WH); lband(F,xe-9,2,xe+9,22,10.2,11.1,.7,WH); lroof(F,xe-9,2,xe+9,22,11.1,[[5.5,4.4]],RF,1);
     larch(F,'s',xe,2,0,2.2,4,'dark'); lbox(F,xe,.6,3.2,1.4,0,.5,WH,WH,1,0); });
   /* the tower: brick to 29 m with its great arched window, then the white wooden stages */
-  lrect(F,-4.5,0,4.5,9,0,29,BR,null,3.4/6); lband(F,-4.5,0,4.5,9,17.2,17.8,.4,WH); lband(F,-4.5,0,4.5,9,28.2,29.4,.7,WH);
+  lrect(F,-5,0,5,10,0,29,BR,null,3.4/6); lband(F,-5,0,5,10,21,21.6,.4,WH); lband(F,-5,0,5,10,28.2,29.4,.7,WH);
   larch(F,'s',0,0,18.6,4.4,9.6,'white',.3); larch(F,'s',0,0,19.4,3.2,8.6,'dark',.5); larch(F,'s',0,0,.3,3.6,6,'white',.3); larch(F,'s',0,0,.5,2.8,5.2,'dark',.5);
   lsteps(F,'s',0,0,5,3,.18,.5,.55,'concrete');
   lrect(F,-4,.5,4,8.5,29.4,34.6,WH,WH,1,0); [['s',0,.5],['n',0,8.5],['e',4,4.5],['w',-4,4.5]].forEach(function(q){ lclock(F,q[0],q[1],q[2],32,1.9); });
@@ -235,7 +241,7 @@ function bIndependence(F){
   MB.loft(F.m,lring(F,oc.map(function(q){ return [q[0]*1.1,4.5+(q[1]-4.5)*1.1]; })),F.Z(39.2),lring(F,oc.map(function(q){ return [q[0]*1.1,4.5+(q[1]-4.5)*1.1]; })),F.Z(40.4),WH,F.tint,1,WH);
   llathe(F,0,4.5,[[3.5,40.4],[3.6,41.3],[3.1,42.5],[2.1,43.5],[1.4,44.2],[1.4,44.8],[1.1,45],[1.1,46.5],[.9,46.9],[.3,48.2],[.12,49.6],[.1,51]],10,WH);
   llathe(F,0,4.5,[[.45,46.6],[.5,47.0],[.35,47.4],[0,47.5]],8,'metal');
-  lfoot(F,-16.5,8,16.5,22,19); lfoot(F,-4.5,0,4.5,9,51); [-1,1].forEach(function(sd){ lfoot(F,sd*27-6,12,sd*27+6,18,8); lfoot(F,sd*43-9,2,sd*43+9,22,15); });
+  lfoot(F,-17,7,17,26,16); lfoot(F,-5,0,5,10,51); [-1,1].forEach(function(sd){ if(F.real){ lfoot(F,sd*22.5-5.5,14,sd*22.5+5.5,20,7); lfoot(F,sd*36-8,9,sd*36+8,21,9); } else { lfoot(F,sd*27-6,14,sd*27+6,20,7); lfoot(F,sd*43-9,2,sd*43+9,22,15); } });
   return F.m; }
 
 /* ── Philadelphia Museum of Art: the U of tan limestone, three Greek temple fronts, blue-green tiled roofs, the long steps (196 x 110 m, 36 m) ── */
@@ -615,7 +621,7 @@ LMC.ind={b:[.02,.16]}; LMC.conv={b:[.02,.16],g:[.2,.5]}; LMC.cbp={b:[.02,.16]}; 
 LMC.lib1={s:[.58,.78],g:[.0,.3]}; LMC.lib2={s:[.58,.78],g:[.0,.3]}; LMC.ccc={g:[.28,.5]}; LMC.ctc={s:[.3,.52],g:[.3,.5]}; LMC.bny={s:[.3,.52],g:[.5,.75]}; LMC.cira={g:[.72,.95]}; LMC.fmc={g:[.12,.34]};
 LMC.jef={g:[.3,.6]}; LMC.arena={g:[.2,.45]}; LMC.lff={g:[.2,.45]}; LMC.stad={g:[.2,.45]};
 /* key -> [builder, plan depth m, centred in its block?, (unused), plan width m, how far steps / canopies push out of the front face m] */
-LMT.city=[bCityHall,145,true,false,148,13.5]; LMT.ind=[bIndependence,22,false,false,105,1.5]; LMT.art=[bArt,110,false,false,198,9]; LMT.frank=[bFranklin,70,false,false,112,11]; LMT.stn=[bStation,117,false,false,145,22];
+LMT.city=[bCityHall,145,true,false,148,13.5]; LMT.ind=[bIndependence,26,false,false,105,1.5]; LMT.art=[bArt,110,false,false,198,9]; LMT.frank=[bFranklin,70,false,false,112,11]; LMT.stn=[bStation,117,false,false,145,22];
 LMT.lbc=[bLBC,95,false,false,26,1]; LMC.lbc={s:[.84,.98]};
 LMT.sub=[bSuburban,46,false,false,94,3]; LMT.jef=[bJefferson,50,false,false,100,9]; LMT.conv=[bConvention,190,false,false,250,6];
 LMT.lib1=[bLib1,64,false,false,64,5]; LMT.lib2=[bLib2,56,false,false,56,5]; LMT.ccc=[bComcast,56,false,false,70,5]; LMT.ctc=[bCTC,50,false,false,92,5]; LMT.bny=[bBNY,66,false,false,66,5]; LMT.tls=[bTLS,58,false,false,58,5]; LMT.cira=[bCira,36,false,false,52,5]; LMT.fmc=[bFMC,36,false,false,52,5];
