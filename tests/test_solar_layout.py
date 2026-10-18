@@ -23,11 +23,11 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from alto.build.brief import Act, Brief, BriefError, Node, validate_brief, validate_nodes  # noqa: E402
+from alto.build.brief import Act, Brief, BriefError, Node, solar_style, validate_brief, validate_nodes  # noqa: E402
 from alto.build.builder import build_timeline, load_brief, place, run_layout  # noqa: E402
 from alto.build import detail_extras as dx  # noqa: E402
 from alto.build.layout import plan_js, run_plan  # noqa: E402
-from alto.build.solar import SOLAR, solar_heights, solar_plan, solar_tree_plan  # noqa: E402
+from alto.build.solar import SOLAR, body_d, solar_heights, solar_plan, solar_tree_plan  # noqa: E402
 
 NODE = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
 needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
@@ -39,10 +39,18 @@ GAP_MIN = min(SOLAR["MOON_GAP"], SOLAR["SAT_GAP"], SOLAR["RING_GAP"], SOLAR["SPO
 # A unit is a list of planets; a planet a list of moons; a moon its number of
 # satellites. Ids spell where a node sits: u1-p2-m3-s1.
 
-def _outline(units, style="orbit", flags=None):
-    acts = [Act(label=f"UNIT {a + 1}", short=f"Unit {a + 1}") for a in range(len(units))]
-    b = Brief(title="Solar test", subject="s", mode="outline", layout="solar", hub_style=style,
-              columns=5, acts=acts, timeline_id="solar-test", flags=flags or [])
+def _brief(n_units, style, flags=None):
+    """Hub & spoke ("spoke": an outline, layout 'solar') or a Star chart
+    ("orbit": a Mind Palace in its stars view)."""
+    acts = [Act(label=f"UNIT {a + 1}", short=f"Unit {a + 1}") for a in range(n_units)]
+    kind = ({"mode": "outline", "layout": "solar"} if style == "spoke"
+            else {"mode": "palace", "palace_view": "stars"})
+    return Brief(title="Solar test", subject="s", columns=5, acts=acts, timeline_id="solar-test",
+                 flags=flags or [], **kind)
+
+
+def _outline(units, style="spoke", flags=None):
+    b = _brief(len(units), style, flags)
     nodes = []
 
     def add(i, act, parent="", tag="Concept"):
@@ -90,12 +98,39 @@ TORTS = [
 ]
 
 
-def civpro_shape(style="orbit"):
+def civpro_shape(style="spoke"):
     return _outline(CIVPRO, style)
 
 
-def torts_shape(style="orbit"):
+def torts_shape(style="spoke"):
     return _outline(TORTS, style)
+
+
+def _stars(districts, flags=None):
+    """A Star chart with several buildings (suns) per district: districts is
+    [[building]], a building [planet], a planet [satellites per moon]."""
+    b = _brief(len(districts), "orbit", flags)
+    nodes = []
+
+    def add(i, act, parent=""):
+        nodes.append(Node(id=i, act=act, tag="Floor" if parent else "Building", title=i,
+                          desc="From the notes: " + i, parent=parent))
+    for a, buildings in enumerate(districts):
+        for k, planets in enumerate(buildings):
+            sun = f"d{a + 1}b{k + 1}"
+            add(sun, a)
+            for p, moons in enumerate(planets):
+                pid = f"{sun}-p{p + 1}"
+                add(pid, a, sun)
+                for m, sats in enumerate(moons):
+                    mid = f"{pid}-m{m + 1}"
+                    add(mid, a, pid)
+                    for q in range(sats):
+                        add(f"{mid}-s{q + 1}", a, mid)
+    validate_brief(b)
+    validate_nodes(b, nodes)
+    place(b, nodes)
+    return b, nodes
 
 
 # ── geometry helpers ───────────────────────────────────────────────────────
@@ -280,22 +315,62 @@ def test_an_order_hint_reorders_the_rings():
     assert plan["systems"][0]["planets"][0]["id"] == "u1-p3"
 
 
-def test_sizes_are_fixed_per_role_and_a_pivotal_planet_is_one_size_up():
-    b, nodes = _outline([[[1], [0]], [[2]]], flags=[{"id": "pivotal", "name": "Pivotal"},
-                                                     {"id": "revisit", "name": "Revisit"}])
+def test_a_body_grows_with_its_children_and_the_tiers_keep_their_order():
+    T = SOLAR["TIERS"]
+    # a tier per two children, clamped below the bump-only top of each ladder
+    assert [body_d("planet", m) for m in range(10)] == [96, 110, 110, 124, 124, 138, 138, 152, 152, 152]
+    assert [body_d("moon", k) for k in range(8)] == [50, 58, 58, 66, 66, 74, 74, 74]
+    assert body_d("sat", 0) == 34 and body_d("sat", 0, True) == 40
+    assert body_d("planet", 99, True) == T["planet"][-1] == 166
+    assert body_d("moon", 99, True) == T["moon"][-1] == 82
+    # sun > every planet > every moon > every satellite, bumps included
+    assert SOLAR["D"]["sun"] > max(T["planet"]) and min(T["planet"]) > max(T["moon"]) > max(T["sat"])
+
+
+def test_sizes_follow_child_counts_and_an_extreme_flag_bumps_one_tier():
+    b, nodes = _outline([[[0] * 7, [0], [], [5, 0, 1]], [[2]]],
+                        flags=[{"id": "pivotal", "name": "Pivotal"},
+                               {"id": "imp", "name": "Extreme importance"},
+                               {"id": "key-case", "name": "Key case"}])
     by = {n.id: n for n in nodes}
-    by["u1-p1"].flags = ["pivotal"]
-    by["u1-p2"].flags = ["revisit"]
+    by["u1-p2"].flags = ["pivotal"]
+    by["u1-p3"].flags = ["key-case"]                   # not an extreme flag: no bump
+    by["u1-p4-m1"].flags = ["imp"]
+    by["u2-p1-m1-s1"].flags = ["pivotal"]
     plan = solar_plan(b, nodes)
-    D = SOLAR["D"]
-    role_d = {"sun": D["sun"], "moon": D["moon"], "sat": D["sat"]}
-    for i, n in plan["nodes"].items():
-        if n["role"] == "planet":
-            assert n["d"] == (D["planet_big"] if i == "u1-p1" else D["planet"]), i
-        else:
-            assert n["d"] == role_d[n["role"]]
-    assert D["sun"] > D["planet_big"] > D["planet"] > D["moon"] > D["sat"]
+    d = {i: n["d"] for i, n in plan["nodes"].items()}
+    assert d["u1"] == d["u2"] == SOLAR["D"]["sun"]
+    assert d["u1-p1"] == 152                           # 7 moons
+    assert d["u1-p2"] == 124                           # 1 moon (110) + pivotal
+    assert d["u1-p3"] == 96                            # no moons; "key case" is no bump
+    assert d["u1-p4"] == 124                           # 3 moons
+    assert d["u1-p4-m1"] == 82                         # 5 satellites (74) + extreme importance
+    assert d["u1-p4-m2"] == 50 and d["u1-p4-m3"] == 58
+    assert d["u2-p1-m1-s1"] == 40 and d["u2-p1-m1-s2"] == 34
+    assert plan["sizes"]["bump"] == ["imp", "pivotal"]
+    # the systems' bodies carry the same diameters as the nodes
+    for s in plan["systems"]:
+        for p in s["planets"]:
+            assert p["d"] == d[p["id"]]
+            for m in p["moons"]:
+                assert m["d"] == d[m["id"]] and all(q["d"] == d[q["id"]] for q in m["sats"])
     _check(plan)
+
+
+@pytest.mark.parametrize("style", ["orbit", "spoke"])
+def test_twelve_planets_of_eight_moons_all_at_the_largest_sizes(style):
+    """The heaviest case: every planet at the top of its ladder (bumped), every
+    moon too, satellites bumped — still no overlap anywhere."""
+    units = [[[5, 0, 6, 1, 2, 0, 3, 4] for _ in range(12)]]
+    flags = [{"id": "pivotal", "name": "Pivotal"}]
+    b, nodes = _outline(units, style, flags=flags)
+    for n in nodes:
+        if n.parent:
+            n.flags = ["pivotal"]
+    plan = solar_plan(b, nodes)
+    assert {n["d"] for n in plan["nodes"].values() if n["role"] == "planet"} == {166}
+    assert max(n["d"] for n in plan["nodes"].values() if n["role"] == "moon") == 82
+    _check(plan, times=(0, 31.0, 77.7))
 
 
 def test_orbit_periods_inner_faster_and_spoke_still():
@@ -389,16 +464,44 @@ def test_a_fifth_level_is_an_error_that_says_how_to_fix_it():
     validate_nodes(b, nodes)
 
 
-def test_solar_needs_an_outline_and_a_known_style():
+def test_solar_needs_an_outline_and_the_star_chart_a_palace():
     b, _ = _outline([[[0]], [[0]]])
-    b.hub_style = "comet"
-    with pytest.raises(BriefError, match="hub_style"):
-        validate_brief(b)
-    b.hub_style = "spoke"
     validate_brief(b)
+    assert solar_style(b) == "spoke"
     b.mode = "linear"
     with pytest.raises(BriefError, match="solar"):
         validate_brief(b)
+    b, _ = _outline([[[0]], [[0]]], "orbit")
+    assert solar_style(b) == "orbit" and b.mode == "palace"
+    b.palace_view = "galaxy"
+    with pytest.raises(BriefError, match="palace_view"):
+        validate_brief(b)
+    b.palace_view = "city"
+    assert solar_style(b) == ""
+    validate_brief(b)
+    b.mode, b.palace_view = "outline", "stars"
+    with pytest.raises(BriefError, match="needs mode 'palace'"):
+        validate_brief(b)
+    b.mode, b.palace_view, b.layout = "palace", "stars", "solar"
+    with pytest.raises(BriefError, match="layout 'solar' needs mode 'outline'"):
+        validate_brief(b)
+
+
+def test_a_star_chart_says_a_too_deep_palace_can_stay_a_city():
+    b, nodes = _stars([[[[1]]], [[[0]]]])
+    nodes.append(Node(id="attic", act=0, tag="Floor", title="Attic", desc="d", parent="d1b1-p1-m1-s1"))
+    with pytest.raises(BriefError) as e:
+        validate_nodes(b, nodes)
+    assert "attic" in str(e.value) and "palace_view 'city'" in str(e.value)
+    b.palace_view = "city"
+    validate_nodes(b, nodes)                       # a city stacks floors to any height
+
+
+def test_a_star_chart_without_a_city_is_not_told_to_set_one_up():
+    b, _ = _stars([[[[0]]], [[[0]]]])
+    assert not any("set_up_palace" in w for w in validate_brief(b))
+    b.palace_view = "city"
+    assert any("set_up_palace" in w for w in validate_brief(b))
 
 
 def test_one_system_for_the_whole_outline_is_one_unit():
@@ -434,10 +537,14 @@ def test_placement_other_than_order_is_warned_about():
 
 # ── the build ──────────────────────────────────────────────────────────────
 
-def _sample(style="orbit"):
+def _sample(style="spoke"):
+    """The sample outline as Hub & spoke ("spoke") or as a Star chart ("orbit")."""
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
-    d["brief"]["layout"] = "solar"
-    d["brief"]["hub_style"] = style
+    if style == "spoke":
+        d["brief"]["layout"] = "solar"
+    else:
+        d["brief"]["mode"] = "palace"
+        d["brief"]["palace_view"] = "stars"
     return d
 
 
@@ -499,24 +606,201 @@ def test_the_page_puts_each_centre_where_the_plan_says(tmp_path):
         assert out["y"][i] == pytest.approx(n["y"]) and out["x"][i] == pytest.approx(n["x"]), i
 
 
-def test_build_and_preview_through_the_tools_on_a_scratch_store(tmp_path):
+@pytest.fixture
+def store(tmp_path):
     from alto import mcp_server as srv
     from alto.store.local import LocalStore
     srv.set_store(LocalStore(tmp_path))
-    try:
-        d = _sample("orbit")
-        pid = srv.create_project("Law School", "1L", "studying")["project_id"]
-        tid = srv.create_timeline(pid, d["brief"])["timeline_id"]
-        srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes"}], True)
-        srv.set_entities(tid, d["brief"].get("entities") or [])
-        assert "error" not in srv.add_nodes(tid, d["nodes"])
-        pre = srv.run_layout_preview(tid, layout="solar")
-        assert pre.get("layout") == "solar", pre
-        pre = srv.run_layout_preview(tid, layout="tree")
-        assert pre.get("layout") == "tree", pre
-        out = srv.build_timeline(tid)
-        assert "error" not in out, out
-        html = srv.get_store().get_artifact(srv.uid(), tid, "timeline.html")
-        assert "window._ALTO_SOLAR=" in html
-    finally:
-        srv.set_store(None)
+    yield srv
+    srv.set_store(None)
+
+
+def _draft(srv, d):
+    pid = srv.create_project("Law School", "1L", "studying")["project_id"]
+    tid = srv.create_timeline(pid, d["brief"])["timeline_id"]
+    srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes", "id": "notes"}], True)
+    srv.set_entities(tid, d["brief"].get("entities") or [])
+    assert "error" not in srv.add_nodes(tid, d["nodes"])
+    if d.get("connections"):
+        assert "error" not in srv.add_connections(tid, d["connections"])
+    return tid
+
+
+def test_build_and_preview_through_the_tools_on_a_scratch_store(store):
+    srv = store
+    tid = _draft(srv, _sample("spoke"))
+    pre = srv.run_layout_preview(tid)
+    assert pre.get("layout") == "solar" and pre["solar"]["style"] == "spoke", pre
+    pre = srv.run_layout_preview(tid, layout="tree")
+    assert pre.get("layout") == "tree", pre
+    out = srv.build_timeline(tid)
+    assert "error" not in out, out
+    html = srv.get_store().get_artifact(srv.uid(), tid, "timeline.html")
+    assert "window._ALTO_SOLAR=" in html
+
+
+# ── Star chart: a Mind Palace in its stars view ──────────────────────────────
+
+@pytest.mark.parametrize("districts", [
+    [[[[0, 0], [1]], [[2, 2]]], [[[0]], [[0, 0, 0]], [[]]]],                 # 2 + 3 buildings
+    [[[[0] * 8] * 12, [[3]]], [[[0]]]],                                         # a 12×8 building beside a small one
+    [[[[]] for _ in range(7)]],                                                 # one district of seven small buildings
+    [[[[2, 2, 2]] * 3] * 3, [[[1, 0]] * 2] * 2],                               # many mid-size buildings
+])
+def test_every_building_is_a_sun_and_no_two_bodies_ever_touch(districts):
+    b, nodes = _stars(districts)
+    plan = solar_plan(b, nodes)
+    assert plan["style"] == "orbit"
+    suns = [s["sun"] for s in plan["systems"]]
+    assert suns == [n.id for n in nodes if not n.parent]
+    assert len(plan["systems"]) == sum(len(d) for d in districts)
+    _check(plan, times=(0, 19.9, 66.6, 123.4))
+    # a district's systems stay together: each district its own rows, in order
+    by_unit = {}
+    for s in plan["systems"]:
+        by_unit.setdefault(s["unit"], []).append(s)
+    lows = [max(s["bbox"][3] for s in by_unit[u]) for u in sorted(by_unit)]
+    highs = [min(s["bbox"][1] for s in by_unit[u]) for u in sorted(by_unit)]
+    assert all(lows[i] < highs[i + 1] for i in range(len(lows) - 1))
+    assert [u["unit"] for u in plan["units"]] == sorted(by_unit)
+    assert [u["suns"] for u in plan["units"]] == [[s["sun"] for s in by_unit[u]] for u in sorted(by_unit)]
+
+
+def test_an_outline_with_one_root_per_unit_keeps_its_plan():
+    """Generalising suns to every root changes nothing for an outline."""
+    b, nodes = civpro_shape("spoke")
+    plan = solar_plan(b, nodes)
+    assert [s["sun"] for s in plan["systems"]] == [f"u{a + 1}" for a in range(len(CIVPRO))]
+    assert [u["suns"] for u in plan["units"]] == [[f"u{a + 1}"] for a in range(len(CIVPRO))]
+
+
+def test_a_star_chart_page_has_no_city_only_the_numbers_and_the_systems():
+    d = _sample("orbit")
+    html, report = build_timeline(*load_brief(d))
+    assert report["layout"]["layout"] == "solar" and report["layout"]["solar"]["style"] == "orbit"
+    assert "window._altoPalace=function" not in html             # no city code
+    assert "pd-hdr" not in html                                  # no landmark doors
+    at = html.index("window._ALTO_PALACE=") + len("window._ALTO_PALACE=")
+    pal, _ = json.JSONDecoder().raw_decode(html[at:])
+    assert pal["none"] == 1 and set(pal) == {"none", "fl", "of", "num", "par"}
+    root = next(n["id"] for n in d["nodes"] if n["act"] == 2 and not n.get("parent"))
+    first = next(n["id"] for n in d["nodes"] if n.get("parent") == root)
+    assert pal["num"][root] == "3.1" and pal["num"][first] == "3.1-1"   # palace-style numbers
+    assert "window._ALTO_OUTLINE=" not in html
+    assert "window._ALTO_SOLAR=" in html
+
+
+def test_the_star_chart_page_is_far_under_the_stored_page_cap():
+    from alto.build.private_shell import MAX_PAGE_BYTES, stored_bytes
+    from alto.build.single_file import private_page
+    from alto.build.palace import pack
+    d = _sample("orbit")
+    # a city kept aside for the way back (brief.palace.data_z) costs the page nothing
+    z = pack({"map": {"x": list(range(5000))}, "blocks": []})
+    d["brief"]["palace"] = {"place": "Philadelphia", "data_z": z}
+    b, nodes, conns = load_brief(d)
+    html, _ = build_timeline(b, nodes, conns)
+    assert z[:40] not in html
+    city = load_brief(_sample("orbit"))
+    city[0].palace_view = "city"
+    city_html, _ = build_timeline(*city)
+    stored = stored_bytes(private_page(b, html))
+    assert stored < MAX_PAGE_BYTES * 0.6, stored
+    assert len(html) < len(city_html)                 # none of the city's code ships
+
+
+# ── convert_timeline: Hub & spoke ⇄ Star chart ───────────────────────────────
+
+def _everything(srv, tid):
+    st = srv.get_store()
+    nodes = sorted(st.list_nodes(srv.uid(), tid), key=lambda n: n["id"])
+    doc = st.get_timeline(srv.uid(), tid)
+    return nodes, st.get_connections(srv.uid(), tid), doc
+
+
+def test_converting_to_a_star_chart_and_back_loses_nothing(store):
+    srv = store
+    d = _sample("spoke")
+    d["brief"]["placement"] = {d["nodes"][1]["id"]: {"order": 1}}
+    d["brief"]["outcomes"] = "beside"
+    d["brief"]["flags"] = [{"id": "pivotal", "name": "Pivotal"}]
+    d["nodes"][2]["flags"] = ["pivotal"]
+    d["nodes"][3]["sources"] = ["notes"]
+    tid = _draft(srv, d)
+    nodes0, conns0, doc0 = _everything(srv, tid)
+    assert conns0
+
+    out = srv.convert_timeline(tid, "star_chart")
+    assert out.get("ok") and out["from"] == "hub_and_spoke" and out["nodes"] == len(nodes0), out
+    nodes1, conns1, doc1 = _everything(srv, tid)
+    b1 = doc1["brief"]
+    assert b1["mode"] == "palace" and b1["palace_view"] == "stars" and "placement" not in b1
+    assert nodes1 == nodes0 and conns1 == conns0                  # every node field, every line
+    assert doc1["consent"] == doc0["consent"]
+    assert srv.get_store().get_artifact(srv.uid(), tid, out["backup"])
+    assert json.loads(srv.get_store().get_artifact(srv.uid(), tid, out["backup"])) == doc0["brief"]
+    built = srv.build_timeline(tid)
+    assert "error" not in built, built
+    html = srv.get_store().get_artifact(srv.uid(), tid, "timeline.html")
+    assert '"style":"orbit"' in html
+
+    out = srv.convert_timeline(tid, "hub_and_spoke")
+    assert out.get("ok") and out["from"] == "star_chart", out
+    nodes2, conns2, doc2 = _everything(srv, tid)
+    assert nodes2 == nodes0 and conns2 == conns0
+    assert doc2["brief"] == doc0["brief"]                         # the brief exactly as it was
+    assert [c["to"] for c in doc2["conversions"]] == ["star_chart", "hub_and_spoke"]
+    assert "error" not in srv.build_timeline(tid)
+
+
+def test_a_star_chart_keeps_its_city_through_a_round_trip(store):
+    srv = store
+    d = _sample("orbit")
+    d["brief"]["palace"] = {"place": "Philadelphia", "data_z": "xz2:kept"}
+    tid = _draft(srv, d)
+    before = _everything(srv, tid)[2]["brief"]
+    out = srv.convert_timeline(tid, "hub_and_spoke")
+    assert out.get("ok"), out
+    b = _everything(srv, tid)[2]["brief"]
+    assert b["mode"] == "outline" and b["layout"] == "solar" and "palace" not in b
+    assert b["stash"]["palace"]["palace"]["data_z"] == "xz2:kept"
+    assert srv.convert_timeline(tid, "star_chart").get("ok")
+    assert _everything(srv, tid)[2]["brief"] == before
+
+
+def test_what_cannot_be_converted_is_refused_with_the_reason(store):
+    srv = store
+    # a city palace
+    d = _sample("orbit")
+    d["brief"]["palace_view"] = "city"
+    tid = _draft(srv, d)
+    out = srv.convert_timeline(tid, "hub_and_spoke")
+    assert out["error"] == "cannot_convert" and "city" in out["message"] and "palace_view 'stars'" in out["message"]
+    # an ordinary outline
+    d = _sample("spoke")
+    d["brief"]["layout"] = "tree"
+    d["brief"]["title"] = "Tree outline"
+    tid2 = _draft(srv, d)
+    out = srv.convert_timeline(tid2, "star_chart")
+    assert out["error"] == "cannot_convert" and "layout 'solar'" in out["message"]
+    # the wrong direction, an unknown target
+    d = _sample("spoke")
+    d["brief"]["title"] = "Hub"
+    tid3 = _draft(srv, d)
+    assert "already" in srv.convert_timeline(tid3, "hub_and_spoke")["message"]
+    assert "must be" in srv.convert_timeline(tid3, "galaxy")["message"]
+    # nothing was written
+    assert _everything(srv, tid3)[2]["brief"]["layout"] == "solar"
+    assert "conversions" not in _everything(srv, tid3)[2]
+
+
+def test_a_district_of_several_buildings_cannot_become_one_hub(store):
+    srv = store
+    d = _sample("orbit")
+    extra = {"id": "second-building", "act": 0, "tag": "Building", "title": "Second", "desc": "d"}
+    d["nodes"].insert(1, extra)
+    tid = _draft(srv, d)
+    before = _everything(srv, tid)
+    out = srv.convert_timeline(tid, "hub_and_spoke")
+    assert out["error"] == "cannot_convert" and "2 buildings" in out["message"]
+    assert "nothing was changed" in out["message"] and _everything(srv, tid) == before
