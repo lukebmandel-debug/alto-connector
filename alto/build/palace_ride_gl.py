@@ -35,7 +35,7 @@ CSS_GL = r"""
 
 _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
-var GLX={uid:0, ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
+var GLX={uid:0, ident:new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]), on:false, gl:null, cv:null, lost:false, gen:0, err:'', renderer:'', ext:null, prog:null, sky:null, noise:null, quad:null, cache:{}, prev:{}, prevM:{}, nCache:0, mc:null, queue:[], wayq:[], frame:0,
   st:{draws:0, tris:0, built:0, pending:0, ms:0, chunks:0}, ready:false, fresh:true, inst:null, instBuf:null, ibuf:null};
 var GL_NEAR=.5, GL_FAR=2000, GL_MAXCACHE=260;
 function glAttach(ov){
@@ -49,7 +49,7 @@ function glSetup(restore){
   var opt={alpha:false, antialias:true, depth:true, stencil:false, powerPreference:'high-performance', preserveDrawingBuffer:false};
   try{ gl=cv.getContext('webgl',opt)||cv.getContext('experimental-webgl',opt); }catch(x){ gl=null; }
   if(!gl || gl.isContextLost()){ GLX.err='no webgl'; return glFail(true); }
-  GLX.gl=gl; GLX.gen++; GLX.cache={}; GLX.nCache=0; GLX.mc=(typeof WeakMap!=='undefined')?new WeakMap():null; GLX.queue=[]; GLX.wayq=[];
+  GLX.gl=gl; GLX.gen++; GLX.cache={}; GLX.prev={}; GLX.prevM={}; GLX.nCache=0; GLX.mc=(typeof WeakMap!=='undefined')?new WeakMap():null; GLX.queue=[]; GLX.wayq=[];
   var fp=gl.getShaderPrecisionFormat&&gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER,gl.HIGH_FLOAT); if(!fp || !fp.precision){ GLX.err='no highp fragment precision'; return glFail(true); }
   if(gl.getParameter(gl.MAX_VERTEX_ATTRIBS)<8){ GLX.err='too few vertex attributes'; return glFail(true); }
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
@@ -319,6 +319,9 @@ function glCellStep(W,c,deadline){
     j.stage=2; }
   for(var mi=0; mi<c.msh.length; mi++) glAppend(b,c.msh[mi].a);
   var o=glUpload(b); o.rad=c.rad; GLX.cache[c.ck]=o; GLX.nCache++; GLX.st.built++; c.job=null; c.state=2; return true; }
+/* the buffer to draw for a planned cell: the one built for its present content, else the one it last had (a regathered world rebuilds the cells whose content moved a little; until then the old one stays,
+   so a world swap is never seen as holes) */
+function glCellObj(G,k){ var c=G.cells[k], o=GLX.cache[c.ck]; if(o){ GLX.prev[k]=o; return o; } o=GLX.prev[k]; return (o && o.buf && o.gen===GLX.gen)?o:null; }
 function glEvict(){
   if(GLX.nCache<=GL_MAXCACHE) return; var ks=Object.keys(GLX.cache).sort(function(p,q){ return GLX.cache[p].use-GLX.cache[q].use; });
   for(var i=0; i<ks.length && GLX.nCache>GL_MAXCACHE-12; i++){ var o=GLX.cache[ks[i]]; if(o.use>=GLX.frame-90) break; glFree(o); delete GLX.cache[ks[i]]; GLX.nCache--; } }
@@ -331,17 +334,24 @@ function glWork(W,budget){
     for(var i=0;i<pend.length;i++){ if(performance.now()>deadline && !(GLX.fresh&&pend[i].d<CELL*1.2)) break; if(glCellStep(W,pend[i],GLX.fresh&&pend[i].d<CELL*1.2?t0+400:deadline)) continue; break; }
     left=glPending(W).length; }
   /* meshes from other parts (landmarks, scenery) and the ride's way, as time allows */
-  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!W.atlas)) return; if(glMeshPeek(m.a)){ glMeshPeek(m.a).use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a,m.id,m.tex); });
+  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!W.atlas)) return; var fo=glMeshFind(m); if(fo){ fo.use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a,m.id,m.tex); });
   GLX.st.pending=left; return left; }
 /* a mesh from another part (landmarks, scenery, a mover's model) as a GL buffer: by array identity, else by id + size + a few sampled values, so a world that is
    re-gathered with identical scenery reuses the buffers it already has */
 function glMeshPeek(a){ var o=GLX.mc?GLX.mc.get(a):null; return (o && o.gen===GLX.gen && o.buf)?o:null; }
+/* a mesh's buffer if one already exists for it - by array identity, else by the id + size + sampled values key (a regathered world makes new arrays of the same scenery) - and never a build: this is what the
+   frame draws with, so a world swap does not make every tree, lamp and car vanish until each has been looked up again */
+function glMeshFind(m){
+  var a=m.a, o=glMeshPeek(a); if(o) return o; if(m.tex||typeof m.id!=='string') return null;
+  var n=a.length, key='m:'+(m.id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+',';
+  var c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); GLX.prevM[m.id]=c; return c; }
+  c=GLX.prevM[m.id]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; return c; } return null; }       /* not uploaded yet: the last one of this id stays up (palace_ride_g.py ids are per 300-unit cell) */
 function glMeshGet(a,id,nokey){
   var o=glMeshPeek(a); if(o){ o.use=GLX.frame; return o; }
   if(nokey){ var e0=glExpand(a); o=glUpload({a:e0.a, n:e0.a.length, x0:e0.x0,x1:e0.x1,y0:e0.y0,y1:e0.y1,z0:e0.z0,z1:e0.z1}); o.use=GLX.frame; GLX.cache['u:'+(++GLX.uid)]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); return o; }
   var n=a.length, key='m:'+(id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+',';
   var c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); return c; }
-  var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); GLX.cache[key]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); return o; }
+  var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); GLX.cache[key]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); if(id) GLX.prevM[id]=o; return o; }
 """
 
 _JS_GL_WAY = r"""
@@ -482,7 +492,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
     gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
   else { gl.uniformMatrix4fv(pg.u.uLP,false,GLX.ident); gl.uniformMatrix4fv(pg.u.uLQ,false,GLX.ident); gl.uniform4f(pg.u.uShP,0,0,0,0); gl.uniform2f(pg.u.uShQ,0,0); gl.uniform2f(pg.u.uNOff,0,0); }
   var G=glPlan(Wd), draws=0, tris=0; _gvis.length=0;
-  G.keys.forEach(function(k){ var o=GLX.cache[G.cells[k].ck]; if(!o) return; o.use=GLX.frame; if(glSphVis(o.cx,o.cy,o.cz,o.r)) _gvis.push(o); });
+  G.keys.forEach(function(k){ var o=glCellObj(G,k); if(!o) return; o.use=GLX.frame; if(glSphVis(o.cx,o.cy,o.cz,o.r)) _gvis.push(o); });
   _gvis.sort(function(p,q){ return (Math.pow(p.cx-C.x,2)+Math.pow(p.cy-C.y,2))-(Math.pow(q.cx-C.x,2)+Math.pow(q.cy-C.y,2)); });
   gl.enable(gl.CULL_FACE);
   for(i=0;i<_gvis.length;i++){ var o=_gvis[i]; glBind(gl,pg,o); gl.drawArrays(gl.TRIANGLES,0,o.n); draws++; tris+=o.n/3; }
@@ -492,7 +502,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   var wy=GLX.curWay; if(wy && wy.segs){ for(i=0;i<wy.segs.length;i++){ var s=wy.segs[i]; if(!glSphVis(s.cx,s.cy,s.cz,s.r)) continue; glBind(gl,pg,s); gl.drawArrays(gl.TRIANGLES,0,s.n); draws++; tris+=s.n/3; } }
   /* meshes from the landmark and scenery parts: no culling (their winding is not ours to trust) */
   gl.disable(gl.CULL_FACE);
-  (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!Wd.atlas)) return; var mc=glMeshPeek(m.a); if(!mc) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
+  (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!Wd.atlas)) return; var mc=glMeshFind(m); if(!mc) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
   draws+=glDrawMovers(gl,pg,Wd); gl.enable(gl.CULL_FACE);
   st.draws=draws; st.tris=tris|0; st.chunks=_gvis.length;
   names.forEach(function(n){ gl.disableVertexAttribArray(a[n]); }); }
@@ -609,8 +619,8 @@ function glShadowPass(gl,Wd,L,cw,ch){
     gl.bindFramebuffer(gl.FRAMEBUFFER,c.fb); gl.viewport(0,0,S,S); gl.clear(gl.DEPTH_BUFFER_BIT); gl.uniformMatrix4fv(pg.u.uLP,false,m);
     var lat=function(o){ var ca=a[0]*o.cx+a[1]*o.cy-oa, cbb=b[0]*o.cx+b[1]*o.cy+b[2]*o.cz-ob; return Math.abs(ca)-o.r<Rs && Math.abs(cbb)-o.r<Rs; };
     var draw=function(o){ gl.bindBuffer(gl.ARRAY_BUFFER,o.buf); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,60,0); gl.drawArrays(gl.TRIANGLES,0,o.n); drawn++; };
-    G.keys.forEach(function(kk){ var o=GLX.cache[G.cells[kk].ck]; if(o && lat(o)) draw(o); });
-    (Wd.meshes||[]).forEach(function(mm){ if(!mm||!mm.a||mm._gm||mm.tex) return; var o=glMeshPeek(mm.a); if(o && lat(o)) draw(o); });
+    G.keys.forEach(function(kk){ var o=glCellObj(G,kk); if(o && lat(o)) draw(o); });
+    (Wd.meshes||[]).forEach(function(mm){ if(!mm||!mm.a||mm._gm||mm.tex) return; var o=glMeshFind(mm); if(o && lat(o)) draw(o); });
     GLX.st.shadowPasses=(GLX.st.shadowPasses||0)+1; }
   if(prepared){ gl.disableVertexAttribArray(ap); gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true,true,true,true); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); GLX.st.shadowDraws=drawn; } }
 """

@@ -234,10 +234,12 @@ function* gatherRealG(Xp, Yp, R, at){
     var mx=0,my=0; q.forEach(function(p){ mx+=p[0]/nq; my+=p[1]/nq; }); if(Math.hypot(mx-cx,my-cy)>R+80) return;
     var xs=q.map(function(p){ return p[0]; }), ys=q.map(function(p){ return p[1]; });
     lots.push({id:id, p:q, x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
-  var cleared=0, kept=0, dk=dark(), roofM=MB.mk(), roofs=[0,0,0];
+  var cleared=0, kept=0, dk=dark(), roofMs={}, roofs=[0,0,0];
   if(!glOk()) W.tiles.push({ring:[(cx-R)*K,(cy-R)*K,(cx+R)*K,(cy-R)*K,(cx+R)*K,(cy+R)*K,(cx-R)*K,(cy+R)*K], cx:cx*K, cy:cy*K, r:R*1.5*K});
   var seenR={}, gs=REAL._gs=(REAL._gs||0)+1, bq=[], procW=[], shops=[];
-  for(var ci=ci0-1; ci<=ci1+1; ci++) for(var cj=cj0-1; cj<=cj1+1; cj++){ var ch=REAL.chunks[ci+','+cj]; if(!ch) continue;
+  /* towers (>= 60 m) are gathered out to RT: a skyline that stood up at the edge of the world, 380 m away, while you walked was the last visible pop */
+  var RT=Math.max(R,720), FARH=60, nFar=0, cT0=Math.floor((cx-RT)/C), cT1=Math.floor((cx+RT)/C), dT0=Math.floor((cy-RT)/C), dT1=Math.floor((cy+RT)/C);
+  for(var ci=cT0-1; ci<=cT1+1; ci++) for(var cj=dT0-1; cj<=dT1+1; cj++){ var ch=REAL.chunks[ci+','+cj]; if(!ch) continue;
     ch.r.forEach(function(f){ if(seenR[f.wid]) return; seenR[f.wid]=1; var w=((f.wd>0?f.wd:(RCLS[f[0]]||[7,.2])[0]))*K, sw=(RCLS[f[0]]||[7,.2])[1];
       for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, mx=(x0+x1)/2, my=(y0+y1)/2; if(Math.abs(mx/K-cx)>R||Math.abs(my/K-cy)>R) continue; var l=Math.hypot(x1-x0,y1-y0); if(l<.5) continue;
         if(sw>0){ var nx=-(y1-y0)/l, ny=(x1-x0)/l, off=w/2+1.6*K; [-1,1].forEach(function(sd){ W.tiles.push({ring:strip(x0+nx*off*sd,y0+ny*off*sd,x1+nx*off*sd,y1+ny*off*sd,3.2*K,w*.18), cx:mx+nx*off*sd, cy:my+ny*off*sd, r:l/2+w, sw:1}); }); }
@@ -245,12 +247,12 @@ function* gatherRealG(Xp, Yp, R, at){
         if(a===1 && sw>0 && w>=7*K) procW.push(f);
         if(sw>=.3 && w>=9*K && l>30*K){ var ux=(x1-x0)/l, uy=(y1-y0)/l; for(var p=8*K;p<l-8*K;p+=22*K){ var ax=x0+ux*p, ay=y0+uy*p; W.dashes.push({ring:strip(ax,ay,ax+ux*9*K,ay+uy*9*K,.35*K,0), cx:ax, cy:ay}); } } } });
     ch.b.forEach(function(f){ if(f._gs===gs) return; f._gs=gs;                  /* once per gather, by the footprint itself (it used to be by its first corner: neighbours that share a corner node lost one building in 16) */ var n=(f.length-1)/2, ring=new Array(n*2), x0=1e9,y0=1e9,x1=-1e9,y1=-1e9, sx=0, sy=0; for(k=0;k<n;k++){ var x=f[1+2*k], y=f[2+2*k]; ring[2*k]=x; ring[2*k+1]=y; sx+=x; sy+=y; x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
-      var bx=sx/n, by=sy/n; if(Math.abs(bx-cx)>R||Math.abs(by-cy)>R) return; if(n>1 && ring[0]===ring[2*n-2] && ring[1]===ring[2*n-1]){ n--; ring.length=n*2; } if(n<3) return;
+      var bx=sx/n, by=sy/n, far=f[0]>=FARH, rr=far?RT:R; if(Math.abs(bx-cx)>rr||Math.abs(by-cy)>rr) return; if(far && (Math.abs(bx-cx)>R||Math.abs(by-cy)>R)){ if(nFar>=300) return; nFar++; } if(n>1 && ring[0]===ring[2*n-2] && ring[1]===ring[2*n-1]){ n--; ring.length=n*2; } if(n<3) return;
       for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; return; }
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofM, wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; });
+      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofMs[ci+','+cj]||(roofMs[ci+','+cj]=MB.mk()), wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; });
     yield; }                                  /* one 400 m chunk done: roam's frame loop takes it from here, a few milliseconds at a time (palace_ride_e.py realGatherStep) */
   realDedupe(W); yield; realRoadRanks(W.roads); yield;
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
@@ -261,8 +263,11 @@ function* gatherRealG(Xp, Yp, R, at){
       toRoad=function(x,y,any){ var nr=rlNear(x,y,40,any)[0]; if(!nr) return null; var d=Math.max(.1,nr.d); return {ox:(nr.x-x)/d, oy:(nr.y-y)/d, tx:Math.cos(nr.ang), ty:Math.sin(nr.ang), w:((RCLS[nr.f[0]]||[7])[0]), d:nr.d, x:nr.x, y:nr.y}; };
     var dt=REAL.trees||[], df=REAL.furn||[];
     var haveT=rlPG(dt.map(function(t){ return [t[0],t[1]]; }),20), haveL=rlPG(df.filter(function(q){ return q[2]==='street_lamp'; }).map(function(q){ return [q[0],q[1]]; }),30);
-    dt.forEach(function(t){ if(!inR(t[0],t[1],R)) return; if(it.trees.length>=700) return; var d=Math.hypot(t[0]-cx,t[1]-cy), sp=/needle/i.test(t[3])?3:/platan|sycamore/i.test(t[2])?0:/quercus|oak/i.test(t[2])?2:/prunus|pyrus|cherry|pear/i.test(t[2])?4:/zelkova|gleditsia|honey|ginkgo/i.test(t[2])?1:sceneryTreeAt(t[0],t[1]);
-      var lod=d>110||nTf>=140; if(!lod) nTf++; it.trees.push([t[0]*K,t[1]*K,sp,null,null,null,lod]); nT++; });
+    /* nearest first, and a full model out to FULL_R: the next gather comes when the walker is RW.regather (105 m) from this centre, so every tree within 110 m of him then was already a full model here
+       (a tree used to be a flat blob until the gather after the one he walked up to it, and popped into a full tree in front of him) */
+    var FULL_R=215, FULL_N=320, dtl=[]; dt.forEach(function(t){ if(inR(t[0],t[1],R)) dtl.push([Math.hypot(t[0]-cx,t[1]-cy),t]); }); dtl.sort(function(p,q){ return p[0]-q[0]; });
+    dtl.forEach(function(pt){ var t=pt[1], d=pt[0]; if(it.trees.length>=700) return; var sp=/needle/i.test(t[3])?3:/platan|sycamore/i.test(t[2])?0:/quercus|oak/i.test(t[2])?2:/prunus|pyrus|cherry|pear/i.test(t[2])?4:/zelkova|gleditsia|honey|ginkgo/i.test(t[2])?1:sceneryTreeAt(t[0],t[1]);
+      var lod=d>FULL_R||nTf>=FULL_N; if(!lod) nTf++; it.trees.push([t[0]*K,t[1]*K,sp,null,null,null,lod]); nT++; });
     df.forEach(function(q){ if(!inR(q[0],q[1],R)) return; var k=q[2], rd=toRoad(q[0],q[1],true), br=q[3]>=0?bearing(q[3]):null, X=q[0]*K, Y=q[1]*K;
       if(k==='street_lamp'){ if(it.lamps.length<400) it.lamps.push([X,Y,rd?rd.ox:1,rd?rd.oy:0]); }
       else if(k==='traffic_signals'&&rd){ if(it.signals.length<60){ var f=br||[rd.tx,rd.ty]; it.signals.push([X,Y,rd.ox,rd.oy,f[0],f[1]]); } }
@@ -278,12 +283,12 @@ function* gatherRealG(Xp, Yp, R, at){
         for(var s=0;s<l;s+=1){ acc+=1; accL+=1;
           if(acc>=gapT){ acc=0; gapT=(14+12*hashXY(x0+s,y0))*K; [1,-1].forEach(function(sd){ var px=(x0+ux*s+nx*(w/2+1.0*K)*sd)/K, py=(y0+uy*s+ny*(w/2+1.0*K)*sd)/K; if(!inR(px,py,R)||nP>=300) return;
               if(rlPGnear(haveT,px,py,9)||hasB(px,py)) return; var nr=rlNear(px,py,w/K/2+1.2,true)[0]; if(nr&&nr.f!==f) return;
-              var d=Math.hypot(px-cx,py-cy), lod=d>110||nTf>=140; if(!lod) nTf++; it.trees.push([px*K,py*K,sceneryTreeAt(px,py),null,null,null,lod]); nP++; }); }
+              var d=Math.hypot(px-cx,py-cy), lod=d>FULL_R||nTf>=FULL_N; if(!lod) nTf++; it.trees.push([px*K,py*K,sceneryTreeAt(px,py),null,null,null,lod]); nP++; }); }
           if(accL>=gapL){ accL=0; gapL=(36+16*hashXY(x0,y0+s))*K*.5; side=-side; var lx=(x0+ux*s+nx*(w/2+.75*K)*side)/K, ly=(y0+uy*s+ny*(w/2+.75*K)*side)/K; if(!inR(lx,ly,R*.8)||nL>=240||it.lamps.length>=400) continue;
             if(rlPGnear(haveL,lx,ly,20)||hasB(lx,ly)) continue; it.lamps.push([lx*K,ly*K,-nx*side,-ny*side]); nL++; } } } });
     yield; var cn=sceneryPlace(W,it); if(cn){ W.real.trees=cn.trees; W.real.lamps=cn.lamps; W.real.signals=cn.signals; W.real.stops=cn.stops; W.real.furn=cn.furn; W.real.procTrees=nP; W.real.procLamps=nL; }
   }catch(e){ if(window.console) console.warn('real street furniture',e); }
-  if(roofM.a.length) W.meshes.push({a:MB.done(roofM), id:'real:roof:'+Math.round(cx)+','+Math.round(cy)});
+  Object.keys(roofMs).forEach(function(k){ if(roofMs[k].a.length) W.meshes.push({a:MB.done(roofMs[k]), id:'real:roof:'+k}); });      /* one per data chunk: the same chunk makes the same mesh in the next gather, so it is not uploaded again */
   lots.forEach(function(L){ var id=L.id, tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*.42, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dk?[150,162,200]:[255,255,255], dk?.30:.5), ring=[]; L.p.forEach(function(p){ ring.push(p[0]*K,p[1]*K); });
     var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); try{ s.door=rlDoor(ring,id); }catch(x){ s.door=null; } W.solids.push(s); });
   W.real.cleared=cleared; W.real.kept=kept; W.real.lots=lots.length; W.real.roads=W.roads.length; W.real.roofs={flat:roofs[0],gable:roofs[1],hip:roofs[2]};
