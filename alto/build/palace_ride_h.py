@@ -29,7 +29,7 @@ JS_H_KIT = r"""
 var LMV=1.3;                                                  /* map units per metre: UM */
 MAT.lime=32;                                                  /* plain warm limestone, no window grid (palace_ride_gl_shaders.py id 32) */
 function lmKey(n){ n=String(n||'');
-  var T=[['usch',/byrne|601 market|united states court ?house.*philadelphia/i],['nix',/\bnix\b|900 market/i],['cjc',/criminal justice center|1301 filbert/i],['fam',/family court/i],['ind',/independence hall/i],['city',/city hall/i],
+  var T=[['lbc',/liberty bell (center|centre|pavilion)/i],['usch',/byrne|601 market|united states court ?house.*philadelphia/i],['nix',/\bnix\b|900 market/i],['cjc',/criminal justice center|1301 filbert/i],['fam',/family court/i],['ind',/independence hall/i],['city',/city hall/i],
     ['art',/art museum|museum of art|philadelphia museum/i],['frank',/franklin institute/i],['conv',/convention cent(er|re)/i],['stn',/(30th|thirtieth) street station/i],['sub',/suburban station/i],['jef',/jefferson station/i],
     ['lff',/lincoln financial/i],['cbp',/citizens bank park/i],['arena',/xfinity mobile arena|wells fargo center|\barena\b|spectrum/i],['stad',/\bstadium\b|ballpark|\bfield$/i],
     ['lib1',/one liberty place|liberty place one|liberty one/i],['lib2',/two liberty place|liberty place two|liberty two/i],['ccc',/comcast center(?! tech)|comcast building/i],['ctc',/comcast tech/i],
@@ -308,6 +308,18 @@ function bStation(F){
   lfoot(F,-hw,0,hw,D,22); lfoot(F,-cw,-20,cw,D+20,35.4);
   return F.m; }
 
+/* ── Liberty Bell Center (Bohlin Cywinski Jackson, 2003): a long low pavilion of pale granite on Independence Mall, a glass wall down its long side, the glass bell chamber
+   at its south end framing Independence Hall's tower, a thin flat roof overhanging (real mode only: the page has no landmark for it; ~22 x 95 m, 11 m) ── */
+function bLBC(F){
+  var L='lime', i;
+  lpatchBox(F,'paving',11,.1);
+  lrect(F,-11,14,11,95,0,8.4,L,null,1,16); lrect(F,-13,12,13,96,8.4,9.1,'white','roof',1,0);
+  for(i=0;i<9;i++) lwin(F,'e',11,18+i*8.6,.4,7.4,7.2,3,2);                                       /* the long glass wall */
+  for(i=0;i<5;i++) lrect(F,-11.6,20+i*16,-11,22+i*16,0,8.4,'white','white',1,16);                 /* piers of the west wall */
+  lrect(F,-11,0,11,14,0,10.5,'glass','roof',3.4/5.2,0); lrect(F,-12,-.6,12,14.6,10.5,11.1,'white','roof',1,0);   /* the bell chamber */
+  lfoot(F,-11,0,11,95,11);
+  return F.m; }
+
 /* ── Penn Center Suburban Station: the 1930 Art Deco limestone tower over the commuter station: a broad base, two setbacks and a small slate cap (92 x 46 m, 78 m) ── */
 function bSuburban(F){
   var k=3.4/6.5, ST='stone', WH='white', RF='roof', i;
@@ -334,10 +346,10 @@ function bJefferson(F){
 
 /* ── Pennsylvania Convention Center: the Reading Terminal headhouse of red brick under a mansard, the sloping glass lobby, the great halls under barrel vaults (250 x 190 m, 40 m) ── */
 function bConvention(F){
-  var BR='brick', i;
+  var BR='brick', i, hw=(F.span||250)/2, D=Math.max(110,F.spanD||190), n=Math.max(2,Math.round(hw*2/84)), pw=hw*2/n;     /* real mode: the halls run the footprint's whole length (F.span m), bays added, nothing stretched */
   lpatchBox(F,'paving',11,.1);
-  lrect(F,-125,44,125,190,0,21,'metal',null,1); lrect(F,-125,44,125,190,21,21.6,'metal','roof',1,0);
-  [-84,84].forEach(function(xa){ lvault(F,xa,74,52,182,21.6,11.4,'glassdome','metal',14); }); lvault(F,0,82,40,190,21.6,18.4,'glassdome','metal',16);
+  lrect(F,-hw,44,hw,D,0,21,'metal',null,1); lrect(F,-hw,44,hw,D,21,21.6,'metal','roof',1,0);
+  for(i=0;i<n;i++){ var xa=-hw+pw*(i+.5); if(F.span||Math.abs(xa)>10) lvault(F,xa,pw*(F.span?.86:.88),52,D-8,21.6,F.span&&i%3===1?18.4:11.4,'glassdome','metal',14); } if(!F.span) lvault(F,0,82,40,190,21.6,18.4,'glassdome','metal',16);
   /* the headhouse */
   lrect(F,-100,0,-24,44,0,30,BR,null,3.4/7.5); [8,16,24].forEach(function(z){ lband(F,-100,0,-24,44,z-.3,z+.3,.4,'white'); }); lband(F,-100,0,-24,44,29,30.8,1,'white'); lroof(F,-100,0,-24,44,30.8,[[13,10]],'roof',1);
   [-92,-84,-76,-68,-56,-48,-40,-32].forEach(function(xx,j){ larch(F,'s',xx,0,3,3,10,'dark'); larch(F,'s',xx,0,15,3,8,'dark'); });
@@ -351,7 +363,7 @@ function bConvention(F){
   MB.face(m,[[X(x0),Y(v0),Z(z0)],[X(x1),Y(v0),Z(z1)],[X(x1),Y(v1),Z(z1)],[X(x0),Y(v1),Z(z0)]],[0,0,1],'glassdome',t,1);
   for(i=0;i<9;i++){ var xs=x0+i*(x1-x0)/8, zs=z0+(z1-z0)*i/8; lrect(F,xs-.3,-.3,xs+.3,.3,0,zs,'metal','metal',1,0); }
   lbox(F,52,-6,30,7,9,10.6,'white','metal',1,0); lcols(F,40,64,-4,3,0,9,.4,'metal',1,6);
-  lfoot(F,-125,44,125,190,40); lfoot(F,-100,0,-24,44,40); lfoot(F,-12,0,116,38,27);
+  lfoot(F,-hw,44,hw,D,40); lfoot(F,-100,0,-24,44,40); lfoot(F,-12,0,116,38,27);
   return F.m; }
 """
 
@@ -588,8 +600,8 @@ function landmarkMeshes(l, floors, W){
   else for(i=n0;i<W.solids.length;i++) W.solids[i].mesh=1; }
 /* the same model for the REAL street world (palace_ride_street_lm.py places it on the real footprint): true scale (K = 1.3 units a metre), centred on the local origin
    (x across, y = -v), no ground patches (the real ground is the street data's). Returns {a, fp:[{r,h}], bb:[x0,y0,x1,y1] of the footprint stand-ins} */
-function lmBuildReal(l, key){
-  var t=LMT[key]; if(!t||key==='gen') return null; var b=[-1e5,-1e5,1e5,1e5], F={m:MB.mk(), S:LMV, cx:0, fy:0, box:b, tint:hashXY(l.x||0,l.y||0), n:0, fp:[], real:true};
+function lmBuildReal(l, key, opt){
+  var t=LMT[key]; if(!t||key==='gen') return null; var b=[-1e5,-1e5,1e5,1e5], F={m:MB.mk(), S:LMV, cx:0, fy:0, box:b, tint:hashXY(l.x||0,l.y||0), n:0, fp:[], real:true, span:opt&&opt.span, spanD:opt&&opt.spanD};
   F.m.o=[0,0]; F.X=function(x){ return x*F.S; }; F.Y=function(v){ return -v*F.S; }; F.Z=function(z){ return z*F.S; }; F.key=key; F.floors=30; F.tint=lmPickTint(F,LMC[key]);
   t[0](F,l); var bb=[1e9,1e9,-1e9,-1e9]; F.fp.forEach(function(f){ for(var i=0;i<f.r.length;i+=2){ bb[0]=Math.min(bb[0],f.r[i]); bb[1]=Math.min(bb[1],f.r[i+1]); bb[2]=Math.max(bb[2],f.r[i]); bb[3]=Math.max(bb[3],f.r[i+1]); } });
   if(!F.fp.length) return null; return {a:MB.done(F.m), fp:F.fp, bb:bb}; }
@@ -604,6 +616,7 @@ LMC.lib1={s:[.58,.78],g:[.0,.3]}; LMC.lib2={s:[.58,.78],g:[.0,.3]}; LMC.ccc={g:[
 LMC.jef={g:[.3,.6]}; LMC.arena={g:[.2,.45]}; LMC.lff={g:[.2,.45]}; LMC.stad={g:[.2,.45]};
 /* key -> [builder, plan depth m, centred in its block?, (unused), plan width m, how far steps / canopies push out of the front face m] */
 LMT.city=[bCityHall,145,true,false,148,13.5]; LMT.ind=[bIndependence,22,false,false,105,1.5]; LMT.art=[bArt,110,false,false,198,9]; LMT.frank=[bFranklin,70,false,false,112,11]; LMT.stn=[bStation,117,false,false,145,22];
+LMT.lbc=[bLBC,95,false,false,26,1]; LMC.lbc={s:[.84,.98]};
 LMT.sub=[bSuburban,46,false,false,94,3]; LMT.jef=[bJefferson,50,false,false,100,9]; LMT.conv=[bConvention,190,false,false,250,6];
 LMT.lib1=[bLib1,64,false,false,64,5]; LMT.lib2=[bLib2,56,false,false,56,5]; LMT.ccc=[bComcast,56,false,false,70,5]; LMT.ctc=[bCTC,50,false,false,92,5]; LMT.bny=[bBNY,66,false,false,66,5]; LMT.tls=[bTLS,58,false,false,58,5]; LMT.cira=[bCira,36,false,false,52,5]; LMT.fmc=[bFMC,36,false,false,52,5];
 LMT.usch=[bByrne,60,false,false,100,3]; LMT.nix=[bNix,60,false,false,122,3]; LMT.cjc=[bCJC,60,false,false,80,1]; LMT.fam=[bFamily,45,false,false,92,5]; LMT.court=[bCourt,45,false,false,92,5]; LMT.gen=[bGeneric,40,false,false,70,1];

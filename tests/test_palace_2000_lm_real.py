@@ -48,7 +48,9 @@ var th=30*Math.PI/180, rr=[], P=[[-50,-20],[50,-20],[50,20],[-50,20]]; P.forEach
 var ob=rlmOBB(rr);
 /* every key builds in the real frame */
 var keys={}; Object.keys(LMT).forEach(function(k){ if(k==='gen') return; var r=lmBuildReal({n:k,x:0,y:0,box:[0,0,300,300]},k); keys[k]=r?{s:stat(r.a), fp:r.fp.length, bb:r.bb}:null; });
-process.stdout.write(JSON.stringify({lm:W.real.lm, st:st, nodraw:W.solids.map(function(s){ return [s.osm||s.nm, !!s.nodraw]; }), ob:ob, keys:keys}));
+var fNix=rlmFit([-61,-60,61,0],{th:Math.PI/2,a:140,b:51,cx:0,cy:0},'nix',null), fCira=rlmFit([-26,-36,26,0],{th:0,a:77,b:38,cx:0,cy:0},'cira',null);
+var conv=lmBuildReal({n:'Convention Center',x:0,y:0},'conv',{span:430,spanD:186});
+process.stdout.write(JSON.stringify({fNix:{fx:-Math.sin(fNix.phi),fy:Math.cos(fNix.phi),sx:fNix.sx,sy:fNix.sy}, fCira:{sx:fCira.sx,sy:fCira.sy}, convW:(conv.bb[2]-conv.bb[0])/K, lbc:lmKey('Liberty Bell Center'), lm:W.real.lm, st:st, nodraw:W.solids.map(function(s){ return [s.osm||s.nm, !!s.nodraw]; }), ob:ob, keys:keys}));
 """
 
 
@@ -127,3 +129,12 @@ def test_station_model_is_the_researched_building():
     assert "var xs=[-14,-8.4,-2.8,2.8,8.4,14]" in body and "cap(x,vc+s*5.6); cap(x,vc+s*11.2)" in body     # six across + two down each side = ten a portico
     assert "stnPortico(F,'s'); stnPortico(F,'n');" in src[i:]                                              # one on 30th Street, one toward the river
     assert "lflute(" in body and "MAT.lime=32" in src
+
+
+def test_fit_rules_front_wins_towers_keep_shape_spans_extend(res):
+    assert res["fNix"]["fx"] > 0.9                                                   # a compass front (east, 9th Street) wins over proportions
+    assert res["fCira"]["sx"] == res["fCira"]["sy"] and 0.7 <= res["fCira"]["sx"] <= 1.2  # a tower is scaled the same both ways, never stretched 1.5x
+    assert 425 <= res["convW"] <= 440                                                 # the Convention Center is built to its real 430 m, bays added
+    assert res["lbc"] == "lbc"                                                        # the Liberty Bell Center has a model (matched by its OSM name alone)
+    src = palace_ride_street_lm.JS_STREET_LM
+    assert "RLM_REALPARTS={usch:1,cjc:1,fam:1}" in src and "model:false" in src         # modern courthouses keep their real OSM building:parts

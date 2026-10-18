@@ -22,8 +22,14 @@ var RLM={on:true, cache:{}, L:null};
 var RLM_BAD=/\b(parking|garage|autopark|hotel|inn|suites|hampton|days inn|annex|perelman)\b/i;
 var RLM_NEAR={arena:200, stad:250, court:150, fam:250};
 var RLM_PART={stn:1};
-var RLM_FRONT={stn:270, city:180, ind:180, art:120, frank:90, sub:180, conv:180, usch:180, nix:180, fam:180, jef:180};
+var RLM_FRONT={stn:270, city:180, ind:180, art:120, frank:90, sub:180, conv:180, usch:180, nix:90, fam:180, jef:180, lbc:180};      /* nix: the long pilastered front on 9th Street (its footprint runs Market to Chestnut) */
 var RLM_CLAMP=[.6,1.6];
+var RLM_TOWER={lib1:1,lib2:1,ccc:1,ctc:1,bny:1,tls:1,cira:1,fmc:1,sub:1};          /* towers: one plan scale for both axes (never a squashed or stretched tower), within .7-1.2 */
+var RLM_SPAN={conv:1};                                                            /* rebuilt to the footprint's real length (bays added), never stretched */
+var RLM_REALPARTS={usch:1,cjc:1,fam:1};                                           /* modern courthouses: where OSM draws their building:parts (heights, materials) those ARE the massing; the hand model only stands in when it has none */
+var RLM_ZFIT={usch:1,cjc:1};                                                      /* heights to the OSM building's own (a single footprint), within .7-1.4 */
+var RLM_EXTRA={lbc:'Liberty Bell Center'};                                         /* landmarks the page has no disc for: matched by their OSM name alone */
+var RLM_FRONTW=10;
 var RLM_ALIAS=[[/^philadelphia justice cent/i,'cjc']];                 /* OSM names the 2D art's key does not know */
 function rlmLandmarks(){ if(RLM.L) return RLM.L; var o=[]; ((E&&E.M&&E.M.landmarks)||[]).forEach(function(l){ if(!l||!l.n||l.x==null) return; var k=lmKey(l.n); if(k==='gen'||!LMT[k]) return;
     var r=realOf(l.x,l.y,{x:0,y:0,k:0}); o.push({l:l, key:k, x:r.x, y:r.y}); }); return RLM.L=o; }
@@ -41,17 +47,17 @@ function rlmFit(bb, o, key, roadW){
   [o.th, o.th+Math.PI/2].forEach(function(t,k){ var along=k===0?o.a:o.b, across=k===0?o.b:o.a; cands.push({phi:t, w:along, d:across}); cands.push({phi:t+Math.PI, w:along, d:across}); });
   cands.forEach(function(c){ var fx=-Math.sin(c.phi), fy=Math.cos(c.phi), bA=c.w/Math.max(c.d,1e-6);                     /* the front normal: R(phi)(0,1) */
     c.sx=c.w/mw; c.sy=c.d/md; c.score=-Math.abs(Math.log(bA/mA))*3;                                                         /* plan aspect first */
-    var fb=RLM_FRONT[key]; if(fb!=null){ var bx=Math.sin(fb*Math.PI/180), by=-Math.cos(fb*Math.PI/180); c.score+=(fx*bx+fy*by)*1.2; }    /* compass: east +x, south +y */
+    var fb=RLM_FRONT[key]; if(fb!=null){ var bx=Math.sin(fb*Math.PI/180), by=-Math.cos(fb*Math.PI/180); c.score+=(fx*bx+fy*by)*RLM_FRONTW; }      /* a known front wins over proportions */    /* compass: east +x, south +y */
     else if(roadW) c.score+=roadW(fx,fy,c.d/2)*.06;
-    c.sx=Math.max(RLM_CLAMP[0],Math.min(RLM_CLAMP[1],c.sx)); c.sy=Math.max(RLM_CLAMP[0],Math.min(RLM_CLAMP[1],c.sy)); });
+    if(RLM_TOWER[key]){ c.sx=c.sy=Math.max(.7,Math.min(1.2,Math.min(c.sx,c.sy))); } c.sx=Math.max(RLM_CLAMP[0],Math.min(RLM_CLAMP[1],c.sx)); c.sy=Math.max(RLM_CLAMP[0],Math.min(RLM_CLAMP[1],c.sy)); c.sz=1; });
   cands.sort(function(p,q){ return q.score-p.score; }); return cands[0]; }
 /* the local model array placed: about the plan centre, stretched (sx, sy), turned by phi, moved to (cx, cy) (all world units) */
 function rlmXform(a, bb, f, cx, cy){
-  var n=a.length, o=new Float32Array(n), mx=(bb[0]+bb[2])/2, my=(bb[1]+bb[3])/2, c=Math.cos(f.phi), s=Math.sin(f.phi), sx=f.sx, sy=f.sy, i;
-  for(i=0;i<n;i+=10){ var lx=(a[i]-mx)*sx, ly=(a[i+1]-my)*sy, nx=a[i+3]/sx, ny=a[i+4]/sy, nz=a[i+5], nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; nx/=nl; ny/=nl; nz/=nl;
-    o[i]=cx+lx*c-ly*s; o[i+1]=cy+lx*s+ly*c; o[i+2]=a[i+2]; o[i+3]=nx*c-ny*s; o[i+4]=nx*s+ny*c; o[i+5]=nz;
+  var n=a.length, o=new Float32Array(n), mx=(bb[0]+bb[2])/2, my=(bb[1]+bb[3])/2, c=Math.cos(f.phi), s=Math.sin(f.phi), sx=f.sx, sy=f.sy, sz=f.sz||1, i;
+  for(i=0;i<n;i+=10){ var lx=(a[i]-mx)*sx, ly=(a[i+1]-my)*sy, nx=a[i+3]/sx, ny=a[i+4]/sy, nz=a[i+5]/sz, nl=Math.sqrt(nx*nx+ny*ny+nz*nz)||1; nx/=nl; ny/=nl; nz/=nl;
+    o[i]=cx+lx*c-ly*s; o[i+1]=cy+lx*s+ly*c; o[i+2]=a[i+2]*sz; o[i+3]=nx*c-ny*s; o[i+4]=nx*s+ny*c; o[i+5]=nz;
     var u=a[i+6]; if(Math.abs(a[i+5])<.6){ var hx=Math.abs(a[i+4]), hy=Math.abs(a[i+3]), hl=(hx+hy)||1; u*=(hx*sx+hy*sy)/hl; }        /* a wall's u runs along its face: stretched with it */
-    o[i+6]=u; o[i+7]=a[i+7]; o[i+8]=a[i+8]; o[i+9]=a[i+9]; }
+    o[i+6]=u; o[i+7]=Math.abs(a[i+5])<.6?a[i+7]*sz:a[i+7]; o[i+8]=a[i+8]; o[i+9]=a[i+9]; }
   return o; }
 function rlmRoadW(cx, cy){ return function(fx,fy,half){ var x=cx/K+fx*(half/K+14), y=cy/K+fy*(half/K+14), nr=(typeof rlNear==='function')?rlNear(x,y,30,false):[]; if(!nr.length) return 0; var c=RCLS[nr[0].f[0]]; return (c?c[0]:6)*(1-nr[0].d/40); }; }
 function realLandmarks(W){
@@ -61,15 +67,22 @@ function realLandmarks(W){
     c.forEach(function(s){ if(used[s.cx+','+s.cy]) return; var d=Math.hypot(s.cx/K-q.x,s.cy/K-q.y); if(d>lim) return; var sc=d-(s.wd?400:0)-(String(s.nm).toLowerCase()===String(q.l.n).toLowerCase()?600:0); if(sc<bs){ bs=sc; best=s; } });
     if(!best) return; used[best.cx+','+best.cy]=1;
     try{ var rec=rlmPlace(W, q, best); if(rec) out.push(rec); }catch(e){ if(window.console&&console.warn) console.warn('real landmark',q.l.n,e&&e.message); } });
+  Object.keys(RLM_EXTRA).forEach(function(k){ (byKey[k]||[]).forEach(function(s){ if(used[s.cx+','+s.cy]) return; used[s.cx+','+s.cy]=1; var q={l:{n:RLM_EXTRA[k], x:s.cx/K, y:s.cy/K}, key:k, x:s.cx/K, y:s.cy/K};
+    try{ var rec=rlmPlace(W, q, s); if(rec) out.push(rec); }catch(e){} }); });
   W.real.lm=out; }
 function rlmPlace(W, q, s){
   var S=W.solids, ring=s.ring, tgt=s, parts=[], i;
   S.forEach(function(p){ if(p.kind==='b' && p.part && rlmIn(ring,p.cx,p.cy)) parts.push(p); });
   if(RLM_PART[q.key] && parts.length){ var big=null, ba=0; parts.forEach(function(p){ var a=rlmArea(p.ring); if(a>ba){ ba=a; big=p; } }); if(big && ba>=rlmArea(ring)*.4) tgt=big; }
+  if(RLM_REALPARTS[q.key] && (parts.length>=2 || q.key==='fam')) return {n:q.l.n, key:q.key, osm:s.nm, parts:parts.length, model:false};     /* the real parts stay: they are the building */
   var ob=rlmOBB(tgt.ring); if(!ob || ob.a<4 || ob.b<4) return null;
+  var hOSM=0; [tgt].concat(parts).forEach(function(p){ hOSM=Math.max(hOSM,((p.z0||0)+p.h)/K); });
   var ck=q.l.n+'|'+Math.round(ob.cx)+','+Math.round(ob.cy)+','+Math.round(ob.a)+','+Math.round(ob.b), rec=RLM.cache[ck];
   if(rec===undefined){ rec=null; var m=lmBuildReal(q.l, q.key);
-    if(m && m.a.length){ var f=rlmFit(m.bb, ob, q.key, rlmRoadW(ob.cx,ob.cy)), a=rlmXform(m.a, m.bb, f, ob.cx, ob.cy), c=Math.cos(f.phi), sn=Math.sin(f.phi), mx=(m.bb[0]+m.bb[2])/2, my=(m.bb[1]+m.bb[3])/2;
+    var f=m&&m.a.length?rlmFit(m.bb, ob, q.key, rlmRoadW(ob.cx,ob.cy)):null;
+    if(f && RLM_SPAN[q.key]){ var m2=lmBuildReal(q.l, q.key, {span:f.w/K, spanD:f.d/K}); if(m2&&m2.a.length){ m=m2; f.sx=Math.max(.8,Math.min(1.25,f.w/(m.bb[2]-m.bb[0]))); f.sy=Math.max(.8,Math.min(1.25,f.d/(m.bb[3]-m.bb[1]))); } }
+    if(f && RLM_ZFIT[q.key] && hOSM>8){ var top=0; for(var zi=2;zi<m.a.length;zi+=10) if(m.a[zi]>top) top=m.a[zi]; top/=K; if(top>1) f.sz=Math.max(.7,Math.min(1.4,hOSM/top)); }
+    if(f){ var a=rlmXform(m.a, m.bb, f, ob.cx, ob.cy), c=Math.cos(f.phi), sn=Math.sin(f.phi), mx=(m.bb[0]+m.bb[2])/2, my=(m.bb[1]+m.bb[3])/2;
       var fps=m.fp.map(function(fp){ var r=[]; for(var j=0;j<fp.r.length;j+=2){ var lx=(fp.r[j]-mx)*f.sx, ly=(fp.r[j+1]-my)*f.sy; r.push(ob.cx+lx*c-ly*sn, ob.cy+lx*sn+ly*c); } return r; });
       rec={a:a, fps:fps, f:f}; }
     RLM.cache[ck]=rec; }
@@ -80,6 +93,6 @@ function rlmPlace(W, q, s){
     if(!hit) for(i=0;i<rec.fps.length&&!hit;i++) if(rlmIn(rec.fps[i],p.cx,p.cy)) hit=true;
     if(hit){ p.nodraw=true; p.lmReal=q.l.n; p.door=null; nh++; } });
   W.meshes.push({a:rec.a, id:'rlm:'+q.l.n});
-  return {n:q.l.n, key:q.key, osm:s.nm, part:tgt!==s, deg:Math.round((Math.atan2(-Math.sin(rec.f.phi),-Math.cos(rec.f.phi))*180/Math.PI+360)%360), sx:+rec.f.sx.toFixed(2), sy:+rec.f.sy.toFixed(2), w:Math.round(ob.a/K), d:Math.round(ob.b/K), hidden:nh}; }
+  return {n:q.l.n, key:q.key, osm:s.nm, part:tgt!==s, deg:Math.round((Math.atan2(-Math.sin(rec.f.phi),-Math.cos(rec.f.phi))*180/Math.PI+360)%360), sx:+rec.f.sx.toFixed(2), sy:+rec.f.sy.toFixed(2), sz:+(rec.f.sz||1).toFixed(2), w:Math.round(ob.a/K), d:Math.round(ob.b/K), hidden:nh}; }
 REAL.lm={place:realLandmarks, obb:rlmOBB, fit:rlmFit, xform:rlmXform, cfg:RLM, front:RLM_FRONT};
 """
