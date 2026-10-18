@@ -1209,12 +1209,22 @@ document.getElementById('dl-scrim').addEventListener('click', e => {
 // only say where to start, and where to get the connector if this device has
 // none — never how to build, which the guide owns and keeps current.
 const ALTO_GET = 'https://alto-get.web.app';
-const newProjectPrompt =
-  'I want to start a new project in Alto. If the Alto connector isn\'t connected here yet, ' +
-  'help me install it from ' + ALTO_GET + ' first. Then begin with Alto\'s interview guide: ' +
-  'set up the project and build its first timeline from the materials I give you.';
-function inProjectPrompt(projectName){
-  return 'I want to add a new timeline to my "' + projectName + '" project in Alto. ' +
+// The type picked in the new-project dialog rides along, so Claude doesn't ask again.
+const KIND_PHRASE = {
+  outline: 'an outline (mode \'outline\'): ideas that hold other ideas, like a subject or a course',
+  timeline: 'a sketch timeline (mode \'linear\'): cards in rough order, in bands',
+  lanes: 'a horizontal timeline (mode \'lanes\'): to scale, left to right, with concurrent lines branching off and rejoining the main line'
+};
+function kindSentence(kind){
+  return KIND_PHRASE[kind] ? ' I\'ve already chosen the type: ' + KIND_PHRASE[kind] + '. Build that, and don\'t ask me to choose a type again.' : '';
+}
+function newProjectPrompt(kind){
+  return 'I want to start a new project in Alto.' + kindSentence(kind) + ' If the Alto connector isn\'t connected here yet, ' +
+    'help me install it from ' + ALTO_GET + ' first. Then begin with Alto\'s interview guide: ' +
+    'set up the project and build its first timeline from the materials I give you.';
+}
+function inProjectPrompt(projectName, kind){
+  return 'I want to add a new timeline to my "' + projectName + '" project in Alto.' + kindSentence(kind) + ' ' +
     'If the Alto connector isn\'t connected here yet, help me install it from ' + ALTO_GET +
     ' first. Then begin with Alto\'s interview guide and build the timeline into that ' +
     'project from the materials I give you. If Alto on this device has no project by that ' +
@@ -1229,7 +1239,7 @@ function altoCanMake(){
 }
 let ntKind = 'outline';
 function ntOpen(projectName){
-  if(!altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt); return; }
+  if(!altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt()); return; }
   const s = document.getElementById('nt-scrim');
   s.dataset.project = projectName || '';
   document.getElementById('nt-head').textContent = projectName ? 'New timeline' : 'New project';
@@ -1271,7 +1281,7 @@ document.getElementById('nt-make').addEventListener('click', ntMake);
 document.getElementById('nt-cancel').addEventListener('click', ntClose);
 document.getElementById('nt-claude').addEventListener('click', () => {
   const p = document.getElementById('nt-scrim').dataset.project || '';
-  ntClose(); openClaude(p ? inProjectPrompt(p) : newProjectPrompt);
+  ntClose(); openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind));
 });
 document.querySelectorAll('#nt-modal .nt-kind').forEach(b => b.addEventListener('click', () => ntPick(b.dataset.kind)));
 document.getElementById('nt-scrim').addEventListener('click', e => { if(e.target.id === 'nt-scrim') ntClose(); });

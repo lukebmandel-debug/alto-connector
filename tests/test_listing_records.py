@@ -206,12 +206,23 @@ def test_every_owned_project_offers_a_new_timeline():
 
 def test_the_claude_prompts_point_at_the_guide_and_the_download():
     h = _home()
-    for fn in ("const newProjectPrompt", "function inProjectPrompt("):
+    for fn in ("function newProjectPrompt(", "function inProjectPrompt("):
         body = h[h.index(fn):][:600]
         assert "interview guide" in body
         assert "ALTO_GET" in body and "isn\\'t connected here yet" in body
     assert "const ALTO_GET = 'https://alto-get.web.app';" in h
     assert "course, or book" not in h
+
+
+def test_the_claude_prompts_carry_the_type_picked_in_the_dialog():
+    """The new-project dialog asks outline / sketch / horizontal; the "build it
+    with Claude" button used to drop that pick, so Claude asked again."""
+    h = _home()
+    assert "openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind))" in h
+    for mode in ("'outline'", "'linear'", "'lanes'"):
+        assert "(mode \\" + mode[:-1] + "\\')" in h
+    guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    assert "already says which type the user chose on the homepage" in guide
 
 
 def test_a_project_named_on_the_homepage_but_not_stored_here_is_created():
