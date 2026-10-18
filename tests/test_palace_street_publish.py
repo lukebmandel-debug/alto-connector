@@ -188,7 +188,7 @@ def _js(tmp_path, body, files=None):
 
 
 _MOCK = """
-let NOW = 1e6; Date.now = () => NOW; Math.random = () => 0.5;            // (jitter factor 1.0)
+let NOW = 1e6; Date.now = () => NOW;                                       // (the jitter comes from the clock: 0.75-1.25)
 const RESP = {}; const LOG = [];
 let HOLD = 0, ACTIVE = 0, PEAK = 0;
 global.fetch = (u) => { const f = u.split('/').pop(); LOG.push(f); const r = RESP[f];
@@ -215,13 +215,13 @@ const ok = async (p) => { try { await p; return true; } catch (e) { return Strin
   out.html = await ok(P.load('/street/m.json'));
   out.afterHtml = await ok(P.load('/street/m.json'));                      // inside the backoff: rejected at once, no request
   out.logAfterBackoffCall = LOG.length;
-  NOW += 2100; RESP['m.json'] = {body: '{"v":2,"c":{}}'};
+  NOW += 2600; RESP['m.json'] = {body: '{"v":2,"c":{}}'};
   out.shape = await ok(P.load('/street/m.json'));
-  NOW += 4100; RESP['m.json'] = {body: '{broken'};
+  NOW += 5100; RESP['m.json'] = {body: '{broken'};
   out.json = await ok(P.load('/street/m.json'));
-  NOW += 8100; RESP['m.json'] = {body: JSON.stringify(M), ct: 'text/html'};
+  NOW += 10100; RESP['m.json'] = {body: JSON.stringify(M), ct: 'text/html'};
   out.ct = await ok(P.load('/street/m.json'));
-  NOW += 16100; RESP['m.json'] = {body: JSON.stringify(M)};
+  NOW += 20100; RESP['m.json'] = {body: JSON.stringify(M)};
   out.good = await ok(P.load('/street/m.json'));                             // it recovers: the failed promises were not cached
   out.ready = P.ready();
   // a shard: 404, then a wrong format, then fine
@@ -304,7 +304,7 @@ def test_the_ride_backs_off_caps_requests_holds_the_walker_and_shows_a_note(tmp_
     stream = jse[a:jse.index("function realBound(dt){")]
     harness = r"""
 global.window = global;
-let T = 0; global.performance = {now: () => T}; Math.random = () => 0.5;
+let T = 0; global.performance = {now: () => T};
 const UM = 1.3; let OK = false, CALLS = 0, GATHERS = 0, PENDING = [];
 const REAL = {street: () => true, on: true, chunks: {}, have: [[0, 0, 520]], prepare: () => { CALLS++; return new Promise((res, rej) => PENDING.push([res, rej])); }};
 const S = {x: 0, y: 0, vx: 3, vy: 0, real: true, on: true, hud: {root: null}};
@@ -353,8 +353,9 @@ const flush = () => new Promise(r => setImmediate(r));
     o = json.loads(r.stdout)
     assert o["calls1"] == 1 and o["calls1b"] == 1 and o["fails1"] == 1
     assert o["callsDuringBackoff"] == 1 and o["calls2"] == 2
-    assert o["gaps"] == [2000, 4000, 8000] and o["tries"] == 3                          # 2 s, 4 s, 8 s (jitter fixed at the middle)
-    assert o["cap"] <= 60000 * 1.25 + 1 and o["cap"] >= 60000 * 0.75
+    assert o["tries"] == 3 and all(base * 0.75 - 1 <= g <= base * 1.25 + 1 for g, base in zip(o["gaps"], (2000, 4000, 8000)))      # 2 s, 4 s, 8 s, +-25%
+    assert o["gaps"][0] < o["gaps"][1] < o["gaps"][2]
+    assert 60000 * 0.75 - 1 <= o["cap"] <= 60000 * 1.25 + 1
     assert o["stacked"] == 0 and o["waitHonoured"] == 5000
     assert o["heldAt"] <= 380 - 44 and o["heldAt"] >= 380 - 46 and o["held"] is True and o["vx"] <= 1.1
     assert o["note"]["text"] == "loading the street…" or "not reachable" in o["note"]["text"]
@@ -373,7 +374,7 @@ def test_the_credit_is_in_the_ride_and_is_text_only():
     assert palace_ride_credit.JS_CREDIT in js and js.index(palace_ride_credit.JS_CREDIT) > js.index("REAL.fromStreet")
     c = palace_ride_credit.JS_CREDIT
     assert "https://www.openstreetmap.org/copyright" in c and "a.target='_blank'" in c and "a.rel='noopener'" in c and "a.textContent" in c and "innerHTML" not in c
-    assert "_palStreet.attribution()" in c and "pr-credit" in palace_ride_credit.CSS_CREDIT
+    assert "_palStreet.attribution()" in c and "pr-credit" in palace_ride_credit.CSS_CREDIT and "hudFrame" not in c
     assert len(palace_ride_credit.JS_CREDIT) < 6000
 
 
@@ -381,30 +382,36 @@ def test_the_credit_is_in_the_ride_and_is_text_only():
 def test_the_hud_shows_the_credit_and_the_real_neighbourhood_only_with_street_data(tmp_path):
     harness = r"""
 global.window = global; let T = 0; global.performance = {now: () => T};
-const els = {}; const mk = (tag) => { const e = {tag, style: {}, classes: new Set(), children: [], textContent: '', parentNode: null, tabIndex: 0,
-  classList: {contains: (c) => e.classes.has(c), toggle: (c, on) => { on ? e.classes.add(c) : e.classes.delete(c); }}, appendChild(c) { c.parentNode = e; e.children.push(c); }}; return e; };
+const els = {}; const OBS = [];
+const mk = (tag, cls) => { const e = {tag, style: {}, classes: new Set(cls ? [cls] : []), children: [], textContent: '', parentNode: null, tabIndex: 0,
+  classList: {contains: (c) => e.classes.has(c), toggle: (c, on) => { on ? e.classes.add(c) : e.classes.delete(c); }}, appendChild(c) { c.parentNode = e; e.children.push(c); },
+  querySelector(q) { return e.kids && e.kids[q] || null; }}; return e; };
 const root = mk('div'); root.classes.add('on'); root.id = 'pal-ride';
-global.document = {getElementById: (id) => id === 'pal-ride' ? root : (id === 'pal-credit-css' ? els.css || null : null), createElement: (t) => mk(t),
-  head: {appendChild: (e) => { els.css = e; }}};
+const AR = mk('em'), LIVE = mk('div'); root.kids = {'.rm-ar': AR, '.rm-live': LIVE};
+global.document = {getElementById: (id) => id === 'pal-ride' ? root : (id === 'pal-credit-css' ? els.css || null : null), createElement: (t) => mk(t), head: {appendChild: (e) => { els.css = e; }}};
+global.MutationObserver = function (cb) { this.cb = cb; OBS.push(this); this.observe = () => {}; };
 global.setInterval = (f) => { global.tick = f; return 1; };
-const UM = 1.3; const IN = {on: false}; const REAL = {on: true, src: 'street', isOn: () => true};
-let PLACE = 'Society Hill Real', HOOKS = 0;
-window._palStreet = {ready: () => true, attribution: () => '© OpenStreetMap contributors, ODbL', place: (x, y) => PLACE, toMap: () => [0, 1000]};
-const S = {real: {}, x: 100 * UM, y: 100 * UM, hud: {_sig: null, ar: mk('em'), live: mk('div')}, loc: {area: 'Spring Garden'}};
-S.hud.live.textContent = 'Broad St, at Fitzwater. Spring Garden';
-function hudFrame(force) { HOOKS++; if (S.hud._sig === null) { S.hud._sig = 'x'; S.hud.ar.textContent = 'Spring Garden'; S.hud.ar.style.display = ''; } }
+const UM = 1.3; const REAL = {on: true, src: 'street', isOn: () => true};
+let PLACE = 'Society Hill Real', ACTIVE = true, REALWALK = true, X = 100 * UM;
+const ROAM = {active: () => ACTIVE, state: () => ({real: REALWALK, x: X, y: 100 * UM})};
+window._palStreet = {ready: () => true, attribution: () => '\u00a9 OpenStreetMap contributors, ODbL', place: (x, y) => PLACE, toMap: () => [0, 1000]};
+// what the HUD does: writes the palace district into the third line (and the live region) and fires the observer
+const hud = (district) => { AR.textContent = district; AR.style.display = district ? '' : 'none'; LIVE.textContent = 'Broad St, at Fitzwater. ' + district; OBS.forEach(o => o.cb()); };
 """ + palace_ride_credit.JS_CREDIT + r"""
 const out = {};
 tick(); const a = root.children[0];
 out.credit = {text: a.textContent, href: a.href, target: a.target, rel: a.rel, on: a.classes.has('on'), css: !!els.css && els.css.textContent.indexOf('.pr-credit') > 0};
-hudFrame(true);
-out.real = [S.hud.ar.textContent, S.hud.ar.style.display, S.hud.live.textContent];
-PLACE = ''; T += 3000; S.x += 50 * UM; hudFrame(true);
-out.none = [S.hud.ar.textContent, S.hud.ar.style.display];                                  // the data has no neighbourhood here: the line is dropped, not wrong
-// lattice mode (not a real walk): the district stands
-S.real = null; hudFrame(true);
-out.lattice = [S.hud.ar.textContent, S.hud.ar.style.display];
-// street data gone (ride on the lattice): the credit hides
+hud('Spring Garden');
+out.real = [AR.textContent, AR.style.display, LIVE.textContent];
+PLACE = ''; T += 3000; X += 50 * UM; hud('Spring Garden');
+out.none = [AR.textContent, AR.style.display, LIVE.textContent];                                   // the data has no neighbourhood here: the line is dropped, not wrong
+PLACE = 'Fishtown Real'; T += 3000; X += 50 * UM; tick();
+out.moved = AR.textContent;
+// the lattice walk (not a real walk): the district the HUD wrote last stands again
+REALWALK = false; hud('Spring Garden'); out.lattice = [AR.textContent, AR.style.display];
+REALWALK = true; tick(); REALWALK = false; tick();
+out.back = [AR.textContent, AR.style.display];
+// street data gone, then the ride closed: the credit hides
 REAL.src = ''; tick(); out.hidden = !a.classes.has('on');
 REAL.src = 'street'; root.classes.delete('on'); tick(); out.offRide = !a.classes.has('on');
 process.stdout.write(JSON.stringify(out));
@@ -413,8 +420,9 @@ process.stdout.write(JSON.stringify(out));
     r = subprocess.run([str(NODE), "c.js"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
     o = json.loads(r.stdout)
-    assert o["credit"] == {"text": "© OpenStreetMap contributors, ODbL", "href": "https://www.openstreetmap.org/copyright", "target": "_blank", "rel": "noopener", "on": True, "css": True}
+    assert o["credit"] == {"text": "\u00a9 OpenStreetMap contributors, ODbL", "href": "https://www.openstreetmap.org/copyright", "target": "_blank", "rel": "noopener", "on": True, "css": True}
     assert o["real"] == ["Society Hill Real", "", "Broad St, at Fitzwater. Society Hill Real"]
-    assert o["none"] == ["", "none"]
-    assert o["lattice"] == ["Spring Garden", ""]
+    assert o["none"] == ["", "none", "Broad St, at Fitzwater"]
+    assert o["moved"] == "Fishtown Real"
+    assert o["lattice"] == ["Spring Garden", ""] and o["back"] == ["Spring Garden", ""]
     assert o["hidden"] is True and o["offRide"] is True

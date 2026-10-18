@@ -203,7 +203,7 @@ var RWL={fails:0, tries:0, retryAt:0, inflight:0, MAXIN:1, last:0, note:null, sh
 function rwlReset(){ RWL.fails=0; RWL.tries=0; RWL.retryAt=0; RWL.last=0; RWL.held=false; }
 function rwlFail(e){ var now=performance.now(); RWL.tries++;
   if(e && e.wait){ RWL.retryAt=Math.max(RWL.retryAt,now+e.wait); return; }                  /* the street loader is already backing off: wait for it, do not stack a second backoff on top */
-  RWL.fails++; RWL.retryAt=now+Math.min(60000,2000*Math.pow(2,RWL.fails-1))*(0.75+0.5*Math.random()); }
+  RWL.fails++; RWL.retryAt=now+Math.min(60000,2000*Math.pow(2,RWL.fails-1))*(0.75+0.5*((Math.floor(now)%997)/997)); }
 function realLoad(rx,ry){
   if(!REAL.street || !REAL.street()) return Promise.resolve(!!(REAL.on && REAL.chunks && REAL.ways));
   if(realNear(rx,ry)) return Promise.resolve(true);

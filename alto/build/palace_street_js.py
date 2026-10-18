@@ -102,7 +102,7 @@ function near(x,y,r,kinds){
 function missing(x,y,r){ var ids={}; if(B) span(x,y,r).forEach(function(ij){ var id=B.c[ij[0]+','+ij[1]]; if(id&&!SH[id]) ids[id]=1; }); return Object.keys(ids); }
 function loaded(x,y,r){ return !!B && missing(x,y,r).length===0; }
 /* ── fetching: every request goes through one queue (at most MAXF at a time), a failed one is remembered with a backoff so nothing is asked again every frame ── */
-function backoff(n){ return Math.min(60000, 2000*Math.pow(2,Math.max(0,n-1)))*(0.75+0.5*Math.random()); }       /* 2 s, 4 s, 8 s.. cap 60 s, +-25% jitter */
+function backoff(n){ return Math.min(60000, 2000*Math.pow(2,Math.max(0,n-1)))*(0.75+0.5*((Date.now()%997)/997)); }       /* 2 s, 4 s, 8 s.. cap 60 s, +-25% jitter (from the clock: the ride keeps one random number, the tunnel's hue) */
 function fail(key,msg){ var f=FAIL[key]||(FAIL[key]={n:0,until:0}); f.n++; f.until=Date.now()+backoff(f.n); LASTERR=msg; }
 function waitOf(key){ var f=FAIL[key]; return f&&f.until>Date.now()?f.until-Date.now():0; }
 function drain(){ while(RUN<MAXF && QUE.length){ var j=QUE.shift(); RUN++; j(); } }
