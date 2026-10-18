@@ -37,6 +37,7 @@ for a cell that stays loaded.
 
 from .palace_ride_door import CSS_DOOR, JS_DOORS
 from .palace_ride_inside import CSS_INSIDE, JS_INSIDE, JS_INSIDE_GL      # FPV phase 2: looking up / down, going inside a node building
+from .palace_ride_mark import CSS_MARK, JS_MARK                            # 2.0.1: content buildings made obvious (labels, beams, Nearby, mini-map)
 
 _JS_E = r"""
 var ROAM=(function(){
@@ -324,6 +325,7 @@ function ensureHud(){
     +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 \u2190 \u2192 turn \u00b7 drag to look \u00b7 Shift to walk faster \u00b7 Esc to leave</div>'
     +'<div class="pr-live rm-live" aria-live="polite"></div>';
   R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), edge:h.querySelector('.rm-edge'), live:h.querySelector('.rm-live')};
+  markHud(h);                                                     /*@MARK-glue@*/
   h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); if(b.getAttribute('data-roam')==='door'){ openDoor(); return; } ROAMAPI.exit(b.getAttribute('data-roam')==='stay'); });
   ['click','dblclick','contextmenu','mousedown','mouseup'].forEach(function(t){ R.ov.addEventListener(t, function(e){ if(S.on){ e.stopPropagation(); if(t==='contextmenu') e.preventDefault(); } }); });
   var cv=R.cv; cv.addEventListener('pointerdown', function(e){ if(!S.on||e.button>0||DR.busy) return; S.drag={id:e.pointerId,x:e.clientX,y:e.clientY,mv:0}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} R.ov.classList.add('drag'); e.preventDefault(); });
@@ -355,6 +357,7 @@ function onKey(e){
   e.preventDefault(); e.stopImmediatePropagation();
   if(e.type==='keydown') DN[e.key]=1; else delete DN[e.key];
   if(e.type==='keydown' && doorKey(e)) return;
+  if(e.type==='keydown' && markKey(e)) return;                   /*@MARK-glue@*/
   if(e.type==='keydown' && e.key==='Escape'){ ROAMAPI.exit(false); return; }
   S.run=!!e.shiftKey;
   setKey(keyName(e), e.type==='keydown'); }
@@ -388,6 +391,7 @@ function draw(){
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
   ctx.setTransform(dpr,0,0,dpr,0,0); doorGlow(ctx);
+  markDraw(ctx);                                                 /*@MARK-glue@*/
   var ms=performance.now()-t0; S.fr.push(ms); if(S.fr.length>600) S.fr.shift(); }
 /* the one place the camera is set: setCam's 8th argument is the real pitch (the GL renderer tilts the view; the 2D fallback has no pitch of its own, so it keeps the old horizon shift) */
 function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5,pitch,fpFoc(W,H)); }
@@ -395,7 +399,7 @@ function frame(now){
   S.raf=0; if(!S.on) return;
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */
   var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
-  if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy) tick(dt,false);
+  if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy){ markSteer(dt); tick(dt,false); }      /*@MARK-glue@*/
   if(!S.real) lattRetry();
   hudFrame(false); if(IN.on) insideFrame(dt); else doorFrame(dt); draw(); showNow();
   if(S.xf && S.pendingReal){ S.xf=0; var sn=snapOver(); doSwitch(); draw(); showNow(); fadeSnap(sn); }
@@ -403,8 +407,10 @@ function frame(now){
 
 /*@DOORS@*/
 /*@INSIDE@*/
+/*@MARK@*/
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
+  markReset();                                                   /*@MARK-glue@*/
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
   doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
@@ -452,6 +458,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
   /* the doors (palace_ride_door.py): tests drive the dolly with step(ms) and the prompt with frame(dt) */
   inside:INSIDEAPI,
+  marks:MARKAPI,                                                 /*@MARK-glue@*/
   rwl:RWL,                                                       /* QA: the street-data retry state */
   door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
     state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
@@ -469,7 +476,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
 return ROAMAPI; })();
 """
 
-JS_E = JS_INSIDE_GL + _JS_E.replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE)
+JS_E = JS_INSIDE_GL + _JS_E.replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE).replace("/*@MARK@*/", JS_MARK)
 
 _CSS_E = r"""
   #pal-ride.rm .pr-chip,#pal-ride.rm .pr-btns{display:none;}
@@ -501,4 +508,4 @@ _CSS_E = r"""
   @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }
 """
-CSS_E = _CSS_E + CSS_DOOR + CSS_INSIDE
+CSS_E = _CSS_E + CSS_DOOR + CSS_INSIDE + CSS_MARK
