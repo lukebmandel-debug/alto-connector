@@ -20,21 +20,25 @@ only (a phone keeps the engine's column of cards):
   spokes as Alto's own tubes; nothing moves. The engine's unit bands, labels
   and bars go (as on a horizontal timeline); a chip names each system.
 * Motion ("orbit"). One rAF loop turns every body round what it orbits by
-  2π·t/period (solar.py periods, its spin) and, when there are several
-  systems, turns each slowly as a whole about its own sun; the bodies are moved by their own left/top (the
-  D-GRID margin centring keeps them centred: never a transform, see
-  engine_patches 1.8.28), rounded to device px so text stays crisp. Positions
-  turned about each body's plan centre (t = 0). It stops at once on hover (a card or a line), focus, a search ring,
-  dimmed cards, the detail page, edit mode (where it also turns back to t = 0,
-  the plan's layout), print, a hidden tab and prefers-reduced-motion, and eases
-  back in. The connections are redrawn as straight Alto tubes edge to edge
-  between circles, kept on their circles every frame together with their
-  data-edge-hit paths and the Blink card mask's holes.
+  2π·t/period from its plan centre (solar.py periods and spin) and, with
+  several systems, each system slowly as a whole about its own sun (inside its
+  R, never toward a neighbour). Bodies move by their own left/top — the D-GRID
+  margin centring keeps them centred; never a transform (engine_patches,
+  1.8.28) — rounded to device px so text stays crisp. It stops at once on
+  hover (a card or a line), focus, a search ring, dimmed cards, the detail
+  page, edit mode (where it also turns back to t = 0, the plan's layout),
+  print, a hidden tab and prefers-reduced-motion, and eases back in. The
+  connections are drawn as straight Alto tubes edge to edge between circles
+  and kept on them every frame, with their data-edge-hit paths and the Blink
+  card mask's holes.
 * Arrow keys pick the nearest body that way from where the bodies are now
   (focusing freezes the orbit, so the fly lands where the card is).
 
+* Edit mode: window._altoSolarSync(tables) plans the systems again from the
+  live outline (SOLAR_PLAN_JS, solar_plan in JS) before the page lays out.
+
 The engine hooks (engine_patches.py): solar-layout-hook (end of initLayout),
-solar-lines-hook (the router), solar-card-mask-round, and lines added to the
+solar-lines-hook (the base redraw), solar-card-mask-round/-follows, and lines added to the
 D-GRID script (a circle grows from its centre; content moving under a still
 pointer is not a hover) and to focusNeighbor (window._altoSolarNav).
 """
@@ -66,6 +70,17 @@ SOLAR_CSS = r"""
     border:1.5px solid color-mix(in srgb,var(--u) 45%,transparent);}
   .sol-unit b{font-weight:800;opacity:.6;margin-right:7.5px;}
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
+  /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
+  #sol-fit{position:fixed;z-index:310;left:30px;top:calc(var(--nav-bottom, 100px) + 14px);width:35px;height:35px;box-sizing:border-box;padding:0;
+    border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);
+    background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
+    border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);}
+  #sol-fit:hover{color:var(--text);border-color:var(--muted);}
+  #sol-fit.active{color:var(--accent, #6d5bd0);border-color:var(--accent, #6d5bd0);}
+  html.mobile #sol-fit,html.alto-editing #sol-fit{display:none !important;}
+  @media print{ #sol-fit{display:none !important;} }
+  #canvas.sol-ov{cursor:zoom-in;}
+  #canvas.sol-ov #world,#canvas.sol-ovanim #world{pointer-events:none;transform-origin:0 0;will-change:transform;}
   .sol-face{display:none;}
   /* enlarged: on top at once (the engine holds a node's z-index change back .34s,
      for a card shrinking home; a moon beside its planet would cover the card) */
@@ -98,8 +113,11 @@ SOLAR_CSS = r"""
 """
 
 SOLAR_JS = r"""
-(function(){
-var S=window._ALTO_SOLAR; if(!S || !S.nodes) return;
+/* The renderer: a function of the plan (window._ALTO_SOLAR's shape) mounted on
+   the engine's #world; opt.orbit (default: plan.style !== 'spoke') says whether
+   it moves. One mount per page (its engine hooks are page globals). */
+window._altoSolarMount=function(S, opt){
+opt=opt||{}; if(!S || !S.nodes || window._altoSolarMounted) return false; window._altoSolarMounted=true;
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2, K=1.7;
 var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:108, moon:62, sat:34}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
@@ -110,7 +128,7 @@ function q(v){ return Math.round(v/2.5)*2.5; }      /* D-GRID: half a diameter o
 function body(id, role, p, per, si){
   var n=S.nodes[id]||{}; B[id]={id:id, role:role, p:p, per:ORBIT ? (+per||0) : 0, si:si, d:q(n.d||DEF[role])}; ORD.push(id); }
 function bodies(){
-  ORBIT=S.style!=='spoke'; SPIN=S.spin||-1; B={}; ORD=[]; SY=S.systems||[];
+  ORBIT=opt.orbit!=null ? !!opt.orbit : S.style!=='spoke'; SPIN=S.spin||-1; B={}; ORD=[]; SY=S.systems||[];
   SY.forEach(function(s, si){ body(s.sun, 'sun', null, 0, si);
     (s.planets||[]).forEach(function(pl){ body(pl.id, 'planet', s.sun, pl.period, si);
       (pl.moons||[]).forEach(function(m){ body(m.id, 'moon', pl.id, m.period, si);
@@ -170,6 +188,8 @@ window._altoSolarLayout=function(pos){
   ready=true; hov=0;
   apply(true);
   if(MOVES) go();
+  if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
+  fitBtn();
 };
 /* the board is the plan's size: the glass behind it (whose end the page's
    height follows), tinted down the page by the systems' unit colours */
@@ -321,6 +341,7 @@ function hold(){
 function tick(ts){
   raf=0; if(!ready) return;
   var dt=last==null ? 0 : Math.min(.1, (ts-last)/1000); last=ts;
+  if(OV && (de.classList.contains('alto-editing') || window._focusedNodeId)) ovLeave(null, true);
   if(de.classList.contains('alto-editing') || printing){          /* the plan's own layout, turned back to */
     sp=0; if(T){ back=printing ? 0 : Math.max(0, back-dt/.45); rk=back*back*(3-2*back); apply(); if(back) return go(); T=0; back=rk=1; }
     return sleep(); }
@@ -330,7 +351,7 @@ function tick(ts){
 }
 function go(){ clearTimeout(slT); if(!raf && MOVES) raf=requestAnimationFrame(tick); }
 function sleep(){ last=null; clearTimeout(slT); slT=setTimeout(go, 180); }
-window.addEventListener('beforeprint', function(){ printing=1; if(T){ T=0; rk=1; apply(); } });
+window.addEventListener('beforeprint', function(){ printing=1; ovLeave(null, true); if(T){ T=0; rk=1; apply(); } });
 window.addEventListener('afterprint', function(){ printing=0; go(); });
 document.addEventListener('visibilitychange', function(){ last=null; go(); });
 /* a hover is the pointer moving onto a circle or a line, not one sliding under a still pointer */
@@ -372,8 +393,10 @@ function watch(){
   var w=document.getElementById('world'); if(!w || typeof MutationObserver!=='function') return;
   new MutationObserver(function(ms){ ms.forEach(function(m){
     var n=m.target; if(!n.classList || !n.classList.contains('node') || !n.hasAttribute('data-solar') || !desk()) return;
-    var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; morph(n, f);
+    var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f);
   }); }).observe(w, {attributes:true, subtree:true, attributeFilter:['class']});
+  /* edit mode wants the board at full size and still */
+  new MutationObserver(function(){ if(de.classList.contains('alto-editing')){ if(OV) ovLeave(null, true); go(); } }).observe(de, {attributes:true, attributeFilter:['class']});
 }
 if(document.readyState!=='loading') watch(); else document.addEventListener('DOMContentLoaded', watch);
 
@@ -408,9 +431,137 @@ window._altoSolarSync=function(t){
       ids.forEach(function(id){ var n=P.nodes[id]; if(!n) return; TP.x[id]=n.x; TP.w[id]=n.d; TP.acts[a].push(['float', ['card', id, 0], n.y, 'mid']); }); }); }
   return true;
 };
+/* ── the whole chart: the board zoomed out to fit the window ─────────────────
+   Pinch out (ctrl+wheel; Safari's gesture), ⌘− / ctrl+−, or the toggle under the
+   bars. As on a horizontal timeline's whole view (lanes_nav.py) the board is
+   scaled by a transform about its corner, the canvas held at 0,0 (a spacer
+   keeps its scroll extent, so scrollbars never come and go) and moved by its
+   own translate: wheel or drag pans, pinch zooms about the pointer, the orbits
+   go on. A click (or ⌘+ / ⌘0 / Esc / an arrow) comes back down to full size —
+   on the body clicked, which is then enlarged. Only layout px are used: where
+   a body is comes from its own left/top, the pointer from the canvas's rect. */
+var OV=null, ovA=0, OVMIN=.03;
+function cvs(){ return document.getElementById('canvas'); }
+function zk(c){ var r=c.getBoundingClientRect(); return (r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1; }
+function woff(c){ var ox=0, oy=0, q=world; while(q && q!==c){ ox+=q.offsetLeft; oy+=q.offsetTop; q=q.offsetParent; } return {x:ox, y:oy}; }
+function fitS(){ var c=cvs(); return Math.max(OVMIN, Math.min(1, (c.clientWidth-60)/world.offsetWidth, (c.clientHeight-60)/world.offsetHeight)); }
+function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w=world.offsetWidth*o.s, h=world.offsetHeight*o.s;
+  o.s=Math.max(Math.min(fitS(), 1), Math.min(1, o.s));
+  w=world.offsetWidth*o.s; h=world.offsetHeight*o.s;
+  o.tx=w<=cw ? (cw-w)/2 : Math.max(cw-w-30, Math.min(30, o.tx)); o.ty=h<=ch ? (ch-h)/2 : Math.max(ch-h-30, Math.min(30, o.ty)); return o; }
+function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+f2(o.tx-off.x)+'px,'+f2(o.ty-off.y)+'px) scale('+o.s+')'; }
+function ovHold(on){
+  var c=cvs(), sp=document.getElementById('sol-ov-hold');
+  if(!on){ if(sp) sp.remove(); return; }
+  if(!sp){ sp=document.createElement('div'); sp.id='sol-ov-hold'; sp.setAttribute('aria-hidden', 'true');
+    sp.style.cssText='position:absolute;left:0;top:0;width:1px;height:1px;visibility:hidden;pointer-events:none;'; c.appendChild(sp); }
+  sp.style.width=c.scrollWidth+'px'; sp.style.height=c.scrollHeight+'px';
+}
+function ease(p){ return window._altoEase ? window._altoEase(p) : p*p*(3-2*p); }
+function ovAnim(from, to, done){
+  cancelAnimationFrame(ovA); var c=cvs(); c.classList.add('sol-ovanim');
+  if(reduced){ ovSet(to); c.classList.remove('sol-ovanim'); return done(); }
+  var t0=performance.now();
+  (function fr(now){ var p=Math.min(1, (now-t0)/560), k=ease(p), sc=Math.exp(Math.log(from.s)+(Math.log(to.s)-Math.log(from.s))*k),
+      u=Math.abs(to.s-from.s)>1e-6 ? (sc-from.s)/(to.s-from.s) : k;
+    ovSet({s:sc, tx:from.tx+(to.tx-from.tx)*u, ty:from.ty+(to.ty-from.ty)*u});
+    if(p<1) ovA=requestAnimationFrame(fr); else { ovA=0; c.classList.remove('sol-ovanim'); done(); } })(t0);
+}
+/* to scale s about (fx, fy) in the canvas's px (default: its middle) */
+function ovZoom(s, fx, fy, anim){
+  var c=cvs(); if(!c || !ready || !desk()) return;
+  if(fx==null){ fx=c.clientWidth/2; fy=c.clientHeight/2; }
+  if(!OV){
+    if(window._focusedNodeId && window.exitFocus) window.exitFocus();
+    var off=woff(c); OV={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop};
+    ovHold(true); ovSet(OV); c.scrollLeft=0; c.scrollTop=0; c.classList.add('sol-ov'); fitBtn();
+  }
+  var from={s:OV.s, tx:OV.tx, ty:OV.ty}, to=clampO({s:s, tx:fx-(fx-OV.tx)*s/OV.s, ty:fy-(fy-OV.ty)*s/OV.s});
+  if(to.s>=.999 && from.s>=.999) return ovLeave(null, true);
+  OV=to;
+  if(anim) ovAnim(from, to, function(){}); else ovSet(to);
+}
+/* back to full size, the world point p (default: what is in the middle) in the middle */
+function ovLeave(p, instant, then){
+  if(!OV) return; var c=cvs(), o=OV, off=woff(c), cw=c.clientWidth, ch=c.clientHeight;
+  if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
+  OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn();
+  var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
+  var fin=function(){ world.style.transform=''; ovHold(false);
+    var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
+    if(then) then(); };
+  if(instant) return fin();
+  ovAnim(o, {s:1, tx:off.x-sl, ty:off.y-st}, fin);
+}
+function local(e){ var c=cvs(), r=c.getBoundingClientRect(), k=zk(c); return {x:(e.clientX-r.left)/k, y:(e.clientY-r.top)/k}; }
+function nearest(wx, wy){ var best=null, bd=Infinity;
+  ORD.forEach(function(id){ var b=B[id]; if(!b.n) return; var d=Math.hypot(b.rx-wx, b.ry-wy)-b.d/2; if(d<bd){ bd=d; best=id; } });
+  return best; }
+/* the toggle under the bars (the round glass of the key toggle, key_toggle.py) */
+function fitBtn(){
+  var t=document.getElementById('sol-fit');
+  if(!desk() || !ready){ if(t) t.remove(); return; }
+  if(!t){ t=document.createElement('button'); t.id='sol-fit'; t.type='button';
+    t.innerHTML='<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="2.6"/><circle cx="10" cy="10" r="6.6" stroke-opacity=".55"/><path d="M2 6.5V2h4.5M18 6.5V2h-4.5M2 13.5V18h4.5M18 13.5V18h-4.5"/></svg>';
+    t.addEventListener('click', function(e){ e.stopPropagation(); if(OV) ovLeave(); else ovZoom(fitS(), null, null, true); });
+    document.body.appendChild(t); }
+  t.classList.toggle('active', !!OV);
+  t.title=OV ? 'Back to full size' : 'The whole chart (or pinch out, ⌘−)'; t.setAttribute('aria-label', t.title); t.setAttribute('aria-pressed', OV ? 'true' : 'false');
+}
+function mine(e){ var c=cvs(); return c && e.target && c.contains(e.target); }
+window.addEventListener('wheel', function(e){
+  if(!ready || !desk() || !mine(e)) return;
+  if(!OV && !(e.ctrlKey && e.deltaY>0 && !window._focusedNodeId)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1, q=local(e);
+  if(e.ctrlKey){ var s2=(OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012)));
+    if(OV && s2>=.999) return ovLeave({x:(q.x-OV.tx)/OV.s, y:(q.y-OV.ty)/OV.s}, true);
+    return ovZoom(s2, q.x, q.y, false); }
+  OV.tx-=e.deltaX*m; OV.ty-=e.deltaY*m; if(e.shiftKey && !e.deltaX){ OV.ty+=e.deltaY*m; OV.tx-=e.deltaY*m; }
+  clampO(OV); ovSet(OV);
+}, {passive:false, capture:true});
+var g0=null;
+document.addEventListener('gesturestart', function(e){ g0=(ready && desk() && mine(e) && !window._focusedNodeId) ? (OV ? OV.s : 1) : null; if(g0!=null) e.stopImmediatePropagation(); }, {passive:false});
+document.addEventListener('gesturechange', function(e){
+  if(g0==null) return; e.preventDefault(); e.stopImmediatePropagation();
+  if(!OV && e.scale>=1) return;
+  var q=local(e), s2=Math.min(1, g0*e.scale);
+  if(OV && s2>=.999) return; ovZoom(s2, q.x, q.y, false);
+}, {passive:false});
+document.addEventListener('gestureend', function(e){
+  if(g0==null) return; e.preventDefault(); e.stopImmediatePropagation(); g0=null;
+  if(OV && OV.s>=.97) ovLeave(null, true);
+}, {passive:false});
+window.addEventListener('keydown', function(e){
+  if(!ready || !desk() || (document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)))) return;
+  var k=e.key, mod=e.metaKey || e.ctrlKey, hit=false;
+  if(mod && k==='-' && !window._focusedNodeId && !document.querySelector('#summary-wrap.open,#detail-page.visible')){ ovZoom(OV ? OV.s/1.6 : Math.max(fitS(), .55), null, null, true); hit=true; }
+  else if(OV && mod && (k==='=' || k==='+')){ if(OV.s*1.6>=.97) ovLeave(); else ovZoom(OV.s*1.6, null, null, true); hit=true; }
+  else if(OV && ((mod && k==='0') || k==='Escape' || /^Arrow/.test(k))){ ovLeave(); hit=true; }
+  if(hit){ e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+(function(){
+  var dn=null;
+  document.addEventListener('pointerdown', function(e){ if(!OV || !mine(e)) return; e.preventDefault(); e.stopPropagation();
+    dn={x:e.clientX, y:e.clientY, tx:OV.tx, ty:OV.ty, moved:false, id:e.pointerId}; }, true);
+  document.addEventListener('pointermove', function(e){ if(!dn || !OV || e.pointerId!==dn.id) return; var k=zk(cvs());
+    if(!dn.moved && Math.abs(e.clientX-dn.x)+Math.abs(e.clientY-dn.y)<5) return;
+    dn.moved=true; OV.tx=dn.tx+(e.clientX-dn.x)/k; OV.ty=dn.ty+(e.clientY-dn.y)/k; clampO(OV); ovSet(OV); }, true);
+  document.addEventListener('pointerup', function(e){ if(!dn || e.pointerId!==dn.id) return; var d=dn; dn=null;
+    if(!OV || d.moved) return;
+    var q=local(e), wx=(q.x-OV.tx)/OV.s, wy=(q.y-OV.ty)/OV.s, id=nearest(wx, wy), b=id && B[id];
+    ovLeave(b ? {x:b.rx, y:b.ry} : {x:wx, y:wy}, false, function(){ if(b && window.enterFocus) window.enterFocus(id); }); }, true);
+  /* nothing under the whole chart is clicked through to */
+  ['mousedown', 'click', 'dblclick'].forEach(function(t){ document.addEventListener(t, function(e){ if(OV && mine(e)){ e.preventDefault(); e.stopPropagation(); } }, true); });
+  document.addEventListener('scroll', function(e){ var c=cvs(); if(OV && e.target===c && (c.scrollLeft || c.scrollTop)){ c.scrollLeft=0; c.scrollTop=0; } }, true);
+  window.addEventListener('resize', function(){ if(OV){ ovHold(true); clampO(OV); ovSet(OV); } });
+})();
+window._altoSolarZoom=function(s){ if(s==null) return OV ? OV.s : 1; if(s>=1) ovLeave(null, true); else ovZoom(s, null, null, false); return OV ? OV.s : 1; };
 window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p}; });
   return {T:T, moving:!!raf, bodies:o}; };
-})();
+return true;
+};
+if(window._ALTO_SOLAR) window._altoSolarMount(window._ALTO_SOLAR);
 """
 
 
@@ -536,4 +687,15 @@ return function(t, old){
 })();
 """.replace("__SOLAR__", json.dumps(SOLAR, separators=(",", ":"))).replace("__GOLDEN__", repr(GOLDEN)).replace("__SPIN__", str(SPIN))
 
-SOLAR_JS = SOLAR_JS.replace("\n(function(){\nvar S=window._ALTO_SOLAR;", "\n" + SOLAR_PLAN_JS + "\n(function(){\nvar S=window._ALTO_SOLAR;", 1)
+
+
+def _slim(src: str) -> str:
+    """The page copy without its comments and indentation (the source keeps
+    them): no string or regex in these scripts holds a slash-star."""
+    import re
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    return "\n".join(l.strip() for l in src.splitlines() if l.strip()) + "\n"
+
+
+SOLAR_JS = _slim(SOLAR_PLAN_JS + SOLAR_JS)
+SOLAR_CSS = _slim(SOLAR_CSS)

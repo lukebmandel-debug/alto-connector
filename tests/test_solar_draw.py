@@ -101,7 +101,9 @@ def test_the_engine_hooks_are_anchored_in_the_template_once():
 def test_motion_never_uses_a_transform_and_rounds_to_device_px():
     """Bodies move by left/top (the D-GRID margins centre them, 1.8.28), at
     whole device px; nothing in the script sets a transform on a node."""
-    assert "style.transform" not in SOLAR_JS and "translate(" not in SOLAR_JS
+    # the one transform is the whole-chart view's, on #world itself
+    assert re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) == ["world", "world"]
+    assert ".n.style.transform" not in SOLAR_JS
     assert "b.n.style.left=x+'px'" in SOLAR_JS and "Math.round(v*zq)/zq" in SOLAR_JS
     # no SVG <mask> on anything that moves (Safari): the rings and spokes are plain
     assert "<mask" not in SOLAR_JS and "'mask'" not in SOLAR_JS
@@ -458,5 +460,45 @@ def test_edit_mode_sync_redraws_the_systems_from_the_live_tables(browser, pages)
     assert out["ok"] and out["truthy"] and not out["bad"], out
     assert "u1-p3" in out["planets"] and out["role"] == "planet" and out["parent"] == "u2" and out["geoP"] == "u2"
     assert out["rings"] == sum(len(u) for u in SMALL)
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, pages):
+    """Luke (round 2): however big the chart, the reader can zoom out and see all
+    of it, the circles shrinking with it — the toggle, ⌘−, pinch — and the orbits go on."""
+    f, _ = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    pg.click("#sol-fit")
+    pg.wait_for_timeout(900)
+    st = pg.evaluate("""() => { var w=document.getElementById('world').getBoundingClientRect(), c=document.getElementById('canvas').getBoundingClientRect();
+      return {z:window._altoSolarZoom(), w:[w.left, w.top, w.right, w.bottom], c:[c.left, c.top, c.right, c.bottom]}; }""")
+    assert st["z"] < 1
+    w, c = st["w"], st["c"]
+    assert w[0] >= c[0] - 1 and w[1] >= c[1] - 1 and w[2] <= c[2] + 1 and w[3] <= c[3] + 1, st   # all of it in view
+    g0 = pg.evaluate(BODIES)
+    pg.wait_for_timeout(900)
+    assert _moved(g0, pg.evaluate(BODIES)) > 0.3                       # the orbits go on
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u2-p1 .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    pg.mouse.click(xy[0], xy[1])
+    pg.wait_for_timeout(1600)
+    assert pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]") == [1, "u2-p1"]
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(700)
+    pg.keyboard.press("Control+Minus")
+    pg.wait_for_timeout(800)
+    assert pg.evaluate("() => window._altoSolarZoom()") < 1
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(800)
+    assert pg.evaluate("() => [window._altoSolarZoom(), document.getElementById('world').style.transform]") == [1, ""]
+    pg.mouse.move(700, 500)
+    pg.keyboard.down("Control")
+    for _ in range(4):
+        pg.mouse.wheel(0, 40)
+        pg.wait_for_timeout(60)
+    pg.keyboard.up("Control")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("() => window._altoSolarZoom()") < 0.9                # a pinch out
     assert not errs, errs
     pg.context.close()
