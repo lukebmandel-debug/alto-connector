@@ -38,6 +38,7 @@ from .palace_ride_mesh import JS_MB
 from .palace_ride_real import JS_REAL
 from .palace_street_js import STREET_JS
 from .palace_ride_street import JS_STREET
+from .palace_ride_street_lm import JS_STREET_LM
 from .palace_ride_credit import JS_CREDIT
 
 RIDE_CSS_MAIN = r"""
@@ -88,7 +89,7 @@ window._palRide={real:REAL, roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(type
   canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; }};
 """
 
-RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + STREET_JS + JS_A + JS_MB + JS_B + JS_DOOR_GEO + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + JS_REAL + JS_STREET + JS_CREDIT + _API + "})();\n"
+RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + STREET_JS + JS_A + JS_MB + JS_B + JS_DOOR_GEO + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + JS_REAL + JS_STREET + JS_STREET_LM + JS_CREDIT + _API + "})();\n"
 
 
 # ── the ride is code the page loads, not part of the page ──────────────────

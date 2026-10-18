@@ -403,6 +403,9 @@ void main(){
       alb=vec3(.88,.87,.84)*(1.-.12*tgl)*(.97+.05*nz(gp*3.)); emi=vec3(1.,.96,.88)*1.5*pn; alb=mix(alb,vec3(.95),pn);
     } else if(id<30.5){ vec2 tq=vec2(vUV.x/1.4,1.-vUV.y/1.7); vec3 tc=texture2D(uAtl,tq).rgb; alb=tc; emi=lin(tc)*.5;              /* the directory board: the canvas painted by palace_ride_inside.py (GLX.insideTex, bound as the atlas for this draw) */
     } else { alb=vec3(.30,.19,.11)*(.86+.24*nz(gp*vec2(9.,1.3))); }   /* dark wood: desk, benches, door frames, the board's post */
+  } else if(id<32.5){   /* lm: plain warm limestone, no window grid (palace_ride_h.py MAT.lime: 30th Street Station) - coursed blocks that fade with distance */
+    float fine=1.-smoothstep(.04,.14,fpx); vec2 q=vec2(vUV.x/1.5+.5*floor(vUV.y/.76),vUV.y/.76); vec2 f=abs(fract(q)-.5); float jt=smoothstep(.44,.49,max(f.x*.6,f.y))*fine*(wallLike?1.:0.);
+    alb=vec3(.80,.74,.62)*(.93+.09*nz(gp*.21)+.05*h21(floor(q)))*(1.-.16*jt);
   } else if(id>38.5&&id<39.5){ if(dist>80.*UMc) discard; alb=vec3(.05,.05,.055); spec=1.;      /* fine iron (palace_ride_facade.py: railings, balusters, areaway pickets): gone beyond 80 m */
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
