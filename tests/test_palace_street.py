@@ -294,7 +294,7 @@ def test_make_stores_the_files_and_only_referenced_ones_are_published(tmp_path, 
     (site / "street" / "s-cccccccc.json").write_text("old", "utf-8")
     regenerate_site(LocalStore(tmp_path / "store"), "local", site)
     assert {p.name for p in (site / "street").iterdir()} == names
-    rule = next(x for x in _headers("c", "c", sorted(names)) if x["source"].startswith("/street/@("))      # (only files that exist are kept for a year: test_palace_street_publish.py)
+    rule = next(x for x in _headers("c", "c", sorted(names)) if x["source"].startswith("/street/"))      # (only files that exist are kept for a year: test_palace_street_publish.py)
     assert {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in rule["headers"]
 
 

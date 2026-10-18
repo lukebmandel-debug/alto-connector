@@ -142,14 +142,14 @@ def test_only_existing_street_files_are_kept_for_a_year_and_a_404_cannot_be(tmp_
     assert rules and all({"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in r["headers"] for r in rules)
     named = "|".join(r["source"] for r in rules)
     for n in _street(site):
-        assert n in named
-    assert "s-deadbeef" not in named and "*" not in named.replace("@(", "")
+        assert "/street/" + n in named.split("|")                                                              # one literal path per file
+    assert "s-deadbeef" not in named and "*" not in named and "@(" not in named
     first = heads[0]
     assert first["source"] == "**" and {"key": "Cache-Control", "value": "no-cache"} in first["headers"]       # everything else under /street/ is no-cache
     assert heads.index(rules[0]) > 0                                                                          # after the default, so it wins for those files only
     # nothing of an unsafe shape reaches a glob; a site without the folder has no rule
     unsafe = [h["source"] for h in _headers("c", "c", ["../x.json", "s-zz.json", "a|b.json", "s-0123abcd.json"]) if h["source"].startswith("/street/")]
-    assert unsafe == ["/street/@(s-0123abcd.json)"]
+    assert unsafe == ["/street/s-0123abcd.json"]
     assert not [h for h in _headers("c", "c") if h["source"].startswith("/street")]
     assert not [h for h in _security_headers(tmp_path / "nope") if h["source"].startswith("/street")]
 
