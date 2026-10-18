@@ -240,8 +240,15 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
                   "custom")
 
 MODES = ("linear", "outline", "lanes", "palace")
-LAYOUTS = ("auto", "tree", "flow")
+LAYOUTS = ("auto", "tree", "flow", "solar")
 TREE_LINES = ("fan", "trunk")
+# A solar outline's look (layout "solar", solar.py): "orbit" — concentric orbit
+# rings, the planets, moons and satellites moving round what they orbit;
+# "spoke" — the same circles and numbers, still, on short straight spokes.
+HUB_STYLES = ("orbit", "spoke")
+# The roles of a solar outline's levels, top down: a unit's top concept is its
+# sun, then planets, moons, satellites. A fifth level has no body to be.
+SOLAR_ROLES = ("sun", "planet", "moon", "sat")
 # How an outline's outcome cards (Liable / Not Liable: a leaf whose tag differs
 # from its parent's) sit. "stack": down the parent's spine like any child.
 # "beside": on either side of the parent when there is room, else side by side
@@ -360,7 +367,12 @@ class Brief:
     # concepts with outcomes of their own) becomes a tree (layout.outline_tree)
     # when that crosses no more lines than the flowing cascade does; anything
     # else — a linear story, a flat list — flows. "tree" / "flow" force one.
+    # "solar" (outline only, never chosen by auto): each unit a solar system —
+    # its top concept the sun, its children planets on rings in outline order,
+    # theirs moons, theirs satellites (solar.py).
     layout: str = "auto"
+    # A solar outline's style (HUB_STYLES): "orbit" moves, "spoke" stands still.
+    hub_style: str = "orbit"
     # A tree's lines down a branch's spine. "fan": a section's lines spread
     # across the top of its first card and drop to each child at its own point,
     # so every child has a line of its own to hover and follow; "trunk": one
@@ -616,7 +628,8 @@ def validate_brief(b: Brief) -> list[str]:
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
-    if len(b.acts) < 2:
+    # A solar outline may be one system for the whole outline: one unit.
+    if len(b.acts) < (1 if b.layout == "solar" else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
     for flag in ("line_filter", "chip_filters"):
@@ -636,6 +649,12 @@ def validate_brief(b: Brief) -> list[str]:
     if b.layout == "tree" and b.mode != "outline":
         raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
                          "from the nodes' parents")
+    if b.hub_style not in HUB_STYLES:
+        raise BriefError(f"hub_style {b.hub_style!r}: must be one of {HUB_STYLES}")
+    if b.layout == "solar" and b.mode != "outline":
+        raise BriefError("layout 'solar' needs mode 'outline': a solar system is "
+                         "drawn from the nodes' parents (a unit's top concept is "
+                         "its sun)")
     _check_placement(b, warnings)
     _check_card_size(b)
     from .lanes import check_lines
@@ -901,8 +920,8 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
                 raise BriefError(f"placement {nid}: {key} must be a whole number "
                                  "from 1" + (" (first among its siblings)" if key == "order"
                                              else " (the first line of its parent's row)"))
-    if b.layout == "flow" and any(set(h) - {"order"} for h in pl.values()):
-        warnings.append("placement: layout is 'flow', which ignores everything "
+    if b.layout in ("flow", "solar") and any(set(h) - {"order"} for h in pl.values()):
+        warnings.append(f"placement: layout is {b.layout!r}, which ignores everything "
                         "but `order` — use layout 'auto' or 'tree' to see the rest")
 
 
@@ -983,7 +1002,36 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
                 f"concepts ({', '.join(sorted(roots)[:4])}) — a unit has one "
                 "hub. Give each its own unit, or make the others its "
                 "sub-concepts")
+    if b.layout == "solar":
+        _check_solar_depth(b, nodes)
     return warnings
+
+
+def _check_solar_depth(b: Brief, nodes: list[Node]) -> None:
+    """A solar outline has four levels — sun, planets, moons, satellites. A
+    concept deeper than a satellite has nothing to orbit as, and flattening it
+    would quietly change the outline, so it is the author's to restructure."""
+    by_id = {n.id: n for n in nodes}
+    deep = []
+    for n in nodes:
+        chain, cur = [n.id], n
+        while cur.parent and cur.parent in by_id and len(chain) <= len(nodes):
+            cur = by_id[cur.parent]
+            chain.append(cur.id)
+        if len(chain) > len(SOLAR_ROLES):
+            deep.append(list(reversed(chain)))
+    if deep:
+        deep.sort(key=lambda c: (-len(c), c))
+        path = " → ".join(deep[0])
+        more = (f" ({len(deep)} concepts are that deep: "
+                + ", ".join(c[-1] for c in deep[:6]) + (" …" if len(deep) > 6 else "") + ")"
+                if len(deep) > 1 else "")
+        raise BriefError(
+            f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a solar "
+            "layout has four: a unit's top concept is the sun, its children planets, "
+            "theirs moons, theirs satellites" + more + ". Restructure the outline — "
+            f"move {deep[0][-1]} up under {deep[0][-3]} (or higher), give its branch a "
+            "unit of its own, or use layout 'tree'")
 
 
 
