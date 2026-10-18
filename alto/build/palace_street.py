@@ -12,6 +12,8 @@ MANIFEST
   cs 5000 (cell size in units = 500 m), kx (metres per degree of longitude, cos(mid latitude)*111320), ky 110574 — the SAME equirectangular frame as palace_map.project:
   X_m = (lon-west)*kx, Y_m = (lat-south)*ky; Y grows NORTH here, the palace map's y grows south (y_map = (north-lat)*ky, = _palStreet.toMap), n [nx, ny] cells, g 2 (cells per shard
   side), preset ("philadelphia" | "generic": the style preset used), f {shard id: bytes}, c {"ix,iy": shard id} (non-empty cells only).
+  src [{k "osm"|"opa"|"lif", n name, l licence, a attribution(, rows)}] the sources used (palace_street_city.SOURCES); sn [notes] what was not available this build.
+  a gains "; City of Philadelphia (OPA, L&I), OpenDataPhilly" when city records were joined (show `a` as the attribution).
 SHARD   {"S": [string table, "" first], "c": {"ix,iy": cell}} — its own string table, every string below is an index into it (0 = none).
 CELL    (ix, iy) covers units [ix*cs, (ix+1)*cs) east and [iy*cs, ...) north. A feature lives in the cell of its first point (buildings and areas: centroid) and is NOT cut, so a
         client asks the cell AND its 8 neighbours; polylines (highways, barriers, tree rows) are cut at cell borders (each piece in the cell where it lies, the joint vertex repeated).
