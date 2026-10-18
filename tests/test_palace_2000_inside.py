@@ -22,7 +22,7 @@ def test_the_inside_part_is_assembled_into_the_ride():
     assert palace_ride_inside.JS_INSIDE_GL in palace_ride.RIDE_JS and palace_ride_inside.JS_INSIDE in palace_ride.RIDE_JS
     assert palace_ride_inside.CSS_INSIDE in palace_ride.RIDE_CSS
     assert "/*@INSIDE@*/" not in palace_ride.RIDE_JS
-    for f in ("function insideEnter(mem)", "function insideGo(df)", "function insideLeave()", "function insideOpen()", "function glInside(b,d)", "function insideWindows(ring,sg,win,door)", "function inSpans(Lm,dpar)"):
+    for f in ("function insideEnter(mem)", "function insideGo(df)", "function insideLeave()", "function insideOpen()", "function glInside(b,d)", "function insideWindows(ring,sg,win,door,floor)", "function inSpans(Lm,dpar)"):
         assert f in palace_ride.RIDE_JS
 
 
