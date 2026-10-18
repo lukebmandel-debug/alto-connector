@@ -124,8 +124,8 @@ def test_the_world_shader_compiles_and_links_in_webkit(page):
     assert r == "ok", r
 
 
-def test_fine_iron_is_dropped_beyond_80_m_and_shops_are_tinted_by_trade():
-    assert "if(dist>80.*UMc) discard;" in sh.FS_WORLD and ",39);" in fc.JS_FACADE
+def test_fine_iron_is_dropped_beyond_35_m_and_shops_are_tinted_by_trade():
+    assert "if(dist>35.*UMc) discard;" in sh.FS_WORLD and ",39);" in fc.JS_FACADE
     assert "hue:fcShopHue(cat,hs)" in palace_ride_street.JS_STREET
 
 

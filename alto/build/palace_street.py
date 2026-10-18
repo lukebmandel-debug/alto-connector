@@ -872,7 +872,7 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=N
     if (city or {}).get("wd"):
         from . import palace_street_wikidata as pwd
         src.append(dict(pwd.SOURCE, rows=len(city["wd"])))
-    if len(src) > 1:
+    if any(x.get("k") in ("opa", "lif") for x in src):
         att += "; City of Philadelphia (OPA, L&I), OpenDataPhilly"
     manifest = {"v": VERSION, "a": att, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
                 "preset": preset, "f": {k: files[k] for k in sorted(files)}, "c": cmap}

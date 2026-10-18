@@ -279,11 +279,11 @@ function* gatherRealG(Xp, Yp, R, at){
   if(typeof realLandmarks==='function') realLandmarks(W);        /* lm: the landmark models on their real footprints (palace_ride_street_lm.py) */
   realDedupe(W); yield;
   /* roofs and parapets AFTER the dedupe: a footprint the data lists twice (an outline and its part) drew two parapets on one plane, and a lowered roof keeps its parapet with it */
-  W.solids.forEach(function(sd){ var q=sd._rf; if(!q||sd.nodraw) return; roofOf(roofMs[q[4]]||(roofMs[q[4]]=MB.mk()), q[0], q[1]+(sd.roofDz||0), q[2], q[3], sd.hide); roofs[q[2]]++; sd._rf=null; });
+  W.solids.forEach(function(sd){ if(sd.nodraw&&sd.shop) sd.shop._hide=1; var q=sd._rf; if(!q||sd.nodraw) return; roofOf(roofMs[q[4]]||(roofMs[q[4]]=MB.mk()), q[0], q[1]+(sd.roofDz||0), q[2], q[3], sd.hide); roofs[q[2]]++; sd._rf=null; });
   realRoadRanks(W.roads); yield;
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
      has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
-  try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops,id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
+  try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops.filter(function(h){ return !h._hide; }),id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
       hasB=function(x,y){ return nearB(x,y,0); },
       bearing=function(d){ var a=(d||0)*Math.PI/180; return [Math.sin(a),-Math.cos(a)]; },
       toRoad=function(x,y,any){ var nr=rlNear(x,y,40,any)[0]; if(!nr) return null; var d=Math.max(.1,nr.d); return {ox:(nr.x-x)/d, oy:(nr.y-y)/d, tx:Math.cos(nr.ang), ty:Math.sin(nr.ang), w:((RCLS[nr.f[0]]||[7])[0]), d:nr.d, x:nr.x, y:nr.y}; };

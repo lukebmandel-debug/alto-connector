@@ -24,6 +24,7 @@ var RLM_NEAR={arena:200, stad:250, court:150, fam:250};
 var RLM_PART={stn:1};
 var RLM_FRONT={stn:270, city:180, ind:180, art:120, frank:90, sub:180, conv:180, usch:180, nix:90, fam:180, jef:180, lbc:180};      /* nix: the long pilastered front on 9th Street (its footprint runs Market to Chestnut) */
 var RLM_CLAMP=[.6,1.6];
+var RLM_SKIP={frank:1};                                                            /* the Franklin Institute model overhangs its real footprint by ~19 m over 20th St: the OSM building (with its facade) stays instead */
 var RLM_TOWER={lib1:1,lib2:1,ccc:1,ctc:1,bny:1,tls:1,cira:1,fmc:1,sub:1};          /* towers: one plan scale for both axes (never a squashed or stretched tower), within .7-1.2 */
 var RLM_SPAN={conv:1};                                                            /* rebuilt to the footprint's real length (bays added), never stretched */
 var RLM_REALPARTS={usch:1,cjc:1,fam:1};                                           /* modern courthouses: where OSM draws their building:parts (heights, materials) those ARE the massing; the hand model only stands in when it has none */
@@ -72,6 +73,7 @@ function realLandmarks(W){
   W.real.lm=out; }
 function rlmPlace(W, q, s){
   var S=W.solids, ring=s.ring, tgt=s, parts=[], i;
+  if(RLM_SKIP[q.key]) return {n:q.l.n, key:q.key, osm:s.nm, parts:0, model:false};
   S.forEach(function(p){ if(p.kind==='b' && p.part && rlmIn(ring,p.cx,p.cy)) parts.push(p); });
   if(RLM_PART[q.key] && parts.length){ var big=null, ba=0; parts.forEach(function(p){ var a=rlmArea(p.ring); if(a>ba){ ba=a; big=p; } }); if(big && ba>=rlmArea(ring)*.4) tgt=big; }
   if(RLM_REALPARTS[q.key] && (parts.length>=2 || q.key==='fam')) return {n:q.l.n, key:q.key, osm:s.nm, parts:parts.length, model:false};     /* the real parts stay: they are the building */
