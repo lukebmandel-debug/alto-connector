@@ -25,7 +25,8 @@ def test_the_gl_part_is_in_the_ride_and_after_the_world_gathering():
 
 def test_webgl1_context_with_loss_handling_and_a_canvas_under_the_2d_one():
     g = palace_ride_gl.JS_GL
-    assert "getContext('webgl'" in g and "experimental-webgl" in g and "webgl2" not in g                       # the safe floor
+    assert "getContext('webgl'" in g and "experimental-webgl" in g and "webgl2" not in palace_ride_gl._JS_GL_MAIN   # the safe floor
+    assert "gl=gfxContext(cv)" in g                                                                             # (1.9.103: WebGL2 only through the gfx tiers, palace_ride_gfx.py)
     assert "webglcontextlost" in g and "webglcontextrestored" in g and "preventDefault" in g
     assert "insertBefore(cv,c2)" in g and "pr-gl" in g                                                          # under .pr-cv
     assert "getShaderPrecisionFormat" in g                                                                      # no highp fragments: fall back

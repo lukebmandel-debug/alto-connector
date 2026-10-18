@@ -65,7 +65,7 @@ SETUP = """(blob)=>{ var R=window._palRide, E=R.roam.dbg(); var T={t:0,cx:0,cy:0
   var tag=0; Object.keys(R.real.chunks).forEach(function(k){ R.real.chunks[k].b.forEach(function(f){ if(f[0]===14 && (tag++)%2===1) f.part=true; }); });      /* the second 14 m footprint is the building:part */
   return true; }"""
 
-PIX = """(args)=>{ var cv=document.querySelector('#pal-ride .pr-gl'), gl=cv.getContext('webgl'), W=cv.width, H=cv.height, R=window._palRide.roam;
+PIX = """(args)=>{ var cv=document.querySelector('#pal-ride .pr-gl'), gl=(window._palRideGL.gl||cv.getContext('webgl')), W=cv.width, H=cv.height, R=window._palRide.roam;
   function warm(){ for(var i=0;i<90;i++){ R.tick(0,'x',false); R.draw(); } }
   function grab(){ var a=new Uint8Array(W*H*4); gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,a); return a; }
   function diff(a,b,thr){ var n=0, s=0; for(var i=0;i<a.length;i+=4){ var d=Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2]); s+=d; if(d>thr) n++; } return {n:n, mean:s/(a.length/4)/3}; }

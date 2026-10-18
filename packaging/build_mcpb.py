@@ -74,6 +74,8 @@ PACKAGE_INCLUDE = [
     ("alto/assets/png", "*.png"),
     ("alto/assets/backgrounds", "*.jpg"),
     ("alto/assets/backgrounds/t", "*.jpg"),
+    ("alto/assets/tex", "*.png"),
+    ("alto/assets/tex", "NOTICE"),
 ]
 
 

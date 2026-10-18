@@ -292,6 +292,14 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     for folder, aname, atext in new_assets:
         (site / folder).mkdir(parents=True, exist_ok=True)
         (site / folder / aname).write_text(atext, encoding="utf-8")
+    # gfx (1.9.103): the ride's material textures (build/palace_ride_gfx.py), binary, content-hash named; the ride keeps its procedural look without them
+    from .build.palace_ride_gfx import TEX_FOLDER, tex_files
+    tex_out = site / TEX_FOLDER
+    if tex_out.exists():
+        shutil.rmtree(tex_out)
+    for tname, tbytes in tex_files():
+        tex_out.mkdir(parents=True, exist_ok=True)
+        (tex_out / tname).write_bytes(tbytes)
     # A page names a street file the cache does not have and the site does not either: the ride would have no street data. Say so (publish_timeline refuses
     # a stale build unless ALTO_ALLOW_STALE) instead of publishing a palace that silently lost its streets.
     for name in palace_street.LAST_MISSING:
@@ -367,7 +375,7 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _street_names(site_dir))
+    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir))
 
 
 def _csp(form_action: str) -> str:
@@ -396,7 +404,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, street_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, street_files=(), tex_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -428,6 +436,8 @@ def _headers(csp: str, connect_csp: str, street_files=()) -> list[dict]:
         # the request path, so a "/street/**" rule would stamp "immutable" on the 404 page a missing or not-yet-uploaded shard answers with, and the
         # browser would remember that failure for a year. Anything else under /street/ keeps the "**" rule's no-cache.
         *_street_rules(street_files),
+        # gfx: the ride's textures, one literal immutable rule per file that exists (as /street/: a 404 never gets one)
+        *_tex_rules(tex_files),
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).
         {"source": "/connect/**", "headers": [
@@ -439,6 +449,21 @@ def _headers(csp: str, connect_csp: str, street_files=()) -> list[dict]:
 def _blob_folders() -> tuple:
     from .build.palace_assets import BLOB_FOLDERS
     return BLOB_FOLDERS
+
+
+def _tex_names(site_dir) -> list:
+    """The ride's texture files in the site folder (build/palace_ride_gfx.py), only names of the published shape."""
+    if site_dir is None:
+        return []
+    from .build.palace_ride_gfx import TEX_FOLDER, TEX_RE
+    d = Path(site_dir) / TEX_FOLDER
+    return sorted(p.name for p in d.iterdir() if p.is_file() and TEX_RE.match(p.name)) if d.is_dir() else []
+
+
+def _tex_rules(names) -> list:
+    from .build.palace_ride_gfx import TEX_FOLDER, TEX_RE
+    return [{"source": "/%s/%s" % (TEX_FOLDER, n), "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if TEX_RE.match(n)]
 
 
 def _street_names(site_dir) -> list:
