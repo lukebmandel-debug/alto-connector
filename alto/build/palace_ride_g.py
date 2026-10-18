@@ -885,8 +885,8 @@ function placeReal(W, it){
     quv(c.t,P,MAT_TEXT,0,hx,hy,(z0+z1)/2,[rect[0],rect[3],rect[2],rect[3],rect[2],rect[1],rect[0],rect[1]]); }
   if(A && A.n){ var rowsN=Math.ceil(A.n/Math.floor(A.w/A.cw)), hf=64; while(hf<rowsN*A.ch) hf*=2; if(hf>A.h) hf=A.h; A.hf=hf;
     Object.keys(cells).forEach(function(k){ var t=cells[k].t; if(t) for(var q=0;q+9<t.n;q+=10) t.a[q+7]*=A.h/hf; }); atlasPaint(A); A.h=A.hf||A.h; W.atlas=A; }
-  Object.keys(cells).forEach(function(k){ var c=cells[k]; if(c.m.n) W.meshes.push({a:sfin(c.m), id:'scn-real:'+k+':'+(it.id||''), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75});
-    if(c.t && c.t.n && W.atlas) W.meshes.push({a:sfin(c.t), id:'scn-real-txt:'+k+':'+(it.id||''), cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75, tex:'atlas'}); });
+  Object.keys(cells).forEach(function(k){ var c=cells[k]; if(c.m.n) W.meshes.push({a:sfin(c.m), id:'scn-real:'+k, cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75});
+    if(c.t && c.t.n && W.atlas) W.meshes.push({a:sfin(c.t), id:'scn-real-txt:'+k, cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75, tex:'atlas'}); });
   W.lamps=new Float32Array(lampsN); return cnt; }
 /* the species the ride would give a street tree at (x,y): the plane tree on the avenues, the oval and the oak among them (pickSpecies' own mix, by position) */
 function treeKindAt(x,y,h){ return pickSpecies(-1,2,h==null?hash(Math.round(x*3)+Math.round(y*7)):h); }

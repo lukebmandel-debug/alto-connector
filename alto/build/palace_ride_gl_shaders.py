@@ -31,23 +31,24 @@ vec3 aces(vec3 x){ vec3 c=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); fl
 VS_WORLD = r"""
 attribute vec3 aP; attribute vec3 aN; attribute vec2 aUV; attribute vec2 aMT; attribute vec3 aDC; attribute vec2 aHA; attribute vec4 aI; attribute vec2 aT2;
 uniform mat4 uVP; uniform vec3 uEye; uniform float uInst; uniform mat4 uLP; uniform mat4 uLQ; uniform vec2 uNOff;
-varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ; varying float vFade;
+varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ; varying float vFade; varying float vFT;
 void main(){
   float pk=aMT.x; float aux=floor(pk/256.); float r=pk-aux*256.; float bias=floor(r/64.); float id=r-bias*64.;
   vec3 p=aP; vec3 n=aN; float tint=aMT.y;
   if(uInst>.5){ float c=cos(aI.w); float s=sin(aI.w); p=vec3(c*aP.x-s*aP.y, s*aP.x+c*aP.y, aP.z)+aI.xyz; n=vec3(c*aN.x-s*aN.y, s*aN.x+c*aN.y, aN.z); if(aT2.x>=0.) tint=aT2.x; }
-  vFade=1.; if(uInst>.5 && aT2.y>0.){ float dm=length(aI.xyz-uEye)/aT2.y; vFade=1.-smoothstep(.74,.98,dm); }
+  vFade=1.; vFT=0.; if(uInst>.5 && aT2.y>0.){ float dm=length(aI.xyz-uEye)/aT2.y; vFade=1.-smoothstep(.74,.98,dm); vFT=fract(sin(dot(aI.xy,vec2(12.9898,78.233)))*43758.5453); }   /* each instance leaves at its own distance (a fixed threshold per instance): no screen-space stipple that crawls as you walk */
   vP=p; vN=n; vUV=aUV; vM=vec4(id,aux,tint,bias); vDC=aDC; vHA=aHA;
-  vec3 q=p+(uEye-p)*bias*0.0022;
+  float bb=bias*0.0022; if(id>42.5&&id<43.5) bb+=(tint-.5)*.0034;     /* roadway ribbons overlap at junctions and bends on one plane: each carries a rank (tint, 0..1; palace_ride_street.py realRoadRanks) that picks the winner, so no lane line flickers in and out */
+  vec3 q=p+(uEye-p)*bb;
   vec3 nn=normalize(n); vSL=(uLP*vec4(p+nn*uNOff.x,1.)).xyz; vSQ=(uLQ*vec4(p+nn*uNOff.y,1.)).xyz;
-  gl_Position=uVP*vec4(q,1.);
+  gl_Position=uVP*vec4(q-uEye,1.);
 }
 """
 
 FS_WORLD = r"""
 varying vec3 vP; varying vec3 vN; varying vec2 vUV; varying vec4 vM; varying vec3 vDC; varying vec2 vHA; varying vec3 vSL; varying vec3 vSQ;
 uniform sampler2D uPal; uniform sampler2D uAtl; uniform vec2 uAtlS; uniform vec4 uLamp[12]; uniform vec3 uLampC; uniform float uIn;
-varying float vFade;
+varying float vFade; varying float vFT;
 uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size of the far map, z: its depth bias, w: the near map's depth bias */
 uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
 float pcf(sampler2D s, vec2 uv, float z, float ts){
@@ -286,7 +287,7 @@ vec3 asphalt(vec2 gp, float fpx){
   float pt=smoothstep(.55,.57,nz(gp*.07+17.)); a=mix(a,vec3(.18,.18,.19)*(.95+.1*nz(gp*3.)),pt*.55);
   return a; }
 void main(){
-  if(vFade<1.){ float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); if(vFade<dn) discard; }
+  if(vFade<1. && vFade<vFT) discard;
   float id=floor(vM.x+.5); float aux=floor(vM.y+.5); float T=vM.z;
   vec3 N=normalize(vN); vec3 toE=uEye-vP; float dist=length(toE); vec3 V=toE/dist;
   if(dot(N,V)<0.) N=-N;
@@ -439,9 +440,9 @@ void main(){
     vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.72)*vec3(.95,.98,.88);
     alb=lc*(.58+.46*nn)*(.88+.14*(1.-rr)); wrap=.7;
     ao*=(.5+.5*smoothstep(.0,4.,vP.z/UMc))*(.8+.2*(N.z*.5+.5));
-  } else {              /* a contact shadow on the ground: a stippled dark patch, its edge dissolved by a screen-space dither */
+  } else {              /* a contact shadow on the ground: a stippled dark patch, its edge dissolved by a dither fixed in world space */
     vec2 q=abs(vUV*2.-1.); float d=pow(q.x,3.)+pow(q.y,3.); float a=.7*(1.-smoothstep(.15,1.,d));
-    float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); if(dn>a) discard;
+    vec2 cq=floor(vP.xy/UMc*48.); float dn=h21(cq); dn=mix(dn,.5,smoothstep(.35,1.,dist*uPix/UMc*48.)); if(dn>a) discard;      /* stipple fixed on the ground (2 cm cells), fading to a plain edge where a pixel spans a cell: nothing crawls when you walk */
     alb=vec3(.02); ao=1.;
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
