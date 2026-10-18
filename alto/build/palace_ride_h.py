@@ -27,6 +27,7 @@ Station, the arena and the two grounds): then every dimension, height too, is sc
 JS_H_KIT = r"""
 /* ══ LANDMARKS (palace_ride_h.py): detailed models in the shared mesh format ══ */
 var LMV=1.3;                                                  /* map units per metre: UM */
+MAT.lime=32;                                                  /* plain warm limestone, no window grid (palace_ride_gl_shaders.py id 32) */
 function lmKey(n){ n=String(n||'');
   var T=[['usch',/byrne|601 market|united states court ?house.*philadelphia/i],['nix',/\bnix\b|900 market/i],['cjc',/criminal justice center|1301 filbert/i],['fam',/family court/i],['ind',/independence hall/i],['city',/city hall/i],
     ['art',/art museum|museum of art|philadelphia museum/i],['frank',/franklin institute/i],['conv',/convention cent(er|re)/i],['stn',/(30th|thirtieth) street station/i],['sub',/suburban station/i],['jef',/jefferson station/i],
@@ -92,8 +93,8 @@ function ldormer(F,dir,x,v,z,w,h,rise,depth,wm,rm,glass){ var d=LDIR[dir], S=F.S
 /* a small solid dome / ogee as a lathe: points are [r,z] in METRES about local (x,v) */
 function llathe(F,x,v,prof,seg,mat,soft,k){ MB.lathe(F.m,F.X(x),F.Y(v),prof.map(function(q){ return [q[0]*F.S,q[1]*F.S]; }),seg||12,mat,F.tint,k||1,soft!==false); }
 /* a paved or grassed ground patch over a local rectangle (a plaza, a lawn) a hair above the ground tiles */
-function lpatch(F,x0,v0,x1,v1,z,mat){ MB.cap(F.m,lring(F,[[x0,v0],[x1,v0],[x1,v1],[x0,v1]]),F.Z(z),mat,F.tint,1); }
-function lpatchBox(F,mat,inset,z){ var b=F.box, i=inset; MB.cap(F.m,[b[0]+i,b[1]+i,b[2]-i,b[1]+i,b[2]-i,b[3]-i,b[0]+i,b[3]-i],F.Z(z),mat,F.tint,1); }
+function lpatch(F,x0,v0,x1,v1,z,mat){ if(F.real) return; MB.cap(F.m,lring(F,[[x0,v0],[x1,v0],[x1,v1],[x0,v1]]),F.Z(z),mat,F.tint,1); }
+function lpatchBox(F,mat,inset,z){ if(F.real) return; var b=F.box, i=inset; MB.cap(F.m,[b[0]+i,b[1]+i,b[2]-i,b[1]+i,b[2]-i,b[3]-i,b[0]+i,b[3]-i],F.Z(z),mat,F.tint,1); }
 function lsteps(F,dir,x,v,w,n,rise,tread,z,mat){ var d=LDIR[dir]; MB.steps(F.m,F.X(x),F.Y(v),d[0],d[1],w*F.S,n,rise*F.S,tread*F.S,F.Z(z),mat,F.tint,1); }
 /* a superellipse / rounded plan as local [x,v] pairs: w across, d deep, front edge on v=0, exponent e */
 function lsuper(w,d,e,n,cv){ var o=[]; cv=cv==null?d/2:cv; for(var i=0;i<n;i++){ var t=6.2832*i/n, c=Math.cos(t), s=Math.sin(t); o.push([w/2*Math.sign(c)*Math.pow(Math.abs(c),2/e), cv+d/2*Math.sign(s)*Math.pow(Math.abs(s),2/e)]); } return o; }
@@ -267,19 +268,38 @@ function bFranklin(F){
   lfoot(F,-55,8,55,70,26); lfoot(F,-18,18,18,54,38); lfoot(F,-25,-3,25,9,28);
   return F.m; }
 
-/* ── 30th Street Station: the long Neoclassical block of pale stone, a front of giant columns, a cornice and a low roof, a lower wing at each end with its own colonnade (190 x 100 m, 36 m) ── */
+/* ── William H. Gray III 30th Street Station (Graham, Anderson, Probst & White, 1933), from the OSM footprint (way 32272623, part 749651799: 145 x 97 m, 35.4 m) and photos:
+   a long block of warm Alabama limestone; on each long side (west on 30th Street, east toward the river) a portico pavilion ~20 m deep: six fluted Corinthian columns 71 ft (21.6 m)
+   tall, 11 ft (3.35 m) across, in antis between two solid piers, two more down each side (ten a portico), a deep entablature with its cornice and a tall plain attic that runs back over
+   the concourse block (88 x 41 m inside) to the other portico; the lower wings either side (cornice ~20 m, a short attic) with tall steel-framed windows in plain stone walls.
+   Local frame: x along the 30th Street front (145 m), v from the west wall (0) to the east wall (97), the porticos at v -20..0 and 97..117. ── */
+function lceil(F,x0,v0,x1,v1,z,mat){ MB.cap(F.m,lring(F,[[x0,v0],[x1,v0],[x1,v1],[x0,v1]]),F.Z(z),mat,F.tint,1,true); }
+function stnPortico(F,dir){
+  var L='lime', s=dir==='s'?1:-1, D=97, P=20, vw=dir==='s'?0:D, vf=vw-s*P, i, z0=1.2;                 /* vw: the wall plane, vf: the portico front */
+  var va=Math.min(vw,vf), vb=Math.max(vw,vf);
+  lrect(F,-25,va,-18.4,vb,0,22.8,L,null,1,dir==='s'?2:1); lrect(F,18.4,va,25,vb,0,22.8,L,null,1,dir==='s'?2:1);            /* the antae: solid piers either end */
+  lrect(F,-25,va,25,vb,22.8,27.4,L,null,1,0); lceil(F,-18.4,va,18.4,vb,22.8,L);                                           /* entablature, its soffit the porch ceiling */
+  for(i=-3;i<=3;i++) if(i) lrect(F,-18.4,vw-s*P*(.5+i*.14)-.35,18.4,vw-s*P*(.5+i*.14)+.35,22.1,22.8,L,L,1,0);              /* coffer beams under it */
+  for(i=-2;i<=2;i++) lrect(F,i*6.2-.35,va+.6,i*6.2+.35,vb-.6,22.1,22.8,L,L,1,0);
+  lrect(F,-26,va-(s>0?1.2:0),26,vb+(s>0?0:1.2),0,z0,'concrete','concrete',1,0);                                          /* the granite platform */
+  lsteps(F,dir,0,vf-s*1.2,46,4,.3,.55,z0,'concrete');
+  var xs=[-14,-8.4,-2.8,2.8,8.4,14], vc=vf+s*2.1, cap=function(x,v){ MB.col(F.m,F.X(x),F.Y(v),F.Z(z0),F.Z(20.6),1.68*F.S,12,MAT.lime,F.tint,1);
+    llathe(F,x,v,[[1.62,20.5],[1.75,21.2],[2.05,21.9],[2.25,22.2]],10,L); lrect(F,x-2.35,v-2.35,x+2.35,v+2.35,22.2,22.8,L,L,1,0); };
+  xs.forEach(function(x){ cap(x,vc); }); [-14,14].forEach(function(x){ cap(x,vc+s*5.6); cap(x,vc+s*11.2); });               /* six across, two more down each side: ten */
+  [-9.4,0,9.4].forEach(function(x){ lrectd(F,dir,x,vw,z0,6.6,17.6,'dark',.3); lrectd(F,dir,x,vw,z0,3.2,4.6,'glass',.45); });   /* the tall glazed screens of the concourse behind the columns */  }
 function bStation(F){
-  var k=3.4/12, ST='stone', WH='white', RF='roof', CO='concrete', i;
+  var L='lime', RF='roof', CO='concrete', i, hw=72.5, D=97, cw=25;
   lpatchBox(F,'paving',11,.1);
-  lrect(F,-46,6,46,100,0,29,ST,null,k); lrect(F,-46,0,46,6.2,29,29.8,WH,WH,1,0);
-  for(i=0;i<9;i++){ var xw=-37.3+i*9.3; lrectd(F,'s',xw,6,3,5.2,17.5,'dark'); }
-  lcols(F,-42,42,1.8,10,1.6,27,1.45,WH,1,8);
-  lrect(F,-47,-.6,47,6.6,27,29.8,WH,WH,1,0); lrect(F,-48,-1.6,48,6.8,29.8,31.6,WH,WH,1,0); lroof(F,-45,6,45,94,31.6,[[24,3.6]],RF,1);
-  lrect(F,-44,-4,44,0,0,1.6,CO,CO,1,0); lsteps(F,'s',0,-4,60,4,.4,.9,1.6,CO);
-  [-1,1].forEach(function(sd){ var xa=sd*70; lrect(F,xa-25,3,xa+25,100,0,23,ST,null,3.4/11); lrect(F,xa-26,-.6,xa+26,3.4,23,25,WH,WH,1,0); lrect(F,xa-26,3,xa+26,100,25,25.6,ST,RF,1,0);
-    lcols(F,xa-18,xa+18,1.5,5,1.6,21.6,1.1,WH,1,8); for(i=0;i<4;i++) lrectd(F,'s',xa-13.5+i*9,3.4,3,4.2,15,'dark'); });
-  larch(F,'s',0,6,3,9,14,'dark',.5);
-  lfoot(F,-46,0,46,100,35); lfoot(F,-95,0,-45,100,25); lfoot(F,45,0,95,100,25);
+  [-1,1].forEach(function(sd){ var x0=sd<0?-hw:cw, x1=sd<0?-cw:hw, inner=sd<0?4:8;                                         /* the wings */
+    lrect(F,x0,0,x1,D,0,19.2,L,null,1,16|inner); lband(F,x0,0,x1,D,0,1.1,.25,CO,inner); lband(F,x0,0,x1,D,17.3,18.1,.22,L,inner); lband(F,x0,0,x1,D,19.2,20.3,.95,L,inner);
+    lrect(F,x0+(sd<0?.6:0),.6,x1-(sd>0?.6:0),D-.6,20.3,22.2,L,RF,1,inner);
+    var n=6, p=(x1-x0)/n; for(i=0;i<n;i++){ var xw=x0+p*(i+.5); lrectd(F,'s',xw,0,3.4,3.7,12.8,'dark'); lrectd(F,'n',xw,D,3.4,3.7,12.8,'dark'); }
+    var xe=sd<0?-hw:hw, m=12, q=D/m; for(i=0;i<m;i++) lrectd(F,sd<0?'w':'e',xe,q*(i+.5),3.4,3.7,12.8,'dark'); });
+  lrect(F,-cw,0,cw,D,0,27.4,L,null,1,16);                                                                                  /* the concourse block */
+  lband(F,-cw,-20,cw,D+20,27.4,28.9,1.05,L); lrect(F,-cw+.5,-19.5,cw-.5,D+19.5,28.9,35,L,RF,1,0); lparapet(F,-cw+.2,-19.8,cw-.2,D+19.8,35,.4,.7,L);   /* cornice, attic, coping */
+  for(i=0;i<5;i++){ var vv=8+i*20.2; lrectd(F,'e',cw,vv,22.6,4,4.4,'dark'); lrectd(F,'w',-cw,vv,22.6,4,4.4,'dark'); }    /* the clerestory over the wings */
+  stnPortico(F,'s'); stnPortico(F,'n');
+  lfoot(F,-hw,0,hw,D,22); lfoot(F,-cw,-20,cw,D+20,35.4);
   return F.m; }
 
 /* ── Penn Center Suburban Station: the 1930 Art Deco limestone tower over the commuter station: a broad base, two setbacks and a small slate cap (92 x 46 m, 78 m) ── */
@@ -560,7 +580,14 @@ function landmarkMeshes(l, floors, W){
   W.meshes.push({a:rec.a, id:l.n}); var i;
   if(LM_FOOT && rec.fp.length && typeof solid==='function'){ var old=W.solids.splice(n0), col=(old[0]&&old[0].col)||[200,200,208]; rec.fp.forEach(function(f){ var s=solid(f.r, f.h, col, 'lm', l.n); s.mesh=1; W.solids.push(s); }); }
   else for(i=n0;i<W.solids.length;i++) W.solids[i].mesh=1; }
-window._palRideLm={key:lmKey, build:function(l,f){ return lmBuild(l,f).a; }, mesh:landmarkMeshes, table:LMT};
+/* the same model for the REAL street world (palace_ride_street_lm.py places it on the real footprint): true scale (K = 1.3 units a metre), centred on the local origin
+   (x across, y = -v), no ground patches (the real ground is the street data's). Returns {a, fp:[{r,h}], bb:[x0,y0,x1,y1] of the footprint stand-ins} */
+function lmBuildReal(l, key){
+  var t=LMT[key]; if(!t||key==='gen') return null; var b=[-1e5,-1e5,1e5,1e5], F={m:MB.mk(), S:LMV, cx:0, fy:0, box:b, tint:hashXY(l.x||0,l.y||0), n:0, fp:[], real:true};
+  F.m.o=[0,0]; F.X=function(x){ return x*F.S; }; F.Y=function(v){ return -v*F.S; }; F.Z=function(z){ return z*F.S; }; F.key=key; F.floors=30; F.tint=lmPickTint(F,LMC[key]);
+  t[0](F,l); var bb=[1e9,1e9,-1e9,-1e9]; F.fp.forEach(function(f){ for(var i=0;i<f.r.length;i+=2){ bb[0]=Math.min(bb[0],f.r[i]); bb[1]=Math.min(bb[1],f.r[i+1]); bb[2]=Math.max(bb[2],f.r[i]); bb[3]=Math.max(bb[3],f.r[i+1]); } });
+  if(!F.fp.length) return null; return {a:MB.done(F.m), fp:F.fp, bb:bb}; }
+window._palRideLm={key:lmKey, build:function(l,f){ return lmBuild(l,f).a; }, mesh:landmarkMeshes, table:LMT, real:lmBuildReal};
 """
 
 JS_H_TABLE = r"""
@@ -570,7 +597,7 @@ LMC.ind={b:[.02,.16]}; LMC.conv={b:[.02,.16],g:[.2,.5]}; LMC.cbp={b:[.02,.16]}; 
 LMC.lib1={s:[.58,.78],g:[.0,.3]}; LMC.lib2={s:[.58,.78],g:[.0,.3]}; LMC.ccc={g:[.28,.5]}; LMC.ctc={s:[.3,.52],g:[.3,.5]}; LMC.bny={s:[.3,.52],g:[.5,.75]}; LMC.cira={g:[.72,.95]}; LMC.fmc={g:[.12,.34]};
 LMC.jef={g:[.3,.6]}; LMC.arena={g:[.2,.45]}; LMC.lff={g:[.2,.45]}; LMC.stad={g:[.2,.45]};
 /* key -> [builder, plan depth m, centred in its block?, (unused), plan width m, how far steps / canopies push out of the front face m] */
-LMT.city=[bCityHall,145,true,false,148,13.5]; LMT.ind=[bIndependence,22,false,false,105,1.5]; LMT.art=[bArt,110,false,false,198,9]; LMT.frank=[bFranklin,70,false,false,112,11]; LMT.stn=[bStation,100,false,false,192,8];
+LMT.city=[bCityHall,145,true,false,148,13.5]; LMT.ind=[bIndependence,22,false,false,105,1.5]; LMT.art=[bArt,110,false,false,198,9]; LMT.frank=[bFranklin,70,false,false,112,11]; LMT.stn=[bStation,117,false,false,145,22];
 LMT.sub=[bSuburban,46,false,false,94,3]; LMT.jef=[bJefferson,50,false,false,100,9]; LMT.conv=[bConvention,190,false,false,250,6];
 LMT.lib1=[bLib1,64,false,false,64,5]; LMT.lib2=[bLib2,56,false,false,56,5]; LMT.ccc=[bComcast,56,false,false,70,5]; LMT.ctc=[bCTC,50,false,false,92,5]; LMT.bny=[bBNY,66,false,false,66,5]; LMT.tls=[bTLS,58,false,false,58,5]; LMT.cira=[bCira,36,false,false,52,5]; LMT.fmc=[bFMC,36,false,false,52,5];
 LMT.usch=[bByrne,60,false,false,100,3]; LMT.nix=[bNix,60,false,false,122,3]; LMT.cjc=[bCJC,60,false,false,80,1]; LMT.fam=[bFamily,45,false,false,92,5]; LMT.court=[bCourt,45,false,false,92,5]; LMT.gen=[bGeneric,40,false,false,70,1];

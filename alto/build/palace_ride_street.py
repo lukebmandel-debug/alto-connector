@@ -35,7 +35,7 @@ REAL.street=function(){ return !!(window._palStreet && window._palStreet.ready &
 REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[], po=[], ar=[];
   function mp(a){ var o=[]; for(var i=0;i<a.length;i++){ var m=S.toMap(a[i][0],a[i][1],1); o.push(m[0],m[1]); } return o; }
   pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtfpa');
-    N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; b.push(a); });
+    N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; a.nm=d.nm||''; a.wd=d.wd||''; /* lm: names for palace_ride_street_lm.py */ b.push(a); });
     N.r.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.line), a=[d.hw||'residential'].concat(g); a.wd=d.wd?d.wd*.1:0; a.br=d.br; a.tn=d.tn; rr.push(a); rn.push(d.nm||''); });
     (N.a||[]).forEach(function(d){ if(seenO.has(d)||!d.ring||d.ring.length<3) return; seenO.add(d); ar.push({k:d.k||'', nm:d.nm||'', ring:mp(d.ring)}); });
     N.t.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); t.push([m[0],m[1],d.sp||'',d.lf||'']); });
@@ -271,8 +271,9 @@ function* gatherRealG(Xp, Yp, R, at){
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0) sol._rf=[wr,eave,kind,hashXY(bx*3,by*7),ci+','+cj]; kept++; });
+      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; sol.nm=f.nm||''; sol.wd=f.wd||''; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0) sol._rf=[wr,eave,kind,hashXY(bx*3,by*7),ci+','+cj]; kept++; });
     yield; }                                  /* one 400 m chunk done: roam's frame loop takes it from here, a few milliseconds at a time (palace_ride_e.py realGatherStep) */
+  if(typeof realLandmarks==='function') realLandmarks(W);        /* lm: the landmark models on their real footprints (palace_ride_street_lm.py) */
   realDedupe(W); yield;
   /* roofs and parapets AFTER the dedupe: a footprint the data lists twice (an outline and its part) drew two parapets on one plane, and a lowered roof keeps its parapet with it */
   W.solids.forEach(function(sd){ var q=sd._rf; if(!q||sd.nodraw) return; roofOf(roofMs[q[4]]||(roofMs[q[4]]=MB.mk()), q[0], q[1]+(sd.roofDz||0), q[2], q[3], sd.hide); roofs[q[2]]++; sd._rf=null; });

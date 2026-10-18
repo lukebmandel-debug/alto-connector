@@ -53,7 +53,7 @@ function solid(ring, h, col, kind, nm){ return {ring:ring, h:h, col:col, kind:ki
 var GROUND={0:1,10:1,11:1,12:1,13:1};
 function stats(l){ var W={solids:[],meshes:[]}; landmarkMeshes(l,30,W); var a=W.meshes.length?W.meshes[0].a:new Float32Array(0), n=a.length, bad=0, nb=0, wb=0, fin=true, tris=0, i;
   var mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9], matBad=0;
-  for(i=0;i<n;i+=10){ for(var k=0;k<10;k++) if(!isFinite(a[i+k])) fin=false; var nl=Math.hypot(a[i+3],a[i+4],a[i+5]); if(Math.abs(nl-1)>1e-3) nb++; if(!(a[i+8]>=0&&a[i+8]<=23&&a[i+8]===Math.floor(a[i+8]))) matBad++;
+  for(i=0;i<n;i+=10){ for(var k=0;k<10;k++) if(!isFinite(a[i+k])) fin=false; var nl=Math.hypot(a[i+3],a[i+4],a[i+5]); if(Math.abs(nl-1)>1e-3) nb++; if(!(((a[i+8]>=0&&a[i+8]<=23)||a[i+8]===32)&&a[i+8]===Math.floor(a[i+8]))) matBad++;
     if(!GROUND[a[i+8]]){ for(k=0;k<3;k++){ mn[k]=Math.min(mn[k],a[i+k]); mx[k]=Math.max(mx[k],a[i+k]); } } }
   for(i=0;i+30<=n;i+=30){ var P=[0,1,2].map(function(q){ return [a[i+q*10],a[i+q*10+1],a[i+q*10+2]]; }), N=[a[i+3],a[i+4],a[i+5]];
     var e1=[P[1][0]-P[0][0],P[1][1]-P[0][1],P[1][2]-P[0][2]], e2=[P[2][0]-P[0][0],P[2][1]-P[0][1],P[2][2]-P[0][2]], g=[e1[1]*e2[2]-e1[2]*e2[1],e1[2]*e2[0]-e1[0]*e2[2],e1[0]*e2[1]-e1[1]*e2[0]], gl=Math.hypot(g[0],g[1],g[2]);
