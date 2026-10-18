@@ -24,8 +24,7 @@ only (a phone keeps the engine's column of cards):
   systems, turns each slowly as a whole about its own sun; the bodies are moved by their own left/top (the
   D-GRID margin centring keeps them centred: never a transform, see
   engine_patches 1.8.28), rounded to device px so text stays crisp. Positions
-  are offsets from where initLayout put each circle, so a moved card keeps its
-  own ring. It stops at once on hover (a card or a line), focus, a search ring,
+  turned about each body's plan centre (t = 0). It stops at once on hover (a card or a line), focus, a search ring,
   dimmed cards, the detail page, edit mode (where it also turns back to t = 0,
   the plan's layout), print, a hidden tab and prefers-reduced-motion, and eases
   back in. The connections are redrawn as straight Alto tubes edge to edge
@@ -141,23 +140,23 @@ function face(n, id){
 }
 
 /* ── the layout: at the end of initLayout (engine patch solar-layout-hook),
-   before the lines are drawn. Every body's home is where initLayout put it. */
+   before the lines are drawn. Every body's home is its plan centre. */
 window._altoSolarLayout=function(pos){
   if(!desk()) return;
   world=document.getElementById('world'); if(!world) return;
   de.classList.add('alto-solar');
   PAD=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0;
   zq=(parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1);
-  var G=window._altoTreeGeo, TP=window._ALTO_TREE_PLAN, NM={};
+  var NM={};
   if(typeof NODES!=='undefined') NODES.forEach(function(n){ NM[n.id]=n; });
   ORD.forEach(function(id){
     var b=B[id], n=document.getElementById('node-'+id), P=S.nodes[id]||{};
     b.n=n; b.c=n ? n.querySelector('.node-card') : null; if(!n) return;
-    /* the tree's own x (initLayout's numeral check may have nudged style.left);
-       the plan's when the page's tree plan is not the solar one */
-    var wired=TP && TP.x && TP.x[id]!=null && Math.abs(TP.x[id]-P.x)<1;
-    b.hx=(wired && G && G.x[id]!=null) ? G.x[id] : P.x;
-    b.hy=((wired && pos && pos[id]!=null) ? pos[id] : P.y)+PAD;
+    /* the plan's centre: circles are never dragged, and whatever the page's
+       plan runner did (edit mode lays a tree out with its own; initLayout's
+       numeral check nudges cards at the right edge) the orbit is the plan's */
+    b.hx=P.x; b.hy=P.y+PAD;
+    if(pos) pos[id]=P.y;
     n.setAttribute('data-solar', b.role); n.style.setProperty('--sd', b.d+'px');
     b.rx=b.ry=null; b.x=b.hx; b.y=b.hy;
     if(NM[id]){ NM[id].displayX=b.hx; NM[id].y=b.hy-PAD; }
