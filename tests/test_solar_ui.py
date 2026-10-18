@@ -97,7 +97,7 @@ def test_create_timeline_explains_the_solar_layout_and_its_two_styles():
     doc = " ".join(srv.create_timeline.__doc__.split())
     for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "hub_style?: 'orbit'|'spoke'", "SUN", "PLANETS", "MOONS",
                  "SATELLITES", "planets' order is the outline's order", "innermost ring",
-                 "one unit", "several units", "per timeline", "single-column"):
+                 "ONE unit", "just one", "several units", "per timeline", "single-column"):
         assert want in doc, want
 
 
@@ -406,6 +406,16 @@ def _edit_ops(pg):
     return pg.evaluate("JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(k=>k.indexOf('alto-ed-')===0)[0]) || '{\"ops\":{}}').ops")
 
 
+def _ctl(pg, card, x):
+    """A card's small control (addc, linkc, …), pressed directly: circles that
+    overlap or move would otherwise take the pointer from the card under them."""
+    pg.evaluate(f"document.getElementById('node-{card}').scrollIntoView({{block:'center'}})")
+    pg.wait_for_timeout(200)
+    pg.evaluate(f"document.querySelector('#node-{card} .node-title').dispatchEvent(new MouseEvent('mouseover', {{bubbles: true}}))")
+    assert pg.evaluate(f"(()=>{{var b=document.querySelector('#node-{card} .aed-cc button[data-x=\"{x}\"]'); if(!b) return false; b.click(); return true;}})()"), (card, x)
+    pg.wait_for_timeout(250)
+
+
 def _toast(pg):
     return pg.evaluate("(document.getElementById('aed-toast')||{}).textContent || ''")
 
@@ -436,16 +446,12 @@ def test_a_card_cannot_be_added_or_moved_past_the_satellites_but_can_elsewhere(b
     sat = "unit-1-a1x"
     pg.evaluate(f"document.getElementById('node-{sat}').scrollIntoView({{block:'center'}})")
     pg.wait_for_timeout(250)
-    pg.hover(f"#node-{sat} .node-title")
-    pg.click(f'#node-{sat} .aed-cc button[data-x="addc"]')
-    pg.wait_for_timeout(300)
+    _ctl(pg, sat, "addc")
     assert "sun, planet, moon, satellite" in _toast(pg) and not [k for k in _edit_ops(pg) if k.startswith("nn|")]
     def move(card, under):
         pg.evaluate(f"document.getElementById('node-{card}').scrollIntoView({{block:'center'}})")
         pg.wait_for_timeout(200)
-        pg.hover(f"#node-{card} .node-title")
-        pg.click(f'#node-{card} .aed-cc button[data-x="linkc"]')
-        pg.wait_for_timeout(200)
+        _ctl(pg, card, "linkc")
         pg.evaluate(f"document.querySelector('#node-{under} .node-card').click()")
         pg.wait_for_timeout(600)
 
@@ -471,9 +477,7 @@ def test_a_card_cannot_be_added_or_moved_past_the_satellites_but_can_elsewhere(b
 def test_the_solar_layer_is_told_about_every_structural_change(browser, edit_url):
     pg, errs = _editing(browser, edit_url, hook=True)
     pg.evaluate("document.getElementById('node-unit-1-b').scrollIntoView({block:'center'})")
-    pg.hover("#node-unit-1-b .node-title")
-    pg.click('#node-unit-1-b .aed-cc button[data-x="linkc"]')
-    pg.wait_for_timeout(200)
+    _ctl(pg, "unit-1-b", "linkc")
     pg.evaluate("document.querySelector('#node-unit-1-a .node-card').click()")
     pg.wait_for_timeout(900)
     calls = pg.evaluate("window.__sync")
@@ -486,9 +490,7 @@ def test_the_solar_layer_is_told_about_every_structural_change(browser, edit_url
 def test_without_the_solar_layer_a_change_is_saved_and_said_to_wait_for_the_next_build(browser, edit_url):
     pg, errs = _editing(browser, edit_url, hook=False)
     pg.evaluate("document.getElementById('node-unit-1-b').scrollIntoView({block:'center'})")
-    pg.hover("#node-unit-1-b .node-title")
-    pg.click('#node-unit-1-b .aed-cc button[data-x="linkc"]')
-    pg.wait_for_timeout(200)
+    _ctl(pg, "unit-1-b", "linkc")
     pg.evaluate("document.querySelector('#node-unit-1-a .node-card').click()")
     pg.wait_for_timeout(900)
     assert "rp|unit-1-b" in _edit_ops(pg)

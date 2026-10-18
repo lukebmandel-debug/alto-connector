@@ -1020,8 +1020,9 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       concept (no `parent`) is the SUN, its children PLANETS, theirs MOONS and
       theirs SATELLITES — nothing deeper (that is refused, restructure). The
       planets' order is the outline's order: the first sits on the innermost
-      ring, later ones outward. One system for the whole outline = one unit;
-      several units = one system each, side by side. No placement hints apply
+      ring, later ones outward. One system for the whole outline = ONE unit
+      (a solar outline may have just one; every other layout needs at least 2
+      `acts`); several units = one system each, side by side. No placement hints apply
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
      hub_style?: 'orbit'|'spoke' (layout 'solar' only; default 'orbit').
@@ -2107,8 +2108,10 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     sun, planets, moons, satellites by depth, planet order = outline order; the
     report then describes the systems instead of tree crossings.
     hub_style: 'orbit' (default; a moving solar system) or 'spoke' (a still
-    hub-and-spoke); only with layout 'solar', whether passed here or already
-    in the brief. '' keeps the brief's.
+    hub-and-spoke, circular nodes too); only with layout 'solar', whether
+    passed here or already in the brief. '' keeps the brief's. A solar outline
+    may have a single unit (one system); anything deeper than sun, planet,
+    moon, satellite is refused, naming the card and its path.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
