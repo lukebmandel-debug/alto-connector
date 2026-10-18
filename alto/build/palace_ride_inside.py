@@ -35,19 +35,22 @@ function inSpans(Lm,dpar){
     for(var k=0;k<nw;k++){ var c=s0+slot*(k+.5), w0=c-ww/2, w1=c+ww/2; out.push({t:'p',a:pe,b:w0}); out.push({t:'w',a:w0,b:w1}); pe=w1; }
     out.push({t:'p',a:pe,b:s1}); });
   return out; }
+/* which edge of the ring holds the door, and how many metres along it (the same for the shell and for the window list) */
+function inDoorEdge(ring,dr){ var n=ring.length/2, K=UM, de=-1, dpar=0, db=1e18;
+  for(var i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], ex=ring[2*j]-ax, ey=ring[2*j+1]-ay, l2=ex*ex+ey*ey||1e-9, t=Math.max(0,Math.min(1,((dr.x-ax)*ex+(dr.y-ay)*ey)/l2)), px=ax+ex*t-dr.x, py=ay+ey*t-dr.y, q=px*px+py*py;
+    if(q<db){ db=q; de=i; dpar=t*Math.sqrt(l2)/K; } }
+  return {de:de, dpar:dpar}; }
 /* the middle of every window opening: {x,y} just inside the wall, {nx,ny} into the room, {edge,len} */
-function insideWindows(ring,sg,win){ var n=ring.length/2, K=UM, o=[];
+function insideWindows(ring,sg,win,door){ var n=ring.length/2, K=UM, o=[], dd=door?inDoorEdge(ring,door):{de:-1,dpar:-1};
   for(var i=0;i<n;i++){ if(win && !win[i]) continue; var j=(i+1)%n, Ax=ring[2*i], Ay=ring[2*i+1], dx=ring[2*j]-Ax, dy=ring[2*j+1]-Ay, l=Math.hypot(dx,dy); if(l<.5) continue; var ux=dx/l, uy=dy/l, nx=-sg*dy/l, ny=sg*dx/l;
-    inSpans(l/K,-1).forEach(function(it){ if(it.t!=='w') return; var m=(it.a+it.b)/2*K; o.push({x:Ax+ux*m, y:Ay+uy*m, nx:nx, ny:ny, edge:i, len:it.b-it.a}); }); }
+    inSpans(l/K,i===dd.de?dd.dpar:-1).forEach(function(it){ if(it.t!=='w') return; var m=(it.a+it.b)/2*K; o.push({x:Ax+ux*m, y:Ay+uy*m, nx:nx, ny:ny, edge:i, len:it.b-it.a}); }); }
   return o; }
 /* d = {ring (flat, decimated), area sign, zb, fa, fb, door:{x,y,nx,ny}, board:{x,y,nx,ny}|null}; returns a GBuf */
 function glInside(b,d){
   var ring=d.ring, n=ring.length/2, sg=d.sg, K=UM, FH=IN_FH*K, i, f;
   glDC(null); _gH=0; _gL=0;
   /* which edge holds the door, and where along it */
-  var de=-1, dpar=0, db=1e18, dr=d.door;
-  for(i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], ex=ring[2*j]-ax, ey=ring[2*j+1]-ay, l2=ex*ex+ey*ey||1e-9, t=Math.max(0,Math.min(1,((dr.x-ax)*ex+(dr.y-ay)*ey)/l2)), px=ax+ex*t-dr.x, py=ay+ey*t-dr.y, q=px*px+py*py;
-    if(q<db){ db=q; de=i; dpar=t*Math.sqrt(l2)/K; } }
+  var dd0=inDoorEdge(ring,d.door), de=dd0.de, dpar=dd0.dpar;
   for(f=d.fa; f<=d.fb; f++){
     var z0=d.zb+IN_F0*K+f*FH, zc=z0+FH-.25*K, z0f=z0;
     gflat(b,ring,z0,28,0,true);                                   /* the floor */
@@ -252,7 +255,7 @@ function insideKey(e){
   return false; }
 var INSIDEAPI={ on:function(){ return IN.on; }, go:insideGo, leave:insideLeave, open:insideOpen, step:function(ms){ insideGlide(ms); }, frame:insideFrame, 
   state:function(){ return {on:IN.on, busy:IN.busy, floor:IN.f, floors:IN.nf, z:IN.z, gliding:!!IN.gl, near:IN.near, name:IN.name, id:IN.id, builds:IN.builds, board:IN.board, door:IN.door, shell:GLX.inside?{n:GLX.inside.n}:null, label:IN.ui?IN.ui.fln.textContent:''}; },
-  windows:function(){ return IN.on?insideWindows(IN.ring,IN.sg,IN.win):[]; }, room:function(){ return IN.on?{kind:IN.kind,ring:IN.ring.slice(),items:IN.items.length,win:IN.win}:null; }, boardData:function(){ return IN.bd; }, blocked:function(x,y){ return IN.on?insideBlocked(x,y):null; }, shell:function(){ return GLX.inside; } };
+  windows:function(){ return IN.on?insideWindows(IN.ring,IN.sg,IN.win,IN.door):[]; }, room:function(){ return IN.on?{kind:IN.kind,ring:IN.ring.slice(),items:IN.items.length,win:IN.win}:null; }, boardData:function(){ return IN.bd; }, blocked:function(x,y){ return IN.on?insideBlocked(x,y):null; }, shell:function(){ return GLX.inside; } };
 """
 
 CSS_INSIDE = r"""
