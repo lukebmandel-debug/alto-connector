@@ -181,7 +181,7 @@ def test_a_repeated_word_is_stored_once_and_it_is_small():
     for sh in shards.values():
         assert sh["S"].count("flat") <= 1 and sh["S"].count("house") <= 1 and sh["S"].count("Walnut St") == 0       # (the address is one string "12 Walnut St")
     total = sum(man["f"].values())
-    assert len(gzip.compress("".join(ps.encode(s) for s in shards.values()).encode())) < 150_000 and total / 400 < 110
+    assert len(gzip.compress("".join(ps.encode(s) for s in shards.values()).encode())) < 150_000 and total / 400 < 145       # (110 before the 2.0.0 accuracy block)
 
 
 # ── the style resolver ───────────────────────────────────────────────────────
