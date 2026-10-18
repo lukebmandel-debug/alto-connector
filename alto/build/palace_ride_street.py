@@ -255,7 +255,7 @@ function* gatherRealG(Xp, Yp, R, at){
     ch.r.forEach(function(f){ if(seenR[f.wid]) return; seenR[f.wid]=1; var w=((f.wd>0?f.wd:(RCLS[f[0]]||[7,.2])[0]))*K, sw=(RCLS[f[0]]||[7,.2])[1];
       for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, mx=(x0+x1)/2, my=(y0+y1)/2; if(Math.abs(mx/K-cx)>R||Math.abs(my/K-cy)>R) continue; var l=Math.hypot(x1-x0,y1-y0); if(l<.5) continue;
         if(sw>0){ var nx=-(y1-y0)/l, ny=(x1-x0)/l, off=w/2+1.6*K; [-1,1].forEach(function(sd){ W.tiles.push({ring:strip(x0+nx*off*sd,y0+ny*off*sd,x1+nx*off*sd,y1+ny*off*sd,3.2*K,w*.18), cx:mx+nx*off*sd, cy:my+ny*off*sd, r:l/2+w, sw:1}); }); }
-        W.roads.push({x0:x0,y0:y0,x1:x1,y1:y1,w:w,cx:mx,cy:my,r:l/2+w, cls:f[0]});
+        W.roads.push({x0:x0,y0:y0,x1:x1,y1:y1,w:w,cx:mx,cy:my,r:l/2+w, cls:f[0], br:f.br||0});
         if(a===1 && sw>0 && w>=7*K) procW.push(f);
         if(sw>=.3 && w>=9*K && l>30*K){ var ux=(x1-x0)/l, uy=(y1-y0)/l; for(var p=8*K;p<l-8*K;p+=22*K){ var ax=x0+ux*p, ay=y0+uy*p; W.dashes.push({ring:strip(ax,ay,ax+ux*9*K,ay+uy*9*K,.35*K,0), cx:ax, cy:ay}); } } } });
     (ch.a||[]).forEach(function(f){ if(f._gs===gs) return; f._gs=gs; var bb=f.bb; if(!bb||bb[2]<cx-R||bb[0]>cx+R||bb[3]<cy-R||bb[1]>cy+R||W.parks.length>=300) return;       /* real ground: a park / garden / pitch is grass, parking is asphalt (palace_ride_gl.py glBase: o.mat); the rest is paving */
@@ -280,6 +280,7 @@ function* gatherRealG(Xp, Yp, R, at){
      meshes all follow this order - a regather from another centre flipped which of two coplanar walls was drawn (another building's colour) and rebuilt identical cells */
   W.solids.sort(function(p,q){ return (p.cx-q.cx)||(p.cy-q.cy)||(p.h-q.h)||((p.z0||0)-(q.z0||0))||(p.n-q.n); });
   if(typeof realLandmarks==='function') realLandmarks(W);        /* lm: the landmark models on their real footprints (palace_ride_street_lm.py) */
+  if(typeof realWater==='function') realWater(W,cx,cy,R);        /* water: rivers, ponds, fountains, piers (palace_ride_water.py) */
   realDedupe(W); yield;
   /* roofs and parapets AFTER the dedupe: a footprint the data lists twice (an outline and its part) drew two parapets on one plane, and a lowered roof keeps its parapet with it */
   W.solids.forEach(function(sd){ if(sd.nodraw&&sd.shop) sd.shop._hide=1; var q=sd._rf; if(!q||sd.nodraw) return; roofOf(roofMs[q[4]]||(roofMs[q[4]]=MB.mk()), q[0], q[1]+(sd.roofDz||0), q[2], q[3], sd.hide); roofs[q[2]]++; sd._rf=null; });

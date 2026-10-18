@@ -91,7 +91,7 @@ function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Ma
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
 function blockedAt(x,y){
   if(IN.on) return insideBlocked(x,y);                             /* inside a building: its footprint is the room (palace_ride_inside.py) */
-  if(S.real) return buildingHit(x,y)||obstHit(x,y);
+  if(S.real) return buildingHit(x,y)||obstHit(x,y)||(typeof realWaterHit==='function'&&realWaterHit(x,y,S.W,PRX()));      /* not into the water (palace_ride_water.py) */
   if(x<CFG.edge || y<CFG.edge || x>E.M.W-CFG.edge || y>E.M.H-CFG.edge) return true;
   if(inWaterZone(x,y,0) && !onDeck(x,y)) return true;
   return buildingHit(x,y); }

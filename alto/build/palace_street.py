@@ -57,6 +57,10 @@ CELL    (ix, iy) covers units [ix*cs, (ix+1)*cs) east and [iy*cs, ...) north. A 
   t trees, flat 4-tuples x, y, species, leaf      f furniture, flat 4-tuples x, y, kind, dir   (kind: street_lamp traffic_signals crossing stop bus_stop bench bicycle_parking
   waste_basket post_box fire_hydrant; dir = compass bearing the thing faces/controls + 1, 0 = unknown: from direction=* or forward/backward along the way)
   p storefront signs / POIs with a name, flat 5-tuples x, y, name, cat, ad       e entrances and doors, flat 3-tuples x, y, kind ("entrance=main", "door=hinged")
+    ── 2.0.1 water (palace_street_water.py; appended keys an old client ignores) ──
+  q water pieces [ring, [k, nm, h]] cut PER CELL (unlike buildings): outer rings counter-clockwise, islands (h 1) clockwise, the union is the non-zero rule
+  v waterways [line, [k, wd]]   o water points, flat 3-tuples x, y, kind ("fountain")   k piers / quays / bridges [ring or line, [k, closed, wd]]
+  (natural=wood/scrub/grassland/wetland/heath and landuse=meadow/forest join `a`; water is written to the in-bounds cells and those within 600 m of them)
 
 Data side, like palace_fleet.py: fetch() asks Overpass tile by tile (street-<tile>.json in the same cache dir, polite, offline = the cache only); the building tiles are the
 ones the fill-in already cached (bld-<tile>.json, palace_map.fetch_buildings). palace_street_style.py fills the gaps of the sparse OSM tags. build() makes (manifest, shards);
@@ -682,7 +686,7 @@ def _coverage(blk, recs, city):
     return rep
 
 
-def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=None, report=None):
+def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=None, report=None, water_raw=None):
     """(manifest, shards) for the box: shards {id: {"S": [...], "c": {cell key: cell}}} (one per GROUP x GROUP cells, each with its own string table, named by the hash
     of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}. city: {"opa": rows, "lif": rows, "notes": [..]} (palace_street_city; None = OSM only).
     report: an optional dict the build fills with coverage counts (palace_street_acc.coverage)."""
@@ -833,11 +837,40 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=N
         if hs:
             rec.append(hs)
         put(k, "a", rec)
+    # ── 2.0.1 water (palace_street_water.py): q water pieces cut per cell, v waterways, o fountains, k piers/quays/bridges; the green land along the banks joins `a` ──
+    wcells: dict = {}
+    if water_raw:
+        from . import palace_street_water as pw
+        wp = pw.parse(water_raw)
+        for key, ring, holes, t in sorted(wp["green"], key=lambda a: (round(a[1][0][0], 7), round(a[1][0][1], 7), a[0])):
+            pts = quant(ring)
+            if len(pts) < 3:
+                continue
+            cx, cy = sum(p[0] for p in pts) // len(pts), sum(p[1] for p in pts) // len(pts)
+            if not fr.inside(cx, cy):
+                continue
+            k = fr.cell(cx, cy)
+            rec = [_delta(local(pts, k)), _trim([t["_kind"], str(t.get("name") or ""), "", ""])]
+            hs = [_delta(local(q, k)) for q in (quant(h_) for h_ in holes) if len(q) >= 3]
+            if hs:
+                rec.append(hs)
+            put(k, "a", rec)
+
+        def wput(k, key, rec):
+            wcells.setdefault("%d,%d" % k, {}).setdefault(key, []).append(rec)
+
+        def wflat(k, key, items):
+            wcells.setdefault("%d,%d" % k, {}).setdefault(key, []).extend(items)
+        pw.add(fr, wp, wput, wflat, lambda ll, rec_of: list(cut(ll, rec_of)), quant)
 
     ib = None
     if scope is not None:                                       # out of bounds: a cell that does not touch the region (+ buffer) is not written, the manifest says what is
         keep = scope.cells(CS * Q, fr.nx, fr.ny)
         cells = {k: v for k, v in cells.items() if tuple(int(t) for t in k.split(",")) in keep}
+        if wcells:                                              # water reaches WATER_REACH_M past the region (the river beside an in-bounds district)
+            from . import palace_street_water as pw
+            wkeep = pw.reach(scope, keep, fr.nx, fr.ny, CS * Q)
+            wcells = {k: v for k, v in wcells.items() if tuple(int(t) for t in k.split(",")) in wkeep}
         runs: dict = {}
         for ix, iy in sorted(keep, key=lambda c: (c[1], c[0])):
             r = runs.setdefault(iy, [])
@@ -846,6 +879,8 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=N
             else:
                 r.append([ix, ix])
         ib = {"b": int(scope.buffer), "r": [[iy, a, b] for iy in sorted(runs) for a, b in runs[iy]]}
+    for ck, wv in wcells.items():
+        cells.setdefault(ck, {}).update(wv)
     # shards: GROUP x GROUP cells each, a string table of their own
     groups: dict = {}
     for ck in sorted(cells, key=lambda s: tuple(int(v) for v in s.split(","))):
@@ -1063,7 +1098,9 @@ def make(bbox, cache_dir=None, offline: bool = False, log=None, directory=None, 
         city = dict(city or {})
         city["wd"], city["wdp"] = wd.get("wd") or {}, wd.get("wdp") or []
         city["notes"] = list(city.get("notes") or []) + list(wd.get("notes") or [])
-    man, shards = build(bbox, braw, fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope, city=city, report=LAST_REPORT)
+    from . import palace_street_water as pw
+    wraw = None if os.environ.get("ALTO_STREET_WATER", "1") == "0" else pw.fetch(bbox, cache_dir=cache_dir, offline=offline, log=log)
+    man, shards = build(bbox, braw, fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope, city=city, report=LAST_REPORT, water_raw=wraw)
     if not man["c"]:
         return None
     h = store(man, shards, directory)
@@ -1141,6 +1178,8 @@ def decode_cell(man: dict, key: str, shards: dict):
         d = props(AFIELDS, set(AFIELDS), rec[1])
         d["ring"], d["holes"] = line(rec[0]), [line(h) for h in (rec[2] if len(rec) > 2 else [])]
         out["a"].append(d)
+    from . import palace_street_water as pw
+    out.update(pw.decode(c, S, ox, oy, q, line))
     for key_, width, names in (("t", 4, ("sp", "lf")), ("f", 4, ("kind", "dir")), ("p", 5, ("name", "cat", "ad")), ("e", 3, ("kind",))):
         a = c.get(key_, [])
         for i in range(0, len(a), width):
