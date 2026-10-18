@@ -27,7 +27,7 @@ from alto.build.brief import Act, Brief, BriefError, Node, validate_brief, valid
 from alto.build.builder import build_timeline, load_brief, place, run_layout  # noqa: E402
 from alto.build import detail_extras as dx  # noqa: E402
 from alto.build.layout import plan_js, run_plan  # noqa: E402
-from alto.build.solar import SOLAR, solar_heights, solar_plan, solar_tree_plan  # noqa: E402
+from alto.build.solar import SOLAR, body_d, solar_heights, solar_plan, solar_tree_plan  # noqa: E402
 
 NODE = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
 needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
@@ -280,22 +280,62 @@ def test_an_order_hint_reorders_the_rings():
     assert plan["systems"][0]["planets"][0]["id"] == "u1-p3"
 
 
-def test_sizes_are_fixed_per_role_and_a_pivotal_planet_is_one_size_up():
-    b, nodes = _outline([[[1], [0]], [[2]]], flags=[{"id": "pivotal", "name": "Pivotal"},
-                                                     {"id": "revisit", "name": "Revisit"}])
+def test_a_body_grows_with_its_children_and_the_tiers_keep_their_order():
+    T = SOLAR["TIERS"]
+    # a tier per two children, clamped below the bump-only top of each ladder
+    assert [body_d("planet", m) for m in range(10)] == [96, 110, 110, 124, 124, 138, 138, 152, 152, 152]
+    assert [body_d("moon", k) for k in range(8)] == [50, 58, 58, 66, 66, 74, 74, 74]
+    assert body_d("sat", 0) == 34 and body_d("sat", 0, True) == 40
+    assert body_d("planet", 99, True) == T["planet"][-1] == 166
+    assert body_d("moon", 99, True) == T["moon"][-1] == 82
+    # sun > every planet > every moon > every satellite, bumps included
+    assert SOLAR["D"]["sun"] > max(T["planet"]) and min(T["planet"]) > max(T["moon"]) > max(T["sat"])
+
+
+def test_sizes_follow_child_counts_and_an_extreme_flag_bumps_one_tier():
+    b, nodes = _outline([[[0] * 7, [0], [], [5, 0, 1]], [[2]]],
+                        flags=[{"id": "pivotal", "name": "Pivotal"},
+                               {"id": "imp", "name": "Extreme importance"},
+                               {"id": "key-case", "name": "Key case"}])
     by = {n.id: n for n in nodes}
-    by["u1-p1"].flags = ["pivotal"]
-    by["u1-p2"].flags = ["revisit"]
+    by["u1-p2"].flags = ["pivotal"]
+    by["u1-p3"].flags = ["key-case"]                   # not an extreme flag: no bump
+    by["u1-p4-m1"].flags = ["imp"]
+    by["u2-p1-m1-s1"].flags = ["pivotal"]
     plan = solar_plan(b, nodes)
-    D = SOLAR["D"]
-    role_d = {"sun": D["sun"], "moon": D["moon"], "sat": D["sat"]}
-    for i, n in plan["nodes"].items():
-        if n["role"] == "planet":
-            assert n["d"] == (D["planet_big"] if i == "u1-p1" else D["planet"]), i
-        else:
-            assert n["d"] == role_d[n["role"]]
-    assert D["sun"] > D["planet_big"] > D["planet"] > D["moon"] > D["sat"]
+    d = {i: n["d"] for i, n in plan["nodes"].items()}
+    assert d["u1"] == d["u2"] == SOLAR["D"]["sun"]
+    assert d["u1-p1"] == 152                           # 7 moons
+    assert d["u1-p2"] == 124                           # 1 moon (110) + pivotal
+    assert d["u1-p3"] == 96                            # no moons; "key case" is no bump
+    assert d["u1-p4"] == 124                           # 3 moons
+    assert d["u1-p4-m1"] == 82                         # 5 satellites (74) + extreme importance
+    assert d["u1-p4-m2"] == 50 and d["u1-p4-m3"] == 58
+    assert d["u2-p1-m1-s1"] == 40 and d["u2-p1-m1-s2"] == 34
+    assert plan["sizes"]["bump"] == ["imp", "pivotal"]
+    # the systems' bodies carry the same diameters as the nodes
+    for s in plan["systems"]:
+        for p in s["planets"]:
+            assert p["d"] == d[p["id"]]
+            for m in p["moons"]:
+                assert m["d"] == d[m["id"]] and all(q["d"] == d[q["id"]] for q in m["sats"])
     _check(plan)
+
+
+@pytest.mark.parametrize("style", ["orbit", "spoke"])
+def test_twelve_planets_of_eight_moons_all_at_the_largest_sizes(style):
+    """The heaviest case: every planet at the top of its ladder (bumped), every
+    moon too, satellites bumped — still no overlap anywhere."""
+    units = [[[5, 0, 6, 1, 2, 0, 3, 4] for _ in range(12)]]
+    flags = [{"id": "pivotal", "name": "Pivotal"}]
+    b, nodes = _outline(units, style, flags=flags)
+    for n in nodes:
+        if n.parent:
+            n.flags = ["pivotal"]
+    plan = solar_plan(b, nodes)
+    assert {n["d"] for n in plan["nodes"].values() if n["role"] == "planet"} == {166}
+    assert max(n["d"] for n in plan["nodes"].values() if n["role"] == "moon") == 82
+    _check(plan, times=(0, 31.0, 77.7))
 
 
 def test_orbit_periods_inner_faster_and_spoke_still():

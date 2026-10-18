@@ -8,7 +8,17 @@ validation error (brief._check_solar_depth), never flattened.
 
 solar_plan(brief, nodes) is pure and deterministic: the same outline always
 gives the same plan, and nothing here needs a browser — every circle has a
-fixed diameter for its role (SOLAR["D"]), so no card is measured.
+diameter fixed by the outline alone (sizes below), so no card is measured.
+
+Sizes (Luke, round 2): the sun is the largest body whatever it holds. A
+planet's diameter goes up a tier with every two moons it has, a moon's with
+every two satellites (SOLAR["TIERS"], clamped at the last tier); a satellite
+is the smallest. A node carrying an extreme-importance flag (BUMP_FLAGS: a
+brief flag whose id or name is exactly "pivotal", "critical" or "extreme
+importance") is one tier larger, past the clamp if need be. The tiers keep a
+strict order — sun > every planet > every moon > every satellite — and every
+gap and ring radius below is computed from the actual diameters, so the
+no-overlap guarantees hold for any mix.
 
 Geometry. Each planet carries its moons (and their satellites) inside a disc of
 radius `e` round its own centre. In the orbit style the rings are spaced so
@@ -29,7 +39,11 @@ The plan (the contract with solar_draw.py, which reads window._ALTO_SOLAR):
 
   {"style": "orbit"|"spoke", "spin": -1,
    "world": {"w", "h"},
-   "sizes": {"sun", "planet", "planet_big", "moon", "sat"},     # diameters
+   "sizes": {"sun", "planet", "planet_big", "moon", "sat", "tiers", "bump"},
+            # per-ROLE reference only: sun / planet / moon / sat are the base
+            # (childless, unflagged) diameters, planet_big the largest a planet
+            # can be, tiers the per-role ladders, bump the flag ids that bump.
+            # The diameter to draw is always the node's own `d`.
    "systems": [{"unit": act index, "label", "sun", "cx", "cy", "r_sun", "R",
                 "bbox": [x0, y0, x1, y1],
                 "planets": [{"id", "ring", "r", "a0", "d", "period", "e",
@@ -58,8 +72,14 @@ import math
 from .brief import BriefError, SOLAR_ROLES
 
 SOLAR = {
-    # fixed diameters per role; a flagged planet (BUMP_FLAG_WORDS) is one size up
-    "D": {"sun": 184, "planet": 108, "planet_big": 132, "moon": 62, "sat": 34},
+    # base diameters per role (no children, no flag)
+    "D": {"sun": 184, "planet": 96, "moon": 50, "sat": 34},
+    # the size ladders: a planet's tier is ceil(moons / 2) (clamped to the
+    # ladder), a moon's ceil(satellites / 2); the last entry of each ladder is
+    # reachable only by a bump (BUMP_FLAGS) from the tier below it
+    "TIERS": {"planet": (96, 110, 124, 138, 152, 166),
+              "moon": (50, 58, 66, 74, 82),
+              "sat": (34, 40)},
     # clear space: between one planet's reach and the next ring's (and the
     # sun's), between a planet and its moons, a moon and its satellites
     "RING_GAP": 26, "MOON_GAP": 14, "SAT_GAP": 8,
@@ -73,9 +93,10 @@ SOLAR = {
     # orbit periods in seconds: planets inner→outer, moons by planet, satellites
     "P_PLANET": (90.0, 150.0), "P_MOON": (30.0, 50.0), "P_SAT": 18.0,
 }
-# A flag whose id or name holds one of these marks a planet that matters more
-# than its neighbours (pivotal, key…): it is drawn one size up.
-BUMP_FLAG_WORDS = ("pivotal", "key", "important", "major", "core", "central", "essential")
+# A brief flag whose id or name, lower-cased with spaces and underscores as
+# hyphens, is one of these marks extreme importance: the nodes carrying it are
+# drawn one tier up. An explicit list, not a guess at what a name means.
+BUMP_FLAGS = ("pivotal", "critical", "extreme-importance")
 GOLDEN = math.pi * (3 - math.sqrt(5))          # 137.5°: neighbouring planets never line up
 SPIN = -1
 
@@ -89,10 +110,22 @@ def _bump_flags(brief) -> set:
     for fl in getattr(brief, "flags", None) or []:
         if not isinstance(fl, dict):
             continue
-        text = f"{fl.get('id', '')} {fl.get('name', '')}".lower()
-        if any(w in text for w in BUMP_FLAG_WORDS):
+        names = {str(fl.get(k) or "").strip().lower().replace(" ", "-").replace("_", "-")
+                 for k in ("id", "name")}
+        if names & set(BUMP_FLAGS):
             out.add(fl.get("id"))
     return out
+
+
+def body_d(role: str, children: int, bumped: bool = False) -> int:
+    """A body's diameter (module docstring, Sizes): the sun's is fixed; a
+    planet / moon climbs a tier per two children, clamped below the ladder's
+    bump-only top; a bump adds one tier."""
+    if role == "sun":
+        return SOLAR["D"]["sun"]
+    ladder = SOLAR["TIERS"][role]
+    tier = min(-(-children // 2), len(ladder) - 2) if role != "sat" else 0
+    return ladder[min(tier + (1 if bumped else 0), len(ladder) - 1)]
 
 
 def _ring_for(n: int, ext: float, gap: float, inner: float) -> float:
@@ -153,14 +186,20 @@ def _tree(brief, nodes):
     return units
 
 
-def _planet_body(pid, moons, d_p, D, S):
-    """A planet's own geometry round its centre: moon ring, satellite rings,
-    reach. Independent of where the planet is."""
-    R_p, R_m, R_s = d_p / 2, D["moon"] / 2, D["sat"] / 2
+def _planet_body(pid, moons, size, S):
+    """A planet's own geometry round its centre: its and its family's
+    diameters (size(id, role, children)), moon ring, satellite rings, reach.
+    Independent of where the planet is."""
+    d_p = size(pid, "planet", len(moons))
+    R_p = d_p / 2
     ms = []
     for mid, sats in moons:
+        d_m = size(mid, "moon", len(sats))
+        R_m = d_m / 2
+        sd = {q: size(q, "sat", 0) for q in sats}
+        R_s = max(sd.values()) / 2 if sats else 0.0
         sat_r = _ring_for(len(sats), R_s, S["SAT_GAP"], R_m)
-        ms.append({"id": mid, "sats": sats, "sat_r": sat_r,
+        ms.append({"id": mid, "d": d_m, "sats": sats, "sd": sd, "sat_r": sat_r,
                    "ext": (sat_r + R_s) if sats else R_m})
     me = max([m["ext"] for m in ms] or [0.0])
     moon_r = _ring_for(len(ms), me, S["MOON_GAP"], R_p)
@@ -172,17 +211,16 @@ def _local_circles(body, theta, r):
     """Every circle of a planet's family as (id, x, y, radius, parent id) round
     the SUN, the planet at angle theta on ring r, and its spokes as segments
     (child id, parent id, x1, y1, x2, y2)."""
-    D = SOLAR["D"]
     px, py = r * math.cos(theta), r * math.sin(theta)
     circles = [(body["id"], px, py, body["d"] / 2, None)]
     segs = []
     for m, ma in zip(body["moons"], _even(len(body["moons"]), theta)):
         mx, my = px + body["moon_r"] * math.cos(ma), py + body["moon_r"] * math.sin(ma)
-        circles.append((m["id"], mx, my, D["moon"] / 2, body["id"]))
+        circles.append((m["id"], mx, my, m["d"] / 2, body["id"]))
         segs.append((m["id"], body["id"], mx, my, px, py))
         for s, sa in zip(m["sats"], _even(len(m["sats"]), ma)):
             sx, sy = mx + m["sat_r"] * math.cos(sa), my + m["sat_r"] * math.sin(sa)
-            circles.append((s, sx, sy, D["sat"] / 2, m["id"]))
+            circles.append((s, sx, sy, m["sd"][s] / 2, m["id"]))
             segs.append((s, m["id"], sx, sy, mx, my))
     return circles, segs
 
@@ -231,8 +269,10 @@ def _system(unit, sun, planets, style, bumped, brief_nodes):
     S, D = SOLAR, SOLAR["D"]
     R_sun = D["sun"] / 2
     flags = {n.id: set(n.flags or []) for n in brief_nodes}
-    bodies = [_planet_body(p, moons, D["planet_big"] if flags.get(p, set()) & bumped else D["planet"], D, S)
-              for p, moons in planets]
+
+    def size(i, role, children):
+        return body_d(role, children, bool(flags.get(i, set()) & bumped))
+    bodies = [_planet_body(p, moons, size, S) for p, moons in planets]
     P = len(bodies)
     rings, angles, warns = [], [], []
     if style == "orbit":
@@ -294,16 +334,16 @@ def _system(unit, sun, planets, style, bumped, brief_nodes):
         cs, _ = _local_circles(b, th, r)
         for (i, x, y, rad, par) in cs:
             role = "planet" if par is None else ("moon" if par == b["id"] else "sat")
-            local[i] = (x, y, rad * 2, role, par or sun)
+            local[i] = (x, y, int(round(rad * 2)), role, par or sun)
         moons = []
         for m, ma in zip(b["moons"], _even(len(b["moons"]), th)):
-            sats = [{"id": s, "r": _r2(m["sat_r"]), "a0": round(sa % (2 * math.pi), 5), "d": D["sat"],
+            sats = [{"id": s, "r": _r2(m["sat_r"]), "a0": round(sa % (2 * math.pi), 7), "d": m["sd"][s],
                      "period": S["P_SAT"] if moving else 0}
                     for s, sa in zip(m["sats"], _even(len(m["sats"]), ma))]
-            moons.append({"id": m["id"], "r": _r2(b["moon_r"]), "a0": round(ma % (2 * math.pi), 5),
-                          "d": D["moon"], "period": period(S["P_MOON"], k, P) if moving else 0,
+            moons.append({"id": m["id"], "r": _r2(b["moon_r"]), "a0": round(ma % (2 * math.pi), 7),
+                          "d": m["d"], "period": period(S["P_MOON"], k, P) if moving else 0,
                           "sat_r": _r2(m["sat_r"]), "sats": sats})
-        out_planets.append({"id": b["id"], "ring": k + 1, "r": _r2(r), "a0": round(th % (2 * math.pi), 5),
+        out_planets.append({"id": b["id"], "ring": k + 1, "r": _r2(r), "a0": round(th % (2 * math.pi), 7),
                             "d": b["d"], "period": period(S["P_PLANET"], k, P) if moving else 0,
                             "e": _r2(b["e"]), "moon_r": _r2(b["moon_r"]), "moons": moons})
     if style == "orbit":
@@ -368,7 +408,8 @@ def solar_plan(brief, nodes) -> dict:
     return {
         "style": style, "spin": SPIN,
         "world": {"w": world_w, "h": world_h},
-        "sizes": dict(S["D"]),
+        "sizes": {**S["D"], "planet_big": S["TIERS"]["planet"][-1],
+                  "tiers": {k: list(v) for k, v in S["TIERS"].items()}, "bump": sorted(bumped)},
         "systems": out_systems,
         "nodes": out_nodes,
         "sun_links": [[a, b] for a, b in zip(order, order[1:])],
