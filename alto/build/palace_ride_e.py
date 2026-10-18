@@ -194,7 +194,7 @@ function whereText(o){ if(!o.street) return {a:'',b:''}; var b=''; if(o.at) b='a
 /* ── REAL mode (2.0.0 FPV): the walk happens in the real street frame (palace_ride_real.py / palace_ride_street.py) where the street data covers the place and the place is
    in bounds (REAL.inBounds); S.x / S.y are then world units = real metres x UM. The lattice walk above stays as the fallback (real off, data not loaded, out of bounds):
    it starts first and the real world takes over once the shards under the walker arrive (a cross-fade), so nothing is ever glitchy while loading. ── */
-var RW={R:380, regather:105, have:null, busy:false, fade:null, edge:0, k:0, cx:0, cy:0, n:0, ms:0, maxMs:0};
+var RW={R:380, regather:105, have:null, busy:false, gen:null, gx:0, gy:0, gms:0, fade:null, edge:0, k:0, cx:0, cy:0, n:0, ms:0, maxMs:0};
 function realCan(){ return typeof REAL!=='undefined' && REAL && typeof rlInit==='function' && rlInit() && (REAL.on || (REAL.street&&REAL.street())); }
 function realNear(rx,ry){ if(REAL.street && REAL.street()){ var H=REAL.have||[]; if(!(REAL.on&&REAL.chunks)) return false; for(var i=0;i<H.length;i++) if(Math.hypot(rx-H[i][0],ry-H[i][1])<H[i][2]-RW.R*.55) return true; return false; } return !!(REAL.on && REAL.chunks && REAL.ways); }
 /* load the data under (rx,ry) real px; resolves true when the real world can be gathered there */
@@ -206,17 +206,26 @@ function realBuckets(Wn){
   var cg={}; Wn.solids.forEach(function(sd){ if(!(QUAL.indexOf(sd.kind)>=0 || sd.collide)) return; var ci=Math.floor(sd.cx/CELL), cj=Math.floor(sd.cy/CELL), k=ci+','+cj, c=cg[k]||(cg[k]={small:[],big:[],doors:[],col:[],ci:ci,cj:cj,key:k});
     c.col.push(sd); (sd.r<=BIGR?c.small:c.big).push(sd); if(sd.door) c.doors.push(sd); });
   S.bigs=[]; Object.keys(cg).forEach(function(k){ S.bigs=S.bigs.concat(cg[k].big); }); S.cells=cg; }
-function realGather(){
-  var t0=performance.now(), Wn=REAL.gather(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k});
+/* the new world replaces the old one's arrays in ONE step (Wd.ver bumps once): the renderer keeps every cell it already built (cached by content) and builds the new ones behind it, so nothing in view changes */
+function realFinish(Wn,cx,cy,ms){
   realBuckets(Wn); var Wd=S.W; ['tiles','parks','water','roads','dashes','props','poles','labels','solids','meshes','movers'].forEach(function(f){ Wd[f]=Wn[f]||[]; });
   Wd.scenery=Wn.scenery||null; Wd.set=Wn.set||{}; Wd.real=Wn.real; Wd.pal=Wn.pal; Wd.atlas=Wn.atlas||null; Wd.lamps=Wn.lamps||null; Wd.cells=null; Wd.rivers=[]; Wd.tunn=false; Wd.stopLabels=null; Wd.ver=++S.ver; Wd._gl=null; Wd._mv=null;
-  RW.cx=S.x; RW.cy=S.y; RW.n++; RW.ms=performance.now()-t0; RW.maxMs=Math.max(RW.maxMs,RW.ms); S.merges++; S.dirty=false; }
+  RW.cx=cx; RW.cy=cy; RW.n++; RW.ms=ms; RW.maxMs=Math.max(RW.maxMs,ms); S.merges++; S.dirty=false; }
+function realGather(){                                                  /* the whole world now (entering, tests) */
+  var t0=performance.now(); RW.gen=null; realFinish(REAL.gather(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k}),S.x,S.y,performance.now()-t0); }
+/* the world ahead, a few milliseconds a frame: the generator (palace_ride_street.py gatherRealG) yields between 400 m chunks and steps, the frame loop gives it CFG.budget ms each frame, and the swap happens once, when it is done.
+   A 105 m walk used to stop for the whole gather (30-45 ms, two or three dropped frames). */
+function realGatherStep(sync){
+  if(!RW.gen){ RW.gx=S.x; RW.gy=S.y; RW.gms=0; RW.gen=REAL.gatherG(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k}); }
+  var t0=performance.now(), r; do{ r=RW.gen.next(); }while(!r.done && (sync || performance.now()-t0<CFG.budget));
+  RW.gms+=performance.now()-t0; if(r.done){ RW.gen=null; realFinish(r.value,RW.gx,RW.gy,RW.gms); } }
 /* every step in real mode: keep the world centred near the walker, fetch the shards ahead; hold the walker inside the in-bounds region */
 function realStream(sync){
+  if(RW.gen){ realGatherStep(sync); return; }
   if(RW.busy || Math.hypot(S.x-RW.cx,S.y-RW.cy)<RW.regather*UM) return;
   var rx=S.x/UM, ry=S.y/UM;
-  if(sync || !(REAL.street&&REAL.street()) || realNear(rx,ry)){ if(!sync && REAL.street&&REAL.street()&&!realNear(rx,ry)) return; realGather(); return; }
-  RW.busy=true; realLoad(rx,ry).then(function(ok){ RW.busy=false; if(ok && S.on && S.real) realGather(); }, function(){ RW.busy=false; }); }
+  if(sync || !(REAL.street&&REAL.street()) || realNear(rx,ry)){ if(!sync && REAL.street&&REAL.street()&&!realNear(rx,ry)) return; if(sync) realGather(); else realGatherStep(false); return; }
+  RW.busy=true; realLoad(rx,ry).then(function(ok){ RW.busy=false; if(ok && S.on && S.real) realGatherStep(false); }, function(){ RW.busy=false; }); }
 function realBound(dt){
   var rx=S.x/UM, ry=S.y/UM, ed=REAL.edgeDist(rx,ry), e=1-clamp(ed/60,0,1);
   RW.edge+=(e-RW.edge)*(1-Math.exp(-dt/.35)); if(RW.edge<.002) RW.edge=0;
@@ -346,7 +355,7 @@ function frame(now){
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.xf=0; S.pendingReal=null; RW.busy=false; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
+  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
