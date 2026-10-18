@@ -492,6 +492,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   var sd=GLX.shd; if(sd&&sd.ok&&sd.on){ var cf=sd.c[0], cq=sd.c[1]; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,cf.tex); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,cq.tex); gl.activeTexture(gl.TEXTURE0);
     gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
   else { gl.uniformMatrix4fv(pg.u.uLP,false,GLX.ident); gl.uniformMatrix4fv(pg.u.uLQ,false,GLX.ident); gl.uniform4f(pg.u.uShP,0,0,0,0); gl.uniform2f(pg.u.uShQ,0,0); gl.uniform2f(pg.u.uNOff,0,0); }
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);          /* the contact shadows (material 50) are the only fragments with alpha < 1 */
   var G=glPlan(Wd), draws=0, tris=0; _gvis.length=0;
   G.keys.forEach(function(k){ var o=glCellObj(G,k); if(!o) return; o.use=GLX.frame; if(glSphVis(o.cx,o.cy,o.cz,o.r)) _gvis.push(o); });
   _gvis.sort(function(p,q){ return (Math.pow(p.cx-C.x,2)+Math.pow(p.cy-C.y,2))-(Math.pow(q.cx-C.x,2)+Math.pow(q.cy-C.y,2)); });
@@ -508,7 +509,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   (Wd.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!Wd.atlas)) return; var mc=glMeshFind(m); if(!mc) return; if(!glSphVis(mc.cx,mc.cy,mc.cz,mc.r)) return; glBind(gl,pg,mc); gl.drawArrays(gl.TRIANGLES,0,mc.n); draws++; tris+=mc.n/3; });
   draws+=glDrawMovers(gl,pg,Wd); gl.enable(gl.CULL_FACE);
   st.draws=draws; st.tris=tris|0; st.chunks=_gvis.length;
-  names.forEach(function(n){ gl.disableVertexAttribArray(a[n]); }); }
+  gl.disable(gl.BLEND); names.forEach(function(n){ gl.disableVertexAttribArray(a[n]); }); }
 /* the scenery part drops movers beyond a distance per kind (cars 460, people 230, birds 380, signal lamps 160): fade them out before that with a dither, so nothing pops */
 function glFadeOf(m){ var k=m.kind; return k===0?460:k===1?230:k===2?380:k==null?0:160; }
 /* the scenery's colours (W.pal), its street-name atlas, and the nearest lit lamps for light pools at night */

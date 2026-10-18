@@ -300,15 +300,15 @@ def _rwl_region():
 @needs_node
 def test_the_ride_backs_off_caps_requests_holds_the_walker_and_shows_a_note(tmp_path):
     region, jse = _rwl_region()
-    a = jse.index("function realStream(sync){")
+    a = jse.index("function realPrefetch(){")                                       # the real prefetch (it honours the same backoff) and the real stream
     stream = jse[a:jse.index("function realBound(dt){")]
     harness = r"""
 global.window = global;
 let T = 0; global.performance = {now: () => T};
 const UM = 1.3; let OK = false, CALLS = 0, GATHERS = 0, PENDING = [];
-const REAL = {street: () => true, on: true, chunks: {}, have: [[0, 0, 520]], prepare: () => { CALLS++; return new Promise((res, rej) => PENDING.push([res, rej])); }};
-const S = {x: 0, y: 0, vx: 3, vy: 0, real: true, on: true, hud: {root: null}};
-const RW = {R: 380, regather: 105, busy: false, gen: null, cx: 0, cy: 0};
+const REAL = {street: () => true, on: true, chunks: {}, have: [[0, 0, 720]], prepare: () => { CALLS++; return new Promise((res, rej) => PENDING.push([res, rej])); }};
+const S = {x: 0, y: 0, vx: 3, vy: 0, yaw: 0, real: true, on: true, hud: {root: null}};
+const RW = {R: 420, PR: 720, regather: 105, busy: false, gen: null, cx: 0, cy: 0};
 function blockedAt() { return false; }
 function realNear(rx, ry) { return OK; }
 function realGather() { GATHERS++; } function realGatherStep() { GATHERS++; }
@@ -357,7 +357,7 @@ const flush = () => new Promise(r => setImmediate(r));
     assert o["gaps"][0] < o["gaps"][1] < o["gaps"][2]
     assert 60000 * 0.75 - 1 <= o["cap"] <= 60000 * 1.25 + 1
     assert o["stacked"] == 0 and o["waitHonoured"] == 5000
-    assert o["heldAt"] <= 380 - 44 and o["heldAt"] >= 380 - 46 and o["held"] is True and o["vx"] <= 1.1
+    assert o["heldAt"] <= 420 - 44 and o["heldAt"] >= 420 - 46 and o["held"] is True and o["vx"] <= 1.1
     assert o["note"]["text"] == "loading the street…" or "not reachable" in o["note"]["text"]
     assert o["note"]["opacity"] == ".9" and o["slow"][0] is True
     assert o["freeX"] == 600 and o["noteGone"] == "0" and o["reset"] == [0, 0]

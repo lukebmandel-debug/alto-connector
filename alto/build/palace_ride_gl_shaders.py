@@ -445,10 +445,11 @@ void main(){
     vec3 lc=palCol(T); float lg=dot(lc,vec3(.3,.59,.11)); lc=mix(vec3(lg),lc,.72)*vec3(.95,.98,.88);
     alb=lc*(.58+.46*nn)*(.88+.14*(1.-rr)); wrap=.7;
     ao*=(.5+.5*smoothstep(.0,4.,vP.z/UMc))*(.8+.2*(N.z*.5+.5));
-  } else {              /* a contact shadow on the ground: a stippled dark patch, its edge dissolved by a dither fixed in world space */
-    vec2 q=abs(vUV*2.-1.); float d=pow(q.x,3.)+pow(q.y,3.); float a=.7*(1.-smoothstep(.15,1.,d));
-    float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); dn=mix(dn,.5,smoothstep(.35,1.,dist*uPix/UMc*48.)); if(dn>a) discard;      /* interleaved gradient noise at PIXEL scale: near the camera the patch's edge is a smooth gradient (a world-fixed 2 cm cell grid was 14 px blocks at 1 m: a visible checkerboard on a nearby wall), fading to a plain edge where a pixel spans a cell */
-    alb=vec3(.02); ao=1.;
+  } else {              /* a contact shadow on the ground: a soft dark patch BLENDED over the ground (the renderer draws with blending on, every other surface has alpha 1): no dither at all, so nothing flashes or crawls and nothing is
+                           a checkerboard up close; its edge is a smooth fall-off, thinned by the fog like the ground under it */
+    vec2 q=abs(vUV*2.-1.); float d=pow(q.x,3.)+pow(q.y,3.); float a=.62*(1.-smoothstep(.15,1.,d));
+    float fq0=dist/uFogD; a*=exp(-fq0*fq0)*(1.-.5*uNight); if(a<.004) discard;
+    gl_FragColor=vec4(0.,0.,0.,a); return;
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
   else if(id>20.5&&id<22.5) ao*=mix(.55,1.,smoothstep(.0,.7,vP.z/UMc));              /* a pole or a bin where it meets the ground */
