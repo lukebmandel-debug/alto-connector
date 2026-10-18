@@ -394,7 +394,7 @@ function exitCore(stay){
   else R.saved=v;
   shutdown(); closeNow(true,false); }
 var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetHeading:streetHeading, locate:locate, viewFor:viewFor, cfg:CFG,
-  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, real:!!S.real, realWhy:S.realWhy||'', edge:RW.edge, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
+  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, real:!!S.real, gathering:!!RW.gen, realWhy:S.realWhy||'', edge:RW.edge, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
   stats:function(){ var f=S.fr.slice().sort(function(p,q){ return p-q; }), n=f.length, b=S.bms.slice().sort(function(p,q){ return p-q; }), m=S.mms.slice().sort(function(p,q){ return p-q; });
     return {built:S.built, evicted:S.evicted, merges:S.merges, plans:S.plans, cells:Object.keys(S.cells).length, queue:S.queue.length, buildAvg:b.length?b.reduce(function(p,q){ return p+q; },0)/b.length:0, buildMax:b.length?b[b.length-1]:0, streamMax:S.lbms.length?Math.max.apply(null,S.lbms):0, streamN:S.lbms.length, buildP95:b.length?b[Math.floor(b.length*.95)]:0, mergeMax:m.length?m[m.length-1]:0, mergeAvg:m.length?m.reduce(function(p,q){ return p+q; },0)/m.length:0,
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
@@ -403,7 +403,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
   door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
     state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
   /* tests and the QA kit */
-  tick:function(dt, keys, run){ if(keys) { S.keys={}; String(keys).split(',').forEach(function(q){ if(q) S.keys[q]=1; }); } S.run=!!run; tick(dt,true); },
+  tick:function(dt, keys, run, slice){ if(keys) { S.keys={}; String(keys).split(',').forEach(function(q){ if(q) S.keys[q]=1; }); } S.run=!!run; tick(dt,!slice); },      /* slice: as the frame loop does (the streaming gets its few milliseconds), not all at once */
   sim:function(keys, seconds, dt, run){ S.keys={}; String(keys||'').split(',').forEach(function(q){ if(q) S.keys[q]=1; }); S.run=!!run; dt=dt||1/60; var n=Math.round(seconds/dt), bad=0; for(var i=0;i<n;i++){ tick(dt,true); if(blockedAt(S.x,S.y)) bad++; } S.keys={}; S.run=false; return {x:S.x,y:S.y,bad:bad,n:n}; },
   place:function(x,y,yaw){ S.x=x; S.y=y; if(yaw!=null) S.yaw=yaw; S.vx=S.vy=0; plan(true); stream(true); var f=freeNear(S.x,S.y); S.x=f[0]; S.y=f[1]; },
   look:function(yaw,pitch){ if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); },
