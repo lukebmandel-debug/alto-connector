@@ -962,7 +962,8 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     // timeline's whole-timeline view, lanes_nav.py), which is not the page being short
     var k = cv && cv.offsetHeight ? (cv.getBoundingClientRect().height / cv.offsetHeight) || 1 : 1;
     var short = cv ? Math.ceil(cv.clientHeight / k - end) : 0;
-    if(short > 0 && typeof initLayout === 'function' && !place._relaying){
+    // (a solar chart has no bands to lengthen: it would lay every circle out again every poll)
+    if(short > 0 && !window._ALTO_SOLAR && typeof initLayout === 'function' && !place._relaying){
       window._altoEditRoom = (window._altoEditRoom || ROOM) + short;
       place._relaying = true;
       try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }

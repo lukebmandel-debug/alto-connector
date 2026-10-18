@@ -883,7 +883,10 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
             if isinstance(hints, dict) and hints.get("shape") is not None:
                 from .palace_claim import check_shape
                 check_shape(hints["shape"], f"placement {nid}: shape")          # BriefError: a footprint a node stands on
-            if (not isinstance(hints, dict) or set(hints) - {"lot", "fno", "out", "shape"} or not isinstance(hints.get("lot", ""), str)
+            keys = {"lot", "fno", "out", "shape"} | ({"order"} if b.palace_view == "stars" else set())     # a Star chart's floors take a turn
+            if isinstance(hints, dict) and "order" in hints and not (isinstance(hints["order"], int) and not isinstance(hints["order"], bool) and hints["order"] >= 1):
+                raise BriefError(f"placement {nid}: order must be a whole number from 1 (first among its siblings)")
+            if (not isinstance(hints, dict) or set(hints) - keys or not isinstance(hints.get("lot", ""), str)
                     or not (hints.get("fno") is None or (isinstance(hints["fno"], int) and not isinstance(hints["fno"], bool)
                                                          and 2 <= hints["fno"] <= 250))):
                 raise BriefError(f"placement {nid}: a Mind Palace places a building by "

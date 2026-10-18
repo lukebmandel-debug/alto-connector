@@ -734,7 +734,8 @@ def test_converting_to_a_star_chart_and_back_loses_nothing(store):
     assert out.get("ok") and out["from"] == "hub_and_spoke" and out["nodes"] == len(nodes0), out
     nodes1, conns1, doc1 = _everything(srv, tid)
     b1 = doc1["brief"]
-    assert b1["mode"] == "palace" and b1["palace_view"] == "stars" and "placement" not in b1
+    assert b1["mode"] == "palace" and b1["palace_view"] == "stars"
+    assert b1["placement"] == d["brief"]["placement"]              # only the turns (order) go along: a Star chart rings by them
     assert nodes1 == nodes0 and conns1 == conns0                  # every node field, every line
     assert doc1["consent"] == doc0["consent"]
     assert srv.get_store().get_artifact(srv.uid(), tid, out["backup"])

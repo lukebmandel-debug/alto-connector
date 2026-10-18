@@ -164,6 +164,9 @@ def _tree(brief, nodes):
     id, [(planet, [(moon, [sat])])]). Raises BriefError on a fifth level. A
     node whose parent is not a node (an interview still filling in) orbits its
     unit's first sun, so a preview never drops a card."""
+    if getattr(brief, "mode", "") == "palace":          # a moved floor keeps the turn it was given (placement order)
+        from .layout import siblings_ordered
+        nodes = siblings_ordered(nodes, getattr(brief, "placement", None))
     ids = {n.id for n in nodes}
     kids: dict = {}
     for n in nodes:

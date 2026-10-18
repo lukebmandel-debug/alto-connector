@@ -67,6 +67,13 @@ def _name(k: str) -> str:
     return {"star_chart": "Star chart", "hub_and_spoke": "Hub & spoke"}.get(k, k)
 
 
+def _turns(placement) -> dict:
+    """Only the `order` hints of a placement ({id: {"order": n}}): the turn a card was given among
+    its siblings, which both kinds honour (a ring in a Hub & spoke, a floor in a Star chart)."""
+    return {i: {"order": h["order"]} for i, h in (placement or {}).items()
+            if isinstance(h, dict) and isinstance(h.get("order"), int) and not isinstance(h.get("order"), bool)}
+
+
 def convert_brief(brief: dict, nodes: list, to: str) -> tuple[dict, list]:
     """(the converted brief, notes for the user). Raises ConvertError when this
     timeline cannot be converted that way — with the reason, for the user.
@@ -88,6 +95,10 @@ def convert_brief(brief: dict, nodes: list, to: str) -> tuple[dict, list]:
                 new[k] = copy.deepcopy(back[k])
         new["mode"] = "palace"
         new["palace_view"] = "stars"
+        turns = _turns(old.get("placement"))             # the order the planets were put in goes along
+        if turns:
+            new["placement"] = {**(new.get("placement") or {}), **{i: {**(new.get("placement") or {}).get(i, {}), **h}
+                                                                  for i, h in turns.items()}}
         if (old.get("placement") or {}):
             notes.append("the outline's card placement is kept aside (a Star chart places by its "
                          "orbits); converting back restores it")
@@ -109,6 +120,12 @@ def convert_brief(brief: dict, nodes: list, to: str) -> tuple[dict, list]:
                 "its own, then convert — nothing was changed")
         stash["palace"] = {k: copy.deepcopy(old[k]) for k in PALACE_OWN
                            if k in old and not (k == "palace_view" and old[k] == "stars")}
+        pp = {i: {k: v for k, v in h.items() if k != "order"} for i, h in (stash["palace"].get("placement") or {}).items()}
+        pp = {i: h for i, h in pp.items() if h}                 # a turn goes along (below); it is not parked as well
+        if pp:
+            stash["palace"]["placement"] = pp
+        else:
+            stash["palace"].pop("placement", None)
         back = stash.pop("outline", {}) or {}
         for k in PALACE_OWN:
             new.pop(k, None)
@@ -117,6 +134,10 @@ def convert_brief(brief: dict, nodes: list, to: str) -> tuple[dict, list]:
                 new[k] = copy.deepcopy(back[k])
         new["mode"] = "outline"
         new["layout"] = "solar"
+        turns = _turns(old.get("placement"))             # the order the floors were put in goes along
+        if turns:
+            new["placement"] = {**(new.get("placement") or {}), **{i: {**(new.get("placement") or {}).get(i, {}), **h}
+                                                                  for i, h in turns.items()}}
         if (old.get("palace") or {}).get("data_z"):
             notes.append("the palace's city is kept aside; converting back (or building it as a "
                          "city) needs no new map")

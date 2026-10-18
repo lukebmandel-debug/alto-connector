@@ -1193,6 +1193,12 @@ def fold(store, uid, tid) -> "dict | None":
                     conflicts.append(k)
                     continue
             holder["parent"] = v or ""
+            if v and solar and brief.get("mode") == "palace":    # last among its new siblings, as the page shows it
+                pl = brief.get("placement") or {}
+                h = {kk: vv for kk, vv in (pl.get(holder["id"]) or {}).items() if kk != "order"}
+                h["order"] = sum(1 for x in nodes if x.get("parent") == v)
+                brief["placement"] = {**pl, holder["id"]: h}
+                touched["brief"] = True
         elif kind == "tower":
             # a landmark housing a unit: {"unit": n, "floors": n|None} on its palace.buildings entry (None: no unit)
             ents = holder.setdefault("buildings", [])

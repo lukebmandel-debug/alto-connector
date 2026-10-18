@@ -3912,9 +3912,12 @@ MANUAL_JS = r"""<script id="alto-manual">
      layer's own placement; orbit motion is paused while editing). Dropped
      on empty space or a refused circle, or Escape: it goes home. */
   var sdrag = null;
+  // the dragged circle by its id each time: the page lays its cards out again now and then (the solar
+  // layer draws them anew), which replaces the elements
+  function sdragEl(d){ return document.getElementById('node-' + d.id); }
   function sdragTarget(e, d){
     var els = document.elementsFromPoint(e.clientX, e.clientY), i, n, id;
-    for(i = 0; i < els.length; i++){ n = els[i].closest && els[i].closest('#canvas .node'); if(n && n !== d.self){ id = n.id.replace(/^node-/, ''); if(srcNode(id)) return {el: n, id: id}; } }
+    for(i = 0; i < els.length; i++){ n = els[i].closest && els[i].closest('#canvas .node'); if(n && n.id !== 'node-' + d.id){ id = n.id.replace(/^node-/, ''); if(srcNode(id)) return {el: n, id: id}; } }
     return null;
   }
   function sdragVerdict(t, d){
@@ -3938,12 +3941,13 @@ MANUAL_JS = r"""<script id="alto-manual">
     var tip = document.getElementById('aed-rztip'); if(tip) tip.classList.remove('show');
     var t = drop && d.on ? sdragTarget(e, d) : null, v = t ? sdragVerdict(t, d) : null;
     document.querySelectorAll('#canvas .node.aed-drop-ok, #canvas .node.aed-drop-no').forEach(function(el){ el.classList.remove('aed-drop-ok', 'aed-drop-no'); });
-    d.self.classList.remove('aed-sdrag');
-    if(t && v && v.ok){ d.self.style.translate = ''; relink(d.id, t.id); return; }
+    var me = sdragEl(d);
+    if(me) me.classList.remove('aed-sdrag');
+    if(t && v && v.ok){ if(me) me.style.translate = ''; relink(d.id, t.id); return; }
     if(t && v && !v.quiet) solarNo();
-    if(d.on){                                                   // back to its place
-      d.self.classList.add('aed-shome'); d.self.style.translate = '';
-      setTimeout(function(){ d.self.classList.remove('aed-shome'); }, 320);
+    if(d.on && me){                                             // back to its place
+      me.classList.add('aed-shome'); me.style.translate = '';
+      setTimeout(function(){ var m2 = sdragEl(d); if(m2) m2.classList.remove('aed-shome'); }, 320);
     }
   }
   window.addEventListener('pointerdown', function(e){
@@ -3951,15 +3955,17 @@ MANUAL_JS = r"""<script id="alto-manual">
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t)) || PICK || LINK || LPICK) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-cc,.aed-rz,[contenteditable="true"]')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(!srcNode(id) || !(((OUT && OUT.parent) || {})[id] || isStars())) return;      // a Hub & spoke's sun stays; a Star chart's building may become a floor
-    sdrag = {id: id, x0: e.clientX, y0: e.clientY, k: scale(nodeEl), on: false, self: nodeEl, S: dfsOf((OUT && OUT.kids) || {}, id)};
+    sdrag = {id: id, x0: e.clientX, y0: e.clientY, k: scale(nodeEl), on: false, S: dfsOf((OUT && OUT.kids) || {}, id)};
   }, true);
   window.addEventListener('pointermove', function(e){
     if(!sdrag) return;
     var dx = e.clientX - sdrag.x0, dy = e.clientY - sdrag.y0;
     if(!sdrag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; sdrag.on = true; if(cur) endField(true);
-      root.classList.add('alto-dragging'); sdrag.self.classList.add('aed-sdrag'); sdrag.self.classList.remove('aed-shome'); }
+      root.classList.add('alto-dragging'); }
     e.preventDefault();
-    sdrag.self.style.translate = Math.round(dx / sdrag.k) + 'px ' + Math.round(dy / sdrag.k) + 'px';
+    var me = sdragEl(sdrag);
+    if(me){ me.classList.add('aed-sdrag'); me.classList.remove('aed-shome');
+      me.style.translate = Math.round(dx / sdrag.k) + 'px ' + Math.round(dy / sdrag.k) + 'px'; }
     var t = sdragTarget(e, sdrag), v = sdragVerdict(t, sdrag);
     sdragMarks(t, v);
     var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }

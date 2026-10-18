@@ -413,8 +413,9 @@ def test_a_phone_keeps_the_single_column_card_view_of_a_tree(browser, tmp_path):
 
 
 # ── manual edit mode on a solar page, in a real browser ──────────────────────
-# `window._ALTO_SOLAR` is what marks the page; it is stood in for here when the
-# build has not put it there, so these hold whichever way the layer is built.
+# The real solar layer (solar_draw.py) is mounted on these pages; `hook` swaps it for
+# a recording stand-in, or takes it away, where a test wants to see exactly what edit
+# mode tells it.
 
 import functools  # noqa: E402
 import http.server  # noqa: E402
@@ -425,7 +426,6 @@ FAKE_CLOUD = """(function(){ var store=null;
  var C={enabled:true, known:true, user:{uid:'u1'}, getEdits:function(){ return Promise.resolve(store); },
   putEdits:function(t,d){ store=JSON.parse(JSON.stringify(d)); return Promise.resolve(); }, watchEdits:function(){ return function(){}; }};
  Object.defineProperty(window,'AltoCloud',{get:function(){return C;}, set:function(){}, configurable:true}); })();"""
-MARK_SOLAR = "if(!window._ALTO_SOLAR) window._ALTO_SOLAR = {style: 'orbit', systems: [], nodes: {}};"
 SPY = "window.__sync = []; window._altoSolarSync = function(t){ window.__sync.push({kids: JSON.parse(JSON.stringify(t.kids)), parent: JSON.parse(JSON.stringify(t.parent))}); };"
 
 
@@ -472,14 +472,20 @@ def stars_url(tmp_path):
 
 
 def _editing(browser, url, hook):
+    """The page open in edit mode. hook: True puts a recording stand-in in place of the solar layer's
+    _altoSolarSync, False takes it away (a page whose layer is missing), None leaves the real one."""
     ctx = browser.new_context(viewport={"width": 1500, "height": 1150})
     ctx.add_init_script(FAKE_CLOUD)
-    ctx.add_init_script(f"document.addEventListener('DOMContentLoaded', function(){{ {MARK_SOLAR} {SPY if hook else ''} }});")
     pg = ctx.new_page()
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)) if "ResizeObserver loop" not in str(e) else None)   # WebKit's harmless note
     pg.goto(url, wait_until="domcontentloaded", timeout=90000)
     pg.wait_for_timeout(1500)
+    assert pg.evaluate("typeof window._altoSolarSync") == "function"          # the real layer is mounted
+    if hook is True:
+        pg.evaluate("(function(){" + SPY + "})()")
+    elif hook is False:
+        pg.evaluate("delete window._altoSolarSync")
     pg.click("#alto-edit-pill .aep-manual")
     pg.wait_for_timeout(500)
     return pg, errs
@@ -787,3 +793,128 @@ def test_a_star_chart_building_dropped_on_another_in_its_district_becomes_its_fl
     st, r = _fold_into(d, ops)
     assert not r["conflicts"] and _node(st, "unit-1-start2")["parent"] == "unit-1-start", r
     assert not errs, errs
+
+
+# ── with the real solar layer ────────────────────────────────────────────────
+
+ROLES = "(()=>{var o={}; for(var k in window._ALTO_SOLAR.nodes) o[k]=window._ALTO_SOLAR.nodes[k].role; return o;})()"
+FACES = "(()=>{var o={}; document.querySelectorAll('#world .node[data-solar]').forEach(n=>o[n.id.slice(5)]=n.dataset.solar); return o;})()"
+
+
+@needs_solar
+def test_the_real_layer_plans_a_hub_and_spoke_again_after_a_drag_and_no_banner_shows(browser, edit_url):
+    pg, errs = _editing(browser, edit_url, hook=None)
+    assert pg.evaluate(ROLES)["unit-1-b"] == "planet"
+    _show(pg, "unit-1-a1", "unit-1-b")
+    mid = _circle_drag(pg, "unit-1-b", "unit-1-a1")                    # a planet onto a moon: now a satellite
+    assert mid["ok"] == ["node-unit-1-a1"], mid
+    assert _edit_ops(pg)["rp|unit-1-b"]["v"] == "unit-1-a1"
+    assert pg.evaluate(ROLES)["unit-1-b"] == "sat" and pg.evaluate(ROLES)["unit-1-a1"] == "moon"
+    pg.wait_for_timeout(300)
+    assert pg.evaluate(FACES)["unit-1-b"] == "sat"                      # the circle itself is redrawn to match
+    assert not pg.evaluate("document.documentElement.classList.contains('alto-solar-stale')")
+    assert "redraws the next time" not in _toast(pg)
+    # the circles are where the plan puts them: the page's own positions follow it
+    near = pg.evaluate("""(()=>{var n=window._ALTO_SOLAR.nodes['unit-1-b'], el=document.getElementById('node-unit-1-b');
+      return [Math.abs(el.offsetLeft - Math.round(n.x)) <= 3 || Math.abs(el.offsetLeft - n.x) < 60, !!window._ALTO_SOLAR.systems.length];})()""")
+    assert near[1] and not errs, (near, errs)
+
+
+@needs_solar
+def test_the_real_layer_follows_a_star_chart_building_made_a_floor(browser, stars2_url):
+    pg, errs = _editing(browser, stars2_url, hook=None)
+    assert pg.evaluate("window._ALTO_SOLAR.systems.length") == 3 and pg.evaluate(ROLES)["unit-1-start2"] == "sun"
+    ids = pg.evaluate("[...document.querySelectorAll('#world .node')].sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top).map(n=>n.id.slice(5))")
+    first, second = [i for i in ids if i in ("unit-1-start", "unit-1-start2")]
+    _show(pg, first, second)
+    mid = _circle_drag(pg, "unit-1-start2", "unit-1-start")
+    assert mid["ok"] == ["node-unit-1-start"], mid
+    assert pg.evaluate("window._ALTO_SOLAR.systems.length") == 2           # its own system is gone
+    assert pg.evaluate(ROLES)["unit-1-start2"] == "planet" and pg.evaluate(FACES)["unit-1-start2"] == "planet"
+    assert not pg.evaluate("document.documentElement.classList.contains('alto-solar-stale')")
+    # a card added under a floor is planned in too
+    _show(pg, "unit-1-a")
+    _ctl(pg, "unit-1-a", "addc")
+    pg.wait_for_timeout(600)
+    new = [k[3:] for k in _edit_ops(pg) if k.startswith("nn|")]
+    assert len(new) == 1 and pg.evaluate(ROLES)[new[0]] == "moon", pg.evaluate(ROLES)
+    assert not errs, errs
+
+
+@needs_solar
+def test_a_moved_floor_keeps_its_turn_among_its_new_siblings_after_the_rebuild():
+    from alto.build.solar import solar_plan
+    d = _stars_draft()
+    d["nodes"] += [{"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": ""},
+                   {"id": "unit-1-c", "act": 0, "parent": "unit-1-start2", "title": "Its floor", "tag": "", "desc": ""}]
+    # unit-1-b comes before unit-1-c in the notes, but the owner made it the LAST floor of the other building
+    st, r = _fold_into(d, {"pf|unit-1-b": {"b": "unit-1-start", "v": "unit-1-start2", "t": 1}})
+    assert not r["conflicts"], r
+    assert st.doc["brief"]["placement"]["unit-1-b"] == {"order": 2}
+    b, nodes, _ = load_brief({"brief": st.doc["brief"], "nodes": st.nodes})
+    validate_brief(b)
+    sysm = next(s for s in solar_plan(b, nodes)["systems"] if s["sun"] == "unit-1-start2")
+    assert [p["id"] for p in sorted(sysm["planets"], key=lambda p: p["ring"])] == ["unit-1-c", "unit-1-b"]
+    from alto.build.palace import structure
+    assert structure(b, nodes)[1]["unit-1-start2"] == ["unit-1-c", "unit-1-b"]
+    # and the page numbers it 1.2-2, as the page showed while editing
+    html, _ = build_timeline(b, nodes, [])
+    assert '"unit-1-b":"1.2-2"' in html.replace(" ", "")
+
+
+@needs_solar
+def test_a_stars_placement_may_carry_an_order_but_a_city_may_not():
+    from alto.build.brief import BriefError
+    d = _stars_draft()
+    d["brief"]["placement"] = {"unit-1-b": {"order": 1}}
+    b, nodes, _ = load_brief(d)
+    validate_brief(b)
+    solar_ids = [p["id"] for p in __import__("alto.build.solar", fromlist=["solar_plan"]).solar_plan(b, nodes)["systems"][0]["planets"]]
+    assert solar_ids == ["unit-1-b", "unit-1-a"]                         # first among its siblings: the innermost ring
+    d["brief"]["placement"] = {"unit-1-b": {"order": 0}}
+    with pytest.raises(BriefError):
+        validate_brief(load_brief(d)[0])
+    d["brief"]["placement"] = {"unit-1-b": {"order": 1}}
+    d["brief"]["palace_view"] = "city"
+    with pytest.raises(BriefError):
+        validate_brief(load_brief(d)[0])
+
+
+@needs_solar
+def test_converting_carries_the_order_both_ways(local_store):
+    d = _stars_draft()
+    d["brief"]["placement"] = {"unit-1-b": {"order": 1}}
+    pid = srv.create_project("Law School", "1L year", "studying")["project_id"]
+    r = srv.create_timeline(pid, {**d["brief"], "title": "Torts"})
+    assert "error" not in r, r
+    tid = r["timeline_id"]
+    srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes"}], True)
+    assert "error" not in srv.add_nodes(tid, d["nodes"])
+    got = srv.convert_timeline(tid, "hub_and_spoke")
+    assert got.get("ok"), got
+    assert srv.get_timeline(tid)["brief"]["placement"] == {"unit-1-b": {"order": 1}}
+    b, nodes, _ = srv._load_full(srv._timeline_or_error(tid)[0])
+    from alto.build.builder import place
+    place(b, nodes)                                                    # as the build does before it plans the systems
+    assert [p["id"] for p in __import__("alto.build.solar", fromlist=["solar_plan"]).solar_plan(b, nodes)["systems"][0]["planets"]] == ["unit-1-b", "unit-1-a"]
+    assert srv.convert_timeline(tid, "star_chart").get("ok")
+    assert srv.get_timeline(tid)["brief"]["placement"]["unit-1-b"] == {"order": 1}
+
+
+@needs_solar
+def test_a_solar_page_does_not_lay_its_circles_out_again_while_nothing_changes(browser, edit_url):
+    """The edit tile once re-laid the page out every 250 ms whenever the window was taller than the
+    chart (it lengthens a band; a solar chart has none), replacing every circle under the pointer."""
+    pg, errs = _editing(browser, edit_url, hook=None)
+    pg.evaluate("""window.__rep = 0; new MutationObserver(function(ms){ ms.forEach(function(m){ m.removedNodes.forEach(function(n){
+        if(n.classList && n.classList.contains('node')) window.__rep++; }); }); }).observe(document.getElementById('world'), {childList: true, subtree: true});""")
+    x, y = _centre(pg, "unit-1-b")
+    pg.mouse.move(x, y)
+    pg.wait_for_timeout(1800)
+    assert pg.evaluate("window.__rep") == 0
+    assert not errs, errs
+
+
+def test_the_edit_tile_leaves_a_solar_chart_alone():
+    from alto.build.detail_extras import EDIT_TILE
+    assert "if(short > 0 && !window._ALTO_SOLAR && typeof initLayout === 'function'" in EDIT_TILE

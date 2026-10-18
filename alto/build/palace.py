@@ -235,14 +235,19 @@ def check_nodes(b, nodes, warnings: list) -> None:
             if cur.parent in seen:
                 raise BriefError(f"node {n.id}: its floors loop back on themselves")
             seen.add(cur.id); cur = by.get(cur.parent)
-    bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot", "fno", "out", "shape"}]
+    ok = {"lot", "fno", "out", "shape"} | ({"order"} if getattr(b, "palace_view", "city") == "stars" else set())
+    bad = [k for k, v in (b.placement or {}).items() if set(v) - ok]
     if bad:
-        raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})")
+        raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})"
+                         + ("; a Star chart's floors may also take an `order`" if getattr(b, "palace_view", "city") != "stars" else ""))
 
 
 # ── structure ──────────────────────────────────────────────────────────────
 def structure(b, nodes):
     """(buildings per unit in reading order, {building: [floors bottom→top]}, {floor: building})."""
+    if getattr(b, "palace_view", "city") == "stars":     # a Star chart: a moved floor keeps the turn it was given
+        from .layout import siblings_ordered
+        nodes = siblings_ordered(nodes, b.placement)
     kids: dict = {}
     for n in nodes:
         if n.parent:
