@@ -41,7 +41,7 @@ function inDoorEdge(ring,dr){ var n=ring.length/2, K=UM, de=-1, dpar=0, db=1e18;
     if(q<db){ db=q; de=i; dpar=t*Math.sqrt(l2)/K; } }
   return {de:de, dpar:dpar}; }
 /* the middle of every window opening: {x,y} just inside the wall, {nx,ny} into the room, {edge,len} */
-function insideWindows(ring,sg,win,door){ var n=ring.length/2, K=UM, o=[], dd=door?inDoorEdge(ring,door):{de:-1,dpar:-1};
+function insideWindows(ring,sg,win,door,floor){ var n=ring.length/2, K=UM, o=[], dd=(door&&!floor)?inDoorEdge(ring,door):{de:-1,dpar:-1};       /* the doorway is on the ground floor only: from the first floor up its span holds windows like the rest of the wall (glInside: f===0&&i===de) */
   for(var i=0;i<n;i++){ if(win && !win[i]) continue; var j=(i+1)%n, Ax=ring[2*i], Ay=ring[2*i+1], dx=ring[2*j]-Ax, dy=ring[2*j+1]-Ay, l=Math.hypot(dx,dy); if(l<.5) continue; var ux=dx/l, uy=dy/l, nx=-sg*dy/l, ny=sg*dx/l;
     inSpans(l/K,i===dd.de?dd.dpar:-1).forEach(function(it){ if(it.t!=='w') return; var m=(it.a+it.b)/2*K; o.push({x:Ax+ux*m, y:Ay+uy*m, nx:nx, ny:ny, edge:i, len:it.b-it.a}); }); }
   return o; }
@@ -255,7 +255,7 @@ function insideKey(e){
   return false; }
 var INSIDEAPI={ on:function(){ return IN.on; }, go:insideGo, leave:insideLeave, open:insideOpen, step:function(ms){ insideGlide(ms); }, frame:insideFrame, 
   state:function(){ return {on:IN.on, busy:IN.busy, floor:IN.f, floors:IN.nf, z:IN.z, gliding:!!IN.gl, near:IN.near, name:IN.name, id:IN.id, builds:IN.builds, board:IN.board, door:IN.door, shell:GLX.inside?{n:GLX.inside.n}:null, label:IN.ui?IN.ui.fln.textContent:''}; },
-  windows:function(){ return IN.on?insideWindows(IN.ring,IN.sg,IN.win,IN.door):[]; }, room:function(){ return IN.on?{kind:IN.kind,ring:IN.ring.slice(),items:IN.items.length,win:IN.win}:null; }, boardData:function(){ return IN.bd; }, blocked:function(x,y){ return IN.on?insideBlocked(x,y):null; }, shell:function(){ return GLX.inside; } };
+  windows:function(floor){ return IN.on?insideWindows(IN.ring,IN.sg,IN.win,IN.door,floor|0):[]; }, room:function(){ return IN.on?{kind:IN.kind,ring:IN.ring.slice(),items:IN.items.length,win:IN.win}:null; }, boardData:function(){ return IN.bd; }, blocked:function(x,y){ return IN.on?insideBlocked(x,y):null; }, shell:function(){ return GLX.inside; } };
 """
 
 CSS_INSIDE = r"""

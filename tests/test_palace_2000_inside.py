@@ -337,3 +337,14 @@ def test_the_real_ground_is_paving_and_the_street_areas_are_used():
     assert "'brtfpa'" in s and "mat:mat" in s and "W.dashes.push({ring:strip(q0[0]*K" in s                       # parks, pitches, parking from the data; parking gets stall lines
     g = palace_ride_gl._JS_GL_BUILD if hasattr(palace_ride_gl, "_JS_GL_BUILD") else palace_ride_gl.JS_GL
     assert "REAL.isOn())?12:11" in g and "(o.mat||13)+128" in g
+
+
+def test_the_window_list_matches_the_openings_on_every_floor(roam):
+    pg = roam
+    go_inside(pg)
+    g = pg.evaluate("() => window._palRide.roam.inside.windows()")
+    up = pg.evaluate("() => window._palRide.roam.inside.windows(1)")
+    assert len(up) >= len(g)                                                   # the door's span is a doorway on the ground floor and windows above
+    de = {w["edge"] for w in g}
+    assert any(w["edge"] not in de or sum(1 for q in up if q["edge"] == w["edge"]) > sum(1 for q in g if q["edge"] == w["edge"]) for w in up) or len(up) > len(g)
+    pg.evaluate("() => window._palRide.roam.exit(false)")
