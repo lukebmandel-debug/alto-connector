@@ -383,7 +383,7 @@ void main(){
   } else if(id<25.5){   /* the glass leaves of a node building's door: dark glass, a warm room behind it, the sky in it */
     if(uIn>.5) discard;                      /* seen from inside the building the doors are open air (palace_ride_inside.py) */
     float vh=clamp(vUV.y/2.2,0.,1.); float gl=.45+.55*sin(vh*3.14159); alb=vec3(.045,.05,.055);
-    emi=vec3(1.,.66,.34)*(.2+uNight*1.1)*gl*(.88+.2*nz(vUV*2.6)); refl=.16+.34*pow(1.-ndv,3.); spec=1.;
+    emi=vec3(1.,.66,.34)*(.2+uNight*1.1)*gl*(.88+.2*nz(vUV*2.6)); refl=.08+.10*pow(1.-ndv,3.); spec=1.;      /* (typ) little sky at grazing angles: shop and door glass read as glass, not pale panels */
   } else if(id<26.5){   /* the soft light under a canopy */
     alb=vec3(.09,.085,.08); emi=vec3(1.,.7,.4)*(.07+uNight*.7);
   } else if(id<31.5){   /* the inside of a node building (palace_ride_inside.py): lobby plaster with a wainscot, polished floor, ceiling lights, the directory board; lit by the room */
