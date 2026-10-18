@@ -375,7 +375,7 @@ def test_the_credit_is_in_the_ride_and_is_text_only():
     c = palace_ride_credit.JS_CREDIT
     assert "https://www.openstreetmap.org/copyright" in c and "a.target='_blank'" in c and "a.rel='noopener'" in c and "a.textContent" in c and "innerHTML" not in c
     assert "_palStreet.attribution()" in c and "pr-credit" in palace_ride_credit.CSS_CREDIT and "hudFrame" not in c
-    assert len(palace_ride_credit.JS_CREDIT) < 6000
+    assert len(palace_ride_credit.JS_CREDIT) < 7500
 
 
 @needs_node

@@ -38,7 +38,7 @@ def test_the_causes_are_closed_in_the_source():
     assert "gl_FragCoord" not in fs                                                          # no dither fixed to the screen: it crawls over a moving world
     assert "vFade<vFT" in fs and "vFT=fract(sin(dot(aI.xy" in vs                              # a fade is one threshold per instance
     e = palace_ride_e.JS_E
-    assert "REAL.gatherG(0,0,RW.R," in e and "performance.now()-t0<CFG.budget" in e and "function realFinish(" in e and "RW.gen=null;" in e
+    assert "REAL.gatherG(0,0,RW.gR," in e and "performance.now()-t0<CFG.budget" in e and "function realFinish(" in e and "RW.gen=null;" in e
 
 
 # ───────────────────────────── a small real street with the cases in it ─────────────────────────────
