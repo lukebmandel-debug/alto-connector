@@ -193,7 +193,13 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
   vec3 trim=old?(isBrick?vec3(.82,.80,.74):body*1.14):(er>2.5&&er<3.5?vec3(.70,.66,.58):vec3(.44,.45,.46));
   float fk=fract(T*53.1); vec3 frC=old?vec3(.84,.82,.76):(er<3.5?(fk<.5?vec3(.84,.82,.76):(fk<.75?vec3(.12,.13,.12):vec3(.22,.30,.25))):vec3(.55,.56,.57));
   float lit=step(h21(vec2(fi*7.1+bi*1.31,T*91.)),litP)*night; float blind=step(.72,h21(vec2(fi+bi*3.,T*5.)));
-  bool blankB=!street&&(house||shopG)&&h21(vec2(bi*3.+fi,T*7.))<.65;      /* the side and the back of a house: few windows */
+  bool blankB=!street&&(house||shopG)&&h21(vec2(bi*3.+fi,T*7.))<.65;
+  if(fp.x>.16 && !rel && !isGlass){                                          /* far (a pixel covers > 16 cm): the window grid only, no sashes, shutters, signs or doors */
+    vec2 loc=vec2(ul,ground?v:vl); float ww=house?min(.98,bwa*.46):(park||ind?bwa-.9:min(1.3,bwa*.42)); float wh=ground?(shopG&&street?gh-1.9:1.6):(ind?fh-1.7:(park?fh-1.3:min(fh-1.2,1.8)));
+    float cy=ground?(shopG&&street?.6+wh*.5:gh*.5+.2):.95+wh*.5; float w=pier||blankB||(ground&&!street&&house)?0.:rectm(loc,vec2(bwa*.5,cy),vec2(ww,wh)*.5,fw);
+    alb=mix(alb,park?vec3(.05):vec3(.04,.045,.055),w); refl=(.1+.3*fres)*w; emi=vec3(1.,.78,.48)*w*lit*.75;
+    float c0=Hh-cor; alb=mix(alb,(rowh||shopG)?vec3(.7,.68,.63):mix(trim,body,.3),smoothstep(c0,c0+.04,v)*(modern?0.:1.)); return; }
+  vec2 wp=vec2(0.); vec2 wc=vec2(0.); vec2 whs=vec2(0.); float wer=er; float wOn=0.;              /* one sash window per fragment, drawn once after the branches (the shader inlines fcDH once) */      /* the side and the back of a house: few windows */
   if(!ground && !pier && !blankB && !rel){
     vec2 loc=vec2(ul,vl);
     if(isGlass){
@@ -227,18 +233,14 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
     float pair=(office&&!modern)||(hotel&&!modern)?1.:0.;
     float ww=house?min(.98,bwa*.46):(civic?min(1.5,bwa*.42):(pair>.5?min(.95,bwa*.27):(tower?max(1.,bwa-.9):(modern?min(1.9,bwa*.62):min(1.05,bwa*.36)))));
     float wh=house?min(fh-1.15,old?1.85:1.7):(civic?min(fh-1.3,2.7):(tower?1.55:(modern?1.5:min(fh-1.2,1.9))));
-    float cyw=.95+wh*.5; vec4 m;
-    if(pair>.5){ float s1=bwa*.5-ww*.5-.18; vec4 m1=fcDH(loc,vec2(s1,cyw),vec2(ww,wh)*.5,fw,er); vec4 m2=fcDH(loc,vec2(bwa-s1,cyw),vec2(ww,wh)*.5,fw,er); m=max(m1,m2);
-      float sp=rectm(loc,vec2(bwa*.5,cyw),vec2(bwa*.5-.15,wh*.5+.05),fw)*(1.-m.x)*(1.-m.y); alb=mix(alb,isBrick?alb*.8:body*.86,sp); }
-    else m=fcDH(loc,vec2(bwa*.5,cyw),vec2(ww,wh)*.5,fw,modern?5.:er);
+    float cyw=.95+wh*.5;
+    if(pair>.5){ float s1=bwa*.5-ww*.5-.18; wp=vec2(ul<bwa*.5?ul:bwa-ul,vl); wc=vec2(s1,cyw);
+      float sp=rectm(loc,vec2(bwa*.5,cyw),vec2(bwa*.5-.15,wh*.5+.05),fw)*(1.-rectm(vec2(wp.x,vl),wc,vec2(ww,wh)*.5+.07,fw)); alb=mix(alb,isBrick?alb*.8:body*.86,sp); }
+    else { wp=loc; wc=vec2(bwa*.5,cyw); }
+    whs=vec2(ww,wh)*.5; wer=modern?5.:er; wOn=1.;
     if(tower){ float sl=rectm(vec2(u,vl),vec2(u,.12),vec2(1e3,.13),fw); alb=mix(alb,body*1.15,sl); alb*=1.-.22*rectm(vec2(u,vl),vec2(u,-.05),vec2(1e3,.12),fw); }
     if(old&&house&&fract(T*7.7)<.6){ float sh=rectm(loc,vec2(bwa*.5-ww*.5-.36,cyw),vec2(.27,wh*.5),fw)+rectm(loc,vec2(bwa*.5+ww*.5+.36,cyw),vec2(.27,wh*.5),fw);       /* louvred shutters */
       vec3 shc=fract(T*3.3)<.6?vec3(.05,.10,.07):vec3(.05,.05,.06); alb=mix(alb,shc*(.85+.3*step(.5,fract(vl/.09))),clamp(sh,0.,1.)); }
-    alb=mix(alb,(er>.5&&er<1.5&&isBrick)?body*vec3(.82,.72,.7)*(.9+.2*step(.5,fract(u/.09))):trim,m.z); alb=mix(alb,frC,m.y);
-    glM=clamp(m.x-m.w,0.,1.); alb=mix(alb,frC,m.w);
-    glassAlb=mix(vec3(.026,.033,.042),vec3(.45,.40,.33)*.45,blind);
-    alb=mix(alb,glassAlb,glM); refl=(.12+.36*fres)*glM*(1.-blind*.6)*(.75+.5*h21(vec2(fi*3.1,bi*1.9+T*3.)));
-    emi=vec3(1.,.76,.45)*(.45+.5*h11(fi*3.+bi*5.))*lit*.85*glM;
   }
   if(rel && !pier){
     /* a church: lancet windows between buttresses, a rose and a pointed door on the front */
@@ -266,8 +268,7 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
         alb*=1.-.35*rectm(gl,dc2,vec2(dW+.02,1.14),vec2(.12,.12))*(1.-door);
         emi=vec3(1.,.72,.4)*tr*night*.7; refl=(.1+.3*fres)*tr; }
       else {
-        vec4 m=fcDH(gl,vec2(bwa*.5,sH+1.42),vec2(min(.98,bwa*.46),1.6)*.5,fw,er); alb=mix(alb,trim,m.z); alb=mix(alb,frC,max(m.y,m.w)); glM=clamp(m.x-m.w,0.,1.);
-        glassAlb=mix(vec3(.026,.033,.042),vec3(.45,.40,.33)*.45,step(.6,h21(vec2(bi,T*5.)))); alb=mix(alb,glassAlb,glM); refl=(.1+.34*fres)*glM; emi=vec3(1.,.74,.42)*glM*step(h21(vec2(bi*7.,T*91.)),litP+.1)*night*.8;
+        wp=gl; wc=vec2(bwa*.5,sH+1.42); whs=vec2(min(.98,bwa*.46),1.6)*.5; wer=er; wOn=1.;
         if(sH>.5){ float bsw=rectm(gl,vec2(bwa*.5,sH*.45),vec2(.42,sH*.28),fw); alb=mix(alb,mix(vec3(.02),vec3(.1),step(.5,fract(ul/.13))*.7),bsw); } } }
     else if(street && shopG){
       /* a storefront: piers, a panelled bulkhead, the display glass over a lit room, a transom, the sign band, a recessed door; some shops closed behind a roll-down grille */
@@ -295,10 +296,12 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
       alb=mix(alb,vec3(.40,.41,.40)*(.82+.2*rib),ld); alb=mix(alb,alb*1.1,1.-step(.35,ul)*step(ul,bwa-.35));
       float w=(1.-ld)*rectm(gl,vec2(bwa*.5,gh*.6),vec2(bwa*.5-.6,gh*.22),fw); alb=mix(alb,vec3(.05,.06,.065),w); refl=(.1+.3*fres)*w; }
     else if(!(isGlass) && !(house&&!street&&h21(vec2(bi*5.,T*9.))<.7)){
-      float ww=house?min(.98,bwa*.46):min(1.1,bwa*.38); vec4 m=fcDH(gl,vec2(bwa*.5,gh*.5+.15),vec2(ww,min(gh-1.2,1.7))*.5,fw,modern?5.:er);
-      alb=mix(alb,trim,m.z); alb=mix(alb,frC,max(m.y,m.w)); glM=clamp(m.x-m.w,0.,1.); alb=mix(alb,glassAlb,glM); refl=(.1+.34*fres)*glM; emi=vec3(1.,.74,.42)*glM*lit*.8; }
+      float ww=house?min(.98,bwa*.46):min(1.1,bwa*.38); wp=gl; wc=vec2(bwa*.5,gh*.5+.15); whs=vec2(ww,min(gh-1.2,1.7))*.5; wer=modern?5.:er; wOn=1.; }
     else if(isGlass){ float pane=rectm(vec2(mod(u-mg,1.5),v),vec2(.75,gh*.5),vec2(.7,gh*.5-.15),fw); alb=mix(vec3(.18,.19,.21),vec3(.06,.07,.08),pane); refl=(.14+.34*fres)*pane; emi=vec3(.3,.22,.14)*pane*(night*2.2+.04); }
   }
+  if(wOn>.5){ vec4 m=fcDH(wp,wc,whs,fw,wer);
+    alb=mix(alb,(er>.5&&er<1.5&&isBrick)?body*vec3(.82,.72,.7)*(.9+.2*step(.5,fract(u/.09))):trim,m.z); alb=mix(alb,frC,max(m.y,m.w)); glM=clamp(m.x-m.w,0.,1.);
+    glassAlb=mix(vec3(.026,.033,.042),vec3(.45,.40,.33)*.45,blind); alb=mix(alb,glassAlb,glM); refl=(.12+.36*fres)*glM*(1.-blind*.6); emi=vec3(1.,.76,.45)*(.45+.5*h11(fi*3.+bi*5.))*lit*.85*glM; }
   /* the cornice: wood / pressed metal on houses and shops (dentils, brackets at the ends), stone on the rest; a shadow line under it */
   if(!isGlass){
     float c0=Hh-cor; float cb=smoothstep(c0,c0+.04,v);
