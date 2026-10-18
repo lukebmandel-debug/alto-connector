@@ -52,6 +52,7 @@ uniform sampler2D uPal; uniform sampler2D uAtl; uniform vec2 uAtlS; uniform vec4
 varying float vFade; varying float vFT;
 uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size of the far map, z: its depth bias, w: the near map's depth bias */
 uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
+uniform vec4 uShO;                                                  /* where each map's UNSNAPPED centre is in its own clip space (far xy, near zw): the cascade blend follows the camera smoothly while the maps move in texel steps */
 float pcf(sampler2D s, vec2 uv, float z, float ts){
   vec2 q=uv/ts-.5; vec2 f=fract(q); vec2 b=(floor(q)+.5)*ts;
   float a=step(z,texture2D(s,b).r); float c=step(z,texture2D(s,b+vec2(ts,0.)).r); float d=step(z,texture2D(s,b+vec2(0.,ts)).r); float e=step(z,texture2D(s,b+vec2(ts,ts)).r);
@@ -59,9 +60,9 @@ float pcf(sampler2D s, vec2 uv, float z, float ts){
 float shadowAt(float nl){
   if(uShP.x<.5) return 1.;
   float sl=1.+3.*(1.-nl); float vis=1.; float wq=0.;
-  vec3 sc=vSQ*.5+.5; float fq=1.-smoothstep(.70,.96,max(abs(vSQ.x),abs(vSQ.y)));
+  vec3 sc=vSQ*.5+.5; vec2 qn=vSQ.xy-uShO.zw; float fq=(1.-smoothstep(.62,.9,max(abs(qn.x),abs(qn.y))))*(1.-smoothstep(.97,.995,max(abs(vSQ.x),abs(vSQ.y))));    /* the near->far blend band used to sit on the SNAPPED map and jumped ~5 m with each snap */
   float vf=1.;
-  { vec3 sf=vSL*.5+.5; float ff=1.-smoothstep(.72,.98,max(abs(vSL.x),abs(vSL.y))); float o=uShP.y*.8; float z=sf.z-uShP.z*sl;
+  { vec3 sf=vSL*.5+.5; vec2 qf=vSL.xy-uShO.xy; float ff=(1.-smoothstep(.66,.9,max(abs(qf.x),abs(qf.y))))*(1.-smoothstep(.97,.995,max(abs(vSL.x),abs(vSL.y)))); float o=uShP.y*.8; float z=sf.z-uShP.z*sl;
     if(ff>0.&&sf.z<1.&&sf.z>0.){ float v=(pcf(uSh,sf.xy+vec2(-o,-o),z,uShP.y)+pcf(uSh,sf.xy+vec2(o,-o),z,uShP.y)+pcf(uSh,sf.xy+vec2(-o,o),z,uShP.y)+pcf(uSh,sf.xy+vec2(o,o),z,uShP.y))*.25; vf=mix(1.,v,ff); } }
   if(fq>0.&&sc.z<1.&&sc.z>0.){ float o=uShQ.x*.8; float z=sc.z-uShP.w*sl;
     float v=(pcf(uSq,sc.xy+vec2(-o,-o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(o,-o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(-o,o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(o,o),z,uShQ.x))*.25;
@@ -406,7 +407,7 @@ void main(){
   } else if(id<32.5){   /* lm: plain warm limestone, no window grid (palace_ride_h.py MAT.lime: 30th Street Station) - coursed blocks that fade with distance */
     float fine=1.-smoothstep(.04,.14,fpx); vec2 q=vec2(vUV.x/1.5+.5*floor(vUV.y/.76),vUV.y/.76); vec2 f=abs(fract(q)-.5); float jt=smoothstep(.44,.49,max(f.x*.6,f.y))*fine*(wallLike?1.:0.);
     alb=vec3(.80,.74,.62)*(.93+.09*nz(gp*.21)+.05*h21(floor(q)))*(1.-.16*jt);
-  } else if(id>38.5&&id<39.5){ if(dist>35.*UMc) discard; alb=vec3(.05,.05,.055); spec=1.;      /* fine iron (palace_ride_facade.py: railings, balusters, areaway pickets): gone beyond 35 m */
+  } else if(id>38.5&&id<39.5){ if(h21(floor(vP.xy*(2./UMc))+floor(vP.z*(2./UMc))*7.31)<smoothstep(24.*UMc,46.*UMc,dist)) discard; alb=vec3(.05,.05,.055); spec=1.;      /* fine iron (palace_ride_facade.py: railings, balusters, areaway pickets): thins out between 24 and 46 m, half-metre piece by piece, anchored in the world (it used to vanish at once at 35 m) */
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
     vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7)*.6+nz(gp*9.)*.4*(1.-smoothstep(.02,.1,fpx)); alb=mix(vec3(.27)*(.85+.3*nz(gp*.8)),pc*.9,(.5+.35*smoothstep(.25,.6,wear))*(.85+.15*nz(gp*.3)));

@@ -55,7 +55,7 @@ function glSetup(restore){
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
   GLX.inst=gl.getExtension('ANGLE_instanced_arrays');
   try{
-    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC','uIn']);
+    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uShO','uPal','uAtl','uAtlS','uLamp','uLampC','uIn']);
     GLX.shp=glProgram(gl, GLS.vsh, GLS.fsh, ['aP'], ['uLP']);
     GLX.sky=glProgram(gl, GLS.vss, GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']);
   }catch(x){ GLX.err=String(x&&x.message||x); if(window.console) console.warn('ride GL', GLX.err); return glFail(true); }
@@ -291,7 +291,7 @@ function glPlan(W){
   function cell(x,y){ var ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), k=ci+','+cj, c=G.cells[k]; if(!c){ c=G.cells[k]={ci:ci,cj:cj,key:k,msh:[],sol:[],til:[],par:[],wat:[],rod:[],das:[],xs:[],h:0,rad:0,state:0,job:null}; G.keys.push(k); } return c; }
   (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m.tex||typeof m.id!=='string'||m.id.indexOf('scn:')!==0) return; var q=m.id.slice(4).split(','), ci=+q[0], cj=+q[1]; if(!isFinite(ci)||!isFinite(cj)) return;
     var c=cell((ci+.5)*CELL,(cj+.5)*CELL), n=m.a.length, hh=n; for(var u=0;u<8;u++) hh=glHashStr(hh,Math.round(m.a[Math.floor(u*(n-1)/7)]*50)); c.msh.push(m); m._gm=1; c.h=glHashStr(c.h,hh); });
-  (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)+(s.hide?s.hide.length*17:0)+(s.nodraw?29:0)+(s.roofDz?41:0)); c.rad=Math.max(c.rad,s.r||0); });
+  (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)+(s.hide?s.hide.length*17:0)+(s.nodraw?29:0)+(s.roofDz?41:0)); if(s.fg) c.h=glHashStr(c.h,s.fg.g*7+(s.fg.fe+1)*131+(s.fg.sm%65521)*3+(s.fg.pe%65521)*5+s.fg.er*977); if(s.shop) c.h=glHashStr(c.h,Math.round(s.shop.hue*97)+(s.shop._hide?7:11)); c.rad=Math.max(c.rad,s.r||0); });      /* the facade class and the shop are part of what a cell looks like: a change rebuilds it */
   (W.tiles||[]).forEach(function(t){ var c=cell(t.cx,t.cy); c.til.push(t); c.h=glHashStr(c.h,Math.round(t.cx*5)+Math.round(t.cy*3)+t.ring.length); c.rad=Math.max(c.rad,t.r||0); });
   (W.parks||[]).forEach(function(p){ var c=cell(p.cx,p.cy); c.par.push(p); c.h=glHashStr(c.h,Math.round(p.cx*5)+Math.round(p.cy*3)+p.ring.length*11); c.rad=Math.max(c.rad,p.r||0); });
   (W.water||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.wat.push(w); c.h=glHashStr(c.h,Math.round(w.cx*5)+Math.round(w.cy*3)+Math.round(w.w)); c.rad=Math.max(c.rad,w.r||0); });
@@ -490,8 +490,8 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   glSceneryUni(gl,pg,Wd,L);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,GLX.noise);
   var sd=GLX.shd; if(sd&&sd.ok&&sd.on){ var cf=sd.c[0], cq=sd.c[1]; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,cf.tex); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,cq.tex); gl.activeTexture(gl.TEXTURE0);
-    gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
-  else { gl.uniformMatrix4fv(pg.u.uLP,false,GLX.ident); gl.uniformMatrix4fv(pg.u.uLQ,false,GLX.ident); gl.uniform4f(pg.u.uShP,0,0,0,0); gl.uniform2f(pg.u.uShQ,0,0); gl.uniform2f(pg.u.uNOff,0,0); }
+    gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); var fo=cf.off||[0,0], qo=cq.off||[0,0]; gl.uniform4f(pg.u.uShO,fo[0],fo[1],qo[0],qo[1]); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
+  else { gl.uniformMatrix4fv(pg.u.uLP,false,GLX.ident); gl.uniformMatrix4fv(pg.u.uLQ,false,GLX.ident); gl.uniform4f(pg.u.uShP,0,0,0,0); gl.uniform2f(pg.u.uShQ,0,0); gl.uniform4f(pg.u.uShO,0,0,0,0); gl.uniform2f(pg.u.uNOff,0,0); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);          /* the contact shadows (material 50) are the only fragments with alpha < 1 */
   var G=glPlan(Wd), draws=0, tris=0; _gvis.length=0;
   G.keys.forEach(function(k){ var o=glCellObj(G,k); if(!o) return; o.use=GLX.frame; if(glSphVis(o.cx,o.cy,o.cz,o.r)) _gvis.push(o); });
@@ -617,7 +617,7 @@ function glShadowPass(gl,Wd,L,cw,ch){
     var DSTEP=32, cb=Math.round((Ls[0]*ox+Ls[1]*oy)/DSTEP)*DSTEP, cMin=cb-500-DSTEP/2, cMax=cb+440+DSTEP/2, k=2/(cMax-cMin), m=c.lp;       /* the depth range is part of what the map was drawn with: it moves in steps, and a step redraws the map (it used to follow the camera
       every frame while the map was only redrawn every few units: the ground stood sunlit, then in shadow, then sunlit as you walked) */
     m[0]=a[0]/Rs; m[4]=a[1]/Rs; m[8]=a[2]/Rs; m[12]=-oa/Rs; m[1]=b[0]/Rs; m[5]=b[1]/Rs; m[9]=b[2]/Rs; m[13]=-ob/Rs; m[2]=-Ls[0]*k; m[6]=-Ls[1]*k; m[10]=-Ls[2]*k; m[14]=cMax*k-1; m[3]=0; m[7]=0; m[11]=0; m[15]=1;
-    c.biasD=cf.bias/(cMax-cMin);
+    c.biasD=cf.bias/(cMax-cMin); c.off=[(a[0]*ox+a[1]*oy-oa)/Rs,(b[0]*ox+b[1]*oy-ob)/Rs];      /* the unsnapped centre in the map's clip space (uShO): the cascade blend band follows it, not the snapped map */
     var key=oa+'|'+ob+'|'+cb+'|'+n+'|'+GLX.gen+'|'+nm+'|'+G.keys.length+'|'+Ls[0]+'|'+(ci?'':'');
     if(key===c.key) continue; c.key=key;
     if(!prepared){ prepared=true; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE0);

@@ -276,6 +276,9 @@ function* gatherRealG(Xp, Yp, R, at){
       try{ fg=fcClass(f.rec||{storefront:!!f.sf}, ring, n, h, area, ob, hashXY(bx*1.7+3,by*2.3+1)); var rk=fcRoofKind(fg, f.rs, rect, area, h, hs); if(rk>-2) kind=rk; }catch(e){ fg=null; }        /* the facade grammar (palace_ride_facade.py) */
       var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; sol.nm=f.nm||''; sol.wd=f.wd||''; sol.fg=fg; sol.matInf=!!(f.rec&&(f.rec.fl&2)); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0) sol._rf=[wr,eave,kind,hashXY(bx*3,by*7),ci+','+cj]; kept++; });
     yield; }                                  /* one 400 m chunk done: roam's frame loop takes it from here, a few milliseconds at a time (palace_ride_e.py realGatherStep) */
+  /* one order for the solids whatever the gather centre: the chunks' building lists come in the order the shards were loaded, and the dedupe's ties ("the earlier one wins"), the roof drop and the roof
+     meshes all follow this order - a regather from another centre flipped which of two coplanar walls was drawn (another building's colour) and rebuilt identical cells */
+  W.solids.sort(function(p,q){ return (p.cx-q.cx)||(p.cy-q.cy)||(p.h-q.h)||((p.z0||0)-(q.z0||0))||(p.n-q.n); });
   if(typeof realLandmarks==='function') realLandmarks(W);        /* lm: the landmark models on their real footprints (palace_ride_street_lm.py) */
   realDedupe(W); yield;
   /* roofs and parapets AFTER the dedupe: a footprint the data lists twice (an outline and its part) drew two parapets on one plane, and a lowered roof keeps its parapet with it */
