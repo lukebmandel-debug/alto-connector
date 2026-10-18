@@ -257,10 +257,17 @@ function realGather(){                                                  /* the w
   var t0=performance.now(); RW.gen=null; realFinish(REAL.gather(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k}),S.x,S.y,performance.now()-t0); }
 /* the world ahead, a few milliseconds a frame: the generator (palace_ride_street.py gatherRealG) yields between 400 m chunks and steps, the frame loop gives it CFG.budget ms each frame, and the swap happens once, when it is done.
    A 105 m walk used to stop for the whole gather (30-45 ms, two or three dropped frames). */
+/*@WD-begin: the gather watchdog (2.0.1): a sliced gather that has spent more than RW_WD ms in all is abandoned - the old world stays on screen - and tried again a second
+   later with a smaller radius (x .7, never under RW_RMIN m); a gather that finishes lets the radius grow back. A single bad feature can then cost a few frames, never the tab. @*/
+var RW_WD=250, RW_RMIN=180, RW_WAIT=1000;
 function realGatherStep(sync){
-  if(!RW.gen){ RW.gx=S.x; RW.gy=S.y; RW.gms=0; RW.gen=REAL.gatherG(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k}); }
+  if(!RW.gen){ RW.gx=S.x; RW.gy=S.y; RW.gms=0; RW.gR=RW.Rnow||RW.R; RW.gen=REAL.gatherG(0,0,RW.gR,{x:S.x/UM,y:S.y/UM,k:RW.k}); }
   var t0=performance.now(), r; do{ r=RW.gen.next(); }while(!r.done && (sync || performance.now()-t0<CFG.budget));
-  RW.gms+=performance.now()-t0; if(r.done){ RW.gen=null; realFinish(r.value,RW.gx,RW.gy,RW.gms); } }
+  RW.gms+=performance.now()-t0;
+  if(r.done){ RW.gen=null; RW.Rnow=Math.min(RW.R,Math.round(RW.gR*1.25)); realFinish(r.value,RW.gx,RW.gy,RW.gms); return; }
+  if(!sync && RW.gms>RW_WD){ try{ RW.gen.return(); }catch(x){} RW.gen=null; RW.aborts=(RW.aborts||0)+1; RW.Rnow=Math.max(RW_RMIN,Math.round(RW.gR*.7)); RW.wdAt=performance.now()+RW_WAIT;
+    if(window.console&&console.warn&&RW.aborts<4) console.warn('roam: a street gather took over '+RW_WD+' ms; kept the old world, retrying at '+RW.Rnow+' m'); } }
+/*@WD-end@*/
 /* every step in real mode: keep the world centred near the walker, fetch the shards ahead; hold the walker inside the in-bounds region */
 /* the shards for where the walker will be: when he is within 110 m of leaving the data that is loaded, fetch round his position AND the point 5 s ahead (at least 150 m along his heading), so the regather never waits for the network */
 function realPrefetch(){
@@ -270,6 +277,7 @@ function realPrefetch(){
   RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(ok){ RW.busy=false; RW.pre=(RW.pre||0)+1; if(ok===false) rwlFail(); else if(ok) rwlReset(); }, function(e){ RW.busy=false; rwlFail(e); }); }
 function realStream(sync){
   if(RW.gen){ realGatherStep(sync); return; }
+  if(!sync && RW.wdAt && performance.now()<RW.wdAt) return;                                  /* (WD) a gather was abandoned a moment ago */
   if(!sync) realPrefetch();
   rwlHold(S.x/UM,S.y/UM);                                                                   /* (fix2) hold the walker inside the built world while the street under them is missing */
   if(RW.busy || Math.hypot(S.x-RW.cx,S.y-RW.cy)<RW.regather*UM) return;
@@ -412,7 +420,7 @@ function frame(now){
 function shutdown(){
   markReset();                                                   /*@MARK-glue@*/
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
+  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.wdAt=0; RW.Rnow=0; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
@@ -467,7 +475,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
   sim:function(keys, seconds, dt, run){ S.keys={}; String(keys||'').split(',').forEach(function(q){ if(q) S.keys[q]=1; }); S.run=!!run; dt=dt||1/60; var n=Math.round(seconds/dt), bad=0; for(var i=0;i<n;i++){ tick(dt,true); if(blockedAt(S.x,S.y)) bad++; } S.keys={}; S.run=false; return {x:S.x,y:S.y,bad:bad,n:n}; },
   place:function(x,y,yaw){ S.x=x; S.y=y; if(yaw!=null) S.yaw=yaw; S.vx=S.vy=0; plan(true); stream(true); var f=freeNear(S.x,S.y); S.x=f[0]; S.y=f[1]; },
   look:function(yaw,pitch){ if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); },
-  real:{ on:function(){ return !!S.real; }, upgrade:function(){ return S.upgrade||Promise.resolve(false); }, stats:function(){ return {n:RW.n, ms:RW.ms, maxMs:RW.maxMs, edge:RW.edge, R:RW.R, solids:S.W?S.W.solids.length:0}; }, gather:realGather, bound:realBound, toPage:function(){ return S.real?REAL.exit(S.x,S.y):[S.x,S.y]; } },
+  real:{ on:function(){ return !!S.real; }, upgrade:function(){ return S.upgrade||Promise.resolve(false); }, stats:function(){ return {n:RW.n, ms:RW.ms, maxMs:RW.maxMs, edge:RW.edge, R:RW.R, Rnow:RW.Rnow||RW.R, aborts:RW.aborts||0, wd:RW_WD, solids:S.W?S.W.solids.length:0}; }, gather:realGather, step:realGatherStep, bound:realBound, toPage:function(){ return S.real?REAL.exit(S.x,S.y):[S.x,S.y]; } },
   settle:function(){ var g=0; while(S.queue.length && g++<500) stream(true); stream(true); },
   draw:function(){ hudFrame(true); draw(); showNow(); },
   blocked:blockedAt, free:freeNear, world:function(){ return S.W; }, dbg:function(){ return E; }, deckSegs:function(){ return idx().decks; },
