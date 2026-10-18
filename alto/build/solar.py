@@ -1,6 +1,9 @@
-"""Solar outline layout (brief.layout == "solar"): every unit a solar system.
+"""Solar layouts: Hub & spoke (an outline with layout "solar", still, style
+"spoke") and the Star chart (a Mind Palace with palace_view "stars", moving,
+style "orbit"); brief.solar_style says which a brief is.
 
-A unit's top concept (Node.parent "") is its SUN; its children are PLANETS,
+Every ROOT node (Node.parent "") is a SUN — an outline has one per unit, a Mind
+Palace one per building, so a district may hold several systems. A sun's children are PLANETS,
 one to a ring, the first on the innermost ring and the rest outward in outline
 order; their children are MOONS, spaced evenly on one small ring round their
 planet; one level deeper are SATELLITES, round their moon. A fifth level is a
@@ -49,8 +52,13 @@ The plan (the contract with solar_draw.py, which reads window._ALTO_SOLAR):
                 "planets": [{"id", "ring", "r", "a0", "d", "period", "e",
                              "moon_r", "moons": [{"id", "r", "a0", "d", "period",
                                                   "sat_r", "sats": [{"id", "r", "a0", "d", "period"}]}]}]}],
+   "units": [{"unit", "label", "suns": [sun ids], "bbox"}],   # a district's systems together
    "nodes": {id: {"x", "y", "d", "role", "unit", "parent"}},
-   "sun_links": [[sun id, sun id]]}
+   "sun_links": [[sun id, sun id]], "warnings": [...]}
+
+Systems come unit by unit, each unit's roots in order. When a unit holds
+several (a Mind Palace district of several buildings) every unit starts a row
+of its own; one system per unit flows side by side.
 
 Angles are radians in page coordinates (x right, y DOWN), measured from +x: a
 body at angle a sits at (cx + r cos a, cy + r sin a) round what it orbits. A
@@ -69,7 +77,7 @@ from __future__ import annotations
 
 import math
 
-from .brief import BriefError, SOLAR_ROLES
+from .brief import BriefError, SOLAR_ROLES, solar_style
 
 SOLAR = {
     # base diameters per role (no children, no flag)
@@ -152,10 +160,10 @@ def _even(n: int, out: float) -> list:
 
 
 def _tree(brief, nodes):
-    """Per unit: (sun id, [(planet, [(moon, [sat])])]) in outline order.
-    Raises BriefError on a fifth level. A node whose parent is not a node (an
-    interview still filling in) orbits its unit's sun, so a preview never
-    drops a card."""
+    """Every system, unit by unit and each unit's roots in order: (unit, sun
+    id, [(planet, [(moon, [sat])])]). Raises BriefError on a fifth level. A
+    node whose parent is not a node (an interview still filling in) orbits its
+    unit's first sun, so a preview never drops a card."""
     ids = {n.id for n in nodes}
     kids: dict = {}
     for n in nodes:
@@ -166,24 +174,31 @@ def _tree(brief, nodes):
         mine = [n for n in nodes if n.act == a]
         if not mine:
             continue
-        tops = [n.id for n in mine if not n.parent]
-        sun = tops[0] if tops else mine[0].id
-        loose = [n.id for n in mine if n.id != sun and (not n.parent or n.parent not in ids)]
-        planets = []
-        for p in kids.get(sun, []) + loose:
-            moons = []
-            for m in kids.get(p, []):
-                sats = kids.get(m, [])
-                for s in sats:
-                    if kids.get(s):
-                        raise BriefError(
-                            f"node {kids[s][0]} is deeper than a satellite ({sun} → {p} → {m} → "
-                            f"{s} → {kids[s][0]}): a solar layout has four levels — "
-                            "restructure the outline or use layout 'tree'")
-                moons.append((m, list(sats)))
-            planets.append((p, moons))
-        units.append((a, sun, planets))
+        tops = [n.id for n in mine if not n.parent] or [mine[0].id]
+        loose = [n.id for n in mine if n.id not in tops and (not n.parent or n.parent not in ids)]
+        for k, sun in enumerate(tops):
+            units.append((a, sun, _family(sun, kids.get(sun, []) + (loose if k == 0 else []), kids, brief)))
     return units
+
+
+def _family(sun, planet_ids, kids, brief):
+    """[(planet, [(moon, [sat])])] under one sun."""
+    planets = []
+    for p in planet_ids:
+        moons = []
+        for m in kids.get(p, []):
+            sats = kids.get(m, [])
+            for s in sats:
+                if kids.get(s):
+                    way_out = ("keep the palace as a city (palace_view 'city')"
+                               if getattr(brief, "mode", "") == "palace" else "use layout 'tree'")
+                    raise BriefError(
+                        f"node {kids[s][0]} is deeper than a satellite ({sun} → {p} → {m} → "
+                        f"{s} → {kids[s][0]}): a solar layout has four levels — "
+                        f"restructure it or {way_out}")
+            moons.append((m, list(sats)))
+        planets.append((p, moons))
+    return planets
 
 
 def _planet_body(pid, moons, size, S):
@@ -360,20 +375,26 @@ def _system(unit, sun, planets, style, bumped, brief_nodes):
             "planets": out_planets, "local": local, "warnings": warns}
 
 
-def solar_plan(brief, nodes) -> dict:
+def solar_plan(brief, nodes, style: str = "") -> dict:
     """The whole solar layout (module docstring). Pure: reads the brief and
-    the nodes (in outline order — builder.place has run) and changes neither."""
+    the nodes (in outline order — builder.place has run) and changes neither.
+    `style` overrides the brief's own (brief.solar_style; "spoke" if none)."""
     S = SOLAR
-    style = getattr(brief, "hub_style", "orbit") or "orbit"
+    style = style or solar_style(brief) or "spoke"
     bumped = _bump_flags(brief)
     systems = [_system(a, sun, planets, style, bumped, nodes)
                for a, sun, planets in _tree(brief, nodes)]
     widths = [s["box"][2] - s["box"][0] for s in systems]
     world_w = int(math.ceil(max([S["WORLD_W"]] + [w + 2 * S["MARGIN"] for w in widths])))
     inner = world_w - 2 * S["MARGIN"]
+    # A unit (district) holding several systems keeps them together: each
+    # unit then starts a row of its own. One system per unit (any outline)
+    # simply flows, side by side.
+    grouped = len({s["unit"] for s in systems}) < len(systems)
     rows, row, span = [], [], 0.0
     for s, w in zip(systems, widths):
-        if row and span + S["SYS_GAP"] + w > inner + 1e-6:
+        if row and (span + S["SYS_GAP"] + w > inner + 1e-6
+                    or (grouped and s["unit"] != row[-1]["unit"])):
             rows.append(row)
             row, span = [], 0.0
         span += (S["SYS_GAP"] if row else 0.0) + w
@@ -405,12 +426,21 @@ def solar_plan(brief, nodes) -> dict:
         top = cy + down + S["SYS_GAP"]
     world_h = int(math.ceil((top - S["SYS_GAP"]) + S["BOTTOM"])) if rows else S["TOP"] + S["BOTTOM"]
     order = [s["sun"] for s in out_systems]
+    units = []
+    for s in out_systems:
+        if not units or units[-1]["unit"] != s["unit"]:
+            units.append({"unit": s["unit"], "label": s["label"], "suns": [], "bbox": list(s["bbox"])})
+        u = units[-1]
+        u["suns"].append(s["sun"])
+        u["bbox"] = [min(u["bbox"][0], s["bbox"][0]), min(u["bbox"][1], s["bbox"][1]),
+                     max(u["bbox"][2], s["bbox"][2]), max(u["bbox"][3], s["bbox"][3])]
     return {
         "style": style, "spin": SPIN,
         "world": {"w": world_w, "h": world_h},
         "sizes": {**S["D"], "planet_big": S["TIERS"]["planet"][-1],
                   "tiers": {k: list(v) for k, v in S["TIERS"].items()}, "bump": sorted(bumped)},
         "systems": out_systems,
+        "units": units,
         "nodes": out_nodes,
         "sun_links": [[a, b] for a, b in zip(order, order[1:])],
         "warnings": [w for s in systems for w in s["warnings"]],

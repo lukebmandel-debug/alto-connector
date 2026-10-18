@@ -21,7 +21,7 @@ from urllib.parse import quote as url_q
 from .brief import Brief, Node, Section, COL_SETS, roman
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
-from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css
+from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css, palace_stub
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
@@ -983,7 +983,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # whole, as window._ALTO_SOLAR (solar_draw reads it), and its circles'
     # centres as a tree plan the page's _altoTree runs like any other.
     solar_plan_ = None
-    if solar and b.mode == "outline":
+    if solar:
         from .solar import solar_plan as _solar_plan
         solar_plan_ = _solar_plan(b, nodes)
     ax1 = b.axes[0] if len(b.axes) > 0 else None
@@ -1527,12 +1527,17 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # The horizontal timeline (lanes.py): lines, times, and the layout
         # the engine's initLayout hands over to on desktop.
         orders += lanes_data(b, nodes) + LANES_JS
-    if b.mode == "palace":
+    if b.mode == "palace" and solar_plan_:
+        # A Star chart (palace_view "stars"): no city — only the floors'
+        # numbers (3.4-2) — and the solar systems (solar.py).
+        orders += palace_stub(b, nodes) + _solar_glue(solar_plan_, nodes)
+    elif b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
         orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
     if index_axes:
-        orders += (palace_index_glue() if b.mode == "palace" else dx.AXIS_INDEX_GLUE) + dx.axes_config(b, index_axes)
+        orders += ((palace_index_glue() if b.mode == "palace" and not solar_plan_ else dx.AXIS_INDEX_GLUE)
+                   + dx.axes_config(b, index_axes))
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
@@ -1579,7 +1584,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "\n  #nav .nav-btn svg,.char-chip svg{vertical-align:-2px;margin-right:5px;}")
     if b.mode == "lanes":
         nav_char_css += LANES_CSS
-    if b.mode == "palace":
+    if b.mode == "palace" and not solar_plan_:
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (
@@ -1656,7 +1661,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # A card sized by its owner (brief.card_size): its width, and the least
     # height it takes. After the tree's widths above, so it wins.
     _ids = {n.id for n in nodes}
-    # (a solar circle's size is its role's, solar.SOLAR["D"])
+    # (a solar circle's size is its own: solar.body_d, by its children)
     for _i, _sz in sorted(() if solar_plan_ else (b.card_size or {}).items()):
         if _i in _ids and isinstance(_sz, dict):
             _d = ((f"width:{_sz['w']:g}px;" if _sz.get("w") else "")

@@ -564,7 +564,8 @@ STORE_TOOLS = ("get_interview_guide", "sign_in", "list_projects", "create_projec
                "set_axis_values", "add_nodes", "add_connections", "set_flags", "set_lines",
                "set_overview", "run_layout_preview", "build_timeline",
                "preview_timeline", "publish_timeline", "get_timeline",
-               "import_timeline", "delete_nodes", "delete_timeline", "delete_project")
+               "import_timeline", "delete_nodes", "delete_timeline", "delete_project",
+               "convert_timeline")
 
 
 def test_every_tool_that_touches_a_store_takes_an_optional_account(world):
