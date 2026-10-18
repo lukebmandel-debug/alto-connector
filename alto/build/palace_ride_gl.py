@@ -497,7 +497,9 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   gl.enable(gl.CULL_FACE);
   for(i=0;i<_gvis.length;i++){ var o=_gvis[i]; glBind(gl,pg,o); gl.drawArrays(gl.TRIANGLES,0,o.n); draws++; tris+=o.n/3; }
   /* the inside of a node building (palace_ride_inside.py): its own buffer, both faces, not in the shadow pass */
-  if(GLX.inside && GLX.inside.buf){ gl.disable(gl.CULL_FACE); glBind(gl,pg,GLX.inside); gl.drawArrays(gl.TRIANGLES,0,GLX.inside.n); draws++; tris+=GLX.inside.n/3; gl.enable(gl.CULL_FACE); }
+  if(GLX.inside && GLX.inside.buf){ var bt=GLX.insideTex; if(bt){ gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,bt); gl.uniform2f(pg.u.uAtlS,1,1); gl.activeTexture(gl.TEXTURE0); }   /* the directory board's canvas stands in for the street-name atlas during this draw */
+    gl.disable(gl.CULL_FACE); glBind(gl,pg,GLX.inside); gl.drawArrays(gl.TRIANGLES,0,GLX.inside.n); draws++; tris+=GLX.inside.n/3; gl.enable(gl.CULL_FACE);
+    if(bt){ gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,GLX.atlTex); var as2=GLX.atlS||[1,1]; gl.uniform2f(pg.u.uAtlS,as2[0],as2[1]); gl.activeTexture(gl.TEXTURE0); } }
   /* the ride's way */
   var wy=GLX.curWay; if(wy && wy.segs){ for(i=0;i<wy.segs.length;i++){ var s=wy.segs[i]; if(!glSphVis(s.cx,s.cy,s.cz,s.r)) continue; glBind(gl,pg,s); gl.drawArrays(gl.TRIANGLES,0,s.n); draws++; tris+=s.n/3; } }
   /* meshes from the landmark and scenery parts: no culling (their winding is not ours to trust) */

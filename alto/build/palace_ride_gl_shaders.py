@@ -384,17 +384,22 @@ void main(){
   } else if(id<26.5){   /* the soft light under a canopy */
     alb=vec3(.09,.085,.08); emi=vec3(1.,.7,.4)*(.07+uNight*.7);
   } else if(id<31.5){   /* the inside of a node building (palace_ride_inside.py): lobby plaster with a wainscot, polished floor, ceiling lights, the directory board; lit by the room */
-    if(id<27.5){ float hh=vUV.y; alb=vec3(.80,.77,.71)*(.94+.1*nz(gp*.7));
-      alb=mix(vec3(.60,.55,.48)*(.94+.1*nz(vec2(vUV.x*1.5,hh*9.))),alb,smoothstep(.94,1.0,hh));
-      float rl=smoothstep(.96,1.0,hh)*(1.-smoothstep(1.05,1.09,hh)); alb=mix(alb,vec3(.5,.42,.33),rl);
+    if(id<27.5){ float hh=vUV.y, uu=vUV.x; alb=vec3(.82,.79,.73)*(.95+.08*nz(gp*.7)+.03*nz(vec2(uu*5.,hh*5.)));                     /* plaster above, a wood wainscot panelled every 1.1 m below 1.0 m, a dark base and a chair rail: scale cues you can count */
+      float pd=abs(fract(uu/1.1)-.5)*1.1, grv=smoothstep(.515,.545,pd);
+      vec3 wp=vec3(.44,.34,.25)*(.9+.16*nz(vec2(uu*2.2,hh*9.)))*(1.-.38*grv);
+      wp*=1.-.3*(1.-smoothstep(.0,.025,abs(hh-.14)))-.26*(1.-smoothstep(.0,.02,abs(hh-.9)));
+      alb=mix(wp,alb,smoothstep(.97,1.0,hh));
+      alb=mix(alb,vec3(.17,.12,.09),1.-smoothstep(.1,.13,hh));
+      float rl=smoothstep(.99,1.02,hh)*(1.-smoothstep(1.06,1.09,hh)); alb=mix(alb,vec3(.56,.45,.33),rl);
       ao=mix(.7,1.,smoothstep(.0,.45,hh))*mix(1.,.8,smoothstep(2.9,3.15,hh));
-    } else if(id<28.5){ vec2 q=floor(gp/1.2); float ck=mod(q.x+q.y,2.); vec3 a1=mix(vec3(.64,.62,.58),vec3(.36,.35,.34),ck); float fine=1.-smoothstep(.15,.7,fpx*1.4);
-      alb=mix(vec3(.50,.485,.46),a1,fine)*(.9+.14*nz(gp*.55)); vec2 fg=abs(fract(gp/1.2)-.5)*2.; alb*=1.-.22*fine*smoothstep(.97,.995,max(fg.x,fg.y));
-    } else if(id<29.5){ alb=vec3(.88,.87,.84); vec2 c=fract(gp/3.)-.5; float pn=(1.-smoothstep(.16,.2,abs(c.x)))*(1.-smoothstep(.06,.1,abs(c.y))); emi=vec3(1.,.96,.88)*1.7*pn; alb=mix(alb,vec3(.95),pn);
-    } else if(id<30.5){ float u=vUV.x; float v=vUV.y; alb=vec3(.035,.045,.07); float hd=smoothstep(1.46,1.5,v)*(1.-smoothstep(1.62,1.66,v))*step(.1,u)*step(u,1.3);
-      float row=floor(v*7.); float ln=smoothstep(.12,.2,fract(v*7.))*(1.-smoothstep(.5,.58,fract(v*7.)))*step(.12,u)*step(u,.14+(.35+.6*h11(row))*1.1)*step(v,1.4)*step(.1,v);
-      emi=vec3(1.,.78,.46)*(.42*ln+.8*hd)+vec3(.02,.025,.04); float ed=1.-smoothstep(.0,.05,min(min(u,1.4-u),min(v,1.7-v))); alb=mix(alb,vec3(.5,.42,.3),ed);
-    } else { alb=vec3(.16,.15,.15)*(.9+.2*nz(gp*2.)); }
+    } else if(id<28.5){ vec2 q=gp/.6, f=floor(q); float hz=h21(f); float fine=1.-smoothstep(.15,.7,fpx*1.4);                              /* 60 cm stone tiles, each a little different, with grout */
+      vec3 tl=mix(vec3(.70,.67,.62),vec3(.63,.61,.58),hz)*(.95+.08*nz(gp*1.3)); tl=mix(tl,tl*vec3(.92,.94,.97),step(.85,hz));
+      alb=mix(vec3(.62,.6,.57),tl,fine); vec2 fg=abs(fract(q)-.5)*2.; alb*=1.-.3*fine*smoothstep(.97,.995,max(fg.x,fg.y));
+    } else if(id<29.5){ vec2 cc=fract(gp/vec2(4.8,3.6))-.5; float pn=(1.-smoothstep(.115,.125,abs(cc.x)))*(1.-smoothstep(.075,.085,abs(cc.y)));          /* acoustic tiles 60 cm, and a 1.2 x 0.6 m light panel on a 4.8 x 3.6 m grid */
+      vec2 tg=abs(fract(gp/.6)-.5)*2.; float tgl=smoothstep(.96,.99,max(tg.x,tg.y))*(1.-smoothstep(.2,.7,fpx*1.4));
+      alb=vec3(.88,.87,.84)*(1.-.12*tgl)*(.97+.05*nz(gp*3.)); emi=vec3(1.,.96,.88)*1.5*pn; alb=mix(alb,vec3(.95),pn);
+    } else if(id<30.5){ vec2 tq=vec2(vUV.x/1.4,1.-vUV.y/1.7); vec3 tc=texture2D(uAtl,tq).rgb; alb=tc; emi=lin(tc)*.5;              /* the directory board: the canvas painted by palace_ride_inside.py (GLX.insideTex, bound as the atlas for this draw) */
+    } else { alb=vec3(.30,.19,.11)*(.86+.24*nz(gp*vec2(9.,1.3))); }   /* dark wood: desk, benches, door frames, the board's post */
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
     vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7)*.6+nz(gp*9.)*.4*(1.-smoothstep(.02,.1,fpx)); alb=mix(vec3(.27)*(.85+.3*nz(gp*.8)),pc*.9,(.5+.35*smoothstep(.25,.6,wear))*(.85+.15*nz(gp*.3)));
@@ -442,7 +447,7 @@ void main(){
     ao*=(.5+.5*smoothstep(.0,4.,vP.z/UMc))*(.8+.2*(N.z*.5+.5));
   } else {              /* a contact shadow on the ground: a stippled dark patch, its edge dissolved by a dither fixed in world space */
     vec2 q=abs(vUV*2.-1.); float d=pow(q.x,3.)+pow(q.y,3.); float a=.7*(1.-smoothstep(.15,1.,d));
-    vec2 cq=floor(vP.xy/UMc*48.); float dn=h21(cq); dn=mix(dn,.5,smoothstep(.35,1.,dist*uPix/UMc*48.)); if(dn>a) discard;      /* stipple fixed on the ground (2 cm cells), fading to a plain edge where a pixel spans a cell: nothing crawls when you walk */
+    float dn=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715)))); dn=mix(dn,.5,smoothstep(.35,1.,dist*uPix/UMc*48.)); if(dn>a) discard;      /* interleaved gradient noise at PIXEL scale: near the camera the patch's edge is a smooth gradient (a world-fixed 2 cm cell grid was 14 px blocks at 1 m: a visible checkerboard on a nearby wall), fading to a plain edge where a pixel spans a cell */
     alb=vec3(.02); ao=1.;
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */

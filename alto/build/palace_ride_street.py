@@ -233,7 +233,7 @@ function* gatherRealG(Xp, Yp, R, at){
     var pr=rlLotRing(L), q=[], tmp={x:0,y:0,k:0}, nq=pr.length/2; for(i=0;i<nq;i++){ realOf(pr[2*i],pr[2*i+1],tmp); q.push([tmp.x,tmp.y]); }
     var mx=0,my=0; q.forEach(function(p){ mx+=p[0]/nq; my+=p[1]/nq; }); if(Math.hypot(mx-cx,my-cy)>R+80) return;
     var xs=q.map(function(p){ return p[0]; }), ys=q.map(function(p){ return p[1]; });
-    lots.push({id:id, p:q, x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
+    lots.push({id:id, p:q, claimed:!!(L[5]&&L[5].length>=3), under:[], x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
   var cleared=0, kept=0, dk=dark(), roofMs={}, roofs=[0,0,0];
   if(!glOk()) W.tiles.push({ring:[(cx-R)*K,(cy-R)*K,(cx+R)*K,(cy-R)*K,(cx+R)*K,(cy+R)*K,(cx-R)*K,(cy+R)*K], cx:cx*K, cy:cy*K, r:R*1.5*K});
   var seenR={}, gs=REAL._gs=(REAL._gs||0)+1, bq=[], procW=[], shops=[];
@@ -248,7 +248,7 @@ function* gatherRealG(Xp, Yp, R, at){
         if(sw>=.3 && w>=9*K && l>30*K){ var ux=(x1-x0)/l, uy=(y1-y0)/l; for(var p=8*K;p<l-8*K;p+=22*K){ var ax=x0+ux*p, ay=y0+uy*p; W.dashes.push({ring:strip(ax,ay,ax+ux*9*K,ay+uy*9*K,.35*K,0), cx:ax, cy:ay}); } } } });
     ch.b.forEach(function(f){ if(f._gs===gs) return; f._gs=gs;                  /* once per gather, by the footprint itself (it used to be by its first corner: neighbours that share a corner node lost one building in 16) */ var n=(f.length-1)/2, ring=new Array(n*2), x0=1e9,y0=1e9,x1=-1e9,y1=-1e9, sx=0, sy=0; for(k=0;k<n;k++){ var x=f[1+2*k], y=f[2+2*k]; ring[2*k]=x; ring[2*k+1]=y; sx+=x; sy+=y; x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
       var bx=sx/n, by=sy/n, far=f[0]>=FARH, rr=far?RT:R; if(Math.abs(bx-cx)>rr||Math.abs(by-cy)>rr) return; if(far && (Math.abs(bx-cx)>R||Math.abs(by-cy)>R)){ if(nFar>=300) return; nFar++; } if(n>1 && ring[0]===ring[2*n-2] && ring[1]===ring[2*n-1]){ n--; ring.length=n*2; } if(n<3) return;
-      for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; return; }
+      for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; if(lots[q].under.length<12) lots[q].under.push(ring.slice()); return; }      /* kept for the lobby: a real footprint under the node (palace_ride_inside.py) */
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
@@ -290,7 +290,7 @@ function* gatherRealG(Xp, Yp, R, at){
   }catch(e){ if(window.console) console.warn('real street furniture',e); }
   Object.keys(roofMs).forEach(function(k){ if(roofMs[k].a.length) W.meshes.push({a:MB.done(roofMs[k]), id:'real:roof:'+k}); });      /* one per data chunk: the same chunk makes the same mesh in the next gather, so it is not uploaded again */
   lots.forEach(function(L){ var id=L.id, tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*.42, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dk?[150,162,200]:[255,255,255], dk?.30:.5), ring=[]; L.p.forEach(function(p){ ring.push(p[0]*K,p[1]*K); });
-    var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); try{ s.door=rlDoor(ring,id); }catch(x){ s.door=null; } W.solids.push(s); });
+    var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); s.claimed=L.claimed; s.under=L.under.map(function(r){ return r.map(function(v){ return v*K; }); }); try{ s.door=rlDoor(ring,id); }catch(x){ s.door=null; } W.solids.push(s); });
   W.real.cleared=cleared; W.real.kept=kept; W.real.lots=lots.length; W.real.roads=W.roads.length; W.real.roofs={flat:roofs[0],gable:roofs[1],hip:roofs[2]};
   return W; }
 /* the whole world at once (rides, stills, tests) ... */
