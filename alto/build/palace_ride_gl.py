@@ -251,12 +251,12 @@ function glShop(b,s){
 function glBase(b,cell,W){
   var G=W._gl, x0=cell.ci*CELL, y0=cell.cj*CELL, x1=x0+CELL, y1=y0+CELL, i, o;
   glDC(null); _gH=0; _gL=0;
-  gflat(b,[x0,y0,x1,y0,x1,y1,x0,y1],0,11,0,true);
+  gflat(b,[x0,y0,x1,y0,x1,y1,x0,y1],0,(typeof REAL!=='undefined'&&REAL.isOn&&REAL.isOn())?12:11,0,true);        /* the base is paving in the real street world (asphalt is only what a road ribbon lays on it), asphalt in the page's own city */
   for(i=0;i<cell.til.length;i++){ o=cell.til[i]; var rg=MB.ringOut(o.ring), n=rg.length/2, k;
     for(k=0;k<n;k++){ var j=(k+1)%n, ax=rg[2*k], ay=rg[2*k+1], bx=rg[2*j], by=rg[2*j+1], dx=bx-ax, dy=by-ay, l=Math.hypot(dx,dy); if(l<.2) continue; gwall(b,ax,ay,bx,by,0,GZ_SIDE,-dy/l,dx/l,0,45,0); }
     gflat(b,rg,GZ_SIDE,12,0,true);
     if(o.inner) gflat(b,MB.ringOut(o.inner),GZ_SIDE,46+64,0,true); }
-  for(i=0;i<cell.par.length;i++){ o=cell.par[i]; var pr=o.ring; if(pr.length>2400){ var kk=Math.ceil(pr.length/2400), q=[]; for(var ii=0;ii<pr.length/2;ii+=kk) q.push(pr[2*ii],pr[2*ii+1]); pr=q; } gflat(b,pr,GZ_SIDE+.05,13+128,0,true); }
+  for(i=0;i<cell.par.length;i++){ o=cell.par[i]; var pr=o.ring; if(pr.length>2400){ var kk=Math.ceil(pr.length/2400), q=[]; for(var ii=0;ii<pr.length/2;ii+=kk) q.push(pr[2*ii],pr[2*ii+1]); pr=q; } gflat(b,pr,o.mat?.02:GZ_SIDE+.05,(o.mat||13)+128,0,true); }                 /* o.mat: a real-street area (parking, park, pitch) lies below the roads, paint and kerbs; the page's own parks sit on the sidewalk level */
   for(i=0;i<cell.wat.length;i++){ o=cell.wat[i]; var sw=glStrip(o.x0,o.y0,o.x1,o.y1,o.w+3.5,3), sv=glStrip(o.x0,o.y0,o.x1,o.y1,o.w,3); gflat(b,sw,.06,12+64,0,true); gflat(b,sv,.12,10+128,0,true); }
   for(i=0;i<cell.rod.length;i++){ o=cell.rod[i]; glRoadSeg(b,o); }
   for(i=0;i<cell.das.length;i++){ o=cell.das[i]; glQuad4(b,o.ring,.1,40+128,0); }

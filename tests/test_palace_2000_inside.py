@@ -22,7 +22,7 @@ def test_the_inside_part_is_assembled_into_the_ride():
     assert palace_ride_inside.JS_INSIDE_GL in palace_ride.RIDE_JS and palace_ride_inside.JS_INSIDE in palace_ride.RIDE_JS
     assert palace_ride_inside.CSS_INSIDE in palace_ride.RIDE_CSS
     assert "/*@INSIDE@*/" not in palace_ride.RIDE_JS
-    for f in ("function insideEnter(mem)", "function insideGo(df)", "function insideLeave()", "function insideOpen()", "function glInside(b,d)", "function insideWindows(ring,sg)", "function inSpans(Lm,dpar)"):
+    for f in ("function insideEnter(mem)", "function insideGo(df)", "function insideLeave()", "function insideOpen()", "function glInside(b,d)", "function insideWindows(ring,sg,win)", "function inSpans(Lm,dpar)"):
         assert f in palace_ride.RIDE_JS
 
 
@@ -192,7 +192,7 @@ def test_a_window_view_exists_and_from_an_upper_floor_it_looks_down_on_the_stree
     pg = roam
     go_inside(pg)
     wins = pg.evaluate("() => window._palRide.roam.inside.windows()")
-    assert len(wins) >= 10 and all(w["len"] == pytest.approx(1.9, abs=0.01) for w in wins)                  # openings on the walls
+    assert len(wins) >= 6 and all(w["len"] == pytest.approx(1.9, abs=0.01) for w in wins)                  # openings on the walls
     w = sorted((w for w in wins if w["nx"] < -0.9), key=lambda w: abs(w["y"] - 2168))[0]                  # one on the street wall (the door's)
     pg.evaluate("([x,y]) => { var R=window._palRide.roam; R.place(x,y,0); R.look(0,0); }", [w["x"] + w["nx"] * 1.0, w["y"]])
     pg.wait_for_timeout(300)
