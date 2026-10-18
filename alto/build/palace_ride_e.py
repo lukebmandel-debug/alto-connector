@@ -252,7 +252,7 @@ function realPrefetch(){
   if(RW.busy || performance.now()<RWL.retryAt || !(REAL.street&&REAL.street()) || !REAL.have || !REAL.have.length) return;                  /* (fix2) a failing street loader backs off here too */
   var rx=S.x/UM, ry=S.y/UM, best=1e9, lim=REAL.have[0][2]-RW.R-40, i; for(i=0;i<REAL.have.length;i++) best=Math.min(best,Math.hypot(rx-REAL.have[i][0],ry-REAL.have[i][1])); if(best<lim-110) return;
   var sp=Math.hypot(S.vx,S.vy)/UM, hx=sp>1?S.vx/UM/sp:Math.cos(S.yaw), hy=sp>1?S.vy/UM/sp:Math.sin(S.yaw), dd=Math.min(300,Math.max(150,sp*5)), ax=rx+hx*dd, ay=ry+hy*dd;
-  RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(ok){ RW.busy=false; RW.pre=(RW.pre||0)+1; if(ok===false) rwlFail(); }, function(e){ RW.busy=false; rwlFail(e); }); }
+  RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(ok){ RW.busy=false; RW.pre=(RW.pre||0)+1; if(ok===false) rwlFail(); else if(ok) rwlReset(); }, function(e){ RW.busy=false; rwlFail(e); }); }
 function realStream(sync){
   if(RW.gen){ realGatherStep(sync); return; }
   if(!sync) realPrefetch();
