@@ -194,14 +194,14 @@ function whereText(o){ if(!o.street) return {a:'',b:''}; var b=''; if(o.at) b='a
 /* ── REAL mode (2.0.0 FPV): the walk happens in the real street frame (palace_ride_real.py / palace_ride_street.py) where the street data covers the place and the place is
    in bounds (REAL.inBounds); S.x / S.y are then world units = real metres x UM. The lattice walk above stays as the fallback (real off, data not loaded, out of bounds):
    it starts first and the real world takes over once the shards under the walker arrive (a cross-fade), so nothing is ever glitchy while loading. ── */
-var RW={R:380, regather:105, have:null, busy:false, gen:null, gx:0, gy:0, gms:0, fade:null, edge:0, k:0, cx:0, cy:0, n:0, ms:0, maxMs:0};
+var RW={R:420, PR:720, regather:105, have:null, busy:false, gen:null, gx:0, gy:0, gms:0, fade:null, edge:0, k:0, cx:0, cy:0, n:0, ms:0, maxMs:0};
 function realCan(){ return typeof REAL!=='undefined' && REAL && typeof rlInit==='function' && rlInit() && (REAL.on || (REAL.street&&REAL.street())); }
-function realNear(rx,ry){ if(REAL.street && REAL.street()){ var H=REAL.have||[]; if(!(REAL.on&&REAL.chunks)) return false; for(var i=0;i<H.length;i++) if(Math.hypot(rx-H[i][0],ry-H[i][1])<H[i][2]-RW.R*.55) return true; return false; } return !!(REAL.on && REAL.chunks && REAL.ways); }
+function realNear(rx,ry){ if(REAL.street && REAL.street()){ var H=REAL.have||[]; if(!(REAL.on&&REAL.chunks)) return false; for(var i=0;i<H.length;i++) if(Math.hypot(rx-H[i][0],ry-H[i][1])<H[i][2]-RW.R-40) return true; return false; }       /* the loaded data covers a whole gather round here */ return !!(REAL.on && REAL.chunks && REAL.ways); }
 /* load the data under (rx,ry) real px; resolves true when the real world can be gathered there */
 function realLoad(rx,ry){
   if(!REAL.street || !REAL.street()) return Promise.resolve(!!(REAL.on && REAL.chunks && REAL.ways));
   if(realNear(rx,ry)) return Promise.resolve(true);
-  return REAL.prepare([[rx,ry]],520).then(function(ok){ return !!ok; }, function(){ return false; }); }
+  return REAL.prepare([[rx,ry]],RW.PR).then(function(ok){ return !!ok; }, function(){ return false; }); }
 function realBuckets(Wn){
   var cg={}; Wn.solids.forEach(function(sd){ if(!(QUAL.indexOf(sd.kind)>=0 || sd.collide)) return; var ci=Math.floor(sd.cx/CELL), cj=Math.floor(sd.cy/CELL), k=ci+','+cj, c=cg[k]||(cg[k]={small:[],big:[],doors:[],col:[],ci:ci,cj:cj,key:k});
     c.col.push(sd); (sd.r<=BIGR?c.small:c.big).push(sd); if(sd.door) c.doors.push(sd); });
@@ -220,8 +220,15 @@ function realGatherStep(sync){
   var t0=performance.now(), r; do{ r=RW.gen.next(); }while(!r.done && (sync || performance.now()-t0<CFG.budget));
   RW.gms+=performance.now()-t0; if(r.done){ RW.gen=null; realFinish(r.value,RW.gx,RW.gy,RW.gms); } }
 /* every step in real mode: keep the world centred near the walker, fetch the shards ahead; hold the walker inside the in-bounds region */
+/* the shards for where the walker will be: when he is within 110 m of leaving the data that is loaded, fetch round his position AND the point 5 s ahead (at least 150 m along his heading), so the regather never waits for the network */
+function realPrefetch(){
+  if(RW.busy || !(REAL.street&&REAL.street()) || !REAL.have || !REAL.have.length) return;
+  var rx=S.x/UM, ry=S.y/UM, best=1e9, lim=REAL.have[0][2]-RW.R-40, i; for(i=0;i<REAL.have.length;i++) best=Math.min(best,Math.hypot(rx-REAL.have[i][0],ry-REAL.have[i][1])); if(best<lim-110) return;
+  var sp=Math.hypot(S.vx,S.vy)/UM, hx=sp>1?S.vx/UM/sp:Math.cos(S.yaw), hy=sp>1?S.vy/UM/sp:Math.sin(S.yaw), dd=Math.min(300,Math.max(150,sp*5)), ax=rx+hx*dd, ay=ry+hy*dd;
+  RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(){ RW.busy=false; RW.pre=(RW.pre||0)+1; }, function(){ RW.busy=false; }); }
 function realStream(sync){
   if(RW.gen){ realGatherStep(sync); return; }
+  if(!sync) realPrefetch();
   if(RW.busy || Math.hypot(S.x-RW.cx,S.y-RW.cy)<RW.regather*UM) return;
   var rx=S.x/UM, ry=S.y/UM;
   if(sync || !(REAL.street&&REAL.street()) || realNear(rx,ry)){ if(!sync && REAL.street&&REAL.street()&&!realNear(rx,ry)) return; if(sync) realGather(); else realGatherStep(false); return; }
@@ -394,7 +401,7 @@ function exitCore(stay){
   else R.saved=v;
   shutdown(); closeNow(true,false); }
 var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetHeading:streetHeading, locate:locate, viewFor:viewFor, cfg:CFG,
-  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, real:!!S.real, gathering:!!RW.gen, realWhy:S.realWhy||'', edge:RW.edge, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
+  state:function(){ return {x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, speed:S.speed, walked:S.walked, bearing:bearing(), camZ:S.camZ, pr:PRX(), foc:C.foc, hfov:C.W?2*Math.atan(C.W/2/C.foc)*180/Math.PI:0, vfov:C.H?2*Math.atan(C.H/2/C.foc)*180/Math.PI:0, hurry:S.hurry, spawned:S.spawned, real:!!S.real, gathering:!!RW.gen, loading:!!RW.busy, fromCentre:Math.hypot(S.x-RW.cx,S.y-RW.cy)/UM, realWhy:S.realWhy||'', edge:RW.edge, cells:Object.keys(S.cells).length, queue:S.queue.length, ver:S.ver, saved:S.view}; },
   stats:function(){ var f=S.fr.slice().sort(function(p,q){ return p-q; }), n=f.length, b=S.bms.slice().sort(function(p,q){ return p-q; }), m=S.mms.slice().sort(function(p,q){ return p-q; });
     return {built:S.built, evicted:S.evicted, merges:S.merges, plans:S.plans, cells:Object.keys(S.cells).length, queue:S.queue.length, buildAvg:b.length?b.reduce(function(p,q){ return p+q; },0)/b.length:0, buildMax:b.length?b[b.length-1]:0, streamMax:S.lbms.length?Math.max.apply(null,S.lbms):0, streamN:S.lbms.length, buildP95:b.length?b[Math.floor(b.length*.95)]:0, mergeMax:m.length?m[m.length-1]:0, mergeAvg:m.length?m.reduce(function(p,q){ return p+q; },0)/m.length:0,
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },

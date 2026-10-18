@@ -150,8 +150,8 @@ def test_no_two_surfaces_tie_in_the_depth_buffer(roam):
     fixed = pg.evaluate(ZF)
     px = pg.evaluate("()=>{ var c=document.querySelector('#pal-ride .pr-gl'); return c.width*c.height; }")
     assert control > 2000, control                      # the test can see a z-fight
-    assert fixed < control * 0.08, (fixed, control)               # what is left is the thin line along a roof edge (cornice and roof meet)
-    assert fixed < px * 0.002, (fixed, px)
+    assert fixed < control * 0.05, (fixed, control)
+    assert fixed < px * 0.0005, (fixed, px)
 
 
 TIES = """([n,keys,run,every])=>{ var T=window.__t, R=T.R, gl=T.gl; T.warm(); var out=[], means=[], prev=null;
@@ -170,7 +170,7 @@ def test_walking_does_not_flicker(roam):
         px = pg.evaluate("()=>{ var c=document.querySelector('#pal-ride .pr-gl'); return c.width*c.height; }")
         moved = pg.evaluate("()=>window._palRide.roam.state().x")
         assert moved > 3945 * K + (2.5 if not run else 8), moved
-        assert max(r["ties"]) < px * 0.002, (max(r["ties"]), px)
+        assert max(r["ties"]) < px * 0.0005, (max(r["ties"]), px)          # at the restored pace (14 / 40 units/s) and the old one alike: a tie is a property of the pose, not of the speed
         means = sorted(r["means"])
         med = means[len(means) // 2]
         assert means[-1] < max(4.0, med * 3), (means[-5:], med)                                 # no frame changes the whole picture more than its neighbours do

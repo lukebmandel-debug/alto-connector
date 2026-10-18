@@ -29,7 +29,7 @@ def test_source_contract():
     e = palace_ride_e.JS_E
     for f in ("function realUpgrade(", "function goReal(", "function realBound(", "REAL.clamp(", "REAL.edgeDist(", "REAL.exit(", "edge of the palace", "function sidewalk(", "function locateReal("):
         assert f in e, f
-    assert "REAL.prepare([[rx,ry]],520)" in e                                   # shards stream in while the old world stays up
+    assert "REAL.prepare([[rx,ry]],RW.PR)" in e and "function realPrefetch()" in e                                   # shards stream in while the old world stays up
     assert "GLX.edge" in e and "GLX.edge||0" in palace_ride.RIDE_JS               # the fog thickens at the edge
     assert "real:!!S.real" in palace_ride.RIDE_JS                               # doors remember the world they left from
     assert "rideRealPrep(M)" in palace_ride_d.JS_D and "REAL.legInBounds(M.D)" in palace_ride_d.JS_D and "REAL.pathAt(D,s,_rq)" in palace_ride_d.JS_D
