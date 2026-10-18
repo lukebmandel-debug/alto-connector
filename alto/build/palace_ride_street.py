@@ -22,23 +22,26 @@ var RCLS={motorway:[26,.5],motorway_link:[12,.5],trunk:[22,.5],trunk_link:[11,.5
   residential:[9.5,.3],unclassified:[9,.3],living_street:[8,.2],service:[5,.1],pedestrian:[6,0],footway:[2.4,0],path:[2,0],cycleway:[2.6,0],steps:[2,0],track:[4,0]};
 /* blob: {b:[[h, x0,y0,...]], r:[[cls, x0,y0,...]], rn:[name per r]} in real px (metres). A road way is indexed by every 400 m cell it touches. */
 REAL.load=function(blob){ var C=REAL.cell, ch={}; REAL.nB=0; REAL.nR=0; REAL.ways=[];
-  function cellOf(kind,f,x,y){ var k=Math.floor(x/C)+','+Math.floor(y/C); var c=ch[k]||(ch[k]={b:[],r:[]}); if(c[kind].indexOf(f)<0) c[kind].push(f); }
+  function cellOf(kind,f,x,y){ var k=Math.floor(x/C)+','+Math.floor(y/C); var c=ch[k]||(ch[k]={b:[],r:[],a:[]}); if(c[kind].indexOf(f)<0) c[kind].push(f); }
   (blob.b||[]).forEach(function(f){ cellOf('b',f,f[1],f[2]); REAL.nB++; });
   (blob.r||[]).forEach(function(f,wi){ f.n=(blob.rn&&blob.rn[wi])||''; f.wid=wi; REAL.ways.push(f); for(var i=1;i+1<f.length;i+=2) cellOf('r',f,f[i],f[i+1]); REAL.nR++; });
+  (blob.a||[]).forEach(function(f){ var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9, g=f.ring; for(var i=0;i+1<g.length;i+=2){ x0=Math.min(x0,g[i]); x1=Math.max(x1,g[i]); y0=Math.min(y0,g[i+1]); y1=Math.max(y1,g[i+1]); } f.bb=[x0,y0,x1,y1];
+    for(var ci=Math.floor(x0/C); ci<=Math.floor(x1/C); ci++) for(var cj=Math.floor(y0/C); cj<=Math.floor(y1/C); cj++) cellOf('a',f,ci*C,cj*C); });      /* the data's areas (parks, pitches, parking...): every cell their box touches */
   REAL.trees=blob.t||[]; REAL.furn=blob.f||[]; REAL.pois=blob.p||[]; REAL.poiG=null; REAL.tf=null;
   REAL.chunks=ch; REAL.on=true; REAL.segIdx=null; return {b:REAL.nB, r:REAL.nR, t:REAL.trees.length, f:REAL.furn.length}; };
 /* ── the hosted street data (window._palStreet, palace_street_js.py) -> the blob above, in real px (map px, y down). Needs the shards under the points loaded:
    REAL.prepare(points, r) fetches them (a Promise) and loads the blob; without _palStreet (or a manifest) it resolves false and the ride keeps today's world. ── */
 REAL.street=function(){ return !!(window._palStreet && window._palStreet.ready && window._palStreet.ready()); };
-REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[], po=[];
+REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[], po=[], ar=[];
   function mp(a){ var o=[]; for(var i=0;i<a.length;i++){ var m=S.toMap(a[i][0],a[i][1],1); o.push(m[0],m[1]); } return o; }
-  pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtfp');
+  pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtfpa');
     N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; b.push(a); });
     N.r.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.line), a=[d.hw||'residential'].concat(g); a.wd=d.wd?d.wd*.1:0; a.br=d.br; a.tn=d.tn; rr.push(a); rn.push(d.nm||''); });
+    (N.a||[]).forEach(function(d){ if(seenO.has(d)||!d.ring||d.ring.length<3) return; seenO.add(d); ar.push({k:d.k||'', nm:d.nm||'', ring:mp(d.ring)}); });
     N.t.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); t.push([m[0],m[1],d.sp||'',d.lf||'']); });
     N.f.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); f.push([m[0],m[1],d.kind||'',d.dir==null?-1:d.dir]); });
     (N.p||[]).forEach(function(d){ if(seenO.has(d)||!d.name) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); po.push([m[0],m[1],d.name,d.cat||'']); }); });
-  return {b:b, r:rr, rn:rn, t:t, f:f, p:po}; };
+  return {b:b, r:rr, rn:rn, t:t, f:f, p:po, a:ar}; };
 REAL.prepare=function(pts, r){ r=r||520; if(!REAL.street()) return Promise.resolve(false); var S=window._palStreet, Hm=S.toMap(0,0,1)[1];
   return Promise.all(pts.map(function(q){ return S.need(q[0],Hm-q[1],r); })).then(function(){ REAL.load(REAL.fromStreet(pts,r)); REAL.src='street'; REAL.have=pts.map(function(q){ return [q[0],q[1],r]; }); return true; }); };
 REAL.prepareLeg=function(D){ var pts=[], o={x:0,y:0,k:0}, p={x:0,y:0}, last=null; for(var s=0;s<=D.L+1;s+=60){ pathAt(D,Math.min(s,D.L),p); realOf(p.x,p.y,o); if(!last||Math.hypot(o.x-last[0],o.y-last[1])>350){ pts.push([o.x,o.y]); last=[o.x,o.y]; } } return REAL.prepare(pts,520); };
@@ -240,10 +243,10 @@ function* gatherRealG(Xp, Yp, R, at){
     var pr=rlLotRing(L), q=[], tmp={x:0,y:0,k:0}, nq=pr.length/2; for(i=0;i<nq;i++){ realOf(pr[2*i],pr[2*i+1],tmp); q.push([tmp.x,tmp.y]); }
     var mx=0,my=0; q.forEach(function(p){ mx+=p[0]/nq; my+=p[1]/nq; }); if(Math.hypot(mx-cx,my-cy)>R+80) return;
     var xs=q.map(function(p){ return p[0]; }), ys=q.map(function(p){ return p[1]; });
-    lots.push({id:id, p:q, x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
+    lots.push({id:id, p:q, claimed:!!(L[5]&&L[5].length>=3), under:[], x0:Math.min.apply(null,xs), x1:Math.max.apply(null,xs), y0:Math.min.apply(null,ys), y1:Math.max.apply(null,ys)}); });
   var cleared=0, kept=0, dk=dark(), roofMs={}, roofs=[0,0,0];
   if(!glOk()) W.tiles.push({ring:[(cx-R)*K,(cy-R)*K,(cx+R)*K,(cy-R)*K,(cx+R)*K,(cy+R)*K,(cx-R)*K,(cy+R)*K], cx:cx*K, cy:cy*K, r:R*1.5*K});
-  var seenR={}, gs=REAL._gs=(REAL._gs||0)+1, bq=[], procW=[], shops=[];
+  var seenR={}, gs=REAL._gs=(REAL._gs||0)+1, bq=[], procW=[], shops=[], nStall=0;
   /* towers (>= 60 m) are gathered out to RT: a skyline that stood up at the edge of the world, 380 m away, while you walked was the last visible pop */
   var RT=Math.max(R,720), FARH=60, nFar=0, cT0=Math.floor((cx-RT)/C), cT1=Math.floor((cx+RT)/C), dT0=Math.floor((cy-RT)/C), dT1=Math.floor((cy+RT)/C);
   for(var ci=cT0-1; ci<=cT1+1; ci++) for(var cj=dT0-1; cj<=dT1+1; cj++){ var ch=REAL.chunks[ci+','+cj]; if(!ch) continue;
@@ -253,9 +256,18 @@ function* gatherRealG(Xp, Yp, R, at){
         W.roads.push({x0:x0,y0:y0,x1:x1,y1:y1,w:w,cx:mx,cy:my,r:l/2+w, cls:f[0]});
         if(a===1 && sw>0 && w>=7*K) procW.push(f);
         if(sw>=.3 && w>=9*K && l>30*K){ var ux=(x1-x0)/l, uy=(y1-y0)/l; for(var p=8*K;p<l-8*K;p+=22*K){ var ax=x0+ux*p, ay=y0+uy*p; W.dashes.push({ring:strip(ax,ay,ax+ux*9*K,ay+uy*9*K,.35*K,0), cx:ax, cy:ay}); } } } });
+    (ch.a||[]).forEach(function(f){ if(f._gs===gs) return; f._gs=gs; var bb=f.bb; if(!bb||bb[2]<cx-R||bb[0]>cx+R||bb[3]<cy-R||bb[1]>cy+R||W.parks.length>=300) return;       /* real ground: a park / garden / pitch is grass, parking is asphalt (palace_ride_gl.py glBase: o.mat); the rest is paving */
+      var kk=f.k||'', mat=/parking/.test(kk)?11:/^(park|garden|common|dog_park|nature_reserve|recreation_ground|golf_course|pitch|playground|grass|meadow|forest|village_green)$/.test(kk)?13:0; if(!mat) return;
+      var wr2=new Array(f.ring.length); for(var q2=0;q2<wr2.length;q2++) wr2[q2]=f.ring[q2]*K; if(wr2.length>2400){ var k3=Math.ceil(wr2.length/2400), t3=[]; for(var i3=0;i3<wr2.length/2;i3+=k3) t3.push(wr2[2*i3],wr2[2*i3+1]); wr2=t3; }
+      W.parks.push({ring:wr2, cx:(bb[0]+bb[2])/2*K, cy:(bb[1]+bb[3])/2*K, r:Math.hypot(bb[2]-bb[0],bb[3]-bb[1])/2*K, name:f.nm||'', mat:mat});
+      if(mat===11 && nStall<500 && ringArea(f.ring)>180){                                    /* a parking lot: white stall lines every 2.6 m across its oriented box, only where the line starts and ends inside it */
+        var ob2=obb(f.ring), cc=ob2.c, ss=ob2.s, w2=ob2.u1-ob2.u0, d2=ob2.v1-ob2.v0, along=w2>=d2, a0=along?ob2.u0:ob2.v0, a1=along?ob2.u1:ob2.v1, b0=along?ob2.v0:ob2.u0, b1=along?ob2.v1:ob2.u1;
+        var P2=function(a,b){ var u=along?a:b, v=along?b:a; return [u*cc-v*ss, u*ss+v*cc]; };
+        for(var a=a0+2; a<a1-1 && nStall<500; a+=2.6) for(var b2=b0+2; b2<b1-5.2; b2+=11){ var q0=P2(a,b2), q1=P2(a,b2+5.2); if(!rlInF(f.ring,q0[0],q0[1])||!rlInF(f.ring,q1[0],q1[1])) continue;
+          W.dashes.push({ring:strip(q0[0]*K,q0[1]*K,q1[0]*K,q1[1]*K,.11*K,0), cx:(q0[0]+q1[0])/2*K, cy:(q0[1]+q1[1])/2*K}); nStall++; } } });
     ch.b.forEach(function(f){ if(f._gs===gs) return; f._gs=gs;                  /* once per gather, by the footprint itself (it used to be by its first corner: neighbours that share a corner node lost one building in 16) */ var n=(f.length-1)/2, ring=new Array(n*2), x0=1e9,y0=1e9,x1=-1e9,y1=-1e9, sx=0, sy=0; for(k=0;k<n;k++){ var x=f[1+2*k], y=f[2+2*k]; ring[2*k]=x; ring[2*k+1]=y; sx+=x; sy+=y; x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y); }
       var bx=sx/n, by=sy/n, far=f[0]>=FARH, rr=far?RT:R; if(Math.abs(bx-cx)>rr||Math.abs(by-cy)>rr) return; if(far && (Math.abs(bx-cx)>R||Math.abs(by-cy)>R)){ if(nFar>=300) return; nFar++; } if(n>1 && ring[0]===ring[2*n-2] && ring[1]===ring[2*n-1]){ n--; ring.length=n*2; } if(n<3) return;
-      for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; return; }
+      for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; if(lots[q].under.length<12) lots[q].under.push(ring.slice()); return; }      /* kept for the lobby: a real footprint under the node (palace_ride_inside.py) */
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
@@ -300,7 +312,7 @@ function* gatherRealG(Xp, Yp, R, at){
   }catch(e){ if(window.console) console.warn('real street furniture',e); }
   Object.keys(roofMs).forEach(function(k){ if(roofMs[k].a.length) W.meshes.push({a:MB.done(roofMs[k]), id:'real:roof:'+k}); });      /* one per data chunk: the same chunk makes the same mesh in the next gather, so it is not uploaded again */
   lots.forEach(function(L){ var id=L.id, tw=(P.tw||{})[id], h=(tw?Math.min(220,60+tw*1):E.nbH(id))*.42, col=rgbOf(E.tubeCol(E.ucol(id))), gc=mixC(col, dk?[150,162,200]:[255,255,255], dk?.30:.5), ring=[]; L.p.forEach(function(p){ ring.push(p[0]*K,p[1]*K); });
-    var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); try{ s.door=rlDoor(ring,id); }catch(x){ s.door=null; } W.solids.push(s); });
+    var s=solid(ring, Math.max(h,14)*K, gc, 'node', E.name(id)); s.id=id; s.col2=E.ucol(id); s.claimed=L.claimed; s.under=L.under.map(function(r){ return r.map(function(v){ return v*K; }); }); try{ s.door=rlDoor(ring,id); }catch(x){ s.door=null; } W.solids.push(s); });
   W.real.cleared=cleared; W.real.kept=kept; W.real.lots=lots.length; W.real.roads=W.roads.length; W.real.roofs={flat:roofs[0],gable:roofs[1],hip:roofs[2]};
   return W; }
 /* the whole world at once (rides, stills, tests) ... */

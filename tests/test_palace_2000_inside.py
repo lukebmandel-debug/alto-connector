@@ -22,7 +22,7 @@ def test_the_inside_part_is_assembled_into_the_ride():
     assert palace_ride_inside.JS_INSIDE_GL in palace_ride.RIDE_JS and palace_ride_inside.JS_INSIDE in palace_ride.RIDE_JS
     assert palace_ride_inside.CSS_INSIDE in palace_ride.RIDE_CSS
     assert "/*@INSIDE@*/" not in palace_ride.RIDE_JS
-    for f in ("function insideEnter(mem)", "function insideGo(df)", "function insideLeave()", "function insideOpen()", "function glInside(b,d)", "function insideWindows(ring,sg)", "function inSpans(Lm,dpar)"):
+    for f in ("function insideEnter(mem)", "function insideGo(df)", "function insideLeave()", "function insideOpen()", "function glInside(b,d)", "function insideWindows(ring,sg,win,door)", "function inSpans(Lm,dpar)"):
         assert f in palace_ride.RIDE_JS
 
 
@@ -192,7 +192,7 @@ def test_a_window_view_exists_and_from_an_upper_floor_it_looks_down_on_the_stree
     pg = roam
     go_inside(pg)
     wins = pg.evaluate("() => window._palRide.roam.inside.windows()")
-    assert len(wins) >= 10 and all(w["len"] == pytest.approx(1.9, abs=0.01) for w in wins)                  # openings on the walls
+    assert len(wins) >= 6 and all(w["len"] == pytest.approx(1.9, abs=0.01) for w in wins)                  # openings on the walls
     w = sorted((w for w in wins if w["nx"] < -0.9), key=lambda w: abs(w["y"] - 2168))[0]                  # one on the street wall (the door's)
     pg.evaluate("([x,y]) => { var R=window._palRide.roam; R.place(x,y,0); R.look(0,0); }", [w["x"] + w["nx"] * 1.0, w["y"]])
     pg.wait_for_timeout(300)
@@ -308,3 +308,32 @@ def test_leaving_roam_by_the_back_to_the_map_button_tears_the_building_down(roam
     pg.evaluate("() => window._palRide.roam.enter(%r, %r, Math.PI, {hold:true})" % (DOOR1[0] + 40, DOOR1[1]))            # and the next roam is a street again
     assert pg.evaluate("() => window._palRide.roam.inside.blocked(1,1)") is None
     pg.evaluate("() => window._palRide.roam.exit(false)")
+
+
+# ───────────────────────────── fix3: a believable lobby, a board with text, real ground ─────────────────────────────
+def test_the_board_is_painted_with_text_not_bars_and_never_through_innerhtml():
+    j = palace_ride_inside.JS_INSIDE
+    f = j[j.index("function insideBoardTex(bd)"):j.index("/* ── in ── */")]
+    assert "fillText" in f and "innerHTML" not in f and "GLX.insideTex=tx" in f
+    fs = palace_ride_gl_shaders.FS_WORLD
+    assert "texture2D(uAtl,tq)" in fs and "row=floor(v*7.)" not in fs                                          # the grey bars of the old board are gone
+    assert "GLX.insideTex" in palace_ride_gl._JS_GL_FRAME and "gl.uniform2f(pg.u.uAtlS,1,1)" in palace_ride_gl._JS_GL_FRAME
+
+
+def test_the_lobby_is_a_room_not_the_whole_lot_and_the_board_names_what_it_opens(roam):
+    pg = roam
+    go_inside(pg)
+    r = pg.evaluate("() => window._palRide.roam.inside.room()")
+    ring = r["ring"]
+    xs, ys = ring[0::2], ring[1::2]
+    assert r["kind"] == "rect" and max(xs) - min(xs) <= 25 * 1.3 + 0.1 and max(ys) - min(ys) <= 25 * 1.3 + 0.1 and r["items"] >= 4      # ~25 x 18 m at most, furnished
+    bd = pg.evaluate("() => window._palRide.roam.inside.boardData()")
+    assert bd["name"] == NAMES["n1"] and isinstance(bd["rows"], list)
+    pg.evaluate("() => window._palRide.roam.exit(false)")
+
+
+def test_the_real_ground_is_paving_and_the_street_areas_are_used():
+    s = open(os.path.join(os.path.dirname(__file__), "..", "alto", "build", "palace_ride_street.py")).read()
+    assert "'brtfpa'" in s and "mat:mat" in s and "W.dashes.push({ring:strip(q0[0]*K" in s                       # parks, pitches, parking from the data; parking gets stall lines
+    g = palace_ride_gl._JS_GL_BUILD if hasattr(palace_ride_gl, "_JS_GL_BUILD") else palace_ride_gl.JS_GL
+    assert "REAL.isOn())?12:11" in g and "(o.mat||13)+128" in g

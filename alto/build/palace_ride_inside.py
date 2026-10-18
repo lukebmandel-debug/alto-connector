@@ -35,21 +35,24 @@ function inSpans(Lm,dpar){
     for(var k=0;k<nw;k++){ var c=s0+slot*(k+.5), w0=c-ww/2, w1=c+ww/2; out.push({t:'p',a:pe,b:w0}); out.push({t:'w',a:w0,b:w1}); pe=w1; }
     out.push({t:'p',a:pe,b:s1}); });
   return out; }
+/* which edge of the ring holds the door, and how many metres along it (the same for the shell and for the window list) */
+function inDoorEdge(ring,dr){ var n=ring.length/2, K=UM, de=-1, dpar=0, db=1e18;
+  for(var i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], ex=ring[2*j]-ax, ey=ring[2*j+1]-ay, l2=ex*ex+ey*ey||1e-9, t=Math.max(0,Math.min(1,((dr.x-ax)*ex+(dr.y-ay)*ey)/l2)), px=ax+ex*t-dr.x, py=ay+ey*t-dr.y, q=px*px+py*py;
+    if(q<db){ db=q; de=i; dpar=t*Math.sqrt(l2)/K; } }
+  return {de:de, dpar:dpar}; }
 /* the middle of every window opening: {x,y} just inside the wall, {nx,ny} into the room, {edge,len} */
-function insideWindows(ring,sg){ var n=ring.length/2, K=UM, o=[];
-  for(var i=0;i<n;i++){ var j=(i+1)%n, Ax=ring[2*i], Ay=ring[2*i+1], dx=ring[2*j]-Ax, dy=ring[2*j+1]-Ay, l=Math.hypot(dx,dy); if(l<.5) continue; var ux=dx/l, uy=dy/l, nx=-sg*dy/l, ny=sg*dx/l;
-    inSpans(l/K,-1).forEach(function(it){ if(it.t!=='w') return; var m=(it.a+it.b)/2*K; o.push({x:Ax+ux*m, y:Ay+uy*m, nx:nx, ny:ny, edge:i, len:it.b-it.a}); }); }
+function insideWindows(ring,sg,win,door){ var n=ring.length/2, K=UM, o=[], dd=door?inDoorEdge(ring,door):{de:-1,dpar:-1};
+  for(var i=0;i<n;i++){ if(win && !win[i]) continue; var j=(i+1)%n, Ax=ring[2*i], Ay=ring[2*i+1], dx=ring[2*j]-Ax, dy=ring[2*j+1]-Ay, l=Math.hypot(dx,dy); if(l<.5) continue; var ux=dx/l, uy=dy/l, nx=-sg*dy/l, ny=sg*dx/l;
+    inSpans(l/K,i===dd.de?dd.dpar:-1).forEach(function(it){ if(it.t!=='w') return; var m=(it.a+it.b)/2*K; o.push({x:Ax+ux*m, y:Ay+uy*m, nx:nx, ny:ny, edge:i, len:it.b-it.a}); }); }
   return o; }
 /* d = {ring (flat, decimated), area sign, zb, fa, fb, door:{x,y,nx,ny}, board:{x,y,nx,ny}|null}; returns a GBuf */
 function glInside(b,d){
   var ring=d.ring, n=ring.length/2, sg=d.sg, K=UM, FH=IN_FH*K, i, f;
   glDC(null); _gH=0; _gL=0;
   /* which edge holds the door, and where along it */
-  var de=-1, dpar=0, db=1e18, dr=d.door;
-  for(i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], ex=ring[2*j]-ax, ey=ring[2*j+1]-ay, l2=ex*ex+ey*ey||1e-9, t=Math.max(0,Math.min(1,((dr.x-ax)*ex+(dr.y-ay)*ey)/l2)), px=ax+ex*t-dr.x, py=ay+ey*t-dr.y, q=px*px+py*py;
-    if(q<db){ db=q; de=i; dpar=t*Math.sqrt(l2)/K; } }
+  var dd0=inDoorEdge(ring,d.door), de=dd0.de, dpar=dd0.dpar;
   for(f=d.fa; f<=d.fb; f++){
-    var z0=d.zb+IN_F0*K+f*FH, zc=z0+FH-.25*K;
+    var z0=d.zb+IN_F0*K+f*FH, zc=z0+FH-.25*K, z0f=z0;
     gflat(b,ring,z0,28,0,true);                                   /* the floor */
     gflat(b,ring,zc,29,0,false);                                  /* the ceiling, with its light panels */
     for(i=0;i<n;i++){
@@ -62,8 +65,15 @@ function glInside(b,d){
       inSpans(Lm,(f===0&&i===de)?dpar:-1).forEach(function(it){
         if(it.t==='d') Q(it.a,it.b,2.75,CH);                      /* the doorway: open to 2.75 m, a header above */
         else if(it.t==='p') Q(it.a,it.b,0,CH);                    /* a pillar */
-        else { Q(it.a,it.b,0,.9); Q(it.a,it.b,2.7,CH); } });       /* a window: wall under it and over it, open between */
+        else if(d.win && !d.win[i]) Q(it.a,it.b,0,CH);            /* a window on a wall that looks into the rest of the lot: plain wall */
+        else { Q(it.a,it.b,0,.9); Q(it.a,it.b,2.7,CH);            /* a window: wall under it and over it, open between; a sill, a head and two jambs in wood */
+          var wm=(it.a+it.b)/2, wh=(it.b-it.a)/2, wc=P(wm,0), ww=function(a0,a1,z0,z1,dp){ var pm=(a0+a1)/2, c=P(pm,0); gbox(b,c[0]+nx*dp/2*K,c[1]+ny*dp/2*K,dp/2*K,(a1-a0)/2*K,z0f+z0*K,z0f+z1*K,Math.atan2(ny,nx),31,0,true); };
+          ww(it.a-.05,it.b+.05,.86,.92,.16); ww(it.a-.05,it.b+.05,2.64,2.7,.08); ww(it.a-.06,it.a,.92,2.64,.08); ww(it.b,it.b+.06,.92,2.64,.08); } });
+      if(f===0 && i===de){ var dm=dpar;                           /* the doorway's frame: two wood jambs and a header */
+        (function(){ var yw=Math.atan2(ny,nx), fb=function(a0,a1,z0,z1){ var c=P((a0+a1)/2,0); gbox(b,c[0]+nx*.07*K,c[1]+ny*.07*K,.07*K,(a1-a0)/2*K,z0f+z0*K,z0f+z1*K,yw,31,0,true); };
+          fb(dm-1.58,dm-1.46,0,2.78); fb(dm+1.46,dm+1.58,0,2.78); fb(dm-1.58,dm+1.58,2.7,2.78); })(); }
     }
+    (d.items||[]).forEach(function(it){ if(it.gr && f>0) return; gbox(b,it.x,it.y,it.hx,it.hy,z0f+it.z0*K,z0f+it.z1*K,it.yaw,it.pk,0,true); });
   }
   /* the directory board: a dark post-and-frame box with a lit face turned to the entrance, 1.4 m wide, standing from 0.2 to 2.3 m */
   var bd=d.board; if(bd && d.fa<=0){
@@ -73,7 +83,7 @@ function glInside(b,d){
     var fx=bd.x+bn[0]*.08*K, fy=bd.y+bn[1]*.08*K, hw=.7*K, zf0=zb0+.5*K, zf1=zb0+2.2*K;
     _gL=1.4; gquad(b,[fx-bt[0]*hw,fy-bt[1]*hw,zf0],[fx+bt[0]*hw,fy+bt[1]*hw,zf0],[fx+bt[0]*hw,fy+bt[1]*hw,zf1],[fx-bt[0]*hw,fy-bt[1]*hw,zf1],bn[0],bn[1],0,0,1.4,0,1.7,30,0);
     var bx0=bd.x-bn[0]*.08*K, by0=bd.y-bn[1]*.08*K;
-    gquad(b,[bx0+bt[0]*hw,by0+bt[1]*hw,zf0],[bx0-bt[0]*hw,by0-bt[1]*hw,zf0],[bx0-bt[0]*hw,by0-bt[1]*hw,zf1],[bx0+bt[0]*hw,by0+bt[1]*hw,zf1],-bn[0],-bn[1],0,0,1.4,0,1.7,30,0); }
+    gquad(b,[bx0+bt[0]*hw,by0+bt[1]*hw,zf0],[bx0-bt[0]*hw,by0-bt[1]*hw,zf0],[bx0-bt[0]*hw,by0-bt[1]*hw,zf1],[bx0+bt[0]*hw,by0+bt[1]*hw,zf1],-bn[0],-bn[1],0,0,1.4,0,1.7,31,0); }
   return b; }
 function glInsideSet(d){
   if(!glOk()) return null; var old=GLX.inside; if(old) glFree(old); GLX.inside=null; if(!d) return null;
@@ -82,7 +92,7 @@ function glInsideSet(d){
 
 JS_INSIDE = r"""
 /* ── inside a node building (palace_ride_inside.py) ── */
-var IN={on:false, busy:0, tok:0, ring:null, sg:1, zb:0, nf:1, f:0, z:0, gl:null, door:null, board:null, mem:null, id:null, name:'', k:-99, ui:null, near:false, shown:false, builds:0, gen:-1, hint:null};
+var IN={on:false, busy:0, tok:0, ring:null, win:null, items:[], kind:'', bd:null, sg:1, zb:0, nf:1, f:0, z:0, gl:null, door:null, board:null, mem:null, id:null, name:'', k:-99, ui:null, near:false, shown:false, builds:0, gen:-1, hint:null};
 var IN_R_DIR=12, IN_PR=.62;                                    /* inside, the player's circle is half a metre: you can stand at a window */
 function insideDecimate(r){ var n=r.length/2; if(n<=60) return r.slice(); var kk=Math.ceil(n/60), q=[]; for(var i=0;i<n;i+=kk) q.push(r[2*i],r[2*i+1]); return q; }
 /* the point (x,y) is in the room and at least `pr` from every wall */
@@ -92,12 +102,13 @@ function insideClear(ring,x,y,pr){ var n=ring.length/2, inside=false, j=n-1, pr2
     var ex=bx-ax, ey=by-ay, l2=ex*ex+ey*ey, t=l2>0?((x-ax)*ex+(y-ay)*ey)/l2:0; t=t<0?0:t>1?1:t; var qx=ax+t*ex-x, qy=ay+t*ey-y; if(qx*qx+qy*qy<pr2) return false;
     j=i; }
   return inside; }
-function insideBlocked(x,y){ if(!insideClear(IN.ring,x,y,IN_PR)) return true; var b=IN.board; if(b){ var dx=x-b.x, dy=y-b.y, rr=IN_PR+.55*UM; if(dx*dx+dy*dy<rr*rr && IN.f===0) return true; } return false; }
+function insideBlocked(x,y){ if(!insideClear(IN.ring,x,y,IN_PR)) return true; { var o=IN.items; for(var q=0;q<o.length;q++){ var it=o[q]; if(!it.col || (it.gr && IN.f>0)) continue; var ax=x-it.x, ay=y-it.y, c=it.c, s2=it.s, lx=ax*c+ay*s2, ly=-ax*s2+ay*c; if(Math.abs(lx)<it.hx+IN_PR && Math.abs(ly)<it.hy+IN_PR) return true; } } var b=IN.board; if(b){ var dx=x-b.x, dy=y-b.y, rr=IN_PR+.55*UM; if(dx*dx+dy*dy<rr*rr && IN.f===0) return true; } return false; }
 function insideFloorZ(f){ return IN.zb+IN_F0*UM+f*IN_FH*UM; }
 function insideShell(){
   var k=Math.max(0,Math.min(IN.nf-1,Math.round((IN.z-IN.zb-IN_F0*UM)/(IN_FH*UM))));
   var gen=GLX.gen; if(k===IN.k && IN.gen===gen && GLX.inside) return; IN.k=k; IN.gen=gen; IN.builds++;
-  glInsideSet({ring:IN.ring, sg:IN.sg, zb:IN.zb, fa:Math.max(0,k-1), fb:Math.min(IN.nf-1,k+1), door:IN.door, board:IN.board}); }
+  if(IN.bd && (!GLX.insideTex || IN.bgen!==gen)){ insideBoardTex(IN.bd); IN.bgen=gen; }
+  glInsideSet({ring:IN.ring, sg:IN.sg, zb:IN.zb, fa:Math.max(0,k-1), fb:Math.min(IN.nf-1,k+1), door:IN.door, board:IN.board, win:IN.win, items:IN.items}); }
 /* ── the HUD parts: the floor indicator, Leave, the directory card ── */
 function insideUI(){
   if(IN.ui) return IN.ui; var root=S.hud.root;
@@ -119,18 +130,87 @@ function insideUIRefresh(){ var u=insideUI(); u.fln.textContent=(IN.f+1)+' / '+I
 function insideDirShow(on){ var u=insideUI(); if(on===IN.near) return; IN.near=on; u.dr.classList.toggle('on', on); u.dgo.tabIndex=on?0:-1; u.dr.setAttribute('aria-hidden', on?'false':'true');
   if(on){ u.dnm.textContent=IN.name; u.dtx.textContent='Open '+IN.name; u.dgo.setAttribute('aria-label','Open '+IN.name+' (E)'); u.live.textContent='Directory: '+IN.name+'. Press E to open it.'; }
   else if(document.activeElement===u.dgo && R.ov) try{ R.ov.focus({preventScroll:true}); }catch(x){} }
+/* ── the room. A node lot is ~100 m across and a lobby is not: the interior is the real building's footprint under the node when there is one (a claimed ring, or the real building the lot
+   replaced), else a plausible lobby - up to IN_MAXW x IN_MAXD m, centred on the door and aligned to the street-facing wall - carved out of the lot ── */
+var IN_MAXW=25, IN_MAXD=18;
+function insideArea(r){ var n=r.length/2, a=0; for(var i=0;i<n;i++){ var j=(i+1)%n; a+=r[2*i]*r[2*j+1]-r[2*j]*r[2*i+1]; } return Math.abs(a)/2/(UM*UM); }
+/* the door moved onto the wall of a footprint nearest the lot's door: {x,y,nx,ny} or null */
+function insideSnapDoor(ring,d){ var n=ring.length/2, K=UM, best=null, cx=0, cy=0, i; for(i=0;i<n;i++){ cx+=ring[2*i]/n; cy+=ring[2*i+1]/n; }
+  for(i=0;i<n;i++){ var j=(i+1)%n, ax=ring[2*i], ay=ring[2*i+1], ex=ring[2*j]-ax, ey=ring[2*j+1]-ay, l=Math.hypot(ex,ey); if(l<4.5*K) continue;
+    var t=Math.max(.3,Math.min(.7,((d.x-ax)*ex+(d.y-ay)*ey)/(l*l))), px=ax+ex*t, py=ay+ey*t, nx=ey/l, ny=-ex/l; if(nx*(px-cx)+ny*(py-cy)<0){ nx=-nx; ny=-ny; }
+    if(!insideClear(ring,px-nx*1.9*K,py-ny*1.9*K,IN_PR+.25)) continue;
+    var sc=Math.hypot(px-d.x,py-d.y)-l*.2+(nx*d.nx+ny*d.ny<0?60*K:0); if(!best||sc<best.sc) best={sc:sc,x:px,y:py,nx:nx,ny:ny}; }
+  return best?{x:best.x,y:best.y,nx:best.nx,ny:best.ny}:null; }
+function insideLotDist(lot,x,y){ var n=lot.length/2, best=1e18; for(var i=0;i<n;i++){ var j=(i+1)%n, ax=lot[2*i], ay=lot[2*i+1], ex=lot[2*j]-ax, ey=lot[2*j+1]-ay, l2=ex*ex+ey*ey||1e-9, t=Math.max(0,Math.min(1,((x-ax)*ex+(y-ay)*ey)/l2)), dx=ax+ex*t-x, dy=ay+ey*t-y; best=Math.min(best,Math.hypot(dx,dy)); } return best; }
+function insideRoom(sol,d){
+  var K=UM, lot=sol.ring, i, fp=null, fa=0, bd=1e18;
+  if(sol.claimed){ var a0=insideArea(lot); if(a0>=60 && a0<=1800){ fp=lot; fa=a0; } }
+  if(!fp && sol.under) sol.under.forEach(function(r){ var a=insideArea(r); if(a<80||a>1800) return; var cx=0, cy=0, m=r.length/2; for(var q=0;q<m;q++){ cx+=r[2*q]/m; cy+=r[2*q+1]/m; } var dd=Math.hypot(cx-d.x,cy-d.y)-a*.02*K; if(dd<bd){ bd=dd; fp=r; fa=a; } });
+  var box=lot;                                                           /* what the lobby is carved out of: the lot, or a footprint too big to be one room */
+  if(fp){ var fr=insideDecimate(fp), fd=insideSnapDoor(fr,d); if(fd){ if(fa<=650) return {ring:fr, door:fd, win:null, kind:'footprint', area:fa}; box=fr; d=fd; } }
+  var t=[d.ny,-d.nx], u=[-d.nx,-d.ny], hw=IN_MAXW/2, dep=IN_MAXD, ok=false, ring=null, k; lot=box;
+  for(k=0;k<22 && !ok;k++){
+    ring=[d.x-t[0]*hw*K, d.y-t[1]*hw*K, d.x+t[0]*hw*K, d.y+t[1]*hw*K, d.x+t[0]*hw*K+u[0]*dep*K, d.y+t[1]*hw*K+u[1]*dep*K, d.x-t[0]*hw*K+u[0]*dep*K, d.y-t[1]*hw*K+u[1]*dep*K]; ok=true;
+    for(var a=-1;a<=1&&ok;a+=.5) for(var p=.04;p<=1.001&&ok;p+=.32){ var px=d.x+t[0]*a*hw*K*.98+u[0]*(p*dep*K), py=d.y+t[1]*a*hw*K*.98+u[1]*(p*dep*K); if(!insideClear(lot,px,py,0)) ok=false; }
+    if(!ok){ hw*=.9; dep*=.9; } }
+  if(!ok || hw<3.2 || dep<4) return {ring:insideDecimate(lot), door:{x:d.x,y:d.y,nx:d.nx,ny:d.ny}, win:null, kind:'lot', area:insideArea(lot)};
+  var win=[]; for(i=0;i<4;i++){ var j=(i+1)%4, mx=(ring[2*i]+ring[2*j])/2, my=(ring[2*i+1]+ring[2*j+1])/2; win.push(i===0 || insideLotDist(lot,mx,my)<1.6*K); }
+  return {ring:ring, door:{x:d.x,y:d.y,nx:d.nx,ny:d.ny}, win:win, kind:'rect', area:hw*2*dep, hw:hw, dep:dep}; }
+/* the furniture and the things that give a room its scale, in the door's frame: a = metres along the entrance wall from the door, p = metres in from it. Each item is a box
+   {x,y,hx,hy (half sizes along the door's normal and along the wall, world units), z0,z1 (m), yaw, pk (material), col (blocks walking), gr (ground floor only)} */
+function insideItems(room,ring,d,bd){
+  var K=UM, tx=d.ny, ty=-d.nx, ux=-d.nx, uy=-d.ny, yaw=Math.atan2(d.ny,d.nx), c=Math.cos(yaw), s2=Math.sin(yaw), out=[], cs=3.2*K;
+  function put(a,p,hn,ht,z0,z1,pk,col,gr,wall){ var x=d.x+tx*a*K+ux*p*K, y=d.y+ty*a*K+uy*p*K, m=Math.max(hn,ht)*K+.2*K;
+    if(!wall && !insideClear(ring,x,y,m)) return false; if(Math.hypot(x-(d.x+ux*cs),y-(d.y+uy*cs))<(Math.max(hn,ht)+1.1)*K) return false; if(bd && Math.hypot(x-bd.x,y-bd.y)<(Math.max(hn,ht)+1.2)*K) return false;
+    for(var q=0;q<out.length;q++) if(out[q].col && Math.hypot(x-out[q].x,y-out[q].y)<(Math.max(hn,ht)+Math.max(out[q].hx,out[q].hy)/K+.4)*K) return false;
+    out.push({x:x,y:y,hx:hn*K,hy:ht*K,z0:z0,z1:z1,yaw:yaw,c:c,s:s2,pk:pk,col:col,gr:gr}); return true; }
+  var rc=room.kind==='rect', W2=rc?room.hw:6, Dp=rc?room.dep:11;
+  { var wide=rc && Dp>=9 && W2>=7;
+    put(-W2*.42,Dp-2.2,.4,1.75,0,1.1,31,1,1); put(-W2*.42,Dp-2.2,.46,1.85,1.1,1.16,27,0,1);                  /* the reception desk, 3.5 m long, against the far wall, with a pale top */
+    put(W2*.45,Dp*.55,.28,.9,0,.46,31,1,1); put(W2*.45,Dp*.55+2.2,.28,.9,0,.46,31,1,1); put(-W2*.5,Dp*.55,.28,.9,0,.46,31,1,1); /* benches */
+    if(wide){ [[-W2*.5,Dp*.45],[W2*.5,Dp*.45],[-W2*.5,Dp*.85],[W2*.5,Dp*.85]].forEach(function(q){ put(q[0],q[1],.27,.27,0,IN_FH-.25,27,1,0); }); }  /* structural columns, half a metre square */
+    if(rc) [[Dp*.3,1],[Dp*.72,-1]].forEach(function(q){ [-1,1].forEach(function(sd){ put(sd*(W2-.05),q[0],.55,.05,.1,2.2,31,0,0,1); }); });         /* two doors on each side wall: a frame and a leaf */
+  }
+  return out; }
+/* the directory board's face: the building's name as a heading and what it opens, painted on a canvas (textContent only) and uploaded as the texture GLX.insideTex */
+function insideBoardData(id,name){
+  var P=E.P||{}, b=E.bOf?E.bOf(id):id, kids=(P.fl&&P.fl[b])||[], rows=[];
+  kids.forEach(function(k){ var nm=(P.num||{})[k]||'', tt=''; try{ tt=(E.title&&E.title(k))||''; }catch(x){} if(!nm&&!tt) return; rows.push([nm,tt||'']); });
+  return {name:name, rows:rows}; }
+function insideBoardTex(bd){
+  if(!glOk()||!GLX.gl) return; var gl=GLX.gl; if(GLX.insideTex){ try{ gl.deleteTexture(GLX.insideTex); }catch(x){} GLX.insideTex=null; }
+  var cv=document.createElement('canvas'); cv.width=1024; cv.height=1024; var g=cv.getContext('2d'); if(!g) return; var F='system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif';
+  g.scale(1024/1400,1024/1700);
+  g.fillStyle='#0e1530'; g.fillRect(0,0,1400,1700); g.strokeStyle='#c9a45e'; g.lineWidth=14; g.strokeRect(20,20,1360,1660);
+  g.fillStyle='#efe3c8'; g.fillRect(60,60,1280,300);
+  function fit(txt,px,maxw,bold){ g.font=(bold?'700 ':'500 ')+px+'px '+F; if(g.measureText(txt).width<=maxw) return txt; while(txt.length>1 && g.measureText(txt+'…').width>maxw) txt=txt.slice(0,-1); return txt+'…'; }
+  function wrap(txt,px,maxw,maxl){ g.font='700 '+px+'px '+F; var w=txt.split(/\s+/), ln=[], cur=''; w.forEach(function(x){ var t=cur?cur+' '+x:x; if(g.measureText(t).width>maxw && cur){ ln.push(cur); cur=x; } else cur=t; }); if(cur) ln.push(cur); if(ln.length>maxl){ ln=ln.slice(0,maxl); ln[maxl-1]=fit(ln[maxl-1]+'……',px,maxw,true); } return ln; }
+  var px=118, ln=wrap(bd.name||'Directory',px,1160,2); if(ln.length>1 && px>98){ px=100; ln=wrap(bd.name,px,1160,2); }
+  g.fillStyle='#10193a'; g.textBaseline='middle'; g.textAlign='left'; g.font='700 '+px+'px '+F; var y0=210-(ln.length-1)*px*.58; ln.forEach(function(t,i){ g.fillText(t,90,y0+i*px*1.15); });
+  g.fillStyle='#c9a45e'; g.font='700 50px '+F; g.fillText('DIRECTORY',70,425);
+  var rows=bd.rows||[], max=8, shown=rows.slice(0,rows.length>max?max-1:max), y=520;
+  shown.forEach(function(r,i){ g.fillStyle='rgba(255,255,255,.14)'; g.fillRect(70,y+52,1260,3);
+    g.fillStyle='#e6b95c'; g.font='700 68px '+F; g.fillText(fit(r[0]||'•',68,230,true),70,y); g.fillStyle='#f6efe0'; g.font='500 72px '+F; g.fillText(fit(r[1]||('Section '+(r[0]||(i+1))),72,980,false),330,y); y+=128; });
+  if(rows.length>max){ g.fillStyle='#bcb59f'; g.font='500 60px '+F; g.fillText('+ '+(rows.length-max+1)+' more inside',330,y); }
+  if(!rows.length){ g.fillStyle='#f6efe0'; g.font='500 78px '+F; g.fillText(fit('Open '+(bd.name||'this building'),78,1180,false),70,640); }
+  g.fillStyle='#efe3c8'; g.fillRect(60,1520,1280,120); g.fillStyle='#10193a'; g.font='700 64px '+F; g.fillText(fit('Open '+(bd.name||''),64,1000,true),90,1580); g.font='700 50px '+F; g.textAlign='right'; g.fillText('E',1310,1580);
+  var tx=gl.createTexture(); gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR); gl.generateMipmap(gl.TEXTURE_2D);
+  var ax=gl.getExtension('EXT_texture_filter_anisotropic'); if(ax) gl.texParameterf(gl.TEXTURE_2D,ax.TEXTURE_MAX_ANISOTROPY_EXT,8);
+  gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE0); GLX.insideTex=tx; GLX.insideCv=cv; }
 /* ── in ── */
 function insideEnter(mem){
   if(IN.on || !glOk()) return false;
   var sol=null, list=doorsAround(); for(var i=0;i<list.length;i++){ if(list[i].door && list[i].door.id===mem.id){ sol=list[i]; break; } }
   if(!sol || !sol.ring || sol.ring.length<6) return false;
-  var d=sol.door, ring=insideDecimate(sol.ring), n=ring.length/2, a2=0; for(i=0;i<n;i++){ var j=(i+1)%n; a2+=ring[2*i]*ring[2*j+1]-ring[2*j]*ring[2*i+1]; }
+  var d0=sol.door, room=insideRoom(sol,d0), d=room.door; d.id=d0.id; d.name=d0.name; var ring=room.ring, n=ring.length/2, a2=0; for(i=0;i<n;i++){ var j=(i+1)%n; a2+=ring[2*i]*ring[2*j+1]-ring[2*j]*ring[2*i+1]; }
   var sg=a2>0?1:-1, hm=(sol.h-(sol.z0||0))/UM, nf=Math.max(1,Math.min(150,Math.floor(hm/IN_FH))), K=UM, sp=null, deep=[3.2,2.4,1.8,1.3];
   for(i=0;i<deep.length && !sp;i++){ var sx=d.x-d.nx*deep[i]*K, sy=d.y-d.ny*deep[i]*K; if(insideClear(ring,sx,sy,IN_PR+.2)) sp=[sx,sy]; }
   if(!sp) return false;
   var bd=null, offs=[[5.4,2.6],[4.6,-2.6],[3.8,2.6],[3.8,-2.6],[6.5,0],[2.8,2.2],[2.8,-2.2]];
   for(i=0;i<offs.length && !bd;i++){ var bx=d.x-d.nx*offs[i][0]*K+d.ny*offs[i][1]*K, by=d.y-d.ny*offs[i][0]*K-d.nx*offs[i][1]*K;
     if(insideClear(ring,bx,by,1.4*K) && Math.hypot(bx-sp[0],by-sp[1])>2.2*K) bd={x:bx, y:by, nx:d.nx, ny:d.ny}; }
+  IN.items=insideItems(room,ring,d,bd); IN.win=room.win; IN.kind=room.kind; IN.bd=insideBoardData(mem.id,mem.name||d.name||''); IN.bd.name=IN.bd.name||''; IN.bgen=-1;
   IN.ring=ring; IN.sg=sg; IN.zb=sol.z0||0; IN.nf=nf; IN.f=0; IN.z=insideFloorZ(0); IN.gl=null; IN.door={x:d.x,y:d.y,nx:d.nx,ny:d.ny}; IN.board=bd; IN.mem=mem; IN.id=mem.id; IN.name=mem.name||d.name||''; IN.k=-99; IN.gen=-1; IN.near=false; IN.busy=0; IN.tm=0;
   IN.on=true; var pu=insideUI(); pu.dr.classList.remove('on'); pu.dr.setAttribute('aria-hidden','true'); insideUIRefresh();
   S.x=sp[0]; S.y=sp[1]; S.yaw=Math.atan2(-d.ny,-d.nx); S.pitch=0; S.vx=S.vy=0; S.speed=0; plan(true); stream(true);
@@ -154,7 +234,7 @@ function insideFrame(dt){
   var d=IN.door; if(d && IN.f===0){ var ex=d.x-S.x, ey=d.y-S.y, dd=Math.hypot(ex,ey);
     if(dd<2.6*UM && dd>.01 && S.speed>.35*UM && (S.vx*ex+S.vy*ey)/(dd*Math.max(S.speed,.01))>.5) insideLeave(); } }
 /* ── out, and on to the page ── */
-function insideTeardown(){ IN.on=false; IN.gl=null; IN.board=null; IN.ring=null; IN.near=false; if(GLX.inside){ glFree(GLX.inside); GLX.inside=null; }
+function insideTeardown(){ IN.on=false; IN.gl=null; IN.board=null; IN.ring=null; IN.near=false; IN.items=[]; IN.win=null; IN.bd=null; if(GLX.inside){ glFree(GLX.inside); GLX.inside=null; } if(GLX.insideTex){ try{ GLX.gl.deleteTexture(GLX.insideTex); }catch(x){} GLX.insideTex=null; GLX.insideCv=null; }
   if(R.ov) R.ov.classList.remove('rm-in'); if(IN.ui){ IN.ui.dr.classList.remove('on'); IN.ui.dgo.tabIndex=-1; } }
 function insideLeave(){
   if(!IN.on || IN.busy) return false; IN.busy=1; var tok=++IN.tok, m=IN.mem; veil(1, reduced()?150:260);
@@ -175,7 +255,7 @@ function insideKey(e){
   return false; }
 var INSIDEAPI={ on:function(){ return IN.on; }, go:insideGo, leave:insideLeave, open:insideOpen, step:function(ms){ insideGlide(ms); }, frame:insideFrame, 
   state:function(){ return {on:IN.on, busy:IN.busy, floor:IN.f, floors:IN.nf, z:IN.z, gliding:!!IN.gl, near:IN.near, name:IN.name, id:IN.id, builds:IN.builds, board:IN.board, door:IN.door, shell:GLX.inside?{n:GLX.inside.n}:null, label:IN.ui?IN.ui.fln.textContent:''}; },
-  windows:function(){ return IN.on?insideWindows(IN.ring,IN.sg):[]; }, blocked:function(x,y){ return IN.on?insideBlocked(x,y):null; }, shell:function(){ return GLX.inside; } };
+  windows:function(){ return IN.on?insideWindows(IN.ring,IN.sg,IN.win,IN.door):[]; }, room:function(){ return IN.on?{kind:IN.kind,ring:IN.ring.slice(),items:IN.items.length,win:IN.win}:null; }, boardData:function(){ return IN.bd; }, blocked:function(x,y){ return IN.on?insideBlocked(x,y):null; }, shell:function(){ return GLX.inside; } };
 """
 
 CSS_INSIDE = r"""
