@@ -373,3 +373,90 @@ def test_a_phone_keeps_its_column_of_cards(browser, pages):
     assert st["mobile"] and not st["solar"] and not st["svg"] and st["circles"] == 0, st
     assert not errs, errs
     ctx.close()
+
+
+# ── edit mode: the page plans the systems again (SOLAR_PLAN_JS = solar_plan) ──
+
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+
+from alto.build.solar import solar_plan  # noqa: E402
+from alto.build.solar_draw import SOLAR_PLAN_JS  # noqa: E402
+
+NODE = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
+needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
+
+
+def _close(a, b, path=""):
+    if isinstance(a, dict):
+        assert set(a) == set(b), (path, set(a) ^ set(b))
+        for k in a:
+            _close(a[k], b[k], f"{path}.{k}")
+    elif isinstance(a, list):
+        assert len(a) == len(b), (path, len(a), len(b))
+        for i, (x, y) in enumerate(zip(a, b)):
+            _close(x, y, f"{path}[{i}]")
+    elif isinstance(a, (int, float)) and not isinstance(a, bool):
+        assert b == pytest.approx(a, abs=0.02), (path, a, b)
+    else:
+        assert a == b, (path, a, b)
+
+
+@needs_node
+@pytest.mark.parametrize("style", ["orbit", "spoke"])
+@pytest.mark.parametrize("units", [SMALL, [[[2, 2, 2], [2, 2], [2, 2, 2], [2], [2, 2]], [[0, 0], [0, 0, 0]]],
+                                   [[[0, 1, 0], [0, 0], [0, 0, 0], [0, 0, 0]], [[2, 2, 0, 0], [0, 0, 0, 0]], [[]]]])
+def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style):
+    """Edit mode re-plans in the page from the live tables; that plan is solar.py's."""
+    b, nodes, _ = load_brief(copy.deepcopy(solar_doc(units, style)))
+    from alto.build.builder import place
+    from alto.build.brief import validate_brief, validate_nodes
+    validate_brief(b)
+    validate_nodes(b, nodes)
+    place(b, nodes)
+    want = solar_plan(b, nodes)
+    kids = {}
+    for n in nodes:
+        if n.parent:
+            kids.setdefault(n.parent, []).append(n.id)
+    tables = {"kids": kids, "parent": {n.id: n.parent for n in nodes if n.parent},
+              "seqs": [[n.id for n in nodes if n.act == a] for a in range(len(b.acts))]}
+    js = ("var window=globalThis;\n" + SOLAR_PLAN_JS + "\n"
+          f"console.log(JSON.stringify(window._altoSolarPlan({json.dumps(tables)}, {json.dumps(want)})));")
+    f = tmp_path / "plan.js"
+    f.write_text(js, encoding="utf-8")
+    got = json.loads(subprocess.check_output([NODE, str(f)], timeout=120))
+    want.pop("warnings"), got.pop("warnings")
+    _close(want, got)
+
+
+def test_edit_mode_has_its_sync():
+    assert "window._altoSolarSync=function(t)" in SOLAR_JS and "window._altoSolarPlan=(function(){" in SOLAR_JS
+
+
+def test_edit_mode_sync_redraws_the_systems_from_the_live_tables(browser, pages):
+    """What manual_edit does on a structural change: the live tables change,
+    _altoSolarSync, then initLayout — the circles land on the new plan."""
+    f, _ = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1200)
+    pg.evaluate("() => document.documentElement.classList.add('alto-editing')")
+    pg.wait_for_timeout(700)
+    out = pg.evaluate(r"""() => {
+      var O=window._ALTO_OUTLINE, mv=['u1-p3','u1-p3-m1'];
+      O.parent['u1-p3']='u2'; O.kids['u1']=O.kids['u1'].filter(function(i){ return i!=='u1-p3'; }); O.kids['u2'].push('u1-p3');
+      ACT_SEQS[0]=ACT_SEQS[0].filter(function(i){ return mv.indexOf(i)<0; }); mv.forEach(function(i){ ACT_SEQS[1].push(i); NODE_ACT[i]=1; });
+      var ok=window._altoSolarSync({kids:O.kids, parent:O.parent, num:O.num, seqs:ACT_SEQS, act:NODE_ACT});
+      initLayout();
+      var S=window._ALTO_SOLAR, bad=[], P=WORLD_PAD_TOP;
+      Object.keys(S.nodes).forEach(function(i){ var n=document.getElementById('node-'+i), w=S.nodes[i];
+        if(Math.abs(parseFloat(n.style.left)-w.x)>1 || Math.abs(parseFloat(n.style.top)-P-w.y)>1) bad.push(i); });
+      var sys=S.systems.filter(function(s){ return s.sun==='u2'; })[0];
+      return {ok:ok, bad:bad, planets:sys.planets.map(function(p){ return p.id; }), role:S.nodes['u1-p3'].role, parent:S.nodes['u1-p3'].parent,
+              rings:document.querySelectorAll('#solar-svg circle.sol-ring:not(.sol-m)').length,
+              geoP:window._altoSolarGeo().bodies['u1-p3'].p, truthy:!!window._ALTO_SOLAR};
+    }""")
+    assert out["ok"] and out["truthy"] and not out["bad"], out
+    assert "u1-p3" in out["planets"] and out["role"] == "planet" and out["parent"] == "u2" and out["geoP"] == "u2"
+    assert out["rings"] == sum(len(u) for u in SMALL)
+    assert not errs, errs
+    pg.context.close()
