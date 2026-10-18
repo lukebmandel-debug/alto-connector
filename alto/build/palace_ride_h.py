@@ -274,6 +274,12 @@ function bFranklin(F){
    the concourse block (88 x 41 m inside) to the other portico; the lower wings either side (cornice ~20 m, a short attic) with tall steel-framed windows in plain stone walls.
    Local frame: x along the 30th Street front (145 m), v from the west wall (0) to the east wall (97), the porticos at v -20..0 and 97..117. ── */
 function lceil(F,x0,v0,x1,v1,z,mat){ MB.cap(F.m,lring(F,[[x0,v0],[x1,v0],[x1,v1],[x0,v1]]),F.Z(z),mat,F.tint,1,true); }
+/* a fluted shaft with entasis: n flutes (2n flat faces, alternately cut in), tapering to `top` of its foot radius */
+function lflute(F,x,v,z0,z1,r,n,top,mat){ var a=[], b=[], cx=F.X(x), cy=F.Y(v), S=F.S; for(var i=0;i<n*2;i++){ var t=i/(n*2)*6.2832, rr=(i&1)?r*.9:r; a.push(cx+Math.cos(t)*rr*S, cy+Math.sin(t)*rr*S); b.push(cx+Math.cos(t)*rr*top*S, cy+Math.sin(t)*rr*top*S); }
+  MB.loft(F.m,a,F.Z(z0),b,F.Z(z1),mat,F.tint,1); }
+/* a tall steel window: a dark opening with a grid of glass panes (cols x rows) */
+function lwin(F,dir,x,v,z,w,h,cols,rows){ ldecal(F,dir,x,v,z,[[-w/2,0],[w/2,0],[w/2,h],[-w/2,h]],'dark',.3); var g=.16, pw=(w-g*(cols+1))/cols, ph=(h-g*(rows+1))/rows, i, j;
+  for(i=0;i<cols;i++) for(j=0;j<rows;j++){ var u0=-w/2+g+i*(pw+g), z0=g+j*(ph+g); ldecal(F,dir,x,v,z,[[u0,z0],[u0+pw,z0],[u0+pw,z0+ph],[u0,z0+ph]],'glass',.45); } }
 function stnPortico(F,dir){
   var L='lime', s=dir==='s'?1:-1, D=97, P=20, vw=dir==='s'?0:D, vf=vw-s*P, i, z0=1.2;                 /* vw: the wall plane, vf: the portico front */
   var va=Math.min(vw,vf), vb=Math.max(vw,vf);
@@ -283,18 +289,18 @@ function stnPortico(F,dir){
   for(i=-2;i<=2;i++) lrect(F,i*6.2-.35,va+.6,i*6.2+.35,vb-.6,22.1,22.8,L,L,1,0);
   lrect(F,-26,va-(s>0?1.2:0),26,vb+(s>0?0:1.2),0,z0,'concrete','concrete',1,0);                                          /* the granite platform */
   lsteps(F,dir,0,vf-s*1.2,46,4,.3,.55,z0,'concrete');
-  var xs=[-14,-8.4,-2.8,2.8,8.4,14], vc=vf+s*2.1, cap=function(x,v){ MB.col(F.m,F.X(x),F.Y(v),F.Z(z0),F.Z(20.6),1.68*F.S,12,MAT.lime,F.tint,1);
-    llathe(F,x,v,[[1.62,20.5],[1.75,21.2],[2.05,21.9],[2.25,22.2]],10,L); lrect(F,x-2.35,v-2.35,x+2.35,v+2.35,22.2,22.8,L,L,1,0); };
+  var xs=[-14,-8.4,-2.8,2.8,8.4,14], vc=vf+s*2.1, cap=function(x,v){ lrect(F,x-2.1,v-2.1,x+2.1,v+2.1,z0,z0+.7,L,L,1,0); llathe(F,x,v,[[1.95,z0+.7],[1.95,z0+1.05],[1.72,z0+1.3]],12,L); lflute(F,x,v,z0+1.3,20.5,1.68,12,.87,L);
+    llathe(F,x,v,[[1.5,20.45],[1.75,21.2],[2.05,21.9],[2.25,22.2]],10,L); lrect(F,x-2.35,v-2.35,x+2.35,v+2.35,22.2,22.8,L,L,1,0); };
   xs.forEach(function(x){ cap(x,vc); }); [-14,14].forEach(function(x){ cap(x,vc+s*5.6); cap(x,vc+s*11.2); });               /* six across, two more down each side: ten */
-  [-9.4,0,9.4].forEach(function(x){ lrectd(F,dir,x,vw,z0,6.6,17.6,'dark',.3); lrectd(F,dir,x,vw,z0,3.2,4.6,'glass',.45); });   /* the tall glazed screens of the concourse behind the columns */  }
+  [-9.4,0,9.4].forEach(function(x){ lwin(F,dir,x,vw,z0,6.6,17.6,3,6); });   /* the tall glazed screens of the concourse behind the columns */  }
 function bStation(F){
   var L='lime', RF='roof', CO='concrete', i, hw=72.5, D=97, cw=25;
   lpatchBox(F,'paving',11,.1);
   [-1,1].forEach(function(sd){ var x0=sd<0?-hw:cw, x1=sd<0?-cw:hw, inner=sd<0?4:8;                                         /* the wings */
     lrect(F,x0,0,x1,D,0,19.2,L,null,1,16|inner); lband(F,x0,0,x1,D,0,1.1,.25,CO,inner); lband(F,x0,0,x1,D,17.3,18.1,.22,L,inner); lband(F,x0,0,x1,D,19.2,20.3,.95,L,inner);
     lrect(F,x0+(sd<0?.6:0),.6,x1-(sd>0?.6:0),D-.6,20.3,22.2,L,RF,1,inner);
-    var n=6, p=(x1-x0)/n; for(i=0;i<n;i++){ var xw=x0+p*(i+.5); lrectd(F,'s',xw,0,3.4,3.7,12.8,'dark'); lrectd(F,'n',xw,D,3.4,3.7,12.8,'dark'); }
-    var xe=sd<0?-hw:hw, m=12, q=D/m; for(i=0;i<m;i++) lrectd(F,sd<0?'w':'e',xe,q*(i+.5),3.4,3.7,12.8,'dark'); });
+    var n=6, p=(x1-x0)/n; for(i=0;i<n;i++){ var xw=x0+p*(i+.5); lwin(F,'s',xw,0,3.4,3.7,12.8,2,5); lwin(F,'n',xw,D,3.4,3.7,12.8,2,5); }
+    var xe=sd<0?-hw:hw, m=12, q=D/m; for(i=0;i<m;i++) lwin(F,sd<0?'w':'e',xe,q*(i+.5),3.4,3.7,12.8,2,5); });
   lrect(F,-cw,0,cw,D,0,27.4,L,null,1,16);                                                                                  /* the concourse block */
   lband(F,-cw,-20,cw,D+20,27.4,28.9,1.05,L); lrect(F,-cw+.5,-19.5,cw-.5,D+19.5,28.9,35,L,RF,1,0); lparapet(F,-cw+.2,-19.8,cw-.2,D+19.8,35,.4,.7,L);   /* cornice, attic, coping */
   for(i=0;i<5;i++){ var vv=8+i*20.2; lrectd(F,'e',cw,vv,22.6,4,4.4,'dark'); lrectd(F,'w',-cw,vv,22.6,4,4.4,'dark'); }    /* the clerestory over the wings */

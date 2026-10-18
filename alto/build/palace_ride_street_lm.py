@@ -24,6 +24,7 @@ var RLM_NEAR={arena:200, stad:250, court:150, fam:250};
 var RLM_PART={stn:1};
 var RLM_FRONT={stn:270, city:180, ind:180, art:120, frank:90, sub:180, conv:180, usch:180, nix:180, fam:180, jef:180};
 var RLM_CLAMP=[.6,1.6];
+var RLM_ALIAS=[[/^philadelphia justice cent/i,'cjc']];                 /* OSM names the 2D art's key does not know */
 function rlmLandmarks(){ if(RLM.L) return RLM.L; var o=[]; ((E&&E.M&&E.M.landmarks)||[]).forEach(function(l){ if(!l||!l.n||l.x==null) return; var k=lmKey(l.n); if(k==='gen'||!LMT[k]) return;
     var r=realOf(l.x,l.y,{x:0,y:0,k:0}); o.push({l:l, key:k, x:r.x, y:r.y}); }); return RLM.L=o; }
 /* the minimum-area box of a ring (flat x,y in any unit): {cx, cy, th (angle of axis a), a, b (full lengths along th and th+90)} */
@@ -55,7 +56,7 @@ function rlmXform(a, bb, f, cx, cy){
 function rlmRoadW(cx, cy){ return function(fx,fy,half){ var x=cx/K+fx*(half/K+14), y=cy/K+fy*(half/K+14), nr=(typeof rlNear==='function')?rlNear(x,y,30,false):[]; if(!nr.length) return 0; var c=RCLS[nr[0].f[0]]; return (c?c[0]:6)*(1-nr[0].d/40); }; }
 function realLandmarks(W){
   if(!RLM.on || typeof lmBuildReal!=='function') return; var L=rlmLandmarks(); if(!L.length) return; var S=W.solids, byKey={}, used={}, out=[];
-  S.forEach(function(s){ if(s.kind!=='b'||!s.nm||s.part) return; var k=s._lk!=null?s._lk:(s._lk=lmKey(s.nm)); if(k==='gen'||!LMT[k]||RLM_BAD.test(s.nm)) return; (byKey[k]||(byKey[k]=[])).push(s); });
+  S.forEach(function(s){ if(s.kind!=='b'||!s.nm||s.part) return; var k=s._lk; if(k==null){ k=lmKey(s.nm); RLM_ALIAS.forEach(function(a){ if(a[0].test(s.nm)) k=a[1]; }); s._lk=k; } if(k==='gen'||!LMT[k]||RLM_BAD.test(s.nm)) return; (byKey[k]||(byKey[k]=[])).push(s); });
   L.forEach(function(q){ var c=byKey[q.key]; if(!c) return; var best=null, bs=1e18, lim=RLM_NEAR[q.key]||900;
     c.forEach(function(s){ if(used[s.cx+','+s.cy]) return; var d=Math.hypot(s.cx/K-q.x,s.cy/K-q.y); if(d>lim) return; var sc=d-(s.wd?400:0)-(String(s.nm).toLowerCase()===String(q.l.n).toLowerCase()?600:0); if(sc<bs){ bs=sc; best=s; } });
     if(!best) return; used[best.cx+','+best.cy]=1;
