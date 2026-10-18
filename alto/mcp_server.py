@@ -1013,25 +1013,29 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       'palace' is the Mind Palace: a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
-      Only Claude starts one (the homepage has no Mind Palace starter),
+      Only Claude builds a city (the homepage can start just the Star chart view),
      layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
-      and run_layout_preview can set it too). 'solar' draws the outline as
-      hub-and-spoke SOLAR SYSTEMS with round nodes (§D-Solar): a unit's top
-      concept (no `parent`) is the SUN, its children PLANETS, theirs MOONS and
-      theirs SATELLITES — nothing deeper (that is refused, restructure). The
-      planets' order is the outline's order: the first sits on the innermost
-      ring, later ones outward. One system for the whole outline = ONE unit
-      (a solar outline may have just one; every other layout needs at least 2
-      `acts`); several units = one system each, side by side. No placement hints apply
-      (only a card's `order` among its siblings), and a phone keeps the
-      single-column card view.
-     hub_style?: 'orbit'|'spoke' (layout 'solar' only; default 'orbit').
-      'orbit' = a real moving solar system: faint ring orbits, planets that
-      revolve around the sun, moons around their planet, satellites around
-      their moon (still while hovering, in edit mode, in print and for readers
-      who ask for reduced motion). 'spoke' = the same circles and numbers,
-      standing still on short straight spokes in ordinary Alto styling. Chosen
-      per timeline; ask the user (§D-Solar),
+      and run_layout_preview can set it too). 'solar' is HUB & SPOKE (the name
+      the user knows, §D-Solar): each unit a hub with round nodes on straight
+      spokes. A unit's top concept (no `parent`) is the SUN, its children
+      PLANETS, theirs MOONS and theirs SATELLITES — nothing deeper (that is
+      refused, restructure). The planets' order is the outline's order: the
+      first sits on the innermost ring, later ones outward. Circles are bigger
+      the more hangs off them. One detailed system for the whole outline = ONE
+      unit (a Hub & spoke may have just one; every other layout needs at least
+      2 `acts`); several units = one system each, side by side. No placement
+      hints apply (only a card's `order` among its siblings), and a phone keeps
+      the single-column card view.
+     hub_style?: 'spoke'|'orbit' (layout 'solar' only). Send 'spoke' for Hub &
+      spoke: the same circles and numbers standing still on short straight
+      spokes in ordinary Alto styling. 'orbit' is the moving rendering
+      (rings, planets revolving); the user meets it as the STAR CHART view of a
+      Mind Palace, reached with convert_timeline, not chosen on an outline,
+     palace_view?: 'city'|'stars' (mode 'palace'; default 'city'): 'stars' is
+      the STAR CHART — the Mind Palace drawn as moving solar systems instead of
+      a city (each building a sun, its floors planets, theirs moons, theirs
+      satellites; no map needed). Hub & spoke <-> Star chart is
+      convert_timeline: content is kept, both ways,
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -1414,7 +1418,7 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     it to make this the hub of its unit. Exactly one node per unit has no
     parent, and a parent must sit in the same unit as its child. A child may be
     sent before its parent — that only warns until you build.
-    In a 'solar' outline (create_timeline layout) `parent` is the orbit: the
+    In a 'solar' (Hub & spoke) outline (create_timeline layout) `parent` is the orbit: the
     unit's hub is the sun, its children planets, theirs moons, theirs
     satellites — a fifth level is refused at build. The order you send a
     parent's children in is their order from the centre outward.
@@ -2056,8 +2060,8 @@ def _layout_error(doc, layout: str, hub_style: str):
                     "message": "this version of Alto has no solar layout"}
         if hub_style not in HUB_STYLES:
             return {"error": "invalid_hub_style",
-                    "message": f"hub_style {hub_style!r}: must be 'orbit' (a moving "
-                               "solar system) or 'spoke' (a still hub-and-spoke)"}
+                    "message": f"hub_style {hub_style!r}: must be 'spoke' (Hub & spoke) "
+                               "or 'orbit' (the moving rendering)"}
         if (layout or doc["brief"].get("layout") or "auto") != "solar":
             return {"error": "invalid_hub_style",
                     "message": "hub_style only applies to layout 'solar' — pass "
@@ -2104,14 +2108,15 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     clearest arrangement (an outline with real categories becomes a tree when
     that crosses no more lines than flow); 'tree' / 'flow' force one. The
     report's `layout` says what was chosen and `line_crossings` why. 'solar'
-    (outline only; §D-Solar) draws each unit as a solar system of round nodes —
+    (outline only; Hub & spoke, §D-Solar) draws each unit as a system of round nodes —
     sun, planets, moons, satellites by depth, planet order = outline order; the
     report then describes the systems instead of tree crossings.
-    hub_style: 'orbit' (default; a moving solar system) or 'spoke' (a still
-    hub-and-spoke, circular nodes too); only with layout 'solar', whether
-    passed here or already in the brief. '' keeps the brief's. A solar outline
-    may have a single unit (one system); anything deeper than sun, planet,
-    moon, satellite is refused, naming the card and its path.
+    hub_style: 'spoke' (Hub & spoke: still circles on straight spokes) or
+    'orbit' (the moving rendering, which users meet as a Mind Palace's Star
+    chart); only with layout 'solar', whether passed here or already in the
+    brief. '' keeps the brief's. A Hub & spoke outline may have a single unit
+    (one system); anything deeper than sun, planet, moon, satellite is
+    refused, naming the card and its path.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
@@ -2289,7 +2294,7 @@ def build_timeline(timeline_id: str, layout: str = "",
     exact check list on any violation.
 
     layout / tree_lines / hub_style: as run_layout_preview (layout 'solar' with
-    hub_style 'orbit' or 'spoke' is the solar-system outline, §D-Solar); given
+    hub_style 'spoke' is the Hub & spoke outline, §D-Solar); given
     here they are also kept in the brief, so every later build (and publish)
     uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.

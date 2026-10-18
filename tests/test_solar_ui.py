@@ -42,7 +42,7 @@ def test_the_solar_starter_is_an_outline_of_two_systems():
     s = starter._STARTERS["solar"]
     b = s["brief"]
     assert "solar" in starter.KINDS and b["mode"] == "outline" and b["layout"] == "solar"
-    assert b["hub_style"] == "orbit" and len(b["acts"]) == 2
+    assert b["hub_style"] == "spoke" and len(b["acts"]) == 2
     by = {n["id"]: n for n in s["nodes"]}
     roots = [n for n in s["nodes"] if not n.get("parent")]
     assert sorted(n["act"] for n in roots) == [0, 1]                       # one sun to a unit
@@ -57,19 +57,20 @@ def test_the_solar_starter_page_builds_and_carries_its_brief():
     b, nodes, conns = load_brief(d)
     validate_brief(b)
     validate_nodes(b, nodes)
-    assert b.layout == "solar" and b.hub_style == "orbit"
+    assert b.layout == "solar" and b.hub_style == "spoke"
     page = starter.page("solar")
     assert starter.TID in page and starter.TITLE in page
 
 
-def test_the_solar_button_sits_after_the_horizontal_one_with_a_moving_preview():
+def test_hub_and_spoke_has_a_still_preview_and_the_star_chart_a_moving_one():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    i = blk.index('data-kind="solar"')
-    assert blk.index('data-kind="lanes"') < i
-    mine = blk[i:]
-    assert mine.count("<circle") >= 8 and "pv-o1" in mine and "pv-om" in mine     # a sun, rings, planets, a moon
-    assert "Solar" in mine and "<svg" in mine and 'aria-hidden="true"' in mine
+    hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
+    assert "Hub &amp; spoke" in hub and "Solar" not in hub and "pv-o1" not in hub and "<animate" not in hub
+    assert hub.count("<circle") >= 6 and 'aria-hidden="true"' in hub                   # a hub and circles on spokes
+    assert "star chart anytime" in hub and "Ask Claude to turn it into" in hub          # the way to the moving one
+    stars = blk[blk.index('data-for="stars" viewBox'):]
+    assert "pv-o1" in stars and "pv-om" in stars and stars.count("<circle") >= 8       # it orbits
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
     assert "@keyframes ntorb" in css
     # the orbit preview stands still for anyone who asks for reduced motion
@@ -77,9 +78,18 @@ def test_the_solar_button_sits_after_the_horizontal_one_with_a_moving_preview():
     assert red and "animation:none" in red[0]
 
 
-def test_the_picker_stays_inside_the_dialog_with_four_choices():
+def test_the_picker_stays_inside_the_dialog_with_four_tiles():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
     assert "#nt-modal{ width:720px; }" in h and "max-width:calc(100vw - 32px)" in h
+
+
+def test_the_star_chart_starter_is_a_palace_without_a_city():
+    s = starter._STARTERS["stars"]
+    b = s["brief"]
+    assert b["mode"] == "palace" and b["palace_view"] == "stars" and "palace" not in b      # no map, so it can be made in a browser
+    roots = [n for n in s["nodes"] if not n.get("parent")]
+    assert sorted(n["act"] for n in roots) == [0, 1]
+    assert ("stars" in starter.KINDS) == ("palace_view" in __import__("alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__)
 
 
 # ── tools ────────────────────────────────────────────────────────────────────
@@ -90,18 +100,17 @@ def test_the_layout_tools_take_a_hub_style_and_explain_it(tool):
     assert "hub_style" in inspect.signature(fn).parameters
     assert inspect.signature(fn).parameters["hub_style"].default == ""        # '' keeps the brief's
     doc = fn.__doc__
-    assert "solar" in doc and "orbit" in doc and "spoke" in doc
+    assert "solar" in doc and "spoke" in doc and "Hub & spoke" in doc
 
 
-def test_create_timeline_explains_the_solar_layout_and_its_two_styles():
+def test_create_timeline_explains_hub_and_spoke_and_the_star_chart():
     doc = " ".join(srv.create_timeline.__doc__.split())
-    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "hub_style?: 'orbit'|'spoke'", "SUN", "PLANETS", "MOONS",
-                 "SATELLITES", "planets' order is the outline's order", "innermost ring",
-                 "ONE unit", "just one", "several units", "per timeline", "single-column"):
+    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "hub_style?: 'spoke'|'orbit'", "SUN", "PLANETS", "MOONS",
+                 "SATELLITES", "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
+                 "single-column", "palace_view?: 'city'|'stars'", "STAR CHART", "convert_timeline", "content is kept, both ways"):
         assert want in doc, want
 
 
-@needs_solar
 def test_a_wrong_hub_style_is_told_plainly():
     doc = {"brief": {"layout": "solar"}}
     assert srv._layout_error(doc, "", "") is None and srv._layout_error(doc, "", "orbit") is None
@@ -138,37 +147,91 @@ def test_a_solar_timeline_goes_through_the_tools_and_keeps_its_style(local_store
     tid = r["timeline_id"]
     srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes"}], True)
     assert "error" not in srv.add_nodes(tid, d["nodes"])
-    pre = srv.run_layout_preview(tid, hub_style="spoke")
+    pre = srv.run_layout_preview(tid, hub_style="orbit")
     assert "error" not in pre, pre
-    assert srv.get_timeline(tid)["brief"].get("hub_style", "orbit") == "orbit"   # a preview stores nothing
-    built = srv.build_timeline(tid, layout="solar", hub_style="spoke")
+    assert srv.get_timeline(tid)["brief"].get("hub_style") == "spoke"   # a preview stores nothing
+    built = srv.build_timeline(tid, layout="solar", hub_style="orbit")
     assert built.get("verify") == "passed", built
-    assert srv.get_timeline(tid)["brief"]["hub_style"] == "spoke"                # kept for every later build
+    assert srv.get_timeline(tid)["brief"]["hub_style"] == "orbit"                # kept for every later build
     assert "error" not in srv.build_timeline(tid)                                # and used by it
-    assert srv.get_timeline(tid)["brief"]["hub_style"] == "spoke"
+    assert srv.get_timeline(tid)["brief"]["hub_style"] == "orbit"
     r = srv.build_timeline(tid, hub_style="swirl")
     assert r["error"] == "invalid_hub_style"
     w = srv.place_nodes(tid, {"unit-1-a": {"arrange": "row"}})
     assert any("solar" in x for x in w["warnings"]), w
 
 
-# ── the interview guide ──────────────────────────────────────────────────────
+# ── the interview guide
 
-def test_the_guide_has_a_solar_section_that_asks_the_two_questions():
-    i = GUIDE.index("### §D-Solar.")
-    sec = " ".join(GUIDE[i:GUIDE.index("### B. Subject & spine")].split())
-    for want in ("layout: 'solar'", "hub_style: 'orbit' | 'spoke'", "sun", "planets", "moons", "satellites",
-                 "One system, or one per unit?", "Orbit, or spokes?", "outline's order", "innermost ring",
-                 "single-column", "reduced motion", "Nothing goes deeper", "Do not flatten it quietly"):
+def _sec(a, b):
+    return " ".join(GUIDE[GUIDE.index(a):GUIDE.index(b)].split())
+
+
+def test_the_guide_has_a_hub_and_spoke_section_that_asks_one_or_several():
+    sec = _sec("### §D-Solar.", "### §D-Stars.")
+    for want in ("Hub & spoke", "layout: 'solar'", "hub_style: 'spoke'", "sun", "planets", "moons", "satellites",
+                 "One system in great detail, or several", "outline's order", "innermost ring", "single-column",
+                 "Nothing goes deeper", "Do not flatten it quietly", "a one-unit Hub & spoke is valid",
+                 "drag its circle onto the other circle", "pivotal, critical or extremely important", "zooms out"):
         assert want in sec, want
-    # routed from the shape question, and into the build sequence
-    assert "**§D-Solar**" in GUIDE[GUIDE.index("### B0."):i]
-    assert "hub_style='orbit'|'spoke'" in GUIDE[GUIDE.index("## Build sequence"):]
+    assert "§D-Solar**" in GUIDE[GUIDE.index("### B0."):GUIDE.index("### §D-Palace.")]
+    assert "hub_style='spoke'" in GUIDE[GUIDE.index("## Build sequence"):]
+
+
+def test_the_guide_offers_the_star_chart_conversion_once_and_says_nothing_is_lost():
+    sec = _sec("**Moving it: the Star chart.**", "### §D-Stars.")
+    for want in ("ringed-planet tile", "Turn this into a star chart", "once, at the end of the build",
+                 "move, orbit, or look like a solar system or a galaxy", "convert_timeline(timeline_id, to='star_chart')",
+                 "Nothing is lost", "convert_timeline(timeline_id, to='hub_and_spoke')", "never rebuild the timeline by hand"):
+        assert want in sec, want
+
+
+def test_the_guide_has_a_star_chart_section_for_the_palace_view():
+    sec = _sec("### §D-Stars.", "### B. Subject & spine")
+    for want in ("palace_view: 'stars'", "sun", "planets", "moons", "satellites", "fifth level", "do not ask which city",
+                 "bigger the more hangs off", "pivotal, critical or extremely important", "inner rings faster",
+                 "reduced motion", "zoom out", "convert_timeline", "Nothing is lost", "Mind Palace keeps its city"):
+        assert " ".join(want.split()) in sec or want.lower() in sec.lower(), want
 
 
 def test_the_guide_never_has_claude_choose_the_students_structure_for_solar():
-    sec = " ".join(GUIDE[GUIDE.index("### §D-Solar."):GUIDE.index("### B. Subject & spine")].split())
+    sec = _sec("### §D-Solar.", "### §D-Stars.")
     assert "never invent a unit or a hub" in sec and "their structure; you do not choose for them" in sec
+
+
+# ── turning a Hub & spoke timeline into a star chart ─────────────────────────
+
+def test_a_hub_and_spoke_page_carries_a_ringed_planet_tile_never_the_sparkle():
+    js = (ROOT / "alto" / "build" / "manual_edit.py").read_text(encoding="utf-8")
+    assert "S.style !== 'spoke'" in js and "tid.indexOf('s-') === 0" in js            # Hub & spoke only; not on a share
+    assert "Turn this into a star chart" in js and "convert_timeline" in js and "window._altoAskClaude" in js
+    assert "html.mobile #alto-star-tile,html.alto-editing #alto-star-tile,html.printing #alto-star-tile{display:none !important;}" in js
+    svg = js[js.index("var STAR_SVG = '") + 16:]
+    svg = svg[:svg.index("';")]
+    assert "<circle" in svg and "<ellipse" in svg and 'aria-hidden="true"' in svg and "currentColor" in svg
+    assert 'viewBox="0 0 24 24"' in svg and "17" in svg
+    # the four-point sparkle is the Overview's icon: nothing new here uses one
+    h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
+    assert "\u2726" not in js + h and "✦" not in js + h and "&#10022;" not in js + h
+
+
+def test_the_homepage_menu_offers_it_on_a_hub_and_spoke_timeline():
+    h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
+    m = h[h.index("function altoTileMenu(pg)"):h.index("function moveView()")]
+    assert "if(pg.view === 'hubspoke')" in m and "Turn this into a star chart" in m and "openClaude(altoStarChartPrompt(pg))" in m
+    pr = h[h.index("function altoStarChartPrompt(pg)"):h.index("function altoTileMenu(pg)")]
+    for want in ("pg.heading || pg.title", "pg.tid", "Hub & spoke into a Star chart", "convert_timeline", "keeping all of its content", "list_projects(account=\"all\")"):
+        assert want in pr, want
+
+
+@needs_solar
+def test_the_listing_record_marks_a_hub_and_spoke_page_in_both_writers():
+    from alto.cloud.meta import meta_of
+    page = starter.page("solar")
+    assert meta_of(page)["view"] == "hubspoke"
+    assert "view" not in meta_of(starter.page("outline"))                      # nothing else changes
+    js = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
+    assert "{ view: 'hubspoke' }" in js and "view: v.view || ''" in js
 
 
 # ── editing a solar timeline by hand ─────────────────────────────────────────
@@ -389,7 +452,7 @@ def edit_url(tmp_path):
 
 
 def _editing(browser, url, hook):
-    ctx = browser.new_context(viewport={"width": 1500, "height": 950})
+    ctx = browser.new_context(viewport={"width": 1500, "height": 1150})
     ctx.add_init_script(FAKE_CLOUD)
     ctx.add_init_script(f"document.addEventListener('DOMContentLoaded', function(){{ {MARK_SOLAR} {SPY if hook else ''} }});")
     pg = ctx.new_page()
@@ -420,23 +483,107 @@ def _toast(pg):
     return pg.evaluate("(document.getElementById('aed-toast')||{}).textContent || ''")
 
 
+def _centre(pg, card):
+    return pg.evaluate(f"(()=>{{var r=document.querySelector('#node-{card} .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2];}})()")
+
+
+def _show(pg, *cards):
+    """Scroll so every card is on screen at once (the page is tall; the viewport 1150)."""
+    pg.evaluate(f"document.getElementById('node-{cards[0]}').scrollIntoView({{block:'start'}}); window.scrollBy(0, -60)")
+    pg.wait_for_timeout(250)
+    for c in cards:
+        x, y = _centre(pg, c)
+        assert 40 < y < 1100, (c, y)
+
+
+def _circle_drag(pg, card, to, release=True, escape=False):
+    """Drag a circle by mouse to a card (by id) or a point; returns the page's view of the drag
+    mid-way (the card's translate, the drop highlights, the tip) before releasing."""
+    x0, y0 = _centre(pg, card)
+    x1, y1 = _centre(pg, to) if isinstance(to, str) else to
+    pg.mouse.move(x0, y0 - 20)
+    pg.mouse.down()
+    for k in range(1, 15):
+        pg.mouse.move(x0 + (x1 - x0) * k / 14, y0 - 20 + (y1 - y0 + 20) * k / 14)
+        pg.wait_for_timeout(16)
+    pg.wait_for_timeout(120)
+    mid = pg.evaluate(f"""({{moved: document.getElementById('node-{card}').style.translate,
+        ok: [...document.querySelectorAll('.aed-drop-ok')].map(n => n.id), no: [...document.querySelectorAll('.aed-drop-no')].map(n => n.id),
+        tip: (document.getElementById('aed-rztip') || {{}}).textContent || ''}})""")
+    if escape:
+        pg.keyboard.press("Escape")
+    if release:
+        pg.mouse.up()
+    pg.mouse.move(5, 600)
+    pg.wait_for_timeout(500)
+    return mid
+
+
+def _home(pg, card):
+    return pg.evaluate(f"document.getElementById('node-{card}').style.translate") in ("", None)
+
+
 @needs_solar
 def test_a_solar_page_keeps_no_dragged_position_or_size_handle(browser, edit_url):
     pg, errs = _editing(browser, edit_url, hook=True)
     assert pg.evaluate("document.documentElement.classList.contains('alto-editing')")
     assert not pg.evaluate("document.documentElement.classList.contains('alto-drag-ok')")
-    pg.evaluate("document.getElementById('node-unit-1-b').scrollIntoView({block:'center'})")
-    pg.wait_for_timeout(250)
-    x, y = pg.evaluate("(()=>{var r=document.querySelector('#node-unit-1-b .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+18];})()")
-    pg.mouse.move(x, y)
-    pg.mouse.down()
-    for k in range(1, 13):
-        pg.mouse.move(x + 200 * k / 12, y + 90 * k / 12)
-        pg.wait_for_timeout(16)
-    pg.mouse.up()
-    pg.wait_for_timeout(500)
-    assert not [k for k in _edit_ops(pg) if k.startswith(("p|", "sz|"))], _edit_ops(pg)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-solar-edit')")
+    _show(pg, "unit-1-a", "unit-1-b")
+    mid = _circle_drag(pg, "unit-1-b", (120, 700))                         # let go on empty space
+    assert mid["moved"], mid                                               # it followed the pointer ...
+    assert _home(pg, "unit-1-b") and _edit_ops(pg) == {}, _edit_ops(pg)     # ... and went home, storing nothing
     assert pg.evaluate("document.querySelectorAll('.aed-rz').length") == 0
+    assert not errs, errs
+
+
+@needs_solar
+def test_a_circle_dropped_on_another_goes_under_it_and_the_layer_is_told(browser, edit_url):
+    pg, errs = _editing(browser, edit_url, hook=True)
+    _show(pg, "unit-1-a1x", "unit-1-b")
+    mid = _circle_drag(pg, "unit-1-a1x", "unit-1-b")
+    assert mid["ok"] == ["node-unit-1-b"] and "Move under" in mid["tip"], mid
+    assert _edit_ops(pg)["rp|unit-1-a1x"]["v"] == "unit-1-b", _edit_ops(pg)     # the card menu's own op
+    assert pg.evaluate("_ALTO_OUTLINE.parent['unit-1-a1x']") == "unit-1-b"
+    calls = pg.evaluate("window.__sync")
+    assert calls and calls[-1]["parent"]["unit-1-a1x"] == "unit-1-b", calls
+    assert not [k for k in _edit_ops(pg) if k.startswith("p|")]
+    assert _home(pg, "unit-1-a1x") and not pg.evaluate("document.querySelectorAll('.aed-drop-ok, .aed-drop-no').length")
+    assert "Moved under" in _toast(pg) and not errs, errs
+
+
+@needs_solar
+def test_a_circle_is_refused_past_the_satellites_and_on_itself_or_what_orbits_it(browser, edit_url):
+    pg, errs = _editing(browser, edit_url, hook=True)
+    _show(pg, "unit-1-a", "unit-1-b")
+    # the planet a carries a moon and a satellite: under b they would be one level too many
+    mid = _circle_drag(pg, "unit-1-a", "unit-1-b")
+    assert mid["no"] == ["node-unit-1-b"] and mid["ok"] == [] and "Too deep" in mid["tip"], mid
+    assert "sun, planet, moon, satellite" in _toast(pg)
+    assert "rp|unit-1-a" not in _edit_ops(pg) and _home(pg, "unit-1-a")
+    assert pg.evaluate("_ALTO_OUTLINE.parent['unit-1-a']") == "unit-1-start"
+    # never onto what orbits it
+    _show(pg, "unit-1-a1x", "unit-1-a")
+    mid = _circle_drag(pg, "unit-1-a", "unit-1-a1x")
+    assert mid["ok"] == [] and "cannot go under itself" in mid["tip"], mid
+    assert "rp|unit-1-a" not in _edit_ops(pg) and _home(pg, "unit-1-a")
+    # a unit's sun has nowhere to go: it is not picked up
+    _show(pg, "unit-1-start")
+    x, y = _centre(pg, "unit-1-start")
+    pg.mouse.move(x, y - 20); pg.mouse.down(); pg.mouse.move(x + 150, y + 60, steps=8); pg.mouse.up()
+    pg.wait_for_timeout(300)
+    assert _home(pg, "unit-1-start") and "rp|unit-1-start" not in _edit_ops(pg)
+    assert not errs, errs
+
+
+@needs_solar
+def test_escape_puts_a_dragged_circle_back_without_a_trace(browser, edit_url):
+    pg, errs = _editing(browser, edit_url, hook=True)
+    _show(pg, "unit-1-a1x", "unit-1-b")
+    mid = _circle_drag(pg, "unit-1-a1x", "unit-1-b", escape=True)
+    assert mid["ok"] == ["node-unit-1-b"]                                  # it was a valid drop until Escape
+    assert _edit_ops(pg) == {} and _home(pg, "unit-1-a1x")
+    assert pg.evaluate("_ALTO_OUTLINE.parent['unit-1-a1x']") == "unit-1-a1"
     assert not errs, errs
 
 

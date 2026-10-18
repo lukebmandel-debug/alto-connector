@@ -191,6 +191,13 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-pill .aep-half:hover::after,#alto-edit-pill .aep-half:focus-visible::after{opacity:1;}
   html.dark:not(.mobile) #alto-edit-pill{color:var(--muted);}
   html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}
+  /* "Turn this into a star chart": on a Hub & spoke timeline only, above the toggle */
+  #alto-star-tile{position:fixed;right:30px;bottom:78px;z-index:309;height:38px;display:inline-flex;align-items:center;gap:9px;padding:0 17px 0 14px;
+    border-radius:19px;border:1.5px dashed color-mix(in srgb,var(--muted) 65%,transparent);background:var(--card-glass-bg,var(--surface));
+    color:var(--muted);font:inherit;font-size:13px;cursor:pointer;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
+  #alto-star-tile:hover,#alto-star-tile:focus-visible{color:var(--text);border-color:var(--muted);outline:none;}
+  #alto-star-tile svg{display:block;flex:none;}
+  html.mobile #alto-star-tile,html.alto-editing #alto-star-tile,html.printing #alto-star-tile{display:none !important;}
   .alto-edit-pill.in-page{display:none;margin:52px auto 28px;width:max-content;height:42px;border-radius:21px;
     background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
     box-shadow:0 8px 22px var(--node-rest-shadow);}
@@ -237,6 +244,13 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;}
+  /* a star chart's circle dragged onto another to go under it (MANUAL_JS solar drag) */
+  html.alto-editing.alto-solar-edit:not(.mobile) #canvas .node-card{cursor:grab;}
+  html.alto-editing #canvas .node.aed-sdrag{pointer-events:none;z-index:80 !important;transition:none !important;}
+  html.alto-editing #canvas .node.aed-sdrag .node-card{opacity:.92;box-shadow:0 14px 36px var(--node-hover-shadow) !important;cursor:grabbing;}
+  #canvas .node.aed-shome{transition:translate .26s cubic-bezier(.2,.7,.3,1);}
+  #canvas .node.aed-drop-ok .node-card{outline:3px solid var(--accent,#7c5cff);outline-offset:3px;}
+  #canvas .node.aed-drop-no .node-card{outline:2px dashed #d9534f;outline-offset:3px;opacity:.62;}
   html.alto-editing:not(.mobile) #canvas .node-card .node-order{pointer-events:auto;cursor:text;border-radius:4px;padding:0 3px;margin:-1px -3px;transition:background .15s;}
   html.alto-editing:not(.mobile) #canvas .node-card .node-order:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);}
   .node.aed-moving .node-card{box-shadow:0 18px 44px var(--node-hover-shadow) !important;}
@@ -1631,6 +1645,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     try{ if(window._focusedNodeId && window.exitFocus) window.exitFocus(); }catch(e){}
     markSections();
     root.classList.add('alto-editing');
+    root.classList.toggle('alto-solar-edit', isSolar() && !root.classList.contains('mobile') && !PHONE);
     root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !isSolar() && !root.classList.contains('mobile') && !PHONE));
     exitPill(); setStatus(status); syncHist(); listen();
     var P = page(); if(P) rerenderPage(P);
@@ -1715,8 +1730,22 @@ MANUAL_JS = r"""<script id="alto-manual">
   // The toggle holds the corner of the row (CSS: right/bottom 30); the engine's
   // alignInfo lines search, info and light/dark up to its left, so tell it when
   // the toggle exists or changes.
+  // A Hub & spoke timeline (layout solar, still style) offers its way to the moving
+  // version: Claude opens with this timeline named, to convert it (convert_timeline).
+  var STAR_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10.5" ry="3.8" transform="rotate(-24 12 12)"/></svg>';
+  function starTile(){
+    var S = window._ALTO_SOLAR, E = window._ALTO_EDIT || {}, tid = String(E.key || '').replace(/^alto-doc-/, '');
+    if(!S || S.style !== 'spoke' || !tid || tid.indexOf('s-') === 0 || document.getElementById('alto-star-tile')) return;
+    var b = document.createElement('button'); b.type = 'button'; b.id = 'alto-star-tile';
+    b.setAttribute('aria-label', 'Turn this into a star chart'); b.innerHTML = STAR_SVG + '<span>Turn this into a star chart</span>';
+    b.addEventListener('click', function(e){ e.stopPropagation();
+      if(window._altoAskClaude) window._altoAskClaude('Turn this Hub & spoke timeline into a Star chart (a Mind Palace in star-chart mode, the moving version), '
+        + 'keeping all of its content: every card, section, chip, line and my own edits, using Alto\'s convert_timeline (to="star_chart"). Tell me how to go back to Hub & spoke if I want.'); });
+    document.body.appendChild(b);
+  }
   function placeDesk(){
     if(PHONE || root.classList.contains('mobile')) return;
+    starTile();
     deskPill();
     if(window._altoAlignInfo) window._altoAlignInfo();
   }
@@ -3829,6 +3858,70 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   window.addEventListener('pointerup', endDrag, true);
   window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); clearPreview(); }, true);
+
+  /* A star chart (solar) circle dragged onto another circle goes under it, with
+     everything that orbits it: the same move as the card menu's ⇄ (relink →
+     rp|), after which the page tells the solar layer (solarSync) to draw the
+     systems again. Nothing is stored about where it was dropped. The circle
+     itself follows the pointer (the CSS `translate` property, apart from the
+     layer's own placement; orbit motion is paused while editing). Dropped
+     on empty space or a refused circle, or Escape: it goes home. */
+  var sdrag = null;
+  function sdragTarget(e, d){
+    var els = document.elementsFromPoint(e.clientX, e.clientY), i, n, id;
+    for(i = 0; i < els.length; i++){ n = els[i].closest && els[i].closest('#canvas .node'); if(n && n !== d.self){ id = n.id.replace(/^node-/, ''); if(srcNode(id)) return {el: n, id: id}; } }
+    return null;
+  }
+  function sdragVerdict(t, d){
+    if(!t) return {ok: false, tip: 'Drop it on another circle to move it under that circle — anywhere else puts it back'};
+    var P = (OUT && OUT.parent) || {};
+    if(d.S.indexOf(t.id) >= 0) return {ok: false, quiet: true, tip: 'A circle cannot go under itself or one that orbits it'};
+    if(P[d.id] === t.id) return {ok: false, quiet: true, tip: 'It is already under “' + titleOf(t.id) + '” — use its number to change its turn'};
+    if(solarDeep(t.id, d.id)) return {ok: false, tip: 'Too deep — a star chart goes sun, planet, moon, satellite and no further'};
+    var n = d.S.length - 1;
+    return {ok: true, tip: 'Move under “' + titleOf(t.id) + '”' + (n ? ' — the ' + (n === 1 ? 'circle' : n + ' circles') + ' that orbit it come along' : '')};
+  }
+  function sdragMarks(t, v){
+    document.querySelectorAll('#canvas .node.aed-drop-ok, #canvas .node.aed-drop-no').forEach(function(el){ if(!t || el !== t.el) el.classList.remove('aed-drop-ok', 'aed-drop-no'); });
+    if(t){ t.el.classList.toggle('aed-drop-ok', v.ok); t.el.classList.toggle('aed-drop-no', !v.ok); }
+  }
+  function sdragEnd(drop, e){
+    var d = sdrag; if(!d) return; sdrag = null;
+    if(d.on){ dragJustEnded = true; setTimeout(function(){ dragJustEnded = false; }, 400); }
+    root.classList.remove('alto-dragging');
+    var tip = document.getElementById('aed-rztip'); if(tip) tip.classList.remove('show');
+    var t = drop && d.on ? sdragTarget(e, d) : null, v = t ? sdragVerdict(t, d) : null;
+    document.querySelectorAll('#canvas .node.aed-drop-ok, #canvas .node.aed-drop-no').forEach(function(el){ el.classList.remove('aed-drop-ok', 'aed-drop-no'); });
+    d.self.classList.remove('aed-sdrag');
+    if(t && v && v.ok){ d.self.style.translate = ''; relink(d.id, t.id); return; }
+    if(t && v && !v.quiet) solarNo();
+    if(d.on){                                                   // back to its place
+      d.self.classList.add('aed-shome'); d.self.style.translate = '';
+      setTimeout(function(){ d.self.classList.remove('aed-shome'); }, 320);
+    }
+  }
+  window.addEventListener('pointerdown', function(e){
+    if(!editing() || !isSolar() || !root.classList.contains('alto-solar-edit') || e.button !== 0) return;
+    var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t)) || PICK || LINK || LPICK) return;
+    var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-cc,.aed-rz,[contenteditable="true"]')) return;
+    var id = nodeEl.id.replace(/^node-/, ''); if(!srcNode(id) || !((OUT && OUT.parent) || {})[id]) return;      // a unit's sun stays
+    sdrag = {id: id, x0: e.clientX, y0: e.clientY, k: scale(nodeEl), on: false, self: nodeEl, S: dfsOf((OUT && OUT.kids) || {}, id)};
+  }, true);
+  window.addEventListener('pointermove', function(e){
+    if(!sdrag) return;
+    var dx = e.clientX - sdrag.x0, dy = e.clientY - sdrag.y0;
+    if(!sdrag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; sdrag.on = true; if(cur) endField(true);
+      root.classList.add('alto-dragging'); sdrag.self.classList.add('aed-sdrag'); sdrag.self.classList.remove('aed-shome'); }
+    e.preventDefault();
+    sdrag.self.style.translate = Math.round(dx / sdrag.k) + 'px ' + Math.round(dy / sdrag.k) + 'px';
+    var t = sdragTarget(e, sdrag), v = sdragVerdict(t, sdrag);
+    sdragMarks(t, v);
+    var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
+    b.textContent = v.tip; b.style.left = (e.clientX + 16) + 'px'; b.style.top = (e.clientY + 16) + 'px'; b.classList.add('show');
+  }, true);
+  window.addEventListener('pointerup', function(e){ sdragEnd(true, e); }, true);
+  window.addEventListener('pointercancel', function(e){ sdragEnd(false, e); }, true);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && sdrag){ e.preventDefault(); e.stopPropagation(); sdragEnd(false, e); } }, true);
 
   // A timeline just started on the homepage opens ready to write in.
   function startHere(){

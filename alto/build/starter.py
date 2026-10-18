@@ -28,7 +28,13 @@ import json
 
 TID, TITLE, LABEL = "zqtidqz", "Zqtitleqz", "Zqlabelqz"
 MAILTO = "subject=" + TITLE
-KINDS = ("outline", "timeline", "lanes", "solar")
+def _stars_ok() -> bool:
+    """The Star chart starter needs the Mind Palace's `palace_view` (brief.py)."""
+    from .brief import Brief
+    return "palace_view" in Brief.__dataclass_fields__
+
+
+KINDS = ("outline", "timeline", "lanes", "solar") + (("stars",) if _stars_ok() else ())
 
 # What each kind starts with: two units (a timeline needs two), one card each.
 _STARTERS = {
@@ -76,13 +82,14 @@ _STARTERS = {
                   {"id": "part-2-start", "act": 1, "title": "Where they meet", "tag": "", "desc": "",
                    "when": "Year 12", "present": ["first", "second"]}],
     },
-    # The solar outline (layout 'solar' of an outline): each unit is a sun, the
-    # concepts under it planets (outline order = ring order), a concept under
-    # a planet its moon. Orbit style to begin with (Claude can switch it to
-    # spokes: build_timeline hub_style) and one unit per sun, so two systems
-    # sit side by side. A shape to see and change; the words are theirs.
+    # Hub & spoke (layout 'solar' of an outline, still style): each unit is a
+    # hub (sun), the concepts under it planets (outline order = ring order), a
+    # concept under a planet its moon, on spokes; one unit per hub, so two
+    # systems sit side by side. A shape to see and change; the words are theirs.
+    # Its moving version is the Star chart (Mind Palace), reached by Claude's
+    # convert_timeline.
     "solar": {
-        "brief": {"mode": "outline", "columns": 5, "layout": "solar", "hub_style": "orbit",
+        "brief": {"mode": "outline", "columns": 5, "layout": "solar", "hub_style": "spoke",
                   "node_noun": "Card", "period_noun": "Unit",
                   "entity_axis_label": "Tags", "entity_axis_singular": "Tag",
                   "acts": [{"label": "Unit 1", "short": "Unit 1"},
@@ -94,6 +101,24 @@ _STARTERS = {
                   {"id": "unit-2-start", "act": 1, "title": "Unit 2 hub", "tag": "", "desc": ""},
                   {"id": "unit-2-a", "act": 1, "parent": "unit-2-start", "title": "First concept", "tag": "", "desc": ""},
                   {"id": "unit-2-b", "act": 1, "parent": "unit-2-start", "title": "Second concept", "tag": "", "desc": ""}],
+    },
+    # The Star chart (a Mind Palace in its star view, brief.palace_view): each
+    # unit a district whose buildings are suns, their floors planets, a part of
+    # a floor a moon, going round. No city, so it can be made in the browser;
+    # the city view needs the real map and is Claude's to build.
+    "stars": {
+        "brief": {"mode": "palace", "palace_view": "stars", "columns": 5,
+                  "node_noun": "Building", "period_noun": "District",
+                  "entity_axis_label": "Tags", "entity_axis_singular": "Tag",
+                  "acts": [{"label": "District 1", "short": "District 1"},
+                           {"label": "District 2", "short": "District 2"}]},
+        "nodes": [{"id": "unit-1-start", "act": 0, "title": "First building", "tag": "", "desc": ""},
+                  {"id": "unit-1-a", "act": 0, "parent": "unit-1-start", "title": "First floor", "tag": "", "desc": ""},
+                  {"id": "unit-1-a1", "act": 0, "parent": "unit-1-a", "title": "A part of it", "tag": "", "desc": ""},
+                  {"id": "unit-1-b", "act": 0, "parent": "unit-1-start", "title": "Second floor", "tag": "", "desc": ""},
+                  {"id": "unit-2-start", "act": 1, "title": "Second building", "tag": "", "desc": ""},
+                  {"id": "unit-2-a", "act": 1, "parent": "unit-2-start", "title": "First floor", "tag": "", "desc": ""},
+                  {"id": "unit-2-b", "act": 1, "parent": "unit-2-start", "title": "Second floor", "tag": "", "desc": ""}],
     },
 }
 
