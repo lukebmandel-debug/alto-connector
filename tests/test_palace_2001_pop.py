@@ -136,7 +136,7 @@ def _blob():
 LOAD = """([blob,rev])=>{ var R=window._palRide, E=R.roam.dbg(); var T={t:0,cx:0,cy:0,xr:[0,100000],xg:[0,100000],yr:[0,100000],yg:[0,100000]}; E.M.grid=T; E.M.doms=null;
   R.real.load(blob); var cols=['#b0402c','#2c48b0','#9a8a70','#5a7a50'], i=0;
   Object.keys(R.real.chunks).forEach(function(k){ var L=R.real.chunks[k].b; L.forEach(function(f){ f.col=cols[(i++)%4]; }); if(rev) L.reverse(); }); return true; }"""
-GRAB = """()=>{ var R=window._palRide.roam, cv=document.querySelector('#pal-ride .pr-gl'), gl=cv.getContext('webgl'); for(var i=0;i<90;i++){ R.tick(0,'x',false); R.draw(); }
+GRAB = """()=>{ var R=window._palRide.roam, cv=document.querySelector('#pal-ride .pr-gl'), gl=(window._palRideGL.gl||cv.getContext('webgl')); for(var i=0;i<90;i++){ R.tick(0,'x',false); R.draw(); }
   var a=new Uint8Array(cv.width*cv.height*4); gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,a); window.__shots=(window.__shots||[]); window.__shots.push(a); return window.__shots.length-1; }"""
 
 
