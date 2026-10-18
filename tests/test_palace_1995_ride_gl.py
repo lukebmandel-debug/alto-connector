@@ -95,7 +95,7 @@ def _src():
 
 
 def _node(code):
-    p = subprocess.run([NODE, "-e", code], capture_output=True, text=True, timeout=60)
+    p = subprocess.run([NODE, "-"], input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)      # (the code goes in on stdin: as an argument it outgrew the OS limit)
     assert p.returncode == 0, p.stderr[-1500:]
     return p.stdout.strip()
 
