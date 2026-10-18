@@ -217,7 +217,7 @@ function rwlNote(on){
   if(!RWL.note || !RWL.note.parentNode){ var n=document.createElement('div'); n.className='rm-load'; n.setAttribute('aria-hidden','true');
     n.style.cssText='position:absolute;left:50%;bottom:96px;transform:translateX(-50%);padding:5px 12px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);color:#fff;font:500 12px system-ui,-apple-system,sans-serif;letter-spacing:.02em;opacity:0;transition:opacity .6s ease;pointer-events:none;white-space:nowrap';
     H.appendChild(n); RWL.note=n; void n.offsetHeight; }
-  RWL.note.textContent=RWL.fails>=3?'the street data is not reachable — trying again':'loading the street…'; RWL.note.style.opacity=on?'.9':'0'; }
+  RWL.note.textContent=(RWL.fails>=3||RWL.tries>=3)?'the street data is not reachable — trying again':'loading the street…'; RWL.note.style.opacity=on?'.9':'0'; }
 /* while the data under the walker is missing the built world (RW.R m around its centre) is all there is: slow the walker gently as they near its rim and hold them inside it,
    still colliding with everything built, rather than let them walk out into emptiness */
 function rwlHold(rx,ry){
@@ -229,6 +229,16 @@ function rwlHold(rx,ry){
   if(d>lim){ var k=lim/d, nx=RW.cx+(S.x-RW.cx)*k, ny=RW.cy+(S.y-RW.cy)*k; if(!blockedAt(nx,ny)){ S.x=nx; S.y=ny; } S.vx*=.2; S.vy*=.2; RWL.held=true; } else RWL.held=false; }
 RW.retry=RWL;
 /*@RWL-end@*/
+/* the street manifest failed when the walk began (no network for a moment, a 5xx): the walk goes on in the lattice and asks again with the same backoff, and goes real the moment the street data is there (it used to be one try per session) */
+function lattRetry(){
+  if(S.real || !S.wantReal || S.pendingReal || RW.busy || S.hold) return;
+  var sh=E&&E.M&&E.M.street&&E.M.street.h, PS=window._palStreet; if(!sh||!PS){ S.wantReal=false; return; }
+  if(performance.now()<RWL.retryAt) return;
+  if(!(REAL.street&&REAL.street())){
+    RW.busy=true; PS.load('/street/palace-street-'+sh+'.json').then(function(){ RW.busy=false; rwlReset(); rwlNote(false); }, function(e){ RW.busy=false; rwlFail(e); if(S.on&&!S.real) rwlNote(true); }); return; }
+  var pr=null; try{ pr=realUpgrade(S.x,S.y,S.yaw,null); }catch(x){ pr=null; }
+  if(!pr){ S.wantReal=false; return; }
+  RW.busy=true; pr.then(function(ok){ RW.busy=false; if(ok){ S.wantReal=false; rwlReset(); rwlNote(false); } else if(S.on&&!S.real&&!S.pendingReal){ rwlFail(); rwlNote(true); } }, function(){ RW.busy=false; rwlFail(); }); }
 function realBuckets(Wn){
   var cg={}; Wn.solids.forEach(function(sd){ if(!(QUAL.indexOf(sd.kind)>=0 || sd.collide)) return; var ci=Math.floor(sd.cx/CELL), cj=Math.floor(sd.cy/CELL), k=ci+','+cj, c=cg[k]||(cg[k]={small:[],big:[],doors:[],col:[],ci:ci,cj:cj,key:k});
     c.col.push(sd); (sd.r<=BIGR?c.small:c.big).push(sd); if(sd.door) c.doors.push(sd); });
@@ -382,6 +392,7 @@ function frame(now){
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */
   var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
   if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy) tick(dt,false);
+  if(!S.real) lattRetry();
   hudFrame(false); if(IN.on) insideFrame(dt); else doorFrame(dt); draw(); showNow();
   if(S.xf && S.pendingReal){ S.xf=0; var sn=snapOver(); doSwitch(); draw(); showNow(); fadeSnap(sn); }
   if(S.on) S.raf=requestAnimationFrame(frame); }
@@ -391,7 +402,7 @@ function frame(now){
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
+  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
@@ -413,7 +424,8 @@ function enter(x,y,heading,opts){
   R.PAL=palette(); S.lastDark=dark();
   hudFrame(true); draw(); showNow();
   S.autoYaw=(heading==null||!isFinite(+heading));
-  if(opts.real!==false){ try{ S.upgrade=realUpgrade(S.x,S.y,S.yaw,opts.at||null); }catch(err){ S.upgrade=null; if(window.console) console.warn('roam real',err); } }
+  S.wantReal=false;
+  if(opts.real!==false){ try{ S.upgrade=realUpgrade(S.x,S.y,S.yaw,opts.at||null); if(!S.upgrade){ S.wantReal=!S.realWhy&&!opts.at; } else S.upgrade.then(function(ok){ if(!ok&&S.on&&!S.real&&!S.realWhy&&!opts.at) S.wantReal=true; }); }catch(err){ S.upgrade=null; if(window.console) console.warn('roam real',err); } }
   S.hud.hint.classList.remove('gone'); clearTimeout(S.hintT); S.hintT=setTimeout(function(){ if(S.hud) S.hud.hint.classList.add('gone'); }, 9000);
   if(!S.hold) S.raf=requestAnimationFrame(frame);
   try{ R.ov.setAttribute('tabindex','-1'); R.ov.focus({preventScroll:true}); }catch(e){}
@@ -436,6 +448,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
   /* the doors (palace_ride_door.py): tests drive the dolly with step(ms) and the prompt with frame(dt) */
   inside:INSIDEAPI,
+  rwl:RWL,                                                       /* QA: the street-data retry state */
   door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
     state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
   /* tests and the QA kit */

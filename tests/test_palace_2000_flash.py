@@ -255,3 +255,26 @@ def test_the_ground_does_not_flip_between_sun_and_shadow_while_walking(roam, ste
 def test_the_shadow_depth_range_is_part_of_the_redraw_key():
     g = palace_ride_gl.JS_GL
     assert "var DSTEP=32, cb=Math.round(" in g and "var key=oa+'|'+ob+'|'+cb+'|'+n" in g
+
+
+def test_a_street_manifest_that_fails_at_entry_is_asked_for_again_and_the_walk_goes_real(roam):
+    pg = roam
+    pg.evaluate(SETUP, _blob())                                      # the street data is loaded; only the manifest is made to arrive late
+    pg.evaluate("""()=>{ var R=window._palRide, E=R.roam.dbg(), REAL=R.real, st={ready:false, calls:0}; E.M.street={h:'abc'}; window.__PS=st;
+      var blob={b:[], r:[]}; window._palStreet={ready:function(){ return st.ready; }, attribution:function(){ return ''; }, place:function(){ return ''; },
+        load:function(){ st.calls++; if(st.calls<3) return Promise.reject(new Error('street 503')); st.ready=true; return Promise.resolve(); }};
+      REAL.street=function(){ return st.ready; };
+      var prep=REAL.prepare; REAL.prepare=function(pts,r){ REAL.have=pts.map(function(q){ return [q[0],q[1],r]; }); return Promise.resolve(true); };
+      REAL.on=false; var keep=REAL.chunks; window.__keep=keep; }""")
+    pg.evaluate("""()=>{ var R=window._palRide, REAL=R.real; REAL.chunks=window.__keep; }""")
+    pg.evaluate("""([x,y])=>{ var R=window._palRide.roam; if(R.active()) R.exit(false); R.enter(x,y,0,{}); }""", [3945, 2012])
+    st = pg.evaluate("()=>window._palRide.roam.state()")
+    assert st["real"] is False                                          # the manifest is not there: the lattice walk
+    for want in (1, 2, 3):
+        pg.wait_for_function("(n)=>window.__PS.calls>=n", arg=want, timeout=4000)
+        if want < 3:
+            pg.evaluate("()=>{ window._palRide.roam.rwl.retryAt=0; }")      # skip the backoff's wait, not its logic
+    pg.wait_for_function("()=>window._palRide.roam.state().real===true", timeout=6000)
+    assert pg.evaluate("()=>window.__PS.calls") == 3                    # two failures, then the one that worked
+    assert pg.evaluate("()=>window._palRide.roam.rwl.tries") == 0       # and the counters are clear again
+    pg.evaluate("()=>{ window._palStreet=undefined; }")
