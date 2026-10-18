@@ -28,13 +28,7 @@ import json
 
 TID, TITLE, LABEL = "zqtidqz", "Zqtitleqz", "Zqlabelqz"
 MAILTO = "subject=" + TITLE
-def _stars_ok() -> bool:
-    """The Star chart starter needs the Mind Palace's `palace_view` (brief.py)."""
-    from .brief import Brief
-    return "palace_view" in Brief.__dataclass_fields__
-
-
-KINDS = ("outline", "timeline", "lanes", "solar") + (("stars",) if _stars_ok() else ())
+KINDS = ("outline", "timeline", "lanes", "solar", "stars")
 
 # What each kind starts with: two units (a timeline needs two), one card each.
 _STARTERS = {
@@ -82,14 +76,14 @@ _STARTERS = {
                   {"id": "part-2-start", "act": 1, "title": "Where they meet", "tag": "", "desc": "",
                    "when": "Year 12", "present": ["first", "second"]}],
     },
-    # Hub & spoke (layout 'solar' of an outline, still style): each unit is a
+    # Hub & spoke (layout 'solar' of an outline, always still): each unit is a
     # hub (sun), the concepts under it planets (outline order = ring order), a
     # concept under a planet its moon, on spokes; one unit per hub, so two
     # systems sit side by side. A shape to see and change; the words are theirs.
     # Its moving version is the Star chart (Mind Palace), reached by Claude's
     # convert_timeline.
     "solar": {
-        "brief": {"mode": "outline", "columns": 5, "layout": "solar", "hub_style": "spoke",
+        "brief": {"mode": "outline", "columns": 5, "layout": "solar",
                   "node_noun": "Card", "period_noun": "Unit",
                   "entity_axis_label": "Tags", "entity_axis_singular": "Tag",
                   "acts": [{"label": "Unit 1", "short": "Unit 1"},

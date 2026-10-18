@@ -1026,16 +1026,15 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       2 `acts`); several units = one system each, side by side. No placement
       hints apply (only a card's `order` among its siblings), and a phone keeps
       the single-column card view.
-     hub_style?: 'spoke'|'orbit' (layout 'solar' only). Send 'spoke' for Hub &
-      spoke: the same circles and numbers standing still on short straight
-      spokes in ordinary Alto styling. 'orbit' is the moving rendering
-      (rings, planets revolving); the user meets it as the STAR CHART view of a
-      Mind Palace, reached with convert_timeline, not chosen on an outline,
+     (Hub & spoke is always still: circles and numbers on short straight
+      spokes in ordinary Alto styling. The moving version is the STAR CHART,
+      below,)
      palace_view?: 'city'|'stars' (mode 'palace'; default 'city'): 'stars' is
       the STAR CHART — the Mind Palace drawn as moving solar systems instead of
       a city (each building a sun, its floors planets, theirs moons, theirs
-      satellites; no map needed). Hub & spoke <-> Star chart is
-      convert_timeline: content is kept, both ways,
+      satellites, one sun per ROOT building; no map needed; planets and moons
+      orbit). Hub & spoke <-> Star chart is convert_timeline: content is kept,
+      both ways,
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -2046,38 +2045,28 @@ def _load_full(doc):
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
-HUB_STYLES = ("orbit", "spoke")
-
-
-def _layout_error(doc, layout: str, hub_style: str):
-    """An error dict when the layout / hub_style arguments cannot apply, else
-    None. hub_style belongs to layout 'solar' alone; checked here so a wrong
-    one is told plainly instead of surfacing as a build failure."""
-    if hub_style:
-        from .build.brief import Brief
-        if "hub_style" not in Brief.__dataclass_fields__:       # a build without the solar layout
-            return {"error": "invalid_hub_style",
-                    "message": "this version of Alto has no solar layout"}
-        if hub_style not in HUB_STYLES:
-            return {"error": "invalid_hub_style",
-                    "message": f"hub_style {hub_style!r}: must be 'spoke' (Hub & spoke) "
-                               "or 'orbit' (the moving rendering)"}
-        if (layout or doc["brief"].get("layout") or "auto") != "solar":
-            return {"error": "invalid_hub_style",
-                    "message": "hub_style only applies to layout 'solar' — pass "
-                               "layout='solar' with it, or leave hub_style out"}
+def _layout_error(doc, layout: str, palace_view: str):
+    """An error dict when the palace_view argument cannot apply, else None."""
+    if palace_view:
+        if palace_view not in ("city", "stars"):
+            return {"error": "invalid_palace_view",
+                    "message": f"palace_view {palace_view!r}: must be 'city' or 'stars' (the Star chart)"}
+        if doc["brief"].get("mode") != "palace":
+            return {"error": "invalid_palace_view",
+                    "message": "palace_view only applies to a Mind Palace (mode 'palace'); "
+                               "convert_timeline turns a Hub & spoke into a Star chart"}
     return None
 
 
-def _layout_choice(doc, layout: str, tree_lines: str, hub_style: str = "") -> dict:
-    """The brief with a layout / tree_lines / hub_style override applied ('' keeps it)."""
+def _layout_choice(doc, layout: str, tree_lines: str, palace_view: str = "") -> dict:
+    """The brief with a layout / tree_lines / palace_view override applied ('' keeps it)."""
     brief = dict(doc["brief"])
     if layout:
         brief["layout"] = layout
     if tree_lines:
         brief["tree_lines"] = tree_lines
-    if hub_style:
-        brief["hub_style"] = hub_style
+    if palace_view:
+        brief["palace_view"] = palace_view
     return {**doc, "brief": brief}
 
 
@@ -2099,7 +2088,7 @@ def _tree_boxes(b, nodes, conns, ids=None) -> dict:
 @accounted
 def run_layout_preview(timeline_id: str, layout: str = "",
                        tree_lines: str = "", boxes: bool = False,
-                       hub_style: str = "") -> dict:
+                       palace_view: str = "") -> dict:
     """Cheap layout dry-run: resolves the desktop arrangement + vertical
     positions and reports world height, per-column balance, and warnings —
     iterate here before build_timeline.
@@ -2111,12 +2100,11 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     (outline only; Hub & spoke, §D-Solar) draws each unit as a system of round nodes —
     sun, planets, moons, satellites by depth, planet order = outline order; the
     report then describes the systems instead of tree crossings.
-    hub_style: 'spoke' (Hub & spoke: still circles on straight spokes) or
-    'orbit' (the moving rendering, which users meet as a Mind Palace's Star
-    chart); only with layout 'solar', whether passed here or already in the
-    brief. '' keeps the brief's. A Hub & spoke outline may have a single unit
-    (one system); anything deeper than sun, planet, moon, satellite is
-    refused, naming the card and its path.
+    A Hub & spoke outline may have a single unit (one system); anything deeper
+    than sun, planet, moon, satellite is refused, naming the card and its path.
+    palace_view: for a Mind Palace, 'city' or 'stars' (the Star chart: moving
+    systems, one sun per building, no map); '' keeps the brief's. Chosen when
+    the page is built, not switched in the page.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
@@ -2126,11 +2114,11 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
-    err = _layout_error(doc, layout, hub_style)
+    err = _layout_error(doc, layout, palace_view)
     if err:
         return err
     try:
-        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, hub_style))
+        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, palace_view))
         from .build.brief import validate_brief, validate_nodes
         warnings = validate_brief(b) + validate_nodes(b, nodes)
         if not nodes:
@@ -2338,16 +2326,16 @@ def convert_timeline(timeline_id: str, to: str) -> dict:
 @mcp.tool(title="Build timeline", annotations=RW)
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
-                   tree_lines: str = "", hub_style: str = "") -> dict:
+                   tree_lines: str = "", palace_view: str = "") -> dict:
     """Emit the timeline from the engine template, verify it (structure,
     geometry, no invented slots, and a JS parse check of every emitted script),
     and store the artifacts (hosted page + offline single-file). Fails with the
     exact check list on any violation.
 
-    layout / tree_lines / hub_style: as run_layout_preview (layout 'solar' with
-    hub_style 'spoke' is the Hub & spoke outline, §D-Solar); given
-    here they are also kept in the brief, so every later build (and publish)
-    uses them. Cards placed
+    layout / tree_lines / palace_view: as run_layout_preview (layout 'solar' is
+    the Hub & spoke outline, §D-Solar; palace_view 'stars' the Star chart,
+    §D-Stars); given here they are also kept in the brief, so every later build
+    (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
     the draft first; the reply's manual_edits says how many."""
@@ -2361,10 +2349,10 @@ def build_timeline(timeline_id: str, layout: str = "",
         doc, err = _timeline_or_error(timeline_id)
         if err:
             return err
-    err = _layout_error(doc, layout, hub_style)
+    err = _layout_error(doc, layout, palace_view)
     if err:
         return err
-    doc = _layout_choice(doc, layout, tree_lines, hub_style)
+    doc = _layout_choice(doc, layout, tree_lines, palace_view)
     try:
         b, nodes, conns = _load_full(doc)
         if not nodes:

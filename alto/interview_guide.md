@@ -434,14 +434,14 @@ its floors, reached by an elevator inside the building.
   event's date or line, put a character on or off the page at it, put it in a
   flashback (or a new one) or take it out, and add or rename lines.
 
-### §D-Solar. Hub & spoke (`mode: 'outline'`, `layout: 'solar'`, `hub_style: 'spoke'`)
+### §D-Solar. Hub & spoke (`mode: 'outline'`, `layout: 'solar'`)
 "Hub & spoke" is what the student calls it; `solar` is only the id in the
 tools. An outline drawn as hubs with round nodes on straight spokes, in
 Alto's usual look and standing still. Nothing about the content changes: the
 student's concepts, their `parent`s, the numbers (2, 2.a, 2.a.1, 2.a.1.1), the
 detail pages, search, filters, print and manual edits are the outline's own.
-Only the picture is different. Always send `hub_style: 'spoke'` with it (the
-moving rendering is the Star chart, below, not chosen on an outline).
+Only the picture is different. A Hub & spoke is always still: the moving
+version is the Star chart, below.
 
 **When to offer it.** Only in an outline, and only after the structure is
 known (D-Outline steps 1-3), when it fits: each unit has one hub concept with
@@ -495,9 +495,8 @@ units) → each unit's hub is that unit's sun. The units are the student's
 (D-Outline step 1); never invent a unit or a hub to make a system.
 
 → `create_timeline` brief (or `build_timeline` / `run_layout_preview`):
-`layout: 'solar'`, `hub_style: 'spoke'`. Everything else in D-Outline applies
-unchanged. The build report describes the systems; run
-`run_layout_preview(layout='solar', hub_style='spoke')` before
+`layout: 'solar'`. Everything else in D-Outline applies unchanged. The build
+report describes the systems; run `run_layout_preview(layout='solar')` before
 `build_timeline`, and read any warning aloud in plain words.
 
 **In the page.** The owner edits a Hub & spoke timeline as any outline: words,
@@ -519,17 +518,23 @@ into one?" Do it with `convert_timeline(timeline_id, to='star_chart')`, then
 rebuild and republish. **Nothing is lost**: every card, section, chip, line,
 flag and the student's own edits come across, and it can be turned back into
 Hub & spoke with `convert_timeline(timeline_id, to='hub_and_spoke')` whenever
-they like — say so, so a try costs nothing. (If the tool list has no
-`convert_timeline` yet, say plainly that the conversion is not available in this
-version yet; never rebuild the timeline by hand to imitate it.)
+they like — say so, so a try costs nothing (the tool also saves the brief as it
+was, beside the timeline, and its reply names the file). Offer `star_chart`
+only on a Hub & spoke; offer `hub_and_spoke` only on a Star chart whose
+districts hold one building each. If the tool refuses (a city palace, a
+district with several buildings), say why in plain words and what stays as it
+is; never rebuild the timeline by hand to imitate the conversion. After it,
+`build_timeline` and `publish_timeline`.
 
 ### §D-Stars. Star chart (`mode: 'palace'`, `palace_view: 'stars'`)
 "Star chart" is a Mind Palace drawn as slowly moving solar systems instead of
 a city. The Mind Palace's structure is the outline's: every building (a node
 with no `parent`) becomes a **sun**, its floors **planets** (the order of the
 floors is the order of the rings, innermost first), their children **moons**,
-theirs **satellites**; a fifth level is refused with the card named — ask the
-student where it should go, as in §D-Solar. Districts (units) set the systems
+theirs **satellites**; a fifth level is refused with the card named (the
+message adds that the palace can stay a city) — ask the student where it should
+go, as in §D-Solar. One sun per ROOT building: a district with several
+buildings is several systems. Districts (units) set the systems
 side by side. No city is needed, so no map and no place to ask for; do not
 ask which city. The student can start one on their homepage ("Mind Palace" →
 "Star chart") or you build it with `create_timeline(mode='palace',
@@ -549,9 +554,11 @@ under it, exactly as in Hub & spoke.
 
 **City or stars.** The view is chosen when the page is built, not by a switch
 in the page. `convert_timeline(timeline_id, to='hub_and_spoke')` turns a Star
-chart into a plain Hub & spoke outline, and a Hub & spoke into a Star chart with
-`to='star_chart'`; nothing is lost either way, and a Mind Palace keeps its city
-data so it can be a city again. Offer the way back whenever the student
+chart whose districts hold one building each into a plain Hub & spoke outline
+(one sun per unit), and a Hub & spoke into a Star chart with `to='star_chart'`;
+nothing is lost either way. A Star chart keeps its city data, so
+`build_timeline(palace_view='city')` makes it a city again; a city palace itself
+is not converted (turn its Star chart view into a Hub & spoke instead). Offer the way back whenever the student
 misses the still version.
 
 ### B. Subject & spine
@@ -1048,7 +1055,7 @@ outline mode `parent` carries the tree) →
 6c. horizontal timeline only: `set_lines` when its lines or flashbacks change
 (§D-Lanes) →
 6d. Hub & spoke (solar) or Star chart only: nothing extra to author; `layout: 'solar'` and
-`hub_style: 'spoke'` (Hub & spoke), or `mode: 'palace'` and `palace_view: 'stars'`
+(Hub & spoke), or `mode: 'palace'` and `palace_view: 'stars'`
 (Star chart), ride on `create_timeline` (or the layout/build calls below),
 §D-Solar, §D-Stars →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
@@ -1062,7 +1069,7 @@ For a story / linear timeline, `overview_html`: prose overview; deep-link a node
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →
 8. `run_layout_preview` (cheap; rebalance columns on warnings; a Hub & spoke outline:
-`layout='solar'`, `hub_style='spoke'`) →
+`layout='solar'`) →
 8b. `preview_timeline` → show it as an Artifact (below) and iterate →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the
 view/download links. Use `get_timeline` to resume a draft in a later chat.

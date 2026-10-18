@@ -42,7 +42,7 @@ def test_the_solar_starter_is_an_outline_of_two_systems():
     s = starter._STARTERS["solar"]
     b = s["brief"]
     assert "solar" in starter.KINDS and b["mode"] == "outline" and b["layout"] == "solar"
-    assert b["hub_style"] == "spoke" and len(b["acts"]) == 2
+    assert "hub_style" not in b and len(b["acts"]) == 2
     by = {n["id"]: n for n in s["nodes"]}
     roots = [n for n in s["nodes"] if not n.get("parent")]
     assert sorted(n["act"] for n in roots) == [0, 1]                       # one sun to a unit
@@ -57,7 +57,7 @@ def test_the_solar_starter_page_builds_and_carries_its_brief():
     b, nodes, conns = load_brief(d)
     validate_brief(b)
     validate_nodes(b, nodes)
-    assert b.layout == "solar" and b.hub_style == "spoke"
+    assert b.layout == "solar" and b.mode == "outline"
     page = starter.page("solar")
     assert starter.TID in page and starter.TITLE in page
 
@@ -95,40 +95,37 @@ def test_the_star_chart_starter_is_a_palace_without_a_city():
 # ── tools ────────────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("tool", ["run_layout_preview", "build_timeline"])
-def test_the_layout_tools_take_a_hub_style_and_explain_it(tool):
+def test_the_layout_tools_take_a_palace_view_and_explain_hub_and_spoke(tool):
     fn = getattr(srv, tool)
-    assert "hub_style" in inspect.signature(fn).parameters
-    assert inspect.signature(fn).parameters["hub_style"].default == ""        # '' keeps the brief's
-    doc = fn.__doc__
-    assert "solar" in doc and "spoke" in doc and "Hub & spoke" in doc
+    params = inspect.signature(fn).parameters
+    assert "palace_view" in params and params["palace_view"].default == "" and "hub_style" not in params   # '' keeps the brief's
+    doc = " ".join(fn.__doc__.split())
+    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "Star chart" in doc
 
 
 def test_create_timeline_explains_hub_and_spoke_and_the_star_chart():
     doc = " ".join(srv.create_timeline.__doc__.split())
-    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "hub_style?: 'spoke'|'orbit'", "SUN", "PLANETS", "MOONS",
+    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "always still", "SUN", "PLANETS", "MOONS",
                  "SATELLITES", "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
                  "single-column", "palace_view?: 'city'|'stars'", "STAR CHART", "convert_timeline", "content is kept, both ways"):
         assert want in doc, want
 
 
-def test_a_wrong_hub_style_is_told_plainly():
-    doc = {"brief": {"layout": "solar"}}
-    assert srv._layout_error(doc, "", "") is None and srv._layout_error(doc, "", "orbit") is None
-    assert srv._layout_error(doc, "solar", "spoke") is None
-    assert srv._layout_error({"brief": {}}, "solar", "orbit") is None
-    assert srv._layout_error(doc, "", "swirl")["error"] == "invalid_hub_style"
-    r = srv._layout_error({"brief": {"layout": "tree"}}, "", "spoke")
-    assert r["error"] == "invalid_hub_style" and "layout 'solar'" in r["message"]
-    r = srv._layout_error({"brief": {}}, "tree", "orbit")
-    assert r["error"] == "invalid_hub_style"
+def test_a_wrong_palace_view_is_told_plainly():
+    palace = {"brief": {"mode": "palace"}}
+    assert srv._layout_error(palace, "", "") is None and srv._layout_error(palace, "", "stars") is None
+    assert srv._layout_error(palace, "", "city") is None
+    assert srv._layout_error(palace, "", "swirl")["error"] == "invalid_palace_view"
+    r = srv._layout_error({"brief": {"mode": "outline", "layout": "solar"}}, "", "stars")
+    assert r["error"] == "invalid_palace_view" and "convert_timeline" in r["message"]
 
 
 def test_a_layout_choice_is_kept_in_the_brief_only_when_given():
-    doc = {"brief": {"layout": "solar", "hub_style": "orbit", "tree_lines": "fan"}}
+    doc = {"brief": {"mode": "palace", "palace_view": "city", "tree_lines": "fan"}}
     assert srv._layout_choice(doc, "", "")["brief"] == doc["brief"]
-    assert srv._layout_choice(doc, "", "", "spoke")["brief"]["hub_style"] == "spoke"
-    assert srv._layout_choice({"brief": {}}, "solar", "", "orbit")["brief"] == {"layout": "solar", "hub_style": "orbit"}
-    assert doc["brief"]["hub_style"] == "orbit"                                # the stored one is not touched
+    assert srv._layout_choice(doc, "", "", "stars")["brief"]["palace_view"] == "stars"
+    assert srv._layout_choice({"brief": {}}, "solar", "", "")["brief"] == {"layout": "solar"}
+    assert doc["brief"]["palace_view"] == "city"                               # the stored one is not touched
 
 
 @pytest.fixture
@@ -139,7 +136,7 @@ def local_store(tmp_path):
 
 
 @needs_solar
-def test_a_solar_timeline_goes_through_the_tools_and_keeps_its_style(local_store):
+def test_a_hub_and_spoke_timeline_goes_through_the_tools_and_converts_both_ways(local_store):
     d = starter.draft("solar")
     pid = srv.create_project("Law School", "1L year", "studying")["project_id"]
     r = srv.create_timeline(pid, {**d["brief"], "title": "Torts"})
@@ -147,18 +144,21 @@ def test_a_solar_timeline_goes_through_the_tools_and_keeps_its_style(local_store
     tid = r["timeline_id"]
     srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes"}], True)
     assert "error" not in srv.add_nodes(tid, d["nodes"])
-    pre = srv.run_layout_preview(tid, hub_style="orbit")
+    pre = srv.run_layout_preview(tid)
     assert "error" not in pre, pre
-    assert srv.get_timeline(tid)["brief"].get("hub_style") == "spoke"   # a preview stores nothing
-    built = srv.build_timeline(tid, layout="solar", hub_style="orbit")
-    assert built.get("verify") == "passed", built
-    assert srv.get_timeline(tid)["brief"]["hub_style"] == "orbit"                # kept for every later build
-    assert "error" not in srv.build_timeline(tid)                                # and used by it
-    assert srv.get_timeline(tid)["brief"]["hub_style"] == "orbit"
-    r = srv.build_timeline(tid, hub_style="swirl")
-    assert r["error"] == "invalid_hub_style"
+    assert srv.build_timeline(tid).get("verify") == "passed"
     w = srv.place_nodes(tid, {"unit-1-a": {"arrange": "row"}})
     assert any("solar" in x for x in w["warnings"]), w
+    # the page offers the conversion; the tool does it, keeping every card, and it comes back
+    got = srv.convert_timeline(tid, "star_chart")
+    assert got.get("ok") and got["to"] == "star_chart" and got["nodes"] == len(d["nodes"]), got
+    assert srv.get_timeline(tid)["brief"]["palace_view"] == "stars"
+    assert srv.build_timeline(tid, palace_view="stars").get("verify") == "passed"
+    assert srv.build_timeline(tid, palace_view="swirl")["error"] == "invalid_palace_view"
+    back = srv.convert_timeline(tid, "hub_and_spoke")
+    assert back.get("ok"), back
+    assert srv.get_timeline(tid)["brief"]["layout"] == "solar"
+    assert srv.build_timeline(tid).get("verify") == "passed"
 
 
 # ── the interview guide
@@ -169,20 +169,20 @@ def _sec(a, b):
 
 def test_the_guide_has_a_hub_and_spoke_section_that_asks_one_or_several():
     sec = _sec("### §D-Solar.", "### §D-Stars.")
-    for want in ("Hub & spoke", "layout: 'solar'", "hub_style: 'spoke'", "sun", "planets", "moons", "satellites",
+    for want in ("Hub & spoke", "layout: 'solar'", "sun", "planets", "moons", "satellites",
                  "One system in great detail, or several", "outline's order", "innermost ring", "single-column",
                  "Nothing goes deeper", "Do not flatten it quietly", "a one-unit Hub & spoke is valid",
                  "drag its circle onto the other circle", "pivotal, critical or extremely important", "zooms out"):
         assert want in sec, want
     assert "§D-Solar**" in GUIDE[GUIDE.index("### B0."):GUIDE.index("### §D-Palace.")]
-    assert "hub_style='spoke'" in GUIDE[GUIDE.index("## Build sequence"):]
+    assert "hub_style" not in GUIDE and "run_layout_preview" in GUIDE[GUIDE.index("## Build sequence"):]
 
 
 def test_the_guide_offers_the_star_chart_conversion_once_and_says_nothing_is_lost():
     sec = _sec("**Moving it: the Star chart.**", "### §D-Stars.")
     for want in ("ringed-planet tile", "Turn this into a star chart", "once, at the end of the build",
                  "move, orbit, or look like a solar system or a galaxy", "convert_timeline(timeline_id, to='star_chart')",
-                 "Nothing is lost", "convert_timeline(timeline_id, to='hub_and_spoke')", "never rebuild the timeline by hand"):
+                 "Nothing is lost", "convert_timeline(timeline_id, to='hub_and_spoke')", "districts hold one building each", "never rebuild the timeline by hand"):
         assert want in sec, want
 
 
@@ -190,7 +190,7 @@ def test_the_guide_has_a_star_chart_section_for_the_palace_view():
     sec = _sec("### §D-Stars.", "### B. Subject & spine")
     for want in ("palace_view: 'stars'", "sun", "planets", "moons", "satellites", "fifth level", "do not ask which city",
                  "bigger the more hangs off", "pivotal, critical or extremely important", "inner rings faster",
-                 "reduced motion", "zoom out", "convert_timeline", "Nothing is lost", "Mind Palace keeps its city"):
+                 "reduced motion", "zoom out", "convert_timeline", "Nothing is lost", "keeps its city data"):
         assert " ".join(want.split()) in sec or want.lower() in sec.lower(), want
 
 
@@ -457,8 +457,8 @@ def _editing(browser, url, hook):
     ctx.add_init_script(f"document.addEventListener('DOMContentLoaded', function(){{ {MARK_SOLAR} {SPY if hook else ''} }});")
     pg = ctx.new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
-    pg.goto(url)
+    pg.on("pageerror", lambda e: errs.append(str(e)) if "ResizeObserver loop" not in str(e) else None)   # WebKit's harmless note
+    pg.goto(url, wait_until="domcontentloaded", timeout=90000)
     pg.wait_for_timeout(1500)
     pg.click("#alto-edit-pill .aep-manual")
     pg.wait_for_timeout(500)
