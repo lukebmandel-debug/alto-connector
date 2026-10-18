@@ -223,7 +223,7 @@ def test_2000_look_pass_three_leaf_cards_pale_bark_and_stop_signs():
 
 def test_2000_look_pass_four_car_colours_contact_shadows():
     f = palace_ride_gl_shaders.FS_WORLD
-    assert "a contact shadow on the ground" in f and "if(dn>a) discard;" in f
+    assert "a contact shadow on the ground" in f and "gl_FragColor=vec4(0.,0.,0.,a); return;" in f and "gl_FragCoord" not in f      # blended and smooth: no dither at all
     from alto.build import palace_ride_g
     g = palace_ride_g.JS_G
     for needed in ("function carColour(", "function contact(", "dark plates, a grille, and mirrors", "contact(m,0,0,.55,.55,.02)", "ci=carColour("):
