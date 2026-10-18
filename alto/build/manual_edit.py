@@ -51,6 +51,12 @@ touching (layout.separate). Held close to its own line (the one from its
 parent), a card slides along it alone (slide); taken off it, the cards under
 it come along (shift).
 
+A solar outline (layout 'solar', alto/build/solar.py) places every circle from
+its place in the outline, so there is no dragging or sizing there, a card cannot
+go deeper than a satellite, and after a structural change the page calls
+window._altoSolarSync({kids, parent, num, seqs, act}) so the solar layer can
+draw the systems again (alto/edits.py drops any dragged position or size).
+
 Desktop: everything. Phones: text on the page being read (no dragging, no
 cards, filters or sections to add, no Claude half). Shares and copies opened from disk never offer it.
 """
@@ -1442,6 +1448,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var cv = document.getElementById('canvas');
     if(cv && getComputedStyle(cv).display === 'none'){ relayLater = true; return; }
     relayLater = false;
+    solarSync();
     try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(e){}
     try{ if(window._altoFilterRefresh && window._altoChipOn && window._altoChipOn()) window._altoFilterRefresh(); }catch(e){}
     decorateCanvas(); paintPick();
@@ -1624,7 +1631,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     try{ if(window._focusedNodeId && window.exitFocus) window.exitFocus(); }catch(e){}
     markSections();
     root.classList.add('alto-editing');
-    root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !root.classList.contains('mobile') && !PHONE));
+    root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !isSolar() && !root.classList.contains('mobile') && !PHONE));
     exitPill(); setStatus(status); syncHist(); listen();
     var P = page(); if(P) rerenderPage(P);
     decorate(); decorateOv();
@@ -1867,14 +1874,39 @@ MANUAL_JS = r"""<script id="alto-manual">
     items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
     items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
-    if(!card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
+    if(!isSolar() && !card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
       rz.setAttribute('aria-hidden', 'true'); rz.addEventListener('pointerdown', function(e){ startResize(e, id); }); card.appendChild(rz); }
   });
+  /* a solar outline (solar.py): sun > planets > moons > satellites, where each
+     circle sits is decided by its place in the outline — so no dragging, no
+     sizing, and nothing deeper than a satellite */
+  function isSolar(){ return !!window._ALTO_SOLAR; }
+  var SOLAR_MAX = 3;
+  function depthOf(id){ var P = (OUT && OUT.parent) || {}, d = 0; while(P[id] && d < 60){ id = P[id]; d++; } return d; }
+  function heightOf(id){ var h = 0; liveKids(id).forEach(function(k){ h = Math.max(h, 1 + heightOf(k)); }); return h; }
+  // would a card (with the cards under it) pass the satellites if it went under np?
+  function solarDeep(np, id){ return isSolar() && !!np && depthOf(np) + 1 + (id ? heightOf(id) : 0) > SOLAR_MAX; }
+  function solarNo(){ toast('A solar system goes sun, planet, moon, satellite — no further. Choose a card nearer the sun.'); }
+  // The page's cards changed shape: the solar layer (window._altoSolarSync, solar_draw.py)
+  // draws the systems again from the live tables. Without it the circles stay as built.
+  var solarWarned = false;
+  function solarSync(){
+    if(!isSolar()) return;
+    if(typeof window._altoSolarSync === 'function'){
+      try{ window._altoSolarSync({kids: (OUT && OUT.kids) || {}, parent: (OUT && OUT.parent) || {}, num: (OUT && OUT.num) || {},
+        seqs: (typeof ACT_SEQS !== 'undefined') ? ACT_SEQS : [], act: (typeof NODE_ACT !== 'undefined') ? NODE_ACT : {}}); }catch(e){}
+      return;
+    }
+    root.classList.add('alto-solar-stale');
+    if(!solarWarned && (MOVED.length || NEWO.length || SWAPPED.length || REORD.length || Object.keys(GONE).length)){
+      solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this timeline.'); }
+  }
   function addCard(p, a){
     if(!cardsBase()) return;
     // an outline's unit has one card at its top (brief: one hub per unit): a
     // card added to the unit goes under it
     if(!p && OUT){ var hub = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === a && !(OUT.parent || {})[n.id]; })[0]; if(hub) p = hub.id; }
+    if(solarDeep(p)){ solarNo(); return; }
     var id = rid('card-'), par = p ? srcNode(p) : null, act = par ? NODE_ACT[p] : a;
     var inAct = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === act; }), like = par || inAct[inAct.length - 1] || null;
     var spec = {p: p || '', a: unitKeyOf(act), t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
@@ -1920,7 +1952,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!LINK) return;
     var P = (OUT && OUT.parent) || {};
     document.querySelectorAll('#world .node').forEach(function(el){ var i = el.id.slice(5);
-      el.classList.toggle('aed-link-no', LINK.S.indexOf(i) >= 0); el.classList.toggle('aed-link-at', P[LINK.id] === i); });
+      el.classList.toggle('aed-link-no', LINK.S.indexOf(i) >= 0 || solarDeep(i, LINK.id)); el.classList.toggle('aed-link-at', P[LINK.id] === i); });
     var b = document.getElementById('aed-linkbar');
     if(!b){ b = document.createElement('div'); b.id = 'aed-linkbar';
       b.innerHTML = '<span class="ap-t"></span><button type="button">Cancel</button>';
@@ -1934,6 +1966,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var S = dfsOf((OUT && OUT.kids) || {}, id);
     if(S.indexOf(np) >= 0){ toast('A card cannot go under itself or a card under it.'); return false; }
     if(((OUT && OUT.parent) || {})[id] === np){ endLink(); return false; }
+    if(solarDeep(np, id)){ solarNo(); return false; }
     var ok, to = srcNode(np);
     if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.p = np; sp.a = unitKeyOf(NODE_ACT[np]); ok = change('nn|' + id, sp); }
     else {
@@ -2164,6 +2197,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var np = Object.keys(NODE_ORDER_MAP).filter(function(k){ return NODE_ORDER_MAP[k] === pnum && srcNode(k) && !cardGone(k); })[0];
     if(!np){ toast('No card is numbered ' + pnum + ', so there is nothing for it to go under.'); return; }
     if(branchOf(id).indexOf(np) >= 0){ toast(pnum + ' is this card or a card under it — a card cannot go under itself.'); return; }
+    if(np !== p && solarDeep(np, id)){ solarNo(); return; }
     var sibs = liveKids(np).filter(function(k){ return k !== id; });
     var at = Math.min(pos, sibs.length), list = sibs.slice(); list.splice(at, 0, id);
     var holder = liveKids(np)[pos], same = np === p;
@@ -2266,7 +2300,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function unitGoneOp(i){ var k = unitKeyOf(i); return typeof k === 'string' ? ['nu|' + k, null] : ['ud|' + k, 1]; }
   function deleteUnit(i){
     var ids = unitIds(i), N = ids.length, U = PHASE_META.length, nm = unitName(i);
-    var few = U <= 2, why = 'A timeline keeps at least two units.';
+    var minU = isSolar() ? 1 : 2, few = U <= minU, why = 'A timeline keeps at least ' + (minU === 1 ? 'one unit' : 'two units') + '.';
     var cards = N === 1 ? 'its card' : 'its ' + N + ' cards';
     var A = [{label: 'Move ' + cards + ' to'}];
     for(var j = 0; j < U; j++) if(j !== i) (function(j){ A.push({t: unitName(j), off: few, why: why, fn: function(){ moveUnit(i, j); }}); })(j);
@@ -3698,7 +3732,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     return {ax: 'y', p: p || null};
   }
   window.addEventListener('pointerdown', function(e){
-    if(!editing() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
+    if(!editing() || isSolar() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-rz')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;

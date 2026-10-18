@@ -1014,6 +1014,23 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
       Only Claude starts one (the homepage has no Mind Palace starter),
+     layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
+      and run_layout_preview can set it too). 'solar' draws the outline as
+      hub-and-spoke SOLAR SYSTEMS with round nodes (§D-Solar): a unit's top
+      concept (no `parent`) is the SUN, its children PLANETS, theirs MOONS and
+      theirs SATELLITES — nothing deeper (that is refused, restructure). The
+      planets' order is the outline's order: the first sits on the innermost
+      ring, later ones outward. One system for the whole outline = one unit;
+      several units = one system each, side by side. No placement hints apply
+      (only a card's `order` among its siblings), and a phone keeps the
+      single-column card view.
+     hub_style?: 'orbit'|'spoke' (layout 'solar' only; default 'orbit').
+      'orbit' = a real moving solar system: faint ring orbits, planets that
+      revolve around the sun, moons around their planet, satellites around
+      their moon (still while hovering, in edit mode, in print and for readers
+      who ask for reduced motion). 'spoke' = the same circles and numbers,
+      standing still on short straight spokes in ordinary Alto styling. Chosen
+      per timeline; ask the user (§D-Solar),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -1396,6 +1413,10 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     it to make this the hub of its unit. Exactly one node per unit has no
     parent, and a parent must sit in the same unit as its child. A child may be
     sent before its parent — that only warns until you build.
+    In a 'solar' outline (create_timeline layout) `parent` is the orbit: the
+    unit's hub is the sun, its children planets, theirs moons, theirs
+    satellites — a fifth level is refused at build. The order you send a
+    parent's children in is their order from the centre outward.
     Column guidance (linear mode): alternate sides; 'center' for pivotal beats;
     omit col for the deterministic fallback. **In outline mode `col` is
     ignored** — the tree decides placement, hubs centred and leaves out to the
@@ -2020,13 +2041,38 @@ def _load_full(doc):
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
-def _layout_choice(doc, layout: str, tree_lines: str) -> dict:
-    """The brief with a layout / tree_lines override applied ('' keeps it)."""
+HUB_STYLES = ("orbit", "spoke")
+
+
+def _layout_error(doc, layout: str, hub_style: str):
+    """An error dict when the layout / hub_style arguments cannot apply, else
+    None. hub_style belongs to layout 'solar' alone; checked here so a wrong
+    one is told plainly instead of surfacing as a build failure."""
+    if hub_style:
+        from .build.brief import Brief
+        if "hub_style" not in Brief.__dataclass_fields__:       # a build without the solar layout
+            return {"error": "invalid_hub_style",
+                    "message": "this version of Alto has no solar layout"}
+        if hub_style not in HUB_STYLES:
+            return {"error": "invalid_hub_style",
+                    "message": f"hub_style {hub_style!r}: must be 'orbit' (a moving "
+                               "solar system) or 'spoke' (a still hub-and-spoke)"}
+        if (layout or doc["brief"].get("layout") or "auto") != "solar":
+            return {"error": "invalid_hub_style",
+                    "message": "hub_style only applies to layout 'solar' — pass "
+                               "layout='solar' with it, or leave hub_style out"}
+    return None
+
+
+def _layout_choice(doc, layout: str, tree_lines: str, hub_style: str = "") -> dict:
+    """The brief with a layout / tree_lines / hub_style override applied ('' keeps it)."""
     brief = dict(doc["brief"])
     if layout:
         brief["layout"] = layout
     if tree_lines:
         brief["tree_lines"] = tree_lines
+    if hub_style:
+        brief["hub_style"] = hub_style
     return {**doc, "brief": brief}
 
 
@@ -2047,7 +2093,8 @@ def _tree_boxes(b, nodes, conns, ids=None) -> dict:
 @mcp.tool(title="Run layout (preview)", annotations=RO)
 @accounted
 def run_layout_preview(timeline_id: str, layout: str = "",
-                       tree_lines: str = "", boxes: bool = False) -> dict:
+                       tree_lines: str = "", boxes: bool = False,
+                       hub_style: str = "") -> dict:
     """Cheap layout dry-run: resolves the desktop arrangement + vertical
     positions and reports world height, per-column balance, and warnings —
     iterate here before build_timeline.
@@ -2055,7 +2102,13 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     layout: '' keeps the brief's ('auto' unless set). 'auto' picks the
     clearest arrangement (an outline with real categories becomes a tree when
     that crosses no more lines than flow); 'tree' / 'flow' force one. The
-    report's `layout` says what was chosen and `line_crossings` why.
+    report's `layout` says what was chosen and `line_crossings` why. 'solar'
+    (outline only; §D-Solar) draws each unit as a solar system of round nodes —
+    sun, planets, moons, satellites by depth, planet order = outline order; the
+    report then describes the systems instead of tree crossings.
+    hub_style: 'orbit' (default; a moving solar system) or 'spoke' (a still
+    hub-and-spoke); only with layout 'solar', whether passed here or already
+    in the brief. '' keeps the brief's.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
@@ -2065,8 +2118,11 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
+    err = _layout_error(doc, layout, hub_style)
+    if err:
+        return err
     try:
-        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines))
+        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, hub_style))
         from .build.brief import validate_brief, validate_nodes
         warnings = validate_brief(b) + validate_nodes(b, nodes)
         if not nodes:
@@ -2155,7 +2211,8 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     (then publish_timeline) shows them on the page. A unit you did not name is
     never touched. Needs an outline timeline. Placement only shapes the tree
     layout: with layout 'auto' it is chosen once any card is placed ('flow'
-    ignores everything but `order`)."""
+    ignores everything but `order`; so does 'solar', where the system draws
+    itself and `order` is a card's ring / orbit turn among its siblings)."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -2205,7 +2262,11 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     out = {"ok": True, "hints": pl, "layout": report.get("layout"),
            "world_height": world_h, "placed": placed, "warnings": warnings,
            "placement": report.get("placement") or {}}
-    if pl and report.get("layout") != "tree":
+    if pl and brief.get("layout") == "solar":
+        out["warnings"].append("the layout is 'solar', which draws each system itself "
+                               "and ignores placement except `order` (a card's turn "
+                               "among its siblings, i.e. its orbit)")
+    elif pl and report.get("layout") != "tree":
         out["warnings"].append("the layout is 'flow', which ignores placement "
                                "except `order` — build with layout 'tree'")
     out["next"] = ("Fix any overlaps, then build_timeline and publish_timeline "
@@ -2218,14 +2279,16 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
 @mcp.tool(title="Build timeline", annotations=RW)
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
-                   tree_lines: str = "") -> dict:
+                   tree_lines: str = "", hub_style: str = "") -> dict:
     """Emit the timeline from the engine template, verify it (structure,
     geometry, no invented slots, and a JS parse check of every emitted script),
     and store the artifacts (hosted page + offline single-file). Fails with the
     exact check list on any violation.
 
-    layout / tree_lines: as run_layout_preview; given here they are also kept
-    in the brief, so every later build (and publish) uses them. Cards placed
+    layout / tree_lines / hub_style: as run_layout_preview (layout 'solar' with
+    hub_style 'orbit' or 'spoke' is the solar-system outline, §D-Solar); given
+    here they are also kept in the brief, so every later build (and publish)
+    uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
     the draft first; the reply's manual_edits says how many."""
@@ -2239,7 +2302,10 @@ def build_timeline(timeline_id: str, layout: str = "",
         doc, err = _timeline_or_error(timeline_id)
         if err:
             return err
-    doc = _layout_choice(doc, layout, tree_lines)
+    err = _layout_error(doc, layout, hub_style)
+    if err:
+        return err
+    doc = _layout_choice(doc, layout, tree_lines, hub_style)
     try:
         b, nodes, conns = _load_full(doc)
         if not nodes:

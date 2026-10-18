@@ -28,7 +28,7 @@ import json
 
 TID, TITLE, LABEL = "zqtidqz", "Zqtitleqz", "Zqlabelqz"
 MAILTO = "subject=" + TITLE
-KINDS = ("outline", "timeline", "lanes")
+KINDS = ("outline", "timeline", "lanes", "solar")
 
 # What each kind starts with: two units (a timeline needs two), one card each.
 _STARTERS = {
@@ -75,6 +75,25 @@ _STARTERS = {
                    "line": "second", "when": "Year 11"},
                   {"id": "part-2-start", "act": 1, "title": "Where they meet", "tag": "", "desc": "",
                    "when": "Year 12", "present": ["first", "second"]}],
+    },
+    # The solar outline (layout 'solar' of an outline): each unit is a sun, the
+    # concepts under it planets (outline order = ring order), a concept under
+    # a planet its moon. Orbit style to begin with (Claude can switch it to
+    # spokes: build_timeline hub_style) and one unit per sun, so two systems
+    # sit side by side. A shape to see and change; the words are theirs.
+    "solar": {
+        "brief": {"mode": "outline", "columns": 5, "layout": "solar", "hub_style": "orbit",
+                  "node_noun": "Card", "period_noun": "Unit",
+                  "entity_axis_label": "Tags", "entity_axis_singular": "Tag",
+                  "acts": [{"label": "Unit 1", "short": "Unit 1"},
+                           {"label": "Unit 2", "short": "Unit 2"}]},
+        "nodes": [{"id": "unit-1-start", "act": 0, "title": "Unit 1 hub", "tag": "", "desc": ""},
+                  {"id": "unit-1-a", "act": 0, "parent": "unit-1-start", "title": "First concept", "tag": "", "desc": ""},
+                  {"id": "unit-1-a1", "act": 0, "parent": "unit-1-a", "title": "A part of it", "tag": "", "desc": ""},
+                  {"id": "unit-1-b", "act": 0, "parent": "unit-1-start", "title": "Second concept", "tag": "", "desc": ""},
+                  {"id": "unit-2-start", "act": 1, "title": "Unit 2 hub", "tag": "", "desc": ""},
+                  {"id": "unit-2-a", "act": 1, "parent": "unit-2-start", "title": "First concept", "tag": "", "desc": ""},
+                  {"id": "unit-2-b", "act": 1, "parent": "unit-2-start", "title": "Second concept", "tag": "", "desc": ""}],
     },
 }
 

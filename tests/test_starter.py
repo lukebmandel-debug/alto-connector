@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from alto.build import starter  # noqa: E402
 from alto.build.builder import load_brief  # noqa: E402
-from alto.build.brief import validate_brief, validate_nodes  # noqa: E402
+from alto.build.brief import LAYOUTS, validate_brief, validate_nodes  # noqa: E402
 
 NODE = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
 needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
@@ -28,6 +28,11 @@ def _fn(name):
     return CLOUD_JS[i:j + 4]
 
 
+def _skip_if_unbuildable(kind):
+    if kind == "solar" and "solar" not in LAYOUTS:
+        pytest.skip("needs alto-solar-lead's layout 'solar'")
+
+
 def _browser(js_body: str):
     out = subprocess.check_output([NODE, "-e", js_body], timeout=60)
     return json.loads(out)
@@ -35,17 +40,21 @@ def _browser(js_body: str):
 
 @pytest.mark.parametrize("kind", starter.KINDS)
 def test_the_starter_draft_is_a_timeline_that_builds(kind):
+    _skip_if_unbuildable(kind)
     d = starter.draft(kind)
     b, nodes, _ = load_brief(d)
     validate_brief(b)
     validate_nodes(b, nodes)
-    assert len(b.acts) == 2 and len(nodes) == (4 if kind == "lanes" else 2)
-    assert b.mode == {"outline": "outline", "timeline": "linear", "lanes": "lanes"}[kind]
+    assert len(b.acts) == 2 and len(nodes) == {"lanes": 4, "solar": 7}.get(kind, 2)
+    assert b.mode == {"outline": "outline", "timeline": "linear", "lanes": "lanes", "solar": "outline"}[kind]
+    assert (b.layout, b.hub_style if kind == "solar" else None) == (
+        ("solar", "orbit") if kind == "solar" else ("tree" if kind == "outline" else "auto", None))
 
 
 @needs_node
 @pytest.mark.parametrize("kind", starter.KINDS)
 def test_a_title_with_every_awkward_character_fills_the_page_safely(kind, tmp_path):
+    _skip_if_unbuildable(kind)
     raw = 'Bob\'s "Draft" & <b>${x}</b> `tick` \\ back — 2026'
     clean = _browser(_fn("_cleanTitle") + f"\nconsole.log(JSON.stringify(_cleanTitle({json.dumps(raw)})));")
     assert clean == "Bob\u2019s \u201cDraft\u201d and b$ {x}/b \u2019tick\u2019 back \u2014 2026"
@@ -66,6 +75,8 @@ def test_a_title_with_every_awkward_character_fills_the_page_safely(kind, tmp_pa
 
 
 def test_the_site_carries_the_starters(tmp_path):
+    if "solar" not in LAYOUTS:
+        pytest.skip("needs alto-solar-lead's layout 'solar'")
     starter.write(tmp_path)
     for k in starter.KINDS:
         h = (tmp_path / "new" / f"{k}.html").read_text(encoding="utf-8")

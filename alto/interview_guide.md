@@ -314,6 +314,12 @@ Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
 **§D-Outline** below, horizontal to **§D-Lanes**.
 
+An outline can also be drawn as hub-and-spoke solar systems (round nodes: each
+unit's hub a sun, its concepts planets going round it) — **§D-Solar**. It is
+the same outline with the same numbers, pages and edits, only a different
+picture; raise it once the structure is known (§D-Solar says when), never
+before, and never for a sketch, a horizontal timeline or a Mind Palace.
+
 A third shape, only when the user asks for it by name (a **Mind Palace**, a
 memory palace, "put my outline on a city") — never offered unprompted:
 `mode: 'palace'`, **§D-Palace**. Only Claude can start one; the homepage's
@@ -424,6 +430,75 @@ its floors, reached by an elevator inside the building.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
   flashback (or a new one) or take it out, and add or rename lines.
+
+### §D-Solar. A solar-system outline (`mode: 'outline'`, `layout: 'solar'`)
+An outline drawn as hub-and-spoke **solar systems** with round nodes. Nothing
+about the content changes: the student's concepts, their `parent`s, the
+numbers (2, 2.a, 2.a.1, 2.a.1.1), the detail pages, search, filters, print and
+manual edits are the outline's own. Only the picture is different.
+
+**When to offer it.** Only in an outline, and only after the structure is
+known (D-Outline steps 1-3), when it fits: each unit has one hub concept with
+a ring of sub-concepts around it, and the student wants — or lights up at —
+the hub-and-spoke picture, or asks for a solar system, orbits, planets, a
+"universe". Offer it once, in a sentence, with the tree as the default; do not
+push it on an outline that is mostly a long chain or goes deeper than four
+levels. Never for a sketch, a horizontal timeline or a Mind Palace.
+
+> "Your outline can also be drawn as a **solar system**: each unit's main
+> concept is a sun, its sub-concepts circle it as planets, theirs as moons,
+> and a moon's own parts as tiny satellites. Same outline, same numbers, just
+> a different picture. Want to see it that way, or keep the usual tree?"
+
+**What is fixed** (say so if asked; none of it is theirs or yours to change):
+- Depth decides the body. The unit's hub (no `parent`) is the **sun**, its
+  children **planets**, their children **moons**, one level deeper
+  **satellites**. Nothing goes deeper: a fifth level is refused when you
+  build. Do not flatten it quietly — tell the student which concept sits too
+  deep and ask where they want it (a card moved up, or a branch cut). That is
+  their structure; you do not choose for them.
+- **The order of the planets is the outline's order.** The first planet sits
+  on the innermost ring, the next one ring further out, one planet to a ring.
+  A planet's moons share one small ring around it. To change who is nearer
+  the sun, change the order of the outline (their order, in their words), never
+  coordinates: `place_nodes` positions do not apply here, and `order` alone
+  (a card's turn among its siblings) still does.
+- Circle sizes follow depth (sun largest, satellites tiniest); a flag such as
+  "pivotal" may bump a planet up one size. A circle shows its number and short
+  title; the description and everything else appear when it is opened.
+- Cross-links (`add_connections`) are drawn as ordinary lines between circles.
+- A phone keeps the usual single-column card view; the solar picture is a
+  computer view. Motion (orbit) stops on hover, while editing, in print, and
+  for anyone who has asked their device for reduced motion.
+
+**Ask, one at a time** (with the default stated, so one word answers):
+1. **One system, or one per unit?** "Should the whole outline be a single solar
+   system with one sun, or should each unit be its own system with its own
+   sun? With several units the systems sit side by side and you scroll
+   between them." One system → the outline hangs from a single hub in a single
+   unit; one per unit (the default when there are several units) → each unit's
+   hub is that unit's sun. The units are the student's (D-Outline step 1);
+   never invent a unit or a hub to make a system. A solar outline may be a
+   single unit (one system); every other timeline needs two.
+2. **Orbit, or spokes?** "Do you want a real, slowly moving solar system —
+   rings you can see, planets circling their sun and moons their planet — or a
+   still hub-and-spoke diagram: the same circles and numbers on straight
+   short spokes, in Alto's usual look?" Orbit is the default. This is chosen
+   per timeline, and it can be changed later without touching the content: the
+   same notes, rebuilt with the other `hub_style`.
+
+→ `create_timeline` brief (or `build_timeline` / `run_layout_preview`):
+`layout: 'solar'`, `hub_style: 'orbit' | 'spoke'`. Everything else in
+D-Outline applies unchanged. The build report describes the systems; run
+`run_layout_preview(layout='solar', hub_style=…)` before `build_timeline`,
+and read any warning aloud in plain words.
+
+**In the page.** The owner edits a solar timeline as any outline: words,
+adding a card under a card, moving a card under another (the card menu, or a
+card's number), putting siblings in another order, swapping, deleting. The
+system redraws from the new structure; a card cannot be left "somewhere" in
+the picture, because where it sits is decided by its place in the outline. A
+move that would put a card more than four levels deep is declined.
 
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
@@ -918,6 +993,8 @@ outline mode `parent` carries the tree) →
 6b. `set_flags` (the user's own marks, §F3 — ask which) →
 6c. horizontal timeline only: `set_lines` when its lines or flashbacks change
 (§D-Lanes) →
+6d. solar outline only: nothing extra to author; `layout: 'solar'` and
+`hub_style` ride on `create_timeline` (or the layout/build calls below), §D-Solar →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
 section** (4-8 sentences: what the section is about, how its main ideas fit
 together, the turning points and tests, in the notes' own terms — a thin
@@ -928,7 +1005,8 @@ For a story / linear timeline, `overview_html`: prose overview; deep-link a node
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →
-8. `run_layout_preview` (cheap; rebalance columns on warnings) →
+8. `run_layout_preview` (cheap; rebalance columns on warnings; a solar outline:
+`layout='solar'`, `hub_style='orbit'|'spoke'`) →
 8b. `preview_timeline` → show it as an Artifact (below) and iterate →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the
 view/download links. Use `get_timeline` to resume a draft in a later chat.

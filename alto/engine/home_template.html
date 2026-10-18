@@ -677,7 +677,7 @@
     border:1px solid var(--btn-border); background:var(--card-glass-bg); color:var(--text); font:inherit; font-size:14px;
   }
   #nt-modal input:focus{ outline:2px solid var(--accent, #a78bfa); outline-offset:1px; }
-  #nt-modal{ width:600px; }
+  #nt-modal{ width:720px; }
   .nt-kinds{ display:flex; gap:10px; margin:0 0 18px; }
   .nt-kind{
     flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:10px 10px 11px; border-radius:12px;
@@ -706,6 +706,15 @@
   .nt-pv .pv-pan{ animation:ntpan 9s ease-in-out infinite alternate; }
   @keyframes ntpan{ from{ transform:translateX(0); } to{ transform:translateX(-150px); } }
   @media (prefers-reduced-motion:reduce){ .nt-pv .pv-pan{ animation:none; } }
+  /* the Solar preview: a sun, rings, planets that go round it and a moon that goes round a planet */
+  .nt-pv .pv-ring{ fill:none; stroke:var(--muted); stroke-width:.8; stroke-opacity:.55; }
+  .nt-pv .pv-o1, .nt-pv .pv-o2, .nt-pv .pv-o3, .nt-pv .pv-om{ transform-box:view-box; animation:ntorb linear infinite; }
+  .nt-pv .pv-o1{ transform-origin:100px 60px; animation-duration:22s; }
+  .nt-pv .pv-o2{ transform-origin:100px 60px; animation-duration:34s; }
+  .nt-pv .pv-o3{ transform-origin:100px 60px; animation-duration:48s; }
+  .nt-pv .pv-om{ transform-origin:69.4px 34.3px; animation-duration:7s; }
+  @keyframes ntorb{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .nt-pv .pv-o1, .nt-pv .pv-o2, .nt-pv .pv-o3, .nt-pv .pv-om{ animation:none; } }
   @media (max-width:640px){
     #nt-modal{ max-height:calc(100vh - 24px); max-height:calc(100dvh - 24px); overflow-y:auto; padding:22px 18px 18px; }
     .nt-kinds{ flex-direction:column; gap:8px; }
@@ -1002,6 +1011,15 @@
           <circle class="pv-dot" cx="100" cy="22" r="2.2" style="fill:#b06ef0"/><circle class="pv-dot" cx="154" cy="90" r="2.2" style="fill:#2f9e8f"/><circle class="pv-dot" cx="300" cy="22" r="2.2" style="fill:#b06ef0"/>
         </g></svg>
         <span class="nt-t">Timeline <i>· Horizontal</i></span><small>To scale, left to right. Concurrent lines branch off and rejoin the main line.</small></button>
+      <button type="button" class="nt-kind" data-kind="solar" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
+          <circle class="pv-ring" cx="100" cy="60" r="24"/><circle class="pv-ring" cx="100" cy="60" r="40"/><circle class="pv-ring" cx="100" cy="60" r="54"/>
+          <circle class="pv-hub" cx="100" cy="60" r="11"/><text class="pv-hubt" x="100" y="62.5">hub</text>
+          <g class="pv-o1"><circle class="pv-card" cx="124" cy="60" r="5"/></g>
+          <g class="pv-o2"><circle class="pv-ring" cx="69.4" cy="34.3" r="11"/><circle class="pv-card" cx="69.4" cy="34.3" r="6.5"/>
+            <g class="pv-om"><circle class="pv-dot" cx="78.9" cy="39.8" r="2.4"/></g></g>
+          <g class="pv-o3"><circle class="pv-card" cx="118.5" cy="110.7" r="4.5"/></g>
+        </svg>
+        <span class="nt-t">Outline <i>· Solar</i></span><small>Each unit a sun; its concepts circle it as planets and moons.</small></button>
     </div>
     <div class="nt-msg" id="nt-msg"></div>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>

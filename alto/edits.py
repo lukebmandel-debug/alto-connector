@@ -40,6 +40,11 @@ CHIP_ATTR = {"chars": "entity_ids", "envs": "axis1_values", "themes": "axis2_val
 NEW_TREE = re.compile(r"^(n|c|a0|a1)-(.+)-(new-[a-z0-9]+)$")
 FILE_ID = re.compile(r"^file-[a-z0-9]{6,12}$")
 PROV_KEYS = ("quoted", "notes", "summary")
+# A solar outline (layout 'solar') is drawn sun > planets > moons > satellites:
+# four levels, so a card sits at most three below its unit's hub. Where it sits
+# on the page is decided by its place in the outline (alto/build/solar.py), so a
+# solar timeline keeps no dragged position or card size.
+SOLAR_MAX_DEPTH = 3
 _OWNER = {"n": "n", "c": "c", "a0": "env", "a1": "theme"}
 _DETAIL = re.compile(r"^\s*showDetail\(\s*'node'\s*,\s*'([a-z0-9][a-z0-9-]{0,47})'\s*\)\s*;?\s*$")
 
@@ -358,6 +363,8 @@ def _target(key, brief, by_id, conns):
     if kind in ("na", "xa") and len(p) == 2 and p[1] in ("axis1", "axis2"):
         return None, None, "newaxis" if kind == "na" else "axisdel"
     if kind == "sz" and len(p) == 2:
+        if brief.get("layout") == "solar":
+            return None              # a solar node's size is fixed by its depth
         return (None, None, "cardsize") if p[1] in by_id or NEW_CARD.match(p[1]) else None
     if kind == "xe" and len(p) == 3 and p[1] in ("c", "env", "theme"):
         return None, None, "chipdel"
@@ -435,6 +442,8 @@ def _target(key, brief, by_id, conns):
         st = next((s for s in steps if s.get("id") == p[2]), None)
         return (st, p[3], "plain") if st is not None else None
     if kind == "p" and len(p) == 3 and p[2] in ("shift", "slide") and p[1] in by_id:
+        if brief.get("layout") == "solar":
+            return None              # a solar system places itself: nothing to keep of a drag
         return brief.setdefault("placement", {}), p[1], p[2]
     # a Mind Palace (palace.py): the lot a building stands on, the building a floor is in
     if kind == "p" and len(p) == 3 and p[2] == "lot" and p[1] in by_id and brief.get("mode") == "palace":
@@ -572,6 +581,19 @@ def fold(store, uid, tid) -> "dict | None":
     touched = {"nodes": set(), "brief": False, "conns": False}
     created, removed, units_made, moved, chips_made, reordered = [], [], [], [], [], []
     units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
+    too_deep, solar_ignored = [], []
+    solar = brief.get("layout") == "solar"
+
+    def depth_of(cid):
+        d, seen = 0, set()
+        while by_id.get(cid) and by_id[cid].get("parent") and cid not in seen:
+            seen.add(cid)
+            cid = by_id[cid]["parent"]
+            d += 1
+        return d
+
+    def height_of(cid, kid_of):
+        return 1 + max((height_of(c, kid_of) for c in kid_of.get(cid, [])), default=-1)
 
     def touch(key):
         p = key.split("|")
@@ -743,6 +765,10 @@ def fold(store, uid, tid) -> "dict | None":
         if not isinstance(act, int) or not 0 <= act < len(brief.get("acts") or []):
             conflicts.append(k)
             continue
+        if solar and par and depth_of(par) + 1 > SOLAR_MAX_DEPTH:
+            too_deep.append(cid)                       # a fifth level: not a body in a solar system
+            conflicts.append(k)
+            continue
         n = {"id": cid, "act": act, "tag": plain_text(v.get("g") or ""),
              "title": plain_text(v.get("t") or "") or "New card", "desc": plain_text(v.get("d") or "")}
         if par:
@@ -804,6 +830,10 @@ def fold(store, uid, tid) -> "dict | None":
             sub.append(c)
             q += kid_of.get(c, [])
         if v in sub or (not going and not any(x["act"] == n["act"] and x["id"] not in sub for x in nodes)):
+            conflicts.append(k)
+            continue
+        if solar and depth_of(v) + 1 + height_of(cid, kid_of) > SOLAR_MAX_DEPTH:
+            too_deep.append(cid)                       # the branch would pass the satellites
             conflicts.append(k)
             continue
         n["parent"] = v
@@ -1004,6 +1034,8 @@ def fold(store, uid, tid) -> "dict | None":
         o = live[k]
         t = _target(k, brief, by_id, conns)
         if t is None or t[2] == "pending":
+            if solar and k.startswith("p|"):
+                solar_ignored.append(k)
             missing.append(k)
             continue
         holder, f, kind = t
@@ -1336,6 +1368,10 @@ def fold(store, uid, tid) -> "dict | None":
         if cid not in by_id:
             missing.append(k)
             continue
+        if solar:                                      # a solar node's size is its depth's
+            solar_ignored.append(k)
+            missing.append(k)
+            continue
         cs = dict(brief.get("card_size") or {})
         new = None
         if isinstance(v, dict):
@@ -1370,7 +1406,7 @@ def fold(store, uid, tid) -> "dict | None":
         if i >= len(acts) or _nm(acts[i].get("label")) != _nm(live[k].get("b")):
             conflicts.append(k)
             continue
-        if any(n["act"] == i for n in nodes) or len(acts) <= 2:
+        if any(n["act"] == i for n in nodes) or len(acts) <= (1 if solar else 2):
             conflicts.append(k)
             continue
         units_gone.append(_nm(acts[i].get("label")))
@@ -1527,6 +1563,16 @@ def fold(store, uid, tid) -> "dict | None":
         rep["children_reordered"] = [{"id": i, "title": titles.get(i)} for i in reordered]
         rep["note"] += (" The owner put some cards' children in another order "
                         "(children_reordered, placement order) — keep it.")
+    if too_deep:
+        rep["solar_too_deep"] = [{"id": i, "title": titles.get(i)} for i in too_deep]
+        rep["note"] += (" The owner moved or added cards in the solar system that would sit "
+                        "deeper than a satellite (solar_too_deep): a solar system goes sun, "
+                        "planet, moon, satellite and no further, so those edits were left "
+                        "out. Ask the owner where they want those cards.")
+    if solar_ignored:
+        rep["solar_positions_ignored"] = len(solar_ignored)
+        rep["note"] += (" A solar timeline places every circle itself, so positions dragged "
+                        "or sizes set on the page (solar_positions_ignored) were not kept.")
     if units_gone:
         rep["units_deleted"] = units_gone
         rep["note"] += (" The owner deleted units on the page (units_deleted); their "

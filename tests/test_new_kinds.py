@@ -1,5 +1,6 @@
-"""The new-timeline dialog offers three starts, each with a small preview:
-Outline, Timeline Sketch (kind `timeline`) and Timeline Horizontal (kind `lanes`).
+"""The new-timeline dialog offers four starts, each with a small preview:
+Outline, Timeline Sketch (kind `timeline`), Timeline Horizontal (kind `lanes`)
+and Outline Solar (kind `solar`, tests/test_solar_ui.py).
 Looked at in Chromium and WebKit, desktop and phone, light and dark, against a
 stand-in account."""
 import re
@@ -16,13 +17,13 @@ def _home():
     return (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
 
 
-def test_the_dialog_has_three_choices_each_with_its_own_preview():
+def test_the_dialog_has_four_choices_each_with_its_own_preview():
     h = _home()
     kinds = re.findall(r'<button type="button" class="nt-kind[^"]*" data-kind="(\w+)"', h)
-    assert kinds == ["outline", "timeline", "lanes"]
+    assert kinds == ["outline", "timeline", "lanes", "solar"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    assert blk.count('class="nt-pv"') == 3
-    assert "Sketch" in blk and "Horizontal" in blk
+    assert blk.count('class="nt-pv"') == 4
+    assert "Sketch" in blk and "Horizontal" in blk and "Solar" in blk
 
 
 def test_the_previews_follow_the_page_colours_and_respect_reduced_motion():
@@ -38,9 +39,9 @@ def test_the_chosen_kind_is_marked_and_sent_on():
     assert "aria-pressed" in h and "kind: ntKind" in h
 
 
-def test_the_cloud_accepts_lanes_and_defaults_the_rest_to_outline():
+def test_the_cloud_accepts_lanes_and_solar_and_defaults_the_rest_to_outline():
     js = SOURCE.read_text(encoding="utf-8")
-    assert "(o.kind === 'timeline' || o.kind === 'lanes') ? o.kind : 'outline'" in js
+    assert "(o.kind === 'timeline' || o.kind === 'lanes' || o.kind === 'solar') ? o.kind : 'outline'" in js
 
 
 def test_the_lanes_starter_is_a_story_with_characters_and_a_flashback():
