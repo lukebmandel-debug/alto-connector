@@ -5,7 +5,8 @@ footprint, the age (start_date), the kind of building and a hash of its OSM id (
 uniform). An OSM value ALWAYS wins. Output per building: rgb565 colour, material code (MATERIALS), roof colour, levels, storefront flag, flags (FL_*).
 
   preset_for(bbox)   -> "philadelphia" when the box lies in the Philadelphia area, else "generic"
-  resolve(preset, tags, area_m2, height_m, levels, seed, commercial) -> {"bc","bm","rc","lv","h","fl"}
+  resolve(preset, tags, area_m2, height_m, levels, seed, commercial, ty, year) -> {"bc","bm","rc","lv","h","fl"}
+     ty / year (palace_street_acc: the typology and the year built, from the city's records or OSM) pick the fallback palette (TYPE_MIX: typology x era) when OSM has none
 """
 from __future__ import annotations
 
@@ -41,6 +42,59 @@ METAL = [(2, (150, 156, 162)), (1, (120, 126, 132)), (1, (176, 180, 184))]
 CONCRETE = [(3, (170, 168, 162)), (2, (150, 148, 144)), (1, (190, 186, 178))]
 DARK_BRICK = [(3, (112, 64, 54)), (2, (96, 58, 52)), (1, (130, 84, 70))]
 ROOF = [(3, (90, 88, 86)), (2, (70, 68, 66)), (2, (110, 100, 94)), (1, (140, 80, 60))]
+TAN_BRICK = [(3, (196, 160, 120)), (2, (176, 140, 104)), (1, (210, 180, 140)), (1, (160, 120, 90))]
+CLADDING = [(3, (214, 210, 200)), (2, (160, 164, 166)), (2, (96, 100, 104)), (1, (150, 120, 96))]
+WOOD = [(3, (232, 228, 214)), (2, (200, 180, 150)), (1, (150, 170, 180)), (1, (120, 130, 110))]
+_PAL = {"brick": PHILLY_BRICK, "tan": TAN_BRICK, "dark": DARK_BRICK, "brownstone": BROWNSTONE, "stone": STONE_OLD, "stucco": STUCCO, "painted": PAINTED, "glass": GLASS,
+        "metal": METAL, "concrete": CONCRETE, "cladding": CLADDING, "wood": WOOD}
+_MAT_OF = {"tan": "brick", "dark": "brick"}
+
+# typology (palace_street_acc.TY) x era (0 unknown 1 colonial/federal 2 Victorian 3 early modern 4 postwar 5 contemporary) -> [(cumulative %, palette)].
+# Philadelphia: row houses are red/brown brick above all (Flemish-bond federal fronts, Victorian brownstone and cornices, porch-front early-modern rows with some stone and
+# stucco), postwar rows tan brick and siding; towers stone/brick before 1946, concrete/precast postwar, curtain wall after 1980; churches schist/brownstone; mills dark brick.
+_ROWS = {0: [(74, "brick"), (84, "brownstone"), (92, "stucco"), (100, "painted")],
+         1: [(88, "brick"), (94, "painted"), (100, "stone")],
+         2: [(66, "brick"), (80, "brownstone"), (86, "stone"), (92, "stucco"), (100, "painted")],
+         3: [(70, "brick"), (78, "tan"), (88, "stucco"), (94, "stone"), (100, "painted")],
+         4: [(45, "tan"), (70, "brick"), (85, "cladding"), (100, "stucco")],
+         5: [(40, "brick"), (70, "cladding"), (85, "stucco"), (100, "metal")]}
+_DET = {0: [(40, "brick"), (70, "cladding"), (100, "stone")], 1: [(50, "stone"), (75, "wood"), (100, "brick")], 2: [(50, "stone"), (75, "wood"), (100, "brick")],
+        3: [(35, "stone"), (70, "brick"), (85, "stucco"), (100, "wood")], 4: [(50, "brick"), (80, "cladding"), (100, "stone")], 5: [(50, "cladding"), (80, "brick"), (100, "stucco")]}
+_MID = {0: [(45, "brick"), (70, "concrete"), (100, "glass")], 1: [(50, "brick"), (100, "stone")], 2: [(55, "brick"), (75, "dark"), (100, "stone")],
+        3: [(50, "brick"), (100, "stone")], 4: [(40, "concrete"), (80, "tan"), (100, "glass")], 5: [(45, "glass"), (70, "cladding"), (90, "brick"), (100, "metal")]}
+_HIGH = {0: [(55, "glass"), (80, "metal"), (100, "concrete")], 1: [(70, "stone"), (100, "brick")], 2: [(70, "stone"), (100, "brick")], 3: [(70, "stone"), (100, "brick")],
+         4: [(35, "concrete"), (70, "glass"), (100, "metal")], 5: [(70, "glass"), (90, "metal"), (100, "concrete")]}
+_CIV = {0: [(75, "stone"), (100, "brick")], 5: [(40, "glass"), (70, "stone"), (100, "concrete")]}
+_REL = {0: [(40, "stone"), (100, "brick")], 1: [(50, "stone"), (70, "brownstone"), (100, "brick")], 2: [(50, "stone"), (80, "brownstone"), (100, "brick")]}
+_IND = {0: [(60, "dark"), (85, "metal"), (100, "concrete")], 1: [(80, "dark"), (100, "stone")], 2: [(80, "dark"), (100, "concrete")], 3: [(80, "dark"), (100, "concrete")],
+        4: [(50, "metal"), (80, "concrete"), (100, "brick")], 5: [(50, "metal"), (80, "concrete"), (100, "brick")]}
+_PARK = {0: [(85, "concrete"), (100, "brick")]}
+_SCH = {0: [(70, "brick"), (90, "stone"), (100, "concrete")], 5: [(40, "brick"), (70, "glass"), (100, "cladding")]}
+_HOSP = {0: [(50, "brick"), (80, "concrete"), (100, "glass")], 5: [(60, "glass"), (85, "metal"), (100, "concrete")]}
+TYPE_MIX = {1: _ROWS, 2: _ROWS, 3: _DET, 4: _ROWS, 5: _MID, 6: _HIGH, 7: _ROWS, 8: _CIV, 9: _IND, 10: _REL, 11: _PARK, 12: _MID, 13: _MID, 14: _SCH, 15: _HOSP, 16: _MID}
+
+
+def era_of(year) -> int:
+    if not year:
+        return 0
+    return 1 if year < 1830 else 2 if year < 1900 else 3 if year <= 1945 else 4 if year < 1980 else 5
+
+
+def by_type(ty: int, year, r: int, tall: bool = False):
+    """(material, palette) of a typology + year for the dice roll r (0..99); None when the typology is unknown."""
+    tab = TYPE_MIX.get(_HIGH_IF(ty, tall))
+    if not tab:
+        return None
+    mix = tab.get(era_of(year)) or tab[0]
+    for cut, name in mix:
+        if r < cut:
+            return _MAT_OF.get(name, name), _PAL[name]
+    name = mix[-1][1]
+    return _MAT_OF.get(name, name), _PAL[name]
+
+
+def _HIGH_IF(ty, tall):
+    return 6 if tall and ty in (4, 5, 12, 13, 16) else ty
 
 
 def rgb565(rgb) -> int:
@@ -85,12 +139,12 @@ def year_of(v):
     return int(m.group(1)) if m else None
 
 
-def resolve(preset: str, tags: dict, area_m2: float, height_m: float, levels: int, seed: int, commercial: bool = False) -> dict:
+def resolve(preset: str, tags: dict, area_m2: float, height_m: float, levels: int, seed: int, commercial: bool = False, ty: int = 0, year: int = 0) -> dict:
     """The look of one building. `height_m` / `levels` are the OSM values (0 when missing); the result's h (metres, 0 = keep OSM's) and lv are filled in when both are
     missing. `commercial`: a shop / amenity / POI stands inside the footprint (storefront on the ground floor)."""
     t = tags or {}
     kind = str(t.get("building") or t.get("building:part") or "yes")
-    year = year_of(t.get("start_date"))
+    year = year_of(t.get("start_date")) or (int(year) if year else None)
     fl = 0
     philly = preset == "philadelphia"
 
@@ -128,7 +182,10 @@ def resolve(preset: str, tags: dict, area_m2: float, height_m: float, levels: in
     mat, rgb = mat_osm, None
     r = seed % 100
     if not mat or not col:
-        if tall:
+        bt = by_type(ty, year, r, tall) if ty else None
+        if bt:
+            m_, pal = bt
+        elif tall:
             if year is not None and year < 1950:
                 m_, pal = "stone", STONE_OLD
             elif r < 55:
@@ -158,7 +215,7 @@ def resolve(preset: str, tags: dict, area_m2: float, height_m: float, levels: in
             mat = m_
         rgb = _pick(pal, (seed >> 8) & 0xFFFF)
         if mat_osm and mat != m_:                                # OSM's material, the preset's palette for it
-            rgb = _pick({"brick": PHILLY_BRICK, "stone": STONE_OLD, "brownstone": BROWNSTONE, "stucco": STUCCO, "plaster": STUCCO, "painted": PAINTED, "concrete": CONCRETE,
+            rgb = _pick({"brick": PHILLY_BRICK, "cladding": CLADDING, "wood": WOOD, "stone": STONE_OLD, "brownstone": BROWNSTONE, "stucco": STUCCO, "plaster": STUCCO, "painted": PAINTED, "concrete": CONCRETE,
                          "glass": GLASS, "metal": METAL}.get(mat, CONCRETE), (seed >> 8) & 0xFFFF)
         fl |= FL_STYLED if (not mat_osm or not col) else 0
     out_col = col or (rgb565(rgb) if rgb else 0)

@@ -457,11 +457,173 @@ def _places(fr, places):
 
 
 GROUP = 2                      # cells per shard side (a shard is a 1000 m x 1000 m square of cells)
+HS_GUESS = 5
+_HOUSES = (1, 2, 3)
 
 
-def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
+def _roof_dir(t):
+    v = str(t.get("roof:direction") or "").strip().lower()
+    if not v:
+        return 0
+    if v in _CARD:
+        return _CARD[v] + 1
+    x = _fnum(v)
+    return int(round(x)) % 360 + 1 if x is not None else 0
+
+
+def _heritage(t):
+    out = []
+    if t.get("heritage"):
+        out.append("heritage=%s" % t["heritage"])
+    if t.get("ref:nrhp"):
+        out.append("nrhp=%s" % t["ref:nrhp"])
+    if t.get("heritage:operator") and not t.get("ref:nrhp"):
+        out.append("op=%s" % t["heritage:operator"])
+    if t.get("historic") and t.get("historic") not in ("no",):
+        out.append("historic=%s" % t["historic"])
+    return ";".join(out)
+
+
+def _accuracy(fr, recs, st, preset, city, report):
+    """The accuracy block of every building record (palace_street_acc): {"h" metres or 0, "lv" stories to draw or 0, + every BFIELDS[16:] name}."""
+    from . import palace_street_acc as acc
+    philly = preset == "philadelphia"
+    whole = [i for i, r in enumerate(recs) if not r[4]]
+    pw_ = acc.party_walls([recs[i][1] for i in whole])
+    mask, nbs = {}, {}
+    for j, i in enumerate(whole):
+        mask[i], nbs[i] = pw_[j][0], {whole[x] for x in pw_[j][1]}
+    roads = []
+    for _i, ll, t, _n in st["hw"]:
+        if t.get("highway") in acc.ROADS:
+            p = [fr.xy(la, lo) for la, lo in ll]
+            roads += [(p[m][0], p[m][1], p[m + 1][0], p[m + 1][1]) for m in range(len(p) - 1) if p[m] != p[m + 1]]
+    fe_ = acc.front_edges([recs[i][1] for i in whole], roads, [mask[i] for i in whole])
+    fe = {i: fe_[j] for j, i in enumerate(whole)}
+    ci = acc.CityIndex(fr.xy, (city or {}).get("opa"), (city or {}).get("lif")) if city and ((city.get("opa") or city.get("lif"))) else None
+    out = []
+    for n_, (key, pts, holes, t, part, k, cx, cy) in enumerate(recs):
+        area = _area_m2(pts)
+        cf = 0
+        o = lf = None
+        if ci is not None and not part:
+            ids = ci.by_address(t, cx, cy)
+            o = acc.pick_opa([ci.opa[i] for i in ids]) if ids else None
+            if o is not None:
+                cf |= acc.CF_PARCEL | acc.CF_ADDR
+            else:
+                ids = ci.opa_in(pts, _pip)
+                o = acc.pick_opa([ci.opa[i] for i in ids]) if ids else None
+                if o is not None:
+                    cf |= acc.CF_PARCEL
+            lids = ci.lif_in(pts, _pip)
+            if lids:
+                lf = max((ci.lif[i] for i in lids), key=lambda r: (r.get("ar") or 0, r["ah"], r["lat"]))
+        oty, ost, half, exact = acc.opa_typology(o["bc"], o.get("bcn"), o.get("cat")) if o else (0, 0, False, False)
+        # height
+        h, hs = _metres(t.get("height")), 0
+        if h and h > 0:
+            hs = acc.HS_OSM
+        elif lf and lf.get("ah", 0) > 2:
+            h, hs = lf["ah"], acc.HS_CITY
+        # stories
+        s_, ss = _int(t.get("building:levels")), 0
+        if s_:
+            ss = acc.SS_OSM
+        elif o and (o.get("st") or (ost and exact)):
+            s_, ss = (o.get("st") or ost), acc.SS_CITY
+        if not hs and s_:
+            h, hs = round(s_ * 3.3 + (1.0 if s_ > 1 else 0.0) + (2.0 if half else 0.0), 1), acc.HS_STORIES
+        # year
+        yr = sty_year(t.get("start_date") or t.get("building:start_date") or t.get("construction_date"))
+        if yr:
+            cf |= acc.CF_YEAR
+        elif o and o.get("yr"):
+            yr = o["yr"]
+            cf |= 0 if o.get("yre") else acc.CF_YEAR
+        # typology
+        nb = nbs.get(n_, set())
+        twin = len(nb) == 1 and nbs.get(next(iter(nb)), set()) == {n_}
+        ty = oty or acc.osm_typology(t, area, h or 0.0, s_ or 0, len(nb), twin, philly)
+        tall = (h or 0) >= 40 or (s_ or 0) >= 12
+        if ty in (acc.TY["lowrise_apts"], acc.TY["midrise"]) and tall:
+            ty = acc.TY["highrise"]
+        elif ty == acc.TY["lowrise_apts"] and ((s_ or 0) >= 5 or (h or 0) >= 17):
+            ty = acc.TY["midrise"]
+        elif ty == acc.TY["rowhouse"] and len(nb) == 1 and twin and not oty:
+            ty = acc.TY["twin"]
+        # front, party walls, frontage, bays
+        m = mask.get(n_, 0)
+        f = fe.get(n_, -1)
+        pw = acc.side_flags(pts, f, m) if not part else 0
+        frm = 0.0
+        if o and ty in (1, 2, 7) and 2 < (o.get("fr") or 0) < 80:
+            frm = o["fr"] * 0.3048
+        elif f >= 0:
+            (ax, ay), (bx, by) = pts[f], pts[(f + 1) % len(pts)]
+            frm = math.hypot(bx - ax, by - ay) * Q
+        by_ = max(1, min(40, int(round(frm / (1.6 if ty in _HOUSES else 3.0))))) if frm else 0
+        # roof
+        pc = acc.pitch_of(t)
+        if pc or t.get("roof:colour"):
+            cf |= acc.CF_ROOF
+        if not pc and ty:
+            pc = (4 if (half and ty == 1) else 3) if (ty in (2, 3, 10) or half) else 1
+        if hs in (1, 2, 3):
+            cf |= acc.CF_HEIGHT
+        if ss in (1, 2, 3):
+            cf |= acc.CF_STORIES
+        if t.get("building:colour"):
+            cf |= acc.CF_COLOUR
+        if t.get("building:material"):
+            cf |= acc.CF_MATERIAL
+        a = {"h": h or 0.0, "lv": s_ or 0, "ty": ty, "yr": yr or 0, "er": acc.era_of(yr), "st": s_ or 0, "ss": ss, "hs": hs,
+             "fr": int(round(frm / Q)) if frm else 0, "by": by_, "pe": m if not part else 0, "fe": f + 1 if (f >= 0 and not part) else 0, "pw": pw, "pc": pc,
+             "rd": _roof_dir(t), "cf": cf, "ar": str(t.get("architect") or ""), "hr": _heritage(t), "wp": str(t.get("wikipedia") or ""), "ex": int((o or {}).get("ex") or 0)}
+        out.append(a)
+    if report is not None:
+        report.update(_coverage(out, recs, city))
+    return out
+
+
+def sty_year(v):
+    from .palace_street_style import year_of
+    y = year_of(v)
+    return y if y and 1600 < y <= 2100 else 0
+
+
+def _coverage(blk, recs, city):
+    """{"n": buildings, field: {"any": %, source: %}} — the build report's coverage table (whole buildings, not parts)."""
+    idx = [i for i, r in enumerate(recs) if not r[4]]
+    n = len(idx) or 1
+
+    def pct(c):
+        return round(100.0 * c / n, 1)
+    rep = {"n": len(idx), "parts": len(recs) - len(idx)}
+    hs = {}
+    ss = {}
+    for i in idx:
+        hs[blk[i]["hs"]] = hs.get(blk[i]["hs"], 0) + 1
+        ss[blk[i]["ss"]] = ss.get(blk[i]["ss"], 0) + 1
+    rep["height_src"] = {["none", "osm", "city", "overture", "stories", "guess"][k]: pct(v) for k, v in sorted(hs.items())}
+    rep["stories_src"] = {["none", "osm", "city", "overture", "from_height"][k]: pct(v) for k, v in sorted(ss.items())}
+    for nm, test in (("typology", lambda a: a["ty"] > 0), ("year", lambda a: a["yr"] > 0), ("year_recorded", lambda a: a["cf"] & 4), ("parcel", lambda a: a["cf"] & 1),
+                     ("parcel_by_address", lambda a: a["cf"] & 2), ("party_wall", lambda a: a["pe"] > 0), ("front_edge", lambda a: a["fe"] > 0),
+                     ("frontage", lambda a: a["fr"] > 0), ("roof_data", lambda a: a["cf"] & 64), ("colour_data", lambda a: a["cf"] & 16),
+                     ("material_data", lambda a: a["cf"] & 32), ("architect", lambda a: a["ar"]), ("heritage", lambda a: a["hr"]), ("condition", lambda a: a["ex"])):
+        rep[nm] = pct(sum(1 for i in idx if test(blk[i])))
+    tys = {}
+    for i in idx:
+        tys[blk[i]["ty"]] = tys.get(blk[i]["ty"], 0) + 1
+    rep["typology_mix"] = {TYPOLOGY[k]: pct(v) for k, v in sorted(tys.items())}
+    rep["notes"] = list((city or {}).get("notes") or [])
+    return rep
+
+
+def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=None, report=None):
     """(manifest, shards) for the box: shards {id: {"S": [...], "c": {cell key: cell}}} (one per GROUP x GROUP cells, each with its own string table, named by the hash
-    of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}."""
+    of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}. city: {"opa": rows, "lif": rows, "notes": [..]} (palace_street_city; None = OSM only).
+    report: an optional dict the build fills with coverage counts (palace_street_acc.coverage)."""
     from . import palace_street_style as sty
     fr = Frame(bbox)
     preset = preset or sty.preset_for(bbox)
@@ -502,6 +664,7 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
                         return True
         return False
 
+    recs = []
     for key, ring, holes, t in sorted(parse_buildings(bld_raw), key=lambda b: b[0]):
         pts = quant(ring)
         if len(pts) < 3:
@@ -509,17 +672,25 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
         cx, cy = sum(p[0] for p in pts) // len(pts), sum(p[1] for p in pts) // len(pts)
         if not fr.inside(cx, cy):
             continue
-        k = fr.cell(cx, cy)
-        part = "building" not in t
-        h = _metres(t.get("height"))
+        recs.append((key, pts, holes, t, "building" not in t, fr.cell(cx, cy), cx, cy))
+    blk = _accuracy(fr, recs, st, preset, city, report)
+    for n_, (key, pts, holes, t, part, k, cx, cy) in enumerate(recs):
+        a = blk[n_]
+        h = a["h"]
         mh = _metres(t.get("min_height"))
         if not mh and _fnum(t.get("building:min_level")):
             mh = _fnum(t.get("building:min_level")) * 3.3
-        res = sty.resolve(preset, t, _area_m2(pts), h or 0.0, _int(t.get("building:levels")), sty.seed_of(key), commercial=(not part) and (bool(_poi_cat(t)) or has_poi(pts)))
+        res = sty.resolve(preset, t, _area_m2(pts), h or 0.0, a["lv"], sty.seed_of(key), commercial=(not part) and (bool(_poi_cat(t)) or has_poi(pts)),
+                          ty=a["ty"], year=a["yr"])
+        if not a["hs"]:
+            a["hs"] = HS_GUESS if res["h"] else 0
+        if not a["st"] and a["hs"] in (1, 2, 3) and res["lv"]:
+            a["st"], a["ss"] = res["lv"], 4
         props = _trim(["%s%s" % ("p:" if part else "", (t.get("building:part") if part else t.get("building")) or "yes"),
                        res["lv"], int(round(res["h"] / Q)) if res["h"] else 0, res["bc"], res["bm"], str(t.get("roof:shape") or ""), res["rc"], str(t.get("roof:material") or ""),
-                       _int(t.get("roof:levels")), str(t.get("name") or ""), _addr(t), _poi_cat(t), str(t.get("start_date") or ""), str(t.get("wikidata") or ""),
-                       res["fl"], int(round(mh / Q)) if mh and mh > 0 else 0])
+                       _int(t.get("roof:levels")), str(t.get("name") or ""), _addr(t), _poi_cat(t), str(t.get("start_date") or t.get("building:start_date") or ""),
+                       str(t.get("wikidata") or ""), res["fl"], int(round(mh / Q)) if mh and mh > 0 else 0]
+                      + [a[f] for f in BFIELDS[16:]])
         rec = [_delta(local(pts, k)), props]
         hs = [_delta(local(q, k)) for q in (quant(h_) for h_ in holes) if len(q) >= 3]
         if hs:
@@ -624,12 +795,24 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
         for ck in groups[gk]:
             cmap[ck] = sid
     pl = _places(fr, st["places"])
-    manifest = {"v": VERSION, "a": ATTRIBUTION, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
+    from . import palace_street_city as pcity
+    src = [dict(pcity.SOURCES["osm"], k="osm")]
+    att = ATTRIBUTION
+    for kk in ("opa", "lif"):
+        if (city or {}).get(kk):
+            src.append(dict(pcity.SOURCES[kk], k=kk, rows=len(city[kk])))
+    if len(src) > 1:
+        att += "; City of Philadelphia (OPA, L&I), OpenDataPhilly"
+    manifest = {"v": VERSION, "a": att, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
                 "preset": preset, "f": {k: files[k] for k in sorted(files)}, "c": cmap}
     if pl:
         manifest["pl"] = pl                                     # real neighbourhood / suburb / quarter names: [name, kind code, x m, y m, flat polygon metres or 0]
     if ib is not None:
-        manifest["ib"] = ib                                     # the in-bounds extent: the street cells [iy, ix0, ix1] runs of the region (with b metres of buffer)
+        manifest["ib"] = ib
+    manifest["src"] = src                                       # the sources, their licences and attribution (+ notes on what failed): [{k, n, l, a(, rows)}]
+    notes = list((city or {}).get("notes") or [])
+    if notes:
+        manifest["sn"] = notes                                     # the in-bounds extent: the street cells [iy, ix0, ix1] runs of the region (with b metres of buffer)
     return manifest, shards
 
 
@@ -755,9 +938,34 @@ def load(h: str, directory=None):
     return man, {sid: json.loads((d / file_name(sid)).read_text("utf-8")) for sid in man["f"]}
 
 
+LAST_REPORT: dict = {}                                       # the coverage report of the last make() (palace_street_acc fields, sources, notes)
+
+
+def city_data(bbox, scope=None, offline: bool = False, log=None, directory=None):
+    """{"opa": rows, "lif": rows, "notes": [...]} of the city's open data for the box (Philadelphia only; None elsewhere). Never fatal: a source that fails is absent
+    and noted. ALTO_STREET_CITY=0 turns it off."""
+    from . import palace_street_city as pcity
+    from . import palace_street_style as sty
+    if os.environ.get("ALTO_STREET_CITY", "1") == "0" or sty.preset_for(bbox) != "philadelphia":
+        return None
+    out = {"notes": [pcity.NOTES["overture"]]}
+    for kk in ("opa", "lif"):
+        rows, note = getattr(pcity, kk)(bbox, scope=scope, offline=offline, log=log, directory=directory)
+        out[kk] = rows
+        if note:
+            out["notes"].append(note)
+    return out
+
+
 def make(bbox, cache_dir=None, offline: bool = False, log=None, directory=None, scope=None):
     """Fetch (cached), build and store the street data of the box. Returns (manifest hash, total bytes of the manifest and its shards) or None when the box has nothing."""
-    man, shards = build(bbox, buildings(bbox, cache_dir, offline, log, scope=scope), fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope)
+    try:
+        city = city_data(bbox, scope=scope, offline=offline, log=log)
+    except Exception as e:                                  # noqa: BLE001 — the city's data is a bonus, never a failure
+        city = {"notes": ["city data: %s" % str(e)[:80]]}
+    LAST_REPORT.clear()
+    man, shards = build(bbox, buildings(bbox, cache_dir, offline, log, scope=scope), fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope,
+                        city=city, report=LAST_REPORT)
     if not man["c"]:
         return None
     h = store(man, shards, directory)
