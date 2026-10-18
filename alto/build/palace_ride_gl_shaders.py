@@ -6,6 +6,7 @@ World program: every surface of the city (buildings, ground, way, landmark and s
   dr.. = the district hue (1,1,1 = none)    H = height of the building this wall belongs to (m, 0 = unknown)    L = the wall's length (m)
 GL-only material ids: 40 marking, 41 ballast+ties, 42 rail, 43 roadway (lane lines), 44 portal glow, 45 curb, 46 lot, 47 plain concrete, 48 crosswalk
 """
+from .palace_ride_facade import FS_FACADE
 
 SH_COMMON = r"""
 precision highp float;
@@ -110,10 +111,12 @@ vec3 concTex(vec2 uv, float T, vec2 fp){
   float big=nz(uv*.5+T*3.);
   return base*(.88+.2*stain+.12*big)*(1.-.07*fine*step(fract(uv.y/1.22),.025)); }
 
+""" + FS_FACADE + r"""
 /* a wall: albedo, emission and mirror strength at (u,v) metres; type 1 brick, 2 stone, 3 glass, 4 concrete */
 void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, float aux, vec3 V, vec3 N, out vec3 alb, out vec3 emi, out float refl){
   bool tall=H>0.5; float Hh=tall?H:400.; float u=uv.x; float v=uv.y;
   float night=uNight; alb=vec3(.5); emi=vec3(0.); refl=0.;
+  if(aux>1.5){ facadeG(type,uv,L,H,T,fp,dc,aux,V,N,alb,emi,refl); return; }          /* the facade grammar (palace_ride_facade.py) */
   bool isGlass=(type>2.5&&type<3.5); bool isStone=(type>1.5&&type<2.5); bool isConc=(type>3.5); bool isBrick=(type<1.5);
   bool rowh=isBrick&&Hh<9.6&&tall;
   float gh=0.; if(tall){ gh=isGlass?4.4:(Hh>13.?4.7:(rowh?3.2:3.5)); if(Hh<gh+(rowh?2.:3.)) gh=0.; }
@@ -380,7 +383,7 @@ void main(){
   } else if(id<25.5){   /* the glass leaves of a node building's door: dark glass, a warm room behind it, the sky in it */
     if(uIn>.5) discard;                      /* seen from inside the building the doors are open air (palace_ride_inside.py) */
     float vh=clamp(vUV.y/2.2,0.,1.); float gl=.45+.55*sin(vh*3.14159); alb=vec3(.045,.05,.055);
-    emi=vec3(1.,.66,.34)*(.2+uNight*1.1)*gl*(.88+.2*nz(vUV*2.6)); refl=.16+.34*pow(1.-ndv,3.); spec=1.;
+    emi=vec3(1.,.66,.34)*(.2+uNight*1.1)*gl*(.88+.2*nz(vUV*2.6)); refl=.08+.10*pow(1.-ndv,3.); spec=1.;      /* (typ) little sky at grazing angles: shop and door glass read as glass, not pale panels */
   } else if(id<26.5){   /* the soft light under a canopy */
     alb=vec3(.09,.085,.08); emi=vec3(1.,.7,.4)*(.07+uNight*.7);
   } else if(id<31.5){   /* the inside of a node building (palace_ride_inside.py): lobby plaster with a wainscot, polished floor, ceiling lights, the directory board; lit by the room */
@@ -400,6 +403,7 @@ void main(){
       alb=vec3(.88,.87,.84)*(1.-.12*tgl)*(.97+.05*nz(gp*3.)); emi=vec3(1.,.96,.88)*1.5*pn; alb=mix(alb,vec3(.95),pn);
     } else if(id<30.5){ vec2 tq=vec2(vUV.x/1.4,1.-vUV.y/1.7); vec3 tc=texture2D(uAtl,tq).rgb; alb=tc; emi=lin(tc)*.5;              /* the directory board: the canvas painted by palace_ride_inside.py (GLX.insideTex, bound as the atlas for this draw) */
     } else { alb=vec3(.30,.19,.11)*(.86+.24*nz(gp*vec2(9.,1.3))); }   /* dark wood: desk, benches, door frames, the board's post */
+  } else if(id>38.5&&id<39.5){ if(dist>80.*UMc) discard; alb=vec3(.05,.05,.055); spec=1.;      /* fine iron (palace_ride_facade.py: railings, balusters, areaway pickets): gone beyond 80 m */
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
     vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7)*.6+nz(gp*9.)*.4*(1.-smoothstep(.02,.1,fpx)); alb=mix(vec3(.27)*(.85+.3*nz(gp*.8)),pc*.9,(.5+.35*smoothstep(.25,.6,wear))*(.85+.15*nz(gp*.3)));

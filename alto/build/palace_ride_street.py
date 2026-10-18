@@ -14,6 +14,8 @@ import json
 import math
 from pathlib import Path
 
+from .palace_ride_facade import JS_FACADE
+
 JS_STREET = r"""
 /* ── the real street world. Coordinates in the WORLD are real metres x K (K = 1.3 map units per metre, UM in palace_ride_mesh.py), so the
    renderer's own constants (eye height, near/far, fog, mesh builders, vehicle speeds) mean what they always meant ── */
@@ -35,7 +37,7 @@ REAL.street=function(){ return !!(window._palStreet && window._palStreet.ready &
 REAL.fromStreet=function(pts, r){ var S=window._palStreet, seenO=new Set(), b=[], rr=[], rn=[], t=[], f=[], po=[], ar=[];
   function mp(a){ var o=[]; for(var i=0;i<a.length;i++){ var m=S.toMap(a[i][0],a[i][1],1); o.push(m[0],m[1]); } return o; }
   pts.forEach(function(q){ var Hm=S.toMap(0,0,1)[1], X=q[0], Y=Hm-q[1], N=S.near(X,Y,r,'brtfpa');
-    N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; b.push(a); });
+    N.b.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.ring); var a=[d.hm||0].concat(g); a.col=d.colour; a.mat=d.material; a.sf=d.storefront; a.rs=d.rs; a.rc=d.rc; a.mh=d.mhm||0; a.part=(d.k||'').indexOf('p:')===0; a.rec=d; b.push(a); });
     N.r.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var g=mp(d.line), a=[d.hw||'residential'].concat(g); a.wd=d.wd?d.wd*.1:0; a.br=d.br; a.tn=d.tn; rr.push(a); rn.push(d.nm||''); });
     (N.a||[]).forEach(function(d){ if(seenO.has(d)||!d.ring||d.ring.length<3) return; seenO.add(d); ar.push({k:d.k||'', nm:d.nm||'', ring:mp(d.ring)}); });
     N.t.forEach(function(d){ if(seenO.has(d)) return; seenO.add(d); var m=S.toMap(d.x,d.y,1); t.push([m[0],m[1],d.sp||'',d.lf||'']); });
@@ -170,7 +172,7 @@ function rlShopFace(ring,n){ var cx=0, cy=0, i, best=null; for(i=0;i<n;i++){ cx+
   if(!best) return null; var po=rlPoiNear(best.x,best.y,22), hs=hashXY(best.x*3.1,best.y*1.7);
   if(po && RL_CIVIC.test(po[3]||'')) return null;                                  /* a church, school, library... is not a shop: no shop glass, no awning */
   var cat=po?po[3]:'', civic=false;
-  return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po&&!civic?po[2]:'', cat:cat, hue:hs}; }
+  return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po&&!civic?po[2]:'', cat:cat, hue:fcShopHue(cat,hs)}; }
 /* ── z-fighting walls. OpenStreetMap draws a building as its outline AND its building:parts, parts share walls, ways are doubled: two solids with a wall on the very same plane facing the same way fight in the
    depth buffer, and the winner changes with every step you take (the whole facade flashes). The street data cannot be fixed here (it is hosted), so the world is made before it is drawn:
      1. an outline that its parts cover (>= 85 % of its footprint, sampled) is not drawn (s.nodraw; it still stops the walker);
@@ -270,8 +272,9 @@ function* gatherRealG(Xp, Yp, R, at){
       for(var q=0;q<lots.length;q++) if(rlPolyHit(lots[q], ring, x0,y0,x1,y1)){ cleared++; if(lots[q].under.length<12) lots[q].under.push(ring.slice()); return; }      /* kept for the lobby: a real footprint under the node (palace_ride_inside.py) */
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
-      var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0) sol._rf=[wr,eave,kind,hashXY(bx*3,by*7),ci+','+cj]; kept++; });
+      var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K, fg=null;
+      try{ fg=fcClass(f.rec||{storefront:!!f.sf}, ring, n, h, area, ob, hashXY(bx*1.7+3,by*2.3+1)); var rk=fcRoofKind(fg, f.rs, rect, area, h, hs); if(rk>-2) kind=rk; }catch(e){ fg=null; }        /* the facade grammar (palace_ride_facade.py) */
+      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; sol.fg=fg; sol.matInf=!!(f.rec&&(f.rec.fl&2)); if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0) sol._rf=[wr,eave,kind,hashXY(bx*3,by*7),ci+','+cj]; kept++; });
     yield; }                                  /* one 400 m chunk done: roam's frame loop takes it from here, a few milliseconds at a time (palace_ride_e.py realGatherStep) */
   realDedupe(W); yield;
   /* roofs and parapets AFTER the dedupe: a footprint the data lists twice (an outline and its part) drew two parapets on one plane, and a lowered roof keeps its parapet with it */
@@ -350,7 +353,7 @@ REAL.legShot=function(s,o){ var M=R.M||REAL._M; if(!M) return null; if(R.M){ REA
   var W=gatherReal(_pa.x,_pa.y,o.R), P=palette(), ctx, w, h; if(!R.ctx||!glOk()||!o.gl){ return {err:'GL only'}; }
   if(R.raf){ cancelAnimationFrame(R.raf); R.raf=0; } R.playing=false; sizeCheck(); ctx=R.ctx; w=R.w; h=R.h; ctx.setTransform(R.dpr,0,0,R.dpr,0,0); setCam(q.x,q.y,o.z||2.1,q.h,w,h,.5,0);
   for(var f=0;f<(o.frames||24);f++) drawCity(ctx,w,h,P,W,q.h,f*.05,null); return {x:q.x/K,y:q.y/K,h:q.h,stats:W.real}; };
-"""
+""" + JS_FACADE       # the facade grammar (palace_ride_facade.py): used by gatherRealG and by palace_ride_gl.py glSolid
 
 
 def test_blob(bbox, region, bld_dir, osm_glob_dir, scale: float = 1.0) -> dict:
