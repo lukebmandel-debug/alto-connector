@@ -2,6 +2,8 @@
 JS decoder (palace_street_js.py). Overpass is stubbed (no network); the size check runs on the real Philadelphia building tiles when the QA kit has them."""
 import gzip
 import json
+import os
+import time
 import shutil
 import subprocess
 from pathlib import Path
@@ -280,6 +282,8 @@ def test_make_stores_the_files_and_only_referenced_ones_are_published(tmp_path, 
     _stub(monkeypatch, st=st2)
     h2, _s = ps.make(BBOX, cache_dir=tmp_path)
     assert h2 != h
+    old_ = ps.blob_dir() / ps.file_name(h)
+    os.utime(old_, (time.time() - 40 * 86400,) * 2)           # (an older manifest that no page names and that is not recent is dropped; a referenced or recent one stays: test_palace_street_publish.py)
     names = {n for f, n, _t in palace_assets.assets() if f == "street"}
     assert ps.file_name(h2) in names and ps.file_name(h) not in names
     # the site writes exactly those, keeps them for a year
@@ -290,7 +294,7 @@ def test_make_stores_the_files_and_only_referenced_ones_are_published(tmp_path, 
     (site / "street" / "s-cccccccc.json").write_text("old", "utf-8")
     regenerate_site(LocalStore(tmp_path / "store"), "local", site)
     assert {p.name for p in (site / "street").iterdir()} == names
-    rule = next(x for x in _headers("c", "c") if x["source"] == "/street/**")
+    rule = next(x for x in _headers("c", "c", sorted(names)) if x["source"].startswith("/street/@("))      # (only files that exist are kept for a year: test_palace_street_publish.py)
     assert {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in rule["headers"]
 
 

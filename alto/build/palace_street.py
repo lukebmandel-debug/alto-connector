@@ -85,7 +85,8 @@ def street_query(bbox, timeout: int = 170) -> str:
         ");", "out center;", "(", "  way[highway]%s;" % b,
         '  way[barrier~"^(fence|wall|hedge|retaining_wall|guard_rail|city_wall|handrail)$"]%s;' % b, "  way[natural=tree_row]%s;" % b,
         '  nwr[leisure~"^(park|pitch|playground|garden|dog_park|common|recreation_ground|golf_course|track|nature_reserve)$"]%s;' % b, "  nwr[amenity=parking]%s;" % b,
-        '  way[landuse~"^(grass|recreation_ground|village_green)$"]%s;' % b, ");", "out geom;"])
+        '  way[landuse~"^(grass|recreation_ground|village_green)$"]%s;' % b,
+        '  nwr[place~"^(neighbourhood|suburb|quarter)$"][name]%s;' % b, ");", "out geom;"])
 
 
 def _tile_path(cache_dir, tb):
@@ -264,6 +265,7 @@ def _dir_of(t):
 
 
 _AREA_LEISURE = {"park", "pitch", "playground", "garden", "dog_park", "common", "recreation_ground", "golf_course", "track", "nature_reserve"}
+PLACES = {"neighbourhood": 1, "suburb": 2, "quarter": 3}      # place=* kinds that name an area people call their neighbourhood (manifest "pl": the HUD's real area label)
 _BARRIERS = {"fence", "wall", "hedge", "retaining_wall", "guard_rail", "city_wall", "handrail"}
 
 
@@ -281,7 +283,7 @@ def parse_street(raw: dict) -> dict:
     """{"trees", "furn", "poi", "door", "hw", "areas", "barriers", "rows"} of an Overpass street answer. Trees (lat, lon, id, species, leaf), furniture (lat, lon, id, kind,
     bearing or None), POIs (lat, lon, id, name, cat, address), doors (lat, lon, id, kind), highways (id, [(lat, lon)], tags, node ids), areas (id, ring, [holes], tags),
     barriers (id, [(lat, lon)], tags), tree rows (id, [(lat, lon)], tags)."""
-    trees, furn, poi, door, hw, areas, bars, rows = [], [], [], [], [], [], [], []
+    trees, furn, poi, door, hw, areas, bars, rows, places = [], [], [], [], [], [], [], [], []
     els = (raw or {}).get("elements") or []
     want = {}                                                  # furniture node id -> its direction tag (forward / backward need the way's heading)
     for e in els:
@@ -301,6 +303,12 @@ def parse_street(raw: dict) -> dict:
         t = e.get("tags") or {}
         ty = e.get("type")
         i = e.get("id", 0)
+        if t.get("place") in PLACES and t.get("name"):
+            rings = [r for r, inner in pmap._rings_of(e) if not inner and len(r) >= 3] if (e.get("geometry") or e.get("members")) else []
+            c = pmap._center(e)
+            if c is not None or rings:
+                places.append((i, str(t["place"]), str(t["name"]), c, rings))
+            continue
         if ty == "way" and "highway" in t and e.get("geometry"):
             if t["highway"] not in _SKIP_HW:
                 hw.append((i, pmap._pts(e["geometry"]), t, e.get("nodes") or []))
@@ -339,7 +347,7 @@ def parse_street(raw: dict) -> dict:
         cat = _poi_cat(t)
         if cat and t.get("name"):
             poi.append((lat, lon, i, str(t["name"]), cat, _addr(t)))
-    return {"trees": trees, "furn": furn, "poi": poi, "door": door, "hw": hw, "areas": areas, "barriers": bars, "rows": rows}
+    return {"trees": trees, "furn": furn, "poi": poi, "door": door, "hw": hw, "areas": areas, "barriers": bars, "rows": rows, "places": places}
 
 
 # ── encoding ────────────────────────────────────────────────────────────────
@@ -401,6 +409,26 @@ def _conv(v, S):
     if isinstance(v, dict):
         return {k: _conv(x, S) for k, x in v.items()}
     return v
+
+
+MAX_RING = 120                 # vertices kept of a place polygon (a stride sample: it only names the area under the walker)
+
+
+def _places(fr, places):
+    """[[name, kind code, x, y, [x0,y0,x1,y1,..] or 0]] in metres east/north of the origin: a place's point (its node or the middle of its outline) and, when OSM draws it, its outline."""
+    out = []
+    for _i, kind, name, c, rings in sorted(places, key=lambda p: (p[2], p[0])):
+        ring = max(rings, key=len) if rings else None
+        flat = 0
+        if ring:
+            step = max(1, -(-len(ring) // MAX_RING))
+            pts = [fr.xy(la, lo) for la, lo in ring[::step]]
+            flat = [round(v * Q, 1) for p in pts for v in p]
+            if c is None:
+                c = (sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring))
+        X, Y = fr.xy(c[0], c[1])
+        out.append([name, PLACES[kind], round(X * Q, 1), round(Y * Q, 1), flat])
+    return out
 
 
 GROUP = 2                      # cells per shard side (a shard is a 1000 m x 1000 m square of cells)
@@ -570,8 +598,11 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
         files[sid] = len(text.encode("utf-8"))
         for ck in groups[gk]:
             cmap[ck] = sid
+    pl = _places(fr, st["places"])
     manifest = {"v": VERSION, "a": ATTRIBUTION, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
                 "preset": preset, "f": {k: files[k] for k in sorted(files)}, "c": cmap}
+    if pl:
+        manifest["pl"] = pl                                     # real neighbourhood / suburb / quarter names: [name, kind code, x m, y m, flat polygon metres or 0]
     if ib is not None:
         manifest["ib"] = ib                                     # the in-bounds extent: the street cells [iy, ix0, ix1] runs of the region (with b metres of buffer)
     return manifest, shards
@@ -622,39 +653,73 @@ def store(manifest: dict, shards: dict, directory=None) -> str:
     return h
 
 
-def blobs(directory=None) -> list:
-    """[(file name, text)] to publish: for each box only its NEWEST manifest, and only the shards a kept manifest names. A file that does not match its hash is skipped."""
+# Referenced files the last blobs() could not find in the cache (or found damaged): "palace-street-<h>.json" / "s-<h>.json". publish_static reads it
+# (and turns what is neither in the cache nor already on the site into a LAST_STALE note) — a publish must never drop a palace's street data silently.
+LAST_MISSING: list = []
+RECENT_DAYS = 14                                            # a manifest younger than this is kept even when no page names it (a page already stored in Firestore may)
+
+
+def street_hash(palace) -> str:
+    """The manifest hash (12 hex) a brief.palace dict (data_z packed) or an unpacked palace map names in m["street"]["h"]; "" when it names none."""
+    try:
+        m = palace
+        if isinstance(palace, dict) and palace.get("data_z"):
+            from .palace import unpack
+            m = (unpack(palace["data_z"]) or {}).get("map") or {}
+        elif isinstance(palace, dict) and isinstance(palace.get("map"), dict):
+            m = palace["map"]
+        h = ((m or {}).get("street") or {}).get("h")
+    except Exception:                                       # noqa: BLE001 — a palace that cannot be read names nothing
+        return ""
+    return h if isinstance(h, str) and re.fullmatch(r"[0-9a-f]{12}", h) else ""
+
+
+def blobs(directory=None, referenced=None) -> list:
+    """[(file name, text)] to publish: EVERY manifest a published page names (`referenced`: manifest hashes), plus for each box its newest manifest and any younger
+    than RECENT_DAYS, and the shards any kept manifest names. Two palaces over one box therefore both keep their data. A file that does not match its hash is skipped;
+    a referenced file the cache lacks is listed in LAST_MISSING (never silently dropped)."""
     import time
+    LAST_MISSING.clear()
+    refs = {h for h in (referenced or ()) if isinstance(h, str) and re.fullmatch(r"[0-9a-f]{12}", h)}
     d = Path(directory) if directory else blob_dir()
-    if not d.is_dir():
-        return []
-    keep: dict = {}
-    for p in d.iterdir():
-        m = MAN_RE.match(p.name)
-        if not m:
-            continue
-        try:
-            txt, mt = p.read_text("utf-8"), p.stat().st_mtime
-            man = json.loads(txt)
-        except (OSError, ValueError):
-            continue
-        if blob_hash(txt) != m.group(1) or not isinstance(man, dict) or man.get("v") != VERSION:
-            continue
+    valid: dict = {}
+    if d.is_dir():
+        for p in d.iterdir():
+            m = MAN_RE.match(p.name)
+            if not m:
+                continue
+            try:
+                txt, mt = p.read_text("utf-8"), p.stat().st_mtime
+                man = json.loads(txt)
+            except (OSError, ValueError):
+                continue
+            if blob_hash(txt) != m.group(1) or not isinstance(man, dict) or man.get("v") != VERSION:
+                continue
+            valid[m.group(1)] = (mt, p.name, txt, man)
+    newest: dict = {}
+    for h, (mt, name, _t, man) in valid.items():
         box = tuple(man.get("o") or ())
-        if box not in keep or (mt, p.name) > (keep[box][0], keep[box][1]):
-            keep[box] = (mt, p.name, txt, man)
-    out, want = [], set()
-    for _mt, name, txt, man in keep.values():
+        if box not in newest or (mt, name) > (valid[newest[box]][0], valid[newest[box]][1]):
+            newest[box] = h
+    now = time.time()
+    kept = {h for h in valid if h in refs or h in newest.values() or now - valid[h][0] < RECENT_DAYS * 86400}
+    out, want = [], {}
+    for h in sorted(kept):
+        _mt, name, txt, man = valid[h]
         out.append((name, txt))
-        want |= set(man.get("f") or {})
+        for sid in (man.get("f") or {}):
+            want.setdefault(sid, set()).add(h)
+    for h in sorted(refs - set(valid)):
+        LAST_MISSING.append(file_name(h))
     for sid in sorted(want):
-        p = d / file_name(sid)
         try:
-            txt = p.read_text("utf-8")
+            txt = (d / file_name(sid)).read_text("utf-8")
         except OSError:
-            continue
-        if blob_hash(txt, 8) == sid:
-            out.append((p.name, txt))
+            txt = None
+        if txt is not None and blob_hash(txt, 8) == sid:
+            out.append((file_name(sid), txt))
+        elif want[sid] & refs:
+            LAST_MISSING.append(file_name(sid))
     return sorted(out)
 
 
