@@ -580,18 +580,23 @@ function mx(a){ return a.length ? Math.max.apply(null, a) : 0; }
 function ringFor(n, ext, gap, inner){ if(!n) return 0; var r=inner+gap+ext;
   if(n>=2) r=Math.max(r, (2*ext+Math.max(gap, 2*C.SPOKE_CLEAR))/(2*Math.sin(PI/n))); return r; }
 function even(n, out){ var off=n%2===0 ? PI/n : 0, o=[]; for(var j=0;j<n;j++) o.push(out+off+2*PI*j/n); return o; }
-function pbody(pid, moons, dp){
-  var Rp=dp/2, Rm=D.moon/2, Rs=D.sat/2;
-  var ms=moons.map(function(m){ var sr=ringFor(m[1].length, Rs, C.SAT_GAP, Rm); return {id:m[0], sats:m[1], sat_r:sr, ext:m[1].length ? sr+Rs : Rm}; });
+/* a body's diameter: the sun's fixed, a planet / moon a tier up per two children, a bump one more (solar.body_d) */
+function bodyD(role, n, bump){ if(role==='sun') return D.sun; var L=C.TIERS[role], t=role!=='sat' ? Math.min(Math.ceil(n/2), L.length-2) : 0;
+  return L[Math.min(t+(bump ? 1 : 0), L.length-1)]; }
+function pbody(pid, moons, size){
+  var dp=size(pid, 'planet', moons.length), Rp=dp/2;
+  var ms=moons.map(function(m){ var dm=size(m[0], 'moon', m[1].length), Rm=dm/2, sd={}, Rs=0;
+    m[1].forEach(function(q){ sd[q]=size(q, 'sat', 0); Rs=Math.max(Rs, sd[q]/2); });
+    var sr=ringFor(m[1].length, Rs, C.SAT_GAP, Rm); return {id:m[0], d:dm, sats:m[1], sd:sd, sat_r:sr, ext:m[1].length ? sr+Rs : Rm}; });
   var me=mx(ms.map(function(m){ return m.ext; })), mr=ringFor(ms.length, me, C.MOON_GAP, Rp), e=ms.length ? mr+me : Rp;
   return {id:pid, d:dp, moons:ms, moon_r:mr, e:Math.max(e, Rp)};
 }
 function local(b, th, r){
   var px=r*Math.cos(th), py=r*Math.sin(th), cs=[[b.id, px, py, b.d/2, null]], sg=[], ma=even(b.moons.length, th);
   b.moons.forEach(function(m, k){ var x=px+b.moon_r*Math.cos(ma[k]), y=py+b.moon_r*Math.sin(ma[k]), sa=even(m.sats.length, ma[k]);
-    cs.push([m.id, x, y, D.moon/2, b.id]); sg.push([m.id, b.id, x, y, px, py]);
+    cs.push([m.id, x, y, m.d/2, b.id]); sg.push([m.id, b.id, x, y, px, py]);
     m.sats.forEach(function(si, j){ var sx=x+m.sat_r*Math.cos(sa[j]), sy=y+m.sat_r*Math.sin(sa[j]);
-      cs.push([si, sx, sy, D.sat/2, m.id]); sg.push([si, m.id, sx, sy, x, y]); }); });
+      cs.push([si, sx, sy, m.sd[si]/2, m.id]); sg.push([si, m.id, sx, sy, x, y]); }); });
   return [cs, sg];
 }
 function sd(cx, cy, x1, y1, x2, y2){ var dx=x2-x1, dy=y2-y1, L=dx*dx+dy*dy, t=L===0 ? 0 : Math.max(0, Math.min(1, ((cx-x1)*dx+(cy-y1)*dy)/L));
@@ -610,8 +615,8 @@ function fits(cs, sg, spoke, e, placed, psegs){
   return true;
 }
 function period(lh, k, n){ return r2(lh[0]+(lh[1]-lh[0])*(n>1 ? k/(n-1) : .5)); }
-function system(unit, sun, planets, style, dOf){
-  var Rs=D.sun/2, bs=planets.map(function(p){ return pbody(p[0], p[1], dOf(p[0])); }), P=bs.length, rings=[], ang=[], k;
+function system(unit, sun, planets, style, size){
+  var Rs=D.sun/2, bs=planets.map(function(p){ return pbody(p[0], p[1], size); }), P=bs.length, rings=[], ang=[], k;
   if(style==='orbit'){ var rp=0, ep=Rs;
     bs.forEach(function(b, k){ var r=k===0 ? Rs+C.RING_GAP+b.e : rp+ep+C.RING_GAP+b.e; rings.push(r); ang.push(-PI/2+k*GOLD); rp=r; ep=b.e; }); }
   else { var placed=[[sun, 0, 0, Rs, 'sun']], psegs=[], rp2=0, st=C.A_STEP_DEG*PI/180, tries=[0];
@@ -633,12 +638,12 @@ function system(unit, sun, planets, style, dOf){
   var mov=style==='orbit', outP=[], loc={}; loc[sun]=[0, 0, D.sun, 'sun', ''];
   bs.forEach(function(b, k){
     var r=rings[k], th=ang[k], L=local(b, th, r), ma=even(b.moons.length, th);
-    L[0].forEach(function(c){ loc[c[0]]=[c[1], c[2], c[3]*2, c[4]===null ? 'planet' : (c[4]===b.id ? 'moon' : 'sat'), c[4]||sun]; });
-    var md=function(a){ a%=2*PI; if(a<0) a+=2*PI; return Math.round(a*1e5)/1e5; };
+    L[0].forEach(function(c){ loc[c[0]]=[c[1], c[2], Math.round(c[3]*2), c[4]===null ? 'planet' : (c[4]===b.id ? 'moon' : 'sat'), c[4]||sun]; });
+    var md=function(a){ a%=2*PI; if(a<0) a+=2*PI; return Math.round(a*1e7)/1e7; };
     outP.push({id:b.id, ring:k+1, r:r2(r), a0:md(th), d:b.d, period:mov ? period(C.P_PLANET, k, P) : 0, e:r2(b.e), moon_r:r2(b.moon_r),
       moons:b.moons.map(function(m, i){ var sa=even(m.sats.length, ma[i]);
-        return {id:m.id, r:r2(b.moon_r), a0:md(ma[i]), d:D.moon, period:mov ? period(C.P_MOON, k, P) : 0, sat_r:r2(m.sat_r),
-          sats:m.sats.map(function(si, j){ return {id:si, r:r2(m.sat_r), a0:md(sa[j]), d:D.sat, period:mov ? C.P_SAT : 0}; })}; })});
+        return {id:m.id, r:r2(b.moon_r), a0:md(ma[i]), d:m.d, period:mov ? period(C.P_MOON, k, P) : 0, sat_r:r2(m.sat_r),
+          sats:m.sats.map(function(si, j){ return {id:si, r:r2(m.sat_r), a0:md(sa[j]), d:m.sd[si], period:mov ? C.P_SAT : 0}; })}; })});
   });
   var R, box, v=Object.keys(loc).map(function(i){ return loc[i]; });
   if(mov){ R=bs.length ? rings[rings.length-1]+bs[bs.length-1].e : Rs; box=[-R, -R, R, R]; }
@@ -649,7 +654,7 @@ function system(unit, sun, planets, style, dOf){
 }
 /* t: {kids, parent, seqs}; old: the plan the page has (style, sizes, labels) */
 return function(t, old){
-  var K=t.kids||{}, Par=t.parent||{}, seqs=t.seqs||[], ids={}, style=(old && old.style)||'orbit', ON=(old && old.nodes)||{};
+  var K=t.kids||{}, Par=t.parent||{}, seqs=t.seqs||[], ids={}, style=(old && old.style)||'orbit';
   seqs.forEach(function(q){ q.forEach(function(i){ ids[i]=1; }); });
   function kids(i){ return (K[i]||[]).filter(function(k){ return ids[k] && Par[k]===i; }); }
   var labels={}; ((old && old.systems)||[]).forEach(function(s){ labels[s.unit]=s.label; });
@@ -660,8 +665,11 @@ return function(t, old){
     var loose=mine.filter(function(i){ return i!==sun && (!Par[i] || !ids[Par[i]]); });
     units.push([a, sun, kids(sun).concat(loose).map(function(p){ return [p, kids(p).map(function(m){ return [m, kids(m)]; })]; })]);
   });
-  var dOf=function(i){ var n=ON[i]; return n && n.role==='planet' ? n.d : D.planet; };
-  var sy=units.map(function(u){ return system(u[0], u[1], u[2], style, dOf); });
+  /* the bump flags (plan.sizes.bump) on each node: t.flags {id: [flag ids]}, else the page's NODES_SRC */
+  var bump=((old && old.sizes && old.sizes.bump)||[]), FL=t.flags||{};
+  if(!t.flags && typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ if(n.flags) FL[n.id]=n.flags; });
+  var size=function(i, role, n){ return bodyD(role, n, (FL[i]||[]).some(function(f){ return bump.indexOf(f)>=0; })); };
+  var sy=units.map(function(u){ return system(u[0], u[1], u[2], style, size); });
   var ws=sy.map(function(s){ return s.box[2]-s.box[0]; }), W=Math.ceil(Math.max.apply(null, [C.WORLD_W].concat(ws.map(function(w){ return w+2*C.MARGIN; }))));
   var inner=W-2*C.MARGIN, rows=[], row=[], span=0;
   sy.forEach(function(s, i){ if(row.length && span+C.SYS_GAP+ws[i] > inner+1e-6){ rows.push(row); row=[]; span=0; }
@@ -681,7 +689,7 @@ return function(t, old){
     top=cy+down+C.SYS_GAP;
   });
   var order=systems.map(function(s){ return s.sun; });
-  return {style:style, spin:__SPIN__, world:{w:W, h:rows.length ? Math.ceil(top-C.SYS_GAP+C.BOTTOM) : C.TOP+C.BOTTOM}, sizes:JSON.parse(JSON.stringify(D)),
+  return {style:style, spin:__SPIN__, world:{w:W, h:rows.length ? Math.ceil(top-C.SYS_GAP+C.BOTTOM) : C.TOP+C.BOTTOM}, sizes:(function(){ var z=JSON.parse(JSON.stringify(D)); z.planet_big=C.TIERS.planet[C.TIERS.planet.length-1]; z.tiers=JSON.parse(JSON.stringify(C.TIERS)); z.bump=bump.slice().sort(); return z; })(),
     systems:systems, nodes:nodes, sun_links:order.slice(1).map(function(b, i){ return [order[i], b]; }), warnings:[]};
 };
 })();

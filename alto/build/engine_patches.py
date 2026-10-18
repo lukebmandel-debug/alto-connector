@@ -1945,9 +1945,9 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
     var ta=_DIRANG[dir]; if(ta===undefined) return;
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
+    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ enterFocus(_sn); return; } }   // a hub & spoke / star chart (solar_draw.py): the nearest body that way, where it is now
     if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
     if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Mind Palace: the nearest building that way
-    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ enterFocus(_sn); return; } }   // a solar outline: the nearest body that way, where it is now
     // Every node's resting box in world px: style.left/top is its centre however
     // it is placed (margins, fly transform, tree), the card its size unzoomed.
     function g(n){

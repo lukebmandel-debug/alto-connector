@@ -408,9 +408,17 @@ def _close(a, b, path=""):
 @pytest.mark.parametrize("style", ["orbit", "spoke"])
 @pytest.mark.parametrize("units", [SMALL, [[[2, 2, 2], [2, 2], [2, 2, 2], [2], [2, 2]], [[0, 0], [0, 0, 0]]],
                                    [[[0, 1, 0], [0, 0], [0, 0, 0], [0, 0, 0]], [[2, 2, 0, 0], [0, 0, 0, 0]], [[]]]])
-def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style):
-    """Edit mode re-plans in the page from the live tables; that plan is solar.py's."""
-    b, nodes, _ = load_brief(copy.deepcopy(solar_doc(units, style)))
+@pytest.mark.parametrize("bumped", [False, True])
+def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style, bumped):
+    """Edit mode re-plans in the page from the live tables; that plan is solar.py's
+    (sizes by child count, a pivotal flag one tier up)."""
+    doc = solar_doc(units, style)
+    if bumped:
+        doc["brief"]["flags"] = [{"id": "pivotal", "name": "Pivotal"}]
+        for n in doc["nodes"]:
+            if n["id"] in ("u1-p1", "u1-p1-m1", "u2-p2"):
+                n["flags"] = ["pivotal"]
+    b, nodes, _ = load_brief(copy.deepcopy(doc))
     from alto.build.builder import place
     from alto.build.brief import validate_brief, validate_nodes
     validate_brief(b)
@@ -422,7 +430,8 @@ def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style):
         if n.parent:
             kids.setdefault(n.parent, []).append(n.id)
     tables = {"kids": kids, "parent": {n.id: n.parent for n in nodes if n.parent},
-              "seqs": [[n.id for n in nodes if n.act == a] for a in range(len(b.acts))]}
+              "seqs": [[n.id for n in nodes if n.act == a] for a in range(len(b.acts))],
+              "flags": {n.id: list(n.flags) for n in nodes if n.flags}}
     js = ("var window=globalThis;\n" + SOLAR_PLAN_JS + "\n"
           f"console.log(JSON.stringify(window._altoSolarPlan({json.dumps(tables)}, {json.dumps(want)})));")
     f = tmp_path / "plan.js"
