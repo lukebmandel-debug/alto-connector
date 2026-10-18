@@ -196,3 +196,22 @@ def test_the_regather_runs_in_slices_and_ends_in_one_swap(roam):
       R.cfg.budget=keep; return {frames:f, ver:R.state().ver-v0, gathering:gath, x:R.state().x}; }""")
     assert r["ver"] == 1, r                                    # one swap
     assert r["gathering"] >= 2, r                              # and the gather took more than one frame (it is done a few milliseconds at a time)
+
+
+def test_a_regathered_world_names_its_meshes_by_cell_not_by_where_it_was_gathered(roam):
+    pg = roam
+    _enter(pg, 3945, 2012, 0.0)
+    a = pg.evaluate("()=>window._palRide.roam.world().meshes.map(function(m){ return m.id; })")
+    pg.evaluate("()=>{ var R=window._palRide.roam; R.place(R.state().x+150*1.3, R.state().y, 0); R.settle(); }")          # a regather 150 m on
+    b = pg.evaluate("()=>window._palRide.roam.world().meshes.map(function(m){ return m.id; })")
+    import re
+    for ids in (a, b):
+        assert ids and all(re.fullmatch(r"(scn-real(-txt)?:-?\d+,-?\d+|real:roof:-?\d+,-?\d+)", i) for i in ids), ids     # no gather centre in an id: the renderer reuses the buffers it has
+    assert set(a) & set(b), (a, b)
+    g = palace_ride_gl.JS_GL
+    assert "function glMeshFind(m)" in g and "GLX.prevM[m.id]" in g and "function glCellObj(G,k)" in g          # an old buffer stays up until its replacement is built
+
+
+def test_trees_are_full_models_out_to_215_m_nearest_first():
+    st = palace_ride_street.JS_STREET
+    assert "var FULL_R=215, FULL_N=320" in st and "dtl.sort(function(p,q){ return p[0]-q[0]; })" in st and "RT=Math.max(R,720)" in st
