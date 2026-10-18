@@ -61,7 +61,7 @@ function glSetup(restore){
   setupRest(gl); return true; }
 /* the world and sky programs, with the tier's defines (gfx: palace_ride_gfx.py; legacy = none) */
 function glPrograms(gl){ var dfs=gfxDefs();
-    GLX.prog=glProgram(gl, GLS.vsw, dfs+GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC','uIn','uTx0','uTx1','uTxA']);
+    GLX.prog=glProgram(gl, GLS.vsw, dfs+GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uShO','uPal','uAtl','uAtlS','uLamp','uLampC','uIn','uTx0','uTx1','uTxA']);
     GLX.sky=glProgram(gl, GLS.vss, dfs+GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']); }
 function setupRest(gl){
   /* the noise texture: random bytes, filtered and mip-mapped, read for value noise in the shaders */
