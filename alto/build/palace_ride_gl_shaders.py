@@ -499,9 +499,9 @@ void main(){
     else if(wallLike&&(id>.5&&id<4.5||id>31.5&&id<32.5)||id>22.5&&id<23.5){
       float gm=1.-clamp(refl*5.,0.,1.);                                                 /* not on the glass */
       bool stn=id>1.5&&id<2.5||id>31.5; vec2 gq=vec2(vUV.x/17.,vUV.y/26.);
-      t=stn?texture2D(uTx1,vUV/7.).g:(id>3.5&&id<4.5)?texture2D(uTx0,vUV/2.6).g:texture2D(uTx1,vUV/2.2).r; k=(stn?.2:.3)*gm;
+      t=stn?texture2D(uTx1,vUV/7.).g:(id>3.5&&id<4.5)?texture2D(uTx0,vUV/2.6).g:texture2D(uTx1,vUV/2.2).r; k=(stn?.12:.3)*gm;
       float gr=texture2D(uTx1,gq).b; float low=1.-smoothstep(.0,2.6,vUV.y);
-      alb*=1.+uTxA*((gr-.5)*.12*gm-(1.-ao)*.22*gr-low*.10*gr);                           /* grime streaks, dirt where the AO is, splash at the foot */
+      alb*=1.+uTxA*((gr-.5)*(stn?.06:.12)*gm-(1.-ao)*.22*gr-low*.10*gr);                           /* grime streaks, dirt where the AO is, splash at the foot */
     }
     alb*=1.+uTxA*k*(t-.5)*2.;
   }
