@@ -550,7 +550,9 @@ motion stops on hover, on a focused circle, while editing, in print, and for
 anyone who asks their device for reduced motion. The reader can zoom out to see
 every system at once, the circles shrinking with it. A phone keeps the
 single-column card view. The student can drag a circle onto another to move it
-under it, exactly as in Hub & spoke.
+under it, exactly as in Hub & spoke (a building dropped on another building in
+its district becomes one of its floors), add a card under a circle, rename and
+remove cards, all in the page.
 
 **City or stars.** The view is chosen when the page is built, not by a switch
 in the page. `convert_timeline(timeline_id, to='hub_and_spoke')` turns a Star

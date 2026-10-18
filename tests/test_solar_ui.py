@@ -439,15 +439,35 @@ def _deep_page_html():
     return build_timeline(*load_brief(d))[0]
 
 
-@pytest.fixture
-def edit_url(tmp_path):
-    (tmp_path / "page.html").write_text(_deep_page_html(), encoding="utf-8")
+def _serve(tmp_path, html):
+    (tmp_path / "page.html").write_text(html, encoding="utf-8")
     h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(tmp_path))
     h.log_message = lambda *a: None
     socketserver.TCPServer.allow_reuse_address = True
     srv_ = socketserver.TCPServer(("127.0.0.1", 0), h)
     threading.Thread(target=srv_.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{srv_.server_address[1]}/page.html"
+    return srv_, f"http://127.0.0.1:{srv_.server_address[1]}/page.html"
+
+
+@pytest.fixture
+def edit_url(tmp_path):
+    srv_, url = _serve(tmp_path, _deep_page_html())
+    yield url
+    srv_.shutdown()
+
+
+def _stars_draft():
+    d = starter.draft("stars")
+    d["brief"].update(title="Torts", timeline_id="torts")
+    for n in d["nodes"]:
+        n["desc"] = f"{n['title']}: the material's words."
+    return d
+
+
+@pytest.fixture
+def stars_url(tmp_path):
+    srv_, url = _serve(tmp_path, build_timeline(*load_brief(_stars_draft()))[0])
+    yield url
     srv_.shutdown()
 
 
@@ -501,10 +521,10 @@ def _circle_drag(pg, card, to, release=True, escape=False):
     mid-way (the card's translate, the drop highlights, the tip) before releasing."""
     x0, y0 = _centre(pg, card)
     x1, y1 = _centre(pg, to) if isinstance(to, str) else to
-    pg.mouse.move(x0, y0 - 20)
+    pg.mouse.move(x0, y0)
     pg.mouse.down()
     for k in range(1, 15):
-        pg.mouse.move(x0 + (x1 - x0) * k / 14, y0 - 20 + (y1 - y0 + 20) * k / 14)
+        pg.mouse.move(x0 + (x1 - x0) * k / 14, y0 + (y1 - y0) * k / 14)
         pg.wait_for_timeout(16)
     pg.wait_for_timeout(120)
     mid = pg.evaluate(f"""({{moved: document.getElementById('node-{card}').style.translate,
@@ -642,4 +662,128 @@ def test_without_the_solar_layer_a_change_is_saved_and_said_to_wait_for_the_next
     pg.wait_for_timeout(900)
     assert "rp|unit-1-b" in _edit_ops(pg)
     assert pg.evaluate("document.documentElement.classList.contains('alto-solar-stale')")
+    assert not errs, errs
+
+
+# ── a Star chart (a palace in its stars view) edited by hand ─────────────────
+
+def _fold_into(draft, ops):
+    """The page's saved edits folded into a copy of the draft (alto/edits.py)."""
+    st = Store(copy.deepcopy(draft))
+    st.edits = {"v": 1, "ops": ops}
+    return st, fold(st, "u", "t1")
+
+
+@needs_solar
+def test_a_star_chart_page_edits_adds_renames_and_saves_what_folds_back(browser, stars_url):
+    pg, errs = _editing(browser, stars_url, hook=True)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-solar-edit')")
+    # a card under a floor: made from the circle's own control, numbered the palace's way
+    _show(pg, "unit-1-a")
+    _ctl(pg, "unit-1-a", "addc")
+    pg.wait_for_timeout(500)
+    ops = _edit_ops(pg)
+    new = [k for k in ops if k.startswith("nn|")]
+    assert len(new) == 1 and ops[new[0]]["v"]["p"] == "unit-1-a", ops
+    nid = new[0][3:]
+    calls = pg.evaluate("window.__sync")
+    assert calls and calls[-1]["parent"][nid] == "unit-1-a" and nid in calls[-1]["kids"]["unit-1-a"], calls
+    pal = pg.evaluate("({par: _ALTO_PALACE.par, num: _ALTO_PALACE.num, of: _ALTO_PALACE.of, fl: _ALTO_PALACE.fl})")
+    assert pal["par"][nid] == "unit-1-a" and pal["of"][nid] == "unit-1-start" and nid in pal["fl"]["unit-1-start"], pal
+    assert pal["num"]["unit-1-start"] == "1.1" and re.fullmatch(r"1\.1-\d", pal["num"][nid])         # 1.1-n, not 2.a.1
+    # a rename, through the same change path typing takes
+    assert pg.evaluate("window._altoEditChanges([['n|unit-1-b|title', 'Second floor, renamed']])")
+    assert _edit_ops(pg)["n|unit-1-b|title"]["v"] == "Second floor, renamed"
+    # saved: a reload lays the edits over the page again, the tables included
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("_ALTO_PALACE.par['%s']" % nid) == "unit-1-a"
+    assert pg.evaluate("document.querySelector('#node-unit-1-b .node-title').textContent") == "Second floor, renamed"
+    assert not errs, errs
+
+
+@needs_solar
+def test_dragging_a_star_charts_circle_onto_another_moves_it_by_the_palaces_floor_edit(browser, stars_url):
+    pg, errs = _editing(browser, stars_url, hook=True)
+    _show(pg, "unit-1-a1", "unit-1-b")
+    mid = _circle_drag(pg, "unit-1-a1", "unit-1-b")
+    assert mid["ok"] == ["node-unit-1-b"], mid
+    ops = _edit_ops(pg)
+    assert ops["pf|unit-1-a1"]["v"] == "unit-1-b" and ops["pf|unit-1-a1"]["b"] == "unit-1-a", ops      # the palace's pf| op
+    assert not [k for k in ops if k.startswith(("rp|", "p|"))], ops
+    pal = pg.evaluate("({par: _ALTO_PALACE.par, num: _ALTO_PALACE.num, fl: _ALTO_PALACE.fl})")
+    assert pal["par"]["unit-1-a1"] == "unit-1-b" and pal["fl"]["unit-1-start"] == ["unit-1-a", "unit-1-b", "unit-1-a1"], pal
+    assert pal["num"]["unit-1-a1"] == "1.1-3"
+    calls = pg.evaluate("window.__sync")
+    assert calls and calls[-1]["parent"]["unit-1-a1"] == "unit-1-b", calls
+    # and it folds back into the draft without a conflict, building again as the page showed it
+    draft = _stars_draft()
+    st, r = _fold_into(draft, ops)
+    assert not r["conflicts"] and not r["gone"], r
+    assert _node(st, "unit-1-a1")["parent"] == "unit-1-b"
+    html, _ = build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))
+    assert '"unit-1-a1":"unit-1-b"' in html.replace(" ", "")
+    assert not errs, errs
+
+
+@needs_solar
+def test_a_star_chart_refuses_the_same_drops_and_a_building_may_become_a_floor(browser, stars_url):
+    pg, errs = _editing(browser, stars_url, hook=True)
+    _show(pg, "unit-1-a1", "unit-1-a")
+    mid = _circle_drag(pg, "unit-1-a", "unit-1-a1")                      # onto what orbits it
+    assert mid["ok"] == [] and "cannot go under itself" in mid["tip"] and _edit_ops(pg) == {}
+    _show(pg, "unit-1-a1", "unit-1-a")
+    mid = _circle_drag(pg, "unit-1-a1", "unit-1-a")                      # already its parent
+    assert mid["ok"] == [] and _edit_ops(pg) == {} and _home(pg, "unit-1-a1")
+    # a building (a sun) onto the other building of ANOTHER district: refused; same district: allowed
+    _show(pg, "unit-1-b", "unit-2-start")
+    mid = _circle_drag(pg, "unit-2-start", "unit-1-b")
+    assert mid["ok"] == [] and "within its district" in mid["tip"] and _edit_ops(pg) == {}
+    assert not errs, errs
+
+
+def test_a_star_chart_fold_refuses_past_a_satellite_and_across_districts():
+    d = _stars_draft()
+    d["nodes"].append({"id": "unit-1-a1x", "act": 0, "parent": "unit-1-a1", "title": "A satellite", "tag": "", "desc": ""})
+    if "palace_view" not in __import__("alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__:
+        pytest.skip("needs alto-solar-lead's palace_view")
+    # a leaf under a satellite is a fifth level; a floor into another district's building is not the palace's move
+    st, r = _fold_into(d, {"pf|unit-1-b": {"b": "unit-1-start", "v": "unit-1-a1x", "t": 1},
+                           "pf|unit-1-a": {"b": "unit-1-start", "v": "unit-2-start", "t": 2},
+                           "n|unit-1-b|title": {"b": "Second floor", "v": "Breach", "t": 3}})
+    assert sorted(r["conflicts"]) == ["pf|unit-1-a", "pf|unit-1-b"], r
+    assert [x["id"] for x in r["solar_too_deep"]] == ["unit-1-b"] and _node(st, "unit-1-b")["title"] == "Breach"
+    # a building made a floor of another in its district is the palace's own model
+    d2 = _stars_draft()
+    d2["nodes"].append({"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": ""})
+    st, r = _fold_into(d2, {"pf|unit-1-start2": {"b": "", "v": "unit-1-start", "t": 1}})
+    assert not r["conflicts"] and _node(st, "unit-1-start2")["parent"] == "unit-1-start", r
+
+
+@pytest.fixture
+def stars2_url(tmp_path):
+    d = _stars_draft()
+    d["nodes"].append({"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": "Another building: words."})
+    srv_, url = _serve(tmp_path, build_timeline(*load_brief(d))[0])
+    yield url
+    srv_.shutdown()
+
+
+@needs_solar
+def test_a_star_chart_building_dropped_on_another_in_its_district_becomes_its_floor(browser, stars2_url):
+    pg, errs = _editing(browser, stars2_url, hook=True)
+    ids = pg.evaluate("[...document.querySelectorAll('#world .node')].sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top).map(n=>n.id.slice(5))")
+    assert "unit-1-start2" in ids
+    first, second = [i for i in ids if i in ("unit-1-start", "unit-1-start2")]
+    _show(pg, first, second)
+    mid = _circle_drag(pg, "unit-1-start2", "unit-1-start")
+    assert mid["ok"] == ["node-unit-1-start"], mid
+    ops = _edit_ops(pg)
+    assert ops["pf|unit-1-start2"]["v"] == "unit-1-start" and ops["pf|unit-1-start2"]["b"] == "", ops
+    assert pg.evaluate("_ALTO_PALACE.of['unit-1-start2']") == "unit-1-start"
+    assert pg.evaluate("Object.keys(_ALTO_PALACE.fl)") == ["unit-1-start", "unit-2-start"]       # it is a floor now: one building less
+    d = _stars_draft()
+    d["nodes"].append({"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": ""})
+    st, r = _fold_into(d, ops)
+    assert not r["conflicts"] and _node(st, "unit-1-start2")["parent"] == "unit-1-start", r
     assert not errs, errs
