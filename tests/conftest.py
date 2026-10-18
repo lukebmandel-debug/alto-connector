@@ -41,6 +41,18 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
         from alto.build import palace_fleet as _pf
         monkeypatch.setattr(_pf, "fetch", lambda box, **kw: {"elements": []})
 
+    # the city's open data (palace_street_city: OPA parcels, L&I footprints) is never asked for from a test, and never read from the real cache
+    from alto.build import palace_street_city as _pc
+    def _no_city(url, timeout=60):
+        raise RuntimeError("no network in tests")
+    monkeypatch.setattr(_pc, "_get", _no_city)                   # (a test of the fetch stubs _get itself)
+    monkeypatch.setattr(_pc, "_sleep", lambda s: None)
+    monkeypatch.setenv("ALTO_CITY_DIR", str(tmp_path_factory.mktemp("alto-city")))
+    from alto.build import palace_street_wikidata as _wd                 # Wikidata likewise
+    monkeypatch.setattr(_wd, "_get", _no_city)
+    monkeypatch.setattr(_wd, "_sleep", lambda s: None)
+    monkeypatch.setenv("ALTO_WIKIDATA_DIR", str(tmp_path_factory.mktemp("alto-wikidata")))
+
     # the street blobs (palace_street.py) are written to a folder of the user's cache: never the real one from a test
     monkeypatch.setenv("ALTO_STREET_DIR", str(tmp_path_factory.mktemp("alto-street")))
 

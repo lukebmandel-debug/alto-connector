@@ -12,6 +12,8 @@ MANIFEST
   cs 5000 (cell size in units = 500 m), kx (metres per degree of longitude, cos(mid latitude)*111320), ky 110574 — the SAME equirectangular frame as palace_map.project:
   X_m = (lon-west)*kx, Y_m = (lat-south)*ky; Y grows NORTH here, the palace map's y grows south (y_map = (north-lat)*ky, = _palStreet.toMap), n [nx, ny] cells, g 2 (cells per shard
   side), preset ("philadelphia" | "generic": the style preset used), f {shard id: bytes}, c {"ix,iy": shard id} (non-empty cells only).
+  src [{k "osm"|"opa"|"lif"|"wikidata", n name, l licence, a attribution(, rows)}] the sources used (palace_street_city.SOURCES); sn [notes] what was not available this build.
+  a gains "; City of Philadelphia (OPA, L&I), OpenDataPhilly" when city records were joined (show `a` as the attribution).
 SHARD   {"S": [string table, "" first], "c": {"ix,iy": cell}} — its own string table, every string below is an index into it (0 = none).
 CELL    (ix, iy) covers units [ix*cs, (ix+1)*cs) east and [iy*cs, ...) north. A feature lives in the cell of its first point (buildings and areas: centroid) and is NOT cut, so a
         client asks the cell AND its 8 neighbours; polylines (highways, barriers, tree rows) are cut at cell borders (each piece in the cell where it lies, the joint vertex repeated).
@@ -22,6 +24,31 @@ CELL    (ix, iy) covers units [ix*cs, (ix+1)*cs) east and [iy*cs, ...) north. A 
       rs roof:shape  rc roof colour RGB565  rm roof:material  rl roof:levels  nm name  ad address "12 Walnut St"  po "shop=bakery"/"amenity=cafe"...  sd start_date  wd wikidata
       fl flags: 1 storefront (shop windows on the ground floor), 2 colour/material inferred, 4 levels inferred, 8 height inferred, 16 old (pre-1900 / old row house)
       mh min_height in units (building:part floating above the ground)
+    ── 2.0.0 accuracy block (appended to the same props array, index 16 on; an old client reads the first 16 names and ignores the rest; trailing zeros dropped) ──
+      ty typology (TYPOLOGY): 0 unknown 1 rowhouse 2 twin/semi-detached 3 detached house 4 low-rise apartments (<=4 st) 5 mid-rise (5-11 st) 6 high-rise tower (>=12 st / >=40 m)
+         7 commercial storefront row 8 institutional/civic 9 industrial/warehouse 10 religious 11 parking/garage 12 office 13 hotel 14 school/university 15 hospital 16 mixed use
+         (from the city's parcel record when one matched — OPA building_code_description / category_code_description — else OSM building=* + shape + height)
+      yr year built (0 unknown; OPA year_built, else OSM start_date / building:start_date)
+      er era (ERAS): 0 unknown 1 colonial/federal (<1830) 2 Victorian (1830-1899) 3 early modern (1900-1945) 4 postwar (1946-1979) 5 contemporary (1980+)
+      st stories (a recorded count, 0 unknown; `lv` above stays the count to DRAW, filled in when nothing is recorded)
+      ss stories source: 0 none 1 OSM building:levels 2 city parcel (OPA number_stories) 3 Overture num_floors 4 derived from the height (h / 3.3)
+      hs height source of `h`: 0 none 1 OSM height 2 city building footprints (L&I max_hgt/approx_hgt) 3 Overture 4 stories x 3.3 (+ roof) 5 guess (footprint + kind)
+      fr frontage in units (0.1 m): the lot's street frontage (OPA frontage ft, else the length of the front edge `fe`); 0 unknown
+      by window bays across the front (estimated: fr / ~1.9 m for houses, / ~3 m otherwise, 1..40; 0 unknown)
+      pe party-wall EDGE bitmask: bit i set when ring edge i (vertex i -> i+1, the last edge closes the ring; ring as decoded, before holes) lies along another footprint
+         (>= 50% of its length within 0.5 m of a neighbour's edge) — draw it blank (no windows, no cornice return); edges >= 31 are never flagged
+      fe front edge: 1 + index of the ring edge that faces the street (the edge whose outward normal points at the nearest highway, longest such on ties); 0 unknown
+      pw party walls seen from the street (standing in the street, facing fe): 1 shared on the left 2 shared on the right 4 rear shared 8 known free-standing (no edge shared)
+      pc roof pitch class: 0 unknown 1 flat 2 low pitch (<20 deg; skillion/shed/low gabled) 3 steep (gabled/hipped/gambrel/... or roof:angle >= 20) 4 mansard 5 dome/onion/cone/spire
+      rd roof:direction + 1 (degrees, 0 unknown)
+      cf provenance / confidence bits: 1 matched to a city parcel record 2 ... by address (else point-in-polygon) 4 year recorded (not estimated) 8 height measured (hs 1-3)
+         16 colour from data (OSM/Overture) 32 material from data (OSM) 64 roof shape or colour from data 128 stories recorded (ss 1-3)
+      ar architect (string)  hr heritage (string: "heritage=<n>", "nrhp=<ref>", "phlrhp" joined by ";")  wp wikipedia (string "en:Title")
+      sy architectural style (string, Wikidata P149 labels: "Second Empire architecture")
+      tp top height in units: the highest point known (its building:parts, Wikidata P2048 incl. spires, the city footprint's max_hgt) — >= h; 0 = h
+      (codes added with Wikidata: hs 6 Wikidata P2048, ss 5 Wikidata P1101; yr from Wikidata P571 inception wins over OSM start_date and the parcel's year; a Wikidata
+       instance-of (P31) that names a kind — courthouse, church, Masonic temple, skyscraper, hotel... — wins over the parcel's code and OSM's building=*)
+      ex exterior condition of the city record (OPA exterior_condition: 1 new/rehabbed 2 above average 3 ... 4 average 5 below average 6 vacant 7 sealed/compromised; 0 unknown)
   r highways [line, props]  (RFIELDS): hw highway=*  nm name  ln lanes  wd width (units)  ow oneway (0, 1 forward, 2 reverse)  sw sidewalk  cy cycleway  sf surface  ms maxspeed
       lt lit (0 unknown, 1 yes, 2 no)  sl/sr sidewalk left/right ("yes"|"no"|"separate"...)  cl/cr cycleway left/right  br bridge 1  tn tunnel 1  la layer
   a areas [ring, props(, holes)] (AFIELDS): k leisure=park|pitch|playground|garden|... / "parking" / landuse  nm name  sp sport  sf surface
@@ -56,12 +83,16 @@ FOLDER = "street"
 MAN_RE = re.compile(r"^palace-street-([0-9a-f]{12})\.json$")        # the manifest (the page names it)
 SHARD_RE = re.compile(r"^s-([0-9a-f]{8})\.json$")
 
-BFIELDS = ("k", "lv", "h", "bc", "bm", "rs", "rc", "rm", "rl", "nm", "ad", "po", "sd", "wd", "fl", "mh")
+BFIELDS = ("k", "lv", "h", "bc", "bm", "rs", "rc", "rm", "rl", "nm", "ad", "po", "sd", "wd", "fl", "mh",
+           "ty", "yr", "er", "st", "ss", "hs", "fr", "by", "pe", "fe", "pw", "pc", "rd", "cf", "ar", "hr", "wp", "ex", "sy", "tp")       # 16..: the accuracy block (see the docstring)
+TYPOLOGY = ("unknown", "rowhouse", "twin", "detached", "lowrise_apts", "midrise", "highrise", "storefront_row", "civic", "industrial", "religious", "parking", "office", "hotel",
+            "school", "hospital", "mixed_use")
+ERAS = ("unknown", "colonial_federal", "victorian", "early_modern", "postwar", "contemporary")
 RFIELDS = ("hw", "nm", "ln", "wd", "ow", "sw", "cy", "sf", "ms", "lt", "sl", "sr", "cl", "cr", "br", "tn", "la")
 AFIELDS = ("k", "nm", "sp", "sf")
 WFIELDS = ("k", "ht", "mt")
 LFIELDS = ("sp", "lf")
-_BSTR = {"k", "rs", "rm", "nm", "ad", "po", "sd", "wd"}                       # (bc / rc are rgb565 ints, bm a material code; wd: wikidata here, a NUMBER (width) in a highway)
+_BSTR = {"k", "rs", "rm", "nm", "ad", "po", "sd", "wd", "ar", "hr", "wp", "sy"}                     # (bc / rc are rgb565 ints, bm a material code; wd: wikidata here, a NUMBER (width) in a highway)
 _RSTR = {"hw", "nm", "sw", "cy", "sf", "ms", "sl", "sr", "cl", "cr"}
 _FURNITURE_HW = {"street_lamp", "traffic_signals", "crossing", "stop", "bus_stop"}
 _FURNITURE_AM = {"bench", "bicycle_parking", "waste_basket", "post_box", "fire_hydrant"}
@@ -432,12 +463,231 @@ def _places(fr, places):
 
 
 GROUP = 2                      # cells per shard side (a shard is a 1000 m x 1000 m square of cells)
+HS_GUESS = 5
+_HOUSES = (1, 2, 3)
 
 
-def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
+def _roof_dir(t):
+    v = str(t.get("roof:direction") or "").strip().lower()
+    if not v:
+        return 0
+    if v in _CARD:
+        return _CARD[v] + 1
+    x = _fnum(v)
+    return int(round(x)) % 360 + 1 if x is not None else 0
+
+
+def _heritage(t):
+    out = []
+    if t.get("heritage"):
+        out.append("heritage=%s" % t["heritage"])
+    if t.get("ref:nrhp"):
+        out.append("nrhp=%s" % t["ref:nrhp"])
+    if t.get("heritage:operator") and not t.get("ref:nrhp"):
+        out.append("op=%s" % t["heritage:operator"])
+    if t.get("historic") and t.get("historic") not in ("no",):
+        out.append("historic=%s" % t["historic"])
+    return ";".join(out)
+
+
+def _accuracy(fr, recs, st, preset, city, report):
+    """The accuracy block of every building record (palace_street_acc): {"h" metres or 0, "lv" stories to draw or 0, + every BFIELDS[16:] name}."""
+    from . import palace_street_acc as acc
+    philly = preset == "philadelphia"
+    whole = [i for i, r in enumerate(recs) if not r[4]]
+    pw_ = acc.party_walls([recs[i][1] for i in whole])
+    mask, nbs = {}, {}
+    for j, i in enumerate(whole):
+        mask[i], nbs[i] = pw_[j][0], {whole[x] for x in pw_[j][1]}
+    roads = []
+    for _i, ll, t, _n in st["hw"]:
+        if t.get("highway") in acc.ROADS:
+            p = [fr.xy(la, lo) for la, lo in ll]
+            roads += [(p[m][0], p[m][1], p[m + 1][0], p[m + 1][1]) for m in range(len(p) - 1) if p[m] != p[m + 1]]
+    fe_ = acc.front_edges([recs[i][1] for i in whole], roads, [mask[i] for i in whole])
+    fe = {i: fe_[j] for j, i in enumerate(whole)}
+    ci = acc.CityIndex(fr.xy, (city or {}).get("opa"), (city or {}).get("lif")) if city and ((city.get("opa") or city.get("lif"))) else None
+    from . import palace_street_wikidata as pwd
+    wdi = (city or {}).get("wd") or {}
+    wpts: dict = {}
+    for la, lo, q in (city or {}).get("wdp") or ():
+        if q in wdi:
+            X, Y = fr.xy(la, lo)
+            wpts.setdefault((X // acc.GRID, Y // acc.GRID), []).append((X, Y, q))
+    # building:parts -> the outline they stand in (the tallest part is the outline's top)
+    wgrid: dict = {}
+    for i in whole:
+        p = recs[i][1]
+        for gx in range(min(q[0] for q in p) // acc.GRID, max(q[0] for q in p) // acc.GRID + 1):
+            for gy in range(min(q[1] for q in p) // acc.GRID, max(q[1] for q in p) // acc.GRID + 1):
+                wgrid.setdefault((gx, gy), []).append(i)
+    ptop: dict = {}                                             # outline -> the top of its tallest part (a spire, a tower): tp
+    pbody: dict = {}                                            # outline -> the top of its tallest BODY part (>= 25 % of the outline): h
+    for i, r in enumerate(recs):
+        if not r[4]:
+            continue
+        ph = _metres(r[3].get("height"))
+        if not ph or ph <= 0:
+            continue
+        for j in wgrid.get((r[6] // acc.GRID, r[7] // acc.GRID), ()):
+            if _pip(r[6], r[7], recs[j][1]):
+                ptop[j] = max(ptop.get(j, 0.0), ph)
+                if _area_m2(r[1]) >= 0.25 * _area_m2(recs[j][1]):
+                    pbody[j] = max(pbody.get(j, 0.0), ph)
+                break
+    out = []
+    for n_, (key, pts, holes, t, part, k, cx, cy) in enumerate(recs):
+        area = _area_m2(pts)
+        cf = 0
+        o = lf = None
+        if ci is not None and not part:
+            ids = ci.by_address(t, cx, cy)
+            o = acc.pick_opa([ci.opa[i] for i in ids]) if ids else None
+            if o is not None:
+                cf |= acc.CF_PARCEL | acc.CF_ADDR
+            else:
+                ids = ci.opa_in(pts, _pip)
+                o = acc.pick_opa([ci.opa[i] for i in ids]) if ids else None
+                if o is not None:
+                    cf |= acc.CF_PARCEL
+            lids = ci.lif_in(pts, _pip)
+            if lids:
+                lf = max((ci.lif[i] for i in lids), key=lambda r: (r.get("ar") or 0, r["ah"], r["lat"]))
+        oty, ost, half, exact = acc.opa_typology(o["bc"], o.get("bcn"), o.get("cat")) if o else (0, 0, False, False)
+        # Wikidata: the item OSM names, else one Wikidata places inside the outline
+        w = None
+        if not part:
+            q = str(t.get("wikidata") or "").split(";")[0].strip()
+            w = wdi.get(q)
+            if w is None and wpts:
+                x0, x1, y0, y1 = min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts), max(p[1] for p in pts)
+                for gx in range(x0 // acc.GRID, x1 // acc.GRID + 1):
+                    for gy in range(y0 // acc.GRID, y1 // acc.GRID + 1):
+                        for X, Y, q2 in sorted(wpts.get((gx, gy), ())):
+                            if w is None and x0 <= X <= x1 and y0 <= Y <= y1 and _pip(X, Y, pts) and pwd.is_building(wdi[q2]):
+                                w = wdi[q2]
+        # height: OSM, unless the city's (LiDAR) footprint height says it is far too low (a big building drawn as its podium); a part-less outline's parts' top
+        h, hs = _metres(t.get("height")), 0
+        if h and h > 0:
+            hs = acc.HS_OSM
+            if lf and lf.get("ah", 0) > 2 and h < 0.6 * lf["ah"] and area > 300:
+                h, hs = lf["ah"], acc.HS_CITY
+        elif n_ in pbody:
+            h, hs = pbody[n_], acc.HS_OSM
+        elif lf and lf.get("ah", 0) > 2:
+            h, hs = lf["ah"], acc.HS_CITY
+        elif w and w.get("h"):
+            h, hs = w["h"], 6
+        # stories
+        s_, ss = _int(t.get("building:levels")), 0
+        if s_:
+            ss = acc.SS_OSM
+        elif w and w.get("fl"):
+            s_, ss = w["fl"], 5
+        elif o and (o.get("st") or (ost and exact)):
+            s_, ss = (o.get("st") or ost), acc.SS_CITY
+        if not hs and s_:
+            h, hs = round(s_ * 3.3 + (1.0 if s_ > 1 else 0.0) + (2.0 if half else 0.0), 1), acc.HS_STORIES
+        # year
+        yr = (w or {}).get("yr") or sty_year(t.get("start_date") or t.get("building:start_date") or t.get("construction_date"))
+        if yr:
+            cf |= acc.CF_YEAR
+        elif o and o.get("yr"):
+            yr = o["yr"]
+            cf |= 0 if o.get("yre") else acc.CF_YEAR
+        # typology
+        nb = nbs.get(n_, set())
+        twin = len(nb) == 1 and nbs.get(next(iter(nb)), set()) == {n_}
+        ty = acc.choose_typology(oty, acc.osm_typology(t, area, h or 0.0, s_ or 0, len(nb), twin, philly), t.get("building") or t.get("building:part"))
+        wty = pwd.typology(w) if w else 0
+        if wty:
+            ty = wty
+        if yr and not w and not (cf & acc.CF_YEAR and yr == sty_year(t.get("start_date") or t.get("building:start_date") or t.get("construction_date"))) \
+                and (t.get("ref:nrhp") or t.get("heritage")) and yr > 1975:
+            yr = 0                                                  # a listed historic building "built" after 1975: the parcel's record is of something else
+            cf &= ~acc.CF_YEAR
+        tall = (h or 0) >= 40 or (s_ or 0) >= 12
+        if ty in (acc.TY["lowrise_apts"], acc.TY["midrise"]) and tall:
+            ty = acc.TY["highrise"]
+        elif ty == acc.TY["lowrise_apts"] and ((s_ or 0) >= 5 or (h or 0) >= 17):
+            ty = acc.TY["midrise"]
+        elif ty == acc.TY["rowhouse"] and len(nb) == 1 and twin and not oty:
+            ty = acc.TY["twin"]
+        # front, party walls, frontage, bays
+        m = mask.get(n_, 0)
+        f = fe.get(n_, -1)
+        pw = acc.side_flags(pts, f, m) if not part else 0
+        frm = 0.0
+        if o and ty in (1, 2, 7) and 2 < (o.get("fr") or 0) < 80:
+            frm = o["fr"] * 0.3048
+        elif f >= 0:
+            (ax, ay), (bx, by) = pts[f], pts[(f + 1) % len(pts)]
+            frm = math.hypot(bx - ax, by - ay) * Q
+        by_ = max(1, min(40, int(round(frm / (1.6 if ty in _HOUSES else 3.0))))) if frm else 0
+        # roof
+        pc = acc.pitch_of(t)
+        if pc or t.get("roof:colour"):
+            cf |= acc.CF_ROOF
+        if not pc and ty:
+            pc = (4 if (half and ty == 1) else 3) if (ty in (2, 3, 10) or half) else 1
+        if hs in (1, 2, 3, 6):
+            cf |= acc.CF_HEIGHT
+        if ss in (1, 2, 3, 5):
+            cf |= acc.CF_STORIES
+        if t.get("building:colour"):
+            cf |= acc.CF_COLOUR
+        if t.get("building:material"):
+            cf |= acc.CF_MATERIAL
+        a = {"h": h or 0.0, "lv": s_ or 0, "ty": ty, "yr": yr or 0, "er": acc.era_of(yr), "st": s_ or 0, "ss": ss, "hs": hs,
+             "fr": int(round(frm / Q)) if frm else 0, "by": by_, "pe": m if not part else 0, "fe": f + 1 if (f >= 0 and not part) else 0, "pw": pw, "pc": pc,
+             "rd": _roof_dir(t), "cf": cf, "ar": str(t.get("architect") or (w or {}).get("ar") or ""), "hr": ";".join(x for x in (_heritage(t), ("wd=" + w["her"]) if (w or {}).get("her") else "") if x),
+             "wp": str(t.get("wikipedia") or ""), "ex": int((o or {}).get("ex") or 0), "sy": str((w or {}).get("sy") or "")}
+        top = max([h or 0.0, ptop.get(n_, 0.0), (w or {}).get("h") or 0.0, (lf or {}).get("mh") or 0.0])
+        a["tp"] = int(round(top / Q)) if top > (h or 0.0) + 0.5 else 0
+        out.append(a)
+    return out
+
+
+def sty_year(v):
+    from .palace_street_style import year_of
+    y = year_of(v)
+    return y if y and 1600 < y <= 2100 else 0
+
+
+def _coverage(blk, recs, city):
+    """{"n": buildings, field: {"any": %, source: %}} — the build report's coverage table (whole buildings, not parts)."""
+    idx = [i for i, r in enumerate(recs) if not r[4]]
+    n = len(idx) or 1
+
+    def pct(c):
+        return round(100.0 * c / n, 1)
+    rep = {"n": len(idx), "parts": len(recs) - len(idx)}
+    hs = {}
+    ss = {}
+    for i in idx:
+        hs[blk[i]["hs"]] = hs.get(blk[i]["hs"], 0) + 1
+        ss[blk[i]["ss"]] = ss.get(blk[i]["ss"], 0) + 1
+    rep["height_src"] = {["none", "osm", "city", "overture", "stories", "guess", "wikidata"][k]: pct(v) for k, v in sorted(hs.items())}
+    rep["stories_src"] = {["none", "osm", "city", "overture", "from_height", "wikidata"][k]: pct(v) for k, v in sorted(ss.items())}
+    for nm, test in (("typology", lambda a: a["ty"] > 0), ("year", lambda a: a["yr"] > 0), ("year_recorded", lambda a: a["cf"] & 4), ("parcel", lambda a: a["cf"] & 1),
+                     ("parcel_by_address", lambda a: a["cf"] & 2), ("party_wall", lambda a: a["pe"] > 0), ("front_edge", lambda a: a["fe"] > 0),
+                     ("frontage", lambda a: a["fr"] > 0), ("roof_data", lambda a: a["cf"] & 64), ("colour_data", lambda a: a["cf"] & 16),
+                     ("material_data", lambda a: a["cf"] & 32), ("architect", lambda a: a["ar"]), ("heritage", lambda a: a["hr"]), ("style", lambda a: a["sy"]), ("top_height", lambda a: a["tp"]), ("condition", lambda a: a["ex"])):
+        rep[nm] = pct(sum(1 for i in idx if test(blk[i])))
+    tys = {}
+    for i in idx:
+        tys[blk[i]["ty"]] = tys.get(blk[i]["ty"], 0) + 1
+    rep["typology_mix"] = {TYPOLOGY[k]: pct(v) for k, v in sorted(tys.items())}
+    rep["notes"] = list((city or {}).get("notes") or [])
+    return rep
+
+
+def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=None, report=None):
     """(manifest, shards) for the box: shards {id: {"S": [...], "c": {cell key: cell}}} (one per GROUP x GROUP cells, each with its own string table, named by the hash
-    of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}."""
+    of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}. city: {"opa": rows, "lif": rows, "notes": [..]} (palace_street_city; None = OSM only).
+    report: an optional dict the build fills with coverage counts (palace_street_acc.coverage)."""
     from . import palace_street_style as sty
+    from . import palace_street_acc as acc
     fr = Frame(bbox)
     preset = preset or sty.preset_for(bbox)
     cells: dict = {}
@@ -477,6 +727,7 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
                         return True
         return False
 
+    recs = []
     for key, ring, holes, t in sorted(parse_buildings(bld_raw), key=lambda b: b[0]):
         pts = quant(ring)
         if len(pts) < 3:
@@ -484,22 +735,35 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
         cx, cy = sum(p[0] for p in pts) // len(pts), sum(p[1] for p in pts) // len(pts)
         if not fr.inside(cx, cy):
             continue
-        k = fr.cell(cx, cy)
-        part = "building" not in t
-        h = _metres(t.get("height"))
+        recs.append((key, pts, holes, t, "building" not in t, fr.cell(cx, cy), cx, cy))
+    blk = _accuracy(fr, recs, st, preset, city, report)
+    for n_, (key, pts, holes, t, part, k, cx, cy) in enumerate(recs):
+        a = blk[n_]
+        h = a["h"]
         mh = _metres(t.get("min_height"))
         if not mh and _fnum(t.get("building:min_level")):
             mh = _fnum(t.get("building:min_level")) * 3.3
-        res = sty.resolve(preset, t, _area_m2(pts), h or 0.0, _int(t.get("building:levels")), sty.seed_of(key), commercial=(not part) and (bool(_poi_cat(t)) or has_poi(pts)))
+        res = sty.resolve(preset, t, _area_m2(pts), h or 0.0, a["lv"], sty.seed_of(key), commercial=(not part) and (bool(_poi_cat(t)) or has_poi(pts)),
+                          ty=a["ty"], year=a["yr"])
+        if not a["hs"]:
+            a["hs"] = HS_GUESS if res["h"] else 0
+        if not a["st"] and a["hs"] in (1, 2, 3) and h:              # a measured height, no recorded count: stories from the height (tall old floors)
+            a["st"], a["ss"] = max(1, int(round(h / acc.storey_m(a["ty"], a["er"])))), 4
+            if not _int(t.get("building:levels")):
+                res["lv"] = a["st"]
+
         props = _trim(["%s%s" % ("p:" if part else "", (t.get("building:part") if part else t.get("building")) or "yes"),
                        res["lv"], int(round(res["h"] / Q)) if res["h"] else 0, res["bc"], res["bm"], str(t.get("roof:shape") or ""), res["rc"], str(t.get("roof:material") or ""),
-                       _int(t.get("roof:levels")), str(t.get("name") or ""), _addr(t), _poi_cat(t), str(t.get("start_date") or ""), str(t.get("wikidata") or ""),
-                       res["fl"], int(round(mh / Q)) if mh and mh > 0 else 0])
+                       _int(t.get("roof:levels")), str(t.get("name") or ""), _addr(t), _poi_cat(t), str(t.get("start_date") or t.get("building:start_date") or ""),
+                       str(t.get("wikidata") or ""), res["fl"], int(round(mh / Q)) if mh and mh > 0 else 0]
+                      + [a[f] for f in BFIELDS[16:]])
         rec = [_delta(local(pts, k)), props]
         hs = [_delta(local(q, k)) for q in (quant(h_) for h_ in holes) if len(q) >= 3]
         if hs:
             rec.append(hs)
         put(k, "b", rec)
+    if report is not None:
+        report.update(_coverage(blk, recs, city))
 
     def pt_items(src, key, mk):
         for row in sorted(src, key=lambda r: r[:3]):
@@ -599,12 +863,27 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None):
         for ck in groups[gk]:
             cmap[ck] = sid
     pl = _places(fr, st["places"])
-    manifest = {"v": VERSION, "a": ATTRIBUTION, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
+    from . import palace_street_city as pcity
+    src = [dict(pcity.SOURCES["osm"], k="osm")]
+    att = ATTRIBUTION
+    for kk in ("opa", "lif"):
+        if (city or {}).get(kk):
+            src.append(dict(pcity.SOURCES[kk], k=kk, rows=len(city[kk])))
+    if (city or {}).get("wd"):
+        from . import palace_street_wikidata as pwd
+        src.append(dict(pwd.SOURCE, rows=len(city["wd"])))
+    if len(src) > 1:
+        att += "; City of Philadelphia (OPA, L&I), OpenDataPhilly"
+    manifest = {"v": VERSION, "a": att, "o": [fr.s, fr.w, fr.n, fr.e], "q": Q, "cs": CS, "kx": round(fr.kx, 3), "ky": KY, "n": [fr.nx, fr.ny], "g": GROUP,
                 "preset": preset, "f": {k: files[k] for k in sorted(files)}, "c": cmap}
     if pl:
         manifest["pl"] = pl                                     # real neighbourhood / suburb / quarter names: [name, kind code, x m, y m, flat polygon metres or 0]
     if ib is not None:
-        manifest["ib"] = ib                                     # the in-bounds extent: the street cells [iy, ix0, ix1] runs of the region (with b metres of buffer)
+        manifest["ib"] = ib
+    manifest["src"] = src                                       # the sources, their licences and attribution (+ notes on what failed): [{k, n, l, a(, rows)}]
+    notes = list((city or {}).get("notes") or [])
+    if notes:
+        manifest["sn"] = notes                                     # the in-bounds extent: the street cells [iy, ix0, ix1] runs of the region (with b metres of buffer)
     return manifest, shards
 
 
@@ -730,9 +1009,61 @@ def load(h: str, directory=None):
     return man, {sid: json.loads((d / file_name(sid)).read_text("utf-8")) for sid in man["f"]}
 
 
+LAST_REPORT: dict = {}                                       # the coverage report of the last make() (palace_street_acc fields, sources, notes)
+
+
+def city_data(bbox, scope=None, offline: bool = False, log=None, directory=None):
+    """{"opa": rows, "lif": rows, "notes": [...]} of the city's open data for the box (Philadelphia only; None elsewhere). Never fatal: a source that fails is absent
+    and noted. ALTO_STREET_CITY=0 turns it off."""
+    from . import palace_street_city as pcity
+    from . import palace_street_style as sty
+    if os.environ.get("ALTO_STREET_CITY", "1") == "0" or sty.preset_for(bbox) != "philadelphia":
+        return None
+    out = {"notes": [pcity.NOTES["overture"]]}
+    for kk in ("opa", "lif"):
+        rows, note = getattr(pcity, kk)(bbox, scope=scope, offline=offline, log=log, directory=directory)
+        out[kk] = rows
+        if note:
+            out["notes"].append(note)
+    return out
+
+
+def wikidata_data(bbox, bld_raw, scope=None, offline: bool = False, log=None, directory=None):
+    """{"wd": {qid: rec}, "wdp": [(lat, lon, qid)], "notes": [...]} — the Wikidata items the in-bounds buildings name (wikidata=*) and the buildings Wikidata places in
+    the in-bounds part of the box. ALTO_STREET_WIKIDATA=0 turns it off. Never fatal."""
+    from . import palace_street_wikidata as pwd
+    if os.environ.get("ALTO_STREET_WIKIDATA", "1") == "0":
+        return None
+    fr = Frame(bbox)
+    qids = set()
+    for _k, ring, _h, t in parse_buildings(bld_raw):
+        if t.get("wikidata"):
+            X, Y = fr.xy(*ring[0])
+            if scope is None or scope.contains(X * Q, Y * Q):
+                qids.add(str(t["wikidata"]).split(";")[0].strip())
+    pts, note1 = pwd.in_box(bbox, offline=offline, log=log, directory=directory)
+    pts = [p for p in pts if scope is None or scope.contains(*(lambda X, Y: (X * Q, Y * Q))(*fr.xy(p[0], p[1])))]
+    recs, note2 = pwd.items(sorted(qids | {p[2] for p in pts}), offline=offline, log=log, directory=directory)
+    return {"wd": recs, "wdp": pts, "notes": [n for n in (note1, note2) if n]}
+
+
 def make(bbox, cache_dir=None, offline: bool = False, log=None, directory=None, scope=None):
     """Fetch (cached), build and store the street data of the box. Returns (manifest hash, total bytes of the manifest and its shards) or None when the box has nothing."""
-    man, shards = build(bbox, buildings(bbox, cache_dir, offline, log, scope=scope), fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope)
+    try:
+        city = city_data(bbox, scope=scope, offline=offline, log=log)
+    except Exception as e:                                  # noqa: BLE001 — the city's data is a bonus, never a failure
+        city = {"notes": ["city data: %s" % str(e)[:80]]}
+    LAST_REPORT.clear()
+    braw = buildings(bbox, cache_dir, offline, log, scope=scope)
+    try:
+        wd = wikidata_data(bbox, braw, scope=scope, offline=offline, log=log)
+    except Exception as e:                                  # noqa: BLE001 — never fatal
+        wd = {"notes": ["wikidata: %s" % str(e)[:80]]}
+    if wd:
+        city = dict(city or {})
+        city["wd"], city["wdp"] = wd.get("wd") or {}, wd.get("wdp") or []
+        city["notes"] = list(city.get("notes") or []) + list(wd.get("notes") or [])
+    man, shards = build(bbox, braw, fetch(bbox, cache_dir=cache_dir, offline=offline, log=log, scope=scope), scope=scope, city=city, report=LAST_REPORT)
     if not man["c"]:
         return None
     h = store(man, shards, directory)
@@ -786,6 +1117,12 @@ def decode_cell(man: dict, key: str, shards: dict):
         d["ring"], d["holes"] = line(rec[0]), [line(h) for h in (rec[2] if len(rec) > 2 else [])]
         d["hm"], d["mhm"] = d["h"] * q, d["mh"] * q
         d["colour"], d["material"], d["storefront"] = (sty.rgb565_to_hex(d["bc"]) if d["bc"] else ""), sty.MATERIALS[d["bm"]], bool(d["fl"] & sty.FL_STOREFRONT)
+        d["frm"] = d["fr"] * q
+        d["tpm"] = max(d["tp"] * q, d["hm"])
+        d["typology"] = TYPOLOGY[d["ty"]] if 0 <= d["ty"] < len(TYPOLOGY) else "unknown"
+        d["era"] = ERAS[d["er"]] if 0 <= d["er"] < len(ERAS) else "unknown"
+        d["front"] = d["fe"] - 1 if d["fe"] else -1
+        d["party"] = [i for i in range(min(31, len(d["ring"]))) if (d["pe"] >> i) & 1]
         out["b"].append(d)
     for rec in c.get("r", []):
         d = props(RFIELDS, _RSTR, rec[1])
