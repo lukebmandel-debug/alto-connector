@@ -22,6 +22,27 @@ CELL    (ix, iy) covers units [ix*cs, (ix+1)*cs) east and [iy*cs, ...) north. A 
       rs roof:shape  rc roof colour RGB565  rm roof:material  rl roof:levels  nm name  ad address "12 Walnut St"  po "shop=bakery"/"amenity=cafe"...  sd start_date  wd wikidata
       fl flags: 1 storefront (shop windows on the ground floor), 2 colour/material inferred, 4 levels inferred, 8 height inferred, 16 old (pre-1900 / old row house)
       mh min_height in units (building:part floating above the ground)
+    ── 2.0.0 accuracy block (appended to the same props array, index 16 on; an old client reads the first 16 names and ignores the rest; trailing zeros dropped) ──
+      ty typology (TYPOLOGY): 0 unknown 1 rowhouse 2 twin/semi-detached 3 detached house 4 low-rise apartments (<=4 st) 5 mid-rise (5-11 st) 6 high-rise tower (>=12 st / >=40 m)
+         7 commercial storefront row 8 institutional/civic 9 industrial/warehouse 10 religious 11 parking/garage 12 office 13 hotel 14 school/university 15 hospital 16 mixed use
+         (from the city's parcel record when one matched — OPA building_code_description / category_code_description — else OSM building=* + shape + height)
+      yr year built (0 unknown; OPA year_built, else OSM start_date / building:start_date)
+      er era (ERAS): 0 unknown 1 colonial/federal (<1830) 2 Victorian (1830-1899) 3 early modern (1900-1945) 4 postwar (1946-1979) 5 contemporary (1980+)
+      st stories (a recorded count, 0 unknown; `lv` above stays the count to DRAW, filled in when nothing is recorded)
+      ss stories source: 0 none 1 OSM building:levels 2 city parcel (OPA number_stories) 3 Overture num_floors 4 derived from the height (h / 3.3)
+      hs height source of `h`: 0 none 1 OSM height 2 city building footprints (L&I max_hgt/approx_hgt) 3 Overture 4 stories x 3.3 (+ roof) 5 guess (footprint + kind)
+      fr frontage in units (0.1 m): the lot's street frontage (OPA frontage ft, else the length of the front edge `fe`); 0 unknown
+      by window bays across the front (estimated: fr / ~1.9 m for houses, / ~3 m otherwise, 1..40; 0 unknown)
+      pe party-wall EDGE bitmask: bit i set when ring edge i (vertex i -> i+1, the last edge closes the ring; ring as decoded, before holes) lies along another footprint
+         (>= 50% of its length within 0.5 m of a neighbour's edge) — draw it blank (no windows, no cornice return); edges >= 31 are never flagged
+      fe front edge: 1 + index of the ring edge that faces the street (the edge whose outward normal points at the nearest highway, longest such on ties); 0 unknown
+      pw party walls seen from the street (standing in the street, facing fe): 1 shared on the left 2 shared on the right 4 rear shared 8 known free-standing (no edge shared)
+      pc roof pitch class: 0 unknown 1 flat 2 low pitch (<20 deg; skillion/shed/low gabled) 3 steep (gabled/hipped/gambrel/... or roof:angle >= 20) 4 mansard 5 dome/onion/cone/spire
+      rd roof:direction + 1 (degrees, 0 unknown)
+      cf provenance / confidence bits: 1 matched to a city parcel record 2 ... by address (else point-in-polygon) 4 year recorded (not estimated) 8 height measured (hs 1-3)
+         16 colour from data (OSM/Overture) 32 material from data (OSM) 64 roof shape or colour from data 128 stories recorded (ss 1-3)
+      ar architect (string)  hr heritage (string: "heritage=<n>", "nrhp=<ref>", "phlrhp" joined by ";")  wp wikipedia (string "en:Title")
+      ex exterior condition of the city record (OPA exterior_condition: 1 new/rehabbed 2 above average 3 ... 4 average 5 below average 6 vacant 7 sealed/compromised; 0 unknown)
   r highways [line, props]  (RFIELDS): hw highway=*  nm name  ln lanes  wd width (units)  ow oneway (0, 1 forward, 2 reverse)  sw sidewalk  cy cycleway  sf surface  ms maxspeed
       lt lit (0 unknown, 1 yes, 2 no)  sl/sr sidewalk left/right ("yes"|"no"|"separate"...)  cl/cr cycleway left/right  br bridge 1  tn tunnel 1  la layer
   a areas [ring, props(, holes)] (AFIELDS): k leisure=park|pitch|playground|garden|... / "parking" / landuse  nm name  sp sport  sf surface
@@ -56,12 +77,16 @@ FOLDER = "street"
 MAN_RE = re.compile(r"^palace-street-([0-9a-f]{12})\.json$")        # the manifest (the page names it)
 SHARD_RE = re.compile(r"^s-([0-9a-f]{8})\.json$")
 
-BFIELDS = ("k", "lv", "h", "bc", "bm", "rs", "rc", "rm", "rl", "nm", "ad", "po", "sd", "wd", "fl", "mh")
+BFIELDS = ("k", "lv", "h", "bc", "bm", "rs", "rc", "rm", "rl", "nm", "ad", "po", "sd", "wd", "fl", "mh",
+           "ty", "yr", "er", "st", "ss", "hs", "fr", "by", "pe", "fe", "pw", "pc", "rd", "cf", "ar", "hr", "wp", "ex")       # 16..: the accuracy block (see the docstring)
+TYPOLOGY = ("unknown", "rowhouse", "twin", "detached", "lowrise_apts", "midrise", "highrise", "storefront_row", "civic", "industrial", "religious", "parking", "office", "hotel",
+            "school", "hospital", "mixed_use")
+ERAS = ("unknown", "colonial_federal", "victorian", "early_modern", "postwar", "contemporary")
 RFIELDS = ("hw", "nm", "ln", "wd", "ow", "sw", "cy", "sf", "ms", "lt", "sl", "sr", "cl", "cr", "br", "tn", "la")
 AFIELDS = ("k", "nm", "sp", "sf")
 WFIELDS = ("k", "ht", "mt")
 LFIELDS = ("sp", "lf")
-_BSTR = {"k", "rs", "rm", "nm", "ad", "po", "sd", "wd"}                       # (bc / rc are rgb565 ints, bm a material code; wd: wikidata here, a NUMBER (width) in a highway)
+_BSTR = {"k", "rs", "rm", "nm", "ad", "po", "sd", "wd", "ar", "hr", "wp"}                     # (bc / rc are rgb565 ints, bm a material code; wd: wikidata here, a NUMBER (width) in a highway)
 _RSTR = {"hw", "nm", "sw", "cy", "sf", "ms", "sl", "sr", "cl", "cr"}
 _FURNITURE_HW = {"street_lamp", "traffic_signals", "crossing", "stop", "bus_stop"}
 _FURNITURE_AM = {"bench", "bicycle_parking", "waste_basket", "post_box", "fire_hydrant"}
@@ -786,6 +811,11 @@ def decode_cell(man: dict, key: str, shards: dict):
         d["ring"], d["holes"] = line(rec[0]), [line(h) for h in (rec[2] if len(rec) > 2 else [])]
         d["hm"], d["mhm"] = d["h"] * q, d["mh"] * q
         d["colour"], d["material"], d["storefront"] = (sty.rgb565_to_hex(d["bc"]) if d["bc"] else ""), sty.MATERIALS[d["bm"]], bool(d["fl"] & sty.FL_STOREFRONT)
+        d["frm"] = d["fr"] * q
+        d["typology"] = TYPOLOGY[d["ty"]] if 0 <= d["ty"] < len(TYPOLOGY) else "unknown"
+        d["era"] = ERAS[d["er"]] if 0 <= d["er"] < len(ERAS) else "unknown"
+        d["front"] = d["fe"] - 1 if d["fe"] else -1
+        d["party"] = [i for i in range(min(31, len(d["ring"]))) if (d["pe"] >> i) & 1]
         out["b"].append(d)
     for rec in c.get("r", []):
         d = props(RFIELDS, _RSTR, rec[1])
