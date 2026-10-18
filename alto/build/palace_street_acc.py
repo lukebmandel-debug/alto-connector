@@ -94,14 +94,14 @@ def opa_typology(bc: str, bcn: str = "", cat: str = ""):
         ty = TY["hospital"]
     elif "HOTEL" in b or "MOTEL" in b or "HOTEL" in n:
         ty = TY["hotel"]
-    elif "PKG" in b or "GAR NO COMM" in b or "GAR W/COMM" in b or "PARKING" in b or "PRIV GAR" in b or "GARAGE" in n:
+    elif b.startswith("OFF BLD") or "OFFICE" in n:                    # (before parking: "OFF BLD N/PKG" is an office WITHOUT parking)
+        ty = TY["office"]
+    elif b.startswith(("PKG", "PD PKG", "NON PD PKG", "GAR NO COMM", "GAR W/COMM", "PRIV GAR", "PARKING")) or "GARAGE" in n:
         ty = TY["parking"]
     elif b.startswith("IND") or "WAREHOUSE" in b or "MFG" in b or "INDUSTRIAL" in c:
         ty = TY["industrial"]
     elif b.startswith("MISC") or "GOV" in n or "MUSEUM" in b or "RR STA" in b or "LIBRARY" in b or "AMUS" in b:
         ty = TY["civic"]
-    elif b.startswith("OFF BLD") or "OFFICE" in n:
-        ty = TY["office"]
     elif b.startswith("ROW W/OFF STR") or b.startswith("STR/OFF+APT") or "MIXED" in c:
         ty = TY["mixed_use"] if not (b.startswith("ROW") and st and st <= 4) else TY["storefront_row"]
     elif b.startswith("STR") or b.startswith("STORE") or b.startswith("SUB STR") or "REST'RNT" in b or "GAS STAT" in b or "AUTO" in b or b.startswith("COM CONDO"):
@@ -149,13 +149,14 @@ def osm_typology(t: dict, area_m2: float, height_m: float, stories: int, shared:
         return TY["parking"]
     if k in _INDUS:
         return TY["industrial"]
-    if k in _CIVIC or am in ("townhall", "courthouse", "library", "fire_station", "police", "post_office"):
+    if k in _CIVIC or am in ("townhall", "courthouse", "library", "fire_station", "police", "post_office", "arts_centre", "theatre", "community_centre") \
+            or t.get("tourism") in ("museum", "gallery") or (t.get("historic") and t.get("historic") != "no" and k in ("yes", "building") and area_m2 > 250):
         return TY["civic"]
     if k == "office" or (t.get("office") and k in ("yes", "commercial")):
         return TY["highrise"] if tall else TY["office"]
     if tall:
         return TY["highrise"]
-    if k in ("apartments", "condominium", "residential") and (stories >= 5 or height_m >= 16):
+    if k in ("apartments", "condominium", "residential") and (stories >= 5 or height_m >= 18):
         return TY["midrise"]
     if k in ("apartments", "condominium"):
         return TY["lowrise_apts"]
@@ -172,7 +173,7 @@ def osm_typology(t: dict, area_m2: float, height_m: float, stories: int, shared:
             return TY["twin"] if twin_pair else TY["rowhouse"]
         if k in ("house", "detached", "bungalow", "cabin", "farm") and shared == 0:
             return TY["detached"]
-        if stories >= 5 or height_m >= 16:
+        if stories >= 5 or height_m >= 18:
             return TY["midrise"]
         if philly and k == "yes" and shared == 0 and area_m2 < 250 and height_m and height_m < 12:
             return TY["detached"]
@@ -438,3 +439,28 @@ def pick_opa(rows):
     best["st"] = max([r.get("st") or 0 for r in typed])
     best["n"] = len(rows)
     return best
+
+
+RESIDENTIAL = {1, 2, 3, 4, 5, 6, 7, 16}
+GENERIC_KINDS = {"yes", "residential", "building", ""}
+
+
+def choose_typology(opa_ty: int, osm_ty: int, kind: str) -> int:
+    """The city record's typology, except where OSM names a SPECIFIC kind that disagrees with it (a parcel record speaks for a lot that may hold a landmark, a tower or
+    a church beside a garage): OSM wins then, but inside the residential family the city's code (row / twin / detached / apartments) is the finer one."""
+    if not opa_ty:
+        return osm_ty
+    if not osm_ty or str(kind or "").lower() in GENERIC_KINDS:
+        return opa_ty
+    if opa_ty in RESIDENTIAL and osm_ty in RESIDENTIAL:
+        return opa_ty
+    return osm_ty
+
+
+def storey_m(ty: int, era: int) -> float:
+    """Floor-to-floor height used to turn a height into a story count: tall old floors, civic halls."""
+    if ty in (8, 10, 14, 15):
+        return 4.5
+    if era in (1, 2):
+        return 3.9
+    return 3.3

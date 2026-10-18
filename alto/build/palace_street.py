@@ -544,7 +544,11 @@ def _accuracy(fr, recs, st, preset, city, report):
         # typology
         nb = nbs.get(n_, set())
         twin = len(nb) == 1 and nbs.get(next(iter(nb)), set()) == {n_}
-        ty = oty or acc.osm_typology(t, area, h or 0.0, s_ or 0, len(nb), twin, philly)
+        ty = acc.choose_typology(oty, acc.osm_typology(t, area, h or 0.0, s_ or 0, len(nb), twin, philly), t.get("building") or t.get("building:part"))
+        if yr and not (cf & acc.CF_YEAR and yr == sty_year(t.get("start_date") or t.get("building:start_date") or t.get("construction_date"))) \
+                and (t.get("ref:nrhp") or t.get("heritage")) and yr > 1975:
+            yr = 0                                                  # a listed historic building "built" after 1975: the parcel's record is of something else
+            cf &= ~acc.CF_YEAR
         tall = (h or 0) >= 40 or (s_ or 0) >= 12
         if ty in (acc.TY["lowrise_apts"], acc.TY["midrise"]) and tall:
             ty = acc.TY["highrise"]
@@ -581,8 +585,6 @@ def _accuracy(fr, recs, st, preset, city, report):
              "fr": int(round(frm / Q)) if frm else 0, "by": by_, "pe": m if not part else 0, "fe": f + 1 if (f >= 0 and not part) else 0, "pw": pw, "pc": pc,
              "rd": _roof_dir(t), "cf": cf, "ar": str(t.get("architect") or ""), "hr": _heritage(t), "wp": str(t.get("wikipedia") or ""), "ex": int((o or {}).get("ex") or 0)}
         out.append(a)
-    if report is not None:
-        report.update(_coverage(out, recs, city))
     return out
 
 
@@ -625,6 +627,7 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=N
     of its text) and the manifest {header, "f": {id: bytes}, "c": {cell key: id}}. city: {"opa": rows, "lif": rows, "notes": [..]} (palace_street_city; None = OSM only).
     report: an optional dict the build fills with coverage counts (palace_street_acc.coverage)."""
     from . import palace_street_style as sty
+    from . import palace_street_acc as acc
     fr = Frame(bbox)
     preset = preset or sty.preset_for(bbox)
     cells: dict = {}
@@ -684,8 +687,11 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=N
                           ty=a["ty"], year=a["yr"])
         if not a["hs"]:
             a["hs"] = HS_GUESS if res["h"] else 0
-        if not a["st"] and a["hs"] in (1, 2, 3) and res["lv"]:
-            a["st"], a["ss"] = res["lv"], 4
+        if not a["st"] and a["hs"] in (1, 2, 3) and h:              # a measured height, no recorded count: stories from the height (tall old floors)
+            a["st"], a["ss"] = max(1, int(round(h / acc.storey_m(a["ty"], a["er"])))), 4
+            if not _int(t.get("building:levels")):
+                res["lv"] = a["st"]
+
         props = _trim(["%s%s" % ("p:" if part else "", (t.get("building:part") if part else t.get("building")) or "yes"),
                        res["lv"], int(round(res["h"] / Q)) if res["h"] else 0, res["bc"], res["bm"], str(t.get("roof:shape") or ""), res["rc"], str(t.get("roof:material") or ""),
                        _int(t.get("roof:levels")), str(t.get("name") or ""), _addr(t), _poi_cat(t), str(t.get("start_date") or t.get("building:start_date") or ""),
@@ -696,6 +702,8 @@ def build(bbox, bld_raw: dict, street_raw: dict, preset=None, scope=None, city=N
         if hs:
             rec.append(hs)
         put(k, "b", rec)
+    if report is not None:
+        report.update(_coverage(blk, recs, city))
 
     def pt_items(src, key, mk):
         for row in sorted(src, key=lambda r: r[:3]):
