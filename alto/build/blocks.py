@@ -956,10 +956,19 @@ def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
 
+def _solar_glue(plan: dict, nodes) -> str:
+    """window._ALTO_SOLAR (the whole plan, solar.py's contract) and the tree
+    glue that puts each circle's centre where the plan says."""
+    from .solar import solar_tree_plan
+    return ("\nwindow._ALTO_SOLAR=" + js_json(plan, separators=(",", ":")) + ";"
+            + dx.tree_glue(plan_js(solar_tree_plan(plan, nodes))))
+
+
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                     mgrid, mobile_world_h: int, *, reports_href: str = None,
                     view_path: str = "", connections: list = None,
-                    warnings: list = None, tree: bool = False) -> tuple[dict, dict]:
+                    warnings: list = None, tree: bool = False,
+                    solar: bool = False) -> tuple[dict, dict]:
     """Return (regions, tokens) for emit() against timeline_template.html.
 
     nodes must be validated, in narrative order, with col set and positions
@@ -970,6 +979,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
     tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes) if tree else None
+    # An outline drawn as solar systems (solar.py): the plan goes to the page
+    # whole, as window._ALTO_SOLAR (solar_draw reads it), and its circles'
+    # centres as a tree plan the page's _altoTree runs like any other.
+    solar_plan_ = None
+    if solar and b.mode == "outline":
+        from .solar import solar_plan as _solar_plan
+        solar_plan_ = _solar_plan(b, nodes)
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     _warn0 = warnings if warnings is not None else []
@@ -1504,7 +1520,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + ",parent:" + json.dumps(_parent) + "};"
                    + NUM_JS + OUTLINE_BODY + OUTLINE_PRINT_GLUE
                    + dx.NODE_NAME_GLUE + dx.ELEMENT_TREE
-                   + (dx.tree_glue(plan_js(tree_plan)) if tree else dx.HUBS_ABOVE_GLUE))
+                   + (dx.tree_glue(plan_js(tree_plan)) if tree
+                      else _solar_glue(solar_plan_, nodes) if solar_plan_
+                      else dx.HUBS_ABOVE_GLUE))
     if b.mode == "lanes":
         # The horizontal timeline (lanes.py): lines, times, and the layout
         # the engine's initLayout hands over to on desktop.
@@ -1638,7 +1656,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # A card sized by its owner (brief.card_size): its width, and the least
     # height it takes. After the tree's widths above, so it wins.
     _ids = {n.id for n in nodes}
-    for _i, _sz in sorted((b.card_size or {}).items()):
+    # (a solar circle's size is its role's, solar.SOLAR["D"])
+    for _i, _sz in sorted(() if solar_plan_ else (b.card_size or {}).items()):
         if _i in _ids and isinstance(_sz, dict):
             _d = ((f"width:{_sz['w']:g}px;" if _sz.get("w") else "")
                   + (f"min-height:{_sz['h']:g}px;" if _sz.get("h") else ""))

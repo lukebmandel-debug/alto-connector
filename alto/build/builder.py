@@ -14,7 +14,7 @@ from .emit import emit
 from .engine_patches import apply_patches
 from .layout import assign_columns, resolve, mobile_grid, sized_placement, \
     outline_order_and_columns, outline_spokes, outline_tree, outline_plan, \
-    placement_check, outline_has_categories, line_crossings, TREE
+    placement_check, outline_has_categories, line_crossings, run_plan, TREE
 from .brief import COL_SETS
 from .estimate import card_height
 from .sanitize import sanitize_brief, sanitize_connections, js_json
@@ -108,6 +108,21 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
     positions, heights, world_h, report = resolve(nodes, brief.columns,
                                                   len(brief.acts), flow_parent)
     report["layout"] = "flow"
+    if brief.mode == "outline" and brief.layout == "solar":
+        # Every unit a solar system (solar.py). Only ever by the author's
+        # choice: "auto" never lands here. The circles' centres go through the
+        # tree's own plan runner, so the page sees ordinary positions.
+        from .solar import solar_plan, solar_tree_plan, solar_heights, solar_summary
+        sp = solar_plan(brief, nodes)
+        heights = solar_heights(sp)
+        positions, _sx, _ = run_plan(solar_tree_plan(sp, nodes), nodes, heights)
+        world_h = sp["world"]["h"]
+        report = {"world_height": world_h, "moved_on_recheck": [], "per_column": {},
+                  "layout": "solar", "solar": solar_summary(sp)}
+        if sp["warnings"]:
+            report["solar"]["warnings"] = sp["warnings"]
+        mgrid, mobile_h = mobile_grid(nodes, brief.columns)
+        return positions, heights, world_h, mgrid, mobile_h, report
     if brief.mode == "outline" and brief.layout != "flow":
         plan = outline_plan(nodes, len(brief.acts), sized_placement(brief),
                             brief.tree_lines, brief.outcomes)
@@ -202,11 +217,13 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     positions, heights, world_h, mgrid, mobile_h, layout_report = \
         run_layout(brief, nodes, connections)
     warnings += _placement_warnings(layout_report.get("placement"))
+    warnings += (layout_report.get("solar") or {}).get("warnings") or []
 
     regions, tokens = timeline_blocks(
         brief, nodes, positions, heights, mgrid, mobile_h,
         reports_href=reports_href, connections=connections,
-        warnings=warnings, tree=layout_report.get("layout") == "tree")
+        warnings=warnings, tree=layout_report.get("layout") == "tree",
+        solar=layout_report.get("layout") == "solar")
     regions["connections"] = connections_block(connections)
 
     template = engine_template("timeline_template.html")

@@ -446,9 +446,10 @@ def outline_plan(nodes, act_count: int, placement: dict = None,
                                   block (its width lo..hi) starts at the top, or
                                   `gap` under the lowest card or block already
                                   placed that shares any of its width
-      ["float", op, top?]         op placed where the flow is (or at `top` on
+      ["float", op, top?, "mid"?] op placed where the flow is (or at `top` on
                                   the page), which does not move on: it takes
-                                  no room
+                                  no room. With "mid" (op a "card") `top` is
+                                  the card's centre, not its top
 
     Hints (brief.placement, {id: {...}}) all optional:
       arrange  how this card's children sit under it. "auto": a band's root
@@ -1254,7 +1255,10 @@ def run_plan(plan: dict, nodes, heights: dict):
                 top = max([c] + [b + gap for l, h, b in sky if l < hi and lo < h])
                 sky.append((lo, hi, run(o, top) - row_gap))
             return max(b for _, _, b in sky) + gap
-        run(op[1], op[2] if len(op) > 2 else c)          # float / pinned
+        # float / pinned; a 4th entry "mid" pins a card's CENTRE, whatever its
+        # height (solar.solar_tree_plan: circles at their orbit positions)
+        mid = len(op) > 3 and op[3] == "mid" and op[1][0] == "card"
+        run(op[1], (op[2] if len(op) > 2 else c) - (h[op[1][1]] / 2 if mid else 0))
         return c
 
     # `shift` hints move a card and its progeny after its unit is laid out:

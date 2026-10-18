@@ -171,7 +171,7 @@ window._altoTreeCalc = function(h, shift, TP, slide){
       });
       return Math.max.apply(null,sky2.map(function(s){ return s[2]; }))+gap;
     }
-    run(op[1],op.length>2?op[2]:c); return c;                 // float / pinned: takes no room
+    run(op[1],(op.length>2?op[2]:c)-(op[3]==='mid'&&op[1][0]==='card'?h[op[1][1]]/2:0)); return c;   // float / pinned: takes no room ("mid": top is the centre)
   }
   /* `shift` hints (layout.shift_offsets): a card and its progeny move after
      their unit is laid out; nothing else in it moves. `slide`: the card alone */
