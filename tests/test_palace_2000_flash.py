@@ -278,3 +278,18 @@ def test_a_street_manifest_that_fails_at_entry_is_asked_for_again_and_the_walk_g
     assert pg.evaluate("()=>window.__PS.calls") == 3                    # two failures, then the one that worked
     assert pg.evaluate("()=>window._palRide.roam.rwl.tries") == 0       # and the counters are clear again
     pg.evaluate("()=>{ window._palStreet=undefined; }")
+
+
+def test_trunks_and_lamp_posts_are_solid_in_the_real_world(roam):
+    """At running speed the camera used to pass through trunks (a full-screen dark flash). Each tree and lamp is a small circle the walker's circle cannot overlap."""
+    pg = roam
+    _enter(pg, 3945, 2012, 0.0)
+    o = pg.evaluate("""()=>{ var R=window._palRide.roam, OB=R.world().real.obst, n=0, first=null; Object.keys(OB).forEach(function(k){ n+=OB[k].length/3; if(!first) first=OB[k].slice(0,3); }); return {n:n, first:first, pr:R.state().pr}; }""")
+    assert o["n"] >= 5 and o["first"], o
+    tx, ty, tr = o["first"]
+    # walk straight at it from 12 units away at the jog pace: the circle must stop short of the trunk (the walker slides round it, never through)
+    r = pg.evaluate("""([tx,ty,tr])=>{ var R=window._palRide.roam, best=1e9, bad=0; var yaw=0; R.place(tx-12, ty, yaw); R.look(yaw,0); R.tick(0,'f',true);
+      for(var i=0;i<240;i++){ R.tick(1/60,'f',true); var s=R.state(); var d=Math.hypot(s.x-tx,s.y-ty); if(d<best) best=d; if(R.blocked(s.x,s.y)) bad++; } return {best:best, bad:bad}; }""", [tx, ty, tr])
+    assert r["bad"] == 0, r
+    assert r["best"] >= tr + o["pr"] - 0.15, (r, tr, o["pr"])
+    assert "function obstHit(x,y)" in palace_ride_e.JS_E and "buildingHit(x,y)||obstHit(x,y)" in palace_ride_e.JS_E

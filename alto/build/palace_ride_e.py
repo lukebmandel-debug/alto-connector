@@ -81,13 +81,17 @@ function ringHit(s,x,y,pr2){ var ring=s.ring, n=s.n, inside=false, j=n-1;
     j=i; }
   return inside; }
 function listHit(l,x,y,PR,pr2){ for(var i=0;i<l.length;i++){ var s=l[i], dx=x-s.cx, dy=y-s.cy, rr=s.r+PR; if(dx*dx+dy*dy>rr*rr) continue; if(ringHit(s,x,y,pr2)) return true; } return false; }
+/* trunks, lamp posts, hydrants, bins and signal poles of the real world (palace_ride_street.py W.real.obst): the player circle against small circles, 3 x 3 buckets of 64 units */
+function obstHit(x,y){ var OB=S.W&&S.W.real&&S.W.real.obst; if(!OB) return false; var PR=PRX(), bx=Math.floor(x/64), by=Math.floor(y/64), a, b, l, i;
+  for(a=-1;a<=1;a++) for(b=-1;b<=1;b++){ l=OB[(bx+a)+','+(by+b)]; if(!l) continue; for(i=0;i<l.length;i+=3){ var dx=x-l[i], dy=y-l[i+1], rr=l[i+2]+PR; if(dx*dx+dy*dy<rr*rr) return true; } }
+  return false; }
 function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), a, b, c;
   for(a=-1;a<=1;a++) for(b=-1;b<=1;b++){ c=S.cells[(ci+a)+','+(cj+b)]; if(c && listHit(c.small,x,y,PR,pr2)) return true; }
   return listHit(S.bigs,x,y,PR,pr2); }
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
 function blockedAt(x,y){
   if(IN.on) return insideBlocked(x,y);                             /* inside a building: its footprint is the room (palace_ride_inside.py) */
-  if(S.real) return buildingHit(x,y);
+  if(S.real) return buildingHit(x,y)||obstHit(x,y);
   if(x<CFG.edge || y<CFG.edge || x>E.M.W-CFG.edge || y>E.M.H-CFG.edge) return true;
   if(inWaterZone(x,y,0) && !onDeck(x,y)) return true;
   return buildingHit(x,y); }

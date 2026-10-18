@@ -308,6 +308,11 @@ function* gatherRealG(Xp, Yp, R, at){
               var d=Math.hypot(px-cx,py-cy), lod=d>FULL_R||nTf>=FULL_N; if(!lod) nTf++; it.trees.push([px*K,py*K,sceneryTreeAt(px,py),null,null,null,lod]); nP++; }); }
           if(accL>=gapL){ accL=0; gapL=(36+16*hashXY(x0,y0+s))*K*.5; side=-side; var lx=(x0+ux*s+nx*(w/2+.75*K)*side)/K, ly=(y0+uy*s+ny*(w/2+.75*K)*side)/K; if(!inR(lx,ly,R*.8)||nL>=240||it.lamps.length>=400) continue;
             if(rlPGnear(haveL,lx,ly,20)||hasB(lx,ly)) continue; it.lamps.push([lx*K,ly*K,-nx*side,-ny*side]); nL++; } } } });
+    /* solid things the walker must not pass through (a trunk is ~0.25 m, a lamp post 0.15 m ...): small circles in 64-unit buckets, read by palace_ride_e.py obstHit */
+    var OB={}, ob=function(x,y,r){ var k=Math.floor(x/64)+','+Math.floor(y/64); (OB[k]||(OB[k]=[])).push(x,y,r); };
+    it.trees.forEach(function(t){ ob(t[0],t[1],.33); }); it.lamps.forEach(function(l){ ob(l[0],l[1],.2); }); it.signals.forEach(function(l){ ob(l[0],l[1],.2); }); it.stops.forEach(function(l){ ob(l[0],l[1],.2); });
+    it.hydrants.forEach(function(l){ ob(l[0],l[1],.26); }); it.bins.forEach(function(l){ ob(l[0],l[1],.33); }); it.boxes.forEach(function(l){ ob(l[0],l[1],.5); });
+    W.real.obst=OB;
     yield; var cn=sceneryPlace(W,it); if(cn){ W.real.trees=cn.trees; W.real.lamps=cn.lamps; W.real.signals=cn.signals; W.real.stops=cn.stops; W.real.furn=cn.furn; W.real.procTrees=nP; W.real.procLamps=nL; }
   }catch(e){ if(window.console) console.warn('real street furniture',e); }
   Object.keys(roofMs).forEach(function(k){ if(roofMs[k].a.length) W.meshes.push({a:MB.done(roofMs[k]), id:'real:roof:'+k}); });      /* one per data chunk: the same chunk makes the same mesh in the next gather, so it is not uploaded again */
