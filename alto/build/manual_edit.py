@@ -51,6 +51,17 @@ touching (layout.separate). Held close to its own line (the one from its
 parent), a card slides along it alone (slide); taken off it, the cards under
 it come along (shift).
 
+A solar outline (layout 'solar', alto/build/solar.py) places every circle from
+its place in the outline, so there is no dragging or sizing there, a card cannot
+go deeper than a satellite, and after a structural change the page calls
+window._altoSolarSync({kids, parent, num, seqs, act}) so the solar layer can
+draw the systems again (alto/edits.py drops any dragged position or size).
+A circle dragged onto another goes under it (relink). On a Star chart (a palace
+in its stars view) the page has no outline tables, so they are made from
+window._ALTO_PALACE.par, a move is the palace's own floor edit (pf|<id>: a
+building may become a floor of another in its district), and before every call
+the page leaves window._ALTO_PALACE {fl, of, par, num} as the cards are now.
+
 Desktop: everything. Phones: text on the page being read (no dragging, no
 cards, filters or sections to add, no Claude half). Shares and copies opened from disk never offer it.
 """
@@ -185,6 +196,13 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #alto-edit-pill .aep-half:hover::after,#alto-edit-pill .aep-half:focus-visible::after{opacity:1;}
   html.dark:not(.mobile) #alto-edit-pill{color:var(--muted);}
   html.mobile #alto-edit-pill,html.alto-editing #alto-edit-pill,html.printing #alto-edit-pill{display:none !important;}
+  /* "Turn this into a star chart": on a Hub & spoke timeline only, above the toggle */
+  #alto-star-tile{position:fixed;right:30px;bottom:78px;z-index:309;height:38px;display:inline-flex;align-items:center;gap:9px;padding:0 17px 0 14px;
+    border-radius:19px;border:1.5px dashed color-mix(in srgb,var(--muted) 65%,transparent);background:var(--card-glass-bg,var(--surface));
+    color:var(--muted);font:inherit;font-size:13px;cursor:pointer;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
+  #alto-star-tile:hover,#alto-star-tile:focus-visible{color:var(--text);border-color:var(--muted);outline:none;}
+  #alto-star-tile svg{display:block;flex:none;}
+  html.mobile #alto-star-tile,html.alto-editing #alto-star-tile,html.printing #alto-star-tile{display:none !important;}
   .alto-edit-pill.in-page{display:none;margin:52px auto 28px;width:max-content;height:42px;border-radius:21px;
     background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));color:var(--muted);
     box-shadow:0 8px 22px var(--node-rest-shadow);}
@@ -231,6 +249,13 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;}
+  /* a star chart's circle dragged onto another to go under it (MANUAL_JS solar drag) */
+  html.alto-editing.alto-solar-edit:not(.mobile) #canvas .node-card{cursor:grab;}
+  html.alto-editing #canvas .node.aed-sdrag{pointer-events:none;z-index:80 !important;transition:none !important;}
+  html.alto-editing #canvas .node.aed-sdrag .node-card{opacity:.92;box-shadow:0 14px 36px var(--node-hover-shadow) !important;cursor:grabbing;}
+  #canvas .node.aed-shome{transition:translate .26s cubic-bezier(.2,.7,.3,1);}
+  #canvas .node.aed-drop-ok .node-card{outline:3px solid var(--accent,#7c5cff);outline-offset:3px;}
+  #canvas .node.aed-drop-no .node-card{outline:2px dashed #d9534f;outline-offset:3px;opacity:.62;}
   html.alto-editing:not(.mobile) #canvas .node-card .node-order{pointer-events:auto;cursor:text;border-radius:4px;padding:0 3px;margin:-1px -3px;transition:background .15s;}
   html.alto-editing:not(.mobile) #canvas .node-card .node-order:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);}
   .node.aed-moving .node-card{box-shadow:0 18px 44px var(--node-hover-shadow) !important;}
@@ -605,6 +630,29 @@ MANUAL_JS = r"""<script id="alto-manual">
   /* cards added and removed here, laid over the page's own (an outline's
      tree, or a unit's run of cards) */
   var OUT = window._ALTO_OUTLINE || null;
+  /* A Star chart (a Mind Palace in its stars view) carries no outline tables and no city script, only
+     window._ALTO_PALACE {none, fl, of, num, par}: its parent map is made into the outline's own (kids,
+     parent, num) here, so adding, moving and removing cards work as in any outline. A move is the
+     palace's own floor edit, pf|<id> (a building may be made a floor of another in its district), and
+     the page then tells the solar layer (solarSync). */
+  function isStars(){ var P = window._ALTO_PALACE; return !!(P && P.none && P.par && window._ALTO_SOLAR); }
+  if(!OUT && isStars()){
+    var SP = window._ALTO_PALACE, sk = {};
+    Object.keys(SP.fl || {}).forEach(function(r){ (SP.fl[r] || []).forEach(function(c){ var q = SP.par[c]; if(q) (sk[q] = sk[q] || []).push(c); }); });
+    OUT = {num: Object.assign({}, SP.num || {}), label: Object.assign({}, SP.num || {}), kids: sk, parent: Object.assign({}, SP.par)};
+  }
+  // the palace's numbers (palace.numbers): 3.4 the 4th building of unit 3, 3.4-2 its 2nd floor up
+  function starNums(seqs, K, P){
+    var num = {};
+    seqs.forEach(function(ids, a){
+      var b = 0;
+      ids.filter(function(i){ return !P[i]; }).forEach(function(r){
+        num[r] = (a + 1) + '.' + (++b); var j = 0, st = (K[r] || []).slice().reverse();
+        while(st.length){ var f = st.pop(); num[f] = (a + 1) + '.' + b + '-' + (++j); st = st.concat((K[f] || []).slice().reverse()); }
+      });
+    });
+    return num;
+  }
   var CARDS0 = null, NEWC = {}, NEWO = [], GONE = {};
   // units added here (in the order they were made), cards moved under
   // another card (the id moved: its new parent), and what that moved
@@ -839,7 +887,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       if(!changed){ fill(OUT.num, B.num); fill(OUT.label, B.label); }
       else {
         // numbering.py: 2, 2.e, 2.e.6, 2.e.6.2-1c … from the outline as it is now
-        var num = window._altoPathNums(seqs, kids, par), lab = Object.assign({}, num);
+        var num = isStars() ? starNums(seqs, kids, par) : window._altoPathNums(seqs, kids, par), lab = Object.assign({}, num);
         fill(OUT.num, num); fill(OUT.label, lab);
       }
     }
@@ -1210,6 +1258,11 @@ MANUAL_JS = r"""<script id="alto-manual">
   // {get(), set(v), kind:'plain'|'html'|'shift'} for a key, or null when the page has no such field.
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
+    if(kind === 'pf' && isStars() && p.length === 2){
+      var B5 = cardsBase(); if(!B5 || !OUT || !B5.par || !B5.src.some(function(n){ return n.id === id; })) return null;
+      return {kind:'card', get:function(){ return REPAR[id] != null ? REPAR[id] : (B5.par[id] || ''); },
+        set:function(v){ if(v == null || v === (B5.par[id] || '')) delete REPAR[id]; else { REPAR[id] = v; if(REPO.indexOf(id) < 0) REPO.push(id); } syncCards(); }};
+    }
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
     if(LN && (kind === 'ln' || kind === 'fb' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
@@ -1442,6 +1495,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var cv = document.getElementById('canvas');
     if(cv && getComputedStyle(cv).display === 'none'){ relayLater = true; return; }
     relayLater = false;
+    solarSync();
     try{ initLayout(); if(window._applyActiveFilters) window._applyActiveFilters(); }catch(e){}
     try{ if(window._altoFilterRefresh && window._altoChipOn && window._altoChipOn()) window._altoFilterRefresh(); }catch(e){}
     decorateCanvas(); paintPick();
@@ -1547,14 +1601,14 @@ MANUAL_JS = r"""<script id="alto-manual">
     var p = k.split('|'), kind = p[0], P = page(), dc = document.getElementById('detail-content');
     if(kind === 'bt'){ headingSoon(); return; }
     if((kind === 'n' || kind === 'nn' || kind === 'nd') && window._altoSearch && window._altoSearch.reset) window._altoSearch.reset();     // the search index: the cards as they are now
-    if(kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
+    if((kind === 'pf' && !isStars()) || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || ''))){ if(window._altoPalaceRefresh) window._altoPalaceRefresh(); return; }
     if(kind === 'nl' || kind === 'ln' || kind === 'fb' || (kind === 'n' && /^(when|line|present|flash)$/.test(p[2] || ''))){ relayoutSoon(); return; }
     if(kind === 'ch' || kind === 'ne' || kind === 'xe' || kind === 'xa' || kind === 'na'){
       relayoutSoon(); navSync(); chipPopSync();
       if(P && (P.type === 'node' || kind === 'ne')){ rerenderPage(P); repaint(); }
       return;
     }
-    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || kind === 'ua' || kind === 'ud' || kind === 'so' || kind === 'sx'){
+    if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || (kind === 'pf' && isStars()) || kind === 'ua' || kind === 'ud' || kind === 'so' || kind === 'sx'){
       if(window._altoPalaceDirty) window._altoPalaceDirty();      // a Mind Palace: its buildings and numbers again
       relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
       if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
@@ -1624,7 +1678,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     try{ if(window._focusedNodeId && window.exitFocus) window.exitFocus(); }catch(e){}
     markSections();
     root.classList.add('alto-editing');
-    root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !root.classList.contains('mobile') && !PHONE));
+    root.classList.toggle('alto-solar-edit', isSolar() && !root.classList.contains('mobile') && !PHONE);
+    root.classList.toggle('alto-drag-ok', !!(plan() && window._altoTreeOn && !isSolar() && !root.classList.contains('mobile') && !PHONE));
     exitPill(); setStatus(status); syncHist(); listen();
     var P = page(); if(P) rerenderPage(P);
     decorate(); decorateOv();
@@ -1708,8 +1763,22 @@ MANUAL_JS = r"""<script id="alto-manual">
   // The toggle holds the corner of the row (CSS: right/bottom 30); the engine's
   // alignInfo lines search, info and light/dark up to its left, so tell it when
   // the toggle exists or changes.
+  // A Hub & spoke timeline (layout solar, still style) offers its way to the moving
+  // version: Claude opens with this timeline named, to convert it (convert_timeline).
+  var STAR_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10.5" ry="3.8" transform="rotate(-24 12 12)"/></svg>';
+  function starTile(){
+    var S = window._ALTO_SOLAR, E = window._ALTO_EDIT || {}, tid = String(E.key || '').replace(/^alto-doc-/, '');
+    if(!S || S.style !== 'spoke' || !tid || tid.indexOf('s-') === 0 || document.getElementById('alto-star-tile')) return;
+    var b = document.createElement('button'); b.type = 'button'; b.id = 'alto-star-tile';
+    b.setAttribute('aria-label', 'Turn this into a star chart'); b.innerHTML = STAR_SVG + '<span>Turn this into a star chart</span>';
+    b.addEventListener('click', function(e){ e.stopPropagation();
+      if(window._altoAskClaude) window._altoAskClaude('Turn this Hub & spoke timeline into a Star chart (a Mind Palace in star-chart mode, the moving version), '
+        + 'keeping all of its content: every card, section, chip, line and my own edits, using Alto\'s convert_timeline (to="star_chart"). Tell me how to go back to Hub & spoke if I want.'); });
+    document.body.appendChild(b);
+  }
   function placeDesk(){
     if(PHONE || root.classList.contains('mobile')) return;
+    starTile();
     deskPill();
     if(window._altoAlignInfo) window._altoAlignInfo();
   }
@@ -1867,14 +1936,49 @@ MANUAL_JS = r"""<script id="alto-manual">
     items.push(['chipc', '◆', 'Chips: add one to this card, or take one off']);
     items.push(['delc', '✕', kidsOf(id).some(function(k){ return !cardGone(k); }) ? 'Remove this card — you choose what happens to the cards under it' : 'Remove this card']);
     if(items.length) card.appendChild(ctl('aed-cc', items, {cid: id}));
-    if(!card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
+    if(!isSolar() && !card.querySelector(':scope > .aed-rz')){ var rz = document.createElement('span'); rz.className = 'aed-rz'; rz.title = 'Drag to change its size';
       rz.setAttribute('aria-hidden', 'true'); rz.addEventListener('pointerdown', function(e){ startResize(e, id); }); card.appendChild(rz); }
   });
+  /* a solar outline (solar.py): sun > planets > moons > satellites, where each
+     circle sits is decided by its place in the outline — so no dragging, no
+     sizing, and nothing deeper than a satellite */
+  function isSolar(){ return !!window._ALTO_SOLAR; }
+  var SOLAR_MAX = 3;
+  function depthOf(id){ var P = (OUT && OUT.parent) || {}, d = 0; while(P[id] && d < 60){ id = P[id]; d++; } return d; }
+  function heightOf(id){ var h = 0; liveKids(id).forEach(function(k){ h = Math.max(h, 1 + heightOf(k)); }); return h; }
+  // would a card (with the cards under it) pass the satellites if it went under np?
+  function solarDeep(np, id){ return isSolar() && !!np && depthOf(np) + 1 + (id ? heightOf(id) : 0) > SOLAR_MAX; }
+  function moveKey(){ return isStars() ? 'pf|' : 'rp|'; }       // a Star chart's move is the palace's floor edit
+  // a Star chart's floor edit keeps a building's floors in its own district
+  function sameDistrict(a, b){ return !isStars() || (typeof NODE_ACT !== 'undefined' && NODE_ACT[a] === NODE_ACT[b]); }
+  function solarNo(){ toast('A solar system goes sun, planet, moon, satellite — no further. Choose a card nearer the sun.'); }
+  // The page's cards changed shape: the solar layer (window._altoSolarSync, solar_draw.py)
+  // draws the systems again from the live tables. Without it the circles stay as built.
+  var solarWarned = false;
+  function solarSync(){
+    if(!isSolar()) return;
+    if(isStars() && OUT){       // the page's palace tables as the cards are now (what a Star chart's layer reads)
+      var SP = window._ALTO_PALACE, kk = OUT.kids || {}, pp = OUT.parent || {}, fl = {}, of = {};
+      Object.keys(kk).forEach(function(q){ if(pp[q]) return; var out = [], st = (kk[q] || []).slice().reverse();
+        while(st.length){ var f = st.pop(); out.push(f); of[f] = q; st = st.concat((kk[f] || []).slice().reverse()); }
+        if(out.length) fl[q] = out; });
+      SP.fl = fl; SP.of = of; SP.par = Object.assign({}, pp); SP.num = Object.assign({}, OUT.num || {});
+    }
+    if(typeof window._altoSolarSync === 'function'){
+      try{ window._altoSolarSync({kids: (OUT && OUT.kids) || {}, parent: (OUT && OUT.parent) || {}, num: (OUT && OUT.num) || {},
+        seqs: (typeof ACT_SEQS !== 'undefined') ? ACT_SEQS : [], act: (typeof NODE_ACT !== 'undefined') ? NODE_ACT : {}}); }catch(e){}
+      return;
+    }
+    root.classList.add('alto-solar-stale');
+    if(!solarWarned && (MOVED.length || NEWO.length || SWAPPED.length || REORD.length || Object.keys(GONE).length)){
+      solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this timeline.'); }
+  }
   function addCard(p, a){
     if(!cardsBase()) return;
     // an outline's unit has one card at its top (brief: one hub per unit): a
     // card added to the unit goes under it
     if(!p && OUT){ var hub = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === a && !(OUT.parent || {})[n.id]; })[0]; if(hub) p = hub.id; }
+    if(solarDeep(p)){ solarNo(); return; }
     var id = rid('card-'), par = p ? srcNode(p) : null, act = par ? NODE_ACT[p] : a;
     var inAct = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === act; }), like = par || inAct[inAct.length - 1] || null;
     var spec = {p: p || '', a: unitKeyOf(act), t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
@@ -1920,7 +2024,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!LINK) return;
     var P = (OUT && OUT.parent) || {};
     document.querySelectorAll('#world .node').forEach(function(el){ var i = el.id.slice(5);
-      el.classList.toggle('aed-link-no', LINK.S.indexOf(i) >= 0); el.classList.toggle('aed-link-at', P[LINK.id] === i); });
+      el.classList.toggle('aed-link-no', LINK.S.indexOf(i) >= 0 || solarDeep(i, LINK.id)); el.classList.toggle('aed-link-at', P[LINK.id] === i); });
     var b = document.getElementById('aed-linkbar');
     if(!b){ b = document.createElement('div'); b.id = 'aed-linkbar';
       b.innerHTML = '<span class="ap-t"></span><button type="button">Cancel</button>';
@@ -1934,10 +2038,12 @@ MANUAL_JS = r"""<script id="alto-manual">
     var S = dfsOf((OUT && OUT.kids) || {}, id);
     if(S.indexOf(np) >= 0){ toast('A card cannot go under itself or a card under it.'); return false; }
     if(((OUT && OUT.parent) || {})[id] === np){ endLink(); return false; }
+    if(solarDeep(np, id)){ solarNo(); return false; }
+    if(!sameDistrict(id, np)){ toast('A Star chart moves a circle within its district.'); return false; }
     var ok, to = srcNode(np);
     if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.p = np; sp.a = unitKeyOf(NODE_ACT[np]); ok = change('nn|' + id, sp); }
     else {
-      var L = [['rp|' + id, np]];
+      var L = [[moveKey() + id, np]];
       ['shift', 'slide'].forEach(function(hk){ var sf = field('p|' + id + '|' + hk); if(sf && sf.get()) L.push(['p|' + id + '|' + hk, null]); });
       ok = changes(L);
     }
@@ -2164,6 +2270,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     var np = Object.keys(NODE_ORDER_MAP).filter(function(k){ return NODE_ORDER_MAP[k] === pnum && srcNode(k) && !cardGone(k); })[0];
     if(!np){ toast('No card is numbered ' + pnum + ', so there is nothing for it to go under.'); return; }
     if(branchOf(id).indexOf(np) >= 0){ toast(pnum + ' is this card or a card under it — a card cannot go under itself.'); return; }
+    if(np !== p && solarDeep(np, id)){ solarNo(); return; }
+    if(np !== p && !sameDistrict(id, np)){ toast('A Star chart moves a circle within its district.'); return; }
     var sibs = liveKids(np).filter(function(k){ return k !== id; });
     var at = Math.min(pos, sibs.length), list = sibs.slice(); list.splice(at, 0, id);
     var holder = liveKids(np)[pos], same = np === p;
@@ -2188,7 +2296,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var L = [];
     if(!same){
       if(isNew(id)){ var sp = JSON.parse(JSON.stringify(NEWC[id].spec)); sp.p = np; sp.a = unitKeyOf(NODE_ACT[np]); L.push(['nn|' + id, sp]); }
-      else { L.push(['rp|' + id, np]);
+      else { L.push([moveKey() + id, np]);
         ['shift', 'slide'].forEach(function(hk){ var sf = field('p|' + id + '|' + hk); if(sf && sf.get()) L.push(['p|' + id + '|' + hk, null]); }); }
     }
     // its turn among the children: only a card the page was built with keeps an order
@@ -2236,7 +2344,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function underOps(kid, np, unitKey){
     if(isNew(kid)){ var sp = JSON.parse(JSON.stringify(NEWC[kid].spec)); sp.p = np;
       if(!np) sp.a = unitKey != null ? unitKey : unitKeyOf(NODE_ACT[kid]); return ['nn|' + kid, sp]; }
-    return ['rp|' + kid, np];
+    return [moveKey() + kid, np];
   }
   // a card (and, in an outline, all under it) into another unit
   function intoOps(id, key){
@@ -2266,7 +2374,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function unitGoneOp(i){ var k = unitKeyOf(i); return typeof k === 'string' ? ['nu|' + k, null] : ['ud|' + k, 1]; }
   function deleteUnit(i){
     var ids = unitIds(i), N = ids.length, U = PHASE_META.length, nm = unitName(i);
-    var few = U <= 2, why = 'A timeline keeps at least two units.';
+    var minU = isSolar() ? 1 : 2, few = U <= minU, why = 'A timeline keeps at least ' + (minU === 1 ? 'one unit' : 'two units') + '.';
     var cards = N === 1 ? 'its card' : 'its ' + N + ' cards';
     var A = [{label: 'Move ' + cards + ' to'}];
     for(var j = 0; j < U; j++) if(j !== i) (function(j){ A.push({t: unitName(j), off: few, why: why, fn: function(){ moveUnit(i, j); }}); })(j);
@@ -3698,7 +3806,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     return {ax: 'y', p: p || null};
   }
   window.addEventListener('pointerdown', function(e){
-    if(!editing() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
+    if(!editing() || isSolar() || !root.classList.contains('alto-drag-ok') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t))) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-rz')) return;
     var id = nodeEl.id.replace(/^node-/, ''); if(PICK || LINK || isNew(id) || !srcNode(id) || !field('p|' + id + '|shift')) return;
@@ -3795,6 +3903,71 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   window.addEventListener('pointerup', endDrag, true);
   window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); clearPreview(); }, true);
+
+  /* A star chart (solar) circle dragged onto another circle goes under it, with
+     everything that orbits it: the same move as the card menu's ⇄ (relink →
+     rp|), after which the page tells the solar layer (solarSync) to draw the
+     systems again. Nothing is stored about where it was dropped. The circle
+     itself follows the pointer (the CSS `translate` property, apart from the
+     layer's own placement; orbit motion is paused while editing). Dropped
+     on empty space or a refused circle, or Escape: it goes home. */
+  var sdrag = null;
+  function sdragTarget(e, d){
+    var els = document.elementsFromPoint(e.clientX, e.clientY), i, n, id;
+    for(i = 0; i < els.length; i++){ n = els[i].closest && els[i].closest('#canvas .node'); if(n && n !== d.self){ id = n.id.replace(/^node-/, ''); if(srcNode(id)) return {el: n, id: id}; } }
+    return null;
+  }
+  function sdragVerdict(t, d){
+    if(!t) return {ok: false, tip: 'Drop it on another circle to move it under that circle — anywhere else puts it back'};
+    var P = (OUT && OUT.parent) || {};
+    if(d.S.indexOf(t.id) >= 0) return {ok: false, quiet: true, tip: 'A circle cannot go under itself or one that orbits it'};
+    if(P[d.id] === t.id) return {ok: false, quiet: true, tip: 'It is already under “' + titleOf(t.id) + '” — use its number to change its turn'};
+    if(!sameDistrict(d.id, t.id)) return {ok: false, tip: 'A Star chart moves a circle within its district'};
+    if(solarDeep(t.id, d.id)) return {ok: false, tip: 'Too deep — a star chart goes sun, planet, moon, satellite and no further'};
+    var n = d.S.length - 1;
+    return {ok: true, tip: 'Move under “' + titleOf(t.id) + '”' + (n ? ' — the ' + (n === 1 ? 'circle' : n + ' circles') + ' that orbit it come along' : '')};
+  }
+  function sdragMarks(t, v){
+    document.querySelectorAll('#canvas .node.aed-drop-ok, #canvas .node.aed-drop-no').forEach(function(el){ if(!t || el !== t.el) el.classList.remove('aed-drop-ok', 'aed-drop-no'); });
+    if(t){ t.el.classList.toggle('aed-drop-ok', v.ok); t.el.classList.toggle('aed-drop-no', !v.ok); }
+  }
+  function sdragEnd(drop, e){
+    var d = sdrag; if(!d) return; sdrag = null;
+    if(d.on){ dragJustEnded = true; setTimeout(function(){ dragJustEnded = false; }, 400); }
+    root.classList.remove('alto-dragging');
+    var tip = document.getElementById('aed-rztip'); if(tip) tip.classList.remove('show');
+    var t = drop && d.on ? sdragTarget(e, d) : null, v = t ? sdragVerdict(t, d) : null;
+    document.querySelectorAll('#canvas .node.aed-drop-ok, #canvas .node.aed-drop-no').forEach(function(el){ el.classList.remove('aed-drop-ok', 'aed-drop-no'); });
+    d.self.classList.remove('aed-sdrag');
+    if(t && v && v.ok){ d.self.style.translate = ''; relink(d.id, t.id); return; }
+    if(t && v && !v.quiet) solarNo();
+    if(d.on){                                                   // back to its place
+      d.self.classList.add('aed-shome'); d.self.style.translate = '';
+      setTimeout(function(){ d.self.classList.remove('aed-shome'); }, 320);
+    }
+  }
+  window.addEventListener('pointerdown', function(e){
+    if(!editing() || !isSolar() || !root.classList.contains('alto-solar-edit') || e.button !== 0) return;
+    var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t)) || PICK || LINK || LPICK) return;
+    var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-cc,.aed-rz,[contenteditable="true"]')) return;
+    var id = nodeEl.id.replace(/^node-/, ''); if(!srcNode(id) || !(((OUT && OUT.parent) || {})[id] || isStars())) return;      // a Hub & spoke's sun stays; a Star chart's building may become a floor
+    sdrag = {id: id, x0: e.clientX, y0: e.clientY, k: scale(nodeEl), on: false, self: nodeEl, S: dfsOf((OUT && OUT.kids) || {}, id)};
+  }, true);
+  window.addEventListener('pointermove', function(e){
+    if(!sdrag) return;
+    var dx = e.clientX - sdrag.x0, dy = e.clientY - sdrag.y0;
+    if(!sdrag.on){ if(Math.abs(dx) + Math.abs(dy) < 6) return; sdrag.on = true; if(cur) endField(true);
+      root.classList.add('alto-dragging'); sdrag.self.classList.add('aed-sdrag'); sdrag.self.classList.remove('aed-shome'); }
+    e.preventDefault();
+    sdrag.self.style.translate = Math.round(dx / sdrag.k) + 'px ' + Math.round(dy / sdrag.k) + 'px';
+    var t = sdragTarget(e, sdrag), v = sdragVerdict(t, sdrag);
+    sdragMarks(t, v);
+    var b = document.getElementById('aed-rztip'); if(!b){ b = document.createElement('div'); b.id = 'aed-rztip'; document.body.appendChild(b); }
+    b.textContent = v.tip; b.style.left = (e.clientX + 16) + 'px'; b.style.top = (e.clientY + 16) + 'px'; b.classList.add('show');
+  }, true);
+  window.addEventListener('pointerup', function(e){ sdragEnd(true, e); }, true);
+  window.addEventListener('pointercancel', function(e){ sdragEnd(false, e); }, true);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && sdrag){ e.preventDefault(); e.stopPropagation(); sdragEnd(false, e); } }, true);
 
   // A timeline just started on the homepage opens ready to write in.
   function startHere(){

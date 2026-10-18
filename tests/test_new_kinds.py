@@ -1,5 +1,6 @@
-"""The new-timeline dialog offers three starts, each with a small preview:
-Outline, Timeline Sketch (kind `timeline`) and Timeline Horizontal (kind `lanes`).
+"""The new-timeline dialog offers four tiles, each with a small preview: Timeline
+(Sketch: kind `timeline`, or Horizontal: kind `lanes`), Outline, Hub & spoke
+(kind `solar`) and Mind Palace (City: Claude's, or Star chart: kind `stars`).
 Looked at in Chromium and WebKit, desktop and phone, light and dark, against a
 stand-in account."""
 import re
@@ -16,13 +17,24 @@ def _home():
     return (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
 
 
-def test_the_dialog_has_three_choices_each_with_its_own_preview():
+def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     h = _home()
     kinds = re.findall(r'<button type="button" class="nt-kind[^"]*" data-kind="(\w+)"', h)
-    assert kinds == ["outline", "timeline", "lanes"]
+    assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    assert blk.count('class="nt-pv"') == 3
-    assert "Sketch" in blk and "Horizontal" in blk
+    assert blk.count('class="nt-pv"') == 6                       # one each, and a second for the two with modes
+    for want in ("Timeline", "Outline", "Hub &amp; spoke", "Mind Palace", ">Sketch<", ">Horizontal<", ">City<", ">Star chart<"):
+        assert want in blk, want
+
+
+def test_the_timeline_and_mind_palace_tiles_choose_a_mode_that_picks_the_starter():
+    h = _home()
+    js = h[h.index("function ntResolve()"):h.index("function ntClose()")]
+    assert "ntModes.timeline === 'horizontal' ? 'lanes' : 'timeline'" in js        # Sketch / Horizontal keep their kind ids
+    assert "ntModes.palace === 'stars' ? 'stars' : 'palace'" in js
+    # the city needs the real map, so it goes to Claude's own route instead of making a starter
+    assert "if(ntKind === 'palace'){ ntClose(); openClaude(palacePrompt(inProject)); return; }" in h
+    assert "ntKind === 'palace' ? 'Build it with Claude' : 'Start writing'" in h
 
 
 def test_the_previews_follow_the_page_colours_and_respect_reduced_motion():
@@ -38,9 +50,9 @@ def test_the_chosen_kind_is_marked_and_sent_on():
     assert "aria-pressed" in h and "kind: ntKind" in h
 
 
-def test_the_cloud_accepts_lanes_and_defaults_the_rest_to_outline():
+def test_the_cloud_accepts_every_starter_and_defaults_the_rest_to_outline():
     js = SOURCE.read_text(encoding="utf-8")
-    assert "(o.kind === 'timeline' || o.kind === 'lanes') ? o.kind : 'outline'" in js
+    assert "(o.kind === 'timeline' || o.kind === 'lanes' || o.kind === 'solar' || o.kind === 'stars') ? o.kind : 'outline'" in js
 
 
 def test_the_lanes_starter_is_a_story_with_characters_and_a_flashback():

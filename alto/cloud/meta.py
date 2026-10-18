@@ -22,6 +22,7 @@ _NODE = re.compile(
     r"\{id:'((?:[^'\\]|\\.)*)'[\s\S]*?title:'((?:[^'\\]|\\.)*)'\s*,\s*"
     r"desc:'((?:[^'\\]|\\.)*)'")
 _COURSE = re.compile(r"var COURSE_ID = '([^']*)';")
+_HUB_SPOKE = re.compile(r'window\._ALTO_SOLAR=\{"style":"spoke"')
 
 
 def _unq(s: str) -> str:
@@ -57,9 +58,12 @@ def meta_of(h: str) -> dict:
         search.append({"id": _unq(m.group(1)), "t": _unq(m.group(2)),
                        "d": _unq(m.group(3))[:DESC_CAP]})
     cm = _COURSE.search(h)
-    return {"title": project or heading, "heading": heading, "project": project,
-            "tid": cm.group(1) if cm else "", "units": units, "search": search,
-            "v": META_V}
+    out = {"title": project or heading, "heading": heading, "project": project,
+           "tid": cm.group(1) if cm else "", "units": units, "search": search,
+           "v": META_V}
+    if _HUB_SPOKE.search(h):         # a Hub & spoke timeline: its menu offers the star chart
+        out["view"] = "hubspoke"
+    return out
 
 
 def title_of(h: str) -> str:

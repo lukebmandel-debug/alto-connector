@@ -314,10 +314,19 @@ Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
 **§D-Outline** below, horizontal to **§D-Lanes**.
 
+An outline can also be drawn as **Hub & spoke** (round nodes on straight
+spokes: each unit's hub in the middle, its concepts around it) — **§D-Solar**.
+It is the same outline with the same numbers, pages and edits, only a different
+picture; raise it once the structure is known (§D-Solar says when), never
+before, and never for a sketch, a horizontal timeline or a Mind Palace. Its
+moving version is the **Star chart** (**§D-Stars**), a view of a Mind Palace.
+
 A third shape, only when the user asks for it by name (a **Mind Palace**, a
-memory palace, "put my outline on a city") — never offered unprompted:
-`mode: 'palace'`, **§D-Palace**. Only Claude can start one; the homepage's
-"+ New timeline" has no Mind Palace starter.
+memory palace, "put my outline on a city", "a solar system / galaxy / star
+chart") — never offered unprompted: `mode: 'palace'`, **§D-Palace** (the
+city, `palace_view: 'city'`) or **§D-Stars** (the Star chart, `palace_view:
+'stars'`). Only Claude can build a city (it needs the real map); the
+homepage's "+ New timeline" can start only the Star chart view.
 
 ### §D-Palace. A Mind Palace (`mode: 'palace'`)
 The method of loci on a real map: each section is a district of a real city,
@@ -424,6 +433,135 @@ its floors, reached by an elevator inside the building.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
   flashback (or a new one) or take it out, and add or rename lines.
+
+### §D-Solar. Hub & spoke (`mode: 'outline'`, `layout: 'solar'`)
+"Hub & spoke" is what the student calls it; `solar` is only the id in the
+tools. An outline drawn as hubs with round nodes on straight spokes, in
+Alto's usual look and standing still. Nothing about the content changes: the
+student's concepts, their `parent`s, the numbers (2, 2.a, 2.a.1, 2.a.1.1), the
+detail pages, search, filters, print and manual edits are the outline's own.
+Only the picture is different. A Hub & spoke is always still: the moving
+version is the Star chart, below.
+
+**When to offer it.** Only in an outline, and only after the structure is
+known (D-Outline steps 1-3), when it fits: each unit has one hub concept with
+a ring of sub-concepts around it, and the student wants — or lights up at —
+the hub-and-spoke picture. Offer it once, in a sentence, with the tree as the
+default; do not push it on an outline that is mostly a long chain or goes
+deeper than four levels. Never for a sketch, a horizontal timeline or a Mind
+Palace.
+
+> "Your outline can also be drawn as **Hub & spoke**: each unit's main concept
+> in the middle, its sub-concepts around it on spokes, theirs around them, and
+> a concept's own parts as tiny circles. Same outline, same numbers, just a
+> different picture. Want to see it that way, or keep the usual tree?"
+
+**What is fixed** (say so if asked; none of it is theirs or yours to change):
+- Depth decides the body. The unit's hub (no `parent`) is the **sun**, its
+  children **planets**, their children **moons**, one level deeper
+  **satellites**. Nothing goes deeper: a fifth level is refused when you
+  build, with the card and its path named. Do not flatten it quietly — tell
+  the student which concept sits too deep and ask where they want it (a card
+  moved up, or a branch cut). That is their structure; you do not choose for
+  them.
+- **The order of the planets is the outline's order.** The first planet sits
+  on the innermost ring, the next one ring further out, one planet to a ring.
+  A planet's moons share one small ring around it. To change who is nearer
+  the sun, change the order of the outline (their order, in their words), never
+  coordinates: `place_nodes` positions do not apply here, and `order` alone
+  (a card's turn among its siblings) still does.
+- Circle sizes follow depth (sun largest, satellites tiniest) and, within a
+  depth, how much hangs off a circle: a planet with more moons is drawn
+  larger, a moon with more satellites likewise; a flag the student marked as
+  pivotal, critical or extremely important bumps a circle up one size. Nothing
+  to ask them about. A circle shows its number and short title; the
+  description and everything else appear when it is opened.
+- Cross-links (`add_connections`) are drawn as ordinary lines between circles.
+- A phone keeps the usual single-column card view; Hub & spoke is a computer
+  view. A big chart is fine: the reader scrolls, or zooms out to see all of it
+  with the circles shrinking along.
+
+**Ask** (with the default stated, so one word answers): **One system in great
+detail, or several — one per unit?** Judge from what the outline holds and say
+what you see: a rich outline of one subject (many sub-concepts, moons and
+satellites under them) shows best as ONE detailed system; a course of several
+distinct units shows best as one system per unit. "Should this be a single
+chart with one hub and everything around it, or one for each unit, side by
+side — you scroll between them? Your outline looks like <one detailed system /
+several units>; which do you want?" One system → the whole outline in a single
+unit hanging from a single hub (a one-unit Hub & spoke is valid; every other
+timeline needs two units); several (the default when the student has several
+units) → each unit's hub is that unit's sun. The units are the student's
+(D-Outline step 1); never invent a unit or a hub to make a system.
+
+→ `create_timeline` brief (or `build_timeline` / `run_layout_preview`):
+`layout: 'solar'`. Everything else in D-Outline applies unchanged. The build
+report describes the systems; run `run_layout_preview(layout='solar')` before
+`build_timeline`, and read any warning aloud in plain words.
+
+**In the page.** The owner edits a Hub & spoke timeline as any outline: words,
+adding a card under a card, moving a card under another (drag its circle onto
+the other circle, or use the card menu or its number), putting siblings in
+another order (its number, or the menu), swapping, deleting. The picture
+redraws from the new structure; a circle cannot be left "somewhere", because
+where it sits is decided by its place in the outline. Dropping a circle on
+empty space, or on a circle that would make it too deep (past a satellite) or
+on one of its own, puts it back.
+
+**Moving it: the Star chart.** Every Hub & spoke page carries a small
+ringed-planet tile, "Turn this into a star chart" (and the homepage's ⋯ menu has
+the same entry). Offer the conversion **once, at the end of the build**, and
+again whenever the student says it should move, orbit, or look like a solar
+system or a galaxy: "This one holds still; the same timeline can also be a
+**Star chart**, with the planets and moons slowly orbiting. Want me to turn it
+into one?" Do it with `convert_timeline(timeline_id, to='star_chart')`, then
+rebuild and republish. **Nothing is lost**: every card, section, chip, line,
+flag and the student's own edits come across, and it can be turned back into
+Hub & spoke with `convert_timeline(timeline_id, to='hub_and_spoke')` whenever
+they like — say so, so a try costs nothing (the tool also saves the brief as it
+was, beside the timeline, and its reply names the file). Offer `star_chart`
+only on a Hub & spoke; offer `hub_and_spoke` only on a Star chart whose
+districts hold one building each. If the tool refuses (a city palace, a
+district with several buildings), say why in plain words and what stays as it
+is; never rebuild the timeline by hand to imitate the conversion. After it,
+`build_timeline` and `publish_timeline`.
+
+### §D-Stars. Star chart (`mode: 'palace'`, `palace_view: 'stars'`)
+"Star chart" is a Mind Palace drawn as slowly moving solar systems instead of
+a city. The Mind Palace's structure is the outline's: every building (a node
+with no `parent`) becomes a **sun**, its floors **planets** (the order of the
+floors is the order of the rings, innermost first), their children **moons**,
+theirs **satellites**; a fifth level is refused with the card named (the
+message adds that the palace can stay a city) — ask the student where it should
+go, as in §D-Solar. One sun per ROOT building: a district with several
+buildings is several systems. Districts (units) set the systems
+side by side. No city is needed, so no map and no place to ask for; do not
+ask which city. The student can start one on their homepage ("Mind Palace" →
+"Star chart") or you build it with `create_timeline(mode='palace',
+palace_view='stars')`, then `add_nodes` as for any outline (D-Outline).
+
+**What it looks like** (say so if asked): circles are bigger the more hangs off
+them (a planet with more moons, a moon with more satellites), and a flag the
+student marked as pivotal, critical or extremely important bumps a circle up
+one size. Planets revolve around their sun, inner rings faster (a full turn
+takes a minute or two), moons around their planet faster still, satellites
+around their moon; with several systems the whole picture drifts slowly. All
+motion stops on hover, on a focused circle, while editing, in print, and for
+anyone who asks their device for reduced motion. The reader can zoom out to see
+every system at once, the circles shrinking with it. A phone keeps the
+single-column card view. The student can drag a circle onto another to move it
+under it, exactly as in Hub & spoke (a building dropped on another building in
+its district becomes one of its floors), add a card under a circle, rename and
+remove cards, all in the page.
+
+**City or stars.** The view is chosen when the page is built, not by a switch
+in the page. `convert_timeline(timeline_id, to='hub_and_spoke')` turns a Star
+chart whose districts hold one building each into a plain Hub & spoke outline
+(one sun per unit), and a Hub & spoke into a Star chart with `to='star_chart'`;
+nothing is lost either way. A Star chart keeps its city data, so
+`build_timeline(palace_view='city')` makes it a city again; a city palace itself
+is not converted (turn its Star chart view into a Hub & spoke instead). Offer the way back whenever the student
+misses the still version.
 
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
@@ -918,6 +1056,10 @@ outline mode `parent` carries the tree) →
 6b. `set_flags` (the user's own marks, §F3 — ask which) →
 6c. horizontal timeline only: `set_lines` when its lines or flashbacks change
 (§D-Lanes) →
+6d. Hub & spoke (solar) or Star chart only: nothing extra to author; `layout: 'solar'` and
+(Hub & spoke), or `mode: 'palace'` and `palace_view: 'stars'`
+(Star chart), ride on `create_timeline` (or the layout/build calls below),
+§D-Solar, §D-Stars →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
 section** (4-8 sentences: what the section is about, how its main ideas fit
 together, the turning points and tests, in the notes' own terms — a thin
@@ -928,7 +1070,8 @@ For a story / linear timeline, `overview_html`: prose overview; deep-link a node
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →
-8. `run_layout_preview` (cheap; rebalance columns on warnings) →
+8. `run_layout_preview` (cheap; rebalance columns on warnings; a Hub & spoke outline:
+`layout='solar'`) →
 8b. `preview_timeline` → show it as an Artifact (below) and iterate →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the
 view/download links. Use `get_timeline` to resume a draft in a later chat.

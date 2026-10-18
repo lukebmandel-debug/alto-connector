@@ -702,8 +702,10 @@
       while ((m = re.exec(block)) && search.length < SEARCH_CAP)
         search.push({ id: _unq(m[1]), t: _unq(m[2]), d: _unq(m[3]).slice(0, DESC_CAP) });
     }
-    return { title: project || heading, heading, project, tid: _identityOf(h),
-             units, search, v: META_V };
+    // a Hub & spoke timeline (layout solar, still style) says so, so its menu can offer the star chart
+    const hub = /window\._ALTO_SOLAR=\{"style":"spoke"/.test(h) ? { view: 'hubspoke' } : {};
+    return Object.assign({ title: project || heading, heading, project, tid: _identityOf(h),
+             units, search, v: META_V }, hub);
   }
 
   async function _getPageMeta(key) {
@@ -817,7 +819,7 @@
   async function _createTimeline(o) {
     const u = auth.currentUser;
     if (!u) throw new Error('not signed in');
-    const kind = (o.kind === 'timeline' || o.kind === 'lanes') ? o.kind : 'outline';
+    const kind = (o.kind === 'timeline' || o.kind === 'lanes' || o.kind === 'solar' || o.kind === 'stars') ? o.kind : 'outline';
     const title = _cleanTitle(o.title) || 'Untitled timeline';
     const pname = String(o.project || '').replace(/\s+/g, ' ').trim().slice(0, 120) || title;
     const [hr, jr] = await Promise.all([fetch('/new/' + kind + '.html', { cache: 'no-cache' }),
@@ -1076,7 +1078,7 @@
                  project: v.project || '', tid: v.tid || '',
                  units: Array.isArray(v.units) ? v.units : [],
                  search: Array.isArray(v.search) ? v.search : [],
-                 shareKey: v.shareKey || '',
+                 shareKey: v.shareKey || '', view: v.view || '',
                  added: Number(v.added) || 0,
                  binned: Number(v.binned) || 0,
                  viewedAt: (v.viewedAt && v.viewedAt.seconds) || 0,
