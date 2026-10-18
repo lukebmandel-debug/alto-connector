@@ -592,7 +592,7 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
     /* a hovered card grows downward from its resting top (n._hov: rest height);
        an enlarged one is centred whatever hover it was caught in (a pinch on
        the card under the pointer left it 50px low, its shadow showing above) */
-    var hov=n._hov!=null && !n.classList.contains('focused');
+    var hov=n._hov!=null && !n.classList.contains('focused') && !n.hasAttribute('data-solar');   // a solar circle grows from its centre (solar_draw.py)
     n.style.setProperty('--my',(-(hov?n._hov:n.offsetHeight)/2)+'px');
   }
   var ro=(typeof ResizeObserver==='function')
@@ -663,6 +663,7 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
   window.addEventListener('wheel',moved,{passive:true,capture:true});
   window.addEventListener('keydown',moved,true);
   window._altoPointerStill=function(e){ return still && e.clientX===px && e.clientY===py; };
+  window._altoContentMoved=moved;     // solar_draw.py: the orbits move cards under a still pointer too
   function track(e){
     if(e.clientX===px && e.clientY===py) return false;
     px=e.clientX; py=e.clientY; var was=still; still=false; return was;
@@ -1945,6 +1946,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
     if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
     if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Mind Palace: the nearest building that way
+    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ enterFocus(_sn); return; } }   // a solar outline: the nearest body that way, where it is now
     // Every node's resting box in world px: style.left/top is its centre however
     // it is placed (margins, fly transform, tree), the card its size unzoomed.
     function g(n){
@@ -2105,6 +2107,35 @@ _SHARE_GLIDE_NEW = (_SHARE_GLIDE_OLD
                     + "  window._altoEase=_altoEase; window._altoScrollAxis=_scrollAxis;   // lanes_nav.py: the step glide\n")
 PATCHES += [
     {"name": "lanes-share-the-glide", "old": _SHARE_GLIDE_OLD, "new": _SHARE_GLIDE_NEW, "count": 1},
+]
+
+# ── a solar outline (solar_draw.py): circles that orbit ─────────────────────
+# At the end of initLayout, before the lines are drawn, the solar page takes the
+# positions the tree's plan runner gave its circles as their homes and draws
+# its orbits; its connections are drawn edge to edge between circles in place
+# of the engine's drawing (the router's orthogonal lanes cannot follow a moving
+# card; the hook sits in the base redraw, inside every wrapper, so the line
+# hover still tags the lines and the Blink mask is still built); and the
+# Blink card mask cuts a circle's hole round, tagged so it can follow it.
+_SOLAR_LAYOUT_OLD = "  if(svg) svg.setAttribute('height',maxY+300);\n  redrawConnections();\n}\n"
+_SOLAR_LAYOUT_NEW = ("  if(svg) svg.setAttribute('height',maxY+300);\n"
+                     "  if(window._altoSolarLayout) window._altoSolarLayout(positions, nodeHeights);\n"
+                     "  redrawConnections();\n}\n")
+_SOLAR_LINES_OLD = ("function redrawConnections(){\n  const svg = document.getElementById('river-svg');\n"
+                    "  if(!svg) return;\n  svg.innerHTML = '';\n")
+_SOLAR_LINES_NEW = (_SOLAR_LINES_OLD
+                    + "  if(window._altoSolarLines && window._altoSolarLines()) return;   // solar_draw.py: edge to edge, every frame\n")
+_SOLAR_MASK_OLD = "r.setAttribute('rx',14); r.setAttribute('fill','#000');\n"
+_SOLAR_MASK_NEW = ("r.setAttribute('rx',n.hasAttribute('data-solar')?Math.min(card.offsetWidth,card.offsetHeight)/2:14);"
+                   " r.setAttribute('fill','#000'); r.setAttribute('data-mk',n.id);\n")
+_SOLAR_MASK_ON_OLD = "    svg.setAttribute('mask','url(#alto-card-mask)');\n"
+_SOLAR_MASK_ON_NEW = ("    svg.setAttribute('mask','url(#alto-card-mask)');\n"
+                      "    if(window._altoSolarMask) window._altoSolarMask();\n")
+PATCHES += [
+    {"name": "solar-layout-hook", "old": _SOLAR_LAYOUT_OLD, "new": _SOLAR_LAYOUT_NEW, "count": 1},
+    {"name": "solar-lines-hook", "old": _SOLAR_LINES_OLD, "new": _SOLAR_LINES_NEW, "count": 1},
+    {"name": "solar-card-mask-round", "old": _SOLAR_MASK_OLD, "new": _SOLAR_MASK_NEW, "count": 1},
+    {"name": "solar-card-mask-follows", "old": _SOLAR_MASK_ON_OLD, "new": _SOLAR_MASK_ON_NEW, "count": 1},
 ]
 
 # ── outline: the desktop tree replaces the resolver's positions ─────────────

@@ -21,6 +21,7 @@ from urllib.parse import quote as url_q
 from .brief import Brief, Node, Section, COL_SETS, roman
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
+from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
@@ -1523,6 +1524,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                    + (dx.tree_glue(plan_js(tree_plan)) if tree
                       else _solar_glue(solar_plan_, nodes) if solar_plan_
                       else dx.HUBS_ABOVE_GLUE))
+    if solar_plan_:
+        # The solar drawing (solar_draw.py): circles, orbits, the motion.
+        orders += SOLAR_JS
     if b.mode == "lanes":
         # The horizontal timeline (lanes.py): lines, times, and the layout
         # the engine's initLayout hands over to on desktop.
@@ -1579,6 +1583,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         "\n  #nav .nav-btn svg,.char-chip svg{vertical-align:-2px;margin-right:5px;}")
     if b.mode == "lanes":
         nav_char_css += LANES_CSS
+    if solar_plan_:
+        nav_char_css += SOLAR_CSS
     if b.mode == "palace":
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
