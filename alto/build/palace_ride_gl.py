@@ -24,6 +24,7 @@ QA: GLX.look(x,y,z,yawDeg,pitchDeg,cellsRadius,dark) draws a free camera over a 
 """
 import json
 
+from .palace_ride_gfx import CSS_GFX, JS_GFX
 from .palace_ride_gl_shaders import FS_SHADOW, FS_SKY, FS_WORLD, SH_COMMON, VS_SHADOW, VS_SKY, VS_WORLD
 
 _GLS = ("var GLS={vsw:" + json.dumps(VS_WORLD) + ", fsw:" + json.dumps(SH_COMMON + FS_WORLD) + ", vsh:" + json.dumps(VS_SHADOW) + ", fsh:" + json.dumps(FS_SHADOW) + ", vss:" + json.dumps(VS_SKY) + ", fss:" + json.dumps(SH_COMMON + FS_SKY) + "};\n")
@@ -31,7 +32,7 @@ _GLS = ("var GLS={vsw:" + json.dumps(VS_WORLD) + ", fsw:" + json.dumps(SH_COMMON
 CSS_GL = r"""
   #pal-ride .pr-gl{position:absolute;left:0;top:0;width:100%;height:100%;display:block;}
   #pal-ride.pr-glon .pr-cv{background:transparent;}
-"""
+""" + CSS_GFX
 
 _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
@@ -47,18 +48,22 @@ function glSetup(restore){
   var cv=GLX.cv, gl=null;
   if(!cv) return false; if(window._palRideNoGL){ GLX.err='disabled'; return glFail(); }
   var opt={alpha:false, antialias:true, depth:true, stencil:false, powerPreference:'high-performance', preserveDrawingBuffer:false};
-  try{ gl=cv.getContext('webgl',opt)||cv.getContext('experimental-webgl',opt); }catch(x){ gl=null; }
+  try{ gl=gfxContext(cv)/*gfx: WebGL2 for the high/medium tiers, null for legacy*/||cv.getContext('webgl',opt)||cv.getContext('experimental-webgl',opt); }catch(x){ gl=null; }
   if(!gl || gl.isContextLost()){ GLX.err='no webgl'; return glFail(true); }
   GLX.gl=gl; GLX.gen++; GLX.cache={}; GLX.prev={}; GLX.prevM={}; GLX.nCache=0; GLX.mc=(typeof WeakMap!=='undefined')?new WeakMap():null; GLX.queue=[]; GLX.wayq=[];
   var fp=gl.getShaderPrecisionFormat&&gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER,gl.HIGH_FLOAT); if(!fp || !fp.precision){ GLX.err='no highp fragment precision'; return glFail(true); }
   if(gl.getParameter(gl.MAX_VERTEX_ATTRIBS)<8){ GLX.err='too few vertex attributes'; return glFail(true); }
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
-  GLX.inst=gl.getExtension('ANGLE_instanced_arrays');
-  try{
-    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uShO','uPal','uAtl','uAtlS','uLamp','uLampC','uIn']);
+  GLX.inst=gl.getExtension('ANGLE_instanced_arrays'); gfxShim(gl);
+  try{ glPrograms(gl);
     GLX.shp=glProgram(gl, GLS.vsh, GLS.fsh, ['aP'], ['uLP']);
-    GLX.sky=glProgram(gl, GLS.vss, GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']);
   }catch(x){ GLX.err=String(x&&x.message||x); if(window.console) console.warn('ride GL', GLX.err); return glFail(true); }
+  setupRest(gl); return true; }
+/* the world and sky programs, with the tier's defines (gfx: palace_ride_gfx.py; legacy = none) */
+function glPrograms(gl){ var dfs=gfxDefs();
+    GLX.prog=glProgram(gl, GLS.vsw, dfs+GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC','uIn','uTx0','uTx1','uTxA']);
+    GLX.sky=glProgram(gl, GLS.vss, dfs+GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']); }
+function setupRest(gl){
   /* the noise texture: random bytes, filtered and mip-mapped, read for value noise in the shaders */
   var N=128, px=new Uint8Array(N*N*4), i, s=12345;
   for(i=0;i<px.length;i++){ s=(Math.imul(s,1664525)+1013904223)|0; px[i]=(s>>>16)&255; }
@@ -71,7 +76,7 @@ function glSetup(restore){
   GLX.ibuf=gl.createBuffer(); GLX.instBuf=new Float32Array(6*600);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW); gl.clearColor(.5,.55,.6,1);
   GLX.on=true; GLX.lost=false; GLX.ready=true; GLX.err=''; GLX.fresh=true; if(GLX.cv&&GLX.cv.parentNode) GLX.cv.parentNode.classList.add('pr-glon');
-  return true; }
+  gfxInit(gl); }
 function glTex1(gl,px,w,h,mip){ var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,mip?gl.LINEAR:gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR:gl.NEAREST); return tx; }
 function glFail(drop){ GLX.on=false; GLX.ready=false; var cv=GLX.cv; if(cv&&cv.parentNode){ cv.parentNode.classList.remove('pr-glon'); if(drop||!GLX.gl) { cv.parentNode.removeChild(cv); } } return false; }
@@ -460,7 +465,7 @@ function glLight(P){
   else { L.sun=[-.55,-.66,.62]; L.sunCol=[2.9,2.55,2.05]; L.skyA=[.42,.49,.60]; L.gndA=[.28,.265,.24]; L.exp=1.0; }
   var l=Math.hypot(L.sun[0],L.sun[1],L.sun[2]); L.sun=[L.sun[0]/l,L.sun[1]/l,L.sun[2]/l];
   L.zen=glLin(P.zen); L.hor=glLin(P.hor); L.fog=glLin(P.fog); L.gnd=dk?[.016,.017,.022]:[.12,.115,.11];
-  return L; }
+  return gfxLight(L); }
 function glUni(gl,pg,L,tm,vp){
   var u=pg.u;
   if(u.uVP) gl.uniformMatrix4fv(u.uVP,false,vp);
@@ -488,7 +493,7 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   var pg=GLX.prog, a=pg.a, i, st=GLX.st; gl.useProgram(pg.p); glUni(gl,pg,L,tm,vp); gl.uniform1f(pg.u.uInst,0);
   var names=['aP','aN','aUV','aMT','aDC','aHA']; names.forEach(function(n){ gl.enableVertexAttribArray(a[n]); });
   gl.disableVertexAttribArray(a.aI); gl.disableVertexAttribArray(a.aT2); gl.vertexAttrib4f(a.aI,0,0,0,0); gl.vertexAttrib2f(a.aT2,-1,0);
-  glSceneryUni(gl,pg,Wd,L);
+  glSceneryUni(gl,pg,Wd,L); gfxUni(gl,pg);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,GLX.noise);
   var sd=GLX.shd; if(sd&&sd.ok&&sd.on){ var cf=sd.c[0], cq=sd.c[1]; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,cf.tex); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,cq.tex); gl.activeTexture(gl.TEXTURE0);
     gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); var fo=cf.off||[0,0], qo=cq.off||[0,0]; gl.uniform4f(pg.u.uShO,fo[0],fo[1],qo[0],qo[1]); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
@@ -556,7 +561,7 @@ var GLAPI={ cur:null, way:function(M){ GLX.curWay=M?glWayGet(M):null; return GLX
 /* the whole city for camera C into the GL canvas; returns false when GL is not usable (the caller then paints with the 2D fallback) */
 function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   if(!glOk()) return false; var gl=GLX.gl, t0=performance.now();
-  GLX.frame++; var cw=R.cv.width, ch=R.cv.height; glSize(cw,ch); gl.viewport(0,0,cw,ch);
+  GLX.frame++; var sz=gfxSize(), cw=sz[0], ch=sz[1]; glSize(cw,ch); gl.viewport(0,0,cw,ch);
   var vp=glCamera(), L=glLight(P);
   GLX.curWay=null; if(way){ way(GLAPI); }
   var mvs=glMoversOf(Wd,tm);
@@ -565,9 +570,9 @@ function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   var tB=performance.now(); glWork(Wd, GLX.fresh?40:2.8); GLX.fresh=false;
   glEvict();
   var tC=performance.now(); glShadowPass(gl,Wd,L,cw,ch);
-  var tD=performance.now(); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
+  var tD=performance.now(); gfxBegin(gl,cw,ch); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
   glDrawSky(gl,L,tm,vp);
-  glDrawWorld(gl,Wd,L,tm,vp);
+  glDrawWorld(gl,Wd,L,tm,vp); gfxEnd(gl,cw,ch);
   var tE=performance.now(), pk=GLX.st.pk||(GLX.st.pk={way:0,work:0,shadow:0,draw:0});
   pk.way=Math.max(pk.way,tB-tA); pk.work=Math.max(pk.work,tC-tB); pk.shadow=Math.max(pk.shadow,tD-tC); pk.draw=Math.max(pk.draw,tE-tD);
   /* a still frame (reduced motion, a held arrival) has no loop to finish the chunks still being built: ask for one more render */
@@ -600,9 +605,9 @@ _JS_GL_SHADOW = r"""
 var GL_CASC=[{R:420, S:2048, ahead:190, snap:128, bias:.55, noff:1.3}, {R:100, S:2048, ahead:34, snap:64, bias:.22, noff:1.4}];
 function glShadowSetup(gl){
   GLX.shd={ok:false}; if(window._palRideNoShadow) return;
-  var ext=gl.getExtension('WEBGL_depth_texture')||gl.getExtension('WEBKIT_WEBGL_depth_texture'); if(!ext) return;
+  var ext=GFX.wgl2||gl.getExtension('WEBGL_depth_texture')||gl.getExtension('WEBKIT_WEBGL_depth_texture'); if(!ext) return;
   try{ var cs=[], ok=true;
-    GL_CASC.forEach(function(c){ var S=c.S, tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex); gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT,S,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+    GL_CASC.forEach(function(c){ var S=c.S, tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex); gl.texImage2D(gl.TEXTURE_2D,0,GFX.wgl2?gl.DEPTH_COMPONENT24:gl.DEPTH_COMPONENT,S,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       var rb=gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER,rb); gl.renderbufferStorage(gl.RENDERBUFFER,gl.RGBA4,S,S);
       var fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,tex,0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,rb);
@@ -633,4 +638,4 @@ function glShadowPass(gl,Wd,L,cw,ch){
   if(prepared){ gl.disableVertexAttribArray(ap); gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true,true,true,true); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); GLX.st.shadowDraws=drawn; } }
 """
 
-JS_GL = _GLS + _JS_GL_MAIN + _JS_GL_BUILD + _JS_GL_CHUNKS + _JS_GL_WAY + _JS_GL_SHADOW + _JS_GL_FRAME
+JS_GL = _GLS + JS_GFX + _JS_GL_MAIN + _JS_GL_BUILD + _JS_GL_CHUNKS + _JS_GL_WAY + _JS_GL_SHADOW + _JS_GL_FRAME
