@@ -193,7 +193,7 @@ def check_palace(b, warnings: list) -> None:
     unknown = set(pal) - PALACE_KEYS
     if unknown:
         raise BriefError(f"palace: unknown keys {sorted(unknown)}")
-    if not pal.get("data_z"):
+    if not pal.get("data_z") and getattr(b, "palace_view", "city") == "city":
         warnings.append("palace: no city yet — run set_up_palace(timeline_id, place, …) "
                         "before building; the page has nothing to draw until then")
     from .palace_towers import check_buildings            # (towers: a landmark entry with a unit)
@@ -300,6 +300,17 @@ def _near(graph, lots_at, kmin=None) -> dict:
             nm = [short(s) for s in best][:2]
             out[bid] = " & ".join(nm)
     return out
+
+
+def palace_stub(b, nodes) -> str:
+    """window._ALTO_PALACE with no city: the buildings' floors and their
+    numbers (3.4, 3.4-2) only — what a palace without a city yet, and a Star
+    chart (palace_view "stars", which never draws the city), number cards by."""
+    units, floors, of = structure(b, nodes)
+    par = {n.id: n.parent for n in nodes if n.parent}
+    return ("\nwindow._ALTO_PALACE=" + js_json({"none": 1, "fl": floors, "of": of,
+                                                "num": numbers(units, floors), "par": par},
+                                               separators=(",", ":")) + ";")
 
 
 def palace_data(b, nodes) -> str:

@@ -234,13 +234,15 @@ function draw(W, H){
       spokes.push(ORBIT ? {a:b.p, b:id, e:[el('line', {'class':'sol-spoke'}, g)]}
                         : {a:b.p, b:id, e:[el('path', {'class':'sol-tube'}, g), el('path', {'class':'sol-sheen'}, g)]});
     });
-    var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null, lbl=s.label || (pm ? pm.label : '');
+    /* one chip per unit (a district of several systems: over all of them) */
+    var U=null; (S.units||[]).forEach(function(q){ if(q.suns && q.suns[0]===s.sun) U=q; });
+    var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null, lbl=(U && U.label) || s.label || (pm ? pm.label : ''), bb=(U && U.bbox) || s.bbox;
     lbl=String(lbl).split(' — ').pop();
-    if(lbl){ var ch=document.createElement('div'); ch.className='sol-unit'; if(u) ch.style.setProperty('--u', u);
+    if(lbl && (U || !S.units)){ var ch=document.createElement('div'); ch.className='sol-unit'; if(u) ch.style.setProperty('--u', u);
       ch.innerHTML='<b></b><span></span>'; ch.querySelector('b').textContent=pm ? pm.numeral : ''; ch.querySelector('span').textContent=lbl;
       world.appendChild(ch);
-      var top=Math.max(PAD+24, (s.bbox ? s.bbox[1]+PAD : sun.hy-(s.R||sun.d))-44);
-      ch.style.left=Math.round(sun.hx-ch.offsetWidth/2)+'px'; ch.style.top=Math.round(top)+'px'; chips.push(ch); }
+      var top=Math.max(PAD+24, (bb ? bb[1]+PAD : sun.hy-(s.R||sun.d))-44);
+      ch.style.left=Math.round((U ? (bb[0]+bb[2])/2 : sun.hx)-ch.offsetWidth/2)+'px'; ch.style.top=Math.round(top)+'px'; chips.push(ch); }
   });
   var lg=el('g', {'class':'sol-links'}, svg);
   (S.sun_links||[]).forEach(function(l){ if(!B[l[0]] || !B[l[1]] || !B[l[0]].n || !B[l[1]].n) return;
@@ -423,7 +425,7 @@ window._altoSolarNav=function(id, dir){
 window._altoSolarSync=function(t){
   t=t||{};
   var P=window._altoSolarPlan(t, S); if(!P) return false;
-  ['style','spin','world','sizes','systems','nodes','sun_links'].forEach(function(k){ S[k]=P[k]; });
+  ['style','spin','world','sizes','systems','units','nodes','sun_links'].forEach(function(k){ S[k]=P[k]; });
   NUM=t.num||NUM; bodies(); T=0; back=rk=1;
   var TP=window._ALTO_TREE_PLAN;
   if(TP){ TP.x={}; TP.w={}; TP.acts=[]; TP.cx=P.world.w/2; TP.shift=null; TP.slide=null;
@@ -444,10 +446,12 @@ var OV=null, ovA=0, OVMIN=.03;
 function cvs(){ return document.getElementById('canvas'); }
 function zk(c){ var r=c.getBoundingClientRect(); return (r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1; }
 function woff(c){ var ox=0, oy=0, q=world; while(q && q!==c){ ox+=q.offsetLeft; oy+=q.offsetTop; q=q.offsetParent; } return {x:ox, y:oy}; }
-function fitS(){ var c=cvs(); return Math.max(OVMIN, Math.min(1, (c.clientWidth-60)/world.offsetWidth, (c.clientHeight-60)/world.offsetHeight)); }
-function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w=world.offsetWidth*o.s, h=world.offsetHeight*o.s;
+/* the board's height: the world, or the glass under it where that runs on (its padding) */
+function wh(){ var sl=document.getElementById('glass-slab'); return Math.max(world.offsetHeight, sl ? sl.offsetTop+sl.offsetHeight : 0); }
+function fitS(){ var c=cvs(); return Math.max(OVMIN, Math.min(1, (c.clientWidth-60)/world.offsetWidth, (c.clientHeight-60)/wh())); }
+function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
   o.s=Math.max(Math.min(fitS(), 1), Math.min(1, o.s));
-  w=world.offsetWidth*o.s; h=world.offsetHeight*o.s;
+  w=world.offsetWidth*o.s; h=wh()*o.s;
   o.tx=w<=cw ? (cw-w)/2 : Math.max(cw-w-30, Math.min(30, o.tx)); o.ty=h<=ch ? (ch-h)/2 : Math.max(ch-h-30, Math.min(30, o.ty)); return o; }
 function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+f2(o.tx-off.x)+'px,'+f2(o.ty-off.y)+'px) scale('+o.s+')'; }
 function ovHold(on){
@@ -562,6 +566,7 @@ window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]
 return true;
 };
 if(window._ALTO_SOLAR) window._altoSolarMount(window._ALTO_SOLAR);
+else document.addEventListener('DOMContentLoaded', function(){ if(window._ALTO_SOLAR) window._altoSolarMount(window._ALTO_SOLAR); });
 """
 
 
@@ -659,11 +664,13 @@ return function(t, old){
   function kids(i){ return (K[i]||[]).filter(function(k){ return ids[k] && Par[k]===i; }); }
   var labels={}; ((old && old.systems)||[]).forEach(function(s){ labels[s.unit]=s.label; });
   var units=[];
+  /* every root a sun (a palace district may hold several); loose cards orbit the unit's first */
   seqs.forEach(function(mine, a){
     if(!mine.length) return;
-    var tops=mine.filter(function(i){ return !Par[i]; }), sun=tops[0]||mine[0];
-    var loose=mine.filter(function(i){ return i!==sun && (!Par[i] || !ids[Par[i]]); });
-    units.push([a, sun, kids(sun).concat(loose).map(function(p){ return [p, kids(p).map(function(m){ return [m, kids(m)]; })]; })]);
+    var tops=mine.filter(function(i){ return !Par[i]; }); if(!tops.length) tops=[mine[0]];
+    var loose=mine.filter(function(i){ return tops.indexOf(i)<0 && (!Par[i] || !ids[Par[i]]); });
+    tops.forEach(function(sun, k){
+      units.push([a, sun, kids(sun).concat(k ? [] : loose).map(function(p){ return [p, kids(p).map(function(m){ return [m, kids(m)]; })]; })]); });
   });
   /* the bump flags (plan.sizes.bump) on each node: t.flags {id: [flag ids]}, else the page's NODES_SRC */
   var bump=((old && old.sizes && old.sizes.bump)||[]), FL=t.flags||{};
@@ -671,8 +678,10 @@ return function(t, old){
   var size=function(i, role, n){ return bodyD(role, n, (FL[i]||[]).some(function(f){ return bump.indexOf(f)>=0; })); };
   var sy=units.map(function(u){ return system(u[0], u[1], u[2], style, size); });
   var ws=sy.map(function(s){ return s.box[2]-s.box[0]; }), W=Math.ceil(Math.max.apply(null, [C.WORLD_W].concat(ws.map(function(w){ return w+2*C.MARGIN; }))));
-  var inner=W-2*C.MARGIN, rows=[], row=[], span=0;
-  sy.forEach(function(s, i){ if(row.length && span+C.SYS_GAP+ws[i] > inner+1e-6){ rows.push(row); row=[]; span=0; }
+  var inner=W-2*C.MARGIN, rows=[], row=[], span=0, us={};
+  sy.forEach(function(s){ us[s.unit]=1; });
+  var grouped=Object.keys(us).length<sy.length;      /* a unit of several systems starts a row of its own */
+  sy.forEach(function(s, i){ if(row.length && (span+C.SYS_GAP+ws[i] > inner+1e-6 || (grouped && s.unit!==row[row.length-1].unit))){ rows.push(row); row=[]; span=0; }
     span+=(row.length ? C.SYS_GAP : 0)+ws[i]; row.push(s); });
   if(row.length) rows.push(row);
   var nodes={}, systems=[], top=C.TOP;
@@ -688,9 +697,12 @@ return function(t, old){
     });
     top=cy+down+C.SYS_GAP;
   });
-  var order=systems.map(function(s){ return s.sun; });
+  var order=systems.map(function(s){ return s.sun; }), uo=[];
+  systems.forEach(function(s){ var u=uo[uo.length-1];
+    if(!u || u.unit!==s.unit){ u={unit:s.unit, label:s.label, suns:[], bbox:s.bbox.slice()}; uo.push(u); }
+    u.suns.push(s.sun); u.bbox=[Math.min(u.bbox[0], s.bbox[0]), Math.min(u.bbox[1], s.bbox[1]), Math.max(u.bbox[2], s.bbox[2]), Math.max(u.bbox[3], s.bbox[3])]; });
   return {style:style, spin:__SPIN__, world:{w:W, h:rows.length ? Math.ceil(top-C.SYS_GAP+C.BOTTOM) : C.TOP+C.BOTTOM}, sizes:(function(){ var z=JSON.parse(JSON.stringify(D)); z.planet_big=C.TIERS.planet[C.TIERS.planet.length-1]; z.tiers=JSON.parse(JSON.stringify(C.TIERS)); z.bump=bump.slice().sort(); return z; })(),
-    systems:systems, nodes:nodes, sun_links:order.slice(1).map(function(b, i){ return [order[i], b]; }), warnings:[]};
+    systems:systems, units:uo, nodes:nodes, sun_links:order.slice(1).map(function(b, i){ return [order[i], b]; }), warnings:[]};
 };
 })();
 """.replace("__SOLAR__", json.dumps(SOLAR, separators=(",", ":"))).replace("__GOLDEN__", repr(GOLDEN)).replace("__SPIN__", str(SPIN))

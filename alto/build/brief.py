@@ -242,10 +242,12 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
 MODES = ("linear", "outline", "lanes", "palace")
 LAYOUTS = ("auto", "tree", "flow", "solar")
 TREE_LINES = ("fan", "trunk")
-# A solar outline's look (layout "solar", solar.py): "orbit" — concentric orbit
-# rings, the planets, moons and satellites moving round what they orbit;
-# "spoke" — the same circles and numbers, still, on short straight spokes.
-HUB_STYLES = ("orbit", "spoke")
+# A Mind Palace's view, chosen at build (the page carries one or the other: both
+# would not fit a private page): "city" — buildings on a real city's map;
+# "stars" — the Star chart: each building a sun, its floors planets, moons and
+# satellites MOVING round what they orbit (solar.py, style "orbit"). An
+# outline's layout "solar" is the still one, Hub & spoke (style "spoke").
+PALACE_VIEWS = ("city", "stars")
 # The roles of a solar outline's levels, top down: a unit's top concept is its
 # sun, then planets, moons, satellites. A fifth level has no body to be.
 SOLAR_ROLES = ("sun", "planet", "moon", "sat")
@@ -367,12 +369,18 @@ class Brief:
     # concepts with outcomes of their own) becomes a tree (layout.outline_tree)
     # when that crosses no more lines than the flowing cascade does; anything
     # else — a linear story, a flat list — flows. "tree" / "flow" force one.
-    # "solar" (outline only, never chosen by auto): each unit a solar system —
-    # its top concept the sun, its children planets on rings in outline order,
-    # theirs moons, theirs satellites (solar.py).
+    # "solar" (outline only, never chosen by auto): Hub & spoke — each unit a
+    # still solar system, its top concept the sun, its children planets on
+    # rings in outline order, theirs moons, theirs satellites (solar.py).
     layout: str = "auto"
-    # A solar outline's style (HUB_STYLES): "orbit" moves, "spoke" stands still.
-    hub_style: str = "orbit"
+    # Mind Palace only (PALACE_VIEWS): "city" or "stars" (the Star chart).
+    palace_view: str = "city"
+    # What the other kind of timeline needs and this one cannot hold, kept for
+    # the way back: convert_timeline (Hub & spoke ⇄ Star chart) parks the
+    # outgoing kind's own settings here, {"outline": {placement, outcomes,
+    # tree_lines…}, "palace": {palace, placement}}, and restores them on return,
+    # so a round trip loses nothing. Never read by the build.
+    stash: dict = field(default_factory=dict)
     # A tree's lines down a branch's spine. "fan": a section's lines spread
     # across the top of its first card and drop to each child at its own point,
     # so every child has a line of its own to hover and follow; "trunk": one
@@ -628,8 +636,8 @@ def validate_brief(b: Brief) -> list[str]:
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
-    # A solar outline may be one system for the whole outline: one unit.
-    if len(b.acts) < (1 if b.layout == "solar" else 2):
+    # Hub & spoke / a Star chart may be one system for the whole outline: one unit.
+    if len(b.acts) < (1 if solar_style(b) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
     for flag in ("line_filter", "chip_filters"):
@@ -649,8 +657,14 @@ def validate_brief(b: Brief) -> list[str]:
     if b.layout == "tree" and b.mode != "outline":
         raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
                          "from the nodes' parents")
-    if b.hub_style not in HUB_STYLES:
-        raise BriefError(f"hub_style {b.hub_style!r}: must be one of {HUB_STYLES}")
+    if b.palace_view not in PALACE_VIEWS:
+        raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS}")
+    if b.palace_view != "city" and b.mode != "palace":
+        raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Star chart "
+                         "is a Mind Palace view (an outline's still version is layout 'solar', "
+                         "Hub & spoke)")
+    if not isinstance(b.stash, dict):
+        raise BriefError("stash: must be an object")
     if b.layout == "solar" and b.mode != "outline":
         raise BriefError("layout 'solar' needs mode 'outline': a solar system is "
                          "drawn from the nodes' parents (a unit's top concept is "
@@ -1007,6 +1021,16 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     return warnings
 
 
+def solar_style(b) -> str:
+    """"spoke" for Hub & spoke (an outline laid out 'solar'), "orbit" for a
+    Star chart (a Mind Palace in its stars view), "" for anything else."""
+    if getattr(b, "mode", "") == "outline" and getattr(b, "layout", "") == "solar":
+        return "spoke"
+    if getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "stars":
+        return "orbit"
+    return ""
+
+
 def _check_solar_depth(b: Brief, nodes: list[Node]) -> None:
     """A solar outline has four levels — sun, planets, moons, satellites. A
     concept deeper than a satellite has nothing to orbit as, and flattening it
@@ -1026,8 +1050,15 @@ def _check_solar_depth(b: Brief, nodes: list[Node]) -> None:
         more = (f" ({len(deep)} concepts are that deep: "
                 + ", ".join(c[-1] for c in deep[:6]) + (" …" if len(deep) > 6 else "") + ")"
                 if len(deep) > 1 else "")
+        if b.mode == "palace":
+            raise BriefError(
+                f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a Star chart "
+                "has four: a building is a sun, its floors planets, theirs moons, theirs "
+                "satellites" + more + f". Move {deep[0][-1]} down to sit under {deep[0][-3]} "
+                "(or higher), make its branch a building of its own — or keep the palace as "
+                "a city (palace_view 'city'), which stacks floors to any height")
         raise BriefError(
-            f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a solar "
+            f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a Hub & spoke "
             "layout has four: a unit's top concept is the sun, its children planets, "
             "theirs moons, theirs satellites" + more + ". Restructure the outline — "
             f"move {deep[0][-1]} up under {deep[0][-3]} (or higher), give its branch a "
@@ -1156,6 +1187,8 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     check_nodes(b, nodes, warnings)
     from .palace import check_nodes as palace_nodes
     palace_nodes(b, nodes, warnings)
+    if solar_style(b) == "orbit":
+        _check_solar_depth(b, nodes)
     doc_ids = {d.get("id") for d in b.source_docs if isinstance(d, dict)}
     for n in nodes:
         _check_refs(n.sources, doc_ids, f"node {n.id}", warnings)

@@ -25,9 +25,12 @@ TEMPLATE = (ROOT / "engine" / "timeline_template.html").read_text(encoding="utf-
 MARGIN = 115
 
 
-def solar_doc(units, style="orbit", links=()):
-    """An outline bundle: units = [[moons per planet as [sats per moon]]].
-    Ids spell the place: u1, u1-p2, u1-p2-m1, u1-p2-m1-s1."""
+def solar_doc(units, style="orbit", links=(), suns=None):
+    """A bundle: units = [[moons per planet as [sats per moon]]]; "orbit" is a
+    Star chart (a Mind Palace in its stars view, no city), "spoke" Hub & spoke
+    (an outline laid out 'solar'). suns: extra root buildings per unit (a
+    district of several systems), each with one bare planet.
+    Ids spell the place: u1, u1-p2, u1-p2-m1, u1-p2-m1-s1; u1b2, u1b2-p1."""
     acts, nodes = [], []
 
     def add(i, act, parent="", title=None):
@@ -49,8 +52,11 @@ def solar_doc(units, style="orbit", links=()):
                 add(mid, a, pid, title=f"Case {m + 1}")
                 for s in range(sats):
                     add(f"{mid}-s{s + 1}", a, mid, title="Holding")
-    brief = {"title": "Solar draw", "subject": "s", "timeline_id": "solar-draw", "mode": "outline",
-             "layout": "solar", "hub_style": style, "columns": 5, "node_noun": "Concept",
+        for k in range((suns or {}).get(a, 0)):
+            add(f"{sun}b{k + 2}", a, title=f"Building {a + 1}.{k + 2}")
+            add(f"{sun}b{k + 2}-p1", a, f"{sun}b{k + 2}", title="A floor")
+    kind = {"mode": "outline", "layout": "solar"} if style == "spoke" else {"mode": "palace", "palace_view": "stars"}
+    brief = {"title": "Solar draw", "subject": "s", "timeline_id": "solar-draw", **kind, "columns": 5, "node_noun": "Concept",
              "period_noun": "Unit", "accent": "#a78bfa", "acts": acts, "entities": [], "axes": [],
              "relations": [{"key": "spine", "label": "Contains"},
                            {"key": "limits", "label": "Limits", "color": "#f43f5e"}]}
@@ -61,8 +67,8 @@ SMALL = [[[0, 0], [], [0]], [[0], [0, 2]], [[], [0]]]
 SMALL_LINKS = [("u1-p1", "u2-p2"), ("u1-p1-m1", "u1-p3")]
 
 
-def _page(units=SMALL, style="orbit", links=SMALL_LINKS):
-    html, _ = build_timeline(*load_brief(copy.deepcopy(solar_doc(units, style, links))))
+def _page(units=SMALL, style="orbit", links=SMALL_LINKS, suns=None):
+    html, _ = build_timeline(*load_brief(copy.deepcopy(solar_doc(units, style, links, suns))))
     return html
 
 
@@ -77,10 +83,20 @@ def test_a_solar_page_carries_the_drawing_and_a_tree_page_does_not():
     html = _page()
     assert html.count("window._altoSolarLayout=") == 1 and "#solar-svg" in html
     assert "html.alto-solar:not(.mobile)" in html
-    d = solar_doc(SMALL)
+    d = solar_doc(SMALL, "spoke")
     d["brief"]["layout"] = "tree"
     tree, _ = build_timeline(*load_brief(d))
     assert "window._altoSolarLayout=" not in tree and "#solar-svg{" not in tree
+
+
+def test_a_star_chart_is_a_palace_page_without_its_city():
+    """palace + palace_view 'stars': the stub's numbers, the solar renderer in
+    motion, none of the city (no _altoPalace layout, no sound)."""
+    html = _page(suns={0: 1})
+    assert '"none":1' in html and "window._altoSolarMount=" in html
+    assert "window._altoPalace=" not in html and "AudioContext" not in html
+    assert _plan(html)["style"] == "orbit" and len(_plan(html)["units"][0]["suns"]) == 2
+    assert html.index("window._ALTO_SOLAR=") < html.index("window._altoSolarMount=function")
 
 
 def test_the_engine_hooks_are_anchored_in_the_template_once():
@@ -157,7 +173,7 @@ def browser(request):
 def pages(tmp_path_factory):
     d = tmp_path_factory.mktemp("solar")
     out = {}
-    for name, html in (("orbit", _page()), ("spoke", _page(style="spoke"))):
+    for name, html in (("orbit", _page(suns={0: 1})), ("spoke", _page(style="spoke"))):
         f = d / f"{name}.html"
         f.write_text(html, encoding="utf-8")
         out[name] = (f, _plan(html))
@@ -409,10 +425,13 @@ def _close(a, b, path=""):
 @pytest.mark.parametrize("units", [SMALL, [[[2, 2, 2], [2, 2], [2, 2, 2], [2], [2, 2]], [[0, 0], [0, 0, 0]]],
                                    [[[0, 1, 0], [0, 0], [0, 0, 0], [0, 0, 0]], [[2, 2, 0, 0], [0, 0, 0, 0]], [[]]]])
 @pytest.mark.parametrize("bumped", [False, True])
-def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style, bumped):
+@pytest.mark.parametrize("suns", [None, {0: 2, 1: 1}])
+def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style, bumped, suns):
     """Edit mode re-plans in the page from the live tables; that plan is solar.py's
-    (sizes by child count, a pivotal flag one tier up)."""
-    doc = solar_doc(units, style)
+    (sizes by child count, a pivotal flag one tier up, several suns in a district)."""
+    if suns and style == "spoke":
+        pytest.skip("an outline unit has one hub; several suns are a Mind Palace district's")
+    doc = solar_doc(units, style, suns=suns)
     if bumped:
         doc["brief"]["flags"] = [{"id": "pivotal", "name": "Pivotal"}]
         for n in doc["nodes"]:
@@ -453,7 +472,10 @@ def test_edit_mode_sync_redraws_the_systems_from_the_live_tables(browser, pages)
     pg.evaluate("() => document.documentElement.classList.add('alto-editing')")
     pg.wait_for_timeout(700)
     out = pg.evaluate(r"""() => {
-      var O=window._ALTO_OUTLINE, mv=['u1-p3','u1-p3-m1'];
+      /* the live tables: an outline's, or (a Star chart) built from the palace's parent map */
+      var O=window._ALTO_OUTLINE || (function(){ var par=JSON.parse(JSON.stringify(window._ALTO_PALACE.par)), kids={};
+        [].concat.apply([], ACT_SEQS).forEach(function(i){ var p=par[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
+        return {parent:par, kids:kids, num:window._ALTO_PALACE.num}; })(), mv=['u1-p3','u1-p3-m1'];
       O.parent['u1-p3']='u2'; O.kids['u1']=O.kids['u1'].filter(function(i){ return i!=='u1-p3'; }); O.kids['u2'].push('u1-p3');
       ACT_SEQS[0]=ACT_SEQS[0].filter(function(i){ return mv.indexOf(i)<0; }); mv.forEach(function(i){ ACT_SEQS[1].push(i); NODE_ACT[i]=1; });
       var ok=window._altoSolarSync({kids:O.kids, parent:O.parent, num:O.num, seqs:ACT_SEQS, act:NODE_ACT});
@@ -468,7 +490,7 @@ def test_edit_mode_sync_redraws_the_systems_from_the_live_tables(browser, pages)
     }""")
     assert out["ok"] and out["truthy"] and not out["bad"], out
     assert "u1-p3" in out["planets"] and out["role"] == "planet" and out["parent"] == "u2" and out["geoP"] == "u2"
-    assert out["rings"] == sum(len(u) for u in SMALL)
+    assert out["rings"] == sum(len(u) for u in SMALL) + 1                  # + the second building's floor
     assert not errs, errs
     pg.context.close()
 

@@ -2215,6 +2215,57 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     return out
 
 
+@mcp.tool(title="Convert timeline (Hub & spoke ⇄ Star chart)", annotations=RW)
+@accounted
+def convert_timeline(timeline_id: str, to: str) -> dict:
+    """Turn a Hub & spoke into a Star chart, or a Star chart back into a Hub &
+    spoke — at the user's request ("turn this into a star chart"). Both show
+    the same thing: each unit's top concept (a palace's building) a sun, its
+    children planets, theirs moons, theirs satellites. A Hub & spoke is an
+    outline with layout 'solar' (still circles on spokes, path numbers 2.a.1);
+    a Star chart is a Mind Palace in its stars view (the systems orbit, palace
+    numbers 3.4-2).
+
+    to: 'star_chart' (from a Hub & spoke) or 'hub_and_spoke' (from a Star
+    chart). Every node, its text, sub-chips, flags and sources, every
+    connection, the notes and the consent are kept exactly; only the kind of
+    timeline changes. What one kind has and the other cannot hold (an
+    outline's card placement, a palace's city) is kept aside in the brief and
+    comes back on the way back, so converting twice returns the original. The
+    brief as it was is also saved beside the timeline on this computer
+    (`backup`). Refused, with the reason and nothing changed, for anything
+    else: a Mind Palace shown as a city (convert its Star chart view), a
+    Star chart district with several buildings (a Hub & spoke has one sun per
+    unit), an ordinary outline or a timeline.
+    Then build_timeline and publish_timeline to show it."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    from .build.convert import ConvertError, check_converted, convert_brief, kind_of
+    st = get_store()
+    tid = doc["timeline_id"]
+    nodes = st.list_nodes(uid(), tid)
+    conns = st.get_connections(uid(), tid)
+    old = doc.get("brief") or {}
+    try:
+        new, notes = convert_brief(old, nodes, to)
+        warnings = check_converted(new, nodes, conns)
+    except ConvertError as e:
+        return {"error": "cannot_convert", "from": kind_of(old), "message": str(e)}
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    backup = f"brief-before-{to.replace('_', '-')}-{stamp}.json"
+    st.put_artifact(uid(), tid, backup, json.dumps(old, ensure_ascii=False, indent=1))
+    doc["brief"] = new
+    doc["conversions"] = (list(doc.get("conversions") or []) + [
+        {"at": _now(), "from": kind_of(old), "to": to, "backup": backup}])[-20:]
+    st.put_timeline(uid(), tid, doc)
+    name = {"star_chart": "Star chart", "hub_and_spoke": "Hub & spoke"}[to]
+    return {"ok": True, "timeline_id": tid, "from": kind_of(old), "to": to,
+            "nodes": len(nodes), "connections": len(conns), "kept": notes,
+            "backup": backup, "warnings": warnings,
+            "next": f"build_timeline, then publish_timeline, to show it as a {name}"}
+
+
 @mcp.tool(title="Build timeline", annotations=RW)
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
