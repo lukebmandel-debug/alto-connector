@@ -454,15 +454,12 @@ def _street_names(site_dir) -> list:
 
 
 def _street_rules(names) -> list:
-    """One immutable rule over exactly the given street file names (an extglob alternation; split so no rule grows past ~40 KB)."""
+    """One immutable rule per street file, each a LITERAL path. (An extglob alternation, /street/@(a|b|..), was tried first: Firebase Hosting's matcher did not
+    apply it to the live files, so they stayed no-cache. A literal path always matches, and only a file that exists has a rule: a 404 never gets one.)"""
     from .build import palace_street
     names = [n for n in names if palace_street.MAN_RE.match(n) or palace_street.SHARD_RE.match(n)]    # (only names of the safe shape reach a glob)
-    rules, step = [], 400
-    for i in range(0, len(names), step):
-        alt = "|".join(names[i:i + step])
-        rules.append({"source": "/%s/@(%s)" % (palace_street.FOLDER, alt), "headers": [
-            {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]})
-    return rules
+    return [{"source": "/%s/%s" % (palace_street.FOLDER, n), "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names]
 
 
 def deploy_site(site_dir: Path) -> str:
