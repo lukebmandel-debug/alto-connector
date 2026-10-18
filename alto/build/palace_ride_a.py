@@ -5,9 +5,9 @@ var E=null, NS='http://www.w3.org/2000/svg';
 var LS_VIEW='alto-palace-ride-view', LS_SND='alto-palace-ride-sound';
 var STEP=5;                         /* map units between the samples of a ride's path */
 var NEARZ=1.8, FARZ=1500, VEX=1.15, FOGD=950;
-/* walking legs: a brisk walk (5 m/s = 6.5 units/s) up to WALK_FULL units (100 m, 20 s); only the part of a longer walk beyond that is compressed (the whole ride is still held to
+/* walking legs: as before 1.9.100 (WALK_V = the old fast pace; 1.9.100 shipped a person's 5 m/s and a ride crawled) up to WALK_FULL units; only the part of a longer walk beyond that is compressed (the whole ride is still held to
    6-30 s below, so a long walk, or a transit ride with a walk in it, still plays faster than a person walks - a ride is a summary, free roaming is the real pace) */
-var WALK_V=6.5, WALK_FULL=130;
+var WALK_V=150, WALK_FULL=130;
 var RING_HZ=2.4, MAX_FLASH_HZ=3, BAR_HZ=.9, HUE_DPS=38;     /* photosensitivity: rings never pass faster than RING_HZ, nothing pulses faster than 1 Hz */
 var VEH={
   walk :{vmax:150,  eye:2.15, off:14,  fil:22,  ease:.18},     /* eye 2.15 units = 1.65 m at UM=1.3 units a metre; vmax is only the ceiling of a very long walk, see WALK_V */

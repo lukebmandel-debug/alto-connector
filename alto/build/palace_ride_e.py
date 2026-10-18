@@ -11,7 +11,7 @@ window._palRide.roam = { enter(x, y, heading, opts), exit(stay), active(), ... }
   active()
 
 Controls: W A S D / Up Down move (A D strafe), Left Right turn, drag the mouse to look (the scene follows the pointer, like Street View; yaw + a little pitch), Esc leaves.
-  Pace (1.9.100 / FPV phase 1; 1 m = UM = 1.3 map units): a walk is 1.5 m/s, holding Shift is a brisk 4 m/s, and holding Shift for a few seconds eases into a 7 m/s jog;
+  Pace (1.9.100 / FPV phase 1; 1 m = UM = 1.3 map units): a walk is 14 units/s (about 11 m/s: a city is too big for a person's real pace, 1.9.100 shipped 1.5 m/s and was unusable), holding Shift is 40 units/s, and holding Shift for a few seconds eases into 60;
   the eye is 1.65 m up (2.15 units) and bobs only while walking, one bob per footfall; the view is Street View's (90 degrees across, palace_ride_b fpFoc).
   E (or a click on the door, or the place pin) goes in through the door of a node building you are facing within ~12 units: palace_ride_door.py (JS_DOORS, spliced in below).
 Every key except browser shortcuts (Cmd/Ctrl/Alt combinations) and Tab is swallowed in the capture phase while roaming (stopImmediatePropagation),
@@ -40,7 +40,7 @@ from .palace_ride_inside import CSS_INSIDE, JS_INSIDE, JS_INSIDE_GL      # FPV p
 
 _JS_E = r"""
 var ROAM=(function(){
-var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:1.95, brisk:5.2, jog:9.1, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:1.4835, pitch0:-.03, edge:8,
+var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:14, brisk:40, jog:60, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:1.4835, pitch0:-.03, edge:8,
   waterGap:17, waterOff:8, deckHW:9.5, bob:.03, crossAt:34, gridC:160, stayZoom:.6 };
 var MXC=90;                                     /* palace.py MX = MY = 90: the margin round the drawn city; scroll = (x + MX) * zoom + gap - viewport / 2 */
 var S={ on:false, hold:false, x:0, y:0, yaw:0, pitch:0, vx:0, vy:0, run:false, hurry:0, keys:{}, tm:0, last:0, raf:0, phase:0, walked:0, speed:0, drag:null, cells:{}, queue:[], bigs:[],
@@ -316,7 +316,7 @@ function tick(dt, sync){
   var mv=Math.hypot(S.x-x0,S.y-y0); S.speed=dt>0?mv/dt:0;
   if(dt>0 && mv<Math.hypot(S.vx,S.vy)*dt*.5){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; }       /* pressed against a wall: no speed stored up */
   if(S.real && !IN.on) realBound(dt); else if(IN.on) RW.edge=0;       /* inside a building the footprint is the room: no edge fog, no clamp */
-  S.phase+=stepHz(S.speed/UM)*6.2832*dt; S.walked+=mv; S.tm+=dt;
+  S.phase+=Math.min(stepHz(S.speed/UM),2.1)*6.2832*dt; S.walked+=mv; S.tm+=dt;
   plan(false); stream(!!sync); }
 function draw(){
   var t0=performance.now(); sizeCheck(); var ctx=R.ctx, W=R.w, H=R.h, dpr=R.dpr; if(!ctx||!S.W) return;

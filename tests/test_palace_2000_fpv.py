@@ -57,14 +57,14 @@ def test_roam_is_left_before_the_page_opens_and_entered_again_when_it_closes():
 
 
 def test_human_scale_constants():
-    for k in ("walk:1.95", "brisk:5.2", "jog:9.1", "eye:2.15", "PRGL:1.3", "bob:.03"):
+    for k in ("walk:14,", "brisk:40,", "jog:60,", "eye:2.15", "PRGL:1.3", "bob:.03"):
         assert k in JSE
-    assert abs(1.95 / 1.3 - 1.5) < 0.01 and abs(5.2 / 1.3 - 4) < 0.01 and abs(9.1 / 1.3 - 7) < 0.01 and abs(2.15 / 1.3 - 1.65) < 0.01      # m/s and m at 1.3 units a metre
-    assert "stepHz(S.speed/UM)" in JSE and "function stepHz(v)" in palace_ride_b.JS_B
+    assert abs(14 / 1.3 - 10.8) < 0.05 and abs(2.15 / 1.3 - 1.65) < 0.01      # m/s and m at 1.3 units a metre
+    assert "Math.min(stepHz(S.speed/UM),2.1)" in JSE and "function stepHz(v)" in palace_ride_b.JS_B
     assert "var GL_NEAR=.5" in palace_ride_gl._JS_GL_MAIN
     assert "fpFoc(W,H)" in JSE and "fpFoc(W,H)" in palace_ride_d.JS_D
     assert "var FOV_H=90" in palace_ride_b.JS_B
-    assert "var WALK_V=6.5, WALK_FULL=130;" in palace_ride_a.JS_A                               # 5 m/s
+    assert "var WALK_V=150, WALK_FULL=130;" in palace_ride_a.JS_A                               # the ride's old walking pace
 
 
 def test_a_ride_to_a_node_building_offers_its_page_on_arrival():
@@ -386,9 +386,9 @@ def test_the_pace_is_a_person_s(roam):
     pg = roam
     pg.evaluate("() => window._palRide.roam.enter(1320, 1900, -Math.PI/2, {hold: true})")
     mps = pg.evaluate("""() => { var R=window._palRide.roam, v=function(keys,secs,run){ R.place(1320,1900,-Math.PI/2); var d=1/60, n=Math.round(secs/d); R.tick(d, keys, run); for(var i=0;i<n;i++) R.tick(d, keys, run); return R.state().speed/1.3; }; return {walk:v('f',3,false), brisk:v('f',1.5,true), jog:v('f',9,true)}; }""")
-    assert 1.3 <= mps["walk"] <= 1.6                                                              # 1.5 m/s
-    assert 3.6 <= mps["brisk"] <= 4.2                                                             # holding Shift: a brisk 4 m/s
-    assert 6.5 <= mps["jog"] <= 7.2                                                               # held for seconds: a 7 m/s jog, the most you ever get
+    assert 9.5 <= mps["walk"] <= 11.5                                                             # 14 units/s: a city is too big for a person's own pace (1.9.100's 1.5 m/s was unusable)
+    assert 28 <= mps["brisk"] <= 33                                                               # holding Shift: 40 units/s
+    assert 40 <= mps["jog"] <= 47                                                                 # held for seconds: 60 units/s, the most you ever get
     pg.evaluate("() => window._palRide.roam.exit(false)")
 
 
@@ -437,8 +437,8 @@ def test_walking_legs_play_at_a_person_s_pace_when_the_30_seconds_allow(roam):
     short = pg.evaluate(js, [[1000, 1000], [1100, 1000]])                                         # ~100 units = 77 m
     mid = pg.evaluate(js, [[1000, 1000], [1160, 1000]])
     long = pg.evaluate(js, [[1000, 1000], [1000, 6000]])
-    assert short["v"] / 1.3 <= 6.5                                                                # at most a brisk walk (5 m/s) plus the soft start and stop of the ride's ease
-    assert mid["T"] <= 30 and mid["v"] / 1.3 < 12                                                 # a 125 m walk still plays about as long as it takes
+    assert short["T"] <= 8 and short["v"] / 1.3 > 10                                               # walking legs play at the ride's old fast pace again
+    assert mid["T"] <= 30
     assert long["T"] == pytest.approx(30, abs=0.01) and long["v"] / 1.3 > 40                       # a very long walk is still compressed into the 30 s
 
 
