@@ -861,11 +861,13 @@ function drawFallback(ctx, W, P, Cam, tm){
 window._palScn={world:function(){ return R.W; }, E:function(){ return E; }, gather:function(set){ return gatherWorld(set, null); }, cam:function(){ return C; }, hash:hash, SCN:SCN, update:updateSafe, PAL:PAL, CAR_T:CAR_T, tpl:function(){ return _TPL; }, sig:sigState, pos:function(c,o){ return loopAt(c.loop,c.s,o); }, S:function(){ return R.W&&R.W._scn; }, SW:function(W){ return W._scn; }, obHit:obHit, cwRing:cwRing, noRide:function(f){ var m=R.M; R.M=null; try{ return f(); } finally{ R.M=m; } }, setRide:function(M){ var o=R.M; R.M=M; return o; }};
 
 /* ── the real-geometry world's furniture: the same models, at the given points ── */
+var _realAtlas=null, _atlasUid=0;
 function placeReal(W, it){
   var cells={}, cnt={trees:0,lamps:0,signals:0,stops:0,furn:0}, lampsN=[], keep=_lamps;
   function cc(x,y){ var ci=Math.floor(x/SCN_CELL), cj=Math.floor(y/SCN_CELL), k=ci+','+cj, c=cells[k]; if(!c) c=cells[k]={m:sb(8192),t:null,ci:ci,cj:cj}; return c; }
   function mm(x,y){ return cc(x,y).m; }
-  var A=null;
+  /* the sign atlas outlives the gather: a name keeps its slot, so the sign meshes already built stay right when the world is regathered (a new atlas each time made every sign vanish until it was rebuilt) */
+  var A=(_realAtlas&&_realAtlas.n<=80)?_realAtlas:null, nA0=A?A.n:-1;
   W.pal=PAL; _lamps=lampsN; _rec=null;
   try{
     (it.trees||[]).forEach(function(t){ var g=hash(Math.round(t[0]*3)+Math.round(t[1]*5)*977), sp=t[2]|0, season=pickSeason(hash(Math.round(t[0]*9)+Math.round(t[1]*13)+3), sp);
@@ -880,11 +882,10 @@ function placeReal(W, it){
     (it.shops||[]).forEach(function(d){ try{ shopFront(cc(d.x,d.y), d, it); cnt.shops=(cnt.shops||0)+1; }catch(e){} });
   } finally { _lamps=keep; }
   function shopFront(c, d, it){ var K=UM, nx=d.nx, ny=d.ny, tx=ny, ty=-nx, x=d.x, y=d.y, hw=Math.min(d.len/2-.4*K, 1.75*K), P=[0,0,0,0,0,0,0,0,0,0,0,0], hx=x-nx*K, hy=y-ny*K, z0=2.98*K, z1=3.5*K, dd=.47*K;
-    if(!d.name || hw<.9*K) return; if(!A){ A=atlasNew(); A.hue={}; } var key='\u0001'+d.name; A.hue[key]=d.hue; var rect=atlasRect(A,key); if(!rect) return; if(!c.t) c.t=sb(2048);
+    if(!d.name || hw<.9*K) return; if(!A){ A=atlasNew(); A.hue={}; A.uid=++_atlasUid; A.hf=A.h; _realAtlas=A; nA0=-1; } var key='\u0001'+d.name; A.hue[key]=d.hue; var rect=atlasRect(A,key); if(!rect) return; if(!c.t) c.t=sb(2048);
     P[0]=x-tx*hw+nx*dd; P[1]=y-ty*hw+ny*dd; P[2]=z0; P[3]=x+tx*hw+nx*dd; P[4]=y+ty*hw+ny*dd; P[5]=z0; P[6]=P[3]; P[7]=P[4]; P[8]=z1; P[9]=P[0]; P[10]=P[1]; P[11]=z1;
     quv(c.t,P,MAT_TEXT,0,hx,hy,(z0+z1)/2,[rect[0],rect[3],rect[2],rect[3],rect[2],rect[1],rect[0],rect[1]]); }
-  if(A && A.n){ var rowsN=Math.ceil(A.n/Math.floor(A.w/A.cw)), hf=64; while(hf<rowsN*A.ch) hf*=2; if(hf>A.h) hf=A.h; A.hf=hf;
-    Object.keys(cells).forEach(function(k){ var t=cells[k].t; if(t) for(var q=0;q+9<t.n;q+=10) t.a[q+7]*=A.h/hf; }); atlasPaint(A); A.h=A.hf||A.h; W.atlas=A; }
+  if(A && A.n){ if(!A.canvas || A.n!==nA0 || A.painted!==A.n){ atlasPaint(A); A.painted=A.n; } W.atlas=A; }       /* repainted only when a name was added; the full height, so the v coordinates never need rescaling */
   Object.keys(cells).forEach(function(k){ var c=cells[k]; if(c.m.n) W.meshes.push({a:sfin(c.m), id:'scn-real:'+k, cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75});
     if(c.t && c.t.n && W.atlas) W.meshes.push({a:sfin(c.t), id:'scn-real-txt:'+k, cx:(c.ci+.5)*SCN_CELL, cy:(c.cj+.5)*SCN_CELL, r:SCN_CELL*.75, tex:'atlas'}); });
   W.lamps=new Float32Array(lampsN); return cnt; }

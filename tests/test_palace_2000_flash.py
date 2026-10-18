@@ -27,7 +27,7 @@ K = 1.3
 # ───────────────────────────── source contract ─────────────────────────────
 def test_the_causes_are_closed_in_the_source():
     st = palace_ride_street.JS_STREET
-    for f in ("function realDedupe(W)", "function realRoadRanks(roads)", "function* gatherRealG(", "REAL.gatherG=gatherRealG", "realDedupe(W); yield; realRoadRanks(W.roads); yield;", "sol.part=!!f.part"):
+    for f in ("function realDedupe(W)", "function realRoadRanks(roads)", "function* gatherRealG(", "REAL.gatherG=gatherRealG", "realDedupe(W); yield;", "realRoadRanks(W.roads); yield;", "roofOf(roofMs[q[4]]||(roofMs[q[4]]=MB.mk()), q[0], q[1]+(sd.roofDz||0), q[2], q[3], sd.hide)", "vis=hide?glVis(hide,ax,ay,bx,by):null", "sol.part=!!f.part"):
         assert f in st, f
     gl = palace_ride_gl.JS_GL
     assert "function glVis(hide,ax,ay,bx,by)" in gl and "function gwallP(" in gl and "if(s.nodraw) return;" in gl and "(s.roofDz||0)" in gl      # hidden wall stretches, outlines not drawn, a lowered roof
@@ -209,9 +209,24 @@ def test_a_regathered_world_names_its_meshes_by_cell_not_by_where_it_was_gathere
         assert ids and all(re.fullmatch(r"(scn-real(-txt)?:-?\d+,-?\d+|real:roof:-?\d+,-?\d+)", i) for i in ids), ids     # no gather centre in an id: the renderer reuses the buffers it has
     assert set(a) & set(b), (a, b)
     g = palace_ride_gl.JS_GL
-    assert "function glMeshFind(m)" in g and "GLX.prevM[m.id]" in g and "function glCellObj(G,k)" in g          # an old buffer stays up until its replacement is built
+    assert "function glMeshFind(m,exact)" in g and "GLX.prevM[m.id]" in g and "function glCellObj(G,k)" in g          # an old buffer stays up until its replacement is built
 
 
 def test_trees_are_full_models_out_to_215_m_nearest_first():
     st = palace_ride_street.JS_STREET
     assert "var FULL_R=215, FULL_N=320" in st and "dtl.sort(function(p,q){ return p[0]-q[0]; })" in st and "RT=Math.max(R,720)" in st
+
+
+def test_scenery_is_replaced_after_a_regather_not_left_stale(roam):
+    """After a regather the old buffers stay up until the new ones exist, but the new ones must then REPLACE them: nothing drawn is a previous world's buffer once the renderer has settled."""
+    pg = roam
+    _enter(pg, 3945, 2012, 0.0)
+    r = pg.evaluate("""()=>{ var R=window._palRide.roam, G=window._palRideGL, T=window.__t; T.warm(); var before=G.meshStatus(R.world());
+      var v0=R.state().ver; R.place(R.state().x+160*1.3, R.state().y, 0); R.settle(); var vs=R.state().ver-v0;           /* a regather far enough on that the trees and lamps of the new cells differ */
+      var mid=G.meshStatus(R.world()); var drawnMid=mid.filter(function(m){ return m.drawnVerts>0; }).length;
+      for(var i=0;i<200;i++){ R.tick(0,'x',false); R.draw(); } var after=G.meshStatus(R.world());
+      return {vs:vs, before:before.length, mid:mid.length, midStale:mid.filter(function(m){ return !m.exact; }).length, drawnMid:drawnMid, after:after.length, stale:after.filter(function(m){ return !m.exact; }).map(function(m){ return m.id; }),
+        wrong:after.filter(function(m){ return m.drawnVerts!==m.wantVerts; }).map(function(m){ return [m.id,m.drawnVerts,m.wantVerts]; }), tex:after.filter(function(m){ return m.tex; }).length}; }""")
+    assert r["vs"] >= 1 and r["after"] >= 2, r
+    assert r["stale"] == [] and r["wrong"] == [], r                       # every mesh draws exactly its own content
+    assert r["drawnMid"] >= r["mid"] - 1, r                               # and straight after the swap nothing was missing (stand-ins were drawn)

@@ -327,31 +327,32 @@ function glEvict(){
   for(var i=0; i<ks.length && GLX.nCache>GL_MAXCACHE-12; i++){ var o=GLX.cache[ks[i]]; if(o.use>=GLX.frame-90) break; glFree(o); delete GLX.cache[ks[i]]; GLX.nCache--; } }
 function glPending(W){ var G=glPlan(W), out=[]; G.keys.forEach(function(k){ var c=G.cells[k]; if(GLX.cache[c.ck]){ c.state=2; return; } out.push(c); }); return out; }
 function glWork(W,budget){
-  var G=glPlan(W), t0=performance.now(), deadline=t0+budget, left=0;
+  GLX.atlObj=W.atlas||null; var G=glPlan(W), t0=performance.now(), deadline=t0+budget, left=0;
   var pend=glPending(W); if(pend.length){
     pend.forEach(function(c){ c.d=Math.max(0,Math.hypot(c.cx-C.x,c.cy-C.y)-c.rad-CELL*.5); });
     pend.sort(function(p,q){ return p.d-q.d; });
     for(var i=0;i<pend.length;i++){ if(performance.now()>deadline && !(GLX.fresh&&pend[i].d<CELL*1.2)) break; if(glCellStep(W,pend[i],GLX.fresh&&pend[i].d<CELL*1.2?t0+400:deadline)) continue; break; }
     left=glPending(W).length; }
   /* meshes from other parts (landmarks, scenery) and the ride's way, as time allows */
-  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!W.atlas)) return; var fo=glMeshFind(m); if(fo){ fo.use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh) return; glMeshGet(m.a,m.id,m.tex); });
+  (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m._gm||(m.tex&&!W.atlas)) return; var fo=glMeshFind(m,true); if(fo){ fo.use=GLX.frame; return; } if(performance.now()>deadline && !GLX.fresh){ left++; return; } glMeshGet(m.a,m.id,m.tex); });
   GLX.st.pending=left; return left; }
 /* a mesh from another part (landmarks, scenery, a mover's model) as a GL buffer: by array identity, else by id + size + a few sampled values, so a world that is
    re-gathered with identical scenery reuses the buffers it already has */
 function glMeshPeek(a){ var o=GLX.mc?GLX.mc.get(a):null; return (o && o.gen===GLX.gen && o.buf)?o:null; }
-/* a mesh's buffer if one already exists for it - by array identity, else by the id + size + sampled values key (a regathered world makes new arrays of the same scenery) - and never a build: this is what the
-   frame draws with, so a world swap does not make every tree, lamp and car vanish until each has been looked up again */
-function glMeshFind(m){
-  var a=m.a, o=glMeshPeek(a); if(o) return o; if(m.tex||typeof m.id!=='string') return null;
-  var n=a.length, key='m:'+(m.id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+',';
-  var c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); GLX.prevM[m.id]=c; return c; }
-  c=GLX.prevM[m.id]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; return c; } return null; }       /* not uploaded yet: the last one of this id stays up (palace_ride_g.py ids are per 300-unit cell) */
-function glMeshGet(a,id,nokey){
+/* a mesh's buffer if one already exists for it - by array identity, else by the id + size + sampled values key (a regathered world makes new arrays of the same scenery; a sign mesh also by the atlas it
+   was laid out for) - and never a build. exact: only a buffer made for THIS content. Without it, a buffer of the same id from the previous world is a stand-in (the frame draws with it, so a world swap
+   does not make every tree, lamp, car and sign vanish) - but glWork asks for exact ones, so the new mesh is still uploaded and replaces it. */
+function glMeshKey(m){ var a=m.a, n=a.length, key=(m.tex?'t'+((GLX.atlObj&&GLX.atlObj.uid)||0)+':':'m:')+(m.id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+','; return key; }
+function glMeshFind(m,exact){
+  var a=m.a, o=glMeshPeek(a); if(o) return o; if(typeof m.id!=='string') return null;
+  var c=GLX.cache[glMeshKey(m)]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); GLX.prevM[m.id]=c; return c; }
+  if(exact) return null;
+  c=GLX.prevM[m.id]; if(c && c.gen===GLX.gen && c.buf && (!m.tex || c.atl===GLX.atlObj)){ c.use=GLX.frame; return c; } return null; }
+function glMeshGet(a,id,tex,nokey){
   var o=glMeshPeek(a); if(o){ o.use=GLX.frame; return o; }
   if(nokey){ var e0=glExpand(a); o=glUpload({a:e0.a, n:e0.a.length, x0:e0.x0,x1:e0.x1,y0:e0.y0,y1:e0.y1,z0:e0.z0,z1:e0.z1}); o.use=GLX.frame; GLX.cache['u:'+(++GLX.uid)]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); return o; }
-  var n=a.length, key='m:'+(id||'')+'|'+n+'|'; for(var i=0;i<8;i++) key+=a[Math.floor(i*(n-1)/7)].toFixed(2)+',';
-  var c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); return c; }
-  var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); GLX.cache[key]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); if(id) GLX.prevM[id]=o; return o; }
+  var key=glMeshKey({a:a,id:id,tex:tex}), c=GLX.cache[key]; if(c && c.gen===GLX.gen && c.buf){ c.use=GLX.frame; if(GLX.mc) GLX.mc.set(a,c); if(id) GLX.prevM[id]=c; return c; }
+  var e=glExpand(a); var b={a:e.a, n:e.a.length, x0:e.x0,x1:e.x1,y0:e.y0,y1:e.y1,z0:e.z0,z1:e.z1}; o=glUpload(b); if(tex) o.atl=GLX.atlObj; GLX.cache[key]=o; GLX.nCache++; if(GLX.mc) GLX.mc.set(a,o); if(id) GLX.prevM[id]=o; return o; }
 """
 
 _JS_GL_WAY = r"""
@@ -518,7 +519,7 @@ function glMoversOf(Wd,tm){
 function glSceneryUni(gl,pg,Wd,L){
   var pal=glPalOf(Wd); if(pal && (GLX.palRef!==pal || GLX.palN!==pal.length)){ var px=new Uint8Array(1024), i; for(i=0;i<pal.length&&i<256;i++){ px[4*i]=pal[i][0]; px[4*i+1]=pal[i][1]; px[4*i+2]=pal[i][2]; px[4*i+3]=255; }
     gl.bindTexture(gl.TEXTURE_2D,GLX.palTex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,256,1,0,gl.RGBA,gl.UNSIGNED_BYTE,px); GLX.palRef=pal; GLX.palN=pal.length; }
-  var at=Wd.atlas; if(at && at.canvas && (GLX.atlRef!==at.canvas || GLX.atlH!==at.h || at.dirty)){ var h=at.canvas.height, w=at.canvas.width, H2=1; while(H2<h) H2*=2;
+  var at=Wd.atlas; GLX.atlObj=at||null; if(at && at.canvas && (GLX.atlRef!==at.canvas || GLX.atlH!==at.h || at.dirty)){ var h=at.canvas.height, w=at.canvas.width, H2=1; while(H2<h) H2*=2;
     var cv=document.createElement('canvas'); cv.width=w; cv.height=H2; cv.getContext('2d').drawImage(at.canvas,0,0); gl.bindTexture(gl.TEXTURE_2D,GLX.atlTex);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR); gl.generateMipmap(gl.TEXTURE_2D);
@@ -536,7 +537,7 @@ function glSceneryUni(gl,pg,Wd,L){
 var _gmg=[];
 function glDrawMovers(gl,pg,Wd){
   var mv=Wd._gmv&&!Wd._mv?Wd._gmv:Wd.movers; if(!mv||!mv.length) return 0; var a=pg.a, ext=GLX.inst, groups=[], map=GLX.mc, i, draws=0, lim2=Math.pow(FARZ*.42,2);
-  for(i=0;i<mv.length;i++){ var m=mv[i]; if(!m||!m.a||!m.a.length) continue; var dx=m.x-C.x, dy=m.y-C.y; if(dx*dx+dy*dy>lim2) continue; var o=glMeshGet(m.a,'mv',true); if(!glSphVis(m.x,m.y,(m.z||0)+o.cz,o.r+2)) continue;
+  for(i=0;i<mv.length;i++){ var m=mv[i]; if(!m||!m.a||!m.a.length) continue; var dx=m.x-C.x, dy=m.y-C.y; if(dx*dx+dy*dy>lim2) continue; var o=glMeshGet(m.a,'mv',false,true); if(!glSphVis(m.x,m.y,(m.z||0)+o.cz,o.r+2)) continue;
     var gr=null; for(var q=0;q<groups.length;q++) if(groups[q].o===o){ gr=groups[q]; break; } if(!gr){ gr={o:o,l:[]}; groups.push(gr); } gr.l.push(m); }
   gl.uniform1f(pg.u.uInst,1);
   groups.forEach(function(gr){ var l=gr.l, o=gr.o; glBind(gl,pg,o);
@@ -570,6 +571,8 @@ function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   GLX.st.ms=performance.now()-t0; return true; }
 GLX.flush=function(){ var gl=GLX.gl; if(gl && GLX.on){ var px=new Uint8Array(4); gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px); } };
 GLX.newWorld=function(){ GLX.fresh=true; };
+/* QA: for each mesh of the world, whether the buffer that exists for it was made for ITS content (exact) or is the previous world's stand-in, and the floats the mesh has against the vertices the buffer draws */
+GLX.meshStatus=function(Wd){ return (Wd.meshes||[]).filter(function(m){ return m&&m.a&&m.a.length&&!m._gm; }).map(function(m){ var ex=glMeshFind(m,true), any=ex||glMeshFind(m,false); return {id:m.id, tex:!!m.tex, floats:m.a.length, exact:!!ex, drawnVerts:any?any.n:0, wantVerts:m.a.length/10}; }); };
 /* QA: free camera over a world gathered around (x,y): GLX.look(x,y,eyeZ,yawDeg,pitchDeg,rad cells) draws one frame (the kit uses it for screenshots) */
 GLX.look=function(x,y,z,yawDeg,pitchDeg,rad,dk){
   if(!E) return false; ensureOverlay(); if(!R.active){ R.active=true; document.documentElement.classList.add('pal-fp'); } if(dk!=null){ document.documentElement.classList.toggle('dark',!!dk); }

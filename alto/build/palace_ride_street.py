@@ -117,10 +117,17 @@ function triOut(m,A,B,C,hint,mat,tint){ var ux=B[0]-A[0],uy=B[1]-A[1],uz=B[2]-A[
   MB.tri(m,A,B,C,-nx/l,-ny/l,-nz/l,mat,tint,[A[0]/K,A[1]/K],[B[0]/K,B[1]/K],[C[0]/K,C[1]/K]); }
 function quadOut(m,A,B,C,D_,hint,mat,tint){ triOut(m,A,B,C,hint,mat,tint); triOut(m,A,C,D_,hint,mat,tint); }
 /* ring in world units, eave height z (units). kind: 0 flat+parapet, 1 gable, 2 hip. Appends to mesh m. */
-function roofOf(m, ring, z, kind, tint){
+function roofOf(m, ring, z, kind, tint, hide){
   var ob=obb(ring), n=ring.length/2, i, c=ob.c, s=ob.s;
   function W3(u,v,zz){ return [u*c-v*s, u*s+v*c, zz]; }
-  if(kind===0){ var par=.7*K, o=MB.ringOut(ring), no=o.length/2; for(i=0;i<no;i++){ var j=(i+1)%no; MB.wall(m,o[2*i],o[2*i+1],o[2*j],o[2*j+1],z,z+par,MAT.concrete,tint,0); MB.wall(m,o[2*j],o[2*j+1],o[2*i],o[2*i+1],z,z+par,MAT.concrete,tint,0); } return; }
+  if(kind===0){ var par=.7*K, o=MB.ringOut(ring), no=o.length/2;
+    for(i=0;i<no;i++){ var j=(i+1)%no, ax=o[2*i], ay=o[2*i+1], bx=o[2*j], by=o[2*j+1], ex=bx-ax, ey=by-ay, el=Math.hypot(ex,ey)||1, ix=ey/el*.08, iy=-ex/el*.08, vis=hide?glVis(hide,ax,ay,bx,by):null, q;
+      if(vis && !vis.length) continue;                                  /* a stretch of wall that lies on a taller wall has no parapet either */
+      if(!vis) vis=[0,1];
+      for(q=0;q<vis.length;q+=2){ var p0=vis[q], p1=vis[q+1], x0=ax+ex*p0, y0=ay+ey*p0, x1=ax+ex*p1, y1=ay+ey*p1;
+        MB.wall(m,x0,y0,x1,y1,z,z+par,MAT.concrete,tint,0);
+        MB.wall(m,x1+ix,y1+iy,x0+ix,y0+iy,z,z+par,MAT.concrete,tint,0); } }       /* the inner face sits 8 cm in: two faces on one plane (drawn both ways, no culling) tie in the depth buffer */
+    return; }
   var w=ob.u1-ob.u0, d=ob.v1-ob.v0, along=w>=d, ridgeZ=z+Math.max(1.0*K,Math.min(w,d)*.3), mat=(tint>.5?MAT.tile:MAT.roof), um=(ob.u0+ob.u1)/2, vm=(ob.v0+ob.v1)/2, ctr=W3(um,vm,z);
   var P=[W3(ob.u0,ob.v0,z),W3(ob.u1,ob.v0,z),W3(ob.u1,ob.v1,z),W3(ob.u0,ob.v1,z)], R1,R2, e=kind===2?Math.min(w,d)*.4:0;
   if(along){ R1=W3(ob.u0+e,vm,ridgeZ); R2=W3(ob.u1-e,vm,ridgeZ); } else { R1=W3(um,ob.v0+e,ridgeZ); R2=W3(um,ob.v1-e,ridgeZ); }
@@ -252,9 +259,12 @@ function* gatherRealG(Xp, Yp, R, at){
       var area=ringArea(ring), hs=hashXY(bx,by), h=f[0]>0?f[0]:3.3*(hs<.2?2:hs>.85?4:3), tone=dk?[96,100,122]:[198,184,168], col=mixC(tone, dk?[120,130,170]:[222,206,190], hashXY(bx*5,by*3)); if(f.col){ var cc=rgbOf(f.col); col=dk?mixC(cc,[120,130,170],.25):cc; }
       var wr=new Array(n*2); for(k=0;k<n*2;k++) wr[k]=ring[k]*K;
       var ob=obb(ring), rect=ob.area>0&&area/ob.area>.8, kind=(rect&&area<260&&h<=13)?(hs<.25?1:hs<.4?2:0):(h<=40?0:-1), eave=h*K;
-      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0){ roofOf(roofMs[ci+','+cj]||(roofMs[ci+','+cj]=MB.mk()), wr, eave, kind, hashXY(bx*3,by*7)); roofs[kind]++; } kept++; });
+      var sol=solid(wr, eave, col, 'b', ''); sol.part=!!f.part; if(f.mat){ sol.mat=f.mat; sol.sf=!!f.sf; if(sol.sf && h<=40){ var sh=rlShopFace(ring,n); if(sh){ sol.shop=sh; shops.push(sh); } } } if(f.mh>0) sol.z0=f.mh*K; bq.push({x0:x0,y0:y0,x1:x1,y1:y1,ring:ring}); W.solids.push(sol); if(kind>=0) sol._rf=[wr,eave,kind,hashXY(bx*3,by*7),ci+','+cj]; kept++; });
     yield; }                                  /* one 400 m chunk done: roam's frame loop takes it from here, a few milliseconds at a time (palace_ride_e.py realGatherStep) */
-  realDedupe(W); yield; realRoadRanks(W.roads); yield;
+  realDedupe(W); yield;
+  /* roofs and parapets AFTER the dedupe: a footprint the data lists twice (an outline and its part) drew two parapets on one plane, and a lowered roof keeps its parapet with it */
+  W.solids.forEach(function(sd){ var q=sd._rf; if(!q||sd.nodraw) return; roofOf(roofMs[q[4]]||(roofMs[q[4]]=MB.mk()), q[0], q[1]+(sd.roofDz||0), q[2], q[3], sd.hide); roofs[q[2]]++; sd._rf=null; });
+  realRoadRanks(W.roads); yield;
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
      has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
   try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops,id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
