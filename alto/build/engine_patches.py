@@ -592,7 +592,8 @@ html:not(.mobile) #world .node.dg:not([style*="transform"]){
     /* a hovered card grows downward from its resting top (n._hov: rest height);
        an enlarged one is centred whatever hover it was caught in (a pinch on
        the card under the pointer left it 50px low, its shadow showing above) */
-    var hov=n._hov!=null && !n.classList.contains('focused') && !n.hasAttribute('data-solar');   // a solar circle grows from its centre (solar_draw.py)
+    var hov=n._hov!=null && !n.classList.contains('focused');
+    if(n.hasAttribute('data-solar')) hov=false;   // a solar circle grows from its centre (solar_draw.py)
     n.style.setProperty('--my',(-(hov?n._hov:n.offsetHeight)/2)+'px');
   }
   var ro=(typeof ResizeObserver==='function')

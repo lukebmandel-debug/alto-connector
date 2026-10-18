@@ -94,7 +94,7 @@ def test_the_engine_hooks_are_anchored_in_the_template_once():
         assert TEMPLATE.count(p["old"]) == 1, p["name"]
         assert html.count(p["new"]) == 1, p["name"]
     assert "window._altoSolarNav(id, dir)" in html                 # arrows (focusNeighbor)
-    assert "!n.hasAttribute('data-solar')" in html                  # a circle grows from its centre
+    assert "if(n.hasAttribute('data-solar')) hov=false;" in html    # a circle grows from its centre
     assert "window._altoContentMoved=moved" in html                 # moving content is not a hover
 
 
@@ -244,7 +244,7 @@ def test_orbits_move_keep_their_radius_and_follow_the_lines(browser, pages):
         p0, p1, c0 = g0["b"][b["p"]], g1["b"][b["p"]], g0["b"][i]
         r0 = math.hypot(c0["x"] - p0["x"], c0["y"] - p0["y"])
         r1 = math.hypot(b["x"] - p1["x"], b["y"] - p1["y"])
-        assert abs(r0 - r1) < 1.5, (i, r0, r1)              # still on its ring
+        assert abs(r0 - r1) < 2, (i, r0, r1)                # still on its ring (both ends rounded to device px)
     # a connection ends at its circles' edges, wherever they are now
     ends = pg.evaluate(r"""() => [].map.call(document.querySelectorAll('#river-svg [data-edge]'), function(p){
         var k=p.getAttribute('data-edge').split('|'), d=p.getAttribute('d').match(/-?\d*\.?\d+/g).map(Number),
@@ -349,6 +349,10 @@ def test_arrow_keys_pick_the_body_that_way_where_it_is_now(browser, pages):
         b = g["b"][got]
         dx, dy = b["x"] - sun["x"], b["y"] - sun["y"]
         assert dx * ux + dy * uy > 0, (key, got)            # it is that way from the sun, now
+    pg.evaluate("() => window.exitFocus()")
+    pg.wait_for_timeout(1500)
+    # every card that was enlarged on the way is a circle again
+    assert pg.evaluate("() => document.querySelectorAll('#world .sol-closing,#world .sol-clip').length") == 0
     assert not errs, errs
     pg.context.close()
 

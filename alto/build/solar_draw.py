@@ -20,8 +20,8 @@ only (a phone keeps the engine's column of cards):
   spokes as Alto's own tubes; nothing moves. The engine's unit bands, labels
   and bars go (as on a horizontal timeline); a chip names each system.
 * Motion ("orbit"). One rAF loop turns every body round what it orbits by
-  2π·t/period (solar.py periods, its spin) and drifts each sun a few px when
-  there are several systems; the bodies are moved by their own left/top (the
+  2π·t/period (solar.py periods, its spin) and, when there are several
+  systems, turns each slowly as a whole about its own sun; the bodies are moved by their own left/top (the
   D-GRID margin centring keeps them centred: never a transform, see
   engine_patches 1.8.28), rounded to device px so text stays crisp. Positions
   are offsets from where initLayout put each circle, so a moved card keeps its
@@ -78,7 +78,7 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .node[data-solar].focused:not(.sol-clip) .sol-face{display:none;}
   .sol-face b{font-weight:600;font-variant-numeric:tabular-nums;opacity:.72;font-size:10px;line-height:12.5px;letter-spacing:.02em;}
   .sol-face span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;
-    overflow-wrap:anywhere;hyphens:auto;font-size:12.5px;line-height:15px;max-width:100%;}
+    overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;font-size:12.5px;line-height:15px;max-width:100%;}
   .node[data-solar=sun] .sol-face b{font-size:12.5px;line-height:15px;}
   .node[data-solar=sun] .sol-face span{font-size:16.25px;line-height:20px;-webkit-line-clamp:4;line-clamp:4;}
   .node[data-solar=moon] .sol-face{gap:1.25px;}
@@ -123,7 +123,11 @@ function face(n, id){
   var num=(typeof NODE_ORDER_MAP!=='undefined' && NODE_ORDER_MAP[id]) || '', t=c.querySelector('.node-title'), tt=t ? t.textContent : '';
   var b=B[id];
   f.querySelector('b').textContent=b.role==='sat' ? (num.split(/[.\-]/).pop()||num) : num;
-  f.querySelector('span').textContent=tt;
+  var sp=f.querySelector('span'), base={sun:16.25, planet:12.5, moon:8.75}[b.role], L=Math.max.apply(null, tt.split(/\s+/).map(function(w){ return w.length; }).concat([1]));
+  sp.textContent=tt; sp.style.fontSize=sp.style.lineHeight='';
+  /* a word too long for the disc: the type steps down (to 72%) before a word is broken */
+  var fs=base ? Math.max(base*.72, Math.min(base, b.d*.68/(L*.55))) : 0;
+  if(fs && fs<base){ fs=Math.round(fs*4)/4; sp.style.fontSize=fs+'px'; sp.style.lineHeight=Math.round(fs*1.2*4)/4+'px'; }
   f.setAttribute('aria-hidden', 'true');
   if(b.role==='sat') c.setAttribute('title', (num ? num+'  ' : '')+tt);
 }
@@ -249,11 +253,10 @@ function place(){
   var many=SY.length>1;
   ORD.forEach(function(id){
     var b=B[id]; if(!b.n) return;
-    if(!b.p){ b.x=b.hx; b.y=b.hy;
-      if(MOVES && many && T){ var P=210+37*b.si, ph=b.si*1.7, A=12;
-        b.x+=A*(Math.cos(TAU*T/P+ph)-Math.cos(ph))*rk; b.y+=A*(Math.sin(TAU*T/(P*1.3)+ph)-Math.sin(ph))*rk; }
-      return; }
-    var p=B[b.p], dx=b.hx-p.hx, dy=b.hy-p.hy, a=b.per>0 ? wrap(SPIN*TAU*T/b.per)*rk : 0, cs=Math.cos(a), sn=Math.sin(a);
+    if(!b.p){ b.x=b.hx; b.y=b.hy; return; }
+    /* with several systems each also turns slowly as a whole about its own sun
+       (within its R, so never toward a neighbour) */
+    var p=B[b.p], dx=b.hx-p.hx, dy=b.hy-p.hy, a=b.per>0 ? wrap(SPIN*TAU*T/b.per+(many ? SPIN*TAU*T/(540+60*b.si) : 0))*rk : 0, cs=Math.cos(a), sn=Math.sin(a);
     b.x=p.x+dx*cs-dy*sn; b.y=p.y+dx*sn+dy*cs;
   });
 }
