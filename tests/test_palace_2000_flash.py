@@ -293,3 +293,15 @@ def test_trunks_and_lamp_posts_are_solid_in_the_real_world(roam):
     assert r["bad"] == 0, r
     assert r["best"] >= tr + o["pr"] - 0.15, (r, tr, o["pr"])
     assert "function obstHit(x,y)" in palace_ride_e.JS_E and "buildingHit(x,y)||obstHit(x,y)" in palace_ride_e.JS_E
+
+
+def test_street_trees_keep_clear_of_buildings(roam):
+    """A crown over a building pokes through its awning and into its lobby ceiling: every tree is at least 3 m from every footprint."""
+    pg = roam
+    _enter(pg, 3945, 2012, 0.0)
+    r = pg.evaluate("""()=>{ var W=window._palRide.roam.world(), K=1.3, T=W.real.treeXY, S=W.solids.filter(function(s){ return s.kind==='b'; }), worst=1e9;
+      function inside(r,x,y){ var c=false, n=r.length/2; for(var i=0,j=n-1;i<n;j=i++){ var ax=r[2*i], ay=r[2*i+1], bx=r[2*j], by=r[2*j+1]; if((ay>y)!==(by>y) && x<ax+(y-ay)*(bx-ax)/(by-ay)) c=!c; } return c; }
+      T.forEach(function(t){ S.forEach(function(s){ var r=s.ring, n=r.length/2; if(inside(r,t[0],t[1])) worst=-1; for(var i=0,j=n-1;i<n;j=i++){ var ax=r[2*j], ay=r[2*j+1], ex=r[2*i]-ax, ey=r[2*i+1]-ay, l2=ex*ex+ey*ey||1e-9, u=Math.max(0,Math.min(1,((t[0]-ax)*ex+(t[1]-ay)*ey)/l2)); worst=Math.min(worst, Math.hypot(ax+ex*u-t[0], ay+ey*u-t[1])/K); } }); });
+      return {n:T.length, worst:worst, cleared:W.real.treesCleared}; }""")
+    assert r["n"] >= 3, r
+    assert r["worst"] >= 3.0 - 0.01, r

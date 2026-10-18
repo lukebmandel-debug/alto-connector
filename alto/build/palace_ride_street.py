@@ -280,14 +280,21 @@ function* gatherRealG(Xp, Yp, R, at){
   /* street trees, lamps, signals, stop signs, crossings and furniture: the scenery's own models (palace_ride_g.py sceneryPlace) at the points of the street data; where the data
      has no tree / lamp along a street with sidewalks, a jittered row is added (a tree every 14-26 m, a lamp every 36-52 m, never inside a building or near another one) */
   try{ var it={trees:[],lamps:[],signals:[],stops:[],benches:[],hydrants:[],bins:[],boxes:[],shops:shops,id:Math.round(cx)+','+Math.round(cy)}, nT=0, nTf=0, inR=function(x,y,r){ return Math.abs(x-cx)<=r&&Math.abs(y-cy)<=r; },
-      hasB=function(x,y){ for(var q=0;q<bq.length;q++){ var b=bq[q]; if(x>=b.x0-1&&x<=b.x1+1&&y>=b.y0-1&&y<=b.y1+1 && rlInF(b.ring,x,y)) return true; } return false; },
+      hasB=function(x,y){ return nearB(x,y,0); },
       bearing=function(d){ var a=(d||0)*Math.PI/180; return [Math.sin(a),-Math.cos(a)]; },
       toRoad=function(x,y,any){ var nr=rlNear(x,y,40,any)[0]; if(!nr) return null; var d=Math.max(.1,nr.d); return {ox:(nr.x-x)/d, oy:(nr.y-y)/d, tx:Math.cos(nr.ang), ty:Math.sin(nr.ang), w:((RCLS[nr.f[0]]||[7])[0]), d:nr.d, x:nr.x, y:nr.y}; };
     var dt=REAL.trees||[], df=REAL.furn||[];
+    /* street trees keep 3 m clear of every footprint: a crown over a building pokes through its awning and into its lobby ceiling (a storefront awning reaches 1.7 m out) */
+    var gB={}, mB=3.0, nCl=0;
+    bq.forEach(function(b){ for(var a=Math.floor((b.x0-mB)/32);a<=Math.floor((b.x1+mB)/32);a++) for(var c=Math.floor((b.y0-mB)/32);c<=Math.floor((b.y1+mB)/32);c++) (gB[a+','+c]||(gB[a+','+c]=[])).push(b); });
+    var nearB=function(x,y,m){ var l=gB[Math.floor(x/32)+','+Math.floor(y/32)]; if(!l) return false;
+      for(var q=0;q<l.length;q++){ var b=l[q]; if(x<b.x0-m||x>b.x1+m||y<b.y0-m||y>b.y1+m) continue; if(rlInF(b.ring,x,y)) return true;
+        var r=b.ring, n=r.length/2, i, j; for(i=0,j=n-1;i<n;j=i++){ var ax=r[2*j], ay=r[2*j+1], ex=r[2*i]-ax, ey=r[2*i+1]-ay, l2=ex*ex+ey*ey||1e-9, t=Math.max(0,Math.min(1,((x-ax)*ex+(y-ay)*ey)/l2)), qx=ax+ex*t-x, qy=ay+ey*t-y; if(qx*qx+qy*qy<m*m) return true; } }
+      return false; };
     var haveT=rlPG(dt.map(function(t){ return [t[0],t[1]]; }),20), haveL=rlPG(df.filter(function(q){ return q[2]==='street_lamp'; }).map(function(q){ return [q[0],q[1]]; }),30);
     /* nearest first, and a full model out to FULL_R: the next gather comes when the walker is RW.regather (105 m) from this centre, so every tree within 110 m of him then was already a full model here
        (a tree used to be a flat blob until the gather after the one he walked up to it, and popped into a full tree in front of him) */
-    var FULL_R=215, FULL_N=320, dtl=[]; dt.forEach(function(t){ if(inR(t[0],t[1],R)) dtl.push([Math.hypot(t[0]-cx,t[1]-cy),t]); }); dtl.sort(function(p,q){ return p[0]-q[0]; });
+    var FULL_R=215, FULL_N=320, dtl=[]; dt.forEach(function(t){ if(inR(t[0],t[1],R)){ if(nearB(t[0],t[1],mB)){ nCl++; return; } dtl.push([Math.hypot(t[0]-cx,t[1]-cy),t]); } }); dtl.sort(function(p,q){ return p[0]-q[0]; });
     dtl.forEach(function(pt){ var t=pt[1], d=pt[0]; if(it.trees.length>=700) return; var sp=/needle/i.test(t[3])?3:/platan|sycamore/i.test(t[2])?0:/quercus|oak/i.test(t[2])?2:/prunus|pyrus|cherry|pear/i.test(t[2])?4:/zelkova|gleditsia|honey|ginkgo/i.test(t[2])?1:sceneryTreeAt(t[0],t[1]);
       var lod=d>FULL_R||nTf>=FULL_N; if(!lod) nTf++; it.trees.push([t[0]*K,t[1]*K,sp,null,null,null,lod]); nT++; });
     df.forEach(function(q){ if(!inR(q[0],q[1],R)) return; var k=q[2], rd=toRoad(q[0],q[1],true), br=q[3]>=0?bearing(q[3]):null, X=q[0]*K, Y=q[1]*K;
@@ -304,7 +311,7 @@ function* gatherRealG(Xp, Yp, R, at){
       for(var a=1;a+3<f.length;a+=2){ var x0=f[a]*K, y0=f[a+1]*K, x1=f[a+2]*K, y1=f[a+3]*K, l=Math.hypot(x1-x0,y1-y0); if(l<1) continue; var ux=(x1-x0)/l, uy=(y1-y0)/l, nx=-uy, ny=ux;
         for(var s=0;s<l;s+=1){ acc+=1; accL+=1;
           if(acc>=gapT){ acc=0; gapT=(14+12*hashXY(x0+s,y0))*K; [1,-1].forEach(function(sd){ var px=(x0+ux*s+nx*(w/2+1.0*K)*sd)/K, py=(y0+uy*s+ny*(w/2+1.0*K)*sd)/K; if(!inR(px,py,R)||nP>=300) return;
-              if(rlPGnear(haveT,px,py,9)||hasB(px,py)) return; var nr=rlNear(px,py,w/K/2+1.2,true)[0]; if(nr&&nr.f!==f) return;
+              if(rlPGnear(haveT,px,py,9)||nearB(px,py,mB)) return; var nr=rlNear(px,py,w/K/2+1.2,true)[0]; if(nr&&nr.f!==f) return;
               var d=Math.hypot(px-cx,py-cy), lod=d>FULL_R||nTf>=FULL_N; if(!lod) nTf++; it.trees.push([px*K,py*K,sceneryTreeAt(px,py),null,null,null,lod]); nP++; }); }
           if(accL>=gapL){ accL=0; gapL=(36+16*hashXY(x0,y0+s))*K*.5; side=-side; var lx=(x0+ux*s+nx*(w/2+.75*K)*side)/K, ly=(y0+uy*s+ny*(w/2+.75*K)*side)/K; if(!inR(lx,ly,R*.8)||nL>=240||it.lamps.length>=400) continue;
             if(rlPGnear(haveL,lx,ly,20)||hasB(lx,ly)) continue; it.lamps.push([lx*K,ly*K,-nx*side,-ny*side]); nL++; } } } });
@@ -312,7 +319,7 @@ function* gatherRealG(Xp, Yp, R, at){
     var OB={}, ob=function(x,y,r){ var k=Math.floor(x/64)+','+Math.floor(y/64); (OB[k]||(OB[k]=[])).push(x,y,r); };
     it.trees.forEach(function(t){ ob(t[0],t[1],.33); }); it.lamps.forEach(function(l){ ob(l[0],l[1],.2); }); it.signals.forEach(function(l){ ob(l[0],l[1],.2); }); it.stops.forEach(function(l){ ob(l[0],l[1],.2); });
     it.hydrants.forEach(function(l){ ob(l[0],l[1],.26); }); it.bins.forEach(function(l){ ob(l[0],l[1],.33); }); it.boxes.forEach(function(l){ ob(l[0],l[1],.5); });
-    W.real.obst=OB;
+    W.real.obst=OB; W.real.treesCleared=nCl; W.real.treeXY=it.trees.map(function(t){ return [t[0],t[1]]; });
     yield; var cn=sceneryPlace(W,it); if(cn){ W.real.trees=cn.trees; W.real.lamps=cn.lamps; W.real.signals=cn.signals; W.real.stops=cn.stops; W.real.furn=cn.furn; W.real.procTrees=nP; W.real.procLamps=nL; }
   }catch(e){ if(window.console) console.warn('real street furniture',e); }
   Object.keys(roofMs).forEach(function(k){ if(roofMs[k].a.length) W.meshes.push({a:MB.done(roofMs[k]), id:'real:roof:'+k}); });      /* one per data chunk: the same chunk makes the same mesh in the next gather, so it is not uploaded again */
