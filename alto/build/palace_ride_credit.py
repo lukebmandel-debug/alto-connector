@@ -58,5 +58,9 @@ function crTick(){
   if(a.textContent!==txt) a.textContent=txt;
   var on=show && !!txt; if(a.classList.contains('on')!==on) a.classList.toggle('on',on);
   a.tabIndex=on?0:-1; }
-CR.timer=setInterval(crTick,600);
+/* the poll runs only while the ride is open: it stops at the first tick that finds the overlay closed and the credit hidden, and starts again when the page marks the first-person view open (html.pal-fp) */
+function crStart(){ if(!CR.timer) CR.timer=setInterval(crPoll,600); }
+function crPoll(){ crTick(); var root=crRoot(), open=false; try{ open=!!(root && root.classList.contains('on')); }catch(e){} if(!open && !(CR.a && CR.a.classList.contains('on'))){ clearInterval(CR.timer); CR.timer=0; } }
+try{ if(typeof MutationObserver!=='undefined' && document.documentElement && document.documentElement.classList) new MutationObserver(function(){ if(document.documentElement.classList.contains('pal-fp')) crStart(); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']}); }catch(e){}
+crStart();
 """.replace("CREDIT_CSS", "'" + CSS_CREDIT.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n") + "'")

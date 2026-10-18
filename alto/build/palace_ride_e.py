@@ -219,7 +219,7 @@ function realLoad(rx,ry){
 function rwlNote(on){
   if(on===RWL.shown && RWL.note) return; RWL.shown=on; var H=S.hud&&S.hud.root; if(!H) return;
   if(!RWL.note || !RWL.note.parentNode){ var n=document.createElement('div'); n.className='rm-load'; n.setAttribute('aria-hidden','true');
-    n.style.cssText='position:absolute;left:50%;bottom:96px;transform:translateX(-50%);padding:5px 12px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);color:#fff;font:500 12px system-ui,-apple-system,sans-serif;letter-spacing:.02em;opacity:0;transition:opacity .6s ease;pointer-events:none;white-space:nowrap';
+    n.style.cssText='position:absolute;left:50%;bottom:140px;transform:translateX(-50%);padding:5px 12px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);color:#fff;font:500 12px system-ui,-apple-system,sans-serif;letter-spacing:.02em;opacity:0;transition:opacity .6s ease;pointer-events:none;white-space:nowrap';
     H.appendChild(n); RWL.note=n; void n.offsetHeight; }
   RWL.note.textContent=(RWL.fails>=3||RWL.tries>=3)?'the street data is not reachable — trying again':'loading the street…'; RWL.note.style.opacity=on?'.9':'0'; }
 /* while the data under the walker is missing the built world (RW.R m around its centre) is all there is: slow the walker gently as they near its rim and hold them inside it,
@@ -494,9 +494,9 @@ _CSS_E = r"""
   #pal-ride .rm-btns button{cursor:pointer;border-radius:999px;padding:7px 14px;font:700 12px system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;background:rgba(14,16,26,.62);border:1px solid rgba(255,255,255,.2);}
   #pal-ride .rm-btns button:hover{background:rgba(44,48,72,.82);}
   #pal-ride .rm-btns button:focus-visible{outline:2px solid #ffd166;outline-offset:2px;}
-  #pal-ride .rm-hint{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);padding:7px 15px;border-radius:999px;background:rgba(14,16,26,.55);border:1px solid rgba(255,255,255,.14);font-weight:500;font-size:12px;white-space:nowrap;opacity:.9;transition:opacity .9s ease;}
+  #pal-ride .rm-hint{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);padding:7px 15px;border-radius:999px;background:rgba(14,16,26,.55);border:1px solid rgba(255,255,255,.14);font-weight:500;font-size:12px;white-space:nowrap;opacity:.9;transition:opacity .9s ease;}
   #pal-ride .rm-hint.gone{opacity:0;}
-  #pal-ride .rm-edge{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);font-weight:500;font-size:12px;letter-spacing:.02em;opacity:0;transition:opacity .5s ease;pointer-events:none;white-space:nowrap;}
+  #pal-ride .rm-edge{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);font-weight:500;font-size:12px;letter-spacing:.02em;opacity:0;transition:opacity .5s ease;pointer-events:none;white-space:nowrap;}
   #pal-ride .rm-xf{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;opacity:1;transition:opacity .7s ease;z-index:1;}
   @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }

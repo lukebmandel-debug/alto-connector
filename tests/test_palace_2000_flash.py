@@ -305,3 +305,35 @@ def test_street_trees_keep_clear_of_buildings(roam):
       return {n:T.length, worst:worst, cleared:W.real.treesCleared}; }""")
     assert r["n"] >= 3, r
     assert r["worst"] >= 3.0 - 0.01, r
+
+
+def test_the_credit_poll_stops_when_the_view_is_closed_and_restarts_when_it_opens(tmp_path):
+    import json
+    import shutil
+    import subprocess
+    from alto.build import palace_ride_credit
+    node = shutil.which("node") or os.path.expanduser("~/.local/node/bin/node")
+    if not os.path.exists(node):
+        pytest.skip("node not on this machine")
+    harness = r"""
+global.window = global; const intervals = []; const cleared = []; let OBS = null; const cls = new Set();
+global.setInterval = (f, ms) => { intervals.push([f, ms]); return intervals.length; }; global.clearInterval = (id) => cleared.push(id);
+global.MutationObserver = function (cb) { this.cb = cb; if (!OBS) OBS = this; this.observe = () => {}; };
+global.performance = {now: () => 0};
+const root = {classList: {contains: (c) => c === 'on' && root.open}, open: false, querySelector: () => null, appendChild() {}};
+global.document = {getElementById: (id) => id === 'pal-ride' ? root : null, documentElement: {classList: {contains: (c) => cls.has(c)}}, createElement: () => ({style: {}, classList: {contains: () => false, toggle() {}}}), head: {appendChild() {}}};
+const UM = 1.3, REAL = {on: false}; const ROAM = {active: () => false, state: () => ({})};
+""" + palace_ride_credit.JS_CREDIT + r"""
+const out = {};
+out.started = intervals.length;
+intervals[0][0]();                       // a tick with the view closed: the poll stops
+out.cleared = cleared.length;
+cls.add('pal-fp'); root.open = true; OBS.cb();      // the page opens the first-person view: it starts again
+out.restarted = intervals.length;
+process.stdout.write(JSON.stringify(out));
+"""
+    (tmp_path / "c.js").write_text(harness, "utf-8")
+    r = subprocess.run([node, "c.js"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    o = json.loads(r.stdout)
+    assert o == {"started": 1, "cleared": 1, "restarted": 2}, o
