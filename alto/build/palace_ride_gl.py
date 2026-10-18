@@ -201,15 +201,15 @@ function glSolid(b,s){
   if(s.nodraw) return;                                                     /* an outline its building:parts cover (palace_ride_street.py realDedupe) */
   var ring0=s.ring, n=ring0.length/2; if(n<3) return; var zb=s.z0||0, h=s.h+(s.roofDz||0); if(!(h>zb+.3)) return;     /* roofDz: the later of two roofs on one plane sits a little lower */
   if(n>90){ var kk=Math.ceil(n/90), q=[]; for(var ii=0;ii<n;ii+=kk) q.push(ring0[2*ii],ring0[2*ii+1]); ring0=q; n=q.length/2; }
-  var r=MB.ringOut(ring0), st=glStyle(s), pk=st.mat+256*st.aux, T=st.t, hm=st.hm, i, ax, ay, bx, by, dx, dy, l;
-  glDC(st.dc); _gH=hm;
+  var r=MB.ringOut(ring0), st=glStyle(s), i, ax, ay, bx, by, dx, dy, l; if(s.fg) st=fcStyle(s,st); var pk=st.mat+256*st.aux, T=st.t, hm=st.hm;      /* s.fg: the facade grammar (palace_ride_facade.py) */
+  glDC(st.dc); _gH=s.fg?glFacH(s,hm):hm;
   var cornice=(st.mat===1||st.mat===2||st.mat===4)&&hm>=5.5&&n<=30&&s.kind!=='plat'&&s.kind!=='canopy', top=r, co=null;
   if(cornice){ var off=.3, ch=.9*UM; co=[]; var nn=[]; for(i=0;i<n;i++){ var p=(i+n-1)%n, q2=(i+1)%n; var d1x=r[2*i]-r[2*p], d1y=r[2*i+1]-r[2*p+1], l1=Math.hypot(d1x,d1y)||1, d2x=r[2*q2]-r[2*i], d2y=r[2*q2+1]-r[2*i+1], l2=Math.hypot(d2x,d2y)||1;
       var n1x=-d1y/l1, n1y=d1x/l1, n2x=-d2y/l2, n2y=d2x/l2, dd=1+n1x*n2x+n1y*n2y, k=dd>.25?1/dd:4; co.push(r[2*i]+(n1x+n2x)*k*off, r[2*i+1]+(n1y+n2y)*k*off); }
     top=co; }
   var vis=null; if(s.hide){ vis=new Array(n); for(i=0;i<n;i++){ var j0=(i+1)%n; vis[i]=glVis(s.hide,r[2*i],r[2*i+1],r[2*j0],r[2*j0+1]); } }     /* the stretches of a wall that lie on a taller wall's plane are not drawn */
   for(i=0;i<n;i++){ var j=(i+1)%n; ax=r[2*i]; ay=r[2*i+1]; bx=r[2*j]; by=r[2*j+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue;
-    var vi=vis?vis[i]:null; if(!vi) gwall(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pk,T); else for(var qa=0;qa<vi.length;qa+=2) gwallP(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pk,T,vi[qa],vi[qa+1]); }
+    var vi=vis?vis[i]:null, pkw=s.fg?glFacW(b,s,st,r,i,n,ax,ay,bx,by,zb,h,pk):pk; if(!vi) gwall(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pkw,T); else for(var qa=0;qa<vi.length;qa+=2) gwallP(b,ax,ay,bx,by,zb,h,-dy/l,dx/l,zb,pkw,T,vi[qa],vi[qa+1]); }
   if(cornice){ var cz0=h-.9*UM; _gL=0;
     for(i=0;i<n;i++){ var j2=(i+1)%n; ax=co[2*i]; ay=co[2*i+1]; bx=co[2*j2]; by=co[2*j2+1]; dx=bx-ax; dy=by-ay; l=Math.hypot(dx,dy); if(l<.25) continue;
       var vc=vis?vis[i]:null; if(vc && !vc.length) continue;

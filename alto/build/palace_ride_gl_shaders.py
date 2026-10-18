@@ -6,6 +6,7 @@ World program: every surface of the city (buildings, ground, way, landmark and s
   dr.. = the district hue (1,1,1 = none)    H = height of the building this wall belongs to (m, 0 = unknown)    L = the wall's length (m)
 GL-only material ids: 40 marking, 41 ballast+ties, 42 rail, 43 roadway (lane lines), 44 portal glow, 45 curb, 46 lot, 47 plain concrete, 48 crosswalk
 """
+from .palace_ride_facade import FS_FACADE
 
 SH_COMMON = r"""
 precision highp float;
@@ -110,10 +111,12 @@ vec3 concTex(vec2 uv, float T, vec2 fp){
   float big=nz(uv*.5+T*3.);
   return base*(.88+.2*stain+.12*big)*(1.-.07*fine*step(fract(uv.y/1.22),.025)); }
 
+""" + FS_FACADE + r"""
 /* a wall: albedo, emission and mirror strength at (u,v) metres; type 1 brick, 2 stone, 3 glass, 4 concrete */
 void wallFacade(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, float aux, vec3 V, vec3 N, out vec3 alb, out vec3 emi, out float refl){
   bool tall=H>0.5; float Hh=tall?H:400.; float u=uv.x; float v=uv.y;
   float night=uNight; alb=vec3(.5); emi=vec3(0.); refl=0.;
+  if(aux>1.5){ facadeG(type,uv,L,H,T,fp,dc,aux,V,N,alb,emi,refl); return; }          /* the facade grammar (palace_ride_facade.py) */
   bool isGlass=(type>2.5&&type<3.5); bool isStone=(type>1.5&&type<2.5); bool isConc=(type>3.5); bool isBrick=(type<1.5);
   bool rowh=isBrick&&Hh<9.6&&tall;
   float gh=0.; if(tall){ gh=isGlass?4.4:(Hh>13.?4.7:(rowh?3.2:3.5)); if(Hh<gh+(rowh?2.:3.)) gh=0.; }
