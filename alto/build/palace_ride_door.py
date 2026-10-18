@@ -134,7 +134,7 @@ function finishOpen(tok){
 function openDetail(mem){
   DR.ret={mem:mem, opened:false, tm:0}; watchClose();
   exitCore(false);
-  try{ window.showDetail('node', mem.id); }catch(err){ if(window.console) console.warn('door', err); }
+  try{ if(mem.page) mkOpenPage(mem.page); else window.showDetail('node', mem.id); }catch(err){                /* mem.page: a landmark's page (palace_ride_mark.py) */ if(window.console) console.warn('door', err); }
   if(de_().classList.contains('detail-open')) DR.ret.opened=true;
   DR.busy=0;
   setTimeout(function(){ veil(0, 360); }, 30);
