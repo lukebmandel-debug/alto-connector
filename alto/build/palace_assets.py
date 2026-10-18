@@ -7,7 +7,8 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
 
   ride    the first-person ride (palace_ride.py; its own RIDE_LOADER stands where RIDE_JS used to, loaded at once)
   street  the street-level data of the city (palace_street.py: buildings with their materials and roofs, shop signs, doors, trees, lamps, lanes) for the first-person view — a
-          content-hashed JSON blob per city, not a script: every blob built so far (palace_street.blobs()) is published, the page holds only m["street"] = its hash
+          content-hashed JSON blob per city, not a script: every manifest a published page names (m["street"]["h"]), each box's newest and any under two weeks old is published with its shards
+          (palace_street.blobs(referenced=...)); a file a page names that the cache lacks is reported (LAST_MISSING -> LAST_STALE), never dropped silently
   fleet   the toy weapons: the battleship, destroyers, carriers, submarines and military bases of any city, with their sound, the crowd that
           runs from a collapse and the construction rebuild (palace_fleet_asset.py; loaded only by a city that has a vessel or a base)
 
@@ -33,14 +34,14 @@ def folders() -> list:
     return [a[0] for a in ASSETS] + list(BLOB_FOLDERS)
 
 
-def assets() -> list:
-    """[(folder, file name, text)] of every hosted script."""
+def assets(street_refs=None) -> list:
+    """[(folder, file name, text)] of every hosted script. `street_refs`: the street manifest hashes the published pages name (all are published; see palace_street.blobs)."""
     out = []
     for folder, mod, fn in ASSETS:
         name, text = getattr(importlib.import_module("." + mod, __package__), fn)()
         out.append((folder, name, text))
     from . import palace_street
-    out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs()]
+    out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs(referenced=street_refs)]
     return out
 
 

@@ -5,10 +5,13 @@ The ride gets the manifest's hash from the page's map data (m.street.h, 12 hex c
     _palStreet.load('/street/palace-street-' + M.street.h + '.json').then(function(){ return _palStreet.need(x, y, 120); }).then(function(){ var near = _palStreet.near(x, y, 60); ... });
 
 STREET_JS defines  window._palStreet  (a no-op when it already exists):
-  load(url)              fetch the MANIFEST (a Promise; a second call returns the same promise; rejects on a network or format error). Shards are fetched on demand from the same folder.
+  load(url)              fetch the MANIFEST (a Promise; a second call returns the same promise; rejects, never throws, on a network, 404, HTML or format error; a FAILED load is not remembered:
+                         the next call tries again once the backoff (2 s, 4 s, 8 s.. up to 60 s, jittered) is over, and rejects at once, without a request, until then). Shards are fetched on demand from the same folder.
   use(manifest, shards)  the same with parsed objects (tests, inline use); shards optional: {id: shard}
   ready()                true once a manifest is in
-  attribution()          the string to show ("© OpenStreetMap contributors, ODbL")
+  attribution()          the string to show ("© OpenStreetMap contributors, ODbL"; empty before a manifest is in)
+  place(x, y)            the real neighbourhood / suburb / quarter (OSM place=*) at a point in metres: the smallest drawn outline that contains it, else a place node within 300 m, else ''
+  health()               {fails, wait(ms until a retry is allowed), last(message)} of the most recent loads, for a "loading the street" note
   need(x, y, r)          Promise: fetches the shard files under the circle (x, y, r metres) and its 8-neighbour cells that are not loaded yet; resolves to the API
   loaded(x, y, r)        true when every shard under that circle is in
   cell(ix, iy)           the decoded cell (cached): undefined while its shard is not loaded yet, an empty cell when the manifest has nothing there, else
@@ -28,10 +31,33 @@ Cells are decoded when first asked for, so a ride that stays in one district dec
 STREET_JS = r"""
 (function(){
 if(window._palStreet) return;
-var B=null, CELLS={}, SH={}, INFL={}, PROM=null, BASE='';
+var B=null, CELLS={}, SH={}, INFL={}, PROM=null, BASE='', FAIL={}, QUE=[], RUN=0, MAXF=4, LASTERR='', DEFATTR='© OpenStreetMap contributors, ODbL';
 var MATS=['','brick','stone','stucco','painted','concrete','glass','metal','wood','brownstone','cladding','tile','plaster'];
-var IB=null;
-function use(b,shards){ if(!b||b.v!==2||!b.c||!b.f) throw new Error('street manifest'); B=b; CELLS={}; SH=shards||{}; INFL={}; IB=null; return API; }
+var IB=null, HEXID=/^[0-9a-f]{8}$/;
+function num(v){ return typeof v==='number' && isFinite(v); }
+function arr(v){ return Object.prototype.toString.call(v)==='[object Array]'; }
+function obj(v){ return !!v && typeof v==='object' && !arr(v); }
+/* the shape of a manifest / a shard: anything else is a failed download (HTML from a rewrite, a truncated or newer file), never a half-working world */
+function okManifest(b){
+  if(!obj(b)||b.v!==2||!obj(b.c)||!obj(b.f)) return false;
+  if(!num(b.q)||b.q<=0||!num(b.cs)||b.cs<=0||!num(b.kx)||b.kx<=0||!num(b.ky)||b.ky<=0) return false;
+  if(!arr(b.o)||b.o.length!==4||!b.o.every(num)||b.o[0]<-90||b.o[2]>90||b.o[1]<-180||b.o[3]>180) return false;
+  if(!arr(b.n)||b.n.length!==2||!b.n.every(function(v){ return num(v)&&v>=1&&v<=100000&&Math.floor(v)===v; })) return false;
+  for(var k in b.f) if(!HEXID.test(k)||!num(b.f[k])) return false;
+  for(var c in b.c){ if(!/^-?\d+,-?\d+$/.test(c)||typeof b.c[c]!=='string'||!HEXID.test(b.c[c])) return false; }
+  if(b.ib!==undefined && !(obj(b.ib)&&arr(b.ib.r)&&b.ib.r.every(function(r){ return arr(r)&&r.length===3&&r.every(num); }))) return false;
+  if(b.pl!==undefined && !(arr(b.pl)&&b.pl.every(function(p){ return arr(p)&&typeof p[0]==='string'&&num(p[2])&&num(p[3])&&(p[4]===0||(arr(p[4])&&p[4].length%2===0&&p[4].every(num))); }))) return false;
+  if(b.a!==undefined && typeof b.a!=='string') return false;
+  return true; }
+var PTW={t:4,f:4,p:5,e:3}, POLY={b:1,a:1,r:1,w:1,l:1};
+function okShard(sh){
+  if(!obj(sh)||!arr(sh.S)||!obj(sh.c)||!sh.S.every(function(v){ return typeof v==='string'; })) return false;
+  for(var k in sh.c){ var c=sh.c[k]; if(!obj(c)) return false;
+    for(var kind in c){ var L=c[kind]; if(!arr(L)) return false;
+      if(PTW[kind]){ if(L.length%PTW[kind]!==0||!L.every(num)) return false; }
+      else if(POLY[kind]){ for(var i=0;i<L.length;i++){ var r=L[i]; if(!arr(r)||!arr(r[0])||r[0].length%2!==0||!arr(r[1])) return false; } } } }
+  return true; }
+function use(b,shards){ if(!okManifest(b)) throw new Error('street manifest'); B=b; CELLS={}; SH={}; INFL={}; IB=null; if(shards){ for(var id in shards) if(okShard(shards[id])) SH[id]=shards[id]; } return API; }
 /* the in-bounds extent the data was written for (manifest ib: runs [iy, ix0, ix1] of cells, buffered b metres): true without ib (the whole box) */
 function inScope(x,y){ if(!B||!B.ib) return true; if(!IB){ IB={}; B.ib.r.forEach(function(r){ IB[r[0]]=(IB[r[0]]||[]).concat([[r[1],r[2]]]); }); } var q=B.q*B.cs, ix=Math.floor(x/q), iy=Math.floor(y/q), L=IB[iy]; if(!L) return false; for(var i=0;i<L.length;i++) if(ix>=L[i][0]&&ix<=L[i][1]) return true; return false; }
 function line(a,ox,oy,q){ var o=[], x=0, y=0; for(var i=0;i<a.length;i+=2){ if(i===0){ x=a[0]; y=a[1]; } else { x+=a[i]; y+=a[i+1]; } o.push([(x+ox)*q,(y+oy)*q]); } return o; }
@@ -46,6 +72,8 @@ function cell(ix,iy){
   var key=ix+','+iy; if(CELLS[key]) return CELLS[key]; if(!B) return undefined;
   var id=B.c[key]; if(!id) return CELLS[key]=empty();
   var sh=SH[id]; if(!sh) return undefined;
+  try{ return decode(key,ix,iy,sh); }catch(e){ LASTERR='street cell '+key; return CELLS[key]=empty(); } }       /* a cell that will not decode is empty, never a throw out of the frame loop */
+function decode(key,ix,iy,sh){
   var c=sh.c[key]||{}, q=B.q, ox=ix*B.cs, oy=iy*B.cs, S=sh.S, out=empty(), i, j, d, a;
   (c.b||[]).forEach(function(r){ d=props(BF,SB,r[1],S); d.hm=d.h*q; d.mhm=d.mh*q; d.colour=d.bc?hex(d.bc):''; d.material=MATS[d.bm]||''; d.storefront=!!(d.fl&1);
     d.ring=line(r[0],ox,oy,q); d.holes=(r[2]||[]).map(function(h){ return line(h,ox,oy,q); }); out.b.push(d); });
@@ -73,22 +101,50 @@ function near(x,y,r,kinds){
 }
 function missing(x,y,r){ var ids={}; if(B) span(x,y,r).forEach(function(ij){ var id=B.c[ij[0]+','+ij[1]]; if(id&&!SH[id]) ids[id]=1; }); return Object.keys(ids); }
 function loaded(x,y,r){ return !!B && missing(x,y,r).length===0; }
+/* ── fetching: every request goes through one queue (at most MAXF at a time), a failed one is remembered with a backoff so nothing is asked again every frame ── */
+function backoff(n){ return Math.min(60000, 2000*Math.pow(2,Math.max(0,n-1)))*(0.75+0.5*((Date.now()%997)/997)); }       /* 2 s, 4 s, 8 s.. cap 60 s, +-25% jitter (from the clock: the ride keeps one random number, the tunnel's hue) */
+function fail(key,msg){ var f=FAIL[key]||(FAIL[key]={n:0,until:0}); f.n++; f.until=Date.now()+backoff(f.n); LASTERR=msg; }
+function waitOf(key){ var f=FAIL[key]; return f&&f.until>Date.now()?f.until-Date.now():0; }
+function drain(){ while(RUN<MAXF && QUE.length){ var j=QUE.shift(); RUN++; j(); } }
+function get(url,key,okf){                          /* -> Promise of a parsed, validated object; a rejection leaves nothing cached (not here, not in the browser) */
+  var w=waitOf(key); if(w){ var e=new Error('street: wait '+Math.ceil(w/1000)+' s'); e.wait=w; return Promise.reject(e); }
+  return new Promise(function(res,rej){
+    QUE.push(function(){
+      var done=function(f,v){ RUN--; setTimeout(drain,0); f(v); };
+      var bad=function(msg){ fail(key,msg); done(rej,new Error(msg)); };
+      var p; try{ p=fetch(url); }catch(e){ bad('street fetch'); return; }
+      Promise.resolve(p).then(function(r){
+        if(!r||!r.ok) throw new Error('street '+(r?r.status:'no response'));
+        var ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
+        if(/html/i.test(ct)) throw new Error('street html');
+        return typeof r.text==='function'?r.text():r.json().then(JSON.stringify); })
+      .then(function(t){ if(typeof t!=='string'||/^\s*</.test(t)) throw new Error('street html'); var o; try{ o=JSON.parse(t); }catch(e){ throw new Error('street json'); }
+        if(!okf(o)) throw new Error('street format'); delete FAIL[key]; done(res,o); })
+      .then(null,function(e){ bad(String((e&&e.message)||e).slice(0,80)); }); });
+    drain(); }); }
 function need(x,y,r){
   if(!B) return Promise.reject(new Error('street: no manifest'));
   return Promise.all(missing(x,y,r).map(function(id){
-    return INFL[id]||(INFL[id]=fetch(BASE+'s-'+id+'.json').then(function(res){ if(!res.ok) throw new Error('street '+res.status); return res.json(); })
-      .then(function(sh){ SH[id]=sh; delete INFL[id]; },function(e){ delete INFL[id]; throw e; }));
-  })).then(function(){ return API; });
-}
+    return INFL[id]||(INFL[id]=get(BASE+'s-'+id+'.json','s'+id,okShard).then(function(sh){ SH[id]=sh; delete INFL[id]; },function(e){ delete INFL[id]; throw e; }));
+  })).then(function(){ return API; }); }
 function fromLatLon(lat,lon){ return [(lon-B.o[1])*B.kx,(lat-B.o[0])*B.ky]; }
 function toLatLon(x,y){ return [B.o[0]+y/B.ky, B.o[1]+x/B.kx]; }
 function toMap(x,y,sc){ sc=sc||1; return [x*sc,((B.o[2]-B.o[0])*B.ky-y)*sc]; }
 function load(url){
   if(PROM) return PROM;
-  BASE=url.replace(/[^\/]*$/,'');
-  return PROM=fetch(url).then(function(r){ if(!r.ok) throw new Error('street '+r.status); return r.json(); }).then(function(m){ return use(m); },function(e){ PROM=null; throw e; });
-}
-var API={inScope:inScope,bounds:function(){ return B&&B.ib||null; },load:load,use:use,ready:function(){ return !!B; },attribution:function(){ return B?B.a:''; },cell:cell,near:near,need:need,loaded:loaded,fromLatLon:fromLatLon,toLatLon:toLatLon,toMap:toMap};
+  var key='m'+url, w=waitOf(key); if(w){ var e=new Error('street: wait '+Math.ceil(w/1000)+' s'); e.wait=w; return Promise.reject(e); }
+  BASE=String(url).replace(/[^\/]*$/,'');
+  var pr=get(url,key,okManifest).then(function(m){ return use(m); });
+  PROM=pr; pr.then(null,function(){ if(PROM===pr) PROM=null; });         /* a failed manifest is forgotten: the next call asks again (after the backoff) */
+  return pr; }
+function pip(x,y,f){ var n=f.length/2, ins=false, i, j=n-1; for(i=0;i<n;i++){ var xi=f[2*i], yi=f[2*i+1], xj=f[2*j], yj=f[2*j+1]; if((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi) ins=!ins; j=i; } return ins; }
+function parea(f){ var a=0, n=f.length/2; for(var i=0;i<n;i++){ var j=(i+1)%n; a+=f[2*i]*f[2*j+1]-f[2*j]*f[2*i+1]; } return Math.abs(a)/2; }
+/* the real neighbourhood at (x, y) metres: the smallest drawn outline that holds it, else the nearest place node within 300 m ('' when the data has none: the caller shows nothing rather than a wrong name) */
+function place(x,y){ if(!B||!arr(B.pl)) return ''; var best='', ba=1e18, nn='', nd=300*300, i, p;
+  for(i=0;i<B.pl.length;i++){ p=B.pl[i]; if(p[4]){ if(pip(x,y,p[4])){ var a=parea(p[4]); if(a<ba){ ba=a; best=p[0]; } } } else { var d=(p[2]-x)*(p[2]-x)+(p[3]-y)*(p[3]-y); if(d<nd){ nd=d; nn=p[0]; } } }
+  return best||nn; }
+function health(){ var f=0, w=0; for(var k in FAIL){ f+=FAIL[k].n; w=Math.max(w,waitOf(k)); } return {fails:f, wait:w, last:LASTERR, inflight:RUN, queued:QUE.length}; }
+var API={place:place,health:health,inScope:inScope,bounds:function(){ return B&&B.ib||null; },load:load,use:use,ready:function(){ return !!B; },attribution:function(){ return B?(B.a||DEFATTR):''; },cell:cell,near:near,need:need,loaded:loaded,fromLatLon:fromLatLon,toLatLon:toLatLon,toMap:toMap};
 window._palStreet=API;
 })();
 """

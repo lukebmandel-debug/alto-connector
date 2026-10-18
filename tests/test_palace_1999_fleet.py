@@ -270,9 +270,9 @@ def test_the_site_writes_every_hosted_script_and_keeps_them_for_a_year(tmp_path)
         assert n in [p.name for p in (site / f).iterdir()]
         assert (site / f / n).read_text(encoding="utf-8") == t
     assert sorted(p.name for p in (site / "ride").iterdir()) == [palace_ride.ride_asset()[0]]      # (a folder keeps one script; the street folder keeps every stored blob)
-    heads = _headers("csp", "ccsp")
-    for f in ("ride", "fleet", "street"):
-        rule = next(h for h in heads if h["source"] == "/%s/**" % f)
+    heads = _headers("csp", "ccsp", ["s-0123abcd.json"])
+    for f, src in (("ride", "/ride/**"), ("fleet", "/fleet/**"), ("street", "/street/@(s-0123abcd.json)")):      # (street: named files only, see test_palace_street_publish.py)
+        rule = next(h for h in heads if h["source"] == src)
         assert {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in rule["headers"] and heads.index(rule) > 0
 
 

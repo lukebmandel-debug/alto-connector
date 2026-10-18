@@ -197,11 +197,38 @@ function whereText(o){ if(!o.street) return {a:'',b:''}; var b=''; if(o.at) b='a
 var RW={R:420, PR:720, regather:105, have:null, busy:false, gen:null, gx:0, gy:0, gms:0, fade:null, edge:0, k:0, cx:0, cy:0, n:0, ms:0, maxMs:0};
 function realCan(){ return typeof REAL!=='undefined' && REAL && typeof rlInit==='function' && rlInit() && (REAL.on || (REAL.street&&REAL.street())); }
 function realNear(rx,ry){ if(REAL.street && REAL.street()){ var H=REAL.have||[]; if(!(REAL.on&&REAL.chunks)) return false; for(var i=0;i<H.length;i++) if(Math.hypot(rx-H[i][0],ry-H[i][1])<H[i][2]-RW.R-40) return true; return false; }       /* the loaded data covers a whole gather round here */ return !!(REAL.on && REAL.chunks && REAL.ways); }
-/* load the data under (rx,ry) real px; resolves true when the real world can be gathered there */
+/*@RWL-begin: street-data retry, hold and note (fix2); everything between the markers belongs to this block@*/
+/* load the data under (rx,ry) real px; resolves true when the real world can be gathered there. A failed load backs off (2 s, 4 s, 8 s.. cap 60 s, jittered) and counts; one load in flight at a time */
+var RWL={fails:0, tries:0, retryAt:0, inflight:0, MAXIN:1, last:0, note:null, shown:false, held:false};
+function rwlReset(){ RWL.fails=0; RWL.tries=0; RWL.retryAt=0; RWL.last=0; RWL.held=false; }
+function rwlFail(e){ var now=performance.now(); RWL.tries++;
+  if(e && e.wait){ RWL.retryAt=Math.max(RWL.retryAt,now+e.wait); return; }                  /* the street loader is already backing off: wait for it, do not stack a second backoff on top */
+  RWL.fails++; RWL.retryAt=now+Math.min(60000,2000*Math.pow(2,RWL.fails-1))*(0.75+0.5*((Math.floor(now)%997)/997)); }
 function realLoad(rx,ry){
   if(!REAL.street || !REAL.street()) return Promise.resolve(!!(REAL.on && REAL.chunks && REAL.ways));
   if(realNear(rx,ry)) return Promise.resolve(true);
-  return REAL.prepare([[rx,ry]],RW.PR).then(function(ok){ return !!ok; }, function(){ return false; }); }
+  if(!S.real) rwlReset();                                                                   /* entering the real walk: a fresh start, not the last ride's backoff */
+  if(performance.now()<RWL.retryAt || RWL.inflight>=RWL.MAXIN) return Promise.resolve(false);
+  RWL.inflight++;
+  return REAL.prepare([[rx,ry]],RW.PR).then(function(ok){ RWL.inflight--; if(ok) rwlReset(); else rwlFail(); return !!ok; }, function(e){ RWL.inflight--; rwlFail(e); return false; }); }
+/* a small note that fades in while the street under the walker is missing and out again when it is there */
+function rwlNote(on){
+  if(on===RWL.shown && RWL.note) return; RWL.shown=on; var H=S.hud&&S.hud.root; if(!H) return;
+  if(!RWL.note || !RWL.note.parentNode){ var n=document.createElement('div'); n.className='rm-load'; n.setAttribute('aria-hidden','true');
+    n.style.cssText='position:absolute;left:50%;bottom:96px;transform:translateX(-50%);padding:5px 12px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);color:#fff;font:500 12px system-ui,-apple-system,sans-serif;letter-spacing:.02em;opacity:0;transition:opacity .6s ease;pointer-events:none;white-space:nowrap';
+    H.appendChild(n); RWL.note=n; void n.offsetHeight; }
+  RWL.note.textContent=RWL.fails>=3?'the street data is not reachable — trying again':'loading the street…'; RWL.note.style.opacity=on?'.9':'0'; }
+/* while the data under the walker is missing the built world (RW.R m around its centre) is all there is: slow the walker gently as they near its rim and hold them inside it,
+   still colliding with everything built, rather than let them walk out into emptiness */
+function rwlHold(rx,ry){
+  var now=performance.now(), dt=RWL.last?Math.min(.1,Math.max(0,(now-RWL.last)/1000)):0; RWL.last=now;
+  var gone=REAL.street&&REAL.street()&&!realNear(rx,ry)&&RW.cx<1e11, d=gone?Math.hypot(S.x-RW.cx,S.y-RW.cy)/UM:0, from=RW.regather, lim=RW.R-45;
+  if(!gone){ RWL.held=false; if(RWL.shown) rwlNote(false); return; }
+  if(d>from*.6 || RWL.fails>0) rwlNote(true);
+  if(d>from){ var t=Math.min(1,(d-from)/(lim-from)), f=Math.exp(-3*t*dt); S.vx*=f; S.vy*=f; }
+  if(d>lim){ var k=lim/d, nx=RW.cx+(S.x-RW.cx)*k, ny=RW.cy+(S.y-RW.cy)*k; if(!blockedAt(nx,ny)){ S.x=nx; S.y=ny; } S.vx*=.2; S.vy*=.2; RWL.held=true; } else RWL.held=false; }
+RW.retry=RWL;
+/*@RWL-end@*/
 function realBuckets(Wn){
   var cg={}; Wn.solids.forEach(function(sd){ if(!(QUAL.indexOf(sd.kind)>=0 || sd.collide)) return; var ci=Math.floor(sd.cx/CELL), cj=Math.floor(sd.cy/CELL), k=ci+','+cj, c=cg[k]||(cg[k]={small:[],big:[],doors:[],col:[],ci:ci,cj:cj,key:k});
     c.col.push(sd); (sd.r<=BIGR?c.small:c.big).push(sd); if(sd.door) c.doors.push(sd); });
@@ -222,16 +249,18 @@ function realGatherStep(sync){
 /* every step in real mode: keep the world centred near the walker, fetch the shards ahead; hold the walker inside the in-bounds region */
 /* the shards for where the walker will be: when he is within 110 m of leaving the data that is loaded, fetch round his position AND the point 5 s ahead (at least 150 m along his heading), so the regather never waits for the network */
 function realPrefetch(){
-  if(RW.busy || !(REAL.street&&REAL.street()) || !REAL.have || !REAL.have.length) return;
+  if(RW.busy || performance.now()<RWL.retryAt || !(REAL.street&&REAL.street()) || !REAL.have || !REAL.have.length) return;                  /* (fix2) a failing street loader backs off here too */
   var rx=S.x/UM, ry=S.y/UM, best=1e9, lim=REAL.have[0][2]-RW.R-40, i; for(i=0;i<REAL.have.length;i++) best=Math.min(best,Math.hypot(rx-REAL.have[i][0],ry-REAL.have[i][1])); if(best<lim-110) return;
   var sp=Math.hypot(S.vx,S.vy)/UM, hx=sp>1?S.vx/UM/sp:Math.cos(S.yaw), hy=sp>1?S.vy/UM/sp:Math.sin(S.yaw), dd=Math.min(300,Math.max(150,sp*5)), ax=rx+hx*dd, ay=ry+hy*dd;
-  RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(){ RW.busy=false; RW.pre=(RW.pre||0)+1; }, function(){ RW.busy=false; }); }
+  RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(ok){ RW.busy=false; RW.pre=(RW.pre||0)+1; if(ok===false) rwlFail(); }, function(e){ RW.busy=false; rwlFail(e); }); }
 function realStream(sync){
   if(RW.gen){ realGatherStep(sync); return; }
   if(!sync) realPrefetch();
+  rwlHold(S.x/UM,S.y/UM);                                                                   /* (fix2) hold the walker inside the built world while the street under them is missing */
   if(RW.busy || Math.hypot(S.x-RW.cx,S.y-RW.cy)<RW.regather*UM) return;
   var rx=S.x/UM, ry=S.y/UM;
   if(sync || !(REAL.street&&REAL.street()) || realNear(rx,ry)){ if(!sync && REAL.street&&REAL.street()&&!realNear(rx,ry)) return; if(sync) realGather(); else realGatherStep(false); return; }
+  if(performance.now()<RWL.retryAt) return;                                                 /* (fix2) backing off after a failed fetch: not every frame */
   RW.busy=true; realLoad(rx,ry).then(function(ok){ RW.busy=false; if(ok && S.on && S.real) realGatherStep(false); }, function(){ RW.busy=false; }); }
 function realBound(dt){
   var rx=S.x/UM, ry=S.y/UM, ed=REAL.edgeDist(rx,ry), e=1-clamp(ed/60,0,1);

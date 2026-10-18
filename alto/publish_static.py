@@ -270,18 +270,76 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         shutil.copytree(bg_src, bg_out / f"v{BG_V}")
     # The Mind Palace's hosted scripts (build/palace_assets.py: the first-person ride, the fleet's toy weapons): code, not page, each in a
     # folder named by the content hash of its file.
-    from .build.palace_assets import assets as palace_assets, folders as palace_folders
+    from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS
+    refs = _street_refs(store, uid)
+    new_assets = palace_assets(street_refs=refs)
+    from .build import palace_street
+    on_site = _street_on_site(site / palace_street.FOLDER)       # what a former publish left there: a referenced file the cache lacks is kept, not wiped
     for folder in palace_folders():
         out_ = site / folder
+        if folder in BLOB_FOLDERS:
+            # content-hash-named blobs: remove only the files no page names and this publish does not write (never one still referenced)
+            out_.mkdir(parents=True, exist_ok=True)
+            fresh = {n for f, n, _t in new_assets if f == folder}
+            keep = fresh | _street_keep(out_, refs)
+            for p_ in out_.iterdir():
+                if p_.name not in keep:
+                    p_.unlink() if p_.is_file() else shutil.rmtree(p_)
+            continue
         if out_.exists():
             shutil.rmtree(out_)
         out_.mkdir()
-    for folder, aname, atext in palace_assets():
+    for folder, aname, atext in new_assets:
+        (site / folder).mkdir(parents=True, exist_ok=True)
         (site / folder / aname).write_text(atext, encoding="utf-8")
+    # A page names a street file the cache does not have and the site does not either: the ride would have no street data. Say so (publish_timeline refuses
+    # a stale build unless ALTO_ALLOW_STALE) instead of publishing a palace that silently lost its streets.
+    for name in palace_street.LAST_MISSING:
+        if name not in on_site:
+            stale_notes.append(f"street data {name}: a published palace names it, but it is neither in {palace_street.blob_dir()} nor on the site — "
+                               "re-run set_up_palace for that timeline (or restore the cache) before publishing, or its first-person view loses the real streets")
     pdir = site / "privacy"
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
     return site
+
+
+def _street_refs(store, uid: str) -> set:
+    """The street manifest hashes (m["street"]["h"]) of every published timeline's palace."""
+    from .build.palace_street import street_hash
+    out = set()
+    try:
+        timelines = store.list_timelines(uid)
+    except Exception:                                       # noqa: BLE001
+        return out
+    for t in timelines:
+        if t.get("status") != "published":
+            continue
+        pal = (t.get("brief") or {}).get("palace")
+        h = street_hash(pal) if isinstance(pal, dict) else ""
+        if h:
+            out.add(h)
+    return out
+
+
+def _street_on_site(d: Path) -> set:
+    return {p.name for p in d.iterdir()} if d.is_dir() else set()
+
+
+def _street_keep(d: Path, refs: set) -> set:
+    """Files in the site's street folder to leave alone: each referenced manifest already there and the shards it names."""
+    from .build import palace_street
+    keep = set()
+    for h in refs:
+        p = d / palace_street.file_name(h)
+        if not p.is_file():
+            continue
+        keep.add(p.name)
+        try:
+            keep |= {palace_street.file_name(sid) for sid in (json.loads(p.read_text("utf-8")).get("f") or {})}
+        except (OSError, ValueError, AttributeError):
+            pass
+    return keep
 
 
 def firebase_configured() -> tuple[str, str, str] | None:
@@ -294,7 +352,7 @@ def firebase_configured() -> tuple[str, str, str] | None:
     return None
 
 
-def _security_headers() -> list[dict]:
+def _security_headers(site_dir: Path | None = None) -> list[dict]:
     """CSP and friends for the published site.
 
     `'unsafe-inline'` in script-src is unavoidable and deliberate: the engine is
@@ -309,7 +367,7 @@ def _security_headers() -> list[dict]:
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp)
+    return _headers(csp, connect_csp, _street_names(site_dir))
 
 
 def _csp(form_action: str) -> str:
@@ -338,7 +396,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str) -> list[dict]:
+def _headers(csp: str, connect_csp: str, street_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -365,13 +423,46 @@ def _headers(csp: str, connect_csp: str) -> list[dict]:
         # A hosted palace script (the ride, the fleet) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
-        ]} for f in _palace_folders()),
+        ]} for f in _palace_folders() if f not in _blob_folders()),
+        # The street data (build/palace_street.py) is kept for a year too — but ONLY the files that exist, named one by one: Hosting matches headers against
+        # the request path, so a "/street/**" rule would stamp "immutable" on the 404 page a missing or not-yet-uploaded shard answers with, and the
+        # browser would remember that failure for a year. Anything else under /street/ keeps the "**" rule's no-cache.
+        *_street_rules(street_files),
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).
         {"source": "/connect/**", "headers": [
             {"key": "Content-Security-Policy", "value": connect_csp},
         ]},
     ]
+
+
+def _blob_folders() -> tuple:
+    from .build.palace_assets import BLOB_FOLDERS
+    return BLOB_FOLDERS
+
+
+def _street_names(site_dir) -> list:
+    """The street files (manifests and shards) in the site folder; none when there is no folder."""
+    if site_dir is None:
+        return []
+    from .build import palace_street
+    d = Path(site_dir) / palace_street.FOLDER
+    if not d.is_dir():
+        return []
+    return sorted(p.name for p in d.iterdir()
+                  if p.is_file() and (palace_street.MAN_RE.match(p.name) or palace_street.SHARD_RE.match(p.name)))
+
+
+def _street_rules(names) -> list:
+    """One immutable rule over exactly the given street file names (an extglob alternation; split so no rule grows past ~40 KB)."""
+    from .build import palace_street
+    names = [n for n in names if palace_street.MAN_RE.match(n) or palace_street.SHARD_RE.match(n)]    # (only names of the safe shape reach a glob)
+    rules, step = [], 400
+    for i in range(0, len(names), step):
+        alt = "|".join(names[i:i + step])
+        rules.append({"source": "/%s/@(%s)" % (palace_street.FOLDER, alt), "headers": [
+            {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]})
+    return rules
 
 
 def deploy_site(site_dir: Path) -> str:
@@ -409,7 +500,7 @@ def deploy_site(site_dir: Path) -> str:
                      # Same idea for private timelines: any account's page
                      # opens from any of its sites (see regenerate_site).
                      {"source": "/pv/**", "destination": "/pv/index.html"}],
-        "headers": _security_headers()}}
+        "headers": _security_headers(site_dir)}}
     cfg_json["firestore"] = {"rules": rules_out.name}
     fbjson.write_text(json.dumps(cfg_json, indent=2))
     (site_dir.parent / ".firebaserc").write_text(
