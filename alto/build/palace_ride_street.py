@@ -172,7 +172,7 @@ function rlShopFace(ring,n){ var cx=0, cy=0, i, best=null; for(i=0;i<n;i++){ cx+
   if(!best) return null; var po=rlPoiNear(best.x,best.y,22), hs=hashXY(best.x*3.1,best.y*1.7);
   if(po && RL_CIVIC.test(po[3]||'')) return null;                                  /* a church, school, library... is not a shop: no shop glass, no awning */
   var cat=po?po[3]:'', civic=false;
-  return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po&&!civic?po[2]:'', cat:cat, hue:hs}; }
+  return {x:best.x*K, y:best.y*K, nx:best.nx, ny:best.ny, len:best.l*K, name:po&&!civic?po[2]:'', cat:cat, hue:fcShopHue(cat,hs)}; }
 /* ── z-fighting walls. OpenStreetMap draws a building as its outline AND its building:parts, parts share walls, ways are doubled: two solids with a wall on the very same plane facing the same way fight in the
    depth buffer, and the winner changes with every step you take (the whole facade flashes). The street data cannot be fixed here (it is hosted), so the world is made before it is drawn:
      1. an outline that its parts cover (>= 85 % of its footprint, sampled) is not drawn (s.nodraw; it still stops the walker);

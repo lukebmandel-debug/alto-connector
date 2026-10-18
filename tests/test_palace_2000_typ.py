@@ -122,3 +122,14 @@ def test_the_world_shader_compiles_and_links_in_webkit(page):
     if r == "nogl":
         pytest.skip("no WebGL in this WebKit")
     assert r == "ok", r
+
+
+def test_fine_iron_is_dropped_beyond_80_m_and_shops_are_tinted_by_trade():
+    assert "if(dist>80.*UMc) discard;" in sh.FS_WORLD and ",39);" in fc.JS_FACADE
+    assert "hue:fcShopHue(cat,hs)" in palace_ride_street.JS_STREET
+
+
+def test_bays_trust_the_data_only_within_the_frontage(page):
+    r = page.evaluate("""()=>[fcBays({g:1,by:6},5), fcBays({g:1,by:3},5.5), fcBays({g:1,by:0},4.2), fcBays({g:1,by:2},7), fcBays({g:12,by:9},30), fcShopHue('amenity=cafe',.1), fcShopHue('shop=pharmacy',.1), fcShopHue('',.123)]""")
+    assert r[:5] == [2, 3, 2, 3, 9]
+    assert int(r[5] * 8) == 6 and int(r[5] * 7) == 6 and int(r[6] * 8) == 2 and r[7] == 0.123
