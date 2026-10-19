@@ -9,9 +9,10 @@ only (a phone keeps the engine's column of cards):
   path number and the title, clamped (.sol-face). Enlarged (the engine's own
   focus fly and zoom ramp) it is the ordinary card again, description and
   chips and all: while the card grows it is clipped from its disc out to the
-  card (clip-path inset() from a centred circle to the whole card, taken from
-  the card's own zoom on every frame), and back down to the disc as it
-  shrinks, so neither end of the ramp jumps. The engine's .alto-fshadow is a
+  card (a real disc whose diameter, --scd, follows the card's own zoom on
+  every frame; never a clip-path: Safari resolved one in the wrong box under
+  page zoom), and back down to the disc as it shrinks, so neither end of
+  the ramp jumps. The engine's .alto-fshadow is a
   card's, which is right: the enlarged thing is a card.
 * #solar-svg, under the cards: faint orbit rings (one per planet round its
   sun, one shared by a planet's moons, one by a moon's satellites), a short
@@ -104,7 +105,7 @@ SOLAR_CSS = r"""
     overflow:hidden;box-sizing:border-box;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card{width:var(--sd) !important;height:var(--sd) !important;border-top-width:1.5px;}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .node-card,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .node-card{
-    width:var(--sD) !important;height:var(--sD) !important;}
+    width:var(--scd,var(--sD)) !important;height:var(--scd,var(--sD)) !important;}
   html.alto-solar:not(.mobile) #world .node[data-solar] .node-card::before{left:0;right:0;top:0;height:100%;border-radius:50%;
     background:radial-gradient(ellipse 72% 52% at 50% 14%,var(--card-glass-sheen) 0%,rgba(255,255,255,.08) 58%,rgba(255,255,255,0) 100%);}
   html.alto-solar #world .alto-fshadow{border-radius:50% !important;}
@@ -126,14 +127,14 @@ SOLAR_CSS = r"""
      inside it when long, faded at its top and bottom edges; "Open full page" under it */
   .sol-body,.sol-scrim,.sol-open{display:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-body,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-body{
-    display:block;position:absolute;z-index:3;left:17%;right:17%;top:14%;bottom:21%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+    display:block;position:absolute;z-index:3;left:calc(50% - var(--sD) * .33);width:calc(var(--sD) * .66);top:calc(50% - var(--sD) * .36);height:calc(var(--sD) * .65);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
     text-align:center;box-sizing:border-box;padding:12px 4px 16px;scrollbar-width:thin;opacity:var(--sbo,1);
     -webkit-mask-image:linear-gradient(transparent,#000 12px,#000 calc(100% - 16px),transparent);mask-image:linear-gradient(transparent,#000 12px,#000 calc(100% - 16px),transparent);}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-scrim,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-scrim{
     display:block;position:absolute;z-index:2;inset:0;border-radius:50%;pointer-events:none;opacity:var(--sbo,1);
     background:radial-gradient(circle,color-mix(in srgb,var(--surface) 84%,transparent) 0 64%,color-mix(in srgb,var(--surface) 52%,transparent) 100%);}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-open,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-open{
-    display:block;position:absolute;z-index:3;left:0;right:0;bottom:8.5%;margin:0 auto;width:max-content;opacity:var(--sbo,1);cursor:pointer;
+    display:block;position:absolute;z-index:3;left:0;right:0;top:calc(50% + var(--sD) * .315);margin:0 auto;width:max-content;max-width:calc(var(--sD) * .5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;opacity:var(--sbo,1);cursor:pointer;
     font:600 11.25px/1 inherit;font-family:inherit;letter-spacing:.04em;color:var(--accent,#6d5bd0);padding:6px 12.5px;border-radius:999px;
     background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent,#6d5bd0) 45%,transparent);}
   .sol-open:hover{background:var(--surface);}
@@ -144,8 +145,8 @@ SOLAR_CSS = r"""
   .sol-body .node-footer{justify-content:center;flex-wrap:wrap;margin-top:8px;}
   .sol-sec{margin-top:10px;text-align:left;font-size:12.5px;line-height:18.75px;color:var(--card-desc-color,var(--muted));}
   .sol-sec h6{margin:0 0 2px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;}
-  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{clip-path:circle(var(--scr,50%) at 50% 50%);-webkit-clip-path:circle(var(--scr,50%) at 50% 50%);
-    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
+  /* growing / shrinking (--scd): no frost on the moving disc (a zoomed element can lose it anyway), never a clip-path */
+  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
   html.alto-solar:not(.mobile) #world .node.sol-clip .sol-face{opacity:var(--sfo,0);}
 """
 
@@ -515,37 +516,56 @@ function over(e){ if(!hot(e.target) || (window._altoPointerStill && window._alto
 document.addEventListener('mouseover', over); document.addEventListener('mousemove', over, {passive:true});
 document.addEventListener('mouseout', function(e){ if(hot(e.relatedTarget)) return; clearTimeout(hovT); hovT=setTimeout(function(){ hov=0; }, 320); });
 
-/* ── an enlarged circle stays a circle (Luke, round 4): the card is the big disc (--sD) from the
-   first frame of the engine's zoom ramp, clipped to a circle growing from the resting disc's
-   radius out to its own, and back as it shrinks — the clip read off the card's own zoom on every
-   frame, so it cannot run ahead of or behind the engine's ramps. The face fades out, the
-   content (.sol-body, .sol-scrim, .sol-open) fades in. ───── */
-var zmo=(typeof MutationObserver==='function') ? new MutationObserver(function(ms){ ms.forEach(function(m){ var n=m.target.closest && m.target.closest('.node'); if(n) clip(n); }); }) : null, morphing=[];
+/* ── an enlarged circle stays a circle (Luke, rounds 4 and 7): no clip-path. Under Safari's page zoom a
+   clip-path circle() on a zoomed card was resolved in another box than the one painted (Luke's Torts
+   copy, Safari 27, html zoom 0.86: a smaller circle up-left of the card, the text running out of its
+   bottom, the card's own edge showing as an arc and its shadow a bigger circle down-right). So the
+   card is a REAL disc at every frame: border-radius 50% and overflow hidden on a box whose diameter
+   (--scd) goes from the resting disc's to the enlarged one's (--sD) with the engine's zoom ramp, read
+   off the card's own zoom on every frame. The content sits at fixed px about the centre (sized by
+   --sD), so it never re-wraps and the growing disc reveals it; the engine's .alto-fshadow is kept the
+   same circle (its scale set from the card's real diameter). The face fades out, the content
+   (.sol-body, .sol-scrim, .sol-open) fades in. ───── */
+var zmo=(typeof MutationObserver==='function') ? new MutationObserver(function(ms){ ms.forEach(function(m){ var n=m.target.closest && m.target.closest('.node'); if(n) clip(n); }); }) : null, morphing=[], mraf=0;
+function sDof(n, b){ return parseFloat(n.style.getPropertyValue('--sD'))||b.d; }
+/* the focus shadow: the card's circle, whatever size the engine measured it at */
+function shade(n, w, z){
+  var sh=n._fsh, g=sh && sh._g, W=sh ? parseFloat(sh.style.width)||0 : 0; if(!W || !g) return;
+  var want=w*z;                                                 /* the disc's diameter in the board's px */
+  if(Math.abs(z-K)<1e-4 && Math.abs(want-W)<0.5) return;        /* full size: the engine's own placement is this circle */
+  sh.style.left=g[0]+'px'; sh.style.top=g[1]+'px';
+  sh.style.transform='translate('+(n._fx||0)+'px,'+(n._fy||0)+'px) scale('+f2(want/W*1e4)/1e4+')';
+}
 function clip(n){
   var c=n.querySelector('.node-card'), b=B[(n.id||'').slice(5)]; if(!c || !b) return;
-  var z=parseFloat(c.style.zoom)||1, f=n.classList.contains('focused');
+  var z=parseFloat(c.style.zoom)||1, f=n.classList.contains('focused'), i=morphing.indexOf(c);
+  if(i<0 && !f) return;
   if(!f && z<=1.0005){                                         /* home: a circle again */
     n.classList.remove('sol-closing'); n.classList.remove('sol-clip');
-    ['--scr','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
-    var i=morphing.indexOf(c); if(i>=0){ morphing.splice(i, 1); if(zmo){ zmo.disconnect(); morphing.forEach(function(x){ zmo.observe(x, {attributes:true, attributeFilter:['style']}); }); } }
+    ['--scd','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
+    if(i>=0) morphing.splice(i, 1);
     if(!morphing.length) go();
     return; }
-  var p=Math.max(0, Math.min(1, (z-1)/(K-1)*1.5)), s=p*p*(3-2*p);
-  if(f && s>=1){ n.classList.remove('sol-clip'); return; }
+  var p=Math.max(0, Math.min(1, (z-1)/(K-1)*1.5)), s=p*p*(3-2*p), d=b.d, D=sDof(n, b);
+  if(f && s>=1){ n.classList.remove('sol-clip'); ['--scd','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
+    if(i>=0) morphing.splice(i, 1); shade(n, D, z); return; }
   n.classList.add('sol-clip');
-  var d=b.d, D=n._sw||d;                                       /* the clip: a circle from the resting disc's radius to the enlarged one's */
-  n.style.setProperty('--scr', f2(d/2+(D-d)/2*s)+'px');
+  var w=f2(d+(D-d)*s);                                          /* the disc's own diameter, from the resting one to the enlarged one */
+  n.style.setProperty('--scd', w+'px');
   n.style.setProperty('--sfo', String(Math.max(0, 1-s*2.2))); n.style.setProperty('--sbo', String(Math.min(1, s*1.6)));
+  shade(n, w, z);
 }
+/* a backstop to the observer: every morphing disc is looked at once a frame until it has settled */
+function msweep(){ mraf=0; morphing.slice().forEach(function(c){ var n=c.closest && c.closest('.node'); if(n) clip(n); }); if(morphing.length) mraf=requestAnimationFrame(msweep); }
 function morph(n, open){
   var c=n.querySelector('.node-card'); if(!c) return;
   if(!open) n.classList.add('sol-closing');
-  n.classList.add('sol-clip');
   if(open) sections(c, (n.id||'').slice(5));
-  n._sw=c.offsetWidth;                                          /* the enlarged disc's diameter, unzoomed */
   var bd=c.querySelector('.sol-body'); if(open && bd) bd.scrollTop=0;
-  if(morphing.indexOf(c)<0){ morphing.push(c); if(zmo) zmo.observe(c, {attributes:true, attributeFilter:['style']}); }
+  if(morphing.indexOf(c)<0) morphing.push(c);
+  if(zmo && !c._zmo){ c._zmo=1; zmo.observe(c, {attributes:true, attributeFilter:['style']}); }
   clip(n);
+  if(!mraf && morphing.length) mraf=requestAnimationFrame(msweep);
 }
 function watch(){
   var w=document.getElementById('world'); if(!w || typeof MutationObserver!=='function') return;

@@ -870,6 +870,82 @@ def test_esc_and_arrows_from_an_enlarged_disc_and_back_to_a_circle(browser, page
     pg.context.close()
 
 
+# ── the enlarged disc is ONE circle at every frame, under any page zoom (Luke, Safari, round 7) ──
+# Safari 27 at html zoom 0.86 drew a clip-path circle() on the zoomed card in another box than the card:
+# a smaller circle up-left, the text out of its bottom, the shadow a bigger circle down-right. Now the
+# card is a real disc (--scd) at every frame; card, shadow and content are read here in the viewport's
+# px (getBoundingClientRect: what is seen), every frame of the grow and of the shrink.
+
+GEO_WATCH = r"""(id) => new Promise(function(res){
+  var n=document.getElementById('node-'+id), c=n.querySelector('.node-card'), bad=[], k=0, t0=performance.now(), seen=0;
+  function R(e){ var r=e.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2, r.width, r.height]; }
+  (function f(){ var cs=getComputedStyle(c), cp=cs.clipPath||cs.webkitClipPath||'none', a=R(c);
+    if(cp!=='none') bad.push('clip '+cp);
+    if(Math.abs(a[2]-a[3])>1) bad.push(k+' box '+a[2].toFixed(1)+'x'+a[3].toFixed(1));
+    if(parseFloat(cs.borderTopLeftRadius)<Math.min(c.offsetWidth, c.offsetHeight)/2-1 && cs.borderTopLeftRadius!=='50%') bad.push('radius');
+    var sh=n._fsh;
+    if(sh && parseFloat(sh.style.opacity||'0')>0.02){ var b=R(sh); seen++;
+      if(Math.hypot(a[0]-b[0], a[1]-b[1])>1) bad.push(k+' shadow off '+(b[0]-a[0]).toFixed(1)+','+(b[1]-a[1]).toFixed(1));
+      if(Math.abs(a[2]-b[2])>1) bad.push(k+' shadow '+b[2].toFixed(1)+' card '+a[2].toFixed(1)); }
+    k++; if(performance.now()-t0<1000) requestAnimationFrame(f); else res({frames:k, shadow:seen, bad:bad.slice(0, 8)}); })();
+})"""
+
+GEO_REST = r"""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body'), o=c.querySelector('.sol-open');
+  var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, R=r.width/2;
+  function far(e){ var q=e.getBoundingClientRect(); return Math.max.apply(null, [[q.left,q.top],[q.right,q.top],[q.left,q.bottom],[q.right,q.bottom]].map(function(p){ return Math.hypot(p[0]-cx, p[1]-cy); })); }
+  return {R:R, w:r.width, h:r.height, body:far(b), open:far(o), scrolls:b.scrollHeight>b.clientHeight+1, ov:getComputedStyle(b).overflowY,
+          sD:parseFloat(n.style.getPropertyValue('--sD')), z:getComputedStyle(document.documentElement).zoom, cls:n.className}; }"""
+
+
+def _sizes_page():
+    """Bodies whose content asks for each enlarged size (300 / 340 / 380 / 420)."""
+    d = solar_doc(SMALL, "orbit", SMALL_LINKS)
+    lens = {"u1-p1": 30, "u1-p2": 17, "u1-p3": 8, "u2-p2": 1}
+    for n in d["nodes"]:
+        if n["id"] in lens:
+            n["desc"] = ("The rule as the notes put it, at length. " * lens[n["id"]]).strip()
+            if lens[n["id"]] > 20:
+                n["sections"] = [{"h": "Test", "t": "Each element in turn, as the cases apply it. " * 8}]
+    html, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    return html
+
+
+@pytest.mark.parametrize("vp", [(1463, 761), (1500, 950), (1180, 760)])
+def test_the_enlarged_disc_its_shadow_and_its_content_are_one_circle_at_every_frame(browser, tmp_path, vp):
+    f = tmp_path / "sizes.html"
+    f.write_text(_sizes_page(), encoding="utf-8")
+    ctx = browser.new_context(viewport={"width": vp[0], "height": vp[1]})
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(f.as_uri())
+    pg.wait_for_timeout(1500)
+    pg.mouse.move(2, vp[1] - 4)
+    seen = set()
+    for look in ("hub", "stars"):
+        pg.evaluate(f"() => window._altoSolarLook.set('{look}')")
+        pg.wait_for_timeout(900)
+        for i in ("u1-p1", "u1-p2", "u1-p3", "u2-p2"):
+            grow = pg.evaluate("(id) => { var p=(" + GEO_WATCH + ")(id); window.enterFocus(id); return p; }", i)
+            assert not grow["bad"] and grow["shadow"] > 3, (look, i, grow)
+            pg.wait_for_timeout(300)
+            st = pg.evaluate(GEO_REST, i)
+            seen.add(st["sD"])
+            assert abs(st["w"] - st["h"]) <= 1 and "sol-clip" not in st["cls"], st
+            assert st["body"] <= st["R"] + 1 and st["open"] <= st["R"] + 1, (look, i, st)   # the text square and the control: inside
+            if i == "u1-p1":
+                assert st["scrolls"] and st["ov"] == "auto", st                       # long: it scrolls inside the square
+            shrink = pg.evaluate("(id) => { var p=(" + GEO_WATCH + ")(id); window.exitFocus(); return p; }", i)
+            assert not shrink["bad"], (look, i, shrink)
+            pg.wait_for_timeout(400)
+            assert "sol-" not in pg.evaluate(f"() => document.getElementById('node-{i}').className")
+    assert seen == {300.0, 340.0, 380.0, 420.0}, seen
+    if vp == (1463, 761):
+        assert abs(float(pg.evaluate("() => getComputedStyle(document.documentElement).zoom")) - 0.86) < 0.01
+    assert not errs, errs
+    ctx.close()
+
+
 # ── seams for the star chart's skin and travel ────────────────────────────────
 
 def test_the_skin_tick_and_the_orbit_clock(browser, pages):

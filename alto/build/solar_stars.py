@@ -91,13 +91,13 @@ STARS_CSS = r"""
   P #world .node[data-solar=sat]:not(.focused):not(.sol-closing) .node-card{border-color:rgba(170,190,255,.25) !important;}
   R .node-card>.sk.sk,F .node-card>.sk.sk{display:block !important;position:absolute;pointer-events:none;left:50%;top:50%;}
   /* enlarged (solar_draw's bigger disc, --sD): the body keeps its look under the scrim and the content */
-  F{--skd:var(--sD);--card-desc-color:rgba(232,238,255,.88);}   /* (the engine's desc colour is an !important var: dark in the light theme) */
+  F{--skd:var(--scd,var(--sD));--card-desc-color:rgba(232,238,255,.88);}   /* (the engine's desc colour is an !important var: dark in the light theme) */
   F .sol-scrim.sol-scrim{background:radial-gradient(circle,rgba(3,5,12,var(--sk-scrim,.5)) 0 56%,rgba(3,5,12,calc(var(--sk-scrim,.5)*.4)) 100%) !important;}
   F .sol-body{color:#eef2ff;}
   F .sol-body .node-title{color:#fff;}
   F .sol-body .node-order,F .sol-body .node-desc,F .sol-sec{color:rgba(232,238,255,.88);}
   F .sol-sec h6{color:rgba(205,215,245,.78);}
-  F .sk-craft.sk-craft{width:calc(var(--sD)*.8);height:calc(var(--sD)*.8);margin:calc(var(--sD)*-.4) 0 0 calc(var(--sD)*-.4);opacity:.55;}
+  F .sk-craft.sk-craft{width:calc(var(--skd)*.8);height:calc(var(--skd)*.8);margin:calc(var(--skd)*-.4) 0 0 calc(var(--skd)*-.4);opacity:.55;}
   K .sk-tex{width:calc(var(--skd,var(--sd))*1.16);height:calc(var(--skd,var(--sd))*1.16);margin:calc(var(--skd,var(--sd))*-.58) 0 0 calc(var(--skd,var(--sd))*-.58);
     background:radial-gradient(circle closest-side,var(--sk-c) 85.5%,transparent 86.5%);}
   K .sk-tex.ok{background:none;}
