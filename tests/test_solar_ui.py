@@ -62,15 +62,15 @@ def test_the_solar_starter_page_builds_and_carries_its_brief():
     assert starter.TID in page and starter.TITLE in page
 
 
-def test_hub_and_spoke_has_a_still_preview_and_the_star_chart_a_moving_one():
+def test_hub_and_spoke_previews_its_star_look_and_respects_reduced_motion():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
     hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
-    assert "Hub &amp; spoke" in hub and "Solar" not in hub and "pv-o1" not in hub and "<animate" not in hub
-    assert hub.count("<circle") >= 6 and 'aria-hidden="true"' in hub                   # a hub and circles on spokes
-    assert "star chart anytime" in hub and "Ask Claude to turn it into" in hub          # the way to the moving one
-    stars = blk[blk.index('data-for="stars" viewBox'):]
-    assert "pv-o1" in stars and "pv-om" in stars and stars.count("<circle") >= 8       # it orbits
+    assert "Hub &amp; spoke" in hub and "Solar" not in hub and 'aria-hidden="true"' in hub
+    assert "pv-o1" in hub and "pv-om" in hub and hub.count("<circle") >= 8              # planets and a moon go round
+    assert "radialGradient" in hub and "url(#ntsun)" in hub and "url(#ntglow)" in hub    # a glowing sun
+    assert "Concepts as a hub with planets, moons and satellites you can orbit between. Toggle Plain or Star chart any time." in hub
+    assert "turn it into" not in hub
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
     assert "@keyframes ntorb" in css
     # the orbit preview stands still for anyone who asks for reduced motion
@@ -83,49 +83,52 @@ def test_the_picker_stays_inside_the_dialog_with_four_tiles():
     assert "#nt-modal{ width:720px; }" in h and "max-width:calc(100vw - 32px)" in h
 
 
-def test_the_star_chart_starter_is_a_palace_without_a_city():
-    s = starter._STARTERS["stars"]
-    b = s["brief"]
-    assert b["mode"] == "palace" and b["palace_view"] == "stars" and "palace" not in b      # no map, so it can be made in a browser
-    roots = [n for n in s["nodes"] if not n.get("parent")]
-    assert sorted(n["act"] for n in roots) == [0, 1]
-    assert ("stars" in starter.KINDS) == ("palace_view" in __import__("alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__)
+def test_there_is_no_star_chart_starter_any_more():
+    """The Star chart is a look of every Hub & spoke page (Round 5), not a
+    Mind Palace mode with a starter of its own."""
+    assert "stars" not in starter.KINDS and "palace_view" not in __import__(
+        "alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__
 
 
 # ── tools ────────────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("tool", ["run_layout_preview", "build_timeline"])
-def test_the_layout_tools_take_a_palace_view_and_explain_hub_and_spoke(tool):
+def test_the_layout_tools_take_a_hub_look_and_explain_hub_and_spoke(tool):
     fn = getattr(srv, tool)
     params = inspect.signature(fn).parameters
-    assert "palace_view" in params and params["palace_view"].default == "" and "hub_style" not in params   # '' keeps the brief's
+    assert "hub_look" in params and params["hub_look"].default == ""   # '' keeps the brief's
+    assert "palace_view" not in params and "hub_style" not in params
     doc = " ".join(fn.__doc__.split())
-    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "Star chart" in doc
+    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "plain" in doc
 
 
-def test_create_timeline_explains_hub_and_spoke_and_the_star_chart():
+def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
     doc = " ".join(srv.create_timeline.__doc__.split())
-    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "always still", "SUN", "PLANETS", "MOONS",
-                 "SATELLITES", "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
-                 "single-column", "palace_view?: 'city'|'stars'", "STAR CHART", "convert_timeline", "content is kept, both ways"):
+    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "SUN", "PLANETS", "MOONS", "SATELLITES",
+                 "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
+                 "single-column", "fifth level is an error", "never flatten silently", "pivotal, critical or extremely important",
+                 "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'plain'", "STARS = the Star chart", "PLAIN =",
+                 "Orbit switch", "nothing to convert"):
         assert want in doc, want
+    assert "palace_view" not in doc and "convert_timeline" not in doc and "STAR CHART —" not in doc
 
 
-def test_a_wrong_palace_view_is_told_plainly():
-    palace = {"brief": {"mode": "palace"}}
-    assert srv._layout_error(palace, "", "") is None and srv._layout_error(palace, "", "stars") is None
-    assert srv._layout_error(palace, "", "city") is None
-    assert srv._layout_error(palace, "", "swirl")["error"] == "invalid_palace_view"
-    r = srv._layout_error({"brief": {"mode": "outline", "layout": "solar"}}, "", "stars")
-    assert r["error"] == "invalid_palace_view" and "convert_timeline" in r["message"]
+def test_a_wrong_hub_look_is_told_plainly():
+    hub = {"brief": {"mode": "outline", "layout": "solar"}}
+    assert srv._layout_error(hub, "", "") is None and srv._layout_error(hub, "", "stars") is None
+    assert srv._layout_error(hub, "", "plain") is None
+    assert srv._layout_error(hub, "", "swirl")["error"] == "invalid_hub_look"
+    r = srv._layout_error({"brief": {"mode": "palace"}}, "", "stars")
+    assert r["error"] == "invalid_hub_look" and "Hub & spoke" in r["message"]
+    assert srv._layout_error({"brief": {"mode": "outline", "layout": "tree"}}, "solar", "plain") is None
 
 
 def test_a_layout_choice_is_kept_in_the_brief_only_when_given():
-    doc = {"brief": {"mode": "palace", "palace_view": "city", "tree_lines": "fan"}}
+    doc = {"brief": {"mode": "outline", "layout": "solar", "hub_look": "stars", "tree_lines": "fan"}}
     assert srv._layout_choice(doc, "", "")["brief"] == doc["brief"]
-    assert srv._layout_choice(doc, "", "", "stars")["brief"]["palace_view"] == "stars"
+    assert srv._layout_choice(doc, "", "", "plain")["brief"]["hub_look"] == "plain"
     assert srv._layout_choice({"brief": {}}, "solar", "", "")["brief"] == {"layout": "solar"}
-    assert doc["brief"]["palace_view"] == "city"                               # the stored one is not touched
+    assert doc["brief"]["hub_look"] == "stars"                                 # the stored one is not touched
 
 
 @pytest.fixture
@@ -136,7 +139,7 @@ def local_store(tmp_path):
 
 
 @needs_solar
-def test_a_hub_and_spoke_timeline_goes_through_the_tools_and_converts_both_ways(local_store):
+def test_a_hub_and_spoke_timeline_goes_through_the_tools_in_either_look(local_store):
     d = starter.draft("solar")
     pid = srv.create_project("Law School", "1L year", "studying")["project_id"]
     r = srv.create_timeline(pid, {**d["brief"], "title": "Torts"})
@@ -149,16 +152,12 @@ def test_a_hub_and_spoke_timeline_goes_through_the_tools_and_converts_both_ways(
     assert srv.build_timeline(tid).get("verify") == "passed"
     w = srv.place_nodes(tid, {"unit-1-a": {"arrange": "row"}})
     assert any("solar" in x for x in w["warnings"]), w
-    # the page offers the conversion; the tool does it, keeping every card, and it comes back
-    got = srv.convert_timeline(tid, "star_chart")
-    assert got.get("ok") and got["to"] == "star_chart" and got["nodes"] == len(d["nodes"]), got
-    assert srv.get_timeline(tid)["brief"]["palace_view"] == "stars"
-    assert srv.build_timeline(tid, palace_view="stars").get("verify") == "passed"
-    assert srv.build_timeline(tid, palace_view="swirl")["error"] == "invalid_palace_view"
-    back = srv.convert_timeline(tid, "hub_and_spoke")
-    assert back.get("ok"), back
-    assert srv.get_timeline(tid)["brief"]["layout"] == "solar"
-    assert srv.build_timeline(tid).get("verify") == "passed"
+    # the look it opens in is a build-time choice kept in the brief; the page carries both
+    assert srv.build_timeline(tid, hub_look="plain").get("verify") == "passed"
+    assert srv.get_timeline(tid)["brief"]["hub_look"] == "plain"
+    assert srv.build_timeline(tid, hub_look="swirl")["error"] == "invalid_hub_look"
+    assert srv.build_timeline(tid, hub_look="stars").get("verify") == "passed"
+    assert not hasattr(srv, "convert_timeline")
 
 
 # ── the interview guide
@@ -167,71 +166,41 @@ def _sec(a, b):
     return " ".join(GUIDE[GUIDE.index(a):GUIDE.index(b)].split())
 
 
-def test_the_guide_has_a_hub_and_spoke_section_that_asks_one_or_several():
-    sec = _sec("### §D-Solar.", "### §D-Stars.")
+def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
+    sec = _sec("### §D-Solar.", "### B. Subject & spine")
     for want in ("Hub & spoke", "layout: 'solar'", "sun", "planets", "moons", "satellites",
                  "One system in great detail, or several", "outline's order", "innermost ring", "single-column",
-                 "Nothing goes deeper", "Do not flatten it quietly", "a one-unit Hub & spoke is valid",
-                 "drag its circle onto the other circle", "pivotal, critical or extremely important", "zooms out"):
+                 "Nothing goes deeper", "Never flatten it quietly", "a one-unit Hub & spoke is valid",
+                 "drag its circle onto the other circle", "pivotal, critical or extremely important",
+                 "never invent a unit or a hub", "their structure; you do not choose for them",
+                 "A unit may have several suns", "2.a, 2.b", "+ Add a sun", "hub_look: 'plain'", "hub_look: 'stars'", "never merge two of theirs"):
         assert want in sec, want
     assert "§D-Solar**" in GUIDE[GUIDE.index("### B0."):GUIDE.index("### §D-Palace.")]
     assert "hub_style" not in GUIDE and "run_layout_preview" in GUIDE[GUIDE.index("## Build sequence"):]
 
 
-def test_the_guide_offers_the_star_chart_conversion_once_and_says_nothing_is_lost():
-    sec = _sec("**Moving it: the Star chart.**", "### §D-Stars.")
-    for want in ("ringed-planet tile", "Turn this into a star chart", "once, at the end of the build",
-                 "move, orbit, or look like a solar system or a galaxy", "convert_timeline(timeline_id, to='star_chart')",
-                 "Nothing is lost", "convert_timeline(timeline_id, to='hub_and_spoke')", "districts hold one building each", "never rebuild the timeline by hand"):
+def test_the_guide_tells_claude_about_the_two_looks_and_never_about_converting():
+    sec = _sec("**Two looks, switched in the page.**", "**Ask**")
+    for want in ("Star chart** (the look it opens in)", "Plain", "slowly orbiting", "spaceflight-style routes", "Zoom out",
+                 "Orbit** switch", "Open full page", "enlarged circle stays circular", "hub_look: 'plain'", "nothing to rebuild"):
         assert want in sec, want
+    low = GUIDE.lower()
+    for gone in ("convert_timeline", "turn this into a star chart", "ringed-planet", "§d-stars", "palace_view", "to='star_chart'"):
+        assert gone not in low, gone
+    assert "star chart" in low and low.count("star chart") <= 6        # only as the look
 
 
-def test_the_guide_has_a_star_chart_section_for_the_palace_view():
-    sec = _sec("### §D-Stars.", "### B. Subject & spine")
-    for want in ("palace_view: 'stars'", "sun", "planets", "moons", "satellites", "fifth level", "do not ask which city",
-                 "bigger the more hangs off", "pivotal, critical or extremely important", "inner rings faster",
-                 "reduced motion", "zoom out", "convert_timeline", "Nothing is lost", "keeps its city data"):
-        assert " ".join(want.split()) in sec or want.lower() in sec.lower(), want
+# ── nothing offers a conversion any more: the page's own switch is the way ────
 
-
-def test_the_guide_never_has_claude_choose_the_students_structure_for_solar():
-    sec = _sec("### §D-Solar.", "### §D-Stars.")
-    assert "never invent a unit or a hub" in sec and "their structure; you do not choose for them" in sec
-
-
-# ── turning a Hub & spoke timeline into a star chart ─────────────────────────
-
-def test_a_hub_and_spoke_page_carries_a_ringed_planet_tile_never_the_sparkle():
+def test_no_page_tile_menu_entry_or_listing_flag_offers_a_conversion():
     js = (ROOT / "alto" / "build" / "manual_edit.py").read_text(encoding="utf-8")
-    assert "S.style !== 'spoke'" in js and "tid.indexOf('s-') === 0" in js            # Hub & spoke only; not on a share
-    assert "Turn this into a star chart" in js and "convert_timeline" in js and "window._altoAskClaude" in js
-    assert "html.mobile #alto-star-tile,html.alto-editing #alto-star-tile,html.printing #alto-star-tile{display:none !important;}" in js
-    svg = js[js.index("var STAR_SVG = '") + 16:]
-    svg = svg[:svg.index("';")]
-    assert "<circle" in svg and "<ellipse" in svg and 'aria-hidden="true"' in svg and "currentColor" in svg
-    assert 'viewBox="0 0 24 24"' in svg and "17" in svg
-    # the four-point sparkle is the Overview's icon: nothing new here uses one
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
-    assert "\u2726" not in js + h and "✦" not in js + h and "&#10022;" not in js + h
-
-
-def test_the_homepage_menu_offers_it_on_a_hub_and_spoke_timeline():
-    h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
-    m = h[h.index("function altoTileMenu(pg)"):h.index("function moveView()")]
-    assert "if(pg.view === 'hubspoke')" in m and "Turn this into a star chart" in m and "openClaude(altoStarChartPrompt(pg))" in m
-    pr = h[h.index("function altoStarChartPrompt(pg)"):h.index("function altoTileMenu(pg)")]
-    for want in ("pg.heading || pg.title", "pg.tid", "Hub & spoke into a Star chart", "convert_timeline", "keeping all of its content", "list_projects(account=\"all\")"):
-        assert want in pr, want
-
-
-@needs_solar
-def test_the_listing_record_marks_a_hub_and_spoke_page_in_both_writers():
-    from alto.cloud.meta import meta_of
-    page = starter.page("solar")
-    assert meta_of(page)["view"] == "hubspoke"
-    assert "view" not in meta_of(starter.page("outline"))                      # nothing else changes
-    js = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
-    assert "{ view: 'hubspoke' }" in js and "view: v.view || ''" in js
+    cloud = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
+    meta = (ROOT / "alto" / "cloud" / "meta.py").read_text(encoding="utf-8")
+    for text in (js, h, cloud, meta):
+        assert "Turn this into a star chart" not in text and "alto-star-tile" not in text and "hubspoke" not in text
+        assert "altoStarChartPrompt" not in text and "convert_timeline" not in text
+    assert "✦" not in js + h and "\u2726" not in js + h and "&#10022;" not in js + h
 
 
 # ── editing a solar timeline by hand ─────────────────────────────────────────
@@ -456,21 +425,6 @@ def edit_url(tmp_path):
     srv_.shutdown()
 
 
-def _stars_draft():
-    d = starter.draft("stars")
-    d["brief"].update(title="Torts", timeline_id="torts")
-    for n in d["nodes"]:
-        n["desc"] = f"{n['title']}: the material's words."
-    return d
-
-
-@pytest.fixture
-def stars_url(tmp_path):
-    srv_, url = _serve(tmp_path, build_timeline(*load_brief(_stars_draft()))[0])
-    yield url
-    srv_.shutdown()
-
-
 def _editing(browser, url, hook):
     """The page open in edit mode. hook: True puts a recording stand-in in place of the solar layer's
     _altoSolarSync, False takes it away (a page whose layer is missing), None leaves the real one."""
@@ -671,128 +625,11 @@ def test_without_the_solar_layer_a_change_is_saved_and_said_to_wait_for_the_next
     assert not errs, errs
 
 
-# ── a Star chart (a palace in its stars view) edited by hand ─────────────────
-
 def _fold_into(draft, ops):
     """The page's saved edits folded into a copy of the draft (alto/edits.py)."""
     st = Store(copy.deepcopy(draft))
     st.edits = {"v": 1, "ops": ops}
     return st, fold(st, "u", "t1")
-
-
-@needs_solar
-def test_a_star_chart_page_edits_adds_renames_and_saves_what_folds_back(browser, stars_url):
-    pg, errs = _editing(browser, stars_url, hook=True)
-    assert pg.evaluate("document.documentElement.classList.contains('alto-solar-edit')")
-    # a card under a floor: made from the circle's own control, numbered the palace's way
-    _show(pg, "unit-1-a")
-    _ctl(pg, "unit-1-a", "addc")
-    pg.wait_for_timeout(500)
-    ops = _edit_ops(pg)
-    new = [k for k in ops if k.startswith("nn|")]
-    assert len(new) == 1 and ops[new[0]]["v"]["p"] == "unit-1-a", ops
-    nid = new[0][3:]
-    calls = pg.evaluate("window.__sync")
-    assert calls and calls[-1]["parent"][nid] == "unit-1-a" and nid in calls[-1]["kids"]["unit-1-a"], calls
-    pal = pg.evaluate("({par: _ALTO_PALACE.par, num: _ALTO_PALACE.num, of: _ALTO_PALACE.of, fl: _ALTO_PALACE.fl})")
-    assert pal["par"][nid] == "unit-1-a" and pal["of"][nid] == "unit-1-start" and nid in pal["fl"]["unit-1-start"], pal
-    assert pal["num"]["unit-1-start"] == "1.1" and re.fullmatch(r"1\.1-\d", pal["num"][nid])         # 1.1-n, not 2.a.1
-    # a rename, through the same change path typing takes
-    assert pg.evaluate("window._altoEditChanges([['n|unit-1-b|title', 'Second floor, renamed']])")
-    assert _edit_ops(pg)["n|unit-1-b|title"]["v"] == "Second floor, renamed"
-    # saved: a reload lays the edits over the page again, the tables included
-    pg.reload(wait_until="domcontentloaded")
-    pg.wait_for_timeout(1500)
-    assert pg.evaluate("_ALTO_PALACE.par['%s']" % nid) == "unit-1-a"
-    assert pg.evaluate("document.querySelector('#node-unit-1-b .node-title').textContent") == "Second floor, renamed"
-    assert not errs, errs
-
-
-@needs_solar
-def test_dragging_a_star_charts_circle_onto_another_moves_it_by_the_palaces_floor_edit(browser, stars_url):
-    pg, errs = _editing(browser, stars_url, hook=True)
-    _show(pg, "unit-1-a1", "unit-1-b")
-    mid = _circle_drag(pg, "unit-1-a1", "unit-1-b")
-    assert mid["ok"] == ["node-unit-1-b"], mid
-    ops = _edit_ops(pg)
-    assert ops["pf|unit-1-a1"]["v"] == "unit-1-b" and ops["pf|unit-1-a1"]["b"] == "unit-1-a", ops      # the palace's pf| op
-    assert not [k for k in ops if k.startswith(("rp|", "p|"))], ops
-    pal = pg.evaluate("({par: _ALTO_PALACE.par, num: _ALTO_PALACE.num, fl: _ALTO_PALACE.fl})")
-    assert pal["par"]["unit-1-a1"] == "unit-1-b" and pal["fl"]["unit-1-start"] == ["unit-1-a", "unit-1-b", "unit-1-a1"], pal
-    assert pal["num"]["unit-1-a1"] == "1.1-3"
-    calls = pg.evaluate("window.__sync")
-    assert calls and calls[-1]["parent"]["unit-1-a1"] == "unit-1-b", calls
-    # and it folds back into the draft without a conflict, building again as the page showed it
-    draft = _stars_draft()
-    st, r = _fold_into(draft, ops)
-    assert not r["conflicts"] and not r["gone"], r
-    assert _node(st, "unit-1-a1")["parent"] == "unit-1-b"
-    html, _ = build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))
-    assert '"unit-1-a1":"unit-1-b"' in html.replace(" ", "")
-    assert not errs, errs
-
-
-@needs_solar
-def test_a_star_chart_refuses_the_same_drops_and_a_building_may_become_a_floor(browser, stars_url):
-    pg, errs = _editing(browser, stars_url, hook=True)
-    _show(pg, "unit-1-a1", "unit-1-a")
-    mid = _circle_drag(pg, "unit-1-a", "unit-1-a1")                      # onto what orbits it
-    assert mid["ok"] == [] and "cannot go under itself" in mid["tip"] and _edit_ops(pg) == {}
-    _show(pg, "unit-1-a1", "unit-1-a")
-    mid = _circle_drag(pg, "unit-1-a1", "unit-1-a")                      # already its parent
-    assert mid["ok"] == [] and _edit_ops(pg) == {} and _home(pg, "unit-1-a1")
-    # a building (a sun) onto the other building of ANOTHER district: refused; same district: allowed
-    _show(pg, "unit-1-b", "unit-2-start")
-    mid = _circle_drag(pg, "unit-2-start", "unit-1-b")
-    assert mid["ok"] == [] and "within its district" in mid["tip"] and _edit_ops(pg) == {}
-    assert not errs, errs
-
-
-def test_a_star_chart_fold_refuses_past_a_satellite_and_across_districts():
-    d = _stars_draft()
-    d["nodes"].append({"id": "unit-1-a1x", "act": 0, "parent": "unit-1-a1", "title": "A satellite", "tag": "", "desc": ""})
-    if "palace_view" not in __import__("alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__:
-        pytest.skip("needs alto-solar-lead's palace_view")
-    # a leaf under a satellite is a fifth level; a floor into another district's building is not the palace's move
-    st, r = _fold_into(d, {"pf|unit-1-b": {"b": "unit-1-start", "v": "unit-1-a1x", "t": 1},
-                           "pf|unit-1-a": {"b": "unit-1-start", "v": "unit-2-start", "t": 2},
-                           "n|unit-1-b|title": {"b": "Second floor", "v": "Breach", "t": 3}})
-    assert sorted(r["conflicts"]) == ["pf|unit-1-a", "pf|unit-1-b"], r
-    assert [x["id"] for x in r["solar_too_deep"]] == ["unit-1-b"] and _node(st, "unit-1-b")["title"] == "Breach"
-    # a building made a floor of another in its district is the palace's own model
-    d2 = _stars_draft()
-    d2["nodes"].append({"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": ""})
-    st, r = _fold_into(d2, {"pf|unit-1-start2": {"b": "", "v": "unit-1-start", "t": 1}})
-    assert not r["conflicts"] and _node(st, "unit-1-start2")["parent"] == "unit-1-start", r
-
-
-@pytest.fixture
-def stars2_url(tmp_path):
-    d = _stars_draft()
-    d["nodes"].append({"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": "Another building: words."})
-    srv_, url = _serve(tmp_path, build_timeline(*load_brief(d))[0])
-    yield url
-    srv_.shutdown()
-
-
-@needs_solar
-def test_a_star_chart_building_dropped_on_another_in_its_district_becomes_its_floor(browser, stars2_url):
-    pg, errs = _editing(browser, stars2_url, hook=True)
-    ids = pg.evaluate("[...document.querySelectorAll('#world .node')].sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top).map(n=>n.id.slice(5))")
-    assert "unit-1-start2" in ids
-    first, second = [i for i in ids if i in ("unit-1-start", "unit-1-start2")]
-    _show(pg, first, second)
-    mid = _circle_drag(pg, "unit-1-start2", "unit-1-start")
-    assert mid["ok"] == ["node-unit-1-start"], mid
-    ops = _edit_ops(pg)
-    assert ops["pf|unit-1-start2"]["v"] == "unit-1-start" and ops["pf|unit-1-start2"]["b"] == "", ops
-    assert pg.evaluate("_ALTO_PALACE.of['unit-1-start2']") == "unit-1-start"
-    assert pg.evaluate("Object.keys(_ALTO_PALACE.fl)") == ["unit-1-start", "unit-2-start"]       # it is a floor now: one building less
-    d = _stars_draft()
-    d["nodes"].append({"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": ""})
-    st, r = _fold_into(d, ops)
-    assert not r["conflicts"] and _node(st, "unit-1-start2")["parent"] == "unit-1-start", r
-    assert not errs, errs
 
 
 # ── with the real solar layer ────────────────────────────────────────────────
@@ -820,85 +657,17 @@ def test_the_real_layer_plans_a_hub_and_spoke_again_after_a_drag_and_no_banner_s
     assert near[1] and not errs, (near, errs)
 
 
-@needs_solar
-def test_the_real_layer_follows_a_star_chart_building_made_a_floor(browser, stars2_url):
-    pg, errs = _editing(browser, stars2_url, hook=None)
-    assert pg.evaluate("window._ALTO_SOLAR.systems.length") == 3 and pg.evaluate(ROLES)["unit-1-start2"] == "sun"
-    ids = pg.evaluate("[...document.querySelectorAll('#world .node')].sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top).map(n=>n.id.slice(5))")
-    first, second = [i for i in ids if i in ("unit-1-start", "unit-1-start2")]
-    _show(pg, first, second)
-    mid = _circle_drag(pg, "unit-1-start2", "unit-1-start")
-    assert mid["ok"] == ["node-unit-1-start"], mid
-    assert pg.evaluate("window._ALTO_SOLAR.systems.length") == 2           # its own system is gone
-    assert pg.evaluate(ROLES)["unit-1-start2"] == "planet" and pg.evaluate(FACES)["unit-1-start2"] == "planet"
-    assert not pg.evaluate("document.documentElement.classList.contains('alto-solar-stale')")
-    # a card added under a floor is planned in too
-    _show(pg, "unit-1-a")
-    _ctl(pg, "unit-1-a", "addc")
-    pg.wait_for_timeout(600)
-    new = [k[3:] for k in _edit_ops(pg) if k.startswith("nn|")]
-    assert len(new) == 1 and pg.evaluate(ROLES)[new[0]] == "moon", pg.evaluate(ROLES)
-    assert not errs, errs
-
-
-@needs_solar
-def test_a_moved_floor_keeps_its_turn_among_its_new_siblings_after_the_rebuild():
-    from alto.build.solar import solar_plan
-    d = _stars_draft()
-    d["nodes"] += [{"id": "unit-1-start2", "act": 0, "title": "Another building", "tag": "", "desc": ""},
-                   {"id": "unit-1-c", "act": 0, "parent": "unit-1-start2", "title": "Its floor", "tag": "", "desc": ""}]
-    # unit-1-b comes before unit-1-c in the notes, but the owner made it the LAST floor of the other building
-    st, r = _fold_into(d, {"pf|unit-1-b": {"b": "unit-1-start", "v": "unit-1-start2", "t": 1}})
-    assert not r["conflicts"], r
-    assert st.doc["brief"]["placement"]["unit-1-b"] == {"order": 2}
-    b, nodes, _ = load_brief({"brief": st.doc["brief"], "nodes": st.nodes})
-    validate_brief(b)
-    sysm = next(s for s in solar_plan(b, nodes)["systems"] if s["sun"] == "unit-1-start2")
-    assert [p["id"] for p in sorted(sysm["planets"], key=lambda p: p["ring"])] == ["unit-1-c", "unit-1-b"]
-    from alto.build.palace import structure
-    assert structure(b, nodes)[1]["unit-1-start2"] == ["unit-1-c", "unit-1-b"]
-    # and the page numbers it 1.2-2, as the page showed while editing
-    html, _ = build_timeline(b, nodes, [])
-    assert '"unit-1-b":"1.2-2"' in html.replace(" ", "")
-
-
-@needs_solar
-def test_a_stars_placement_may_carry_an_order_but_a_city_may_not():
+def test_a_city_palace_placement_never_takes_an_order():
+    """(The 1.9.105 Star chart let a palace floor carry `order`; the city never could.)"""
     from alto.build.brief import BriefError
-    d = _stars_draft()
-    d["brief"]["placement"] = {"unit-1-b": {"order": 1}}
+    d = {"brief": {"title": "T", "timeline_id": "t", "mode": "palace", "columns": 5,
+                   "acts": [{"label": "A"}, {"label": "B"}], "placement": {"b1": {"order": 1}}},
+         "nodes": [{"id": "b1", "act": 0, "tag": "", "title": "B", "desc": "d"},
+                   {"id": "b2", "act": 1, "tag": "", "title": "B", "desc": "d"}]}
     b, nodes, _ = load_brief(d)
-    validate_brief(b)
-    solar_ids = [p["id"] for p in __import__("alto.build.solar", fromlist=["solar_plan"]).solar_plan(b, nodes)["systems"][0]["planets"]]
-    assert solar_ids == ["unit-1-b", "unit-1-a"]                         # first among its siblings: the innermost ring
-    d["brief"]["placement"] = {"unit-1-b": {"order": 0}}
     with pytest.raises(BriefError):
-        validate_brief(load_brief(d)[0])
-    d["brief"]["placement"] = {"unit-1-b": {"order": 1}}
-    d["brief"]["palace_view"] = "city"
-    with pytest.raises(BriefError):
-        validate_brief(load_brief(d)[0])
-
-
-@needs_solar
-def test_converting_carries_the_order_both_ways(local_store):
-    d = _stars_draft()
-    d["brief"]["placement"] = {"unit-1-b": {"order": 1}}
-    pid = srv.create_project("Law School", "1L year", "studying")["project_id"]
-    r = srv.create_timeline(pid, {**d["brief"], "title": "Torts"})
-    assert "error" not in r, r
-    tid = r["timeline_id"]
-    srv.record_materials_consent(tid, [{"name": "notes.pdf", "kind": "notes"}], True)
-    assert "error" not in srv.add_nodes(tid, d["nodes"])
-    got = srv.convert_timeline(tid, "hub_and_spoke")
-    assert got.get("ok"), got
-    assert srv.get_timeline(tid)["brief"]["placement"] == {"unit-1-b": {"order": 1}}
-    b, nodes, _ = srv._load_full(srv._timeline_or_error(tid)[0])
-    from alto.build.builder import place
-    place(b, nodes)                                                    # as the build does before it plans the systems
-    assert [p["id"] for p in __import__("alto.build.solar", fromlist=["solar_plan"]).solar_plan(b, nodes)["systems"][0]["planets"]] == ["unit-1-b", "unit-1-a"]
-    assert srv.convert_timeline(tid, "star_chart").get("ok")
-    assert srv.get_timeline(tid)["brief"]["placement"]["unit-1-b"] == {"order": 1}
+        validate_brief(b)
+        validate_nodes(b, nodes)
 
 
 @needs_solar
@@ -918,3 +687,63 @@ def test_a_solar_page_does_not_lay_its_circles_out_again_while_nothing_changes(b
 def test_the_edit_tile_leaves_a_solar_chart_alone():
     from alto.build.detail_extras import EDIT_TILE
     assert "if(short > 0 && !window._ALTO_SOLAR && typeof initLayout === 'function'" in EDIT_TILE
+
+
+@needs_solar
+def test_a_hub_and_spoke_unit_may_get_a_second_sun_and_the_unit_controls_sit_by_each_units_chip(browser, edit_url):
+    pg, errs = _editing(browser, edit_url, hook=None)
+    # no band labels are drawn on a Hub & spoke: each unit's controls stand beside its own chip, not stacked in a corner
+    ctl = pg.evaluate("""[...document.querySelectorAll('.aed-uc:not(.aed-unew)')].map(e => [e.textContent, e.offsetLeft, e.offsetTop])""")
+    chips = pg.evaluate("[...document.querySelectorAll('.sol-unit')].map(c => [+c.dataset.unit, c.offsetLeft + c.offsetWidth, c.offsetTop])")
+    assert [c[0] for c in chips] == [0, 1]
+    assert [c[0] for c in ctl][:4] == ["✎ Rename", "+ Add a card", "+ Add a sun", "✕ Delete unit"] and len(ctl) == 8, ctl
+    for i, (_, right, top) in enumerate(chips):
+        mine = ctl[i * 4:(i + 1) * 4]
+        assert mine[0][1] >= right and all(c[2] >= top - 20 for c in mine), (chips, mine)       # right of its chip, level with it
+        assert [c[1] for c in mine] == sorted(c[1] for c in mine) and len({c[1] for c in mine}) == 4          # in a row, none on another
+    assert len({(c[1], c[2]) for c in ctl}) == 8                                                       # none on top of another unit's
+    pg.evaluate("document.querySelector('.aed-uc[data-x=addsun][data-act=\"0\"]').click()")
+    pg.wait_for_timeout(700)
+    ops = _edit_ops(pg)
+    new = [k for k in ops if k.startswith("nn|")]
+    assert len(new) == 1 and ops[new[0]]["v"]["p"] == "" and ops[new[0]]["v"]["a"] == 0, ops
+    nid = new[0][3:]
+    assert pg.evaluate(ROLES)[nid] == "sun" and pg.evaluate(ROLES)["unit-1-start"] == "sun"            # two suns in the first unit
+    assert pg.evaluate("window._ALTO_SOLAR.systems.filter(s => s.unit === 0).length") == 2
+    pg.wait_for_timeout(300)
+    assert pg.evaluate(FACES)[nid] == "sun"
+    nums = pg.evaluate("NODE_ORDER_MAP")
+    assert nums["unit-1-start"] == "1.a" and nums[nid] == "1.b" and nums["unit-2-start"] == "2", nums     # roots lettered; a lone sun keeps its plain number
+    assert not pg.evaluate("document.documentElement.classList.contains('alto-solar-stale')")
+    # and a card under that new sun still stops at the satellites (the depth rule is the same under every sun)
+    _show(pg, nid)
+    _ctl(pg, nid, "addc")
+    assert len([k for k in _edit_ops(pg) if k.startswith("nn|")]) == 2
+    assert not errs, errs
+
+
+@needs_solar
+def test_a_second_sun_made_in_the_page_folds_into_the_draft_and_builds():
+    d = starter.draft("solar")
+    d["brief"]["title"] = "Torts"
+    st, r = _fold_into(d, {"nn|card-aabb11": {"b": None, "v": {"p": "", "a": 0, "t": "Another sun", "g": "", "d": ""}, "t": 1},
+                           "nn|card-aabb22": {"b": None, "v": {"p": "card-aabb11", "a": 0, "t": "Its planet", "g": "", "d": ""}, "t": 2}})
+    assert not r.get("conflicts") and "error" not in r, r
+    assert "parent" not in _node(st, "card-aabb11") and _node(st, "card-aabb22")["parent"] == "card-aabb11"
+    b, nodes, _ = load_brief({"brief": st.doc["brief"], "nodes": st.nodes})
+    validate_brief(b)
+    validate_nodes(b, nodes)
+    html, _ = build_timeline(b, nodes, [])
+    assert "card-aabb11" in html and "card-aabb22" in html
+
+
+@needs_solar
+def test_a_card_cannot_make_a_fifth_level_under_a_second_sun_either():
+    d = starter.draft("solar")
+    d["brief"]["title"] = "Torts"
+    d["nodes"] += [{"id": "sun2", "act": 0, "title": "S", "tag": "", "desc": ""},
+                   {"id": "s2a", "act": 0, "parent": "sun2", "title": "P", "tag": "", "desc": ""},
+                   {"id": "s2a1", "act": 0, "parent": "s2a", "title": "M", "tag": "", "desc": ""},
+                   {"id": "s2a1x", "act": 0, "parent": "s2a1", "title": "Sat", "tag": "", "desc": ""}]
+    st, r = _fold_into(d, {"nn|card-aabb33": {"b": None, "v": {"p": "s2a1x", "a": 0, "t": "Too deep", "g": "", "d": ""}, "t": 1}})
+    assert r["conflicts"] == ["nn|card-aabb33"] and [x["id"] for x in r["solar_too_deep"]] == ["card-aabb33"], r

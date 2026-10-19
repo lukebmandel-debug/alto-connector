@@ -447,9 +447,10 @@ def _elsewhere(ref: str) -> dict:
 def _timeline_or_error(tid: str):
     # Every tool that takes a timeline_id funnels through here, so this is the
     # one place the id has to be proven safe before it becomes a store path.
+    from .build.brief import migrate_doc      # a brief stored by an older version (1.9.105 Star chart)
     pre = _prefetched.get()
     if pre and pre[0] == tid:
-        return pre[1], None
+        return migrate_doc(pre[1]), None
     ref = tid
     tid, err = _check_ref(ref, "timeline_id")
     if err:
@@ -457,7 +458,7 @@ def _timeline_or_error(tid: str):
                            "(list_projects shows them), the address of its "
                            "published page, or its title")
         return None, {**err, **_elsewhere(str(ref or ""))}
-    doc = get_store().get_timeline(uid(), tid)
+    doc = migrate_doc(get_store().get_timeline(uid(), tid))
     if not doc:
         return None, {"error": "not_found",
                       "message": f"timeline {tid!r} not found — list_projects "
@@ -1013,28 +1014,31 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       'palace' is the Mind Palace: a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
-      Only Claude builds a city (the homepage can start just the Star chart view),
+      Only Claude builds a city (the homepage sends the user to Claude for it),
      layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
       and run_layout_preview can set it too). 'solar' is HUB & SPOKE (the name
-      the user knows, §D-Solar): each unit a hub with round nodes on straight
-      spokes. A unit's top concept (no `parent`) is the SUN, its children
-      PLANETS, theirs MOONS and theirs SATELLITES — nothing deeper (that is
-      refused, restructure). The planets' order is the outline's order: the
-      first sits on the innermost ring, later ones outward. Circles are bigger
-      the more hangs off them. One detailed system for the whole outline = ONE
-      unit (a Hub & spoke may have just one; every other layout needs at least
-      2 `acts`); several units = one system each, side by side. No placement
-      hints apply (only a card's `order` among its siblings), and a phone keeps
-      the single-column card view.
-     (Hub & spoke is always still: circles and numbers on short straight
-      spokes in ordinary Alto styling. The moving version is the STAR CHART,
-      below,)
-     palace_view?: 'city'|'stars' (mode 'palace'; default 'city'): 'stars' is
-      the STAR CHART — the Mind Palace drawn as moving solar systems instead of
-      a city (each building a sun, its floors planets, theirs moons, theirs
-      satellites, one sun per ROOT building; no map needed; planets and moons
-      orbit). Hub & spoke <-> Star chart is convert_timeline: content is kept,
-      both ways,
+      the user knows, §D-Solar): every top concept (a node with no `parent`) is
+      a SUN, its children PLANETS, theirs MOONS and theirs SATELLITES, drawn as
+      round nodes — nothing deeper (a fifth level is an error naming the card
+      and its path: restructure, never flatten silently). A unit may have
+      several top concepts, each its own sun (numbered 2.a, 2.b …); a unit with
+      one is one system. The planets' order is the outline's order: the first
+      sits on the innermost ring, later ones outward. Circles are bigger the
+      more hangs off them (a pivotal, critical or extremely important flag
+      bumps one up). One detailed system for the whole outline = ONE unit (a
+      Hub & spoke may have just one; every other layout needs at least 2
+      `acts`); several units = systems side by side. No placement hints apply
+      (only a card's `order` among its siblings), and a phone keeps the
+      single-column card view.
+     hub_look?: 'stars'|'plain' (Hub & spoke only; default 'stars'): the look a
+      viewer sees FIRST. Every Hub & spoke page carries both looks of the same
+      content and a switch in the page flips them instantly, with no rebuild
+      (the viewer's choice is remembered for that timeline): STARS = the Star
+      chart (orbit rings, moving planets, moons and satellites, realistic
+      graphics, spaceflight-style travel between bodies, zoom out; a separate
+      Orbit switch turns the motion off) and PLAIN = the same circles, still,
+      on straight spokes in Alto's usual look. Leave it out unless the user
+      wants the plain look first; there is nothing to convert,
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -2056,28 +2060,28 @@ def _load_full(doc):
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
-def _layout_error(doc, layout: str, palace_view: str):
-    """An error dict when the palace_view argument cannot apply, else None."""
-    if palace_view:
-        if palace_view not in ("city", "stars"):
-            return {"error": "invalid_palace_view",
-                    "message": f"palace_view {palace_view!r}: must be 'city' or 'stars' (the Star chart)"}
-        if doc["brief"].get("mode") != "palace":
-            return {"error": "invalid_palace_view",
-                    "message": "palace_view only applies to a Mind Palace (mode 'palace'); "
-                               "convert_timeline turns a Hub & spoke into a Star chart"}
+def _layout_error(doc, layout: str, hub_look: str):
+    """An error dict when the hub_look argument cannot apply, else None."""
+    if hub_look:
+        if hub_look not in ("stars", "plain"):
+            return {"error": "invalid_hub_look",
+                    "message": f"hub_look {hub_look!r}: must be 'stars' (the Star chart look, "
+                               "moving) or 'plain' (still)"}
+        if doc["brief"].get("mode") != "outline" or (layout or doc["brief"].get("layout")) != "solar":
+            return {"error": "invalid_hub_look",
+                    "message": "hub_look only applies to a Hub & spoke (mode 'outline', layout 'solar')"}
     return None
 
 
-def _layout_choice(doc, layout: str, tree_lines: str, palace_view: str = "") -> dict:
-    """The brief with a layout / tree_lines / palace_view override applied ('' keeps it)."""
+def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "") -> dict:
+    """The brief with a layout / tree_lines / hub_look override applied ('' keeps it)."""
     brief = dict(doc["brief"])
     if layout:
         brief["layout"] = layout
     if tree_lines:
         brief["tree_lines"] = tree_lines
-    if palace_view:
-        brief["palace_view"] = palace_view
+    if hub_look:
+        brief["hub_look"] = hub_look
     return {**doc, "brief": brief}
 
 
@@ -2099,7 +2103,7 @@ def _tree_boxes(b, nodes, conns, ids=None) -> dict:
 @accounted
 def run_layout_preview(timeline_id: str, layout: str = "",
                        tree_lines: str = "", boxes: bool = False,
-                       palace_view: str = "") -> dict:
+                       hub_look: str = "") -> dict:
     """Cheap layout dry-run: resolves the desktop arrangement + vertical
     positions and reports world height, per-column balance, and warnings —
     iterate here before build_timeline.
@@ -2113,9 +2117,11 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     report then describes the systems instead of tree crossings.
     A Hub & spoke outline may have a single unit (one system); anything deeper
     than sun, planet, moon, satellite is refused, naming the card and its path.
-    palace_view: for a Mind Palace, 'city' or 'stars' (the Star chart: moving
-    systems, one sun per building, no map); '' keeps the brief's. Chosen when
-    the page is built, not switched in the page.
+    hub_look: for a Hub & spoke, the look a viewer sees FIRST — 'stars' (the
+    Star chart: moving systems, the default) or 'plain' (still, straight
+    spokes); '' keeps the brief's. Both looks are in every page and its switch
+    flips them, so this never needs a rebuild to be tried; a unit may have
+    several top concepts, each a sun.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
@@ -2125,11 +2131,11 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
-    err = _layout_error(doc, layout, palace_view)
+    err = _layout_error(doc, layout, hub_look)
     if err:
         return err
     try:
-        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, palace_view))
+        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, hub_look))
         from .build.brief import validate_brief, validate_nodes
         warnings = validate_brief(b) + validate_nodes(b, nodes)
         if not nodes:
@@ -2283,70 +2289,19 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
     return out
 
 
-@mcp.tool(title="Convert timeline (Hub & spoke ⇄ Star chart)", annotations=RW)
-@accounted
-def convert_timeline(timeline_id: str, to: str) -> dict:
-    """Turn a Hub & spoke into a Star chart, or a Star chart back into a Hub &
-    spoke — at the user's request ("turn this into a star chart"). Both show
-    the same thing: each unit's top concept (a palace's building) a sun, its
-    children planets, theirs moons, theirs satellites. A Hub & spoke is an
-    outline with layout 'solar' (still circles on spokes, path numbers 2.a.1);
-    a Star chart is a Mind Palace in its stars view (the systems orbit, palace
-    numbers 3.4-2).
-
-    to: 'star_chart' (from a Hub & spoke) or 'hub_and_spoke' (from a Star
-    chart). Every node, its text, sub-chips, flags and sources, every
-    connection, the notes and the consent are kept exactly; only the kind of
-    timeline changes. What one kind has and the other cannot hold (an
-    outline's card placement, a palace's city) is kept aside in the brief and
-    comes back on the way back, so converting twice returns the original. The
-    brief as it was is also saved beside the timeline on this computer
-    (`backup`). Refused, with the reason and nothing changed, for anything
-    else: a Mind Palace shown as a city (convert its Star chart view), a
-    Star chart district with several buildings (a Hub & spoke has one sun per
-    unit), an ordinary outline or a timeline.
-    Then build_timeline and publish_timeline to show it."""
-    doc, err = _timeline_or_error(timeline_id)
-    if err:
-        return err
-    from .build.convert import ConvertError, check_converted, convert_brief, kind_of
-    st = get_store()
-    tid = doc["timeline_id"]
-    nodes = st.list_nodes(uid(), tid)
-    conns = st.get_connections(uid(), tid)
-    old = doc.get("brief") or {}
-    try:
-        new, notes = convert_brief(old, nodes, to)
-        warnings = check_converted(new, nodes, conns)
-    except ConvertError as e:
-        return {"error": "cannot_convert", "from": kind_of(old), "message": str(e)}
-    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
-    backup = f"brief-before-{to.replace('_', '-')}-{stamp}.json"
-    st.put_artifact(uid(), tid, backup, json.dumps(old, ensure_ascii=False, indent=1))
-    doc["brief"] = new
-    doc["conversions"] = (list(doc.get("conversions") or []) + [
-        {"at": _now(), "from": kind_of(old), "to": to, "backup": backup}])[-20:]
-    st.put_timeline(uid(), tid, doc)
-    name = {"star_chart": "Star chart", "hub_and_spoke": "Hub & spoke"}[to]
-    return {"ok": True, "timeline_id": tid, "from": kind_of(old), "to": to,
-            "nodes": len(nodes), "connections": len(conns), "kept": notes,
-            "backup": backup, "warnings": warnings,
-            "next": f"build_timeline, then publish_timeline, to show it as a {name}"}
-
-
 @mcp.tool(title="Build timeline", annotations=RW)
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
-                   tree_lines: str = "", palace_view: str = "") -> dict:
+                   tree_lines: str = "", hub_look: str = "") -> dict:
     """Emit the timeline from the engine template, verify it (structure,
     geometry, no invented slots, and a JS parse check of every emitted script),
     and store the artifacts (hosted page + offline single-file). Fails with the
     exact check list on any violation.
 
-    layout / tree_lines / palace_view: as run_layout_preview (layout 'solar' is
-    the Hub & spoke outline, §D-Solar; palace_view 'stars' the Star chart,
-    §D-Stars); given here they are also kept in the brief, so every later build
-    (and publish) uses them. Cards placed
+    layout / tree_lines / hub_look: as run_layout_preview (layout 'solar' is
+    the Hub & spoke outline, §D-Solar; hub_look the look it opens in, 'stars'
+    or 'plain'); given here they are also kept in the brief, so every later
+    build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
     the draft first; the reply's manual_edits says how many."""
@@ -2360,10 +2315,10 @@ def build_timeline(timeline_id: str, layout: str = "",
         doc, err = _timeline_or_error(timeline_id)
         if err:
             return err
-    err = _layout_error(doc, layout, palace_view)
+    err = _layout_error(doc, layout, hub_look)
     if err:
         return err
-    doc = _layout_choice(doc, layout, tree_lines, palace_view)
+    doc = _layout_choice(doc, layout, tree_lines, hub_look)
     try:
         b, nodes, conns = _load_full(doc)
         if not nodes:

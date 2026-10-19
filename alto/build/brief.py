@@ -242,12 +242,19 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
 MODES = ("linear", "outline", "lanes", "palace")
 LAYOUTS = ("auto", "tree", "flow", "solar")
 TREE_LINES = ("fan", "trunk")
-# A Mind Palace's view, chosen at build (the page carries one or the other: both
-# would not fit a private page): "city" — buildings on a real city's map;
-# "stars" — the Star chart: each building a sun, its floors planets, moons and
-# satellites MOVING round what they orbit (solar.py, style "orbit"). An
-# outline's layout "solar" is the still one, Hub & spoke (style "spoke").
-PALACE_VIEWS = ("city", "stars")
+# A Hub & spoke's two looks of the same content (an outline laid out 'solar';
+# the page carries both plans and a toggle flips them): "stars" — the Star
+# chart, orbit rings with the planets, moons and satellites MOVING round what
+# they orbit (solar.py style "orbit"); "plain" — still circles on straight
+# spokes in Alto's own styling (style "spoke"). brief.hub_look is the one a
+# viewer sees first.
+HUB_LOOKS = ("stars", "plain")
+LOOK_STYLE = {"stars": "orbit", "plain": "spoke"}
+# Keys a stored brief may still carry from before Hub & spoke had two looks
+# (1.9.105: hub_style; the Mind Palace "stars" view and convert_timeline's
+# stash). Loading accepts them; migrate_brief turns a Star chart palace into
+# the Hub & spoke it now is.
+LEGACY_KEYS = ("hub_style", "palace_view", "stash")
 # The roles of a solar outline's levels, top down: a unit's top concept is its
 # sun, then planets, moons, satellites. A fifth level has no body to be.
 SOLAR_ROLES = ("sun", "planet", "moon", "sat")
@@ -373,14 +380,9 @@ class Brief:
     # still solar system, its top concept the sun, its children planets on
     # rings in outline order, theirs moons, theirs satellites (solar.py).
     layout: str = "auto"
-    # Mind Palace only (PALACE_VIEWS): "city" or "stars" (the Star chart).
-    palace_view: str = "city"
-    # What the other kind of timeline needs and this one cannot hold, kept for
-    # the way back: convert_timeline (Hub & spoke ⇄ Star chart) parks the
-    # outgoing kind's own settings here, {"outline": {placement, outcomes,
-    # tree_lines…}, "palace": {palace, placement}}, and restores them on return,
-    # so a round trip loses nothing. Never read by the build.
-    stash: dict = field(default_factory=dict)
+    # Hub & spoke only (HUB_LOOKS): the look a viewer sees first, "stars" (the
+    # moving Star chart, the default) or "plain"; the page's toggle flips it.
+    hub_look: str = "stars"
     # A tree's lines down a branch's spine. "fan": a section's lines spread
     # across the top of its first card and drop to each child at its own point,
     # so every child has a line of its own to hover and follow; "trunk": one
@@ -636,7 +638,7 @@ def validate_brief(b: Brief) -> list[str]:
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
-    # Hub & spoke / a Star chart may be one system for the whole outline: one unit.
+    # A Hub & spoke may be one system for the whole outline: one unit.
     if len(b.acts) < (1 if solar_style(b) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
@@ -657,14 +659,9 @@ def validate_brief(b: Brief) -> list[str]:
     if b.layout == "tree" and b.mode != "outline":
         raise BriefError("layout 'tree' needs mode 'outline': a tree is drawn "
                          "from the nodes' parents")
-    if b.palace_view not in PALACE_VIEWS:
-        raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS}")
-    if b.palace_view != "city" and b.mode != "palace":
-        raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Star chart "
-                         "is a Mind Palace view (an outline's still version is layout 'solar', "
-                         "Hub & spoke)")
-    if not isinstance(b.stash, dict):
-        raise BriefError("stash: must be an object")
+    if b.hub_look not in HUB_LOOKS:
+        raise BriefError(f"hub_look {b.hub_look!r}: must be one of {HUB_LOOKS} (the Star chart "
+                         "look, moving, or the plain one, still)")
     if b.layout == "solar" and b.mode != "outline":
         raise BriefError("layout 'solar' needs mode 'outline': a solar system is "
                          "drawn from the nodes' parents (a unit's top concept is "
@@ -883,10 +880,7 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
             if isinstance(hints, dict) and hints.get("shape") is not None:
                 from .palace_claim import check_shape
                 check_shape(hints["shape"], f"placement {nid}: shape")          # BriefError: a footprint a node stands on
-            keys = {"lot", "fno", "out", "shape"} | ({"order"} if b.palace_view == "stars" else set())     # a Star chart's floors take a turn
-            if isinstance(hints, dict) and "order" in hints and not (isinstance(hints["order"], int) and not isinstance(hints["order"], bool) and hints["order"] >= 1):
-                raise BriefError(f"placement {nid}: order must be a whole number from 1 (first among its siblings)")
-            if (not isinstance(hints, dict) or set(hints) - keys or not isinstance(hints.get("lot", ""), str)
+            if (not isinstance(hints, dict) or set(hints) - {"lot", "fno", "out", "shape"} or not isinstance(hints.get("lot", ""), str)
                     or not (hints.get("fno") is None or (isinstance(hints["fno"], int) and not isinstance(hints["fno"], bool)
                                                          and 2 <= hints["fno"] <= 250))):
                 raise BriefError(f"placement {nid}: a Mind Palace places a building by "
@@ -995,6 +989,8 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
             cur = by_id[cur.parent]
 
     # Exactly one root per band — the hub the rest of the band radiates from.
+    # (A Hub & spoke may have several: each root is a sun of its own, and the
+    # numbers go 2.a, 2.b under the unit — numbering.path_numbers.)
     roots_by_act: dict[int, list[str]] = {}
     for n in nodes:
         if not n.parent:
@@ -1013,7 +1009,7 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
             raise BriefError(
                 f"unit {act_i + 1} ({label!r}) has no top-level concept — "
                 "every unit needs exactly one hub with no parent")
-        if len(roots) > 1:
+        if len(roots) > 1 and b.layout != "solar":
             raise BriefError(
                 f"unit {act_i + 1} ({label!r}) has {len(roots)} top-level "
                 f"concepts ({', '.join(sorted(roots)[:4])}) — a unit has one "
@@ -1025,13 +1021,80 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
 
 
 def solar_style(b) -> str:
-    """"spoke" for Hub & spoke (an outline laid out 'solar'), "orbit" for a
-    Star chart (a Mind Palace in its stars view), "" for anything else."""
+    """For a Hub & spoke (an outline laid out 'solar') the style of the look a
+    viewer sees first — "orbit" for the Star chart look, "spoke" for the plain
+    one (the page carries both); "" for anything else."""
     if getattr(b, "mode", "") == "outline" and getattr(b, "layout", "") == "solar":
-        return "spoke"
-    if getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "stars":
-        return "orbit"
+        return LOOK_STYLE.get(getattr(b, "hub_look", "stars"), "orbit")
     return ""
+
+
+def migrate_brief(d: dict) -> tuple[dict, dict]:
+    """A stored brief as this version reads it: (the brief, what it set aside).
+
+    Star chart was a Mind Palace view in 1.9.105 (mode 'palace' + palace_view
+    'stars'); it is now the Star chart look of a Hub & spoke. Such a brief
+    loads as mode 'outline' + layout 'solar', look 'stars' — its nodes,
+    parents, flags, sections, entities, axes, sources are all in the brief or
+    beside it and are kept as they are; the numbers become path-style. What an
+    outline cannot hold — the palace's city data and its lot / floor placement
+    — is returned in the second value (the caller keeps it beside the brief,
+    never discards it); an outline's own settings that convert_timeline had
+    parked in `stash` come back. hub_style, palace_view and stash are dropped
+    from every brief (hub_style 'spoke' becomes the plain look). The input is
+    not changed."""
+    if not isinstance(d, dict):
+        return d, {}
+    out = dict(d)
+    aside: dict = {}
+    legacy = {k: out.pop(k) for k in LEGACY_KEYS if k in out}
+    stash = legacy.get("stash") if isinstance(legacy.get("stash"), dict) else {}
+    if isinstance(stash.get("palace"), dict) and stash["palace"]:
+        aside["stash_palace"] = stash["palace"]          # a city convert_timeline had set aside
+    if out.get("mode") == "palace" and legacy.get("palace_view") == "stars":
+        back = stash.get("outline") if isinstance(stash.get("outline"), dict) else {}
+        pal = out.pop("palace", None)
+        if pal:
+            aside["palace"] = pal
+        pl = out.pop("placement", None) or {}
+        keep = {k: {"order": h["order"]} for k, h in pl.items()
+                if isinstance(h, dict) and isinstance(h.get("order"), int) and not isinstance(h.get("order"), bool)
+                and h["order"] >= 1}
+        rest = {k: {x: y for x, y in h.items() if x != "order"} for k, h in pl.items() if isinstance(h, dict)}
+        rest = {k: h for k, h in rest.items() if h}
+        if rest:
+            aside["placement"] = rest
+        for k in ("tree_lines", "outcomes", "placement"):
+            if k in back:
+                out[k] = back[k]
+        if keep:
+            out["placement"] = {**(out.get("placement") or {}), **keep}
+        out["mode"] = "outline"
+        out["layout"] = "solar"
+        out["hub_look"] = "stars"
+        aside["from"] = "palace stars view (1.9.105 Star chart)"
+    elif legacy.get("hub_style") == "spoke" and "hub_look" not in out:
+        out["hub_look"] = "plain"
+    return out, aside
+
+
+def migrate_doc(doc):
+    """A stored timeline document with its brief migrated (migrate_brief).
+    Whatever the brief set aside is kept on the document under "legacy" — a
+    later save writes it back, so nothing the user had is lost. A document
+    that needs nothing is returned as it is (same object)."""
+    if not isinstance(doc, dict) or not isinstance(doc.get("brief"), dict):
+        return doc
+    if not any(k in doc["brief"] for k in LEGACY_KEYS):
+        return doc
+    brief, aside = migrate_brief(doc["brief"])
+    out = {**doc, "brief": brief}
+    if aside:
+        legacy = dict(out.get("legacy") or {})
+        for k, v in aside.items():
+            legacy.setdefault(k, v)
+        out["legacy"] = legacy
+    return out
 
 
 def _check_solar_depth(b: Brief, nodes: list[Node]) -> None:
@@ -1053,13 +1116,6 @@ def _check_solar_depth(b: Brief, nodes: list[Node]) -> None:
         more = (f" ({len(deep)} concepts are that deep: "
                 + ", ".join(c[-1] for c in deep[:6]) + (" …" if len(deep) > 6 else "") + ")"
                 if len(deep) > 1 else "")
-        if b.mode == "palace":
-            raise BriefError(
-                f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a Star chart "
-                "has four: a building is a sun, its floors planets, theirs moons, theirs "
-                "satellites" + more + f". Move {deep[0][-1]} down to sit under {deep[0][-3]} "
-                "(or higher), make its branch a building of its own — or keep the palace as "
-                "a city (palace_view 'city'), which stacks floors to any height")
         raise BriefError(
             f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a Hub & spoke "
             "layout has four: a unit's top concept is the sun, its children planets, "
@@ -1190,8 +1246,6 @@ def validate_nodes(b: Brief, nodes: list[Node]) -> list[str]:
     check_nodes(b, nodes, warnings)
     from .palace import check_nodes as palace_nodes
     palace_nodes(b, nodes, warnings)
-    if solar_style(b) == "orbit":
-        _check_solar_depth(b, nodes)
     doc_ids = {d.get("id") for d in b.source_docs if isinstance(d, dict)}
     for n in nodes:
         _check_refs(n.sources, doc_ids, f"node {n.id}", warnings)
