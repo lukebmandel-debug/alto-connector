@@ -67,8 +67,10 @@ Arrows pressed while flying queue (≤ 3, auto-repeat at most one) and fly on
 from each landing; a new target on the way re-plans from the craft's place
 and velocity; Esc stops and brings the view back to full size where the craft
 is; a wheel, another owner of the view, or of the focus, stops it where it is.
-No flight (the existing instant focus): phones, prefers-reduced-motion, edit
-mode, print, a zoomed-out view, and the Plain look (nothing of this runs).
+No flight (the existing instant focus): enlarging a body when none is
+enlarged, phones, prefers-reduced-motion, edit mode, print, a zoomed-out
+view, window._altoFlyOff (tests of other things), and the Plain look
+(nothing of this runs).
 """
 from __future__ import annotations
 
@@ -408,7 +410,7 @@ function S(){ return window._ALTO_SOLAR; }
 if(!F) return;
 /* the Star chart look (moving orbits) is on */
 function stars(){ var L=window._altoSolarLook; return !!S() && (L && L.get ? L.get()==='stars' : S().style==='orbit'); }
-var FL=null, raf=0, Q=[], parked=null, ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=null, gp=null, pth=null, trl=null, grd=null, ship=null, lastS=0, reduced=false, printing=0, held={}, calm=0;
+var FL=null, raf=0, Q=[], ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=null, gp=null, pth=null, trl=null, grd=null, ship=null, lastS=0, reduced=false, printing=0, held={}, calm=0;
 try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
   var mqf=function(){ reduced=mq.matches; }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
 function cvs(){ return document.getElementById('canvas'); }
@@ -420,19 +422,10 @@ function f1(v){ return Math.round(v*10)/10; }
 function dz(){ return (parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1); }
 /* may this change of body be flown? */
 function can(){
-  if(!stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
+  if(window._altoFlyOff || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
   if(!cam() || !window._altoSolarDrive || !window._altoSolarRate || !cvs() || document.querySelector('#detail-page.visible')) return false;
   if(FL) return true;
   var g=cam().get(); return !!g && g.scale>=.999 && performance.now()-ovAt>K.OV_MS;
-}
-/* where a flight starts with nothing enlarged: the body it last landed on, while in
-   view, else the body nearest the middle of the view (the target itself: no flight) */
-function fromBody(to){
-  var f=window._focusedNodeId, W=F.bodies(S()); if(f && W.B[f]) return f;
-  var g=cam().get(), c=cvs(), T=window._altoSolarRate().T, hw=c.clientWidth/2, hh=c.clientHeight/2, best=null, bd=1e18;
-  if(parked && W.B[parked]){ var q=F.pos(W, parked, T); if(Math.abs(q[0]-g.cx)<hw && Math.abs(q[1]-g.cy)<hh) return parked; }
-  Object.keys(W.B).forEach(function(i){ var p=F.pos(W, i, T), d=Math.hypot(p[0]-g.cx, p[1]-g.cy); if(d<bd){ bd=d; best=i; } });
-  return best;
 }
 /* the body the craft is in among, flying (a re-plan starts from it): the smallest
    whose reach it is within, else the nearest system's sun */
@@ -531,7 +524,7 @@ function frame(now){
 var LAST=null;
 function land(){
   var to=FL.to; LAST={to:to, from:FL.from, D:FL.R.D, ms:FL.ms, steps:FL.R.steps.map(function(q){ return q[0]; }), how:'landed'}; FL=null; cancelAnimationFrame(raf); raf=0;
-  parked=to; landAt=performance.now(); fade(); de.classList.remove('sol-flying');
+  landAt=performance.now(); fade(); de.classList.remove('sol-flying');
   (enter0 || window.enterFocus).call(window, to);         /* enlarged as ever: where it is, the orbits still */
   window._altoSolarDrive(null, 0);
   setTimeout(next, (window._altoFlyMs||460)+40);
@@ -568,9 +561,9 @@ function hook(){
     enter0=window.enterFocus;
     var w=function(id){
       if(FL){ if(id===FL.to) return; if(can() && replan(id)) return; stop(false); return enter0.apply(this, arguments); }
-      if(!id || id===window._focusedNodeId || !can()) return enter0.apply(this, arguments);
-      var from=fromBody(id); if(from && from!==id && fly(from, id)) return;
-      return enter0.apply(this, arguments);
+      /* a change of the enlarged body flies; enlarging from none is as ever */
+      var from=window._focusedNodeId;
+      if(!id || !from || id===from || !can() || !fly(from, id)) return enter0.apply(this, arguments);
     };
     w._fly=1; window.enterFocus=w;
   }
