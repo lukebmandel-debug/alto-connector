@@ -1034,15 +1034,17 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       `acts`); several units = systems side by side. No placement hints apply
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
-     hub_look?: 'stars'|'plain' (Hub & spoke only; default 'stars'): the look a
+     hub_look?: 'stars'|'hub' (Hub & spoke only; default 'stars'): the look a
       viewer sees FIRST. Every Hub & spoke page carries both looks of the same
-      content and a switch in the page flips them instantly, with no rebuild
-      (the viewer's choice is remembered for that timeline): STARS = the Star
-      chart (orbit rings, moving planets, moons and satellites, realistic
-      graphics, spaceflight-style travel between bodies, zoom out; a separate
-      Orbit switch turns the motion off) and PLAIN = the same circles, still,
-      on straight spokes in Alto's usual look. Leave it out unless the user
-      wants the plain look first; there is nothing to convert,
+      content and the same orbit layout, and a switch in the page (Hub & spoke |
+      Star chart) flips them instantly, with no rebuild (the viewer's choice is
+      remembered for that timeline): HUB = Hub & spoke (concentric orbit rings,
+      spokes, circles with number and title in Alto's usual glass look) and
+      STARS = the Star chart (the same rings with realistic space graphics and
+      spaceflight-style travel between bodies). In both the planets, moons and
+      satellites orbit, each on its own ring; an Orbit switch stops them. Leave
+      it out unless the user wants the Hub & spoke look first; there is
+      nothing to convert,
      palace_view?: 'city'|'building' (mode 'palace'; default 'city'):
       'building' is the BUILDING PALACE (§D-Building; set_up_building stores
       the building's plan; one section is enough). The Star chart is not a
@@ -2187,10 +2189,10 @@ def _load_full(doc):
 def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
     """An error dict when the hub_look / palace_view argument cannot apply, else None."""
     if hub_look:
-        if hub_look not in ("stars", "plain"):
+        if hub_look not in ("stars", "hub", "plain"):           # ('plain': 1.9.108's name, read as 'hub')
             return {"error": "invalid_hub_look",
-                    "message": f"hub_look {hub_look!r}: must be 'stars' (the Star chart look, "
-                               "moving) or 'plain' (still)"}
+                    "message": f"hub_look {hub_look!r}: must be 'stars' (the Star chart look) "
+                               "or 'hub' (the Hub & spoke look)"}
         if doc["brief"].get("mode") != "outline" or (layout or doc["brief"].get("layout")) != "solar":
             return {"error": "invalid_hub_look",
                     "message": "hub_look only applies to a Hub & spoke (mode 'outline', layout 'solar')"}
@@ -2213,7 +2215,7 @@ def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "", palace
     if tree_lines:
         brief["tree_lines"] = tree_lines
     if hub_look:
-        brief["hub_look"] = hub_look
+        brief["hub_look"] = "hub" if hub_look == "plain" else hub_look
     if palace_view:
         brief["palace_view"] = palace_view
     return {**doc, "brief": brief}
@@ -2252,8 +2254,8 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     A Hub & spoke outline may have a single unit (one system); anything deeper
     than sun, planet, moon, satellite is refused, naming the card and its path.
     hub_look: for a Hub & spoke, the look a viewer sees FIRST — 'stars' (the
-    Star chart: moving systems, the default) or 'plain' (still, straight
-    spokes); '' keeps the brief's. Both looks are in every page and its switch
+    Star chart, the default) or 'hub' (Hub & spoke: the same orbit rings in
+    Alto's usual glass look); '' keeps the brief's. Both looks are in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.
     palace_view: for a Mind Palace, 'city' or 'building' (the Building Palace:
@@ -2437,7 +2439,7 @@ def build_timeline(timeline_id: str, layout: str = "",
 
     layout / tree_lines / hub_look / palace_view: as run_layout_preview (layout
     'solar' is the Hub & spoke outline, §D-Solar; hub_look the look it opens
-    in, 'stars' or 'plain'; palace_view 'building' the Building Palace,
+    in, 'stars' or 'hub'; palace_view 'building' the Building Palace,
     §D-Building); given here they are also kept in the brief, so every later
     build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.

@@ -959,20 +959,13 @@ def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
 
-# window._ALTO_SOLAR = {look, looks: {stars, plain}} with the first look's plan
-# also spread over the top level (style, world, systems, nodes, sun_links…),
-# so a reader of the single-plan shape keeps working; spread in the page, so
-# the plan is not written twice.
-SOLAR_SPREAD = "(function(S){var P=S.looks[S.look];for(var k in P)if(!(k in S))S[k]=P[k];return S;})"
-
-
-def _solar_glue(plans: dict, nodes) -> str:
-    """window._ALTO_SOLAR (both looks' plans, solar.page_plans) and the tree
-    glue that puts each circle's centre where the first look's plan says."""
+def _solar_glue(plan: dict, nodes) -> str:
+    """window._ALTO_SOLAR (the one plan both looks draw, with the first look:
+    solar.page_plans) and the tree glue that puts each circle's centre where
+    the plan says."""
     from .solar import solar_tree_plan
-    first = plans["looks"][plans["look"]]
-    return ("\nwindow._ALTO_SOLAR=" + SOLAR_SPREAD + "(" + js_json(plans, separators=(",", ":")) + ");"
-            + dx.tree_glue(plan_js(solar_tree_plan(first, nodes))))
+    return ("\nwindow._ALTO_SOLAR=" + js_json(plan, separators=(",", ":")) + ";"
+            + dx.tree_glue(plan_js(solar_tree_plan(plan, nodes))))
 
 
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
@@ -990,9 +983,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
     tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes) if tree else None
-    # A Hub & spoke (solar.py): both looks' plans go to the page whole, as
-    # window._ALTO_SOLAR (solar_draw reads it), and the first look's circles'
-    # centres as a tree plan the page's _altoTree runs like any other.
+    # A Hub & spoke (solar.py): its plan goes to the page whole, as
+    # window._ALTO_SOLAR (solar_draw reads it), and its circles' centres as a
+    # tree plan the page's _altoTree runs like any other.
     solar_plan_ = None
     if solar:
         from .solar import page_plans
@@ -1548,10 +1541,10 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # the layout initLayout hands over to on desktop, the elevator.
         orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
     if solar_plan_:
-        # The solar drawing (solar_draw.py): circles, the orbits in the Star
-        # chart look, the whole chart zoomed out — after window._ALTO_SOLAR;
-        # the Star chart look's graphics (solar_stars.py; off in the Plain look);
-        # then the flights between bodies (solar_fly.py: Star chart look only).
+        # The solar drawing (solar_draw.py): circles, rings, the orbits, the
+        # whole chart zoomed out — after window._ALTO_SOLAR; the Star chart
+        # look's graphics (solar_stars.py; off in the Hub & spoke look); then
+        # the flights between bodies (solar_fly.py: Star chart look only).
         orders += SOLAR_JS + STARS_JS + FLY_JS
     if index_axes:
         orders += ((palace_index_glue() if b.mode == "palace" and not building_view(b) else dx.AXIS_INDEX_GLUE)

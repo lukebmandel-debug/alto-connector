@@ -4,8 +4,8 @@ Star chart skin (solar_stars.py) and the flights (solar_fly.py) together.
 Each module has its own suite; these are the interplays nobody tested
 together: the look switch with the skin and a flight running, a flight
 landing on an enlarged (textured, circular) disc, the Orbit switch then a
-flight, the Plain look carrying none of the skin or flight and leaving no
-frame loop running, edit mode, phones, zooming out with the skin on (no
+flight, the Hub & spoke look carrying none of the skin or flight and leaving no
+frame loop running once its Orbit is off, edit mode, phones, zooming out with the skin on (no
 rectangle), and the arrow-key hop queue with flights.
 
 Static checks need nothing; the rest run in Chromium and WebKit through
@@ -169,7 +169,7 @@ def browser(request):
 def pages(tmp_path_factory):
     d = tmp_path_factory.mktemp("solar-int")
     out = {}
-    for name, style in (("stars", "orbit"), ("plain", "spoke")):
+    for name, style in (("stars", "orbit"), ("hub", "spoke")):
         f = d / f"{name}.html"
         f.write_text(_page(style), encoding="utf-8")
         out[name] = f
@@ -228,7 +228,7 @@ STATE = r"""() => { var de=document.documentElement, shown=0;
   document.querySelectorAll('#world .node[data-solar] .node-card>.sk').forEach(function(e){ if(getComputedStyle(e).display!=='none') shown++; });
   var sky=document.querySelector('#world .sk-sky');
   return {look:window._altoSolarLook ? window._altoSolarLook.get() : null, stars:de.classList.contains('alto-stars'),
-    solarStars:de.classList.contains('alto-solar-stars'), solarPlain:de.classList.contains('alto-solar-plain'),
+    solarStars:de.classList.contains('alto-solar-stars'), solarPlain:de.classList.contains('alto-solar-hub'),
     sky:document.querySelectorAll('#world .sk-sky').length, skyShown:!!sky && getComputedStyle(sky).display!=='none', shown:shown,
     trails:document.querySelectorAll('#solar-svg .sk-trails').length, fly:!!document.getElementById('solar-fly-svg'),
     still:de.classList.contains('sk-still'), motion:window._altoSolarMotion ? window._altoSolarMotion.get() : null,
@@ -255,8 +255,8 @@ RAF_RATE = """(ms) => new Promise(function(res){ var n0=window.__rafN, t0=perfor
 
 
 def test_the_look_switch_with_the_skin_and_a_flight_running(browser, pages):
-    """Plain on the way: the flight stops and its layer goes, the skin comes off
-    whole, the orbit switch greys out. Star chart again: the skin once (no doubled
+    """Hub & spoke on the way: the flight stops and its layer goes, the skin comes off
+    whole, the orbit switch still works. Star chart again: the skin once (no doubled
     trails) and a change of body flies again and lands."""
     pg, errs = _open(browser, pages["stars"])
     s0 = pg.evaluate(STATE)
@@ -267,14 +267,14 @@ def test_the_look_switch_with_the_skin_and_a_flight_running(browser, pages):
     assert f and f["to"] == "u1-p1", f
     pg.wait_for_timeout(600)
     assert pg.evaluate(STATE)["fly"]
-    pg.click("#sol-ctl [data-look=plain]")
+    pg.click("#sol-ctl [data-look=hub]")
     pg.mouse.move(2, 940)
     pg.wait_for_timeout(1200)
     s1 = pg.evaluate(STATE)
     assert pg.evaluate(FLIGHT) is None and not s1["fly"], s1
-    assert s1["look"] == "plain" and s1["solarPlain"] and not s1["stars"] and not s1["skyShown"] and s1["shown"] == 0 \
+    assert s1["look"] == "hub" and s1["solarPlain"] and not s1["stars"] and not s1["skyShown"] and s1["shown"] == 0 \
         and s1["trails"] == 0, s1
-    assert pg.evaluate("()=>document.getElementById('sol-motion').disabled")
+    assert not pg.evaluate("()=>document.getElementById('sol-motion').disabled")
     pg.click("#sol-ctl [data-look=stars]")
     pg.mouse.move(2, 940)
     pg.wait_for_timeout(1500)
@@ -354,27 +354,32 @@ def test_orbit_off_then_a_flight_among_still_bodies_and_on_again(browser, pages)
     pg.context.close()
 
 
-def test_the_plain_look_has_no_skin_no_flight_and_no_frame_loop(browser, pages):
-    """A page opening in Plain, and a Star chart switched to Plain: no sky, no
+def test_the_hub_look_has_no_skin_no_flight_and_no_frame_loop_with_its_orbit_off(browser, pages):
+    """A page opening in Hub & spoke, and a Star chart switched to it: no sky, no
     dressed bodies, no trails, no flight layer, a change of body does not fly,
-    and nothing keeps asking for frames once the page is still (the Star
+    and with the Orbit switched off nothing keeps asking for frames (the Star
     chart look, moving, does — the counter works)."""
     pg, errs = _open(browser, pages["stars"])
     moving = pg.evaluate(RAF_RATE, 1200)
     assert moving > 20, moving
-    pg.evaluate("()=>window._altoSolarLook.set('plain')")
-    pg.wait_for_timeout(2500)
+    pg.evaluate("()=>window._altoSolarLook.set('hub')")
+    pg.wait_for_timeout(1200)
+    assert pg.evaluate(RAF_RATE, 800) > 20                                   # Hub & spoke orbits too
+    pg.evaluate("()=>window._altoSolarMotion.set(false)")
+    pg.wait_for_timeout(1300)
     after = pg.evaluate(RAF_RATE, 1500)
     s = pg.evaluate(STATE)
     assert not s["stars"] and not s["skyShown"] and s["shown"] == 0 and s["trails"] == 0 and not s["fly"], s
-    print(f"\n[{browser._alto_name}] rAF/s: Star chart moving {moving:.0f}, switched to Plain {after:.1f}")
+    print(f"\n[{browser._alto_name}] rAF/s: Star chart moving {moving:.0f}, Hub & spoke, Orbit off {after:.1f}")
     assert after < 3, after
     pg.context.close()
-    pg, errs2 = _open(browser, pages["plain"])
+    pg, errs2 = _open(browser, pages["hub"])
     s = pg.evaluate(STATE)
-    assert s["look"] == "plain" and s["solarPlain"] and not s["stars"] and not s["skyShown"] and s["shown"] == 0 and not s["fly"], s
+    assert s["look"] == "hub" and s["solarPlain"] and not s["stars"] and not s["skyShown"] and s["shown"] == 0 and not s["fly"], s
+    pg.evaluate("()=>window._altoSolarMotion.set(false)")
+    pg.wait_for_timeout(1300)
     idle = pg.evaluate(RAF_RATE, 1500)
-    print(f"[{browser._alto_name}] rAF/s: opened in Plain {idle:.1f}")
+    print(f"[{browser._alto_name}] rAF/s: opened in Hub & spoke, Orbit off {idle:.1f}")
     assert idle < 3, idle
     _rest_on(pg, "u1-p1")
     pg.evaluate("()=>window.enterFocus('u2-p2')")
@@ -412,7 +417,7 @@ def test_edit_mode_has_no_skin_no_flight_and_no_motion(browser, pages):
     pg.context.close()
 
 
-@pytest.mark.parametrize("name", ["stars", "plain"])
+@pytest.mark.parametrize("name", ["stars", "hub"])
 def test_a_phone_has_the_engines_cards_and_none_of_it(browser, pages, name):
     pg, errs = _open(browser, pages[name], mobile=True, wait=1500)
     s = pg.evaluate(STATE)
@@ -508,7 +513,7 @@ def test_an_enlarged_disc_is_readable_in_both_looks_and_themes(browser, pages, t
         t=b.querySelector('.node-tag'), r=document.createRange(); r.selectNodeContents(t);
       var m=/rgba?\(([\d.]+), ([\d.]+), ([\d.]+)/.exec(getComputedStyle(d).color), tr=r.getBoundingClientRect(), br=b.getBoundingClientRect();
       return {lum:(0.2126*m[1]+0.7152*m[2]+0.0722*m[3]), off:Math.abs((tr.left+tr.right)/2-(br.left+br.right)/2), dark:document.documentElement.classList.contains('dark')}; }"""
-    for look, want_light in (("stars", True), ("plain", theme == "dark")):
+    for look, want_light in (("stars", True), ("hub", theme == "dark")):
         ctx = browser.new_context(viewport={"width": 1500, "height": 950})
         ctx.add_init_script("try{localStorage.setItem('alto-theme-v1','%s')}catch(e){}" % theme)
         pg = ctx.new_page()

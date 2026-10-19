@@ -39,8 +39,8 @@ def bodies(S):
             add(pl["id"], s["sun"], pl["period"], "planet", max(pl.get("e") or 0, pl["d"] / 2), pl["ring"], pl)
             for m in pl.get("moons") or []:
                 sats = m.get("sats") or []
-                mr = ((m.get("sat_r") or 0) + max(q["d"] / 2 for q in sats)) if sats else 0
-                add(m["id"], pl["id"], m["period"], "moon", max(mr, m["d"] / 2), 0, m)
+                mr = max((q.get("r") or 0) + q["d"] / 2 for q in sats) if sats else 0
+                add(m["id"], pl["id"], m["period"], "moon", max(m.get("ext") or 0, mr, m["d"] / 2), 0, m)
                 for q in sats:
                     add(q["id"], m["id"], q["period"], "sat", q["d"] / 2, 0, q)
     core = S.get("core")

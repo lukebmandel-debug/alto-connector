@@ -1,6 +1,6 @@
 """The solar outline's drawing (alto/build/solar_draw.py): circles for cards,
-orbit rings and spokes under them, and — in the "orbit" style — the bodies
-turning round what they orbit, stopping for hover, focus and the rest.
+orbit rings and spokes under them, and the bodies turning round what they
+orbit (in both looks), stopping for hover, focus and the rest.
 
 Static checks on what the page carries; geometry and motion in a real browser
 (Chromium and WebKit through Playwright; skipped without them). All browser
@@ -27,7 +27,7 @@ MARGIN = 115
 
 def solar_doc(units, style="orbit", links=(), suns=None):
     """A Hub & spoke bundle: units = [[moons per planet as [sats per moon]]];
-    "orbit" opens in the Star chart look, "spoke" in the plain one (the page
+    "orbit" opens in the Star chart look, "spoke" in the Hub & spoke one (the page
     carries both). suns: extra roots per unit (several systems in a unit),
     each with one bare planet.
     Ids spell the place: u1, u1-p2, u1-p2-m1, u1-p2-m1-s1; u1b2, u1b2-p1."""
@@ -55,7 +55,7 @@ def solar_doc(units, style="orbit", links=(), suns=None):
         for k in range((suns or {}).get(a, 0)):
             add(f"{sun}b{k + 2}", a, title=f"Building {a + 1}.{k + 2}")
             add(f"{sun}b{k + 2}-p1", a, f"{sun}b{k + 2}", title="A floor")
-    kind = {"mode": "outline", "layout": "solar", "hub_look": "plain" if style == "spoke" else "stars"}
+    kind = {"mode": "outline", "layout": "solar", "hub_look": "hub" if style == "spoke" else "stars"}
     brief = {"title": "Solar draw", "subject": "s", "timeline_id": "solar-draw", **kind, "columns": 5, "node_noun": "Concept",
              "period_noun": "Unit", "accent": "#a78bfa", "acts": acts, "entities": [], "axes": [],
              "relations": [{"key": "spine", "label": "Contains"},
@@ -73,14 +73,9 @@ def _page(units=SMALL, style="orbit", links=SMALL_LINKS, suns=None):
 
 
 def _plan(html):
-    """window._ALTO_SOLAR as the page sees it: the first look's plan, with
-    `look` and `looks` (both plans) beside it."""
+    """window._ALTO_SOLAR as the page sees it: the one plan, and `look` (the first)."""
     at = html.index("window._ALTO_SOLAR=") + len("window._ALTO_SOLAR=")
-    at = html.index(")(", at) + 2
-    S = json.JSONDecoder().raw_decode(html[at:])[0]
-    out = dict(S["looks"][S["look"]])
-    out.update(look=S["look"], looks=S["looks"])
-    return out
+    return json.JSONDecoder().raw_decode(html[at:])[0]
 
 
 # ── what the page carries ────────────────────────────────────────────────────
@@ -95,15 +90,15 @@ def test_a_solar_page_carries_the_drawing_and_a_tree_page_does_not():
     assert "window._altoSolarLayout=" not in tree and "#solar-svg{" not in tree
 
 
-def test_a_hub_and_spoke_page_carries_both_looks_and_no_palace():
+def test_a_hub_and_spoke_page_carries_one_plan_and_no_palace():
     """The Star chart is a look of a Hub & spoke page, not a Mind Palace: path
-    numbers, both plans, the renderer mounted after them, none of the city."""
+    numbers, ONE plan (both looks draw it, round 7), the renderer mounted after it, none of the city."""
     html = _page(suns={0: 1})
     assert "window._ALTO_PALACE=" not in html and "window._ALTO_OUTLINE=" in html and "window._altoSolarMount=" in html
     assert "window._altoPalace=" not in html and "AudioContext" not in html
     p = _plan(html)
     assert p["style"] == "orbit" and p["look"] == "stars" and len(p["units"][0]["suns"]) == 2
-    assert p["looks"]["plain"]["style"] == "spoke" and p["looks"]["stars"]["nodes"] == p["nodes"]
+    assert _plan(_page(style="spoke", suns={0: 1}))["nodes"] == p["nodes"]     # the Hub & spoke look: the same plan
     assert html.index("window._ALTO_SOLAR=") < html.index("window._altoSolarMount=function")
 
 
@@ -126,7 +121,8 @@ def test_motion_never_uses_a_transform_and_rounds_to_device_px():
     """Bodies move by left/top (the D-GRID margins centre them, 1.8.28), at
     whole device px; nothing in the script sets a transform on a node."""
     # the one transform is the whole-chart view's, on #world itself
-    assert re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) == ["world", "world"]
+    # (and the focus shadow's scale, kept the same circle as the growing disc: not a node)
+    assert re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) == ["sh", "world", "world"]
     assert ".n.style.transform" not in SOLAR_JS
     assert "b.n.style.left=x+'px'" in SOLAR_JS and "Math.round(v*zq)/zq" in SOLAR_JS
     # no SVG <mask> on anything that moves (Safari): the rings and spokes are plain
@@ -146,11 +142,11 @@ def test_the_drawing_is_small():
     assert size < 22000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks
 
 
-def test_spoke_style_has_no_motion_and_draws_tubes():
+def test_the_hub_look_orbits_on_the_same_plan():
     plan = _plan(_page(style="spoke"))
-    assert plan["style"] == "spoke"
-    assert all(p["period"] == 0 for s in plan["systems"] for p in s["planets"])
-    assert "MOVES=ORBIT &&" in SOLAR_JS and "'sol-tube'" in SOLAR_JS
+    assert plan["style"] == "orbit" and plan["look"] == "hub"
+    assert all(p["period"] > 0 for s in plan["systems"] for p in s["planets"])
+    assert "'sol-tube'" not in SOLAR_JS and "_altoSolarPlans" not in SOLAR_JS
 
 
 # ── in a browser ─────────────────────────────────────────────────────────────
@@ -223,7 +219,7 @@ def test_circles_are_circles_with_rings_on_their_parents(browser, pages):
     assert not errs, errs
     assert set(g["b"]) == set(plan["nodes"])
     for i, b in g["b"].items():
-        assert abs(b["w"] - b["h"]) < 0.5 and abs(b["w"] - b["d"]) < 1, (i, b)       # offset* round
+        assert abs(b["w"] - b["h"]) < 0.5 and abs(b["w"] - b["d"]) <= 1, (i, b)       # offset* round
         assert b["br"] in ("50%",) or float(b["br"].rstrip("px")) >= b["d"] / 2 - 0.5, (i, b["br"])
     # each ring is centred on a body that is orbited, through the ring's own bodies
     for r in g["rings"]:
@@ -344,16 +340,18 @@ def test_hover_and_edit_mode_stop_it_and_edit_mode_turns_it_home(browser, pages)
     pg.context.close()
 
 
-def test_reduced_motion_and_spoke_stand_still(browser, pages):
+def test_reduced_motion_stands_still_and_the_hub_look_orbits_with_rings(browser, pages):
     for style, reduced in (("orbit", True), ("spoke", False)):
         f, _ = pages[style]
         pg, errs = _open(browser, f, reduced=reduced)
+        pg.mouse.move(2, 940)
         g0 = pg.evaluate(BODIES)
         pg.wait_for_timeout(1200)
         g1 = pg.evaluate(BODIES)
-        assert _moved(g0, g1) == 0 and g1["T"] == 0, style
-        if style == "spoke":
-            assert not g1["rings"] and g1["spokes"] > 0
+        if reduced:
+            assert _moved(g0, g1) == 0 and g1["T"] == 0, style
+        else:
+            assert _moved(g0, g1) > 0.3 and g1["rings"] and g1["spokes"] > 0     # Hub & spoke: rings, spokes, orbiting
         assert not errs, errs
         pg.context.close()
 
@@ -432,7 +430,7 @@ def _close(a, b, path=""):
 
 
 @needs_node
-@pytest.mark.parametrize("style", ["orbit", "spoke"])
+@pytest.mark.parametrize("style", ["orbit"])
 @pytest.mark.parametrize("units", [SMALL, [[[2, 2, 2], [2, 2], [2, 2, 2], [2], [2, 2]], [[0, 0], [0, 0, 0]]],
                                    [[[0, 1, 0], [0, 0], [0, 0, 0], [0, 0, 0]], [[2, 2, 0, 0], [0, 0, 0, 0]], [[]]]])
 @pytest.mark.parametrize("bumped", [False, True])
@@ -472,16 +470,6 @@ def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style, 
     got = json.loads(subprocess.check_output([NODE, str(f)], timeout=120))
     want.pop("warnings"), got.pop("warnings")
     _close(want, got)
-    # both looks at once, as the page carries them
-    js = ("var window=globalThis;\n" + SOLAR_PLAN_JS + "\n"
-          f"console.log(JSON.stringify(window._altoSolarPlans({json.dumps(tables)}, {json.dumps({**want, 'look': 'plain'})})));")
-    f.write_text(js, encoding="utf-8")
-    both = json.loads(subprocess.check_output([NODE, str(f)], timeout=120))
-    assert both["look"] == "plain" and set(both["looks"]) == {"stars", "plain"}
-    for lk, st in (("stars", "orbit"), ("plain", "spoke")):
-        w = solar_plan(b, nodes, st)
-        w.pop("warnings"), both["looks"][lk].pop("warnings")
-        _close(w, both["looks"][lk])
 
 
 def test_edit_mode_has_its_sync():
@@ -965,51 +953,53 @@ def test_the_skin_tick_and_the_orbit_clock(browser, pages):
     pg.context.close()
 
 
-# ── one format, two looks: Star chart | Plain, and the Orbit switch (Luke, round 5) ──
+# ── one format, one plan, two looks: Hub & spoke | Star chart, and the Orbit switch (rounds 5, 7) ──
 
 LOOKST = """() => ({look:window._altoSolarLook.get(), mot:window._altoSolarMotion.get(), T:window._altoSolarT,
-  stars:document.documentElement.classList.contains('alto-solar-stars'), plain:document.documentElement.classList.contains('alto-solar-plain'),
+  stars:document.documentElement.classList.contains('alto-solar-stars'), hub:document.documentElement.classList.contains('alto-solar-hub'),
   rings:document.querySelectorAll('#solar-svg .sol-ring').length, tubes:document.querySelectorAll('#solar-svg path.sol-tube').length,
   seg:[].map.call(document.querySelectorAll('#sol-ctl [data-look]'), function(b){ return b.getAttribute('data-look')+':'+b.getAttribute('aria-checked'); }),
   orbitBtn:(function(m){ return m ? {dis:m.disabled, pressed:m.getAttribute('aria-pressed')} : null; })(document.getElementById('sol-motion'))})"""
 
 
-def test_the_look_switch_replans_glides_and_keeps_the_view_and_the_choice(browser, pages):
+def test_the_look_switch_moves_nothing_and_keeps_the_focus_the_view_and_the_choice(browser, pages):
     f, _ = pages["spoke"]
     pg, errs = _open(browser, f, wait=1500)
     pg.mouse.move(2, 940)
     st = pg.evaluate(LOOKST)
-    assert st["look"] == "plain" and st["plain"] and not st["stars"] and st["rings"] == 0 and st["tubes"] > 0
-    assert st["seg"] == ["stars:false", "plain:true"] and st["orbitBtn"]["dis"]
-    anchor = pg.evaluate("""() => { var c=document.getElementById('canvas').getBoundingClientRect(), best=null, bd=1e9;
-      document.querySelectorAll('#world .node[data-solar] .node-card').forEach(function(e){ var r=e.getBoundingClientRect(), d=Math.hypot(r.left+r.width/2-(c.left+c.width/2), r.top+r.height/2-(c.top+c.height/2)); if(d<bd){ bd=d; best=[e.closest('.node').id, r.left+r.width/2, r.top+r.height/2]; } }); return best; }""")
+    assert st["look"] == "hub" and st["hub"] and not st["stars"] and st["rings"] > 0 and st["tubes"] == 0 and st["mot"], st
+    assert st["seg"] == ["hub:true", "stars:false"] and not st["orbitBtn"]["dis"]      # Hub & spoke | Star chart, Orbit works in both
     pg.evaluate("() => window.enterFocus('u1-p1')")
-    pg.wait_for_timeout(700)
+    pg.wait_for_timeout(900)
+    g0 = pg.evaluate(BODIES)
     pg.click("#sol-ctl [data-look=stars]")
-    pg.wait_for_timeout(1700)
+    pg.wait_for_timeout(500)
     st = pg.evaluate(LOOKST)
-    assert st["look"] == "stars" and st["stars"] and st["rings"] > 0 and st["tubes"] == 0 and st["mot"], st
-    assert pg.evaluate("() => window._focusedNodeId") == "u1-p1"            # still enlarged, in its new place
+    assert st["look"] == "stars" and st["stars"] and not st["hub"] and st["rings"] > 0, st
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p1"            # still enlarged, where it was
+    assert _moved(g0, pg.evaluate(BODIES)) < 0.01                             # one plan: nothing moved
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(800)
     t0 = pg.evaluate("() => window._altoSolarT")
     pg.wait_for_timeout(700)
-    assert pg.evaluate("() => window._altoSolarT") > t0                       # the Star chart look moves
+    assert pg.evaluate("() => window._altoSolarT") > t0
     pg.reload()
     pg.wait_for_timeout(1500)
     assert pg.evaluate("() => window._altoSolarLook.get()") == "stars"      # the viewer's choice is kept
-    # back to Plain: the body in the middle stays in the middle while the others move (zoomed
-    # out, where the view is free to follow it; at natural size the canvas's own ends can stop it)
+    # an old stored 'plain' choice reads as Hub & spoke
+    pg.evaluate("() => { for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(/^alto-solar-look:/.test(k)) localStorage.setItem(k, 'plain'); } }")
+    pg.reload()
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("() => window._altoSolarLook.get()") == "hub"
     pg.mouse.move(2, 940)
-    pg.evaluate("() => window._altoSolarZoom(0.5)")
-    pg.wait_for_timeout(300)
-    anchor = pg.evaluate("""() => { var c=document.getElementById('canvas').getBoundingClientRect(), best=null, bd=1e9;
-      document.querySelectorAll('#world .node[data-solar] .node-card').forEach(function(e){ var r=e.getBoundingClientRect(), d=Math.hypot(r.left+r.width/2-(c.left+c.width/2), r.top+r.height/2-(c.top+c.height/2)); if(d<bd){ bd=d; best=[e.closest('.node').id, r.left+r.width/2, r.top+r.height/2]; } }); return best; }""")
-    pg.evaluate("() => window._altoSolarLook.set('plain')")
-    pg.wait_for_timeout(900)
-    now = pg.evaluate("(id) => { var r=document.querySelector('#'+id+' .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }", anchor[0])
-    assert abs(now[0] - anchor[1]) < 40 and abs(now[1] - anchor[2]) < 40, (anchor, now)
-    assert pg.evaluate(LOOKST)["look"] == "plain"
+    t0 = pg.evaluate("() => window._altoSolarT")
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("() => window._altoSolarT") > t0                       # the Hub & spoke look orbits too
+    pg.click("#sol-motion")
+    pg.wait_for_timeout(200)
+    t1 = pg.evaluate("() => window._altoSolarT")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => window._altoSolarT") == t1                      # and its Orbit switch stops it
     assert not errs, errs
     pg.context.close()
 
@@ -1076,5 +1066,49 @@ def test_a_comet_follows_its_ellipse_and_its_path_is_drawn(browser, tmp_path):
         ds.append(dist)
         pg.wait_for_timeout(1500)
     assert max(ds) - min(ds) > 0.5, ds                                       # not a circle about its parent
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── real-ratio sizes: small moons and satellites carry their names on hover (round 7) ──
+
+TORTS_SHAPE = [[[2, 2, 2], [2, 2], [2, 2, 2], [2], [2, 2]], [[2, 2], [2, 2, 2], [2]], [[0, 0], [0, 0, 0]]]
+
+FACES = r"""() => { var out={bad:[], moons:0, sats:0};
+  document.querySelectorAll('#world .node[data-solar]').forEach(function(n){
+    var role=n.getAttribute('data-solar'), c=n.querySelector('.node-card'), r=c.getBoundingClientRect(), f=c.querySelector('.sol-face'),
+        b=f.querySelector('b'), s=f.querySelector('span'), cx=r.left+r.width/2, cy=r.top+r.height/2;
+    [b, s].forEach(function(e){ if(!e || getComputedStyle(e).display==='none' || !e.textContent) return;
+      var q=e.getBoundingClientRect(); if(!q.width) return;
+      /* the visible text sits inside its own circle: no label reaches another body */
+      var far=Math.max(Math.hypot(q.left-cx, q.top-cy), Math.hypot(q.right-cx, q.top-cy), Math.hypot(q.left-cx, q.bottom-cy), Math.hypot(q.right-cx, q.bottom-cy));
+      if(far>r.width/2+1.5 && role!=='sun' && role!=='planet') out.bad.push(n.id+' '+role+' text out '+far.toFixed(1)+'>'+(r.width/2).toFixed(1));
+      if(e.scrollWidth>e.clientWidth+1 && e===b) out.bad.push(n.id+' number clipped'); });
+    if(role==='moon' || role==='sat'){
+      var t=(c.querySelector('.node-title')||{}).textContent||'';
+      if(c.getAttribute('title').indexOf(t)<0 || (c.getAttribute('aria-label')||'').indexOf(t)<0) out.bad.push(n.id+' no name');
+      if(role==='moon'){ out.moons++; if(getComputedStyle(s).display!=='none') out.bad.push(n.id+' moon title inside'); if(!b.textContent || /[.]/.test(b.textContent)) out.bad.push(n.id+' moon number '+b.textContent); }
+      else { out.sats++; if(getComputedStyle(b).display!=='none') out.bad.push(n.id+' sat number shown'); }
+    } });
+  return out; }"""
+
+
+@pytest.mark.parametrize("look", ["hub", "stars"])
+def test_small_bodies_show_a_number_or_nothing_inside_and_name_themselves_on_hover(browser, tmp_path, look):
+    f = tmp_path / "torts.html"
+    f.write_text(_page(units=TORTS_SHAPE, style="spoke" if look == "hub" else "orbit", links=()), encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1600)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window._altoSolarMotion.set(false)")
+    pg.wait_for_timeout(300)
+    r = pg.evaluate(FACES)
+    assert not r["bad"] and r["moons"] > 10 and r["sats"] > 10, r
+    plan = _plan(_page(units=TORTS_SHAPE, links=()))
+    N = plan["nodes"]
+    for i, n in N.items():
+        if n["role"] == "moon":
+            assert n["d"] <= 0.4 * N[n["parent"]]["d"]
+        if n["role"] == "sat":
+            assert n["d"] <= (plan["sizes"]["station"] if n.get("station") else 18)
     assert not errs, errs
     pg.context.close()

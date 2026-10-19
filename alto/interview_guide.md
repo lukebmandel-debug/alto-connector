@@ -472,34 +472,40 @@ Palace.
   make a second top concept up, and never merge two of theirs into one.
 - **The order of the planets is the outline's order.** The first planet sits
   on the innermost ring, the next one ring further out, one planet to a ring.
-  A planet's moons share one small ring around it. To change who is nearer
+  Each moon has its own ring around its planet too (the first innermost), and
+  each satellite its own ring around its moon. To change who is nearer
   the sun, change the order of the outline (their order, in their words), never
   coordinates: `place_nodes` positions do not apply here, and `order` alone
   (a card's turn among its siblings) still does.
-- Circle sizes follow depth (sun largest, satellites tiniest) and, within a
-  depth, how much hangs off a circle: a planet with more moons is drawn
-  larger, a moon with more satellites likewise; a flag the student marked as
-  pivotal, critical or extremely important bumps a circle up one size. Nothing
-  to ask them about.
+- Circle sizes follow real proportions, compressed (sun largest; a moon a
+  small fraction of its planet, never more than 40% of it; satellites tiniest,
+  the one with the most to read drawn as a space station) and, within a depth,
+  how much hangs off a circle: a planet with more moons is drawn larger, a
+  moon with more satellites likewise; a flag the student marked as pivotal,
+  critical or extremely important bumps a circle up one size. A moon shows
+  only its number inside, a satellite nothing; their titles show on hover and
+  when enlarged. Nothing to ask them about.
 - Cross-links (`add_connections`) are drawn as ordinary lines between circles.
 - A phone keeps the usual single-column card view; Hub & spoke is a computer
   view.
 
-**Two looks, switched in the page.** Every Hub & spoke page carries both, and
-the reader flips between them with a switch on the page, instantly, any time —
-nothing to rebuild, nothing for you to do:
-- **Star chart** (the look it opens in): orbit rings, planets, moons and
-  satellites slowly orbiting, realistic planets and a sun, and travel between
-  bodies along spaceflight-style routes. Zoom out shows every system at once,
-  the circles shrinking with it. A separate **Orbit** switch turns the motion
-  on or off (it also stops on hover, on a focused circle, while editing, in
-  print, and for anyone who asks their device for reduced motion).
-- **Plain**: the same circles and numbers, still, on short straight spokes, in
-  Alto's usual look.
+**Two looks, switched in the page.** Every Hub & spoke page carries both looks
+of the same layout, and the reader flips between them with the switch on the
+page (**Hub & spoke | Star chart**), instantly, any time — nothing to rebuild,
+nothing for you to do:
+- **Star chart** (the look it opens in): the orbit rings with realistic
+  planets, moons, satellites and a sun, and travel between bodies along
+  spaceflight-style routes.
+- **Hub & spoke**: the same concentric rings, spokes and circles (number and
+  title) in Alto's usual glass look, no space graphics.
+In both, the planets, moons and satellites orbit, each on its own ring; an
+**Orbit** switch turns the motion on or off (it also stops on hover, on a
+focused circle, while editing, in print, and for anyone who asks their device
+for reduced motion). Zoom out shows every system at once.
 An enlarged circle stays circular and shows the concept's content; "Open full
 page" opens its detail page. Say this once when you hand it over, in a
-sentence, so the student knows the switch is there. If they want the plain
-look to be what people see first, set `hub_look: 'plain'` in the brief
+sentence, so the student knows the switch is there. If they want the Hub &
+spoke look to be what people see first, set `hub_look: 'hub'` in the brief
 (`hub_look: 'stars'`, the Star chart, is the default; `build_timeline(hub_look=…)`
 also sets it); otherwise leave it out. The look is the page's, not the
 content's: nothing is ever converted or rebuilt to flip it.

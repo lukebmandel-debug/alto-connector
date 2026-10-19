@@ -242,14 +242,15 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
 MODES = ("linear", "outline", "lanes", "palace")
 LAYOUTS = ("auto", "tree", "flow", "solar")
 TREE_LINES = ("fan", "trunk")
-# A Hub & spoke's two looks of the same content (an outline laid out 'solar';
-# the page carries both plans and a toggle flips them): "stars" — the Star
-# chart, orbit rings with the planets, moons and satellites MOVING round what
-# they orbit (solar.py style "orbit"); "plain" — still circles on straight
-# spokes in Alto's own styling (style "spoke"). brief.hub_look is the one a
-# viewer sees first.
-HUB_LOOKS = ("stars", "plain")
-LOOK_STYLE = {"stars": "orbit", "plain": "spoke"}
+# A Hub & spoke's two looks of the same content and the same geometry (an
+# outline laid out 'solar'; one plan, solar.py; a toggle in the page flips
+# them; Luke, round 7): "stars" — the Star chart: the orbit rings with the
+# planets, moons and satellites round what they orbit, drawn as a space scene
+# with flights between bodies; "hub" — Hub & spoke: the same rings, spokes and
+# circles in Alto's own glass styling, no space graphics, no flights. Both
+# orbit (the page's Orbit switch). brief.hub_look is the one a viewer sees
+# first; a stored "plain" (1.9.108's still look) reads as "hub".
+HUB_LOOKS = ("stars", "hub")
 # A Mind Palace's view, chosen at build (the page carries one or the other):
 # "city" — buildings on a real city's map; "building" — the Building Palace: a
 # blueprint and a first-person view inside ONE building (building_schema.py;
@@ -387,7 +388,7 @@ class Brief:
     # rings in outline order, theirs moons, theirs satellites (solar.py).
     layout: str = "auto"
     # Hub & spoke only (HUB_LOOKS): the look a viewer sees first, "stars" (the
-    # moving Star chart, the default) or "plain"; the page's toggle flips it.
+    # Star chart, the default) or "hub" (Hub & spoke); the page's toggle flips it.
     hub_look: str = "stars"
     # Mind Palace only (PALACE_VIEWS): "city" (the default) or "building".
     palace_view: str = "city"
@@ -676,7 +677,7 @@ def validate_brief(b: Brief) -> list[str]:
                          "from the nodes' parents")
     if b.hub_look not in HUB_LOOKS:
         raise BriefError(f"hub_look {b.hub_look!r}: must be one of {HUB_LOOKS} (the Star chart "
-                         "look, moving, or the plain one, still)")
+                         "look or the Hub & spoke look)")
     if b.palace_view not in PALACE_VIEWS:
         raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS} (the Star "
                          "chart is a look of a Hub & spoke now: mode 'outline', layout 'solar')")
@@ -1049,11 +1050,10 @@ def building_view(b) -> bool:
 
 
 def solar_style(b) -> str:
-    """For a Hub & spoke (an outline laid out 'solar') the style of the look a
-    viewer sees first — "orbit" for the Star chart look, "spoke" for the plain
-    one (the page carries both); "" for anything else."""
+    """"orbit" for a Hub & spoke (an outline laid out 'solar': both its looks
+    draw the one orbit plan), "" for anything else."""
     if getattr(b, "mode", "") == "outline" and getattr(b, "layout", "") == "solar":
-        return LOOK_STYLE.get(getattr(b, "hub_look", "stars"), "orbit")
+        return "orbit"
     return ""
 
 
@@ -1069,7 +1069,8 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     — is returned in the second value (the caller keeps it beside the brief,
     never discards it); an outline's own settings that convert_timeline had
     parked in `stash` come back. hub_style and stash are dropped from every
-    brief (hub_style 'spoke' becomes the plain look); palace_view is kept as it
+    brief (hub_style 'spoke' becomes the Hub & spoke look, as does 1.9.108's
+    hub_look 'plain'); palace_view is kept as it
     is ("city", "building" — 1.9.107's Building Palace) except the old "stars",
     which goes with the migration. The input is not changed."""
     if not isinstance(d, dict):
@@ -1105,7 +1106,9 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
         out["hub_look"] = "stars"
         aside["from"] = "palace stars view (1.9.105 Star chart)"
     elif legacy.get("hub_style") == "spoke" and "hub_look" not in out:
-        out["hub_look"] = "plain"
+        out["hub_look"] = "hub"
+    if out.get("hub_look") == "plain":
+        out["hub_look"] = "hub"                           # 1.9.108's still look: now the Hub & spoke look
     return out, aside
 
 
