@@ -85,12 +85,18 @@ SOLAR_CSS = r"""
   /* enlarged: on top at once (the engine holds a node's z-index change back .34s,
      for a card shrinking home; a moon beside its planet would cover the card) */
   html.alto-solar:not(.mobile) #world .node[data-solar].focused{transition:z-index 0s !important;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card{width:var(--sd) !important;height:var(--sd) !important;
-    min-height:0 !important;padding:0 !important;border-radius:50% !important;border-top-width:1.5px;overflow:hidden;box-sizing:border-box;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card>:not(.sol-face){display:none !important;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card::before{left:0;right:0;top:0;height:100%;border-radius:50%;
+  /* a body is a disc at rest (--sd) and a bigger disc enlarged (--sD): never a rectangle. Inside its
+     .node-card, bottom to top: a skin (VIS, solar_stars.py: z-index <= 1), .sol-scrim (z 2, enlarged
+     only), then .sol-face / .sol-body / .sol-open (z 3). The round clip is the card's own. */
+  html.alto-solar:not(.mobile) #world .node[data-solar] .node-card{min-height:0 !important;padding:0 !important;border-radius:50% !important;
+    overflow:hidden;box-sizing:border-box;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card{width:var(--sd) !important;height:var(--sd) !important;border-top-width:1.5px;}
+  html.alto-solar:not(.mobile) #world .node[data-solar].focused .node-card,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .node-card{
+    width:var(--sD) !important;height:var(--sD) !important;}
+  html.alto-solar:not(.mobile) #world .node[data-solar] .node-card::before{left:0;right:0;top:0;height:100%;border-radius:50%;
     background:radial-gradient(ellipse 72% 52% at 50% 14%,var(--card-glass-sheen) 0%,rgba(255,255,255,.08) 58%,rgba(255,255,255,0) 100%);}
-  html.alto-solar:not(.mobile) #world .node[data-solar] .sol-face{display:flex;position:absolute;left:50%;top:50%;width:var(--sd);height:var(--sd);
+  html.alto-solar #world .alto-fshadow{border-radius:50% !important;}
+  html.alto-solar:not(.mobile) #world .node[data-solar] .sol-face{display:flex;position:absolute;z-index:3;left:50%;top:50%;width:var(--sd);height:var(--sd);
     margin:calc(var(--sd) / -2) 0 0 calc(var(--sd) / -2);flex-direction:column;align-items:center;justify-content:center;gap:2.5px;
     text-align:center;box-sizing:border-box;padding:0 calc(var(--sd) * .15);pointer-events:none;color:var(--text);}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused:not(.sol-clip) .sol-face{display:none;}
@@ -104,11 +110,29 @@ SOLAR_CSS = r"""
   .node[data-solar=moon] .sol-face span{font-size:8.75px;line-height:10px;-webkit-line-clamp:2;line-clamp:2;}
   .node[data-solar=sat] .sol-face span{display:none;}
   .node[data-solar=sat] .sol-face b{font-size:10px;opacity:.85;}
-  html.alto-solar:not(.mobile) #world .node[data-solar].focused .node-card,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .node-card{min-height:var(--sd);}
-  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{clip-path:inset(var(--scy,0px) var(--scx,0px) round var(--scr,14px));
-    -webkit-clip-path:inset(var(--scy,0px) var(--scx,0px) round var(--scr,14px));-webkit-backdrop-filter:none !important;backdrop-filter:none !important;
-    background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
-  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card>:not(.sol-face){opacity:var(--sbo,1);}
+  /* enlarged: the content, in a square inscribed in the disc (corners inside the circle), scrolling
+     inside it when long, faded at its top and bottom edges; "Open full page" under it */
+  .sol-body,.sol-scrim,.sol-open{display:none;}
+  html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-body,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-body{
+    display:block;position:absolute;z-index:3;left:17%;right:17%;top:14%;bottom:21%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+    text-align:center;box-sizing:border-box;padding:12px 4px 16px;scrollbar-width:thin;opacity:var(--sbo,1);
+    -webkit-mask-image:linear-gradient(transparent,#000 12px,#000 calc(100% - 16px),transparent);mask-image:linear-gradient(transparent,#000 12px,#000 calc(100% - 16px),transparent);}
+  html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-scrim,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-scrim{
+    display:block;position:absolute;z-index:2;inset:0;border-radius:50%;pointer-events:none;opacity:var(--sbo,1);
+    background:radial-gradient(circle,color-mix(in srgb,var(--surface) 84%,transparent) 0 64%,color-mix(in srgb,var(--surface) 52%,transparent) 100%);}
+  html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-open,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-open{
+    display:block;position:absolute;z-index:3;left:0;right:0;bottom:8.5%;margin:0 auto;width:max-content;opacity:var(--sbo,1);cursor:pointer;
+    font:600 11.25px/1 inherit;font-family:inherit;letter-spacing:.04em;color:var(--accent,#6d5bd0);padding:6px 12.5px;border-radius:999px;
+    background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent,#6d5bd0) 45%,transparent);}
+  .sol-open:hover{background:var(--surface);}
+  .sol-body .node-order{position:static !important;float:none !important;display:block;margin:0 0 4px !important;text-align:center;}
+  .sol-body .node-tag,.sol-body .node-title,.sol-body .node-desc{text-align:center;}
+  .sol-body .node-desc{-webkit-line-clamp:unset !important;display:block !important;overflow:visible !important;}
+  .sol-body .node-footer{justify-content:center;flex-wrap:wrap;margin-top:8px;}
+  .sol-sec{margin-top:10px;text-align:left;font-size:12.5px;line-height:18.75px;color:var(--card-desc-color,var(--muted));}
+  .sol-sec h6{margin:0 0 2px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;}
+  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{clip-path:circle(var(--scr,50%) at 50% 50%);-webkit-clip-path:circle(var(--scr,50%) at 50% 50%);
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
   html.alto-solar:not(.mobile) #world .node.sol-clip .sol-face{opacity:var(--sfo,0);}
 """
 
@@ -156,6 +180,38 @@ function face(n, id){
   if(fs && fs<base){ fs=Math.round(fs*4)/4; sp.style.fontSize=fs+'px'; sp.style.lineHeight=Math.round(fs*1.2*4)/4+'px'; }
   f.setAttribute('aria-hidden', 'true');
   if(b.role==='sat') c.setAttribute('title', (num ? num+'  ' : '')+tt);
+  disc(n, c, id, b);
+}
+/* the enlarged disc's layers: the card's own number / tag / title / description / chips go into
+   .sol-body (the same elements, so edit mode edits them in place), a .sol-scrim under it, the
+   "Open full page" control; and --sD, the enlarged diameter, by how much there is to read */
+function disc(n, c, id, b){
+  var body=c.querySelector(':scope > .sol-body');
+  if(!body){ body=document.createElement('div'); body.className='sol-body';
+    [].slice.call(c.children).forEach(function(k){ if(/(^| )(node-order|node-tag|node-title|node-desc|node-footer)( |$)/.test(k.className)) body.appendChild(k); });
+    var sc=document.createElement('div'); sc.className='sol-scrim'; sc.setAttribute('aria-hidden', 'true');
+    c.insertBefore(sc, c.firstChild); c.appendChild(body);
+    var op=document.createElement('button'); op.type='button'; op.className='sol-open'; op.textContent='Open full page';
+    op.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); if(typeof showDetail==='function') showDetail('node', id); });
+    c.appendChild(op);
+    /* an enlarged disc is for reading: a click on it does not open the detail page (the control does) */
+    c.addEventListener('click', function(e){ if(n.classList.contains('focused') && !de.classList.contains('alto-editing') && !(e.target.closest && e.target.closest('a,button,[onclick],.alto-link'))) e.stopPropagation(); }, true);
+  }
+  var nd=(typeof NODE_DETAILS!=='undefined' && NODE_DETAILS[id]) || {}, L=(c.textContent||'').length;
+  (nd.sections||[]).forEach(function(q){ if(q && q.t) L+=String(q.h||'').length+String(q.t).replace(/<[^>]*>/g, '').length; });
+  var D=L<260 ? 300 : L<600 ? 340 : L<1100 ? 380 : 420;
+  n.style.setProperty('--sD', Math.max(D, q(b.d+40))+'px');
+}
+/* the sections (the detail page's, NODE_DETAILS), built the first time a disc is enlarged */
+function sections(c, id){
+  var body=c.querySelector('.sol-body'); if(!body || body.querySelector('.sol-sec')) return;
+  var nd=(typeof NODE_DETAILS!=='undefined' && NODE_DETAILS[id]) || {}, ft=body.querySelector('.node-footer');
+  (nd.sections||[]).filter(function(q){ return q && q.t; }).forEach(function(q){
+    var d=document.createElement('div'); d.className='sol-sec';
+    if(q.h){ var h=document.createElement('h6'); h.textContent=q.h; d.appendChild(h); }
+    var t=document.createElement('div'); t.innerHTML=String(q.t); d.appendChild(t);       /* the build's sanitized markup, as the detail page shows it */
+    body.insertBefore(d, ft||null);
+  });
 }
 
 /* ── the layout: at the end of initLayout (engine patch solar-layout-hook),
@@ -187,7 +243,7 @@ window._altoSolarLayout=function(pos){
   var rv=document.getElementById('river-svg'); if(rv){ rv.setAttribute('height', H); if(W>1700) rv.setAttribute('width', W); }
   draw(W, H);
   ready=true; hov=0;
-  apply(true);
+  apply(true); skin();
   if(MOVES) go();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
@@ -321,6 +377,17 @@ function seg(a, b, ga, gb){
   if(L<=ra+rb) return null;
   return [f2(a.rx+ux*ra), f2(a.ry+uy*ra), f2(b.rx-ux*rb), f2(b.ry-uy*rb)];
 }
+/* ── seams for the star chart's skin (solar_stars.py) and its travel (solar_fly.py) ──
+   window._altoSolarT: the orbit clock in seconds — a body's angle is a0 + spin*2*pi*T/period
+     about what it orbits (plus, with several systems, spin*2*pi*T/(540+60*system index) for the
+     whole system about its sun): solar.py's formula, as place() runs it.
+   window._altoSkinTick(plan, bodies, T), if defined, is called after every frame that moved the
+     bodies, and once after each layout. bodies: {id: {id, role, p (what it orbits), per, si
+     (system index), d (diameter), n (.node), c (.node-card), hx, hy (home), x, y (now, float),
+     rx, ry (now, as written to left/top)}} — world px (WORLD_PAD_TOP included). Read-only.
+     Not called while the orbit is held (hover, focus, edit mode...): a skin that animates on its
+     own runs its own frames. A skin's layers go inside .node-card under .sol-scrim (z-index <= 1). */
+function skin(){ window._altoSolarT=T; if(window._altoSkinTick) try{ window._altoSkinTick(S, B, T); }catch(e){} }
 function setD(p, d){ if(p.hasAttribute('data-d0')) p.setAttribute('data-d0', d); else p.setAttribute('d', d); }
 /* write the bodies and everything drawn with them; all = also what did not move */
 function apply(all){
@@ -372,11 +439,11 @@ function tick(ts){
   var dt=last==null ? 0 : Math.min(.1, (ts-last)/1000); last=ts;
   if(OV && (de.classList.contains('alto-editing') || window._focusedNodeId)) ovLeave(null, true);
   if(de.classList.contains('alto-editing') || printing){          /* the plan's own layout, turned back to */
-    sp=0; if(T){ back=printing ? 0 : Math.max(0, back-dt/.45); rk=back*back*(3-2*back); apply(); if(back) return go(); T=0; back=rk=1; }
+    sp=0; if(T){ back=printing ? 0 : Math.max(0, back-dt/.45); rk=back*back*(3-2*back); apply(); skin(); if(back) return go(); T=0; back=rk=1; }
     return sleep(); }
   if(back<1){ T=0; back=rk=1; apply(); }
   if(hold()){ sp=0; return sleep(); }
-  sp=Math.min(1, sp+dt/1.2); T+=dt*sp*sp*(3-2*sp); apply(); go();
+  sp=Math.min(1, sp+dt/1.2); T+=dt*sp*sp*(3-2*sp); apply(); skin(); go();
 }
 function go(){ clearTimeout(slT); if(!raf && MOVES) raf=requestAnimationFrame(tick); }
 function sleep(){ last=null; clearTimeout(slT); slT=setTimeout(go, 180); }
@@ -389,32 +456,35 @@ function over(e){ if(!hot(e.target) || (window._altoPointerStill && window._alto
 document.addEventListener('mouseover', over); document.addEventListener('mousemove', over, {passive:true});
 document.addEventListener('mouseout', function(e){ if(hot(e.relatedTarget)) return; clearTimeout(hovT); hovT=setTimeout(function(){ hov=0; }, 320); });
 
-/* ── an enlarged circle is the card: clipped from its disc out to the card as
-   it grows, and back as it shrinks — the clip read off the card's own zoom on
-   every frame, so it cannot run ahead of or behind the engine's ramps ───── */
+/* ── an enlarged circle stays a circle (Luke, round 4): the card is the big disc (--sD) from the
+   first frame of the engine's zoom ramp, clipped to a circle growing from the resting disc's
+   radius out to its own, and back as it shrinks — the clip read off the card's own zoom on every
+   frame, so it cannot run ahead of or behind the engine's ramps. The face fades out, the
+   content (.sol-body, .sol-scrim, .sol-open) fades in. ───── */
 var zmo=(typeof MutationObserver==='function') ? new MutationObserver(function(ms){ ms.forEach(function(m){ var n=m.target.closest && m.target.closest('.node'); if(n) clip(n); }); }) : null, morphing=[];
 function clip(n){
   var c=n.querySelector('.node-card'), b=B[(n.id||'').slice(5)]; if(!c || !b) return;
   var z=parseFloat(c.style.zoom)||1, f=n.classList.contains('focused');
   if(!f && z<=1.0005){                                         /* home: a circle again */
     n.classList.remove('sol-closing'); n.classList.remove('sol-clip');
-    ['--scx','--scy','--scr','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
+    ['--scr','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
     var i=morphing.indexOf(c); if(i>=0){ morphing.splice(i, 1); if(zmo){ zmo.disconnect(); morphing.forEach(function(x){ zmo.observe(x, {attributes:true, attributeFilter:['style']}); }); } }
     if(!morphing.length) go();
     return; }
   var p=Math.max(0, Math.min(1, (z-1)/(K-1)*1.5)), s=p*p*(3-2*p);
   if(f && s>=1){ n.classList.remove('sol-clip'); return; }
   n.classList.add('sol-clip');
-  var d=b.d, w=n._sw||d, h=n._sh||d;
-  n.style.setProperty('--scx', f2((1-s)*Math.max(0, w-d)/2)+'px'); n.style.setProperty('--scy', f2((1-s)*Math.max(0, h-d)/2)+'px');
-  n.style.setProperty('--scr', f2(d/2+(14-d/2)*s)+'px');
+  var d=b.d, D=n._sw||d;                                       /* the clip: a circle from the resting disc's radius to the enlarged one's */
+  n.style.setProperty('--scr', f2(d/2+(D-d)/2*s)+'px');
   n.style.setProperty('--sfo', String(Math.max(0, 1-s*2.2))); n.style.setProperty('--sbo', String(Math.min(1, s*1.6)));
 }
 function morph(n, open){
   var c=n.querySelector('.node-card'); if(!c) return;
   if(!open) n.classList.add('sol-closing');
   n.classList.add('sol-clip');
-  n._sw=c.offsetWidth; n._sh=c.offsetHeight;                   /* the card's own box, unzoomed */
+  if(open) sections(c, (n.id||'').slice(5));
+  n._sw=c.offsetWidth;                                          /* the enlarged disc's diameter, unzoomed */
+  var bd=c.querySelector('.sol-body'); if(open && bd) bd.scrollTop=0;
   if(morphing.indexOf(c)<0){ morphing.push(c); if(zmo) zmo.observe(c, {attributes:true, attributeFilter:['style']}); }
   clip(n);
 }

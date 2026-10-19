@@ -699,3 +699,100 @@ def test_the_camera_puts_a_plan_point_in_the_middle_at_any_scale(browser, pages)
     assert pg.evaluate("() => window._altoSolarCam.get().scale") == pytest.approx(pg.evaluate("() => window._altoSolarZoom()"))
     assert not errs, errs
     pg.context.close()
+
+
+# ── an enlarged body stays a circle and shows its content (Luke, round 4) ─────
+
+def _long_page(style):
+    d = solar_doc(SMALL, style, SMALL_LINKS, {0: 1} if style == "orbit" else None)
+    for n in d["nodes"]:
+        if n["id"] == "u1-p1":
+            n["desc"] = ("The rule as the notes put it, at length. " * 14).strip()
+            n["sections"] = [{"h": "Test", "t": "Each element in turn, as the cases apply it. " * 8},
+                             {"h": "Cases", "t": "The leading cases and what each decides. " * 8}]
+    html, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    return html
+
+
+DISC_WATCH = r"""() => new Promise(function(res){
+  var n=document.getElementById('node-u1-p1'), c=n.querySelector('.node-card'), bad=[], k=0, t0=performance.now();
+  (function f(){ var cs=getComputedStyle(c), cp=cs.clipPath||cs.webkitClipPath||'none', w=c.offsetWidth, h=c.offsetHeight;
+    if(Math.abs(w-h)>1) bad.push('box '+w+'x'+h);
+    if(!/^(none|circle)/.test(cp)) bad.push('clip '+cp);
+    if(cs.borderTopLeftRadius!=='50%' && parseFloat(cs.borderTopLeftRadius)<w/2-1) bad.push('radius '+cs.borderTopLeftRadius);
+    var sh=document.querySelector('#world .alto-fshadow'); if(sh && getComputedStyle(sh).borderTopLeftRadius!=='50%') bad.push('shadow '+getComputedStyle(sh).borderTopLeftRadius);
+    k++; if(performance.now()-t0<1100) requestAnimationFrame(f); else res({frames:k, bad:bad.slice(0, 6)}); })();
+})"""
+
+
+@pytest.mark.parametrize("style", ["spoke", "orbit"])
+def test_an_enlarged_body_is_a_bigger_disc_with_its_content_and_a_way_to_the_full_page(browser, tmp_path, style):
+    f = tmp_path / f"long-{style}.html"
+    f.write_text(_long_page(style), encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1600)
+    pg.mouse.move(2, 940)
+    # every frame of the grow: a circle (box square, round clip or none, round shadow)
+    res = pg.evaluate("() => { var p=(" + DISC_WATCH + ")(); window.enterFocus('u1-p1'); return p; }")
+    assert not res["bad"], res
+    st = pg.evaluate("""() => { var n=document.getElementById('node-u1-p1'), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body');
+      return {w:c.offsetWidth, h:c.offsetHeight, sD:parseFloat(getComputedStyle(n).getPropertyValue('--sD')), d:window._ALTO_SOLAR.nodes['u1-p1'].d,
+              title:b && b.querySelector('.node-title') && getComputedStyle(b).display!=='none' ? b.querySelector('.node-title').textContent : null,
+              secs:b ? b.querySelectorAll('.sol-sec').length : 0, scrolls:b ? b.scrollHeight>b.clientHeight : null,
+              open:!!c.querySelector('.sol-open') && getComputedStyle(c.querySelector('.sol-open')).display!=='none'}; }""")
+    assert abs(st["w"] - st["h"]) <= 1 and abs(st["w"] - st["sD"]) <= 1 and st["sD"] > st["d"], st
+    assert st["title"] and st["secs"] == 2 and st["scrolls"] and st["open"], st
+    # the wheel over the long content scrolls it (it does not hop to a neighbour)
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .sol-body').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    pg.mouse.move(xy[0], xy[1])
+    pg.mouse.wheel(0, 120)
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => [window._focusedNodeId, document.querySelector('#node-u1-p1 .sol-body').scrollTop>0]") == ["u1-p1", True]
+    # a click on the text does not leave the chart; the control opens the full page
+    pg.mouse.click(xy[0], xy[1])
+    pg.wait_for_timeout(300)
+    assert not pg.evaluate("() => document.getElementById('detail-page').classList.contains('visible')")
+    pg.evaluate("() => document.querySelector('#node-u1-p1 .sol-open').click()")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => document.getElementById('detail-page').classList.contains('visible')")
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_esc_and_arrows_from_an_enlarged_disc_and_back_to_a_circle(browser, pages):
+    f, _ = pages["spoke"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window.enterFocus('u1')")
+    pg.wait_for_timeout(800)
+    pg.keyboard.press("ArrowRight")
+    pg.wait_for_timeout(900)
+    got = pg.evaluate("() => window._focusedNodeId")
+    assert got and got != "u1"
+    res = pg.evaluate("() => { var p=(" + DISC_WATCH.replace("u1-p1", "u1") + ")(); return p; }")
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(1200)
+    st = pg.evaluate("""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card');
+      return {f:window._focusedNodeId||null, w:c.offsetWidth, h:c.offsetHeight, cls:n.className}; }""", got)
+    assert st["f"] is None and st["w"] == st["h"] and "sol-" not in st["cls"], st
+    assert not res["bad"], res
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── seams for the star chart's skin and travel ────────────────────────────────
+
+def test_the_skin_tick_and_the_orbit_clock(browser, pages):
+    f, plan = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1200)
+    pg.mouse.move(2, 940)
+    pg.evaluate("""() => { window.__sk=[]; window._altoSkinTick=function(P, B, T){
+      window.__sk.push({T:T, n:Object.keys(B).length, plan:!!(P && P.nodes), x:B['u1-p1'].rx, y:B['u1-p1'].ry, c:!!B['u1-p1'].c}); }; }""")
+    pg.wait_for_timeout(800)
+    sk = pg.evaluate("() => window.__sk")
+    assert len(sk) > 10 and sk[-1]["T"] > sk[0]["T"] and sk[-1]["plan"] and sk[-1]["c"]
+    assert sk[-1]["n"] == len(plan["nodes"])
+    node = pg.evaluate("() => { var n=document.getElementById('node-u1-p1'); return [parseFloat(n.style.left), parseFloat(n.style.top)]; }")
+    assert pg.evaluate("() => window._altoSolarT") == pytest.approx(pg.evaluate("() => window.__sk[window.__sk.length-1].T"), abs=0.2)
+    assert abs(sk[-1]["x"] - node[0]) < 3 and abs(sk[-1]["y"] - node[1]) < 3
+    assert not errs, errs
+    pg.context.close()
