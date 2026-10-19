@@ -388,7 +388,7 @@ window._altoSkinStats={
   get:function(){ var d=ST.t.slice().sort(function(a, b){ return a-b; }), q=function(p){ return d.length ? +d[Math.min(d.length-1, Math.floor(d.length*p))].toFixed(3) : 0; };
     return {n:d.length, p50:q(.5), p95:q(.95), max:q(1), pending:Q.length, ext:extT>0}; },
   reset:function(){ ST.t=[]; },
-  hashes:function(){ var o={}; [].forEach.call(document.querySelectorAll('#world canvas.sk,#world .sk-sky canvas'), function(c){ var n=c.closest('.node'), id=(n ? n.id : 'sky')+':'+c.className;
+  hashes:function(){ var o={}; [].forEach.call(document.querySelectorAll('#world canvas.sk,#world .sk-sky canvas'), function(c, i){ var n=c.closest('.node'), id=(n ? n.id : 'sky'+i)+':'+c.className;
     o[id]=c._h || (c.className.indexOf('sk-craft')>=0 || c.className.indexOf('sk-prom')>=0 ? sum(c.getContext('2d').getImageData(0, 0, c.width, c.height).data) : null); }); return o; }
 };
 })();
