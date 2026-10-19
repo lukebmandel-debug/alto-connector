@@ -22,6 +22,7 @@ STREET_JS defines  window._palStreet  (a no-op when it already exists):
                              ring:[[x,y]..], holes:[[[x,y]..]..]}      (bc / rc are RGB565 ints, bm a material code; the accuracy block: palace_street.py)
                          r: {hw, nm, ln, wd(units), ow, sw, cy, sf, ms, lt, sl, sr, cl, cr, br, tn, la, line:[[x,y]..]}   t: {x, y, sp, lf}   f: {x, y, kind, dir(deg or null)}
                          p: {x, y, name, cat, ad}   e: {x, y, kind}   a: {k, nm, sp, sf, ring, holes}   w: {k, ht(m), mt, line}   l: {sp, lf, line}
+                         (2.0.1 water, palace_street_water.py) q: {k, nm, h, ring, cb}   v: {k, wd(m), line}   o: {x, y, kind}   k: {k, c, wd(m), ring|line}
   near(x, y, r, kinds)   every feature of the LOADED cells under the circle that has a point within r of it (a polygon/line: any vertex or edge point) —
                          {b:[], r:[], t:[], f:[], p:[], e:[], a:[], w:[], l:[]}; `kinds` optionally a string such as 'btf' limiting which lists are filled
   fromLatLon(lat, lon)   -> [x, y] metres     toLatLon(x, y) -> [lat, lon]
@@ -53,7 +54,7 @@ function okManifest(b){
   if(b.pl!==undefined && !(arr(b.pl)&&b.pl.every(function(p){ return arr(p)&&typeof p[0]==='string'&&num(p[2])&&num(p[3])&&(p[4]===0||(arr(p[4])&&p[4].length%2===0&&p[4].every(num))); }))) return false;
   if(b.a!==undefined && typeof b.a!=='string') return false;
   return true; }
-var PTW={t:4,f:4,p:5,e:3}, POLY={b:1,a:1,r:1,w:1,l:1};
+var PTW={t:4,f:4,p:5,e:3,o:3}, POLY={b:1,a:1,r:1,w:1,l:1,q:1,v:1,k:1};
 function okShard(sh){
   if(!obj(sh)||!arr(sh.S)||!obj(sh.c)||!sh.S.every(function(v){ return typeof v==='string'; })) return false;
   for(var k in sh.c){ var c=sh.c[k]; if(!obj(c)) return false;
@@ -72,7 +73,7 @@ var SB=set(['k','rs','rm','nm','ad','po','sd','wd','ar','hr','wp','sy']), SR=set
 function props(names,str,p,S){ var d={}; for(var i=0;i<names.length;i++){ var v=i<p.length?p[i]:0; d[names[i]]=str[names[i]]?S[v]:v; } return d; }
 function hex(v){ var r=(v>>11)&31, g=(v>>5)&63, b=v&31; function h(n){ return ('0'+n.toString(16)).slice(-2); } return '#'+h((r<<3)|(r>>2))+h((g<<2)|(g>>4))+h((b<<3)|(b>>2)); }
 function partyOf(pe){ return function(i){ return i<31 && !!((pe>>>i)&1); }; }
-function empty(){ return {b:[],r:[],t:[],f:[],p:[],e:[],a:[],w:[],l:[]}; }
+function empty(){ return {b:[],r:[],t:[],f:[],p:[],e:[],a:[],w:[],l:[],q:[],v:[],o:[],k:[]}; }
 function cell(ix,iy){
   var key=ix+','+iy; if(CELLS[key]) return CELLS[key]; if(!B) return undefined;
   var id=B.c[key]; if(!id) return CELLS[key]=empty();
@@ -87,6 +88,12 @@ function decode(key,ix,iy,sh){
   (c.w||[]).forEach(function(r){ d=props(WF,SW,r[1],S); d.ht=d.ht*q; d.line=line(r[0],ox,oy,q); out.w.push(d); });
   (c.l||[]).forEach(function(r){ d=props(LF,SL,r[1],S); d.line=line(r[0],ox,oy,q); out.l.push(d); });
   (c.a||[]).forEach(function(r){ d=props(AF,SA,r[1],S); d.ring=line(r[0],ox,oy,q); d.holes=(r[2]||[]).map(function(h){ return line(h,ox,oy,q); }); out.a.push(d); });
+  /* 2.0.1 water (palace_street_water.py): q pieces {k, nm, h, ring, cb:[x0,y0,x1,y1] the cell box, m}, v waterways {k, wd(m), line}, o {x, y, kind}, k shore {k, c, wd(m), ring|line} */
+  var cb=[ox*q,oy*q,(ox+B.cs)*q,(oy+B.cs)*q];
+  (c.q||[]).forEach(function(r){ var p=r[1]||[]; out.q.push({k:S[p[0]||0]||'', nm:S[p[1]||0]||'', h:p[2]||0, ring:line(r[0],ox,oy,q), cb:cb}); });
+  (c.v||[]).forEach(function(r){ var p=r[1]||[]; out.v.push({k:S[p[0]||0]||'', wd:(p[1]||0)*q, line:line(r[0],ox,oy,q)}); });
+  a=c.o||[]; for(i=0;i+2<a.length;i+=3) out.o.push({x:(a[i]+ox)*q, y:(a[i+1]+oy)*q, kind:S[a[i+2]]||''});
+  (c.k||[]).forEach(function(r){ var p=r[1]||[], dd={k:S[p[0]||0]||'', c:p[1]||0, wd:(p[2]||0)*q}; dd[dd.c?'ring':'line']=line(r[0],ox,oy,q); out.k.push(dd); });
   [['t',4,['sp','lf']],['f',4,['kind','dir']],['p',5,['name','cat','ad']],['e',3,['kind']]].forEach(function(s){
     a=c[s[0]]||[]; for(i=0;i<a.length;i+=s[1]){ d={x:(a[i]+ox)*q,y:(a[i+1]+oy)*q}; for(j=0;j<s[2].length;j++){ var v=a[i+2+j]; d[s[2][j]]=s[2][j]==='dir'?(v?v-1:null):S[v]; } out[s[0]].push(d); } });
   return CELLS[key]=out;
@@ -99,9 +106,10 @@ function near(x,y,r,kinds){
   var out=empty(); if(!B) return out; kinds=kinds||'brtfpeawl'; var r2=r*r;
   span(x,y,r).forEach(function(ij){
     var c=cell(ij[0],ij[1]); if(!c) return;
-    ['b','a'].forEach(function(k){ if(kinds.indexOf(k)>=0) c[k].forEach(function(f){ if(nearPts(f.ring,x,y,r2,true)) out[k].push(f); }); });
-    ['r','w','l'].forEach(function(k){ if(kinds.indexOf(k)>=0) c[k].forEach(function(f){ if(nearPts(f.line,x,y,r2,false)) out[k].push(f); }); });
-    ['t','f','p','e'].forEach(function(k){ if(kinds.indexOf(k)>=0) c[k].forEach(function(f){ if((f.x-x)*(f.x-x)+(f.y-y)*(f.y-y)<=r2) out[k].push(f); }); });
+    ['b','a','q'].forEach(function(k){ if(kinds.indexOf(k)>=0) c[k].forEach(function(f){ if(nearPts(f.ring,x,y,r2,true)||(k==='q'&&x>=f.cb[0]&&x<=f.cb[2]&&y>=f.cb[1]&&y<=f.cb[3])) out[k].push(f); }); });
+    ['r','w','l','v'].forEach(function(k){ if(kinds.indexOf(k)>=0) c[k].forEach(function(f){ if(nearPts(f.line,x,y,r2,false)) out[k].push(f); }); });
+    if(kinds.indexOf('k')>=0) c.k.forEach(function(f){ if(nearPts(f.ring||f.line,x,y,r2,!!f.ring)) out.k.push(f); });
+    ['t','f','p','e','o'].forEach(function(k){ if(kinds.indexOf(k)>=0) c[k].forEach(function(f){ if((f.x-x)*(f.x-x)+(f.y-y)*(f.y-y)<=r2) out[k].push(f); }); });
   });
   return out;
 }

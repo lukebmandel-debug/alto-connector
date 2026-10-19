@@ -24,6 +24,7 @@ QA: GLX.look(x,y,z,yawDeg,pitchDeg,cellsRadius,dark) draws a free camera over a 
 """
 import json
 
+from .palace_ride_gfx import CSS_GFX, JS_GFX
 from .palace_ride_gl_shaders import FS_SHADOW, FS_SKY, FS_WORLD, SH_COMMON, VS_SHADOW, VS_SKY, VS_WORLD
 
 _GLS = ("var GLS={vsw:" + json.dumps(VS_WORLD) + ", fsw:" + json.dumps(SH_COMMON + FS_WORLD) + ", vsh:" + json.dumps(VS_SHADOW) + ", fsh:" + json.dumps(FS_SHADOW) + ", vss:" + json.dumps(VS_SKY) + ", fss:" + json.dumps(SH_COMMON + FS_SKY) + "};\n")
@@ -31,7 +32,7 @@ _GLS = ("var GLS={vsw:" + json.dumps(VS_WORLD) + ", fsw:" + json.dumps(SH_COMMON
 CSS_GL = r"""
   #pal-ride .pr-gl{position:absolute;left:0;top:0;width:100%;height:100%;display:block;}
   #pal-ride.pr-glon .pr-cv{background:transparent;}
-"""
+""" + CSS_GFX
 
 _JS_GL_MAIN = r"""
 /* ── WebGL city renderer: infrastructure ── */
@@ -47,18 +48,22 @@ function glSetup(restore){
   var cv=GLX.cv, gl=null;
   if(!cv) return false; if(window._palRideNoGL){ GLX.err='disabled'; return glFail(); }
   var opt={alpha:false, antialias:true, depth:true, stencil:false, powerPreference:'high-performance', preserveDrawingBuffer:false};
-  try{ gl=cv.getContext('webgl',opt)||cv.getContext('experimental-webgl',opt); }catch(x){ gl=null; }
+  try{ gl=gfxContext(cv)/*gfx: WebGL2 for the high/medium tiers, null for legacy*/||cv.getContext('webgl',opt)||cv.getContext('experimental-webgl',opt); }catch(x){ gl=null; }
   if(!gl || gl.isContextLost()){ GLX.err='no webgl'; return glFail(true); }
   GLX.gl=gl; GLX.gen++; GLX.cache={}; GLX.prev={}; GLX.prevM={}; GLX.nCache=0; GLX.mc=(typeof WeakMap!=='undefined')?new WeakMap():null; GLX.queue=[]; GLX.wayq=[];
   var fp=gl.getShaderPrecisionFormat&&gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER,gl.HIGH_FLOAT); if(!fp || !fp.precision){ GLX.err='no highp fragment precision'; return glFail(true); }
   if(gl.getParameter(gl.MAX_VERTEX_ATTRIBS)<8){ GLX.err='too few vertex attributes'; return glFail(true); }
   var dbg=gl.getExtension('WEBGL_debug_renderer_info'); GLX.renderer=dbg?String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)):'';
-  GLX.inst=gl.getExtension('ANGLE_instanced_arrays');
-  try{
-    GLX.prog=glProgram(gl, GLS.vsw, GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uPal','uAtl','uAtlS','uLamp','uLampC','uIn']);
+  GLX.inst=gl.getExtension('ANGLE_instanced_arrays'); gfxShim(gl);
+  try{ glPrograms(gl);
     GLX.shp=glProgram(gl, GLS.vsh, GLS.fsh, ['aP'], ['uLP']);
-    GLX.sky=glProgram(gl, GLS.vss, GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']);
   }catch(x){ GLX.err=String(x&&x.message||x); if(window.console) console.warn('ride GL', GLX.err); return glFail(true); }
+  setupRest(gl); return true; }
+/* the world and sky programs, with the tier's defines (gfx: palace_ride_gfx.py; legacy = none) */
+function glPrograms(gl){ var dfs=gfxDefs();
+    GLX.prog=glProgram(gl, GLS.vsw, dfs+GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uShO','uPal','uAtl','uAtlS','uLamp','uLampC','uIn','uTx0','uTx1','uTxA']);
+    GLX.sky=glProgram(gl, GLS.vss, dfs+GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']); }
+function setupRest(gl){
   /* the noise texture: random bytes, filtered and mip-mapped, read for value noise in the shaders */
   var N=128, px=new Uint8Array(N*N*4), i, s=12345;
   for(i=0;i<px.length;i++){ s=(Math.imul(s,1664525)+1013904223)|0; px[i]=(s>>>16)&255; }
@@ -71,7 +76,7 @@ function glSetup(restore){
   GLX.ibuf=gl.createBuffer(); GLX.instBuf=new Float32Array(6*600);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW); gl.clearColor(.5,.55,.6,1);
   GLX.on=true; GLX.lost=false; GLX.ready=true; GLX.err=''; GLX.fresh=true; if(GLX.cv&&GLX.cv.parentNode) GLX.cv.parentNode.classList.add('pr-glon');
-  return true; }
+  gfxInit(gl); }
 function glTex1(gl,px,w,h,mip){ var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,mip?gl.LINEAR:gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR:gl.NEAREST); return tx; }
 function glFail(drop){ GLX.on=false; GLX.ready=false; var cv=GLX.cv; if(cv&&cv.parentNode){ cv.parentNode.classList.remove('pr-glon'); if(drop||!GLX.gl) { cv.parentNode.removeChild(cv); } } return false; }
@@ -251,14 +256,15 @@ function glShop(b,s){
 function glBase(b,cell,W){
   var G=W._gl, x0=cell.ci*CELL, y0=cell.cj*CELL, x1=x0+CELL, y1=y0+CELL, i, o;
   glDC(null); _gH=0; _gL=0;
+  if(!((W.rw||(W.real&&W.real.rw)) && typeof realWaterBase==='function' && cell.wat.length && realWaterBase(b,cell,W)))        /* water cut out of the paving (palace_ride_water.py) */
   gflat(b,[x0,y0,x1,y0,x1,y1,x0,y1],0,(typeof REAL!=='undefined'&&REAL.isOn&&REAL.isOn())?12:11,0,true);        /* the base is paving in the real street world (asphalt is only what a road ribbon lays on it), asphalt in the page's own city */
   for(i=0;i<cell.til.length;i++){ o=cell.til[i]; var rg=MB.ringOut(o.ring), n=rg.length/2, k;
     for(k=0;k<n;k++){ var j=(k+1)%n, ax=rg[2*k], ay=rg[2*k+1], bx=rg[2*j], by=rg[2*j+1], dx=bx-ax, dy=by-ay, l=Math.hypot(dx,dy); if(l<.2) continue; gwall(b,ax,ay,bx,by,0,GZ_SIDE,-dy/l,dx/l,0,45,0); }
     gflat(b,rg,GZ_SIDE,12,0,true);
     if(o.inner) gflat(b,MB.ringOut(o.inner),GZ_SIDE,46+64,0,true); }
   for(i=0;i<cell.par.length;i++){ o=cell.par[i]; var pr=o.ring; if(pr.length>2400){ var kk=Math.ceil(pr.length/2400), q=[]; for(var ii=0;ii<pr.length/2;ii+=kk) q.push(pr[2*ii],pr[2*ii+1]); pr=q; } gflat(b,pr,o.mat?.02:GZ_SIDE+.05,(o.mat||13)+128,0,true); }                 /* o.mat: a real-street area (parking, park, pitch) lies below the roads, paint and kerbs; the page's own parks sit on the sidewalk level */
-  for(i=0;i<cell.wat.length;i++){ o=cell.wat[i]; var sw=glStrip(o.x0,o.y0,o.x1,o.y1,o.w+3.5,3), sv=glStrip(o.x0,o.y0,o.x1,o.y1,o.w,3); gflat(b,sw,.06,12+64,0,true); gflat(b,sv,.12,10+128,0,true); }
-  for(i=0;i<cell.rod.length;i++){ o=cell.rod[i]; glRoadSeg(b,o); }
+  for(i=0;i<cell.wat.length;i++){ o=cell.wat[i]; if(o.rw) continue; var sw=glStrip(o.x0,o.y0,o.x1,o.y1,o.w+3.5,3), sv=glStrip(o.x0,o.y0,o.x1,o.y1,o.w,3); gflat(b,sw,.06,12+64,0,true); gflat(b,sv,.12,10+128,0,true); }
+  for(i=0;i<cell.rod.length;i++){ o=cell.rod[i]; glRoadSeg(b,o); if(o.br && typeof realBridgeSeg==='function') realBridgeSeg(b,o,W); }
   for(i=0;i<cell.das.length;i++){ o=cell.das[i]; glQuad4(b,o.ring,.1,40+128,0); }
   for(i=0;i<cell.xs.length;i++) glCrosswalk(b,cell.xs[i]); }
 function glStrip(ax,ay,bx,by,w,ext){ var dx=bx-ax, dy=by-ay, l=Math.hypot(dx,dy)||1, ux=dx/l, uy=dy/l, nx=-uy*w/2, ny=ux*w/2; ax-=ux*ext; ay-=uy*ext; bx+=ux*ext; by+=uy*ext; return [ax+nx,ay+ny, bx+nx,by+ny, bx-nx,by-ny, ax-nx,ay-ny]; }
@@ -291,7 +297,7 @@ function glPlan(W){
   function cell(x,y){ var ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), k=ci+','+cj, c=G.cells[k]; if(!c){ c=G.cells[k]={ci:ci,cj:cj,key:k,msh:[],sol:[],til:[],par:[],wat:[],rod:[],das:[],xs:[],h:0,rad:0,state:0,job:null}; G.keys.push(k); } return c; }
   (W.meshes||[]).forEach(function(m){ if(!m||!m.a||!m.a.length||m.tex||typeof m.id!=='string'||m.id.indexOf('scn:')!==0) return; var q=m.id.slice(4).split(','), ci=+q[0], cj=+q[1]; if(!isFinite(ci)||!isFinite(cj)) return;
     var c=cell((ci+.5)*CELL,(cj+.5)*CELL), n=m.a.length, hh=n; for(var u=0;u<8;u++) hh=glHashStr(hh,Math.round(m.a[Math.floor(u*(n-1)/7)]*50)); c.msh.push(m); m._gm=1; c.h=glHashStr(c.h,hh); });
-  (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)+(s.hide?s.hide.length*17:0)+(s.nodraw?29:0)+(s.roofDz?41:0)); c.rad=Math.max(c.rad,s.r||0); });
+  (W.solids||[]).forEach(function(s){ if(s.kind==='lm' && lmMesh[s.name]) return; var c=cell(s.cx,s.cy); c.sol.push(s); c.h=glHashStr(c.h,Math.round(s.cx*8)+Math.round(s.cy*8)*7+Math.round(s.h*8)*13+s.n*3+(s.kind==='lm'?5:0)+(s.z0?Math.round(s.z0*9):0)+(s.hide?s.hide.length*17:0)+(s.nodraw?29:0)+(s.roofDz?41:0)); if(s.fg) c.h=glHashStr(c.h,s.fg.g*7+(s.fg.fe+1)*131+(s.fg.sm%65521)*3+(s.fg.pe%65521)*5+s.fg.er*977); if(s.shop) c.h=glHashStr(c.h,Math.round(s.shop.hue*97)+(s.shop._hide?7:11)); c.rad=Math.max(c.rad,s.r||0); });      /* the facade class and the shop are part of what a cell looks like: a change rebuilds it */
   (W.tiles||[]).forEach(function(t){ var c=cell(t.cx,t.cy); c.til.push(t); c.h=glHashStr(c.h,Math.round(t.cx*5)+Math.round(t.cy*3)+t.ring.length); c.rad=Math.max(c.rad,t.r||0); });
   (W.parks||[]).forEach(function(p){ var c=cell(p.cx,p.cy); c.par.push(p); c.h=glHashStr(c.h,Math.round(p.cx*5)+Math.round(p.cy*3)+p.ring.length*11); c.rad=Math.max(c.rad,p.r||0); });
   (W.water||[]).forEach(function(w){ var c=cell(w.cx,w.cy); c.wat.push(w); c.h=glHashStr(c.h,Math.round(w.cx*5)+Math.round(w.cy*3)+Math.round(w.w)); c.rad=Math.max(c.rad,w.r||0); });
@@ -459,7 +465,7 @@ function glLight(P){
   else { L.sun=[-.55,-.66,.62]; L.sunCol=[2.9,2.55,2.05]; L.skyA=[.42,.49,.60]; L.gndA=[.28,.265,.24]; L.exp=1.0; }
   var l=Math.hypot(L.sun[0],L.sun[1],L.sun[2]); L.sun=[L.sun[0]/l,L.sun[1]/l,L.sun[2]/l];
   L.zen=glLin(P.zen); L.hor=glLin(P.hor); L.fog=glLin(P.fog); L.gnd=dk?[.016,.017,.022]:[.12,.115,.11];
-  return L; }
+  return gfxLight(L); }
 function glUni(gl,pg,L,tm,vp){
   var u=pg.u;
   if(u.uVP) gl.uniformMatrix4fv(u.uVP,false,vp);
@@ -487,11 +493,11 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   var pg=GLX.prog, a=pg.a, i, st=GLX.st; gl.useProgram(pg.p); glUni(gl,pg,L,tm,vp); gl.uniform1f(pg.u.uInst,0);
   var names=['aP','aN','aUV','aMT','aDC','aHA']; names.forEach(function(n){ gl.enableVertexAttribArray(a[n]); });
   gl.disableVertexAttribArray(a.aI); gl.disableVertexAttribArray(a.aT2); gl.vertexAttrib4f(a.aI,0,0,0,0); gl.vertexAttrib2f(a.aT2,-1,0);
-  glSceneryUni(gl,pg,Wd,L);
+  glSceneryUni(gl,pg,Wd,L); gfxUni(gl,pg);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,GLX.noise);
   var sd=GLX.shd; if(sd&&sd.ok&&sd.on){ var cf=sd.c[0], cq=sd.c[1]; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,cf.tex); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,cq.tex); gl.activeTexture(gl.TEXTURE0);
-    gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
-  else { gl.uniformMatrix4fv(pg.u.uLP,false,GLX.ident); gl.uniformMatrix4fv(pg.u.uLQ,false,GLX.ident); gl.uniform4f(pg.u.uShP,0,0,0,0); gl.uniform2f(pg.u.uShQ,0,0); gl.uniform2f(pg.u.uNOff,0,0); }
+    gl.uniformMatrix4fv(pg.u.uLP,false,cf.lp); gl.uniformMatrix4fv(pg.u.uLQ,false,cq.lp); gl.uniform4f(pg.u.uShP,1,1/cf.S,cf.biasD,cq.biasD); gl.uniform2f(pg.u.uShQ,1/cq.S,0); var fo=cf.off||[0,0], qo=cq.off||[0,0]; gl.uniform4f(pg.u.uShO,fo[0],fo[1],qo[0],qo[1]); gl.uniform2f(pg.u.uNOff,cf.texel*cf.cfg.noff,cq.texel*cq.cfg.noff); }
+  else { gl.uniformMatrix4fv(pg.u.uLP,false,GLX.ident); gl.uniformMatrix4fv(pg.u.uLQ,false,GLX.ident); gl.uniform4f(pg.u.uShP,0,0,0,0); gl.uniform2f(pg.u.uShQ,0,0); gl.uniform4f(pg.u.uShO,0,0,0,0); gl.uniform2f(pg.u.uNOff,0,0); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);          /* the contact shadows (material 50) are the only fragments with alpha < 1 */
   var G=glPlan(Wd), draws=0, tris=0; _gvis.length=0;
   G.keys.forEach(function(k){ var o=glCellObj(G,k); if(!o) return; o.use=GLX.frame; if(glSphVis(o.cx,o.cy,o.cz,o.r)) _gvis.push(o); });
@@ -555,7 +561,7 @@ var GLAPI={ cur:null, way:function(M){ GLX.curWay=M?glWayGet(M):null; return GLX
 /* the whole city for camera C into the GL canvas; returns false when GL is not usable (the caller then paints with the 2D fallback) */
 function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   if(!glOk()) return false; var gl=GLX.gl, t0=performance.now();
-  GLX.frame++; var cw=R.cv.width, ch=R.cv.height; glSize(cw,ch); gl.viewport(0,0,cw,ch);
+  GLX.frame++; var sz=gfxSize(), cw=sz[0], ch=sz[1]; glSize(cw,ch); gl.viewport(0,0,cw,ch);
   var vp=glCamera(), L=glLight(P);
   GLX.curWay=null; if(way){ way(GLAPI); }
   var mvs=glMoversOf(Wd,tm);
@@ -564,9 +570,9 @@ function glFrame(ctx,W,H,P,Wd,yaw,tm,way){
   var tB=performance.now(); glWork(Wd, GLX.fresh?40:2.8); GLX.fresh=false;
   glEvict();
   var tC=performance.now(); glShadowPass(gl,Wd,L,cw,ch);
-  var tD=performance.now(); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
+  var tD=performance.now(); gfxBegin(gl,cw,ch); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
   glDrawSky(gl,L,tm,vp);
-  glDrawWorld(gl,Wd,L,tm,vp);
+  glDrawWorld(gl,Wd,L,tm,vp); gfxEnd(gl,cw,ch);
   var tE=performance.now(), pk=GLX.st.pk||(GLX.st.pk={way:0,work:0,shadow:0,draw:0});
   pk.way=Math.max(pk.way,tB-tA); pk.work=Math.max(pk.work,tC-tB); pk.shadow=Math.max(pk.shadow,tD-tC); pk.draw=Math.max(pk.draw,tE-tD);
   /* a still frame (reduced motion, a held arrival) has no loop to finish the chunks still being built: ask for one more render */
@@ -599,9 +605,9 @@ _JS_GL_SHADOW = r"""
 var GL_CASC=[{R:420, S:2048, ahead:190, snap:128, bias:.55, noff:1.3}, {R:100, S:2048, ahead:34, snap:64, bias:.22, noff:1.4}];
 function glShadowSetup(gl){
   GLX.shd={ok:false}; if(window._palRideNoShadow) return;
-  var ext=gl.getExtension('WEBGL_depth_texture')||gl.getExtension('WEBKIT_WEBGL_depth_texture'); if(!ext) return;
+  var ext=GFX.wgl2||gl.getExtension('WEBGL_depth_texture')||gl.getExtension('WEBKIT_WEBGL_depth_texture'); if(!ext) return;
   try{ var cs=[], ok=true;
-    GL_CASC.forEach(function(c){ var S=c.S, tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex); gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT,S,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+    GL_CASC.forEach(function(c){ var S=c.S, tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex); gl.texImage2D(gl.TEXTURE_2D,0,GFX.wgl2?gl.DEPTH_COMPONENT24:gl.DEPTH_COMPONENT,S,S,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       var rb=gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER,rb); gl.renderbufferStorage(gl.RENDERBUFFER,gl.RGBA4,S,S);
       var fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,tex,0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,rb);
@@ -617,7 +623,7 @@ function glShadowPass(gl,Wd,L,cw,ch){
     var DSTEP=32, cb=Math.round((Ls[0]*ox+Ls[1]*oy)/DSTEP)*DSTEP, cMin=cb-500-DSTEP/2, cMax=cb+440+DSTEP/2, k=2/(cMax-cMin), m=c.lp;       /* the depth range is part of what the map was drawn with: it moves in steps, and a step redraws the map (it used to follow the camera
       every frame while the map was only redrawn every few units: the ground stood sunlit, then in shadow, then sunlit as you walked) */
     m[0]=a[0]/Rs; m[4]=a[1]/Rs; m[8]=a[2]/Rs; m[12]=-oa/Rs; m[1]=b[0]/Rs; m[5]=b[1]/Rs; m[9]=b[2]/Rs; m[13]=-ob/Rs; m[2]=-Ls[0]*k; m[6]=-Ls[1]*k; m[10]=-Ls[2]*k; m[14]=cMax*k-1; m[3]=0; m[7]=0; m[11]=0; m[15]=1;
-    c.biasD=cf.bias/(cMax-cMin);
+    c.biasD=cf.bias/(cMax-cMin); c.off=[(a[0]*ox+a[1]*oy-oa)/Rs,(b[0]*ox+b[1]*oy-ob)/Rs];      /* the unsnapped centre in the map's clip space (uShO): the cascade blend band follows it, not the snapped map */
     var key=oa+'|'+ob+'|'+cb+'|'+n+'|'+GLX.gen+'|'+nm+'|'+G.keys.length+'|'+Ls[0]+'|'+(ci?'':'');
     if(key===c.key) continue; c.key=key;
     if(!prepared){ prepared=true; gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,null); gl.activeTexture(gl.TEXTURE0);
@@ -632,4 +638,4 @@ function glShadowPass(gl,Wd,L,cw,ch){
   if(prepared){ gl.disableVertexAttribArray(ap); gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true,true,true,true); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); GLX.st.shadowDraws=drawn; } }
 """
 
-JS_GL = _GLS + _JS_GL_MAIN + _JS_GL_BUILD + _JS_GL_CHUNKS + _JS_GL_WAY + _JS_GL_SHADOW + _JS_GL_FRAME
+JS_GL = _GLS + JS_GFX + _JS_GL_MAIN + _JS_GL_BUILD + _JS_GL_CHUNKS + _JS_GL_WAY + _JS_GL_SHADOW + _JS_GL_FRAME

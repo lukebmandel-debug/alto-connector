@@ -124,8 +124,8 @@ def test_the_world_shader_compiles_and_links_in_webkit(page):
     assert r == "ok", r
 
 
-def test_fine_iron_is_dropped_beyond_35_m_and_shops_are_tinted_by_trade():
-    assert "if(dist>35.*UMc) discard;" in sh.FS_WORLD and ",39);" in fc.JS_FACADE
+def test_fine_iron_thins_out_beyond_24_m_and_shops_are_tinted_by_trade():
+    assert "smoothstep(24.*UMc,46.*UMc,dist)) discard;" in sh.FS_WORLD and ",39);" in fc.JS_FACADE        # 2.0.1: thinned piece by piece, not gone at once at 35 m (test_palace_2001_pop.py)
     assert "hue:fcShopHue(cat,hs)" in palace_ride_street.JS_STREET
 
 

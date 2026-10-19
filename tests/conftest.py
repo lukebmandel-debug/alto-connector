@@ -18,6 +18,53 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# ── tests never make a sound ─────────────────────────────────────────────────────────────────────────────────────
+# The palace's sound code (battleship, crowd, ...) stays exactly as it is in Alto; only the TEST browsers are silenced, so a run on the
+# owner's Mac is not audible. Every Playwright browser the tests open gets (1) a page script that routes anything an AudioNode sends to the
+# context's destination through a zero-gain node (the whole Web Audio graph still runs, so tests of it still see real nodes) and keeps
+# media elements muted, and (2) --mute-audio for Chromium. ALTO_TEST_SOUND=1 turns this off (to hear a test on purpose).
+_MUTE_JS = """(function(){ try{
+  var AN=window.AudioNode; if(AN && AN.prototype && !AN.prototype.__altoMuted){ var oc=AN.prototype.connect; AN.prototype.__altoMuted=true;
+    AN.prototype.connect=function(d){ try{ if(d && window.AudioDestinationNode && d instanceof window.AudioDestinationNode){ var cx=d.context; if(!cx.__altoMute){ var g=cx.createGain(); g.gain.value=0; oc.call(g,d); cx.__altoMute=g; }
+      var a=Array.prototype.slice.call(arguments); a[0]=cx.__altoMute; oc.apply(this,a); return d; } }catch(e){} return oc.apply(this,arguments); }; }
+  var M=window.HTMLMediaElement; if(M && M.prototype && !M.prototype.__altoMuted){ var op=M.prototype.play; M.prototype.__altoMuted=true; M.prototype.play=function(){ try{ this.muted=true; this.volume=0; }catch(e){} return op.apply(this,arguments); }; }
+  if(window.speechSynthesis){ try{ window.speechSynthesis.speak=function(){}; }catch(e){} }
+}catch(e){} })();"""
+
+
+def _silence_test_browsers():
+    import os
+    if os.environ.get("ALTO_TEST_SOUND") == "1":
+        return
+    try:
+        from playwright.sync_api import Browser, BrowserType
+    except Exception:
+        return
+    if getattr(Browser, "_alto_muted", False):
+        return
+    o_ctx, o_page, o_launch = Browser.new_context, Browser.new_page, BrowserType.launch
+
+    def new_context(self, *a, **k):
+        c = o_ctx(self, *a, **k)
+        c.add_init_script(_MUTE_JS)
+        return c
+
+    def new_page(self, *a, **k):
+        p = o_page(self, *a, **k)
+        p.context.add_init_script(_MUTE_JS)
+        return p
+
+    def launch(self, *a, **k):
+        if getattr(self, "name", "") == "chromium":
+            k["args"] = list(k.get("args") or []) + ["--mute-audio"]
+        return o_launch(self, *a, **k)
+
+    Browser.new_context, Browser.new_page, BrowserType.launch = new_context, new_page, launch
+    Browser._alto_muted = True
+
+
+_silence_test_browsers()
+
 
 @pytest.fixture(autouse=True)
 def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):

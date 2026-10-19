@@ -40,8 +40,14 @@ function fcType(rec, h, area, ob){
   if(h<=13.5 && area<=420) return /house/.test(k)?3:4;
   if(h<=12 && area>1500) return 9;
   return h>16?(area>900?12:5):4; }
+/* is the road data round this footprint loaded? fcClass reads the roads (rlNear) for the street-facing edges; a classification made at the edge of the loaded data (a tower gathered 700 m out)
+   must not be cached on the record, or the building keeps a wrong front for the session and looks different by the way you came to it */
+function fcCovered(ring, n){ var H=(typeof REAL!=='undefined')&&REAL.have; if(!H||!H.length) return true; var cx=0, cy=0, r=0, i; for(i=0;i<n;i++){ cx+=ring[2*i]/n; cy+=ring[2*i+1]/n; } for(i=0;i<n;i++) r=Math.max(r,Math.hypot(ring[2*i]-cx,ring[2*i+1]-cy));
+  for(i=0;i<H.length;i++) if(Math.hypot(cx-H[i][0],cy-H[i][1])+r+30<=H[i][2]) return true; return false; }
 function fcClass(rec, ring, n, h, area, ob, seed){
   if(rec._fg && rec._fg.n===n) return rec._fg;
+  var fg=fcClass0(rec, ring, n, h, area, ob, seed); if(fcCovered(ring,n)) rec._fg=fg; return fg; }
+function fcClass0(rec, ring, n, h, area, ob, seed){
   var g=rec.ty>0&&rec.ty<=16?rec.ty:fcType(rec,h,area,ob), er=rec.er>0?rec.er:FC_ERA_OF_YR(rec.yr||parseInt(String(rec.sd||'').slice(0,4),10)||0);
   if(!er){ var old=!!(rec.fl&16); er=old?(seed<.35?1:2):(g<=3?(seed<.3?2:3):(g===6||g===12||g===13?(h>90?5:seed<.5?4:5):(g===7||g===16||g===8||g===10||g===14||g===9?(seed<.45?2:3):(seed<.5?3:4)))); }
   /* the street-facing edges (outward normal meets a road within its half width + 7 m, roughly parallel); the main front = the data's fe, else the longest of them */
@@ -52,7 +58,7 @@ function fcClass(rec, ring, n, h, area, ob, seed){
     if(nr.d<hw+7 && Math.abs(Math.cos(nr.ang-Math.atan2(ey,ex)))>.75){ sm|=(1<<i); if(l>bl){ bl=l; best=i; } } }
   var fe=rec.fe>0?rec.fe-1:best; if(fe>=0 && fe<31) sm|=(1<<fe);
   var pe=rec.pe|0; if(fe>=0) pe&=~(1<<fe);
-  return rec._fg={g:g, er:er, by:Math.min(15,rec.by|0), st:Math.min(60,rec.st|0), fe:fe, pe:pe, sm:sm, sd:seed, n:n, pc:rec.pc|0}; }
+  return {g:g, er:er, by:Math.min(15,rec.by|0), st:Math.min(60,rec.st|0), fe:fe, pe:pe, sm:sm, sd:seed, n:n, pc:rec.pc|0}; }
 /* the roof kind for gatherReal's roofOf: 0 flat+parapet, 1 gable, 2 hip, -1 none (towers) */
 function fcRoofKind(fg, rs, rect, area, h, hs){
   var r=String(rs||''); if(/gabled|gambrel|saltbox/.test(r)) return rect?1:0; if(/hipped|pyramidal/.test(r)) return rect?2:0; if(/flat/.test(r)) return 0;
@@ -170,9 +176,13 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
   bool modern=er>3.5; bool old=er>.5&&er<2.5;
   vec3 tf=clamp(dc/max((dc.r+dc.g+dc.b)/3.,.01),.4,1.8);
   vec3 body;
-  bool far=fp.x>.12;                                                          /* far: flat colours, no texture reads, the window grid only (below) */
-  if(far) body=isBrick?vec3(dot(brickPal(T),vec3(.333)))*tf*.98:(isStone?stonePal(T)*.93:(isConc?vec3(.585)*(modern?1.:1.18):vec3(.12,.15,.2)));
-  else if(isBrick) body=fcBrick(uv,T,fp,(er>.5&&er<1.5)?1.:0.,tf); else if(isStone) body=stoneTex(uv,T,fp); else if(isConc) body=concTex(uv,T,fp)*(modern?1.:1.18); else body=vec3(.12,.15,.2);
+  /* near -> far is a BLEND over a band (kf 0..1 as a pixel grows from 9 to 20 cm of wall), never a switch: the band used to be one threshold (fp.x > .12) that swept across a facade as you walked past it
+     (fp.x is the footprint ALONG the wall, large at grazing angles), and every window, sign and brick course on one side of it redrew itself (1.9.102 owner report) */
+  float kf=(rel||isGlass)?0.:smoothstep(.09,.2,fp.x);
+  vec3 bodyF=isBrick?vec3(dot(brickPal(T),vec3(.333)))*tf*.98:(isStone?stonePal(T)*.93:(isConc?vec3(.585)*(modern?1.:1.18):vec3(.12,.15,.2)));
+  if(kf>.999) body=bodyF;
+  else { if(isBrick) body=fcBrick(uv,T,fp,(er>.5&&er<1.5)?1.:0.,tf); else if(isStone) body=stoneTex(uv,T,fp); else if(isConc) body=concTex(uv,T,fp)*(modern?1.:1.18); else body=vec3(.12,.15,.2);
+    body=mix(body,bodyF,kf); }
   body*=mix(vec3(1.),tf,isBrick?0.:(isConc?.8:.5));
   alb=body;
   vec2 fw=vec2(max(fp.x,.012),max(fp.y,.012));
@@ -195,13 +205,31 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
   float glM=0.; vec3 glassAlb=vec3(.026,.033,.042); vec3 glEmi=vec3(0.);
   vec3 trim=old?(isBrick?vec3(.82,.80,.74):body*1.14):(er>2.5&&er<3.5?vec3(.70,.66,.58):vec3(.44,.45,.46));
   float fk=fract(T*53.1); vec3 frC=old?vec3(.84,.82,.76):(er<3.5?(fk<.5?vec3(.84,.82,.76):(fk<.75?vec3(.12,.13,.12):vec3(.22,.30,.25))):vec3(.55,.56,.57));
-  float lit=night>.01?step(h21(vec2(fi*7.1+bi*1.31,T*91.)),litP)*night:0.; float blind=fp.x>.12?0.:step(.72,h21(vec2(fi+bi*3.,T*5.)));          /* hashes only where they show */
+  float lit=night>.01?step(h21(vec2(fi*7.1+bi*1.31,T*91.)),litP)*night:0.; float blind=step(.72,h21(vec2(fi+bi*3.,T*5.)));       /* (blind no longer depends on the distance: it flipped the glass at the old threshold) */
   bool blankB=!street&&(house||shopG)&&fract(sin(bi*3.1+fi*7.7+T*91.)*437.5)<.65;
-  if(far && !rel && !isGlass){                                          /* far (a pixel covers > 12 cm): the window grid only, no sashes, shutters, signs or doors */
-    vec2 loc=vec2(ul,ground?v:vl); float ww=house?min(.98,bwa*.46):(park||ind?bwa-.9:min(1.3,bwa*.42)); float wh=ground?(shopG&&street?gh-1.9:1.6):(ind?fh-1.7:(park?fh-1.3:min(fh-1.2,1.8)));
-    float cy=ground?(shopG&&street?.6+wh*.5:gh*.5+.2):.95+wh*.5; float w=pier||blankB||(ground&&!street&&house)?0.:rectm(loc,vec2(bwa*.5,cy),vec2(ww,wh)*.5,fw);
-    alb=mix(alb,park?vec3(.05):vec3(.04,.045,.055),w); refl=(.1+.3*fres)*w; emi=vec3(1.,.78,.48)*w*lit*.75;
-    float c0=Hh-cor; alb=mix(alb,(rowh||shopG)?vec3(.7,.68,.63):mix(trim,body,.3),smoothstep(c0,c0+.04,v)*(modern?0.:1.)); return; }
+  vec3 fA=alb; vec3 fE=vec3(0.); float fR=0.;
+  if(kf>.001){                                                          /* far (a pixel covers > 9 cm): the window grid only, laid out like the near windows below, and FILTERED - as a pixel grows towards a bay the
+                                                                           window mask fades to its area share of the bay (an analytic box filter), so far walls settle to their average colour with no moire and no switch */
+    vec2 loc=vec2(ul,ground?v:vl); float ww; float wh; float cy; float nw=1.; float sH=er<3.5?.9:.35;
+    if(ground){
+      if(street&&shopG){ ww=bwa-.44; wh=max(.4,gh-1.95); cy=.6+wh*.5; }
+      else if(rowh&&front){ ww=min(.98,bwa*.46); wh=1.6; cy=sH+1.42; }
+      else if(street&&(office||hotel||tower||g>4.5&&g<5.5||civic||school)){ ww=min(1.4,bwa*.5); wh=gh*.64; cy=gh*.5+.2; }
+      else if(street&&ind){ ww=bwa-1.2; wh=gh*.44; cy=gh*.6; }
+      else { ww=house?min(.98,bwa*.46):min(1.1,bwa*.38); wh=min(gh-1.2,1.7); cy=gh*.5+.15; } }
+    else if(park||ind||school||(office&&modern&&isConc)||(g>14.5&&g<15.5)){ ww=park?bwa-.9:(ind?bwa-1.:(school?bwa-.55:bwa-.12)); wh=park?fh-1.3:(ind?fh-1.7:(school?min(fh*.64,2.7):fh*.48)); cy=(park?1.05:(school?.85:(ind?.95:fh*.31)))+wh*.5; }
+    else { float pr=(office&&!modern)||(hotel&&!modern)?1.:0.;
+      ww=house?min(.98,bwa*.46):(civic?min(1.5,bwa*.42):(pr>.5?min(.95,bwa*.27):(tower?max(1.,bwa-.9):(modern?min(1.9,bwa*.62):min(1.05,bwa*.36)))));
+      wh=house?min(fh-1.15,old?1.85:1.7):(civic?min(fh-1.3,2.7):(tower?1.55:(modern?1.5:min(fh-1.2,1.9)))); cy=.95+wh*.5;
+      if(pr>.5){ nw=2.; loc.x=(ul<bwa*.5?ul:bwa-ul)+bwa*.5-(bwa*.5-ww*.5-.18); } }
+    ww=max(ww,.1); wh=max(wh,.1);
+    float hide=(pier||(blankB&&!ground)||(ground&&!street&&house))?1.:0.;
+    float w=(1.-hide)*rectm(loc,vec2(bwa*.5,cy),vec2(ww,wh)*.5,fw);
+    float cell=ground?gh:fh; float cov=clamp(nw*ww*wh/(bwa*cell),0.,.9)*((blankB&&!ground)?.35:1.)*((ground&&!street&&house)?0.:1.);
+    float ka=smoothstep(.1,.35,max(fp.x/bwa,fp.y/cell)); w=mix(w,cov,ka);
+    fA=mix(body,park?vec3(.05):vec3(.04,.045,.055),w); fR=(.1+.3*fres)*w; fE=vec3(1.,.78,.48)*w*mix(lit,litP*night,ka)*.75;
+    float c0=Hh-cor; fA=mix(fA,(rowh||shopG)?vec3(.7,.68,.63):mix(trim,body,.3),smoothstep(c0,c0+.04,v)*(modern?0.:1.));
+    if(kf>.999){ alb=fA; emi=fE; refl=fR; return; } }
   vec2 wp=vec2(0.); vec2 wc=vec2(0.); vec2 whs=vec2(0.); float wer=er; float wOn=0.;              /* one sash window per fragment, drawn once after the branches (the shader inlines fcDH once) */      /* the side and the back of a house: few windows */
   if(!ground && !pier && !blankB && !rel){
     vec2 loc=vec2(ul,vl);
@@ -296,5 +324,6 @@ void facadeG(float type, vec2 uv, float L, float H, float T, vec2 fp, vec3 dc, f
     if(cb>.5 && !modern){ float dent=step(.5,fract(u/.24))*(1.-smoothstep(c0+.12,c0+.16,v)); float br=(rowh||shopG)?(1.-step(.3,u)*step(u,L-.3))*(1.-step(c0+.75,v)):0.;
       alb*=1.-.22*dent*(1.-smoothstep(.4,1.6,fp.x*10.)); alb=mix(alb,cc*.8,br); alb*=.94+.08*smoothstep(c0+.3,c0+.34,v); emi=vec3(0.); refl=0.; }
   }
+  if(kf>.001){ alb=mix(alb,fA,kf); emi=mix(emi,fE,kf); refl=mix(refl,fR,kf); }
 }
 """

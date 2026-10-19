@@ -37,6 +37,7 @@ for a cell that stays loaded.
 
 from .palace_ride_door import CSS_DOOR, JS_DOORS
 from .palace_ride_inside import CSS_INSIDE, JS_INSIDE, JS_INSIDE_GL      # FPV phase 2: looking up / down, going inside a node building
+from .palace_ride_mark import CSS_MARK, JS_MARK                            # 2.0.1: content buildings made obvious (labels, beams, Nearby, mini-map)
 
 _JS_E = r"""
 var ROAM=(function(){
@@ -91,7 +92,7 @@ function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Ma
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
 function blockedAt(x,y){
   if(IN.on) return insideBlocked(x,y);                             /* inside a building: its footprint is the room (palace_ride_inside.py) */
-  if(S.real) return buildingHit(x,y)||obstHit(x,y);
+  if(S.real) return buildingHit(x,y)||obstHit(x,y)||(typeof realWaterHit==='function'&&realWaterHit(x,y,S.W,PRX()));      /* not into the water (palace_ride_water.py) */
   if(x<CFG.edge || y<CFG.edge || x>E.M.W-CFG.edge || y>E.M.H-CFG.edge) return true;
   if(inWaterZone(x,y,0) && !onDeck(x,y)) return true;
   return buildingHit(x,y); }
@@ -256,10 +257,17 @@ function realGather(){                                                  /* the w
   var t0=performance.now(); RW.gen=null; realFinish(REAL.gather(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k}),S.x,S.y,performance.now()-t0); }
 /* the world ahead, a few milliseconds a frame: the generator (palace_ride_street.py gatherRealG) yields between 400 m chunks and steps, the frame loop gives it CFG.budget ms each frame, and the swap happens once, when it is done.
    A 105 m walk used to stop for the whole gather (30-45 ms, two or three dropped frames). */
+/*@WD-begin: the gather watchdog (2.0.1): a sliced gather that has spent more than RW_WD ms in all is abandoned - the old world stays on screen - and tried again a second
+   later with a smaller radius (x .7, never under RW_RMIN m); a gather that finishes lets the radius grow back. A single bad feature can then cost a few frames, never the tab. @*/
+var RW_WD=250, RW_RMIN=180, RW_WAIT=1000;
 function realGatherStep(sync){
-  if(!RW.gen){ RW.gx=S.x; RW.gy=S.y; RW.gms=0; RW.gen=REAL.gatherG(0,0,RW.R,{x:S.x/UM,y:S.y/UM,k:RW.k}); }
+  if(!RW.gen){ RW.gx=S.x; RW.gy=S.y; RW.gms=0; RW.gR=RW.Rnow||RW.R; RW.gen=REAL.gatherG(0,0,RW.gR,{x:S.x/UM,y:S.y/UM,k:RW.k}); }
   var t0=performance.now(), r; do{ r=RW.gen.next(); }while(!r.done && (sync || performance.now()-t0<CFG.budget));
-  RW.gms+=performance.now()-t0; if(r.done){ RW.gen=null; realFinish(r.value,RW.gx,RW.gy,RW.gms); } }
+  RW.gms+=performance.now()-t0;
+  if(r.done){ RW.gen=null; RW.Rnow=Math.min(RW.R,Math.round(RW.gR*1.25)); realFinish(r.value,RW.gx,RW.gy,RW.gms); return; }
+  if(!sync && RW.gms>RW_WD){ try{ RW.gen.return(); }catch(x){} RW.gen=null; RW.aborts=(RW.aborts||0)+1; RW.Rnow=Math.max(RW_RMIN,Math.round(RW.gR*.7)); RW.wdAt=performance.now()+RW_WAIT;
+    if(window.console&&console.warn&&RW.aborts<4) console.warn('roam: a street gather took over '+RW_WD+' ms; kept the old world, retrying at '+RW.Rnow+' m'); } }
+/*@WD-end@*/
 /* every step in real mode: keep the world centred near the walker, fetch the shards ahead; hold the walker inside the in-bounds region */
 /* the shards for where the walker will be: when he is within 110 m of leaving the data that is loaded, fetch round his position AND the point 5 s ahead (at least 150 m along his heading), so the regather never waits for the network */
 function realPrefetch(){
@@ -269,6 +277,7 @@ function realPrefetch(){
   RW.busy=true; REAL.prepare([[rx,ry],[ax,ay]],RW.PR).then(function(ok){ RW.busy=false; RW.pre=(RW.pre||0)+1; if(ok===false) rwlFail(); else if(ok) rwlReset(); }, function(e){ RW.busy=false; rwlFail(e); }); }
 function realStream(sync){
   if(RW.gen){ realGatherStep(sync); return; }
+  if(!sync && RW.wdAt && performance.now()<RW.wdAt) return;                                  /* (WD) a gather was abandoned a moment ago */
   if(!sync) realPrefetch();
   rwlHold(S.x/UM,S.y/UM);                                                                   /* (fix2) hold the walker inside the built world while the street under them is missing */
   if(RW.busy || Math.hypot(S.x-RW.cx,S.y-RW.cy)<RW.regather*UM) return;
@@ -324,6 +333,7 @@ function ensureHud(){
     +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 \u2190 \u2192 turn \u00b7 drag to look \u00b7 Shift to walk faster \u00b7 Esc to leave</div>'
     +'<div class="pr-live rm-live" aria-live="polite"></div>';
   R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), edge:h.querySelector('.rm-edge'), live:h.querySelector('.rm-live')};
+  markHud(h);                                                     /*@MARK-glue@*/
   h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); if(b.getAttribute('data-roam')==='door'){ openDoor(); return; } ROAMAPI.exit(b.getAttribute('data-roam')==='stay'); });
   ['click','dblclick','contextmenu','mousedown','mouseup'].forEach(function(t){ R.ov.addEventListener(t, function(e){ if(S.on){ e.stopPropagation(); if(t==='contextmenu') e.preventDefault(); } }); });
   var cv=R.cv; cv.addEventListener('pointerdown', function(e){ if(!S.on||e.button>0||DR.busy) return; S.drag={id:e.pointerId,x:e.clientX,y:e.clientY,mv:0}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} R.ov.classList.add('drag'); e.preventDefault(); });
@@ -355,6 +365,7 @@ function onKey(e){
   e.preventDefault(); e.stopImmediatePropagation();
   if(e.type==='keydown') DN[e.key]=1; else delete DN[e.key];
   if(e.type==='keydown' && doorKey(e)) return;
+  if(e.type==='keydown' && markKey(e)) return;                   /*@MARK-glue@*/
   if(e.type==='keydown' && e.key==='Escape'){ ROAMAPI.exit(false); return; }
   S.run=!!e.shiftKey;
   setKey(keyName(e), e.type==='keydown'); }
@@ -388,6 +399,7 @@ function draw(){
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
   ctx.setTransform(dpr,0,0,dpr,0,0); doorGlow(ctx);
+  markDraw(ctx);                                                 /*@MARK-glue@*/
   var ms=performance.now()-t0; S.fr.push(ms); if(S.fr.length>600) S.fr.shift(); }
 /* the one place the camera is set: setCam's 8th argument is the real pitch (the GL renderer tilts the view; the 2D fallback has no pitch of its own, so it keeps the old horizon shift) */
 function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5,pitch,fpFoc(W,H)); }
@@ -395,7 +407,7 @@ function frame(now){
   S.raf=0; if(!S.on) return;
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */
   var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
-  if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy) tick(dt,false);
+  if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy){ markSteer(dt); tick(dt,false); }      /*@MARK-glue@*/
   if(!S.real) lattRetry();
   hudFrame(false); if(IN.on) insideFrame(dt); else doorFrame(dt); draw(); showNow();
   if(S.xf && S.pendingReal){ S.xf=0; var sn=snapOver(); doSwitch(); draw(); showNow(); fadeSnap(sn); }
@@ -403,10 +415,12 @@ function frame(now){
 
 /*@DOORS@*/
 /*@INSIDE@*/
+/*@MARK@*/
 /* \u2500\u2500 enter / exit \u2500\u2500 */
 function shutdown(){
+  markReset();                                                   /*@MARK-glue@*/
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
+  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.wdAt=0; RW.Rnow=0; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
@@ -452,6 +466,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
       drawAvg:n?f.reduce(function(p,q){ return p+q; },0)/n:0, drawP95:n?f[Math.floor(n*.95)]:0, drawMax:n?f[n-1]:0, frames:n}; },
   /* the doors (palace_ride_door.py): tests drive the dolly with step(ms) and the prompt with frame(dt) */
   inside:INSIDEAPI,
+  marks:MARKAPI,                                                 /*@MARK-glue@*/
   rwl:RWL,                                                       /* QA: the street-data retry state */
   door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
     state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
@@ -460,7 +475,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
   sim:function(keys, seconds, dt, run){ S.keys={}; String(keys||'').split(',').forEach(function(q){ if(q) S.keys[q]=1; }); S.run=!!run; dt=dt||1/60; var n=Math.round(seconds/dt), bad=0; for(var i=0;i<n;i++){ tick(dt,true); if(blockedAt(S.x,S.y)) bad++; } S.keys={}; S.run=false; return {x:S.x,y:S.y,bad:bad,n:n}; },
   place:function(x,y,yaw){ S.x=x; S.y=y; if(yaw!=null) S.yaw=yaw; S.vx=S.vy=0; plan(true); stream(true); var f=freeNear(S.x,S.y); S.x=f[0]; S.y=f[1]; },
   look:function(yaw,pitch){ if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); },
-  real:{ on:function(){ return !!S.real; }, upgrade:function(){ return S.upgrade||Promise.resolve(false); }, stats:function(){ return {n:RW.n, ms:RW.ms, maxMs:RW.maxMs, edge:RW.edge, R:RW.R, solids:S.W?S.W.solids.length:0}; }, gather:realGather, bound:realBound, toPage:function(){ return S.real?REAL.exit(S.x,S.y):[S.x,S.y]; } },
+  real:{ on:function(){ return !!S.real; }, upgrade:function(){ return S.upgrade||Promise.resolve(false); }, stats:function(){ return {n:RW.n, ms:RW.ms, maxMs:RW.maxMs, edge:RW.edge, R:RW.R, Rnow:RW.Rnow||RW.R, aborts:RW.aborts||0, wd:RW_WD, solids:S.W?S.W.solids.length:0}; }, gather:realGather, step:realGatherStep, bound:realBound, toPage:function(){ return S.real?REAL.exit(S.x,S.y):[S.x,S.y]; } },
   settle:function(){ var g=0; while(S.queue.length && g++<500) stream(true); stream(true); },
   draw:function(){ hudFrame(true); draw(); showNow(); },
   blocked:blockedAt, free:freeNear, world:function(){ return S.W; }, dbg:function(){ return E; }, deckSegs:function(){ return idx().decks; },
@@ -469,7 +484,7 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
 return ROAMAPI; })();
 """
 
-JS_E = JS_INSIDE_GL + _JS_E.replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE)
+JS_E = JS_INSIDE_GL + _JS_E.replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE).replace("/*@MARK@*/", JS_MARK)
 
 _CSS_E = r"""
   #pal-ride.rm .pr-chip,#pal-ride.rm .pr-btns{display:none;}
@@ -501,4 +516,4 @@ _CSS_E = r"""
   @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }
 """
-CSS_E = _CSS_E + CSS_DOOR + CSS_INSIDE
+CSS_E = _CSS_E + CSS_DOOR + CSS_INSIDE + CSS_MARK

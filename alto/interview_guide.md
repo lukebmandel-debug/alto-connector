@@ -310,6 +310,8 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline or horizontal timeline), use it as the answer and do not ask again.
+
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
 **§D-Outline** below, horizontal to **§D-Lanes**.

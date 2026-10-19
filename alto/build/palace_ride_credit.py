@@ -23,7 +23,7 @@ JS_CREDIT = r"""
 /* ── the OpenStreetMap credit and the real neighbourhood (palace_ride_credit.py) ──
    The roam HUD lives inside ROAM's closure, so the area line is corrected from outside: a MutationObserver sees the HUD write the palace district into .rm-ar and replaces it (before the next paint) with the
    real neighbourhood, or empties and hides the line when the data has none here; leaving a real walk puts the last district the HUD wrote back. */
-var CR={a:null, ar:null, lv:null, orig:'', origDisp:'', mine:null, on:false, timer:0, px:1e9, py:1e9, t:0, name:''};
+var CR={burst:0, warned:0, mo:null, force:null, a:null, ar:null, lv:null, orig:'', origDisp:'', mine:null, on:false, timer:0, px:1e9, py:1e9, t:0, name:''};
 function crStreet(){ try{ return !!(window._palStreet && window._palStreet.ready && window._palStreet.ready() && typeof REAL!=='undefined' && REAL && REAL.on && REAL.src==='street'); }catch(e){ return false; } }
 function crRoot(){ return document.getElementById('pal-ride'); }
 function crEnsure(){
@@ -37,20 +37,26 @@ function crArea(st){
   var P=window._palStreet, x=st.x/UM, y=st.y/UM; if(!P.place) return null;
   if(Math.hypot(x-CR.px,y-CR.py)<4 && performance.now()-CR.t<2000) return CR.name;
   CR.px=x; CR.py=y; CR.t=performance.now(); try{ CR.name=P.place(x,P.toMap(0,0,1)[1]-y)||''; }catch(e){ CR.name=''; } return CR.name; }
+/* the live line with the district at its end swapped for the real place: the new text, or null when nothing changes (2.0.1: writing the SAME text again is still a childList
+   mutation, so when the real neighbourhood had the district's own name - Old City, Society Hill - the observer re-fired itself forever in one microtask chain and the tab froze) */
+function crLiveText(t, pa, ar){ if(!t || !pa || t.slice(-(pa.length+2))!=='. '+pa) return null; var nu=t.slice(0,-(pa.length+2))+(ar?'. '+ar:''); return nu===t?null:nu; }
+/* a safety net under the observer: more than CR_BURST corrections without a task in between is a feedback loop - stop observing, say so once */
+var CR_BURST=40;
+function crGuard(){ if(CR.burst++===0) setTimeout(function(){ CR.burst=0; },0); if(CR.burst<=CR_BURST) return true;
+  if(CR.mo){ try{ CR.mo.disconnect(); }catch(e){} CR.mo=null; CR.ar=null; } if(!CR.warned){ CR.warned=1; if(window.console&&console.warn) console.warn('ride credit: the area line kept rewriting itself; corrections paused'); } return false; }
 function crFix(){
-  var H=CR.ar; if(!H) return; var st=crReal();
+  var H=CR.ar; if(!H || !crGuard()) return; var st=CR.force||crReal();
   if(H.textContent!==CR.mine){ CR.orig=H.textContent; CR.origDisp=H.style.display; }          /* the HUD wrote the district: remember it, it is what the lattice shows */
   if(!st){ if(CR.on){ CR.on=false; CR.mine=null; if(H.textContent!==CR.orig) H.textContent=CR.orig; H.style.display=CR.origDisp; } return; }
-  var ar=crArea(st); if(ar===null) return; CR.on=true; CR.mine=ar;
+  var ar=CR.force?CR.force.ar:crArea(st); if(ar===null) return; CR.on=true; CR.mine=ar;
   if(H.textContent!==ar) H.textContent=ar; if(H.style.display!==(ar?'':'none')) H.style.display=ar?'':'none';
-  var lv=CR.lv, pa=CR.orig, t=lv&&lv.textContent;
-  if(t && pa && t.slice(-(pa.length+2))=='. '+pa) lv.textContent=t.slice(0,-(pa.length+2))+(ar?'. '+ar:''); }
+  var lv=CR.lv, nu=lv?crLiveText(lv.textContent, CR.orig, ar):null; if(nu!==null) lv.textContent=nu; }
 function crTick(){
   var root=crRoot(), show=false;
   try{ show=!!(root && root.classList.contains('on') && crStreet() && ((typeof ROAM!=='undefined' && ROAM && ROAM.active() && ROAM.state().real) || (REAL.isOn && REAL.isOn()))); }catch(e){}
   var ar=root&&root.querySelector&&root.querySelector('.rm-ar');
   if(ar && ar!==CR.ar && typeof MutationObserver!=='undefined'){ CR.ar=ar; CR.lv=root.querySelector('.rm-live'); CR.mine=null;
-    var mo=new MutationObserver(crFix); mo.observe(ar,{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:['style']}); if(CR.lv) mo.observe(CR.lv,{childList:true,characterData:true,subtree:true}); }
+    if(CR.mo){ try{ CR.mo.disconnect(); }catch(e){} } var mo=new MutationObserver(crFix); CR.mo=mo; mo.observe(ar,{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:['style']}); if(CR.lv) mo.observe(CR.lv,{childList:true,characterData:true,subtree:true}); }
   crFix();
   if(!show && !CR.a) return;
   var a=crEnsure(); if(!a) return;
@@ -63,4 +69,5 @@ function crStart(){ if(!CR.timer) CR.timer=setInterval(crPoll,600); }
 function crPoll(){ crTick(); var root=crRoot(), open=false; try{ open=!!(root && root.classList.contains('on')); }catch(e){} if(!open && !(CR.a && CR.a.classList.contains('on'))){ clearInterval(CR.timer); CR.timer=0; } }
 try{ if(typeof MutationObserver!=='undefined' && document.documentElement && document.documentElement.classList) new MutationObserver(function(){ if(document.documentElement.classList.contains('pal-fp')) crStart(); }).observe(document.documentElement,{attributes:true,attributeFilter:['class']}); }catch(e){}
 crStart();
+REAL.credit={live:crLiveText, fix:crFix, cr:CR, tick:crTick};          /* tests: the pure rewrite, and CR.force = {x, y, real, ar} stands in for a real walk */
 """.replace("CREDIT_CSS", "'" + CSS_CREDIT.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n") + "'")

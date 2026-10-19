@@ -25,8 +25,27 @@ vec3 skyAt(vec3 d){
   float day=1.-uNight;
   c+=uSunCol*(pow(sd,6.)*.10+pow(sd,60.)*.16)*(.35+.65*day);
   c+=uSunCol*smoothstep(.99955,.99985,sd)*(day*6.+uNight*1.6);
+#ifdef GFX
+  c+=uSunCol*(pow(sd,3.)*.035+pow(sd,400.)*.5)*day*(1.-.6*h);        /* gfx: golden haze round a low sun, and a tight glare ring */
+#endif
   return c; }
+#ifdef GFX
+/* gfx (palace_ride_gfx.py): what glass and paint see. The sky above the skyline; across the street a dark band of buildings with a ragged top and lit/dark
+   windows; the street below the horizon. (1.9.102 reflected a flat constant below the horizon: curtain walls read as matte plastic.) */
+vec3 envAt(vec3 R){
+  vec3 sk=skyAt(vec3(R.xy,max(R.z,0.)));
+  float az=atan(R.y,R.x)*10.18592;                                    /* 64 / 2pi: one turn is one period of the noise texture: no seam behind you */
+  float sl=.05+.20*nz(vec2(az,3.5))+.07*nz(vec2(az*4.,9.5));
+  float w=nz(vec2(az*16.,R.z*40.));
+  vec3 city=mix(uGndA*.5+uHor*.06,uHor*.40,smoothstep(-.02,sl,R.z))*(.7+.6*w);
+  vec3 c=mix(uGndA*.30,city,smoothstep(-.12,.0,R.z));
+  return mix(c,sk,smoothstep(sl-.012,sl+.012,R.z)); }
+/* gfx tone curve: the ACES fit WITHOUT 1.9.102's +14% saturation, a 6% desaturation and a faint split tone (cool shadows, warm highlights) */
+vec3 aces(vec3 x){ vec3 c=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); float l=dot(c,vec3(.2126,.7152,.0722)); c=mix(vec3(l),c,.94);
+  c*=mix(vec3(.985,1.,1.025),vec3(1.015,1.,.975),smoothstep(.1,.6,l)); return clamp(c,0.,1.); }
+#else
 vec3 aces(vec3 x){ vec3 c=clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.); float l=dot(c,vec3(.2126,.7152,.0722)); return clamp(mix(vec3(l),c,1.14),0.,1.); }
+#endif
 """
 
 VS_WORLD = r"""
@@ -52,6 +71,17 @@ uniform sampler2D uPal; uniform sampler2D uAtl; uniform vec2 uAtlS; uniform vec4
 varying float vFade; varying float vFT;
 uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when shadows are on, y: 1/size of the far map, z: its depth bias, w: the near map's depth bias */
 uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
+uniform vec4 uShO;                                                  /* where each map's UNSNAPPED centre is in its own clip space (far xy, near zw): the cascade blend follows the camera smoothly while the maps move in texel steps */
+#ifdef GFX
+uniform sampler2D uTx0; uniform sampler2D uTx1; uniform float uTxA;   /* gfx material detail (palace_ride_gfx.py): tex0 asphalt/concrete/gravel, tex1 brick/limestone/grime; uTxA fades them in (0: none) */
+vec4 txs(sampler2D s, vec2 p){
+#ifdef GFX_HI
+  vec4 a=texture2D(s,p); vec4 b=texture2D(s,mat2(.8,-.6,.6,.8)*p*1.37+vec2(.31,.67)); return mix(a,b,smoothstep(.3,.7,nz(p*5.3)));     /* two taps blended by a slow noise: no visible repeat */
+#else
+  return texture2D(s,p);
+#endif
+}
+#endif
 float pcf(sampler2D s, vec2 uv, float z, float ts){
   vec2 q=uv/ts-.5; vec2 f=fract(q); vec2 b=(floor(q)+.5)*ts;
   float a=step(z,texture2D(s,b).r); float c=step(z,texture2D(s,b+vec2(ts,0.)).r); float d=step(z,texture2D(s,b+vec2(0.,ts)).r); float e=step(z,texture2D(s,b+vec2(ts,ts)).r);
@@ -59,9 +89,9 @@ float pcf(sampler2D s, vec2 uv, float z, float ts){
 float shadowAt(float nl){
   if(uShP.x<.5) return 1.;
   float sl=1.+3.*(1.-nl); float vis=1.; float wq=0.;
-  vec3 sc=vSQ*.5+.5; float fq=1.-smoothstep(.70,.96,max(abs(vSQ.x),abs(vSQ.y)));
+  vec3 sc=vSQ*.5+.5; vec2 qn=vSQ.xy-uShO.zw; float fq=(1.-smoothstep(.62,.9,max(abs(qn.x),abs(qn.y))))*(1.-smoothstep(.97,.995,max(abs(vSQ.x),abs(vSQ.y))));    /* the near->far blend band used to sit on the SNAPPED map and jumped ~5 m with each snap */
   float vf=1.;
-  { vec3 sf=vSL*.5+.5; float ff=1.-smoothstep(.72,.98,max(abs(vSL.x),abs(vSL.y))); float o=uShP.y*.8; float z=sf.z-uShP.z*sl;
+  { vec3 sf=vSL*.5+.5; vec2 qf=vSL.xy-uShO.xy; float ff=(1.-smoothstep(.66,.9,max(abs(qf.x),abs(qf.y))))*(1.-smoothstep(.97,.995,max(abs(vSL.x),abs(vSL.y)))); float o=uShP.y*.8; float z=sf.z-uShP.z*sl;
     if(ff>0.&&sf.z<1.&&sf.z>0.){ float v=(pcf(uSh,sf.xy+vec2(-o,-o),z,uShP.y)+pcf(uSh,sf.xy+vec2(o,-o),z,uShP.y)+pcf(uSh,sf.xy+vec2(-o,o),z,uShP.y)+pcf(uSh,sf.xy+vec2(o,o),z,uShP.y))*.25; vf=mix(1.,v,ff); } }
   if(fq>0.&&sc.z<1.&&sc.z>0.){ float o=uShQ.x*.8; float z=sc.z-uShP.w*sl;
     float v=(pcf(uSq,sc.xy+vec2(-o,-o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(o,-o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(-o,o),z,uShQ.x)+pcf(uSq,sc.xy+vec2(o,o),z,uShQ.x))*.25;
@@ -406,7 +436,7 @@ void main(){
   } else if(id<32.5){   /* lm: plain warm limestone, no window grid (palace_ride_h.py MAT.lime: 30th Street Station) - coursed blocks that fade with distance */
     float fine=1.-smoothstep(.04,.14,fpx); vec2 q=vec2(vUV.x/1.5+.5*floor(vUV.y/.76),vUV.y/.76); vec2 f=abs(fract(q)-.5); float jt=smoothstep(.44,.49,max(f.x*.6,f.y))*fine*(wallLike?1.:0.);
     alb=vec3(.80,.74,.62)*(.93+.09*nz(gp*.21)+.05*h21(floor(q)))*(1.-.16*jt);
-  } else if(id>38.5&&id<39.5){ if(dist>35.*UMc) discard; alb=vec3(.05,.05,.055); spec=1.;      /* fine iron (palace_ride_facade.py: railings, balusters, areaway pickets): gone beyond 35 m */
+  } else if(id>38.5&&id<39.5){ if(h21(floor(vP.xy*(2./UMc))+floor(vP.z*(2./UMc))*7.31)<smoothstep(24.*UMc,46.*UMc,dist)) discard; alb=vec3(.05,.05,.055); spec=1.;      /* fine iron (palace_ride_facade.py: railings, balusters, areaway pickets): thins out between 24 and 46 m, half-metre piece by piece, anchored in the world (it used to vanish at once at 35 m) */
   } else if(id<39.5){ alb=vec3(.5);
   } else if(id<40.5){   /* paint on the road */
     vec3 pc=mix(vec3(.88,.87,.8),vec3(.93,.74,.15),step(1.5,vDC.r)); float wear=nz(gp*2.7)*.6+nz(gp*9.)*.4*(1.-smoothstep(.02,.1,fpx)); alb=mix(vec3(.27)*(.85+.3*nz(gp*.8)),pc*.9,(.5+.35*smoothstep(.25,.6,wear))*(.85+.15*nz(gp*.3)));
@@ -460,17 +490,52 @@ void main(){
   }
   if(id>18.5&&id<19.5) ao*=mix(.5,1.,smoothstep(.0,.55,vP.z/UMc));                    /* the dark under a car */
   else if(id>20.5&&id<22.5) ao*=mix(.55,1.,smoothstep(.0,.7,vP.z/UMc));              /* a pole or a bin where it meets the ground */
+#ifdef GFX
+  float sheen=0.;
+  if(uTxA>0.){                                    /* gfx: hosted material detail, grey and normalised (mean .5): it changes how a surface varies, never its colour */
+    float k=0.; float t=.5;
+    if(id>10.5&&id<11.5||id>42.5&&id<43.5||id>39.5&&id<40.5){ t=txs(uTx0,gp/3.2).r; k=id>39.5&&id<40.5?.25:.5; sheen=(1.-t)*.5+.15; }
+    else if(id<.5||id>11.5&&id<12.5||id>44.5&&id<47.5){ t=txs(uTx0,gp/2.6).g; k=.24; }
+    else if((id>4.5&&id<5.5&&N.z>.9)||(id>.5&&id<4.5&&N.z>.55&&!(id>2.5&&id<3.5))){ t=txs(uTx0,gp/3.).b; k=.42; }
+    else if(wallLike&&(id>.5&&id<4.5||id>31.5&&id<32.5)||id>22.5&&id<23.5){
+      float gm=1.-clamp(refl*5.,0.,1.);                                                 /* not on the glass */
+      bool stn=id>1.5&&id<2.5||id>31.5; vec2 gq=vec2(vUV.x/17.,vUV.y/26.);
+      t=stn?texture2D(uTx1,vUV/7.).g:(id>3.5&&id<4.5)?texture2D(uTx0,vUV/2.6).g:texture2D(uTx1,vUV/2.2).r; k=(stn?.12:.3)*gm;
+      float gr=texture2D(uTx1,gq).b; float low=1.-smoothstep(.0,2.6,vUV.y);
+      alb*=1.+uTxA*((gr-.5)*(stn?.06:.12)*gm-(1.-ao)*.22*gr-low*.10*gr);                           /* grime streaks, dirt where the AO is, splash at the foot */
+    }
+    alb*=1.+uTxA*k*(t-.5)*2.;
+  }
+#endif
   if(id>26.5&&id<31.5){ vec3 amb2=mix(vec3(.30,.285,.26),vec3(.68,.64,.58),N.z*.5+.5)*(.55+.45*ao); vec3 c2=lin(clamp(alb,0.,1.))*amb2*1.7+emi; c2=aces(c2*uExp); gl_FragColor=vec4(pow(c2,vec3(1./2.2)),1.); return; }
   float nl=max(dot(N,uSun),0.); float nlw=max(dot(N,uSun)*(1.-wrap)+wrap,0.);
   float shd=nl>.001?shadowAt(nl):1.;
+#ifdef GFX
+  /* gfx: the sky dome (cool) from above, the street's warm bounce from below, the bright sky round the low sun on the walls that face it; a wall low in a
+     canyon of tall buildings sees less sky; AO darkens the fill more than the sun */
+  float up=N.z*.5+.5; float cany=1.; if(wallLike&&vHA.x>.5) cany=mix(.6,1.,smoothstep(0.,max(vHA.x*.55,5.),vUV.y));
+  vec2 sh2=normalize(uSun.xy+vec2(1e-4)); float sside=max(dot(N.xy,sh2),0.)*(1.-abs(N.z));
+  vec3 amb=uSkyA*up*cany+uGndA*(1.-up)+uSunCol*.05*sside*cany;
+  vec3 sunK=uSunCol;
+  vec3 L=lin(clamp(alb,0.,1.));
+  vec3 col=L*(amb*ao+sunK*nlw*mix(1.,ao,.35)*mix(1.,.85,wrap)*shd)+emi;
+  if(sheen>0.){ vec3 Rs=reflect(-V,N); col+=uSunCol*pow(max(dot(Rs,uSun),0.),24.)*.05*sheen*shd*(1.-uNight)*uTxA; }   /* worn asphalt catches the low sun */
+#else
   vec3 amb=mix(uGndA,uSkyA,N.z*.5+.5); amb=mix(amb,amb*vec3(.9,.98,1.12),1.-uNight);      /* cool blue fill from the sky dome */
   vec3 sunK=uSunCol*mix(vec3(1.),vec3(1.06,1.0,.88),1.-uNight);                           /* warm key */
   vec3 L=lin(clamp(alb,0.,1.));
   /* sun on the surface, ambient from the sky; a touch of bounce from the street onto walls */
   vec3 col=L*(amb*ao+sunK*nlw*ao*mix(1.,.85,wrap)*shd) +emi*1.0;
+#endif
   if(uNight>.5){ for(int i=0;i<12;i++){ vec4 lp=uLamp[i]; if(lp.w>.5){ vec3 dl=lp.xyz-vP; float dd=dot(dl,dl); float dis=sqrt(dd); float att=exp(-dd*(1./(27.*27.)))*(1.-smoothstep(70.,120.,dis)); float nlL=max(dot(N,dl/max(dis,.01)),0.)*.8+.2*step(.5,N.z); col+=L*uLampC*att*nlL*.6; } } }
   if(spec>.5){ vec3 H=normalize(uSun+V); col+=uSunCol*pow(max(dot(N,H),0.),70.)*.45*(1.-uNight*.7)*shd; }
-  if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z)); col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
+#ifdef GFX
+  if(refl>0.){ vec3 R=reflect(-V,N); if(wallLike&&refl>.1){ vec2 pc=floor(vec2(vUV.x/1.55,vUV.y/3.4)); R=normalize(R+(vec3(h21(pc),h21(pc+7.3),h21(pc+3.1))-.5)*.06*(1.-smoothstep(.02,.07,fpx))); }   /* each pane a hair off flat, gone before it could sparkle */
+    vec3 sr=abs(N.z)<.55?envAt(R):mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z));      /* walls, glass, cars see the street; the ground keeps 1.9.102's sky */
+#else
+  if(refl>0.){ vec3 R=reflect(-V,N); vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z));
+#endif
+    col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
   float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/260.,.0,1.); f*=mix(.5,1.,hf);
   vec3 fogc=uFog+uSunCol*.045*pow(max(dot(-V,uSun),0.),5.)*(1.-uNight);
   float aer=min(dist*dist/(uFogD*uFogD*5.),1.); col=mix(col,vec3(dot(col,vec3(.2126,.7152,.0722)))*vec3(.92,.97,1.08),aer*.35);
