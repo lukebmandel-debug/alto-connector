@@ -1524,6 +1524,8 @@ def _build(raw, bbox, place, scale, majors, landmarks, tol_minor, transit=None):
         "highways": _highways(els, proj, Wf, Hf),         # C3: the real highways (city_highways.read)
         "majors": pick_majors(merged_street_len, majors),
     }
+    if FAR_BANK_SHARE < 0:
+        out["far_bank"] = True                      # the far banks are kept: the water between is designed (build/city_water.py)
     return _across_wide_river(out, scale)
 
 

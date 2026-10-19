@@ -26,7 +26,7 @@ import time
 from bisect import bisect_left
 from types import SimpleNamespace
 
-from . import city_avenues, city_free, city_lattice, city_seams
+from . import city_avenues, city_free, city_lattice, city_seams, city_water
 from .city_lattice import Lattice, emit, join_hinges, inside as ring_inside, area as ring_area
 from .palace_grid import CW, CH, PAD, LEAD, norm, _pairs, _segd, Mapping
 from .palace_river import course, resample, _main_piece, _len, NARROW_W, WIDE_W, GAP as RIVER_GAP, EDGE as RIVER_EDGE
@@ -328,6 +328,12 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     by_id = {d.id: d for d in grid_doms}
     root = sl[0].info["root"] if sl else max(grid_doms, key=lambda d: ring_area(d.poly)).id
     others_real = [d for d in doms_all if d.poly]
+    # 6b. the land across the water (a preset's far banks: Brooklyn and Queens facing Manhattan): islands no seam reaches
+    #     come to the band's gap off the root instead of floating where the root's mapping stretches the real river to
+    #     (city_water); every other city is left as the Layout placed it
+    water_rep, water_fp = [], {}
+    if m.get("far_bank"):
+        water_rep, water_fp = city_water.compact(lay, by_id, root, sl, m, _in_real, unlocal, max(lay.maps[root].loc.gv, lay.maps[root].loc.gh))
 
     # 7a. which cells each domain draws: the Layout's region (the seams), the real outline (with a little slack, never
     #     into another domain's outline) and no overlap with a domain that owns the place for certain
@@ -518,7 +524,12 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     for did, keep in ok.items():
         for ij in keep:
             cents.append(city_lattice.centroid(claim[did][ij][1]))
-    river, W = _rivers(m, cmap, W, H, [(x + 0.0, y + 0.0) for x, y in cents], blk=(rmp.loc.gv, rmp.loc.gh))
+    bands = city_water.channels(m, root, water_fp, water_rep, (dx, dy), max(W, H) + 1000, city_water.hints_of(m)) if water_rep else []
+    m_r = m
+    if bands:                                         # the bands stand for the real lines of the water they run in (the Hudson's)
+        m_r = dict(m, rivers=[r for r in m.get("rivers", []) if not city_water.wet_line(m, [(r["p"][i], r["p"][i + 1]) for i in range(0, len(r["p"]) - 1, 2)])])
+    river, W = _rivers(m_r, cmap, W, H, [(x + 0.0, y + 0.0) for x, y in cents], blk=(rmp.loc.gv, rmp.loc.gh))
+    river = river + bands
 
     r_ix = [(city_avenues.PolyIndex(rv["_q"], 200.0), rv["w"]) for rv in river if len(rv["_q"]) > 1]
 
@@ -953,12 +964,22 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
     g["blocks"] = blocks
     from .city_highways import attach as attach_highways      # C3: the highways as named route lines (g["hw"])
     attach_highways(g, m)
+    if water_rep and water_fp:                          # the open water (the bay) a far-bank city stands in, as well as the bands
+        try:
+            rmp_ = lay.maps[root]
+            rings = city_water.sea(g, [ring for _F, _fm, ring in frees],
+                                   lambda x, y: unlocal(rmp_.loc, *rmp_.to_local(x, y))[1] < 0)      # north of the box's edge: not sea
+            if rings:
+                g["sea"] = rings
+        except Exception:                               # noqa: BLE001 — water that cannot be read is left off, never a failed city
+            pass
     T["total"] = time.time() - t0
     g["engine"] = {"path": "v2", "domains": len(by_id), "voids": [d.id for d in voids], "fans_merged": merged_fans,
                    "free": [d.id for d in doms_all if d.kind == "free"], "free_fit": free_try, "axis_share": {i: round(v, 3) for i, v in shares.items() if v is not None},
                    "loose": loose, "across_merged": across_merged, "free_dbg": dbg_free,
                    "seams": [{"a": sm.a, "b": sm.b, "kind": sm.kind, "avenue": sm.avenue, "phi": round(sm.phi, 2),
                               "hinges": len(sm.hinge)} for sm in sl],
+                   **({"water": [{k: (round(v, 1) if isinstance(v, float) else v) for k, v in r.items()} for r in water_rep]} if water_rep else {}),
                    "t": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in T.items()}}
     return g
 

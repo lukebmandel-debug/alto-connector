@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.108"
+__version__ = "1.9.109"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1628,6 +1628,38 @@ def _own_palaces(exclude_tid: str, place: str) -> list:
     return out
 
 
+def _refresh_portal_destinations(doc: dict, tid: str) -> dict:
+    """An airport's departures board is made when the palace is set up, so a city whose Mind Palace was made later still
+    read "Build it". At every build the board takes the user's other palaces: a city on it without a link gets one, a palace
+    not on it is added first. Nothing the board already links is touched. A palace with no airport, or a board whose every
+    city already links, is left as it is (and asks the store for nothing)."""
+    pal = (doc.get("brief") or {}).get("palace") or {}
+    ports = [po for po in pal.get("portals") or [] if isinstance(po, dict) and po.get("destinations")
+             and (po.get("kind") == "airport" or "airport" in str(po.get("name") or "").lower())]
+    if not ports or all(d.get("timeline") for po in ports for d in po["destinations"]):
+        return doc
+    from .build.palace_airport import _key
+    own = _own_palaces(tid, pal.get("place") or "")
+    changed = False
+    for po in ports:
+        dests = [dict(d) for d in po["destinations"]]
+        for o in own:
+            k = _key(o["city"])
+            hit = next((d for d in dests if _key(d.get("city")) and (_key(d["city"]) in k or k in _key(d["city"]))), None)
+            if hit is None:
+                dests.insert(0, dict(o)); changed = True
+            elif not hit.get("timeline"):
+                hit["timeline"] = o["timeline"]
+                if o.get("url"):
+                    hit["url"] = o["url"]
+                hit.pop("preset", None)
+                changed = True
+        po["destinations"] = dests
+    if changed:
+        get_store().put_timeline(uid(), tid, doc)
+    return doc
+
+
 def _with_destinations(portals, tid: str, place: str):
     """An airport portal that names no destinations gets the board: the user's own palaces, then the cities Alto builds."""
     if not portals:
@@ -2459,6 +2491,10 @@ def build_timeline(timeline_id: str, layout: str = "",
     if err:
         return err
     doc = _layout_choice(doc, layout, tree_lines, hub_look, palace_view)
+    try:
+        doc = _refresh_portal_destinations(doc, timeline_id)        # a palace made since the airport's board was
+    except Exception:                                   # noqa: BLE001 — a board that cannot be refreshed is built as stored
+        pass
     try:
         b, nodes, conns = _load_full(doc)
         if not nodes:

@@ -28,6 +28,17 @@ TOWERS = [
     ("tls", r"three logan square|3 logan square", 55),
     ("cira", r"cira centre(?! south)|cira center(?! south)", 29),
     ("fmc", r"fmc tower", 49),
+    # Manhattan's (the art is drawn in palace_skyline.py from each building's own parts)
+    ("esb", r"empire state", 102),
+    ("owtc", r"one world trade|\bone wtc\b|freedom tower", 94),
+    ("chry", r"chrysler building", 77),
+    ("wool", r"woolworth building", 57),
+    ("flat", r"flatiron", 22),
+    ("ovan", r"one vanderbilt", 73),
+    ("rock", r"30 rock\b|30 rockefeller plaza", 70),
+    ("p432", r"432 park", 85),
+    ("boa", r"bank of america tower", 55),
+    ("muni", r"municipal building", 40),
 ]
 MATCH = [[k, p] for k, p, _ in TOWERS]
 FLOORS = {k: n for k, _, n in TOWERS}

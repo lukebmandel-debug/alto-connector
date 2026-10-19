@@ -46,6 +46,11 @@ NYC = {
             "(Brooklyn Heights, DUMBO, Williamsburg, Greenpoint, Long Island City)",
     "bbox": [40.695, -74.02, 40.765, -73.94],
     "far_bank": True,
+    # the water between the island and its far banks is drawn as bands (build/city_water.py); each is named by the nearest of these
+    # points (on the water, beside the shore the band follows)
+    "river_names": [["Hudson River", 40.7950, -74.0000], ["Hudson River", 40.7700, -74.0090], ["Hudson River", 40.7475, -74.0125],
+                    ["Hudson River", 40.7250, -74.0190], ["East River", 40.7900, -73.9300], ["East River", 40.7650, -73.9560],
+                    ["East River", 40.7400, -73.9660], ["East River", 40.7150, -73.9740], ["East River", 40.7050, -73.9830]],
     "majors": ["Broadway", "5th Avenue", "6th Avenue", "7th Avenue", "7th Avenue South",
                "8th Avenue", "9th Avenue", "10th Avenue", "11th Avenue", "12th Avenue", "Park Avenue",
                "Park Avenue South", "Madison Avenue", "Lexington Avenue", "3rd Avenue", "2nd Avenue", "1st Avenue",
@@ -76,7 +81,8 @@ NYC = {
         {"name": "One Vanderbilt", "height_m": 427},
         {"name": "Grand Central Terminal", "label": "Grand Central"},
         {"name": "Pennsylvania Station", "label": "Penn Station"},
-        {"name": "New York City Hall", "label": "City Hall"},
+        {"name": "New York City Hall", "label": "City Hall", "art": "nych"},
+        {"name": "David N. Dinkins Manhattan Municipal Building", "label": "Municipal Building", "floors": 40, "height_m": 177},
         {"name": "United Nations Headquarters", "label": "United Nations"},
     ],
     "diagonals": ["Broadway"],
@@ -339,7 +345,7 @@ def buildings_for(preset: dict, given=None) -> list:
     known = {str(b["name"]).lower(): b for b in preset.get("landmark_buildings") or []}
     known.update({str(b.get("label")).lower(): b for b in preset.get("landmark_buildings") or [] if b.get("label")})
     if given is None:
-        return [{k: v for k, v in b.items() if k in ("name", "label", "page")} for b in preset.get("landmark_buildings") or []]
+        return [{k: v for k, v in b.items() if k in ("name", "label", "page", "art")} for b in preset.get("landmark_buildings") or []]
     out = []
     for b in given:
         b = dict(b)

@@ -32,7 +32,7 @@ var RLM_ZFIT={usch:1,cjc:1};                                                    
 var RLM_EXTRA={lbc:'Liberty Bell Center'};                                         /* landmarks the page has no disc for: matched by their OSM name alone */
 var RLM_FRONTW=10;
 var RLM_ALIAS=[[/^philadelphia justice cent/i,'cjc']];                 /* OSM names the 2D art's key does not know */
-function rlmLandmarks(){ if(RLM.L) return RLM.L; var o=[]; ((E&&E.M&&E.M.landmarks)||[]).forEach(function(l){ if(!l||!l.n||l.x==null) return; var k=lmKey(l.n); if(k==='gen'||!LMT[k]) return;
+function rlmLandmarks(){ if(RLM.L) return RLM.L; var o=[]; ((E&&E.M&&E.M.landmarks)||[]).forEach(function(l){ if(!l||!l.n||l.x==null) return; var k=lmKey(l); if(k==='gen'||!LMT[k]) return;
     var r=realOf(l.x,l.y,{x:0,y:0,k:0}); o.push({l:l, key:k, x:r.x, y:r.y}); }); return RLM.L=o; }
 /* the minimum-area box of a ring (flat x,y in any unit): {cx, cy, th (angle of axis a), a, b (full lengths along th and th+90)} */
 function rlmOBB(r){ var n=r.length/2, best=null, i, j;
