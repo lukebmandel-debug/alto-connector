@@ -42,7 +42,7 @@ def html():
     return built()[0]
 
 
-def _open(browser, html, *, plan=True, script=True, width=1280, height=800):
+def _open(browser, html, *, plan=True, script=True, fpv=True, width=1280, height=800):
     pname, ptext = bs.hosted_json(bs.fixture())
     page = browser.new_page(viewport={"width": width, "height": height})
     errors = []
@@ -55,6 +55,8 @@ def _open(browser, html, *, plan=True, script=True, width=1280, height=800):
         if path == "/alto-cloud.js":
             return r.fulfill(status=200, content_type="text/javascript", body="")
         hit = palace_assets.find(path, building_plans={pname: ptext}) if path.startswith("/bldg/") else None
+        if hit and not fpv and "palace-building-fpv" in path:
+            return r.fulfill(status=404, body="no")
         if hit and (plan or "plan-" not in path) and (script or "plan-" in path):
             return r.fulfill(status=200, content_type=hit[0], body=hit[1])
         return r.fulfill(status=404, body="no")
@@ -87,7 +89,7 @@ def test_the_blueprint_draws_the_plan_with_its_tabs_rooms_and_pills(browser, htm
 
 
 def test_the_seams_for_the_first_person_view_and_the_data_agent(browser, html):
-    page, errors = _open(browser, html)
+    page, errors = _open(browser, html, fpv=False)                  # the first-person script missing (an old site): the event, and a note
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         assert page.evaluate("[AltoBuilding.plan.name, AltoBuilding.data.h, AltoBuilding.version, typeof AltoBuilding.geometry.wallSegments, typeof AltoBuilding.load]") \
@@ -97,7 +99,8 @@ def test_the_seams_for_the_first_person_view_and_the_data_agent(browser, html):
         # no implementation yet: an event, and the panel says so
         page.evaluate("window.__fpv = null; addEventListener('alto-building-fpv', e => window.__fpv = e.detail)")
         page.evaluate("AltoBuilding.selectRoom('g101')")
-        page.click("#bldg-root .bl-go")
+        page.click("#bldg-root .bl-info .bl-go")
+        page.wait_for_function("window.__fpv")
         assert page.evaluate("window.__fpv") == {"room": "g101", "opts": {"from": "plan"}}
         assert "not available yet" in page.inner_text("#bldg-root .bl-info")
         # a later module registers itself

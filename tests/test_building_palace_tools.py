@@ -224,7 +224,8 @@ def test_the_renderer_is_a_hashed_asset_and_plans_are_written_beside_it():
     assert re.fullmatch(r"palace-building-[0-9a-f]{10}\.js", name) and pba.BUILDING_PATH == "/bldg/" + name and "window.AltoBuilding=A" in text
     pname, ptext = bs.hosted_json(bs.fixture())
     got = {(f, n): t for f, n, t in palace_assets.assets(building_plans={pname: ptext}) if f == "bldg"}
-    assert set(got) == {("bldg", name), ("bldg", pname)} and got[("bldg", pname)] == ptext
+    from alto.build import palace_building_fpv as fpv
+    assert set(got) == {("bldg", name), ("bldg", pname), ("bldg", fpv.fpv_asset()[0])} and got[("bldg", pname)] == ptext       # + the first-person view (phase 2)
     assert palace_assets.find("/bldg/" + pname, building_plans={pname: ptext})[0].startswith("application/json")
     assert palace_assets.find(pba.BUILDING_PATH)[0].startswith("text/javascript")
 

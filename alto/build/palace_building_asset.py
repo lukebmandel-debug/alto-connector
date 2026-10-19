@@ -21,7 +21,9 @@ SEAMS for later phases — everything a later module needs hangs on `window.Alto
   AltoBuilding.selectLevel(id)     "outside" or a level id;  AltoBuilding.selectRoom(id)  select (and switch level to) a room
   AltoBuilding.enterFPV(roomId, opts)   THE FIRST-PERSON SEAM. Calls the implementation registered by registerFPV, else dispatches the DOM event
                                    'alto-building-fpv' on window (detail {room, opts}) and shows "not available yet". opts: {slot, node, from: "plan"|"link"}
-  AltoBuilding.registerFPV(impl)   impl = {enter(roomId, ctx), exit()}; ctx = {plan, data, room, slot, node}. Returns nothing.
+  AltoBuilding.registerFPV(impl)   impl = {enter(roomId, ctx), exit()}; ctx = {plan, data, room, slot, node}. Returns nothing. The implementation is
+                                   palace_building_fpv.py's hosted script, fetched from FPV_URL the first time enterFPV runs (enterFPV then returns 'loading')
+  AltoBuilding.showWalker(pos)     draw where the first-person walker stood ({l, x, y, yaw, room}: the 'alto-building-fpv-exit' event's detail)
   AltoBuilding.roomOf(nodeId) -> {room, slot} | null;   AltoBuilding.nodesIn(roomId) -> [node ids]
   AltoBuilding.on(event, fn)       events: 'plan' (plan loaded), 'level', 'select', 'fpv'
   AltoBuilding.geometry            pure helpers shared with the FPV: wallSegments(wall) -> [[ [x,y],[x,y], openings-in-segment ]...], centroid(poly),
@@ -33,6 +35,7 @@ import hashlib as _hashlib
 import json as _json
 
 from .palace_assets import loader as _loader
+from .palace_building_fpv import FPV_PATH as _FPV_PATH
 
 BUILDING_CSS = r"""
 #bldg-root{--bl-ink:rgb(60,64,84);--bl-sheen:rgba(255,255,255,.72);--bl-glass:rgba(255,255,255,.46);--bl-glass-edge:rgba(60,64,84,.22);--bl-paper:var(--bg,#f0efea);
@@ -68,6 +71,9 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-fix{fill:color-mix(in srgb,var(--bl-ink) 14%,transparent);stroke:var(--bl-ink);stroke-opacity:.55;stroke-width:1px;vector-effect:non-scaling-stroke;}
 #bldg-root .bl-slot{stroke:var(--bl-accent);stroke-width:3px;stroke-linecap:round;vector-effect:non-scaling-stroke;}
 #bldg-root .bl-ent{fill:var(--bl-accent);fill-opacity:.9;}
+#bldg-root .bl-me{fill:var(--bl-accent);stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke;}
+#bldg-root .bl-cone{fill:var(--bl-accent);fill-opacity:.22;stroke:none;}
+#bldg-root .bl-walk{margin-top:8px;height:28px;font-size:12px;}
 #bldg-root .bl-lab{font-size:var(--bl-fs,1px);fill:var(--bl-text);text-anchor:middle;pointer-events:none;font-weight:600;paint-order:stroke;stroke:var(--bl-paper);stroke-width:.25px;stroke-opacity:.8;}
 #bldg-root .bl-lab2{font-weight:400;fill:var(--bl-muted);}
 #bldg-root .bl-pill rect{fill:var(--bl-tint,var(--bl-accent));stroke:rgba(255,255,255,.8);stroke-width:.12px;}
@@ -315,6 +321,7 @@ function render(){
   applyVB();
   [].forEach.call(S.tabs.children,function(b){ b.classList.toggle('on',b.getAttribute('data-level')===lv); });
   if(S.sel){ var r=S.svg.querySelector('[data-room="'+S.sel+'"]'); if(r) r.classList.add('bl-sel'); }
+  drawWalker();
 }
 function fit(){ S.vb=S.home.slice(); }
 function applyVB(){ // keep the drawing's aspect equal to the viewport's
@@ -362,10 +369,30 @@ A.enterFPV=function(roomId,opts){
   var ctx={plan:A.plan,data:A.data,room:roomId,slot:opts.slot||null,node:opts.node||null,from:opts.from||'link'};
   emit('fpv',ctx);
   if(fpvImpl && typeof fpvImpl.enter==='function'){ try{ return fpvImpl.enter(roomId,ctx); }catch(x){ } }
-  try{ window.dispatchEvent(new CustomEvent('alto-building-fpv',{detail:{room:roomId,opts:opts}})); }catch(x){}
-  if(S.fpvNote) S.fpvNote.textContent='The first-person view is not available yet.';
+  if(!fpvImpl && FPV_URL && !S.fpvTried && A.plan){         // the first-person view is its own hosted script, fetched the first time someone walks in
+    S.fpvTried=1; if(S.fpvNote) S.fpvNote.textContent='Opening the first-person view\u2026';
+    fetch(FPV_URL,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); }).then(function(t){
+      var sc=document.createElement('script'); sc.text=t; (document.head||document.documentElement).appendChild(sc); if(sc.parentNode) sc.parentNode.removeChild(sc);
+      if(S.fpvNote) S.fpvNote.textContent=''; if(fpvImpl) A.enterFPV(roomId,opts); else noFPV(roomId,opts);
+    }).catch(function(){ noFPV(roomId,opts); });
+    return 'loading';
+  }
+  noFPV(roomId,opts);
   return false;
 };
+function noFPV(roomId,opts){
+  try{ window.dispatchEvent(new CustomEvent('alto-building-fpv',{detail:{room:roomId,opts:opts}})); }catch(x){}
+  if(S.fpvNote) S.fpvNote.textContent='The first-person view is not available yet.';
+}
+// where the walker stood when the first-person view closed: a dot with a view cone on that level's plan
+A.showWalker=function(pos){ if(!pos||!A.plan) return; A.walker=pos; if(pos.l&&levelOf(pos.l)&&S.level!==pos.l){ S.level=pos.l; S.home=null; S.vb=null; render(); } else drawWalker(); if(pos.room) { S.sel=pos.room; var r=roomById(pos.room); render(); if(r) info(r); } };
+function drawWalker(){ var g=S.svg&&S.svg.querySelector('.bl-walker'); if(g) g.remove(); var w=A.walker; if(!w||!S.view||S.level!==w.l) return;
+  var a=(w.yaw||0)*Math.PI/180, x=w.x, y=w.y, c=Math.cos(a), s=Math.sin(a), L=3.2, sp=.55;
+  g=el('g',{'class':'bl-walker','pointer-events':'none'},S.view);
+  el('path',{d:'M'+P([x,y])+'L'+P([x+L*Math.cos(a-sp),y+L*Math.sin(a-sp)])+'A'+L+' '+L+' 0 0 0 '+P([x+L*Math.cos(a+sp),y+L*Math.sin(a+sp)])+'Z','class':'bl-cone'},g);
+  el('circle',{cx:f2(x),cy:f2(-y),r:.55,'class':'bl-me'},g); }
+window.addEventListener('alto-building-fpv-pos',function(e){ A.walker=e.detail; });
+window.addEventListener('alto-building-fpv-exit',function(e){ A.walker=e.detail; });
 A.registerFPV=function(impl){ fpvImpl=impl||null; };
 A.show=function(){ if(S.root){ S.root.hidden=false; setTop(); applyVB(); } if(S.toggle) S.toggle.textContent='Show cards'; document.documentElement.classList.add('bldg-open'); };
 A.hide=function(){ if(S.root) S.root.hidden=true; if(S.toggle) S.toggle.textContent='Show blueprint'; document.documentElement.classList.remove('bldg-open'); };
@@ -400,6 +427,7 @@ function build(){
   h('h2',null,S.head,dec(plan.name||A.data.name||'Building'));
   var n=0; for(var k in (A.data.nodes||{})) n++;
   h('p',null,S.head,n+(n===1?' card':' cards')+' placed in '+Object.keys(S.nodesByRoom).length+' rooms. Dashed outlines are approximate.');
+  var wb=h('button',{'class':'bl-go bl-walk',type:'button'},S.head,'Walk in'); wb.addEventListener('click',function(){ A.enterFPV(null,{from:'plan'}); });
   S.home=null; S.vb=null; render();
 }
 function nomsg(t){ if(!S.msg){ S.msg=h('div',{'class':'bl-msg'},S.root); } S.msg.textContent=t; }
@@ -468,7 +496,7 @@ window.AltoBuilding=A;
 """
 
 # the script text: the stylesheet is spliced in as a JS string, the whole wrapped so BLDG_CSS is not a global
-BUILDING_ASSET = "(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS) + ";\n" + BUILDING_JS + "\n})();\n"
+BUILDING_ASSET = ("(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS) + ";\nvar FPV_URL=" + _json.dumps(_FPV_PATH) + ";\n" + BUILDING_JS + "\n})();\n")
 BUILDING_V = _hashlib.sha256(BUILDING_ASSET.encode("utf-8")).hexdigest()[:10]
 BUILDING_PATH = f"/bldg/palace-building-{BUILDING_V}.js"
 # the page's loader: a synchronous request answered from the browser's cache after the first visit, run as an inline script (as the ride's and the fleet's)
