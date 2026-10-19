@@ -62,6 +62,9 @@ STARS_CSS = r"""
   .sk-cacc{animation:sk-spin 150s linear infinite reverse;}
   .sk-hz{background:radial-gradient(circle closest-side,#000 0,#000 84%,rgba(255,236,210,.9) 90%,rgba(255,236,210,0) 100%);}
   P #solar-svg .sk-belt{fill:rgb(176,164,150);}
+  .sk-sky>.sk-drift{left:0;top:0;width:0;height:0;will-change:transform;}
+  .sk-drift canvas{position:absolute;left:0;top:-9px;width:120px;height:18px;}
+  .sk-drift i{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;background:#eef8ff;box-shadow:0 0 6px 2px rgba(160,210,255,.8);}
   .sk-prom{animation:sk-spin 520s linear infinite reverse,sk-pulse 6s ease-in-out infinite alternate;}
   .sk-tw{width:3px;height:3px;background:#fff;box-shadow:0 0 4px 1px rgba(190,215,255,.8);animation:sk-tw 3s ease-in-out infinite alternate;}
   @keyframes sk-spin{to{transform:rotate(360deg);}}
@@ -124,7 +127,7 @@ STARS_CSS = r"""
 STARS_JS = r"""
 (function(){
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', DEG=180/Math.PI;
-var PADW=0, S=null, world=null, BB={}, IDS=[], SUNC={}, TILES=null, ready=false, extT=-1e9, fbLast=0, fbR=0, fbS=0, idle=0, Q=[], qT=0, SPIN=-1;
+var DR=[], PADW=0, S=null, world=null, BB={}, IDS=[], SUNC={}, TILES=null, ready=false, extT=-1e9, fbLast=0, fbR=0, fbS=0, idle=0, Q=[], qT=0, SPIN=-1;
 var ST={t:[]};
 function desk(){ return !de.classList.contains('mobile'); }
 /* the skin is the Star chart look's (solar_draw's look switch: window._altoSolarLook, or the
@@ -322,6 +325,9 @@ function board(PAD){
     var gw=el('div', ''); gw.style.background='radial-gradient(closest-side,rgba(255,190,140,.22),rgba(180,90,160,.08) 45%,rgba(120,60,160,0))'; put2(gw, co.r*12);
     if(!SUNC._core || SUNC._core.r!==co.r){ var cv=el('canvas', 'sk-cacc'); SUNC._core={r:co.r, c:cv}; Q.unshift(coreJob(cv)); }
     put2(SUNC._core.c, co.r*8); var hz=el('div', 'sk-hz'); put2(hz, co.r*2.3); }
+  /* drifting comets (LEAD: plan.drifters [{seed, path: start, bend, end}]): crossing, then gone a while */
+  DR=(S.drifters||[]).map(function(d){ var e=el('div', 'sk-drift', sk), q=rng(d.seed>>>0), t=el('canvas', '', e); tailDraw(null, t); el('i', '', e);
+    var p=d.path.map(function(v){ return [v[0], v[1]+PAD]; }); return {e:e, p:p, dur:90+q()*70, gap:20+q()*40, off:q()*200, u:null}; });
   var W=world.offsetWidth, H=Math.max(world.offsetHeight, (S.world||{}).h||0), R=rng(4242), n=Math.max(12, Math.min(64, Math.round(W*H/90000)));
   for(var i=0;i<n;i++){ var t=el('div', 'sk-tw', sk); t.style.cssText='left:'+Math.round(R()*W)+'px;top:'+Math.round(PAD+R()*(H-PAD))+'px;animation-duration:'+(2+R()*3).toFixed(2)+'s;animation-delay:-'+(R()*5).toFixed(2)+'s'; }
 }
@@ -361,7 +367,7 @@ function dress(k, n, kind, d){
   var c=n.querySelector('.node-card'); if(!c) return;
   (k.els||[]).forEach(function(e){ e.remove(); });
   var f=c.querySelector('.sol-face'), els=[], add=function(t, cls){ var e=el(t, 'sk '+cls); c.insertBefore(e, f); els.push(e); return e; }, R=rng(hash(k.id+'x'));
-  k.n=n; k.kind=kind; k.d=d; k.els=els; k.lit=k.tex=k.craft=k.tail=null; k.la=k.ca=null;
+  k.n=n; k.kind=kind; k.d=d; k.els=els; k.lit=k.tex=k.craft=k.tail=null; k.la=k.ca=k.ta=null;
   if(kind==='sun'){
     k.star=STARS[k.si===0 ? 0 : ((R()*10)|0)<6 ? 0 : 1+((R()*3)|0)];
     ['--c0','--c1','--c2','--c3'].forEach(function(v, i){ n.style.setProperty(v, k.star[i]); });
@@ -406,6 +412,12 @@ function pos(id, bodies){ var b=bodies && bodies[id], k=BB[id];
   if(b && b.rx!=null) return [b.rx, b.ry]; if(b && b.x!=null) return [b.x, b.y];
   return k && k.n ? [parseFloat(k.n.style.left)||0, parseFloat(k.n.style.top)||0] : null; }
 function turn(a, b, lim){ return b==null || Math.abs(((a-b)%360+540)%360-180)>lim; }
+/* the clock: the orbits' own (window._altoSolarT: stops with them), else ours — still under
+   prefers-reduced-motion or with the motion switched off */
+var ownT=0, ownL=null, RM=false; try{ RM=matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+function clock(){ if(typeof window._altoSolarT==='number') return window._altoSolarT;
+  var now=performance.now()/1000, M=window._altoSolarMotion;
+  if(ownL!=null && !RM && !(M && M.get && !M.get())) ownT+=Math.min(.1, now-ownL); ownL=now; return ownT; }
 function update(bodies){
   if(!ready || !desk() || de.classList.contains('alto-editing')) return false;
   var t0=performance.now(), ch=false;
@@ -420,6 +432,17 @@ function update(bodies){
         k.tr.forEach(function(p){ var w=Math.min(p._a[0]/DEG, p._a[1]/r), e=ph-SPIN*w;
           p.setAttribute('d', 'M'+(s.x+r*Math.cos(ph)).toFixed(1)+' '+(s.y+r*Math.sin(ph)).toFixed(1)+'A'+r.toFixed(1)+' '+r.toFixed(1)+' 0 0 '+(SPIN<0 ? 1 : 0)+' '+(s.x+r*Math.cos(e)).toFixed(1)+' '+(s.y+r*Math.sin(e)).toFixed(1)); }); } }
   });
+  var T=clock();
+  IDS.forEach(function(id){ var k=BB[id], tb=k && k.tex && S.nodes[id] && S.nodes[id].tumble;
+    if(tb){ var a=tb*T*DEG%360; if(turn(a, k.ta, 1)){ k.ta=a; k.tex.style.transform='rotate('+a.toFixed(1)+'deg)'; } } });
+  DR.forEach(function(d){ var c=d.dur+d.gap, u=((T+d.off)%c+c)%c/d.dur, p=d.p;
+    if(u>1){ if(d.u!==-1){ d.u=-1; d.e.style.opacity='0'; } return; }
+    if(d.u!=null && Math.abs(u-d.u)*d.dur<.02) return;
+    if(d.u===-1 || d.u==null) d.e.style.opacity='';
+    d.u=u; ch=true;
+    var v=1-u, x=v*v*p[0][0]+2*v*u*p[1][0]+u*u*p[2][0], y=v*v*p[0][1]+2*v*u*p[1][1]+u*u*p[2][1],
+      a=Math.atan2(v*(p[1][1]-p[0][1])+u*(p[2][1]-p[1][1]), v*(p[1][0]-p[0][0])+u*(p[2][0]-p[1][0]))*DEG+180;
+    d.e.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px) rotate('+a.toFixed(1)+'deg)'; });
   if(ST.t.length>=600) ST.t.shift(); ST.t.push(performance.now()-t0);
   return ch;
 }
@@ -469,7 +492,7 @@ window._altoSkinStats={
     return {n:d.length, p50:q(.5), p95:q(.95), max:q(1), pending:Q.length, ext:extT>0}; },
   reset:function(){ ST.t=[]; },
   hashes:function(){ var o={}; [].forEach.call(document.querySelectorAll('#world canvas.sk,#world .sk-sky canvas'), function(c, i){ var n=c.closest('.node'), id=(n ? n.id : 'sky'+i)+':'+c.className;
-    o[id]=c._h || (c.className.indexOf('sk-craft')>=0 || c.className.indexOf('sk-prom')>=0 ? sum(c.getContext('2d').getImageData(0, 0, c.width, c.height).data) : null); }); return o; }
+    o[id]=c._h || sum(c.getContext('2d').getImageData(0, 0, c.width, c.height).data); }); return o; }
 };
 })();
 """

@@ -65,7 +65,7 @@ def test_the_skin_is_small_and_safari_safe():
     # no SVG mask, no CSS / SVG filter or blur layer, nothing moves a node by a transform
     assert "<mask" not in STARS_JS and "'mask'" not in STARS_JS and "mask" not in STARS_CSS
     assert "blur(" not in STARS_CSS and "filter:url" not in STARS_CSS and "feGaussian" not in STARS_JS
-    assert re.findall(r"(\w+(?:\.\w+)?)\.style\.transform=", STARS_JS) == ["k.lit", "k.tail", "k.craft"]
+    assert re.findall(r"(\w+(?:\.\w+)?)\.style\.transform=", STARS_JS) == ["k.lit", "k.tail", "k.craft", "k.tex", "d.e"]
     assert not re.search(r"\.style\.(left|top)=", STARS_JS)                 # reads them, never writes
 
 
@@ -124,15 +124,16 @@ def _mock(html):
     """LEAD's coming plan keys, mocked into a built page: a galactic core when
     there are 2+ systems, looks on some nodes, an asteroid belt."""
     import json
-    at = html.index("window._ALTO_SOLAR=") + len("window._ALTO_SOLAR=")
-    S, end = json.JSONDecoder().raw_decode(html[at:])
+    at = html.index("})(", html.index("window._ALTO_SOLAR=")) + 3      # (the looks' plans, spread by the page)
+    W, end = json.JSONDecoder().raw_decode(html[at:])
+    S = W["looks"]["stars"]
     s0, s1 = S["systems"][0], S["systems"][1]
     S["core"] = {"x": s0["cx"] + 900, "y": (s0["cy"] + s1["cy"]) / 2, "r": 70}
     for i, lk in LOOKS.items():
         S["nodes"][i]["look"] = lk
     pl = s0["planets"]
     S["belts"] = [{"r": (pl[1]["r"] + pl[2]["r"]) / 2, "w": 90, "n": 300, "seed": 3, "system": 0}]
-    return html[:at] + json.dumps(S) + html[at + end:]
+    return html[:at] + json.dumps(W) + html[at + end:]
 
 
 def _open(browser, f, reduced=False, wait=1500, theme=None):
@@ -396,5 +397,23 @@ def test_an_enlarged_body_drops_the_skin_and_gets_it_back(browser, pages):
     pg.evaluate("() => window.exitFocus()")
     pg.wait_for_timeout(1500)
     assert pg.evaluate(shown) >= 2
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_drifting_comets_cross_and_stop_with_the_motion(browser, pages):
+    pg, errs = _open(browser, pages["big"])
+    get = """() => [].map.call(document.querySelectorAll('.sk-sky .sk-drift'), function(e){ return e.style.transform+'|'+e.style.opacity; })"""
+    n = pg.evaluate("() => (window._ALTO_SOLAR.drifters || []).length")
+    a = pg.evaluate(get)
+    assert n >= 1 and len(a) == n, (n, a)
+    pg.wait_for_timeout(1200)
+    b = pg.evaluate(get)
+    assert a != b, a                                            # they move
+    pg.evaluate("""() => { var on=false; window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=v; }, onChange:function(){ return function(){}; }}; }""")
+    pg.wait_for_timeout(300)
+    c = pg.evaluate(get)
+    pg.wait_for_timeout(1000)
+    assert pg.evaluate(get) == c                                # and stop when the motion does
     assert not errs, errs
     pg.context.close()
