@@ -118,6 +118,7 @@ SOLAR_JS = r"""
    it moves. One mount per page (its engine hooks are page globals). */
 window._altoSolarMount=function(S, opt){
 opt=opt||{}; if(!S || !S.nodes || window._altoSolarMounted) return false; window._altoSolarMounted=true;
+window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2, K=1.7;
 var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:108, moon:62, sat:34}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
@@ -190,7 +191,33 @@ window._altoSolarLayout=function(pos){
   if(MOVES) go();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
+  if(!opened) setTimeout(openView, 0);
 };
+/* ── where the page opens (once, on the first layout) ──────────────────────
+   A chart bigger than the window opened on the top of the board — a district
+   chip over empty space, the first sun below the fold (Luke, Torts, 1.9.105).
+   It opens on the first sun (the plan's first system) at full size, in the
+   middle of the window; a chart small enough to read whole (the whole-chart
+   fit at 0.6 or more) opens zoomed out to all of it. Hub & spoke keeps the
+   engine's opening (centred across, at the top) while its first sun is in
+   view there. A view something else asked for wins: a #find= link, an
+   enlarged card, the detail page, a canvas already scrolled down. */
+var opened=false;
+function openView(){
+  var c=cvs(); if(opened || !c || !c.clientWidth || !ready || !desk()) return;
+  opened=true;
+  var over=c.scrollWidth-c.clientWidth, dl=over>1 ? Math.round(over/2) : 0;   /* the engine's centreWorld */
+  if(/[#&]find=/.test(String(document.URL).split('#')[1]||'') || window._focusedNodeId || c.scrollTop>1 || document.querySelector('#detail-page.visible')) return;
+  var b=SY[0] && B[SY[0].sun];
+  if(!b || !b.n){ c.scrollLeft=dl; return; }
+  var off=woff(c), cw=c.clientWidth, ch=c.clientHeight, x=b.hx+off.x, y=b.hy+off.y, r=b.d/2;
+  if(!ORBIT && x-r>=dl && x+r<=dl+cw && y-r>=0 && y+r<=ch){ c.scrollLeft=dl; return; }
+  var f=fitS();
+  if(f>=1){ c.scrollLeft=dl; return; }                                        /* all of it in view as it is */
+  if(f>=.6){ ovZoom(f, null, null, false); return; }
+  var sl=Math.max(0, Math.min(c.scrollWidth-cw, x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, y-ch/2)), ax=window._altoScrollAxis;
+  if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
+}
 /* the board is the plan's size: the glass behind it (whose end the page's
    height follows), tinted down the page by the systems' unit colours */
 function slab(W, H){

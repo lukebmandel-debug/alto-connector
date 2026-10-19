@@ -533,3 +533,61 @@ def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, p
     assert pg.evaluate("() => window._altoSolarZoom()") < 0.9                # a pinch out
     assert not errs, errs
     pg.context.close()
+
+
+# ── where a chart opens (Luke, Torts star chart on 1.9.105: it opened on empty
+#    space, the first sun below the fold) ─────────────────────────────────────
+
+OPENING = """() => { var S=window._ALTO_SOLAR, id=S.systems[0].sun, c=document.getElementById('canvas').getBoundingClientRect(),
+  n=document.querySelector('#node-'+id+' .node-card').getBoundingClientRect();
+  return {zoom:window._altoSolarZoom(), dx:n.left+n.width/2-(c.left+c.width/2), dy:n.top+n.height/2-(c.top+c.height/2),
+          cw:c.width, ch:c.height, inView:n.top>=c.top && n.bottom<=c.bottom && n.left>=c.left && n.right<=c.right}; }"""
+
+
+def _opened(browser, tmp_path, html, name):
+    f = tmp_path / f"{name}.html"
+    f.write_text(html, encoding="utf-8")
+    pg, errs = _open(browser, f, wait=2600)          # past the engine's own openings (load, 150 / 600 / 1400 ms)
+    o = pg.evaluate(OPENING)
+    pg.context.close()
+    assert not errs, errs
+    return o
+
+
+def test_a_big_star_chart_opens_on_its_first_sun(browser, tmp_path):
+    html = _page(suns={0: 1})
+    assert _plan(html)["world"]["h"] > 3000                     # far bigger than the window
+    o = _opened(browser, tmp_path, html, "big")
+    assert o["zoom"] == 1 and o["inView"], o
+    assert abs(o["dx"]) < o["cw"] * .1 and abs(o["dy"]) < o["ch"] * .1, o   # in the middle of the window
+
+
+def test_a_small_star_chart_opens_fitted_to_all_of_it(browser, tmp_path):
+    o = _opened(browser, tmp_path, _page(units=[[[], []]], links=()), "small")
+    assert 0.6 <= o["zoom"] < 1 and o["inView"], o
+
+
+def test_hub_and_spoke_keeps_the_engines_opening_while_its_sun_is_in_view(browser, tmp_path):
+    o = _opened(browser, tmp_path, _page(style="spoke"), "spoke")
+    assert o["zoom"] == 1 and o["inView"], o
+
+
+def test_a_hub_and_spoke_whose_first_sun_is_below_the_fold_opens_on_it(browser, tmp_path):
+    # a first unit with many planets: its sun sits far down the board
+    html = _page(units=[[[2] * 8] * 14], style="spoke", links=())
+    s0 = _plan(html)["systems"][0]
+    assert s0["cy"] - s0["r_sun"] > 1100                         # below a 950px window's fold
+    o = _opened(browser, tmp_path, html, "spoke-big")
+    assert o["inView"] and abs(o["dy"]) < o["ch"] * .25, o
+
+
+def test_a_find_link_is_not_overridden(browser, tmp_path):
+    f = tmp_path / "find.html"
+    f.write_text(_page(suns={0: 1}), encoding="utf-8")
+    ctx = browser.new_context(viewport={"width": 1500, "height": 950})
+    pg = ctx.new_page()
+    pg.goto(f.as_uri() + "#find=u2-p1")
+    pg.wait_for_timeout(2600)
+    st = pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]")
+    ctx.close()
+    assert st[0] == 1 and st[1] in (None, "u2-p1")
