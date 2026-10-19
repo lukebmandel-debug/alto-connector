@@ -246,8 +246,10 @@ TREE_LINES = ("fan", "trunk")
 # would not fit a private page): "city" — buildings on a real city's map;
 # "stars" — the Star chart: each building a sun, its floors planets, moons and
 # satellites MOVING round what they orbit (solar.py, style "orbit"). An
-# outline's layout "solar" is the still one, Hub & spoke (style "spoke").
-PALACE_VIEWS = ("city", "stars")
+# outline's layout "solar" is the still one, Hub & spoke (style "spoke");
+# "building" — the Building Palace: a blueprint and a first-person view inside
+# ONE building (building_schema.py; the plan is brief.building).
+PALACE_VIEWS = ("city", "stars", "building")
 # The roles of a solar outline's levels, top down: a unit's top concept is its
 # sun, then planets, moons, satellites. A fifth level has no body to be.
 SOLAR_ROLES = ("sun", "planet", "moon", "sat")
@@ -375,6 +377,12 @@ class Brief:
     layout: str = "auto"
     # Mind Palace only (PALACE_VIEWS): "city" or "stars" (the Star chart).
     palace_view: str = "city"
+    # Building Palace only (palace_view "building"; building_schema.py):
+    # {name, plan_z (the packed plan), plan_h (its hash), mode: "room"|"anchor",
+    # assign: {node id: room / art slot / fixture id} (the caller's overrides),
+    # made}. set_up_building writes it. The page names the plan by its hash and
+    # loads the hosted file (/bldg/plan-<hash>.json).
+    building: dict = field(default_factory=dict)
     # What the other kind of timeline needs and this one cannot hold, kept for
     # the way back: convert_timeline (Hub & spoke ⇄ Star chart) parks the
     # outgoing kind's own settings here, {"outline": {placement, outcomes,
@@ -637,7 +645,7 @@ def validate_brief(b: Brief) -> list[str]:
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
     # Hub & spoke / a Star chart may be one system for the whole outline: one unit.
-    if len(b.acts) < (1 if solar_style(b) else 2):
+    if len(b.acts) < (1 if (solar_style(b) or building_view(b)) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
     for flag in ("line_filter", "chip_filters"):
@@ -661,8 +669,8 @@ def validate_brief(b: Brief) -> list[str]:
         raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS}")
     if b.palace_view != "city" and b.mode != "palace":
         raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Star chart "
-                         "is a Mind Palace view (an outline's still version is layout 'solar', "
-                         "Hub & spoke)")
+                         "and the Building Palace are Mind Palace views (an outline's still "
+                         "version is layout 'solar', Hub & spoke)")
     if not isinstance(b.stash, dict):
         raise BriefError("stash: must be an object")
     if b.layout == "solar" and b.mode != "outline":
@@ -675,6 +683,8 @@ def validate_brief(b: Brief) -> list[str]:
     check_lines(b, warnings)
     from .palace import check_palace
     check_palace(b, warnings)
+    from .building_schema import check_building
+    check_building(b, warnings)
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -1022,6 +1032,11 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     if b.layout == "solar":
         _check_solar_depth(b, nodes)
     return warnings
+
+
+def building_view(b) -> bool:
+    """True for a Building Palace (a Mind Palace in its "building" view): one building's blueprint and first-person view."""
+    return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "building"
 
 
 def solar_style(b) -> str:

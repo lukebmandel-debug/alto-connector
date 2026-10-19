@@ -18,7 +18,7 @@ import json
 import re
 from urllib.parse import quote as url_q
 
-from .brief import Brief, Node, Section, COL_SETS, roman
+from .brief import Brief, Node, Section, COL_SETS, roman, building_view
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
@@ -1532,6 +1532,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # A Star chart (palace_view "stars"): no city — only the floors'
         # numbers (3.4-2) — and the solar systems (solar.py).
         orders += palace_stub(b, nodes) + _solar_glue(solar_plan_, nodes)
+    elif b.mode == "palace" and building_view(b):
+        # A Building Palace (building_schema.py): no city — the floors' numbers
+        # (3.4-2) and the hosted blueprint over the cards (palace_building_asset.py).
+        from .palace_building_asset import building_data
+        orders += palace_stub(b, nodes) + building_data(b, nodes)
     elif b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
@@ -1541,7 +1546,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # chart, the whole chart zoomed out — after window._ALTO_SOLAR.
         orders += SOLAR_JS
     if index_axes:
-        orders += ((palace_index_glue() if b.mode == "palace" and not solar_plan_ else dx.AXIS_INDEX_GLUE)
+        orders += ((palace_index_glue() if b.mode == "palace" and not solar_plan_ and not building_view(b) else dx.AXIS_INDEX_GLUE)
                    + dx.axes_config(b, index_axes))
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
@@ -1591,7 +1596,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         nav_char_css += LANES_CSS
     if solar_plan_:
         nav_char_css += SOLAR_CSS
-    if b.mode == "palace" and not solar_plan_:
+    if b.mode == "palace" and not solar_plan_ and not building_view(b):
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (

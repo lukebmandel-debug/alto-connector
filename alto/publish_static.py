@@ -272,7 +272,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # folder named by the content hash of its file.
     from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS
     refs = _street_refs(store, uid)
-    new_assets = palace_assets(street_refs=refs)
+    new_assets = palace_assets(street_refs=refs, building_plans=_building_plans(store, uid))
     from .build import palace_street
     on_site = _street_on_site(site / palace_street.FOLDER)       # what a former publish left there: a referenced file the cache lacks is kept, not wiped
     for folder in palace_folders():
@@ -310,6 +310,29 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
     return site
+
+
+def _building_plans(store, uid: str) -> dict:
+    """{plan-<hash>.json: JSON text} of every published Building Palace (build/building_schema.py): the file its page fetches from /bldg/."""
+    from .build import building_schema as bs
+    out = {}
+    try:
+        timelines = store.list_timelines(uid)
+    except Exception:                                       # noqa: BLE001
+        return out
+    for t in timelines:
+        if t.get("status") != "published":
+            continue
+        brief = t.get("brief") or {}
+        z = (brief.get("building") or {}).get("plan_z") if brief.get("palace_view") == "building" else None
+        if not z:
+            continue
+        try:
+            name, text = bs.hosted_json(bs.unpack(z))
+        except Exception:                                   # noqa: BLE001 — a plan that cannot be read ships nothing (the page keeps its cards)
+            continue
+        out[name] = text
+    return out
 
 
 def _street_refs(store, uid: str) -> set:

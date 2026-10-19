@@ -29,12 +29,12 @@ class ConvertError(ValueError):
 
 
 def kind_of(brief: dict) -> str:
-    """'hub_and_spoke', 'star_chart', 'city_palace', or the mode / layout."""
+    """'hub_and_spoke', 'star_chart', 'city_palace', 'building_palace', or the mode / layout."""
     mode = brief.get("mode") or "linear"
     if mode == "outline" and brief.get("layout") == "solar":
         return "hub_and_spoke"
     if mode == "palace":
-        return "star_chart" if brief.get("palace_view") == "stars" else "city_palace"
+        return {"stars": "star_chart", "building": "building_palace"}.get(brief.get("palace_view"), "city_palace")
     if mode == "outline":
         return f"outline ({brief.get('layout') or 'auto'} layout)"
     return mode
@@ -50,6 +50,10 @@ def _refuse(brief: dict, to: str) -> None:
         raise ConvertError(f"this timeline is already a {_name(to)}")
     if have == want_from:
         return
+    if have == "building_palace":
+        raise ConvertError(
+            "this Mind Palace is a Building Palace: its cards stand in the rooms of one real building's plan, which a Hub & spoke cannot show. "
+            "Only a Star chart converts — rebuild it with palace_view 'stars' first (the building's plan is kept, so it can go back), then convert")
     if have == "city_palace":
         raise ConvertError(
             "this Mind Palace is shown as a city: its buildings stand on a real map's lots and "

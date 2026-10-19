@@ -22,7 +22,7 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     kinds = re.findall(r'<button type="button" class="nt-kind[^"]*" data-kind="(\w+)"', h)
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    assert blk.count('class="nt-pv"') == 6                       # one each, and a second for the two with modes
+    assert blk.count('class="nt-pv"') == 7                       # one each, and a second (a third for the Mind Palace) for the two with modes
     for want in ("Timeline", "Outline", "Hub &amp; spoke", "Mind Palace", ">Sketch<", ">Horizontal<", ">City<", ">Star chart<"):
         assert want in blk, want
 
@@ -31,10 +31,10 @@ def test_the_timeline_and_mind_palace_tiles_choose_a_mode_that_picks_the_starter
     h = _home()
     js = h[h.index("function ntResolve()"):h.index("function ntClose()")]
     assert "ntModes.timeline === 'horizontal' ? 'lanes' : 'timeline'" in js        # Sketch / Horizontal keep their kind ids
-    assert "ntModes.palace === 'stars' ? 'stars' : 'palace'" in js
+    assert "ntModes.palace === 'stars' ? 'stars' : ntModes.palace === 'building' ? 'building' : 'palace'" in js
     # the city needs the real map, so it goes to Claude's own route instead of making a starter
-    assert "if(ntKind === 'palace'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, 'palace') : newProjectPrompt('palace')); return; }" in h
-    assert "ntKind === 'palace' ? 'Build it with Claude' : 'Start writing'" in h
+    assert "if(ntKind === 'palace' || ntKind === 'building'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, ntKind) : newProjectPrompt(ntKind)); return; }" in h
+    assert "(ntKind === 'palace' || ntKind === 'building') ? 'Build it with Claude' : 'Start writing'" in h
 
 
 def test_the_previews_follow_the_page_colours_and_respect_reduced_motion():

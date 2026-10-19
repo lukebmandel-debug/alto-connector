@@ -310,7 +310,7 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
-If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, Hub & spoke, Star chart or a Mind Palace as a city), use it as the answer and do not ask again: Hub & spoke is an outline with `layout: 'solar'` (§D-Solar), a Star chart is a Mind Palace with `palace_view: 'stars'` (§D-Stars), and a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace`. The homepage can start a Star chart itself (the user may only want Claude to fill it from their notes); a city only Claude can build.
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, Hub & spoke, Star chart, a Mind Palace as a city or a Mind Palace in a building), use it as the answer and do not ask again: Hub & spoke is an outline with `layout: 'solar'` (§D-Solar), a Star chart is a Mind Palace with `palace_view: 'stars'` (§D-Stars), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building`. The homepage can start a Star chart itself (the user may only want Claude to fill it from their notes); a city only Claude can build.
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
@@ -327,8 +327,9 @@ A third shape, only when the user asks for it by name (a **Mind Palace**, a
 memory palace, "put my outline on a city", "a solar system / galaxy / star
 chart") — never offered unprompted: `mode: 'palace'`, **§D-Palace** (the
 city, `palace_view: 'city'`) or **§D-Stars** (the Star chart, `palace_view:
-'stars'`). Only Claude can build a city (it needs the real map); the
-homepage's "+ New timeline" can start only the Star chart view.
+'stars'`) or **§D-Building** (one building, `palace_view: 'building'`). Only
+Claude can build a city (it needs the real map) or a building (it needs its
+plan); the homepage's "+ New timeline" can start only the Star chart view.
 
 ### §D-Palace. A Mind Palace (`mode: 'palace'`)
 The method of loci on a real map: each section is a district of a real city,
@@ -564,6 +565,47 @@ nothing is lost either way. A Star chart keeps its city data, so
 `build_timeline(palace_view='city')` makes it a city again; a city palace itself
 is not converted (turn its Star chart view into a Hub & spoke instead). Offer the way back whenever the student
 misses the still version.
+
+### §D-Building. Building Palace (`mode: 'palace'`, `palace_view: 'building'`)
+The method of loci inside ONE real building — a museum, a courthouse, a
+school, the user's own house: a **blueprint** (floor tabs, walls, rooms, the
+cards standing in them) and a **first-person view** inside it (a later release;
+the blueprint's "Walk in" button is its door). Where the city palace trades
+detail for scale, this trades scale for fidelity.
+- **Ask which building** (and nothing else): "which building do you want to
+  walk through?" A famous public one (an art museum, a courthouse, a
+  library) Alto draws from what can be found: official floor plans, HABS/HAER
+  drawings, visitor maps, open-access photographs and stated dimensions. Where
+  that is private, thin or gappy, say plainly where you looked, offer the user
+  three honest options — they point you to a plan or photos, they describe the
+  rooms to the accuracy they want, or you draw the part you could not source as
+  a rough box marked approximate — and take what they choose. Never invent a
+  room: every guess is `c: 0` or `1` (drawn dashed) and its basis is in `src`.
+- **What a node is** is the user's choice; propose both. A node as a **room**
+  (`mode: 'room'`, the default): each top-level concept takes a room on the
+  walk, what sits under it stands in that room (on its art slots and
+  fixtures). A node as an **artwork or object** (`mode: 'anchor'`): each node
+  takes an art slot or a plinth/case along the walk — the natural choice in
+  an art museum. In a house, school or courtroom the user puts objects in a
+  room as child nodes ("the red chair", "the bench"). The proposal follows
+  outline order; the user may move any node: `assignments`.
+- **Tools.** `create_timeline` (`mode: 'palace'`, `palace_view: 'building'`;
+  one section is enough), `add_nodes`, then `set_up_building(timeline_id,
+  plan, mode?, assignments?)` — the plan's format is in the tool's
+  description (`alto/build/building_schema.py` documents every field). It
+  checks the plan, hands out the nodes and reports `placed` / `unplaced`.
+  `set_up_building(timeline_id, demo=True)` shows the view with an invented
+  pavilion before any real data exists. Then `build_timeline`,
+  `publish_timeline`. The user is asked for nothing but their notes and
+  Google's consents.
+- **Coverage.** Exterior (shell, steps, terraces, entrances) and every floor.
+  Rooms are drawn from the plan; per-room confidence shows as dashed
+  outlines — tell the user which rooms are approximate.
+- **Art on walls.** Real images only for clearly public-domain works with a
+  clean source; everything else is a framed placeholder with a title card and
+  a link to the museum's own page. Do not embed images whose terms forbid it.
+- The page carries a loader and the node placements only: the renderer and the
+  plan are hosted files (the private page is at its size cap).
 
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
@@ -1062,6 +1104,7 @@ outline mode `parent` carries the tree) →
 (Hub & spoke), or `mode: 'palace'` and `palace_view: 'stars'`
 (Star chart), ride on `create_timeline` (or the layout/build calls below),
 §D-Solar, §D-Stars →
+6e. Building Palace only: `set_up_building` once the nodes exist (§D-Building) →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
 section** (4-8 sentences: what the section is about, how its main ideas fit
 together, the turning points and tests, in the notes' own terms — a thin
