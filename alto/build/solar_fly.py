@@ -417,12 +417,12 @@ function can(){
   var g=cam().get(); return !!g && g.scale>=.999 && performance.now()-ovAt>K.OV_MS;
 }
 /* where a flight starts with nothing enlarged: the body it last landed on, while in
-   view, else the body nearest the middle of the view */
+   view, else the body nearest the middle of the view (the target itself: no flight) */
 function fromBody(to){
   var f=window._focusedNodeId, W=F.bodies(S()); if(f && W.B[f]) return f;
   var g=cam().get(), c=cvs(), T=window._altoSolarRate().T, hw=c.clientWidth/2, hh=c.clientHeight/2, best=null, bd=1e18;
   if(parked && W.B[parked]){ var q=F.pos(W, parked, T); if(Math.abs(q[0]-g.cx)<hw && Math.abs(q[1]-g.cy)<hh) return parked; }
-  Object.keys(W.B).forEach(function(i){ if(i===to) return; var p=F.pos(W, i, T), d=Math.hypot(p[0]-g.cx, p[1]-g.cy); if(d<bd){ bd=d; best=i; } });
+  Object.keys(W.B).forEach(function(i){ var p=F.pos(W, i, T), d=Math.hypot(p[0]-g.cx, p[1]-g.cy); if(d<bd){ bd=d; best=i; } });
   return best;
 }
 /* the body the craft is in among, flying (a re-plan starts from it): the smallest
@@ -495,7 +495,7 @@ function fly(from, to, o){
   var R=F.plan(S(), from, to, opt); if(!R) return false;
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
   var tr=FL ? FL.trail : [];
-  FL={R:R, o:opt, to:to, from:from, t0:performance.now(), trail:tr, set:null, head:FL ? FL.head : 0, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
+  FL={R:R, o:opt, to:to, from:from, t0:performance.now(), trail:tr, set:null, ms:FL ? FL.ms : [], head:FL ? FL.head : 0, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
   window._altoFlyMs=Math.round(R.D*1000)+K.LAND_MS;     /* an arrow's hop waits for the landing */
   layer(); route(R);
   window._altoSolarDrive(F.clock(R, 0));
@@ -505,7 +505,7 @@ function fly(from, to, o){
 }
 function frame(now){
   raf=0; if(!FL) return;
-  var R=FL.R, tau=Math.max(0, (now-FL.t0)/1000);
+  var R=FL.R, tau=Math.max(0, (now-FL.t0)/1000), c0=performance.now();
   /* someone else took the view (a wheel, the whole-chart toggle) or the focus: it is theirs */
   if(!stars() || de.classList.contains('alto-editing') || printing || window._focusedNodeId) return stop(false);
   if(FL.set && tau>K.TAKE_S){ var g=cam().get();
@@ -515,11 +515,13 @@ function frame(now){
   if(Math.hypot(v[0], v[1])>K.TURN_V) FL.head=Math.atan2(v[1], v[0]);
   setCam(m);
   draw(p, FL.head, m[2], now);
+  FL.ms.push(performance.now()-c0);                    /* this layer's own cost a frame (tests read it) */
   if(tau>=R.D) return land();
   raf=requestAnimationFrame(frame);
 }
+var LAST=null;
 function land(){
-  var to=FL.to; FL=null; cancelAnimationFrame(raf); raf=0;
+  var to=FL.to; LAST={to:to, from:FL.from, D:FL.R.D, ms:FL.ms, steps:FL.R.steps.map(function(q){ return q[0]; }), how:'landed'}; FL=null; cancelAnimationFrame(raf); raf=0;
   parked=to; landAt=performance.now(); fade(); de.classList.remove('sol-flying');
   (enter0 || window.enterFocus).call(window, to);         /* enlarged as ever: where it is, the orbits still */
   window._altoSolarDrive(null, 0);
@@ -529,6 +531,7 @@ function land(){
    view comes back to full size where the craft is */
 function stop(calmly){
   if(!FL) return; var R=FL.R, tau=Math.min(R.D, Math.max(0, (performance.now()-FL.t0)/1000)), p=F.at(R, tau);
+  LAST={to:FL.to, from:FL.from, D:R.D, ms:FL.ms, how:calmly ? 'esc' : 'stopped'};
   window._altoSolarDrive(null, F.rate(R, tau)); FL=null; cancelAnimationFrame(raf); raf=0; Q=[];
   fade(); de.classList.remove('sol-flying');
   var g=cam().get(); if(!calmly || !g || g.scale>=.999) return;
@@ -609,8 +612,8 @@ function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') 
 function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
 function init(){ watchOv(); var L=window._altoSolarLook; if(L && L.onChange) L.onChange(look); }
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
-window._altoSolarFlight=function(){ if(!FL) return null; var R=FL.R, tau=(performance.now()-FL.t0)/1000;
-  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:F.at(R, Math.min(tau, R.D)), queued:Q.slice()}; };
+window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=(performance.now()-FL.t0)/1000;
+  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:F.at(R, Math.min(tau, R.D)), queued:Q.slice(), ms:FL.ms.slice()}; };
 })();
 """.replace("__RT__", json.dumps(FLY_RT, separators=(",", ":")))
 
