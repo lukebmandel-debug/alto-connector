@@ -132,8 +132,10 @@ def test_every_pause_is_there():
 
 
 def test_the_drawing_is_small():
+    """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
+    the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 15000, size
+    assert size < 20000, size
 
 
 def test_spoke_style_has_no_motion_and_draws_tubes():
@@ -591,3 +593,109 @@ def test_a_find_link_is_not_overridden(browser, tmp_path):
     st = pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]")
     ctx.close()
     assert st[0] == 1 and st[1] in (None, "u2-p1")
+
+
+# ── zooming: one gesture, one owner (Luke on 1.9.105: "If I zoom in and try to zoom
+#    back out, it basically doesn't work.") Synthetic Safari gesture events and
+#    ctrl+wheel streams on a Hub & spoke page; Playwright's WebKit is not Safari, so
+#    scratch/safari/zoomprobe.* repeats these in the real thing. ────────────────
+
+GESTURE_JS = r"""
+window.__g=function(type, scale, x, y){ var e=new Event(type, {bubbles:true, cancelable:true}); e.scale=scale; e.rotation=0; e.clientX=x; e.clientY=y;
+  (document.elementFromPoint(x, y)||document.body).dispatchEvent(e); return e.defaultPrevented; };
+window.__st=function(){ return {z:window._altoSolarZoom(), f:window._focusedNodeId||null}; };
+"""
+
+
+def _pinch(pg, x, y, scales, gap=16):
+    prevented = [pg.evaluate(f"() => window.__g('gesturestart', 1, {x}, {y})")]
+    for s in scales:
+        prevented.append(pg.evaluate(f"() => window.__g('gesturechange', {s}, {x}, {y})"))
+        pg.wait_for_timeout(gap)
+    prevented.append(pg.evaluate(f"() => window.__g('gestureend', {scales[-1]}, {x}, {y})"))
+    return prevented
+
+
+def _wheel(pg, x, y, dy, n, gap=16):
+    pg.mouse.move(x, y)
+    pg.keyboard.down("Control")
+    for _ in range(n):
+        pg.mouse.wheel(0, dy)
+        pg.wait_for_timeout(gap)
+    pg.keyboard.up("Control")
+
+
+@pytest.fixture(scope="module")
+def hub_page(tmp_path_factory):
+    f = tmp_path_factory.mktemp("hub") / "hub.html"
+    f.write_text(_page(style="spoke"), encoding="utf-8")
+    return f
+
+
+def test_a_pinch_never_starts_the_browsers_own_zoom_and_goes_both_ways(browser, hub_page):
+    pg, errs = _open(browser, hub_page, wait=1800)
+    pg.evaluate(GESTURE_JS)
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    # pinch in on a card at rest: the engine enlarges it; every gesture event is prevented
+    prev = _pinch(pg, xy[0], xy[1], [1.05, 1.15, 1.3, 1.45])
+    pg.wait_for_timeout(900)
+    assert all(prev), prev
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": "u1-p1"}
+    # pinch out: let go
+    assert all(_pinch(pg, 700, 500, [0.95, 0.85, 0.7, 0.55]))
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": None}
+    # pinch out at rest: the whole chart; pinch in from it: all the way back to full size, nothing enlarged
+    _pinch(pg, 700, 500, [0.9, 0.75, 0.6])
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("window._altoSolarZoom()") < 1
+    _pinch(pg, 700, 500, [1.1, 1.3, 1.6, 2.0])
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": None}
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_one_ctrl_wheel_stream_does_one_thing_and_zooms_out_of_a_card(browser, hub_page):
+    pg, errs = _open(browser, hub_page, wait=1800)
+    pg.evaluate(GESTURE_JS)
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    _wheel(pg, xy[0], xy[1], -30, 6)
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window.__st()")["f"] is not None             # pinch in: enlarged
+    _wheel(pg, 700, 500, 30, 30)                                     # one long pinch out: let go, then on out
+    pg.wait_for_timeout(700)
+    st = pg.evaluate("window.__st()")
+    assert st["f"] is None and st["z"] < 1, st
+    _wheel(pg, 700, 500, -30, 30)                                    # one long pinch in: back to full size and stop there
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": None}
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── the camera adapter (window._altoSolarCam, for solar_fly.py) ───────────────
+
+def test_the_camera_puts_a_plan_point_in_the_middle_at_any_scale(browser, pages):
+    f, plan = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    seen = pg.evaluate("() => { window.__cam=[]; window._altoSolarCam.onChange(function(g){ window.__cam.push(g); }); return 1; }")
+    for sid, scale in (("u2", 1), ("u1", 0.5), ("u3", 0.8), ("u1-p1", 1)):
+        n = plan["nodes"][sid]
+        g = pg.evaluate(f"() => window._altoSolarCam.set({n['x']}, {n['y']}, {scale})")
+        pg.wait_for_timeout(120)
+        g2 = pg.evaluate("() => window._altoSolarCam.get()")
+        assert g2["scale"] == pytest.approx(scale, abs=1e-6)
+        assert abs(g2["cx"] - n["x"]) < 2 and abs(g2["cy"] - n["y"]) < 2, (sid, scale, g2, n)
+        assert pg.evaluate("() => window._altoSolarZoom()") == pytest.approx(scale, abs=1e-6)
+        # set(get()) changes nothing
+        g3 = pg.evaluate("() => { var g=window._altoSolarCam.get(); return window._altoSolarCam.set(g.cx, g.cy, g.scale); }")
+        assert abs(g3["cx"] - g2["cx"]) < 1.5 and abs(g3["cy"] - g2["cy"]) < 1.5
+    assert pg.evaluate("() => window.__cam.length") > 0              # onChange heard the moves
+    # the whole-chart toggle is the same camera
+    pg.click("#sol-fit")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => window._altoSolarCam.get().scale") == pytest.approx(pg.evaluate("() => window._altoSolarZoom()"))
+    assert not errs, errs
+    pg.context.close()
