@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
-    FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style
+    FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, building_view
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
 from . import backgrounds, hover_lines
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
@@ -177,7 +177,7 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     """Returns (html, report). Raises VerifyError/BriefError on any failure."""
     warnings = validate_brief(brief)
     warnings += validate_nodes(brief, nodes)
-    if not solar_style(brief):                # (a Star chart draws no city, so no towers)
+    if not solar_style(brief) and not building_view(brief):      # (a Star chart and a Building Palace draw no city, so no towers)
         from .palace import apply_towers      # a unit assigned to a skyscraper: its buildings become its floors
         warnings += apply_towers(brief, nodes)
 
@@ -269,7 +269,7 @@ def _add_background_head(html: str, brief: Brief) -> str:
         raise VerifyError(["page has no single theme-color tag for the background script"])
     # ahead of the tag, not after it: engine_patches appends the mobile runway
     # right behind it and every patch's text must stay in one piece
-    city = brief.mode == "palace" and not solar_style(brief)     # a Star chart has no maps to offer
+    city = brief.mode == "palace" and not solar_style(brief) and not building_view(brief)     # a Star chart and a Building Palace have no maps to offer
     return html.replace(anchor, backgrounds.head_block(key, palace=city) + "\n" + anchor, 1)
 
 

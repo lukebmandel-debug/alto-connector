@@ -1,0 +1,93 @@
+{
+ "building": "pma",
+ "verified": "2026-10-19",
+ "rule": "An image is hosted only when the work is public domain (artist died before 1956, faithful 2-D reproduction) AND its Wikimedia Commons file page states Public domain / pd (read from the Commons API on the date above). Everything else is a framed title card. Originals are not kept in the repository: each file is the Commons image downscaled to 512 px on its long side and re-encoded as JPEG (quality 68).",
+ "images": {
+  "peale": {
+   "file": "peale.jpg",
+   "title": "Portrait of Yarrow Mamout (Muhammad Yaro)",
+   "artist": "Charles Willson Peale",
+   "artist_died": 1827,
+   "date": "1819",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Portrait_of_Yarrow_Mamout_(Muhammad_Yaro),_1819._Charles_Willson_Peale.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "104",
+   "pma_object": "319114",
+   "orig_px": [
+    3408,
+    4097
+   ]
+  },
+  "tanner": {
+   "file": "tanner.jpg",
+   "title": "The Annunciation",
+   "artist": "Henry Ossawa Tanner",
+   "artist_died": 1937,
+   "date": "1898",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:The_Annunciation,_Philadelphia_Museum_of_Art,_W1899-1-1-pma,_by_Henry_Ossawa_Tanner.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "211",
+   "pma_object": "104384",
+   "orig_px": [
+    4096,
+    3286
+   ]
+  },
+  "monet": {
+   "file": "monet.jpg",
+   "title": "Japanese Footbridge, Giverny",
+   "artist": "Claude Monet",
+   "artist_died": 1926,
+   "date": "1895",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Japanese_Footbridge,_Giverny_(1895)_Claude_Monet_-_Philadelphia_Museum_of_Art_-_Inv.1993-151-2_(W_1419).jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "261",
+   "pma_object": "87535",
+   "orig_px": [
+    4096,
+    3320
+   ]
+  },
+  "weyden": {
+   "file": "weyden.jpg",
+   "title": "The Crucifixion, with the Virgin and Saint John the Evangelist Mourning",
+   "artist": "Rogier van der Weyden",
+   "artist_died": 1464,
+   "date": "c. 1460",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Rogier_van_der_Weyden,_Netherlandish_(active_Tournai_and_Brussels)_-_The_Crucifixion,_with_the_Virgin_and_Saint_John_the_Evangelist_Mourning_-_Google_Art_Project.jpg",
+   "source_credit": "Google Art Project, via Wikimedia Commons",
+   "gallery": "306",
+   "pma_object": "102845",
+   "orig_px": [
+    4421,
+    4368
+   ]
+  }
+ },
+ "not_hosted": [
+  {
+   "work": "The Last Drop (Leyster, PD; Commons file verified PD)",
+   "why": "gallery 364 is confirmed but only a schematic label point 0.x m outside a traced room places it: no room placement claimed, so no image hosted"
+  },
+  {
+   "work": "The Gross Clinic (Eakins, PD)",
+   "why": "gallery number conflicts between sources (255 vs 211): no room placement, so no image"
+  },
+  {
+   "work": "Large Bathers (Cezanne), Sunflowers (Van Gogh), Prometheus Bound (Rubens)",
+   "why": "gallery number unconfirmed"
+  },
+  {
+   "work": "Diana (Saint-Gaudens): the sculpture is public domain but the only Commons photographs are CC BY / CC BY-SA",
+   "why": "licence is not PD/CC0"
+  },
+  {
+   "work": "Duchamp, Brancusi, Rivera, Calder, living artists",
+   "why": "rights: title cards only, never images"
+  }
+ ]
+}

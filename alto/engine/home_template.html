@@ -708,7 +708,9 @@
   @media (prefers-reduced-motion:reduce){ .nt-pv .pv-pan{ animation:none; } }
   /* tiles with two modes show the chosen one's picture and words */
   .nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"],
-  .nt-kind[data-mode="city"] [data-for="stars"], .nt-kind[data-mode="stars"] [data-for="city"]{ display:none; }
+  .nt-kind[data-mode="city"] [data-for="stars"], .nt-kind[data-mode="stars"] [data-for="city"],
+  .nt-kind[data-mode="city"] [data-for="building"], .nt-kind[data-mode="stars"] [data-for="building"],
+  .nt-kind[data-mode="building"] [data-for="city"], .nt-kind[data-mode="building"] [data-for="stars"]{ display:none; }
   .nt-modes{ display:flex; gap:6px; margin:-8px 0 16px; }
   .nt-modes[hidden]{ display:none; }
   .nt-mode{ flex:0 0 auto; height:28px; padding:0 14px; border-radius:14px; border:1px solid var(--btn-border); background:transparent; color:var(--muted);
@@ -1047,10 +1049,16 @@
             <g class="pv-om"><circle class="pv-dot" cx="78.9" cy="39.8" r="2.4"/></g></g>
           <g class="pv-o3"><circle class="pv-card" cx="118.5" cy="110.7" r="4.5"/></g>
         </svg>
-        <span class="nt-t">Mind Palace</span><small data-for="city">Your outline as a real city: sections are districts, concepts are buildings. Claude builds it with you.</small><small data-for="stars">Your outline as a moving solar system: each building a sun, its floors the planets and moons.</small></button>
+        <svg class="nt-pv" data-for="building" viewBox="0 0 200 120" aria-hidden="true">
+          <path class="pv-ln" d="M24 14 H176 V106 H24 Z M24 56 H92 M120 14 V56 H176 M92 56 V106 M120 80 H176"/>
+          <rect class="pv-hub" x="34" y="24" width="48" height="24" rx="2"/><rect class="pv-card" x="34" y="66" width="48" height="30" rx="2"/>
+          <rect class="pv-card" x="100" y="66" width="12" height="30" rx="2"/><rect class="pv-card" x="130" y="22" width="36" height="26" rx="2"/>
+          <rect class="pv-card" x="130" y="88" width="36" height="12" rx="2"/>
+        </svg>
+        <span class="nt-t">Mind Palace</span><small data-for="city">Your outline as a real city: sections are districts, concepts are buildings. Claude builds it with you.</small><small data-for="building">Your outline inside one real building: a blueprint, then a walk through its rooms. Claude draws it with you.</small><small data-for="stars">Your outline as a moving solar system: each building a sun, its floors the planets and moons.</small></button>
     </div>
     <div class="nt-modes" data-for="timeline" role="group" aria-label="Which timeline" hidden><button type="button" class="nt-mode on" data-mode="sketch" aria-pressed="true">Sketch</button><button type="button" class="nt-mode" data-mode="horizontal" aria-pressed="false">Horizontal</button></div>
-    <div class="nt-modes" data-for="palace" role="group" aria-label="Which Mind Palace" hidden><button type="button" class="nt-mode on" data-mode="city" aria-pressed="true">City</button><button type="button" class="nt-mode" data-mode="stars" aria-pressed="false">Star chart</button></div>
+    <div class="nt-modes" data-for="palace" role="group" aria-label="Which Mind Palace" hidden><button type="button" class="nt-mode on" data-mode="city" aria-pressed="true">City</button><button type="button" class="nt-mode" data-mode="stars" aria-pressed="false">Star chart</button><button type="button" class="nt-mode" data-mode="building" aria-pressed="false">Building</button></div>
     <div class="nt-msg" id="nt-msg"></div>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>
     <button type="button" class="dl-cancel" id="nt-cancel">Cancel</button>
@@ -1264,6 +1272,7 @@ const KIND_PHRASE = {
   lanes: 'a horizontal timeline (mode \'lanes\'): to scale, left to right, with concurrent lines branching off and rejoining the main line',
   solar: 'a Hub & spoke outline (mode \'outline\', layout \'solar\'): each unit a hub with its concepts around it on spokes',
   stars: 'a Star chart (a Mind Palace in star-chart mode: mode \'palace\', palace_view \'stars\'): my outline as slowly moving solar systems, no city',
+  building: 'a Mind Palace in a building (a Building Palace: mode \'palace\', palace_view \'building\'): my outline inside one real building, a blueprint plus a walk through its rooms. Ask me which building, then use Alto\'s set_up_building',
   palace: 'a Mind Palace as a city (mode \'palace\'): my outline as a real city, its sections districts and its concepts buildings. Ask me which place, then use Alto\'s set_up_palace'
 };
 function kindSentence(kind){
@@ -1293,10 +1302,10 @@ let ntKind = 'outline', ntTile = 'outline', ntModes = { timeline: 'sketch', pala
 // city (only Claude can build one: it needs the real map) or the star chart (a starter of its own).
 function ntResolve(){
   if(ntTile === 'timeline') return ntModes.timeline === 'horizontal' ? 'lanes' : 'timeline';
-  if(ntTile === 'palace') return ntModes.palace === 'stars' ? 'stars' : 'palace';
+  if(ntTile === 'palace') return ntModes.palace === 'stars' ? 'stars' : ntModes.palace === 'building' ? 'building' : 'palace';
   return ntTile;
 }
-const ntLabel = () => ntKind === 'palace' ? 'Build it with Claude' : 'Start writing';
+const ntLabel = () => (ntKind === 'palace' || ntKind === 'building') ? 'Build it with Claude' : 'Start writing';
 function ntOpen(projectName){
   if(!altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt()); return; }
   const s = document.getElementById('nt-scrim');
@@ -1332,7 +1341,7 @@ function ntMode(tile, m){ ntModes[tile] = m; ntPick(tile); }
 function ntMake(){
   const s = document.getElementById('nt-scrim'), msg = document.getElementById('nt-msg');
   const inProject = s.dataset.project || '';
-  if(ntKind === 'palace'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, 'palace') : newProjectPrompt('palace')); return; }      // a city needs the real map: Claude's
+  if(ntKind === 'palace' || ntKind === 'building'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, ntKind) : newProjectPrompt(ntKind)); return; }      // a city needs the real map, a building its plan: Claude's
   const project = inProject || document.getElementById('nt-project').value.replace(/\s+/g, ' ').trim();
   const title = document.getElementById('nt-title').value.replace(/\s+/g, ' ').trim();
   if(!inProject && !project){ msg.textContent = 'Name the project.'; document.getElementById('nt-project').focus(); return; }
