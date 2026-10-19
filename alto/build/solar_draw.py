@@ -482,7 +482,7 @@ function hold(){
   return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
 }
 function tick(ts){
-  raf=0; if(!ready) return;
+  raf=0; if(!ready || DRV) return;
   var dt=last==null ? 0 : Math.min(.1, (ts-last)/1000); last=ts;
   if(GL){ apply(); follow(); skin(); if(performance.now()-GL.t0>=GL.ms){ GL=null; apply(true); } return go(); }   /* a change of look: from the old places to the new */
   if(OV && (de.classList.contains('alto-editing') || window._focusedNodeId)) ovLeave(null, true);
@@ -495,6 +495,16 @@ function tick(ts){
 }
 function go(){ clearTimeout(slT); if(!raf && (MOVES || GL)) raf=requestAnimationFrame(tick); }
 function sleep(){ last=null; clearTimeout(slT); slT=setTimeout(go, 180); }
+/* a flight (solar_fly.py) drives the clock: while it flies T is its own, set every
+   frame, and the loop here waits; let go, the orbits run on from the rate it hands
+   back (0: still, 1: full speed), easing as ever. _altoSolarRate: the rate now. */
+var DRV=0;
+window._altoSolarDrive=function(t, r){
+  if(t==null){ if(DRV){ DRV=0; r=Math.max(0, Math.min(1, +r||0)); sp=r>0 ? .5-Math.sin(Math.asin(1-2*r)/3) : 0; last=null; go(); } return T; }
+  if(!DRV){ DRV=1; cancelAnimationFrame(raf); raf=0; clearTimeout(slT); }
+  T=t; back=rk=1; apply(); skin(); return T;
+};
+window._altoSolarRate=function(){ return {T:T, r:(DRV || !MOVES || hold() || de.classList.contains('alto-editing') || printing) ? 0 : sp*sp*(3-2*sp)}; };
 window.addEventListener('beforeprint', function(){ printing=1; ovLeave(null, true); if(T){ T=0; rk=1; apply(); } });
 window.addEventListener('afterprint', function(){ printing=0; go(); });
 document.addEventListener('visibilitychange', function(){ last=null; go(); });

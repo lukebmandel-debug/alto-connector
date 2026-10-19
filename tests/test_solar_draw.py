@@ -362,6 +362,7 @@ def test_arrow_keys_pick_the_body_that_way_where_it_is_now(browser, pages):
     f, _ = pages["orbit"]
     pg, errs = _open(browser, f, wait=1800)
     pg.mouse.move(2, 940)
+    pg.evaluate("() => { window._altoFlyOff = 1; }")      # the pick, not the flight there (test_solar_fly.py)
     pg.evaluate("() => window.enterFocus('u1')")
     pg.wait_for_timeout(700)
     g = pg.evaluate(BODIES)
