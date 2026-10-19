@@ -251,7 +251,11 @@ def test_publishing_writes_the_plan_of_every_published_building_palace_and_cache
     assert other  # (a city palace publishes no plan)
     hdr = publish_static._headers("csp", "ccsp")
     rules = {h["source"]: {x["key"]: x["value"] for x in h["headers"]} for h in hdr}
-    assert rules["/bldg/**"]["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert "/bldg/**" not in rules                               # a folder-wide rule would cache a not-yet-deployed plan's 404 for a year
+    hdr = publish_static._headers("csp", "ccsp", bldg_files=[pba.building_asset()[0], next(iter(plans)), "evil.json"])
+    rules = {h["source"]: {x["key"]: x["value"] for x in h["headers"]} for h in hdr}
+    assert rules["/bldg/" + next(iter(plans))]["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert ("/bldg/" + pba.building_asset()[0]) in rules and "/bldg/evil.json" not in rules
 
 
 def _timeline_other_city():

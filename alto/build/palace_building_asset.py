@@ -391,7 +391,8 @@ A.enterFPV=function(roomId,opts){
   if(fpvImpl && typeof fpvImpl.enter==='function'){ try{ return fpvImpl.enter(roomId,ctx); }catch(x){ } }
   if(!fpvImpl && FPV_URL && !S.fpvTried && A.plan){         // the first-person view is its own hosted script, fetched the first time someone walks in
     S.fpvTried=1; if(S.fpvNote) S.fpvNote.textContent='Opening the first-person view\u2026';
-    fetch(FPV_URL,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); }).then(function(t){
+    var get=function(){ return fetch(FPV_URL,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); }); };
+    get().catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(get); }).then(function(t){          // one retry: a dropped request is not a missing file
       var sc=document.createElement('script'); sc.text=t; (document.head||document.documentElement).appendChild(sc); if(sc.parentNode) sc.parentNode.removeChild(sc);
       if(S.fpvNote) S.fpvNote.textContent=''; if(fpvImpl) A.enterFPV(roomId,opts); else noFPV(roomId,opts);
     }).catch(function(){ noFPV(roomId,opts); });

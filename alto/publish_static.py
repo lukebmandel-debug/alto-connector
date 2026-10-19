@@ -406,7 +406,7 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir), _art_names(site_dir))
+    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir), _art_names(site_dir), _bldg_names(site_dir))
 
 
 def _csp(form_action: str) -> str:
@@ -435,7 +435,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_files=(), bldg_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -462,7 +462,10 @@ def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_file
         # A hosted palace script (the ride, the fleet) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
-        ]} for f in _palace_folders() if f not in _blob_folders()),
+        ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
+        # bldg: the Building Palace's renderers and plans, one literal immutable rule per file that exists (as /street/): a plan a page names before the
+        # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
+        *_bldg_rules(bldg_files),
         # The street data (build/palace_street.py) is kept for a year too — but ONLY the files that exist, named one by one: Hosting matches headers against
         # the request path, so a "/street/**" rule would stamp "immutable" on the 404 page a missing or not-yet-uploaded shard answers with, and the
         # browser would remember that failure for a year. Anything else under /street/ keeps the "**" rule's no-cache.
@@ -500,6 +503,22 @@ def _art_names(site_dir) -> list:
     from .buildings.pma_art import ART_FOLDER, ART_RE
     d = Path(site_dir) / ART_FOLDER
     return sorted(p.name for p in d.iterdir() if p.is_file() and ART_RE.match(p.name)) if d.is_dir() else []
+
+
+BLDG_RE = re.compile(r"^(palace-building-(fpv-)?[0-9a-f]{10}\.js|plan-[0-9a-f]{12}\.json)$")
+
+
+def _bldg_names(site_dir) -> list:
+    """The Building Palace files in the site folder (renderers and plans), only names of the published shape."""
+    if site_dir is None:
+        return []
+    d = Path(site_dir) / "bldg"
+    return sorted(p.name for p in d.iterdir() if p.is_file() and BLDG_RE.match(p.name)) if d.is_dir() else []
+
+
+def _bldg_rules(names) -> list:
+    return [{"source": "/bldg/%s" % n, "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if BLDG_RE.match(n)]
 
 
 def _art_rules(names) -> list:

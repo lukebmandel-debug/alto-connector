@@ -97,6 +97,7 @@ WORKS = ("painting", "drawing", "print", "relief", "tapestry", "textile", "sculp
 ROOFS = ("flat", "gable", "hip", "dome", "vault", "none")
 ENTRANCE_KINDS = ("main", "side", "service", "accessible")
 ASSIGN_MODES = ("room", "anchor")
+ART_IMG_RE = re.compile(r"/bart/[a-z0-9][a-z0-9-]{0,80}\.(jpg|jpeg|png|webp)")      # a work's image: only a file the site itself hosts
 MAX_PLAN_BYTES = 1_500_000          # the JSON text, before gzip: far above any real building, a guard against a runaway generator
 
 
@@ -494,6 +495,12 @@ def validate_plan(plan) -> list:
             errs.append(f"{w}: sz is [w, h] in metres")
         if not _num(sl.get("fc"), -360, 360):
             errs.append(f"{w}: fc (the direction the work faces, degrees) is needed")
+        wk = sl.get("work")
+        if wk is not None:
+            if not isinstance(wk, dict):
+                errs.append(f"{w}: work is an object {{title, artist, date, credit, pma_url, img}}")
+            elif wk.get("img") not in (None, "") and not (isinstance(wk["img"], str) and ART_IMG_RE.fullmatch(wk["img"])):
+                errs.append(f"{w}: work.img must be a hosted /bart/<name>.jpg|png|webp image on the site (never an outside URL), or empty")
         al = sl.get("al", ["any"])
         if not (isinstance(al, list) and al and all(a in WORKS for a in al)):
             errs.append(f"{w}: al is a non-empty list drawn from {WORKS}")
@@ -540,6 +547,18 @@ def validate_plan(plan) -> list:
                 poly_ok(t.get("p"), f"{w} {k!r}")
                 if not _num(t.get("z")):
                     errs.append(f"{w} {k!r}: z (elevation) is needed")
+
+    # the area legend
+    ca = plan.get("ca")
+    if ca is not None:
+        if not isinstance(ca, list):
+            errs.append("ca: a list of {id, n, c}")
+        else:
+            for i, a_ in enumerate(ca):
+                if not (isinstance(a_, dict) and isinstance(a_.get("id"), str) and ID_RE.fullmatch(a_["id"])):
+                    errs.append(f"ca[{i}]: needs an id token")
+                elif a_.get("c") is not None and not (isinstance(a_["c"], str) and re.fullmatch(r"#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}", a_["c"])):
+                    errs.append(f"ca[{i}] {a_['id']!r}: c must be a #hex colour")
 
     # entrances
     seen = set()

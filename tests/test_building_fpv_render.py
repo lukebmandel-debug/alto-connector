@@ -129,6 +129,37 @@ def test_the_blueprint_fetches_the_view_on_the_first_walk_in(engine):
         page.close()
 
 
+def test_a_second_walk_in_draws_again(engine):
+    """Regression: exit() loses the GL context, whose 'lost' event arrives after the next enter() and used to blank it (S.lost stayed set)."""
+    which, b, srv = engine
+    page, errors = open_view(b, srv, built()[0], bs.fixture(), room="g101")
+    try:
+        first = page.evaluate(PIXELS)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        assert page.evaluate("!!document.getElementById('bf-root')") is False
+        page.evaluate("AltoBuilding.enterFPV('hall', {from: 'plan'})")
+        page.wait_for_function("window.AltoBuildingFPV && AltoBuildingFPV.state() && AltoBuildingFPV.state().on")
+        page.wait_for_timeout(500)                                       # let the old canvas's context-lost event arrive
+        again = page.evaluate(PIXELS)
+        shot(page, f"{which}_fixture_reenter")
+        assert first["mean"] > 0.08 and again["mean"] > 0.08 and again["sd"] > 0.03, (first, again)
+        assert page.evaluate("AltoBuildingFPV.state().room") == "hall" and errors == []
+    finally:
+        page.close()
+
+
+def test_the_plan_credits_are_on_screen(engine):
+    which, b, srv = engine
+    from alto.buildings import pma
+    page, errors = open_view(b, srv, built()[0], pma.plan())
+    try:
+        t = page.evaluate("document.querySelector('#bf-root .bf-credit').textContent")
+        assert "OpenStreetMap" in t and "Architectural Forum" in t and "Wikimedia Commons" in t
+    finally:
+        page.close()
+
+
 def test_a_phone_gets_joysticks_and_the_view_fits(engine):
     which, b, srv = engine
     srv.html, srv.plan = built()[0], bs.hosted_json(bs.fixture())[1]

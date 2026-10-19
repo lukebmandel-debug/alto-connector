@@ -1969,6 +1969,8 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
                 f"{brief.get('mode') or 'linear'!r}; a Building Palace is created with mode 'palace' and palace_view 'building'"}
     from .build import building_schema as bs
     old = brief.get("building") or {}
+    if (plan is not None) + bool(building) + bool(demo) > 1:
+        return {"error": "conflicting_plan", "message": "pass only one of `plan`, `building` and `demo`"}
     if building:
         from . import buildings
         token = buildings.resolve(building)
@@ -2643,6 +2645,18 @@ def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
                            "homepage now. Nothing to upload.")}
     if site:
         urls["view_url"] = f"https://{site}.web.app/pv/{key}/"
+        bd = (doc.get("brief") or {}).get("building") or {}
+        if (doc.get("brief") or {}).get("palace_view") == "building" and bd.get("plan_h"):
+            # this path never deploys the site, and the page fetches its plan (and the renderers) from the site's /bldg/: say so when they are not there yet
+            from .build import building_schema as bs
+            from .build.palace_building_asset import BUILDING_PATH
+            from .build.palace_building_fpv import FPV_PATH
+            missing = [p_ for p_ in ("/bldg/" + bs.file_name(bd["plan_h"]), BUILDING_PATH, FPV_PATH) if A.probe(f"https://{site}.web.app{p_}") != 200]
+            if missing:
+                urls["building_files_missing"] = missing
+                urls["note"] += (" This Building Palace's plan or renderer is not on the site yet (" + ", ".join(missing) + "): until the site is "
+                                 "redeployed (publish once from a computer whose Firebase CLI is signed in to this account), the page shows its cards "
+                                 "and the blueprint says it could not load the plan.")
         if A.probe(f"https://{site}.web.app/pv/") != 200:
             urls["note"] += (" The site's page shell is not deployed yet, so "
                              "open it from the homepage once the site has "

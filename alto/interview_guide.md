@@ -568,10 +568,18 @@ misses the still version.
 
 ### §D-Building. Building Palace (`mode: 'palace'`, `palace_view: 'building'`)
 The method of loci inside ONE real building — a museum, a courthouse, a
-school, the user's own house: a **blueprint** (floor tabs, walls, rooms, the
-cards standing in them) and a **first-person view** inside it (a later release;
-the blueprint's "Walk in" button is its door). Where the city palace trades
-detail for scale, this trades scale for fidelity.
+school: a **blueprint** (floor tabs, walls, rooms, the cards standing in them)
+and a **first-person view** inside it (a BETA: say so; the blueprint's "Walk
+in" buttons are its doors). Where the city palace trades detail for scale, this
+trades scale for fidelity.
+- **The rule for any building (Luke's):** a public building gets a baseline
+  Alto draws itself from public plans and photographs; where it is private or
+  the public record is gappy, the user provides material, says where to look,
+  or describes it (to the accuracy they want) — nothing else is asked of them.
+- **Plans are public files.** A building's plan is served from the site's
+  public `/bldg/` folder (anyone with its address can read it), unlike the
+  private page. Do not use a Building Palace for a user's private house or any
+  building whose layout should not be public; say this before drawing one.
 - **Ask which building** (and nothing else): "which building do you want to
   walk through?" A famous public one (an art museum, a courthouse, a
   library) Alto draws from what can be found: official floor plans, HABS/HAER
