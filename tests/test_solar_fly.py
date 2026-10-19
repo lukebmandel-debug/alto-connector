@@ -133,9 +133,23 @@ def test_a_comet_is_met_on_its_ellipse(plans):
 
 
 def test_between_systems_the_craft_swings_round_the_galactic_core(plans):
-    S = plans[3]
+    """When the core lies ahead with room to turn round it (_by_core), the
+    cruise between systems swings round it."""
+    S = plans[2]
     W = tw.bodies(S)
-    R = tw.plan(S, "u1-p3-m1", "u2-p2-m2", {"T0": 5.0})
+    R, ids = None, sorted(i for i in W["B"] if W["B"][i]["role"] != "core")
+    for T0 in (5.0, 40.0, 80.0):
+        for A in ids:
+            for B in ids:
+                if tw.chain(W, A)[-1] != tw.chain(W, B)[-1]:
+                    R = tw.plan(S, A, B, {"T0": T0})
+                    if ["fly", "#core"] in R["steps"]:
+                        break
+            if ["fly", "#core"] in R["steps"]:
+                break
+        if ["fly", "#core"] in R["steps"]:
+            break
+    assert R and ["fly", "#core"] in R["steps"], "no route between the systems goes round the core"
     st = [q[0] for q in R["steps"]]
     i = R["steps"].index(["fly", "#core"])
     assert st[i - 1] == "bez" and st[i + 1] == "bez", st
@@ -144,11 +158,11 @@ def test_between_systems_the_craft_swings_round_the_galactic_core(plans):
     t0, t1 = R["D"] * tw.ease_inv(L["s0"]), R["D"] * tw.ease_inv(L["s1"])
     near = min(math.hypot(*(tw.at(W, R, t0 + (t1 - t0) * k / 40)[j] - (core["x"], core["y"])[j] for j in (0, 1))) for k in range(41))
     assert near < core["r"] + FLY["FLY_Q"] + 2                 # it passes close round the black hole
-    end, tgt = tw.at(W, R, R["D"]), tw.pos(W, "u2-p2-m2", tw.clock(R["c"], R["D"]))
+    end, tgt = tw.at(W, R, R["D"]), tw.pos(W, R["to"], tw.clock(R["c"], R["D"]))
     assert math.hypot(end[0] - tgt[0], end[1] - tgt[1]) < 1.0
     # no core: no swing round it; never a flight to or from the core itself
     bare = {k: v for k, v in S.items() if k != "core"}
-    assert ["fly", "#core"] not in tw.plan(bare, "u1-p3-m1", "u2-p2-m2", {"T0": 5.0})["steps"]
+    assert ["fly", "#core"] not in tw.plan(bare, R["from"], R["to"], {"T0": R["c"]["T0"]})["steps"]
     assert tw.plan(S, "#core", "u1") is None and tw.plan(S, "u1", "#core") is None
 
 

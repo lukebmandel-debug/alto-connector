@@ -90,7 +90,8 @@ FLY = {
     "HOP_R": 70, "FAR_RINGS": 4, "ASSIST_DEV": math.radians(80), "ASSIST_MAX": 3, "ASSIST_SWEEP": 1.2 * math.pi, "CAP_SWEEP": 0.8 * math.pi,
     # a black-hole body is the swing-by of choice; the galactic core is swung round between
     # systems when going by it adds at most CORE_DETOUR to the way
-    "BH_BONUS": 1.0, "CORE_DETOUR": 2.0,
+    "BH_BONUS": 1.0, "CORE_DETOUR": 2.0, "TURN_CORE": (math.radians(30), math.radians(150)),
+    "CORE_MIN": 700, "CORE_AHEAD": math.radians(70),
     "T_MID": 2.5,
     # geometry (px; radians)
     "CAP_PAD": 26, "ESC_PAD": 30, "PARK_GAP": 16, "SYS_PAD": 70, "FLY_Q": 40, "SOI_K": 3.0,
@@ -207,8 +208,9 @@ function steps(W, A, Bt, Tm){
   if(ca[ca.length-1]!==cb[cb.length-1]){
     var pa=ca.length>=2 ? ca[ca.length-2] : '';
     if(ca.length>=2) st.push(['esc', pa]);
-    assists(W, ca[ca.length-1], pa, cb[cb.length-1], Tm).forEach(function(I){ st.push(['xfer', ca[ca.length-1], I]); st.push(['fly', I]); });
-    if(byCore(W, ca[ca.length-1], cb[cb.length-1])){ st.push(['bez', CORE]); st.push(['fly', CORE]); }   /* round the galactic core */
+    var last=pa || ca[ca.length-1];
+    assists(W, ca[ca.length-1], pa, cb[cb.length-1], Tm).forEach(function(I){ st.push(['xfer', ca[ca.length-1], I]); st.push(['fly', I]); last=I; });
+    if(byCore(W, pos(W, last, Tm), cb[cb.length-1])){ st.push(['bez', CORE]); st.push(['fly', CORE]); }   /* round the galactic core */
     st.push(['bez', cb[cb.length-1]]);
     down(st, cb, cb.length-1); return st;
   }
@@ -222,8 +224,11 @@ function steps(W, A, Bt, Tm){
   if(B[L].role==='sun' && Math.abs(B[a1].ring-B[b1].ring)>=C.FAR_RINGS){ mid=middle(W, L, a1, b1, Tm); if(mid){ st.push(['xfer', L, mid]); st.push(['fly', mid]); } }
   st.push(['xfer', L, b1]); down(st, cb, ib-1); return st;
 }
-function byCore(W, s1, s2){ var B=W.B; if(!B[CORE]) return false;
-  var a=B[s1], b=B[s2], c=B[CORE]; return hyp(c.x-a.x, c.y-a.y)+hyp(b.x-c.x, b.y-c.y)<=C.CORE_DETOUR*hyp(b.x-a.x, b.y-a.y); }
+/* the core is on the way from a: ahead, room to turn round it, little detour */
+function byCore(W, a, s2){ var B=W.B; if(!B[CORE]) return false;
+  var b=B[s2], c=B[CORE], d=hyp(b.x-a[0], b.y-a[1]), dc=hyp(c.x-a[0], c.y-a[1]);
+  if(dc<C.CORE_MIN || d<1e-6 || hyp(b.x-c.x, b.y-c.y)-b.reach-C.SYS_PAD<C.CORE_MIN/2) return false;
+  return ((c.x-a[0])*(b.x-a[0])+(c.y-a[1])*(b.y-a[1]))/(dc*d)>=Math.cos(C.CORE_AHEAD) && dc+hyp(b.x-c.x, b.y-c.y)<=C.CORE_DETOUR*d; }
 function down(st, cb, k){
   if(k===cb.length-1 && st.length && st[st.length-1][0]==='bez'){
     if(k===0){ st.push(['ret', cb[0]]); return; }
@@ -260,7 +265,7 @@ function capPoint(W, Y, T, din, spin){ var o=pos(W, Y, T), rho=W.B[Y].reach+C.CA
   return [o[0]+rho*Math.cos(a), o[1]+rho*Math.sin(a)]; }
 function hyper(W, I, din, dout){
   var dot=Math.max(-1, Math.min(1, din[0]*dout[0]+din[1]*dout[1])), sg=din[0]*dout[1]-din[1]*dout[0]>=0 ? 1 : -1;
-  var th=Math.min(Math.max(Math.acos(dot), C.TURN[0]), C.TURN[1]), c=Math.cos(sg*th), s=Math.sin(sg*th);
+  var TN=I===CORE ? C.TURN_CORE : C.TURN, th=Math.min(Math.max(Math.acos(dot), TN[0]), TN[1]), c=Math.cos(sg*th), s=Math.sin(sg*th);   /* round the core: as much as the way needs */
   var dO=[din[0]*c-din[1]*s, din[0]*s+din[1]*c], e=1/Math.sin(th/2), q=W.B[I].d/2+C.FLY_Q, a=q/(e-1);
   var pv=unit([din[0]-dO[0], din[1]-dO[1]]), sense=-pv[1]*(din[0]+dO[0])+pv[0]*(din[1]+dO[1])>=0 ? 1 : -1;
   var Fm=Math.acosh((q*C.SOI_K/a+1)/e);

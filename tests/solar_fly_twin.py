@@ -279,10 +279,12 @@ def steps(W, A, Bt, T_mid):
         pa = ca[-2] if len(ca) >= 2 else ""
         if len(ca) >= 2:                                   # out of A's planet's family first
             st.append(["esc", pa])
+        last = pa or ca[-1]
         for I in assists(W, ca[-1], pa, cb[-1], T_mid):
             st.append(["xfer", ca[-1], I])
             st.append(["fly", I])
-        if _by_core(W, ca[-1], cb[-1]):                    # a swing round the galactic core on the way
+            last = I
+        if _by_core(W, pos(W, last, T_mid), cb[-1]):                    # a swing round the galactic core on the way
             st.append(["bez", CORE])
             st.append(["fly", CORE])
         st.append(["bez", cb[-1]])
@@ -316,14 +318,22 @@ def steps(W, A, Bt, T_mid):
     return st
 
 
-def _by_core(W, s1, s2):
-    """The core is on the way: going round it adds at most CORE_DETOUR."""
+def _by_core(W, a, s2):
+    """The core is on the way from a (where the craft leaves its system's
+    last swing-by): ahead (within CORE_AHEAD of the way), with room to turn
+    (CORE_MIN from a, half that on to the other system's edge), and going
+    round it adds at most CORE_DETOUR."""
     B = W["B"]
     if CORE not in B:
         return False
-    a, b, c = (B[s1]["x"], B[s1]["y"]), (B[s2]["x"], B[s2]["y"]), (B[CORE]["x"], B[CORE]["y"])
-    d = math.hypot(b[0] - a[0], b[1] - a[1])
-    return math.hypot(c[0] - a[0], c[1] - a[1]) + math.hypot(b[0] - c[0], b[1] - c[1]) <= FLY["CORE_DETOUR"] * d
+    b, c = (B[s2]["x"], B[s2]["y"]), (B[CORE]["x"], B[CORE]["y"])
+    d, dc = math.hypot(b[0] - a[0], b[1] - a[1]), math.hypot(c[0] - a[0], c[1] - a[1])
+    if dc < FLY["CORE_MIN"] or d < 1e-6:
+        return False
+    if math.hypot(b[0] - c[0], b[1] - c[1]) - B[s2]["reach"] - FLY["SYS_PAD"] < FLY["CORE_MIN"] / 2:
+        return False                                   # and room on to the other system's edge
+    cosang = ((c[0] - a[0]) * (b[0] - a[0]) + (c[1] - a[1]) * (b[1] - a[1])) / (dc * d)
+    return cosang >= math.cos(FLY["CORE_AHEAD"]) and dc + math.hypot(b[0] - c[0], b[1] - c[1]) <= FLY["CORE_DETOUR"] * d
 
 
 def _down(st, cb, k):
@@ -414,7 +424,8 @@ def _hyper(W, I, din, dout):
     """A flyby of I turning din toward dout (the turn clamped): its hyperbola."""
     dot = max(-1.0, min(1.0, din[0] * dout[0] + din[1] * dout[1]))
     sg = 1.0 if din[0] * dout[1] - din[1] * dout[0] >= 0 else -1.0
-    th = min(max(math.acos(dot), FLY["TURN"][0]), FLY["TURN"][1])
+    tn = FLY["TURN_CORE"] if I == CORE else FLY["TURN"]          # round the core: as much as the way needs
+    th = min(max(math.acos(dot), tn[0]), tn[1])
     c, s = math.cos(sg * th), math.sin(sg * th)
     do = (din[0] * c - din[1] * s, din[0] * s + din[1] * c)
     e = 1 / math.sin(th / 2)
