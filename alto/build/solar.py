@@ -1,9 +1,10 @@
-"""Solar layouts: Hub & spoke (an outline with layout "solar", still, style
-"spoke") and the Star chart (a Mind Palace with palace_view "stars", moving,
-style "orbit"); brief.solar_style says which a brief is.
+"""Hub & spoke (an outline with layout "solar") and its two looks: the Star
+chart (style "orbit": rings, moving bodies; the default) and plain (style
+"spoke": still circles on straight spokes). The page carries both plans
+(page_plans); brief.hub_look says which a viewer sees first.
 
-Every ROOT node (Node.parent "") is a SUN — an outline has one per unit, a Mind
-Palace one per building, so a district may hold several systems. A sun's children are PLANETS,
+Every ROOT node (Node.parent "") is a SUN — usually one per unit; a unit with
+several roots holds several systems, kept together. A sun's children are PLANETS,
 one to a ring, the first on the innermost ring and the rest outward in outline
 order; their children are MOONS, spaced evenly on one small ring round their
 planet; one level deeper are SATELLITES, round their moon. A fifth level is a
@@ -52,9 +53,38 @@ The plan (the contract with solar_draw.py, which reads window._ALTO_SOLAR):
                 "planets": [{"id", "ring", "r", "a0", "d", "period", "e",
                              "moon_r", "moons": [{"id", "r", "a0", "d", "period",
                                                   "sat_r", "sats": [{"id", "r", "a0", "d", "period"}]}]}]}],
-   "units": [{"unit", "label", "suns": [sun ids], "bbox"}],   # a district's systems together
-   "nodes": {id: {"x", "y", "d", "role", "unit", "parent"}},
-   "sun_links": [[sun id, sun id]], "warnings": [...]}
+   "units": [{"unit", "label", "suns": [sun ids], "bbox"}],   # a unit's systems together
+   "nodes": {id: {"x", "y", "d", "role", "unit", "parent",
+                  "look"?: "blackhole"|"comet"|"asteroid",        # by the user's flags (LOOK_FLAGS)
+                  "orbit"?: {"e", "rot", "k"},                    # a comet, Star chart look only
+                  "tumble"?: rad/s}},                             # an asteroid, Star chart look only
+   "sun_links": [[sun id, sun id]], "warnings": [...],
+   "looks": {look: [node ids]}, "look_flags": {brief flag id: look},
+   "belts": [{"sun", "cx", "cy", "r", "w", "n", "seed"}],       # Star chart look only
+   "core"?: {"x", "y", "r"},                                     # 2+ systems
+   "drifters": [{"seed", "path": [[x, y], [x, y], [x, y]]}]}    # Star chart look only
+
+Comets (Star chart look). A comet keeps its ring, period and a0 but moves on
+an ellipse centred on what it orbits, semi-axes A = r(1 + c), B = r(1 − c)
+with c = (1 − q)/(1 + q), q = √(1 − e²), its major axis at angle `rot`. At
+time t its mean angle is M = a0 + spin·2πt/period (as for every body); with
+m = M − rot, ψ = m when k = 0, and when k = 1 (a planet) ψ solves
+ψ − e·sin ψ = m (Newton from ψ = m, 12 steps); its offset from what it
+orbits is R(rot)·(A cos ψ, B sin ψ). It is never farther than c·r from where a
+circular body at M would be (k = 0) and always between r − c·r and r + c·r
+from what it orbits, and its family's reach and its ring's room count that
+in, so the no-overlap guarantees still hold. e and rot are fixed per node
+from its id (comet_shape; a crowded ring of moons may flatten e). An
+asteroid tumbles at `tumble` rad/s; a black hole is only a look.
+
+Belts, the core, drifters (decoration, never a node). A system of BELT_MIN
+planets or more gets an asteroid belt of width w at radius r round its sun,
+in a gap of its own between its inner and outer planets' bands (n rocks,
+scattered from `seed`). A chart of two systems or more gets a galactic core:
+a circle of CORE_R at the free spot nearest the suns' centroid, clear of
+every system's disc by CORE_GAP and of the world edge by MARGIN (the world
+grows downward for it when there is none). Drifting comets cross the chart
+along paths at least DRIFT_CLEAR from every system and the core.
 
 Systems come unit by unit, each unit's roots in order. When a unit holds
 several (a Mind Palace district of several buildings) every unit starts a row
@@ -100,7 +130,29 @@ SOLAR = {
     "SYS_GAP": 90, "MARGIN": 115, "TOP": 184, "BOTTOM": 160, "WORLD_W": 1700,
     # orbit periods in seconds: planets inner→outer, moons by planet, satellites
     "P_PLANET": (90.0, 150.0), "P_MOON": (30.0, 50.0), "P_SAT": 18.0,
+    # the Star chart look's extras: a comet's eccentricity range; an asteroid's
+    # tumble (rad/s, either way); an asteroid belt's width (a system of
+    # BELT_MIN planets or more gets one, between its inner and outer planets);
+    # the galactic core's radius and clear space (a chart of 2+ systems); how
+    # far a drifting comet's path keeps from every system
+    "ECC": (0.5, 0.7), "TUMBLE": (0.15, 0.6), "BELT_W": 70, "BELT_MIN": 4,
+    "CORE_R": 60, "CORE_GAP": 40, "CORE_STEP": 20, "DRIFT_CLEAR": 40,
 }
+# What a node is drawn as, by the user's own flags (brief.flags): a flag whose
+# id or name, lower-cased with spaces and underscores as hyphens, is in a row
+# makes its nodes that kind of body. First match wins, in this order. The
+# node keeps its role (planet / moon / satellite by depth), its size and its
+# children; only the body changes. Both looks carry nodes[id].look; the plain
+# look may ignore it.
+#   blackhole  a dark, light-bending body: what no longer holds
+#   comet      a visitor on an eccentric orbit: what is unsettled or apart
+#   asteroid   a small irregular tumbling rock: what is minor or untested
+LOOK_FLAGS = (
+    ("blackhole", ("overruled", "abrogated", "superseded", "collapsed", "dead-letter",
+                   "blackhole", "black-hole")),
+    ("comet", ("revisit", "exception", "dissent", "minority", "open-question")),
+    ("asteroid", ("not-tested", "background", "minor", "aside")),
+)
 # A brief flag whose id or name, lower-cased with spaces and underscores as
 # hyphens, is one of these marks extreme importance: the nodes carrying it are
 # drawn one tier up. An explicit list, not a guess at what a name means.
@@ -113,16 +165,98 @@ def _r2(v: float) -> float:
     return round(v, 2)
 
 
+def _flag_names(fl) -> set:
+    return {str(fl.get(k) or "").strip().lower().replace(" ", "-").replace("_", "-")
+            for k in ("id", "name")}
+
+
 def _bump_flags(brief) -> set:
     out = set()
     for fl in getattr(brief, "flags", None) or []:
-        if not isinstance(fl, dict):
-            continue
-        names = {str(fl.get(k) or "").strip().lower().replace(" ", "-").replace("_", "-")
-                 for k in ("id", "name")}
-        if names & set(BUMP_FLAGS):
+        if isinstance(fl, dict) and _flag_names(fl) & set(BUMP_FLAGS):
             out.add(fl.get("id"))
     return out
+
+
+def look_flags(brief) -> dict:
+    """{brief flag id: look} for the flags LOOK_FLAGS names."""
+    out = {}
+    for fl in getattr(brief, "flags", None) or []:
+        if not isinstance(fl, dict):
+            continue
+        names = _flag_names(fl)
+        for look, words in LOOK_FLAGS:
+            if names & set(words):
+                out[fl.get("id")] = look
+                break
+    return out
+
+
+def node_looks(brief, nodes) -> dict:
+    """{node id: "blackhole" | "comet" | "asteroid"} for the nodes a look flag marks."""
+    by_flag = look_flags(brief)
+    rank = {look: k for k, (look, _) in enumerate(LOOK_FLAGS)}
+    out = {}
+    for n in nodes:
+        got = [by_flag[f] for f in (n.flags or []) if f in by_flag]
+        if got:
+            out[n.id] = min(got, key=lambda lk: rank[lk])
+    return out
+
+
+def hash01(text: str) -> float:
+    """A number in [0, 1) from text: 32-bit FNV-1a over its characters (ids
+    are ASCII slugs; the page's twin computes the same with Math.imul)."""
+    h = 2166136261
+    for ch in text:
+        h ^= ord(ch)
+        h = (h * 16777619) & 0xFFFFFFFF
+    return h / 4294967296.0
+
+
+def comet_shape(node_id: str) -> tuple[float, float]:
+    """(eccentricity, rot) of a comet's orbit: fixed per node from its id."""
+    lo, hi = SOLAR["ECC"]
+    return (round(lo + (hi - lo) * hash01("ecc:" + node_id), 4),
+            round(2 * math.pi * hash01("rot:" + node_id), 4))
+
+
+def ecc_slack(ecc: float) -> float:
+    """c = (1 - q) / (1 + q), q = √(1 − ecc²): the ellipse with semi-axes
+    r(1 + c) and r(1 − c) round a circle of radius r has that eccentricity."""
+    q = math.sqrt(max(0.0, 1 - ecc * ecc))
+    return (1 - q) / (1 + q)
+
+
+def slack_ecc(c: float) -> float:
+    q = (1 - c) / (1 + c)
+    return math.sqrt(max(0.0, 1 - q * q))
+
+
+def tumble(node_id: str) -> float:
+    lo, hi = SOLAR["TUMBLE"]
+    v = lo + (hi - lo) * hash01("tumble:" + node_id)
+    return round(v if hash01("spin:" + node_id) < 0.5 else -v, 4)
+
+
+def kepler(m: float, ecc: float) -> float:
+    """ψ with ψ − ecc·sin ψ = m (Newton, 12 steps from ψ = m)."""
+    psi = m
+    for _ in range(12):
+        psi -= (psi - ecc * math.sin(psi) - m) / (1 - ecc * math.cos(psi))
+    return psi
+
+
+def orbit_offset(r: float, ang: float, orb: dict) -> tuple[float, float]:
+    """Where a body on a comet orbit sits round what it orbits when its mean
+    angle is `ang` (module docstring, Comets): R(rot)·(A cos ψ, B sin ψ)."""
+    c = ecc_slack(orb["e"])
+    A, B = r * (1 + c), r * (1 - c)
+    m = ang - orb["rot"]
+    psi = kepler(m, orb["e"]) if orb.get("k") else m
+    x, y = A * math.cos(psi), B * math.sin(psi)
+    cr, sr = math.cos(orb["rot"]), math.sin(orb["rot"])
+    return x * cr - y * sr, x * sr + y * cr
 
 
 def body_d(role: str, children: int, bumped: bool = False) -> int:
@@ -164,9 +298,6 @@ def _tree(brief, nodes):
     id, [(planet, [(moon, [sat])])]). Raises BriefError on a fifth level. A
     node whose parent is not a node (an interview still filling in) orbits its
     unit's first sun, so a preview never drops a card."""
-    if getattr(brief, "mode", "") == "palace":          # a moved floor keeps the turn it was given (placement order)
-        from .layout import siblings_ordered
-        nodes = siblings_ordered(nodes, getattr(brief, "placement", None))
     ids = {n.id for n in nodes}
     kids: dict = {}
     for n in nodes:
@@ -193,8 +324,7 @@ def _family(sun, planet_ids, kids, brief):
             sats = kids.get(m, [])
             for s in sats:
                 if kids.get(s):
-                    way_out = ("keep the palace as a city (palace_view 'city')"
-                               if getattr(brief, "mode", "") == "palace" else "use layout 'tree'")
+                    way_out = "use layout 'tree'"
                     raise BriefError(
                         f"node {kids[s][0]} is deeper than a satellite ({sun} → {p} → {m} → "
                         f"{s} → {kids[s][0]}): a solar layout has four levels — "
@@ -204,40 +334,80 @@ def _family(sun, planet_ids, kids, brief):
     return planets
 
 
-def _planet_body(pid, moons, size, S):
+def _ring_fix(items, gap, inner):
+    """A shared ring (_ring_for) for bodies [(id, reach, comet slack c)]: a
+    comet on it (c > 0) strays up to c·r from where a circle would put it, so
+    its reach grows by that, and the ring by as much as that needs (a fixed
+    point, met from below). A comet's c is capped at sin(π/n)/2 on a ring of
+    n, which keeps that a contraction. Returns (radius, reach used, {id: c})."""
+    n = len(items)
+    if not n:
+        return 0.0, 0.0, {}
+    cap = 0.5 * math.sin(math.pi / n) if n >= 2 else 0.5
+    cs = {i: min(c, cap) for i, _, c in items if c > 0}
+    r = _ring_for(n, max(x for _, x, _ in items), gap, inner)
+    for _ in range(200):
+        me = max(x + cs.get(i, 0.0) * r for i, x, _ in items)
+        r2 = _ring_for(n, me, gap, inner)
+        if r2 - r < 1e-9:
+            r = r2
+            break
+        r = r2
+    me = max(x + cs.get(i, 0.0) * r for i, x, _ in items)
+    return r, me, cs
+
+
+def _planet_body(pid, moons, size, S, slack=None):
     """A planet's own geometry round its centre: its and its family's
     diameters (size(id, role, children)), moon ring, satellite rings, reach.
-    Independent of where the planet is."""
+    Independent of where the planet is. slack: {id: c} for the comets of a
+    Star chart look (comet_shape / ecc_slack); body["orb"] then holds each
+    comet moon's / satellite's orbit {e, rot, k: 0} as it is drawn."""
+    slack = slack or {}
     d_p = size(pid, "planet", len(moons))
     R_p = d_p / 2
-    ms = []
+    ms, orb = [], {}
     for mid, sats in moons:
         d_m = size(mid, "moon", len(sats))
         R_m = d_m / 2
         sd = {q: size(q, "sat", 0) for q in sats}
-        R_s = max(sd.values()) / 2 if sats else 0.0
-        sat_r = _ring_for(len(sats), R_s, S["SAT_GAP"], R_m)
+        sat_r, R_s, cs = _ring_fix([(q, sd[q] / 2, slack.get(q, 0.0)) for q in sats], S["SAT_GAP"], R_m)
+        for q, c in cs.items():
+            orb[q] = {"e": round(slack_ecc(c), 4), "rot": comet_shape(q)[1], "k": 0}
         ms.append({"id": mid, "d": d_m, "sats": sats, "sd": sd, "sat_r": sat_r,
                    "ext": (sat_r + R_s) if sats else R_m})
-    me = max([m["ext"] for m in ms] or [0.0])
-    moon_r = _ring_for(len(ms), me, S["MOON_GAP"], R_p)
+    moon_r, me, cs = _ring_fix([(m["id"], m["ext"], slack.get(m["id"], 0.0)) for m in ms], S["MOON_GAP"], R_p)
+    for q, c in cs.items():
+        orb[q] = {"e": round(slack_ecc(c), 4), "rot": comet_shape(q)[1], "k": 0}
     e = (moon_r + me) if ms else R_p
-    return {"id": pid, "d": d_p, "moons": ms, "moon_r": moon_r, "e": max(e, R_p)}
+    return {"id": pid, "d": d_p, "moons": ms, "moon_r": moon_r, "e": max(e, R_p), "orb": orb}
 
 
-def _local_circles(body, theta, r):
+def _at(r, ang, orb):
+    """A body's offset from what it orbits at mean angle `ang`: on its circle,
+    or on its comet ellipse (orbit_offset)."""
+    if orb:
+        return orbit_offset(r, ang, orb)
+    return r * math.cos(ang), r * math.sin(ang)
+
+
+def _local_circles(body, theta, r, orbs=None):
     """Every circle of a planet's family as (id, x, y, radius, parent id) round
     the SUN, the planet at angle theta on ring r, and its spokes as segments
-    (child id, parent id, x1, y1, x2, y2)."""
-    px, py = r * math.cos(theta), r * math.sin(theta)
+    (child id, parent id, x1, y1, x2, y2). orbs: {id: orbit} — comets sit on
+    their ellipses (the Star chart look at t = 0)."""
+    orbs = orbs or {}
+    px, py = _at(r, theta, orbs.get(body["id"]))
     circles = [(body["id"], px, py, body["d"] / 2, None)]
     segs = []
     for m, ma in zip(body["moons"], _even(len(body["moons"]), theta)):
-        mx, my = px + body["moon_r"] * math.cos(ma), py + body["moon_r"] * math.sin(ma)
+        ox, oy = _at(body["moon_r"], ma, orbs.get(m["id"]))
+        mx, my = px + ox, py + oy
         circles.append((m["id"], mx, my, m["d"] / 2, body["id"]))
         segs.append((m["id"], body["id"], mx, my, px, py))
         for s, sa in zip(m["sats"], _even(len(m["sats"]), ma)):
-            sx, sy = mx + m["sat_r"] * math.cos(sa), my + m["sat_r"] * math.sin(sa)
+            ox, oy = _at(m["sat_r"], sa, orbs.get(s))
+            sx, sy = mx + ox, my + oy
             circles.append((s, sx, sy, m["sd"][s] / 2, m["id"]))
             segs.append((s, m["id"], sx, sy, mx, my))
     return circles, segs
@@ -281,25 +451,44 @@ def _fits(circles, segs, spoke, e, placed, placed_segs, S) -> bool:
     return True
 
 
-def _system(unit, sun, planets, style, bumped, brief_nodes):
+def _system(unit, sun, planets, style, bumped, brief_nodes, looks=None):
     """One system round its sun at (0, 0): its planets with their rings and
-    angles, every circle's local centre, and its bounding box."""
+    angles, every circle's local centre, and its bounding box. looks: {node
+    id: look} (node_looks) — in the orbit style a comet gets an ellipse and
+    room for it, and a system of BELT_MIN planets or more an asteroid belt."""
     S, D = SOLAR, SOLAR["D"]
     R_sun = D["sun"] / 2
     flags = {n.id: set(n.flags or []) for n in brief_nodes}
+    looks = looks or {}
+    moving = style == "orbit"
+    slack = ({i: ecc_slack(comet_shape(i)[0]) for i, lk in looks.items() if lk == "comet"}
+             if moving else {})
 
     def size(i, role, children):
         return body_d(role, children, bool(flags.get(i, set()) & bumped))
-    bodies = [_planet_body(p, moons, size, S) for p, moons in planets]
+    bodies = [_planet_body(p, moons, size, S, slack) for p, moons in planets]
     P = len(bodies)
-    rings, angles, warns = [], [], []
+    rings, angles, warns, belt = [], [], [], None
+    orbs = {}
+    for b in bodies:
+        orbs.update(b["orb"])
     if style == "orbit":
-        r_prev, e_prev = 0.0, R_sun
+        # Each planet's family sweeps the annulus [r − s − e, r + s + e] (s:
+        # its comet slack, else 0); the annuli are disjoint, RING_GAP apart.
+        edge = R_sun
+        split = P // 2 if P >= S["BELT_MIN"] else -1
         for k, b in enumerate(bodies):
-            r = (R_sun + S["RING_GAP"] + b["e"]) if k == 0 else (r_prev + e_prev + S["RING_GAP"] + b["e"])
+            if k == split:
+                belt = {"r": edge + S["RING_GAP"] + S["BELT_W"] / 2, "w": S["BELT_W"]}
+                edge += S["RING_GAP"] + S["BELT_W"]
+            c = slack.get(b["id"], 0.0)
+            r = (edge + S["RING_GAP"] + b["e"]) / (1 - c) + (0.05 if c else 0.0)   # (a hair over: r is written to 0.01)
+            if c:
+                orbs[b["id"]] = {"e": comet_shape(b["id"])[0], "rot": comet_shape(b["id"])[1], "k": 1}
             rings.append(r)
             angles.append(-math.pi / 2 + k * GOLDEN)
-            r_prev, e_prev = r, b["e"]
+            b["band"] = (r - c * r - b["e"], r + c * r + b["e"])
+            edge = b["band"][1]
     else:
         placed = [(sun, 0.0, 0.0, R_sun, "sun")]
         placed_segs = []
@@ -348,8 +537,7 @@ def _system(unit, sun, planets, style, bumped, brief_nodes):
 
     out_planets, local = [], {sun: (0.0, 0.0, D["sun"], "sun", "")}
     for k, (b, r, th) in enumerate(zip(bodies, rings, angles)):
-        moving = style == "orbit"
-        cs, _ = _local_circles(b, th, r)
+        cs, _ = _local_circles(b, th, r, orbs)
         for (i, x, y, rad, par) in cs:
             role = "planet" if par is None else ("moon" if par == b["id"] else "sat")
             local[i] = (x, y, int(round(rad * 2)), role, par or sun)
@@ -365,7 +553,7 @@ def _system(unit, sun, planets, style, bumped, brief_nodes):
                             "d": b["d"], "period": period(S["P_PLANET"], k, P) if moving else 0,
                             "e": _r2(b["e"]), "moon_r": _r2(b["moon_r"]), "moons": moons})
     if style == "orbit":
-        R = (rings[-1] + bodies[-1]["e"]) if bodies else R_sun
+        R = bodies[-1]["band"][1] if bodies else R_sun
         box = (-R, -R, R, R)
     else:
         xs0 = [x - d / 2 for x, y, d, _, _ in local.values()]
@@ -375,7 +563,9 @@ def _system(unit, sun, planets, style, bumped, brief_nodes):
         box = (min(xs0), min(ys0), max(xs1), max(ys1))
         R = max(math.hypot(x, y) + d / 2 for x, y, d, _, _ in local.values())
     return {"unit": unit, "sun": sun, "r_sun": R_sun, "R": R, "box": box,
-            "planets": out_planets, "local": local, "warnings": warns}
+            "planets": out_planets, "local": local, "warnings": warns,
+            "orbs": orbs, "belt": belt,
+            "bands": [list(b["band"]) for b in bodies] if style == "orbit" else []}
 
 
 def solar_plan(brief, nodes, style: str = "") -> dict:
@@ -385,7 +575,8 @@ def solar_plan(brief, nodes, style: str = "") -> dict:
     S = SOLAR
     style = style or solar_style(brief) or "spoke"
     bumped = _bump_flags(brief)
-    systems = [_system(a, sun, planets, style, bumped, nodes)
+    looks = node_looks(brief, nodes)
+    systems = [_system(a, sun, planets, style, bumped, nodes, looks)
                for a, sun, planets in _tree(brief, nodes)]
     widths = [s["box"][2] - s["box"][0] for s in systems]
     world_w = int(math.ceil(max([S["WORLD_W"]] + [w + 2 * S["MARGIN"] for w in widths])))
@@ -405,7 +596,7 @@ def solar_plan(brief, nodes, style: str = "") -> dict:
     if row:
         rows.append(row)
 
-    out_nodes, out_systems = {}, []
+    out_nodes, out_systems, belts = {}, [], []
     top = float(S["TOP"])
     for row in rows:
         up = max(-s["box"][1] for s in row)
@@ -426,8 +617,21 @@ def solar_plan(brief, nodes, style: str = "") -> dict:
             for i, (x, y, d, role, par) in s["local"].items():
                 out_nodes[i] = {"x": _r2(cx + x), "y": _r2(cy + y), "d": d, "role": role,
                                 "unit": s["unit"], "parent": par}
+                if i in looks:
+                    out_nodes[i]["look"] = looks[i]
+                if i in s["orbs"]:
+                    out_nodes[i]["orbit"] = dict(s["orbs"][i])
+                if style == "orbit" and looks.get(i) == "asteroid":
+                    out_nodes[i]["tumble"] = tumble(i)
+            if s["belt"]:
+                bl = s["belt"]
+                belts.append({"sun": s["sun"], "cx": _r2(cx), "cy": _r2(cy), "r": _r2(bl["r"]), "w": bl["w"],
+                              "n": int(min(400, max(40, 2 * math.pi * bl["r"] / 18))),
+                              "seed": int(hash01("belt:" + s["sun"]) * 1e9)})
         top = cy + down + S["SYS_GAP"]
     world_h = int(math.ceil((top - S["SYS_GAP"]) + S["BOTTOM"])) if rows else S["TOP"] + S["BOTTOM"]
+    core, world_h = _core(out_systems, world_w, world_h, top - S["SYS_GAP"])
+    drifters = _drifters(out_systems, core, world_w, world_h) if style == "orbit" else []
     order = [s["sun"] for s in out_systems]
     units = []
     for s in out_systems:
@@ -447,7 +651,123 @@ def solar_plan(brief, nodes, style: str = "") -> dict:
         "nodes": out_nodes,
         "sun_links": [[a, b] for a, b in zip(order, order[1:])],
         "warnings": [w for s in systems for w in s["warnings"]],
+        "looks": {lk: sorted(i for i, v in looks.items() if v == lk) for lk, _ in LOOK_FLAGS
+                  if any(v == lk for v in looks.values())},
+        "look_flags": look_flags(brief),
+        "belts": belts,
+        **({"core": core} if core else {}),
+        "drifters": drifters,
     }
+
+
+def _core(systems, W, H, bottom):
+    """The galactic core of a chart of two systems or more: the free spot
+    nearest the suns' centroid (CORE_STEP grid) whose circle of CORE_R clears
+    every system's disc (R round its sun) by CORE_GAP and the world's edges by
+    MARGIN. None for one system. With no such spot a band is added under the
+    last row and the core sits in it: (core, world height)."""
+    S = SOLAR
+    if len(systems) < 2:
+        return None, H
+    need = S["CORE_R"] + S["CORE_GAP"]
+    gx = sum(s["cx"] for s in systems) / len(systems)
+    gy = sum(s["cy"] for s in systems) / len(systems)
+    lo_x, hi_x = S["MARGIN"] + S["CORE_R"], W - S["MARGIN"] - S["CORE_R"]
+    lo_y, hi_y = S["MARGIN"] + S["CORE_R"], H - S["MARGIN"] - S["CORE_R"]
+    best = None
+    step = S["CORE_STEP"]
+    nx, ny = int((hi_x - lo_x) // step), int((hi_y - lo_y) // step)
+    for j in range(ny + 1):
+        y = lo_y + j * step
+        for i in range(nx + 1):
+            x = lo_x + i * step
+            if all(math.hypot(x - s["cx"], y - s["cy"]) >= s["R"] + need for s in systems):
+                d = (x - gx) ** 2 + (y - gy) ** 2
+                if best is None or d < best[0] - 1e-9:
+                    best = (d, x, y)
+    if best:
+        return {"x": _r2(best[1]), "y": _r2(best[2]), "r": S["CORE_R"]}, H
+    y = max([bottom] + [s["cy"] + s["R"] for s in systems]) + S["CORE_GAP"] + S["CORE_R"]
+    H2 = int(math.ceil(max(H, y + S["CORE_R"] + S["BOTTOM"])))
+    return {"x": _r2(W / 2), "y": _r2(y), "r": S["CORE_R"]}, H2
+
+
+def _drifters(systems, core, W, H):
+    """A few decorative comets crossing the chart where nothing is: a path
+    (three points: start, bend, end) along the band above the first row,
+    below the last, and through each gap between rows wide enough, every one
+    at least DRIFT_CLEAR from every system's disc and the core."""
+    S = SOLAR
+    ys = []
+    if systems:
+        ys.append(min(s["cy"] - s["R"] for s in systems) / 2)
+        ys.append((max(s["cy"] + s["R"] for s in systems) + H) / 2)
+        # gaps between consecutive rows
+        bands = sorted(((s["cy"] - s["R"], s["cy"] + s["R"]) for s in systems))
+        reach = bands[0][1]
+        for a, b in bands[1:]:
+            if a - reach >= 2 * S["DRIFT_CLEAR"] + 10:
+                ys.append((a + reach) / 2)
+            reach = max(reach, b)
+    out = []
+
+    def clear(pts):
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+            for s in systems:
+                if _seg_dist(s["cx"], s["cy"], x1, y1, x2, y2) < s["R"] + S["DRIFT_CLEAR"]:
+                    return False
+            if core and _seg_dist(core["x"], core["y"], x1, y1, x2, y2) < core["r"] + S["DRIFT_CLEAR"]:
+                return False
+        return True
+    for k, y in enumerate(ys[:4]):
+        seed = int(hash01(f"drift:{k}:{int(y)}") * 1e9)
+        bend = (hash01(f"bend:{seed}") - 0.5) * 2 * S["DRIFT_CLEAR"] * 0.5
+        flip = hash01(f"dir:{seed}") < 0.5
+        pts = [[0.0, y], [W / 2, y + bend], [float(W), y]]
+        if flip:
+            pts.reverse()
+        if clear(pts):
+            out.append({"seed": seed, "path": [[_r2(x), _r2(yy)] for x, yy in pts]})
+    return out
+
+
+_ONE_DP = {"x", "y", "cx", "cy", "r", "R", "e", "moon_r", "sat_r", "r_sun", "bbox"}
+
+
+def _num(v, dp):
+    v = round(v, dp)
+    return int(v) if v == int(v) else v
+
+
+def compact(plan, key=None):
+    """The plan as the page carries it: page coordinates and radii to 0.1 px
+    (whole numbers written without a point), angles to 1e-4 rad (well under
+    a pixel even 6000 px out), everything else as it is. (A comet's orbit
+    {e, rot, k} is already rounded and kept whole.)"""
+    if isinstance(plan, dict):
+        return {k: (v if k == "orbit" else compact(v, k)) for k, v in plan.items()}
+    if isinstance(plan, list):
+        return [compact(v, key) for v in plan]
+    if isinstance(plan, float) and key in _ONE_DP:
+        return _num(plan, 1)
+    if isinstance(plan, float) and key == "a0":
+        return _num(plan, 4)
+    if isinstance(plan, float) and plan == int(plan):
+        return int(plan)
+    return plan
+
+
+def page_plans(brief, nodes) -> dict:
+    """What a Hub & spoke page carries (window._ALTO_SOLAR): both looks'
+    plans, compacted, and the look a viewer sees first —
+    {"look": "stars"|"plain", "looks": {"stars": <orbit plan>, "plain": <spoke plan>}}.
+    (blocks.py also spreads the first look's plan over the top level, so a
+    reader of the single-plan shape still finds style / world / systems /
+    nodes / sun_links there.)"""
+    from .brief import LOOK_STYLE
+    look = getattr(brief, "hub_look", "stars") or "stars"
+    return {"look": look,
+            "looks": {lk: compact(solar_plan(brief, nodes, st)) for lk, st in LOOK_STYLE.items()}}
 
 
 def solar_tree_plan(plan: dict, nodes) -> dict:

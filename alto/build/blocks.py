@@ -23,7 +23,7 @@ from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .solar_stars import STARS_CSS, STARS_JS
-from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css, palace_stub
+from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
@@ -958,12 +958,20 @@ def _sym(svg: str) -> str:
     return js_str(svg) if svg else js_str(FALLBACK_GLYPH)
 
 
-def _solar_glue(plan: dict, nodes) -> str:
-    """window._ALTO_SOLAR (the whole plan, solar.py's contract) and the tree
-    glue that puts each circle's centre where the plan says."""
+# window._ALTO_SOLAR = {look, looks: {stars, plain}} with the first look's plan
+# also spread over the top level (style, world, systems, nodes, sun_links…),
+# so a reader of the single-plan shape keeps working; spread in the page, so
+# the plan is not written twice.
+SOLAR_SPREAD = "(function(S){var P=S.looks[S.look];for(var k in P)if(!(k in S))S[k]=P[k];return S;})"
+
+
+def _solar_glue(plans: dict, nodes) -> str:
+    """window._ALTO_SOLAR (both looks' plans, solar.page_plans) and the tree
+    glue that puts each circle's centre where the first look's plan says."""
     from .solar import solar_tree_plan
-    return ("\nwindow._ALTO_SOLAR=" + js_json(plan, separators=(",", ":")) + ";"
-            + dx.tree_glue(plan_js(solar_tree_plan(plan, nodes))))
+    first = plans["looks"][plans["look"]]
+    return ("\nwindow._ALTO_SOLAR=" + SOLAR_SPREAD + "(" + js_json(plans, separators=(",", ":")) + ");"
+            + dx.tree_glue(plan_js(solar_tree_plan(first, nodes))))
 
 
 def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
@@ -981,13 +989,13 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
     tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes) if tree else None
-    # An outline drawn as solar systems (solar.py): the plan goes to the page
-    # whole, as window._ALTO_SOLAR (solar_draw reads it), and its circles'
+    # A Hub & spoke (solar.py): both looks' plans go to the page whole, as
+    # window._ALTO_SOLAR (solar_draw reads it), and the first look's circles'
     # centres as a tree plan the page's _altoTree runs like any other.
     solar_plan_ = None
     if solar:
-        from .solar import solar_plan as _solar_plan
-        solar_plan_ = _solar_plan(b, nodes)
+        from .solar import page_plans
+        solar_plan_ = page_plans(b, nodes)
     ax1 = b.axes[0] if len(b.axes) > 0 else None
     ax2 = b.axes[1] if len(b.axes) > 1 else None
     _warn0 = warnings if warnings is not None else []
@@ -1529,23 +1537,18 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # The horizontal timeline (lanes.py): lines, times, and the layout
         # the engine's initLayout hands over to on desktop.
         orders += lanes_data(b, nodes) + LANES_JS
-    if b.mode == "palace" and solar_plan_:
-        # A Star chart (palace_view "stars"): no city — only the floors'
-        # numbers (3.4-2) — and the solar systems (solar.py).
-        orders += palace_stub(b, nodes) + _solar_glue(solar_plan_, nodes)
-    elif b.mode == "palace":
+    if b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
         orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
     if solar_plan_:
-        # The solar drawing (solar_draw.py): circles, the orbits on a Star
-        # chart, the whole chart zoomed out — after window._ALTO_SOLAR.
+        # The solar drawing (solar_draw.py): circles, the orbits in the Star
+        # chart look, the whole chart zoomed out — after window._ALTO_SOLAR.
         orders += SOLAR_JS
         # the Star chart look's graphics (solar_stars.py; off in the Plain look)
         orders += STARS_JS
     if index_axes:
-        orders += ((palace_index_glue() if b.mode == "palace" and not solar_plan_ else dx.AXIS_INDEX_GLUE)
-                   + dx.axes_config(b, index_axes))
+        orders += (palace_index_glue() if b.mode == "palace" else dx.AXIS_INDEX_GLUE) + dx.axes_config(b, index_axes)
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
@@ -1595,7 +1598,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if solar_plan_:
         nav_char_css += SOLAR_CSS
         nav_char_css += STARS_CSS
-    if b.mode == "palace" and not solar_plan_:
+    if b.mode == "palace":
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (

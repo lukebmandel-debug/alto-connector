@@ -234,24 +234,6 @@ def _siblings_in_order(ks: list, placement: dict) -> list:
     return out
 
 
-def siblings_ordered(nodes: list, placement: dict) -> list:
-    """`nodes` with every parent's children (and each unit's top nodes) in the placement
-    `order` the author set: the same list where there is none. A node keeps its slot in
-    the list; the slots of one family are refilled in their new order. A Star chart (a
-    Mind Palace's stars view) numbers and rings its floors by this."""
-    pl = placement or {}
-    if not any(isinstance(h, dict) and h.get("order") for h in pl.values()):
-        return list(nodes)
-    fam: dict = {}
-    for i, n in enumerate(nodes):
-        fam.setdefault((n.parent or "", None if n.parent else n.act), []).append(i)
-    out = list(nodes)
-    for idx in fam.values():
-        for i, n in zip(idx, _siblings_in_order([nodes[j] for j in idx], pl)):
-            out[i] = n
-    return out
-
-
 def outline_order_and_columns(nodes, columns: int, placement: dict = None) -> None:
     """Order and place an outline's concepts from its containment tree.
 

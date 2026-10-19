@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 
-from .solar import GOLDEN, SOLAR, SPIN
+from .solar import GOLDEN, LOOK_FLAGS, SOLAR, SPIN
 
 SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .phase-band,html.alto-solar:not(.mobile) #world .phase-label-float,html.alto-solar:not(.mobile) #world .unit-bar{display:none !important;}
@@ -709,8 +709,9 @@ else document.addEventListener('DOMContentLoaded', function(){ if(window._ALTO_S
 # units' labels come from the plan the page was built with.
 SOLAR_PLAN_JS = r"""
 window._altoSolarPlan=(function(){
-var C=__SOLAR__, GOLD=__GOLDEN__, D=C.D, PI=Math.PI;
+var C=__SOLAR__, GOLD=__GOLDEN__, LOOKS=__LOOKS__, D=C.D, PI=Math.PI;
 function r2(v){ return Math.round(v*100)/100; }
+function r4(v){ return Math.round(v*1e4)/1e4; }
 function mx(a){ return a.length ? Math.max.apply(null, a) : 0; }
 function ringFor(n, ext, gap, inner){ if(!n) return 0; var r=inner+gap+ext;
   if(n>=2) r=Math.max(r, (2*ext+Math.max(gap, 2*C.SPOKE_CLEAR))/(2*Math.sin(PI/n))); return r; }
@@ -718,19 +719,44 @@ function even(n, out){ var off=n%2===0 ? PI/n : 0, o=[]; for(var j=0;j<n;j++) o.
 /* a body's diameter: the sun's fixed, a planet / moon a tier up per two children, a bump one more (solar.body_d) */
 function bodyD(role, n, bump){ if(role==='sun') return D.sun; var L=C.TIERS[role], t=role!=='sat' ? Math.min(Math.ceil(n/2), L.length-2) : 0;
   return L[Math.min(t+(bump ? 1 : 0), L.length-1)]; }
-function pbody(pid, moons, size){
-  var dp=size(pid, 'planet', moons.length), Rp=dp/2;
-  var ms=moons.map(function(m){ var dm=size(m[0], 'moon', m[1].length), Rm=dm/2, sd={}, Rs=0;
-    m[1].forEach(function(q){ sd[q]=size(q, 'sat', 0); Rs=Math.max(Rs, sd[q]/2); });
-    var sr=ringFor(m[1].length, Rs, C.SAT_GAP, Rm); return {id:m[0], d:dm, sats:m[1], sd:sd, sat_r:sr, ext:m[1].length ? sr+Rs : Rm}; });
-  var me=mx(ms.map(function(m){ return m.ext; })), mr=ringFor(ms.length, me, C.MOON_GAP, Rp), e=ms.length ? mr+me : Rp;
-  return {id:pid, d:dp, moons:ms, moon_r:mr, e:Math.max(e, Rp)};
+/* the looks' arithmetic (solar.hash01 … orbit_offset): FNV-1a, a comet's ellipse, an asteroid's tumble */
+function h01(s){ var h=2166136261; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h, 16777619)>>>0; } return h/4294967296; }
+function cshape(id){ return [r4(C.ECC[0]+(C.ECC[1]-C.ECC[0])*h01('ecc:'+id)), r4(2*PI*h01('rot:'+id))]; }
+function eslack(e){ var q=Math.sqrt(Math.max(0, 1-e*e)); return (1-q)/(1+q); }
+function secc(c){ var q=(1-c)/(1+c); return Math.sqrt(Math.max(0, 1-q*q)); }
+function tumble(id){ var v=C.TUMBLE[0]+(C.TUMBLE[1]-C.TUMBLE[0])*h01('tumble:'+id); return r4(h01('spin:'+id)<.5 ? v : -v); }
+function kepler(m, e){ var p=m; for(var i=0;i<12;i++) p-=(p-e*Math.sin(p)-m)/(1-e*Math.cos(p)); return p; }
+function at(r, a, o){ if(!o) return [r*Math.cos(a), r*Math.sin(a)];
+  var c=eslack(o.e), A=r*(1+c), B=r*(1-c), m=a-o.rot, p=o.k ? kepler(m, o.e) : m, x=A*Math.cos(p), y=B*Math.sin(p);
+  return [x*Math.cos(o.rot)-y*Math.sin(o.rot), x*Math.sin(o.rot)+y*Math.cos(o.rot)]; }
+/* a shared ring of [id, reach, comet slack] (solar._ring_fix): a comet strays c·r from its circle */
+function ringFix(items, gap, inner){
+  var n=items.length; if(!n) return [0, 0, {}];
+  var cap=n>=2 ? .5*Math.sin(PI/n) : .5, cs={};
+  items.forEach(function(it){ if(it[2]>0) cs[it[0]]=Math.min(it[2], cap); });
+  var me=function(r){ return mx(items.map(function(it){ return it[1]+(cs[it[0]]||0)*r; })); };
+  var r=ringFor(n, mx(items.map(function(it){ return it[1]; })), gap, inner);
+  for(var i=0;i<200;i++){ var r_=ringFor(n, me(r), gap, inner); if(r_-r<1e-9){ r=r_; break; } r=r_; }
+  return [r, me(r), cs];
 }
-function local(b, th, r){
-  var px=r*Math.cos(th), py=r*Math.sin(th), cs=[[b.id, px, py, b.d/2, null]], sg=[], ma=even(b.moons.length, th);
-  b.moons.forEach(function(m, k){ var x=px+b.moon_r*Math.cos(ma[k]), y=py+b.moon_r*Math.sin(ma[k]), sa=even(m.sats.length, ma[k]);
+function pbody(pid, moons, size, slack){
+  var dp=size(pid, 'planet', moons.length), Rp=dp/2, orb={};
+  var ms=moons.map(function(m){ var dm=size(m[0], 'moon', m[1].length), Rm=dm/2, sd={};
+    m[1].forEach(function(q){ sd[q]=size(q, 'sat', 0); });
+    var F=ringFix(m[1].map(function(q){ return [q, sd[q]/2, slack[q]||0]; }), C.SAT_GAP, Rm);
+    Object.keys(F[2]).forEach(function(q){ orb[q]={e:r4(secc(F[2][q])), rot:cshape(q)[1], k:0}; });
+    return {id:m[0], d:dm, sats:m[1], sd:sd, sat_r:F[0], ext:m[1].length ? F[0]+F[1] : Rm}; });
+  var F=ringFix(ms.map(function(m){ return [m.id, m.ext, slack[m.id]||0]; }), C.MOON_GAP, Rp);
+  Object.keys(F[2]).forEach(function(q){ orb[q]={e:r4(secc(F[2][q])), rot:cshape(q)[1], k:0}; });
+  var e=ms.length ? F[0]+F[1] : Rp;
+  return {id:pid, d:dp, moons:ms, moon_r:F[0], e:Math.max(e, Rp), orb:orb};
+}
+function local(b, th, r, orbs){
+  orbs=orbs||{};
+  var P=at(r, th, orbs[b.id]), px=P[0], py=P[1], cs=[[b.id, px, py, b.d/2, null]], sg=[], ma=even(b.moons.length, th);
+  b.moons.forEach(function(m, k){ var o=at(b.moon_r, ma[k], orbs[m.id]), x=px+o[0], y=py+o[1], sa=even(m.sats.length, ma[k]);
     cs.push([m.id, x, y, m.d/2, b.id]); sg.push([m.id, b.id, x, y, px, py]);
-    m.sats.forEach(function(si, j){ var sx=x+m.sat_r*Math.cos(sa[j]), sy=y+m.sat_r*Math.sin(sa[j]);
+    m.sats.forEach(function(si, j){ var o2=at(m.sat_r, sa[j], orbs[si]), sx=x+o2[0], sy=y+o2[1];
       cs.push([si, sx, sy, m.sd[si]/2, m.id]); sg.push([si, m.id, sx, sy, x, y]); }); });
   return [cs, sg];
 }
@@ -750,10 +776,17 @@ function fits(cs, sg, spoke, e, placed, psegs){
   return true;
 }
 function period(lh, k, n){ return r2(lh[0]+(lh[1]-lh[0])*(n>1 ? k/(n-1) : .5)); }
-function system(unit, sun, planets, style, size){
-  var Rs=D.sun/2, bs=planets.map(function(p){ return pbody(p[0], p[1], size); }), P=bs.length, rings=[], ang=[], k;
-  if(style==='orbit'){ var rp=0, ep=Rs;
-    bs.forEach(function(b, k){ var r=k===0 ? Rs+C.RING_GAP+b.e : rp+ep+C.RING_GAP+b.e; rings.push(r); ang.push(-PI/2+k*GOLD); rp=r; ep=b.e; }); }
+function system(unit, sun, planets, style, size, looks){
+  var mov=style==='orbit', slack={};
+  if(mov) Object.keys(looks).forEach(function(i){ if(looks[i]==='comet') slack[i]=eslack(cshape(i)[0]); });
+  var Rs=D.sun/2, bs=planets.map(function(p){ return pbody(p[0], p[1], size, slack); }), P=bs.length, rings=[], ang=[], orbs={}, belt=null, k;
+  bs.forEach(function(b){ Object.keys(b.orb).forEach(function(i){ orbs[i]=b.orb[i]; }); });
+  if(mov){ var edge=Rs, split=P>=C.BELT_MIN ? Math.floor(P/2) : -1;
+    bs.forEach(function(b, k){
+      if(k===split){ belt={r:edge+C.RING_GAP+C.BELT_W/2, w:C.BELT_W}; edge+=C.RING_GAP+C.BELT_W; }
+      var c=slack[b.id]||0, r=(edge+C.RING_GAP+b.e)/(1-c)+(c ? .05 : 0);
+      if(c){ var sh=cshape(b.id); orbs[b.id]={e:sh[0], rot:sh[1], k:1}; }
+      rings.push(r); ang.push(-PI/2+k*GOLD); b.band=[r-c*r-b.e, r+c*r+b.e]; edge=b.band[1]; }); }
   else { var placed=[[sun, 0, 0, Rs, 'sun']], psegs=[], rp2=0, st=C.A_STEP_DEG*PI/180, tries=[0];
     for(var j=1;j<=Math.round(PI/st);j++){ tries.push(j*st); tries.push(-j*st); }
     bs.forEach(function(b, k){
@@ -770,9 +803,9 @@ function system(unit, sun, planets, style, size){
       });
     });
   }
-  var mov=style==='orbit', outP=[], loc={}; loc[sun]=[0, 0, D.sun, 'sun', ''];
+  var outP=[], loc={}; loc[sun]=[0, 0, D.sun, 'sun', ''];
   bs.forEach(function(b, k){
-    var r=rings[k], th=ang[k], L=local(b, th, r), ma=even(b.moons.length, th);
+    var r=rings[k], th=ang[k], L=local(b, th, r, orbs), ma=even(b.moons.length, th);
     L[0].forEach(function(c){ loc[c[0]]=[c[1], c[2], Math.round(c[3]*2), c[4]===null ? 'planet' : (c[4]===b.id ? 'moon' : 'sat'), c[4]||sun]; });
     var md=function(a){ a%=2*PI; if(a<0) a+=2*PI; return Math.round(a*1e7)/1e7; };
     outP.push({id:b.id, ring:k+1, r:r2(r), a0:md(th), d:b.d, period:mov ? period(C.P_PLANET, k, P) : 0, e:r2(b.e), moon_r:r2(b.moon_r),
@@ -781,20 +814,53 @@ function system(unit, sun, planets, style, size){
           sats:m.sats.map(function(si, j){ return {id:si, r:r2(m.sat_r), a0:md(sa[j]), d:m.sd[si], period:mov ? C.P_SAT : 0}; })}; })});
   });
   var R, box, v=Object.keys(loc).map(function(i){ return loc[i]; });
-  if(mov){ R=bs.length ? rings[rings.length-1]+bs[bs.length-1].e : Rs; box=[-R, -R, R, R]; }
+  if(mov){ R=bs.length ? bs[bs.length-1].band[1] : Rs; box=[-R, -R, R, R]; }
   else { box=[Math.min.apply(null, v.map(function(c){ return c[0]-c[2]/2; })), Math.min.apply(null, v.map(function(c){ return c[1]-c[2]/2; })),
               Math.max.apply(null, v.map(function(c){ return c[0]+c[2]/2; })), Math.max.apply(null, v.map(function(c){ return c[1]+c[2]/2; }))];
     R=Math.max.apply(null, v.map(function(c){ return Math.hypot(c[0], c[1])+c[2]/2; })); }
-  return {unit:unit, sun:sun, r_sun:Rs, R:R, box:box, planets:outP, local:loc};
+  return {unit:unit, sun:sun, r_sun:Rs, R:R, box:box, planets:outP, local:loc, orbs:orbs, belt:belt};
 }
-/* t: {kids, parent, seqs}; old: the plan the page has (style, sizes, labels) */
-return function(t, old){
-  var K=t.kids||{}, Par=t.parent||{}, seqs=t.seqs||[], ids={}, style=(old && old.style)||'orbit';
+/* the galactic core (solar._core) and the drifting comets (solar._drifters) */
+function core(sys, W, H, bottom){
+  if(sys.length<2) return [null, H];
+  var need=C.CORE_R+C.CORE_GAP, gx=0, gy=0, best=null, st=C.CORE_STEP;
+  sys.forEach(function(s){ gx+=s.cx; gy+=s.cy; }); gx/=sys.length; gy/=sys.length;
+  var lx=C.MARGIN+C.CORE_R, hx=W-C.MARGIN-C.CORE_R, ly=C.MARGIN+C.CORE_R, hy=H-C.MARGIN-C.CORE_R, nx=Math.floor((hx-lx)/st), ny=Math.floor((hy-ly)/st);
+  for(var j=0;j<=ny;j++){ var y=ly+j*st;
+    for(var i=0;i<=nx;i++){ var x=lx+i*st, ok=true;
+      for(var q=0;q<sys.length;q++) if(Math.hypot(x-sys[q].cx, y-sys[q].cy) < sys[q].R+need){ ok=false; break; }
+      if(ok){ var d=(x-gx)*(x-gx)+(y-gy)*(y-gy); if(!best || d<best[0]-1e-9) best=[d, x, y]; } } }
+  if(best) return [{x:r2(best[1]), y:r2(best[2]), r:C.CORE_R}, H];
+  var yy=Math.max.apply(null, [bottom].concat(sys.map(function(s){ return s.cy+s.R; })))+C.CORE_GAP+C.CORE_R;
+  return [{x:r2(W/2), y:r2(yy), r:C.CORE_R}, Math.ceil(Math.max(H, yy+C.CORE_R+C.BOTTOM))];
+}
+function drifters(sys, co, W, H){
+  var ys=[], out=[];
+  if(sys.length){
+    ys.push(Math.min.apply(null, sys.map(function(s){ return s.cy-s.R; }))/2);
+    ys.push((Math.max.apply(null, sys.map(function(s){ return s.cy+s.R; }))+H)/2);
+    var bands=sys.map(function(s){ return [s.cy-s.R, s.cy+s.R]; }).sort(function(a, b){ return a[0]-b[0] || a[1]-b[1]; }), reach=bands[0][1];
+    bands.slice(1).forEach(function(b){ if(b[0]-reach >= 2*C.DRIFT_CLEAR+10) ys.push((b[0]+reach)/2); reach=Math.max(reach, b[1]); });
+  }
+  function clear(pts){ for(var i=0;i+1<pts.length;i++){ var a=pts[i], b=pts[i+1];
+      for(var q=0;q<sys.length;q++) if(sd(sys[q].cx, sys[q].cy, a[0], a[1], b[0], b[1]) < sys[q].R+C.DRIFT_CLEAR) return false;
+      if(co && sd(co.x, co.y, a[0], a[1], b[0], b[1]) < co.r+C.DRIFT_CLEAR) return false; } return true; }
+  ys.slice(0, 4).forEach(function(y, k){
+    var seed=Math.floor(h01('drift:'+k+':'+Math.trunc(y))*1e9), bend=(h01('bend:'+seed)-.5)*2*C.DRIFT_CLEAR*.5;
+    var pts=[[0, y], [W/2, y+bend], [W, y]]; if(h01('dir:'+seed)<.5) pts.reverse();
+    if(clear(pts)) out.push({seed:seed, path:pts.map(function(p){ return [r2(p[0]), r2(p[1])]; })});
+  });
+  return out;
+}
+/* t: {kids, parent, seqs, flags?}; old: the plan the page has (style, sizes, labels, look flags); style: 'orbit' | 'spoke' (default old's) */
+function plan(t, old, style){
+  var K=t.kids||{}, Par=t.parent||{}, seqs=t.seqs||[], ids={};
+  style=style||(old && old.style)||'orbit';
   seqs.forEach(function(q){ q.forEach(function(i){ ids[i]=1; }); });
   function kids(i){ return (K[i]||[]).filter(function(k){ return ids[k] && Par[k]===i; }); }
   var labels={}; ((old && old.systems)||[]).forEach(function(s){ labels[s.unit]=s.label; });
   var units=[];
-  /* every root a sun (a palace district may hold several); loose cards orbit the unit's first */
+  /* every root a sun (a unit may hold several); loose cards orbit the unit's first */
   seqs.forEach(function(mine, a){
     if(!mine.length) return;
     var tops=mine.filter(function(i){ return !Par[i]; }); if(!tops.length) tops=[mine[0]];
@@ -802,11 +868,14 @@ return function(t, old){
     tops.forEach(function(sun, k){
       units.push([a, sun, kids(sun).concat(k ? [] : loose).map(function(p){ return [p, kids(p).map(function(m){ return [m, kids(m)]; })]; })]); });
   });
-  /* the bump flags (plan.sizes.bump) on each node: t.flags {id: [flag ids]}, else the page's NODES_SRC */
-  var bump=((old && old.sizes && old.sizes.bump)||[]), FL=t.flags||{};
+  /* the flags on each node: t.flags {id: [flag ids]}, else the page's NODES_SRC; which bump (plan.sizes.bump), which make a look (plan.look_flags) */
+  var bump=((old && old.sizes && old.sizes.bump)||[]), LF=(old && old.look_flags)||{}, FL=t.flags||{};
   if(!t.flags && typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ if(n.flags) FL[n.id]=n.flags; });
   var size=function(i, role, n){ return bodyD(role, n, (FL[i]||[]).some(function(f){ return bump.indexOf(f)>=0; })); };
-  var sy=units.map(function(u){ return system(u[0], u[1], u[2], style, size); });
+  var looks={};
+  Object.keys(ids).forEach(function(i){ var got=(FL[i]||[]).map(function(f){ return LF[f]; }).filter(function(x){ return x; });
+    if(got.length) looks[i]=got.sort(function(a, b){ return LOOKS.indexOf(a)-LOOKS.indexOf(b); })[0]; });
+  var sy=units.map(function(u){ return system(u[0], u[1], u[2], style, size, looks); });
   var ws=sy.map(function(s){ return s.box[2]-s.box[0]; }), W=Math.ceil(Math.max.apply(null, [C.WORLD_W].concat(ws.map(function(w){ return w+2*C.MARGIN; }))));
   var inner=W-2*C.MARGIN, rows=[], row=[], span=0, us={};
   sy.forEach(function(s){ us[s.unit]=1; });
@@ -814,7 +883,7 @@ return function(t, old){
   sy.forEach(function(s, i){ if(row.length && (span+C.SYS_GAP+ws[i] > inner+1e-6 || (grouped && s.unit!==row[row.length-1].unit))){ rows.push(row); row=[]; span=0; }
     span+=(row.length ? C.SYS_GAP : 0)+ws[i]; row.push(s); });
   if(row.length) rows.push(row);
-  var nodes={}, systems=[], top=C.TOP;
+  var nodes={}, systems=[], belts=[], top=C.TOP;
   rows.forEach(function(row){
     var up=mx(row.map(function(s){ return -s.box[1]; })), down=mx(row.map(function(s){ return s.box[3]; }));
     var total=row.reduce(function(a, s){ return a+s.box[2]-s.box[0]; }, 0)+C.SYS_GAP*(row.length-1), left=(W-total)/2, cy=top+up;
@@ -823,19 +892,37 @@ return function(t, old){
       var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null;
       systems.push({unit:s.unit, label:labels[s.unit]!=null ? labels[s.unit] : (pm ? pm.label : ''), sun:s.sun, cx:r2(cx), cy:r2(cy), r_sun:s.r_sun, R:r2(s.R),
         bbox:[r2(cx+s.box[0]), r2(cy+s.box[1]), r2(cx+s.box[2]), r2(cy+s.box[3])], planets:s.planets});
-      Object.keys(s.local).forEach(function(i){ var c=s.local[i]; nodes[i]={x:r2(cx+c[0]), y:r2(cy+c[1]), d:c[2], role:c[3], unit:s.unit, parent:c[4]}; });
+      Object.keys(s.local).forEach(function(i){ var c=s.local[i], n={x:r2(cx+c[0]), y:r2(cy+c[1]), d:c[2], role:c[3], unit:s.unit, parent:c[4]};
+        if(looks[i]) n.look=looks[i];
+        if(s.orbs[i]) n.orbit={e:s.orbs[i].e, rot:s.orbs[i].rot, k:s.orbs[i].k};
+        if(style==='orbit' && looks[i]==='asteroid') n.tumble=tumble(i);
+        nodes[i]=n; });
+      if(s.belt) belts.push({sun:s.sun, cx:r2(cx), cy:r2(cy), r:r2(s.belt.r), w:s.belt.w,
+        n:Math.floor(Math.min(400, Math.max(40, 2*PI*s.belt.r/18))), seed:Math.floor(h01('belt:'+s.sun)*1e9)});
     });
     top=cy+down+C.SYS_GAP;
   });
-  var order=systems.map(function(s){ return s.sun; }), uo=[];
+  var H=rows.length ? Math.ceil(top-C.SYS_GAP+C.BOTTOM) : C.TOP+C.BOTTOM, CO=core(systems, W, H, top-C.SYS_GAP);
+  H=CO[1];
+  var order=systems.map(function(s){ return s.sun; }), uo=[], lk={};
   systems.forEach(function(s){ var u=uo[uo.length-1];
     if(!u || u.unit!==s.unit){ u={unit:s.unit, label:s.label, suns:[], bbox:s.bbox.slice()}; uo.push(u); }
     u.suns.push(s.sun); u.bbox=[Math.min(u.bbox[0], s.bbox[0]), Math.min(u.bbox[1], s.bbox[1]), Math.max(u.bbox[2], s.bbox[2]), Math.max(u.bbox[3], s.bbox[3])]; });
-  return {style:style, spin:__SPIN__, world:{w:W, h:rows.length ? Math.ceil(top-C.SYS_GAP+C.BOTTOM) : C.TOP+C.BOTTOM}, sizes:(function(){ var z=JSON.parse(JSON.stringify(D)); z.planet_big=C.TIERS.planet[C.TIERS.planet.length-1]; z.tiers=JSON.parse(JSON.stringify(C.TIERS)); z.bump=bump.slice().sort(); return z; })(),
-    systems:systems, units:uo, nodes:nodes, sun_links:order.slice(1).map(function(b, i){ return [order[i], b]; }), warnings:[]};
+  LOOKS.forEach(function(l){ var a=Object.keys(looks).filter(function(i){ return looks[i]===l; }).sort(); if(a.length) lk[l]=a; });
+  var out={style:style, spin:__SPIN__, world:{w:W, h:H}, sizes:(function(){ var z=JSON.parse(JSON.stringify(D)); z.planet_big=C.TIERS.planet[C.TIERS.planet.length-1]; z.tiers=JSON.parse(JSON.stringify(C.TIERS)); z.bump=bump.slice().sort(); return z; })(),
+    systems:systems, units:uo, nodes:nodes, sun_links:order.slice(1).map(function(b, i){ return [order[i], b]; }), warnings:[],
+    looks:lk, look_flags:JSON.parse(JSON.stringify(LF)), belts:belts, drifters:style==='orbit' ? drifters(systems, CO[0], W, H) : []};
+  if(CO[0]) out.core=CO[0];
+  return out;
+}
+/* both looks at once (what the page carries): {look, looks: {stars, plain}} */
+window._altoSolarPlans=function(t, old){
+  return {look:(old && old.look)||'stars', looks:{stars:plan(t, old, 'orbit'), plain:plan(t, old, 'spoke')}};
 };
+return plan;
 })();
-""".replace("__SOLAR__", json.dumps(SOLAR, separators=(",", ":"))).replace("__GOLDEN__", repr(GOLDEN)).replace("__SPIN__", str(SPIN))
+""".replace("__SOLAR__", json.dumps(SOLAR, separators=(",", ":"))).replace("__GOLDEN__", repr(GOLDEN)).replace("__SPIN__", str(SPIN)).replace(
+    "__LOOKS__", json.dumps([lk for lk, _ in LOOK_FLAGS]))
 
 
 
