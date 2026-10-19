@@ -147,20 +147,25 @@ def _fetch_split(pm, tb, cache_dir, timeout, log, depth=0):
 
 
 RETRY_S = (30, 60)                # seconds before the second and third try of a small query (Overpass answers 500 under load)
+NAMES_TILE = (0.02, 0.03)         # degrees: the names query is asked tile by tile (a whole city centre in one went unanswered)
+NAMES_CHUNK = 40                  # names per request
+_sleep = time.sleep               # tests replace this
 
 
-def post_retry(query, timeout, log=None, sleep=time.sleep):
-    """palace_map._post_overpass, tried again after RETRY_S when it gives up (an HTTP 500 is not retried there)."""
+def post_retry(query, timeout, log=None, sleep=None, retries=None):
+    """palace_map._post_overpass (every server in turn), the whole round tried again after RETRY_S when no server
+    answers. retries: how many of the RETRY_S waits to use (default all)."""
     from .. import palace_map as pm
-    for i in range(len(RETRY_S) + 1):
+    waits = RETRY_S[:len(RETRY_S) if retries is None else retries]
+    for i in range(len(waits) + 1):
         try:
             return pm._post_overpass(query, timeout)
         except RuntimeError as e:
-            if i == len(RETRY_S):
+            if i == len(waits):
                 raise
             if log:
-                log("retry in %ds: %s" % (RETRY_S[i], str(e)[:100]))
-            sleep(RETRY_S[i])
+                log("retry in %ds: %s" % (waits[i], str(e)[:100]))
+            (sleep or _sleep)(waits[i])
 
 
 def names_query(bbox, names, timeout=90) -> str:
@@ -171,22 +176,62 @@ def names_query(bbox, names, timeout=90) -> str:
     return "\n".join(q + [");", "out geom;"])
 
 
+def _names_path(cache_dir, bbox, names):
+    return Path(cache_dir) / ("names-%.4f_%.4f_%.4f_%.4f-%s.json" % (tuple(float(v) for v in bbox) + (
+        hashlib.sha1("\n".join(names).encode()).hexdigest()[:8],))) if cache_dir else None
+
+
+def _names_piece(tb, names, cache_dir, timeout, log, depth=0) -> list:
+    """One tile x one chunk of names (cached on its own, so a rerun asks only for what is missing); a piece no server
+    answers is split in four once (each quarter tried one round), and raises RuntimeError if a quarter fails too."""
+    path = _names_path(cache_dir, tb, names)
+    if path is not None and path.exists():
+        try:
+            return [json.loads(path.read_text("utf-8"))]
+        except (OSError, ValueError):
+            pass
+    try:
+        raw = post_retry(names_query(tb, names, timeout), timeout, log, retries=None if depth == 0 else 0)
+    except RuntimeError as e:
+        if depth >= 1:
+            raise
+        if log:
+            log("FAIL names %s %s — in quarters" % (tuple(tb), str(e)[:100]))
+        s, w, n, e_ = tb
+        ml, mn = round((s + n) / 2, 4), round((w + e_) / 2, 4)
+        out = []
+        for q in ((s, w, ml, mn), (s, mn, ml, e_), (ml, w, n, mn), (ml, mn, n, e_)):
+            _sleep(POLITE_S)
+            out += _names_piece(q, names, cache_dir, timeout, log, depth + 1)
+        return out
+    if log:
+        log("ok names %s %d names %d elements" % (tuple(tb), len(names), len(raw.get("elements", []))))
+    if path is not None:
+        _store(path, raw)
+    return [raw]
+
+
 def fetch_names(bbox, names, cache_dir=None, timeout=90, log=None) -> dict:
-    """The landmarks by name (the full query's last block, on its own, so the street tiles stay reusable)."""
+    """The landmarks by name (the full query's last block, on its own, so the street tiles stay reusable), asked in
+    NAMES_TILE tiles x NAMES_CHUNK names and merged (an element on a tile edge is kept once); cached whole as well."""
     from .. import palace_map as pm
     names = sorted({str(n) for n in names or () if n})
     if not names:
         return {"elements": []}
-    path = None
-    if cache_dir:
-        tag = "names-%.4f_%.4f_%.4f_%.4f-%s.json" % (tuple(float(v) for v in bbox) +
-                                                   (hashlib.sha1("\n".join(names).encode()).hexdigest()[:8],))
-        path = Path(cache_dir) / tag
-        if path.exists():
-            return json.loads(path.read_text("utf-8"))
-    raw = post_retry(names_query(bbox, names, timeout), timeout, log)
-    if log:
-        log("ok names %s %d names %d elements" % (tuple(bbox), len(names), len(raw.get("elements", []))))
+    path = _names_path(cache_dir, bbox, names)
+    if path is not None and path.exists():
+        return json.loads(path.read_text("utf-8"))
+    tiles = pm.tile_boxes(bbox, *NAMES_TILE)
+    chunks = [names[i:i + NAMES_CHUNK] for i in range(0, len(names), NAMES_CHUNK)]
+    if len(tiles) == 1 and len(chunks) == 1:
+        raws = _names_piece(tuple(float(v) for v in bbox), names, None, timeout, log)
+    else:
+        raws = []
+        for k, (tb, ch) in enumerate((tb, ch) for tb in tiles for ch in chunks):
+            if k:
+                _sleep(POLITE_S)
+            raws += _names_piece(tb, ch, cache_dir, timeout, log)
+    raw = pm.merge_raw(*raws)
     if path is not None:
         _store(path, raw)
     return raw
@@ -228,9 +273,7 @@ def fetch_city(bbox, cache_dir=None, names=None, timeout=120, log=None, allow_li
     if names:
         nm = None
         if cache_dir:
-            tag = "names-%.4f_%.4f_%.4f_%.4f-%s.json" % (tuple(float(v) for v in bbox) + (
-                hashlib.sha1("\n".join(sorted({str(n) for n in names if n})).encode()).hexdigest()[:8],))
-            if (Path(cache_dir) / tag).exists() or not offline:
+            if _names_path(cache_dir, bbox, sorted({str(n) for n in names if n})).exists() or not offline:
                 nm = fetch_names(bbox, names, cache_dir, log=log)
         elif not offline:
             nm = fetch_names(bbox, names, None, log=log)

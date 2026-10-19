@@ -722,6 +722,54 @@ def test_set_up_palace_stores_the_city(store):
     assert "next" in r
 
 
+def _real_fetch_through(monkeypatch, behaviour):
+    """fetch_osm back to a real Overpass request, each server answering as behaviour says (no network)."""
+    import io
+    import urllib.error
+
+    def fetch(bbox, **kw):
+        return palace_map._post_overpass("q", 10)
+
+    def urlopen(req, timeout=0, **kw):
+        f = behaviour.get(req.full_url.split("/")[2])
+        if f == "busy":
+            raise urllib.error.HTTPError(req.full_url, 504, "busy", {}, io.BytesIO(b""))
+        if f == "down":
+            raise urllib.error.URLError("down")
+        return io.BytesIO(b'{"elements": []}')
+
+    monkeypatch.setattr(palace_map, "fetch_osm", fetch)
+    monkeypatch.setattr(palace_map.urllib.request, "urlopen", urlopen)
+
+
+def test_set_up_palace_says_which_overpass_server_answered(store, monkeypatch):
+    _real_fetch_through(monkeypatch, {"overpass-api.de": "busy"})
+    r = srv.set_up_palace(_draft(), "Testville", bbox=BBOX, area="the middle", auto=False)
+    assert r.get("ok") is True, r
+    src = r["map_source"]
+    assert src["served_by"].get("overpass.kumi.systems", 0) >= 1 and "overpass-api.de" not in src["served_by"]
+    assert src["failed"]["overpass-api.de"]["last"] == "HTTP 504"
+
+
+def test_set_up_palace_fetches_in_tiles_when_the_whole_box_goes_unanswered(store, monkeypatch):
+    from alto.build import city_setup
+    seen = []
+    monkeypatch.setattr(palace_map, "fetch_osm", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no server answered")))
+    monkeypatch.setattr(city_setup, "fetch_city", lambda bbox, **kw: seen.append(kw) or {"elements": []})
+    r = srv.set_up_palace(_draft(), "Testville", bbox=BBOX, area="the middle", auto=False, landmarks=["City Hall"])
+    assert r.get("ok") is True, r
+    assert len(seen) == 1 and seen[0]["whole"] is False and seen[0]["names"] == ["City Hall"]
+
+
+def test_set_up_palace_with_every_server_down_reports_each(store, monkeypatch):
+    _real_fetch_through(monkeypatch, {h.split("/")[2]: "down" for h in palace_map.OVERPASS_MIRRORS})
+    monkeypatch.setattr("alto.build.city_setup.fetch_city", lambda *a, **k: palace_map._post_overpass("q", 10))
+    r = srv.set_up_palace(_draft(), "Testville", bbox=BBOX, area="the middle", auto=False)
+    assert r["error"] == "map_unavailable"
+    assert "maps.mail.ru" in r["message"] and "overpass.private.coffee" in r["message"]
+    assert r["map_source"]["unanswered"] >= 1 and len(r["map_source"]["failed"]) == 5
+
+
 def test_the_page_draws_the_rivers_as_bands_with_names_and_cased_bridges():
     from alto.build import palace_grid
     m = _wide_city()

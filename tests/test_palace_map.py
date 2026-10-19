@@ -209,7 +209,7 @@ def test_query_escapes_landmarks():
 def test_overpass_retries_then_falls_back(monkeypatch):
     calls = []
 
-    def fake(req, timeout=0):
+    def fake(req, timeout=0, **kw):
         calls.append(req.full_url)
         assert req.get_header("User-agent") == pm.UA
         if req.full_url == pm.OVERPASS:
@@ -219,7 +219,7 @@ def test_overpass_retries_then_falls_back(monkeypatch):
     monkeypatch.setattr(pm.urllib.request, "urlopen", fake)
     monkeypatch.setattr(pm, "_sleep", lambda s: None)
     assert pm.fetch_osm(BB) == {"elements": []}
-    assert calls == [pm.OVERPASS] * 3 + [pm.OVERPASS_FALLBACK]
+    assert calls == [pm.OVERPASS] * 2 + [pm.OVERPASS_FALLBACK]     # a busy server: one more try, then the next mirror
 
 
 def test_fetch_cache(tmp_path, monkeypatch):

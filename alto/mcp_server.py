@@ -1825,6 +1825,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     cache = Path.home() / ".cache" / "alto" / "osm"
     cache.mkdir(parents=True, exist_ok=True)
     auto_info = None
+    osm_mark = palace_map.overpass_mark()             # the reply says which Overpass servers answered (map_source)
     try:
         if not pre and auto and any(v is None for v in (majors, landmarks, landmark_buildings, diagonals, parks,
                                                         areas, transit)):
@@ -1850,17 +1851,26 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
         names = list(landmarks or []) + [b.get("name") for b in landmark_buildings or [] if b.get("name")]
         names += [s for ln in rail_lines or [] for s in ln.get("stops") or []]
         portals = _with_destinations(portals, timeline_id, place)
+        tiled, raw = bool(pre or auto_info), None
+        if not tiled:
+            try:
+                raw = palace_map.fetch_osm(tuple(bbox), cache_dir=str(cache), landmarks=list(dict.fromkeys(names)) or None)
+            except RuntimeError:                        # the box in one request went unanswered on every server: in tiles
+                raw = city_setup.fetch_city(tuple(bbox), cache_dir=str(cache), names=list(dict.fromkeys(names)) or None,
+                                            whole=False)
         pal = pal_mod.set_up(place, bbox, districts=districts, majors=majors,
-                             landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache),
+                             landmarks=list(dict.fromkeys(names)) or None, cache_dir=str(cache), raw=raw,
                              diagonals=diagonals, lines=rail_lines, buildings=landmark_buildings,
                              parks=parks, areas=areas, portals=portals, transit=transit,
-                             tiled=bool(pre or auto_info), preset=pid if (pre or auto_info) else None,
+                             tiled=tiled, preset=pid if (pre or auto_info) else None,
                              far_bank=bool(pre and pre.get("far_bank")), fill=True)
     except BriefError as e:
         return {"error": "invalid_areas", "message": str(e)}
     except Exception as e:                              # noqa: BLE001 — network, Overpass
         return {"error": "map_unavailable", "message": f"could not fetch the map: {e}. "
-                "OpenStreetMap's server may be busy — try again in a minute."}
+                f"Every OpenStreetMap (Overpass) server was tried ({len(palace_map.OVERPASS_MIRRORS)} public ones) "
+                "— they may all be busy: try again in a few minutes (what was fetched is cached and not asked for "
+                "again).", "map_source": palace_map.overpass_report(osm_mark)}
     if area:
         pal["area"] = area
     pal["made"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -1896,6 +1906,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             **({"towers": towers} if towers else {}),
             **({"preset": pid} if pre else {}), **({"worked_out": auto_info} if auto_info else {}),
             **({"courthouses": court_info} if court_info else {}),
+            "map_source": palace_map.overpass_report(osm_mark),
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
 
 

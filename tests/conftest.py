@@ -78,6 +78,15 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
         monkeypatch.setattr(_pm, "fetch_buildings", lambda box, **kw: {"elements": [], "missing": []})
         monkeypatch.setattr(_pm, "_sleep", lambda s: None)       # (fetch_footprints waits BLD_PAUSE between the cells it asks for: not here)
 
+    # which Overpass server answered last / failed lately is module state: every test starts with none, in the
+    # built-in order (no ALTO_OVERPASS_URL of the machine's own)
+    from alto import palace_map as _pm0
+    monkeypatch.setattr(_pm0, "_last_ok", None)
+    monkeypatch.setattr(_pm0, "_down_until", {})
+    monkeypatch.delenv("ALTO_OVERPASS_URL", raising=False)
+    from alto.build import city_setup as _cs0
+    monkeypatch.setattr(_cs0, "_sleep", lambda s: None)
+
     # set_up fetches the street tiles (palace_street.fetch) too: no network from a test that stubs the city fetch (test_palace_street stubs _post_overpass itself)
     if request.module.__name__.rsplit(".", 1)[-1] not in ("test_palace_street", "test_palace_ride_bounds"):
         from alto.build import palace_street as _ps

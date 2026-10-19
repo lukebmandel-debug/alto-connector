@@ -34,6 +34,7 @@ import json
 import math
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -41,13 +42,22 @@ import urllib.request
 from pathlib import Path
 
 UA = "Alto-MindPalace/1.0 (+https://alto-connector.web.app)"
-OVERPASS = "https://overpass-api.de/api/interpreter"
-OVERPASS_FALLBACK = "https://overpass.kumi.systems/api/interpreter"
+# every public Overpass server, tried in this order (one that answered last goes first; one that just failed waits
+# MIRROR_REST at the back). ALTO_OVERPASS_URL (comma-separated) puts servers of the user's own in front.
+OVERPASS_MIRRORS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.fr/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
+OVERPASS, OVERPASS_FALLBACK = OVERPASS_MIRRORS[:2]
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 ATTRIBUTION = "© OpenStreetMap contributors"
 
-_BACKOFF = (5, 15, 30)            # seconds slept between attempts on one server
+_BACKOFF = (5,)                   # seconds slept before another try on the same server (busy: 429/502/503/504 only)
 _RETRY_CODES = (429, 502, 503, 504)
+MIRROR_REST = 600.0               # seconds a server that just failed is tried only after the others
 _sleep = time.sleep               # tests replace this
 SIZE_TARGET = 600_000             # bytes of compact JSON; above it k=4/5 streets are simplified harder
 
@@ -80,32 +90,123 @@ _COLOURS = {
 
 # --------------------------------------------------------------------------- HTTP
 
+def overpass_mirrors() -> list:
+    """The servers in the order the next request tries them: ALTO_OVERPASS_URL's first, then the one that answered
+    last, then the rest in OVERPASS_MIRRORS order; a server that failed in the last MIRROR_REST seconds goes last."""
+    own = [u.strip() for u in os.environ.get("ALTO_OVERPASS_URL", "").split(",") if u.strip()]
+    urls = list(dict.fromkeys(own + ([_last_ok] if _last_ok else []) + list(OVERPASS_MIRRORS)))
+    now = time.monotonic()
+    return [u for u in urls if _down_until.get(u, 0) <= now] + [u for u in urls if _down_until.get(u, 0) > now]
+
+
+_last_ok = None                   # the server that answered last
+_down_until: dict = {}            # server -> time.monotonic() until which it is tried last
+_TRACE: list = []                 # one entry per server asked: {"n", "host", "ok", "error"?, "s"} (overpass_report)
+_trace_n = 0
+_trace_lock = threading.Lock()
+
+
+def _trace(url, ok, error="", s=0.0):
+    global _trace_n
+    with _trace_lock:
+        _trace_n += 1
+        _TRACE.append({"n": _trace_n, "host": urllib.parse.urlparse(url).netloc or url, "ok": ok,
+                       **({"error": error[:120]} if error else {}), "s": round(s, 1)})
+        del _TRACE[:-4000]
+
+
+def overpass_mark() -> int:
+    """A bookmark: overpass_report(mark) covers only the requests made after it."""
+    with _trace_lock:
+        return _trace_n
+
+
+def overpass_report(since: int = 0) -> dict:
+    """Which Overpass servers answered (and which failed, and why) since the bookmark — for a tool's reply, so
+    nobody has to dig for it: {"requests": answered, "served_by": {host: n}, "failed": {host: {"n", "last"}},
+    "unanswered": requests no server answered}. {"requests": 0, ...} when every answer came from the cache."""
+    with _trace_lock:
+        rows = [r for r in _TRACE if r["n"] > since]
+    served, failed = {}, {}
+    for r in rows:
+        if r["ok"]:
+            served[r["host"]] = served.get(r["host"], 0) + 1
+        elif r["host"] != "*":
+            f = failed.setdefault(r["host"], {"n": 0, "last": ""})
+            f["n"] += 1
+            f["last"] = r.get("error", "")
+    out = {"requests": sum(served.values()), "served_by": served}
+    if failed:
+        out["failed"] = failed
+    gave_up = sum(1 for r in rows if r["host"] == "*")
+    if gave_up:
+        out["unanswered"] = gave_up
+    if not rows:
+        out["note"] = "every OpenStreetMap answer came from the local cache"
+    return out
+
+
+_ssl_ctx = None
+
+
+def _tls():
+    """The system's trusted roots plus certifi's when it is installed (it comes with mcp/httpx): Python's own bundle
+    on macOS rejects maps.mail.ru's HARICA chain ("self-signed certificate in certificate chain")."""
+    global _ssl_ctx
+    if _ssl_ctx is None:
+        import ssl
+        ctx = ssl.create_default_context()
+        try:
+            import certifi
+            ctx.load_verify_locations(certifi.where())
+        except (ImportError, OSError, ssl.SSLError):
+            pass
+        _ssl_ctx = ctx
+    return _ssl_ctx
+
+
 def _post_overpass(query: str, timeout: int) -> dict:
-    """POST the query; retry 3x with backoff on 429/5xx/timeouts, then try the
-    fallback server the same way. Raises RuntimeError when both give up."""
+    """POST the query to each server of overpass_mirrors() in turn until one answers: a busy server (429/5xx
+    gateway) is tried once more after _BACKOFF, anything else (timeout, refused, an HTML page, a partial answer,
+    another HTTP error) moves straight on to the next. Every try is traced (overpass_report). Raises
+    RuntimeError naming each server's last error when none answers."""
+    global _last_ok
     body = urllib.parse.urlencode({"data": query}).encode()
-    errors = []
-    for url in (OVERPASS, OVERPASS_FALLBACK):
-        for attempt in range(len(_BACKOFF)):
+    errors = {}
+    for url in overpass_mirrors():
+        for attempt in range(len(_BACKOFF) + 1):
+            t0 = time.monotonic()
+            again = False
             try:
                 req = urllib.request.Request(
                     url, data=body,
                     headers={"User-Agent": UA, "Accept": "application/json"})
-                with urllib.request.urlopen(req, timeout=timeout) as r:
+                with urllib.request.urlopen(req, timeout=timeout, context=_tls()) as r:
                     data = json.loads(r.read().decode("utf-8"))
+                if not isinstance(data, dict):
+                    raise ValueError("not an Overpass answer")
                 remark = str(data.get("remark", ""))
                 if "runtime error" in remark or "out of memory" in remark:
                     raise TimeoutError(remark)          # a partial answer is worse than none
+                _trace(url, True, s=time.monotonic() - t0)
+                _last_ok = url
+                _down_until.pop(url, None)
                 return data
             except urllib.error.HTTPError as e:
-                if e.code not in _RETRY_CODES:
-                    raise RuntimeError("Overpass HTTP %s from %s" % (e.code, url)) from e
-                errors.append("%s HTTP %s" % (url, e.code))
+                err = "HTTP %s" % e.code
+                again = e.code in _RETRY_CODES
             except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
-                errors.append("%s %s" % (url, e))
-            if attempt < len(_BACKOFF) - 1:
-                _sleep(_BACKOFF[attempt])
-    raise RuntimeError("Overpass failed: " + "; ".join(errors[-4:]))
+                err = "%s: %s" % (type(e).__name__, getattr(e, "reason", None) or e)
+            _trace(url, False, err, time.monotonic() - t0)
+            errors[url] = err
+            if not again or attempt == len(_BACKOFF):
+                break
+            _sleep(_BACKOFF[attempt])
+        if not errors[url].startswith("HTTP 400"):      # a bad query is the query's fault, not the server's
+            _down_until[url] = time.monotonic() + MIRROR_REST
+    _trace("*", False, "no server answered")
+    raise RuntimeError("Overpass failed on every server: " + "; ".join(
+        "%s %s" % (urllib.parse.urlparse(u).netloc, e) for u, e in errors.items()))
 
 
 def _ql_regex(name: str) -> str:
