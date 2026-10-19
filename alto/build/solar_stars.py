@@ -23,9 +23,10 @@ motion switched off (window._altoSolarMotion) its animations pause too.
   body orbits — a rotate() written only when the angle moved, never a
   re-rendered texture. Moons are grey and cratered with the same phase light;
   satellites are tiny craft (body + solar panels) pointed along their orbit.
-* SPACE. The board (#glass-slab) is a night sky in both themes: two star
-  tiles, a nebula wash, a faint glow of each system's unit colour, a few
-  brighter stars twinkling (CSS, off under prefers-reduced-motion); orbit
+* SPACE. The canvas (the window under the bars, at every zoom: no board
+  rectangle) is a night sky in both themes: two star tiles, a nebula wash;
+  on the chart a faint glow of each system's unit colour, a few brighter
+  stars twinkling (CSS, off under prefers-reduced-motion); orbit
   rings get a soft wide glow and each planet a fading trail behind it.
 * Every body is still the engine's circle .node-card (hit-testing, hover
   grow, focus, search ring, edit mode untouched): the skin is children of the
@@ -53,8 +54,9 @@ _E = "html.alto-stars.alto-editing:not(.mobile) #world .node[data-solar]:not(.fo
 
 STARS_CSS = r"""
   .node-card>.sk{display:none;}
-  P #world #glass-slab:not(#_){background:var(--sk-sky,linear-gradient(180deg,#05070f,#0a0b1d 50%,#06050f)) !important;opacity:1 !important;
-    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;border:0 !important;}
+  /* space fills the canvas (the window under the bars) at every zoom — no board rectangle; its stars are at
+     infinity, so they hold still while the chart pans and zooms (the twinkling ones and the glows ride the chart) */
+  html.alto-stars:not(.mobile) #canvas{background:var(--sk-sky,linear-gradient(180deg,#05070f,#0a0b1d 50%,#06050f));}
   .sk-sky{position:absolute;left:0;top:0;right:0;bottom:0;z-index:5;pointer-events:none;}
   html.mobile .sk-sky,html:not(.alto-stars) .sk-sky{display:none !important;}
   .sk-sky>*{position:absolute;pointer-events:none;border-radius:50%;}
@@ -111,13 +113,13 @@ STARS_CSS = r"""
   @media (prefers-reduced-motion:reduce){ .sk-cor,.sk-cacc,.sk-prom,.sk-tw,.sk-gran{animation:none !important;} }
   html.sk-still .sk-cor,html.sk-still .sk-cacc,html.sk-still .sk-prom,html.sk-still .sk-tw,html.sk-still .sk-gran{animation-play-state:paused !important;}
   html.alto-editing .sk-cor,html.alto-editing .sk-cacc,html.alto-editing .sk-prom,html.alto-editing .sk-tw,html.alto-editing .sk-gran{animation:none !important;}
-  html.alto-stars.alto-editing:not(.mobile) #world #glass-slab:not(#_){background:#0a0c1a !important;}
+  html.alto-stars.alto-editing:not(.mobile) #canvas{background:#0a0c1a;}
   html.alto-stars.alto-editing .sk-sky,html.alto-stars.alto-editing #solar-svg .sk-tr,html.alto-stars.alto-editing #solar-svg .sk-belt{display:none !important;}
   E .node-card>.sk.sk{display:none !important;}
   E .node-card{background:var(--sk-c) !important;}
   @media print{
     .sk-sky,#solar-svg .sk-tr,#solar-svg .sk-rg,#solar-svg .sk-belt{display:none !important;}
-    html.alto-stars #world #glass-slab:not(#_){background:none !important;}
+    html.alto-stars #canvas{background:none !important;}
     E .node-card>.sk.sk,R .node-card>.sk.sk{display:none !important;}
     R .node-card{background:#fff !important;border:1.5px solid #777 !important;}
     html.alto-stars #world .node[data-solar] .sol-face{color:#111 !important;text-shadow:none !important;}
@@ -298,7 +300,7 @@ function tiles(){
 /* ── the board ── */
 function hexRgb(h){ h=String(h||'').replace('#', ''); if(h.length===3) h=h.replace(/(.)/g, '$1$1'); var v=parseInt(h.slice(0, 6), 16); return isNaN(v) ? null : [v>>16&255, v>>8&255, v&255]; }
 function sky(){
-  var sl=document.getElementById('glass-slab'), T=tiles(); if(!sl) return;
+  var sl=document.getElementById('canvas'), T=tiles(); if(!sl) return;
   var v='radial-gradient(60% 34% at 22% 18%,rgba(112,64,176,.2),rgba(112,64,176,0) 70%),radial-gradient(50% 30% at 80% 46%,rgba(36,112,170,.16),rgba(36,112,170,0) 70%),'+
     'radial-gradient(56% 28% at 34% 82%,rgba(170,52,112,.13),rgba(170,52,112,0) 70%),linear-gradient(180deg,#05070f,#0a0b1d 50%,#06050f)';
   if(T.u) v='url('+T.u[0]+') 0 0/512px 512px,url('+T.u[1]+') 37px 91px/300px 300px,'+v;

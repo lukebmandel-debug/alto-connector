@@ -274,7 +274,7 @@ def test_reduced_motion_stops_the_sky(browser, pages):
 def test_light_theme_keeps_a_night_sky_and_light_lines(browser, pages):
     pg, errs = _open(browser, pages["orbit"], theme="light")
     r = pg.evaluate(r"""() => { var sl=getComputedStyle(document.getElementById('glass-slab')), p=document.querySelector('#river-svg path[data-edge]');
-      return {dark:document.documentElement.classList.contains('dark'), bg:sl.backgroundImage, line:p && p.getAttribute('stroke'),
+      return {dark:document.documentElement.classList.contains('dark'), bg:getComputedStyle(document.getElementById('canvas')).backgroundImage, line:p && p.getAttribute('stroke'),
         ink:getComputedStyle(document.querySelector('#node-u1-p1 .sol-face')).color}; }""")
     assert not r["dark"] and "gradient" in r["bg"], r
     lum = [int(v) for v in re.findall(r"\d+", r["line"])[:3]]
@@ -336,19 +336,20 @@ def test_the_look_switch_puts_the_skin_on_and_takes_it_off(browser, pages):
     """Plain look: no skin at all (no sky, no trails, every card its plain
     self); back to Star chart: all of it again, once (no doubled trails)."""
     pg, errs = _open(browser, pages["orbit"])
-    a = pg.evaluate(SWITCH, "alto-solar-plain")
-    assert not a["stars"] and a["sky"] == 0 and a["trails"] == 0 and a["shown"] == 0, a
-    b = pg.evaluate(SWITCH, "alto-solar-stars")
-    c = pg.evaluate(SWITCH, "alto-solar-stars")
-    assert b["stars"] and b["sky"] == 1 and b["shown"] > 20 and b["trails"] > 0, b
-    assert c == b, (b, c)
-    # the look switch's own API, when the renderer has one, wins over the classes
-    d = pg.evaluate(r"""async () => { var fn=null, cur='plain';
-      window._altoSolarLook={get:function(){ return cur; }, set:function(v){ cur=v; if(fn) fn(v); }, onChange:function(f){ fn=f; return function(){}; }};
-      document.documentElement.classList.add('x-poke');              /* any class change re-reads the look */
-      await new Promise(function(r){ setTimeout(r, 120); });
-      return document.documentElement.classList.contains('alto-stars'); }""")
-    assert d is False
+    if not pg.evaluate("!!window._altoSolarLook"):            # (a page without the renderer's switch: its classes)
+        a = pg.evaluate(SWITCH, "alto-solar-plain")
+        assert not a["stars"] and a["sky"] == 0 and a["trails"] == 0 and a["shown"] == 0, a
+        b = pg.evaluate(SWITCH, "alto-solar-stars")
+        c = pg.evaluate(SWITCH, "alto-solar-stars")
+        assert b["stars"] and b["sky"] == 1 and b["shown"] > 20 and b["trails"] > 0, b
+        assert c == b, (b, c)
+    # the renderer's own switch (window._altoSolarLook): Plain and back, the skin with it
+    d = pg.evaluate(r"""async () => { var L=window._altoSolarLook, o=[], de=document.documentElement;
+      if(!L) return null;
+      function st(){ return [de.classList.contains('alto-stars'), document.querySelectorAll('.sk-sky').length, document.querySelectorAll('#solar-svg .sk-trails').length]; }
+      L.set('plain'); await new Promise(function(r){ setTimeout(r, 900); }); o.push(st());
+      L.set('stars'); await new Promise(function(r){ setTimeout(r, 900); }); o.push(st()); return o; }""")
+    assert d is None or d == [[False, 0, 0], [True, 1, 1]], d
     assert not errs, errs
     pg.context.close()
 
@@ -356,7 +357,7 @@ def test_the_look_switch_puts_the_skin_on_and_takes_it_off(browser, pages):
 def test_motion_off_pauses_the_sky(browser, pages):
     pg, errs = _open(browser, pages["orbit"])
     st = pg.evaluate(r"""async () => { var on=true, fn=null;
-      window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=!!v; if(fn) fn(on); }, onChange:function(f){ fn=f; return function(){}; }};
+      if(!window._altoSolarMotion) window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=!!v; if(fn) fn(on); }, onChange:function(f){ fn=f; return function(){}; }};
       document.documentElement.classList.add('x-poke');
       await new Promise(function(r){ setTimeout(r, 80); });
       window._altoSolarMotion.set(false);
@@ -410,8 +411,9 @@ def test_drifting_comets_cross_and_stop_with_the_motion(browser, pages):
     pg.wait_for_timeout(1200)
     b = pg.evaluate(get)
     assert a != b, a                                            # they move
-    pg.evaluate("""() => { var on=false; window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=v; }, onChange:function(){ return function(){}; }}; }""")
-    pg.wait_for_timeout(300)
+    pg.evaluate("""() => { if(window._altoSolarMotion && window._altoSolarMotion.set) window._altoSolarMotion.set(false);
+      else { var on=false; window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=v; }, onChange:function(){ return function(){}; }}; } }""")
+    pg.wait_for_timeout(700)                                    # (the renderer eases the orbit clock to a stop)
     c = pg.evaluate(get)
     pg.wait_for_timeout(1000)
     assert pg.evaluate(get) == c                                # and stop when the motion does
