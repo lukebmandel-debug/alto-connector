@@ -50,6 +50,8 @@ def _comets(S):
     S = copy.deepcopy(S)
     S["nodes"]["u1-p2"]["orbit"] = {"e": 0.42, "rot": 1.1, "k": 1}
     S["nodes"]["u1-p3-m1"]["orbit"] = {"e": 0.3, "rot": 0.4, "k": 0}
+    # the galactic core between the systems (solar.py's plan.core {x, y, r} for 2+ systems)
+    assert S.get("core") and len(S["systems"]) > 1
     return S
 
 
@@ -63,7 +65,7 @@ def _routes(plans, n=200, seed=7):
     for k in range(n):
         S = plans[k % len(plans)]
         W = tw.bodies(S)
-        A, B = rng.sample(sorted(W["B"]), 2)
+        A, B = rng.sample(sorted(i for i in W["B"] if W["B"][i]["role"] != "core"), 2)
         o = {"T0": rng.uniform(0, 200), "r0": rng.choice([0.0, 0.4, 1.0]), "view": [1500, 950]}
         yield S, W, A, B, o, tw.plan(S, A, B, o)
 
@@ -128,6 +130,45 @@ def test_a_comet_is_met_on_its_ellipse(plans):
     b = W["B"]["u1-p2"]
     rs = [math.hypot(*(tw.pos(W, "u1-p2", t)[k] - tw.pos(W, "u1", t)[k] for k in (0, 1))) for t in range(0, 120, 7)]
     assert max(rs) - min(rs) > 0.06 * b["r"]                     # r(1 ± c), c ≈ 0.05 at e 0.42
+
+
+def test_between_systems_the_craft_swings_round_the_galactic_core(plans):
+    S = plans[3]
+    W = tw.bodies(S)
+    R = tw.plan(S, "u1-p3-m1", "u2-p2-m2", {"T0": 5.0})
+    st = [q[0] for q in R["steps"]]
+    i = R["steps"].index(["fly", "#core"])
+    assert st[i - 1] == "bez" and st[i + 1] == "bez", st
+    L = R["legs"][i]
+    core = S["core"]
+    t0, t1 = R["D"] * tw.ease_inv(L["s0"]), R["D"] * tw.ease_inv(L["s1"])
+    near = min(math.hypot(*(tw.at(W, R, t0 + (t1 - t0) * k / 40)[j] - (core["x"], core["y"])[j] for j in (0, 1))) for k in range(41))
+    assert near < core["r"] + FLY["FLY_Q"] + 2                 # it passes close round the black hole
+    end, tgt = tw.at(W, R, R["D"]), tw.pos(W, "u2-p2-m2", tw.clock(R["c"], R["D"]))
+    assert math.hypot(end[0] - tgt[0], end[1] - tgt[1]) < 1.0
+    # no core: no swing round it; never a flight to or from the core itself
+    bare = {k: v for k, v in S.items() if k != "core"}
+    assert ["fly", "#core"] not in tw.plan(bare, "u1-p3-m1", "u2-p2-m2", {"T0": 5.0})["steps"]
+    assert tw.plan(S, "#core", "u1") is None and tw.plan(S, "u1", "#core") is None
+
+
+def test_a_black_hole_is_the_swing_by_of_choice(plans):
+    S = copy.deepcopy(plans[0])
+    W = tw.bodies(S)
+    st = tw.plan(S, "u1-p1", "u1-p6", {"T0": 3.0})["steps"]
+    mid = st[1][1]
+    other = next(i for i in ("u1-p2", "u1-p3", "u1-p4", "u1-p5") if i != mid)
+    S["nodes"][other]["look"] = "blackhole"
+    assert tw.plan(S, "u1-p1", "u1-p6", {"T0": 3.0})["steps"][1] == ["fly", other]
+
+
+def test_with_the_orbits_switched_off_the_craft_flies_among_still_bodies(plans):
+    S = plans[0]
+    W = tw.bodies(S)
+    R = tw.plan(S, "u1-p1", "u1-p4", {"T0": 8.0, "still": True})
+    assert all(tw.clock(R["c"], R["D"] * k / 10) == 8.0 for k in range(11))
+    end, tgt = tw.at(W, R, R["D"]), tw.pos(W, "u1-p4", 8.0)
+    assert math.hypot(end[0] - tgt[0], end[1] - tgt[1]) < 1.0
 
 
 def test_routes_follow_the_rules(plans):
@@ -196,11 +237,13 @@ def test_the_page_planner_is_the_twin(plans, tmp_path):
     cases = []
     for k in range(60):
         S = plans[k % len(plans)]
-        ids = sorted(tw.bodies(S)["B"])
+        ids = sorted(i for i, b in tw.bodies(S)["B"].items() if b["role"] != "core")
         A, B = rng.sample(ids, 2)
         o = {"T0": rng.uniform(0, 100), "r0": rng.choice([0, 1, .4]), "view": [1500, 950], "cam": [500, 500, 1]}
         if k % 5 == 0:
             o["start"] = [900, 900, 120, -40]
+        if k % 7 == 3:
+            o["still"] = True
         cases.append([k % len(plans), A, B, o])
     js = ("var window={};\n" + FLY_PLAN_JS + "\nvar P=" + json.dumps(plans) + ", cases=" + json.dumps(cases) + ";\n"
           "var F=window._altoFly, out=cases.map(function(c){ var R=F.plan(P[c[0]], c[1], c[2], c[3]), sm=[];"
@@ -276,13 +319,26 @@ def browser(request):
         b.close()
 
 
+def _comet_page():
+    """A Star chart with a comet planet, a comet moon and a black hole (look flags)."""
+    d = solar_doc(SHAPES[0], "orbit", ())
+    d["brief"]["flags"] = [{"id": "exception", "name": "Exception"}, {"id": "overruled", "name": "Overruled"}]
+    for n in d["nodes"]:
+        if n["id"] in ("u1-p2", "u1-p3-m1"):
+            n["flags"] = ["exception"]
+        if n["id"] == "u1-p4":
+            n["flags"] = ["overruled"]
+    html, _ = build_timeline(*load_brief(d))
+    return html
+
+
 @pytest.fixture(scope="module")
 def pages(tmp_path_factory):
     d = tmp_path_factory.mktemp("fly")
     out = {}
-    for name, style in (("orbit", "orbit"), ("spoke", "spoke")):
+    for name, html in (("orbit", _page(style="orbit")), ("spoke", _page(style="spoke")), ("comet", _comet_page())):
         f = d / f"{name}.html"
-        f.write_text(_page(style=style), encoding="utf-8")
+        f.write_text(html, encoding="utf-8")
         out[name] = f
     return out
 
@@ -427,7 +483,11 @@ def test_no_flight_with_reduced_motion_on_the_plain_look_or_zoomed_out(browser, 
 
 
 def test_switching_to_the_plain_look_stops_the_flight_and_clears_its_layer(browser, pages):
-    pg, errs = _open(browser, pages["orbit"], look="stars")
+    """The look toggle (solar_draw.py, window._altoSolarLook): Plain on the way
+    stops the flight and takes its layer away; Plain flies nothing; back in
+    the Star chart look a change of body flies again."""
+    pg, errs = _open(browser, pages["orbit"])
+    assert pg.evaluate("()=>window._altoSolarLook.get()") == "stars"
     _rest_on(pg, "u1-p3")
     pg.evaluate("()=>window.enterFocus('u1-p1')")
     assert pg.evaluate(FLIGHT)
@@ -435,11 +495,67 @@ def test_switching_to_the_plain_look_stops_the_flight_and_clears_its_layer(brows
     pg.evaluate("()=>window._altoSolarLook.set('plain')")
     pg.wait_for_timeout(300)
     assert pg.evaluate(FLIGHT) is None and not pg.evaluate("()=>!!document.getElementById('solar-fly-svg')")
+    assert pg.evaluate("()=>window._altoSolarFlight(true).how") == "stopped"
+    pg.wait_for_timeout(900)
     pg.evaluate("()=>window.enterFocus('u1-p2')")
+    pg.wait_for_timeout(700)
+    pg.evaluate("()=>window.enterFocus('u1-p4')")
     assert pg.evaluate(FLIGHT) is None
     pg.evaluate("()=>window._altoSolarLook.set('stars')")
+    pg.wait_for_timeout(1500)
+    if pg.evaluate("()=>window._focusedNodeId") is None:
+        _rest_on(pg, "u1-p4")
     pg.evaluate("()=>window.enterFocus('u1-p3')")
     assert pg.evaluate(FLIGHT)
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_the_planner_predicts_every_body_where_the_page_puts_it(browser, pages):
+    """The planner's bodies (comets on their ellipses included) are where the
+    page's own orbit loop draws them, at whatever the clock reads."""
+    pg, errs = _open(browser, pages["comet"])
+    pg.wait_for_timeout(1500)
+    looks = pg.evaluate("()=>{ var o={}, N=window._ALTO_SOLAR.nodes; for(var i in N) if(N[i].look) o[i]=N[i].look; return o; }")
+    assert looks.get("u1-p2") == "comet" and looks.get("u1-p3-m1") == "comet", looks
+    for _ in range(3):
+        d = pg.evaluate("""()=>{ var F=window._altoFly, W=F.bodies(window._ALTO_SOLAR), G=window._altoSolarGeo(), T=window._altoSolarRate().T,
+            P=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0, worst=0, at='';
+          Object.keys(G.bodies).forEach(function(i){ if(!W.B[i]) return; var p=F.pos(W, i, T), g=G.bodies[i], e=Math.hypot(p[0]-g.x, p[1]-(g.y-P));
+            if(e>worst){ worst=e; at=i; } });
+          return [worst, at]; }""")
+        assert d[0] < 1.5, d                                    # device-px rounding of the page's left/top
+        pg.wait_for_timeout(700)
+    # a flight to the comet lands on it
+    _rest_on(pg, "u1-p1")
+    pg.evaluate("()=>window.enterFocus('u1-p2')")
+    f = pg.evaluate(FLIGHT)
+    pg.wait_for_timeout(int(f["D"] * 1000) + 900)
+    assert pg.evaluate("()=>window._focusedNodeId") == "u1-p2"
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_with_the_orbit_switched_off_it_flies_among_still_bodies(browser, pages):
+    pg, errs = _open(browser, pages["orbit"])
+    _rest_on(pg, "u1-p3")
+    pg.evaluate("()=>window._altoSolarMotion.set(false)")
+    T0 = pg.evaluate("()=>window._altoSolarRate().T")
+    pg.evaluate("()=>window.enterFocus('u1-p1')")
+    f = pg.evaluate(FLIGHT)
+    assert f
+    pg.wait_for_timeout(int(f["D"] * 500))
+    assert pg.evaluate("()=>window._altoSolarRate().T") == T0
+    pg.wait_for_timeout(int(f["D"] * 500) + 900)
+    assert pg.evaluate("()=>window._focusedNodeId") == "u1-p1" and pg.evaluate("()=>window._altoSolarRate().T") == T0
+    # switched back on mid-flight: re-planned on the moving clock, and still lands
+    pg.evaluate("()=>window.enterFocus('u1-p3')")
+    pg.wait_for_timeout(500)
+    pg.evaluate("()=>window._altoSolarMotion.set(true)")
+    g = pg.evaluate(FLIGHT)
+    assert g and g["to"] == "u1-p3"
+    pg.wait_for_timeout(int(g["D"] * 1000) + 900)
+    assert pg.evaluate("()=>window._focusedNodeId") == "u1-p3"
     assert not errs, errs
     pg.context.close()
 

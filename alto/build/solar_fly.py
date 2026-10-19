@@ -88,6 +88,9 @@ FLY = {
     "RAMP": 1.0,
     # routing
     "HOP_R": 70, "FAR_RINGS": 4, "ASSIST_DEV": math.radians(80), "ASSIST_MAX": 3, "ASSIST_SWEEP": 1.2 * math.pi, "CAP_SWEEP": 0.8 * math.pi,
+    # a black-hole body is the swing-by of choice; the galactic core is swung round between
+    # systems when going by it adds at most CORE_DETOUR to the way
+    "BH_BONUS": 1.0, "CORE_DETOUR": 2.0,
     "T_MID": 2.5,
     # geometry (px; radians)
     "CAP_PAD": 26, "ESC_PAD": 30, "PARK_GAP": 16, "SYS_PAD": 70, "FLY_Q": 40, "SOI_K": 3.0,
@@ -123,7 +126,7 @@ function bodies(S){
   sy.forEach(function(s, si){
     function add(i, p, per, role, reach, ring, q){ var n=(S.nodes||{})[i]; if(!n) return;
       B[i]={id:i, p:p, x:n.x, y:n.y, per:+per||0, si:si, d:n.d, role:role, reach:reach, ring:ring||0, kids:[],
-            orb:q ? (n.orbit||null) : null, r:q ? (q.r||0) : 0, a0:q ? (q.a0||0) : 0};
+            orb:q ? (n.orbit||null) : null, r:q ? (q.r||0) : 0, a0:q ? (q.a0||0) : 0, look:n.look||''};
       if(p && B[p]) B[p].kids.push(i); }
     add(s.sun, '', 0, 'sun', s.R);
     (s.planets||[]).forEach(function(pl){ add(pl.id, s.sun, pl.period, 'planet', Math.max(pl.e||0, pl.d/2), pl.ring, pl);
@@ -132,13 +135,16 @@ function bodies(S){
         add(m.id, pl.id, m.period, 'moon', Math.max(mr, m.d/2), 0, m);
         sats.forEach(function(q){ add(q.id, m.id, q.period, 'sat', q.d/2, 0, q); }); }); });
   });
+  var co=S.core;                                         /* the galactic core: still, between the systems, not a node */
+  if(co && sy.length>1) B[CORE]={id:CORE, p:'', x:co.x, y:co.y, per:0, si:-1, d:2*co.r, role:'core', reach:co.r, ring:0, kids:[], orb:null, r:0, a0:0, look:'blackhole'};
   return {B:B, many:sy.length>1, spin:S.spin||-1};
 }
+var CORE='#core';
 function pos(W, i, T){
   var b=W.B[i]; if(!b.p) return [b.x, b.y];
   var p=W.B[b.p], o=pos(W, b.p, T), dx=b.x-p.x, dy=b.y-p.y, a=0;
   if(b.per>0) a=W.spin*TAU*T/b.per+(W.many ? W.spin*TAU*T/(540+60*b.si) : 0);
-  if(b.orb){ var q=orbOff(b.r, b.a0+a, b.orb); return [o[0]+q[0], o[1]+q[1]]; }   /* a comet: on its ellipse */
+  if(b.orb){ var q=orbOff(b.r, b.a0+a, b.orb), h=orbOff(b.r, b.a0, b.orb); return [o[0]+dx+q[0]-h[0], o[1]+dy+q[1]-h[1]]; }   /* a comet: on its ellipse, from its plan home (as solar_draw) */
   var c=Math.cos(a), s=Math.sin(a);
   return [o[0]+dx*c-dy*s, o[1]+dx*s+dy*c];
 }
@@ -162,12 +168,14 @@ function easeInv(s){ return s<=0 ? 0 : s>=1 ? 1 : inv(CV, s); }
 /* the bodies' clock: rate r0 up to 1, then down to rest as the craft lands */
 function clock(c, tau){
   var D=c.D, ru=c.ru, r0=c.r0, t=Math.min(Math.max(tau, 0), D), x, A1;
+  if(c.still) return c.T0;                              /* the orbits switched off: they stay put */
   if(t<=ru){ x=t/ru; return c.T0+r0*t+(1-r0)*ru*(x*x*x-x*x*x*x/2); }
   A1=r0*ru+(1-r0)*ru*.5;
   if(t<=D-ru) return c.T0+A1+(t-ru);
   x=(D-t)/ru; return c.T0+A1+(D-2*ru)+ru*(.5-(x*x*x-x*x*x*x/2));
 }
 function rate(c, tau){ var D=c.D, ru=c.ru, t=Math.min(Math.max(tau, 0), D), x;
+  if(c.still) return 0;
   if(t<=ru){ x=t/ru; return c.r0+(1-c.r0)*x*x*(3-2*x); } if(t<=D-ru) return 1; x=(D-t)/ru; return x*x*(3-2*x); }
 /* a leg's own curve, in its frame */
 function sweep(a0, a1, spin, lo){ return lo+md(spin*(a1-a0)-lo, TAU); }
@@ -200,6 +208,7 @@ function steps(W, A, Bt, Tm){
     var pa=ca.length>=2 ? ca[ca.length-2] : '';
     if(ca.length>=2) st.push(['esc', pa]);
     assists(W, ca[ca.length-1], pa, cb[cb.length-1], Tm).forEach(function(I){ st.push(['xfer', ca[ca.length-1], I]); st.push(['fly', I]); });
+    if(byCore(W, ca[ca.length-1], cb[cb.length-1])){ st.push(['bez', CORE]); st.push(['fly', CORE]); }   /* round the galactic core */
     st.push(['bez', cb[cb.length-1]]);
     down(st, cb, cb.length-1); return st;
   }
@@ -213,6 +222,8 @@ function steps(W, A, Bt, Tm){
   if(B[L].role==='sun' && Math.abs(B[a1].ring-B[b1].ring)>=C.FAR_RINGS){ mid=middle(W, L, a1, b1, Tm); if(mid){ st.push(['xfer', L, mid]); st.push(['fly', mid]); } }
   st.push(['xfer', L, b1]); down(st, cb, ib-1); return st;
 }
+function byCore(W, s1, s2){ var B=W.B; if(!B[CORE]) return false;
+  var a=B[s1], b=B[s2], c=B[CORE]; return hyp(c.x-a.x, c.y-a.y)+hyp(b.x-c.x, b.y-c.y)<=C.CORE_DETOUR*hyp(b.x-a.x, b.y-a.y); }
 function down(st, cb, k){
   if(k===cb.length-1 && st.length && st[st.length-1][0]==='bez'){
     if(k===0){ st.push(['ret', cb[0]]); return; }
@@ -224,6 +235,7 @@ function middle(W, sun, a1, b1, Tm){
   var B=W.B, lo=Math.min(B[a1].ring, B[b1].ring), hi=Math.max(B[a1].ring, B[b1].ring), o=pos(W, sun, Tm), best='', bc=1e9;
   B[sun].kids.forEach(function(i){ if(lo<B[i].ring && B[i].ring<hi){
     var c=sweep(angAt(W, o, a1, Tm), angAt(W, o, i, Tm), W.spin, C.PHI_MIN)+sweep(angAt(W, o, i, Tm), angAt(W, o, b1, Tm), W.spin, C.PHI_MIN);
+    c-=B[i].look==='blackhole' ? C.BH_BONUS : 0;          /* a black hole: the swing-by of choice */
     if(c<bc-1e-9){ best=i; bc=c; } } });
   return best;
 }
@@ -234,7 +246,7 @@ function assists(W, s1, pa, s2, Tm){
     B[s1].kids.forEach(function(i){ if(B[i].ring<=ring) return;
       var a=angAt(W, o, i, Tm), dev=Math.abs(md(a-th+PI, TAU)-PI), sw=at!==null ? sweep(at, a, W.spin, C.PHI_MIN) : 0;
       if(dev>C.ASSIST_DEV || sw>C.ASSIST_SWEEP) return;
-      var c=sw+.5*dev; if(c<bc-1e-9){ best=i; bc=c; } });
+      var c=sw+.5*dev-(B[i].look==='blackhole' ? C.BH_BONUS : 0); if(c<bc-1e-9){ best=i; bc=c; } });
     if(!best) break;
     out.push(best); ring=B[best].ring; at=angAt(W, o, best, Tm);
   }
@@ -293,6 +305,11 @@ function build(W, R, st){
       else set(L, {prof:'spiral', r0:pc[0], r1:B[F].d/2+C.PARK_GAP, a0:pc[1], phi:sweep(pc[1], ae, spin, C.PHI_MIN)}); }
     else if(k==='ret'){ F=q[1]; L.f=F; p=polar(sub(cur, pos(W, F, T0))); set(L, {prof:'cos', r0:p[0], r1:0, a0:p[1], phi:C.RET_PHI}); }
     else if(k==='fly'){ L.f=q[1]; set(L, hy); }
+    else if(k==='bez' && nxt && nxt[0]==='fly'){ var oc=pos(W, q[1], T1);   /* out to a swing round the core */
+      wn=pos(W, target(st, j+1, R.to), clock(c, tau(R.S[j+2])));
+      hy=hyper(W, q[1], unit(sub(oc, cur)), unit(sub(wn, oc)));
+      var hc=set({k:'fly'}, hy), e0=nominal(hc, 0), e1=nominal(hc, .002);
+      L.P=bez(cur, [oc[0]+e0[0], oc[1]+e0[1]], vdir, unit(sub(e1, e0))); }
     else if(k==='bez'){ var s2=q[1], o2=pos(W, s2, T1), tc=Math.atan2(cur[1]-o2[1], cur[0]-o2[0]), rr=B[s2].reach+C.SYS_PAD;
       var nb=(j+1<st.length && st[j+1][0]==='xfer') ? st[j+1][2] : '', al=tc+spin*C.CAP_ROT, best=null;
       if(nb){ var aT=Math.atan2.apply(null, sub(pos(W, nb, clock(c, R.D)), o2).reverse());
@@ -301,11 +318,7 @@ function build(W, R, st){
           var cs=Math.abs(sweep(aa, aT, spin, C.PHI_MIN)-C.CAP_SWEEP)+.3*Math.abs(dl-C.CAP_ROT);
           if(best===null || cs<best[0]-1e-9) best=[cs, aa]; }
         if(best) al=best[1]; }
-      var p3=[o2[0]+rr*Math.cos(al), o2[1]+rr*Math.sin(al)], t3=[Math.cos(al+spin*PI/2), Math.sin(al+spin*PI/2)], ch=unit(sub(p3, cur));
-      var t0v=vdir ? unit(vdir, ch) : ch, cr=ch[0]*t0v[1]-ch[1]*t0v[0], dt=ch[0]*t0v[0]+ch[1]*t0v[1];
-      if(dt<Math.cos(C.BEZ_TURN)){ var g=C.BEZ_TURN*(cr>=0 ? 1 : -1); t0v=[ch[0]*Math.cos(g)-ch[1]*Math.sin(g), ch[0]*Math.sin(g)+ch[1]*Math.cos(g)]; }
-      var ln=hyp(p3[0]-cur[0], p3[1]-cur[1])/3;
-      L.P=[cur[0], cur[1], cur[0]+t0v[0]*ln, cur[1]+t0v[1]*ln, p3[0]-t3[0]*ln, p3[1]-t3[1]*ln, p3[0], p3[1]]; }
+      L.P=bez(cur, [o2[0]+rr*Math.cos(al), o2[1]+rr*Math.sin(al)], vdir, [Math.cos(al+spin*PI/2), Math.sin(al+spin*PI/2)]); }
     legs.push(L);
     var end=legEnd(W, L, L.f, T1), T9=clock(c, tau(s0+(s1-s0)*.995)), n9=nominal(L, .995), q9=L.f ? pos(W, L.f, T9) : [0, 0], dv=sub(end, [q9[0]+n9[0], q9[1]+n9[1]]);
     vdir=hyp(dv[0], dv[1])>1e-6 ? unit(dv) : null;
@@ -313,14 +326,21 @@ function build(W, R, st){
   });
   return legs;
 }
+/* a cruise from cur (going vdir) to p3 (arriving along t3), never setting off more than BEZ_TURN from its way */
+function bez(cur, p3, vdir, t3){
+  var ch=unit(sub(p3, cur)), t0v=vdir ? unit(vdir, ch) : ch, cr=ch[0]*t0v[1]-ch[1]*t0v[0], dt=ch[0]*t0v[0]+ch[1]*t0v[1];
+  if(dt<Math.cos(C.BEZ_TURN)){ var g=C.BEZ_TURN*(cr>=0 ? 1 : -1); t0v=[ch[0]*Math.cos(g)-ch[1]*Math.sin(g), ch[0]*Math.sin(g)+ch[1]*Math.cos(g)]; }
+  var ln=hyp(p3[0]-cur[0], p3[1]-cur[1])/3;
+  return [cur[0], cur[1], cur[0]+t0v[0]*ln, cur[1]+t0v[1]*ln, p3[0]-t3[0]*ln, p3[1]-t3[1]*ln, p3[0], p3[1]];
+}
 function length(L){ var tot=0, pr=nominal(L, 0), cu; for(var j=1;j<=16;j++){ cu=nominal(L, j/16); tot+=hyp(cu[0]-pr[0], cu[1]-pr[1]); pr=cu; } return tot; }
 function shares(lens){ var n=lens.length, tot=lens.reduce(function(a, v){ return a+v; }, 0)||1, lo=Math.min(C.MIN_SHARE, 1/n);
   var w=lens.map(function(v){ return Math.max(lo, v/tot); }), k=w.reduce(function(a, v){ return a+v; }, 0), S=[0], acc=0;
   w.forEach(function(v){ acc+=v/k; S.push(acc); }); S[S.length-1]=1; return S; }
 function dur(t){ return Math.min(C.D_MAX, Math.max(C.D_MIN, C.D_BASE+t*C.D_PER_PX)); }
-function clk(o, D){ return {T0:+(o.T0||0), r0:+(o.r0||0), D:D, ru:Math.min(C.RAMP, D/3)}; }
+function clk(o, D){ return {T0:+(o.T0||0), r0:+(o.r0||0), D:D, ru:Math.min(C.RAMP, D/3), still:!!o.still}; }
 function plan(S, A, Bt, o){
-  o=o||{}; var W=bodies(S); if(!W.B[A] || !W.B[Bt] || A===Bt) return null;
+  o=o||{}; var W=bodies(S); if(!W.B[A] || !W.B[Bt] || A===Bt || A===CORE || Bt===CORE) return null;
   var T0=+(o.T0||0), st=steps(W, A, Bt, T0+C.T_MID); if(!st.length) return null;
   var sv=o.start, p0=sv ? [sv[0], sv[1]] : pos(W, A, T0), R={W:W, to:Bt, from:A, p0:p0, v0dir:null}, legs, it, lens;
   if(sv && hyp(sv[2], sv[3])>1e-6) R.v0dir=unit([sv[2], sv[3]]);
@@ -410,6 +430,8 @@ function S(){ return window._ALTO_SOLAR; }
 if(!F) return;
 /* the Star chart look (moving orbits) is on */
 function stars(){ var L=window._altoSolarLook; return !!S() && (L && L.get ? L.get()==='stars' : S().style==='orbit'); }
+/* the orbits are on (the Orbit switch, window._altoSolarMotion): off, the craft flies among still bodies */
+function moving(){ var M=window._altoSolarMotion; return !M || !M.get || !!M.get(); }
 var FL=null, raf=0, Q=[], ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=null, gp=null, pth=null, trl=null, grd=null, ship=null, lastS=0, reduced=false, printing=0, held={}, calm=0;
 try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
   var mqf=function(){ reduced=mq.matches; }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
@@ -431,7 +453,7 @@ function can(){
    whose reach it is within, else the nearest system's sun */
 function nearBody(p, T){
   var W=F.bodies(S()), best=null, br=1e18, sun=null, sd=1e18;
-  Object.keys(W.B).forEach(function(i){ var b=W.B[i], q=F.pos(W, i, T), d=Math.hypot(p[0]-q[0], p[1]-q[1]);
+  Object.keys(W.B).forEach(function(i){ var b=W.B[i]; if(b.role==='core') return; var q=F.pos(W, i, T), d=Math.hypot(p[0]-q[0], p[1]-q[1]);
     if(d<b.reach+K.NEAR && b.reach<br){ br=b.reach; best=i; }
     if(!b.p && d-b.reach<sd){ sd=d-b.reach; sun=i; } });
   return best || sun;
@@ -492,7 +514,7 @@ function fade(){ if(svg) svg.classList.add('fly-out'); }
 /* ── a flight ─────────────────────────────────────────────────────────────── */
 function fly(from, to, o){
   var rt=window._altoSolarRate(), c=cvs(), g=cam().get();
-  var opt={T0:o ? o.T0 : rt.T, r0:o ? o.r0 : rt.r, view:[c.clientWidth, c.clientHeight], cam:[g.cx, g.cy, g.scale]};
+  var opt={T0:o ? o.T0 : rt.T, r0:o ? o.r0 : rt.r, view:[c.clientWidth, c.clientHeight], cam:[g.cx, g.cy, g.scale], still:!moving()};
   if(o && o.start) opt.start=o.start;
   var R=F.plan(S(), from, to, opt); if(!R) return false;
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
@@ -599,7 +621,7 @@ window.addEventListener('pointerup', function(e){
   var c=cvs(), r=c.getBoundingClientRect(), g=cam().get(), k=r.width/c.offsetWidth||1;
   var wx=g.cx+((e.clientX-r.left)/k-c.clientWidth/2)/g.scale, wy=g.cy+((e.clientY-r.top)/k-c.clientHeight/2)/g.scale;
   var W=F.bodies(S()), T=window._altoSolarRate().T, best=null, bd=1e18;
-  Object.keys(W.B).forEach(function(i){ var p=F.pos(W, i, T), dd=Math.hypot(p[0]-wx, p[1]-wy)-W.B[i].d/2; if(dd<bd){ bd=dd; best=i; } });
+  Object.keys(W.B).forEach(function(i){ if(W.B[i].role==='core') return; var p=F.pos(W, i, T), dd=Math.hypot(p[0]-wx, p[1]-wy)-W.B[i].d/2; if(dd<bd){ bd=dd; best=i; } });
   if(best && bd<K.HIT/g.scale) window.enterFocus(best);
 }, true);
 ['click', 'mousedown', 'dblclick'].forEach(function(t){ window.addEventListener(t, function(e){ if(FL && cvs() && cvs().contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); } }, true); });
@@ -612,7 +634,8 @@ function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') 
     .observe(c, {attributes:true, attributeFilter:['class']}); }
 /* Plain look: nothing of the flight left (stopped where it was, the layer gone) */
 function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
-function init(){ watchOv(); var L=window._altoSolarLook; if(L && L.onChange) L.onChange(look); }
+function init(){ watchOv(); var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
+  if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
 window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=(performance.now()-FL.t0)/1000;
   return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:F.at(R, Math.min(tau, R.D)), queued:Q.slice(), ms:FL.ms.slice()}; };

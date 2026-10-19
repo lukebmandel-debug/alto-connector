@@ -30,7 +30,8 @@ def bodies(S):
                 return
             B[i] = {"id": i, "p": p, "x": n["x"], "y": n["y"], "per": float(per or 0), "si": si,
                     "d": n["d"], "role": role, "reach": reach, "ring": ring, "kids": [],
-                    "orb": n.get("orbit") if q else None, "r": (q or {}).get("r", 0), "a0": (q or {}).get("a0", 0)}
+                    "orb": n.get("orbit") if q else None, "r": (q or {}).get("r", 0), "a0": (q or {}).get("a0", 0),
+                    "look": n.get("look") or ""}
             if p and p in B:
                 B[p]["kids"].append(i)
         add(s["sun"], "", 0, "sun", s["R"])
@@ -42,7 +43,14 @@ def bodies(S):
                 add(m["id"], pl["id"], m["period"], "moon", max(mr, m["d"] / 2), 0, m)
                 for q in sats:
                     add(q["id"], m["id"], q["period"], "sat", q["d"] / 2, 0, q)
+    core = S.get("core")
+    if core and len(S.get("systems") or []) > 1:          # the galactic core: still, between the systems, not a node
+        B[CORE] = {"id": CORE, "p": "", "x": core["x"], "y": core["y"], "per": 0.0, "si": -1, "d": 2 * core["r"],
+                   "role": "core", "reach": core["r"], "ring": 0, "kids": [], "orb": None, "r": 0, "a0": 0, "look": "blackhole"}
     return {"B": B, "many": many, "spin": S.get("spin") or -1}
+
+
+CORE = "#core"
 
 
 def pos(W, i, T):
@@ -56,9 +64,10 @@ def pos(W, i, T):
     a = 0.0
     if b["per"] > 0:
         a = W["spin"] * TAU * T / b["per"] + (W["spin"] * TAU * T / (540 + 60 * b["si"]) if W["many"] else 0.0)
-    if b["orb"]:                                       # a comet: on its ellipse (solar.orbit_offset)
+    if b["orb"]:                                       # a comet: on its ellipse (solar.orbit_offset), from its plan home
         ox, oy = _orbit_offset(b["r"], b["a0"] + a, b["orb"])
-        return (px + ox, py + oy)
+        hx, hy = _orbit_offset(b["r"], b["a0"], b["orb"])
+        return (px + dx + (ox - hx), py + dy + (oy - hy))
     c, s = math.cos(a), math.sin(a)
     return (px + dx * c - dy * s, py + dx * s + dy * c)
 
@@ -137,6 +146,8 @@ def clock(c, tau):
     """The bodies' clock T at flight time tau: from rate r0 up to 1 over ru,
     1, then down to rest over the last ru (the orbits stop as the craft lands)."""
     D, ru, r0, T0 = c["D"], c["ru"], c["r0"], c["T0"]
+    if c.get("still"):                                 # the orbits are switched off: they stay put
+        return T0
     t = min(max(tau, 0.0), D)
     if t <= ru:
         x = t / ru
@@ -150,6 +161,8 @@ def clock(c, tau):
 
 def clock_rate(c, tau):
     D, ru, r0 = c["D"], c["ru"], c["r0"]
+    if c.get("still"):
+        return 0.0
     t = min(max(tau, 0.0), D)
     if t <= ru:
         x = t / ru
@@ -269,6 +282,9 @@ def steps(W, A, Bt, T_mid):
         for I in assists(W, ca[-1], pa, cb[-1], T_mid):
             st.append(["xfer", ca[-1], I])
             st.append(["fly", I])
+        if _by_core(W, ca[-1], cb[-1]):                    # a swing round the galactic core on the way
+            st.append(["bez", CORE])
+            st.append(["fly", CORE])
         st.append(["bez", cb[-1]])
         _down(st, cb, len(cb) - 1)
         return st
@@ -300,6 +316,16 @@ def steps(W, A, Bt, T_mid):
     return st
 
 
+def _by_core(W, s1, s2):
+    """The core is on the way: going round it adds at most CORE_DETOUR."""
+    B = W["B"]
+    if CORE not in B:
+        return False
+    a, b, c = (B[s1]["x"], B[s1]["y"]), (B[s2]["x"], B[s2]["y"]), (B[CORE]["x"], B[CORE]["y"])
+    d = math.hypot(b[0] - a[0], b[1] - a[1])
+    return math.hypot(c[0] - a[0], c[1] - a[1]) + math.hypot(b[0] - c[0], b[1] - c[1]) <= FLY["CORE_DETOUR"] * d
+
+
 def _down(st, cb, k):
     """From cb[k] (just reached; the sun of another system when k is its top)
     down B's chain: each level one capture."""
@@ -325,6 +351,7 @@ def middle(W, sun, a1, b1, T_mid):
     for i in B[sun]["kids"]:
         if lo < B[i]["ring"] < hi:
             c = _sweep(ang(a1), ang(i), spin, FLY["PHI_MIN"]) + _sweep(ang(i), ang(b1), spin, FLY["PHI_MIN"])
+            c -= FLY["BH_BONUS"] if B[i]["look"] == "blackhole" else 0.0      # a black hole: the swing-by of choice
             if c < bc - 1e-9:
                 best, bc = i, c
     return best
@@ -351,7 +378,7 @@ def assists(W, sun1, pa, sun2, T_mid):
             sw = _sweep(at, a, spin, FLY["PHI_MIN"]) if at is not None else 0.0
             if dev > FLY["ASSIST_DEV"] or sw > FLY["ASSIST_SWEEP"]:
                 continue
-            c = sw + 0.5 * dev
+            c = sw + 0.5 * dev - (FLY["BH_BONUS"] if B[i]["look"] == "blackhole" else 0.0)
             if c < bc - 1e-9:
                 best, bc = i, c
         if not best:
@@ -493,6 +520,14 @@ def build(W, R, st):
         elif k == "fly":
             L["f"] = q[1]
             L.update(hyp)
+        elif k == "bez" and nxt and nxt[0] == "fly":         # out to a swing round the core
+            oc = pos(W, q[1], T1)
+            wn = pos(W, _target(st, j + 1, R["to"]), clock(c, tau(R["S"][j + 2])))
+            hyp = _hyper(W, q[1], _unit(_sub(oc, cur)), _unit(_sub(wn, oc)))
+            hl = dict(hyp, k="fly")
+            e0, e1 = nominal(hl, 0.0), nominal(hl, 0.002)
+            p3 = (oc[0] + e0[0], oc[1] + e0[1])
+            L["P"] = _bez(cur, p3, vdir, _unit(_sub(e1, e0)))
         elif k == "bez":
             sun2 = q[1]
             o2 = pos(W, sun2, T1)
@@ -519,15 +554,7 @@ def build(W, R, st):
                 al = best[1] if best else al
             p3 = (o2[0] + rr * math.cos(al), o2[1] + rr * math.sin(al))
             t3 = (math.cos(al + spin * math.pi / 2), math.sin(al + spin * math.pi / 2))
-            ch = _unit(_sub(p3, cur))
-            t0v = _unit(vdir, ch) if vdir else ch
-            cr, dt = ch[0] * t0v[1] - ch[1] * t0v[0], ch[0] * t0v[0] + ch[1] * t0v[1]
-            if dt < math.cos(FLY["BEZ_TURN"]):                 # never set off away from it: at most this far off the chord
-                g = FLY["BEZ_TURN"] * (1.0 if cr >= 0 else -1.0)
-                t0v = (ch[0] * math.cos(g) - ch[1] * math.sin(g), ch[0] * math.sin(g) + ch[1] * math.cos(g))
-            ln = math.hypot(p3[0] - cur[0], p3[1] - cur[1]) / 3
-            L["P"] = [cur[0], cur[1], cur[0] + t0v[0] * ln, cur[1] + t0v[1] * ln,
-                      p3[0] - t3[0] * ln, p3[1] - t3[1] * ln, p3[0], p3[1]]
+            L["P"] = _bez(cur, p3, vdir, t3)
         legs.append(L)
         end = _end(W, L, L["f"], T1)
         # the way it leaves (the next curve may start along it)
@@ -538,6 +565,20 @@ def build(W, R, st):
         vdir = _unit(dv) if math.hypot(dv[0], dv[1]) > 1e-6 else None
         cur = end
     return legs
+
+
+def _bez(cur, p3, vdir, t3):
+    """A cruise from cur (going vdir) to p3 (arriving along t3): never setting
+    off more than BEZ_TURN away from where it is going."""
+    ch = _unit(_sub(p3, cur))
+    t0v = _unit(vdir, ch) if vdir else ch
+    cr, dt = ch[0] * t0v[1] - ch[1] * t0v[0], ch[0] * t0v[0] + ch[1] * t0v[1]
+    if dt < math.cos(FLY["BEZ_TURN"]):
+        g = FLY["BEZ_TURN"] * (1.0 if cr >= 0 else -1.0)
+        t0v = (ch[0] * math.cos(g) - ch[1] * math.sin(g), ch[0] * math.sin(g) + ch[1] * math.cos(g))
+    ln = math.hypot(p3[0] - cur[0], p3[1] - cur[1]) / 3
+    return [cur[0], cur[1], cur[0] + t0v[0] * ln, cur[1] + t0v[1] * ln,
+            p3[0] - t3[0] * ln, p3[1] - t3[1] * ln, p3[0], p3[1]]
 
 
 def _length(L):
@@ -568,7 +609,8 @@ def _dur(total):
 
 
 def _clock(o, D):
-    return {"T0": float(o.get("T0") or 0), "r0": float(o.get("r0") or 0), "D": D, "ru": min(FLY["RAMP"], D / 3)}
+    return {"T0": float(o.get("T0") or 0), "r0": float(o.get("r0") or 0), "D": D, "ru": min(FLY["RAMP"], D / 3),
+            "still": bool(o.get("still"))}
 
 
 # ── the flight ──────────────────────────────────────────────────────────────
@@ -578,7 +620,7 @@ def plan(S, A, Bt, o=None):
     Bt, starting at bodies' clock o["T0"], the orbits running at rate o["r0"]."""
     o = o or {}
     W = bodies(S)
-    if A not in W["B"] or Bt not in W["B"] or A == Bt:
+    if A not in W["B"] or Bt not in W["B"] or A == Bt or CORE in (A, Bt):
         return None
     T0 = float(o.get("T0") or 0)
     st = steps(W, A, Bt, T0 + FLY["T_MID"])
