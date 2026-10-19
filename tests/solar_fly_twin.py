@@ -24,23 +24,24 @@ def bodies(S):
     B = {}
     many = len(S.get("systems") or []) > 1
     for si, s in enumerate(S.get("systems") or []):
-        def add(i, p, per, role, reach, ring=0):
+        def add(i, p, per, role, reach, ring=0, q=None):
             n = S["nodes"].get(i)
             if not n:
                 return
             B[i] = {"id": i, "p": p, "x": n["x"], "y": n["y"], "per": float(per or 0), "si": si,
-                    "d": n["d"], "role": role, "reach": reach, "ring": ring, "kids": []}
+                    "d": n["d"], "role": role, "reach": reach, "ring": ring, "kids": [],
+                    "orb": n.get("orbit") if q else None, "r": (q or {}).get("r", 0), "a0": (q or {}).get("a0", 0)}
             if p and p in B:
                 B[p]["kids"].append(i)
         add(s["sun"], "", 0, "sun", s["R"])
         for pl in s.get("planets") or []:
-            add(pl["id"], s["sun"], pl["period"], "planet", max(pl.get("e") or 0, pl["d"] / 2), pl["ring"])
+            add(pl["id"], s["sun"], pl["period"], "planet", max(pl.get("e") or 0, pl["d"] / 2), pl["ring"], pl)
             for m in pl.get("moons") or []:
                 sats = m.get("sats") or []
                 mr = ((m.get("sat_r") or 0) + max(q["d"] / 2 for q in sats)) if sats else 0
-                add(m["id"], pl["id"], m["period"], "moon", max(mr, m["d"] / 2))
+                add(m["id"], pl["id"], m["period"], "moon", max(mr, m["d"] / 2), 0, m)
                 for q in sats:
-                    add(q["id"], m["id"], q["period"], "sat", q["d"] / 2)
+                    add(q["id"], m["id"], q["period"], "sat", q["d"] / 2, 0, q)
     return {"B": B, "many": many, "spin": S.get("spin") or -1}
 
 
@@ -55,8 +56,27 @@ def pos(W, i, T):
     a = 0.0
     if b["per"] > 0:
         a = W["spin"] * TAU * T / b["per"] + (W["spin"] * TAU * T / (540 + 60 * b["si"]) if W["many"] else 0.0)
+    if b["orb"]:                                       # a comet: on its ellipse (solar.orbit_offset)
+        ox, oy = _orbit_offset(b["r"], b["a0"] + a, b["orb"])
+        return (px + ox, py + oy)
     c, s = math.cos(a), math.sin(a)
     return (px + dx * c - dy * s, py + dx * s + dy * c)
+
+
+def _orbit_offset(r, ang, orb):
+    """solar.py's orbit_offset: R(rot)·(A cos ψ, B sin ψ), A, B = r(1 ± c)."""
+    e = orb["e"]
+    q = math.sqrt(max(0.0, 1 - e * e))
+    c = (1 - q) / (1 + q)
+    A, Bb = r * (1 + c), r * (1 - c)
+    m = ang - orb["rot"]
+    psi = m
+    if orb.get("k"):
+        for _ in range(12):
+            psi -= (psi - e * math.sin(psi) - m) / (1 - e * math.cos(psi))
+    x, y = A * math.cos(psi), Bb * math.sin(psi)
+    cr, sr = math.cos(orb["rot"]), math.sin(orb["rot"])
+    return (x * cr - y * sr, x * sr + y * cr)
 
 
 def chain(W, i):

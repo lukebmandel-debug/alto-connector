@@ -43,9 +43,19 @@ def _plan(units, style="orbit"):
     return solar_plan(b, nodes)
 
 
+def _comets(S):
+    """The Star chart look's comets (alto-solar-arch: nodes[id].orbit {e, rot, k},
+    an ellipse round what it orbits; k 1 = Kepler-paced, a planet): a planet and
+    a moon of the first system made comets, as solar.py would mark them."""
+    S = copy.deepcopy(S)
+    S["nodes"]["u1-p2"]["orbit"] = {"e": 0.42, "rot": 1.1, "k": 1}
+    S["nodes"]["u1-p3-m1"]["orbit"] = {"e": 0.3, "rot": 0.4, "k": 0}
+    return S
+
+
 @pytest.fixture(scope="module")
 def plans():
-    return [_plan(u) for u in SHAPES]
+    return [_plan(u) for u in SHAPES] + [_comets(_plan(SHAPES[0]))]
 
 
 def _routes(plans, n=200, seed=7):
@@ -103,6 +113,21 @@ def test_it_starts_and_lands_at_rest_with_the_orbits(plans):
         assert abs(tw.clock_rate(c, 0.0) - o["r0"]) < 1e-12
         v = tw._vel(W, R, D, -1)
         assert math.hypot(*v) < 5.0                          # px/s: at rest on arrival (the last 1/1000 of the curve)
+
+
+def test_a_comet_is_met_on_its_ellipse(plans):
+    S = plans[3]
+    W = tw.bodies(S)
+    for A, B in (("u1-p1", "u1-p2"), ("u1-p3", "u1-p3-m1"), ("u2-p1", "u1-p2"), ("u1-p2", "u1-p6")):
+        for T0 in (0.0, 37.0, 81.5):
+            R = tw.plan(S, A, B, {"T0": T0})
+            end = tw.at(W, R, R["D"])
+            tgt = tw.pos(W, B, tw.clock(R["c"], R["D"]))
+            assert math.hypot(end[0] - tgt[0], end[1] - tgt[1]) < 1.0
+    # and the comet is on its ellipse: not on the circle its home was on
+    b = W["B"]["u1-p2"]
+    rs = [math.hypot(*(tw.pos(W, "u1-p2", t)[k] - tw.pos(W, "u1", t)[k] for k in (0, 1))) for t in range(0, 120, 7)]
+    assert max(rs) - min(rs) > 0.06 * b["r"]                     # r(1 ± c), c ≈ 0.05 at e 0.42
 
 
 def test_routes_follow_the_rules(plans):

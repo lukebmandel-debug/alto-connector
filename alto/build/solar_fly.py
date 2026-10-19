@@ -119,15 +119,16 @@ function md(a, m){ return ((a%m)+m)%m; }
 function bodies(S){
   var B={}, sy=S.systems||[];
   sy.forEach(function(s, si){
-    function add(i, p, per, role, reach, ring){ var n=(S.nodes||{})[i]; if(!n) return;
-      B[i]={id:i, p:p, x:n.x, y:n.y, per:+per||0, si:si, d:n.d, role:role, reach:reach, ring:ring||0, kids:[]};
+    function add(i, p, per, role, reach, ring, q){ var n=(S.nodes||{})[i]; if(!n) return;
+      B[i]={id:i, p:p, x:n.x, y:n.y, per:+per||0, si:si, d:n.d, role:role, reach:reach, ring:ring||0, kids:[],
+            orb:q ? (n.orbit||null) : null, r:q ? (q.r||0) : 0, a0:q ? (q.a0||0) : 0};
       if(p && B[p]) B[p].kids.push(i); }
     add(s.sun, '', 0, 'sun', s.R);
-    (s.planets||[]).forEach(function(pl){ add(pl.id, s.sun, pl.period, 'planet', Math.max(pl.e||0, pl.d/2), pl.ring);
+    (s.planets||[]).forEach(function(pl){ add(pl.id, s.sun, pl.period, 'planet', Math.max(pl.e||0, pl.d/2), pl.ring, pl);
       (pl.moons||[]).forEach(function(m){ var sats=m.sats||[], mr=0;
         if(sats.length) mr=(m.sat_r||0)+Math.max.apply(null, sats.map(function(q){ return q.d/2; }));
-        add(m.id, pl.id, m.period, 'moon', Math.max(mr, m.d/2));
-        sats.forEach(function(q){ add(q.id, m.id, q.period, 'sat', q.d/2); }); }); });
+        add(m.id, pl.id, m.period, 'moon', Math.max(mr, m.d/2), 0, m);
+        sats.forEach(function(q){ add(q.id, m.id, q.period, 'sat', q.d/2, 0, q); }); }); });
   });
   return {B:B, many:sy.length>1, spin:S.spin||-1};
 }
@@ -135,8 +136,16 @@ function pos(W, i, T){
   var b=W.B[i]; if(!b.p) return [b.x, b.y];
   var p=W.B[b.p], o=pos(W, b.p, T), dx=b.x-p.x, dy=b.y-p.y, a=0;
   if(b.per>0) a=W.spin*TAU*T/b.per+(W.many ? W.spin*TAU*T/(540+60*b.si) : 0);
+  if(b.orb){ var q=orbOff(b.r, b.a0+a, b.orb); return [o[0]+q[0], o[1]+q[1]]; }   /* a comet: on its ellipse */
   var c=Math.cos(a), s=Math.sin(a);
   return [o[0]+dx*c-dy*s, o[1]+dx*s+dy*c];
+}
+/* solar.py's orbit_offset: R(rot)(A cos psi, B sin psi), A, B = r(1 +- c) */
+function orbOff(r, ang, o){
+  var e=o.e, q=Math.sqrt(Math.max(0, 1-e*e)), c=(1-q)/(1+q), A=r*(1+c), Bb=r*(1-c), m=ang-o.rot, ps=m;
+  if(o.k) for(var i=0;i<12;i++) ps-=(ps-e*Math.sin(ps)-m)/(1-e*Math.cos(ps));
+  var x=A*Math.cos(ps), y=Bb*Math.sin(ps), cr=Math.cos(o.rot), sr=Math.sin(o.rot);
+  return [x*cr-y*sr, x*sr+y*cr];
 }
 function chain(W, i){ var o=[]; while(i){ o.push(i); i=W.B[i].p; } return o; }
 /* the curve: B(a, b) as a cumulative table, like the engine's _altoEase */
