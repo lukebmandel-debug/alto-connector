@@ -1,0 +1,307 @@
+"""Flying between bodies on a Star chart (placeholder; filled in below)."""
+from __future__ import annotations
+
+import json
+import math
+
+FLY = {
+    # the progress curve: the regularized incomplete beta B(a, b), the family of
+    # the engine's _altoEase (Luke's "F" is B(1.4, 2.6)); a flight is longer, so
+    # its peak speed sits a little later
+    "EASE": (1.6, 2.1),
+    # flight time by route length: D_BASE + px * D_PER_PX, clamped (seconds)
+    "D_MIN": 2.5, "D_MAX": 7.0, "D_BASE": 2.3, "D_PER_PX": 1 / 1150,
+    # the bodies' clock ramps from its rate at take-off up to 1 and down to rest at landing
+    "RAMP": 1.0,
+    # routing
+    "HOP_R": 70, "FAR_RINGS": 4, "ASSIST_DEV": math.radians(80), "ASSIST_MAX": 3, "ASSIST_SWEEP": 1.2 * math.pi, "CAP_SWEEP": 0.8 * math.pi,
+    "T_MID": 2.5,
+    # geometry (px; radians)
+    "CAP_PAD": 26, "ESC_PAD": 30, "PARK_GAP": 16, "SYS_PAD": 70, "FLY_Q": 40, "SOI_K": 3.0,
+    "TURN": (math.radians(100), math.radians(160)), "CAP_ROT": 0.9, "BEZ_TURN": math.radians(75),
+    "PHI_MIN": 0.7, "PHASE_PHI": 0.6, "ESC_PHI": 0.9 * math.pi, "PARK_PHI": 1.25 * math.pi,
+    "RET_PHI": 1.1 * math.pi, "HOP_PHI": 0.6 * math.pi,
+    "PHASE_K": 0.2, "DIP": -0.32, "ARC_N": 48,
+    # time shares, iterations, a coast to wait for the window
+    "MIN_SHARE": 0.08, "ITER": 3, "COAST": (0.0, 0.4, 0.8), "COAST_W": 0.35,
+    # joins: a velocity blend over the first BLEND of a leg; the carry of a re-plan
+    "H": 1e-4, "BLEND": 0.4, "BLEND_CAP": 3.0, "CARRY": 1.0,
+    # camera: keys per flight, the stretch each frames (s), the target's lead-in
+    "CAM_K": 40, "CAM_WIN": (-0.5, 1.0), "CAM_SEE": 2.0, "CAM_PAD": 160, "CAM_FILL": 0.72,
+    "CAM_MIN": 0.06, "CAM_PIN": 1.2,
+}
+
+
+FLY_PLAN_JS = r"""
+/* The planner: pure, no DOM. window._altoFly.plan(S, from, to, o) → a route
+   (null: nothing to fly); .at(R, tau) the craft, .cam(R, tau, o) the camera,
+   .clock(R, tau) the bodies' clock. tests/solar_fly_twin.py is its Python twin. */
+window._altoFly=(function(){
+var C=__FLY__, PI=Math.PI, TAU=2*PI;
+function hyp(x, y){ return Math.sqrt(x*x+y*y); }
+function md(a, m){ return ((a%m)+m)%m; }
+function bodies(S){
+  var B={}, sy=S.systems||[];
+  sy.forEach(function(s, si){
+    function add(i, p, per, role, reach, ring){ var n=(S.nodes||{})[i]; if(!n) return;
+      B[i]={id:i, p:p, x:n.x, y:n.y, per:+per||0, si:si, d:n.d, role:role, reach:reach, ring:ring||0, kids:[]};
+      if(p && B[p]) B[p].kids.push(i); }
+    add(s.sun, '', 0, 'sun', s.R);
+    (s.planets||[]).forEach(function(pl){ add(pl.id, s.sun, pl.period, 'planet', Math.max(pl.e||0, pl.d/2), pl.ring);
+      (pl.moons||[]).forEach(function(m){ var sats=m.sats||[], mr=0;
+        if(sats.length) mr=(m.sat_r||0)+Math.max.apply(null, sats.map(function(q){ return q.d/2; }));
+        add(m.id, pl.id, m.period, 'moon', Math.max(mr, m.d/2));
+        sats.forEach(function(q){ add(q.id, m.id, q.period, 'sat', q.d/2); }); }); });
+  });
+  return {B:B, many:sy.length>1, spin:S.spin||-1};
+}
+function pos(W, i, T){
+  var b=W.B[i]; if(!b.p) return [b.x, b.y];
+  var p=W.B[b.p], o=pos(W, b.p, T), dx=b.x-p.x, dy=b.y-p.y, a=0;
+  if(b.per>0) a=W.spin*TAU*T/b.per+(W.many ? W.spin*TAU*T/(540+60*b.si) : 0);
+  var c=Math.cos(a), s=Math.sin(a);
+  return [o[0]+dx*c-dy*s, o[1]+dx*s+dy*c];
+}
+function chain(W, i){ var o=[]; while(i){ o.push(i); i=W.B[i].p; } return o; }
+/* the curve: B(a, b) as a cumulative table, like the engine's _altoEase */
+var CV=(function(){ var a=C.EASE[0], b=C.EASE[1], c=[0], s=0, i, x;
+  for(i=0;i<1000;i++){ x=(i+.5)/1000; s+=Math.pow(x, a-1)*Math.pow(1-x, b-1); c.push(s); }
+  for(i=0;i<=1000;i++) c[i]/=s; return c; })();
+function ease(x){ if(x<=0) return 0; if(x>=1) return 1; var f=x*1000, i=Math.floor(f); return CV[i]+(CV[i+1]-CV[i])*(f-i); }
+function easeD(x){ var i=Math.min(999, Math.max(0, Math.floor(x*1000))); return (CV[i+1]-CV[i])*1000; }
+function inv(G, s){ var N=G.length-1, lo=0, hi=N, m, d; while(hi-lo>1){ m=(lo+hi)>>1; if(G[m]<=s) lo=m; else hi=m; }
+  d=G[hi]-G[lo]; return (lo+(d>0 ? (s-G[lo])/d : 0))/N; }
+function easeInv(s){ return s<=0 ? 0 : s>=1 ? 1 : inv(CV, s); }
+/* the bodies' clock: rate r0 up to 1, then down to rest as the craft lands */
+function clock(c, tau){
+  var D=c.D, ru=c.ru, r0=c.r0, t=Math.min(Math.max(tau, 0), D), x, A1;
+  if(t<=ru){ x=t/ru; return c.T0+r0*t+(1-r0)*ru*(x*x*x-x*x*x*x/2); }
+  A1=r0*ru+(1-r0)*ru*.5;
+  if(t<=D-ru) return c.T0+A1+(t-ru);
+  x=(D-t)/ru; return c.T0+A1+(D-2*ru)+ru*(.5-(x*x*x-x*x*x*x/2));
+}
+function rate(c, tau){ var D=c.D, ru=c.ru, t=Math.min(Math.max(tau, 0), D), x;
+  if(t<=ru){ x=t/ru; return c.r0+(1-c.r0)*x*x*(3-2*x); } if(t<=D-ru) return 1; x=(D-t)/ru; return x*x*(3-2*x); }
+/* a leg's own curve, in its frame */
+function sweep(a0, a1, spin, lo){ return lo+md(spin*(a1-a0)-lo, TAU); }
+function polR(L, w){ var r0=L.r0, r1=L.r1, k=L.prof;
+  if(k==='conic') return 2*r0*r1/((r0+r1)-(r0-r1)*Math.cos(PI*w));
+  if(k==='cos') return r0+(r1-r0)*(1-Math.cos(PI*w))/2;
+  if(k==='phase') return r0+(r1-r0)*w-L.dip*Math.sin(PI*w);
+  return r0+(r1-r0)*w; }
+function hypF(e, M){ var F=Math.asinh(M/e); for(var i=0;i<10;i++) F-=(e*Math.sinh(F)-F-M)/(e*Math.cosh(F)-1); return F; }
+function raw(L, w){
+  var k=L.k, P, v, x, y, F;
+  if(k==='bez'){ P=L.P; v=1-w; var b0=v*v*v, b1=3*v*v*w, b2=3*v*w*w, b3=w*w*w;
+    return [b0*P[0]+b1*P[2]+b2*P[4]+b3*P[6], b0*P[1]+b1*P[3]+b2*P[5]+b3*P[7]]; }
+  if(k==='fly'){ F=hypF(L.e, -L.Mm+2*L.Mm*w); x=L.a*(L.e-Math.cosh(F)); y=L.a*Math.sqrt(L.e*L.e-1)*Math.sinh(F)*L.sense;
+    return [x*L.pv[0]-y*L.pv[1], x*L.pv[1]+y*L.pv[0]]; }
+  var r=polR(L, w), ang=L.a0+L.spin*L.phi*w; return [r*Math.cos(ang), r*Math.sin(ang)];
+}
+/* flown at an even pace along its curve: u (time) → w (parameter), by arc length */
+function arc(L){ var N=C.ARC_N, g=[0], pr=raw(L, 0), cu, j;
+  for(j=1;j<=N;j++){ cu=raw(L, j/N); g.push(g[j-1]+hyp(cu[0]-pr[0], cu[1]-pr[1])); pr=cu; }
+  var t=g[N]; if(!(t>1e-9)) return null; return g.map(function(v){ return v/t; }); }
+function nominal(L, u){ if(!('g' in L)) L.g=arc(L); var w=(!L.g || u<=0 || u>=1) ? Math.min(Math.max(u, 0), 1) : inv(L.g, u); return raw(L, w); }
+function sub(a, b){ return [a[0]-b[0], a[1]-b[1]]; }
+function unit(v, fb){ var n=hyp(v[0], v[1]); return n>1e-9 ? [v[0]/n, v[1]/n] : (fb===undefined ? [1, 0] : fb); }
+function polar(v){ return [hyp(v[0], v[1]), Math.atan2(v[1], v[0])]; }
+/* the skeleton */
+function steps(W, A, Bt, Tm){
+  var B=W.B, ca=chain(W, A), cb=chain(W, Bt), st=[], L, ia, ib, a1, b1, r, mid;
+  if(ca[ca.length-1]!==cb[cb.length-1]){
+    var pa=ca.length>=2 ? ca[ca.length-2] : '';
+    if(ca.length>=2) st.push(['esc', pa]);
+    assists(W, ca[ca.length-1], pa, cb[cb.length-1], Tm).forEach(function(I){ st.push(['xfer', ca[ca.length-1], I]); st.push(['fly', I]); });
+    st.push(['bez', cb[cb.length-1]]);
+    down(st, cb, cb.length-1); return st;
+  }
+  for(var i=0;i<ca.length;i++) if(cb.indexOf(ca[i])>=0){ L=ca[i]; break; }
+  ia=ca.indexOf(L); ib=cb.indexOf(L); a1=ia>=1 ? ca[ia-1] : ''; b1=ib>=1 ? cb[ib-1] : '';
+  if(ia>=2) st.push(['esc', a1]);
+  if(!a1){ r=hyp(B[b1].x-B[L].x, B[b1].y-B[L].y);
+    if(r<C.HOP_R) st.push(['hop', L, b1]); else { st.push(['park', L, b1]); st.push(['inj', L, b1]); }
+    down(st, cb, ib-1); return st; }
+  if(!b1){ st.push(['ret', L]); return st; }
+  if(B[L].role==='sun' && Math.abs(B[a1].ring-B[b1].ring)>=C.FAR_RINGS){ mid=middle(W, L, a1, b1, Tm); if(mid){ st.push(['xfer', L, mid]); st.push(['fly', mid]); } }
+  st.push(['xfer', L, b1]); down(st, cb, ib-1); return st;
+}
+function down(st, cb, k){
+  if(k===cb.length-1 && st.length && st[st.length-1][0]==='bez'){
+    if(k===0){ st.push(['ret', cb[0]]); return; }
+    st.push(['xfer', cb[k], cb[k-1]]); k--; }
+  while(k>=1){ st.push(['xfer', cb[k], cb[k-1]]); k--; }
+}
+function angAt(W, o, i, T){ var p=pos(W, i, T); return Math.atan2(p[1]-o[1], p[0]-o[0]); }
+function middle(W, sun, a1, b1, Tm){
+  var B=W.B, lo=Math.min(B[a1].ring, B[b1].ring), hi=Math.max(B[a1].ring, B[b1].ring), o=pos(W, sun, Tm), best='', bc=1e9;
+  B[sun].kids.forEach(function(i){ if(lo<B[i].ring && B[i].ring<hi){
+    var c=sweep(angAt(W, o, a1, Tm), angAt(W, o, i, Tm), W.spin, C.PHI_MIN)+sweep(angAt(W, o, i, Tm), angAt(W, o, b1, Tm), W.spin, C.PHI_MIN);
+    if(c<bc-1e-9){ best=i; bc=c; } } });
+  return best;
+}
+function assists(W, s1, pa, s2, Tm){
+  var B=W.B, o=[B[s1].x, B[s1].y], th=Math.atan2(B[s2].y-o[1], B[s2].x-o[0]), ring=pa ? B[pa].ring : 0, at=pa ? angAt(W, o, pa, Tm) : null, out=[];
+  while(out.length<C.ASSIST_MAX){
+    var best='', bc=1e9;
+    B[s1].kids.forEach(function(i){ if(B[i].ring<=ring) return;
+      var a=angAt(W, o, i, Tm), dev=Math.abs(md(a-th+PI, TAU)-PI), sw=at!==null ? sweep(at, a, W.spin, C.PHI_MIN) : 0;
+      if(dev>C.ASSIST_DEV || sw>C.ASSIST_SWEEP) return;
+      var c=sw+.5*dev; if(c<bc-1e-9){ best=i; bc=c; } });
+    if(!best) break;
+    out.push(best); ring=B[best].ring; at=angAt(W, o, best, Tm);
+  }
+  return out;
+}
+/* the legs */
+function target(st, j, to){ for(var i=j+1;i<st.length;i++){ var q=st[i];
+  if(q[0]==='xfer' || q[0]==='park' || q[0]==='inj' || q[0]==='hop') return q[2];
+  if(q[0]==='fly' || q[0]==='bez' || q[0]==='ret') return q[1]; } return to; }
+function capPoint(W, Y, T, din, spin){ var o=pos(W, Y, T), rho=W.B[Y].reach+C.CAP_PAD, a=Math.atan2(din[1], din[0])-spin*PI/2;
+  return [o[0]+rho*Math.cos(a), o[1]+rho*Math.sin(a)]; }
+function hyper(W, I, din, dout){
+  var dot=Math.max(-1, Math.min(1, din[0]*dout[0]+din[1]*dout[1])), sg=din[0]*dout[1]-din[1]*dout[0]>=0 ? 1 : -1;
+  var th=Math.min(Math.max(Math.acos(dot), C.TURN[0]), C.TURN[1]), c=Math.cos(sg*th), s=Math.sin(sg*th);
+  var dO=[din[0]*c-din[1]*s, din[0]*s+din[1]*c], e=1/Math.sin(th/2), q=W.B[I].d/2+C.FLY_Q, a=q/(e-1);
+  var pv=unit([din[0]-dO[0], din[1]-dO[1]]), sense=-pv[1]*(din[0]+dO[0])+pv[0]*(din[1]+dO[1])>=0 ? 1 : -1;
+  var Fm=Math.acosh((q*C.SOI_K/a+1)/e);
+  return {e:e, a:a, Mm:e*Math.sinh(Fm)-Fm, pv:[pv[0], pv[1]], sense:sense};
+}
+function set(L, o){ for(var k in o) L[k]=o[k]; return L; }
+function conic(W, L, cur, F, T0, ep, T1, lo){
+  delete L.g;
+  var p0=polar(sub(cur, pos(W, F, T0))), p1=polar(sub(ep, pos(W, F, T1))), r0=p0[0], a0=p0[1], r1=p1[0], a1=p1[1];
+  if(r1<1e-6) set(L, {prof:'cos', r0:r0, r1:0, a0:a0, phi:C.RET_PHI});
+  else if(Math.abs(r1-r0)<C.PHASE_K*Math.max(r0, r1)) set(L, {prof:'phase', r0:r0, r1:r1, a0:a0, dip:C.DIP*Math.min(r0, r1), phi:sweep(a0, a1, W.spin, C.PHASE_PHI)});
+  else set(L, {prof:r0>1e-6 ? 'conic' : 'cos', r0:r0, r1:r1, a0:a0, phi:sweep(a0, a1, W.spin, lo)});
+}
+function legEnd(W, L, F, T){ var n=nominal(L, 1), o=F ? pos(W, F, T) : [0, 0]; return [o[0]+n[0], o[1]+n[1]]; }
+function build(W, R, st){
+  var B=W.B, spin=W.spin, c=R.c, legs=[], cur=R.p0, vdir=R.v0dir, hy=null, a, b;
+  if(vdir===null && B[R.from].p){ a=pos(W, R.from, clock(c, 0)); b=pos(W, R.from, clock(c, 0)+.01); vdir=hyp(b[0]-a[0], b[1]-a[1])>1e-9 ? unit(sub(b, a), null) : null; }
+  function tau(s){ return R.D*easeInv(s); }
+  st.forEach(function(q, j){
+    var s0=R.S[j], s1=R.S[j+1], T0=clock(c, tau(s0)), T1=clock(c, tau(s1)), k=q[0], F, Y, ep, pre, p9, o9, din, wn, of, p, a1;
+    var L={k:k, s0:s0, s1:s1, spin:spin, f:''}, nxt=j+1<st.length ? st[j+1] : null;
+    if(k==='esc'){ F=q[1]; L.f=F; p=polar(sub(cur, pos(W, F, T0))); wn=pos(W, target(st, j, R.to), T1); of=pos(W, F, T1);
+      a1=Math.atan2(wn[1]-of[1], wn[0]-of[0])-spin*PI/2;
+      set(L, {prof:'spiral', r0:p[0], r1:B[F].reach+C.ESC_PAD, a0:p[1], phi:sweep(p[1], a1, spin, C.ESC_PHI)}); }
+    else if(k==='xfer' || k==='inj' || k==='hop'){ F=q[1]; Y=q[2]; L.f=F;
+      if(nxt && nxt[0]==='fly'){ var oi=pos(W, Y, T1);
+        conic(W, L, cur, F, T0, oi, T1, C.PHI_MIN); pre=legEnd(W, L, F, T1); p9=nominal(L, .995); o9=pos(W, F, T1);
+        din=unit(sub(pre, [o9[0]+p9[0], o9[1]+p9[1]]), unit(sub(oi, cur)));
+        wn=pos(W, target(st, j+1, R.to), clock(c, tau(R.S[j+2])));
+        hy=hyper(W, Y, din, unit(sub(wn, oi)));
+        var hl=set({k:'fly'}, hy), ent=nominal(hl, 0); ep=[oi[0]+ent[0], oi[1]+ent[1]]; }
+      else if(nxt && nxt[0]==='xfer' && nxt[1]===Y){ var oy=pos(W, Y, T1);
+        conic(W, L, cur, F, T0, oy, T1, C.PHI_MIN); pre=legEnd(W, L, F, T1); p9=nominal(L, .995); o9=pos(W, F, clock(c, tau(s0+(s1-s0)*.995)));
+        din=unit(sub(pre, [o9[0]+p9[0], o9[1]+p9[1]]), unit(sub(oy, cur)));
+        ep=capPoint(W, Y, T1, din, spin); }
+      else ep=pos(W, Y, T1);
+      if(k==='hop' && hyp.apply(null, sub(cur, pos(W, F, T0)))<1){ p=polar(sub(ep, pos(W, F, T1)));
+        set(L, {prof:'cos', r0:0, r1:p[0], a0:p[1]-spin*C.HOP_PHI, phi:C.HOP_PHI}); }
+      else conic(W, L, cur, F, T0, ep, T1, C.PHI_MIN); }
+    else if(k==='park'){ F=q[1]; L.f=F; var Ti=clock(c, tau(R.S[j+2])), px=polar(sub(pos(W, q[2], Ti), pos(W, F, Ti))), pc=polar(sub(cur, pos(W, F, T0))), ae=px[1]+PI;
+      if(pc[0]<1) set(L, {prof:'spiral', r0:pc[0], r1:B[F].d/2+C.PARK_GAP, a0:ae-spin*C.PARK_PHI, phi:C.PARK_PHI});
+      else set(L, {prof:'spiral', r0:pc[0], r1:B[F].d/2+C.PARK_GAP, a0:pc[1], phi:sweep(pc[1], ae, spin, C.PHI_MIN)}); }
+    else if(k==='ret'){ F=q[1]; L.f=F; p=polar(sub(cur, pos(W, F, T0))); set(L, {prof:'cos', r0:p[0], r1:0, a0:p[1], phi:C.RET_PHI}); }
+    else if(k==='fly'){ L.f=q[1]; set(L, hy); }
+    else if(k==='bez'){ var s2=q[1], o2=pos(W, s2, T1), tc=Math.atan2(cur[1]-o2[1], cur[0]-o2[0]), rr=B[s2].reach+C.SYS_PAD;
+      var nb=(j+1<st.length && st[j+1][0]==='xfer') ? st[j+1][2] : '', al=tc+spin*C.CAP_ROT, best=null;
+      if(nb){ var aT=Math.atan2.apply(null, sub(pos(W, nb, clock(c, R.D)), o2).reverse());
+        for(var m=0;m<15;m++){ var dl=-1.2+.2*m, aa=tc+spin*dl, ch0=unit(sub([o2[0]+rr*Math.cos(aa), o2[1]+rr*Math.sin(aa)], cur)), ta=aa+spin*PI/2;
+          if(ch0[0]*Math.cos(ta)+ch0[1]*Math.sin(ta)<Math.cos(C.BEZ_TURN)) continue;
+          var cs=Math.abs(sweep(aa, aT, spin, C.PHI_MIN)-C.CAP_SWEEP)+.3*Math.abs(dl-C.CAP_ROT);
+          if(best===null || cs<best[0]-1e-9) best=[cs, aa]; }
+        if(best) al=best[1]; }
+      var p3=[o2[0]+rr*Math.cos(al), o2[1]+rr*Math.sin(al)], t3=[Math.cos(al+spin*PI/2), Math.sin(al+spin*PI/2)], ch=unit(sub(p3, cur));
+      var t0v=vdir ? unit(vdir, ch) : ch, cr=ch[0]*t0v[1]-ch[1]*t0v[0], dt=ch[0]*t0v[0]+ch[1]*t0v[1];
+      if(dt<Math.cos(C.BEZ_TURN)){ var g=C.BEZ_TURN*(cr>=0 ? 1 : -1); t0v=[ch[0]*Math.cos(g)-ch[1]*Math.sin(g), ch[0]*Math.sin(g)+ch[1]*Math.cos(g)]; }
+      var ln=hyp(p3[0]-cur[0], p3[1]-cur[1])/3;
+      L.P=[cur[0], cur[1], cur[0]+t0v[0]*ln, cur[1]+t0v[1]*ln, p3[0]-t3[0]*ln, p3[1]-t3[1]*ln, p3[0], p3[1]]; }
+    legs.push(L);
+    var end=legEnd(W, L, L.f, T1), T9=clock(c, tau(s0+(s1-s0)*.995)), n9=nominal(L, .995), q9=L.f ? pos(W, L.f, T9) : [0, 0], dv=sub(end, [q9[0]+n9[0], q9[1]+n9[1]]);
+    vdir=hyp(dv[0], dv[1])>1e-6 ? unit(dv) : null;
+    cur=end;
+  });
+  return legs;
+}
+function length(L){ var tot=0, pr=nominal(L, 0), cu; for(var j=1;j<=16;j++){ cu=nominal(L, j/16); tot+=hyp(cu[0]-pr[0], cu[1]-pr[1]); pr=cu; } return tot; }
+function shares(lens){ var n=lens.length, tot=lens.reduce(function(a, v){ return a+v; }, 0)||1, lo=Math.min(C.MIN_SHARE, 1/n);
+  var w=lens.map(function(v){ return Math.max(lo, v/tot); }), k=w.reduce(function(a, v){ return a+v; }, 0), S=[0], acc=0;
+  w.forEach(function(v){ acc+=v/k; S.push(acc); }); S[S.length-1]=1; return S; }
+function dur(t){ return Math.min(C.D_MAX, Math.max(C.D_MIN, C.D_BASE+t*C.D_PER_PX)); }
+function clk(o, D){ return {T0:+(o.T0||0), r0:+(o.r0||0), D:D, ru:Math.min(C.RAMP, D/3)}; }
+function plan(S, A, Bt, o){
+  o=o||{}; var W=bodies(S); if(!W.B[A] || !W.B[Bt] || A===Bt) return null;
+  var T0=+(o.T0||0), st=steps(W, A, Bt, T0+C.T_MID); if(!st.length) return null;
+  var sv=o.start, p0=sv ? [sv[0], sv[1]] : pos(W, A, T0), R={W:W, to:Bt, from:A, p0:p0, v0dir:null}, legs, it, lens;
+  if(sv && hyp(sv[2], sv[3])>1e-6) R.v0dir=unit([sv[2], sv[3]]);
+  R.D=dur(hyp.apply(null, sub(pos(W, Bt, T0), p0))*1.4);
+  R.S=st.map(function(_, j){ return j/st.length; }).concat([1]); R.c=clk(o, R.D);
+  for(it=0;it<C.ITER;it++){ legs=build(W, R, st); lens=legs.map(length); R.S=shares(lens); R.D=dur(lens.reduce(function(a, v){ return a+v; }, 0)); R.c=clk(o, R.D); }
+  var best=null;
+  C.COAST.forEach(function(cst){ var R2={}; for(var k in R) R2[k]=R[k]; R2.D=R.D+cst; if(R2.D>C.D_MAX+1e-9) return;
+    R2.c=clk(o, R2.D); var lg=build(W, R2, st), cost=cst*C.COAST_W;
+    lg.forEach(function(L){ if(L.prof==='conic') cost+=Math.abs(L.phi-PI)/PI; });
+    if(best===null || cost<best[0]-1e-9) best=[cost, R2, lg]; });
+  R=best[1]; R.legs=best[2]; R.steps=st;
+  blends(R);
+  if(sv){ var vn=vel(R, 0, 1); R.carry=[sv[2]-vn[0], sv[3]-vn[1], Math.min(C.CARRY, R.D/3)]; }
+  R.keys=camKeys(R, o);
+  return R;
+}
+function legXY(R, L, t, s, bl){
+  var u=Math.min(Math.max((s-L.s0)/(L.s1-L.s0), 0), 1), T=clock(R.c, t), o=L.f ? pos(R.W, L.f, T) : [0, 0], n=nominal(L, u), x=o[0]+n[0], y=o[1]+n[1], H=L.H;
+  if(bl!==false && H && u<H[4]){ var q=u/H[4], h00=2*q*q*q-3*q*q+1, h10=q*q*q-2*q*q+q; x+=h00*H[0]+h10*H[4]*H[2]; y+=h00*H[1]+h10*H[4]*H[3]; }
+  return [x, y];
+}
+function legOf(R, s){ for(var i=0;i<R.legs.length;i++) if(s<=R.legs[i].s1) return R.legs[i]; return R.legs[R.legs.length-1]; }
+function at(R, tau){
+  var D=R.D, t=Math.min(Math.max(tau, 0), D), s=ease(t/D), p=legXY(R, legOf(R, s), t, s), Cr=R.carry;
+  if(Cr && t<Cr[2]){ var k=t*(1-t/Cr[2])*(1-t/Cr[2]); p[0]+=Cr[0]*k; p[1]+=Cr[1]*k; }
+  return p;
+}
+function vel(R, t, side){ var h=C.H, a=side>0 ? at(R, t) : at(R, t-h), b=side>0 ? at(R, t+h) : at(R, t); return [(b[0]-a[0])/h, (b[1]-a[1])/h]; }
+function blends(R){
+  var D=R.D;
+  for(var i=1;i<R.legs.length;i++){
+    var L=R.legs[i], t=D*easeInv(L.s0), h=C.H, pin=at(R, t), a=at(R, t-h), vin=[(pin[0]-a[0])/h, (pin[1]-a[1])/h];
+    var n0=legXY(R, L, t, L.s0, false), n1=legXY(R, L, t+h, ease((t+h)/D), false), vn=[(n1[0]-n0[0])/h, (n1[1]-n0[1])/h];
+    var du=easeD(t/D)/D/(L.s1-L.s0), ub=C.BLEND, gx=0, gy=0;
+    if(du>1e-6){ gx=(vin[0]-vn[0])/du; gy=(vin[1]-vn[1])/du; }
+    var cap=C.BLEND_CAP*Math.max(length(L), 40)/ub, m=hyp(gx, gy);
+    if(m>cap){ gx=gx*cap/m; gy=gy*cap/m; }
+    L.H=[pin[0]-n0[0], pin[1]-n0[1], gx, gy, ub];
+  }
+}
+/* the camera: keys [tau, cx, cy, ln scale] framing the next stretch (and the target, nearing it), smoothed */
+function camKeys(R, o){
+  var D=R.D, v=o.view||[1500, 950], K=C.CAM_K, wn=C.CAM_WIN, end=pos(R.W, R.to, clock(R.c, D)), raw=[], k, j;
+  for(k=0;k<=K;k++){ var t=D*k/K, xs=[], ys=[];
+    for(j=0;j<7;j++){ var p=at(R, t+wn[0]+(wn[1]-wn[0])*j/6); xs.push(p[0]); ys.push(p[1]); }
+    if(t>=D-C.CAM_SEE){ xs.push(end[0]); ys.push(end[1]); }
+    var x0=Math.min.apply(null, xs), x1=Math.max.apply(null, xs), y0=Math.min.apply(null, ys), y1=Math.max.apply(null, ys);
+    var sc=Math.min(1, v[0]*C.CAM_FILL/(x1-x0+C.CAM_PAD), v[1]*C.CAM_FILL/(y1-y0+C.CAM_PAD));
+    raw.push([t, (x1+x0)/2, (y1+y0)/2, Math.log(Math.max(C.CAM_MIN, sc))]); }
+  for(var pass=0;pass<2;pass++){ var sm=[];
+    for(k=0;k<=K;k++){ var a=Math.max(0, k-2), b=Math.min(K, k+2), n=b-a+1, row=[raw[k][0]];
+      for(j=1;j<=3;j++){ var s=0; for(var i=a;i<=b;i++) s+=raw[i][j]; row.push(s/n); } sm.push(row); }
+    raw=sm; }
+  return raw;
+}
+function cat(P, k, f, j){ var n=P.length-1, p0=P[Math.max(0, k-1)][j], p1=P[k][j], p2=P[Math.min(n, k+1)][j], p3=P[Math.min(n, k+2)][j];
+  return .5*((2*p1)+(-p0+p2)*f+(2*p0-5*p1+4*p2-p3)*f*f+(-p0+3*p1-3*p2+p3)*f*f*f); }
+function ss(x){ x=Math.min(Math.max(x, 0), 1); return x*x*(3-2*x); }
+function cam(R, tau, o){
+  var D=R.D, P=R.keys, t=Math.min(Math.max(tau, 0), D), K=P.length-1, x=t/D*K, k=Math.min(K-1, Math.floor(x)), f=x-k;
+  var cx=cat(P, k, f, 1), cy=cat(P, k, f, 2), ls=cat(P, k, f, 3), c0=(o && o.cam) || [P[0][1], P[0][2], 1];
+  var l0=Math.log(Math.max(C.CAM_MIN, Math.min(1, c0[2]))), end=pos(R.W, R.to, clock(R.c, D)), tp=Math.min(C.CAM_PIN, D/3), a=ss(t/tp), b;
+  cx=c0[0]+(cx-c0[0])*a; cy=c0[1]+(cy-c0[1])*a; ls=l0+(ls-l0)*a;
+  b=ss((t-(D-tp))/tp); cx=cx+(end[0]-cx)*b; cy=cy+(end[1]-cy)*b; ls=ls*(1-b);
+  return [cx, cy, Math.min(1, Math.exp(ls))];
+}
+return {plan:plan, at:at, cam:cam, vel:vel, clock:function(R, t){ return clock(R.c, t); }, rate:function(R, t){ return rate(R.c, t); },
+        pos:pos, bodies:bodies, ease:ease, easeInv:easeInv};
+})();
+""".replace("__FLY__", json.dumps(FLY, separators=(",", ":")))
