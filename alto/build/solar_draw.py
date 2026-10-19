@@ -263,6 +263,7 @@ window._altoSolarLayout=function(pos){
     b.hx=P.x; b.hy=P.y+PAD;
     if(pos) pos[id]=P.y;
     n.setAttribute('data-solar', b.role); n.style.setProperty('--sd', b.d+'px');
+    if(!n.classList.contains('focused')){ n.style.setProperty('--mx', (-b.d/2)+'px'); n.style.setProperty('--my', (-b.d/2)+'px'); }   /* centred at once (D-GRID's ResizeObserver would only catch up at the next frame) */
     b.rx=b.ry=null; b.x=b.hx; b.y=b.hy;
     if(NM[id]){ NM[id].displayX=b.hx; NM[id].y=b.hy-PAD; }
     face(n, id);
@@ -855,7 +856,7 @@ window._altoSolarZoom=function(s){ if(s==null) return OV ? OV.s : 1; if(s>=1) ov
    timeline per viewer (localStorage alto-solar-look:<id>, alto-solar-motion:<id>). */
 var lookFns=[], motFns=[];
 function tell(fns, v){ fns.slice().forEach(function(f){ try{ f(v); }catch(e){} }); }
-function looks(){ de.classList.toggle('alto-solar-stars', LOOK==='stars'); de.classList.toggle('alto-solar-plain', LOOK==='plain'); }
+function looks(){ var d=desk(); de.classList.toggle('alto-solar-stars', d && LOOK==='stars'); de.classList.toggle('alto-solar-plain', d && LOOK==='plain'); }   /* desktop only: a phone shows the engine's cards */
 function setLook(look){
   if((look!=='stars' && look!=='plain') || look===LOOK) return LOOK;
   if(!ready){ var P=planFor(look); if(P && P.nodes){ LOOK=look; keep('look', look); usePlan(P); bodies(); looks(); tell(lookFns, look); } return LOOK; }
