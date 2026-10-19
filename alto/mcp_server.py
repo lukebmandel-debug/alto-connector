@@ -1909,7 +1909,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
 @accounted
 def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
                     assignments: dict[str, str] | None = None, name: str = "",
-                    demo: bool = False) -> dict:
+                    demo: bool = False, building: str = "") -> dict:
     """The building a Building Palace (mode 'palace', palace_view 'building',
     §D-Building) is drawn in: stores a checked PLAN of ONE building with the
     timeline, hands the timeline's nodes to its rooms (or to the art slots and
@@ -1950,7 +1950,16 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
     `unplaced` those that found none (the plan has too few rooms or slots).
     name: the building's name for the page (default: the plan's).
     demo: true uses the invented 'Alto Test Pavilion' plan (not a real
-    building) so the view can be shown before real data exists."""
+    building) so the view can be shown before real data exists.
+    building: a CURATED building Alto already holds, so no plan is uploaded:
+    'pma' is the Philadelphia Museum of Art, Main Building (exterior, Rocky
+    Steps, East Terrace and levels G, 1, 2, 3 drawn from the public-domain
+    1928 plans, published dimensions and gallery numbers; rooms it is unsure of
+    are dashed or blurred, its sources and credits are in the plan and the
+    blueprint footer). For any other PUBLIC building, build the baseline plan
+    yourself from public plans and photographs and pass it as `plan`; where the
+    building is private, thin or gappy, the user supplies material, says where
+    to look, or describes it (they do nothing else)."""
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
@@ -1960,10 +1969,19 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
                 f"{brief.get('mode') or 'linear'!r}; a Building Palace is created with mode 'palace' and palace_view 'building'"}
     from .build import building_schema as bs
     old = brief.get("building") or {}
+    if building:
+        from . import buildings
+        token = buildings.resolve(building)
+        if token is None:
+            return {"error": "unknown_building", "message": f"{building!r} is not a curated building; curated: "
+                    + ", ".join(f"{d['building']} ({d['name']})" for d in buildings.describe())
+                    + ". For any other building pass `plan` (public buildings: draw it from public plans and photographs)."}
+        plan = buildings.load(token)
+        name = name or plan.get("name", "")
     if demo:
         plan = bs.fixture()
     if plan is None and not old.get("plan_z"):
-        return {"error": "no_plan", "message": "pass `plan` (the building as data — see this tool's description), or demo=true"}
+        return {"error": "no_plan", "message": "pass `plan` (the building as data — see this tool's description), building='pma' (curated), or demo=true"}
     if mode and mode not in bs.ASSIGN_MODES:
         return {"error": "invalid_mode", "message": f"mode {mode!r}: must be 'room' or 'anchor'"}
     try:

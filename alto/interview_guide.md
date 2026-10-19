@@ -581,6 +581,23 @@ detail for scale, this trades scale for fidelity.
   rooms to the accuracy they want, or you draw the part you could not source as
   a rough box marked approximate — and take what they choose. Never invent a
   room: every guess is `c: 0` or `1` (drawn dashed) and its basis is in `src`.
+- **The Philadelphia Museum of Art is built in**: `set_up_building(timeline_id,
+  building="pma")` needs no plan and no upload (exterior with the Rocky Steps
+  and East Terrace, levels G, 1, 2, 3 drawn from the public-domain 1928 plans,
+  ~30 rooms with their gallery numbers and collection-area colors, a few
+  public-domain paintings on the walls, title cards elsewhere). Tell the user
+  what is approximate: rooms drawn from the 1928 plans keep that layout (the
+  museum has re-partitioned most galleries since; unmatched galleries are left
+  unnumbered), heights and finishes are typed defaults, dashed outlines are
+  approximate and blurred rooms are estimated. The credits (1928 Architectural
+  Forum, OpenStreetMap ODbL, Wikimedia Commons, the PMA's own published facts)
+  are in the blueprint footer.
+- **Any other building**: a public one (library, courthouse, museum) — build
+  the baseline plan yourself from public plans, photographs and published
+  dimensions and pass it as `plan`; a private, thin or gappy one — the user
+  provides material, says where to look, or describes it (say where you looked
+  and what you could not find). They do nothing else: no files to convert, no
+  coordinates to supply.
 - **What a node is** is the user's choice; propose both. A node as a **room**
   (`mode: 'room'`, the default): each top-level concept takes a room on the
   walk, what sits under it stands in that room (on its art slots and

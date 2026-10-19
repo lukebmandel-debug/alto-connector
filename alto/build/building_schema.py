@@ -51,6 +51,16 @@ top level
   en       ENTRANCES [{id, n: name, l: level, p: point, fc: facing out (degrees), w: width m, k: "main"|"side"|"service"|"accessible",
                     wall: wall id (optional)}]
 
+Optional extension keys (carried and hosted, never validated; the blueprint reads the starred ones, curated plans such as buildings/pma.py write them all)
+  top level  n   a note (plan.n, shown in the blueprint's credits box)*;  ca  AREA LEGEND [{id, n: name, c: colour}]* — the sections (collection areas) rooms belong to
+  src[]      cr  the credit line the blueprint footer shows*
+  rooms      ca  area id*;  x28 "no"|"partly"|"likely"|"yes"|"new": changed since the source plan (1928 for the PMA; "new" = a modern space not on it)*;  nt  a note*;
+             ov  1 = a measured overlay drawn dotted*;  no/n28/gm/cand  the gallery number, the source plan's own label, how the number was matched (or why left off), candidate numbers;
+             hb/hc  basis and confidence 0-3 of the ceiling height;  mb  basis of the finishes;  bs  basis text;  pd  published dimensions {ns, ew, ...};  c 0 is drawn blurred* ("estimated")
+  levels     eb/ec  basis and confidence of the floor elevation
+  st[]       tp  the footprint on the `to` level (the stitched upper end), tb its basis, dz the rise
+  sl[]       work {title, artist, date, credit, pma_url, img} the work the slot holds (img: a hosted /bart/... URL only for a clean public-domain image), gl the gallery number
+             the work hangs in, pc "room"|"cand" (the room is that gallery, or only contains its label point), sr/sb size source and basis
 Validation (validate_plan) raises PlanError with every problem, each naming its element ("rm[3] 'g171': polygon crosses itself"), and returns
 warnings (approximate rooms, a slot floating off its wall, an unused source). Materials are a closed vocabulary (MATERIALS) plus "x:<name>" for
 a one-off. `normalize` rounds, drops empty fields and orders keys so the same plan always hashes to the same 12 hex (plan_hash); `pack`/`unpack`
@@ -194,7 +204,7 @@ def validate_plan(plan) -> list:
         raise PlanError(["plan: must be an object"])
     if plan.get("v") != VERSION:
         errs.append(f"v: must be {VERSION}")
-    allowed = {"v", "id", "name", "kind", "geo", "src", "c", "tour", "lv", "wl", "rm", "st", "cols", "fx", "sl", "ex", "en", "n"}
+    allowed = {"v", "id", "name", "kind", "geo", "src", "c", "tour", "lv", "wl", "rm", "st", "cols", "fx", "sl", "ex", "en", "n", "ca"}
     for k in sorted(set(plan) - allowed):
         errs.append(f"plan: unknown key {k!r}")
     if not (isinstance(plan.get("id"), str) and ID_RE.fullmatch(plan["id"])):
@@ -797,7 +807,11 @@ def assign_nodes(plan: dict, nodes, mode: str = "room", overrides: dict | None =
                 used_anchor.add(a)
             out[n.id] = {"r": room, "a": a}
     else:
-        pool = [(r, a) for r in order for a in anchors_in(plan, r) if a not in used_anchor]
+        pool, seen_a = [], set(used_anchor)
+        for r in order:                                  # an anchor standing in two overlapping rooms is handed out once
+            for a in anchors_in(plan, r):
+                if a not in seen_a:
+                    seen_a.add(a); pool.append((r, a))
         for n in nodes:
             if n.id in out:
                 continue
