@@ -1171,9 +1171,179 @@ def _generic():
     return s
 
 
+# ── New York's landmarks (Manhattan): each drawn from its own real parts, nothing borrowed from another city's art ──
+def _esb():
+    """Empire State Building (Shreve, Lamb & Harmon, 1931; 443 m to the mast, 102 floors): a five-storey limestone base
+    along Fifth Avenue, the shaft rising from it in setbacks to the observation floors, three narrowing crown stages
+    and the mast."""
+    return {"h": 443, "D": 57, "parts": [
+        {"k": "box", "w": 129, "d": 57, "y0": 0, "y1": 24, "m": "stone", "solid": 1, "fl": 6, "mu": 11, "sheen": False},
+        {"k": "box", "w": 78, "d": 42, "y0": 24, "y1": 82, "m": "stone", "solid": 1, "fl": 6, "mu": 7, "sheen": False},
+        {"k": "box", "w": 60, "d": 36, "y0": 82, "y1": 232, "m": "stone", "solid": 1, "fl": 8, "mu": 5},
+        {"k": "box", "w": 50, "d": 32, "y0": 232, "y1": 302, "m": "stone", "solid": 1, "fl": 8, "mu": 4, "sheen": False},
+        {"k": "box", "w": 42, "d": 27, "y0": 302, "y1": 324, "m": "stone", "solid": 1, "mu": 4, "sheen": False},
+        {"k": "box", "w": 34, "d": 22, "y0": 324, "y1": 353, "m": "trim", "mu": 3, "sheen": False},
+        {"k": "box", "w": 23, "d": 16, "y0": 353, "y1": 381, "m": "trim", "sheen": False},
+        {"k": "spire", "y0": 380, "y1": 443, "w": 3.4}]}
+
+
+def _owtc():
+    """One World Trade Center (SOM, 2014; 541 m = 1,776 ft, 94 floors): a square tower of glass whose faces ease in and
+    out (eight triangles from a square base to a square top), on a blank granite base, under a 124 m mast."""
+    return {"h": 541, "D": 61, "parts": [
+        {"k": "box", "w": 61, "d": 61, "y0": 0, "y1": 14, "m": "granite", "solid": 1, "sheen": False, "mu": 4},
+        {"k": "box", "w": 61, "w1": 50, "d": 61, "y0": 14, "y1": 218, "m": "glass", "fl": 14, "mu": 5},
+        {"k": "box", "w": 50, "w1": 61, "d": 61, "y0": 218, "y1": 417, "m": "glass", "fl": 14, "mu": 5, "sheen": False},
+        {"k": "strip", "w": 7, "x": -26, "y0": 14, "y1": 417, "t": "lit", "op": .3},
+        {"k": "spire", "y0": 417, "y1": 541, "w": 3.2}]}
+
+
+def _chrysler():
+    """Chrysler Building (William Van Alen, 1930; 319 m, 77 floors): a pale-brick shaft stepping in, then the crown of
+    six nested stainless-steel arches and the needle."""
+    ws, walls = [30, 25, 20, 15, 10], [5, 4, 4, 3, 3]
+    ap = gables_apex(226, ws, walls)
+    return {"h": 319, "D": 42, "parts": [
+        {"k": "box", "w": 62, "d": 42, "y0": 0, "y1": 56, "m": "stone", "solid": 1, "fl": 4, "mu": 8, "sheen": False},
+        {"k": "box", "w": 50, "d": 38, "y0": 56, "y1": 120, "m": "stone", "solid": 1, "fl": 4, "mu": 6, "sheen": False},
+        {"k": "box", "w": 42, "d": 34, "y0": 120, "y1": 186, "m": "stone", "solid": 1, "fl": 4, "mu": 5},
+        {"k": "box", "w": 36, "d": 30, "y0": 186, "y1": 226, "m": "stone", "solid": 1, "mu": 4, "sheen": False},
+        {"k": "gables", "ws": ws, "walls": walls, "y0": 226, "m": "silver"},
+        {"k": "spire", "y0": ap - 2, "y1": 319, "w": 2}]}
+
+
+def _woolworth():
+    """Woolworth Building (Cass Gilbert, 1913; 241 m, 57 floors): a cream terracotta Gothic block along Broadway with the
+    tower set back above it, a lantern and a pointed copper roof."""
+    return {"h": 241, "D": 58, "parts": [
+        {"k": "box", "w": 59, "d": 58, "y0": 0, "y1": 90, "m": "sand", "solid": 1, "fl": 4.5, "mu": 8, "sheen": False},
+        {"k": "box", "w": 46, "d": 46, "y0": 90, "y1": 130, "m": "sand", "solid": 1, "fl": 4.5, "mu": 6, "sheen": False},
+        {"k": "box", "w": 30, "d": 30, "y0": 130, "y1": 196, "m": "sand", "solid": 1, "fl": 4.5, "mu": 4},
+        {"k": "box", "w": 24, "d": 24, "y0": 196, "y1": 206, "m": "trim", "sheen": False},
+        {"k": "pyramid", "w": 22, "y0": 206, "y1": 233, "m": "green"},
+        {"k": "spire", "y0": 232, "y1": 241, "w": 1.4}]}
+
+
+def _flatiron():
+    """Flatiron Building (Daniel Burnham, 1902; 87 m, 22 floors): a limestone and terracotta prow between Fifth Avenue
+    and Broadway, a deep cornice and a shallow roof."""
+    return {"h": 87, "D": 24, "parts": [
+        {"k": "box", "w": 50, "d": 24, "y0": 0, "y1": 80, "m": "sand", "solid": 1, "fl": 3.7, "mu": 11},
+        {"k": "box", "w": 54, "d": 26, "y0": 80, "y1": 83.5, "m": "trim", "top": False, "sheen": False},
+        {"k": "hip", "w": 50, "d": 24, "y0": 83.5, "y1": 87, "inset": 6, "m": "mansard"}]}
+
+
+def _vanderbilt():
+    """One Vanderbilt (Kohn Pedersen Fox, 2020; 427 m, 73 floors): a terracotta-and-glass base on Madison Avenue, the
+    shaft tapering in as it climbs, ending in a crown and a mast."""
+    return {"h": 427, "D": 52, "parts": [
+        {"k": "box", "w": 70, "d": 52, "y0": 0, "y1": 24, "m": "sand", "solid": 1, "mu": 6, "sheen": False},
+        {"k": "box", "w": 56, "w1": 46, "d": 42, "y0": 24, "y1": 272, "m": "glass", "fl": 14, "mu": 4},
+        {"k": "box", "w": 46, "w1": 33, "d": 36, "y0": 272, "y1": 380, "m": "silver", "fl": 14, "mu": 3},
+        {"k": "spire", "y0": 379, "y1": 427, "w": 2.6}]}
+
+
+def _rockefeller():
+    """30 Rockefeller Plaza (Raymond Hood, 1933; 259 m, 70 floors): the limestone slab stepping back in ranks from a wide
+    base."""
+    return {"h": 259, "D": 48, "parts": [
+        {"k": "box", "w": 106, "d": 48, "y0": 0, "y1": 40, "m": "stone", "solid": 1, "fl": 5.7, "mu": 10, "sheen": False},
+        {"k": "box", "w": 70, "d": 36, "y0": 40, "y1": 110, "m": "stone", "solid": 1, "fl": 5.7, "mu": 8, "sheen": False},
+        {"k": "box", "w": 58, "d": 30, "y0": 110, "y1": 170, "m": "stone", "solid": 1, "fl": 5.7, "mu": 6},
+        {"k": "box", "w": 46, "d": 26, "y0": 170, "y1": 215, "m": "stone", "solid": 1, "fl": 5.7, "mu": 5, "sheen": False},
+        {"k": "box", "w": 34, "d": 22, "y0": 215, "y1": 245, "m": "stone", "solid": 1, "mu": 4, "sheen": False},
+        {"k": "box", "w": 24, "d": 18, "y0": 245, "y1": 259, "m": "trim", "sheen": False}]}
+
+
+def _p432():
+    """432 Park Avenue (Rafael Viñoly, 2015; 426 m, 85 floors): a square concrete shaft 28 m on a side, a grid of
+    deep windows, the tallest residential tower of its day."""
+    return {"h": 426, "D": 28.5, "parts": [
+        {"k": "box", "w": 28.5, "d": 28.5, "y0": 0, "y1": 426, "m": "silver", "fl": 12.4, "mu": 5, "rib": 12.4}]}
+
+
+def _boa():
+    """Bank of America Tower (Cook + Fox, 2009; 366 m, 55 floors): a crystal of glass that steps in on every face under a
+    long spire, over a glazed base."""
+    return {"h": 366, "D": 58, "parts": [
+        {"k": "box", "w": 58, "d": 58, "y0": 0, "y1": 24, "m": "glass", "mu": 8, "sheen": False},
+        {"k": "box", "w": 50, "w1": 42, "d": 50, "y0": 24, "y1": 200, "m": "glass", "fl": 14, "mu": 4},
+        {"k": "box", "w": 42, "w1": 33, "d": 42, "y0": 200, "y1": 288, "m": "silver", "fl": 14, "mu": 3},
+        {"k": "spire", "y0": 287, "y1": 366, "w": 2.4}]}
+
+
+def _grandcentral():
+    """Grand Central Terminal (Warren & Wetmore / Reed & Stem, 1913; about 118 x 96 m): the Beaux-Arts block of pale
+    stone, a deep cornice and a slate roof, its 42nd Street front of three great arched windows under the clock and the
+    sculpture of Glory of Commerce."""
+    return {"h": 66, "D": 96, "parts": [
+        {"k": "box", "w": 118, "d": 96, "y0": 0, "y1": 34, "m": "stone", "solid": 1, "fl": 8.5, "mu": 6, "sheen": False},
+        {"k": "box", "w": 121, "d": 99, "y0": 34, "y1": 36.5, "m": "trim", "top": False, "sheen": False},
+        {"k": "hip", "w": 112, "d": 90, "v": 4, "y0": 36.5, "y1": 46, "inset": 20, "m": "mansard"},
+        {"k": "box", "w": 46, "d": 26, "v": 0, "y0": 0, "y1": 44, "m": "stone", "solid": 1, "mu": 2, "sheen": False},
+        {"k": "cols", "w": 42, "y0": 3, "y1": 38, "n": 3},
+        {"k": "box", "w": 50, "d": 28, "v": 0, "y0": 44, "y1": 46.5, "m": "trim", "top": False, "sheen": False},
+        {"k": "pediment", "w": 46, "y0": 46.5, "y1": 55, "m": "trim"},
+        {"k": "clock", "y": 40, "r": 4.2},
+        {"k": "statue", "x": 0, "y0": 55, "y1": 66}]}
+
+
+def _pennstation():
+    """Pennsylvania Station with Moynihan Train Hall (2021): a low block of granite along Eighth Avenue and, over the
+    hall, a glass skylight in a steel vault."""
+    return {"h": 34, "D": 80, "parts": [
+        {"k": "box", "w": 134, "d": 80, "y0": 0, "y1": 14, "m": "granite", "solid": 1, "fl": 7, "mu": 9, "sheen": False},
+        {"k": "vault", "w": 76, "d": 64, "y0": 14, "y1": 33, "m": "glass"}]}
+
+
+def _unitednations():
+    """United Nations Headquarters (1952; the Secretariat 154 m, 39 floors): the slab of green glass between white marble
+    ends, standing behind the low General Assembly building."""
+    return {"h": 154, "D": 74, "parts": [
+        {"k": "box", "w": 76, "d": 38, "v": 0, "y0": 0, "y1": 22, "m": "stone", "solid": 1, "fl": 7.3, "mu": 8, "sheen": False},
+        {"k": "dome", "x": 18, "w": 30, "y0": 22, "y1": 31, "m": "trim", "v": 4, "d": 30},
+        {"k": "box", "w": 88, "d": 22, "v": 50, "y0": 0, "y1": 154, "m": "green", "fl": 4, "mu": 12},
+        {"k": "strip", "w": 7, "x": -40.5, "y0": 0, "y1": 154, "t": "lit", "op": .5},
+        {"k": "strip", "w": 7, "x": 40.5, "y0": 0, "y1": 154, "t": "lit", "op": .5}]}
+
+
+def _nycityhall():
+    """New York City Hall (Mangin & McComb, 1812; about 62 x 34 m): the small Federal-style hall of white marble, a
+    portico of columns on its front, a low hipped roof and a cupola with its clock and the statue of Justice."""
+    return {"h": 44, "D": 34, "parts": [
+        {"k": "box", "w": 62, "d": 30, "v": 4, "y0": 0, "y1": 17, "m": "marble", "solid": 1, "fl": 5.6, "mu": 9, "sheen": False},
+        {"k": "box", "w": 26, "d": 34, "v": 0, "y0": 0, "y1": 21, "m": "marble", "solid": 1, "mu": 3, "sheen": False},
+        {"k": "cols", "w": 20, "y0": 2, "y1": 14, "n": 4},
+        {"k": "box", "w": 28, "d": 36, "v": 0, "y0": 21, "y1": 22.5, "m": "trim", "top": False, "sheen": False},
+        {"k": "hip", "w": 62, "d": 30, "v": 4, "y0": 17, "y1": 23, "inset": 8, "m": "mansard"},
+        {"k": "box", "w": 11, "d": 11, "v": 12, "y0": 23, "y1": 31, "m": "trim", "sheen": False},
+        {"k": "dome", "w": 11, "d": 11, "v": 12, "y0": 31, "y1": 37, "m": "green"},
+        {"k": "statue", "y0": 37, "y1": 44}]}
+
+
+def _municipal():
+    """Manhattan Municipal Building (McKim, Mead & White, 1914; 177 m, 40 floors): the city's offices over Chambers Street,
+    a broad stone base with a great colonnaded arch at its middle, the tower stepping in above it to a colonnaded
+    rotunda and a dome, and the gilded figure of Civic Fame on top."""
+    return {"h": 177, "D": 60, "parts": [
+        {"k": "box", "w": 114, "d": 60, "y0": 0, "y1": 54, "m": "stone", "solid": 1, "fl": 4.3, "mu": 13, "sheen": False},
+        {"k": "box", "w": 36, "d": 60, "y0": 0, "y1": 58, "m": "stone", "solid": 1, "mu": 2, "sheen": False},
+        {"k": "cols", "w": 32, "y0": 3, "y1": 42, "n": 6},
+        {"k": "box", "w": 118, "d": 62, "y0": 54, "y1": 57, "m": "trim", "top": False, "sheen": False},
+        {"k": "box", "w": 54, "d": 44, "y0": 58, "y1": 100, "m": "stone", "solid": 1, "fl": 4.3, "mu": 6, "sheen": False},
+        {"k": "box", "w": 40, "d": 38, "y0": 100, "y1": 134, "m": "stone", "solid": 1, "fl": 4.3, "mu": 4},
+        {"k": "box", "w": 30, "d": 30, "y0": 134, "y1": 152, "m": "stone", "solid": 1, "mu": 3, "sheen": False},
+        {"k": "box", "w": 24, "d": 24, "y0": 152, "y1": 160, "m": "trim", "sheen": False},
+        {"k": "cols", "w": 22, "y0": 152, "y1": 160, "n": 6},
+        {"k": "dome", "w": 20, "y0": 160, "y1": 169, "m": "green"},
+        {"k": "statue", "y0": 169, "y1": 177}]}
+
+
 LANDMARKS = {"ind": _independence, "city": _cityhall, "art": _artmuseum, "frank": _franklin, "conv": _convention,
              "stn": _station, "sub": _suburban, "jef": _jefferson, "arena": _arena, "stad": _stadium, "lff": _lff, "cbp": _cbp, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
-             "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc}
+             "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc,
+             "esb": _esb, "owtc": _owtc, "chry": _chrysler, "wool": _woolworth, "flat": _flatiron, "ovan": _vanderbilt, "rock": _rockefeller,
+             "p432": _p432, "boa": _boa, "gct": _grandcentral, "penn": _pennstation, "un": _unitednations, "nych": _nycityhall, "muni": _municipal}
 
 
 COURTS = {}     # the page's courthouse for any city: one per type and level, stretched to the record's height / width
@@ -1267,7 +1437,7 @@ __all__ = ["SCALE", "KV", "build", "build_all", "spec_from_osm", "parse_height",
 
 # the art hints a landmark_buildings entry carries (C1 city_courts / city presets) onto its map record (the page's l.kind,
 # l.lv, l.hm, l.cs): the engines (palace_grid v1, city_engine v2) copy them so keyOf()/art_key() and scaleOf() see them
-ART_HINTS = (("kind", "kind"), ("level", "lv"), ("lv", "lv"), ("height_m", "hm"), ("style", "cs"), ("cs", "cs"))
+ART_HINTS = (("art", "art"), ("kind", "kind"), ("level", "lv"), ("lv", "lv"), ("height_m", "hm"), ("style", "cs"), ("cs", "cs"))
 
 
 def art_hints(spec: dict) -> dict:

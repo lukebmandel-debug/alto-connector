@@ -150,8 +150,9 @@ from . import palace_skyline as _sky        # (every building's art: the generat
 ART = _sky.build_all()
 # which landmark names get which art (the page's own label, case-insensitive)
 MATCH = [["usch", r"byrne|601 market|united states court ?house.*philadelphia"], ["nix", r"\bnix\b|900 market"],
-         ["cjc", r"criminal justice center|1301 filbert"], ["ind", r"independence hall"], ["city", r"city hall"], ["art", r"art museum|museum of art|philadelphia museum"],
-         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"], ["sub", r"suburban station"], ["jef", r"jefferson station"], ["lff", r"lincoln financial"], ["cbp", r"citizens bank park"], ["arena", r"xfinity mobile arena|wells fargo center|\barena\b|spectrum|madison square garden|td garden|united center|capital one arena"], ["stad", r"lincoln financial|citizens bank park|\bstadium\b|ballpark|\bfield$|fenway park|yankee|metlife|nissan stadium|soldier field|wrigley"]] + _towers.MATCH
+         ["cjc", r"criminal justice center|1301 filbert"], ["ind", r"independence hall"], ["city", r"^(philadelphia )?city hall$"], ["art", r"art museum|museum of art|philadelphia museum"],
+         ["frank", r"franklin institute"], ["conv", r"convention cent(er|re)"], ["stn", r"(30th|thirtieth) street station"], ["sub", r"suburban station"], ["jef", r"jefferson station"], ["lff", r"lincoln financial"], ["cbp", r"citizens bank park"], ["arena", r"xfinity mobile arena|wells fargo center|\barena\b|spectrum|madison square garden|td garden|united center|capital one arena"], ["stad", r"lincoln financial|citizens bank park|\bstadium\b|ballpark|\bfield$|fenway park|yankee|metlife|nissan stadium|soldier field|wrigley"],
+         ["gct", r"grand central"], ["penn", r"pennsylvania station|^penn station$"], ["un", r"united nations"], ["nych", r"^new york city hall$"]] + _towers.MATCH
 
 
 COURT_RX = r"court ?house|courts? building|justice cent(er|re)|hall of justice|palace of justice|supreme court|court of appeals"
@@ -162,6 +163,8 @@ def art_key(l: dict) -> str:
     height (hm m, rs roof shape) the generic building of its roof shape, else the tidy default."""
     import re
     n = str(l.get("n") or "")
+    if l.get("art") in ART:                                 # the record names its own art (a preset's building: New York's City Hall)
+        return l["art"]
     for k, p in MATCH:
         if re.search(p, n, re.I):
             return k
@@ -219,7 +222,7 @@ function courtLevel(n, h){ h=String(h||'').toLowerCase(); if(h==='federal'||h===
   if(/county|city|municipal|criminal justice|traffic|family court|housing court|magistrate/.test(n)) return 'city'; return 'state'; }
 function courtStyle(hm, h){ h=String(h||'').toLowerCase(); if(h==='classical'||h==='modern'||h==='tower') return h; hm=+hm||0;
   return hm>=60?'tower':(hm && hm<=32)?'classical':hm?'modern':'classical'; }
-function keyOf(l){ var n=String(l.n), k=artKey(n);
+function keyOf(l){ var n=String(l.n), k=(l.art&&ART[l.art])?l.art:artKey(n);
   if(k==='gen' && (String(l.kind||'').toLowerCase()==='courthouse' || COURT.test(n))) return 'ct-'+courtStyle(l.hm, l.cs)+'-'+courtLevel(n, l.lv);
   if(k==='gen' && +l.hm>0) k='g-'+(ART['g-'+(l.rs||'flat')]?(l.rs||'flat'):'flat'); return k; }
 function isTall(l){ var k=keyOf(l); return TALL.indexOf(k)>=0 || (/^(g|ct)-/.test(k) && +l.hm>=60); }
@@ -370,8 +373,34 @@ window._palLm={draw:draw, relayout:relayout, tip:tip, keyRow:keyRow, pageInfo:pa
 """
 
 
+def art_json(art: dict) -> str:
+    return json.dumps(art, separators=(",", ":"))
+
+
+def keys_of(m: dict) -> set:
+    """The art keys a palace's own landmarks use (what the page's keyOf will ask for), with the fallbacks every page keeps:
+    the plain building, the generic building of each roof shape and the courthouses."""
+    keys = {k for k in ART if k == "gen" or k.startswith(("g-", "ct-"))}
+    for l in (m or {}).get("landmarks") or []:
+        keys.add(art_key(l))
+    return keys
+
+
+def trim_js(js: str, m: dict) -> str:
+    """The page's JS with only the art this palace uses (Philadelphia's stadiums are not carried in New York's page):
+    every landmark's art is the same bytes whatever else is dropped. A map that cannot be read keeps all of it."""
+    full = art_json(ART)
+    try:
+        keys = keys_of(m)
+    except Exception:                                       # noqa: BLE001
+        return js
+    if not keys or full not in js:
+        return js
+    return js.replace(full, art_json({k: v for k, v in ART.items() if k in keys}), 1)
+
+
 def landmark_js() -> str:
-    return (_JS.replace("__ART__", json.dumps(ART, separators=(",", ":")))
+    return (_JS.replace("__ART__", art_json(ART))
             .replace("__GRAD__", landmark_gradients())
             .replace("__MATCH__", json.dumps(MATCH))
             .replace("__TALL__", json.dumps(sorted(_towers.FLOORS)))

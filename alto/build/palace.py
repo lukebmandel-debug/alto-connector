@@ -376,6 +376,11 @@ def palace_data(b, nodes) -> str:
 def palace_js(b) -> str:
     """PALACE_JS, with the fill-in hooks spliced in when the palace has simulated buildings (else unchanged)."""
     js = PALACE_JS
+    try:                                            # only the landmark art this city uses (palace_landmarks.trim_js)
+        from .palace_landmarks import trim_js
+        js = trim_js(js, unpack(b.palace["data_z"])["map"])
+    except Exception:                               # noqa: BLE001 — a palace whose data cannot be read keeps all the art
+        pass
     if (b.palace or {}).get("fill_z"):
         from .palace_fillin import patch_js
         js = patch_js(js)
@@ -617,6 +622,8 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-brn{font-size:calc(9.5px / var(--pz,1));font-weight:750;letter-spacing:.09em;text-transform:uppercase;fill:var(--pal-br-text);
     stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
   .pal-svg.far .pl-brn:not(.big){display:none;}
+  .pal-svg .pl-sea{fill:var(--pal-river);stroke:none;pointer-events:none;}
+  .pal-svg .pl-sea-bank{fill:none;stroke:rgba(112,170,100,.34);stroke-width:64;stroke-linejoin:round;pointer-events:none;} html.dark .pal-svg .pl-sea-bank{stroke:rgba(90,150,90,.3);}
   .pal-svg .pl-water-edge{fill:none;stroke:var(--pal-water-edge);stroke-width:2;vector-effect:non-scaling-stroke;}
   .pal-svg .pl-park{fill:var(--pal-park);stroke-width:1.2;stroke-opacity:.45;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   /* parks (palace_parks.py): green glass with a thin light edge, under the streets; walkways and plazas in light line */
@@ -1330,7 +1337,7 @@ function drawCity(svg){
      in pieces of the course, so a repainted tile strokes only the pieces it shows (one whole river's five wide strokes, for every
      tile, were a third of a frame); opaque pieces of one colour overlap with no seam. The rim (translucent, over the ground) stays whole. */
   var LITE=[[.84,.10],[.68,.12],[.52,.14],[.36,.18]], bands=riverBands(LITE);
-  (M.river||[]).forEach(function(r){ var d=smoothD(r.p), w=r.w||100;
+  (M.river||[]).forEach(function(r){ if(r.ch && M.sea && M.sea.length) return; var d=smoothD(r.p), w=r.w||100;       /* a band that is part of the open water is drawn with it */
     el('path',{'class':'pl-rv-bank', d:d, 'stroke-width':w+64},rv);                           /* the banks: a green margin either side */
     el('path',{'class':'pl-rv-rim', d:d, 'stroke-width':w+12},rv);
     if(!bands){ el('path',{'class':'pl-rv-body', d:d, 'stroke-width':w},rv);
@@ -1340,6 +1347,11 @@ function drawCity(svg){
     var parts=[]; for(var c=0;c+1<cut.length;c++) parts.push(smoothD(r.p, cut[c], cut[c+1]));
     var ws=[w].concat(LITE.map(function(l){ return w*l[0]; }), [Math.max(2, w*.13)]), cls=['pl-rv-body','pl-rv-lite','pl-rv-lite','pl-rv-lite','pl-rv-lite','pl-rv-sheen'];
     ws.forEach(function(sw, li){ parts.forEach(function(pd){ el('path',{'class':cls[li]+' rv-op', d:pd, 'stroke-width':sw, style:'stroke:'+bands[li]+';stroke-opacity:1'},rv); }); }); });
+  /* the open water (build/city_water.py: the harbour a far-bank city's rivers run out into): one shape with the rivers' own bands (they are part of it: the same blue, the same green margin along the land, none across the water), clipped to the glass */
+  if(M.sea && M.sea.length){ var scp=el('clipPath',{id:'plsea'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},scp);
+    var sd=M.sea.map(function(r){ return rpc(r, 50); }).join(''), sc='url(#plsea'+(svg._sid||'')+')';
+    el('path',{'class':'pl-sea-bank', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},svg);                                     /* the green margin, as along a band */
+    el('path',{'class':'pl-sea', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},svg); }
   /* the river trails along the banks (palace_banks.py): a dashed path with its name along it */
   var rtg=el('g',{'class':'pl-rtrails'},svg);
   (M.rtrails||[]).forEach(function(t,i){ var id='rtr'+(svg._sid||'')+i; el('path',{'class':'pl-rtrail pl-rtrail-c', d:pts(t.p)},rtg); var pa=el('path',{'class':'pl-rtrail', d:pts(t.p), id:id},rtg);

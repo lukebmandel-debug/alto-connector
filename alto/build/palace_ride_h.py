@@ -28,8 +28,9 @@ JS_H_KIT = r"""
 /* ══ LANDMARKS (palace_ride_h.py): detailed models in the shared mesh format ══ */
 var LMV=1.3;                                                  /* map units per metre: UM */
 MAT.lime=32;                                                  /* plain warm limestone, no window grid (palace_ride_gl_shaders.py id 32) */
-function lmKey(n){ n=String(n||'');
-  var T=[['lbc',/liberty bell (center|centre|pavilion)/i],['usch',/byrne|601 market|united states court ?house.*philadelphia/i],['nix',/\bnix\b|900 market/i],['cjc',/criminal justice center|1301 filbert/i],['fam',/family court/i],['ind',/independence hall/i],['city',/city hall/i],
+function lmKey(n){ if(n && typeof n==='object'){ if(n.art && LMT[n.art]) return n.art; n=n.n; } n=String(n||'');       /* a landmark record may name its own art (a preset's building) */
+  var T=[['lbc',/liberty bell (center|centre|pavilion)/i],['usch',/byrne|601 market|united states court ?house.*philadelphia/i],['nix',/\bnix\b|900 market/i],['cjc',/criminal justice center|1301 filbert/i],['fam',/family court/i],['ind',/independence hall/i],['city',/^(philadelphia )?city hall$/i],
+    ['esb',/empire state/i],['owtc',/one world trade|\bone wtc\b|freedom tower/i],['chry',/chrysler building/i],['wool',/woolworth building/i],['flat',/flatiron/i],['ovan',/one vanderbilt/i],['rock',/30 rock\b|30 rockefeller plaza/i],['p432',/432 park/i],['boa',/bank of america tower/i],['muni',/municipal building/i],['gct',/grand central/i],['penn',/pennsylvania station|^penn station$/i],['un',/united nations/i],['nych',/^new york city hall$/i],
     ['art',/art museum|museum of art|philadelphia museum/i],['frank',/franklin institute/i],['conv',/convention cent(er|re)/i],['stn',/(30th|thirtieth) street station/i],['sub',/suburban station/i],['jef',/jefferson station/i],
     ['lff',/lincoln financial/i],['cbp',/citizens bank park/i],['arena',/xfinity mobile arena|wells fargo center|\barena\b|spectrum/i],['stad',/\bstadium\b|ballpark|\bfield$/i],
     ['lib1',/one liberty place|liberty place one|liberty one/i],['lib2',/two liberty place|liberty place two|liberty two/i],['ccc',/comcast center(?! tech)|comcast building/i],['ctc',/comcast tech/i],
@@ -524,6 +525,45 @@ function bGeneric(F,l){
   lroof(F,-hw,0,hw,dM,hm,[[Math.min(hw,dM/2)*.55,Math.min(9,hm*.35)]],'roof',1,'roof');
   larch(F,'s',0,0,0,4,6,'dark',.4); lcanopy(F,'s',0,0,8,3.5,5.2,'white'); lfoot(F,-hw,0,hw,dM,hm+Math.min(9,hm*.35));
   return F.m; }
+
+/* ── New York's landmarks in the ride: the setbacks of each tower in real metres, the same parts the 2D art is drawn from (palace_skyline.py) ── */
+function bStack(F,st,mast){ var i, q, m, k, D=st[0][1];
+  lpatchBox(F,'paving',11,.1);
+  for(i=0;i<st.length;i++){ q=st[i]; m=q[4]||'stone'; k=(m==='glass')?3.4/4.2:3.4/6; var v=(D-q[1])/2;
+    lbox(F,0,v,q[0],q[1],q[2],q[3],m,null,k,16); lbox(F,0,v,q[0],q[1],q[3]-.2,q[3]+.2,m,'roof',k,15); }
+  if(mast) llathe(F,0,D/2,[[.9,mast[0]],[.5,(mast[0]+mast[1])/2],[.12,mast[1]]],6,'metal');
+  lfoot(F,-st[0][0]/2,0,st[0][0]/2,D,st[st.length-1][3]);
+  return F.m; }
+function bESB(F){ return bStack(F,[[129,57,0,24],[78,42,24,82],[60,36,82,232],[50,32,232,302],[42,27,302,324],[34,22,324,353,'white'],[23,16,353,381,'white']],[380,443]); }
+function bOWTC(F){ return bStack(F,[[61,61,0,14],[55,55,14,218,'glass'],[55,55,218,417,'glass']],[417,541]); }
+function bChrysler(F){ return bStack(F,[[62,42,0,56],[50,38,56,120],[42,34,120,186],[36,30,186,226],[28,28,226,262,'metal'],[18,18,262,292,'metal']],[290,319]); }
+function bWoolworth(F){ return bStack(F,[[59,58,0,90],[46,46,90,130],[30,30,130,196],[22,22,196,206,'white'],[16,16,206,226,'roof']],[224,241]); }
+function bFlatiron(F){ return bStack(F,[[50,24,0,80],[54,26,80,83.5,'white']],null); }
+function bVanderbilt(F){ return bStack(F,[[70,52,0,24],[51,42,24,272,'glass'],[40,36,272,380,'glass']],[379,427]); }
+function bRockefeller(F){ return bStack(F,[[106,48,0,40],[70,36,40,110],[58,30,110,170],[46,26,170,215],[34,22,215,245],[24,18,245,259,'white']],null); }
+function b432(F){ return bStack(F,[[34,34,0,6],[28.5,28.5,6,420,'white'],[24,24,420,426,'stone']],null); }
+function bBofA(F){ return bStack(F,[[58,58,0,24,'glass'],[46,46,24,200,'glass'],[37,37,200,288,'glass']],[287,366]); }
+function bMunicipal(F){ var m=bStack(F,[[114,60,0,54],[54,44,58,100],[40,38,100,134],[30,30,134,152],[24,24,152,160,'white']],null); llathe(F,0,30,[[10,160],[8,166],[3,169],[.4,177]],8,'roof'); return m; }
+function bGrandCentral(F){ lpatchBox(F,'paving',11,.1);
+  lbox(F,0,0,118,96,0,34,'stone',null,3.4/6,16); lbox(F,0,0,121,99,34,36.5,'white',null,1,0); lroof(F,-56,4,56,94,36.5,[[20,9.5]],'roof',1,'roof');
+  lbox(F,0,0,46,26,0,44,'stone',null,3.4/6,16); lcols(F,-21,21,-1.5,4,0,38,.8,'white',1,6); lbox(F,0,0,50,28,44,46.5,'white',null,1,0);
+  larch(F,'s',0,0,0,10,14,'dark',.4); lfoot(F,-59,0,59,96,46);
+  return F.m; }
+function bPennStation(F){ lpatchBox(F,'paving',11,.1);
+  lbox(F,0,0,134,80,0,14,'stone',null,3.4/6,16); lbox(F,0,8,76,64,14,30,'glass','glass',3.4/4.2,0); lroof(F,-38,8,38,72,30,[[10,3]],'metal',1,'metal');
+  lfoot(F,-67,0,67,80,33);
+  return F.m; }
+function bUN(F){ lpatchBox(F,'paving',11,.1);
+  lbox(F,0,0,76,38,0,22,'stone',null,3.4/6,16); lbox(F,0,0,76,38,21.8,22.2,'stone','roof',1,15);
+  lbox(F,0,50,88,22,0,154,'glass',null,3.4/4.2,16); lbox(F,0,50,88,22,153.8,154.2,'glass','roof',1,15);
+  lfoot(F,-38,0,38,38,22); lfoot(F,-44,50,44,72,154);
+  return F.m; }
+function bNYCityHall(F){ lpatchBox(F,'paving',11,.1);
+  lbox(F,0,4,62,30,0,17,'white',null,3.4/5.6,16); lroof(F,-31,4,31,34,17,[[8,6]],'roof',1,'roof');
+  lbox(F,0,0,26,34,0,21,'white',null,3.4/5.6,16); lcols(F,-10,10,-1.5,4,0,14,.5,'white',1,4);
+  lbox(F,0,12,11,11,23,31,'white',null,1,0); llathe(F,0,17.5,[[5.5,31],[4,34],[1.5,37]],8,'roof');
+  larch(F,'s',0,0,0,5,8,'dark',.4); lfoot(F,-31,0,31,34,23);
+  return F.m; }
 """
 
 JS_H_VENUES = r"""
@@ -589,7 +629,7 @@ JS_H_MAIN = r"""
 /* the table of models: key -> [builder, depth in metres, centred in its block?, fit into the block?] */
 var LMT={}, LMC={};
 function lmBuild(l, floors){
-  var key=lmKey(l.n), t=LMT[key]; if(!t) t=LMT.gen; var b=l.box, S=LMV, wM=t[4]||100, fr=t[5]||0;
+  var key=lmKey(l), t=LMT[key]; if(!t) t=LMT.gen; var b=l.box, S=LMV, wM=t[4]||100, fr=t[5]||0;
   /* true scale (1.3 map units a metre) unless the model would cover the streets round its block: then every dimension, height too, is scaled by the same factor (the 2D art does that for the grounds) */
   var fw=(b[2]-b[0]-26)/wM, fd=(b[3]-b[1]-26)/(t[1]+fr); S=Math.min(LMV,Math.max(.6,Math.min(fw,fd)));
   var F=lmFrame(l,S,!!t[2],t[1],fr); F.key=key; F.floors=floors; F.tint=lmPickTint(F,LMC[key]);
@@ -626,6 +666,8 @@ LMT.lbc=[bLBC,95,false,false,26,1]; LMC.lbc={s:[.84,.98]};
 LMT.sub=[bSuburban,46,false,false,94,3]; LMT.jef=[bJefferson,50,false,false,100,9]; LMT.conv=[bConvention,190,false,false,250,6];
 LMT.lib1=[bLib1,64,false,false,64,5]; LMT.lib2=[bLib2,56,false,false,56,5]; LMT.ccc=[bComcast,56,false,false,70,5]; LMT.ctc=[bCTC,50,false,false,92,5]; LMT.bny=[bBNY,66,false,false,66,5]; LMT.tls=[bTLS,58,false,false,58,5]; LMT.cira=[bCira,36,false,false,52,5]; LMT.fmc=[bFMC,36,false,false,52,5];
 LMT.usch=[bByrne,60,false,false,100,3]; LMT.nix=[bNix,60,false,false,122,3]; LMT.cjc=[bCJC,60,false,false,80,1]; LMT.fam=[bFamily,45,false,false,92,5]; LMT.court=[bCourt,45,false,false,92,5]; LMT.gen=[bGeneric,40,false,false,70,1];
+LMT.esb=[bESB,129,false,false,57,5]; LMT.owtc=[bOWTC,61,false,false,61,5]; LMT.chry=[bChrysler,62,false,false,42,5]; LMT.wool=[bWoolworth,59,false,false,58,5]; LMT.flat=[bFlatiron,54,false,false,26,5]; LMT.ovan=[bVanderbilt,70,false,false,52,5];
+LMT.rock=[bRockefeller,106,false,false,48,5]; LMT.p432=[b432,29,false,false,29,5]; LMT.boa=[bBofA,58,false,false,58,5]; LMT.muni=[bMunicipal,114,false,false,60,5]; LMT.gct=[bGrandCentral,121,false,false,99,5]; LMT.penn=[bPennStation,134,false,false,80,5]; LMT.un=[bUN,88,false,false,72,5]; LMT.nych=[bNYCityHall,62,false,false,34,3];
 LMT.arena=[bArena,163,false,false,174,12]; LMT.lff=[bLFF,285,false,false,252,0]; LMT.cbp=[bCBP,263,false,false,281,0]; LMT.stad=[bLFF,285,false,false,252,0];
 """
 
