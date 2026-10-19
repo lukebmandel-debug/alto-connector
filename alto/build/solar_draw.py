@@ -855,7 +855,7 @@ window._altoSolarZoom=function(s){ if(s==null) return OV ? OV.s : 1; if(s>=1) ov
    timeline per viewer (localStorage alto-solar-look:<id>, alto-solar-motion:<id>). */
 var lookFns=[], motFns=[];
 function tell(fns, v){ fns.slice().forEach(function(f){ try{ f(v); }catch(e){} }); }
-function looks(){ de.classList.toggle('alto-solar-stars', LOOK==='stars'); de.classList.toggle('alto-solar-plain', LOOK==='plain'); }
+function looks(){ var d=desk(); de.classList.toggle('alto-solar-stars', d && LOOK==='stars'); de.classList.toggle('alto-solar-plain', d && LOOK==='plain'); }   /* desktop only: a phone shows the engine's cards */
 function setLook(look){
   if((look!=='stars' && look!=='plain') || look===LOOK) return LOOK;
   if(!ready){ var P=planFor(look); if(P && P.nodes){ LOOK=look; keep('look', look); usePlan(P); bodies(); looks(); tell(lookFns, look); } return LOOK; }
