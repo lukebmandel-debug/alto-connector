@@ -497,19 +497,29 @@ def test_edit_mode_sync_redraws_the_systems_from_the_live_tables(browser, pages)
     pg.context.close()
 
 
-def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, pages):
-    """Luke (round 2): however big the chart, the reader can zoom out and see all
-    of it, the circles shrinking with it — the toggle, ⌘−, pinch — and the orbits go on."""
+def test_zoom_is_continuous_down_to_the_whole_chart_and_a_click_comes_back_down(browser, pages):
+    """Luke (rounds 2, 4): zoom out as far as wanted — no button, no mode — the circles
+    shrinking with it, the orbits going on; a click on a body comes back down to it."""
     f, _ = pages["orbit"]
     pg, errs = _open(browser, f, wait=1500)
     pg.mouse.move(2, 940)
-    pg.click("#sol-fit")
-    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => !document.getElementById('sol-fit')")
+    zs = []
+    for _ in range(8):                                                # cmd-minus, step by step, no jump
+        pg.keyboard.press("Control+Minus")
+        pg.wait_for_timeout(650)
+        zs.append(pg.evaluate("() => window._altoSolarZoom()"))
+    assert all(b < a for a, b in zip(zs, zs[1:])) and zs[0] > 0.5 and zs[-1] < 0.05, zs
     st = pg.evaluate("""() => { var w=document.getElementById('world').getBoundingClientRect(), c=document.getElementById('canvas').getBoundingClientRect();
-      return {z:window._altoSolarZoom(), w:[w.left, w.top, w.right, w.bottom], c:[c.left, c.top, c.right, c.bottom]}; }""")
-    assert st["z"] < 1
+      return {w:[w.left, w.top, w.right, w.bottom], c:[c.left, c.top, c.right, c.bottom]}; }""")
     w, c = st["w"], st["c"]
     assert w[0] >= c[0] - 1 and w[1] >= c[1] - 1 and w[2] <= c[2] + 1 and w[3] <= c[3] + 1, st   # all of it in view
+    pg.keyboard.press("Control+0")
+    pg.wait_for_timeout(800)
+    assert pg.evaluate("() => [window._altoSolarZoom(), document.getElementById('world').style.transform]") == [1, ""]
+    for _ in range(4):                                                # far enough out that u2-p1 is in the window
+        pg.keyboard.press("Control+Minus")
+        pg.wait_for_timeout(650)
     g0 = pg.evaluate(BODIES)
     pg.wait_for_timeout(900)
     assert _moved(g0, pg.evaluate(BODIES)) > 0.3                       # the orbits go on
@@ -519,12 +529,6 @@ def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, p
     assert pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]") == [1, "u2-p1"]
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(700)
-    pg.keyboard.press("Control+Minus")
-    pg.wait_for_timeout(800)
-    assert pg.evaluate("() => window._altoSolarZoom()") < 1
-    pg.keyboard.press("Escape")
-    pg.wait_for_timeout(800)
-    assert pg.evaluate("() => [window._altoSolarZoom(), document.getElementById('world').style.transform]") == [1, ""]
     pg.mouse.move(700, 500)
     pg.keyboard.down("Control")
     for _ in range(4):
@@ -533,6 +537,69 @@ def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, p
     pg.keyboard.up("Control")
     pg.wait_for_timeout(300)
     assert pg.evaluate("() => window._altoSolarZoom()") < 0.9                # a pinch out
+    assert not errs, errs
+    pg.context.close()
+
+
+def _png_rgb(data):
+    """(width, height, pixel(x, y) -> (r, g, b)) of an 8-bit, non-interlaced RGB/RGBA PNG."""
+    import struct
+    import zlib
+    pos, idat = 8, b""
+    w = h = ct = None
+    while pos < len(data):
+        n, typ = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + n]
+        if typ == b"IHDR":
+            w, h, depth, ct = struct.unpack(">IIBB", body[:10])
+            assert depth == 8 and ct in (2, 6)
+        elif typ == b"IDAT":
+            idat += body
+        pos += 12 + n
+    bpp = 3 if ct == 2 else 4
+    raw, stride, rows, prev = zlib.decompress(idat), w * bpp, [], bytearray(w * bpp)
+    for y in range(h):
+        f, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for i in range(stride):
+            a = line[i - bpp] if i >= bpp else 0
+            b, c = prev[i], prev[i - bpp] if i >= bpp else 0
+            if f == 1:
+                line[i] = (line[i] + a) & 255
+            elif f == 2:
+                line[i] = (line[i] + b) & 255
+            elif f == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif f == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(line)
+        prev = line
+    return w, h, lambda x, y: tuple(rows[y][x * bpp:x * bpp + 3])
+
+
+def test_zoomed_out_there_is_no_rectangle_round_the_chart(browser, pages, tmp_path):
+    """Luke: "zoom out as much as they want and not see a clear border". Pixels just
+    inside and just outside the old board's edge are the same background."""
+    f, _ = pages["spoke"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window._altoSolarZoom(0.3)")
+    pg.wait_for_timeout(600)
+    r = pg.evaluate("() => { var w=document.getElementById('world').getBoundingClientRect(); return [w.left, w.top, w.right, w.bottom]; }")
+    shot = tmp_path / "zoomed.png"
+    pg.screenshot(path=str(shot))
+    W, H, px = _png_rgb(shot.read_bytes())
+    worst = 0
+    for k in range(1, 9):                                            # along the left and right edges, 6 px in and out
+        y = int(r[1] + (r[3] - r[1]) * k / 9)
+        for x, dx in ((r[0], 1), (r[2], -1)):
+            a, b = (int(x + 6 * dx), y), (int(x - 6 * dx), y)
+            if not (0 <= a[0] < W and 0 <= b[0] < W and 120 < y < H - 10):
+                continue
+            pa, pb = px(*a), px(*b)
+            worst = max(worst, max(abs(pa[i] - pb[i]) for i in range(3)))
+    assert worst <= 12, worst
     assert not errs, errs
     pg.context.close()
 
@@ -667,9 +734,10 @@ def test_one_ctrl_wheel_stream_does_one_thing_and_zooms_out_of_a_card(browser, h
     pg.wait_for_timeout(700)
     st = pg.evaluate("window.__st()")
     assert st["f"] is None and st["z"] < 1, st
-    _wheel(pg, 700, 500, -30, 30)                                    # one long pinch in: back to full size and stop there
+    _wheel(pg, 700, 500, -30, 30)                                    # one long pinch in: back to full size and on into a body
     pg.wait_for_timeout(900)
-    assert pg.evaluate("window.__st()") == {"z": 1, "f": None}
+    st = pg.evaluate("window.__st()")
+    assert st["z"] == 1 and st["f"] is not None, st
     assert not errs, errs
     pg.context.close()
 
@@ -693,8 +761,9 @@ def test_the_camera_puts_a_plan_point_in_the_middle_at_any_scale(browser, pages)
         g3 = pg.evaluate("() => { var g=window._altoSolarCam.get(); return window._altoSolarCam.set(g.cx, g.cy, g.scale); }")
         assert abs(g3["cx"] - g2["cx"]) < 1.5 and abs(g3["cy"] - g2["cy"]) < 1.5
     assert pg.evaluate("() => window.__cam.length") > 0              # onChange heard the moves
-    # the whole-chart toggle is the same camera
-    pg.click("#sol-fit")
+    # cmd-minus moves the same camera
+    pg.evaluate("() => window._altoSolarCam.set(0, 0, 1)")
+    pg.keyboard.press("Control+Minus")
     pg.wait_for_timeout(900)
     assert pg.evaluate("() => window._altoSolarCam.get().scale") == pytest.approx(pg.evaluate("() => window._altoSolarZoom()"))
     assert not errs, errs

@@ -71,14 +71,9 @@ SOLAR_CSS = r"""
   .sol-unit b{font-weight:800;opacity:.6;margin-right:7.5px;}
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
-  #sol-fit{position:fixed;z-index:310;left:30px;top:calc(var(--nav-bottom, 100px) + 14px);width:35px;height:35px;box-sizing:border-box;padding:0;
-    border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);
-    background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
-    border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);}
-  #sol-fit:hover{color:var(--text);border-color:var(--muted);}
-  #sol-fit.active{color:var(--accent, #6d5bd0);border-color:var(--accent, #6d5bd0);}
-  html.mobile #sol-fit,html.alto-editing #sol-fit{display:none !important;}
-  @media print{ #sol-fit{display:none !important;} }
+  /* no rectangle at any zoom (Luke): the board's own glass is not drawn on a solar page; the page's
+     background (Plain) or the star chart's sky (a fixed, window-filling layer) shows everywhere */
+  html.alto-solar:not(.mobile) #world #glass-slab{visibility:hidden !important;}
   #canvas.sol-ov{cursor:zoom-in;}
   #canvas.sol-ov #world,#canvas.sol-ovanim #world{pointer-events:none;transform-origin:0 0;will-change:transform;}
   .sol-face{display:none;}
@@ -548,10 +543,13 @@ function woff(c){ var ox=0, oy=0, q=world; while(q && q!==c){ ox+=q.offsetLeft; 
 /* the board's height: the world, or the glass under it where that runs on (its padding) */
 function wh(){ var sl=document.getElementById('glass-slab'); return Math.max(world.offsetHeight, sl ? sl.offsetTop+sl.offsetHeight : 0); }
 function fitS(){ var c=cvs(); return Math.max(OVMIN, Math.min(1, (c.clientWidth-60)/world.offsetWidth, (c.clientHeight-60)/wh())); }
+/* the zoomed-out board: any scale from OVMIN to natural size; moved freely, only held so that at
+   least KEEP px of the chart stay in the window (it can be pushed aside, never lost) */
+var KEEP=160;
 function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
-  o.s=Math.max(Math.min(fitS(), 1), Math.min(1, o.s));
+  o.s=Math.max(OVMIN, Math.min(1, o.s));
   w=world.offsetWidth*o.s; h=wh()*o.s;
-  o.tx=w<=cw ? (cw-w)/2 : Math.max(cw-w-30, Math.min(30, o.tx)); o.ty=h<=ch ? (ch-h)/2 : Math.max(ch-h-30, Math.min(30, o.ty)); return o; }
+  o.tx=Math.max(Math.min(KEEP, w)-w, Math.min(cw-Math.min(KEEP, w), o.tx)); o.ty=Math.max(Math.min(KEEP, h)-h, Math.min(ch-Math.min(KEEP, h), o.ty)); return o; }
 function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; camTell(); }
 function ovHold(on){
   var c=cvs(), sp=document.getElementById('sol-ov-hold');
@@ -600,17 +598,7 @@ function local(e){ var c=cvs(), r=c.getBoundingClientRect(), k=zk(c); return {x:
 function nearest(wx, wy){ var best=null, bd=Infinity;
   ORD.forEach(function(id){ var b=B[id]; if(!b.n) return; var d=Math.hypot(b.rx-wx, b.ry-wy)-b.d/2; if(d<bd){ bd=d; best=id; } });
   return best; }
-/* the toggle under the bars (the round glass of the key toggle, key_toggle.py) */
-function fitBtn(){
-  var t=document.getElementById('sol-fit');
-  if(!desk() || !ready){ if(t) t.remove(); return; }
-  if(!t){ t=document.createElement('button'); t.id='sol-fit'; t.type='button';
-    t.innerHTML='<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="2.6"/><circle cx="10" cy="10" r="6.6" stroke-opacity=".55"/><path d="M2 6.5V2h4.5M18 6.5V2h-4.5M2 13.5V18h4.5M18 13.5V18h-4.5"/></svg>';
-    t.addEventListener('click', function(e){ e.stopPropagation(); if(OV) ovLeave(); else ovZoom(fitS(), null, null, true); });
-    document.body.appendChild(t); }
-  t.classList.toggle('active', !!OV);
-  t.title=OV ? 'Back to full size' : 'The whole chart (or pinch out, ⌘−)'; t.setAttribute('aria-label', t.title); t.setAttribute('aria-pressed', OV ? 'true' : 'false');
-}
+function fitBtn(){ var t=document.getElementById('sol-fit'); if(t) t.remove(); }   /* (the whole-chart button is gone: zoom is continuous) */
 function mine(e){ var c=cvs(); return c && e.target && c.contains(e.target); }
 /* ── pinch / ctrl+wheel: one gesture, one owner ──────────────────────────────
    Luke, 1.9.105: "If I zoom in and try to zoom back out, it basically doesn't
@@ -631,6 +619,12 @@ function mine(e){ var c=cvs(); return c && e.target && c.contains(e.target); }
    the whole chart in the same movement. */
 var ZS=null, UNF=380;
 function gpt(e){ var c=cvs(); return (e.clientX!=null && mine(e)) ? local(e) : {x:c.clientWidth/2, y:c.clientHeight/2}; }
+/* enlarge (the engine's focus) the body under the event's point, else the nearest to it */
+function enlargeAt(e){
+  var el=document.elementFromPoint(e.clientX||0, e.clientY||0), n=el && el.closest && el.closest('#world .node[data-solar]'), id=n ? n.id.slice(5) : null;
+  if(!id){ var c=cvs(), q=local(e), off=woff(c); id=nearest(c.scrollLeft+q.x-off.x, c.scrollTop+q.y-off.y); }
+  if(id && window.enterFocus) window.enterFocus(id);
+}
 function ovStep(s2, q){                                   /* this gesture's scale; false once it has come back to full size */
   if(s2>=.999){ if(!OV) return true; ovLeave({x:(q.x-OV.tx)/OV.s, y:(q.y-OV.ty)/OV.s}, true); return false; }
   ovZoom(s2, q.x, q.y, false); return true;
@@ -660,9 +654,14 @@ window.addEventListener('wheel', function(e){
     ZS.own='me';
   }
   e.stopImmediatePropagation();
-  if(ZS.done || (!OV && e.deltaY<0)) return;
+  if(ZS.done) return;
   var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1;
-  ZS.done=!ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), local(e));
+  if(!OV){                                                 /* at natural size: zooming on in enlarges the body under the pointer */
+    if(e.deltaY<0){ ZS.acc=(ZS.acc||0)-e.deltaY*m; if(ZS.acc>48){ ZS.done=true; enlargeAt(e); } }
+    else ZS.acc=0;
+    if(e.deltaY<=0) return;
+  }
+  ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), local(e));
 }, {passive:false, capture:true});
 /* Safari: a trackpad pinch is gesturestart / gesturechange / gestureend */
 document.addEventListener('gesturestart', function(e){
@@ -685,7 +684,9 @@ document.addEventListener('gesturechange', function(e){
   }
   e.stopImmediatePropagation();
   if(ZS.done) return;
-  ZS.done=!ovStep(Math.min(1, ZS.base*e.scale/ZS.sx), gpt(e));
+  var s2=ZS.base*e.scale/ZS.sx;
+  if(!OV && s2>=1){ if(s2>1.1){ ZS.done=true; enlargeAt(e); } return; }   /* past natural size: enlarge the body under the pinch */
+  if(!ovStep(Math.min(1, s2), gpt(e))){ ZS.base=1; ZS.sx=e.scale; }       /* came back to natural size: carry on from here */
 }, {passive:false});
 document.addEventListener('gestureend', function(e){
   e.preventDefault();
@@ -695,9 +696,9 @@ document.addEventListener('gestureend', function(e){
 window.addEventListener('keydown', function(e){
   if(!ready || !desk() || (document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)))) return;
   var k=e.key, mod=e.metaKey || e.ctrlKey, hit=false;
-  if(mod && k==='-' && !window._focusedNodeId && !document.querySelector('#summary-wrap.open,#detail-page.visible')){ ovZoom(OV ? OV.s/1.6 : Math.max(fitS(), .55), null, null, true); hit=true; }
+  if(mod && k==='-' && !window._focusedNodeId && !document.querySelector('#summary-wrap.open,#detail-page.visible')){ ovZoom((OV ? OV.s : 1)/1.6, null, null, true); hit=true; }
   else if(OV && mod && (k==='=' || k==='+')){ if(OV.s*1.6>=.97) ovLeave(); else ovZoom(OV.s*1.6, null, null, true); hit=true; }
-  else if(OV && ((mod && k==='0') || k==='Escape' || /^Arrow/.test(k))){ ovLeave(); hit=true; }
+  else if(OV && mod && k==='0'){ ovLeave(); hit=true; }
   if(hit){ e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
 (function(){
@@ -710,7 +711,8 @@ window.addEventListener('keydown', function(e){
   document.addEventListener('pointerup', function(e){ if(!dn || e.pointerId!==dn.id) return; var d=dn; dn=null;
     if(!OV || d.moved) return;
     var q=local(e), wx=(q.x-OV.tx)/OV.s, wy=(q.y-OV.ty)/OV.s, id=nearest(wx, wy), b=id && B[id];
-    ovLeave(b ? {x:b.rx, y:b.ry} : {x:wx, y:wy}, false, function(){ if(b && window.enterFocus) window.enterFocus(id); }); }, true);
+    if(!b || Math.hypot(b.rx-wx, b.ry-wy)>b.d/2+10/OV.s) return;
+    ovLeave({x:b.rx, y:b.ry}, false, function(){ if(window.enterFocus) window.enterFocus(id); }); }, true);
   /* nothing under the whole chart is clicked through to */
   ['mousedown', 'click', 'dblclick'].forEach(function(t){ document.addEventListener(t, function(e){ if(OV && mine(e)){ e.preventDefault(); e.stopPropagation(); } }, true); });
   document.addEventListener('scroll', function(e){ var c=cvs(); if(OV && e.target===c && (c.scrollLeft || c.scrollTop)){ c.scrollLeft=0; c.scrollTop=0; } }, true);
