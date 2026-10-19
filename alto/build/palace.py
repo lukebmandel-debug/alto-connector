@@ -193,7 +193,7 @@ def check_palace(b, warnings: list) -> None:
     unknown = set(pal) - PALACE_KEYS
     if unknown:
         raise BriefError(f"palace: unknown keys {sorted(unknown)}")
-    if not pal.get("data_z") and getattr(b, "palace_view", "city") == "city":
+    if not pal.get("data_z"):
         warnings.append("palace: no city yet — run set_up_palace(timeline_id, place, …) "
                         "before building; the page has nothing to draw until then")
     from .palace_towers import check_buildings            # (towers: a landmark entry with a unit)
@@ -235,19 +235,14 @@ def check_nodes(b, nodes, warnings: list) -> None:
             if cur.parent in seen:
                 raise BriefError(f"node {n.id}: its floors loop back on themselves")
             seen.add(cur.id); cur = by.get(cur.parent)
-    ok = {"lot", "fno", "out", "shape"} | ({"order"} if getattr(b, "palace_view", "city") == "stars" else set())
-    bad = [k for k, v in (b.placement or {}).items() if set(v) - ok]
+    bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot", "fno", "out", "shape"}]
     if bad:
-        raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})"
-                         + ("; a Star chart's floors may also take an `order`" if getattr(b, "palace_view", "city") != "stars" else ""))
+        raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})")
 
 
 # ── structure ──────────────────────────────────────────────────────────────
 def structure(b, nodes):
     """(buildings per unit in reading order, {building: [floors bottom→top]}, {floor: building})."""
-    if getattr(b, "palace_view", "city") == "stars":     # a Star chart: a moved floor keeps the turn it was given
-        from .layout import siblings_ordered
-        nodes = siblings_ordered(nodes, b.placement)
     kids: dict = {}
     for n in nodes:
         if n.parent:
@@ -305,17 +300,6 @@ def _near(graph, lots_at, kmin=None) -> dict:
             nm = [short(s) for s in best][:2]
             out[bid] = " & ".join(nm)
     return out
-
-
-def palace_stub(b, nodes) -> str:
-    """window._ALTO_PALACE with no city: the buildings' floors and their
-    numbers (3.4, 3.4-2) only — what a palace without a city yet, and a Star
-    chart (palace_view "stars", which never draws the city), number cards by."""
-    units, floors, of = structure(b, nodes)
-    par = {n.id: n.parent for n in nodes if n.parent}
-    return ("\nwindow._ALTO_PALACE=" + js_json({"none": 1, "fl": floors, "of": of,
-                                                "num": numbers(units, floors), "par": par},
-                                               separators=(",", ":")) + ";")
 
 
 def palace_data(b, nodes) -> str:

@@ -26,10 +26,10 @@ MARGIN = 115
 
 
 def solar_doc(units, style="orbit", links=(), suns=None):
-    """A bundle: units = [[moons per planet as [sats per moon]]]; "orbit" is a
-    Star chart (a Mind Palace in its stars view, no city), "spoke" Hub & spoke
-    (an outline laid out 'solar'). suns: extra root buildings per unit (a
-    district of several systems), each with one bare planet.
+    """A Hub & spoke bundle: units = [[moons per planet as [sats per moon]]];
+    "orbit" opens in the Star chart look, "spoke" in the plain one (the page
+    carries both). suns: extra roots per unit (several systems in a unit),
+    each with one bare planet.
     Ids spell the place: u1, u1-p2, u1-p2-m1, u1-p2-m1-s1; u1b2, u1b2-p1."""
     acts, nodes = [], []
 
@@ -55,7 +55,7 @@ def solar_doc(units, style="orbit", links=(), suns=None):
         for k in range((suns or {}).get(a, 0)):
             add(f"{sun}b{k + 2}", a, title=f"Building {a + 1}.{k + 2}")
             add(f"{sun}b{k + 2}-p1", a, f"{sun}b{k + 2}", title="A floor")
-    kind = {"mode": "outline", "layout": "solar"} if style == "spoke" else {"mode": "palace", "palace_view": "stars"}
+    kind = {"mode": "outline", "layout": "solar", "hub_look": "plain" if style == "spoke" else "stars"}
     brief = {"title": "Solar draw", "subject": "s", "timeline_id": "solar-draw", **kind, "columns": 5, "node_noun": "Concept",
              "period_noun": "Unit", "accent": "#a78bfa", "acts": acts, "entities": [], "axes": [],
              "relations": [{"key": "spine", "label": "Contains"},
@@ -73,8 +73,14 @@ def _page(units=SMALL, style="orbit", links=SMALL_LINKS, suns=None):
 
 
 def _plan(html):
+    """window._ALTO_SOLAR as the page sees it: the first look's plan, with
+    `look` and `looks` (both plans) beside it."""
     at = html.index("window._ALTO_SOLAR=") + len("window._ALTO_SOLAR=")
-    return json.JSONDecoder().raw_decode(html[at:])[0]
+    at = html.index(")(", at) + 2
+    S = json.JSONDecoder().raw_decode(html[at:])[0]
+    out = dict(S["looks"][S["look"]])
+    out.update(look=S["look"], looks=S["looks"])
+    return out
 
 
 # ── what the page carries ────────────────────────────────────────────────────
@@ -89,13 +95,15 @@ def test_a_solar_page_carries_the_drawing_and_a_tree_page_does_not():
     assert "window._altoSolarLayout=" not in tree and "#solar-svg{" not in tree
 
 
-def test_a_star_chart_is_a_palace_page_without_its_city():
-    """palace + palace_view 'stars': the stub's numbers, the solar renderer in
-    motion, none of the city (no _altoPalace layout, no sound)."""
+def test_a_hub_and_spoke_page_carries_both_looks_and_no_palace():
+    """The Star chart is a look of a Hub & spoke page, not a Mind Palace: path
+    numbers, both plans, the renderer mounted after them, none of the city."""
     html = _page(suns={0: 1})
-    assert '"none":1' in html and "window._altoSolarMount=" in html
+    assert "window._ALTO_PALACE=" not in html and "window._ALTO_OUTLINE=" in html and "window._altoSolarMount=" in html
     assert "window._altoPalace=" not in html and "AudioContext" not in html
-    assert _plan(html)["style"] == "orbit" and len(_plan(html)["units"][0]["suns"]) == 2
+    p = _plan(html)
+    assert p["style"] == "orbit" and p["look"] == "stars" and len(p["units"][0]["suns"]) == 2
+    assert p["looks"]["plain"]["style"] == "spoke" and p["looks"]["stars"]["nodes"] == p["nodes"]
     assert html.index("window._ALTO_SOLAR=") < html.index("window._altoSolarMount=function")
 
 
@@ -135,7 +143,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 20000, size
+    assert size < 22000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks
 
 
 def test_spoke_style_has_no_motion_and_draws_tubes():
@@ -431,14 +439,17 @@ def _close(a, b, path=""):
 def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style, bumped, suns):
     """Edit mode re-plans in the page from the live tables; that plan is solar.py's
     (sizes by child count, a pivotal flag one tier up, several suns in a district)."""
-    if suns and style == "spoke":
-        pytest.skip("an outline unit has one hub; several suns are a Mind Palace district's")
     doc = solar_doc(units, style, suns=suns)
     if bumped:
-        doc["brief"]["flags"] = [{"id": "pivotal", "name": "Pivotal"}]
-        for n in doc["nodes"]:
+        # pivotal bumps; the rest are the user's flags that make a body a black hole, comet or asteroid
+        doc["brief"]["flags"] = [{"id": "pivotal", "name": "Pivotal"}, {"id": "overruled", "name": "Overruled"},
+                                 {"id": "revisit", "name": "Revisit"}, {"id": "not-tested", "name": "Not tested"}]
+        deal = ["pivotal", "revisit", "not-tested", "overruled", "revisit", ""]
+        for k, n in enumerate(doc["nodes"]):
             if n["id"] in ("u1-p1", "u1-p1-m1", "u2-p2"):
                 n["flags"] = ["pivotal"]
+            elif deal[k % len(deal)]:
+                n["flags"] = [deal[k % len(deal)]]
     b, nodes, _ = load_brief(copy.deepcopy(doc))
     from alto.build.builder import place
     from alto.build.brief import validate_brief, validate_nodes
@@ -460,6 +471,16 @@ def test_the_page_plans_the_systems_exactly_as_solar_py(tmp_path, units, style, 
     got = json.loads(subprocess.check_output([NODE, str(f)], timeout=120))
     want.pop("warnings"), got.pop("warnings")
     _close(want, got)
+    # both looks at once, as the page carries them
+    js = ("var window=globalThis;\n" + SOLAR_PLAN_JS + "\n"
+          f"console.log(JSON.stringify(window._altoSolarPlans({json.dumps(tables)}, {json.dumps({**want, 'look': 'plain'})})));")
+    f.write_text(js, encoding="utf-8")
+    both = json.loads(subprocess.check_output([NODE, str(f)], timeout=120))
+    assert both["look"] == "plain" and set(both["looks"]) == {"stars", "plain"}
+    for lk, st in (("stars", "orbit"), ("plain", "spoke")):
+        w = solar_plan(b, nodes, st)
+        w.pop("warnings"), both["looks"][lk].pop("warnings")
+        _close(w, both["looks"][lk])
 
 
 def test_edit_mode_has_its_sync():
@@ -945,5 +966,38 @@ def test_reduced_motion_starts_with_the_orbit_off_but_it_can_be_switched_on(brow
     pg.evaluate("() => window._altoSolarMotion.set(true)")
     pg.wait_for_timeout(1000)
     assert pg.evaluate("() => window._altoSolarT") > 0
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_a_comet_follows_its_ellipse_and_its_path_is_drawn(browser, tmp_path):
+    """A node flagged 'revisit' (solar.LOOK_FLAGS: comet) orbits on its plan's ellipse
+    (nodes[id].orbit, placed with the in-page solar.orbit_offset) and its path is an ellipse."""
+    d = solar_doc(SMALL, "orbit", SMALL_LINKS)
+    d["brief"]["flags"] = [{"id": "revisit", "name": "Revisit"}]
+    for n in d["nodes"]:
+        if n["id"] in ("u1-p2", "u1-p1-m1"):
+            n["flags"] = ["revisit"]
+    html, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    plan = _plan(html)
+    comets = [i for i, n in plan["nodes"].items() if (n.get("orbit") or {}).get("e", 0) > 0]
+    if not comets:
+        pytest.skip("this plan gives no comet an elliptical orbit")
+    f = tmp_path / "comet.html"
+    f.write_text(html, encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1200)
+    pg.mouse.move(2, 940)
+    assert pg.evaluate("() => document.querySelectorAll('#solar-svg ellipse.sol-comet').length") == len(comets)
+    cid = comets[0]
+    par = plan["nodes"][cid]["parent"]
+    ds = []
+    for t in (0, 30, 60, 90):
+        pg.evaluate(f"() => window._altoSolarCam && 1")
+        g = pg.evaluate("() => { var T0=window._altoSolarT; return T0; }")
+        dist = pg.evaluate(f"""() => {{ var a=document.getElementById('node-{cid}'), b=document.getElementById('node-{par}');
+          return Math.hypot(parseFloat(a.style.left)-parseFloat(b.style.left), parseFloat(a.style.top)-parseFloat(b.style.top)); }}""")
+        ds.append(dist)
+        pg.wait_for_timeout(1500)
+    assert max(ds) - min(ds) > 0.5, ds                                       # not a circle about its parent
     assert not errs, errs
     pg.context.close()
