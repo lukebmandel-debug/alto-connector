@@ -1,4 +1,75 @@
-"""Flying between bodies on a Star chart (placeholder; filled in below)."""
+"""Flying between bodies on a Star chart (the moving look of a Hub & spoke page).
+
+Luke (spec round 4, item 4): going to another body goes the way a spacecraft
+would — a lunar injection to a moon, a Hohmann-style transfer to the next
+planet, gravity assists round planets on the way out of a system. Changing the
+enlarged body (arrows, clicks, search hits — anything through enterFocus) flies
+a small craft there along such a route, the camera following, the orbits
+moving on the flight's own clock so it meets the body where it really is; on
+arrival the body is enlarged exactly as before and the orbits stand still.
+
+THE PLANNER (FLY_PLAN_JS: window._altoFly; tests/solar_fly_twin.py is its
+Python twin, held equal under node by tests/test_solar_fly.py) is pure: the
+solar plan (window._ALTO_SOLAR), from, to, the bodies' clock now and its rate
+→ a route. Bodies move as solar_draw.py moves them: a body at angle
+spin·2πT/period (plus each system's slow turn when there are several) round
+its parent's current place. The route's legs each are a curve in the frame of
+one body (or the fixed frame), flown one after another along one progress
+s = E(τ/D) — E the incomplete-beta curve family of the engine's _altoEase,
+D clamped to 2.5–7 s by the route's length — each leg at an even pace along
+its curve (shares of s by length). The bodies' clock is the flight's own:
+from its rate at take-off up to full speed, and down to rest over the last
+second, so the craft and the body it lands on arrive together and at rest.
+Each leg that ends on a body ends where that body will be at that moment, so
+the arrival is exact; the joins are made C1 by a cubic Hermite term that takes
+in the incoming velocity over the first BLEND of the next leg.
+
+Routing rules (chains: sat → moon → planet → sun):
+* the same body: no flight.
+* down from a body to one of its own (planet → its moon, sun → planet, moon
+  → its satellite): a PARKING spiral just outside the body, then an
+  INJECTION conic out to the child's orbit, arriving where the child will be
+  (a lunar injection); a child nearer than HOP_R: one short HOP leg.
+* up to an ancestor (moon → its planet, planet → its sun): an ARRIVAL spiral
+  in to it (ret).
+* across a common parent L (siblings, cousins): if A is below L's child A',
+  an ESCAPE spiral out of A'’s family, leaving towards where it is going;
+  then a TRANSFER conic round L from A'’s orbit to B'’s (Hohmann-like — a
+  half ellipse when the window is right; a PHASING arc, out and back, when the
+  two share a ring), turning the orbits' way; between planets FAR_RINGS or
+  more rings apart a GRAVITY ASSIST on the way at the planet between that
+  turns the craft least.
+* down B's chain from B' to B: each level a CAPTURE conic from the point of
+  the body's reach where going round it is going the way the craft arrives
+  (so it turns straight on), to the next body down.
+* to another system: an escape spiral out of A's planet's family (none from
+  a sun), 1–3 GRAVITY ASSISTS round planets of the home system — each farther
+  out than the last, lying toward the other system, and no lap of the system
+  between them (hyperbolic flybys, turning TURN), an ESCAPE / cruise curve to
+  the other system's edge, met on its near side where the capture turns about
+  half an orbit to B's planet, then the captures down to B.
+* the launch window: the transfers turn the orbits' way only (a target just
+  behind is reached by a lap, as a phasing orbit would); a short COAST is
+  added when it brings the transfers nearer a half orbit.
+
+THE CAMERA keys frame the stretch of flight ahead (and the target as the
+craft nears it), smoothed, zooming out as the transfer widens and back to
+full size on the target; through window._altoSolarCam (solar_draw.py), the
+board's offset on whole device px when zoomed out.
+
+THE PAGE (FLY_RUN_JS): #solar-fly-svg in #world (pointer-events none, no
+masks or filters): the route ahead dashed, a fading trail, the craft. Hooks:
+window.enterFocus (wrapped: search hits, clicks, the whole chart's clicks)
+and window._altoSolarNav (wrapped: the engine's focusNeighbor arrows; a hop
+that flies returns an id no node has, so the engine's own enterFocus passes
+it by, and window._altoFlyMs holds the engine's hop queue until the landing).
+Arrows pressed while flying queue (≤ 3, auto-repeat at most one) and fly on
+from each landing; a new target on the way re-plans from the craft's place
+and velocity; Esc stops and brings the view back to full size where the craft
+is; a wheel, another owner of the view, or of the focus, stops it where it is.
+No flight (the existing instant focus): phones, prefers-reduced-motion, edit
+mode, print, a zoomed-out view, and the Plain look (nothing of this runs).
+"""
 from __future__ import annotations
 
 import json
@@ -30,6 +101,11 @@ FLY = {
     "CAM_K": 40, "CAM_WIN": (-0.5, 1.0), "CAM_SEE": 2.0, "CAM_PAD": 160, "CAM_FILL": 0.72,
     "CAM_MIN": 0.06, "CAM_PIN": 1.2,
 }
+# the page's own: the trail's length, the landing glide an arrow waits for, the
+# whole chart's click grace, when the view counts as taken over, near-full-size
+# clamping of the camera to what the canvas can scroll to, the Esc glide
+FLY_RT = {"TRAIL_MS": 1100, "LAND_MS": 500, "OV_MS": 900, "TAKE_S": 0.45, "TAKE_PX": 3,
+          "CLAMP_FROM": 0.7, "CALM_MS": 520, "PATH_N": 180, "NEAR": 60, "TURN_V": 4, "HIT": 18}
 
 
 FLY_PLAN_JS = r"""
@@ -305,3 +381,262 @@ return {plan:plan, at:at, cam:cam, vel:vel, clock:function(R, t){ return clock(R
         pos:pos, bodies:bodies, ease:ease, easeInv:easeInv};
 })();
 """.replace("__FLY__", json.dumps(FLY, separators=(",", ":")))
+
+
+FLY_RUN_JS = r"""
+/* ── the flight in the page: a Star chart only (solar_fly.py) ─────────────────
+   Changing the enlarged body (an arrow, a click, a search hit — anything through
+   enterFocus) flies there: the craft and its trail in #solar-fly-svg, the route
+   ahead dashed, the camera through window._altoSolarCam, the orbits driven on
+   the flight's own clock (window._altoSolarDrive) so the craft meets the body
+   where it is. On arrival the body is enlarged as ever and the orbits stand
+   still. Only in the Star chart look of a Hub & spoke page (window._altoSolarLook;
+   the Plain look has none of it: no layer, no frame loop). No flight: phones,
+   reduced motion, edit mode, print, a zoomed-out view. */
+(function(){
+var F=window._altoFly, de=document.documentElement, NS='http://www.w3.org/2000/svg', K=__RT__;
+function S(){ return window._ALTO_SOLAR; }
+if(!F) return;
+/* the Star chart look (moving orbits) is on */
+function stars(){ var L=window._altoSolarLook; return !!S() && (L && L.get ? L.get()==='stars' : S().style==='orbit'); }
+var FL=null, raf=0, Q=[], parked=null, ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=null, gp=null, pth=null, trl=null, grd=null, ship=null, lastS=0, reduced=false, printing=0, held={}, calm=0;
+try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
+  var mqf=function(){ reduced=mq.matches; }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
+function cvs(){ return document.getElementById('canvas'); }
+function cam(){ return window._altoSolarCam; }
+function pad(){ return (typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0; }
+function ss(x){ x=Math.min(Math.max(x, 0), 1); return x*x*(3-2*x); }
+function el(t, a, p){ var e=document.createElementNS(NS, t); for(var k in a) e.setAttribute(k, a[k]); if(p) p.appendChild(e); return e; }
+function f1(v){ return Math.round(v*10)/10; }
+function dz(){ return (parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1); }
+/* may this change of body be flown? */
+function can(){
+  if(!stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
+  if(!cam() || !window._altoSolarDrive || !window._altoSolarRate || !cvs() || document.querySelector('#detail-page.visible')) return false;
+  if(FL) return true;
+  var g=cam().get(); return !!g && g.scale>=.999 && performance.now()-ovAt>K.OV_MS;
+}
+/* where a flight starts with nothing enlarged: the body it last landed on, while in
+   view, else the body nearest the middle of the view */
+function fromBody(to){
+  var f=window._focusedNodeId, W=F.bodies(S()); if(f && W.B[f]) return f;
+  var g=cam().get(), c=cvs(), T=window._altoSolarRate().T, hw=c.clientWidth/2, hh=c.clientHeight/2, best=null, bd=1e18;
+  if(parked && W.B[parked]){ var q=F.pos(W, parked, T); if(Math.abs(q[0]-g.cx)<hw && Math.abs(q[1]-g.cy)<hh) return parked; }
+  Object.keys(W.B).forEach(function(i){ if(i===to) return; var p=F.pos(W, i, T), d=Math.hypot(p[0]-g.cx, p[1]-g.cy); if(d<bd){ bd=d; best=i; } });
+  return best;
+}
+/* the body the craft is in among, flying (a re-plan starts from it): the smallest
+   whose reach it is within, else the nearest system's sun */
+function nearBody(p, T){
+  var W=F.bodies(S()), best=null, br=1e18, sun=null, sd=1e18;
+  Object.keys(W.B).forEach(function(i){ var b=W.B[i], q=F.pos(W, i, T), d=Math.hypot(p[0]-q[0], p[1]-q[1]);
+    if(d<b.reach+K.NEAR && b.reach<br){ br=b.reach; best=i; }
+    if(!b.p && d-b.reach<sd){ sd=d-b.reach; sun=i; } });
+  return best || sun;
+}
+/* the view's reach at full size (canvas scroll), in plan px: near full size the
+   camera comes within it, and the landing's own glide pans the rest */
+function extent(){
+  var c=cvs(), w=document.getElementById('world'); if(!c || !w) return null;
+  var ox=0, oy=0, q=w; while(q && q!==c){ ox+=q.offsetLeft; oy+=q.offsetTop; q=q.offsetParent; }
+  var cw=c.clientWidth, ch=c.clientHeight, P=pad();
+  return {x0:cw/2-ox, x1:c.scrollWidth-cw/2-ox, y0:ch/2-oy-P, y1:c.scrollHeight-ch/2-oy-P};
+}
+function clampTo(v, a, b){ return a>b ? (a+b)/2 : Math.min(b, Math.max(a, v)); }
+function setCam(m){
+  var c=cvs(), s=m[2]>=.999 ? 1 : m[2], cx=m[0], cy=m[1], E=FL.ext, w=ss((s-K.CLAMP_FROM)/(1-K.CLAMP_FROM));
+  if(E && w>0){ cx+=(clampTo(cx, E.x0, E.x1)-cx)*w; cy+=(clampTo(cy, E.y0, E.y1)-cy)*w; }
+  if(s<1){                               /* the board's offset on whole device px (crisp, Safari) */
+    var z=dz(), cw=c.clientWidth/2, ch=c.clientHeight/2, P=pad(), tx=Math.round((cw-cx*s)*z)/z, ty=Math.round((ch-(cy+P)*s)*z)/z;
+    cx=(cw-tx)/s; cy=(ch-ty)/s-P; }
+  FL.set=cam().set(cx, cy, s);
+}
+/* ── the layer: the route ahead (dashed), the trail (fading), the craft ───── */
+function layer(){
+  var w=document.getElementById('world'); if(!w) return;
+  if(!svg || !svg.isConnected){
+    svg=el('svg', {id:'solar-fly-svg', width:1, height:1, 'aria-hidden':'true'});
+    var df=el('defs', {}, svg);
+    grd=el('linearGradient', {id:'sol-fly-trail', gradientUnits:'userSpaceOnUse'}, df);
+    el('stop', {offset:'0', 'class':'fly-t0'}, grd); el('stop', {offset:'1', 'class':'fly-t1'}, grd);
+    gp=el('g', {}, svg);
+    pth=el('path', {'class':'fly-path'}, gp); trl=el('path', {'class':'fly-trail', stroke:'url(#sol-fly-trail)'}, gp);
+    ship=el('g', {'class':'fly-craft'}, gp);
+    el('circle', {r:9, 'class':'fly-halo'}, ship);
+    el('path', {d:'M7 0 L-5 -4.6 L-2.6 0 L-5 4.6 Z', 'class':'fly-hull'}, ship);
+    w.appendChild(svg);
+  }
+  svg.setAttribute('width', w.offsetWidth); svg.setAttribute('height', w.offsetHeight);
+  gp.setAttribute('transform', 'translate(0,'+pad()+')');
+  svg.classList.remove('fly-out'); lastS=0;
+}
+function route(R){
+  var d='', n=K.PATH_N;
+  for(var i=0;i<=n;i++){ var p=F.at(R, R.D*i/n); d+=(i ? 'L' : 'M')+f1(p[0])+' '+f1(p[1]); }
+  pth.setAttribute('d', d);
+}
+function draw(p, h, s, now){
+  var tr=FL.trail; tr.push([p[0], p[1], now]);
+  while(tr.length>2 && now-tr[0][2]>K.TRAIL_MS) tr.shift();
+  var d='M'+tr.map(function(q){ return f1(q[0])+' '+f1(q[1]); }).join('L');
+  trl.setAttribute('d', d);
+  var t0=tr[0]; grd.setAttribute('x1', f1(t0[0])); grd.setAttribute('y1', f1(t0[1])); grd.setAttribute('x2', f1(p[0])); grd.setAttribute('y2', f1(p[1]));
+  ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+Math.round(h*180/Math.PI)+') scale('+(Math.round(1000/s)/1000)+')');
+  if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
+    pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', f1(4/s)+' '+f1(8/s));
+    trl.setAttribute('stroke-width', f1(2.6/s*10)/10); }
+}
+function fade(){ if(svg) svg.classList.add('fly-out'); }
+/* ── a flight ─────────────────────────────────────────────────────────────── */
+function fly(from, to, o){
+  var rt=window._altoSolarRate(), c=cvs(), g=cam().get();
+  var opt={T0:o ? o.T0 : rt.T, r0:o ? o.r0 : rt.r, view:[c.clientWidth, c.clientHeight], cam:[g.cx, g.cy, g.scale]};
+  if(o && o.start) opt.start=o.start;
+  var R=F.plan(S(), from, to, opt); if(!R) return false;
+  if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
+  var tr=FL ? FL.trail : [];
+  FL={R:R, o:opt, to:to, from:from, t0:performance.now(), trail:tr, set:null, head:FL ? FL.head : 0, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
+  window._altoFlyMs=Math.round(R.D*1000)+K.LAND_MS;     /* an arrow's hop waits for the landing */
+  layer(); route(R);
+  window._altoSolarDrive(F.clock(R, 0));
+  de.classList.add('sol-flying');
+  cancelAnimationFrame(raf); raf=requestAnimationFrame(frame);
+  return true;
+}
+function frame(now){
+  raf=0; if(!FL) return;
+  var R=FL.R, tau=Math.max(0, (now-FL.t0)/1000);
+  /* someone else took the view (a wheel, the whole-chart toggle) or the focus: it is theirs */
+  if(!stars() || de.classList.contains('alto-editing') || printing || window._focusedNodeId) return stop(false);
+  if(FL.set && tau>K.TAKE_S){ var g=cam().get();
+    if(!g || Math.abs(g.scale-FL.set.scale)>.01*FL.set.scale || Math.hypot(g.cx-FL.set.cx, g.cy-FL.set.cy)>K.TAKE_PX/g.scale) return stop(false); }
+  window._altoSolarDrive(F.clock(R, tau));
+  var p=F.at(R, tau), m=F.cam(R, tau, FL.o), v=F.vel(R, Math.min(tau, R.D-.02), 1);
+  if(Math.hypot(v[0], v[1])>K.TURN_V) FL.head=Math.atan2(v[1], v[0]);
+  setCam(m);
+  draw(p, FL.head, m[2], now);
+  if(tau>=R.D) return land();
+  raf=requestAnimationFrame(frame);
+}
+function land(){
+  var to=FL.to; FL=null; cancelAnimationFrame(raf); raf=0;
+  parked=to; landAt=performance.now(); fade(); de.classList.remove('sol-flying');
+  (enter0 || window.enterFocus).call(window, to);         /* enlarged as ever: where it is, the orbits still */
+  window._altoSolarDrive(null, 0);
+  setTimeout(next, (window._altoFlyMs||460)+40);
+}
+/* stopped on the way: the orbits run on from where the clock was; calm (Esc): the
+   view comes back to full size where the craft is */
+function stop(calmly){
+  if(!FL) return; var R=FL.R, tau=Math.min(R.D, Math.max(0, (performance.now()-FL.t0)/1000)), p=F.at(R, tau);
+  window._altoSolarDrive(null, F.rate(R, tau)); FL=null; cancelAnimationFrame(raf); raf=0; Q=[];
+  fade(); de.classList.remove('sol-flying');
+  var g=cam().get(); if(!calmly || !g || g.scale>=.999) return;
+  var a={cx:g.cx, cy:g.cy, l:Math.log(g.scale)}, t0=performance.now(), me=++calm, ez=window._altoEase || ss;
+  (function step(now){ if(me!==calm) return; var k=Math.min(1, (now-t0)/K.CALM_MS), e=ez(k);
+    cam().set(a.cx+(p[0]-a.cx)*e, a.cy+(p[1]-a.cy)*e, Math.exp(a.l*(1-e))); if(k<1) requestAnimationFrame(step); })(t0);
+}
+/* a new target on the way: from where the craft is, as it is moving */
+function replan(to){
+  var R=FL.R, tau=Math.min(R.D, Math.max(0, (performance.now()-FL.t0)/1000)), p=F.at(R, tau), v=F.vel(R, tau, 1), T=F.clock(R, tau), from=nearBody(p, T);
+  if(from===to){ var W=F.bodies(S()); from=W.B[to].p || W.B[to].kids[0] || from; }
+  return from!==to && fly(from, to, {start:[p[0], p[1], v[0], v[1]], T0:T, r0:F.rate(R, tau)});
+}
+/* the arrows pressed on the way: one at a time, after each landing (as the engine's hops) */
+function next(){
+  if(FL || !Q.length) return; var id=window._focusedNodeId, d=Q.shift();
+  if(!id || !nav0) return; var nx=nav0(id, d); if(!nx) return next();
+  if(!can() || !fly(id, nx)) (enter0 || window.enterFocus).call(window, nx);
+}
+/* ── the hooks: window.enterFocus (search, clicks, the whole chart, …) and the
+   arrows' window._altoSolarNav (engine focusNeighbor) ─────────────────────── */
+var HOP='\u0001fly';                                  /* no node has this id: the engine's own enterFocus passes it by */
+function hook(){
+  if(typeof window.enterFocus==='function' && !window.enterFocus._fly){
+    enter0=window.enterFocus;
+    var w=function(id){
+      if(FL){ if(id===FL.to) return; if(can() && replan(id)) return; stop(false); return enter0.apply(this, arguments); }
+      if(!id || id===window._focusedNodeId || !can()) return enter0.apply(this, arguments);
+      var from=fromBody(id); if(from && from!==id && fly(from, id)) return;
+      return enter0.apply(this, arguments);
+    };
+    w._fly=1; window.enterFocus=w;
+  }
+  if(typeof window._altoSolarNav==='function' && !window._altoSolarNav._fly){
+    nav0=window._altoSolarNav;
+    var n=function(id, dir){ var nx=nav0(id, dir); if(!nx || !can()) return nx; return fly(id, nx) ? HOP : nx; };
+    n._fly=1; window._altoSolarNav=n;
+  }
+  return !!enter0 && !!nav0;
+}
+(function tryHook(k){ if(!hook() && k<200) setTimeout(function(){ tryHook(k+1); }, 50); })(0);
+var ARR={ArrowLeft:'w', ArrowRight:'e', ArrowUp:'n', ArrowDown:'s'};
+window.addEventListener('keyup', function(e){ delete held[ARR[e.key]]; }, true);
+window.addEventListener('blur', function(){ held={}; });
+window.addEventListener('keydown', function(e){
+  var d=ARR[e.key]; if(d) held[d]=1;
+  if(!FL) return;
+  if(!stars()) return stop(false);
+  if(e.key==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); stop(true); return; }
+  if(!d) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  var v=d==='n' || d==='s', pr=v ? (held.e ? 'e' : held.w ? 'w' : '') : (held.n ? 'n' : held.s ? 's' : '');
+  if(pr) d=v ? d+pr : pr+d;
+  if(e.repeat ? !Q.length : Q.length<3) Q.push(d);
+}, true);
+/* zoomed out on the way, a click on a body goes there (not the whole chart's own click) */
+var dn=null;
+window.addEventListener('pointerdown', function(e){ dn=FL && cvs() && cvs().contains(e.target) ? {x:e.clientX, y:e.clientY} : null;
+  if(dn){ e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+window.addEventListener('pointerup', function(e){
+  if(!dn) return; var d0=dn; dn=null; if(!FL) return; e.preventDefault(); e.stopImmediatePropagation();
+  if(Math.abs(e.clientX-d0.x)+Math.abs(e.clientY-d0.y)>6) return;
+  var c=cvs(), r=c.getBoundingClientRect(), g=cam().get(), k=r.width/c.offsetWidth||1;
+  var wx=g.cx+((e.clientX-r.left)/k-c.clientWidth/2)/g.scale, wy=g.cy+((e.clientY-r.top)/k-c.clientHeight/2)/g.scale;
+  var W=F.bodies(S()), T=window._altoSolarRate().T, best=null, bd=1e18;
+  Object.keys(W.B).forEach(function(i){ var p=F.pos(W, i, T), dd=Math.hypot(p[0]-wx, p[1]-wy)-W.B[i].d/2; if(dd<bd){ bd=dd; best=i; } });
+  if(best && bd<K.HIT/g.scale) window.enterFocus(best);
+}, true);
+['click', 'mousedown', 'dblclick'].forEach(function(t){ window.addEventListener(t, function(e){ if(FL && cvs() && cvs().contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); } }, true); });
+window.addEventListener('wheel', function(){ if(FL) stop(false); }, {capture:true, passive:true});
+window.addEventListener('beforeprint', function(){ printing=1; stop(false); });
+window.addEventListener('afterprint', function(){ printing=0; });
+/* the whole chart left by the user (a click there enlarges a body: no flight) */
+function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') return; var was=c.classList.contains('sol-ov');
+  new MutationObserver(function(){ var now=c.classList.contains('sol-ov'); if(was && !now && !FL && performance.now()-landAt>K.OV_MS) ovAt=performance.now(); was=now; })
+    .observe(c, {attributes:true, attributeFilter:['class']}); }
+/* Plain look: nothing of the flight left (stopped where it was, the layer gone) */
+function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
+function init(){ watchOv(); var L=window._altoSolarLook; if(L && L.onChange) L.onChange(look); }
+if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
+window._altoSolarFlight=function(){ if(!FL) return null; var R=FL.R, tau=(performance.now()-FL.t0)/1000;
+  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:F.at(R, Math.min(tau, R.D)), queued:Q.slice()}; };
+})();
+""".replace("__RT__", json.dumps(FLY_RT, separators=(",", ":")))
+
+FLY_CSS = r"""
+  #solar-fly-svg{position:absolute;left:0;top:0;z-index:150;overflow:visible;pointer-events:none;opacity:1;transition:opacity .45s cubic-bezier(.25,.2,.4,1);}
+  #solar-fly-svg.fly-out{opacity:0;}
+  html.mobile #solar-fly-svg{display:none !important;}
+  @media print{ #solar-fly-svg{display:none !important;} }
+  #solar-fly-svg .fly-path{fill:none;stroke:var(--text);stroke-opacity:.42;stroke-linecap:round;}
+  #solar-fly-svg .fly-trail{fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  #solar-fly-svg .fly-t0{stop-color:var(--accent,#6d5bd0);stop-opacity:0;}
+  #solar-fly-svg .fly-t1{stop-color:var(--accent,#6d5bd0);stop-opacity:.9;}
+  #solar-fly-svg .fly-halo{fill:var(--accent,#6d5bd0);fill-opacity:.22;}
+  #solar-fly-svg .fly-hull{fill:var(--accent,#6d5bd0);stroke:#fff;stroke-width:1.2;stroke-linejoin:round;}
+  html.dark #solar-fly-svg .fly-path{stroke:#fff;stroke-opacity:.38;}
+  html.dark #solar-fly-svg .fly-t0,html.dark #solar-fly-svg .fly-t1,html.dark #solar-fly-svg .fly-halo{stop-color:#cfc6ff;fill:#cfc6ff;}
+  html.dark #solar-fly-svg .fly-hull{fill:#cfc6ff;stroke:#1a1830;}
+"""
+
+
+def _slim(src: str) -> str:
+    """The page copy without comments and indentation (the source keeps them)."""
+    import re
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    return "\n".join(l.strip() for l in src.splitlines() if l.strip()) + "\n"
+
+
+FLY_JS = _slim(FLY_PLAN_JS + FLY_RUN_JS)
+FLY_CSS = _slim(FLY_CSS)

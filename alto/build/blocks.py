@@ -22,6 +22,7 @@ from .brief import Brief, Node, Section, COL_SETS, roman
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
+from .solar_fly import FLY_CSS, FLY_JS
 from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css, palace_stub
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
@@ -1538,8 +1539,9 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
     if solar_plan_:
         # The solar drawing (solar_draw.py): circles, the orbits on a Star
-        # chart, the whole chart zoomed out — after window._ALTO_SOLAR.
-        orders += SOLAR_JS
+        # chart, the whole chart zoomed out — after window._ALTO_SOLAR; then
+        # the flights between bodies (solar_fly.py: the Star chart look only).
+        orders += SOLAR_JS + FLY_JS
     if index_axes:
         orders += ((palace_index_glue() if b.mode == "palace" and not solar_plan_ else dx.AXIS_INDEX_GLUE)
                    + dx.axes_config(b, index_axes))
@@ -1590,7 +1592,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if b.mode == "lanes":
         nav_char_css += LANES_CSS
     if solar_plan_:
-        nav_char_css += SOLAR_CSS
+        nav_char_css += SOLAR_CSS + FLY_CSS
     if b.mode == "palace" and not solar_plan_:
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
