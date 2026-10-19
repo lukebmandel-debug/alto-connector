@@ -865,3 +865,85 @@ def test_the_skin_tick_and_the_orbit_clock(browser, pages):
     assert abs(sk[-1]["x"] - node[0]) < 3 and abs(sk[-1]["y"] - node[1]) < 3
     assert not errs, errs
     pg.context.close()
+
+
+# ── one format, two looks: Star chart | Plain, and the Orbit switch (Luke, round 5) ──
+
+LOOKST = """() => ({look:window._altoSolarLook.get(), mot:window._altoSolarMotion.get(), T:window._altoSolarT,
+  stars:document.documentElement.classList.contains('alto-solar-stars'), plain:document.documentElement.classList.contains('alto-solar-plain'),
+  rings:document.querySelectorAll('#solar-svg .sol-ring').length, tubes:document.querySelectorAll('#solar-svg path.sol-tube').length,
+  seg:[].map.call(document.querySelectorAll('#sol-ctl [data-look]'), function(b){ return b.getAttribute('data-look')+':'+b.getAttribute('aria-checked'); }),
+  orbitBtn:(function(m){ return m ? {dis:m.disabled, pressed:m.getAttribute('aria-pressed')} : null; })(document.getElementById('sol-motion'))})"""
+
+
+def test_the_look_switch_replans_glides_and_keeps_the_view_and_the_choice(browser, pages):
+    f, _ = pages["spoke"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    st = pg.evaluate(LOOKST)
+    assert st["look"] == "plain" and st["plain"] and not st["stars"] and st["rings"] == 0 and st["tubes"] > 0
+    assert st["seg"] == ["stars:false", "plain:true"] and st["orbitBtn"]["dis"]
+    anchor = pg.evaluate("""() => { var c=document.getElementById('canvas').getBoundingClientRect(), best=null, bd=1e9;
+      document.querySelectorAll('#world .node[data-solar] .node-card').forEach(function(e){ var r=e.getBoundingClientRect(), d=Math.hypot(r.left+r.width/2-(c.left+c.width/2), r.top+r.height/2-(c.top+c.height/2)); if(d<bd){ bd=d; best=[e.closest('.node').id, r.left+r.width/2, r.top+r.height/2]; } }); return best; }""")
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.wait_for_timeout(700)
+    pg.click("#sol-ctl [data-look=stars]")
+    pg.wait_for_timeout(1700)
+    st = pg.evaluate(LOOKST)
+    assert st["look"] == "stars" and st["stars"] and st["rings"] > 0 and st["tubes"] == 0 and st["mot"], st
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p1"            # still enlarged, in its new place
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(800)
+    t0 = pg.evaluate("() => window._altoSolarT")
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("() => window._altoSolarT") > t0                       # the Star chart look moves
+    pg.reload()
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("() => window._altoSolarLook.get()") == "stars"      # the viewer's choice is kept
+    # back to Plain: the body in the middle stays in the middle while the others move (zoomed
+    # out, where the view is free to follow it; at natural size the canvas's own ends can stop it)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window._altoSolarZoom(0.5)")
+    pg.wait_for_timeout(300)
+    anchor = pg.evaluate("""() => { var c=document.getElementById('canvas').getBoundingClientRect(), best=null, bd=1e9;
+      document.querySelectorAll('#world .node[data-solar] .node-card').forEach(function(e){ var r=e.getBoundingClientRect(), d=Math.hypot(r.left+r.width/2-(c.left+c.width/2), r.top+r.height/2-(c.top+c.height/2)); if(d<bd){ bd=d; best=[e.closest('.node').id, r.left+r.width/2, r.top+r.height/2]; } }); return best; }""")
+    pg.evaluate("() => window._altoSolarLook.set('plain')")
+    pg.wait_for_timeout(900)
+    now = pg.evaluate("(id) => { var r=document.querySelector('#'+id+' .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }", anchor[0])
+    assert abs(now[0] - anchor[1]) < 40 and abs(now[1] - anchor[2]) < 40, (anchor, now)
+    assert pg.evaluate(LOOKST)["look"] == "plain"
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_the_orbit_switch_freezes_where_it_is_and_resumes_without_a_jump(browser, pages):
+    f, _ = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    assert pg.evaluate("() => window._altoSolarMotion.get()") is True
+    pg.click("#sol-motion")
+    pg.wait_for_timeout(200)
+    g0, t0 = pg.evaluate(BODIES), pg.evaluate("() => window._altoSolarT")
+    pg.wait_for_timeout(900)
+    g1, t1 = pg.evaluate(BODIES), pg.evaluate("() => window._altoSolarT")
+    assert _moved(g0, g1) == 0 and t1 == t0                                    # frozen exactly, clock stopped
+    assert pg.evaluate("() => [window._altoSolarMotion.get(), document.getElementById('sol-motion').getAttribute('aria-pressed')]") == [False, "false"]
+    pg.click("#sol-motion")
+    pg.wait_for_timeout(60)
+    g2 = pg.evaluate(BODIES)
+    assert _moved(g1, g2) < 3                                                  # no jump on resuming
+    pg.wait_for_timeout(1200)
+    assert _moved(g2, pg.evaluate(BODIES)) > 0.3 and pg.evaluate("() => window._altoSolarT") > t1
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_reduced_motion_starts_with_the_orbit_off_but_it_can_be_switched_on(browser, pages):
+    f, _ = pages["orbit"]
+    pg, errs = _open(browser, f, reduced=True, wait=1200)
+    assert pg.evaluate("() => window._altoSolarMotion.get()") is False
+    pg.evaluate("() => window._altoSolarMotion.set(true)")
+    pg.wait_for_timeout(1000)
+    assert pg.evaluate("() => window._altoSolarT") > 0
+    assert not errs, errs
+    pg.context.close()

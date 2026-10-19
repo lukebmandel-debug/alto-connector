@@ -71,6 +71,23 @@ SOLAR_CSS = r"""
   .sol-unit b{font-weight:800;opacity:.6;margin-right:7.5px;}
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
+  /* the look switch (Star chart | Plain) and the orbit switch: glass, under the bars at the top left */
+  #sol-ctl{position:fixed;z-index:310;left:30px;top:calc(var(--nav-bottom, 100px) + 14px);display:flex;gap:8px;align-items:center;font-family:inherit;}
+  #sol-ctl button{font:inherit;font-size:12.5px;font-weight:600;letter-spacing:.02em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    color:var(--muted);background:transparent;border:0;padding:6.25px 11.25px;border-radius:999px;line-height:1;}
+  #sol-ctl .sol-seg,#sol-ctl #sol-motion{background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
+    border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);border-radius:999px;}
+  #sol-ctl .sol-seg{display:inline-flex;padding:2.5px;}
+  #sol-ctl button:hover:not(:disabled){color:var(--text);}
+  #sol-ctl .sol-seg button.on{color:var(--text);background:color-mix(in srgb,var(--accent,#6d5bd0) 16%,transparent);}
+  #sol-ctl #sol-motion{padding:8.75px 12.5px;}
+  #sol-ctl #sol-motion.on{color:var(--accent,#6d5bd0);}
+  #sol-ctl #sol-motion:disabled{opacity:.42;cursor:default;}
+  #sol-ctl #sol-motion .sol-ic-play,#sol-ctl #sol-motion.on .sol-ic-pause{display:block;}
+  #sol-ctl #sol-motion .sol-ic-pause,#sol-ctl #sol-motion.on .sol-ic-play{display:none;}
+  #sol-ctl button:focus-visible{outline:2px solid var(--accent,#6d5bd0);outline-offset:2px;}
+  html.mobile #sol-ctl{display:none !important;}
+  @media print{ #sol-ctl{display:none !important;} }
   /* no rectangle at any zoom (Luke): the board's own glass is not drawn on a solar page; the page's
      background (Plain) or the star chart's sky (a fixed, window-filling layer) shows everywhere */
   html.alto-solar:not(.mobile) #world #glass-slab{visibility:hidden !important;}
@@ -133,13 +150,26 @@ SOLAR_CSS = r"""
 
 SOLAR_JS = r"""
 /* The renderer: a function of the plan (window._ALTO_SOLAR's shape) mounted on
-   the engine's #world; opt.orbit (default: plan.style !== 'spoke') says whether
-   it moves. One mount per page (its engine hooks are page globals). */
-window._altoSolarMount=function(S, opt){
-opt=opt||{}; if(!S || !S.nodes || window._altoSolarMounted) return false; window._altoSolarMounted=true;
-window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
+   the engine's #world. R is window._ALTO_SOLAR: one plan (style 'orbit' / 'spoke'), or
+   {looks:{stars:plan, plain:plan}, look:'stars'|'plain'} — one Hub & spoke page, two looks
+   (Luke, round 5): the Star chart look moves (orbit style), the Plain look stands still
+   (spoke style). One mount per page (its engine hooks are page globals). */
+window._altoSolarMount=function(R, opt){
+opt=opt||{}; if(!R || window._altoSolarMounted) return false;
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2, K=1.7;
-var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:108, moon:62, sat:34}, NUM=null;
+/* the viewer's choices, per timeline (look, motion) */
+var KEY=(typeof COURSE_ID!=='undefined' && COURSE_ID) || 'page';
+function pref(k){ try{ return localStorage.getItem('alto-solar-'+k+':'+KEY); }catch(e){ return null; } }
+function keep(k, v){ try{ localStorage.setItem('alto-solar-'+k+':'+KEY, String(v)); }catch(e){} }
+function lookOf(P){ return P && P.style==='spoke' ? 'plain' : 'stars'; }
+var LOOKS=R.looks || null, ORIG=null, LOOK=pref('look');
+if(LOOK!=='stars' && LOOK!=='plain') LOOK=LOOKS ? (R.look==='plain' ? 'plain' : 'stars') : lookOf(R);
+if(LOOKS && !LOOKS[LOOK]) LOOK=LOOKS.stars ? 'stars' : 'plain';
+if(!LOOKS){ ORIG={}; for(var k0 in R) ORIG[k0]=R[k0]; }
+var S=LOOKS ? LOOKS[LOOK] : R;
+if(!S || !S.nodes) return false; window._altoSolarMounted=true;
+window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
+var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:108, moon:62, sat:34}, NUM=null, edited=false, LASTT=null;
 function desk(){ return !de.classList.contains('mobile'); }
 if(desk()) de.classList.add('alto-solar');
 /* the bodies, each after what it orbits */
@@ -148,14 +178,17 @@ function q(v){ return Math.round(v/2.5)*2.5; }      /* D-GRID: half a diameter o
 function body(id, role, p, per, si){
   var n=S.nodes[id]||{}; B[id]={id:id, role:role, p:p, per:ORBIT ? (+per||0) : 0, si:si, d:q(n.d||DEF[role])}; ORD.push(id); }
 function bodies(){
-  ORBIT=opt.orbit!=null ? !!opt.orbit : S.style!=='spoke'; SPIN=S.spin||-1; B={}; ORD=[]; SY=S.systems||[];
+  ORBIT=S.style!=='spoke'; SPIN=S.spin||-1; B={}; ORD=[]; SY=S.systems||[];
   SY.forEach(function(s, si){ body(s.sun, 'sun', null, 0, si);
     (s.planets||[]).forEach(function(pl){ body(pl.id, 'planet', s.sun, pl.period, si);
       (pl.moons||[]).forEach(function(m){ body(m.id, 'moon', pl.id, m.period, si);
         (m.sats||[]).forEach(function(t){ body(t.id, 'sat', m.id, t.period, si); }); }); }); });
   MOVES=ORBIT && ORD.some(function(i){ return B[i].per>0; });
 }
+/* a single plan whose look is not the one wanted: the in-page solar_plan makes the other */
+if(!LOOKS && lookOf(R)!==LOOK){ var P0=planFor(LOOK); if(P0 && P0.nodes && Object.keys(P0.nodes).length) usePlan(P0); else LOOK=lookOf(R); }
 bodies();
+looks();
 var world=null, svg=null, PAD=0, zq=1, links=[], spokes=[], rings=[], sunl=[], chips=[], ready=false;
 function el(t, a, p){ var e=document.createElementNS(NS, t); for(var k in a) e.setAttribute(k, a[k]); if(p) p.appendChild(e); return e; }
 function f2(v){ return Math.round(v*100)/100; }
@@ -239,7 +272,8 @@ window._altoSolarLayout=function(pos){
   draw(W, H);
   ready=true; hov=0;
   apply(true); skin();
-  if(MOVES) go();
+  if(MOVES || GL) go();
+  ctl();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
   if(!opened) setTimeout(openView, 0);
@@ -353,7 +387,9 @@ window._altoSolarLines=function(){
 /* ── motion ──────────────────────────────────────────────────────────────── */
 var T=0, rk=1, back=1, sp=0, last=null, raf=0, slT=0, hov=0, hovT=0, printing=0, mq=null, reduced=false;
 try{ mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
-  var mqf=function(){ reduced=mq.matches; go(); }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
+  var mqf=function(){ reduced=mq.matches; if(pref('motion')==null){ MOTION=!reduced; ctl(); } go(); }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
+/* the orbit switch: on by default in the Star chart look, off by default for reduced motion, the viewer's choice kept */
+var MOTION=pref('motion')==null ? !reduced : pref('motion')==='1', RAMP=1.2, GL=null;
 function wrap(a){ a%=TAU; if(a>Math.PI) a-=TAU; if(a<-Math.PI) a+=TAU; return a; }
 /* where every body is at time T (rk < 1: on the way back to T = 0) */
 function place(){
@@ -366,6 +402,8 @@ function place(){
     var p=B[b.p], dx=b.hx-p.hx, dy=b.hy-p.hy, a=b.per>0 ? wrap(SPIN*TAU*T/b.per+(many ? SPIN*TAU*T/(540+60*b.si) : 0))*rk : 0, cs=Math.cos(a), sn=Math.sin(a);
     b.x=p.x+dx*cs-dy*sn; b.y=p.y+dx*sn+dy*cs;
   });
+  if(GL && GL.ms>0){ var k=Math.min(1, (performance.now()-GL.t0)/GL.ms); k=k*k*(3-2*k);
+    ORD.forEach(function(id){ var b=B[id], f=GL.from[id]; if(!f) return; b.x=f[0]+(b.x-f[0])*k; b.y=f[1]+(b.y-f[1])*k; }); }
 }
 function seg(a, b, ga, gb){
   var dx=b.rx-a.rx, dy=b.ry-a.ry, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, ra=a.d/2+ga, rb=b.d/2+gb;
@@ -425,22 +463,23 @@ window._altoSolarMask=function(){ ORD.forEach(function(id){ var b=B[id]; b.mk=nu
   [].forEach.call(document.querySelectorAll('#alto-card-mask [data-mk]'), function(r){
     var b=B[r.getAttribute('data-mk').slice(5)]; if(b){ b.mk=r; r._w=parseFloat(r.getAttribute('width'))+2; } }); };
 function hold(){
-  if(!MOVES || reduced || !desk() || document.hidden || hov) return true;
+  if(!MOVES || !MOTION || !desk() || document.hidden || hov) return true;
   if(window._focusedNodeId || document.querySelector('#canvas.focus-mode,#canvas.edge-hover,#detail-page.visible')) return true;
   return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
 }
 function tick(ts){
   raf=0; if(!ready) return;
   var dt=last==null ? 0 : Math.min(.1, (ts-last)/1000); last=ts;
+  if(GL){ apply(); follow(); skin(); if(performance.now()-GL.t0>=GL.ms){ GL=null; apply(true); } return go(); }   /* a change of look: from the old places to the new */
   if(OV && (de.classList.contains('alto-editing') || window._focusedNodeId)) ovLeave(null, true);
   if(de.classList.contains('alto-editing') || printing){          /* the plan's own layout, turned back to */
     sp=0; if(T){ back=printing ? 0 : Math.max(0, back-dt/.45); rk=back*back*(3-2*back); apply(); skin(); if(back) return go(); T=0; back=rk=1; }
     return sleep(); }
   if(back<1){ T=0; back=rk=1; apply(); }
   if(hold()){ sp=0; return sleep(); }
-  sp=Math.min(1, sp+dt/1.2); T+=dt*sp*sp*(3-2*sp); apply(); skin(); go();
+  sp=Math.min(1, sp+dt/RAMP); if(sp>=1) RAMP=1.2; T+=dt*sp*sp*(3-2*sp); apply(); skin(); go();
 }
-function go(){ clearTimeout(slT); if(!raf && MOVES) raf=requestAnimationFrame(tick); }
+function go(){ clearTimeout(slT); if(!raf && (MOVES || GL)) raf=requestAnimationFrame(tick); }
 function sleep(){ last=null; clearTimeout(slT); slT=setTimeout(go, 180); }
 window.addEventListener('beforeprint', function(){ printing=1; ovLeave(null, true); if(T){ T=0; rk=1; apply(); } });
 window.addEventListener('afterprint', function(){ printing=0; go(); });
@@ -519,14 +558,38 @@ window._altoSolarNav=function(id, dir){
 window._altoSolarSync=function(t){
   t=t||{};
   var P=window._altoSolarPlan(t, S); if(!P) return false;
-  ['style','spin','world','sizes','systems','units','nodes','sun_links'].forEach(function(k){ S[k]=P[k]; });
+  edited=true; LASTT=t; usePlan(P);
   NUM=t.num||NUM; bodies(); T=0; back=rk=1;
-  var TP=window._ALTO_TREE_PLAN;
-  if(TP){ TP.x={}; TP.w={}; TP.acts=[]; TP.cx=P.world.w/2; TP.shift=null; TP.slide=null;
-    (t.seqs||[]).forEach(function(ids, a){ TP.acts[a]=[];
-      ids.forEach(function(id){ var n=P.nodes[id]; if(!n) return; TP.x[id]=n.x; TP.w[id]=n.d; TP.acts[a].push(['float', ['card', id, 0], n.y, 'mid']); }); }); }
+  treePlan(P, t.seqs||[]);
   return true;
 };
+/* the page's tree plan (layout float ops) follows the plan, so initLayout puts every circle there */
+function treePlan(P, seqs){
+  var TP=window._ALTO_TREE_PLAN;
+  if(TP){ TP.x={}; TP.w={}; TP.acts=[]; TP.cx=P.world.w/2; TP.shift=null; TP.slide=null;
+    seqs.forEach(function(ids, a){ TP.acts[a]=[];
+      ids.forEach(function(id){ var n=P.nodes[id]; if(!n) return; TP.x[id]=n.x; TP.w[id]=n.d; TP.acts[a].push(['float', ['card', id, 0], n.y, 'mid']); }); }); }
+}
+/* the plan now drawn: S; with one plan on the page window._ALTO_SOLAR mirrors it (what FLY / VIS read) */
+function usePlan(P){
+  S=P;
+  if(LOOKS) LOOKS[lookOf(P)]=P;
+  else ['style','spin','world','sizes','systems','units','nodes','sun_links'].forEach(function(k){ if(P[k]!==undefined) R[k]=P[k]; });
+}
+/* the plan for a look: the page's own, else (edited, or a page carrying one look) the in-page
+   solar_plan over the live outline tables */
+function liveTables(){
+  if(LASTT) return LASTT;
+  var O=window._ALTO_OUTLINE, par=(O && O.parent) || (window._ALTO_PALACE||{}).par || {}, kids={}, seqs=(typeof ACT_SEQS!=='undefined') ? ACT_SEQS : [];
+  [].concat.apply([], seqs).forEach(function(i){ var p=par[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
+  return {kids:kids, parent:par, seqs:seqs};
+}
+function planFor(look){
+  if(!edited && LOOKS && LOOKS[look]) return LOOKS[look];
+  if(!edited && ORIG && lookOf(ORIG)===look) return ORIG;
+  var o={}; for(var k in S) o[k]=S[k]; o.style=look==='plain' ? 'spoke' : 'orbit';
+  return window._altoSolarPlan ? window._altoSolarPlan(liveTables(), o) : null;
+}
 /* ── the whole chart: the board zoomed out to fit the window ─────────────────
    Pinch out (ctrl+wheel; Safari's gesture), ⌘− / ctrl+−, or the toggle under the
    bars. As on a horizontal timeline's whole view (lanes_nav.py) the board is
@@ -763,6 +826,71 @@ window._altoSolarCam={
   onChange:function(fn){ camFns.push(fn); return function(){ var i=camFns.indexOf(fn); if(i>=0) camFns.splice(i, 1); }; }
 };
 window._altoSolarZoom=function(s){ if(s==null) return OV ? OV.s : 1; if(s>=1) ovLeave(null, true); else ovZoom(s, null, null, false); return OV ? OV.s : 1; };
+/* ── the two looks and the orbit switch ──────────────────────────────────────
+   window._altoSolarLook   = {get() -> 'stars'|'plain', set(look), onChange(fn), plan() -> the plan drawn}
+   window._altoSolarMotion = {get() -> the orbit clock runs (Star chart look and switched on), set(on), onChange(fn)}
+   <html> carries .alto-solar-stars or .alto-solar-plain. A change of look plans the other style
+   (the page's own plan, else SOLAR_PLAN_JS over the live tables), lays the page out again and
+   glides every body from where it was to its new place in ~500 ms (at once for reduced motion);
+   an enlarged body is let go first and enlarged again after; the zoom, edit mode and the
+   viewer's choices carry over. Orbit off: the bodies stop where they are, _altoSolarT stops;
+   on again: the clock eases back in over ~400 ms from where it stopped. Both choices are kept per
+   timeline per viewer (localStorage alto-solar-look:<id>, alto-solar-motion:<id>). */
+var lookFns=[], motFns=[];
+function tell(fns, v){ fns.slice().forEach(function(f){ try{ f(v); }catch(e){} }); }
+function looks(){ de.classList.toggle('alto-solar-stars', LOOK==='stars'); de.classList.toggle('alto-solar-plain', LOOK==='plain'); }
+function setLook(look){
+  if((look!=='stars' && look!=='plain') || look===LOOK) return LOOK;
+  if(!ready){ var P=planFor(look); if(P && P.nodes){ LOOK=look; keep('look', look); usePlan(P); bodies(); looks(); tell(lookFns, look); } return LOOK; }
+  var fid=window._focusedNodeId;
+  if(fid && window.exitFocus){ window.exitFocus(); setTimeout(function(){ doLook(look, fid); }, UNF); return look; }
+  doLook(look, null); return look;
+}
+function doLook(look, fid){
+  if(look===LOOK) return;
+  var P=planFor(look); if(!P || !P.nodes || !Object.keys(P.nodes).length) return;
+  var from={}; ORD.forEach(function(id){ var b=B[id]; if(b.rx!=null) from[id]=[b.rx, b.ry]; });
+  /* the camera keeps the body nearest the middle where it is on the screen while everything moves */
+  var g=camGet(), an=null;
+  if(g){ var best=Infinity; ORD.forEach(function(id){ var b=B[id]; if(b.rx==null) return; var d=Math.hypot(b.rx-g.cx, b.ry-PAD-g.cy); if(d<best){ best=d; an={id:id, dx:g.cx-b.rx, dy:g.cy-(b.ry-PAD), s:g.scale}; } }); }
+  LOOK=look; keep('look', look); usePlan(P); bodies(); T=0; back=rk=1; sp=0;
+  treePlan(P, (typeof ACT_SEQS!=='undefined') ? ACT_SEQS : []);
+  GL={from:from, t0:performance.now(), ms:reduced ? 0 : 500, an:an};
+  looks();
+  try{ if(typeof initLayout==='function') initLayout(); }catch(e){}
+  follow();
+  ctl(); tell(lookFns, look); tell(motFns, MOTION && MOVES);
+  if(fid) setTimeout(function(){ if(window.enterFocus && document.getElementById('node-'+fid)) window.enterFocus(fid); }, GL ? GL.ms+80 : 80);
+}
+function follow(){ var a=GL && GL.an, b=a && B[a.id]; if(b && b.rx!=null) window._altoSolarCam.set(b.rx+a.dx, b.ry-PAD+a.dy, a.s); }
+window._altoSolarLook={get:function(){ return LOOK; }, set:setLook, plan:function(){ return S; },
+  onChange:function(fn){ lookFns.push(fn); return function(){ var i=lookFns.indexOf(fn); if(i>=0) lookFns.splice(i, 1); }; }};
+window._altoSolarMotion={get:function(){ return !!MOTION && MOVES; },
+  set:function(on){ on=!!on; if(on===!!MOTION) return MOTION; MOTION=on; keep('motion', on ? 1 : 0); if(on){ sp=0; RAMP=.4; last=null; } ctl(); tell(motFns, MOTION && MOVES); go(); return MOTION; },
+  onChange:function(fn){ motFns.push(fn); return function(){ var i=motFns.indexOf(fn); if(i>=0) motFns.splice(i, 1); }; }};
+/* the controls, under the bars at the top left: Star chart | Plain, and Orbit */
+var IC={stars:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="4.4" fill="currentColor"/><ellipse cx="10" cy="10" rx="8.6" ry="3" fill="none" stroke="currentColor" stroke-width="1.4" transform="rotate(-22 10 10)"/></svg>',
+  plain:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3.2"/><circle cx="3.2" cy="4" r="1.8"/><circle cx="16.8" cy="5" r="1.8"/><circle cx="15" cy="16.4" r="1.8"/><path d="M7.6 8.1 4.6 5.3M12.7 8.7l2.6-2.4M11.9 12.6l2 2.4"/></svg>',
+  pause:'<svg class="sol-ic-pause" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>',
+  play:'<svg class="sol-ic-play" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M6 4.2v11.6c0 .6.7 1 1.2.6l8.6-5.8c.4-.3.4-1 0-1.2L7.2 3.6C6.7 3.3 6 3.6 6 4.2z"/></svg>'};
+function ctl(){
+  var w=document.getElementById('sol-ctl');
+  if(!desk() || !ready){ if(w) w.remove(); return; }
+  if(!w){ w=document.createElement('div'); w.id='sol-ctl'; w.setAttribute('role', 'group'); w.setAttribute('aria-label', 'How the chart looks');
+    w.innerHTML='<div class="sol-seg" role="radiogroup" aria-label="Look">'+
+      '<button type="button" data-look="stars" role="radio" title="Star chart: the planets in their orbits">'+IC.stars+'<span>Star chart</span></button>'+
+      '<button type="button" data-look="plain" role="radio" title="Plain: the same chart, still and compact">'+IC.plain+'<span>Plain</span></button></div>'+
+      '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>';
+    w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
+      if(b.getAttribute('data-look')) setLook(b.getAttribute('data-look'));
+      else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION); });
+    document.body.appendChild(w); }
+  [].forEach.call(w.querySelectorAll('[data-look]'), function(b){ var on=b.getAttribute('data-look')===LOOK; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+  var m=w.querySelector('#sol-motion'), plain=LOOK==='plain', run=!!MOTION && !plain;
+  m.disabled=plain; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
+  m.title=plain ? 'Orbit: the Plain look stands still' : run ? 'Orbit is on: click to stop the planets where they are' : 'Orbit is off: click to set the planets moving again';
+  m.setAttribute('aria-label', m.title);
+}
 window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p}; });
   return {T:T, moving:!!raf, bodies:o}; };
 return true;
