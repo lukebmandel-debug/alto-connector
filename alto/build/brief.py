@@ -250,11 +250,17 @@ TREE_LINES = ("fan", "trunk")
 # viewer sees first.
 HUB_LOOKS = ("stars", "plain")
 LOOK_STYLE = {"stars": "orbit", "plain": "spoke"}
+# A Mind Palace's view, chosen at build (the page carries one or the other):
+# "city" — buildings on a real city's map; "building" — the Building Palace: a
+# blueprint and a first-person view inside ONE building (building_schema.py;
+# the plan is brief.building). (1.9.105's "stars" view, the Star chart, is now
+# the Star chart look of a Hub & spoke: migrate_brief turns such a brief into one.)
+PALACE_VIEWS = ("city", "building")
 # Keys a stored brief may still carry from before Hub & spoke had two looks
-# (1.9.105: hub_style; the Mind Palace "stars" view and convert_timeline's
-# stash). Loading accepts them; migrate_brief turns a Star chart palace into
-# the Hub & spoke it now is.
-LEGACY_KEYS = ("hub_style", "palace_view", "stash")
+# (1.9.105: hub_style; convert_timeline's stash). Loading accepts them and
+# migrate_brief drops them; palace_view stays (city / building) unless it is
+# the old "stars", which migrate_brief turns into the Hub & spoke it now is.
+LEGACY_KEYS = ("hub_style", "stash")
 # The roles of a solar outline's levels, top down: a unit's top concept is its
 # sun, then planets, moons, satellites. A fifth level has no body to be.
 SOLAR_ROLES = ("sun", "planet", "moon", "sat")
@@ -383,6 +389,14 @@ class Brief:
     # Hub & spoke only (HUB_LOOKS): the look a viewer sees first, "stars" (the
     # moving Star chart, the default) or "plain"; the page's toggle flips it.
     hub_look: str = "stars"
+    # Mind Palace only (PALACE_VIEWS): "city" (the default) or "building".
+    palace_view: str = "city"
+    # Building Palace only (palace_view "building"; building_schema.py):
+    # {name, plan_z (the packed plan), plan_h (its hash), mode: "room"|"anchor",
+    # assign: {node id: room / art slot / fixture id} (the caller's overrides),
+    # made}. set_up_building writes it. The page names the plan by its hash and
+    # loads the hosted file (/bldg/plan-<hash>.json).
+    building: dict = field(default_factory=dict)
     # A tree's lines down a branch's spine. "fan": a section's lines spread
     # across the top of its first card and drop to each child at its own point,
     # so every child has a line of its own to hover and follow; "trunk": one
@@ -638,8 +652,9 @@ def validate_brief(b: Brief) -> list[str]:
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
-    # A Hub & spoke may be one system for the whole outline: one unit.
-    if len(b.acts) < (1 if solar_style(b) else 2):
+    # A Hub & spoke may be one system for the whole outline, a Building Palace
+    # one building: one unit.
+    if len(b.acts) < (1 if (solar_style(b) or building_view(b)) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
     for flag in ("line_filter", "chip_filters"):
@@ -662,6 +677,12 @@ def validate_brief(b: Brief) -> list[str]:
     if b.hub_look not in HUB_LOOKS:
         raise BriefError(f"hub_look {b.hub_look!r}: must be one of {HUB_LOOKS} (the Star chart "
                          "look, moving, or the plain one, still)")
+    if b.palace_view not in PALACE_VIEWS:
+        raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS} (the Star "
+                         "chart is a look of a Hub & spoke now: mode 'outline', layout 'solar')")
+    if b.palace_view != "city" and b.mode != "palace":
+        raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Building Palace "
+                         "is a Mind Palace view")
     if b.layout == "solar" and b.mode != "outline":
         raise BriefError("layout 'solar' needs mode 'outline': a solar system is "
                          "drawn from the nodes' parents (a unit's top concept is "
@@ -672,6 +693,8 @@ def validate_brief(b: Brief) -> list[str]:
     check_lines(b, warnings)
     from .palace import check_palace
     check_palace(b, warnings)
+    from .building_schema import check_building
+    check_building(b, warnings)
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -1020,6 +1043,11 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
     return warnings
 
 
+def building_view(b) -> bool:
+    """True for a Building Palace (a Mind Palace in its "building" view): one building's blueprint and first-person view."""
+    return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "building"
+
+
 def solar_style(b) -> str:
     """For a Hub & spoke (an outline laid out 'solar') the style of the look a
     viewer sees first — "orbit" for the Star chart look, "spoke" for the plain
@@ -1040,9 +1068,10 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     outline cannot hold — the palace's city data and its lot / floor placement
     — is returned in the second value (the caller keeps it beside the brief,
     never discards it); an outline's own settings that convert_timeline had
-    parked in `stash` come back. hub_style, palace_view and stash are dropped
-    from every brief (hub_style 'spoke' becomes the plain look). The input is
-    not changed."""
+    parked in `stash` come back. hub_style and stash are dropped from every
+    brief (hub_style 'spoke' becomes the plain look); palace_view is kept as it
+    is ("city", "building" — 1.9.107's Building Palace) except the old "stars",
+    which goes with the migration. The input is not changed."""
     if not isinstance(d, dict):
         return d, {}
     out = dict(d)
@@ -1051,6 +1080,8 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     stash = legacy.get("stash") if isinstance(legacy.get("stash"), dict) else {}
     if isinstance(stash.get("palace"), dict) and stash["palace"]:
         aside["stash_palace"] = stash["palace"]          # a city convert_timeline had set aside
+    if out.get("palace_view") == "stars":
+        legacy["palace_view"] = out.pop("palace_view")
     if out.get("mode") == "palace" and legacy.get("palace_view") == "stars":
         back = stash.get("outline") if isinstance(stash.get("outline"), dict) else {}
         pal = out.pop("palace", None)
@@ -1085,7 +1116,7 @@ def migrate_doc(doc):
     that needs nothing is returned as it is (same object)."""
     if not isinstance(doc, dict) or not isinstance(doc.get("brief"), dict):
         return doc
-    if not any(k in doc["brief"] for k in LEGACY_KEYS):
+    if not any(k in doc["brief"] for k in LEGACY_KEYS) and doc["brief"].get("palace_view") != "stars":
         return doc
     brief, aside = migrate_brief(doc["brief"])
     out = {**doc, "brief": brief}

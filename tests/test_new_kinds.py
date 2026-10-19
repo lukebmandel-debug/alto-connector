@@ -24,10 +24,13 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     kinds = re.findall(r'<button type="button" class="nt-kind[^"]*" data-kind="(\w+)"', h)
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
-    assert blk.count('class="nt-pv"') == 5                       # one each, and a second for the Timeline's Horizontal
-    for want in ("Timeline", "Outline", "Hub &amp; spoke", "Mind Palace", ">Sketch<", ">Horizontal<"):
+    assert blk.count('class="nt-pv"') == 6                       # one each, and a second for the two with modes (Horizontal, Building)
+    for want in ("Timeline", "Outline", "Hub &amp; spoke", "Mind Palace", ">Sketch<", ">Horizontal<", ">City<", ">Building<"):
         assert want in blk, want
-    assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">City<" not in blk      # one format, two looks: no tile for the second
+    assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
+    pal = h[h.index('class="nt-modes" data-for="palace"'):]
+    pal = pal[:pal.index("</div>")]
+    assert re.findall(r'data-mode="(\w+)"', pal) == ["city", "building"]             # Mind Palace: City | Building
     hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
     assert "Toggle Plain or Star chart any time." in hub and "planets, moons and satellites you can orbit between" in hub
 
@@ -36,10 +39,11 @@ def test_the_timeline_tile_chooses_a_mode_and_the_mind_palace_goes_to_claude():
     h = _home()
     js = h[h.index("function ntResolve()"):h.index("function ntClose()")]
     assert "ntModes.timeline === 'horizontal' ? 'lanes' : 'timeline'" in js        # Sketch / Horizontal keep their kind ids
-    assert "ntTile === 'palace'" not in js and "'stars'" not in js and "ntModes = { timeline: 'sketch' }" in h
-    # the city needs the real map, so it goes to Claude's own route instead of making a starter
-    assert "if(ntKind === 'palace'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, 'palace') : newProjectPrompt('palace')); return; }" in h
-    assert "ntKind === 'palace' ? 'Build it with Claude' : 'Start writing'" in h
+    assert "if(ntTile === 'palace') return ntModes.palace === 'building' ? 'building' : 'palace';" in js and "'stars'" not in js
+    assert "ntModes = { timeline: 'sketch', palace: 'city' }" in h
+    # the city needs the real map and the building its plan, so both go to Claude's own route instead of making a starter
+    assert "if(ntKind === 'palace' || ntKind === 'building'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, ntKind) : newProjectPrompt(ntKind)); return; }" in h
+    assert "(ntKind === 'palace' || ntKind === 'building') ? 'Build it with Claude' : 'Start writing'" in h
 
 
 def test_the_previews_follow_the_page_colours_and_respect_reduced_motion():
@@ -73,22 +77,23 @@ def test_the_lanes_starter_is_a_story_with_characters_and_a_flashback():
 def test_build_it_with_claude_tells_claude_which_tile_was_picked():
     h = _home()
     phrases = h[h.index("const KIND_PHRASE = {"):h.index("function kindSentence(kind)")]
-    for kind in ("outline", "timeline", "lanes", "solar", "palace"):                   # every kind the picker can end on
+    for kind in ("outline", "timeline", "lanes", "solar", "palace", "building"):       # every kind the picker can end on
         assert f"  {kind}: '" in phrases, kind
     assert "stars:" not in phrases and "Star chart" not in phrases
-    assert "layout \\'solar\\'" in phrases and "set_up_palace" in phrases
+    assert "layout \\'solar\\'" in phrases and "set_up_palace" in phrases and "set_up_building" in phrases
     assert "ntClose(); openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind));" in h
     guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     line = " ".join(guide[guide.index("If the opening message already says which type"):].split("\n\n")[0].split())
-    for want in ("Hub & spoke", "Mind Palace as a city", "do not ask again", "set_up_palace"):
+    for want in ("Hub & spoke", "Mind Palace as a city", "Mind Palace in a building", "do not ask again", "set_up_palace", "set_up_building"):
         assert want in line, want
-    assert "Star chart" not in line and "palace_view" not in line
+    assert "Star chart" not in line and "'stars'" not in line
 
 
 def test_the_timeline_tile_shows_only_the_chosen_modes_picture_and_words():
     h = _home()
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
-    assert ('.nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"]'
+    assert ('.nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"],\n'
+            '  .nt-kind[data-mode="city"] [data-for="building"], .nt-kind[data-mode="building"] [data-for="city"]'
             '{ display:none; }') in css                       # the rule is whole: it once lost its block
 
 
@@ -114,4 +119,8 @@ def test_the_picker_in_a_browser_shows_one_picture_per_tile():
         assert shown()[0] == ["timeline", 1, 1] and pg.evaluate("ntKind") == "lanes"
         pg.evaluate("ntPick('palace')")
         assert pg.evaluate("ntKind") == "palace" and pg.evaluate("document.getElementById('nt-make').textContent") == "Build it with Claude"
+        assert shown()[3] == ["palace", 1, 1]
+        pg.evaluate("ntMode('palace', 'building')")                          # Mind Palace: City | Building, both Claude's
+        assert pg.evaluate("ntKind") == "building" and shown()[3] == ["palace", 1, 1]
+        assert pg.evaluate("document.getElementById('nt-make').textContent") == "Build it with Claude"
         b.close()

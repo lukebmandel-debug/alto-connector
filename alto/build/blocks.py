@@ -18,13 +18,13 @@ import json
 import re
 from urllib.parse import quote as url_q
 
-from .brief import Brief, Node, Section, COL_SETS, roman
+from .brief import Brief, Node, Section, COL_SETS, roman, building_view
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .solar_stars import STARS_CSS, STARS_JS
 from .solar_fly import FLY_CSS, FLY_JS
-from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css
+from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css, palace_stub
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
 from .mobile_chrome import MSEARCH_PANEL_CSS, MSEARCH_PANEL_GLUE
@@ -1538,7 +1538,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # The horizontal timeline (lanes.py): lines, times, and the layout
         # the engine's initLayout hands over to on desktop.
         orders += lanes_data(b, nodes) + LANES_JS
-    if b.mode == "palace":
+    if b.mode == "palace" and building_view(b):
+        # A Building Palace (building_schema.py): no city — the floors' numbers
+        # (3.4-2) and the hosted blueprint over the cards (palace_building_asset.py).
+        from .palace_building_asset import building_data
+        orders += palace_stub(b, nodes) + building_data(b, nodes)
+    elif b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
         orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
@@ -1549,7 +1554,8 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # then the flights between bodies (solar_fly.py: Star chart look only).
         orders += SOLAR_JS + STARS_JS + FLY_JS
     if index_axes:
-        orders += (palace_index_glue() if b.mode == "palace" else dx.AXIS_INDEX_GLUE) + dx.axes_config(b, index_axes)
+        orders += ((palace_index_glue() if b.mode == "palace" and not building_view(b) else dx.AXIS_INDEX_GLUE)
+                   + dx.axes_config(b, index_axes))
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
             f"{js_str(k)}:{json.dumps(sorted(rel_nodes.get(k, set())))}"
@@ -1598,7 +1604,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         nav_char_css += LANES_CSS
     if solar_plan_:
         nav_char_css += SOLAR_CSS + STARS_CSS + FLY_CSS
-    if b.mode == "palace":
+    if b.mode == "palace" and not building_view(b):
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (

@@ -555,7 +555,7 @@ def test_hub_and_spoke_is_an_outline_with_a_first_look():
     with pytest.raises(BriefError, match="layout 'solar' needs mode 'outline'"):
         validate_brief(b)
     assert Brief(title="t").hub_look == "stars"           # the Star chart look is the default
-    assert "palace_view" not in Brief.__dataclass_fields__ and "stash" not in Brief.__dataclass_fields__
+    assert Brief(title="t").palace_view == "city" and "stash" not in Brief.__dataclass_fields__   # (palace_view: city | building)
 
 
 def test_one_system_for_the_whole_outline_is_one_unit():
@@ -964,11 +964,11 @@ def test_legacy_keys_are_accepted_and_ignored():
     d["brief"].pop("hub_look")
     d["brief"]["hub_style"] = "spoke"
     assert load_brief(d)[0].hub_look == "plain"             # the old still style opens plain
-    # a city palace keeps everything (only the legacy key goes)
+    # a city palace keeps everything, its view included (1.9.107: palace_view 'city' | 'building')
     from alto.build.brief import migrate_brief
     city = {"mode": "palace", "palace_view": "city", "palace": {"data_z": "z"}, "placement": {"a": {"lot": "1.2"}}}
     got, aside = migrate_brief(city)
-    assert got == {"mode": "palace", "palace": {"data_z": "z"}, "placement": {"a": {"lot": "1.2"}}} and aside == {}
+    assert got == city and aside == {}
 
 
 def test_the_tools_see_a_stored_star_chart_as_hub_and_spoke_and_keep_its_city(store):

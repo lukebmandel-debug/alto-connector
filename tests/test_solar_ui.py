@@ -86,8 +86,8 @@ def test_the_picker_stays_inside_the_dialog_with_four_tiles():
 def test_there_is_no_star_chart_starter_any_more():
     """The Star chart is a look of every Hub & spoke page (Round 5), not a
     Mind Palace mode with a starter of its own."""
-    assert "stars" not in starter.KINDS and "palace_view" not in __import__(
-        "alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__
+    assert "stars" not in starter.KINDS and "stars" not in __import__(
+        "alto.build.brief", fromlist=["PALACE_VIEWS"]).PALACE_VIEWS        # (palace_view is city | building: 1.9.107)
 
 
 # ── tools ────────────────────────────────────────────────────────────────────
@@ -97,7 +97,8 @@ def test_the_layout_tools_take_a_hub_look_and_explain_hub_and_spoke(tool):
     fn = getattr(srv, tool)
     params = inspect.signature(fn).parameters
     assert "hub_look" in params and params["hub_look"].default == ""   # '' keeps the brief's
-    assert "palace_view" not in params and "hub_style" not in params
+    assert "hub_style" not in params and params["palace_view"].default == ""   # (palace_view: city | building, 1.9.107)
+    assert "'stars' (the Star chart" not in fn.__doc__ and "palace_view 'stars'" not in fn.__doc__
     doc = " ".join(fn.__doc__.split())
     assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "plain" in doc
 
@@ -110,7 +111,8 @@ def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
                  "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'plain'", "STARS = the Star chart", "PLAIN =",
                  "Orbit switch", "nothing to convert"):
         assert want in doc, want
-    assert "palace_view" not in doc and "convert_timeline" not in doc and "STAR CHART —" not in doc
+    assert "palace_view?: 'city'|'building'" in doc and "'city'|'stars'" not in doc
+    assert "convert_timeline" not in doc and "STAR CHART —" not in doc
 
 
 def test_a_wrong_hub_look_is_told_plainly():
@@ -185,7 +187,7 @@ def test_the_guide_tells_claude_about_the_two_looks_and_never_about_converting()
                  "Orbit** switch", "Open full page", "enlarged circle stays circular", "hub_look: 'plain'", "nothing to rebuild"):
         assert want in sec, want
     low = GUIDE.lower()
-    for gone in ("convert_timeline", "turn this into a star chart", "ringed-planet", "§d-stars", "palace_view", "to='star_chart'"):
+    for gone in ("convert_timeline", "turn this into a star chart", "ringed-planet", "§d-stars", "palace_view: 'stars'", "to='star_chart'"):
         assert gone not in low, gone
     assert "star chart" in low and low.count("star chart") <= 6        # only as the look
 

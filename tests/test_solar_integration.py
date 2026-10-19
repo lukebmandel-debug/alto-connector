@@ -86,6 +86,47 @@ def test_an_old_star_chart_palace_loads_as_hub_and_spoke_with_all_three():
     assert "window._altoSolarMount=function" in html and "window._altoSkinTick=" in html and "window._altoFly=" in html
 
 
+@pytest.mark.parametrize("view", ["city", "building"])
+def test_a_city_or_building_palace_keeps_its_view_through_the_migration(view):
+    """1.9.107's Building Palace (palace_view 'building') and the city stay Mind
+    Palaces: only the old 'stars' view migrates (to a Hub & spoke)."""
+    from alto.build.brief import migrate_brief, migrate_doc
+    bd = {"title": "P", "mode": "palace", "palace_view": view, "acts": [{"label": "A"}],
+          **({"building": {"name": "Hall", "plan_h": "abc", "mode": "room", "assign": {"n1": "r1"}}} if view == "building" else {})}
+    out, aside = migrate_brief(bd)
+    assert out == bd and aside == {}
+    doc = {"timeline_id": "p", "brief": bd}
+    assert migrate_doc(doc) is doc
+    # with a legacy key beside it (an old stash), the view is still kept
+    out, _ = migrate_brief({**bd, "stash": {"outline": {"tree_lines": "fan"}}})
+    assert out["mode"] == "palace" and out["palace_view"] == view and "stash" not in out
+    if view == "building":
+        assert out["building"] == bd["building"]
+
+
+def test_a_stars_palace_still_migrates_to_hub_and_spoke_and_nothing_else_keeps_stars():
+    from alto.build.brief import BriefError, migrate_brief, migrate_doc
+    bd = {"title": "S", "mode": "palace", "palace_view": "stars", "acts": [{"label": "A"}],
+          "placement": {"n1": {"order": 2}, "n2": {"lot": "x"}}}
+    out, aside = migrate_brief(bd)
+    assert (out["mode"], out["layout"], out["hub_look"]) == ("outline", "solar", "stars") and "palace_view" not in out
+    assert out["placement"] == {"n1": {"order": 2}} and aside["placement"] == {"n2": {"lot": "x"}}
+    doc = {"timeline_id": "s", "brief": bd}
+    m = migrate_doc(doc)
+    assert m is not doc and m["brief"]["mode"] == "outline" and "palace_view" not in m["brief"]
+    # 'stars' is no longer a palace view anyone can ask for
+    d = _doc("orbit")
+    d["brief"].update({"mode": "palace", "palace_view": "building"})
+    d["brief"].pop("layout")
+    d["brief"].pop("hub_look")
+    b, nodes, conns = load_brief(copy.deepcopy(d))
+    assert (b.mode, b.palace_view) == ("palace", "building")
+    b.palace_view = "stars"
+    from alto.build.brief import validate_brief
+    with pytest.raises(BriefError, match="palace_view 'stars'"):
+        validate_brief(b)
+
+
 def test_the_skin_and_the_flight_are_no_cost_off_hub_and_spoke(monkeypatch):
     """A page that is not a Hub & spoke is byte-identical whatever the three scripts say."""
     d = _doc("orbit")

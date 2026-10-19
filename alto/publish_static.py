@@ -272,7 +272,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # folder named by the content hash of its file.
     from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS
     refs = _street_refs(store, uid)
-    new_assets = palace_assets(street_refs=refs)
+    new_assets = palace_assets(street_refs=refs, building_plans=_building_plans(store, uid))
     from .build import palace_street
     on_site = _street_on_site(site / palace_street.FOLDER)       # what a former publish left there: a referenced file the cache lacks is kept, not wiped
     for folder in palace_folders():
@@ -300,6 +300,14 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     for tname, tbytes in tex_files():
         tex_out.mkdir(parents=True, exist_ok=True)
         (tex_out / tname).write_bytes(tbytes)
+    # The curated buildings' artwork images (alto/buildings: the PMA's public-domain paintings), binary, content-hash named, under /bart/
+    from .buildings.pma_art import ART_FOLDER, files as art_files
+    art_out = site / ART_FOLDER
+    if art_out.exists():
+        shutil.rmtree(art_out)
+    for aname, abytes in art_files():
+        art_out.mkdir(parents=True, exist_ok=True)
+        (art_out / aname).write_bytes(abytes)
     # A page names a street file the cache does not have and the site does not either: the ride would have no street data. Say so (publish_timeline refuses
     # a stale build unless ALTO_ALLOW_STALE) instead of publishing a palace that silently lost its streets.
     for name in palace_street.LAST_MISSING:
@@ -310,6 +318,29 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
     return site
+
+
+def _building_plans(store, uid: str) -> dict:
+    """{plan-<hash>.json: JSON text} of every published Building Palace (build/building_schema.py): the file its page fetches from /bldg/."""
+    from .build import building_schema as bs
+    out = {}
+    try:
+        timelines = store.list_timelines(uid)
+    except Exception:                                       # noqa: BLE001
+        return out
+    for t in timelines:
+        if t.get("status") != "published":
+            continue
+        brief = t.get("brief") or {}
+        z = (brief.get("building") or {}).get("plan_z") if brief.get("palace_view") == "building" else None
+        if not z:
+            continue
+        try:
+            name, text = bs.hosted_json(bs.unpack(z))
+        except Exception:                                   # noqa: BLE001 — a plan that cannot be read ships nothing (the page keeps its cards)
+            continue
+        out[name] = text
+    return out
 
 
 def _street_refs(store, uid: str) -> set:
@@ -375,7 +406,7 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir))
+    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir), _art_names(site_dir), _bldg_names(site_dir))
 
 
 def _csp(form_action: str) -> str:
@@ -404,7 +435,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, street_files=(), tex_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_files=(), bldg_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -431,13 +462,18 @@ def _headers(csp: str, connect_csp: str, street_files=(), tex_files=()) -> list[
         # A hosted palace script (the ride, the fleet) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
-        ]} for f in _palace_folders() if f not in _blob_folders()),
+        ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
+        # bldg: the Building Palace's renderers and plans, one literal immutable rule per file that exists (as /street/): a plan a page names before the
+        # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
+        *_bldg_rules(bldg_files),
         # The street data (build/palace_street.py) is kept for a year too — but ONLY the files that exist, named one by one: Hosting matches headers against
         # the request path, so a "/street/**" rule would stamp "immutable" on the 404 page a missing or not-yet-uploaded shard answers with, and the
         # browser would remember that failure for a year. Anything else under /street/ keeps the "**" rule's no-cache.
         *_street_rules(street_files),
         # gfx: the ride's textures, one literal immutable rule per file that exists (as /street/: a 404 never gets one)
         *_tex_rules(tex_files),
+        # bart: the curated buildings' artwork images, one literal immutable rule per file that exists
+        *_art_rules(art_files),
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).
         {"source": "/connect/**", "headers": [
@@ -458,6 +494,37 @@ def _tex_names(site_dir) -> list:
     from .build.palace_ride_gfx import TEX_FOLDER, TEX_RE
     d = Path(site_dir) / TEX_FOLDER
     return sorted(p.name for p in d.iterdir() if p.is_file() and TEX_RE.match(p.name)) if d.is_dir() else []
+
+
+def _art_names(site_dir) -> list:
+    """The curated buildings' image files in the site folder (buildings/pma_art.py), only names of the published shape."""
+    if site_dir is None:
+        return []
+    from .buildings.pma_art import ART_FOLDER, ART_RE
+    d = Path(site_dir) / ART_FOLDER
+    return sorted(p.name for p in d.iterdir() if p.is_file() and ART_RE.match(p.name)) if d.is_dir() else []
+
+
+BLDG_RE = re.compile(r"^(palace-building-(fpv-)?[0-9a-f]{10}\.js|plan-[0-9a-f]{12}\.json)$")
+
+
+def _bldg_names(site_dir) -> list:
+    """The Building Palace files in the site folder (renderers and plans), only names of the published shape."""
+    if site_dir is None:
+        return []
+    d = Path(site_dir) / "bldg"
+    return sorted(p.name for p in d.iterdir() if p.is_file() and BLDG_RE.match(p.name)) if d.is_dir() else []
+
+
+def _bldg_rules(names) -> list:
+    return [{"source": "/bldg/%s" % n, "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if BLDG_RE.match(n)]
+
+
+def _art_rules(names) -> list:
+    from .buildings.pma_art import ART_FOLDER, ART_RE
+    return [{"source": "/%s/%s" % (ART_FOLDER, n), "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if ART_RE.match(n)]
 
 
 def _tex_rules(names) -> list:

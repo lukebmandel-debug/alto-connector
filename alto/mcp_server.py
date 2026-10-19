@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.106"
+__version__ = "1.9.107"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
@@ -1014,7 +1014,11 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       'palace' is the Mind Palace: a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
-      Only Claude builds a city (the homepage sends the user to Claude for it),
+      Only Claude builds a city (the homepage sends the user to Claude for it).
+      The BUILDING PALACE (palace_view 'building', §D-Building) is a Mind
+      Palace inside ONE real building (a museum, a courthouse, a school):
+      a blueprint and a first-person view; cards stand in its rooms or on its
+      walls — then set_up_building,
      layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
       and run_layout_preview can set it too). 'solar' is HUB & SPOKE (the name
       the user knows, §D-Solar): every top concept (a node with no `parent`) is
@@ -1039,6 +1043,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       Orbit switch turns the motion off) and PLAIN = the same circles, still,
       on straight spokes in Alto's usual look. Leave it out unless the user
       wants the plain look first; there is nothing to convert,
+     palace_view?: 'city'|'building' (mode 'palace'; default 'city'):
+      'building' is the BUILDING PALACE (§D-Building; set_up_building stores
+      the building's plan; one section is enough). The Star chart is not a
+      Mind Palace: it is the default look of a Hub & spoke (hub_look above),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -1914,6 +1922,122 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
 
 
+@mcp.tool(title="Set up a Building Palace", annotations=RW)
+@accounted
+def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
+                    assignments: dict[str, str] | None = None, name: str = "",
+                    demo: bool = False, building: str = "") -> dict:
+    """The building a Building Palace (mode 'palace', palace_view 'building',
+    §D-Building) is drawn in: stores a checked PLAN of ONE building with the
+    timeline, hands the timeline's nodes to its rooms (or to the art slots and
+    fixtures in them) and tells the user nothing to do. Run it once the
+    timeline exists; run it again to change the plan, the way nodes are handed
+    out, or one node's place. Nothing is fetched or hosted here: the plan is
+    published with the page (publish_timeline).
+
+    plan: the building as data — the format is building_schema.py's, in short
+    (metres; x east, y north; every element may carry `c` confidence 0-3 and
+    `s` source ids): {v: 1, id, name, kind, src: [{id, t, u?, k, lic?}],
+    c?, geo?: {lat, lon, north}, tour?: [room ids], lv: levels [{id, n, lb?,
+    e: floor elevation, h: floor-to-floor}], wl: walls [{id, l, p: [[x,y]…],
+    t: thickness, m: material, k?: 'ext'|'int'|'party'|'screen'|'rail', loop?,
+    h?, o?: openings [{k: 'door'|'window'|'arch'|'gap'|'gate', a: metres along
+    the wall to its centre, w, h, z?}]}], rm: rooms [{id, l, n, no?, ty?, p:
+    polygon, ch: ceiling height, fm?/wm?/cm?: floor/wall/ceiling material,
+    li?: {k: 'sky'|'day'|'art'|'dim'|'mixed', lx?}}], st: stairs / elevators /
+    ramps [{id, k, from: level, to: level, fp: footprint, w?, n?, up?, fl?}],
+    cols?: columns, fx?: fixtures (case, plinth, bench…), sl?: art slots [{id,
+    rm, w?: wall, p, z, sz: [w, h], fc: facing degrees, al?: allowed works}],
+    ex?: exterior {sh: shell, stp: steps, tr: terraces, gz}, en?: entrances}.
+    Draw it ONLY from what can be found or what the user gives (official floor
+    plans, HABS drawings, visitor maps, photographs, stated dimensions): never
+    invent a room; where a part is a guess give it c: 0 or 1 (it is drawn
+    dashed) and say what it rests on in `src`. A bad plan comes back with every
+    problem, each naming its element. Omitted: the stored plan is kept (to change
+    only the mode or the assignments).
+    mode: how nodes are handed out. 'room' (default): each top-level node
+    takes the next room on the walk (the entrance level first, then upward, by
+    room number; the plan's `tour` wins), and what sits under it stands in
+    that room, on its art slots and fixtures. 'anchor': every node takes the
+    next art slot or fixture on the walk — for an art museum whose nodes are
+    the artworks. ('' keeps the stored one.)
+    assignments: {node id: room / art slot / fixture id} — the user's own
+    placements, over the proposal; the rest is proposed by outline order. Pass
+    {} to clear earlier ones. The reply's `placed` shows every node's place and
+    `unplaced` those that found none (the plan has too few rooms or slots).
+    name: the building's name for the page (default: the plan's).
+    demo: true uses the invented 'Alto Test Pavilion' plan (not a real
+    building) so the view can be shown before real data exists.
+    building: a CURATED building Alto already holds, so no plan is uploaded:
+    'pma' is the Philadelphia Museum of Art, Main Building (exterior, Rocky
+    Steps, East Terrace and levels G, 1, 2, 3 drawn from the public-domain
+    1928 plans, published dimensions and gallery numbers; rooms it is unsure of
+    are dashed or blurred, its sources and credits are in the plan and the
+    blueprint footer). For any other PUBLIC building, build the baseline plan
+    yourself from public plans and photographs and pass it as `plan`; where the
+    building is private, thin or gappy, the user supplies material, says where
+    to look, or describes it (they do nothing else)."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    brief = doc["brief"]
+    if brief.get("mode") != "palace":
+        return {"error": "not_a_palace", "message": "this timeline's mode is "
+                f"{brief.get('mode') or 'linear'!r}; a Building Palace is created with mode 'palace' and palace_view 'building'"}
+    from .build import building_schema as bs
+    old = brief.get("building") or {}
+    if (plan is not None) + bool(building) + bool(demo) > 1:
+        return {"error": "conflicting_plan", "message": "pass only one of `plan`, `building` and `demo`"}
+    if building:
+        from . import buildings
+        token = buildings.resolve(building)
+        if token is None:
+            return {"error": "unknown_building", "message": f"{building!r} is not a curated building; curated: "
+                    + ", ".join(f"{d['building']} ({d['name']})" for d in buildings.describe())
+                    + ". For any other building pass `plan` (public buildings: draw it from public plans and photographs)."}
+        plan = buildings.load(token)
+        name = name or plan.get("name", "")
+    if demo:
+        plan = bs.fixture()
+    if plan is None and not old.get("plan_z"):
+        return {"error": "no_plan", "message": "pass `plan` (the building as data — see this tool's description), building='pma' (curated), or demo=true"}
+    if mode and mode not in bs.ASSIGN_MODES:
+        return {"error": "invalid_mode", "message": f"mode {mode!r}: must be 'room' or 'anchor'"}
+    try:
+        if plan is not None:
+            warnings = bs.validate_plan(plan)
+            plan = bs.normalize(plan)
+            plan_z, plan_h = bs.pack(plan), bs.plan_hash(plan)
+        else:
+            plan = bs.unpack(old["plan_z"])
+            warnings = []
+            plan_z, plan_h = old["plan_z"], old["plan_h"]
+    except bs.PlanError as e:
+        return {"error": "invalid_plan", "message": str(e), "problems": e.problems}
+    except Exception as e:                              # noqa: BLE001 — not JSON-shaped
+        return {"error": "invalid_plan", "message": f"the plan could not be read: {e}"}
+    assign = dict(old.get("assign") or {}) if assignments is None else dict(assignments)
+    bd = {"name": name or old.get("name") or "", "plan_z": plan_z, "plan_h": plan_h, "mode": mode or old.get("mode") or "room",
+          "assign": assign, "made": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")}
+    new = {**brief, "palace_view": "building", "building": bd}
+    try:
+        b, nodes, _ = load_brief({"brief": _checked(doc, new), "nodes": [
+            {k: v for k, v in n.items() if not k.startswith("_")} for n in get_store().list_nodes(uid(), timeline_id)]})
+        from .build.brief import validate_brief, validate_nodes
+        warnings = list(warnings) + [w for w in validate_brief(b) if not w.startswith("building plan:")]
+        warnings += validate_nodes(b, nodes)
+        from .build.palace_building_asset import resolved
+        res = resolved(b, nodes) if nodes else {"assign": {}, "unplaced": [], "notes": []}
+    except (BriefError, bs.PlanError) as e:
+        return {"error": "invalid_building", "message": str(e)}
+    doc["brief"] = new
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"ok": True, "building": bs.summary(plan), "mode": bd["mode"], "palace_view": "building",
+            "placed": {k: ({"room": v["r"]} | ({"anchor": v["a"]} if v["a"] else {})) for k, v in res["assign"].items()},
+            "unplaced": res["unplaced"], "warnings": warnings + res["notes"],
+            "next": "build_timeline, then publish_timeline(…, 'private-web')"}
+
+
 def _courthouses(doc, brief, place, pid, bbox, cache, subject, given):
     """A law palace's courthouses (city_courts) merged into the landmark buildings: {buildings, courts: [{name,
     level, page?, on_osm?}], source} or None when the timeline is not about law."""
@@ -2060,8 +2184,8 @@ def _load_full(doc):
                        "connections": st.get_connections(uid(), doc["timeline_id"])})
 
 
-def _layout_error(doc, layout: str, hub_look: str):
-    """An error dict when the hub_look argument cannot apply, else None."""
+def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
+    """An error dict when the hub_look / palace_view argument cannot apply, else None."""
     if hub_look:
         if hub_look not in ("stars", "plain"):
             return {"error": "invalid_hub_look",
@@ -2070,11 +2194,19 @@ def _layout_error(doc, layout: str, hub_look: str):
         if doc["brief"].get("mode") != "outline" or (layout or doc["brief"].get("layout")) != "solar":
             return {"error": "invalid_hub_look",
                     "message": "hub_look only applies to a Hub & spoke (mode 'outline', layout 'solar')"}
+    if palace_view:
+        if palace_view not in ("city", "building"):
+            return {"error": "invalid_palace_view",
+                    "message": f"palace_view {palace_view!r}: must be 'city' or 'building' (the Building Palace); "
+                               "the Star chart is the Hub & spoke's default look (hub_look 'stars')"}
+        if doc["brief"].get("mode") != "palace":
+            return {"error": "invalid_palace_view",
+                    "message": "palace_view only applies to a Mind Palace (mode 'palace')"}
     return None
 
 
-def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "") -> dict:
-    """The brief with a layout / tree_lines / hub_look override applied ('' keeps it)."""
+def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "", palace_view: str = "") -> dict:
+    """The brief with a layout / tree_lines / hub_look / palace_view override applied ('' keeps it)."""
     brief = dict(doc["brief"])
     if layout:
         brief["layout"] = layout
@@ -2082,6 +2214,8 @@ def _layout_choice(doc, layout: str, tree_lines: str, hub_look: str = "") -> dic
         brief["tree_lines"] = tree_lines
     if hub_look:
         brief["hub_look"] = hub_look
+    if palace_view:
+        brief["palace_view"] = palace_view
     return {**doc, "brief": brief}
 
 
@@ -2103,7 +2237,7 @@ def _tree_boxes(b, nodes, conns, ids=None) -> dict:
 @accounted
 def run_layout_preview(timeline_id: str, layout: str = "",
                        tree_lines: str = "", boxes: bool = False,
-                       hub_look: str = "") -> dict:
+                       hub_look: str = "", palace_view: str = "") -> dict:
     """Cheap layout dry-run: resolves the desktop arrangement + vertical
     positions and reports world height, per-column balance, and warnings —
     iterate here before build_timeline.
@@ -2122,6 +2256,9 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     spokes); '' keeps the brief's. Both looks are in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.
+    palace_view: for a Mind Palace, 'city' or 'building' (the Building Palace:
+    one building's blueprint, §D-Building); '' keeps the brief's. Chosen when
+    the page is built, not switched in the page.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
@@ -2131,11 +2268,11 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     doc, err = _timeline_or_error(timeline_id)
     if err:
         return err
-    err = _layout_error(doc, layout, hub_look)
+    err = _layout_error(doc, layout, hub_look, palace_view)
     if err:
         return err
     try:
-        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, hub_look))
+        b, nodes, conns = _load_full(_layout_choice(doc, layout, tree_lines, hub_look, palace_view))
         from .build.brief import validate_brief, validate_nodes
         warnings = validate_brief(b) + validate_nodes(b, nodes)
         if not nodes:
@@ -2292,15 +2429,16 @@ def place_nodes(timeline_id: str, placements: dict[str, dict] | None = None,
 @mcp.tool(title="Build timeline", annotations=RW)
 @accounted
 def build_timeline(timeline_id: str, layout: str = "",
-                   tree_lines: str = "", hub_look: str = "") -> dict:
+                   tree_lines: str = "", hub_look: str = "", palace_view: str = "") -> dict:
     """Emit the timeline from the engine template, verify it (structure,
     geometry, no invented slots, and a JS parse check of every emitted script),
     and store the artifacts (hosted page + offline single-file). Fails with the
     exact check list on any violation.
 
-    layout / tree_lines / hub_look: as run_layout_preview (layout 'solar' is
-    the Hub & spoke outline, §D-Solar; hub_look the look it opens in, 'stars'
-    or 'plain'); given here they are also kept in the brief, so every later
+    layout / tree_lines / hub_look / palace_view: as run_layout_preview (layout
+    'solar' is the Hub & spoke outline, §D-Solar; hub_look the look it opens
+    in, 'stars' or 'plain'; palace_view 'building' the Building Palace,
+    §D-Building); given here they are also kept in the brief, so every later
     build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
@@ -2315,10 +2453,10 @@ def build_timeline(timeline_id: str, layout: str = "",
         doc, err = _timeline_or_error(timeline_id)
         if err:
             return err
-    err = _layout_error(doc, layout, hub_look)
+    err = _layout_error(doc, layout, hub_look, palace_view)
     if err:
         return err
-    doc = _layout_choice(doc, layout, tree_lines, hub_look)
+    doc = _layout_choice(doc, layout, tree_lines, hub_look, palace_view)
     try:
         b, nodes, conns = _load_full(doc)
         if not nodes:
@@ -2488,6 +2626,18 @@ def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
                            "homepage now. Nothing to upload.")}
     if site:
         urls["view_url"] = f"https://{site}.web.app/pv/{key}/"
+        bd = (doc.get("brief") or {}).get("building") or {}
+        if (doc.get("brief") or {}).get("palace_view") == "building" and bd.get("plan_h"):
+            # this path never deploys the site, and the page fetches its plan (and the renderers) from the site's /bldg/: say so when they are not there yet
+            from .build import building_schema as bs
+            from .build.palace_building_asset import BUILDING_PATH
+            from .build.palace_building_fpv import FPV_PATH
+            missing = [p_ for p_ in ("/bldg/" + bs.file_name(bd["plan_h"]), BUILDING_PATH, FPV_PATH) if A.probe(f"https://{site}.web.app{p_}") != 200]
+            if missing:
+                urls["building_files_missing"] = missing
+                urls["note"] += (" This Building Palace's plan or renderer is not on the site yet (" + ", ".join(missing) + "): until the site is "
+                                 "redeployed (publish once from a computer whose Firebase CLI is signed in to this account), the page shows its cards "
+                                 "and the blueprint says it could not load the plan.")
         if A.probe(f"https://{site}.web.app/pv/") != 200:
             urls["note"] += (" The site's page shell is not deployed yet, so "
                              "open it from the homepage once the site has "
@@ -2755,10 +2905,18 @@ def get_timeline(timeline_id: str) -> dict:
 
 
 def _brief_out(brief):
-    """A brief as a tool hands it back: a Mind Palace's packed city summarised."""
+    """A brief as a tool hands it back: a Mind Palace's packed city (or a Building Palace's packed plan) summarised."""
     if isinstance(brief, dict) and (brief.get("palace") or {}).get("data_z"):
         from .build.palace import summary
-        return {**brief, "palace": summary(brief["palace"])}
+        brief = {**brief, "palace": summary(brief["palace"])}
+    if isinstance(brief, dict) and (brief.get("building") or {}).get("plan_z"):
+        from .build.building_schema import summary as plan_summary, unpack
+        bd = brief["building"]
+        try:
+            info = plan_summary(unpack(bd["plan_z"]))
+        except Exception:                               # noqa: BLE001 — unreadable: say so, not the base64
+            info = {"error": "unreadable"}
+        brief = {**brief, "building": {**{k: v for k, v in bd.items() if k != "plan_z"}, "plan": info}}
     return brief
 
 
