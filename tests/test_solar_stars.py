@@ -382,3 +382,19 @@ def test_black_holes_comets_asteroids_core_and_belts(browser, pages):
     assert r["core"] == 2 and r["grains"] == 300, r
     assert not errs, errs
     pg.context.close()
+
+
+def test_an_enlarged_body_drops_the_skin_and_gets_it_back(browser, pages):
+    """Focus (the renderer's enlarged disc) shows the node's content, not the
+    planet; back home the planet is there again."""
+    pg, errs = _open(browser, pages["orbit"])
+    shown = "() => [].filter.call(document.querySelectorAll('#node-u1-p1 .node-card>.sk'), function(e){ return getComputedStyle(e).display!=='none'; }).length"
+    assert pg.evaluate(shown) >= 2
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate(shown) == 0
+    pg.evaluate("() => window.exitFocus()")
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate(shown) >= 2
+    assert not errs, errs
+    pg.context.close()
