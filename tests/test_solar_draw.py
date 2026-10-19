@@ -140,8 +140,10 @@ def test_every_pause_is_there():
 
 
 def test_the_drawing_is_small():
+    """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
+    the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 17000, size      # (15 KB + the in-page planner's comets, belts, core and drifters, Round 5)
+    assert size < 22000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks
 
 
 def test_spoke_style_has_no_motion_and_draws_tubes():
@@ -516,19 +518,29 @@ def test_edit_mode_sync_redraws_the_systems_from_the_live_tables(browser, pages)
     pg.context.close()
 
 
-def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, pages):
-    """Luke (round 2): however big the chart, the reader can zoom out and see all
-    of it, the circles shrinking with it — the toggle, ⌘−, pinch — and the orbits go on."""
+def test_zoom_is_continuous_down_to_the_whole_chart_and_a_click_comes_back_down(browser, pages):
+    """Luke (rounds 2, 4): zoom out as far as wanted — no button, no mode — the circles
+    shrinking with it, the orbits going on; a click on a body comes back down to it."""
     f, _ = pages["orbit"]
     pg, errs = _open(browser, f, wait=1500)
     pg.mouse.move(2, 940)
-    pg.click("#sol-fit")
-    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => !document.getElementById('sol-fit')")
+    zs = []
+    for _ in range(8):                                                # cmd-minus, step by step, no jump
+        pg.keyboard.press("Control+Minus")
+        pg.wait_for_timeout(650)
+        zs.append(pg.evaluate("() => window._altoSolarZoom()"))
+    assert all(b < a for a, b in zip(zs, zs[1:])) and zs[0] > 0.5 and zs[-1] < 0.05, zs
     st = pg.evaluate("""() => { var w=document.getElementById('world').getBoundingClientRect(), c=document.getElementById('canvas').getBoundingClientRect();
-      return {z:window._altoSolarZoom(), w:[w.left, w.top, w.right, w.bottom], c:[c.left, c.top, c.right, c.bottom]}; }""")
-    assert st["z"] < 1
+      return {w:[w.left, w.top, w.right, w.bottom], c:[c.left, c.top, c.right, c.bottom]}; }""")
     w, c = st["w"], st["c"]
     assert w[0] >= c[0] - 1 and w[1] >= c[1] - 1 and w[2] <= c[2] + 1 and w[3] <= c[3] + 1, st   # all of it in view
+    pg.keyboard.press("Control+0")
+    pg.wait_for_timeout(800)
+    assert pg.evaluate("() => [window._altoSolarZoom(), document.getElementById('world').style.transform]") == [1, ""]
+    for _ in range(4):                                                # far enough out that u2-p1 is in the window
+        pg.keyboard.press("Control+Minus")
+        pg.wait_for_timeout(650)
     g0 = pg.evaluate(BODIES)
     pg.wait_for_timeout(900)
     assert _moved(g0, pg.evaluate(BODIES)) > 0.3                       # the orbits go on
@@ -538,12 +550,6 @@ def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, p
     assert pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]") == [1, "u2-p1"]
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(700)
-    pg.keyboard.press("Control+Minus")
-    pg.wait_for_timeout(800)
-    assert pg.evaluate("() => window._altoSolarZoom()") < 1
-    pg.keyboard.press("Escape")
-    pg.wait_for_timeout(800)
-    assert pg.evaluate("() => [window._altoSolarZoom(), document.getElementById('world').style.transform]") == [1, ""]
     pg.mouse.move(700, 500)
     pg.keyboard.down("Control")
     for _ in range(4):
@@ -552,5 +558,446 @@ def test_the_whole_chart_zooms_out_to_fit_and_a_click_comes_back_down(browser, p
     pg.keyboard.up("Control")
     pg.wait_for_timeout(300)
     assert pg.evaluate("() => window._altoSolarZoom()") < 0.9                # a pinch out
+    assert not errs, errs
+    pg.context.close()
+
+
+def _png_rgb(data):
+    """(width, height, pixel(x, y) -> (r, g, b)) of an 8-bit, non-interlaced RGB/RGBA PNG."""
+    import struct
+    import zlib
+    pos, idat = 8, b""
+    w = h = ct = None
+    while pos < len(data):
+        n, typ = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + n]
+        if typ == b"IHDR":
+            w, h, depth, ct = struct.unpack(">IIBB", body[:10])
+            assert depth == 8 and ct in (2, 6)
+        elif typ == b"IDAT":
+            idat += body
+        pos += 12 + n
+    bpp = 3 if ct == 2 else 4
+    raw, stride, rows, prev = zlib.decompress(idat), w * bpp, [], bytearray(w * bpp)
+    for y in range(h):
+        f, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for i in range(stride):
+            a = line[i - bpp] if i >= bpp else 0
+            b, c = prev[i], prev[i - bpp] if i >= bpp else 0
+            if f == 1:
+                line[i] = (line[i] + a) & 255
+            elif f == 2:
+                line[i] = (line[i] + b) & 255
+            elif f == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif f == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(line)
+        prev = line
+    return w, h, lambda x, y: tuple(rows[y][x * bpp:x * bpp + 3])
+
+
+def test_zoomed_out_there_is_no_rectangle_round_the_chart(browser, pages, tmp_path):
+    """Luke: "zoom out as much as they want and not see a clear border". Pixels just
+    inside and just outside the old board's edge are the same background."""
+    f, _ = pages["spoke"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window._altoSolarZoom(0.3)")
+    pg.wait_for_timeout(600)
+    r = pg.evaluate("() => { var w=document.getElementById('world').getBoundingClientRect(); return [w.left, w.top, w.right, w.bottom]; }")
+    shot = tmp_path / "zoomed.png"
+    pg.screenshot(path=str(shot))
+    W, H, px = _png_rgb(shot.read_bytes())
+    worst = 0
+    for k in range(1, 9):                                            # along the left and right edges, 6 px in and out
+        y = int(r[1] + (r[3] - r[1]) * k / 9)
+        for x, dx in ((r[0], 1), (r[2], -1)):
+            a, b = (int(x + 6 * dx), y), (int(x - 6 * dx), y)
+            if not (0 <= a[0] < W and 0 <= b[0] < W and 120 < y < H - 10):
+                continue
+            pa, pb = px(*a), px(*b)
+            worst = max(worst, max(abs(pa[i] - pb[i]) for i in range(3)))
+    assert worst <= 12, worst
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── where a chart opens (Luke, Torts star chart on 1.9.105: it opened on empty
+#    space, the first sun below the fold) ─────────────────────────────────────
+
+OPENING = """() => { var S=window._ALTO_SOLAR, id=S.systems[0].sun, c=document.getElementById('canvas').getBoundingClientRect(),
+  n=document.querySelector('#node-'+id+' .node-card').getBoundingClientRect();
+  return {zoom:window._altoSolarZoom(), dx:n.left+n.width/2-(c.left+c.width/2), dy:n.top+n.height/2-(c.top+c.height/2),
+          cw:c.width, ch:c.height, inView:n.top>=c.top && n.bottom<=c.bottom && n.left>=c.left && n.right<=c.right}; }"""
+
+
+def _opened(browser, tmp_path, html, name):
+    f = tmp_path / f"{name}.html"
+    f.write_text(html, encoding="utf-8")
+    pg, errs = _open(browser, f, wait=2600)          # past the engine's own openings (load, 150 / 600 / 1400 ms)
+    o = pg.evaluate(OPENING)
+    pg.context.close()
+    assert not errs, errs
+    return o
+
+
+def test_a_big_star_chart_opens_on_its_first_sun(browser, tmp_path):
+    html = _page(suns={0: 1})
+    assert _plan(html)["world"]["h"] > 3000                     # far bigger than the window
+    o = _opened(browser, tmp_path, html, "big")
+    assert o["zoom"] == 1 and o["inView"], o
+    assert abs(o["dx"]) < o["cw"] * .1 and abs(o["dy"]) < o["ch"] * .1, o   # in the middle of the window
+
+
+def test_a_small_star_chart_opens_fitted_to_all_of_it(browser, tmp_path):
+    o = _opened(browser, tmp_path, _page(units=[[[], []]], links=()), "small")
+    assert 0.6 <= o["zoom"] < 1 and o["inView"], o
+
+
+def test_hub_and_spoke_keeps_the_engines_opening_while_its_sun_is_in_view(browser, tmp_path):
+    o = _opened(browser, tmp_path, _page(style="spoke"), "spoke")
+    assert o["zoom"] == 1 and o["inView"], o
+
+
+def test_a_hub_and_spoke_whose_first_sun_is_below_the_fold_opens_on_it(browser, tmp_path):
+    # a first unit with many planets: its sun sits far down the board
+    html = _page(units=[[[2] * 8] * 14], style="spoke", links=())
+    s0 = _plan(html)["systems"][0]
+    assert s0["cy"] - s0["r_sun"] > 1100                         # below a 950px window's fold
+    o = _opened(browser, tmp_path, html, "spoke-big")
+    assert o["inView"] and abs(o["dy"]) < o["ch"] * .25, o
+
+
+def test_a_find_link_is_not_overridden(browser, tmp_path):
+    f = tmp_path / "find.html"
+    f.write_text(_page(suns={0: 1}), encoding="utf-8")
+    ctx = browser.new_context(viewport={"width": 1500, "height": 950})
+    pg = ctx.new_page()
+    pg.goto(f.as_uri() + "#find=u2-p1")
+    pg.wait_for_timeout(2600)
+    st = pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]")
+    ctx.close()
+    assert st[0] == 1 and st[1] in (None, "u2-p1")
+
+
+# ── zooming: one gesture, one owner (Luke on 1.9.105: "If I zoom in and try to zoom
+#    back out, it basically doesn't work.") Synthetic Safari gesture events and
+#    ctrl+wheel streams on a Hub & spoke page; Playwright's WebKit is not Safari, so
+#    scratch/safari/zoomprobe.* repeats these in the real thing. ────────────────
+
+GESTURE_JS = r"""
+window.__g=function(type, scale, x, y){ var e=new Event(type, {bubbles:true, cancelable:true}); e.scale=scale; e.rotation=0; e.clientX=x; e.clientY=y;
+  (document.elementFromPoint(x, y)||document.body).dispatchEvent(e); return e.defaultPrevented; };
+window.__st=function(){ return {z:window._altoSolarZoom(), f:window._focusedNodeId||null}; };
+"""
+
+
+def _pinch(pg, x, y, scales, gap=16):
+    prevented = [pg.evaluate(f"() => window.__g('gesturestart', 1, {x}, {y})")]
+    for s in scales:
+        prevented.append(pg.evaluate(f"() => window.__g('gesturechange', {s}, {x}, {y})"))
+        pg.wait_for_timeout(gap)
+    prevented.append(pg.evaluate(f"() => window.__g('gestureend', {scales[-1]}, {x}, {y})"))
+    return prevented
+
+
+def _wheel(pg, x, y, dy, n, gap=16):
+    pg.mouse.move(x, y)
+    pg.keyboard.down("Control")
+    for _ in range(n):
+        pg.mouse.wheel(0, dy)
+        pg.wait_for_timeout(gap)
+    pg.keyboard.up("Control")
+
+
+@pytest.fixture(scope="module")
+def hub_page(tmp_path_factory):
+    f = tmp_path_factory.mktemp("hub") / "hub.html"
+    f.write_text(_page(style="spoke"), encoding="utf-8")
+    return f
+
+
+def test_a_pinch_never_starts_the_browsers_own_zoom_and_goes_both_ways(browser, hub_page):
+    pg, errs = _open(browser, hub_page, wait=1800)
+    pg.evaluate(GESTURE_JS)
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    # pinch in on a card at rest: the engine enlarges it; every gesture event is prevented
+    prev = _pinch(pg, xy[0], xy[1], [1.05, 1.15, 1.3, 1.45])
+    pg.wait_for_timeout(900)
+    assert all(prev), prev
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": "u1-p1"}
+    # pinch out: let go
+    assert all(_pinch(pg, 700, 500, [0.95, 0.85, 0.7, 0.55]))
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": None}
+    # pinch out at rest: the whole chart; pinch in from it: all the way back to full size, nothing enlarged
+    _pinch(pg, 700, 500, [0.9, 0.75, 0.6])
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("window._altoSolarZoom()") < 1
+    _pinch(pg, 700, 500, [1.1, 1.3, 1.6, 2.0])
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("window.__st()") == {"z": 1, "f": None}
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_one_ctrl_wheel_stream_does_one_thing_and_zooms_out_of_a_card(browser, hub_page):
+    pg, errs = _open(browser, hub_page, wait=1800)
+    pg.evaluate(GESTURE_JS)
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    _wheel(pg, xy[0], xy[1], -30, 6)
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("window.__st()")["f"] is not None             # pinch in: enlarged
+    _wheel(pg, 700, 500, 30, 30)                                     # one long pinch out: let go, then on out
+    pg.wait_for_timeout(700)
+    st = pg.evaluate("window.__st()")
+    assert st["f"] is None and st["z"] < 1, st
+    _wheel(pg, 700, 500, -30, 30)                                    # one long pinch in: back to full size and on into a body
+    pg.wait_for_timeout(900)
+    st = pg.evaluate("window.__st()")
+    assert st["z"] == 1 and st["f"] is not None, st
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── the camera adapter (window._altoSolarCam, for solar_fly.py) ───────────────
+
+def test_the_camera_puts_a_plan_point_in_the_middle_at_any_scale(browser, pages):
+    f, plan = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    seen = pg.evaluate("() => { window.__cam=[]; window._altoSolarCam.onChange(function(g){ window.__cam.push(g); }); return 1; }")
+    for sid, scale in (("u2", 1), ("u1", 0.5), ("u3", 0.8), ("u1-p1", 1)):
+        n = plan["nodes"][sid]
+        g = pg.evaluate(f"() => window._altoSolarCam.set({n['x']}, {n['y']}, {scale})")
+        pg.wait_for_timeout(120)
+        g2 = pg.evaluate("() => window._altoSolarCam.get()")
+        assert g2["scale"] == pytest.approx(scale, abs=1e-6)
+        assert abs(g2["cx"] - n["x"]) < 2 and abs(g2["cy"] - n["y"]) < 2, (sid, scale, g2, n)
+        assert pg.evaluate("() => window._altoSolarZoom()") == pytest.approx(scale, abs=1e-6)
+        # set(get()) changes nothing
+        g3 = pg.evaluate("() => { var g=window._altoSolarCam.get(); return window._altoSolarCam.set(g.cx, g.cy, g.scale); }")
+        assert abs(g3["cx"] - g2["cx"]) < 1.5 and abs(g3["cy"] - g2["cy"]) < 1.5
+    assert pg.evaluate("() => window.__cam.length") > 0              # onChange heard the moves
+    # cmd-minus moves the same camera
+    pg.evaluate("() => window._altoSolarCam.set(0, 0, 1)")
+    pg.keyboard.press("Control+Minus")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => window._altoSolarCam.get().scale") == pytest.approx(pg.evaluate("() => window._altoSolarZoom()"))
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── an enlarged body stays a circle and shows its content (Luke, round 4) ─────
+
+def _long_page(style):
+    d = solar_doc(SMALL, style, SMALL_LINKS, {0: 1} if style == "orbit" else None)
+    for n in d["nodes"]:
+        if n["id"] == "u1-p1":
+            n["desc"] = ("The rule as the notes put it, at length. " * 14).strip()
+            n["sections"] = [{"h": "Test", "t": "Each element in turn, as the cases apply it. " * 8},
+                             {"h": "Cases", "t": "The leading cases and what each decides. " * 8}]
+    html, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    return html
+
+
+DISC_WATCH = r"""() => new Promise(function(res){
+  var n=document.getElementById('node-u1-p1'), c=n.querySelector('.node-card'), bad=[], k=0, t0=performance.now();
+  (function f(){ var cs=getComputedStyle(c), cp=cs.clipPath||cs.webkitClipPath||'none', w=c.offsetWidth, h=c.offsetHeight;
+    if(Math.abs(w-h)>1) bad.push('box '+w+'x'+h);
+    if(!/^(none|circle)/.test(cp)) bad.push('clip '+cp);
+    if(cs.borderTopLeftRadius!=='50%' && parseFloat(cs.borderTopLeftRadius)<w/2-1) bad.push('radius '+cs.borderTopLeftRadius);
+    var sh=document.querySelector('#world .alto-fshadow'); if(sh && getComputedStyle(sh).borderTopLeftRadius!=='50%') bad.push('shadow '+getComputedStyle(sh).borderTopLeftRadius);
+    k++; if(performance.now()-t0<1100) requestAnimationFrame(f); else res({frames:k, bad:bad.slice(0, 6)}); })();
+})"""
+
+
+@pytest.mark.parametrize("style", ["spoke", "orbit"])
+def test_an_enlarged_body_is_a_bigger_disc_with_its_content_and_a_way_to_the_full_page(browser, tmp_path, style):
+    f = tmp_path / f"long-{style}.html"
+    f.write_text(_long_page(style), encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1600)
+    pg.mouse.move(2, 940)
+    # every frame of the grow: a circle (box square, round clip or none, round shadow)
+    res = pg.evaluate("() => { var p=(" + DISC_WATCH + ")(); window.enterFocus('u1-p1'); return p; }")
+    assert not res["bad"], res
+    st = pg.evaluate("""() => { var n=document.getElementById('node-u1-p1'), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body');
+      return {w:c.offsetWidth, h:c.offsetHeight, sD:parseFloat(getComputedStyle(n).getPropertyValue('--sD')), d:window._ALTO_SOLAR.nodes['u1-p1'].d,
+              title:b && b.querySelector('.node-title') && getComputedStyle(b).display!=='none' ? b.querySelector('.node-title').textContent : null,
+              secs:b ? b.querySelectorAll('.sol-sec').length : 0, scrolls:b ? b.scrollHeight>b.clientHeight : null,
+              open:!!c.querySelector('.sol-open') && getComputedStyle(c.querySelector('.sol-open')).display!=='none'}; }""")
+    assert abs(st["w"] - st["h"]) <= 1 and abs(st["w"] - st["sD"]) <= 1 and st["sD"] > st["d"], st
+    assert st["title"] and st["secs"] == 2 and st["scrolls"] and st["open"], st
+    # the wheel over the long content scrolls it (it does not hop to a neighbour)
+    xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .sol-body').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
+    pg.mouse.move(xy[0], xy[1])
+    pg.mouse.wheel(0, 120)
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => [window._focusedNodeId, document.querySelector('#node-u1-p1 .sol-body').scrollTop>0]") == ["u1-p1", True]
+    # a click on the text does not leave the chart; the control opens the full page
+    pg.mouse.click(xy[0], xy[1])
+    pg.wait_for_timeout(300)
+    assert not pg.evaluate("() => document.getElementById('detail-page').classList.contains('visible')")
+    pg.evaluate("() => document.querySelector('#node-u1-p1 .sol-open').click()")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => document.getElementById('detail-page').classList.contains('visible')")
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_esc_and_arrows_from_an_enlarged_disc_and_back_to_a_circle(browser, pages):
+    f, _ = pages["spoke"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window.enterFocus('u1')")
+    pg.wait_for_timeout(800)
+    pg.keyboard.press("ArrowRight")
+    pg.wait_for_timeout(900)
+    got = pg.evaluate("() => window._focusedNodeId")
+    assert got and got != "u1"
+    res = pg.evaluate("() => { var p=(" + DISC_WATCH.replace("u1-p1", "u1") + ")(); return p; }")
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(1200)
+    st = pg.evaluate("""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card');
+      return {f:window._focusedNodeId||null, w:c.offsetWidth, h:c.offsetHeight, cls:n.className}; }""", got)
+    assert st["f"] is None and st["w"] == st["h"] and "sol-" not in st["cls"], st
+    assert not res["bad"], res
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── seams for the star chart's skin and travel ────────────────────────────────
+
+def test_the_skin_tick_and_the_orbit_clock(browser, pages):
+    f, plan = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1200)
+    pg.mouse.move(2, 940)
+    pg.evaluate("""() => { window.__sk=[]; window._altoSkinTick=function(P, B, T){
+      window.__sk.push({T:T, n:Object.keys(B).length, plan:!!(P && P.nodes), x:B['u1-p1'].rx, y:B['u1-p1'].ry, c:!!B['u1-p1'].c}); }; }""")
+    pg.wait_for_timeout(800)
+    sk = pg.evaluate("() => window.__sk")
+    assert len(sk) > 10 and sk[-1]["T"] > sk[0]["T"] and sk[-1]["plan"] and sk[-1]["c"]
+    assert sk[-1]["n"] == len(plan["nodes"])
+    node = pg.evaluate("() => { var n=document.getElementById('node-u1-p1'); return [parseFloat(n.style.left), parseFloat(n.style.top)]; }")
+    assert pg.evaluate("() => window._altoSolarT") == pytest.approx(pg.evaluate("() => window.__sk[window.__sk.length-1].T"), abs=0.2)
+    assert abs(sk[-1]["x"] - node[0]) < 3 and abs(sk[-1]["y"] - node[1]) < 3
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── one format, two looks: Star chart | Plain, and the Orbit switch (Luke, round 5) ──
+
+LOOKST = """() => ({look:window._altoSolarLook.get(), mot:window._altoSolarMotion.get(), T:window._altoSolarT,
+  stars:document.documentElement.classList.contains('alto-solar-stars'), plain:document.documentElement.classList.contains('alto-solar-plain'),
+  rings:document.querySelectorAll('#solar-svg .sol-ring').length, tubes:document.querySelectorAll('#solar-svg path.sol-tube').length,
+  seg:[].map.call(document.querySelectorAll('#sol-ctl [data-look]'), function(b){ return b.getAttribute('data-look')+':'+b.getAttribute('aria-checked'); }),
+  orbitBtn:(function(m){ return m ? {dis:m.disabled, pressed:m.getAttribute('aria-pressed')} : null; })(document.getElementById('sol-motion'))})"""
+
+
+def test_the_look_switch_replans_glides_and_keeps_the_view_and_the_choice(browser, pages):
+    f, _ = pages["spoke"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    st = pg.evaluate(LOOKST)
+    assert st["look"] == "plain" and st["plain"] and not st["stars"] and st["rings"] == 0 and st["tubes"] > 0
+    assert st["seg"] == ["stars:false", "plain:true"] and st["orbitBtn"]["dis"]
+    anchor = pg.evaluate("""() => { var c=document.getElementById('canvas').getBoundingClientRect(), best=null, bd=1e9;
+      document.querySelectorAll('#world .node[data-solar] .node-card').forEach(function(e){ var r=e.getBoundingClientRect(), d=Math.hypot(r.left+r.width/2-(c.left+c.width/2), r.top+r.height/2-(c.top+c.height/2)); if(d<bd){ bd=d; best=[e.closest('.node').id, r.left+r.width/2, r.top+r.height/2]; } }); return best; }""")
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.wait_for_timeout(700)
+    pg.click("#sol-ctl [data-look=stars]")
+    pg.wait_for_timeout(1700)
+    st = pg.evaluate(LOOKST)
+    assert st["look"] == "stars" and st["stars"] and st["rings"] > 0 and st["tubes"] == 0 and st["mot"], st
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p1"            # still enlarged, in its new place
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(800)
+    t0 = pg.evaluate("() => window._altoSolarT")
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("() => window._altoSolarT") > t0                       # the Star chart look moves
+    pg.reload()
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("() => window._altoSolarLook.get()") == "stars"      # the viewer's choice is kept
+    # back to Plain: the body in the middle stays in the middle while the others move (zoomed
+    # out, where the view is free to follow it; at natural size the canvas's own ends can stop it)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window._altoSolarZoom(0.5)")
+    pg.wait_for_timeout(300)
+    anchor = pg.evaluate("""() => { var c=document.getElementById('canvas').getBoundingClientRect(), best=null, bd=1e9;
+      document.querySelectorAll('#world .node[data-solar] .node-card').forEach(function(e){ var r=e.getBoundingClientRect(), d=Math.hypot(r.left+r.width/2-(c.left+c.width/2), r.top+r.height/2-(c.top+c.height/2)); if(d<bd){ bd=d; best=[e.closest('.node').id, r.left+r.width/2, r.top+r.height/2]; } }); return best; }""")
+    pg.evaluate("() => window._altoSolarLook.set('plain')")
+    pg.wait_for_timeout(900)
+    now = pg.evaluate("(id) => { var r=document.querySelector('#'+id+' .node-card').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }", anchor[0])
+    assert abs(now[0] - anchor[1]) < 40 and abs(now[1] - anchor[2]) < 40, (anchor, now)
+    assert pg.evaluate(LOOKST)["look"] == "plain"
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_the_orbit_switch_freezes_where_it_is_and_resumes_without_a_jump(browser, pages):
+    f, _ = pages["orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    assert pg.evaluate("() => window._altoSolarMotion.get()") is True
+    pg.click("#sol-motion")
+    pg.wait_for_timeout(200)
+    g0, t0 = pg.evaluate(BODIES), pg.evaluate("() => window._altoSolarT")
+    pg.wait_for_timeout(900)
+    g1, t1 = pg.evaluate(BODIES), pg.evaluate("() => window._altoSolarT")
+    assert _moved(g0, g1) == 0 and t1 == t0                                    # frozen exactly, clock stopped
+    assert pg.evaluate("() => [window._altoSolarMotion.get(), document.getElementById('sol-motion').getAttribute('aria-pressed')]") == [False, "false"]
+    pg.click("#sol-motion")
+    pg.wait_for_timeout(60)
+    g2 = pg.evaluate(BODIES)
+    assert _moved(g1, g2) < 3                                                  # no jump on resuming
+    pg.wait_for_timeout(1200)
+    assert _moved(g2, pg.evaluate(BODIES)) > 0.3 and pg.evaluate("() => window._altoSolarT") > t1
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_reduced_motion_starts_with_the_orbit_off_but_it_can_be_switched_on(browser, pages):
+    f, _ = pages["orbit"]
+    pg, errs = _open(browser, f, reduced=True, wait=1200)
+    assert pg.evaluate("() => window._altoSolarMotion.get()") is False
+    pg.evaluate("() => window._altoSolarMotion.set(true)")
+    pg.wait_for_timeout(1000)
+    assert pg.evaluate("() => window._altoSolarT") > 0
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_a_comet_follows_its_ellipse_and_its_path_is_drawn(browser, tmp_path):
+    """A node flagged 'revisit' (solar.LOOK_FLAGS: comet) orbits on its plan's ellipse
+    (nodes[id].orbit, placed with the in-page solar.orbit_offset) and its path is an ellipse."""
+    d = solar_doc(SMALL, "orbit", SMALL_LINKS)
+    d["brief"]["flags"] = [{"id": "revisit", "name": "Revisit"}]
+    for n in d["nodes"]:
+        if n["id"] in ("u1-p2", "u1-p1-m1"):
+            n["flags"] = ["revisit"]
+    html, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    plan = _plan(html)
+    comets = [i for i, n in plan["nodes"].items() if (n.get("orbit") or {}).get("e", 0) > 0]
+    if not comets:
+        pytest.skip("this plan gives no comet an elliptical orbit")
+    f = tmp_path / "comet.html"
+    f.write_text(html, encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1200)
+    pg.mouse.move(2, 940)
+    assert pg.evaluate("() => document.querySelectorAll('#solar-svg ellipse.sol-comet').length") == len(comets)
+    cid = comets[0]
+    par = plan["nodes"][cid]["parent"]
+    ds = []
+    for t in (0, 30, 60, 90):
+        pg.evaluate(f"() => window._altoSolarCam && 1")
+        g = pg.evaluate("() => { var T0=window._altoSolarT; return T0; }")
+        dist = pg.evaluate(f"""() => {{ var a=document.getElementById('node-{cid}'), b=document.getElementById('node-{par}');
+          return Math.hypot(parseFloat(a.style.left)-parseFloat(b.style.left), parseFloat(a.style.top)-parseFloat(b.style.top)); }}""")
+        ds.append(dist)
+        pg.wait_for_timeout(1500)
+    assert max(ds) - min(ds) > 0.5, ds                                       # not a circle about its parent
     assert not errs, errs
     pg.context.close()
