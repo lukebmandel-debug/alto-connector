@@ -61,11 +61,11 @@ def test_a_page_without_solar_is_byte_identical_whatever_the_skin(monkeypatch):
 
 def test_the_skin_is_small_and_safari_safe():
     size = len(gzip.compress((STARS_JS + STARS_CSS).encode("utf-8"), 9))
-    assert size < 11000, size
+    assert size < 13000, size
     # no SVG mask, no CSS / SVG filter or blur layer, nothing moves a node by a transform
     assert "<mask" not in STARS_JS and "'mask'" not in STARS_JS and "mask" not in STARS_CSS
     assert "blur(" not in STARS_CSS and "filter:url" not in STARS_CSS and "feGaussian" not in STARS_JS
-    assert re.findall(r"(\w+(?:\.\w+)?)\.style\.transform=", STARS_JS) == ["k.lit", "k.craft"]
+    assert re.findall(r"(\w+(?:\.\w+)?)\.style\.transform=", STARS_JS) == ["k.lit", "k.tail", "k.craft"]
     assert not re.search(r"\.style\.(left|top)=", STARS_JS)                 # reads them, never writes
 
 
@@ -112,7 +112,27 @@ def pages(tmp_path_factory):
         f = d / f"{name}.html"
         f.write_text(html, encoding="utf-8")
         out[name] = f
+    out["mock"] = d / "mock.html"
+    out["mock"].write_text(_mock(_page(BIG, links=[])), encoding="utf-8")
     return out
+
+
+LOOKS = {"u1-p3": "blackhole", "u2-p1": "comet", "u2-p4": "asteroid", "u3-p1-m1": "asteroid"}
+
+
+def _mock(html):
+    """LEAD's coming plan keys, mocked into a built page: a galactic core when
+    there are 2+ systems, looks on some nodes, an asteroid belt."""
+    import json
+    at = html.index("window._ALTO_SOLAR=") + len("window._ALTO_SOLAR=")
+    S, end = json.JSONDecoder().raw_decode(html[at:])
+    s0, s1 = S["systems"][0], S["systems"][1]
+    S["core"] = {"x": s0["cx"] + 900, "y": (s0["cy"] + s1["cy"]) / 2, "r": 70}
+    for i, lk in LOOKS.items():
+        S["nodes"][i]["look"] = lk
+    pl = s0["planets"]
+    S["belts"] = [{"r": (pl[1]["r"] + pl[2]["r"]) / 2, "w": 90, "n": 300, "seed": 3, "system": 0}]
+    return html[:at] + json.dumps(S) + html[at + end:]
 
 
 def _open(browser, f, reduced=False, wait=1500, theme=None):
@@ -343,5 +363,22 @@ def test_motion_off_pauses_the_sky(browser, pages):
       window._altoSolarMotion.set(true);
       return [a, getComputedStyle(document.querySelector('.sk-tw')).animationPlayState]; }""")
     assert st == ["paused", "running"], st
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_black_holes_comets_asteroids_core_and_belts(browser, pages):
+    pg, errs = _open(browser, pages["mock"])
+    _settled(pg)
+    s = pg.evaluate(SKIN)
+    assert s["b"]["u1-p3"]["kids"] == ["sk-rb", "sk-bh", "sk-rf"], s["b"]["u1-p3"]
+    assert s["b"]["u2-p1"]["kids"][0] == "sk-tail" and "sk-lit m" in s["b"]["u2-p1"]["kids"]
+    assert "sk-lit m a" in s["b"]["u2-p4"]["kids"] and "sk-lit m a" in s["b"]["u3-p1-m1"]["kids"]
+    r = pg.evaluate(r"""() => { var S=window._ALTO_SOLAR, n=document.getElementById('node-u2-p1'), u=document.getElementById('node-u2'),
+        t=/rotate\(([-\d.]+)deg\)/.exec(n.querySelector('.sk-tail').style.transform);
+      return {tail:t ? +t[1] : null, away:Math.atan2(parseFloat(n.style.top)-parseFloat(u.style.top), parseFloat(n.style.left)-parseFloat(u.style.left))*180/Math.PI,
+        core:document.querySelectorAll('.sk-sky .sk-cacc,.sk-sky .sk-hz').length, grains:document.querySelectorAll('#solar-svg .sk-belt circle').length}; }""")
+    assert r["tail"] is not None and _off(r["tail"], r["away"]) < 2.5, r      # a comet's tail points away from its sun
+    assert r["core"] == 2 and r["grains"] == 300, r
     assert not errs, errs
     pg.context.close()
