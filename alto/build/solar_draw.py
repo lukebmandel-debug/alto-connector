@@ -118,6 +118,7 @@ SOLAR_JS = r"""
    it moves. One mount per page (its engine hooks are page globals). */
 window._altoSolarMount=function(S, opt){
 opt=opt||{}; if(!S || !S.nodes || window._altoSolarMounted) return false; window._altoSolarMounted=true;
+window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2, K=1.7;
 var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:108, moon:62, sat:34}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
@@ -190,7 +191,33 @@ window._altoSolarLayout=function(pos){
   if(MOVES) go();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
+  if(!opened) setTimeout(openView, 0);
 };
+/* ── where the page opens (once, on the first layout) ──────────────────────
+   A chart bigger than the window opened on the top of the board — a district
+   chip over empty space, the first sun below the fold (Luke, Torts, 1.9.105).
+   It opens on the first sun (the plan's first system) at full size, in the
+   middle of the window; a chart small enough to read whole (the whole-chart
+   fit at 0.6 or more) opens zoomed out to all of it. Hub & spoke keeps the
+   engine's opening (centred across, at the top) while its first sun is in
+   view there. A view something else asked for wins: a #find= link, an
+   enlarged card, the detail page, a canvas already scrolled down. */
+var opened=false;
+function openView(){
+  var c=cvs(); if(opened || !c || !c.clientWidth || !ready || !desk()) return;
+  opened=true;
+  var over=c.scrollWidth-c.clientWidth, dl=over>1 ? Math.round(over/2) : 0;   /* the engine's centreWorld */
+  if(/[#&]find=/.test(String(document.URL).split('#')[1]||'') || window._focusedNodeId || c.scrollTop>1 || document.querySelector('#detail-page.visible')) return;
+  var b=SY[0] && B[SY[0].sun];
+  if(!b || !b.n){ c.scrollLeft=dl; return; }
+  var off=woff(c), cw=c.clientWidth, ch=c.clientHeight, x=b.hx+off.x, y=b.hy+off.y, r=b.d/2;
+  if(!ORBIT && x-r>=dl && x+r<=dl+cw && y-r>=0 && y+r<=ch){ c.scrollLeft=dl; return; }
+  var f=fitS();
+  if(f>=1){ c.scrollLeft=dl; return; }                                        /* all of it in view as it is */
+  if(f>=.6){ ovZoom(f, null, null, false); return; }
+  var sl=Math.max(0, Math.min(c.scrollWidth-cw, x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, y-ch/2)), ax=window._altoScrollAxis;
+  if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
+}
 /* the board is the plan's size: the glass behind it (whose end the page's
    height follows), tinted down the page by the systems' unit colours */
 function slab(W, H){
@@ -393,6 +420,8 @@ function morph(n, open){
 }
 function watch(){
   var w=document.getElementById('world'); if(!w || typeof MutationObserver!=='function') return;
+  var cv=document.getElementById('canvas'); if(cv) cv.addEventListener('scroll', camTell, {passive:true});
+  new MutationObserver(camTell).observe(w, {attributes:true, attributeFilter:['style']});   /* the board's pan (focus fly) and transform */
   new MutationObserver(function(ms){ ms.forEach(function(m){
     var n=m.target; if(!n.classList || !n.classList.contains('node') || !n.hasAttribute('data-solar') || !desk()) return;
     var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f);
@@ -453,7 +482,7 @@ function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
   o.s=Math.max(Math.min(fitS(), 1), Math.min(1, o.s));
   w=world.offsetWidth*o.s; h=wh()*o.s;
   o.tx=w<=cw ? (cw-w)/2 : Math.max(cw-w-30, Math.min(30, o.tx)); o.ty=h<=ch ? (ch-h)/2 : Math.max(ch-h-30, Math.min(30, o.ty)); return o; }
-function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+f2(o.tx-off.x)+'px,'+f2(o.ty-off.y)+'px) scale('+o.s+')'; }
+function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; camTell(); }
 function ovHold(on){
   var c=cvs(), sp=document.getElementById('sol-ov-hold');
   if(!on){ if(sp) sp.remove(); return; }
@@ -476,7 +505,7 @@ function ovZoom(s, fx, fy, anim){
   var c=cvs(); if(!c || !ready || !desk()) return;
   if(fx==null){ fx=c.clientWidth/2; fy=c.clientHeight/2; }
   if(!OV){
-    if(window._focusedNodeId && window.exitFocus) window.exitFocus();
+    if(window._focusedNodeId && window.exitFocus){ window.exitFocus(); setTimeout(function(){ ovZoom(s, null, null, anim); }, UNF); return; }
     var off=woff(c); OV={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop};
     ovHold(true); ovSet(OV); c.scrollLeft=0; c.scrollTop=0; c.classList.add('sol-ov'); fitBtn();
   }
@@ -513,28 +542,85 @@ function fitBtn(){
   t.title=OV ? 'Back to full size' : 'The whole chart (or pinch out, ⌘−)'; t.setAttribute('aria-label', t.title); t.setAttribute('aria-pressed', OV ? 'true' : 'false');
 }
 function mine(e){ var c=cvs(); return c && e.target && c.contains(e.target); }
+/* ── pinch / ctrl+wheel: one gesture, one owner ──────────────────────────────
+   Luke, 1.9.105: "If I zoom in and try to zoom back out, it basically doesn't
+   work." Three faults, all here: (1) a pinch at rest let Safari's own page zoom
+   start — gesturestart was stopped before the engine's preventDefault and never
+   prevented here; (2) gestureend was swallowed even when this script had done
+   nothing, so a pinch IN at rest never enlarged a card in Safari, and from the
+   whole chart a pinch in stalled short of full size; (3) one ctrl+wheel stream
+   did two things — left the whole chart and then enlarged whatever was under
+   the pointer, or (from a card) let it go and dropped straight on.
+   Now every gesture event is prevented (no native zoom, ever), and each gesture
+   (a pinch, or a ctrl+wheel stream: events < 220 ms apart) has ONE owner,
+   decided at its start: zooming out at rest or anything on the whole chart is
+   this script's (the board's scale); zooming in at rest, or anything while a
+   card is enlarged, is the engine's (enlarge / let go). A gesture stops at full
+   size (a new one enlarges a card). Zooming out of an enlarged card lets it go
+   at once and, once the engine's glide home is over (UNF ms), carries on into
+   the whole chart in the same movement. */
+var ZS=null, UNF=380;
+function gpt(e){ var c=cvs(); return (e.clientX!=null && mine(e)) ? local(e) : {x:c.clientWidth/2, y:c.clientHeight/2}; }
+function ovStep(s2, q){                                   /* this gesture's scale; false once it has come back to full size */
+  if(s2>=.999){ if(!OV) return true; ovLeave({x:(q.x-OV.tx)/OV.s, y:(q.y-OV.ty)/OV.s}, true); return false; }
+  ovZoom(s2, q.x, q.y, false); return true;
+}
 window.addEventListener('wheel', function(e){
-  if(!ready || !desk() || !mine(e)) return;
-  if(!OV && !(e.ctrlKey && e.deltaY>0 && !window._focusedNodeId)) return;
-  e.preventDefault(); e.stopImmediatePropagation();
-  var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1, q=local(e);
-  if(e.ctrlKey){ var s2=(OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012)));
-    if(OV && s2>=.999) return ovLeave({x:(q.x-OV.tx)/OV.s, y:(q.y-OV.ty)/OV.s}, true);
-    return ovZoom(s2, q.x, q.y, false); }
-  OV.tx-=e.deltaX*m; OV.ty-=e.deltaY*m; if(e.shiftKey && !e.deltaX){ OV.ty+=e.deltaY*m; OV.tx-=e.deltaY*m; }
-  clampO(OV); ovSet(OV);
+  if(!ready || !desk()) return;
+  if(e.ctrlKey) e.preventDefault();                        /* never the browser's own zoom, wherever the pointer is (the engine's own
+                                                              wheel listener is passive at rest in Safari, so its preventDefault is not heard) */
+  if(!mine(e)) return;
+  if(!e.ctrlKey){
+    var sb=e.target.closest && e.target.closest('#world .node.focused .sol-body');
+    if(sb && !OV && sb.scrollHeight>sb.clientHeight+1 && (e.deltaY<0 ? sb.scrollTop>0 : sb.scrollTop+sb.clientHeight<sb.scrollHeight-1)){ e.stopImmediatePropagation(); return; }   /* the enlarged disc's own text scrolls */
+    if(!OV) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    var mm=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1;
+    OV.tx-=e.deltaX*mm; OV.ty-=e.deltaY*mm; if(e.shiftKey && !e.deltaX){ OV.ty+=e.deltaY*mm; OV.tx-=e.deltaY*mm; }
+    clampO(OV); ovSet(OV); return;
+  }
+  var now=performance.now(), f=!!window._focusedNodeId;
+  if(!ZS || ZS.k!=='w' || now-ZS.t>220) ZS={k:'w', own:(f || (!OV && e.deltaY<0)) ? 'engine' : 'me', f0:f, ex:0, done:false};
+  ZS.t=now;
+  if(ZS.own==='engine'){
+    if(f===ZS.f0) return;                                  /* the engine's, until it has acted */
+    e.stopImmediatePropagation();
+    if(!(ZS.f0 && e.deltaY>0)) return;                     /* it enlarged a card: the rest of this gesture is spent */
+    if(!ZS.ex) ZS.ex=now; if(now-ZS.ex<UNF) return;        /* let go: on into the whole chart once it is home */
+    ZS.own='me';
+  }
+  e.stopImmediatePropagation();
+  if(ZS.done || (!OV && e.deltaY<0)) return;
+  var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1;
+  ZS.done=!ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), local(e));
 }, {passive:false, capture:true});
-var g0=null;
-document.addEventListener('gesturestart', function(e){ g0=(ready && desk() && mine(e) && !window._focusedNodeId) ? (OV ? OV.s : 1) : null; if(g0!=null) e.stopImmediatePropagation(); }, {passive:false});
+/* Safari: a trackpad pinch is gesturestart / gesturechange / gestureend */
+document.addEventListener('gesturestart', function(e){
+  e.preventDefault();
+  if(!ready || !desk()){ ZS=null; return; }
+  var f=!!window._focusedNodeId;
+  ZS={k:'g', own:f ? 'engine' : (OV ? 'me' : '?'), f0:f, base:OV ? OV.s : 1, sx:1, ex:0, done:false};
+  if(ZS.own==='me') e.stopImmediatePropagation();
+}, {passive:false});
 document.addEventListener('gesturechange', function(e){
-  if(g0==null) return; e.preventDefault(); e.stopImmediatePropagation();
-  if(!OV && e.scale>=1) return;
-  var q=local(e), s2=Math.min(1, g0*e.scale);
-  if(OV && s2>=.999) return; ovZoom(s2, q.x, q.y, false);
+  e.preventDefault();
+  if(!ZS || ZS.k!=='g') return;
+  if(ZS.own==='?'){ if(e.scale<.97) ZS.own='me'; else if(e.scale>1.03){ ZS.own='engine'; return; } else return; }
+  if(ZS.own==='engine'){
+    if(!ZS.f0 || e.scale>=.88) return;                     /* the engine's: pinch in at rest, or a card held */
+    e.stopImmediatePropagation();
+    if(!ZS.ex){ ZS.ex=performance.now(); if(window.exitFocus) window.exitFocus(); return; }
+    if(performance.now()-ZS.ex<UNF || window._focusedNodeId) return;
+    ZS.own='me'; ZS.base=1; ZS.sx=e.scale; return;          /* from here the pinch is the board's */
+  }
+  e.stopImmediatePropagation();
+  if(ZS.done) return;
+  ZS.done=!ovStep(Math.min(1, ZS.base*e.scale/ZS.sx), gpt(e));
 }, {passive:false});
 document.addEventListener('gestureend', function(e){
-  if(g0==null) return; e.preventDefault(); e.stopImmediatePropagation(); g0=null;
-  if(OV && OV.s>=.97) ovLeave(null, true);
+  e.preventDefault();
+  var z=ZS; ZS=null; if(!z || z.k!=='g') return;
+  if(z.own==='me' || z.ex){ e.stopImmediatePropagation(); if(OV && OV.s>=.97) ovLeave(null, true); }
 }, {passive:false});
 window.addEventListener('keydown', function(e){
   if(!ready || !desk() || (document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)))) return;
@@ -560,6 +646,50 @@ window.addEventListener('keydown', function(e){
   document.addEventListener('scroll', function(e){ var c=cvs(); if(OV && e.target===c && (c.scrollLeft || c.scrollTop)){ c.scrollLeft=0; c.scrollTop=0; } }, true);
   window.addEventListener('resize', function(){ if(OV){ ovHold(true); clampO(OV); ovSet(OV); } });
 })();
+/* ── the camera: window._altoSolarCam (solar_fly.py and anything else that moves the view) ──
+     get()   -> {cx, cy, scale}: the PLAN point (plan.nodes coordinates: x, y without
+                WORLD_PAD_TOP) at the middle of the canvas, and the board's scale
+                (1 = natural size, < 1 = the whole-chart view). Includes the board pan of
+                an enlarged card's fly (window._altoPan).
+     set(cx, cy, scale) -> puts that plan point in the middle at that scale, at once, and
+                returns get(): scale >= 1 through the canvas's own scroll (the engine's
+                whole-px axis, _altoScrollAxis), < 1 through the whole-chart transform
+                (translate rounded to device px). scale is kept within [the floor .03, 1];
+                the translation is not clamped, so set(get()) changes nothing. An enlarged
+                card is let go first (exitFocus; its glide home then runs — let go and wait
+                UNF ms yourself before a set() that must be exact).
+     onChange(fn) -> fn(get()) after the view moves (scroll, board pan, zoom), at most once
+                a frame; returns a function that unsubscribes.
+   The whole-chart toggle, pinch and cmd-minus move the same OV state, so get() reads them. */
+var camFns=[], camRaf=0;
+function camGet(){
+  var c=cvs(); if(!c || !world) return null; var cw=c.clientWidth, ch=c.clientHeight;
+  if(OV) return {cx:(cw/2-OV.tx)/OV.s, cy:(ch/2-OV.ty)/OV.s-PAD, scale:OV.s};
+  var off=woff(c), pn=window._altoPan ? window._altoPan() : {x:0, y:0};
+  return {cx:c.scrollLeft+cw/2-off.x-pn.x, cy:c.scrollTop+ch/2-off.y-pn.y-PAD, scale:1};
+}
+function camTell(){ if(!camFns.length || camRaf) return;
+  camRaf=requestAnimationFrame(function(){ camRaf=0; var g=camGet(); camFns.slice().forEach(function(f){ try{ f(g); }catch(e){} }); }); }
+window._altoSolarCam={
+  get:camGet,
+  set:function(cx, cy, scale){
+    var c=cvs(); if(!c || !ready || !desk()) return null;
+    scale=Math.min(1, Math.max(OVMIN, scale==null ? 1 : +scale));
+    if(window._focusedNodeId && window.exitFocus) window.exitFocus();
+    var cw=c.clientWidth, ch=c.clientHeight, wx=+cx, wy=+cy+PAD;
+    if(scale<.999){
+      if(!OV){ var o0=woff(c); OV={s:1, tx:o0.x-c.scrollLeft, ty:o0.y-c.scrollTop}; ovHold(true); c.scrollLeft=0; c.scrollTop=0; c.classList.add('sol-ov'); fitBtn(); }
+      cancelAnimationFrame(ovA); OV.s=scale; OV.tx=cw/2-wx*scale; OV.ty=ch/2-wy*scale; ovSet(OV);
+    } else {
+      if(OV) ovLeave(null, true);
+      var off=woff(c), ax=window._altoScrollAxis, sl=wx+off.x-cw/2, st=wy+off.y-ch/2;
+      if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=Math.round(sl); c.scrollTop=Math.round(st); }
+      camTell();
+    }
+    return camGet();
+  },
+  onChange:function(fn){ camFns.push(fn); return function(){ var i=camFns.indexOf(fn); if(i>=0) camFns.splice(i, 1); }; }
+};
 window._altoSolarZoom=function(s){ if(s==null) return OV ? OV.s : 1; if(s>=1) ovLeave(null, true); else ovZoom(s, null, null, false); return OV ? OV.s : 1; };
 window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p}; });
   return {T:T, moving:!!raf, bodies:o}; };
