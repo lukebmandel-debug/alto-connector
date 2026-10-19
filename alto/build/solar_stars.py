@@ -50,6 +50,9 @@ from .solar_draw import _slim
 _P = "html.alto-stars:not(.mobile)"
 # a resting circle (solar_draw's own rest selector)
 _R = _P + " #world .node[data-solar]:not(.focused):not(.sol-closing)"
+# any body, and an enlarged one (focused, or shrinking home)
+_K = _P + " #world .node[data-solar]"
+_F = _P + " #world .node[data-solar]:is(.focused,.sol-closing)"
 _E = "html.alto-stars.alto-editing:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing)"
 
 STARS_CSS = r"""
@@ -86,25 +89,30 @@ STARS_CSS = r"""
   R .node-card::before,R .node-card::after{display:none !important;}
   R .node-card:hover{box-shadow:0 0 0 1.5px rgba(205,220,255,.7) !important;}
   P #world .node[data-solar=sat]:not(.focused):not(.sol-closing) .node-card{border-color:rgba(170,190,255,.25) !important;}
-  R .node-card>.sk.sk{display:block !important;position:absolute;pointer-events:none;left:50%;top:50%;}
-  R .sk-tex{width:calc(var(--sd)*1.16);height:calc(var(--sd)*1.16);margin:calc(var(--sd)*-.58) 0 0 calc(var(--sd)*-.58);
+  R .node-card>.sk.sk,F .node-card>.sk.sk{display:block !important;position:absolute;pointer-events:none;left:50%;top:50%;}
+  /* enlarged (solar_draw's bigger disc, --sD): the body keeps its look under the scrim and the content */
+  F{--skd:var(--sD);}
+  F .sol-scrim.sol-scrim{background:radial-gradient(circle,rgba(3,5,12,var(--sk-scrim,.5)) 0 56%,rgba(3,5,12,calc(var(--sk-scrim,.5)*.4)) 100%) !important;}
+  F .sol-body{color:#eef2ff;}
+  F .sol-body .node-title{color:#fff;}
+  F .sol-body .node-order,F .sol-body .node-desc,F .sol-sec{color:rgba(232,238,255,.88);}
+  F .sol-sec h6{color:rgba(205,215,245,.78);}
+  F .sk-craft.sk-craft{width:calc(var(--sD)*.8);height:calc(var(--sD)*.8);margin:calc(var(--sD)*-.4) 0 0 calc(var(--sD)*-.4);opacity:.55;}
+  K .sk-tex{width:calc(var(--skd,var(--sd))*1.16);height:calc(var(--skd,var(--sd))*1.16);margin:calc(var(--skd,var(--sd))*-.58) 0 0 calc(var(--skd,var(--sd))*-.58);
     background:radial-gradient(circle closest-side,var(--sk-c) 85.5%,transparent 86.5%);}
-  R .sk-tex.ok{background:none;}
-  R .sk-lit,R .sk-sun,R .sk-gran{width:var(--sd);height:var(--sd);margin:calc(var(--sd)/-2) 0 0 calc(var(--sd)/-2);border-radius:50%;}
-  R .sk-lit{background:linear-gradient(90deg,rgba(2,4,12,.9) 0%,rgba(2,4,12,.8) 33%,rgba(2,4,12,.38) 48%,rgba(2,4,12,0) 62%),
-    radial-gradient(circle closest-side,rgba(var(--sk-a),0) 80%,rgba(var(--sk-a),.55) 96%,rgba(var(--sk-a),0) 100%),
-    radial-gradient(circle at 74% 50%,rgba(255,252,240,.2) 0,rgba(255,252,240,0) 42%);}
-  R .sk-lit.m{background:linear-gradient(90deg,rgba(4,5,10,.94) 0%,rgba(4,5,10,.88) 40%,rgba(4,5,10,.32) 50%,rgba(4,5,10,0) 57%),
-    radial-gradient(circle at 72% 50%,rgba(255,255,250,.16) 0,rgba(255,255,250,0) 45%);}
-  R .sk-lit.a{opacity:.7;}
-  R .sk-sun{background:radial-gradient(circle closest-side,var(--c0) 0%,var(--c0) 28%,var(--c1) 58%,var(--c2) 84%,var(--c3) 100%);}
-  R .sk-gran{animation:sk-spin 260s linear infinite;}
-  R .sk-gran.b{animation-duration:410s;animation-direction:reverse;}
-  R .sk-rb,R .sk-rf{width:calc(var(--sd)*2.4);height:calc(var(--sd)*2.4);margin:calc(var(--sd)*-1.2) 0 0 calc(var(--sd)*-1.2);}
-  R .sk-bh{width:var(--sd);height:var(--sd);margin:calc(var(--sd)/-2) 0 0 calc(var(--sd)/-2);border-radius:50%;
+  K .sk-tex.ok{background:none;}
+  /* no border-radius clip anywhere in a body: every disc edge is its own antialiased alpha (canvas, or a
+     gradient ending transparent) — a clipped edge inside a faded card was drawn stair-stepped (WebKit) */
+  K .sk-lit,K .sk-sun,K .sk-gran{width:var(--skd,var(--sd));height:var(--skd,var(--sd));margin:calc(var(--skd,var(--sd))/-2) 0 0 calc(var(--skd,var(--sd))/-2);}
+  K .sk-lit.a{opacity:.7;}
+  K .sk-sun{background:radial-gradient(circle closest-side,var(--c0) 0%,var(--c0) 28%,var(--c1) 58%,var(--c2) 84%,var(--c3) 98.6%,transparent 100%);}
+  K .sk-gran{animation:sk-spin 260s linear infinite;}
+  K .sk-gran.b{animation-duration:410s;animation-direction:reverse;}
+  K .sk-rb,K .sk-rf{width:calc(var(--skd,var(--sd))*2.4);height:calc(var(--skd,var(--sd))*2.4);margin:calc(var(--skd,var(--sd))*-1.2) 0 0 calc(var(--skd,var(--sd))*-1.2);}
+  K .sk-bh{width:var(--skd,var(--sd));height:var(--skd,var(--sd));margin:calc(var(--skd,var(--sd))/-2) 0 0 calc(var(--skd,var(--sd))/-2);
     background:radial-gradient(circle closest-side,#000 0,#000 80%,rgba(255,240,210,.95) 86%,rgba(255,170,90,.45) 92%,rgba(255,120,60,0) 100%);}
-  R .sk-tail{width:calc(var(--sd)*4);height:calc(var(--sd)*1.25);margin:calc(var(--sd)*-.625) 0 0 0;transform-origin:0 50%;}
-  R .sk-craft{width:calc(var(--sd)*1.3);height:calc(var(--sd)*1.3);margin:calc(var(--sd)*-.65) 0 0 calc(var(--sd)*-.65);}
+  K .sk-tail{width:calc(var(--skd,var(--sd))*4);height:calc(var(--skd,var(--sd))*1.25);margin:calc(var(--skd,var(--sd))*-.625) 0 0 0;transform-origin:0 50%;}
+  K .sk-craft{width:calc(var(--skd,var(--sd))*1.3);height:calc(var(--skd,var(--sd))*1.3);margin:calc(var(--skd,var(--sd))*-.65) 0 0 calc(var(--skd,var(--sd))*-.65);}
   P #world .node[data-solar] .sol-face{color:#f3f6ff;text-shadow:0 0 3px rgba(0,0,0,.95);}
   P #world .node[data-solar] .sol-face b{opacity:.92;}
   P #world .node[data-solar=sun] .sol-face{color:var(--sk-ink,#2a1400);text-shadow:0 0 4px rgba(255,250,228,.95);}
@@ -112,10 +120,13 @@ STARS_CSS = r"""
   P #canvas.sol-ov #world .node[data-solar] .sol-face,P #canvas.sol-ovanim #world .node[data-solar] .sol-face{text-shadow:none;}
   @media (prefers-reduced-motion:reduce){ .sk-cor,.sk-cacc,.sk-prom,.sk-tw,.sk-gran{animation:none !important;} }
   html.sk-still .sk-cor,html.sk-still .sk-cacc,html.sk-still .sk-prom,html.sk-still .sk-tw,html.sk-still .sk-gran{animation-play-state:paused !important;}
+  /* a faded body (another one is enlarged) holds its surface still: a turning layer inside a faded card
+     was drawn with stair-stepped edges (WebKit) */
+  #canvas.focus-mode #world .node:not(.focused) .sk-gran{animation:none;}
   html.alto-editing .sk-cor,html.alto-editing .sk-cacc,html.alto-editing .sk-prom,html.alto-editing .sk-tw,html.alto-editing .sk-gran{animation:none !important;}
   html.alto-stars.alto-editing:not(.mobile) #canvas{background:#0a0c1a;}
   html.alto-stars.alto-editing .sk-sky,html.alto-stars.alto-editing #solar-svg .sk-tr,html.alto-stars.alto-editing #solar-svg .sk-belt{display:none !important;}
-  E .node-card>.sk.sk{display:none !important;}
+  html.alto-stars.alto-editing:not(.mobile) #world .node[data-solar] .node-card>.sk.sk.sk{display:none !important;}
   E .node-card{background:var(--sk-c) !important;}
   @media print{
     .sk-sky,#solar-svg .sk-tr,#solar-svg .sk-rg,#solar-svg .sk-belt{display:none !important;}
@@ -124,7 +135,7 @@ STARS_CSS = r"""
     R .node-card{background:#fff !important;border:1.5px solid #777 !important;}
     html.alto-stars #world .node[data-solar] .sol-face{color:#111 !important;text-shadow:none !important;}
   }
-""".replace("E .", _E + " .").replace("R .", _R + " .").replace("P #", _P + " #")
+""".replace("E .", _E + " .").replace("R .", _R + " .").replace("K .", _K + " .").replace("F .", _F + " .").replace("F{", _F + "{").replace("P #", _P + " #")
 
 STARS_JS = r"""
 (function(){
@@ -159,6 +170,7 @@ function rgb(c){ return 'rgb('+c.map(Math.round).join(',')+')'; }
 var KINDS=['rocky','desert','ocean','gas','ice','lava'], KW=[.17,.16,.19,.22,.14,.12];
 var ATM={rocky:[200,200,210,.12], desert:[235,160,120,.3], ocean:[120,185,255,.55], gas:[235,205,160,.3], ice:[150,225,255,.5], lava:[255,130,60,.4], moon:[0,0,0,0], asteroid:[0,0,0,0], comet:[170,220,255,.35], blackhole:[255,170,80,0]};
 var FLAT={rocky:'#8a8076', desert:'#b8693c', ocean:'#2f6fb8', gas:'#c9a272', ice:'#71bcd6', lava:'#6a3a2c', moon:'#8d8e94', sat:'#4a5168', sun:'#ffcf4a', asteroid:'#7a6e64', comet:'#a9c9e0', blackhole:'#141018'};
+var SCRIM={sun:.62, desert:.5, ice:.52, gas:.5, comet:.46, moon:.44, asteroid:.42, rocky:.42, ocean:.38, lava:.38, blackhole:.25, sat:.5};
 var STARS=[['#fffbea','#ffe680','#ffb432','#e8740e','255,190,90','#2a1400'], ['#fff2d8','#ffc870','#ff8f2a','#d3520c','255,150,70','#2a1000'],
   ['#ffffff','#fff4c8','#ffd780','#f0a43c','255,225,160','#2a1800'], ['#ffffff','#e6f0ff','#b4ccff','#7d9cff','160,190,255','#0b1a40']];
 /* a plan's look (LEAD: nodes[id].look) overrules the role's: a black hole, a comet, an asteroid */
@@ -205,11 +217,11 @@ function job(cv, N, row, done){ cv.width=cv.height=N; var ctx=cv.getContext('2d'
     end:function(){ ctx.putImageData(img, 0, 0); cv._h=sum(img.data); if(done) done(); }}; }
 function sum(D){ var h=2166136261; for(var i=0;i<D.length;i+=7) h=Math.imul(h^D[i], 16777619); return (h>>>0).toString(36); }
 function put(D, i, c, a){ D[i]=c[0]; D[i+1]=c[1]; D[i+2]=c[2]; D[i+3]=Math.round(cl(a)*255); }
-function texJob(k){
-  var N=Math.min(256, Math.round(k.d*2.32)), rd=N/2/1.16, h=N/2, P=painter(k.kind, k.id), A=ATM[k.kind]||ATM.moon,
+function texJob(k, N, cv){
+  N=N||Math.min(256, Math.round(k.d*2.32)); var rd=N/2/1.16, h=N/2, P=painter(k.kind, k.id), A=ATM[k.kind]||ATM.moon,
     cr=k.kind==='moon' ? craters(k.id, 9+(hash(k.id)%7)) : /rocky|asteroid/.test(k.kind) ? craters(k.id, 5) : null,
     ne=k.kind==='asteroid' ? noise(hash(k.id+'e')) : null;
-  return job(k.tex, N, function(D, y){
+  return job(cv||k.tex, N, function(D, y){
     var ny=(y+.5-h)/rd;
     for(var x=0;x<N;x++){
       var nx=(x+.5-h)/rd, my=ny, i=(y*N+x)*4, ha=0;
@@ -225,9 +237,23 @@ function texJob(k){
     }
   }, function(){ k.tex.classList.add('ok'); });
 }
-function ringJob(k, cv, front){
+/* the light: lit from +x (turned toward the sun each frame), the night side, a soft terminator
+   (sharper on a moon), the lit limb's atmosphere, a soft highlight */
+function litJob(k, cv, N){
+  N=N||Math.min(256, Math.round(k.d*2)); var rd=N/2, m=/moon|comet|asteroid/.test(k.kind), A=ATM[k.kind]||ATM.moon, nt=m ? .93 : .9;
+  return job(cv, N, function(D, y){
+    var ny=(y+.5-rd)/rd;
+    for(var x=0;x<N;x++){ var nx=(x+.5-rd)/rd, r=Math.hypot(nx, ny), e=cl((1-r)*rd+.5); if(e<=0) continue;
+      var t=m ? cl((nx+.12)/.26) : cl((nx+.36)/.6), an=nt*(1-t*t*(3-2*t))*e,
+        aa=A[3]*.6*Math.max(0, 1-Math.abs(r-.95)/.13)*e, ah=(m ? .16 : .2)*Math.max(0, 1-Math.hypot(nx-.48, ny)/.84)*e,
+        cA=aa+ah*(1-aa), a=an+cA*(1-an), w=a>0 ? cA*(1-an)/a : 0, c=cA>0 ? mix(A, [255,252,240], ah/cA) : A;
+      put(D, (y*N+x)*4, [c[0]*w, c[1]*w, c[2]*w], a); }
+  });
+}
+function ringJob(k, cv, front, N){
   var R=rng(hash(k.id+'r')), bh=k.kind==='blackhole', ps=(R()-.5)*(bh ? .5 : .9), kk=bh ? .3 : .22+R()*.2, ri=bh ? 1.12 : 1.3+R()*.15, ro=bh ? 2.35 : ri+.45+R()*.45, cs=Math.cos(ps), sn=Math.sin(ps),
-    C=R()<.5 ? [218,202,172] : [188,204,226], n=noise(hash(k.id+'g')), N=Math.min(320, Math.round(k.d*3.6));
+    C=R()<.5 ? [218,202,172] : [188,204,226], n=noise(hash(k.id+'g'));
+  N=N||Math.min(320, Math.round(k.d*3.6));
   return job(cv, N, function(D, y){
     for(var x=0;x<N;x++){ var u=(x+.5-N/2)/(N/2)*2.4, v=(y+.5-N/2)/(N/2)*2.4, xr=u*cs+v*sn, yr=-u*sn+v*cs;
       if((yr>0)!==front) continue;
@@ -238,8 +264,8 @@ function ringJob(k, cv, front){
       put(D, (y*N+x)*4, mix(C, [C[0]*.7, C[1]*.7, C[2]*.7], n(p*5, 9)), a); }
   });
 }
-function granJob(k, cv, b){
-  var N=Math.min(256, Math.round(k.d*1.6)), n=noise(hash(k.id+(b ? 'h' : 'g'))), R=rng(hash(k.id+'s')), sp=b ? [] : [[(R()-.5)*.9, (R()-.5)*.9, .045]];
+function granJob(k, cv, b, N){
+  N=N||Math.min(256, Math.round(k.d*1.6)); var n=noise(hash(k.id+(b ? 'h' : 'g'))), R=rng(hash(k.id+'s')), sp=b ? [] : [[(R()-.5)*.9, (R()-.5)*.9, .045]];
   return job(cv, N, function(D, y){
     for(var x=0;x<N;x++){ var nx=(x+.5)/N*2-1, ny=(y+.5)/N*2-1, r=Math.hypot(nx, ny); if(r>=.995) continue;
       var g=fb(n, nx*17+(b ? 50 : 0), ny*17, 2), i=(y*N+x)*4, f=Math.sqrt(1-r*r);
@@ -250,9 +276,11 @@ function granJob(k, cv, b){
 function corJob(k, cv, g){
   var N=256, n=noise(hash(k.id+'o')), C=g.split(',').map(Number);
   return job(cv, N, function(D, y){
-    for(var x=0;x<N;x++){ var nx=(x+.5)/N*2-1, ny=(y+.5)/N*2-1, r=Math.hypot(nx, ny)*3.6; if(r<.96 || r>3.6) continue;
-      var th=Math.atan2(ny, nx), s=fb(n, Math.cos(th)*3+4, Math.sin(th)*3+4, 3), b=Math.exp(-(r-1)*1.7)*(.3+1.6*s*s*s)*cl((3.6-r)*2);
-      put(D, (y*N+x)*4, mix([255,255,245], C, (r-1)*.8), b*.95); }
+    for(var x=0;x<N;x++){ var nx=(x+.5)/N*2-1, ny=(y+.5)/N*2-1, r=Math.hypot(nx, ny)*3.6; if(r>3.6) continue;
+      /* under the disc it is light, not a hole (seen through a faded star), easing into the corona */
+      var th=Math.atan2(ny, nx), s=fb(n, Math.cos(th)*3+4, Math.sin(th)*3+4, 3), b=Math.exp(-Math.max(0, r-1)*1.7)*(.3+1.6*s*s*s)*cl((3.6-r)*2)*.95,
+        w=cl((1.04-r)/.16); w=w*w*(3-2*w);
+      put(D, (y*N+x)*4, mix([255,255,245], C, Math.max(0, r-1)*.8), w+cl(b)*(1-w)); }
   });
 }
 function promDraw(k, cv, g){
@@ -272,9 +300,9 @@ function tailDraw(k, cv){
   var i=x.createLinearGradient(0, 0, W, 0); i.addColorStop(0, 'rgba(150,205,255,.9)'); i.addColorStop(1, 'rgba(120,180,255,0)');
   x.fillStyle=i; x.beginPath(); x.moveTo(6, m-2.5); x.lineTo(W, m-3); x.lineTo(W, m+3); x.lineTo(6, m+2.5); x.fill();
 }
-function craftDraw(k, cv){
-  var R=rng(hash(k.id+'v')), N=88, x=cv.getContext('2d'), pc=R()<.6 ? ['#1d3f8f','#5d87d8'] : ['#2a2f45','#7f8bb5'], bc=R()<.6 ? ['#f1c34a','#8a5a10'] : ['#e8ecf2','#7d8492'];
-  cv.width=cv.height=N; x.lineWidth=1;
+function craftDraw(k, cv, M){
+  M=M||88; var R=rng(hash(k.id+'v')), N=88, x=cv.getContext('2d'), pc=R()<.6 ? ['#1d3f8f','#5d87d8'] : ['#2a2f45','#7f8bb5'], bc=R()<.6 ? ['#f1c34a','#8a5a10'] : ['#e8ecf2','#7d8492'];
+  cv.width=cv.height=M; x.scale(M/N, M/N); x.lineWidth=1;
   [[6,34],[54,82]].forEach(function(p){ var gr=x.createLinearGradient(0, 36, 0, 52); gr.addColorStop(0, pc[1]); gr.addColorStop(1, pc[0]);
     x.fillStyle=gr; x.fillRect(p[0], 36, p[1]-p[0], 16); x.strokeStyle='rgba(190,215,255,.55)';
     for(var q=p[0]+7;q<p[1];q+=7){ x.beginPath(); x.moveTo(q+.5, 36); x.lineTo(q+.5, 52); x.stroke(); }
@@ -364,28 +392,43 @@ function trails(){
       out+='<circle cx="'+(c.x+rr*Math.cos(a)).toFixed(1)+'" cy="'+(c.y+rr*Math.sin(a)).toFixed(1)+'" r="'+z+'" fill-opacity="'+(.3+R()*.5).toFixed(2)+'"/>'; }
     g.innerHTML=out; tg.parentNode.insertBefore(g, tg); });
 }
+/* ── an enlarged body (solar_draw's bigger disc, --sD) keeps its look: its canvases painted again,
+   once, at the disc's size (between frames, then swapped in), so a 300-420 px disc is not soft ── */
+function hiRes(k){
+  var D=parseFloat(k.n.style.getPropertyValue('--sD'))||0; if(!D || D<=k.hiD) return; k.hiD=D;
+  var redo=function(cv, N, mk){ if(!cv || N<=cv.width) return; var off=document.createElement('canvas'), j=mk(off, N), e=j.end;
+    j.end=function(){ e(); cv.width=off.width; cv.height=off.height; cv.getContext('2d').drawImage(off, 0, 0); }; Q.unshift(j); };
+  redo(k.tex, Math.min(768, Math.round(D*2.32)), function(c, N){ return texJob(k, N, c); });
+  redo(k.lit, Math.min(768, Math.round(D*2)), function(c, N){ return litJob(k, c, N); });
+  [k.rb, k.rf].forEach(function(cv, i){ redo(cv, Math.min(900, Math.round(D*3.6)), function(c, N){ return ringJob(k, c, !!i, N); }); });
+  (k.gr||[]).forEach(function(cv, i){ redo(cv, Math.min(768, Math.round(D*2)), function(c, N){ return granJob(k, c, i, N); }); });
+  if(k.craft) craftDraw(k, k.craft, Math.min(512, Math.round(D*1.6)));
+  clearTimeout(qT); pump();
+}
+function grown(ms){ ms.forEach(function(m){ var n=m.target, k=n.id && BB[n.id.slice(5)]; if(k && ready && n.classList.contains('focused')) requestAnimationFrame(function(){ hiRes(k); }); }); }
 /* ── dressing the bodies, after every layout ── */
 function dress(k, n, kind, d){
   var c=n.querySelector('.node-card'); if(!c) return;
   (k.els||[]).forEach(function(e){ e.remove(); });
   var f=c.querySelector('.sol-face'), els=[], add=function(t, cls){ var e=el(t, 'sk '+cls); c.insertBefore(e, f); els.push(e); return e; }, R=rng(hash(k.id+'x'));
-  k.n=n; k.kind=kind; k.d=d; k.els=els; k.lit=k.tex=k.craft=k.tail=null; k.la=k.ca=k.ta=null;
+  k.n=n; k.kind=kind; k.d=d; k.els=els; k.hiD=0; k.lit=k.tex=k.craft=k.tail=k.rb=k.rf=k.gr=null;
+  n.style.setProperty('--sk-scrim', SCRIM[kind]||.5); k.la=k.ca=k.ta=null;
   if(kind==='sun'){
     k.star=STARS[k.si===0 ? 0 : ((R()*10)|0)<6 ? 0 : 1+((R()*3)|0)];
     ['--c0','--c1','--c2','--c3'].forEach(function(v, i){ n.style.setProperty(v, k.star[i]); });
     n.style.setProperty('--g', k.star[4]); n.style.setProperty('--sk-ink', k.star[5]); n.style.setProperty('--sk-c', k.star[1]);
-    add('div', 'sk-sun'); Q.push(granJob(k, add('canvas', 'sk-gran'), 0)); Q.push(granJob(k, add('canvas', 'sk-gran b'), 1));
+    add('div', 'sk-sun'); k.gr=[add('canvas', 'sk-gran'), add('canvas', 'sk-gran b')]; Q.push(granJob(k, k.gr[0], 0)); Q.push(granJob(k, k.gr[1], 1));
     return;
   }
   n.style.setProperty('--sk-c', FLAT[kind]); n.style.setProperty('--sk-a', (ATM[kind]||ATM.moon).slice(0, 3).join(','));
   if(kind==='sat'){ k.craft=add('canvas', 'sk-craft'); craftDraw(k, k.craft); return; }
-  if(kind==='blackhole'){ Q.push(ringJob(k, add('canvas', 'sk-rb'), false)); add('div', 'sk-bh'); Q.push(ringJob(k, add('canvas', 'sk-rf'), true)); return; }
+  if(kind==='blackhole'){ k.rb=add('canvas', 'sk-rb'); Q.push(ringJob(k, k.rb, false)); add('div', 'sk-bh'); k.rf=add('canvas', 'sk-rf'); Q.push(ringJob(k, k.rf, true)); return; }
   if(kind==='comet'){ k.tail=add('canvas', 'sk-tail'); tailDraw(k, k.tail); }
   var ring=!/moon|comet|asteroid/.test(kind) && rng(hash(k.id+'#r'))()<({gas:.55, ice:.45}[kind]||.08);
-  if(ring) Q.push(ringJob(k, add('canvas', 'sk-rb'), false));
+  if(ring){ k.rb=add('canvas', 'sk-rb'); Q.push(ringJob(k, k.rb, false)); }
   k.tex=add('canvas', 'sk-tex'); Q.push(texJob(k));
-  k.lit=add('div', 'sk-lit'+(/moon|comet/.test(kind) ? ' m' : kind==='asteroid' ? ' m a' : ''));
-  if(ring) Q.push(ringJob(k, add('canvas', 'sk-rf'), true));
+  k.lit=add('canvas', 'sk-lit'+(kind==='asteroid' ? ' a' : '')); Q.unshift(litJob(k, k.lit));
+  if(ring){ k.rf=add('canvas', 'sk-rf'); Q.push(ringJob(k, k.rf, true)); }
 }
 function skin(){
   S=window._ALTO_SOLAR; if(!on() || !desk()){ if(ready) down(); return; }
@@ -404,6 +447,8 @@ function skin(){
   Object.keys(BB).forEach(function(id){ if(!keep[id]) delete BB[id]; });
   Q.sort(function(a, b){ return (a.cv.classList.contains('sk-cor') ? 0 : 1)-(b.cv.classList.contains('sk-cor') ? 0 : 1); });
   board(PAD); trails();
+  if(!skin.mo && typeof MutationObserver==='function'){ skin.mo=new MutationObserver(grown); skin.mo.observe(world, {attributes:true, subtree:true, attributeFilter:['class']}); }
+  IDS.forEach(function(id){ var k=BB[id]; if(k.n && k.n.classList.contains('focused')) hiRes(k); });
   ready=true; update(null); pump(); kick();
 }
 function pump(){ qT=0; var dl=performance.now()+6;

@@ -61,7 +61,7 @@ def test_a_page_without_solar_is_byte_identical_whatever_the_skin(monkeypatch):
 
 def test_the_skin_is_small_and_safari_safe():
     size = len(gzip.compress((STARS_JS + STARS_CSS).encode("utf-8"), 9))
-    assert size < 13000, size
+    assert size < 14000, size          # (~15 KB gz budget per Hub & spoke page)
     # no SVG mask, no CSS / SVG filter or blur layer, nothing moves a node by a transform
     assert "<mask" not in STARS_JS and "'mask'" not in STARS_JS and "mask" not in STARS_CSS
     assert "blur(" not in STARS_CSS and "filter:url" not in STARS_CSS and "feGaussian" not in STARS_JS
@@ -178,7 +178,7 @@ def test_every_body_is_dressed_for_its_role_and_spoke_is_not(browser, pages):
             assert k == ["sk-craft"], (i, k)
         else:
             assert "sk-tex" in k[0] or "sk-tex" in k[1], (i, k)
-            assert ("sk-lit m" if b["role"] == "moon" else "sk-lit") in k, (i, k)
+            assert "sk-lit" in k, (i, k)
         assert b["bdf"] in ("none", ""), (i, b)                 # no backdrop blur behind a moving body
     assert not errs, errs
     pg.context.close()
@@ -374,8 +374,8 @@ def test_black_holes_comets_asteroids_core_and_belts(browser, pages):
     _settled(pg)
     s = pg.evaluate(SKIN)
     assert s["b"]["u1-p3"]["kids"] == ["sk-rb", "sk-bh", "sk-rf"], s["b"]["u1-p3"]
-    assert s["b"]["u2-p1"]["kids"][0] == "sk-tail" and "sk-lit m" in s["b"]["u2-p1"]["kids"]
-    assert "sk-lit m a" in s["b"]["u2-p4"]["kids"] and "sk-lit m a" in s["b"]["u3-p1-m1"]["kids"]
+    assert s["b"]["u2-p1"]["kids"][0] == "sk-tail" and "sk-lit" in s["b"]["u2-p1"]["kids"]
+    assert "sk-lit a" in s["b"]["u2-p4"]["kids"] and "sk-lit a" in s["b"]["u3-p1-m1"]["kids"]
     r = pg.evaluate(r"""() => { var S=window._ALTO_SOLAR, n=document.getElementById('node-u2-p1'), u=document.getElementById('node-u2'),
         t=/rotate\(([-\d.]+)deg\)/.exec(n.querySelector('.sk-tail').style.transform);
       return {tail:t ? +t[1] : null, away:Math.atan2(parseFloat(n.style.top)-parseFloat(u.style.top), parseFloat(n.style.left)-parseFloat(u.style.left))*180/Math.PI,
@@ -386,18 +386,29 @@ def test_black_holes_comets_asteroids_core_and_belts(browser, pages):
     pg.context.close()
 
 
-def test_an_enlarged_body_drops_the_skin_and_gets_it_back(browser, pages):
-    """Focus (the renderer's enlarged disc) shows the node's content, not the
-    planet; back home the planet is there again."""
+def test_an_enlarged_body_keeps_its_look_painted_sharper(browser, pages):
+    """Enlarged (the renderer's bigger disc, --sD) a planet keeps its texture and
+    light under the scrim and the content, its canvases painted again once at
+    the disc's size; back home it is the same planet."""
     pg, errs = _open(browser, pages["orbit"])
-    shown = "() => [].filter.call(document.querySelectorAll('#node-u1-p1 .node-card>.sk'), function(e){ return getComputedStyle(e).display!=='none'; }).length"
-    assert pg.evaluate(shown) >= 2
+    _settled(pg)
+    st = """() => { var n=document.getElementById('node-u1-p1'), c=n.querySelector('.node-card');
+      return {shown:[].filter.call(c.querySelectorAll(':scope>.sk'), function(e){ return getComputedStyle(e).display!=='none'; }).map(function(e){ return e.className; }),
+        tex:n.querySelector('canvas.sk-tex').width, lit:n.querySelector('canvas.sk-lit').width, w:n.querySelector('canvas.sk-lit').offsetWidth, card:c.offsetWidth, sD:parseFloat(n.style.getPropertyValue('--sD'))||0,
+        scrim:getComputedStyle(c.querySelector('.sol-scrim') || c).backgroundImage}; }"""
+    a = pg.evaluate(st)
     pg.evaluate("() => window.enterFocus('u1-p1')")
-    pg.wait_for_timeout(900)
-    assert pg.evaluate(shown) == 0
+    pg.wait_for_timeout(1200)
+    _settled(pg)
+    b = pg.evaluate(st)
+    assert "sk sk-tex ok" in b["shown"] and "sk sk-lit" in b["shown"], b
+    assert b["tex"] > a["tex"] * 1.8 and b["lit"] > a["lit"] * 1.8, (a, b)              # painted again, sharper
+    assert abs(b["w"] - b["card"]) < 2, b                                               # the light fills the big disc
+    assert "rgba(3, 5, 12" in b["scrim"], b                                             # the skin's own scrim
     pg.evaluate("() => window.exitFocus()")
     pg.wait_for_timeout(1500)
-    assert pg.evaluate(shown) >= 2
+    c = pg.evaluate(st)
+    assert c["shown"] == a["shown"] and c["tex"] == b["tex"], (a, c)                     # home again, the sharp copy kept
     assert not errs, errs
     pg.context.close()
 
