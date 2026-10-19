@@ -25,6 +25,10 @@ except ImportError:
 
 FIXTURE_VIEWS = {"outside": None, "hall": [5, 9, 0, -1.2, 0.1], "gallery-art": [14, 4.2, 0, -1.5708, 0], "gallery": [18, 2, 0, 2.6, 0],
                  "stair": [6, 3, 0, 3.3, 0.25], "upper-skylit": [11, 8, 5.5, -2.5, 0.1], "upper-art": [3.5, 6, 5.5, 3.1416, 0]}
+PI = 3.14159265
+PMA_VIEWS = {"gsh-stair": [-16.5, 2.65, 12.5, PI, 0.18], "gsh-ceiling": [-12, -8, 12.5, 2.5, 0.75], "gsh-balcony": [-39.2, -7.5, 19.1, 0.35, -0.22],
+             "gsh-diana": [-26.5, 2.65, None, PI, 0.3], "gallery-enfilade": [-26, 20.4, 19.1, PI / 2, 0], "period-room": [17.6, 77, 19.1, 0, -0.02],
+             "upper-gallery": [-56.5, -10, 19.1, 1.15, 0.05], "east-entrance": [36.2, 2.7, 11.2, PI, 0.06], "rocky-steps": [127, 2.6, None, PI, 0.1]}
 STRESS_VIEWS = {"outside": None, "enfilade": [22.5, 4, 0, 1.5708, 0], "long": [4.5, 36, 0, 0, 0], "stair": [13, 4, 0, 1.5708, 0.2], "level2": [40, 30, 6, 0.7, 0]}
 
 
@@ -78,6 +82,33 @@ def test_a_216_room_building_is_culled_and_stays_fast(engine):
         print(f"\n{which} stress: enter {enter_s:.1f}s, built {mem['built']}/{mem['total']}, {mem['mb']:.1f} MB geometry, {mem['texMb']:.0f} MB textures")
         for row in out:
             print("  %-9s batches %3d draws %4d tris %6d  %.2f ms/frame (CPU+GPU, synchronous)" % row)
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_the_philadelphia_museum_of_art_renders_its_great_stair_hall_and_galleries(engine):
+    from alto.buildings import pma
+    which, b, srv = engine
+    page, errors = open_view(b, srv, built()[0], pma.plan())
+    try:
+        assert page.evaluate("AltoBuildingFPV.state().room") is None                                   # outside, before the East Entrance
+        rows = []
+        for name, place in PMA_VIEWS.items():
+            stats = shot(page, f"{which}_pma_{name}", place)
+            px = page.evaluate(PIXELS)
+            ms = page.evaluate("AltoBuildingFPV.timeFrames(10)")
+            rows.append((name, page.evaluate("AltoBuildingFPV.state().room"), stats["draws"], round(stats["tris"]), round(ms, 2)))
+            assert stats["draws"] > 5 and px["sd"] > 0.03 and 0.08 < px["mean"] < 0.95, (name, stats, px)
+        rooms = {r[0]: r[1] for r in rows}
+        assert rooms["gsh-stair"] == "l2-gsh" and rooms["gsh-balcony"] == "l3-gsh-balcony" and rooms["period-room"] == "l3-nw-2"
+        # the hall is open to its coffered, skylit ceiling: no other room's ceiling crosses it, and the landing under Diana is floor
+        assert page.evaluate("AltoBuildingFPV.geom.covered(-22, 4, 24, [0, 0, 1], 5.3)") == []
+        assert page.evaluate("AltoBuildingFPV.geom.covered(-22, 4, 29.495, [0, 0, 1], .004)") == ["lay"]
+        assert page.evaluate("AltoBuildingFPV.geom.support(-36, 7.5, 19.1)") == pytest.approx(19.1)
+        print(f"\n{which} PMA:")
+        for row in rows:
+            print("  %-16s %-16s draws %4d tris %6d  %.2f ms/frame" % row)
         assert errors == []
     finally:
         page.close()

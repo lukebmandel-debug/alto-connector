@@ -91,18 +91,16 @@ void gen(vec2 u, out vec3 c, out float r, out float h){
   float G=uG; c=vec3(.8); r=.8; h=.5;
   if(G<.5){                      /* 0 marble: 4x4 slabs, warped veins */
     vec2 s=u*4., si=floor(s), sf=fract(s);
-    float t=6.2832*(2.*u.x+u.y)+5.5*fbm(u,vec2(4.),6.), v1=pow(1.-abs(sin(t)),26.);
-    float t2=6.2832*(5.*u.x-3.*u.y)+6.*fbm(u+.37,vec2(6.),6.), v2=pow(1.-abs(sin(t2)),46.)*.55;
+    float t=6.2832*(2.*u.x+u.y)+5.5*fbm(u,vec2(4.),6.), v1=pow(1.-abs(sin(t)),70.)*(.4+.6*fbm(u+.2,vec2(8.),3.))+pow(1.-abs(sin(t)),8.)*.12;
+    float t2=6.2832*(5.*u.x-3.*u.y)+6.*fbm(u+.37,vec2(6.),6.), v2=pow(1.-abs(sin(t2)),90.)*.5;
     float cl=fbm(u,vec2(8.),5.);
-    c=mix(vec3(.95,.94,.92),vec3(.87,.865,.86),cl)*(1.-.3*v1-.2*v2)*(.975+.05*hs(mod(si,4.)));
-    float jd=min(min(sf.x,1.-sf.x),min(sf.y,1.-sf.y))*.6, j=1.-smoothstep(.0009,.0022,jd);
-    c=mix(c,vec3(.6,.59,.57),j*.85); r=mix(.09+.1*v1+.06*cl,.7,j); h=1.-j*.8;
+    c=mix(vec3(.95,.94,.92),vec3(.87,.865,.86),cl)*(1.-.17*v1-.1*v2); r=.09+.1*v1+.06*cl; h=.6-.1*v1;
   } else if(G<1.5){              /* 1 ashlar: courses .5 m, three blocks a course */
-    float cy=u.y*6., ci=floor(cy), cf=fract(cy), bx=u.x*3.+hs(vec2(ci,7.)), bi=mod(floor(bx),3.), bf=fract(bx);
-    float jd=min(min(bf,1.-bf)*1.,min(cf,1.-cf)*.5), e=smoothstep(.003,.011,jd);
-    float sp=fbm(u,vec2(64.),3.), bg=fbm(u,vec2(6.),4.), pit=smoothstep(.72,.8,fbm(u+3.1,vec2(96.),2.));
-    c=vec3(.86,.81,.72)*(1.+(hs(vec2(bi,ci))-.5)*.09+(sp-.5)*.12+(bg-.5)*.1-pit*.08);
-    c=mix(vec3(.74,.72,.68),c,e); h=e*(.88+.12*sp)-pit*.1; r=.88;
+    float cy=u.y*10., ci=floor(cy), cf=fract(cy), bx=u.x*5.+hs(vec2(ci,7.))*.9, bi=mod(floor(bx),5.), bf=fract(bx); vec2 id=vec2(bi,ci);
+    float jw=.0045+.004*hs(id+3.), jd=min(min(bf,1.-bf)*1.2,min(cf,1.-cf)*.6), e=smoothstep(jw,jw+.009,jd);
+    float sp=fbm(u,vec2(160.),3.), bg=fbm(u+hs(id)*.3,vec2(14.),4.), pit=smoothstep(.74,.8,fbm(u+3.1,vec2(220.),2.)), fos=smoothstep(.83,.9,vn(u*vec2(600.,140.)+hs(id)*50.,vec2(600.,140.)));
+    float k=hs(id); c=vec3(.9,.84,.71)*(1.+(k-.5)*.1+(sp-.5)*.05+(bg-.5)*.09-pit*.05+fos*.05); c=mix(c,c*vec3(1.02,.98,.95),step(.7,hs(id+9.)));
+    c=mix(vec3(.8,.76,.68),c,e); h=e*(.9+.1*sp)-pit*.06; r=.86;
   } else if(G<2.5){              /* 2 granite */
     float a=vn(u*180.,vec2(180.)), b=vn(u*260.+7.,vec2(260.)), m=fbm(u,vec2(12.),3.);
     c=vec3(.6,.58,.56)*(.9+.2*m); c=mix(c,vec3(.3,.29,.29),smoothstep(.6,.72,a)*.7); c=mix(c,vec3(.8,.78,.76),smoothstep(.66,.78,b)*.6); c=mix(c,vec3(.66,.55,.5),smoothstep(.72,.8,vn(u*140.+3.,vec2(140.)))*.35);
@@ -156,10 +154,16 @@ void gen(vec2 u, out vec3 c, out float r, out float h){
     float cy=u.y*6., ci=floor(cy), cf=fract(cy), bx=u.x*4.+hs(vec2(ci,3.))*.5, bi=mod(floor(bx),4.), bf=fract(bx);
     float jd=min(min(bf,1.-bf)*1.5,min(cf,1.-cf)), e=smoothstep(.006,.02,jd), a=fbm(u,vec2(24.),4.);
     c=vec3(.66,.64,.6)*(.88+.18*hs(vec2(bi,ci)))*(.9+.2*a); c=mix(vec3(.38,.37,.34),c,e); h=e*(.9+.1*a); r=.85;
-  } else {                       /* 16 roof tile */
+  } else if(G<16.5){             /* 16 roof tile */
     float cy=u.y*20., cf=fract(cy), ci=floor(cy), bx=u.x*12.+mod(ci,2.)*.5, bf=fract(bx);
     float sh=smoothstep(0.,.9,cf), rnd=sin(bf*3.1416);
     c=vec3(.56,.3,.2)*(.75+.35*hs(vec2(mod(floor(bx),12.),ci)))*(.7+.3*sh)*(.8+.2*rnd); h=sh*.6+rnd*.4; r=.7;
+  } else if(G<17.5){             /* 17 coffers: 2 x 2 a tile, three stepped frames and a rosette */
+    vec2 q=fract(u*2.)-.5; float e=max(abs(q.x),abs(q.y)), st=floor(clamp((.46-e)/.045,0.,3.)), ro=length(q);
+    float rs=smoothstep(.1,.07,ro)*(.6+.4*sin(atan(q.y,q.x)*8.)); float pl=fbm(u,vec2(12.),3.);
+    h=1.-st*.22-(e<.32?.1:0.)+rs*.35; c=vec3(.95,.93,.88)*(1.-st*.02)*(.97+.06*pl); c=mix(c,vec3(.86,.68,.36),clamp(rs*1.4,0.,1.)*.8); c=mix(c,vec3(.8,.66,.4),(1.-smoothstep(.003,.008,abs(e-.46)))*.6); r=mix(.85,.4,rs);
+  } else {                       /* 18 foliage */
+    vec3 a=cell(u,48.); float n=fbm(u,vec2(24.),4.); c=mix(vec3(.16,.24,.1),vec3(.34,.42,.18),hs(a.yz)*.7+n*.3)*(1.-smoothstep(.3,.5,a.x)*.45); h=1.-a.x; r=.8;
   }
 }
 void main(){
@@ -195,6 +199,16 @@ void main(){
 }
 """
 
+_GLSL_DEPTH_VS = r"""
+ATTR vec3 aP; ATTR vec3 aN; ATTR vec2 aT; ATTR vec4 aX; uniform mat4 uLVP;
+void main(){ gl_Position=uLVP*vec4(aP,1.); }
+"""
+
+_GLSL_DEPTH_FS = r"""
+precision highp float;
+void main(){ vec4 b=fract(gl_FragCoord.z*vec4(1.,255.,65025.,16581375.)); b-=b.yzww*vec4(1./255.,1./255.,1./255.,0.); FRAG=b; }
+"""
+
 _GLSL_WORLD_VS = r"""
 ATTR vec3 aP; ATTR vec3 aN; ATTR vec2 aT; ATTR vec4 aX;
 uniform mat4 uVP;
@@ -213,12 +227,28 @@ uniform vec4 uWnC[NW]; uniform vec4 uWnU[NW]; uniform vec4 uWnN[NW]; uniform flo
 uniform vec4 uEd[NE]; uniform float uNE;
 uniform vec4 uBl[NB]; uniform vec4 uBr[NB]; uniform float uNB;
 uniform vec3 uSun; uniform vec3 uSunC; uniform vec3 uSkyC; uniform vec4 uFog; uniform vec4 uScr;
+uniform vec4 uJ; uniform vec4 uVar; uniform sampler2D uSM; uniform mat4 uLVP; uniform vec4 uSMp;
+float h31(vec3 p){ p=fract(p*.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
+float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x),mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x),mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float unpk(vec4 b){ return dot(b,vec4(1.,1./255.,1./65025.,1./16581375.)); }
+float shTap(vec2 uv, float z){ return step(z,unpk(TEX(uSM,uv))); }
+float shadow(vec3 p, vec3 n){ if(uSMp.z<.5) return -1.; vec4 l=uLVP*vec4(p+n*uSMp.y*2.+uSun*uSMp.y,1.); vec3 c=l.xyz/l.w*.5+.5;
+  if(c.x<.001||c.y<.001||c.x>.999||c.y>.999||c.z>.999) return -1.; float t=uSMp.x, s=0., z=c.z-uSMp.w;
+  for(int i=-1;i<=1;i++) for(int j=-1;j<=1;j++) s+=shTap(c.xy+vec2(float(i),float(j))*t*1.3,z);
+  return s/9.; }
+float sh1(vec3 p){ vec4 l=uLVP*vec4(p,1.); vec3 c=l.xyz/l.w*.5+.5; if(c.x<.001||c.y<.001||c.x>.999||c.y>.999) return 0.; return shTap(c.xy,c.z-uSMp.w); }
 float sd2(vec2 p, vec2 a, vec2 b){ vec2 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-6),0.,1.); return length(pa-ba*h); }
 float ggx(vec3 N, vec3 V, vec3 L, float r){ vec3 H=normalize(V+L); float a=r*r, a2=a*a, nh=max(dot(N,H),0.), d=nh*nh*(a2-1.)+1.;
   float nl=max(dot(N,L),0.), nv=max(dot(N,V),1e-3), k=(r+1.)*(r+1.)/8.;
   return a2/(3.14159*d*d)*(nv/(nv*(1.-k)+k))/(4.*nv*(nl*(1.-k)+k)+1e-4); }
 vec3 tone(vec3 c){ c*=uScr.x; c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14); return pow(clamp(c,0.,1.),vec3(1./2.2)); }
-vec3 post(vec3 c, float dist){ c=mix(c,uFog.rgb,1.-exp(-dist*uFog.a)); vec3 o=tone(c);
+vec3 post(vec3 c, float dist){ c=mix(c,uFog.rgb,1.-exp(-dist*uFog.a));
+#ifdef SHAFTS
+  if(uSMp.z>.5&&uRoom.z<.5){ float L=min(dist,28.), dn=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453), a=0.; vec3 dir=(vP-uEye)/max(dist,1e-3);
+    for(int i=0;i<10;i++){ a+=sh1(uEye+dir*(L*(float(i)+dn)/10.)); } c+=uSunC*(a/10.)*L*.0045*(1.+.6*pow(max(dot(-dir,-uSun),0.),6.)); }
+#endif
+  vec3 o=tone(c);
   vec2 sc=gl_FragCoord.xy*uScr.zw-.5; o*=1.-.2*dot(sc,sc);
   return o+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.; }
 void main(){
@@ -232,13 +262,20 @@ void main(){
     vec3 em=uTint.rgb*uRoom.w*(.72+.28*(1.-dot(cc,cc)*2.))*(.9+.1*cloud)*sh*vec3(.98,1.,1.03);
     FRAG=vec4(post(mix(em,em*.45+uAmbC*.2,mu),dist),1.); return; }
   vec3 alb; float rough, metal=uMat.z, cav=1., alpha=1.;
+  float jl=0., brd=0.;
   if(kind<.5){
-    vec2 uv=vT/uMat.x; vec4 A=TEX(uA,uv), B=TEX(uB,uv);
-    alb=pow(A.rgb,vec3(2.2))*uTint.rgb; rough=clamp(A.a*uMat.y,.04,1.); cav=mix(1.,B.a,.75);
+    vec2 uv=vT/uMat.x, sl=vec2(0.); float tone=1.;
+    if(uJ.x>0.){ sl=floor(vT/uJ.x); float hh=h31(vec3(sl,uJ.x)); uv+=vec2(hh,h31(vec3(sl.yx,7.)))*3.7; if(hh>.5) uv=uv.yx;
+      vec2 fj=abs(fract(vT/uJ.x)-.5)*uJ.x; float dj=uJ.x*.5-max(fj.x,fj.y); jl=1.-smoothstep(uJ.y*.5,uJ.y,dj); tone=1.+(h31(vec3(sl,3.))-.5)*uJ.z; }
+    vec4 A=TEX(uA,uv), B=TEX(uB,uv);
+    alb=pow(A.rgb,vec3(2.2))*uTint.rgb*tone; rough=clamp(A.a*uMat.y,.04,1.); cav=mix(1.,B.a,.75);
+    float mv=n3(vP*.31+.5)*.65+n3(vP*1.7)*.35; alb*=1.+(mv-.5)*uVar.x; alb*=1.+(h31(vec3(floor(vT/uMat.x),1.))-.5)*uVar.y;
+    alb=mix(alb,alb*vec3(.86,.82,.76),uVar.z*exp(-max(vP.z-uRoom.x,0.)/.45)*(1.-abs(vN.z)));
+    alb=mix(alb,vec3(.18),jl*.55); rough=mix(rough,.8,jl);
 #ifdef DERIV
     vec3 p1=dFdx(vP), p2=dFdy(vP); vec2 t1=dFdx(uv), t2=dFdy(uv);
     vec3 q2=cross(p2,N), q1=cross(N,p1), T=q2*t1.x+q1*t2.x, Bt=q2*t1.y+q1*t2.y; float im=inversesqrt(max(max(dot(T,T),dot(Bt,Bt)),1e-14));
-    vec2 nm=(B.xy*2.-1.)*uMat.w; N=normalize(T*im*nm.x+Bt*im*nm.y+N);
+    vec2 nm=(B.xy*2.-1.)*uMat.w; N=normalize(T*im*nm.x+Bt*im*nm.y+N*(1.+jl*2.));
 #endif
   } else if(kind<2.5){ alb=pow(TEX(uA,vT*uUv.xy+uUv.zw).rgb,vec3(2.2)); rough=uMat.y; metal=0.; }
   else if(kind<3.5){ alb=uTint.rgb; rough=uMat.y; }
@@ -250,7 +287,9 @@ void main(){
   vec2 cd=vX.xy*4.; ao*=1.-.36*exp(-min(cd.x,cd.y)/.3);
   if(abs(N.z)>.6){ float near=N.z>0.?hz:hc;
     if(near<.3){ float de=99.; for(int i=0;i<NE;i++){ if(float(i)>=uNE) break; de=min(de,sd2(vP.xy,uEd[i].xy,uEd[i].zw)); }
-      ao*=1.-(N.z>0.?.42:.32)*exp(-de/(N.z>0.?.3:.5)); }
+      ao*=1.-(N.z>0.?.42:.32)*exp(-de/(N.z>0.?.3:.5));
+      if(uJ.w>0.&&N.z>0.&&kind<.5){ float bw=uJ.w; brd=1.-smoothstep(bw-.01,bw,de); float ln=1.-smoothstep(.012,.02,abs(de-bw-.035));
+        alb=mix(alb,alb*vec3(.42,.36,.33),brd*.85); alb=mix(alb,vec3(.55,.38,.16),ln); metal=mix(metal,1.,ln); rough=mix(rough,.3,ln); } }
     if(N.z>0.&&hz<.3){ for(int i=0;i<NB;i++){ if(float(i)>=uNB) break; vec4 b=uBl[i], r=uBr[i]; vec2 q=vP.xy-b.xy, l=vec2(dot(q,r.xy),dot(q,vec2(-r.y,r.x))); float d;
         if(r.w>.5) d=length(l)-b.z; else { vec2 e=abs(l)-b.zw; d=length(max(e,0.))+min(max(e.x,e.y),0.); }
         ao*=1.-r.z*exp(-max(d,0.)/.2)*smoothstep(-.4,0.,d)*.9-r.z*.1*step(d,0.); } } }
@@ -263,19 +302,21 @@ void main(){
     vec3 q=c+U*clamp(dot(rel,U),-hw,hw)+Vv*clamp(dot(rel,Vv),-hh,hh), Lv=q-vP; float d2=dot(Lv,Lv)+.01; vec3 L=Lv*inversesqrt(d2);
     float ar=4.*hw*hh, em=max(dot(-L,wn),0.)*.85+.15, nl=max(dot(N,L),0.);
     vec3 E=uSkyC*(abs(I)*ar*em*nl/(d2+ar*.3)); Ld+=E; Ls+=E*ggx(N,V,L,max(rough,.18));
-    if(I>0.){ float sdn=dot(uSun,wn); if(sdn<-.03){ float t=dot(c-vP,wn)/sdn; vec3 h=vP+uSun*t-c; float hu=abs(dot(h,U)), hv=dot(h,Vv), pen=.01+t*.01;
+    if(I>0.&&uSMp.z<.5){ float sdn=dot(uSun,wn); if(sdn<-.03){ float t=dot(c-vP,wn)/sdn; vec3 h=vP+uSun*t-c; float hu=abs(dot(h,U)), hv=dot(h,Vv), pen=.01+t*.01;
       float m=(1.-smoothstep(hw-pen,hw+pen,hu))*(1.-smoothstep(hh-pen,hh+pen,abs(hv)));
       if(hw>.6) m*=smoothstep(.025,.035+pen,hu);
       if(hh>.8) m*=smoothstep(.025,.035+pen,abs(hv-hh*.35));
       vec3 E2=uSunC*(m*max(dot(N,uSun),0.)*.9); Ld+=E2; Ls+=E2*ggx(N,V,uSun,rough); } } }
-  if(uRoom.z>.5){ float nl=max(dot(N,uSun),0.); vec3 E=uSunC*nl*mix(.55,1.,smoothstep(0.,1.5,hz)); Ld+=E; Ls+=E*ggx(N,V,uSun,rough); }
-  vec3 amb=mix(uAmbF,uAmbC,N.z*.38+.5);
+  float sv=shadow(vP,normalize(vN)), snl=max(dot(N,uSun),0.);
+  if(sv>=0.){ if(uRoom.z<.5) sv*=step(.0,dot(normalize(vN),uSun)); vec3 E=uSunC*snl*sv*(uRoom.z>.5?1.:.9); Ld+=E; Ls+=E*ggx(N,V,uSun,rough); }
+  else if(uRoom.z>.5){ vec3 E=uSunC*snl*mix(.55,1.,smoothstep(0.,1.5,hz)); Ld+=E; Ls+=E*ggx(N,V,uSun,rough); }
+  vec3 amb=mix(uAmbF,uAmbC,N.z*.3+.55);
   float nv=max(dot(N,V),1e-3); vec3 F0=mix(vec3(.04),alb,metal), F=F0+(1.-F0)*pow(1.-nv,5.)*(1.-rough*.8);
   vec3 R=reflect(-V,N); bool outside=uRoom.z>.5; if(kind>3.5&&vX.z>.25){ outside=(vX.z>.75)==(dot(normalize(vN),V)>0.); }
   vec3 env=outside?uSkyC*(.45+.55*clamp(R.z+.25,0.,1.))*(R.z<0.?.45:1.):mix(uAmbF,uAmbC,clamp(R.z*.5+.5,0.,1.))*1.15;
   vec3 col;
   if(kind>3.5){ col=F*(env*1.2+Ls)+alb*(amb+Ld)*.03; alpha=clamp(uMat.y+dot(F,vec3(.33))*.9+(outside&&vX.z>.25?.22:0.),0.,.96); if(outside&&vX.z>.25) col+=env*.2; }
-  else col=alb*(1.-metal)*(amb*ao*cav+Ld*mix(1.,ao,.55)*cav)+F*(Ls*cav+env*ao*(1.-rough)*(1.-rough));
+  else col=alb*(1.-metal)*(amb*ao*cav+Ld*mix(1.,ao,.55)*cav)+F*(Ls*cav+env*ao*(1.-rough)*(1.-rough)*(1.+metal*2.2))+metal*alb*(amb+Ld*.25)*.35;
   FRAG=vec4(post(col,dist),alpha);
 }
 """
@@ -283,7 +324,7 @@ void main(){
 FPV_JS = r"""
 (function(){
 if(window.AltoBuildingFPV) return;
-var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__;
+var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__, DVS=__DVS__, DFS=__DFS__;
 var CFG={eye:1.65, walk:1.4, hurry:3.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.75, knee:.35, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900};
 var PI=Math.PI, D=document;
 var S={on:false, gl:null};
@@ -326,14 +367,16 @@ function clipHalf(p,nx,ny,c){ var o=[]; for(var i=0,n=p.length;i<n;i++){ var a=p
     if(da>=0) o.push(a); if((da>=0)!==(db>=0)){ var t=da/(da-db); o.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]); } } return o; }
 
 /* ── the plan, indexed: levels, rooms, wall pieces, openings, stairs, collision, supports, portals, batches ── */
-var MAT={ marble:[0,[1,1,1],2.4,1,0,.35], limestone:[1,[1,1,1],3,1,0,1.1], sandstone:[1,[.98,.82,.7],3,1,0,1.1], stone:[1,[.88,.9,.92],3,1,0,1.1],
-  granite:[2,[1,1,1],1.6,1,0,.25], brick:[3,[1,1,1],1.2,1,0,1.4], plaster:[4,[1,1,1],3,1,0,.2], paint:[5,[1,1,1],2,1,0,.05], lath:[4,[1,1,1],3,1,0,.35],
+var MAT={ marble:[0,[1,1,1],3.6,1,0,.35], limestone:[1,[1,1,1],6,1,0,.55], sandstone:[1,[.98,.82,.7],6,1,0,.55], stone:[1,[.97,.95,.92],6,1,0,.55],
+  granite:[2,[1.22,1.2,1.17],1.6,1,0,.25], brick:[3,[1,1,1],1.2,1,0,1.4], plaster:[4,[1,1,1],3,1,0,.2], paint:[5,[1,1,1],2,1,0,.05], lath:[4,[1,1,1],3,1,0,.35],
   wood:[6,[1,1,1],1.2,1,0,1.2], parquet:[8,[1,1,1],2.4,1,0,.5], plank:[7,[1,1,1],2.4,1,0,.5], tile:[9,[1,1,1],1.2,1,0,.8], terrazzo:[10,[1,1,1],1.4,1,0,.1],
   concrete:[11,[1,1,1],2.5,1,0,.5], carpet:[12,[.62,.24,.22],1.2,1,0,.6], metal:[13,[.6,.6,.62],1,1,1,.25], bronze:[13,[.42,.27,.15],1,1.2,1,.25],
   gilt:[13,[.95,.72,.34],.8,1.1,1,.3], copper:[13,[.86,.5,.36],1,1.1,1,.25], fabric:[12,[.5,.47,.44],1,1,0,.5], leather:[14,[.26,.14,.08],1,1,0,.15],
   slate:[9,[.3,.31,.34],1.2,1,0,.6], terracotta:[9,[.82,.47,.33],1.2,1,0,.8], glass:[-1], none:[-1],
-  paving:[15,[1,1,1],6,1,0,1], flags:[15,[.86,.84,.82],3.2,.9,0,1], rooftile:[16,[1,1,1],2.4,1,0,1.2], patina:[11,[.42,.66,.58],3,1,0,.4], board:[7,[.74,.6,.48],2.4,1,0,.5] };
-var GEN_N=17;
+  paving:[15,[1,1,1],6,1,0,1], bark:[11,[.42,.33,.25],1.5,1,0,.8], flags:[15,[.86,.84,.82],3.2,.9,0,1], coffer:[17,[1,1,1],4.2,1,0,1.6], leaf:[18,[1,1,1],2,1,0,1], rooftile:[16,[1,1,1],2.4,1,0,1.2], patina:[11,[.42,.66,.58],3,1,0,.4], board:[7,[.82,.7,.58],2.4,1,0,.5] };
+var GEN_N=19;
+/* per-material world-space variation [macro, per tile, grime near the floor] and slab joints [size m, width m, tone] */
+var VAR={0:[.08,0,.15],1:[.16,.05,.5],2:[.08,0,.2],3:[.12,.04,.4],4:[.05,0,.14],5:[.04,0,.1],6:[.1,0,.05],7:[.12,0,0],8:[.1,0,0],9:[.06,.03,.15],10:[.08,0,.1],11:[.14,.05,.3],12:[.08,0,0],15:[.18,.06,.2],16:[.2,.05,0],17:[.04,0,0],18:[.2,0,0]};
 function matName(m,dflt){ if(!m) return dflt; if(MAT[m]) return m; var s=String(m).toLowerCase();
   var ks=['marble','limestone','sandstone','granite','brick','plaster','paint','parquet','plank','tile','terrazzo','concrete','carpet','glass','bronze','gilt','copper','metal','leather','slate','wood','stone','fabric'];
   for(var i=0;i<ks.length;i++) if(s.indexOf(ks[i])>=0) return ks[i]; return dflt; }
@@ -345,6 +388,7 @@ function defWall(ty){ return ty==='gallery'?'paint':ty==='hall'||ty==='stair-hal
 function enc4(m){ return m==null?255:clamp(Math.round(m/4*255),0,255); }
 
 function bfIndex(plan){
+  plan=Object.assign({},plan); plan.fx=(plan.fx||[]).map(function(f){ var o=Object.assign({},f); if(f.p) o.p=f.p.slice(); return o; });     /* fixtures may be nudged: never the blueprint's copy */
   var G={plan:plan, lvs:[], lv:{}, rooms:[], rid:{}, rg:{}, walls:[], prims:[], pg:{}, st:[], portals:[], batches:[], picks:[], slots:{}, fxs:{}, lifts:[], rails:[]};
   (plan.lv||[]).slice().sort(function(a,b){ return a.e-b.e; }).forEach(function(l,i){ var o={id:l.id, n:l.n||l.id, lb:l.lb||l.n||l.id, e:l.e, h:l.h||4, i:i}; G.lvs.push(o); G.lv[l.id]=o; });
   G.lvs.forEach(function(o,i){ var nx=G.lvs[i+1]; o.top=nx?nx.e:o.e+o.h; o.wh=Math.max(o.h,o.top-o.e); });
@@ -352,7 +396,7 @@ function bfIndex(plan){
   (plan.rm||[]).forEach(function(r){ var l=G.lv[r.l]; if(!l||!r.p||r.p.length<3) return; var ty=r.ty||'other';
     var o={i:G.rooms.length, r:r, id:r.id, l:l, p:r.p, bb:bb2(r.p), ch:r.ch||l.h, ty:ty, holesF:[], holesC:[], items:[], nb:[], wins:[], name:r.n||r.id, no:r.no||''};
     o.ceil=l.e+o.ch; o.fm=matName(r.fm,defFloor(ty)); o.wm=matName(r.wm,defWall(ty)); o.cm=matName(r.cm,'plaster'); o.lk=(r.li&&r.li.k)||defLight(ty); o.lx=(r.li&&r.li.lx)||LIGHT[o.lk]||250;
-    o.paint=PAINTS[Math.floor(hash(r.id+'p')*PAINTS.length)]; if(ty!=='gallery') o.paint=PAINTS[Math.floor(hash(r.id)*3)];
+    o.paint=PAINTS[Math.floor(hash((r.ca||r.id)+'p')*PAINTS.length)]; if(ty!=='gallery') o.paint=PAINTS[Math.floor(hash(r.id)*3)];
     o.wt=o.wm==='paint'?o.paint:({plaster:[.93,.91,.87],lath:[.93,.91,.87],wood:[.42,.28,.17],limestone:[.86,.81,.72],marble:[.93,.92,.9],stone:[.78,.79,.8],brick:[.62,.34,.26],concrete:[.62,.62,.6]})[o.wm]||[.9,.88,.84];
     o.ctr=interior(r.p); G.rid[r.id]=o; G.rooms.push(o);
     for(var x=Math.floor(o.bb[0]/4);x<=Math.floor(o.bb[2]/4);x++) for(var y=Math.floor(o.bb[1]/4);y<=Math.floor(o.bb[3]/4);y++){ var k=l.id+':'+x+','+y; (G.rg[k]||(G.rg[k]=[])).push(o.i); } });
@@ -360,12 +404,14 @@ function bfIndex(plan){
   G.rooms.forEach(function(o){ o.b=mkBatch(G,'room',o); o.b.bb=[o.bb[0],o.bb[1],o.l.e-.4,o.bb[2],o.bb[3],o.ceil+.2]; });
   G.lvs.forEach(function(l){ l.b=mkBatch(G,'ext',null); l.b.lv=l; });
   G.site=mkBatch(G,'site',null);
-  stairs(G); walls(G); things(G); exterior(G); portals(G);
+  G.rooms.forEach(function(r){ var A=(r.bb[2]-r.bb[0])*(r.bb[3]-r.bb[1]); G.lvs.forEach(function(l){ if(l.e<=r.l.e+.5||l.e>=r.ceil-.3) return;     /* a ceiling never pokes through the floor of a room above, unless that room shares its ceiling (an open hall and its balcony) */
+      if(G.rooms.some(function(u){ return u.l===l&&Math.abs(u.ceil-r.ceil)>1&&ovl(u.bb,r.bb)>.3*Math.min(A,(u.bb[2]-u.bb[0])*(u.bb[3]-u.bb[1])); })){ r.ceil=l.e-.3; r.ch=r.ceil-r.l.e; } }); });
+  voids(G); stairs(G); walls(G); gaps(G); voidRails(G); things(G); exterior(G); portals(G);
   return G; }
 function mkBatch(G,kind,room){ var b={i:G.batches.length, kind:kind, room:room, items:[], bb:[1e9,1e9,1e9,-1e9,-1e9,-1e9], built:null, picks:[], lastUse:0}; G.batches.push(b); return b; }
 function grow(b,x0,y0,z0,x1,y1,z1){ var a=b.bb; if(x0<a[0]) a[0]=x0; if(y0<a[1]) a[1]=y0; if(z0<a[2]) a[2]=z0; if(x1>a[3]) a[3]=x1; if(y1>a[4]) a[4]=y1; if(z1>a[5]) a[5]=z1; }
 function roomAt(G,lid,x,y){ var c=G.rg[lid+':'+Math.floor(x/4)+','+Math.floor(y/4)]; if(!c) return null;
-  for(var i=0;i<c.length;i++){ var o=G.rooms[c[i]]; if(x>=o.bb[0]&&x<=o.bb[2]&&y>=o.bb[1]&&y<=o.bb[3]&&pip(o.p,x,y)) return o; } return null; }
+  var v=null; for(var i=0;i<c.length;i++){ var o=G.rooms[c[i]]; if(x>=o.bb[0]&&x<=o.bb[2]&&y>=o.bb[1]&&y<=o.bb[3]&&pip(o.p,x,y)){ if(!o.isVoid) return o; v=o; } } return v; }
 function roomNear(G,lid,x,y,nx,ny){ var ds=[.12,.4,.8,1.5]; for(var i=0;i<ds.length;i++){ var r=roomAt(G,lid,x+nx*ds[i],y+ny*ds[i]); if(r) return r; } return null; }
 function batchOf(G,room,lv){ return room?room.b:lv.b; }
 /* collision primitives on a 2 m grid: seg {ax,ay,bx,by,r}, box {x,y,hx,hy,c,s}, circ {x,y,r}; each with z0..z1 */
@@ -398,9 +444,11 @@ function walls(G){
     W.segs.forEach(function(sg){ var cuts=[[0,sg.L]];
       W.ops.forEach(function(op){ if(!op.pass) return; var a=op.a0-sg.s0, b=op.a1-sg.s0; if(b<=0||a>=sg.L) return; var nc=[]; cuts.forEach(function(c){ if(b<=c[0]||a>=c[1]){ nc.push(c); return; } if(a>c[0]) nc.push([c[0],a]); if(b<c[1]) nc.push([b,c[1]]); }); cuts=nc; });
       cuts.forEach(function(c){ if(c[1]-c[0]<.01) return; addPrim(G,{k:'seg', ax:sg.A[0]+sg.d[0]*c[0], ay:sg.A[1]+sg.d[1]*c[0], bx:sg.A[0]+sg.d[0]*c[1], by:sg.A[1]+sg.d[1]*c[1], r:W.ht, z0:W.low?Math.min(G.gz,W.base):W.base, z1:W.top, wall:1}); }); });
+    if(!W.rail&&W.k!=='ext'&&W.segs.every(function(sg){ var mx=(sg.A[0]+sg.B[0])/2, my=(sg.A[1]+sg.B[1])/2, o=W.ht+.6, ra=roomAt(G,lv.id,mx+sg.n[0]*o,my+sg.n[1]*o), rb=roomAt(G,lv.id,mx-sg.n[0]*o,my-sg.n[1]*o);
+        return ra&&ra===rb&&ra.ceil>lv.top+.5; })){ W.rail=1; W.top=W.base+1.05; W.m='marble'; W.bal=1; G.prims=G.prims; }
     if(W.rail){ var stoneRail=/^(marble|limestone|stone|sandstone|granite|concrete|brick)$/.test(W.m);
       W.segs.forEach(function(sg){ var mx=(sg.A[0]+sg.B[0])/2, my=(sg.A[1]+sg.B[1])/2, rr=roomAt(G,lv.id,mx+sg.n[0]*.3,my+sg.n[1]*.3)||roomAt(G,lv.id,mx-sg.n[0]*.3,my-sg.n[1]*.3), rb=batchOf(G,rr,lv);
-        rb.items.push({t:stoneRail?'parapet':'rail', a:sg.A, b:sg.B, z:W.base, h:W.top-W.base, w:W.ht*2, m:W.m}); grow(rb,Math.min(sg.A[0],sg.B[0])-.2,Math.min(sg.A[1],sg.B[1])-.2,W.base,Math.max(sg.A[0],sg.B[0])+.2,Math.max(sg.A[1],sg.B[1])+.2,W.top+.1); });
+        rb.items.push({t:stoneRail?'parapet':'rail', a:sg.A, b:sg.B, z:W.base, h:W.top-W.base, w:W.bal?Math.min(.45,W.ht*2):W.ht*2, m:W.m, bal:W.bal}); grow(rb,Math.min(sg.A[0],sg.B[0])-.2,Math.min(sg.A[1],sg.B[1])-.2,W.base,Math.max(sg.A[0],sg.B[0])+.2,Math.max(sg.A[1],sg.B[1])+.2,W.top+.1); });
       return; }
     /* faces: each side split where the room it faces changes */
     W.segs.forEach(function(sg){ [1,-1].forEach(function(s){
@@ -416,6 +464,7 @@ function walls(G){
     W.ops.forEach(function(op){ var sg=segAt(W,(op.a0+op.a1)/2); if(!sg) return; op.sg=sg; var um=(op.a0+op.a1)/2-sg.s0;
       var cx=sg.A[0]+sg.d[0]*um, cy=sg.A[1]+sg.d[1]*um, ra=roomAt(G,lv.id,cx+sg.n[0]*(W.ht+.3),cy+sg.n[1]*(W.ht+.3)), rb=roomAt(G,lv.id,cx-sg.n[0]*(W.ht+.3),cy-sg.n[1]*(W.ht+.3));
       op.ra=ra; op.rb=rb; op.c=[cx,cy]; var host=ra||rb, b=batchOf(G,host,lv); op.side=ra?1:-1;
+      if(W.k!=='ext'&&op.k!=='window'&&(ra?1:0)+(rb?1:0)===1){ op.niche=1; b.items.push({t:'niche', W:W, op:op, room:host, s:ra?-1:1}); }
       b.items.push({t:'op', W:W, op:op}); grow(b,cx-op.o.w,cy-op.o.w,op.z0,cx+op.o.w,cy+op.o.w,op.z1);
       if(op.k==='window'){ [ra,rb].forEach(function(r,j){ if(r&&!(ra&&rb)) r.wins.push({c:[cx,cy,(op.z0+op.z1)/2], U:[sg.d[0],sg.d[1],0], hw:(op.a1-op.a0)/2, hh:(op.z1-op.z0)/2, n:j===0?[sg.n[0],sg.n[1],0]:[-sg.n[0],-sg.n[1],0], ext:W.k==='ext'}); }); }
       if(op.k==='door'&&op.o.d!=='none'&&op.pass){ var side=ra?-1:1; if(W.k!=='ext') side=ra?1:-1; op.leafSide=side; var lw=op.o.d==='single'?(op.a1-op.a0):(op.a1-op.a0)/2;
@@ -423,6 +472,19 @@ function walls(G){
           boxPrim(G,px,py,.06,lw,Math.atan2(sg.d[1],sg.d[0]),op.z0,op.z1); }); }
     });
   }); }
+/* traced plans have gaps: a room edge with no wall and no room beyond it gets a plain wall; an interior door that leads to no room opens on an alcove */
+function gaps(G){ G.rooms.forEach(function(r){ if(r.isVoid) return; var p=r.p, sg=parea(p)>0?1:-1, e=r.l.e;
+    for(var i=0;i<p.length;i++){ var A=p[i], B=p[(i+1)%p.length], L=Math.hypot(B[0]-A[0],B[1]-A[1]); if(L<.4) continue; var ux=(B[0]-A[0])/L, uy=(B[1]-A[1])/L, ox=uy*sg, oy=-ux*sg, run=null, n=Math.ceil(L/.5);
+      var flush=function(t1){ if(run!=null&&t1-run>.6){ var P0=[A[0]+ux*run,A[1]+uy*run], P1=[A[0]+ux*t1,A[1]+uy*t1]; r.b.items.push({t:'gapwall', a:P0, b:P1, n:[-ox,-oy], room:r});
+          addPrim(G,{k:'seg', ax:P0[0], ay:P0[1], bx:P1[0], by:P1[1], r:.1, z0:e, z1:r.ceil, wall:1}); } run=null; };
+      for(var k=0;k<=n;k++){ var t=Math.min(L,k*L/n), x=A[0]+ux*t, y=A[1]+uy*t, z=e+1.2;
+        var open=!primsNear(G,x,y,.9).some(function(q2){ return q2.k==='seg'&&q2.z0<=z&&q2.z1>=z&&segD(x,y,q2.ax,q2.ay,q2.bx,q2.by)<q2.r+.45; })&&!roomAt(G,r.l.id,x+ox*.5,y+oy*.5)&&!onOpening(x,y,z,G);
+        var inside=G.st.some(function(o){ return pip(o.fp,x-ox*.3,y-oy*.3); });
+        if(open&&!inside){ if(run==null) run=t; } else flush(t); }
+      flush(L); } }); }
+function gapwallItem(G,mb,it){ var r=it.room, A=it.a, B=it.b, n=it.n, k=wallKey(r,{m:r.wm}), e=r.l.e, c=r.ceil, L=Math.hypot(B[0]-A[0],B[1]-A[1]);
+  mb.quad(k,[[A[0],A[1],e],[B[0],B[1],e],[B[0],B[1],c],[A[0],A[1],c]],[n[0],n[1],0],[[0,e],[L,e],[L,c],[0,c]]);
+  var F={ox:A[0], oy:A[1], dx:(B[0]-A[0])/L, dy:(B[1]-A[1])/L, n:[n[0],n[1],0], uo:0}; strip(mb,'skirt#'+r.i,F,0,L,[[.016,e],[.016,e+.15],[.008,e+.165],[0,e+.175]]); };
 function segAt(W,a){ for(var i=0;i<W.segs.length;i++){ var s=W.segs[i]; if(a>=s.s0-1e-6&&a<=s.s0+s.L+1e-6) return s; } return null; }
 function addFace(G,W,sg,s,u0,u1,ri,uS,uE){ if(u1-u0<.004) return; var room=ri>=0?G.rooms[ri]:null;
   var fb=W.base, ft;
@@ -449,14 +511,32 @@ function stairs(G){
       [-1,1].forEach(function(sd){ var ox=fl.n[0]*sd*(fl.w/2+.09), oy=fl.n[1]*sd*(fl.w/2+.09);
         addPrim(G,{k:'seg', ax:fl.a[0]+ox, ay:fl.a[1]+oy, bx:fl.b[0]+ox, by:fl.b[1]+oy, r:.1, z0:fl.a[2]-.1, z1:fl.b[2]+1.0, flight:fl}); }); });
     o.ld.forEach(function(l){ b.items.push({t:'land', ld:l, st:o}); grow(b,l.bb[0],l.bb[1],l.z-.4,l.bb[2],l.bb[3],l.z+1); });
-    G.rooms.forEach(function(r){ if(!bbHit(r.bb,o.bb)) return; if(r.l===hi) r.holesF.push(s.fp); if(r.l===lo&&r.ceil>=hi.e-.8) r.holesC.push({p:s.fp, z1:hi.e}); });
+    G.rooms.forEach(function(r){ if(!bbHit(r.bb,o.bb)) return; if(r.l===hi&&!(r.voidHole&&bbHit(o.bb,r.voidHole))) r.holesF.push(s.fp); if(r.l===lo&&r.ceil>=hi.e-.8&&r.ceil<=hi.e+.4) r.holesC.push({p:s.fp, z1:hi.e}); });
     /* a balustrade round the stairwell above, except where a flight arrives */
     for(var i=0,n=s.fp.length;i<n;i++){ var A=s.fp[i], B=s.fp[(i+1)%n], arr=o.fl.some(function(fl){ return Math.abs(fl.b[2]-hi.e)<.4&&segD(fl.b[0],fl.b[1],A[0],A[1],B[0],B[1])<.6; });
-      if(arr) continue; var mx=(A[0]+B[0])/2, my=(A[1]+B[1])/2, nearWall=primsNear(G,mx,my,.6).some(function(p){ return p.wall&&p.k==='seg'&&segD(mx,my,p.ax,p.ay,p.bx,p.by)<p.r+.35&&p.z0<=hi.e+.5&&p.z1>hi.e+.5; });
+      var mx0=(A[0]+B[0])/2, my0=(A[1]+B[1])/2; if(arr||G.rooms.some(function(r){ return r.l===hi&&r.voidHole&&mx0>=r.voidHole[0]-.3&&mx0<=r.voidHole[2]+.3&&my0>=r.voidHole[1]-.3&&my0<=r.voidHole[3]+.3; })) continue; var mx=(A[0]+B[0])/2, my=(A[1]+B[1])/2, nearWall=primsNear(G,mx,my,.6).some(function(p){ return p.wall&&p.k==='seg'&&segD(mx,my,p.ax,p.ay,p.bx,p.by)<p.r+.35&&p.z0<=hi.e+.5&&p.z1>hi.e+.5; });
       if(nearWall) continue; var rr=roomAt(G,hi.id,mx,my)||nearestRoom(G,hi,[mx,my]), rb=batchOf(G,rr,hi);
       rb.items.push({t:'rail', a:A, b:B, z:hi.e, m:'metal'}); grow(rb,Math.min(A[0],B[0]),Math.min(A[1],B[1]),hi.e,Math.max(A[0],B[0]),Math.max(A[1],B[1]),hi.e+1.1);
       addPrim(G,{k:'seg', ax:A[0], ay:A[1], bx:B[0], by:B[1], r:.04, z0:hi.e, z1:hi.e+1.05}); }
     G.st.push(o); }); }
+function ovl(a,b){ var ix=Math.min(a[2],b[2])-Math.max(a[0],b[0]), iy=Math.min(a[3],b[3])-Math.max(a[1],b[1]); return ix>0&&iy>0?ix*iy:0; }
+function voids(G){ G.voids=[];
+  G.rooms.forEach(function(T){ G.lvs.forEach(function(l){ if(l.e<=T.l.e+.5||l.e>=T.ceil-1) return;
+    var well=null; G.rooms.forEach(function(W){ if(W.l===l&&(/well|void|open to/i.test(W.name)||W.ty==='court')&&T.ceil>=W.ceil-1&&ovl(W.bb,T.bb)>.6*(W.bb[2]-W.bb[0])*(W.bb[3]-W.bb[1])) { W.isVoid=1; well=W; } });
+    G.rooms.forEach(function(U){ if(U.l!==l||U.isVoid||T.ceil<U.ceil-1) return; if(ovl(T.bb,U.bb)<.5*(T.bb[2]-T.bb[0])*(T.bb[3]-T.bb[1])) return;
+      var d=clamp(Math.min(T.bb[2]-T.bb[0],T.bb[3]-T.bb[1])*.12,2.5,4.5), h=well?[Math.max(well.bb[0],T.bb[0]),Math.max(well.bb[1],T.bb[1]),Math.min(well.bb[2],T.bb[2]),Math.min(well.bb[3],T.bb[3])]:[T.bb[0]+d,T.bb[1]+d,T.bb[2]-d,T.bb[3]-d];
+      (G.plan.st||[]).forEach(function(st){ if(st.to!==l.id||!st.fp||st.k==='elevator') return; var fl=(st.fl&&st.fl.length)?st.fl[st.fl.length-1]:derive(st,G.lv[st.from],l), a=fl.a[2]<fl.b[2]?fl.a:fl.b, b=fl.a[2]<fl.b[2]?fl.b:fl.a, dx=b[0]-a[0], dy=b[1]-a[1];
+        if(b[0]<h[0]||b[0]>h[2]||b[1]<h[1]||b[1]>h[3]) return; if(Math.abs(dx)>Math.abs(dy)){ if(dx<0) h[0]=Math.max(h[0],b[0]); else h[2]=Math.min(h[2],b[0]); } else { if(dy<0) h[1]=Math.max(h[1],b[1]); else h[3]=Math.min(h[3],b[1]); } });
+      (G.plan.st||[]).forEach(function(st){ if(st.to!==l.id||!st.fp) return; var b=bb2(st.fp); if(bbHit(b,h)) h=[Math.min(h[0],b[0]),Math.min(h[1],b[1]),Math.max(h[2],b[2]),Math.max(h[3],b[3])]; });
+      var hp=[[h[0],h[1]],[h[2],h[1]],[h[2],h[3]],[h[0],h[3]]]; U.holesF.push(hp); U.voidHole=h; if(Math.abs(U.ceil-T.ceil)<.5) U.ceilHoles=(U.ceilHoles||[]).concat([T.p]);
+      G.voids.push({T:T, U:U, h:hp, l:l}); }); }); }); }
+function voidRails(G){ (G.voids||[]).forEach(function(v){ var l=v.l, hp=v.h, arr=[];
+    G.st.forEach(function(o){ o.fl.forEach(function(fl){ if(Math.abs(fl.b[2]-l.e)<.4) arr.push(fl); }); });
+    for(var i=0;i<4;i++){ var A=hp[i], B=hp[(i+1)%4], L=Math.hypot(B[0]-A[0],B[1]-A[1]), ux=(B[0]-A[0])/L, uy=(B[1]-A[1])/L, cut=[[0,L]];
+      arr.forEach(function(fl){ if(segD(fl.b[0],fl.b[1],A[0],A[1],B[0],B[1])>1.2) return; var t=(fl.b[0]-A[0])*ux+(fl.b[1]-A[1])*uy, a=t-fl.w/2-.2, b=t+fl.w/2+.2, nc=[];
+        cut.forEach(function(c){ if(b<=c[0]||a>=c[1]){ nc.push(c); return; } if(a>c[0]) nc.push([c[0],a]); if(b<c[1]) nc.push([b,c[1]]); }); cut=nc; });
+      cut.forEach(function(c){ if(c[1]-c[0]<.3) return; var P0=[A[0]+ux*c[0],A[1]+uy*c[0]], P1=[A[0]+ux*c[1],A[1]+uy*c[1]];
+        v.U.b.items.push({t:'parapet', a:P0, b:P1, z:l.e, h:1.05, w:.32, m:'marble', bal:1}); addPrim(G,{k:'seg', ax:P0[0], ay:P0[1], bx:P1[0], by:P1[1], r:.16, z0:l.e, z1:l.e+1.05}); }); } }); }
 function nearestRoom(G,l,p){ var best=null, bd=1e9; G.rooms.forEach(function(r){ if(r.l!==l) return; var d=Math.hypot(r.ctr[0]-p[0],r.ctr[1]-p[1]); if(d<bd){ bd=d; best=r; } }); return best; }
 function derive(s,lo,hi){ var ang=(s.up!=null?s.up:90)*PI/180, ux=Math.cos(ang), uy=Math.sin(ang), vx=-uy, vy=ux, mn=1e9, mx=-1e9, vn=1e9, vm=-1e9;
   s.fp.forEach(function(p){ var u=p[0]*ux+p[1]*uy, v=p[0]*vx+p[1]*vy; mn=Math.min(mn,u); mx=Math.max(mx,u); vn=Math.min(vn,v); vm=Math.max(vm,v); });
@@ -464,12 +544,24 @@ function derive(s,lo,hi){ var ang=(s.up!=null?s.up:90)*PI/180, ux=Math.cos(ang),
 
 function things(G){
   var P=G.plan;
-  (P.cols||[]).forEach(function(c){ var l=G.lv[c.l]; if(!l||!c.p) return; var r=roomAt(G,l.id,c.p[0],c.p[1]), b=batchOf(G,r,l), h=c.h||(r?r.ch:l.h), R=c.r!=null?c.r:Math.max(c.sz[0],c.sz[1])/2;
+  var cols=(P.cols||[]).filter(function(c){ return G.lv[c.l]&&c.p; }), skip={}, hm={};
+  cols.forEach(function(c){ var l=G.lv[c.l]; if(roomAt(G,l.id,c.p[0],c.p[1])) return; var up=G.lvs[l.i+1]; if(!up) return;
+    cols.forEach(function(d){ if(d.l===up.id&&!skip[d.id]&&Math.hypot(d.p[0]-c.p[0],d.p[1]-c.p[1])<.6&&!roomAt(G,up.id,d.p[0],d.p[1])){ skip[d.id]=1; hm[c.id]=(hm[c.id]||l.wh)+(d.h||up.wh); } }); });
+  cols.forEach(function(c){ if(skip[c.id]) return; var l=G.lv[c.l]; var r=roomAt(G,l.id,c.p[0],c.p[1]), b=batchOf(G,r,l), h=hm[c.id]||c.h||(r?r.ch:l.h), R=c.r!=null?c.r:Math.max(c.sz[0],c.sz[1])/2;
     b.items.push({t:'col', c:c, z0:l.e, h:h, room:r}); grow(b,c.p[0]-R*1.4,c.p[1]-R*1.4,l.e,c.p[0]+R*1.4,c.p[1]+R*1.4,l.e+h);
     if(c.r!=null) addPrim(G,{k:'circ',x:c.p[0],y:c.p[1],r:c.r*1.15,z0:l.e,z1:l.e+h}); else boxPrim(G,c.p[0],c.p[1],c.sz[0]*1.1,c.sz[1]*1.1,0,l.e,l.e+h);
     if(r) r.items.push({blob:[c.p[0],c.p[1],R*1.2,R*1.2],rot:0,round:c.r!=null,str:.55}); });
+  /* a statue (and the plinth under it) stands clear of the walls, facing away from the nearest one */
+  (P.fx||[]).forEach(function(f){ var l=G.lv[f.l]; if(f.k!=='statue'||!l||!f.p||!f.sz||f._moved) return; var need=Math.max(f.sz[0],f.sz[1])*.5+1.0, x=f.p[0], y=f.p[1], push=[0,0];
+    primsNear(G,x,y,need+1).forEach(function(q2){ if(!q2.wall||q2.z1<l.e-.3||q2.z0>l.e+2) return; var d=primDist(q2,x,y); if(d>=need) return; var e=.01, gx=(primDist(q2,x+e,y)-primDist(q2,x-e,y))/(2*e), gy=(primDist(q2,x,y+e)-primDist(q2,x,y-e))/(2*e), gl=Math.hypot(gx,gy)||1;
+      push[0]+=gx/gl*(need-d); push[1]+=gy/gl*(need-d); });
+    if(push[0]||push[1]){ var np=[x+push[0],y+push[1]]; (P.fx||[]).forEach(function(o){ if(o.l===f.l&&o.p&&Math.hypot(o.p[0]-x,o.p[1]-y)<.6) { o.p=np.slice(); o._moved=1; } });
+      if(f.rot==null||f.rot===0) f.rot=Math.atan2(push[1],push[0])*180/PI-90; } });
+  var plinths=(P.fx||[]).filter(function(f){ return f.k==='plinth'&&f.p&&f.sz; });
   (P.fx||[]).forEach(function(f){ var l=G.lv[f.l]; if(!l||!f.p||!f.sz) return; var r=roomAt(G,l.id,f.p[0],f.p[1]), b=batchOf(G,r,l), rot=(f.rot||0)*PI/180, R=Math.hypot(f.sz[0],f.sz[1])/2;
-    b.items.push({t:'fx', f:f, z0:l.e, rot:rot, room:r}); grow(b,f.p[0]-R,f.p[1]-R,l.e,f.p[0]+R,f.p[1]+R,l.e+f.sz[2]);
+    var on=0; if(f.k==='statue') plinths.forEach(function(q2){ if(q2.l===f.l&&Math.hypot(q2.p[0]-f.p[0],q2.p[1]-f.p[1])<.6) on=Math.max(on,q2.sz[2]); });
+    b.items.push({t:'fx', f:f, z0:l.e, rot:rot, room:r, on:on}); grow(b,f.p[0]-R,f.p[1]-R,l.e,f.p[0]+R,f.p[1]+R,l.e+on+f.sz[2]+.5);
+    if(f.k==='statue'&&r) r.items.push({statue:f, z:l.e+on+f.sz[2]*.55, h:f.sz[2]});
     boxPrim(G,f.p[0],f.p[1],f.sz[0],f.sz[1],rot,l.e,l.e+Math.max(f.sz[2],f.k==='bench'?.5:f.sz[2]),f.id); G.fxs[f.id]={f:f,l:l,r:r};
     if(r) r.items.push({blob:[f.p[0],f.p[1],f.sz[0]/2,f.sz[1]/2],rot:rot,round:false,str:f.k==='bench'?.35:.5});
     b.picks.push({k:'fx', id:f.id, box:{x:f.p[0],y:f.p[1],hx:f.sz[0]/2+.02,hy:f.sz[1]/2+.02,c:Math.cos(rot),s:Math.sin(rot),z0:l.e,z1:l.e+f.sz[2]+(f.k==='statue'?0:.4)}, room:r}); });
@@ -487,12 +579,23 @@ function things(G){
 function exterior(G){ var ex=G.plan.ex||{}, sb=G.site;
   var wtop=-1e9; G.walls.forEach(function(W){ if(W.k==='ext') wtop=Math.max(wtop,W.top); });
   (ex.sh||[]).forEach(function(sh){ if(!sh.p||sh.p.length<3) return; var z0=wtop>-1e8?Math.max(wtop-.02,sh.z!=null?sh.z:G.gz):(sh.z!=null?sh.z:G.gz), bb=bb2(sh.p), top=Math.max(sh.h+(sh.z||0),z0);
-    sb.items.push({t:'shell', sh:sh, z0:z0, top:top, solid:wtop<-1e8}); grow(sb,bb[0]-1,bb[1]-1,G.gz,bb[2]+1,bb[3]+1,top+((sh.rf&&sh.rf.h)||0)+(sh.rf&&sh.rf.k==='dome'?Math.min(bb[2]-bb[0],bb[3]-bb[1])*.5:0)+.5);
+    var tall=[]; G.rooms.filter(function(r){ return r.ceil>top-.1&&pip(sh.p,r.ctr[0],r.ctr[1])&&!r.isVoid; }).sort(function(a,b){ return Math.abs(parea(b.p))-Math.abs(parea(a.p)); })
+      .forEach(function(r){ if(!tall.some(function(t){ return ovl(t.bb,r.bb)>.5*(r.bb[2]-r.bb[0])*(r.bb[3]-r.bb[1]); })) tall.push(r); });   /* one raised roof per hall (a hall and its balcony share one) */
+    sb.items.push({t:'shell', sh:sh, z0:z0, top:top, solid:wtop<-1e8, tall:tall});
+    tall.forEach(function(r){ grow(sb,r.bb[0],r.bb[1],top,r.bb[2],r.bb[3],r.ceil+1.2); }); grow(sb,bb[0]-1,bb[1]-1,G.gz,bb[2]+1,bb[3]+1,top+((sh.rf&&sh.rf.h)||0)+(sh.rf&&sh.rf.k==='dome'?Math.min(bb[2]-bb[0],bb[3]-bb[1])*.5:0)+.5);
     if(wtop<-1e8) for(var i=0,n=sh.p.length;i<n;i++){ var a=sh.p[i], c=sh.p[(i+1)%n]; addPrim(G,{k:'seg',ax:a[0],ay:a[1],bx:c[0],by:c[1],r:.2,z0:G.gz,z1:top}); } });
   (ex.stp||[]).forEach(function(s){ if(!s.p) return; var bb=bb2(s.p); sb.items.push({t:'steps', s:s}); grow(sb,bb[0],bb[1],G.gz,bb[2],bb[3],Math.max(s.z0,s.z1)); });
   (ex.tr||[]).forEach(function(t){ if(!t.p) return; var bb=bb2(t.p); sb.items.push({t:'terr', tr:t}); grow(sb,bb[0],bb[1],G.gz,bb[2],bb[3],t.z); });
-  var B=AltoBounds(G); G.B=B; var c=[(B[0]+B[2])/2,(B[1]+B[3])/2], R=Math.max(B[2]-B[0],B[3]-B[1])/2+260;
+  var B=AltoBounds(G); G.B=B; trees(G,sb,ex); var c=[(B[0]+B[2])/2,(B[1]+B[3])/2], R=Math.max(B[2]-B[0],B[3]-B[1])/2+260;
   sb.items.push({t:'ground', c:c, R:R}); grow(sb,c[0]-R,c[1]-R,G.gz-.1,c[0]+R,c[1]+R,G.gz+.1); }
+function trees(G,sb,ex){ var areas=[].concat(ex.stp||[],ex.tr||[]).filter(function(a){ return a.p; }), shells=(ex.sh||[]).map(function(s){ return s.p; }), out=[];
+  var clear=function(x,y){ if(areas.some(function(a){ var b=bb2(a.p); return x>b[0]-2.5&&x<b[2]+2.5&&y>b[1]-2.5&&y<b[3]+2.5; })) return false; if(shells.some(function(p){ var b=bb2(p); return x>b[0]-6&&x<b[2]+6&&y>b[1]-6&&y<b[3]+6&&(pip(p,x,y)||Math.min.apply(null,p.map(function(v,i){ var w=p[(i+1)%p.length]; return segD(x,y,v[0],v[1],w[0],w[1]); }))<6); })) return false;
+    if(G.lvs.some(function(l){ return roomAt(G,l.id,x,y); })) return false; return !out.some(function(o){ return Math.hypot(o[0]-x,o[1]-y)<6; }); };
+  areas.forEach(function(a){ var b=bb2(a.p), lx=b[2]-b[0]>=b[3]-b[1]; if(Math.max(b[2]-b[0],b[3]-b[1])<12) return;
+    [-1,1].forEach(function(sd){ var L=lx?b[2]-b[0]:b[3]-b[1], n=Math.floor(L/9); for(var i=0;i<=n;i++){ var t=(lx?b[0]:b[1])+L*i/Math.max(1,n), x=lx?t:(sd<0?b[0]-5:b[2]+5), y=lx?(sd<0?b[1]-5:b[3]+5):t; if(clear(x,y)) out.push([x,y]); } }); });
+  out.slice(0,90).forEach(function(p,i){ var z=G.gz; sb.items.push({t:'tree', p:p, z:z, h:7+hash(i+'t')*4}); addPrim(G,{k:'circ',x:p[0],y:p[1],r:.35,z0:z,z1:z+3}); }); }
+function treeItem(G,mb,it){ var x=it.p[0], y=it.p[1], z=it.z, h=it.h, R0=rng(hash(x*7+y)); limb(mb,'bark',[x,y,z],[x+.2,y,z+h*.45],.22,.15,8); limb(mb,'bark',[x+.2,y,z+h*.45],[x,y+.3,z+h*.62],.15,.1,7);
+  for(var i=0;i<6;i++){ var a=R0()*6.28, rr=h*(.08+R0()*.12); ell(mb,'leaf',[x+Math.cos(a)*rr,y+Math.sin(a)*rr,z+h*(.58+R0()*.28)],[h*(.18+R0()*.1),h*(.18+R0()*.1),h*(.15+R0()*.08)],R0()*3,0,9); } };
 function AltoBounds(G){ var bb=[1e9,1e9,-1e9,-1e9]; function t(p){ (p||[]).forEach(function(v){ bb[0]=Math.min(bb[0],v[0]); bb[1]=Math.min(bb[1],v[1]); bb[2]=Math.max(bb[2],v[0]); bb[3]=Math.max(bb[3],v[1]); }); }
   G.rooms.forEach(function(r){ t(r.p); }); (G.plan.wl||[]).forEach(function(w){ t(w.p); }); var ex=G.plan.ex||{}; (ex.sh||[]).forEach(function(s){ t(s.p); }); (ex.tr||[]).forEach(function(s){ t(s.p); }); (ex.stp||[]).forEach(function(s){ t(s.p); });
   return bb[0]<1e8?bb:[0,0,10,10]; }
@@ -502,7 +605,7 @@ function portals(G){
   function link(a,b,bb,k){ var p={a:a?a.i:-1, b:b?b.i:-1, bb:bb, k:k}; if(p.a===p.b) return; G.portals.push(p); if(a) a.nb.push(p); if(b) b.nb.push(p); if(!a||!b) (G.outNb||(G.outNb=[])).push(p); }
   G.outNb=[];
   G.walls.forEach(function(W){ W.ops.forEach(function(op){ if(!op.sg) return; var sg=op.sg, A=[sg.A[0]+sg.d[0]*(op.a0-sg.s0),sg.A[1]+sg.d[1]*(op.a0-sg.s0)], B=[sg.A[0]+sg.d[0]*(op.a1-sg.s0),sg.A[1]+sg.d[1]*(op.a1-sg.s0)], m=W.ht+.05;
-    if(!op.ra&&!op.rb) return; link(op.ra,op.rb,[Math.min(A[0],B[0])-m,Math.min(A[1],B[1])-m,op.z0,Math.max(A[0],B[0])+m,Math.max(A[1],B[1])+m,op.z1],op.k); }); });
+    if(!op.ra&&!op.rb||op.niche) return; link(op.ra,op.rb,[Math.min(A[0],B[0])-m,Math.min(A[1],B[1])-m,op.z0,Math.max(A[0],B[0])+m,Math.max(A[1],B[1])+m,op.z1],op.k); }); });
   G.rooms.forEach(function(r){ G.rooms.forEach(function(o){ if(o.i<=r.i||o.l!==r.l||!bbHit(r.bb,o.bb,.35)) return;
     for(var i=0,n=r.p.length;i<n;i++){ var a=r.p[i], b=r.p[(i+1)%n], dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy); if(L<.5) continue; var ux=dx/L, uy=dy/L;
       for(var j=0,m=o.p.length;j<m;j++){ var c=o.p[j], d=o.p[(j+1)%m]; if(Math.abs((d[0]-c[0])*uy-(d[1]-c[1])*ux)>.05*Math.hypot(d[0]-c[0],d[1]-c[1])) continue;
@@ -526,7 +629,7 @@ function stepsZ(s,x,y){ if(!pip(s.p,x,y)) return null; var ang=(s.up!=null?s.up:
   s.p.forEach(function(p){ var u=p[0]*ux+p[1]*uy; mn=Math.min(mn,u); mx=Math.max(mx,u); }); var t=clamp(((x*ux+y*uy)-mn)/Math.max(.01,mx-mn),0,1), n=s.n||Math.max(1,Math.round(Math.abs(s.z1-s.z0)/.15));
   return s.z0+(s.z1-s.z0)*t; }
 function supports(G,x,y){ var out=[G.gz];
-  G.lvs.forEach(function(l){ var r=roomAt(G,l.id,x,y); if(!r) return; for(var i=0;i<r.holesF.length;i++) if(pip(r.holesF[i],x,y)) return; out.push(l.e); });
+  G.lvs.forEach(function(l){ var r=roomAt(G,l.id,x,y); if(!r||r.isVoid) return; for(var i=0;i<r.holesF.length;i++) if(pip(r.holesF[i],x,y)) return; out.push(l.e); });
   G.st.forEach(function(o){ if(x<o.bb[0]-2||x>o.bb[2]+2||y<o.bb[1]-2||y>o.bb[3]+2) return; o.fl.forEach(function(fl){ var z=flightZ(fl,x,y); if(z!=null) out.push(z); }); o.ld.forEach(function(l){ if(pip(l.p,x,y)) out.push(l.z); }); });
   var ex=G.plan.ex||{}; (ex.stp||[]).forEach(function(s){ var z=stepsZ(s,x,y); if(z!=null) out.push(z); }); (ex.tr||[]).forEach(function(t){ if(pip(t.p,x,y)) out.push(t.z); });
   return out; }
@@ -546,7 +649,7 @@ function resolve(G,x,y,fz){ var z0=fz+CFG.knee, z1=fz+CFG.head, R=CFG.pr;
   return [x,y]; }
 
 /* ── packed vertices: pos 3 f32, normal 3 i8, uv 2 f32, aux 4 u8 = 28 bytes ── */
-var STRIDE=28;
+var STRIDE=28, Z4=[0,0,0,0];
 function Buf(){ this.ab=new ArrayBuffer(STRIDE*512); this.mk(); this.n=0; }
 Buf.prototype.mk=function(){ this.f=new Float32Array(this.ab); this.i8=new Int8Array(this.ab); this.u8=new Uint8Array(this.ab); };
 Buf.prototype.v=function(p,n,t,x){ if((this.n+1)*STRIDE>this.ab.byteLength){ var nb=new ArrayBuffer(this.ab.byteLength*2); new Uint8Array(nb).set(this.u8); this.ab=nb; this.mk(); }
@@ -605,7 +708,7 @@ function buildBatch(G,b){ var mb=new MB(); b.lab=[]; b.art=[]; b.trans={};
   b.items.forEach(function(it){ try{ ITEM[it.t](G,mb,it,b); }catch(e){ if(window.console) console.warn('bldg fpv',it.t,e); } });
   b.light=b.kind==='room'?roomLight(G,r,b):extLight(G,b);
   return mb; }
-var ITEM={};
+var ITEM={tree:treeItem, gapwall:gapwallItem};
 ITEM.face=function(G,mb,f,b){ var W=f.W, sg=f.sg, s=f.s, r=f.room, ox=sg.A[0]+sg.n[0]*s*W.ht, oy=sg.A[1]+sg.n[1]*s*W.ht;
   var F={ox:ox, oy:oy, dx:sg.d[0], dy:sg.d[1], n:[sg.n[0]*s,sg.n[1]*s,0], uo:sg.s0}, k=wallKey(r,W), fb=f.fb, ft=f.ft;
   var ops=W.ops.filter(function(op){ return op.a1-sg.s0>f.u0+1e-4&&op.a0-sg.s0<f.u1-1e-4; }), cuts=[f.u0,f.u1];
@@ -626,7 +729,7 @@ ITEM.face=function(G,mb,f,b){ var W=f.W, sg=f.sg, s=f.s, r=f.room, ox=sg.A[0]+sg
   var stone=/^(limestone|marble|stone|sandstone|granite)$/.test(r.wm), trim=stone?r.wm:'trim#'+r.i;
   if(fb>=r.l.e-.01){ mg(low).forEach(function(a){ strip(mb,stone?'marble':'skirt#'+r.i,F,a[0],a[1],[[.016,fb],[.016,fb+.15],[.008,fb+.165],[0,fb+.175]]); }); }
   if(!stone&&r.ch>3.2&&r.ty==='gallery') mg(rail).forEach(function(a){ strip(mb,trim,F,a[0],a[1],[[0,zr-.022],[.022,zr-.014],[.022,zr+.01],[0,zr+.022]]); });
-  mg(top).forEach(function(a){ var c=ft, d=r.cm==='glass'?Math.min(.75,r.ch*.13):Math.min(.32,r.ch*.06); strip(mb,stone?r.wm:'plaster',F,a[0],a[1],[[0,c-d-.06],[.03,c-d-.04],[.03,c-d],[d*.45,c-d*.55],[d*.8,c-d*.2],[d,c]]); });
+  mg(top).forEach(function(a){ var c=ft, d=r.ch>7?Math.min(1.5,r.ch*.085):r.cm==='glass'?Math.min(.75,r.ch*.13):Math.min(.32,r.ch*.06); strip(mb,stone?r.wm:'plaster',F,a[0],a[1],[[0,c-d-.06],[.03,c-d-.04],[.03,c-d],[d*.45,c-d*.55],[d*.8,c-d*.2],[d,c]]); });
   /* casings round doors and arches whose both ends stand on this face */
   ops.forEach(function(op){ if(!(op.k==='door'||op.k==='arch')) return; var a=op.a0-sg.s0, c=op.a1-sg.s0; if(a<f.u0-1e-3||c>f.u1+1e-3||op.z0>fb+.05) return;
     var cw=Math.min(.16,(c-a)*.08+.06), dp=.028, path=[[a,op.z0]];
@@ -659,9 +762,10 @@ ITEM.op=function(G,mb,it,b){ var W=it.W, op=it.op, sg=op.sg, ht=W.ht, k=W.m==='p
     var gk='glass', gx=[255,255,op.ra&&!op.rb?128:!op.ra&&op.rb?255:0,0]; if(op.arch){ for(var i3=0;i3<16;i3++){ var v0=a+(c-a)*i3/16, v1=a+(c-a)*(i3+1)/16; mb.quad(gk,[P(v0,0,z0),P(v1,0,z0),P(v1,0,top(v1)),P(v0,0,top(v0))],N,[[0,0],[1,0],[1,1],[0,1]],gx); } }
     else mb.quad(gk,[P(a,0,z0),P(c,0,z0),P(c,0,op.z1),P(a,0,op.z1)],N,[[0,0],[1,0],[1,1],[0,1]],gx); b.trans[gk]=1; }
   if(op.k==='door'&&op.leafSide&&op.o.d!=='none'){ var side=op.leafSide, single=op.o.d==='single', lw=single?(c-a):(c-a)/2, lk=op.o.m==='bronze'||W.k==='ext'?'bronze':'wood', zt2=op.arch?op.zs:op.z1;
-    (single?[a]:[a,c]).forEach(function(u,j){ var uu=u+(j?-.03:.03), p=P(uu,side*(ht+lw/2),0); box(mb,lk,p[0],p[1],z0,.055,lw,zt2-z0-.01,Math.atan2(sg.d[1],sg.d[0])); }); }
+    (single?[a]:[a,c]).forEach(function(u,j){ var uu=u+(j?-.03:.03), p=P(uu,side*(ht+lw/2),0); box(mb,lk,p[0],p[1],z0,.055,lw,zt2-z0-.01,Math.atan2(sg.d[1],sg.d[0]));
+      [-1,1].forEach(function(fs){ var hp=P(uu+fs*.05,side*(ht+lw-.12),0); box(mb,'gilt',hp[0],hp[1],z0+.85,.025,.03,.42,0,{}); }); box(mb,'gilt',p[0],p[1],z0+.02,.06,lw*.9,.22,Math.atan2(sg.d[1],sg.d[0]),{b:1}); }); }
 };
-ITEM.flight=function(G,mb,it){ var fl=it.fl, st=it.st, r=it.room, mk=fl.esc?'metal':(r&&/^(marble|limestone|stone|granite)$/.test(r.fm)?r.fm:'marble'), pk=fl.esc?'glass':(r&&/^(limestone|stone|sandstone)$/.test(r.wm)?r.wm:'marble');
+ITEM.flight=function(G,mb,it){ var fl=it.fl, st=it.st, r=it.room, mk=fl.esc?'metal':(r&&/^(marble|granite)$/.test(r.fm)?r.fm:'marble'), pk=fl.esc?'glass':(r&&/^(limestone|stone|sandstone)$/.test(r.wm)?r.wm:'marble');
   var N=fl.ramp?1:Math.max(2,Math.round(fl.H/.165)), a=fl.a, d=fl.d, n=fl.n, hw=fl.w/2, L=fl.L, H=fl.H;
   if(st.s.n&&st.fl.length===1&&!fl.ramp) N=st.s.n;
   var P=function(u,v,z){ return [a[0]+d[0]*u+n[0]*v,a[1]+d[1]*u+n[1]*v,z]; }, Dn=[d[0],d[1],0], Nn=[n[0],n[1],0];
@@ -687,7 +791,16 @@ ITEM.flight=function(G,mb,it){ var fl=it.fl, st=it.st, r=it.room, mk=fl.esc?'met
     var hr=pt(us2,vi-sd*.06,hgt-.12), he=pt(ue,vi-sd*.06,hgt-.12); limb(mb,'gilt',hr,he,.024,.024,8); }); };
 ITEM.land=function(G,mb,it){ var l=it.ld, k='marble'; flat(mb,k,[l.p],l.z,true); flat(mb,'plaster',[l.p],l.z-.3,false);
   for(var i=0,n=l.p.length;i<n;i++){ var a=l.p[i], c=l.p[(i+1)%n]; mb.qg(k,[[a[0],a[1],l.z-.3],[c[0],c[1],l.z-.3],[c[0],c[1],l.z],[a[0],a[1],l.z]],[c[1]-a[1],a[0]-c[0],0].map(function(v){ return v*(parea(l.p)>0?1:-1); }),[[0,0],[1,0],[1,.3],[0,.3]]); } };
+ITEM.niche=function(G,mb,it){ var W=it.W, op=it.op, sg=op.sg, r=it.room, s=it.s, a=op.a0-sg.s0, c=op.a1-sg.s0, z0=op.z0, z1=op.arch?op.z1:op.z1, d=W.ht+1.3, k=wallKey(r,{m:r.wm});
+  var P=function(u,w,z){ return [sg.A[0]+sg.d[0]*u+sg.n[0]*w*s,sg.A[1]+sg.d[1]*u+sg.n[1]*w*s,z]; }, N=[sg.n[0]*s,sg.n[1]*s,0], D=[sg.d[0],sg.d[1],0];
+  mb.quad(k,[P(a,d,z0),P(c,d,z0),P(c,d,z1),P(a,d,z1)],[-N[0],-N[1],0],[[a,z0],[c,z0],[c,z1],[a,z1]]);
+  mb.quad(k,[P(a,W.ht,z0),P(a,d,z0),P(a,d,z1),P(a,W.ht,z1)],D,[[0,z0],[d,z0],[d,z1],[0,z1]]); mb.quad(k,[P(c,W.ht,z0),P(c,d,z0),P(c,d,z1),P(c,W.ht,z1)],[-D[0],-D[1],0],[[0,z0],[d,z0],[d,z1],[0,z1]]);
+  mb.quad('plaster',[P(a,W.ht,z1),P(c,W.ht,z1),P(c,d,z1),P(a,d,z1)],[0,0,-1],[[a,0],[c,0],[c,d],[a,d]]); mb.quad(floorKey(r.fm,r),[P(a,W.ht,z0),P(c,W.ht,z0),P(c,d,z0),P(a,d,z0)],[0,0,1],[[a,0],[c,0],[c,d],[a,d]]); };
 ITEM.parapet=function(G,mb,it){ var A=it.a, B=it.b, L=Math.hypot(B[0]-A[0],B[1]-A[1]), rot=Math.atan2(B[1]-A[1],B[0]-A[0]), k=matName(it.m,'marble');
+  if(it.bal){ var cx=(A[0]+B[0])/2, cy=(A[1]+B[1])/2, z=it.z, w=it.w; box(mb,k,cx,cy,z,L,w,.16,rot,{}); box(mb,k,cx,cy,z+it.h-.14,L+.06,w+.08,.14,rot,{b:1}); box(mb,k,cx,cy,z+it.h-.2,L,w*.8,.06,rot,{b:1,t:1});
+    var n=Math.max(2,Math.floor(L/.32)); for(var i=0;i<n;i++){ var t=(i+.5)/n, x=A[0]+(B[0]-A[0])*t, y=A[1]+(B[1]-A[1])*t, bh=it.h-.36;
+      lathe(mb,k,x,y,[[.07,z+.16],[.09,z+.2],[.05,z+.16+bh*.25],[.1,z+.16+bh*.55],[.05,z+.16+bh*.85],[.08,z+.16+bh]],10); }
+    [A,B].forEach(function(p){ box(mb,k,p[0],p[1],z,w+.1,w+.1,it.h,rot,{}); }); return; }
   box(mb,k,(A[0]+B[0])/2,(A[1]+B[1])/2,it.z,L,Math.max(.12,it.w),it.h-.06,rot,{b:1}); box(mb,k,(A[0]+B[0])/2,(A[1]+B[1])/2,it.z+it.h-.06,L+.04,Math.max(.12,it.w)+.06,.06,rot,{b:1}); };
 ITEM.rail=function(G,mb,it){ var A=it.a, B=it.b, z=it.z, dx=B[0]-A[0], dy=B[1]-A[1], L=Math.hypot(dx,dy), rot=Math.atan2(dy,dx), cx=(A[0]+B[0])/2, cy=(A[1]+B[1])/2;
   box(mb,'gilt',cx,cy,z+.96,L,.06,.045,rot); box(mb,'bronze',cx,cy,z+.08,L,.04,.03,rot);
@@ -711,6 +824,17 @@ function figure(mb,k,x,y,z0,H,rot){ var u=H/7.6, cr=Math.cos(rot), sr=Math.sin(r
   limb(mb,k,P(1.05,0,6.05),P(1.25,-.05,4.95),.27*u,.21*u); limb(mb,k,P(1.25,-.05,4.95),P(1.12,.32,4.05),.21*u,.14*u);
   ell(mb,k,P(-1.14,.28,3.78),[.13*u,.1*u,.22*u],rot,0,6); ell(mb,k,P(1.1,.36,3.88),[.13*u,.1*u,.22*u],rot,0,6);
   limb(mb,k,P(0,0,6.2),P(0,.04,6.75),.26*u,.24*u); ell(mb,k,P(0,.06,7.1),[.38*u,.45*u,.52*u],rot,.1,10); }
+/* a huntress drawing a bow, poised on one foot on a ball (for a statue named Diana) */
+function archer(mb,k,x,y,z0,H,rot){ var br=H*.055; ell(mb,k,[x,y,z0+br],[br,br,br],0,0,12); var zf=z0+br*1.9, u=(H-br*1.9)/7.7, cr=Math.cos(rot), sr=Math.sin(rot), P=function(a,b,z){ return [x+a*cr-b*sr,y+a*sr+b*cr,zf+z*u]; };
+  limb(mb,k,P(-.3,0,3.95),P(-.2,.12,2.05),.4*u,.29*u); limb(mb,k,P(-.2,.12,2.05),P(0,0,.35),.29*u,.16*u); ell(mb,k,P(0,.1,.15),[.17*u,.45*u,.15*u],rot,0,6);
+  limb(mb,k,P(.35,0,3.85),P(.5,-.55,2.25),.4*u,.29*u); limb(mb,k,P(.5,-.55,2.25),P(.55,-1.55,2.85),.29*u,.16*u); ell(mb,k,P(.56,-1.85,2.95),[.16*u,.4*u,.14*u],rot,-.5,6);
+  ell(mb,k,P(0,0,4.2),[.88*u,.58*u,.62*u],rot,0,9); ell(mb,k,P(-.05,.1,5.35),[.95*u,.6*u,1.15*u],rot+.15,.12,10);
+  limb(mb,k,P(-.95,.05,6.15),P(-1.35,1.15,6.1),.25*u,.19*u); limb(mb,k,P(-1.35,1.15,6.1),P(-1.55,2.25,6.15),.19*u,.13*u);
+  limb(mb,k,P(.95,0,6.15),P(1.25,-.75,6.15),.25*u,.19*u); limb(mb,k,P(1.25,-.75,6.15),P(.35,.35,6.6),.19*u,.13*u);
+  limb(mb,k,P(0,.1,6.25),P(0,.2,6.8),.25*u,.23*u); ell(mb,k,P(-.08,.32,7.15),[.36*u,.44*u,.5*u],rot+.4,.15,10);
+  var bw=[]; for(var i=0;i<=8;i++){ var t=(i/8)*2-1; bw.push(P(-1.6+(1-t*t)*.35,2.3+(1-t*t)*.15,6.15+t*1.9)); } for(var j=0;j<8;j++) limb(mb,k,bw[j],bw[j+1],.035*u*3,.035*u*3,5);
+  limb(mb,k,P(.35,.4,6.6),P(-1.6,2.6,6.17),.012,.012,4);
+  limb(mb,k,P(.1,-.3,7.0),P(.9,-1.6,6.4),.12*u,.05*u,6); limb(mb,k,P(.9,-1.6,6.4),P(1.6,-2.4,7.1),.05*u,.02*u,5); }
 function sculpture(mb,k,x,y,z0,W,H,seed){ var s=seed%3;
   if(s<1) lathe(mb,k,x,y,[[0,z0],[W*.12,z0],[W*.1,z0+H*.08],[W*.05,z0+H*.14],[W*.16,z0+H*.4],[W*.22,z0+H*.62],[W*.14,z0+H*.86],[W*.04,z0+H*.98],[0,z0+H]],24);
   else if(s<2) lathe(mb,k,x,y,[[0,z0],[W*.3,z0],[W*.42,z0+H*.3],[W*.45,z0+H*.55],[W*.36,z0+H*.82],[W*.18,z0+H*.97],[0,z0+H]],28);
@@ -723,10 +847,13 @@ ITEM.fx=function(G,mb,it,b){ var f=it.f, x=f.p[0], y=f.p[1], z0=it.z0, w=f.sz[0]
     cn.forEach(function(q){ box(mb,'bronze',x+(q[0]*w/2)*c-(q[1]*d/2)*s,y+(q[0]*w/2)*s+(q[1]*d/2)*c,zg,.02,.02,hg,rot,{b:1}); });
     box(mb,'glass',x,y,zg,w,d,hg,rot,{b:1}); b.trans.glass=1; box(mb,'bronze',x,y,zg+hg,w+.01,d+.01,.02,rot,{b:1});
     sculpture(mb,seed%2?'terracotta':'bronze',x,y,zg,Math.min(w,d)*.7,Math.min(hg*.7,.45),seed); }
-  else if(K==='plinth'){ box(mb,'paint#plinth',x,y,z0+.03,w,d,h-.03,rot,{b:1}); box(mb,'bronze',x,y,z0,w-.04,d-.04,.03,rot,{b:1,t:1}); if(k&&k!=='paint') box(mb,k,x,y,z0+.03,w,d,h-.03,rot,{b:1});
-    var nodeHere=nodeForAnchor(f.id); if(nodeHere||true) sculpture(mb,seed%2?'marble':'bronze',x,y,z0+h,Math.min(w,d)*.8,Math.min(.9,Math.max(.3,1.8-h)),seed); }
-  else if(K==='statue'){ var ph=Math.min(1.1,h*.35); box(mb,k||'marble',x,y,z0,w,d,ph,rot,{b:1}); box(mb,k||'marble',x,y,z0+ph,w*1.05,d*1.05,.06,rot,{b:1});
-    figure(mb,k==='bronze'?'bronze':'marble',x,y,z0+ph+.06,h-ph-.06,rot); }
+  else if(K==='plinth'){ var bearsStatue=(S.G.plan.fx||[]).some(function(o){ return o.k==='statue'&&o.l===f.l&&o.p&&Math.hypot(o.p[0]-x,o.p[1]-y)<.6; });
+    if(k&&k!=='paint'){ var pk=k==='stone'?'marble':k; box(mb,pk,x,y,z0,w*1.12,d*1.12,.18,rot,{b:1}); box(mb,pk,x,y,z0+.18,w,d,h-.36,rot,{b:1,t:1}); box(mb,pk,x,y,z0+h-.18,w*1.1,d*1.1,.18,rot,{b:1}); }
+    else { box(mb,'paint#plinth',x,y,z0+.03,w,d,h-.03,rot,{b:1}); box(mb,'bronze',x,y,z0,w-.04,d-.04,.03,rot,{b:1,t:1}); }
+    if(!bearsStatue) sculpture(mb,seed%2?'marble':'bronze',x,y,z0+h,Math.min(w,d)*.8,Math.min(.9,Math.max(.3,1.8-h)),seed); }
+  else if(K==='statue'){ var sk=k==='gilt'||k==='bronze'||k==='copper'?k:'marble';
+    if(it.on){ if(/diana/i.test(f.n||'')) archer(mb,sk,x,y,z0+it.on,h,rot+PI/2); else figure(mb,sk,x,y,z0+it.on,h,rot); }
+    else { var ph=Math.min(1.1,h*.35); box(mb,k&&!/gilt|bronze|copper/.test(k)?k:'marble',x,y,z0,w,d,ph,rot,{b:1}); box(mb,'marble',x,y,z0+ph,w*1.05,d*1.05,.06,rot,{b:1}); figure(mb,sk,x,y,z0+ph+.06,h-ph-.06,rot); } }
   else if(K==='table'||K==='desk'||K==='counter'){ var tk=k||'wood'; if(K==='counter') box(mb,tk,x,y,z0,w*.96,d*.9,h-.04,rot,{b:1}); else { var c2=Math.cos(rot), s2=Math.sin(rot);
       [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(q){ var lx=q[0]*(w/2-.06), ly=q[1]*(d/2-.06); box(mb,tk,x+lx*c2-ly*s2,y+lx*s2+ly*c2,z0,.06,.06,h-.04,rot,{b:1,t:1}); }); if(K==='desk') box(mb,tk,x,y,z0+h-.22,w-.08,d-.08,.18,rot,{}); }
     box(mb,tk,x,y,z0+h-.04,w,d,.04,rot,{}); }
@@ -776,22 +903,23 @@ ITEM.lift=function(G,mb,it,b){ var st=it.st, l=it.lv, r=it.room, fp=st.fp, h=Mat
     box(mb,'gilt',mx2,my2,l.e+2.25,dw+.16,.05,.1,Math.atan2(uy,ux),{b:1}); box(mb,'lens',mx2+on[0]*.03+ux*(dw/2+.18),my2+on[1]*.03+uy*(dw/2+.18),l.e+1.1,.05,.02,.1,Math.atan2(uy,ux),{b:1});
     b.picks.push({k:'lift', st:st, lv:l, rect:{c:[mx2+on[0]*.03,my2+on[1]*.03,l.e+1.1], n:[on[0],on[1],0], d:[ux,uy,0], hw:dw/2+.2, hh:1.15}, room:r}); } };
 /* the room's floor, ceiling, laylight, stairwell and slab edges */
-function floorKey(m){ return m==='paint'?'plaster':m==='wood'?'board':m; }
-function buildRoomShell(G,mb,r){ var e=r.l.e, holesF=r.holesF, rings=[r.p].concat(holesF);
-  flat(mb,floorKey(r.fm),rings,e,true);
-  var cr=[r.p].concat(r.holesC.map(function(h){ return h.p; })), ck=r.cm==='glass'?'plaster':r.cm==='paint'?'plaster':r.cm;
-  if(r.cm==='glass'){ var bb=r.bb, rect=Math.abs(parea(r.p))/((bb[2]-bb[0])*(bb[3]-bb[1]))>.92, ix=rect?Math.max(.6,(bb[2]-bb[0])*.14):0, iy=rect?Math.max(.6,(bb[3]-bb[1])*.14):0;
+function floorKey(m,r){ if(m==='paint') return 'plaster'; if(m==='wood') return r&&r.ty==='gallery'&&Math.abs(parea(r.p))>70?'parquet':'board'; if(m==='stone') m='marble';
+  return r&&/^(marble|terrazzo|granite|limestone|tile)$/.test(m)&&(/hall|lobby|court/.test(r.ty)||Math.abs(parea(r.p))>60)?m+'#f':m; }
+function buildRoomShell(G,mb,r){ if(r.isVoid) return; var e=r.l.e, holesF=r.holesF, rings=[r.p].concat(holesF);
+  flat(mb,floorKey(r.fm,r),rings,e,true);
+  var cr=[r.p].concat(r.holesC.map(function(h){ return h.p; })).concat(r.ceilHoles||[]), tall=r.ch>7, ck=tall&&r.cm!=='glass'?'coffer':r.cm==='glass'||r.cm==='paint'||r.cm==='terracotta'?'plaster':r.cm;
+  if(r.cm==='glass'||(r.lk==='sky'&&!r.ceilHoles)){ var bb=r.bb, rect=Math.abs(parea(r.p))/((bb[2]-bb[0])*(bb[3]-bb[1]))>.92, fx=tall?.3:.14, ix=rect?Math.max(.6,(bb[2]-bb[0])*fx):0, iy=rect?Math.max(.6,(bb[3]-bb[1])*fx):0;
     if(rect&&bb[2]-bb[0]-2*ix>1&&bb[3]-bb[1]-2*iy>1){ var lay=[[bb[0]+ix,bb[1]+iy],[bb[2]-ix,bb[1]+iy],[bb[2]-ix,bb[3]-iy],[bb[0]+ix,bb[3]-iy]];
-      flat(mb,'plaster',cr.concat([lay]),r.ceil,false); flat(mb,'lay',[lay],r.ceil-.005,false); r.lay=lay;
+      flat(mb,tall?'coffer':'plaster',cr.concat([lay]),r.ceil,false); flat(mb,'lay',[lay],r.ceil-.005,false); r.lay=lay;
       for(var i=0;i<4;i++){ var a=lay[i], c=lay[(i+1)%4]; mb.qg('plaster',[[a[0],a[1],r.ceil-.005],[c[0],c[1],r.ceil-.005],[c[0],c[1],r.ceil],[a[0],a[1],r.ceil]],[(a[0]+c[0])/2-(bb[0]+bb[2])/2,(a[1]+c[1])/2-(bb[1]+bb[3])/2,0].map(function(v){ return -v; }),[[0,0],[1,0],[1,1],[0,1]]); } }
     else { flat(mb,'lay',cr,r.ceil,false); r.lay=r.p; } }
   else flat(mb,ck,cr,r.ceil,false);
   r.holesC.forEach(function(h){ var p=h.p, s=parea(p)>0?1:-1; for(var i=0,n=p.length;i<n;i++){ var a=p[i], c=p[(i+1)%n], inw=[-(c[1]-a[1])*s,(c[0]-a[0])*s,0];
     if(h.z1>r.ceil+.01) mb.qg('plaster',[[a[0],a[1],r.ceil],[c[0],c[1],r.ceil],[c[0],c[1],h.z1],[a[0],a[1],h.z1]],inw,[[0,r.ceil],[1,r.ceil],[1,h.z1],[0,h.z1]]); } });
   holesF.forEach(function(p){ var s=parea(p)>0?1:-1; for(var i=0,n=p.length;i<n;i++){ var a=p[i], c=p[(i+1)%n], inw=[-(c[1]-a[1])*s,(c[0]-a[0])*s,0];
-    mb.qg(floorKey(r.fm),[[a[0],a[1],e-.32],[c[0],c[1],e-.32],[c[0],c[1],e],[a[0],a[1],e]],inw,[[0,e-.32],[1,e-.32],[1,e],[0,e]]); } });
-  if(r.l.i>0){ var c0=r.ctr, below=G.rooms.some(function(o){ return o.l.e<e&&o.ceil>=e-.6&&pip(o.p,c0[0],c0[1]); });
-    if(!below){ flat(mb,'plaster',rings,e-.32,false); var s2=parea(r.p)>0?1:-1;
+    mb.qg(floorKey(r.fm,r),[[a[0],a[1],e-.32],[c[0],c[1],e-.32],[c[0],c[1],e],[a[0],a[1],e]],inw,[[0,e-.32],[1,e-.32],[1,e],[0,e]]); } });
+  if(r.l.i>0){ var c0=r.ctr, below=!r.voidHole&&G.rooms.some(function(o){ return o.l.e<e&&o.ceil>=e-.6&&pip(o.p,c0[0],c0[1]); });
+    if(!below){ flat(mb,r.voidHole?'coffer':'plaster',rings,e-.32,false); var s2=parea(r.p)>0?1:-1;
       for(var i2=0,n2=r.p.length;i2<n2;i2++){ var a2=r.p[i2], b2=r.p[(i2+1)%n2]; mb.qg('plaster',[[a2[0],a2[1],e-.32],[b2[0],b2[1],e-.32],[b2[0],b2[1],e],[a2[0],a2[1],e]],[(b2[1]-a2[1])*s2,-(b2[0]-a2[0])*s2,0],[[0,0],[1,0],[1,.32],[0,.32]]); } } } }
 ITEM.shell=function(G,mb,it){ var sh=it.sh, p=sh.p, s=parea(p)>0?1:-1, k=matName(sh.m,'limestone'), z0=it.z0, top=it.top, n=p.length, rf=sh.rf||{k:'flat'};
   for(var i=0;i<n;i++){ var a=p[i], c=p[(i+1)%n], L=Math.hypot(c[0]-a[0],c[1]-a[1]); if(L<1e-6) continue; var out=[(c[1]-a[1])/L*s,-(c[0]-a[0])/L*s,0];
@@ -814,7 +942,12 @@ ITEM.shell=function(G,mb,it){ var sh=it.sh, p=sh.p, s=parea(p)>0?1:-1, k=matName
       if(rf.k==='hip') mb.qg(rk,[W2(sd*A2,-B2,top),W2(sd*A2,B2,top),W2(sd*rl,0,zt),W2(sd*rl,0,zt+.0001)],[0,0,1],[[-B2,0],[B2,0],[0,Math.hypot(B2,rise)],[0,Math.hypot(B2,rise)]]);
       else mb.qg(k,[W2(sd*A2,-B2,top),W2(sd*A2,B2,top),W2(sd*A2,0,zt),W2(sd*A2,0,zt+.0001)],[lx?sd:0,lx?0:sd,0],[[-B2,top],[B2,top],[0,zt],[0,zt]]); });
     mb.qg(k,[W2(-A2,-B2,top),W2(A2,-B2,top),W2(A2,B2,top),W2(-A2,B2,top)],[0,0,-1],[[0,0],[1,0],[1,1],[0,1]]); return; }
-  flat(mb,'concrete',[eave],top,true); flat(mb,k,[eave],top,false);
+  var tp=(it.tall||[]).map(function(r){ return r.p; });
+  flat(mb,'concrete',[eave].concat(tp),top,true); flat(mb,k,[eave].concat(tp),top,false);
+  (it.tall||[]).forEach(function(r){ var q=r.p, sq=parea(q)>0?1:-1, zt=r.ceil+.9;            /* a raised roof over a room taller than the building */
+    for(var i=0;i<q.length;i++){ var a=q[i], c=q[(i+1)%q.length], L=Math.hypot(c[0]-a[0],c[1]-a[1]); if(L<1e-4) continue;
+      mb.quad(k,[[a[0],a[1],top],[c[0],c[1],top],[c[0],c[1],zt],[a[0],a[1],zt]],[(c[1]-a[1])/L*sq,-(c[0]-a[0])/L*sq,0],[[0,top],[L,top],[L,zt],[0,zt]]); }
+    flat(mb,'concrete',[q],zt,true); });
   if(rf.k==='dome'){ var c3=interior(p), R=Math.min(bb[2]-bb[0],bb[3]-bb[1])*.38, dz2=rise>0?rise:R; lathe(mb,k,c3[0],c3[1],[[R*1.06,top],[R*1.06,top+R*.35],[R*1.12,top+R*.38],[R*1.12,top+R*.45]],40);
     var pr=[]; for(var i3=0;i3<=12;i3++){ var t=i3/12*PI/2; pr.push([Math.max(.01,Math.cos(t)*R),top+R*.45+Math.sin(t)*dz2]); } lathe(mb,'patina',c3[0],c3[1],pr,48); } };
 ITEM.steps=function(G,mb,it){ var s=it.s, ang=(s.up!=null?s.up:90)*PI/180, ux=Math.cos(ang), uy=Math.sin(ang), mn=1e9, mx=-1e9, k='granite';
@@ -846,14 +979,17 @@ function roomLight(G,r,b){ var T=S.T, L={kind:0, spots:[], wins:[], edges:[], bl
         if(slots.some(function(it){ return Math.hypot(it.s.p[0]-wx,it.s.p[1]-wy)<1.6; })) continue; var ch=r.ceil-.32, off=clamp((ch-e-1.6)*.5,.9,2.2), p=[wx+n2[0]*off,wy+n2[1]*off,ch], tgt=[wx,wy,e+1.5];
         var dv=nrm(sub(tgt,p)), dist=Math.hypot(tgt[0]-p[0],tgt[1]-p[1],tgt[2]-p[2]); L.spots.push({p:p, d:dv, co:Math.cos(.62), ci:Math.cos(.25), I:.75*Math.pow(lx/220,.5)*dist*dist, c:warm, wash:1}); } }); }
   r.wins.slice(0,T.NW).forEach(function(w){ var I=(k==='art'||k==='dim')?-.28:(k==='sky'?.7:1.0); L.wins.push({c:w.c, U:w.U, hw:w.hw, hh:w.hh, n:w.n, I:w.ext?I:I*.3}); });
-  if(r.cm==='glass'&&L.wins.length<T.NW&&r.lay){ var bb=bb2(r.lay); L.wins.push({c:[(bb[0]+bb[2])/2,(bb[1]+bb[3])/2,r.ceil-.01], U:[1,0,0], hw:(bb[2]-bb[0])/2, hh:(bb[3]-bb[1])/2, n:[0,0,-1], I:-1.25*Math.pow(lx/400,.6)}); L.lay=1.45*Math.pow(lx/400,.6); }
+  if(r.lay){ if(L.wins.length>=T.NW) L.wins.pop(); var bb=bb2(r.lay); L.wins.unshift({c:[(bb[0]+bb[2])/2,(bb[1]+bb[3])/2,r.ceil-.01], U:[1,0,0], hw:(bb[2]-bb[0])/2, hh:(bb[3]-bb[1])/2, n:[0,0,-1], I:-1.25*Math.pow(lx/400,.6)}); L.lay=1.45*Math.pow(lx/400,.6); }
   var light=0; L.spots.forEach(function(s){ light+=s.I/(Math.pow(s.p[2]-e,2)+1)*.012*(s.wash?1:.6); }); L.wins.forEach(function(w){ light+=Math.abs(w.I)*w.hw*w.hh*4*.02*(w.n[2]<0?2.2:1); });
   L.amb+=Math.min(.35,light*30/area);
   L.ambC=[lc[0]*L.amb*(.55+.45*wa[0]),lc[1]*L.amb*(.55+.45*wa[1]),lc[2]*L.amb*(.55+.45*wa[2])];
   L.ambF=[L.amb*.6*(.3+.35*fa[0]+.35*wa[0])*lc[0],L.amb*.6*(.3+.35*fa[1]+.35*wa[1])*lc[1],L.amb*.6*(.3+.35*fa[2]+.35*wa[2])*lc[2]];
   var es=[]; for(var i=0,n=r.p.length;i<n;i++){ var a=r.p[i], c=r.p[(i+1)%n]; es.push([a[0],a[1],c[0],c[1],Math.hypot(c[0]-a[0],c[1]-a[1])]); } es.sort(function(a,c){ return c[4]-a[4]; }); L.edges=es.slice(0,T.NE);
   r.items.forEach(function(x){ if(x.blob&&L.blobs.length<T.NB) L.blobs.push(x); });
-  L.room=[e,r.ceil,0,L.lay||0]; L.exp=clamp(.62/Math.max(.1,L.amb*.85+.2),.55,2.6)*(L.lay?.66:1); L.fog=[L.ambC[0]*.9,L.ambC[1]*.9,L.ambC[2]*.9,.006];
+  r.items.forEach(function(x){ if(!x.statue) return; var f=x.statue; [[2.6,2.2],[-2.4,1.6],[0,-2.8]].forEach(function(o,i){ if(L.spots.length>=T.NS) return; var p=[f.p[0]+o[0]*1.6,f.p[1]+o[1]*1.6,Math.min(r.ceil-.4,x.z+x.h*1.4+3)], tg=[f.p[0],f.p[1],x.z], dv=nrm(sub(tg,p)), dd=Math.hypot(tg[0]-p[0],tg[1]-p[1],tg[2]-p[2]), a=Math.atan((x.h*.7+.6)/dd);
+    L.spots.unshift({p:p, d:dv, co:Math.cos(a), ci:Math.cos(a*.5), I:(i?1.6:3.2)*dd*dd, c:[1,.86,.7]}); }); });
+  if(r.ch>7){ L.ambF=L.ambF.map(function(v){ return v*1.7; }); }
+  L.room=[e,r.ceil,0,L.lay||0]; L.exp=clamp(.62/Math.max(.1,L.amb*.85+.2),.55,2.6)*(L.lay?.66:1)*(r.ch>7?.72:1); L.fog=[L.ambC[0]*.9,L.ambC[1]*.9,L.ambC[2]*.9,.006];
   return pack(L); }
 function floorAlbedo(m){ return {parquet:[.55,.38,.24],plank:[.55,.4,.26],wood:[.45,.3,.18],marble:[.88,.87,.85],terrazzo:[.82,.8,.75],carpet:[.4,.18,.16],concrete:[.6,.6,.58],tile:[.85,.83,.78],granite:[.55,.53,.52],limestone:[.82,.77,.68],stone:[.75,.75,.72]}[m]||[.7,.68,.64]; }
 function extLight(G,b){ var L={spots:[], wins:[], edges:[], blobs:[]}; var sky=S.sky; L.ambC=[sky[0]*.62,sky[1]*.62,sky[2]*.62]; L.ambF=[.34,.32,.29];
@@ -886,7 +1022,9 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='lay'){ m={kind:1,tint:[1,.98,.94]}; }
   else if(base.slice(0,4)==='book'){ var bc=[[.42,.12,.1],[.12,.2,.3],[.2,.28,.16],[.5,.4,.22],[.3,.16,.2],[.62,.55,.42]][+base.slice(4)||0]; m={kind:3,tint:bc,rough:.7,metal:0}; }
   else if(base==='plaster'&&arg){ m=null; }
-  if(!m){ var d=MAT[base]||MAT.plaster; if(d[0]<0) d=MAT.plaster; m={gen:d[0],tint:d[1],tile:d[2],rough:d[3],metal:d[4],bump:d[5],kind:0}; }
+  if(!m){ var d=MAT[base]||MAT.plaster; if(d[0]<0) d=MAT.plaster; m={gen:d[0],tint:d[1],tile:d[2],rough:d[3],metal:d[4],bump:d[5],kind:0};
+    if(d[0]===0) m.j=[arg==='f'?.9:1.2,.004,.1,0]; if(arg==='f'&&/^(marble|terrazzo|granite|limestone|stone|tile)$/.test(base)) m.j=[m.j?m.j[0]:0,m.j?m.j[1]:0,m.j?m.j[2]:0,.5]; }
+  if(m.kind===0&&!m.v) m.v=VAR[m.gen]||[.06,0,.1];
   if(m.tint&&!m.metal&&m.kind!==4) m.tint=m.tint.map(function(v){ return Math.pow(v,2.2); });   /* tints are sRGB; the shader works in linear light */
   S.mc[key]=m; return m; }
 
@@ -915,18 +1053,39 @@ function target(gl,w,h,samples,old){ if(old) freeTarget(gl,old); var fb=gl.creat
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,rt); ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; t.rfb=rfb; t.rt=rt; }
   gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.bindRenderbuffer(gl.RENDERBUFFER,null); if(!ok){ freeTarget(gl,t); return null; } return t; }
 function freeTarget(gl,t){ if(!t) return; try{ gl.deleteFramebuffer(t.fb); gl.deleteRenderbuffer(t.rc); gl.deleteRenderbuffer(t.rd); if(t.rfb){ gl.deleteFramebuffer(t.rfb); gl.deleteRenderbuffer(t.rt); } }catch(x){} }
-function hdr(gl,frag){ var T=S.T, d='#define NS '+T.NS+'\n#define NW '+T.NW+'\n#define NE '+T.NE+'\n#define NB '+T.NB+'\n'+(T.deriv?'#define DERIV 1\n':'');
+function hdr(gl,frag){ var T=S.T, d='#define NS '+T.NS+'\n#define NW '+T.NW+'\n#define NE '+T.NE+'\n#define NB '+T.NB+'\n'+(T.deriv?'#define DERIV 1\n':'')+(T.name==='high'?'#define SHAFTS 1\n':'');
   if(T.wgl2) return '#version 300 es\n'+d+(frag?'precision highp float;\n#define VARY_F in\n#define TEX texture\nout vec4 oC;\n#define FRAG oC\n':'#define ATTR in\n#define VARY_V out\n');
   return (frag&&T.deriv?'#extension GL_OES_standard_derivatives : enable\n':'')+d+(frag?'#define VARY_F varying\n#define TEX texture2D\n#define FRAG gl_FragColor\n':'#define ATTR attribute\n#define VARY_V varying\n'); }
 function prog(gl,vs,fs,attrs){ var sh=function(t,src){ var s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error('shader: '+gl.getShaderInfoLog(s)); return s; };
   var p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,hdr(gl,false)+vs)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,hdr(gl,true)+fs)); attrs.forEach(function(a,i){ gl.bindAttribLocation(p,i,a); }); gl.linkProgram(p);
   if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error('link: '+gl.getProgramInfoLog(p)); var u={}, n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);
   for(var i=0;i<n;i++){ var inf=gl.getActiveUniform(p,i), nm=inf.name.replace(/\[0\]$/,''); u[nm]=gl.getUniformLocation(p,inf.name); } return {p:p,u:u}; }
+function smInit(){ var gl=S.gl, T=S.T; S.sm=null; if(T.name==='low'||q().bldgshadow==='0') return;
+  try{ var N=T.name==='high'?2048:1024, tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,N,N,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    var rb=gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER,rb); gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,N,N);
+    var fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rb);
+    var ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+    if(!ok){ gl.deleteTexture(tx); gl.deleteRenderbuffer(rb); gl.deleteFramebuffer(fb); return; }
+    S.pd=prog(gl,DVS,DFS,['aP','aN','aT','aX']); S.sm={tx:tx, rb:rb, fb:fb, N:N, R:T.name==='high'?42:34, c:null, dirty:1, lvp:new Float32Array(16)}; S.texBytes+=N*N*6; }catch(e){ S.sm=null; } }
+function ortho(l,r,b,t,n,f){ return [2/(r-l),0,0,0, 0,2/(t-b),0,0, 0,0,-2/(f-n),0, -(r+l)/(r-l),-(t+b)/(t-b),-(f+n)/(f-n),1]; }
+/* the sun's depth (packed into RGBA8: the same path on WebGL1, WebGL2 and Safari) over a box round the walker, re-drawn only when the walker has moved on or new rooms came in */
+function smRender(G,eye){ var sm=S.sm, gl=S.gl; if(!sm) return; if(!sm.dirty&&sm.c&&Math.hypot(eye[0]-sm.c[0],eye[1]-sm.c[1])<sm.R*.3&&Math.abs(eye[2]-sm.c[2])<4) return;
+  var L=S.sun, up=Math.abs(L[2])>.97?[1,0,0]:[0,0,1], xl=nrm(cross(up,L)), yl=cross(L,xl), t=2*sm.R/sm.N, D=160;
+  var cx=Math.round(dot(eye,xl)/t)*t, cy=Math.round(dot(eye,yl)/t)*t, cz=dot(eye,L), c=[xl[0]*cx+yl[0]*cy+L[0]*cz,xl[1]*cx+yl[1]*cy+L[1]*cz,xl[2]*cx+yl[2]*cy+L[2]*cz];
+  var V=lookAt([c[0]+L[0]*D,c[1]+L[1]*D,c[2]+L[2]*D],c,up), M=mmul(ortho(-sm.R,sm.R,-sm.R,sm.R,1,D+120),V); sm.lvp=M; sm.c=eye.slice(); sm.dirty=0;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,sm.fb); gl.viewport(0,0,sm.N,sm.N); gl.clearColor(1,1,1,1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND); gl.useProgram(S.pd.p); gl.uniformMatrix4fv(S.pd.u.uLVP,false,M);
+  G.batches.forEach(function(b){ if(!b.built) return; var a=b.bb, lo=[1e9,1e9], hi=[-1e9,-1e9];
+    for(var i=0;i<8;i++){ var pt=[i&1?a[3]:a[0],i&2?a[4]:a[1],i&4?a[5]:a[2]], u=dot(pt,xl)-cx, v=dot(pt,yl)-cy; lo[0]=Math.min(lo[0],u); lo[1]=Math.min(lo[1],v); hi[0]=Math.max(hi[0],u); hi[1]=Math.max(hi[1],v); }
+    if(hi[0]<-sm.R||lo[0]>sm.R||hi[1]<-sm.R||lo[1]>sm.R) return; var B=b.built; gl.bindBuffer(gl.ARRAY_BUFFER,B.vb); gl.enableVertexAttribArray(0); for(var k=1;k<4;k++) gl.disableVertexAttribArray(k);
+    gl.vertexAttribPointer(0,3,gl.FLOAT,false,STRIDE,0); B.ranges.forEach(function(r){ if(!r.trans) gl.drawArrays(gl.TRIANGLES,r.first,r.count); }); });
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); S.smDraws=(S.smDraws||0)+1; }
 function glSetup(){ var gl=S.gl; S.pw=prog(gl,WVS,WFS,['aP','aN','aT','aX']); S.ps=prog(gl,QUADVS,SKYFS,['aQ']); S.pt=prog(gl,QUADVS,TEXGEN,['aQ']);
   S.quad=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,S.quad); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
   S.white=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,S.white); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
   S.flatN=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,S.flatN); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([128,128,128,255]));
-  S.tex={}; S.mc={}; S.bytes=0; S.texBytes=0; }
+  S.tex={}; S.mc={}; S.bytes=0; S.texBytes=0; smInit(); }
 function genTex(g){ if(S.tex[g]) return S.tex[g]; var gl=S.gl, N=S.T.tex>512&&[0,7,8,10].indexOf(g)<0?512:S.T.tex, out=[];
   for(var o=0;o<2;o++){ var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,N,N,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
     var fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);
@@ -951,8 +1110,12 @@ function paintPH(g,x,y,C,asp,seed,paper,cloth,work){ var R=rng(seed), VW=C*asp, 
   if(paper){ g.fillStyle='#ebe3d0'; g.fillRect(0,0,VW,VH); g.strokeStyle='rgba(60,52,44,.55)'; g.lineCap='round';
     for(var i=0;i<38;i++){ g.lineWidth=.4+R()*1.6; g.beginPath(); var sx=VW*(.2+R()*.6), sy=VH*(.2+R()*.6); g.moveTo(sx,sy); g.bezierCurveTo(sx+(R()-.5)*VW*.5,sy+(R()-.5)*VH*.5,sx+(R()-.5)*VW*.5,sy+(R()-.5)*VH*.5,sx+(R()-.5)*VW*.4,sy+(R()-.5)*VH*.4); g.stroke(); }
     g.restore(); return; }
-  if(cloth){ var bg=rc(); g.fillStyle=bg; g.fillRect(0,0,VW,VH); for(var j=0;j<VW;j+=3){ g.fillStyle='rgba(0,0,0,'+(R()*.12)+')'; g.fillRect(j,0,1.5,VH); }
-    g.strokeStyle='rgba(230,210,160,.35)'; g.lineWidth=6; g.strokeRect(VW*.08,VH*.08,VW*.84,VH*.84); g.restore(); return; }
+  if(cloth){ var bw=Math.min(VW,VH)*.09; g.fillStyle='#24304a'; g.fillRect(0,0,VW,VH); var gr0=g.createLinearGradient(0,bw,0,VH-bw); gr0.addColorStop(0,'#8c9a8a'); gr0.addColorStop(.38,'#b9aa82'); gr0.addColorStop(.4,'#6f7550'); gr0.addColorStop(1,'#4a4530');
+    g.fillStyle=gr0; g.fillRect(bw,bw,VW-2*bw,VH-2*bw); g.fillStyle='rgba(120,110,90,.7)'; for(var c2=0;c2<3;c2++) g.fillRect(bw+(VW-2*bw)*(.15+c2*.32),bw+(VH-2*bw)*.1,(VW-2*bw)*.05,(VH-2*bw)*.5);
+    for(var f2=0;f2<9;f2++){ g.fillStyle=['#7a2a22','#a9783a','#3d4a6a','#c9b48a','#5a3a2a'][f2%5]; var fx2=bw+(VW-2*bw)*(.08+R()*.84), fy2=bw+(VH-2*bw)*(.5+R()*.25); g.beginPath(); g.ellipse(fx2,fy2,(VW-2*bw)*.035,(VH-2*bw)*.13,(R()-.5)*.4,0,7); g.fill(); g.beginPath(); g.arc(fx2,fy2-(VH-2*bw)*.15,(VW-2*bw)*.022,0,7); g.fill(); }
+    g.strokeStyle='#c8a85a'; g.lineWidth=bw*.12; g.strokeRect(bw*.55,bw*.55,VW-bw*1.1,VH-bw*1.1); g.strokeRect(bw*.95,bw*.95,VW-bw*1.9,VH-bw*1.9);
+    for(var m2=0;m2<40;m2++){ g.fillStyle=m2%2?'#9a3a2e':'#c8a85a'; var t2=m2/40, px=t2<.5?VW*t2*2:VW*(t2-.5)*2; g.beginPath(); g.arc(px,bw*.75,bw*.13,0,7); g.arc(px,VH-bw*.75,bw*.13,0,7); g.fill(); }
+    for(var j=0;j<VH;j+=2){ g.fillStyle='rgba(0,0,0,'+(.04+R()*.06)+')'; g.fillRect(0,j,VW,1); } g.fillStyle='rgba(60,40,10,.12)'; g.fillRect(0,0,VW,VH); g.restore(); return; }
   var gr;
   if(st===0){ gr=g.createLinearGradient(0,0,0,VH); gr.addColorStop(0,'#c9c3ad'); gr.addColorStop(.5,'#e3d6b4'); gr.addColorStop(.62,'#7d7a55'); gr.addColorStop(1,'#3d3a26'); g.fillStyle=gr; g.fillRect(0,0,VW,VH);
     for(var t=0;t<7;t++){ g.fillStyle='rgba('+(30+R()*30|0)+','+(45+R()*30|0)+','+(25+R()*20|0)+',.75)'; g.beginPath(); g.ellipse(VW*R(),VH*(.45+R()*.15),VW*(.05+R()*.1),VH*(.08+R()*.14),0,0,7); g.fill(); } }
@@ -967,7 +1130,8 @@ function paintPH(g,x,y,C,asp,seed,paper,cloth,work){ var R=rng(seed), VW=C*asp, 
   for(var k=0;k<260;k++){ g.fillStyle=R()<.5?'rgba(255,240,210,'+(R()*.05)+')':'rgba(0,0,0,'+(R()*.07)+')'; g.save(); g.translate(VW*R(),VH*R()); g.rotate(R()*3); g.fillRect(-C*.04,-1.5,C*.08,3); g.restore(); }
   g.fillStyle='rgba(120,90,30,.12)'; g.fillRect(0,0,VW,VH); gr=g.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*.2,VW/2,VH/2,Math.max(VW,VH)*.75); gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,.35)'); g.fillStyle=gr; g.fillRect(0,0,VW,VH);
   g.restore(); }
-function label(g,x,y,w,h,it){ var s=it.s, d=S.data||{}, nid=nodeForAnchor(s.id), n=nid&&d.nodes?d.nodes[nid]:null, wk=s.work||{};
+function wkOf(s){ var w=s.work||{}; return {t:w.t||w.title, a:w.a||w.artist, d:w.d||w.date, lic:w.lic, img:w.img}; }
+function label(g,x,y,w,h,it){ var s=it.s, d=S.data||{}, nid=nodeForAnchor(s.id), n=nid&&d.nodes?d.nodes[nid]:null, wk=wkOf(s);
   g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip(); g.fillStyle='#f3efe6'; g.fillRect(x,y,w,h);
   if(n&&d.acts&&d.acts[n.a]&&d.acts[n.a].c){ g.fillStyle=d.acts[n.a].c; g.fillRect(x,y,w*.035,h); }
   var F='-apple-system,"Segoe UI",Helvetica,Arial,sans-serif', fit=function(t,px){ t=String(t||''); while(t.length>1&&g.measureText(t).width>w*.86) t=t.slice(0,-2)+'…'; return t; };
@@ -975,7 +1139,7 @@ function label(g,x,y,w,h,it){ var s=it.s, d=S.data||{}, nid=nodeForAnchor(s.id),
   g.fillStyle='#4a463f'; g.font=Math.round(h*.15)+'px '+F; var t2=n?(wk.t||''):[wk.a,wk.d].filter(Boolean).join(', '); if(!t2) t2=it.room.no?('Gallery '+it.room.no):it.room.name; g.fillText(fit(t2),x+w*.07,y+h*.58);
   g.fillStyle='#7a756c'; g.font=Math.round(h*.13)+'px '+F; g.fillText(fit(n?'Press E to open':(wk.lic?wk.lic:'')),x+w*.07,y+h*.82); g.restore(); }
 function dec(s){ var t=D.createElement('textarea'); t.innerHTML=s==null?'':String(s); return t.value; }
-function loadImages(b){ b.art.forEach(function(x){ var wk=x.it.s.work; if(!wk||!wk.img||!/public domain|^pd\b|\bpd\b|cc0|cc-0|pdm|no known copyright/i.test(String(wk.lic||''))) return;
+function loadImages(b){ b.art.forEach(function(x){ var wk=x.it.s.work; if(!wk||!wk.img||!(/^\/bart\//.test(wk.img)||/public domain|^pd\b|\bpd\b|cc0|cc-0|pdm|no known copyright/i.test(String(wk.lic||'')))) return;
     var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ if(!S.on||!b.built) return; var gl=S.gl, M=S.T.name==='high'?1024:512, sc=Math.min(1,M/Math.max(img.width,img.height)), cv=D.createElement('canvas');
       cv.width=Math.max(1,Math.round(img.width*sc)); cv.height=Math.max(1,Math.round(img.height*sc)); var g=cv.getContext('2d'); g.drawImage(img,0,0,cv.width,cv.height);
       var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true); try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv); }catch(e){ gl.deleteTexture(tx); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false); return; }
@@ -988,12 +1152,12 @@ function upload(G,b){ var gl=S.gl, mb=buildBatch(G,b), total=0, ranges=[]; mb.or
   mb.order.forEach(function(k){ var B=mb.k[k]; u8.set(new Uint8Array(B.ab,0,B.n*STRIDE),off*STRIDE); var m=matOf(G,k); ranges.push({k:k, m:m, first:off, count:B.n, trans:!!m.trans}); off+=B.n; });
   ranges.sort(function(a,c){ return (a.trans?1:0)-(c.trans?1:0)||(a.m.kind===5?0:1)-(c.m.kind===5?0:1); });
   var vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,ab,gl.STATIC_DRAW);
-  b.built={vb:vb, ranges:ranges, bytes:ab.byteLength, tris:total/3}; b.texBytes=0; S.bytes+=ab.byteLength;
+  b.built={vb:vb, ranges:ranges, bytes:ab.byteLength, tris:total/3}; b.texBytes=0; S.bytes+=ab.byteLength; if(S.sm) S.sm.dirty=1;
   ranges.forEach(function(r){ if(r.m.kind===0&&r.m.gen!=null) genTex(r.m.gen); });
   if(b.art.length||b.lab.length){ b.atlas=artAtlas(G,b); loadImages(b); }
   S.built++; }
 function drop(b){ var gl=S.gl; if(!b.built) return; gl.deleteBuffer(b.built.vb); S.bytes-=b.built.bytes; if(b.atlas) gl.deleteTexture(b.atlas); if(b.imgs) for(var k in b.imgs) gl.deleteTexture(b.imgs[k]); b.atlas=null; b.imgs=null; b.built=null; }
-function budget(){ var cap=S.T.name==='high'?220e6:S.T.name==='medium'?110e6:64e6; if(S.bytes<cap) return; var list=S.G.batches.filter(function(b){ return b.built&&b.lastUse<S.frame-2; }); list.sort(function(a,c){ return a.lastUse-c.lastUse; });
+function budget(){ var cap=S.T.name==='high'?220e6:S.T.name==='medium'?110e6:64e6; if(S.bytes<cap) return; var list=S.G.batches.filter(function(b){ return b.built&&b.kind==='room'&&b.lastUse<S.frame-2; }); list.sort(function(a,c){ return a.lastUse-c.lastUse; });
   while(S.bytes>cap*.8&&list.length) drop(list.shift()); }
 
 /* ── which batches to draw: room-to-room through openings in view ── */
@@ -1029,9 +1193,12 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
   var want=list.concat(S.pre).filter(function(b){ return !b.built; }); want.sort(function(p,c){ return bdist(p,eye)-bdist(c,eye); });
   for(var w=0;w<want.length;w++){ if(w>0&&performance.now()-t0>(S.settling?1e9:7)) break; upload(G,want[w]); }
   list=list.filter(function(b){ return b.built&&boxIn(PL,b.bb); }); list.sort(function(p,c){ return bdist(p,eye)-bdist(c,eye); });
+  if(S.sm){ smRender(G,eye); if(T.samples&&T.wgl2&&S.fb) gl.bindFramebuffer(gl.FRAMEBUFFER,S.fb.fb); else gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); }
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW);
   var pw=S.pw; gl.useProgram(pw.p); u=pw.u; gl.uniformMatrix4fv(u.uVP,false,VP); gl.uniform3fv(u.uEye,eye); gl.uniform3fv(u.uSun,S.sun); gl.uniform3fv(u.uSunC,S.sunC); gl.uniform3fv(u.uSkyC,S.sky); gl.uniform4fv(u.uScr,scr);
-  gl.uniform1i(u.uA,0); gl.uniform1i(u.uB,1);
+  gl.uniform1i(u.uA,0); gl.uniform1i(u.uB,1); gl.uniform1i(u.uSM,2);
+  if(S.sm){ gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,S.sm.tx); gl.activeTexture(gl.TEXTURE0); gl.uniformMatrix4fv(u.uLVP,false,S.sm.lvp); gl.uniform4fv(u.uSMp,[1/S.sm.N,2*S.sm.R/S.sm.N,1,.00035]); }
+  else gl.uniform4fv(u.uSMp,[0,0,0,0]);
   var stats={draws:0, tris:0, batches:list.length};
   list.forEach(function(b){ b.lastUse=S.frame; drawBatch(b,false,stats); });
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.CULL_FACE);
@@ -1053,7 +1220,7 @@ function drawBatch(b,trans,stats){ var gl=S.gl, u=S.pw.u, B=b.built, L=b.light, 
     if(m.kind===0){ var tx=S.tex[m.gen]||genTex(m.gen); ta=tx[0]; tb=tx[1]; }
     else if(m.kind===2){ if(m.lab){ ta=b.atlas||S.white; } else { var im=b.imgs&&b.imgs[r.k]; if(im) ta=im; else { ta=b.atlas||S.white; var i2=m.art%12; uv=[.25,.25,(i2%4)*.25,1-(Math.floor(i2/4)+1)*.25]; } } }
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,ta); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,tb);
-    var t=m.tint||[1,1,1]; gl.uniform4fv(u.uTint,[t[0],t[1],t[2],m.kind]); gl.uniform4fv(u.uMat,[m.kind===6?(m.e||8):(m.tile||1),m.kind>=4&&m.kind<=5?(m.a||0):(m.rough||.8),m.metal||0,m.bump||0]); gl.uniform4fv(u.uUv,uv);
+    var t=m.tint||[1,1,1]; gl.uniform4fv(u.uTint,[t[0],t[1],t[2],m.kind]); gl.uniform4fv(u.uJ,m.j||Z4); var mv=m.v||Z4; gl.uniform4fv(u.uVar,[mv[0],mv[1],mv[2],0]); gl.uniform4fv(u.uMat,[m.kind===6?(m.e||8):(m.tile||1),m.kind>=4&&m.kind<=5?(m.a||0):(m.rough||.8),m.metal||0,m.bump||0]); gl.uniform4fv(u.uUv,uv);
     gl.drawArrays(gl.TRIANGLES,r.first,r.count); stats.draws++; stats.tris+=r.count/3; } }
 
 /* ── walking ── */
@@ -1096,7 +1263,7 @@ function ray(ox,oy,oz,dx,dy,dz,max){ var G=S.G, best={t:max,hit:null};
 function wallHit(ox,oy,oz,dx,dy,dz,max){ var G=S.G, best=max, seen={}; for(var s=0;s<=max;s+=1){ primsNear(G,ox+dx*s,oy+dy*s,1.2).forEach(function(p){ if(seen[p.i]||p.k!=='seg'||!p.wall) return; seen[p.i]=1;
     var ex=p.bx-p.ax, ey=p.by-p.ay, den=dx*ey-dy*ex; if(Math.abs(den)<1e-9) return; var t=((p.ax-ox)*ey-(p.ay-oy)*ex)/den, v=((p.ax-ox)*dy-(p.ay-oy)*dx)/den; if(t<0||t>best||v<0||v>1) return;
     var z=oz+dz*t; if(z<p.z0||z>p.z1) return; var hx=ox+dx*t, hy=oy+dy*t; if(onOpening(hx,hy,z)) return; best=t; }); } return best; }
-function onOpening(x,y,z){ var G=S.G; for(var i=0;i<G.walls.length;i++){ var W=G.walls[i]; for(var j=0;j<W.ops.length;j++){ var op=W.ops[j]; if(!op.sg) continue; var sg=op.sg, u=(x-sg.A[0])*sg.d[0]+(y-sg.A[1])*sg.d[1]+sg.s0, v=(x-sg.A[0])*sg.n[0]+(y-sg.A[1])*sg.n[1];
+function onOpening(x,y,z,GG){ var G=GG||S.G; for(var i=0;i<G.walls.length;i++){ var W=G.walls[i]; for(var j=0;j<W.ops.length;j++){ var op=W.ops[j]; if(!op.sg) continue; var sg=op.sg, u=(x-sg.A[0])*sg.d[0]+(y-sg.A[1])*sg.d[1]+sg.s0, v=(x-sg.A[0])*sg.n[0]+(y-sg.A[1])*sg.n[1];
     if(Math.abs(v)<W.ht+.05&&u>op.a0&&u<op.a1&&z>op.z0&&z<archTop(op,u)) return true; } } return false; }
 function nodeForAnchor(id){ var d=S.data||{}, ns=d.nodes||{}, ord=d.order||Object.keys(ns); for(var i=0;i<ord.length;i++){ var n=ns[ord[i]]; if(n&&n.s===id) return ord[i]; } return null; }
 function nodeForRoom(rid){ var d=S.data||{}, ns=d.nodes||{}, ord=d.order||Object.keys(ns), any=null; for(var i=0;i<ord.length;i++){ var n=ns[ord[i]]; if(n&&n.r===rid){ if(!n.s) return ord[i]; if(!any) any=ord[i]; } } return any; }
@@ -1109,7 +1276,7 @@ function dirAt(cx,cy){ var cw=S.root.clientWidth, ch=S.root.clientHeight, asp=cw
   var cp=Math.cos(S.pitch), fw=[Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)], rt=nrm(cross(fw,[0,0,1])), up=cross(rt,fw), nx=(cx/cw*2-1)*tx, ny=(1-cy/ch*2)*ty;
   return nrm([fw[0]+rt[0]*nx+up[0]*ny,fw[1]+rt[1]*nx+up[1]*ny,fw[2]+rt[2]*nx+up[2]*ny]); }
 function describe(h){ if(!h) { var rn=S.room&&nodeForRoom(S.room.id); return rn?{node:rn, text:nodeText(rn)}:null; }
-  if(h.k==='slot'){ var nid=nodeForAnchor(h.id), it=S.G.slots[h.id], wk=(it&&it.s.work)||{}; if(nid) return {node:nid, text:nodeText(nid)}; return {text:wk.t?(wk.t+(wk.a?' · '+wk.a:'')):'A place for a work'}; }
+  if(h.k==='slot'){ var nid=nodeForAnchor(h.id), it=S.G.slots[h.id], wk=it?wkOf(it.s):{}; if(nid) return {node:nid, text:nodeText(nid)}; return {text:wk.t?(wk.t+(wk.a?' · '+wk.a:'')):'A place for a work'}; }
   if(h.k==='fx'){ var n2=nodeForAnchor(h.id), f=S.G.fxs[h.id]; if(n2) return {node:n2, text:nodeText(n2)}; return f&&f.f.n?{text:f.f.n}:null; }
   if(h.k==='door'){ var n3=nodeForRoom(h.room.id); return n3?{node:n3, text:nodeText(n3)+' · '+h.room.name}:null; }
   if(h.k==='lift'){ var o=h.st, to=h.lv===o.lo?o.hi:o.lo; return {lift:h, text:'Take the lift to '+to.n}; } return null; }
@@ -1212,11 +1379,11 @@ function enter(roomId,ctx){ ctx=ctx||{}; var A=window.AltoBuilding, plan=ctx.pla
   mountHud(); var gl=glInit(S.cv); if(!gl){ unmount(); return false; }
   try{ glSetup(); }catch(e){ if(window.console) console.warn('bldg fpv gl',e); unmount(); return false; }
   var sp=spawn(S.G,roomId,ctx); S.x=sp.x; S.y=sp.y; S.fz=sp.z; S.ez=sp.z+CFG.eye; S.yaw=sp.yaw; S.pitch=sp.pitch; S.snap=1; S.snapExp=1; S.exp=1;
-  S.on=true; S.paused=false; size(); step(0); S.settling=1; try{ render(); render(); }catch(e){ if(window.console) console.warn('bldg fpv render',e); } S.settling=0;
+  S.on=true; S.paused=false; size(); step(0); S.settling=1; if(S.sm){ S.G.batches.forEach(function(b){ if(b.kind!=='room'&&!b.built) upload(S.G,b); }); } try{ render(); render(); }catch(e){ if(window.console) console.warn('bldg fpv render',e); } S.settling=0;
   setTimeout(function(){ if(S.veil){ S.veil.style.opacity=0; S.veil.textContent=''; } },60); setTimeout(function(){ if(S.hint) S.hint.style.opacity=0; },9000);
   S.raf=requestAnimationFrame(loop); emitPos('alto-building-fpv-pos'); return true; }
 function exit(silent){ if(!S.on) return; emitPos('alto-building-fpv-exit'); S.on=false; cancelAnimationFrame(S.raf); S.raf=0; if(S.mo){ S.mo.disconnect(); S.mo=null; }
-  var gl=S.gl; if(gl&&S.G){ S.G.batches.forEach(drop); for(var g in S.tex){ gl.deleteTexture(S.tex[g][0]); gl.deleteTexture(S.tex[g][1]); } freeTarget(gl,S.fb); try{ var lx=gl.getExtension('WEBGL_lose_context'); if(lx) lx.loseContext(); }catch(x){} }
+  var gl=S.gl; if(gl&&S.G){ S.G.batches.forEach(drop); for(var g in S.tex){ gl.deleteTexture(S.tex[g][0]); gl.deleteTexture(S.tex[g][1]); } freeTarget(gl,S.fb); if(S.sm){ gl.deleteTexture(S.sm.tx); gl.deleteRenderbuffer(S.sm.rb); gl.deleteFramebuffer(S.sm.fb); S.sm=null; } try{ var lx=gl.getExtension('WEBGL_lose_context'); if(lx) lx.loseContext(); }catch(x){} }
   unmount(); var pos=S.lastPos; S.gl=null; S.G=null; S.tex={}; S.fb=null;
   if(!silent){ try{ var A=window.AltoBuilding; if(A){ A.show(); if(pos&&A.showWalker) A.showWalker(pos); } }catch(x){} } }
 function unmount(){ window.removeEventListener('keydown',S.onKey,true); window.removeEventListener('keyup',S.onKey,true); window.removeEventListener('blur',S.onBlur); window.removeEventListener('resize',S.onResize); if(S.root){ S.root.remove(); S.root=null; } }
@@ -1240,6 +1407,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
         for(var t=0;t<B.n;t+=3){ var P=[0,1,2].map(function(j){ var o=(t+j)*7; return [f[o],f[o+1],f[o+2]]; }), g=nrm(cross(sub(P[1],P[0]),sub(P[2],P[0])));
           if(n&&Math.abs(dot(g,n))<.9) continue; var d=dot(sub([x,y,z],P[0]),g); if(Math.abs(d)>tol) continue; var q=[x-g[0]*d,y-g[1]*d,z-g[2]*d], ok=true;
           for(var e=0;e<3;e++){ var A=P[e], B2=P[(e+1)%3]; if(dot(cross(sub(B2,A),sub(q,A)),g)<-1e-7){ ok=false; break; } } if(ok) hits.push(k); } }); }); return hits; } } };
+API._debug=function(){ return S; };
 window.AltoBuildingFPV=API;
 function reg(){ if(window.AltoBuilding&&AltoBuilding.registerFPV) AltoBuilding.registerFPV({enter:function(id,ctx){ return enter(id,ctx); }, exit:function(){ exit(); }}); }
 reg();
@@ -1249,7 +1417,8 @@ reg();
 
 def _js() -> str:
     js = FPV_JS
-    for key, src in (("__TEXGEN__", _GLSL_TEXGEN), ("__QUADVS__", _GLSL_QUAD_VS), ("__SKYFS__", _GLSL_SKY), ("__WVS__", _GLSL_WORLD_VS), ("__WFS__", _GLSL_WORLD_FS)):
+    for key, src in (("__TEXGEN__", _GLSL_TEXGEN), ("__QUADVS__", _GLSL_QUAD_VS), ("__SKYFS__", _GLSL_SKY), ("__WVS__", _GLSL_WORLD_VS), ("__WFS__", _GLSL_WORLD_FS),
+                     ("__DVS__", _GLSL_DEPTH_VS), ("__DFS__", _GLSL_DEPTH_FS)):
         js = js.replace(key, _json.dumps(src))
     return js
 

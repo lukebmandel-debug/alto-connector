@@ -36,6 +36,11 @@ class Server:
                     body, ct, code = b"", "text/javascript", 200
                 elif path.startswith("/bldg/plan-"):
                     body, ct, code = srv.plan.encode(), "application/json", 200
+                elif path.startswith("/bart/"):
+                    from alto.buildings import pma_art
+                    for name, data in pma_art.files():
+                        if path == "/bart/" + name:
+                            body, ct, code = data, "image/jpeg", 200
                 elif path.startswith("/bldg/"):
                     hit = palace_assets.find(path)
                     if hit:
