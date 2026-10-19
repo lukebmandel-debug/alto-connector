@@ -263,6 +263,7 @@ window._altoSolarLayout=function(pos){
     b.hx=P.x; b.hy=P.y+PAD;
     if(pos) pos[id]=P.y;
     n.setAttribute('data-solar', b.role); n.style.setProperty('--sd', b.d+'px');
+    if(!n.classList.contains('focused')){ n.style.setProperty('--mx', (-b.d/2)+'px'); n.style.setProperty('--my', (-b.d/2)+'px'); }   /* centred at once (D-GRID's ResizeObserver would only catch up at the next frame) */
     b.rx=b.ry=null; b.x=b.hx; b.y=b.hy;
     if(NM[id]){ NM[id].displayX=b.hx; NM[id].y=b.hy-PAD; }
     face(n, id);
