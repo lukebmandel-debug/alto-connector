@@ -91,7 +91,7 @@ STARS_CSS = r"""
   P #world .node[data-solar=sat]:not(.focused):not(.sol-closing) .node-card{border-color:rgba(170,190,255,.25) !important;}
   R .node-card>.sk.sk,F .node-card>.sk.sk{display:block !important;position:absolute;pointer-events:none;left:50%;top:50%;}
   /* enlarged (solar_draw's bigger disc, --sD): the body keeps its look under the scrim and the content */
-  F{--skd:var(--sD);}
+  F{--skd:var(--sD);--card-desc-color:rgba(232,238,255,.88);}   /* (the engine's desc colour is an !important var: dark in the light theme) */
   F .sol-scrim.sol-scrim{background:radial-gradient(circle,rgba(3,5,12,var(--sk-scrim,.5)) 0 56%,rgba(3,5,12,calc(var(--sk-scrim,.5)*.4)) 100%) !important;}
   F .sol-body{color:#eef2ff;}
   F .sol-body .node-title{color:#fff;}

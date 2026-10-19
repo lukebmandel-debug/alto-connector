@@ -139,6 +139,7 @@ SOLAR_CSS = r"""
   .sol-open:hover{background:var(--surface);}
   .sol-body .node-order{position:static !important;float:none !important;display:block;margin:0 0 4px !important;text-align:center;}
   .sol-body .node-tag,.sol-body .node-title,.sol-body .node-desc{text-align:center;}
+  html.alto-solar:not(.mobile) #world .node[data-solar] .sol-body .node-tag{padding-left:0 !important;padding-right:0 !important;}   /* (a card's tag leaves room for its number; the disc's is above it) */
   .sol-body .node-desc{-webkit-line-clamp:unset !important;display:block !important;overflow:visible !important;}
   .sol-body .node-footer{justify-content:center;flex-wrap:wrap;margin-top:8px;}
   .sol-sec{margin-top:10px;text-align:left;font-size:12.5px;line-height:18.75px;color:var(--card-desc-color,var(--muted));}
