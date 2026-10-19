@@ -569,7 +569,8 @@ def fold(store, uid, tid) -> "dict | None":
         return None
     # Copies: a store may hand back the objects it caches for the rest of the
     # call, and nothing here may change those except through put_*.
-    doc = copy.deepcopy(store.get_timeline(uid, tid))
+    from .build.brief import migrate_doc          # a brief stored by an older version (1.9.105 Star chart)
+    doc = copy.deepcopy(migrate_doc(store.get_timeline(uid, tid)))
     if not doc:
         return None
     nodes = [copy.deepcopy({k: v for k, v in n.items() if not k.startswith("_")})
@@ -582,9 +583,8 @@ def fold(store, uid, tid) -> "dict | None":
     created, removed, units_made, moved, chips_made, reordered = [], [], [], [], [], []
     units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
     too_deep, solar_ignored = [], []
-    # Hub & spoke (an outline laid out 'solar') and Star chart (a palace in its stars view): same bodies
-    solar = (brief.get("mode") == "outline" and brief.get("layout") == "solar") or \
-            (brief.get("mode") == "palace" and brief.get("palace_view") == "stars")
+    # Hub & spoke (an outline laid out 'solar', either look)
+    solar = brief.get("mode") == "outline" and brief.get("layout") == "solar"
 
     def depth_of(cid):
         d, seen = 0, set()
@@ -1193,12 +1193,6 @@ def fold(store, uid, tid) -> "dict | None":
                     conflicts.append(k)
                     continue
             holder["parent"] = v or ""
-            if v and solar and brief.get("mode") == "palace":    # last among its new siblings, as the page shows it
-                pl = brief.get("placement") or {}
-                h = {kk: vv for kk, vv in (pl.get(holder["id"]) or {}).items() if kk != "order"}
-                h["order"] = sum(1 for x in nodes if x.get("parent") == v)
-                brief["placement"] = {**pl, holder["id"]: h}
-                touched["brief"] = True
         elif kind == "tower":
             # a landmark housing a unit: {"unit": n, "floors": n|None} on its palace.buildings entry (None: no unit)
             ents = holder.setdefault("buildings", [])

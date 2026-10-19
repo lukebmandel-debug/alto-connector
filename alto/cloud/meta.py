@@ -22,7 +22,7 @@ _NODE = re.compile(
     r"\{id:'((?:[^'\\]|\\.)*)'[\s\S]*?title:'((?:[^'\\]|\\.)*)'\s*,\s*"
     r"desc:'((?:[^'\\]|\\.)*)'")
 _COURSE = re.compile(r"var COURSE_ID = '([^']*)';")
-_HUB_SPOKE = re.compile(r'window\._ALTO_SOLAR=\{"style":"spoke"')
+_HUB_SPOKE = re.compile(r'window\._ALTO_SOLAR=(?:\(function\(S\)|\{"style":"spoke")')   # (and the 1.9.105 shape)
 
 
 def _unq(s: str) -> str:

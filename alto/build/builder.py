@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
-    FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style
+    FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, migrate_brief
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
 from . import backgrounds, hover_lines
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
@@ -24,7 +24,8 @@ from .verify import verify_data, verify_output, verify_scripts, VerifyError
 
 def load_brief(d: dict) -> tuple[Brief, list[Node], list]:
     """Parse the JSON build-brief bundle {brief, nodes, connections}."""
-    bd = dict(d.get("brief") or {})
+    # (a brief stored by an older version reads as this one: brief.migrate_brief)
+    bd, _aside = migrate_brief(dict(d.get("brief") or {}))
     bd["acts"] = [Act(**a) for a in bd.get("acts", [])]
     bd["entities"] = [
         Entity(**{**e, "sections": [Section(**s) for s in e.get("sections", [])]})
@@ -109,20 +110,23 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
                                                   len(brief.acts), flow_parent)
     report["layout"] = "flow"
     if solar_style(brief):
-        # Hub & spoke (an outline laid out 'solar') or a Star chart (a Mind
-        # Palace's stars view): every root a solar system (solar.py). Only
-        # ever by the author's choice: "auto" never lands here. The circles'
-        # centres go through the tree's own plan runner, so the page sees
-        # ordinary positions.
+        # Hub & spoke (an outline laid out 'solar'): every root a solar
+        # system (solar.py), in two looks — the Star chart (orbit) and plain
+        # (spoke); the page carries both. Only ever by the author's choice:
+        # "auto" never lands here. The first look's centres go through the
+        # tree's own plan runner, so the page sees ordinary positions.
         from .solar import solar_plan, solar_tree_plan, solar_heights, solar_summary
         sp = solar_plan(brief, nodes)
+        other = solar_plan(brief, nodes, "spoke" if sp["style"] == "orbit" else "orbit")
         heights = solar_heights(sp)
         positions, _sx, _ = run_plan(solar_tree_plan(sp, nodes), nodes, heights)
         world_h = sp["world"]["h"]
         report = {"world_height": world_h, "moved_on_recheck": [], "per_column": {},
                   "layout": "solar", "solar": solar_summary(sp)}
-        if sp["warnings"]:
-            report["solar"]["warnings"] = sp["warnings"]
+        report["solar"]["look"] = brief.hub_look
+        report["solar"]["other_look"] = solar_summary(other)
+        if sp["warnings"] or other["warnings"]:
+            report["solar"]["warnings"] = sp["warnings"] + other["warnings"]
         mgrid, mobile_h = mobile_grid(nodes, brief.columns)
         return positions, heights, world_h, mgrid, mobile_h, report
     if brief.mode == "outline" and brief.layout != "flow":
@@ -177,9 +181,8 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     """Returns (html, report). Raises VerifyError/BriefError on any failure."""
     warnings = validate_brief(brief)
     warnings += validate_nodes(brief, nodes)
-    if not solar_style(brief):                # (a Star chart draws no city, so no towers)
-        from .palace import apply_towers      # a unit assigned to a skyscraper: its buildings become its floors
-        warnings += apply_towers(brief, nodes)
+    from .palace import apply_towers          # a unit assigned to a skyscraper: its buildings become its floors
+    warnings += apply_towers(brief, nodes)
 
     # Validation first (it reads raw values and fills defaults), then make the
     # content inert. Everything downstream of here — blocks.py, emit, the
@@ -269,8 +272,7 @@ def _add_background_head(html: str, brief: Brief) -> str:
         raise VerifyError(["page has no single theme-color tag for the background script"])
     # ahead of the tag, not after it: engine_patches appends the mobile runway
     # right behind it and every patch's text must stay in one piece
-    city = brief.mode == "palace" and not solar_style(brief)     # a Star chart has no maps to offer
-    return html.replace(anchor, backgrounds.head_block(key, palace=city) + "\n" + anchor, 1)
+    return html.replace(anchor, backgrounds.head_block(key, palace=(brief.mode == "palace")) + "\n" + anchor, 1)
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
