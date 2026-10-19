@@ -18,7 +18,7 @@ import pytest
 
 import alto.build.blocks as blocks
 from alto.build.builder import build_timeline, load_brief
-from alto.build.solar_stars import STARS_CSS, STARS_JS, stars_on
+from alto.build.solar_stars import STARS_CSS, STARS_JS
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_solar_draw import SMALL, SMALL_LINKS, solar_doc  # noqa: E402
@@ -34,27 +34,29 @@ def _page(units=SMALL, style="orbit", links=SMALL_LINKS):
 
 # ── what the pages carry ─────────────────────────────────────────────────────
 
-def test_only_an_orbit_page_carries_the_skin():
-    orbit, spoke = _page(), _page(style="spoke")
-    assert orbit.count("window._altoSkinTick=") == 1 and orbit.count("@keyframes sk-tw") == 1
+def test_every_hub_and_spoke_page_carries_the_skin_and_nothing_else_does():
+    """Round 5: one format, two looks switched in the page, so the skin rides
+    on every solar page (whichever look it opens in) and on no other page."""
+    for page in (_page(), _page(style="spoke")):
+        assert page.count("window._altoSkinTick=") == 1 and page.count("@keyframes sk-tw") == 1
+        # after the renderer, so it can wrap its layout and lines
+        assert page.index("window._altoSolarMount=function") < page.index("window._altoSkinTick=")
+    d = solar_doc(SMALL, "spoke")
+    d["brief"]["layout"] = "tree"
+    tree, _ = build_timeline(*load_brief(d))
     for s in ("_altoSkinTick", "alto-stars", "sk-sky", "@keyframes sk-"):
-        assert s not in spoke, s
-    assert stars_on({"style": "orbit"}) and not stars_on({"style": "spoke"}) and not stars_on(None)
-    # after the renderer, so it can wrap its layout and lines
-    assert orbit.index("window._altoSolarMount=function") < orbit.index("window._altoSkinTick=")
+        assert s not in tree, s
 
 
-def test_hub_and_spoke_is_byte_identical_without_the_skin(monkeypatch):
-    """Whatever the skin is, a Hub & spoke page is the same bytes: built with
-    the skin swapped for markers it carries none of them and does not change."""
-    before = _page(style="spoke")
-    assert before == _page(style="spoke")                       # builds are deterministic
+def test_a_page_without_solar_is_byte_identical_whatever_the_skin(monkeypatch):
+    d = solar_doc(SMALL, "spoke")
+    d["brief"]["layout"] = "tree"
+    before, _ = build_timeline(*load_brief(copy.deepcopy(d)))
     monkeypatch.setattr(blocks, "STARS_JS", "/*SKIN-JS-MARK*/")
     monkeypatch.setattr(blocks, "STARS_CSS", "/*SKIN-CSS-MARK*/")
-    after = _page(style="spoke")
+    after, _ = build_timeline(*load_brief(copy.deepcopy(d)))
     assert after == before
-    orbit = _page()
-    assert "SKIN-JS-MARK" in orbit and "SKIN-CSS-MARK" in orbit
+    assert "SKIN-JS-MARK" in _page(style="spoke") and "SKIN-CSS-MARK" in _page()
 
 
 def test_the_skin_is_small_and_safari_safe():
@@ -297,5 +299,49 @@ def test_frame_budget_with_52_bodies(browser, pages):
     r = pg.evaluate(FRAMES, 3000)
     assert r["skin"]["n"] > 40 and r["skin"]["p95"] <= 2, r
     assert r["p50"] < 34, r
+    assert not errs, errs
+    pg.context.close()
+
+
+SWITCH = r"""async (cls) => { var de=document.documentElement;
+  de.classList.remove('alto-solar-stars', 'alto-solar-plain'); de.classList.add(cls);
+  await new Promise(function(r){ setTimeout(r, 120); });
+  return {stars:de.classList.contains('alto-stars'), sky:document.querySelectorAll('#world .sk-sky').length,
+    trails:document.querySelectorAll('#solar-svg .sk-trails,#solar-svg .sk-rg').length,
+    shown:[].filter.call(document.querySelectorAll('#world .node-card>.sk'), function(e){ return getComputedStyle(e).display!=='none'; }).length}; }"""
+
+
+def test_the_look_switch_puts_the_skin_on_and_takes_it_off(browser, pages):
+    """Plain look: no skin at all (no sky, no trails, every card its plain
+    self); back to Star chart: all of it again, once (no doubled trails)."""
+    pg, errs = _open(browser, pages["orbit"])
+    a = pg.evaluate(SWITCH, "alto-solar-plain")
+    assert not a["stars"] and a["sky"] == 0 and a["trails"] == 0 and a["shown"] == 0, a
+    b = pg.evaluate(SWITCH, "alto-solar-stars")
+    c = pg.evaluate(SWITCH, "alto-solar-stars")
+    assert b["stars"] and b["sky"] == 1 and b["shown"] > 20 and b["trails"] > 0, b
+    assert c == b, (b, c)
+    # the look switch's own API, when the renderer has one, wins over the classes
+    d = pg.evaluate(r"""async () => { var fn=null, cur='plain';
+      window._altoSolarLook={get:function(){ return cur; }, set:function(v){ cur=v; if(fn) fn(v); }, onChange:function(f){ fn=f; return function(){}; }};
+      document.documentElement.classList.add('x-poke');              /* any class change re-reads the look */
+      await new Promise(function(r){ setTimeout(r, 120); });
+      return document.documentElement.classList.contains('alto-stars'); }""")
+    assert d is False
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_motion_off_pauses_the_sky(browser, pages):
+    pg, errs = _open(browser, pages["orbit"])
+    st = pg.evaluate(r"""async () => { var on=true, fn=null;
+      window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=!!v; if(fn) fn(on); }, onChange:function(f){ fn=f; return function(){}; }};
+      document.documentElement.classList.add('x-poke');
+      await new Promise(function(r){ setTimeout(r, 80); });
+      window._altoSolarMotion.set(false);
+      var a=getComputedStyle(document.querySelector('.sk-tw')).animationPlayState;
+      window._altoSolarMotion.set(true);
+      return [a, getComputedStyle(document.querySelector('.sk-tw')).animationPlayState]; }""")
+    assert st == ["paused", "running"], st
     assert not errs, errs
     pg.context.close()

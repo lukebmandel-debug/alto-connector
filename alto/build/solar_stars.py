@@ -1,9 +1,13 @@
-"""The Star chart's skin: what makes the orbit-style solar page (a Mind Palace
-with palace_view "stars") look like a real solar system.
+"""The Star chart look's skin: what makes a Hub & spoke page (outline, layout
+"solar") in its Star chart look (the default; solar_draw's in-page toggle
+flips it to Plain) look like a real solar system.
 
 solar_draw.py draws the circles, rings and spokes and moves the bodies; this
-module only dresses them, on desktop orbit pages (Hub & spoke, style "spoke",
-never carries it — blocks.py emits it only when the plan's style is "orbit"):
+module only dresses them. blocks.py emits it on every Hub & spoke page; it is
+on only in the Star chart look on desktop (window._altoSolarLook, or the
+html.alto-solar-stars / -plain classes, or else the plan's style "orbit") and
+comes off whole in the Plain look (its canvases kept for the way back). With
+motion switched off (window._altoSolarMotion) its animations pause too.
 
 * THE STAR. Each sun is a glowing star: a white-hot core darkening to an
   orange limb (CSS gradients, the colours seeded from the sun's id: the first
@@ -93,6 +97,7 @@ STARS_CSS = r"""
   /* the whole chart (solar_draw's zoomed-out view): the labels are a few px tall, their shadows cost every frame */
   P #canvas.sol-ov #world .node[data-solar] .sol-face,P #canvas.sol-ovanim #world .node[data-solar] .sol-face{text-shadow:none;}
   @media (prefers-reduced-motion:reduce){ .sk-cor,.sk-prom,.sk-tw,.sk-gran{animation:none !important;} }
+  html.sk-still .sk-cor,html.sk-still .sk-prom,html.sk-still .sk-tw,html.sk-still .sk-gran{animation-play-state:paused !important;}
   html.alto-editing .sk-cor,html.alto-editing .sk-prom,html.alto-editing .sk-tw,html.alto-editing .sk-gran{animation:none !important;}
   html.alto-stars.alto-editing:not(.mobile) #world #glass-slab:not(#_){background:#0a0c1a !important;}
   html.alto-stars.alto-editing .sk-sky,html.alto-stars.alto-editing #solar-svg .sk-tr{display:none !important;}
@@ -113,7 +118,13 @@ var de=document.documentElement, NS='http://www.w3.org/2000/svg', DEG=180/Math.P
 var S=null, world=null, BB={}, IDS=[], SUNC={}, TILES=null, ready=false, extT=-1e9, fbLast=0, fbR=0, fbS=0, idle=0, Q=[], qT=0, SPIN=-1;
 var ST={t:[]};
 function desk(){ return !de.classList.contains('mobile'); }
-function on(){ var s=window._ALTO_SOLAR; return !!(s && s.nodes && s.style!=='spoke'); }
+/* the skin is the Star chart look's (solar_draw's look switch: window._altoSolarLook, or the
+   html.alto-solar-stars / -plain classes; with neither, the plan's own style) */
+function look(){ var L=window._altoSolarLook; if(L && L.get) return L.get()==='stars';
+  if(de.classList.contains('alto-solar-plain')) return false; if(de.classList.contains('alto-solar-stars')) return true;
+  var s=window._ALTO_SOLAR; return !!(s && s.style!=='spoke'); }
+function on(){ var s=window._ALTO_SOLAR; return !!(s && s.nodes) && look(); }
+function still(){ var M=window._altoSolarMotion; de.classList.toggle('sk-still', !!(M && M.get && !M.get())); }
 /* ── seeded randomness and value noise (same pixels on every load) ── */
 function hash(s){ var h=2166136261; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h, 16777619); } return h>>>0; }
 function rng(a){ a>>>=0; return function(){ a=(a+0x6D2B79F5)>>>0; var t=Math.imul(a^a>>>15, a|1); t^=t+Math.imul(t^t>>>7, t|61); return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -284,8 +295,10 @@ function board(PAD){
   for(var i=0;i<n;i++){ var t=el('div', 'sk-tw', sk); t.style.cssText='left:'+Math.round(R()*W)+'px;top:'+Math.round(PAD+R()*(H-PAD))+'px;animation-duration:'+(2+R()*3).toFixed(2)+'s;animation-delay:-'+(R()*5).toFixed(2)+'s'; }
 }
 /* the orbit rings' glow and the planets' trails, in solar_draw's #solar-svg */
+function untrail(){ [].forEach.call(document.querySelectorAll('#solar-svg .sk-trails,#solar-svg .sk-rg'), function(e){ e.remove(); });
+  IDS.forEach(function(id){ if(BB[id]) BB[id].tr=null; }); }
 function trails(){
-  var svg=document.getElementById('solar-svg'); if(!svg) return;
+  var svg=document.getElementById('solar-svg'); untrail(); if(!svg) return;
   [].forEach.call(svg.querySelectorAll('circle.sol-ring:not(.sol-m)'), function(r){ var g=r.cloneNode(); g.setAttribute('class', 'sk-rg'); r.parentNode.insertBefore(g, r); });
   var tg=document.createElementNS(NS, 'g'); tg.setAttribute('class', 'sk-trails'); svg.insertBefore(tg, svg.firstChild ? svg.firstChild.nextSibling : null);
   IDS.forEach(function(id){ var k=BB[id]; if(!k || k.role!=='planet') return;
@@ -315,7 +328,7 @@ function dress(k, n, kind, d){
   if(ring) Q.push(ringJob(k, add('canvas', 'sk-rf'), true));
 }
 function skin(){
-  S=window._ALTO_SOLAR; if(!on() || !desk()) return;
+  S=window._ALTO_SOLAR; if(!on() || !desk()){ if(ready) down(); return; }
   world=document.getElementById('world'); if(!world) return;
   de.classList.add('alto-stars'); SPIN=S.spin||-1;
   var PAD=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0, sys={}, keep={};
@@ -374,12 +387,24 @@ function relines(){
     if(r!=='spine') try{ var ad=_lineAdapt(_lineToRgb(_lineResolveVar(COLOR_MAP[r]||'var(--line-flow)')), [12,13,20]); if(!ad) return; col='rgb('+ad.join(',')+')'; }catch(e){ return; }
     p.setAttribute('stroke', col); var sh=p.nextElementSibling; if(sh && !sh.hasAttribute('data-edge')) sh.setAttribute('stroke', 'rgba(255,255,255,0.50)'); });
 }
+/* the Plain look (or a phone): the skin goes, its canvases kept for the way back */
+function down(){
+  ready=false; de.classList.remove('alto-stars'); cancelAnimationFrame(fbR); clearTimeout(fbS); clearTimeout(qT); fbR=fbS=qT=0;
+  var sk=document.querySelector('#world .sk-sky'); if(sk) sk.remove(); untrail(); }
+function sw(){ if(on() && desk()){ if(!ready && document.querySelector('#world .node[data-solar]')) skin(); } else if(ready) down(); still(); }
+/* the renderer's look and motion switches, listened to once they exist */
+function api(){ var Lk=window._altoSolarLook, M=window._altoSolarMotion;
+  if(Lk && Lk.onChange && !Lk._sk){ Lk._sk=1; Lk.onChange(function(){ requestAnimationFrame(sw); }); }
+  if(M && M.onChange && !M._sk){ M._sk=1; M.onChange(still); } }
 function hook(){
-  if(!on()) return;
+  var s=window._ALTO_SOLAR; if(!s || !s.nodes) return;
+  api();
+  if(!hook.mo && typeof MutationObserver==='function'){ hook.mo=new MutationObserver(function(){ api(); sw(); }); hook.mo.observe(de, {attributes:true, attributeFilter:['class']}); }
   var L=window._altoSolarLayout, Ln=window._altoSolarLines;
   if(L && !L._sk){ var w=function(){ var r=L.apply(this, arguments); try{ skin(); }catch(e){ if(window.console) console.warn('stars', e); } return r; }; w._sk=1; window._altoSolarLayout=w; }
   if(Ln && !Ln._sk){ var w2=function(){ var r=Ln.apply(this, arguments); if(r) try{ relines(); }catch(e){} return r; }; w2._sk=1; window._altoSolarLines=w2; }
-  if(!ready && document.querySelector('#world .node[data-solar]')) try{ skin(); }catch(e){}
+  if(!ready && on() && document.querySelector('#world .node[data-solar]')) try{ skin(); }catch(e){}
+  still();
 }
 hook();
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', hook);
@@ -397,7 +422,3 @@ window._altoSkinStats={
 STARS_JS = _slim(STARS_JS)
 STARS_CSS = _slim(STARS_CSS)
 
-
-def stars_on(plan) -> bool:
-    """The skin goes on a Star chart's page only: a solar plan in motion."""
-    return bool(plan) and plan.get("style") == "orbit"
