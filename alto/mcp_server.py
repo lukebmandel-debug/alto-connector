@@ -1013,28 +1013,24 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       'palace' is the Mind Palace: a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
-      Only Claude builds a city (the homepage can start just the Star chart view),
+      Only Claude builds one (the homepage sends the user to Claude for it),
      layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
       and run_layout_preview can set it too). 'solar' is HUB & SPOKE (the name
-      the user knows, §D-Solar): each unit a hub with round nodes on straight
-      spokes. A unit's top concept (no `parent`) is the SUN, its children
-      PLANETS, theirs MOONS and theirs SATELLITES — nothing deeper (that is
-      refused, restructure). The planets' order is the outline's order: the
-      first sits on the innermost ring, later ones outward. Circles are bigger
-      the more hangs off them. One detailed system for the whole outline = ONE
-      unit (a Hub & spoke may have just one; every other layout needs at least
-      2 `acts`); several units = one system each, side by side. No placement
-      hints apply (only a card's `order` among its siblings), and a phone keeps
-      the single-column card view.
-     (Hub & spoke is always still: circles and numbers on short straight
-      spokes in ordinary Alto styling. The moving version is the STAR CHART,
-      below,)
-     palace_view?: 'city'|'stars' (mode 'palace'; default 'city'): 'stars' is
-      the STAR CHART — the Mind Palace drawn as moving solar systems instead of
-      a city (each building a sun, its floors planets, theirs moons, theirs
-      satellites, one sun per ROOT building; no map needed; planets and moons
-      orbit). Hub & spoke <-> Star chart is convert_timeline: content is kept,
-      both ways,
+      the user knows, §D-Solar): every unit's top concept (no `parent`) is a
+      SUN, its children PLANETS, theirs MOONS and theirs SATELLITES, drawn as
+      round nodes — nothing deeper (a fifth level is an error naming the card
+      and its path: restructure, never flatten silently). The planets' order is
+      the outline's order: the first sits on the innermost ring, later ones
+      outward. Circles are bigger the more hangs off them (a pivotal, critical
+      or extremely important flag bumps one up). One detailed system for the
+      whole outline = ONE unit (a Hub & spoke may have just one; every other
+      layout needs at least 2 `acts`); several units = one system each, side by
+      side. No placement hints apply (only a card's `order` among its
+      siblings), and a phone keeps the single-column card view. The page
+      carries two looks the reader switches between, with no rebuild: Star
+      chart (the default: moving planets, realistic graphics, spaceflight-style
+      travel between bodies, zoom out; an Orbit switch turns the motion off)
+      and Plain (the same circles, still, on straight spokes),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -2102,9 +2098,6 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     report then describes the systems instead of tree crossings.
     A Hub & spoke outline may have a single unit (one system); anything deeper
     than sun, planet, moon, satellite is refused, naming the card and its path.
-    palace_view: for a Mind Palace, 'city' or 'stars' (the Star chart: moving
-    systems, one sun per building, no map); '' keeps the brief's. Chosen when
-    the page is built, not switched in the page.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
     1700px-wide world — where things are, and so where there is room, when
@@ -2332,10 +2325,9 @@ def build_timeline(timeline_id: str, layout: str = "",
     and store the artifacts (hosted page + offline single-file). Fails with the
     exact check list on any violation.
 
-    layout / tree_lines / palace_view: as run_layout_preview (layout 'solar' is
-    the Hub & spoke outline, §D-Solar; palace_view 'stars' the Star chart,
-    §D-Stars); given here they are also kept in the brief, so every later build
-    (and publish) uses them. Cards placed
+    layout / tree_lines: as run_layout_preview (layout 'solar' is the Hub &
+    spoke outline, §D-Solar); given here they are also kept in the brief, so
+    every later build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
     the draft first; the reply's manual_edits says how many."""

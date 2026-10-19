@@ -582,9 +582,7 @@ def fold(store, uid, tid) -> "dict | None":
     created, removed, units_made, moved, chips_made, reordered = [], [], [], [], [], []
     units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
     too_deep, solar_ignored = [], []
-    # Hub & spoke (an outline laid out 'solar') and Star chart (a palace in its stars view): same bodies
-    solar = (brief.get("mode") == "outline" and brief.get("layout") == "solar") or \
-            (brief.get("mode") == "palace" and brief.get("palace_view") == "stars")
+    solar = brief.get("mode") == "outline" and brief.get("layout") == "solar"      # Hub & spoke
 
     def depth_of(cid):
         d, seen = 0, set()
@@ -1171,15 +1169,6 @@ def fold(store, uid, tid) -> "dict | None":
             if cur != (b or ""):
                 conflicts.append(k)
                 continue
-            if v and solar:                     # a Star chart: nothing past a satellite
-                kid_of: dict = {}
-                for x in nodes:
-                    if x.get("parent"):
-                        kid_of.setdefault(x["parent"], []).append(x["id"])
-                if v in by_id and depth_of(v) + 1 + height_of(holder["id"], kid_of) > SOLAR_MAX_DEPTH:
-                    too_deep.append(holder["id"])
-                    conflicts.append(k)
-                    continue
             if v:
                 tgt, seen = by_id.get(v), {holder["id"]}
                 ok = tgt is not None and tgt.get("act") == holder.get("act")
@@ -1193,12 +1182,6 @@ def fold(store, uid, tid) -> "dict | None":
                     conflicts.append(k)
                     continue
             holder["parent"] = v or ""
-            if v and solar and brief.get("mode") == "palace":    # last among its new siblings, as the page shows it
-                pl = brief.get("placement") or {}
-                h = {kk: vv for kk, vv in (pl.get(holder["id"]) or {}).items() if kk != "order"}
-                h["order"] = sum(1 for x in nodes if x.get("parent") == v)
-                brief["placement"] = {**pl, holder["id"]: h}
-                touched["brief"] = True
         elif kind == "tower":
             # a landmark housing a unit: {"unit": n, "floors": n|None} on its palace.buildings entry (None: no unit)
             ents = holder.setdefault("buildings", [])

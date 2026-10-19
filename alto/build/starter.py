@@ -28,7 +28,7 @@ import json
 
 TID, TITLE, LABEL = "zqtidqz", "Zqtitleqz", "Zqlabelqz"
 MAILTO = "subject=" + TITLE
-KINDS = ("outline", "timeline", "lanes", "solar", "stars")
+KINDS = ("outline", "timeline", "lanes", "solar")
 
 # What each kind starts with: two units (a timeline needs two), one card each.
 _STARTERS = {
@@ -95,24 +95,6 @@ _STARTERS = {
                   {"id": "unit-2-start", "act": 1, "title": "Unit 2 hub", "tag": "", "desc": ""},
                   {"id": "unit-2-a", "act": 1, "parent": "unit-2-start", "title": "First concept", "tag": "", "desc": ""},
                   {"id": "unit-2-b", "act": 1, "parent": "unit-2-start", "title": "Second concept", "tag": "", "desc": ""}],
-    },
-    # The Star chart (a Mind Palace in its star view, brief.palace_view): each
-    # unit a district whose buildings are suns, their floors planets, a part of
-    # a floor a moon, going round. No city, so it can be made in the browser;
-    # the city view needs the real map and is Claude's to build.
-    "stars": {
-        "brief": {"mode": "palace", "palace_view": "stars", "columns": 5,
-                  "node_noun": "Building", "period_noun": "District",
-                  "entity_axis_label": "Tags", "entity_axis_singular": "Tag",
-                  "acts": [{"label": "District 1", "short": "District 1"},
-                           {"label": "District 2", "short": "District 2"}]},
-        "nodes": [{"id": "unit-1-start", "act": 0, "title": "First building", "tag": "", "desc": ""},
-                  {"id": "unit-1-a", "act": 0, "parent": "unit-1-start", "title": "First floor", "tag": "", "desc": ""},
-                  {"id": "unit-1-a1", "act": 0, "parent": "unit-1-a", "title": "A part of it", "tag": "", "desc": ""},
-                  {"id": "unit-1-b", "act": 0, "parent": "unit-1-start", "title": "Second floor", "tag": "", "desc": ""},
-                  {"id": "unit-2-start", "act": 1, "title": "Second building", "tag": "", "desc": ""},
-                  {"id": "unit-2-a", "act": 1, "parent": "unit-2-start", "title": "First floor", "tag": "", "desc": ""},
-                  {"id": "unit-2-b", "act": 1, "parent": "unit-2-start", "title": "Second floor", "tag": "", "desc": ""}],
     },
 }
 

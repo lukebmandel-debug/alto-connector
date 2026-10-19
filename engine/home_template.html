@@ -707,15 +707,14 @@
   @keyframes ntpan{ from{ transform:translateX(0); } to{ transform:translateX(-150px); } }
   @media (prefers-reduced-motion:reduce){ .nt-pv .pv-pan{ animation:none; } }
   /* tiles with two modes show the chosen one's picture and words */
-  .nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"],
-  .nt-kind[data-mode="city"] [data-for="stars"], .nt-kind[data-mode="stars"] [data-for="city"]{ display:none; }
+  .nt-kind[data-mode="sketch"] [data-for="horizontal"], .nt-kind[data-mode="horizontal"] [data-for="sketch"]{ display:none; }
   .nt-modes{ display:flex; gap:6px; margin:-8px 0 16px; }
   .nt-modes[hidden]{ display:none; }
   .nt-mode{ flex:0 0 auto; height:28px; padding:0 14px; border-radius:14px; border:1px solid var(--btn-border); background:transparent; color:var(--muted);
     font-family:inherit; font-size:12px; cursor:pointer; transition:border-color .15s, color .15s; }
   .nt-mode:hover{ border-color:var(--muted); color:var(--text); }
   .nt-mode.on{ border-color:var(--text); color:var(--text); box-shadow:inset 0 0 0 1px var(--text); }
-  /* the Star chart preview: a sun, rings, planets that go round it and a moon that goes round a planet */
+  /* the Hub & spoke preview, in its star look: a glowing sun, rings, planets that go round it and a moon that goes round a planet */
   .nt-pv .pv-ring{ fill:none; stroke:var(--muted); stroke-width:.8; stroke-opacity:.55; }
   .nt-pv .pv-o1, .nt-pv .pv-o2, .nt-pv .pv-o3, .nt-pv .pv-om{ transform-box:view-box; animation:ntorb linear infinite; }
   .nt-pv .pv-o1{ transform-origin:100px 60px; animation-duration:22s; }
@@ -724,7 +723,6 @@
   .nt-pv .pv-om{ transform-origin:69.4px 34.3px; animation-duration:7s; }
   @keyframes ntorb{ to{ transform:rotate(360deg); } }
   @media (prefers-reduced-motion:reduce){ .nt-pv .pv-o1, .nt-pv .pv-o2, .nt-pv .pv-o3, .nt-pv .pv-om{ animation:none; } }
-  .nt-planet{ display:inline-block; vertical-align:-3px; margin-right:7px; flex:none; }
   @media (max-width:640px){
     #nt-modal{ max-height:calc(100vh - 24px); max-height:calc(100dvh - 24px); overflow-y:auto; padding:22px 18px 18px; }
     .nt-kinds{ flex-direction:column; gap:8px; }
@@ -1021,16 +1019,17 @@
         </svg>
         <span class="nt-t">Outline</span><small>Ideas that hold other ideas: a subject, a course.</small></button>
       <button type="button" class="nt-kind" data-kind="solar" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
-          <path class="pv-ln" d="M100 60 L46 34 M100 60 L154 32 M100 60 L158 90 M100 60 L50 92 M154 32 L182 18"/>
-          <circle class="pv-hub" cx="100" cy="60" r="13"/><text class="pv-hubt" x="100" y="62.5">hub</text>
-          <circle class="pv-card" cx="46" cy="34" r="10"/><text x="46" y="36.5">a</text>
-          <circle class="pv-card" cx="154" cy="32" r="11"/><text x="154" y="34.5">b</text>
-          <circle class="pv-card" cx="158" cy="90" r="9"/><text x="158" y="92.5">c</text>
-          <circle class="pv-card" cx="50" cy="92" r="10"/><text x="50" y="94.5">d</text>
-          <circle class="pv-card" cx="182" cy="18" r="5"/>
+          <defs><radialGradient id="ntsun"><stop offset="0" stop-color="#fff3c4"/><stop offset=".45" stop-color="#ffc861"/><stop offset="1" stop-color="#f08a24"/></radialGradient>
+            <radialGradient id="ntglow"><stop offset="0" stop-color="#ffc861" stop-opacity=".55"/><stop offset="1" stop-color="#ffc861" stop-opacity="0"/></radialGradient></defs>
+          <circle class="pv-ring" cx="100" cy="60" r="24"/><circle class="pv-ring" cx="100" cy="60" r="40"/><circle class="pv-ring" cx="100" cy="60" r="54"/>
+          <circle cx="100" cy="60" r="30" fill="url(#ntglow)"/><circle class="pv-sun" cx="100" cy="60" r="11" fill="url(#ntsun)"/>
+          <g class="pv-o1"><circle class="pv-card" cx="124" cy="60" r="5"/></g>
+          <g class="pv-o2"><circle class="pv-ring" cx="69.4" cy="34.3" r="11"/><circle class="pv-card" cx="69.4" cy="34.3" r="6.5"/>
+            <g class="pv-om"><circle class="pv-dot" cx="78.9" cy="39.8" r="2.4"/></g></g>
+          <g class="pv-o3"><circle class="pv-card" cx="118.5" cy="110.7" r="4.5"/></g>
         </svg>
-        <span class="nt-t">Hub &amp; spoke</span><small>Each unit a hub; its concepts around it on spokes. Want it moving? Ask Claude to turn it into a star chart anytime.</small></button>
-      <button type="button" class="nt-kind" data-kind="palace" data-mode="city" aria-pressed="false"><svg class="nt-pv" data-for="city" viewBox="0 0 200 120" aria-hidden="true">
+        <span class="nt-t">Hub &amp; spoke</span><small>Concepts as a hub with planets, moons and satellites you can orbit between. Toggle Plain or Star chart any time.</small></button>
+      <button type="button" class="nt-kind" data-kind="palace" aria-pressed="false"><svg class="nt-pv" viewBox="0 0 200 120" aria-hidden="true">
           <path class="pv-ln" d="M0 38 H200 M0 84 H200 M52 0 V120 M112 0 V120 M164 0 V120"/>
           <rect class="pv-card" x="8" y="8" width="36" height="24" rx="2"/><rect class="pv-card" x="60" y="6" width="44" height="26" rx="2"/>
           <rect class="pv-hub" x="120" y="8" width="36" height="24" rx="2"/><rect class="pv-card" x="172" y="10" width="22" height="22" rx="2"/>
@@ -1039,18 +1038,9 @@
           <rect class="pv-card" x="8" y="92" width="36" height="22" rx="2"/><rect class="pv-card" x="60" y="92" width="44" height="22" rx="2"/>
           <rect class="pv-card" x="120" y="92" width="36" height="22" rx="2"/><rect class="pv-card" x="172" y="92" width="22" height="22" rx="2"/>
         </svg>
-        <svg class="nt-pv" data-for="stars" viewBox="0 0 200 120" aria-hidden="true">
-          <circle class="pv-ring" cx="100" cy="60" r="24"/><circle class="pv-ring" cx="100" cy="60" r="40"/><circle class="pv-ring" cx="100" cy="60" r="54"/>
-          <circle class="pv-hub" cx="100" cy="60" r="11"/><text class="pv-hubt" x="100" y="62.5">hub</text>
-          <g class="pv-o1"><circle class="pv-card" cx="124" cy="60" r="5"/></g>
-          <g class="pv-o2"><circle class="pv-ring" cx="69.4" cy="34.3" r="11"/><circle class="pv-card" cx="69.4" cy="34.3" r="6.5"/>
-            <g class="pv-om"><circle class="pv-dot" cx="78.9" cy="39.8" r="2.4"/></g></g>
-          <g class="pv-o3"><circle class="pv-card" cx="118.5" cy="110.7" r="4.5"/></g>
-        </svg>
-        <span class="nt-t">Mind Palace</span><small data-for="city">Your outline as a real city: sections are districts, concepts are buildings. Claude builds it with you.</small><small data-for="stars">Your outline as a moving solar system: each building a sun, its floors the planets and moons.</small></button>
+        <span class="nt-t">Mind Palace</span><small>Your outline as a real city: sections are districts, concepts are buildings. Claude builds it with you.</small></button>
     </div>
     <div class="nt-modes" data-for="timeline" role="group" aria-label="Which timeline" hidden><button type="button" class="nt-mode on" data-mode="sketch" aria-pressed="true">Sketch</button><button type="button" class="nt-mode" data-mode="horizontal" aria-pressed="false">Horizontal</button></div>
-    <div class="nt-modes" data-for="palace" role="group" aria-label="Which Mind Palace" hidden><button type="button" class="nt-mode on" data-mode="city" aria-pressed="true">City</button><button type="button" class="nt-mode" data-mode="stars" aria-pressed="false">Star chart</button></div>
     <div class="nt-msg" id="nt-msg"></div>
     <button type="button" class="nt-make" id="nt-make">Start writing</button>
     <button type="button" class="dl-cancel" id="nt-cancel">Cancel</button>
@@ -1262,8 +1252,7 @@ const KIND_PHRASE = {
   outline: 'an outline (mode \'outline\'): ideas that hold other ideas, like a subject or a course',
   timeline: 'a sketch timeline (mode \'linear\'): cards in rough order, in bands',
   lanes: 'a horizontal timeline (mode \'lanes\'): to scale, left to right, with concurrent lines branching off and rejoining the main line',
-  solar: 'a Hub & spoke outline (mode \'outline\', layout \'solar\'): each unit a hub with its concepts around it on spokes',
-  stars: 'a Star chart (a Mind Palace in star-chart mode: mode \'palace\', palace_view \'stars\'): my outline as slowly moving solar systems, no city',
+  solar: 'a Hub & spoke outline (mode \'outline\', layout \'solar\'): each unit a sun with its concepts around it as planets, moons and satellites',
   palace: 'a Mind Palace as a city (mode \'palace\'): my outline as a real city, its sections districts and its concepts buildings. Ask me which place, then use Alto\'s set_up_palace'
 };
 function kindSentence(kind){
@@ -1288,12 +1277,11 @@ function altoCanMake(){
   const c = window.AltoCloud;
   return !!(c && c.enabled && c.user && typeof c.createTimeline === 'function' && DL_OK);
 }
-let ntKind = 'outline', ntTile = 'outline', ntModes = { timeline: 'sketch', palace: 'city' };
-// What a tile starts, given its mode: Timeline is the sketch or the horizontal one; Mind Palace is the
-// city (only Claude can build one: it needs the real map) or the star chart (a starter of its own).
+let ntKind = 'outline', ntTile = 'outline', ntModes = { timeline: 'sketch' };
+// What a tile starts, given its mode: Timeline is the sketch or the horizontal one; a Mind Palace is a
+// city, which only Claude can build (it needs the real map).
 function ntResolve(){
   if(ntTile === 'timeline') return ntModes.timeline === 'horizontal' ? 'lanes' : 'timeline';
-  if(ntTile === 'palace') return ntModes.palace === 'stars' ? 'stars' : 'palace';
   return ntTile;
 }
 const ntLabel = () => ntKind === 'palace' ? 'Build it with Claude' : 'Start writing';
@@ -1309,7 +1297,7 @@ function ntOpen(projectName){
   document.getElementById('nt-project').value = '';
   document.getElementById('nt-title').value = '';
   document.getElementById('nt-msg').textContent = '';
-  ntModes = { timeline: 'sketch', palace: 'city' };
+  ntModes = { timeline: 'sketch' };
   ntPick('outline');
   const mk = document.getElementById('nt-make'); mk.disabled = false; mk.textContent = ntLabel();
   s.classList.add('open');
@@ -1759,15 +1747,6 @@ function altoRenameProject(name){
 // and only then is it removed for good. The confirm button is red, says what
 // it does, sits away from where "Delete timeline…" was, and wakes up a moment
 // after it appears — a double-click that opened it cannot also press it.
-const ALTO_PLANET = '<svg class="nt-planet" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10.5" ry="3.8" transform="rotate(-24 12 12)"/></svg>';
-// "Turn this into a star chart": opens Claude with a prompt naming the timeline (title + id)
-function altoStarChartPrompt(pg){
-  return 'I want to turn my Alto timeline "' + (pg.heading || pg.title || 'Untitled timeline') + '" (timeline id: ' + (pg.tid || '') +
-    ') from Hub & spoke into a Star chart (a Mind Palace in star-chart mode), using Alto\'s convert_timeline (to="star_chart") and keeping all of its content: every card, section, chip, line and my own edits. ' +
-    "If the Alto connector isn't connected here yet, help me install it from https://alto-get.web.app first. Then open this timeline with Alto's get_timeline " +
-    '\u2014 if it isn\'t found, it may be in another of my Alto accounts: look with list_projects(account="all"). ' +
-    "Follow Alto's interview guide, then rebuild and republish it.";
-}
 function altoTileMenu(pg){
   const c = window.AltoCloud;
   if(!c || !c.enabled || !c.user) return;
@@ -1800,11 +1779,6 @@ function altoTileMenu(pg){
     if(where) body.appendChild(note('In ' + where + '.'));
     body.appendChild(btn('Rename timeline…', '', () => { close(); altoRenameTimeline(pg); }));
     body.appendChild(btn('Move to another project…', '', moveView));
-    if(pg.view === 'hubspoke'){
-      const sb = btn('', '', () => { close(); openClaude(altoStarChartPrompt(pg)); });
-      sb.innerHTML = ALTO_PLANET + '<span></span>'; sb.lastChild.textContent = 'Turn this into a star chart';
-      body.appendChild(sb);
-    }
     body.appendChild(btn('Print…', '', () => { close(); altoPrintMenu(pg); }));
     body.appendChild(btn('Delete timeline…', 'sm-danger', deleteView));
     body.appendChild(btn('Cancel', 'sm-quiet', close));
