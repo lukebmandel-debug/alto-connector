@@ -33,7 +33,7 @@ def test_the_timeline_and_mind_palace_tiles_choose_a_mode_that_picks_the_starter
     assert "ntModes.timeline === 'horizontal' ? 'lanes' : 'timeline'" in js        # Sketch / Horizontal keep their kind ids
     assert "ntModes.palace === 'stars' ? 'stars' : 'palace'" in js
     # the city needs the real map, so it goes to Claude's own route instead of making a starter
-    assert "if(ntKind === 'palace'){ ntClose(); openClaude(palacePrompt(inProject)); return; }" in h
+    assert "if(ntKind === 'palace'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, 'palace') : newProjectPrompt('palace')); return; }" in h
     assert "ntKind === 'palace' ? 'Build it with Claude' : 'Start writing'" in h
 
 
@@ -63,3 +63,16 @@ def test_the_lanes_starter_is_a_story_with_characters_and_a_flashback():
     by = {n["id"]: n for n in s["nodes"]}
     assert by["part-2-start"]["present"] == ["first", "second"] and by["second-start"]["line"] == "second"
     assert by["a-memory"]["flash"] == s["brief"]["flashbacks"][0]["id"]
+
+
+def test_build_it_with_claude_tells_claude_which_tile_was_picked():
+    h = _home()
+    phrases = h[h.index("const KIND_PHRASE = {"):h.index("function kindSentence(kind)")]
+    for kind in ("outline", "timeline", "lanes", "solar", "stars", "palace"):         # every kind the picker can end on
+        assert f"  {kind}: '" in phrases, kind
+    assert "layout \\'solar\\'" in phrases and "palace_view \\'stars\\'" in phrases and "set_up_palace" in phrases
+    assert "ntClose(); openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind));" in h
+    guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
+    line = " ".join(guide[guide.index("If the opening message already says which type"):].split("\n\n")[0].split())
+    for want in ("Hub & spoke", "Star chart", "Mind Palace as a city", "do not ask again", "set_up_palace", "palace_view: 'stars'"):
+        assert want in line, want

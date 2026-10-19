@@ -310,7 +310,7 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
-If the opening message already says which type the user chose on the homepage (outline, sketch timeline or horizontal timeline), use it as the answer and do not ask again.
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, Hub & spoke, Star chart or a Mind Palace as a city), use it as the answer and do not ask again: Hub & spoke is an outline with `layout: 'solar'` (§D-Solar), a Star chart is a Mind Palace with `palace_view: 'stars'` (§D-Stars), and a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace`. The homepage can start a Star chart itself (the user may only want Claude to fill it from their notes); a city only Claude can build.
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to

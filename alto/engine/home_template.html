@@ -1261,7 +1261,10 @@ const ALTO_GET = 'https://alto-get.web.app';
 const KIND_PHRASE = {
   outline: 'an outline (mode \'outline\'): ideas that hold other ideas, like a subject or a course',
   timeline: 'a sketch timeline (mode \'linear\'): cards in rough order, in bands',
-  lanes: 'a horizontal timeline (mode \'lanes\'): to scale, left to right, with concurrent lines branching off and rejoining the main line'
+  lanes: 'a horizontal timeline (mode \'lanes\'): to scale, left to right, with concurrent lines branching off and rejoining the main line',
+  solar: 'a Hub & spoke outline (mode \'outline\', layout \'solar\'): each unit a hub with its concepts around it on spokes',
+  stars: 'a Star chart (a Mind Palace in star-chart mode: mode \'palace\', palace_view \'stars\'): my outline as slowly moving solar systems, no city',
+  palace: 'a Mind Palace as a city (mode \'palace\'): my outline as a real city, its sections districts and its concepts buildings. Ask me which place, then use Alto\'s set_up_palace'
 };
 function kindSentence(kind){
   return KIND_PHRASE[kind] ? ' I\'ve already chosen the type: ' + KIND_PHRASE[kind] + '. Build that, and don\'t ask me to choose a type again.' : '';
@@ -1293,10 +1296,6 @@ function ntResolve(){
   if(ntTile === 'palace') return ntModes.palace === 'stars' ? 'stars' : 'palace';
   return ntTile;
 }
-const palacePrompt = (projectName) =>
-  'I want a Mind Palace in Alto' + (projectName ? ', in my "' + projectName + '" project' : '') + ': my outline as a real city, ' +
-  'its sections districts and its concepts buildings. If the Alto connector isn\'t connected here yet, help me install it from ' + ALTO_GET +
-  ' first. Then begin with Alto\'s interview guide (the Mind Palace section) and build it from the materials I give you.';
 const ntLabel = () => ntKind === 'palace' ? 'Build it with Claude' : 'Start writing';
 function ntOpen(projectName){
   if(!altoCanMake()){ openClaude(projectName ? inProjectPrompt(projectName) : newProjectPrompt()); return; }
@@ -1333,7 +1332,7 @@ function ntMode(tile, m){ ntModes[tile] = m; ntPick(tile); }
 function ntMake(){
   const s = document.getElementById('nt-scrim'), msg = document.getElementById('nt-msg');
   const inProject = s.dataset.project || '';
-  if(ntKind === 'palace'){ ntClose(); openClaude(palacePrompt(inProject)); return; }      // a city needs the real map: Claude's
+  if(ntKind === 'palace'){ ntClose(); openClaude(inProject ? inProjectPrompt(inProject, 'palace') : newProjectPrompt('palace')); return; }      // a city needs the real map: Claude's
   const project = inProject || document.getElementById('nt-project').value.replace(/\s+/g, ' ').trim();
   const title = document.getElementById('nt-title').value.replace(/\s+/g, ' ').trim();
   if(!inProject && !project){ msg.textContent = 'Name the project.'; document.getElementById('nt-project').focus(); return; }
