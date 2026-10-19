@@ -83,15 +83,23 @@ def test_the_picker_stays_inside_the_dialog_with_four_tiles():
     assert "#nt-modal{ width:720px; }" in h and "max-width:calc(100vw - 32px)" in h
 
 
+def test_there_is_no_star_chart_starter_any_more():
+    """The Star chart is a look of every Hub & spoke page (Round 5), not a
+    Mind Palace mode with a starter of its own."""
+    assert "stars" not in starter.KINDS and "palace_view" not in __import__(
+        "alto.build.brief", fromlist=["Brief"]).Brief.__dataclass_fields__
+
+
 # ── tools ────────────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("tool", ["run_layout_preview", "build_timeline"])
-def test_the_layout_tools_explain_hub_and_spoke(tool):
+def test_the_layout_tools_take_a_hub_look_and_explain_hub_and_spoke(tool):
     fn = getattr(srv, tool)
     params = inspect.signature(fn).parameters
-    assert "hub_style" not in params
+    assert "hub_look" in params and params["hub_look"].default == ""   # '' keeps the brief's
+    assert "palace_view" not in params and "hub_style" not in params
     doc = " ".join(fn.__doc__.split())
-    assert "solar" in doc and "Hub & spoke" in doc and "Turn this into" not in doc
+    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "plain" in doc
 
 
 def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
@@ -99,10 +107,28 @@ def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
     for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "SUN", "PLANETS", "MOONS", "SATELLITES",
                  "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
                  "single-column", "fifth level is an error", "never flatten silently", "pivotal, critical or extremely important",
-                 "two looks", "Star chart (the default", "Orbit switch", "Plain"):
+                 "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'plain'", "STARS = the Star chart", "PLAIN =",
+                 "Orbit switch", "nothing to convert"):
         assert want in doc, want
-    for gone in ("convert_timeline", "STAR CHART —", "Mind Palace drawn as moving solar systems"):
-        assert gone not in doc, gone
+    assert "palace_view" not in doc and "convert_timeline" not in doc and "STAR CHART —" not in doc
+
+
+def test_a_wrong_hub_look_is_told_plainly():
+    hub = {"brief": {"mode": "outline", "layout": "solar"}}
+    assert srv._layout_error(hub, "", "") is None and srv._layout_error(hub, "", "stars") is None
+    assert srv._layout_error(hub, "", "plain") is None
+    assert srv._layout_error(hub, "", "swirl")["error"] == "invalid_hub_look"
+    r = srv._layout_error({"brief": {"mode": "palace"}}, "", "stars")
+    assert r["error"] == "invalid_hub_look" and "Hub & spoke" in r["message"]
+    assert srv._layout_error({"brief": {"mode": "outline", "layout": "tree"}}, "solar", "plain") is None
+
+
+def test_a_layout_choice_is_kept_in_the_brief_only_when_given():
+    doc = {"brief": {"mode": "outline", "layout": "solar", "hub_look": "stars", "tree_lines": "fan"}}
+    assert srv._layout_choice(doc, "", "")["brief"] == doc["brief"]
+    assert srv._layout_choice(doc, "", "", "plain")["brief"]["hub_look"] == "plain"
+    assert srv._layout_choice({"brief": {}}, "solar", "", "")["brief"] == {"layout": "solar"}
+    assert doc["brief"]["hub_look"] == "stars"                                 # the stored one is not touched
 
 
 @pytest.fixture
@@ -113,7 +139,7 @@ def local_store(tmp_path):
 
 
 @needs_solar
-def test_a_hub_and_spoke_timeline_goes_through_the_tools(local_store):
+def test_a_hub_and_spoke_timeline_goes_through_the_tools_in_either_look(local_store):
     d = starter.draft("solar")
     pid = srv.create_project("Law School", "1L year", "studying")["project_id"]
     r = srv.create_timeline(pid, {**d["brief"], "title": "Torts"})
@@ -126,6 +152,12 @@ def test_a_hub_and_spoke_timeline_goes_through_the_tools(local_store):
     assert srv.build_timeline(tid).get("verify") == "passed"
     w = srv.place_nodes(tid, {"unit-1-a": {"arrange": "row"}})
     assert any("solar" in x for x in w["warnings"]), w
+    # the look it opens in is a build-time choice kept in the brief; the page carries both
+    assert srv.build_timeline(tid, hub_look="plain").get("verify") == "passed"
+    assert srv.get_timeline(tid)["brief"]["hub_look"] == "plain"
+    assert srv.build_timeline(tid, hub_look="swirl")["error"] == "invalid_hub_look"
+    assert srv.build_timeline(tid, hub_look="stars").get("verify") == "passed"
+    assert not hasattr(srv, "convert_timeline")
 
 
 # ── the interview guide
@@ -140,7 +172,8 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
                  "One system in great detail, or several", "outline's order", "innermost ring", "single-column",
                  "Nothing goes deeper", "Never flatten it quietly", "a one-unit Hub & spoke is valid",
                  "drag its circle onto the other circle", "pivotal, critical or extremely important",
-                 "never invent a unit or a hub", "their structure; you do not choose for them"):
+                 "never invent a unit or a hub", "their structure; you do not choose for them",
+                 "A unit may have several suns", "2.a, 2.b", "+ Add a sun", "hub_look: 'plain'", "hub_look: 'stars'", "never merge two of theirs"):
         assert want in sec, want
     assert "§D-Solar**" in GUIDE[GUIDE.index("### B0."):GUIDE.index("### §D-Palace.")]
     assert "hub_style" not in GUIDE and "run_layout_preview" in GUIDE[GUIDE.index("## Build sequence"):]
@@ -592,6 +625,13 @@ def test_without_the_solar_layer_a_change_is_saved_and_said_to_wait_for_the_next
     assert not errs, errs
 
 
+def _fold_into(draft, ops):
+    """The page's saved edits folded into a copy of the draft (alto/edits.py)."""
+    st = Store(copy.deepcopy(draft))
+    st.edits = {"v": 1, "ops": ops}
+    return st, fold(st, "u", "t1")
+
+
 # ── with the real solar layer ────────────────────────────────────────────────
 
 ROLES = "(()=>{var o={}; for(var k in window._ALTO_SOLAR.nodes) o[k]=window._ALTO_SOLAR.nodes[k].role; return o;})()"
@@ -617,6 +657,19 @@ def test_the_real_layer_plans_a_hub_and_spoke_again_after_a_drag_and_no_banner_s
     assert near[1] and not errs, (near, errs)
 
 
+def test_a_city_palace_placement_never_takes_an_order():
+    """(The 1.9.105 Star chart let a palace floor carry `order`; the city never could.)"""
+    from alto.build.brief import BriefError
+    d = {"brief": {"title": "T", "timeline_id": "t", "mode": "palace", "columns": 5,
+                   "acts": [{"label": "A"}, {"label": "B"}], "placement": {"b1": {"order": 1}}},
+         "nodes": [{"id": "b1", "act": 0, "tag": "", "title": "B", "desc": "d"},
+                   {"id": "b2", "act": 1, "tag": "", "title": "B", "desc": "d"}]}
+    b, nodes, _ = load_brief(d)
+    with pytest.raises(BriefError):
+        validate_brief(b)
+        validate_nodes(b, nodes)
+
+
 @needs_solar
 def test_a_solar_page_does_not_lay_its_circles_out_again_while_nothing_changes(browser, edit_url):
     """The edit tile once re-laid the page out every 250 ms whenever the window was taller than the
@@ -634,3 +687,63 @@ def test_a_solar_page_does_not_lay_its_circles_out_again_while_nothing_changes(b
 def test_the_edit_tile_leaves_a_solar_chart_alone():
     from alto.build.detail_extras import EDIT_TILE
     assert "if(short > 0 && !window._ALTO_SOLAR && typeof initLayout === 'function'" in EDIT_TILE
+
+
+@needs_solar
+def test_a_hub_and_spoke_unit_may_get_a_second_sun_and_the_unit_controls_sit_by_each_units_chip(browser, edit_url):
+    pg, errs = _editing(browser, edit_url, hook=None)
+    # no band labels are drawn on a Hub & spoke: each unit's controls stand beside its own chip, not stacked in a corner
+    ctl = pg.evaluate("""[...document.querySelectorAll('.aed-uc:not(.aed-unew)')].map(e => [e.textContent, e.offsetLeft, e.offsetTop])""")
+    chips = pg.evaluate("[...document.querySelectorAll('.sol-unit')].map(c => [+c.dataset.unit, c.offsetLeft + c.offsetWidth, c.offsetTop])")
+    assert [c[0] for c in chips] == [0, 1]
+    assert [c[0] for c in ctl][:4] == ["✎ Rename", "+ Add a card", "+ Add a sun", "✕ Delete unit"] and len(ctl) == 8, ctl
+    for i, (_, right, top) in enumerate(chips):
+        mine = ctl[i * 4:(i + 1) * 4]
+        assert mine[0][1] >= right and all(c[2] >= top - 20 for c in mine), (chips, mine)       # right of its chip, level with it
+        assert [c[1] for c in mine] == sorted(c[1] for c in mine) and len({c[1] for c in mine}) == 4          # in a row, none on another
+    assert len({(c[1], c[2]) for c in ctl}) == 8                                                       # none on top of another unit's
+    pg.evaluate("document.querySelector('.aed-uc[data-x=addsun][data-act=\"0\"]').click()")
+    pg.wait_for_timeout(700)
+    ops = _edit_ops(pg)
+    new = [k for k in ops if k.startswith("nn|")]
+    assert len(new) == 1 and ops[new[0]]["v"]["p"] == "" and ops[new[0]]["v"]["a"] == 0, ops
+    nid = new[0][3:]
+    assert pg.evaluate(ROLES)[nid] == "sun" and pg.evaluate(ROLES)["unit-1-start"] == "sun"            # two suns in the first unit
+    assert pg.evaluate("window._ALTO_SOLAR.systems.filter(s => s.unit === 0).length") == 2
+    pg.wait_for_timeout(300)
+    assert pg.evaluate(FACES)[nid] == "sun"
+    nums = pg.evaluate("NODE_ORDER_MAP")
+    assert nums["unit-1-start"] == "1.a" and nums[nid] == "1.b" and nums["unit-2-start"] == "2", nums     # roots lettered; a lone sun keeps its plain number
+    assert not pg.evaluate("document.documentElement.classList.contains('alto-solar-stale')")
+    # and a card under that new sun still stops at the satellites (the depth rule is the same under every sun)
+    _show(pg, nid)
+    _ctl(pg, nid, "addc")
+    assert len([k for k in _edit_ops(pg) if k.startswith("nn|")]) == 2
+    assert not errs, errs
+
+
+@needs_solar
+def test_a_second_sun_made_in_the_page_folds_into_the_draft_and_builds():
+    d = starter.draft("solar")
+    d["brief"]["title"] = "Torts"
+    st, r = _fold_into(d, {"nn|card-aabb11": {"b": None, "v": {"p": "", "a": 0, "t": "Another sun", "g": "", "d": ""}, "t": 1},
+                           "nn|card-aabb22": {"b": None, "v": {"p": "card-aabb11", "a": 0, "t": "Its planet", "g": "", "d": ""}, "t": 2}})
+    assert not r.get("conflicts") and "error" not in r, r
+    assert "parent" not in _node(st, "card-aabb11") and _node(st, "card-aabb22")["parent"] == "card-aabb11"
+    b, nodes, _ = load_brief({"brief": st.doc["brief"], "nodes": st.nodes})
+    validate_brief(b)
+    validate_nodes(b, nodes)
+    html, _ = build_timeline(b, nodes, [])
+    assert "card-aabb11" in html and "card-aabb22" in html
+
+
+@needs_solar
+def test_a_card_cannot_make_a_fifth_level_under_a_second_sun_either():
+    d = starter.draft("solar")
+    d["brief"]["title"] = "Torts"
+    d["nodes"] += [{"id": "sun2", "act": 0, "title": "S", "tag": "", "desc": ""},
+                   {"id": "s2a", "act": 0, "parent": "sun2", "title": "P", "tag": "", "desc": ""},
+                   {"id": "s2a1", "act": 0, "parent": "s2a", "title": "M", "tag": "", "desc": ""},
+                   {"id": "s2a1x", "act": 0, "parent": "s2a1", "title": "Sat", "tag": "", "desc": ""}]
+    st, r = _fold_into(d, {"nn|card-aabb33": {"b": None, "v": {"p": "s2a1x", "a": 0, "t": "Too deep", "g": "", "d": ""}, "t": 1}})
+    assert r["conflicts"] == ["nn|card-aabb33"] and [x["id"] for x in r["solar_too_deep"]] == ["card-aabb33"], r

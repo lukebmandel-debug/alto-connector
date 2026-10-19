@@ -456,12 +456,17 @@ Palace.
 > just a different picture. Want to see it that way, or keep the usual tree?"
 
 **What is fixed** (say so if asked; none of it is theirs or yours to change):
-- Depth decides the body. A unit's top concept (no `parent`) is a **sun**,
+- Depth decides the body. A top concept (no `parent`) is a **sun**,
   its children **planets**, their children **moons**, one level deeper
   **satellites**. Nothing goes deeper: a fifth level is an error when you
   build, with the card and its path named. Never flatten it quietly — tell the
   student which concept sits too deep and ask where they want it (a card moved
   up, or a branch cut). That is their structure; you do not choose for them.
+- **A unit may have several suns.** Every top concept is a sun of its own
+  system, and the systems of one unit sit side by side; they are numbered 2.a,
+  2.b (a unit with a single top concept keeps the plain 2). Use it when the
+  student's unit really has two or more top concepts of equal standing; never
+  make a second top concept up, and never merge two of theirs into one.
 - **The order of the planets is the outline's order.** The first planet sits
   on the innermost ring, the next one ring further out, one planet to a ring.
   A planet's moons share one small ring around it. To change who is nearer
@@ -492,7 +497,9 @@ An enlarged circle stays circular and shows the concept's content; "Open full
 page" opens its detail page. Say this once when you hand it over, in a
 sentence, so the student knows the switch is there. If they want the plain
 look to be what people see first, set `hub_look: 'plain'` in the brief
-(default `'stars'`); otherwise leave it out.
+(`hub_look: 'stars'`, the Star chart, is the default; `build_timeline(hub_look=…)`
+also sets it); otherwise leave it out. The look is the page's, not the
+content's: nothing is ever converted or rebuilt to flip it.
 
 **Ask** (with the default stated, so one word answers): **One system in great
 detail, or several — one per unit?** Judge from what the outline holds and say
@@ -504,7 +511,8 @@ side — you scroll between them? Your outline looks like <one detailed system /
 several units>; which do you want?" One system → the whole outline in a single
 unit hanging from a single hub (a one-unit Hub & spoke is valid; every other
 timeline needs two units); several (the default when the student has several
-units) → each unit's hub is that unit's sun. The units are the student's
+units) → each unit's top concept is that unit's sun (or each of its top
+concepts, when a unit has several). The units are the student's
 (D-Outline step 1); never invent a unit or a hub to make a system.
 
 → `create_timeline` brief (or `build_timeline` / `run_layout_preview`):
@@ -513,8 +521,9 @@ report describes the systems; run `run_layout_preview(layout='solar')` before
 `build_timeline`, and read any warning aloud in plain words.
 
 **In the page.** The owner edits a Hub & spoke timeline as any outline: words,
-adding a card under a card, moving a card under another (drag its circle onto
-the other circle, or use the card menu or its number), putting siblings in
+adding a card under a card, adding another sun to a unit ("+ Add a sun" by the
+unit's name), moving a card under another (drag its circle onto the other
+circle, or use the card menu or its number), putting siblings in
 another order (its number, or the menu), swapping, deleting. The picture
 redraws from the new structure; a circle cannot be left "somewhere", because
 where it sits is decided by its place in the outline. Dropping a circle on

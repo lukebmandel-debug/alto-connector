@@ -80,8 +80,7 @@ _STARTERS = {
     # hub (sun), the concepts under it planets (outline order = ring order), a
     # concept under a planet its moon, on spokes; one unit per hub, so two
     # systems sit side by side. A shape to see and change; the words are theirs.
-    # Its moving version is the Star chart (Mind Palace), reached by Claude's
-    # convert_timeline.
+    # It opens in the Star chart look (moving); the page's toggle shows it plain.
     "solar": {
         "brief": {"mode": "outline", "columns": 5, "layout": "solar",
                   "node_noun": "Card", "period_noun": "Unit",

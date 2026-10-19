@@ -47,7 +47,7 @@ def test_the_starter_draft_is_a_timeline_that_builds(kind):
     validate_nodes(b, nodes)
     assert len(b.acts) == 2 and len(nodes) == {"lanes": 4, "solar": 7}.get(kind, 2)
     assert b.mode == {"outline": "outline", "timeline": "linear", "lanes": "lanes", "solar": "outline"}[kind]
-    assert b.layout == {"solar": "solar", "outline": "tree"}.get(kind, "auto")
+    assert (b.layout, b.hub_look) == ({"solar": "solar", "outline": "tree"}.get(kind, "auto"), "stars")
 
 
 @needs_node

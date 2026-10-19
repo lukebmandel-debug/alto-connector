@@ -1838,21 +1838,33 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing() || !structOK() || !cardsBase()) return;
     var world = document.getElementById('world'); if(!world) return;
     var lbls = Array.prototype.slice.call(world.querySelectorAll('.phase-label-float')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
+    // A Hub & spoke draws no unit bands or labels: each unit's chip (solar_draw, data-unit) stands in
+    var hub = isSolar() && root.classList.contains('alto-solar');
     lbls.forEach(function(l, i){
+      var chip = hub ? world.querySelector('.sol-unit[data-unit="' + i + '"]') : null, ax, ay;
+      if(hub){ if(chip){ ax = chip.offsetLeft + chip.offsetWidth; ay = chip.offsetTop + chip.offsetHeight / 2 - 15; } else { ax = 0; ay = 16 + i * 38; } }
+      else { ax = l.offsetLeft + l.offsetWidth; ay = l.offsetTop + l.offsetHeight / 2 - 15; }
       var r = document.createElement('button'); r.type = 'button'; r.className = 'aed-uc aed-ur'; r.textContent = '✎ Rename';
       r.title = 'Rename this unit'; r.setAttribute('data-x', 'renu'); r.setAttribute('data-act', i);
-      r.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14) + 'px';
-      r.style.top = Math.round(l.offsetTop + l.offsetHeight / 2 - 15) + 'px';
+      r.style.left = Math.round(ax + 14) + 'px';
+      r.style.top = Math.round(ay) + 'px';
       world.appendChild(r);
       var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-uc'; b.textContent = '+ Add a card';
       b.title = OUT ? 'Add a card to this unit, under its top card' : 'Add a card at the end of this unit';
       b.setAttribute('data-act', i);
-      b.style.left = Math.round(l.offsetLeft + l.offsetWidth + 14 + r.offsetWidth + 8) + 'px';
+      b.style.left = Math.round(ax + 14 + r.offsetWidth + 8) + 'px';
       b.style.top = r.style.top;
       world.appendChild(b);
+      var prev = b;
+      if(hub){          // a unit may have several top concepts, each a sun of its own
+        var sn = document.createElement('button'); sn.type = 'button'; sn.className = 'aed-uc'; sn.textContent = '+ Add a sun';
+        sn.title = 'Add another top concept to this unit: a second sun, with its own planets'; sn.setAttribute('data-x', 'addsun'); sn.setAttribute('data-act', i);
+        sn.style.left = Math.round(b.offsetLeft + b.offsetWidth + 8) + 'px'; sn.style.top = r.style.top;
+        world.appendChild(sn); prev = sn;
+      }
       var x = document.createElement('button'); x.type = 'button'; x.className = 'aed-uc aed-ux'; x.textContent = '✕ Delete unit';
       x.title = 'Delete this unit — you choose what happens to its cards'; x.setAttribute('data-x', 'delu'); x.setAttribute('data-act', i);
-      x.style.left = Math.round(b.offsetLeft + b.offsetWidth + 8) + 'px'; x.style.top = r.style.top;
+      x.style.left = Math.round(prev.offsetLeft + prev.offsetWidth + 8) + 'px'; x.style.top = r.style.top;
       world.appendChild(x);
     });
     // + Add a unit, at the foot of the last one
@@ -1910,18 +1922,18 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!solarWarned && (MOVED.length || NEWO.length || SWAPPED.length || REORD.length || Object.keys(GONE).length)){
       solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this timeline.'); }
   }
-  function addCard(p, a){
+  function addCard(p, a, sun){      // sun: a new top concept of the unit (a Hub & spoke's second sun), not a card under its first
     if(!cardsBase()) return;
     // an outline's unit has one card at its top (brief: one hub per unit): a
     // card added to the unit goes under it
-    if(!p && OUT){ var hub = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === a && !(OUT.parent || {})[n.id]; })[0]; if(hub) p = hub.id; }
+    if(!p && OUT && !sun){ var hub = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === a && !(OUT.parent || {})[n.id]; })[0]; if(hub) p = hub.id; }
     if(solarDeep(p)){ solarNo(); return; }
     var id = rid('card-'), par = p ? srcNode(p) : null, act = par ? NODE_ACT[p] : a;
     var inAct = NODES_SRC.filter(function(n){ return NODE_ACT[n.id] === act; }), like = par || inAct[inAct.length - 1] || null;
     var spec = {p: p || '', a: unitKeyOf(act), t: 'New ' + String(EDK.noun || 'card').toLowerCase(), g: like ? like.tag || '' : '', d: '', c: like ? like.color : 'var(--accent)'};
     if(!OUT) spec.col = like && like.col ? like.col : 'center';
     if(!change('nn|' + id, spec)) return;
-    toast('Card added — ⌘Z takes it back.');
+    toast(sun ? 'Sun added — it is another top concept of this unit. ⌘Z takes it back.' : 'Card added — ⌘Z takes it back.');
     setTimeout(function(){ var el = document.querySelector('#node-' + id + ' .node-title');
       if(el){ try{ el.scrollIntoView({block:'center', inline:'nearest'}); }catch(_){} startField(el, 'n|' + id + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 140);
   }
@@ -3573,6 +3585,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var x = b.getAttribute('data-x') || (b.classList.contains('aed-uc') ? 'addcu' : ''), w = b.closest('.aed-sc,.aed-tc,.aed-cc');
     if(x === 'addsec'){ chooseKind(b, b.getAttribute('data-ok')); return; }
     if(x === 'addcu'){ addCard(null, +b.getAttribute('data-act')); return; }
+    if(x === 'addsun'){ addCard(null, +b.getAttribute('data-act'), true); return; }
     if(x === 'addunit'){ addUnit(); return; }
     if(x === 'renu'){ renameUnit(+b.getAttribute('data-act')); return; }
     if(x === 'delu'){ deleteUnit(+b.getAttribute('data-act')); return; }

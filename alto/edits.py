@@ -569,7 +569,8 @@ def fold(store, uid, tid) -> "dict | None":
         return None
     # Copies: a store may hand back the objects it caches for the rest of the
     # call, and nothing here may change those except through put_*.
-    doc = copy.deepcopy(store.get_timeline(uid, tid))
+    from .build.brief import migrate_doc          # a brief stored by an older version (1.9.105 Star chart)
+    doc = copy.deepcopy(migrate_doc(store.get_timeline(uid, tid)))
     if not doc:
         return None
     nodes = [copy.deepcopy({k: v for k, v in n.items() if not k.startswith("_")})
@@ -582,7 +583,8 @@ def fold(store, uid, tid) -> "dict | None":
     created, removed, units_made, moved, chips_made, reordered = [], [], [], [], [], []
     units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
     too_deep, solar_ignored = [], []
-    solar = brief.get("mode") == "outline" and brief.get("layout") == "solar"      # Hub & spoke
+    # Hub & spoke (an outline laid out 'solar', either look)
+    solar = brief.get("mode") == "outline" and brief.get("layout") == "solar"
 
     def depth_of(cid):
         d, seen = 0, set()
