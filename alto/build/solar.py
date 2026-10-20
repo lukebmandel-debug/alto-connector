@@ -67,8 +67,8 @@ The plan (the contract with solar_draw.py, which reads window._ALTO_SOLAR):
    "sun_links": [[sun id, sun id]], "warnings": [...],
    "looks": {look: [node ids]}, "look_flags": {brief flag id: look},
    "belts": [{"sun", "cx", "cy", "r", "w", "n", "seed"}],       # drawn in the Star chart look only
-   "core"?: {"x", "y", "r"},                                     # 2+ systems
-   "drifters": [{"seed", "path": [[x, y], [x, y], [x, y]]}]}    # drawn in the Star chart look only
+   "core"?: {"x", "y", "r", "p"},                                # 2+ systems: the galaxy's centre, its turn period
+   "drifters": []}                                               # (none since the spiral galaxy: kept for old skins)
 
 Comets. A comet keeps its ring, period and a0 but moves on
 an ellipse centred on what it orbits, semi-axes A = r(1 + c), B = r(1 − c)
@@ -83,18 +83,14 @@ out to (edge + gap + reach) / (1 − c)), so the no-overlap guarantees still
 hold. e and rot are fixed per node from its id (comet_shape). An asteroid
 tumbles at `tumble` rad/s; a black hole is only a look.
 
-Belts, the core, drifters (decoration, never a node). A system of BELT_MIN
+Belts and the core (decoration, never a node). A system of BELT_MIN
 planets or more gets an asteroid belt of width w at radius r round its sun,
 in a gap of its own between its inner and outer planets' bands (n rocks,
-scattered from `seed`). A chart of two systems or more gets a galactic core:
-a circle of CORE_R at the free spot nearest the suns' centroid, clear of
-every system's disc by CORE_GAP and of the world edge by MARGIN (the world
-grows downward for it when there is none). Drifting comets cross the chart
-along paths at least DRIFT_CLEAR from every system and the core.
-
-Systems come unit by unit, each unit's roots in order. When a unit holds
-several (a Mind Palace district of several buildings) every unit starts a row
-of its own; one system per unit flows side by side.
+scattered from `seed`). Two systems or more make a spiral galaxy (_galaxy):
+the suns on its arms in outline order round a supermassive black hole, the
+core, at its centre; the Star chart look turns the whole galaxy rigidly about
+the core (period core.p) — rigid, so no two systems ever meet. One system is
+centred, with no core.
 
 Angles are radians in page coordinates (x right, y DOWN), measured from +x: a
 body at angle a sits at (cx + r cos a, cy + r sin a) round what it orbits. A
@@ -150,7 +146,10 @@ SOLAR = {
     # the galactic core's radius and clear space (a chart of 2+ systems); how
     # far a drifting comet's path keeps from every system
     "ECC": (0.5, 0.7), "TUMBLE": (0.15, 0.6), "BELT_W": 70, "BELT_MIN": 4,
-    "CORE_R": 60, "CORE_GAP": 40, "CORE_STEP": 20, "DRIFT_CLEAR": 40,
+    "CORE_R": 60, "CORE_GAP": 40,
+    # the spiral galaxy of 2+ systems (_galaxy): its arms, the search step along an
+    # arm (px of arc), the whole galaxy's turn about the core (s, Orbit on)
+    "ARMS": 2, "GAL_STEP": 8, "P_GALAXY": 900.0,
 }
 # What a node is drawn as, by the user's own flags (brief.flags): a flag whose
 # id or name, lower-cased with spaces and underscores as hyphens, is in a row
@@ -529,62 +528,32 @@ def solar_plan(brief, nodes) -> dict:
     station = stations(tree, nodes)
     systems = [_system(a, sun, planets, bumped, nodes, looks, station)
                for a, sun, planets in tree]
-    widths = [s["box"][2] - s["box"][0] for s in systems]
-    world_w = int(math.ceil(max([S["WORLD_W"]] + [w + 2 * S["MARGIN"] for w in widths])))
-    inner = world_w - 2 * S["MARGIN"]
-    # A unit (district) holding several systems keeps them together: each
-    # unit then starts a row of its own. One system per unit (any outline)
-    # simply flows, side by side.
-    grouped = len({s["unit"] for s in systems}) < len(systems)
-    rows, row, span = [], [], 0.0
-    for s, w in zip(systems, widths):
-        if row and (span + S["SYS_GAP"] + w > inner + 1e-6
-                    or (grouped and s["unit"] != row[-1]["unit"])):
-            rows.append(row)
-            row, span = [], 0.0
-        span += (S["SYS_GAP"] if row else 0.0) + w
-        row.append(s)
-    if row:
-        rows.append(row)
-
+    centres, world_w, world_h, core = _galaxy([s["R"] for s in systems])
     out_nodes, out_systems, belts = {}, [], []
-    top = float(S["TOP"])
-    for row in rows:
-        up = max(-s["box"][1] for s in row)
-        down = max(s["box"][3] for s in row)
-        total = sum(s["box"][2] - s["box"][0] for s in row) + S["SYS_GAP"] * (len(row) - 1)
-        left = (world_w - total) / 2
-        cy = top + up
-        for s in row:
-            cx = left - s["box"][0]
-            left += (s["box"][2] - s["box"][0]) + S["SYS_GAP"]
-            act = brief.acts[s["unit"]]
-            out_systems.append({
-                "unit": s["unit"], "label": getattr(act, "short", "") or getattr(act, "label", ""),
-                "sun": s["sun"], "cx": _r2(cx), "cy": _r2(cy), "r_sun": s["r_sun"], "R": _r2(s["R"]),
-                "bbox": [_r2(cx + s["box"][0]), _r2(cy + s["box"][1]),
-                         _r2(cx + s["box"][2]), _r2(cy + s["box"][3])],
-                "planets": s["planets"]})
-            for i, (x, y, d, role, par) in s["local"].items():
-                out_nodes[i] = {"x": _r2(cx + x), "y": _r2(cy + y), "d": d, "role": role,
-                                "unit": s["unit"], "parent": par}
-                if i in looks:
-                    out_nodes[i]["look"] = looks[i]
-                if i in s["orbs"]:
-                    out_nodes[i]["orbit"] = dict(s["orbs"][i])
-                if looks.get(i) == "asteroid":
-                    out_nodes[i]["tumble"] = tumble(i)
-                if i in station:
-                    out_nodes[i]["station"] = 1
-            if s["belt"]:
-                bl = s["belt"]
-                belts.append({"sun": s["sun"], "cx": _r2(cx), "cy": _r2(cy), "r": _r2(bl["r"]), "w": bl["w"],
-                              "n": int(min(400, max(40, 2 * math.pi * bl["r"] / 18))),
-                              "seed": int(hash01("belt:" + s["sun"]) * 1e9)})
-        top = cy + down + S["SYS_GAP"]
-    world_h = int(math.ceil((top - S["SYS_GAP"]) + S["BOTTOM"])) if rows else S["TOP"] + S["BOTTOM"]
-    core, world_h = _core(out_systems, world_w, world_h, top - S["SYS_GAP"])
-    drifters = _drifters(out_systems, core, world_w, world_h)
+    for s, (cx, cy) in zip(systems, centres):
+        act = brief.acts[s["unit"]]
+        out_systems.append({
+            "unit": s["unit"], "label": getattr(act, "short", "") or getattr(act, "label", ""),
+            "sun": s["sun"], "cx": _r2(cx), "cy": _r2(cy), "r_sun": s["r_sun"], "R": _r2(s["R"]),
+            "bbox": [_r2(cx + s["box"][0]), _r2(cy + s["box"][1]),
+                     _r2(cx + s["box"][2]), _r2(cy + s["box"][3])],
+            "planets": s["planets"]})
+        for i, (x, y, d, role, par) in s["local"].items():
+            out_nodes[i] = {"x": _r2(cx + x), "y": _r2(cy + y), "d": d, "role": role,
+                            "unit": s["unit"], "parent": par}
+            if i in looks:
+                out_nodes[i]["look"] = looks[i]
+            if i in s["orbs"]:
+                out_nodes[i]["orbit"] = dict(s["orbs"][i])
+            if looks.get(i) == "asteroid":
+                out_nodes[i]["tumble"] = tumble(i)
+            if i in station:
+                out_nodes[i]["station"] = 1
+        if s["belt"]:
+            bl = s["belt"]
+            belts.append({"sun": s["sun"], "cx": _r2(cx), "cy": _r2(cy), "r": _r2(bl["r"]), "w": bl["w"],
+                          "n": int(min(400, max(40, 2 * math.pi * bl["r"] / 18))),
+                          "seed": int(hash01("belt:" + s["sun"]) * 1e9)})
     order = [s["sun"] for s in out_systems]
     units = []
     for s in out_systems:
@@ -609,79 +578,51 @@ def solar_plan(brief, nodes) -> dict:
         "look_flags": look_flags(brief),
         "belts": belts,
         **({"core": core} if core else {}),
-        "drifters": drifters,
+        "drifters": [],
     }
 
 
-def _core(systems, W, H, bottom):
-    """The galactic core of a chart of two systems or more: the free spot
-    nearest the suns' centroid (a CORE_STEP grid, coarser on a very big chart) whose circle of CORE_R clears
-    every system's disc (R round its sun) by CORE_GAP and the world's edges by
-    MARGIN. None for one system. With no such spot a band is added under the
-    last row and the core sits in it: (core, world height)."""
+def _galaxy(Rs):
+    """Where each system's sun goes: ([(cx, cy)], world w, world h, core or None).
+    One system: centred across, under TOP. Two or more: a spiral galaxy round
+    the core (CORE_R) — ARMS arms of an Archimedean spiral rho = a + b*theta,
+    arm k turned k*2pi/ARMS, the systems dealt to the arms in outline order and
+    each pushed out along its arm (in GAL_STEP px steps of arc) to the first
+    spot clearing the core by CORE_GAP and every system placed so far by
+    SYS_GAP. The world is the square round the galaxy's reach G (the farthest
+    system edge from the core) plus MARGIN at the sides, TOP above and BOTTOM
+    under, so the whole galaxy may turn rigidly about the core (period
+    core.p) and still keep every edge rule."""
     S = SOLAR
-    if len(systems) < 2:
-        return None, H
-    need = S["CORE_R"] + S["CORE_GAP"]
-    gx = sum(s["cx"] for s in systems) / len(systems)
-    gy = sum(s["cy"] for s in systems) / len(systems)
-    lo_x, hi_x = S["MARGIN"] + S["CORE_R"], W - S["MARGIN"] - S["CORE_R"]
-    lo_y, hi_y = S["MARGIN"] + S["CORE_R"], H - S["MARGIN"] - S["CORE_R"]
-    best = None
-    step = max(S["CORE_STEP"], int(math.ceil(max(W, H) / 300)))   # (a coarser grid on a very big chart)
-    nx, ny = int((hi_x - lo_x) // step), int((hi_y - lo_y) // step)
-    for j in range(ny + 1):
-        y = lo_y + j * step
-        for i in range(nx + 1):
-            x = lo_x + i * step
-            if all(math.hypot(x - s["cx"], y - s["cy"]) >= s["R"] + need for s in systems):
-                d = (x - gx) ** 2 + (y - gy) ** 2
-                if best is None or d < best[0] - 1e-9:
-                    best = (d, x, y)
-    if best:
-        return {"x": _r2(best[1]), "y": _r2(best[2]), "r": S["CORE_R"]}, H
-    y = max([bottom] + [s["cy"] + s["R"] for s in systems]) + S["CORE_GAP"] + S["CORE_R"]
-    H2 = int(math.ceil(max(H, y + S["CORE_R"] + S["BOTTOM"])))
-    return {"x": _r2(W / 2), "y": _r2(y), "r": S["CORE_R"]}, H2
-
-
-def _drifters(systems, core, W, H):
-    """A few decorative comets crossing the chart where nothing is: a path
-    (three points: start, bend, end) along the band above the first row,
-    below the last, and through each gap between rows wide enough, every one
-    at least DRIFT_CLEAR from every system's disc and the core."""
-    S = SOLAR
-    ys = []
-    if systems:
-        ys.append(min(s["cy"] - s["R"] for s in systems) / 2)
-        ys.append((max(s["cy"] + s["R"] for s in systems) + H) / 2)
-        # gaps between consecutive rows
-        bands = sorted(((s["cy"] - s["R"], s["cy"] + s["R"]) for s in systems))
-        reach = bands[0][1]
-        for a, b in bands[1:]:
-            if a - reach >= 2 * S["DRIFT_CLEAR"] + 10:
-                ys.append((a + reach) / 2)
-            reach = max(reach, b)
+    if not Rs:
+        return [], S["WORLD_W"], S["TOP"] + S["BOTTOM"], None
+    if len(Rs) == 1:
+        R = Rs[0]
+        W = int(math.ceil(max(S["WORLD_W"], 2 * R + 2 * S["MARGIN"])))
+        return [(W / 2, S["TOP"] + R)], W, int(math.ceil(S["TOP"] + 2 * R + S["BOTTOM"])), None
+    arms, gap, cg = S["ARMS"], S["SYS_GAP"], S["CORE_R"] + S["CORE_GAP"]
+    b = (sum(2 * r for r in Rs) / len(Rs) + gap) * arms / (2 * math.pi)
+    a = cg + Rs[0]
+    cur = [0.0] * arms
     out = []
-
-    def clear(pts):
-        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
-            for s in systems:
-                if _seg_dist(s["cx"], s["cy"], x1, y1, x2, y2) < s["R"] + S["DRIFT_CLEAR"]:
-                    return False
-            if core and _seg_dist(core["x"], core["y"], x1, y1, x2, y2) < core["r"] + S["DRIFT_CLEAR"]:
-                return False
-        return True
-    for k, y in enumerate(ys[:4]):
-        seed = int(hash01(f"drift:{k}:{int(y)}") * 1e9)
-        bend = (hash01(f"bend:{seed}") - 0.5) * 2 * S["DRIFT_CLEAR"] * 0.5
-        flip = hash01(f"dir:{seed}") < 0.5
-        pts = [[0.0, y], [W / 2, y + bend], [float(W), y]]
-        if flip:
-            pts.reverse()
-        if clear(pts):
-            out.append({"seed": seed, "path": [[_r2(x), _r2(yy)] for x, yy in pts]})
-    return out
+    for k, R in enumerate(Rs):
+        arm = k % arms
+        th = cur[arm]
+        for _ in range(200000):
+            rho = a + b * th
+            ang = SPIN * (th + arm * 2 * math.pi / arms)
+            x, y = rho * math.cos(ang), rho * math.sin(ang)
+            if rho >= R + cg - 1e-6 and all(math.hypot(x - px, y - py) >= R + pr + gap - 1e-6 for px, py, pr in out):
+                break
+            th += min(0.05, S["GAL_STEP"] / rho)
+        cur[arm] = th
+        out.append((x, y, R))
+    G = max(math.hypot(x, y) + r for x, y, r in out)
+    W = int(math.ceil(max(S["WORLD_W"], 2 * G + 2 * S["MARGIN"])))
+    ox, oy = W / 2, S["TOP"] + G
+    H = int(math.ceil(S["TOP"] + 2 * G + S["BOTTOM"]))
+    return ([(ox + x, oy + y) for x, y, _ in out], W, H,
+            {"x": _r2(ox), "y": _r2(oy), "r": S["CORE_R"], "p": S["P_GALAXY"]})
 
 
 _ONE_DP = {"x", "y", "cx", "cy", "r", "R", "e", "ext", "moon_r", "sat_r", "r_sun", "bbox"}

@@ -1945,7 +1945,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
     var ta=_DIRANG[dir]; if(ta===undefined) return;
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
-    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ enterFocus(_sn); return; } }   // a hub & spoke / star chart (solar_draw.py): the nearest body that way, where it is now
+    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ if(_sn!==id) enterFocus(_sn); return; } }   // a hub & spoke / star chart (solar_draw.py): by outline level (id itself: stay)
     if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
     if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Mind Palace: the nearest building that way
     // Every node's resting box in world px: style.left/top is its centre however
@@ -2106,6 +2106,17 @@ PATCHES += [
 _SHARE_GLIDE_OLD = "  window.enterFocus=enterFocus; window.exitFocus=exitFocus;\n"
 _SHARE_GLIDE_NEW = (_SHARE_GLIDE_OLD
                     + "  window._altoEase=_altoEase; window._altoScrollAxis=_scrollAxis;   // lanes_nav.py: the step glide\n")
+# ── a solar page's detail page keeps the enlarged body (solar_draw.py, Luke round 9) ──
+# Back from a detail page lands where it left: the same enlarged body and camera, no
+# flight. The engine let the focus go as any detail page opened; a solar page asks it
+# not to (window._altoKeepFocusOnDetail), and puts its view back itself as it closes.
+_DETAIL_FOCUS_OLD = "if(_dp) new MutationObserver(function(){ if(_dp.classList.contains('visible')) exitFocus(); })"
+_DETAIL_FOCUS_NEW = ("if(_dp) new MutationObserver(function(){ if(_dp.classList.contains('visible')"
+                     " && !(window._altoKeepFocusOnDetail && window._altoKeepFocusOnDetail())) exitFocus(); })")
+PATCHES += [
+    {"name": "solar-detail-keeps-focus", "old": _DETAIL_FOCUS_OLD, "new": _DETAIL_FOCUS_NEW, "count": 1},
+]
+
 PATCHES += [
     {"name": "lanes-share-the-glide", "old": _SHARE_GLIDE_OLD, "new": _SHARE_GLIDE_NEW, "count": 1},
 ]

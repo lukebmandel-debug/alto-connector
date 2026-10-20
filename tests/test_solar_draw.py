@@ -356,29 +356,58 @@ def test_reduced_motion_stands_still_and_the_hub_look_orbits_with_rings(browser,
         pg.context.close()
 
 
-def test_arrow_keys_pick_the_body_that_way_where_it_is_now(browser, pages):
-    f, _ = pages["orbit"]
-    pg, errs = _open(browser, f, wait=1800)
+# (start, keys, where each lands): Up = what it orbits (a sun stays), Down = the child it was come up
+# from, else its first (none: stays), Left / Right = the same level in outline order, on into the
+# next system at the ends (Luke, round 9)
+NAV_SMALL = [
+    ("u1-p1-m1", "Up Up Up", ["u1-p1", "u1", "u1"]),
+    ("u1", "Right Right Right Left", ["u2", "u3", "u3", "u2"]),
+    ("u1-p1", "Right Right Right Right", ["u1-p2", "u1-p3", "u2-p1", "u2-p2"]),
+    ("u2-p2-m2", "Up Down Left Left Left", ["u2-p2", "u2-p2-m2", "u2-p2-m1", "u2-p1-m1", "u1-p3-m1"]),
+    ("u1-p2", "Down Left Down", ["u1-p2", "u1-p1", "u1-p1-m1"]),
+    ("u2-p2-m2-s1", "Down Right Up Up", ["u2-p2-m2-s1", "u2-p2-m2-s2", "u2-p2-m2", "u2-p2"]),
+]
+NAV_TORTS = [
+    ("u1-p2-m1", "Right Right Right", ["u1-p2-m2", "u1-p3-m1", "u1-p3-m2"]),
+    ("u1-p5-m2", "Right", ["u2-p1-m1"]),
+    ("u3", "Right Left Left Left", ["u3", "u2", "u1", "u1"]),
+    ("u2-p3-m1", "Up Up Down Down", ["u2-p3", "u2", "u2-p3", "u2-p3-m1"]),
+]
+
+
+@pytest.mark.parametrize("shape", ["small", "torts"])
+def test_arrows_and_the_wheel_go_strictly_by_outline_level(browser, tmp_path, shape):
+    if shape == "small":
+        units, table = SMALL, NAV_SMALL
+    else:
+        units, table = TORTS_SHAPE, NAV_TORTS
+    f = tmp_path / f"nav-{shape}.html"
+    f.write_text(_page(units, links=() if shape == "torts" else SMALL_LINKS), encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1600)
     pg.mouse.move(2, 940)
     pg.evaluate("() => { window._altoFlyOff = 1; }")      # the pick, not the flight there (test_solar_fly.py)
-    pg.evaluate("() => window.enterFocus('u1')")
-    pg.wait_for_timeout(700)
-    g = pg.evaluate(BODIES)
-    sun = g["b"]["u1"]
-    for key, (ux, uy) in (("ArrowRight", (1, 0)), ("ArrowLeft", (-1, 0)), ("ArrowDown", (0, 1)), ("ArrowUp", (0, -1))):
-        pg.evaluate("() => window.enterFocus('u1')")
-        pg.wait_for_timeout(650)
-        pg.keyboard.press(key)
-        pg.wait_for_timeout(700)
-        got = pg.evaluate("() => window._focusedNodeId")
-        if got == "u1":
-            continue                                       # nothing that way
-        b = g["b"][got]
-        dx, dy = b["x"] - sun["x"], b["y"] - sun["y"]
-        assert dx * ux + dy * uy > 0, (key, got)            # it is that way from the sun, now
+    for start, keys, want in table:
+        pg.evaluate("(i) => window.enterFocus(i)", start)
+        pg.wait_for_timeout(500)
+        got = []
+        for k in keys.split():
+            pg.keyboard.press("Arrow" + k)
+            pg.wait_for_timeout(520)
+            got.append(pg.evaluate("() => window._focusedNodeId"))
+        assert got == want, (start, keys, got)
+    # the wheel over an enlarged disc: down = its first child, up = what it orbits
+    pg.evaluate("() => window.enterFocus('u2-p2')")
+    pg.wait_for_timeout(600)
+    kid = "u2-p2-m2" if shape == "small" else "u2-p2-m1"   # (the small table went up from u2-p2-m2 before)
+    for dy, want in ((160, kid), (-160, "u2-p2")):
+        pg.mouse.move(750, 520)
+        for _ in range(4):
+            pg.mouse.wheel(0, dy / 4)
+            pg.wait_for_timeout(16)
+        pg.wait_for_timeout(900)
+        assert pg.evaluate("() => window._focusedNodeId") == want, dy
     pg.evaluate("() => window.exitFocus()")
     pg.wait_for_timeout(1500)
-    # every card that was enlarged on the way is a circle again
     assert pg.evaluate("() => document.querySelectorAll('#world .sol-closing,#world .sol-clip').length") == 0
     assert not errs, errs
     pg.context.close()
@@ -809,7 +838,7 @@ DISC_WATCH = r"""() => new Promise(function(res){
 
 
 @pytest.mark.parametrize("style", ["spoke", "orbit"])
-def test_an_enlarged_body_is_a_bigger_disc_with_its_content_and_a_way_to_the_full_page(browser, tmp_path, style):
+def test_an_enlarged_body_is_a_bigger_disc_with_its_card_and_a_way_to_the_full_page(browser, tmp_path, style):
     f = tmp_path / f"long-{style}.html"
     f.write_text(_long_page(style), encoding="utf-8")
     pg, errs = _open(browser, f, wait=1600)
@@ -823,13 +852,12 @@ def test_an_enlarged_body_is_a_bigger_disc_with_its_content_and_a_way_to_the_ful
               secs:b ? b.querySelectorAll('.sol-sec').length : 0, scrolls:b ? b.scrollHeight>b.clientHeight : null,
               open:!!c.querySelector('.sol-open') && getComputedStyle(c.querySelector('.sol-open')).display!=='none'}; }""")
     assert abs(st["w"] - st["h"]) <= 1 and abs(st["w"] - st["sD"]) <= 1 and st["sD"] > st["d"], st
-    assert st["title"] and st["secs"] == 2 and st["scrolls"] and st["open"], st
-    # the wheel over the long content scrolls it (it does not hop to a neighbour)
+    # the card's level only (Luke, round 9): no sections, nothing scrolls, a long description ends in an ellipsis
+    assert st["title"] and st["secs"] == 0 and not st["scrolls"] and st["open"], st
+    cl = pg.evaluate("""() => { var d=document.querySelector('#node-u1-p1 .sol-body .node-desc'), cs=getComputedStyle(d);
+      return {clamped:d.scrollHeight>d.clientHeight+1, lc:cs.webkitLineClamp||cs.lineClamp}; }""")
+    assert cl["clamped"] and str(cl["lc"]) == "4", cl
     xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .sol-body').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
-    pg.mouse.move(xy[0], xy[1])
-    pg.mouse.wheel(0, 120)
-    pg.wait_for_timeout(500)
-    assert pg.evaluate("() => [window._focusedNodeId, document.querySelector('#node-u1-p1 .sol-body').scrollTop>0]") == ["u1-p1", True]
     # a click on the text does not leave the chart; the control opens the full page
     pg.mouse.click(xy[0], xy[1])
     pg.wait_for_timeout(300)
@@ -885,15 +913,20 @@ GEO_WATCH = r"""(id) => new Promise(function(res){
 GEO_REST = r"""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body'), o=c.querySelector('.sol-open');
   var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, R=r.width/2;
   function far(e){ var q=e.getBoundingClientRect(); return Math.max.apply(null, [[q.left,q.top],[q.right,q.top],[q.left,q.bottom],[q.right,q.bottom]].map(function(p){ return Math.hypot(p[0]-cx, p[1]-cy); })); }
-  return {R:R, w:r.width, h:r.height, body:far(b), open:far(o), scrolls:b.scrollHeight>b.clientHeight+1, ov:getComputedStyle(b).overflowY,
+  var ob=o.getBoundingClientRect(), chips=[].filter.call(c.querySelectorAll(':scope > .node-footer > button'), function(x){ return x.offsetWidth; }).map(function(x){ var q=x.getBoundingClientRect(), cs=getComputedStyle(x);
+    return {far:far(x), top:q.top-cy, hitsOpen:!(q.right<=ob.left || q.left>=ob.right || q.bottom<=ob.top || q.top>=ob.bottom), round:parseFloat(cs.borderTopLeftRadius)>=q.height/2-.5, ta:cs.textAlign}; });
+  return {R:R, w:r.width, h:r.height, body:far(b), open:far(o), scrolls:b.scrollHeight>b.clientHeight+1, ov:getComputedStyle(b).overflowY, chips:chips,
           sD:parseFloat(n.style.getPropertyValue('--sD')), z:getComputedStyle(document.documentElement).zoom, cls:n.className}; }"""
 
 
 def _sizes_page():
-    """Bodies whose content asks for each enlarged size (300 / 340 / 380 / 420)."""
+    """Bodies whose card text asks for each enlarged size (300 / 340 / 380), two with chips."""
     d = solar_doc(SMALL, "orbit", SMALL_LINKS)
     lens = {"u1-p1": 30, "u1-p2": 17, "u1-p3": 8, "u2-p2": 1}
+    d["brief"]["entities"] = [{"id": f"e{k}", "name": f"Party {k}"} for k in range(9)]
     for n in d["nodes"]:
+        if n["id"] in ("u1-p1", "u1-p2"):
+            n["entity_ids"] = [f"e{k}" for k in range(9 if n["id"] == "u1-p1" else 3)]
         if n["id"] in lens:
             n["desc"] = ("The rule as the notes put it, at length. " * lens[n["id"]]).strip()
             if lens[n["id"]] > 20:
@@ -925,13 +958,15 @@ def test_the_enlarged_disc_its_shadow_and_its_content_are_one_circle_at_every_fr
             seen.add(st["sD"])
             assert abs(st["w"] - st["h"]) <= 1 and "sol-clip" not in st["cls"], st
             assert st["body"] <= st["R"] + 1 and st["open"] <= st["R"] + 1, (look, i, st)   # the text square and the control: inside
-            if i == "u1-p1":
-                assert st["scrolls"] and st["ov"] == "auto", st                       # long: it scrolls inside the square
+            assert not st["scrolls"], st                                             # the card's level: nothing to scroll
+            if i in ("u1-p1", "u1-p2"):                                              # its chips: round pills in the bottom band, inside
+                assert st["chips"] and all(q["far"] <= st["R"] + 1 and q["top"] >= st["R"] * .4 and not q["hitsOpen"]
+                                           and q["round"] for q in st["chips"]), (look, i, st["chips"])
             shrink = pg.evaluate("(id) => { var p=(" + GEO_WATCH + ")(id); window.exitFocus(); return p; }", i)
             assert not shrink["bad"], (look, i, shrink)
             pg.wait_for_timeout(400)
             assert "sol-" not in pg.evaluate(f"() => document.getElementById('node-{i}').className")
-    assert seen == {300.0, 340.0, 380.0, 420.0}, seen
+    assert seen == {300.0, 340.0, 380.0}, seen
     if vp == (1463, 761):
         assert abs(float(pg.evaluate("() => getComputedStyle(document.documentElement).zoom")) - 0.86) < 0.01
     assert not errs, errs
@@ -1114,5 +1149,105 @@ def test_small_bodies_show_a_number_or_nothing_inside_and_name_themselves_on_hov
             assert n["d"] <= 0.4 * N[n["parent"]]["d"]
         if n["role"] == "sat":
             assert n["d"] <= (plan["sizes"]["station"] if n.get("station") else 18)
+    assert not errs, errs
+    pg.context.close()
+
+
+# ── round 9 (Luke, real Safari): a board left dimmed, the skin in the other look, the way back
+# from a detail page, a click on an orbit ──────────────────────────────────────────────────
+
+CLEAN = r"""() => { var c=document.getElementById('canvas'), de=document.documentElement, bad=[];
+  if(!window._focusedNodeId && c.classList.contains('focus-mode')) bad.push('focus-mode');
+  if(de.classList.contains('alto-stars') !== (window._altoSolarLook.get()==='stars')) bad.push('look class');
+  document.querySelectorAll('#world .node[data-solar]').forEach(function(n){ var k=n.querySelector('.node-card'), o=+getComputedStyle(k).opacity*+getComputedStyle(n).opacity;
+    if(!window._focusedNodeId && (o<.99 || n.classList.contains('focused') || n.classList.contains('sol-flank'))) bad.push(n.id+' '+o);
+    if(window._altoSolarLook.get()==='hub' && [].some.call(k.querySelectorAll(':scope>.sk'), function(e){ return getComputedStyle(e).display!=='none'; })) bad.push(n.id+' skin'); });
+  return bad; }"""
+
+
+@pytest.mark.parametrize("look", ["hub", "stars"])
+def test_after_any_navigation_the_board_is_whole_and_a_lost_focus_heals(browser, pages, look):
+    f, _ = pages["spoke" if look == "hub" else "orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.mouse.move(2, 940)
+    for k in range(2):
+        pg.evaluate("() => window.enterFocus('u2-p2')")
+        pg.wait_for_timeout(500)
+        for key in ("ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"):
+            pg.keyboard.press(key)
+            pg.wait_for_timeout(120)
+        pg.wait_for_timeout(300)
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(1400)
+        pg.keyboard.press("Meta+-")
+        pg.wait_for_timeout(700)
+        pg.keyboard.press("Meta+0")
+        pg.wait_for_timeout(900)
+        pg.evaluate("(l) => window._altoSolarLook.set(l)", "stars" if look == "hub" else "hub")
+        pg.wait_for_timeout(500)
+        pg.evaluate("(l) => window._altoSolarLook.set(l)", look)
+        pg.wait_for_timeout(900)
+        assert pg.evaluate(CLEAN) == [], k
+    # the glitch's state, made by hand: dimmed, nothing enlarged, a stray look class — healed within a second
+    pg.evaluate("""() => { var c=document.getElementById('canvas'); window._focusedNodeId='u1-p1'; c.classList.add('focus-mode');
+      if(window._altoSolarLook.get()==='hub') document.documentElement.classList.add('alto-stars'); }""")
+    pg.wait_for_timeout(1600)
+    assert pg.evaluate(CLEAN) == [] and pg.evaluate("() => window._focusedNodeId") is None
+    assert not errs, errs
+    pg.context.close()
+
+
+def test_back_from_a_detail_page_is_where_you_left(browser, tmp_path):
+    f = tmp_path / "torts.html"
+    f.write_text(_page(TORTS_SHAPE, links=()), encoding="utf-8")
+    pg, errs = _open(browser, f, wait=1600)
+    pg.mouse.move(2, 940)
+    view = "() => { var g=window._altoSolarCam.get(); return [g.cx, g.cy, g.scale, window._focusedNodeId||null]; }"
+    for how, setup in (("near", "() => window.enterFocus('u2-p1')"), ("far", "() => window.enterFocus('u1-p4-m1')"),
+                       ("zoomed out", "() => { window.exitFocus(); }")):
+        pg.evaluate(setup)
+        pg.wait_for_timeout(1300)
+        if how == "zoomed out":
+            pg.keyboard.press("Meta+-")
+            pg.wait_for_timeout(900)
+        a = pg.evaluate(view)
+        pg.evaluate("(i) => showDetail('node', i)", a[3] or "u3")
+        pg.wait_for_timeout(500)
+        pg.keyboard.press("Escape")                                   # back to the system
+        pg.wait_for_timeout(1300)
+        b = pg.evaluate(view)
+        assert b[3] == a[3] and abs(b[2] - a[2]) < 1e-3 and math.hypot(b[0] - a[0], b[1] - a[1]) < 4 / a[2], (how, a, b)
+    assert not errs, errs
+    pg.context.close()
+
+
+@pytest.mark.parametrize("look", ["hub", "stars"])
+def test_a_click_on_an_orbit_enlarges_its_body(browser, pages, look):
+    f, _ = pages["spoke" if look == "hub" else "orbit"]
+    pg, errs = _open(browser, f, wait=1500)
+    pg.evaluate("() => window._altoSolarMotion.set(false)")
+    pg.wait_for_timeout(1500)
+    for i in ("u1-p2", "u2-p2-m1"):
+        # a point on its ring, half way round from the body (no body or label there)
+        pg.evaluate("(i) => { var P=window._ALTO_SOLAR.nodes[window._ALTO_SOLAR.nodes[i].parent]; window._altoSolarCam.set(P.x, P.y, 1); }", i)
+        pg.wait_for_timeout(300)
+        xy = pg.evaluate("""(i) => { var b=document.getElementById('node-'+i), p=document.getElementById('node-'+window._ALTO_SOLAR.nodes[i].parent);
+          var q=b.getBoundingClientRect(), r=p.getBoundingClientRect(), px=r.left+r.width/2, py=r.top+r.height/2, dx=q.left+q.width/2-px, dy=q.top+q.height/2-py, out=null;
+          [Math.PI, Math.PI/2, -Math.PI/2, 2.4, -2.4].some(function(a){ var x=px+dx*Math.cos(a)-dy*Math.sin(a), y=py+dx*Math.sin(a)+dy*Math.cos(a), e=document.elementFromPoint(x, y);
+            out=[x, y, e && e.getAttribute('class')]; return out[2]==='sol-hit'; }); return out; }""", i)
+        assert xy[2] == "sol-hit", (i, xy)
+        pg.mouse.move(xy[0], xy[1])
+        pg.wait_for_timeout(100)
+        assert pg.evaluate("() => document.querySelectorAll('#solar-svg .sol-ring.sol-hot').length") == 1
+        pg.mouse.click(xy[0], xy[1])
+        pg.wait_for_timeout(900)
+        assert pg.evaluate("() => window._focusedNodeId") == i
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(1200)
+    # a body itself still wins over a ring under it
+    pg.evaluate("() => { var P=window._ALTO_SOLAR.nodes['u1-p1']; window._altoSolarCam.set(P.x, P.y, 1); }")
+    pg.wait_for_timeout(300)
+    xy = pg.evaluate("() => { var q=document.getElementById('node-u1-p1').getBoundingClientRect(); return [q.left+q.width/2, q.top+q.height/2]; }")
+    assert pg.evaluate("(p) => !!document.elementFromPoint(p[0], p[1]).closest('.node')", xy)
     assert not errs, errs
     pg.context.close()

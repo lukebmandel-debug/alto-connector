@@ -715,7 +715,7 @@
     font-family:inherit; font-size:12px; cursor:pointer; transition:border-color .15s, color .15s; }
   .nt-mode:hover{ border-color:var(--muted); color:var(--text); }
   .nt-mode.on{ border-color:var(--text); color:var(--text); box-shadow:inset 0 0 0 1px var(--text); }
-  /* the Hub & spoke preview, in its star look: a glowing sun, rings, planets that go round it and a moon that goes round a planet */
+  /* the System preview, in its star look: a glowing sun, rings, planets that go round it and a moon that goes round a planet */
   .nt-pv .pv-ring{ fill:none; stroke:var(--muted); stroke-width:.8; stroke-opacity:.55; }
   .nt-pv .pv-o1, .nt-pv .pv-o2, .nt-pv .pv-o3, .nt-pv .pv-om{ transform-box:view-box; animation:ntorb linear infinite; }
   .nt-pv .pv-o1{ transform-origin:100px 60px; animation-duration:22s; }
@@ -1029,7 +1029,7 @@
             <g class="pv-om"><circle class="pv-dot" cx="78.9" cy="39.8" r="2.4"/></g></g>
           <g class="pv-o3"><circle class="pv-card" cx="118.5" cy="110.7" r="4.5"/></g>
         </svg>
-        <span class="nt-t">Hub &amp; spoke</span><small>Concepts as a hub with planets, moons and satellites you can orbit between. Toggle Hub &amp; spoke or Star chart any time.</small></button>
+        <span class="nt-t">System</span><small>Concepts as a system: suns with planets, moons and satellites you can orbit between. Toggle Hub &amp; spoke or Star chart any time.</small></button>
       <button type="button" class="nt-kind" data-kind="palace" data-mode="city" aria-pressed="false"><svg class="nt-pv" data-for="city" viewBox="0 0 200 120" aria-hidden="true">
           <path class="pv-ln" d="M0 38 H200 M0 84 H200 M52 0 V120 M112 0 V120 M164 0 V120"/>
           <rect class="pv-card" x="8" y="8" width="36" height="24" rx="2"/><rect class="pv-card" x="60" y="6" width="44" height="26" rx="2"/>
@@ -1260,7 +1260,7 @@ const KIND_PHRASE = {
   outline: 'an outline (mode \'outline\'): ideas that hold other ideas, like a subject or a course',
   timeline: 'a sketch timeline (mode \'linear\'): cards in rough order, in bands',
   lanes: 'a horizontal timeline (mode \'lanes\'): to scale, left to right, with concurrent lines branching off and rejoining the main line',
-  solar: 'a Hub & spoke outline (mode \'outline\', layout \'solar\'): each unit a sun with its concepts around it as planets, moons and satellites',
+  solar: 'a System outline (mode \'outline\', layout \'solar\'): each unit a sun with its concepts around it as planets, moons and satellites',
   palace: 'a Mind Palace as a city (mode \'palace\'): my outline as a real city, its sections districts and its concepts buildings. Ask me which place, then use Alto\'s set_up_palace',
   building: 'a Mind Palace in a building (a Building Palace: mode \'palace\', palace_view \'building\'): my outline inside one real building, a blueprint plus a walk through its rooms. Ask me which building, then use Alto\'s set_up_building'
 };

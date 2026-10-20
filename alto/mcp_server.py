@@ -1020,7 +1020,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       a blueprint and a first-person view; cards stand in its rooms or on its
       walls — then set_up_building,
      layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
-      and run_layout_preview can set it too). 'solar' is HUB & SPOKE (the name
+      and run_layout_preview can set it too). 'solar' is SYSTEM (the name
       the user knows, §D-Solar): every top concept (a node with no `parent`) is
       a SUN, its children PLANETS, theirs MOONS and theirs SATELLITES, drawn as
       round nodes — nothing deeper (a fifth level is an error naming the card
@@ -1030,12 +1030,12 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       sits on the innermost ring, later ones outward. Circles are bigger the
       more hangs off them (a pivotal, critical or extremely important flag
       bumps one up). One detailed system for the whole outline = ONE unit (a
-      Hub & spoke may have just one; every other layout needs at least 2
+      a System may have just one; every other layout needs at least 2
       `acts`); several units = systems side by side. No placement hints apply
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
-     hub_look?: 'stars'|'hub' (Hub & spoke only; default 'stars'): the look a
-      viewer sees FIRST. Every Hub & spoke page carries both looks of the same
+     hub_look?: 'stars'|'hub' (System only; default 'stars'): the look a
+      viewer sees FIRST. Every System page carries both looks of the same
       content and the same orbit layout, and a switch in the page (Hub & spoke |
       Star chart) flips them instantly, with no rebuild (the viewer's choice is
       remembered for that timeline): HUB = Hub & spoke (concentric orbit rings,
@@ -1048,7 +1048,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
      palace_view?: 'city'|'building' (mode 'palace'; default 'city'):
       'building' is the BUILDING PALACE (§D-Building; set_up_building stores
       the building's plan; one section is enough). The Star chart is not a
-      Mind Palace: it is the default look of a Hub & spoke (hub_look above),
+      Mind Palace: it is the default look of a System (hub_look above),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -1431,7 +1431,7 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     it to make this the hub of its unit. Exactly one node per unit has no
     parent, and a parent must sit in the same unit as its child. A child may be
     sent before its parent — that only warns until you build.
-    In a 'solar' (Hub & spoke) outline (create_timeline layout) `parent` is the orbit: the
+    In a 'solar' (System) outline (create_timeline layout) `parent` is the orbit: the
     unit's hub is the sun, its children planets, theirs moons, theirs
     satellites — a fifth level is refused at build. The order you send a
     parent's children in is their order from the centre outward.
@@ -2227,12 +2227,12 @@ def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
                                "or 'hub' (the Hub & spoke look)"}
         if doc["brief"].get("mode") != "outline" or (layout or doc["brief"].get("layout")) != "solar":
             return {"error": "invalid_hub_look",
-                    "message": "hub_look only applies to a Hub & spoke (mode 'outline', layout 'solar')"}
+                    "message": "hub_look only applies to a System (mode 'outline', layout 'solar')"}
     if palace_view:
         if palace_view not in ("city", "building"):
             return {"error": "invalid_palace_view",
                     "message": f"palace_view {palace_view!r}: must be 'city' or 'building' (the Building Palace); "
-                               "the Star chart is the Hub & spoke's default look (hub_look 'stars')"}
+                               "the Star chart is the System's default look (hub_look 'stars')"}
         if doc["brief"].get("mode") != "palace":
             return {"error": "invalid_palace_view",
                     "message": "palace_view only applies to a Mind Palace (mode 'palace')"}
@@ -2280,13 +2280,13 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     clearest arrangement (an outline with real categories becomes a tree when
     that crosses no more lines than flow); 'tree' / 'flow' force one. The
     report's `layout` says what was chosen and `line_crossings` why. 'solar'
-    (outline only; Hub & spoke, §D-Solar) draws each unit as a system of round nodes —
+    (outline only; System, §D-Solar) draws each unit as a system of round nodes —
     sun, planets, moons, satellites by depth, planet order = outline order; the
     report then describes the systems instead of tree crossings. Its main view
     is "the system" to the reader (a detail page's back button says System).
-    A Hub & spoke outline may have a single unit (one system); anything deeper
+    A System outline may have a single unit (one system); anything deeper
     than sun, planet, moon, satellite is refused, naming the card and its path.
-    hub_look: for a Hub & spoke, the look a viewer sees FIRST — 'stars' (the
+    hub_look: for a System, the look a viewer sees FIRST — 'stars' (the
     Star chart, the default) or 'hub' (Hub & spoke: the same orbit rings in
     Alto's usual glass look); '' keeps the brief's. Both looks are in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
@@ -2471,7 +2471,7 @@ def build_timeline(timeline_id: str, layout: str = "",
     exact check list on any violation.
 
     layout / tree_lines / hub_look / palace_view: as run_layout_preview (layout
-    'solar' is the Hub & spoke outline, §D-Solar; hub_look the look it opens
+    'solar' is the System outline, §D-Solar; hub_look the look it opens
     in, 'stars' or 'hub'; palace_view 'building' the Building Palace,
     §D-Building); given here they are also kept in the brief, so every later
     build (and publish) uses them. Cards placed
