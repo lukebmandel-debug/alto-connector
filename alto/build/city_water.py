@@ -334,7 +334,14 @@ def channels(m, root, fp, rep, off, reach, hints=()):
             continue
         c = resample(mid, STEP)
         c = smooth(smooth(c, SIGMA), SIGMA * .45)
-        c = run_off(c, d=reach)                      # to the edge of the glass at both ends (the page clips it there)
+        # to the edge of the glass at both ends (the page clips it there). A river that runs down the page runs on straight down
+        # it: the way the last bins happened to lean is not where the water goes (the Hudson fanned out toward the bottom corner)
+        (x0, y0), (x1, y1) = c[0], c[-1]
+        if abs(y1 - y0) > 2.5 * abs(x1 - x0):
+            n = int(reach // STEP) + 1
+            c = [(x0, y0 - STEP * k) for k in range(n, 0, -1)] + list(c) + [(x1, y1 + STEP * k) for k in range(1, n + 1)]
+        else:
+            c = run_off(c, d=reach)
         name, best = "", HINT_R
         for h in hints or ():                         # the name whose point lies nearest the band's shore
             d = min(math.hypot(h["x"] - p[1][0], h["y"] - p[1][1]) for p in run)
@@ -476,7 +483,7 @@ def sea(g, land_rings, outside=None):
         if pts[-1] != (q[-2], q[-1]):
             pts.append((q[-2], q[-1]))
         ys = [p[1] for p in pts]
-        if not (all(b > a for a, b in zip(ys, ys[1:])) or all(b < a for a, b in zip(ys, ys[1:]))):
+        if abs(ys[-1] - ys[0]) < 2.5 * abs(pts[-1][0] - pts[0][0]):
             return []                                           # a band that does not run down the page: no rule for it here
         ax.append(sorted((p[1], p[0]) for p in pts))
 
