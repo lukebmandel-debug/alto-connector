@@ -2262,7 +2262,7 @@ _HELP_D_TAIL_OLD = (
     '      <p class="info-mobile" style="margin:5px 0"><strong>Overview</strong> &#8212; tap a phrase in MENU&rsquo;s Overview to jump to that scene.</p>\n'
     '    </div>\n')
 _HELP_D_TAIL_NEW = (
-    '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; Timeline</em> or Escape goes back.</p>\n'
+    '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; <span class="db-name">Timeline</span></em> or Escape goes back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this timeline (a bright picture in the light theme, a dim one in the dark). Each timeline keeps its own.</p>\n'

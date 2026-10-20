@@ -143,6 +143,57 @@ SOLAR_CSS = r"""
   /* growing / shrinking (--scd): no frost on the moving disc (a zoomed element can lose it anyway), never a clip-path */
   html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
   html.alto-solar:not(.mobile) #world .node.sol-clip .sol-face{opacity:var(--sfo,0);}
+  /* a detail page shows no chart chrome (Luke, round 8) */
+  body:has(#detail-page.visible) #sol-ctl{display:none !important;}
+  /* every body's name (round 8): a label under it (or above / beside it, wherever it is clear), upright, the
+     same size on screen at any zoom (--ils counter-scales the whole chart's --ovs); the planet's own
+     disc then shows its number only. Hidden where it would cover a bigger body or a label of one (.sol-lx),
+     shown on hover. .sol-dot: a body never smaller than a few px on screen (zoomed out). */
+  .sol-lbl,.sol-dot{display:none;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl{display:block;position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;white-space:nowrap;
+    --lr:calc(max(var(--dn,20) * var(--ovs,1) / 2, 2.5) * 1px);transform-origin:0 0;transform:scale(var(--ils,1)) translate(-50%,calc(var(--lr) + 3px));
+    max-width:170px;overflow:hidden;text-overflow:ellipsis;font-style:normal;font-size:12px;line-height:15px;font-weight:600;letter-spacing:.01em;color:var(--text);
+    text-shadow:0 0 3px var(--bg,#fff),0 0 2px var(--bg,#fff);transition:opacity .2s;}
+  html.alto-solar.dark:not(.mobile) #world .node[data-solar]>.sol-lbl{text-shadow:0 0 3px #000,0 0 2px #000;}
+  html.alto-stars:not(.mobile) #world .node[data-solar]>.sol-lbl{color:#eef2ff;text-shadow:0 0 3px #000,0 0 2px #000;}
+  .sol-lbl::after{content:attr(data-l);}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l1{transform:scale(var(--ils,1)) translate(-50%,calc(-100% - var(--lr) - 3px));}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l2{transform:scale(var(--ils,1)) translate(calc(var(--lr) + 4px),-50%);}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l3{transform:scale(var(--ils,1)) translate(calc(-100% - var(--lr) - 4px),-50%);}
+  html.alto-solar:not(.mobile) #world .node[data-solar=moon]>.sol-lbl,html.alto-solar:not(.mobile) #world .node[data-solar=sat]>.sol-lbl{font-size:11px;line-height:13.75px;font-weight:500;}
+  html.alto-solar:not(.mobile) #world .node[data-solar=sun]>.sol-lbl{font-size:16px;line-height:20px;font-weight:700;}
+  #canvas.sol-ov #world .node[data-solar=planet]>.sol-lbl{font-size:14px;line-height:17.5px;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-lx{opacity:0;}
+  html.alto-solar:not(.mobile) #canvas:not(.sol-lo) #world .node[data-solar=sun]>.sol-lbl,
+  html.alto-solar:not(.mobile) #canvas.sol-lo #world .node[data-solar=sat]>.sol-lbl,
+  html.alto-solar:not(.mobile) #canvas.sol-lm #world .node[data-solar=moon]>.sol-lbl{display:none;}
+  #canvas.sol-lo #world .node[data-solar] .sol-face{visibility:hidden;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing)>.sol-lbl,
+  html.alto-solar:not(.mobile) #canvas.focus-mode #world .node[data-solar]:not(.sol-flank)>.sol-lbl{opacity:0 !important;}
+  html.alto-solar:not(.mobile) #world .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed)~.sol-lbl{opacity:.14;}
+  .node[data-solar=planet] .sol-face span{display:none;}
+  .node[data-solar=planet] .sol-face b{font-size:12.5px;line-height:15px;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-dot{display:block;position:absolute;left:50%;top:50%;pointer-events:none;border-radius:50%;opacity:0;
+    width:calc(max(4, var(--dn,20) * var(--ovs,1)) * 1px);height:calc(max(4, var(--dn,20) * var(--ovs,1)) * 1px);transform-origin:0 0;
+    transform:scale(var(--ils,1)) translate(-50%,-50%);background:color-mix(in srgb,var(--u,var(--text)) 55%,var(--text));}
+  #canvas.sol-ov #world .node[data-solar]>.sol-dot{opacity:clamp(0, calc((7 - var(--dn,20) * var(--ovs,1)) / 3), 1);}
+  html.alto-stars #canvas.sol-ov #world .node[data-solar]>.sol-dot{background:var(--sk-c,#cfd8ff);}
+  html.alto-stars #world .node[data-solar=sun]>.sol-dot{background:#ffcf4a !important;}
+  #canvas.sol-ov #solar-svg :is(.sol-ring,.sol-spoke,.sol-link){vector-effect:non-scaling-stroke;}
+  /* a speck of a chart (.sol-tiny): each body a flat dot of its colour, its picture / glass not drawn at all */
+  #canvas.sol-tiny #world .node[data-solar]:not(.focused)>.sol-dot{opacity:1;}
+  #canvas.sol-tiny #world .node[data-solar]:not(.focused) .node-card{visibility:hidden;}   /* a hairline at least, at any zoom */
+  #canvas.sol-ov .sol-unit{transform-origin:50% 100%;transform:scale(var(--cls,1));transition:opacity .2s;}
+  .sol-unit.sol-lx{opacity:0;}
+  /* an enlarged body's own (its children: moons of a planet, satellites of a moon) come up beside it */
+  html:not(.mobile) #canvas.focus-mode #world .node.sol-flank .node-card{opacity:1 !important;}
+  html.alto-solar:not(.mobile) #world .node.sol-flank{z-index:200 !important;}
+  html.alto-solar:not(.mobile) #world .node.sol-flank>.sol-lbl{max-width:150px;}
+  #sol-flank-svg{position:absolute;left:0;top:0;z-index:6;pointer-events:none;overflow:visible;}
+  #sol-flank-svg line{stroke:color-mix(in srgb,var(--accent,#6d5bd0) 55%,var(--text));stroke-opacity:.55;stroke-width:1.6;stroke-linecap:round;}
+  html.alto-stars #sol-flank-svg line{stroke:rgb(190,210,255);}
+  html.mobile #sol-flank-svg{display:none;}
 """
 
 SOLAR_JS = r"""
@@ -203,8 +254,16 @@ function face(n, id){
   if(fs && fs<base){ fs=Math.round(fs*4)/4; sp.style.fontSize=fs+'px'; sp.style.lineHeight=Math.round(fs*1.2*4)/4+'px'; }
   f.setAttribute('aria-hidden', 'true');
   if(small){ c.setAttribute('title', (num ? num+'  ' : '')+tt); c.setAttribute('aria-label', (num ? num+' ' : '')+tt); }
+  /* its name beside it (the text an attribute: never markup) and its dot for the zoomed-out chart */
+  var lb=n.querySelector(':scope > .sol-lbl');
+  if(!lb){ lb=document.createElement('i'); lb.className='sol-lbl'; lb.setAttribute('aria-hidden', 'true'); n.appendChild(lb);
+    var dt=document.createElement('i'); dt.className='sol-dot'; dt.setAttribute('aria-hidden', 'true'); n.appendChild(dt); }
+  lb.setAttribute('data-l', tt.replace(/\s+/g, ' ').trim()); n.style.setProperty('--dn', b.d); b.lb=lb; b.w0=b.w1=null;
+  if(unitColor(b.si)) n.style.setProperty('--u', unitColor(b.si));
   disc(n, c, id, b);
 }
+/* markup as the plain text it reads as (a tooltip, a label, an attribute) */
+function plain(h){ var t=document.createElement('template'); t.innerHTML=String(h==null ? '' : h); return (t.content.textContent||'').replace(/\s+/g, ' ').trim(); }
 /* the enlarged disc's layers: the card's own number / tag / title / description / chips go into
    .sol-body (the same elements, so edit mode edits them in place), a .sol-scrim under it, the
    "Open full page" control; and --sD, the enlarged diameter, by how much there is to read */
@@ -221,7 +280,7 @@ function disc(n, c, id, b){
     c.addEventListener('click', function(e){ if(n.classList.contains('focused') && !de.classList.contains('alto-editing') && !(e.target.closest && e.target.closest('a,button,[onclick],.alto-link'))) e.stopPropagation(); }, true);
   }
   var nd=(typeof NODE_DETAILS!=='undefined' && NODE_DETAILS[id]) || {}, L=(c.textContent||'').length;
-  (nd.sections||[]).forEach(function(q){ if(q && q.t) L+=String(q.h||'').length+String(q.t).replace(/<[^>]*>/g, '').length; });
+  (nd.sections||[]).forEach(function(q){ if(q && q.t) L+=plain(q.h).length+plain(q.t).length; });
   var D=L<260 ? 300 : L<600 ? 340 : L<1100 ? 380 : 420;
   n.style.setProperty('--sD', Math.max(D, q(b.d+40))+'px');
 }
@@ -231,7 +290,7 @@ function sections(c, id){
   var nd=(typeof NODE_DETAILS!=='undefined' && NODE_DETAILS[id]) || {}, ft=body.querySelector('.node-footer');
   (nd.sections||[]).filter(function(q){ return q && q.t; }).forEach(function(q){
     var d=document.createElement('div'); d.className='sol-sec';
-    if(q.h){ var h=document.createElement('h6'); h.textContent=q.h; d.appendChild(h); }
+    if(q.h){ var h=document.createElement('h6'); h.innerHTML=String(q.h); d.appendChild(h); }   /* a heading is markup too (the detail page's <h3>: "Overview<span class=sec-prov>From your notes</span>") */
     var t=document.createElement('div'); t.innerHTML=String(q.t); d.appendChild(t);       /* the build's sanitized markup, as the detail page shows it */
     body.insertBefore(d, ft||null);
   });
@@ -347,7 +406,7 @@ function draw(W, H){
     /* one chip per unit (a district of several systems: over all of them) */
     var U=null; (S.units||[]).forEach(function(q){ if(q.suns && q.suns[0]===s.sun) U=q; });
     var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null, lbl=(U && U.label) || s.label || (pm ? pm.label : ''), bb=(U && U.bbox) || s.bbox;
-    lbl=String(lbl).split(' — ').pop();
+    lbl=plain(lbl).split(' — ').pop();
     if(lbl && (U || !S.units)){ var ch=document.createElement('div'); ch.className='sol-unit'; if(u) ch.style.setProperty('--u', u);
       ch.setAttribute('data-unit', s.unit); ch.innerHTML='<b></b><span></span>'; ch.querySelector('b').textContent=pm ? pm.numeral : ''; ch.querySelector('span').textContent=lbl;
       world.appendChild(ch);
@@ -394,6 +453,10 @@ function place(){
   var many=SY.length>1;
   ORD.forEach(function(id){
     var b=B[id]; if(!b.n) return;
+    orbitAt(b, many); if(b.fs) fpos(b);
+  });
+}
+function orbitAt(b, many){
     if(!b.p){ b.x=b.hx; b.y=b.hy; return; }
     /* with several systems each also turns slowly as a whole about its own sun
        (within its R, so never toward a neighbour) */
@@ -401,7 +464,6 @@ function place(){
     if(b.orb && window._altoSolarAt){ var o=window._altoSolarAt(b.r, b.a0+a, b.orb), o0=window._altoSolarAt(b.r, b.a0, b.orb);   /* a comet: its ellipse (solar.orbit_offset), anchored at its plan home */
       b.x=p.x+dx+(o[0]-o0[0]); b.y=p.y+dy+(o[1]-o0[1]); return; }
     b.x=p.x+dx*cs-dy*sn; b.y=p.y+dx*sn+dy*cs;
-  });
 }
 function seg(a, b, ga, gb){
   var dx=b.rx-a.rx, dy=b.ry-a.ry, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, ra=a.d/2+ga, rb=b.d/2+gb;
@@ -457,6 +519,7 @@ function apply(all){
     l.e.forEach(function(p){ setD(p, d); }); if(l.h) l.h.setAttribute('d', d);
   });
   if(any && window._altoContentMoved) window._altoContentMoved();
+  declutter(all);
 }
 function svgHit(k){ var rv=document.getElementById('river-svg'), r=null;
   if(rv) [].some.call(rv.querySelectorAll('[data-edge-hit]'), function(h){ if(h.getAttribute('data-edge-hit')===k){ r=h; return true; } });
@@ -466,7 +529,7 @@ window._altoSolarMask=function(){ ORD.forEach(function(id){ var b=B[id]; b.mk=nu
   [].forEach.call(document.querySelectorAll('#alto-card-mask [data-mk]'), function(r){
     var b=B[r.getAttribute('data-mk').slice(5)]; if(b){ b.mk=r; r._w=parseFloat(r.getAttribute('width'))+2; } }); };
 function hold(){
-  if(!MOVES || !MOTION || !desk() || document.hidden || hov) return true;
+  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN) return true;
   if(window._focusedNodeId || document.querySelector('#canvas.focus-mode,#canvas.edge-hover,#detail-page.visible')) return true;
   return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
 }
@@ -501,6 +564,139 @@ function hot(t){ return t && t.closest && t.closest('#world .node[data-solar],#r
 function over(e){ if(!hot(e.target) || (window._altoPointerStill && window._altoPointerStill(e))) return; clearTimeout(hovT); hov=1; }
 document.addEventListener('mouseover', over); document.addEventListener('mousemove', over, {passive:true});
 document.addEventListener('mouseout', function(e){ if(hot(e.relatedTarget)) return; clearTimeout(hovT); hovT=setTimeout(function(){ hov=0; }, 320); });
+
+/* ── an enlarged body's own, beside it (Luke, round 8: "the direct children of that should come up as
+   side things on either side of it") ─────────────────────────────────────────
+   The bodies orbiting the enlarged one (a sun's planets, a planet's moons, a moon's satellites) leave
+   their orbits for slots left and right of the disc — alternately, in columns from the disc outward,
+   clear of the disc, of the window's edges (EDGE) and of the bars — each with its label and a short
+   spoke to the disc, as they look at rest. They glide there on the focus's own clock and curve (the
+   engine's --alto-fly and _altoEase), and home again when the disc lets go; the orbits wait for them.
+   A click or an arrow to one of them enlarges it where it is (its own come up round it, the others go
+   home); a flight (solar_fly.py) starts with the disc let go, so they go home and it flies as ever.
+   b.fs: {m:'to', ox, oy (from), sx, sy (the slot)} or {m:'home', ox, oy (from), hx, hy (the orbit
+   point it left)}, t0, dur — placed by fpos() after the orbit (place()). */
+var FLN=0, FLR=0, FLID=null, fsvg=null, EDGE=115;
+function fe(fs){ var p=fs.dur>0 ? Math.min(1, (performance.now()-fs.t0)/fs.dur) : 1; return {p:p, e:ease(p)}; }
+function fpos(b){
+  var fs=b.fs, k=fe(fs);
+  if(fs.m==='to'){ b.x=fs.ox+(fs.sx-fs.ox)*k.e; b.y=fs.oy+(fs.sy-fs.oy)*k.e; return; }
+  if(fs.hx==null){ fs.hx=b.x; fs.hy=b.y; }
+  b.x+=(fs.ox-fs.hx)*(1-k.e); b.y+=(fs.oy-fs.hy)*(1-k.e);
+  if(k.p>=1) b.fs=null;
+}
+/* the slots round the enlarged body fid, world px (its disc is in the middle of the canvas once the
+   focus fly lands): {id: [x, y]} */
+function slots(fid){
+  var F=B[fid], kids=ORD.filter(function(i){ return B[i].p===fid && B[i].n; }), out={}, c=cvs(); if(!kids.length || !c) return out;
+  var R=sDof(F.n, F)*K/2, G=34, cw=c.clientWidth, ch=c.clientHeight, TOP=72, BOT=72, GAP=14, LH=18, LW=150, E=EDGE;
+  var dm=Math.max.apply(null, kids.map(function(i){ return B[i].d; })), side=[[], []];
+  kids.forEach(function(id, k){ side[k%2].push(id); });
+  var n=side[0].length, cellH=dm+LH+GAP, rows, cols, cellW, avW;
+  for(var t=0;t<4;t++){                                     /* roomier labels, then a narrower edge, before running off the window */
+    cellW=Math.max(dm, LW)+GAP; avW=cw/2-R-G-E;
+    rows=Math.max(1, Math.floor((ch-TOP-BOT+GAP)/cellH)); cols=Math.ceil(n/rows);
+    if(cols*cellW-GAP<=avW) break;
+    if(t===0) LW=110; else if(t===1) E=60; else { cols=Math.max(1, Math.floor((avW+GAP)/cellW)); rows=Math.ceil(n/cols); }
+  }
+  rows=Math.ceil(n/Math.max(1, Math.ceil(n/rows)));
+  side.forEach(function(ids, sd){ var sg=sd ? 1 : -1;
+    ids.forEach(function(id, i){ var j=Math.floor(i/rows), r=i%rows, m=Math.min(rows, ids.length-j*rows);
+      out[id]=[F.x+sg*(R+G+Math.max(dm, LW)/2+j*cellW), F.y+(r-(m-1)/2)*cellH-LH/2]; }); });
+  return out;
+}
+/* the focus changed (or edit mode / the whole chart came): who stands beside the disc now */
+function flankSync(){
+  if(!ready || !world) return;
+  var fid=window._focusedNodeId, F=fid && B[fid], now=performance.now(), cv=cvs();
+  var ms=reduced ? 0 : (parseFloat(cv && cv.style.getPropertyValue('--alto-fly'))||420);
+  if(!(F && F.n && F.n.classList.contains('focused') && desk() && !de.classList.contains('alto-editing') && !OV)) fid=F=null;
+  if(F && F.fs) F.fs={m:'to', ox:F.x, oy:F.y, sx:F.x, sy:F.y, t0:now, dur:0};   /* one that stood beside the last disc is enlarged where it stands */
+  var want=fid ? slots(fid) : {};
+  ORD.forEach(function(id){ var b=B[id]; if(!b.n) return;
+    var w=id!==fid && want[id];
+    if(w){ if(!b.fs || b.fs.m!=='to' || b.fs.sx!==w[0] || b.fs.sy!==w[1]) b.fs={m:'to', ox:b.x, oy:b.y, sx:w[0], sy:w[1], t0:now, dur:ms}; }
+    else if(b.fs && b.fs.m==='to' && id!==fid) b.fs={m:'home', ox:b.x, oy:b.y, t0:now, dur:ms};
+    b.n.classList.toggle('sol-flank', !!w);
+  });
+  FLID=fid; flTick.t0=now; flRun();
+}
+function flRun(){ if(!FLR) FLR=requestAnimationFrame(flTick); }
+function flTick(){
+  FLR=0; if(!ready) return;
+  var live=0;
+  ORD.forEach(function(id){ var b=B[id]; if(b.fs && fe(b.fs).p<1) live++; });
+  if(!DRV){ apply(); skin(); }                              /* (a flight's frames place everything themselves) */
+  FLN=0; ORD.forEach(function(id){ if(B[id].fs) FLN++; });
+  fspokes(); declutter(true);
+  var F=FLID && B[FLID], z=F && F.c ? parseFloat(F.c.style.zoom)||1 : K;
+  if(live || (F && Math.abs(z-K)>1e-3 && performance.now()-flTick.t0<1500) || document.querySelector('#world .node.sol-closing')) flRun();
+  else if(!FLN) go();
+}
+/* a short spoke from the disc's edge (its size now) to each body beside it */
+function fspokes(){
+  if(!fsvg || !fsvg.isConnected){ fsvg=el('svg', {id:'sol-flank-svg', width:1, height:1, 'aria-hidden':'true'}); world.appendChild(fsvg); fsvg._l={}; }
+  var keep={};
+  ORD.forEach(function(id){
+    var b=B[id], P=b.fs && B[b.p]; if(!P || !P.n || !(P.n.classList.contains('focused') || P.n.classList.contains('sol-closing'))) return;
+    var k=fe(b.fs), o=b.fs.m==='to' ? k.e : 1-k.e, cz=P.c ? parseFloat(P.c.style.zoom)||1 : 1;
+    var r=(parseFloat(P.n.style.getPropertyValue('--scd'))||(P.n.classList.contains('focused') ? sDof(P.n, P) : P.d))*cz/2+5;
+    var cx=P.rx+(P.n._fx||0), cy=P.ry+(P.n._fy||0), dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy), rb=b.d/2+4;
+    var e=fsvg._l[id]; if(!e){ e=fsvg._l[id]=el('line', {}, fsvg); }
+    keep[id]=1;
+    if(L<=r+rb+2 || o<=.01){ e.setAttribute('opacity', 0); return; }
+    e.setAttribute('x1', f2(cx+dx/L*r)); e.setAttribute('y1', f2(cy+dy/L*r)); e.setAttribute('x2', f2(b.rx-dx/L*rb)); e.setAttribute('y2', f2(b.ry-dy/L*rb));
+    e.setAttribute('opacity', f2(o));
+  });
+  for(var id in fsvg._l) if(!keep[id]){ fsvg._l[id].remove(); delete fsvg._l[id]; }
+}
+/* ── who shows a label (round 8): suns over planets over moons over satellites; a label that would
+   cover a label shown already, or a body as big as its own or bigger, tries above, right, left, else
+   waits (hover shows it). Sizes are measured once per mode (natural size, zoomed out); the rest is
+   arithmetic in world px, at most ~14 times a second while things move. ── */
+var DCT=0, RK={sun:0, planet:1, moon:2, sat:3};
+function ov2(a, b){ return a[0]<b[2] && b[0]<a[2] && a[1]<b[3] && b[1]<a[3]; }
+function setP(lb, p, hide){ if(lb._p!==p){ lb.classList.remove('sol-l1', 'sol-l2', 'sol-l3'); if(p) lb.classList.add('sol-l'+p); lb._p=p; }
+  if(lb._x!==hide){ lb.classList.toggle('sol-lx', hide); lb._x=hide; } }
+function declutter(force){
+  if(!ready || !world || !desk()) return;
+  var now=performance.now(); if(!force && now-DCT<70) return; DCT=now;
+  var cv=cvs(), ov=!!OV, s=ov ? OV.s : 1, k=1/s, cl=function(c){ return !!cv && cv.classList.contains(c); }, lo=cl('sol-lo'), lm=cl('sol-lm'), fm=cl('focus-mode'), mk=cl('sol-ov') ? 'w1' : 'w0';
+  var todo=ORD.filter(function(id){ var b=B[id]; return b.n && b.lb && b.lb.isConnected; });
+  function shown(b){ return !((b.role==='sun' && !lo) || (b.role==='sat' && lo) || (b.role==='moon' && lm)); }
+  todo.forEach(function(id){ var b=B[id]; if((!b[mk] || !b[mk][0]) && shown(b)) b[mk]=[b.lb.offsetWidth, b.lb.offsetHeight]; });
+  var placed=[], discs=[], cls=ov ? (1+.15*(1-s))/s : 1;
+  todo.forEach(function(id){ var b=B[id], r=Math.max(b.d/2, 2.5*k); discs.push([b.rx-r, b.ry-r, b.rx+r, b.ry+r, RK[b.role], id]); });
+  function chipsGo(){ chips.forEach(function(ch){ if(!ov){ if(ch._x) setP(ch, 0, false); return; }
+    if(!ch._wh) ch._wh=[ch.offsetWidth, ch.offsetHeight];
+    var w=ch._wh[0]*cls, h=ch._wh[1]*cls, x=parseFloat(ch.style.left)+ch._wh[0]/2, y=parseFloat(ch.style.top)+ch._wh[1], q=[x-w/2, y-h, x+w/2, y];
+    var hit=placed.some(function(p){ return ov2(q, p); }); setP(ch, 0, hit); if(!hit) placed.push(q); }); }
+  function clash(q, b){ var i, rk=RK[b.role]; for(i=0;i<placed.length;i++) if(ov2(q, placed[i])) return true;
+    for(i=0;i<discs.length;i++){ var d=discs[i]; if(d[5]!==b.id && d[4]<=rk && ov2(q, d)) return true; } return false; }
+  var cg=0;
+  todo.sort(function(a, b){ return RK[B[a].role]-RK[B[b].role]; }).forEach(function(id){
+    var b=B[id], wh=b[mk];
+    if(!cg && b.role!=='sun'){ cg=1; chipsGo(); }          /* the systems' names after the suns', before the rest */
+    if(fm){ if(b.n.classList.contains('sol-flank')) setP(b.lb, 0, false); return; }
+    if(!shown(b) || !wh || !wh[0]) return;      /* (not shown at this zoom) */
+    var w=wh[0]*k, h=wh[1]*k, rr=Math.max(b.d*s/2, 2.5)*k, g=3*k, gx=4*k, x=b.rx, y=b.ry, pick=-1;
+    var C=[[x-w/2, y+rr+g], [x-w/2, y-rr-g-h], [x+rr+gx, y-h/2], [x-rr-gx-w, y-h/2]];
+    for(var i=0;i<4 && pick<0;i++) if(!clash([C[i][0], C[i][1], C[i][0]+w, C[i][1]+h], b)) pick=i;
+    if(pick>=0) placed.push([C[pick][0], C[pick][1], C[pick][0]+w, C[pick][1]+h]);
+    setP(b.lb, pick<0 ? (b.lb._p||0) : pick, pick<0);
+  });
+  if(!cg) chipsGo();
+}
+/* the whole chart's scale, for what keeps its size on screen (labels, dots, the systems' chips) and
+   what it shows at that size (level of detail: .sol-lo faces and satellites' labels go, the suns' labels
+   come; .sol-lm moons' labels go; .sol-tiny (< .12) flat dots in place of the bodies' pictures) */
+function ovVars(sc){
+  var c=cvs(); if(!world || !c) return;
+  if(sc==null || sc>=.9999){ ['--ovs', '--ils', '--cls'].forEach(function(v){ world.style.removeProperty(v); }); c.classList.remove('sol-lo', 'sol-lm', 'sol-tiny'); }
+  else { world.style.setProperty('--ovs', f2(sc*1e4)/1e4); world.style.setProperty('--ils', f2(1e4/sc)/1e4); world.style.setProperty('--cls', f2((1+.15*(1-sc))/sc*1e4)/1e4);
+    c.classList.toggle('sol-lo', sc<.5); c.classList.toggle('sol-lm', sc<.3); c.classList.toggle('sol-tiny', sc<.12); }
+  declutter(true);
+}
 
 /* ── an enlarged circle stays a circle (Luke, rounds 4 and 7): no clip-path. Under Safari's page zoom a
    clip-path circle() on a zoomed card was resolved in another box than the one painted (Luke's Torts
@@ -557,13 +753,18 @@ function watch(){
   var w=document.getElementById('world'); if(!w || typeof MutationObserver!=='function') return;
   var cv=document.getElementById('canvas'); if(cv) cv.addEventListener('scroll', camTell, {passive:true});
   new MutationObserver(camTell).observe(w, {attributes:true, attributeFilter:['style']});   /* the board's pan (focus fly) and transform */
-  new MutationObserver(function(ms){ ms.forEach(function(m){
+  new MutationObserver(function(ms){ var fl=0; ms.forEach(function(m){
     var n=m.target; if(!n.classList || !n.classList.contains('node') || !n.hasAttribute('data-solar') || !desk()) return;
-    var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f);
-  }); }).observe(w, {attributes:true, subtree:true, attributeFilter:['class']});
+    var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f); fl=1;
+  }); if(fl) flankSync(); }).observe(w, {attributes:true, subtree:true, attributeFilter:['class']});
   /* edit mode wants the board at full size and still */
-  new MutationObserver(function(){ if(de.classList.contains('alto-editing')){ if(OV) ovLeave(null, true); go(); } }).observe(de, {attributes:true, attributeFilter:['class']});
+  new MutationObserver(function(){ if(de.classList.contains('alto-editing')){ if(OV) ovLeave(null, true); if(FLID) flankSync(); go(); } }).observe(de, {attributes:true, attributeFilter:['class']});
 }
+/* a click on a body beside the disc enlarges it (the engine would read it as a click away from the disc) */
+document.addEventListener('click', function(e){
+  var n=e.target && e.target.closest && e.target.closest('#world .node.sol-flank'); if(!n || de.classList.contains('alto-editing') || !desk()) return;
+  e.stopPropagation(); e.preventDefault(); if(window.enterFocus) window.enterFocus(n.id.slice(5));
+}, true);
 if(document.readyState!=='loading') watch(); else document.addEventListener('DOMContentLoaded', watch);
 
 /* ── arrow keys: the nearest body that way, from where the bodies are now;
@@ -571,6 +772,11 @@ if(document.readyState!=='loading') watch(); else document.addEventListener('DOM
 window._altoSolarNav=function(id, dir){
   var a=B[id], ta={e:0, se:45, s:90, sw:135, w:180, nw:-135, n:-90, ne:-45}[dir]; if(!a || !a.n || ta==null || !desk()) return null;
   var best=null, bc=Infinity;
+  if(id===FLID && (dir==='e' || dir==='w')){            /* left / right from an enlarged body: the nearest of its own beside it that way */
+    ORD.forEach(function(j){ var b=B[j], fs=b.fs; if(b.p!==id || !fs || fs.m!=='to') return; var dx=fs.sx-a.x, dy=fs.sy-a.y;
+      if(dir==='e' ? dx<=0 : dx>=0) return; var c=Math.abs(dy)+.3*Math.abs(dx); if(c<bc){ bc=c; best=j; } });
+    if(best) return best;
+  }
   ORD.forEach(function(j){
     var b=B[j]; if(j===id || !b.n || !b.c || /(^| )(dimmed|rel-dimmed|ent-dimmed)( |$)/.test(b.c.className)) return;
     var dx=b.rx-a.rx, dy=b.ry-a.ry, L=Math.hypot(dx, dy); if(L<1) return;
@@ -626,11 +832,20 @@ function fitS(){ var c=cvs(); return Math.max(OVMIN, Math.min(1, (c.clientWidth-
 /* the zoomed-out board: any scale from OVMIN to natural size; moved freely, only held so that at
    least KEEP px of the chart stay in the window (it can be pushed aside, never lost) */
 var KEEP=160;
+/* the floor of a gesture's zoom (round 8: "fully zoomed out, it's impossible to see anything"): the whole
+   chart filling 85% of the window — all of it in view, never a speck (the camera's own floor, for flights, stays OVMIN) */
+function omin(){ var c=cvs(); if(!c || !world) return OVMIN; return Math.max(.005, Math.min(.5, .85*Math.min((c.clientWidth-60)/world.offsetWidth, (c.clientHeight-60)/wh()))); }
 function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
-  o.s=Math.max(OVMIN, Math.min(1, o.s));
+  var lo=Math.min(omin(), OV ? OV.s : 1);         /* (below it already, by a flight's camera: no jump) */
+  o.s=Math.max(lo, Math.min(1, o.s));
   w=world.offsetWidth*o.s; h=wh()*o.s;
-  o.tx=Math.max(Math.min(KEEP, w)-w, Math.min(cw-Math.min(KEEP, w), o.tx)); o.ty=Math.max(Math.min(KEEP, h)-h, Math.min(ch-Math.min(KEEP, h), o.ty)); return o; }
-function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; camTell(); }
+  o.tx=Math.max(Math.min(KEEP, w)-w, Math.min(cw-Math.min(KEEP, w), o.tx)); o.ty=Math.max(Math.min(KEEP, h)-h, Math.min(ch-Math.min(KEEP, h), o.ty));
+  /* nearing the floor, the chart is drawn into the window (all of it, at the floor), continuously */
+  var g=Math.max(0, Math.min(1, (1.6*lo-o.s)/(.6*lo)));
+  if(g>0){ var ix=w<=cw ? Math.max(0, Math.min(cw-w, o.tx)) : Math.max(cw-w, Math.min(0, o.tx)), iy=h<=ch ? Math.max(0, Math.min(ch-h, o.ty)) : Math.max(ch-h, Math.min(0, o.ty));
+    o.tx+=(ix-o.tx)*g; o.ty+=(iy-o.ty)*g; }
+  return o; }
+function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); camTell(); }
 function ovHold(on){
   var c=cvs(), sp=document.getElementById('sol-ov-hold');
   if(!on){ if(sp) sp.remove(); return; }
@@ -668,7 +883,7 @@ function ovLeave(p, instant, then){
   if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
   OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn();
   var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
-  var fin=function(){ world.style.transform=''; ovHold(false);
+  var fin=function(){ world.style.transform=''; ovVars(null); ovHold(false);
     var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
     if(then) then(); };
   if(instant) return fin();

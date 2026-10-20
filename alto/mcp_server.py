@@ -2282,7 +2282,8 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     report's `layout` says what was chosen and `line_crossings` why. 'solar'
     (outline only; Hub & spoke, §D-Solar) draws each unit as a system of round nodes —
     sun, planets, moons, satellites by depth, planet order = outline order; the
-    report then describes the systems instead of tree crossings.
+    report then describes the systems instead of tree crossings. Its main view
+    is "the system" to the reader (a detail page's back button says System).
     A Hub & spoke outline may have a single unit (one system); anything deeper
     than sun, planet, moon, satellite is refused, naming the card and its path.
     hub_look: for a Hub & spoke, the look a viewer sees FIRST — 'stars' (the
