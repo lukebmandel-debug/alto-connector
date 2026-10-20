@@ -310,13 +310,13 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
-If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, Hub & spoke, a Mind Palace as a city or a Mind Palace in a building), use it as the answer and do not ask again: Hub & spoke is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building`. The homepage can start a Hub & spoke itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Mind Palace as a city or a Mind Palace in a building), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building`. The homepage can start a Hub & spoke itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
 **§D-Outline** below, horizontal to **§D-Lanes**.
 
-An outline can also be drawn as **Hub & spoke** (round nodes: each unit's
+An outline can also be drawn as a **System** (round nodes: each unit's
 hub in the middle, its concepts around it as planets, moons and satellites) —
 **§D-Solar**. It is the same outline with the same numbers, pages and edits,
 only a different picture; raise it once the structure is known (§D-Solar says
@@ -437,8 +437,8 @@ its floors, reached by an elevator inside the building.
   event's date or line, put a character on or off the page at it, put it in a
   flashback (or a new one) or take it out, and add or rename lines.
 
-### §D-Solar. Hub & spoke (`mode: 'outline'`, `layout: 'solar'`)
-"Hub & spoke" is what the student calls it; `solar` is only the id in the
+### §D-Solar. System (`mode: 'outline'`, `layout: 'solar'`)
+"System" is what the student calls it; `solar` is only the id in the
 tools. An outline drawn as hubs with round nodes: every unit's top concept a
 sun, its concepts planets going round it, and theirs moons and satellites.
 Nothing about the content changes: the student's concepts, their `parent`s,
@@ -453,7 +453,7 @@ default; do not push it on an outline that is mostly a long chain or goes
 deeper than four levels. Never for a sketch, a horizontal timeline or a Mind
 Palace.
 
-> "Your outline can also be drawn as **Hub & spoke**: each unit's main concept
+> "Your outline can also be drawn as a **System**: each unit's main concept
 > in the middle like a sun, its sub-concepts circling it as planets, theirs as
 > moons, and a moon's own parts as tiny satellites. Same outline, same numbers,
 > just a different picture. Want to see it that way, or keep the usual tree?"
@@ -487,10 +487,10 @@ Palace.
   inside, a satellite nothing); zoomed out, the suns' and planets' names keep
   their size and the smaller ones give way. Nothing to ask them about.
 - Cross-links (`add_connections`) are drawn as ordinary lines between circles.
-- A phone keeps the usual single-column card view; Hub & spoke is a computer
+- A phone keeps the usual single-column card view; a System is a computer
   view.
 
-**Two looks, switched in the page.** Every Hub & spoke page carries both looks
+**Two looks, switched in the page.** Every System page carries both looks
 of the same layout, and the reader flips between them with the switch on the
 page (**Hub & spoke | Star chart**), instantly, any time — nothing to rebuild,
 nothing for you to do:
@@ -503,11 +503,12 @@ In both, the planets, moons and satellites orbit, each on its own ring; an
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.
-An enlarged circle stays circular and shows the concept's content, with the
+An enlarged circle stays circular and shows the concept's card (number, tag,
+title, short description and chips; the full content is on its page), with the
 concepts directly under it (a planet's moons, a moon's satellites) beside it,
 left and right — a click on one enlarges it in turn; "Open full page" opens
 its detail page, whose **← System** button (or Escape) goes back to the chart:
-call the main view of a Hub & spoke page "the system", not "the outline". Say this once when you hand it over, in a
+call the main view of a System page "the system", not "the outline". Say this once when you hand it over, in a
 sentence, so the student knows the switch is there. If they want the Hub &
 spoke look to be what people see first, set `hub_look: 'hub'` in the brief
 (`hub_look: 'stars'`, the Star chart, is the default; `build_timeline(hub_look=…)`
@@ -522,7 +523,7 @@ distinct units shows best as one system per unit. "Should this be a single
 chart with one sun and everything around it, or one for each unit, side by
 side — you scroll between them? Your outline looks like <one detailed system /
 several units>; which do you want?" One system → the whole outline in a single
-unit hanging from a single hub (a one-unit Hub & spoke is valid; every other
+unit hanging from a single hub (a one-unit System is valid; every other
 timeline needs two units); several (the default when the student has several
 units) → each unit's top concept is that unit's sun (or each of its top
 concepts, when a unit has several). The units are the student's
@@ -533,7 +534,7 @@ concepts, when a unit has several). The units are the student's
 report describes the systems; run `run_layout_preview(layout='solar')` before
 `build_timeline`, and read any warning aloud in plain words.
 
-**In the page.** The owner edits a Hub & spoke timeline as any outline: words,
+**In the page.** The owner edits a System timeline as any outline: words,
 adding a card under a card, adding another sun to a unit ("+ Add a sun" by the
 unit's name), moving a card under another (drag its circle onto the other
 circle, or use the card menu or its number), putting siblings in
@@ -1102,7 +1103,7 @@ outline mode `parent` carries the tree) →
 6b. `set_flags` (the user's own marks, §F3 — ask which) →
 6c. horizontal timeline only: `set_lines` when its lines or flashbacks change
 (§D-Lanes) →
-6d. Hub & spoke only: nothing extra to author; `layout: 'solar'` rides on
+6d. System only: nothing extra to author; `layout: 'solar'` rides on
 `create_timeline` (or the layout/build calls below), §D-Solar →
 6e. Building Palace only: `set_up_building` once the nodes exist (§D-Building) →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
@@ -1115,7 +1116,7 @@ For a story / linear timeline, `overview_html`: prose overview; deep-link a node
 `<a href="#" onclick="showDetail('node','<node-id>')">phrase</a>` — these become
 the engine's clickable overview chips at build; a link to an id that is not a
 live node is demoted to plain text and warns, so check the build warnings) →
-8. `run_layout_preview` (cheap; rebalance columns on warnings; a Hub & spoke outline:
+8. `run_layout_preview` (cheap; rebalance columns on warnings; a System outline:
 `layout='solar'`) →
 8b. `preview_timeline` → show it as an Artifact (below) and iterate →
 9. `build_timeline` (emits + verifies) → 10. `publish_timeline` → share the

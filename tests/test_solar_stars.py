@@ -65,7 +65,7 @@ def test_the_skin_is_small_and_safari_safe():
     # no SVG mask, no CSS / SVG filter or blur layer, nothing moves a node by a transform
     assert "<mask" not in STARS_JS and "'mask'" not in STARS_JS and "mask" not in STARS_CSS
     assert "blur(" not in STARS_CSS and "filter:url" not in STARS_CSS and "feGaussian" not in STARS_JS
-    assert re.findall(r"(\w+(?:\.\w+)?)\.style\.transform=", STARS_JS) == ["k.lit", "k.tail", "k.craft", "k.tex", "d.e"]
+    assert re.findall(r"(\w+(?:\.\w+)?)\.style\.transform=", STARS_JS) == ["k.lit", "k.tail", "k.craft", "k.tex"]   # (round 9: no drifters; a sun's glow moves by `translate`, never a node)
     assert not re.search(r"\.style\.(left|top)=", STARS_JS)                 # reads them, never writes
 
 
@@ -415,20 +415,26 @@ def test_an_enlarged_body_keeps_its_look_painted_sharper(browser, pages):
     pg.context.close()
 
 
-def test_drifting_comets_cross_and_stop_with_the_motion(browser, pages):
+def test_the_galaxy_turns_about_its_core_with_the_suns_glows_and_stops_with_the_motion(browser, pages):
+    """Round 9: 2+ systems are a spiral galaxy round plan.core; with the orbits on
+    it turns rigidly about the core (each sun keeps its distance from it), the
+    suns' glows and coronas going with them; switched off, it stops."""
     pg, errs = _open(browser, pages["big"])
-    get = """() => [].map.call(document.querySelectorAll('.sk-sky .sk-drift'), function(e){ return e.style.transform+'|'+e.style.opacity; })"""
-    n = pg.evaluate("() => (window._ALTO_SOLAR.drifters || []).length")
+    get = """() => { var S=window._ALTO_SOLAR, c=S.core, P=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0;
+      return {d:S.drifters.length, suns:S.systems.map(function(s){ var n=document.getElementById('node-'+s.sun);
+        return [parseFloat(n.style.left), parseFloat(n.style.top)-P, Math.hypot(s.cx-c.x, s.cy-c.y)]; }), c:[c.x, c.y],
+        glow:[].map.call(document.querySelectorAll('.sk-sky .sk-cor'), function(e){ return e.style.translate; })}; }"""
     a = pg.evaluate(get)
-    assert n >= 1 and len(a) == n, (n, a)
-    pg.wait_for_timeout(1200)
+    pg.wait_for_timeout(2500)
     b = pg.evaluate(get)
-    assert a != b, a                                            # they move
-    pg.evaluate("""() => { if(window._altoSolarMotion && window._altoSolarMotion.set) window._altoSolarMotion.set(false);
-      else { var on=false; window._altoSolarMotion={get:function(){ return on; }, set:function(v){ on=v; }, onChange:function(){ return function(){}; }}; } }""")
-    pg.wait_for_timeout(700)                                    # (the renderer eases the orbit clock to a stop)
+    assert a["d"] == 0 and a["suns"] != b["suns"], (a, b)                     # no drifters; the suns move
+    for x, y, r in b["suns"]:
+        assert abs(math.hypot(x - b["c"][0], y - b["c"][1]) - r) < 1.5, (x, y, r)   # round the core, at their distance
+    assert any(g for g in b["glow"]), b["glow"]                                # the coronas go with them
+    pg.evaluate("() => window._altoSolarMotion.set(false)")
+    pg.wait_for_timeout(1500)
     c = pg.evaluate(get)
     pg.wait_for_timeout(1000)
-    assert pg.evaluate(get) == c                                # and stop when the motion does
+    assert pg.evaluate(get)["suns"] == c["suns"]                               # and stop when the motion does
     assert not errs, errs
     pg.context.close()

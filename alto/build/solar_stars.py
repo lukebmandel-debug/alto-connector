@@ -69,9 +69,6 @@ STARS_CSS = r"""
   .sk-cacc{animation:sk-spin 150s linear infinite reverse;}
   .sk-hz{background:radial-gradient(circle closest-side,#000 0,#000 84%,rgba(255,236,210,.9) 90%,rgba(255,236,210,0) 100%);}
   P #solar-svg .sk-belt{fill:rgb(176,164,150);}
-  .sk-sky>.sk-drift{left:0;top:0;width:0;height:0;will-change:transform;}
-  .sk-drift canvas{position:absolute;left:0;top:-9px;width:120px;height:18px;}
-  .sk-drift i{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;background:#eef8ff;box-shadow:0 0 6px 2px rgba(160,210,255,.8);}
   .sk-prom{animation:sk-spin 520s linear infinite reverse,sk-pulse 6s ease-in-out infinite alternate;}
   .sk-tw{width:3px;height:3px;background:#fff;box-shadow:0 0 4px 1px rgba(190,215,255,.8);animation:sk-tw 3s ease-in-out infinite alternate;}
   @keyframes sk-spin{to{transform:rotate(360deg);}}
@@ -97,8 +94,7 @@ STARS_CSS = r"""
   F .sol-scrim.sol-scrim{background:radial-gradient(circle,rgba(3,5,12,var(--sk-scrim,.5)) 0 56%,rgba(3,5,12,calc(var(--sk-scrim,.5)*.4)) 100%) !important;}
   F .sol-body{color:#eef2ff;}
   F .sol-body .node-title{color:#fff;}
-  F .sol-body .node-order,F .sol-body .node-desc,F .sol-sec{color:rgba(232,238,255,.88);}
-  F .sol-sec h6{color:rgba(205,215,245,.78);}
+  F .sol-body .node-order,F .sol-body .node-desc{color:rgba(232,238,255,.88);}
   F .sk-craft.sk-craft{width:calc(var(--skd)*.8);height:calc(var(--skd)*.8);margin:calc(var(--skd)*-.4) 0 0 calc(var(--skd)*-.4);opacity:.55;}
   K .sk-tex{width:calc(var(--skd,var(--sd))*1.16);height:calc(var(--skd,var(--sd))*1.16);margin:calc(var(--skd,var(--sd))*-.58) 0 0 calc(var(--skd,var(--sd))*-.58);
     background:radial-gradient(circle closest-side,var(--sk-c) 85.5%,transparent 86.5%);}
@@ -142,7 +138,7 @@ STARS_CSS = r"""
 STARS_JS = r"""
 (function(){
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', DEG=180/Math.PI;
-var DR=[], PADW=0, S=null, world=null, BB={}, IDS=[], SUNC={}, TILES=null, ready=false, extT=-1e9, fbLast=0, fbR=0, fbS=0, idle=0, Q=[], qT=0, SPIN=-1;
+var PADW=0, S=null, world=null, BB={}, IDS=[], SUNC={}, TILES=null, ready=false, extT=-1e9, fbLast=0, fbR=0, fbS=0, idle=0, Q=[], qT=0, SPIN=-1;
 var ST={t:[]};
 function desk(){ return !de.classList.contains('mobile'); }
 /* the skin is the Star chart look's (solar_draw's look switch: window._altoSolarLook, or the
@@ -376,15 +372,13 @@ function board(PAD){
     var gl=el('div', '', sk); gl.style.cssText='left:'+(k.x-d*3.5)+'px;top:'+(k.y-d*3.5)+'px;width:'+d*7+'px;height:'+d*7+'px;background:radial-gradient(closest-side,rgba('+g+',.34),rgba('+g+',.13) 26%,rgba('+g+',.04) 55%,rgba('+g+',0))';
     if(!C.cor || C.d!==d){ C.d=d; C.cor=el('canvas', 'sk-cor'); Q.push(corJob(k, C.cor, g)); C.prom=el('canvas', 'sk-prom'); promDraw(k, C.prom, g); }
     [[C.cor, 3.6], [C.prom, 1.6]].forEach(function(q){ var w=d*q[1]; q[0].style.cssText='left:'+(k.x-w/2)+'px;top:'+(k.y-w/2)+'px;width:'+w+'px;height:'+w+'px'; sk.appendChild(q[0]); });
+    k.sky=[nb, gl, C.cor, C.prom]; k.x0=k.x; k.y0=k.y; k.tl='';   /* (moved with the sun as the galaxy turns: update) */
   });
   var co=S.core;                                    /* the galactic core's black hole (LEAD: plan.core {x, y, r}) */
   if(co && co.r>0){ var cy=co.y+PAD, put2=function(c, w){ c.style.cssText='left:'+(co.x-w/2)+'px;top:'+(cy-w/2)+'px;width:'+w+'px;height:'+w+'px'; sk.appendChild(c); };
     var gw=el('div', ''); gw.style.background='radial-gradient(closest-side,rgba(255,190,140,.22),rgba(180,90,160,.08) 45%,rgba(120,60,160,0))'; put2(gw, co.r*12);
     if(!SUNC._core || SUNC._core.r!==co.r){ var cv=el('canvas', 'sk-cacc'); SUNC._core={r:co.r, c:cv}; Q.unshift(coreJob(cv)); }
     put2(SUNC._core.c, co.r*8); var hz=el('div', 'sk-hz'); put2(hz, co.r*2.3); }
-  /* drifting comets (LEAD: plan.drifters [{seed, path: start, bend, end}]): crossing, then gone a while */
-  DR=(S.drifters||[]).map(function(d){ var e=el('div', 'sk-drift', sk), q=rng(d.seed>>>0), t=el('canvas', '', e); tailDraw(null, t); el('i', '', e);
-    var p=d.path.map(function(v){ return [v[0], v[1]+PAD]; }); return {e:e, p:p, dur:90+q()*70, gap:20+q()*40, off:q()*200, u:null}; });
   var W=world.offsetWidth, H=Math.max(world.offsetHeight, (S.world||{}).h||0), R=rng(4242), n=Math.max(12, Math.min(64, Math.round(W*H/90000)));
   for(var i=0;i<n;i++){ var t=el('div', 'sk-tw', sk); t.style.cssText='left:'+Math.round(R()*W)+'px;top:'+Math.round(PAD+R()*(H-PAD))+'px;animation-duration:'+(2+R()*3).toFixed(2)+'s;animation-delay:-'+(R()*5).toFixed(2)+'s'; }
 }
@@ -417,7 +411,7 @@ function trails(){
     g.setAttribute('class', 'sk-belt');
     for(var i=0;i<m;i++){ var a=R()*6.2832, rr=b.r+(R()+R()-1)*w/2, z=(.5+Math.pow(R(), 3)*1.7).toFixed(2);
       out+='<circle cx="'+(c.x+rr*Math.cos(a)).toFixed(1)+'" cy="'+(c.y+rr*Math.sin(a)).toFixed(1)+'" r="'+z+'" fill-opacity="'+(.3+R()*.5).toFixed(2)+'"/>'; }
-    g.innerHTML=out; tg.parentNode.insertBefore(g, tg); });
+    g.innerHTML=out; tg.parentNode.insertBefore(g, tg); if(b.sun && BB[b.sun]){ BB[b.sun].belt=g; BB[b.sun].tl=''; } });
 }
 /* ── an enlarged body (solar_draw's bigger disc, --sD) keeps its look: its canvases painted again,
    once, at the disc's size (between frames, then swapped in), so a 300-420 px disc is not soft ── */
@@ -496,6 +490,9 @@ function update(bodies){
   if(!ready || !desk() || de.classList.contains('alto-editing')) return false;
   var t0=performance.now(), ch=false;
   IDS.forEach(function(id){ var k=BB[id], p=pos(id, bodies); if(k && p){ ch=ch || k.x!==p[0] || k.y!==p[1]; k.x=p[0]; k.y=p[1]; } });
+  /* a sun's glow, corona and belt go with it (the Star chart's galaxy turns about its core) */
+  IDS.forEach(function(id){ var k=BB[id]; if(!k || !k.sky || k.role!=='sun') return; var dx=k.x-k.x0, dy=k.y-k.y0, tl=dx.toFixed(1)+'px '+dy.toFixed(1)+'px';
+    if(tl===k.tl) return; k.tl=tl; k.sky.forEach(function(e){ if(e) e.style.translate=tl; }); if(k.belt) k.belt.setAttribute('transform', 'translate('+dx.toFixed(1)+' '+dy.toFixed(1)+')'); });
   IDS.forEach(function(id){
     var k=BB[id], s=k && BB[k.sun]; if(!k || !s || k===s) return;
     if(k.lit){ var a=Math.atan2(s.y-k.y, s.x-k.x)*DEG; if(turn(a, k.la, .4)){ k.la=a; k.lit.style.transform='rotate('+a.toFixed(1)+'deg)';
@@ -509,14 +506,6 @@ function update(bodies){
   var T=clock();
   IDS.forEach(function(id){ var k=BB[id], tb=k && k.tex && S.nodes[id] && S.nodes[id].tumble;
     if(tb){ var a=tb*T*DEG%360; if(turn(a, k.ta, 1)){ k.ta=a; k.tex.style.transform='rotate('+a.toFixed(1)+'deg)'; } } });
-  DR.forEach(function(d){ var c=d.dur+d.gap, u=((T+d.off)%c+c)%c/d.dur, p=d.p;
-    if(u>1){ if(d.u!==-1){ d.u=-1; d.e.style.opacity='0'; } return; }
-    if(d.u!=null && Math.abs(u-d.u)*d.dur<.02) return;
-    if(d.u===-1 || d.u==null) d.e.style.opacity='';
-    d.u=u; ch=true;
-    var v=1-u, x=v*v*p[0][0]+2*v*u*p[1][0]+u*u*p[2][0], y=v*v*p[0][1]+2*v*u*p[1][1]+u*u*p[2][1],
-      a=Math.atan2(v*(p[1][1]-p[0][1])+u*(p[2][1]-p[1][1]), v*(p[1][0]-p[0][0])+u*(p[2][0]-p[1][0]))*DEG+180;
-    d.e.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px) rotate('+a.toFixed(1)+'deg)'; });
   if(ST.t.length>=600) ST.t.shift(); ST.t.push(performance.now()-t0);
   return ch;
 }

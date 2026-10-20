@@ -3873,7 +3873,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     var P = (OUT && OUT.parent) || {};
     if(d.S.indexOf(t.id) >= 0) return {ok: false, quiet: true, tip: 'A circle cannot go under itself or one that orbits it'};
     if(P[d.id] === t.id) return {ok: false, quiet: true, tip: 'It is already under “' + titleOf(t.id) + '” — use its number to change its turn'};
-    if(solarDeep(t.id, d.id)) return {ok: false, tip: 'Too deep — a Hub & spoke goes sun, planet, moon, satellite and no further'};
+    if(solarDeep(t.id, d.id)) return {ok: false, tip: 'Too deep — a System goes sun, planet, moon, satellite and no further'};
     var n = d.S.length - 1;
     return {ok: true, tip: 'Move under “' + titleOf(t.id) + '”' + (n ? ' — the ' + (n === 1 ? 'circle' : n + ' circles') + ' that orbit it come along' : '')};
   }

@@ -5,6 +5,7 @@ a detail page has no chart chrome, and the way back from it is called the system
 Browser checks run in Chromium and WebKit (Playwright; skipped without them). Positions are read
 in #world layout px (style.left/top) where geometry matters, as in test_solar_draw.py."""
 import copy
+import re
 import sys
 from pathlib import Path
 
@@ -109,10 +110,10 @@ def test_a_body_beside_the_disc_is_enlarged_where_it_stands_and_esc_brings_all_h
     st2 = pg.evaluate(FLANK, m)
     assert sorted(st2["kids"]) == ["u2-p2-m1-s1", "u2-p2-m1-s2", "u2-p2-m1-s3"], st2                    # its own, not its siblings
     # arrows: right from the disc goes to one of its own on the right
-    pg.keyboard.press("ArrowRight")
+    pg.keyboard.press("ArrowRight")                                  # (round 9: the same level, in outline order)
     pg.wait_for_timeout(900)
     f = pg.evaluate("() => window._focusedNodeId")
-    assert f in st2["kids"] and st2["kids"][f]["x"] > st2["fx"], (f, st2)
+    assert f == "u2-p2-m2", f
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(900)
     end = pg.evaluate("() => window._altoSolarGeo().bodies")
@@ -213,8 +214,8 @@ def test_fully_zoomed_out_the_chart_reads(browser, built, chart):
     pg.evaluate("() => window._altoSolarZoom(0.0001)")
     pg.wait_for_timeout(500)
     s = pg.evaluate("() => window._altoSolarZoom()")
-    fit = pg.evaluate("""() => { var c=document.getElementById('canvas'), w=document.getElementById('world');
-      return Math.min((c.clientWidth-60)/w.offsetWidth, (c.clientHeight-60)/w.offsetHeight); }""")
+    fit = pg.evaluate("""() => { var c=document.getElementById('canvas'), w=document.getElementById('world'), sl=document.getElementById('glass-slab');
+      return Math.min((c.clientWidth-60)/w.offsetWidth, (c.clientHeight-60)/Math.max(w.offsetHeight, sl ? sl.offsetTop+sl.offsetHeight : 0)); }""")
     assert abs(s - 0.85 * fit) < 1e-3, (s, fit)                                        # all of it, filling 85% of the window
     st = pg.evaluate(LABELS)
     suns = [x for x in st["shown"] if x["role"] == "sun"]
@@ -255,15 +256,21 @@ def test_no_markup_shows_as_text(browser, built, look):
     pg.wait_for_timeout(900)
     st = pg.evaluate(MARKUP)
     assert not st["bad"], st["bad"]
-    assert st["secs"] == 2 and st["links"] == 1, st                                   # the notes' markup, rendered
-    assert "Smith & Jones <1999>" in st["text"] and "Torts Notes 8/25/26" in st["text"], st["text"]
+    assert st["secs"] == 0, st                                       # the disc is the card's level (round 9): no sections
+    pg.evaluate("() => showDetail('node','u1-p1')")                  # the notes' markup, rendered on the full page
+    pg.wait_for_timeout(500)
+    dt = pg.evaluate("() => { var d=document.getElementById('detail-page'); return [d.innerText, d.querySelectorAll('.alto-link').length]; }")
+    assert "Smith & Jones <1999>" in dt[0] and "Torts Notes 8/25/26" in dt[0] and dt[1] >= 1, dt
+    assert not re.search(r"<span|&lt;|&amp;", dt[0]), dt[0][:300]
+    pg.evaluate("() => showTimeline()")
+    pg.wait_for_timeout(500)
     lbl = pg.evaluate("() => document.querySelector('#node-u1-p1-m2 .sol-lbl').getAttribute('data-l')")
     assert lbl == "Duress & Undue Influence", lbl
     assert not errs, errs
     pg.context.close()
 
 
-def test_a_section_heading_with_its_provenance_renders_as_the_detail_page_does(browser, tmp_path):
+def test_a_section_heading_with_its_provenance_is_on_the_full_page_not_the_disc(browser, tmp_path):
     def prov(doc):
         for n in doc["nodes"]:
             if n["id"] == "u1-p1":
@@ -273,7 +280,10 @@ def test_a_section_heading_with_its_provenance_renders_as_the_detail_page_does(b
     pg, errs = _pg(browser, f)
     pg.evaluate("() => window.enterFocus('u1-p1')")
     pg.wait_for_timeout(800)
-    h = pg.evaluate("() => { var h=document.querySelector('#node-u1-p1 .sol-sec h6'); return h ? [h.innerText, h.innerHTML] : null; }")
+    assert pg.evaluate("() => document.querySelectorAll('#node-u1-p1 .sol-sec').length") == 0     # the disc: the card only
+    pg.evaluate("() => document.querySelector('#node-u1-p1 .sol-open').click()")
+    pg.wait_for_timeout(500)
+    h = pg.evaluate("() => { var h=[].filter.call(document.querySelectorAll('#detail-page .detail-section h3'), function(x){ return /^overview/i.test(x.innerText); })[0]; return h ? [h.innerText, h.innerHTML] : null; }")
     assert h and "<span" not in h[0] and "&lt;" not in h[0], h
     assert not errs, errs
     pg.context.close()

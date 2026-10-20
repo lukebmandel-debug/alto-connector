@@ -164,15 +164,20 @@ def _off(r, a, orb):
 def _circles_at(plan, t):
     """{id: (x, y, radius)} of every circle at time t (seconds)."""
     out, spin, N = {}, plan["spin"], plan["nodes"]
+    g = plan.get("core") if len(plan["systems"]) > 1 else None
+    ga = spin * 2 * math.pi * t / g["p"] if g else 0.0      # the galaxy turns rigidly about the core (Star chart)
 
     def ang(body):
-        return body["a0"] + (spin * 2 * math.pi * t / body["period"] if body["period"] else 0.0)
+        return body["a0"] + ga + (spin * 2 * math.pi * t / body["period"] if body["period"] else 0.0)
 
     def at(x, y, body):
         dx, dy = _off(body["r"], ang(body), N[body["id"]].get("orbit"))
         return x + dx, y + dy
     for s in plan["systems"]:
         cx, cy = s["cx"], s["cy"]
+        if g:
+            ex, ey = cx - g["x"], cy - g["y"]
+            cx, cy = g["x"] + ex * math.cos(ga) - ey * math.sin(ga), g["y"] + ex * math.sin(ga) + ey * math.cos(ga)
         out[s["sun"]] = (cx, cy, s["r_sun"])
         for p in s["planets"]:
             px, py = at(cx, cy, p)
@@ -248,9 +253,16 @@ def _assert_annuli(plan):
 
 
 def _assert_core_and_drifters(plan, times):
-    """The galactic core (2+ systems) clears every body at every sampled
-    moment and every system's disc, and keeps the world-edge margin; a
-    drifting comet's path keeps clear of every system and the core."""
+    """The galactic core (2+ systems) is the galaxy's centre: it clears every
+    body at every sampled moment (the galaxy turning about it) and every
+    system's disc, and keeps the world-edge margin; there are no drifters, and
+    every body keeps the world's edges (MARGIN, TOP) at every moment."""
+    assert plan["drifters"] == []
+    W0, H0 = plan["world"]["w"], plan["world"]["h"]
+    for t in times:
+        for i, (x, y, rad) in _circles_at(plan, t).items():
+            assert SOLAR["MARGIN"] - 0.5 <= x - rad and x + rad <= W0 - SOLAR["MARGIN"] + 0.5, (t, i)
+            assert SOLAR["TOP"] - 0.5 <= y - rad and y + rad <= H0 - SOLAR["MARGIN"] + 0.5, (t, i)
     W, H, M = plan["world"]["w"], plan["world"]["h"], SOLAR["MARGIN"]
     core = plan.get("core")
     assert (core is None) == (len(plan["systems"]) < 2)
@@ -262,14 +274,6 @@ def _assert_core_and_drifters(plan, times):
         for t in times:
             for i, (x, y, rad) in _circles_at(plan, t).items():
                 assert math.hypot(core["x"] - x, core["y"] - y) >= rad + r + SOLAR["CORE_GAP"] - 0.5, (t, i)
-    for d in plan["drifters"]:
-        pts = d["path"]
-        assert len(pts) >= 2 and isinstance(d["seed"], int)
-        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
-            for s in plan["systems"]:
-                assert _seg_dist(s["cx"], s["cy"], x1, y1, x2, y2) >= s["R"] + SOLAR["DRIFT_CLEAR"] - 0.5
-            if core:
-                assert _seg_dist(core["x"], core["y"], x1, y1, x2, y2) >= core["r"] + SOLAR["DRIFT_CLEAR"] - 0.5
 
 
 def _assert_systems_apart(plan):
@@ -306,7 +310,7 @@ def _check(plan, times=(0, 7.3, 21.0, 44.4, 63.1, 97.7, 140.2, 333.3)):
     _assert_sizes(plan)
     for t in times:
         assert not _overlaps(_circles_at(plan, t)), t
-    _assert_core_and_drifters(plan, times[:3])
+    _assert_core_and_drifters(plan, times[:3] + (450.0,))
 
 
 def _assert_sizes(plan):
@@ -481,20 +485,26 @@ def test_stations_are_the_satellites_with_the_most_to_read():
     _check(plan)
 
 
-def test_small_systems_sit_side_by_side_and_wrap_to_rows():
-    b, nodes = _outline([[[]] for _ in range(5)], "orbit")
-    plan = solar_plan(b, nodes)
-    rows = {}
-    for s in plan["systems"]:
-        rows.setdefault(s["cy"], []).append(s)
-    assert plan["world"]["w"] == SOLAR["WORLD_W"]
-    assert len(rows) >= 2 and max(len(r) for r in rows.values()) >= 2
-    # left to right, then down, in unit order
-    order = sorted(plan["systems"], key=lambda s: (s["cy"], s["cx"]))
-    assert [s["unit"] for s in order] == list(range(5))
-    assert plan["sun_links"] == [[f"u{a}", f"u{a + 1}"] for a in range(1, 5)]
-    _check(plan)
-
+def test_systems_make_a_compact_spiral_galaxy_in_outline_order():
+    """2+ systems: suns on the galaxy's arms round the core, dealt to the arms
+    in outline order and each farther out along its arm than the one before;
+    the world a near-square round the galaxy (not a tall column); one system is
+    centred with no core."""
+    for n in (2, 5, 9):
+        b, nodes = _outline([[[0], [1]] for _ in range(n)], "orbit")
+        plan = solar_plan(b, nodes)
+        core, W, H = plan["core"], plan["world"]["w"], plan["world"]["h"]
+        assert core["x"] == pytest.approx(W / 2, abs=0.5) and core["p"] == SOLAR["P_GALAXY"]
+        assert 0.8 <= H / W <= 1.2, (W, H)
+        assert [s["sun"] for s in plan["systems"]] == [x.id for x in nodes if not x.parent]
+        arms = SOLAR["ARMS"]
+        for a in range(arms):
+            on = plan["systems"][a::arms]
+            rho = [math.hypot(s["cx"] - core["x"], s["cy"] - core["y"]) for s in on]
+            assert rho == sorted(rho), rho                                  # out along the arm in order
+        _check(plan, times=(0, 40.0, 300.0))
+    one = solar_plan(*_outline([[[0], [1]]], "orbit"))
+    assert "core" not in one and one["systems"][0]["cx"] == pytest.approx(one["world"]["w"] / 2, abs=0.5)
 
 def test_a_system_too_wide_for_the_world_widens_it_and_keeps_the_margin():
     b, nodes = _outline([[[0, 0, 0]] * 9, [[0]]], "orbit")
@@ -739,13 +749,10 @@ def test_every_root_is_a_sun_and_no_two_bodies_ever_touch(districts):
         assert suns == [n.id for n in nodes if not n.parent]
         assert len(plan["systems"]) == sum(len(d) for d in districts)
         _check(plan, times=(0, 19.9, 66.6, 123.4))
-        # a unit's systems stay together: each unit its own rows, in order
+        # a unit's systems in outline order (the galaxy deals them to its arms in that order)
         by_unit = {}
         for s in plan["systems"]:
             by_unit.setdefault(s["unit"], []).append(s)
-        lows = [max(s["bbox"][3] for s in by_unit[u]) for u in sorted(by_unit)]
-        highs = [min(s["bbox"][1] for s in by_unit[u]) for u in sorted(by_unit)]
-        assert all(lows[i] < highs[i + 1] for i in range(len(lows) - 1))
         assert [u["suns"] for u in plan["units"]] == [[s["sun"] for s in by_unit[u]] for u in sorted(by_unit)]
 
 
@@ -843,21 +850,18 @@ def test_a_belt_runs_between_the_inner_and_outer_planets_of_a_big_system():
     assert 40 <= bl["n"] <= 400 and isinstance(bl["seed"], int)
 
 
-def test_the_core_sits_among_the_suns_and_a_single_system_has_none():
+def test_the_core_is_the_galaxys_centre_and_a_single_system_has_none():
     b, nodes = _outline([[[0]], [[0]], [[0]], [[0]]], "orbit")
     plan = solar_plan(b, nodes)
     core = plan["core"]
-    ys = [s["cy"] for s in plan["systems"]]
-    assert min(ys) <= core["y"] <= max(ys) and core["r"] == SOLAR["CORE_R"]     # among the suns, not below them
-    _assert_core_and_drifters(plan, (0, 33.3))
+    xs, ys = [s["cx"] for s in plan["systems"]], [s["cy"] for s in plan["systems"]]
+    assert min(xs) < core["x"] < max(xs) and min(ys) < core["y"] < max(ys) and core["r"] == SOLAR["CORE_R"]
+    _assert_core_and_drifters(plan, (0, 33.3, 600.0))
     one = solar_plan(*_outline([[[0], [1]]], "orbit"))
     assert "core" not in one
-    # two systems side by side with no room between: the world grows for it
     b, nodes = _outline([[[0] * 3] * 3, [[0] * 3] * 3], "orbit")
     plan = solar_plan(b, nodes)
-    _assert_core_and_drifters(plan, (0, 50.0))
-    assert plan["drifters"]
-
+    _assert_core_and_drifters(plan, (0, 50.0, 225.0))
 
 def test_flagged_plans_are_deterministic():
     b, nodes = _flagged(TORTS, "orbit")
