@@ -622,6 +622,7 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-brn{font-size:calc(9.5px / var(--pz,1));font-weight:750;letter-spacing:.09em;text-transform:uppercase;fill:var(--pal-br-text);
     stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
   .pal-svg.far .pl-brn:not(.big){display:none;}
+  .pal-svg .pl-land{fill:#e7e1d0;pointer-events:none;} html.dark .pal-svg .pl-land{fill:#2c303c;}
   .pal-svg .pl-sea{fill:var(--pal-river);stroke:none;pointer-events:none;}
   .pal-svg .pl-sea-bank{fill:none;stroke:rgba(112,170,100,.34);stroke-width:64;stroke-linejoin:round;pointer-events:none;} html.dark .pal-svg .pl-sea-bank{stroke:rgba(90,150,90,.3);}
   .pal-svg .pl-water-edge{fill:none;stroke:var(--pal-water-edge);stroke-width:2;vector-effect:non-scaling-stroke;}
@@ -1266,6 +1267,8 @@ function drawCity(svg){
   /* it runs on past the city's edge (the page never scrolls that far): an enlarged building at the
      very edge of the city pulls the board a little off-centre, and what shows there is more glass */
   var BL=1600; el('rect',{'class':'pl-glass', x:-MX-BL, y:-MY-BL, width:VW+2*BL, height:VH+2*BL, rx:34},svg);
+  /* a city with open water (build/city_water.py) stands on LAND: the ground beyond the rivers is land to the glass's edge (New Jersey, Brooklyn, Queens), the water laid over it */
+  if(M.sea && M.sea.length) el('rect',{'class':'pl-land', x:-MX-BL, y:-MY-BL, width:VW+2*BL, height:VH+2*BL, rx:34},svg);
   /* each neighbourhood's ground, unseen: pointing at it names the unit it holds */
   var wash=el('g',{'class':'pl-washes'},svg);
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u], b=d.box; if(!pm||!b) return; var ins=16;
@@ -1349,7 +1352,7 @@ function drawCity(svg){
     ws.forEach(function(sw, li){ parts.forEach(function(pd){ el('path',{'class':cls[li]+' rv-op', d:pd, 'stroke-width':sw, style:'stroke:'+bands[li]+';stroke-opacity:1'},rv); }); }); });
   /* the open water (build/city_water.py: the harbour a far-bank city's rivers run out into): one shape with the rivers' own bands (they are part of it: the same blue, the same green margin along the land, none across the water), clipped to the glass */
   if(M.sea && M.sea.length){ var scp=el('clipPath',{id:'plsea'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},scp);
-    var sd=M.sea.map(function(r){ return rpc(r, 50); }).join(''), sc='url(#plsea'+(svg._sid||'')+')';
+    var sd=M.sea.map(function(r){ return rpc(r, 90); }).join(''), sc='url(#plsea'+(svg._sid||'')+')';
     el('path',{'class':'pl-sea-bank', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},svg);                                     /* the green margin, as along a band */
     el('path',{'class':'pl-sea', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},svg); }
   /* the river trails along the banks (palace_banks.py): a dashed path with its name along it */

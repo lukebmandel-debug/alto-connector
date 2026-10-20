@@ -71,7 +71,7 @@ class _Wet:
         return sum(self((a[0] + (b[0] - a[0]) * t / k), (a[1] + (b[1] - a[1]) * t / k)) for t in range(1, k)) / (k - 1)
 
 
-MAX_W = 1200.0           # px: the widest band (the Hudson, ~4.5 blocks); a real river is as wide as it is, to here
+MAX_W = 3600.0           # px: the widest band (the Hudson, ~4.5 blocks); a real river is as wide as it is, to here
 
 
 def river_width(wet, root_map, root_ix, pts, n=24):
@@ -91,8 +91,17 @@ def river_width(wet, root_map, root_ix, pts, n=24):
         if L < 1:
             continue
         u = ((rb[0] - ra[0]) / L, (rb[1] - ra[1]) / L)
-        pa, pb = root_map(*ra), root_map(ra[0] + u[0] * 250.0, ra[1] + u[1] * 250.0)
-        k = math.dist(pa, pb) / 250.0
+        loc = getattr(root_map, "loc", None)
+        if loc is not None and getattr(loc, "xr", None) and getattr(loc, "yr", None) and len(loc.xr) > 1 and len(loc.yr) > 1:
+            # the stretch of the whole lattice (page px a real metre, across the avenues and along them), not of the one place the
+            # river happens to touch: the real Hudson is about two East Rivers wide and a third of Manhattan's width
+            kx = (loc.xg[-1] - loc.xg[0]) / ((loc.xr[-1] - loc.xr[0]) or 1.0)
+            ky = (loc.yg[-1] - loc.yg[0]) / ((loc.yr[-1] - loc.yr[0]) or 1.0)
+            ta, tb = loc.turn(*ra), loc.turn(ra[0] + u[0] * 250.0, ra[1] + u[1] * 250.0)
+            k = math.hypot((tb[0] - ta[0]) / 250.0 * kx, (tb[1] - ta[1]) / 250.0 * ky)
+        else:
+            pa, pb = root_map(*ra), root_map(ra[0] + u[0] * 250.0, ra[1] + u[1] * 250.0)
+            k = math.dist(pa, pb) / 250.0
         ws.append(wet.share(ra, rb, 40) * L * k)
     return ws
 
@@ -385,7 +394,7 @@ DEBUG = False
 SEA_CELL = 60.0          # px: the raster the open water is found on
 SEA_REACH = 8.0          # blocks: a page cell this far from every drawn cell is not read back to the real map
 SEA_MIN = 56             # cells: a pool of open water smaller than this is not drawn
-SEA_TOL = 0.9            # x cell: the outline's simplification before it is rounded
+SEA_TOL = 1.6            # x cell: the outline's simplification before it is rounded
 
 
 def _chaikin(R, k=2):
@@ -441,7 +450,7 @@ def sea(g, land_rings, outside=None):
     nx, ny = int(W // c) + 3, int(H // c) + 3                 # one cell of glass past each edge, and one of margin
     occ = bytearray(nx * ny)
 
-    def mark(x, y, r=1):
+    def mark(x, y, r=2):
         i, j = int(x // c) + 1, int(y // c) + 1
         for a in range(i - r, i + r + 1):
             for b in range(j - r, j + r + 1):
