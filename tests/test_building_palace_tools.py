@@ -63,7 +63,7 @@ def _timeline(view="building"):
 # ── the brief ────────────────────────────────────────────────────────────────
 
 def test_building_is_a_palace_view_and_needs_its_plan():
-    assert PALACE_VIEWS == ("city", "building")        # (1.9.105's "stars" view is the Hub & spoke's Star chart look now)
+    assert PALACE_VIEWS == ("city", "building")        # (1.9.105's "stars" view is the System's Star chart look now)
     b, ns, _ = load_brief({"brief": brief(), "nodes": NODES})
     assert building_view(b) and not solar_style(b)
     assert validate_brief(b) is not None
@@ -205,7 +205,7 @@ def test_the_tool_and_docs_say_what_they_do():
     assert srv.mcp._tool_manager.get_tool("set_up_building") is not None
 
 
-# ── no conversion (Hub & spoke has two looks in the page; convert_timeline is gone) ──
+# ── no conversion (System has two looks in the page; convert_timeline is gone) ──
 
 def test_a_building_palace_is_not_migrated_and_there_is_no_convert_tool():
     from alto.build.brief import migrate_brief

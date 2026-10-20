@@ -1,12 +1,12 @@
-"""The Star chart look's skin: what makes a Hub & spoke page (outline, layout
+"""The Star chart look's skin: what makes a System page (outline, layout
 "solar") in its Star chart look (the default; solar_draw's in-page toggle
-flips it to Hub & spoke) look like a real solar system.
+flips it to System) look like a real solar system.
 
 solar_draw.py draws the circles, rings and spokes and moves the bodies; this
-module only dresses them. blocks.py emits it on every Hub & spoke page; it is
+module only dresses them. blocks.py emits it on every System page; it is
 on only in the Star chart look on desktop (window._altoSolarLook, or the
 html.alto-solar-stars / -hub classes, or else the plan's style "orbit") and
-comes off whole in the Hub & spoke look (its canvases kept for the way back). With
+comes off whole in the System look (its canvases kept for the way back). With
 motion switched off (window._altoSolarMotion) its animations pause too.
 
 * THE STAR. Each sun is a glowing star: a white-hot core darkening to an
@@ -526,7 +526,7 @@ function relines(){
     if(r!=='spine') try{ var ad=_lineAdapt(_lineToRgb(_lineResolveVar(COLOR_MAP[r]||'var(--line-flow)')), [12,13,20]); if(!ad) return; col='rgb('+ad.join(',')+')'; }catch(e){ return; }
     p.setAttribute('stroke', col); var sh=p.nextElementSibling; if(sh && !sh.hasAttribute('data-edge')) sh.setAttribute('stroke', 'rgba(255,255,255,0.50)'); });
 }
-/* the Hub & spoke look (or a phone): the skin goes, its canvases kept for the way back */
+/* the System look (or a phone): the skin goes, its canvases kept for the way back */
 function down(){
   ready=false; de.classList.remove('alto-stars'); cancelAnimationFrame(fbR); clearTimeout(fbS); clearTimeout(qT); fbR=fbS=qT=0;
   var sk=document.querySelector('#world .sk-sky'); if(sk) sk.remove(); untrail(); }

@@ -310,7 +310,7 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
-If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Mind Palace as a city or a Mind Palace in a building), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building`. The homepage can start a Hub & spoke itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Mind Palace as a city or a Mind Palace in a building), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building`. The homepage can start a System itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
@@ -448,7 +448,7 @@ and manual edits are the outline's own. Only the picture is different.
 **When to offer it.** Only in an outline, and only after the structure is
 known (D-Outline steps 1-3), when it fits: each unit has one hub concept with
 a ring of sub-concepts around it, and the student wants — or lights up at —
-the hub-and-spoke picture. Offer it once, in a sentence, with the tree as the
+the system picture. Offer it once, in a sentence, with the tree as the
 default; do not push it on an outline that is mostly a long chain or goes
 deeper than four levels. Never for a sketch, a horizontal timeline or a Mind
 Palace.
@@ -492,12 +492,12 @@ Palace.
 
 **Two looks, switched in the page.** Every System page carries both looks
 of the same layout, and the reader flips between them with the switch on the
-page (**Hub & spoke | Star chart**), instantly, any time — nothing to rebuild,
+page (**System | Star chart**), instantly, any time — nothing to rebuild,
 nothing for you to do:
 - **Star chart** (the look it opens in): the orbit rings with realistic
   planets, moons, satellites and a sun, and travel between bodies along
   spaceflight-style routes.
-- **Hub & spoke**: the same concentric rings, spokes and circles (number and
+- **System**: the same concentric rings, spokes and circles (number and
   title) in Alto's usual glass look, no space graphics.
 In both, the planets, moons and satellites orbit, each on its own ring; an
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
@@ -509,8 +509,8 @@ concepts directly under it (a planet's moons, a moon's satellites) beside it,
 left and right — a click on one enlarges it in turn; a click on the circle
 itself (or Enter) opens its detail page, whose **← System** button (or Escape) goes back to the chart:
 call the main view of a System page "the system", not "the outline". Say this once when you hand it over, in a
-sentence, so the student knows the switch is there. If they want the Hub &
-spoke look to be what people see first, set `hub_look: 'hub'` in the brief
+sentence, so the student knows the switch is there. If they want the System
+look to be what people see first, set `hub_look: 'hub'` in the brief
 (`hub_look: 'stars'`, the Star chart, is the default; `build_timeline(hub_look=…)`
 also sets it); otherwise leave it out. The look is the page's, not the
 content's: nothing is ever converted or rebuilt to flip it.

@@ -984,7 +984,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     # An outline drawn as a tree: the page runs this plan over its measured
     # card heights, and narrows the cards the plan gives less than a full width.
     tree_plan = outline_plan(nodes, len(b.acts), sized_placement(b), b.tree_lines, b.outcomes) if tree else None
-    # A Hub & spoke (solar.py): its plan goes to the page whole, as
+    # A System (solar.py): its plan goes to the page whole, as
     # window._ALTO_SOLAR (solar_draw reads it), and its circles' centres as a
     # tree plan the page's _altoTree runs like any other.
     solar_plan_ = None
@@ -1545,7 +1545,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if solar_plan_:
         # The solar drawing (solar_draw.py): circles, rings, the orbits, the
         # whole chart zoomed out — after window._ALTO_SOLAR; the Star chart
-        # look's graphics (solar_stars.py; off in the Hub & spoke look); then
+        # look's graphics (solar_stars.py; off in the System look); then
         # the flights between bodies (solar_fly.py: Star chart look only).
         # Then two-finger scrolling on both axes at natural size (pan2d.py).
         orders += SOLAR_JS + STARS_JS + FLY_JS + PAN2D_JS + SOLAR_PAN2D_JS

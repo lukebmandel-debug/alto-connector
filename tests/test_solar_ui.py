@@ -69,7 +69,7 @@ def test_hub_and_spoke_previews_its_star_look_and_respects_reduced_motion():
     assert ">System<" in hub and "Solar" not in hub and 'aria-hidden="true"' in hub
     assert "pv-o1" in hub and "pv-om" in hub and hub.count("<circle") >= 8              # planets and a moon go round
     assert "radialGradient" in hub and "url(#ntsun)" in hub and "url(#ntglow)" in hub    # a glowing sun
-    assert "Concepts as a system: suns with planets, moons and satellites you can orbit between. Toggle Hub &amp; spoke or Star chart any time." in hub
+    assert "Concepts as a system: suns with planets, moons and satellites you can orbit between. Toggle System or Star chart any time." in hub
     assert "turn it into" not in hub
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
     assert "@keyframes ntorb" in css
@@ -84,7 +84,7 @@ def test_the_picker_stays_inside_the_dialog_with_four_tiles():
 
 
 def test_there_is_no_star_chart_starter_any_more():
-    """The Star chart is a look of every Hub & spoke page (Round 5), not a
+    """The Star chart is a look of every System page (Round 5), not a
     Mind Palace mode with a starter of its own."""
     assert "stars" not in starter.KINDS and "stars" not in __import__(
         "alto.build.brief", fromlist=["PALACE_VIEWS"]).PALACE_VIEWS        # (palace_view is city | building: 1.9.107)
@@ -108,7 +108,7 @@ def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
     for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "SYSTEM", "SUN", "PLANETS", "MOONS", "SATELLITES",
                  "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
                  "single-column", "fifth level is an error", "never flatten silently", "pivotal, critical or extremely important",
-                 "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'hub'", "STARS = the Star chart", "HUB = Hub & spoke", "Hub & spoke | Star chart", "each on its own ring",
+                 "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'hub'", "STARS = the Star chart", "HUB = System", "System | Star chart", "each on its own ring",
                  "Orbit switch", "nothing to convert"):
         assert want in doc, want
     assert "palace_view?: 'city'|'building'" in doc and "'city'|'stars'" not in doc
@@ -184,7 +184,7 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
 
 def test_the_guide_tells_claude_about_the_two_looks_and_never_about_converting():
     sec = _sec("**Two looks, switched in the page.**", "**Ask**")
-    for want in ("Star chart** (the look it opens in)", "**Hub & spoke**", "Hub & spoke | Star chart", "spaceflight-style routes", "Zoom out",
+    for want in ("Star chart** (the look it opens in)", "**System**", "System | Star chart", "spaceflight-style routes", "Zoom out",
                  "Orbit** switch", "click on the circle", "enlarged circle stays circular", "hub_look: 'hub'", "nothing to rebuild"):
         assert want in sec, want
     low = GUIDE.lower()
@@ -695,7 +695,7 @@ def test_the_edit_tile_leaves_a_solar_chart_alone():
 @needs_solar
 def test_a_hub_and_spoke_unit_may_get_a_second_sun_and_the_unit_controls_sit_by_each_units_chip(browser, edit_url):
     pg, errs = _editing(browser, edit_url, hook=None)
-    # no band labels are drawn on a Hub & spoke: each unit's controls stand beside its own chip, not stacked in a corner
+    # no band labels are drawn on a System: each unit's controls stand beside its own chip, not stacked in a corner
     ctl = pg.evaluate("""[...document.querySelectorAll('.aed-uc:not(.aed-unew)')].map(e => [e.textContent, e.offsetLeft, e.offsetTop])""")
     chips = pg.evaluate("[...document.querySelectorAll('.sol-unit')].map(c => [+c.dataset.unit, c.offsetLeft + c.offsetWidth, c.offsetTop])")
     assert [c[0] for c in chips] == [0, 1]
@@ -750,3 +750,17 @@ def test_a_card_cannot_make_a_fifth_level_under_a_second_sun_either():
                    {"id": "s2a1x", "act": 0, "parent": "s2a1", "title": "Sat", "tag": "", "desc": ""}]
     st, r = _fold_into(d, {"nn|card-aabb33": {"b": None, "v": {"p": "s2a1x", "a": 0, "t": "Too deep", "g": "", "d": ""}, "t": 1}})
     assert r["conflicts"] == ["nn|card-aabb33"] and [x["id"] for x in r["solar_too_deep"]] == ["card-aabb33"], r
+
+
+def test_nothing_the_user_reads_says_hub_and_spoke():
+    """Luke, 1.9.117: the format is the System (the look toggle: System | Star chart); ids (layout 'solar', hub_look 'hub') stay."""
+    from tests.test_solar_draw import _page as solar_page
+    pat = re.compile(r"hub\s*(&amp;|&|and|-and-)\s*spoke", re.I)
+    h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
+    assert not pat.search(h) and not pat.search(GUIDE)
+    for style in ("orbit", "spoke"):
+        html = solar_page(style=style)
+        assert not pat.search(html), pat.search(html).group(0)
+        assert "<span>System</span>" in html and "<span>Star chart</span>" in html
+    for fn in (srv.create_timeline, srv.set_overview):
+        assert not pat.search(inspect.getdoc(fn) or "")

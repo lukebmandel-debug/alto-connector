@@ -583,7 +583,7 @@ def fold(store, uid, tid) -> "dict | None":
     created, removed, units_made, moved, chips_made, reordered = [], [], [], [], [], []
     units_gone, to_unit, chips_gone, axes_made, axes_gone, sized = [], [], [], [], [], []
     too_deep, solar_ignored = [], []
-    # Hub & spoke (an outline laid out 'solar', either look)
+    # System (an outline laid out 'solar', either look)
     solar = brief.get("mode") == "outline" and brief.get("layout") == "solar"
 
     def depth_of(cid):

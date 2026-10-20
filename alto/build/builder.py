@@ -110,9 +110,9 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
                                                   len(brief.acts), flow_parent)
     report["layout"] = "flow"
     if solar_style(brief):
-        # Hub & spoke (an outline laid out 'solar'): every root a solar
+        # System (an outline laid out 'solar'): every root a solar
         # system (solar.py), one plan drawn in two looks — the Star chart and
-        # Hub & spoke. Only ever by the author's choice: "auto" never lands
+        # System. Only ever by the author's choice: "auto" never lands
         # here. Its centres go through the tree's own plan runner, so the page
         # sees ordinary positions.
         from .solar import solar_plan, solar_tree_plan, solar_heights, solar_summary

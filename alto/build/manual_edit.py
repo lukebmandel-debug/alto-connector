@@ -238,7 +238,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing.alto-drag-ok:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-dragging, html.alto-dragging *{cursor:grabbing !important;-webkit-user-select:none !important;user-select:none !important;}
   .node.aed-moving{z-index:60 !important;}
-  /* a Hub & spoke circle dragged onto another to go under it (MANUAL_JS solar drag) */
+  /* a System circle dragged onto another to go under it (MANUAL_JS solar drag) */
   html.alto-editing.alto-solar-edit:not(.mobile) #canvas .node-card{cursor:grab;}
   html.alto-editing #canvas .node.aed-sdrag{pointer-events:none;z-index:80 !important;transition:none !important;}
   html.alto-editing #canvas .node.aed-sdrag .node-card{opacity:.92;box-shadow:0 14px 36px var(--node-hover-shadow) !important;cursor:grabbing;}
@@ -1838,7 +1838,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing() || !structOK() || !cardsBase()) return;
     var world = document.getElementById('world'); if(!world) return;
     var lbls = Array.prototype.slice.call(world.querySelectorAll('.phase-label-float')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
-    // A Hub & spoke draws no unit bands or labels: each unit's chip (solar_draw, data-unit) stands in
+    // A System draws no unit bands or labels: each unit's chip (solar_draw, data-unit) stands in
     var hub = isSolar() && root.classList.contains('alto-solar');
     lbls.forEach(function(l, i){
       var chip = hub ? world.querySelector('.sol-unit[data-unit="' + i + '"]') : null, ax, ay;
@@ -1922,7 +1922,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!solarWarned && (MOVED.length || NEWO.length || SWAPPED.length || REORD.length || Object.keys(GONE).length)){
       solarWarned = true; toast('Saved. The solar picture redraws the next time Claude builds this timeline.'); }
   }
-  function addCard(p, a, sun){      // sun: a new top concept of the unit (a Hub & spoke's second sun), not a card under its first
+  function addCard(p, a, sun){      // sun: a new top concept of the unit (a System's second sun), not a card under its first
     if(!cardsBase()) return;
     // an outline's unit has one card at its top (brief: one hub per unit): a
     // card added to the unit goes under it
@@ -3852,7 +3852,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   window.addEventListener('pointerup', endDrag, true);
   window.addEventListener('pointercancel', function(){ if(drag){ drag.wx = drag.wy = 0; } endDrag(); clearPreview(); }, true);
 
-  /* A Hub & spoke circle dragged onto another circle goes under it, with
+  /* A System circle dragged onto another circle goes under it, with
      everything that orbits it: the same move as the card menu's ⇄ (relink →
      rp|), after which the page tells the solar layer (solarSync) to draw the
      systems again. Nothing is stored about where it was dropped. The circle
@@ -3901,7 +3901,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!editing() || !isSolar() || !root.classList.contains('alto-solar-edit') || e.button !== 0) return;
     var t = e.target; if(!t.closest || inUi(t) || (cur && cur.el.contains(t)) || PICK || LINK || LPICK) return;
     var nodeEl = t.closest('#canvas .node'); if(!nodeEl || t.closest('button,.aed-cc,.aed-rz,[contenteditable="true"]')) return;
-    var id = nodeEl.id.replace(/^node-/, ''); if(!srcNode(id) || !((OUT && OUT.parent) || {})[id]) return;      // a Hub & spoke's sun stays
+    var id = nodeEl.id.replace(/^node-/, ''); if(!srcNode(id) || !((OUT && OUT.parent) || {})[id]) return;      // a System's sun stays
     sdrag = {id: id, x0: e.clientX, y0: e.clientY, k: scale(nodeEl), on: false, S: dfsOf((OUT && OUT.kids) || {}, id)};
   }, true);
   window.addEventListener('pointermove', function(e){

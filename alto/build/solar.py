@@ -1,5 +1,5 @@
-"""Hub & spoke (an outline with layout "solar") and its two looks of ONE plan
-(Luke, round 7): Hub & spoke (orbit rings, spokes, circles in Alto's own glass
+"""System (an outline with layout "solar") and its two looks of ONE plan
+(Luke, round 7): System (orbit rings, spokes, circles in Alto's own glass
 styling) and the Star chart (the same rings and geometry plus the space skin,
 solar_stars.py, and flights between bodies, solar_fly.py; the default). Both
 looks orbit (the page's Orbit switch, on by default, stops them). The page
@@ -139,17 +139,17 @@ SOLAR = {
     "SYS_GAP": 90, "MARGIN": 115, "TOP": 184, "BOTTOM": 160, "WORLD_W": 1700,
     # orbit periods in seconds, inner ring → outer (inner faster): planets
     # round their sun, moons round their planet, satellites round their moon
-    "P_PLANET": (90.0, 150.0), "P_MOON": (30.0, 50.0), "P_SAT": (14.0, 24.0),
+    "P_PLANET": (112.5, 187.5), "P_MOON": (37.5, 62.5), "P_SAT": (17.5, 30.0),   # (all x1.25 = 20% slower, 1.9.117)
     # the Star chart look's extras: a comet's eccentricity range; an asteroid's
     # tumble (rad/s, either way); an asteroid belt's width (a system of
     # BELT_MIN planets or more gets one, between its inner and outer planets);
     # the galactic core's radius and clear space (a chart of 2+ systems); how
     # far a drifting comet's path keeps from every system
-    "ECC": (0.5, 0.7), "TUMBLE": (0.15, 0.6), "BELT_W": 70, "BELT_MIN": 4,
+    "ECC": (0.5, 0.7), "TUMBLE": (0.12, 0.48), "BELT_W": 70, "BELT_MIN": 4,
     "CORE_R": 60, "CORE_GAP": 40,
     # the spiral galaxy of 2+ systems (_galaxy): its arms, the search step along an
     # arm (px of arc), the whole galaxy's turn about the core (s, Orbit on)
-    "ARMS": 2, "GAL_STEP": 8, "P_GALAXY": 900.0,
+    "ARMS": 2, "GAL_STEP": 8, "P_GALAXY": 1125.0,
 }
 # What a node is drawn as, by the user's own flags (brief.flags): a flag whose
 # id or name, lower-cased with spaces and underscores as hyphens, is in a row
@@ -652,7 +652,7 @@ def compact(plan, key=None):
 
 
 def page_plans(brief, nodes) -> dict:
-    """What a Hub & spoke page carries (window._ALTO_SOLAR): the one plan both
+    """What a System page carries (window._ALTO_SOLAR): the one plan both
     looks draw, compacted, with the look a viewer sees first (brief.hub_look,
     'stars' | 'hub') as its "look"."""
     return {**compact(solar_plan(brief, nodes)), "look": getattr(brief, "hub_look", "stars") or "stars"}

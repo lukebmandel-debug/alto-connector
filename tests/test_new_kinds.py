@@ -1,5 +1,5 @@
 """The new-timeline dialog offers four tiles, each with a small preview: Timeline
-(Sketch: kind `timeline`, or Horizontal: kind `lanes`), Outline, Hub & spoke
+(Sketch: kind `timeline`, or Horizontal: kind `lanes`), Outline, System
 (kind `solar`, shown in its star look) and Mind Palace (a city: Claude's).
 Looked at in Chromium and WebKit, desktop and phone, light and dark, against a
 stand-in account."""
@@ -32,7 +32,7 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     pal = pal[:pal.index("</div>")]
     assert re.findall(r'data-mode="(\w+)"', pal) == ["city", "building"]             # Mind Palace: City | Building
     hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
-    assert "Toggle Hub &amp; spoke or Star chart any time." in hub and "planets, moons and satellites you can orbit between" in hub
+    assert "Toggle System or Star chart any time." in hub and "planets, moons and satellites you can orbit between" in hub
 
 
 def test_the_timeline_tile_chooses_a_mode_and_the_mind_palace_goes_to_claude():

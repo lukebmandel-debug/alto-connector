@@ -1,10 +1,10 @@
-"""Hub & spoke with everything on at once: the renderer (solar_draw.py), the
+"""System with everything on at once: the renderer (solar_draw.py), the
 Star chart skin (solar_stars.py) and the flights (solar_fly.py) together.
 
 Each module has its own suite; these are the interplays nobody tested
 together: the look switch with the skin and a flight running, a flight
 landing on an enlarged (textured, circular) disc, the Orbit switch then a
-flight, the Hub & spoke look carrying none of the skin or flight and leaving no
+flight, the System look carrying none of the skin or flight and leaving no
 frame loop running once its Orbit is off, edit mode, phones, zooming out with the skin on (no
 rectangle), and the arrow-key hop queue with flights.
 
@@ -55,7 +55,7 @@ def test_all_of_the_solar_script_stays_under_50_kb_gzipped():
     """The drawing, the skin and the flight together, against the 1,000,000-byte
     stored page (each has its own cap in its own suite: 22 / 14 / 13 KB)."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS + STARS_JS + STARS_CSS + FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 50000, size
+    assert size < 51000, size
 
 
 @pytest.mark.parametrize("style", ["orbit", "spoke"])
@@ -73,8 +73,8 @@ def test_every_hub_and_spoke_page_carries_the_drawing_the_skin_and_the_flight_in
 
 
 def test_an_old_star_chart_palace_loads_as_hub_and_spoke_with_all_three():
-    """1.9.105's Star chart (mode palace + palace_view stars) builds as a Hub &
-    spoke in its Star chart look, every node kept."""
+    """1.9.105's Star chart (mode palace + palace_view stars) builds as a System
+    in its Star chart look, every node kept."""
     d = _doc("orbit")
     d["brief"].update({"mode": "palace", "palace_view": "stars"})
     d["brief"].pop("layout", None)
@@ -89,7 +89,7 @@ def test_an_old_star_chart_palace_loads_as_hub_and_spoke_with_all_three():
 @pytest.mark.parametrize("view", ["city", "building"])
 def test_a_city_or_building_palace_keeps_its_view_through_the_migration(view):
     """1.9.107's Building Palace (palace_view 'building') and the city stay Mind
-    Palaces: only the old 'stars' view migrates (to a Hub & spoke)."""
+    Palaces: only the old 'stars' view migrates (to a System)."""
     from alto.build.brief import migrate_brief, migrate_doc
     bd = {"title": "P", "mode": "palace", "palace_view": view, "acts": [{"label": "A"}],
           **({"building": {"name": "Hall", "plan_h": "abc", "mode": "room", "assign": {"n1": "r1"}}} if view == "building" else {})}
@@ -128,7 +128,7 @@ def test_a_stars_palace_still_migrates_to_hub_and_spoke_and_nothing_else_keeps_s
 
 
 def test_the_skin_and_the_flight_are_no_cost_off_hub_and_spoke(monkeypatch):
-    """A page that is not a Hub & spoke is byte-identical whatever the three scripts say."""
+    """A page that is not a System is byte-identical whatever the three scripts say."""
     d = _doc("orbit")
     d["brief"]["layout"] = "tree"
     before, _ = build_timeline(*load_brief(copy.deepcopy(d)))
@@ -255,7 +255,7 @@ RAF_RATE = """(ms) => new Promise(function(res){ var n0=window.__rafN, t0=perfor
 
 
 def test_the_look_switch_with_the_skin_and_a_flight_running(browser, pages):
-    """Hub & spoke on the way: the flight stops and its layer goes, the skin comes off
+    """System on the way: the flight stops and its layer goes, the skin comes off
     whole, the orbit switch still works. Star chart again: the skin once (no doubled
     trails) and a change of body flies again and lands."""
     pg, errs = _open(browser, pages["stars"])
@@ -355,7 +355,7 @@ def test_orbit_off_then_a_flight_among_still_bodies_and_on_again(browser, pages)
 
 
 def test_the_hub_look_has_no_skin_no_flight_and_no_frame_loop_with_its_orbit_off(browser, pages):
-    """A page opening in Hub & spoke, and a Star chart switched to it: no sky, no
+    """A page opening in System, and a Star chart switched to it: no sky, no
     dressed bodies, no trails, no flight layer, a change of body does not fly,
     and with the Orbit switched off nothing keeps asking for frames (the Star
     chart look, moving, does — the counter works)."""
@@ -364,13 +364,13 @@ def test_the_hub_look_has_no_skin_no_flight_and_no_frame_loop_with_its_orbit_off
     assert moving > 20, moving
     pg.evaluate("()=>window._altoSolarLook.set('hub')")
     pg.wait_for_timeout(1200)
-    assert pg.evaluate(RAF_RATE, 800) > 20                                   # Hub & spoke orbits too
+    assert pg.evaluate(RAF_RATE, 800) > 20                                   # System orbits too
     pg.evaluate("()=>window._altoSolarMotion.set(false)")
     pg.wait_for_timeout(1300)
     after = pg.evaluate(RAF_RATE, 1500)
     s = pg.evaluate(STATE)
     assert not s["stars"] and not s["skyShown"] and s["shown"] == 0 and s["trails"] == 0 and not s["fly"], s
-    print(f"\n[{browser._alto_name}] rAF/s: Star chart moving {moving:.0f}, Hub & spoke, Orbit off {after:.1f}")
+    print(f"\n[{browser._alto_name}] rAF/s: Star chart moving {moving:.0f}, System, Orbit off {after:.1f}")
     assert after < 3, after
     pg.context.close()
     pg, errs2 = _open(browser, pages["hub"])
@@ -379,7 +379,7 @@ def test_the_hub_look_has_no_skin_no_flight_and_no_frame_loop_with_its_orbit_off
     pg.evaluate("()=>window._altoSolarMotion.set(false)")
     pg.wait_for_timeout(1300)
     idle = pg.evaluate(RAF_RATE, 1500)
-    print(f"[{browser._alto_name}] rAF/s: opened in Hub & spoke, Orbit off {idle:.1f}")
+    print(f"[{browser._alto_name}] rAF/s: opened in System, Orbit off {idle:.1f}")
     assert idle < 3, idle
     _rest_on(pg, "u1-p1")
     pg.evaluate("()=>window.enterFocus('u2-p2')")

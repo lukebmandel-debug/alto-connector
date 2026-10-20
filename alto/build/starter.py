@@ -76,7 +76,7 @@ _STARTERS = {
                   {"id": "part-2-start", "act": 1, "title": "Where they meet", "tag": "", "desc": "",
                    "when": "Year 12", "present": ["first", "second"]}],
     },
-    # Hub & spoke (layout 'solar' of an outline, always still): each unit is a
+    # System (layout 'solar' of an outline, always still): each unit is a
     # hub (sun), the concepts under it planets (outline order = ring order), a
     # concept under a planet its moon, on spokes; one unit per hub, so two
     # systems sit side by side. A shape to see and change; the words are theirs.

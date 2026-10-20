@@ -676,7 +676,7 @@ window._altoSXHomeRow=function(r,q){
 FORMAT_NAME_JS = r"""
 /* the way back from a detail page is named for the format the reader is in: Mind Palace, Outline, or Timeline */
 (function(){
-  /* a Hub & spoke page's main view is not an outline to its reader (Luke, round 8): the system (a phone shows cards: the outline) */
+  /* a System page's main view is not an outline to its reader (Luke, round 8): the system (a phone shows cards: the outline) */
   function hub(){ return !!window._ALTO_SOLAR && !document.documentElement.classList.contains('mobile'); }
   function fmt(){ return hub() ? 'System' : window._ALTO_OUTLINE ? 'Outline' : (window._altoPalace || window._palTr) ? 'Mind Palace' : 'Timeline'; }
   function set(sel, fn){ var l=document.querySelectorAll(sel); for(var i=0;i<l.length;i++) fn(l[i]); }

@@ -1,4 +1,4 @@
-"""Hub & spoke, Luke's round 8 (after using 1.9.110 in Safari): an enlarged body's own come up
+"""System, Luke's round 8 (after using 1.9.110 in Safari): an enlarged body's own come up
 beside it, every body has a label, the zoomed-out chart stays readable, no markup shows as text,
 a detail page has no chart chrome, and the way back from it is called the system.
 

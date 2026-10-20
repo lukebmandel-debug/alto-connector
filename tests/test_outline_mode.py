@@ -1,4 +1,4 @@
-"""Outline mode: concept-first hub-and-spoke, case chips, and deep links in
+"""Outline mode: concept-first, case chips, and deep links in
 detail-page text.
 
 Three behaviours, all built on the existing engine (nothing here touches

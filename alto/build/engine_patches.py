@@ -960,7 +960,7 @@ _ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALT
 _LANES_HOOK_OLD = "    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
 _LANES_CENTRE_OLD = "  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;"
 _LANES_CENTRE_NEW = ("  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;\n"
-                     "    if(window._altoLanesGeo || window._altoPalaceGeo || window._altoSolarView) return;   // a horizontal timeline opens at its start; a Mind Palace on its city; a star chart / hub & spoke on its first sun (solar_draw.py)")
+                     "    if(window._altoLanesGeo || window._altoPalaceGeo || window._altoSolarView) return;   // a horizontal timeline opens at its start; a Mind Palace on its city; a star chart / System on its first sun (solar_draw.py)")
 _LANES_HOOK_NEW = ("    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
                    "  if((window._altoLanes && window._altoLanes(nodeHeights)) || (window._altoPalace && window._altoPalace(nodeHeights))) return;\n")
 
@@ -1945,7 +1945,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
     var ta=_DIRANG[dir]; if(ta===undefined) return;
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
-    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ if(_sn!==id) enterFocus(_sn); return; } }   // a hub & spoke / star chart (solar_draw.py): by outline level (id itself: stay)
+    if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ if(_sn!==id) enterFocus(_sn); return; } }   // a System / star chart (solar_draw.py): by outline level (id itself: stay)
     if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
     if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Mind Palace: the nearest building that way
     // Every node's resting box in world px: style.left/top is its centre however

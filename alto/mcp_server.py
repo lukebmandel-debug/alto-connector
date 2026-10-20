@@ -1036,14 +1036,14 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       single-column card view.
      hub_look?: 'stars'|'hub' (System only; default 'stars'): the look a
       viewer sees FIRST. Every System page carries both looks of the same
-      content and the same orbit layout, and a switch in the page (Hub & spoke |
+      content and the same orbit layout, and a switch in the page (System |
       Star chart) flips them instantly, with no rebuild (the viewer's choice is
-      remembered for that timeline): HUB = Hub & spoke (concentric orbit rings,
+      remembered for that timeline): HUB = System (concentric orbit rings,
       spokes, circles with number and title in Alto's usual glass look) and
       STARS = the Star chart (the same rings with realistic space graphics and
       spaceflight-style travel between bodies). In both the planets, moons and
       satellites orbit, each on its own ring; an Orbit switch stops them. Leave
-      it out unless the user wants the Hub & spoke look first; there is
+      it out unless the user wants the System look first; there is
       nothing to convert,
      palace_view?: 'city'|'building' (mode 'palace'; default 'city'):
       'building' is the BUILDING PALACE (§D-Building; set_up_building stores
@@ -2224,7 +2224,7 @@ def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
         if hub_look not in ("stars", "hub", "plain"):           # ('plain': 1.9.108's name, read as 'hub')
             return {"error": "invalid_hub_look",
                     "message": f"hub_look {hub_look!r}: must be 'stars' (the Star chart look) "
-                               "or 'hub' (the Hub & spoke look)"}
+                               "or 'hub' (the System look)"}
         if doc["brief"].get("mode") != "outline" or (layout or doc["brief"].get("layout")) != "solar":
             return {"error": "invalid_hub_look",
                     "message": "hub_look only applies to a System (mode 'outline', layout 'solar')"}
@@ -2287,7 +2287,7 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     A System outline may have a single unit (one system); anything deeper
     than sun, planet, moon, satellite is refused, naming the card and its path.
     hub_look: for a System, the look a viewer sees FIRST — 'stars' (the
-    Star chart, the default) or 'hub' (Hub & spoke: the same orbit rings in
+    Star chart, the default) or 'hub' (System: the same orbit rings in
     Alto's usual glass look); '' keeps the brief's. Both looks are in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.

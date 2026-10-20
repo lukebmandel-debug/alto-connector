@@ -242,11 +242,11 @@ FILTER_SOURCES = ("entity", "axis1", "axis2", "acts", "coverage", "depth",
 MODES = ("linear", "outline", "lanes", "palace")
 LAYOUTS = ("auto", "tree", "flow", "solar")
 TREE_LINES = ("fan", "trunk")
-# A Hub & spoke's two looks of the same content and the same geometry (an
+# A System's two looks of the same content and the same geometry (an
 # outline laid out 'solar'; one plan, solar.py; a toggle in the page flips
 # them; Luke, round 7): "stars" — the Star chart: the orbit rings with the
 # planets, moons and satellites round what they orbit, drawn as a space scene
-# with flights between bodies; "hub" — Hub & spoke: the same rings, spokes and
+# with flights between bodies; "hub" — System: the same rings, spokes and
 # circles in Alto's own glass styling, no space graphics, no flights. Both
 # orbit (the page's Orbit switch). brief.hub_look is the one a viewer sees
 # first; a stored "plain" (1.9.108's still look) reads as "hub".
@@ -255,12 +255,12 @@ HUB_LOOKS = ("stars", "hub")
 # "city" — buildings on a real city's map; "building" — the Building Palace: a
 # blueprint and a first-person view inside ONE building (building_schema.py;
 # the plan is brief.building). (1.9.105's "stars" view, the Star chart, is now
-# the Star chart look of a Hub & spoke: migrate_brief turns such a brief into one.)
+# the Star chart look of a System: migrate_brief turns such a brief into one.)
 PALACE_VIEWS = ("city", "building")
-# Keys a stored brief may still carry from before Hub & spoke had two looks
+# Keys a stored brief may still carry from before System had two looks
 # (1.9.105: hub_style; convert_timeline's stash). Loading accepts them and
 # migrate_brief drops them; palace_view stays (city / building) unless it is
-# the old "stars", which migrate_brief turns into the Hub & spoke it now is.
+# the old "stars", which migrate_brief turns into the System it now is.
 LEGACY_KEYS = ("hub_style", "stash")
 # The roles of a solar outline's levels, top down: a unit's top concept is its
 # sun, then planets, moons, satellites. A fifth level has no body to be.
@@ -383,12 +383,12 @@ class Brief:
     # concepts with outcomes of their own) becomes a tree (layout.outline_tree)
     # when that crosses no more lines than the flowing cascade does; anything
     # else — a linear story, a flat list — flows. "tree" / "flow" force one.
-    # "solar" (outline only, never chosen by auto): Hub & spoke — each unit a
+    # "solar" (outline only, never chosen by auto): System — each unit a
     # still solar system, its top concept the sun, its children planets on
     # rings in outline order, theirs moons, theirs satellites (solar.py).
     layout: str = "auto"
-    # Hub & spoke only (HUB_LOOKS): the look a viewer sees first, "stars" (the
-    # Star chart, the default) or "hub" (Hub & spoke); the page's toggle flips it.
+    # System only (HUB_LOOKS): the look a viewer sees first, "stars" (the
+    # Star chart, the default) or "hub" (System); the page's toggle flips it.
     hub_look: str = "stars"
     # Mind Palace only (PALACE_VIEWS): "city" (the default) or "building".
     palace_view: str = "city"
@@ -653,7 +653,7 @@ def validate_brief(b: Brief) -> list[str]:
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
-    # A Hub & spoke may be one system for the whole outline, a Building Palace
+    # A System may be one system for the whole outline, a Building Palace
     # one building: one unit.
     if len(b.acts) < (1 if (solar_style(b) or building_view(b)) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
@@ -677,7 +677,7 @@ def validate_brief(b: Brief) -> list[str]:
                          "from the nodes' parents")
     if b.hub_look not in HUB_LOOKS:
         raise BriefError(f"hub_look {b.hub_look!r}: must be one of {HUB_LOOKS} (the Star chart "
-                         "look or the Hub & spoke look)")
+                         "look or the System look)")
     if b.palace_view not in PALACE_VIEWS:
         raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS} (the Star "
                          "chart is a look of a System now: mode 'outline', layout 'solar')")
@@ -1013,7 +1013,7 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
             cur = by_id[cur.parent]
 
     # Exactly one root per band — the hub the rest of the band radiates from.
-    # (A Hub & spoke may have several: each root is a sun of its own, and the
+    # (A System may have several: each root is a sun of its own, and the
     # numbers go 2.a, 2.b under the unit — numbering.path_numbers.)
     roots_by_act: dict[int, list[str]] = {}
     for n in nodes:
@@ -1050,7 +1050,7 @@ def building_view(b) -> bool:
 
 
 def solar_style(b) -> str:
-    """"orbit" for a Hub & spoke (an outline laid out 'solar': both its looks
+    """"orbit" for a System (an outline laid out 'solar': both its looks
     draw the one orbit plan), "" for anything else."""
     if getattr(b, "mode", "") == "outline" and getattr(b, "layout", "") == "solar":
         return "orbit"
@@ -1061,7 +1061,7 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     """A stored brief as this version reads it: (the brief, what it set aside).
 
     Star chart was a Mind Palace view in 1.9.105 (mode 'palace' + palace_view
-    'stars'); it is now the Star chart look of a Hub & spoke. Such a brief
+    'stars'); it is now the Star chart look of a System. Such a brief
     loads as mode 'outline' + layout 'solar', look 'stars' — its nodes,
     parents, flags, sections, entities, axes, sources are all in the brief or
     beside it and are kept as they are; the numbers become path-style. What an
@@ -1069,7 +1069,7 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     — is returned in the second value (the caller keeps it beside the brief,
     never discards it); an outline's own settings that convert_timeline had
     parked in `stash` come back. hub_style and stash are dropped from every
-    brief (hub_style 'spoke' becomes the Hub & spoke look, as does 1.9.108's
+    brief (hub_style 'spoke' becomes the System look, as does 1.9.108's
     hub_look 'plain'); palace_view is kept as it
     is ("city", "building" — 1.9.107's Building Palace) except the old "stars",
     which goes with the migration. The input is not changed."""
@@ -1108,7 +1108,7 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     elif legacy.get("hub_style") == "spoke" and "hub_look" not in out:
         out["hub_look"] = "hub"
     if out.get("hub_look") == "plain":
-        out["hub_look"] = "hub"                           # 1.9.108's still look: now the Hub & spoke look
+        out["hub_look"] = "hub"                           # 1.9.108's still look: now the System look
     return out, aside
 
 

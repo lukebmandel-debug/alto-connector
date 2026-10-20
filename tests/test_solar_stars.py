@@ -1,7 +1,7 @@
 """The Star chart's skin (alto/build/solar_stars.py): a glowing star, planets
 that look like planets, cratered moons, tiny craft, a night sky.
 
-Static checks on what pages carry (only orbit pages; Hub & spoke byte for
+Static checks on what pages carry (only orbit pages; System byte for
 byte as without the skin), then a real browser (Chromium and WebKit through
 Playwright; skipped without them): the skin's pieces, textures the same on
 every load, lighting toward the sun, the per-frame contract with solar_draw
@@ -61,7 +61,7 @@ def test_a_page_without_solar_is_byte_identical_whatever_the_skin(monkeypatch):
 
 def test_the_skin_is_small_and_safari_safe():
     size = len(gzip.compress((STARS_JS + STARS_CSS).encode("utf-8"), 9))
-    assert size < 14000, size          # (~15 KB gz budget per Hub & spoke page)
+    assert size < 14000, size          # (~15 KB gz budget per System page)
     # no SVG mask, no CSS / SVG filter or blur layer, nothing moves a node by a transform
     assert "<mask" not in STARS_JS and "'mask'" not in STARS_JS and "mask" not in STARS_CSS
     assert "blur(" not in STARS_CSS and "filter:url" not in STARS_CSS and "feGaussian" not in STARS_JS
@@ -335,7 +335,7 @@ SWITCH = r"""async (cls) => { var de=document.documentElement;
 
 
 def test_the_look_switch_puts_the_skin_on_and_takes_it_off(browser, pages):
-    """Hub & spoke look: no skin at all (no sky, no trails, every card its glass
+    """System look: no skin at all (no sky, no trails, every card its glass
     self); back to Star chart: all of it again, once (no doubled trails)."""
     pg, errs = _open(browser, pages["orbit"])
     if not pg.evaluate("!!window._altoSolarLook"):            # (a page without the renderer's switch: its classes)
@@ -345,7 +345,7 @@ def test_the_look_switch_puts_the_skin_on_and_takes_it_off(browser, pages):
         c = pg.evaluate(SWITCH, "alto-solar-stars")
         assert b["stars"] and b["sky"] == 1 and b["shown"] > 20 and b["trails"] > 0, b
         assert c == b, (b, c)
-    # the renderer's own switch (window._altoSolarLook): Hub & spoke and back, the skin with it
+    # the renderer's own switch (window._altoSolarLook): System and back, the skin with it
     d = pg.evaluate(r"""async () => { var L=window._altoSolarLook, o=[], de=document.documentElement;
       if(!L) return null;
       function st(){ return [de.classList.contains('alto-stars'), document.querySelectorAll('.sk-sky').length, document.querySelectorAll('#solar-svg .sk-trails').length]; }

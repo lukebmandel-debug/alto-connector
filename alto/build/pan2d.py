@@ -1,4 +1,4 @@
-"""Two-finger scrolling moves the map the way the fingers go — diagonally too (Mind Palace city map, Hub & spoke / Star chart).
+"""Two-finger scrolling moves the map the way the fingers go — diagonally too (Mind Palace city map, System / Star chart).
 
 Luke, 1.9.110: "diagonal scrolling ... the view only moves along one axis at a time". Both views pan at rest by the browser's
 own scroll of #canvas (one overflow:auto box, nothing clipped on either axis), and a synthetic diagonal wheel moves it on both
@@ -68,7 +68,7 @@ window._altoPan2d=function(host){
 };
 """
 
-# the Hub & spoke / Star chart hook: only through what solar_draw.py already publishes (its whole-chart view keeps its own
+# the System / Star chart hook: only through what solar_draw.py already publishes (its whole-chart view keeps its own
 # both-axes pan, and stops the event before it reaches the canvas)
 SOLAR_PAN2D_JS = r"""
 window._altoSolarPan2d=window._altoPan2d({on:function(){ var de=document.documentElement;

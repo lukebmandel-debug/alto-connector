@@ -1,4 +1,4 @@
-"""Flying between bodies on a Star chart (the moving look of a Hub & spoke page).
+"""Flying between bodies on a Star chart (the moving look of a System page).
 
 Luke (spec round 4, item 4): going to another body goes the way a spacecraft
 would — a lunar injection to a moon, a Hohmann-style transfer to the next
@@ -69,7 +69,7 @@ and velocity; Esc stops and brings the view back to full size where the craft
 is; a wheel, another owner of the view, or of the focus, stops it where it is.
 No flight (the existing instant focus): enlarging a body when none is
 enlarged, phones, prefers-reduced-motion, edit mode, print, a zoomed-out
-view, window._altoFlyOff (tests of other things), and the Hub & spoke look
+view, window._altoFlyOff (tests of other things), and the System look
 (nothing of this runs).
 """
 from __future__ import annotations
@@ -429,8 +429,8 @@ FLY_RUN_JS = r"""
    ahead dashed, the camera through window._altoSolarCam, the orbits driven on
    the flight's own clock (window._altoSolarDrive) so the craft meets the body
    where it is. On arrival the body is enlarged as ever and the orbits stand
-   still. Only in the Star chart look of a Hub & spoke page (window._altoSolarLook;
-   the Hub & spoke look has none of it: no layer, no frame loop). No flight: phones,
+   still. Only in the Star chart look of a System page (window._altoSolarLook;
+   the System look has none of it: no layer, no frame loop). No flight: phones,
    reduced motion, edit mode, print, a zoomed-out view. */
 (function(){
 var F=window._altoFly, de=document.documentElement, NS='http://www.w3.org/2000/svg', K=__RT__;
@@ -640,7 +640,7 @@ window.addEventListener('afterprint', function(){ printing=0; });
 function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') return; var was=c.classList.contains('sol-ov');
   new MutationObserver(function(){ var now=c.classList.contains('sol-ov'); if(was && !now && !FL && performance.now()-landAt>K.OV_MS) ovAt=performance.now(); was=now; })
     .observe(c, {attributes:true, attributeFilter:['class']}); }
-/* Hub & spoke look: nothing of the flight left (stopped where it was, the layer gone) */
+/* System look: nothing of the flight left (stopped where it was, the layer gone) */
 function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
 function init(){ watchOv(); var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
   if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */

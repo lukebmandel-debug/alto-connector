@@ -1,7 +1,7 @@
-"""Hub & spoke (brief.layout == "solar", alto/build/solar.py): every root a
+"""System (brief.layout == "solar", alto/build/solar.py): every root a
 solar system — its children planets one to a ring in outline order, theirs
 moons each on its own ring round them, theirs satellites each on its own ring
-round their moon — one plan, drawn in two looks (Star chart, Hub & spoke;
+round their moon — one plan, drawn in two looks (Star chart, System;
 comets on ellipses, belts, a galactic core). A 1.9.105 Star chart palace and a
 1.9.108 'plain' look load as one.
 
@@ -44,7 +44,7 @@ GAP_MIN = min(SOLAR["MOON_GAP"], SOLAR["SAT_GAP"], SOLAR["RING_GAP"]) - 0.5
 # satellites. Ids spell where a node sits: u1-p2-m3-s1.
 
 def _brief(n_units, style, flags=None):
-    """A Hub & spoke opening in the Hub & spoke look ("hub") or the Star chart
+    """A System opening in the System look ("hub") or the Star chart
     look ("orbit"): one plan either way."""
     acts = [Act(label=f"UNIT {a + 1}", short=f"Unit {a + 1}") for a in range(n_units)]
     return Brief(title="Solar test", subject="s", columns=5, acts=acts, timeline_id="solar-test",
@@ -110,7 +110,7 @@ def torts_shape(style="orbit"):
 
 
 def _stars(districts, flags=None):
-    """A Hub & spoke (Star chart look) with several roots (suns) per unit:
+    """A System (Star chart look) with several roots (suns) per unit:
     districts is [[root]], a root [planet], a planet [satellites per moon]."""
     b = _brief(len(districts), "orbit", flags)
     nodes = []
@@ -463,12 +463,12 @@ def test_orbit_periods_inner_faster_in_both_looks():
     plan = solar_plan(b, nodes)
     for s in plan["systems"]:
         ps = [p["period"] for p in s["planets"]]
-        assert ps == sorted(ps) and all(90 <= p <= 150 for p in ps)
+        assert ps == sorted(ps) and all(SOLAR["P_PLANET"][0] <= p <= SOLAR["P_PLANET"][1] for p in ps)
         for p in s["planets"]:
             for m in p["moons"]:
-                assert 30 <= m["period"] <= 50
-                assert all(14 <= q["period"] <= 24 for q in m["sats"])
-    # the Hub & spoke look is the same plan
+                assert SOLAR["P_MOON"][0] <= m["period"] <= SOLAR["P_MOON"][1]
+                assert all(SOLAR["P_SAT"][0] <= q["period"] <= SOLAR["P_SAT"][1] for q in m["sats"])
+    # the System look is the same plan
     hb, hn = civpro_shape("hub")
     assert hb.hub_look == "hub" and json.dumps(solar_plan(hb, hn), sort_keys=True) == json.dumps(plan, sort_keys=True)
 
@@ -592,7 +592,7 @@ def test_one_system_for_the_whole_outline_is_one_unit():
 def test_one_root_per_unit_still_holds_for_a_tree_but_a_hub_may_have_several_suns():
     b, nodes = _outline([[[0]], [[0]]])
     nodes.append(Node(id="second-sun", act=0, tag="Unit", title="x", desc="d"))
-    validate_nodes(b, nodes)                       # Hub & spoke: a second system in unit 1
+    validate_nodes(b, nodes)                       # System: a second system in unit 1
     b.layout = "tree"
     with pytest.raises(BriefError, match="one hub"):
         validate_nodes(b, nodes)
@@ -615,7 +615,7 @@ def test_placement_other_than_order_is_warned_about():
 # ── the build ──────────────────────────────────────────────────────────────
 
 def _sample(style="orbit"):
-    """The sample outline as a Hub & spoke opening in the Hub & spoke look
+    """The sample outline as a System opening in the System look
     ("hub") or in the Star chart look ("orbit")."""
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
     d["brief"]["layout"] = "solar"
@@ -900,7 +900,7 @@ def test_a_civ_pro_page_is_far_under_the_stored_page_cap():
     assert any(n.get("look") == "comet" and n.get("orbit") for n in S["nodes"].values())
 
 
-# ── a 1.9.105 Star chart (a Mind Palace in its stars view) loads as Hub & spoke ─
+# ── a 1.9.105 Star chart (a Mind Palace in its stars view) loads as System ─
 
 def _palace_star_chart():
     """A stored 1.9.105 Star chart: the shape of Luke's torts-star-chart —
@@ -973,7 +973,7 @@ def test_legacy_keys_are_accepted_and_ignored():
     d = _sample("orbit")
     d["brief"].pop("hub_look")
     d["brief"]["hub_style"] = "spoke"
-    assert load_brief(d)[0].hub_look == "hub"               # the old still style opens in the Hub & spoke look
+    assert load_brief(d)[0].hub_look == "hub"               # the old still style opens in the System look
     d["brief"].pop("hub_style")
     d["brief"]["hub_look"] = "plain"
     assert load_brief(d)[0].hub_look == "hub"               # 1.9.108's 'plain' likewise

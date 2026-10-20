@@ -69,7 +69,7 @@ SOLAR_CSS = r"""
   .sol-unit b{font-weight:800;opacity:.6;margin-right:7.5px;}
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
-  /* the look switch (Hub & spoke | Star chart) and the orbit switch: glass, under the bars at the top left */
+  /* the look switch (System | Star chart) and the orbit switch: glass, under the bars at the top left */
   #sol-ctl{position:fixed;z-index:310;left:30px;top:calc(var(--nav-bottom, 100px) + 14px);display:flex;gap:8px;align-items:center;font-family:inherit;}
   #sol-ctl button{font:inherit;font-size:12.5px;font-weight:600;letter-spacing:.02em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
     color:var(--muted);background:transparent;border:0;padding:6.25px 11.25px;border-radius:999px;line-height:1;}
@@ -87,7 +87,7 @@ SOLAR_CSS = r"""
   html.mobile #sol-ctl{display:none !important;}
   @media print{ #sol-ctl{display:none !important;} }
   /* no rectangle at any zoom (Luke): the board's own glass is not drawn on a solar page; the page's
-     background (Hub & spoke) or the star chart's sky (a fixed, window-filling layer) shows everywhere */
+     background (System) or the star chart's sky (a fixed, window-filling layer) shows everywhere */
   html.alto-solar:not(.mobile) #world #glass-slab{visibility:hidden !important;}
   #canvas.sol-ov{cursor:zoom-in;}
   #canvas.sol-ov #world,#canvas.sol-ovanim #world{pointer-events:none;transform-origin:0 0;will-change:transform;}
@@ -135,8 +135,7 @@ SOLAR_CSS = r"""
   .sol-body .node-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;flex:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar] .sol-body .node-tag{padding-left:0 !important;padding-right:0 !important;}   /* (a card's tag leaves room for its number; the disc's is above it) */
   .sol-body .node-desc{-webkit-line-clamp:4 !important;line-clamp:4;display:-webkit-box !important;-webkit-box-orient:vertical;overflow:hidden !important;text-overflow:ellipsis;flex:none;}
-  /* the chips settle at the bottom of the disc like water: rows built from the bottom up, each as wide as
-     the circle allows at that height, round pills turned a little to the arc (pool()) */
+  /* the chips lie in arcs along the disc's bottom edge, side by side, each turned to the arc's tangent (pool()) */
   html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card>.node-footer{display:none !important;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing) .node-card>.node-footer{display:block;position:absolute;z-index:3;margin:0;
     inset:0;pointer-events:none;opacity:var(--sbo,1);}
@@ -144,8 +143,12 @@ SOLAR_CSS = r"""
   /* each chip is placed by pool() (in px from the disc's centre) */
   .node-card>.node-footer>button,.node-card>.node-footer>.sol-more{border-radius:999px !important;display:inline-flex;align-items:center;justify-content:center;text-align:center;
     position:absolute;left:50%;top:50%;height:24px !important;min-width:24px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    max-width:calc(var(--sD) * .6);pointer-events:auto;font-size:11px;line-height:14px;transform-origin:50% 50%;}
+    max-width:min(130px,calc(var(--sD) * .4));pointer-events:auto;font-size:11px;line-height:14px;transform-origin:50% 50%;}
   .node-card>.node-footer>.esym-btn,.node-card>.node-footer>.tsym-btn,.node-card>.node-footer>.sol-more{padding:0 10px !important;}
+  /* a named chip is one line; past its width the text ends in an ellipsis (a flex box cannot take one) */
+  .node-card>.node-footer>button.sol-txt{display:block;line-height:22px;text-align:center;}
+  /* the engine's chip label inside a disc: wraps (it may be a long name) and is kept inside the circle (sol-tip) */
+  html.alto-solar:not(.mobile) #world .node[data-solar] .node-footer .chip-tip{white-space:normal;width:max-content;max-width:calc(var(--sD) * .62);text-align:center;}
   .node-card>.node-footer>.sol-more{font-weight:600;color:var(--text);cursor:default;border:1px dashed var(--border);background:var(--chip-plate,var(--surface));}
   /* growing / shrinking (--scd): no frost on the moving disc (a zoomed element can lose it anyway), never a clip-path */
   html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
@@ -205,8 +208,8 @@ SOLAR_CSS = r"""
 
 SOLAR_JS = r"""
 /* The renderer: a function of the plan (window._ALTO_SOLAR, solar.page_plans: the plan and
-   look:'stars'|'hub', the look a viewer sees first) mounted on the engine's #world. One Hub &
-   spoke page, ONE plan, two looks (Luke, round 7): Hub & spoke (rings, spokes, glass circles)
+   look:'stars'|'hub', the look a viewer sees first) mounted on the engine's #world. One System
+   page, ONE plan, two looks (Luke, round 7): System (rings, spokes, glass circles)
    and the Star chart (the same, plus the skin, solar_stars.py, and flights, solar_fly.py); both
    orbit. One mount per page (its engine hooks are page globals). */
 window._altoSolarMount=function(R, opt){
@@ -216,7 +219,7 @@ var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2,
 var KEY=(typeof COURSE_ID!=='undefined' && COURSE_ID) || 'page';
 function pref(k){ try{ return localStorage.getItem('alto-solar-'+k+':'+KEY); }catch(e){ return null; } }
 function keep(k, v){ try{ localStorage.setItem('alto-solar-'+k+':'+KEY, String(v)); }catch(e){} }
-function lk(v){ return v==='hub' || v==='plain' ? 'hub' : v==='stars' ? 'stars' : null; }   /* ('plain': 1.9.108's still look, now Hub & spoke) */
+function lk(v){ return v==='hub' || v==='plain' ? 'hub' : v==='stars' ? 'stars' : null; }   /* ('plain': 1.9.108's still look, now System) */
 var LOOK=lk(pref('look')) || lk(R.look) || 'stars';
 var S=R;
 if(!S || !S.nodes) return false; window._altoSolarMounted=true;
@@ -288,53 +291,65 @@ function disc(n, c, id, b){
   n.style.setProperty('--sD', Math.max(D, q(b.d+40))+'px');
   if(n.classList.contains('focused')) pool(n);
 }
-/* ── the chips of an enlarged disc, settled like water (Luke, 1.9.114): rows from the bottom up, each
-   centred and as wide as the circle's chord allows at its height, wrapping upward; every chip >= 12px
-   inside the border and clear of the others; the text above gives way (shorter description) before the
-   chips do, and past what fits (the pool reaches no higher than .1 D below the centre) the rest fold into
-   one "+N". Each chip is turned a little to the circle's tangent where it sits. Computed once, as the disc
-   opens (and again a frame later, for the fonts); positions are px from the disc's centre. */
+/* ── the chips of an enlarged disc (Luke, 1.9.117): side by side in arcs along its bottom edge, each turned to the
+   arc's tangent; a full arc (~75 degrees either way, or the text above) is followed by one just inside it; >= 12px
+   inside the border; the rest fold into "+N"; one line each, <= .4 D wide, an ellipsis past that (the engine's chip
+   label shows the name whole). Computed once, as the disc opens (and a frame later); px from the disc's centre. */
 function pool(n){
   var c=n.querySelector('.node-card'), ft=c && c.querySelector(':scope > .node-footer'), body=c && c.querySelector(':scope > .sol-body');
   if(!ft || !body) return;
-  var D=parseFloat(n.style.getPropertyValue('--sD'))||300, R=D/2, Ri=R-12, G=6, H=24, cap=D*.1, top0=-D*.36;
+  var D=parseFloat(n.style.getPropertyValue('--sD'))||300, R=D/2, M=12, G=6, H=24, CAPW=Math.min(130, D*.4), top0=-D*.36, cap=D*.04, LIM=75*Math.PI/180, bx=D*.33+4;
   var all=[].slice.call(ft.querySelectorAll(':scope > button')), more=ft.querySelector(':scope > .sol-more');
   if(!more){ more=document.createElement('span'); more.className='sol-more'; more.setAttribute('role', 'note'); ft.appendChild(more); }
-  all.forEach(function(k){ k.style.display=''; k.style.transform=''; });
-  more.style.display='none'; more.style.transform='';
-  var N=all.length, W=all.map(function(k){ return k.offsetWidth+4; });
-  function fit(ws){
-    var rows=[], i=0, yb=Ri;
+  all.forEach(function(k){ k.style.display=''; k.style.transform=''; k.style.maxWidth=CAPW+'px';
+    k.classList.toggle('sol-txt', !k.children.length && (k.textContent||'').trim().length>2); });     /* a named chip: block, so its text can take an ellipsis */
+  more.style.display='none'; more.style.transform=''; more.style.maxWidth=CAPW+'px';
+  var N=all.length, W=all.map(function(k){ return k.offsetWidth; });
+  /* where a chip of width w at angle th (from straight down, + to the right) on an arc of radius r reaches */
+  function box(r, th, w){ var s=Math.abs(Math.sin(th)), co=Math.abs(Math.cos(th)), ex=w/2*co+H/2*s, ey=w/2*s+H/2*co, x=r*Math.sin(th), y=r*Math.cos(th); return {x:x, y:y, l:x-ex, r:x+ex, t:y-ey}; }
+  function lay(ws){
+    var out=[], i=0, k=0;
     while(i<ws.length){
-      var y=yb, row, w, half;
-      for(;;){
-        var yt=y-H; if(yt<cap) return null;
-        half=Math.sqrt(Math.max(0, Ri*Ri-Math.pow(Math.max(Math.abs(y), Math.abs(yt)), 2)));
-        row=[]; w=0;
-        for(var j=i; j<ws.length; j++){ var nw=w+(row.length ? 4 : 0)+ws[j]; if(nw>2*half) break; row.push(j); w=nw; }
-        if(row.length) break; y-=2;
-      }
-      rows.push({i:row, w:w, y:y}); i+=row.length; yb=y-H-G;
+      var wm=0, j, r, ri;
+      for(j=i; j<ws.length; j++) wm=Math.max(wm, ws[j]);
+      r=Math.sqrt(Math.pow(R-M, 2)-wm*wm/4)-H/2;                                  /* the widest chip's corners stay M inside the border */
+      if(k){ var rp=out[k-1].r, rr=rp-H-G;
+        for(var t=0; t<4; t++){ var q=rr+H/2; rr=rp-H-G-(Math.sqrt(q*q+wm*wm/4)-q); }     /* the ends of a chip bulge outward: leave room for them */
+        r=Math.min(r, rr); }
+      if(r<H) return null;
+      ri=r-H/2;
+      var items=[], tot=0, ok;
+      for(j=i; j<ws.length; j++){
+        var a=Math.atan(ws[j]/(2*ri)), trial=items.concat([{j:j, a:a}]), t2=0;
+        for(var u=1; u<trial.length; u++) t2+=trial[u-1].a+trial[u].a+G/ri;
+        ok=t2/2<=LIM;
+        for(var u2=0, th=-t2/2; ok && u2<trial.length; u2++){ if(u2) th+=trial[u2-1].a+trial[u2].a+G/ri;
+          var bb=box(r, th, ws[trial[u2].j]); if(bb.r>-bx && bb.l<bx && bb.t<cap) ok=false; }      /* clear of the text above */
+        if(!ok) break;
+        items=trial; tot=t2; }
+      if(!items.length) return null;
+      for(var v=0, th2=-tot/2; v<items.length; v++){ if(v) th2+=items[v-1].a+items[v].a+G/ri; items[v].th=th2; }
+      out.push({r:r, items:items}); i=j; k++;
     }
-    return rows;
+    return out;
   }
-  var rows=null, k=N;
+  var arcs=null, k=N;
   for(; k>=0; k--){
     var ws=W.slice(0, k);
-    if(k<N){ more.textContent='+'+(N-k); more.style.display=''; ws.push(more.offsetWidth+4); }
-    rows=fit(ws); if(rows) break;
+    if(k<N){ more.textContent='+'+(N-k); more.style.display=''; ws.push(more.offsetWidth); }
+    arcs=lay(ws); if(arcs) break;
   }
-  if(!rows){ more.style.display='none'; rows=[]; k=0; }
-  var hidden=N-k;
-  rows.forEach(function(r){ var x=-r.w/2;
-    r.i.forEach(function(j){ var el=j<k ? all[j] : more, w=(j<k ? W[j] : el.offsetWidth+4)-4;
-      var cx=x+2+w/2, cy=r.y-H/2, phi=cy>0 ? Math.atan2(cx, cy)*180/Math.PI : 0, lim=Math.min(16, Math.asin(Math.min(1, 6/Math.max(w, 6)))*180/Math.PI), a=Math.max(-lim, Math.min(lim, -phi*.6));   /* a turn that keeps the chip within 3px above / below its row */
-      el.style.left='calc(50% + '+(cx-w/2).toFixed(1)+'px)'; el.style.top='calc(50% + '+(r.y-H).toFixed(1)+'px)';
-      el.style.transform=Math.abs(a)<.3 ? '' : 'rotate('+a.toFixed(1)+'deg)'; x+=w+4+4; }); });
+  if(!arcs){ more.style.display='none'; arcs=[]; k=0; }
+  var hidden=N-k, hi=null;
+  arcs.forEach(function(ar){ ar.items.forEach(function(it){
+    var el=it.j<k ? all[it.j] : more, w=it.j<k ? W[it.j] : el.offsetWidth, bb=box(ar.r, it.th, w);
+    el.style.left='calc(50% + '+(bb.x-w/2).toFixed(1)+'px)'; el.style.top='calc(50% + '+(bb.y-H/2).toFixed(1)+'px)';
+    el.style.transform=Math.abs(it.th)<.002 ? '' : 'rotate('+(-it.th*180/Math.PI).toFixed(2)+'deg)';
+    el.setAttribute('data-arc', String(arcs.indexOf(ar)));
+    if(bb.r>-bx && bb.l<bx) hi=hi==null ? bb.t : Math.min(hi, bb.t); }); });
   all.forEach(function(el, j){ if(j>=k) el.style.display='none'; });
   if(hidden) more.title=all.slice(k).map(function(e){ return e.title; }).filter(Boolean).join(', ');
-  /* the text gives way to the pool: the body ends just above the highest row */
-  var hi=rows.length ? rows[rows.length-1].y-H : null;
+  /* the text gives way to the chips: the body ends just above the highest one under it */
   body.style.height=hi==null ? '' : Math.max(D*.3, hi-6-top0).toFixed(1)+'px';
   var ds=body.querySelector('.node-desc'), kk=4;
   function over(){ var s=0; [].forEach.call(body.children, function(e){ s+=e.offsetHeight+8; }); return s>body.clientHeight; }
@@ -383,7 +398,7 @@ window._altoSolarLayout=function(pos){
    chip over empty space, the first sun below the fold (Luke, Torts, 1.9.105).
    It opens on the first sun (the plan's first system) at full size, in the
    middle of the window; a chart small enough to read whole (the whole-chart
-   fit at 0.6 or more) opens zoomed out to all of it. Hub & spoke keeps the
+   fit at 0.6 or more) opens zoomed out to all of it. System keeps the
    engine's opening (centred across, at the top) while its first sun is in
    view there. A view something else asked for wins: a #find= link, an
    enlarged card, the detail page, a canvas already scrolled down. */
@@ -1175,7 +1190,7 @@ window._altoSolarLook={get:function(){ return LOOK; }, set:setLook, plan:functio
 window._altoSolarMotion={get:function(){ return !!MOTION && MOVES; },
   set:function(on){ on=!!on; if(on===!!MOTION) return MOTION; MOTION=on; keep('motion', on ? 1 : 0); if(on){ sp=0; RAMP=.4; last=null; } ctl(); tell(motFns, MOTION && MOVES); go(); return MOTION; },
   onChange:function(fn){ motFns.push(fn); return function(){ var i=motFns.indexOf(fn); if(i>=0) motFns.splice(i, 1); }; }};
-/* the controls, under the bars at the top left: Hub & spoke | Star chart, and Orbit */
+/* the controls, under the bars at the top left: System | Star chart, and Orbit */
 var IC={stars:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="4.4" fill="currentColor"/><ellipse cx="10" cy="10" rx="8.6" ry="3" fill="none" stroke="currentColor" stroke-width="1.4" transform="rotate(-22 10 10)"/></svg>',
   hub:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="2.6"/><circle cx="10" cy="10" r="5.6" stroke-opacity=".55"/><circle cx="10" cy="10" r="8.4" stroke-opacity=".55"/><circle cx="15.6" cy="10" r="1.6" fill="currentColor"/><circle cx="5" cy="3.6" r="1.4" fill="currentColor"/></svg>',
   pause:'<svg class="sol-ic-pause" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>',
@@ -1185,7 +1200,7 @@ function ctl(){
   if(!desk() || !ready){ if(w) w.remove(); return; }
   if(!w){ w=document.createElement('div'); w.id='sol-ctl'; w.setAttribute('role', 'group'); w.setAttribute('aria-label', 'How the chart looks');
     w.innerHTML='<div class="sol-seg" role="radiogroup" aria-label="Look">'+
-      '<button type="button" data-look="hub" role="radio" title="Hub &amp; spoke: the orbits in Alto\'s own look">'+IC.hub+'<span>Hub &amp; spoke</span></button>'+
+      '<button type="button" data-look="hub" role="radio" title="System: the orbits in Alto\'s own look">'+IC.hub+'<span>System</span></button>'+
       '<button type="button" data-look="stars" role="radio" title="Star chart: the same orbits as a space scene, with flights between bodies">'+IC.stars+'<span>Star chart</span></button></div>'+
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
@@ -1195,9 +1210,38 @@ function ctl(){
   [].forEach.call(w.querySelectorAll('[data-look]'), function(b){ var on=b.getAttribute('data-look')===LOOK; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var m=w.querySelector('#sol-motion'), run=!!MOTION && MOVES;
   m.disabled=!MOVES; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
-  m.title=!MOVES ? 'Orbit: nothing here orbits' : run ? 'Orbit is on: click to stop the planets where they are' : 'Orbit is off: click to set the planets moving again';
+  m.title=!MOVES ? 'Orbit: nothing here orbits' : run ? 'Orbit on/off (Space): on, click to stop the planets where they are' : 'Orbit on/off (Space): off, click to set the planets moving again';
   m.setAttribute('aria-label', m.title);
 }
+/* the space bar starts / stops the orbit like the Orbit button: only while the system is showing (the button is there
+   and enabled: not a phone, not the detail page, not edit mode, not print), no modifier, not held down, not in a field or on
+   a button / link / chip (space does its own thing there) */
+if(!window._altoSolarSpace){ window._altoSolarSpace=1;
+  document.addEventListener('keydown', function(e){
+    if((e.key!==' ' && e.code!=='Space') || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
+    var m=document.getElementById('sol-motion'); if(!m || m.disabled || !ready || !desk() || printing) return;
+    if(de.classList.contains('alto-editing') || document.querySelector('#detail-page.visible')) return;
+    var bad=function(t){ return !!(t && t.nodeType===1 && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY)$/.test(t.tagName) || t.closest('[contenteditable=""],[contenteditable="true"],[role=button],[role=radio],[role=textbox],[role=searchbox],[role=combobox]'))); };
+    if(bad(e.target) || bad(document.activeElement)) return;
+    e.preventDefault(); window._altoSolarMotion.set(!MOTION); });
+}
+/* the engine's chip label also comes up on keyboard focus */
+document.addEventListener('focusin', function(e){ var t=e.target; if(t && t.closest && t.closest('.node[data-solar] .node-footer') && t.matches('button'))
+  t.dispatchEvent(new MouseEvent('mouseover', {bubbles:true})); });
+document.addEventListener('focusout', function(e){ var t=e.target; if(t && t.closest && t.closest('.node[data-solar] .node-footer') && t.matches('button'))
+  t.dispatchEvent(new MouseEvent('mouseout', {bubbles:true})); });
+/* the label of a chip in a disc is slid sideways to stay inside the circle (the card clips to it) */
+if(!window._altoSolarTip){ var _ts=window._altoTipShow;
+  if(_ts) window._altoTipShow=window._altoSolarTip=function(chip, tip){
+    _ts(chip, tip);
+    var c=chip.closest('.node[data-solar] .node-card'); if(!c) return;
+    var t0=performance.now();
+    (function fr(){ if(tip._chip!==chip) return;
+      var cr=c.getBoundingClientRect(), k=cr.width/(c.offsetWidth||1), R=cr.width/2, cx=cr.left+R, cy=cr.top+R, tr=tip.getBoundingClientRect();
+      var yy=Math.min(Math.abs(tr.top-cy), Math.abs(tr.bottom-cy)), half=Math.sqrt(Math.max(0, Math.pow(R-10*k, 2)-yy*yy)), l=tr.left-cx, r=tr.right-cx, sh=0;
+      if(r>half) sh=half-r; if(l+sh<-half) sh=-half-l;
+      if(Math.abs(sh)>.5){ tip.style.left=(parseFloat(tip.style.left)+sh/(k*(parseFloat(getComputedStyle(document.documentElement).zoom)||1)))+'px'; }
+      if(performance.now()-t0<760) requestAnimationFrame(fr); })(); }; }
 window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p}; });
   return {T:T, moving:!!raf, bodies:o}; };
 return true;
