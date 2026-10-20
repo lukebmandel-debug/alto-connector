@@ -47,7 +47,8 @@ def bodies(S):
     if core and len(S.get("systems") or []) > 1:          # the galactic core: still, between the systems, not a node
         B[CORE] = {"id": CORE, "p": "", "x": core["x"], "y": core["y"], "per": 0.0, "si": -1, "d": 2 * core["r"],
                    "role": "core", "reach": core["r"], "ring": 0, "kids": [], "orb": None, "r": 0, "a0": 0, "look": "blackhole"}
-    return {"B": B, "many": many, "spin": S.get("spin") or -1}
+    gal = core if (core and many and (core.get("p") or 0) > 0) else None
+    return {"B": B, "many": many, "spin": S.get("spin") or -1, "gal": gal}
 
 
 CORE = "#core"
@@ -56,14 +57,19 @@ CORE = "#core"
 def pos(W, i, T):
     B = W["B"]
     b = B[i]
+    g = W.get("gal")
+    ga = W["spin"] * TAU * T / g["p"] if g else 0.0   # the galaxy turns rigidly about the core
     if not b["p"]:
-        return (b["x"], b["y"])
+        if not g or b["role"] == "core":
+            return (b["x"], b["y"])
+        ex, ey = b["x"] - g["x"], b["y"] - g["y"]
+        return (g["x"] + ex * math.cos(ga) - ey * math.sin(ga), g["y"] + ex * math.sin(ga) + ey * math.cos(ga))
     p = B[b["p"]]
     px, py = pos(W, b["p"], T)
     dx, dy = b["x"] - p["x"], b["y"] - p["y"]
-    a = 0.0
+    a = ga
     if b["per"] > 0:
-        a = W["spin"] * TAU * T / b["per"] + (W["spin"] * TAU * T / (540 + 60 * b["si"]) if W["many"] else 0.0)
+        a += W["spin"] * TAU * T / b["per"]
     if b["orb"]:                                       # a comet: on its ellipse (solar.orbit_offset), from its plan home
         ox, oy = _orbit_offset(b["r"], b["a0"] + a, b["orb"])
         hx, hy = _orbit_offset(b["r"], b["a0"], b["orb"])
@@ -284,7 +290,7 @@ def steps(W, A, Bt, T_mid):
             st.append(["xfer", ca[-1], I])
             st.append(["fly", I])
             last = I
-        if _by_core(W, pos(W, last, T_mid), cb[-1]):                    # a swing round the galactic core on the way
+        if _by_core(W, pos(W, last, T_mid), cb[-1], T_mid):                    # a swing round the galactic core on the way
             st.append(["bez", CORE])
             st.append(["fly", CORE])
         st.append(["bez", cb[-1]])
@@ -318,7 +324,7 @@ def steps(W, A, Bt, T_mid):
     return st
 
 
-def _by_core(W, a, s2):
+def _by_core(W, a, s2, T=0.0):
     """The core is on the way from a (where the craft leaves its system's
     last swing-by): ahead (within CORE_AHEAD of the way), with room to turn
     (CORE_MIN from a, half that on to the other system's edge), and going
@@ -326,13 +332,15 @@ def _by_core(W, a, s2):
     B = W["B"]
     if CORE not in B:
         return False
-    b, c = (B[s2]["x"], B[s2]["y"]), (B[CORE]["x"], B[CORE]["y"])
+    b, c = pos(W, s2, T), (B[CORE]["x"], B[CORE]["y"])
     d, dc = math.hypot(b[0] - a[0], b[1] - a[1]), math.hypot(c[0] - a[0], c[1] - a[1])
     if dc < FLY["CORE_MIN"] or d < 1e-6:
         return False
     if math.hypot(b[0] - c[0], b[1] - c[1]) - B[s2]["reach"] - FLY["SYS_PAD"] < FLY["CORE_MIN"] / 2:
         return False                                   # and room on to the other system's edge
     cosang = ((c[0] - a[0]) * (b[0] - a[0]) + (c[1] - a[1]) * (b[1] - a[1])) / (dc * d)
+    if ((c[0] - a[0]) * (b[1] - c[1]) - (c[1] - a[1]) * (b[0] - c[0])) * W["spin"] < 0:
+        return False                                   # round the core only the way the galaxy turns
     return cosang >= math.cos(FLY["CORE_AHEAD"]) and dc + math.hypot(b[0] - c[0], b[1] - c[1]) <= FLY["CORE_DETOUR"] * d
 
 
@@ -373,8 +381,8 @@ def assists(W, sun1, pa, sun2, T_mid):
     roughly toward the other system, and the next one a short way on round
     the sun the orbits' way (no lap of the system to reach it)."""
     B, spin = W["B"], W["spin"]
-    o = (B[sun1]["x"], B[sun1]["y"])
-    th = math.atan2(B[sun2]["y"] - o[1], B[sun2]["x"] - o[0])
+    o, o2 = pos(W, sun1, T_mid), pos(W, sun2, T_mid)      # (where the suns are: the galaxy turns)
+    th = math.atan2(o2[1] - o[1], o2[0] - o[0])
     ang = lambda i: math.atan2(pos(W, i, T_mid)[1] - o[1], pos(W, i, T_mid)[0] - o[0])
     ring, at = (B[pa]["ring"], ang(pa)) if pa else (0, None)
     out = []

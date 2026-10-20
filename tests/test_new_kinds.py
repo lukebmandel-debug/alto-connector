@@ -25,7 +25,7 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
     assert blk.count('class="nt-pv"') == 6                       # one each, and a second for the two with modes (Horizontal, Building)
-    for want in ("Timeline", "Outline", "Hub &amp; spoke", "Mind Palace", ">Sketch<", ">Horizontal<", ">City<", ">Building<"):
+    for want in ("Timeline", "Outline", ">System<", "Mind Palace", ">Sketch<", ">Horizontal<", ">City<", ">Building<"):
         assert want in blk, want
     assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
     pal = h[h.index('class="nt-modes" data-for="palace"'):]
@@ -84,7 +84,7 @@ def test_build_it_with_claude_tells_claude_which_tile_was_picked():
     assert "ntClose(); openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind));" in h
     guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     line = " ".join(guide[guide.index("If the opening message already says which type"):].split("\n\n")[0].split())
-    for want in ("Hub & spoke", "Mind Palace as a city", "Mind Palace in a building", "do not ask again", "set_up_palace", "set_up_building"):
+    for want in ("System", "Mind Palace as a city", "Mind Palace in a building", "do not ask again", "set_up_palace", "set_up_building"):
         assert want in line, want
     assert "Star chart" not in line and "'stars'" not in line
 

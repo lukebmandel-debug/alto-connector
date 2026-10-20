@@ -295,8 +295,8 @@ def test_the_look_switch_with_the_skin_and_a_flight_running(browser, pages):
 def test_a_flight_lands_on_a_textured_round_disc_with_its_content(browser, pages):
     """Flying to a body with long content: on every frame of the way and the
     landing the target is a circle; landed, it is the big disc (--sD) with the
-    skin's texture and light painted under the scrim, its title, sections,
-    scrolling body and 'Open full page'."""
+    skin's texture and light painted under the scrim, its card (title, no
+    sections, nothing scrolling) and 'Open full page'."""
     pg, errs = _open(browser, pages["stars"])
     _skin_settled(pg)
     _rest_on(pg, "u1-p1")
@@ -308,9 +308,9 @@ def test_a_flight_lands_on_a_textured_round_disc_with_its_content(browser, pages
     _skin_settled(pg)
     st = pg.evaluate(DISC, LONG)
     assert st["focused"] and abs(st["w"] - st["h"]) <= 1 and abs(st["w"] - st["sD"]) <= 1 and st["sD"] > st["d"], st
-    assert st["title"] and st["secs"] == 2 and st["open"], st
+    assert st["title"] and st["secs"] == 0 and st["open"], st
     assert any("sk-tex" in k for k in st["skin"]) and any("sk-lit" in k for k in st["skin"]), st
-    assert pg.evaluate("(id)=>{ var b=document.querySelector('#node-'+id+' .sol-body'); return b.scrollHeight>b.clientHeight; }", LONG)
+    assert not pg.evaluate("(id)=>{ var b=document.querySelector('#node-'+id+' .sol-body'); return b.scrollHeight>b.clientHeight+1; }", LONG)
     pg.wait_for_function("()=>window.__dw", timeout=12000)
     dw = pg.evaluate("()=>window.__dw")
     assert dw["frames"] > 20 and not dw["bad"], dw

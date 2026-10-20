@@ -100,7 +100,7 @@ FLY = {
     "RET_PHI": 1.1 * math.pi, "HOP_PHI": 0.6 * math.pi,
     "PHASE_K": 0.2, "DIP": -0.32, "ARC_N": 48,
     # time shares, iterations, a coast to wait for the window
-    "MIN_SHARE": 0.08, "ITER": 3, "COAST": (0.0, 0.4, 0.8), "COAST_W": 0.35,
+    "MIN_SHARE": 0.05, "ITER": 3, "COAST": (0.0, 0.4, 0.8), "COAST_W": 0.35,
     # joins: a velocity blend over the first BLEND of a leg; the carry of a re-plan
     "H": 1e-4, "BLEND": 0.4, "BLEND_CAP": 3.0, "CARRY": 1.0,
     # camera: keys per flight, the stretch each frames (s), the target's lead-in
@@ -138,13 +138,15 @@ function bodies(S){
   });
   var co=S.core;                                         /* the galactic core: still, between the systems, not a node */
   if(co && sy.length>1) B[CORE]={id:CORE, p:'', x:co.x, y:co.y, per:0, si:-1, d:2*co.r, role:'core', reach:co.r, ring:0, kids:[], orb:null, r:0, a0:0, look:'blackhole'};
-  return {B:B, many:sy.length>1, spin:S.spin||-1};
+  return {B:B, many:sy.length>1, spin:S.spin||-1, gal:(co && sy.length>1 && co.p>0) ? co : null};
 }
 var CORE='#core';
+/* (as solar_draw's orbitAt: the galaxy turns rigidly about the core, period core.p) */
 function pos(W, i, T){
-  var b=W.B[i]; if(!b.p) return [b.x, b.y];
-  var p=W.B[b.p], o=pos(W, b.p, T), dx=b.x-p.x, dy=b.y-p.y, a=0;
-  if(b.per>0) a=W.spin*TAU*T/b.per+(W.many ? W.spin*TAU*T/(540+60*b.si) : 0);
+  var b=W.B[i], g=W.gal, ga=g ? W.spin*TAU*T/g.p : 0;
+  if(!b.p){ if(!g || b.role==='core') return [b.x, b.y]; var c0=Math.cos(ga), s0=Math.sin(ga), ex=b.x-g.x, ey=b.y-g.y; return [g.x+ex*c0-ey*s0, g.y+ex*s0+ey*c0]; }
+  var p=W.B[b.p], o=pos(W, b.p, T), dx=b.x-p.x, dy=b.y-p.y, a=ga;
+  if(b.per>0) a+=W.spin*TAU*T/b.per;
   if(b.orb){ var q=orbOff(b.r, b.a0+a, b.orb), h=orbOff(b.r, b.a0, b.orb); return [o[0]+dx+q[0]-h[0], o[1]+dy+q[1]-h[1]]; }   /* a comet: on its ellipse, from its plan home (as solar_draw) */
   var c=Math.cos(a), s=Math.sin(a);
   return [o[0]+dx*c-dy*s, o[1]+dx*s+dy*c];
@@ -210,7 +212,7 @@ function steps(W, A, Bt, Tm){
     if(ca.length>=2) st.push(['esc', pa]);
     var last=pa || ca[ca.length-1];
     assists(W, ca[ca.length-1], pa, cb[cb.length-1], Tm).forEach(function(I){ st.push(['xfer', ca[ca.length-1], I]); st.push(['fly', I]); last=I; });
-    if(byCore(W, pos(W, last, Tm), cb[cb.length-1])){ st.push(['bez', CORE]); st.push(['fly', CORE]); }   /* round the galactic core */
+    if(byCore(W, pos(W, last, Tm), cb[cb.length-1], Tm)){ st.push(['bez', CORE]); st.push(['fly', CORE]); }   /* round the galactic core */
     st.push(['bez', cb[cb.length-1]]);
     down(st, cb, cb.length-1); return st;
   }
@@ -225,9 +227,10 @@ function steps(W, A, Bt, Tm){
   st.push(['xfer', L, b1]); down(st, cb, ib-1); return st;
 }
 /* the core is on the way from a: ahead, room to turn round it, little detour */
-function byCore(W, a, s2){ var B=W.B; if(!B[CORE]) return false;
-  var b=B[s2], c=B[CORE], d=hyp(b.x-a[0], b.y-a[1]), dc=hyp(c.x-a[0], c.y-a[1]);
+function byCore(W, a, s2, Tm){ var B=W.B; if(!B[CORE]) return false;
+  var q=pos(W, s2, Tm||0), b={x:q[0], y:q[1], reach:B[s2].reach}, c=B[CORE], d=hyp(b.x-a[0], b.y-a[1]), dc=hyp(c.x-a[0], c.y-a[1]);
   if(dc<C.CORE_MIN || d<1e-6 || hyp(b.x-c.x, b.y-c.y)-b.reach-C.SYS_PAD<C.CORE_MIN/2) return false;
+  if(((c.x-a[0])*(b.y-c.y)-(c.y-a[1])*(b.x-c.x))*W.spin<0) return false;   /* round the core only the way the galaxy turns */
   return ((c.x-a[0])*(b.x-a[0])+(c.y-a[1])*(b.y-a[1]))/(dc*d)>=Math.cos(C.CORE_AHEAD) && dc+hyp(b.x-c.x, b.y-c.y)<=C.CORE_DETOUR*d; }
 function down(st, cb, k){
   if(k===cb.length-1 && st.length && st[st.length-1][0]==='bez'){
@@ -245,7 +248,7 @@ function middle(W, sun, a1, b1, Tm){
   return best;
 }
 function assists(W, s1, pa, s2, Tm){
-  var B=W.B, o=[B[s1].x, B[s1].y], th=Math.atan2(B[s2].y-o[1], B[s2].x-o[0]), ring=pa ? B[pa].ring : 0, at=pa ? angAt(W, o, pa, Tm) : null, out=[];
+  var B=W.B, o=pos(W, s1, Tm), o2=pos(W, s2, Tm), th=Math.atan2(o2[1]-o[1], o2[0]-o[0]), ring=pa ? B[pa].ring : 0, at=pa ? angAt(W, o, pa, Tm) : null, out=[];
   while(out.length<C.ASSIST_MAX){
     var best='', bc=1e9;
     B[s1].kids.forEach(function(i){ if(B[i].ring<=ring) return;
@@ -577,7 +580,7 @@ function replan(to){
 /* the arrows pressed on the way: one at a time, after each landing (as the engine's hops) */
 function next(){
   if(FL || !Q.length) return; var id=window._focusedNodeId, d=Q.shift();
-  if(!id || !nav0) return; var nx=nav0(id, d); if(!nx) return next();
+  if(!id || !nav0) return; var nx=nav0(id, d); if(!nx || nx===id) return next();
   if(!can() || !fly(id, nx)) (enter0 || window.enterFocus).call(window, nx);
 }
 /* ── the hooks: window.enterFocus (search, clicks, the whole chart, …) and the
@@ -596,7 +599,7 @@ function hook(){
   }
   if(typeof window._altoSolarNav==='function' && !window._altoSolarNav._fly){
     nav0=window._altoSolarNav;
-    var n=function(id, dir){ var nx=nav0(id, dir); if(!nx || !can()) return nx; return fly(id, nx) ? HOP : nx; };
+    var n=function(id, dir){ var nx=nav0(id, dir); if(!nx || nx===id || !can()) return nx; return fly(id, nx) ? HOP : nx; };
     n._fly=1; window._altoSolarNav=n;
   }
   return !!enter0 && !!nav0;

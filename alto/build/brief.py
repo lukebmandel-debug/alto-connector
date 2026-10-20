@@ -680,7 +680,7 @@ def validate_brief(b: Brief) -> list[str]:
                          "look or the Hub & spoke look)")
     if b.palace_view not in PALACE_VIEWS:
         raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS} (the Star "
-                         "chart is a look of a Hub & spoke now: mode 'outline', layout 'solar')")
+                         "chart is a look of a System now: mode 'outline', layout 'solar')")
     if b.palace_view != "city" and b.mode != "palace":
         raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Building Palace "
                          "is a Mind Palace view")
@@ -1151,7 +1151,7 @@ def _check_solar_depth(b: Brief, nodes: list[Node]) -> None:
                 + ", ".join(c[-1] for c in deep[:6]) + (" …" if len(deep) > 6 else "") + ")"
                 if len(deep) > 1 else "")
         raise BriefError(
-            f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a Hub & spoke "
+            f"node {deep[0][-1]} is {len(deep[0])} levels deep ({path}), but a System "
             "layout has four: a unit's top concept is the sun, its children planets, "
             "theirs moons, theirs satellites" + more + ". Restructure the outline — "
             f"move {deep[0][-1]} up under {deep[0][-3]} (or higher), give its branch a "

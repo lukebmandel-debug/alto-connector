@@ -66,10 +66,10 @@ def test_hub_and_spoke_previews_its_star_look_and_respects_reduced_motion():
     h = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
     hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
-    assert "Hub &amp; spoke" in hub and "Solar" not in hub and 'aria-hidden="true"' in hub
+    assert ">System<" in hub and "Solar" not in hub and 'aria-hidden="true"' in hub
     assert "pv-o1" in hub and "pv-om" in hub and hub.count("<circle") >= 8              # planets and a moon go round
     assert "radialGradient" in hub and "url(#ntsun)" in hub and "url(#ntglow)" in hub    # a glowing sun
-    assert "Concepts as a hub with planets, moons and satellites you can orbit between. Toggle Hub &amp; spoke or Star chart any time." in hub
+    assert "Concepts as a system: suns with planets, moons and satellites you can orbit between. Toggle Hub &amp; spoke or Star chart any time." in hub
     assert "turn it into" not in hub
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
     assert "@keyframes ntorb" in css
@@ -100,12 +100,12 @@ def test_the_layout_tools_take_a_hub_look_and_explain_hub_and_spoke(tool):
     assert "hub_style" not in params and params["palace_view"].default == ""   # (palace_view: city | building, 1.9.107)
     assert "'stars' (the Star chart" not in fn.__doc__ and "palace_view 'stars'" not in fn.__doc__
     doc = " ".join(fn.__doc__.split())
-    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "'hub'" in doc and "plain" not in doc
+    assert "solar" in doc and "System" in doc and "stars" in doc and "'hub'" in doc and "plain" not in doc
 
 
 def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
     doc = " ".join(srv.create_timeline.__doc__.split())
-    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "SUN", "PLANETS", "MOONS", "SATELLITES",
+    for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "SYSTEM", "SUN", "PLANETS", "MOONS", "SATELLITES",
                  "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
                  "single-column", "fifth level is an error", "never flatten silently", "pivotal, critical or extremely important",
                  "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'hub'", "STARS = the Star chart", "HUB = Hub & spoke", "Hub & spoke | Star chart", "each on its own ring",
@@ -121,7 +121,7 @@ def test_a_wrong_hub_look_is_told_plainly():
     assert srv._layout_error(hub, "", "hub") is None and srv._layout_error(hub, "", "plain") is None   # (1.9.108's name)
     assert srv._layout_error(hub, "", "swirl")["error"] == "invalid_hub_look"
     r = srv._layout_error({"brief": {"mode": "palace"}}, "", "stars")
-    assert r["error"] == "invalid_hub_look" and "Hub & spoke" in r["message"]
+    assert r["error"] == "invalid_hub_look" and "System" in r["message"]
     assert srv._layout_error({"brief": {"mode": "outline", "layout": "tree"}}, "solar", "hub") is None
 
 
@@ -171,9 +171,9 @@ def _sec(a, b):
 
 def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
     sec = _sec("### §D-Solar.", "### B. Subject & spine")
-    for want in ("Hub & spoke", "layout: 'solar'", "sun", "planets", "moons", "satellites",
+    for want in ("System", "layout: 'solar'", "sun", "planets", "moons", "satellites",
                  "One system in great detail, or several", "outline's order", "innermost ring", "single-column",
-                 "Nothing goes deeper", "Never flatten it quietly", "a one-unit Hub & spoke is valid",
+                 "Nothing goes deeper", "Never flatten it quietly", "a one-unit System is valid",
                  "drag its circle onto the other circle", "pivotal, critical or extremely important",
                  "never invent a unit or a hub", "their structure; you do not choose for them",
                  "A unit may have several suns", "2.a, 2.b", "+ Add a sun", "hub_look: 'hub'", "hub_look: 'stars'", "its own ring", "never more than 40%", "never merge two of theirs"):
