@@ -69,7 +69,7 @@ def test_hub_and_spoke_previews_its_star_look_and_respects_reduced_motion():
     assert "Hub &amp; spoke" in hub and "Solar" not in hub and 'aria-hidden="true"' in hub
     assert "pv-o1" in hub and "pv-om" in hub and hub.count("<circle") >= 8              # planets and a moon go round
     assert "radialGradient" in hub and "url(#ntsun)" in hub and "url(#ntglow)" in hub    # a glowing sun
-    assert "Concepts as a hub with planets, moons and satellites you can orbit between. Toggle Plain or Star chart any time." in hub
+    assert "Concepts as a hub with planets, moons and satellites you can orbit between. Toggle Hub &amp; spoke or Star chart any time." in hub
     assert "turn it into" not in hub
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
     assert "@keyframes ntorb" in css
@@ -100,7 +100,7 @@ def test_the_layout_tools_take_a_hub_look_and_explain_hub_and_spoke(tool):
     assert "hub_style" not in params and params["palace_view"].default == ""   # (palace_view: city | building, 1.9.107)
     assert "'stars' (the Star chart" not in fn.__doc__ and "palace_view 'stars'" not in fn.__doc__
     doc = " ".join(fn.__doc__.split())
-    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "plain" in doc
+    assert "solar" in doc and "Hub & spoke" in doc and "stars" in doc and "'hub'" in doc and "plain" not in doc
 
 
 def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
@@ -108,7 +108,7 @@ def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
     for want in ("layout?: 'auto'|'tree'|'flow'|'solar'", "HUB & SPOKE", "SUN", "PLANETS", "MOONS", "SATELLITES",
                  "planets' order is the outline's order", "innermost ring", "ONE unit", "just one", "several units",
                  "single-column", "fifth level is an error", "never flatten silently", "pivotal, critical or extremely important",
-                 "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'plain'", "STARS = the Star chart", "PLAIN =",
+                 "several top concepts", "2.a, 2.b", "hub_look?: 'stars'|'hub'", "STARS = the Star chart", "HUB = Hub & spoke", "Hub & spoke | Star chart", "each on its own ring",
                  "Orbit switch", "nothing to convert"):
         assert want in doc, want
     assert "palace_view?: 'city'|'building'" in doc and "'city'|'stars'" not in doc
@@ -118,17 +118,18 @@ def test_create_timeline_explains_hub_and_spoke_and_its_two_looks():
 def test_a_wrong_hub_look_is_told_plainly():
     hub = {"brief": {"mode": "outline", "layout": "solar"}}
     assert srv._layout_error(hub, "", "") is None and srv._layout_error(hub, "", "stars") is None
-    assert srv._layout_error(hub, "", "plain") is None
+    assert srv._layout_error(hub, "", "hub") is None and srv._layout_error(hub, "", "plain") is None   # (1.9.108's name)
     assert srv._layout_error(hub, "", "swirl")["error"] == "invalid_hub_look"
     r = srv._layout_error({"brief": {"mode": "palace"}}, "", "stars")
     assert r["error"] == "invalid_hub_look" and "Hub & spoke" in r["message"]
-    assert srv._layout_error({"brief": {"mode": "outline", "layout": "tree"}}, "solar", "plain") is None
+    assert srv._layout_error({"brief": {"mode": "outline", "layout": "tree"}}, "solar", "hub") is None
 
 
 def test_a_layout_choice_is_kept_in_the_brief_only_when_given():
     doc = {"brief": {"mode": "outline", "layout": "solar", "hub_look": "stars", "tree_lines": "fan"}}
     assert srv._layout_choice(doc, "", "")["brief"] == doc["brief"]
-    assert srv._layout_choice(doc, "", "", "plain")["brief"]["hub_look"] == "plain"
+    assert srv._layout_choice(doc, "", "", "hub")["brief"]["hub_look"] == "hub"
+    assert srv._layout_choice(doc, "", "", "plain")["brief"]["hub_look"] == "hub"
     assert srv._layout_choice({"brief": {}}, "solar", "", "")["brief"] == {"layout": "solar"}
     assert doc["brief"]["hub_look"] == "stars"                                 # the stored one is not touched
 
@@ -154,9 +155,9 @@ def test_a_hub_and_spoke_timeline_goes_through_the_tools_in_either_look(local_st
     assert srv.build_timeline(tid).get("verify") == "passed"
     w = srv.place_nodes(tid, {"unit-1-a": {"arrange": "row"}})
     assert any("solar" in x for x in w["warnings"]), w
-    # the look it opens in is a build-time choice kept in the brief; the page carries both
-    assert srv.build_timeline(tid, hub_look="plain").get("verify") == "passed"
-    assert srv.get_timeline(tid)["brief"]["hub_look"] == "plain"
+    # the look it opens in is a build-time choice kept in the brief; the page carries both looks
+    assert srv.build_timeline(tid, hub_look="hub").get("verify") == "passed"
+    assert srv.get_timeline(tid)["brief"]["hub_look"] == "hub"
     assert srv.build_timeline(tid, hub_look="swirl")["error"] == "invalid_hub_look"
     assert srv.build_timeline(tid, hub_look="stars").get("verify") == "passed"
     assert not hasattr(srv, "convert_timeline")
@@ -175,7 +176,7 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
                  "Nothing goes deeper", "Never flatten it quietly", "a one-unit Hub & spoke is valid",
                  "drag its circle onto the other circle", "pivotal, critical or extremely important",
                  "never invent a unit or a hub", "their structure; you do not choose for them",
-                 "A unit may have several suns", "2.a, 2.b", "+ Add a sun", "hub_look: 'plain'", "hub_look: 'stars'", "never merge two of theirs"):
+                 "A unit may have several suns", "2.a, 2.b", "+ Add a sun", "hub_look: 'hub'", "hub_look: 'stars'", "its own ring", "never more than 40%", "never merge two of theirs"):
         assert want in sec, want
     assert "§D-Solar**" in GUIDE[GUIDE.index("### B0."):GUIDE.index("### §D-Palace.")]
     assert "hub_style" not in GUIDE and "run_layout_preview" in GUIDE[GUIDE.index("## Build sequence"):]
@@ -183,8 +184,8 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
 
 def test_the_guide_tells_claude_about_the_two_looks_and_never_about_converting():
     sec = _sec("**Two looks, switched in the page.**", "**Ask**")
-    for want in ("Star chart** (the look it opens in)", "Plain", "slowly orbiting", "spaceflight-style routes", "Zoom out",
-                 "Orbit** switch", "Open full page", "enlarged circle stays circular", "hub_look: 'plain'", "nothing to rebuild"):
+    for want in ("Star chart** (the look it opens in)", "**Hub & spoke**", "Hub & spoke | Star chart", "spaceflight-style routes", "Zoom out",
+                 "Orbit** switch", "Open full page", "enlarged circle stays circular", "hub_look: 'hub'", "nothing to rebuild"):
         assert want in sec, want
     low = GUIDE.lower()
     for gone in ("convert_timeline", "turn this into a star chart", "ringed-planet", "§d-stars", "palace_view: 'stars'", "to='star_chart'"):

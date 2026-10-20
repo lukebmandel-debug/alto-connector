@@ -124,9 +124,9 @@ def _mock(html):
     """LEAD's coming plan keys, mocked into a built page: a galactic core when
     there are 2+ systems, looks on some nodes, an asteroid belt."""
     import json
-    at = html.index("})(", html.index("window._ALTO_SOLAR=")) + 3      # (the looks' plans, spread by the page)
+    at = html.index("window._ALTO_SOLAR=") + len("window._ALTO_SOLAR=")      # (the one plan, round 7)
     W, end = json.JSONDecoder().raw_decode(html[at:])
-    S = W["looks"]["stars"]
+    S = W
     s0, s1 = S["systems"][0], S["systems"][1]
     S["core"] = {"x": s0["cx"] + 900, "y": (s0["cy"] + s1["cy"]) / 2, "r": 70}
     for i, lk in LOOKS.items():
@@ -161,12 +161,13 @@ SKIN = r"""() => {
   document.querySelectorAll('#world .node[data-solar]').forEach(function(n){
     var c=n.querySelector('.node-card');
     o.b[n.id.slice(5)]={role:n.getAttribute('data-solar'), kids:[].filter.call(c.children, function(e){ return e.classList.contains('sk') && getComputedStyle(e).display!=='none'; })
-      .map(function(e){ return e.className.replace(/^sk /, ''); }), bg:getComputedStyle(c).backgroundColor, bdf:getComputedStyle(c).webkitBackdropFilter||getComputedStyle(c).backdropFilter||'none'};
+      .map(function(e){ return e.className.replace(/^sk /, ''); }), bg:getComputedStyle(c).backgroundColor, bdf:getComputedStyle(c).webkitBackdropFilter||getComputedStyle(c).backdropFilter||'none',
+      craft:(c.querySelector('.sk-craft')||{getAttribute:function(){ return null; }}).getAttribute('data-craft')};
   });
   return o; }"""
 
 
-def test_every_body_is_dressed_for_its_role_and_spoke_is_not(browser, pages):
+def test_every_body_is_dressed_for_its_role_and_the_hub_look_is_not(browser, pages):
     pg, errs = _open(browser, pages["orbit"])
     s = pg.evaluate(SKIN)
     assert s["stars"] and s["sky"] == 1 and s["cor"] == 3 and s["tw"] >= 12, s
@@ -176,6 +177,7 @@ def test_every_body_is_dressed_for_its_role_and_spoke_is_not(browser, pages):
             assert k[0] == "sk-sun" and k.count("sk-gran") + k.count("sk-gran b") == 2, (i, k)
         elif b["role"] == "sat":
             assert k == ["sk-craft"], (i, k)
+            assert b["craft"] in ("comsat", "probe", "telescope", "cubesat", "station"), (i, b)
         else:
             assert "sk-tex" in k[0] or "sk-tex" in k[1], (i, k)
             assert "sk-lit" in k, (i, k)
@@ -325,7 +327,7 @@ def test_frame_budget_with_52_bodies(browser, pages):
 
 
 SWITCH = r"""async (cls) => { var de=document.documentElement;
-  de.classList.remove('alto-solar-stars', 'alto-solar-plain'); de.classList.add(cls);
+  de.classList.remove('alto-solar-stars', 'alto-solar-hub'); de.classList.add(cls);
   await new Promise(function(r){ setTimeout(r, 120); });
   return {stars:de.classList.contains('alto-stars'), sky:document.querySelectorAll('#world .sk-sky').length,
     trails:document.querySelectorAll('#solar-svg .sk-trails,#solar-svg .sk-rg').length,
@@ -333,21 +335,21 @@ SWITCH = r"""async (cls) => { var de=document.documentElement;
 
 
 def test_the_look_switch_puts_the_skin_on_and_takes_it_off(browser, pages):
-    """Plain look: no skin at all (no sky, no trails, every card its plain
+    """Hub & spoke look: no skin at all (no sky, no trails, every card its glass
     self); back to Star chart: all of it again, once (no doubled trails)."""
     pg, errs = _open(browser, pages["orbit"])
     if not pg.evaluate("!!window._altoSolarLook"):            # (a page without the renderer's switch: its classes)
-        a = pg.evaluate(SWITCH, "alto-solar-plain")
+        a = pg.evaluate(SWITCH, "alto-solar-hub")
         assert not a["stars"] and a["sky"] == 0 and a["trails"] == 0 and a["shown"] == 0, a
         b = pg.evaluate(SWITCH, "alto-solar-stars")
         c = pg.evaluate(SWITCH, "alto-solar-stars")
         assert b["stars"] and b["sky"] == 1 and b["shown"] > 20 and b["trails"] > 0, b
         assert c == b, (b, c)
-    # the renderer's own switch (window._altoSolarLook): Plain and back, the skin with it
+    # the renderer's own switch (window._altoSolarLook): Hub & spoke and back, the skin with it
     d = pg.evaluate(r"""async () => { var L=window._altoSolarLook, o=[], de=document.documentElement;
       if(!L) return null;
       function st(){ return [de.classList.contains('alto-stars'), document.querySelectorAll('.sk-sky').length, document.querySelectorAll('#solar-svg .sk-trails').length]; }
-      L.set('plain'); await new Promise(function(r){ setTimeout(r, 900); }); o.push(st());
+      L.set('hub'); await new Promise(function(r){ setTimeout(r, 900); }); o.push(st());
       L.set('stars'); await new Promise(function(r){ setTimeout(r, 900); }); o.push(st()); return o; }""")
     assert d is None or d == [[False, 0, 0], [True, 1, 1]], d
     assert not errs, errs

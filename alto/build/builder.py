@@ -111,22 +111,20 @@ def run_layout(brief: Brief, nodes: list[Node], connections: list = None):
     report["layout"] = "flow"
     if solar_style(brief):
         # Hub & spoke (an outline laid out 'solar'): every root a solar
-        # system (solar.py), in two looks — the Star chart (orbit) and plain
-        # (spoke); the page carries both. Only ever by the author's choice:
-        # "auto" never lands here. The first look's centres go through the
-        # tree's own plan runner, so the page sees ordinary positions.
+        # system (solar.py), one plan drawn in two looks — the Star chart and
+        # Hub & spoke. Only ever by the author's choice: "auto" never lands
+        # here. Its centres go through the tree's own plan runner, so the page
+        # sees ordinary positions.
         from .solar import solar_plan, solar_tree_plan, solar_heights, solar_summary
         sp = solar_plan(brief, nodes)
-        other = solar_plan(brief, nodes, "spoke" if sp["style"] == "orbit" else "orbit")
         heights = solar_heights(sp)
         positions, _sx, _ = run_plan(solar_tree_plan(sp, nodes), nodes, heights)
         world_h = sp["world"]["h"]
         report = {"world_height": world_h, "moved_on_recheck": [], "per_column": {},
                   "layout": "solar", "solar": solar_summary(sp)}
         report["solar"]["look"] = brief.hub_look
-        report["solar"]["other_look"] = solar_summary(other)
-        if sp["warnings"] or other["warnings"]:
-            report["solar"]["warnings"] = sp["warnings"] + other["warnings"]
+        if sp["warnings"]:
+            report["solar"]["warnings"] = sp["warnings"]
         mgrid, mobile_h = mobile_grid(nodes, brief.columns)
         return positions, heights, world_h, mgrid, mobile_h, report
     if brief.mode == "outline" and brief.layout != "flow":

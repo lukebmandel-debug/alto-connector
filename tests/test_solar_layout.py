@@ -1,13 +1,14 @@
 """Hub & spoke (brief.layout == "solar", alto/build/solar.py): every root a
 solar system — its children planets one to a ring in outline order, theirs
-moons round them, theirs satellites — in two looks, the Star chart (style
-"orbit", moving; comets on ellipses, belts, a galactic core) and plain
-(style "spoke", still). A 1.9.105 Star chart palace loads as one.
+moons each on its own ring round them, theirs satellites each on its own ring
+round their moon — one plan, drawn in two looks (Star chart, Hub & spoke;
+comets on ellipses, belts, a galactic core). A 1.9.105 Star chart palace and a
+1.9.108 'plain' look load as one.
 
-The geometry is held to its promises here with plain circle arithmetic: in the
-orbit style no two circles of a system ever touch at ANY moment (each planet's
-family sweeps an annulus of its own), in the spoke style none touch and every
-spoke runs clear; systems never touch each other; nothing comes within the
+The geometry is held to its promises here with plain circle arithmetic: no two
+circles of a system ever touch at ANY moment (each planet's family sweeps an
+annulus of its own round the sun, each moon's round its planet, each
+satellite's round its moon); systems never touch each other; nothing comes within the
 margin of the world's edge. Then the build: the page carries the plan as
 window._ALTO_SOLAR and puts every circle's centre where the plan says, through
 the tree's own plan runner (Python and the page's TREE_GLUE, held equal under
@@ -35,7 +36,7 @@ from alto.build.solar import (SOLAR, body_d, solar_heights, solar_plan,  # noqa:
 NODE = shutil.which("node") or str(Path.home() / ".local/node/bin/node")
 needs_node = pytest.mark.skipif(not Path(NODE).is_file(), reason="needs node")
 OUTLINE = ROOT / "samples" / "outline_brief.json"
-GAP_MIN = min(SOLAR["MOON_GAP"], SOLAR["SAT_GAP"], SOLAR["RING_GAP"], SOLAR["SPOKE_GAP"]) - 0.5
+GAP_MIN = min(SOLAR["MOON_GAP"], SOLAR["SAT_GAP"], SOLAR["RING_GAP"]) - 0.5
 
 
 # ── synthetic outlines ─────────────────────────────────────────────────────
@@ -43,15 +44,15 @@ GAP_MIN = min(SOLAR["MOON_GAP"], SOLAR["SAT_GAP"], SOLAR["RING_GAP"], SOLAR["SPO
 # satellites. Ids spell where a node sits: u1-p2-m3-s1.
 
 def _brief(n_units, style, flags=None):
-    """A Hub & spoke opening in the plain look ("spoke") or the Star chart
-    look ("orbit")."""
+    """A Hub & spoke opening in the Hub & spoke look ("hub") or the Star chart
+    look ("orbit"): one plan either way."""
     acts = [Act(label=f"UNIT {a + 1}", short=f"Unit {a + 1}") for a in range(n_units)]
     return Brief(title="Solar test", subject="s", columns=5, acts=acts, timeline_id="solar-test",
                  flags=flags or [], mode="outline", layout="solar",
-                 hub_look="plain" if style == "spoke" else "stars")
+                 hub_look="hub" if style == "hub" else "stars")
 
 
-def _outline(units, style="spoke", flags=None):
+def _outline(units, style="orbit", flags=None):
     b = _brief(len(units), style, flags)
     nodes = []
 
@@ -100,11 +101,11 @@ TORTS = [
 ]
 
 
-def civpro_shape(style="spoke"):
+def civpro_shape(style="orbit"):
     return _outline(CIVPRO, style)
 
 
-def torts_shape(style="spoke"):
+def torts_shape(style="orbit"):
     return _outline(TORTS, style)
 
 
@@ -216,20 +217,21 @@ def _assert_annuli(plan):
     for s in plan["systems"]:
         inner, gaps = s["r_sun"], []
         for p in s["planets"]:
-            reach = p["d"] / 2
+            # each moon's family in an annulus of its own round the planet, the first innermost,
+            # MOON_GAP clear of the planet and of the one inside it; each satellite likewise round its moon
+            edge = p["d"] / 2
+            rs = [m["r"] for m in p["moons"]]
+            assert rs == sorted(rs) and len(set(rs)) == len(rs), p["id"]
             for m in p["moons"]:
                 cm = _slack(N[m["id"]].get("orbit"))
-                sr = max([m["d"] / 2] + [q["r"] * (1 + _slack(N[q["id"]].get("orbit"))) + q["d"] / 2
-                                         for q in m["sats"]])
-                # the moon's own reach round where it would be on its circle
-                mreach = cm * m["r"] + sr
-                reach = max(reach, m["r"] + mreach)
-                # a moon clears its planet whatever it and its satellites do
-                assert m["r"] - mreach >= p["d"] / 2 + SOLAR["MOON_GAP"] - 0.01, (p["id"], m["id"])
+                sedge = m["d"] / 2
                 for q in m["sats"]:
                     cq = _slack(N[q["id"]].get("orbit"))
-                    assert q["r"] * (1 - cq) - q["d"] / 2 >= m["d"] / 2 + SOLAR["SAT_GAP"] - 0.01
-            assert reach <= p["e"] + 0.05, (p["id"], reach, p["e"])
+                    assert q["r"] * (1 - cq) - q["d"] / 2 >= sedge + SOLAR["SAT_GAP"] - 0.06, (m["id"], q["id"])
+                    sedge = q["r"] * (1 + cq) + q["d"] / 2
+                assert m["r"] * (1 - cm) - sedge >= edge + SOLAR["MOON_GAP"] - 0.06, (p["id"], m["id"])
+                edge = m["r"] * (1 + cm) + sedge
+            assert edge <= p["e"] + 0.06, (p["id"], edge, p["e"])
             sp = _slack(N[p["id"]].get("orbit")) * p["r"]
             gaps.append((inner, p["r"] - sp - p["e"]))
             assert p["r"] - sp - p["e"] >= inner + SOLAR["RING_GAP"] - 0.05, (s["sun"], p["id"])
@@ -274,14 +276,8 @@ def _assert_systems_apart(plan):
     ss = plan["systems"]
     for i, a in enumerate(ss):
         for b in ss[i + 1:]:
-            if plan["style"] == "orbit":
-                # a whole system may turn about its sun: its disc is what it needs
-                assert math.hypot(a["cx"] - b["cx"], a["cy"] - b["cy"]) >= a["R"] + b["R"] + SOLAR["SYS_GAP"] - 0.5
-            else:
-                ax0, ay0, ax1, ay1 = a["bbox"]
-                bx0, by0, bx1, by1 = b["bbox"]
-                sep = max(bx0 - ax1, ax0 - bx1, by0 - ay1, ay0 - by1)
-                assert sep >= SOLAR["SYS_GAP"] - 0.5, (a["sun"], b["sun"], sep)
+            # a whole system may turn about its sun: its disc is what it needs
+            assert math.hypot(a["cx"] - b["cx"], a["cy"] - b["cy"]) >= a["R"] + b["R"] + SOLAR["SYS_GAP"] - 0.5
 
 
 def _assert_margins(plan):
@@ -290,27 +286,9 @@ def _assert_margins(plan):
         r = n["d"] / 2
         assert M - 0.01 <= n["x"] - r and n["x"] + r <= W - M + 0.01, i
         assert n["y"] - r >= SOLAR["TOP"] - 0.01 and n["y"] + r <= H - M, i
-    if plan["style"] == "orbit":
-        for s in plan["systems"]:
-            assert s["cx"] - s["R"] >= M - 0.01 and s["cx"] + s["R"] <= W - M + 0.01
-            assert s["cy"] - s["R"] >= SOLAR["TOP"] - 0.01 and s["cy"] + s["R"] <= H - M
-
-
-def _assert_spokes_clear(plan):
-    """Spoke style: every spoke (child → what it orbits) clear of every other
-    circle, unless the plan says it could not be."""
-    N = plan["nodes"]
-    excused = {w.split(": no clear line from ")[1].split(" ")[0]
-               for w in plan["warnings"] if ": no clear line from " in w}
-    for i, n in N.items():
-        if n["role"] == "sun" or i in excused:
-            continue
-        par = N[n["parent"]]
-        for j, o in N.items():
-            if j in (i, n["parent"]):
-                continue
-            d = _seg_dist(o["x"], o["y"], n["x"], n["y"], par["x"], par["y"])
-            assert d >= o["d"] / 2 + SOLAR["SPOKE_CLEAR"] - 0.5, (i, n["parent"], j, d)
+    for s in plan["systems"]:
+        assert s["cx"] - s["R"] >= M - 0.01 and s["cx"] + s["R"] <= W - M + 0.01
+        assert s["cy"] - s["R"] >= SOLAR["TOP"] - 0.01 and s["cy"] + s["R"] <= H - M
 
 
 def _assert_t0_matches(plan):
@@ -323,20 +301,37 @@ def _check(plan, times=(0, 7.3, 21.0, 44.4, 63.1, 97.7, 140.2, 333.3)):
     _assert_t0_matches(plan)
     _assert_systems_apart(plan)
     _assert_margins(plan)
-    if plan["style"] == "orbit":
-        _assert_annuli(plan)
-        for t in times:
-            assert not _overlaps(_circles_at(plan, t)), t
-    else:
-        assert not _overlaps(_circles_at(plan, 0))
-        _assert_spokes_clear(plan)
-        assert plan["belts"] == [] and plan["drifters"] == []
+    assert plan["style"] == "orbit"
+    _assert_annuli(plan)
+    _assert_sizes(plan)
+    for t in times:
+        assert not _overlaps(_circles_at(plan, t)), t
     _assert_core_and_drifters(plan, times[:3])
+
+
+def _assert_sizes(plan):
+    """Real-ratio sizes (round 7): sun > planets > moons > satellites, a moon at most
+    MOON_MAX of its planet, inner rings turning faster."""
+    N, D = plan["nodes"], SOLAR["D"]
+    for i, n in N.items():
+        if n["role"] == "moon":
+            assert n["d"] <= SOLAR["MOON_MAX"] * N[n["parent"]]["d"] + 1e-9, i
+    by = {r: [n["d"] for n in N.values() if n["role"] == r] for r in ("sun", "planet", "moon", "sat")}
+    for a, b in (("sun", "planet"), ("planet", "moon"), ("moon", "sat")):
+        if by[a] and by[b]:
+            assert min(by[a]) > max(by[b]), (a, b)
+    for s in plan["systems"]:
+        for p in s["planets"]:
+            ps = [m["period"] for m in p["moons"]]
+            assert ps == sorted(ps)
+            for m in p["moons"]:
+                qs = [q["period"] for q in m["sats"]]
+                assert qs == sorted(qs) and all(q > 0 for q in qs)
 
 
 # ── geometry ───────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("style", ["orbit", "spoke"])
+@pytest.mark.parametrize("style", ["orbit"])
 @pytest.mark.parametrize("shape", [civpro_shape, torts_shape])
 def test_law_outlines_have_no_overlaps_and_keep_the_margins(shape, style):
     b, nodes = shape(style)
@@ -346,7 +341,7 @@ def test_law_outlines_have_no_overlaps_and_keep_the_margins(shape, style):
     assert len(plan["systems"]) == len(b.acts)
 
 
-@pytest.mark.parametrize("style", ["orbit", "spoke"])
+@pytest.mark.parametrize("style", ["orbit"])
 @pytest.mark.parametrize("planets", [1, 2, 3, 5, 8, 12])
 @pytest.mark.parametrize("moons", [0, 1, 2, 3, 5, 8])
 def test_any_count_of_planets_and_moons_fits(planets, moons, style):
@@ -355,7 +350,7 @@ def test_any_count_of_planets_and_moons_fits(planets, moons, style):
     _check(plan, times=(0, 13.7, 55.5, 120.9))
 
 
-@pytest.mark.parametrize("style", ["orbit", "spoke"])
+@pytest.mark.parametrize("style", ["orbit"])
 def test_uneven_families_with_satellites(style):
     units = [[[3, 0, 1], [], [0] * 8, [2, 2, 2, 2, 2], [1], [0, 0, 0, 0, 0, 0, 0, 0], [4], [0, 6]],
              [[1]], [], [[0, 0], [8]]]
@@ -363,7 +358,7 @@ def test_uneven_families_with_satellites(style):
     _check(solar_plan(b, nodes))
 
 
-def test_planets_take_the_rings_in_outline_order_and_moons_share_one_ring():
+def test_planets_take_the_rings_in_outline_order_and_each_moon_its_own_ring():
     b, nodes = civpro_shape()
     plan = solar_plan(b, nodes)
     for a, s in enumerate(plan["systems"]):
@@ -373,7 +368,12 @@ def test_planets_take_the_rings_in_outline_order_and_moons_share_one_ring():
         rs = [p["r"] for p in s["planets"]]
         assert rs == sorted(rs) and len(set(rs)) == len(rs)
         for p in s["planets"]:
-            assert len({m["r"] for m in p["moons"]}) <= 1
+            mr = [m["r"] for m in p["moons"]]
+            assert mr == sorted(mr) and len(set(mr)) == len(mr)            # no two moons share an orbit
+            assert not mr or p["moon_r"] == mr[0]
+            for m in p["moons"]:
+                sr = [q["r"] for q in m["sats"]]
+                assert sr == sorted(sr) and len(set(sr)) == len(sr)
             # evenly spaced round the planet
             angs = sorted(m["a0"] for m in p["moons"])
             if len(angs) > 1:
@@ -392,13 +392,17 @@ def test_an_order_hint_reorders_the_rings():
 def test_a_body_grows_with_its_children_and_the_tiers_keep_their_order():
     T = SOLAR["TIERS"]
     # a tier per two children, clamped below the bump-only top of each ladder
-    assert [body_d("planet", m) for m in range(10)] == [96, 110, 110, 124, 124, 138, 138, 152, 152, 152]
-    assert [body_d("moon", k) for k in range(8)] == [50, 58, 58, 66, 66, 74, 74, 74]
-    assert body_d("sat", 0) == 34 and body_d("sat", 0, True) == 40
-    assert body_d("planet", 99, True) == T["planet"][-1] == 166
-    assert body_d("moon", 99, True) == T["moon"][-1] == 82
-    # sun > every planet > every moon > every satellite, bumps included
-    assert SOLAR["D"]["sun"] > max(T["planet"]) and min(T["planet"]) > max(T["moon"]) > max(T["sat"])
+    assert [body_d("planet", m) for m in range(10)] == [64, 84, 84, 96, 96, 110, 110, 122, 122, 122]
+    assert [body_d("moon", k) for k in range(8)] == [24, 27, 27, 30, 30, 33, 33, 33]
+    assert body_d("sat", 0) == 14 and body_d("sat", 0, True) == 18 and body_d("sat", 0, False, 30, True) == SOLAR["STATION"] == 21
+    assert body_d("planet", 99, True) == T["planet"][-1] == 134
+    assert body_d("moon", 99, True) == T["moon"][-1] == 36
+    assert body_d("moon", 99, True, 84) == 33                  # never more than 40% of its planet
+    # sun > every planet > every moon > the station > every satellite, bumps included
+    assert SOLAR["D"]["sun"] > max(T["planet"]) and min(T["planet"]) > max(T["moon"])
+    assert min(T["moon"]) > SOLAR["STATION"] > max(T["sat"])
+    # real ratios, compressed: a moon about a quarter to a third of its planet, the sun the largest
+    assert 0.25 <= T["moon"][0] / T["planet"][1] <= 0.4 and SOLAR["D"]["sun"] / max(T["planet"]) < 2
 
 
 def test_sizes_follow_child_counts_and_an_extreme_flag_bumps_one_tier():
@@ -414,13 +418,16 @@ def test_sizes_follow_child_counts_and_an_extreme_flag_bumps_one_tier():
     plan = solar_plan(b, nodes)
     d = {i: n["d"] for i, n in plan["nodes"].items()}
     assert d["u1"] == d["u2"] == SOLAR["D"]["sun"]
-    assert d["u1-p1"] == 152                           # 7 moons
-    assert d["u1-p2"] == 124                           # 1 moon (110) + pivotal
-    assert d["u1-p3"] == 96                            # no moons; "key case" is no bump
-    assert d["u1-p4"] == 124                           # 3 moons
-    assert d["u1-p4-m1"] == 82                         # 5 satellites (74) + extreme importance
-    assert d["u1-p4-m2"] == 50 and d["u1-p4-m3"] == 58
-    assert d["u2-p1-m1-s1"] == 40 and d["u2-p1-m1-s2"] == 34
+    assert d["u1-p1"] == 122                           # 7 moons
+    assert d["u1-p2"] == 96                            # 1 moon (84) + pivotal
+    assert d["u1-p3"] == 64                            # no moons; "key case" is no bump
+    assert d["u1-p4"] == 96                            # 3 moons
+    assert d["u1-p4-m1"] == 36                         # 5 satellites (33) + extreme importance
+    assert d["u1-p4-m2"] == 24 and d["u1-p4-m3"] == 27
+    # u2-p1-m1: two satellites, the pivotal one bumped — unless it is the system's station
+    st = {i for i, n in plan["nodes"].items() if n.get("station")}
+    assert st == {"u1-p4-m1-s1", "u2-p1-m1-s1"}         # the first of equals in each system
+    assert d["u2-p1-m1-s1"] == 21 and d["u2-p1-m1-s2"] == 14
     assert plan["sizes"]["bump"] == ["imp", "pivotal"]
     # the systems' bodies carry the same diameters as the nodes
     for s in plan["systems"]:
@@ -431,7 +438,7 @@ def test_sizes_follow_child_counts_and_an_extreme_flag_bumps_one_tier():
     _check(plan)
 
 
-@pytest.mark.parametrize("style", ["orbit", "spoke"])
+@pytest.mark.parametrize("style", ["orbit"])
 def test_twelve_planets_of_eight_moons_all_at_the_largest_sizes(style):
     """The heaviest case: every planet at the top of its ladder (bumped), every
     moon too, satellites bumped — still no overlap anywhere."""
@@ -442,12 +449,12 @@ def test_twelve_planets_of_eight_moons_all_at_the_largest_sizes(style):
         if n.parent:
             n.flags = ["pivotal"]
     plan = solar_plan(b, nodes)
-    assert {n["d"] for n in plan["nodes"].values() if n["role"] == "planet"} == {166}
-    assert max(n["d"] for n in plan["nodes"].values() if n["role"] == "moon") == 82
+    assert {n["d"] for n in plan["nodes"].values() if n["role"] == "planet"} == {134}
+    assert max(n["d"] for n in plan["nodes"].values() if n["role"] == "moon") == 36
     _check(plan, times=(0, 31.0, 77.7))
 
 
-def test_orbit_periods_inner_faster_and_spoke_still():
+def test_orbit_periods_inner_faster_in_both_looks():
     b, nodes = civpro_shape("orbit")
     plan = solar_plan(b, nodes)
     for s in plan["systems"]:
@@ -456,21 +463,22 @@ def test_orbit_periods_inner_faster_and_spoke_still():
         for p in s["planets"]:
             for m in p["moons"]:
                 assert 30 <= m["period"] <= 50
-                assert all(q["period"] > 0 for q in m["sats"])
-    b, nodes = civpro_shape("spoke")
+                assert all(14 <= q["period"] <= 24 for q in m["sats"])
+    # the Hub & spoke look is the same plan
+    hb, hn = civpro_shape("hub")
+    assert hb.hub_look == "hub" and json.dumps(solar_plan(hb, hn), sort_keys=True) == json.dumps(plan, sort_keys=True)
+
+
+def test_stations_are_the_satellites_with_the_most_to_read():
+    from alto.build.brief import Section
+    b, nodes = _outline([[[2, 3]], [[0]]])
+    by = {n.id: n for n in nodes}
+    by["u1-p1-m2-s2"].sections = [Section(h="Holding", t="x" * 400)]
     plan = solar_plan(b, nodes)
-    bodies = [x for s in plan["systems"] for p in s["planets"]
-              for x in [p] + p["moons"] + [q for m in p["moons"] for q in m["sats"]]]
-    assert bodies and all(x["period"] == 0 for x in bodies)
-    assert plan["style"] == "spoke"
-
-
-def test_spoke_is_more_compact_than_orbit():
-    for shape in (civpro_shape, torts_shape):
-        o = solar_plan(*shape("orbit"))
-        s = solar_plan(*shape("spoke"))
-        assert sum(x["R"] for x in s["systems"]) < sum(x["R"] for x in o["systems"])
-        assert s["world"]["h"] < o["world"]["h"]
+    st = sorted(i for i, n in plan["nodes"].items() if n.get("station"))
+    assert st == ["u1-p1-m2-s2"]                        # one per system that has satellites
+    assert plan["nodes"]["u1-p1-m2-s2"]["d"] == SOLAR["STATION"]
+    _check(plan)
 
 
 def test_small_systems_sit_side_by_side_and_wrap_to_rows():
@@ -496,7 +504,7 @@ def test_a_system_too_wide_for_the_world_widens_it_and_keeps_the_margin():
 
 
 def test_the_plan_is_pure_and_deterministic():
-    b, nodes = torts_shape("spoke")
+    b, nodes = torts_shape("orbit")
     before = copy.deepcopy([vars(n) for n in nodes])
     p1 = json.dumps(solar_plan(b, nodes), sort_keys=True)
     p2 = json.dumps(solar_plan(copy.deepcopy(b), copy.deepcopy(nodes)), sort_keys=True)
@@ -507,13 +515,13 @@ def test_the_plan_is_pure_and_deterministic():
 def test_the_contract_shape():
     b, nodes = _outline([[[1, 0], []], [[0]]])
     plan = solar_plan(b, nodes)
-    assert plan["style"] in ("orbit", "spoke") and set(plan["world"]) == {"w", "h"}
+    assert plan["style"] == "orbit" and set(plan["world"]) == {"w", "h"}
     s = plan["systems"][0]
     assert {"unit", "sun", "cx", "cy", "r_sun", "planets"} <= set(s)
     p = s["planets"][0]
     assert {"id", "ring", "r", "a0", "d", "period", "moons"} <= set(p)
     m = p["moons"][0]
-    assert {"id", "r", "a0", "d", "period", "sats"} <= set(m)
+    assert {"id", "r", "a0", "d", "period", "ext", "sats"} <= set(m)
     q = m["sats"][0]
     assert {"id", "r", "a0", "d", "period"} <= set(q)
     assert {plan["nodes"][i]["role"] for i in plan["nodes"]} == {"sun", "planet", "moon", "sat"}
@@ -539,11 +547,14 @@ def test_a_fifth_level_is_an_error_that_says_how_to_fix_it():
 
 
 def test_hub_and_spoke_is_an_outline_with_a_first_look():
-    b, _ = _outline([[[0]], [[0]]])
+    b, _ = _outline([[[0]], [[0]]], "hub")
     validate_brief(b)
-    assert b.hub_look == "plain" and solar_style(b) == "spoke"
+    assert b.hub_look == "hub" and solar_style(b) == "orbit"
     b.hub_look = "stars"
     assert solar_style(b) == "orbit"
+    b.hub_look = "plain"                                  # (1.9.108's name: migrate_brief reads it as 'hub')
+    with pytest.raises(BriefError, match="hub_look"):
+        validate_brief(b)
     b.hub_look = "galaxy"
     with pytest.raises(BriefError, match="hub_look"):
         validate_brief(b)
@@ -593,26 +604,20 @@ def test_placement_other_than_order_is_warned_about():
 
 # ── the build ──────────────────────────────────────────────────────────────
 
-def _sample(style="spoke"):
-    """The sample outline as a Hub & spoke opening plain ("spoke") or in the
-    Star chart look ("orbit")."""
+def _sample(style="orbit"):
+    """The sample outline as a Hub & spoke opening in the Hub & spoke look
+    ("hub") or in the Star chart look ("orbit")."""
     d = json.loads(OUTLINE.read_text(encoding="utf-8"))
     d["brief"]["layout"] = "solar"
-    d["brief"]["hub_look"] = "plain" if style == "spoke" else "stars"
+    d["brief"]["hub_look"] = "hub" if style == "hub" else "stars"
     return d
 
 
 def _solar(html):
-    """window._ALTO_SOLAR as the page has it: {look, looks}, with the first
-    look's plan spread over the top level (as the page's spread does)."""
+    """window._ALTO_SOLAR as the page has it: the plan and its first look."""
     at = html.index("window._ALTO_SOLAR=") + len("window._ALTO_SOLAR=")
-    assert html[at:].startswith("(function(S){")
-    at = html.index(")(", at) + 2
     S, _ = json.JSONDecoder().raw_decode(html[at:])
-    out = dict(S)
-    for k, v in S["looks"][S["look"]].items():
-        out.setdefault(k, v)
-    return out
+    return S
 
 
 def test_run_layout_puts_every_centre_where_the_plan_says():
@@ -632,25 +637,22 @@ def test_run_layout_puts_every_centre_where_the_plan_says():
     assert set(mgrid) == {n.id for n in nodes}          # phones keep their column of cards
 
 
-@pytest.mark.parametrize("style", ["orbit", "spoke"])
-def test_build_embeds_both_looks_and_the_first_looks_positions(style):
+@pytest.mark.parametrize("style", ["orbit", "hub"])
+def test_build_embeds_one_plan_and_the_first_look(style):
     b, nodes, conns = load_brief(_sample(style))
     html, report = build_timeline(b, nodes, conns)
-    assert report["layout"]["layout"] == "solar" and report["layout"]["solar"]["style"] == style
-    assert report["layout"]["solar"]["other_look"]["style"] == ("spoke" if style == "orbit" else "orbit")
+    assert report["layout"]["layout"] == "solar" and report["layout"]["solar"]["style"] == "orbit"
+    assert "other_look" not in report["layout"]["solar"]
     assert html.count("window._ALTO_SOLAR=") == 1
     S = _solar(html)
-    look = "plain" if style == "spoke" else "stars"
-    assert S["look"] == look and set(S["looks"]) == {"stars", "plain"}
-    assert S["looks"]["stars"]["style"] == "orbit" and S["looks"]["plain"]["style"] == "spoke"
-    # the single-plan keys, readable as before: the first look's
-    assert S["style"] == style and len(S["systems"]) == 5 and S["nodes"] == S["looks"][look]["nodes"]
-    # both looks are the plans solar.py makes, to 0.1 px
-    for lk, st in (("stars", "orbit"), ("plain", "spoke")):
-        want = solar_plan(b, nodes, st)
-        for i, n in want["nodes"].items():
-            got = S["looks"][lk]["nodes"][i]
-            assert abs(got["x"] - n["x"]) <= 0.051 and abs(got["y"] - n["y"]) <= 0.051 and got["d"] == n["d"]
+    look = "hub" if style == "hub" else "stars"
+    assert S["look"] == look and "looks" not in S or isinstance(S.get("looks"), dict)   # (plan.looks: the flagged bodies)
+    assert S["look"] == look and S["style"] == "orbit" and len(S["systems"]) == 5
+    # the plan solar.py makes, to 0.1 px
+    want = solar_plan(b, nodes)
+    for i, n in want["nodes"].items():
+        got = S["nodes"][i]
+        assert abs(got["x"] - n["x"]) <= 0.051 and abs(got["y"] - n["y"]) <= 0.051 and got["d"] == n["d"]
     assert "window._ALTO_TREE_PLAN=" in html and '"mid"]' in html
     assert "window._altoTreeCalc" in html
     assert "window._ALTO_OUTLINE=" in html and "window._ALTO_PALACE=" not in html     # path numbers
@@ -665,7 +667,7 @@ def test_a_tree_page_has_no_solar_plan():
 
 @needs_node
 def test_the_page_puts_each_centre_where_the_plan_says(tmp_path):
-    b, nodes = torts_shape("spoke")
+    b, nodes = torts_shape("orbit")
     plan = solar_plan(b, nodes)
     tp = solar_tree_plan(plan, nodes)
     h = {i: d + (len(i) % 5) * 9 for i, d in solar_heights(plan).items()}   # measured ≠ diameter
@@ -707,9 +709,11 @@ def _draft(srv, d):
 
 def test_build_and_preview_through_the_tools_on_a_scratch_store(store):
     srv = store
-    tid = _draft(srv, _sample("spoke"))
+    tid = _draft(srv, _sample("hub"))
     pre = srv.run_layout_preview(tid)
-    assert pre.get("layout") == "solar" and pre["solar"]["style"] == "spoke", pre
+    assert pre.get("layout") == "solar" and pre["solar"]["style"] == "orbit" and pre["solar"]["look"] == "hub", pre
+    pre = srv.run_layout_preview(tid, hub_look="plain")                     # 1.9.108's name still accepted
+    assert pre.get("layout") == "solar" and pre["solar"]["look"] == "hub", pre
     pre = srv.run_layout_preview(tid, layout="tree")
     assert pre.get("layout") == "tree", pre
     out = srv.build_timeline(tid)
@@ -728,8 +732,8 @@ def test_build_and_preview_through_the_tools_on_a_scratch_store(store):
 ])
 def test_every_root_is_a_sun_and_no_two_bodies_ever_touch(districts):
     b, nodes = _stars(districts)
-    for style in ("orbit", "spoke"):
-        plan = solar_plan(b, nodes, style)
+    for style in ("orbit",):
+        plan = solar_plan(b, nodes)
         assert plan["style"] == style
         suns = [s["sun"] for s in plan["systems"]]
         assert suns == [n.id for n in nodes if not n.parent]
@@ -746,7 +750,7 @@ def test_every_root_is_a_sun_and_no_two_bodies_ever_touch(districts):
 
 
 def test_an_outline_with_one_root_per_unit_keeps_its_plan():
-    b, nodes = civpro_shape("spoke")
+    b, nodes = civpro_shape("orbit")
     plan = solar_plan(b, nodes)
     assert [s["sun"] for s in plan["systems"]] == [f"u{a + 1}" for a in range(len(CIVPRO))]
     assert [u["suns"] for u in plan["units"]] == [[f"u{a + 1}"] for a in range(len(CIVPRO))]
@@ -780,14 +784,14 @@ def test_flags_make_black_holes_comets_and_asteroids_first_match_wins():
     by["u1-p2"].flags = ["minor", "oq"]                         # comet over asteroid
     by["u1-p1-m1"].flags = ["keycase", "pivotal"]               # no look; pivotal bumps the size
     assert node_looks(b, nodes) == {"u1-p1": "blackhole", "u1-p2": "comet"}
-    for style in ("orbit", "spoke"):
-        plan = solar_plan(b, nodes, style)
+    for style in ("orbit",):
+        plan = solar_plan(b, nodes)
         N = plan["nodes"]
         assert N["u1-p1"]["look"] == "blackhole" and N["u1-p2"]["look"] == "comet" and "look" not in N["u1-p1-m1"]
         assert N["u1-p1"]["role"] == "planet" and N["u1-p1-m1"]["parent"] == "u1-p1"   # children still orbit it
         assert N["u1-p1-m1"]["d"] == body_d("moon", 0, True)
         assert plan["looks"] == {"blackhole": ["u1-p1"], "comet": ["u1-p2"]}
-        assert ("orbit" in N["u1-p2"]) == (style == "orbit")         # only the moving look has an ellipse
+        assert "orbit" in N["u1-p2"]                                   # a comet's ellipse (both looks orbit)
 
 
 def test_comets_have_fixed_eccentric_orbits_and_asteroids_tumble():
@@ -801,10 +805,13 @@ def test_comets_have_fixed_eccentric_orbits_and_asteroids_tumble():
         o = N[i]["orbit"]
         assert set(o) == {"e", "rot", "k"} and 0 <= o["rot"] < 2 * math.pi + 1e-9
         assert o["k"] == (1 if N[i]["role"] == "planet" else 0)
-        if N[i]["role"] == "planet":
-            assert SOLAR["ECC"][0] - 1e-9 <= o["e"] <= SOLAR["ECC"][1] + 1e-9
-        else:
-            assert 0 < o["e"] <= SOLAR["ECC"][1] + 1e-9     # a crowded ring may flatten it
+        # its shape's eccentricity, flattened only so it strays no more than COMET_PX(_PLANET) from its circle
+        assert 0 < o["e"] <= SOLAR["ECC"][1] + 1e-9
+        c = _slack(o)
+        cap = SOLAR["COMET_PX_PLANET" if N[i]["role"] == "planet" else "COMET_PX"]
+        par = next((b for s_ in plan["systems"] for b in ([p_ for p_ in s_["planets"]] + [m for p_ in s_["planets"] for m in p_["moons"]]
+                                                          + [q for p_ in s_["planets"] for m in p_["moons"] for q in m["sats"]]) if b["id"] == i))
+        assert c * par["r"] <= cap + 0.2, (i, c * par["r"])
     for i in rocks:
         assert SOLAR["TUMBLE"][0] - 1e-9 <= abs(N[i]["tumble"]) <= SOLAR["TUMBLE"][1] + 1e-9
     assert all("tumble" not in n for i, n in N.items() if i not in rocks)
@@ -818,7 +825,7 @@ def test_comets_have_fixed_eccentric_orbits_and_asteroids_tumble():
 @pytest.mark.parametrize("units", [CIVPRO, TORTS, [[[0] * 8] * 12], [[[2] * 8] * 12, [[1]]],
                                    [[[0]] * 4, [[3, 3]] * 5, [[]] * 9]])
 def test_flagged_charts_keep_every_proof_at_every_moment(units):
-    for style in ("orbit", "spoke"):
+    for style in ("orbit",):
         for every in (("revisit",), ("revisit", "not-tested", "overruled", ""), ("pivotal", "revisit")):
             b, nodes = _flagged(units, style, every)
             _check(solar_plan(b, nodes), times=(0, 11.1, 37.7, 71.3, 140.9, 260.0))
@@ -834,7 +841,6 @@ def test_a_belt_runs_between_the_inner_and_outer_planets_of_a_big_system():
     p3, p4 = s["planets"][2], s["planets"][3]
     assert p3["r"] + p3["e"] < bl["r"] - bl["w"] / 2 and bl["r"] + bl["w"] / 2 < p4["r"] - p4["e"]
     assert 40 <= bl["n"] <= 400 and isinstance(bl["seed"], int)
-    assert solar_plan(b, nodes, "spoke")["belts"] == []
 
 
 def test_the_core_sits_among_the_suns_and_a_single_system_has_none():
@@ -863,7 +869,7 @@ def test_flagged_plans_are_deterministic():
 
 def _civpro_page(look="stars"):
     from alto.build.builder import load_brief as lb
-    b, nodes = _flagged(CIVPRO, "orbit" if look == "stars" else "spoke")
+    b, nodes = _flagged(CIVPRO, "orbit" if look == "stars" else "hub")
     d = {"brief": {"title": "Civ Pro", "timeline_id": "civ-pro", "mode": "outline", "layout": "solar",
                    "hub_look": look, "columns": 5, "flags": CIVPRO_FLAGS,
                    "acts": [{"label": a.label, "short": a.short} for a in b.acts],
@@ -874,20 +880,20 @@ def _civpro_page(look="stars"):
     return build_timeline(*lb(d))
 
 
-def test_a_civ_pro_page_with_both_looks_is_far_under_the_stored_page_cap():
+def test_a_civ_pro_page_is_far_under_the_stored_page_cap():
     from alto.build.private_shell import MAX_PAGE_BYTES, stored_bytes
     from alto.build.single_file import private_page
     html, report = _civpro_page()
     at = html.index("window._ALTO_SOLAR=")
     blob = html[at:html.index(";\n", at)]
     import gzip
-    assert len(gzip.compress(blob.encode())) < 60_000, len(gzip.compress(blob.encode()))
+    assert len(gzip.compress(blob.encode())) < 32_000, len(gzip.compress(blob.encode()))   # one plan now (1.9.108: two, < 60 KB)
     b = load_brief({"brief": {"title": "Civ Pro", "timeline_id": "civ-pro", "acts": [{"label": "x"}]}})[0]
     stored = stored_bytes(private_page(b, html))
     assert stored < MAX_PAGE_BYTES * 0.6, stored
     S = _solar(html)
-    assert S["looks"]["stars"].get("core") and S["looks"]["stars"]["belts"]
-    assert any(n.get("look") == "comet" and n.get("orbit") for n in S["looks"]["stars"]["nodes"].values())
+    assert S.get("core") and S["belts"]
+    assert any(n.get("look") == "comet" and n.get("orbit") for n in S["nodes"].values())
 
 
 # ── a 1.9.105 Star chart (a Mind Palace in its stars view) loads as Hub & spoke ─
@@ -942,7 +948,7 @@ def test_a_palace_star_chart_loads_as_hub_and_spoke_with_everything_kept():
     assert aside["palace"] == {"place": "Philadelphia", "data_z": "xz2:CITY"}
     assert aside["placement"] == {next(iter(before["brief"]["placement"])): {"lot": "12.3"}}
     assert aside["stash_palace"] == {"palace_view": "city"}
-    # it builds, path-numbered, both looks, two suns in district 1
+    # it builds, path-numbered, two suns in district 1
     html, report = build_timeline(b, nodes, conns)
     assert report["layout"]["layout"] == "solar" and "window._ALTO_PALACE=" not in html
     S = _solar(html)
@@ -954,16 +960,19 @@ def test_a_palace_star_chart_loads_as_hub_and_spoke_with_everything_kept():
 
 
 def test_legacy_keys_are_accepted_and_ignored():
-    for extra in ({"hub_style": "spoke"}, {"hub_style": "orbit"}, {"stash": {}}, {"palace_view": "city"}):
-        d = _sample("spoke")
+    for extra in ({"hub_style": "spoke"}, {"hub_style": "orbit"}, {"stash": {}}, {"palace_view": "city"}, {"hub_look": "plain"}):
+        d = _sample("orbit")
         d["brief"].update(extra)
         b, nodes, conns = load_brief(d)
         assert b.mode == "outline"
         build_timeline(b, nodes, conns)
-    d = _sample("spoke")
+    d = _sample("orbit")
     d["brief"].pop("hub_look")
     d["brief"]["hub_style"] = "spoke"
-    assert load_brief(d)[0].hub_look == "plain"             # the old still style opens plain
+    assert load_brief(d)[0].hub_look == "hub"               # the old still style opens in the Hub & spoke look
+    d["brief"].pop("hub_style")
+    d["brief"]["hub_look"] = "plain"
+    assert load_brief(d)[0].hub_look == "hub"               # 1.9.108's 'plain' likewise
     # a city palace keeps everything, its view included (1.9.107: palace_view 'city' | 'building')
     from alto.build.brief import migrate_brief
     city = {"mode": "palace", "palace_view": "city", "palace": {"data_z": "z"}, "placement": {"a": {"lot": "1.2"}}}

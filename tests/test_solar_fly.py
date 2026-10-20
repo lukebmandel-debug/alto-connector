@@ -4,7 +4,7 @@ The planner's properties on its Python twin (tests/solar_fly_twin.py), the
 twin held equal to the page's JS under node, what the pages carry, and the
 flight in a real browser (Chromium and WebKit through Playwright; skipped
 without them): it runs, lands on the body where it is, can be re-targeted and
-stopped, leaves the Plain look alone, and costs its frames little. Browser
+stopped, leaves the Hub & spoke look alone, and costs its frames little. Browser
 geometry is read in plan / layout px (window._altoSolarCam, style.left/top),
 never screen px (Playwright's WebKit is not Safari)."""
 import copy
@@ -471,7 +471,7 @@ def test_arrows_fly_and_presses_on_the_way_wait_their_turn(browser, pages):
     pg.context.close()
 
 
-def test_no_flight_with_reduced_motion_on_the_plain_look_or_zoomed_out(browser, pages):
+def test_no_flight_with_reduced_motion_on_the_hub_look_or_zoomed_out(browser, pages):
     # reduced motion: the existing instant enlarging
     pg, errs = _open(browser, pages["orbit"], reduced=True)
     _rest_on(pg, "u1-p3")
@@ -479,7 +479,7 @@ def test_no_flight_with_reduced_motion_on_the_plain_look_or_zoomed_out(browser, 
     assert pg.evaluate(FLIGHT) is None and pg.evaluate("()=>window._focusedNodeId") == "u1-p3-m2"
     assert not pg.evaluate("()=>!!document.getElementById('solar-fly-svg')")
     pg.context.close()
-    # the Plain look (Hub & spoke's still style): nothing of the flight runs
+    # the Hub & spoke look: nothing of the flight runs
     pg, errs2 = _open(browser, pages["spoke"])
     _rest_on(pg, "u1-p1")
     pg.evaluate("()=>window.enterFocus('u1-p2')")
@@ -496,9 +496,9 @@ def test_no_flight_with_reduced_motion_on_the_plain_look_or_zoomed_out(browser, 
     assert not errs and not errs2 and not errs3, (errs, errs2, errs3)
 
 
-def test_switching_to_the_plain_look_stops_the_flight_and_clears_its_layer(browser, pages):
-    """The look toggle (solar_draw.py, window._altoSolarLook): Plain on the way
-    stops the flight and takes its layer away; Plain flies nothing; back in
+def test_switching_to_the_hub_look_stops_the_flight_and_clears_its_layer(browser, pages):
+    """The look toggle (solar_draw.py, window._altoSolarLook): Hub & spoke on the way
+    stops the flight and takes its layer away; Hub & spoke flies nothing; back in
     the Star chart look a change of body flies again."""
     pg, errs = _open(browser, pages["orbit"])
     assert pg.evaluate("()=>window._altoSolarLook.get()") == "stars"
@@ -506,7 +506,7 @@ def test_switching_to_the_plain_look_stops_the_flight_and_clears_its_layer(brows
     pg.evaluate("()=>window.enterFocus('u1-p1')")
     assert pg.evaluate(FLIGHT)
     pg.wait_for_timeout(600)
-    pg.evaluate("()=>window._altoSolarLook.set('plain')")
+    pg.evaluate("()=>window._altoSolarLook.set('hub')")
     pg.wait_for_timeout(300)
     assert pg.evaluate(FLIGHT) is None and not pg.evaluate("()=>!!document.getElementById('solar-fly-svg')")
     assert pg.evaluate("()=>window._altoSolarFlight(true).how") == "stopped"

@@ -9,17 +9,18 @@ only (a phone keeps the engine's column of cards):
   path number and the title, clamped (.sol-face). Enlarged (the engine's own
   focus fly and zoom ramp) it is the ordinary card again, description and
   chips and all: while the card grows it is clipped from its disc out to the
-  card (clip-path inset() from a centred circle to the whole card, taken from
-  the card's own zoom on every frame), and back down to the disc as it
-  shrinks, so neither end of the ramp jumps. The engine's .alto-fshadow is a
+  card (a real disc whose diameter, --scd, follows the card's own zoom on
+  every frame; never a clip-path: Safari resolved one in the wrong box under
+  page zoom), and back down to the disc as it shrinks, so neither end of
+  the ramp jumps. The engine's .alto-fshadow is a
   card's, which is right: the enlarged thing is a card.
-* #solar-svg, under the cards: faint orbit rings (one per planet round its
-  sun, one shared by a planet's moons, one by a moon's satellites), a short
-  spoke from each body to what it orbits, a faint dashed link between suns, a
-  soft glow behind each sun. The "spoke" style has no rings and draws its
-  spokes as Alto's own tubes; nothing moves. The engine's unit bands, labels
-  and bars go (as on a horizontal timeline); a chip names each system.
-* Motion ("orbit"). One rAF loop turns every body round what it orbits by
+* #solar-svg, under the cards: faint orbit rings (one per body round what it
+  orbits: no two bodies share one), a short spoke from each body to what it
+  orbits, a faint dashed link between suns, a soft glow behind each sun —
+  the same in both looks (the Star chart adds its skin over them). The
+  engine's unit bands, labels and bars go (as on a horizontal timeline); a
+  chip names each system.
+* Motion ("orbit", both looks). One rAF loop turns every body round what it orbits by
   2π·t/period from its plan centre (solar.py periods and spin) and, with
   several systems, each system slowly as a whole about its own sun (inside its
   R, never toward a neighbour). Bodies move by their own left/top — the D-GRID
@@ -56,12 +57,6 @@ SOLAR_CSS = r"""
   #solar-svg .sol-ring.sol-m{stroke-opacity:.15;stroke-width:1;}
   #solar-svg .sol-spoke{stroke:color-mix(in srgb,var(--u,var(--text)) 40%,var(--text));stroke-opacity:.34;stroke-width:1.6;stroke-linecap:round;}
   #solar-svg .sol-link{fill:none;stroke:var(--text);stroke-opacity:.2;stroke-width:1.6;stroke-dasharray:1.5 7;stroke-linecap:round;}
-  #solar-svg .sol-tube{fill:none;stroke:rgb(60,64,84);stroke-opacity:.92;stroke-width:4.2;stroke-linecap:round;}
-  #solar-svg .sol-sheen{fill:none;stroke:rgba(255,255,255,.72);stroke-width:1.43;stroke-linecap:round;}
-  #solar-svg .sol-tube.sol-l{stroke-opacity:.3;stroke-width:3;}
-  #solar-svg .sol-sheen.sol-l{stroke-opacity:.5;stroke-width:1;}
-  html.dark #solar-svg .sol-tube{stroke:rgb(208,212,226);}
-  html.dark #solar-svg .sol-sheen{stroke:rgba(255,255,255,.5);}
   html:not(.mobile) #canvas #solar-svg{transition:opacity var(--alto-fly,.25s) var(--alto-ease,ease);}
   html:not(.mobile) #canvas.focus-mode #solar-svg{opacity:.1;}
   html:not(.mobile) #canvas.edge-hover #solar-svg{opacity:.35;}
@@ -71,7 +66,7 @@ SOLAR_CSS = r"""
   .sol-unit b{font-weight:800;opacity:.6;margin-right:7.5px;}
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
-  /* the look switch (Star chart | Plain) and the orbit switch: glass, under the bars at the top left */
+  /* the look switch (Hub & spoke | Star chart) and the orbit switch: glass, under the bars at the top left */
   #sol-ctl{position:fixed;z-index:310;left:30px;top:calc(var(--nav-bottom, 100px) + 14px);display:flex;gap:8px;align-items:center;font-family:inherit;}
   #sol-ctl button{font:inherit;font-size:12.5px;font-weight:600;letter-spacing:.02em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
     color:var(--muted);background:transparent;border:0;padding:6.25px 11.25px;border-radius:999px;line-height:1;}
@@ -89,7 +84,7 @@ SOLAR_CSS = r"""
   html.mobile #sol-ctl{display:none !important;}
   @media print{ #sol-ctl{display:none !important;} }
   /* no rectangle at any zoom (Luke): the board's own glass is not drawn on a solar page; the page's
-     background (Plain) or the star chart's sky (a fixed, window-filling layer) shows everywhere */
+     background (Hub & spoke) or the star chart's sky (a fixed, window-filling layer) shows everywhere */
   html.alto-solar:not(.mobile) #world #glass-slab{visibility:hidden !important;}
   #canvas.sol-ov{cursor:zoom-in;}
   #canvas.sol-ov #world,#canvas.sol-ovanim #world{pointer-events:none;transform-origin:0 0;will-change:transform;}
@@ -104,7 +99,7 @@ SOLAR_CSS = r"""
     overflow:hidden;box-sizing:border-box;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card{width:var(--sd) !important;height:var(--sd) !important;border-top-width:1.5px;}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .node-card,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .node-card{
-    width:var(--sD) !important;height:var(--sD) !important;}
+    width:var(--scd,var(--sD)) !important;height:var(--scd,var(--sD)) !important;}
   html.alto-solar:not(.mobile) #world .node[data-solar] .node-card::before{left:0;right:0;top:0;height:100%;border-radius:50%;
     background:radial-gradient(ellipse 72% 52% at 50% 14%,var(--card-glass-sheen) 0%,rgba(255,255,255,.08) 58%,rgba(255,255,255,0) 100%);}
   html.alto-solar #world .alto-fshadow{border-radius:50% !important;}
@@ -117,23 +112,24 @@ SOLAR_CSS = r"""
     overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;font-size:12.5px;line-height:15px;max-width:100%;}
   .node[data-solar=sun] .sol-face b{font-size:12.5px;line-height:15px;}
   .node[data-solar=sun] .sol-face span{font-size:16.25px;line-height:20px;-webkit-line-clamp:4;line-clamp:4;}
-  .node[data-solar=moon] .sol-face{gap:1.25px;}
-  .node[data-solar=moon] .sol-face b{font-size:8.75px;line-height:10px;}
-  .node[data-solar=moon] .sol-face span{font-size:8.75px;line-height:10px;-webkit-line-clamp:2;line-clamp:2;}
-  .node[data-solar=sat] .sol-face span{display:none;}
-  .node[data-solar=sat] .sol-face b{font-size:10px;opacity:.85;}
+  /* moons and satellites are small (real-ratio sizes, round 7): a moon shows its own number only, a
+     satellite nothing; their number and title are the card's tooltip and accessible name, and the
+     enlarged disc's */
+  .node[data-solar=moon] .sol-face{padding:0;}
+  .node[data-solar=moon] .sol-face b{font-size:10px;line-height:12.5px;opacity:.9;}
+  .node[data-solar=moon] .sol-face span,.node[data-solar=sat] .sol-face span,.node[data-solar=sat] .sol-face b{display:none;}
   /* enlarged: the content, in a square inscribed in the disc (corners inside the circle), scrolling
      inside it when long, faded at its top and bottom edges; "Open full page" under it */
   .sol-body,.sol-scrim,.sol-open{display:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-body,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-body{
-    display:block;position:absolute;z-index:3;left:17%;right:17%;top:14%;bottom:21%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+    display:block;position:absolute;z-index:3;left:calc(50% - var(--sD) * .33);width:calc(var(--sD) * .66);top:calc(50% - var(--sD) * .36);height:calc(var(--sD) * .65);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
     text-align:center;box-sizing:border-box;padding:12px 4px 16px;scrollbar-width:thin;opacity:var(--sbo,1);
     -webkit-mask-image:linear-gradient(transparent,#000 12px,#000 calc(100% - 16px),transparent);mask-image:linear-gradient(transparent,#000 12px,#000 calc(100% - 16px),transparent);}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-scrim,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-scrim{
     display:block;position:absolute;z-index:2;inset:0;border-radius:50%;pointer-events:none;opacity:var(--sbo,1);
     background:radial-gradient(circle,color-mix(in srgb,var(--surface) 84%,transparent) 0 64%,color-mix(in srgb,var(--surface) 52%,transparent) 100%);}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-open,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-open{
-    display:block;position:absolute;z-index:3;left:0;right:0;bottom:8.5%;margin:0 auto;width:max-content;opacity:var(--sbo,1);cursor:pointer;
+    display:block;position:absolute;z-index:3;left:0;right:0;top:calc(50% + var(--sD) * .315);margin:0 auto;width:max-content;max-width:calc(var(--sD) * .5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;opacity:var(--sbo,1);cursor:pointer;
     font:600 11.25px/1 inherit;font-family:inherit;letter-spacing:.04em;color:var(--accent,#6d5bd0);padding:6px 12.5px;border-radius:999px;
     background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent,#6d5bd0) 45%,transparent);}
   .sol-open:hover{background:var(--surface);}
@@ -144,17 +140,68 @@ SOLAR_CSS = r"""
   .sol-body .node-footer{justify-content:center;flex-wrap:wrap;margin-top:8px;}
   .sol-sec{margin-top:10px;text-align:left;font-size:12.5px;line-height:18.75px;color:var(--card-desc-color,var(--muted));}
   .sol-sec h6{margin:0 0 2px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;}
-  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{clip-path:circle(var(--scr,50%) at 50% 50%);-webkit-clip-path:circle(var(--scr,50%) at 50% 50%);
-    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
+  /* growing / shrinking (--scd): no frost on the moving disc (a zoomed element can lose it anyway), never a clip-path */
+  html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
   html.alto-solar:not(.mobile) #world .node.sol-clip .sol-face{opacity:var(--sfo,0);}
+  /* a detail page shows no chart chrome (Luke, round 8) */
+  body:has(#detail-page.visible) #sol-ctl{display:none !important;}
+  /* every body's name (round 8): a label under it (or above / beside it, wherever it is clear), upright, the
+     same size on screen at any zoom (--ils counter-scales the whole chart's --ovs); the planet's own
+     disc then shows its number only. Hidden where it would cover a bigger body or a label of one (.sol-lx),
+     shown on hover. .sol-dot: a body never smaller than a few px on screen (zoomed out). */
+  .sol-lbl,.sol-dot{display:none;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl{display:block;position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;white-space:nowrap;
+    --lr:calc(max(var(--dn,20) * var(--ovs,1) / 2, 2.5) * 1px);transform-origin:0 0;transform:scale(var(--ils,1)) translate(-50%,calc(var(--lr) + 3px));
+    max-width:170px;overflow:hidden;text-overflow:ellipsis;font-style:normal;font-size:12px;line-height:15px;font-weight:600;letter-spacing:.01em;color:var(--text);
+    text-shadow:0 0 3px var(--bg,#fff),0 0 2px var(--bg,#fff);transition:opacity .2s;}
+  html.alto-solar.dark:not(.mobile) #world .node[data-solar]>.sol-lbl{text-shadow:0 0 3px #000,0 0 2px #000;}
+  html.alto-stars:not(.mobile) #world .node[data-solar]>.sol-lbl{color:#eef2ff;text-shadow:0 0 3px #000,0 0 2px #000;}
+  .sol-lbl::after{content:attr(data-l);}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l1{transform:scale(var(--ils,1)) translate(-50%,calc(-100% - var(--lr) - 3px));}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l2{transform:scale(var(--ils,1)) translate(calc(var(--lr) + 4px),-50%);}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-l3{transform:scale(var(--ils,1)) translate(calc(-100% - var(--lr) - 4px),-50%);}
+  html.alto-solar:not(.mobile) #world .node[data-solar=moon]>.sol-lbl,html.alto-solar:not(.mobile) #world .node[data-solar=sat]>.sol-lbl{font-size:11px;line-height:13.75px;font-weight:500;}
+  html.alto-solar:not(.mobile) #world .node[data-solar=sun]>.sol-lbl{font-size:16px;line-height:20px;font-weight:700;}
+  #canvas.sol-ov #world .node[data-solar=planet]>.sol-lbl{font-size:14px;line-height:17.5px;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-lx{opacity:0;}
+  html.alto-solar:not(.mobile) #canvas:not(.sol-lo) #world .node[data-solar=sun]>.sol-lbl,
+  html.alto-solar:not(.mobile) #canvas.sol-lo #world .node[data-solar=sat]>.sol-lbl,
+  html.alto-solar:not(.mobile) #canvas.sol-lm #world .node[data-solar=moon]>.sol-lbl{display:none;}
+  #canvas.sol-lo #world .node[data-solar] .sol-face{visibility:hidden;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing)>.sol-lbl,
+  html.alto-solar:not(.mobile) #canvas.focus-mode #world .node[data-solar]:not(.sol-flank)>.sol-lbl{opacity:0 !important;}
+  html.alto-solar:not(.mobile) #world .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed)~.sol-lbl{opacity:.14;}
+  .node[data-solar=planet] .sol-face span{display:none;}
+  .node[data-solar=planet] .sol-face b{font-size:12.5px;line-height:15px;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-dot{display:block;position:absolute;left:50%;top:50%;pointer-events:none;border-radius:50%;opacity:0;
+    width:calc(max(4, var(--dn,20) * var(--ovs,1)) * 1px);height:calc(max(4, var(--dn,20) * var(--ovs,1)) * 1px);transform-origin:0 0;
+    transform:scale(var(--ils,1)) translate(-50%,-50%);background:color-mix(in srgb,var(--u,var(--text)) 55%,var(--text));}
+  #canvas.sol-ov #world .node[data-solar]>.sol-dot{opacity:clamp(0, calc((7 - var(--dn,20) * var(--ovs,1)) / 3), 1);}
+  html.alto-stars #canvas.sol-ov #world .node[data-solar]>.sol-dot{background:var(--sk-c,#cfd8ff);}
+  html.alto-stars #world .node[data-solar=sun]>.sol-dot{background:#ffcf4a !important;}
+  #canvas.sol-ov #solar-svg :is(.sol-ring,.sol-spoke,.sol-link){vector-effect:non-scaling-stroke;}
+  /* a speck of a chart (.sol-tiny): each body a flat dot of its colour, its picture / glass not drawn at all */
+  #canvas.sol-tiny #world .node[data-solar]:not(.focused)>.sol-dot{opacity:1;}
+  #canvas.sol-tiny #world .node[data-solar]:not(.focused) .node-card{visibility:hidden;}   /* a hairline at least, at any zoom */
+  #canvas.sol-ov .sol-unit{transform-origin:50% 100%;transform:scale(var(--cls,1));transition:opacity .2s;}
+  .sol-unit.sol-lx{opacity:0;}
+  /* an enlarged body's own (its children: moons of a planet, satellites of a moon) come up beside it */
+  html:not(.mobile) #canvas.focus-mode #world .node.sol-flank .node-card{opacity:1 !important;}
+  html.alto-solar:not(.mobile) #world .node.sol-flank{z-index:200 !important;}
+  html.alto-solar:not(.mobile) #world .node.sol-flank>.sol-lbl{max-width:150px;}
+  #sol-flank-svg{position:absolute;left:0;top:0;z-index:6;pointer-events:none;overflow:visible;}
+  #sol-flank-svg line{stroke:color-mix(in srgb,var(--accent,#6d5bd0) 55%,var(--text));stroke-opacity:.55;stroke-width:1.6;stroke-linecap:round;}
+  html.alto-stars #sol-flank-svg line{stroke:rgb(190,210,255);}
+  html.mobile #sol-flank-svg{display:none;}
 """
 
 SOLAR_JS = r"""
-/* The renderer: a function of the plan (window._ALTO_SOLAR's shape) mounted on
-   the engine's #world. R is window._ALTO_SOLAR: one plan (style 'orbit' / 'spoke'), or
-   {looks:{stars:plan, plain:plan}, look:'stars'|'plain'} — one Hub & spoke page, two looks
-   (Luke, round 5): the Star chart look moves (orbit style), the Plain look stands still
-   (spoke style). One mount per page (its engine hooks are page globals). */
+/* The renderer: a function of the plan (window._ALTO_SOLAR, solar.page_plans: the plan and
+   look:'stars'|'hub', the look a viewer sees first) mounted on the engine's #world. One Hub &
+   spoke page, ONE plan, two looks (Luke, round 7): Hub & spoke (rings, spokes, glass circles)
+   and the Star chart (the same, plus the skin, solar_stars.py, and flights, solar_fly.py); both
+   orbit. One mount per page (its engine hooks are page globals). */
 window._altoSolarMount=function(R, opt){
 opt=opt||{}; if(!R || window._altoSolarMounted) return false;
 var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2, K=1.7;
@@ -162,15 +209,12 @@ var de=document.documentElement, NS='http://www.w3.org/2000/svg', TAU=Math.PI*2,
 var KEY=(typeof COURSE_ID!=='undefined' && COURSE_ID) || 'page';
 function pref(k){ try{ return localStorage.getItem('alto-solar-'+k+':'+KEY); }catch(e){ return null; } }
 function keep(k, v){ try{ localStorage.setItem('alto-solar-'+k+':'+KEY, String(v)); }catch(e){} }
-function lookOf(P){ return P && P.style==='spoke' ? 'plain' : 'stars'; }
-var LOOKS=R.looks || null, ORIG=null, LOOK=pref('look');
-if(LOOK!=='stars' && LOOK!=='plain') LOOK=LOOKS ? (R.look==='plain' ? 'plain' : 'stars') : lookOf(R);
-if(LOOKS && !LOOKS[LOOK]) LOOK=LOOKS.stars ? 'stars' : 'plain';
-if(!LOOKS){ ORIG={}; for(var k0 in R) ORIG[k0]=R[k0]; }
-var S=LOOKS ? LOOKS[LOOK] : R;
+function lk(v){ return v==='hub' || v==='plain' ? 'hub' : v==='stars' ? 'stars' : null; }   /* ('plain': 1.9.108's still look, now Hub & spoke) */
+var LOOK=lk(pref('look')) || lk(R.look) || 'stars';
+var S=R;
 if(!S || !S.nodes) return false; window._altoSolarMounted=true;
 window._altoSolarView=1;          /* the opening view is this script's (openView), not the engine's centreWorld */
-var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:108, moon:62, sat:34}, NUM=null, edited=false, LASTT=null;
+var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:96, moon:50, sat:20}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
 if(desk()) de.classList.add('alto-solar');
 /* the bodies, each after what it orbits */
@@ -188,8 +232,6 @@ function bodies(){
         (m.sats||[]).forEach(function(t){ body(t.id, 'sat', m.id, t.period, si, t); }); }); }); });
   MOVES=ORBIT && ORD.some(function(i){ return B[i].per>0; });
 }
-/* a single plan whose look is not the one wanted: the in-page solar_plan makes the other */
-if(!LOOKS && lookOf(R)!==LOOK){ var P0=planFor(LOOK); if(P0 && P0.nodes && Object.keys(P0.nodes).length) usePlan(P0); else LOOK=lookOf(R); }
 bodies();
 looks();
 var world=null, svg=null, PAD=0, zq=1, links=[], spokes=[], rings=[], sunl=[], chips=[], ready=false;
@@ -203,16 +245,25 @@ function face(n, id){
   var f=c.querySelector('.sol-face'); if(!f){ f=document.createElement('div'); f.className='sol-face'; f.innerHTML='<b></b><span></span>'; c.appendChild(f); }
   var num=(NUM && NUM[id]) || (typeof NODE_ORDER_MAP!=='undefined' && NODE_ORDER_MAP[id]) || '', t=c.querySelector('.node-title'), tt=t ? t.textContent : '';
   var b=B[id];
-  f.querySelector('b').textContent=b.role==='sat' ? (num.split(/[.\-]/).pop()||num) : num;
+  var small=b.role==='moon' || b.role==='sat';
+  f.querySelector('b').textContent=small ? (num.split(/[.\-]/).pop()||num) : num;
   var sp=f.querySelector('span'), base={sun:16.25, planet:12.5, moon:8.75}[b.role], L=Math.max.apply(null, tt.split(/\s+/).map(function(w){ return w.length; }).concat([1]));
   sp.textContent=tt; sp.style.fontSize=sp.style.lineHeight='';
   /* a word too long for the disc: the type steps down (to 72%) before a word is broken */
   var fs=base ? Math.max(base*.72, Math.min(base, b.d*.68/(L*.55))) : 0;
   if(fs && fs<base){ fs=Math.round(fs*4)/4; sp.style.fontSize=fs+'px'; sp.style.lineHeight=Math.round(fs*1.2*4)/4+'px'; }
   f.setAttribute('aria-hidden', 'true');
-  if(b.role==='sat') c.setAttribute('title', (num ? num+'  ' : '')+tt);
+  if(small){ c.setAttribute('title', (num ? num+'  ' : '')+tt); c.setAttribute('aria-label', (num ? num+' ' : '')+tt); }
+  /* its name beside it (the text an attribute: never markup) and its dot for the zoomed-out chart */
+  var lb=n.querySelector(':scope > .sol-lbl');
+  if(!lb){ lb=document.createElement('i'); lb.className='sol-lbl'; lb.setAttribute('aria-hidden', 'true'); n.appendChild(lb);
+    var dt=document.createElement('i'); dt.className='sol-dot'; dt.setAttribute('aria-hidden', 'true'); n.appendChild(dt); }
+  lb.setAttribute('data-l', tt.replace(/\s+/g, ' ').trim()); n.style.setProperty('--dn', b.d); b.lb=lb; b.w0=b.w1=null;
+  if(unitColor(b.si)) n.style.setProperty('--u', unitColor(b.si));
   disc(n, c, id, b);
 }
+/* markup as the plain text it reads as (a tooltip, a label, an attribute) */
+function plain(h){ var t=document.createElement('template'); t.innerHTML=String(h==null ? '' : h); return (t.content.textContent||'').replace(/\s+/g, ' ').trim(); }
 /* the enlarged disc's layers: the card's own number / tag / title / description / chips go into
    .sol-body (the same elements, so edit mode edits them in place), a .sol-scrim under it, the
    "Open full page" control; and --sD, the enlarged diameter, by how much there is to read */
@@ -229,7 +280,7 @@ function disc(n, c, id, b){
     c.addEventListener('click', function(e){ if(n.classList.contains('focused') && !de.classList.contains('alto-editing') && !(e.target.closest && e.target.closest('a,button,[onclick],.alto-link'))) e.stopPropagation(); }, true);
   }
   var nd=(typeof NODE_DETAILS!=='undefined' && NODE_DETAILS[id]) || {}, L=(c.textContent||'').length;
-  (nd.sections||[]).forEach(function(q){ if(q && q.t) L+=String(q.h||'').length+String(q.t).replace(/<[^>]*>/g, '').length; });
+  (nd.sections||[]).forEach(function(q){ if(q && q.t) L+=plain(q.h).length+plain(q.t).length; });
   var D=L<260 ? 300 : L<600 ? 340 : L<1100 ? 380 : 420;
   n.style.setProperty('--sD', Math.max(D, q(b.d+40))+'px');
 }
@@ -239,7 +290,7 @@ function sections(c, id){
   var nd=(typeof NODE_DETAILS!=='undefined' && NODE_DETAILS[id]) || {}, ft=body.querySelector('.node-footer');
   (nd.sections||[]).filter(function(q){ return q && q.t; }).forEach(function(q){
     var d=document.createElement('div'); d.className='sol-sec';
-    if(q.h){ var h=document.createElement('h6'); h.textContent=q.h; d.appendChild(h); }
+    if(q.h){ var h=document.createElement('h6'); h.innerHTML=String(q.h); d.appendChild(h); }   /* a heading is markup too (the detail page's <h3>: "Overview<span class=sec-prov>From your notes</span>") */
     var t=document.createElement('div'); t.innerHTML=String(q.t); d.appendChild(t);       /* the build's sanitized markup, as the detail page shows it */
     body.insertBefore(d, ft||null);
   });
@@ -276,7 +327,7 @@ window._altoSolarLayout=function(pos){
   draw(W, H);
   ready=true; hov=0;
   apply(true); skin();
-  if(MOVES || GL) go();
+  if(MOVES) go();
   ctl();
   if(OV){ ovHold(true); clampO(OV); ovSet(OV); }
   fitBtn();
@@ -300,7 +351,6 @@ function openView(){
   var b=SY[0] && B[SY[0].sun];
   if(!b || !b.n){ c.scrollLeft=dl; return; }
   var off=woff(c), cw=c.clientWidth, ch=c.clientHeight, x=b.hx+off.x, y=b.hy+off.y, r=b.d/2;
-  if(!ORBIT && x-r>=dl && x+r<=dl+cw && y-r>=0 && y+r<=ch){ c.scrollLeft=dl; return; }
   var f=fitS();
   if(f>=1){ c.scrollLeft=dl; return; }                                        /* all of it in view as it is */
   if(f>=.6){ ovZoom(f, null, null, false); return; }
@@ -340,24 +390,23 @@ function draw(W, H){
     if(u){ var gr=el('radialGradient', {id:'sol-glow-'+si}, defs);
       el('stop', {offset:'0', 'stop-color':u, 'stop-opacity':'.42'}, gr); el('stop', {offset:'1', 'stop-color':u, 'stop-opacity':'0'}, gr);
       sun.glow=el('circle', {r:f2(sun.d*1.15), fill:'url(#sol-glow-'+si+')'}, g); }
-    /* rings: each planet's round the sun; a planet's moons share one, a moon's satellites one */
+    /* rings: each planet's round the sun, each moon's round its planet, each satellite's round its moon */
     var seen={};
     ORD.forEach(function(id){
       var b=B[id]; if(b.si!==si || !b.p || !b.n) return;
       var p=B[b.p]; if(!p.n) return;
-      if(ORBIT && b.orb && window._altoSolarAt){                 /* a comet's path: its ellipse about what it orbits */
+      if(b.orb && window._altoSolarAt){                 /* a comet's path: its ellipse about what it orbits */
         var c0=window._altoSolarAt(b.r, b.a0, b.orb), qq=(function(e){ var q=Math.sqrt(Math.max(0, 1-e*e)); return (1-q)/(1+q); })(b.orb.e);
         rings.push({c:b.p, ox:b.hx-p.hx-c0[0], oy:b.hy-p.hy-c0[1], rot:b.orb.rot*180/Math.PI,
           e:el('ellipse', {'class':'sol-ring sol-comet'+(b.role==='planet' ? '' : ' sol-m'), rx:f2(b.r*(1+qq)), ry:f2(b.r*(1-qq))}, g)});
-      } else if(ORBIT){ var r=Math.hypot(b.hx-p.hx, b.hy-p.hy), k=b.p+'|'+Math.round(r/2);
+      } else { var r=Math.hypot(b.hx-p.hx, b.hy-p.hy), k=b.p+'|'+Math.round(r/2);
         if(!seen[k]){ seen[k]=1; rings.push({c:b.p, e:el('circle', {'class':'sol-ring'+(b.role==='planet' ? '' : ' sol-m'), r:f2(r)}, g)}); } }
-      spokes.push(ORBIT ? {a:b.p, b:id, e:[el('line', {'class':'sol-spoke'}, g)]}
-                        : {a:b.p, b:id, e:[el('path', {'class':'sol-tube'}, g), el('path', {'class':'sol-sheen'}, g)]});
+      spokes.push({a:b.p, b:id, e:[el('line', {'class':'sol-spoke'}, g)]});
     });
     /* one chip per unit (a district of several systems: over all of them) */
     var U=null; (S.units||[]).forEach(function(q){ if(q.suns && q.suns[0]===s.sun) U=q; });
     var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null, lbl=(U && U.label) || s.label || (pm ? pm.label : ''), bb=(U && U.bbox) || s.bbox;
-    lbl=String(lbl).split(' — ').pop();
+    lbl=plain(lbl).split(' — ').pop();
     if(lbl && (U || !S.units)){ var ch=document.createElement('div'); ch.className='sol-unit'; if(u) ch.style.setProperty('--u', u);
       ch.setAttribute('data-unit', s.unit); ch.innerHTML='<b></b><span></span>'; ch.querySelector('b').textContent=pm ? pm.numeral : ''; ch.querySelector('span').textContent=lbl;
       world.appendChild(ch);
@@ -366,7 +415,7 @@ function draw(W, H){
   });
   var lg=el('g', {'class':'sol-links'}, svg);
   (S.sun_links||[]).forEach(function(l){ if(!B[l[0]] || !B[l[1]] || !B[l[0]].n || !B[l[1]].n) return;
-    sunl.push({a:l[0], b:l[1], e:ORBIT ? [el('path', {'class':'sol-link'}, lg)] : [el('path', {'class':'sol-tube sol-l'}, lg), el('path', {'class':'sol-sheen sol-l'}, lg)]}); });
+    sunl.push({a:l[0], b:l[1], e:[el('path', {'class':'sol-link'}, lg)]}); });
 }
 /* the connections, edge to edge between circles: drawn in place of the router
    (engine patch solar-lines-hook); a parent's line to its child is the spoke */
@@ -396,14 +445,18 @@ window._altoSolarLines=function(){
 var T=0, rk=1, back=1, sp=0, last=null, raf=0, slT=0, hov=0, hovT=0, printing=0, mq=null, reduced=false;
 try{ mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
   var mqf=function(){ reduced=mq.matches; if(pref('motion')==null){ MOTION=!reduced; ctl(); } go(); }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
-/* the orbit switch: on by default in the Star chart look, off by default for reduced motion, the viewer's choice kept */
-var MOTION=pref('motion')==null ? !reduced : pref('motion')==='1', RAMP=1.2, GL=null;
+/* the orbit switch (both looks): on by default, off by default for reduced motion, the viewer's choice kept */
+var MOTION=pref('motion')==null ? !reduced : pref('motion')==='1', RAMP=1.2;
 function wrap(a){ a%=TAU; if(a>Math.PI) a-=TAU; if(a<-Math.PI) a+=TAU; return a; }
 /* where every body is at time T (rk < 1: on the way back to T = 0) */
 function place(){
   var many=SY.length>1;
   ORD.forEach(function(id){
     var b=B[id]; if(!b.n) return;
+    orbitAt(b, many); if(b.fs) fpos(b);
+  });
+}
+function orbitAt(b, many){
     if(!b.p){ b.x=b.hx; b.y=b.hy; return; }
     /* with several systems each also turns slowly as a whole about its own sun
        (within its R, so never toward a neighbour) */
@@ -411,9 +464,6 @@ function place(){
     if(b.orb && window._altoSolarAt){ var o=window._altoSolarAt(b.r, b.a0+a, b.orb), o0=window._altoSolarAt(b.r, b.a0, b.orb);   /* a comet: its ellipse (solar.orbit_offset), anchored at its plan home */
       b.x=p.x+dx+(o[0]-o0[0]); b.y=p.y+dy+(o[1]-o0[1]); return; }
     b.x=p.x+dx*cs-dy*sn; b.y=p.y+dx*sn+dy*cs;
-  });
-  if(GL && GL.ms>0){ var k=Math.min(1, (performance.now()-GL.t0)/GL.ms); k=k*k*(3-2*k);
-    ORD.forEach(function(id){ var b=B[id], f=GL.from[id]; if(!f) return; b.x=f[0]+(b.x-f[0])*k; b.y=f[1]+(b.y-f[1])*k; }); }
 }
 function seg(a, b, ga, gb){
   var dx=b.rx-a.rx, dy=b.ry-a.ry, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, ra=a.d/2+ga, rb=b.d/2+gb;
@@ -469,6 +519,7 @@ function apply(all){
     l.e.forEach(function(p){ setD(p, d); }); if(l.h) l.h.setAttribute('d', d);
   });
   if(any && window._altoContentMoved) window._altoContentMoved();
+  declutter(all);
 }
 function svgHit(k){ var rv=document.getElementById('river-svg'), r=null;
   if(rv) [].some.call(rv.querySelectorAll('[data-edge-hit]'), function(h){ if(h.getAttribute('data-edge-hit')===k){ r=h; return true; } });
@@ -478,14 +529,13 @@ window._altoSolarMask=function(){ ORD.forEach(function(id){ var b=B[id]; b.mk=nu
   [].forEach.call(document.querySelectorAll('#alto-card-mask [data-mk]'), function(r){
     var b=B[r.getAttribute('data-mk').slice(5)]; if(b){ b.mk=r; r._w=parseFloat(r.getAttribute('width'))+2; } }); };
 function hold(){
-  if(!MOVES || !MOTION || !desk() || document.hidden || hov) return true;
+  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN) return true;
   if(window._focusedNodeId || document.querySelector('#canvas.focus-mode,#canvas.edge-hover,#detail-page.visible')) return true;
   return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
 }
 function tick(ts){
   raf=0; if(!ready || DRV) return;
   var dt=last==null ? 0 : Math.min(.1, (ts-last)/1000); last=ts;
-  if(GL){ apply(); follow(); skin(); if(performance.now()-GL.t0>=GL.ms){ GL=null; apply(true); } return go(); }   /* a change of look: from the old places to the new */
   if(OV && (de.classList.contains('alto-editing') || window._focusedNodeId)) ovLeave(null, true);
   if(de.classList.contains('alto-editing') || printing){          /* the plan's own layout, turned back to */
     sp=0; if(T){ back=printing ? 0 : Math.max(0, back-dt/.45); rk=back*back*(3-2*back); apply(); skin(); if(back) return go(); T=0; back=rk=1; }
@@ -494,7 +544,7 @@ function tick(ts){
   if(hold()){ sp=0; return sleep(); }
   sp=Math.min(1, sp+dt/RAMP); if(sp>=1) RAMP=1.2; T+=dt*sp*sp*(3-2*sp); apply(); skin(); go();
 }
-function go(){ clearTimeout(slT); if(!raf && (MOVES || GL)) raf=requestAnimationFrame(tick); }
+function go(){ clearTimeout(slT); if(!raf && MOVES && (MOTION || (T && (printing || de.classList.contains('alto-editing'))))) raf=requestAnimationFrame(tick); }   /* Orbit off: no frames at all (but edit mode / print still turn it home) */
 function sleep(){ last=null; clearTimeout(slT); slT=setTimeout(go, 180); }
 /* a flight (solar_fly.py) drives the clock: while it flies T is its own, set every
    frame, and the loop here waits; let go, the orbits run on from the rate it hands
@@ -515,49 +565,206 @@ function over(e){ if(!hot(e.target) || (window._altoPointerStill && window._alto
 document.addEventListener('mouseover', over); document.addEventListener('mousemove', over, {passive:true});
 document.addEventListener('mouseout', function(e){ if(hot(e.relatedTarget)) return; clearTimeout(hovT); hovT=setTimeout(function(){ hov=0; }, 320); });
 
-/* ── an enlarged circle stays a circle (Luke, round 4): the card is the big disc (--sD) from the
-   first frame of the engine's zoom ramp, clipped to a circle growing from the resting disc's
-   radius out to its own, and back as it shrinks — the clip read off the card's own zoom on every
-   frame, so it cannot run ahead of or behind the engine's ramps. The face fades out, the
-   content (.sol-body, .sol-scrim, .sol-open) fades in. ───── */
-var zmo=(typeof MutationObserver==='function') ? new MutationObserver(function(ms){ ms.forEach(function(m){ var n=m.target.closest && m.target.closest('.node'); if(n) clip(n); }); }) : null, morphing=[];
+/* ── an enlarged body's own, beside it (Luke, round 8: "the direct children of that should come up as
+   side things on either side of it") ─────────────────────────────────────────
+   The bodies orbiting the enlarged one (a sun's planets, a planet's moons, a moon's satellites) leave
+   their orbits for slots left and right of the disc — alternately, in columns from the disc outward,
+   clear of the disc, of the window's edges (EDGE) and of the bars — each with its label and a short
+   spoke to the disc, as they look at rest. They glide there on the focus's own clock and curve (the
+   engine's --alto-fly and _altoEase), and home again when the disc lets go; the orbits wait for them.
+   A click or an arrow to one of them enlarges it where it is (its own come up round it, the others go
+   home); a flight (solar_fly.py) starts with the disc let go, so they go home and it flies as ever.
+   b.fs: {m:'to', ox, oy (from), sx, sy (the slot)} or {m:'home', ox, oy (from), hx, hy (the orbit
+   point it left)}, t0, dur — placed by fpos() after the orbit (place()). */
+var FLN=0, FLR=0, FLID=null, fsvg=null, EDGE=115;
+function fe(fs){ var p=fs.dur>0 ? Math.min(1, (performance.now()-fs.t0)/fs.dur) : 1; return {p:p, e:ease(p)}; }
+function fpos(b){
+  var fs=b.fs, k=fe(fs);
+  if(fs.m==='to'){ b.x=fs.ox+(fs.sx-fs.ox)*k.e; b.y=fs.oy+(fs.sy-fs.oy)*k.e; return; }
+  if(fs.hx==null){ fs.hx=b.x; fs.hy=b.y; }
+  b.x+=(fs.ox-fs.hx)*(1-k.e); b.y+=(fs.oy-fs.hy)*(1-k.e);
+  if(k.p>=1) b.fs=null;
+}
+/* the slots round the enlarged body fid, world px (its disc is in the middle of the canvas once the
+   focus fly lands): {id: [x, y]} */
+function slots(fid){
+  var F=B[fid], kids=ORD.filter(function(i){ return B[i].p===fid && B[i].n; }), out={}, c=cvs(); if(!kids.length || !c) return out;
+  var R=sDof(F.n, F)*K/2, G=34, cw=c.clientWidth, ch=c.clientHeight, TOP=72, BOT=72, GAP=14, LH=18, LW=150, E=EDGE;
+  var dm=Math.max.apply(null, kids.map(function(i){ return B[i].d; })), side=[[], []];
+  kids.forEach(function(id, k){ side[k%2].push(id); });
+  var n=side[0].length, cellH=dm+LH+GAP, rows, cols, cellW, avW;
+  for(var t=0;t<4;t++){                                     /* roomier labels, then a narrower edge, before running off the window */
+    cellW=Math.max(dm, LW)+GAP; avW=cw/2-R-G-E;
+    rows=Math.max(1, Math.floor((ch-TOP-BOT+GAP)/cellH)); cols=Math.ceil(n/rows);
+    if(cols*cellW-GAP<=avW) break;
+    if(t===0) LW=110; else if(t===1) E=60; else { cols=Math.max(1, Math.floor((avW+GAP)/cellW)); rows=Math.ceil(n/cols); }
+  }
+  rows=Math.ceil(n/Math.max(1, Math.ceil(n/rows)));
+  side.forEach(function(ids, sd){ var sg=sd ? 1 : -1;
+    ids.forEach(function(id, i){ var j=Math.floor(i/rows), r=i%rows, m=Math.min(rows, ids.length-j*rows);
+      out[id]=[F.x+sg*(R+G+Math.max(dm, LW)/2+j*cellW), F.y+(r-(m-1)/2)*cellH-LH/2]; }); });
+  return out;
+}
+/* the focus changed (or edit mode / the whole chart came): who stands beside the disc now */
+function flankSync(){
+  if(!ready || !world) return;
+  var fid=window._focusedNodeId, F=fid && B[fid], now=performance.now(), cv=cvs();
+  var ms=reduced ? 0 : (parseFloat(cv && cv.style.getPropertyValue('--alto-fly'))||420);
+  if(!(F && F.n && F.n.classList.contains('focused') && desk() && !de.classList.contains('alto-editing') && !OV)) fid=F=null;
+  if(F && F.fs) F.fs={m:'to', ox:F.x, oy:F.y, sx:F.x, sy:F.y, t0:now, dur:0};   /* one that stood beside the last disc is enlarged where it stands */
+  var want=fid ? slots(fid) : {};
+  ORD.forEach(function(id){ var b=B[id]; if(!b.n) return;
+    var w=id!==fid && want[id];
+    if(w){ if(!b.fs || b.fs.m!=='to' || b.fs.sx!==w[0] || b.fs.sy!==w[1]) b.fs={m:'to', ox:b.x, oy:b.y, sx:w[0], sy:w[1], t0:now, dur:ms}; }
+    else if(b.fs && b.fs.m==='to' && id!==fid) b.fs={m:'home', ox:b.x, oy:b.y, t0:now, dur:ms};
+    b.n.classList.toggle('sol-flank', !!w);
+  });
+  FLID=fid; flTick.t0=now; flRun();
+}
+function flRun(){ if(!FLR) FLR=requestAnimationFrame(flTick); }
+function flTick(){
+  FLR=0; if(!ready) return;
+  var live=0;
+  ORD.forEach(function(id){ var b=B[id]; if(b.fs && fe(b.fs).p<1) live++; });
+  if(!DRV){ apply(); skin(); }                              /* (a flight's frames place everything themselves) */
+  FLN=0; ORD.forEach(function(id){ if(B[id].fs) FLN++; });
+  fspokes(); declutter(true);
+  var F=FLID && B[FLID], z=F && F.c ? parseFloat(F.c.style.zoom)||1 : K;
+  if(live || (F && Math.abs(z-K)>1e-3 && performance.now()-flTick.t0<1500) || document.querySelector('#world .node.sol-closing')) flRun();
+  else if(!FLN) go();
+}
+/* a short spoke from the disc's edge (its size now) to each body beside it */
+function fspokes(){
+  if(!fsvg || !fsvg.isConnected){ fsvg=el('svg', {id:'sol-flank-svg', width:1, height:1, 'aria-hidden':'true'}); world.appendChild(fsvg); fsvg._l={}; }
+  var keep={};
+  ORD.forEach(function(id){
+    var b=B[id], P=b.fs && B[b.p]; if(!P || !P.n || !(P.n.classList.contains('focused') || P.n.classList.contains('sol-closing'))) return;
+    var k=fe(b.fs), o=b.fs.m==='to' ? k.e : 1-k.e, cz=P.c ? parseFloat(P.c.style.zoom)||1 : 1;
+    var r=(parseFloat(P.n.style.getPropertyValue('--scd'))||(P.n.classList.contains('focused') ? sDof(P.n, P) : P.d))*cz/2+5;
+    var cx=P.rx+(P.n._fx||0), cy=P.ry+(P.n._fy||0), dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy), rb=b.d/2+4;
+    var e=fsvg._l[id]; if(!e){ e=fsvg._l[id]=el('line', {}, fsvg); }
+    keep[id]=1;
+    if(L<=r+rb+2 || o<=.01){ e.setAttribute('opacity', 0); return; }
+    e.setAttribute('x1', f2(cx+dx/L*r)); e.setAttribute('y1', f2(cy+dy/L*r)); e.setAttribute('x2', f2(b.rx-dx/L*rb)); e.setAttribute('y2', f2(b.ry-dy/L*rb));
+    e.setAttribute('opacity', f2(o));
+  });
+  for(var id in fsvg._l) if(!keep[id]){ fsvg._l[id].remove(); delete fsvg._l[id]; }
+}
+/* ── who shows a label (round 8): suns over planets over moons over satellites; a label that would
+   cover a label shown already, or a body as big as its own or bigger, tries above, right, left, else
+   waits (hover shows it). Sizes are measured once per mode (natural size, zoomed out); the rest is
+   arithmetic in world px, at most ~14 times a second while things move. ── */
+var DCT=0, RK={sun:0, planet:1, moon:2, sat:3};
+function ov2(a, b){ return a[0]<b[2] && b[0]<a[2] && a[1]<b[3] && b[1]<a[3]; }
+function setP(lb, p, hide){ if(lb._p!==p){ lb.classList.remove('sol-l1', 'sol-l2', 'sol-l3'); if(p) lb.classList.add('sol-l'+p); lb._p=p; }
+  if(lb._x!==hide){ lb.classList.toggle('sol-lx', hide); lb._x=hide; } }
+function declutter(force){
+  if(!ready || !world || !desk()) return;
+  var now=performance.now(); if(!force && now-DCT<70) return; DCT=now;
+  var cv=cvs(), ov=!!OV, s=ov ? OV.s : 1, k=1/s, cl=function(c){ return !!cv && cv.classList.contains(c); }, lo=cl('sol-lo'), lm=cl('sol-lm'), fm=cl('focus-mode'), mk=cl('sol-ov') ? 'w1' : 'w0';
+  var todo=ORD.filter(function(id){ var b=B[id]; return b.n && b.lb && b.lb.isConnected; });
+  function shown(b){ return !((b.role==='sun' && !lo) || (b.role==='sat' && lo) || (b.role==='moon' && lm)); }
+  todo.forEach(function(id){ var b=B[id]; if((!b[mk] || !b[mk][0]) && shown(b)) b[mk]=[b.lb.offsetWidth, b.lb.offsetHeight]; });
+  var placed=[], discs=[], cls=ov ? (1+.15*(1-s))/s : 1;
+  todo.forEach(function(id){ var b=B[id], r=Math.max(b.d/2, 2.5*k); discs.push([b.rx-r, b.ry-r, b.rx+r, b.ry+r, RK[b.role], id]); });
+  function chipsGo(){ chips.forEach(function(ch){ if(!ov){ if(ch._x) setP(ch, 0, false); return; }
+    if(!ch._wh) ch._wh=[ch.offsetWidth, ch.offsetHeight];
+    var w=ch._wh[0]*cls, h=ch._wh[1]*cls, x=parseFloat(ch.style.left)+ch._wh[0]/2, y=parseFloat(ch.style.top)+ch._wh[1], q=[x-w/2, y-h, x+w/2, y];
+    var hit=placed.some(function(p){ return ov2(q, p); }); setP(ch, 0, hit); if(!hit) placed.push(q); }); }
+  function clash(q, b){ var i, rk=RK[b.role]; for(i=0;i<placed.length;i++) if(ov2(q, placed[i])) return true;
+    for(i=0;i<discs.length;i++){ var d=discs[i]; if(d[5]!==b.id && d[4]<=rk && ov2(q, d)) return true; } return false; }
+  var cg=0;
+  todo.sort(function(a, b){ return RK[B[a].role]-RK[B[b].role]; }).forEach(function(id){
+    var b=B[id], wh=b[mk];
+    if(!cg && b.role!=='sun'){ cg=1; chipsGo(); }          /* the systems' names after the suns', before the rest */
+    if(fm){ if(b.n.classList.contains('sol-flank')) setP(b.lb, 0, false); return; }
+    if(!shown(b) || !wh || !wh[0]) return;      /* (not shown at this zoom) */
+    var w=wh[0]*k, h=wh[1]*k, rr=Math.max(b.d*s/2, 2.5)*k, g=3*k, gx=4*k, x=b.rx, y=b.ry, pick=-1;
+    var C=[[x-w/2, y+rr+g], [x-w/2, y-rr-g-h], [x+rr+gx, y-h/2], [x-rr-gx-w, y-h/2]];
+    for(var i=0;i<4 && pick<0;i++) if(!clash([C[i][0], C[i][1], C[i][0]+w, C[i][1]+h], b)) pick=i;
+    if(pick>=0) placed.push([C[pick][0], C[pick][1], C[pick][0]+w, C[pick][1]+h]);
+    setP(b.lb, pick<0 ? (b.lb._p||0) : pick, pick<0);
+  });
+  if(!cg) chipsGo();
+}
+/* the whole chart's scale, for what keeps its size on screen (labels, dots, the systems' chips) and
+   what it shows at that size (level of detail: .sol-lo faces and satellites' labels go, the suns' labels
+   come; .sol-lm moons' labels go; .sol-tiny (< .12) flat dots in place of the bodies' pictures) */
+function ovVars(sc){
+  var c=cvs(); if(!world || !c) return;
+  if(sc==null || sc>=.9999){ ['--ovs', '--ils', '--cls'].forEach(function(v){ world.style.removeProperty(v); }); c.classList.remove('sol-lo', 'sol-lm', 'sol-tiny'); }
+  else { world.style.setProperty('--ovs', f2(sc*1e4)/1e4); world.style.setProperty('--ils', f2(1e4/sc)/1e4); world.style.setProperty('--cls', f2((1+.15*(1-sc))/sc*1e4)/1e4);
+    c.classList.toggle('sol-lo', sc<.5); c.classList.toggle('sol-lm', sc<.3); c.classList.toggle('sol-tiny', sc<.12); }
+  declutter(true);
+}
+
+/* ── an enlarged circle stays a circle (Luke, rounds 4 and 7): no clip-path. Under Safari's page zoom a
+   clip-path circle() on a zoomed card was resolved in another box than the one painted (Luke's Torts
+   copy, Safari 27, html zoom 0.86: a smaller circle up-left of the card, the text running out of its
+   bottom, the card's own edge showing as an arc and its shadow a bigger circle down-right). So the
+   card is a REAL disc at every frame: border-radius 50% and overflow hidden on a box whose diameter
+   (--scd) goes from the resting disc's to the enlarged one's (--sD) with the engine's zoom ramp, read
+   off the card's own zoom on every frame. The content sits at fixed px about the centre (sized by
+   --sD), so it never re-wraps and the growing disc reveals it; the engine's .alto-fshadow is kept the
+   same circle (its scale set from the card's real diameter). The face fades out, the content
+   (.sol-body, .sol-scrim, .sol-open) fades in. ───── */
+var zmo=(typeof MutationObserver==='function') ? new MutationObserver(function(ms){ ms.forEach(function(m){ var n=m.target.closest && m.target.closest('.node'); if(n) clip(n); }); }) : null, morphing=[], mraf=0;
+function sDof(n, b){ return parseFloat(n.style.getPropertyValue('--sD'))||b.d; }
+/* the focus shadow: the card's circle, whatever size the engine measured it at */
+function shade(n, w, z){
+  var sh=n._fsh, g=sh && sh._g, W=sh ? parseFloat(sh.style.width)||0 : 0; if(!W || !g) return;
+  var want=w*z;                                                 /* the disc's diameter in the board's px */
+  if(Math.abs(z-K)<1e-4 && Math.abs(want-W)<0.5) return;        /* full size: the engine's own placement is this circle */
+  sh.style.left=g[0]+'px'; sh.style.top=g[1]+'px';
+  sh.style.transform='translate('+(n._fx||0)+'px,'+(n._fy||0)+'px) scale('+f2(want/W*1e4)/1e4+')';
+}
 function clip(n){
   var c=n.querySelector('.node-card'), b=B[(n.id||'').slice(5)]; if(!c || !b) return;
-  var z=parseFloat(c.style.zoom)||1, f=n.classList.contains('focused');
+  var z=parseFloat(c.style.zoom)||1, f=n.classList.contains('focused'), i=morphing.indexOf(c);
+  if(i<0 && !f) return;
   if(!f && z<=1.0005){                                         /* home: a circle again */
     n.classList.remove('sol-closing'); n.classList.remove('sol-clip');
-    ['--scr','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
-    var i=morphing.indexOf(c); if(i>=0){ morphing.splice(i, 1); if(zmo){ zmo.disconnect(); morphing.forEach(function(x){ zmo.observe(x, {attributes:true, attributeFilter:['style']}); }); } }
+    ['--scd','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
+    if(i>=0) morphing.splice(i, 1);
     if(!morphing.length) go();
     return; }
-  var p=Math.max(0, Math.min(1, (z-1)/(K-1)*1.5)), s=p*p*(3-2*p);
-  if(f && s>=1){ n.classList.remove('sol-clip'); return; }
+  var p=Math.max(0, Math.min(1, (z-1)/(K-1)*1.5)), s=p*p*(3-2*p), d=b.d, D=sDof(n, b);
+  if(f && s>=1){ n.classList.remove('sol-clip'); ['--scd','--sfo','--sbo'].forEach(function(v){ n.style.removeProperty(v); });
+    if(i>=0) morphing.splice(i, 1); shade(n, D, z); return; }
   n.classList.add('sol-clip');
-  var d=b.d, D=n._sw||d;                                       /* the clip: a circle from the resting disc's radius to the enlarged one's */
-  n.style.setProperty('--scr', f2(d/2+(D-d)/2*s)+'px');
+  var w=f2(d+(D-d)*s);                                          /* the disc's own diameter, from the resting one to the enlarged one */
+  n.style.setProperty('--scd', w+'px');
   n.style.setProperty('--sfo', String(Math.max(0, 1-s*2.2))); n.style.setProperty('--sbo', String(Math.min(1, s*1.6)));
+  shade(n, w, z);
 }
+/* a backstop to the observer: every morphing disc is looked at once a frame until it has settled */
+function msweep(){ mraf=0; morphing.slice().forEach(function(c){ var n=c.closest && c.closest('.node'); if(n) clip(n); }); if(morphing.length) mraf=requestAnimationFrame(msweep); }
 function morph(n, open){
   var c=n.querySelector('.node-card'); if(!c) return;
   if(!open) n.classList.add('sol-closing');
-  n.classList.add('sol-clip');
   if(open) sections(c, (n.id||'').slice(5));
-  n._sw=c.offsetWidth;                                          /* the enlarged disc's diameter, unzoomed */
   var bd=c.querySelector('.sol-body'); if(open && bd) bd.scrollTop=0;
-  if(morphing.indexOf(c)<0){ morphing.push(c); if(zmo) zmo.observe(c, {attributes:true, attributeFilter:['style']}); }
+  if(morphing.indexOf(c)<0) morphing.push(c);
+  if(zmo && !c._zmo){ c._zmo=1; zmo.observe(c, {attributes:true, attributeFilter:['style']}); }
   clip(n);
+  if(!mraf && morphing.length) mraf=requestAnimationFrame(msweep);
 }
 function watch(){
   var w=document.getElementById('world'); if(!w || typeof MutationObserver!=='function') return;
   var cv=document.getElementById('canvas'); if(cv) cv.addEventListener('scroll', camTell, {passive:true});
   new MutationObserver(camTell).observe(w, {attributes:true, attributeFilter:['style']});   /* the board's pan (focus fly) and transform */
-  new MutationObserver(function(ms){ ms.forEach(function(m){
+  new MutationObserver(function(ms){ var fl=0; ms.forEach(function(m){
     var n=m.target; if(!n.classList || !n.classList.contains('node') || !n.hasAttribute('data-solar') || !desk()) return;
-    var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f);
-  }); }).observe(w, {attributes:true, subtree:true, attributeFilter:['class']});
+    var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f); fl=1;
+  }); if(fl) flankSync(); }).observe(w, {attributes:true, subtree:true, attributeFilter:['class']});
   /* edit mode wants the board at full size and still */
-  new MutationObserver(function(){ if(de.classList.contains('alto-editing')){ if(OV) ovLeave(null, true); go(); } }).observe(de, {attributes:true, attributeFilter:['class']});
+  new MutationObserver(function(){ if(de.classList.contains('alto-editing')){ if(OV) ovLeave(null, true); if(FLID) flankSync(); go(); } }).observe(de, {attributes:true, attributeFilter:['class']});
 }
+/* a click on a body beside the disc enlarges it (the engine would read it as a click away from the disc) */
+document.addEventListener('click', function(e){
+  var n=e.target && e.target.closest && e.target.closest('#world .node.sol-flank'); if(!n || de.classList.contains('alto-editing') || !desk()) return;
+  e.stopPropagation(); e.preventDefault(); if(window.enterFocus) window.enterFocus(n.id.slice(5));
+}, true);
 if(document.readyState!=='loading') watch(); else document.addEventListener('DOMContentLoaded', watch);
 
 /* ── arrow keys: the nearest body that way, from where the bodies are now;
@@ -565,6 +772,11 @@ if(document.readyState!=='loading') watch(); else document.addEventListener('DOM
 window._altoSolarNav=function(id, dir){
   var a=B[id], ta={e:0, se:45, s:90, sw:135, w:180, nw:-135, n:-90, ne:-45}[dir]; if(!a || !a.n || ta==null || !desk()) return null;
   var best=null, bc=Infinity;
+  if(id===FLID && (dir==='e' || dir==='w')){            /* left / right from an enlarged body: the nearest of its own beside it that way */
+    ORD.forEach(function(j){ var b=B[j], fs=b.fs; if(b.p!==id || !fs || fs.m!=='to') return; var dx=fs.sx-a.x, dy=fs.sy-a.y;
+      if(dir==='e' ? dx<=0 : dx>=0) return; var c=Math.abs(dy)+.3*Math.abs(dx); if(c<bc){ bc=c; best=j; } });
+    if(best) return best;
+  }
   ORD.forEach(function(j){
     var b=B[j]; if(j===id || !b.n || !b.c || /(^| )(dimmed|rel-dimmed|ent-dimmed)( |$)/.test(b.c.className)) return;
     var dx=b.rx-a.rx, dy=b.ry-a.ry, L=Math.hypot(dx, dy); if(L<1) return;
@@ -582,10 +794,7 @@ window._altoSolarNav=function(id, dir){
    JS — and the circles go where the tree's plan runner puts them ──────── */
 window._altoSolarSync=function(t){
   t=t||{};
-  /* both looks over the live tables (SOLAR_PLAN_JS, _altoSolarPlans); a page carrying one plan: this look */
-  var PP=(LOOKS && window._altoSolarPlans) ? window._altoSolarPlans(t, S) : null, P=PP ? PP.looks[LOOK] : window._altoSolarPlan(t, S); if(!P) return false;
-  LASTT=t;
-  if(PP){ LOOKS.stars=PP.looks.stars; LOOKS.plain=PP.looks.plain; edited=false; } else edited=true;
+  var P=window._altoSolarPlan(t, S); if(!P) return false;
   usePlan(P);
   NUM=t.num||NUM; bodies(); T=0; back=rk=1;
   treePlan(P, t.seqs||[]);
@@ -598,26 +807,11 @@ function treePlan(P, seqs){
     seqs.forEach(function(ids, a){ TP.acts[a]=[];
       ids.forEach(function(id){ var n=P.nodes[id]; if(!n) return; TP.x[id]=n.x; TP.w[id]=n.d; TP.acts[a].push(['float', ['card', id, 0], n.y, 'mid']); }); }); }
 }
-/* the plan now drawn: S; with one plan on the page window._ALTO_SOLAR mirrors it (what FLY / VIS read) */
+/* the plan now drawn: S, mirrored on window._ALTO_SOLAR (what FLY / VIS read) */
 function usePlan(P){
   S=P;
-  if(LOOKS){ LOOKS[lookOf(P)]=P; R.look=lookOf(P); }
-  for(var k0 in R) if(k0!=='look' && k0!=='looks' && !(k0 in P)) delete R[k0];
-  for(var k in P) if(k!=='look' && k!=='looks') R[k]=P[k];      /* window._ALTO_SOLAR's top level reads as the plan drawn */
-}
-/* the plan for a look: the page's own, else (edited, or a page carrying one look) the in-page
-   solar_plan over the live outline tables */
-function liveTables(){
-  if(LASTT) return LASTT;
-  var O=window._ALTO_OUTLINE, par=(O && O.parent) || {}, kids={}, seqs=(typeof ACT_SEQS!=='undefined') ? ACT_SEQS : [];
-  [].concat.apply([], seqs).forEach(function(i){ var p=par[i]; if(p) (kids[p]=kids[p]||[]).push(i); });
-  return {kids:kids, parent:par, seqs:seqs};
-}
-function planFor(look){
-  if(!edited && LOOKS && LOOKS[look]) return LOOKS[look];
-  if(!edited && ORIG && lookOf(ORIG)===look) return ORIG;
-  var o={}; for(var k in S) o[k]=S[k]; o.style=look==='plain' ? 'spoke' : 'orbit';
-  return window._altoSolarPlan ? window._altoSolarPlan(liveTables(), o) : null;
+  for(var k0 in R) if(k0!=='look' && !(k0 in P)) delete R[k0];
+  for(var k in P) if(k!=='look') R[k]=P[k];
 }
 /* ── the whole chart: the board zoomed out to fit the window ─────────────────
    Pinch out (ctrl+wheel; Safari's gesture), ⌘− / ctrl+−, or the toggle under the
@@ -638,11 +832,20 @@ function fitS(){ var c=cvs(); return Math.max(OVMIN, Math.min(1, (c.clientWidth-
 /* the zoomed-out board: any scale from OVMIN to natural size; moved freely, only held so that at
    least KEEP px of the chart stay in the window (it can be pushed aside, never lost) */
 var KEEP=160;
+/* the floor of a gesture's zoom (round 8: "fully zoomed out, it's impossible to see anything"): the whole
+   chart filling 85% of the window — all of it in view, never a speck (the camera's own floor, for flights, stays OVMIN) */
+function omin(){ var c=cvs(); if(!c || !world) return OVMIN; return Math.max(.005, Math.min(.5, .85*Math.min((c.clientWidth-60)/world.offsetWidth, (c.clientHeight-60)/wh()))); }
 function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
-  o.s=Math.max(OVMIN, Math.min(1, o.s));
+  var lo=Math.min(omin(), OV ? OV.s : 1);         /* (below it already, by a flight's camera: no jump) */
+  o.s=Math.max(lo, Math.min(1, o.s));
   w=world.offsetWidth*o.s; h=wh()*o.s;
-  o.tx=Math.max(Math.min(KEEP, w)-w, Math.min(cw-Math.min(KEEP, w), o.tx)); o.ty=Math.max(Math.min(KEEP, h)-h, Math.min(ch-Math.min(KEEP, h), o.ty)); return o; }
-function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; camTell(); }
+  o.tx=Math.max(Math.min(KEEP, w)-w, Math.min(cw-Math.min(KEEP, w), o.tx)); o.ty=Math.max(Math.min(KEEP, h)-h, Math.min(ch-Math.min(KEEP, h), o.ty));
+  /* nearing the floor, the chart is drawn into the window (all of it, at the floor), continuously */
+  var g=Math.max(0, Math.min(1, (1.6*lo-o.s)/(.6*lo)));
+  if(g>0){ var ix=w<=cw ? Math.max(0, Math.min(cw-w, o.tx)) : Math.max(cw-w, Math.min(0, o.tx)), iy=h<=ch ? Math.max(0, Math.min(ch-h, o.ty)) : Math.max(ch-h, Math.min(0, o.ty));
+    o.tx+=(ix-o.tx)*g; o.ty+=(iy-o.ty)*g; }
+  return o; }
+function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); camTell(); }
 function ovHold(on){
   var c=cvs(), sp=document.getElementById('sol-ov-hold');
   if(!on){ if(sp) sp.remove(); return; }
@@ -680,7 +883,7 @@ function ovLeave(p, instant, then){
   if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
   OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn();
   var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
-  var fin=function(){ world.style.transform=''; ovHold(false);
+  var fin=function(){ world.style.transform=''; ovVars(null); ovHold(false);
     var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
     if(then) then(); };
   if(instant) return fin();
@@ -856,50 +1059,33 @@ window._altoSolarCam={
 };
 window._altoSolarZoom=function(s){ if(s==null) return OV ? OV.s : 1; if(s>=1) ovLeave(null, true); else ovZoom(s, null, null, false); return OV ? OV.s : 1; };
 /* ── the two looks and the orbit switch ──────────────────────────────────────
-   window._altoSolarLook   = {get() -> 'stars'|'plain', set(look), onChange(fn), plan() -> the plan drawn}
-   window._altoSolarMotion = {get() -> the orbit clock runs (Star chart look and switched on), set(on), onChange(fn)}
-   <html> carries .alto-solar-stars or .alto-solar-plain. A change of look plans the other style
-   (the page's own plan, else SOLAR_PLAN_JS over the live tables), lays the page out again and
-   glides every body from where it was to its new place in ~500 ms (at once for reduced motion);
-   an enlarged body is let go first and enlarged again after; the zoom, edit mode and the
-   viewer's choices carry over. Orbit off: the bodies stop where they are, _altoSolarT stops;
-   on again: the clock eases back in over ~400 ms from where it stopped. Both choices are kept per
-   timeline per viewer (localStorage alto-solar-look:<id>, alto-solar-motion:<id>). */
+   window._altoSolarLook   = {get() -> 'stars'|'hub', set(look), onChange(fn), plan() -> the plan drawn}
+   window._altoSolarMotion = {get() -> the orbit clock runs (switched on, in either look), set(on), onChange(fn)}
+   <html> carries .alto-solar-stars or .alto-solar-hub. Both looks draw the SAME plan, so a change
+   of look moves nothing: the Star chart's skin and flights come or go (solar_stars.py,
+   solar_fly.py, through onChange); an enlarged body, the zoom, the orbit clock, edit mode and
+   the viewer's choices carry over. Orbit off: the bodies stop where they are, _altoSolarT
+   stops; on again: the clock eases back in over ~400 ms from where it stopped. Both choices are
+   kept per timeline per viewer (localStorage alto-solar-look:<id>, alto-solar-motion:<id>; an
+   old 'plain' reads as 'hub'). */
 var lookFns=[], motFns=[];
 function tell(fns, v){ fns.slice().forEach(function(f){ try{ f(v); }catch(e){} }); }
-function looks(){ var d=desk(); de.classList.toggle('alto-solar-stars', d && LOOK==='stars'); de.classList.toggle('alto-solar-plain', d && LOOK==='plain'); }   /* desktop only: a phone shows the engine's cards */
+function looks(){ var d=desk(); de.classList.toggle('alto-solar-stars', d && LOOK==='stars'); de.classList.toggle('alto-solar-hub', d && LOOK==='hub'); }   /* desktop only: a phone shows the engine's cards */
 function setLook(look){
-  if((look!=='stars' && look!=='plain') || look===LOOK) return LOOK;
-  if(!ready){ var P=planFor(look); if(P && P.nodes){ LOOK=look; keep('look', look); usePlan(P); bodies(); looks(); tell(lookFns, look); } return LOOK; }
-  var fid=window._focusedNodeId;
-  if(fid && window.exitFocus){ window.exitFocus(); setTimeout(function(){ doLook(look, fid); }, UNF); return look; }
-  doLook(look, null); return look;
+  look=lk(look); if(!look || look===LOOK) return LOOK;
+  LOOK=look; keep('look', look); looks();
+  if(ready){ ctl(); apply(true); skin(); }
+  tell(lookFns, look); tell(motFns, MOTION && MOVES);
+  return LOOK;
 }
-function doLook(look, fid){
-  if(look===LOOK) return;
-  var P=planFor(look); if(!P || !P.nodes || !Object.keys(P.nodes).length) return;
-  var from={}; ORD.forEach(function(id){ var b=B[id]; if(b.rx!=null) from[id]=[b.rx, b.ry]; });
-  /* the camera keeps the body nearest the middle where it is on the screen while everything moves */
-  var g=camGet(), an=null;
-  if(g){ var best=Infinity; ORD.forEach(function(id){ var b=B[id]; if(b.rx==null) return; var d=Math.hypot(b.rx-g.cx, b.ry-PAD-g.cy); if(d<best){ best=d; an={id:id, dx:g.cx-b.rx, dy:g.cy-(b.ry-PAD), s:g.scale}; } }); }
-  LOOK=look; keep('look', look); usePlan(P); bodies(); T=0; back=rk=1; sp=0;
-  treePlan(P, (typeof ACT_SEQS!=='undefined') ? ACT_SEQS : []);
-  GL={from:from, t0:performance.now(), ms:reduced ? 0 : 500, an:an};
-  looks();
-  try{ if(typeof initLayout==='function') initLayout(); }catch(e){}
-  follow();
-  ctl(); tell(lookFns, look); tell(motFns, MOTION && MOVES);
-  if(fid) setTimeout(function(){ if(window.enterFocus && document.getElementById('node-'+fid)) window.enterFocus(fid); }, GL ? GL.ms+80 : 80);
-}
-function follow(){ var a=GL && GL.an, b=a && B[a.id]; if(b && b.rx!=null) window._altoSolarCam.set(b.rx+a.dx, b.ry-PAD+a.dy, a.s); }
 window._altoSolarLook={get:function(){ return LOOK; }, set:setLook, plan:function(){ return S; },
   onChange:function(fn){ lookFns.push(fn); return function(){ var i=lookFns.indexOf(fn); if(i>=0) lookFns.splice(i, 1); }; }};
 window._altoSolarMotion={get:function(){ return !!MOTION && MOVES; },
   set:function(on){ on=!!on; if(on===!!MOTION) return MOTION; MOTION=on; keep('motion', on ? 1 : 0); if(on){ sp=0; RAMP=.4; last=null; } ctl(); tell(motFns, MOTION && MOVES); go(); return MOTION; },
   onChange:function(fn){ motFns.push(fn); return function(){ var i=motFns.indexOf(fn); if(i>=0) motFns.splice(i, 1); }; }};
-/* the controls, under the bars at the top left: Star chart | Plain, and Orbit */
+/* the controls, under the bars at the top left: Hub & spoke | Star chart, and Orbit */
 var IC={stars:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="4.4" fill="currentColor"/><ellipse cx="10" cy="10" rx="8.6" ry="3" fill="none" stroke="currentColor" stroke-width="1.4" transform="rotate(-22 10 10)"/></svg>',
-  plain:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3.2"/><circle cx="3.2" cy="4" r="1.8"/><circle cx="16.8" cy="5" r="1.8"/><circle cx="15" cy="16.4" r="1.8"/><path d="M7.6 8.1 4.6 5.3M12.7 8.7l2.6-2.4M11.9 12.6l2 2.4"/></svg>',
+  hub:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="2.6"/><circle cx="10" cy="10" r="5.6" stroke-opacity=".55"/><circle cx="10" cy="10" r="8.4" stroke-opacity=".55"/><circle cx="15.6" cy="10" r="1.6" fill="currentColor"/><circle cx="5" cy="3.6" r="1.4" fill="currentColor"/></svg>',
   pause:'<svg class="sol-ic-pause" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="currentColor"><rect x="5" y="4" width="3.4" height="12" rx="1"/><rect x="11.6" y="4" width="3.4" height="12" rx="1"/></svg>',
   play:'<svg class="sol-ic-play" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M6 4.2v11.6c0 .6.7 1 1.2.6l8.6-5.8c.4-.3.4-1 0-1.2L7.2 3.6C6.7 3.3 6 3.6 6 4.2z"/></svg>'};
 function ctl(){
@@ -907,17 +1093,17 @@ function ctl(){
   if(!desk() || !ready){ if(w) w.remove(); return; }
   if(!w){ w=document.createElement('div'); w.id='sol-ctl'; w.setAttribute('role', 'group'); w.setAttribute('aria-label', 'How the chart looks');
     w.innerHTML='<div class="sol-seg" role="radiogroup" aria-label="Look">'+
-      '<button type="button" data-look="stars" role="radio" title="Star chart: the planets in their orbits">'+IC.stars+'<span>Star chart</span></button>'+
-      '<button type="button" data-look="plain" role="radio" title="Plain: the same chart, still and compact">'+IC.plain+'<span>Plain</span></button></div>'+
+      '<button type="button" data-look="hub" role="radio" title="Hub &amp; spoke: the orbits in Alto\'s own look">'+IC.hub+'<span>Hub &amp; spoke</span></button>'+
+      '<button type="button" data-look="stars" role="radio" title="Star chart: the same orbits as a space scene, with flights between bodies">'+IC.stars+'<span>Star chart</span></button></div>'+
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
       if(b.getAttribute('data-look')) setLook(b.getAttribute('data-look'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION); });
     document.body.appendChild(w); }
   [].forEach.call(w.querySelectorAll('[data-look]'), function(b){ var on=b.getAttribute('data-look')===LOOK; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
-  var m=w.querySelector('#sol-motion'), plain=LOOK==='plain', run=!!MOTION && !plain;
-  m.disabled=plain; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
-  m.title=plain ? 'Orbit: the Plain look stands still' : run ? 'Orbit is on: click to stop the planets where they are' : 'Orbit is off: click to set the planets moving again';
+  var m=w.querySelector('#sol-motion'), run=!!MOTION && MOVES;
+  m.disabled=!MOVES; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
+  m.title=!MOVES ? 'Orbit: nothing here orbits' : run ? 'Orbit is on: click to stop the planets where they are' : 'Orbit is off: click to set the planets moving again';
   m.setAttribute('aria-label', m.title);
 }
 window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p}; });
@@ -942,117 +1128,83 @@ var C=__SOLAR__, GOLD=__GOLDEN__, LOOKS=__LOOKS__, D=C.D, PI=Math.PI;
 function r2(v){ return Math.round(v*100)/100; }
 function r4(v){ return Math.round(v*1e4)/1e4; }
 function mx(a){ return a.length ? Math.max.apply(null, a) : 0; }
-function ringFor(n, ext, gap, inner){ if(!n) return 0; var r=inner+gap+ext;
-  if(n>=2) r=Math.max(r, (2*ext+Math.max(gap, 2*C.SPOKE_CLEAR))/(2*Math.sin(PI/n))); return r; }
 function even(n, out){ var off=n%2===0 ? PI/n : 0, o=[]; for(var j=0;j<n;j++) o.push(out+off+2*PI*j/n); return o; }
 /* a body's diameter: the sun's fixed, a planet / moon a tier up per two children, a bump one more (solar.body_d) */
-function bodyD(role, n, bump){ if(role==='sun') return D.sun; var L=C.TIERS[role], t=role!=='sat' ? Math.min(Math.ceil(n/2), L.length-2) : 0;
-  return L[Math.min(t+(bump ? 1 : 0), L.length-1)]; }
+function bodyD(role, n, bump, pd, st){ if(role==='sun') return D.sun; if(role==='sat' && st) return C.STATION;
+  var L=C.TIERS[role], t=role!=='sat' ? Math.min(Math.ceil(n/2), L.length-2) : 0, d=L[Math.min(t+(bump ? 1 : 0), L.length-1)];
+  return role==='moon' && pd ? Math.min(d, Math.floor(C.MOON_MAX*pd)) : d; }
 /* the looks' arithmetic (solar.hash01 … orbit_offset): FNV-1a, a comet's ellipse, an asteroid's tumble */
 function h01(s){ var h=2166136261; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h, 16777619)>>>0; } return h/4294967296; }
 function cshape(id){ return [r4(C.ECC[0]+(C.ECC[1]-C.ECC[0])*h01('ecc:'+id)), r4(2*PI*h01('rot:'+id))]; }
 function eslack(e){ var q=Math.sqrt(Math.max(0, 1-e*e)); return (1-q)/(1+q); }
-function secc(c){ var q=(1-c)/(1+c); return Math.sqrt(Math.max(0, 1-q*q)); }
 function tumble(id){ var v=C.TUMBLE[0]+(C.TUMBLE[1]-C.TUMBLE[0])*h01('tumble:'+id); return r4(h01('spin:'+id)<.5 ? v : -v); }
 function kepler(m, e){ var p=m; for(var i=0;i<12;i++) p-=(p-e*Math.sin(p)-m)/(1-e*Math.cos(p)); return p; }
 function at(r, a, o){ if(!o) return [r*Math.cos(a), r*Math.sin(a)];
   var c=eslack(o.e), A=r*(1+c), B=r*(1-c), m=a-o.rot, p=o.k ? kepler(m, o.e) : m, x=A*Math.cos(p), y=B*Math.sin(p);
   return [x*Math.cos(o.rot)-y*Math.sin(o.rot), x*Math.sin(o.rot)+y*Math.cos(o.rot)]; }
-/* a shared ring of [id, reach, comet slack] (solar._ring_fix): a comet strays c·r from its circle */
-function ringFix(items, gap, inner){
-  var n=items.length; if(!n) return [0, 0, {}];
-  var cap=n>=2 ? .5*Math.sin(PI/n) : .5, cs={};
-  items.forEach(function(it){ if(it[2]>0) cs[it[0]]=Math.min(it[2], cap); });
-  var me=function(r){ return mx(items.map(function(it){ return it[1]+(cs[it[0]]||0)*r; })); };
-  var r=ringFor(n, mx(items.map(function(it){ return it[1]; })), gap, inner);
-  for(var i=0;i<200;i++){ var r_=ringFor(n, me(r), gap, inner); if(r_-r<1e-9){ r=r_; break; } r=r_; }
-  return [r, me(r), cs];
+/* concentric rings, one per body, the first innermost (solar._rings): items [id, reach] round a
+   centre of radius inner, each annulus gap past the one inside it; a comet's (slack c) pushed out
+   to (edge+gap+reach)/(1-c); its orbit into orb. -> [[ring per item], outer edge] */
+function secc(c){ var q=(1-c)/(1+c); return Math.sqrt(Math.max(0, 1-q*q)); }
+function rings(items, gap, inner, slack, orb){
+  var edge=inner, out=[];
+  items.forEach(function(it){ var c=slack[it[0]]||0, r=edge+gap+it[1];
+    if(c){ var a=Math.min(c*r/(1-c), C.COMET_PX), e; r+=a; e=r4(secc(a/r)); c=eslack(e); r=(edge+gap+it[1])/(1-c)+.05;
+      orb[it[0]]={e:e, rot:cshape(it[0])[1], k:0}; }
+    out.push(r); edge=r+c*r+it[1]; });
+  return [out, edge];
 }
 function pbody(pid, moons, size, slack){
-  var dp=size(pid, 'planet', moons.length), Rp=dp/2, orb={};
-  var ms=moons.map(function(m){ var dm=size(m[0], 'moon', m[1].length), Rm=dm/2, sd={};
-    m[1].forEach(function(q){ sd[q]=size(q, 'sat', 0); });
-    var F=ringFix(m[1].map(function(q){ return [q, sd[q]/2, slack[q]||0]; }), C.SAT_GAP, Rm);
-    Object.keys(F[2]).forEach(function(q){ orb[q]={e:r4(secc(F[2][q])), rot:cshape(q)[1], k:0}; });
-    return {id:m[0], d:dm, sats:m[1], sd:sd, sat_r:F[0], ext:m[1].length ? F[0]+F[1] : Rm}; });
-  var F=ringFix(ms.map(function(m){ return [m.id, m.ext, slack[m.id]||0]; }), C.MOON_GAP, Rp);
-  Object.keys(F[2]).forEach(function(q){ orb[q]={e:r4(secc(F[2][q])), rot:cshape(q)[1], k:0}; });
-  var e=ms.length ? F[0]+F[1] : Rp;
-  return {id:pid, d:dp, moons:ms, moon_r:F[0], e:Math.max(e, Rp), orb:orb};
+  var dp=size(pid, 'planet', moons.length, 0), Rp=dp/2, orb={};
+  var ms=moons.map(function(m){ var dm=size(m[0], 'moon', m[1].length, dp), Rm=dm/2, sd={}, srs={};
+    m[1].forEach(function(q){ sd[q]=size(q, 'sat', 0, dm); });
+    var F=rings(m[1].map(function(q){ return [q, sd[q]/2]; }), C.SAT_GAP, Rm, slack, orb);
+    m[1].forEach(function(q, j){ srs[q]=F[0][j]; });
+    return {id:m[0], d:dm, sats:m[1], sd:sd, srs:srs, sat_r:F[0].length ? F[0][0] : 0, ext:m[1].length ? F[1] : Rm}; });
+  var F=rings(ms.map(function(m){ return [m.id, m.ext]; }), C.MOON_GAP, Rp, slack, orb);
+  ms.forEach(function(m, j){ m.r=F[0][j]; });
+  return {id:pid, d:dp, moons:ms, moon_r:F[0].length ? F[0][0] : 0, e:Math.max(ms.length ? F[1] : Rp, Rp), orb:orb};
 }
 function local(b, th, r, orbs){
   orbs=orbs||{};
-  var P=at(r, th, orbs[b.id]), px=P[0], py=P[1], cs=[[b.id, px, py, b.d/2, null]], sg=[], ma=even(b.moons.length, th);
-  b.moons.forEach(function(m, k){ var o=at(b.moon_r, ma[k], orbs[m.id]), x=px+o[0], y=py+o[1], sa=even(m.sats.length, ma[k]);
-    cs.push([m.id, x, y, m.d/2, b.id]); sg.push([m.id, b.id, x, y, px, py]);
-    m.sats.forEach(function(si, j){ var o2=at(m.sat_r, sa[j], orbs[si]), sx=x+o2[0], sy=y+o2[1];
-      cs.push([si, sx, sy, m.sd[si]/2, m.id]); sg.push([si, m.id, sx, sy, x, y]); }); });
-  return [cs, sg];
+  var P=at(r, th, orbs[b.id]), px=P[0], py=P[1], cs=[[b.id, px, py, b.d/2, null]], ma=even(b.moons.length, th);
+  b.moons.forEach(function(m, k){ var o=at(m.r, ma[k], orbs[m.id]), x=px+o[0], y=py+o[1], sa=even(m.sats.length, ma[k]);
+    cs.push([m.id, x, y, m.d/2, b.id]);
+    m.sats.forEach(function(si, j){ var o2=at(m.srs[si], sa[j], orbs[si]); cs.push([si, x+o2[0], y+o2[1], m.sd[si]/2, m.id]); }); });
+  return cs;
 }
 function sd(cx, cy, x1, y1, x2, y2){ var dx=x2-x1, dy=y2-y1, L=dx*dx+dy*dy, t=L===0 ? 0 : Math.max(0, Math.min(1, ((cx-x1)*dx+(cy-y1)*dy)/L));
   return Math.hypot(cx-(x1+t*dx), cy-(y1+t*dy)); }
-function fits(cs, sg, spoke, e, placed, psegs){
-  var g=C.SPOKE_GAP, cl=C.SPOKE_CLEAR, px=cs[0][1], py=cs[0][2], i, j, k;
-  var near=placed.filter(function(c){ return Math.hypot(px-c[1], py-c[2]) < e+c[3]+Math.max(g, C.RING_GAP, cl); });
-  for(i=0;i<cs.length;i++) for(j=0;j<near.length;j++){ var gp=near[j][4]==='sun' ? C.RING_GAP : g;
-    if(Math.hypot(cs[i][1]-near[j][1], cs[i][2]-near[j][2]) < cs[i][3]+near[j][3]+gp) return false; }
-  for(k=0;k<psegs.length;k++){ var s=psegs[k]; if(sd(px, py, s[2], s[3], s[4], s[5]) >= e+cl) continue;
-    for(i=0;i<cs.length;i++) if(sd(cs[i][1], cs[i][2], s[2], s[3], s[4], s[5]) < cs[i][3]+cl) return false; }
-  for(k=0;k<sg.length;k++){ s=sg[k]; for(j=0;j<near.length;j++){ var c=near[j];
-    if(c[0]!==s[0] && c[0]!==s[1] && sd(c[1], c[2], s[2], s[3], s[4], s[5]) < c[3]+cl) return false; } }
-  for(k=0;k<spoke.length;k++){ s=spoke[k]; for(j=0;j<placed.length;j++){ c=placed[j];
-    if(c[0]!==s[0] && c[0]!==s[1] && sd(c[1], c[2], s[2], s[3], s[4], s[5]) < c[3]+cl) return false; } }
-  return true;
-}
 function period(lh, k, n){ return r2(lh[0]+(lh[1]-lh[0])*(n>1 ? k/(n-1) : .5)); }
-function system(unit, sun, planets, style, size, looks){
-  var mov=style==='orbit', slack={};
-  if(mov) Object.keys(looks).forEach(function(i){ if(looks[i]==='comet') slack[i]=eslack(cshape(i)[0]); });
-  var Rs=D.sun/2, bs=planets.map(function(p){ return pbody(p[0], p[1], size, slack); }), P=bs.length, rings=[], ang=[], orbs={}, belt=null, k;
+function system(unit, sun, planets, size, looks){
+  var slack={};
+  Object.keys(looks).forEach(function(i){ if(looks[i]==='comet') slack[i]=eslack(cshape(i)[0]); });
+  var Rs=D.sun/2, bs=planets.map(function(p){ return pbody(p[0], p[1], size, slack); }), P=bs.length, rg=[], ang=[], orbs={}, belt=null;
   bs.forEach(function(b){ Object.keys(b.orb).forEach(function(i){ orbs[i]=b.orb[i]; }); });
-  if(mov){ var edge=Rs, split=P>=C.BELT_MIN ? Math.floor(P/2) : -1;
-    bs.forEach(function(b, k){
-      if(k===split){ belt={r:edge+C.RING_GAP+C.BELT_W/2, w:C.BELT_W}; edge+=C.RING_GAP+C.BELT_W; }
-      var c=slack[b.id]||0, r=(edge+C.RING_GAP+b.e)/(1-c)+(c ? .05 : 0);
-      if(c){ var sh=cshape(b.id); orbs[b.id]={e:sh[0], rot:sh[1], k:1}; }
-      rings.push(r); ang.push(-PI/2+k*GOLD); b.band=[r-c*r-b.e, r+c*r+b.e]; edge=b.band[1]; }); }
-  else { var placed=[[sun, 0, 0, Rs, 'sun']], psegs=[], rp2=0, st=C.A_STEP_DEG*PI/180, tries=[0];
-    for(var j=1;j<=Math.round(PI/st);j++){ tries.push(j*st); tries.push(-j*st); }
-    bs.forEach(function(b, k){
-      var pref=-PI/2+k*GOLD, r0=Math.max(Rs+C.RING_GAP+b.d/2, k ? rp2+C.MIN_STEP : 0), hit=null;
-      [[true, C.SPOKE_BUDGET], [false, null]].some(function(mode){
-        var r=r0;
-        while(!hit && (mode[1]===null || r<=r0+mode[1])){
-          for(var q=0;q<tries.length;q++){ var th=pref+tries[q], L=local(b, th, r), sp=[[b.id, sun, L[0][0][1], L[0][0][2], 0, 0]];
-            if(fits(L[0], L[1], mode[0] ? sp : [], b.e, placed, psegs)){ hit=[th, L[0], L[1].concat(sp)]; break; } }
-          if(!hit) r+=C.R_STEP;
-        }
-        if(hit){ placed=placed.concat(hit[1]); psegs=psegs.concat(hit[2]); rings.push(r); ang.push(hit[0]); rp2=r; return true; }
-        return false;
-      });
-    });
-  }
-  var outP=[], loc={}; loc[sun]=[0, 0, D.sun, 'sun', ''];
+  var edge=Rs, split=P>=C.BELT_MIN ? Math.floor(P/2) : -1;
   bs.forEach(function(b, k){
-    var r=rings[k], th=ang[k], L=local(b, th, r, orbs), ma=even(b.moons.length, th);
-    L[0].forEach(function(c){ loc[c[0]]=[c[1], c[2], Math.round(c[3]*2), c[4]===null ? 'planet' : (c[4]===b.id ? 'moon' : 'sat'), c[4]||sun]; });
-    var md=function(a){ a%=2*PI; if(a<0) a+=2*PI; return Math.round(a*1e7)/1e7; };
-    outP.push({id:b.id, ring:k+1, r:r2(r), a0:md(th), d:b.d, period:mov ? period(C.P_PLANET, k, P) : 0, e:r2(b.e), moon_r:r2(b.moon_r),
-      moons:b.moons.map(function(m, i){ var sa=even(m.sats.length, ma[i]);
-        return {id:m.id, r:r2(b.moon_r), a0:md(ma[i]), d:m.d, period:mov ? period(C.P_MOON, k, P) : 0, sat_r:r2(m.sat_r),
-          sats:m.sats.map(function(si, j){ return {id:si, r:r2(m.sat_r), a0:md(sa[j]), d:m.sd[si], period:mov ? C.P_SAT : 0}; })}; })});
+    if(k===split){ belt={r:edge+C.RING_GAP+C.BELT_W/2, w:C.BELT_W}; edge+=C.RING_GAP+C.BELT_W; }
+    var c=slack[b.id]||0, r=edge+C.RING_GAP+b.e;
+    if(c){ var a=Math.min(c*r/(1-c), C.COMET_PX_PLANET), e=r4(secc(a/(r+a))); c=eslack(e); r=r/(1-c)+.05;
+      orbs[b.id]={e:e, rot:cshape(b.id)[1], k:1}; }
+    rg.push(r); ang.push(-PI/2+k*GOLD); b.band=[r-c*r-b.e, r+c*r+b.e]; edge=b.band[1]; });
+  var outP=[], loc={}; loc[sun]=[0, 0, D.sun, 'sun', ''];
+  var md=function(a){ a%=2*PI; if(a<0) a+=2*PI; return Math.round(a*1e7)/1e7; };
+  bs.forEach(function(b, k){
+    var r=rg[k], th=ang[k], ma=even(b.moons.length, th), nm=b.moons.length;
+    local(b, th, r, orbs).forEach(function(c){ loc[c[0]]=[c[1], c[2], Math.round(c[3]*2), c[4]===null ? 'planet' : (c[4]===b.id ? 'moon' : 'sat'), c[4]||sun]; });
+    outP.push({id:b.id, ring:k+1, r:r2(r), a0:md(th), d:b.d, period:period(C.P_PLANET, k, P), e:r2(b.e), moon_r:r2(b.moon_r),
+      moons:b.moons.map(function(m, i){ var sa=even(m.sats.length, ma[i]), ns=m.sats.length;
+        return {id:m.id, r:r2(m.r), a0:md(ma[i]), d:m.d, period:period(C.P_MOON, i, nm), ext:r2(m.ext), sat_r:r2(m.sat_r),
+          sats:m.sats.map(function(si, j){ return {id:si, r:r2(m.srs[si]), a0:md(sa[j]), d:m.sd[si], period:period(C.P_SAT, j, ns)}; })}; })});
   });
-  var R, box, v=Object.keys(loc).map(function(i){ return loc[i]; });
-  if(mov){ R=bs.length ? bs[bs.length-1].band[1] : Rs; box=[-R, -R, R, R]; }
-  else { box=[Math.min.apply(null, v.map(function(c){ return c[0]-c[2]/2; })), Math.min.apply(null, v.map(function(c){ return c[1]-c[2]/2; })),
-              Math.max.apply(null, v.map(function(c){ return c[0]+c[2]/2; })), Math.max.apply(null, v.map(function(c){ return c[1]+c[2]/2; }))];
-    R=Math.max.apply(null, v.map(function(c){ return Math.hypot(c[0], c[1])+c[2]/2; })); }
-  return {unit:unit, sun:sun, r_sun:Rs, R:R, box:box, planets:outP, local:loc, orbs:orbs, belt:belt};
+  var R=bs.length ? bs[bs.length-1].band[1] : Rs;
+  return {unit:unit, sun:sun, r_sun:Rs, R:R, box:[-R, -R, R, R], planets:outP, local:loc, orbs:orbs, belt:belt};
 }
 /* the galactic core (solar._core) and the drifting comets (solar._drifters) */
 function core(sys, W, H, bottom){
   if(sys.length<2) return [null, H];
-  var need=C.CORE_R+C.CORE_GAP, gx=0, gy=0, best=null, st=C.CORE_STEP;
+  var need=C.CORE_R+C.CORE_GAP, gx=0, gy=0, best=null, st=Math.max(C.CORE_STEP, Math.ceil(Math.max(W, H)/300));
   sys.forEach(function(s){ gx+=s.cx; gy+=s.cy; }); gx/=sys.length; gy/=sys.length;
   var lx=C.MARGIN+C.CORE_R, hx=W-C.MARGIN-C.CORE_R, ly=C.MARGIN+C.CORE_R, hy=H-C.MARGIN-C.CORE_R, nx=Math.floor((hx-lx)/st), ny=Math.floor((hy-ly)/st);
   for(var j=0;j<=ny;j++){ var y=ly+j*st;
@@ -1081,10 +1233,9 @@ function drifters(sys, co, W, H){
   });
   return out;
 }
-/* t: {kids, parent, seqs, flags?}; old: the plan the page has (style, sizes, labels, look flags); style: 'orbit' | 'spoke' (default old's) */
-function plan(t, old, style){
+/* t: {kids, parent, seqs, flags?}; old: the plan the page has (sizes, labels, look flags) */
+function plan(t, old){
   var K=t.kids||{}, Par=t.parent||{}, seqs=t.seqs||[], ids={};
-  style=style||(old && old.style)||'orbit';
   seqs.forEach(function(q){ q.forEach(function(i){ ids[i]=1; }); });
   function kids(i){ return (K[i]||[]).filter(function(k){ return ids[k] && Par[k]===i; }); }
   var labels={}; ((old && old.systems)||[]).forEach(function(s){ labels[s.unit]=s.label; });
@@ -1100,11 +1251,13 @@ function plan(t, old, style){
   /* the flags on each node: t.flags {id: [flag ids]}, else the page's NODES_SRC; which bump (plan.sizes.bump), which make a look (plan.look_flags) */
   var bump=((old && old.sizes && old.sizes.bump)||[]), LF=(old && old.look_flags)||{}, FL=t.flags||{};
   if(!t.flags && typeof NODES_SRC!=='undefined') NODES_SRC.forEach(function(n){ if(n.flags) FL[n.id]=n.flags; });
-  var size=function(i, role, n){ return bodyD(role, n, (FL[i]||[]).some(function(f){ return bump.indexOf(f)>=0; })); };
+  /* the space stations: the page's own plan's (solar.stations reads the content, which the live tables do not carry) */
+  var ST={}; Object.keys((old && old.nodes)||{}).forEach(function(i){ if(old.nodes[i].station && ids[i]) ST[i]=1; });
+  var size=function(i, role, n, pd){ return bodyD(role, n, (FL[i]||[]).some(function(f){ return bump.indexOf(f)>=0; }), pd, ST[i]); };
   var looks={};
   Object.keys(ids).forEach(function(i){ var got=(FL[i]||[]).map(function(f){ return LF[f]; }).filter(function(x){ return x; });
     if(got.length) looks[i]=got.sort(function(a, b){ return LOOKS.indexOf(a)-LOOKS.indexOf(b); })[0]; });
-  var sy=units.map(function(u){ return system(u[0], u[1], u[2], style, size, looks); });
+  var sy=units.map(function(u){ return system(u[0], u[1], u[2], size, looks); });
   var ws=sy.map(function(s){ return s.box[2]-s.box[0]; }), W=Math.ceil(Math.max.apply(null, [C.WORLD_W].concat(ws.map(function(w){ return w+2*C.MARGIN; }))));
   var inner=W-2*C.MARGIN, rows=[], row=[], span=0, us={};
   sy.forEach(function(s){ us[s.unit]=1; });
@@ -1124,7 +1277,8 @@ function plan(t, old, style){
       Object.keys(s.local).forEach(function(i){ var c=s.local[i], n={x:r2(cx+c[0]), y:r2(cy+c[1]), d:c[2], role:c[3], unit:s.unit, parent:c[4]};
         if(looks[i]) n.look=looks[i];
         if(s.orbs[i]) n.orbit={e:s.orbs[i].e, rot:s.orbs[i].rot, k:s.orbs[i].k};
-        if(style==='orbit' && looks[i]==='asteroid') n.tumble=tumble(i);
+        if(looks[i]==='asteroid') n.tumble=tumble(i);
+        if(ST[i]) n.station=1;
         nodes[i]=n; });
       if(s.belt) belts.push({sun:s.sun, cx:r2(cx), cy:r2(cy), r:r2(s.belt.r), w:s.belt.w,
         n:Math.floor(Math.min(400, Math.max(40, 2*PI*s.belt.r/18))), seed:Math.floor(h01('belt:'+s.sun)*1e9)});
@@ -1138,16 +1292,12 @@ function plan(t, old, style){
     if(!u || u.unit!==s.unit){ u={unit:s.unit, label:s.label, suns:[], bbox:s.bbox.slice()}; uo.push(u); }
     u.suns.push(s.sun); u.bbox=[Math.min(u.bbox[0], s.bbox[0]), Math.min(u.bbox[1], s.bbox[1]), Math.max(u.bbox[2], s.bbox[2]), Math.max(u.bbox[3], s.bbox[3])]; });
   LOOKS.forEach(function(l){ var a=Object.keys(looks).filter(function(i){ return looks[i]===l; }).sort(); if(a.length) lk[l]=a; });
-  var out={style:style, spin:__SPIN__, world:{w:W, h:H}, sizes:(function(){ var z=JSON.parse(JSON.stringify(D)); z.planet_big=C.TIERS.planet[C.TIERS.planet.length-1]; z.tiers=JSON.parse(JSON.stringify(C.TIERS)); z.bump=bump.slice().sort(); return z; })(),
+  var out={style:'orbit', spin:__SPIN__, world:{w:W, h:H}, sizes:(function(){ var z=JSON.parse(JSON.stringify(D)); z.planet_big=C.TIERS.planet[C.TIERS.planet.length-1]; z.station=C.STATION; z.tiers=JSON.parse(JSON.stringify(C.TIERS)); z.bump=bump.slice().sort(); return z; })(),
     systems:systems, units:uo, nodes:nodes, sun_links:order.slice(1).map(function(b, i){ return [order[i], b]; }), warnings:[],
-    looks:lk, look_flags:JSON.parse(JSON.stringify(LF)), belts:belts, drifters:style==='orbit' ? drifters(systems, CO[0], W, H) : []};
+    looks:lk, look_flags:JSON.parse(JSON.stringify(LF)), belts:belts, drifters:drifters(systems, CO[0], W, H)};
   if(CO[0]) out.core=CO[0];
   return out;
 }
-/* both looks at once (what the page carries): {look, looks: {stars, plain}} */
-window._altoSolarPlans=function(t, old){
-  return {look:(old && old.look)||'stars', looks:{stars:plan(t, old, 'orbit'), plain:plan(t, old, 'spoke')}};
-};
 window._altoSolarAt=at;          /* where a body is on its orbit (r, angle, orbit {e, rot, k}) — solar_draw places comets with it */
 return plan;
 })();

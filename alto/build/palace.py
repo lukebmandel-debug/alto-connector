@@ -2773,5 +2773,8 @@ document.addEventListener('focusout', function(e){
   var to=e.relatedTarget; if(lmFor && lmPin && to && to.closest && !to.closest('#pl-lmbar,.pl-lmb')) lmHide(); });
 new MutationObserver(function(){ if(!editing()) lmHide(); lmTab(); }).observe(de,{attributes:true,attributeFilter:['class']});
 """ + DIR_JS + MOBILE_JS + PAN_JS + r"""
+/* two-finger scrolling pans the map on both axes (pan2d.py); during a zoom preview through it, as the arrow keys do */
+if(window._altoPan2d) window._altoPalacePan2d=window._altoPan2d({on:function(){ return palaceOn() && !focused() && !window._focusedNodeId; },
+  pan:function(dx, dy){ if(!PV) return false; pvSet(Z, PV.tx+dx, PV.ty+dy); return true; }});
 })();
 """

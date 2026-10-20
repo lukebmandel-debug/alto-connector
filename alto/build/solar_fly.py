@@ -69,7 +69,7 @@ and velocity; Esc stops and brings the view back to full size where the craft
 is; a wheel, another owner of the view, or of the focus, stops it where it is.
 No flight (the existing instant focus): enlarging a body when none is
 enlarged, phones, prefers-reduced-motion, edit mode, print, a zoomed-out
-view, window._altoFlyOff (tests of other things), and the Plain look
+view, window._altoFlyOff (tests of other things), and the Hub & spoke look
 (nothing of this runs).
 """
 from __future__ import annotations
@@ -87,7 +87,7 @@ FLY = {
     # the bodies' clock ramps from its rate at take-off up to 1 and down to rest at landing
     "RAMP": 1.0,
     # routing
-    "HOP_R": 70, "FAR_RINGS": 4, "ASSIST_DEV": math.radians(80), "ASSIST_MAX": 3, "ASSIST_SWEEP": 1.2 * math.pi, "CAP_SWEEP": 0.8 * math.pi,
+    "HOP_R": 40, "FAR_RINGS": 4, "ASSIST_DEV": math.radians(80), "ASSIST_MAX": 3, "ASSIST_SWEEP": 1.2 * math.pi, "CAP_SWEEP": 0.8 * math.pi,
     # a black-hole body is the swing-by of choice; the galactic core is swung round between
     # systems when going by it adds at most CORE_DETOUR to the way
     "BH_BONUS": 1.0, "CORE_DETOUR": 2.0, "TURN_CORE": (math.radians(30), math.radians(150)),
@@ -132,8 +132,8 @@ function bodies(S){
     add(s.sun, '', 0, 'sun', s.R);
     (s.planets||[]).forEach(function(pl){ add(pl.id, s.sun, pl.period, 'planet', Math.max(pl.e||0, pl.d/2), pl.ring, pl);
       (pl.moons||[]).forEach(function(m){ var sats=m.sats||[], mr=0;
-        if(sats.length) mr=(m.sat_r||0)+Math.max.apply(null, sats.map(function(q){ return q.d/2; }));
-        add(m.id, pl.id, m.period, 'moon', Math.max(mr, m.d/2), 0, m);
+        if(sats.length) mr=Math.max.apply(null, sats.map(function(q){ return (+q.r||0)+q.d/2; }));
+        add(m.id, pl.id, m.period, 'moon', Math.max(+m.ext||0, mr, m.d/2), 0, m);
         sats.forEach(function(q){ add(q.id, m.id, q.period, 'sat', q.d/2, 0, q); }); }); });
   });
   var co=S.core;                                         /* the galactic core: still, between the systems, not a node */
@@ -427,14 +427,14 @@ FLY_RUN_JS = r"""
    the flight's own clock (window._altoSolarDrive) so the craft meets the body
    where it is. On arrival the body is enlarged as ever and the orbits stand
    still. Only in the Star chart look of a Hub & spoke page (window._altoSolarLook;
-   the Plain look has none of it: no layer, no frame loop). No flight: phones,
+   the Hub & spoke look has none of it: no layer, no frame loop). No flight: phones,
    reduced motion, edit mode, print, a zoomed-out view. */
 (function(){
 var F=window._altoFly, de=document.documentElement, NS='http://www.w3.org/2000/svg', K=__RT__;
 function S(){ return window._ALTO_SOLAR; }
 if(!F) return;
 /* the Star chart look (moving orbits) is on */
-function stars(){ var L=window._altoSolarLook; return !!S() && (L && L.get ? L.get()==='stars' : S().style==='orbit'); }
+function stars(){ var L=window._altoSolarLook; return !!S() && (L && L.get ? L.get()==='stars' : S().look!=='hub'); }
 /* the orbits are on (the Orbit switch, window._altoSolarMotion): off, the craft flies among still bodies */
 function moving(){ var M=window._altoSolarMotion; return !M || !M.get || !!M.get(); }
 var FL=null, raf=0, Q=[], ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=null, gp=null, pth=null, trl=null, grd=null, ship=null, lastS=0, reduced=false, printing=0, held={}, calm=0;
@@ -637,7 +637,7 @@ window.addEventListener('afterprint', function(){ printing=0; });
 function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') return; var was=c.classList.contains('sol-ov');
   new MutationObserver(function(){ var now=c.classList.contains('sol-ov'); if(was && !now && !FL && performance.now()-landAt>K.OV_MS) ovAt=performance.now(); was=now; })
     .observe(c, {attributes:true, attributeFilter:['class']}); }
-/* Plain look: nothing of the flight left (stopped where it was, the layer gone) */
+/* Hub & spoke look: nothing of the flight left (stopped where it was, the layer gone) */
 function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
 function init(){ watchOv(); var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
   if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */

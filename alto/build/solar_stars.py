@@ -1,12 +1,12 @@
 """The Star chart look's skin: what makes a Hub & spoke page (outline, layout
 "solar") in its Star chart look (the default; solar_draw's in-page toggle
-flips it to Plain) look like a real solar system.
+flips it to Hub & spoke) look like a real solar system.
 
 solar_draw.py draws the circles, rings and spokes and moves the bodies; this
 module only dresses them. blocks.py emits it on every Hub & spoke page; it is
 on only in the Star chart look on desktop (window._altoSolarLook, or the
-html.alto-solar-stars / -plain classes, or else the plan's style "orbit") and
-comes off whole in the Plain look (its canvases kept for the way back). With
+html.alto-solar-stars / -hub classes, or else the plan's style "orbit") and
+comes off whole in the Hub & spoke look (its canvases kept for the way back). With
 motion switched off (window._altoSolarMotion) its animations pause too.
 
 * THE STAR. Each sun is a glowing star: a white-hot core darkening to an
@@ -22,7 +22,9 @@ motion switched off (window._altoSolarMotion) its animations pause too.
   (terminator, night side, lit atmosphere limb) turned toward the sun as the
   body orbits — a rotate() written only when the angle moved, never a
   re-rendered texture. Moons are grey and cratered with the same phase light;
-  satellites are tiny craft (body + solar panels) pointed along their orbit.
+  satellites are tiny craft pointed along their orbit, a kind each fixed by its id (a
+  communications satellite, a probe, a space telescope, a CubeSat), and in each system the
+  satellite with the most to read is a space station (plan nodes[id].station).
 * SPACE. The canvas (the window under the bars, at every zoom: no board
   rectangle) is a night sky in both themes: two star tiles, a nebula wash;
   on the chart a faint glow of each system's unit colour, a few brighter
@@ -91,13 +93,13 @@ STARS_CSS = r"""
   P #world .node[data-solar=sat]:not(.focused):not(.sol-closing) .node-card{border-color:rgba(170,190,255,.25) !important;}
   R .node-card>.sk.sk,F .node-card>.sk.sk{display:block !important;position:absolute;pointer-events:none;left:50%;top:50%;}
   /* enlarged (solar_draw's bigger disc, --sD): the body keeps its look under the scrim and the content */
-  F{--skd:var(--sD);--card-desc-color:rgba(232,238,255,.88);}   /* (the engine's desc colour is an !important var: dark in the light theme) */
+  F{--skd:var(--scd,var(--sD));--card-desc-color:rgba(232,238,255,.88);}   /* (the engine's desc colour is an !important var: dark in the light theme) */
   F .sol-scrim.sol-scrim{background:radial-gradient(circle,rgba(3,5,12,var(--sk-scrim,.5)) 0 56%,rgba(3,5,12,calc(var(--sk-scrim,.5)*.4)) 100%) !important;}
   F .sol-body{color:#eef2ff;}
   F .sol-body .node-title{color:#fff;}
   F .sol-body .node-order,F .sol-body .node-desc,F .sol-sec{color:rgba(232,238,255,.88);}
   F .sol-sec h6{color:rgba(205,215,245,.78);}
-  F .sk-craft.sk-craft{width:calc(var(--sD)*.8);height:calc(var(--sD)*.8);margin:calc(var(--sD)*-.4) 0 0 calc(var(--sD)*-.4);opacity:.55;}
+  F .sk-craft.sk-craft{width:calc(var(--skd)*.8);height:calc(var(--skd)*.8);margin:calc(var(--skd)*-.4) 0 0 calc(var(--skd)*-.4);opacity:.55;}
   K .sk-tex{width:calc(var(--skd,var(--sd))*1.16);height:calc(var(--skd,var(--sd))*1.16);margin:calc(var(--skd,var(--sd))*-.58) 0 0 calc(var(--skd,var(--sd))*-.58);
     background:radial-gradient(circle closest-side,var(--sk-c) 85.5%,transparent 86.5%);}
   K .sk-tex.ok{background:none;}
@@ -144,10 +146,10 @@ var DR=[], PADW=0, S=null, world=null, BB={}, IDS=[], SUNC={}, TILES=null, ready
 var ST={t:[]};
 function desk(){ return !de.classList.contains('mobile'); }
 /* the skin is the Star chart look's (solar_draw's look switch: window._altoSolarLook, or the
-   html.alto-solar-stars / -plain classes; with neither, the plan's own style) */
+   html.alto-solar-stars / -hub classes; with neither, the plan's own style) */
 function look(){ var L=window._altoSolarLook; if(L && L.get) return L.get()==='stars';
-  if(de.classList.contains('alto-solar-plain')) return false; if(de.classList.contains('alto-solar-stars')) return true;
-  var s=window._ALTO_SOLAR; return !!(s && s.style!=='spoke'); }
+  if(de.classList.contains('alto-solar-hub')) return false; if(de.classList.contains('alto-solar-stars')) return true;
+  var s=window._ALTO_SOLAR; return !!(s && s.look!=='hub' && s.look!=='plain'); }
 function on(){ var s=window._ALTO_SOLAR; return !!(s && s.nodes) && look(); }
 function still(){ var M=window._altoSolarMotion; de.classList.toggle('sk-still', !!(M && M.get && !M.get())); }
 /* ── seeded randomness and value noise (same pixels on every load) ── */
@@ -300,16 +302,41 @@ function tailDraw(k, cv){
   var i=x.createLinearGradient(0, 0, W, 0); i.addColorStop(0, 'rgba(150,205,255,.9)'); i.addColorStop(1, 'rgba(120,180,255,0)');
   x.fillStyle=i; x.beginPath(); x.moveTo(6, m-2.5); x.lineTo(W, m-3); x.lineTo(W, m+3); x.lineTo(6, m+2.5); x.fill();
 }
+/* small craft (round 7): a kind per satellite, fixed by its id — a communications satellite with
+   its dish, a probe on a long antenna boom, a space telescope (a tube between two panels), a CubeSat
+   — and the system's space station (plan nodes[id].station: a truss, four solar wings, a hab ring).
+   Each drawn once on a canvas (an 88-unit square, nose up), never per frame. */
+var CRAFT=['comsat', 'probe', 'telescope', 'cubesat'];
+function craftKind(id){ var n=(S && S.nodes && S.nodes[id])||{}; return n.station ? 'station' : CRAFT[(hash(id+'c')>>>0)%CRAFT.length]; }
 function craftDraw(k, cv, M){
-  M=M||88; var R=rng(hash(k.id+'v')), N=88, x=cv.getContext('2d'), pc=R()<.6 ? ['#1d3f8f','#5d87d8'] : ['#2a2f45','#7f8bb5'], bc=R()<.6 ? ['#f1c34a','#8a5a10'] : ['#e8ecf2','#7d8492'];
-  cv.width=cv.height=M; x.scale(M/N, M/N); x.lineWidth=1;
-  [[6,34],[54,82]].forEach(function(p){ var gr=x.createLinearGradient(0, 36, 0, 52); gr.addColorStop(0, pc[1]); gr.addColorStop(1, pc[0]);
-    x.fillStyle=gr; x.fillRect(p[0], 36, p[1]-p[0], 16); x.strokeStyle='rgba(190,215,255,.55)';
-    for(var q=p[0]+7;q<p[1];q+=7){ x.beginPath(); x.moveTo(q+.5, 36); x.lineTo(q+.5, 52); x.stroke(); }
-    x.strokeRect(p[0]+.5, 36.5, p[1]-p[0]-1, 15); });
-  x.strokeStyle='#c9ced8'; x.lineWidth=2; x.beginPath(); x.moveTo(34, 44); x.lineTo(54, 44); x.stroke();
-  var gb=x.createLinearGradient(36, 34, 52, 54); gb.addColorStop(0, bc[0]); gb.addColorStop(1, bc[1]); x.fillStyle=gb; x.fillRect(37, 34, 14, 20);
-  x.fillStyle='#e6e9ef'; x.beginPath(); x.arc(44, 29, 5, 0, 7); x.fill(); x.strokeStyle='#e6e9ef'; x.lineWidth=1; x.beginPath(); x.moveTo(44, 24); x.lineTo(44, 17); x.stroke();
+  M=M||88; var R=rng(hash(k.id+'v')), N=88, x=cv.getContext('2d'), kind=craftKind(k.id), pc=R()<.6 ? ['#1d3f8f','#5d87d8'] : ['#2a2f45','#7f8bb5'], bc=R()<.6 ? ['#f1c34a','#8a5a10'] : ['#e8ecf2','#7d8492'];
+  k.craftKind=kind; cv.setAttribute('data-craft', kind); cv.width=cv.height=M; x.scale(M/N, M/N); x.lineWidth=1;
+  function panel(x0, y0, w, h){ var gr=x.createLinearGradient(0, y0, 0, y0+h); gr.addColorStop(0, pc[1]); gr.addColorStop(1, pc[0]);
+    x.fillStyle=gr; x.fillRect(x0, y0, w, h); x.strokeStyle='rgba(190,215,255,.55)'; x.lineWidth=1;
+    for(var q=x0+6;q<x0+w;q+=6){ x.beginPath(); x.moveTo(q+.5, y0); x.lineTo(q+.5, y0+h); x.stroke(); }
+    x.strokeRect(x0+.5, y0+.5, w-1, h-1); }
+  function bus(x0, y0, w, h){ var gb=x.createLinearGradient(x0, y0, x0+w, y0+h); gb.addColorStop(0, bc[0]); gb.addColorStop(1, bc[1]); x.fillStyle=gb; x.fillRect(x0, y0, w, h); }
+  function line(x1, y1, x2, y2, w, c){ x.strokeStyle=c||'#c9ced8'; x.lineWidth=w||2; x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); }
+  if(kind==='comsat'){                                   /* panels either side, a dish on top */
+    panel(6, 38, 26, 14); panel(56, 38, 26, 14); line(32, 45, 56, 45); bus(37, 36, 14, 18);
+    x.fillStyle='#eef1f6'; x.beginPath(); x.ellipse(44, 26, 11, 5, 0, Math.PI, 0); x.fill(); line(44, 31, 44, 36, 1.5); line(44, 26, 44, 17, 1, '#e6e9ef');
+  } else if(kind==='probe'){                             /* Voyager-like: a big dish, a long boom, an antenna */
+    x.fillStyle='#eef1f6'; x.beginPath(); x.arc(44, 40, 14, 0, 7); x.fill(); x.fillStyle='#b9c0cc'; x.beginPath(); x.arc(44, 40, 6, 0, 7); x.fill();
+    bus(39, 52, 10, 9); line(49, 57, 84, 70, 1.5); line(39, 57, 8, 76, 1.5); line(44, 26, 44, 4, 1, '#e6e9ef');
+    x.fillStyle='#d8dde6'; x.fillRect(80, 67, 6, 6);
+  } else if(kind==='telescope'){                         /* Hubble-like: a long tube, two panels, an open aperture */
+    var gt=x.createLinearGradient(36, 0, 52, 0); gt.addColorStop(0, '#9aa1ad'); gt.addColorStop(.5, '#eef1f6'); gt.addColorStop(1, '#8a919d');
+    x.fillStyle=gt; x.fillRect(36, 14, 16, 60); x.fillStyle='#2b2f38'; x.fillRect(38, 12, 12, 4);
+    panel(8, 34, 22, 26); panel(58, 34, 22, 26); line(30, 47, 36, 47); line(52, 47, 58, 47);
+  } else if(kind==='cubesat'){                           /* a small cube, its panels unfolded */
+    panel(10, 36, 22, 16); panel(56, 36, 22, 16); bus(33, 33, 22, 22);
+    x.strokeStyle='rgba(40,40,50,.55)'; x.lineWidth=1; x.strokeRect(33.5, 33.5, 21, 21); line(44, 33, 44, 20, 1, '#e6e9ef');
+  } else {                                               /* the space station: a truss, four wings, a hab ring */
+    line(4, 44, 84, 44, 3, '#c9ced8'); panel(4, 22, 14, 18); panel(4, 48, 14, 18); panel(70, 22, 14, 18); panel(70, 48, 14, 18);
+    x.strokeStyle='#dfe4ec'; x.lineWidth=3.2; x.beginPath(); x.arc(44, 44, 15, 0, 7); x.stroke();
+    x.strokeStyle='rgba(120,130,150,.8)'; x.lineWidth=1; x.beginPath(); x.arc(44, 44, 15, 0, 7); x.stroke();
+    line(44, 29, 44, 59, 2, '#c9ced8'); bus(38, 38, 12, 12); x.fillStyle='#eef1f6'; x.fillRect(41, 22, 6, 9); x.fillRect(41, 57, 6, 9);
+  }
 }
 function tiles(){
   if(TILES) return TILES; TILES={u:null};
@@ -510,7 +537,7 @@ function relines(){
     if(r!=='spine') try{ var ad=_lineAdapt(_lineToRgb(_lineResolveVar(COLOR_MAP[r]||'var(--line-flow)')), [12,13,20]); if(!ad) return; col='rgb('+ad.join(',')+')'; }catch(e){ return; }
     p.setAttribute('stroke', col); var sh=p.nextElementSibling; if(sh && !sh.hasAttribute('data-edge')) sh.setAttribute('stroke', 'rgba(255,255,255,0.50)'); });
 }
-/* the Plain look (or a phone): the skin goes, its canvases kept for the way back */
+/* the Hub & spoke look (or a phone): the skin goes, its canvases kept for the way back */
 function down(){
   ready=false; de.classList.remove('alto-stars'); cancelAnimationFrame(fbR); clearTimeout(fbS); clearTimeout(qT); fbR=fbS=qT=0;
   var sk=document.querySelector('#world .sk-sky'); if(sk) sk.remove(); untrail(); }

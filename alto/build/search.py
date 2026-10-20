@@ -676,7 +676,9 @@ window._altoSXHomeRow=function(r,q){
 FORMAT_NAME_JS = r"""
 /* the way back from a detail page is named for the format the reader is in: Mind Palace, Outline, or Timeline */
 (function(){
-  function fmt(){ return window._ALTO_OUTLINE ? 'Outline' : (window._altoPalace || window._palTr) ? 'Mind Palace' : 'Timeline'; }
+  /* a Hub & spoke page's main view is not an outline to its reader (Luke, round 8): the system (a phone shows cards: the outline) */
+  function hub(){ return !!window._ALTO_SOLAR && !document.documentElement.classList.contains('mobile'); }
+  function fmt(){ return hub() ? 'System' : window._ALTO_OUTLINE ? 'Outline' : (window._altoPalace || window._palTr) ? 'Mind Palace' : 'Timeline'; }
   function set(sel, fn){ var l=document.querySelectorAll(sel); for(var i=0;i<l.length;i++) fn(l[i]); }
   function apply(){
     var n=fmt(); if(apply.n===n) return; apply.n=n;
@@ -686,6 +688,7 @@ FORMAT_NAME_JS = r"""
     set('#nav-timeline', function(e){ e.textContent='↩ '+n; });
     set('#drawer-timeline-btn .drawer-label', function(e){ e.textContent=n; });
     set('#detail-back-fixed', function(e){ e.setAttribute('aria-label','Back to the '+low); });
+    set('.db-name', function(e){ if(hub()){ e.textContent=n; e._n=1; } else if(e._n) e.textContent=n; });
   }
   apply();
   document.addEventListener('DOMContentLoaded', apply); window.addEventListener('load', apply);
