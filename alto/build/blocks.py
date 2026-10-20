@@ -24,6 +24,7 @@ from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .solar_stars import STARS_CSS, STARS_JS
 from .solar_fly import FLY_CSS, FLY_JS
+from .pan2d import PAN2D_JS, SOLAR_PAN2D_JS
 from .palace import PALACE_CSS, PALACE_JS, palace_data, palace_js, palace_css, palace_stub
 from .palace_doors import DOORS_CSS, DOORS_JS, axis_index_glue as palace_index_glue
 from .filter_panel import FILTER_PANEL_GLUE, RAIL_CSS, RAIL_GLUE, filter_panel_css
@@ -1539,13 +1540,15 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     elif b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
-        orders += palace_data(b, nodes) + palace_js(b) + DOORS_JS
+        # PAN2D_JS (pan2d.py) first: two-finger scrolling pans the map on both axes (the hook is in palace.py)
+        orders += PAN2D_JS + palace_data(b, nodes) + palace_js(b) + DOORS_JS
     if solar_plan_:
         # The solar drawing (solar_draw.py): circles, rings, the orbits, the
         # whole chart zoomed out — after window._ALTO_SOLAR; the Star chart
         # look's graphics (solar_stars.py; off in the Hub & spoke look); then
         # the flights between bodies (solar_fly.py: Star chart look only).
-        orders += SOLAR_JS + STARS_JS + FLY_JS
+        # Then two-finger scrolling on both axes at natural size (pan2d.py).
+        orders += SOLAR_JS + STARS_JS + FLY_JS + PAN2D_JS + SOLAR_PAN2D_JS
     if index_axes:
         orders += ((palace_index_glue() if b.mode == "palace" and not building_view(b) else dx.AXIS_INDEX_GLUE)
                    + dx.axes_config(b, index_axes))
