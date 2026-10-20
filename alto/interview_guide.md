@@ -482,9 +482,10 @@ Palace.
   the one with the most to read drawn as a space station) and, within a depth,
   how much hangs off a circle: a planet with more moons is drawn larger, a
   moon with more satellites likewise; a flag the student marked as pivotal,
-  critical or extremely important bumps a circle up one size. A moon shows
-  only its number inside, a satellite nothing; their titles show on hover and
-  when enlarged. Nothing to ask them about.
+  critical or extremely important bumps a circle up one size. Every body has
+  its title as a small label beside it (a planet and a moon show their number
+  inside, a satellite nothing); zoomed out, the suns' and planets' names keep
+  their size and the smaller ones give way. Nothing to ask them about.
 - Cross-links (`add_connections`) are drawn as ordinary lines between circles.
 - A phone keeps the usual single-column card view; Hub & spoke is a computer
   view.
@@ -502,8 +503,11 @@ In both, the planets, moons and satellites orbit, each on its own ring; an
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.
-An enlarged circle stays circular and shows the concept's content; "Open full
-page" opens its detail page. Say this once when you hand it over, in a
+An enlarged circle stays circular and shows the concept's content, with the
+concepts directly under it (a planet's moons, a moon's satellites) beside it,
+left and right — a click on one enlarges it in turn; "Open full page" opens
+its detail page, whose **← System** button (or Escape) goes back to the chart:
+call the main view of a Hub & spoke page "the system", not "the outline". Say this once when you hand it over, in a
 sentence, so the student knows the switch is there. If they want the Hub &
 spoke look to be what people see first, set `hub_look: 'hub'` in the brief
 (`hub_look: 'stars'`, the Star chart, is the default; `build_timeline(hub_look=…)`

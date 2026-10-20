@@ -139,7 +139,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 22000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks
+    assert size < 24000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB)
 
 
 def test_the_hub_look_orbits_on_the_same_plan():
@@ -519,7 +519,11 @@ def test_zoom_is_continuous_down_to_the_whole_chart_and_a_click_comes_back_down(
         pg.keyboard.press("Control+Minus")
         pg.wait_for_timeout(650)
         zs.append(pg.evaluate("() => window._altoSolarZoom()"))
-    assert all(b < a for a, b in zip(zs, zs[1:])) and zs[0] > 0.5 and zs[-1] < 0.05, zs
+    # round 8: it stops at the whole chart filling 85% of the window ("fully zoomed out, it's impossible to see anything")
+    fit = pg.evaluate("""() => { var c=document.getElementById('canvas'), w=document.getElementById('world'), sl=document.getElementById('glass-slab');
+      return Math.min((c.clientWidth-60)/w.offsetWidth, (c.clientHeight-60)/Math.max(w.offsetHeight, sl ? sl.offsetTop+sl.offsetHeight : 0)); }""")
+    k = next(i for i, z in enumerate(zs) if abs(z - zs[-1]) < 1e-9)
+    assert all(b < a for a, b in zip(zs[:k + 1], zs[1:k + 1])) and zs[0] > 0.5 and abs(zs[-1] - 0.85 * fit) < 1e-3, (zs, fit)
     st = pg.evaluate("""() => { var w=document.getElementById('world').getBoundingClientRect(), c=document.getElementById('canvas').getBoundingClientRect();
       return {w:[w.left, w.top, w.right, w.bottom], c:[c.left, c.top, c.right, c.bottom]}; }""")
     w, c = st["w"], st["c"]
