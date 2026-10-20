@@ -378,7 +378,11 @@ def palace_js(b) -> str:
     js = PALACE_JS
     try:                                            # only the landmark art this city uses (palace_landmarks.trim_js)
         from .palace_landmarks import trim_js
-        js = trim_js(js, unpack(b.palace["data_z"])["map"])
+        mm = unpack(b.palace["data_z"])["map"]
+        js = trim_js(js, mm)
+        if mm.get("ghost"):                         # Manhattan's layout: the far banks' faint grid (palace_manhattan_js.py)
+            from .palace_manhattan_js import patch_js as ghost_js
+            js = ghost_js(js)
     except Exception:                               # noqa: BLE001 — a palace whose data cannot be read keeps all the art
         pass
     if (b.palace or {}).get("fill_z"):
@@ -453,6 +457,9 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     lms = m.get("landmarks", [])
     m["landmarks"] = [l for l in lms if l.get("r") or not any(
         o.get("r") and math.hypot(o["x"] - l["x"], o["y"] - l["y"]) < 260 for o in lms)]
+    if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
+        from .city_manhattan import LAYOUT
+        m["layout"] = LAYOUT
     # the drawing: an even grid of the city's streets, the river and a few
     # diagonals the only exceptions (palace_grid)
     from .palace_grid import grid

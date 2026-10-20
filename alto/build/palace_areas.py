@@ -77,9 +77,22 @@ def layout(m, areas, district_names) -> list[dict]:
         x, y = to_px(m, a["lat"], a["lon"])
         if not (0 <= x <= m["W"] and 0 <= y <= m["H"]):
             continue
+        if m.get("far") is not None and m.get("land") and not _on_land(m["land"][0], x, y):
+            continue                                    # Manhattan's layout (city_manhattan): a far-bank name is not on the island
         seen.add(key)
         out.append({"n": a["name"], "x": round(x), "y": round(y), "r": a.get("rank") or 2})
+    out += [dict(f) for f in m.get("far") or ()]        # ... the boroughs across the water are named once each, on their banks
     return sorted(out, key=lambda q: q["r"])
+
+
+def _on_land(ring, x, y):
+    c = False
+    n = len(ring) // 2
+    for i in range(n):
+        x0, y0, x1, y1 = ring[2 * i], ring[2 * i + 1], ring[2 * (i - 1) % (2 * n)], ring[(2 * (i - 1) + 1) % (2 * n)]
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            c = not c
+    return c
 
 
 # ── banners: a giant word across a river (e.g. the far bank of the Delaware) ────────────────────────

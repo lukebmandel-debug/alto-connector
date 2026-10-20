@@ -274,6 +274,12 @@ def grid(m, majors=(), diagonals=(), lines=(), landmarks=(), parks=()) -> dict:
     rail_specs, lm_specs = list(lines or ()), list(landmarks or ())
     # city engine v2: a city of several street grids (or a grid beside an irregular old town) is drawn per domain,
     # with angled seams (city_engine); a city of one grid takes the code below, unchanged (tests/test_grid_snapshot.py)
+    if m.get("layout") == "manhattan" and m.get("streets"):          # the NYC preset: Manhattan's own layout (city_manhattan.py)
+        from . import city_manhattan
+        try:
+            return city_manhattan.build(m, majors, diagonals, rail_specs, lm_specs, parks)
+        except Exception:                                   # noqa: BLE001 — a box it cannot read (no Houston St...) takes the engine
+            m = {k: v for k, v in m.items() if k != "layout"}
     from .city_types import ENGINE_V2
     if ENGINE_V2 and m.get("streets"):
         from . import city_domains, city_engine
