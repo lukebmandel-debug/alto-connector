@@ -622,7 +622,8 @@ PALACE_CSS = KEY_CSS + r"""
   .pal-svg .pl-brn{font-size:calc(9.5px / var(--pz,1));font-weight:750;letter-spacing:.09em;text-transform:uppercase;fill:var(--pal-br-text);
     stroke-width:calc(3px / var(--pz,1));pointer-events:none;}
   .pal-svg.far .pl-brn:not(.big){display:none;}
-  .pal-svg .pl-land{fill:#e7e1d0;pointer-events:none;} html.dark .pal-svg .pl-land{fill:#2c303c;}
+  .pal-svg .pl-land,.pal-svg .pl-land-top{fill:#e7e1d0;pointer-events:none;} html.dark .pal-svg .pl-land,html.dark .pal-svg .pl-land-top{fill:#2c303c;}
+  .pal-svg .pl-land-bank{fill:none;stroke:rgba(112,170,100,.34);stroke-width:34;stroke-linejoin:round;pointer-events:none;} html.dark .pal-svg .pl-land-bank{stroke:rgba(90,150,90,.3);}
   .pal-svg .pl-sea{fill:var(--pal-river);stroke:none;pointer-events:none;}
   .pal-svg .pl-sea-bank{fill:none;stroke:rgba(112,170,100,.34);stroke-width:64;stroke-linejoin:round;pointer-events:none;} html.dark .pal-svg .pl-sea-bank{stroke:rgba(90,150,90,.3);}
   .pal-svg .pl-water-edge{fill:none;stroke:var(--pal-water-edge);stroke-width:2;vector-effect:non-scaling-stroke;}
@@ -1274,10 +1275,18 @@ function drawCity(svg){
   (P.d||[]).forEach(function(d){ var pm=PHASE_META[d.u], b=d.box; if(!pm||!b) return; var ins=16;
     el('rect',{'class':'pl-dtint', x:b[0]+ins, y:b[1]+ins, width:Math.max(10,b[2]-b[0]-2*ins), height:Math.max(10,b[3]-b[1]-2*ins), rx:34, fill:pm.colorRaw, 'data-u':d.u},wash); });
   /* ── parks: green glass shapes snapped to the grid, their walkways and plazas; above the washes, under every street ── */
+  var seag=el('g',{'class':'pl-seag'},svg);                       /* the open water and the island's land (filled below): under the parks and every street */
   var pkg=el('g',{'class':'pl-parks'},svg);
   function rpc(a, r){ var n=a.length>>1, d=''; for(var i=0;i<n;i++){ var x=a[2*i], y=a[2*i+1], px=a[2*((i+n-1)%n)], py=a[2*((i+n-1)%n)+1], nx=a[2*((i+1)%n)], ny=a[2*((i+1)%n)+1],
       l1=Math.hypot(x-px,y-py)||1, l2=Math.hypot(nx-x,ny-y)||1, rr=Math.min(r,l1/2,l2/2), sx=x+(px-x)/l1*rr, sy=y+(py-y)/l1*rr;
     d+=(i?'L':'M')+sx+' '+sy+'Q'+x+' '+y+' '+(x+(nx-x)/l2*rr)+' '+(y+(ny-y)/l2*rr); } return d+'Z'; }
+  /* the open water (build/city_water.py: the harbour a far-bank city's rivers run out into): one shape with the rivers' own bands (they are part of it: the same blue, the same green margin along the land, none across the water), clipped to the glass */
+  if(M.sea && M.sea.length){ var scp=el('clipPath',{id:'plsea'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},scp);
+    var sd=M.sea.map(function(r){ return rpc(r, 90); }).join(''), sc='url(#plsea'+(svg._sid||'')+')';
+    el('path',{'class':'pl-sea-bank', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},seag);                                     /* the green margin, as along a band */
+    el('path',{'class':'pl-sea', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},seag);
+    if(M.land && M.land.length){ var ld=M.land.map(function(r){ return rpc(r, 20); }).join('');                     /* the island's real shore, laid over the water that runs under its margin */
+      el('path',{'class':'pl-land-bank', d:ld, 'fill-rule':'evenodd', 'clip-path':sc},seag); el('path',{'class':'pl-land-top', d:ld, 'fill-rule':'evenodd', 'clip-path':sc},seag); } }
   (M.parks||[]).forEach(function(pk){ var g=el('g',{'class':'pl-pk-g','data-name':pk.n},pkg);
     el('path',{'class':'pl-pk', d:(pk.r||[]).map(function(r){ return rpc(r, R); }).join('')},g);
     (pk.p||[]).forEach(function(p){ el('path',{'class':'pl-pkp', d:rp(p)},g); });
@@ -1350,11 +1359,6 @@ function drawCity(svg){
     var parts=[]; for(var c=0;c+1<cut.length;c++) parts.push(smoothD(r.p, cut[c], cut[c+1]));
     var ws=[w].concat(LITE.map(function(l){ return w*l[0]; }), [Math.max(2, w*.13)]), cls=['pl-rv-body','pl-rv-lite','pl-rv-lite','pl-rv-lite','pl-rv-lite','pl-rv-sheen'];
     ws.forEach(function(sw, li){ parts.forEach(function(pd){ el('path',{'class':cls[li]+' rv-op', d:pd, 'stroke-width':sw, style:'stroke:'+bands[li]+';stroke-opacity:1'},rv); }); }); });
-  /* the open water (build/city_water.py: the harbour a far-bank city's rivers run out into): one shape with the rivers' own bands (they are part of it: the same blue, the same green margin along the land, none across the water), clipped to the glass */
-  if(M.sea && M.sea.length){ var scp=el('clipPath',{id:'plsea'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},scp);
-    var sd=M.sea.map(function(r){ return rpc(r, 90); }).join(''), sc='url(#plsea'+(svg._sid||'')+')';
-    el('path',{'class':'pl-sea-bank', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},svg);                                     /* the green margin, as along a band */
-    el('path',{'class':'pl-sea', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},svg); }
   /* the river trails along the banks (palace_banks.py): a dashed path with its name along it */
   var rtg=el('g',{'class':'pl-rtrails'},svg);
   (M.rtrails||[]).forEach(function(t,i){ var id='rtr'+(svg._sid||'')+i; el('path',{'class':'pl-rtrail pl-rtrail-c', d:pts(t.p)},rtg); var pa=el('path',{'class':'pl-rtrail', d:pts(t.p), id:id},rtg);

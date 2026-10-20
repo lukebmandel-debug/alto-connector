@@ -210,3 +210,16 @@ def test_fewer_than_two_bands_draw_no_open_water():
     g = _bands_g()
     g["river"] = g["river"][:1]
     assert cw.sea(g, []) == []
+
+
+# ── the island's own shore ──────────────────────────────────────────────────
+def test_the_islands_real_shore_is_its_land_with_a_hole_for_a_lake_it_does_not_count():
+    big = lambda x0, y0, x1, y1: [x0, y0, x1, y0, x1, y1, x0, y1]
+    # a 6000 x 9000 box: water down the west (x 0..1500) and the east (x 4500..6000), a small pond in the land, an island in the west river
+    m = {"W": 6000, "H": 9000, "water": [big(0, 0, 1500, 9000), big(4500, 0, 6000, 9000), big(2800, 4000, 3000, 4200), big(300, 4000, 900, 4600)]}
+    rings = cw.land_of(m, (3000, 2000), lambda x, y: (x * 2.0, y * 3.0))            # a mapping that stretches: the outline is carried through it
+    assert rings and _inside(rings, 3000 * 2, 5000 * 3)                                 # the land, mapped
+    assert _inside(rings, 3000 * 2, 4100 * 3)                                           # a pond (< 0.5 km2) is not a shore
+    assert not _inside(rings, 700 * 2, 2000 * 3) and not _inside(rings, 5200 * 2, 2000 * 3)     # the rivers are not land
+    assert not _inside(rings, 600 * 2, 4300 * 3)                                        # an island in the river is not the island's land
+    assert cw.land_of(m, (700, 2000), lambda x, y: (x, y)) == []                       # a seed in the water has no land

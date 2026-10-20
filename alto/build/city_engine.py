@@ -971,6 +971,13 @@ def build(m, det, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=(),
                                    lambda x, y: unlocal(rmp_.loc, *rmp_.to_local(x, y))[1] < 0)      # north of the box's edge: not sea
             if rings:
                 g["sea"] = rings
+                rmap = lay.maps[root]
+                cx = sum(c[1][0] for c in water_fp[root]) / len(water_fp[root])
+                cy = sum(c[1][1] for c in water_fp[root]) / len(water_fp[root])
+                seed = min((c[1] for c in water_fp[root]), key=lambda q: math.dist(q, (cx, cy)))
+                land = city_water.land_of(m, seed, lambda x, y: rmap(x, y))
+                if land:
+                    g["land"] = land
         except Exception:                               # noqa: BLE001 — water that cannot be read is left off, never a failed city
             pass
     T["total"] = time.time() - t0

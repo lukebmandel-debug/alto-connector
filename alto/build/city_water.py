@@ -558,6 +558,15 @@ def sea(g, land_rings, outside=None):
             if len(comp) < SEA_MIN:
                 for v in comp:
                     water[v] = 0
+    # the water runs under the land's margin (the real shore of the island is laid over it, see land_of)
+    grown = bytearray(water)
+    for j in range(ny):
+        for i in range(nx):
+            if water[j * nx + i]:
+                for b in range(max(0, j - 2), min(ny, j + 3)):
+                    for a in range(max(0, i - 2), min(nx, i + 3)):
+                        grown[b * nx + a] = 1
+    water = grown
     # the outline: the edges of the water cells with the water on the right, joined into loops
     edges = {}
     for j in range(ny):
@@ -591,4 +600,91 @@ def sea(g, land_rings, outside=None):
         if len(pts) < 3:
             continue
         out.append([round(v, 1) for q in pts for v in q])
+    return out
+
+
+# ── the island's own shore, exact ───────────────────────────────────────────
+LAND_RES = 25.0          # real px (m): the raster the island's land is found on
+LAND_TOL = 18.0          # real px (m): its outline is simplified to this
+LAND_WATER_MIN = 500000.0   # real px (m) squared: water smaller than this (the reservoir, ponds, docks) is not a shore
+
+
+def _ring_area(r):
+    a = 0.0
+    for (x0, y0), (x1, y1) in zip(r, r[1:] + r[:1]):
+        a += x0 * y1 - x1 * y0
+    return a / 2
+
+
+def land_of(m, seed, to_page):
+    """The real land of the island that holds `seed` (a real point on it), as rings of page px: the map's big water
+    polygons rasterised in REAL px, the land flooded from the seed, its outline traced, simplified and carried onto the
+    page by `to_page` (the island's own lattice mapping, the one its blocks stand on), so the shore and the blocks
+    coincide. The page lays it over the water, which runs under its margin."""
+    c = LAND_RES
+    nx, ny = int(m["W"] // c) + 1, int(m["H"] // c) + 1
+    wet = bytearray(nx * ny)
+    for r in m.get("water") or ():
+        ring = [(r[i], r[i + 1]) for i in range(0, len(r) - 1, 2)]
+        if len(ring) < 3 or abs(_ring_area(ring)) < LAND_WATER_MIN:
+            continue
+        n = len(ring)
+        for j in range(max(0, int(min(p[1] for p in ring) // c)), min(ny, int(max(p[1] for p in ring) // c) + 1)):
+            y = (j + .5) * c
+            xs = sorted(ring[k][0] + (y - ring[k][1]) * (ring[(k + 1) % n][0] - ring[k][0]) / (ring[(k + 1) % n][1] - ring[k][1])
+                        for k in range(n) if (ring[k][1] > y) != (ring[(k + 1) % n][1] > y))
+            for k in range(0, len(xs) - 1, 2):
+                for i in range(max(0, int(xs[k] // c)), min(nx, int(xs[k + 1] // c) + 1)):
+                    wet[j * nx + i] ^= 1                              # even-odd, so an island in a river is land again
+    si, sj = min(nx - 1, max(0, int(seed[0] // c))), min(ny - 1, max(0, int(seed[1] // c)))
+    if wet[sj * nx + si]:
+        return []
+    land = bytearray(nx * ny)
+    land[sj * nx + si] = 1
+    stack = [sj * nx + si]
+    while stack:
+        v = stack.pop()
+        vi, vj = v % nx, v // nx
+        for a, b in ((vi + 1, vj), (vi - 1, vj), (vi, vj + 1), (vi, vj - 1)):
+            if 0 <= a < nx and 0 <= b < ny and not land[b * nx + a] and not wet[b * nx + a]:
+                land[b * nx + a] = 1
+                stack.append(b * nx + a)
+    edges = {}
+    for j in range(ny):
+        for i in range(nx):
+            if not land[j * nx + i]:
+                continue
+            for e, (di, dj) in ((((i, j), (i + 1, j)), (0, -1)), (((i + 1, j), (i + 1, j + 1)), (1, 0)),
+                                (((i + 1, j + 1), (i, j + 1)), (0, 1)), (((i, j + 1), (i, j)), (-1, 0))):
+                a, b = i + di, j + dj
+                if 0 <= a < nx and 0 <= b < ny and land[b * nx + a]:
+                    continue
+                edges.setdefault(e[0], []).append(e[1])
+    rings = []
+    for start in list(edges):
+        while edges.get(start):
+            loop = [start]
+            cur = edges[start].pop()
+            while cur != start:
+                loop.append(cur)
+                outs = edges.get(cur)
+                if not outs:
+                    break
+                cur = outs.pop()
+            if len(loop) >= 8:
+                rings.append(loop)
+    out = []
+    for loop in rings:
+        pts = [(v[0] * c, v[1] * c) for v in loop]
+        k = max(range(len(pts)), key=lambda i: math.dist(pts[i], pts[0]))
+        pts = _dp(pts[:k + 1], LAND_TOL)[:-1] + _dp(pts[k:] + [pts[0]], LAND_TOL)[:-1]
+        if len(pts) < 3:
+            continue
+        q = []
+        for a, b in zip(pts, pts[1:] + pts[:1]):                      # long edges are cut so the mapping can bend them
+            n = max(1, int(math.dist(a, b) // 150.0))
+            q += [(a[0] + (b[0] - a[0]) * t / n, a[1] + (b[1] - a[1]) * t / n) for t in range(n)]
+        pg = [to_page(x, y) for x, y in q]
+        if abs(_ring_area(pg)) > 1e6:
+            out.append([round(v, 1) for p in pg for v in p])
     return out
