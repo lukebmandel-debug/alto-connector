@@ -97,7 +97,7 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .node[data-solar].focused{transition:z-index 0s !important;}
   /* a body is a disc at rest (--sd) and a bigger disc enlarged (--sD): never a rectangle. Inside its
      .node-card, bottom to top: a skin (VIS, solar_stars.py: z-index <= 1), .sol-scrim (z 2, enlarged
-     only), then .sol-face / .sol-body / .sol-open (z 3). The round clip is the card's own. */
+     only), then .sol-face / .sol-body / the chips (z 3). The round clip is the card's own. */
   html.alto-solar:not(.mobile) #world .node[data-solar] .node-card{min-height:0 !important;padding:0 !important;border-radius:50% !important;
     overflow:hidden;box-sizing:border-box;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card{width:var(--sd) !important;height:var(--sd) !important;border-top-width:1.5px;}
@@ -122,32 +122,31 @@ SOLAR_CSS = r"""
   .node[data-solar=moon] .sol-face b{font-size:10px;line-height:12.5px;opacity:.9;}
   .node[data-solar=moon] .sol-face span,.node[data-solar=sat] .sol-face span,.node[data-solar=sat] .sol-face b{display:none;}
   /* enlarged: the content, in a square inscribed in the disc (corners inside the circle), scrolling
-     inside it when long, faded at its top and bottom edges; "Open full page" under it */
-  .sol-body,.sol-scrim,.sol-open{display:none;}
+     inside it when long, faded at its top and bottom edges; the chips pool beneath it */
+  .sol-body,.sol-scrim{display:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-body,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-body{
     display:flex;flex-direction:column;justify-content:center;position:absolute;z-index:3;left:calc(50% - var(--sD) * .33);width:calc(var(--sD) * .66);top:calc(50% - var(--sD) * .36);height:calc(var(--sD) * .5);overflow:hidden;
     text-align:center;box-sizing:border-box;padding:4px 4px 6px;opacity:var(--sbo,1);}
   html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-scrim,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-scrim{
     display:block;position:absolute;z-index:2;inset:0;border-radius:50%;pointer-events:none;opacity:var(--sbo,1);
     background:radial-gradient(circle,color-mix(in srgb,var(--surface) 84%,transparent) 0 64%,color-mix(in srgb,var(--surface) 52%,transparent) 100%);}
-  html.alto-solar:not(.mobile) #world .node[data-solar].focused .sol-open,html.alto-solar:not(.mobile) #world .node[data-solar].sol-closing .sol-open{
-    display:block;position:absolute;z-index:3;left:0;right:0;top:calc(50% + var(--sD) * .16);margin:0 auto;width:max-content;max-width:calc(var(--sD) * .5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;opacity:var(--sbo,1);cursor:pointer;
-    font:600 11.25px/1 inherit;font-family:inherit;letter-spacing:.04em;color:var(--accent,#6d5bd0);padding:6px 12.5px;border-radius:999px;
-    background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent,#6d5bd0) 45%,transparent);}
-  .sol-open:hover{background:var(--surface);}
   .sol-body .node-order{position:static !important;float:none !important;display:block;margin:0 0 4px !important;text-align:center;}
   .sol-body .node-tag,.sol-body .node-title,.sol-body .node-desc{text-align:center;}
   .sol-body .node-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;flex:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar] .sol-body .node-tag{padding-left:0 !important;padding-right:0 !important;}   /* (a card's tag leaves room for its number; the disc's is above it) */
   .sol-body .node-desc{-webkit-line-clamp:4 !important;line-clamp:4;display:-webkit-box !important;-webkit-box-orient:vertical;overflow:hidden !important;text-overflow:ellipsis;flex:none;}
-  /* the chips: centred wrapping rows of round pills in the disc's bottom band (inside the circle: a box
-     .56 x .15 of --sD whose lower corners are within the radius), under "Open full page" */
+  /* the chips settle at the bottom of the disc like water: rows built from the bottom up, each as wide as
+     the circle allows at that height, round pills turned a little to the arc (pool()) */
   html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):not(.sol-closing) .node-card>.node-footer{display:none !important;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing) .node-card>.node-footer{display:flex;position:absolute;z-index:3;margin:0;
-    left:calc(50% - var(--sD) * .28);width:calc(var(--sD) * .56);top:calc(50% + var(--sD) * .26);max-height:calc(var(--sD) * .15);overflow:hidden;
-    flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:4px;opacity:var(--sbo,1);}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing) .node-card>.node-footer{display:block;position:absolute;z-index:3;margin:0;
+    inset:0;pointer-events:none;opacity:var(--sbo,1);}
   .node-card>.node-footer .footer-sep{display:none;}
-  .node-card>.node-footer>button{border-radius:999px !important;display:inline-flex;align-items:center;justify-content:center;text-align:center;}
+  /* each chip is placed by pool() (in px from the disc's centre) */
+  .node-card>.node-footer>button,.node-card>.node-footer>.sol-more{border-radius:999px !important;display:inline-flex;align-items:center;justify-content:center;text-align:center;
+    position:absolute;left:50%;top:50%;height:24px !important;min-width:24px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    max-width:calc(var(--sD) * .6);pointer-events:auto;font-size:11px;line-height:14px;transform-origin:50% 50%;}
+  .node-card>.node-footer>.esym-btn,.node-card>.node-footer>.tsym-btn,.node-card>.node-footer>.sol-more{padding:0 10px !important;}
+  .node-card>.node-footer>.sol-more{font-weight:600;color:var(--text);cursor:default;border:1px dashed var(--border);background:var(--chip-plate,var(--surface));}
   /* growing / shrinking (--scd): no frost on the moving disc (a zoomed element can lose it anyway), never a clip-path */
   html.alto-solar:not(.mobile) #world .node.sol-clip .node-card{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;background:var(--node-glass-bg,var(--panel-glass-bg)) !important;}
   html.alto-solar:not(.mobile) #world .node.sol-clip .sol-face{opacity:var(--sfo,0);}
@@ -274,23 +273,73 @@ function face(n, id){
 function plain(h){ var t=document.createElement('template'); t.innerHTML=String(h==null ? '' : h); return (t.content.textContent||'').replace(/\s+/g, ' ').trim(); }
 /* the enlarged disc's layers: the card's own number / tag / title / description / chips go into
    .sol-body (the same elements, so edit mode edits them in place), a .sol-scrim under it, the
-   "Open full page" control; and --sD, the enlarged diameter, by how much there is to read */
+   chips pooled at the bottom (pool()); and --sD, the enlarged diameter, by how much there is to read.
+   A click on the disc (or Enter) opens its full page: the engine's own card click, left alone. */
 function disc(n, c, id, b){
   var body=c.querySelector(':scope > .sol-body');
   if(!body){ body=document.createElement('div'); body.className='sol-body';
     [].slice.call(c.children).forEach(function(k){ if(/(^| )(node-order|node-tag|node-title|node-desc)( |$)/.test(k.className)) body.appendChild(k); });
     var sc=document.createElement('div'); sc.className='sol-scrim'; sc.setAttribute('aria-hidden', 'true');
     c.insertBefore(sc, c.firstChild); c.appendChild(body);
-    var op=document.createElement('button'); op.type='button'; op.className='sol-open'; op.textContent='Open full page';
-    op.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); if(typeof showDetail==='function') showDetail('node', id); });
-    c.appendChild(op);
-    var ft=c.querySelector('.node-footer'); if(ft) c.appendChild(ft);   /* the chips: a wrapping row along the disc's bottom, under the control */
-    /* an enlarged disc is for reading: a click on it does not open the detail page (the control does) */
-    c.addEventListener('click', function(e){ if(n.classList.contains('focused') && !de.classList.contains('alto-editing') && !(e.target.closest && e.target.closest('a,button,[onclick],.alto-link'))) e.stopPropagation(); }, true);
+    var ft=c.querySelector('.node-footer'); if(ft) c.appendChild(ft);   /* the chips: pooled along the disc's bottom */
   }
   var L=(body.textContent||'').length;
   var D=L<200 ? 300 : L<400 ? 340 : 380;
   n.style.setProperty('--sD', Math.max(D, q(b.d+40))+'px');
+  if(n.classList.contains('focused')) pool(n);
+}
+/* ── the chips of an enlarged disc, settled like water (Luke, 1.9.114): rows from the bottom up, each
+   centred and as wide as the circle's chord allows at its height, wrapping upward; every chip >= 12px
+   inside the border and clear of the others; the text above gives way (shorter description) before the
+   chips do, and past what fits (the pool reaches no higher than .1 D below the centre) the rest fold into
+   one "+N". Each chip is turned a little to the circle's tangent where it sits. Computed once, as the disc
+   opens (and again a frame later, for the fonts); positions are px from the disc's centre. */
+function pool(n){
+  var c=n.querySelector('.node-card'), ft=c && c.querySelector(':scope > .node-footer'), body=c && c.querySelector(':scope > .sol-body');
+  if(!ft || !body) return;
+  var D=parseFloat(n.style.getPropertyValue('--sD'))||300, R=D/2, Ri=R-12, G=6, H=24, cap=D*.1, top0=-D*.36;
+  var all=[].slice.call(ft.querySelectorAll(':scope > button')), more=ft.querySelector(':scope > .sol-more');
+  if(!more){ more=document.createElement('span'); more.className='sol-more'; more.setAttribute('role', 'note'); ft.appendChild(more); }
+  all.forEach(function(k){ k.style.display=''; k.style.transform=''; });
+  more.style.display='none'; more.style.transform='';
+  var N=all.length, W=all.map(function(k){ return k.offsetWidth+4; });
+  function fit(ws){
+    var rows=[], i=0, yb=Ri;
+    while(i<ws.length){
+      var y=yb, row, w, half;
+      for(;;){
+        var yt=y-H; if(yt<cap) return null;
+        half=Math.sqrt(Math.max(0, Ri*Ri-Math.pow(Math.max(Math.abs(y), Math.abs(yt)), 2)));
+        row=[]; w=0;
+        for(var j=i; j<ws.length; j++){ var nw=w+(row.length ? 4 : 0)+ws[j]; if(nw>2*half) break; row.push(j); w=nw; }
+        if(row.length) break; y-=2;
+      }
+      rows.push({i:row, w:w, y:y}); i+=row.length; yb=y-H-G;
+    }
+    return rows;
+  }
+  var rows=null, k=N;
+  for(; k>=0; k--){
+    var ws=W.slice(0, k);
+    if(k<N){ more.textContent='+'+(N-k); more.style.display=''; ws.push(more.offsetWidth+4); }
+    rows=fit(ws); if(rows) break;
+  }
+  if(!rows){ more.style.display='none'; rows=[]; k=0; }
+  var hidden=N-k;
+  rows.forEach(function(r){ var x=-r.w/2;
+    r.i.forEach(function(j){ var el=j<k ? all[j] : more, w=(j<k ? W[j] : el.offsetWidth+4)-4;
+      var cx=x+2+w/2, cy=r.y-H/2, phi=cy>0 ? Math.atan2(cx, cy)*180/Math.PI : 0, lim=Math.min(16, Math.asin(Math.min(1, 6/Math.max(w, 6)))*180/Math.PI), a=Math.max(-lim, Math.min(lim, -phi*.6));   /* a turn that keeps the chip within 3px above / below its row */
+      el.style.left='calc(50% + '+(cx-w/2).toFixed(1)+'px)'; el.style.top='calc(50% + '+(r.y-H).toFixed(1)+'px)';
+      el.style.transform=Math.abs(a)<.3 ? '' : 'rotate('+a.toFixed(1)+'deg)'; x+=w+4+4; }); });
+  all.forEach(function(el, j){ if(j>=k) el.style.display='none'; });
+  if(hidden) more.title=all.slice(k).map(function(e){ return e.title; }).filter(Boolean).join(', ');
+  /* the text gives way to the pool: the body ends just above the highest row */
+  var hi=rows.length ? rows[rows.length-1].y-H : null;
+  body.style.height=hi==null ? '' : Math.max(D*.3, hi-6-top0).toFixed(1)+'px';
+  var ds=body.querySelector('.node-desc'), kk=4;
+  function over(){ var s=0; [].forEach.call(body.children, function(e){ s+=e.offsetHeight+8; }); return s>body.clientHeight; }
+  if(ds){ ds.style.removeProperty('-webkit-line-clamp'); ds.style.removeProperty('line-clamp');
+    if(hi!=null) while(kk>1 && over()){ kk--; ds.style.setProperty('-webkit-line-clamp', String(kk), 'important'); ds.style.setProperty('line-clamp', String(kk), 'important'); } }
 }
 /* ── the layout: at the end of initLayout (engine patch solar-layout-hook),
    before the lines are drawn. Every body's home is its plan centre. */
@@ -717,7 +766,7 @@ function ovVars(sc){
    off the card's own zoom on every frame. The content sits at fixed px about the centre (sized by
    --sD), so it never re-wraps and the growing disc reveals it; the engine's .alto-fshadow is kept the
    same circle (its scale set from the card's real diameter). The face fades out, the content
-   (.sol-body, .sol-scrim, .sol-open) fades in. ───── */
+   (.sol-body, .sol-scrim, the chips) fades in. ───── */
 var zmo=(typeof MutationObserver==='function') ? new MutationObserver(function(ms){ ms.forEach(function(m){ var n=m.target.closest && m.target.closest('.node'); if(n) clip(n); }); }) : null, morphing=[], mraf=0;
 function sDof(n, b){ return parseFloat(n.style.getPropertyValue('--sD'))||b.d; }
 /* the focus shadow: the card's circle, whatever size the engine measured it at */
@@ -764,6 +813,10 @@ function watch(){
   new MutationObserver(function(ms){ var fl=0; ms.forEach(function(m){
     var n=m.target; if(!n.classList || !n.classList.contains('node') || !n.hasAttribute('data-solar') || !desk()) return;
     var f=n.classList.contains('focused'); if(f===!!n._solF) return; n._solF=f; if(f && OV) ovLeave(null, true); morph(n, f); fl=1;
+    if(f){ pool(n); requestAnimationFrame(function(){ if(n.classList.contains('focused')) pool(n); }); }
+    var cd=n.querySelector('.node-card');
+    if(cd){ if(f){ cd._t0=cd.getAttribute('title'); cd._a0=cd.getAttribute('aria-label'); cd.setAttribute('title', 'Open the full page'); cd.setAttribute('aria-label', 'Open the full page'); }
+      else if('_t0' in cd){ [['title', cd._t0], ['aria-label', cd._a0]].forEach(function(p){ if(p[1]==null) cd.removeAttribute(p[0]); else cd.setAttribute(p[0], p[1]); }); delete cd._t0; } }
   }); if(fl) flankSync(); }).observe(w, {attributes:true, subtree:true, attributeFilter:['class']});
   /* edit mode wants the board at full size and still */
   new MutationObserver(function(){ if(de.classList.contains('alto-editing')){ if(OV) ovLeave(null, true); if(FLID) flankSync(); go(); } }).observe(de, {attributes:true, attributeFilter:['class']});
@@ -1019,6 +1072,14 @@ document.addEventListener('gestureend', function(e){
   var z=ZS; ZS=null; if(!z || z.k!=='g') return;
   if(z.own==='me' || z.ex){ e.stopImmediatePropagation(); if(OV && OV.s>=.97) ovLeave(null, true); }
 }, {passive:false});
+/* Enter on an enlarged disc opens its full page, as a click on it does */
+window.addEventListener('keydown', function(e){
+  var id=window._focusedNodeId, ae=document.activeElement, tg=ae && ae.tagName;
+  if(e.key!=='Enter' || !ready || !desk() || !id || e.metaKey || e.ctrlKey || e.altKey || de.classList.contains('alto-editing') || !B[id]) return;
+  if(ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|BUTTON|A|SELECT)$/.test(tg))) return;
+  if(document.querySelector('#detail-page.visible,#summary-wrap.open') || typeof showDetail!=='function') return;
+  e.preventDefault(); showDetail('node', id);
+});
 window.addEventListener('keydown', function(e){
   if(!ready || !desk() || (document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)))) return;
   var k=e.key, mod=e.metaKey || e.ctrlKey, hit=false;

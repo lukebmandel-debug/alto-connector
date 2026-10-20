@@ -185,7 +185,7 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
 def test_the_guide_tells_claude_about_the_two_looks_and_never_about_converting():
     sec = _sec("**Two looks, switched in the page.**", "**Ask**")
     for want in ("Star chart** (the look it opens in)", "**Hub & spoke**", "Hub & spoke | Star chart", "spaceflight-style routes", "Zoom out",
-                 "Orbit** switch", "Open full page", "enlarged circle stays circular", "hub_look: 'hub'", "nothing to rebuild"):
+                 "Orbit** switch", "click on the circle", "enlarged circle stays circular", "hub_look: 'hub'", "nothing to rebuild"):
         assert want in sec, want
     low = GUIDE.lower()
     for gone in ("convert_timeline", "turn this into a star chart", "ringed-planet", "§d-stars", "palace_view: 'stars'", "to='star_chart'"):

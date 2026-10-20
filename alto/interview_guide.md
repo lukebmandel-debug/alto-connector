@@ -504,10 +504,10 @@ In both, the planets, moons and satellites orbit, each on its own ring; an
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.
 An enlarged circle stays circular and shows the concept's card (number, tag,
-title, short description and chips; the full content is on its page), with the
+title, short description and chips, which settle along its bottom edge like water; the full content is on its page), with the
 concepts directly under it (a planet's moons, a moon's satellites) beside it,
-left and right — a click on one enlarges it in turn; "Open full page" opens
-its detail page, whose **← System** button (or Escape) goes back to the chart:
+left and right — a click on one enlarges it in turn; a click on the circle
+itself (or Enter) opens its detail page, whose **← System** button (or Escape) goes back to the chart:
 call the main view of a System page "the system", not "the outline". Say this once when you hand it over, in a
 sentence, so the student knows the switch is there. If they want the Hub &
 spoke look to be what people see first, set `hub_look: 'hub'` in the brief

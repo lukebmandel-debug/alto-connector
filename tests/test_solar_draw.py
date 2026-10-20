@@ -122,7 +122,8 @@ def test_motion_never_uses_a_transform_and_rounds_to_device_px():
     whole device px; nothing in the script sets a transform on a node."""
     # the one transform is the whole-chart view's, on #world itself
     # (and the focus shadow's scale, kept the same circle as the growing disc: not a node)
-    assert re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) == ["sh", "world", "world"]
+    # (and the enlarged disc's chips, turned a few degrees to the circle's edge by pool(): k, more, el are chips, not nodes)
+    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el")] == ["sh", "world", "world"]
     assert ".n.style.transform" not in SOLAR_JS
     assert "b.n.style.left=x+'px'" in SOLAR_JS and "Math.round(v*zq)/zq" in SOLAR_JS
     # no SVG <mask> on anything that moves (Safari): the rings and spokes are plain
@@ -139,7 +140,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 24000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB)
+    assert size < 25000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB)
 
 
 def test_the_hub_look_orbits_on_the_same_plan():
@@ -850,7 +851,7 @@ def test_an_enlarged_body_is_a_bigger_disc_with_its_card_and_a_way_to_the_full_p
       return {w:c.offsetWidth, h:c.offsetHeight, sD:parseFloat(getComputedStyle(n).getPropertyValue('--sD')), d:window._ALTO_SOLAR.nodes['u1-p1'].d,
               title:b && b.querySelector('.node-title') && getComputedStyle(b).display!=='none' ? b.querySelector('.node-title').textContent : null,
               secs:b ? b.querySelectorAll('.sol-sec').length : 0, scrolls:b ? b.scrollHeight>b.clientHeight : null,
-              open:!!c.querySelector('.sol-open') && getComputedStyle(c.querySelector('.sol-open')).display!=='none'}; }""")
+              open:!c.querySelector('.sol-open')}; }""")
     assert abs(st["w"] - st["h"]) <= 1 and abs(st["w"] - st["sD"]) <= 1 and st["sD"] > st["d"], st
     # the card's level only (Luke, round 9): no sections, nothing scrolls, a long description ends in an ellipsis
     assert st["title"] and st["secs"] == 0 and not st["scrolls"] and st["open"], st
@@ -858,11 +859,9 @@ def test_an_enlarged_body_is_a_bigger_disc_with_its_card_and_a_way_to_the_full_p
       return {clamped:d.scrollHeight>d.clientHeight+1, lc:cs.webkitLineClamp||cs.lineClamp}; }""")
     assert cl["clamped"] and str(cl["lc"]) == "4", cl
     xy = pg.evaluate("() => { var r=document.querySelector('#node-u1-p1 .sol-body').getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }")
-    # a click on the text does not leave the chart; the control opens the full page
-    pg.mouse.click(xy[0], xy[1])
-    pg.wait_for_timeout(300)
+    # a click on the disc opens the full page (the engine's own card click); there is no control for it
     assert not pg.evaluate("() => document.getElementById('detail-page').classList.contains('visible')")
-    pg.evaluate("() => document.querySelector('#node-u1-p1 .sol-open').click()")
+    pg.mouse.click(xy[0], xy[1])
     pg.wait_for_timeout(500)
     assert pg.evaluate("() => document.getElementById('detail-page').classList.contains('visible')")
     assert not errs, errs
@@ -910,10 +909,10 @@ GEO_WATCH = r"""(id) => new Promise(function(res){
     k++; if(performance.now()-t0<1000) requestAnimationFrame(f); else res({frames:k, shadow:seen, bad:bad.slice(0, 8)}); })();
 })"""
 
-GEO_REST = r"""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body'), o=c.querySelector('.sol-open');
+GEO_REST = r"""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body'), o=b;
   var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, R=r.width/2;
   function far(e){ var q=e.getBoundingClientRect(); return Math.max.apply(null, [[q.left,q.top],[q.right,q.top],[q.left,q.bottom],[q.right,q.bottom]].map(function(p){ return Math.hypot(p[0]-cx, p[1]-cy); })); }
-  var ob=o.getBoundingClientRect(), chips=[].filter.call(c.querySelectorAll(':scope > .node-footer > button'), function(x){ return x.offsetWidth; }).map(function(x){ var q=x.getBoundingClientRect(), cs=getComputedStyle(x);
+  var ob=o.getBoundingClientRect(), chips=[].filter.call(c.querySelectorAll(':scope > .node-footer > button, :scope > .node-footer > .sol-more'), function(x){ return x.offsetWidth && getComputedStyle(x).display!=='none'; }).map(function(x){ var q=x.getBoundingClientRect(), cs=getComputedStyle(x);
     return {far:far(x), top:q.top-cy, hitsOpen:!(q.right<=ob.left || q.left>=ob.right || q.bottom<=ob.top || q.top>=ob.bottom), round:parseFloat(cs.borderTopLeftRadius)>=q.height/2-.5, ta:cs.textAlign}; });
   return {R:R, w:r.width, h:r.height, body:far(b), open:far(o), scrolls:b.scrollHeight>b.clientHeight+1, ov:getComputedStyle(b).overflowY, chips:chips,
           sD:parseFloat(n.style.getPropertyValue('--sD')), z:getComputedStyle(document.documentElement).zoom, cls:n.className}; }"""
@@ -960,7 +959,7 @@ def test_the_enlarged_disc_its_shadow_and_its_content_are_one_circle_at_every_fr
             assert st["body"] <= st["R"] + 1 and st["open"] <= st["R"] + 1, (look, i, st)   # the text square and the control: inside
             assert not st["scrolls"], st                                             # the card's level: nothing to scroll
             if i in ("u1-p1", "u1-p2"):                                              # its chips: round pills in the bottom band, inside
-                assert st["chips"] and all(q["far"] <= st["R"] + 1 and q["top"] >= st["R"] * .4 and not q["hitsOpen"]
+                assert st["chips"] and all(q["far"] <= st["R"] - 8 and q["top"] >= st["R"] * .1 and not q["hitsOpen"]
                                            and q["round"] for q in st["chips"]), (look, i, st["chips"])
             shrink = pg.evaluate("(id) => { var p=(" + GEO_WATCH + ")(id); window.exitFocus(); return p; }", i)
             assert not shrink["bad"], (look, i, shrink)

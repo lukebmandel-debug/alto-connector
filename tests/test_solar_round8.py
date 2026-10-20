@@ -281,7 +281,7 @@ def test_a_section_heading_with_its_provenance_is_on_the_full_page_not_the_disc(
     pg.evaluate("() => window.enterFocus('u1-p1')")
     pg.wait_for_timeout(800)
     assert pg.evaluate("() => document.querySelectorAll('#node-u1-p1 .sol-sec').length") == 0     # the disc: the card only
-    pg.evaluate("() => document.querySelector('#node-u1-p1 .sol-open').click()")
+    pg.evaluate("() => document.querySelector('#node-u1-p1 .node-card').click()")
     pg.wait_for_timeout(500)
     h = pg.evaluate("() => { var h=[].filter.call(document.querySelectorAll('#detail-page .detail-section h3'), function(x){ return /^overview/i.test(x.innerText); })[0]; return h ? [h.innerText, h.innerHTML] : null; }")
     assert h and "<span" not in h[0] and "&lt;" not in h[0], h

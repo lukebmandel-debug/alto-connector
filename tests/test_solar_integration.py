@@ -235,11 +235,11 @@ STATE = r"""() => { var de=document.documentElement, shown=0;
     T:window._altoSolarRate ? window._altoSolarRate().T : null, ctl:!!document.getElementById('sol-ctl'),
     focused:window._focusedNodeId||null}; }"""
 DISC = r"""(id) => { var n=document.getElementById('node-'+id), c=n.querySelector('.node-card'), b=c.querySelector('.sol-body'),
-    o=c.querySelector('.sol-open'), t=b && b.querySelector('.node-title');
+    t=b && b.querySelector('.node-title');
   return {w:c.offsetWidth, h:c.offsetHeight, sD:parseFloat(getComputedStyle(n).getPropertyValue('--sD'))||0,
     d:window._altoSolarGeo().bodies[id].d, focused:n.classList.contains('focused'),
     title:t && getComputedStyle(b).display!=='none' ? t.textContent : null, secs:b ? b.querySelectorAll('.sol-sec').length : 0,
-    open:!!o && getComputedStyle(o).display!=='none',
+    open:!c.querySelector('.sol-open'),
     skin:[].filter.call(c.querySelectorAll(':scope>.sk'), function(e){ return getComputedStyle(e).display!=='none'; }).map(function(e){ return e.className; })}; }"""
 # every frame for ms: the card of `id` is a circle (square box, a round clip or none)
 DISC_WATCH = r"""([id, ms]) => new Promise(function(res){
@@ -296,7 +296,7 @@ def test_a_flight_lands_on_a_textured_round_disc_with_its_content(browser, pages
     """Flying to a body with long content: on every frame of the way and the
     landing the target is a circle; landed, it is the big disc (--sD) with the
     skin's texture and light painted under the scrim, its card (title, no
-    sections, nothing scrolling) and 'Open full page'."""
+    sections, nothing scrolling) and no 'Open full page' control (the disc itself opens the page)."""
     pg, errs = _open(browser, pages["stars"])
     _skin_settled(pg)
     _rest_on(pg, "u1-p1")
