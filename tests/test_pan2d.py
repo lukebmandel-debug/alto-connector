@@ -221,7 +221,7 @@ def test_panels_detail_pages_an_enlarged_card_and_inner_scrollers_are_left_alone
     pg.evaluate("""()=>{ var n=document.querySelector('#world .node'); window.enterFocus(n.id.slice(5)); }""")
     pg.wait_for_timeout(900)
     a = _pos(pg)
-    _wheels(pg, [{"dx": 30, "dy": 30, "gap": 300}] * 2)
+    _wheels(pg, [{"dx": 30, "dy": 30, "gap": 300}])      # the wheel leaves the enlarged card (engine); it never pans while it is enlarged
     assert _pos(pg)["n"] == a["n"]
     assert not _errs(pg), pg.errs
     pg.context.close()
