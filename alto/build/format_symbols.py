@@ -14,18 +14,23 @@ from __future__ import annotations
 # key -> (name shown as the tooltip, drawing)
 SYMBOLS: dict[str, tuple[str, str]] = {
     "timeline": ("Timeline",
-                 '<path d="M2.5 16h15M5 16v-5M10 16V5M15 16V8.5"/>'
-                 '<circle cx="5" cy="9.7" r="1.3"/><circle cx="10" cy="3.9" r="1.3"/>'
-                 '<circle cx="15" cy="7.2" r="1.3"/>'),
+                 '<path d="M5 2.5v15M9 4h8M9 10h5M9 16h8"/>'
+                 '<g fill="currentColor"><circle cx="5" cy="4" r="1.3"/><circle cx="5" cy="10" r="1.3"/>'
+                 '<circle cx="5" cy="16" r="1.3"/></g>'),
+    "lanes": ("Timeline \u00b7 Horizontal",
+              '<path d="M2.5 6h15M2.5 14h15M4.5 17.5v-1.2M9.5 17.5v-1.2M14.5 17.5v-1.2"/>'
+              '<g fill="currentColor"><circle cx="5" cy="6" r="1.3"/><circle cx="11" cy="6" r="1.3"/>'
+              '<circle cx="8" cy="14" r="1.3"/><circle cx="15" cy="14" r="1.3"/></g>'),
     "outline": ("Outline",
                 '<path d="M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17"/>'),
     "system": ("System",
                '<circle cx="10" cy="10" r="1.8"/><circle cx="10" cy="10" r="7"/>'
                '<circle cx="15" cy="5" r="1.3"/>'),
     "palace": ("Mind Palace",
-               '<path d="M2.5 17.5h15M4 17.5V9.5h4v8M8 17.5V4h5v13.5M13 17.5v-7h3v7M10 7h1M10 10h1M10 13h1"/>'),
+               '<path d="M2.5 5.5 7 3.5l6 2 4.5-2v11l-4.5 2-6-2-4.5 2zM7 3.5v11M13 5.5v11M10 9.5h.1"/>'),
     "building": ("Mind Palace \u00b7 Building",
-                 '<path d="M3 17.5h14M5.5 17.5v-14h9v14M8.5 17.5V14h3v3.5M8.5 6.5h3M8.5 9.5h3"/>'),
+                 '<path d="M2 17.5h16M6.5 17.5v-6.5h7v6.5M6.8 11a3.2 3.8 0 0 1 6.4 0M10 7.2V4.5M8.8 17.5v-3a1.2 1.2 0 0 1 2.4 0v3"/>'
+                 '<path d="M3.5 17.5V8.5M16.5 17.5V8.5M2.5 8.5h2M15.5 8.5h2"/>'),
 }
 KEYS = tuple(SYMBOLS)
 
@@ -36,13 +41,13 @@ _WRAP = ('<svg viewBox="0 0 20 20" width="{s}" height="{s}" fill="none" stroke="
 
 def key_of(b) -> str:
     """The symbol of a brief: a System is an outline with the solar layout; a
-    Building Palace a palace with the building view; lanes and the plain
-    timeline are both timelines."""
+    Building Palace a palace with the building view; the plain timeline
+    runs down the page, the lanes timeline along it."""
     if b.mode == "outline":
         return "system" if b.layout == "solar" else "outline"
     if b.mode == "palace":
         return "building" if b.palace_view == "building" else "palace"
-    return "timeline"
+    return "lanes" if b.mode == "lanes" else "timeline"
 
 
 def name(key: str) -> str:

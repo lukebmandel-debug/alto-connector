@@ -44,12 +44,13 @@ def _block(h: str, start: str, cap: int) -> str:
 
 
 # The format a built page is, read off the line each format's own script starts
-# with (the same four tests as _fmtOf in alto-cloud.js). A System is checked
+# with (the same tests as _fmtOf in alto-cloud.js). A System is checked
 # first: it is an outline with more on top.
 _FMT = (("system", re.compile(r"^window\._ALTO_SOLAR=", re.M)),
         ("building", re.compile(r"^window\._ALTO_BUILDING=", re.M)),
         ("palace", re.compile(r"^window\._altoPalace=function", re.M)),
-        ("outline", re.compile(r"^window\._ALTO_OUTLINE=", re.M)))
+        ("outline", re.compile(r"^window\._ALTO_OUTLINE=", re.M)),
+        ("lanes", re.compile(r"^window\._ALTO_LANES=", re.M)))
 
 
 def fmt_of(h: str) -> str:

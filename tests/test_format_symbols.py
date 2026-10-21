@@ -23,7 +23,7 @@ def _dict_in(text, name):
 
 
 def test_every_format_has_a_distinct_symbol():
-    assert F.KEYS == ("timeline", "outline", "system", "palace", "building")
+    assert F.KEYS == ("timeline", "lanes", "outline", "system", "palace", "building")
     assert len({F.SYMBOLS[k][1] for k in F.KEYS}) == len(F.KEYS)
     for k in F.KEYS:
         assert F.name(k) and 'stroke="currentColor"' in F.svg(k)
@@ -31,7 +31,7 @@ def test_every_format_has_a_distinct_symbol():
 
 
 @pytest.mark.parametrize("kw,key", [
-    ({"mode": "linear"}, "timeline"), ({"mode": "lanes"}, "timeline"),
+    ({"mode": "linear"}, "timeline"), ({"mode": "lanes"}, "lanes"),
     ({"mode": "outline"}, "outline"), ({"mode": "outline", "layout": "solar"}, "system"),
     ({"mode": "palace"}, "palace"), ({"mode": "palace", "palace_view": "building"}, "building"),
 ])
@@ -57,7 +57,7 @@ def test_a_page_names_no_format_in_words():
 
 
 @pytest.mark.parametrize("name,key", [("contracts", "timeline"), ("outline", "outline"),
-                                      ("lanes_v2", "timeline")])
+                                      ("lanes_v2", "lanes")])
 def test_the_listing_record_knows_the_format(name, key):
     html, _ = build_from_file(str(ROOT / "samples" / f"{name}_brief.json"))
     assert fmt_of(html) == key and meta_of(html)["fmt"] == key
@@ -67,6 +67,7 @@ def test_the_format_is_read_off_each_formats_own_script():
     assert fmt_of("x\nwindow._ALTO_SOLAR={};\nwindow._ALTO_OUTLINE={};") == "system"
     assert fmt_of("x\nwindow._ALTO_BUILDING={};") == "building"
     assert fmt_of("x\nwindow._altoPalace=function(h){") == "palace"
+    assert fmt_of("x\nwindow._ALTO_LANES={};") == "lanes"
     assert fmt_of("a window._altoPalace=function") == "timeline"     # mid-line mentions don't count
 
 
@@ -76,7 +77,7 @@ def test_the_browser_reads_the_format_the_same_way(tmp_path):
     fn = js[js.index("  function _fmtOf"):js.index("  function _metaOf")]
     cases = ["x\nwindow._ALTO_SOLAR={};\nwindow._ALTO_OUTLINE={};", "x\nwindow._ALTO_BUILDING={};",
              "x\nwindow._altoPalace=function(h){", "x\nwindow._ALTO_OUTLINE={};",
-             "a window._altoPalace=function", "plain"]
+             "a window._altoPalace=function", "x\nwindow._ALTO_LANES={};", "plain"]
     runner = tmp_path / "f.js"
     runner.write_text("const f=new Function(" + json.dumps(fn + "; return _fmtOf;") + ")();"
                       "process.stdout.write(JSON.stringify(" + json.dumps(cases) + ".map(f)));")
