@@ -62,7 +62,8 @@ JS = r"""(function(){
   var reel=bt.querySelector('.rl');
   function label(){ bt.setAttribute('aria-pressed', off ? 'true' : 'false'); bt.title=off ? 'Show the chips' : 'Hide the chips'; bt.setAttribute('aria-label', bt.title); }
   function place(){ var f=nav.querySelector('button.nav-btn') || items()[0], g=items()[0]; if(!f) return; var gl=g ? g.getBoundingClientRect().left : 0; var r=f.getBoundingClientRect();     /* in line with the chips: just before the first (hidden ones keep their place) */
-    if(!r.width) return; bt.style.top=Math.round(r.top+r.height/2)+'px'; bt.style.left=Math.max(6, Math.round(Math.min(r.left, gl || r.left)-22-8))+'px'; }   /* (centred on a chip, before the row's first item) */
+    if(!r.width) return; var z=bt.offsetWidth ? (bt.getBoundingClientRect().width/bt.offsetWidth || 1) : 1;      /* (the page's own zoom, .8: screen px -> css px) */
+    bt.style.top=Math.round((r.top+r.height/2)/z)+'px'; bt.style.left=Math.max(6, Math.round(Math.min(r.left, gl || r.left)/z-22-8))+'px'; }   /* (centred on a chip, before the row's first item) */
   function items(){ return [].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth && !(e.parentElement && e.parentElement.closest('#nav button')); }); }
   function quiet(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function turn(){
