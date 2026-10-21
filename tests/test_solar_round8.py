@@ -63,7 +63,7 @@ FLANK = r"""(id) => { var G=window._altoSolarGeo(), F=G.bodies[id], n=document.g
   out.spokes=[].filter.call(document.querySelectorAll('#sol-flank-svg line'), function(l){ return +l.getAttribute('opacity')>.9; }).length;
   document.querySelectorAll('#world .node.sol-flank').forEach(function(k){ var i=k.id.slice(5), b=G.bodies[i], lb=k.querySelector('.sol-lbl');
     out.kids[i]={x:b.x, y:b.y, d:b.d, p:b.p, op:getComputedStyle(k.querySelector('.node-card')).opacity, lbl:lb.getAttribute('data-l'),
-      lop:getComputedStyle(lb).opacity, ldisp:getComputedStyle(lb).display}; });
+      lop:getComputedStyle(lb).opacity, ldisp:getComputedStyle(lb).display, pill:(function(){ var q=k.querySelector(':scope > .sol-nh b'); return q && getComputedStyle(q.parentNode).display!=='none' ? q.textContent : null; })()}; });
   return out; }"""
 
 
@@ -78,7 +78,8 @@ def test_an_enlarged_body_has_its_children_beside_it(browser, built, look):
     assert sorted(st["kids"]) == sorted(kids), st
     sides = {-1: 0, 1: 0}
     for i, k in st["kids"].items():
-        assert k["p"] == "u2-p2" and float(k["op"]) > .99 and float(k["lop"]) > .99 and k["ldisp"] != "none", (i, k)
+        named = (float(k["lop"]) > .99 and k["ldisp"] != "none") or k["pill"] == k["lbl"]    # its label, or (round 11) the hint pill saying it
+        assert k["p"] == "u2-p2" and float(k["op"]) > .99 and named, (i, k)
         dx, dy = k["x"] - st["fx"], k["y"] - st["fy"]
         assert abs(dx) - k["d"] / 2 >= st["R"] + 20, (i, k, st["R"])                     # clear of the disc
         assert abs(dx) + k["d"] / 2 <= st["cw"] / 2 - 115 + 1, (i, k)                    # 115 px from the window's edge
