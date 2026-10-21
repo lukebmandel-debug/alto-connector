@@ -319,6 +319,10 @@
     color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:1px 5px;
     margin-right:7px; vertical-align:middle;
   }
+  .fmt-sym{ display:inline-flex; vertical-align:-5px; margin-right:7px; color:var(--muted); }
+  .fmt-sym svg{ display:block; }
+  .search-result .sr-kind .fmt-sym{ margin:0; vertical-align:-2px; }
+  .search-result .sr-kind .fmt-sym svg{ width:16px; height:16px; }
   .search-result .sr-title{ font-size:13px; vertical-align:middle; }
   .search-result .sr-snip{ display:block; font-size:11px; color:var(--muted); margin-top:3px; line-height:1.45; }
   .search-result mark{ background:rgba(167,139,250,.30); color:inherit; border-radius:3px; padding:0 1px; }
@@ -1871,6 +1875,7 @@ function drawBin(pages){
     const r = document.createElement('div'); r.className = 'bin-row';
     const tx = document.createElement('div'); tx.className = 'br-t';
     const b = document.createElement('b'); b.textContent = pg.heading || pg.title || 'Untitled timeline';
+    b.insertAdjacentHTML('afterbegin', fmtBadge(pg.fmt));
     const left = Math.max(0, Math.ceil(days - (Date.now() / 1000 - pg.binned) / 86400));
     const sm = document.createElement('small');
     sm.textContent = (pg.project ? pg.project + ' · ' : '') + (left <= 1 ? 'removed for good within a day' : 'removed for good in ' + left + ' days');
@@ -1938,6 +1943,13 @@ function _listCached(part){
   if(c && c.known) return null;
   const s = Account.get(), k = _listCache();
   return (s && s.uid && k && k.uid === s.uid && Array.isArray(k[part])) ? k[part] : null;
+}
+// The symbol a project format wears instead of its name (alto/build/format_symbols.py;
+// tests/test_format_symbols.py keeps this copy the same). The name is the tooltip.
+const FMT_SYMBOLS = {"timeline":["Timeline","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M7.5 5.5h9M7.5 18.5h9M9 6.5c0 3.4 3 4.2 3 5.5s-3 2.1-3 5.5M15 6.5c0 3.4-3 4.2-3 5.5s3 2.1 3 5.5\"/>",24],"lanes":["Timeline · Horizontal","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><g transform=\"translate(12 12) scale(.62) translate(-12 -12)\" stroke-width=\"2.4\"><path d=\"M3.5 19h3.2M12.3 19h3.2a3.5 3.5 0 0 0 0-7h-1.3M8.8 12H7.5a3.5 3.5 0 0 1 0-7h4.7M17.8 5h2.7M17.5 2.4 20.5 5l-3 2.6\"/><circle cx=\"9.5\" cy=\"19\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"11.5\" cy=\"12\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"15\" cy=\"5\" r=\"2.2\" stroke-width=\"1.25\"/></g>",24],"outline":["Outline","<path d=\"M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17\"/>",20],"system":["System","<circle cx=\"10\" cy=\"10\" r=\"1.8\"/><circle cx=\"10\" cy=\"10\" r=\"7\"/><circle cx=\"15\" cy=\"5\" r=\"1.3\"/>",20],"palace":["Mind Palace","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z\"/><circle cx=\"12\" cy=\"11.3\" r=\"1\" fill=\"currentColor\"/>",24],"building":["Mind Palace · Building","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2\"/>",24]};
+function fmtBadge(k){
+  const g = FMT_SYMBOLS[k]; if(!g) return '';
+  return '<span class="fmt-sym" title="' + g[0] + '" role="img" aria-label="' + g[0] + '"><svg viewBox="0 0 ' + g[2] + ' ' + g[2] + '" width="20" height="20" fill="none" stroke="currentColor" stroke-width="' + g[2] / 16 + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + g[1] + '</svg></span>';
 }
 function unitStrip(units){
   const u = (units && units.length) ? units : [null,null,null,null,null,null,null];
@@ -2092,7 +2104,7 @@ function drawShared(items){
       el.innerHTML =
         '<div class="unit-strip">' + unitStrip(it.units) + '</div>' +
         '<div class="tile-body"><div class="tile-title"></div>' +
-        '<div class="tile-sub">Shared with you</div></div>';
+        '<div class="tile-sub">' + fmtBadge(it.fmt) + 'Shared with you</div></div>';
       // textContent: this title was written by whoever shared it, so it is the
       // one string on this page that someone else controls.
       el.querySelector('.tile-title').textContent = it.heading || it.title || 'Shared timeline';
@@ -2115,7 +2127,7 @@ function drawShared(items){
       grid.appendChild(el);
       found.push({ key: 's-' + it.key, title: it.heading || it.title || 'Shared timeline',
                    project: pj.name, label: pj.name,
-                   href: el.getAttribute('href'), search: [] });
+                   href: el.getAttribute('href'), fmt: it.fmt, search: [] });
     });
     });
     // Below the account's own work, above "Start new project".
@@ -2175,13 +2187,13 @@ function drawPrivate(all){
       el.innerHTML =
         '<div class="unit-strip">' + unitStrip(pg.units) + '</div>' +
         '<div class="tile-body"><div class="tile-title"></div>' +
-        '<div class="tile-sub">Private</div></div>';
+        '<div class="tile-sub">' + fmtBadge(pg.fmt) + '<span class="ts-t">Private</span></div></div>';
       // textContent, not innerHTML: these have been to Firestore and back, so
       // they are no longer template output and must not be parsed as markup.
       // The box is the project; the card is the timeline, by its own title.
       const heading = pg.heading || pg.title || 'Untitled timeline';
       el.querySelector('.tile-title').textContent = heading;
-      if(pg.shareKey) el.querySelector('.tile-sub').textContent = 'Private · shared';
+      if(pg.shareKey) el.querySelector('.ts-t').textContent = 'Private · shared';
 
       // The same three controls, in the same three places, as every other
       // chip on this page. A private timeline is still a timeline: it has a
@@ -2244,7 +2256,7 @@ function drawPrivate(all){
       }
       grid.appendChild(el);
       found.push({ key: pg.key, title: heading, project: pj.name, label: pj.name,
-                   href: el.getAttribute('href'), search: pg.search || [] });
+                   href: el.getAttribute('href'), fmt: pg.fmt, search: pg.search || [] });
     });
     // Your own project, so you can add to it — unlike a kept share's box.
     if(!altoIsTouch()) grid.appendChild(newTimelineTile(pj.name));
@@ -2364,7 +2376,7 @@ alignSearch();
   function extraIndex(){
     const ex = window._altoExtra || {}, out = [];
     [].concat(ex.private || [], ex.shared || []).forEach(t => {
-      out.push({_x:true, kind:'Timeline', title:t.title, text:t.project || '',
+      out.push({_x:true, kind:'Timeline', fmt:t.fmt, title:t.title, text:t.project || '',
                 go:() => jumpTo(document.querySelector('.course-tile[data-key="'+cssq(t.key)+'"]'))});
       (t.search || []).forEach(n => {
         if(!n || !/^[\w-]+$/.test(n.id || '')) return;
@@ -2429,7 +2441,7 @@ alignSearch();
     res.forEach(o => {
       const r = o.r, row = document.createElement('button');
       row.className = 'search-result';
-      row.innerHTML = '<span class="sr-kind">' + r.kind + '</span><span class="sr-title">' + esc(r.title) + '</span>' +
+      row.innerHTML = '<span class="sr-kind">' + (r.fmt ? fmtBadge(r.fmt) : r.kind) + '</span><span class="sr-title">' + esc(r.title) + '</span>' +
                       '<span class="sr-snip">' + snippet(r.text, ql) + '</span>';
       row.addEventListener('click', () => { closeSearch(); r.go(); });
       resultsEl.appendChild(row);

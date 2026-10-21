@@ -54,6 +54,25 @@ SOLAR_CSS = r"""
   #solar-svg{position:absolute;left:0;top:0;z-index:5;pointer-events:none;overflow:visible;}
   html.mobile #solar-svg,html.mobile .sol-unit,html.mobile .sol-face{display:none !important;}
   #solar-svg .sol-hit{fill:none;stroke:transparent;stroke-width:13px;pointer-events:stroke;cursor:pointer;}
+  #solar-svg .sol-hit.sol-oband{display:none;}
+  #solar-svg .sol-rider{opacity:0;transition:opacity .35s cubic-bezier(.25,.2,.4,1);pointer-events:none;}
+  #solar-svg .sol-rider.on{opacity:1;}
+  #solar-svg .sol-rider .sol-rh{fill:var(--accent,#6d5bd0);fill-opacity:.22;}
+  #solar-svg .sol-rider .sol-rc{fill:#fff;stroke:var(--accent,#6d5bd0);stroke-width:2.2;}
+  html.dark #solar-svg .sol-rider .sol-rh{fill:#cfc6ff;} html.dark #solar-svg .sol-rider .sol-rc{stroke:#cfc6ff;}
+  #solar-svg .sol-rider .sol-ship{display:none;}
+  html.sk-retro.alto-stars #solar-svg .sol-rider .sol-ship{display:inline;} html.sk-retro.alto-stars #solar-svg .sol-rider :is(.sol-rh,.sol-rc){display:none;}
+  .sol-ship .sh-hull,.fly-ship .sh-hull{fill:#14161c;stroke:#d9ae55;stroke-width:.9;stroke-linejoin:round;}
+  .sol-ship .sh-deck,.fly-ship .sh-deck{fill:#262a33;}
+  .sol-ship .sh-fin,.fly-ship .sh-fin{fill:#0c0e12;stroke:#d9ae55;stroke-width:.8;stroke-linejoin:round;}
+  .sol-ship .sh-gold,.fly-ship .sh-gold{fill:none;stroke:#d9ae55;stroke-width:.7;}
+  .sol-ship .sh-eng,.fly-ship .sh-eng{fill:#ffe6a8;}
+  .sol-ship .sh-glow,.fly-ship .sh-glow{fill:#ffd27a;fill-opacity:.3;}
+  .sol-ship .sh-ring,.fly-ship .sh-ring{fill:none;stroke:#d9ae55;stroke-width:1.1;stroke-opacity:.55;} .sol-ship .sh-near,.fly-ship .sh-near{stroke-opacity:1;stroke-width:1.3;}
+  #solar-svg :is(.sol-spoke,.sol-link).sol-ride{stroke-opacity:.95 !important;stroke-width:3px !important;}
+  html.sk-retro.alto-stars #solar-svg :is(.sol-spoke,.sol-link).sol-ride{stroke:#ffd27a !important;}
+  #canvas.sol-nudge #world .node.sol-hint:not(.focused) .node-card{animation:sol-nudge .7s cubic-bezier(.25,.2,.4,1) 2;}
+  @keyframes sol-nudge{50%{filter:brightness(1.45);}}
   html.alto-editing #solar-svg .sol-hit,html.mobile #solar-svg .sol-hit,#canvas.sol-ov #solar-svg .sol-hit{pointer-events:none;}
   html:not(.mobile) #canvas.sol-lhov #world .node[data-solar]:not(.edge-end):not(.focused) .node-card{opacity:.35 !important;}
   html:not(.mobile) #canvas.sol-lhov #solar-svg :is(.sol-ring,.sol-spoke):not(.sol-hot){stroke-opacity:.07 !important;}
@@ -214,6 +233,9 @@ SOLAR_CSS = r"""
   #canvas.sol-tiny #world .node[data-solar]:not(.focused)>.sol-dot{opacity:1;}
   #canvas.sol-tiny #world .node[data-solar]:not(.focused) .node-card{visibility:hidden;}   /* a hairline at least, at any zoom */
   #canvas.sol-ov .sol-unit{transform-origin:50% 100%;transform:scale(var(--cls,1));transition:opacity .2s;}
+  #sol-ulay{position:absolute;left:0;top:0;width:0;height:0;z-index:7;pointer-events:none;}
+  #sol-ulay .sol-unit{left:0 !important;top:0 !important;transform-origin:50% 100%;}
+  #canvas:not(.sol-ov) #sol-ulay{display:none;}
   .sol-unit.sol-lx{opacity:0;}
   /* an enlarged body's own (its children: moons of a planet, satellites of a moon) come up beside it */
   html:not(.mobile) #canvas.focus-mode #world .node.sol-flank .node-card{opacity:1 !important;}
@@ -532,13 +554,13 @@ function slab(W, H){
 /* rings, spokes, sun links, glows, the systems' chips */
 /* a ring's click target (Luke, round 9: a click on an orbit enlarges its body): a wide transparent
    stroke under the bodies; on a shared ring, the body on it nearest the click */
-function hitR(r, tag, a, g){ var h=el(tag, Object.assign({'class':'sol-hit'}, a)); g.insertBefore(h, r.e); h._r=r; r.h=h; return r; }
+function hitR(r, tag, a, g){ var h=el(tag, Object.assign({'class':'sol-hit sol-rgh'}, a)); g.insertBefore(h, r.e); h._r=r; r.h=h; return r; }
 function ringAt(e){ var h=e.target, r=h && h._r; if(!r || !h.classList || !h.classList.contains('sol-hit')) return null;
   if(r.sp) return window._focusedNodeId===r.sp.b ? r.sp.a : r.sp.b;     /* a spoke (round 10): to its far end — outward, or back in from the body it leads to */
   if(r.ids.length<2) return r.ids[0];
   var m=svg && svg.getScreenCTM(), p=m ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : {x:0, y:0}, x=p.x, y=p.y, best=null, bd=Infinity;
   r.ids.forEach(function(i){ var b=B[i], d=Math.hypot(b.rx-x, b.ry-y); if(d<bd){ bd=d; best=i; } }); return best; }
-['pointerover', 'pointerout'].forEach(function(t){ document.addEventListener(t, function(e){ var h=e.target; if(h && h._r && h._r.e) h._r.e.classList.toggle('sol-hot', t==='pointerover'); }); });
+['pointerover', 'pointerout'].forEach(function(t){ document.addEventListener(t, function(e){ var h=e.target; if(h && h._r && h._r.e){ h._r.e.classList.toggle('sol-hot', t==='pointerover'); if(h._r.b) h._r.b.classList.toggle('sol-hot', t==='pointerover'); } }); });
 /* ── a resting pointer on an orbit or a spoke (round 10, outline mode's rules: blocks.py LINE_NAV_GLUE — a
    300ms dwell, 6px slop, never a line slid under a still pointer; its ends stay, the rest fades; the same
    .line-tip label at the pointer, following it, gone on leaving) names it: a spoke its two ends, an orbit
@@ -568,9 +590,31 @@ document.addEventListener('pointerout', function(e){ var h=e.target; if(h && h._
 ['wheel', 'pointerdown', 'keydown'].forEach(function(t){ window.addEventListener(t, function(){ if(LH.on || LH.t) lclear(); }, true); });
 document.addEventListener('click', function(e){ if(!e.target || !e.target._r || de.classList.contains('alto-editing') || !desk()) return;
   var id=ringAt(e); if(!id) return; e.stopPropagation(); e.preventDefault(); if(window.enterFocus) window.enterFocus(id); }, true);
+/* Retro (Luke, 2026-10-21): the coloured bands ARE the orbits. Each orbit is a band — a wide ring, edge to edge
+   with its neighbours (its edges halfway to the orbits either side), so a system is still the poster's stepped
+   discs, light near the sun, dark at its reach — and the bodies sit on and travel along their bands. A band is
+   its orbit's click and hover target (the same travel, label and highlight as a ring); the thin rings are not
+   drawn in Retro. A comet's band is its ellipse, widened. Under every line (and every spoke's own target). */
+function hexMix(a, b, t){ var A=parseInt(a.slice(1), 16), Z=parseInt(b.slice(1), 16), o='#';
+  [16, 8, 0].forEach(function(sh){ var x=(A>>sh)&255, y=(Z>>sh)&255; o+=('0'+Math.round(x+(y-x)*t).toString(16)).slice(-2); }); return o; }
+function oBands(g, si){
+  var by={}, mine=rings.filter(function(r){ var b=B[r.c]; return b && b.si===si && !r.b; });
+  mine.forEach(function(r){ (by[r.c]=by[r.c]||[]).push(r); });
+  var gb=el('g', {'class':'sol-obands'}), dep=function(id){ var k=0; while(B[id] && B[id].p){ id=B[id].p; k++; } return k; };
+  Object.keys(by).sort(function(a, b){ return dep(a)-dep(b); }).forEach(function(c){
+    var C=B[c], L=by[c].filter(function(r){ return r.r!=null; }).sort(function(a, b){ return a.r-b.r; }), n=L.length, sun=!C.p,
+      c0=sun ? '#2b64a6' : '#4a86c6', c1=sun ? '#061224' : '#1a3e70';
+    L.forEach(function(r, j){ var gi=j ? r.r-L[j-1].r : (n>1 ? L[1].r-r.r : 48), go=j<n-1 ? L[j+1].r-r.r : gi;
+      var lo=j ? (L[j-1].r+r.r)/2 : Math.max(C.d/2+8, r.r-gi/2), hi=j<n-1 ? (r.r+L[j+1].r)/2 : r.r+Math.max(18, go/2), w=Math.max(12, hi-lo);
+      r.b=el('circle', {'class':'sol-hit sol-oband'+(sun ? '' : ' sol-m'), r:f2((lo+hi)/2), style:'--bw:'+f2(w)+'px;--bc:'+hexMix(c0, c1, n>1 ? j/(n-1) : .4)}, gb); r.b._r=r; });
+    by[c].filter(function(r){ return r.r==null && r.e; }).forEach(function(r){   /* a comet's */
+      r.b=el('ellipse', {'class':'sol-hit sol-oband sol-ocomet', rx:r.e.getAttribute('rx'), ry:r.e.getAttribute('ry'), style:'--bw:16px;--bc:#173a66'}, gb); r.b._r=r; });
+  });
+  g.insertBefore(gb, g.firstChild);
+}
 function draw(W, H){
   var old=document.getElementById('solar-svg'); if(old) old.remove();
-  world.querySelectorAll('.sol-unit').forEach(function(e){ e.remove(); });
+  document.querySelectorAll('#world .sol-unit,#sol-ulay .sol-unit').forEach(function(e){ e.remove(); });
   svg=el('svg', {id:'solar-svg', width:W, height:H, 'aria-hidden':'true'});
   var rv=document.getElementById('river-svg');
   world.insertBefore(svg, rv && rv.parentNode===world ? rv : world.firstChild);
@@ -585,10 +629,6 @@ function draw(W, H){
     /* the unit's border (round 10): a soft hue ring in the unit's colour (System look); an Oort cloud, a faint
        shell of specks, in the Star chart look (CSS picks one). It goes round the system, with its sun. */
     if(s.R){ var BR=s.R+28, bg=el('g', {'class':'sol-bd'}, g), OB=BR*1.5;
-      SY.forEach(function(o, oi){ var ob=B[o.sun]; if(oi===si || !ob || !o.R) return; var dd=Math.hypot(ob.hx-sun.hx, ob.hy-sun.hy), oR=o.R+28;
-        OB=Math.min(OB, dd*BR/(BR+oR)-6); });   /* (the galaxy turns rigidly: the suns' distances hold) */
-      OB=Math.max(OB, sun.d/2+60);
-      [1, .83, .68, .56, .45, .35, .27].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(OB*f)}, bg); });   /* Retro: the system's reach in stepped bands, a hard edge into black */
       /* Retro's imperial sigil round the sun (Luke: Foundation's Empire): a ring of rays, long and short, between two hairlines */
       var sr=sun.d/2, sg=el('g', {'class':'sol-sig'}, bg), r1=sr+22, r2=sr+46;
       el('circle', {r:f2(r1-6)}, sg); el('circle', {r:f2(r2+8)}, sg); el('circle', {'class':'w', r:f2(r2+20)}, sg);
@@ -609,12 +649,13 @@ function draw(W, H){
         rings.push(hitR({c:b.p, ids:[id], ox:b.hx-p.hx-c0[0], oy:b.hy-p.hy-c0[1], rot:b.orb.rot*180/Math.PI,
           e:el('ellipse', Object.assign({'class':'sol-ring sol-comet'+(b.role==='planet' ? '' : ' sol-m')}, ea), g)}, 'ellipse', ea, g));
       } else { var r=Math.hypot(b.hx-p.hx, b.hy-p.hy), k=b.p+'|'+Math.round(r/2);
-        if(!seen[k]){ seen[k]=rings.length; rings.push(hitR({c:b.p, ids:[id], e:el('circle', {'class':'sol-ring'+(b.role==='planet' ? '' : ' sol-m'), r:f2(r)}, g)}, 'circle', {r:f2(r)}, g)); }
+        if(!seen[k]){ seen[k]=rings.length; rings.push(hitR({c:b.p, r:r, ids:[id], e:el('circle', {'class':'sol-ring'+(b.role==='planet' ? '' : ' sol-m'), r:f2(r)}, g)}, 'circle', {r:f2(r)}, g)); }
         else rings[seen[k]].ids.push(id); }
       var sp={a:b.p, b:id, e:[el('line', {'class':'sol-spoke'}, g)]}; sp.spoke=1;
       sp.bn=[-2, -1, 1, 2].map(function(k){ var l=el('line', {'class':'sol-bun'}, g); l._k=k; return l; });   /* Retro: the spoke as a beam of parallel lines */ sp.h=el('line', {'class':'sol-hit'}); g.insertBefore(sp.h, g.firstChild);   /* under every ring's: where they cross, the ring wins */ sp.h._r={sp:sp, e:sp.e[0]};
       spokes.push(sp);
     });
+    oBands(g, si);
     /* one chip per unit (a district of several systems: over all of them) */
     var U=null; (S.units||[]).forEach(function(q){ if(q.suns && q.suns[0]===s.sun) U=q; });
     var pm=(typeof PHASE_META!=='undefined') ? PHASE_META[s.unit] : null, lbl=(U && U.label) || s.label || (pm ? pm.label : ''), bb=(U && U.bbox) || s.bbox;
@@ -716,13 +757,14 @@ function apply(all){
       b.rx=x; b.ry=y; moved[id]=1;
       if(b.glow){ b.glow.setAttribute('cx', x); b.glow.setAttribute('cy', y); }
       if(b.bd) b.bd.setAttribute('transform', 'translate('+x+' '+y+')');
-      if(b.ch && b.ch.isConnected){ b.ch.style.left=Math.round(x+b.ch._ox)+'px'; b.ch.style.top=Math.round(y+b.ch._oy)+'px'; }
+      if(b.ch && b.ch.isConnected){ b.ch.style.left=Math.round(x+b.ch._ox)+'px'; b.ch.style.top=Math.round(y+b.ch._oy)+'px'; if(OV) ulq=1; }
       if(b.mk && b.mk.isConnected){ var w=b.mk._w; b.mk.setAttribute('x', f2(x-w/2+1)); b.mk.setAttribute('y', f2(y-w/2+1)); }
     }
   });
+  if(ulq){ ulq=0; ulay(); }
   if(!all && !any) return;
   rings.forEach(function(r){ if(!moved[r.c]) return; var cx=f2(B[r.c].rx+(r.ox||0)), cy=f2(B[r.c].ry+(r.oy||0));
-    [r.e, r.h].forEach(function(e){ if(!e) return; e.setAttribute('cx', cx); e.setAttribute('cy', cy); if(r.rot!=null) e.setAttribute('transform', 'rotate('+f2(r.rot)+' '+cx+' '+cy+')'); }); });
+    [r.e, r.h, r.b].forEach(function(e){ if(!e) return; e.setAttribute('cx', cx); e.setAttribute('cy', cy); if(r.rot!=null) e.setAttribute('transform', 'rotate('+f2(r.rot)+' '+cx+' '+cy+')'); }); });
   spokes.concat(sunl).forEach(function(s){
     if(!moved[s.a] && !moved[s.b]) return;
     var g=seg(B[s.a], B[s.b], 3, 3);
@@ -755,7 +797,7 @@ function scrolling(){ SCR=1; clearTimeout(scrT); scrT=setTimeout(function(){ SCR
 window.addEventListener('wheel', scrolling, {capture:true, passive:true});
 document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') scrolling(); }, {capture:true, passive:true});
 function hold(){
-  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN || SCR) return true;
+  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN || SCR || RD) return true;
   if(window._focusedNodeId || document.querySelector('#canvas.focus-mode,#canvas.edge-hover,#detail-page.visible')) return true;
   return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
 }
@@ -1032,17 +1074,22 @@ setInterval(heal, 700);
    system, depth first), on into the next system's at the ends. A diagonal is its up / down.
    Returns id itself to stay (the engine then does nothing), null off the chart (a phone). ──── */
 var UPFROM={};
-window._altoSolarNav=function(id, dir){
+function navTo(id, dir){
   var a=B[id]; if(!a || !a.n || !desk()) return null;
   var d=String(dir||'').charAt(0), j, nx=null;
+  if(LOCK) return ways(id).k[d] || id;            /* Spokes only: the spoke that way (the Spokes only block below) */
   if(d==='n'){ if(a.p && B[a.p]){ UPFROM[a.p]=id; nx=a.p; } }
   else if(d==='s'){ var u=UPFROM[id]; if(u && B[u] && B[u].p===id && B[u].n) nx=u;
     else for(j=0;j<ORD.length;j++){ if(B[ORD[j]].p===id && B[ORD[j]].n){ nx=ORD[j]; break; } } }
   else if(d==='e' || d==='w'){ var i=ORD.indexOf(id), st=d==='e' ? 1 : -1;
     for(j=i+st;j>=0 && j<ORD.length;j+=st){ var b=B[ORD[j]]; if(b.role===a.role && b.n){ nx=ORD[j]; break; } } }
   return nx || id;
-};
-var levelNav=window._altoSolarNav;     /* (unwrapped: solar_fly.py wraps the global to fly the hop) */
+}
+/* Spokes only: never a jump — a ride along the spoke that way (none that way: a gentle word); the engine stays put */
+window._altoSolarNav=function(id, dir){
+  if(LOCK && ready && desk() && B[id]){ var to=navTo(id, dir); if(to && to!==id) ride(id, to); else nope(); return id; }
+  return navTo(id, dir); };
+var levelNav=navTo;     /* (unwrapped: solar_fly.py wraps the global to fly the hop) */
 window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight) */
 /* ── navigation hints (round 11; Luke on round 10's glow and badges: "just not adequate"). With a body
    enlarged, each place an arrow key goes (with Spokes only: a scroll that way) says so where it is: a pill
@@ -1052,27 +1099,29 @@ window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight)
    it, with a pointer (a click goes there). Up a level: a filled key; down: a ringed key; same level: a
    plain key. Built once per focus (none in a flight: back on landing, faded in); after that only the
    arcs and edge pills move — on the canvas's scroll and the flank's glide, a frame at most — all in
-   world px. Spokes only with nothing enlarged: one pill on the body a scroll enlarges. ── */
-var NH={k:undefined, t:[], L:null, g:null, f:null, q:0}, NHD={n:['↑', 'Up a level', 'Scroll up'], s:['↓', 'Down a level', 'Scroll down'],
-  w:['←', 'Previous', 'Scroll left'], e:['→', 'Next', 'Scroll right'], o:['⇕', 'Scroll to enlarge', 'Scroll to enlarge']};
+   world px. Spokes only: a pill on every body one spoke away and on nothing else — the way (arrow, or a scroll
+   that way) that rides there, else a click — each way drawn straight along its spoke; with nothing enlarged,
+   one pill where you are. ── */
+var NH={k:undefined, t:[], L:null, g:null, f:null, q:0}, NHD={n:['↑', 'Up a level', 'Ride'], s:['↓', 'Down a level', 'Ride'],
+  w:['←', 'Previous', 'Ride'], e:['→', 'Next', 'Ride'], c:['•', 'Click to ride', 'Click to ride'], o:['⇕', 'Scroll to enlarge', 'Scroll to enlarge']};
 function nhPill(id, d, wd){ var p=document.createElement('span'), D=NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
   p.innerHTML='<em>➜</em><kbd></kbd><i></i><b></b>'; p.children[1].textContent=D[0]; p.children[2].setAttribute('data-a', wd||D[1]); p.children[2].setAttribute('data-b', D[2]);
   p.children[3].textContent=(b.lb && b.lb.getAttribute('data-l'))||''; return p; }
 function nhOn(id, d, side, wd){ var n=B[id].n, p=nhPill(id, d, wd);
   p.setAttribute('data-p', side); n.classList.add('sol-hint'); n.appendChild(p); return p; }
 function hints(){
-  var dp=document.getElementById('detail-page'), ok=ready && desk() && world && !(window._altoSolarFlight && window._altoSolarFlight()) && !(dp && dp.classList.contains('visible')) && !de.classList.contains('alto-editing');
+  var dp=document.getElementById('detail-page'), ok=ready && desk() && world && !RD && !(window._altoSolarFlight && window._altoSolarFlight()) && !(dp && dp.classList.contains('visible')) && !de.classList.contains('alto-editing');
   var f=ok && window._focusedNodeId, o=null; if(f && !(B[f] && B[f].n && B[f].n.classList.contains('focused'))) f=null;
-  if(ok && !f && LOCK) o=nearestMid();
-  var k=f ? 'f'+f : o ? 'o'+o : ''; if(k===NH.k) return; NH.k=k;
+  if(f) LASTF=f; else if(ok && LOCK) o=home();
+  var k=(LOCK ? 'L' : '')+(f ? 'f'+f : o ? 'o'+o : ''); if(k===NH.k) return; NH.k=k;
   NH.t.forEach(function(t){ t.n.classList.remove('sol-hint'); t.p.remove(); if(t.q) t.q.remove(); if(t.w) t.w.remove(); }); NH.t=[]; NH.f=f || null;
   if(o){ NH.t.push({id:o, n:B[o].n, p:nhOn(o, 'o', 'b')}); return; }
   if(!f) return;
   if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; world.appendChild(NH.L); }
   if(!NH.g || !NH.g.isConnected){ NH.g=el('svg', {id:'sol-way', width:1, height:1, 'aria-hidden':'true'}); world.insertBefore(NH.g, svg && svg.parentNode===world ? svg.nextSibling : world.firstChild); }
-  var F=B[f];
-  ['n', 's', 'w', 'e'].forEach(function(d){ var to=levelNav(f, d), b=B[to]; if(!to || to===f || !b || !b.n || NH.t.some(function(t){ return t.id===to; })) return;
-    var wd=(d==='e' || d==='w') && b.si!==F.si && (d==='e' ? 'Next system' : 'Previous system'), q=nhPill(to, d, wd); q.style.cssText=(b.n.style.cssText.match(/--u:[^;]*/)||[''])[0]; NH.L.appendChild(q);
+  var F=B[f], Wy=LOCK ? ways(f) : null;
+  (Wy ? Wy.nb.map(function(to){ return [Wy.d[to]||'c', to]; }) : ['n', 's', 'w', 'e'].map(function(d){ return [d, levelNav(f, d)]; })).forEach(function(dt){ var d=dt[0], to=dt[1], b=B[to]; if(!to || to===f || !b || !b.n || NH.t.some(function(t){ return t.id===to; })) return;
+    var wd=!Wy && (d==='e' || d==='w') && b.si!==F.si && (d==='e' ? 'Next system' : 'Previous system'), q=nhPill(to, d, wd); q.setAttribute('data-id', to); q.style.cssText=(b.n.style.cssText.match(/--u:[^;]*/)||[''])[0]; NH.L.appendChild(q);
     NH.t.push({id:to, d:d, n:b.n, p:nhOn(to, d, 'b', wd), q:q, w:el('path', {'data-k':d}, NH.g)}); });
   nhPlace();
 }
@@ -1085,7 +1134,7 @@ function nhPlace(){
   function clear(q){ var X=Math.max(q[0], Math.min(q[2], cx)), Y=Math.max(q[1], Math.min(q[3], cy));   /* a box inside the window, off the disc and off the pills placed */
     return q[0]>=x0-30 && q[2]<=x1+30 && q[1]>=y0-24 && q[3]<=y1+30 && Math.hypot(X-cx, Y-cy)>rf && !done.some(function(o){ return ov2(o, q); }); }
   NH.t.forEach(function(t){ var b=B[t.id], dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, rb=b.d/2+6, mx=(cx+b.rx)/2, my=(cy+b.ry)/2, qx=mx, qy=my;
-    if(t.d==='e' || t.d==='w'){ var P=b.p===F.p && B[F.p], ax=P ? mx-P.rx : dy, ay=P ? my-P.ry : -dx, al=Math.hypot(ax, ay)||1; qx+=ax/al*L*.2; qy+=ay/al*L*.2; }   /* bowed away from what both orbit */
+    if(!LOCK && (t.d==='e' || t.d==='w')){ var P=b.p===F.p && B[F.p], ax=P ? mx-P.rx : dy, ay=P ? my-P.ry : -dx, al=Math.hypot(ax, ay)||1; qx+=ax/al*L*.2; qy+=ay/al*L*.2; }   /* bowed away from what both orbit */
     var u=function(x, y, X, Y, r){ var l=Math.hypot(X-x, Y-y)||1; return [f2(x+(X-x)/l*r), f2(y+(Y-y)/l*r)]; }, s=u(cx, cy, qx, qy, rf), e=u(b.rx, b.ry, qx, qy, rb);
     t.w.setAttribute('d', L>rf+rb+4 ? 'M'+s+'Q'+f2(qx)+' '+f2(qy)+' '+e : 'M0 0');
     var w=t.pw||(t.pw=t.p.offsetWidth||180), h=24, r=b.d/2, bx={b:[b.rx-w/2, b.ry+r+6, b.rx+w/2, b.ry+r+6+h], a:[b.rx-w/2, b.ry-r-6-h, b.rx+w/2, b.ry-r-6],
@@ -1109,7 +1158,7 @@ setInterval(hints, 250);
 document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') nhQ(); }, {capture:true, passive:true});
 window.addEventListener('resize', nhQ);
 ['pointerdown', 'mousedown', 'click'].forEach(function(t){ document.addEventListener(t, function(e){   /* an edge pill: a click hops there (before the board takes it for a click on empty space) */
-  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh'); if(!p) return; e.stopPropagation(); e.preventDefault(); if(t==='click') lockStep(p.getAttribute('data-k')); }, true); });
+  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh'); if(!p) return; e.stopPropagation(); e.preventDefault(); if(t==='click'){ if(LOCK) rideTo(p.getAttribute('data-id')); else lockStep(p.getAttribute('data-k')); } }, true); });
 /* ── edit mode changed the outline (manual_edit.py calls this before it lays
    the page out again with the live tables {kids, parent, num, seqs, act}): the
    systems are planned again here — SOLAR_PLAN_JS, solar.py's solar_plan in
@@ -1167,14 +1216,32 @@ function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
   if(g>0){ var ix=w<=cw ? Math.max(0, Math.min(cw-w, o.tx)) : Math.max(cw-w, Math.min(0, o.tx)), iy=h<=ch ? Math.max(0, Math.min(ch-h, o.ty)) : Math.max(ch-h, Math.min(0, o.ty));
     o.tx+=(ix-o.tx)*g; o.ty+=(iy-o.ty)*g; }
   return o; }
-function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); camTell(); reRaster(o.s); }
+function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); ulay(); camTell(); reRaster(o.s); }
+/* ── the systems' names, zoomed out (Luke, 2026-10-21: the units' labels "look glitchy" in Safari). On the scaled
+   board they were text inside a layer drawn at one scale and shown at another (and moved by fractions of a pixel as
+   their suns turned), so thin lettering lost strokes. Zoomed out they leave the board for a layer of their own over
+   it (#sol-ulay, unscaled), each placed on whole device pixels at its point of the board, at the size on screen it
+   had (the board's scale times --cls); back on the board at full size. Their left / top stay the board's. ── */
+var UL=null, ulq=0;
+function ulay(){
+  var c=cvs(); if(!c || !world) return;
+  if(!OV){ if(UL) chips.forEach(function(ch){ if(ch.parentNode===UL){ ch.style.transform=''; world.appendChild(ch); } }); return; }
+  if(!UL || !UL.isConnected){ UL=document.createElement('div'); UL.id='sol-ulay'; UL.setAttribute('aria-hidden', 'true'); c.appendChild(UL); }
+  var z=(parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1), k=Math.round((1+.15*(1-OV.s))*1e4)/1e4, q=function(v){ return Math.round(v*z)/z; };
+  chips.forEach(function(ch){ if(!ch.isConnected) return; if(!ch._wh) ch._wh=[ch.offsetWidth, ch.offsetHeight];
+    if(ch.parentNode!==UL) UL.appendChild(ch);
+    var x=OV.tx+(parseFloat(ch.style.left)+ch._wh[0]/2)*OV.s, y=OV.ty+(parseFloat(ch.style.top)+ch._wh[1])*OV.s;
+    ch.style.transform='translate('+q(x)+'px,'+q(y)+'px) translate(-50%,-100%) scale('+k+')'; });
+}
 /* (round 10, the Chrome flash) a will-change layer is never re-rastered as its scale changes: zoomed out from fit,
    Chrome kept the whole world (since round 9's galaxy ~20,000 px square) at full scale, ran out of tiles and showed
    frames with bodies, sky and bars missing. Once a zoom settles at a scale far from the last raster's, the layer is
-   let go for two frames and taken again, so it is drawn afresh at the scale on screen. */
+   let go for two frames and taken again, so it is drawn afresh at the scale on screen. Any settled change of scale,
+   not only a far one (Luke, 2026-10-21: the units' names "look glitchy" in Safari): a layer drawn at one scale and
+   shown at another resamples its text, and Retro's thin, widely spaced capitals lost strokes to it. */
 var RS={t:0, s:1};
 function reRaster(s){ clearTimeout(RS.t); if(!world) return;
-  RS.t=setTimeout(function(){ RS.t=0; var w=world; if(!w || !OV || Math.abs(Math.log(OV.s/RS.s))<.25) return;
+  RS.t=setTimeout(function(){ RS.t=0; var w=world; if(!w || !OV || Math.abs(Math.log(OV.s/RS.s))<.01) return;
     var s2=OV.s; w.style.willChange='auto';
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ w.style.willChange=''; RS.s=s2; }); }); }, 140); }
 function ovHold(on){
@@ -1212,7 +1279,7 @@ function ovZoom(s, fx, fy, anim){
 function ovLeave(p, instant, then){
   if(!OV) return; var c=cvs(), o=OV, off=woff(c), cw=c.clientWidth, ch=c.clientHeight;
   if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
-  OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange='';
+  OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange=''; ulay();
   var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
   var fin=function(){ world.style.transform=''; ovVars(null); ovHold(false);
     var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
@@ -1285,7 +1352,7 @@ window.addEventListener('wheel', function(e){
     else ZS.acc=0;
     if(e.deltaY<=0) return;
   }
-  ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), LOCK ? (function(c){ return {x:c.clientWidth/2, y:c.clientHeight/2}; })(cvs()) : local(e));   /* Spokes only: a zoom about the middle, never a move */
+  ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), local(e));
 }, {passive:false, capture:true});
 /* Safari: a trackpad pinch is gesturestart / gesturechange / gestureend */
 document.addEventListener('gesturestart', function(e){
@@ -1326,7 +1393,7 @@ window.addEventListener('keydown', function(e){
   e.preventDefault(); showDetail('node', id);
 });
 window.addEventListener('keydown', function(e){
-  if(!ready || !desk() || (document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)))) return;
+  if(!ready || !desk() || locked() || (document.activeElement && (document.activeElement.isContentEditable || /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)))) return;   /* (Spokes only: no zoom) */
   var k=e.key, mod=e.metaKey || e.ctrlKey, hit=false;
   if(mod && k==='-' && !window._focusedNodeId && !document.querySelector('#summary-wrap.open,#detail-page.visible')){ ovZoom((OV ? OV.s : 1)/1.6, null, null, true); hit=true; }
   else if(OV && mod && (k==='=' || k==='+')){ if(OV.s*1.6>=.97) ovLeave(); else ovZoom(OV.s*1.6, null, null, true); hit=true; }
@@ -1429,25 +1496,142 @@ var IC={stars:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true
   play:'<svg class="sol-ic-play" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M6 4.2v11.6c0 .6.7 1 1.2.6l8.6-5.8c.4-.3.4-1 0-1.2L7.2 3.6C6.7 3.3 6 3.6 6 4.2z"/></svg>'};
 IC.fly=IC_EXTRA.fly; IC.lock=IC_EXTRA.lock;
 /* ── round 10: Flights on/off (#6: off = straight there, as in the System look; solar_fly.py honours
-   window._altoFlyOff) and Spokes only (#9: no free scrolling; the wheel / trackpad steps along the spokes
-   as the arrows do — down: out to a child, up: in to what it orbits, sideways: the same level). Both kept
-   per timeline per viewer, like the look and the motion. ── */
+   window._altoFlyOff), kept per timeline per viewer, like the look and the motion. ── */
 window._altoFlyOff=pref('fly')==='0';
-var LOCK=pref('lock')==='1', LW={t:0, x:0, y:0, done:false};
+/* ── Spokes only (Luke, 2026-10-21: "travelling only by spokes"). On, there is no free camera at all: no
+   panning, no zoom, no dragging the view, no click away. You are always at a body. An arrow, a scroll that
+   way, or a click on a body one spoke away (or on that spoke) RIDES the spoke there: the enlarged card goes
+   home, a rider runs along the spoke (Retro: the ship), the view following it like a train on its track and
+   the orbits holding still, and the body is enlarged on arrival. One ride reaches only what the body is
+   joined to: what it orbits, what orbits it, and (a sun) the suns its system is linked to. The four ways go
+   to the joined bodies lying most that way on the screen, one body each; the rest by a click. Anything else
+   does nothing but say so. Kept per timeline per viewer. ── */
+var LOCK=pref('lock')==='1', LW={t:0, x:0, y:0, done:false}, RD=null, RQ=[], LASTF=null;
 function lockSync(){ var c=cvs(); if(c) c.classList.toggle('sol-lock', !!(LOCK && ready && desk())); }
-function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); lockSync(); ctl(); if(LOCK && !window._focusedNodeId) lockStep(null); return LOCK; }
-/* the body nearest the middle of the window: where Spokes only puts you when nothing is enlarged */
+function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); if(LOCK && OV) ovLeave(null, true); if(!LOCK){ RQ=[]; if(RD) rideEnd(true); } lockSync(); ctl(); if(LOCK && !window._focusedNodeId) lockStep(null); return LOCK; }
+function locked(){ return LOCK && ready && desk() && !de.classList.contains('alto-editing') && !printing; }
+/* the body nearest the middle of the window: where Spokes only boards when there is no body yet */
 function nearestMid(){ var c=cvs(); if(!c) return null; var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, best=null, bd=Infinity;
   ORD.forEach(function(id){ var n=B[id].n; if(!n) return; var q=n.getBoundingClientRect(); if(!q.width) return; var d=Math.hypot(q.left+q.width/2-cx, q.top+q.height/2-cy); if(d<bd){ bd=d; best=id; } });
   return best; }
-/* no dragging the board about with Spokes only: a press on empty space does nothing (bodies, lines, buttons still work) */
-document.addEventListener('pointerdown', function(e){ if(!LOCK || !ready || !desk()) return; var c=cvs(), t=e.target;
-  if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (turning the 3D view is not a move) */
-  e.preventDefault(); e.stopImmediatePropagation(); }, true);
-document.addEventListener('mousedown', function(e){ if(!LOCK || !ready || !desk()) return; var c=cvs(), t=e.target;
-  if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (turning the 3D view is not a move) */
-  e.preventDefault(); e.stopImmediatePropagation(); }, true);
-window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
+/* where you are: the enlarged body, else the last one (Esc only lets the card go home), else the one in the middle */
+function home(){ var f=window._focusedNodeId; if(f && B[f] && B[f].n) return f; return (LASTF && B[LASTF] && B[LASTF].n) ? LASTF : nearestMid(); }
+/* what a body is joined to by a drawn spoke: what it orbits, what orbits it, the suns its sun is linked to */
+function joined(id){ var a=B[id], o=[]; if(!a) return o;
+  function add(j){ if(j && j!==id && B[j] && B[j].n && o.indexOf(j)<0) o.push(j); }
+  add(a.p); spokes.forEach(function(s){ if(s.a===id) add(s.b); });
+  sunl.forEach(function(s){ if(s.a===id) add(s.b); else if(s.b===id) add(s.a); });
+  return o; }
+/* a body's place on the screen's axes (world px; the 3D scene: its projection) */
+function spot(id){ if(de.classList.contains('sk-3d') && window._altoSolar3D && window._altoSolar3D.project){ var q=window._altoSolar3D.project(id); if(q) return [q.x, q.y]; }
+  var b=B[id], n=b.n; return [b.rx+((n && n._fx)||0), b.ry+((n && n._fy)||0)]; }
+/* the four ways from a body: each to the joined body lying most that way (within 80°), one body each, nearest
+   angle first. {nb: joined, k: way -> id, d: id -> way} */
+var WAYS={e:0, s:90, w:180, n:-90};
+function ways(id){ var nb=joined(id), c=[], k={}, d={}; if(!B[id]) return {nb:nb, k:k, d:d}; var p=spot(id);
+  nb.forEach(function(j){ var q=spot(j), an=Math.atan2(q[1]-p[1], q[0]-p[0])*180/Math.PI;
+    for(var w in WAYS){ var df=Math.abs(((an-WAYS[w])%360+540)%360-180); if(df<=80) c.push([df, w, j]); } });
+  c.sort(function(x, y){ return x[0]-y[0]; });
+  c.forEach(function(x){ if(k[x[1]] || d[x[2]]) return; k[x[1]]=x[2]; d[x[2]]=x[1]; });
+  return {nb:nb, k:k, d:d}; }
+/* the drawn line between two joined bodies (a spoke or a sun link) */
+function rideLine(a, b){ var r=null; spokes.concat(sunl).some(function(s){ if((s.a===a && s.b===b) || (s.a===b && s.b===a)){ r=s.e[0]; return true; } }); return r; }
+/* the rider: a bright bead (Retro: the ship, solar_fly.py's art), on the spoke, over the lines, under the bodies */
+/* Retro's ship (Luke, 2026-10-21: "more of a spaceship ... inspiration from Foundation ... more regal"): an
+   Imperial-style vessel — a long, slender, symmetrical monolith drawn to a spear point, a great gold ring
+   standing round it amidships (its far half behind the hull, its near half in front), small swept vanes
+   astern, a gold keel and seams, a warm drive glow. Original art; nose along +x, about 70 px long.
+   solar_fly.py flies the same ship (window._altoSolarShip). */
+var SHIP='<ellipse class="sh-glow" cx="-33" cy="0" rx="10" ry="3.2"/>'+
+  '<ellipse class="sh-ring" cx="-8" cy="0" rx="2.6" ry="10.5"/>'+
+  '<path class="sh-fin" d="M-17 -3.6 L-27 -8.4 L-31.5 -8.4 L-28.5 -3 Z M-17 3.6 L-27 8.4 L-31.5 8.4 L-28.5 3 Z"/>'+
+  '<path class="sh-hull" d="M37 0 L18 -2.1 L-6 -3.7 L-24 -3.7 L-30 -1.9 L-30 1.9 L-24 3.7 L-6 3.7 L18 2.1 Z"/>'+
+  '<path class="sh-deck" d="M16 0 L-4 -1.8 L-22 -1.8 L-22 1.8 L-4 1.8 Z"/>'+
+  '<path class="sh-gold" d="M34 0 L-27 0 M14 -2.3 L14 2.3 M-20 -3.7 L-20 3.7"/>'+
+  '<path class="sh-ring sh-near" d="M-8 -10.5 A2.6 10.5 0 0 1 -8 10.5"/>'+
+  '<circle class="sh-eng" cx="-30.6" cy="0" r="1.5"/>';
+window._altoSolarShip=SHIP;
+var RDg=null;
+function rider(){ if(RDg && RDg.isConnected && RDg.parentNode===svg) return RDg; if(!svg) return null;
+  RDg=el('g', {'class':'sol-rider', 'aria-hidden':'true'}, svg);
+  el('circle', {r:15, 'class':'sol-rh'}, RDg); el('circle', {r:5.5, 'class':'sol-rc'}, RDg);
+  var sh=el('g', {'class':'sol-ship', transform:'scale(1.5)'}, RDg); sh.innerHTML=SHIP; return RDg; }
+function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
+function ride(from, to){
+  if(!locked() || !B[from] || !B[to] || !B[to].n) return false;
+  if(RD){ return false; }
+  if(OV) ovLeave(null, true);
+  lclear(); LASTF=to;
+  var g=camGet();
+  if(de.classList.contains('sk-3d') || reduced || !g || !svg){ enter(to); return true; }   /* the 3D scene's camera glides there itself; reduced motion: straight there */
+  var A=B[from], Z=B[to], L=Math.hypot(Z.rx-A.rx, Z.ry-A.ry), ms=Math.round(Math.min(2600, Math.max(900, 650+L*.55))*(RETRO ? 1.25 : 1));
+  if(window._focusedNodeId && window.exitFocus) window.exitFocus();
+  var ln=rideLine(from, to); if(ln) ln.classList.add('sol-ride');
+  RD={from:from, to:to, t0:performance.now(), ms:ms, x0:g.cx, y0:g.cy, ln:ln};
+  window._altoFlyMs=ms+480;                              /* (the engine's hop queue waits for the arrival) */
+  var r=rider(); if(r){ r.setAttribute('transform', 'translate('+f2(A.rx)+' '+f2(A.ry)+')'); r.classList.add('on'); }
+  de.classList.add('sol-riding');
+  requestAnimationFrame(rideF); return true;
+}
+function rideF(now){
+  var R=RD; if(!R) return;
+  if(!locked() || window._focusedNodeId || document.querySelector('#detail-page.visible')) return rideEnd(!window._focusedNodeId);   /* someone else took the focus or the switch: theirs */
+  var k=Math.min(1, Math.max(0, (now-R.t0)/R.ms)), ez=window._altoEase || function(x){ return x*x*(3-2*x); }, e=ez(k);
+  var A=B[R.from], Z=B[R.to], dx=Z.rx-A.rx, dy=Z.ry-A.ry, px=A.rx+dx*e, py=A.ry+dy*e;
+  if(window._altoSolarCam) window._altoSolarCam.set(R.x0+(Z.rx-R.x0)*e, R.y0+(Z.ry-PAD-R.y0)*e, 1);   /* the view behind the rider, from where it was to the body */
+  var r=rider(); if(r) r.setAttribute('transform', 'translate('+f2(px)+' '+f2(py)+') rotate('+f2(Math.atan2(dy, dx)*180/Math.PI)+')');
+  if(k>=1) return rideEnd(true);
+  requestAnimationFrame(rideF);
+}
+function rideEnd(arrive){
+  var R=RD; RD=null; if(!R) return;
+  if(R.ln) R.ln.classList.remove('sol-ride'); if(RDg) RDg.classList.remove('on'); de.classList.remove('sol-riding');
+  if(arrive) enter(R.to);
+  setTimeout(rideNext, (window._altoFlyMs=520));
+}
+function rideNext(){ if(RD || !RQ.length) return; var d=RQ.shift(), f=window._focusedNodeId; if(!f || !LOCK){ RQ=[]; return; } window._altoSolarNav(f, d); }
+/* anything not one spoke away: nothing happens, and it says so (the joined bodies' pills nudge) */
+var NOPE=null, nopeT=0;
+function nope(e){
+  if(!NOPE){ NOPE=document.createElement('div'); NOPE.className='line-tip sol-nope'; document.body.appendChild(NOPE); }
+  var c=cvs(), r=c ? c.getBoundingClientRect() : {left:0, width:0, bottom:0}, x=e ? e.clientX+12 : r.left+r.width/2-110, y=e ? e.clientY+14 : r.bottom-130;
+  NOPE.textContent='Spokes only: ride a lit spoke from here'; NOPE.style.left=x+'px'; NOPE.style.top=y+'px'; NOPE.style.display='block';
+  if(c){ c.classList.remove('sol-nudge'); void c.offsetWidth; c.classList.add('sol-nudge'); }
+  clearTimeout(nopeT); nopeT=setTimeout(function(){ NOPE.style.display='none'; if(c) c.classList.remove('sol-nudge'); }, 1500);
+}
+/* a body or a line asked for (a click; the 3D scene's pick): ridden to if it is one spoke away */
+function rideTo(id, e){
+  if(!locked() || RD) return false;
+  var h=home(); if(!id || !h) return nope(e), false;
+  if(id===h){ if(!window._focusedNodeId) enter(id); return true; }
+  if(joined(h).indexOf(id)<0) return nope(e), false;
+  return ride(h, id);
+}
+window._altoSolarGo=rideTo;
+/* the clicks: on the enlarged disc its own (its full page); a body or a line one spoke away rides there; the rest nothing */
+window.addEventListener('click', function(e){
+  if(!locked() || e.button) return;
+  var c=cvs(), t=e.target; if(!c || !t || t.nodeType!==1 || !c.contains(t) || t.id==='sk3d' || document.querySelector('#detail-page.visible')) return;
+  if(t.closest('button,a,input,select,textarea,[contenteditable],#sol-ctl,#sol-nav')) return;
+  var n=t.closest('#world .node[data-solar]'), id=n ? n.id.slice(5) : (t._r && t.classList.contains('sol-hit')) ? ringAt(e) : null;
+  if(id && id===window._focusedNodeId) return;
+  e.preventDefault(); e.stopImmediatePropagation(); rideTo(id, e);
+}, true);
+/* no dragging the view: a press on empty space does nothing (bodies, lines, buttons still take their clicks) */
+['pointerdown', 'mousedown'].forEach(function(ty){ document.addEventListener(ty, function(e){ if(!locked()) return; var c=cvs(), t=e.target;
+  if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (the 3D scene: solar_3d.py turns nothing while it is on) */
+  e.preventDefault(); e.stopImmediatePropagation(); }, true); });
+/* no pinch zoom (Safari's gesture events; the others' are a ctrl wheel, below) */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(function(ty){ window.addEventListener(ty, function(e){ if(!locked()) return; e.preventDefault(); e.stopImmediatePropagation(); }, {capture:true, passive:false}); });
+/* the arrows with no body enlarged (or on a ride): board at home, or queue the next ride */
+window.addEventListener('keydown', function(e){
+  var d={ArrowUp:'n', ArrowDown:'s', ArrowLeft:'w', ArrowRight:'e'}[e.key]; if(!d || !locked() || e.metaKey || e.ctrlKey || e.altKey) return;
+  var ae=document.activeElement; if(ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return;
+  if(document.querySelector('#detail-page.visible,#summary-wrap.open')) return;
+  if(!RD && window._focusedNodeId) return;               /* (the engine's arrows: focusNeighbor -> window._altoSolarNav -> a ride) */
+  e.preventDefault(); e.stopImmediatePropagation(); if(!e.repeat || !RQ.length) lockStep(d);
+}, true);
+window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:function(id){ return ways(id || home()); }, riding:function(){ return RD ? {from:RD.from, to:RD.to, ms:RD.ms} : null; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
@@ -1463,18 +1647,22 @@ function setSty(v){ STY=styOf(v); keep('style', STY); stySync(); chips.forEach(f
 window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
 stySync();
 function lockStep(d){
-  var f=window._focusedNodeId;
-  if(!f || !B[f]){ var s0=nearestMid(); if(s0 && window.enterFocus) window.enterFocus(s0); return; }
-  if(!d) return;
-  var k={n:'ArrowUp', s:'ArrowDown', e:'ArrowRight', w:'ArrowLeft'}[d];
+  if(LOCK){
+    if(RD){ if(d && RQ.length<2) RQ.push(d); return; }
+    var f=window._focusedNodeId;
+    if(!f || !B[f]){ var h=home(); if(h) enter(h); return; }   /* no body enlarged: board where you are */
+    if(d) window._altoSolarNav(f, d); return; }
+  var k={n:'ArrowUp', s:'ArrowDown', e:'ArrowRight', w:'ArrowLeft'}[d]; if(!k) return;
   document.dispatchEvent(new KeyboardEvent('keydown', {key:k, code:k, bubbles:true, cancelable:true}));
   setTimeout(function(){ document.dispatchEvent(new KeyboardEvent('keyup', {key:k, code:k, bubbles:true})); }, 30);
 }
+/* Spokes only: a wheel or a trackpad never moves or zooms the view; one gesture rides one spoke, the way it goes */
 window.addEventListener('wheel', function(e){
-  if(!LOCK || !ready || !desk() || e.ctrlKey) return;
+  if(!locked()) return;
   var dp=document.getElementById('detail-page'); if(dp && dp.classList.contains('visible')) return;
   var c=cvs(); if(!c || !c.contains(e.target)) return;
   e.preventDefault(); e.stopImmediatePropagation();
+  if(e.ctrlKey) return;                                          /* a pinch: no zoom */
   var m=e.deltaMode===1 ? 16 : e.deltaMode===2 ? 400 : 1;
   if(e.timeStamp-LW.t>260) LW={t:0, x:0, y:0, done:false};        /* a new gesture: one step each */
   LW.t=e.timeStamp; if(LW.done) return;
@@ -1513,7 +1701,7 @@ function ctl(){
   fb.title=fo ? 'Flights on: a spaceship flies you between bodies (click to go straight there instead)' : 'Flights off: you go straight to each body (click to fly again)';
   fb.querySelector('.sol-st').textContent=fo ? 'ON' : 'OFF';
   var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.querySelector('.sol-st').textContent=LOCK ? 'ON' : 'OFF'; lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');
-  lb.title=LOCK ? 'Spokes only: on. Scrolling and arrows travel along the spokes; free scrolling is off (click to scroll freely)' : 'Spokes only: off. Click to travel only along the spokes';
+  lb.title=LOCK ? 'Spokes only: on. Arrows, scrolling and clicks ride the spokes from body to body; no free panning or zooming (click to move freely)' : 'Spokes only: off. Click to travel only by riding the spokes';
 }
 /* the space bar starts / stops the orbit like the Orbit button: only while the system is showing (the button is there
    and enabled: not a phone, not the detail page, not edit mode, not print), no modifier, not held down, not in a field or on

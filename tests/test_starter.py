@@ -61,7 +61,7 @@ def test_a_title_with_every_awkward_character_fills_the_page_safely(kind, tmp_pa
     filled = (page.replace("subject=" + starter.TITLE, "subject=X")
               .replace(starter.TITLE, clean).replace(starter.TID, "my-new-timeline")
               .replace(starter.LABEL, "Law &amp; Society"))
-    assert f"<title>{clean} — Alto Timeline</title>" in filled
+    assert f"<title>{clean} — Alto</title>" in filled
     assert 'window._ALTO_EDIT={"title": "' + clean + '", "key": "alto-doc-my-new-timeline"}' in filled
     # every inline script still parses
     scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>", filled)

@@ -104,28 +104,12 @@ def test_hints_flights_and_spokes_only(browser, page):
     pg.click("#sol-fly")
     assert pg.evaluate("() => window._altoFlyOff === true && /alto-solar-fly:/.test(Object.keys(localStorage).join(' '))")
     pg.evaluate("() => window._altoSolarLook.set('hub')")
-    # Spokes only: the canvas does not scroll; a wheel steps along the spokes
-    pg.keyboard.press("Escape")
-    pg.wait_for_timeout(700)
+    # Spokes only: the canvas does not scroll (its rides: test_spokes_only_rides_a_spoke_and_nothing_else)
     pg.click("#sol-lock")
-    pg.evaluate("() => window.enterFocus('u2-p2')")
-    pg.wait_for_timeout(1300)
-    pg.mouse.move(650, 450)
-    t0 = pg.evaluate("() => [document.getElementById('canvas').scrollLeft, document.getElementById('canvas').scrollTop]")
-    pg.mouse.wheel(0, 200)
-    pg.wait_for_timeout(1300)
-    assert pg.evaluate("() => window._focusedNodeId") == "u2-p2-m1"
-    pg.mouse.wheel(0, -200)
-    pg.wait_for_timeout(1300)
-    assert pg.evaluate("() => window._focusedNodeId") == "u2-p2"
-    pg.keyboard.press("Escape")
-    pg.wait_for_timeout(700)
-    pg.mouse.wheel(0, 400)
-    pg.wait_for_timeout(500)
+    pg.wait_for_timeout(300)
     assert pg.evaluate("() => getComputedStyle(document.getElementById('canvas')).overflow") == "hidden"
     pg.context.close()
     assert not errs, errs
-    assert t0
 
 
 def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
@@ -147,13 +131,14 @@ def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(700)
     assert pg.evaluate("() => document.querySelectorAll('.sol-nh').length") == 0   # calm: nothing enlarged, nothing shown
-    pg.click("#sol-lock")                                                       # Spokes only (it enlarges the middle body)
+    pg.click("#sol-lock")                                                       # Spokes only (it boards the middle body)
     pg.wait_for_timeout(1300)
-    assert pg.evaluate("() => getComputedStyle(document.querySelector('#world .sol-nh>i'), '::after').content").startswith('"Scroll')
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#world .sol-nh>i'), '::after').content") in ('"Ride"', '"Click to ride"')
+    f = pg.evaluate("() => window._focusedNodeId")
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(800)
-    o = pg.evaluate("() => [].map.call(document.querySelectorAll('.sol-nh'), function(p){ return p.dataset.k+':'+p.querySelector('i').getAttribute('data-a'); })")
-    assert o == ["o:Scroll to enlarge"], o
+    o = pg.evaluate("() => [].map.call(document.querySelectorAll('.sol-nh'), function(p){ return p.parentNode.id+':'+p.dataset.k+':'+p.querySelector('i').getAttribute('data-a'); })")
+    assert o == [f"node-{f}:o:Scroll to enlarge"], o                            # Esc lets the card go home: you are still there
     pg.click("#sol-lock")
     pg.context.close()
     assert not errs, errs
@@ -224,7 +209,7 @@ def test_the_star_chart_has_a_retro_style_kept_per_timeline(browser, page):
     pg.wait_for_timeout(300)
     pg.click("#sol-sty [data-sty=retro]")
     pg.wait_for_timeout(300)
-    s = pg.evaluate("""() => { var c=document.querySelector('#node-u1 .node-card'), b=document.querySelector('#solar-svg .sol-band'), sp=document.querySelector('#solar-svg .sol-spoke');
+    s = pg.evaluate("""() => { var c=document.querySelector('#node-u1 .node-card'), b=document.querySelector('#solar-svg .sol-oband'), sp=document.querySelector('#solar-svg .sol-spoke');
       return [document.documentElement.classList.contains('sk-retro'), getComputedStyle(c).backgroundColor, getComputedStyle(b).display, getComputedStyle(sp).stroke,
               Object.keys(localStorage).filter(function(k){ return /alto-solar-style:/.test(k); }).map(function(k){ return localStorage.getItem(k); })]; }""")
     assert s[0] and s[1] == "rgb(245, 230, 189)" and s[2] != "none" and s[3] == "rgb(240, 193, 94)" and s[4] == ["retro"], s
@@ -308,5 +293,126 @@ def test_a_detail_page_keeps_its_top_bars(browser, page):
     assert pg.evaluate("() => document.documentElement.classList.contains('detail-open')")
     assert not any(b == "rgba(0, 0, 0, 0)" for b in pg.evaluate(bars)), pg.evaluate(bars)   # the detail page: its glass back
     assert pg.evaluate("() => { var b=document.getElementById('ct-chips'); return !b || getComputedStyle(b).display==='none'; }")
+    pg.context.close()
+    assert not errs, errs
+
+
+SPOT = """id => { var n=document.getElementById('node-'+id).getBoundingClientRect(); return [n.left+n.width/2, n.top+n.height/2]; }"""
+SCROLL = "() => [document.getElementById('canvas').scrollLeft, document.getElementById('canvas').scrollTop]"
+
+
+def test_spokes_only_rides_a_spoke_and_nothing_else(browser, page):
+    """Spokes only (Luke, 2026-10-21: "travelling only by spokes"): no free camera — no drag, no zoom; an arrow,
+    a scroll that way, or a click on a body one spoke away (or its spoke) RIDES that spoke, the view following
+    the rider; one ride reaches only what the body is joined to; the hints name only those; the rest does nothing."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('hub'); window.enterFocus('u2-p2'); }")
+    pg.wait_for_timeout(1300)
+    pg.click("#sol-lock")
+    pg.wait_for_timeout(400)
+    w = pg.evaluate("() => window._altoSolarLock.ways()")
+    G = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, o={}; Object.keys(G).forEach(function(i){ o[i]=G[i].p||null; }); return o; }")
+    joined = {G["u2-p2"]} | {i for i, p in G.items() if p == "u2-p2"}
+    assert set(w["nb"]) == joined, (w, joined)                                  # what it orbits, what orbits it
+    pills = {p.split(":")[0][5:] for p in pg.evaluate(HINTS)["pills"]}
+    assert pills == joined, pills                                               # the hints: those, and only those
+    # an arrow rides: the card goes home, the view runs along the spoke behind the rider, the body is enlarged on arrival
+    d, to = sorted(w["k"].items())[0]
+    s0 = pg.evaluate(SCROLL)
+    pg.keyboard.press({"n": "ArrowUp", "s": "ArrowDown", "e": "ArrowRight", "w": "ArrowLeft"}[d])
+    pg.wait_for_timeout(120)
+    r = pg.evaluate("() => [window._altoSolarLock.riding(), window._focusedNodeId, document.querySelector('#solar-svg .sol-rider.on')!==null, document.querySelectorAll('#solar-svg .sol-ride').length]")
+    assert r[0] and r[0]["to"] == to and r[1] is None and r[2] and r[3] == 1, r
+    pg.wait_for_timeout(int(r[0]["ms"] * .5))
+    s1 = pg.evaluate(SCROLL)
+    pg.wait_for_timeout(int(r[0]["ms"] * .5) + 900)
+    assert pg.evaluate("() => window._focusedNodeId") == to
+    s2 = pg.evaluate(SCROLL)
+    assert s1 != s0 and s1 != s2, (s0, s1, s2)                                  # the view moved on the way, not in one jump
+    # a body not one spoke away: nothing happens but a word
+    far = next(i for i in G if i not in pg.evaluate("() => window._altoSolarLock.ways().nb") and i != to and G[i] is not None)
+    pg.evaluate("id => window._altoSolarCam && document.getElementById('node-'+id).querySelector('.node-card').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}))", far)
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding(), document.querySelector('.sol-nope').style.display]") == [to, None, "block"]
+    # no free camera: a drag pans nothing, a pinch (ctrl wheel) zooms nothing, a click away lets nothing go
+    s3 = pg.evaluate(SCROLL)
+    pg.mouse.move(60, 520); pg.mouse.down(); pg.mouse.move(420, 300, steps=8); pg.mouse.up()
+    pg.mouse.move(700, 500); pg.keyboard.down("Control"); pg.mouse.wheel(0, 300); pg.keyboard.up("Control")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate(SCROLL) == s3 and pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]") == [1, to]
+    # a scroll rides the way it goes
+    w = pg.evaluate("() => window._altoSolarLock.ways()")
+    d, nx = sorted(w["k"].items())[0]
+    pg.mouse.wheel(*{"n": (0, -150), "s": (0, 150), "e": (150, 0), "w": (-150, 0)}[d])
+    pg.wait_for_timeout(3200)
+    assert pg.evaluate("() => window._focusedNodeId") == nx
+    # a click on a joined body's spoke rides it too
+    back = pg.evaluate("() => window._altoSolarLock.ways().nb[0]")
+    assert pg.evaluate("""b => { var f=window._focusedNodeId, l=[].find.call(document.querySelectorAll('#solar-svg line.sol-hit'), function(x){ var s=x._r && x._r.sp; return s && ((s.a===f && s.b===b) || (s.b===f && s.a===b)); });
+      if(!l) return false; l.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); return !!window._altoSolarLock.riding(); }""", back)
+    pg.wait_for_timeout(3000)
+    assert pg.evaluate("() => window._focusedNodeId") == back
+    pg.click("#sol-lock")                                                       # off: as before
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.wait_for_timeout(200)
+    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding()]") == ["u1-p1", None]
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_retro_bands_are_the_orbits(browser, page):
+    """Retro (Luke, 2026-10-21): the coloured bands are the orbits — every body sits on its band; a band's hover
+    and click are its orbit's (the label and highlight, the travel); no thin rings; the other styles as before."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); window._altoSolarMotion.set(false); }")
+    pg.wait_for_timeout(500)
+    b = pg.evaluate("""() => { var out={bands:0, off:[], ring:getComputedStyle(document.querySelector('#solar-svg .sol-ring')).display};
+      [].forEach.call(document.querySelectorAll('#solar-svg circle.sol-oband'), function(e){ out.bands++; var r=+e.getAttribute('r'), w=parseFloat(e.style.getPropertyValue('--bw')), cx=+e.getAttribute('cx'), cy=+e.getAttribute('cy');
+        if(getComputedStyle(e).display==='none') out.off.push('hidden');
+        e._r.ids.forEach(function(id){ var n=document.getElementById('node-'+id), d=Math.hypot(parseFloat(n.style.left)-cx, parseFloat(n.style.top)-cy); if(Math.abs(d-r)>w/2) out.off.push(id); }); });
+      out.rings=document.querySelectorAll('#solar-svg circle.sol-ring').length; return out; }""")
+    assert b["bands"] == b["rings"] and b["bands"] > 5 and not b["off"] and b["ring"] == "none", b
+    # a band: the orbit's label and highlight after the dwell, and its click goes to the body on it
+    t = pg.evaluate("""() => { var e=[].find.call(document.querySelectorAll('#solar-svg circle.sol-oband:not(.sol-m)'), function(x){ return x._r.ids.indexOf('u1-p2')>=0; });
+      e.dispatchEvent(new PointerEvent('pointerover', {bubbles:true, clientX:300, clientY:300})); return !!e; }""")
+    assert t
+    pg.wait_for_timeout(450)
+    h = pg.evaluate("() => [document.querySelector('body > .line-tip').textContent, document.querySelectorAll('#solar-svg .sol-oband.sol-hot').length, document.getElementById('canvas').classList.contains('sol-lhov')]")
+    assert h[0].startswith("ORBIT OF") or h[0].startswith("Orbit of"), h
+    assert h[1] == 1 and h[2], h
+    x, y = pg.evaluate(SPOT, "u1-p2")
+    pg.evaluate("""p => { var e=[].find.call(document.querySelectorAll('#solar-svg circle.sol-oband:not(.sol-m)'), function(x){ return x._r.ids.indexOf('u1-p2')>=0; });
+      e.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, clientX:p[0], clientY:p[1]})); }""", [x, y])
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p2"
+    pg.evaluate("() => window._altoSolarStyle.set('classic')")
+    assert pg.evaluate("() => [getComputedStyle(document.querySelector('#solar-svg .sol-oband')).display, getComputedStyle(document.querySelector('#solar-svg .sol-ring')).display]") == ["none", "inline"]
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_retro_flies_a_regal_ship_smoothly(browser, page):
+    """Retro's craft is the Imperial ship (Luke, 2026-10-21: "more of a spaceship ... Foundation ... more regal"),
+    drawn every frame (no stop-motion), on a slower clock, its heading eased; the same ship rides the spokes."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); window._altoFlyOff=false; window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u2-p1')")
+    f = pg.evaluate("""() => new Promise(function(done){ var seen=[], n=0, t0=performance.now();
+      (function g(){ var c=document.querySelector('#solar-fly-svg .fly-craft'); if(c){ seen.push(c.getAttribute('transform')); n++; }
+        if(performance.now()-t0<900) requestAnimationFrame(g); else done({n:n, distinct:new Set(seen).size, ship:getComputedStyle(document.querySelector('#solar-fly-svg .fly-ship')).display,
+          hull:getComputedStyle(document.querySelector('#solar-fly-svg .fly-hull')).display, fl:window._altoSolarFlight(), ms:window._altoFlyMs}); })(); })""")
+    assert f["ship"] == "inline" and f["hull"] == "none", f
+    assert f["n"] > 20 and f["distinct"] >= f["n"] * .8, f                     # every frame, not 12 a second
+    assert f["fl"] and f["ms"] >= f["fl"]["D"] * 1000 * 1.25, f                 # the stately clock
+    pg.wait_for_timeout(int(f["ms"]) + 600)
+    pg.evaluate("() => window._altoSolarLock.set(true)")
+    pg.wait_for_timeout(300)
+    w = pg.evaluate("() => window._altoSolarLock.ways()")
+    pg.evaluate("id => window._altoSolarGo(id)", w["nb"][0])
+    pg.wait_for_timeout(200)
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#solar-svg .sol-rider .sol-ship')).display") == "inline"
+    pg.wait_for_timeout(3000)
+    pg.evaluate("() => window._altoSolarLock.set(false)")
     pg.context.close()
     assert not errs, errs

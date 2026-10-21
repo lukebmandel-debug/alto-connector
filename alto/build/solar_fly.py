@@ -111,7 +111,7 @@ FLY = {
 # whole chart's click grace, when the view counts as taken over, near-full-size
 # clamping of the camera to what the canvas can scroll to, the Esc glide
 FLY_RT = {"TRAIL_MS": 1100, "LAND_MS": 500, "OV_MS": 900, "TAKE_S": 0.45, "TAKE_PX": 3,
-          "CLAMP_FROM": 0.7, "CALM_MS": 520, "PATH_N": 180, "NEAR": 60, "TURN_V": 4, "HIT": 18}
+          "CLAMP_FROM": 0.7, "RETRO_K": 1.3, "CALM_MS": 520, "PATH_N": 180, "NEAR": 60, "TURN_V": 4, "HIT": 18}
 
 
 FLY_PLAN_JS = r"""
@@ -452,7 +452,7 @@ function f1(v){ return Math.round(v*10)/10; }
 function dz(){ return (parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1); }
 /* may this change of body be flown? */
 function can(){
-  if(window._altoFlyOff || de.classList.contains('sk-3d') || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
+  if(window._altoFlyOff || (window._altoSolarLock && window._altoSolarLock.get()) || de.classList.contains('sk-3d') || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
   if(!cam() || !window._altoSolarDrive || !window._altoSolarRate || !cvs() || document.querySelector('#detail-page.visible')) return false;
   if(FL) return true;
   var g=cam().get(); return !!g && g.scale>=.999 && performance.now()-ovAt>K.OV_MS;
@@ -496,12 +496,9 @@ function layer(){
     ship=el('g', {'class':'fly-craft'}, gp);
     el('circle', {r:9, 'class':'fly-halo'}, ship);
     el('path', {d:'M7 0 L-5 -4.6 L-2.6 0 L-5 4.6 Z', 'class':'fly-hull'}, ship);
-    /* Retro's craft (round 10): the poster's probe — dish forward, a box, a boom, the antenna's legs; shown by CSS in html.sk-retro */
-    var pr=el('g', {'class':'fly-probe'}, ship);
-    el('path', {d:'M3 -6 A3.4 6.2 0 0 1 3 6 Z', 'class':'pr-dish'}, pr);
-    el('rect', {x:-4.2, y:-2.6, width:6, height:5.2, 'class':'pr-bus'}, pr);
-    el('path', {d:'M-1.5 -2.6 V-9.5 H-4.5 M-2 2.6 L-9 13 M-2 2.6 L1.5 11 M-2 2.6 L-6.5 8.5', 'class':'pr-arm'}, pr);
-    el('circle', {cx:-1.2, cy:0, r:.9, 'class':'pr-dot'}, pr);
+    /* Retro's ship (Luke, 2026-10-21, after the poster's probe: "more of a spaceship ... Foundation ... more
+       regal"): solar_draw.py's Imperial vessel (window._altoSolarShip), shown by CSS in html.sk-retro */
+    var pr=el('g', {'class':'fly-ship', transform:'scale(1.35)'}, ship); pr.innerHTML=window._altoSolarShip||'';
     w.appendChild(svg);
   }
   svg.setAttribute('width', w.offsetWidth); svg.setAttribute('height', w.offsetHeight);
@@ -519,15 +516,19 @@ function draw(p, h, s, now){
   var d='M'+tr.map(function(q){ return f1(q[0])+' '+f1(q[1]); }).join('L');
   trl.setAttribute('d', d);
   var t0=tr[0]; grd.setAttribute('x1', f1(t0[0])); grd.setAttribute('y1', f1(t0[1])); grd.setAttribute('x2', f1(p[0])); grd.setAttribute('y2', f1(p[1]));
-  var k=Math.round(1000/s)/1000;
-  if(document.documentElement.classList.contains('sk-retro')){       /* Retro: upright, facing its way, in stop-motion steps (12 a second) */
-    if(!FL.st || now-FL.st>=83){ FL.st=now; ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') scale('+(Math.cos(h)<0 ? -k : k)+','+k+') scale(2.2)'); } }
+  var k=Math.round(1000/s)/1000, rt=FL.k>1;
+  if(rt){                                    /* Retro: the ship every frame, its heading eased (it comes round slowly, never snaps) and
+                                                banking into a turn — narrowed across as it rolls, by how fast it is turning */
+    var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, hs=FL.hs==null ? h : FL.hs, dh=Math.atan2(Math.sin(h-hs), Math.cos(h-hs)), tn=dh*Math.min(1, dt*2.4);
+    FL.lt=now; FL.hs=hs+tn; var bk=Math.max(-1, Math.min(1, dt ? tn/dt/1.1 : 0)); FL.bk=(FL.bk||0)+(bk-(FL.bk||0))*Math.min(1, dt*3);
+    ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+f1(FL.hs*180/Math.PI)+') scale('+k+','+f1(k*(1-.3*Math.abs(FL.bk))*1000)/1000+')'); }
   else ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+Math.round(h*180/Math.PI)+') scale('+k+')');
   if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
-    pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', f1(4/s)+' '+f1(8/s));
-    trl.setAttribute('stroke-width', f1(2.6/s*10)/10); }
+    pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', rt ? f1(1/s)+' '+f1(7/s) : f1(4/s)+' '+f1(8/s));
+    trl.setAttribute('stroke-width', f1((rt ? 1.5 : 2.6)/s*10)/10); }
 }
 function fade(){ if(svg) svg.classList.add('fly-out'); }
+function tauOf(now){ return (now-FL.t0)/1000/(FL.k||1); }      /* the flight's own time (Retro's runs slower) */
 /* ── a flight ─────────────────────────────────────────────────────────────── */
 function fly(from, to, o){
   var rt=window._altoSolarRate(), c=cvs(), g=cam().get();
@@ -536,8 +537,9 @@ function fly(from, to, o){
   var R=F.plan(S(), from, to, opt); if(!R) return false;
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
   var tr=FL ? FL.trail : [];
-  FL={R:R, o:opt, to:to, from:from, t0:performance.now(), trail:tr, set:null, ms:FL ? FL.ms : [], head:FL ? FL.head : 0, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
-  window._altoFlyMs=Math.round(R.D*1000)+K.LAND_MS;     /* an arrow's hop waits for the landing */
+  var rk=de.classList.contains('sk-retro') ? K.RETRO_K : 1;     /* Retro: a stately flight, the same route on a slower clock */
+  FL={R:R, o:opt, to:to, from:from, t0:performance.now(), k:rk, trail:tr, set:null, ms:FL ? FL.ms : [], head:FL ? FL.head : (function(a, b){ return Math.atan2(b[1]-a[1], b[0]-a[0]); })(F.at(R, 0), F.at(R, Math.min(R.D, .25))), hs:FL ? FL.hs : null, bk:FL ? FL.bk : 0, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
+  window._altoFlyMs=Math.round(R.D*1000*rk)+K.LAND_MS;     /* an arrow's hop waits for the landing */
   layer(); route(R);
   window._altoSolarDrive(F.clock(R, 0));
   de.classList.add('sol-flying');
@@ -546,7 +548,7 @@ function fly(from, to, o){
 }
 function frame(now){
   raf=0; if(!FL) return;
-  var R=FL.R, tau=Math.max(0, (now-FL.t0)/1000), c0=performance.now();
+  var R=FL.R, tau=Math.max(0, tauOf(now)), c0=performance.now();
   /* someone else took the view (a wheel, the whole-chart toggle) or the focus: it is theirs */
   if(!stars() || de.classList.contains('alto-editing') || printing || window._focusedNodeId) return stop(false);
   if(FL.set && tau>K.TAKE_S){ var g=cam().get();
@@ -571,7 +573,7 @@ function land(){
 /* stopped on the way: the orbits run on from where the clock was; calm (Esc): the
    view comes back to full size where the craft is */
 function stop(calmly){
-  if(!FL) return; var R=FL.R, tau=Math.min(R.D, Math.max(0, (performance.now()-FL.t0)/1000)), p=F.at(R, tau);
+  if(!FL) return; var R=FL.R, tau=Math.min(R.D, Math.max(0, tauOf(performance.now()))), p=F.at(R, tau);
   LAST={to:FL.to, from:FL.from, D:R.D, ms:FL.ms, how:calmly ? 'esc' : 'stopped'};
   window._altoSolarDrive(null, F.rate(R, tau)); FL=null; cancelAnimationFrame(raf); raf=0; Q=[];
   fade(); de.classList.remove('sol-flying');
@@ -582,7 +584,7 @@ function stop(calmly){
 }
 /* a new target on the way: from where the craft is, as it is moving */
 function replan(to){
-  var R=FL.R, tau=Math.min(R.D, Math.max(0, (performance.now()-FL.t0)/1000)), p=F.at(R, tau), v=F.vel(R, tau, 1), T=F.clock(R, tau), from=nearBody(p, T);
+  var R=FL.R, tau=Math.min(R.D, Math.max(0, tauOf(performance.now()))), p=F.at(R, tau), v=F.vel(R, tau, 1), T=F.clock(R, tau), from=nearBody(p, T);
   if(from===to){ var W=F.bodies(S()); from=W.B[to].p || W.B[to].kids[0] || from; }
   return from!==to && fly(from, to, {start:[p[0], p[1], v[0], v[1]], T0:T, r0:F.rate(R, tau)});
 }
@@ -654,7 +656,7 @@ function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); s
 function init(){ watchOv(); var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
   if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
-window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=(performance.now()-FL.t0)/1000;
+window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=tauOf(performance.now());
   return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:F.at(R, Math.min(tau, R.D)), queued:Q.slice(), ms:FL.ms.slice()}; };
 })();
 """.replace("__RT__", json.dumps(FLY_RT, separators=(",", ":")))
@@ -673,15 +675,12 @@ FLY_CSS = r"""
   html.dark #solar-fly-svg .fly-path{stroke:#fff;stroke-opacity:.38;}
   html.dark #solar-fly-svg .fly-t0,html.dark #solar-fly-svg .fly-t1,html.dark #solar-fly-svg .fly-halo{stop-color:#cfc6ff;fill:#cfc6ff;}
   html.dark #solar-fly-svg .fly-hull{fill:#cfc6ff;stroke:#1a1830;}
-  #solar-fly-svg .fly-probe{display:none;}
-  html.sk-retro #solar-fly-svg .fly-probe{display:inline;}
+  #solar-fly-svg .fly-ship{display:none;}
+  html.sk-retro #solar-fly-svg .fly-ship{display:inline;}
   html.sk-retro #solar-fly-svg .fly-hull,html.sk-retro #solar-fly-svg .fly-halo{display:none;}
-  html.sk-retro #solar-fly-svg .pr-dish{fill:#f2f2ee;}
-  html.sk-retro #solar-fly-svg .pr-bus{fill:#7d838c;stroke:#b9bec6;stroke-width:.8;}
-  html.sk-retro #solar-fly-svg .pr-arm{fill:none;stroke:#b9bec6;stroke-width:1.1;stroke-linecap:square;}
-  html.sk-retro #solar-fly-svg .pr-dot{fill:#d9ae55;}
-  html.sk-retro #solar-fly-svg .fly-path{stroke:#d9ae55 !important;stroke-opacity:.75 !important;stroke-linecap:butt;}
+  html.sk-retro #solar-fly-svg .fly-path{stroke:#d9ae55 !important;stroke-opacity:.32 !important;stroke-linecap:round;}
   html.sk-retro #solar-fly-svg .fly-t0,html.sk-retro #solar-fly-svg .fly-t1{stop-color:#f0c15e !important;}
+  html.sk-retro #solar-fly-svg .fly-t1{stop-opacity:.55 !important;}
 """
 
 

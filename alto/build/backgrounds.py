@@ -36,12 +36,25 @@ and cached for a year; bump BG_V if a file ever changes.
 from __future__ import annotations
 
 import json
+import re
 
 from .backgrounds_catalog import COLOURS, PATTERNS, SCENES
 from . import palace_backgrounds as pbg
 
 BG_V = "2"
 BG_BASE = f"/bg/v{BG_V}/"
+# The account's own imported pictures (backgrounds_import.py): the library's localStorage key, and the hosted
+# script that imports, stores and loads them (served from the site root, never part of a page).
+LIB_KEY = "alto-bg-lib-v1"
+LIB_PATH = "/alto-bglib.js"
+
+
+def _lean(text: str, css: bool = False) -> str:
+    """The emitted copy of a block below: comment lines (and in CSS, comments), and indentation left out. The source
+    keeps them; a page carries only what runs (a private page is one Firestore document, so every byte counts)."""
+    if css:
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return "\n".join(t for t in (ln.strip() for ln in text.split("\n")) if t and not t.startswith("//"))
 
 # The base colours of the engine's own light and dark glass: a veil of these
 # makes the page read as it always has.
@@ -143,7 +156,7 @@ def catalog_json(palace: bool = False) -> str:
 #   pattern     — a repeating mark over a gradient, built here from the catalog's kind.
 #   custom      — "c:rrggbb": a colour of the user's own, drawn like the presets (pale in light, deep in dark).
 HEAD_JS = r"""(function(){
-  var C=__CATALOG__, KEY=__KEY__, BASE=__BASE__, DEF=__DEFAULT__, r=document.documentElement;
+  var C=__CATALOG__, KEY=__KEY__, BASE=__BASE__, DEF=__DEFAULT__, LK=__LIBKEY__, LP=__LIBPATH__, r=document.documentElement;
   var VARS=['--alto-bg','--alto-top','--alto-q','--alto-veil','--alto-bright','--alto-blur','--alto-t','--alto-mask'];
   var cur='', sig='', touched=false, PV=[];
   var HEX=/^c:([0-9a-f]{6})$/;
@@ -160,9 +173,20 @@ HEAD_JS = r"""(function(){
   function mix(h,t,to){ var n=h2n(h), c=[n>>16&255,n>>8&255,n&255], o=to?255:0;
     return '#'+c.map(function(v){ return ('0'+Math.round(v+(o-v)*t).toString(16)).slice(-2); }).join(''); }
   function rgba(h,a){ var n=h2n(h); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; }
-  // an id -> its entry: the catalog's, or one made from a colour the user picked
+  // the account's own imported pictures (backgrounds_import.py): {id: entry}, read once per apply
+  var LB=null, Q=[];
+  function lib(){ if(!LB) try{ LB=JSON.parse(localStorage.getItem(LK)||'{}')||{}; }catch(e){ LB={}; } return LB; }
+  // the hosted script that holds the import, the bytes and the library; f is called with it once loaded
+  function need(f){
+    if(f) Q.push(f); var L=window._altoBgLib;
+    if(L){ while(Q.length) Q.shift()(L); return; }
+    if(need.s || !web()) return; need.s=1;
+    var s=document.createElement('script'); s.src=LP; s.async=true; s.addEventListener('load', function(){ need(); }); (document.head||r).appendChild(s);
+  }
+  // an id -> its entry: the catalog's, an imported picture's, or one made from a colour the user picked
   function get(id){
     if(C[id]) return C[id];
+    if(/^u:/.test(id||'')){ var u=lib()[id]; if(!u) need(); return u||null; }
     var m=HEX.exec(id||''); if(!m) return null; var h='#'+m[1];
     return {g:'Colors', k:'c', n:'Custom color', custom:h, l:[mix(h,.84,true), mix(h,.66,true)], d:[mix(h,.80,false), mix(h,.90,false)]};
   }
@@ -212,14 +236,14 @@ HEAD_JS = r"""(function(){
     return Math.max(0, Math.round((bt-t)/z));
   }
   var VW='', VT=0;
-  function geometry(v){
+  function geometry(v, u){
     var pb=document.getElementById('page-bg'); if(!pb || !pb.clientHeight || !pb.clientWidth) return null;
     var q=pb.getBoundingClientRect(), z=q.height/pb.clientHeight || 1, W=pb.clientWidth, H=pb.clientHeight, T=inset(pb,z);
     var bw=W+80, bh=H-T+80, s=Math.max(bw/v.w, bh/v.h), iw=v.w*s, ih=v.h*s;
     var open=Math.max(120, (window.innerHeight-q.top)/z - T);
     var tx=40+W*.5, ty=40+open*.5;
     var ox=Math.min(0, Math.max(bw-iw, tx-v.x*iw)), oy=Math.min(0, Math.max(bh-ih, ty-v.y*ih));
-    return {T:T, bg:'url('+BASE+v.f+') '+ox.toFixed(1)+'px '+oy.toFixed(1)+'px / '+iw.toFixed(1)+'px '+ih.toFixed(1)+'px no-repeat'};
+    return {T:T, bg:'url('+u+') '+ox.toFixed(1)+'px '+oy.toFixed(1)+'px / '+iw.toFixed(1)+'px '+ih.toFixed(1)+'px no-repeat'};
   }
   function clear(){
     cur=''; sig='';
@@ -233,9 +257,11 @@ HEAD_JS = r"""(function(){
     var c=cur && get(cur); if(!c || (c.k!=='m' && !web())){ if(cur || r.classList.contains('alto-bg')) clear(); return; }
     var dark=isDark(), st=r.style, key, bg, top, q, veil='transparent', bright=1, blur='0px', T=0, mask='none', pv={};
     if(c.k==='p'){
-      var v=dark ? c.d : c.l, g=geometry(v);
+      // an imported picture is drawn from a blob: address the hosted script makes from its bytes; until then, its colour
+      var v=dark ? c.d : c.l, u=c.u ? (window._altoBgU||{})[cur] : BASE+v.f, g=u && geometry(v, u);
+      if(!u) need(function(L){ L.load(cur); });
       key=[cur,dark,g?g.bg:'',g?g.T:''].join('|'); if(key===sig) return; sig=key;
-      bg=g ? g.bg : 'url('+BASE+v.f+') '+(v.x*100)+'% '+(v.y*100)+'% / cover no-repeat'; T=g ? g.T : (r.classList.contains('mobile') ? 132 : 84);
+      bg=g ? g.bg : u ? 'url('+u+') '+(v.x*100)+'% '+(v.y*100)+'% / cover no-repeat' : 'none'; T=g ? g.T : (r.classList.contains('mobile') ? 132 : 84);
       top=v.a; q=v.q; bright=v.b; blur='6px'; mask='linear-gradient(transparent,#000 40px)';
       veil=(dark ? 'rgba(8,10,18,' : 'rgba(247,249,253,')+v.v+')';
     } else if(c.k==='m'){
@@ -251,13 +277,13 @@ HEAD_JS = r"""(function(){
     st.setProperty('--alto-bright',bright); st.setProperty('--alto-blur',blur); st.setProperty('--alto-t',T+'px'); st.setProperty('--alto-mask',mask);
     r.classList.add('alto-bg'); window._altoBgId=cur; bar(); remember(c); tell();
   }
-  function apply(id){ cur=get(id) ? id : ''; sig=''; paint(); }
-  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern,
+  function apply(id){ LB=null; cur=get(id) ? id : ''; sig=''; paint(); }
+  window._altoBg={C:C, key:KEY, base:BASE, def:DEF, read:read, apply:apply, get:get, dark:isDark, paint:paint, pattern:pattern, web:web, need:need, lib:lib,
     choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(id); }};
   window._altoBgId='';
   apply(read());
   window.addEventListener('alto-bg', function(){ apply(read()); });
-  window.addEventListener('storage', function(e){ if(e && e.key===KEY) apply(read()); });
+  window.addEventListener('storage', function(e){ if(e && (e.key===KEY || e.key===LK)) apply(read()); });
   // The engine sets the bar colour itself when the page loads and when the theme flips; ours goes last. A
   // theme flip, or the page zoom changing (a style on <html>), draws the picture again.
   new MutationObserver(function(){ bar(); paint(); }).observe(r,{attributes:true,attributeFilter:['class','style']});
@@ -274,8 +300,9 @@ def head_block(key: str, palace: bool = False) -> str:
     page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it."""
     js = (HEAD_JS.replace("__CATALOG__", catalog_json(palace))
           .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE))
-          .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else "")))
-    return '<script id="alto-bg-head">' + js + "</script>"
+          .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else ""))
+          .replace("__LIBKEY__", json.dumps(LIB_KEY)).replace("__LIBPATH__", json.dumps(LIB_PATH)))
+    return '<script id="alto-bg-head">' + _lean(js) + "</script>"
 
 
 # ── the background behind the glass ─────────────────────────────────────────
@@ -386,6 +413,8 @@ UI_JS = r"""(function(){
     if(!c){ foot.textContent='The Alto wallpaper.'; return; }
     if(c.k==='m'){ foot.textContent=c.n+' — a ground for the map, for the light and the dark theme.'; return; }
     if(c.k!=='p'){ foot.textContent=c.n+(c.k==='x' ? ' pattern' : ' color')+' — for the light and the dark theme.'; return; }
+    // one of the account's own pictures: its name, rename and remove (the hosted library script)
+    if(c.u){ foot.textContent=c.n; B.need(function(L){ L.credit(id, foot); }); return; }
     var v=variant(c);
     foot.appendChild(document.createTextNode(v.n+' — '+v.by+' · '+v.lic+' · '));
     var a=mk('a',null,'source'); a.href=v.u; a.target='_blank'; a.rel='noopener'; foot.appendChild(a);
@@ -403,7 +432,7 @@ UI_JS = r"""(function(){
     var id=t.getAttribute('data-bg'), c=id && B.get(id); if(!c) return;
     if(c.k==='p'){
       var v=variant(c), im=t.querySelector('img'), nm=t.querySelector('.bg-name');
-      var src=B.base+'t/'+v.f; if(im && im.getAttribute('src')!==src) im.src=src; if(nm) nm.textContent=v.n; t.setAttribute('aria-label',v.n+', '+c.g);
+      var src=c.th||B.base+'t/'+v.f; if(im && im.getAttribute('src')!==src) im.src=src; if(nm) nm.textContent=v.n; t.setAttribute('aria-label',v.n+', '+c.g);
     } else if(c.k==='m'){ t.style.background=(dark() ? c.d : c.l).b; t.setAttribute('aria-label',c.n+', for the map'); }
     else if(c.k==='c'){ var w=dark() ? c.d : c.l; t.style.background='linear-gradient(160deg,'+w[0]+','+w[1]+')'; }
     else { var q=B.pattern(c.p, dark() ? c.d : c.l); t.style.background=q; }
@@ -437,6 +466,9 @@ UI_JS = r"""(function(){
     // is the ninth tile of that set, not a section of its own
     if(by['Mind Palace']) body.appendChild(sec('Mind Palace', by['Mind Palace'], tile('',null)));
     else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
+    // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
+    if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
+      B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
     order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Mind Palace') body.appendChild(sec(g, by[g])); });
@@ -543,5 +575,5 @@ def ui_block(label: str, rail: bool) -> str:
     `label` says whose background this is; `rail` puts the tab in the timeline's
     right-edge rail (the homepage has none)."""
     js = UI_JS.replace("__LABEL__", json.dumps(label)).replace("__RAIL__", "true" if rail else "false")
-    return ('<style id="alto-bg-css">' + CSS + UI_CSS + ("" if rail else HOME_CSS) + "</style>\n"
-            '<script id="alto-bg-ui">' + js + "</script>")
+    return ('<style id="alto-bg-css">' + _lean(CSS + UI_CSS + ("" if rail else HOME_CSS), css=True) + "</style>\n"
+            '<script id="alto-bg-ui">' + _lean(js) + "</script>")

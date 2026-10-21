@@ -151,7 +151,7 @@ def _home_search_new() -> str:
 
 
 # ── homepage search: the expanded desktop panel (search.py, SX_*) ───────────
-_HOME_ROW_OLD = ("      row.innerHTML = '<span class=\"sr-kind\">' + r.kind + '</span><span class=\"sr-title\">' + esc(r.title) + '</span>' +\n"
+_HOME_ROW_OLD = ("      row.innerHTML = '<span class=\"sr-kind\">' + (r.fmt ? fmtBadge(r.fmt) : r.kind) + '</span><span class=\"sr-title\">' + esc(r.title) + '</span>' +\n"
                  "                      '<span class=\"sr-snip\">' + snippet(r.text, ql) + '</span>';\n")
 _HOME_ROW_NEW = ("      if(window._altoSX && window._altoSX.big() && window._altoSXHomeRow){\n"
                  "        row.className = 'search-result sr-rich'; row.innerHTML = window._altoSXHomeRow(r, q);\n"

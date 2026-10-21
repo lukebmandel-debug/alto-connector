@@ -122,8 +122,9 @@ def test_motion_never_uses_a_transform_and_rounds_to_device_px():
     whole device px; nothing in the script sets a transform on a node."""
     # the one transform is the whole-chart view's, on #world itself
     # (and the focus shadow's scale, kept the same circle as the growing disc: not a node)
-    # (and the enlarged disc's chips, turned a few degrees to the circle's edge by pool(): k, more, el are chips, not nodes)
-    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el")] == ["sh", "world", "world"]
+    # (and the enlarged disc's chips, turned a few degrees to the circle's edge by pool(): k, more, el are chips, not nodes;
+    #  ch: a system's name, zoomed out, in its own unscaled layer #sol-ulay — not a node)
+    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el", "ch")] == ["sh", "world", "world"]
     assert ".n.style.transform" not in SOLAR_JS
     assert "b.n.style.left=x+'px'" in SOLAR_JS and "Math.round(v*zq)/zq" in SOLAR_JS
     # no SVG <mask> on anything that moves (Safari): the rings and spokes are plain
@@ -140,7 +141,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 33000, size      # + round 11's navigation hints: named pills, drawn ways, edge pills (~2.3 KB, against the 1,000,000-byte page); + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
+    assert size < 36500, size      # + Spokes-only rides, Retro's orbit bands and ship, the units' names in their own layer (~2.8 KB); + round 11's navigation hints: named pills, drawn ways, edge pills (~2.3 KB, against the 1,000,000-byte page); + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
 
 
 def test_the_hub_look_orbits_on_the_same_plan():
@@ -1233,8 +1234,8 @@ def test_a_click_on_an_orbit_enlarges_its_body(browser, pages, look):
         xy = pg.evaluate("""(i) => { var b=document.getElementById('node-'+i), p=document.getElementById('node-'+window._ALTO_SOLAR.nodes[i].parent);
           var q=b.getBoundingClientRect(), r=p.getBoundingClientRect(), px=r.left+r.width/2, py=r.top+r.height/2, dx=q.left+q.width/2-px, dy=q.top+q.height/2-py, out=null;
           [Math.PI, Math.PI/2, -Math.PI/2, 2.4, -2.4].some(function(a){ var x=px+dx*Math.cos(a)-dy*Math.sin(a), y=py+dx*Math.sin(a)+dy*Math.cos(a), e=document.elementFromPoint(x, y);
-            out=[x, y, e && e.getAttribute('class')]; return out[2]==='sol-hit'; }); return out; }""", i)
-        assert xy[2] == "sol-hit", (i, xy)
+            out=[x, y, e && e.getAttribute('class')]; return out[2]==='sol-hit sol-rgh'; }); return out; }""", i)
+        assert xy[2] == "sol-hit sol-rgh", (i, xy)          # (a ring's own target; Retro's are its bands)
         pg.mouse.move(xy[0], xy[1])
         pg.wait_for_timeout(100)
         assert pg.evaluate("() => document.querySelectorAll('#solar-svg .sol-ring.sol-hot').length") == 1
