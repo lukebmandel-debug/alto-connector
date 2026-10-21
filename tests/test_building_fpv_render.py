@@ -106,6 +106,18 @@ def test_the_philadelphia_museum_of_art_renders_its_great_stair_hall_and_galleri
         assert page.evaluate("AltoBuildingFPV.geom.covered(-22, 4, 24, [0, 0, 1], 5.3)") == []
         assert page.evaluate("AltoBuildingFPV.geom.covered(-22, 4, 29.495, [0, 0, 1], .004)") == ["lay"]
         assert page.evaluate("AltoBuildingFPV.geom.support(-36, 7.5, 19.1)") == pytest.approx(19.1)
+        # no balcony slab spans the upper flight (overlapping floor holes once cancelled out and drew a ceiling over the stair, hiding Diana)
+        assert page.evaluate("AltoBuildingFPV.geom.covered(-30, 2.65, 19.1, [0, 0, 1], .4)") == []
+        # Diana is one smooth gilt figure of reasonable size, not a stick figure; floored gaps take the room they open from
+        dbg = page.evaluate("""(() => { const G = AltoBuildingFPV._debug().G, f = G.fxs['gsh-diana'], b = f.r ? f.r.b : G.lv[f.l].b, o = AltoBuildingFPV.geom.build(G, b.i);
+            return {gilt: o.giltpol || 0, gaps: G.rooms.filter(r => r.r.gp).length, adopted: G.rooms.filter(r => r.r.gp && r.of).length,
+                    tier: AltoBuildingFPV.state().tier, refl: AltoBuildingFPV._debug().reflDraws || 0}; })()""")
+        assert 4000 < dbg["gilt"] < 60000, dbg
+        assert dbg["adopted"] > 0.8 * dbg["gaps"], dbg
+        page.evaluate("AltoBuildingFPV.place(-16.5, 2.65, 12.5, 3.1416, -0.2)")
+        page.evaluate("AltoBuildingFPV.settle()")
+        if page.evaluate("AltoBuildingFPV.state().tier") == "high":                       # the polished hall floor carries a mirror pass on the high tier
+            assert page.evaluate("AltoBuildingFPV._debug().reflDraws") > 0
         print(f"\n{which} PMA:")
         for row in rows:
             print("  %-16s %-16s draws %4d tris %6d  %.2f ms/frame" % row)

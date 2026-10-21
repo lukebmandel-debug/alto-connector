@@ -28,12 +28,13 @@
    "licence": "Public domain (Commons: pd)",
    "commons": "https://commons.wikimedia.org/wiki/File:The_Annunciation,_Philadelphia_Museum_of_Art,_W1899-1-1-pma,_by_Henry_Ossawa_Tanner.jpg",
    "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
-   "gallery": "211",
+   "gallery": "358",
    "pma_object": "104384",
    "orig_px": [
     4096,
     3286
-   ]
+   ],
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 358, European Art 1500-1850, third floor"
   },
   "monet": {
    "file": "monet.jpg",
@@ -81,6 +82,564 @@
    "orig_px": [
     4123,
     5077
+   ]
+  },
+  "stuart-anne-willing": {
+   "file": "stuart-anne-willing.jpg",
+   "title": "Anne Willing Bingham",
+   "artist": "Gilbert Stuart",
+   "artist_died": 1828,
+   "date": "1797",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Gilbert_Charles_Stuart,_American_-_Portrait_of_Anne_Willing_Bingham_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "105",
+   "pma_object": "306033",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 105, American Art, first floor (Flammer Gallery)",
+   "wikidata": "Q18685804",
+   "orig_px": [
+    3573,
+    4297
+   ]
+  },
+  "sully-colonel-jonathan": {
+   "file": "sully-colonel-jonathan.jpg",
+   "title": "Portrait of Colonel Jonathan Williams (1750-1815)",
+   "artist": "Thomas Sully",
+   "artist_died": 1872,
+   "date": "1815",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Portrait_of_Colonel_Jonathan_Williams_(1750-1815).jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "105",
+   "pma_object": "59864",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 105, American Art, first floor (Flammer Gallery)",
+   "wikidata": "Q20813086",
+   "orig_px": [
+    1118,
+    1500
+   ]
+  },
+  "manet-battle-kearsarge": {
+   "file": "manet-battle-kearsarge.jpg",
+   "title": "The Battle of the Kearsarge and the Alabama",
+   "artist": "Édouard Manet",
+   "artist_died": 1883,
+   "date": "1865",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Édouard_Manet,_French_-_The_Battle_of_the_U.S.S._\"Kearsarge\"_and_the_C.S.S._\"Alabama\"_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "252",
+   "pma_object": "101707",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 252, European Art 1850-1900, second floor (Toll Gallery)",
+   "wikidata": "Q154653",
+   "orig_px": [
+    4453,
+    4805
+   ]
+  },
+  "degas-interior": {
+   "file": "degas-interior.jpg",
+   "title": "Interior",
+   "artist": "Edgar Degas",
+   "artist_died": 1917,
+   "date": "1868",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Edgar_Degas_-_Interior_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "252",
+   "pma_object": "82556",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 252, European Art 1850-1900, second floor (Toll Gallery)",
+   "wikidata": "Q6046671",
+   "orig_px": [
+    5697,
+    3940
+   ]
+  },
+  "cassatt-woman-pearl": {
+   "file": "cassatt-woman-pearl.jpg",
+   "title": "Woman with a Pearl Necklace in a Loge",
+   "artist": "Mary Cassatt",
+   "artist_died": 1926,
+   "date": "1879",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Mary_Stevenson_Cassatt,_American_-_Woman_with_a_Pearl_Necklace_in_a_Loge_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "252",
+   "pma_object": "72182",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 252, European Art 1850-1900, second floor (Toll Gallery)",
+   "wikidata": "Q15130000",
+   "orig_px": [
+    4127,
+    5689
+   ]
+  },
+  "renoir-boy-toy": {
+   "file": "renoir-boy-toy.jpg",
+   "title": "Boy with a Toy Soldier (Portrait of Jean de La Pommeraye)",
+   "artist": "Pierre-Auguste Renoir",
+   "artist_died": 1919,
+   "date": "1875",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Renoir_Boy_with_a_Toy_Soldier_(Portrait_of_Jean_de_La_Pommeraye).jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "252",
+   "pma_object": "59197",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 252, European Art 1850-1900, second floor (Toll Gallery)",
+   "wikidata": "Q20809891",
+   "orig_px": [
+    531,
+    700
+   ]
+  },
+  "rusinol-interior-cafe": {
+   "file": "rusinol-interior-cafe.jpg",
+   "title": "Interior of a Café",
+   "artist": "Santiago Rusiñol i Prats",
+   "artist_died": 1931,
+   "date": "1892",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Santiago_Rusiñol,_Spanish_-_Interior_of_a_Café_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "259",
+   "pma_object": "101761",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 259, European Art 1850-1900, second floor (Pollack Gallery)",
+   "wikidata": "Q18689336",
+   "orig_px": [
+    4282,
+    5234
+   ]
+  },
+  "mancini-saltimbanco": {
+   "file": "mancini-saltimbanco.jpg",
+   "title": "The Saltimbanco",
+   "artist": "Antonio Mancini",
+   "artist_died": 1930,
+   "date": "1879",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Antonio_Mancini,_Italian_-_Il_Saltimbanco_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "259",
+   "pma_object": "283509",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 259, European Art 1850-1900, second floor (Pollack Gallery)",
+   "wikidata": "Q18683340",
+   "orig_px": [
+    2917,
+    5485
+   ]
+  },
+  "harrison-harbor-concarneau": {
+   "file": "harrison-harbor-concarneau.jpg",
+   "title": "Harbor of Concarneau",
+   "artist": "Thomas Alexander Harrison",
+   "artist_died": 1930,
+   "date": "1850",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Thomas_Alexander_Harrison_Le_passage_de_la_Ville_close_à_Lanriec.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "259",
+   "pma_object": "101684",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 259, European Art 1850-1900, second floor (Pollack Gallery)",
+   "wikidata": "Q20809124",
+   "orig_px": [
+    932,
+    678
+   ]
+  },
+  "piazza-musical-group": {
+   "file": "piazza-musical-group.jpg",
+   "title": "Musical Group",
+   "artist": "Callisto Piazza",
+   "artist_died": 1561,
+   "date": "1520",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Callisto_Piazza_(Calisto_de_la_Piaza_da_Lodi),_Italian_(active_Lodi_and_Brescia),_first_documented_1524,_died_1561_-_Musical_Group_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "350",
+   "pma_object": "101984",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 350, European Art 1500-1850, third floor",
+   "wikidata": "Q18683422",
+   "orig_px": [
+    4640,
+    4669
+   ]
+  },
+  "bartolomeo-adam-eve": {
+   "file": "bartolomeo-adam-eve.jpg",
+   "title": "Adam and Eve with Cain and Abel",
+   "artist": "Fra Bartolomeo",
+   "artist_died": 1517,
+   "date": "1512",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Fra_Bartolomeo,_Adam_and_Eve_with_Cain_and_Abel.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "350",
+   "pma_object": "102598",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 350, European Art 1500-1850, third floor",
+   "wikidata": "Q20808363",
+   "orig_px": [
+    1192,
+    1500
+   ]
+  },
+  "franciabigio-saint-julian": {
+   "file": "franciabigio-saint-julian.jpg",
+   "title": "Saint Julian the Hospitaler Meeting His Wife after Killing His Parents",
+   "artist": "Franciabigio",
+   "artist_died": 1525,
+   "date": "1515",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Attributed_to_Franciabigio,_Saint_Julian_the_Hospitaller_Meeting_his_Wife_after_Killing_his_Parents.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "350",
+   "pma_object": "103673",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 350, European Art 1500-1850, third floor",
+   "wikidata": "Q20808979",
+   "orig_px": [
+    1500,
+    2115
+   ]
+  },
+  "solari-christ-bound": {
+   "file": "solari-christ-bound.jpg",
+   "title": "Christ Bound and Crowned with Thorns",
+   "artist": "Andrea Solari",
+   "artist_died": 1524,
+   "date": "1504",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Andrea_Solario_-_Christus_vastgebonden_en_met_doornen_gekroond_-_Cat._274_-_Philadelphia_Museum_of_Art.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "351",
+   "pma_object": "102033",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 351, European Art 1500-1850, third floor",
+   "wikidata": "Q20810084",
+   "orig_px": [
+    717,
+    1000
+   ]
+  },
+  "pinturicchio-madonna-writing": {
+   "file": "pinturicchio-madonna-writing.jpg",
+   "title": "Madonna with Writing Child",
+   "artist": "Pinturicchio",
+   "artist_died": 1513,
+   "date": "1494",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Pinturicchio,_madonna_col_bambino_scrivente,_1494-98,_61x41,6_cm,_philadelphia,_museum_of_art.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "351",
+   "pma_object": "103594",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 351, European Art 1500-1850, third floor",
+   "wikidata": "Q3842560",
+   "orig_px": [
+    701,
+    962
+   ]
+  },
+  "pontormo-alessandro-medici": {
+   "file": "pontormo-alessandro-medici.jpg",
+   "title": "Portrait of Alessandro de' Medici",
+   "artist": "Pontormo",
+   "artist_died": 1556,
+   "date": "1534",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Jacopo_Pontormo_056.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "351",
+   "pma_object": "102656",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 351, European Art 1500-1850, third floor",
+   "wikidata": "Q20809811",
+   "orig_px": [
+    3212,
+    3964
+   ]
+  },
+  "vecchio-raising-lazarus": {
+   "file": "vecchio-raising-lazarus.jpg",
+   "title": "The Raising of Lazarus",
+   "artist": "Palma Vecchio",
+   "artist_died": 1528,
+   "date": "1514",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Palma_Vecchio,_The_Raising_of_Lazarus.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "352",
+   "pma_object": "101931",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 352, European Art 1500-1850, third floor (ARCO Gallery)",
+   "wikidata": "Q20809749",
+   "orig_px": [
+    1500,
+    1234
+   ]
+  },
+  "brescia-eleonora-averoldi": {
+   "file": "brescia-eleonora-averoldi.jpg",
+   "title": "Portrait of Eleonora Averoldi",
+   "artist": "Moretto da Brescia",
+   "artist_died": 1554,
+   "date": "1530",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Moretto,_ritratto_di_eleonora_averoldi.JPG",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "352",
+   "pma_object": "101831",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 352, European Art 1500-1850, third floor (ARCO Gallery)",
+   "wikidata": "Q20809490",
+   "orig_px": [
+    1157,
+    1500
+   ]
+  },
+  "dossi-gentleman": {
+   "file": "dossi-gentleman.jpg",
+   "title": "Portrait of a Gentleman",
+   "artist": "Dosso Dossi",
+   "artist_died": 1542,
+   "date": "1520",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Dosso_dossi_006.JPG",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "352",
+   "pma_object": "102007",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 352, European Art 1500-1850, third floor (ARCO Gallery)",
+   "wikidata": "Q20808882",
+   "orig_px": [
+    1500,
+    1129
+   ]
+  },
+  "brescia-virgin-child": {
+   "file": "brescia-virgin-child.jpg",
+   "title": "Virgin and Child, with Two Donors",
+   "artist": "Moretto da Brescia",
+   "artist_died": 1554,
+   "date": "1528",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Moretto,_Madonna_col_Bambino_e_due_donatori.JPG",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "352",
+   "pma_object": "101986",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 352, European Art 1500-1850, third floor (ARCO Gallery)",
+   "wikidata": "Q20809491",
+   "orig_px": [
+    1500,
+    1125
+   ]
+  },
+  "velazquez-infanta-maria": {
+   "file": "velazquez-infanta-maria.jpg",
+   "title": "Portrait of the Infanta Maria Teresa",
+   "artist": "Diego Velázquez",
+   "artist_died": 1660,
+   "date": "1650",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Portrait_of_the_Infanta_Maria_Teresa_(1638-1683).jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "353",
+   "pma_object": "102637",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 353, European Art 1500-1850, third floor",
+   "wikidata": "Q20810228",
+   "orig_px": [
+    2514,
+    3234
+   ]
+  },
+  "greco-crucifixion": {
+   "file": "greco-crucifixion.jpg",
+   "title": "The Crucifixion",
+   "artist": "El Greco",
+   "artist_died": 1614,
+   "date": "1610",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:El_Greco_and_Workshop_-_Christ_on_the_Cross,_c._1600-1610.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "353",
+   "pma_object": "104389",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 353, European Art 1500-1850, third floor",
+   "wikidata": "Q20808930",
+   "orig_px": [
+    1536,
+    3072
+   ]
+  },
+  "younger-martin-luther": {
+   "file": "younger-martin-luther.jpg",
+   "title": "Portrait of Martin Luther",
+   "artist": "Lucas Cranach the Younger",
+   "artist_died": 1586,
+   "date": "1555",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Lucas_Cranach_d.J._(Werkst.)_-_Bildnis_des_Martin_Luther.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "356",
+   "pma_object": "102552",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 356, European Art 1500-1850, third floor",
+   "wikidata": "Q20808787",
+   "orig_px": [
+    4044,
+    6250
+   ]
+  },
+  "younger-allegory-sight": {
+   "file": "younger-allegory-sight.jpg",
+   "title": "Allegory of Sight (Venus and Cupid in a Picture Gallery)",
+   "artist": "Jan Brueghel the Younger",
+   "artist_died": 1678,
+   "date": "1660",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Jan_Brueghel_the_Younger_-_Allegory_of_Sight,_c._1660.png",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "357",
+   "pma_object": "102459",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 357, European Art 1500-1850, third floor",
+   "wikidata": "Q20808513",
+   "orig_px": [
+    3862,
+    2468
+   ]
+  },
+  "berghe-still-life": {
+   "file": "berghe-still-life.jpg",
+   "title": "Still Life with Flowers in a Vase",
+   "artist": "Christoffel van den Berghe",
+   "artist_died": 1645,
+   "date": "1617",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Christoffel_van_den_Berghe,_Dutch_(active_Middelburg),_active_c._1617_-_after_1628_-_Still_Life_with_Flowers_in_a_Vase_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "362",
+   "pma_object": "102450",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 362, European Art 1500-1850, third floor",
+   "wikidata": "Q18683819",
+   "orig_px": [
+    4989,
+    6314
+   ]
+  },
+  "steen-doctor-s": {
+   "file": "steen-doctor-s.jpg",
+   "title": "The Doctor's Visit",
+   "artist": "Jan Steen",
+   "artist_died": 1679,
+   "date": "1663",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:The_Doctor's_Visit_by_Jan_Steen_Philadelphia_Museum_of_Art.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "362",
+   "pma_object": "102298",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 362, European Art 1500-1850, third floor",
+   "wikidata": "Q20810108",
+   "orig_px": [
+    1180,
+    1500
+   ]
+  },
+  "steen-moses-striking": {
+   "file": "steen-moses-striking.jpg",
+   "title": "Moses Striking the Rock",
+   "artist": "Jan Steen",
+   "artist_died": 1679,
+   "date": "1661",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Jan_Steen,_Dutch_(active_Leiden,_Haarlem,_and_The_Hague)_-_Moses_Striking_the_Rock_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "364",
+   "pma_object": "102296",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 364, European Art 1500-1850, third floor",
+   "wikidata": "Q11784786",
+   "orig_px": [
+    4417,
+    4242
+   ]
+  },
+  "romney-willett-children": {
+   "file": "romney-willett-children.jpg",
+   "title": "Portrait of the Willett Children",
+   "artist": "George Romney",
+   "artist_died": 1802,
+   "date": "1791",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Portrait_of_the_Willett_Children_(by_George_Romney).jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "378",
+   "pma_object": "102983",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 378, European Art 1500-1850, third floor",
+   "wikidata": "Q20809949",
+   "orig_px": [
+    3267,
+    4096
+   ]
+  },
+  "hogarth-conversation-piece": {
+   "file": "hogarth-conversation-piece.jpg",
+   "title": "Conversation Piece (Portrait of Sir Andrew Fountaine with Other Men and Women)",
+   "artist": "William Hogarth",
+   "artist_died": 1764,
+   "date": "1730",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:William_Hogarth_-_Portrait_of_Sir_Andrew_Fountaine_with_other_people.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "379",
+   "pma_object": "103801",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 379, European Art 1500-1850, third floor",
+   "wikidata": "Q12148255",
+   "orig_px": [
+    1478,
+    1168
+   ]
+  },
+  "romney-lady-grantham": {
+   "file": "romney-lady-grantham.jpg",
+   "title": "Portrait of Lady Grantham",
+   "artist": "George Romney",
+   "artist_died": 1802,
+   "date": "1781",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Portrait_of_Lady_Grantham_(by_George_Romney).jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "379",
+   "pma_object": "103825",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 379, European Art 1500-1850, third floor",
+   "wikidata": "Q20809945",
+   "orig_px": [
+    3429,
+    4097
+   ]
+  },
+  "chardin-still-life": {
+   "file": "chardin-still-life.jpg",
+   "title": "Still Life with a Hare",
+   "artist": "Jean-Baptiste-Siméon Chardin",
+   "artist_died": 1779,
+   "date": "1730",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Jean-Baptiste-Siméon_Chardin,_French_-_Still_Life_with_a_Hare_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "383",
+   "pma_object": "57049",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 383, European Art 1500-1850, third floor",
+   "wikidata": "Q18686471",
+   "orig_px": [
+    5409,
+    4285
+   ]
+  },
+  "stuart-frances-cadwalader": {
+   "file": "stuart-frances-cadwalader.jpg",
+   "title": "Portrait of Frances Cadwalader Montague, Lady Erskine",
+   "artist": "Gilbert Stuart",
+   "artist_died": 1828,
+   "date": "1802",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Portrait_of_Frances_Cadwalader_Montague,_Lady_Erskine.jpg",
+   "source_credit": "Philadelphia Museum of Art, via Wikimedia Commons",
+   "gallery": "386",
+   "pma_object": "76573",
+   "gallery_source": "PMA object page, 2026-10-21: Gallery 386, American Art, third floor",
+   "wikidata": "Q20813077",
+   "orig_px": [
+    3374,
+    4097
    ]
   }
  },

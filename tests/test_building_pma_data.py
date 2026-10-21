@@ -181,7 +181,7 @@ def test_credits_and_licences_are_present_and_in_the_blueprint_footer():
 def test_every_hosted_image_has_a_licence_a_size_and_a_credit():
     m = pma_art.manifest()
     files = dict(pma_art.files())
-    assert len(m["images"]) == 5 and set(files) == {v["name"] for v in m["images"].values()}
+    assert len(m["images"]) >= 30 and set(files) == {v["name"] for v in m["images"].values()}
     total = 0
     banned = ("duchamp", "brancusi", "rivera", "calder", "fernandez", "puryear", "odita", "plensa", "weiwei", "gross", "saint-gaudens")
     for k, im in m["images"].items():
@@ -191,7 +191,10 @@ def test_every_hosted_image_has_a_licence_a_size_and_a_credit():
         w, h = _jpeg_size(files[im["name"]])
         assert max(w, h) <= 512, k
         total += im["bytes"]
-    assert total < 400_000                                                          # a few hundred KB at most
+    assert total < 2_500_000                                                        # ~36 small JPEGs, about 1.8 MB in all
+    gal = {s["work"]["img"]: s.get("gl") for s in PLAN["sl"] if "img" in s["work"]}
+    for im in m["images"].values():                                                 # each image hangs in the gallery its PMA object page names
+        assert gal[im["url"]] == im["gallery"], im["title"]
     used = {s["work"]["img"] for s in PLAN["sl"] if "img" in s["work"]}
     assert used == {v["url"] for v in m["images"].values()}                         # every image is on a slot, every slot image is hosted
     assert {n for n in files} == {u.rsplit("/", 1)[1] for u in used}
@@ -258,7 +261,7 @@ def test_art_slots_only_where_a_gallery_number_is_confirmed():
     # true catalogued sizes where known, with their source
     monet = slots["sl-monet-japanese-footbridge"]
     assert monet["sz"] == [0.98, 0.79] and "78.7 x 97.8" in monet["sr"] and monet["sb"] == "catalogued" and monet["work"]["pma_url"].endswith("/87535")
-    assert slots["sl-tanner-annunciation"]["gl"] == "211" and slots["sl-peale-yarrow-mamout"]["gl"] == "104"
+    assert slots["sl-tanner-annunciation"]["gl"] == "358" and slots["sl-peale-yarrow-mamout"]["gl"] == "104"
     assert "img" not in slots["sl-rivera-sugar-cane"]["work"] and "img" in slots["sl-van-der-weyden-crucifixion"]["work"]
     assert sum(1 for s in PLAN["sl"] if "img" in s["work"]) == 5
 

@@ -250,6 +250,10 @@ def build(src: Path, art_manifest: dict) -> dict:
             r["gm"] = "sequence-consistent" if seq else "tracer-unique"
             if nm and re.search(r"panel|room|salon|drawing room|kitchen|bedroom|cubiculum|interior", nm, re.I):
                 r["wm"] = "wood"; r["mb"] = "evidenced: period-room installation (PMA library guide); floor and ceiling assumed"
+                if number in PERIOD_FINISH:
+                    wm, fm, why = PERIOD_FINISH[number]
+                    r["wm"], r["fm"] = wm, fm
+                    r["mb"] = f"evidenced: period-room installation (PMA library guide); finish ASSUMED from the room's period ({why}), not measured"
             elif nm and re.search(r"cloister|portal|gothic|romanesque|temple|court", nm, re.I):
                 r["wm"] = "stone"; r["mb"] = "evidenced: architectural installation (PMA library guide); floor and ceiling assumed"
         else:
@@ -463,6 +467,41 @@ def build(src: Path, art_manifest: dict) -> dict:
             continue
         fx.append({"id": f"bench-{r['id']}", "l": r["l"], "k": "bench", "p": [round(cx, 2), round(cy, 2)], "rot": 0 if w >= d else 90, "sz": [2.0, 0.55, 0.45], "m": "leather",
                    "n": "Gallery bench", "c": 0, "s": ["est"], "bs": "assumed: a typical gallery bench; real furniture is not recorded in the sources used"})
+    # ASSUMED furniture (typical museum fittings, not recorded in any source used): a free-standing vitrine in roomy decorative-arts, Asian-art and
+    # arms galleries, and a rope barrier on brass stanchions in front of the long, door-free walls of the period rooms
+    ops = []
+    for ww in walls:
+        for o in ww.get("o", []):
+            if o.get("k") != "window":
+                ops.append((ww["l"], seg_point(ww, o["a"]), o["w"] / 2 + 0.9))
+    for r in rooms:
+        xs = [q[0] for q in r["p"]]; ys = [q[1] for q in r["p"]]
+        w, d = max(xs) - min(xs), max(ys) - min(ys)
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        if r.get("ca") in ("asia", "arms", "am1650", "am1850") and r.get("ty") == "gallery" and len(r["p"]) == 4 and min(w, d) >= 5.5 and abs(bs.area(r["p"])) >= 45 and r.get("no") not in PERIOD_FINISH:
+            ux, uy = (1, 0) if w >= d else (0, 1); off = max(w, d) * 0.27
+            for k, sgn in enumerate((-1, 1)):
+                fx.append({"id": f"case-{r['id']}-{k}", "l": r["l"], "k": "case", "p": [round(cx + ux * off * sgn, 2), round(cy + uy * off * sgn, 2)], "rot": 0 if w >= d else 90,
+                           "sz": [1.3, 0.8, 1.8], "m": "bronze", "n": "Display case (objects not modelled)", "c": 0, "s": ["est"],
+                           "bs": "assumed: a typical free-standing vitrine; the cases and objects in this gallery are not recorded in the sources used"})
+        if r.get("no") in PERIOD_FINISH and len(r["p"]) >= 4:
+            P = r["p"]; ccw = bs.area(P) > 0; n = len(P); edges = []
+            for i in range(n):
+                A, B = P[i], P[(i + 1) % n]; L = math.hypot(B[0] - A[0], B[1] - A[1])
+                if L >= 3.5:
+                    edges.append((L, A, B))
+            edges.sort(key=lambda e: -e[0])
+            for j, (L, A, B) in enumerate(edges[:2]):
+                dx, dy = (B[0] - A[0]) / L, (B[1] - A[1]) / L; nx, ny = (-dy, dx) if ccw else (dy, -dx)
+                if any(lv == r["l"] and pt_seg(c, A, B)[0] < 1.2 for lv, c, _ in ops):
+                    continue
+                m = [(A[0] + B[0]) / 2 + nx * 0.75, (A[1] + B[1]) / 2 + ny * 0.75]
+                fx.append({"id": f"rope-{r['id']}-{j}", "l": r["l"], "k": "other", "p": [round(m[0], 2), round(m[1], 2)], "rot": round(math.degrees(math.atan2(dy, dx)), 1),
+                           "sz": [round(L * 0.72, 2), 0.06, 0.95], "m": "bronze", "n": "Rope barrier (stanchions)", "c": 0, "s": ["est"],
+                           "bs": "assumed: a rope barrier keeps visitors off the panelling; not recorded in the sources used"})
+    for r in rooms:
+        if r["id"] == "l2-c-vest":
+            r["fm"] = "stone"; r["mb"] = "assumed: a stone floor at the East Entrance vestibule (typical entrance finish; not recorded in the sources used)"
     plan["fx"] = fx
     plan["en"] = en
 
@@ -546,7 +585,7 @@ def build(src: Path, art_manifest: dict) -> dict:
     # a period room or architectural installation has no windows onto the courts (the installation is built inside the 1928 shell): close those 1928 windows
     wooded = {}
     for r in plan["rm"]:
-        if r.get("wm") in ("wood", "stone") and r.get("no") and r.get("l") in ("l3",):
+        if (r.get("wm") in ("wood", "stone") or r.get("no") in PERIOD_FINISH) and r.get("no") and r.get("l") in ("l3",):
             wooded.setdefault(r["l"], []).append(r)
     closed = 0
     for w in plan["wl"]:
@@ -577,12 +616,35 @@ def build(src: Path, art_manifest: dict) -> dict:
     return plan, {"gap_rooms": info_gaps, "closed_installation_windows": info_closed, "rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links}
 
 
+# period rooms: a finish typical of the room's period and place (oak, pine, painted or white-and-gold panelling, parquet or boards). These are
+# ASSUMED from the period style named by the PMA library guide; colours and patterns are not measured from the rooms.
+PERIOD_FINISH = {
+    "314": ("x:oak", "wood", "late-Gothic linenfold-era oak panelling"),
+    "357": ("x:oak", "parquet", "French Renaissance carved oak"),
+    "359": ("x:boiserie", "parquet", "Paris hotel boiserie, painted and gilded"),
+    "360": ("x:boiserie", "parquet", "French chateau salon boiserie, painted and gilded"),
+    "361": ("x:oak", "wood", "Dutch 17th-century oak"),
+    "362": ("x:oak", "wood", "Jacobean oak panelling"),
+    "363": ("x:oak", "wood", "Tudor oak panelling"),
+    "374": ("x:pine", "wood", "English Georgian pine panelling"),
+    "377": ("x:pine", "wood", "English Georgian pine panelling"),
+    "378": ("x:oak", "wood", "English 17th-century oak"),
+    "379": ("x:pine", "wood", "English Georgian pine panelling"),
+    "380": ("x:pine", "wood", "English Georgian pine panelling"),
+    "381": ("x:panelpaint", "wood", "English 18th-century painted panelling"),
+    "385": ("plaster", "wood", "colonial kitchen: plastered walls, boards"),
+    "386": ("x:panelpaint", "wood", "American Georgian painted panelling"),
+    "387": ("x:panelpaint", "wood", "American Georgian painted panelling"),
+    "389": ("x:panelpaint", "wood", "American Federal painted panelling"),
+}
+
+
 # ── art slots ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 WORKS = [
     # gallery, id, title, artist, date, credit, pma object id, size m (w, h), size source, al, image key, note
     ("104", "peale-yarrow-mamout", "Portrait of Yarrow Mamout (Muhammad Yaro)", "Charles Willson Peale", "1819", "Philadelphia Museum of Art, accession 2011-87-1", "319114", (0.508, 0.61), "24 x 20 in; PMA accession 2011-87-1 (via Wikipedia)", ["painting"], "peale"),
-    ("211", "tanner-annunciation", "The Annunciation", "Henry Ossawa Tanner", "1898", "Philadelphia Museum of Art, purchased 1899 (W1899-1-1)", "104384", (1.81, 1.448), "57 x 71 1/4 in", ["painting"], "tanner"),
+    ("358", "tanner-annunciation", "The Annunciation", "Henry Ossawa Tanner", "1898", "Philadelphia Museum of Art, purchased 1899 (W1899-1-1)", "104384", (1.81, 1.448), "57 x 71 1/4 in", ["painting"], "tanner"),
     ("261", "monet-japanese-footbridge", "Japanese Footbridge, Giverny", "Claude Monet", "1895", "Philadelphia Museum of Art, gift of F. Otto Haas, 1993-151-2", "87535", (0.978, 0.787), "78.7 x 97.8 cm (PMA record via Commons)", ["painting"], "monet"),
     ("306", "van-der-weyden-crucifixion", "The Crucifixion, with the Virgin and Saint John the Evangelist Mourning", "Rogier van der Weyden", "c. 1460", "Philadelphia Museum of Art, John G. Johnson Collection", "102845", (1.864, 1.803), "two panels, overall 180.3 x 186.4 cm", ["painting"], "weyden"),
     ("364", "leyster-last-drop", "The Last Drop (The Gay Cavalier)", "Judith Leyster", "c. 1629", "Philadelphia Museum of Art, John G. Johnson Collection, 1917", "102220", (0.735, 0.891), "35 1/16 x 28 15/16 in (89.1 x 73.5 cm)", ["painting"], "leyster"),
@@ -590,6 +652,41 @@ WORKS = [
     ("100", "wampum-belt", "Lenape Wampum Belt", "Lenape women artists (likely)", "c. 1682", "Loan, Historical Society of Pennsylvania / Atwater Kent collections", None, (0.7, 0.2), "assumed (belt reported ~26 in long)", ["textile", "object"], None),
     ("347", "horse-armor-von-worms", "Horse Armor", "Wilhelm von Worms", "1507", "Philadelphia Museum of Art", "309965", (1.2, 2.2), "assumed (object size not recorded here)", ["object", "sculpture"], None),
     ("347", "man-armor-deutsch", "Field Armor", "Matthes Deutsch", "c. 1505", "Philadelphia Museum of Art", "308827", (0.8, 1.9), "assumed (object size not recorded here)", ["object", "sculpture"], None),
+    # 2026-10-21: public-domain paintings whose gallery the PMA object page states (Wikidata P4643 -> object page 'Gallery'), image licence read from the Commons API (pd)
+    ("105", "stuart-anne-willing", "Anne Willing Bingham", "Gilbert Stuart", "1797", "Philadelphia Museum of Art (object 306033)", "306033", (0.616, 0.731), "730.76 x 616.46 mm (Wikidata Q18685804)", ["painting"], "stuart-anne-willing"),
+    ("105", "sully-colonel-jonathan", "Portrait of Colonel Jonathan Williams (1750-1815)", "Thomas Sully", "1815", "Philadelphia Museum of Art (object 59864)", "59864", (0.559, 0.75), "assumed (no size found; proportions from the image)", ["painting"], "sully-colonel-jonathan"),
+    ("252", "manet-battle-kearsarge", "The Battle of the Kearsarge and the Alabama", "Édouard Manet", "1865", "Philadelphia Museum of Art (object 101707)", "101707", (1.29, 1.379), "1378.97 x 1290.07 mm (Wikidata Q154653)", ["painting"], "manet-battle-kearsarge"),
+    ("252", "degas-interior", "Interior", "Edgar Degas", "1868", "Philadelphia Museum of Art (object 82556)", "82556", (1.143, 0.813), "81.3 x 114.3 cm (Wikidata Q6046671)", ["painting"], "degas-interior"),
+    ("252", "cassatt-woman-pearl", "Woman with a Pearl Necklace in a Loge", "Mary Cassatt", "1879", "Philadelphia Museum of Art (object 72182)", "72182", (0.595, 0.815), "81.5 x 59.5 cm (Wikidata Q15130000)", ["painting"], "cassatt-woman-pearl"),
+    ("252", "renoir-boy-toy", "Boy with a Toy Soldier (Portrait of Jean de La Pommeraye)", "Pierre-Auguste Renoir", "1875", "Philadelphia Museum of Art (object 59197)", "59197", (0.569, 0.75), "assumed (no size found; proportions from the image)", ["painting"], "renoir-boy-toy"),
+    ("259", "rusinol-interior-cafe", "Interior of a Café", "Santiago Rusiñol i Prats", "1892", "Philadelphia Museum of Art (object 101761)", "101761", (0.814, 1.004), "1004.06 x 813.56 mm (Wikidata Q18689336)", ["painting"], "rusinol-interior-cafe"),
+    ("259", "mancini-saltimbanco", "The Saltimbanco", "Antonio Mancini", "1879", "Philadelphia Museum of Art (object 283509)", "283509", (1.108, 2.038), "203.8 x 110.8 cm (Wikidata Q18683340)", ["painting"], "mancini-saltimbanco"),
+    ("259", "harrison-harbor-concarneau", "Harbor of Concarneau", "Thomas Alexander Harrison", "1850", "Philadelphia Museum of Art (object 101684)", "101684", (0.825, 0.6), "assumed (no size found; proportions from the image)", ["painting"], "harrison-harbor-concarneau"),
+    ("350", "piazza-musical-group", "Musical Group", "Callisto Piazza", "1520", "Philadelphia Museum of Art (object 101984)", "101984", (0.91, 0.91), "91 x 91 cm (Wikidata Q18683422)", ["painting"], "piazza-musical-group"),
+    ("350", "bartolomeo-adam-eve", "Adam and Eve with Cain and Abel", "Fra Bartolomeo", "1512", "Philadelphia Museum of Art (object 102598)", "102598", (0.596, 0.75), "assumed (no size found; proportions from the image)", ["painting"], "bartolomeo-adam-eve"),
+    ("350", "franciabigio-saint-julian", "Saint Julian the Hospitaler Meeting His Wife after Killing His Parents", "Franciabigio", "1515", "Philadelphia Museum of Art (object 103673)", "103673", (0.532, 0.75), "assumed (no size found; proportions from the image)", ["painting"], "franciabigio-saint-julian"),
+    ("351", "solari-christ-bound", "Christ Bound and Crowned with Thorns", "Andrea Solari", "1504", "Philadelphia Museum of Art (object 102033)", "102033", (0.457, 0.632), "63.2 x 45.7 cm (Wikidata Q20810084)", ["painting"], "solari-christ-bound"),
+    ("351", "pinturicchio-madonna-writing", "Madonna with Writing Child", "Pinturicchio", "1494", "Philadelphia Museum of Art (object 103594)", "103594", (0.416, 0.61), "61 x 41.6 cm (Wikidata Q3842560)", ["painting"], "pinturicchio-madonna-writing"),
+    ("351", "pontormo-alessandro-medici", "Portrait of Alessandro de' Medici", "Pontormo", "1534", "Philadelphia Museum of Art (object 102656)", "102656", (0.81, 1.0), "100 x 81 cm (Wikidata Q20809811)", ["painting"], "pontormo-alessandro-medici"),
+    ("352", "vecchio-raising-lazarus", "The Raising of Lazarus", "Palma Vecchio", "1514", "Philadelphia Museum of Art (object 101931)", "101931", (0.729, 0.6), "assumed (no size found; proportions from the image)", ["painting"], "vecchio-raising-lazarus"),
+    ("352", "brescia-eleonora-averoldi", "Portrait of Eleonora Averoldi", "Moretto da Brescia", "1530", "Philadelphia Museum of Art (object 101831)", "101831", (0.689, 0.851), "85.1 x 68.9 cm (Wikidata Q20809490)", ["painting"], "brescia-eleonora-averoldi"),
+    ("352", "dossi-gentleman", "Portrait of a Gentleman", "Dosso Dossi", "1520", "Philadelphia Museum of Art (object 102007)", "102007", (1.181, 0.891), "89.1 x 118.1 cm (Wikidata Q20808882)", ["painting"], "dossi-gentleman"),
+    ("352", "brescia-virgin-child", "Virgin and Child, with Two Donors", "Moretto da Brescia", "1528", "Philadelphia Museum of Art (object 101986)", "101986", (0.8, 0.6), "assumed (no size found; proportions from the image)", ["painting"], "brescia-virgin-child"),
+    ("353", "velazquez-infanta-maria", "Portrait of the Infanta Maria Teresa", "Diego Velázquez", "1650", "Philadelphia Museum of Art (object 102637)", "102637", (0.527, 0.673), "67.3 x 52.7 cm (Wikidata Q20810228)", ["painting"], "velazquez-infanta-maria"),
+    ("353", "greco-crucifixion", "The Crucifixion", "El Greco", "1610", "Philadelphia Museum of Art (object 104389)", "104389", (1.035, 2.064), "206.4 x 103.5 cm (Wikidata Q20808930)", ["painting"], "greco-crucifixion"),
+    ("356", "younger-martin-luther", "Portrait of Martin Luther", "Lucas Cranach the Younger", "1555", "Philadelphia Museum of Art (object 102552)", "102552", (0.232, 0.357), "35.7 x 23.2 cm (Wikidata Q20808787)", ["painting"], "younger-martin-luther"),
+    ("357", "younger-allegory-sight", "Allegory of Sight (Venus and Cupid in a Picture Gallery)", "Jan Brueghel the Younger", "1660", "Philadelphia Museum of Art (object 102459)", "102459", (0.897, 0.581), "58.1 x 89.7 cm (Wikidata Q20808513)", ["painting"], "younger-allegory-sight"),
+    ("362", "berghe-still-life", "Still Life with Flowers in a Vase", "Christoffel van den Berghe", "1617", "Philadelphia Museum of Art (object 102450)", "102450", (0.295, 0.376), "37.6 x 29.5 cm (Wikidata Q18683819)", ["painting"], "berghe-still-life"),
+    ("362", "steen-doctor-s", "The Doctor's Visit", "Jan Steen", "1663", "Philadelphia Museum of Art (object 102298)", "102298", (0.368, 0.46), "46 x 36.8 cm (Wikidata Q20810108)", ["painting"], "steen-doctor-s"),
+    ("364", "steen-moses-striking", "Moses Striking the Rock", "Jan Steen", "1661", "Philadelphia Museum of Art (object 102296)", "102296", (0.98, 0.94), "94 x 98 cm (Wikidata Q11784786)", ["painting"], "steen-moses-striking"),
+    ("364", "duyster-soldiers-beside", "Soldiers beside a Fireplace", "Willem Cornelisz Duyster", "1632", "Philadelphia Museum of Art (object 102225)", "102225", (0.47, 0.42), "42 x 47 cm (Wikidata Q20808914)", ["painting"], "duyster-soldiers-beside"),
+    ("364", "potter-figures-horses", "Figures with Horses by a Stable", "Paulus Potter", "1647", "Philadelphia Museum of Art (object 102874)", "102874", (0.375, 0.451), "451.1 x 375.41 mm (Wikidata Q18688345)", ["painting"], "potter-figures-horses"),
+    ("364", "goltzius-sine-cerere", "Sine Cerere et Libero friget Venus (Without Ceres and Bacchus, Venus Would Freeze)", "Hendrik Goltzius", "1602", "Philadelphia Museum of Art (object 85733)", "85733", (0.8, 1.05), "105 x 80 cm (Wikidata Q20809060)", ["painting"], "goltzius-sine-cerere"),
+    ("378", "romney-willett-children", "Portrait of the Willett Children", "George Romney", "1791", "Philadelphia Museum of Art (object 102983)", "102983", (1.219, 1.524), "60 x 48 in (Wikidata Q20809949)", ["painting"], "romney-willett-children"),
+    ("379", "hogarth-conversation-piece", "Conversation Piece (Portrait of Sir Andrew Fountaine with Other Men and Women)", "William Hogarth", "1730", "Philadelphia Museum of Art (object 103801)", "103801", (0.584, 0.476), "47.6 x 58.4 cm (Wikidata Q12148255)", ["painting"], "hogarth-conversation-piece"),
+    ("379", "romney-lady-grantham", "Portrait of Lady Grantham", "George Romney", "1781", "Philadelphia Museum of Art (object 103825)", "103825", (0.991, 1.181), "118.1 x 99.1 cm (Wikidata Q20809945)", ["painting"], "romney-lady-grantham"),
+    ("383", "chardin-still-life", "Still Life with a Hare", "Jean-Baptiste-Siméon Chardin", "1730", "Philadelphia Museum of Art (object 57049)", "57049", (0.814, 0.652), "651.51 x 813.56 mm (Wikidata Q18686471)", ["painting"], "chardin-still-life"),
+    ("386", "stuart-frances-cadwalader", "Portrait of Frances Cadwalader Montague, Lady Erskine", "Gilbert Stuart", "1802", "Philadelphia Museum of Art (object 76573)", "76573", (0.618, 0.75), "assumed (no size found; proportions from the image)", ["painting"], "stuart-frances-cadwalader"),
 ]
 MAP_URL = "https://www.philamuseum.org/visit/museum-map"
 LIBGUIDE = "https://philamuseum.libguides.com/period-rooms"
