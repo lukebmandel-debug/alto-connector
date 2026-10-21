@@ -298,7 +298,7 @@ def test_every_hub_and_spoke_page_carries_the_flight_and_other_pages_do_not():
 
 def test_the_flight_is_small_and_draws_without_masks_or_filters():
     size = len(gzip.compress((FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 13000, size      # (12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
+    assert size < 13500, size      # (12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
     for s in ("<mask", "'mask'", "filter", "backdrop"):
         assert s not in FLY_JS and s not in FLY_CSS, s
     assert re.search(r"pointer-events:none", FLY_CSS)

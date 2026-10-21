@@ -5,7 +5,7 @@ On a desktop timeline of any format the title bar and the unit / chip bar keep e
 runs up to the top of the window, and so does the board, with nothing ending where the bars were.
 
 The engine pins #canvas under the nav (alignInfo: an inline !important top). Here #canvas starts at
-the top instead, with a detail page open the engine's own place stands, and phones keep their own layout.
+the top instead, padded down by the bars' height so it still opens below them, with a detail page open the engine's own place stands, and phones keep their own layout.
 """
 
 CSS = r"""
@@ -25,8 +25,8 @@ JS = r"""(function(){
   de.classList.add('alto-clear-top');
   function sync(){ var c=document.getElementById('canvas'); if(!c) return;
     var on=!de.classList.contains('mobile') && !de.classList.contains('detail-open'), t=c.style.getPropertyValue('top');
-    if(on){ if(t!=='0px'){ c._ctT=t; c.style.setProperty('top', '0px', 'important'); } }
-    else if(t==='0px' && c._ctT) c.style.setProperty('top', c._ctT, 'important'); }
+    if(on){ if(t!=='0px'){ c._ctT=t; c.style.setProperty('top', '0px', 'important'); c.style.setProperty('padding-top', t, 'important'); c.style.setProperty('scroll-padding-top', t, 'important'); } }   /* (the board still opens under the bars: it slides beneath them only as it scrolls) */
+    else if(t==='0px' && c._ctT){ c.style.setProperty('top', c._ctT, 'important'); c.style.removeProperty('padding-top'); c.style.removeProperty('scroll-padding-top'); } }
   if(typeof MutationObserver==='function'){ var c=document.getElementById('canvas');
     if(c) new MutationObserver(sync).observe(c, {attributes:true, attributeFilter:['style']});
     new MutationObserver(sync).observe(de, {attributes:true, attributeFilter:['class']}); }
