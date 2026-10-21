@@ -579,6 +579,12 @@ function things(G){
       b.picks.push({k:'slot', id:s.id, box:{x:s.p[0],y:s.p[1],hx:Math.max(.3,W*.6),hy:Math.max(.3,W*.6),c:1,s:0,z0:l.e,z1:l.e+1+H}, room:r}); }
     else b.picks.push({k:'slot', id:s.id, rect:{c:[s.p[0]+n[0]*.03,s.p[1]+n[1]*.03,it.z], n:[n[0],n[1],0], d:[-n[1],n[0],0], hw:W/2+.2, hh:H/2+.1}, room:r}); }); }
 
+function roomHasWin(G,r){ if(r.hasWin!=null) return r.hasWin; var has=false, p=r.p;
+  for(var i=0;i<G.walls.length&&!has;i++){ var W=G.walls[i]; if(W.lv!==r.l) continue;
+    for(var j=0;j<W.ops.length;j++){ var o=W.ops[j]; if(o.k!=='window'||!o.sg) continue; var sg=o.sg, u=(o.a0+o.a1)/2-sg.s0, x=sg.A[0]+sg.d[0]*u, y=sg.A[1]+sg.d[1]*u;
+      for(var q=0,n=p.length;q<n;q++){ var a=p[q], b=p[(q+1)%n], dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy||1, t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/l2)); if(Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy)<1.2){ has=true; break; } }
+      if(has) break; } }
+  r.hasWin=has; return has; }
 function exterior(G){ var ex=G.plan.ex||{}, sb=G.site;
   var wtop=-1e9; G.walls.forEach(function(W){ if(W.k==='ext') wtop=Math.max(wtop,W.top); });
   (ex.sh||[]).forEach(function(sh){ if(!sh.p||sh.p.length<3) return; var z0=wtop>-1e8?Math.max(wtop-.02,sh.z!=null?sh.z:G.gz):(sh.z!=null?sh.z:G.gz), bb=bb2(sh.p), top=Math.max(sh.h+(sh.z||0),z0);
@@ -828,23 +834,24 @@ function figure(mb,k,x,y,z0,H,rot){ var u=H/7.6, cr=Math.cos(rot), sr=Math.sin(r
   ell(mb,k,P(-1.14,.28,3.78),[.13*u,.1*u,.22*u],rot,0,6); ell(mb,k,P(1.1,.36,3.88),[.13*u,.1*u,.22*u],rot,0,6);
   limb(mb,k,P(0,0,6.2),P(0,.04,6.75),.26*u,.24*u); ell(mb,k,P(0,.06,7.1),[.38*u,.45*u,.52*u],rot,.1,10); }
 /* a huntress drawing a bow, poised on one foot on a ball (for a statue named Diana) */
-function archer(mb,k,x,y,z0,H,rot){ var br=H*.055; ell(mb,k,[x,y,z0+br],[br,br,br],0,0,12); var zf=z0+br*1.9, u=(H-br*1.9)/7.7, cr=Math.cos(rot), sr=Math.sin(rot), P=function(a,b,z){ return [x+a*cr-b*sr,y+a*sr+b*cr,zf+z*u]; };
-  limb(mb,k,P(-.3,0,3.95),P(-.2,.12,2.05),.4*u,.29*u); limb(mb,k,P(-.2,.12,2.05),P(0,0,.35),.29*u,.16*u); ell(mb,k,P(0,.1,.15),[.17*u,.45*u,.15*u],rot,0,6);
-  limb(mb,k,P(.35,0,3.85),P(.5,-.55,2.25),.4*u,.29*u); limb(mb,k,P(.5,-.55,2.25),P(.55,-1.55,2.85),.29*u,.16*u); ell(mb,k,P(.56,-1.85,2.95),[.16*u,.4*u,.14*u],rot,-.5,6);
+function archer(mb,k,x,y,z0,H,rot){ var br=H*.055; ell(mb,k,[x,y,z0+br],[br,br,br],0,0,12); var zf=z0+br*1.9, u=(H-br*1.9)/7.7, cr=Math.cos(rot), sr=Math.sin(rot), P=function(a,b,z){ return [x+a*cr-b*sr,y+a*sr+b*cr,zf+z*u]; }, lb=function(p0,p1,r0,r1,sg){ limb(mb,k,p0,p1,r0*1.3,r1*1.3,sg); ell(mb,k,p1,[r1*1.3,r1*1.3,r1*1.3],0,0,6); };
+  lb(P(-.3,0,3.95),P(-.2,.12,2.05),.4*u,.29*u); lb(P(-.2,.12,2.05),P(0,0,.35),.29*u,.16*u); ell(mb,k,P(0,.1,.15),[.17*u,.45*u,.15*u],rot,0,6);
+  lb(P(.35,0,3.85),P(.5,-.55,2.25),.4*u,.29*u); lb(P(.5,-.55,2.25),P(.55,-1.55,2.85),.29*u,.16*u); ell(mb,k,P(.56,-1.85,2.95),[.16*u,.4*u,.14*u],rot,-.5,6);
   ell(mb,k,P(0,0,4.2),[.88*u,.58*u,.62*u],rot,0,9); ell(mb,k,P(-.05,.1,5.35),[.95*u,.6*u,1.15*u],rot+.15,.12,10);
-  limb(mb,k,P(-.95,.05,6.15),P(-1.35,1.15,6.1),.25*u,.19*u); limb(mb,k,P(-1.35,1.15,6.1),P(-1.55,2.25,6.15),.19*u,.13*u);
-  limb(mb,k,P(.95,0,6.15),P(1.25,-.75,6.15),.25*u,.19*u); limb(mb,k,P(1.25,-.75,6.15),P(.35,.35,6.6),.19*u,.13*u);
-  limb(mb,k,P(0,.1,6.25),P(0,.2,6.8),.25*u,.23*u); ell(mb,k,P(-.08,.32,7.15),[.36*u,.44*u,.5*u],rot+.4,.15,10);
+  lb(P(-.95,.05,6.15),P(-1.35,1.15,6.1),.25*u,.19*u); lb(P(-1.35,1.15,6.1),P(-1.55,2.25,6.15),.19*u,.13*u);
+  lb(P(.95,0,6.15),P(1.25,-.75,6.15),.25*u,.19*u); lb(P(1.25,-.75,6.15),P(.35,.35,6.6),.19*u,.13*u);
+  lb(P(0,.1,6.25),P(0,.2,6.8),.25*u,.23*u); ell(mb,k,P(-.08,.32,7.15),[.36*u,.44*u,.5*u],rot+.4,.15,10);
+  ell(mb,k,P(.1,-.25,4.6),[.42*u,.8*u,1.9*u],rot,.18,9); ell(mb,k,P(.3,-.5,3.3),[.32*u,.7*u,1.2*u],rot,.3,8);
   var bw=[]; for(var i=0;i<=8;i++){ var t=(i/8)*2-1; bw.push(P(-1.6+(1-t*t)*.35,2.3+(1-t*t)*.15,6.15+t*1.9)); } for(var j=0;j<8;j++) limb(mb,k,bw[j],bw[j+1],.035*u*3,.035*u*3,5);
-  limb(mb,k,P(.35,.4,6.6),P(-1.6,2.6,6.17),.012,.012,4);
-  limb(mb,k,P(.1,-.3,7.0),P(.9,-1.6,6.4),.12*u,.05*u,6); limb(mb,k,P(.9,-1.6,6.4),P(1.6,-2.4,7.1),.05*u,.02*u,5); }
+  limb(mb,k,P(.35,.4,6.6),P(-1.6,2.6,6.17),.02,.02,4);
+  lb(P(.1,-.3,7.0),P(.9,-1.6,6.4),.12*u,.05*u,6); lb(P(.9,-1.6,6.4),P(1.6,-2.4,7.1),.05*u,.02*u,5); }
 function sculpture(mb,k,x,y,z0,W,H,seed){ var s=seed%3;
   if(s<1) lathe(mb,k,x,y,[[0,z0],[W*.12,z0],[W*.1,z0+H*.08],[W*.05,z0+H*.14],[W*.16,z0+H*.4],[W*.22,z0+H*.62],[W*.14,z0+H*.86],[W*.04,z0+H*.98],[0,z0+H]],24);
   else if(s<2) lathe(mb,k,x,y,[[0,z0],[W*.3,z0],[W*.42,z0+H*.3],[W*.45,z0+H*.55],[W*.36,z0+H*.82],[W*.18,z0+H*.97],[0,z0+H]],28);
   else { ell(mb,k,[x,y,z0+H*.3],[W*.32,W*.26,H*.3],0,0,10); ell(mb,k,[x,y,z0+H*.72],[W*.2,W*.22,H*.28],0,.2,10); } }
 ITEM.fx=function(G,mb,it,b){ var f=it.f, x=f.p[0], y=f.p[1], z0=it.z0, w=f.sz[0], d=f.sz[1], h=f.sz[2], rot=it.rot, k=matName(f.m,null), K=f.k;
   var seed=Math.floor(hash(f.id)*1000);
-  if(K==='bench'){ var lk=k&&k!=='wood'?k:'leather'; box(mb,'bronze',x,y,z0,w*.84,d*.6,h-.09,rot,{b:1}); box(mb,lk,x,y,z0+h-.1,w,d,.1,rot,{b:1}); }
+  if(K==='bench'){ var lk=k&&k!=='wood'&&k!=='leather'&&k!=='fabric'?k:'parquet'; box(mb,'parquet',x,y,z0,w*.84,d*.6,h-.09,rot,{b:1}); box(mb,lk,x,y,z0+h-.1,w,d,.1,rot,{b:1}); }
   else if(K==='case'){ var hb=Math.min(.86,h*.6); box(mb,k||'wood',x,y,z0,w,d,hb,rot,{b:1}); box(mb,'bronze',x,y,z0+hb,w+.02,d+.02,.03,rot,{b:1});
     var hg=h-hb-.03, zg=z0+hb+.03, c=Math.cos(rot), s=Math.sin(rot), cn=[[-1,-1],[1,-1],[1,1],[-1,1]];
     cn.forEach(function(q){ box(mb,'bronze',x+(q[0]*w/2)*c-(q[1]*d/2)*s,y+(q[0]*w/2)*s+(q[1]*d/2)*c,zg,.02,.02,hg,rot,{b:1}); });
@@ -1190,9 +1197,10 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
   var lt=S.room?(S.room.b.light||null):null, et=lt?lt.exp:.21; S.exp+=(et-S.exp)*(1-Math.exp(-S.dt/.6)); if(S.snapExp){ S.exp=et; S.snapExp=0; }
   var scr=[S.exp,0,1/cw,1/ch];
   /* sky */
+  var skyOn=!S.room||roomHasWin(G,S.room);       /* a room with no window never shows sky: a hairline gap in its walls then reads as shadow, not a white crack */
   gl.disable(gl.DEPTH_TEST); gl.depthMask(false); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.useProgram(S.ps.p); var u=S.ps.u;
   gl.uniform3fv(u.uF,fw); gl.uniform3fv(u.uR,[rt[0]*tx,rt[1]*tx,rt[2]*tx]); gl.uniform3fv(u.uU,[up[0]*ty,up[1]*ty,up[2]*ty]); gl.uniform3fv(u.uSun,S.sun); gl.uniform3fv(u.uSunC,S.sunC); gl.uniform3fv(u.uSkyC,S.sky); gl.uniform4fv(u.uScr,[S.exp,0,1/cw,1/ch]);
-  gl.bindBuffer(gl.ARRAY_BUFFER,S.quad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0); for(var a=1;a<4;a++) gl.disableVertexAttribArray(a); gl.drawArrays(gl.TRIANGLES,0,6);
+  gl.bindBuffer(gl.ARRAY_BUFFER,S.quad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0); for(var a=1;a<4;a++) gl.disableVertexAttribArray(a); if(skyOn) gl.drawArrays(gl.TRIANGLES,0,6);
   /* world */
   S.pre=[]; var list=visible(G,PL,eye), t0=performance.now(); S.list=list;
   var want=list.concat(S.pre).filter(function(b){ return !b.built; }); want.sort(function(p,c){ return bdist(p,eye)-bdist(c,eye); });

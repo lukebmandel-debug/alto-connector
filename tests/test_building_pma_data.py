@@ -181,7 +181,7 @@ def test_credits_and_licences_are_present_and_in_the_blueprint_footer():
 def test_every_hosted_image_has_a_licence_a_size_and_a_credit():
     m = pma_art.manifest()
     files = dict(pma_art.files())
-    assert len(m["images"]) == 4 and set(files) == {v["name"] for v in m["images"].values()}
+    assert len(m["images"]) == 5 and set(files) == {v["name"] for v in m["images"].values()}
     total = 0
     banned = ("duchamp", "brancusi", "rivera", "calder", "fernandez", "puryear", "odita", "plensa", "weiwei", "gross", "saint-gaudens")
     for k, im in m["images"].items():
@@ -205,13 +205,17 @@ def test_every_hosted_image_has_a_licence_a_size_and_a_credit():
 def test_gallery_numbers_are_only_defensible_matches():
     numbered = [r for r in PLAN["rm"] if r.get("no")]
     nums = [r["no"] for r in numbered]
-    assert len(nums) == len(set(nums)) and len(numbered) >= 25
+    assert len(nums) == len(set(nums)) and len(numbered) >= 50
     for r in numbered:
-        assert r["ty"] in ("gallery", "court") and r["ca"] and (r.get("gm") in ("tracer-unique", "resolved-by-evidence")), r["id"]
+        assert r["ca"] and (r.get("gm") in ("tracer-unique", "resolved-by-evidence", "sequence-consistent")), r["id"]
+        if r.get("gm") != "sequence-consistent":
+            assert r["ty"] in ("gallery", "court"), r["id"]
     assert ROOMS["l3-sg-cloister"]["no"] == "304" and ROOMS["l3-sg-cloister"]["gm"] == "resolved-by-evidence"
-    # unique candidates that contradict the 1928 room's own label stay unnumbered, with the candidate list kept
-    for rid in ("l3-n-13", "l3-n-14", "l3-n-dutch", "l3-sw-33", "l3-n-other-eur"):
-        assert not ROOMS[rid].get("no") and ROOMS[rid]["cand"] and ROOMS[rid]["gm"].startswith("left-unnumbered"), rid
+    # unique candidates whose numbers fall in order along their enfilade are numbered (1928 names are not evidence); an out-of-order pair stays unnumbered
+    for rid, no in (("l3-n-13", "362"), ("l3-n-14", "361"), ("l3-n-dutch", "355"), ("l3-sw-33", "326"), ("l3-n-other-eur", "363")):
+        assert ROOMS[rid]["no"] == no and ROOMS[rid]["gm"] == "sequence-consistent", rid
+    for rid in ("l3-s-24", "l3-s-late-goth-link"):               # 307, 300 beside 314: out of order
+        assert not ROOMS[rid].get("no") and ROOMS[rid]["gm"].startswith("left-unnumbered"), rid
     # ambiguous rooms keep every candidate and no number
     amb = ROOMS["l2-s-court"]
     assert not amb.get("no") and {"211", "213"} <= set(amb["cand"])
@@ -249,14 +253,14 @@ def test_art_slots_only_where_a_gallery_number_is_confirmed():
             assert s["gl"] in room.get("cand", []), s["id"]
         assert 0.1 <= s["sz"][0] <= 6 and 0.1 <= s["sz"][1] <= 6
     titles = " | ".join(s["work"]["title"].lower() for s in PLAN["sl"])
-    for never in ("large bathers", "sunflowers", "prometheus", "large glass", "gross clinic", "last drop", "fountain", "sleeping muse", "ghost"):
+    for never in ("large bathers", "sunflowers", "prometheus", "large glass", "gross clinic", "fountain", "sleeping muse", "ghost"):
         assert never not in titles, never
     # true catalogued sizes where known, with their source
     monet = slots["sl-monet-japanese-footbridge"]
     assert monet["sz"] == [0.98, 0.79] and "78.7 x 97.8" in monet["sr"] and monet["sb"] == "catalogued" and monet["work"]["pma_url"].endswith("/87535")
     assert slots["sl-tanner-annunciation"]["gl"] == "211" and slots["sl-peale-yarrow-mamout"]["gl"] == "104"
     assert "img" not in slots["sl-rivera-sugar-cane"]["work"] and "img" in slots["sl-van-der-weyden-crucifixion"]["work"]
-    assert sum(1 for s in PLAN["sl"] if "img" in s["work"]) == 4
+    assert sum(1 for s in PLAN["sl"] if "img" in s["work"]) == 5
 
 
 # ── nodes ────────────────────────────────────────────────────────────────────

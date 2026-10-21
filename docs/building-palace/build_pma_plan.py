@@ -61,6 +61,17 @@ CONFLICTS = {
     "l3-sw-33": "1928 'Japan' vs Gallery 326 Chinese reception hall",
     "l3-n-other-eur": "1928 'Other Europe XIX cent.' vs Gallery 363 Tudor Room (Red Lodge)",
 }
+# Sequence evidence (v1.9.124): PMA gallery numbers rise in order along each enfilade. A room with exactly one candidate number is numbered when that
+# number sits in order with the already-numbered rooms of the same column/row (checked by hand against traced centroids; 1928 names are NOT evidence,
+# the 1928 partitions and installations have changed). Chains: L3 north wing columns x~-34, -25.5, -17 (y increases with number, 350<355<358, 351<356<357<359<360<364<370,
+# 352<353<354<361<362<363), L3 north end row y~80 (370<372<373 by x), L3 south-west row y~-66 (322/323 < 324<325<326) and y~-55 (333<334<335), L3 nw row y~77 (381<385<386<387<389),
+# L2 nw row y~75 (275<276<277), L1 column x~-32 (105>103>101 by y). Rejected on the same test: 307 and 300 (row y~-18.7 reads 307,300,314: out of order).
+SEQUENCE = {
+    "l3-n-dutch": "355", "l3-n-14": "361", "l3-n-13": "362", "l3-n-other-eur": "363", "l3-n-22": "351", "l3-n-20": "356", "l3-n-19": "353", "l3-n-18": "357",
+    "l3-n-16": "359", "l3-n-15": "360", "l3-n-12": "364", "l3-n-11": "370", "l3-n-end-gal": "372", "l3-n-end-small": "373",
+    "l3-sw-early-persia": "324", "l3-sw-persian-paint": "325", "l3-sw-33": "326", "l3-sw-chou": "333", "l3-nw-1": "389",
+    "l2-nw-restorer": "276", "l1-s-photo": "105", "l1-s-class-a": "103", "l1-s-conf-n": "101",
+}
 NUMBER_TYPES = ("gallery",)           # a 1928 office / class room / corridor is not given a gallery number from a schematic label point
 
 # the cloister: resolved by evidence (Saint-Genis cloister installed 1928; PMA LibGuide Gallery 304; traced colonnade 14.8 x 14.7 m vs PMA 14.31 m)
@@ -218,7 +229,10 @@ def build(src: Path, art_manifest: dict) -> dict:
         kinds = {guide[c]["area"] for c in cands if c in guide}
         number = None
         reason = None
-        if r["id"] in CONFLICTS:
+        seq = False
+        if SEQUENCE.get(r["id"]) in cands:
+            number, seq = SEQUENCE[r["id"]], True
+        elif r["id"] in CONFLICTS:
             reason = CONFLICTS[r["id"]]
         elif nr.get("today_match") == "unique" and nr.get("today_conf") == "medium" and r.get("ty") in NUMBER_TYPES and len(cands) == 1:
             number = cands[0]
@@ -233,7 +247,7 @@ def build(src: Path, art_manifest: dict) -> dict:
             r["no"] = number
             r["n"] = nm or f"Gallery {number}"
             r["ca"] = g.get("area")
-            r["gm"] = "tracer-unique"
+            r["gm"] = "sequence-consistent" if seq else "tracer-unique"
             if nm and re.search(r"panel|room|salon|drawing room|kitchen|bedroom|cubiculum|interior", nm, re.I):
                 r["wm"] = "wood"; r["mb"] = "evidenced: period-room installation (PMA library guide); floor and ceiling assumed"
             elif nm and re.search(r"cloister|portal|gothic|romanesque|temple|court", nm, re.I):
@@ -436,13 +450,53 @@ def build(src: Path, art_manifest: dict) -> dict:
     plan["wl"] = walls
     plan["st"] = [{k: v for k, v in s.items() if v is not None} for s in stairs]
     plan["cols"] = cols
+    # a bench in the middle of each roomy gallery (typical gallery furniture; the real furniture varies and is not recorded in any source used)
+    for r in rooms:
+        if r.get("ty") not in ("gallery", "court") or r["id"].startswith(("l2-gsh", "l3-gsh")):
+            continue
+        xs = [q[0] for q in r["p"]]; ys = [q[1] for q in r["p"]]
+        w, d = max(xs) - min(xs), max(ys) - min(ys)
+        if min(w, d) < 4.6 or abs(bs.area(r["p"])) < 30 or len(r["p"]) != 4:
+            continue
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        if any(st.get("l") == r["l"] and bs.inside(r["p"], st["p"][0] if isinstance(st.get("p"), list) and st["p"] and isinstance(st["p"][0], list) else [cx, cy]) for st in stairs):
+            continue
+        fx.append({"id": f"bench-{r['id']}", "l": r["l"], "k": "bench", "p": [round(cx, 2), round(cy, 2)], "rot": 0 if w >= d else 90, "sz": [2.0, 0.55, 0.45], "m": "leather",
+                   "n": "Gallery bench", "c": 0, "s": ["est"], "bs": "assumed: a typical gallery bench; real furniture is not recorded in the sources used"})
     plan["fx"] = fx
     plan["en"] = en
 
+    # a period room or architectural installation has no windows onto the courts (the installation is built inside the 1928 shell): close those 1928 windows
+    wooded = {}
+    for r in plan["rm"]:
+        if r.get("wm") in ("wood", "stone") and r.get("no") and r.get("l") in ("l3",):
+            wooded.setdefault(r["l"], []).append(r)
+    closed = 0
+    for w in plan["wl"]:
+        pts = w["p"] + ([w["p"][0]] if w.get("loop") else [])
+        seg, acc = [], 0.0
+        for a, b in zip(pts, pts[1:]):
+            L = math.hypot(b[0] - a[0], b[1] - a[1]); seg.append((acc, L, a, b)); acc += L
+        keep = []
+        for o in w.get("o", []):
+            if o.get("k") == "window" and w.get("l") in wooded:
+                mid = o["a"] + o["w"] / 2
+                for s0, L, a, b in seg:
+                    if s0 <= mid <= s0 + L and L > 1e-6:
+                        t = (mid - s0) / L; x = a[0] + (b[0] - a[0]) * t; y = a[1] + (b[1] - a[1]) * t
+                        nx, ny = -(b[1] - a[1]) / L, (b[0] - a[0]) / L
+                        if any(bs.inside(rr["p"], [x + nx * d, y + ny * d]) for rr in wooded[w["l"]] for d in (0.6, -0.6)):
+                            closed += 1; o = None
+                        break
+            if o is not None:
+                keep.append(o)
+        if len(keep) != len(w.get("o", [])):
+            w["o"] = keep
+    info_closed = closed
     plan["sl"], unplaced = art_slots(plan, guide, inst_names, nrm, art_manifest)
     plan["tour"] = make_tour(plan)
     plan["src"] = credit_sources(plan, art_manifest)
-    return plan, {"rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links}
+    return plan, {"closed_installation_windows": info_closed, "rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links}
 
 
 # ── art slots ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -453,7 +507,7 @@ WORKS = [
     ("211", "tanner-annunciation", "The Annunciation", "Henry Ossawa Tanner", "1898", "Philadelphia Museum of Art, purchased 1899 (W1899-1-1)", "104384", (1.81, 1.448), "57 x 71 1/4 in", ["painting"], "tanner"),
     ("261", "monet-japanese-footbridge", "Japanese Footbridge, Giverny", "Claude Monet", "1895", "Philadelphia Museum of Art, gift of F. Otto Haas, 1993-151-2", "87535", (0.978, 0.787), "78.7 x 97.8 cm (PMA record via Commons)", ["painting"], "monet"),
     ("306", "van-der-weyden-crucifixion", "The Crucifixion, with the Virgin and Saint John the Evangelist Mourning", "Rogier van der Weyden", "c. 1460", "Philadelphia Museum of Art, John G. Johnson Collection", "102845", (1.864, 1.803), "two panels, overall 180.3 x 186.4 cm", ["painting"], "weyden"),
-    ("364", "leyster-last-drop", "The Last Drop (The Gay Cavalier)", "Judith Leyster", "c. 1629", "Philadelphia Museum of Art, John G. Johnson Collection, 1917", "102220", (0.735, 0.891), "35 1/16 x 28 15/16 in (89.1 x 73.5 cm)", ["painting"], None),
+    ("364", "leyster-last-drop", "The Last Drop (The Gay Cavalier)", "Judith Leyster", "c. 1629", "Philadelphia Museum of Art, John G. Johnson Collection, 1917", "102220", (0.735, 0.891), "35 1/16 x 28 15/16 in (89.1 x 73.5 cm)", ["painting"], "leyster"),
     ("273", "rivera-sugar-cane", "Sugar Cane", "Diego Rivera", "1931", "Philadelphia Museum of Art, gift of Mr. and Mrs. Herbert Cameron Morris, 1943-46-2", "48441", (2.39, 1.45), "about 57 x 94 in (fresco on cement in a steel frame)", ["painting", "relief"], None),
     ("100", "wampum-belt", "Lenape Wampum Belt", "Lenape women artists (likely)", "c. 1682", "Loan, Historical Society of Pennsylvania / Atwater Kent collections", None, (0.7, 0.2), "assumed (belt reported ~26 in long)", ["textile", "object"], None),
     ("347", "horse-armor-von-worms", "Horse Armor", "Wilhelm von Worms", "1507", "Philadelphia Museum of Art", "309965", (1.2, 2.2), "assumed (object size not recorded here)", ["object", "sculpture"], None),
@@ -575,6 +629,13 @@ def art_slots(plan, guide, inst_names, nrm, art_manifest):
         rid, kind = hit
         work = {"title": nm, "artist": "", "date": "", "credit": "Installation or period room, Philadelphia Museum of Art (title card only; no image)", "pma_url": LIBGUIDE}
         place(f"sl-g{gal}", rid, kind, [0.6, 0.4], 1.5, ["text", "any"], work, {"gl": gal, "sr": "plaque size assumed", "sb": "assumed"})
+    # every numbered gallery without a work or installation card gets a plain gallery-number plaque (number and area from the PMA visitor map)
+    have = {s["rm"] for s in slots}
+    for r in plan["rm"]:
+        if r.get("no") and r["id"] not in have and r.get("ty") in ("gallery", "court", "office", "classroom", "library", "other"):
+            ca = next((a[1] for a in AREAS if a[0] == r.get("ca")), "")
+            work = {"title": f"Gallery {r['no']}", "artist": "", "date": "", "credit": (ca + ". " if ca else "") + "Gallery number from the PMA visitor map; the objects on view change", "pma_url": MAP_URL}
+            place(f"sl-plaque-{r['no']}", r["id"], "room", [0.4, 0.25], 1.5, ["text", "any"], work, {"gl": r["no"], "sr": "plaque size assumed", "sb": "assumed"})
     # the thirteen Constantine (Barberini) tapestries on the Great Stair Hall balcony
     room = rooms["l3-gsh-balcony"]
     pos = positions(room, 3.2)
