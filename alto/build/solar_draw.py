@@ -55,6 +55,9 @@ SOLAR_CSS = r"""
   html.mobile #solar-svg,html.mobile .sol-unit,html.mobile .sol-face{display:none !important;}
   #solar-svg .sol-hit{fill:none;stroke:transparent;stroke-width:13px;pointer-events:stroke;cursor:pointer;}
   html.alto-editing #solar-svg .sol-hit,html.mobile #solar-svg .sol-hit,#canvas.sol-ov #solar-svg .sol-hit{pointer-events:none;}
+  html:not(.mobile) #canvas.sol-lhov #world .node[data-solar]:not(.edge-end):not(.focused) .node-card{opacity:.35 !important;}
+  html:not(.mobile) #canvas.sol-lhov #solar-svg :is(.sol-ring,.sol-spoke):not(.sol-hot){stroke-opacity:.07 !important;}
+  html:not(.mobile) #canvas.sol-lhov #river-svg{opacity:.15;}
   #solar-svg .sol-spoke.sol-hot.sol-hot{stroke-opacity:.8 !important;stroke-width:2.6px !important;}
   #solar-svg .sol-ring.sol-hot.sol-hot{stroke-opacity:.75 !important;stroke-width:2.2px !important;}
   #solar-svg .sol-ring{fill:none;stroke:color-mix(in srgb,var(--u,var(--text)) 45%,var(--text));stroke-opacity:calc(.3 * var(--lk,1));stroke-width:calc(1.5px * var(--lw,1));}
@@ -518,6 +521,33 @@ function ringAt(e){ var h=e.target, r=h && h._r; if(!r || !h.classList || !h.cla
   var m=svg && svg.getScreenCTM(), p=m ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : {x:0, y:0}, x=p.x, y=p.y, best=null, bd=Infinity;
   r.ids.forEach(function(i){ var b=B[i], d=Math.hypot(b.rx-x, b.ry-y); if(d<bd){ bd=d; best=i; } }); return best; }
 ['pointerover', 'pointerout'].forEach(function(t){ document.addEventListener(t, function(e){ var h=e.target; if(h && h._r && h._r.e) h._r.e.classList.toggle('sol-hot', t==='pointerover'); }); });
+/* ── a resting pointer on an orbit or a spoke (round 10, outline mode's rules: blocks.py LINE_NAV_GLUE — a
+   300ms dwell, 6px slop, never a line slid under a still pointer; its ends stay, the rest fades; the same
+   .line-tip label at the pointer, following it, gone on leaving) names it: a spoke its two ends, an orbit
+   what it goes round (and what is on it) ── */
+var LH={t:0, r:null, x:0, y:0, on:null, tip:null};
+function lname(id){ var n=(typeof NODES_SRC!=='undefined') ? NODES_SRC.filter(function(q){ return q.id===id; })[0] : null; return plain((n && n.title) || id); }
+function ltext(r){ if(r.sp) return lname(r.sp.a)+' \u2014 '+lname(r.sp.b);
+  var on=(r.ids||[]).map(lname); return 'Orbit of '+lname(r.c)+(on.length && on.length<=3 ? ': '+on.join(', ') : on.length ? ': '+on.length+' bodies' : ''); }
+function lclear(){ clearTimeout(LH.t); LH.t=0; LH.r=null; if(!LH.on) return; LH.on=null;
+  var c=cvs(); if(c) c.classList.remove('sol-lhov'); [].forEach.call(document.querySelectorAll('#world .node.edge-end'), function(n){ n.classList.remove('edge-end'); });
+  if(LH.tip) LH.tip.style.display='none'; }
+function lshow(r){ var c=cvs(); if(!c || c.classList.contains('focus-mode') || c.classList.contains('sol-ov')) return;
+  LH.on=r; var ends=r.sp ? [r.sp.a, r.sp.b] : [r.c].concat(r.ids||[]);
+  ends.forEach(function(id){ var n=B[id] && B[id].n; if(n) n.classList.add('edge-end'); }); c.classList.add('sol-lhov');
+  if(!LH.tip){ LH.tip=document.createElement('div'); LH.tip.className='line-tip'; document.body.appendChild(LH.tip); }
+  LH.tip.textContent=ltext(r); LH.tip.style.display='block'; LH.tip.style.left=(LH.x+12)+'px'; LH.tip.style.top=(LH.y+14)+'px'; }
+document.addEventListener('pointerover', function(e){ var h=e.target, r=h && h._r;
+  if(!r || !h.classList || !h.classList.contains('sol-hit') || !desk() || de.classList.contains('alto-editing')) return;
+  if(window._altoPointerStill && window._altoPointerStill(e)) return;
+  if(LH.on && LH.on!==r) lclear(); if(LH.on===r) return;
+  clearTimeout(LH.t); LH.r=r; LH.x=e.clientX; LH.y=e.clientY; LH.t=setTimeout(function(){ LH.t=0; if(LH.r===r) lshow(r); }, 300); });
+document.addEventListener('pointermove', function(e){
+  if(LH.on){ if(LH.tip){ LH.tip.style.left=(e.clientX+12)+'px'; LH.tip.style.top=(e.clientY+14)+'px'; } return; }
+  if(LH.r && LH.t && Math.hypot(e.clientX-LH.x, e.clientY-LH.y)>6){ var r=LH.r; clearTimeout(LH.t); LH.x=e.clientX; LH.y=e.clientY;
+    LH.t=setTimeout(function(){ LH.t=0; if(LH.r===r) lshow(r); }, 300); } });
+document.addEventListener('pointerout', function(e){ var h=e.target; if(h && h._r && h.classList && h.classList.contains('sol-hit')){ var to=e.relatedTarget; if(!(to && to._r===h._r)) lclear(); } });
+['wheel', 'pointerdown', 'keydown'].forEach(function(t){ window.addEventListener(t, function(){ if(LH.on || LH.t) lclear(); }, true); });
 document.addEventListener('click', function(e){ if(!e.target || !e.target._r || de.classList.contains('alto-editing') || !desk()) return;
   var id=ringAt(e); if(!id) return; e.stopPropagation(); e.preventDefault(); if(window.enterFocus) window.enterFocus(id); }, true);
 function draw(W, H){

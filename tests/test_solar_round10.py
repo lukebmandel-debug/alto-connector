@@ -127,3 +127,25 @@ def test_wallpaper_top_erases_the_bars_but_keeps_their_controls(browser, page):
     assert pg.evaluate("() => document.getElementById('canvas').getBoundingClientRect().top") > 40
     pg.context.close()
     assert not errs, errs
+
+
+def test_a_resting_pointer_on_a_spoke_or_an_orbit_names_it(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => window._altoSolarLook.set('hub')")
+    over = """sel => { var l=[].find.call(document.querySelectorAll('#solar-svg .sol-hit'), function(x){ return eval(sel); });
+      l.dispatchEvent(new PointerEvent('pointerover', {bubbles:true, clientX:400, clientY:300})); return true; }"""
+    tip = "() => { var t=[].filter.call(document.querySelectorAll('body > .line-tip'), function(x){ return x.style.display==='block'; })[0]; return t ? t.textContent : null; }"
+    pg.evaluate(over, "x._r && x._r.sp && x._r.sp.b==='u1-p3'")
+    pg.wait_for_timeout(120)
+    assert pg.evaluate(tip) is None                                           # not while passing over: a dwell
+    pg.wait_for_timeout(400)
+    assert pg.evaluate(tip) == "Doctrine 1 — Planet concept 1.3", pg.evaluate(tip)
+    assert pg.evaluate("() => document.getElementById('canvas').classList.contains('sol-lhov') && document.querySelectorAll('#world .node.edge-end').length === 2")
+    pg.mouse.move(5, 5)
+    pg.evaluate("() => document.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}))")
+    assert pg.evaluate(tip) is None
+    pg.evaluate(over, "x._r && x._r.c==='u1' && !x._r.sp")
+    pg.wait_for_timeout(500)
+    assert (pg.evaluate(tip) or "").startswith("Orbit of Doctrine 1"), pg.evaluate(tip)
+    pg.context.close()
+    assert not errs, errs
