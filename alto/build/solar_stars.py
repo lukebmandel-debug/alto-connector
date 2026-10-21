@@ -175,7 +175,7 @@ var STARS=[['#fffbea','#ffe680','#ffb432','#e8740e','255,190,90','#2a1400'], ['#
 function kindOf(id, role, look){ if(/^(blackhole|comet|asteroid)$/.test(look||'')) return look; if(role!=='planet') return role; var r=rng(hash(id+'#k'))(), a=0;
   for(var i=0;i<KW.length;i++){ a+=KW[i]; if(r<a) return KINDS[i]; } return 'rocky'; }
 /* a body's surface: (longitude, latitude) on the sphere -> colour */
-function painter(kind, id){
+function painter(kind, id, o){
   var R=rng(hash(id)), n1=noise(hash(id+'a')), n2=noise(hash(id+'b')), sx=R()*40, sy=R()*40, j=[.9+R()*.2, .9+R()*.2, .9+R()*.2], f;
   if(kind==='gas'){
     var G=[[[236,220,190],[205,160,110],[150,100,70]], [[240,226,180],[218,190,130],[176,146,98]], [[222,204,232],[170,140,200],[108,88,160]], [[214,236,228],[140,190,190],[78,128,140]]][(R()*4)|0];
@@ -190,7 +190,7 @@ function painter(kind, id){
     var sea=.5+R()*.08;
     f=function(lo, la){ var h=fb(n1, lo*2.1+sx, la*2.1+sy, 5), c=h<sea ? mix([10,38,100], [42,108,182], h/sea) : mix([64,118,58], [158,130,88], (h-sea)*4.5);
       if(Math.abs(la)>1.18+(h-.5)*.5) c=[236,240,250];
-      var k=fb(n2, lo*2.6+sx, la*4.4+sy, 4); return mix(c, [250,252,255], (k-.5)*3); };
+      if(o && o.nc) return c; var k=fb(n2, lo*2.6+sx, la*4.4+sy, 4); return mix(c, [250,252,255], (k-.5)*3); };   /* (nc: no clouds, solar_3d.py draws its own) */
   } else if(kind==='desert'){
     f=function(lo, la){ var h=fb(n1, lo*2.4+sx, la*2.4+sy, 5), c=mix([110,44,24], [218,128,72], h*1.5-.25);
       return Math.abs(la)>1.3+(h-.5)*.4 ? mix(c, [240,236,232], .9) : c; };
@@ -616,7 +616,7 @@ function hook(){
 hook();
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', hook);
 window.addEventListener('afterprint', function(){ idle=0; kick(); });
-window._altoSkPaint=function(kind, id){ return painter(kind, id); };   /* (solar_3d.py paints its globes with the same surfaces) */
+window._altoSkPaint=function(kind, id, o){ return painter(kind, id, o); };   /* (solar_3d.py paints its globes with the same surfaces) */
 window._altoSkinStats={
   get:function(){ var d=ST.t.slice().sort(function(a, b){ return a-b; }), q=function(p){ return d.length ? +d[Math.min(d.length-1, Math.floor(d.length*p))].toFixed(3) : 0; };
     return {n:d.length, p50:q(.5), p95:q(.95), max:q(1), pending:Q.length, ext:extT>0}; },

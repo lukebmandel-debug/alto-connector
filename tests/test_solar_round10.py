@@ -261,8 +261,8 @@ def test_realistic_3d_is_a_3d_scene_with_a_free_camera(browser, page):
     pg.mouse.move(200, 600); pg.mouse.down(); pg.mouse.move(380, 520, steps=6); pg.mouse.up()
     c1 = pg.evaluate("() => window._altoSolar3D.cam()")
     assert abs(c1["az"] - c0["az"]) > .5 and abs(c1["el"] - c0["el"]) > .2 and pg.evaluate("() => window._focusedNodeId") == "u1-p2", (c0, c1)
-    pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(200)
-    assert pg.evaluate("() => window._altoSolar3D.cam().d") > c1["d"] * 1.5
+    pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(1100)             # (close up, scrolling out flies back out)
+    assert pg.evaluate("() => window._altoSolar3D.cam().d") > c1["d"] * 1.5 and not pg.evaluate("() => window._focusedNodeId")
     pg.click("#sk3d-reset"); pg.wait_for_timeout(1000)
     c2 = pg.evaluate("() => window._altoSolar3D.cam()")
     assert abs(c2["az"] + .6) < .01 and abs(c2["el"] - .62) < .01, c2
@@ -275,12 +275,39 @@ def test_realistic_3d_is_a_3d_scene_with_a_free_camera(browser, page):
     assert not errs, errs
 
 
+def test_an_enlarged_body_is_its_globe_close_up(browser, page):
+    """Luke (2026-10-21): the enlarged body a game close-up, one camera move in and back, the card's content over the globe."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pytest.skip("no WebGL in this browser")
+    c0 = pg.evaluate("() => window._altoSolar3D.cam()")
+    pg.evaluate("() => window.enterFocus('u1-p2')")
+    # one continuous move: the distance only falls, never jumps, on the way in
+    ds = pg.evaluate("""() => new Promise(function(res){ var o=[]; (function f(){ o.push(window._altoSolar3D.cam().d); if(o.length<75) requestAnimationFrame(f); else res(o); })(); })""")
+    assert all(b <= a * 1.001 for a, b in zip(ds, ds[1:])), ds
+    assert max(a / b for a, b in zip(ds, ds[1:])) < 1.25, ds
+    pg.wait_for_timeout(1200)
+    q = pg.evaluate("""() => { var c=document.querySelector('#node-u1-p2 .node-card').getBoundingClientRect(), g=window._altoSolarGeo().bodies['u1-p2'], p=window._altoSolar3D.project('u1-p2');
+      return {cx:c.left+c.width/2, cy:c.top+c.height/2, r:c.width/2, px:p.x, py:p.y, pr:g.d/2*p.s, lock:window._altoSolar3D.closeup().lock,
+        bg:getComputedStyle(document.querySelector('#node-u1-p2 .node-card')).backgroundColor, op:getComputedStyle(document.querySelector('#node-u1-p2 .sol-body')).opacity}; }""")
+    assert q["lock"] == "u1-p2", q
+    assert abs(q["px"] - q["cx"]) < 4 and abs(q["py"] - q["cy"]) < 4 and abs(q["pr"] / q["r"] - 1) < .06, q   # the globe fills the disc's circle
+    assert q["bg"] in ("rgba(0, 0, 0, 0)", "transparent") and float(q["op"]) > .95, q                        # no flat disc: the content over the globe
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1300)
+    c1 = pg.evaluate("() => window._altoSolar3D.cam()")
+    assert abs(c1["d"] / c0["d"] - 1) < .05 and abs(c1["az"] - c0["az"]) < .05, (c0, c1)                   # and back to where it was
+    pg.context.close()
+    assert not errs, errs
+
+
 def test_the_3d_scene_is_small_and_on_system_pages_only():
     import gzip
     from alto.build import blocks
     from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
-    assert size < 10500, size                   # (~9.7 KB gz: a small WebGL kit with its shaders, no library)
+    assert size < 15000, size                   # (~13.9 KB gz: a small WebGL kit with its shaders and the close-up's procedural detail, no library)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
 
 
