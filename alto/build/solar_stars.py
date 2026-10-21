@@ -74,10 +74,10 @@ STARS_CSS = r"""
   @keyframes sk-spin{to{transform:rotate(360deg);}}
   @keyframes sk-pulse{from{opacity:.5;}to{opacity:1;}}
   @keyframes sk-tw{from{opacity:.2;}to{opacity:1;}}
-  P #solar-svg .sol-ring{stroke:rgb(170,195,255);stroke-opacity:.17;stroke-width:1.1;}
-  P #solar-svg .sol-ring.sol-m{stroke-opacity:.12;stroke-width:.9;}
+  P #solar-svg .sol-ring{stroke:rgb(170,195,255);stroke-opacity:calc(.27 * var(--lk,1));stroke-width:calc(1.35px * var(--lw,1));}
+  P #solar-svg .sol-ring.sol-m{stroke-opacity:calc(.2 * var(--lk,1));stroke-width:calc(1.1px * var(--lw,1));}
   P #solar-svg .sk-rg{fill:none;stroke:rgb(150,180,255);stroke-opacity:.05;stroke-width:7;}
-  P #solar-svg .sol-spoke{stroke:rgb(180,200,255);stroke-opacity:.12;stroke-width:1.2;}
+  P #solar-svg .sol-spoke{stroke:rgb(180,200,255);stroke-opacity:calc(.26 * var(--lk,1));stroke-width:calc(1.5px * var(--lw,1));}
   P #solar-svg .sol-link{stroke:rgb(200,215,255);stroke-opacity:.22;}
   P #solar-svg [fill^="url(#sol-glow"]{display:none;}
   P #solar-svg .sk-tr{fill:none;stroke:rgb(195,215,255);stroke-linecap:round;}

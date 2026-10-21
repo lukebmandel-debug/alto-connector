@@ -655,7 +655,10 @@ def page_plans(brief, nodes) -> dict:
     """What a System page carries (window._ALTO_SOLAR): the one plan both
     looks draw, compacted, with the look a viewer sees first (brief.hub_look,
     'stars' | 'hub') as its "look"."""
-    return {**compact(solar_plan(brief, nodes)), "look": getattr(brief, "hub_look", "stars") or "stars"}
+    out = {**compact(solar_plan(brief, nodes)), "look": getattr(brief, "hub_look", "stars") or "stars"}
+    if getattr(brief, "wallpaper_top", False):
+        out["wp_top"] = 1
+    return out
 
 
 def solar_tree_plan(plan: dict, nodes) -> dict:

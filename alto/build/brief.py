@@ -390,6 +390,9 @@ class Brief:
     # System only (HUB_LOOKS): the look a viewer sees first, "stars" (the
     # Star chart, the default) or "hub" (System); the page's toggle flips it.
     hub_look: str = "stars"
+    # System only, a sample (Luke, 2026-10-20, his torts System): the page's wallpaper runs up behind
+    # the two top bars, their glass gone, their buttons and text where they are (solar_draw.py).
+    wallpaper_top: bool = False
     # Mind Palace only (PALACE_VIEWS): "city" (the default) or "building".
     palace_view: str = "city"
     # Building Palace only (palace_view "building"; building_schema.py):

@@ -1,0 +1,129 @@
+"""System, Luke's round 10: upright glyph chips and level named chips on the enlarged disc, clickable
+spokes, unit borders (a hue ring / an Oort cloud), Flights and Spokes-only switches, navigation hints,
+and brief.wallpaper_top (the wallpaper and the chart up behind the two top bars, their controls kept).
+
+Browser checks run in Chromium and WebKit (Playwright; skipped without them)."""
+import copy
+import sys
+from pathlib import Path
+
+import pytest
+
+from alto.build.builder import build_timeline, load_brief
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_solar_draw import _open, browser, solar_doc  # noqa: E402,F401
+from test_solar_pool import SMALL, SMALL_LINKS  # noqa: E402
+
+NAMES = ["Duty", "Breach of care", "Proximate cause", "Damages", "Consent"]
+
+
+@pytest.fixture(scope="module")
+def page(tmp_path_factory):
+    d = solar_doc(SMALL, "spoke", SMALL_LINKS)
+    d["brief"]["wallpaper_top"] = True
+    d["brief"]["entities"] = [{"id": f"e{k}", "name": f"Party {k}"} for k in range(5)]
+    d["brief"]["axes"] = [{"label": "Doctrines", "singular": "Doctrine", "hide_nav": True,
+                           "values": [{"id": f"a{k}", "name": n} for k, n in enumerate(NAMES)]}]
+    for n in d["nodes"]:
+        if n["id"] == "u1-p1":
+            n["entity_ids"] = [f"e{k}" for k in range(5)]
+            n["axis1_values"] = [f"a{k}" for k in range(5)]
+    html, _ = build_timeline(*load_brief(copy.deepcopy(d)))
+    f = tmp_path_factory.mktemp("round10") / "r10.html"
+    f.write_text(html, encoding="utf-8")
+    return f
+
+
+CHIPS = r"""() => {
+  var c=document.querySelector('#node-u1-p1 .node-card');
+  return [].filter.call(c.querySelectorAll(':scope > .node-footer > button'), function(x){ return getComputedStyle(x).display!=='none'; })
+    .map(function(x){ var r=x.getBoundingClientRect(); return {txt:x.classList.contains('sol-txt'), tf:x.style.transform, top:Math.round(r.top), arc:x.getAttribute('data-arc')}; }); }"""
+
+
+def test_glyph_chips_stand_upright_and_named_chips_sit_level_in_rows(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.mouse.move(2, 940)
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.wait_for_timeout(1300)
+    ch = pg.evaluate(CHIPS)
+    glyph, named = [c for c in ch if not c["txt"]], [c for c in ch if c["txt"]]
+    assert glyph and named, ch
+    assert all(c["tf"] == "" for c in ch), ch                                   # nothing turned
+    assert all(not str(c["arc"]).startswith("row") for c in glyph), glyph
+    rows = {}
+    for c in named:
+        assert str(c["arc"]).startswith("row"), c
+        rows.setdefault(c["arc"], set()).add(c["top"])
+    assert all(len(v) == 1 for v in rows.values()), rows                        # level: one top per row
+    assert max(min(v) for v in rows.values()) < min(c["top"] for c in glyph), (rows, glyph)   # above the arcs
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_a_spoke_click_goes_to_its_far_end_and_back(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    hit = """b => { var l=[].find.call(document.querySelectorAll('#solar-svg line.sol-hit'), function(x){ return x._r && x._r.sp && x._r.sp.b===b; });
+      if(!l) return false; l.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); return true; }"""
+    assert pg.evaluate(hit, "u1-p3")
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p3"
+    pg.evaluate(hit, "u1-p3")
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => window._focusedNodeId") == "u1"
+    assert pg.evaluate("() => document.querySelectorAll('#solar-svg .sol-bd').length") >= 3     # a border per system
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_hints_flights_and_spokes_only(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => window.enterFocus('u1-p2')")
+    pg.wait_for_timeout(1300)
+    h = pg.evaluate("() => [].map.call(document.querySelectorAll('#world .node.sol-hint'), function(n){ return n.id+':'+n.querySelector('.sol-nh').textContent; }).sort()")
+    assert h == ["node-u1-p1:←", "node-u1-p3:→", "node-u1:↑"], h
+    # Flights: shown in the Star chart look only, kept per timeline
+    assert pg.evaluate("() => document.getElementById('sol-fly').hidden")
+    pg.evaluate("() => window._altoSolarLook.set('stars')")
+    pg.wait_for_timeout(300)
+    pg.click("#sol-fly")
+    assert pg.evaluate("() => window._altoFlyOff === true && /alto-solar-fly:/.test(Object.keys(localStorage).join(' '))")
+    pg.evaluate("() => window._altoSolarLook.set('hub')")
+    # Spokes only: the canvas does not scroll; a wheel steps along the spokes
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(700)
+    pg.click("#sol-lock")
+    pg.evaluate("() => window.enterFocus('u2-p2')")
+    pg.wait_for_timeout(1300)
+    pg.mouse.move(650, 450)
+    t0 = pg.evaluate("() => [document.getElementById('canvas').scrollLeft, document.getElementById('canvas').scrollTop]")
+    pg.mouse.wheel(0, 200)
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => window._focusedNodeId") == "u2-p2-m1"
+    pg.mouse.wheel(0, -200)
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => window._focusedNodeId") == "u2-p2"
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(700)
+    pg.mouse.wheel(0, 400)
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("() => getComputedStyle(document.getElementById('canvas')).overflow") == "hidden"
+    pg.context.close()
+    assert not errs, errs
+    assert t0
+
+
+def test_wallpaper_top_erases_the_bars_but_keeps_their_controls(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => window._altoSolarLook.set('hub')")
+    pg.wait_for_timeout(300)
+    s = pg.evaluate("""() => ['title-bar', 'nav'].map(function(id){ var e=document.getElementById(id), c=getComputedStyle(e);
+      return [c.backgroundColor, c.backdropFilter || c.webkitBackdropFilter || 'none', getComputedStyle(e).visibility]; })""")
+    assert all(x[0] == "rgba(0, 0, 0, 0)" and x[1] == "none" and x[2] == "visible" for x in s), s
+    assert pg.evaluate("() => document.getElementById('canvas').getBoundingClientRect().top") == 0
+    assert pg.evaluate("() => !!document.querySelector('#title-text') && document.querySelector('#title-text').offsetWidth > 0")
+    pg.evaluate("() => window._altoSolarLook.set('stars')")                    # the Star chart keeps its bars
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("() => document.getElementById('canvas').getBoundingClientRect().top") > 40
+    pg.context.close()
+    assert not errs, errs
