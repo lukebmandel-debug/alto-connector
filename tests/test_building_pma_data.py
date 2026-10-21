@@ -257,7 +257,7 @@ def test_art_slots_only_where_a_gallery_number_is_confirmed():
         assert 0.1 <= s["sz"][0] <= 6 and 0.1 <= s["sz"][1] <= 6
     titles = " | ".join(s["work"]["title"].lower() for s in PLAN["sl"])
     for never in ("large bathers", "sunflowers", "prometheus", "large glass", "gross clinic", "fountain", "sleeping muse", "ghost"):
-        assert never not in titles, never
+        assert re.search(r"\b" + never + r"\b", titles) is None, never                 # whole words: Hogarth's "Sir Andrew Fountaine" is not Duchamp's Fountain
     # true catalogued sizes where known, with their source
     monet = slots["sl-monet-japanese-footbridge"]
     assert monet["sz"] == [0.98, 0.79] and "78.7 x 97.8" in monet["sr"] and monet["sb"] == "catalogued" and monet["work"]["pma_url"].endswith("/87535")

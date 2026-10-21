@@ -1224,7 +1224,7 @@ function rtTarget(gl,w,h){ var o=S.rt; if(o&&o.w===w&&o.h===h) return o; if(o){ 
   var ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.bindRenderbuffer(gl.RENDERBUFFER,null);
   if(!ok){ gl.deleteTexture(tx); gl.deleteRenderbuffer(rb); gl.deleteFramebuffer(fb); S.rt=null; S.noRefl=1; return null; }
   S.rt={tx:tx, rb:rb, fb:fb, w:w, h:h, bytes:w*h*6}; S.texBytes+=S.rt.bytes; return S.rt; }
-function polish(r){ if(!r||r.isVoid) return 0; var k=floorKey(r.fm,r); return /#f$/.test(k)?1:k==='board'||k==='parquet'?.45:0; }
+function polish(r){ if(!r||r.isVoid) return 0; return /#f$/.test(floorKey(r.fm,r))?1:0; }        /* the mirror pass runs for polished stone floors only (halls, lobbies); wood keeps its cheap sheen */
 function reflPass(G,vis,VP,eye,h){ var gl=S.gl, rt=rtTarget(gl,Math.max(16,S.cw>>1),Math.max(16,S.ch>>1)); if(!rt) return false;
   var Rm=[1,0,0,0, 0,1,0,0, 0,0,-1,0, 0,0,2*h,1], VPr=mmul(VP,Rm), PL=planes(VPr), u=S.pw.u, st={draws:0,tris:0};
   gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,S.white); gl.activeTexture(gl.TEXTURE0); gl.bindFramebuffer(gl.FRAMEBUFFER,rt.fb); gl.viewport(0,0,rt.w,rt.h); var a=S.room&&S.room.b.light?S.room.b.light.ambC:[.2,.2,.2]; gl.clearColor(Math.min(1,a[0]*.5),Math.min(1,a[1]*.5),Math.min(1,a[2]*.5),1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
