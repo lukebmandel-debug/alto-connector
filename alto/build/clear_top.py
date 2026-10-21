@@ -2,44 +2,47 @@
 
 On a desktop timeline of any format the title bar and the unit / chip bar keep everything on them
 (the clef, the name, the wordmark, the chips) but lose their tinted glass: the wallpaper (or picture)
-runs up to the top of the window, and so does the board, with nothing ending where the bars were.
+runs up to the top of the window, and so does the board, with nothing ending where the bars were. Detail pages keep
+the bars as they were (html.detail-open).
 
 The engine pins #canvas under the nav (alignInfo: an inline !important top). Here #canvas starts at
 the top instead, padded down by the bars' height so it still opens below them, with a detail page open the engine's own place stands, and phones keep their own layout.
 """
 
 CSS = r"""
-html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;-webkit-backdrop-filter:none !important;
+/* main timeline / project pages only (Luke, 2026-10-21: "we can revert the top bars to how they were before for [detail pages], we
+   just don't want top bars on main timeline/project pages"): every rule below is off while a detail page is open */
+html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;-webkit-backdrop-filter:none !important;
   backdrop-filter:none !important;box-shadow:none !important;border-color:transparent !important;}
-html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{
+html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{
   background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;}
-html.alto-clear-top.alto-bg:not(.mobile) #page-bg::before{top:-40px !important;}
+html.alto-clear-top.alto-bg:not(.mobile):not(.detail-open) #page-bg::before{top:-40px !important;}
 /* the board still opens below the bars and anything scrolled into view lands below them: it slides beneath only as it scrolls */
 html.alto-clear-top:not(.mobile):not(.detail-open) #canvas{padding-top:var(--nav-bottom,0px);scroll-padding-top:var(--nav-bottom,0px);}
-html.alto-clear-top:not(.mobile) #lanes-ov-sky{top:0 !important;}   /* (lanes_nav.py: the zoomed-out backdrop, under the bars too) */
+html.alto-clear-top:not(.mobile):not(.detail-open) #lanes-ov-sky{top:0 !important;}   /* (lanes_nav.py: the zoomed-out backdrop, under the bars too) */
 /* each thing on the bars keeps itself legible over whatever scrolls under it: the chips have their own glass already;
    the name and the group labels get a light pad of the same frosted glass, nothing more (the clef and the wordmark
    stand as on the homepage: Luke, "like other toggles … but use it sparingly"). Retro's Star chart restyles its own. */
-html.alto-clear-top:not(.mobile) :is(#title-text,.nav-group-label){
+html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-text,.nav-group-label){
   background:color-mix(in srgb,var(--surface,#fff) 42%,transparent);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);
   --ct-g:color-mix(in srgb,var(--surface,#fff) 42%,transparent);box-shadow:0 0 0 var(--ct-pad,5px) var(--ct-g);}   /* the pad is a spread, not padding: no box moves */
-html.alto-clear-top:not(.mobile) #title-text{--ct-pad:6px;border-radius:999px;}
-html.alto-clear-top:not(.mobile) .nav-group-label{--ct-pad:3px;border-radius:4px;}
+html.alto-clear-top:not(.mobile):not(.detail-open) #title-text{--ct-pad:6px;border-radius:999px;}
+html.alto-clear-top:not(.mobile):not(.detail-open) .nav-group-label{--ct-pad:3px;border-radius:4px;}
 /* the bars are see-through now, the board under them: a click there reaches the board unless it is on a control */
-html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar),html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar) *{pointer-events:none;}
-html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar) :is(button,a,input,select,textarea,label,svg,[role=button],[onclick],[tabindex],#title-text),
-html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar) :is(button,a,svg,[role=button],[onclick]) *{pointer-events:auto;}
+html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar),html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar) *{pointer-events:none;}
+html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar) :is(button,a,input,select,textarea,label,svg,[role=button],[onclick],[tabindex],#title-text),
+html.alto-clear-top:not(.mobile):not(.detail-open) :is(#title-bar,#nav,#node-nav-bar) :is(button,a,svg,[role=button],[onclick]) *{pointer-events:auto;}
 /* the chips' own collapse (Luke): a little x in line with the chips, just before the first. Clicked, it spins like a wheel and winds
    the chips into itself like a tape measure, coming to rest as a + (the nearest first, the far ones travelling longest), and turned back it runs them
    out again; on the timeline and its detail pages alike, kept per viewer; the row keeps its height */
-html.ct-chips-off:not(.mobile) #nav>*{visibility:hidden !important;}
+html.ct-chips-off:not(.mobile):not(.detail-open) #nav>*{visibility:hidden !important;}
 #ct-chips{position:fixed;z-index:120;left:-100px;width:22px;height:22px;margin-top:-11px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--muted);border:1px solid var(--card-glass-border,var(--border));background:color-mix(in srgb,var(--surface,#fff) 55%,transparent);
   -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);transition:color .12s;}
 #ct-chips:hover{color:var(--text);}
 #ct-chips .rl{transform-origin:12px 12px;transform-box:view-box;}
 html.ct-chips-off #ct-chips .rl{transform:rotate(45deg);}
-html.mobile #ct-chips{display:none;}
+html.mobile #ct-chips,html.detail-open #ct-chips{display:none;}   /* (Luke: detail pages keep their bars, and their chips) */
 @media print{ #ct-chips{display:none !important;} }
 """
 

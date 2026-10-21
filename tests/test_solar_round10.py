@@ -297,3 +297,16 @@ def test_the_3d_scene_is_small_and_on_system_pages_only():
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
     assert size < 10500, size                   # (~9.7 KB gz: a small WebGL kit with its shaders, no library)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
+
+
+def test_a_detail_page_keeps_its_top_bars(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    bars = """() => ['title-bar', 'nav'].map(function(id){ var c=getComputedStyle(document.getElementById(id)); return c.backgroundColor; })"""
+    assert all(b == "rgba(0, 0, 0, 0)" for b in pg.evaluate(bars))                    # the main page: clear
+    pg.evaluate("() => showDetail('node', 'u1-p1')")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => document.documentElement.classList.contains('detail-open')")
+    assert not any(b == "rgba(0, 0, 0, 0)" for b in pg.evaluate(bars)), pg.evaluate(bars)   # the detail page: its glass back
+    assert pg.evaluate("() => { var b=document.getElementById('ct-chips'); return !b || getComputedStyle(b).display==='none'; }")
+    pg.context.close()
+    assert not errs, errs
