@@ -205,7 +205,7 @@ def validate_plan(plan) -> list:
         raise PlanError(["plan: must be an object"])
     if plan.get("v") != VERSION:
         errs.append(f"v: must be {VERSION}")
-    allowed = {"v", "id", "name", "kind", "geo", "src", "c", "tour", "lv", "wl", "rm", "st", "cols", "fx", "sl", "ex", "en", "n", "ca"}
+    allowed = {"v", "id", "name", "kind", "geo", "src", "c", "tour", "lv", "wl", "rm", "st", "cols", "fx", "sl", "ex", "en", "n", "ca", "sp"}
     for k in sorted(set(plan) - allowed):
         errs.append(f"plan: unknown key {k!r}")
     if not (isinstance(plan.get("id"), str) and ID_RE.fullmatch(plan["id"])):

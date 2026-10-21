@@ -25,7 +25,7 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
     assert blk.count('class="nt-pv"') == 6                       # one each, and a second for the two with modes (Horizontal, Building)
-    for want in ("Timeline", "Outline", ">System<", "Mind Palace", ">Sketch<", ">Horizontal<", ">City<", ">Building<"):
+    for want in ("Timeline", "Outline", ">System<", "Mind Palace", ">Sketch<", ">Horizontal<", "City</button>", "Museum / building</button>"):
         assert want in blk, want
     assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
     pal = h[h.index('class="nt-modes" data-for="palace"'):]

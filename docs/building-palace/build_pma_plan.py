@@ -466,6 +466,83 @@ def build(src: Path, art_manifest: dict) -> dict:
     plan["fx"] = fx
     plan["en"] = en
 
+    # floor everywhere inside the shell: any interior gap between the traced rooms (a vestibule that stops short of the hall, a strip beside a stair) gets a plain floor, so nobody falls through the building
+    def _fill_gaps(step=0.4):
+        shell = plan["ex"]["sh"][0]["p"]
+        ids = [l["id"] for l in plan["lv"]]
+        elev = {l["id"]: l["e"] for l in plan["lv"]}
+        sx = [q[0] for q in shell]; sy = [q[1] for q in shell]
+        ox, oy = min(sx), min(sy); nx = int((max(sx) - ox) / step) + 1; ny = int((max(sy) - oy) / step) + 1
+        def polys_for(L):
+            out = [r["p"] for r in plan["rm"] if r["l"] == L]
+            i = ids.index(L)
+            if i > 0:
+                lo = ids[i - 1]
+                out += [r["p"] for r in plan["rm"] if r["l"] == lo and elev[lo] + r.get("ch", 3) >= elev[L] - 0.6]
+            for st in plan.get("st", []):
+                if st.get("from") == L or st.get("to") == L:
+                    out += [pp for pp in (st.get("fp"), st.get("tp")) if pp]
+            return out
+        made = 0
+        for L in ("l1", "l2", "l3"):
+            pl = [(min(q[0] for q in pg), max(q[0] for q in pg), min(q[1] for q in pg), max(q[1] for q in pg), pg) for pg in polys_for(L)]
+            gap = set()
+            for j in range(ny):
+                y = oy + (j + 0.5) * step
+                for i in range(nx):
+                    x = ox + (i + 0.5) * step
+                    if not bs.inside(shell, [x, y]):
+                        continue
+                    if any(a <= x <= b and c <= y <= d and bs.inside(pg, [x, y]) for a, b, c, d, pg in pl):
+                        continue
+                    gap.add((i, j))
+            seen, comps = set(), []
+            for cell in gap:
+                if cell in seen:
+                    continue
+                st_, comp = [cell], []
+                seen.add(cell)
+                while st_:
+                    c = st_.pop(); comp.append(c)
+                    for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        n = (c[0] + d[0], c[1] + d[1])
+                        if n in gap and n not in seen:
+                            seen.add(n); st_.append(n)
+                comps.append(comp)
+            for comp in comps:
+                cs = set(comp)
+                if not any((i + 1, j) in cs and (i, j + 1) in cs and (i + 1, j + 1) in cs for i, j in comp):
+                    continue                                         # narrower than 0.8 m everywhere: wall thickness, not floor
+                rows = {}
+                for i, j in comp:
+                    rows.setdefault(j, []).append(i)
+                runs = {}
+                for j, xs in rows.items():
+                    xs.sort(); a = prev = xs[0]
+                    for i in xs[1:] + [None]:
+                        if i is not None and i == prev + 1:
+                            prev = i; continue
+                        runs.setdefault((a, prev), []).append(j)
+                        if i is not None:
+                            a = prev = i
+                for (a, b), js in runs.items():
+                    js.sort(); k0 = prev_j = js[0]
+                    for j in js[1:] + [None]:
+                        if j is not None and j == prev_j + 1:
+                            prev_j = j; continue
+                        x0, x1 = ox + a * step, ox + (b + 1) * step; y0, y1 = oy + k0 * step, oy + (prev_j + 1) * step
+                        made += 1
+                        plan["rm"].append({"id": f"{L}-gap{made}", "l": L, "n": "Passage", "ty": "corridor", "gp": 1, "p": [[round(x0, 2), round(y0, 2)], [round(x1, 2), round(y0, 2)], [round(x1, 2), round(y1, 2)], [round(x0, 2), round(y1, 2)]],
+                                           "ch": 3.4, "fm": "stone", "wm": "paint", "cm": "plaster", "li": {"k": "dim"}, "c": 1, "s": ["est"], "hb": "assumed-type", "hc": 1,
+                                           "bs": "an interior gap between the traced rooms, floored so it can be walked; shape follows the rooms around it", "mb": "assumed: plain floor and walls"})
+                        if j is not None:
+                            k0 = prev_j = j
+        return made
+    info_gaps = _fill_gaps()
+    # the East Entrance wall: the doorway into the vestibule is cut through the facade, so the gap floors behind it open onto the terrace
+    plan["wl"].append({"id": "l2-w-east-face", "l": "l2", "k": "ext", "m": "limestone", "t": 0.4, "p": [[-3.2, -12.6], [-3.2, 20.5]], "c": 1, "s": ["osm", "est"],
+                       "bs": "the central block's east face (OSM outline) with the East Entrance opening cut through it; the opening's width follows the traced entrance wall",
+                       "o": [{"k": "gap", "a": 15.3, "w": 8.2, "h": 3.5, "z": 0, "c": 1}]})
     # a period room or architectural installation has no windows onto the courts (the installation is built inside the 1928 shell): close those 1928 windows
     wooded = {}
     for r in plan["rm"]:
@@ -493,10 +570,11 @@ def build(src: Path, art_manifest: dict) -> dict:
         if len(keep) != len(w.get("o", [])):
             w["o"] = keep
     info_closed = closed
+    plan["sp"] = {"l": "l2", "p": [-13.5, 2.65], "yaw": 180, "pitch": 0.08}              # "Walk in" starts at the foot of the Great Stair Hall stairs, facing them
     plan["sl"], unplaced = art_slots(plan, guide, inst_names, nrm, art_manifest)
     plan["tour"] = make_tour(plan)
     plan["src"] = credit_sources(plan, art_manifest)
-    return plan, {"closed_installation_windows": info_closed, "rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links}
+    return plan, {"gap_rooms": info_gaps, "closed_installation_windows": info_closed, "rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links}
 
 
 # ── art slots ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -72,7 +72,7 @@ def test_the_plan_validates_and_is_the_pma():
 
 def test_no_room_polygon_crosses_itself_and_every_id_is_unique():
     for r in PLAN["rm"]:
-        assert not bs.self_crossing(r["p"]) and abs(bs.area(r["p"])) > 0.5, r["id"]
+        assert not bs.self_crossing(r["p"]) and (r.get("gp") or abs(bs.area(r["p"])) > 0.5), r["id"]
     for kind in ("rm", "wl", "st", "cols", "fx", "sl", "en"):
         ids = [e["id"] for e in PLAN.get(kind) or []]
         assert len(ids) == len(set(ids)), kind

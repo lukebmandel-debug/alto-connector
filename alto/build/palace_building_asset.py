@@ -80,10 +80,12 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-walk{margin-top:8px;height:28px;font-size:12px;}
 #bldg-root .bl-lab{font-size:var(--bl-fs,1px);fill:var(--bl-text);text-anchor:middle;pointer-events:none;font-weight:600;paint-order:stroke;stroke:var(--bl-paper);stroke-width:.25px;stroke-opacity:.8;}
 #bldg-root .bl-lab2{font-weight:400;fill:var(--bl-muted);}
-#bldg-root .bl-pill rect{fill:var(--bl-tint,var(--bl-accent));stroke:rgba(255,255,255,.8);stroke-width:.12px;}
-#bldg-root .bl-pill text{fill:#fff;font-size:.72px;font-weight:700;text-anchor:middle;pointer-events:none;}
+#bldg-root .bl-pill rect{fill:var(--bl-tint,var(--bl-accent));stroke:rgba(255,255,255,.85);stroke-width:1.2px;}
+#bldg-root .bl-pill text{fill:#fff;font-size:12px;font-weight:700;pointer-events:none;}
 #bldg-root .bl-pill{cursor:pointer;}
-#bldg-root .bl-pill:hover rect{stroke:var(--bl-text);stroke-width:.2px;}
+#bldg-root .bl-pill:hover rect{stroke:var(--bl-text);stroke-width:2px;}
+#bldg-root .bl-gapfill{stroke:none;pointer-events:none;}
+html.bldg-open #world{visibility:hidden !important;}
 #bldg-root .bl-ui{position:absolute;z-index:2;pointer-events:auto;}
 #bldg-root .bl-tabs{top:14px;right:14px;display:flex;flex-direction:column-reverse;gap:6px;}
 #bldg-root .bl-tab,#bldg-root .bl-btn{font:inherit;font-size:13px;min-width:38px;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--bl-line);background:color-mix(in srgb,var(--bl-panel) 82%,transparent);
@@ -94,6 +96,7 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-zoom .bl-btn{padding:0;width:34px;font-size:17px;line-height:1;}
 #bldg-root .bl-head{left:14px;top:14px;max-width:min(360px,calc(100% - 140px));padding:10px 14px;border-radius:14px;border:1px solid var(--bl-line);
   background:color-mix(in srgb,var(--bl-panel) 82%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+#bldg-root .bl-kind{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--bl-accent);margin-bottom:3px;}
 #bldg-root .bl-head h2{margin:0;font-size:15px;font-weight:650;}
 #bldg-root .bl-head p{margin:3px 0 0;font-size:12px;color:var(--bl-muted);line-height:1.4;}
 #bldg-root .bl-info{left:14px;bottom:58px;width:min(340px,calc(100% - 28px));max-height:46%;overflow:auto;padding:12px 14px;border-radius:14px;border:1px solid var(--bl-line);
@@ -123,10 +126,14 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 @media (max-width:700px){#bldg-root .bl-head{max-width:calc(100% - 128px);}#bldg-root .bl-info{bottom:62px;}#bldg-toggle{left:50%;transform:translateX(-50%);}}
 """
 
+_UNUSED_ICON = ('<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px">'
+                   '<path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 10.5v7.5M9.5 10.5v7.5M14.5 10.5v7.5M18.5 10.5v7.5"/><path d="M3 20.5h18"/></svg>')
+
 BUILDING_JS = r"""
 (function(){
 if(window.AltoBuilding) return;
 var NS='http://www.w3.org/2000/svg';
+var MUSEUM_ICON='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><path d="M3 9.5 12 4l9 5.5"/><path d="M5.5 10.5v7.5M9.5 10.5v7.5M14.5 10.5v7.5M18.5 10.5v7.5"/><path d="M3 20.5h18"/></svg>';
 var A={version:1, plan:null, data:null, ready:null, geometry:{}}, ev={}, fpvImpl=null;
 var S={root:null, svg:null, view:null, level:'outside', sel:null, vb:null, home:null, info:null, tabs:null, head:null, msg:null, toggle:null, nodesByRoom:{}, drag:null, pts:{}};
 
@@ -225,6 +232,7 @@ function drawLevel(g,id){
   rooms.forEach(function(r){
     var nodes=S.nodesByRoom[r.id]||[], tint=tintOf(nodes.map(function(n){ return n.id; }));
     var c=conf(plan,r), ar=areaOf(r);
+    if(r.gp){ el('path',{d:pathOf(r.p,true),'class':'bl-room bl-gapfill'},gR); return; }
     var p=el('path',{d:pathOf(r.p,true),'class':'bl-room'+(c<=1?' bl-guess':'')+(c<=0?' bl-est':'')+(r.ov?' bl-ov':'')+(ar?' bl-area':''),'data-room':r.id},gR);
     if(ar) p.style.setProperty('--bl-area',ar.c);
     if(c<=0) p.setAttribute('filter','url(#bl-feather)');
@@ -273,7 +281,7 @@ function drawLevel(g,id){
   });
   // labels, then the numbered pills
   rooms.forEach(function(r){
-    var c=centroid(r.p), bb=ptsBounds(r.p), w=bb[2]-bb[0];
+    if(r.gp) return; var c=centroid(r.p), bb=ptsBounds(r.p), w=bb[2]-bb[0];
     var many=(S.nodesByRoom[r.id]||[]).length;
     if(w<fs*3) return;
     var up=many?1.7:0;                    // a room with cards: its name stands above them
@@ -292,21 +300,37 @@ function entranceMark(g,e){
 }
 function drawPills(g,levelId){
   var plan=A.plan;
-  (plan.rm||[]).filter(function(r){ return r.l===levelId; }).forEach(function(r){
+  (plan.rm||[]).filter(function(r){ return r.l===levelId&&!r.gp; }).forEach(function(r){
     var list=S.nodesByRoom[r.id]||[]; if(!list.length) return;
-    var c=centroid(r.p), wTot=0, ws=list.map(function(n){ var w=Math.max(1.9,(String(n.n).length+1)*.52); wTot+=w+.3; return w; });
-    var x=c[0]-wTot/2;
+    var c=centroid(r.p);
     list.forEach(function(n,i){
-      var pos=n.s?anchorPoint(n.s):null;
-      var cx=pos?pos[0]:x+ws[i]/2, cy=pos?pos[1]:c[1]-.4;
-      x+=ws[i]+.3;
-      var pill=el('g',{'class':'bl-pill','data-node':n.id,transform:'translate('+f2(cx)+','+f2(-cy)+')'},g);
+      var pos=n.s?anchorPoint(n.s):null, cx=pos?pos[0]:c[0], cy=pos?pos[1]:c[1];
+      var pill=el('g',{'class':'bl-pill','data-node':n.id,'data-cx':f2(cx),'data-cy':f2(cy),'data-i':pos?0:i,'data-n':pos?1:list.length},g);
       var col=A.data.acts&&A.data.acts[n.a]&&A.data.acts[n.a].c; if(col) pill.style.setProperty('--bl-tint',col);
-      el('rect',{x:-ws[i]/2,y:-.5,width:ws[i],height:1,rx:.5},pill);
-      var t=el('text',{x:0,y:.27},pill); t.textContent=n.n;
-      var tt=el('title',{},pill); tt.textContent=dec(n.t);
+      el('rect',{height:22,y:-11,rx:11},pill); el('text',{y:4},pill);
+      var tt=el('title',{},pill); tt.textContent=n.n+'  '+dec(n.t); pill._n=n;
       pill.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); openNode(n.id); });
     });
+  });
+  placePills();
+}
+/* chips are drawn in screen pixels (one unit = one pixel), so they stay readable at any zoom: numbers when zoomed out, number and title when zoomed in */
+function placePills(){
+  if(!S.svg||!S.vb||!S.root) return;
+  var k=S.vb[2]/Math.max(1,S.root.clientWidth), far=k>.13, placed=[], H=24*k, gap=3*k;
+  var ps=[].slice.call(S.svg.querySelectorAll('.bl-pill'));
+  ps.forEach(function(p){
+    var n=p._n; if(!n) return; var cx=+p.getAttribute('data-cx'), cy=-(+p.getAttribute('data-cy'));
+    var title=dec(n.t); if(title.length>26) title=title.slice(0,25)+'\u2026';
+    var txt=far?String(n.n):String(n.n)+'  '+title, w=far?Math.max(32,String(n.n).length*8+18):Math.min(250,txt.length*6.7+20), W=w*k;
+    var rect=p.querySelector('rect'), t=p.querySelector('text'); rect.setAttribute('width',f2(w)); rect.setAttribute('x',f2(-w/2));
+    t.setAttribute('x',far?0:f2(-w/2+10)); t.setAttribute('text-anchor',far?'middle':'start'); t.textContent=txt;
+    var best=null, tries=[[0,0]]; for(var r=1;r<7;r++){ tries.push([0,r],[0,-r],[(W+gap)/H,r*.0],[-(W+gap)/H,0],[(W+gap)/H,r],[-(W+gap)/H,-r],[(W+gap)/H,-r],[-(W+gap)/H,r]); }
+    for(var i=0;i<tries.length&&!best;i++){ var x=cx+tries[i][0]*H, y=cy+tries[i][1]*H, ok=true;
+      for(var j=0;j<placed.length;j++){ var q=placed[j]; if(Math.abs(x-q.x)<(W+q.w)/2+gap&&Math.abs(y-q.y)<H) { ok=false; break; } }
+      if(ok) best={x:x,y:y}; }
+    if(!best) best={x:cx,y:cy+(placed.length%5)*H}; placed.push({x:best.x,y:best.y,w:W});
+    p.setAttribute('transform','translate('+f2(best.x)+','+f2(best.y)+') scale('+(Math.round(k*1000)/1000)+')');
   });
 }
 function anchorPoint(id){ var s=(A.plan.sl||[]).concat(A.plan.fx||[]); for(var i=0;i<s.length;i++) if(s[i].id===id) return s[i].p; return null; }
@@ -345,7 +369,7 @@ function applyVB(){ // keep the drawing's aspect equal to the viewport's
   var r=S.root.getBoundingClientRect(), W=Math.max(1,r.width), H=Math.max(1,r.height), vb=S.vb, asp=W/H;
   var w=vb[2], hh=vb[3];
   if(w/hh<asp){ var nw=hh*asp; vb[0]-=(nw-w)/2; vb[2]=nw; } else { var nh=w/asp; vb[1]-=(nh-hh)/2; vb[3]=nh; }
-  S.svg.setAttribute('viewBox',vb.map(f2).join(' '));
+  S.svg.setAttribute('viewBox',vb.map(f2).join(' ')); placePills();
 }
 
 // ── panel ──
@@ -444,12 +468,14 @@ function build(){
   S.level=(plan.ex&&(plan.ex.sh||[]).length)?'outside':(lv[0]&&lv[0].id)||'outside';
   var en=(plan.en||[]).filter(function(e){ return e.k==='main'; })[0]||(plan.en||[])[0];
   if(en&&lv.some(function(l){ return l.id===en.l; })&&!(plan.ex&&(plan.ex.sh||[]).length)) S.level=en.l;
+  if(plan.sp&&levelOf(plan.sp.l)) S.level=plan.sp.l;                                  /* open where the walk starts, not on an empty outline */
   while(S.head.firstChild) S.head.removeChild(S.head.firstChild);
+  var kb=h('div',{'class':'bl-kind'},S.head); kb.innerHTML=MUSEUM_ICON; kb.appendChild(document.createTextNode((plan.kind==='museum'?'Museum Palace':'Building Palace')));
   h('h2',null,S.head,dec(plan.name||A.data.name||'Building'));
   var n=0; for(var k in (A.data.nodes||{})) n++;
   h('p',null,S.head,n+(n===1?' card':' cards')+' placed in '+Object.keys(S.nodesByRoom).length+' rooms. Dashed outlines are approximate, blurred rooms estimated.');
-  var wb=h('button',{'class':'bl-go bl-walk',type:'button'},S.head,'Walk in'); wb.addEventListener('click',function(){ A.enterFPV(null,{from:'plan'}); });
-  S.home=null; S.vb=null; render(); footer();
+  var wb=h('button',{'class':'bl-go bl-walk',type:'button'},S.head,'Walk in'); wb.addEventListener('click',function(){ A.enterFPV(null,{from:'plan'}); }); if(plan.ex&&(plan.ex.sh||[]).length&&plan.sp){ var wo=h('button',{'class':'bl-go bl-walk bl-alt',type:'button'},S.head,'Start outside'); wo.addEventListener('click',function(){ A.enterFPV(null,{from:'plan',outside:true}); }); }
+  S.home=null; S.vb=null; render(); footer(); brand(); setTimeout(brand,600); setTimeout(brand,2500);
 }
 function footer(){
   if(!S.root) return;
@@ -469,6 +495,13 @@ function footer(){
   var tg=function(){ box.hidden=!box.hidden; };
   f.addEventListener('click',function(e){ e.stopPropagation(); tg(); });
   f.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tg(); } });
+}
+/* a Mind Palace in a building is told apart from the city one by its name and a symbol (columns and a pediment): the back button and nav say "Museum Palace" / "Building Palace" */
+function brand(){
+  if(!A.plan) return; var nm=A.plan.kind==='museum'?'Museum Palace':'Building Palace';
+  var set=function(sel,pre){ [].forEach.call(document.querySelectorAll(sel),function(e){ e.innerHTML=pre+MUSEUM_ICON+nm; }); };
+  set('#desk-back .db-label',''); set('#nav-timeline','\u21a9 '); set('#drawer-timeline-btn .drawer-label','');
+  [].forEach.call(document.querySelectorAll('#desk-back'),function(e){ e.setAttribute('aria-label','Back to the '+nm); e.title='Back to the '+nm; });
 }
 function nomsg(t){ if(!S.msg){ S.msg=h('div',{'class':'bl-msg'},S.root); } S.msg.textContent=t; }
 
@@ -589,6 +622,7 @@ def building_data(b, nodes) -> str:
         data["h"] = bd.get("plan_h")
         data["url"] = "/bldg/" + file_name(bd.get("plan_h"))
         data["name"] = data["name"] or r["plan"].get("name") or ""
+        data["kind"] = r["plan"].get("kind") or ""
     else:
         data["none"] = 1
     return "\nwindow._ALTO_BUILDING=" + js_json(data, separators=(",", ":")) + ";" + BUILDING_LOADER + BUILDING_START

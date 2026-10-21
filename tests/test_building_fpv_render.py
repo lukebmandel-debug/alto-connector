@@ -92,7 +92,7 @@ def test_the_philadelphia_museum_of_art_renders_its_great_stair_hall_and_galleri
     which, b, srv = engine
     page, errors = open_view(b, srv, built()[0], pma.plan())
     try:
-        assert page.evaluate("AltoBuildingFPV.state().room") is None                                   # outside, before the East Entrance
+        assert page.evaluate("AltoBuildingFPV.state().room") == "l2-gsh"                               # 'Walk in' starts inside, at the foot of the Great Stair Hall stairs
         rows = []
         for name, place in PMA_VIEWS.items():
             stats = shot(page, f"{which}_pma_{name}", place)
@@ -176,3 +176,45 @@ def test_a_phone_gets_joysticks_and_the_view_fits(engine):
         assert page.evaluate("document.documentElement.scrollWidth") <= 390
     finally:
         ctx.close()
+
+
+def test_walking_out_through_the_front_door_never_drops_you(engine):
+    """Luke fell through the floor walking in: the vestibule stopped short of the hall. Every interior gap now has a floor."""
+    from alto.buildings import pma
+    which, b, srv = engine
+    page, errors = open_view(b, srv, built()[0], pma.plan())
+    try:
+        page.evaluate("AltoBuildingFPV.place(-13.5, 2.65, 12.5, 0, 0)")                  # in the Great Stair Hall, facing the East Entrance
+        low, x = 99.0, -99.0
+        for _ in range(14):
+            page.evaluate("AltoBuildingFPV.step(1/60, {f: 1}, 60)")
+            st = page.evaluate("AltoBuildingFPV.state()")
+            low, x = min(low, st["z"]), st["x"]
+        assert low > 10.9, low                                                             # level 2 (12.5) or the terrace (11.2): never the lobby below (6.2)
+        assert x > -3, x                                                                   # it walked out of the building
+        page.evaluate("AltoBuildingFPV.place(-5, 2.65, 12.5, 0, 0)")                      # standing in the doorway strip itself
+        assert abs(page.evaluate("AltoBuildingFPV.geom.support(-5, 2.65, 12.5)") - 12.5) < 0.05
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_every_card_stands_in_its_room_and_n_walks_to_the_next(engine):
+    from alto.buildings import pma
+    from tests.test_building_pma_render import _html
+    which, b, srv = engine
+    page, errors = open_view(b, srv, _html(), pma.plan())
+    try:
+        dbg = page.evaluate("(() => { const G = AltoBuildingFPV._debug().G; return [G.cards.length, Object.keys(G.slots).filter(k => k.indexOf('card-') === 0).length]; })()")
+        assert dbg[0] >= 1 and dbg[0] == dbg[1]
+        before = page.evaluate("AltoBuildingFPV.state()")
+        page.keyboard.press("n")
+        page.wait_for_timeout(1200)
+        after = page.evaluate("AltoBuildingFPV.state()")
+        assert (before["x"], before["y"]) != (after["x"], after["y"])
+        page.keyboard.press("c")                                                           # the card list opens, with one button per card
+        page.wait_for_selector("#bf-root .bf-clist button")
+        assert page.locator("#bf-root .bf-clist button").count() >= 1
+        assert errors == []
+    finally:
+        page.close()
