@@ -677,11 +677,11 @@ window._altoSXHomeRow=function(r,q){
 _FORMAT_NAME_JS = r"""
 (function(){var G=__G__,H=document.documentElement,K;
 function hub(){return !!window._ALTO_SOLAR&&!H.classList.contains('mobile')}
-function ic(p){return '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>'}
+function ic(g){var v=g[2]||20;return '<svg viewBox="0 0 '+v+' '+v+'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="'+v/16+'" stroke-linecap="round" stroke-linejoin="round">'+g[1]+'</svg>'}
 function set(s,f){[].forEach.call(document.querySelectorAll(s),f)}
 function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._altoPalace||window._palTr)?(G.building?'building':'palace'):G.lanes?'lanes':'timeline';
 if(K===k)return;K=k;
-var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g[1]):n,t='Back to the '+(n==='Mind Palace'?n:n.toLowerCase());window._altoFB=function(){return h};
+var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g):n,t='Back to the '+(n==='Mind Palace'?n:n.toLowerCase());window._altoFB=function(){return h};
 set('#desk-back .db-label,#drawer-timeline-btn .drawer-label',function(e){e.innerHTML=h});
 set('#desk-back,#drawer-timeline-btn,#detail-back-fixed',function(e){e.setAttribute('aria-label',t);if(e.id=='desk-back')e.title=t});
 set('#nav-timeline',function(e){e.innerHTML='\u21a9 '+h;e.setAttribute('aria-label',t);e.title=t});
@@ -698,7 +698,8 @@ def format_name_js(b: Brief) -> str:
     key = format_symbols.key_of(b)
     keys = [key] + (["outline"] if key == "system" else [])
     g = {k: [{"building": "Mind Palace", "lanes": "Timeline"}.get(k) or format_symbols.name(k),
-             format_symbols.SYMBOLS[k][1]] for k in keys}
+             format_symbols.SYMBOLS[k][1]] + ([24] if format_symbols.SYMBOLS[k][2] == 24 else [])
+         for k in keys}
     return _FORMAT_NAME_JS.replace("__G__", js_json(g, separators=(",", ":")))
 
 

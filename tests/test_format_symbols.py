@@ -43,7 +43,7 @@ def test_a_brief_picks_its_symbol(kw, key):
 def test_the_pages_hold_the_same_drawings(tpl):
     for base in (ROOT / "engine", ROOT / "alto" / "engine"):
         mine = _dict_in((base / tpl).read_text(encoding="utf-8"), "FMT_SYMBOLS")
-        assert mine == {k: [F.name(k), F.SYMBOLS[k][1]] for k in F.KEYS}
+        assert mine == {k: list(F.SYMBOLS[k]) for k in F.KEYS}
 
 
 def test_a_page_names_no_format_in_words():
