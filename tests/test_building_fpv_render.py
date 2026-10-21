@@ -230,3 +230,16 @@ def test_every_card_stands_in_its_room_and_n_walks_to_the_next(engine):
         assert errors == []
     finally:
         page.close()
+
+
+def test_the_east_entrance_has_a_pediment(engine):
+    """Luke: the PMA has a pointy roof in the middle. A low gable stands over the front colonnade (proportions assumed)."""
+    from alto.buildings import pma
+    which, b, srv = engine
+    page, errors = open_view(b, srv, built()[0], pma.plan())
+    try:
+        n = page.evaluate("(() => { const G = AltoBuildingFPV._debug().G; let n = 0; G.batches.forEach(b => b.items.forEach(i => { if (i.t === 'pedi') n++; })); return n; })()")
+        assert n == 1
+        assert errors == []
+    finally:
+        page.close()

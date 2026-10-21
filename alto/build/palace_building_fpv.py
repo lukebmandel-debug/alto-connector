@@ -592,6 +592,17 @@ function things(G){
   ex.forEach(function(c,i){ var nd=1e9; ex.forEach(function(d,j){ if(j!==i&&d.l===c.l) nd=Math.min(nd,Math.hypot(d.p[0]-c.p[0],d.p[1]-c.p[1])); }); c._nd=nd; });
   ex.forEach(function(c,i){ ex.forEach(function(d,j){ if(j<=i||d.l!==c.l) return; var L=Math.hypot(d.p[0]-c.p[0],d.p[1]-c.p[1]); if(L>Math.min(c._nd,d._nd)*1.35||L>9) return;
     var l=G.lv[c.l], h=hm[c.id]||c.h||l.h, z=l.e+h, b=l.b; l.b.items.push({t:'entab', a:c.p, b:d.p, z:z, r:Math.max(c.r,d.r)}); grow(b,Math.min(c.p[0],d.p[0])-3,Math.min(c.p[1],d.p[1])-3,z-1,Math.max(c.p[0],d.p[0])+3,Math.max(c.p[1],d.p[1])+3,z+4); }); });
+  /* the East Entrance pediment: a low (Greek, about 1:8) gable over the front colonnade with its roof running back to the facade. The PMA has eight pediments (Wikipedia; the central front is a Greek temple front);
+     pitch, depth and tile colour are assumed, and the tympanum is left plain (its sculpture is not reproduced) */
+  (function(){ var en=(P.en||[]).filter(function(e){ return (e.k||'main')==='main'; })[0]; if(!en||en.fc==null||!en.p) return; var l=G.lv[en.l]; if(!l) return;
+    var fc=en.fc*PI/180, u=[Math.cos(fc),Math.sin(fc)], vd=[-u[1],u[0]], groups={}, best=null;
+    l.b.items.forEach(function(it){ if(it.t!=='entab') return; var dx=it.b[0]-it.a[0], dy=it.b[1]-it.a[1], L=Math.hypot(dx,dy)||1; if(Math.abs((dx*u[0]+dy*u[1])/L)>.2) return;
+      var s=((it.a[0]+it.b[0])/2-en.p[0])*u[0]+((it.a[1]+it.b[1])/2-en.p[1])*u[1]; if(s<2) return; var key=Math.round(s/.8)+'|'+Math.round(it.z*2), g=groups[key]||(groups[key]={s:0,n:0,z:it.z,r:0,v0:1e9,v1:-1e9,len:0});
+      [it.a,it.b].forEach(function(q){ var v=(q[0]-en.p[0])*vd[0]+(q[1]-en.p[1])*vd[1]; g.v0=Math.min(g.v0,v); g.v1=Math.max(g.v1,v); }); g.s+=s; g.n++; g.r=Math.max(g.r,it.r); g.len+=L; });
+    for(var k in groups){ var g=groups[k]; if(!best||g.len>best.len) best=g; } if(!best||best.n<3) return;
+    var ov=best.r*1.35, v0=best.v0-ov, v1=best.v1+ov, rise=(v1-v0)*.125, o={t:'pedi', o:en.p, u:u, vd:vd, s0:best.s/best.n+best.r*.5, sb:.6, v0:v0, v1:v1, z:best.z+best.r*2.73, rise:rise}, xs=[], ys=[];
+    [o.s0+1,o.sb].forEach(function(sv){ [v0-1,v1+1].forEach(function(vv){ xs.push(en.p[0]+u[0]*sv+vd[0]*vv); ys.push(en.p[1]+u[1]*sv+vd[1]*vv); }); });
+    l.b.items.push(o); grow(l.b,Math.min.apply(null,xs),Math.min.apply(null,ys),o.z-.5,Math.max.apply(null,xs),Math.max.apply(null,ys),o.z+rise+2); })();
   /* a statue (and the plinth under it) stands clear of the walls, facing away from the nearest one */
   (P.fx||[]).forEach(function(f){ var l=G.lv[f.l]; if(f.k!=='statue'||!l||!f.p||!f.sz||f._moved) return; var need=Math.max(f.sz[0],f.sz[1])*.5+1.0, x=f.p[0], y=f.p[1], push=[0,0];
     primsNear(G,x,y,need+1).forEach(function(q2){ if(!q2.wall||q2.z1<l.e-.3||q2.z0>l.e+2) return; var d=primDist(q2,x,y); if(d>=need) return; var e=.01, gx=(primDist(q2,x+e,y)-primDist(q2,x-e,y))/(2*e), gy=(primDist(q2,x,y+e)-primDist(q2,x,y-e))/(2*e), gl=Math.hypot(gx,gy)||1;
@@ -867,6 +878,15 @@ ITEM.niche=function(G,mb,it){ var W=it.W, op=it.op, sg=op.sg, r=it.room, s=it.s,
   mb.quad('plaster',[P(a,W.ht,z1),P(c,W.ht,z1),P(c,d,z1),P(a,d,z1)],[0,0,-1],[[a,0],[c,0],[c,d],[a,d]]); mb.quad(floorKey(r.fm,r),[P(a,W.ht,z0),P(c,W.ht,z0),P(c,d,z0),P(a,d,z0)],[0,0,1],[[a,0],[c,0],[c,d],[a,d]]); };
 ITEM.entab=function(G,mb,it){ var A=it.a, B=it.b, r=it.r, L=Math.hypot(B[0]-A[0],B[1]-A[1])+r*2.7, rot=Math.atan2(B[1]-A[1],B[0]-A[0]), cx=(A[0]+B[0])/2, cy=(A[1]+B[1])/2, z=it.z, k='kasota', D=r*2.5;
   box(mb,k,cx,cy,z,L,D,r*1.1,rot,{}); box(mb,k,cx,cy,z+r*1.1,L+.02,D*1.04,.08,rot,{b:1}); box(mb,k,cx,cy,z+r*1.18,L,D*.96,r*1.05,rot,{b:1}); box(mb,k,cx,cy,z+r*2.23,L+r*.5,D+r*.5,r*.18,rot,{b:1}); box(mb,k,cx,cy,z+r*2.41,L+r*.8,D+r*.8,r*.32,rot,{}); };
+ITEM.pedi=function(G,mb,it){ var O=it.o, u=it.u, d=it.vd, P=function(sv,v,z){ return [O[0]+u[0]*sv+d[0]*v,O[1]+u[1]*sv+d[1]*v,z]; }, vm=(it.v0+it.v1)/2, zb=it.z, zr=zb+it.rise, sf=it.s0, sb=it.sb, oh=.55, th=.5;
+  var Q=function(k,pts,hint,uv){ var n=nrm(cross(sub(pts[1],pts[0]),sub(pts[3],pts[0]))); if(dot(n,hint)<0){ pts=[pts[3],pts[2],pts[1],pts[0]]; uv=[uv[3],uv[2],uv[1],uv[0]]; n=[-n[0],-n[1],-n[2]]; } mb.quad(k,pts,n,uv); };
+  var run=(zr-zb)/(vm-it.v0), zA=zb+th-run*oh, zA2=zb+th-run*oh;
+  Q('kasota',[P(sf,it.v0,zb),P(sf,it.v1,zb),P(sf,vm,zr),P(sf,vm,zr)],[u[0],u[1],0],[[it.v0,zb],[it.v1,zb],[vm,zr],[vm,zr]]);                        /* the plain tympanum */
+  Q('kasota',[P(sf+.15,it.v0-.2,zb),P(sf+.15,vm,zr),P(sf+.15,vm,zr+th),P(sf+.15,it.v0-.2,zb+th)],[u[0],u[1],0],[[0,0],[1,0],[1,.5],[0,.5]]);          /* raking cornice, front, both slopes */
+  Q('kasota',[P(sf+.15,vm,zr),P(sf+.15,it.v1+.2,zb),P(sf+.15,it.v1+.2,zb+th),P(sf+.15,vm,zr+th)],[u[0],u[1],0],[[0,0],[1,0],[1,.5],[0,.5]]);
+  Q('rooftile',[P(sf+.3,it.v0-oh,zA),P(sb,it.v0-oh,zA),P(sb,vm,zr+th),P(sf+.3,vm,zr+th)],[-d[0]*.3,-d[1]*.3,1],[[0,0],[sf-sb,0],[sf-sb,vm-it.v0],[0,vm-it.v0]]);   /* the two roof slopes */
+  Q('rooftile',[P(sf+.3,it.v1+oh,zA2),P(sb,it.v1+oh,zA2),P(sb,vm,zr+th),P(sf+.3,vm,zr+th)],[d[0]*.3,d[1]*.3,1],[[0,0],[sf-sb,0],[sf-sb,it.v1-vm],[0,it.v1-vm]]);
+  Q('kasota',[P(sf,it.v0,zb),P(sb,it.v0,zb),P(sb,it.v1,zb),P(sf,it.v1,zb)],[0,0,-1],[[0,it.v0],[sf-sb,it.v0],[sf-sb,it.v1],[0,it.v1]]); };                  /* the soffit under the roof */
 ITEM.parapet=function(G,mb,it){ var A=it.a, B=it.b, L=Math.hypot(B[0]-A[0],B[1]-A[1]), rot=Math.atan2(B[1]-A[1],B[0]-A[0]), k=matName(it.m,'marble');
   if(it.bal){ var cx=(A[0]+B[0])/2, cy=(A[1]+B[1])/2, z=it.z, w=it.w; box(mb,k,cx,cy,z,L,w,.16,rot,{}); box(mb,k,cx,cy,z+it.h-.14,L+.06,w+.08,.14,rot,{b:1}); box(mb,k,cx,cy,z+it.h-.2,L,w*.8,.06,rot,{b:1,t:1});
     var n=Math.max(2,Math.floor(L/.32)); for(var i=0;i<n;i++){ var t=(i+.5)/n, x=A[0]+(B[0]-A[0])*t, y=A[1]+(B[1]-A[1])*t, bh=it.h-.36;
