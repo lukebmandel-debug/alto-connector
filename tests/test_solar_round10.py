@@ -162,7 +162,7 @@ def test_the_star_chart_has_a_retro_style_kept_per_timeline(browser, page):
     s = pg.evaluate("""() => { var c=document.querySelector('#node-u1 .node-card'), b=document.querySelector('#solar-svg .sol-band'), sp=document.querySelector('#solar-svg .sol-spoke');
       return [document.documentElement.classList.contains('sk-retro'), getComputedStyle(c).backgroundColor, getComputedStyle(b).display, getComputedStyle(sp).stroke,
               Object.keys(localStorage).filter(function(k){ return /alto-solar-style:/.test(k); }).map(function(k){ return localStorage.getItem(k); })]; }""")
-    assert s[0] and s[1] == "rgb(242, 210, 124)" and s[2] != "none" and s[3] == "rgb(207, 166, 78)" and s[4] == ["retro"], s
+    assert s[0] and s[1] == "rgb(245, 230, 189)" and s[2] != "none" and s[3] == "rgb(240, 193, 94)" and s[4] == ["retro"], s
     pg.click("#sol-sty [data-sty=classic]")
     assert not pg.evaluate("() => document.documentElement.classList.contains('sk-retro')")
     pg.context.close()

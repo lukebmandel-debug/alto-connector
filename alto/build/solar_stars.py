@@ -565,34 +565,61 @@ window._altoSkinStats={
 # lettering. html.sk-retro is set by solar_draw.py's style switch (kept per timeline like the look).
 _X = "html.alto-stars.sk-retro:not(.mobile)"
 RETRO_CSS = r"""
-  X #canvas{background:#030305 !important;}
-  X .sk-sky,X #solar-svg .sk-rg,X #solar-svg .sk-tr,X #solar-svg .sol-oort,X #solar-svg .sol-ubd{display:none !important;}
-  #solar-svg .sol-band{display:none;}
+  #solar-svg .sol-band,#solar-svg .sol-bun,#sk-mark{display:none;}
+  X #canvas{background:#000 !important;}
+  X .sk-sky,X #solar-svg .sk-rg,X #solar-svg .sk-tr,X #solar-svg .sol-oort,X #solar-svg .sol-ubd,X #solar-svg [fill^="url(#sol-glow"]{display:none !important;}
   X #solar-svg .sol-band{display:inline;stroke:none;}
-  X #solar-svg .sol-band.b0{fill:#0a1a31;} X #solar-svg .sol-band.b1{fill:#0e2442;} X #solar-svg .sol-band.b2{fill:#132e55;}
-  X #solar-svg .sol-band.b3{fill:#183a69;} X #solar-svg .sol-band.b4{fill:#1f487f;}
-  X #solar-svg .sol-ring{stroke:rgb(150,185,230);stroke-opacity:calc(.22 * var(--lk,1));}
-  X #solar-svg .sol-spoke{stroke:#cfa64e;stroke-opacity:calc(.8 * var(--lk,1));stroke-width:calc(1.6px * var(--lw,1));}
-  X #solar-svg .sol-link{stroke:#cfa64e;stroke-opacity:.5;stroke-dasharray:2 5;}
-  X #river-svg path{stroke:#cfa64e !important;stroke-opacity:.55;stroke-width:1.5px !important;filter:none !important;}
-  X #solar-svg .sk-belt{stroke:#cfa64e;stroke-opacity:.35;}
+  X #solar-svg .sol-band.b0{fill:#061224;} X #solar-svg .sol-band.b1{fill:#0a1b34;} X #solar-svg .sol-band.b2{fill:#0e2545;}
+  X #solar-svg .sol-band.b3{fill:#133058;} X #solar-svg .sol-band.b4{fill:#183c6c;} X #solar-svg .sol-band.b5{fill:#1e4a82;} X #solar-svg .sol-band.b6{fill:#265a98;}
+  /* the orbits: a technical drawing's thin lines; the moons' dotted */
+  X #solar-svg .sol-ring{stroke:#9cc0ea;stroke-opacity:calc(.28 * var(--lk,1));stroke-width:calc(1px * var(--lw,1));}
+  X #solar-svg .sol-ring.sol-m{stroke-dasharray:1.5 5;stroke-linecap:round;stroke-opacity:calc(.42 * var(--lk,1));}
+  /* the spokes: the poster's gold signal beam, five fine parallel lines */
+  X #solar-svg .sol-spoke,X #solar-svg .sol-bun{display:inline;stroke:#f0c15e;stroke-opacity:1;stroke-width:calc(1.15px * var(--lw,1));stroke-linecap:butt;}
+  X #canvas.sol-ov #solar-svg .sol-bun{display:none;}
+  X #canvas.sol-ov #solar-svg .sol-spoke{stroke-width:calc(1.6px * var(--lw,1));}
+  X #solar-svg .sol-spoke.sol-hot.sol-hot{stroke:#ffd27a !important;stroke-width:1.6px !important;}
+  X #solar-svg .sol-link{stroke:#d9ae55;stroke-opacity:.6;stroke-dasharray:6 6;}
+  X #river-svg path{stroke:#d9ae55 !important;stroke-opacity:.55;stroke-width:1.2px !important;stroke-dasharray:6 6;filter:none !important;}
+  X #solar-svg .sk-belt{stroke:#d9ae55;stroke-opacity:.45;stroke-dasharray:1 7;stroke-linecap:round;}
+  /* the bodies: flat cut-paper discs with a hard terminator, no texture, no glow */
   X #world .node[data-solar] .node-card>.sk.sk.sk{display:none !important;}
-  X #world .node[data-solar] .node-card:not(#_){background:var(--sk-c,#9fb0c8) !important;box-shadow:none !important;}
-  X #world .node[data-solar=sun] .node-card:not(#_){background:#f2d27c !important;box-shadow:0 0 0 8px rgba(242,210,124,.16),0 0 0 18px rgba(242,210,124,.07) !important;}
-  X #world .node[data-solar=sat] .node-card:not(#_){background:url("PROBE") 50% 50%/100% 100% no-repeat !important;border-color:transparent !important;}
-  X #world .node[data-solar] .node-card:not(#_):hover{box-shadow:0 0 0 1.5px #cfa64e !important;}
-  X #world .node[data-solar].sol-hint:not(.focused) .node-card:not(#_){box-shadow:0 0 0 1.5px #cfa64e,0 0 0 5px rgba(207,166,78,.25) !important;}
-  X #world .node[data-solar]>.sol-lbl,X #world .node[data-solar] .sol-face,X .sol-unit,X #world .node[data-solar]>.sol-nh{
-    font-family:"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-serif !important;letter-spacing:.05em;text-transform:uppercase;}
-  X #world .node[data-solar]>.sol-lbl{font-size:.9em;}
-  X #world .node[data-solar]>.sol-lbl{color:#e8edf5;text-shadow:none;font-weight:600;}
-  X .sol-unit{background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;
-    border:1px solid #cfa64e !important;color:#cfa64e !important;}
-  X .sol-unit b,X .sol-unit span{color:#cfa64e !important;}
-  X #world .node[data-solar]:is(.focused,.sol-closing) .sol-scrim{background:#0e2442 !important;}
-  X #world .node[data-solar]:is(.focused,.sol-closing) .node-card:not(#_){background:#0e2442 !important;box-shadow:0 0 0 2px #cfa64e !important;}
-  X #world .node[data-solar]:is(.focused,.sol-closing) .sol-body *{color:#eef2f8 !important;}
-  X #world .node[data-solar]:is(.focused,.sol-closing) .node-tag{color:#cfa64e !important;letter-spacing:.14em;}
+  X #world .node[data-solar] .node-card:not(#_){box-shadow:none !important;border-color:transparent !important;
+    background:linear-gradient(118deg,var(--sk-c,#9fb0c8) 0 54%,color-mix(in srgb,var(--sk-c,#9fb0c8) 55%,#020611) 54% 100%) !important;filter:saturate(.8);}
+  X #world .node[data-solar=sun] .node-card:not(#_){background:#f5e6bd !important;filter:none;
+    box-shadow:0 0 0 7px #000,0 0 0 9px #f5e6bd,0 0 0 16px #000,0 0 0 17px rgba(245,230,189,.6) !important;}
+  X #world .node[data-solar=blackhole] .node-card:not(#_){background:#000 !important;box-shadow:0 0 0 2px #d9ae55,0 0 0 6px #000,0 0 0 7px rgba(217,174,85,.5) !important;}
+  X #world .node[data-solar=sat] .node-card:not(#_){background:url("PROBE") 50% 50%/118% 118% no-repeat !important;filter:none;}
+  X #world .node[data-solar] .sol-face,X #world .node[data-solar] .sol-face *{color:#fff !important;text-shadow:none !important;}
+  X #world .node[data-solar=sun] .sol-face.sol-face,X #world .node[data-solar=sun] .sol-face.sol-face *{color:#0a1b34 !important;}
+  X #world .node[data-solar] .node-card:not(#_):hover{outline:1.5px solid #d9ae55;outline-offset:3px;}
+  X #world .node[data-solar].sol-hint:not(.focused) .node-card:not(#_){outline:1.5px solid #d9ae55;outline-offset:4px;}
+  X #world .node[data-solar]>.sol-nh{background:#000 !important;color:#d9ae55 !important;box-shadow:0 0 0 1px #d9ae55 !important;}
+  /* poster lettering */
+  X #world .node[data-solar]>.sol-lbl,X #world .node[data-solar] .sol-face,X .sol-unit,X #world .node[data-solar]>.sol-nh,X #sk-mark,X .line-tip{
+    font-family:"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-serif !important;letter-spacing:.06em;text-transform:uppercase;}
+  X #world .node[data-solar]>.sol-lbl{color:#eef2f8;text-shadow:none;font-weight:600;font-size:.88em;}
+  X .sol-unit{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;
+    border:0 !important;border-radius:0 !important;color:#d9ae55 !important;letter-spacing:.32em !important;}
+  X .sol-unit b,X .sol-unit span{color:#d9ae55 !important;}
+  X #sk-mark{display:block;position:fixed;left:72px;bottom:22px;z-index:300;pointer-events:none;color:#eef2f8;font-size:22px;font-weight:600;letter-spacing:.24em;opacity:.92;}
+  X #sk-mark::before{content:'';display:inline-block;width:26px;height:2px;margin:0 14px 6px 0;background:#d9ae55;vertical-align:middle;}
+  body:has(#detail-page.visible) #sk-mark{display:none !important;}
+  /* the page round the chart goes black too: the bars, the name in poster letters, the switches rimmed in gold */
+  X #page-bg:not(#_){background:#000 !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
+  X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;border-color:#111 !important;}
+  X #title-text:not(#_){color:#eef2f8 !important;font-family:"Avenir Next","Futura","Century Gothic",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.3em;font-size:15px;}
+  X #sol-ctl .sol-seg,X #sol-ctl #sol-motion,X #sol-ctl .sol-opt{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border-radius:0 !important;}
+  X #sol-ctl button{color:#c9d1dc !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}
+  X #sol-ctl .sol-seg button.on,X #sol-ctl #sol-motion.on,X #sol-ctl .sol-opt.on{color:#000 !important;background:#d9ae55 !important;}
+  /* the enlarged disc: a navy plate rimmed in gold */
+  X #world .node[data-solar]:is(.focused,.sol-closing) .sol-scrim{background:#0a1b34 !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .node-card:not(#_){background:#0a1b34 !important;filter:none;box-shadow:0 0 0 2px #d9ae55,0 0 0 8px #000,0 0 0 9px rgba(217,174,85,.55) !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .sol-body *{color:#eef2f8 !important;text-shadow:none !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .node-tag{color:#d9ae55 !important;letter-spacing:.2em;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .node-title{font-family:"Avenir Next","Futura","Century Gothic",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.06em;}
+  X #world .node-card>.node-footer>:is(button,.sol-more){background:#000 !important;border:1px solid rgba(217,174,85,.75) !important;color:#d9ae55 !important;box-shadow:none !important;}
+  X .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;}
 """.replace("X ", _X + " ").replace("PROBE", "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='none' stroke='%23b9bec6' stroke-width='1.6'%3E%3Cpath d='M23 8v6h3M24 20l-7 14M24 20l4 9M24 20l7 7'/%3E%3Crect x='21' y='15' width='6' height='7' fill='%237d838c'/%3E%3C/g%3E%3Cpath d='M19 12a7 8 0 0 0 0 14z' fill='%23f2f2ee'/%3E%3Ccircle cx='24' cy='18.5' r='1.3' fill='%23d6a93c'/%3E%3C/svg%3E")
 STARS_CSS += RETRO_CSS
 

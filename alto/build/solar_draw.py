@@ -568,7 +568,7 @@ function draw(W, H){
     /* the unit's border (round 10): a soft hue ring in the unit's colour (System look); an Oort cloud, a faint
        shell of specks, in the Star chart look (CSS picks one). It goes round the system, with its sun. */
     if(s.R){ var BR=s.R+28, bg=el('g', {'class':'sol-bd'}, g);
-      [1, .8, .62, .46, .32].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(BR*f)}, bg); });   /* Retro: the system's reach in stepped bands */
+      [1.5, 1.24, 1.02, .84, .68, .53, .4].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(BR*f)}, bg); });   /* Retro: the system's reach in stepped bands, a hard edge into black */
       el('circle', {'class':'sol-ubd w', r:f2(BR)}, bg); el('circle', {'class':'sol-ubd', r:f2(BR)}, bg);
       [[-10, 1.7, '0.1 9', 0], [-3, 1.3, '0.1 13', 5], [5, 1.9, '0.1 11', 2], [13, 1.2, '0.1 17', 8], [21, 1, '0.1 23', 3]].forEach(function(o){
         el('circle', {'class':'sol-oort', r:f2(BR+o[0]), 'stroke-width':o[1], 'stroke-dasharray':o[2], 'stroke-dashoffset':o[3]}, bg); });
@@ -586,7 +586,8 @@ function draw(W, H){
       } else { var r=Math.hypot(b.hx-p.hx, b.hy-p.hy), k=b.p+'|'+Math.round(r/2);
         if(!seen[k]){ seen[k]=rings.length; rings.push(hitR({c:b.p, ids:[id], e:el('circle', {'class':'sol-ring'+(b.role==='planet' ? '' : ' sol-m'), r:f2(r)}, g)}, 'circle', {r:f2(r)}, g)); }
         else rings[seen[k]].ids.push(id); }
-      var sp={a:b.p, b:id, e:[el('line', {'class':'sol-spoke'}, g)]}; sp.spoke=1; sp.h=el('line', {'class':'sol-hit'}); g.insertBefore(sp.h, g.firstChild);   /* under every ring's: where they cross, the ring wins */ sp.h._r={sp:sp, e:sp.e[0]};
+      var sp={a:b.p, b:id, e:[el('line', {'class':'sol-spoke'}, g)]}; sp.spoke=1;
+      sp.bn=[-2, -1, 1, 2].map(function(k){ var l=el('line', {'class':'sol-bun'}, g); l._k=k; return l; });   /* Retro: the spoke as a beam of parallel lines */ sp.h=el('line', {'class':'sol-hit'}); g.insertBefore(sp.h, g.firstChild);   /* under every ring's: where they cross, the ring wins */ sp.h._r={sp:sp, e:sp.e[0]};
       spokes.push(sp);
     });
     /* one chip per unit (a district of several systems: over all of them) */
@@ -699,7 +700,9 @@ function apply(all){
     if(!moved[s.a] && !moved[s.b]) return;
     var g=seg(B[s.a], B[s.b], 3, 3);
     if(s.e[0].tagName==='line'){ var e=s.e[0]; if(!g){ e.setAttribute('x2', e.getAttribute('x1')||0); return; }
-      [e, s.h].forEach(function(l){ if(!l) return; l.setAttribute('x1', g[0]); l.setAttribute('y1', g[1]); l.setAttribute('x2', g[2]); l.setAttribute('y2', g[3]); }); }
+      [e, s.h].forEach(function(l){ if(!l) return; l.setAttribute('x1', g[0]); l.setAttribute('y1', g[1]); l.setAttribute('x2', g[2]); l.setAttribute('y2', g[3]); });
+      if(s.bn && RETRO){ var L=Math.hypot(g[2]-g[0], g[3]-g[1])||1, nx=-(g[3]-g[1])/L*3.4, ny=(g[2]-g[0])/L*3.4;
+        s.bn.forEach(function(l){ var k=l._k; l.setAttribute('x1', f2(g[0]+nx*k)); l.setAttribute('y1', f2(g[1]+ny*k)); l.setAttribute('x2', f2(g[2]+nx*k)); l.setAttribute('y2', f2(g[3]+ny*k)); }); } }
     else { var d=g ? 'M'+g[0]+' '+g[1]+' L'+g[2]+' '+g[3] : 'M0 0'; s.e.forEach(function(p){ p.setAttribute('d', d); }); }
   });
   links.forEach(function(l){
@@ -1322,7 +1325,7 @@ function tell(fns, v){ fns.slice().forEach(function(f){ try{ f(v); }catch(e){} }
 function looks(){ var d=desk(); de.classList.toggle('alto-solar-stars', d && LOOK==='stars'); de.classList.toggle('alto-solar-hub', d && LOOK==='hub'); }   /* desktop only: a phone shows the engine's cards */
 function setLook(look){
   look=lk(look); if(!look || look===LOOK) return LOOK;
-  LOOK=look; keep('look', look); looks();
+  LOOK=look; keep('look', look); looks(); if(typeof stySync==='function') stySync();
   if(ready){ ctl(); apply(true); skin(); }
   tell(lookFns, look); tell(motFns, MOTION && MOVES);
   return LOOK;
@@ -1350,9 +1353,13 @@ function lockSync(){ var c=cvs(); if(c) c.classList.toggle('sol-lock', !!(LOCK &
 function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); lockSync(); ctl(); return LOCK; }
 window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
-var STY=pref('style')==='retro' ? 'retro' : 'classic';
-function stySync(){ de.classList.toggle('sk-retro', STY==='retro'); }
-function setSty(v){ STY=v==='retro' ? 'retro' : 'classic'; keep('style', STY); stySync(); ctl(); return STY; }
+var STY=pref('style')==='retro' ? 'retro' : 'classic', RETRO=false;
+function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('sk-retro', STY==='retro');
+  var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
+  if(RETRO && desk()){ if(!m){ m=document.createElement('div'); m.id='sk-mark'; m.setAttribute('aria-hidden', 'true'); document.body.appendChild(m); }
+    var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[\u2014\u2013-]\s+/)[0]; }
+  else if(m) m.remove(); }
+function setSty(v){ STY=v==='retro' ? 'retro' : 'classic'; keep('style', STY); stySync(); if(ready) apply(true); ctl(); return STY; }
 window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
 stySync();
 function lockStep(d){
