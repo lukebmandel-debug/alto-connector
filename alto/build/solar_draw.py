@@ -102,7 +102,8 @@ SOLAR_CSS = r"""
   #sol-ctl .sol-seg button.on{color:var(--text);background:color-mix(in srgb,var(--accent,#6d5bd0) 16%,transparent);}
   #sol-ctl #sol-motion,#sol-ctl .sol-opt{padding:8.75px 12.5px;}
   #sol-ctl .sol-opt.on{color:var(--accent,#6d5bd0);}
-  #sol-ctl .sol-opt[hidden]{display:none;}
+  #sol-ctl .sol-opt[hidden],#sol-ctl .sol-seg[hidden]{display:none;}
+  #sol-ctl #sol-sty button{padding:6.25px 10px;}
   #canvas.sol-lock{overflow:hidden !important;}
   #sol-ctl #sol-motion.on{color:var(--accent,#6d5bd0);}
   #sol-ctl #sol-motion:disabled{opacity:.42;cursor:default;}
@@ -567,6 +568,7 @@ function draw(W, H){
     /* the unit's border (round 10): a soft hue ring in the unit's colour (System look); an Oort cloud, a faint
        shell of specks, in the Star chart look (CSS picks one). It goes round the system, with its sun. */
     if(s.R){ var BR=s.R+28, bg=el('g', {'class':'sol-bd'}, g);
+      [1, .8, .62, .46, .32].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(BR*f)}, bg); });   /* Retro: the system's reach in stepped bands */
       el('circle', {'class':'sol-ubd w', r:f2(BR)}, bg); el('circle', {'class':'sol-ubd', r:f2(BR)}, bg);
       [[-10, 1.7, '0.1 9', 0], [-3, 1.3, '0.1 13', 5], [5, 1.9, '0.1 11', 2], [13, 1.2, '0.1 17', 8], [21, 1, '0.1 23', 3]].forEach(function(o){
         el('circle', {'class':'sol-oort', r:f2(BR+o[0]), 'stroke-width':o[1], 'stroke-dasharray':o[2], 'stroke-dashoffset':o[3]}, bg); });
@@ -1347,6 +1349,12 @@ var LOCK=pref('lock')==='1', LW={t:0, x:0, y:0, done:false};
 function lockSync(){ var c=cvs(); if(c) c.classList.toggle('sol-lock', !!(LOCK && ready && desk())); }
 function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); lockSync(); ctl(); return LOCK; }
 window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
+/* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
+var STY=pref('style')==='retro' ? 'retro' : 'classic';
+function stySync(){ de.classList.toggle('sk-retro', STY==='retro'); }
+function setSty(v){ STY=v==='retro' ? 'retro' : 'classic'; keep('style', STY); stySync(); ctl(); return STY; }
+window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
+stySync();
 function lockStep(d){
   var f=window._focusedNodeId;
   if(!f || !B[f]){ var s0=null; for(var i=0; i<ORD.length; i++){ if(B[ORD[i]].role==='sun' && B[ORD[i]].n){ s0=ORD[i]; break; } } if(s0 && window.enterFocus) window.enterFocus(s0); return; }
@@ -1374,10 +1382,13 @@ function ctl(){
       '<button type="button" data-look="hub" role="radio" title="System: the orbits in Alto\'s own look">'+IC.hub+'<span>System</span></button>'+
       '<button type="button" data-look="stars" role="radio" title="Star chart: the same orbits as a space scene, with flights between bodies">'+IC.stars+'<span>Star chart</span></button></div>'+
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>'+
+      '<div class="sol-seg" id="sol-sty" role="radiogroup" aria-label="Star chart style"><button type="button" data-sty="retro" role="radio" title="Retro: flat poster colours, gold spokes">Retro</button>'+
+      '<button type="button" data-sty="classic" role="radio" title="Classic: the painted space scene">Classic</button></div>'+
       '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span></button>'+
       '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
       if(b.getAttribute('data-look')) setLook(b.getAttribute('data-look'));
+      else if(b.getAttribute('data-sty')) setSty(b.getAttribute('data-sty'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION);
       else if(b.id==='sol-fly'){ window._altoFlyOff=!window._altoFlyOff; keep('fly', window._altoFlyOff ? 0 : 1); ctl(); }
       else if(b.id==='sol-lock') setLock(!LOCK); });
@@ -1387,6 +1398,8 @@ function ctl(){
   m.disabled=!MOVES; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
   m.title=!MOVES ? 'Orbit: nothing here orbits' : run ? 'Orbit on/off (Space): on, click to stop the planets where they are' : 'Orbit on/off (Space): off, click to set the planets moving again';
   m.setAttribute('aria-label', m.title);
+  var sy=w.querySelector('#sol-sty'); sy.hidden=LOOK!=='stars';
+  [].forEach.call(sy.querySelectorAll('[data-sty]'), function(b){ var on=b.getAttribute('data-sty')===STY; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var fb=w.querySelector('#sol-fly'), fo=!window._altoFlyOff; fb.hidden=LOOK!=='stars'; fb.classList.toggle('on', fo); fb.setAttribute('aria-pressed', fo ? 'true' : 'false');
   fb.title=fo ? 'Flights on: a spaceship flies you between bodies (click to go straight there instead)' : 'Flights off: you go straight to each body (click to fly again)';
   var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');

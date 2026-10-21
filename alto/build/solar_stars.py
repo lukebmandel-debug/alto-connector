@@ -560,6 +560,42 @@ window._altoSkinStats={
 })();
 """
 
+# ── Retro (round 10, Luke's NASA-poster reference): a style of the Star chart look. Flat black space, each system's
+# reach in stepped blue bands round its sun, gold spokes, flat bodies, satellites drawn as a line probe, poster
+# lettering. html.sk-retro is set by solar_draw.py's style switch (kept per timeline like the look).
+_X = "html.alto-stars.sk-retro:not(.mobile)"
+RETRO_CSS = r"""
+  X #canvas{background:#030305 !important;}
+  X .sk-sky,X #solar-svg .sk-rg,X #solar-svg .sk-tr,X #solar-svg .sol-oort,X #solar-svg .sol-ubd{display:none !important;}
+  #solar-svg .sol-band{display:none;}
+  X #solar-svg .sol-band{display:inline;stroke:none;}
+  X #solar-svg .sol-band.b0{fill:#0a1a31;} X #solar-svg .sol-band.b1{fill:#0e2442;} X #solar-svg .sol-band.b2{fill:#132e55;}
+  X #solar-svg .sol-band.b3{fill:#183a69;} X #solar-svg .sol-band.b4{fill:#1f487f;}
+  X #solar-svg .sol-ring{stroke:rgb(150,185,230);stroke-opacity:calc(.22 * var(--lk,1));}
+  X #solar-svg .sol-spoke{stroke:#cfa64e;stroke-opacity:calc(.8 * var(--lk,1));stroke-width:calc(1.6px * var(--lw,1));}
+  X #solar-svg .sol-link{stroke:#cfa64e;stroke-opacity:.5;stroke-dasharray:2 5;}
+  X #river-svg path{stroke:#cfa64e !important;stroke-opacity:.55;stroke-width:1.5px !important;filter:none !important;}
+  X #solar-svg .sk-belt{stroke:#cfa64e;stroke-opacity:.35;}
+  X #world .node[data-solar] .node-card>.sk.sk.sk{display:none !important;}
+  X #world .node[data-solar] .node-card:not(#_){background:var(--sk-c,#9fb0c8) !important;box-shadow:none !important;}
+  X #world .node[data-solar=sun] .node-card:not(#_){background:#f2d27c !important;box-shadow:0 0 0 8px rgba(242,210,124,.16),0 0 0 18px rgba(242,210,124,.07) !important;}
+  X #world .node[data-solar=sat] .node-card:not(#_){background:url("PROBE") 50% 50%/100% 100% no-repeat !important;border-color:transparent !important;}
+  X #world .node[data-solar] .node-card:not(#_):hover{box-shadow:0 0 0 1.5px #cfa64e !important;}
+  X #world .node[data-solar].sol-hint:not(.focused) .node-card:not(#_){box-shadow:0 0 0 1.5px #cfa64e,0 0 0 5px rgba(207,166,78,.25) !important;}
+  X #world .node[data-solar]>.sol-lbl,X #world .node[data-solar] .sol-face,X .sol-unit,X #world .node[data-solar]>.sol-nh{
+    font-family:"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-serif !important;letter-spacing:.05em;text-transform:uppercase;}
+  X #world .node[data-solar]>.sol-lbl{font-size:.9em;}
+  X #world .node[data-solar]>.sol-lbl{color:#e8edf5;text-shadow:none;font-weight:600;}
+  X .sol-unit{background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;
+    border:1px solid #cfa64e !important;color:#cfa64e !important;}
+  X .sol-unit b,X .sol-unit span{color:#cfa64e !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .sol-scrim{background:#0e2442 !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .node-card:not(#_){background:#0e2442 !important;box-shadow:0 0 0 2px #cfa64e !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .sol-body *{color:#eef2f8 !important;}
+  X #world .node[data-solar]:is(.focused,.sol-closing) .node-tag{color:#cfa64e !important;letter-spacing:.14em;}
+""".replace("X ", _X + " ").replace("PROBE", "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='none' stroke='%23b9bec6' stroke-width='1.6'%3E%3Cpath d='M23 8v6h3M24 20l-7 14M24 20l4 9M24 20l7 7'/%3E%3Crect x='21' y='15' width='6' height='7' fill='%237d838c'/%3E%3C/g%3E%3Cpath d='M19 12a7 8 0 0 0 0 14z' fill='%23f2f2ee'/%3E%3Ccircle cx='24' cy='18.5' r='1.3' fill='%23d6a93c'/%3E%3C/svg%3E")
+STARS_CSS += RETRO_CSS
+
 STARS_JS = _slim(STARS_JS)
 STARS_CSS = _slim(STARS_CSS)
 
