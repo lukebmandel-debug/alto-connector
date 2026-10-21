@@ -15,6 +15,9 @@ Site layout (Firebase Hosting site `alto-connector`, static only):
                            write and never a deploy
   /reports/index.html    — reports viewer (?course={tid})
   /alto-cloud.js         — v3 sync layer (page ↔ Firestore directly; Spark-free)
+  /alto-bglib.js         — imported backgrounds: the picker's "Yours" section and
+                           the import (build/backgrounds_import.py); the pictures
+                           themselves are in the owner's Firestore, never here
   /privacy/index.html
 
 No timeline content is ever in the static site. 'private' timelines never
@@ -259,6 +262,11 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # Emitted, not copied: the Firebase project comes from the publisher's own
     # ALTO_FIREBASE_CONFIG, and is empty (sync off) when they have not set one.
     write_cloud_js(site / "alto-cloud.js")
+    # The script behind imported backgrounds (build/backgrounds_import.py): fetched by a page only when its picker
+    # opens or one of the account's own pictures is in use, never part of the page.
+    from .build.backgrounds_import import site_file as _bglib_file
+    _bl_name, _bl_text = _bglib_file()
+    (site / _bl_name).write_text(_bl_text, encoding="utf-8")
     # The photographs a user can choose as a background (build/backgrounds.py),
     # in a versioned folder the headers let browsers keep for a year.
     from .build.backgrounds import BG_V

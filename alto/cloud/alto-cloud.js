@@ -13,6 +13,10 @@
      users/{uid}/pagemeta/{key}       — { title, heading, project, units,
                                           search, shareKey, updatedAt,
                                           added, viewedAt }
+     users/{uid}/bglib/{id}           — { e, t, del }   an imported background: its
+                                          library entry (JSON text), when it last
+                                          changed, and whether it was removed
+     users/{uid}/bgimg/{id}           — { d, type, t }  its picture (Bytes, <= 950 KB)
 
    That last one is a whole private timeline page, filed under the opaque key
    in its /pv/{key}/ URL rather than under a timeline id, so nothing about it
@@ -225,6 +229,17 @@
     forgetShare: async (key) => {
       if (!configured) return false;
       await ready; return _forgetShare(key);
+    },
+    /* Backgrounds the account imported (alto/build/backgrounds_import.py, which
+       does everything else: the picker, resizing, the browser's own copy). Kept
+       under users/{uid} like everything above, so only their owner can read them;
+       pages name one by id and never carry its picture. */
+    bgLib: {
+      list:   async () => { await _bgReady(); return _bgList(); },
+      put:    async (id, entry, bytes, type) => { await _bgReady(); return _bgPut(id, entry, bytes, type); },
+      bytes:  async (id) => { await _bgReady(); return _bgBytes(id); },
+      rename: async (id, entry) => { await _bgReady(); return _bgRename(id, entry); },
+      remove: async (id) => { await _bgReady(); return _bgRemove(id); },
     },
   };
   window.AltoCloud = cloud;
@@ -1333,6 +1348,52 @@
     }, e => console.warn('[AltoCloud] reports listener', e));
   }
 
+  /* ── imported backgrounds ─────────────────────────────────────────────── */
+  const BG_MAX = 950000;                 // a picture's bytes, under Firestore's 1 MiB per document
+  async function _bgReady() {
+    if (!configured) throw new Error('not-configured');
+    await ready;
+    if (!auth.currentUser) throw new Error('signed-out');
+  }
+  const _bgDoc = (coll, id) => {
+    const k = String(id || '').replace(/^u:/, '');
+    if (!/^[a-z0-9]{6,24}$/.test(k)) throw new Error('bad background id');
+    return doc(db, 'users', auth.currentUser.uid, coll, k);
+  };
+  async function _bgList() {
+    const snap = await getDocs(collection(db, 'users', auth.currentUser.uid, 'bglib'));
+    const out = [];
+    snap.docs.forEach(d => { const v = d.data() || {}; out.push({ id: 'u:' + d.id, e: v.e || '', t: Number(v.t) || 0, del: !!v.del }); });
+    return out;
+  }
+  async function _bgPut(id, entry, bytes, type) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    if (u8.length > BG_MAX) throw new Error('too-large');
+    const t = Number(entry && entry.t) || Date.now();
+    // the picture first: a library entry never names bytes that are not there
+    await setDoc(_bgDoc('bgimg', id), { d: Bytes.fromUint8Array(u8), type: String(type || ''), t });
+    await setDoc(_bgDoc('bglib', id), { e: JSON.stringify(entry), t, del: false });
+    return true;
+  }
+  async function _bgBytes(id) {
+    const snap = await getDoc(_bgDoc('bgimg', id));
+    if (!snap.exists()) return null;
+    const v = snap.data() || {};
+    const u8 = v.d && typeof v.d.toUint8Array === 'function' ? v.d.toUint8Array() : v.d;
+    return u8 ? { bytes: u8, type: v.type || 'image/jpeg' } : null;
+  }
+  async function _bgRename(id, entry) {
+    await setDoc(_bgDoc('bglib', id), { e: JSON.stringify(entry), t: Number(entry && entry.t) || Date.now(), del: false }, { merge: true });
+    return true;
+  }
+  // Removed at its owner's request: the picture goes, the entry stays as a marker
+  // (del) so a device that still lists it drops it instead of putting it back.
+  async function _bgRemove(id) {
+    await setDoc(_bgDoc('bglib', id), { e: '', del: true, t: Date.now() });
+    await deleteDoc(_bgDoc('bgimg', id));
+    return true;
+  }
+
   function _editsRef(tid) {
     if (!cloud.user) throw new Error('not signed in');
     tid = String(tid || '');
@@ -1395,6 +1456,8 @@
       // Cached listings and pages belong to the account that just left.
       try { localStorage.removeItem('alto-pages-cache-v1'); } catch (e) {}
       try { indexedDB.deleteDatabase('alto-pv-cache'); } catch (e) {}
+      // and so do the backgrounds it imported (their copies in this browser)
+      try { localStorage.removeItem('alto-bg-lib-v1'); indexedDB.deleteDatabase('alto-bg-lib'); } catch (e) {}
       if (typeof window.renderAccount === 'function') { try { window.renderAccount(); } catch (e) {} }
     }
   });
