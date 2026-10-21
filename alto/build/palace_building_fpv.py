@@ -589,9 +589,14 @@ function things(G){
   G.mkSlot=mkSlot; (P.sl||[]).forEach(mkSlot); }
 
 /* a card that sits in a ROOM (not on a wall slot) stands there as a sign: number, section colour and title, readable from both sides, E opens it */
+/* a spot inside the room, on its floor (not over a stairwell or the open hall), clear of walls and fixtures, nearest the wanted point */
+function cardSpot(G,r,dx,dy,base){ var c=base||r.ctr, wx=c[0]+dx, wy=c[1]+dy, e=r.l.e, best=null, bd=1e9;
+  for(var rad=0;rad<=14;rad+=.5) for(var a=0;a<(rad?16:1);a++){ var t=a/16*2*PI, x=wx+Math.cos(t)*rad, y=wy+Math.sin(t)*rad; if(!pip(r.p,x,y)) continue;
+    var sp=supportAt(G,x,y,e+.2); if(sp==null||Math.abs(sp-e)>.12||blockedAt(G,x,y,e)) continue; if(r.holesF&&r.holesF.some(function(h){ return pip(h,x,y); })) continue;
+    var d=Math.hypot(x-wx,y-wy); if(d<bd){ bd=d; best=[x,y]; } } if(best) return best; return base?base:[r.ctr[0],r.ctr[1]]; }
 function addCards(G){ var d=S.data||{}, ns=d.nodes||{}, ord=d.order||Object.keys(ns), per={}; G.cards=[];
   ord.forEach(function(id){ var n=ns[id]; if(!n||!n.r||n.s) return; var r=G.rid[n.r]; if(!r) return; var k=per[r.id]=(per[r.id]||0); per[r.id]++;
-    var c=freeNear(r.ctr[0],r.ctr[1],r.l.e), dx=(k%2?1:-1)*Math.ceil(k/2)*1.6, p=freeNear(c[0]+dx,c[1],r.l.e), si=(G.plan.sl||[]).length+G.cards.length;
+    var c=cardSpot(G,r,0,0), dx=(k%2?1:-1)*Math.ceil(k/2)*1.6, p=cardSpot(G,r,dx,0,c), si=(G.plan.sl||[]).length+G.cards.length;
     var bw=r.bb[2]-r.bb[0], bd=r.bb[3]-r.bb[1], cw=clamp(.8+.1*Math.min(bw,bd),1.2,2.6), ch=cw*.65;                 /* big rooms get bigger signs; the sign faces along the room's long axis, where people walk */
     var s={id:'card-'+id, rm:r.id, p:[p[0],p[1]], z:.55+ch/2, sz:[cw,ch], fc:bw>=bd?0:90, al:['text'], card:1, work:{title:dec(n.t)}};
     G.mkSlot(s,si); G.cards.push(id); boxPrim(G,p[0],p[1],.5,.4,0,r.l.e,r.l.e+.55+ch,s.id); }); }
