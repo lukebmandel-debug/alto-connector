@@ -43,6 +43,22 @@ def _block(h: str, start: str, cap: int) -> str:
     return h[i:(i + cap if j < 0 else j)]
 
 
+# The format a built page is, read off the line each format's own script starts
+# with (the same four tests as _fmtOf in alto-cloud.js). A System is checked
+# first: it is an outline with more on top.
+_FMT = (("system", re.compile(r"^window\._ALTO_SOLAR=", re.M)),
+        ("building", re.compile(r"^window\._ALTO_BUILDING=", re.M)),
+        ("palace", re.compile(r"^window\._altoPalace=function", re.M)),
+        ("outline", re.compile(r"^window\._ALTO_OUTLINE=", re.M)))
+
+
+def fmt_of(h: str) -> str:
+    for key, rx in _FMT:
+        if rx.search(h or ""):
+            return key
+    return "timeline"
+
+
 def meta_of(h: str) -> dict:
     h = h or ""
     lm = _LABEL.search(h)
@@ -59,7 +75,7 @@ def meta_of(h: str) -> dict:
     cm = _COURSE.search(h)
     return {"title": project or heading, "heading": heading, "project": project,
             "tid": cm.group(1) if cm else "", "units": units, "search": search,
-            "v": META_V}
+            "fmt": fmt_of(h), "v": META_V}
 
 
 def title_of(h: str) -> str:

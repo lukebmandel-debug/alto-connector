@@ -56,8 +56,9 @@ def test_a_linear_build_ships_the_guard_but_not_the_renderer():
 def test_the_print_heading_follows_the_mode():
     outline, _ = _build(OUTLINE)
     linear, _ = _build(SAMPLE)
-    assert "— Outline</h1>" in outline
-    assert "— Timeline</h1>" in linear
+    # the heading wears the format's symbol (the page's own, from search.format_name_js)
+    assert "_altoFB ? _altoFB()" in outline and '"outline":["Outline"' in outline
+    assert "_altoFB ? _altoFB()" in linear and '"timeline":["Timeline"' in linear
 
 
 def test_the_print_patch_is_registered_and_anchored():

@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import re
 
+from . import format_symbols
 from .brief import Brief
 from .sanitize import js_json
 
@@ -666,35 +667,39 @@ SX_JS = r"""
 HOME_ROW_JS = r"""
 window._altoSXHomeRow=function(r,q){
   var M=window._altoMatch, Q=M.query(q||'');
-  return '<span class="sr-head"><span class="sr-kind">'+M.esc(r.kind)+'</span><span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
+  return '<span class="sr-head"><span class="sr-kind">'+(r.fmt&&window.fmtBadge?fmtBadge(r.fmt):M.esc(r.kind))+'</span><span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
     +(r.proj?'<span class="sr-meta">'+M.esc(r.proj)+'</span>':'')
     +(r.text?'<span class="sr-full">'+M.hl(r.text,Q)+'</span>':'');
 };
 """
 
 
-FORMAT_NAME_JS = r"""
-/* the way back from a detail page is named for the format the reader is in: Mind Palace, Outline, or Timeline */
-(function(){
-  /* a System page's main view is not an outline to its reader (Luke, round 8): the system (a phone shows cards: the outline) */
-  function hub(){ return !!window._ALTO_SOLAR && !document.documentElement.classList.contains('mobile'); }
-  function fmt(){ return hub() ? 'System' : window._ALTO_OUTLINE ? 'Outline' : (window._altoPalace || window._palTr) ? 'Mind Palace' : 'Timeline'; }
-  function set(sel, fn){ var l=document.querySelectorAll(sel); for(var i=0;i<l.length;i++) fn(l[i]); }
-  function apply(){
-    var n=fmt(); if(apply.n===n) return; apply.n=n;
-    var low=n==='Mind Palace'?n:n.toLowerCase();
-    set('#desk-back .db-label', function(e){ e.textContent=n; });
-    set('#desk-back', function(e){ e.setAttribute('aria-label','Back to the '+low); e.title='Back to the '+low; });
-    set('#nav-timeline', function(e){ e.textContent='↩ '+n; });
-    set('#drawer-timeline-btn .drawer-label', function(e){ e.textContent=n; });
-    set('#detail-back-fixed', function(e){ e.setAttribute('aria-label','Back to the '+low); });
-    set('.db-name', function(e){ if(hub()){ e.textContent=n; e._n=1; } else if(e._n) e.textContent=n; });
-  }
-  apply();
-  document.addEventListener('DOMContentLoaded', apply); window.addEventListener('load', apply);
-  new MutationObserver(apply).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
-})();
+_FORMAT_NAME_JS = r"""
+(function(){var G=__G__,H=document.documentElement,K;
+function hub(){return !!window._ALTO_SOLAR&&!H.classList.contains('mobile')}
+function ic(p){return '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px" aria-hidden="true">'+p+'</svg>'}
+function set(s,f){[].forEach.call(document.querySelectorAll(s),f)}
+function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._altoPalace||window._palTr)?(G.building?'building':'palace'):'timeline';
+if(K===k)return;K=k;
+var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g[1]):n,t='Back to the '+(n==='Mind Palace'?n:n.toLowerCase());window._altoFB=function(){return h};
+set('#desk-back .db-label,#drawer-timeline-btn .drawer-label',function(e){e.innerHTML=h});
+set('#desk-back,#drawer-timeline-btn,#detail-back-fixed',function(e){e.setAttribute('aria-label',t);if(e.id=='desk-back')e.title=t});
+set('#nav-timeline',function(e){e.innerHTML='\u21a9 '+h;e.setAttribute('aria-label',t);e.title=t});
+set('.db-name',function(e){e.innerHTML=h})}
+apply();document.addEventListener('DOMContentLoaded',apply);addEventListener('load',apply);
+new MutationObserver(apply).observe(H,{attributes:true,attributeFilter:['class']})})();
 """
+
+
+def format_name_js(b: Brief) -> str:
+    """The way back from a detail page is named by the symbol of the format the
+    reader is in (a System's phone view is an outline); only this page's own
+    drawings ride in it."""
+    key = format_symbols.key_of(b)
+    keys = [key] + (["outline"] if key == "system" else [])
+    g = {k: [("Mind Palace" if k == "building" else format_symbols.name(k)),
+             format_symbols.SYMBOLS[k][1]] for k in keys}
+    return _FORMAT_NAME_JS.replace("__G__", js_json(g, separators=(",", ":")))
 
 
 def sx_block(extra: str = "") -> str:
@@ -723,4 +728,4 @@ def search_config(b: Brief) -> str:
     return ("<script>window._ALTO_SEARCH="
             + js_json(cfg) + ";</script>\n"
             + SEARCH_CSS + "\n<script id=\"alto-search-core\">" + MATCH_JS
-            + TIMELINE_SEARCH_JS + "</script>\n<script id=\"alto-format-name\">" + FORMAT_NAME_JS + "</script>\n" + sx_block())
+            + TIMELINE_SEARCH_JS + "</script>\n<script id=\"alto-format-name\">" + format_name_js(b) + "</script>\n" + sx_block())

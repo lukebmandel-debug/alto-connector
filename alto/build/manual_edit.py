@@ -1211,7 +1211,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     v = String(v || '').replace(/\s+/g, ' ').trim();
     var te = document.getElementById('title-text'); if(te) te.textContent = v;
     var dt = document.getElementById('nav-drawer-title'); if(dt) dt.textContent = v;
-    if(v) document.title = v + ' \u2014 Alto Timeline';
+    if(v) document.title = v + ' \u2014 Alto';
   }
   var headT = null;
   function headingSoon(){

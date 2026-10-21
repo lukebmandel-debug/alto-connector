@@ -187,7 +187,7 @@ def test_the_timelines_own_name_folds_into_the_draft_and_the_rebuilt_page_wears_
     r = fold(st, "u", "t1")
     assert r["folded"] == 1 and st.doc["brief"]["title"] == "Contract Law"
     page = build_timeline(*load_brief({"brief": st.doc["brief"], "nodes": st.nodes}))[0]
-    assert '<span id="title-text">Contract Law</span>' in page and "<title>Contract Law \u2014 Alto Timeline</title>" in page
+    assert '<span id="title-text">Contract Law</span>' in page and "<title>Contract Law \u2014 Alto</title>" in page
     again = fold(st, "u", "t1")
     assert again is None or again["folded"] == 0
     # an edit made against another name than the draft's is a conflict: the draft wins

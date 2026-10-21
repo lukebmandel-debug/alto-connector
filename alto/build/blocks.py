@@ -18,6 +18,7 @@ import json
 import re
 from urllib.parse import quote as url_q
 
+from . import format_symbols
 from .brief import Brief, Node, Section, COL_SETS, roman, building_view
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
@@ -1871,7 +1872,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     rhref = reports_href or f"reports.html?course={tid}&amp;from=project"
 
     tokens = {
-        "page_title": f"{b.title} — Alto Timeline",
+        "page_title": f"{b.title} — Alto",
         "title_text": f'<span id="title-text">{b.title}</span>',
         # href attribute: percent-encode, or a quote in the title closes it.
         "mailto_href": (f"mailto:{url_q(one_line(owner_mail), safe='@')}"
@@ -1912,14 +1913,15 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
                             f"&#8212; {jsq(sec_hint)}."),
         "help_sections_d": ("click any card to open its detail page "
                             f"({sec_hint})"),
-        # An outline printed as an outline should not be headed "Timeline".
+        # The print heading names the format by its symbol (a printed outline is
+        # no "Timeline"); the symbol carries the name as its tooltip. The symbol
+        # is the one the page's way-back button wears (search.py format_name_js).
         "print_title": (
-            f'<h1 class="print-tl-title">{jsq(b.title)} — '
-            f'{"Outline" if b.mode == "outline" else "Timeline"}</h1>'),
+            f'<h1 class="print-tl-title">{jsq(b.title)} \u2014 \' + (window._altoFB ? _altoFB() : \'\') + \'</h1>'),
         # navigator.share() displays this as text, so it gets the tag-free
-        # title — and it is a JS literal, so js_str() rather than interpolation.
-        "share_title": f"title:{js_str(title_txt + ' Timeline')}",
-        "share_import": f"Someone shared their {jsq(b.title)} timeline with you",
+        # title and no format word (a share preview cannot hold a symbol).
+        "share_title": f"title:{js_str(title_txt)}",
+        "share_import": f"Someone shared \u201c{jsq(b.title)}\u201d with you",
         "act_names": act_names_lit,
         "map_act_names": f"var ACT_NAMES = {act_names_lit};",
         "map_act_colors": ("var ACCENT_COLORS = ["

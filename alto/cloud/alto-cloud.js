@@ -677,6 +677,13 @@
   const _unent = s => String(s || '').replace(/&quot;/g, '"').replace(/&#x27;/g, "'")
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
+  // The format a built page is, from the line each format's own script starts
+  // with (fmt_of in meta.py). A System is checked first: an outline with more.
+  function _fmtOf(h) {
+    return /^window\._ALTO_SOLAR=/m.test(h) ? 'system' : /^window\._ALTO_BUILDING=/m.test(h) ? 'building'
+      : /^window\._altoPalace=function/m.test(h) ? 'palace' : /^window\._ALTO_OUTLINE=/m.test(h) ? 'outline' : 'timeline';
+  }
+
   function _metaOf(html) {
     const h = String(html || '');
     const lm = /<meta name="alto-label" content="([^"]*)"/i.exec(h);
@@ -703,7 +710,7 @@
         search.push({ id: _unq(m[1]), t: _unq(m[2]), d: _unq(m[3]).slice(0, DESC_CAP) });
     }
     return { title: project || heading, heading, project, tid: _identityOf(h),
-             units, search, v: META_V };
+             units, search, fmt: _fmtOf(h), v: META_V };
   }
 
   async function _getPageMeta(key) {
@@ -1075,6 +1082,7 @@
       out.push({ key: d.id, title: v.title || '', heading: v.heading || '',
                  project: v.project || '', tid: v.tid || '',
                  units: Array.isArray(v.units) ? v.units : [],
+                 fmt: v.fmt || '',
                  search: Array.isArray(v.search) ? v.search : [],
                  shareKey: v.shareKey || '',
                  added: Number(v.added) || 0,
@@ -1234,7 +1242,7 @@
   // homepage search. So a kept share is found by its title, not its contents.
   function _sharedMetaOf(html) {
     const m = _metaOf(html);
-    return { units: m.units, heading: m.heading, v: META_V };
+    return { units: m.units, heading: m.heading, fmt: m.fmt, v: META_V };
   }
 
   async function _saveShare(key, title, html) {
@@ -1265,7 +1273,7 @@
     snap.forEach(d => {
       const v = d.data() || {};
       out.push({ key: d.id, title: v.title || '', heading: v.heading || '',
-                 units: Array.isArray(v.units) ? v.units : [],
+                 units: Array.isArray(v.units) ? v.units : [], fmt: v.fmt || '',
                  savedAt: (v.savedAt && v.savedAt.seconds) || 0 });
     });
     out.sort((a, b) => (b.savedAt - a.savedAt) ||

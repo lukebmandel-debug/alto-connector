@@ -262,6 +262,9 @@
     color:var(--text); font-family:inherit; cursor:pointer; padding:8px 10px; border-radius:8px;
   }
   .search-result:hover{ background:var(--btn-hover-bg); }
+  .fmt-sym{ display:inline-flex; vertical-align:-3px; margin-right:6px; color:var(--muted); }
+  .fmt-sym svg{ display:block; }
+  .search-result .sr-kind .fmt-sym{ margin:0; vertical-align:-2px; }
   .search-result .sr-kind{
     display:inline-block; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
     color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:1px 5px;
@@ -601,6 +604,13 @@
 <button id="mode-toggle" onclick="toggleMode()"><span id="mode-label">&#9789; Dark</span><svg class="mode-glyph mode-moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16 12.2A6.4 6.4 0 1 1 8.6 3.2 5 5 0 0 0 16 12.2Z" fill="currentColor"/></svg><svg class="mode-glyph mode-sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="10" y1="1.6" x2="10" y2="3.8"/><line x1="10" y1="16.2" x2="10" y2="18.4"/><line x1="1.6" y1="10" x2="3.8" y2="10"/><line x1="16.2" y1="10" x2="18.4" y2="10"/><line x1="4.05" y1="4.05" x2="5.6" y2="5.6"/><line x1="14.4" y1="14.4" x2="15.95" y2="15.95"/><line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>
 
 <script>
+  // The symbol a project format wears instead of its name (alto/build/format_symbols.py;
+  // tests/test_format_symbols.py keeps this copy the same). The name is the tooltip.
+  var FMT_SYMBOLS = {"timeline":["Timeline","<path d=\"M2.5 16h15M5 16v-5M10 16V5M15 16V8.5\"/><circle cx=\"5\" cy=\"9.7\" r=\"1.3\"/><circle cx=\"10\" cy=\"3.9\" r=\"1.3\"/><circle cx=\"15\" cy=\"7.2\" r=\"1.3\"/>"],"outline":["Outline","<path d=\"M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17\"/>"],"system":["System","<circle cx=\"10\" cy=\"10\" r=\"1.8\"/><circle cx=\"10\" cy=\"10\" r=\"7\"/><circle cx=\"15\" cy=\"5\" r=\"1.3\"/>"],"palace":["Mind Palace","<path d=\"M2.5 17.5h15M4 17.5V9.5h4v8M8 17.5V4h5v13.5M13 17.5v-7h3v7M10 7h1M10 10h1M10 13h1\"/>"],"building":["Mind Palace · Building","<path d=\"M3 17.5h14M5.5 17.5v-14h9v14M8.5 17.5V14h3v3.5M8.5 6.5h3M8.5 9.5h3\"/>"]};
+  function fmtBadge(k){
+    var g = FMT_SYMBOLS[k]; if(!g) return '';
+    return '<span class="fmt-sym" title="' + g[0] + '" role="img" aria-label="' + g[0] + '"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + g[1] + '</svg></span>';
+  }
 /* NOTE: reports live in localStorage under 'alto-rp-<courseId>' and are written
    by the course apps (e.g. the timeline page's doGenerateReport). localStorage is
    per-origin: this page sees a course's reports only when both pages are served from
@@ -658,7 +668,7 @@ if(!COURSE_META[courseId]){
     var back = document.getElementById('home-link');
     if(back && from === 'project' && hit.key){
       back.href = '/pv/' + encodeURIComponent(hit.key) + '/';
-      back.textContent = '\u2190 Timeline';
+      back.innerHTML = '\u2190 ' + (fmtBadge(hit.fmt) || 'Timeline');
     }
   };
   try{
@@ -890,7 +900,7 @@ alignSearch();
       return [].concat(
         (k.pages || []).map(pg => ({ title: pg.heading || pg.title || 'Untitled timeline',
           label: pg.project || '',
-          href: '/pv/' + encodeURIComponent(pg.key) + '/', search: pg.search || [] })),
+          href: '/pv/' + encodeURIComponent(pg.key) + '/', fmt: pg.fmt, search: pg.search || [] })),
         (k.shared || []).map(it => ({ title: it.title || 'Shared timeline',
           href: '/s/' + encodeURIComponent(it.key) + '/', search: it.search || [] })));
     }catch(e){ return []; }
@@ -903,7 +913,7 @@ alignSearch();
                                go:() => { location.href = m.app; }});
     });
     remembered().forEach(t => {
-      idx.push({kind:'Timeline', title:t.title, text:'', go:() => { location.href = t.href; }});
+      idx.push({kind:'Timeline', fmt:t.fmt, title:t.title, text:'', go:() => { location.href = t.href; }});
       t.search.forEach(n => {
         if(!n || !/^[\w-]+$/.test(n.id || '')) return;
         idx.push({kind:t.label || t.title, title:n.t || '', text:n.d || '',
@@ -936,7 +946,7 @@ alignSearch();
     res.slice(0, 12).forEach(o => {
       const r = o.r, row = document.createElement('button');
       row.className = 'search-result';
-      row.innerHTML = '<span class="sr-kind">' + esc(r.kind) + '</span><span class="sr-title">' + esc(r.title) + '</span>' +
+      row.innerHTML = '<span class="sr-kind">' + (r.fmt ? fmtBadge(r.fmt) : esc(r.kind)) + '</span><span class="sr-title">' + esc(r.title) + '</span>' +
                       '<span class="sr-snip">' + snippet(r.text, ql) + '</span>';
       row.addEventListener('click', () => { closeSearch(); r.go(); });
       resultsEl.appendChild(row);

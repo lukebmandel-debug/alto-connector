@@ -216,7 +216,7 @@ def test_saving_a_share_stores_a_reference_not_a_copy():
     # which would outlive revocation just as surely as a copy of the page.
     meta = CLOUD_JS[CLOUD_JS.index("function _sharedMetaOf("):]
     meta = meta[:meta.index("\n  }")]
-    assert "return { units: m.units, heading: m.heading, v: META_V };" in meta
+    assert "return { units: m.units, heading: m.heading, fmt: m.fmt, v: META_V };" in meta
 
 
 def test_revoking_deletes_the_public_copy_before_forgetting_it():

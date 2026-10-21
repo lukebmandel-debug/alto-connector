@@ -919,7 +919,7 @@ _DRAWER_TIMELINE_NEW = (
     '<span class="drawer-icon">'
     '<svg viewBox="0 0 100 100" width="22" height="22" style="display:inline-block;pointer-events:none">'
     '<circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" stroke-width="7"/><ellipse cx="50" cy="50" rx="22" ry="44" fill="none" stroke="currentColor" stroke-width="6"/><line x1="6" y1="50" x2="94" y2="50" stroke="currentColor" stroke-width="6"/><path d="M14,27 Q50,18 86,27" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M14,73 Q50,82 86,73" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>'
-    '</svg></span><span class="drawer-label">Timeline</span></button>')
+    '</svg></span><span class="drawer-label"></span></button>')
 
 _DRAWER_OVERVIEW_OLD = (
     '<button class="drawer-btn" onclick="toggleSummary();closeNavDrawer()">'
@@ -1738,9 +1738,9 @@ _MODE_BTN_NEW = (
     '<line x1="10" y1="1.6" x2="10" y2="3.8"/><line x1="10" y1="16.2" x2="10" y2="18.4"/><line x1="1.6" y1="10" x2="3.8" y2="10"/>'
     '<line x1="16.2" y1="10" x2="18.4" y2="10"/><line x1="4.05" y1="4.05" x2="5.6" y2="5.6"/><line x1="14.4" y1="14.4" x2="15.95" y2="15.95"/>'
     '<line x1="4.05" y1="15.95" x2="5.6" y2="14.4"/><line x1="14.4" y1="5.6" x2="15.95" y2="4.05"/></g></svg></button>\n'
-    '  <button id="desk-back" type="button" onclick="showTimeline()" aria-label="Back to the timeline" title="Back to the timeline">'
+    '  <button id="desk-back" type="button" onclick="showTimeline()">'
     '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
-    'stroke-linejoin="round" aria-hidden="true"><path d="M16.5 10H3.8M9 4.6 3.6 10 9 15.4"/></svg><span class="db-label">Timeline</span></button>')
+    'stroke-linejoin="round" aria-hidden="true"><path d="M16.5 10H3.8M9 4.6 3.6 10 9 15.4"/></svg><span class="db-label"></span></button>')
 _MODE_TXT_OLD = "  document.getElementById('mode-toggle').textContent = isDark ? '\u2600 Light' : '\u263d Dark';\n"
 _MODE_TXT_NEW = "  document.getElementById('mode-toggle').title = isDark ? 'Switch to light' : 'Switch to dark';\n"
 _MODE_EARLY_OLD = "if(m)m.textContent='\u2600 Light';"
@@ -2273,7 +2273,7 @@ _HELP_D_TAIL_OLD = (
     '      <p class="info-mobile" style="margin:5px 0"><strong>Overview</strong> &#8212; tap a phrase in MENU&rsquo;s Overview to jump to that scene.</p>\n'
     '    </div>\n')
 _HELP_D_TAIL_NEW = (
-    '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; <span class="db-name">Timeline</span></em> or Escape goes back.</p>\n'
+    '. <em>&#8592; &#8594;</em> step between pages; <em>&#8592; <span class="db-name"></span></em> or Escape goes back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Overview</strong> &#8212; the &#10022; tab on the right edge summarizes the timeline; click a phrase to jump to its card.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Groups &amp; filters</strong> &#8212; the chips along the top open group pages. The <em>Filter</em> tab narrows the cards; double-click it to switch every filter off, and again to bring them back.</p>\n'
     '      <p class="info-desktop" style="margin:5px 0"><strong>Background</strong> &#8212; the picture tab under Filter puts a colour, a pattern or a photograph of space, nature or a city behind this timeline (a bright picture in the light theme, a dim one in the dark). Each timeline keeps its own.</p>\n'
