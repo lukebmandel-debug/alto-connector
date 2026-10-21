@@ -1077,7 +1077,16 @@ function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
   if(g>0){ var ix=w<=cw ? Math.max(0, Math.min(cw-w, o.tx)) : Math.max(cw-w, Math.min(0, o.tx)), iy=h<=ch ? Math.max(0, Math.min(ch-h, o.ty)) : Math.max(ch-h, Math.min(0, o.ty));
     o.tx+=(ix-o.tx)*g; o.ty+=(iy-o.ty)*g; }
   return o; }
-function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); camTell(); }
+function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); camTell(); reRaster(o.s); }
+/* (round 10, the Chrome flash) a will-change layer is never re-rastered as its scale changes: zoomed out from fit,
+   Chrome kept the whole world (since round 9's galaxy ~20,000 px square) at full scale, ran out of tiles and showed
+   frames with bodies, sky and bars missing. Once a zoom settles at a scale far from the last raster's, the layer is
+   let go for two frames and taken again, so it is drawn afresh at the scale on screen. */
+var RS={t:0, s:1};
+function reRaster(s){ clearTimeout(RS.t); if(!world) return;
+  RS.t=setTimeout(function(){ RS.t=0; var w=world; if(!w || !OV || Math.abs(Math.log(OV.s/RS.s))<.25) return;
+    var s2=OV.s; w.style.willChange='auto';
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ w.style.willChange=''; RS.s=s2; }); }); }, 140); }
 function ovHold(on){
   var c=cvs(), sp=document.getElementById('sol-ov-hold');
   if(!on){ if(sp) sp.remove(); return; }
@@ -1113,7 +1122,7 @@ function ovZoom(s, fx, fy, anim){
 function ovLeave(p, instant, then){
   if(!OV) return; var c=cvs(), o=OV, off=woff(c), cw=c.clientWidth, ch=c.clientHeight;
   if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
-  OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn();
+  OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange='';
   var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
   var fin=function(){ world.style.transform=''; ovVars(null); ovHold(false);
     var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
