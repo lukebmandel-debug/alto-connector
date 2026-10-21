@@ -35,6 +35,18 @@ def page(tmp_path_factory):
     return f
 
 
+# the navigation hints now (round 11): the pills on the bodies, the ways drawn, and the edge pills
+HINTS = r"""() => {
+  var vis=function(e){ return !!e && e.offsetParent!==null && !e.hidden && getComputedStyle(e).display!=='none'; };
+  var ps=[].slice.call(document.querySelectorAll('#world .node.sol-hint>.sol-nh')), qs=[].slice.call(document.querySelectorAll('#sol-nav .sol-nh'));
+  return {pills:ps.map(function(p){ return p.parentNode.id+':'+p.dataset.k+':'+p.querySelector('kbd').textContent+':'+p.querySelector('i').getAttribute('data-a')+':'+p.querySelector('b').textContent; }).sort(),
+    ways:[].map.call(document.querySelectorAll('#sol-way path'), function(w){ return w.getAttribute('data-k'); }).sort(),
+    lbl:ps.map(function(p){ return +getComputedStyle(p.parentNode.querySelector(':scope>.sol-lbl')).opacity; }),
+    once:ps.every(function(p){ var q=qs.filter(function(q){ return q.dataset.k===p.dataset.k; })[0]; return !!q && vis(p)!==vis(q); }),
+    edge:qs.filter(vis).map(function(q){ var r=q.getBoundingClientRect(); return [q.dataset.k, q.querySelector('b').textContent, r.left>=0 && r.top>=0 && r.right<=innerWidth && r.bottom<=innerHeight]; })};
+}"""
+
+
 CHIPS = r"""() => {
   var c=document.querySelector('#node-u1-p1 .node-card');
   return [].filter.call(c.querySelectorAll(':scope > .node-footer > button'), function(x){ return getComputedStyle(x).display!=='none'; })
@@ -80,8 +92,11 @@ def test_hints_flights_and_spokes_only(browser, page):
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate("() => window.enterFocus('u1-p2')")
     pg.wait_for_timeout(1300)
-    h = pg.evaluate("() => [].map.call(document.querySelectorAll('#world .node.sol-hint'), function(n){ return n.id+':'+n.querySelector('.sol-nh').textContent; }).sort()")
-    assert h == ["node-u1-p1:←", "node-u1-p3:→", "node-u1:↑"], h
+    h = pg.evaluate(HINTS)
+    assert h["pills"] == ["node-u1-p1:w:←:Previous:Planet concept 1.1", "node-u1-p3:e:→:Next:Planet concept 1.3",
+                          "node-u1:n:↑:Up a level:Doctrine 1"], h        # each target: its key, its move, its name
+    assert h["ways"] == ["e", "n", "w"] and h["lbl"] == [0, 0, 0], h    # each one's way drawn; its own label steps aside
+    assert h["once"], h                                                   # shown once: beside it, or at the window's edge
     # Flights: shown in the Star chart look only, kept per timeline
     assert pg.evaluate("() => document.getElementById('sol-fly').hidden")
     pg.evaluate("() => window._altoSolarLook.set('stars')")
@@ -111,6 +126,55 @@ def test_hints_flights_and_spokes_only(browser, page):
     pg.context.close()
     assert not errs, errs
     assert t0
+
+
+def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
+    """A place off the window: its pill at the window's edge (inside it), on the way towards it; a click
+    there hops. Spokes only says scroll; with nothing enlarged, one pill on the body a scroll enlarges."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => window._altoSolarLook.set('hub')")
+    pg.evaluate("() => window.enterFocus('u2-p2')")
+    pg.wait_for_timeout(1300)
+    h = pg.evaluate(HINTS)
+    assert h["once"] and "node-u2-p2-m1:s:↓:Down a level:Case 1" in h["pills"], h
+    nxt = [e for e in h["edge"] if e[0] == "e"]
+    assert nxt and nxt[0][1] == "Planet concept 3.1" and nxt[0][2], h   # the next system's first planet: off the window, pointed at
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#sol-nav .sol-nh[data-k=e]>i'), '::after').content") == '"Next system"'
+    pg.click("#sol-nav .sol-nh[data-k=e]")
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => window._focusedNodeId") == "u3-p1"
+    assert pg.evaluate(HINTS)["once"]
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(700)
+    assert pg.evaluate("() => document.querySelectorAll('.sol-nh').length") == 0   # calm: nothing enlarged, nothing shown
+    pg.click("#sol-lock")                                                       # Spokes only (it enlarges the middle body)
+    pg.wait_for_timeout(1300)
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#world .sol-nh>i'), '::after').content").startswith('"Scroll')
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(800)
+    o = pg.evaluate("() => [].map.call(document.querySelectorAll('.sol-nh'), function(p){ return p.dataset.k+':'+p.querySelector('i').getAttribute('data-a'); })")
+    assert o == ["o:Scroll to enlarge"], o
+    pg.click("#sol-lock")
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_hints_hide_in_a_flight_and_come_back_on_landing(browser, page):
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoFlyOff=false; window.enterFocus('u1-p2'); }")
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("() => document.querySelectorAll('#world .node.sol-hint').length") == 3
+    r = pg.evaluate("""() => new Promise(function(done){ var seen=0, shown=0, t0=performance.now();
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', code:'ArrowRight', bubbles:true}));
+      (function f(){ if(window._altoSolarFlight && window._altoSolarFlight()){ seen++;
+          [].forEach.call(document.querySelectorAll('.sol-nh,#sol-way path'), function(e){ if(e.offsetParent!==null && getComputedStyle(e).opacity!=='0' && getComputedStyle(e.closest('#sol-nav,#sol-way')||e).opacity!=='0') shown++; }); }
+        if(performance.now()-t0<6000 && !(seen && !window._altoSolarFlight())) requestAnimationFrame(f); else done([seen, shown]); })(); })""")
+    assert r[0] > 3 and r[1] == 0, r                                            # in a flight: none shown
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p3"
+    assert pg.evaluate("() => document.querySelectorAll('#world .node.sol-hint').length") >= 2  # back on landing
+    pg.context.close()
+    assert not errs, errs
 
 
 def test_wallpaper_top_erases_the_bars_but_keeps_their_controls(browser, page):

@@ -223,6 +223,39 @@ SOLAR_CSS = r"""
   #sol-flank-svg line{stroke:color-mix(in srgb,var(--accent,#6d5bd0) 55%,var(--text));stroke-opacity:.55;stroke-width:1.6;stroke-linecap:round;}
   html.alto-stars #sol-flank-svg line{stroke:rgb(190,210,255);}
   html.mobile #sol-flank-svg{display:none;}
+  /* navigation hints (round 11): a pill on each place an arrow goes (key, move, name), its way drawn under the
+     bodies, and the same pill at the window's edge for a place off it. Up: a filled key; down: a ringed key;
+     the same level: a plain key and a dotted way. No filter or blur (WebKit), opacity only in motion. */
+  @keyframes solnh{from{opacity:0}}
+  #sol-way{position:absolute;left:0;top:0;z-index:5;pointer-events:none;overflow:visible;}
+  #sol-way path{fill:none;stroke:color-mix(in srgb,var(--accent,#6d5bd0) 75%,var(--text));stroke-opacity:.75;stroke-width:2.6px;stroke-linecap:round;animation:solnh .4s ease-out .1s both;}
+  #sol-way path:is([data-k=e],[data-k=w]){stroke-dasharray:.1 8;stroke-width:3.4px;stroke-opacity:.7;}
+  #sol-nav{position:absolute;left:0;top:0;width:0;height:0;z-index:400;}
+  html.mobile :is(#sol-way,#sol-nav),.sol-nhx,#sol-nav [hidden]{display:none !important;}
+  html.sol-flying :is(#sol-way,#sol-nav,#world .sol-nh){opacity:0 !important;transition:opacity .15s;}   /* a flight (solar_fly.py): gone at once, back faded in on landing */
+  html.alto-solar:not(.mobile) #world .node.sol-hint>.sol-lbl{opacity:0 !important;}
+  html:not(.mobile) #canvas.focus-mode #world .node.sol-hint .node-card{opacity:1 !important;}
+  #world .sol-nh{position:absolute;left:50%;top:50%;z-index:8;display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;
+    --lr:calc(max(var(--dn,20) * var(--ovs,1) / 2, 2.5) * 1px);transform-origin:0 0;transform:scale(var(--ils,1)) translate(-50%,calc(var(--lr) + 6px));
+    padding:3px 11px 3px 3px;border-radius:14px;font-size:12px;line-height:18px;font-weight:600;font-style:normal;color:var(--text);
+    --nc:var(--u,var(--accent,#6d5bd0));background:color-mix(in srgb,var(--bg,#fff) 93%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--nc) 35%,transparent),0 4px 14px rgba(20,24,60,.16);animation:solnh .35s ease-out .12s both;}
+  #world .sol-nh[data-p=a]{transform:scale(var(--ils,1)) translate(-50%,calc(-100% - var(--lr) - 6px));}
+  #world .sol-nh[data-p=r]{transform:scale(var(--ils,1)) translate(calc(var(--lr) + 8px),-50%);}
+  #world .sol-nh[data-p=l]{transform:scale(var(--ils,1)) translate(calc(-100% - var(--lr) - 8px),-50%);}
+  #sol-nav .sol-nh{left:0;top:0;transform:translate(var(--o,-50%,-50%));pointer-events:auto;cursor:pointer;}
+  .sol-nh>kbd{display:grid;place-items:center;min-width:22px;height:18px;border-radius:9px;font:800 12px/1 system-ui,sans-serif;box-shadow:inset 0 0 0 1.3px color-mix(in srgb,var(--text) 38%,transparent);}
+  .sol-nh[data-k=n]>kbd{background:var(--nc);color:#fff;box-shadow:none;}
+  .sol-nh[data-k=s]>kbd{background:color-mix(in srgb,var(--nc) 22%,transparent);box-shadow:inset 0 0 0 1.8px var(--nc);}
+  .sol-nh>i{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;opacity:.6;}
+  .sol-nh>i::after{content:attr(data-a);} #canvas.sol-lock .sol-nh>i::after{content:attr(data-b);}
+  .sol-nh>b{max-width:170px;overflow:hidden;text-overflow:ellipsis;font-weight:650;}
+  .sol-nh>em{display:none;font-style:normal;font-size:12px;width:12px;text-align:center;opacity:.75;transform:rotate(var(--a,0deg));}
+  #sol-nav .sol-nh>em{display:block;margin-left:5px;}
+  html.alto-stars #world .sol-nh{color:#eef2ff;background:rgba(5,10,28,.9);box-shadow:0 0 0 1px rgba(170,198,255,.42),0 4px 16px rgba(0,0,0,.55);}
+  html.alto-stars .sol-nh>kbd{box-shadow:inset 0 0 0 1.3px rgba(220,230,255,.5);}
+  html.alto-stars .sol-nh[data-k=n]>kbd{background:#d6e4ff;color:#06102a;}
+  html.alto-stars .sol-nh[data-k=s]>kbd{color:#cfe0ff;box-shadow:inset 0 0 0 1.8px #a9c6ff;}
+  html.alto-stars #sol-way path{stroke:#bcd3ff;}
 """
 
 SOLAR_JS = r"""
@@ -812,7 +845,7 @@ function flankSync(){
     else if(b.fs && b.fs.m==='to' && id!==fid) b.fs={m:'home', ox:b.x, oy:b.y, t0:now, dur:ms};
     b.n.classList.toggle('sol-flank', !!w);
   });
-  FLID=fid; flTick.t0=now; flRun();
+  FLID=fid; flTick.t0=now; flRun(); if(NH) hints();
 }
 function flRun(){ if(!FLR) FLR=requestAnimationFrame(flTick); }
 function flTick(){
@@ -821,7 +854,7 @@ function flTick(){
   ORD.forEach(function(id){ var b=B[id]; if(b.fs && fe(b.fs).p<1) live++; });
   if(!DRV){ apply(); skin(); }                              /* (a flight's frames place everything themselves) */
   FLN=0; ORD.forEach(function(id){ if(B[id].fs) FLN++; });
-  fspokes(); declutter(true);
+  fspokes(); declutter(true); nhQ();
   var F=FLID && B[FLID], z=F && F.c ? parseFloat(F.c.style.zoom)||1 : K;
   if(live || (F && Math.abs(z-K)>1e-3 && performance.now()-flTick.t0<1500) || document.querySelector('#world .node.sol-closing')) flRun();
   else if(!FLN) go();
@@ -1010,21 +1043,72 @@ window._altoSolarNav=function(id, dir){
   return nx || id;
 };
 var levelNav=window._altoSolarNav;     /* (unwrapped: solar_fly.py wraps the global to fly the hop) */
-/* ── navigation hints (round 10, both looks): with a body enlarged, the body each arrow key (and, with
-   Spokes only, each scroll direction) leads to glows faintly and wears a small arrow badge ── */
-var NH={f:undefined, ids:[]};
+/* ── navigation hints (round 11; Luke on round 10's glow and badges: "just not adequate"). With a body
+   enlarged, each place an arrow key goes (with Spokes only: a scroll that way) says so where it is: a pill
+   beside that body — the key, the move, the body's name (its own label steps aside). The way there is
+   drawn under the bodies: up / down along their spoke, solid; the same level, a dotted arc bowed out
+   along the orbits. A place off the window gets the same pill at the window's edge, on the line towards
+   it, with a pointer (a click goes there). Up a level: a filled key; down: a ringed key; same level: a
+   plain key. Built once per focus (none in a flight: back on landing, faded in); after that only the
+   arcs and edge pills move — on the canvas's scroll and the flank's glide, a frame at most — all in
+   world px. Spokes only with nothing enlarged: one pill on the body a scroll enlarges. ── */
+var NH={k:undefined, t:[], L:null, g:null, f:null, q:0}, NHD={n:['↑', 'Up a level', 'Scroll up'], s:['↓', 'Down a level', 'Scroll down'],
+  w:['←', 'Previous', 'Scroll left'], e:['→', 'Next', 'Scroll right'], o:['⇕', 'Scroll to enlarge', 'Scroll to enlarge']};
+function nhPill(id, d, wd){ var p=document.createElement('span'), D=NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
+  p.innerHTML='<em>➜</em><kbd></kbd><i></i><b></b>'; p.children[1].textContent=D[0]; p.children[2].setAttribute('data-a', wd||D[1]); p.children[2].setAttribute('data-b', D[2]);
+  p.children[3].textContent=(b.lb && b.lb.getAttribute('data-l'))||''; return p; }
+function nhOn(id, d, side, wd){ var n=B[id].n, p=nhPill(id, d, wd);
+  p.setAttribute('data-p', side); n.classList.add('sol-hint'); n.appendChild(p); return p; }
 function hints(){
-  var f=(ready && desk() && !(window._altoSolarFlight && window._altoSolarFlight())) ? window._focusedNodeId||null : null;
-  var dp=document.getElementById('detail-page'); if(dp && dp.classList.contains('visible')) f=null;
-  if(f===NH.f) return; NH.f=f;
-  NH.ids.forEach(function(x){ var n=document.getElementById('node-'+x); if(!n) return; n.classList.remove('sol-hint'); var g=n.querySelector(':scope > .sol-nh'); if(g) g.remove(); });
-  NH.ids=[]; if(!f || !B[f]) return;
-  var by={}, AR={n:'\u2191', s:'\u2193', w:'\u2190', e:'\u2192'};
-  ['n', 's', 'w', 'e'].forEach(function(d){ var to=levelNav(f, d); if(to && to!==f && B[to] && B[to].n) (by[to]=by[to]||[]).push(AR[d]); });
-  Object.keys(by).forEach(function(x){ var n=B[x].n, g=document.createElement('span'); g.className='sol-nh'; g.setAttribute('aria-hidden', 'true'); g.textContent=by[x].join('');
-    n.classList.add('sol-hint'); n.appendChild(g); NH.ids.push(x); });
+  var dp=document.getElementById('detail-page'), ok=ready && desk() && world && !(window._altoSolarFlight && window._altoSolarFlight()) && !(dp && dp.classList.contains('visible')) && !de.classList.contains('alto-editing');
+  var f=ok && window._focusedNodeId, o=null; if(f && !(B[f] && B[f].n && B[f].n.classList.contains('focused'))) f=null;
+  if(ok && !f && LOCK) o=nearestMid();
+  var k=f ? 'f'+f : o ? 'o'+o : ''; if(k===NH.k) return; NH.k=k;
+  NH.t.forEach(function(t){ t.n.classList.remove('sol-hint'); t.p.remove(); if(t.q) t.q.remove(); if(t.w) t.w.remove(); }); NH.t=[]; NH.f=f || null;
+  if(o){ NH.t.push({id:o, n:B[o].n, p:nhOn(o, 'o', 'b')}); return; }
+  if(!f) return;
+  if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; world.appendChild(NH.L); }
+  if(!NH.g || !NH.g.isConnected){ NH.g=el('svg', {id:'sol-way', width:1, height:1, 'aria-hidden':'true'}); world.insertBefore(NH.g, svg && svg.parentNode===world ? svg.nextSibling : world.firstChild); }
+  var F=B[f];
+  ['n', 's', 'w', 'e'].forEach(function(d){ var to=levelNav(f, d), b=B[to]; if(!to || to===f || !b || !b.n || NH.t.some(function(t){ return t.id===to; })) return;
+    var wd=(d==='e' || d==='w') && b.si!==F.si && (d==='e' ? 'Next system' : 'Previous system'), q=nhPill(to, d, wd); q.style.cssText=(b.n.style.cssText.match(/--u:[^;]*/)||[''])[0]; NH.L.appendChild(q);
+    NH.t.push({id:to, d:d, n:b.n, p:nhOn(to, d, 'b', wd), q:q, w:el('path', {'data-k':d}, NH.g)}); });
+  nhPlace();
+}
+function nhQ(){ if(NH && NH.f && !NH.q) NH.q=requestAnimationFrame(nhPlace); }
+function nhPlace(){
+  NH.q=0; var F=NH.f && B[NH.f], c=cvs(); if(!F || !F.n || !c || !world) return;
+  var tr=String(getComputedStyle(world).translate||'').split(' ').map(parseFloat), wo=woff(c), sx=c.scrollLeft-wo.x-(tr[0]||0), sy=c.scrollTop-wo.y-(tr[1]||0), cw=c.clientWidth, ch=c.clientHeight;
+  var x0=sx+44, x1=sx+cw-44, y0=sy+120, y1=sy+ch-96;            /* the window in world px, inside its bars: a place here shows its own pill */
+  var cz=F.c ? parseFloat(F.c.style.zoom)||1 : 1, rf=(parseFloat(F.n.style.getPropertyValue('--scd'))||sDof(F.n, F))*cz/2+6, cx=F.rx+(F.n._fx||0), cy=F.ry+(F.n._fy||0), done=[];
+  function clear(q){ var X=Math.max(q[0], Math.min(q[2], cx)), Y=Math.max(q[1], Math.min(q[3], cy));   /* a box inside the window, off the disc and off the pills placed */
+    return q[0]>=x0-30 && q[2]<=x1+30 && q[1]>=y0-24 && q[3]<=y1+30 && Math.hypot(X-cx, Y-cy)>rf && !done.some(function(o){ return ov2(o, q); }); }
+  NH.t.forEach(function(t){ var b=B[t.id], dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, rb=b.d/2+6, mx=(cx+b.rx)/2, my=(cy+b.ry)/2, qx=mx, qy=my;
+    if(t.d==='e' || t.d==='w'){ var P=b.p===F.p && B[F.p], ax=P ? mx-P.rx : dy, ay=P ? my-P.ry : -dx, al=Math.hypot(ax, ay)||1; qx+=ax/al*L*.2; qy+=ay/al*L*.2; }   /* bowed away from what both orbit */
+    var u=function(x, y, X, Y, r){ var l=Math.hypot(X-x, Y-y)||1; return [f2(x+(X-x)/l*r), f2(y+(Y-y)/l*r)]; }, s=u(cx, cy, qx, qy, rf), e=u(b.rx, b.ry, qx, qy, rb);
+    t.w.setAttribute('d', L>rf+rb+4 ? 'M'+s+'Q'+f2(qx)+' '+f2(qy)+' '+e : 'M0 0');
+    var w=t.pw||(t.pw=t.p.offsetWidth||180), h=24, r=b.d/2, bx={b:[b.rx-w/2, b.ry+r+6, b.rx+w/2, b.ry+r+6+h], a:[b.rx-w/2, b.ry-r-6-h, b.rx+w/2, b.ry-r-6],
+      r:[b.rx+r+8, b.ry-h/2, b.rx+r+8+w, b.ry+h/2], l:[b.rx-r-8-w, b.ry-h/2, b.rx-r-8, b.ry+h/2]};
+    var sd=(b.fs && b.fs.m==='to') ? ['b'] : (Math.abs(dx)>Math.abs(dy) ? [dx>0 ? 'r' : 'l'] : [dy>0 ? 'b' : 'a']).concat(['b', 'a', 'r', 'l']), k=sd.filter(function(x){ return clear(bx[x]); })[0];
+    var on=!!k && b.rx>=x0 && b.rx<=x1 && b.ry>=y0 && b.ry<=y1 && L>rf;
+    t.p.classList.toggle('sol-nhx', !on); t.q.hidden=on;
+    if(on){ t.p.setAttribute('data-p', k); done.push(bx[k]); return; }   /* its pill on the side away from the disc, else the first side clear (beside the disc: under it, where its label was) */
+    /* else (off the window, or under the disc): the pill on the line from the disc to it — at the window's edge, or at the disc's rim */
+    var X, Y;
+    if(L>rf){ var ex0=sx+14, ex1=sx+cw-14, ey0=sy+100, ey1=sy+ch-72, px=Math.max(ex0, Math.min(ex1, cx)), py=Math.max(ey0, Math.min(ey1, cy)),
+      kx=dx ? ((dx>0 ? ex1 : ex0)-px)/dx : 1e9, ky=dy ? ((dy>0 ? ey1 : ey0)-py)/dy : 1e9, kk=Math.max(0, Math.min(kx, ky, 1)); X=px+dx*kk; Y=py+dy*kk; ux=-ux; uy=-uy; }
+    else { X=cx+ux*rf; Y=cy+uy*rf; }
+    var cl=function(v){ return Math.max(-1, Math.min(1, v*2)); }, ox=50*cl(ux)-50, oy=50*cl(uy)-50, q=[X+ox/100*w, Y+oy/100*h, X+(ox/100+1)*w, Y+(oy/100+1)*h];
+    for(var j=0; j<4 && done.some(function(o){ return ov2(o, q); }); j++){ var dv=(uy<0 ? -1 : 1)*(h+6); Y+=dv; q[1]+=dv; q[3]+=dv; }   /* (two on one edge: stacked) */
+    done.push(q);
+    t.q.style.left=f2(X)+'px'; t.q.style.top=f2(Y)+'px'; t.q.style.setProperty('--o', f2(ox)+'%,'+f2(oy)+'%');   /* (its anchor: a custom property, no transform written) */
+    t.q.style.setProperty('--a', Math.round(Math.atan2(dy, dx)*180/Math.PI)+'deg'); });
 }
 setInterval(hints, 250);
+document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') nhQ(); }, {capture:true, passive:true});
+window.addEventListener('resize', nhQ);
+['pointerdown', 'mousedown', 'click'].forEach(function(t){ document.addEventListener(t, function(e){   /* an edge pill: a click hops there (before the board takes it for a click on empty space) */
+  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh'); if(!p) return; e.stopPropagation(); e.preventDefault(); if(t==='click') lockStep(p.getAttribute('data-k')); }, true); });
 /* ── edit mode changed the outline (manual_edit.py calls this before it lays
    the page out again with the live tables {kids, parent, num, seqs, act}): the
    systems are planned again here — SOLAR_PLAN_JS, solar.py's solar_plan in

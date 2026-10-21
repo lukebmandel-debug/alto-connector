@@ -615,9 +615,11 @@ RETRO_CSS = r"""
   X #world .node[data-solar=sun] .sol-face.sol-face,X #world .node[data-solar=sun] .sol-face.sol-face *{color:#0a1b34 !important;}
   X #world .node[data-solar] .node-card:not(#_):hover{outline:1.5px solid #d9ae55;outline-offset:3px;}
   X #world .node[data-solar].sol-hint:not(.focused) .node-card:not(#_){outline:1.5px solid #d9ae55;outline-offset:4px;}
-  X #world .node[data-solar]>.sol-nh{background:#000 !important;color:#d9ae55 !important;box-shadow:0 0 0 1px #d9ae55 !important;}
+  X #world .sol-nh.sol-nh{background:#000;color:#d9ae55;border-radius:0;box-shadow:0 0 0 1px #d9ae55,0 0 0 4px #000;}
+  X .sol-nh>kbd{border-radius:0;color:#d9ae55;box-shadow:inset 0 0 0 1px rgba(217,174,85,.55);} X .sol-nh[data-k=n]>kbd{background:#d9ae55;color:#000;}
+  X .sol-nh[data-k=s]>kbd{box-shadow:inset 0 0 0 2px #d9ae55;} X .sol-nh>b{font-weight:500;letter-spacing:.12em;} X #sol-way path{stroke:#d9ae55;stroke-opacity:.9;}
   /* poster lettering */
-  X #world .node[data-solar]>.sol-lbl,X #world .node[data-solar] .sol-face,X .sol-unit,X #world .node[data-solar]>.sol-nh,X #sk-mark,X .line-tip{
+  X #world .node[data-solar]>.sol-lbl,X #world .node[data-solar] .sol-face,X .sol-unit,X .sol-nh,X #sk-mark,X .line-tip{
     font-family:"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-serif !important;letter-spacing:.06em;text-transform:uppercase;}
   X #world .node[data-solar]>.sol-lbl{color:#efe6cf;text-shadow:none;font-weight:500;font-size:.84em;letter-spacing:.16em;}
   X .sol-unit{font-weight:300 !important;background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;
