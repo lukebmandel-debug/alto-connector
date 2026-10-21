@@ -961,7 +961,8 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     // CSS zoom, read off the canvas: the board itself may be scaled (a horizontal
     // timeline's whole-timeline view, lanes_nav.py), which is not the page being short
     var k = cv && cv.offsetHeight ? (cv.getBoundingClientRect().height / cv.offsetHeight) || 1 : 1;
-    var short = cv ? Math.ceil(cv.clientHeight / k - end) : 0;
+    // (less the canvas's own top padding: with the bars clear the board starts under them, clear_top.py)
+    var short = cv ? Math.ceil((cv.clientHeight - (parseFloat(getComputedStyle(cv).paddingTop) || 0)) / k - end) : 0;
     // (a solar chart has no bands to lengthen: it would lay every circle out again every poll)
     if(short > 0 && !window._ALTO_SOLAR && typeof initLayout === 'function' && !place._relaying){
       window._altoEditRoom = (window._altoEditRoom || ROOM) + short;
