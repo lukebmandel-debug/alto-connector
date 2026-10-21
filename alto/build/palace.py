@@ -460,6 +460,13 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
         from .city_manhattan import LAYOUT
         m["layout"] = LAYOUT
+        try:                                             # the other four boroughs, drawn lighter around it (city_boroughs.py)
+            from .city_boroughs import fetch as fetch_boroughs
+            rest = fetch_boroughs(cache_dir=cache_dir, offline=offline)
+            if not rest["missing"] and rest["boroughs"].get("New York"):
+                m["outer"] = rest
+        except Exception:                                # noqa: BLE001 — a busy Overpass: Manhattan alone, as before
+            pass
     # the drawing: an even grid of the city's streets, the river and a few
     # diagonals the only exceptions (palace_grid)
     from .palace_grid import grid

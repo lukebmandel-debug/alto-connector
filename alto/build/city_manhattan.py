@@ -487,16 +487,27 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
     for attr, v in (("gv", CWM), ("gh", CHM)):
         setattr(loc, attr, v)
 
+    # the rest of New York (city_boroughs.py, when the set-up fetched it): it reaches west, south and north of the
+    # island, so the page's origin moves to leave room for it
+    ox, oy, outer = OX, OY, None
+    if m.get("outer"):
+        try:
+            from .city_boroughs import Outer
+            outer = Outer(m, tr, xr, yr, xg, yg, CWM, CHM, land, isl)
+            ox, oy = max(OX, outer.need[0]), max(OY, outer.need[1])
+        except Exception:                                   # noqa: BLE001 — data it cannot read: Manhattan alone, as before
+            outer = None
+
     def rootmap(x, y):                                             # real -> root page, the end blocks' scale past the lines
         u, v = tr(x, y)
-        return (_interp(u, xr, xg, xr[1] - xr[0] if u < xr[0] else xr[-1] - xr[-2], CWM) + OX,
-                _interp(v, yr, yg, yr[1] - yr[0] if v < yr[0] else yr[-1] - yr[-2], CHM) + OY)
-    root_m = _DomMap(loc, 0.0, (OX, OY))
-    yH = OY + yg[-1]                                                # Houston St on the page
-    ytop = OY
-    x6 = OX + xg[six]
+        return (_interp(u, xr, xg, xr[1] - xr[0] if u < xr[0] else xr[-1] - xr[-2], CWM) + ox,
+                _interp(v, yr, yg, yr[1] - yr[0] if v < yr[0] else yr[-1] - yr[-2], CHM) + oy)
+    root_m = _DomMap(loc, 0.0, (ox, oy))
+    yH = oy + yg[-1]                                                # Houston St on the page
+    ytop = oy
+    x6 = ox + xg[six]
     j14 = row_num.index(14) if 14 in row_num else None
-    y14 = OY + yg[j14] if j14 is not None else yH - 14 * CHM
+    y14 = oy + yg[j14] if j14 is not None else yH - 14 * CHM
 
     # 2. the shore: the island's west and east edge every 20 m along the turned frame, piers off, smoothed, on the page
     pts = land.cells(isl)
@@ -529,9 +540,11 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
     ks = [k for k in range(nb) if lo[k] is not None and vmin + (k + .5) * step >= yr[0] - CHM * .4 / sy]
     lo_s = _smooth([lo[k] for k in ks], 6)
     hi_s = _smooth([hi[k] for k in ks], 6)
-    west, east = [], []
+    west, east, shore_real = [], [], []
     for k, a, b in zip(ks, lo_s, hi_s):
         v = vmin + (k + .5) * step
+        if k % 6 == 0:
+            shore_real += [tr.back(a - CELL / 2, v), tr.back(b + CELL / 2, v)]
         pw = rootmap(*tr.back(a - CELL / 2, v))
         pe = rootmap(*tr.back(b + CELL / 2, v))
         if pw[1] < ytop:
@@ -598,7 +611,9 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
                           names={"v": [""] + [t[2] for t in lv] + [""], "h": [""] + [t[2] for t in lh] + [""]})
 
     # 5. emit every domain
-    dom_root = Domain(id=0, kind="grid", theta=th, poly=polys[0], a=0.0, o=(OX, OY), mapping=loc, gv=CWM, gh=CHM)
+    dom_root = Domain(id=0, kind="grid", theta=th, poly=polys[0], a=0.0, o=(ox, oy), mapping=loc, gv=CWM, gh=CHM)
+    if lo_s:                                                        # the grid's top edge: Manhattan goes on north of it
+        shore_real += [tr.back(lo_s[0] + (hi_s[0] - lo_s[0]) * t / 12, yr[0]) for t in range(13)]
     root_names = {"v": [c[1] for c in cols], "h": [_row_name(n) for n in row_num]}
     maj = {norm(n) for n in majors or ()} | {norm(c[1]) for c in cols} | {norm(_row_name(n)) for n in row_num if n in MAJOR_ROWS}
     lat_root = _Lat(dom_root, xg, yg, root_ring, notches=[notch])
@@ -625,7 +640,7 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
         outs[d.id] = emit(lat, names={k: [norm(n) for n in v] for k, v in names.items()}, majors=dm, root=(d.id == 0),
                           seams=seams[d.id], lots=True)
     return _finish(m, doms, lats, maps, outs, cols, row_num, rootmap, ring, west, east, ytop, yH, land, isl, tr,
-                   majors, diagonals, park_cells, landmarks_out, lm_cells)
+                   majors, diagonals, park_cells, landmarks_out, lm_cells, outer=outer, shore_real=shore_real, org=(ox, oy))
 
 
 def _split_y(p, yc):
@@ -651,7 +666,7 @@ def _split_y(p, yc):
 
 
 def _finish(m, doms, lats, maps, outs, cols, row_num, rootmap, ring, west, east, ytop, yH, land, isl, tr,
-            majors, diagonals, park_cells, landmarks_out, lm_cells):
+            majors, diagonals, park_cells, landmarks_out, lm_cells, outer=None, shore_real=(), org=(OX, OY)):
     tiles, edges, tq, te, streets, blocks = [], [], [], [], [], []
     for did in sorted(outs):
         o = outs[did]
@@ -731,7 +746,8 @@ def _finish(m, doms, lats, maps, outs, cols, row_num, rootmap, ring, west, east,
     W = int(max(p[0] for p in ring) + BAND_E + GHOST_W + 300)
     H = int(max(p[1] for p in ring) + 2400)
     return _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, ring, west, east, ytop, yH,
-                           W, H, land, isl, tr, rootmap, cols, row_num, majors, park_cells, landmarks_out, lm_cells)
+                           W, H, land, isl, tr, rootmap, cols, row_num, majors, park_cells, landmarks_out, lm_cells,
+                           outer=outer, shore_real=shore_real, org=org)
 
 
 def _root_lots(lat, i, j):
@@ -779,7 +795,8 @@ def _offset(line, d):
 
 
 def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, ring, west, east, ytop, yH, W, H,
-                    land, isl, tr, rootmap, cols, row_num, majors, park_cells, landmarks_out, lm_cells):
+                    land, isl, tr, rootmap, cols, row_num, majors, park_cells, landmarks_out, lm_cells, outer=None,
+                    shore_real=(), org=(OX, OY)):
     from .city_engine import _dom_out
     from types import SimpleNamespace
     # the water: one body, the Hudson west of the island, the East River east of it, the harbour below its tip;
@@ -839,7 +856,7 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
     for rv in river:
         rv["p"] = [round(v, 1) for v in rv["p"]]
     # bridges over the East River: the real bridge's landing on the island, straight across the band to the far bank
-    for bn in BRIDGES:
+    for bn in (BRIDGES if outer is None else ()):
         real = [s for s in m.get("streets", []) if (s.get("n") or "").startswith(bn)]
         if not real:
             continue
@@ -856,7 +873,7 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
     tables = Mapping(mp0.loc.th, mp0.loc.cx, mp0.loc.cy, mp0.loc.xr, [x + mp0.o[0] for x in mp0.loc.xg], mp0.loc.yr,
                      [y + mp0.o[1] for y in mp0.loc.yg]).tables()
     g = {k: v for k, v in m.items() if k not in ("streets", "water", "rivers", "rails", "trails", "stations", "landmarks",
-                                                 "parks", "W", "H", "majors", "transit", "far_bank")}
+                                                 "parks", "W", "H", "majors", "transit", "far_bank", "outer")}
     majors_n = {norm(s) for s in majors or ()}
     g.update(W=W, H=H, streets=streets, rails=[], trails=[], parks=park_cells, stations=[], landmarks=landmarks_out,
              rivers=[], river=river, water=[], tiles=tiles, edges=edges, tq=tq, te=te,
@@ -867,14 +884,17 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
     g["seams"] = []
     g["sea"] = [flat(sea)]
     g["land"] = land_rings
-    g["ghost"] = _ghost(w_out, e_out, top)
+    g["ghost"] = _ghost(w_out, e_out, top, org)
     g["far"] = []                                                   # the boroughs' names on their faint banks
-    for n, side, share in FAR:
+    for n, side, share in (FAR if outer is None else ()):
         y = top + share * (tipy - top)
         line = wl if side == "w" else el_
         x = min(line, key=lambda p: abs(p[1] - y))[0]
         x = x - BAND_W - GHOST_W * .4 if side == "w" else x + BAND_E + GHOST_W * .4
         g["far"].append({"n": n, "x": round(x), "y": round(y), "r": 1})
+    if outer is not None:
+        _the_rest(g, outer, org, shore_real, ring, sea, tipy, streets, te, park_cells)
+        W, H = g["W"], g["H"]
     g["blocks"] = blocks
     # transit on the drawn domains
     from .palace_transit import snap as snap_transit
@@ -1006,12 +1026,42 @@ def _hull(pts):
     return lo[:-1] + up[:-1]
 
 
-def _ghost(w_out, e_out, top):
+def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells):
+    """The other four boroughs and upper Manhattan, lighter (city_boroughs.Outer): their main roads (trunk and primary
+    as named heavy lines, secondary as minor ones, bridges with decks), big parks, borough and neighbourhood names, and
+    the real water of the whole city as one shape around them; no faint far-bank grid then."""
+    outer.setup(o, shore_real)
+    outer.sea_real()
+    for (n, c, br), pg in outer.roads_page():
+        p = [round(v) for q in pg for v in q]
+        if c <= 2:
+            st = {"n": norm(n) if n else "", "k": 0 if c <= 2 else 1, "p": p}
+            if n:
+                st["L"] = 1
+            if br:
+                st["o"] = 1
+            streets.append(st)
+        else:
+            te.append(p)
+    park_cells += outer.parks_page()
+    g["far"] = outer.names_page()
+    xs = [v for s in streets for v in s["p"][0::2]] + [v for t in te for v in t[0::2]]
+    ys = [v for s in streets for v in s["p"][1::2]] + [v for t in te for v in t[1::2]]
+    g["W"] = int(max(max(xs), outer.ext[0] + o[0]) + 900)
+    g["H"] = int(max(max(ys), outer.ext[1] + o[1]) + 900)
+    band_top = _clip_half(band, 1, tipy - 300, True)
+    rings = outer.page_sea(g["W"], g["H"], ring, band_top if len(band_top) >= 3 else band)
+    g["sea"] = [[round(v) for p in _chaikin(r + r[:1], 1)[:-1] for v in p] for r in rings if len(r) >= 3]
+    g["land"] = [flat(ring)]
+    g.pop("ghost", None)
+
+
+def _ghost(w_out, e_out, top, o=(OX, OY)):
     """The far banks' faint grid (palace_manhattan_js draws it): the water's outer edge on each side (from the box's top
     edge down past the harbour), the block, the root's origin (the faint grid lines up with the avenues), the fade's width."""
     w = _dp([(w_out[0][0], top)] + list(w_out), 20.0)
     e = _dp([(e_out[0][0], top)] + list(e_out), 20.0)
-    return {"w": [round(v, 1) for v in flat(w)], "e": [round(v, 1) for v in flat(e)], "c": [CWM, CHM], "o": [OX, OY],
+    return {"w": [round(v, 1) for v in flat(w)], "e": [round(v, 1) for v in flat(e)], "c": [CWM, CHM], "o": [round(o[0], 1), round(o[1], 1)],
             "d": GHOST_W}
 
 
