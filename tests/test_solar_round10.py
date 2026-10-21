@@ -232,3 +232,23 @@ def test_the_star_chart_has_a_retro_style_kept_per_timeline(browser, page):
     assert not pg.evaluate("() => document.documentElement.classList.contains('sk-retro')")
     pg.context.close()
     assert not errs, errs
+
+
+def test_the_realistic_style_turns_each_globe_on_its_axis(browser, page):
+    pg, errs = _open(browser, page, reduced=False, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); window._altoSolarMotion.set(false); }")
+    pg.wait_for_timeout(2500)
+    snap = """() => [].map.call(document.querySelectorAll('#world canvas.sk-rot'), function(c){ if(!c.width) return ''; var d=c.getContext('2d').getImageData(0, 0, c.width, c.height).data, h=0;
+      for(var i=0;i<d.length;i+=13) h=(h*31+d[i])>>>0; return h; })"""
+    a = pg.evaluate(snap)
+    drawn = [i for i, x in enumerate(a) if x]                                    # (only bodies on screen are drawn)
+    assert len(drawn) >= 4, a
+    pg.wait_for_timeout(1500)
+    b = pg.evaluate(snap)
+    assert sum(1 for i in drawn if a[i] != b[i]) >= len(drawn) // 2, (a, b)      # they turn with the orbits still
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#world canvas.sk-rot')).display") == "block"
+    pg.evaluate("() => window._altoSolarStyle.set('classic')")
+    pg.wait_for_timeout(200)
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#world canvas.sk-rot')).display") == "none"
+    pg.context.close()
+    assert not errs, errs

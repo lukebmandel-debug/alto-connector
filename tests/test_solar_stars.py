@@ -61,7 +61,7 @@ def test_a_page_without_solar_is_byte_identical_whatever_the_skin(monkeypatch):
 
 def test_the_skin_is_small_and_safari_safe():
     size = len(gzip.compress((STARS_JS + STARS_CSS).encode("utf-8"), 9))
-    assert size < 16500, size          # (~15 KB gz budget per System page)   # + round 10's Retro style (~1 KB)
+    assert size < 18500, size   # + round 12's Realistic 3D (turning globes, clouds, parallax)          # (~15 KB gz budget per System page)   # + round 10's Retro style (~1 KB)
     # no SVG mask, no CSS / SVG filter or blur layer, nothing moves a node by a transform
     assert "<mask" not in STARS_JS and "'mask'" not in STARS_JS and "mask" not in STARS_CSS
     assert "blur(" not in STARS_CSS and "filter:url" not in STARS_CSS and "feGaussian" not in STARS_JS

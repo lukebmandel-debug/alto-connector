@@ -1448,8 +1448,9 @@ document.addEventListener('mousedown', function(e){ if(!LOCK || !ready || !desk(
   e.preventDefault(); e.stopImmediatePropagation(); }, true);
 window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
-var STY=pref('style')==='retro' ? 'retro' : 'classic', RETRO=false;
-function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('sk-retro', STY==='retro');
+function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
+var STY=styOf(pref('style')), RETRO=false;
+function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('sk-retro', STY==='retro'); de.classList.toggle('sk-real', STY==='real');
   var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
   var fr=document.getElementById('sk-frame');
   if(RETRO && desk()){ if(!fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden', 'true'); fr.innerHTML='<i></i><i></i><i></i><i></i><b></b>'; document.body.appendChild(fr); } }
@@ -1457,7 +1458,7 @@ function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('
   if(RETRO && desk()){ if(!m){ m=document.createElement('div'); m.id='sk-mark'; m.setAttribute('aria-hidden', 'true'); document.body.appendChild(m); }
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[\u2014\u2013-]\s+/)[0]; }
   else if(m) m.remove(); }
-function setSty(v){ STY=v==='retro' ? 'retro' : 'classic'; keep('style', STY); stySync(); chips.forEach(function(c){ c._wh=null; }); if(ready) apply(true); ctl(); return STY; }
+function setSty(v){ STY=styOf(v); keep('style', STY); stySync(); chips.forEach(function(c){ c._wh=null; }); if(ready) apply(true); ctl(); return STY; }
 window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
 stySync();
 function lockStep(d){
@@ -1489,7 +1490,8 @@ function ctl(){
       '<button type="button" data-look="stars" role="radio" title="Star chart: the same orbits as a space scene, with flights between bodies">'+IC.stars+'<span>Star chart</span></button></div>'+
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>'+
       '<div class="sol-seg" id="sol-sty" role="radiogroup" aria-label="Star chart style"><button type="button" data-sty="retro" role="radio" title="Retro: flat poster colours, gold spokes">Retro</button>'+
-      '<button type="button" data-sty="classic" role="radio" title="Classic: the painted space scene">Classic</button></div>'+
+      '<button type="button" data-sty="classic" role="radio" title="Classic: the painted space scene">Classic</button>'+
+      '<button type="button" data-sty="real" role="radio" title="Realistic 3D: turning globes lit by their suns, clouds, depth">Realistic 3D</button></div>'+
       '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span><i class="sol-sw"></i><b class="sol-st"></b></button>'+
       '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();

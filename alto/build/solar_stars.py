@@ -538,6 +538,72 @@ function api(){ var Lk=window._altoSolarLook, M=window._altoSolarMotion;
 /* after the renderer's own layout / lines, ours (it calls window[k] each time) */
 function wrap(k, then){ var f=window[k]; if(!f || f._sk) return;
   var w=function(){ var r=f.apply(this, arguments); try{ then(r); }catch(e){ if(window.console) console.warn('stars', e); } return r; }; w._sk=1; window[k]=w; }
+/* ── Realistic 3D (Luke, 2026-10-21: "more realistic than what we currently have and feels 3d"), the Star chart's third
+   style, html.sk-real (solar_draw.py's switch). What makes a body read as a turning globe, not a picture of one:
+   (1) its surface turns on its axis: the painter's colours laid out once as a seamless longitude x latitude strip,
+   each disc pixel's (longitude, latitude) and shading kept in a table, and the strip slid under it, so a turn is a
+   table walk, not a repaint (redrawn a few times a second, on-screen bodies only, within ~3ms a frame);
+   (2) an ocean world's clouds turn on their own, faster; (3) the lit side keeps facing its sun (the Classic .sk-lit,
+   above it); (4) a nearer star field drifts slower than the board as it pans, so space has depth. ── */
+var RL={raf:0, i:0, par:null};
+function realOn(){ return ready && desk() && de.classList.contains('sk-real') && !de.classList.contains('alto-editing'); }
+function realBody(k){ return k.n && k.tex && /^(rocky|desert|ocean|gas|ice|lava|moon)$/.test(k.kind); }
+/* the strip, built a few rows a frame: W = 3N longitudes, H = 1.5N latitudes; its two ends cross-faded so it wraps */
+function realStrip(k){
+  var N=k.rN, W=3*N, H=Math.round(1.5*N), P=painter(k.kind, k.id), cn=k.kind==='ocean' ? noise(hash(k.id+'cl')) : null, TAU=Math.PI*2;
+  k.rW=W; k.rH=H; k.rS=new Uint8ClampedArray(W*H*3); if(cn) k.rC=new Uint8Array(W*H); k.rY=0;
+  k.rRow=function(y){ var la=((y+.5)/H-.5)*Math.PI;
+    for(var x=0;x<W;x++){ var lo=(x+.5)/W*TAU-Math.PI, f=(x+.5)/W, c0=P(lo, la), c1=P(lo-TAU, la), o=(y*W+x)*3;
+      k.rS[o]=c0[0]*(1-f)+c1[0]*f; k.rS[o+1]=c0[1]*(1-f)+c1[1]*f; k.rS[o+2]=c0[2]*(1-f)+c1[2]*f;
+      if(cn){ var v=fb(cn, lo*1.6+7, la*3.2+3, 4)*(1-f)+fb(cn, (lo-TAU)*1.6+7, la*3.2+3, 4)*f; k.rC[y*W+x]=Math.round(cl((v-.52)*4.2)*215); } } };
+}
+/* the table: for each pixel of the disc, where on the strip it looks (its longitude across the visible half), its
+   shade (the limb darker) and its edge's alpha */
+function realTable(k){
+  var N=k.rN, r=N/2, W=k.rW, H=k.rH, ix=[], lo=[], rw=[], sh=[], ea=[];
+  for(var y=0;y<N;y++) for(var x=0;x<N;x++){ var nx=(x+.5-r)/r, ny=(y+.5-r)/r, q=nx*nx+ny*ny, e=cl((1-Math.sqrt(q))*r+.5); if(e<=0) continue;
+    var z=Math.sqrt(Math.max(0, 1-q)); ix.push((y*N+x)*4); lo.push((Math.atan2(nx, z)/(Math.PI*2)+.5)*W); rw.push(Math.min(H-1, Math.max(0, Math.round((Math.asin(cl(ny*.5+.5)*2-1)/Math.PI+.5)*H-.5))));
+    sh.push(.62+.38*Math.pow(z, .7)); ea.push(Math.round(e*255)); }
+  k.rT={ix:Int32Array.from(ix), lo:Float32Array.from(lo), rw:Int32Array.from(rw), sh:Float32Array.from(sh), ea:Uint8Array.from(ea)};
+  var R=rng(hash(k.id+'spin')); k.rP=(k.kind==='gas' ? 26 : k.kind==='moon' ? 140 : 46)*(.75+R()*.6)*1000; k.rP2=k.rP*.62; k.rPh=R(); k.rLast=-1;
+}
+function realDraw(k, now){
+  var T=k.rT, W=k.rW, S=k.rS, C=k.rC, cv=k.rot, N=k.rN; if(!k.rCtx){ cv.width=cv.height=N; k.rCtx=cv.getContext('2d'); k.rImg=k.rCtx.createImageData(N, N); }
+  var ph=((now/k.rP+k.rPh)%1)*W, ph2=((now/k.rP2+k.rPh)%1)*W, D=k.rImg.data, n=T.ix.length;
+  for(var i=0;i<n;i++){ var o=T.ix[i], row=T.rw[i]*W, sx=(T.lo[i]+ph)|0, s; sx%=W; s=(row+sx)*3; var l=T.sh[i], r=S[s]*l, g=S[s+1]*l, b=S[s+2]*l;
+    if(C){ var c2=((T.lo[i]+ph2)|0)%W, a=C[row+c2]/255*(.55+.45*l); r+=(250-r)*a; g+=(252-g)*a; b+=(255-b)*a; }
+    D[o]=r; D[o+1]=g; D[o+2]=b; D[o+3]=T.ea[i]; }
+  k.rCtx.putImageData(k.rImg, 0, 0); k.rLast=now;
+}
+function realTick(){
+  RL.raf=0; if(!realOn()){ realPar(false); return; }
+  var t0=performance.now(), dl=t0+3, ids=Object.keys(BB), n=ids.length, vw=innerWidth, vh=innerHeight;
+  realPar(true);
+  for(var j=0;j<n && performance.now()<dl;j++){ var k=BB[ids[(RL.i+j)%n]]; if(!realBody(k)) continue;
+    if(!k.rot || !k.rot.isConnected){ k.rot=document.createElement('canvas'); k.rot.className='sk-rot'; k.rot.setAttribute('aria-hidden', 'true');
+      var c=k.n.querySelector('.node-card'); if(!c) continue; c.insertBefore(k.rot, k.lit && k.lit.parentNode===c ? k.lit : c.querySelector('.sol-face')); k.rCtx=null; }
+    var q=k.n.getBoundingClientRect(); if(q.right<0 || q.bottom<0 || q.left>vw || q.top>vh || q.width<12) continue;
+    var want=Math.max(24, Math.min(160, Math.round(q.width*(window.devicePixelRatio||1))));
+    if(!k.rS || Math.abs(want-k.rN)>k.rN*.5){ k.rN=want; realStrip(k); k.rT=null; }
+    if(k.rY<k.rH){ while(k.rY<k.rH && performance.now()<dl) k.rRow(k.rY++); if(k.rY<k.rH) break; }
+    if(!k.rT) realTable(k);
+    if(t0-k.rLast>=110) realDraw(k, t0); }
+  RL.i=(RL.i+1)%Math.max(1, n);
+  RL.raf=requestAnimationFrame(realTick);
+}
+/* the nearer stars: a layer in the board, counter-moved by 0.6 of each scroll so it drifts at 0.4 of the board's pace */
+function realPar(on){
+  var c=document.getElementById('canvas'), w=world;
+  if(!on || !c || !w || c.classList.contains('sol-ov')){ if(RL.par) RL.par.style.display='none'; return; }
+  if(!RL.par || !RL.par.isConnected){ RL.par=document.createElement('div'); RL.par.className='sk-par'; RL.par.setAttribute('aria-hidden', 'true'); w.appendChild(RL.par); }
+  var T=tiles(); if(T.u && !RL.par._bg){ RL.par._bg=1; RL.par.style.backgroundImage='url('+T.u[1]+'),url('+T.u[0]+')'; }
+  var x=c.scrollLeft, y=c.scrollTop, s=RL.par.style;
+  s.display='block'; s.width=(c.clientWidth+400)+'px'; s.height=(c.clientHeight+400)+'px';
+  s.transform='translate('+Math.round(x-200-((x*.4)%300))+'px,'+Math.round(y-200-((y*.4)%300))+'px)';
+}
+function realKick(){ if(!RL.raf && realOn()) RL.raf=requestAnimationFrame(realTick); }
+if(typeof MutationObserver==='function') new MutationObserver(realKick).observe(de, {attributes:true, attributeFilter:['class']});
+setInterval(realKick, 1000);
 function hook(){
   var s=window._ALTO_SOLAR; if(!s || !s.nodes) return;
   api();
@@ -564,6 +630,22 @@ window._altoSkinStats={
 # reach in stepped blue bands round its sun, gold spokes, flat bodies, satellites drawn as a line probe, poster
 # lettering. html.sk-retro is set by solar_draw.py's style switch (kept per timeline like the look).
 _X = "html.alto-stars.sk-retro:not(.mobile)"
+# ── Realistic 3D: the Star chart's third style (html.sk-real; the turning surfaces are drawn by STARS_JS realTick) ──
+REAL_CSS = r"""
+  .sk-rot,.sk-par{display:none;}
+  html.sk-real.alto-stars:not(.mobile) #world .node[data-solar] .node-card>.sk-rot{display:block;position:absolute;left:50%;top:50%;pointer-events:none;
+    width:var(--skd,var(--sd));height:var(--skd,var(--sd));margin:calc(var(--skd,var(--sd))/-2) 0 0 calc(var(--skd,var(--sd))/-2);}
+  html.sk-real.alto-stars:not(.mobile) #world>.sk-par{display:block;position:absolute;left:0;top:0;z-index:4;pointer-events:none;opacity:.55;
+    background-size:300px 300px,700px 700px;background-position:0 0,140px 90px;}
+  /* each body a little lifted off the space behind it; the sun lighting the space round it: a wide warm bloom
+     (a shadow's spread, no filter) */
+  html.sk-real.alto-stars:not(.mobile) #world .node[data-solar]:not(.focused) .node-card:not(#_){box-shadow:0 10px 30px rgba(0,0,0,.45) !important;}
+  html.sk-real.alto-stars:not(.mobile) #world .node[data-solar=sun]:not(.focused) .node-card:not(#_){
+    box-shadow:0 0 60px 18px rgba(255,214,150,.30),0 0 180px 60px rgba(255,170,90,.14),0 0 420px 140px rgba(255,140,70,.06) !important;}
+  @media print{ .sk-rot,.sk-par{display:none !important;} }
+"""
+STARS_CSS += REAL_CSS
+
 RETRO_CSS = r"""
   html.alto-clear-top.alto-stars:not(.mobile) #title-text{color:#eef2ff !important;}   /* (the bars are clear, clear_top.py: the sky is under the name) */
   #solar-svg .sol-band,#solar-svg .sol-bun,#solar-svg .sol-sig,#sk-mark,#sk-frame{display:none;}

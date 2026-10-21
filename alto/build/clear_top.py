@@ -61,8 +61,8 @@ JS = r"""(function(){
   bt.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><g class="rl"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g></svg>';   /* an x; spun shut it rests as a + */
   var reel=bt.querySelector('.rl');
   function label(){ bt.setAttribute('aria-pressed', off ? 'true' : 'false'); bt.title=off ? 'Show the chips' : 'Hide the chips'; bt.setAttribute('aria-label', bt.title); }
-  function place(){ var its=items(), f=its[0]; if(!f) return; var r=f.getBoundingClientRect();     /* in line with the chips: just before the first (hidden ones keep their place) */
-    if(!r.width) return; bt.style.top=Math.round(r.top+r.height/2)+'px'; bt.style.left=Math.max(6, Math.round(r.left-22-8))+'px'; }
+  function place(){ var f=nav.querySelector('button.nav-btn') || items()[0], g=items()[0]; if(!f) return; var gl=g ? g.getBoundingClientRect().left : 0; var r=f.getBoundingClientRect();     /* in line with the chips: just before the first (hidden ones keep their place) */
+    if(!r.width) return; bt.style.top=Math.round(r.top+r.height/2)+'px'; bt.style.left=Math.max(6, Math.round(Math.min(r.left, gl || r.left)-22-8))+'px'; }   /* (centred on a chip, before the row's first item) */
   function items(){ return [].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth && !(e.parentElement && e.parentElement.closest('#nav button')); }); }
   function quiet(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function turn(){
@@ -80,7 +80,7 @@ JS = r"""(function(){
   }
   bt.addEventListener('click', function(e){ e.stopPropagation(); turn(); });
   document.body.appendChild(bt); de.classList.toggle('ct-chips-off', off); label(); place();
-  window.addEventListener('resize', place);
+  window.addEventListener('resize', place); setTimeout(place, 300); setTimeout(place, 1200); if(document.fonts && document.fonts.ready) document.fonts.ready.then(place);   /* (after the row's own layout settles) */
   if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);   /* (a frame later: never a change inside the observer's own pass) */
 })();"""
 
