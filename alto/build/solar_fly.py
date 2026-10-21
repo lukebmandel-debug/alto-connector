@@ -452,7 +452,7 @@ function f1(v){ return Math.round(v*10)/10; }
 function dz(){ return (parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1); }
 /* may this change of body be flown? */
 function can(){
-  if(window._altoFlyOff || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
+  if(window._altoFlyOff || de.classList.contains('sk-3d') || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
   if(!cam() || !window._altoSolarDrive || !window._altoSolarRate || !cvs() || document.querySelector('#detail-page.visible')) return false;
   if(FL) return true;
   var g=cam().get(); return !!g && g.scale>=.999 && performance.now()-ovAt>K.OV_MS;

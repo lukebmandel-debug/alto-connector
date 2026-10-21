@@ -234,8 +234,10 @@ def test_the_star_chart_has_a_retro_style_kept_per_timeline(browser, page):
     assert not errs, errs
 
 
-def test_the_realistic_style_turns_each_globe_on_its_axis(browser, page):
-    pg, errs = _open(browser, page, reduced=False, wait=1400)
+def test_without_webgl_the_realistic_style_turns_each_globe_in_2d(browser, page):
+    ctx = browser.new_context(viewport={"width": 1500, "height": 950})
+    ctx.add_init_script("(() => { var g=HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext=function(k){ return /webgl/.test(k) ? null : g.apply(this, arguments); }; })()")
+    pg = ctx.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e))); pg.goto(page.as_uri()); pg.wait_for_timeout(1400)
     pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); window._altoSolarMotion.set(false); }")
     pg.wait_for_timeout(2500)
     snap = """() => [].map.call(document.querySelectorAll('#world canvas.sk-rot'), function(c){ if(!c.width) return ''; var d=c.getContext('2d').getImageData(0, 0, c.width, c.height).data, h=0;
@@ -250,5 +252,61 @@ def test_the_realistic_style_turns_each_globe_on_its_axis(browser, page):
     pg.evaluate("() => window._altoSolarStyle.set('classic')")
     pg.wait_for_timeout(200)
     assert pg.evaluate("() => getComputedStyle(document.querySelector('#world canvas.sk-rot')).display") == "none"
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_realistic_3d_is_a_3d_scene_with_a_free_camera(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pytest.skip("no WebGL in this browser")
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#node-u1-p1')).visibility") == "hidden"    # the board is under the scene
+    assert pg.evaluate("() => document.querySelectorAll('#sk3d-l b').length") >= 6                              # names over the scene
+    # a click on a body (where the scene draws it) enlarges it; the hints are pills at their bodies
+    q = pg.evaluate("() => window._altoSolar3D.project('u1-p2')")
+    pg.mouse.click(q["x"], q["y"])
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("() => window._focusedNodeId") == "u1-p2"
+    pills = pg.evaluate("() => [].filter.call(document.querySelectorAll('#sk3d-l i'), function(e){ return e.style.display!=='none'; }).map(function(e){ return e.textContent; })")
+    assert len(pills) == 3 and any("Up a level" in p for p in pills), pills
+    # a drag turns the camera; the wheel comes nearer; Reset view puts it back
+    c0 = pg.evaluate("() => window._altoSolar3D.cam()")
+    pg.mouse.move(200, 600); pg.mouse.down(); pg.mouse.move(380, 520, steps=6); pg.mouse.up()
+    c1 = pg.evaluate("() => window._altoSolar3D.cam()")
+    assert abs(c1["az"] - c0["az"]) > .5 and abs(c1["el"] - c0["el"]) > .2 and pg.evaluate("() => window._focusedNodeId") == "u1-p2", (c0, c1)
+    pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(200)
+    assert pg.evaluate("() => window._altoSolar3D.cam().d") > c1["d"] * 1.5
+    pg.click("#sk3d-reset"); pg.wait_for_timeout(1000)
+    c2 = pg.evaluate("() => window._altoSolar3D.cam()")
+    assert abs(c2["az"] + .6) < .01 and abs(c2["el"] - .62) < .01, c2
+    # Classic: no scene
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(600)
+    pg.evaluate("() => window._altoSolarStyle.set('classic')"); pg.wait_for_timeout(800)
+    assert not pg.evaluate("() => document.documentElement.classList.contains('sk-3d')")
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#node-u1-p1')).visibility") == "visible"
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_the_3d_scene_is_small_and_on_system_pages_only():
+    import gzip
+    from alto.build import blocks
+    from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
+    size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
+    assert size < 10500, size                   # (~9.7 KB gz: a small WebGL kit with its shaders, no library)
+    assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
+
+
+def test_a_detail_page_keeps_its_top_bars(browser, page):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    bars = """() => ['title-bar', 'nav'].map(function(id){ var c=getComputedStyle(document.getElementById(id)); return c.backgroundColor; })"""
+    assert all(b == "rgba(0, 0, 0, 0)" for b in pg.evaluate(bars))                    # the main page: clear
+    pg.evaluate("() => showDetail('node', 'u1-p1')")
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => document.documentElement.classList.contains('detail-open')")
+    assert not any(b == "rgba(0, 0, 0, 0)" for b in pg.evaluate(bars)), pg.evaluate(bars)   # the detail page: its glass back
+    assert pg.evaluate("() => { var b=document.getElementById('ct-chips'); return !b || getComputedStyle(b).display==='none'; }")
     pg.context.close()
     assert not errs, errs
