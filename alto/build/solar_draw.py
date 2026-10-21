@@ -569,6 +569,11 @@ function draw(W, H){
        shell of specks, in the Star chart look (CSS picks one). It goes round the system, with its sun. */
     if(s.R){ var BR=s.R+28, bg=el('g', {'class':'sol-bd'}, g);
       [1.5, 1.24, 1.02, .84, .68, .53, .4].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(BR*f)}, bg); });   /* Retro: the system's reach in stepped bands, a hard edge into black */
+      /* Retro's imperial sigil round the sun (Luke: Foundation's Empire): a ring of rays, long and short, between two hairlines */
+      var sr=sun.d/2, sg=el('g', {'class':'sol-sig'}, bg), r1=sr+22, r2=sr+46;
+      el('circle', {r:f2(r1-6)}, sg); el('circle', {r:f2(r2+8)}, sg); el('circle', {'class':'w', r:f2(r2+20)}, sg);
+      for(var q=0; q<48; q++){ var an=q*Math.PI/24, lo=q%4===0 ? r2+14 : q%2===0 ? r2 : r1+12, cs=Math.cos(an), sn=Math.sin(an);
+        el('line', {x1:f2(cs*r1), y1:f2(sn*r1), x2:f2(cs*lo), y2:f2(sn*lo), 'class':q%4===0 ? 'k' : ''}, sg); }
       el('circle', {'class':'sol-ubd w', r:f2(BR)}, bg); el('circle', {'class':'sol-ubd', r:f2(BR)}, bg);
       [[-10, 1.7, '0.1 9', 0], [-3, 1.3, '0.1 13', 5], [5, 1.9, '0.1 11', 2], [13, 1.2, '0.1 17', 8], [21, 1, '0.1 23', 3]].forEach(function(o){
         el('circle', {'class':'sol-oort', r:f2(BR+o[0]), 'stroke-width':o[1], 'stroke-dasharray':o[2], 'stroke-dashoffset':o[3]}, bg); });
@@ -1356,6 +1361,9 @@ window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
 var STY=pref('style')==='retro' ? 'retro' : 'classic', RETRO=false;
 function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('sk-retro', STY==='retro');
   var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
+  var fr=document.getElementById('sk-frame');
+  if(RETRO && desk()){ if(!fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden', 'true'); fr.innerHTML='<i></i><i></i><i></i><i></i><b></b>'; document.body.appendChild(fr); } }
+  else if(fr) fr.remove();
   if(RETRO && desk()){ if(!m){ m=document.createElement('div'); m.id='sk-mark'; m.setAttribute('aria-hidden', 'true'); document.body.appendChild(m); }
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[\u2014\u2013-]\s+/)[0]; }
   else if(m) m.remove(); }
