@@ -51,12 +51,12 @@ def _page(style="orbit"):
 
 # ── what the pages carry ─────────────────────────────────────────────────────
 
-def test_all_of_the_solar_script_stays_under_55_kb_gzipped():
+def test_all_of_the_solar_script_stays_under_58_kb_gzipped():
     """The drawing, the skin and the flight together, against the 1,000,000-byte
     stored page (each has its own cap in its own suite: 22 / 14 / 13 KB). 51 -> 55 KB in round 10
-    (upright chips + named rows, unit borders / Oort clouds, spoke hits, nav hints, Flights / Spokes only)."""
+    (upright chips + named rows, unit borders / Oort clouds, spoke hits, nav hints, Flights / Spokes only); -> 58 KB for the Star chart's Retro style."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS + STARS_JS + STARS_CSS + FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 55000, size
+    assert size < 58000, size
 
 
 @pytest.mark.parametrize("style", ["orbit", "spoke"])
