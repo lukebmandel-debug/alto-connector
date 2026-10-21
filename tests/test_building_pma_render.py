@@ -121,8 +121,8 @@ def test_the_footer_carries_the_credits_and_the_key(browser):
         page.evaluate("AltoBuilding.selectRoom('l3-n-italian')")
         info = page.inner_text("#bldg-root .bl-info")
         assert "Italian Renaissance Gallery" in info and "European Art 1500-1850" in info and "350" in info and "re-partitioned" in info
-        page.evaluate("AltoBuilding.selectRoom('l3-n-13')")
-        assert "Galleries here today (unresolved): 362" in page.inner_text("#bldg-root .bl-info")
+        page.evaluate("AltoBuilding.selectRoom('l3-s-24')")
+        assert "Galleries here today (unresolved): 307" in page.inner_text("#bldg-root .bl-info")
         assert errors == []
     finally:
         page.close()

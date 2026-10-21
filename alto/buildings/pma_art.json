@@ -1,6 +1,6 @@
 {
  "building": "pma",
- "verified": "2026-10-19",
+ "verified": "2026-10-21",
  "rule": "An image is hosted only when the work is public domain (artist died before 1956, faithful 2-D reproduction) AND its Wikimedia Commons file page states Public domain / pd (read from the Commons API on the date above). Everything else is a framed title card. Originals are not kept in the repository: each file is the Commons image downscaled to 512 px on its long side and re-encoded as JPEG (quality 68).",
  "images": {
   "peale": {
@@ -65,6 +65,22 @@
    "orig_px": [
     4421,
     4368
+   ]
+  },
+  "leyster": {
+   "file": "leyster.jpg",
+   "title": "The Last Drop (The Gay Cavalier)",
+   "artist": "Judith Leyster",
+   "artist_died": 1660,
+   "date": "c. 1629",
+   "licence": "Public domain (Commons: pd)",
+   "commons": "https://commons.wikimedia.org/wiki/File:Judith_Leyster,_Dutch_(active_Haarlem_and_Amsterdam)_-_The_Last_Drop_(The_Gay_Cavalier)_-_Google_Art_Project.jpg",
+   "source_credit": "Philadelphia Museum of Art (John G. Johnson Collection), via Google Art Project and Wikimedia Commons",
+   "gallery": "364",
+   "pma_object": "102220",
+   "orig_px": [
+    4123,
+    5077
    ]
   }
  },
