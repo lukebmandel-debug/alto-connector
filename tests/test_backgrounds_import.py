@@ -134,7 +134,9 @@ export function doc(db, ...s){ return {path:s.join('/'), id:s[s.length-1], kind:
 export function collection(db, ...s){ return {path:s.join('/'), kind:'col'}; }
 export async function getDoc(ref){ return snap(ref); }
 export async function getDocs(c){ const ks=kids(c); return {docs:ks.map(k=>({id:k.split('/').pop(), data:()=>unb(fs.docs[k]), ref:{path:k}}))}; }
-export async function setDoc(ref, data, o){ if(window.__fail) throw new Error(window.__fail); const cur=fs.docs[ref.path]||{}; fs.docs[ref.path] = (o&&o.merge) ? Object.assign({},cur,data) : Object.assign({},data); fs.writes.push(ref.path); notify(ref.path); }
+// Firestore's own limit: 1 MiB per document, counting the name, field names and values (Bytes at their raw length)
+const sizeOf = (path, d) => { let n = path.length + 1 + 16 + 32; for (const k in d) { const v = d[k]; n += k.length + 1 + (v && v.a instanceof Uint8Array ? v.a.length : typeof v === 'string' ? new TextEncoder().encode(v).length + 1 : typeof v === 'boolean' ? 1 : 8); } return n; };
+export async function setDoc(ref, data, o){ if(window.__fail) throw new Error(window.__fail); { const all=(o&&o.merge) ? Object.assign({},fs.docs[ref.path]||{},data) : data; const n=sizeOf(ref.path, all); fs.sizes=fs.sizes||{}; fs.sizes[ref.path]=n; if(n>1048576) throw new Error('invalid-argument: document is '+n+' bytes, over 1048576'); } const cur=fs.docs[ref.path]||{}; fs.docs[ref.path] = (o&&o.merge) ? Object.assign({},cur,data) : Object.assign({},data); fs.writes.push(ref.path); notify(ref.path); }
 export async function deleteDoc(ref){ delete fs.docs[ref.path]; fs.deletes.push(ref.path); notify(ref.path); }
 export function onSnapshot(ref, cb){ const L={ref,cb}; ls.push(L); setTimeout(()=>fire(L),0); return ()=>{ const i=ls.indexOf(L); if(i>=0) ls.splice(i,1); }; }
 export function serverTimestamp(){ return Date.now(); }
@@ -181,6 +183,10 @@ def site(timeline, tmp_path_factory):
     name, text = bi.site_file()
     (d / name).write_text(text, encoding="utf-8")
     _picture(d / "beach.jpg")
+    from PIL import Image                            # noise: compresses worst, so it lands at the cap
+    import random
+    rnd = random.Random(7)
+    Image.frombytes("RGB", (3000, 2000), bytes(rnd.getrandbits(8) for _ in range(3000 * 2000 * 3))).save(d / "noise.png")
     (d / "notes.pdf").write_bytes(b"%PDF-1.4 not a picture")
     (d / "broken.jpg").write_bytes(b"\xff\xd8\xff\xe0 truncated")
 
@@ -357,3 +363,26 @@ def test_a_dropped_picture_opens_the_import(browser, site):
     pg.wait_for_selector("#bg-panel .bg-fr img", timeout=8000)
     assert pg.input_value("#bg-panel .bg-ed .bg-in") == "lake"
     ctx.close()
+
+
+def test_a_picture_at_the_size_limit_saves_as_bytes_under_firestores_cap_and_syncs(browser, site):
+    """The worst case: pure noise, which no quality setting shrinks much. It is stepped down until it fits
+    MAX_BYTES, stored as Bytes (raw, not base64), and its document stays under Firestore's 1 MiB."""
+    base, tid, d = site
+    ctx = browser.new_context(viewport={"width": 1400, "height": 860})
+    pg = _page(ctx, base)
+    _import(pg, d / "noise.png", name="Static")
+    uid = pg.evaluate("window._altoBgId")
+    n = pg.evaluate(f"window.__fs.docs['users/u1/bgimg/{uid[2:]}'].d.a.length")
+    size = pg.evaluate(f"window.__fs.sizes['users/u1/bgimg/{uid[2:]}']")
+    assert pg.evaluate(f"window.__fs.docs['users/u1/bgimg/{uid[2:]}'].d.a instanceof Uint8Array")
+    assert 700_000 < n <= bi.MAX_BYTES and size < 1048576, (n, size)
+    pg.wait_for_timeout(800)
+    fs = pg.evaluate(DUMP)
+    ctx.close()
+    ctx2 = browser.new_context(viewport={"width": 1400, "height": 860})
+    pg2 = _page(ctx2, base, docs=fs)
+    pg2.wait_for_function("(getComputedStyle(document.documentElement).getPropertyValue('--alto-bg')||'').indexOf('blob:')>=0",
+                          timeout=20000)
+    assert pg2.evaluate("window._altoBgId") == uid
+    ctx2.close()
