@@ -80,19 +80,12 @@ SOLAR_CSS = r"""
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
   /* the look switch (System | Star chart) and the orbit switch: glass, under the bars at the top left */
-  /* brief.wallpaper_top: the top two bars without their glass, so the wallpaper (or picture) runs to the top */
-  html.alto-wp-top.alto-solar-hub:not(.mobile) :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;
-    box-shadow:none !important;border-color:transparent !important;}
-  html.alto-wp-top.alto-solar-hub:not(.mobile) :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,html.alto-wp-top.alto-solar-hub:not(.mobile) :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;}
-  html.alto-wp-top.alto-solar-hub.alto-bg:not(.mobile) #page-bg::before{top:-40px !important;}
-  html.alto-solar:not(.mobile) #world .node[data-solar].sol-hint:not(.focused) .node-card{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent,#6d5bd0) 55%,transparent),0 0 16px 3px color-mix(in srgb,var(--accent,#6d5bd0) 38%,transparent) !important;}
-  html.alto-stars:not(.mobile) #world .node[data-solar].sol-hint:not(.focused) .node-card{box-shadow:0 0 0 1.5px rgba(190,210,255,.55),0 0 18px 4px rgba(160,190,255,.4) !important;}
-  #world .node[data-solar]>.sol-nh{position:absolute;left:50%;top:0;transform:translate(-50%,-115%) scale(var(--ils,1));transform-origin:50% 100%;z-index:4;pointer-events:none;
-    font:700 11px/1 system-ui,sans-serif;padding:3px 5px;border-radius:7px;white-space:nowrap;color:var(--accent,#6d5bd0);background:var(--card-glass-bg,var(--surface));
-    box-shadow:0 0 0 1px color-mix(in srgb,var(--accent,#6d5bd0) 35%,transparent);}
-  html.alto-stars #world .node[data-solar]>.sol-nh{color:#dfe7ff;background:rgba(20,26,52,.82);box-shadow:0 0 0 1px rgba(170,195,255,.4);}
-  #world .node.focused>.sol-nh,html.mobile .sol-nh{display:none;}
-  #sol-ctl{position:fixed;z-index:310;left:30px;top:calc(var(--nav-bottom, 100px) + 14px);display:flex;gap:8px;align-items:center;font-family:inherit;}
+  #sol-ctl{position:fixed;z-index:310;left:71.5px;bottom:24px;height:35px;display:flex;gap:12.5px;align-items:center;font-family:inherit;}   /* in the bottom row beside the account toggle, as palace.py #pal-ctl (round 10) */
+  #sol-ctl>*{height:35px;box-sizing:border-box;border-radius:17.5px !important;}
+  #sol-ctl .sol-sw{position:relative;display:inline-block;width:26px;height:15px;border-radius:8px;background:color-mix(in srgb,var(--text) 22%,transparent);transition:background .15s;flex:none;}
+  #sol-ctl .sol-sw::after{content:'';position:absolute;left:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--surface,#fff);transition:transform .15s;}
+  #sol-ctl .on .sol-sw{background:var(--accent,#6d5bd0);} #sol-ctl .on .sol-sw::after{transform:translateX(11px);}
+  #sol-ctl .sol-st{font-size:10.5px;letter-spacing:.08em;opacity:.75;min-width:22px;text-align:left;}
   #sol-ctl button{font:inherit;font-size:12.5px;font-weight:600;letter-spacing:.02em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
     color:var(--muted);background:transparent;border:0;padding:6.25px 11.25px;border-radius:999px;line-height:1;}
   #sol-ctl .sol-seg,#sol-ctl #sol-motion,#sol-ctl .sol-opt{background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
@@ -253,16 +246,7 @@ window._altoSolarView=1;          /* the opening view is this script's (openView
 var ORBIT, SPIN, DEF=S.sizes||{sun:184, planet:96, moon:50, sat:20}, NUM=null;
 function desk(){ return !de.classList.contains('mobile'); }
 if(desk()) de.classList.add('alto-solar');
-if(desk() && S.wp_top) de.classList.add('alto-wp-top');      /* the wallpaper up behind the top bars (brief.wallpaper_top) */
-/* ...and the chart with it: the engine pins #canvas under the nav (alignInfo, an inline !important top); in the
-   System look the canvas starts at the top instead, so nothing ends where the bars were */
-function wpTop(){ var c=document.getElementById('canvas'); if(!S.wp_top || !c) return;
-  var on=desk() && LOOK==='hub' && !de.classList.contains('detail-open'), t=c.style.getPropertyValue('top');
-  if(on){ if(t!=='0px'){ c._wpT=t; c.style.setProperty('top', '0px', 'important'); } }
-  else if(t==='0px' && c._wpT) c.style.setProperty('top', c._wpT, 'important'); }
-if(S.wp_top && typeof MutationObserver==='function'){ (function(){ var c=document.getElementById('canvas');
-  if(c) new MutationObserver(wpTop).observe(c, {attributes:true, attributeFilter:['style']});
-  new MutationObserver(wpTop).observe(de, {attributes:true, attributeFilter:['class']}); wpTop(); })(); }
+
 /* the bodies, each after what it orbits */
 var B={}, ORD=[], SY=[], MOVES=false, GAL=null;
 function q(v){ return Math.round(v/2.5)*2.5; }      /* D-GRID: half a diameter on the 1.25px grid */
@@ -567,8 +551,11 @@ function draw(W, H){
       sun.glow=el('circle', {r:f2(sun.d*1.15), fill:'url(#sol-glow-'+si+')'}, g); }
     /* the unit's border (round 10): a soft hue ring in the unit's colour (System look); an Oort cloud, a faint
        shell of specks, in the Star chart look (CSS picks one). It goes round the system, with its sun. */
-    if(s.R){ var BR=s.R+28, bg=el('g', {'class':'sol-bd'}, g);
-      [1.5, 1.24, 1.02, .84, .68, .53, .4].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(BR*f)}, bg); });   /* Retro: the system's reach in stepped bands, a hard edge into black */
+    if(s.R){ var BR=s.R+28, bg=el('g', {'class':'sol-bd'}, g), OB=BR*1.5;
+      SY.forEach(function(o, oi){ var ob=B[o.sun]; if(oi===si || !ob || !o.R) return; var dd=Math.hypot(ob.hx-sun.hx, ob.hy-sun.hy), oR=o.R+28;
+        OB=Math.min(OB, dd*BR/(BR+oR)-6); });   /* (the galaxy turns rigidly: the suns' distances hold) */
+      OB=Math.max(OB, sun.d/2+60);
+      [1, .83, .68, .56, .45, .35, .27].forEach(function(f, k){ el('circle', {'class':'sol-band b'+k, r:f2(OB*f)}, bg); });   /* Retro: the system's reach in stepped bands, a hard edge into black */
       /* Retro's imperial sigil round the sun (Luke: Foundation's Empire): a ring of rays, long and short, between two hairlines */
       var sr=sun.d/2, sg=el('g', {'class':'sol-sig'}, bg), r1=sr+22, r2=sr+46;
       el('circle', {r:f2(r1-6)}, sg); el('circle', {r:f2(r2+8)}, sg); el('circle', {'class':'w', r:f2(r2+20)}, sg);
@@ -603,7 +590,8 @@ function draw(W, H){
       ch.setAttribute('data-unit', s.unit); ch.innerHTML='<b></b><span></span>'; ch.querySelector('b').textContent=pm ? pm.numeral : ''; ch.querySelector('span').textContent=lbl;
       world.appendChild(ch);
       var top=Math.max(PAD+24, (bb ? bb[1]+PAD : sun.hy-(s.R||sun.d))-44);
-      ch.style.left=Math.round((U ? (bb[0]+bb[2])/2 : sun.hx)-ch.offsetWidth/2)+'px'; ch.style.top=Math.round(top)+'px'; chips.push(ch); }
+      ch.style.left=Math.round((U ? (bb[0]+bb[2])/2 : sun.hx)-ch.offsetWidth/2)+'px'; ch.style.top=Math.round(top)+'px'; chips.push(ch);
+      if(!U){ sun.ch=ch; ch._ox=parseFloat(ch.style.left)-sun.hx; ch._oy=parseFloat(ch.style.top)-sun.hy; } }   /* (round 10) the name rides with its sun as the galaxy turns */
   });
   var lg=el('g', {'class':'sol-links'}, svg);
   (S.sun_links||[]).forEach(function(l){ if(!B[l[0]] || !B[l[1]] || !B[l[0]].n || !B[l[1]].n) return;
@@ -695,6 +683,7 @@ function apply(all){
       b.rx=x; b.ry=y; moved[id]=1;
       if(b.glow){ b.glow.setAttribute('cx', x); b.glow.setAttribute('cy', y); }
       if(b.bd) b.bd.setAttribute('transform', 'translate('+x+' '+y+')');
+      if(b.ch && b.ch.isConnected){ b.ch.style.left=Math.round(x+b.ch._ox)+'px'; b.ch.style.top=Math.round(y+b.ch._oy)+'px'; }
       if(b.mk && b.mk.isConnected){ var w=b.mk._w; b.mk.setAttribute('x', f2(x-w/2+1)); b.mk.setAttribute('y', f2(y-w/2+1)); }
     }
   });
@@ -726,8 +715,14 @@ function svgHit(k){ var rv=document.getElementById('river-svg'), r=null;
 window._altoSolarMask=function(){ ORD.forEach(function(id){ var b=B[id]; b.mk=null; });
   [].forEach.call(document.querySelectorAll('#alto-card-mask [data-mk]'), function(r){
     var b=B[r.getAttribute('data-mk').slice(5)]; if(b){ b.mk=r; r._w=parseFloat(r.getAttribute('width'))+2; } }); };
+/* scrolling or zooming (round 10, "slow to move"): the orbits ease to a rest while it lasts, so a frame is the
+   scroll alone, not the whole galaxy turning under it as well; they run on 400ms after it stops */
+var SCR=0, scrT=0;
+function scrolling(){ SCR=1; clearTimeout(scrT); scrT=setTimeout(function(){ SCR=0; go(); }, 400); }
+window.addEventListener('wheel', scrolling, {capture:true, passive:true});
+document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') scrolling(); }, {capture:true, passive:true});
 function hold(){
-  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN) return true;
+  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN || SCR) return true;
   if(window._focusedNodeId || document.querySelector('#canvas.focus-mode,#canvas.edge-hover,#detail-page.visible')) return true;
   return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
 }
@@ -868,10 +863,10 @@ function declutter(force){
   function chipsGo(){ chips.forEach(function(ch){ if(!ov){ if(ch._x) setP(ch, 0, false); return; }
     if(!ch._wh) ch._wh=[ch.offsetWidth, ch.offsetHeight];
     var w=ch._wh[0]*cls, h=ch._wh[1]*cls, x=parseFloat(ch.style.left)+ch._wh[0]/2, y=parseFloat(ch.style.top)+ch._wh[1], q=[x-w/2, y-h, x+w/2, y];
-    var hit=placed.some(function(p){ return ov2(q, p); }); setP(ch, 0, hit); if(!hit) placed.push(q); }); }
+    setP(ch, 0, false); placed.push(q); }); }       /* a unit's name always shows, first: the bodies' labels give way to it (round 10: it flickered as labels turned under it) */
   function clash(q, b){ var i, rk=RK[b.role]; for(i=0;i<placed.length;i++) if(ov2(q, placed[i])) return true;
     for(i=0;i<discs.length;i++){ var d=discs[i]; if(d[5]!==b.id && d[4]<=rk && ov2(q, d)) return true; } return false; }
-  var cg=0;
+  var cg=1; chipsGo();
   todo.sort(function(a, b){ return RK[B[a].role]-RK[B[b].role]; }).forEach(function(id){
     var b=B[id], wh=b[mk];
     if(!cg && b.role!=='sun'){ cg=1; chipsGo(); }          /* the systems' names after the suns', before the rest */
@@ -1205,7 +1200,7 @@ window.addEventListener('wheel', function(e){
     else ZS.acc=0;
     if(e.deltaY<=0) return;
   }
-  ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), local(e));
+  ovStep((OV ? OV.s : 1)*Math.max(.5, Math.min(2, Math.exp(-e.deltaY*m*.012))), LOCK ? (function(c){ return {x:c.clientWidth/2, y:c.clientHeight/2}; })(cvs()) : local(e));   /* Spokes only: a zoom about the middle, never a move */
 }, {passive:false, capture:true});
 /* Safari: a trackpad pinch is gesturestart / gesturechange / gestureend */
 document.addEventListener('gesturestart', function(e){
@@ -1355,7 +1350,18 @@ IC.fly=IC_EXTRA.fly; IC.lock=IC_EXTRA.lock;
 window._altoFlyOff=pref('fly')==='0';
 var LOCK=pref('lock')==='1', LW={t:0, x:0, y:0, done:false};
 function lockSync(){ var c=cvs(); if(c) c.classList.toggle('sol-lock', !!(LOCK && ready && desk())); }
-function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); lockSync(); ctl(); return LOCK; }
+function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); lockSync(); ctl(); if(LOCK && !window._focusedNodeId) lockStep(null); return LOCK; }
+/* the body nearest the middle of the window: where Spokes only puts you when nothing is enlarged */
+function nearestMid(){ var c=cvs(); if(!c) return null; var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, best=null, bd=Infinity;
+  ORD.forEach(function(id){ var n=B[id].n; if(!n) return; var q=n.getBoundingClientRect(); if(!q.width) return; var d=Math.hypot(q.left+q.width/2-cx, q.top+q.height/2-cy); if(d<bd){ bd=d; best=id; } });
+  return best; }
+/* no dragging the board about with Spokes only: a press on empty space does nothing (bodies, lines, buttons still work) */
+document.addEventListener('pointerdown', function(e){ if(!LOCK || !ready || !desk()) return; var c=cvs(), t=e.target;
+  if(!c || !c.contains(t) || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); }, true);
+document.addEventListener('mousedown', function(e){ if(!LOCK || !ready || !desk()) return; var c=cvs(), t=e.target;
+  if(!c || !c.contains(t) || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); }, true);
 window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 var STY=pref('style')==='retro' ? 'retro' : 'classic', RETRO=false;
@@ -1367,12 +1373,13 @@ function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('
   if(RETRO && desk()){ if(!m){ m=document.createElement('div'); m.id='sk-mark'; m.setAttribute('aria-hidden', 'true'); document.body.appendChild(m); }
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[\u2014\u2013-]\s+/)[0]; }
   else if(m) m.remove(); }
-function setSty(v){ STY=v==='retro' ? 'retro' : 'classic'; keep('style', STY); stySync(); if(ready) apply(true); ctl(); return STY; }
+function setSty(v){ STY=v==='retro' ? 'retro' : 'classic'; keep('style', STY); stySync(); chips.forEach(function(c){ c._wh=null; }); if(ready) apply(true); ctl(); return STY; }
 window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
 stySync();
 function lockStep(d){
   var f=window._focusedNodeId;
-  if(!f || !B[f]){ var s0=null; for(var i=0; i<ORD.length; i++){ if(B[ORD[i]].role==='sun' && B[ORD[i]].n){ s0=ORD[i]; break; } } if(s0 && window.enterFocus) window.enterFocus(s0); return; }
+  if(!f || !B[f]){ var s0=nearestMid(); if(s0 && window.enterFocus) window.enterFocus(s0); return; }
+  if(!d) return;
   var k={n:'ArrowUp', s:'ArrowDown', e:'ArrowRight', w:'ArrowLeft'}[d];
   document.dispatchEvent(new KeyboardEvent('keydown', {key:k, code:k, bubbles:true, cancelable:true}));
   setTimeout(function(){ document.dispatchEvent(new KeyboardEvent('keyup', {key:k, code:k, bubbles:true})); }, 30);
@@ -1399,8 +1406,8 @@ function ctl(){
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>'+
       '<div class="sol-seg" id="sol-sty" role="radiogroup" aria-label="Star chart style"><button type="button" data-sty="retro" role="radio" title="Retro: flat poster colours, gold spokes">Retro</button>'+
       '<button type="button" data-sty="classic" role="radio" title="Classic: the painted space scene">Classic</button></div>'+
-      '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span></button>'+
-      '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span></button>';
+      '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span><i class="sol-sw"></i><b class="sol-st"></b></button>'+
+      '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
       if(b.getAttribute('data-look')) setLook(b.getAttribute('data-look'));
       else if(b.getAttribute('data-sty')) setSty(b.getAttribute('data-sty'));
@@ -1417,7 +1424,8 @@ function ctl(){
   [].forEach.call(sy.querySelectorAll('[data-sty]'), function(b){ var on=b.getAttribute('data-sty')===STY; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var fb=w.querySelector('#sol-fly'), fo=!window._altoFlyOff; fb.hidden=LOOK!=='stars'; fb.classList.toggle('on', fo); fb.setAttribute('aria-pressed', fo ? 'true' : 'false');
   fb.title=fo ? 'Flights on: a spaceship flies you between bodies (click to go straight there instead)' : 'Flights off: you go straight to each body (click to fly again)';
-  var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');
+  fb.querySelector('.sol-st').textContent=fo ? 'ON' : 'OFF';
+  var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.querySelector('.sol-st').textContent=LOCK ? 'ON' : 'OFF'; lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');
   lb.title=LOCK ? 'Spokes only: on. Scrolling and arrows travel along the spokes; free scrolling is off (click to scroll freely)' : 'Spokes only: off. Click to travel only along the spokes';
 }
 /* the space bar starts / stops the orbit like the Orbit button: only while the system is showing (the button is there

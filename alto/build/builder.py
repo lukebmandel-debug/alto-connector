@@ -8,7 +8,7 @@ from pathlib import Path
 from .brief import Brief, Node, Act, Axis, AxisValue, Entity, FilterSpec, \
     FilterValue, Relation, Section, validate_brief, validate_nodes, solar_style, migrate_brief, building_view
 from .blocks import timeline_blocks, connections_block, ID_PATTERNS
-from . import backgrounds, hover_lines
+from . import backgrounds, clear_top, hover_lines
 JUMP_WITHOUT_REASON = 3   # places a line may skip before it needs a stated reason
 from .emit import emit
 from .engine_patches import apply_patches
@@ -303,7 +303,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {})
             + manual_edit(brief, nodes) + print_views()
-            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
+            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block() + clear_top.block()
             + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
     at = html.rfind("</body>")
     if at < 0:

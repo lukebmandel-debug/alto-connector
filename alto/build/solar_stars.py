@@ -565,6 +565,7 @@ window._altoSkinStats={
 # lettering. html.sk-retro is set by solar_draw.py's style switch (kept per timeline like the look).
 _X = "html.alto-stars.sk-retro:not(.mobile)"
 RETRO_CSS = r"""
+  html.alto-clear-top.alto-stars:not(.mobile) #title-text{color:#eef2ff !important;}   /* (the bars are clear, clear_top.py: the sky is under the name) */
   #solar-svg .sol-band,#solar-svg .sol-bun,#solar-svg .sol-sig,#sk-mark,#sk-frame{display:none;}
   /* Foundation's Empire (Luke): black and gold, the imperial sun's sigil, a monumental frame, thin wide letters */
   X #solar-svg .sol-sig{display:inline;fill:none;stroke:#d9ae55;stroke-width:1.1;stroke-opacity:.85;}
@@ -581,6 +582,10 @@ RETRO_CSS = r"""
   X #sk-frame b{position:absolute;left:50%;top:0;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
     background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
   X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}
+  /* Alto's own marks in Retro: the glyph and the wordmark in the Empire's gold (Retro only) */
+  X svg:is(.brand-mark,.brand-word) [fill^="url"],X svg:is(.brand-mark,.brand-word) .alto-word{fill:#d9ae55 !important;}
+  X svg:is(.brand-mark,.brand-word) [stroke^="url"],X svg.brand-mark .alto-head{stroke:#d9ae55 !important;}
+  X svg:is(.brand-mark,.brand-word){filter:drop-shadow(0 0 6px rgba(217,174,85,.35));}
   X .sol-unit::before,X .sol-unit::after{content:'\25C6';margin:0 .7em;font-size:.7em;vertical-align:.15em;color:#d9ae55;}
   X #canvas{background:#000 !important;}
   X .sk-sky,X #solar-svg .sk-rg,X #solar-svg .sk-tr,X #solar-svg .sol-oort,X #solar-svg .sol-ubd,X #solar-svg [fill^="url(#sol-glow"]{display:none !important;}
@@ -618,7 +623,7 @@ RETRO_CSS = r"""
   X .sol-unit{font-weight:300 !important;background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;
     border:0 !important;border-radius:0 !important;color:#d9ae55 !important;letter-spacing:.32em !important;}
   X .sol-unit b,X .sol-unit span{color:#d9ae55 !important;}
-  X #sk-mark{display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:300;pointer-events:none;color:#efe6cf;font-size:20px;font-weight:300;letter-spacing:.62em;opacity:.95;white-space:nowrap;}
+  X #sk-mark{display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:78px;z-index:300;pointer-events:none;color:#efe6cf;font-size:20px;font-weight:300;letter-spacing:.62em;opacity:.95;white-space:nowrap;}
   X #sk-mark::before,X #sk-mark::after{content:'';display:inline-block;width:64px;height:1.5px;margin:0 22px 6px;background:#d9ae55;vertical-align:middle;}
   body:has(#detail-page.visible) #sk-mark{display:none !important;}
   /* the page round the chart goes black too: the bars, the name in poster letters, the switches rimmed in gold */
@@ -628,6 +633,7 @@ RETRO_CSS = r"""
   X #sol-ctl .sol-seg,X #sol-ctl #sol-motion,X #sol-ctl .sol-opt{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border-radius:0 !important;}
   X #sol-ctl button{color:#c9d1dc !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}
   X #sol-ctl .sol-seg button.on,X #sol-ctl #sol-motion.on,X #sol-ctl .sol-opt.on{color:#000 !important;background:#d9ae55 !important;}
+  X #sol-ctl>*{border-radius:0 !important;} X #sol-ctl .sol-sw{border-radius:0;background:#333;} X #sol-ctl .sol-sw::after{border-radius:0;background:#d9ae55;} X #sol-ctl .on .sol-sw{background:#000;}
   /* the enlarged disc: a navy plate rimmed in gold */
   X #world .node[data-solar]:is(.focused,.sol-closing) .sol-scrim{background:#0a1b34 !important;}
   X #world .node[data-solar]:is(.focused,.sol-closing) .node-card:not(#_){background:#0a1b34 !important;filter:none;box-shadow:0 0 0 2px #d9ae55,0 0 0 8px #000,0 0 0 9px rgba(217,174,85,.55) !important;}

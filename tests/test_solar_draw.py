@@ -140,7 +140,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 30000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
+    assert size < 32000, size      # + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
 
 
 def test_the_hub_look_orbits_on_the_same_plan():

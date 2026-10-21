@@ -122,9 +122,10 @@ def test_wallpaper_top_erases_the_bars_but_keeps_their_controls(browser, page):
     assert all(x[0] == "rgba(0, 0, 0, 0)" and x[1] == "none" and x[2] == "visible" for x in s), s
     assert pg.evaluate("() => document.getElementById('canvas').getBoundingClientRect().top") == 0
     assert pg.evaluate("() => !!document.querySelector('#title-text') && document.querySelector('#title-text').offsetWidth > 0")
-    pg.evaluate("() => window._altoSolarLook.set('stars')")                    # the Star chart keeps its bars
+    pg.evaluate("() => window._altoSolarLook.set('stars')")                    # every look, every format (clear_top.py)
     pg.wait_for_timeout(300)
-    assert pg.evaluate("() => document.getElementById('canvas').getBoundingClientRect().top") > 40
+    assert pg.evaluate("() => document.getElementById('canvas').getBoundingClientRect().top") == 0
+    assert pg.evaluate("() => getComputedStyle(document.getElementById('title-text')).color") == "rgb(238, 242, 255)"
     pg.context.close()
     assert not errs, errs
 

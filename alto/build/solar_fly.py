@@ -496,6 +496,12 @@ function layer(){
     ship=el('g', {'class':'fly-craft'}, gp);
     el('circle', {r:9, 'class':'fly-halo'}, ship);
     el('path', {d:'M7 0 L-5 -4.6 L-2.6 0 L-5 4.6 Z', 'class':'fly-hull'}, ship);
+    /* Retro's craft (round 10): the poster's probe — dish forward, a box, a boom, the antenna's legs; shown by CSS in html.sk-retro */
+    var pr=el('g', {'class':'fly-probe'}, ship);
+    el('path', {d:'M3 -6 A3.4 6.2 0 0 1 3 6 Z', 'class':'pr-dish'}, pr);
+    el('rect', {x:-4.2, y:-2.6, width:6, height:5.2, 'class':'pr-bus'}, pr);
+    el('path', {d:'M-1.5 -2.6 V-9.5 H-4.5 M-2 2.6 L-9 13 M-2 2.6 L1.5 11 M-2 2.6 L-6.5 8.5', 'class':'pr-arm'}, pr);
+    el('circle', {cx:-1.2, cy:0, r:.9, 'class':'pr-dot'}, pr);
     w.appendChild(svg);
   }
   svg.setAttribute('width', w.offsetWidth); svg.setAttribute('height', w.offsetHeight);
@@ -513,7 +519,10 @@ function draw(p, h, s, now){
   var d='M'+tr.map(function(q){ return f1(q[0])+' '+f1(q[1]); }).join('L');
   trl.setAttribute('d', d);
   var t0=tr[0]; grd.setAttribute('x1', f1(t0[0])); grd.setAttribute('y1', f1(t0[1])); grd.setAttribute('x2', f1(p[0])); grd.setAttribute('y2', f1(p[1]));
-  ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+Math.round(h*180/Math.PI)+') scale('+(Math.round(1000/s)/1000)+')');
+  var k=Math.round(1000/s)/1000;
+  if(document.documentElement.classList.contains('sk-retro')){       /* Retro: upright, facing its way, in stop-motion steps (12 a second) */
+    if(!FL.st || now-FL.st>=83){ FL.st=now; ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') scale('+(Math.cos(h)<0 ? -k : k)+','+k+') scale(2.2)'); } }
+  else ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+Math.round(h*180/Math.PI)+') scale('+k+')');
   if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
     pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', f1(4/s)+' '+f1(8/s));
     trl.setAttribute('stroke-width', f1(2.6/s*10)/10); }
@@ -664,6 +673,15 @@ FLY_CSS = r"""
   html.dark #solar-fly-svg .fly-path{stroke:#fff;stroke-opacity:.38;}
   html.dark #solar-fly-svg .fly-t0,html.dark #solar-fly-svg .fly-t1,html.dark #solar-fly-svg .fly-halo{stop-color:#cfc6ff;fill:#cfc6ff;}
   html.dark #solar-fly-svg .fly-hull{fill:#cfc6ff;stroke:#1a1830;}
+  #solar-fly-svg .fly-probe{display:none;}
+  html.sk-retro #solar-fly-svg .fly-probe{display:inline;}
+  html.sk-retro #solar-fly-svg .fly-hull,html.sk-retro #solar-fly-svg .fly-halo{display:none;}
+  html.sk-retro #solar-fly-svg .pr-dish{fill:#f2f2ee;}
+  html.sk-retro #solar-fly-svg .pr-bus{fill:#7d838c;stroke:#b9bec6;stroke-width:.8;}
+  html.sk-retro #solar-fly-svg .pr-arm{fill:none;stroke:#b9bec6;stroke-width:1.1;stroke-linecap:square;}
+  html.sk-retro #solar-fly-svg .pr-dot{fill:#d9ae55;}
+  html.sk-retro #solar-fly-svg .fly-path{stroke:#d9ae55 !important;stroke-opacity:.75 !important;stroke-linecap:butt;}
+  html.sk-retro #solar-fly-svg .fly-t0,html.sk-retro #solar-fly-svg .fly-t1{stop-color:#f0c15e !important;}
 """
 
 
