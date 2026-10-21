@@ -1043,6 +1043,7 @@ window._altoSolarNav=function(id, dir){
   return nx || id;
 };
 var levelNav=window._altoSolarNav;     /* (unwrapped: solar_fly.py wraps the global to fly the hop) */
+window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight) */
 /* ── navigation hints (round 11; Luke on round 10's glow and badges: "just not adequate"). With a body
    enlarged, each place an arrow key goes (with Spokes only: a scroll that way) says so where it is: a pill
    beside that body — the key, the move, the body's name (its own label steps aside). The way there is
@@ -1441,10 +1442,10 @@ function nearestMid(){ var c=cvs(); if(!c) return null; var r=c.getBoundingClien
   return best; }
 /* no dragging the board about with Spokes only: a press on empty space does nothing (bodies, lines, buttons still work) */
 document.addEventListener('pointerdown', function(e){ if(!LOCK || !ready || !desk()) return; var c=cvs(), t=e.target;
-  if(!c || !c.contains(t) || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;
+  if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (turning the 3D view is not a move) */
   e.preventDefault(); e.stopImmediatePropagation(); }, true);
 document.addEventListener('mousedown', function(e){ if(!LOCK || !ready || !desk()) return; var c=cvs(), t=e.target;
-  if(!c || !c.contains(t) || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;
+  if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (turning the 3D view is not a move) */
   e.preventDefault(); e.stopImmediatePropagation(); }, true);
 window._altoSolarLock={get:function(){ return LOCK; }, set:setLock};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
@@ -1543,8 +1544,8 @@ if(!window._altoSolarTip){ var _ts=window._altoTipShow;
       if(r>half) sh=half-r; if(l+sh<-half) sh=-half-l;
       if(Math.abs(sh)>.5){ tip.style.left=(parseFloat(tip.style.left)+sh/(k*(parseFloat(getComputedStyle(document.documentElement).zoom)||1)))+'px'; }
       if(performance.now()-t0<760) requestAnimationFrame(fr); })(); }; }
-window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p}; });
-  return {T:T, moving:!!raf, bodies:o}; };
+window._altoSolarGeo=function(){ var o={}; ORD.forEach(function(id){ var b=B[id]; if(b.n) o[id]={x:b.rx, y:b.ry, hx:b.hx, hy:b.hy, d:b.d, role:b.role, p:b.p, si:b.si}; });
+  return {T:T, moving:!!raf, bodies:o, units:SY.map(function(s, si){ return {sun:s.sun, si:si, unit:s.unit, R:s.R||0, c:unitColor(si)||''}; })}; };
 return true;
 };
 if(window._ALTO_SOLAR) window._altoSolarMount(window._ALTO_SOLAR);

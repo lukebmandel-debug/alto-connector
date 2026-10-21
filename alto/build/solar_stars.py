@@ -546,7 +546,7 @@ function wrap(k, then){ var f=window[k]; if(!f || f._sk) return;
    (2) an ocean world's clouds turn on their own, faster; (3) the lit side keeps facing its sun (the Classic .sk-lit,
    above it); (4) a nearer star field drifts slower than the board as it pans, so space has depth. ── */
 var RL={raf:0, i:0, par:null};
-function realOn(){ return ready && desk() && de.classList.contains('sk-real') && !de.classList.contains('alto-editing'); }
+function realOn(){ return ready && desk() && de.classList.contains('sk-real') && !de.classList.contains('sk-3d') && !de.classList.contains('alto-editing'); }   /* (with WebGL, solar_3d.py draws the style) */
 function realBody(k){ return k.n && k.tex && /^(rocky|desert|ocean|gas|ice|lava|moon)$/.test(k.kind); }
 /* the strip, built a few rows a frame: W = 3N longitudes, H = 1.5N latitudes; its two ends cross-faded so it wraps */
 function realStrip(k){
@@ -616,6 +616,7 @@ function hook(){
 hook();
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', hook);
 window.addEventListener('afterprint', function(){ idle=0; kick(); });
+window._altoSkPaint=function(kind, id){ return painter(kind, id); };   /* (solar_3d.py paints its globes with the same surfaces) */
 window._altoSkinStats={
   get:function(){ var d=ST.t.slice().sort(function(a, b){ return a-b; }), q=function(p){ return d.length ? +d[Math.min(d.length-1, Math.floor(d.length*p))].toFixed(3) : 0; };
     return {n:d.length, p50:q(.5), p95:q(.95), max:q(1), pending:Q.length, ext:extT>0}; },
