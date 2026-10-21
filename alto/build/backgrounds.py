@@ -181,7 +181,7 @@ HEAD_JS = r"""(function(){
     if(f) Q.push(f); var L=window._altoBgLib;
     if(L){ while(Q.length) Q.shift()(L); return; }
     if(need.s || !web()) return; need.s=1;
-    var s=document.createElement('script'); s.src=LP; s.async=true; s.onload=function(){ need(); }; (document.head||r).appendChild(s);
+    var s=document.createElement('script'); s.src=LP; s.async=true; s.addEventListener('load', function(){ need(); }); (document.head||r).appendChild(s);
   }
   // an id -> its entry: the catalog's, an imported picture's, or one made from a colour the user picked
   function get(id){

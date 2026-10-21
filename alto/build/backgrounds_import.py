@@ -424,7 +424,9 @@ LIB_JS = r"""(function(){
         out.buf=buf;
         return authed().then(function(c){ return within(c.bgLib.put(id, entry, new Uint8Array(buf), out.blob.type), 45000); });
       }).then(function(){
-        idbPut(id, {buf:out.buf, type:out.blob.type}).catch(function(){});
+        // this browser's copy before anything else: a reload straight after must find it here
+        return idbPut(id, {buf:out.buf, type:out.blob.type}).catch(function(){});
+      }).then(function(){
         U[id]=URL.createObjectURL(out.blob);
         var L=readLib(); L[id]=entry;
         try{ localStorage.setItem(LK, JSON.stringify(L)); }catch(e){}
