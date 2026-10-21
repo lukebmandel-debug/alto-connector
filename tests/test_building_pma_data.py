@@ -263,7 +263,7 @@ def test_art_slots_only_where_a_gallery_number_is_confirmed():
     assert monet["sz"] == [0.98, 0.79] and "78.7 x 97.8" in monet["sr"] and monet["sb"] == "catalogued" and monet["work"]["pma_url"].endswith("/87535")
     assert slots["sl-tanner-annunciation"]["gl"] == "358" and slots["sl-peale-yarrow-mamout"]["gl"] == "104"
     assert "img" not in slots["sl-rivera-sugar-cane"]["work"] and "img" in slots["sl-van-der-weyden-crucifixion"]["work"]
-    assert sum(1 for s in PLAN["sl"] if "img" in s["work"]) == 5
+    assert sum(1 for s in PLAN["sl"] if "img" in s["work"]) == len(pma_art.manifest()["images"]) >= 30
 
 
 # ── nodes ────────────────────────────────────────────────────────────────────
