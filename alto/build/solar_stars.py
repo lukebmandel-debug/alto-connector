@@ -649,13 +649,14 @@ STARS_CSS += REAL_CSS
 
 RETRO_CSS = r"""
   html.alto-clear-top.alto-stars:not(.mobile) #title-text{color:#eef2ff !important;}   /* (the bars are clear, clear_top.py: the sky is under the name) */
-  #solar-svg .sol-band,#solar-svg .sol-bun,#solar-svg .sol-sig,#sk-mark,#sk-frame{display:none;}
+  #solar-svg .sol-bun,#solar-svg .sol-sig,#sk-mark,#sk-frame{display:none;}
   /* Foundation's Empire (Luke): black and gold, the imperial sun's sigil, a monumental frame, thin wide letters */
   X #solar-svg .sol-sig{display:inline;fill:none;stroke:#d9ae55;stroke-width:1.1;stroke-opacity:.85;}
   X #solar-svg .sol-sig .k{stroke-width:2;stroke-opacity:1;} X #solar-svg .sol-sig .w{stroke-opacity:.35;stroke-dasharray:1 9;stroke-width:3;}
   X #canvas.sol-ov #solar-svg .sol-sig line:not(.k){display:none;}
-  X #solar-svg .sol-band{stroke:#d9ae55 !important;stroke-opacity:.16;stroke-width:1;}
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:14px;right:14px;top:calc(var(--nav-bottom,100px) + 56px);bottom:14px;}
+  /* the frame (Luke, 2026-10-21, with the bars clear since 1.9.120): from just under the name and the chips to just
+     over the bottom row of controls (bottom 24px, 35px high), the same 12px clear of each, so top and bottom match */
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:14px;right:14px;top:calc(var(--nav-bottom,100px) + 12px);bottom:71px;}
   X #sk-frame i{position:absolute;width:46px;height:46px;border:0 solid #d9ae55;opacity:.8;}
   X #sk-frame i:nth-child(1){left:0;top:0;border-width:1.5px 0 0 1.5px;} X #sk-frame i:nth-child(2){right:0;top:0;border-width:1.5px 1.5px 0 0;}
   X #sk-frame i:nth-child(3){left:0;bottom:0;border-width:0 0 1.5px 1.5px;} X #sk-frame i:nth-child(4){right:0;bottom:0;border-width:0 1.5px 1.5px 0;}
@@ -672,12 +673,13 @@ RETRO_CSS = r"""
   X .sol-unit::before,X .sol-unit::after{content:'\25C6';margin:0 .7em;font-size:.7em;vertical-align:.15em;color:#d9ae55;}
   X #canvas{background:#000 !important;}
   X .sk-sky,X #solar-svg .sk-rg,X #solar-svg .sk-tr,X #solar-svg .sol-oort,X #solar-svg .sol-ubd,X #solar-svg [fill^="url(#sol-glow"]{display:none !important;}
-  X #solar-svg .sol-band{display:inline;stroke:none;}
-  X #solar-svg .sol-band.b0{fill:#061224;} X #solar-svg .sol-band.b1{fill:#0a1b34;} X #solar-svg .sol-band.b2{fill:#0e2545;}
-  X #solar-svg .sol-band.b3{fill:#133058;} X #solar-svg .sol-band.b4{fill:#183c6c;} X #solar-svg .sol-band.b5{fill:#1e4a82;} X #solar-svg .sol-band.b6{fill:#265a98;}
-  /* the orbits: a technical drawing's thin lines; the moons' dotted */
-  X #solar-svg .sol-ring{stroke:#9cc0ea;stroke-opacity:calc(.28 * var(--lk,1));stroke-width:calc(1px * var(--lw,1));}
-  X #solar-svg .sol-ring.sol-m{stroke-dasharray:1.5 5;stroke-linecap:round;stroke-opacity:calc(.42 * var(--lk,1));}
+  /* the orbits are the bands (solar_draw.py oBands): stepped, edge to edge, light near the sun and dark at the reach;
+     a moon's a lighter blue over its planet's; no thin rings. A band takes an orbit's hover and click. */
+  X #solar-svg .sol-hit.sol-oband{display:inline;fill:none;stroke:var(--bc);stroke-width:var(--bw);stroke-opacity:1;transition:stroke .2s,stroke-opacity .2s;}
+  X #solar-svg .sol-hit.sol-oband.sol-m{stroke-opacity:.82;}
+  X #solar-svg .sol-hit.sol-oband.sol-hot{stroke:color-mix(in srgb,var(--bc) 55%,#d9ae55);stroke-opacity:1;}
+  X #canvas.sol-lhov #solar-svg .sol-hit.sol-oband:not(.sol-hot){stroke-opacity:.5;}
+  X #solar-svg .sol-ring,X #solar-svg .sol-hit.sol-rgh{display:none;}
   /* the spokes: the poster's gold signal beam, five fine parallel lines */
   X #solar-svg .sol-spoke,X #solar-svg .sol-bun{display:inline;stroke:#f0c15e;stroke-opacity:1;stroke-width:calc(1.15px * var(--lw,1));stroke-linecap:butt;}
   X #canvas.sol-ov #solar-svg .sol-bun{display:none;}
@@ -711,9 +713,8 @@ RETRO_CSS = r"""
   X #sk-mark{display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:78px;z-index:300;pointer-events:none;color:#efe6cf;font-size:20px;font-weight:300;letter-spacing:.62em;opacity:.95;white-space:nowrap;}
   X #sk-mark::before,X #sk-mark::after{content:'';display:inline-block;width:64px;height:1.5px;margin:0 22px 6px;background:#d9ae55;vertical-align:middle;}
   body:has(#detail-page.visible) #sk-mark{display:none !important;}
-  /* the page round the chart goes black too: the bars, the name in poster letters, the switches rimmed in gold */
+  /* the page round the chart goes black too (the bars stay clear, as on every main page: clear_top.py), the name in poster letters, the switches rimmed in gold */
   X #page-bg:not(#_){background:#000 !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
-  X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;border-color:#111 !important;}
   X #title-text:not(#_){color:#efe6cf !important;font-family:"Avenir Next","Futura","Century Gothic",system-ui,sans-serif !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X #sol-ctl .sol-seg,X #sol-ctl #sol-motion,X #sol-ctl .sol-opt{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border-radius:0 !important;}
   X #sol-ctl button{color:#c9d1dc !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}

@@ -158,17 +158,20 @@ function ease(p){ return p<.5 ? 4*p*p*p : 1-Math.pow(-2*p+2, 3)/2; }
 function down(e){ if(e.button) return; drag={x:e.clientX, y:e.clientY, az:cam.az, el:cam.el, m:false, id:e.pointerId}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} }
 function move(e){
   if(drag && e.pointerId===drag.id){ var dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(!drag.m && Math.abs(dx)+Math.abs(dy)<4) return;
-    drag.m=true; cv.classList.add('drag'); tw=null; cam.az=drag.az-dx*.006; cam.el=Math.max(-1.45, Math.min(1.45, drag.el+dy*.006)); return; }
+    drag.m=true; if(lk()) return;                 /* Spokes only: no free camera (a drag turns nothing) */
+    cv.classList.add('drag'); tw=null; cam.az=drag.az-dx*.006; cam.el=Math.max(-1.45, Math.min(1.45, drag.el+dy*.006)); return; }
   var h=pick(e.clientX, e.clientY); cv.style.cursor=h ? 'pointer' : '';
   tip(h && h.line ? h : null, e);
 }
 function up(e){ if(!drag || e.pointerId!==drag.id) return; var d=drag; drag=null; cv.classList.remove('drag');
   if(d.m) return; var h=pick(e.clientX, e.clientY); if(!h) return;
   var to=h.id; if(h.sp) to=window._focusedNodeId===h.sp[1] ? h.sp[0] : h.sp[1];
-  if(to && window.enterFocus) setTimeout(function(){ window.enterFocus(to); }, 0); }   /* (after the click this pointerup makes: the engine reads that as a click away) */
+  if(to && lk() && window._altoSolarGo){ setTimeout(function(){ window._altoSolarGo(to, e); }, 0); return; }   /* Spokes only: one spoke away rides, the rest says so */
+  if(to && window.enterFocus) setTimeout(function(){ window.enterFocus(to); }, 0); }
+function lk(){ return !!(window._altoSolarLock && window._altoSolarLock.get()); }   /* (after the click this pointerup makes: the engine reads that as a click away) */
 function wheel(e){
   if(!on || !cv || !(e.target===cv || (lay && lay.contains(e.target)))) return;
-  if(window._altoSolarLock && window._altoSolarLock.get() && !e.ctrlKey) return;        /* (Spokes only steps along the spokes: solar_draw.py) */
+  if(lk()) return;        /* (Spokes only: no zoom; a scroll rides a spoke, solar_draw.py) */
   e.preventDefault(); e.stopImmediatePropagation(); tw=null;
   var m=e.deltaMode===1 ? 16 : e.deltaMode===2 ? 400 : 1, dy=e.deltaY*m, dx=e.deltaX*m;
   cam.d=Math.max(60, Math.min(60000, cam.d*Math.exp(dy*(e.ctrlKey ? .012 : .0025))));
@@ -269,10 +272,12 @@ function lines(G){
   gl.drawArrays(gl.LINES, 0, v.length/3); dis(l); gl.depthMask(true);
 }
 /* the names (bodies' under them, units' above their suns) and the hints, an HTML layer over the scene */
-var NHD={n:['↑', 'Up a level'], s:['↓', 'Down a level'], w:['←', 'Previous'], e:['→', 'Next']};
+var NHD={n:['↑', 'Up a level'], s:['↓', 'Down a level'], w:['←', 'Previous'], e:['→', 'Next'], c:['•', 'Click to ride']};
 function hints(G){
   var f=window._focusedNodeId, out={}; hints.hot={};
   if(!f || !G.bodies[f] || !window._altoSolarLevelNav || (window._altoSolarFlight && window._altoSolarFlight())) return out;
+  var Wy=lk() && window._altoSolarLock.ways ? window._altoSolarLock.ways(f) : null;     /* Spokes only: every body one spoke away, and only those */
+  if(Wy){ Wy.nb.forEach(function(to){ if(G.bodies[to]){ out[to]=[Wy.d[to]||'c']; hints.hot[to]=1; } }); return out; }
   ['n', 's', 'w', 'e'].forEach(function(d){ var to=window._altoSolarLevelNav(f, d); if(to && to!==f && G.bodies[to]){ (out[to]=out[to]||[]).push(d); hints.hot[to]=1; } });
   return out;
 }
@@ -281,7 +286,7 @@ function labels(G, r){
   var z=zoomK(), H=hints(G), nb=0, ni=0, f=window._focusedNodeId;
   function b(cls){ var e=PB[nb]; if(!e){ e=PB[nb]=document.createElement('b'); lay.appendChild(e); } nb++; e.className=cls; e.style.display=''; return e; }
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
-    e.children[0].textContent=H[id].map(function(d){ return NHD[d][0]; }).join(''); e.children[1].textContent=NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
+    e.children[0].textContent=H[id].map(function(d){ return NHD[d][0]; }).join(''); e.children[1].textContent=(lk() && H[id][0]!=='c') ? 'Ride' : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun], q=s && proj(W(s)); if(!q) return; var ch=document.querySelector('.sol-unit[data-unit="'+u.unit+'"] span'); if(!ch) return;
     var e=b('u'); e.textContent=ch.textContent; e.style.setProperty('--u', u.c||'#9fb4ff'); at(e, q.x, q.y-Math.max(30, s.d/2*q.s*1.9)); });
