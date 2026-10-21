@@ -641,6 +641,8 @@ RETRO_CSS = r"""
   X #world .node[data-solar]:is(.focused,.sol-closing) .node-tag{color:#d9ae55 !important;letter-spacing:.2em;}
   X #world .node[data-solar]:is(.focused,.sol-closing) .node-title{font-family:"Avenir Next","Futura","Century Gothic",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.06em;}
   X #world .node-card>.node-footer>:is(button,.sol-more){background:#000 !important;border:1px solid rgba(217,174,85,.75) !important;color:#d9ae55 !important;box-shadow:none !important;}
+  X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #ct-chips{background:#000 !important;border-color:rgba(217,174,85,.6) !important;color:#d9ae55 !important;}
   X .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;}
 """.replace("X ", _X + " ").replace("PROBE", "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='none' stroke='%23b9bec6' stroke-width='1.6'%3E%3Cpath d='M23 8v6h3M24 20l-7 14M24 20l4 9M24 20l7 7'/%3E%3Crect x='21' y='15' width='6' height='7' fill='%237d838c'/%3E%3C/g%3E%3Cpath d='M19 12a7 8 0 0 0 0 14z' fill='%23f2f2ee'/%3E%3Ccircle cx='24' cy='18.5' r='1.3' fill='%23d6a93c'/%3E%3C/svg%3E")
 STARS_CSS += RETRO_CSS

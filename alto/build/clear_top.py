@@ -18,28 +18,27 @@ html.alto-clear-top.alto-bg:not(.mobile) #page-bg::before{top:-40px !important;}
 html.alto-clear-top:not(.mobile):not(.detail-open) #canvas{padding-top:var(--nav-bottom,0px);scroll-padding-top:var(--nav-bottom,0px);}
 html.alto-clear-top:not(.mobile) #lanes-ov-sky{top:0 !important;}   /* (lanes_nav.py: the zoomed-out backdrop, under the bars too) */
 /* each thing on the bars keeps itself legible over whatever scrolls under it: the chips have their own glass already;
-   the clef, the name, the wordmark and the group labels get a light pad of the same frosted glass, nothing more
-   (Luke: "like other toggles … but use it sparingly"). Retro's Star chart has black bars of its own. */
-html.alto-clear-top:not(.mobile):not(:is(.sk-retro.alto-stars)) :is(#title-text,svg.brand-mark,svg.brand-word,.nav-group-label){
+   the name and the group labels get a light pad of the same frosted glass, nothing more (the clef and the wordmark
+   stand as on the homepage: Luke, "like other toggles … but use it sparingly"). Retro's Star chart restyles its own. */
+html.alto-clear-top:not(.mobile) :is(#title-text,.nav-group-label){
   background:color-mix(in srgb,var(--surface,#fff) 42%,transparent);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);
   --ct-g:color-mix(in srgb,var(--surface,#fff) 42%,transparent);box-shadow:0 0 0 var(--ct-pad,5px) var(--ct-g);}   /* the pad is a spread, not padding: no box moves */
-html.alto-clear-top:not(.mobile):not(:is(.sk-retro.alto-stars)) #title-text{--ct-pad:6px;border-radius:999px;}
-html.alto-clear-top:not(.mobile):not(:is(.sk-retro.alto-stars)) :is(svg.brand-mark,svg.brand-word){--ct-pad:5px;border-radius:8px;}
-html.alto-clear-top:not(.mobile):not(:is(.sk-retro.alto-stars)) .nav-group-label{--ct-pad:3px;border-radius:4px;}
+html.alto-clear-top:not(.mobile) #title-text{--ct-pad:6px;border-radius:999px;}
+html.alto-clear-top:not(.mobile) .nav-group-label{--ct-pad:3px;border-radius:4px;}
 /* the bars are see-through now, the board under them: a click there reaches the board unless it is on a control */
 html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar),html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar) *{pointer-events:none;}
 html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar) :is(button,a,input,select,textarea,label,svg,[role=button],[onclick],[tabindex],#title-text),
 html.alto-clear-top:not(.mobile) :is(#title-bar,#nav,#node-nav-bar) :is(button,a,svg,[role=button],[onclick]) *{pointer-events:auto;}
-/* the chips' own collapse (Luke): a little reel at the left end of the chip row. Turned, it winds the chips into
-   itself like a tape measure (the nearest first, the far ones travelling longest), and turned back it runs them
+/* the chips' own collapse (Luke): a little x in line with the chips, just before the first. Clicked, it spins like a wheel and winds
+   the chips into itself like a tape measure, coming to rest as a + (the nearest first, the far ones travelling longest), and turned back it runs them
    out again; on the timeline and its detail pages alike, kept per viewer; the row keeps its height */
 html.ct-chips-off:not(.mobile) #nav>*{visibility:hidden !important;}
-#ct-chips{position:fixed;z-index:120;left:15px;width:26px;height:26px;margin-top:-13px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;
+#ct-chips{position:fixed;z-index:120;left:-100px;width:22px;height:22px;margin-top:-11px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--muted);border:1px solid var(--card-glass-border,var(--border));background:color-mix(in srgb,var(--surface,#fff) 55%,transparent);
   -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);transition:color .12s;}
 #ct-chips:hover{color:var(--text);}
 #ct-chips .rl{transform-origin:12px 12px;transform-box:view-box;}
-html.sk-retro.alto-stars #ct-chips{background:#000;border-color:rgba(217,174,85,.6);color:#d9ae55;}
+html.ct-chips-off #ct-chips .rl{transform:rotate(45deg);}
 html.mobile #ct-chips{display:none;}
 @media print{ #ct-chips{display:none !important;} }
 """
@@ -59,12 +58,11 @@ JS = r"""(function(){
   var nav=document.getElementById('nav'); if(!nav || !nav.querySelector('button')) return;
   var K='alto-chips-off', off=false, busy=false; try{ off=localStorage.getItem(K)==='1'; }catch(e){}
   var bt=document.createElement('button'); bt.type='button'; bt.id='ct-chips';
-  bt.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/>'+
-    '<g class="rl" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.8V4.5M13.9 13.1l4.6 2.7M10.1 13.1l-4.6 2.7"/></g>'+
-    '<path d="M21 12h2.4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  bt.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><g class="rl"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g></svg>';   /* an x; spun shut it rests as a + */
   var reel=bt.querySelector('.rl');
   function label(){ bt.setAttribute('aria-pressed', off ? 'true' : 'false'); bt.title=off ? 'Show the chips' : 'Hide the chips'; bt.setAttribute('aria-label', bt.title); }
-  function place(){ var r=nav.getBoundingClientRect(); if(r.height) bt.style.top=Math.round(r.top+r.height/2)+'px'; }
+  function place(){ var its=items(), f=its[0]; if(!f) return; var r=f.getBoundingClientRect();     /* in line with the chips: just before the first (hidden ones keep their place) */
+    if(!r.width) return; bt.style.top=Math.round(r.top+r.height/2)+'px'; bt.style.left=Math.max(6, Math.round(r.left-22-8))+'px'; }
   function items(){ return [].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth && !(e.parentElement && e.parentElement.closest('#nav button')); }); }
   function quiet(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
   function turn(){
@@ -75,7 +73,8 @@ JS = r"""(function(){
     its.forEach(function(e){ var r=e.getBoundingClientRect(), dx=hx-(r.left+r.width/2), d=Math.abs(dx), ms=Math.min(720, 160+d*.45); T=Math.max(T, ms);
       var away={transform:'translateX('+dx.toFixed(1)+'px) scaleX(.06)', opacity:0}, home={transform:'none', opacity:1};
       anims.push(e.animate(off ? [home, away] : [away, home], {duration:ms, easing:off ? 'cubic-bezier(.55,0,.85,.4)' : 'cubic-bezier(.15,.6,.3,1)', fill:'both'})); });
-    reel.animate([{transform:'rotate(0deg)'}, {transform:'rotate('+(off ? -1 : 1)*Math.round(T*1.2)+'deg)'}], {duration:T, easing:'cubic-bezier(.3,0,.3,1)'});
+    var turns=45+360*Math.max(1, Math.round(T/360));      /* the x turns like a wheel as they wind in, and lands a + (and back) */
+    reel.animate(off ? [{transform:'rotate(0deg)'}, {transform:'rotate('+turns+'deg)'}] : [{transform:'rotate('+turns+'deg)'}, {transform:'rotate(0deg)'}], {duration:T, easing:'cubic-bezier(.3,0,.3,1)'});
     busy=true;
     setTimeout(function(){ busy=false; if(off) de.classList.add('ct-chips-off'); anims.forEach(function(a){ a.cancel(); }); }, T+20);
   }
