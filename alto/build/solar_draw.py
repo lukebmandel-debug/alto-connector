@@ -71,6 +71,30 @@ SOLAR_CSS = r"""
   .sol-ship .sh-glow,.fly-ship .sh-glow{fill:#ffd27a;fill-opacity:.3;}
   .sol-ship .sh-ring,.fly-ship .sh-ring{fill:none;stroke:#d9ae55;stroke-width:1.1;stroke-opacity:.55;} .sol-ship .sh-near,.fly-ship .sh-near{stroke-opacity:1;stroke-width:1.3;}
   #solar-svg :is(.sol-spoke,.sol-link).sol-ride{stroke-opacity:.95 !important;stroke-width:3px !important;}
+  /* the Tour (solar_draw's Tour block): a route drawn on the whole system, your place ringed, a body passed lit, the bar, bigger named buttons */
+  #solar-svg :is(.sol-spoke,.sol-link).sol-route{stroke:#f0b542 !important;stroke-opacity:1 !important;stroke-width:4px !important;vector-effect:non-scaling-stroke;}
+  #solar-svg .sol-here{fill:none;stroke:var(--accent,#6d5bd0);stroke-width:3px;vector-effect:non-scaling-stroke;pointer-events:none;animation:solhere 1.6s ease-in-out infinite;}
+  html.alto-stars #solar-svg .sol-here{stroke:#ffd27a;}
+  @keyframes solhere{50%{stroke-opacity:.3;}}
+  @media (prefers-reduced-motion:reduce){ #solar-svg .sol-here{animation:none;} }
+  #world .node.sol-pass .node-card{box-shadow:0 0 0 3px #ffd27a,0 0 26px #ffd27a !important;}
+  #sol-tour{position:fixed;z-index:310;left:50%;bottom:76px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;font-size:13px;
+    max-width:calc(100vw - 40px);box-sizing:border-box;color:var(--text);background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
+    border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);}
+  #sol-tour button{font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;border-radius:999px;padding:7px 13px;cursor:pointer;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
+  #sol-tour button:hover:not(:disabled){color:var(--text);}
+  #sol-tour button:disabled{opacity:.4;cursor:default;}
+  #sol-tour .tb-next,#sol-tour .tb-next:hover{color:#fff;background:var(--accent,#6d5bd0);}
+  #sol-tour .tb-at{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding:0 6px;font-size:12px;}
+  #sol-tour .tb-at i{font-style:normal;} #sol-tour .tb-at b{color:var(--text);font-weight:700;}
+  #sol-tour button:focus-visible{outline:2px solid var(--accent,#6d5bd0);outline-offset:2px;}
+  html.alto-stars #sol-tour{color:#eef2ff;background:rgba(5,10,28,.84);border-color:rgba(170,198,255,.3);}
+  html.alto-stars #sol-tour button,html.alto-stars #sol-tour .tb-at{color:#c9d4f5;} html.alto-stars #sol-tour .tb-at b{color:#fff;}
+  html.sk-retro.alto-stars #sol-tour .tb-next{background:#d9a441;color:#140f02;}
+  html.mobile #sol-tour,html.alto-editing #sol-tour{display:none !important;}
+  @media print{ #sol-tour{display:none !important;} }
+  #canvas.sol-lock #world .sol-nh{pointer-events:auto;cursor:pointer;font-size:13px;line-height:20px;padding:5px 14px 5px 5px;border-radius:16px;}
+  #canvas.sol-lock .sol-nh>kbd{min-width:30px;height:22px;border-radius:11px;font-size:12.5px;}
   html.sk-retro.alto-stars #solar-svg :is(.sol-spoke,.sol-link).sol-ride{stroke:#ffd27a !important;}
   #canvas.sol-nudge #world .node.sol-hint:not(.focused) .node-card{animation:sol-nudge .7s cubic-bezier(.25,.2,.4,1) 2;}
   @keyframes sol-nudge{50%{filter:brightness(1.45);}}
@@ -1078,7 +1102,7 @@ var UPFROM={};
 function navTo(id, dir){
   var a=B[id]; if(!a || !a.n || !desk()) return null;
   var d=String(dir||'').charAt(0), j, nx=null;
-  if(LOCK) return ways(id).k[d] || id;            /* Spokes only: the spoke that way (the Spokes only block below) */
+  if(LOCK){ var tg=tTarget(id, {n:'up', s:'down', e:'next', w:'prev'}[d]); return (tg && tg!=='ov') ? tg : id; }   /* the Tour: the outline's way (the Tour block below) */
   if(d==='n'){ if(a.p && B[a.p]){ UPFROM[a.p]=id; nx=a.p; } }
   else if(d==='s'){ var u=UPFROM[id]; if(u && B[u] && B[u].p===id && B[u].n) nx=u;
     else for(j=0;j<ORD.length;j++){ if(B[ORD[j]].p===id && B[ORD[j]].n){ nx=ORD[j]; break; } } }
@@ -1086,9 +1110,9 @@ function navTo(id, dir){
     for(j=i+st;j>=0 && j<ORD.length;j+=st){ var b=B[ORD[j]]; if(b.role===a.role && b.n){ nx=ORD[j]; break; } } }
   return nx || id;
 }
-/* Spokes only: never a jump — a ride along the spoke that way (none that way: a gentle word); the engine stays put */
+/* the Tour: never a jump — a move rides there (nothing that way: a gentle word); the engine stays put */
 window._altoSolarNav=function(id, dir){
-  if(LOCK && ready && desk() && B[id]){ var to=navTo(id, dir); if(to && to!==id) ride(id, to); else nope(); return id; }
+  if(LOCK && ready && desk() && B[id]){ tStep({n:'up', s:'down', e:'next', w:'prev'}[String(dir||'').charAt(0)]); return id; }
   return navTo(id, dir); };
 var levelNav=navTo;     /* (unwrapped: solar_fly.py wraps the global to fly the hop) */
 window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight) */
@@ -1104,23 +1128,25 @@ window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight)
    that way) that rides there, else a click — each way drawn straight along its spoke; with nothing enlarged,
    one pill where you are. ── */
 var NH={k:undefined, t:[], L:null, g:null, f:null, q:0}, NHD={n:['↑', 'Up a level', 'Ride'], s:['↓', 'Down a level', 'Ride'],
-  w:['←', 'Previous', 'Ride'], e:['→', 'Next', 'Ride'], c:['•', 'Click to ride', 'Click to ride'], o:['⇕', 'Scroll to enlarge', 'Scroll to enlarge']};
-function nhPill(id, d, wd){ var p=document.createElement('span'), D=NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
+  w:['←', 'Previous', 'Ride'], e:['→', 'Next', 'Ride'], c:['•', 'Click to ride', 'Click to ride'], o:['⇕', 'Scroll to enlarge', 'Press → to start']},
+  NHL={n:['↑', 'Up', 'Up'], s:['↓', 'Down', 'Down'], w:['⇧←', 'Sibling', 'Sibling'], e:['⇧→', 'Sibling', 'Sibling']};   /* (the Tour's: siblings are Shift+arrow) */
+function nhPill(id, d, wd){ var p=document.createElement('span'), D=(LOCK && NHL[d]) || NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
   p.innerHTML='<em>➜</em><kbd></kbd><i></i><b></b>'; p.children[1].textContent=D[0]; p.children[2].setAttribute('data-a', wd||D[1]); p.children[2].setAttribute('data-b', D[2]);
   p.children[3].textContent=(b.lb && b.lb.getAttribute('data-l'))||''; return p; }
 function nhOn(id, d, side, wd){ var n=B[id].n, p=nhPill(id, d, wd);
   p.setAttribute('data-p', side); n.classList.add('sol-hint'); n.appendChild(p); return p; }
 function hints(){
+  tBar();
   var dp=document.getElementById('detail-page'), ok=ready && desk() && world && !RD && !(window._altoSolarFlight && window._altoSolarFlight()) && !(dp && dp.classList.contains('visible')) && !de.classList.contains('alto-editing');
   var f=ok && window._focusedNodeId, o=null; if(f && !(B[f] && B[f].n && B[f].n.classList.contains('focused'))) f=null;
   if(f) LASTF=f; else if(ok && LOCK) o=home();
   var k=(LOCK ? 'L' : '')+(f ? 'f'+f : o ? 'o'+o : ''); if(k===NH.k) return; NH.k=k;
   NH.t.forEach(function(t){ t.n.classList.remove('sol-hint'); t.p.remove(); if(t.q) t.q.remove(); if(t.w) t.w.remove(); }); NH.t=[]; NH.f=f || null;
-  if(o){ NH.t.push({id:o, n:B[o].n, p:nhOn(o, 'o', 'b')}); return; }
+  if(o && !OV){ NH.t.push({id:o, n:B[o].n, p:nhOn(o, 'o', 'b')}); return; }
   if(!f) return;
   if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; world.appendChild(NH.L); }
   if(!NH.g || !NH.g.isConnected){ NH.g=el('svg', {id:'sol-way', width:1, height:1, 'aria-hidden':'true'}); world.insertBefore(NH.g, svg && svg.parentNode===world ? svg.nextSibling : world.firstChild); }
-  var F=B[f], Wy=LOCK ? ways(f) : null;
+  var F=B[f], Wy=LOCK ? tWays(f) : null;
   (Wy ? Wy.nb.map(function(to){ return [Wy.d[to]||'c', to]; }) : ['n', 's', 'w', 'e'].map(function(d){ return [d, levelNav(f, d)]; })).forEach(function(dt){ var d=dt[0], to=dt[1], b=B[to]; if(!to || to===f || !b || !b.n || NH.t.some(function(t){ return t.id===to; })) return;
     var wd=!Wy && (d==='e' || d==='w') && b.si!==F.si && (d==='e' ? 'Next system' : 'Previous system'), q=nhPill(to, d, wd); q.setAttribute('data-id', to); q.style.cssText=(b.n.style.cssText.match(/--u:[^;]*/)||[''])[0]; NH.L.appendChild(q);
     NH.t.push({id:to, d:d, n:b.n, p:nhOn(to, d, 'b', wd), q:q, w:el('path', {'data-k':d}, NH.g)}); });
@@ -1499,24 +1525,25 @@ IC.fly=IC_EXTRA.fly; IC.lock=IC_EXTRA.lock;
 /* ── round 10: Flights on/off (#6: off = straight there, as in the System look; solar_fly.py honours
    window._altoFlyOff), kept per timeline per viewer, like the look and the motion. ── */
 window._altoFlyOff=pref('fly')==='0';
-/* ── Spokes only (Luke, 2026-10-21: "travelling only by spokes"). On, there is no free camera at all: no
-   panning, no zoom, no dragging the view, no click away. You are always at a body. An arrow, a scroll that
-   way, or a click on a body one spoke away (or on that spoke) RIDES the spoke there: the enlarged card goes
-   home, a rider runs along the spoke (Retro: the ship), the view following it like a train on its track and
-   the orbits holding still, and the body is enlarged on arrival. One ride reaches only what the body is
-   joined to: what it orbits, what orbits it, and (a sun) the suns its system is linked to. The four ways go
-   to the joined bodies lying most that way on the screen, one body each; the rest by a click. Anything else
-   does nothing but say so. Kept per timeline per viewer. ── */
+/* ── the Tour (Luke, 2026-10-22, in place of round 11's Spokes only: "it just feels very unintuitive"; spec
+   system-tour-spec.html). The switch is still #sol-lock and its kept choice alto-solar-lock. On, there is no free
+   camera: you are always at one body, and every move RIDES the spokes there (through the bodies on the way, each lit
+   as it is passed), the view following the rider and, when the route does not fit the window, pulling back to show
+   it and settling in. The moves name the outline, never the screen: → / ← (a scroll or swipe either way, the bar's
+   Next / Back) walk the tour, the outline's order (a sun, its first planet, that planet's moons and their
+   satellites, the next planet ...); ↑ the parent, ↓ the first child, Shift+→ / ← the next / previous sibling; O
+   or Esc (a pinch out) the whole system, your place ringed, a body's route drawn under the pointer, a click riding
+   there. Named buttons on the bodies (parent, children, siblings) and the bar at the bottom say all of it. ── */
 var LOCK=pref('lock')==='1', LW={t:0, x:0, y:0, done:false}, RD=null, RQ=[], LASTF=null;
 function lockSync(){ var c=cvs(); if(c) c.classList.toggle('sol-lock', !!(LOCK && ready && desk())); }
-function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); if(LOCK && OV) ovLeave(null, true); if(!LOCK){ RQ=[]; if(RD) rideEnd(true); } lockSync(); ctl(); if(LOCK && !window._focusedNodeId) lockStep(null); return LOCK; }
+function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); if(LOCK && OV) ovLeave(null, true); if(!LOCK){ RQ=[]; if(RD) rideEnd(true); tShow(null); } lockSync(); ctl(); tBar(); if(LOCK && !window._focusedNodeId) lockStep(null); return LOCK; }
 function locked(){ return LOCK && ready && desk() && !de.classList.contains('alto-editing') && !printing; }
-/* the body nearest the middle of the window: where Spokes only boards when there is no body yet */
+/* the body nearest the middle of the window: where the Tour boards when there is no body yet */
 function nearestMid(){ var c=cvs(); if(!c) return null; var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, best=null, bd=Infinity;
   ORD.forEach(function(id){ var n=B[id].n; if(!n) return; var q=n.getBoundingClientRect(); if(!q.width) return; var d=Math.hypot(q.left+q.width/2-cx, q.top+q.height/2-cy); if(d<bd){ bd=d; best=id; } });
   return best; }
-/* where you are: the enlarged body, else the last one (Esc only lets the card go home), else the one in the middle */
-function home(){ var f=window._focusedNodeId; if(f && B[f] && B[f].n) return f; return (LASTF && B[LASTF] && B[LASTF].n) ? LASTF : nearestMid(); }
+/* where you are: the body a ride is going to, the enlarged one, else the last one, else the one in the middle */
+function home(){ if(RD) return RD.dest; var f=window._focusedNodeId; if(f && B[f] && B[f].n) return f; return (LASTF && B[LASTF] && B[LASTF].n) ? LASTF : nearestMid(); }
 /* what a body is joined to by a drawn spoke: what it orbits, what orbits it, the suns its sun is linked to */
 function joined(id){ var a=B[id], o=[]; if(!a) return o;
   function add(j){ if(j && j!==id && B[j] && B[j].n && o.indexOf(j)<0) o.push(j); }
@@ -1526,19 +1553,34 @@ function joined(id){ var a=B[id], o=[]; if(!a) return o;
 /* a body's place on the screen's axes (world px; the 3D scene: its projection) */
 function spot(id){ if(de.classList.contains('sk-3d') && window._altoSolar3D && window._altoSolar3D.project){ var q=window._altoSolar3D.project(id); if(q) return [q.x, q.y]; }
   var b=B[id], n=b.n; return [b.rx+((n && n._fx)||0), b.ry+((n && n._fy)||0)]; }
-/* the four ways from a body: each to the joined body lying most that way (within 80°), one body each, nearest
-   angle first. {nb: joined, k: way -> id, d: id -> way} */
-var WAYS={e:0, s:90, w:180, n:-90};
-function ways(id){ var nb=joined(id), c=[], k={}, d={}; if(!B[id]) return {nb:nb, k:k, d:d}; var p=spot(id);
-  nb.forEach(function(j){ var q=spot(j), an=Math.atan2(q[1]-p[1], q[0]-p[0])*180/Math.PI;
-    for(var w in WAYS){ var df=Math.abs(((an-WAYS[w])%360+540)%360-180); if(df<=80) c.push([df, w, j]); } });
-  c.sort(function(x, y){ return x[0]-y[0]; });
-  c.forEach(function(x){ if(k[x[1]] || d[x[2]]) return; k[x[1]]=x[2]; d[x[2]]=x[1]; });
-  return {nb:nb, k:k, d:d}; }
+/* the tour: the outline's order (ORD is the plan's depth-first order); a body's children, its siblings (the same
+   level under the same parent; suns: the other suns) */
+function tOrder(){ return ORD.filter(function(i){ return B[i].n; }); }
+function tKids(id){ return ORD.filter(function(i){ return B[i].p===id && B[i].n; }); }
+function tSibs(id){ var a=B[id]; return ORD.filter(function(i){ var b=B[i]; return b.n && b.role===a.role && (a.p ? b.p===a.p : !b.p); }); }
+/* where a move goes from h: an id, 'ov' (Next at the end: the whole system), or null (nothing that way) */
+function tTarget(h, cmd){ var a=B[h]; if(!a) return null; var T=tOrder(), i=T.indexOf(h), s, k;
+  if(cmd==='next') return T[i+1] || 'ov';
+  if(cmd==='prev') return T[i-1] || null;
+  if(cmd==='up') return (a.p && B[a.p] && B[a.p].n) ? a.p : null;
+  if(cmd==='down') return tKids(h)[0] || null;
+  s=tSibs(h); k=s.indexOf(h); return cmd==='sn' ? (s[k+1] || null) : cmd==='sp' ? (s[k-1] || null) : null; }
+/* the named ways from a body ({nb, k: way -> id, d: id -> way}): up the parent, down each child, w / e its siblings */
+function tWays(id){ var o={nb:[], k:{}, d:{}}; if(!B[id]) return o;
+  function add(w, j){ if(!j || j===id || !B[j] || !B[j].n || o.d[j]) return; o.nb.push(j); o.d[j]=w; if(!o.k[w]) o.k[w]=j; }
+  add('n', tTarget(id, 'up')); tKids(id).forEach(function(j){ add('s', j); }); add('w', tTarget(id, 'sp')); add('e', tTarget(id, 'sn'));
+  return o; }
+/* the route between two bodies along the drawn spokes (fewest stops); suns not linked by a line: straight across */
+function tRoute(a, b){
+  function bfs(fb){ var pv={}, qq=[a]; pv[a]=a;
+    while(qq.length){ var x=qq.shift(); if(x===b) break;
+      var nb=joined(x); if(fb && B[x].role==='sun') nb=nb.concat(SY.map(function(s){ return s.sun; }));
+      nb.forEach(function(y){ if(B[y] && B[y].n && !(y in pv)){ pv[y]=x; qq.push(y); } }); }
+    if(!(b in pv)) return null; var p=[b]; while(p[0]!==a) p.unshift(pv[p[0]]); return p; }
+  return a===b ? [a] : (bfs(false) || bfs(true) || [a, b]); }
 /* the drawn line between two joined bodies (a spoke or a sun link) */
 function rideLine(a, b){ var r=null; spokes.concat(sunl).some(function(s){ if((s.a===a && s.b===b) || (s.a===b && s.b===a)){ r=s.e[0]; return true; } }); return r; }
-/* the rider: a bright bead (Retro: the ship, solar_fly.py's art), on the spoke, over the lines, under the bodies */
-/* the rider is the chosen craft (solar_craft.py: window._altoCraft), drawn in this style's look */
+/* the rider: a bright bead, or the chosen craft in a Star chart style (solar_craft.py: window._altoCraft) */
 var RDg=null;
 function rider(){ if(RDg && RDg.isConnected && RDg.parentNode===svg) return RDg; if(!svg) return null;
   RDg=el('g', {'class':'sol-rider', 'aria-hidden':'true'}, svg);
@@ -1548,91 +1590,178 @@ function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg
 function shipK(){ return RETRO ? .5 : .4; }             /* (small and clear, as solar_fly.py's SHIP / SHIP_RETRO) */
 function bAt(id){ var b=B[id]; return function(){ return [b.rx, b.ry, b.d]; }; }
 function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
+/* a ride from one body to another, along its route. One hop keeps round 11's pace; more share ~2.4 s at most. The
+   view's scale runs on a curve in log scale from where it is to full size, dipping to fit the route when it does not
+   fit the window (and from the whole system, straight in); its middle follows the rider, or (dipping) bows through
+   the route's middle. */
 function ride(from, to){
-  if(!locked() || !B[from] || !B[to] || !B[to].n) return false;
-  if(RD){ return false; }
-  if(OV) ovLeave(null, true);
-  lclear(); LASTF=to;
-  var g=camGet();
-  if((de.classList.contains('sk-3d') && window._altoFlyOff) || reduced || !g || !svg){ enter(to); return true; }   /* the 3D scene with Flights off: its camera glides there; reduced motion: straight there */
-  var A=B[from], Z=B[to], L=Math.hypot(Z.rx-A.rx, Z.ry-A.ry), cr=craft(), ms=Math.round(Math.min(2600, Math.max(900, 650+L*.55))*(RETRO ? 1.25 : 1)*(cr.k||1));
+  if(!locked() || !B[from] || !B[to] || !B[to].n || RD) return false;
+  lclear(); tShow(null); LASTF=to;
+  var g=camGet(), path=tRoute(from, to);
+  if((de.classList.contains('sk-3d') && window._altoFlyOff) || reduced || !g || !svg){   /* the 3D scene with Flights off: its camera glides there; reduced motion: straight there */
+    if(OV) ovLeave({x:B[to].rx, y:B[to].ry}, true); enter(to); tBar(); return true; }
   if(window._focusedNodeId && window.exitFocus) window.exitFocus();
-  var ln=rideLine(from, to); if(ln) ln.classList.add('sol-ride');
-  /* along the spoke from the orbit it is in round the body it leaves into a gentle orbit round the one it goes to */
-  var Cr=window._altoCraft, tr=Cr ? Cr.line(from, bAt(from), bAt(to), ms/1000, window._altoEase || function(x){ return x*x*(3-2*x); }, de.classList.contains('sk-3d') ? 0 : 35*shipK(), SPIN) : null;
-  RD={from:from, to:to, t0:performance.now(), ms:ms, x0:g.cx, y0:g.cy, ln:ln, tr:tr, st:{hs:null, bk:0}};
+  var P=path.map(function(id){ return [B[id].rx, B[id].ry]; }), seg=[], L=0, i;
+  for(i=1; i<P.length; i++){ var l=Math.hypot(P[i][0]-P[i-1][0], P[i][1]-P[i-1][1]); seg.push(l); L+=l; }
+  var cr=craft(), ms=path.length<3 ? Math.min(2600, Math.max(900, 650+L*.55)) : Math.min(2400, seg.reduce(function(s, l){ return s+Math.min(900, Math.max(500, 380+l*.5)); }, 0));
+  ms=Math.round(ms*(RETRO ? 1.25 : 1)*(cr.k||1));
+  var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, xs=P.map(function(p){ return p[0]; }), ys=P.map(function(p){ return p[1]; }),
+    x0=Math.min.apply(0, xs), x1=Math.max.apply(0, xs), y0=Math.min.apply(0, ys), y1=Math.max.apply(0, ys),
+    sf=Math.max(OVMIN, Math.min(1, (cw-220)/Math.max(1, x1-x0), (ch-300)/Math.max(1, y1-y0))), la=Math.log(Math.max(OVMIN, g.scale)), lm=Math.min(Math.log(sf), la/2);
+  var lns=[]; for(i=1; i<path.length; i++){ var ln=rideLine(path[i-1], path[i]); if(ln){ ln.classList.add('sol-ride'); lns.push(ln); } }
+  var tr=rideTrack(path, ms/1000);
+  RD={path:path, P:P, seg:seg, L:L||1, dest:to, from:from, to:path[1], t0:performance.now(), ms:ms, x0:g.cx, y0:g.cy, la:la, lc:2*lm-la/2,
+    pull:sf<.95 || g.scale<.95, mx:(x0+x1)/2, my:(y0+y1)/2-PAD, lns:lns, lit:{}, tr:tr, st:{hs:null, bk:0}};
   window._altoFlyMs=ms+480;                              /* (the engine's hop queue waits for the arrival) */
-  var r=rider(); if(r){ var p0=tr ? tr.at(0) : [A.rx, A.ry]; r.setAttribute('transform', 'translate('+f2(p0[0])+' '+f2(p0[1])+')'); r.classList.add('on');
+  var r=rider(); if(r){ var p0=tr ? tr.at(0) : P[0]; r.setAttribute('transform', 'translate('+f2(p0[0])+' '+f2(p0[1])+')'); r.classList.add('on');
     var sh=r.querySelector('.sol-ship'); sh.innerHTML=cr.svg||''; sh.setAttribute('transform', 'scale('+shipK()+')'); }
-  de.classList.add('sol-riding');
+  de.classList.add('sol-riding'); tBar();
   requestAnimationFrame(rideF); return true;
 }
 function rideF(now){
   var R=RD; if(!R) return;
   if(!locked() || window._focusedNodeId || document.querySelector('#detail-page.visible')) return rideEnd(!window._focusedNodeId);   /* someone else took the focus or the switch: theirs */
-  var k=Math.min(1, Math.max(0, (now-R.t0)/R.ms)), ez=window._altoEase || function(x){ return x*x*(3-2*x); }, e=ez(k);
-  var A=B[R.from], Z=B[R.to], dx=Z.rx-A.rx, dy=Z.ry-A.ry, px=A.rx+dx*e, py=A.ry+dy*e;
-  if(window._altoSolarCam) window._altoSolarCam.set(R.x0+(Z.rx-R.x0)*e, R.y0+(Z.ry-PAD-R.y0)*e, 1);   /* the view behind the rider, from where it was to the body */
-  R.p=[px, py]; R.h=Math.atan2(dy, dx); R.v=null;                                    /* (the 3D scene flies its model here: window._altoSolarRide) */
+  var k=Math.min(1, Math.max(0, (now-R.t0)/R.ms)), ez=window._altoEase || function(x){ return x*x*(3-2*x); }, u=ez(k);
+  var d=u*R.L, j=0; while(j<R.seg.length-1 && d>R.seg[j]){ d-=R.seg[j]; j++; }
+  var A=R.P[j], Z=R.P[j+1], f=R.seg[j] ? Math.min(1, d/R.seg[j]) : 1, px=A[0]+(Z[0]-A[0])*f, py=A[1]+(Z[1]-A[1])*f;
+  for(var i=1; i<=j; i++) if(!R.lit[i]){ R.lit[i]=1; tPass(R.path[i]); }        /* a body passed: lit for a beat */
+  var D=R.P[R.P.length-1], dx=D[0], dy=D[1]-PAD, sc=Math.exp((1-u)*(1-u)*R.la+2*u*(1-u)*R.lc), cx, cy;
+  if(R.pull){ var qx=2*R.mx-(R.x0+dx)/2, qy=2*R.my-(R.y0+dy)/2; cx=(1-u)*(1-u)*R.x0+2*u*(1-u)*qx+u*u*dx; cy=(1-u)*(1-u)*R.y0+2*u*(1-u)*qy+u*u*dy; }
+  else { cx=R.x0+(dx-R.x0)*u; cy=R.y0+(dy-R.y0)*u; }
+  if(window._altoSolarCam) window._altoSolarCam.set(cx, cy, k>=1 ? 1 : sc);       /* the view behind the rider, from where it was to the body */
+  R.from=R.path[j]; R.to=R.path[j+1]; R.p=[px, py]; R.h=Math.atan2(Z[1]-A[1], Z[0]-A[0]); R.v=null;   /* (the 3D scene flies its model here: window._altoSolarRide) */
   var Cr=window._altoCraft; if(R.tr){ var q=R.tr.pv((now-R.t0)/1000), dt=R.lt ? Math.min(.05, (now-R.lt)/1000) : 0; R.lt=now; Cr.steer(R.st, [q[2], q[3]], dt);
     R.p=[q[0], q[1]]; R.v=[q[2], q[3]]; if(R.st.hs!=null) R.h=R.st.hs; }
-  var r=rider(); if(r) r.setAttribute('transform', Cr ? Cr.xf(R.p, R.h, R.st.bk) : 'translate('+f2(R.p[0])+' '+f2(R.p[1])+')');
+  var r=rider(); if(r) r.setAttribute('transform', Cr ? Cr.xf(R.p, R.h, R.st.bk) : 'translate('+f2(R.p[0])+' '+f2(R.p[1])+') rotate('+f2(R.h*180/Math.PI)+')');
   if(k>=1) return rideEnd(true);
   requestAnimationFrame(rideF);
 }
 function rideEnd(arrive){
   var R=RD; RD=null; if(!R) return; var Cr=window._altoCraft, done=performance.now()-R.t0>=R.ms-20;
-  if(R.ln) R.ln.classList.remove('sol-ride'); if(RDg) RDg.classList.remove('on'); de.classList.remove('sol-riding');
-  if(arrive && done && R.tr && Cr){ Cr.park(R.to, R.tr, 1);           /* into its orbit round the body (the 3D model stays in it); the art goes on round as it fades */
-    Cr.coast(bAt(R.to), function(o, dt){ Cr.steer(R.st, o.v, dt); RDg.setAttribute('transform', Cr.xf(o.p, R.st.hs, R.st.bk)); }, 400, function(){ return RD || !RDg; }); }
+  R.lns.forEach(function(l){ l.classList.remove('sol-ride'); }); if(RDg) RDg.classList.remove('on'); de.classList.remove('sol-riding');
+  if(arrive && done && R.tr && Cr){ Cr.park(R.dest, R.tr, 1);           /* into its orbit round the body (the 3D model stays in it); the art goes on round as it fades */
+    Cr.coast(bAt(R.dest), function(o, dt){ Cr.steer(R.st, o.v, dt); RDg.setAttribute('transform', Cr.xf(o.p, R.st.hs, R.st.bk)); }, 400, function(){ return RD || !RDg; }); }
   else if(Cr) Cr.unpark();
-  if(arrive) enter(R.to);
-  setTimeout(rideNext, (window._altoFlyMs=520));
+  if(arrive) enter(R.dest);
+  tBar(); setTimeout(rideNext, (window._altoFlyMs=520));
 }
+/* the craft's way along a route (solar_craft.py track): from the orbit it is in round the first body (or that orbit's
+   point on the first spoke) along the spokes, through the bodies between, bending only at the end into a gentle orbit
+   round the last; eased as the view is (the ride's one clock) */
+function rideTrack(path, D){ var Cr=window._altoCraft; if(!Cr || !Cr.track || path.length<2) return null;
+  var z=bAt(path[path.length-1]), px=de.classList.contains('sk-3d') ? 0 : 35*shipK(), A=bAt(path[0])(), rA=Cr.orbitR(A[2], px), ez=window._altoEase || function(x){ return x*x*(3-2*x); };
+  var tr=Cr.track({D:D, r:Cr.orbitR(z()[2], px), spin:SPIN, start:Cr.parked(path[0], A), cen:z, base:function(t){
+    var P=path.map(function(id){ return [B[id].rx, B[id].ry]; }), ex=P[1][0]-P[0][0], ey=P[1][1]-P[0][1], l=Math.hypot(ex, ey)||1, sg=[], L=0, i;
+    P[0]=[P[0][0]+ex/l*rA, P[0][1]+ey/l*rA];
+    for(i=1; i<P.length; i++){ sg.push(Math.hypot(P[i][0]-P[i-1][0], P[i][1]-P[i-1][1])); L+=sg[i-1]; }
+    var d=ez(Math.min(1, Math.max(0, t/D)))*L; for(i=0; i<sg.length-1 && d>sg[i]; i++) d-=sg[i];
+    var f=sg[i] ? Math.min(1, d/sg[i]) : 1; return [P[i][0]+(P[i+1][0]-P[i][0])*f, P[i][1]+(P[i+1][1]-P[i][1])*f]; }});
+  Cr.unpark(); return tr; }
+function tPass(id){ var n=B[id] && B[id].n; if(!n) return; n.classList.add('sol-pass'); setTimeout(function(){ n.classList.remove('sol-pass'); }, 650); }
 window._altoSolarRide=function(){ return RD && RD.p ? {p:RD.p, h:RD.h, v:RD.v, from:RD.from, to:RD.to} : null; };
-function rideNext(){ if(RD || !RQ.length) return; var d=RQ.shift(), f=window._focusedNodeId; if(!f || !LOCK){ RQ=[]; return; } window._altoSolarNav(f, d); }
-/* anything not one spoke away: nothing happens, and it says so (the joined bodies' pills nudge) */
+function rideNext(){ if(RD || !RQ.length) return; if(!LOCK){ RQ=[]; return; } tStep(RQ.shift()); }
+/* a move that goes nowhere: it says so (the named buttons nudge) */
 var NOPE=null, nopeT=0;
-function nope(e){
+function nope(e, msg){
   if(!NOPE){ NOPE=document.createElement('div'); NOPE.className='line-tip sol-nope'; document.body.appendChild(NOPE); }
-  var c=cvs(), r=c ? c.getBoundingClientRect() : {left:0, width:0, bottom:0}, x=e ? e.clientX+12 : r.left+r.width/2-110, y=e ? e.clientY+14 : r.bottom-130;
-  NOPE.textContent='Spokes only: ride a lit spoke from here'; NOPE.style.left=x+'px'; NOPE.style.top=y+'px'; NOPE.style.display='block';
+  var c=cvs(), r=c ? c.getBoundingClientRect() : {left:0, width:0, bottom:0}, x=e ? e.clientX+12 : r.left+r.width/2-110, y=e ? e.clientY+14 : r.bottom-170;
+  NOPE.textContent=msg || 'Tour: use the named buttons, or O for the whole system'; NOPE.style.left=x+'px'; NOPE.style.top=y+'px'; NOPE.style.display='block';
   if(c){ c.classList.remove('sol-nudge'); void c.offsetWidth; c.classList.add('sol-nudge'); }
   clearTimeout(nopeT); nopeT=setTimeout(function(){ NOPE.style.display='none'; if(c) c.classList.remove('sol-nudge'); }, 1500);
 }
-/* a body or a line asked for (a click; the 3D scene's pick): ridden to if it is one spoke away */
+var SAY={next:'The end of the tour', prev:'The start of the tour', up:'Nothing above this one', down:'Nothing below this one', sn:'No sibling after this one', sp:'No sibling before this one'};
+/* one move: next | prev | up | down | sn | sp | ov (a ride on: queued, two at most) */
+function tStep(cmd){
+  if(!locked() || !cmd) return;
+  if(RD){ if(RQ.length<2) RQ.push(cmd); return; }
+  if(cmd==='ov') return tOv(!OV);
+  var h=home(); if(!h) return;
+  if(!OV && !window._focusedNodeId){ enter(h); return; }     /* nothing enlarged: first, board where you are */
+  var to=tTarget(h, cmd);
+  if(to==='ov') return tOv(true);
+  if(!to) return nope(null, SAY[cmd]);
+  ride(h, to);
+}
+/* a body asked for (a click; the 3D scene's pick; a button): ridden to, wherever it is */
 function rideTo(id, e){
   if(!locked() || RD) return false;
-  var h=home(); if(!id || !h) return nope(e), false;
-  if(id===h){ if(!window._focusedNodeId) enter(id); return true; }
-  if(joined(h).indexOf(id)<0) return nope(e), false;
+  var h=home(); if(!id || !h || !B[id] || !B[id].n) return nope(e), false;
+  if(id===h){ if(OV) tOv(false); else if(!window._focusedNodeId) enter(id); return true; }
   return ride(h, id);
 }
 window._altoSolarGo=rideTo;
-/* the clicks: on the enlarged disc its own (its full page); a body or a line one spoke away rides there; the rest nothing */
+/* the whole system (O, Esc, a pinch out, Next at the end), your place ringed; back the same way, or a click on a body rides there */
+var HR=0;
+function tOv(on){
+  if(!locked()) return;
+  if(on){ if(OV) return; var h=home(); if(h) LASTF=h; ovZoom(omin(), null, null, true); setTimeout(tMark, 30); setTimeout(tMark, UNF+80); tBar(); return; }
+  if(!OV) return; var b=B[home()]; tShow(null);
+  ovLeave(b ? {x:b.rx, y:b.ry} : null, false, function(){ if(b) enter(b.id); tBar(); });
+}
+function tMark(){ cancelAnimationFrame(HR); HR=0; var r=document.getElementById('sol-here'), h=LASTF && B[LASTF];
+  if(!(OV && locked() && svg && h && !RD)){ if(r) r.remove(); return; }
+  if(!r || r.parentNode!==svg) r=el('circle', {id:'sol-here', 'class':'sol-here', 'aria-hidden':'true'}, svg);
+  r.setAttribute('cx', f2(h.rx)); r.setAttribute('cy', f2(h.ry)); r.setAttribute('r', f2(h.d/2+16/OV.s));
+  HR=requestAnimationFrame(tMark); }
+/* the body under the pointer on the whole system (its board takes no pointer events) */
+function tPick(e){ if(!OV) return null; var p=local(e), wx=(p.x-OV.tx)/OV.s, wy=(p.y-OV.ty)/OV.s, id=nearest(wx, wy);
+  return (id && Math.hypot(B[id].rx-wx, B[id].ry-wy)<=B[id].d/2+24/OV.s) ? id : null; }
+/* the route to the body under the pointer, drawn, with its name and stops */
+var RT={id:null, ls:[], n:0, tip:null};
+function tShow(id, e){
+  if(id!==RT.id){ RT.ls.forEach(function(l){ l.classList.remove('sol-route'); }); RT.ls=[]; RT.id=id;
+    if(id){ var p=tRoute(home(), id); RT.n=p.length-1; for(var i=1; i<p.length; i++){ var l=rideLine(p[i-1], p[i]); if(l){ l.classList.add('sol-route'); RT.ls.push(l); } } } }
+  if(!id || !e){ if(RT.tip) RT.tip.style.display='none'; return; }
+  if(!RT.tip){ RT.tip=document.createElement('div'); RT.tip.className='line-tip sol-tip'; document.body.appendChild(RT.tip); }
+  RT.tip.textContent=lname(id)+' · '+(RT.n ? RT.n+(RT.n===1 ? ' stop' : ' stops')+' · click to ride there' : 'you are here');
+  RT.tip.style.left=(e.clientX+14)+'px'; RT.tip.style.top=(e.clientY+16)+'px'; RT.tip.style.display='block';
+}
+document.addEventListener('mousemove', function(e){ if(!RT.id && !(OV && LOCK)) return; tShow((locked() && OV && !RD && mine(e)) ? tPick(e) : null, e); }, {passive:true});
+/* the bar: Back, where you are, Next, the whole system */
+var TB=null;
+function tBar(){
+  var dp=document.querySelector('#detail-page.visible'), h=locked() && !dp && home();
+  if(!h || !B[h]){ if(TB){ TB.remove(); TB=null; } return; }
+  if(!TB){ TB=document.createElement('div'); TB.id='sol-tour'; TB.setAttribute('role', 'toolbar'); TB.setAttribute('aria-label', 'Tour');
+    TB.innerHTML='<button type="button" data-t="prev"></button><span class="tb-at"><i></i><b></b><i></i></span><button type="button" data-t="next" class="tb-next"></button><button type="button" data-t="ov" class="tb-ov"></button>';
+    TB.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b || b.disabled) return; e.stopPropagation(); tStep(b.getAttribute('data-t')); });
+    document.body.appendChild(TB); }
+  var T=tOrder(), i=T.indexOf(h), pv=T[i-1], nx=T[i+1], a=B[h], k=(OV ? 'o' : '')+h+'|'+T.length; if(TB._k===k) return; TB._k=k;
+  var bs=TB.querySelectorAll('button'), at=TB.querySelector('.tb-at').children;
+  bs[0].disabled=!pv; bs[0].textContent='‹ '+(pv ? 'Back: '+lname(pv) : 'Back'); bs[0].title='Back on the tour (←, or scroll up)';
+  bs[1].textContent=nx ? 'Next: '+lname(nx)+' ›' : 'End · the whole system ›'; bs[1].title='Next on the tour (→, or scroll down)';
+  bs[2].textContent=OV ? 'Back to '+lname(h) : '◎ Overview'; bs[2].title=OV ? 'Back where you were (O or Esc)' : 'The whole system (O or Esc)';
+  at[0].textContent=(a.p && B[a.p]) ? lname(a.p)+' › ' : ''; at[1].textContent=lname(h); at[2].textContent=' · '+(i+1)+' of '+T.length;
+}
+/* the clicks: on the enlarged disc its own (its full page); any other body, or a line, rides there; on the whole system the body under the pointer */
 window.addEventListener('click', function(e){
   if(!locked() || e.button) return;
   var c=cvs(), t=e.target; if(!c || !t || t.nodeType!==1 || !c.contains(t) || t.id==='sk3d' || document.querySelector('#detail-page.visible')) return;
-  if(t.closest('button,a,input,select,textarea,[contenteditable],#sol-ctl,#sol-nav')) return;
+  if(t.closest('button,a,input,select,textarea,[contenteditable],#sol-ctl,#sol-nav,#sol-tour')) return;
+  if(OV){ e.preventDefault(); e.stopImmediatePropagation(); var o=tPick(e); if(o) rideTo(o, e); return; }
   var n=t.closest('#world .node[data-solar]'), id=n ? n.id.slice(5) : (t._r && t.classList.contains('sol-hit')) ? ringAt(e) : null;
   if(id && id===window._focusedNodeId) return;
-  e.preventDefault(); e.stopImmediatePropagation(); rideTo(id, e);
+  e.preventDefault(); e.stopImmediatePropagation(); if(id) rideTo(id, e);
 }, true);
 /* no dragging the view: a press on empty space does nothing (bodies, lines, buttons still take their clicks) */
 ['pointerdown', 'mousedown'].forEach(function(ty){ document.addEventListener(ty, function(e){ if(!locked()) return; var c=cvs(), t=e.target;
   if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (the 3D scene: solar_3d.py turns nothing while it is on) */
   e.preventDefault(); e.stopImmediatePropagation(); }, true); });
-/* no pinch zoom (Safari's gesture events; the others' are a ctrl wheel, below) */
-['gesturestart', 'gesturechange', 'gestureend'].forEach(function(ty){ window.addEventListener(ty, function(e){ if(!locked()) return; e.preventDefault(); e.stopImmediatePropagation(); }, {capture:true, passive:false}); });
-/* the arrows with no body enlarged (or on a ride): board at home, or queue the next ride */
+/* a pinch (Safari's gesture events) zooms nothing: out, the whole system; in, back */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(function(ty){ window.addEventListener(ty, function(e){ if(!locked()) return; e.preventDefault(); e.stopImmediatePropagation();
+  if(ty==='gestureend' && e.scale) tOv(e.scale<.85 ? true : e.scale>1.18 ? false : !!OV); }, {capture:true, passive:false}); });
+/* the keys: → / ← the tour (Shift: the siblings), ↑ / ↓ a level, O or Esc the whole system */
 window.addEventListener('keydown', function(e){
-  var d={ArrowUp:'n', ArrowDown:'s', ArrowLeft:'w', ArrowRight:'e'}[e.key]; if(!d || !locked() || e.metaKey || e.ctrlKey || e.altKey) return;
+  if(!locked() || e.metaKey || e.ctrlKey || e.altKey) return;
   var ae=document.activeElement; if(ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return;
   if(document.querySelector('#detail-page.visible,#summary-wrap.open')) return;
-  if(!RD && window._focusedNodeId) return;               /* (the engine's arrows: focusNeighbor -> window._altoSolarNav -> a ride) */
-  e.preventDefault(); e.stopImmediatePropagation(); if(!e.repeat || !RQ.length) lockStep(d);
+  var k=e.key, c=k==='ArrowRight' ? (e.shiftKey ? 'sn' : 'next') : k==='ArrowLeft' ? (e.shiftKey ? 'sp' : 'prev') : k==='ArrowUp' ? 'up' : k==='ArrowDown' ? 'down'
+    : (k==='o' || k==='O' || k==='Escape') ? 'ov' : null;
+  if(!c) return;
+  e.preventDefault(); e.stopImmediatePropagation(); if(!e.repeat || !RQ.length) tStep(c);
 }, true);
-window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:function(id){ return ways(id || home()); }, riding:function(){ return RD ? {from:RD.from, to:RD.to, ms:RD.ms} : null; }};
+window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:function(id){ return tWays(id || home()); }, step:tStep, order:tOrder, route:tRoute,
+  riding:function(){ return RD ? {from:RD.path[0], to:RD.dest, path:RD.path.slice(), ms:RD.ms} : null; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
@@ -1664,28 +1793,23 @@ function setStyle(v){
 window._altoSolarStyles={get:styleOf, set:setStyle, list:function(){ return STYLES.map(function(x){ return x[0]; }); }};
 stySync();
 function lockStep(d){
-  if(LOCK){
-    if(RD){ if(d && RQ.length<2) RQ.push(d); return; }
-    var f=window._focusedNodeId;
-    if(!f || !B[f]){ var h=home(); if(h) enter(h); return; }   /* no body enlarged: board where you are */
-    if(d) window._altoSolarNav(f, d); return; }
+  if(LOCK){ if(d) return tStep(d); if(!window._focusedNodeId && !OV){ var h=home(); if(h) enter(h); } return; }   /* (the Tour: a move, or board where you are) */
   var k={n:'ArrowUp', s:'ArrowDown', e:'ArrowRight', w:'ArrowLeft'}[d]; if(!k) return;
   document.dispatchEvent(new KeyboardEvent('keydown', {key:k, code:k, bubbles:true, cancelable:true}));
   setTimeout(function(){ document.dispatchEvent(new KeyboardEvent('keyup', {key:k, code:k, bubbles:true})); }, 30);
 }
-/* Spokes only: a wheel or a trackpad never moves or zooms the view; one gesture rides one spoke, the way it goes */
+/* the Tour: a wheel or a trackpad never moves or zooms the view; one gesture is one move (down / left: Next; up / right: Back), a pinch out the whole system */
 window.addEventListener('wheel', function(e){
   if(!locked()) return;
   var dp=document.getElementById('detail-page'); if(dp && dp.classList.contains('visible')) return;
   var c=cvs(); if(!c || !c.contains(e.target)) return;
   e.preventDefault(); e.stopImmediatePropagation();
-  if(e.ctrlKey) return;                                          /* a pinch: no zoom */
   var m=e.deltaMode===1 ? 16 : e.deltaMode===2 ? 400 : 1;
   if(e.timeStamp-LW.t>260) LW={t:0, x:0, y:0, done:false};        /* a new gesture: one step each */
   LW.t=e.timeStamp; if(LW.done) return;
   LW.x+=e.deltaX*m; LW.y+=e.deltaY*m;
   if(Math.max(Math.abs(LW.x), Math.abs(LW.y))<40) return;
-  LW.done=true; lockStep(Math.abs(LW.y)>=Math.abs(LW.x) ? (LW.y>0 ? 's' : 'n') : (LW.x>0 ? 'e' : 'w'));
+  LW.done=true; if(e.ctrlKey) tOv(LW.y>0); else tStep((Math.abs(LW.y)>=Math.abs(LW.x) ? LW.y : LW.x)>0 ? 'next' : 'prev');
 }, {capture:true, passive:false});
 function ctl(){
   var w=document.getElementById('sol-ctl');
@@ -1696,7 +1820,7 @@ function ctl(){
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>'+
       '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span><i class="sol-sw"></i><b class="sol-st"></b></button>'+
       '<button type="button" id="sol-craft" class="sol-opt" aria-haspopup="dialog" aria-expanded="false"><i class="cr-i"></i><span>Ship</span></button>'+
-      '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
+      '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Tour</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
       if(b.getAttribute('data-style')) setStyle(b.getAttribute('data-style'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION);
@@ -1717,7 +1841,7 @@ function ctl(){
   if(CR){ var cc=CR.get(); if(cb._c!==cc.id+STY){ cb._c=cc.id+STY; cb.querySelector('.cr-i').innerHTML=CR.art(cc.id); }
     cb.title='Your ship: '+cc.name+' (click to choose another)'; cb.setAttribute('aria-label', cb.title); }
   var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.querySelector('.sol-st').textContent=LOCK ? 'ON' : 'OFF'; lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');
-  lb.title=LOCK ? 'Spokes only: on. Arrows, scrolling and clicks ride the spokes from body to body; no free panning or zooming (click to move freely)' : 'Spokes only: off. Click to travel only by riding the spokes';
+  lb.title=LOCK ? 'Tour: on. \u2192 / \u2190 walk the outline, \u2191 / \u2193 go up or down a level, O shows the whole system; every move rides the spokes (click to move freely)' : 'Tour: off. Click to move through the system as a guided tour along its spokes';
 }
 /* the space bar starts / stops the orbit like the Orbit button: only while the system is showing (the button is there
    and enabled: not a phone, not the detail page, not edit mode, not print), no modifier, not held down, not in a field or on

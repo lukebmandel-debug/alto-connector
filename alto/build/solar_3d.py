@@ -503,7 +503,8 @@ function lines(G){
   gl.drawArrays(gl.LINES, 0, v.length/3); dis(l); gl.depthMask(true);
 }
 /* the names (bodies' under them, units' above their suns) and the hints, an HTML layer over the scene */
-var NHD={n:['↑', 'Up a level'], s:['↓', 'Down a level'], w:['←', 'Previous'], e:['→', 'Next'], c:['•', 'Click to ride']};
+var NHD={n:['↑', 'Up a level'], s:['↓', 'Down a level'], w:['←', 'Previous'], e:['→', 'Next'], c:['•', 'Click to ride']},
+  NHT={n:['↑', 'Up'], s:['↓', 'Down'], w:['⇧←', 'Sibling'], e:['⇧→', 'Sibling']};   /* the Tour's (solar_draw.py): siblings are Shift+arrow */
 function hints(G){
   var f=window._focusedNodeId, out={}; hints.hot={};
   if(!f || !G.bodies[f] || !window._altoSolarLevelNav || (window._altoSolarFlight && window._altoSolarFlight())) return out;
@@ -517,7 +518,7 @@ function labels(G, r){
   var z=zoomK(), H=hints(G), nb=0, ni=0, f=window._focusedNodeId;
   function b(cls){ var e=PB[nb]; if(!e){ e=PB[nb]=document.createElement('b'); lay.appendChild(e); } nb++; e.className=cls; e.style.display=''; return e; }
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
-    e.children[0].textContent=H[id].map(function(d){ return NHD[d][0]; }).join(''); e.children[1].textContent=(lk() && H[id][0]!=='c') ? 'Ride' : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
+    e.children[0].textContent=H[id].map(function(d){ return ((lk() && NHT[d]) || NHD[d])[0]; }).join(''); e.children[1].textContent=(lk() && NHT[H[id][0]]) ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun], q=s && proj(W(s)); if(!q) return; var ch=document.querySelector('.sol-unit[data-unit="'+u.unit+'"] span'); if(!ch) return;
     var e=b('u'); e.textContent=ch.textContent; e.style.setProperty('--u', u.c||'#9fb4ff'); at(e, q.x, q.y-Math.max(30, s.d/2*q.s*1.9)); });

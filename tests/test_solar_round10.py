@@ -115,7 +115,7 @@ def test_hints_flights_and_spokes_only(browser, page):
 
 def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
     """A place off the window: its pill at the window's edge (inside it), on the way towards it; a click
-    there hops. Spokes only says scroll; with nothing enlarged, one pill on the body a scroll enlarges."""
+    there hops. The Tour names each way (Up, Down, Sibling)."""
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate("() => window._altoSolarLook.set('hub')")
     pg.evaluate("() => window.enterFocus('u2-p2')")
@@ -132,14 +132,10 @@ def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(700)
     assert pg.evaluate("() => document.querySelectorAll('.sol-nh').length") == 0   # calm: nothing enlarged, nothing shown
-    pg.click("#sol-lock")                                                       # Spokes only (it boards the middle body)
+    pg.click("#sol-lock")                                                       # the Tour (it boards the middle body)
     pg.wait_for_timeout(1300)
-    assert pg.evaluate("() => getComputedStyle(document.querySelector('#world .sol-nh>i'), '::after').content") in ('"Ride"', '"Click to ride"')
-    f = pg.evaluate("() => window._focusedNodeId")
-    pg.keyboard.press("Escape")
-    pg.wait_for_timeout(800)
-    o = pg.evaluate("() => [].map.call(document.querySelectorAll('.sol-nh'), function(p){ return p.parentNode.id+':'+p.dataset.k+':'+p.querySelector('i').getAttribute('data-a'); })")
-    assert o == [f"node-{f}:o:Scroll to enlarge"], o                            # Esc lets the card go home: you are still there
+    k = pg.evaluate("() => [].map.call(document.querySelectorAll('#world .sol-nh>i'), function(i){ return getComputedStyle(i, '::after').content; })")
+    assert k and set(k) <= {'"Up"', '"Down"', '"Sibling"'}, k
     pg.click("#sol-lock")
     pg.context.close()
     assert not errs, errs
@@ -354,64 +350,85 @@ SPOT = """id => { var n=document.getElementById('node-'+id).getBoundingClientRec
 SCROLL = "() => [document.getElementById('canvas').scrollLeft, document.getElementById('canvas').scrollTop]"
 
 
-def test_spokes_only_rides_a_spoke_and_nothing_else(browser, page):
-    """Spokes only (Luke, 2026-10-21: "travelling only by spokes"): no free camera — no drag, no zoom; an arrow,
-    a scroll that way, or a click on a body one spoke away (or its spoke) RIDES that spoke, the view following
-    the rider; one ride reaches only what the body is joined to; the hints name only those; the rest does nothing."""
+def test_the_tour_walks_the_outline_along_the_spokes(browser, page):
+    """The Tour (Luke, 2026-10-22, in place of Spokes only: "it just feels very unintuitive"): no free camera; → / ←
+    walk the outline's order, ↑ / ↓ a level, Shift+→ the next sibling, each move a ride along the spokes (through the
+    bodies between); a click on any body rides there; O / Esc / a pinch out show the whole system with your place
+    ringed, and a click there rides; named buttons on the bodies and the bar at the bottom say all of it."""
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("() => { window._altoSolarLook.set('hub'); window.enterFocus('u2-p2'); }")
     pg.wait_for_timeout(1300)
     pg.click("#sol-lock")
     pg.wait_for_timeout(400)
-    w = pg.evaluate("() => window._altoSolarLock.ways()")
+    assert pg.evaluate("() => document.querySelector('#sol-lock span').textContent") == "Tour"
     G = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, o={}; Object.keys(G).forEach(function(i){ o[i]=G[i].p||null; }); return o; }")
-    joined = {G["u2-p2"]} | {i for i, p in G.items() if p == "u2-p2"}
-    assert set(w["nb"]) == joined, (w, joined)                                  # what it orbits, what orbits it
+    T = pg.evaluate("() => window._altoSolarLock.order()")
+    assert T[0] == "u1" and sorted(T) == sorted(G) and all(G[i] is None or T.index(G[i]) < T.index(i) for i in T), T   # the outline's order
+
+    def arrive(want):
+        pg.wait_for_function("id => window._focusedNodeId===id && !window._altoSolarLock.riding()", arg=want, timeout=6000)
+        pg.wait_for_timeout(250)
+
+    # the named ways: the parent, every child, the siblings either side; a button on each, and the bar
+    sib = [i for i in T if G[i] == "u2"]
+    k = sib.index("u2-p2")
+    want = {"u2"} | {i for i in T if G[i] == "u2-p2"} | set(sib[max(0, k - 1):k] + sib[k + 1:k + 2])
+    w = pg.evaluate("() => window._altoSolarLock.ways()")
+    assert set(w["nb"]) == want and w["k"]["n"] == "u2", (w, want)
     pills = {p.split(":")[0][5:] for p in pg.evaluate(HINTS)["pills"]}
-    assert pills == joined, pills                                               # the hints: those, and only those
-    # an arrow rides: the card goes home, the view runs along the spoke behind the rider, the body is enlarged on arrival
-    d, to = sorted(w["k"].items())[0]
+    assert pills == want, pills
+    i = T.index("u2-p2")
+    bar = pg.evaluate("() => [document.querySelector('#sol-tour .tb-next').textContent, document.querySelector('#sol-tour .tb-at').textContent]")
+    assert bar[0].startswith("Next: ") and f"{i + 1} of {len(T)}" in bar[1], bar
+    # → rides to the next on the tour: the card goes home, the view runs behind the rider, the body is enlarged on arrival
     s0 = pg.evaluate(SCROLL)
-    pg.keyboard.press({"n": "ArrowUp", "s": "ArrowDown", "e": "ArrowRight", "w": "ArrowLeft"}[d])
+    pg.keyboard.press("ArrowRight")
     pg.wait_for_timeout(120)
-    r = pg.evaluate("() => [window._altoSolarLock.riding(), window._focusedNodeId, document.querySelector('#solar-svg .sol-rider.on')!==null, document.querySelectorAll('#solar-svg .sol-ride').length]")
-    assert r[0] and r[0]["to"] == to and r[1] is None and r[2] and r[3] == 1, r
+    r = pg.evaluate("() => [window._altoSolarLock.riding(), window._focusedNodeId, document.querySelector('#solar-svg .sol-rider.on')!==null]")
+    assert r[0] and r[0]["to"] == T[i + 1] and r[0]["path"][0] == "u2-p2" and r[1] is None and r[2], r
     pg.wait_for_timeout(int(r[0]["ms"] * .5))
     s1 = pg.evaluate(SCROLL)
-    pg.wait_for_timeout(int(r[0]["ms"] * .5) + 900)
-    assert pg.evaluate("() => window._focusedNodeId") == to
-    s2 = pg.evaluate(SCROLL)
-    assert s1 != s0 and s1 != s2, (s0, s1, s2)                                  # the view moved on the way, not in one jump
-    # a body not one spoke away: nothing happens but a word
-    far = next(i for i in G if i not in pg.evaluate("() => window._altoSolarLock.ways().nb") and i != to and G[i] is not None)
-    pg.evaluate("id => window._altoSolarCam && document.getElementById('node-'+id).querySelector('.node-card').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}))", far)
-    pg.wait_for_timeout(500)
-    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding(), document.querySelector('.sol-nope').style.display]") == [to, None, "block"]
-    # no free camera: a drag pans nothing, a pinch (ctrl wheel) zooms nothing, a click away lets nothing go
+    arrive(T[i + 1])
+    assert s1 != s0 and s1 != pg.evaluate(SCROLL)                               # the view moved on the way, not in one jump
+    pg.keyboard.press("ArrowLeft"); arrive("u2-p2")                             # ← back
+    pg.keyboard.press("ArrowUp"); arrive("u2")                                  # ↑ the parent
+    pg.keyboard.press("ArrowDown"); arrive(T[T.index("u2") + 1])                # ↓ the first child
+    pg.keyboard.press("Shift+ArrowRight"); arrive(sib[1])                       # Shift+→ the next sibling
+    # a click on any body rides there, through the bodies between
+    far = next(j for j in T if j.startswith("u3-p"))
+    pg.evaluate("id => document.getElementById('node-'+id).querySelector('.node-card').dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}))", far)
+    pg.wait_for_timeout(120)
+    r = pg.evaluate("() => window._altoSolarLock.riding()")
+    assert r and r["path"][0] == sib[1] and r["path"][-1] == far and "u3" in r["path"] and len(r["path"]) >= 4, r
+    arrive(far)
+    # no free camera: a drag pans nothing; a pinch out (ctrl wheel) is the whole system, your place ringed; Esc comes back
     s3 = pg.evaluate(SCROLL)
     pg.mouse.move(60, 520); pg.mouse.down(); pg.mouse.move(420, 300, steps=8); pg.mouse.up()
+    pg.wait_for_timeout(300)
+    assert pg.evaluate(SCROLL) == s3 and pg.evaluate("() => window._focusedNodeId") == far
     pg.mouse.move(700, 500); pg.keyboard.down("Control"); pg.mouse.wheel(0, 300); pg.keyboard.up("Control")
-    pg.wait_for_timeout(500)
-    assert pg.evaluate(SCROLL) == s3 and pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId]") == [1, to]
-    # a scroll rides the way it goes
-    w = pg.evaluate("() => window._altoSolarLock.ways()")
-    d, nx = sorted(w["k"].items())[0]
-    pg.mouse.wheel(*{"n": (0, -150), "s": (0, 150), "e": (150, 0), "w": (-150, 0)}[d])
-    pg.wait_for_timeout(3200)
-    assert pg.evaluate("() => window._focusedNodeId") == nx
-    # a click on a joined body's spoke rides it too
-    back = pg.evaluate("() => window._altoSolarLock.ways().nb[0]")
-    assert pg.evaluate("""b => { var f=window._focusedNodeId, l=[].find.call(document.querySelectorAll('#solar-svg line.sol-hit'), function(x){ var s=x._r && x._r.sp; return s && ((s.a===f && s.b===b) || (s.b===f && s.a===b)); });
-      if(!l) return false; l.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); return !!window._altoSolarLock.riding(); }""", back)
-    pg.wait_for_timeout(3000)
-    assert pg.evaluate("() => window._focusedNodeId") == back
+    pg.wait_for_timeout(1400)
+    o = pg.evaluate("() => [window._altoSolarZoom(), !!document.getElementById('sol-here'), document.querySelector('#sol-tour .tb-ov').textContent]")
+    assert o[0] < .9 and o[1] and o[2].startswith("Back to "), o
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(1400)
+    assert pg.evaluate("() => [window._altoSolarZoom(), window._focusedNodeId, !!document.getElementById('sol-here')]") == [1, far, False]
+    # O: the whole system again; a click on a body there rides to it
+    pg.keyboard.press("o")
+    pg.wait_for_timeout(1400)
+    x, y = pg.evaluate(SPOT, "u1")
+    pg.mouse.move(x, y); pg.wait_for_timeout(100)
+    assert pg.evaluate("() => document.querySelectorAll('#solar-svg .sol-route').length") >= 1   # its route, drawn
+    pg.mouse.click(x, y)
+    arrive("u1")
+    assert pg.evaluate("() => window._altoSolarZoom()") == 1
+    pg.mouse.move(700, 500); pg.mouse.wheel(0, 150); arrive(T[1])              # a scroll down: Next
     pg.click("#sol-lock")                                                       # off: as before
     pg.evaluate("() => window.enterFocus('u1-p1')")
     pg.wait_for_timeout(200)
-    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding()]") == ["u1-p1", None]
+    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding(), document.getElementById('sol-tour')]") == ["u1-p1", None, None]
     pg.context.close()
     assert not errs, errs
-
 
 def test_retro_bands_are_the_orbits(browser, page):
     """Retro (Luke, 2026-10-21): the coloured bands are the orbits — every body sits on its band; a band's hover

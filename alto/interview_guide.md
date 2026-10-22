@@ -505,6 +505,8 @@ In all of them, the planets, moons and satellites orbit, each on its own ring; a
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.
+A **Tour** switch makes the page a guided tour: → / ← walk the outline in order, ↑ / ↓ go
+up or down a level, O shows the whole system, and every move rides the spokes.
 An enlarged circle stays circular and shows the concept's card (number, tag,
 title, short description and chips, which settle along its bottom edge like water; the full content is on its page), with the
 concepts directly under it (a planet's moons, a moon's satellites) beside it,
