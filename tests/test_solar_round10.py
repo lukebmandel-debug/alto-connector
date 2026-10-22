@@ -330,12 +330,46 @@ def test_an_enlarged_body_is_its_globe_close_up(browser, page):
     assert not errs, errs
 
 
+def test_3d_small_bodies_are_varied_real_objects_and_nothing_blocks_the_close_up(browser, page):
+    """Luke (2026-10-22): an enlarged satellite was a blank grid sphere beside a giant black moon. Moons cycle six kinds by their
+    order under their planet; the satellite level is a satellite, station, asteroid or comet, neighbours never alike; a plan's
+    look is honoured; close up, a body in front of the enlarged one (or bigger on screen than its disc) fades away."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    S = pg.evaluate("() => { var N=window._ALTO_SOLAR.nodes, g=window._altoSolarGeo().bodies, o={}; Object.keys(g).forEach(function(id){ o[id]={role:g[id].role, p:g[id].p}; }); return o; }")
+    planet = [i for i in S if S[i]["role"] == "planet"][-1]
+    pg.evaluate("id => { window._ALTO_SOLAR.nodes[id].look='blackhole'; }", planet)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('real'); }")
+    pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pytest.skip("no WebGL in this browser")
+    K = pg.evaluate("() => window._altoSolar3D.kinds()")
+    assert K[planet] == "blackhole"
+    for role, kinds in (("moon", {"moon", "icy", "sulphur", "rust", "carbon", "haze"}), ("sat", {"sat", "station", "asteroid", "comet"})):
+        ids = [i for i in S if S[i]["role"] == role]
+        assert ids and all(K[i] in kinds for i in ids), (role, {i: K[i] for i in ids})
+        by = {}
+        for i in ids:
+            by.setdefault(S[i]["p"], []).append(K[i])
+        assert all(len(set(v)) == len(v) for v in by.values() if len(v) <= len(kinds)), by          # siblings never alike
+    sat = [i for i in S if S[i]["role"] == "sat"][0]
+    pg.evaluate("id => window.enterFocus(id)", sat)
+    pg.wait_for_timeout(2400)
+    q = pg.evaluate("""id => { var G=window._altoSolarGeo().bodies, P=window._altoSolar3D, f=P.project(id), F=P.fades(), rf=G[id].d/2*f.s, out=[];
+      Object.keys(G).forEach(function(k){ var p=P.project(k); if(k===id || !p) return; var r=G[k].d/2*p.s, d=Math.hypot(p.x-f.x, p.y-f.y);
+        if(r>rf*1.25 || (p.w<f.w*.93 && d<r+rf*1.1)) out.push([k, F[k]==null ? 1 : F[k]]); }); return {lock:P.closeup().lock, out:out}; }""", sat)
+    assert q["lock"] == sat and all(f < .1 for _, f in q["out"]), q
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1400)
+    assert pg.evaluate("() => Object.keys(window._altoSolar3D.fades()).length") == 0                     # all back on the way out
+    pg.context.close()
+    assert not errs, errs
+
+
 def test_the_3d_scene_is_small_and_on_system_pages_only():
     import gzip
     from alto.build import blocks
     from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
-    assert size < 17500, size                   # (~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library)
+    assert size < 20500, size                   # (~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~19.7 KB with 1.9.145's moon kinds, satellites, stations, asteroids, comets and black holes)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
 
 

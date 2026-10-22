@@ -242,7 +242,7 @@ var GL={vs:'attribute vec3 p,n;attribute vec4 k;uniform mat4 VP,M;varying vec3 W
   'col+=b*vec3(.2,.26,.42)*max(dot(n,normalize(vec3(.2,-.6,.5))),0.)*.22;col*=.72+.28*smoothstep(-1.,.6,n.y);'+
   'if(m>.5&&m<.7){float t=sau>.5?atan(Op.z-WC.y,Op.x-WC.x)*rr:Op.x;float w=step(.6,fract(t*2.1))*step(fract(t*2.1),.84);col=mix(col,vec3(1.,.86,.62)*1.3,w*.85);}'+
   'col*=1.15;col=col*(2.51*col+.03)/(col*(2.43*col+.59)+.14);gl_FragColor=vec4(pow(col,vec3(1./2.2))*al,al);}'};
-window._altoCraft={list:C, gl:GL, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, set:set, open:open, close:close,
+window._altoCraft={list:C, gl:GL, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, kit:kit, set:set, open:open, close:close,
   chosen:function(){ return pick(); }, onChange:function(f){ subs.push(f); },
   track:track, orbitR:orbitR, park:park, parked:parked, unpark:function(){ ORB=null; }, orbiting:function(){ return ORB && ORB.id; }, steer:steer, W:ORB_W,
   xf:xf, line:line, leave:leave, coast:coast};

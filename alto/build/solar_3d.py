@@ -39,6 +39,19 @@ craft (window._altoSolarRide). Flights off: the camera glides, as before. (Luke,
 into a gentle orbit around planets") It never flies into a body: it comes into a gentle orbit round the one it goes to,
 at a radius by that body's size, and goes on round it while the close-up shows; the model is small and clear, smaller
 still near a small body.
+
+The small bodies (Luke, 2026-10-22: an enlarged satellite was a blank grey grid sphere and the moon beside it a giant
+black disc; "If its not a real moon, its ok to make a 3d render of satillite/space station/astroid/commet"): moons cycle
+six kinds by their order under their planet (each planet starting elsewhere): cratered grey, icy and cracked (Europa),
+sulphur with volcanoes (Io), rusty dust, dark carbon, orange haze (Titan), each its painted surface (the moon's,
+recoloured) and its own detail in the shader. A satellite-level body is a real object, its neighbours never alike: an
+artificial satellite (bus, solar wings, dish or telescope), a space station (truss, wings, modules with lit windows, a
+ring, a docking port: the plan's station is always one), a lumpy asteroid (its shape pushed out in the vertex shader)
+or a comet (an icy nucleus, its coma and two soft tails away from its sun). A plan's look (black hole, comet, asteroid)
+is honoured as in 2D: a black hole is a black horizon with a photon rim, a hot accretion disc and a glow. No night side
+goes black (a cool fill of about 8% and a soft rim towards the camera); close up, any other body nearer the camera than
+the enlarged one, or larger on screen than its disc, fades away; small bodies keep their colour (a satellite far off a
+coloured glint).
 """
 
 SOLAR3D_CSS = r"""
@@ -83,11 +96,17 @@ SOLAR3D_JS = r"""
 'use strict';
 var RC=null, de=document.documentElement, cv=null, lay=null, gl=null, P={}, ready=false, on=false, raf=0, BOD={}, sky=null;
 var cam={tx:0, ty:0, tz:0, d:1600, az:-0.6, el:0.62, fov:0.82, ox:0, oy:0}, tw=null, LK=null, pre=null, QL=1, dtA=16, slow=0, lastT=0, TAU=Math.PI*2, foc=undefined, drag=null, VPm=null, EYE=[0, 0, 0], RT=[1, 0, 0], UP=[0, 1, 0];
-var TYPES=['rocky', 'ocean', 'gas', 'ice', 'desert', 'lava'], ATM={rocky:[.55,.6,.7], ocean:[.4,.66,1], gas:[.95,.82,.6], ice:[.6,.88,1], desert:[1,.66,.45], lava:[1,.45,.2], moon:[0,0,0], sat:[0,0,0]};
+var TYPES=['rocky', 'ocean', 'gas', 'ice', 'desert', 'lava'], ATM={rocky:[.55,.6,.7], ocean:[.4,.66,1], gas:[.95,.82,.6], ice:[.6,.88,1], desert:[1,.66,.45], lava:[1,.45,.2],
+  icy:[.7,.85,1], sulphur:[1,.85,.45], rust:[1,.6,.4], haze:[1,.62,.25]};
+/* the moons' six kinds (each the moon's painted surface recoloured: dark, middle, light) and the satellite level's four objects */
+var MOONS=['moon', 'icy', 'sulphur', 'rust', 'carbon', 'haze'], SATS=['sat', 'asteroid', 'station', 'comet'], MK={sat:1, station:1}, NT={sun:1, sat:1, station:1, blackhole:1};
+var MT={icy:[[.5,.44,.38],[.85,.8,.72],[.97,.96,.93]], sulphur:[[.42,.28,.1],[.85,.7,.28],[.98,.94,.62]], rust:[[.3,.14,.08],[.62,.32,.18],[.85,.6,.42]],
+  carbon:[[.11,.1,.09],[.25,.23,.21],[.45,.42,.38]], haze:[[.5,.3,.1],[.8,.55,.22],[.95,.78,.45]]};
 /* each kind's shading: [type for the shader, atmosphere, cloud cover's threshold (1: none), cloud opacity] */
 /* the craft's model: its scale on the way (the models are about 60 long) and the least near a small body; the chase camera's distance */
 var K3={S:.2, S_MIN:.06, CD:[120, 340], Y:3, CLR:9};
-var KD={rocky:[0, .32, .6, .5], ocean:[1, 1, .53, .95], gas:[2, .55, 1, 0], ice:[3, .7, .62, .45], desert:[4, .55, .66, .35], lava:[5, .4, .68, .3], moon:[6, 0, 1, 0], sat:[7, 0, 1, 0], sun:[8, 0, 1, 0]};
+var KD={rocky:[0, .32, .6, .5], ocean:[1, 1, .53, .95], gas:[2, .55, 1, 0], ice:[3, .7, .62, .45], desert:[4, .55, .66, .35], lava:[5, .4, .68, .3], moon:[6, 0, 1, 0], sun:[8, 0, 1, 0],
+  icy:[9, .12, 1, 0], sulphur:[10, .1, 1, 0], rust:[11, .1, 1, 0], carbon:[12, 0, 1, 0], haze:[13, .95, .38, .75], asteroid:[14, 0, 1, 0], comet:[15, 0, 1, 0], blackhole:[16, 0, 1, 0]};
 function geo(){ return window._altoSolarGeo ? window._altoSolarGeo() : null; }
 function want(){ return de.classList.contains('sk-real') && de.classList.contains('alto-stars') && !de.classList.contains('mobile') && !de.classList.contains('alto-editing')
   && !document.querySelector('#detail-page.visible') && !!window._altoSolarGeo && !!window._altoSkPaint; }
@@ -107,11 +126,16 @@ function sh(vs, fs){ var p=gl.createProgram(); [[gl.VERTEX_SHADER, vs], [gl.FRAG
   gl.linkProgram(p); var o={p:p, a:{}, u:{}}, n=gl.getProgramParameter(p, gl.ACTIVE_ATTRIBUTES), i;
   for(i=0;i<n;i++){ var a=gl.getActiveAttrib(p, i).name; o.a[a]=gl.getAttribLocation(p, a); }
   n=gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for(i=0;i<n;i++){ var u=gl.getActiveUniform(p, i).name; o.u[u]=gl.getUniformLocation(p, u); } return o; }
-var VS_B='attribute vec3 p;attribute vec2 t;uniform mat4 VP;uniform vec3 C,E,L;uniform float R,sp;varying vec3 N,V,Lv;varying vec2 T;'+
-  'void main(){N=p;vec3 w=C+p*R;V=E-w;Lv=L-w;T=vec2(t.x+sp,t.y);gl_Position=VP*vec4(w,1.);}';
+/* (an asteroid or a comet: lu = [lumps, 1 / its three half-axes], its shape turned with its spin sv, its normal from two
+   neighbours; O the sphere's point, for its surface) */
+var VS_B='attribute vec3 p;attribute vec2 t;uniform mat4 VP;uniform vec3 C,E,L;uniform vec2 sv;uniform vec4 lu;uniform float R,sp;varying vec3 N,V,Lv,O;varying vec2 T;'+
+  'float sf(vec3 v){vec3 q=vec3(v.x*sv.x+v.z*sv.y,v.y,v.z*sv.x-v.x*sv.y),s=q*lu.yzw;return inversesqrt(dot(s,s))*(1.+lu.x*(sin(dot(q,vec3(3.1,1.7,2.3))+lu.y*9.)*.5'+
+    '+sin(dot(q,vec3(-2.3,4.1,1.3))*1.7+lu.z*7.)*.3+sin(dot(q,vec3(5.3,-3.7,4.9))+lu.w*5.)*.2));}'+
+  'void main(){O=p;vec3 n=p;float h=1.;if(lu.x>0.){h=sf(p);vec3 a=normalize(cross(abs(p.y)<.99?vec3(0.,1.,0.):vec3(1.,0.,0.),p)),b=cross(p,a),pa=normalize(p+a*.04),pb=normalize(p+b*.04);'+
+    'n=normalize(cross(pa*sf(pa)-p*h,pb*sf(pb)-p*h));if(dot(n,p)<0.)n=-n;}N=n;vec3 w=C+p*h*R;V=E-w;Lv=L-w;T=vec2(t.x+sp,t.y);gl_Position=VP*vec4(w,1.);}';
 /* a globe: its painted surface (the macro look) and, by its size on screen (oc octaves, dl detail), the procedural rest */
-var FS_B='precision highp float;varying vec3 N,V,Lv;varying vec2 T;uniform sampler2D tx,th,nz;uniform vec3 A,K;uniform vec2 sc,cc;'+
-  'uniform float em,ht,hm,ty,oc,dl,ep,tm,at,cv,ca;'+
+var FS_B='precision highp float;varying vec3 N,V,Lv,O;varying vec2 T;uniform sampler2D tx,th,nz;uniform vec3 A,K;uniform vec2 sc,cc;'+
+  'uniform float em,ht,hm,ty,oc,dl,ep,tm,at,cv,ca,fa,sz;'+
   'vec3 tx2(vec2 u){vec3 a=texture2D(tx,u).rgb;return hm>0.?mix(a,texture2D(th,u).rgb,hm):a;}'+
   'vec3 ry(vec3 v,vec2 c){return vec3(v.x*c.x+v.z*c.y,v.y,v.z*c.x-v.x*c.y);}'+
   'float n3(vec3 x){vec3 p=floor(x),f=fract(x);f=f*f*(3.-2.*f);vec2 u=p.xy+vec2(37.,17.)*p.z+f.xy;vec2 g=texture2D(nz,(u+.5)/256.).xy;return mix(g.x,g.y,f.z);}'+
@@ -122,15 +146,18 @@ var FS_B='precision highp float;varying vec3 N,V,Lv;varying vec2 T;uniform sampl
     'vec3 q=c+vec3(r1,r2,fract(r1*7.13+r2*3.7));float d=length(p-q)/(.2+.32*fract(r3*5.3));h+=d<1.?(d*d-1.)*.5+.18*d*d*d*d:.18*exp(-(d-1.)*(d-1.)*14.);}return h*.5;}'+
   'float hg(vec3 r){if(ty<.5)return fb(r*5.,oc)*.9+rg(r*3.,oc-1.)*.5+cr(r*6.)*.55;if(ty<1.5)return fb(r*4.,oc);if(ty<2.5)return 0.;'+
     'if(ty<3.5)return fb(r*5.,oc)*.4+rg(r*2.5,oc)*.3;if(ty<4.5)return fb(r*4.5,oc)*.7+rg(r*vec3(3.,14.,3.),oc-1.)*.25+cr(r*5.)*.3;'+
-    'if(ty<5.5)return fb(r*5.,oc)*.6+rg(r*3.,oc)*.5;if(ty<6.5)return fb(r*5.,oc)*.6+cr(r*5.)+cr(r*13.)*.45;return 0.;}'+
+    'if(ty<5.5)return fb(r*5.,oc)*.6+rg(r*3.,oc)*.5;if(ty<6.5||ty>10.5&&ty<12.5)return fb(r*5.,oc)*.6+cr(r*5.)+cr(r*13.)*.45;'+
+    'if(ty<9.5)return fb(r*5.,oc)*.3+rg(r*vec3(2.,5.,2.),oc)*.3;if(ty<10.5)return fb(r*4.,oc)*.4+cr(r*4.)*.5;if(ty<13.5)return fb(r*4.,oc)*.3;'+
+    'if(ty<14.5)return fb(r*4.,oc)*.8+cr(r*5.)*.9+cr(r*12.)*.4;return fb(r*5.,oc)*.8+rg(r*3.,oc)*.45;}'+
   'float cl(vec3 q,float o){vec3 w=q*3.+vec3(fb(q*2.,3.),fb(q*2.+5.2,3.),fb(q*2.-3.7,3.))*1.6;return smoothstep(cv,cv+.24,fb(w,o)+.5);}'+
-  'void main(){vec3 n=normalize(N),v=normalize(V),l=normalize(Lv),r=ry(n,sc);vec2 tt=T;'+
+  'void main(){vec3 n=normalize(N),v=normalize(V),l=normalize(Lv),r=ry(normalize(O),sc);vec2 tt=T;'+
+    'if(ty>15.5){gl_FragColor=vec4(vec3(1.,.66,.36)*pow(1.-max(dot(n,v),0.),6.)*1.6*fa,fa);return;}'+
     'if(abs(ty-2.)<.5&&dl>0.){tt+=vec2(fb(r*vec3(2.5,10.,2.5)+vec3(tm*.004,0.,0.),oc)*.05,fb(r*vec3(4.,22.,4.)-vec3(0.,0.,tm*.006),oc)*.018)*dl;}'+
     'vec3 c=ht>.5?tx2(tt):K;'+
     'if(em>.5){float m=max(dot(n,v),0.),g=fb(r*18.+vec3(0.,tm*.01,0.),oc)+fb(r*48.-vec3(tm*.02),oc-1.)*.6;vec3 s=c*(.75+.6*m)+vec3(.25,.18,.05)*(1.-m);'+
-      's=mix(s,c*(.6+.5*pow(m,.45))*mix(vec3(1.),vec3(1.,.62,.32),(1.-m)*.7),dl);s*=1.+g*.45*dl;gl_FragColor=vec4(s,1.);return;}'+
+      's=mix(s,c*(.6+.5*pow(m,.45))*mix(vec3(1.),vec3(1.,.62,.32),(1.-m)*.7),dl);s*=1.+g*.45*dl;gl_FragColor=vec4(s*fa,fa);return;}'+
     'float wet=abs(ty-1.)<.5?smoothstep(.05,.25,c.b-max(c.r,c.g)):0.,lg=0.,ct=0.,g0=dot(n,l);vec3 nn=n;'+
-    'if(dl>0.){float h=hg(r),bs=ty<.5?.9:ty<1.5?.6:ty<2.5?0.:ty<3.5?.5:ty<4.5?.55:ty<5.5?.6:ty<6.5?1.1:0.;vec3 d=c;'+
+    'if(dl>0.){float h=hg(r),bs=ty<.5?.9:ty<1.5?.6:ty<2.5?0.:ty<3.5?.5:ty<4.5?.55:ty<5.5?.6:ty<6.5?1.1:ty<9.5?.45:ty<10.5?.6:ty<12.5?1.1:ty<13.5?.25:1.25;vec3 d=c;'+
       'if(ty<.5)d=c*(.78+h*.9);'+
       'else if(ty<1.5){vec2 bx=vec2(2.2/256.,1.1/128.)*(1.-.75*hm),by=vec2(-1.1/256.,2.2/128.)*(1.-.75*hm);vec3 cb=(c*2.+tx2(tt+bx)+tx2(tt-bx)+tx2(tt+by)+tx2(tt-by))/6.;'+
         'float wb=smoothstep(.05,.25,cb.b-max(cb.r,cb.g)),m=(1.-wb)+h*(.5+2.2*(1.-abs(2.*wb-1.))),ld=smoothstep(.46,.54,m),ic=smoothstep(.7,.82,min(c.r,min(c.g,c.b)));'+
@@ -142,25 +169,42 @@ var FS_B='precision highp float;varying vec3 N,V,Lv;varying vec2 T;uniform sampl
       'else if(ty<4.5)d=c*(.82+h*.8);'+
       'else if(ty<5.5){d=c*(.65+h*.6);lg=smoothstep(.22,.42,rg(r*3.6,oc+1.));}'+
       'else if(ty<6.5)d=c*(.72+h*.75);'+
-      'else d=c*(1.-.35*max(step(.93,fract(atan(r.z,r.x)*3.82)),step(.9,fract(r.y*12.))));'+
+      'else if(ty<9.5){d=c*(.9+h*.4);float k1=1.-abs(2.*n3(r*4.+fb(r*2.,3.)*2.)-1.),k2=1.-abs(2.*n3(r*vec3(9.,3.,9.)+5.)-1.);'+
+        'd=mix(d,vec3(.6,.33,.2),(smoothstep(.9,.98,k1)+smoothstep(.93,.985,k2)*.7)*.8);}'+
+      'else if(ty<10.5){float z=n3(r*6.+11.);d=mix(c*(.85+h*.5),vec3(.96,.93,.84),smoothstep(.62,.75,n3(r*3.+4.))*.45);d=mix(d,vec3(.78,.26,.08),smoothstep(.6,.7,z)*.75);'+
+        'd=mix(d,vec3(.1,.06,.04),smoothstep(.74,.8,z));lg=smoothstep(.8,.86,z)*.9;}'+
+      'else if(ty<11.5)d=mix(c*(.78+h*.8),c*1.25+.05,smoothstep(.55,.7,fb(r*vec3(2.,7.,2.),oc)+.5)*.5);'+
+      'else if(ty<12.5)d=c*(.75+h*.9)+vec3(.1,.09,.08)*smoothstep(.12,.3,cr(r*5.));'+
+      'else if(ty<13.5)d=mix(c*(.9+h*.3),vec3(.45,.28,.12),smoothstep(.55,.9,abs(r.y))*.5);'+
+      'else if(ty<14.5)d=c*(.7+h*.9);'+
+      'else d=mix(c*(.6+h*.7),vec3(.82,.9,1.),smoothstep(.62,.72,n3(r*5.+2.))*.6);'+
       'if(bs>0.){vec3 t1=normalize(cross(abs(n.y)<.99?vec3(0.,1.,0.):vec3(1.,0.,0.),n)),t2=cross(n,t1);'+
         'vec3 gr=((hg(r+ry(t1,sc)*ep)-h)*t1+(hg(r+ry(t2,sc)*ep)-h)*t2)/ep;nn=normalize(n-gr*bs*.04*dl);}'+
       'c=mix(c,d,dl);}'+
     'float cw=0.,cs=0.;if(ca>0.){float co=max(oc,3.);vec3 q=ry(n,cc);cw=cl(q,co)*ca;cs=cl(ry(normalize(n-l*.02),cc),co-2.)*ca;}'+
     'float gt=smoothstep(-.12,.2,g0),df=max(dot(nn,l),0.)*gt;vec3 tn=mix(vec3(1.),vec3(1.,.5,.3),at*(1.-smoothstep(0.,.4,g0))*.8),hv=normalize(l+v);'+
-    'float sp2=pow(max(dot(nn,hv),0.),90.)*wet*1.3+pow(max(dot(nn,hv),0.),24.)*(abs(ty-3.)<.5?.25:.04);'+
-    'vec3 o=c*(.022+1.12*df*tn)*(1.-cs*.55*gt)+vec3(1.,.95,.86)*sp2*gt*(1.-cw);'+
+    'float sp2=pow(max(dot(nn,hv),0.),90.)*wet*1.3+pow(max(dot(nn,hv),0.),24.)*(abs(ty-3.)<.5||abs(ty-9.)<.5?.25:.04),nv=max(dot(n,v),0.);'+
+    'vec3 o=c*(vec3(.05,.058,.08)+vec3(.03,.035,.05)*max(dot(nn,v),0.)+1.12*df*tn)*(1.-cs*.55*gt)+vec3(1.,.95,.86)*sp2*gt*(1.-cw);'+   /* (a cool fill: no night side black) */
     'o+=vec3(1.,.42,.1)*lg*dl*(1.15-gt*.6)+vec3(1.,.75,.4)*ct*dl*.85*(1.-smoothstep(-.2,.05,g0))*(1.-cw);'+
-    'vec3 ck=ty>3.5&&ty<4.5?vec3(.9,.76,.6):ty>4.5&&ty<5.5?vec3(.34,.31,.3):vec3(.97,.98,1.);o=mix(o,ck*(.02+1.05*max(g0,0.)*gt)*tn,cw);'+
-    'float fr=pow(1.-max(dot(n,v),0.),2.4);o+=A*fr*at*(.06+1.1*smoothstep(-.25,.6,g0));gl_FragColor=vec4(o,1.);}';
+    'vec3 ck=ty>3.5&&ty<4.5?vec3(.9,.76,.6):ty>4.5&&ty<5.5?vec3(.34,.31,.3):ty>12.5&&ty<13.5?vec3(.86,.6,.3):vec3(.97,.98,1.);o=mix(o,ck*(.06+1.05*max(g0,0.)*gt)*tn,cw);'+
+    'float fr=pow(1.-nv,2.4);o+=A*fr*at*(.06+1.1*smoothstep(-.25,.6,g0))+(c+.12)*vec3(.3,.36,.5)*pow(1.-nv,3.)*(1.-gt)*.45;'+   /* (and a soft rim towards the camera) */
+    'float sk=1.-smoothstep(3.,24.,sz);o=mix(vec3(dot(o,vec3(.3,.59,.11))),o,1.+sk*.5)*(1.+sk*.3);gl_FragColor=vec4(o*fa,fa);}';   /* (a small body keeps its colour) */
 var VS_G='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float S;varying vec2 Q;void main(){Q=q;gl_Position=VP*vec4(C+(X*q.x+Y*q.y)*S,1.);}';
 var FS_G='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a;void main(){float r=length(Q);if(r>1.)discard;float g=pow(1.-r,2.4);gl_FragColor=vec4(K*g*a,g*a);}';
 var FS_H='precision highp float;varying vec2 Q;uniform vec3 K,X,Y,L;uniform float a;void main(){float r=length(Q);if(r<.97||r>1.3)discard;'+
   'float g=r<1.?smoothstep(.97,1.,r):exp(-(r-1.)*24.);float k=g*smoothstep(-.45,.65,dot(normalize(X*Q.x+Y*Q.y),L))*a*.9;gl_FragColor=vec4(K*k,k*.6);}';
 var CG=window._altoCraft && window._altoCraft.gl;            /* (the craft's high-definition shader: solar_craft.py) */
 var VS_R='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float R;varying vec2 Q;void main(){Q=q;gl_Position=VP*vec4(C+(X*q.x+Y*q.y)*R,1.);}';
-var FS_R='precision mediump float;varying vec2 Q;uniform vec3 K;void main(){float r=length(Q);if(r<1.35||r>2.3)discard;float b=.55+.45*sin(r*38.)*sin(r*11.);'+
-  'float e=smoothstep(1.35,1.45,r)*smoothstep(2.3,2.18,r);gl_FragColor=vec4(K*b,.6*e*(abs(r-1.9)<.04?.25:1.));}';
+var FS_R='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a;void main(){float r=length(Q);if(r<1.35||r>2.3)discard;float b=.55+.45*sin(r*38.)*sin(r*11.);'+
+  'float e=smoothstep(1.35,1.45,r)*smoothstep(2.3,2.18,r);gl_FragColor=vec4(K*b,.6*e*(abs(r-1.9)<.04?.25:1.))*a;}';
+/* a black hole's accretion disc: hot within, turning streaks */
+var FS_A='precision mediump float;varying vec2 Q;uniform float a,tm;void main(){float r=length(Q);if(r<1.25||r>2.95)discard;float w=atan(Q.y,Q.x),t=1.-smoothstep(1.25,2.95,r);'+
+  'float s=.62+.38*sin(w*3.-r*6.+tm*1.5)*sin(w*7.+r*11.-tm*2.3),e=smoothstep(1.25,1.33,r)*smoothstep(2.95,2.4,r)*a;'+
+  'gl_FragColor=vec4(mix(vec3(.9,.25,.05),vec3(1.,.86,.58),t*t)*(.4+1.4*t*t)*s*e,e*.8);}';
+/* a comet's tail: a soft strip from the nucleus away from its sun, widening and fading, faintly streaked */
+var VS_T='attribute vec2 q;uniform mat4 VP;uniform vec3 C,D,X;uniform float Lg,Wd;varying vec2 Q;void main(){Q=q;gl_Position=VP*vec4(C+D*q.x*Lg+X*q.y*Wd*(.35+q.x*1.3),1.);}';
+var FS_T='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a,tm;void main(){float u=Q.x,v=Q.y,s=.75+.25*sin(v*9.+u*4.-tm*.6)*sin(v*23.-u*7.);'+
+  'float k=pow(1.-u,1.6)*exp(-v*v*3.5)*s*smoothstep(0.,.06,u)*a;gl_FragColor=vec4(K*k,k*.5);}';
 var VS_L='attribute vec3 p;attribute vec4 k;uniform mat4 VP;varying vec4 K;void main(){K=k;gl_Position=VP*vec4(p,1.);}';
 var FS_L='precision mediump float;varying vec4 K;void main(){gl_FragColor=vec4(K.rgb*K.a,K.a);}';
 var VS_C='attribute vec2 c;uniform mat4 VP;uniform vec3 C;uniform float r;void main(){gl_Position=VP*vec4(C+vec3(c.x*r,0.,c.y*r),1.);}';
@@ -176,7 +220,7 @@ function init(){
   if(!gl) return false;
   var hp=gl.getShaderPrecisionFormat && gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
   if(!hp || !hp.precision){ FS_B=FS_B.replace('highp', 'mediump'); FS_H=FS_H.replace('highp', 'mediump'); if(CG) CG.fs=CG.fs.replace('highp', 'mediump'); QL=0; }   /* (no highp: no procedural detail) */
-  try{ P.k=CG ? sh(CG.vs, CG.fs) : null; P.h=sh(VS_G, FS_H); P.b=sh(VS_B, FS_B); P.g=sh(VS_G, FS_G); P.r=sh(VS_R, FS_R); P.l=sh(VS_L, FS_L); P.c=sh(VS_C, FS_C); P.s=sh(VS_S, FS_S); }catch(e){ if(window.console) console.warn('3d', e); gl=null; return false; }
+  try{ P.k=CG ? sh(CG.vs, CG.fs) : null; P.h=sh(VS_G, FS_H); P.b=sh(VS_B, FS_B); P.g=sh(VS_G, FS_G); P.r=sh(VS_R, FS_R); P.l=sh(VS_L, FS_L); P.c=sh(VS_C, FS_C); P.s=sh(VS_S, FS_S); P.a=sh(VS_R, FS_A); P.t=sh(VS_T, FS_T); }catch(e){ if(window.console) console.warn('3d', e); gl=null; return false; }
   /* a sphere, its texture's longitude across, latitude up: 40 x 24, and 128 x 64 for a big one */
   P.lo=mesh(40, 24); P.hi=mesh(128, 64);
   /* the noise: random values, the green a copy of the red 37 across and 17 down (one fetch gives two slices of 3D value noise) */
@@ -187,6 +231,7 @@ function init(){
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   P.q=buf([-1,-1, 1,-1, -1,1, 1,1]); P.q3=buf([-3,-3, 3,-3, -3,3, 3,3]); P.q4=buf([-1.3,-1.3, 1.3,-1.3, -1.3,1.3, 1.3,1.3]);
   var c=[]; for(i=0;i<=128;i++){ var w=i/128*Math.PI*2; c.push(Math.cos(w), Math.sin(w)); } P.ci=buf(c);
+  c=[]; for(i=0;i<=8;i++) c.push(i/8, -1, i/8, 1); P.qt=buf(c);
   var R=mkR(7), sp=[], sz=[]; for(i=0;i<2600;i++){ var u=R()*2-1, ph=R()*Math.PI*2, s=Math.sqrt(1-u*u); sp.push(s*Math.cos(ph), u, s*Math.sin(ph)); sz.push(Math.pow(R(), 6)); }
   P.sp=buf(sp); P.sz=buf(sz); P.sn2=sz.length;
   P.lb=gl.createBuffer(); P.tb=gl.createBuffer();
@@ -211,15 +256,20 @@ function rgbOf(c){ var m=/^#?([0-9a-f]{6})$/i.exec(String(c||'').trim()); if(m){
 function bodies(G){
   var per={}, ids=Object.keys(G.bodies);
   ids.forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(o) return;
-    var n=document.getElementById('node-'+id), lb=n && n.querySelector('.sol-lbl'), kind;
-    if(g.role==='sun') kind='sun'; else if(g.role==='moon') kind='moon'; else if(g.role==='sat') kind='sat';
-    else { var k=(per[g.p]=(per[g.p]||0)+1)-1; kind=TYPES[(k+(g.si||0)*2)%TYPES.length]; }
-    var R=mkR(hsh(id+'#3d'));
-    BOD[id]={id:id, kind:kind, name:(lb && lb.getAttribute('data-l')) || (n && n.getAttribute('data-title')) || '', tex:null, ty:0,
-      spin:(kind==='gas' ? 40 : kind==='moon' ? 160 : 70)*(.7+R()*.7), ph:R(), ring:kind==='gas' && R()<.6, tilt:(R()-.5)*.9}; });
+    var n=document.getElementById('node-'+id), lb=n && n.querySelector('.sol-lbl'), kind, P=((window._ALTO_SOLAR||{}).nodes||{})[id]||{}, k=(per[g.p]=(per[g.p]||0)+1)-1;
+    if(/^(blackhole|comet|asteroid)$/.test(P.look||'')) kind=P.look;            /* (a plan's look overrules the role's, as in 2D) */
+    else if(g.role==='sun') kind='sun'; else if(g.role==='moon') kind=MOONS[(k+hsh(g.p||''))%6];
+    else if(g.role==='sat') kind=P.station ? 'station' : SATS[(k+hsh(g.p||''))%4];
+    else kind=TYPES[(k+(g.si||0)*2)%TYPES.length];
+    var R=mkR(hsh(id+'#3d')), lp=/^(asteroid|comet)$/.test(kind);
+    BOD[id]={id:id, kind:kind, name:(lb && lb.getAttribute('data-l')) || (n && n.getAttribute('data-title')) || '', tex:null, ty:0, v:(kind==='station' ? 't' : 's')+(hsh(id)&3),
+      spin:(lp ? 22 : kind==='gas' ? 40 : g.role==='moon' ? 160 : 70)*(.7+R()*.7), ph:R(), ring:kind==='gas' && R()<.6, tilt:(R()-.5)*.9,
+      lu:lp ? [kind==='comet' ? .16 : .18+R()*.08, .95+R()*.05, 1.4+R()*.2, 1.15+R()*.15] : [0, 0, 0, 0]}; });
 }
 function texJob(o, W, H, inc){                      /* a surface painted a few rows a frame: job(deadline) -> its texture once done */
-  var pa=window._altoSkPaint(o.kind, o.id, {nc:1}), D=new Uint8Array(W*H*4), y=0, t=null;
+  var T=MT[o.kind], p0=window._altoSkPaint(T ? 'moon' : o.kind, o.id, {nc:1}), D=new Uint8Array(W*H*4), y=0, t=null;
+  var pa=T ? function(lo, la){ var c=p0(lo, la), s=Math.max(0, Math.min(1, (c[0]-50)/150)), a=T[s<.5 ? 0 : 1], b=T[s<.5 ? 1 : 2], u=s<.5 ? s*2 : s*2-1;   /* (a moon's kind: its surface recoloured) */
+    return [(a[0]+(b[0]-a[0])*u)*255, (a[1]+(b[1]-a[1])*u)*255, (a[2]+(b[2]-a[2])*u)*255]; } : p0;
   function mk(){ t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, inc ? null : D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); }
@@ -233,13 +283,13 @@ function texJob(o, W, H, inc){                      /* a surface painted a few r
     if(!inc) mk(); return t; };
 }
 function texStep(o, dl){
-  if(o.kind==='sun' || o.kind==='sat') return true;
+  if(NT[o.kind]) return true;
   if(!o.job) o.job=texJob(o, 256, 128, false);
   var t=o.job(dl); if(!t) return false; o.tex=t; o.job=null; return true;
 }
 /* the enlarged body's finer surface (and the last two kept): painted first, faded in over half a second */
 var HI=[];
-function hiStep(id, dl){ var o=BOD[id]; if(!o || !o.tex || o.kind==='sun' || o.kind==='sat' || o.thi) return;
+function hiStep(id, dl){ var o=BOD[id]; if(!o || !o.tex || NT[o.kind] || o.thi) return;
   if(!o.hj){ o.hj=texJob(o, 1024, 512, true); if(HI.indexOf(id)<0) HI.push(id);
     while(HI.length>3){ var q=BOD[HI.shift()]; if(q){ if(q.thi) gl.deleteTexture(q.thi); q.thi=q.hj=null; q.h0=0; } } }
   var t=o.hj(dl); if(t){ o.thi=t; o.hj=null; o.h0=performance.now(); } }
@@ -263,7 +313,7 @@ function cin(G, id, r){
   var g=G.bodies[id], R=g.d/2, cx=r.left+r.width/2, cy=r.top+r.height/2, rp=Math.min(r.width, r.height)*.24, n=document.getElementById('node-'+id), c=n && n.querySelector('.node-card');
   if(c){ var b=c.getBoundingClientRect(); if(b.width>2){ var D=parseFloat(n.style.getPropertyValue('--sD'))||0, w=parseFloat(n.style.getPropertyValue('--scd'))||D, z=parseFloat(c.style.zoom)||1;
     cx=b.left+b.width/2; cy=b.top+b.height/2; rp=b.width/2*(D && w ? D/w : 1)*(n.classList.contains('focused') ? 1.7/z : 1); } }
-  var F=r.height/2/Math.tan(cam.fov/2), s=sunOf(G, id), L=LK||{side:1, da:0, de:0}, az=(L.az0!=null ? L.az0 : cam.az)+L.da;
+  cin.rp=rp; var F=r.height/2/Math.tan(cam.fov/2), s=sunOf(G, id), L=LK||{side:1, da:0, de:0}, az=(L.az0!=null ? L.az0 : cam.az)+L.da;
   if(s && s!==g) az=Math.atan2(s.x-g.x, s.y-g.y)+L.side*1.05+L.da;
   return {x:g.x, z:g.y, d:R*Math.sqrt(1+(F/rp)*(F/rp)), az:az, el:Math.max(-1.2, Math.min(1.35, (g.role==='sun' ? .45 : .3)+L.de)),
     ox:(cx-(r.left+r.width/2))/(r.width/2), oy:-(cy-(r.top+r.height/2))/(r.height/2)};
@@ -314,7 +364,7 @@ function wheel(e){
 var LINES=[];
 function pick(x, y){
   var G=geo(); if(!G || !VPm) return null; var best=null, bd=Infinity;
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], q=proj(W(g)); if(!q) return; var r=Math.max(10, g.d/2*q.s), d=Math.hypot(q.x-x, q.y-y);
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], q=proj(W(g)); if(!q || (BOD[id] && BOD[id].fa<.5)) return; var r=Math.max(10, g.d/2*q.s), d=Math.hypot(q.x-x, q.y-y);
     if(d<r && q.w<bd){ bd=q.w; best={id:id}; } });
   if(best) return best;
   for(var i=0;i<LINES.length;i++){ var L=LINES[i], k;
@@ -347,11 +397,14 @@ function frame(){
   EYE=[cam.tx+cam.d*Math.cos(cam.el)*Math.sin(cam.az), cam.d*Math.sin(cam.el), cam.tz+cam.d*Math.cos(cam.el)*Math.cos(cam.az)];
   var V=look(EYE, [cam.tx, 0, cam.tz], [0, 1, 0]); VPm=mul(persp(cam.fov, asp, Math.max(2, cam.d/400), 200000), V);
   for(var k=0;k<4;k++){ VPm[k*4]+=cam.ox*VPm[k*4+3]; VPm[k*4+1]+=cam.oy*VPm[k*4+3]; }         /* (the lens shifted: the aim drawn where the disc is) */
+  /* close up, what fades: judged against the enlarged body (the one left, on the way out), coming in with the dive; "larger" against the disc it is diving to */
+  var fi=LK ? LK.id : tw && tw.leave, gf=fi && G.bodies[fi], qf=gf && proj(W(gf)), pt=tw ? Math.min(1, (now-tw.t0)/tw.ms) : 1;
+  FC=qf ? {id:fi, x:qf.x, y:qf.y, w:qf.w, rp:gf.d/2*qf.s, rd:LK && cin.rp || gf.d/2*qf.s, k:LK ? (tw && !tw.leave ? sm(.1, .5, pt) : 1) : 1-sm(0, .45, pt)} : null;
   gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  stars(); lines(G); spheres(G); craft3(G, now); halos(G); glows(G); labels(G, r);
+  stars(); lines(G); spheres(G); objs(G, now); craft3(G, now); halos(G); fx(G, now); glows(G); labels(G, r);
   var dl=performance.now()+3; if(foc && (!tw || now-tw.t0>300)) hiStep(foc, performance.now()+3);      /* (not in the dive's first, busiest frames) */
-  Object.keys(BOD).sort(function(a, b){ return dist(G, a)-dist(G, b); }).some(function(id){ var o=BOD[id]; if(o.tex || o.kind==='sun' || o.kind==='sat') return false; texStep(o, dl); return performance.now()>=dl; });
+  Object.keys(BOD).sort(function(a, b){ return dist(G, a)-dist(G, b); }).some(function(id){ var o=BOD[id]; if(o.tex || NT[o.kind]) return false; texStep(o, dl); return performance.now()>=dl; });
   raf=requestAnimationFrame(frame);
 }
 /* ── the craft: where the flight (or the Spokes-only ride) has it, its nose on the way's tangent and its bank
@@ -434,49 +487,104 @@ function size(){ var c=document.getElementById('canvas'); if(!c) return; var r=c
 function stars(){ var p=P.s; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform3fv(p.u.E, EYE); attr(p, 'p', P.sp, 3); attr(p, 'z', P.sz, 1);
   gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.POINTS, 0, P.sn2); dis(p); }
 function dis(p){ Object.keys(p.a).forEach(function(k){ if(p.a[k]>=0) gl.disableVertexAttribArray(p.a[k]); }); }
+/* close up, a body nearer the camera than the enlarged one (where it would cover it), or larger on screen than its disc, fades */
+var FC=null;
+function fade(id, q, rp){ if(!FC || id===FC.id || !q) return 1;
+  var a=Math.max(sm(.9, 1.2, rp/FC.rd), sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, Math.hypot(q.x-FC.x, q.y-FC.y))));
+  return 1-a*FC.k; }
 function spheres(G){
-  var p=P.b, M0=null; gl.useProgram(p.p); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
+  var p=P.b, M0=null, LT=[]; gl.useProgram(p.p); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
   gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform3fv(p.u.E, EYE);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, P.nz); gl.uniform1i(p.u.nz, 1);
   var now=performance.now()/1000; gl.uniform1f(p.u.tm, now%2000);
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(!o) return; var s=sunOf(G, id), q=proj(W(g)), rp=q ? g.d/2*q.s : 0; if(q && rp<.4) return;
+  function one(id){ var g=G.bodies[id], o=BOD[id], s=sunOf(G, id), q=proj(W(g)), rp=q ? g.d/2*q.s : 0;
     var M=rp>40 ? P.hi : P.lo; if(M!==M0){ M0=M; attr(p, 'p', M.v, 3); attr(p, 't', M.t, 2); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, M.i); }
     var a=(now/o.spin+o.ph)%1, w=a*TAU, wc=w*1.18+now*.004, k=KD[o.kind]||KD.rocky, rd=rp*(cv.width/Math.max(1, RC.width)), oc=QL ? Math.max(0, Math.min(7, 1+Math.log2(Math.max(1, rd)/20)))*QL : 0;
-    gl.uniform3fv(p.u.C, W(g)); gl.uniform1f(p.u.R, g.d/2); gl.uniform1f(p.u.sp, a); gl.uniform2f(p.u.sc, Math.cos(w), Math.sin(w)); gl.uniform2f(p.u.cc, Math.cos(wc), Math.sin(wc));
+    gl.uniform3fv(p.u.C, W(g)); gl.uniform1f(p.u.R, g.d/2); gl.uniform1f(p.u.sp, a); gl.uniform2f(p.u.sc, Math.cos(w), Math.sin(w)); gl.uniform2f(p.u.sv, Math.cos(w), Math.sin(w)); gl.uniform2f(p.u.cc, Math.cos(wc), Math.sin(wc));
+    gl.uniform4fv(p.u.lu, o.lu); gl.uniform1f(p.u.fa, o.fa); gl.uniform1f(p.u.sz, rd);
     gl.uniform1f(p.u.oc, oc); gl.uniform1f(p.u.dl, QL ? sm(22, 120, rp) : 0); gl.uniform1f(p.u.ep, Math.max(.0006, .45/(5*Math.pow(2, oc))));
     gl.uniform1f(p.u.ty, k[0]); gl.uniform1f(p.u.at, k[1]); gl.uniform1f(p.u.cv, k[2]); gl.uniform1f(p.u.ca, QL ? k[3] : 0);
     gl.uniform3fv(p.u.L, s ? W(s) : [0, 900, 0]); gl.uniform1f(p.u.em, o.kind==='sun' ? 1 : 0);
     gl.uniform3fv(p.u.A, ATM[o.kind] || [0, 0, 0]);
-    gl.uniform3fv(p.u.K, o.kind==='sun' ? [1, .78, .36] : o.kind==='sat' ? [.72, .74, .8] : [.45, .45, .5]);
+    gl.uniform3fv(p.u.K, o.kind==='sun' ? [1, .78, .36] : [.45, .45, .5]);
     if(o.tex){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, o.tex); gl.uniform1i(p.u.tx, 0); gl.uniform1f(p.u.ht, 1); } else gl.uniform1f(p.u.ht, 0);
     var hm=o.thi ? sm(0, 500, performance.now()-o.h0)*sm(30, 70, rp) : 0;            /* (no mipmaps: only while the body is big) */ gl.uniform1f(p.u.hm, hm);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, o.thi || o.tex || P.nz); gl.uniform1i(p.u.th, 2);
-    gl.drawElements(gl.TRIANGLES, M.n, gl.UNSIGNED_SHORT, 0); });
-  dis(p); gl.enable(gl.BLEND);
+    gl.drawElements(gl.TRIANGLES, M.n, gl.UNSIGNED_SHORT, 0); }
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(!o) return; var q=proj(W(g)), rp=q ? g.d/2*q.s : 0; o.fa=fade(id, q, rp);
+    if(MK[o.kind] || (q && rp<.4) || o.fa<.01) return; if(o.fa<.999) LT.push(id); else one(id); });
+  gl.enable(gl.BLEND); if(LT.length){ gl.depthMask(false); LT.forEach(one); gl.depthMask(true); }      /* (the fading ones last, over the rest) */
+  dis(p);
   /* rings round some gas giants, tilted, lit flat by their sun */
   var r=P.r; gl.useProgram(r.p); gl.uniformMatrix4fv(r.u.VP, false, VPm); attr(r, 'q', P.q3, 2); gl.depthMask(false);
-  Object.keys(BOD).forEach(function(id){ var o=BOD[id], g=G.bodies[id]; if(!o.ring || !g) return; var c=Math.cos(o.tilt), s=Math.sin(o.tilt);
-    gl.uniform3fv(r.u.C, W(g)); gl.uniform3fv(r.u.X, [c, s, 0]); gl.uniform3fv(r.u.Y, [0, 0, 1]); gl.uniform1f(r.u.R, g.d/2); gl.uniform3fv(r.u.K, [.86, .78, .62]);
+  Object.keys(BOD).forEach(function(id){ var o=BOD[id], g=G.bodies[id]; if(!o.ring || !g || !(o.fa>.01)) return; var c=Math.cos(o.tilt), s=Math.sin(o.tilt);
+    gl.uniform3fv(r.u.C, W(g)); gl.uniform3fv(r.u.X, [c, s, 0]); gl.uniform3fv(r.u.Y, [0, 0, 1]); gl.uniform1f(r.u.R, g.d/2); gl.uniform3fv(r.u.K, [.86, .78, .62]); gl.uniform1f(r.u.a, o.fa);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
   dis(r); gl.depthMask(true);
+}
+/* the satellite level's craft: a satellite (bus, three-panel wings, a dish or a telescope's tube, a beacon) or a space station (a truss, eight
+   wings, modules with rows of lit windows, a ring, a docking port, radiators), built once with the ships' kit, about 64 across, nose up */
+var MS={};
+function mk3(v){ var g=window._altoCraft.kit(), b=+v.charAt(1), wt=[.86,.87,.89,0], gr=[.62,.64,.68,0];
+  if(v.charAt(0)==='s'){ var pn=b&2 ? [.16,.2,.32,0] : [.1,.16,.42,0];
+    g.box([0, 0, 0], [11, 13, 11], b&1 ? [.86,.64,.24,0] : wt); g.box([0, 0, 5.8], [7, 8, .8], [.92,.93,.95,0]); g.box([0, -7, 0], [1.2, 1.2, 1.2], [1,.3,.2,1]);
+    [-1, 1].forEach(function(sd){ g.box([sd*8, 0, 0], [5, .8, .8], gr);
+      for(var i=0;i<3;i++){ var x0=sd*(10.5+i*7.3), x1=sd*(17+i*7.3); g.vslab([[x0, -6], [x1, -6], [x1, 6], [x0, 6]], 0, .5, pn); } });
+    if(b&1){ g.slathe([[0, 0], [.8, 2.5], [1.8, 4.5], [3.2, 6.5], [3.4, 6.5]], 18, [.93,.94,.96,0], [0, 6.5, 0], true); g.box([0, 10.5, 0], [.5, 6, .5], [.8,.8,.82,0]); }
+    else { g.slathe([[0, 3.2], [9, 3.2], [9.5, 2.6]], 16, [.75,.77,.8,0], [0, 6.5, 0], true); g.lathe([[9.4, 0], [9.4, 2.6]], 16, [.05,.05,.07,.3], [0, 6.5, 0], true); } }
+  else { var pa=b&1 ? [.62,.44,.18,0] : [.12,.2,.46,0], wn=[.25,.27,.3,.6];
+    g.box([0, 0, 0], [64, 1.6, 1.6], gr);
+    [-1, 1].forEach(function(sd){ [22, 29].forEach(function(x){ [-1, 1].forEach(function(u){ g.vslab([[sd*x-2.8, u*2], [sd*x+2.8, u*2], [sd*x+2.8, u*20], [sd*x-2.8, u*20]], 0, .4, pa); }); });
+      g.box([sd*1.5-1, 0, sd*9.5], [8, .4, 7], [.9,.9,.92,0]); g.box([sd*32, 0, 0], [1, 1, 1], sd>0 ? [.3,1,.4,1] : [1,.3,.2,1]); });
+    g.slathe([[-11, 0], [-10.4, 2.8], [10.4, 2.8], [11, 0]], 18, wt); g.slathe([[-2.5, 0], [-2.5, 4.2], [2.5, 4.2], [2.5, 0]], 18, wt);
+    [.8, -.8].forEach(function(y){ g.box([0, y, 2.6], [17, .7, .5], wn); g.box([0, y, -2.6], [17, .7, .5], wn); });
+    g.torus(2.2, .5, 16, [.8,.8,.82,0], [11.6, 0, 0]); g.torus(17, 1.6, 48, [.8,.82,.85,.6], [0, 0, 0], true); g.box([0, 0, 0], [1, 1, 34], gr); }
+  var o=g.out(), m={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3}; gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); return m; }
+/* each turned to face its sun (its wings full on), rocking gently; fading as the spheres do */
+function objs(G, now){
+  var k=P.k, A=window._altoCraft; if(!k || !A || !A.kit) return;
+  gl.enable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniform3fv(k.u.E, EYE);
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q; if(!o || !MK[o.kind] || !(o.fa>.01) || !(q=proj(W(g))) || g.d/2*q.s<.6) return;
+    var m=MS[o.v]||(MS[o.v]=mk3(o.v)), s=sunOf(G, id)||{x:0, y:0}, S=g.d/2/(o.kind==='station' ? 36 : 32), th=Math.atan2(s.x-g.x, s.y-g.y)+.35*Math.sin(now/1000/o.spin*TAU+o.ph*TAU), c=Math.cos(th), n=Math.sin(th);
+    gl.uniformMatrix4fv(k.u.M, false, [c*S, 0, -n*S, 0, 0, S, 0, 0, n*S, 0, c*S, 0, g.x, 0, g.y, 1]); gl.uniform3fv(k.u.L, W(s)); gl.uniform1f(k.u.al, o.fa);
+    if(k.u.WC) gl.uniform4fv(k.u.WC, o.kind==='station' ? [0, 0, 19, -2] : [0, 0, 0, 1e9]);
+    attr(k, 'p', m.p, 3); attr(k, 'n', m.n, 3); gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.enableVertexAttribArray(k.a.k); gl.vertexAttribPointer(k.a.k, 4, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, m.c); });
+  dis(k);
+}
+/* the comets' tails (a long blue one straight away from the sun, a wider warm one curving off) and the black holes' discs */
+function fx(G, now){
+  var p=P.t, t=now/1000%1000; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform1f(p.u.tm, t); attr(p, 'q', P.qt, 2); gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE);
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], s=sunOf(G, id); if(!o || o.kind!=='comet' || !(o.fa>.01) || !s || s===g) return; var C=W(g), R=g.d/2, D=nrm(sub(C, W(s)));
+    [[D, 16, 1.1, [.45,.7,1], .5], [nrm([D[0]+D[2]*.35, .04, D[2]-D[0]*.35]), 10, 2.2, [1,.9,.7], .4]].forEach(function(T){
+      gl.uniform3fv(p.u.C, C); gl.uniform3fv(p.u.D, T[0]); gl.uniform3fv(p.u.X, nrm(crs(T[0], sub(EYE, C)))); gl.uniform1f(p.u.Lg, R*T[1]); gl.uniform1f(p.u.Wd, R*T[2]);
+      gl.uniform3fv(p.u.K, T[3]); gl.uniform1f(p.u.a, T[4]*o.fa); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 18); }); });
+  dis(p); p=P.a; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform1f(p.u.tm, t); attr(p, 'q', P.q3, 2);
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(!o || o.kind!=='blackhole' || !(o.fa>.01)) return; var c=Math.cos(o.tilt*.4+.18), s=Math.sin(o.tilt*.4+.18);
+    gl.uniform3fv(p.u.C, W(g)); gl.uniform3fv(p.u.X, [c, s, 0]); gl.uniform3fv(p.u.Y, [0, 0, 1]); gl.uniform1f(p.u.R, g.d/2); gl.uniform1f(p.u.a, o.fa); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+  dis(p); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* an atmosphere's halo past the globe's edge, brightest on its sun's side (a quad facing the eye at the globe's centre: the globe hides its inner part) */
 function halos(G){
   var p=P.h; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); attr(p, 'q', P.q4, 2); gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE);
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], k=o && KD[o.kind]; if(!k || !k[1]) return; var C=W(g), q=proj(C), R=g.d/2; if(!q || R*q.s<3) return;
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], k=o && KD[o.kind]; if(!k || !k[1] || !(o.fa>.01)) return; var C=W(g), q=proj(C), R=g.d/2; if(!q || R*q.s<3) return;
     var vz=sub(EYE, C), Dc=Math.hypot(vz[0], vz[1], vz[2]); if(Dc<=R*1.01) return; vz=nrm(vz);
     var X=crs([0, 1, 0], vz); X=Math.hypot(X[0], X[1], X[2])<1e-3 ? [1, 0, 0] : nrm(X); var Y=crs(vz, X), s=sunOf(G, id);
     gl.uniform3fv(p.u.C, C); gl.uniform3fv(p.u.X, X); gl.uniform3fv(p.u.Y, Y); gl.uniform1f(p.u.S, R*Dc/Math.sqrt(Dc*Dc-R*R));
-    gl.uniform3fv(p.u.L, s && s!==g ? nrm(sub(W(s), C)) : [0, 1, 0]); gl.uniform3fv(p.u.K, ATM[o.kind]); gl.uniform1f(p.u.a, k[1]); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+    gl.uniform3fv(p.u.L, s && s!==g ? nrm(sub(W(s), C)) : [0, 1, 0]); gl.uniform3fv(p.u.K, ATM[o.kind]); gl.uniform1f(p.u.a, k[1]*o.fa); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
   dis(p); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 function glows(G){
   var p=P.g; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform3fv(p.u.X, RT); gl.uniform3fv(p.u.Y, UP); attr(p, 'q', P.q, 2);
   gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE);
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id]; if(g.role!=='sun') return;
-    gl.uniform3fv(p.u.C, W(g)); gl.uniform3fv(p.u.K, [1, .72, .38]);
-    gl.uniform1f(p.u.S, g.d*2.4); gl.uniform1f(p.u.a, .55); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.uniform1f(p.u.S, g.d*7); gl.uniform1f(p.u.a, .16); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+  function put(g, K, S, a){ gl.uniform3fv(p.u.C, W(g)); gl.uniform3fv(p.u.K, K); gl.uniform1f(p.u.S, S); gl.uniform1f(p.u.a, a); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+  /* a sun's bloom; a black hole's ring of light (its horizon hides the middle); a comet's coma; a satellite or station too small to see, a coloured glint */
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]||{}, f=o.fa==null ? 1 : o.fa, q;
+    if(o.kind==='blackhole'){ put(g, [1, .55, .25], g.d*1.5, .6*f); return; }
+    if(o.kind==='comet'){ put(g, [.55, .8, 1], g.d*2.6, .35*f); return; }
+    if(MK[o.kind] && (q=proj(W(g)))){ var rp=g.d/2*q.s; if(rp<8) put(g, o.kind==='sat' ? [1, .8, .45] : [.75, .85, 1], Math.max(g.d*.8, 7/q.s), .55*(1-sm(3, 8, rp))*f); return; }
+    if(g.role!=='sun') return;
+    put(g, [1, .72, .38], g.d*2.4, .55*f); put(g, [1, .72, .38], g.d*7, .16*f); });
   dis(p); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* the orbits (each in its unit's colour), the units' reach, the spokes; kept for picking as screen polylines */
@@ -522,7 +630,7 @@ function labels(G, r){
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun], q=s && proj(W(s)); if(!q) return; var ch=document.querySelector('.sol-unit[data-unit="'+u.unit+'"] span'); if(!ch) return;
     var e=b('u'); e.textContent=ch.textContent; e.style.setProperty('--u', u.c||'#9fb4ff'); at(e, q.x, q.y-Math.max(30, s.d/2*q.s*1.9)); });
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f) return;
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f || o.fa<.5) return;
     var inside=q && q.x>r.left && q.x<r.right && q.y>r.top && q.y<r.bottom, rp=q ? g.d/2*q.s : 0;
     if(H[id]){ if(inside){ at(pill(id), q.x, q.y-rp-6); return; }
       /* a hint whose body is off the window: the pill at the edge, on the line towards it */
@@ -552,7 +660,7 @@ function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
-  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
+  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
 
