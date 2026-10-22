@@ -69,7 +69,7 @@ function avHop(dt){ var H=AV.HOP, k=S.keys, pd=AVR.pd, hk=!!(k.hop||(pd&&pd.a));
   AVR.dip=Math.max(0,AVR.dip-dt*.35*UM); }
 /* the camera behind and a little above the head, pulled in before any building (or the room's walls and ceiling, inside one) */
 function camBlocked(x,y){ if(IN.on) return !insideClear(IN.ring,x,y,.3*UM); return buildingHit(x,y,.35*UM); }
-function avCam(feet,F,dt){ var piv=[S.x,S.y,feet+S.av.R.H*.93*UM], D=3.3*UM, d=[-F[0]*D,-F[1]*D,-F[2]*D+.35*UM], L=Math.hypot(d[0],d[1],d[2]), u=[d[0]/L,d[1]/L,d[2]/L], t=L, base=IN.on?IN.z:0;
+function avCam(feet,F,dt){ var piv=[S.x,S.y,feet+S.av.R.H*.8*UM], D=3.4*UM, d=[-F[0]*D,-F[1]*D,-F[2]*D+.45*UM], L=Math.hypot(d[0],d[1],d[2]), u=[d[0]/L,d[1]/L,d[2]/L], t=L, base=IN.on?IN.z:0;
   for(var s=.25*UM;s<=L+.2*UM;s+=.12*UM){ var x=piv[0]+u[0]*s, y=piv[1]+u[1]*s, z=piv[2]+u[2]*s; if(camBlocked(x,y)||z<base+.2*UM||(IN.on&&z>base+(IN_FH-.4)*UM)){ t=Math.max(.2*UM,s-.3*UM); break; } }
   if(AVR.camD==null||t<AVR.camD) AVR.camD=t; else AVR.camD+=(t-AVR.camD)*(1-Math.exp(-(dt||.016)/.3));
   AVR.cam=[piv[0]+u[0]*AVR.camD,piv[1]+u[1]*AVR.camD,piv[2]+u[2]*AVR.camD]; return AVR.cam; }

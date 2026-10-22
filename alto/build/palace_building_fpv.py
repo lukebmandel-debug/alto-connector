@@ -357,7 +357,7 @@ FPV_JS = r"""
 (function(){
 if(window.AltoBuildingFPV) return;
 var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__, DVS=__DVS__, DFS=__DFS__;
-var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.85, knee:.35, drop:1.0, minDoor:.9, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900, camD:3.1, camUp:.32};
+var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.85, knee:.35, drop:1.0, minDoor:.9, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900, camD:3.4, camUp:.45};
 /* the walker is a capsule: radius pr (0.26 m), feet to the top of the head `head` (1.85 m: the tallest avatar, 1.80 m, with hair); `drop` is the most it may step down off an edge that is not a stair (higher ledges are walls) */
 var PI=Math.PI, D=typeof document!=='undefined'?document:null;
 __AVATAR__
@@ -542,9 +542,9 @@ function walls(G){
           if(hits>(nS+1)/2){ z1w=up.e; G.clipped=(G.clipped||0)+1; } }
         var nI=0, nT=Math.max(2,Math.ceil((c[1]-c[0])/.5)); for(var k3=0;k3<=nT;k3++){ var u3=c[0]+(c[1]-c[0])*k3/nT, x3=sg.A[0]+sg.d[0]*u3, y3=sg.A[1]+sg.d[1]*u3; if(G.st.some(function(o){ return o.k!=='elevator'&&o.lo===lv&&pip(o.fp,x3,y3); })) nI++; }
         if(nI>(nT+1)*.6){ G.inStair=(G.inStair||0)+1; return; }             /* a wall of the lower floor standing inside a stairwell: the flights pass over it (PMA: it stopped walkers near the top) */
-        addPrim(G,{k:'seg', flat:1, ax:sg.A[0]+sg.d[0]*(c[0]-e0), ay:sg.A[1]+sg.d[1]*(c[0]-e0), bx:sg.A[0]+sg.d[0]*(c[1]+e1), by:sg.A[1]+sg.d[1]*(c[1]+e1), r:W.ht, z0:W.low?Math.min(G.gz,W.base):W.base, z1:z1w, wall:1}); }); });
+        var wp={k:'seg', flat:1, ax:sg.A[0]+sg.d[0]*(c[0]-e0), ay:sg.A[1]+sg.d[1]*(c[0]-e0), bx:sg.A[0]+sg.d[0]*(c[1]+e1), by:sg.A[1]+sg.d[1]*(c[1]+e1), r:W.ht, z0:W.low?Math.min(G.gz,W.base):W.base, z1:z1w, wall:1}; addPrim(G,wp); (W.cp||(W.cp=[])).push(wp); }); });
     if(!W.rail&&W.k!=='ext'&&W.segs.every(function(sg){ var mx=(sg.A[0]+sg.B[0])/2, my=(sg.A[1]+sg.B[1])/2, o=W.ht+.6, ra=roomAt(G,lv.id,mx+sg.n[0]*o,my+sg.n[1]*o), rb=roomAt(G,lv.id,mx-sg.n[0]*o,my-sg.n[1]*o);
-        return ra&&ra===rb&&ra.ceil>lv.top+.5; })){ W.rail=1; W.top=W.base+1.05; W.m=(function(){ var sg=W.segs[0], r0=roomAt(G,lv.id,(sg.A[0]+sg.B[0])/2+sg.n[0]*(W.ht+.6),(sg.A[1]+sg.B[1])/2+sg.n[1]*(W.ht+.6)); return r0&&/^(limestone|stone)$/.test(r0.wm)?'kasota':'marble'; })(); W.bal=1; G.prims=G.prims; }
+        return ra&&ra===rb&&ra.ceil>lv.top+.5; })){ W.rail=1; W.top=W.base+1.05; W.m=(function(){ var sg=W.segs[0], r0=roomAt(G,lv.id,(sg.A[0]+sg.B[0])/2+sg.n[0]*(W.ht+.6),(sg.A[1]+sg.B[1])/2+sg.n[1]*(W.ht+.6)); return r0&&/^(limestone|stone)$/.test(r0.wm)?'kasota':'marble'; })(); W.bal=1; (W.cp||[]).forEach(function(q){ q.z1=Math.min(q.z1,W.top); }); }      /* a balustrade's collision is as high as the balustrade (it was the old wall's full height: an invisible wall over the rail) */
     if(W.rail){ var stoneRail=/^(marble|kasota|limestone|stone|sandstone|granite|concrete|brick)$/.test(W.m);
       W.segs.forEach(function(sg){ var mx=(sg.A[0]+sg.B[0])/2, my=(sg.A[1]+sg.B[1])/2, rr=roomAt(G,lv.id,mx+sg.n[0]*.3,my+sg.n[1]*.3)||roomAt(G,lv.id,mx-sg.n[0]*.3,my-sg.n[1]*.3), rb=batchOf(G,rr,lv);
         rb.items.push({t:stoneRail?'parapet':'rail', a:sg.A, b:sg.B, z:W.base, h:W.top-W.base, w:W.bal?Math.min(.45,W.ht*2):W.ht*2, m:W.m, bal:W.bal}); grow(rb,Math.min(sg.A[0],sg.B[0])-.2,Math.min(sg.A[1],sg.B[1])-.2,W.base,Math.max(sg.A[0],sg.B[0])+.2,Math.max(sg.A[1],sg.B[1])+.2,W.top+.1); });
@@ -1507,10 +1507,10 @@ function drawBatch(b,trans,stats){ var gl=S.gl, u=S.pw.u, B=b.built, L=b.light, 
 
 /* ── third person: the camera behind and a little above the walker's head, pulled in before any wall, floor or ceiling ── */
 function third(){ return !!(S.av&&S.view==='third'); }
-function camHit(G,x,y,z,lid){ var ps=primsNear(G,x,y,.4); for(var i=0;i<ps.length;i++){ var p=ps[i]; if(z>=p.z0-.1&&z<=p.z1+.1&&primDist(p,x,y)<.17) return true; }
-  var s=supports(G,x,y); for(var j=0;j<s.length;j++) if(Math.abs(z-s[j])<.14) return true;
-  var r=roomAt(G,lid,x,y); if(S.room&&(!r||r.isVoid&&z<r.l.e+.2)) return true; if(r&&!r.isVoid&&z>r.ceil-.14) return true; return false; }
-function camEye(fw){ var me=[S.x,S.y,S.ez]; S.camRoom=null; if(!third()) return me; var G=S.G, piv=[S.x,S.y,S.ez-CFG.eye+S.av.R.H*.93], lid=levelAt(S.fz).id;
+function camHit(G,x,y,z,lid){ var ps=primsNear(G,x,y,.4); for(var i=0;i<ps.length;i++){ var p=ps[i]; if(z>=p.z0-.1&&z<=p.z1+.1&&primDist(p,x,y)<.17){ S.camWhy='prim '+(p.tag||p.k)+(p.wall?' wall':''); return true; } }
+  var s=supports(G,x,y); for(var j=0;j<s.length;j++) if(Math.abs(z-s[j])<.14){ S.camWhy='floor '+s[j]; return true; }
+  var r=roomAt(G,lid,x,y); if(S.room&&(!r||r.isVoid&&z<r.l.e+.2)){ S.camWhy='no room'; return true; } if(r&&!r.isVoid&&z>r.ceil-.14){ S.camWhy='ceiling '+r.id; return true; } return false; }
+function camEye(fw){ var me=[S.x,S.y,S.ez]; S.camRoom=null; if(!third()) return me; var G=S.G, piv=[S.x,S.y,S.ez-CFG.eye+S.av.R.H*.8], lid=levelAt(S.fz).id;
   var d=[-fw[0]*CFG.camD,-fw[1]*CFG.camD,-fw[2]*CFG.camD+CFG.camUp], L=Math.hypot(d[0],d[1],d[2]), u=[d[0]/L,d[1]/L,d[2]/L], t=L;
   for(var s=.12;s<=L+.2;s+=.08){ if(camHit(G,piv[0]+u[0]*s,piv[1]+u[1]*s,piv[2]+u[2]*s,lid)){ t=Math.max(.15,s-.24); break; } }
   if(S.camD==null||t<S.camD||S.snapCam) S.camD=t; else S.camD+=(t-S.camD)*(1-Math.exp(-(S.dt||.016)/.3)); S.snapCam=0;
@@ -1766,6 +1766,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
           if(n&&Math.abs(dot(g,n))<.9) continue; var d=dot(sub([x,y,z],P[0]),g); if(Math.abs(d)>tol) continue; var q=[x-g[0]*d,y-g[1]*d,z-g[2]*d], ok=true;
           for(var e=0;e<3;e++){ var A=P[e], B2=P[(e+1)%3]; if(dot(cross(sub(B2,A),sub(q,A)),g)<-1e-7){ ok=false; break; } } if(ok) hits.push(k); } }); }); return hits; } } };
 API._debug=function(){ return S; };
+API.camProbe=function(){ S.av=S.av||AV.make(AV.city('',39.97,-75.18),'mayor'); S.view='third'; S.camD=null; S.camWhy=''; var cp=Math.cos(S.pitch), e=camEye([Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)]); return {cam:e, d:S.camD, why:S.camWhy}; };
 API.view=function(v){ if(v) setView(v); return S.view; }; API.avatar=function(w){ if(w) setAvatar(w); return S.av?{mayor:S.av.mayor, tag:AV.tag(S.av)}:null; }; API.AV=AV; API.CFG=CFG;
 /* headless walking (tests in node, no GL, no page): the plan indexed, the walker placed, step() as in the view */
 API.sim=function(plan,data){ S.data=data||{}; S.mc={}; S.G=bfIndex(plan); if(data) addCards(S.G); S.keys={}; S.vx=S.vy=S.vz=0; S.air=false; S.grounded=true; S.dip=0; S.safe=null; S.glide=null; S.noPad=1; S.hops=S.bonks=S.nets=S.rescues=0;
