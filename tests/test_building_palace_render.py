@@ -126,15 +126,17 @@ def test_wall_segments_break_at_doors_and_keep_windows(browser, html):
         page.close()
 
 
-def test_pills_open_the_nodes_page_and_the_toggle_brings_the_cards_back(browser, html):
+def test_pills_open_the_nodes_page_and_closing_it_brings_the_blueprint_back(browser, html):
     page, errors = _open(browser, html)
     try:
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         page.click("#bldg-root .bl-tab[data-level=g]")
         page.click("#bldg-root .bl-pill >> nth=0")
         assert page.evaluate("document.getElementById('bldg-root').hidden") is True
-        assert page.evaluate("document.getElementById('bldg-toggle').textContent") == "Show blueprint"
-        page.evaluate("showDetail && history.length")                                     # the engine's own detail page took over
+        assert page.evaluate("document.documentElement.classList.contains('detail-open')")    # the engine's own detail page took over
+        assert page.evaluate("document.getElementById('bldg-toggle')") is None              # blueprint and walk only: no switch to the card board
+        page.evaluate("showTimeline()")
+        page.wait_for_function("!document.getElementById('bldg-root').hidden && document.documentElement.classList.contains('bldg-open')")
         assert errors == []
     finally:
         page.close()
@@ -168,7 +170,7 @@ def test_a_missing_plan_or_renderer_leaves_the_cards_alone(browser, html):
     page, errors = _open(browser, html, plan=False)
     try:
         page.wait_for_function("document.getElementById('bldg-root') && document.getElementById('bldg-root').hidden")
-        assert page.evaluate("document.getElementById('bldg-toggle').textContent") == "Show blueprint"       # the cards are there; the blueprint can be retried
+        assert page.evaluate("document.documentElement.classList.contains('bldg-open')") is False          # the cards are there
     finally:
         page.close()
     page, errors = _open(browser, html, script=False)

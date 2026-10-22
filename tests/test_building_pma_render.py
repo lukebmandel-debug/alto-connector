@@ -148,3 +148,30 @@ def test_the_back_button_says_museum_palace_with_its_symbol(browser):
         assert got and all("Museum Palace" in t and svg for t, svg in got), got
     finally:
         page.close()
+
+
+def test_the_blueprint_lies_level_and_symmetrical_with_the_east_entrance_at_the_bottom(browser):
+    """Luke: "the blueprint for the museum should be horizontal such that it looks symmetrical". The drawing is turned a quarter so the East Entrance
+    faces the viewer: the wings spread left and right, the axis stands upright in the middle of the screen; labels and chips stay upright."""
+    for w, h in ((1400, 950), (390, 844)):
+        page, errors = _open(browser, _html(), width=w, height=h)
+        try:
+            page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
+            for lv in ("outside", "l2"):
+                page.evaluate(f"AltoBuilding.selectLevel('{lv}')")
+                assert page.evaluate("document.querySelector('#bldg-root svg.bl-svg > g > g').getAttribute('transform')") == "rotate(90)"
+                box = page.evaluate("""(() => { const s = document.querySelector('#bldg-root svg.bl-svg'), r = s.getBoundingClientRect();
+                    const b = s.querySelector('g > g').getBoundingClientRect();
+                    const e = [...s.querySelectorAll('.bl-ent')].map(p => { const q = p.getBoundingClientRect(); return [q.x + q.width / 2, q.y + q.height / 2, p.textContent]; });
+                    return {W: r.width, H: r.height, L: b.left - r.left, R: r.right - b.right, w: b.width, h: b.height, e}; })()""")
+                assert box["w"] > box["h"], (lv, w, box)                                                        # horizontal
+                east = [e for e in box["e"] if e[2].startswith("East Entrance")][0]
+                assert abs(east[0] - box["W"] / 2) < box["W"] * .03, (lv, w, east)                              # the axis in the middle
+                if lv == "outside":
+                    assert abs(box["L"] - box["R"]) < box["W"] * .03, (lv, w, box)                              # balanced left and right
+            page.evaluate("AltoBuilding.selectLevel('l2')")
+            assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-lab')].every(t => !t.closest('[transform]'))")   # labels upright
+            assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-pill')].every(p => !/rotate/.test(p.getAttribute('transform') || ''))")
+            assert errors == []
+        finally:
+            page.close()
