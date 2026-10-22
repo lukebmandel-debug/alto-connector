@@ -157,11 +157,7 @@ var VS_G='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float S;va
 var FS_G='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a;void main(){float r=length(Q);if(r>1.)discard;float g=pow(1.-r,2.4);gl_FragColor=vec4(K*g*a,g*a);}';
 var FS_H='precision highp float;varying vec2 Q;uniform vec3 K,X,Y,L;uniform float a;void main(){float r=length(Q);if(r<.97||r>1.3)discard;'+
   'float g=r<1.?smoothstep(.97,1.,r):exp(-(r-1.)*24.);float k=g*smoothstep(-.45,.65,dot(normalize(X*Q.x+Y*Q.y),L))*a*.9;gl_FragColor=vec4(K*k,k*.6);}';
-var VS_K='attribute vec3 p,n;attribute vec4 k;uniform mat4 VP,M;varying vec3 Nw,Wp;varying vec4 Kc;'+
-  'void main(){vec4 w=M*vec4(p,1.);Wp=w.xyz;Nw=(M*vec4(n,0.)).xyz;Kc=k;gl_Position=VP*w;}';
-var FS_K='precision highp float;varying vec3 Nw,Wp;varying vec4 Kc;uniform vec3 L,E;uniform float al;'+
-  'void main(){vec3 n=normalize(Nw),l=normalize(L-Wp),v=normalize(E-Wp);if(dot(n,v)<0.)n=-n;float d=max(dot(n,l),0.),r=pow(1.-max(dot(n,v),0.),3.);'+
-  'vec3 c=Kc.rgb*(.16+1.05*d)+vec3(1.)*pow(max(dot(n,normalize(l+v)),0.),40.)*.35*d+vec3(.35,.45,.6)*r*.3;if(Kc.a>.5)c=Kc.rgb*1.5;gl_FragColor=vec4(c*al,al);}';
+var CG=window._altoCraft && window._altoCraft.gl;            /* (the craft's high-definition shader: solar_craft.py) */
 var VS_R='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float R;varying vec2 Q;void main(){Q=q;gl_Position=VP*vec4(C+(X*q.x+Y*q.y)*R,1.);}';
 var FS_R='precision mediump float;varying vec2 Q;uniform vec3 K;void main(){float r=length(Q);if(r<1.35||r>2.3)discard;float b=.55+.45*sin(r*38.)*sin(r*11.);'+
   'float e=smoothstep(1.35,1.45,r)*smoothstep(2.3,2.18,r);gl_FragColor=vec4(K*b,.6*e*(abs(r-1.9)<.04?.25:1.));}';
@@ -179,8 +175,8 @@ function init(){
   try{ gl=cv.getContext('webgl', {antialias:true, alpha:true, premultipliedAlpha:true}); }catch(e){ gl=null; }
   if(!gl) return false;
   var hp=gl.getShaderPrecisionFormat && gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
-  if(!hp || !hp.precision){ FS_B=FS_B.replace('highp', 'mediump'); FS_H=FS_H.replace('highp', 'mediump'); FS_K=FS_K.replace('highp', 'mediump'); QL=0; }   /* (no highp: no procedural detail) */
-  try{ P.k=sh(VS_K, FS_K); P.h=sh(VS_G, FS_H); P.b=sh(VS_B, FS_B); P.g=sh(VS_G, FS_G); P.r=sh(VS_R, FS_R); P.l=sh(VS_L, FS_L); P.c=sh(VS_C, FS_C); P.s=sh(VS_S, FS_S); }catch(e){ if(window.console) console.warn('3d', e); gl=null; return false; }
+  if(!hp || !hp.precision){ FS_B=FS_B.replace('highp', 'mediump'); FS_H=FS_H.replace('highp', 'mediump'); if(CG) CG.fs=CG.fs.replace('highp', 'mediump'); QL=0; }   /* (no highp: no procedural detail) */
+  try{ P.k=CG ? sh(CG.vs, CG.fs) : null; P.h=sh(VS_G, FS_H); P.b=sh(VS_B, FS_B); P.g=sh(VS_G, FS_G); P.r=sh(VS_R, FS_R); P.l=sh(VS_L, FS_L); P.c=sh(VS_C, FS_C); P.s=sh(VS_S, FS_S); }catch(e){ if(window.console) console.warn('3d', e); gl=null; return false; }
   /* a sphere, its texture's longitude across, latitude up: 40 x 24, and 128 x 64 for a big one */
   P.lo=mesh(40, 24); P.hi=mesh(128, 64);
   /* the noise: random values, the green a copy of the red 37 across and 17 down (one fetch gives two slices of 3D value noise) */
@@ -402,7 +398,7 @@ function chase(G, now){
 }
 var CM={};
 function craft3(G, now){
-  if(SH.al<=0 || !SH.p || SH.hs==null || !window._altoCraft) return;
+  if(SH.al<=0 || !SH.p || SH.hs==null || !window._altoCraft || !P.k) return;
   var cr=window._altoCraft.list.filter(function(c){ return c.id===SH.cr; })[0] || window._altoCraft.get(), m=CM[cr.id];
   if(!m){ var o=window._altoCraft.mesh(cr.id); m=CM[cr.id]={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3};
     gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); }
@@ -417,7 +413,7 @@ function craft3(G, now){
     gl.bindBuffer(gl.ARRAY_BUFFER, P.tb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tv.concat(tk)), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(l.a.p); gl.vertexAttribPointer(l.a.p, 3, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(l.a.k); gl.vertexAttribPointer(l.a.k, 4, gl.FLOAT, false, 0, tv.length*4);
     gl.drawArrays(gl.LINES, 0, tv.length/3); dis(l); gl.depthMask(true); }
-  var k=P.k; gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniformMatrix4fv(k.u.M, false, M); gl.uniform3fv(k.u.E, EYE); gl.uniform3fv(k.u.L, W(sun)); gl.uniform1f(k.u.al, SH.al);
+  var k=P.k; gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniformMatrix4fv(k.u.M, false, M); gl.uniform3fv(k.u.E, EYE); gl.uniform3fv(k.u.L, W(sun)); gl.uniform1f(k.u.al, SH.al); if(k.u.WC) gl.uniform4fv(k.u.WC, cr.wc||[0, 0, 0, 1e9]);
   attr(k, 'p', m.p, 3); attr(k, 'n', m.n, 3); gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.enableVertexAttribArray(k.a.k); gl.vertexAttribPointer(k.a.k, 4, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLES, 0, m.c); dis(k);
   /* the engines' glow, flickering a little */

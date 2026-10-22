@@ -1,17 +1,19 @@
 """The craft that fly you between bodies on a Star chart (Luke, 2026-10-21: "i want a real ship, give users choice
-ships/crafts, some from sci fi, others from real life. Same options should apply to star chart classic/retro").
+ships/crafts ... Same options should apply to star chart classic/retro"; 2026-10-22, after three options sheets: "P4 is
+the best, but ... i want high def graphics ... This level for 3d, we do a flat top down drawing for non-3d, make it retro
+for retro").
 
-One choice per viewer (localStorage alto-ship, every timeline); none chosen, Retro flies its Imperial vessel and the
-other styles the Space Shuttle. Each craft is:
-  * 2D art (top view, nose along +x, about 70 px long, flown at 0.4-0.5 of that) in the Imperial vessel's classes (sh-hull, sh-deck, sh-fin,
-    sh-gold, sh-eng, sh-glow, sh-ring): Retro paints them gold on black, Classic clean light grey (CRAFT_CSS); the
-    flights (solar_fly.py) and the Spokes-only rider (solar_draw.py) draw it;
-  * a low-poly 3D model built in code (lathes, boxes, slabs: no asset to load) that solar_3d.py lights and flies;
-  * its own motion: k the flight's clock (a probe drifts, a fighter darts), turn how fast its heading comes round,
-    bank how far it rolls into a turn, spin (the saucer) and roll (the probe), its engines' glow and trail.
-The real craft are simple, recognisable models of public designs; the science-fiction ones are original designs in
-familiar archetypes, under names of our own. The picker (window._altoCraft.open) is a pop-over from the chart's
-controls. System pages only.
+Two craft: the Explorer (P4: a saucer, a swept neck, an engineering hull, two nacelles; in the style of a famous starship,
+our own) and the Halo (the saucer Luke likes). One choice per viewer (localStorage alto-ship, every timeline); none chosen,
+Retro flies the Halo and the other styles the Explorer. Each craft is:
+  * a flat top-down drawing (nose along +x, about 60-70 px long, flown at 0.4-0.5 of that) in the classes sh-hull,
+    sh-deck, sh-fin, sh-gold, sh-eng, sh-glow, sh-ring: Classic paints it clean and light (CRAFT_CSS), Retro gold on
+    black (solar_draw.py), with its own deco details (sh-ro) shown in Retro only;
+  * a high-definition 3D model built in code (smooth lathes and rings, slabs, boxes: no asset to load), drawn by GL
+    (window._altoCraft.gl): physically based plated metal, glass, lit windows, lights;
+  * its own motion: k the flight's clock, turn, bank, spin (the saucer), its engines' glow and trail.
+Also here: the way a craft flies (track, steer, park: solar_fly.py, solar_draw.py and solar_3d.py share it). The picker
+(window._altoCraft.open) is a pop-over from the chart's controls. System pages only.
 """
 
 CRAFT_JS = r"""
@@ -19,116 +21,56 @@ CRAFT_JS = r"""
 'use strict';
 var de=document.documentElement, TAU=Math.PI*2, KEY='alto-ship', subs=[];
 var C=[
-  {id:'shuttle', name:'Space Shuttle', real:true, k:1.05, turn:2.2, bank:.45, glow:[1, .8, .55], trail:[1, .86, .7], eng:[[-29, 1.5, 0], [-29, -1, -2.2], [-29, -1, 2.2]],
-   svg:'<ellipse class="sh-glow" cx="-31" cy="0" rx="6" ry="5"/>'+
-     '<path class="sh-hull" d="M14 -4 L-6 -9 L-18 -21 L-26 -21 L-26 -4 Z M14 4 L-6 9 L-18 21 L-26 21 L-26 4 Z"/>'+
-     '<path class="sh-fin" d="M14 -4 L-6 -9 L-18 -21 L-19.5 -21 L-7.5 -10.4 L12 -5 Z M14 4 L-6 9 L-18 21 L-19.5 21 L-7.5 10.4 L12 5 Z"/>'+
-     '<path class="sh-hull" d="M34 0 L28 -3 L18 -5 L-26 -5 L-28 -3.5 L-28 3.5 L-26 5 L18 5 L28 3 Z"/>'+
-     '<path class="sh-deck" d="M14 -3.4 L-22 -3.4 L-22 3.4 L14 3.4 Z"/><path class="sh-fin" d="M34 0 L29.5 -2.6 L29.5 2.6 Z"/>'+
-     '<path class="sh-gold" d="M14 0 L-22 0"/><circle class="sh-eng" cx="-28.6" cy="0" r="1.1"/><circle class="sh-eng" cx="-28.6" cy="-2.6" r="1"/><circle class="sh-eng" cx="-28.6" cy="2.6" r="1"/>',
-   build:function(g){ var W=[.93, .93, .91], D=[.09, .09, .1];
-     g.lathe([[34, 0], [31, 2.6], [26, 4.2], [18, 5], [-26, 5], [-28, 4], [-28, 0]], 14, W);
-     g.lathe([[34.2, 0], [31.2, 2.7], [29.6, 3.5]], 14, D);
-     [1, -1].forEach(function(s){ g.slab([[14, 4*s], [-6, 9*s], [-18, 21*s], [-26, 21*s], [-26, 4*s]], -2.4, .7, W); g.slab([[14, 4*s], [-6, 9*s], [-18, 21*s], [-26, 21*s], [-26, 4*s]], -3.1, .7, D);
-       g.box([-21, 2.2, 3.6*s], [10, 3, 2.6], W); });
-     g.vslab([[-14, 4], [-24, 17], [-28.5, 17], [-28, 4]], 0, 1.1, W);
-     g.box([-4, 5, 0], [36, .3, .4], [.55, .56, .6]); }},
-  {id:'apollo', name:'Apollo CSM', real:true, k:1.1, turn:2, bank:.2, glow:[1, .74, .42], trail:[1, .8, .6], eng:[[-31, 0, 0]],
-   svg:'<ellipse class="sh-glow" cx="-34" cy="0" rx="7" ry="3"/>'+
-     '<path class="sh-fin" d="M-22 -3 L-31 -6.5 L-31 6.5 L-22 3 Z"/>'+
-     '<path class="sh-hull" d="M-22 -8 L4 -8 L4 8 L-22 8 Z"/><path class="sh-hull" d="M4 -8 L20 -2 L22 0 L20 2 L4 8 Z"/>'+
-     '<path class="sh-deck" d="M-12 -8 L-4 -8 L-4 8 L-12 8 Z"/>'+
-     '<path class="sh-gold" d="M-6 -8 L-6 8 M-14 -8 L-14 8 M-18 8 L-18 13 M-20.5 13 L-15.5 13"/><circle class="sh-eng" cx="-31.4" cy="0" r="1.5"/>',
-   build:function(g){ var S=[.84, .86, .9];
-     g.lathe([[18, 0], [17.6, 1.4], [4, 7.6], [3.6, 7.8], [3.2, 7.6]], 22, S);
-     g.lathe([[3.2, 7.4], [-22, 7.4], [-22, 0]], 22, [.72, .74, .78]);
-     g.lathe([[-10, 7.5], [-14, 7.5]], 22, [.5, .52, .56]);
-     g.lathe([[-22, 2.8], [-31, 5.8]], 18, [.34, .32, .3]);
-     g.box([-18, 0, 9.6], [.8, .8, 5], [.6, .6, .62]); g.lathe([[0, 0], [-1, 2.6]], 12, [.95, .95, .95], [-18, 0, 13]);
-     [[0, 7.9], [0, -7.9]].forEach(function(q){ g.box([-2, q[0], q[1]], [2, 1.4, 1.4], [.55, .55, .58]); g.box([-2, q[1], q[0]], [2, 1.4, 1.4], [.55, .55, .58]); }); }},
-  {id:'soyuz', name:'Soyuz', real:true, k:1.1, turn:2, bank:.2, glow:[1, .7, .4], trail:[1, .8, .6], eng:[[-30.5, 0, 0]],
-   svg:'<ellipse class="sh-glow" cx="-33" cy="0" rx="6" ry="3"/>'+
-     '<path class="sh-fin" d="M-13 -6.5 L-21 -6.5 L-21 -31 L-13 -31 Z M-13 6.5 L-21 6.5 L-21 31 L-13 31 Z"/>'+
-     '<path class="sh-gold" d="M-17 -9 L-17 -29 M-17 9 L-17 29 M-13 -19 L-21 -19 M-13 19 L-21 19 M20 0 L26 0"/>'+
-     '<path class="sh-hull" d="M-8 -6.5 L-28 -6.5 L-30 -5 L-30 5 L-28 6.5 L-8 6.5 Z"/>'+
-     '<path class="sh-deck" d="M-8 -6.5 L4 -5 L6 -3 L6 3 L4 5 L-8 6.5 Z"/><circle class="sh-hull" cx="13" cy="0" r="7"/><circle class="sh-eng" cx="-30.4" cy="0" r="1.3"/>',
-   build:function(g){ var sp=[], i; for(i=0;i<=10;i++){ var a=Math.PI*i/10; sp.push([13+6.8*Math.cos(a), 6.8*Math.sin(a)]); }
-     g.lathe(sp, 18, [.55, .6, .46]);
-     g.lathe([[6.5, 3], [4, 5.6], [-8, 6.6], [-8, 0]], 18, [.5, .52, .42]);
-     g.lathe([[-8, 6.2], [-28, 6.2], [-30, 4.4], [-30, 0]], 18, [.64, .66, .68]);
-     g.lathe([[22, 0], [19.5, .7]], 8, [.7, .7, .7]);
-     [1, -1].forEach(function(s){ g.slab([[-13, 6.5*s], [-21, 6.5*s], [-21, 31*s], [-13, 31*s]], 0, .5, [.13, .2, .45]); g.box([-17, 0, 18.75*s], [.6, .7, 24.5], [.75, .62, .3]); }); }},
-  {id:'voyager', name:'Voyager', real:true, k:1.35, turn:.9, bank:0, roll:.35, glow:[.75, .85, 1], trail:[.8, .88, 1], eng:[[-9.5, 0, 0]],
-   svg:'<circle class="sh-glow" cx="-6" cy="0" r="5"/>'+
-     '<path class="sh-gold" d="M2 0 L-36 -13 M-4 0 L-10 20 M-4 0 L-8 -18"/>'+
-     '<rect class="sh-fin" x="-13" y="19" width="6" height="6"/><rect class="sh-fin" x="-11" y="-21" width="5" height="4"/>'+
-     '<circle class="sh-hull" cx="8" cy="0" r="14"/><circle class="sh-ring sh-near" cx="8" cy="0" r="8.5"/><circle class="sh-deck" cx="-3" cy="0" r="5.5"/>'+
-     '<path class="sh-gold" d="M8 0 L20 0"/>',
-   build:function(g){ g.lathe([[0, 0], [-1.8, 5], [-3.2, 10], [-4.2, 14]], 26, [.92, .92, .9], [8, 0, 0]);
-     g.lathe([[0, 0], [10, .4]], 6, [.7, .7, .7], [8, 0, 0]);
-     g.lathe([[-3, 0], [-3, 5.4], [-9, 5.4], [-9, 0]], 10, [.66, .55, .32]);
-     g.box([-26, 0, -6], [30, .45, .45], [.8, .8, .8]);
-     g.box([-7, 0, 13], [.7, .7, 18], [.5, .5, .52]); g.box([-7, 0, 23.5], [3, 3, 5.5], [.22, .22, .24]);
-     g.box([-7, 0, -11], [.7, .7, 15], [.5, .5, .52]); g.box([-7, 0, -19.5], [4, 3, 4], [.3, .3, .32]); }},
-  {id:'starship', name:'Starship', real:true, k:1, turn:2, bank:.25, glow:[.65, .78, 1], trail:[.75, .85, 1], eng:[[-33, 0, -2.4], [-33, 0, 2.4], [-33, 2.2, 0]],
-   svg:'<ellipse class="sh-glow" cx="-35" cy="0" rx="6" ry="5"/>'+
-     '<path class="sh-fin" d="M22 -6 L16 -11.5 L10 -11.5 L12 -6 Z M22 6 L16 11.5 L10 11.5 L12 6 Z M-18 -6 L-24 -14.5 L-32 -14.5 L-30 -6 Z M-18 6 L-24 14.5 L-32 14.5 L-30 6 Z"/>'+
-     '<path class="sh-hull" d="M36 0 L32 -4 L24 -6 L-30 -6 L-32 -5 L-32 5 L-30 6 L24 6 L32 4 Z"/>'+
-     '<path class="sh-gold" d="M10 -6 L10 6 M-6 -6 L-6 6 M-22 -6 L-22 6"/><circle class="sh-eng" cx="-32.4" cy="-2.4" r="1.2"/><circle class="sh-eng" cx="-32.4" cy="2.4" r="1.2"/>',
-   build:function(g){ var F=[.2, .2, .22];
-     g.lathe([[36, 0], [34, 2.8], [30, 4.8], [24, 6], [-32, 6], [-32, 0]], 20, [.74, .76, .8]);
-     g.lathe([[2, 6.05], [-30, 6.05]], 20, [.7, .72, .76]);
-     [1, -1].forEach(function(s){ g.slab([[22, 5.5*s], [16, 11.5*s], [10, 11.5*s], [12, 5.5*s]], 0, .6, F); g.slab([[-18, 5.5*s], [-24, 14.5*s], [-32, 14.5*s], [-30, 5.5*s]], 0, .6, F); }); }},
-  {id:'imperial', name:'Imperial Vessel', real:false, k:1, turn:2.4, bank:.3, glow:[1, .84, .5], trail:[1, .82, .45], eng:[[-31, 0, 0]],
-   svg:'<ellipse class="sh-glow" cx="-33" cy="0" rx="10" ry="3.2"/>'+
-     '<ellipse class="sh-ring" cx="-8" cy="0" rx="2.6" ry="10.5"/>'+
-     '<path class="sh-fin" d="M-17 -3.6 L-27 -8.4 L-31.5 -8.4 L-28.5 -3 Z M-17 3.6 L-27 8.4 L-31.5 8.4 L-28.5 3 Z"/>'+
-     '<path class="sh-hull" d="M37 0 L18 -2.1 L-6 -3.7 L-24 -3.7 L-30 -1.9 L-30 1.9 L-24 3.7 L-6 3.7 L18 2.1 Z"/>'+
-     '<path class="sh-deck" d="M16 0 L-4 -1.8 L-22 -1.8 L-22 1.8 L-4 1.8 Z"/>'+
-     '<path class="sh-gold" d="M34 0 L-27 0 M14 -2.3 L14 2.3 M-20 -3.7 L-20 3.7"/>'+
-     '<path class="sh-ring sh-near" d="M-8 -10.5 A2.6 10.5 0 0 1 -8 10.5"/>'+
-     '<circle class="sh-eng" cx="-30.6" cy="0" r="1.5"/>',
-   build:function(g){ var H=[.11, .12, .15], G=[.86, .68, .33];
-     g.lathe([[37, 0], [18, 2.6], [-6, 4.4], [-24, 4.4], [-30, 2.2], [-30, 0]], 6, H);
-     g.box([4, 3.9, 0], [52, .5, 1.1], G); g.box([14, 0, 0], [.8, 5.4, 5.4], G);
-     g.lathe([[-9, 10.2], [-7, 10.2], [-7, 11.4], [-9, 11.4], [-9, 10.2]], 40, G);
-     g.box([-8, 0, 0], [1, 21, 1.2], G); g.box([-8, 0, 0], [1, 1.2, 21], G);
-     [1, -1].forEach(function(s){ g.slab([[-17, 3.6*s], [-27, 8.4*s], [-31.5, 8.4*s], [-28.5, 3*s]], 0, .8, H); }); }},
-  {id:'dart', name:'Dart', real:false, k:.85, turn:4, bank:.6, glow:[.55, .75, 1], trail:[.6, .8, 1], eng:[[-28, 0, -2.6], [-28, 0, 2.6]], lights:[[-25, 0, -19, 1, .2, .15], [-25, 0, 19, .2, 1, .4]],
-   svg:'<ellipse class="sh-glow" cx="-31" cy="-2.6" rx="6" ry="2"/><ellipse class="sh-glow" cx="-31" cy="2.6" rx="6" ry="2"/>'+
-     '<path class="sh-fin" d="M6 -3 L-22 -19 L-27 -19 L-20 -4 Z M6 3 L-22 19 L-27 19 L-20 4 Z"/>'+
-     '<path class="sh-hull" d="M36 0 L14 -2.6 L-20 -5 L-27 -4 L-27 4 L-20 5 L14 2.6 Z"/>'+
-     '<path class="sh-deck" d="M18 0 L8 -1.8 L0 -1.8 L0 1.8 L8 1.8 Z"/>'+
-     '<path class="sh-gold" d="M30 0 L-24 0 M-12 -11 L-20 -17 M-12 11 L-20 17"/><circle class="sh-eng" cx="-27.6" cy="-2.6" r="1.3"/><circle class="sh-eng" cx="-27.6" cy="2.6" r="1.3"/>',
-   build:function(g){ g.lathe([[36, 0], [22, 2.4], [4, 3.6], [-20, 4.2], [-27, 3.6], [-27, 0]], 8, [.8, .82, .88]);
-     g.lathe([[8, 0], [4, 1.7], [-4, 1.7], [-8, 0]], 8, [.16, .28, .45], [12, 2.7, 0]);
-     [1, -1].forEach(function(s){ g.slab([[6, 3*s], [-22, 19*s], [-27, 19*s], [-20, 4*s]], 0, .8, [.6, .62, .7]); g.vslab([[-14, 3], [-25, 10], [-28.5, 10], [-25, 3]], 4*s, .7, [.52, .54, .62]); }); }},
-  {id:'bastion', name:'Bastion', real:false, k:1.25, turn:1.5, bank:.12, glow:[.6, .8, 1], trail:[.65, .82, 1], eng:[[-35, 0, -6], [-35, 0, 0], [-35, 0, 6]],
-   svg:'<ellipse class="sh-glow" cx="-37" cy="-6" rx="5" ry="2"/><ellipse class="sh-glow" cx="-37" cy="0" rx="5" ry="2"/><ellipse class="sh-glow" cx="-37" cy="6" rx="5" ry="2"/>'+
-     '<path class="sh-hull" d="M30 -3 L36 0 L30 3 L22 9.5 L-30 9.5 L-34 6.5 L-34 -6.5 L-30 -9.5 L22 -9.5 Z"/>'+
-     '<path class="sh-deck" d="M18 -5.5 L-24 -5.5 L-24 5.5 L18 5.5 Z"/><path class="sh-fin" d="M-8 -3 L-20 -3 L-20 3 L-8 3 Z"/>'+
-     '<path class="sh-gold" d="M30 0 L-30 0 M10 -9.5 L10 9.5 M-10 -9.5 L-10 9.5 M22 -9.5 L22 9.5"/>'+
-     '<circle class="sh-eng" cx="-34.5" cy="-6" r="1.4"/><circle class="sh-eng" cx="-34.5" cy="0" r="1.4"/><circle class="sh-eng" cx="-34.5" cy="6" r="1.4"/>',
-   build:function(g){ var A=[.34, .36, .41], B=[.44, .46, .52];
-     g.box([-2, 0, 0], [60, 8, 19], A); g.slab([[28, -9.5], [36, 0], [28, 9.5]], 0, 8, A);
-     g.box([-4, 5.5, 0], [42, 3, 11], B); g.box([-14, 9, 0], [12, 5, 6], [.52, .54, .6]);
-     g.box([0, -5.5, 0], [44, 3, 8], [.26, .27, .31]);
-     [1, -1].forEach(function(s){ g.box([-6, 5.5, 5.6*s], [36, .6, .25], [1, .85, .55, 1]); g.box([-2, 0, 9.6*s], [50, .5, .25], [.9, .78, .5, 1]); g.box([-31, 0, 6*s], [7, 6, 5], B); });
-     g.box([-31, 0, 0], [7, 6, 5], B); g.box([-14, 11.6, 0], [3, .5, 5], [.75, .9, 1, 1]); }},
-  {id:'halo', name:'Halo', real:false, k:1, turn:3, bank:0, spin:.6, glow:[.55, .85, 1], trail:[.6, .9, 1], eng:[[0, -2.8, 0]],
+  /* P4 of the third options sheet (Luke, 2026-10-22: "P4 is the best ... i want high def graphics"): a saucer, a swept
+     neck, an engineering hull with a glowing deflector, two nacelles on pylons; in the style of a famous starship, our own */
+  {id:'explorer', name:'Explorer', real:false, k:1, turn:2, bank:.2, glow:[.55, .75, 1], trail:[.6, .8, 1], eng:[[-31.9, 7, -11], [-31.9, 7, 11]], wc:[10, 0, 16.2, 3],
+   svg:'<ellipse class="sh-glow" cx="-33" cy="-11" rx="3.5" ry="2"/><ellipse class="sh-glow" cx="-33" cy="11" rx="3.5" ry="2"/>'+
+     '<path class="sh-fin" d="M-10 -1.6 L-16.5 -1.6 L-19.5 -10.2 L-13.5 -10.2 Z M-10 1.6 L-16.5 1.6 L-19.5 10.2 L-13.5 10.2 Z"/>'+
+     '<path class="sh-hull" d="M-6.2 -11 Q-6.2 -13.25 -9 -13.25 L-29.5 -13.25 Q-31.9 -13.25 -31.9 -11 Q-31.9 -8.75 -29.5 -8.75 L-9 -8.75 Q-6.2 -8.75 -6.2 -11 Z M-6.2 11 Q-6.2 13.25 -9 13.25 L-29.5 13.25 Q-31.9 13.25 -31.9 11 Q-31.9 8.75 -29.5 8.75 L-9 8.75 Q-6.2 8.75 -6.2 11 Z"/>'+
+     '<path class="sh-eng" d="M-27.5 -11.5 L-9.5 -11.5 L-9.5 -10.5 L-27.5 -10.5 Z M-27.5 11.5 L-9.5 11.5 L-9.5 10.5 L-27.5 10.5 Z M-5.5 -11 A1.3 1.3 0 1 0 -8.1 -11 A1.3 1.3 0 1 0 -5.5 -11 Z M-5.5 11 A1.3 1.3 0 1 0 -8.1 11 A1.3 1.3 0 1 0 -5.5 11 Z"/>'+
+     '<path class="sh-hull" d="M3 0 Q3 -3.2 -1 -3.6 L-20 -3.3 Q-23 -2.6 -23 0 Q-23 2.6 -20 3.3 L-1 3.6 Q3 3.2 3 0 Z"/><path class="sh-deck" d="M8 -1.3 L-4 -1.3 L-4 1.3 L8 1.3 Z"/>'+
+     '<circle class="sh-hull" cx="10" cy="0" r="15.8"/><path class="sh-gold" d="M20.4 0 A10.4 10.4 0 1 0 -.4 0 A10.4 10.4 0 1 0 20.4 0 M16.6 0 A6.6 6.6 0 1 0 3.4 0 A6.6 6.6 0 1 0 16.6 0"/><circle class="sh-deck" cx="10" cy="0" r="3.2"/><circle class="sh-eng" cx="10" cy="0" r="1"/>'+
+     (function(){ var d='M-21 0 L1 0 M-28 -11 L-10 -11 M-28 11 L-10 11', i; for(i=0;i<16;i++){ var a=i/16*TAU, c=Math.cos(a), s=Math.sin(a); d+=' M'+(10+c*11.8).toFixed(1)+' '+(s*11.8).toFixed(1)+' L'+(10+c*14.6).toFixed(1)+' '+(s*14.6).toFixed(1); }
+       return '<path class="sh-gold sh-ro" d="'+d+'"/>'; })(),
+   build:function(g){ var H=[.74, .76, .8], H2=[.66, .68, .73], D=[.42, .44, .5], Wn=[.74, .76, .8, .6], Gl=[.12, .16, .24, .3];
+     g.slathe([[2.4, 0], [2.32, 3], [2.05, 5.5], [1.72, 8], [1.28, 11], [.84, 13.4], [.46, 15], [.12, 15.6], [-.34, 15.8]], 128, H, [10, 6, 0], 1);
+     g.slathe([[-.36, 15.82], [-.78, 15.3]], 128, Wn, [10, 6, 0], 1);
+     g.slathe([[-.8, 15.28], [-1.12, 13], [-1.5, 9], [-1.86, 5], [-2.06, 2], [-2.12, 0]], 128, H2, [10, 6, 0], 1);
+     g.slathe([[3.7, 0], [3.6, 1.1], [3.25, 2], [2.8, 2.7], [2.42, 3.3]], 48, H, [10, 6, 0], 1); g.slathe([[3.74, 0], [3.7, .7]], 32, Gl, [10, 6, 0], 1);
+     g.slathe([[3.05, 3.4], [2.9, 4.2], [2.6, 4.7]], 48, Wn, [10, 6, 0], 1);
+     g.slathe([[-2.1, 0], [-2.7, 1.5], [-3, 0]], 32, [.62, .66, .72], [10, 6, 0], 1); g.slathe([[-3.02, 0], [-3.02, .7]], 24, [1, .8, .55, 1], [10, 6, 0], 1);
+     g.torus(10.4, .18, 128, D, [10, 8.05, 0], 1); g.torus(6.6, .14, 96, D, [10, 8.32, 0], 1);
+     g.rbox([2.8, 7.2, 0], [3.4, 1.2, 7], 0, H2); [1, -1].forEach(function(s){ g.box([1.2, 7.2, 2.4*s], [.4, .6, 1.4], [1, .45, .3, 1]); });
+     g.vslab([[8, 4.4], [1, 4.4], [-5, 1.2], [1.5, 1.2]], 0, 2.6, H2); [1.32, -1.32].forEach(function(z){ g.vslab([[6.6, 3.8], [1.8, 3.8], [-1.6, 2.2], [2.6, 2.2]], z, .1, Wn); });
+     g.slathe([[3.1, 0], [2.7, 2.3], [1.2, 3.4], [-4, 3.85], [-14, 3.75], [-20, 3.25], [-22.6, 2.4], [-23.1, 0]], 96, H, [0, -1.6, 0]);
+     [1, -1].forEach(function(s){ [.6, -.4].forEach(function(y){ g.box([-11, -1.6+y, 3.8*s], [10, .32, .12], Wn); }); });
+     g.slathe([[3.2, 0], [2.95, 1.2], [2.55, 2.2]], 48, [1, .76, .42, 1], [0, -1.6, 0]); g.torus(2.45, .3, 64, D, [2.5, -1.6, 0]);
+     g.box([-22.9, -1.6, 0], [.6, 2.6, 3.6], [.18, .2, .26]); g.box([-23.2, -.3, 0], [.4, .25, 3.2], [1, .82, .55, 1]);
+     [1, -1].forEach(function(s){ var c=[0, 7, 11*s];
+       g.slab([[-10, 1.6*s], [-16.5, 1.6*s], [-19.5, 10.2*s], [-13.5, 10.2*s]], 3.8, .9, H2); g.vslab([[-11, -1], [-17, -1], [-19, 6], [-14, 6]], 2.2*s, .8, H2);
+       g.slathe([[-6, 0], [-6.25, 1.2], [-7, 1.9], [-9, 2.25], [-29, 2.25], [-30.6, 1.85], [-31.6, 1.05], [-31.9, 0]], 64, H, c);
+       g.slathe([[-5.9, 0], [-6.12, 1.1], [-6.9, 1.85]], 40, [1, .32, .22, 1], c); g.torus(2.28, .16, 64, D, [-9.2, 7, 11*s]);
+       g.box([-18.5, 7, 8.88*s], [19, 1.1, .3], [.45, .7, 1, 1]); g.box([-18.5, 9.2, 11*s], [19, .3, .9], [.45, .7, 1, 1]); g.box([-30.6, 7, 11*s], [1.4, 1.8, 1.8], [.35, .5, .9, 1]); }); }},
+  /* the saucer Luke likes (in Retro above all), drawn in the same high definition: a polished lens, a glass dome, a lit
+     window row round the rim, its ring of lights, a glow under it */
+  {id:'halo', name:'Halo', real:false, k:1, turn:3, bank:0, spin:.6, glow:[.55, .85, 1], trail:[.6, .9, 1], eng:[[0, -2.8, 0]], wc:[0, 0, 30, -10],
    svg:'<circle class="sh-glow" cx="0" cy="0" r="24"/><circle class="sh-ring" cx="0" cy="0" r="22"/><circle class="sh-hull" cx="0" cy="0" r="20"/>'+
      '<circle class="sh-gold" cx="0" cy="0" r="14.5"/><circle class="sh-deck" cx="0" cy="0" r="8.5"/><path class="sh-gold" d="M9 0 L19 0"/>'+
      '<g class="sh-spin"><circle class="sh-eng" cx="17.5" cy="0" r="1.2"/><circle class="sh-eng" cx="-17.5" cy="0" r="1.2"/><circle class="sh-eng" cx="0" cy="17.5" r="1.2"/><circle class="sh-eng" cx="0" cy="-17.5" r="1.2"/>'+
      '<circle class="sh-eng" cx="12.4" cy="12.4" r="1"/><circle class="sh-eng" cx="-12.4" cy="12.4" r="1"/><circle class="sh-eng" cx="12.4" cy="-12.4" r="1"/><circle class="sh-eng" cx="-12.4" cy="-12.4" r="1"/></g>',
-   build:function(g){ g.lathe([[2.6, 0], [2.6, 6], [1.3, 15], [0, 22], [-1.2, 16], [-2.3, 8], [-2.3, 0]], 36, [.72, .74, .8], null, 1);
-     g.lathe([[2.6, 8.5], [5.2, 6.5], [7.2, 3.6], [8, 0]], 24, [.34, .55, .78], null, 1);
-     for(var i=0;i<12;i++){ var a=i/12*TAU; g.box([Math.cos(a)*20.6, 0, Math.sin(a)*20.6], [1.4, .9, 1.4], [.6, .92, 1, 1]); } }}
+   build:function(g){ var H=[.74, .76, .82];
+     g.slathe([[2.6, 0], [2.55, 4], [2.2, 8], [1.5, 13], [.7, 17.5], [0, 20.5], [-.3, 21.2]], 128, H, null, 1);
+     g.slathe([[-.32, 21.22], [-.76, 20.1]], 128, [.74, .76, .82, .6], null, 1);
+     g.slathe([[-.8, 20], [-1.4, 15], [-2, 9], [-2.3, 4], [-2.35, 0]], 128, [.62, .64, .7], null, 1);
+     g.slathe([[2.6, 8.5], [4.6, 7.4], [6.4, 5.4], [7.6, 3], [8, 0]], 64, [.22, .42, .68, .3], null, 1); g.torus(8.6, .3, 96, [.46, .48, .55], [0, 2.6, 0], 1);
+     g.torus(14.5, .16, 128, [.46, .48, .55], [0, 1.95, 0], 1); g.torus(10, .35, 96, [.6, .92, 1, 1], [0, -2.25, 0], 1);
+     for(var i=0;i<12;i++){ var a=i/12*TAU; g.rbox([Math.cos(a)*18, .72, Math.sin(a)*18], [1.6, .5, 1.1], -a, [.6, .92, 1, 1]); } }}
 ];
 var BY={}; C.forEach(function(c){ BY[c.id]=c; });
 var MINE;                                           /* (read once: a flight asks every frame, and WebKit's storage is a round trip) */
 function pick(){ if(MINE===undefined){ var v=null; try{ v=localStorage.getItem(KEY); }catch(e){} MINE=v && BY[v] ? v : null; } return MINE; }
 window.addEventListener('storage', function(e){ if(e.key===KEY){ MINE=undefined; subs.forEach(function(f){ try{ f(cur()); }catch(x){} }); } });
-function cur(){ return pick() || (de.classList.contains('sk-retro') ? 'imperial' : 'shuttle'); }
+function cur(){ return pick() || (de.classList.contains('sk-retro') ? 'halo' : 'explorer'); }
 /* ── the 3D models: a little mesh kit (x along the nose, y up, z to starboard); each face's normal turned away from the
    point given (the part's axis or middle), so the parts read as solids from any side ── */
 function kit(){
@@ -186,7 +128,7 @@ function close(){ if(POP){ POP.remove(); POP=null; } var b=document.getElementBy
 function open(btn){
   if(POP){ close(); return; }
   var cid=cur(); POP=document.createElement('div'); POP.id='sol-craft-pop'; POP.setAttribute('role', 'dialog'); POP.setAttribute('aria-label', 'Choose your ship');
-  POP.innerHTML='<div class="cr-h">Your ship</div>'+[['Real spacecraft', true], ['Science fiction', false]].map(function(gp){
+  POP.innerHTML='<div class="cr-h">Your ship</div>'+[['Real spacecraft', true], ['Science fiction', false]].filter(function(gp){ return C.some(function(c){ return c.real===gp[1]; }); }).map(function(gp){
     return '<div class="cr-g">'+gp[0]+'</div><div class="cr-row">'+C.filter(function(c){ return c.real===gp[1]; }).map(function(c){
       return '<button type="button" class="cr-t'+(c.id===cid ? ' on' : '')+'" data-craft="'+c.id+'" aria-pressed="'+(c.id===cid)+'" title="'+c.name+'">'+art(c.id)+'<span>'+c.name+'</span></button>'; }).join('')+'</div>'; }).join('');
   POP.addEventListener('click', function(e){ e.stopPropagation(); var b=e.target.closest && e.target.closest('[data-craft]'); if(!b) return; set(b.getAttribute('data-craft')); close(); });
@@ -231,8 +173,8 @@ function track(o){
   function G(t){ if(t<=tb) return 0; if(t<=tc){ var x=(t-tb)/Tb; return Wi*Tb*(x*x*x-x*x*x*x/2); }
     var u=t-tc; return Wi*Tb/2+Wo*u+(Wi-Wo)*Ts*(1-Math.exp(-u/Ts)); }
   function raw(t){
-    if(t<=t0w) return o.base(t);
-    var c=o.cen(t), q=rel(t), m=Math.hypot(q[0], q[1]), a=Math.atan2(q[1], q[0]), wr=tb>t0w ? ss((t-t0w)/(tb-t0w)) : 1;
+    var p=o.base(t); if(t<=t0w) return p;
+    var c=o.cen(t), q=[p[0]-c[0], p[1]-c[1]], m=Math.hypot(q[0], q[1]), a=Math.atan2(q[1], q[0]), wr=tb>t0w ? ss((t-t0w)/(tb-t0w)) : 1;
     if(t>=tc) a=th; else if(t>tb) a+=wrap(th-a)*ss((t-tb)/Tb);
     m+=(Math.sqrt(m*m+r*r)-m)*wr; a+=G(t);
     return [c[0]+m*Math.cos(a), c[1]+m*Math.sin(a)]; }
@@ -278,17 +220,40 @@ function leave(id, c, b, r, spin, k){ var o=parked(id, c); if(o) return [o.p[0],
 /* landed: draw(o, dt) the craft going on round its orbit for ms (as its art fades), unless stop() */
 function coast(c, draw, ms, stop){ var t1=performance.now()+ms, lt=0;
   (function step(now){ var o=!stop() && now<t1 && ORB && parked(ORB.id, c()); if(!o) return; draw(o, lt ? Math.min(.05, (now-lt)/1000) : 0); lt=now; requestAnimationFrame(step); })(performance.now()); }
-window._altoCraft={list:C, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, set:set, open:open, close:close,
+/* ── the craft's look in 3D, high definition (Luke, 2026-10-22): a physically based metal with real reflections of a
+   starry sky and the sun, plated in panels with fine seams, glass, rows of lit windows, lights; materials in the
+   colour's 4th value (0 plated hull, .3 glass, .6 hull with a row of windows, 1 light); WC: where the windows and the
+   plates run round a disc (centre x, z, its radius, from height y) rather than along the hull ── */
+var GL={vs:'attribute vec3 p,n;attribute vec4 k;uniform mat4 VP,M;varying vec3 Wp,Nw,Op;varying vec4 Kc;void main(){vec4 w=M*vec4(p,1.);Wp=w.xyz;Nw=(M*vec4(n,0.)).xyz;Op=p;Kc=k;gl_Position=VP*w;}',
+  fs:'precision highp float;varying vec3 Wp,Nw,Op;varying vec4 Kc;uniform vec3 L,E;uniform vec4 WC;uniform float al;'+
+  'float h1(vec2 q){return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453);}'+
+  'vec3 env(vec3 d,vec3 l){float s=d.y*.5+.5;vec3 c=mix(vec3(.015,.02,.04),vec3(.08,.11,.2),s*s);c+=vec3(.35,.22,.5)*pow(max(dot(d,normalize(vec3(-.6,.3,-.7))),0.),3.)*.25;'+
+  'return c+vec3(1.,.93,.82)*pow(max(dot(d,l),0.),300.)*8.+vec3(1.,.9,.8)*pow(max(dot(d,l),0.),12.)*.25;}'+
+  'void main(){vec3 n=normalize(Nw),v=normalize(E-Wp);if(dot(n,v)<0.)n=-n;vec3 l=normalize(L-Wp),hv=normalize(l+v);float m=Kc.a;vec3 b=Kc.rgb;'+
+  'if(m>.9){gl_FragColor=vec4(pow(b*1.25,vec3(.9))*al,al);return;}'+
+  'bool gs=m>.2&&m<.4;vec3 an=abs(n);vec2 uv=an.y>an.x&&an.y>an.z?Op.xz:(an.x>an.z?Op.zy:Op.xy);'+
+  'float rr=length(Op.xz-WC.xy),sau=step(rr,WC.z)*step(WC.w,Op.y);if(sau>.5)uv=vec2(atan(Op.z-WC.y,Op.x-WC.x)*rr,rr);'+
+  'vec2 ce=uv/vec2(3.4,2.1),f=fract(ce);float ln=smoothstep(0.,.025,f.x)*smoothstep(0.,.025,1.-f.x)*smoothstep(0.,.035,f.y)*smoothstep(0.,.035,1.-f.y);'+
+  'vec2 c2=uv/vec2(6.8,4.2);float tone=.84+.24*h1(floor(c2))+.06*h1(floor(ce)+3.);if(!gs)b*=mix(.8,1.,ln)*tone;'+
+  'float ro=gs?.08:mix(.5,.32,h1(floor(c2)+7.)),me=gs?0.:.45,NL=max(dot(n,l),0.),NV=max(dot(n,v),.001),NH=max(dot(n,hv),0.),a2=pow(ro,4.);'+
+  'float D=a2/(3.14159*pow(NH*NH*(a2-1.)+1.,2.)),kk=pow(ro+1.,2.)/8.,G=NL/(NL*(1.-kk)+kk)*NV/(NV*(1.-kk)+kk);'+
+  'vec3 F0=mix(vec3(.04),b,me),F=F0+(1.-F0)*pow(1.-max(dot(hv,v),0.),5.);vec3 col=((1.-F)*(1.-me)*b/3.14159+D*G*F/(4.*NL*NV+.001))*NL*vec3(1.,.96,.9)*5.2;'+
+  'vec3 r=reflect(-v,n),Fr=F0+(1.-F0)*pow(1.-NV,5.);col+=b*env(n,l)*(1.-me)*.55+env(r,l)*Fr*mix(.3,1.2,1.-ro);'+
+  'col+=b*vec3(.2,.26,.42)*max(dot(n,normalize(vec3(.2,-.6,.5))),0.)*.22;col*=.72+.28*smoothstep(-1.,.6,n.y);'+
+  'if(m>.5&&m<.7){float t=sau>.5?atan(Op.z-WC.y,Op.x-WC.x)*rr:Op.x;float w=step(.6,fract(t*2.1))*step(fract(t*2.1),.84);col=mix(col,vec3(1.,.86,.62)*1.3,w*.85);}'+
+  'col*=1.15;col=col*(2.51*col+.03)/(col*(2.43*col+.59)+.14);gl_FragColor=vec4(pow(col,vec3(1./2.2))*al,al);}'};
+window._altoCraft={list:C, gl:GL, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, set:set, open:open, close:close,
   chosen:function(){ return pick(); }, onChange:function(f){ subs.push(f); },
   track:track, orbitR:orbitR, park:park, parked:parked, unpark:function(){ ORB=null; }, orbiting:function(){ return ORB && ORB.id; }, steer:steer, W:ORB_W,
   xf:xf, line:line, leave:leave, coast:coast};
-window._altoSolarShip=BY.imperial.svg;      /* (the name 1.9.132's Retro read: the Imperial vessel) */
 })();
 """
 
 CRAFT_CSS = r"""
   /* the flying art is small (solar_fly.py SHIP / SHIP_RETRO): its lines a steady width on the screen, so it stays clear */
   :is(.sol-ship,.fly-ship) *{vector-effect:non-scaling-stroke;}
+  /* the Retro drawing's own deco details (the flat top-down drawing's gold sunburst and lines), Retro only */
+  .sh-ro{display:none;} html.sk-retro :is(.sol-ship,.fly-ship,.cr-art) .sh-ro{display:inline;}
   /* Classic (and the 3D style's 2D pieces): the craft clean and light; Retro keeps solar_draw.py's gold on black */
   html:not(.sk-retro) :is(.sol-ship,.fly-ship,.cr-art) .sh-hull{fill:#e8ecf5;stroke:#27304c;stroke-width:.9;stroke-linejoin:round;}
   html:not(.sk-retro) :is(.sol-ship,.fly-ship,.cr-art) .sh-deck{fill:#aeb9d2;stroke:none;}
