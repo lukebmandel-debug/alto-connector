@@ -82,3 +82,18 @@ def test_the_browser_reads_the_format_the_same_way(tmp_path):
     runner.write_text("const f=new Function(" + json.dumps(fn + "; return _fmtOf;") + ")();"
                       "process.stdout.write(JSON.stringify(" + json.dumps(cases) + ".map(f)));")
     assert json.loads(subprocess.check_output(["node", str(runner)])) == [fmt_of(c) for c in cases]
+
+
+def test_a_card_wears_its_symbol_large_and_a_lock_for_its_privacy():
+    home = (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8")
+    assert "function tileEmblem(fmt, units)" in home and ".tile-emblem{" in home.replace(" ", "")
+    # private, public, private-and-shared-by-link, and a timeline someone shared with you
+    for state in ("private", "public", "shared", "withyou"):
+        assert f"  {state}: [" in home
+    assert "lockBadge(pg.shareKey ? 'shared' : 'private')" in home and "lockBadge('withyou')" in home
+    assert "ts-t" not in home                                  # no word "Private" on the card any more
+    assert ".tile-emblem{ display:none !important; }" in home    # ink is not spent on it in print
+
+
+def test_the_system_planet_is_at_the_upper_left_clear_of_the_card_controls():
+    assert '<circle cx="5" cy="5" r="1.3"/>' in F.SYMBOLS["system"][1]

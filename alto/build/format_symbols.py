@@ -31,7 +31,7 @@ SYMBOLS: dict[str, tuple[str, str, int]] = {
                 '<path d="M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17"/>', 20),
     "system": ("System",
                '<circle cx="10" cy="10" r="1.8"/><circle cx="10" cy="10" r="7"/>'
-               '<circle cx="15" cy="5" r="1.3"/>', 20),
+               '<circle cx="5" cy="5" r="1.3"/>', 20),
     # a map pin
     "palace": ("Mind Palace",
                BADGE + '<path d="M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z"/>'

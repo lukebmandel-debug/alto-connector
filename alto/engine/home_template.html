@@ -319,6 +319,11 @@
     color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:1px 5px;
     margin-right:7px; vertical-align:middle;
   }
+  .tile-emblem{ position:absolute; pointer-events:none; right:-12px; bottom:-16px; width:132px; height:132px; opacity:.28; transform:rotate(-6deg); z-index:0; }
+  .tile-emblem svg{ display:block; width:100%; height:100%; }
+  .course-tile .tile-body{ position:relative; z-index:1; }
+  .priv-sym{ display:inline-flex; vertical-align:-4px; color:var(--muted); }
+  .priv-sym svg{ display:block; }
   .fmt-sym{ display:inline-flex; vertical-align:-5px; margin-right:7px; color:var(--muted); }
   .fmt-sym svg{ display:block; }
   .search-result .sr-kind .fmt-sym{ margin:0; vertical-align:-2px; }
@@ -896,6 +901,7 @@
     .project-slab{ border:1px solid #bbb !important; page-break-inside:avoid; }
     .course-tile{ border:1px solid #ccc !important; }
     .course-tile .unit-strip{ display:none !important; }   /* solid color bars = ink */
+    .tile-emblem{ display:none !important; }
     .tile-share, .tile-reports, .slab-share, .tile-more, .bin-group,
     .tile-download, .slab-download,
     .course-tile.new-tile, .project-slab.new-project-slab{ display:none !important; }
@@ -1946,10 +1952,34 @@ function _listCached(part){
 }
 // The symbol a project format wears instead of its name (alto/build/format_symbols.py;
 // tests/test_format_symbols.py keeps this copy the same). The name is the tooltip.
-const FMT_SYMBOLS = {"timeline":["Timeline","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M7.5 5.5h9M7.5 18.5h9M9 6.5c0 3.4 3 4.2 3 5.5s-3 2.1-3 5.5M15 6.5c0 3.4-3 4.2-3 5.5s3 2.1 3 5.5\"/>",24],"lanes":["Timeline · Horizontal","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><g transform=\"translate(12 12) scale(.62) translate(-12 -12)\" stroke-width=\"2.4\"><path d=\"M3.5 19h3.2M12.3 19h3.2a3.5 3.5 0 0 0 0-7h-1.3M8.8 12H7.5a3.5 3.5 0 0 1 0-7h4.7M17.8 5h2.7M17.5 2.4 20.5 5l-3 2.6\"/><circle cx=\"9.5\" cy=\"19\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"11.5\" cy=\"12\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"15\" cy=\"5\" r=\"2.2\" stroke-width=\"1.25\"/></g>",24],"outline":["Outline","<path d=\"M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17\"/>",20],"system":["System","<circle cx=\"10\" cy=\"10\" r=\"1.8\"/><circle cx=\"10\" cy=\"10\" r=\"7\"/><circle cx=\"15\" cy=\"5\" r=\"1.3\"/>",20],"palace":["Mind Palace","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z\"/><circle cx=\"12\" cy=\"11.3\" r=\"1\" fill=\"currentColor\"/>",24],"building":["Mind Palace · Building","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2\"/>",24]};
+const FMT_SYMBOLS = {"timeline":["Timeline","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M7.5 5.5h9M7.5 18.5h9M9 6.5c0 3.4 3 4.2 3 5.5s-3 2.1-3 5.5M15 6.5c0 3.4-3 4.2-3 5.5s3 2.1 3 5.5\"/>",24],"lanes":["Timeline · Horizontal","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><g transform=\"translate(12 12) scale(.62) translate(-12 -12)\" stroke-width=\"2.4\"><path d=\"M3.5 19h3.2M12.3 19h3.2a3.5 3.5 0 0 0 0-7h-1.3M8.8 12H7.5a3.5 3.5 0 0 1 0-7h4.7M17.8 5h2.7M17.5 2.4 20.5 5l-3 2.6\"/><circle cx=\"9.5\" cy=\"19\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"11.5\" cy=\"12\" r=\"2.2\" stroke-width=\"1.25\"/><circle cx=\"15\" cy=\"5\" r=\"2.2\" stroke-width=\"1.25\"/></g>",24],"outline":["Outline","<path d=\"M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17\"/>",20],"system":["System","<circle cx=\"10\" cy=\"10\" r=\"1.8\"/><circle cx=\"10\" cy=\"10\" r=\"7\"/><circle cx=\"5\" cy=\"5\" r=\"1.3\"/>",20],"palace":["Mind Palace","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z\"/><circle cx=\"12\" cy=\"11.3\" r=\"1\" fill=\"currentColor\"/>",24],"building":["Mind Palace · Building","<rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5.5\"/><path d=\"M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2\"/>",24]};
 function fmtBadge(k){
   const g = FMT_SYMBOLS[k]; if(!g) return '';
   return '<span class="fmt-sym" title="' + g[0] + '" role="img" aria-label="' + g[0] + '"><svg viewBox="0 0 ' + g[2] + ' ' + g[2] + '" width="20" height="20" fill="none" stroke="currentColor" stroke-width="' + g[2] / 16 + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + g[1] + '</svg></span>';
+}
+// The card's format symbol, large and translucent in its bottom-right corner (tinted to the timeline's
+// first unit colour), and the small privacy badge that stands where the word "Private" was: a closed
+// lock for private, an open lock for public (nothing is public today), a lock with an arrow to a person
+// for private and shared by link, a person for a timeline someone shared with you.
+const LOCK_BODY = '<rect x="5" y="10.5" width="14" height="10" rx="2.6"/>';
+const LOCK_GLYPHS = {
+  private: ['Private', 24, LOCK_BODY + '<path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/><circle cx="12" cy="15.5" r="1" fill="currentColor"/>'],
+  public: ['Public', 24, LOCK_BODY + '<path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.3-1.5"/><circle cx="12" cy="15.5" r="1" fill="currentColor"/>'],
+  shared: ['Private \u00b7 shared by link', 36, '<rect x="2" y="10.5" width="11" height="8.5" rx="2.2"/><path d="M4.6 10.5V8.6a2.9 2.9 0 0 1 5.8 0v1.9M15.5 14.8h5.5M18.8 12l2.7 2.8-2.7 2.8"/><circle cx="28.5" cy="9.6" r="2.7"/><path d="M23.3 20c0-3 2.3-5 5.2-5s5.2 2 5.2 5"/>'],
+  withyou: ['Shared with you', 24, '<circle cx="12" cy="8.5" r="3.4"/><path d="M5.5 20c0-4 2.9-6.5 6.5-6.5s6.5 2.5 6.5 6.5"/>'],
+};
+function lockBadge(state){
+  const g = LOCK_GLYPHS[state]; if(!g) return '';
+  return '<span class="priv-sym" title="' + g[0] + '" role="img" aria-label="' + g[0] + '"><svg viewBox="0 0 ' + g[1] + ' 24" width="' + (g[1] * 17 / 24) + '" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + g[2] + '</svg></span>';
+}
+function tileEmblem(fmt, units){
+  const g = FMT_SYMBOLS[fmt]; if(!g) return null;
+  const c = (units || []).find(u => /^#[0-9a-fA-F]{3,8}$/.test(u));
+  const d = document.createElement('div'); d.className = 'tile-emblem'; d.setAttribute('aria-hidden', 'true');
+  if(c) d.style.color = c;
+  const o = (g[2] - 24) / 2;
+  d.innerHTML = '<svg viewBox="' + o + ' ' + o + ' 24 24" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round">' + g[1] + '</svg>';
+  return d;
 }
 function unitStrip(units){
   const u = (units && units.length) ? units : [null,null,null,null,null,null,null];
@@ -2104,10 +2134,11 @@ function drawShared(items){
       el.innerHTML =
         '<div class="unit-strip">' + unitStrip(it.units) + '</div>' +
         '<div class="tile-body"><div class="tile-title"></div>' +
-        '<div class="tile-sub">' + fmtBadge(it.fmt) + 'Shared with you</div></div>';
+        '<div class="tile-sub">' + lockBadge('withyou') + '</div></div>';
       // textContent: this title was written by whoever shared it, so it is the
       // one string on this page that someone else controls.
       el.querySelector('.tile-title').textContent = it.heading || it.title || 'Shared timeline';
+      { const em = tileEmblem(it.fmt, it.units); if(em) el.insertBefore(em, el.querySelector('.tile-body')); }
       const rm = document.createElement('button');
       rm.className = 'tile-share';
       rm.style.right = '14px';
@@ -2187,13 +2218,13 @@ function drawPrivate(all){
       el.innerHTML =
         '<div class="unit-strip">' + unitStrip(pg.units) + '</div>' +
         '<div class="tile-body"><div class="tile-title"></div>' +
-        '<div class="tile-sub">' + fmtBadge(pg.fmt) + '<span class="ts-t">Private</span></div></div>';
+        '<div class="tile-sub">' + lockBadge(pg.shareKey ? 'shared' : 'private') + '</div></div>';
       // textContent, not innerHTML: these have been to Firestore and back, so
       // they are no longer template output and must not be parsed as markup.
       // The box is the project; the card is the timeline, by its own title.
       const heading = pg.heading || pg.title || 'Untitled timeline';
       el.querySelector('.tile-title').textContent = heading;
-      if(pg.shareKey) el.querySelector('.ts-t').textContent = 'Private · shared';
+      { const em = tileEmblem(pg.fmt, pg.units); if(em) el.insertBefore(em, el.querySelector('.tile-body')); }
 
       // The same three controls, in the same three places, as every other
       // chip on this page. A private timeline is still a timeline: it has a
