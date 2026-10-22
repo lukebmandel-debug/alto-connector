@@ -127,12 +127,12 @@ function markNext(dir){ var L=markNearest(8).filter(function(it){ return it.d<MK
   var i=L.indexOf(MK.tgt), j=i<0?(dir<0?L.length-1:0):(i+(dir<0?L.length-1:1))%L.length, it=L[j]; markAim(it,false);
   markSay((j+1)+' of '+L.length+': '+mkLabel(it)+'. G to walk there.'); return it; }
 /* the point to walk to: a few metres out from the door, or from the nearest wall of a landmark */
-function mkGoal(it){ var d=it.door; if(d) return [d.x+d.nx*3*UM, d.y+d.ny*3*UM, Math.atan2(-d.ny,-d.nx)];
+function mkGoal(it){ var d=it.door; if(d) return [d.x+d.nx*3*UM, d.y+d.ny*3*UM, Math.atan2(-d.ny,-d.nx), 1];
   var s=it.s; if(s && s.ring){ var r=s.ring, n=r.length/2, best=null, bd=1e18, j=n-1; for(var i=0;i<n;j=i++){ var ax=r[2*j], ay=r[2*j+1], ex=r[2*i]-ax, ey=r[2*i+1]-ay, l2=ex*ex+ey*ey||1e-9, t=clamp(((S.x-ax)*ex+(S.y-ay)*ey)/l2,0,1), px=ax+ex*t, py=ay+ey*t, q=(px-S.x)*(px-S.x)+(py-S.y)*(py-S.y); if(q<bd){ bd=q; best=[px,py]; } }
     if(best){ var ox=S.x-best[0], oy=S.y-best[1], ol=Math.hypot(ox,oy)||1; return [best[0]+ox/ol*4*UM, best[1]+oy/ol*4*UM, Math.atan2(-oy,-ox)]; } }
   var dx=S.x-it.x, dy=S.y-it.y, l=Math.hypot(dx,dy)||1; return [it.x+dx/l*25*UM, it.y+dy/l*25*UM, Math.atan2(-dy,-dx)]; }
 /* a walking route: A* on a 3 m grid, the free test (blockedAt) asked lazily, at most MK_ASTAR nodes; null when there is none (then it steers straight) */
-var MK_ASTAR=20000, MK_ASTMS=110, MK_WALKMAX=260;                /* at most 12000 nodes and ~90 ms, once per G */
+var MK_ASTAR=20000, MK_ASTMS=110, MK_WALKMAX=150;                /* at most 12000 nodes and ~90 ms, once per G */
 function mkPath(sx,sy,gx,gy){
   var G=(Math.hypot(gx-sx,gy-sy)<90*UM?1.4:2.4)*UM, gi=Math.round((gx-sx)/G),          /* fine enough for an alley (it was 3.5 m: narrow ways failed and it steered at walls) */ gj=Math.round((gy-sy)/G), open=[], came={}, cost={}, free={}, n=0, D=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
   function ok(i,j){ var k=i+','+j; if(free[k]===undefined) free[k]=(i===0&&j===0)||!blockedAt(sx+i*G,sy+j*G); return free[k]; }
@@ -154,7 +154,8 @@ function markWalk(it){ it=it||MK.tgt; if(!it || IN.on || DR.busy) return false; 
   MK.auto={it:it, x:g[0], y:g[1], face:g[2], slow:0, t:0, best:1e18, since:0, path:path, pi:1, re:0}; MK.last1={mode:'walk', len:d};
   markSay('Walking to '+(it.num?it.num+' ':'')+it.name+'. Esc or a move key stops.'); mkPill(it,'→ '); return true; }
 /* the quick way: a short dark fade with the name, and you stand in front of it facing its door (far, or no walkable way, or stuck) */
-function markFade(it,g,why){ MK.auto=null; S.keys={}; S.run=false; MK.last1={mode:'fade', why:why}; mkPill(it,'→ '); var V=mkVeil(); var done=function(){ var f=freeNear(g[0],g[1]); S.x=f[0]; S.y=f[1]; S.vx=S.vy=0; S.yaw=g[2]; S.pitch=.02; plan(true); stream(true); markArrive(it); };
+function markFade(it,g,why){ MK.auto=null; S.keys={}; S.run=false; MK.last1={mode:'fade', why:why, stuck:why==='stuck'}; mkPill(it,'→ '); var V=mkVeil(); var done=function(){ S.x=g[0]; S.y=g[1]; plan(true); stream(true); MK.ver=-1; mkSync(mkList()); var g2=it.door||!g[3]?mkGoal(it):g;          /* a far building's door is known only once its part of the city is loaded: load it, then stand at its door */
+    var f=freeNear(g2[0],g2[1]); S.x=f[0]; S.y=f[1]; S.vx=S.vy=0; S.yaw=g2[2]; S.pitch=.02; plan(true); stream(true); markArrive(it); };
   if(S.hold||reduced()||!V){ done(); return; } V.firstChild.textContent='Going to '+(it.num?it.num+' ':'')+it.name+'…'; V.style.opacity='1'; MK.fadeT=setTimeout(function(){ MK.fadeT=null; if(!S.on){ V.style.opacity='0'; return; } done(); setTimeout(function(){ V.style.opacity='0'; },80); },260); }
 function markFadeStop(){ if(MK.fadeT){ clearTimeout(MK.fadeT); MK.fadeT=null; } if(MK.veil) MK.veil.style.opacity='0'; }
 function mkVeil(){ var H=S.hud&&S.hud.root; if(!H) return null; if(MK.veil&&MK.veil.parentNode) return MK.veil; var v=document.createElement('div'); v.className='mk-veil'; v.setAttribute('aria-hidden','true'); v.appendChild(document.createElement('span')); H.appendChild(v); MK.veil=v; return v; }

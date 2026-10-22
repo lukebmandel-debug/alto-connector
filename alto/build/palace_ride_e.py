@@ -346,7 +346,7 @@ function realUpgrade(xp,yp,hp,at){
   var fin=function(ok){
     if(!ok || !S.on || S.real) return false;
     var pos; if(at) pos={x:at.x,y:at.y,h:at.h}; else { var e=REAL.enter(xp,yp,hp,40); pos={x:e.x,y:e.y,h:e.h}; sidewalk(pos,r.x,r.y); if(!REAL.inBounds(pos.x/UM,pos.y/UM)) { S.realWhy='snap out of bounds'; return false; } }
-    S.pendingReal={x:pos.x,y:pos.y,k:r.k,at:!!at};
+    S.pendingReal={x:pos.x,y:pos.y,k:r.k,at:!!at,h:pos.h};
     if(S.hold||at||reduced()){ doSwitch(); } else S.xf=1;                       /* the frame loop snapshots the old world, then switches */
     return true; };
   if((at||S.hold) && realNear(r.x,r.y)) return Promise.resolve(fin(true));       /* the data is already here: no wait */
@@ -354,7 +354,7 @@ function realUpgrade(xp,yp,hp,at){
 /* stand on the pavement beside the road the walk was snapped to, on the side the asker was on */
 function sidewalk(pos,ox,oy){ var rx=pos.x/UM, ry=pos.y/UM, c=rlNear(rx,ry,6,true)[0]; if(!c) return; var cl=RCLS[c.f[0]], w=cl?cl[0]:0; if(!cl||w<7||cl[1]<.2) return;
   var nx=-Math.sin(c.ang), ny=Math.cos(c.ang), side=((ox-rx)*nx+(oy-ry)*ny)>=0?1:-1, off=w/2+1.7; pos.x=(rx+nx*side*off)*UM; pos.y=(ry+ny*side*off)*UM; }
-function doSwitch(){ var q=S.pendingReal; S.pendingReal=null; if(!q||!S.on||S.real) return; goReal(q.x,q.y,q.k); if(S.autoYaw && !q.at) S.yaw=q.h; S.spawned2={x:q.x,y:q.y}; hudFrame(true); }
+function doSwitch(){ var q=S.pendingReal; S.pendingReal=null; if(!q||!S.on||S.real) return; goReal(q.x,q.y,q.k); if(S.autoYaw && !q.at && isFinite(q.h)) S.yaw=q.h;          /* q.h was never set: entering with no heading left the yaw undefined once the real streets came (every frame blank) */ S.spawned2={x:q.x,y:q.y}; hudFrame(true); }
 
 /* \u2500\u2500 the HUD \u2500\u2500 */
 var DIRS=['N','NE','E','SE','S','SW','W','NW'];

@@ -1552,7 +1552,7 @@ function ceilAt(G,x,y,fz){ var c=1e9, s=supports(G,x,y); for(var i=0;i<s.length;
 function ledge(G,x,y){ var ref=S.air?S.gnd:S.fz, sup=supportDisc(G,x,y,Math.max(S.fz,ref)); if(sup==null) return true; return ref-sup>CFG.drop&&!onStair(G,x,y); }
 function okAt(G,x,y){ return !blockedBySurf(x,y)&&!ledge(G,x,y); }
 function step(dt,keys){ var G=S.G; keys=keys||S.keys; dt=Math.min(dt,.1); S.dt=dt; var H=AV.HOP, pd=S.noPad?null:AV.pad();
-  if(S.nav){ if(keys.f||keys.b||keys.l||keys.r||(pd&&(Math.abs(pd.mx)+Math.abs(pd.my)>.3))||S.joyL){ navStop('you took over'); } else { var nk=navStep(dt); if(nk) keys=nk; } }
+  if(S.nav||S.plan){ if(keys.f||keys.b||keys.l||keys.r||(pd&&(Math.abs(pd.mx)+Math.abs(pd.my)>.3))||S.joyL){ navStop('you took over'); } else { if(S.plan) navPlanStep(); if(S.nav){ var nk=navStep(dt); if(nk) keys=nk; } } }
   if(S.hiT>0) S.hiT-=dt;
   var f=(keys.f?1:0)-(keys.b?1:0)+(S.joyL?-S.joyL[1]:0)+(pd?-pd.my:0)+(keys.mf||0), s=(keys.r?1:0)-(keys.l?1:0)+(S.joyL?S.joyL[0]:0)+(pd?pd.mx:0)+(keys.ms||0), sp=keys.run||(pd&&pd.run)||(S.joyL&&Math.hypot(S.joyL[0],S.joyL[1])>.95)?CFG.hurry:CFG.walk;
   var mag=Math.hypot(f,s); if(mag>1){ f/=mag; s/=mag; }
@@ -1654,20 +1654,24 @@ function arrival(G,it){ var s=it.s, c=s.p, e=it.room.l.e, n=it.n, faces=s.card?[
   if(!best){ var fr=freeNear(c[0]+n[0]*2.2,c[1]+n[1]*2.2,e); best=fr; }
   var dx=c[0]-best[0], dy=c[1]-best[1], dist=Math.hypot(dx,dy)||1; return {x:best[0], y:best[1], z:e, yaw:Math.atan2(dy,dx), pitch:clamp(Math.atan2(cz-(e+CFG.eye),dist),-.5,.4)}; }
 /* the route: A* over 0.4 m cells evaluated as they are reached, with the walker's own tests (floor under the capsule, nothing in the way, no step down a ledge); stairs are just cells whose floor rises */
-var NAV={cell:.4, max:25000, ms:150};
+var NAV={cell:.4, max:30000, frameMs:6, totalMs:1600};
 function navCell(G,cache,i,j,zc){ var k=i+','+j+','+Math.round(zc*4), v=cache[k]; if(v!==undefined) return v; var x=i*NAV.cell, y=j*NAV.cell, z=supportAt(G,x,y,zc); if(z==null) z=supportDisc(G,x,y,zc);
   v=(z==null||z<zc-CFG.step-.02||blockedAt(G,x,y,z))?null:z; cache[k]=v; return v; }
-function route(G,from,to){ var C=NAV.cell, cache={}, si=Math.round(from.x/C), sj=Math.round(from.y/C), gi=Math.round(to.x/C), gj=Math.round(to.y/C), open=[], seen={}, t0=Date.now(), n=0;
-  var h=function(i,j,z){ return 1.25*(Math.hypot((i-gi)*C,(j-gj)*C)+Math.abs(z-to.z)*1.5); },          /* weighted: a little longer than the best, found much sooner */ push=function(o){ open.push(o); var a=open.length-1; while(a>0){ var b=(a-1)>>1; if(open[b].f<=open[a].f) break; var q=open[a]; open[a]=open[b]; open[b]=q; a=b; } },
-      pop=function(){ var top=open[0], last=open.pop(); if(open.length){ open[0]=last; var a=0; for(;;){ var l=2*a+1, r=l+1, m=a; if(l<open.length&&open[l].f<open[m].f) m=l; if(r<open.length&&open[r].f<open[m].f) m=r; if(m===a) break; var q=open[a]; open[a]=open[m]; open[m]=q; a=m; } } return top; };
-  var D8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-  push({i:si,j:sj,z:from.z,g:0,f:h(si,sj,from.z),p:null}); seen[si+','+sj+','+Math.round(from.z*4)]=0;
-  while(open.length){ var o=pop(); if(++n>NAV.max||Date.now()-t0>NAV.ms) return {ok:false, why:"too far", n:n};
-    if(Math.abs(o.i-gi)<=1&&Math.abs(o.j-gj)<=1&&Math.abs(o.z-to.z)<.3){ var pts=[[to.x,to.y,to.z]]; for(var q=o;q;q=q.p) pts.push([q.i*C,q.j*C,q.z]); pts[pts.length-1]=[from.x,from.y,from.z]; pts.reverse(); return {ok:true, pts:smoothPath(G,pts), n:n}; }
-    for(var d=0;d<8;d++){ var ni=o.i+D8[d][0], nj=o.j+D8[d][1], z=navCell(G,cache,ni,nj,o.z); if(z==null) continue;
-      if(d>3&&(navCell(G,cache,o.i+D8[d][0],o.j,o.z)==null||navCell(G,cache,o.i,o.j+D8[d][1],o.z)==null)) continue;          /* no corner cutting */
-      var g=o.g+(d>3?C*1.4142:C)+Math.abs(z-o.z)*.6, key=ni+','+nj+','+Math.round(z*4); if(seen[key]!=null&&seen[key]<=g) continue; seen[key]=g; push({i:ni,j:nj,z:z,g:g,f:g+h(ni,nj,z),p:o}); } }
-  return {ok:false, why:'no way', n:n}; }
+/* the search keeps its state, so it can run a few milliseconds a frame (the trip's pill shows at once; nothing freezes) */
+function routeStart(G,from,to){ var C=NAV.cell, R={G:G, from:from, to:to, cache:{}, open:[], seen:{}, n:0, gi:Math.round(to.x/C), gj:Math.round(to.y/C)}, si=Math.round(from.x/C), sj=Math.round(from.y/C);
+  rPush(R,{i:si,j:sj,z:from.z,g:0,f:rH(R,si,sj,from.z),p:null}); R.seen[si+','+sj+','+Math.round(from.z*4)]=0; return R; }
+function rH(R,i,j,z){ var C=NAV.cell; return 1.25*(Math.hypot((i-R.gi)*C,(j-R.gj)*C)+Math.abs(z-R.to.z)*1.5); }          /* weighted: a little longer than the best, found much sooner */
+function rPush(R,o){ var open=R.open; open.push(o); var a=open.length-1; while(a>0){ var b=(a-1)>>1; if(open[b].f<=open[a].f) break; var q=open[a]; open[a]=open[b]; open[b]=q; a=b; } }
+function rPop(R){ var open=R.open, top=open[0], last=open.pop(); if(open.length){ open[0]=last; var a=0; for(;;){ var l=2*a+1, r=l+1, m=a; if(l<open.length&&open[l].f<open[m].f) m=l; if(r<open.length&&open[r].f<open[m].f) m=r; if(m===a) break; var q=open[a]; open[a]=open[m]; open[m]=q; a=m; } } return top; }
+var D8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+/* run the search for at most `ms`: null = not done yet, else {ok, pts | why, n} */
+function routeRun(R,ms){ var G=R.G, C=NAV.cell, t0=Date.now(), to=R.to, from=R.from;
+  while(R.open.length){ if((R.n&31)===0&&Date.now()-t0>ms) return null; var o=rPop(R); if(++R.n>NAV.max) return {ok:false, why:'too far', n:R.n};
+    if(Math.abs(o.i-R.gi)<=1&&Math.abs(o.j-R.gj)<=1&&Math.abs(o.z-to.z)<.3){ var pts=[[to.x,to.y,to.z]]; for(var q=o;q;q=q.p) pts.push([q.i*C,q.j*C,q.z]); pts[pts.length-1]=[from.x,from.y,from.z]; pts.reverse(); return {ok:true, pts:smoothPath(G,pts), n:R.n}; }
+    for(var d=0;d<8;d++){ var ni=o.i+D8[d][0], nj=o.j+D8[d][1], z=navCell(G,R.cache,ni,nj,o.z); if(z==null) continue;
+      if(d>3&&(navCell(G,R.cache,o.i+D8[d][0],o.j,o.z)==null||navCell(G,R.cache,o.i,o.j+D8[d][1],o.z)==null)) continue;          /* no corner cutting */
+      var g=o.g+(d>3?C*1.4142:C)+Math.abs(z-o.z)*.6, key=ni+','+nj+','+Math.round(z*4); if(R.seen[key]!=null&&R.seen[key]<=g) continue; R.seen[key]=g; rPush(R,{i:ni,j:nj,z:z,g:g,f:g+rH(R,ni,nj,z),p:o}); } }
+  return {ok:false, why:'no way', n:R.n}; }
 /* string-pulling: keep a point only when the straight walk past it would not stay on floor and clear */
 function segWalk(G,a,b){ var L=Math.hypot(b[0]-a[0],b[1]-a[1]), k=Math.max(1,Math.ceil(L/.15)), z=a[2]; for(var i=1;i<=k;i++){ var t=i/k, x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t, s=supportDisc(G,x,y,z+.05);
     if(s==null||s<z-CFG.step||s>z+CFG.step||blockedAt(G,x,y,s)||Math.abs(s-(a[2]+(b[2]-a[2])*t))>.6) return false; z=s; } return true; }
@@ -1676,10 +1680,14 @@ function pathLen(P,k){ var L=0; for(var i=(k||0);i+1<P.length;i++) L+=Math.hypot
 /* start a trip to node `id`: walk the route when it is found and not too long (70 m), else a short, labelled fade; Esc, a move key or the pill's x cancels */
 function goNode(id){ var G=S.G, d=S.data||{}, n=(d.nodes||{})[id]; if(!n||!n.r) return false; var sl=n.s&&G.slots[n.s]?n.s:(G.slots['card-'+id]?'card-'+id:null), it=sl?G.slots[sl]:null;
   S.cardIx=(d.order||Object.keys(d.nodes||{})).indexOf(id); var to=it?arrival(G,it):spawn(G,n.r,null); var name=String(n.n)+' '+dec(n.t);
-  navStop(); var r=route(G,{x:S.x,y:S.y,z:S.fz},to), L=r.ok?pathLen(r.pts):0; S.lastRoute={ok:r.ok, why:r.why, n:r.n, len:L, mode:''};
-  if(r.ok&&L<=70&&!reduced()){ S.nav={id:id, it:it, to:to, pts:r.pts, k:1, name:name, t:0, best:L, bestT:0, len:L}; S.lastRoute.mode='walk'; navPill(name); return true; }
-  S.lastRoute.mode='fade'; navPill(name,true); var lab=S.veil; veilPulse(function(){ S.x=to.x; S.y=to.y; S.fz=to.z; S.yaw=to.yaw; S.pitch=to.pitch; S.snap=1; S.snapExp=1; S.snapCam=1; S.vx=S.vy=S.vz=0; S.air=false; S.glide=null; S.safe=null; navArrive(id,it,name); }, 'Going to '+name+'…'); return true; }
-function navStop(why){ if(S.nav&&why) S.lastRoute&&(S.lastRoute.stopped=why); S.nav=null; S.navKeys=null; if(S.navEl&&!S.navEl._arr) S.navEl.style.opacity=0; }
+  navStop(); S.plan={id:id, it:it, to:to, name:name, R:routeStart(G,{x:S.x,y:S.y,z:S.fz},to), t0:Date.now()}; S.lastRoute={mode:'planning'}; navPill(name); return true; }
+/* each frame while planning: a few ms of search; then the walk (found, at most 70 m) or the fade (far, none, or taking too long) */
+function navPlanStep(){ var P=S.plan; if(!P) return; var r=routeRun(P.R,NAV.frameMs); if(!r&&Date.now()-P.t0<NAV.totalMs) return; S.plan=null; if(!r) r={ok:false, why:'too long to find', n:P.R.n};
+  var L=r.ok?pathLen(r.pts):0; S.lastRoute={ok:r.ok, why:r.why, n:r.n, len:L, mode:'', ms:Date.now()-P.t0};
+  if(r.ok&&L<=70&&!reduced()){ S.nav={id:P.id, it:P.it, to:P.to, pts:r.pts, k:1, name:P.name, t:0, best:L, bestT:0, len:L}; S.lastRoute.mode='walk'; return; }
+  S.lastRoute.mode='fade'; navFade(P.id,P.it,P.to,P.name); }
+function navFade(id,it,to,name){ navPill(name,true); veilPulse(function(){ S.x=to.x; S.y=to.y; S.fz=to.z; S.yaw=to.yaw; S.pitch=to.pitch; S.snap=1; S.snapExp=1; S.snapCam=1; S.vx=S.vy=S.vz=0; S.air=false; S.glide=null; S.safe=null; navArrive(id,it,name); }, 'Going to '+name+'…'); }
+function navStop(why){ if(S.nav&&why) S.lastRoute&&(S.lastRoute.stopped=why); S.plan=null; S.nav=null; S.navKeys=null; if(S.navEl&&!S.navEl._arr) S.navEl.style.opacity=0; }
 function navArrive(id,it,name){ S.nav=null; S.navKeys=null; S.hiSlot=it||null; S.hiT=4.5; if(S.navEl){ S.navEl._arr=1; S.navEl.firstChild.textContent='✓ '+name; S.navEl.style.opacity=1; clearTimeout(S.navEl._t); S.navEl._t=setTimeout(function(){ if(S.navEl){ S.navEl.style.opacity=0; S.navEl._arr=0; } },2800); }
   S.lastRoute&&(S.lastRoute.arrived=true); }
 function navPill(name,fade){ var p=S.navEl; if(!p) return; p._arr=0; clearTimeout(p._t); p.firstChild.textContent=(fade?'→ ':'→ ')+name; p.style.opacity=1; }
@@ -1687,8 +1695,7 @@ function navPill(name,fade){ var p=S.navEl; if(!p) return; p._arr=0; clearTimeou
 function navStep(dt){ var N=S.nav; if(!N) return null; var P=N.pts; N.t+=dt;
   while(N.k<P.length-1&&Math.hypot(P[N.k][0]-S.x,P[N.k][1]-S.y)<.45&&Math.abs(P[N.k][2]-S.fz)<.6) N.k++;
   var tgt=P[N.k], rem=Math.hypot(tgt[0]-S.x,tgt[1]-S.y)+pathLen(P,N.k);
-  if(rem<N.best-.25){ N.best=rem; N.bestT=N.t; } else if(N.t-N.bestT>1.6){ var to=N.to, it=N.it, id=N.id, nm=N.name; S.lastRoute&&(S.lastRoute.stuckFade=true); navStop(); navPill(nm,true);
-    veilPulse(function(){ S.x=to.x; S.y=to.y; S.fz=to.z; S.yaw=to.yaw; S.pitch=to.pitch; S.snap=1; S.snapCam=1; S.vx=S.vy=0; navArrive(id,it,nm); },'Going to '+nm+'…'); return null; }
+  if(rem<N.best-.25){ N.best=rem; N.bestT=N.t; } else if(N.t-N.bestT>1.6){ var to=N.to, it=N.it, id=N.id, nm=N.name; S.lastRoute&&(S.lastRoute.stuckFade=true); navStop(); navFade(id,it,to,nm); return null; }
   if(N.k===P.length-1&&Math.hypot(tgt[0]-S.x,tgt[1]-S.y)<.35){ var dy0=N.to.yaw-S.yaw; while(dy0>PI) dy0-=2*PI; while(dy0<-PI) dy0+=2*PI; S.yaw+=dy0*(1-Math.exp(-dt/.12)); S.pitch+=(N.to.pitch-S.pitch)*(1-Math.exp(-dt/.12));
     if(Math.abs(dy0)<.03){ S.yaw=N.to.yaw; navArrive(N.id,N.it,N.name); } return {}; }
   if((N.chk=(N.chk||0)+1)%6===0) while(N.k<P.length-1&&segWalk(G0(),[S.x,S.y,S.fz],P[N.k+1])) N.k++;                 /* skip ahead when a later point is in plain reach */
@@ -1743,7 +1750,7 @@ function mountHud(){ var css=D.getElementById('bf-css'); if(!css){ css=el('style
     else if(k==='ArrowLeft') n='tl'; else if(k==='ArrowRight') n='tr'; else if(k==='Shift') n='run'; else if(k===' '||c==='Space') n='hop';
     if(n){ S.keys[n]=down?1:0; e.preventDefault(); e.stopPropagation(); return; }
     if(!down) return;
-    if(k==='Escape'){ e.preventDefault(); e.stopPropagation(); if(S.nav){ navStop('cancelled'); return; } exit(); return; }
+    if(k==='Escape'){ e.preventDefault(); e.stopPropagation(); if(S.nav||S.plan){ navStop('cancelled'); return; } exit(); return; }
     if(k===']'||k==='PageUp'){ e.preventDefault(); goLevel(1); return; } if(k==='['||k==='PageDown'){ e.preventDefault(); goLevel(-1); return; }
     if((k==='t'||k==='T')&&!e.repeat){ e.preventDefault(); setView(S.view==='third'?'first':'third'); return; }
     if(k==='c'||k==='C'){ e.preventDefault(); toggleCards(); return; } if(k==='n'||k==='N'){ e.preventDefault(); stepCard(1); return; } if(k==='p'||k==='P'){ e.preventDefault(); stepCard(-1); return; }
@@ -1840,7 +1847,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
           for(var e=0;e<3;e++){ var A=P[e], B2=P[(e+1)%3]; if(dot(cross(sub(B2,A),sub(q,A)),g)<-1e-7){ ok=false; break; } } if(ok) hits.push(k); } }); }); return hits; } } };
 API._debug=function(){ return S; };
 API.camProbe=function(){ S.av=S.av||AV.make(AV.city('',39.97,-75.18),'mayor'); S.view='third'; S.camD=null; S.camWhy=''; var cp=Math.cos(S.pitch), e=camEye([Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)]); return {cam:e, d:S.camD, why:S.camWhy}; };
-API.go=function(id){ return goNode(id); }; API.nav=function(){ return {on:!!S.nav, k:S.nav?S.nav.k:0, n:S.nav?S.nav.pts.length:0, last:S.lastRoute||null, hi:!!(S.hiSlot&&S.hiT>0)}; }; API.arrival=function(slot){ var it=S.G.slots[slot]; return it?arrival(S.G,it):null; };
+API.go=function(id){ return goNode(id); }; API.nav=function(){ return {on:!!(S.nav||S.plan), k:S.nav?S.nav.k:0, n:S.nav?S.nav.pts.length:0, last:S.lastRoute||null, hi:!!(S.hiSlot&&S.hiT>0)}; }; API.arrival=function(slot){ var it=S.G.slots[slot]; return it?arrival(S.G,it):null; };
 API.view=function(v){ if(v) setView(v); return S.view; }; API.avatar=function(w){ if(w) setAvatar(w); return S.av?{mayor:S.av.mayor, tag:AV.tag(S.av)}:null; }; API.AV=AV; API.CFG=CFG;
 /* headless walking (tests in node, no GL, no page): the plan indexed, the walker placed, step() as in the view */
 API.sim=function(plan,data){ S.data=data||{}; S.mc={}; S.G=bfIndex(plan); if(data) addCards(S.G); S.keys={}; S.vx=S.vy=S.vz=0; S.air=false; S.grounded=true; S.dip=0; S.safe=null; S.glide=null; S.noPad=1; S.hops=S.bonks=S.nets=S.rescues=0;
