@@ -161,6 +161,10 @@ function kit(){
           [0, 1, 2, 0, 2, 3].forEach(function(x){ put(v[x][0], v[x][1]); }); } } },
     /* a smooth ring: tube radius r round a circle of radius R, about x (or y) */
     torus:function(R, r, sg, k, c, ay){ var pr=[], i; for(i=0;i<=14;i++){ var t=i/14*TAU; pr.push([r*Math.sin(t), R+r*Math.cos(t)]); } this.slathe(pr, sg, k, c, ay); },
+    /* a box turned by a about the vertical through its centre (a module on a ring) */
+    rbox:function(c, s, a, k){ var ca=Math.cos(a), sa=Math.sin(a), v=[];
+      [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]].forEach(function(q){ var x=q[0]*s[0]/2, z=q[2]*s[2]/2; v.push([c[0]+x*ca-z*sa, c[1]+q[1]*s[1]/2, c[2]+x*sa+z*ca]); });
+      [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [3, 2, 6, 7], [0, 3, 7, 4], [1, 2, 6, 5]].forEach(function(f){ quad(v[f[0]], v[f[1]], v[f[2]], v[f[3]], k, c); }); },
     box:function(c, s, k){ var x0=c[0]-s[0]/2, x1=c[0]+s[0]/2, y0=c[1]-s[1]/2, y1=c[1]+s[1]/2, z0=c[2]-s[2]/2, z1=c[2]+s[2]/2,
         v=[[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
       [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [3, 2, 6, 7], [0, 3, 7, 4], [1, 2, 6, 5]].forEach(function(f){ quad(v[f[0]], v[f[1]], v[f[2]], v[f[3]], k, c); }); },
