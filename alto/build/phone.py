@@ -314,7 +314,7 @@ function build(){
   if(grid.children.length) btn(bar, IC.more, 'More', function(){ sheetOn(!sheet.classList.contains('on')); });
   document.body.appendChild(scrim); document.body.appendChild(sheet); document.body.appendChild(bar);
   de.classList.add('ph-ready');
-  pin('search-btn', {left:'8px', right:'8px', bottom:ABOVE}); pin('info-btn', {left:'auto', right:'8px', bottom:ABOVE, top:'auto'});
+  help(); pin('search-btn', {left:'8px', right:'8px', bottom:ABOVE}); pin('info-btn', {left:'auto', right:'8px', bottom:ABOVE, top:'auto'});
 }
 /* the engine pins search and INFO by the desktop's bottom row (alignInfo: inline !important, rewritten on every scroll);
    on a phone they stand above the bar, the search the bar's width */
@@ -325,6 +325,21 @@ function pin(id, props){
   new MutationObserver(go).observe(el, {attributes:true, attributeFilter:['style']}); go();
 }
 var ABOVE='calc(74px + env(safe-area-inset-bottom, 0px))';
+/* INFO speaks of a finger here: the first two paragraphs stay (how it is made; which pages a card opens), the rest say how this view is used */
+var HELP=[['Zoom &amp; move','pinch to zoom, drag to move; a double tap zooms in, a two-finger tap zooms out.'],
+  ['Names','press and hold a chip, a planet or a building to see what the pointer would show on a computer.'],
+  ['The bar','at the bottom: <em>Cards</em> (one card at a time, where there is that view), <em>Search</em>, <em>Filter</em>, <em>Notes</em> and <em>More</em>: the overview, the background, light or dark, your account.'],
+  ['Groups &amp; filters','the chips along the top (swipe them sideways) open group pages; <em>Filter</em> narrows the cards.'],
+  ['Highlight &amp; note','on a detail page, press and drag over text to highlight it; tap a highlight to add a note. <em>Notes</em> holds them, makes reports, shares and prints.'],
+  ['Alto home','the Alto clef or the wordmark at the top opens your homepage. Editing is on a computer.']];
+function help(){
+  var c=document.getElementById('info-content'); if(!c || c._ph) return; c._ph=1;
+  var ps=[].slice.call(c.querySelectorAll('p')), open=null;
+  ps.forEach(function(p, i){ var t=(p.querySelector('strong')||{}).textContent||'';
+    if(/^Open a card/.test(t)){ open=p; p.innerHTML=p.innerHTML.replace(/click/gi, 'tap').replace(/\.\s*<em>[^]*$/, '. The names along the top of a detail page step between pages; &#8592; goes back.'); }
+    else if(!/^Making it/.test(t)) p.remove(); });
+  HELP.forEach(function(h){ var p=mk('p', 'info-desktop', '<strong>'+h[0]+'</strong> &#8212; '+h[1]); p.style.margin='5px 0'; c.appendChild(p); });
+}
 function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(s<.999 && c){ var r=c.getBoundingClientRect(); ovSet(s, r.left, r.top); c.scrollLeft=0; c.scrollTop=0; } } }
 document.addEventListener('DOMContentLoaded', function(){ build(); });
 window.addEventListener('load', function(){ build(); fit(); setTimeout(build, 900); });
