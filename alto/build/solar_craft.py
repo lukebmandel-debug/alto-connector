@@ -145,6 +145,22 @@ function kit(){
       for(var i=0;i<sg;i++){ var a0=i/sg*TAU, a1=(i+1)/sg*TAU;
         for(var j=0;j+1<pr.length;j++){ var A=pr[j], B=pr[j+1], h=(A[0]+B[0])/2; if(A[1]<1e-6 && B[1]<1e-6) continue;
           quad(pt(A, a0), pt(B, a0), pt(B, a1), pt(A, a1), k, ay ? [c[0], c[1]+h, c[2]] : [c[0]+h, c[1], c[2]]); } } },
+    /* the same, smooth: each point's normal from the profile's own slope (shared where the profile bends gently, a crease
+       where it turns sharply), so a hull reads as one polished surface, not facets */
+    slathe:function(pr, sg, k, c, ay){ c=c||[0, 0, 0]; var n=pr.length, cA=0, cR=0, S=[], j, i;
+      pr.forEach(function(q){ cA+=q[0]/n; cR+=q[1]/n; });
+      for(j=0;j+1<n;j++){ var A=pr[j], B=pr[j+1], dA=B[0]-A[0], dR=B[1]-A[1], l=Math.hypot(dA, dR)||1, q=[-dR/l, dA/l];
+        if(q[0]*((A[0]+B[0])/2-cA)+q[1]*((A[1]+B[1])/2-cR)<0) q=[-q[0], -q[1]]; S.push(q); }
+      function nv(s, j2){ var o=j2===s ? s-1 : s+1, a=S[s], b=S[o]; if(!b || a[0]*b[0]+a[1]*b[1]<.5) return a; var x=a[0]+b[0], y=a[1]+b[1], l=Math.hypot(x, y)||1; return [x/l, y/l]; }
+      function pt(q, a){ return ay ? [c[0]+q[1]*Math.cos(a), c[1]+q[0], c[2]+q[1]*Math.sin(a)] : [c[0]+q[0], c[1]+q[1]*Math.cos(a), c[2]+q[1]*Math.sin(a)]; }
+      function nm(q, a){ return ay ? [q[1]*Math.cos(a), q[0], q[1]*Math.sin(a)] : [q[0], q[1]*Math.cos(a), q[1]*Math.sin(a)]; }
+      function put(p, m){ P.push(p[0], p[1], p[2]); N.push(m[0], m[1], m[2]); K.push(k[0], k[1], k[2], k[3]||0); }
+      for(i=0;i<sg;i++){ var a0=i/sg*TAU, a1=(i+1)/sg*TAU;
+        for(j=0;j+1<n;j++){ var A2=pr[j], B2=pr[j+1]; if(A2[1]<1e-6 && B2[1]<1e-6) continue; var na=nv(j, j), nb=nv(j, j+1);
+          var v=[[pt(A2, a0), nm(na, a0)], [pt(B2, a0), nm(nb, a0)], [pt(B2, a1), nm(nb, a1)], [pt(A2, a1), nm(na, a1)]];
+          [0, 1, 2, 0, 2, 3].forEach(function(x){ put(v[x][0], v[x][1]); }); } } },
+    /* a smooth ring: tube radius r round a circle of radius R, about x (or y) */
+    torus:function(R, r, sg, k, c, ay){ var pr=[], i; for(i=0;i<=14;i++){ var t=i/14*TAU; pr.push([r*Math.sin(t), R+r*Math.cos(t)]); } this.slathe(pr, sg, k, c, ay); },
     box:function(c, s, k){ var x0=c[0]-s[0]/2, x1=c[0]+s[0]/2, y0=c[1]-s[1]/2, y1=c[1]+s[1]/2, z0=c[2]-s[2]/2, z1=c[2]+s[2]/2,
         v=[[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
       [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [3, 2, 6, 7], [0, 3, 7, 4], [1, 2, 6, 5]].forEach(function(f){ quad(v[f[0]], v[f[1]], v[f[2]], v[f[3]], k, c); }); },
