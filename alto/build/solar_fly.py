@@ -52,6 +52,14 @@ Routing rules (chains: sat → moon → planet → sun):
   behind is reached by a lap, as a phasing orbit would); a short COAST is
   added when it brings the transfers nearer a half orbit.
 
+THE COURSE (Luke, 2026-10-22: "make it more accurate to how you would actually
+chart a course to a moon"): a flight from a body's orbit within one system flies
+solar_craft.py's course instead of this route — coasts round to the burn,
+Hohmann-like transfer arcs in the frame of the body both go round, aimed where
+the target will be, captures into an orbit round each body on the way down; the
+planner still gives the bodies' clock (retimed to the course) and the camera
+keys (framing the course). Re-plans on the way and other systems fly the route.
+
 THE CAMERA keys frame the stretch of flight ahead (and the target as the
 craft nears it), smoothed, zooming out as the transfer widens and back to
 full size on the target; through window._altoSolarCam (solar_draw.py), the
@@ -396,10 +404,10 @@ function blends(R){
   }
 }
 /* the camera: keys [tau, cx, cy, ln scale] framing the next stretch (and the target, nearing it), smoothed */
-function camKeys(R, o){
-  var D=R.D, v=o.view||[1500, 950], K=C.CAM_K, wn=C.CAM_WIN, end=pos(R.W, R.to, clock(R.c, D)), raw=[], k, j;
+function camKeys(R, o, f){
+  f=f||function(t){ return at(R, t); }; var D=R.D, v=o.view||[1500, 950], K=C.CAM_K, wn=C.CAM_WIN, end=pos(R.W, R.to, clock(R.c, D)), raw=[], k, j;
   for(k=0;k<=K;k++){ var t=D*k/K, xs=[], ys=[];
-    for(j=0;j<7;j++){ var p=at(R, t+wn[0]+(wn[1]-wn[0])*j/6); xs.push(p[0]); ys.push(p[1]); }
+    for(j=0;j<7;j++){ var p=f(t+wn[0]+(wn[1]-wn[0])*j/6); xs.push(p[0]); ys.push(p[1]); }
     if(t>=D-C.CAM_SEE){ xs.push(end[0]); ys.push(end[1]); }
     var x0=Math.min.apply(null, xs), x1=Math.max.apply(null, xs), y0=Math.min.apply(null, ys), y1=Math.max.apply(null, ys);
     var sc=Math.min(1, v[0]*C.CAM_FILL/(x1-x0+C.CAM_PAD), v[1]*C.CAM_FILL/(y1-y0+C.CAM_PAD));
@@ -422,7 +430,7 @@ function cam(R, tau, o){
   return [cx, cy, Math.min(1, Math.exp(ls))];
 }
 return {plan:plan, at:at, cam:cam, vel:vel, clock:function(R, t){ return clock(R.c, t); }, rate:function(R, t){ return rate(R.c, t); },
-        pos:pos, bodies:bodies, ease:ease, easeInv:easeInv};
+        pos:pos, bodies:bodies, ease:ease, easeInv:easeInv, clk:clk, dur:dur, keys:camKeys};
 })();
 """.replace("__FLY__", json.dumps(FLY, separators=(",", ":")))
 
@@ -520,8 +528,8 @@ function layer(){
   svg.classList.remove('fly-out'); lastS=0;
 }
 function route(R){
-  var d='', n=K.PATH_N;
-  for(var i=0;i<=n;i++){ var p=FL.tr.at(R.D*i/n); d+=(i ? 'L' : 'M')+f1(p[0])+' '+f1(p[1]); }
+  var d='', n=K.PATH_N; FL.pts=[];
+  for(var i=0;i<=n;i++){ var p=FL.tr.at(R.D*i/n); FL.pts.push(p); d+=(i ? 'L' : 'M')+f1(p[0])+' '+f1(p[1]); }
   pth.setAttribute('d', d);
 }
 function draw(p, v, s, now){
@@ -553,7 +561,10 @@ function fly(from, to, o){
   var W=F.bodies(S());          /* from the orbit it is in (or would be in) round the body it leaves */
   opt.start=(o && o.start) || A.leave(from, F.pos(W, from, opt.T0), F.pos(W, to, opt.T0), orbR(W, from, opt.T0), W.spin, rk);
   var R=F.plan(S(), from, to, opt); if(!R) return false; W=R.W; rk=Math.min(rk, K.MAX_S/R.D);
-  var tr=A.track({D:R.D, r:orbR(W, to, F.clock(R, R.D)), spin:W.spin, base:function(t){ return F.at(R, t); }, cen:function(t){ return F.pos(W, to, F.clock(R, Math.min(t, R.D))); }});
+  /* from its orbit: a course as a ship would chart it (solar_craft.py); a re-plan, another system: the route */
+  var tr=!(o && o.start) && A.course({W:W, F:F, R:R, opt:opt, from:from, to:to, st:opt.start, v0:Math.hypot(opt.start[2], opt.start[3]), rc:function(id){ return orbR(W, id, opt.T0); }});
+  if(tr) R.keys=F.keys(R, opt, tr.at);
+  else tr=A.track({D:R.D, r:orbR(W, to, F.clock(R, R.D)), spin:W.spin, base:function(t){ return F.at(R, t); }, cen:function(t){ return F.pos(W, to, F.clock(R, Math.min(t, R.D))); }});
   A.unpark();
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
   FL={R:R, tr:tr, o:opt, to:to, from:from, t0:performance.now(), k:rk, trail:FL ? FL.trail : [], set:null, ms:FL ? FL.ms : [], st:FL ? FL.st : {hs:null, bk:0}, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
@@ -681,7 +692,7 @@ function init(){ watchOv(); if(A) A.onChange(function(){ var pr=ship && ship.que
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
 window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=tauOf(performance.now());
   var q=FL.tr.pv(tau);
-  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:[q[0], q[1]], v:[q[2]/FL.k, q[3]/FL.k], k:FL.k, queued:Q.slice(), ms:FL.ms.slice()}; };
+  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:[q[0], q[1]], v:[q[2]/FL.k, q[3]/FL.k], k:FL.k, queued:Q.slice(), ms:FL.ms.slice(), legs:FL.tr.segs||null, path:FL.pts}; };
 })();
 """.replace("__RT__", json.dumps(FLY_RT, separators=(",", ":")))
 

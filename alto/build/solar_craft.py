@@ -217,6 +217,134 @@ function line(from, a, z, D, ez, px, spin){ var A=a(), rA=orbitR(A[2], px), st=p
 function leave(id, c, b, r, spin, k){ var o=parked(id, c); if(o) return [o.p[0], o.p[1], o.v[0]*k, o.v[1]*k];
   var sg=spin<0 ? -1 : 1, a=Math.atan2(b[1]-c[1], b[0]-c[0])-sg*Math.PI/2, w=ORB_W*r*sg;
   return [c[0]+r*Math.cos(a), c[1]+r*Math.sin(a), -Math.sin(a)*w, Math.cos(a)*w]; }
+/* ── a course charted the way a ship would (Luke, 2026-10-22: "the 3d star chart ship navigation to moons/other things
+   orbiting planets looks really weird. Make it more accurate to how you would actually chart a course to a moon").
+   Within one system, from the orbit the craft is in: a coast round it to where the burn is made, then a transfer arc
+   (Hohmann-like: half an ellipse, tangent to the orbit it leaves and to the one it meets) in the frame of the body both
+   go round, aimed where the body it goes to WILL be (it leads a moving moon), meeting it alongside: on its inner side
+   when climbing (slower than it there), its outer side when falling (faster), so either way already going round it
+   the orbits' way, and on round into a gentle orbit. A level down (a planet to its moon) it waits in its parking orbit
+   for the window, the arc about half a turn; a level up (a moon to its planet) it burns from the moon's inner or outer
+   side into an orbit round the planet; across (moon to moon, planet to planet) from the side facing the way it goes;
+   deeper chains hop a level at a time, each hop ending in an orbit round the body it passes. Paced like a ship: off
+   at its orbit's speed, faster nearer what it falls round, into the new orbit at that orbit's speed. o: W, F (the
+   planner, solar_fly.py), R (its route: the bodies' clock, retimed here), opt (the plan's options, for the clock),
+   from, to, rc(id) the orbit radius round a body, v0 the speed it sets off at. → a track (as track()), or null (to
+   another system: the planner's way). ── */
+var KEP=.5, CAP_PHI=.45*Math.PI, OMG=3.2, CLR=6, PH_MIN=.3*Math.PI;
+function course(o){
+  var W=o.W, F=o.F, R=o.R, B=W.B, s=W.spin<0 ? -1 : 1, PI=Math.PI, from=o.from, to=o.to;
+  if(!B[from] || !B[to] || !F.clk || !F.dur) return null;
+  function chain(i){ var c=[]; while(i){ c.push(i); i=B[i].p; } return c; }
+  var ca=chain(from), cb=chain(to), L=null, i, j;
+  if(ca[ca.length-1]!==cb[cb.length-1]) return null;
+  for(i=0;i<ca.length;i++) if(cb.indexOf(ca[i])>=0){ L=ca[i]; break; }
+  var ia=ca.indexOf(L), ib=cb.indexOf(L), steps=[];
+  for(i=0;i+1<ia;i++) steps.push(['up', ca[i], ca[i+1]]);
+  if(ia>=1) steps.push(ib>=1 ? ['across', ca[ia-1], cb[ib-1], L] : ['up', ca[ia-1], L]);
+  else steps.push(['down', L, cb[ib-1]]);
+  for(i=ib-1;i>=1;i--) steps.push(['down', cb[i], cb[i-1]]);
+  function at(id, t){ return F.pos(W, id, F.clock(R, Math.min(Math.max(t, 0), R.D))); }
+  function pol(p, c){ var x=p[0]-c[0], y=p[1]-c[1]; return [Math.hypot(x, y), Math.atan2(y, x)]; }
+  function md(a){ return ((a%(2*PI))+2*PI)%(2*PI); }
+  function half(r0, r1){ return PI*Math.min(1, Math.max(.4, 2*Math.abs(r1-r0)/Math.max(r0, r1, 1))); }   /* (a small change of orbit: a short arc) */
+  function rr(g, u){ return g.r0===g.r1 ? g.r0 : 2*g.r0*g.r1/((g.r0+g.r1)-(g.r0-g.r1)*Math.cos(PI*u)); }
+  function loc(g, u){ var r=rr(g, u), a=g.a0+s*g.phi*u; return [r*Math.cos(a), r*Math.sin(a)]; }
+  var c0=at(from, 0), p0=pol(o.st, c0), G, tb=null, Q, D=R.D, qa, qb, Wt, it;
+  /* the segments for the times tb (the previous pass's; none: even shares) */
+  /* (the choices — a lap round or not, which way round — made on the first pass and kept: later passes only move the
+     angles to the bodies' new times, each kept nearest its first value, so the segments and their times agree) */
+  var MEM=[];
+  function keep(i, nm, v){ var m=MEM[i]=MEM[i]||{}; if(m[nm]==null){ m[nm]=v; return v; } return m[nm]+wrap(v-m[nm]); }
+  function build(){
+    var g=[], X=from, rho=Math.max(1, p0[0]), th=p0[1], n=steps.length*2+1, k=0;
+    function T(m){ return tb ? tb[Math.min(m, tb.length-1)] : D*m/n; }
+    function seg(f, r0, r1, a0, phi, kind, dep, t0){ g.push({f:f, r0:r0, r1:r1, a0:a0, phi:phi, k:kind, dep:dep, td:t0}); k++; }
+    steps.forEach(function(q, si){
+      var x=q[1], td=T(k+1), ta=T(k+2), c, Y, ax, ay, dp, r1, ty, ph, f;
+      if(q[0]==='down'){ Y=q[2]; ty=pol(at(Y, ta), at(x, ta)); ay=ty[0]; r1=ay+o.rc(Y);
+        var dl=md(s*(ty[1]-th)), pw=half(rho, r1); c=md(dl-pw); ph=pw;
+        if(c>1.25*PI && dl>.3*PI){ c=0; ph=dl; }
+        var tot=keep(si, 'p', c+ph); c=Math.max(0, keep(si, 'c', c)); ph=tot-c; if(ph<.2*PI) ph+=2*PI;
+        seg(x, rho, rho, th, c, 'coast'); seg(x, rho, r1, th+s*c, ph, 'xfer');
+        X=Y; rho=o.rc(Y); th=ty[1]; return; }
+      f=q[0]==='up' ? q[2] : q[3]; ax=pol(at(x, td), at(f, td));
+      if(q[0]==='up') r1=o.rc(f); else { Y=q[2]; ty=pol(at(Y, ta), at(f, ta)); r1=ty[0]+o.rc(Y); }
+      c=md(s*(ax[1]-th)); if(c>1.9*PI) c=0;          /* (just past the burn point: from here) */
+      c=Math.max(0, keep(si, 'c', c));
+      seg(x, rho, rho, th, c, 'coast');
+      var xc=at(x, td), a=th+s*c; dp=pol([xc[0]+rho*Math.cos(a), xc[1]+rho*Math.sin(a)], at(f, td));
+      if(q[0]==='up'){ ph=half(dp[0], r1); seg(f, dp[0], r1, dp[1], ph, 'xfer', x, td); X=f; rho=r1; th=dp[1]+s*ph; }
+      else { ph=md(s*(ty[1]-dp[1])); if(ph<PH_MIN) ph+=2*PI; ph=keep(si, 'p', ph);         /* (too little ahead for an arc: the next window, a lap on) */ seg(f, dp[0], r1, dp[1], ph, 'xfer', x, td); X=Y; rho=o.rc(Y); th=ty[1]; } });
+    seg(X, rho, rho, th, CAP_PHI, 'cap');
+    /* each segment's length in its own frame, sampled, and how unhurried each stretch: slower far out on an arc, quicker
+       deep in (KEP) */
+    g.forEach(function(e){ var N=24, pr=loc(e, 0), len=0, m; e.ds=[0]; e.kp=[0];
+      for(m=1;m<=N;m++){ var cu=loc(e, m/N), u=(m-.5)/N, ds=Math.hypot(cu[0]-pr[0], cu[1]-pr[1]); len+=ds; e.ds.push(ds);
+        e.kp.push(Math.pow(rr(e, u)/(Math.pow(e.r0, 1-ss(u))*Math.pow(e.r1, ss(u))), KEP)); pr=cu; }
+      e.len=len; });
+    return g;
+  }
+  /* the time weights: round a small body unhurried, never whipping round (at about the flight's peak speed, vb, under
+     OMG rad/s), the pace changing smoothly along the whole course (a gaussian shoulder over its length), so no join jolts */
+  var vb=0;
+  function weigh(g){
+    var X=[], d=[], x=0, Lt=g.reduce(function(a, e){ return a+e.len; }, 0), sg=Math.min(120, 30+.03*Lt), i, k;
+    g.forEach(function(e){ var f=Math.max(1, 1.6*vb/(OMG*(e.k==='xfer' ? 1 : 1.4)*Math.max(1, (e.r0+e.r1)/2)));      /* (an orbit's steady turn: a little brisker) */
+      for(var m=1;m<e.ds.length;m++){ x+=e.ds[m]; X.push([x-e.ds[m]/2, e.ds[m]]); d.push(f*e.kp[m]); } });
+    var sd=X.map(function(q){ var a=1; for(k=0;k<X.length;k++){ var z=(X[k][0]-q[0])/sg; a=Math.max(a, 1+(d[k]-1)*Math.exp(-z*z/2)); } return a; });   /* (a slow stretch eased into, never diluted) */
+    i=0; g.forEach(function(e){ var w=[0]; for(var m=1;m<e.ds.length;m++){ w.push(w[m-1]+e.ds[m]*sd[i]); i++; }
+      var n=w.length-1; e.w=w[n]; e.tab=w.map(function(v){ return w[n]>1e-9 ? v/w[n] : 0; }); });
+  }
+  /* the ship's clock: progress q(x) — the flights' ease, with its ends tilted to the orbits' speeds (a, b) */
+  var QT=null;
+  function qf(x){ var y=1-x; return (F.ease(x)+qa*(1-y*y*y*y)/4+qb*x*x*x*x/4)/(1+(qa+qb)/4); }     /* (rising all the way: q'(0), q'(1) the a, b asked) */
+  function qinv(v){ if(v<=0) return 0; if(v>=1) return 1; var lo=0, hi=200; while(hi-lo>1){ var m=(lo+hi)>>1; if(QT[m]<=v) lo=m; else hi=m; }
+    var d=QT[hi]-QT[lo]; return (lo+(d>0 ? (v-QT[lo])/d : 0))/200; }
+  for(it=0;it<3;it++){
+    G=build(); var Lt=G.reduce(function(a, e){ return a+e.len; }, 0); vb=Lt/D; weigh(G); Wt=G.reduce(function(a, e){ return a+e.w; }, 0)||1;
+    D=Math.min(F.dur(1e9), F.dur(.8*Lt)+.15*(Wt-Lt)/Math.max(1, vb)); R.D=D; R.c=F.clk(o.opt, D);      /* (by its length — its orbits and burns no slower than the old route — a little longer for the slow stretches) */
+    var ge=G[G.length-1];
+    var A0=Math.min(1.4, Math.max(0, (o.v0||0)*D/Wt)), B0=Math.min(1.4, ORB_W*ge.r0*D/Wt), k4=1+(A0+B0)/(4-A0-B0); qa=A0*k4; qb=B0*k4;
+    QT=[]; for(j=0;j<=200;j++) QT.push(qf(j/200)); for(j=1;j<=200;j++) QT[j]=Math.max(QT[j], QT[j-1]);
+    Q=[0]; G.forEach(function(e, m){ Q.push(Q[m]+e.w/Wt); }); Q[G.length]=1;
+    tb=Q.map(function(v){ return D*qinv(v); });
+  }
+  G=build(); weigh(G);            /* (the last pass's segments on its own times) */
+  var E=G.map(function(e, m){ e.t0=tb[m]; e.t1=tb[m+1]; e.q0=Q[m]; e.q1=Q[m+1]; return e; }).filter(function(e){ return e.t1-e.t0>1e-3; });
+  function uOf(e, t){ var v=(qf(Math.min(Math.max(t/D, 0), 1))-e.q0)/Math.max(1e-9, e.q1-e.q0), T2=e.tab, N=T2.length-1, lo=0, hi=N;
+    if(v<=0) return v*(1/N)/Math.max(1e-6, T2[1]); if(v>=1) return 1+(v-1)*(1/N)/Math.max(1e-6, 1-T2[N-1]);
+    while(hi-lo>1){ var m=(lo+hi)>>1; if(T2[m]<=v) lo=m; else hi=m; } var d=T2[hi]-T2[lo]; return (lo+(d>0 ? (v-T2[lo])/d : 0))/N; }
+  /* (an arc off a body that goes round its frame's centre sets off going round with it, then on its own: so the body it
+     leaves never catches it up) */
+  function on(e, t){ var c=at(e.f, t), u=uOf(e, t), q=loc(e, u);
+    if(e.dep){ var d0=pol(at(e.dep, e.td), at(e.f, e.td)), d1=pol(at(e.dep, t), c), dl=wrap(d1[1]-d0[1])*(1-ss(u/.45)), cs=Math.cos(dl), sn=Math.sin(dl); q=[q[0]*cs-q[1]*sn, q[0]*sn+q[1]*cs]; }
+    return [c[0]+q[0], c[1]+q[1]]; }
+  var ge2=G[G.length-1], th9=ge2.a0+s*ge2.phi, r9=ge2.r0;
+  function off(t){ var a=th9+s*ORB_W*(t-D); return [r9*Math.cos(a), r9*Math.sin(a)]; }
+  /* clear of the planets it goes round on the way (a moon's arc could swing over its planet, a moon being only a little
+     off it; arcs round a sun stay between the orbits they join): a soft barrier R+CLR out, the way bending round it (eased in from the start and out over the last
+     orbit, which are as they are; bodies merely passed: the 3D scene lifts the craft over them) */
+  var BIG=ca.concat(cb).filter(function(i, j, l){ return B[i].role==='planet' && i!==from && i!==to && l.indexOf(i)===j; }), tc9=E[E.length-1].t0;
+  function clear(p, t){ var k=Math.min(ss(t/.3), 1-ss((t-tc9)/Math.max(.05, D-tc9))); if(k<=0) return p;
+    BIG.forEach(function(i){ var c=at(i, t), dx=p[0]-c[0], dy=p[1]-c[1], d=Math.hypot(dx, dy), m=B[i].d/2+CLR, w=CLR*2;
+      if(d>=m+w || d<1e-6) return; var x=(d-m)/w, g=x>=1 ? x : Math.exp(x-1), d2=d+(m+w*g-d)*k; p=[c[0]+dx/d*d2, c[1]+dy/d*d2]; });
+    return p; }
+  function at2(t){
+    if(t>=D){ var c=at(to, D), q=off(t); return [c[0]+q[0], c[1]+q[1]]; }
+    return clear(at3(t), t); }
+  function at3(t){
+    t=Math.max(0, t); for(var m=0;m<E.length-1 && t>E[m].t1;m++);
+    var e=E[m], p=on(e, t), h, w, z;
+    if(m+1<E.length){ h=e.h; if(t>e.t1-h){ w=ss((t-e.t1+h)/(2*h)); z=on(E[m+1], t); p=[p[0]+(z[0]-p[0])*w, p[1]+(z[1]-p[1])*w]; } }
+    if(m>0){ h=E[m-1].h; if(t<e.t0+h){ w=ss((t-e.t0+h)/(2*h)); z=on(E[m-1], t); p=[z[0]+(p[0]-z[0])*w, z[1]+(p[1]-z[1])*w]; } }
+    return p; }
+  /* (each join blended over a moment: short where it turns tightly — the two ways part fast round a small orbit) */
+  E.forEach(function(e, m){ var n=E[m+1]; if(!n) return; var v=Math.max(e.len/(e.t1-e.t0), n.len/(n.t1-n.t0), 1);
+    e.h=Math.max(.01, Math.min(.15, .35*(e.t1-e.t0), .35*(n.t1-n.t0), .25*Math.min(e.r1, n.r0)/v)); });
+  function pv(t){ var e=.008, a=at2(Math.max(0, t-e)), b=at2(t+e), k=t+e-Math.max(0, t-e); return [(a[0]+b[0])/2, (a[1]+b[1])/2, (b[0]-a[0])/k, (b[1]-a[1])/k]; }
+  return {at:at2, pv:pv, off:off, D:D, r:r9, sg:s, segs:E.map(function(e){ return e.k+':'+e.f; })};
+}
 /* landed: draw(o, dt) the craft going on round its orbit for ms (as its art fades), unless stop() */
 function coast(c, draw, ms, stop){ var t1=performance.now()+ms, lt=0;
   (function step(now){ var o=!stop() && now<t1 && ORB && parked(ORB.id, c()); if(!o) return; draw(o, lt ? Math.min(.05, (now-lt)/1000) : 0); lt=now; requestAnimationFrame(step); })(performance.now()); }
@@ -245,7 +373,7 @@ var GL={vs:'attribute vec3 p,n;attribute vec4 k;uniform mat4 VP,M;varying vec3 W
 window._altoCraft={list:C, gl:GL, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, kit:kit, set:set, open:open, close:close,
   chosen:function(){ return pick(); }, onChange:function(f){ subs.push(f); },
   track:track, orbitR:orbitR, park:park, parked:parked, unpark:function(){ ORB=null; }, orbiting:function(){ return ORB && ORB.id; }, steer:steer, W:ORB_W,
-  xf:xf, line:line, leave:leave, coast:coast};
+  xf:xf, line:line, leave:leave, coast:coast, course:course};
 })();
 """
 

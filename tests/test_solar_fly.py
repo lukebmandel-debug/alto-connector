@@ -298,7 +298,7 @@ def test_every_hub_and_spoke_page_carries_the_flight_and_other_pages_do_not():
 
 def test_the_flight_is_small_and_draws_without_masks_or_filters():
     size = len(gzip.compress((FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 14000, size      # (+ the ships' orbit arrivals, a flight at most 5 s and Enter to land: ~0.4 KB, 2026-10-22; 12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
+    assert size < 14600, size      # (+ the ships' orbit arrivals, a flight at most 5 s and Enter to land: ~0.4 KB, 2026-10-22; 12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
     for s in ("<mask", "'mask'", "filter", "backdrop"):
         assert s not in FLY_JS and s not in FLY_CSS, s
     assert re.search(r"pointer-events:none", FLY_CSS)
@@ -588,3 +588,52 @@ def test_a_flight_to_another_system_swings_by_and_its_frames_are_cheap(browser, 
     assert p(ms, .95) < 8 and ms[-1] < 25, ms[-5:]                          # this layer never costs a 25ms frame
     assert not errs, errs
     pg.context.close()
+
+
+# ── the course a ship would chart (solar_craft.py's course) ─────────────────
+
+def test_the_course_is_charted_as_a_ship_would(plans, tmp_path):
+    """Luke (2026-10-22): "the 3d star chart ship navigation to moons/other things orbiting planets looks really weird.
+    Make it more accurate to how you would actually chart a course to a moon". Within a system, from the orbit it is in:
+    it sets off where it is, arcs (never jumps) to where the body it goes to WILL be, there in a gentle orbit round it
+    (the body having moved on the way: it led it), never through a body whose frame it flies in (the bodies of both
+    chains), its nose turning smoothly; to another system there is no course (the planner's route flies)."""
+    from alto.build.solar_craft import CRAFT_JS
+    body = r"""
+var F=window._altoFly, A=window._altoCraft, out=[], seed=11;
+function rnd(){ seed=(seed*16807)%2147483647; return seed/2147483647; }
+function orbR(W, id){ var b=W.B[id], P=b.p && W.B[b.p], room=0, c=F.pos(W, id, 0);
+  if(P){ var q=F.pos(W, b.p, 0); room=Math.hypot(c[0]-q[0], c[1]-q[1])-P.d/2-12; } return A.orbitR(b.d, 6, room); }
+function chain(W, i){ var c=[]; while(i){ c.push(i); i=W.B[i].p; } return c; }
+for(var k=0;k<160;k++){ var S=P[k%P.length], W=F.bodies(S), ids=Object.keys(W.B).filter(function(i){ return W.B[i].role!=='core'; });
+  var a=ids[Math.floor(rnd()*ids.length)], b=ids[Math.floor(rnd()*ids.length)]; if(a===b) continue;
+  var o={T0:rnd()*200, r0:[0, .4, 1][k%3], view:[1500, 950], still:k%11===5};
+  o.start=A.leave(a, F.pos(W, a, o.T0), F.pos(W, b, o.T0), orbR(W, a), W.spin, 1);
+  var R=F.plan(S, a, b, o), tr=A.course({W:W, F:F, R:R, opt:o, from:a, to:b, st:o.start, v0:Math.hypot(o.start[2], o.start[3]), rc:function(id){ return orbR(W, id); }});
+  if(!tr){ out.push({a:a, b:b, same:W.B[a].si===W.B[b].si, none:1}); continue; }
+  var n=600, tw=null, iw='', jump=0, inside=1e9, turn=0, pr=null, hs=null, ch=chain(W, a).concat(chain(W, b));
+  for(var i=0;i<=n;i++){ var t=tr.D*i/n, q=tr.pv(t), T=F.clock(R, t), sp=Math.hypot(q[2], q[3]);
+    ch.forEach(function(j){ if(j===a || j===b) return; var c=F.pos(W, j, T), g=Math.hypot(q[0]-c[0], q[1]-c[1])-W.B[j].d/2; if(g<inside){ inside=g; iw=j+'@'+(t/tr.D).toFixed(3)+' '+tr.segs.join(' '); } });
+    if(pr){ var dx=q[0]-pr[0], dy=q[1]-pr[1]; jump=Math.max(jump, Math.hypot(dx-(q[2]+pr[2])/2*tr.D/n, dy-(q[3]+pr[3])/2*tr.D/n)/(1+.05*Math.hypot(dx, dy))); }
+    var h=Math.atan2(q[3], q[2]); if(hs!==null && sp>60 && i>2){ var tn=Math.abs(Math.atan2(Math.sin(h-hs), Math.cos(h-hs)))/(tr.D/n); if(tn>turn){ turn=tn; tw=[+(t/tr.D).toFixed(3), Math.round(sp), tr.segs.join(' ')]; } } hs=h; pr=q; }
+  var inh=0; ch.forEach(function(j){ var pj=W.B[j].p; if(!pj) return; var c=F.pos(W, j, 0), q=F.pos(W, pj, 0); inh=Math.min(inh, Math.hypot(c[0]-q[0], c[1]-q[1])-orbR(W, j)-W.B[pj].d/2); });
+  var e=tr.at(tr.D), c1=F.pos(W, b, F.clock(R, tr.D)), c0=F.pos(W, b, o.T0), p0=tr.at(0);
+  out.push({a:a, b:b, same:1, D:tr.D, r:tr.r, end:Math.hypot(e[0]-c1[0], e[1]-c1[1]), moved:Math.hypot(c1[0]-c0[0], c1[1]-c0[1]),
+    off0:Math.hypot(p0[0]-o.start[0], p0[1]-o.start[1]), jump:jump, inside:inside, iw:iw, inh:inh, turn:turn, tw:tw, still:o.still}); }
+console.log(JSON.stringify(out));"""
+    js = ("var window=globalThis, document={documentElement:{classList:{contains:function(){ return false; }}}};"
+          "window.addEventListener=function(){};\n" + FLY_PLAN_JS + "\n" + CRAFT_JS + "\nvar P=" + json.dumps(plans) + ";\n" + body)
+    f = tmp_path / "course.js"
+    f.write_text(js, encoding="utf-8")
+    out = json.loads(subprocess.check_output([NODE, str(f)], timeout=120))
+    flown = [c for c in out if "none" not in c]
+    assert all(not c["same"] for c in out if "none" in c)                 # a course for every flight within a system
+    assert len(flown) > 60
+    for c in flown:
+        assert c["off0"] < 0.5 and abs(c["end"] - c["r"]) < 0.01, c        # from where it is, into its orbit round the body
+        assert c["jump"] < 2, c                                            # one smooth way, no jumps between its arcs
+        assert c["inside"] > c["inh"] - 0.5, (c["a"], c["b"], c["iw"], c["inside"])                             # never through a body it goes round (deeper than its orbits go)
+        assert c["turn"] < 30, (c["a"], c["b"], c["turn"], c["tw"])                                           # the nose turning, not snapping round
+        assert 2.5 <= c["D"] <= 7, c
+    led = [c for c in flown if not c["still"] and c["moved"] > c["r"] * 2]
+    assert len(led) > 20                                                   # it met bodies where they had moved to

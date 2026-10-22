@@ -610,6 +610,11 @@ function lines(G){
   var v=[], k=[], l=P.l; Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], pa=g.p && G.bodies[g.p]; if(!pa) return; var h=hot[id] || hot[g.p] && window._focusedNodeId===id;
     v.push(pa.x, 0, pa.y, g.x, 0, g.y); var a=h ? .95 : .34; k.push(.75, .82, 1, a, .75, .82, 1, a);
     LINES.unshift({sp:[g.p, id], pts:[proj(W(pa)), proj(W(g))], line:1, tip:((BOD[g.p]||{}).name||'')+' — '+((BOD[id]||{}).name||'')}); });
+  /* a flight's charted course ahead of the craft, faint (solar_fly.py's path: where the craft will be, so it leads a
+     moving moon to where it will meet it), plainer as it sets off */
+  var Fl=window._altoSolarFlight && window._altoSolarFlight(), pp=Fl && Fl.path;
+  if(pp && pp.length>1){ var n=pp.length-1, i0=Math.max(0, Math.min(n, Math.floor(Fl.tau/Fl.D*n))), a0=.22+.33*(1-sm(0, .5, Fl.tau/Fl.D));
+    for(var i=i0;i<n;i++){ var a1=a0*(1-.7*(i-i0)/Math.max(1, n-i0)); v.push(pp[i][0], K3.Y, pp[i][1], pp[i+1][0], K3.Y, pp[i+1][1]); k.push(.6, .88, 1, a1, .6, .88, 1, a1); } }
   gl.useProgram(l.p); gl.uniformMatrix4fv(l.u.VP, false, VPm);
   gl.bindBuffer(gl.ARRAY_BUFFER, P.lb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v.concat(k)), gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(l.a.p); gl.vertexAttribPointer(l.a.p, 3, gl.FLOAT, false, 0, 0);
