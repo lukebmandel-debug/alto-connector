@@ -171,7 +171,7 @@ function emit(A,x,y,z,s,yaw){ var R=A.R, H=R.H, an=angles(A), fy=yaw!=null?yaw:(
   for(var v=0;v<R.n;v++){ var m=M[B[v]], k=v*3, px=P[k], py=P[k+1], pz=P[k+2], nx=N[k], ny=N[k+1], nz=N[k+2];
     op[k]=m[0]*px+m[1]*py+m[2]*pz+m[3]; op[k+1]=m[4]*px+m[5]*py+m[6]*pz+m[7]; op[k+2]=m[8]*px+m[9]*py+m[10]*pz+m[11];
     on[k]=(m[0]*nx+m[1]*ny+m[2]*nz)*inv; on[k+1]=(m[4]*nx+m[5]*ny+m[6]*nz)*inv; on[k+2]=(m[8]*nx+m[9]*ny+m[10]*nz)*inv; }
-  var hm=M[2]; A.head=[hm[3]+hm[2]*.19*H*s,hm[7]+hm[6]*.19*H*s,hm[11]+hm[10]*.19*H*s]; return A; }
+  var hm=M[2]; A.head=[hm[3]+hm[2]*.19*H,hm[7]+hm[6]*.19*H,hm[11]+hm[10]*.19*H]; return A; }          /* the bone matrix carries the scale already */
 function hex(c){ c=String(c).replace('#',''); return [parseInt(c.slice(0,2),16)/255,parseInt(c.slice(2,4),16)/255,parseInt(c.slice(4,6),16)/255]; }
 return {city:city, make:make, tick:tick, emit:emit, tag:tag, HOP:HOP, pad:pad, pref:pref, setPref:setPref, hex:hex, table:TABLE, GEN:GEN};
 })();

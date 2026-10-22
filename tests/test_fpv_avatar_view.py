@@ -132,3 +132,35 @@ def test_museum_space_hops(museum):
     pg.keyboard.down(" "); pg.wait_for_timeout(120); pg.keyboard.up(" "); pg.wait_for_timeout(900)
     st = pg.evaluate("AltoBuildingFPV.state()")
     assert st["hops"] == h0 + 1 and not st["air"] and st["z"] == pytest.approx(0, abs=0.01)
+
+
+def test_city_trip_from_the_menu_arrives_facing_the_door(roam):
+    pg = roam
+    _enter(pg, "Philadelphia, Pennsylvania")
+    pg.evaluate("([x,y]) => { var R=window._palRide.roam; R.place(x,y,Math.PI/2); R.settle(); R.draw(); }", [DOOR1[0] + 60, DOOR1[1] + 50])
+    pg.evaluate("() => { var R=window._palRide.roam; R.marks.toggleNear(true); R.draw(); }")
+    pg.click("#pal-ride .mk-it >> nth=0")                                             # one click goes (it used to only turn you)
+    st = pg.evaluate("() => window._palRide.roam.marks.state()")
+    assert st["auto"] or pg.evaluate("() => window._palRide.roam.marks.trip().last.mode") == "fade"
+    pill = pg.evaluate("() => { var p=document.querySelector('#pal-ride .mk-go'); return p && {t:p.textContent, op:+getComputedStyle(p).opacity}; }")
+    assert pill and pill["t"].startswith("→ ")
+    r = pg.evaluate("""() => { var R=window._palRide.roam, M=R.marks; for(var n=0;n<60*60 && (M.state().auto||M.state().turn);n++){ M.steer(1/60); R.tick(1/60,null,false,true); }
+      for(var k=0;k<30;k++){ M.steer(1/60); R.tick(1/60,null,false,true); R.door.frame(1/60); } var c=R.door.cur(); return {tgt:M.state().tgt, trip:M.trip(), cur:c&&String(c.id)}; }""")
+    assert r["trip"]["last"]["arrived"] and r["cur"] == r["tgt"]                       # in front of that building's door, facing it (its prompt shows)
+    pg.evaluate("() => window._palRide.roam.exit(false)")
+
+
+def test_museum_trip_to_a_card_walks_and_arrives_facing_it(museum):
+    pg, _ = museum
+    pg.evaluate("AltoBuildingFPV.place(2, 2, 0, 0, 0)")
+    ids = pg.evaluate("Object.keys(AltoBuildingFPV._debug().data.nodes||{}).filter(function(id){ return AltoBuildingFPV._debug().G.slots['card-'+id]; })")
+    assert ids
+    pg.evaluate("(() => { var S=AltoBuildingFPV._debug(); S.paused=true; cancelAnimationFrame(S.raf); })()")
+    pg.evaluate("id => AltoBuildingFPV.go(id)", ids[-1])
+    pg.evaluate("(() => { for (var i=0; i<60*30 && AltoBuildingFPV.nav().on; i++) AltoBuildingFPV.step(1/60, {}, 1); })()")
+    nv = pg.evaluate("AltoBuildingFPV.nav()")
+    st = pg.evaluate("AltoBuildingFPV.state()")
+    to = pg.evaluate("id => AltoBuildingFPV.arrival('card-'+id)", ids[-1])
+    assert nv["last"]["arrived"] and nv["hi"] and math.hypot(st["x"] - to["x"], st["y"] - to["y"]) < 0.5
+    assert abs(math.remainder(st["yaw"] - to["yaw"], 2 * math.pi)) < 0.2
+    pg.evaluate("(() => { var S=AltoBuildingFPV._debug(); S.paused=false; S.last=0; S.raf=requestAnimationFrame(function(){}); })()")

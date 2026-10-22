@@ -86,6 +86,9 @@ FPV_CSS = r"""
 #bf-root .bf-opts button{font:inherit;font-size:12px;height:30px;padding:0 12px;border-radius:15px;color:#fff;cursor:pointer;border:1px solid rgba(255,255,255,.22);background:rgba(20,20,24,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap;}
 #bf-root .bf-opts button:disabled{opacity:.55;cursor:default;}
 #bf-root .bf-tag{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(20,20,24,.55);border:1px solid rgba(255,255,255,.18);font-size:11px;font-weight:600;letter-spacing:.01em;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s;will-change:transform;}
+#bf-root .bf-nav{left:50%;bottom:58px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;opacity:0;transition:opacity .3s;max-width:min(80vw,560px);}
+#bf-root .bf-nav span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#bf-root .bf-nav button{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:50%;width:24px;height:24px;cursor:pointer;flex:none;font-size:12px;}
 #bf-root .bf-hop{position:absolute;right:40px;bottom:158px;width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font:600 13px -apple-system,Helvetica,Arial,sans-serif;display:none;touch-action:none;}
 #bf-root.bf-touch .bf-hop{display:block;} #bf-root.bf-touch .bf-lv{bottom:236px;}
 @media (max-width:700px){#bf-root .bf-toast{top:56px;font-size:14px;}}
@@ -504,11 +507,12 @@ function throughCuts(G){ var wl=(G.wl||(G.plan.wl||[])).slice(), segsOf=function
 /* can the capsule slide straight from P to Q at floor e (free and floored all the way)? */
 function reachLine(G,P,Q,e){ var L=Math.hypot(Q[0]-P[0],Q[1]-P[1]), n=Math.max(1,Math.ceil(L/.1)); for(var i=0;i<=n;i++){ var x=P[0]+(Q[0]-P[0])*i/n, y=P[1]+(Q[1]-P[1])*i/n, sp=supportDisc(G,x,y,e+.3); if(sp==null||Math.abs(sp-e)>.3||blockedAt(G,x,y,e)) return false; } return true; }
 function deadDoors(G){ var reach=function(P,Q,e){ return reachLine(G,P,Q,e); }; G.walls.forEach(function(W){ W.ops.forEach(function(op){ if(!op.pass||!op.sg||W.rail) return; var sg=op.sg, e=W.lv.e+(op.o.z||0), um=(op.a0+op.a1)/2-sg.s0, c=[sg.A[0]+sg.d[0]*um,sg.A[1]+sg.d[1]*um];
-    var room=function(sd){ var os=[.45,.6,.75,.9,1.1,1.3,1.5], ls=[0,.25,-.25]; for(var i=0;i<os.length;i++) for(var j=0;j<ls.length;j++){ var o=W.ht+os[i], x=c[0]+sg.n[0]*sd*o+sg.d[0]*ls[j], y=c[1]+sg.n[1]*sd*o+sg.d[1]*ls[j], sp=supportAt(G,x,y,e+.3);
-        if(sp!=null&&Math.abs(sp-e)<.15&&!blockedAt(G,x,y,e)&&reach(c,[x,y],e)) return true; } return false; };
+    var hw=(op.a1-op.a0)/2, ls=[0]; for(var q=.3;q<hw-.2;q+=.3) ls.push(q,-q);                 /* across the whole opening: a wide one can have a column or a wall stub in its middle */
+    var spot=function(cj,sd){ var os=[.45,.6,.75,.9,1.1,1.3,1.5]; for(var i=0;i<os.length;i++){ var o=W.ht+os[i], x=cj[0]+sg.n[0]*sd*o, y=cj[1]+sg.n[1]*sd*o, sp=supportAt(G,x,y,e+.3);
+        if(sp!=null&&Math.abs(sp-e)<.15&&!blockedAt(G,x,y,e)&&reach(cj,[x,y],e)) return [x,y]; } return null; };
     if(W.k==='ext'&&!(op.ra&&op.rb)) return;                           /* an entrance: the outside is checked by the exterior, not here */
     if(op.o.st||G.st.some(function(o){ return o.k!=='elevator'&&o.fl.some(function(fl){ return segD(c[0],c[1],fl.a[0],fl.a[1],fl.b[0],fl.b[1])<fl.w/2+1.2; }); })) return;      /* a stair's way on or off: the flight is the room beyond */
-    if(room(1)&&room(-1)) return;
+    for(var j=0;j<ls.length;j++){ var cj=[c[0]+sg.d[0]*ls[j],c[1]+sg.d[1]*ls[j]]; if(blockedAt(G,cj[0],cj[1],e)) continue; if(spot(cj,1)&&spot(cj,-1)){ op.passAt=ls[j]; return; } }       /* a straight way through at one place across it, room to stand on both sides */
     op.pass=false; op.plug=1; G.dead.push({w:W.w.id, a:op.o.a, side:0, by:'no room to stand'});
     var a=op.a0-sg.s0, b=op.a1-sg.s0; addPrim(G,{k:'seg', flat:1, ax:sg.A[0]+sg.d[0]*a, ay:sg.A[1]+sg.d[1]*a, bx:sg.A[0]+sg.d[0]*b, by:sg.A[1]+sg.d[1]*b, r:W.ht, z0:op.z0, z1:op.z1, wall:1, plug:1});
     [op.ra,op.rb].forEach(function(r,j){ var bt=batchOf(G,r,W.lv); bt.items=bt.items.filter(function(it){ return !(it.t==='op'&&it.op===op)&&!(it.t==='niche'&&it.op===op); }); bt.items.push({t:'plug', W:W, op:op, room:r, s:j?-1:1}); }); }); }); }
@@ -1286,6 +1290,7 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='lay'){ m={kind:1,tint:[1,.98,.94]}; }
   else if(base==='av'){ m={kind:3,tint:AV.hex(arg),rough:.72,metal:0}; }
   else if(base==='avshadow'){ m={kind:5,a:.5,trans:1}; }
+  else if(base==='navglow'){ m={kind:6,tint:[1,.78,.32],e:2.2}; }
   else if(base.slice(0,4)==='book'){ var bc=[[.42,.12,.1],[.12,.2,.3],[.2,.28,.16],[.5,.4,.22],[.3,.16,.2],[.62,.55,.42]][+base.slice(4)||0]; m={kind:3,tint:bc,rough:.7,metal:0}; }
   else if(base==='plaster'&&arg){ m=null; }
   if(!m){ var d=MAT[base]||MAT.plaster; if(d[0]<0) d=MAT.plaster; m={gen:d[0],tint:d[1],tile:d[2],rough:d[3],metal:d[4],bump:d[5],kind:0};
@@ -1481,7 +1486,7 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
     if(T.samples&&T.wgl2&&S.fb) gl.bindFramebuffer(gl.FRAMEBUFFER,S.fb.fb); else gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); gl.uniformMatrix4fv(u.uVP,false,VP); gl.uniform3fv(u.uEye,eye); }
   gl.uniform4fv(u.uClip,[0,0,0,0]); gl.uniform4fv(u.uRefl,rh!=null?[1,rh,1,0]:[0,0,0,0]); gl.uniform1i(u.uRT,3); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,rh!=null?S.rt.tx:S.white); gl.activeTexture(gl.TEXTURE0);
   list.forEach(function(b){ b.lastUse=S.frame; drawBatch(b,false,stats); });
-  var avb=avatarBatch(); if(avb) drawBatch(avb,false,stats);
+  var avb=avatarBatch(); if(avb) drawBatch(avb,false,stats); var lt0=S.room?S.room.b.light:(G.site&&G.site.light); if(lt0){ var nvb=navBatch(lt0); if(nvb) drawBatch(nvb,false,stats); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.CULL_FACE);
   for(var i=list.length-1;i>=0;i--) drawBatch(list[i],true,stats);
   if(avb) drawBatch(avb,true,stats);
@@ -1547,7 +1552,9 @@ function ceilAt(G,x,y,fz){ var c=1e9, s=supports(G,x,y); for(var i=0;i<s.length;
 function ledge(G,x,y){ var ref=S.air?S.gnd:S.fz, sup=supportDisc(G,x,y,Math.max(S.fz,ref)); if(sup==null) return true; return ref-sup>CFG.drop&&!onStair(G,x,y); }
 function okAt(G,x,y){ return !blockedBySurf(x,y)&&!ledge(G,x,y); }
 function step(dt,keys){ var G=S.G; keys=keys||S.keys; dt=Math.min(dt,.1); S.dt=dt; var H=AV.HOP, pd=S.noPad?null:AV.pad();
-  var f=(keys.f?1:0)-(keys.b?1:0)+(S.joyL?-S.joyL[1]:0)+(pd?-pd.my:0), s=(keys.r?1:0)-(keys.l?1:0)+(S.joyL?S.joyL[0]:0)+(pd?pd.mx:0), sp=keys.run||(pd&&pd.run)||(S.joyL&&Math.hypot(S.joyL[0],S.joyL[1])>.95)?CFG.hurry:CFG.walk;
+  if(S.nav){ if(keys.f||keys.b||keys.l||keys.r||(pd&&(Math.abs(pd.mx)+Math.abs(pd.my)>.3))||S.joyL){ navStop('you took over'); } else { var nk=navStep(dt); if(nk) keys=nk; } }
+  if(S.hiT>0) S.hiT-=dt;
+  var f=(keys.f?1:0)-(keys.b?1:0)+(S.joyL?-S.joyL[1]:0)+(pd?-pd.my:0)+(keys.mf||0), s=(keys.r?1:0)-(keys.l?1:0)+(S.joyL?S.joyL[0]:0)+(pd?pd.mx:0)+(keys.ms||0), sp=keys.run||(pd&&pd.run)||(S.joyL&&Math.hypot(S.joyL[0],S.joyL[1])>.95)?CFG.hurry:CFG.walk;
   var mag=Math.hypot(f,s); if(mag>1){ f/=mag; s/=mag; }
   var cy=Math.cos(S.yaw), sy=Math.sin(S.yaw), tvx=(cy*f+sy*s)*sp, tvy=(sy*f-cy*s)*sp, k=1-Math.exp(-dt/(S.air?.5:CFG.tau)); S.vx+=(tvx-S.vx)*k; S.vy+=(tvy-S.vy)*k;      /* in the air you steer less */
   S.yaw+=((keys.tl?1:0)-(keys.tr?1:0))*CFG.turn*dt; if(S.joyR){ S.yaw-=S.joyR[0]*2.2*dt; S.pitch=clamp(S.pitch-S.joyR[1]*1.6*dt,-CFG.pitchMax,CFG.pitchMax); }
@@ -1635,8 +1642,74 @@ function pause(p){ S.paused=p; if(S.root) S.root.style.display=p?'none':''; if(p
 /* ── HUD, input ── */
 function el(t,c,p,txt){ var n=D.createElement(t); if(c) n.className=c; if(txt!=null) n.textContent=txt; if(p) p.appendChild(n); return n; }
 /* find and go to a card: the list (C), next / previous card (N / P) */
-function goNode(id){ var G=S.G, d=S.data||{}, n=(d.nodes||{})[id]; if(!n||!n.r) return false; var sl=n.s&&G.slots[n.s]?n.s:(G.slots['card-'+id]?'card-'+id:null), sp=spawn(G,n.r,sl?{slot:sl}:null);
-  S.cardIx=(d.order||Object.keys(d.nodes||{})).indexOf(id); veilPulse(function(){ S.x=sp.x; S.y=sp.y; S.fz=sp.z; S.yaw=sp.yaw; S.pitch=sp.pitch; S.snap=1; S.snapExp=1; S.vx=S.vy=S.vz=0; S.glide=null; S.safe=null; }); return true; }
+/* ── going to a card (the Cards list C, N / P, the blueprint's chips): a pose in front of its sign, a route there, a guided walk or a short fade ── */
+/* the sightline from the eye to the sign's middle crosses no wall, door leaf or tall prop */
+function sightClear(G,x0,y0,z0,x1,y1,z1){ var L=Math.hypot(x1-x0,y1-y0), k=Math.max(1,Math.ceil(L/.12)); for(var i=1;i<k-1;i++){ var t=i/k, x=x0+(x1-x0)*t, y=y0+(y1-y0)*t, z=z0+(z1-z0)*t, ps=primsNear(G,x,y,.3);
+    for(var j=0;j<ps.length;j++){ var p=ps[j]; if(String(p.tag||'').indexOf('card-')===0) continue; if(z>=p.z0&&z<=p.z1&&primDist(p,x,y)<.01) return false; } } return true; }
+/* where to stand for slot `it`: ~2.2 m in front of it (either face of a card sign, any side of a sculpture), free, on its floor, in its room, seeing it; the yaw and pitch that face it */
+function arrival(G,it){ var s=it.s, c=s.p, e=it.room.l.e, n=it.n, faces=s.card?[n,[-n[0],-n[1]]]:it.sculpt?[n,[-n[1],n[0]],[-n[0],-n[1]],[n[1],-n[0]]]:[n], best=null, bs=1e9, cz=it.z;
+  faces.forEach(function(f,fi){ [2.2,1.8,2.6,1.5,3,3.6,4.2].forEach(function(d){ [0,.45,-.45,.9,-.9].forEach(function(lat){ var x=c[0]+f[0]*d-f[1]*lat, y=c[1]+f[1]*d+f[0]*lat;
+      var sc=Math.abs(d-2.2)+Math.abs(lat)*.6+fi*.25; if(sc>=bs) return; var sp=supportDisc(G,x,y,e+.3); if(sp==null||Math.abs(sp-e)>.15||blockedAt(G,x,y,e)) return;
+      var r=roomAt(G,it.room.l.id,x,y); if(r!==it.room&&!(r&&r.r.gp)) sc+=1.5; if(!sightClear(G,x,y,e+CFG.eye,c[0],c[1],cz)) return; bs=sc; best=[x,y]; }); }); });
+  if(!best){ var fr=freeNear(c[0]+n[0]*2.2,c[1]+n[1]*2.2,e); best=fr; }
+  var dx=c[0]-best[0], dy=c[1]-best[1], dist=Math.hypot(dx,dy)||1; return {x:best[0], y:best[1], z:e, yaw:Math.atan2(dy,dx), pitch:clamp(Math.atan2(cz-(e+CFG.eye),dist),-.5,.4)}; }
+/* the route: A* over 0.4 m cells evaluated as they are reached, with the walker's own tests (floor under the capsule, nothing in the way, no step down a ledge); stairs are just cells whose floor rises */
+var NAV={cell:.4, max:25000, ms:150};
+function navCell(G,cache,i,j,zc){ var k=i+','+j+','+Math.round(zc*4), v=cache[k]; if(v!==undefined) return v; var x=i*NAV.cell, y=j*NAV.cell, z=supportAt(G,x,y,zc); if(z==null) z=supportDisc(G,x,y,zc);
+  v=(z==null||z<zc-CFG.step-.02||blockedAt(G,x,y,z))?null:z; cache[k]=v; return v; }
+function route(G,from,to){ var C=NAV.cell, cache={}, si=Math.round(from.x/C), sj=Math.round(from.y/C), gi=Math.round(to.x/C), gj=Math.round(to.y/C), open=[], seen={}, t0=Date.now(), n=0;
+  var h=function(i,j,z){ return 1.25*(Math.hypot((i-gi)*C,(j-gj)*C)+Math.abs(z-to.z)*1.5); },          /* weighted: a little longer than the best, found much sooner */ push=function(o){ open.push(o); var a=open.length-1; while(a>0){ var b=(a-1)>>1; if(open[b].f<=open[a].f) break; var q=open[a]; open[a]=open[b]; open[b]=q; a=b; } },
+      pop=function(){ var top=open[0], last=open.pop(); if(open.length){ open[0]=last; var a=0; for(;;){ var l=2*a+1, r=l+1, m=a; if(l<open.length&&open[l].f<open[m].f) m=l; if(r<open.length&&open[r].f<open[m].f) m=r; if(m===a) break; var q=open[a]; open[a]=open[m]; open[m]=q; a=m; } } return top; };
+  var D8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  push({i:si,j:sj,z:from.z,g:0,f:h(si,sj,from.z),p:null}); seen[si+','+sj+','+Math.round(from.z*4)]=0;
+  while(open.length){ var o=pop(); if(++n>NAV.max||Date.now()-t0>NAV.ms) return {ok:false, why:"too far", n:n};
+    if(Math.abs(o.i-gi)<=1&&Math.abs(o.j-gj)<=1&&Math.abs(o.z-to.z)<.3){ var pts=[[to.x,to.y,to.z]]; for(var q=o;q;q=q.p) pts.push([q.i*C,q.j*C,q.z]); pts[pts.length-1]=[from.x,from.y,from.z]; pts.reverse(); return {ok:true, pts:smoothPath(G,pts), n:n}; }
+    for(var d=0;d<8;d++){ var ni=o.i+D8[d][0], nj=o.j+D8[d][1], z=navCell(G,cache,ni,nj,o.z); if(z==null) continue;
+      if(d>3&&(navCell(G,cache,o.i+D8[d][0],o.j,o.z)==null||navCell(G,cache,o.i,o.j+D8[d][1],o.z)==null)) continue;          /* no corner cutting */
+      var g=o.g+(d>3?C*1.4142:C)+Math.abs(z-o.z)*.6, key=ni+','+nj+','+Math.round(z*4); if(seen[key]!=null&&seen[key]<=g) continue; seen[key]=g; push({i:ni,j:nj,z:z,g:g,f:g+h(ni,nj,z),p:o}); } }
+  return {ok:false, why:'no way', n:n}; }
+/* string-pulling: keep a point only when the straight walk past it would not stay on floor and clear */
+function segWalk(G,a,b){ var L=Math.hypot(b[0]-a[0],b[1]-a[1]), k=Math.max(1,Math.ceil(L/.15)), z=a[2]; for(var i=1;i<=k;i++){ var t=i/k, x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t, s=supportDisc(G,x,y,z+.05);
+    if(s==null||s<z-CFG.step||s>z+CFG.step||blockedAt(G,x,y,s)||Math.abs(s-(a[2]+(b[2]-a[2])*t))>.6) return false; z=s; } return true; }
+function smoothPath(G,P){ var out=[P[0]], i=0; while(i<P.length-1){ var j=Math.min(P.length-1,i+40); while(j>i+1&&!segWalk(G,P[i],P[j])) j--; out.push(P[j]); i=j; } return out; }
+function pathLen(P,k){ var L=0; for(var i=(k||0);i+1<P.length;i++) L+=Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1],P[i+1][2]-P[i][2]); return L; }
+/* start a trip to node `id`: walk the route when it is found and not too long (70 m), else a short, labelled fade; Esc, a move key or the pill's x cancels */
+function goNode(id){ var G=S.G, d=S.data||{}, n=(d.nodes||{})[id]; if(!n||!n.r) return false; var sl=n.s&&G.slots[n.s]?n.s:(G.slots['card-'+id]?'card-'+id:null), it=sl?G.slots[sl]:null;
+  S.cardIx=(d.order||Object.keys(d.nodes||{})).indexOf(id); var to=it?arrival(G,it):spawn(G,n.r,null); var name=String(n.n)+' '+dec(n.t);
+  navStop(); var r=route(G,{x:S.x,y:S.y,z:S.fz},to), L=r.ok?pathLen(r.pts):0; S.lastRoute={ok:r.ok, why:r.why, n:r.n, len:L, mode:''};
+  if(r.ok&&L<=70&&!reduced()){ S.nav={id:id, it:it, to:to, pts:r.pts, k:1, name:name, t:0, best:L, bestT:0, len:L}; S.lastRoute.mode='walk'; navPill(name); return true; }
+  S.lastRoute.mode='fade'; navPill(name,true); var lab=S.veil; veilPulse(function(){ S.x=to.x; S.y=to.y; S.fz=to.z; S.yaw=to.yaw; S.pitch=to.pitch; S.snap=1; S.snapExp=1; S.snapCam=1; S.vx=S.vy=S.vz=0; S.air=false; S.glide=null; S.safe=null; navArrive(id,it,name); }, 'Going to '+name+'…'); return true; }
+function navStop(why){ if(S.nav&&why) S.lastRoute&&(S.lastRoute.stopped=why); S.nav=null; S.navKeys=null; if(S.navEl&&!S.navEl._arr) S.navEl.style.opacity=0; }
+function navArrive(id,it,name){ S.nav=null; S.navKeys=null; S.hiSlot=it||null; S.hiT=4.5; if(S.navEl){ S.navEl._arr=1; S.navEl.firstChild.textContent='✓ '+name; S.navEl.style.opacity=1; clearTimeout(S.navEl._t); S.navEl._t=setTimeout(function(){ if(S.navEl){ S.navEl.style.opacity=0; S.navEl._arr=0; } },2800); }
+  S.lastRoute&&(S.lastRoute.arrived=true); }
+function navPill(name,fade){ var p=S.navEl; if(!p) return; p._arr=0; clearTimeout(p._t); p.firstChild.textContent=(fade?'→ ':'→ ')+name; p.style.opacity=1; }
+/* one frame of the guided walk: steer the walker at the next point of the route (run on long stretches), notice being stuck (then the fade), turn to the sign at the end */
+function navStep(dt){ var N=S.nav; if(!N) return null; var P=N.pts; N.t+=dt;
+  while(N.k<P.length-1&&Math.hypot(P[N.k][0]-S.x,P[N.k][1]-S.y)<.45&&Math.abs(P[N.k][2]-S.fz)<.6) N.k++;
+  var tgt=P[N.k], rem=Math.hypot(tgt[0]-S.x,tgt[1]-S.y)+pathLen(P,N.k);
+  if(rem<N.best-.25){ N.best=rem; N.bestT=N.t; } else if(N.t-N.bestT>1.6){ var to=N.to, it=N.it, id=N.id, nm=N.name; S.lastRoute&&(S.lastRoute.stuckFade=true); navStop(); navPill(nm,true);
+    veilPulse(function(){ S.x=to.x; S.y=to.y; S.fz=to.z; S.yaw=to.yaw; S.pitch=to.pitch; S.snap=1; S.snapCam=1; S.vx=S.vy=0; navArrive(id,it,nm); },'Going to '+nm+'…'); return null; }
+  if(N.k===P.length-1&&Math.hypot(tgt[0]-S.x,tgt[1]-S.y)<.35){ var dy0=N.to.yaw-S.yaw; while(dy0>PI) dy0-=2*PI; while(dy0<-PI) dy0+=2*PI; S.yaw+=dy0*(1-Math.exp(-dt/.12)); S.pitch+=(N.to.pitch-S.pitch)*(1-Math.exp(-dt/.12));
+    if(Math.abs(dy0)<.03){ S.yaw=N.to.yaw; navArrive(N.id,N.it,N.name); } return {}; }
+  if((N.chk=(N.chk||0)+1)%6===0) while(N.k<P.length-1&&segWalk(G0(),[S.x,S.y,S.fz],P[N.k+1])) N.k++;                 /* skip ahead when a later point is in plain reach */
+  tgt=P[N.k]; var want=Math.atan2(tgt[1]-S.y,tgt[0]-S.x), dyw=want-S.yaw; while(dyw>PI) dyw-=2*PI; while(dyw<-PI) dyw+=2*PI;
+  S.yaw+=clamp(dyw,-3*dt,3*dt); S.pitch+=(-.1-S.pitch)*(1-Math.exp(-dt/.4));          /* the view turns after the walk, smoothly; the walk itself goes straight at the route */
+  var dd=want-S.yaw; return {mf:Math.cos(dd), ms:-Math.sin(dd), run:rem>10?1:0}; }
+function G0(){ return S.G; }
+/* the trail ahead (a dashed glowing line on the floor) and a frame round the sign it leads to, as a batch of their own */
+function navBatch(lt){ var G=S.G, N=S.nav, hi=S.hiSlot&&S.hiT>0?S.hiSlot:(N&&N.it), pts=[], gl=S.gl; if(!N&&!hi) return null;
+  var quad=function(a,b,c,d,nn){ [a,b,c,a,c,d].forEach(function(v){ pts.push(v[0],v[1],v[2],nn[0],nn[1],nn[2]); }); };
+  if(N){ var P=[[S.x,S.y,S.fz]].concat(N.pts.slice(N.k)); for(var i=0;i+1<P.length;i++){ var a=P[i], b=P[i+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]); if(L<.01) continue; var ux=(b[0]-a[0])/L, uy=(b[1]-a[1])/L, w=.07;
+      for(var u=(i?0:.8);u<L;u+=.7){ var u1=Math.min(L,u+.38), t0=u/L, t1=u1/L, x0=a[0]+ux*u, y0=a[1]+uy*u, x1=a[0]+ux*u1, y1=a[1]+uy*u1, z0=a[2]+(b[2]-a[2])*t0+.035, z1=a[2]+(b[2]-a[2])*t1+.035;
+        var s0=supportAt(G,x0,y0,z0+.3), s1=supportAt(G,x1,y1,z1+.3); if(s0!=null&&Math.abs(s0+.035-z0)<.5) z0=s0+.035; if(s1!=null&&Math.abs(s1+.035-z1)<.5) z1=s1+.035;
+        quad([x0-uy*w,y0+ux*w,z0],[x1-uy*w,y1+ux*w,z1],[x1+uy*w,y1-ux*w,z1],[x0+uy*w,y0-ux*w,z0],[0,0,1]); } } }
+  if(hi){ var s=hi.s, c=s.p, n=hi.n, dd=[-n[1],n[0]], W=s.sz[0]/2+.08, H=s.sz[1]/2+.08, z=hi.z, fs=s.card?[1,-1]:[1], b2=.045;
+    fs.forEach(function(f){ var o=f*(s.card?.06:.035), cx=c[0]+n[0]*o, cy=c[1]+n[1]*o, nn=[n[0]*f,n[1]*f,0], P2=function(a,v){ return [cx+dd[0]*a,cy+dd[1]*a,z+v]; };
+      quad(P2(-W,-H),P2(W,-H),P2(W,-H+b2),P2(-W,-H+b2),nn); quad(P2(-W,H-b2),P2(W,H-b2),P2(W,H),P2(-W,H),nn); quad(P2(-W,-H),P2(-W+b2,-H),P2(-W+b2,H),P2(-W,H),nn); quad(P2(W-b2,-H),P2(W,-H),P2(W,H),P2(W-b2,H),nn); }); }
+  var nv=pts.length/6; if(!nv) return null; var ab=new ArrayBuffer(nv*STRIDE), f=new Float32Array(ab), i8=new Int8Array(ab), u8=new Uint8Array(ab);
+  for(var v=0;v<nv;v++){ var o=v*7, bb=v*STRIDE, q=v*6; f[o]=pts[q]; f[o+1]=pts[q+1]; f[o+2]=pts[q+2]; i8[bb+12]=Math.round(pts[q+3]*127); i8[bb+13]=Math.round(pts[q+4]*127); i8[bb+14]=Math.round(pts[q+5]*127); u8[bb+24]=255; u8[bb+25]=255; }
+  if(!S.navVB) S.navVB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,S.navVB); gl.bufferData(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW);
+  return {built:{vb:S.navVB, ranges:[{k:'navglow', m:matOf(G,'navglow'), first:0, count:nv, trans:false}]}, light:lt}; }
 function stepCard(dir){ var d=S.data||{}, ord=(d.order||Object.keys(d.nodes||{})).filter(function(id){ var n=d.nodes[id]; return n&&n.r; }); if(!ord.length) return; var cur=ord.indexOf((d.order||Object.keys(d.nodes||{}))[S.cardIx==null?-1:S.cardIx]); var i=cur<0?(dir>0?0:ord.length-1):(cur+dir+ord.length)%ord.length; goNode(ord[i]); }
 function toggleCards(){ if(S.cp){ S.cp.remove(); S.cp=null; return; } var d=S.data||{}, ns=d.nodes||{}, ord=d.order||Object.keys(ns), p=S.cp=el('div','bf-cards',S.root), inp=el('input',null,p), list=el('div','bf-clist',p); inp.placeholder='Find a card'; inp.setAttribute('aria-label','Find a card');
   var fill=function(q){ while(list.firstChild) list.removeChild(list.firstChild); ord.forEach(function(id){ var n=ns[id]; if(!n||!n.r) return; var t=dec(n.t); if(q&&(n.n+' '+t).toLowerCase().indexOf(q)<0) return;
@@ -1650,7 +1723,7 @@ function mountHud(){ var css=D.getElementById('bf-css'); if(!css){ css=el('style
   var cbn=el('button','bf-cardsbtn',root,'Cards \u00b7 C'); cbn.type='button'; cbn.addEventListener('click',function(e){ e.stopPropagation(); toggleCards(); });
   var ob=el('div','bf-opts',root); S.viewBtn=el('button',null,ob,''); S.viewBtn.type='button'; S.viewBtn.addEventListener('click',function(e){ e.stopPropagation(); setView(S.view==='third'?'first':'third'); });
   S.avBtn=el('button',null,ob,''); S.avBtn.type='button'; S.avBtn.addEventListener('click',function(e){ e.stopPropagation(); setAvatar(S.av&&S.av.mayor?'generic':'mayor'); });
-  S.tagEl=el('div','bf-tag',root,''); S.hopBtn=el('button','bf-hop',root,'Hop'); S.hopBtn.type='button'; S.hopBtn.setAttribute('aria-label','Hop');
+  S.tagEl=el('div','bf-tag',root,''); S.navEl=el('div','bf-pill bf-nav',root); el('span',null,S.navEl,''); var nx=el('button',null,S.navEl,'\u2715'); nx.type='button'; nx.setAttribute('aria-label','Cancel'); nx.title='Cancel (Esc)'; nx.addEventListener('click',function(e){ e.stopPropagation(); navStop('cancelled'); if(S.navEl) S.navEl.style.opacity=0; }); S.hopBtn=el('button','bf-hop',root,'Hop'); S.hopBtn.type='button'; S.hopBtn.setAttribute('aria-label','Hop');
   S.hopBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); e.preventDefault(); S.keys.hop=1; }); ['pointerup','pointercancel','pointerleave'].forEach(function(t){ S.hopBtn.addEventListener(t,function(e){ e.stopPropagation(); S.keys.hop=0; }); });
   S.hint=el('div','bf-pill bf-hint',root,'W A S D move \u00b7 Space hop \u00b7 T first / third person \u00b7 drag to look \u00b7 Shift run \u00b7 C cards \u00b7 N / P next / previous card \u00b7 [ ] floors \u00b7 E open \u00b7 Esc blueprint');
   S.jl=el('div','bf-joy bf-jl',root); el('i',null,S.jl); S.jr=el('div','bf-joy bf-jr',root); el('i',null,S.jr);
@@ -1670,7 +1743,7 @@ function mountHud(){ var css=D.getElementById('bf-css'); if(!css){ css=el('style
     else if(k==='ArrowLeft') n='tl'; else if(k==='ArrowRight') n='tr'; else if(k==='Shift') n='run'; else if(k===' '||c==='Space') n='hop';
     if(n){ S.keys[n]=down?1:0; e.preventDefault(); e.stopPropagation(); return; }
     if(!down) return;
-    if(k==='Escape'){ e.preventDefault(); e.stopPropagation(); exit(); return; }
+    if(k==='Escape'){ e.preventDefault(); e.stopPropagation(); if(S.nav){ navStop('cancelled'); return; } exit(); return; }
     if(k===']'||k==='PageUp'){ e.preventDefault(); goLevel(1); return; } if(k==='['||k==='PageDown'){ e.preventDefault(); goLevel(-1); return; }
     if((k==='t'||k==='T')&&!e.repeat){ e.preventDefault(); setView(S.view==='third'?'first':'third'); return; }
     if(k==='c'||k==='C'){ e.preventDefault(); toggleCards(); return; } if(k==='n'||k==='N'){ e.preventDefault(); stepCard(1); return; } if(k==='p'||k==='P'){ e.preventDefault(); stepCard(-1); return; }
@@ -1709,7 +1782,7 @@ function hud(now){ var cw=S.root.clientWidth, ch=S.root.clientHeight;
     S.perf.textContent='tier '+S.T.name+(S.T.wgl2?' webgl2':' webgl1')+(S.fb?' msaa'+S.fb.s:'')+'\nscale '+S.gov.s.toFixed(2)+' '+S.cw+'x'+S.ch+'\nframe p50 '+(n?a[n>>1].toFixed(1):'-')+' p95 '+(n?a[Math.floor(n*.95)].toFixed(1):'-')+' ms\ndraws '+st.draws+' tris '+Math.round((st.tris||0)/1000)+'k batches '+st.batches+'\nbuilt '+S.G.batches.filter(function(b){ return b.built; }).length+'/'+S.G.batches.length+' '+(S.bytes/1e6).toFixed(1)+' MB'; } }
 function emitPos(type){ var d={l:levelAt(S.fz).id, x:Math.round(S.x*100)/100, y:Math.round(S.y*100)/100, yaw:Math.round(S.yaw*180/PI), room:S.room?S.room.id:null, z:Math.round(S.fz*100)/100};
   S.lastPos=d; try{ window.dispatchEvent(new CustomEvent(type,{detail:d})); }catch(x){} }
-function veilPulse(fn){ if(reduced()){ fn(); return; } S.veil.textContent=''; S.veil.style.opacity=1; setTimeout(function(){ fn(); setTimeout(function(){ if(S.veil) S.veil.style.opacity=0; },60); },260); }
+function veilPulse(fn,label){ if(reduced()||!S.veil){ fn(); return; } S.veil.textContent=label||''; S.veil.style.opacity=1; setTimeout(function(){ fn(); setTimeout(function(){ if(S.veil) S.veil.style.opacity=0; },60); },260); }
 function loop(t){ if(!S.on||S.paused) return; S.raf=requestAnimationFrame(loop); var now=performance.now(), dt=S.last?(now-S.last)/1000:1/60; S.last=now;
   if(dt*1000<1000){ (S.iv||(S.iv=[])).push(dt*1000); if(S.iv.length>240) S.iv.shift(); }
   var r=S.gov?gov(S.gov,dt*1000,now):''; if(r==='up'||r==='down') size();
@@ -1717,7 +1790,7 @@ function loop(t){ if(!S.on||S.paused) return; S.raf=requestAnimationFrame(loop);
 
 /* ── enter / exit ── */
 function spawn(G,roomId,ctx){ var it=ctx&&ctx.slot?G.slots[ctx.slot]:null, r=G.rid[roomId]||null;
-  if(it){ var s=it.s, d=it.sculpt?2.4:clamp(Math.max(s.sz[0],s.sz[1])*1.6+1.2,2.2,4.5), p=freeNear(s.p[0]+it.n[0]*d,s.p[1]+it.n[1]*d,it.room.l.e); return {x:p[0],y:p[1],z:it.room.l.e,yaw:Math.atan2(-it.n[1],-it.n[0]),pitch:-.02}; }
+  if(it){ var ap=arrival(G,it); S.hiSlot=it; S.hiT=4.5; return ap; }
   if(r){ var c=freeNear(r.ctr[0],r.ctr[1],r.l.e), best=0, by=0; for(var a=0;a<16;a++){ var t=a/16*2*PI, L=sight(G,c[0],c[1],r.l.e,t,40); var sl=r.items.some(function(x){ return x.t==='slot'&&Math.abs(Math.atan2(x.s.p[1]-c[1],x.s.p[0]-c[0])-t)<.3; }); if(L+(sl?4:0)>best){ best=L+(sl?4:0); by=t; } }
     return {x:c[0],y:c[1],z:r.l.e,yaw:by,pitch:-.03}; }
   var sp0=G.plan.sp; if(sp0&&!(ctx&&ctx.outside)&&sp0.p&&G.lv[sp0.l]){ var zs=G.lv[sp0.l].e; return {x:sp0.p[0],y:sp0.p[1],z:zs,yaw:(sp0.yaw||0)*PI/180,pitch:sp0.pitch!=null?sp0.pitch:-.02}; }
@@ -1733,7 +1806,7 @@ function enter(roomId,ctx){ ctx=ctx||{}; var A=window.AltoBuilding, plan=ctx.pla
   try{ S.G=bfIndex(plan); addCards(S.G); }catch(e){ if(window.console) console.warn('bldg fpv index',e); return false; }
   var geo=plan.geo||{}, north=(geo.north||0)*PI/180, bear=215*PI/180-north, el2=36*PI/180; S.sun=nrm([Math.cos(el2)*Math.sin(bear),Math.cos(el2)*Math.cos(bear),Math.sin(el2)]);
   S.sunC=[6.2,5.5,4.5]; S.sky=[1.9,2.25,2.8];
-  S.lost=0; S.rt=null; S.noRefl=0; S.abytes=0; S.keys={}; S.vx=S.vy=S.vz=0; S.frame=0; S.built=0; S.last=0; S.iv=[]; S.roomSig=null; S.pkTxt=null; S.gov=null; S.fb=null; S.glide=null; S.safe=null; S.air=false; S.grounded=true; S.vz=0; S.dip=0; S.hopBuf=0; S.hopHeld=false; S.camD=null; S.av=null; S.avVB=null; S.avAB=null;
+  S.lost=0; S.rt=null; S.noRefl=0; S.abytes=0; S.keys={}; S.vx=S.vy=S.vz=0; S.frame=0; S.built=0; S.last=0; S.iv=[]; S.roomSig=null; S.pkTxt=null; S.gov=null; S.fb=null; S.glide=null; S.safe=null; S.air=false; S.grounded=true; S.vz=0; S.dip=0; S.hopBuf=0; S.hopHeld=false; S.camD=null; S.av=null; S.avVB=null; S.avAB=null; S.nav=null; S.navVB=null; S.hiSlot=null; S.hiT=0;
   mountHud(); setAvatar(AV.pref('avatar')); setView(AV.pref('view')); var gl=glInit(S.cv); if(!gl){ unmount(); return false; }
   try{ glSetup(); }catch(e){ if(window.console) console.warn('bldg fpv gl',e); unmount(); return false; }
   var sp=spawn(S.G,roomId,ctx); S.x=sp.x; S.y=sp.y; S.fz=sp.z; S.ez=sp.z+CFG.eye; S.yaw=sp.yaw; S.pitch=sp.pitch; S.snap=1; S.snapExp=1; S.exp=1;
@@ -1742,7 +1815,7 @@ function enter(roomId,ctx){ ctx=ctx||{}; var A=window.AltoBuilding, plan=ctx.pla
   S.raf=requestAnimationFrame(loop); emitPos('alto-building-fpv-pos'); return true; }
 function exit(silent){ if(!S.on) return; emitPos('alto-building-fpv-exit'); S.on=false; cancelAnimationFrame(S.raf); S.raf=0; if(S.mo){ S.mo.disconnect(); S.mo=null; }
   var gl=S.gl; if(gl&&S.G){ S.G.batches.forEach(drop); for(var g in S.tex){ gl.deleteTexture(S.tex[g][0]); gl.deleteTexture(S.tex[g][1]); } freeTarget(gl,S.fb); if(S.rt){ gl.deleteTexture(S.rt.tx); gl.deleteRenderbuffer(S.rt.rb); gl.deleteFramebuffer(S.rt.fb); S.rt=null; } if(S.sm){ gl.deleteTexture(S.sm.tx); gl.deleteRenderbuffer(S.sm.rb); gl.deleteFramebuffer(S.sm.fb); S.sm=null; } try{ var lx=gl.getExtension('WEBGL_lose_context'); if(lx) lx.loseContext(); }catch(x){} }
-  if(gl&&S.avVB){ gl.deleteBuffer(S.avVB); S.avVB=null; } unmount(); var pos=S.lastPos; S.gl=null; S.G=null; S.tex={}; S.fb=null;
+  if(gl&&S.avVB){ gl.deleteBuffer(S.avVB); S.avVB=null; } if(gl&&S.navVB){ gl.deleteBuffer(S.navVB); S.navVB=null; } S.nav=null; unmount(); var pos=S.lastPos; S.gl=null; S.G=null; S.tex={}; S.fb=null;
   if(!silent){ try{ var A=window.AltoBuilding; if(A){ A.show(); if(pos&&A.showWalker) A.showWalker(pos); } }catch(x){} } }
 function unmount(){ window.removeEventListener('keydown',S.onKey,true); window.removeEventListener('keyup',S.onKey,true); window.removeEventListener('blur',S.onBlur); window.removeEventListener('resize',S.onResize); if(S.root){ S.root.remove(); S.root=null; } }
 
@@ -1767,6 +1840,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
           for(var e=0;e<3;e++){ var A=P[e], B2=P[(e+1)%3]; if(dot(cross(sub(B2,A),sub(q,A)),g)<-1e-7){ ok=false; break; } } if(ok) hits.push(k); } }); }); return hits; } } };
 API._debug=function(){ return S; };
 API.camProbe=function(){ S.av=S.av||AV.make(AV.city('',39.97,-75.18),'mayor'); S.view='third'; S.camD=null; S.camWhy=''; var cp=Math.cos(S.pitch), e=camEye([Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)]); return {cam:e, d:S.camD, why:S.camWhy}; };
+API.go=function(id){ return goNode(id); }; API.nav=function(){ return {on:!!S.nav, k:S.nav?S.nav.k:0, n:S.nav?S.nav.pts.length:0, last:S.lastRoute||null, hi:!!(S.hiSlot&&S.hiT>0)}; }; API.arrival=function(slot){ var it=S.G.slots[slot]; return it?arrival(S.G,it):null; };
 API.view=function(v){ if(v) setView(v); return S.view; }; API.avatar=function(w){ if(w) setAvatar(w); return S.av?{mayor:S.av.mayor, tag:AV.tag(S.av)}:null; }; API.AV=AV; API.CFG=CFG;
 /* headless walking (tests in node, no GL, no page): the plan indexed, the walker placed, step() as in the view */
 API.sim=function(plan,data){ S.data=data||{}; S.mc={}; S.G=bfIndex(plan); if(data) addCards(S.G); S.keys={}; S.vx=S.vy=S.vz=0; S.air=false; S.grounded=true; S.dip=0; S.safe=null; S.glide=null; S.noPad=1; S.hops=S.bonks=S.nets=S.rescues=0;

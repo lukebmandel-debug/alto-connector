@@ -29,7 +29,7 @@ function walk(p0,p1,z0,run,maxT,expectZ,tolZ){
   return {ok:true, minZ:minZ, maxZ:maxZ}; }
 /* a free standing spot near p at floor z: p itself or nudged up to 1 m along the given direction (furniture by a door) */
 /* a free standing spot in front of a door (c + dir * off): 0.75 m clear of the wall face, else nearer (a corridor), else further (furniture by the door) */
-function spot(c,dir,z,face){ var ds=[.75,.65,.55,.45,.9,1.1,1.3,1.5], ls=[0,.25,-.25]; for(var k=0;k<ds.length;k++) for(var j=0;j<ls.length;j++){ var o=face+ds[k], x=c[0]+dir[0]*o-dir[1]*ls[j], y=c[1]+dir[1]*o+dir[0]*ls[j], s=sup(x,y,z+.3); if(s!=null&&Math.abs(s-z)<.15&&freeAt(x,y,z)&&reach(c,[x,y],z)) return [x,y]; } return null; }
+function spot(c,dir,z,face,hw){ var ds=[.75,.65,.55,.45,.9,1.1,1.3,1.5], ls=[0]; for(var q=.25;q<(hw||.3)-.2;q+=.25) ls.push(q,-q); for(var k=0;k<ds.length;k++) for(var j=0;j<ls.length;j++){ var cx=c[0]-dir[1]*ls[j], cy=c[1]+dir[0]*ls[j], o=face+ds[k], x=cx+dir[0]*o, y=cy+dir[1]*o, s=sup(x,y,z+.3); if(s!=null&&Math.abs(s-z)<.15&&freeAt(x,y,z)&&freeAt(cx,cy,z)&&reach([cx,cy],[x,y],z)) return [x,y]; } return null; }
 /* the capsule can slide straight there from the doorway's middle: free and floored all the way */
 function reach(P,Q,z){ var L=Math.hypot(Q[0]-P[0],Q[1]-P[1]), n=Math.max(1,Math.ceil(L/.1)); for(var i=0;i<=n;i++){ var x=P[0]+(Q[0]-P[0])*i/n, y=P[1]+(Q[1]-P[1])*i/n, s=sup(x,y,z+.3); if(s==null||Math.abs(s-z)>.3||!freeAt(x,y,z)) return false; } return true; }
 /* ── doors ── */
@@ -42,7 +42,7 @@ G.walls.forEach(function(W){ W.ops.forEach(function(op){ if(op.k==='window') ret
   if(w<2*CFG.pr+.08) fails.push({kind:'door', id:id, why:'narrower than the capsule: '+w.toFixed(2)+' m'});
   if(h<CFG.head+.05) fails.push({kind:'door', id:id, why:'lower than the capsule: '+h.toFixed(2)+' m'});
   if(!op.sg||!op.ra||!op.rb||op.ra.isVoid||op.rb.isVoid){ out.skipped.push(id+' (one side has no room)'); return; }
-  var sg=op.sg, c=op.c, n=sg.n, z=W.lv.e, pa=spot(c,n,z,W.ht), pb=spot(c,[-n[0],-n[1]],z,W.ht);
+  var sg=op.sg, c=op.c, n=sg.n, z=W.lv.e, hw=(op.a1-op.a0)/2, la=op.passAt||0, cc=[c[0]+sg.d[0]*la,c[1]+sg.d[1]*la], pa=spot(cc,n,z,W.ht,.3), pb=spot(cc,[-n[0],-n[1]],z,W.ht,.3);          /* where the renderer found the straight way through */
   if(!pa||!pb){ fails.push({kind:'door', id:id, why:'no free floor in front of it on '+(pa?'one':'either')+' side'}); return; }
   [[pa,pb],[pb,pa]].forEach(function(pp){ [false,true].forEach(function(run){ out.doorWalks++; var r=walk(pp[0],pp[1],z,run,6,z,.6); if(!r.ok) fails.push({kind:'door', id:id, run:run, why:r.why, detail:r}); }); });
   /* and a hop in the doorway: it lands back on the same floor */
@@ -69,5 +69,15 @@ G.st.forEach(function(o,si){ if(o.k==='elevator') return; o.fl.forEach(function(
   out.entrances=(out.entrances||0)+1;
   var r1=walk(outP,inP,zo,false,10,zin,.35); if(!r1.ok) fails.push({kind:'entrance', id:id, dir:'in', why:r1.why, detail:r1});
   var r2=walk(inP,outP,zin,false,10,zo,.6); if(!r2.ok) fails.push({kind:'entrance', id:id, dir:'out', why:r2.why, detail:r2}); });
+/* ── trips to cards (cards mode): N cards picked from the menu at random, each from a random free spot; arrive at the pose in front of the sign, on its floor, facing it, never stuck ── */
+if(withCards){ var seed=7, rnd=function(){ seed=(seed*16807)%2147483647; return seed/2147483647; }, ids=data.order.filter(function(id){ return G.slots['card-'+id]; }), N=Math.min(+(process.env.TRIPS||40),ids.length), starts=G.rooms.filter(function(r){ return !r.isVoid&&!r.r.gp; });
+  out.trips=0; out.tripWalk=0; out.tripFade=0; out.tripStuckFade=0; out.tripMaxS=0;
+  for(var ti=0;ti<N;ti++){ var id=ids[Math.floor(rnd()*ids.length)], it=G.slots['card-'+id], r0=starts[Math.floor(rnd()*starts.length)], c0=[r0.ctr[0],r0.ctr[1]], f0=null;
+    for(var rr=0;rr<4&&!f0;rr+=.4) for(var aa=0;aa<12;aa++){ var x=c0[0]+Math.cos(aa/12*6.283)*rr, y=c0[1]+Math.sin(aa/12*6.283)*rr, z=sup(x,y,r0.l.e+.3); if(z!=null&&Math.abs(z-r0.l.e)<.15&&freeAt(x,y,z)){ f0=[x,y,z]; break; } }
+    if(!f0) continue; place(f0[0],f0[1],f0[2],rnd()*6.283); var nets0=S.nets, res0=S.rescues; A.go(id); var t=0; while(A.nav().on&&t<90){ A.step(DT,{},1); t+=DT; }
+    var L=A.nav().last||{}, to=A.arrival('card-'+id), d=Math.hypot(S.x-to.x,S.y-to.y), face=Math.atan2(it.s.p[1]-S.y,it.s.p[0]-S.x)-S.yaw; while(face>Math.PI) face-=2*Math.PI; while(face<-Math.PI) face+=2*Math.PI;
+    out.trips++; if(L.mode==='walk') out.tripWalk++; else out.tripFade++; if(L.stuckFade) out.tripStuckFade++; out.tripMaxS=Math.max(out.tripMaxS,+t.toFixed(1));
+    var why=!L.arrived?'never arrived ('+(L.mode||'?')+(L.why?', '+L.why:'')+')':d>.5?'stopped '+d.toFixed(2)+' m from the spot':Math.abs(S.fz-it.room.l.e)>.2?'wrong floor':Math.abs(face)>.21?'not facing the sign ('+(face*57.3).toFixed(0)+' deg)':S.nets>nets0?'fell':S.rescues>res0?'stuck in geometry':'';
+    if(why) fails.push({kind:'trip', id:id, why:why, from:f0.map(function(v){ return +v.toFixed(1); }), mode:L.mode, len:+(L.len||0).toFixed(1)}); } }
 out.cuts=G.cuts.length; out.stairCuts=(G.scuts||[]).length; out.closed=G.dead.map(function(d){ return d.w+'@'+d.a.toFixed(1)+' (onto '+d.by+')'; }); out.clipped=G.clipped||0; out.fails=fails; out.nets=S.nets; out.capsule={r:CFG.pr, h:CFG.head, minDoor:CFG.minDoor};
 console.log(JSON.stringify(out));

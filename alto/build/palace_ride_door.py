@@ -81,7 +81,7 @@ function findDoor(){
   return best; }
 /* a map point to the screen with the camera that drew the frame (C: yaw, pitch, focal length, horizon) */
 function toScr(x,y,z){ var dx=x-C.x, dy=y-C.y, dz=z-C.z, cy=Math.cos(C.yaw), sy=Math.sin(C.yaw), p=C.pitch||0, cp=Math.cos(p), sp=Math.sin(p);
-  var f=dx*cy*cp+dy*sy*cp+dz*sp; if(f<.3) return null; return [C.hx+C.foc*(-dx*sy+dy*cy)/f, C.hy-C.foc*(-dx*sp*cy-dy*sp*sy+dz*cp)/f, f]; }
+  var f=dx*cy*cp+dy*sy*cp+dz*sp; if(!(f>=.3)) return null;          /* also NaN (a place the real map cannot convert): no overlay there, never a canvas error */ return [C.hx+C.foc*(-dx*sy+dy*cy)/f, C.hy-C.foc*(-dx*sp*cy-dy*sp*sy+dz*cp)/f, f]; }
 function doorBox(d){ var K=UM, tx=d.ny, ty=-d.nx, pts=[[-1.5,0],[1.5,0],[-1.5,2.75],[1.5,2.75]].map(function(q){ return toScr(d.x+tx*q[0]*K+d.nx*.1, d.y+ty*q[0]*K+d.ny*.1, q[1]*K); });
   if(pts.some(function(q){ return !q; })) return null; var xs=pts.map(function(q){ return q[0]; }), ys=pts.map(function(q){ return q[1]; });
   return [Math.min.apply(null,xs), Math.min.apply(null,ys), Math.max.apply(null,xs), Math.max.apply(null,ys)]; }

@@ -1,4 +1,4 @@
-"""The first-person walks are glitch-free: tests/fpv_walk/walk_audit.js drives the Museum Palace renderer's own walking code (no browser, no GL;
+"""The first-person walks are glitch-free (and trips to cards arrive): tests/fpv_walk/walk_audit.js drives the Museum Palace renderer's own walking code (no browser, no GL;
 node) through EVERY passable doorway of a plan, both ways, walking and running, up and down EVERY stair flight, out of and into every entrance
 with traced ground, and hops in every doorway and on every flight; it fails on a door narrower or lower than the walker's capsule, a fall into
 another floor (or the safety net catching one), a walker stuck in a corner or in geometry. Also: the hop itself (one per press, never through a
@@ -58,6 +58,9 @@ def test_every_door_and_stair_walks_clean(tmp, name, cards):
     if name == "pma":
         assert r["doors"] >= 170 and r["stairs"] >= 12 and r["stairWalks"] >= 48 and r["entrances"] >= 2
         assert r["hops"] >= 150
+    if cards:
+        assert r["trips"] >= min(30, r["trips"]) and r["trips"] > 0       # card trips: every one arrived (else a "trip" failure above)
+        assert r["tripStuckFade"] <= max(2, r["trips"] // 10)              # rarely stuck on the way (the fade then still gets you there)
 
 
 HOP_JS = r"""

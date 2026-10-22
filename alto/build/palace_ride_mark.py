@@ -92,7 +92,7 @@ function markHud(root){
   for(var i=0;i<MK_MAX+4;i++){ var e=document.createElement('div'); e.className='mk-lab'; e.innerHTML='<u class="mk-ln"></u><div class="mk-card"><i class="mk-no"></i><b class="mk-nm"></b><span class="mk-dd"></span></div><div class="mk-hint"></div>';
     e.style.opacity='0'; ly.appendChild(e); MK.labs.push({el:e, it:null, ln:e.firstChild, no:e.querySelector('.mk-no'), nm:e.querySelector('.mk-nm'), dd:e.querySelector('.mk-dd'), hint:e.querySelector('.mk-hint'), t:{}}); }
   root.insertBefore(ly, root.firstChild); MK.layer=ly;
-  ly.addEventListener('click', function(e){ var l=e.target.closest&&e.target.closest('.mk-lab'); if(!l) return; e.preventDefault(); e.stopPropagation(); for(var i=0;i<MK.labs.length;i++) if(MK.labs[i].el===l && MK.labs[i].it){ var it=MK.labs[i].it; if(MK.tgt===it) markWalk(it); else markAim(it, true); } });
+  ly.addEventListener('click', function(e){ var l=e.target.closest&&e.target.closest('.mk-lab'); if(!l) return; e.preventDefault(); e.stopPropagation(); for(var i=0;i<MK.labs.length;i++) if(MK.labs[i].el===l && MK.labs[i].it){ markWalk(MK.labs[i].it); } });          /* one click goes there (it used to turn you, and only a second click walked) */
   ly.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
   var p=document.createElement('div'); p.className='mk-near'; p.setAttribute('role','region'); p.setAttribute('aria-label','Nearby places');
   p.innerHTML='<div class="mk-hd"><button type="button" class="mk-tg" data-mk="near" aria-expanded="true" aria-controls="mk-ol"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Nearby</span><em class="mk-ct"></em></button>'
@@ -105,7 +105,7 @@ function markHud(root){
   root.appendChild(p); root.appendChild(mp);
   MK.ui={p:p, ol:ol, its:its, tg:p.querySelector('.mk-tg'), ct:p.querySelector('.mk-ct'), mb:p.querySelector('.mk-mb'), live:p.querySelector('.mk-live'), map:mp, cv:mp.querySelector('canvas')};
   p.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('button'); if(!b) return; e.preventDefault(); e.stopPropagation();
-    var a=b.getAttribute('data-mk'); if(a==='near') markNearToggle(); else if(a==='map') markMapToggle(); else { for(var i=0;i<its.length;i++) if(its[i].b===b && its[i].it){ if(MK.tgt===its[i].it) markWalk(its[i].it); else markAim(its[i].it, true); } } });
+    var a=b.getAttribute('data-mk'); if(a==='near') markNearToggle(); else if(a==='map') markMapToggle(); else { for(var i=0;i<its.length;i++) if(its[i].b===b && its[i].it){ markWalk(its[i].it); } } });
   var pin=S.hud&&S.hud.pin; if(pin && !pin.querySelector('.mk-ent')){ var en=document.createElement('span'); en.className='mk-ent'; en.textContent='Enter'; pin.insertBefore(en, pin.querySelector('kbd')); }
   MK.near=mkGet(MK_LS,true); MK.map=mkGet(MK_LSM,false); markUiState(); }
 function markUiState(){ var u=MK.ui; if(!u) return; u.p.classList.toggle('shut', !MK.near); u.tg.setAttribute('aria-expanded', MK.near?'true':'false'); u.ol.hidden=!MK.near;
@@ -132,9 +132,9 @@ function mkGoal(it){ var d=it.door; if(d) return [d.x+d.nx*3*UM, d.y+d.ny*3*UM, 
     if(best){ var ox=S.x-best[0], oy=S.y-best[1], ol=Math.hypot(ox,oy)||1; return [best[0]+ox/ol*4*UM, best[1]+oy/ol*4*UM, Math.atan2(-oy,-ox)]; } }
   var dx=S.x-it.x, dy=S.y-it.y, l=Math.hypot(dx,dy)||1; return [it.x+dx/l*25*UM, it.y+dy/l*25*UM, Math.atan2(-dy,-dx)]; }
 /* a walking route: A* on a 3 m grid, the free test (blockedAt) asked lazily, at most MK_ASTAR nodes; null when there is none (then it steers straight) */
-var MK_ASTAR=12000, MK_ASTMS=90;                /* at most 12000 nodes and ~90 ms, once per G */
+var MK_ASTAR=20000, MK_ASTMS=110, MK_WALKMAX=260;                /* at most 12000 nodes and ~90 ms, once per G */
 function mkPath(sx,sy,gx,gy){
-  var G=3.5*UM, gi=Math.round((gx-sx)/G), gj=Math.round((gy-sy)/G), open=[], came={}, cost={}, free={}, n=0, D=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
+  var G=(Math.hypot(gx-sx,gy-sy)<90*UM?1.4:2.4)*UM, gi=Math.round((gx-sx)/G),          /* fine enough for an alley (it was 3.5 m: narrow ways failed and it steered at walls) */ gj=Math.round((gy-sy)/G), open=[], came={}, cost={}, free={}, n=0, D=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
   function ok(i,j){ var k=i+','+j; if(free[k]===undefined) free[k]=(i===0&&j===0)||!blockedAt(sx+i*G,sy+j*G); return free[k]; }
   function h(i,j){ return Math.hypot(i-gi,j-gj); }
   function push(e){ open.push(e); var c=open.length-1; while(c>0){ var p=(c-1)>>1; if(open[p][0]<=e[0]) break; open[c]=open[p]; c=p; } open[c]=e; }
@@ -147,27 +147,48 @@ function mkPath(sx,sy,gx,gy){
   var pts=[], kk=end; while(kk){ var ij=kk.split(','); pts.push([sx+ij[0]*G, sy+ij[1]*G]); kk=came[kk]; } pts.reverse();
   var out=[pts[0]]; for(var t=1;t<pts.length-1;t++){ var a0=out[out.length-1], b0=pts[t+1], cl=true; for(var u=.25;u<1;u+=.25) if(blockedAt(a0[0]+(b0[0]-a0[0])*u,a0[1]+(b0[1]-a0[1])*u)){ cl=false; break; } if(!cl) out.push(pts[t]); }
   out.push(pts[pts.length-1]); if(end===gi+','+gj) out.push([gx,gy]); return out; }
-function markWalk(it){ it=it||MK.tgt; if(!it || IN.on || DR.busy) return false; MK.tgt=it; MK.turn=null; var g=mkGoal(it), path=null; try{ path=mkPath(S.x,S.y,g[0],g[1]); }catch(x){ path=null; }
-  MK.auto={it:it, x:g[0], y:g[1], face:g[2], slow:0, t:0, best:1e18, since:0, path:path, pi:1, re:0};
-  markSay('Walking to '+(it.num?it.num+' ':'')+it.name+'. Any move key stops.'); return true; }
-function markStop(why){ if(!MK.auto) return; MK.auto=null; S.keys.f=0; S.run=false; if(why) markSay(why); }
+function markWalk(it){ it=it||MK.tgt; if(!it || IN.on || DR.busy) return false; MK.tgt=it; MK.turn=null; markFadeStop(); var g=mkGoal(it), d=Math.hypot(g[0]-S.x,g[1]-S.y)/UM, path=null;
+  if(d<=MK_WALKMAX){ try{ path=mkPath(S.x,S.y,g[0],g[1]); }catch(x){ path=null; } }
+  MK.trips=(MK.trips||0)+1;
+  if(!path||d>MK_WALKMAX){ markFade(it,g,d>MK_WALKMAX?'far':'no way'); return true; }
+  MK.auto={it:it, x:g[0], y:g[1], face:g[2], slow:0, t:0, best:1e18, since:0, path:path, pi:1, re:0}; MK.last1={mode:'walk', len:d};
+  markSay('Walking to '+(it.num?it.num+' ':'')+it.name+'. Esc or a move key stops.'); mkPill(it,'→ '); return true; }
+/* the quick way: a short dark fade with the name, and you stand in front of it facing its door (far, or no walkable way, or stuck) */
+function markFade(it,g,why){ MK.auto=null; S.keys={}; S.run=false; MK.last1={mode:'fade', why:why}; mkPill(it,'→ '); var V=mkVeil(); var done=function(){ var f=freeNear(g[0],g[1]); S.x=f[0]; S.y=f[1]; S.vx=S.vy=0; S.yaw=g[2]; S.pitch=.02; plan(true); stream(true); markArrive(it); };
+  if(S.hold||reduced()||!V){ done(); return; } V.firstChild.textContent='Going to '+(it.num?it.num+' ':'')+it.name+'…'; V.style.opacity='1'; MK.fadeT=setTimeout(function(){ MK.fadeT=null; if(!S.on){ V.style.opacity='0'; return; } done(); setTimeout(function(){ V.style.opacity='0'; },80); },260); }
+function markFadeStop(){ if(MK.fadeT){ clearTimeout(MK.fadeT); MK.fadeT=null; } if(MK.veil) MK.veil.style.opacity='0'; }
+function mkVeil(){ var H=S.hud&&S.hud.root; if(!H) return null; if(MK.veil&&MK.veil.parentNode) return MK.veil; var v=document.createElement('div'); v.className='mk-veil'; v.setAttribute('aria-hidden','true'); v.appendChild(document.createElement('span')); H.appendChild(v); MK.veil=v; return v; }
+function mkPill(it,pre){ var H=S.hud&&S.hud.root; if(!H) return; var p=MK.pill; if(!p||!p.parentNode){ p=MK.pill=document.createElement('div'); p.className='mk-go'; p.appendChild(document.createElement('span')); var x=document.createElement('button'); x.type='button'; x.textContent='✕'; x.title='Stop (Esc)'; x.setAttribute('aria-label','Stop');
+    x.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); markStop('Stopped.'); markFadeStop(); mkPillOff(); }); p.appendChild(x); H.appendChild(p); }
+  clearTimeout(p._t); p.firstChild.textContent=pre+(it.num?it.num+' ':'')+it.name; p.lastChild.style.display=pre==='✓ '?'none':''; p.style.opacity='1'; }
+function mkPillOff(){ if(MK.pill){ MK.pill.style.opacity='0'; } }
+function markArrive(it){ MK.auto=null; S.keys={}; S.run=false; MK.arrived=(MK.arrived||0)+1; if(MK.last1) MK.last1.arrived=true; MK.hi={it:it, t:4}; mkPill(it,'✓ '); if(MK.pill){ MK.pill._t=setTimeout(mkPillOff,3200); }
+  markSay('At '+(it.num?it.num+' ':'')+it.name+'.'+(it.k==='n'?' Press E to go in.':(it.page?' Press E to open its page.':''))); }
+function markStop(why){ if(!MK.auto) return; MK.auto=null; S.keys.f=0; S.run=false; if(why) markSay(why); mkPillOff(); }
 /* before the walking tick: the scripted turn and the walk to a door (it presses W for you and steers round what is in front) */
 function markSteer(dt){
   var t=MK.turn; if(t){ t.el+=dt*1000; var u=Math.min(1,t.el/t.dur); S.yaw=t.from+angTo(t.from,t.to)*ease(u); S.pitch=t.p0+(.02-t.p0)*ease(u); if(u>=1) MK.turn=null; }
   var A=MK.auto; if(!A) return; A.t+=dt; var dx=A.x-S.x, dy=A.y-S.y, d=Math.hypot(dx,dy);
-  if(d<1.6*UM){ markStop(null); S.vx=S.vy=0; if(reduced()) S.yaw=A.face; else MK.turn={from:S.yaw, to:A.face, el:0, dur:420, p0:S.pitch}; markSay('At '+(A.it.num?A.it.num+' ':'')+A.it.name+'.'+(A.it.k==='n'?' Press E to go in.':(A.it.page?' Press E to open its page.':''))); return; }
+  if(d<1.6*UM){ var it0=A.it; MK.auto=null; S.keys={}; S.run=false; S.vx=S.vy=0; if(reduced()) S.yaw=A.face; else MK.turn={from:S.yaw, to:A.face, el:0, dur:420, p0:S.pitch}; markArrive(it0); return; }
   if(d<A.best-2){ A.best=d; A.since=0; } else A.since+=dt;
   if(A.since>2.5 && !A.re){ A.re=1; A.since=0; try{ A.path=mkPath(S.x,S.y,A.x,A.y); A.pi=1; }catch(x){} }                           /* stuck once: plan again from here */
-  if(A.since>2.5 || A.t>90){ markStop('The way is blocked here: walk round, then press G again.'); return; }
+  if(A.since>2.5 || A.t>90){ if(MK.last1) MK.last1.stuck=true; markFade(A.it,[A.x,A.y,A.face],'stuck'); return; }                 /* never left standing: the quick way there */
   var P=A.path, wx=A.x, wy=A.y; if(P){ while(A.pi<P.length-1 && Math.hypot(P[A.pi][0]-S.x,P[A.pi][1]-S.y)<2.5*UM) A.pi++; wx=P[Math.min(A.pi,P.length-1)][0]; wy=P[Math.min(A.pi,P.length-1)][1]; }
   var want=Math.atan2(wy-S.y,wx-S.x), look=(P?1.6:3)*UM, offs=[0,.35,-.35,.7,-.7,1.05,-1.05,1.4,-1.4], pick=want;
   for(var i=0;i<offs.length;i++){ var a=want+offs[i]; if(!blockedAt(S.x+Math.cos(a)*look,S.y+Math.sin(a)*look) && !blockedAt(S.x+Math.cos(a)*look*.5,S.y+Math.sin(a)*look*.5)){ pick=a; break; } }
   var turn=angTo(S.yaw,pick), mx=(reduced()?6:3.2)*dt; S.yaw+=Math.max(-mx,Math.min(mx,turn)); S.pitch+=(0.02-S.pitch)*Math.min(1,dt*4);
-  var wd=Math.hypot(wx-S.x,wy-S.y); S.keys={f:Math.abs(turn)<1.2?1:0}; S.run=d>90*UM && wd>30*UM && Math.abs(turn)<.25; }
+  var wd=Math.hypot(wx-S.x,wy-S.y); S.keys={f:Math.abs(turn)<1.2?1:0}; S.run=d>40*UM && wd>12*UM && Math.abs(turn)<.35; }
 /* ── the per-frame part, after the world is drawn with the camera of this frame (C) ── */
+/* the way ahead while walking to a building: a dashed line on the street from your feet along the route (projected each frame; warm, quiet) */
+function mkTrail(ctx){ var A=MK.auto; if(!A||!ctx) return; var P=[[S.x,S.y]], i, pts=[], z=.06*UM; if(A.path) for(i=Math.max(1,A.pi);i<A.path.length;i++) P.push(A.path[i]); P.push([A.x,A.y]);
+  for(i=0;i+1<P.length;i++){ var a=P[i], b=P[i+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]), n=Math.max(1,Math.ceil(L/(1.2*UM))); for(var k=(i?0:1);k<=n;k++) pts.push([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n]); }
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.setLineDash([10,9]); ctx.lineDashOffset=-(performance.now()/40)%19; ctx.strokeStyle='rgba(255,206,120,.85)'; ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=3;
+  var on=false; ctx.beginPath(); for(i=0;i<pts.length&&i<220;i++){ var q=toScr(pts[i][0],pts[i][1],z); if(!q||q[2]>700*UM){ on=false; continue; } ctx.lineWidth=Math.max(1.5,Math.min(7,90/q[2]*UM)); if(on) ctx.lineTo(q[0],q[1]); else { ctx.moveTo(q[0],q[1]); on=true; } }
+  ctx.stroke(); ctx.restore(); }
 function markDraw(ctx){
   if(!S.on || !MK.layer) return; if(!MK.on){ MK.layer.style.visibility='hidden'; return; } var now=performance.now(), dt=MK.last?Math.min(.1,(now-MK.last)/1000):.016; MK.last=now;
   var hide=IN.on||DR.busy; MK.layer.style.visibility=hide?'hidden':''; if(MK.ui) MK.ui.p.style.visibility=hide?'hidden':''; if(hide){ return; }
+  mkTrail(ctx); if(MK.hi){ MK.hi.t-=dt; if(MK.hi.t<=0) MK.hi=null; }
   var L=mkList(); mkSync(L); var W=R.w, H=R.h, cand=[], i, it, fc=Math.cos(S.yaw), fs=Math.sin(S.yaw), half=Math.atan(W/2/(C.foc||W/2));
   /* the reticle: the building under the middle of the view, within 160 m */
   MK.hov=null; var hb=1e9;
@@ -296,6 +317,7 @@ function markMapPaint(){
 function markKey(e){
   if(!MK.on || IN.on) return false; var k=e.key;
   if(MK.auto && (keyName(e) || k==='Escape')){ markStop('Stopped.'); return k==='Escape'; }
+  if(k==='Enter' && MK.tgt && !MK.auto && !DR.cur){ markWalk(MK.tgt); return true; }
   if(MK.turn && keyName(e)) MK.turn=null;
   if(e.repeat) return false;
   if(k==='n'||k==='N'||e.code==='KeyN'){ markNext(e.shiftKey?-1:1); return true; }
@@ -312,17 +334,22 @@ function markOpenLm(it){
   if(DR.busy || !S.on || typeof window.showDetail!=='function') return false; DR.busy=1; var tok=++DR.tok;
   DR.mem={x:S.x, y:S.y, yaw:S.yaw, pitch:S.pitch, view:S.view, id:null, page:it.page, name:it.name, ex:S.x, ey:S.y, eyaw:S.yaw, real:!!S.real};
   clearKeys(); markStop(null); veil(1, reduced()?0:FADE_MS); setTimeout(function(){ if(tok!==DR.tok) return; DR.busy=2; openDetail(DR.mem); }, reduced()?0:FADE_MS); return true; }
-function markReset(){ MK.auto=null; MK.turn=null; MK.tgt=null; MK.hov=null; MK.last=0; MK.list=null; MK.ver=-1; MK.mapBg=null; MK.mapVer=-1;
+function markReset(){ markFadeStop(); mkPillOff(); MK.hi=null; MK.auto=null; MK.turn=null; MK.tgt=null; MK.hov=null; MK.last=0; MK.list=null; MK.ver=-1; MK.mapBg=null; MK.mapVer=-1;
   for(var i=0;i<MK.labs.length;i++){ var lb=MK.labs[i]; lb.it=null; lb.t={}; lb.el.style.opacity='0'; } }
 var MARKAPI={ layout:mkLayout, pri:mkPri, want:mkWant, list:function(){ return mkList().map(function(it){ return {id:it.id, k:it.k, num:it.num, name:it.name, col:it.col, x:it.x, y:it.y, h:it.h, d:it.d, a:it.a, occ:it.occ, door:!!it.door, page:it.page}; }); },
   state:function(){ var s=MK.labs.filter(function(l){ return l.it; }).map(function(l){ return {id:l.it.id, a:l.it.a, occ:l.it.occ, x:l.it.pl&&l.it.pl.x, y:l.it.pl&&l.it.pl.y, w:l.it.mw&&l.it.mw[0]}; });
     return {labels:s, path:MK.auto&&MK.auto.path?MK.auto.path.length:0, astar:MK.astar||0, tgt:MK.tgt&&MK.tgt.id, hov:MK.hov&&MK.hov.id, auto:!!MK.auto, turn:!!MK.turn, map:MK.map, near:MK.near, said:MK.said, pool:MK.labs.length}; },
+  trip:function(){ return {last:MK.last1||null, trips:MK.trips||0, arrived:MK.arrived||0}; }, go:function(id){ var it=mkList().filter(function(q){ return q.id===id; })[0]; return markWalk(it); },
   next:markNext, aim:function(id){ var it=mkList().filter(function(q){ return q.id===id; })[0]; return markAim(it,true); }, walk:markWalk, stop:markStop, steer:markSteer, nearest:function(n){ return markNearest(n).map(function(it){ return it.id; }); },
   enable:function(v){ MK.on=!!v; if(!MK.on && MK.layer){ MK.layer.style.visibility='hidden'; } return MK.on; },
   toggleMap:markMapToggle, toggleNear:markNearToggle, occ:mkOcc, cfg:{MAX:MK_MAX, FAR:MK_FAR, FULL:MK_FULL} };
 """
 
 CSS_MARK = r"""
+  #pal-ride .mk-go{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:7px 9px 7px 15px;border-radius:999px;background:rgba(14,16,26,.7);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 13px system-ui,-apple-system,sans-serif;opacity:0;transition:opacity .3s;pointer-events:auto;max-width:min(80vw,520px);}
+  #pal-ride .mk-go span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #pal-ride .mk-go button{flex:none;width:24px;height:24px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:12px;}
+  #pal-ride .mk-veil{position:absolute;inset:0;background:#05060a;opacity:0;transition:opacity .25s ease;pointer-events:none;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.75);font:500 14px system-ui,-apple-system,sans-serif;z-index:5;}
   #pal-ride .mk-layer{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;overflow:hidden;}
   #pal-ride .mk-lab{position:absolute;left:0;top:0;height:26px;will-change:transform,opacity;pointer-events:none;}
   #pal-ride .mk-card{position:relative;display:flex;align-items:center;gap:7px;height:26px;box-sizing:border-box;padding:0 10px 0 4px;border-radius:13px;pointer-events:auto;cursor:pointer;
