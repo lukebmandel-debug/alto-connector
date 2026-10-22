@@ -31,7 +31,7 @@ CELL = 2048                      # page px per tile cell side (about 1.4 km in N
 ZONE_PAD = 2048                  # page px round the districts kept at full detail in the base (whole cells)
 TE_LONG = 4000                   # page px: a loose line this long (about 2.5 km in New York) is a road drawn at every zoom (base)
 PARK_SMALL = 2                   # a park of size class z at or under this outside the zone is drawn only close in (tiles) ...
-PARK_BASE_PX2 = 2.5e6            # ... unless it is this big (page px^2, about 75 ha in New York): the big parks show at every zoom
+PARK_BASE_PX2 = 5.0e6            # ... unless it is this big (page px^2, about 150 ha in New York): the big parks show at every zoom
 BASE_MAX = 350 * 1024            # gzipped: the base is fetched before the palace draws (the build warns past it)
 TILE_MAX = 64 * 1024             # gzipped: a tile over this is split into its four quarters
 OFFLINE_REACH = 3                # cells round the zone an offline copy carries inline (past them it shows the base's overview)
@@ -192,6 +192,8 @@ def cut(m, blocks, districts, fill=None, directory=None):
         big = (pk.get("z") or 0) > PARK_SMALL or sum(_area(r) for r in rs) >= PARK_BASE_PX2
         (put(c, "parks", pk) if rs and not big and not _inside(c, z) else keep.append(pk))
     m["parks"] = keep
+    for nm in m.pop("nb", None) or []:                  # the close-in neighbourhood names (city_outer_lattice): always tile detail
+        put(_cell(nm["x"], nm["y"]), "nb", nm)
     blocks = [b for b in blocks or () if _inside(_cell(b["x"], b["y"]), z)] if blocks is not None else blocks
     for key, part in ((fill or {}).pop("parts", None) or {}).items():
         T(tuple(key) if not isinstance(key, str) else tuple(int(v) for v in key.split(",")))["f"] = part
@@ -236,6 +238,8 @@ def _emit(c, t, depth=0, key=None):
                 x, y = _mid(it)
             elif k == "streets":
                 x, y = _mid(it.get("p") or [x0, y0])
+            elif k == "nb":
+                x, y = it["x"], it["y"]
             else:
                 rs = it.get("r") or [[x0, y0, x0, y0, x0, y0]]
                 x, y = _ringc(rs[0])
@@ -282,7 +286,7 @@ def page_js(out: dict, fill, directory=None) -> str:
                     inline["t-" + h] = json.loads(txt)
     if inline:
         js += "\nwindow._ALTO_CITY_F=" + js_json(inline, separators=(",", ":")) + ";"
-    return MARK0 + js + MARK1
+    return MARK0 + js + "\n" + MARK1                  # (";\n" ends the data, as it always did: the tests and tools read it so)
 
 
 # the site's page: the base, from the site, merged into window._ALTO_PALACE before the palace script reads it
@@ -416,7 +420,7 @@ function ctFetch(c){ c.st=1; CTL++;
     .catch(function(){ CTL--; c.st=3; }); }
 /* where the city is shown now: the board (desktop) and the phone's map page, each with its view in map px */
 function ctTargets(){ var t=[]; if(svgD && palaceOn()){ var v=ctView(); if(v) t.push([svgD, v]); }
-  if(MM.svg && MM.box && MM.box.offsetParent!==null && typeof PM!=='undefined' && PM.W && PM.z){ var z=PM.z;
+  if(MM.svg && MM.box && MM.box.classList.contains('on') && typeof PM!=='undefined' && PM.W && PM.z){ var z=PM.z;
     t.push([MM.svg, [PM.sx/z-MX, PM.sy/z-MY, (PM.sx+PM.W)/z-MX, (PM.sy+PM.H)/z-MY]]); }
   return t; }
 function ctTick(){ if(!CT) return; ctTargets().forEach(function(tv){ ctTick1(tv[0], tv[1]); }); if(CTpend.length && !CTraf) CTraf=requestAnimationFrame(ctStep); }
@@ -468,10 +472,11 @@ function ctDraw(svg, c, fade){
   var sg=ctG(L.st, c, sid, fade, true); stubes(sg, byU, tc, 3.6, 't-min');
   var byL={}; sts.forEach(function(st){ if(st.L) lruns(st.p).forEach(function(r){ byL[r.u]=(byL[r.u]||'')+rp(r.p); }); });
   if(Object.keys(byL).length) stubes(sg, byL, tc, 5.6, 't-maj');
-  var pkn=(T.parks||[]).filter(function(pk){ return pk.n && pk.t; });
-  if(L.lb && (sts.length || pkn.length)){ var lg=ctG(L.lb, c, sid, fade), M0=M, mj=T.mj||sts.map(function(s){ return s.n; }).filter(Boolean);
+  var pkn=(T.parks||[]).filter(function(pk){ return pk.n && pk.t; }), nbs=T.nb||[];
+  if(L.lb && (sts.length || pkn.length || nbs.length)){ var lg=ctG(L.lb, c, sid, fade), M0=M, mj=T.mj||sts.map(function(s){ return s.n; }).filter(Boolean);
     if(sts.length){ M={streets:sts, majors:mj, top:[]}; try{ streetLabels(svg, L.defs, lg); } finally { M=M0; } }
-    pkn.forEach(function(pk){ var t=lbl(lg, 'pl-pkt', pk.n, pk.t[0], pk.t[1]); t._g=[pk.t[0], pk.t[1], 0]; t._up=.35; }); }
+    pkn.forEach(function(pk){ var t=lbl(lg, 'pl-pkt', pk.n, pk.t[0], pk.t[1]); t._g=[pk.t[0], pk.t[1], 0]; t._up=.35; });
+    nbs.forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':4, 'aria-hidden':'true'},lg); t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; }); }
   if(L.hit && sts.length){ var hg=ctG(L.hit, c, sid, false); sts.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hg); h._n=s.n; }); }
   if(T.f && !c.fl){ c.fl=1; ctFillAdd(T.f); }
   if(fade) requestAnimationFrame(function(){ (c.g[sid]||[]).forEach(function(g){ g.classList.remove('ct-new'); }); });

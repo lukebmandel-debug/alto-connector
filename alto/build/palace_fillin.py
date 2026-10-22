@@ -979,16 +979,18 @@ def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline
 
 def fill_tiled(m, blocks, districts, bbox, zone, cell, cache_dir=None, level: int = 1, offline: bool = False, ships_out=None, extra=None):
     """set_up's step for a tiled city (palace_tiles.py): the footprints of the whole city box, every level. The page's own fill keeps the
-    zone's buildings and every city's towers (level 1, the skyline at any zoom); the rest go to their cell's tile ("parts"). None when
-    there are no buildings."""
+    city's towers (level 1, the skyline at any zoom) and the zone's level 2; the rest go to their cell's tile ("parts"). None when there
+    are no buildings."""
     raw = fetch_footprints(reach(districts, bbox), tuple(float(v) for v in bbox), cache_dir=cache_dir, offline=offline)
     if ships_out is not None:
         from .palace_boats import find
         ships_out.extend(find(raw, m["bbox"], m.get("scale", 1.0)))
 
     def split(lv, X, Y):
+        """Towers (level 1) everywhere and the zone's level 2 stay on the page's own fill; levels 3-4 (drawn only close in) always go to
+        their cell's tile, the zone's too."""
         c = (math.floor(X / cell), math.floor(Y / cell))
-        if lv == 1 or (zone[0] <= c[0] <= zone[2] and zone[1] <= c[1] <= zone[3]):
+        if lv == 1 or (lv == 2 and zone[0] <= c[0] <= zone[2] and zone[1] <= c[1] <= zone[3]):
             return None
         return "%d,%d" % c
     f = fill_data(raw, m, blocks, split=split, extra=extra)

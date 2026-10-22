@@ -495,7 +495,7 @@ def emit(g, blocks, faces, cr, rr, out, dom_index):
     """Page geometry of one grid into out: tq (each face's outline), te (line runs with no block either side), streets (names, heavy lines)."""
     def P(u, v):
         x, y = g.back(u, v)
-        return [round(x, 1), round(y, 1)]
+        return [round(x), round(y)]                     # whole page px (about half a metre)
     for comp in faces:
         out["tq"].append([v for i, j in _outline(comp) for v in P(g.U(i), g.V(j))])
     for i, runs in cr.items():
@@ -735,7 +735,11 @@ def nyc(g, outer, streets, te, park_cells, roads_light):
                     rs = [r for r in pk.get("r") or [] if len(r) >= 6]
                     if not rs or sum(_ring_area(r) for r in rs) < PARK_MIN_M2 * sc * sc:
                         continue
-                    prs = [[round(v) for q in _pairs(r) for v in to_page(*q)] for r in rs]
+                    from .city_domains import _dp as _dp_
+                    prs = [[round(v) for q in _dp_([to_page(*q) for q in _pairs(r)] + [to_page(*_pairs(r)[0])], 8.0)[:-1] for v in q] for r in rs]
+                    prs = [r_ for r_ in prs if len(r_) >= 6]
+                    if not prs:
+                        continue
                     c = _pairs(prs[0])
                     cx, cy = sum(p[0] for p in c) / len(c), sum(p[1] for p in c) / len(c)
                     if not inside_city(cx, cy):
@@ -784,6 +788,19 @@ def nyc(g, outer, streets, te, park_cells, roads_light):
             return any(bx[0] - 20 <= cx <= bx[2] + 20 and bx[1] - 20 <= cy <= bx[3] + 20 for bx in lmb)
         g["tq"] = [r for r in g["tq"] if not under(r)]
     rep["landmarks"] = len(lmb)
+    # every neighbourhood the map knows, named close in (the spaced ones in g["far"] show at every zoom; palace_tiles puts these in the tiles)
+    far = [(f["x"], f["y"]) for f in g.get("far") or []]
+    nb, seen_n = [], set()
+    for n, k, x, y in outer.places:
+        if n in seen_n or k not in ("suburb", "neighbourhood"):
+            continue
+        X, Y = outer(x, y)
+        if not (0 < X < W and 0 < Y < H) or sea(X, Y) or occ(X, Y) or any(math.hypot(X - a_, Y - b_) < 900 for a_, b_ in far):
+            continue
+        seen_n.add(n)
+        nb.append({"n": n, "x": round(X), "y": round(Y)})
+    g["nb"] = nb
+    rep["names"] = len(nb)
     # the buildings (fill_records), kept on the map for the fill-in (palace.set_up hands them to palace_fillin.fill_data and drops them)
     if bdoms and CTX.get("fill"):
         t1 = _time.time()
