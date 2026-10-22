@@ -2608,6 +2608,13 @@ def build_timeline(timeline_id: str, layout: str = "",
     from .build.private_shell import MAX_PAGE_BYTES, stored_bytes
     report["private_bytes"] = len(private.encode("utf-8"))
     report["private_stored_bytes"] = stored_bytes(private)
+    from .build import palace_tiles
+    if palace_tiles.page_refs(private) and palace_tiles.LAST_BASE.get("gz"):
+        # a palace's city is loaded from the site (build/palace_tiles.py): what the base costs the first time a reader opens it
+        report["city_base_gz"] = palace_tiles.LAST_BASE["gz"]
+        if palace_tiles.LAST_BASE["gz"] > palace_tiles.BASE_MAX:
+            report["warnings"].append(f"the city's base file is {palace_tiles.LAST_BASE['gz'] // 1024} KB compressed, over "
+                                      f"{palace_tiles.BASE_MAX // 1024} KB: the palace opens slowly the first time")
     if report["private_stored_bytes"] > MAX_PAGE_BYTES:
         report["warnings"].append(
             f"private page is {report['private_stored_bytes'] // 1024} KB "

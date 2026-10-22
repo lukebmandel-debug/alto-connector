@@ -41,6 +41,8 @@ def _stamp(html: str, label: str) -> str:
 
 def hosted_timeline(html: str, tid: str) -> str:
     """Built timeline → hosted variant (served at /t/{tid})."""
+    from .build.palace_tiles import strip as strip_city
+    html = strip_city(html)             # a palace's city loads from /cmap/ (build/palace_tiles.py)
     html = _rep(html, "onclick=\"location.href='index.html'\"",
                 "onclick=\"location.href='/'\"", 2, "brand home links")
     html = _rep(html, "location.href='index.html'", "location.href='/'",

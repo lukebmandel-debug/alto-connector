@@ -9,6 +9,8 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
   street  the street-level data of the city (palace_street.py: buildings with their materials and roofs, shop signs, doors, trees, lamps, lanes) for the first-person view — a
           content-hashed JSON blob per city, not a script: every manifest a published page names (m["street"]["h"]), each box's newest and any under two weeks old is published with its shards
           (palace_street.blobs(referenced=...)); a file a page names that the cache lacks is reported (LAST_MISSING -> LAST_STALE), never dropped silently
+  cmap    the city itself (palace_tiles.py): each site page's base (b-<h12>.json: the map, the lots, the fill-in of the zone) and the detail tiles
+          its base names (t-<h10>.json) — every base a published page of this site names now or ever did (published-<site>.txt), with its tiles
   bldg    the Building Palace (palace_view "building"): its renderer (palace_building_asset.py, the blueprint and the seam for the first-person view) and, beside it,
           each published Building Palace's plan as plan-<hash>.json (building_schema.hosted_json), written from the briefs at publish (`assets(building_plans=...)`),
           and the first-person interior renderer (palace_building_fpv.py, fetched by the blueprint the first time someone walks in)
@@ -39,14 +41,14 @@ ASSETS = (
 )
 
 
-BLOB_FOLDERS = ("street",)
+BLOB_FOLDERS = ("street", "cmap")
 
 
 def folders() -> list:
     return [a[0] for a in ASSETS] + list(BLOB_FOLDERS)
 
 
-def assets(street_refs=None, building_plans=None) -> list:
+def assets(street_refs=None, building_plans=None, cmap_refs=None) -> list:
     """[(folder, file name, text)] of every hosted script. `street_refs`: the street manifest hashes the published pages name (all are published; see palace_street.blobs).
     `building_plans`: {file name: JSON text} of the Building Palace plans the published pages name (building_schema.hosted_json), written into /bldg/ beside the renderer."""
     out = []
@@ -58,12 +60,18 @@ def assets(street_refs=None, building_plans=None) -> list:
     out += [(world_geo.FOLDER, name, text) for name, text in world_geo.hosted()]
     from . import palace_street
     out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs(referenced=street_refs)]
+    from . import palace_tiles
+    out += [(palace_tiles.FOLDER, name, text) for name, text in palace_tiles.blobs(referenced=cmap_refs or ())]
     return out
 
 
 def find(path: str, building_plans=None):
     """(content type, text) for a request path such as /fleet/palace-fleet-0123456789.js (or /street/palace-street-0123456789.json) (the QA kit's server uses it), else None."""
     p = path.split("?")[0]
+    from . import palace_tiles
+    hit = palace_tiles.find(p)
+    if hit:
+        return hit
     for folder, name, text in assets(building_plans=building_plans):
         if p == "/" + folder + "/" + name:
             return ("application/json; charset=utf-8" if name.endswith(".json") else "text/javascript; charset=utf-8"), text

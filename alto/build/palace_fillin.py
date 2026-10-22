@@ -400,7 +400,7 @@ def _in_core(core, lat, lon):
 
 
 def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None, far_max: int = 4, why=None, far_tiers=None,
-              far_fronts=False) -> dict:
+              far_fronts=False, split=None, extra=None) -> dict:
     """Footprints on the graph paper, packed. Each building goes into the domain that owns its real centre, through
     that domain's mapping into the block (cell) its centre falls in, snapped square where it is nearly square, and
     clipped `ins` px inside the block's streets. None in a landmark's block, in a park, outside a block (a cell
@@ -408,7 +408,9 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
     green bank (BANK_GAP of the water) or on its trail. A free domain has no blocks: a footprint there is kept as it is
     where it clears every street, park and river by `ins`.
     core (s, w, n, e) and far_max: outside `core` only the levels up to far_max are kept (the size budget, see fill_for).
-    why: a Counter that collects why buildings were left out (the report and the tests)."""
+    why: a Counter that collects why buildings were left out (the report and the tests).
+    split (city tiles, palace_tiles.py): a function (level, page x, page y) -> a tile's key, or None for the page's own fill: each key's
+    records are packed on their own, in "parts" {key: {"L", "h", "n", "c"}} (decoded with this fill's doms and q)."""
     from .palace_banks import BANK_GAP, _Riv
     bbox, scale = m["bbox"], m.get("scale", 1.0)
     reg = m.get("layout") == "manhattan"              # Manhattan's own layout: the graph paper's own building vocabulary (_boxed)
@@ -558,6 +560,45 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
                         (int(round(r[2] / q4)), int(round(r[3] / q4))), (int(round(r[0] / q4)), int(round(r[3] / q4)))])
             if u:
                 recs[3].append((dk, ij[1], ij[0], u, 0, ""))
+    doms_out = [[round(d.a, 4), round(d.o[0], 2), round(d.o[1], 2)] for d in doms]
+    if extra:                                     # buildings placed elsewhere on their own frames (New York's boroughs, city_outer_lattice.fill_records)
+        n0 = len(doms_out)
+        for e in extra["doms"]:
+            dk_[len(doms_out)] = _Frame(*e)
+            doms_out.append(list(e))
+        for lv in range(4):
+            recs[lv] += [(n0 + r[0],) + tuple(r[1:]) for r in extra["recs"][lv]]
+    parts = None
+    if split is not None:
+        groups: dict = {}
+        for lv in range(4):
+            q = QUANT[lv]
+            for r in recs[lv]:
+                u = r[3]
+                x, y = (u[1] * q, u[2] * q) if isinstance(u, tuple) and u and u[0] == "t" else (u[0][0] * q, u[0][1] * q)
+                groups.setdefault(split(lv + 1, *dk_[r[0]].page(x, y)), [[], [], [], []])[lv].append(r)
+        recs = groups.pop(None, [[], [], [], []])
+        parts = {k: dict(zip(("L", "h", "n", "c"), _levels(g))) for k, g in sorted(groups.items())}
+    L, H, N, C = _levels(recs)
+    out = {"v": 2, "doms": doms_out, "q": list(QUANT),
+           "L": L, "h": H, "n": N, "c": C, "ch": [chunk * root_.gv, chunk * root_.gh], "lvl": 0}
+    if parts is not None:
+        out["parts"] = parts
+    return out
+
+
+class _Frame:
+    """A FILL dom given as (angle degrees, origin x, origin y): local -> page."""
+
+    def __init__(self, a, ox, oy):
+        self.c, self.s, self.ox, self.oy = math.cos(math.radians(a)), math.sin(math.radians(a)), ox, oy
+
+    def page(self, x, y):
+        return (x * self.c - y * self.s + self.ox, x * self.s + y * self.c + self.oy)
+
+
+def _levels(recs):
+    """(L, h, n, c) of the four levels' records: each level's stream, the drawn sides' depths and the names (levels 1-2), the counts."""
     L, H, N, C = [], [], [], []
     for lv in range(4):
         s, hs, ns, cnt = _encode(recs[lv], strips=lv >= 2)
@@ -568,8 +609,7 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
             H.append("".join(str(min(9, int(round(h / 22)))) for h in hs))
             ix = sorted(int(k) for k in ns)
             N.append([",".join(str(b - a) for a, b in zip([0] + ix, ix)), "|".join(ns[str(k)].replace("|", "/") for k in ix)])
-    return {"v": 2, "doms": [[round(d.a, 4), round(d.o[0], 2), round(d.o[1], 2)] for d in doms], "q": list(QUANT),
-            "L": L, "h": H, "n": N, "c": C, "ch": [chunk * root_.gv, chunk * root_.gh], "lvl": 0}
+    return L, H, N, C
 
 
 def block_fronts(boxes, x0, y0, x1, y1, ins=INSET):
@@ -935,6 +975,30 @@ def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline
         if core is not None and core == reach(districts, bbox, REACH_KM) and not districts:
             break                                      # no districts: the reach is the whole box already
     return best
+
+
+def fill_tiled(m, blocks, districts, bbox, zone, cell, cache_dir=None, level: int = 1, offline: bool = False, ships_out=None, extra=None):
+    """set_up's step for a tiled city (palace_tiles.py): the footprints of the whole city box, every level. The page's own fill keeps the
+    zone's buildings and every city's towers (level 1, the skyline at any zoom); the rest go to their cell's tile ("parts"). None when
+    there are no buildings."""
+    raw = fetch_footprints(reach(districts, bbox), tuple(float(v) for v in bbox), cache_dir=cache_dir, offline=offline)
+    if ships_out is not None:
+        from .palace_boats import find
+        ships_out.extend(find(raw, m["bbox"], m.get("scale", 1.0)))
+
+    def split(lv, X, Y):
+        c = (math.floor(X / cell), math.floor(Y / cell))
+        if lv == 1 or (zone[0] <= c[0] <= zone[2] and zone[1] <= c[1] <= zone[3]):
+            return None
+        return "%d,%d" % c
+    f = fill_data(raw, m, blocks, split=split, extra=extra)
+    if not sum(counts(f)) and not f.get("parts"):
+        return None
+    f["lvl"] = level
+    f["reach"] = [round(float(v), 5) for v in bbox]
+    if raw.get("missing"):
+        f["missing"] = raw["missing"]
+    return f
 
 
 # ── the page (only when the palace has fill_z) ─────────────────────────────

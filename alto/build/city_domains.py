@@ -526,7 +526,8 @@ def detect(m, field=None, rivers=None, min_km2=MIN_KM2, merge_deg=MERGE_DEG):
             for a, b in cells:
                 near = {lab[b + dy][a + dx] for dy in range(-2, 3) for dx in range(-2, 3)
                         if 0 <= a + dx < nx and 0 <= b + dy < ny and _isdom(lab[b + dy][a + dx])}
-                per = {c: sum(L for g, L in raw[(a, b)] if cf.lat_dist(g, modes[c]) <= BAND_DEG) for c in near}
+                per = {c: sum(L for g, L in raw[(a, b)] if cf.lat_dist(g, modes[c]) <= BAND_DEG) for c in near
+                       if c < len(modes)}             # (a label with no mode of its own: none in a city that ever built; New York's big regions have them)
                 if per and max(per.values()) > 0:
                     band_pick[(a, b)] = max(per, key=per.get)
             notes.append("irregular pocket of %.2f km2 at cell %s shared out among its grids" % (

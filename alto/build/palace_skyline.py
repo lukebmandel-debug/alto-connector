@@ -374,6 +374,49 @@ class Sky:
         self.add(f'<circle class="lz-f" cx="{_f(cx)}" cy="{_f(cy)}" r="{_f(r)}" fill="url(#lzg-trim-{{s}})"/>'
                  f'<path class="lz-ln" d="M{_f(cx)} {_f(cy)}v{_f(-r * .62)}M{_f(cx)} {_f(cy)}l{_f(r * .44)} {_f(r * .24)}"/>')
 
+    def _wheel(self, p):
+        """A big wheel standing across the view (the Wonder Wheel): an A-frame of two legs, the rim and an inner ring, spokes, cars hung
+        round the rim (on the plan plane of the part before it, `x` across, the hub at height y)."""
+        x, y, r, n = p.get("x", 0), p["y"], p["r"], p.get("n", 16)
+        cx, cy = self.X(x), self.Y(y)
+        g = self.Y(0)
+        self._rec(cx - r - 3, cy - r - 4); self._rec(cx + r + 3, cy + r + 4)
+        legs = f"M{_f(cx - r * .55)} {_f(g)}L{_f(cx)} {_f(cy)}L{_f(cx + r * .55)} {_f(g)}"
+        spokes = "".join(f"M{_f(cx)} {_f(cy)}L{_f(cx + r * math.cos(2 * math.pi * k / n))} {_f(cy + r * math.sin(2 * math.pi * k / n))}" for k in range(n))
+        cars = "".join(f'<rect class="lz-f" x="{_f(cx + r * math.cos(2 * math.pi * k / n) - 1.6)}" y="{_f(cy + r * math.sin(2 * math.pi * k / n) + .4)}" '
+                       f'width="3.2" height="2.6" rx=".8" fill="url(#lzg-{("brick" if k % 3 == 0 else "teal")}-{{s}})"/>' for k in range(n))
+        self.add(f'<path class="lz-ln" d="{legs}" stroke-width="1.8"/>'
+                 f'<circle cx="{_f(cx)}" cy="{_f(cy)}" r="{_f(r)}" class="lz-ln" fill="none" stroke-width="1.6"/>'
+                 f'<circle cx="{_f(cx)}" cy="{_f(cy)}" r="{_f(r * .62)}" class="lz-mu" fill="none"/>'
+                 f'<path class="lz-mu" d="{spokes}"/>' + cars +
+                 f'<circle class="lz-f" cx="{_f(cx)}" cy="{_f(cy)}" r="{_f(max(1.4, r * .08))}" fill="url(#lzg-trim-{{s}})"/>')
+
+    def _oculus(self, p):
+        """A round opening seen in a canopy's face (Barclays Center): a dark ellipse with a light rim."""
+        cx, cy, r = self.X(p.get("x", 0)), self.Y(p["y"]), p["r"]
+        self._rec(cx - r, cy - r * .4); self._rec(cx + r, cy + r * .4)
+        self.add(f'<ellipse class="lz-door" cx="{_f(cx)}" cy="{_f(cy)}" rx="{_f(r)}" ry="{_f(r * .32)}"/>'
+                 f'<ellipse class="lz-ln" cx="{_f(cx)}" cy="{_f(cy)}" rx="{_f(r)}" ry="{_f(r * .32)}" fill="none"/>')
+
+    def _globe(self, p):
+        """A steel globe of meridians and parallels with its continents (the Unisphere), tilted, on a tripod over its pool."""
+        x, y, r = p.get("x", 0), p["y"], p["r"]
+        cx, cy = self.X(x), self.Y(y)
+        g = self.Y(p.get("y0", 0))
+        self._rec(cx - r - 2, cy - r - 2); self._rec(cx + r + 2, cy + r + 2)
+        tilt = math.radians(p.get("tilt", 23.5))
+        mer = "".join(f'<ellipse cx="0" cy="0" rx="{_f(abs(r * math.cos(math.pi * k / 8)))}" ry="{_f(r)}" class="lz-mu" fill="none"/>' for k in range(1, 8))
+        par = "".join(f'<ellipse cx="0" cy="{_f(r * math.sin(a_))}" rx="{_f(r * math.cos(a_))}" ry="{_f(r * math.cos(a_) * .18)}" class="lz-mu" fill="none"/>'
+                      for a_ in (math.radians(v) for v in (-60, -30, 0, 30, 60)))
+        land = (f'<path class="lz-f" fill="url(#lzg-silver-{{s}})" d="M{_f(-r * .55)} {_f(-r * .45)}q{_f(r * .3)} {_f(-r * .2)} {_f(r * .5)} {_f(r * .05)}'
+                f'q{_f(-r * .05)} {_f(r * .35)} {_f(-r * .3)} {_f(r * .55)}q{_f(-r * .25)} {_f(-r * .2)} {_f(-r * .2)} {_f(-r * .6)}z'
+                f'M{_f(r * .1)} {_f(-r * .3)}q{_f(r * .35)} {_f(-r * .15)} {_f(r * .5)} {_f(r * .2)}q{_f(-r * .1)} {_f(r * .45)} {_f(-r * .35)} {_f(r * .6)}'
+                f'q{_f(-r * .1)} {_f(-r * .4)} {_f(-r * .15)} {_f(-r * .8)}z"/>')
+        self.add(f'<path class="lz-ln" d="M{_f(cx - r * .4)} {_f(g)}L{_f(cx)} {_f(cy + r * .72)}L{_f(cx + r * .4)} {_f(g)}M{_f(cx)} {_f(g)}L{_f(cx)} {_f(cy + r * .72)}" stroke-width="1.6"/>'
+                 f'<g transform="translate({_f(cx)} {_f(cy)}) rotate({_f(math.degrees(tilt))})">'
+                 f'<circle cx="0" cy="0" r="{_f(r)}" class="lz-f" fill="url(#lzg-glass-{{s}})" fill-opacity=".28"/>' + land + mer + par +
+                 f'<circle cx="0" cy="0" r="{_f(r)}" class="lz-ln" fill="none" stroke-width="1.4"/></g>')
+
     def _statue(self, p):
         """A figure on top (William Penn on City Hall): a robed body, the head, the hat brim, the arm out."""
         x, y0, y1 = self.X(p.get("x", 0)), p["y0"], p["y1"]
@@ -1339,11 +1382,134 @@ def _municipal():
         {"k": "statue", "y0": 169, "y1": 177}]}
 
 
+# ── New York's other boroughs (city_outer_lattice.LANDMARKS places them): each its own real shape, nothing borrowed ──
+def _barclays():
+    """Barclays Center (SHoP / AECOM, 2012; about 230 x 200 m, 30 m): a low drum wrapped in bands of pre-weathered steel lattice over a glass
+    base, and the oculus: a cantilevered canopy over the plaza at Flatbush and Atlantic with its round opening."""
+    W, D = 230.0, 200.0
+    R = _ccw(_chaikin(_super(W, D, 2.4, 40), 2))
+    return {"h": 32, "D": D, "fit": 1, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 9, "m": "glass", "fl": 4.5, "mu": 3, "top": False},
+        {"k": "drum", "ring": _inset(R, 2), "x": 0, "w": W - 4, "v": 2, "d": D - 4, "y0": 9, "h": 27, "m": "bronze", "fl": 3, "mu": 2, "top": False},
+        {"k": "drum", "ring": _inset(R, 16), "x": 0, "w": W - 32, "v": 16, "d": D - 32, "y0": 27, "h": 32, "m": "slate", "tm": "slate", "mu": 99},
+        {"k": "box", "w": 96, "v": -30, "d": 46, "y0": 15, "y1": 18.5, "m": "bronze", "sheen": False},
+        {"k": "oculus", "x": 0, "y": 16.8, "r": 7},
+        {"k": "door", "w": 16, "h": 9}]}
+
+
+def _yankee():
+    """Yankee Stadium (HOK Sport, 2009; about 290 x 260 m): a limestone and granite wall of tall arches round the bowl, the frieze along
+    the grandstand roof, the field inside with its diamond, floodlights over the stands."""
+    W, D = 290.0, 260.0
+    R = _ccw(_chaikin(_super(W, D, 2.3, 44), 2))
+    hp = (-12.0, 92.0)
+    O = _inset(R, 30)
+    return {"h": 50, "D": D, "fit": 1, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 28, "m": "sand", "fl": 9.5, "mu": 4, "hole": O, "tm": "trim"},
+        {"k": "pit", "id": "yank", "ring": O, "top": 28, "floor": 1, "tiers": 7, "pit": .52, "pc": hp, "field": "diamond", "home": hp, "axis": 62.0},
+        {"k": "cols", "w": 120, "y0": 2, "y1": 22, "n": 11},
+        *[{"k": "mast", "x": _on(R, a_, 18)[0], "v": _on(R, a_, 18)[1], "y0": 28, "y1": 52, "w": 2.8} for a_ in (200, 320, 95, 25)],
+        {"k": "door", "w": 16, "h": 12}]}
+
+
+def _citi():
+    """Citi Field (Populous, 2009; about 260 x 270 m): a red-brick ballpark with the arched Jackie Robinson Rotunda at its front, the stands
+    stepping down to the outfield, the diamond inside, floodlights."""
+    W, D = 260.0, 270.0
+    R = _ccw(_chaikin(_super(W, D, 2.2, 44), 2))
+    hp = (8.0, 96.0)
+    O = _inset(R, 26)
+    return {"h": 46, "D": D, "fit": 1, "parts": [
+        {"k": "drum", "ring": R, "x": 0, "w": W, "v": 0, "d": D, "y0": 0, "h": 24, "m": "brick", "fl": 6, "mu": 3, "hole": O, "tm": "sand"},
+        {"k": "pit", "id": "citi", "ring": O, "top": 24, "floor": 1, "tiers": 6, "pit": .5, "pc": hp, "field": "diamond", "home": hp, "axis": 66.0},
+        {"k": "box", "w": 54, "v": -8, "d": 20, "y0": 0, "y1": 21, "m": "brick", "fl": 7, "mu": 5},
+        {"k": "cols", "w": 44, "y0": 2, "y1": 15, "n": 5},
+        *[{"k": "mast", "x": _on(R, a_, 16)[0], "v": _on(R, a_, 16)[1], "y0": 24, "y1": 48, "w": 2.6} for a_ in (210, 330, 100, 30)],
+        {"k": "door", "w": 12, "h": 10}]}
+
+
+def _unisphere():
+    """The Unisphere (Gilmore Clarke, 1964; a steel globe 37 m across, 43 m high): the meridians, parallels and continents of a tilted world on
+    a three-legged base, over its round reflecting pool in Flushing Meadows."""
+    return {"h": 44, "D": 90, "parts": [
+        {"k": "drum", "ring": _ccw(_super(90, 90, 2.0, 48)), "x": 0, "w": 90, "v": 0, "d": 90, "y0": 0, "h": 0.8, "m": "glass", "mu": 99},
+        {"k": "globe", "x": 0, "y": 25, "r": 18.5, "y0": 0.8, "tilt": 23.5}]}
+
+
+def _wonderwheel():
+    """The Wonder Wheel (Coney Island, 1920; 45.7 m): an eccentric steel wheel on its A-frame, the cars round the rim, on the boardwalk."""
+    return {"h": 46, "D": 14, "parts": [
+        {"k": "box", "w": 34, "d": 14, "y0": 0, "y1": 3, "m": "trim", "sheen": False},
+        {"k": "wheel", "x": 0, "y": 24, "r": 21, "n": 16}]}
+
+
+def _parachute():
+    """The Parachute Jump (Coney Island, 1939; 76 m): an open steel tower, braced, and its round crown of twelve arms like an opened parachute."""
+    return {"h": 77, "D": 14, "parts": [
+        {"k": "box", "w": 14, "w1": 6, "d": 14, "y0": 0, "y1": 64, "m": "brick", "solid": 1, "fl": 99, "mu": 99, "sheen": False},
+        {"k": "brace", "w": 14, "w1": 6, "y0": 0, "y1": 64, "n": 8},
+        {"k": "dome", "w": 30, "d": 30, "y0": 64, "y1": 72, "m": "brick"},
+        {"k": "spire", "y0": 72, "y1": 77, "w": 1.6}]}
+
+
+def _stgeorge():
+    """The St. George Ferry Terminal (Staten Island, 2005): a long glass waiting hall under a great curved roof, the ferry slips at its back."""
+    return {"h": 24, "D": 70, "parts": [
+        {"k": "box", "w": 150, "d": 70, "y0": 0, "y1": 14, "m": "glass", "fl": 7, "mu": 8},
+        {"k": "vault", "w": 150, "d": 70, "y0": 14, "y1": 24, "m": "silver"},
+        {"k": "box", "w": 40, "v": -10, "d": 12, "y0": 9, "y1": 11, "m": "silver", "sheen": False},
+        {"k": "door", "w": 12, "h": 8}]}
+
+
+def _bkmuseum():
+    """The Brooklyn Museum (McKim, Mead & White, 1897): a Beaux-Arts front of giant columns under a pediment and a frieze of figures, the low
+    dome behind, the glass entrance pavilion of 2004 at its foot."""
+    return {"h": 46, "D": 70, "parts": [
+        {"k": "box", "w": 150, "d": 70, "y0": 0, "y1": 30, "m": "sand", "solid": 1, "fl": 10, "mu": 9, "sheen": False},
+        {"k": "cols", "w": 60, "y0": 6, "y1": 27, "n": 6},
+        {"k": "pediment", "w": 64, "y0": 30, "y1": 37, "m": "sand"},
+        {"k": "dome", "w": 30, "cv": 40, "d": 30, "y0": 30, "y1": 46, "m": "green"},
+        {"k": "box", "w": 70, "v": -14, "d": 14, "y0": 0, "y1": 6, "m": "glass", "sheen": False},
+        {"k": "door", "w": 10, "h": 6}]}
+
+
+def _arch():
+    """The Soldiers' and Sailors' Arch (Grand Army Plaza, 1892; 24 m): a granite triumphal arch, its great opening, the quadriga on top."""
+    return {"h": 33, "D": 16, "parts": [
+        {"k": "box", "w": 24, "d": 16, "y0": 0, "y1": 24, "m": "granite", "solid": 1, "fl": 99, "mu": 99, "sheen": False},
+        {"k": "door", "w": 11, "h": 17},
+        {"k": "box", "w": 26, "d": 17, "y0": 20, "y1": 22, "m": "trim", "sheen": False},
+        {"k": "statue", "y0": 24, "y1": 33}]}
+
+
+def _conservatory():
+    """The Enid A. Haupt Conservatory (New York Botanical Garden, 1902): a Victorian glasshouse, the tall central palm dome on its drum and the
+    long glass wings either side."""
+    return {"h": 28, "D": 40, "parts": [
+        {"k": "box", "w": 110, "d": 26, "y0": 0, "y1": 9, "m": "glass", "fl": 4.5, "mu": 3},
+        {"k": "vault", "w": 110, "d": 26, "y0": 9, "y1": 13, "m": "glass"},
+        {"k": "drum", "ring": _ccw(_super(30, 30, 2.0, 32)), "x": 0, "w": 30, "v": -2, "d": 30, "y0": 0, "h": 16, "m": "glass", "fl": 4, "mu": 2, "top": False},
+        {"k": "dome", "w": 30, "cv": 13, "d": 30, "y0": 16, "y1": 28, "m": "glass"},
+        {"k": "door", "w": 6, "h": 5}]}
+
+
+def _cloisters():
+    """The Met Cloisters (Fort Tryon Park, 1938): a medieval-style monastery of grey granite on its hill, the square tower with its low hipped
+    roof over the cloister walls."""
+    return {"h": 40, "D": 60, "parts": [
+        {"k": "box", "w": 120, "d": 60, "y0": 0, "y1": 14, "m": "granite", "solid": 1, "fl": 99, "mu": 12, "sheen": False},
+        {"k": "box", "w": 22, "d": 22, "cv": 30, "y0": 14, "y1": 34, "m": "granite", "solid": 1, "fl": 99, "mu": 3, "sheen": False},
+        {"k": "hip", "w": 24, "d": 24, "cv": 30, "y0": 34, "y1": 40, "m": "brick"},
+        {"k": "door", "w": 6, "h": 6}]}
+
+
 LANDMARKS = {"ind": _independence, "city": _cityhall, "art": _artmuseum, "frank": _franklin, "conv": _convention,
              "stn": _station, "sub": _suburban, "jef": _jefferson, "arena": _arena, "stad": _stadium, "lff": _lff, "cbp": _cbp, "gen": _generic, "usch": _usch, "nix": _nix, "cjc": _cjc,
              "lib1": _lib1, "lib2": _lib2, "ccc": _ccc, "ctc": _ctc, "bny": _bny, "tls": _tls, "cira": _cira, "fmc": _fmc,
              "esb": _esb, "owtc": _owtc, "chry": _chrysler, "wool": _woolworth, "flat": _flatiron, "ovan": _vanderbilt, "rock": _rockefeller,
-             "p432": _p432, "boa": _boa, "gct": _grandcentral, "penn": _pennstation, "un": _unitednations, "nych": _nycityhall, "muni": _municipal}
+             "p432": _p432, "boa": _boa, "gct": _grandcentral, "penn": _pennstation, "un": _unitednations, "nych": _nycityhall, "muni": _municipal,
+             "bcl": _barclays, "yank": _yankee, "citi": _citi, "uni": _unisphere, "ww": _wonderwheel, "pj": _parachute, "sgt": _stgeorge,
+             "bkm": _bkmuseum, "ssa": _arch, "nybg": _conservatory, "clo": _cloisters}
 
 
 COURTS = {}     # the page's courthouse for any city: one per type and level, stretched to the record's height / width

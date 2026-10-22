@@ -52,7 +52,7 @@ from . import palace_place as pp
 
 PALACE_KEYS = {"place", "area", "bbox", "districts", "majors", "landmarks", "diagonals", "lines",
                "buildings", "parks", "areas", "portals", "scale", "data_z", "made", "transit", "preset",
-               "fill_z", "banners"}      # banners: giant words across a river (palace_areas.py); fill_z: the simulated buildings (palace_fillin.py; absent = off)
+               "fill_z", "banners", "boroughs"}      # boroughs: what New York's full boroughs drew (city_outer_lattice.nyc); banners: giant words across a river (palace_areas.py); fill_z: the simulated buildings (palace_fillin.py; absent = off)
 
 
 # ── the packed city ────────────────────────────────────────────────────────
@@ -368,10 +368,9 @@ def palace_data(b, nodes) -> str:
            "par": par, "num": num, "tw": tw, "fn": fn, "near": near, "d": dist, "place": pal.get("place") or m.get("place") or "",
            "lm0": ls["lm"], "lmtop": ls["top"], "pl0": pl0,
            "tk": sorted(getattr(b, "_tower_kids", ())), "nb": nb0, "po": check_portals(pal.get("portals"))}
-    js = "\nwindow._ALTO_PALACE=" + js_json(out, separators=(",", ":")) + ";"
-    if pal.get("fill_z"):                           # fill-in (palace_fillin.py): only a palace that has it says anything
-        js += "\nwindow._ALTO_FILL=" + js_json(unpack(pal["fill_z"]), separators=(",", ":")) + ";"
-    return js
+    # the city (palace_tiles.py): inline here (timeline.html, the offline copy); the site's pages load it from /cmap/ (palace_tiles.strip)
+    from .palace_tiles import page_js
+    return page_js(out, unpack(pal["fill_z"]) if pal.get("fill_z") else None)   # fill-in (palace_fillin.py): only a palace that has it says anything
 
 
 def palace_js(b) -> str:
@@ -384,6 +383,12 @@ def palace_js(b) -> str:
         if mm.get("ghost"):                         # Manhattan's layout: the far banks' faint grid (palace_manhattan_js.py)
             from .palace_manhattan_js import patch_js as ghost_js
             js = ghost_js(js)
+        if mm.get("tun") or mm.get("fy"):           # tunnels and ferries (palace_crossings.py)
+            from .palace_crossings import patch_js as cross_js
+            js = cross_js(js)
+        if (mm.get("ct") or {}).get("c"):           # city tiles (palace_tiles.py): the detail past the zone, loaded as the board is zoomed in
+            from .palace_tiles import patch_js as tiles_js
+            js = tiles_js(js)
         if mm.get("layout") == "manhattan" and any(f.get("k") for f in mm.get("far") or ()):
             from .palace_manhattan_js import patch_labels       # the five boroughs' borough-sized and water names
             js = patch_labels(js)
@@ -399,10 +404,21 @@ def palace_js(b) -> str:
 
 
 def palace_css(b) -> str:
+    css = PALACE_CSS
     if (b.palace or {}).get("fill_z"):
         from .palace_fillin import FILL_CSS
-        return PALACE_CSS + FILL_CSS
-    return PALACE_CSS
+        css += FILL_CSS
+    try:
+        mm = unpack(b.palace["data_z"])["map"]
+        if (mm.get("ct") or {}).get("c"):
+            from .palace_tiles import TILES_CSS
+            css += TILES_CSS
+        if mm.get("tun") or mm.get("fy"):
+            from .palace_crossings import CROSS_CSS
+            css += CROSS_CSS
+    except Exception:                               # noqa: BLE001 — a palace whose data cannot be read has no tiles
+        pass
+    return css
 
 
 def check_portals(portals) -> list:
@@ -427,7 +443,7 @@ def check_portals(portals) -> list:
 def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale: float = 1.0,
            cache_dir=None, diagonals=None, lines=None, buildings=None, parks=None, areas=None, portals=None,
            raw=None, tiled: bool = False, offline: bool = False, transit=None, preset=None,
-           far_bank: bool = False, fill: bool = False) -> dict:
+           far_bank: bool = False, fill: bool = False, city_tiles: bool = True) -> dict:
     """lines: hypothetical railways [{name, color?, stops: [names]}]; buildings:
     the landmark buildings [{name, page?, label?}] (palace_grid.grid); parks: names
     of parks to draw whatever their size (palace_parks; the big ones are drawn anyway); areas: the
@@ -437,7 +453,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     touch the network. transit: the real networks to draw (city_presets' `transit` field), kept with the city for
     the transit reader. preset: the city preset's id (or "auto" for the generic set-up), kept for the record.
     far_bank: keep the land across a wide river (Brooklyn and Queens facing Manhattan, Cambridge across the
-    Charles) instead of cutting it away as the city's edge (palace_map's wide-river rule)."""
+    Charles) instead of cutting it away as the city's edge (palace_map's wide-river rule). city_tiles: the detail past the districts
+    (+ about 1.5 km) goes to hosted tiles the page loads as it is zoomed in (palace_tiles.py), and the fill-in covers the whole city."""
     """Fetch and prepare a city: the brief.palace dict to store (data_z packed)."""
     from .. import palace_map as pm
     from .palace_areas import check_areas, default_areas
@@ -470,6 +487,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
         for o in lms)]
     if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
         from .city_manhattan import LAYOUT
+        from . import city_outer_lattice                 # ... and every street of the other boroughs, from the cached tiles
+        city_outer_lattice.CTX.update(cache_dir=cache_dir, offline=offline, fill=fill)
         m["layout"] = LAYOUT
         try:                                             # the other four boroughs, drawn lighter around it (city_boroughs.py)
             from .city_boroughs import fetch as fetch_boroughs
@@ -495,15 +514,25 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     except Exception:                                       # noqa: BLE001 — a river that cannot be read keeps the streets as drawn
         pass
     blocks = m.pop("blocks")
+    bfill = m.pop("bfill", None)                          # New York's boroughs: their buildings (city_outer_lattice.fill_records)
+    m.pop("bdoms", None)
+    breport = m.pop("boroughs", None)
     # fill-in (palace_fillin.py): the real buildings of the whole city box (past the districts + 1 km as the size budget allows), opening on level 1 (Skyline).
     # Never fatal: a busy Overpass leaves the palace without them (set_up_palace again adds them).
-    fz, ships = None, []
+    fz, ships, fz_tiled = None, [], None
+    from . import palace_tiles
+    zone = palace_tiles.zone_cells(m, districts or []) if city_tiles else None
     if fill:
         try:
-            from .palace_fillin import fill_for
-            fz = fill_for(m, blocks, districts or [], bbox, cache_dir=cache_dir, offline=offline, ships_out=ships)
+            if zone is not None:
+                from .palace_fillin import fill_tiled
+                fz_tiled = fill_tiled(m, blocks, districts or [], bbox, zone, palace_tiles.CELL, cache_dir=cache_dir, offline=offline, ships_out=ships,
+                                      extra=bfill)
+            else:
+                from .palace_fillin import fill_for
+                fz = fill_for(m, blocks, districts or [], bbox, cache_dir=cache_dir, offline=offline, ships_out=ships)
         except Exception:                                   # noqa: BLE001 — network, Overpass
-            fz = None
+            fz = fz_tiled = None
     # boats (palace_boats.py): a ship is put in the river's water, not on a block, and is no landmark card
     try:
         from .palace_boats import find as find_ships, place as place_ships
@@ -542,6 +571,11 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
         palace_buses.attach(m, palace_buses.fetch(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline))
     except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with no bus relations: no buses
         pass
+    if zone is not None:
+        # the city tiles (palace_tiles.py): the detail outside the zone into hosted tiles, m["ct"] their index; the fill-in's tiles go with them
+        blocks, _st = palace_tiles.cut(m, blocks, districts or [], fill=fz_tiled)
+        if fz_tiled is not None:                         # (kept even when the zone has none: its doms and q decode the tiles' buildings)
+            fz = pack(fz_tiled)
     out = {"place": place, "bbox": list(bbox), "districts": districts or [],
            "majors": majors or [], "landmarks": landmarks or [], "diagonals": diagonals or [],
            "lines": lines or [], "buildings": buildings or [], "parks": parks or [], "areas": areas, "portals": check_portals(portals), "scale": scale,
@@ -549,6 +583,8 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
            "data_z": pack({"map": m, "blocks": blocks})}
     if fz:
         out["fill_z"] = fz
+    if breport:
+        out["boroughs"] = breport                          # what the full boroughs drew (city_outer_lattice.nyc), for the record
     return out
 
 

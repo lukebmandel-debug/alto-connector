@@ -1049,6 +1049,7 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
     the real water of the whole city as one shape around them; no faint far-bank grid then."""
     outer.setup(o, shore_real)
     outer.sea_real()
+    light = []                                                      # what the full boroughs (city_outer_lattice) may replace
     for (n, c, br), pg in outer.roads_page(man):
         p = [round(v) for q in pg for v in q]
         if c <= 2:
@@ -1058,8 +1059,11 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
             if br:
                 st["o"] = 1
             streets.append(st)
+            if c == 2 and not br:
+                light.append(("st", st))
         else:
             te.append(p)
+            light.append(("te", p))
     if man is not None:                                             # an East River bridge the outer roads lack (the Manhattan
         from .city_boroughs import _merge                           # Bridge's span): from the island's own streets, each point
         have = {s_["n"] for s_ in streets if s_.get("o")}           # by the mapping that draws its ground
@@ -1073,6 +1077,7 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
                     streets.append({"n": norm(bn), "k": 0, "o": 1, "L": 1, "p": [round(v) for q in pg for v in q]})
     park_cells += outer.parks_page()
     g["far"] = outer.names_page(man)
+    g["tun"], g["fy"] = outer.crossings_page(man)                 # tunnels and ferries (palace_crossings.py)
     xs = [v for s in streets for v in s["p"][0::2]] + [v for t in te for v in t[0::2]]
     ys = [v for s in streets for v in s["p"][1::2]] + [v for t in te for v in t[1::2]]
     g["W"] = int(max(max(xs), outer.ext[0] + o[0]) + 900)
@@ -1082,6 +1087,12 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
     g["sea"] = [[round(v) for p in _chaikin(r + r[:1], 1)[:-1] for v in p] for r in rings if len(r) >= 3]
     g["land"] = [flat(ring)] + outer.isles_page()
     g.pop("ghost", None)
+    # every street of the other boroughs and upper Manhattan, on the page where it really runs (city_outer_lattice.py)
+    from . import city_outer_lattice
+    try:
+        g["boroughs"] = city_outer_lattice.nyc(g, outer, streets, te, park_cells, light)
+    except Exception as e:                                          # noqa: BLE001 — the lighter boroughs stay
+        import traceback; g["boroughs"] = {"error": repr(e)[:300], "at": traceback.format_exc()[-900:]}
 
 
 def _ghost(w_out, e_out, top, o=(OX, OY)):

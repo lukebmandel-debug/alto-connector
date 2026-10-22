@@ -118,6 +118,8 @@ def _prepare_private(tl: str, tid: str) -> str:
     base URL — but the reports button points at the real viewer, and the
     account panel stays and is wired to the shell's session.
     """
+    from .palace_tiles import strip as strip_city
+    tl = strip_city(tl)                 # a palace's city loads from /cmap/ (palace_tiles.py): the page keeps the cards' data
     tl = _rep(tl, CLOUD_TAG, "", 1, "strip cloud tag (private)")
     tl = _rep(tl, "onclick=\"location.href='index.html'\"",
               "onclick=\"__altoGo('index.html')\"", 2, "private clef+wordmark")

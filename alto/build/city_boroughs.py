@@ -85,6 +85,11 @@ def fetch(cache_dir=None, offline=False, bbox=BBOX) -> dict:
                 rings = _rings(el)
                 if rings:
                     out["parks"].append({"n": tg.get("name", ""), "r": rings})
+    # ferry routes (palace_crossings.py): one small query for the whole box, cached; a city without them draws none
+    fy = _cached(cache_dir, "ferry-%.3f_%.3f_%.3f_%.3f" % tuple(bbox),
+                 '[out:json][timeout:120];way[route=ferry]%s;out geom qt;' % ("(%r,%r,%r,%r)" % tuple(bbox)), offline)
+    out["ferries"] = [{"n": (el.get("tags") or {}).get("name") or "", "p": [round(v, 6) for g in el["geometry"] for v in (g["lat"], g["lon"])]}
+                      for el in (fy or {}).get("elements", []) if el.get("type") == "way" and el.get("geometry")]
     b = _cached(cache_dir, "admin56-%.3f_%.3f_%.3f_%.3f" % tuple(bbox), _boro_query(bbox), offline)
     for el in (b or {}).get("elements", []):
         tg = el.get("tags") or {}
@@ -157,6 +162,9 @@ LABELS = [("Manhattan", 40.7790, -73.9665, 1, "bm"), ("Upper West Side", 40.7870
           ("Flatbush", 40.6409, -73.9566, 3, ""), ("Long Island City", 40.7447, -73.9485, 3, ""),
           ("Flushing", 40.7675, -73.8331, 3, ""), ("Jamaica", 40.7027, -73.7890, 3, ""),
           ("St. George", 40.6437, -74.0736, 3, "")]
+FERRY_SKIP = ("NJ", "Hoboken", "Paulus", "Liberty", "Port Imperial", "Lincoln Harbor", "Edgewater", "Highlands", "Belford", "Sandy Hook",
+              "Amboy", "Martha", "Rail", "IKEA", "Hart Island", "Weehawken", "Jersey")   # ferries of New Jersey and beyond, freight, private
+FERRY_NAMED = ("Staten Island Ferry",)         # the ferry routes named along their line (the rest on hover)
 LABEL_GAP = 900.0         # m: no neighbourhood node this near a fixed name (Governors Island's "Nolan Park")
 
 
@@ -229,6 +237,14 @@ def _dp(pts, tol):
     return _dp(pts[:k + 1], tol)[:-1] + _dp(pts[k:], tol)
 
 
+def _dense(pts, step):
+    out = []
+    for a, b in zip(pts, pts[1:]):
+        n = max(1, int(math.dist(a, b) / step))
+        out += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n)]
+    return out + [pts[-1]]
+
+
 def _merge(lines):
     """Ways of one street joined end to end: [(key, [points])] -> [(key, [points])] (fewer, longer)."""
     out = []
@@ -274,6 +290,8 @@ class Outer:
         self.city = _Rings([P(r) for r in d["boroughs"].get("New York", [])])
         self.boros = {n: [P(r) for r in rs] for n, rs in d["boroughs"].items() if n != "New York"}
         self.roads = [((r["n"], r["c"], r["br"]), P(r["p"])) for r in d["roads"] if not r.get("tn")]
+        self.tunnels = [(r["n"], P(r["p"])) for r in d["roads"] if r.get("tn") and r["c"] <= 1]          # palace_crossings.py
+        self.ferries = [(f["n"], P(f["p"])) for f in d.get("ferries") or ()]
         self.coast = [P(c) for c in d["coast"]]
         self.parks = [(p["n"], [P(r) for r in p["r"]]) for p in d["parks"]
                       if sum(ring_area_m2(r) for r in p["r"]) >= PARK_HA * 1e4]
@@ -479,6 +497,34 @@ class Outer:
                 t = self(cx, cy)
                 out.append({"n": n, "k": "park", "z": 1, "r": rs, "p": [], "o": [], "t": [round(t[0]), round(t[1])], "pg": 1})
         return out
+
+    def crossings_page(self, man=None):
+        """Road tunnels (motorway, trunk) and ferry routes as page polylines: (tunnels [{n, p}], ferries [{n, p}]); a tunnel's pieces of one
+        name are joined, a point on Manhattan's lattice goes through it (man), anything wholly outside the city is left out."""
+        def pg(pts):
+            q = [man(*p) if (man is not None and self.detailed(*p)) else self(*p) for p in _dp(pts, 6.0)]
+            return [round(v) for p in _dp(q, 10.0) for v in p]
+        best = {}
+        for key, pts in _merge([((n, 0, 0), p) for n, p in self.tunnels]):
+            L = sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
+            # a tunnel under the water (an underpass on land is a road like any other); the longer tube of a pair
+            dn = _dense(pts, 40.0)
+            if len(pts) >= 2 and L > 150 and any(self.city(*p) for p in pts) and sum(self.is_sea(*p) for p in dn) >= .25 * len(dn):
+                if L > best.get(key[0], (0, None))[0]:
+                    best[key[0]] = (L, pts)
+        tun = [{"n": n, "p": pg(pts)} for n, (_L, pts) in sorted(best.items())]
+        fy, seen = [], set()
+        for n, pts in self.ferries:
+            if not n or any(w in n for w in FERRY_SKIP) or len(pts) < 2:
+                continue
+            if not any(self.city(*p) for p in (pts[0], pts[-1])):
+                continue
+            key = (n, round(pts[0][0], -2), round(pts[-1][0], -2))
+            if key in seen:
+                continue
+            seen.add(key)
+            fy.append({"n": n, "p": pg(pts), **({"k": 1} if n in FERRY_NAMED else {})})
+        return tun, fy
 
     def isles_page(self, reach=24):
         """The small islands of LABELS (kind i: Liberty, Ellis) as page rings: the real raster's land around each name, one

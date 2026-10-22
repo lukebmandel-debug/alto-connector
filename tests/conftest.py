@@ -111,6 +111,8 @@ def _isolate_global_server_state(tmp_path_factory, monkeypatch, request):
 
     # the street blobs (palace_street.py) are written to a folder of the user's cache: never the real one from a test
     monkeypatch.setenv("ALTO_STREET_DIR", str(tmp_path_factory.mktemp("alto-street")))
+    # the city's base and tiles (palace_tiles.py) likewise
+    monkeypatch.setenv("ALTO_TILES_DIR", str(tmp_path_factory.mktemp("alto-cmap")))
 
     # Point the default store at a temp directory for EVERY test. Without
     # this, any test that exercises a code path reaching get_store() without
