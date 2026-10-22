@@ -33,9 +33,10 @@ NAVY = "#0a1b34"
 FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-serif'
 
 # ── shared with the Star chart (solar_stars.RETRO_CSS splices these in; `X ` is the style's own selector) ──
-FRAME_CSS = r"""  /* the frame (Luke, 2026-10-21, with the bars clear since 1.9.120): from just under the name and the chips to just
-     over the bottom row of controls (bottom 24px, 35px high), the same 12px clear of each, so top and bottom match */
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:14px;right:14px;top:calc(var(--nav-bottom,100px) + 12px);bottom:71px;}
+FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo"): corners
+     and crown at the very top, clear above the clef, the name and the wordmark; its foot just over the bottom row (24px + 35px) */
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:4px;right:4px;top:3px;bottom:71px;}
+  X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners and under the crown) */
   X #sk-frame i{position:absolute;width:46px;height:46px;border:0 solid #d9ae55;opacity:.8;}
   X #sk-frame i:nth-child(1){left:0;top:0;border-width:1.5px 0 0 1.5px;} X #sk-frame i:nth-child(2){right:0;top:0;border-width:1.5px 1.5px 0 0;}
   X #sk-frame i:nth-child(3){left:0;bottom:0;border-width:0 0 1.5px 1.5px;} X #sk-frame i:nth-child(4){right:0;bottom:0;border-width:0 1.5px 1.5px 0;}
@@ -80,7 +81,8 @@ COMMON_CSS = r"""
   /* the bars: the name in poster letters, the chips cut square and rimmed in gold */
   X #title-text:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X .nav-group-label{color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;}
+  X #nav .nav-group-label:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;font-weight:400 !important;letter-spacing:.28em !important;
+    background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* the chip groups' names on a black pad: readable over whatever passes under them */
   X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border-color:transparent !important;}
   X.detail-open :is(#title-bar,#nav,#node-nav-bar):not(#_){background:#000 !important;border-bottom:1px solid rgba(217,174,85,.35) !important;}
   X :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,X :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}

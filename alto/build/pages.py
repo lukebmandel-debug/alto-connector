@@ -233,7 +233,21 @@ def _rw_head(scroller: str, fixed: str, scrims: str) -> str:
 # The homepage's and the reports page's background choice (backgrounds.py): one key
 # for both, applied in <head> ahead of everything else.
 HOME_BG_KEY = "alto-bg-home-v1"
-_HOME_RW_HEAD_NEW = backgrounds.head_block(HOME_BG_KEY) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
+# The homepage's title bar without its glass on a computer, as on every timeline (clear_top.py; Luke, 2026-10-22: "get rid
+# of the background of the top bar on the home page as well"): the background runs to the top of the window, the name keeps
+# a light frosted pad. html.alto-clear-top is set before the background script so a picture is drawn from the top
+# (backgrounds.py inset()); a phone (max-width:640px) keeps its bar.
+_HOME_CLEAR_TOP = """<script>(function(){ var r=document.documentElement, m=window.matchMedia && matchMedia('(min-width:641px)');
+  function f(){ r.classList.toggle('alto-clear-top', !!(m && m.matches)); } f(); if(m && m.addEventListener) m.addEventListener('change', f); })();</script>
+<style id="alto-home-clear-top">
+@media (min-width:641px){
+  html.alto-clear-top #title-bar:not(#_){background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;border-color:transparent;pointer-events:none;}
+  html.alto-clear-top #title-bar>*{pointer-events:auto;}
+  html.alto-clear-top #title-bar #title-text{--ct-g:color-mix(in srgb,var(--surface,#fff) 42%,transparent);background:var(--ct-g);border-radius:999px;
+    box-shadow:0 0 0 6px var(--ct-g);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);}
+}
+</style>"""
+_HOME_RW_HEAD_NEW = _HOME_CLEAR_TOP + backgrounds.head_block(HOME_BG_KEY) + "\n" + _HOME_RW_HEAD_OLD + _rw_head(
     "#projects-wrap", _HOME_RW_FIXED, "#account-scrim, #dl-scrim, .share-scrim, #bg-panel")
 # Reports had none of the runway, and not even viewport-fit=cover until a
 # script re-applied the viewport 100ms after load — so Safari painted flat

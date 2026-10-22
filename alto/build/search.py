@@ -594,6 +594,9 @@ html.mobile #sx-toggle,html.mobile #sx-scrim,html.mobile .sx-hint{display:none !
 # "@14.5" = 14.5 px at the viewer's true size, whatever the page zoom is
 SX_CSS = re.sub(r"@(\d+(?:\.\d+)?)", r"calc(\1px * var(--sx-k,1))", _SX_CSS_SRC)
 
+# The saved choice applies, except on the homepage (window._altoSXFresh, HOME_ROW_JS): it opens compact every time and keeps no
+# choice of its own (Luke, 2026-10-22: "search bar on homepage seems to automatically go to the big version. It should
+# operate the same way as it does in project pages"): its control grows that one search only.
 SX_JS = r"""
 (function(){
   var root=document.documentElement;
@@ -601,7 +604,7 @@ SX_JS = r"""
   var btn=document.getElementById('search-btn'), input=document.getElementById('search-input'), res=document.getElementById('search-results');
   if(!btn||!input||!res) return;
   var KEY='alto-search-big', on=false, act=-1, ZV='--alto-'+'zoom';   /* the timeline's page zoom; the homepage has none */
-  try{ on=localStorage.getItem(KEY)==='1'; }catch(e){}
+  try{ on=!window._altoSXFresh && localStorage.getItem(KEY)==='1'; }catch(e){}
   /* A phone never gets the large panel (the homepage's phone layout is a media query, not .mobile): the saved choice is
      kept for the desktop, but nothing of it applies here, so the pill and its list stay the phone's own. */
   function phone(){ return window.innerWidth<=640; }
@@ -633,7 +636,7 @@ SX_JS = r"""
   var pref=on;   /* the saved choice; Esc shrinks for now without changing it */
   function set(v,temp){
     on=!!v; root.classList.toggle('sx-big',big()); label(); act=-1;
-    if(!temp){ pref=on; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }
+    if(!temp && !window._altoSXFresh){ pref=on; try{ localStorage.setItem(KEY,on?'1':'0'); }catch(e){} }
     place(); render(); try{ input.focus({preventScroll:true}); }catch(e){}
   }
   root.classList.toggle('sx-big',big()); label();
@@ -665,6 +668,7 @@ SX_JS = r"""
 
 # the homepage's own result row, expanded: full text with the matched words lit
 HOME_ROW_JS = r"""
+window._altoSXFresh=1;
 window._altoSXHomeRow=function(r,q){
   var M=window._altoMatch, Q=M.query(q||'');
   return '<span class="sr-head"><span class="sr-kind">'+(r.fmt&&window.fmtBadge?fmtBadge(r.fmt):M.esc(r.kind))+'</span><span class="sr-title">'+M.hl(r.title,Q)+'</span></span>'
@@ -704,8 +708,8 @@ def format_name_js(b: Brief) -> str:
 
 
 def sx_block(extra: str = "") -> str:
-    """CSS + script for the expand control (after the page's own search)."""
-    return SX_CSS + "\n<script id=\"alto-sx\">" + extra + SX_JS + "</script>\n"
+    """CSS + script for the expand control (after the page's own search); the script's comments stay in the source."""
+    return SX_CSS + "\n<script id=\"alto-sx\">" + extra + re.sub(r"[ \t]*/\*.*?\*/", "", SX_JS, flags=re.S) + "</script>\n"
 
 
 def search_config(b: Brief) -> str:

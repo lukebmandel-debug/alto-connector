@@ -386,8 +386,9 @@ def test_the_picker_shows_the_pictures_of_the_theme_in_use(browser, site):
 
 @needs_browser
 def test_a_photographs_subject_lands_clear_of_the_top_bars_whatever_the_window(browser, site):
-    """The photograph starts below the title bar and the unit bar, and is placed so what it is a
-    picture OF (the catalogue's x/y) lands in the open area, in both themes and at every size."""
+    """The photograph is placed so what it is a picture OF (the catalogue's x/y) lands in the window, in both
+    themes and at every size. With the bars clear (clear_top.py, every main page on a computer) it starts at the
+    very top (Luke, 2026-10-22: the background must not stop where the bars were); a page with bars starts it below them."""
     base, _ = site
     for w, h in ((1500, 900), (1180, 720), (1920, 1080)):
         pg = browser.new_page(viewport={"width": w, "height": h})
@@ -399,13 +400,17 @@ def test_a_photographs_subject_lands_clear_of_the_top_bars_whatever_the_window(b
           const bars=Math.max(...['title-bar','nav'].map(i=>{const e=document.getElementById(i);return e?e.getBoundingClientRect().bottom:0}));
           const oy=parseFloat(m[2]), ih=parseFloat(m[4]), iw=parseFloat(m[3]), ox=parseFloat(m[1]);
           const subjY=((T-40)+oy+v.y*ih)*z+q.top, subjX=(-40+ox+v.x*iw)*z+q.left;
-          return {T:T*z+q.top, bars, subjY, subjX, h:innerHeight, w:innerWidth, covers: ox<=0 && oy<=0 && (ox+iw)>=pb.clientWidth+80-1 && (oy+ih)>=(pb.clientHeight-T+80)-1}; }"""
+          return {T:T*z+q.top, top:q.top, clear:root.classList.contains('alto-clear-top'), bars, subjY, subjX, h:innerHeight, w:innerWidth, covers: ox<=0 && oy<=0 && (ox+iw)>=pb.clientWidth+80-1 && (oy+ih)>=(pb.clientHeight-T+80)-1}; }"""
         for dark in (False, True):
             pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false")); pg.wait_for_timeout(150)
             for sc in SCENES:
                 r = pg.evaluate(probe, [sc["id"]])
-                assert r["T"] >= r["bars"] - 1.5, (sc["id"], dark, w, r)                  # starts below the bars
-                assert r["bars"] < r["subjY"] < r["h"], (sc["id"], dark, w, r)            # the subject is in the open area
+                if r["clear"]:
+                    assert abs(r["T"] - r["top"]) < 1.5, (sc["id"], dark, w, r)            # from the very top
+                    assert 0 < r["subjY"] < r["h"], (sc["id"], dark, w, r)                # the subject is in the window
+                else:
+                    assert r["T"] >= r["bars"] - 1.5, (sc["id"], dark, w, r)              # starts below the bars
+                    assert r["bars"] < r["subjY"] < r["h"], (sc["id"], dark, w, r)        # the subject is in the open area
                 assert 0 < r["subjX"] < r["w"], (sc["id"], dark, w, r)
                 assert r["covers"], (sc["id"], dark, w, r)                               # and the picture still fills it
         pg.close()

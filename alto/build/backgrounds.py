@@ -149,7 +149,7 @@ def catalog_json(palace: bool = False) -> str:
 #
 # What the page does with a choice:
 #   photograph  — the variant for the theme in use is drawn from just below the top bars (so its
-#                 subject is never behind them), sized to cover the open area and placed so its
+#                 subject is never behind them; from the very top where the bars are clear, clear_top.py), sized to cover the open area and placed so its
 #                 subject (catalog x/y) lands in the middle of that area; the strip behind the bars
 #                 is the photograph's own top edge colour. Recomputed on resize and theme change.
 #   colour      — a soft gradient for the theme in use.
@@ -226,8 +226,10 @@ HEAD_JS = r"""(function(){
     m.setAttribute('content', v || (dark ? '#6b4326' : '#ffc59e'));
   }
   // The bars across the top, as far down as they reach, in the page-bg layer's own pixels.
+  // Bars without their glass (clear_top.py; the homepage on a computer) leave nothing to stay clear of: the picture starts at the top.
   function inset(pb, z){
     var mob=r.classList.contains('mobile'), t=pb.getBoundingClientRect().top, bt=0;
+    if(r.classList.contains('alto-clear-top'))return 0;
     ['title-bar','nav'].forEach(function(id){
       var e=document.getElementById(id); if(!e) return; var q=e.getBoundingClientRect();
       if(q.height>0 && q.bottom>bt) bt=q.bottom;

@@ -304,7 +304,8 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + "\n" + dx.edit_tile(brief) + dx.notes_trash(brief) + notes_v2(brief) + freewrite(brief)
             + tree_block(trees or {}) + study_block_for(brief, study or {})
             + manual_edit(brief, nodes) + print_views()
-            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block() + clear_top.block()
+            + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
+            + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief))
             + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
     at = html.rfind("</body>")
     if at < 0:
