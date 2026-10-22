@@ -82,7 +82,7 @@ function avDraw(feet){ var A=S.av, gl=GLX.gl; if(!A||!gl||AVR.camD<.8*UM){ if(GL
   var o=GLX.avatar; if(!o||o.gen!==GLX.gen||!o.buf){ o=GLX.avatar={buf:gl.createBuffer(), n:0, gen:GLX.gen}; }
   gl.bindBuffer(gl.ARRAY_BUFFER,o.buf); gl.bufferData(gl.ARRAY_BUFFER,b.subarray(0,vi*F),gl.DYNAMIC_DRAW); o.n=vi; }
 function avTag(){ var H=S.hud, el=H&&H.tag, A=S.av; if(!el) return; var t=A&&third()&&GLX.avatar&&GLX.avatar.n?AV.tag(A):{text:''}; if(!t.text||!A.head){ if(el.style.opacity!=='0') el.style.opacity=0; return; }
-  var h=A.head, p=toScr(h[0],h[1],h[2]+.1*UM); if(!p){ el.style.opacity=0; return; } el.style.transform='translate('+p[0].toFixed(1)+'px,'+p[1].toFixed(1)+'px) translate(-50%,-100%)'; el.style.opacity=1;
+  var h=A.head, p=toScr(h[0],h[1],h[2]-.12*UM); if(!p){ el.style.opacity=0; return; } el.style.transform='translate('+p[0].toFixed(1)+'px,'+p[1].toFixed(1)+'px) translate(-50%,-100%)'; el.style.opacity=1;
   if(el.textContent!==t.text){ el.textContent=t.text; el.title=t.title; } }
 /* the player circle: 1.3 units (1 m) with the GL renderer, whose near plane is .5 (palace_ride_gl.py GL_NEAR) so a wall can be walked right up to; 2.4 for the 2D fallback (near plane 1.8) */
 function PRX(){ return (S.pr===CFG.PRGL&&third())?CFG.PR3:(S.pr||CFG.PR); }      /* third person: the avatar's capsule (0.35 m); first person: 0.65 m, so the camera's near plane (0.38 m) never reaches a wall */
