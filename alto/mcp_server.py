@@ -1018,7 +1018,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       The BUILDING PALACE (palace_view 'building', §D-Building) is a Mind
       Palace inside ONE real building (a museum, a courthouse, a school):
       a blueprint and a first-person view; cards stand in its rooms or on its
-      walls — then set_up_building,
+      walls — then set_up_building. The WORLD PALACE (palace_view 'world',
+      §D-World) puts the outline on the world map: units are regions,
+      concepts countries, the cards under them clustered round them; no
+      first-person view — then set_up_world,
      layout?: 'auto'|'tree'|'flow'|'solar' (outline mode only; build_timeline
       and run_layout_preview can set it too). 'solar' is SYSTEM (the name
       the user knows, §D-Solar): every top concept (a node with no `parent`) is
@@ -1045,9 +1048,10 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       satellites orbit, each on its own ring; an Orbit switch stops them. Leave
       it out unless the user wants the System look first; there is
       nothing to convert,
-     palace_view?: 'city'|'building' (mode 'palace'; default 'city'):
+     palace_view?: 'city'|'building'|'world' (mode 'palace'; default 'city'):
       'building' is the BUILDING PALACE (§D-Building; set_up_building stores
-      the building's plan; one section is enough). The Star chart is not a
+      the building's plan; one section is enough); 'world' the WORLD PALACE
+      (§D-World; set_up_world places the cards the notes tie to a place). The Star chart is not a
       Mind Palace: it is the default look of a System (hub_look above),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
@@ -2072,6 +2076,85 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
 
 
+
+@mcp.tool(title="Set up a World Palace", annotations=RW)
+@accounted
+def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: list[str] | None = None,
+                 level: str = "", clear: list[str] | None = None) -> dict:
+    """Where the cards of a World Palace (mode 'palace', palace_view 'world',
+    §D-World) stand on the world map: a unit is a region, each of its concepts
+    a country, and the cards under a concept cluster round it. Run it once the
+    timeline has its nodes; run it again to move cards. Nothing is fetched: the
+    map is Alto's own (Natural Earth, hosted with the site).
+    places: [{node, place, notes}] — a card the user's NOTES tie to a place
+    (Pennoyer v. Neff → "Oregon"; notes: true) or that the user wants somewhere
+    ("put Erie in Germany"; notes: false). `place` is a country ("France",
+    "USA"), a state or province ("Oregon", "Ontario"), or a city ("Kyoto",
+    "Portland, Oregon"). Only places the materials or the user name — never
+    guess one from the subject. Every other card follows Alto's memory route:
+    one region per unit round the world (North America, South America,
+    Western Europe, Southern Europe, Eastern Europe, North Africa and the
+    Middle East, West and Central Africa, East and Southern Africa, South and
+    Central Asia, East and Southeast Asia, Oceania), country to neighbouring
+    country, the larger countries first. A country's pin is its capital,
+    unless two or more of its states / cities are in use: then each stands
+    where it really is (a lone Oregon card still pins at Washington, D.C.).
+    An outline's unit hub (one top card over the unit's concepts) is the
+    region's own card; its concepts are the countries.
+    regions: a region per unit in unit order, "" for the route's own (the
+    names above, or "Europe", "Middle East", "East Asia" …).
+    level: 'country' (default) or 'deep' — for a deep outline: concepts on
+    countries, the cards under them on cities of that country, theirs
+    clustered round the city. ('' keeps the stored one.)
+    clear: node ids whose place should go back to the route.
+    The reply lists every unit's region and every stop's place."""
+    doc, err = _timeline_or_error(timeline_id)
+    if err:
+        return err
+    brief = doc["brief"]
+    if brief.get("mode") != "palace":
+        return {"error": "not_a_palace", "message": "this timeline's mode is "
+                f"{brief.get('mode') or 'linear'!r}; a World Palace is created with mode 'palace' and palace_view 'world'"}
+    from .build import world_plan as wp
+    old = dict(brief.get("world") or {})
+    if level and level not in wp.LEVELS:
+        return {"error": "invalid_level", "message": f"level {level!r}: must be 'country' or 'deep'"}
+    nodes_raw = [{k: v for k, v in n.items() if not k.startswith("_")} for n in get_store().list_nodes(uid(), timeline_id)]
+    ids = {n.get("id") for n in nodes_raw}
+    given = dict(old.get("places") or {})
+    for nid in clear or []:
+        given.pop(nid, None)
+    problems = []
+    for item in places or []:
+        nid, text = (item or {}).get("node"), (item or {}).get("place")
+        if nid not in ids:
+            problems.append({"node": nid, "problem": "no card with this id in the timeline"})
+            continue
+        try:
+            given[nid] = {**wp.resolve(text), **({"r": 1} if item.get("notes") else {})}
+        except wp.PlaceError as e:
+            problems.append({"node": nid, "place": text, "problem": str(e), "suggestions": e.suggestions})
+    if problems:
+        return {"error": "unknown_places", "message": "some places could not be found on the world map; nothing was changed",
+                "problems": problems}
+    regs = list(old.get("regions") or []) if regions is None else list(regions)
+    bad = [r for r in regs if r and not wp.region_of(r)]
+    if bad:
+        return {"error": "invalid_region", "message": f"not regions: {bad}; use one of " + ", ".join(n for n, _ in wp.REGIONS)}
+    world = {"level": level or old.get("level") or "country", "places": given, "regions": regs}
+    new = {**brief, "palace_view": "world", "world": world}
+    try:
+        b, nodes, _ = load_brief({"brief": _checked(doc, new), "nodes": nodes_raw})
+        from .build.brief import validate_brief, validate_nodes
+        warnings = validate_brief(b) + validate_nodes(b, nodes)
+        info = wp.summary(b, nodes) if nodes else {"units": [], "own_pins": []}
+    except (BriefError, ValueError) as e:
+        return {"error": "invalid_world", "message": str(e)}
+    doc["brief"] = new
+    get_store().put_timeline(uid(), timeline_id, doc)
+    return {"ok": True, "palace_view": "world", **info, "warnings": warnings,
+            "next": "build_timeline, then publish_timeline(…, 'private-web')"}
+
 def _courthouses(doc, brief, place, pid, bbox, cache, subject, given):
     """A law palace's courthouses (city_courts) merged into the landmark buildings: {buildings, courts: [{name,
     level, page?, on_osm?}], source} or None when the timeline is not about law."""
@@ -2229,9 +2312,9 @@ def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
             return {"error": "invalid_hub_look",
                     "message": "hub_look only applies to a System (mode 'outline', layout 'solar')"}
     if palace_view:
-        if palace_view not in ("city", "building"):
+        if palace_view not in ("city", "building", "world"):
             return {"error": "invalid_palace_view",
-                    "message": f"palace_view {palace_view!r}: must be 'city' or 'building' (the Building Palace); "
+                    "message": f"palace_view {palace_view!r}: must be 'city', 'building' (the Building Palace) or 'world' (the World Palace); "
                                "the Star chart is the System's default look (hub_look 'stars')"}
         if doc["brief"].get("mode") != "palace":
             return {"error": "invalid_palace_view",
@@ -2291,8 +2374,9 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     Alto's usual glass look); '' keeps the brief's. Every style is in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.
-    palace_view: for a Mind Palace, 'city' or 'building' (the Building Palace:
-    one building's blueprint, §D-Building); '' keeps the brief's. Chosen when
+    palace_view: for a Mind Palace, 'city', 'building' (the Building Palace:
+    one building's blueprint, §D-Building) or 'world' (the World Palace,
+    §D-World); '' keeps the brief's. Chosen when
     the page is built, not switched in the page.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
     boxes: true adds `boxes`, every card's {x (centre), top, w, h} in the tree's
@@ -2473,7 +2557,7 @@ def build_timeline(timeline_id: str, layout: str = "",
     layout / tree_lines / hub_look / palace_view: as run_layout_preview (layout
     'solar' is the System outline, §D-Solar; hub_look the look it opens
     in, 'stars' or 'hub'; palace_view 'building' the Building Palace,
-    §D-Building); given here they are also kept in the brief, so every later
+    §D-Building, 'world' the World Palace, §D-World); given here they are also kept in the brief, so every later
     build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into

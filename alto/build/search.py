@@ -701,7 +701,7 @@ def format_name_js(b: Brief) -> str:
     drawings ride in it."""
     key = format_symbols.key_of(b)
     keys = [key] + (["outline"] if key == "system" else [])
-    g = {k: [{"building": "Mind Palace", "lanes": "Timeline"}.get(k) or format_symbols.name(k),
+    g = {k: [{"building": "Mind Palace", "world": "Mind Palace", "lanes": "Timeline"}.get(k) or format_symbols.name(k),
              format_symbols.SYMBOLS[k][1]] + ([24] if format_symbols.SYMBOLS[k][2] == 24 else [])
          for k in keys}
     return _FORMAT_NAME_JS.replace("__G__", js_json(g, separators=(",", ":")))

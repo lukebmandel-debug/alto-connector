@@ -130,7 +130,7 @@ BOARD_CSS = r"""
   X.alto-lanes #sk-mark{display:none !important;}
   X.alto-lanes #sk-frame b:not(#_){top:0;}   /* (the horizontal timeline has no cartouche: its name stays, the crown above it) */
   @media (max-width:900px){ X #sk-mark{display:none !important;} X #title-text:not(#_){letter-spacing:.22em;font-size:13px;} }   /* (a narrow window: the name fits, no cartouche) */
-  X.bldg-open #sk-frame i{display:none;}                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  X:is(.bldg-open,.wpal-open) #sk-frame i{display:none;}  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
   X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
@@ -246,6 +246,38 @@ FORMAT_CSS = r"""
   X #bldg-root :is(.bl-tab.on,.bl-go):not(#_){background:#d9ae55 !important;color:#000 !important;}
   X #bldg-root .bl-kind{color:#d9ae55 !important;letter-spacing:.28em !important;font-weight:400 !important;}
   X #bldg-root .bl-head h2{text-transform:uppercase;letter-spacing:.14em;font-weight:300 !important;}
+
+  /* the World Palace's map (palace_world.py): a navigator's chart, gold on night blue, the units in the poster's inks */
+  X #wpal-root:not(#_){--w-sea1:#0a1b34;--w-sea2:#05070b;--w-land:#0b0d12;--w-edge:rgba(217,174,85,.32);--w-grat:rgba(217,174,85,.07);--w-text:#efe6cf;--w-sub:#b9b2a0;
+    --w-panel:#000;--w-panel-b:rgba(217,174,85,.55);--w-card:#000;--w-shadow:none;--w-font:var(--rt-f);--w-mix:#0b0d12;--w-used:22%;--w-pin:#05070b;
+    background:radial-gradient(120% 90% at 50% 45%,#0a1b34 0%,#05070b 75%) !important;}
+  X #wpal-root .wu0:not(#_){--u:#d9ae55;}
+  X #wpal-root .wu1:not(#_){--u:#9fb27a;}
+  X #wpal-root .wu2:not(#_){--u:#7f9cc4;}
+  X #wpal-root .wu3:not(#_){--u:#e3dccb;}
+  X #wpal-root .wu4:not(#_){--u:#c98a5a;}
+  X #wpal-root .wu5:not(#_){--u:#b28ad1;}
+  X #wpal-root .wu6:not(#_){--u:#f0c15e;}
+  X #wpal-root .wu7:not(#_){--u:#b9c79a;}
+  X #wpal-root .wu8:not(#_){--u:#a7bde0;}
+  X #wpal-root .wu9:not(#_){--u:#d8b48a;}
+  X #wpal-root .wu10:not(#_){--u:#cfa0d8;}
+  X #wpal-root .wu11:not(#_){--u:#efe6cf;}
+  X #wpal-root .wp-land{filter:none;}
+  X #wpal-root .wp-c.wp-on{fill:color-mix(in srgb,var(--u) 34%,#0b0d12);}
+  X #wpal-root :is(.wp-arc.h,.wp-arc.s){display:none;}
+  X #wpal-root .wp-arc.m{stroke-width:1.6px;}
+  X #wpal-root .wp-chev{stroke:#efe6cf;stroke-width:1.4px;}
+  X #wpal-root .wp-pin:not(#_){box-shadow:none;border-width:1.4px;font-weight:400;font-family:var(--rt-f);color:var(--u);}
+  X #wpal-root .wp-lbl{font-weight:400;text-transform:uppercase;letter-spacing:.16em;font-size:10.5px;text-shadow:0 0 4px #000,0 0 4px #000;}
+  X #wpal-root .wp-lbl i{text-transform:none;letter-spacing:.04em;font-style:italic;}
+  X #wpal-root :is(.wp-card,.wp-bar,.wp-list,.wp-tag):not(#_){border-radius:0;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;}
+  X #wpal-root .wp-tag:not(#_){border-width:1px;letter-spacing:.06em;}
+  X #wpal-root .wp-card h4{font-weight:400;letter-spacing:.03em;}
+  X #wpal-root .wp-card .n{font-weight:400;letter-spacing:.18em;}
+  X #wpal-root .wp-btn:not(#_){border-radius:0;color:#d9ae55;border-color:rgba(217,174,85,.55);letter-spacing:.12em;text-transform:uppercase;font-size:11px;}
+  X #wpal-root .wp-btn.r:not(#_){border-radius:50%;}
+  X #wpal-root .wp-tour .c{color:#f0c15e;font-weight:400;letter-spacing:.06em;}
 """
 
 JS = r"""(function(){

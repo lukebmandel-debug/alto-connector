@@ -40,6 +40,10 @@ SYMBOLS: dict[str, tuple[str, str, int]] = {
     "building": ("Mind Palace \u00b7 Building",
                  BADGE + '<path d="M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 '
                  '3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2"/>', 24),
+    # a globe with a route arc hopping to a stop: the World Palace
+    "world": ("Mind Palace \u00b7 World",
+              BADGE + '<circle cx="11" cy="13.2" r="5.3"/><path d="M11 7.9a2.3 5.3 0 0 0 0 10.6a2.3 5.3 0 0 0 0-10.6"/>'
+              '<path d="M5.9 8.4Q10.6 3.4 16.6 6.4" stroke-dasharray="1.5 1.7"/><circle cx="17.6" cy="7.1" r="1.25" fill="currentColor"/>', 24),
 }
 KEYS = tuple(SYMBOLS)
 
@@ -50,12 +54,12 @@ _WRAP = ('<svg viewBox="0 0 {g} {g}" width="{s}" height="{s}" fill="none" stroke
 
 def key_of(b) -> str:
     """The symbol of a brief: a System is an outline with the solar layout; a
-    Building Palace a palace with the building view; the plain timeline
+    Building Palace a palace with the building view (a World Palace the world view); the plain timeline
     runs down the page, the lanes timeline along it."""
     if b.mode == "outline":
         return "system" if b.layout == "solar" else "outline"
     if b.mode == "palace":
-        return "building" if b.palace_view == "building" else "palace"
+        return {"building": "building", "world": "world"}.get(b.palace_view, "palace")
     return "lanes" if b.mode == "lanes" else "timeline"
 
 

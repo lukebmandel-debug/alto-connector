@@ -48,6 +48,7 @@ def _block(h: str, start: str, cap: int) -> str:
 # first: it is an outline with more on top.
 _FMT = (("system", re.compile(r"^window\._ALTO_SOLAR=", re.M)),
         ("building", re.compile(r"^window\._ALTO_BUILDING=", re.M)),
+        ("world", re.compile(r"^window\._ALTO_WORLD=", re.M)),
         ("palace", re.compile(r"^window\._altoPalace=function", re.M)),
         ("outline", re.compile(r"^window\._ALTO_OUTLINE=", re.M)),
         ("lanes", re.compile(r"^window\._ALTO_LANES=", re.M)))

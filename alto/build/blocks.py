@@ -19,7 +19,7 @@ import re
 from urllib.parse import quote as url_q
 
 from . import format_symbols
-from .brief import Brief, Node, Section, COL_SETS, roman, building_view
+from .brief import Brief, Node, Section, COL_SETS, roman, building_view, world_view
 from .numbering import NUM_JS, path_numbers
 from .lanes import LANES_CSS, LANES_JS, lanes_data
 from .solar_draw import SOLAR_CSS, SOLAR_JS
@@ -1540,6 +1540,11 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # (3.4-2) and the hosted blueprint over the cards (palace_building_asset.py).
         from .palace_building_asset import building_data
         orders += palace_stub(b, nodes) + building_data(b, nodes)
+    elif b.mode == "palace" and world_view(b):
+        # A World Palace (world_plan.py): no city — the cards' numbers (3.4-2),
+        # where each stands, and the hosted world map over the cards (palace_world.py).
+        from .palace_world import world_data
+        orders += palace_stub(b, nodes) + world_data(b, nodes)
     elif b.mode == "palace":
         # The Mind Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
@@ -1553,7 +1558,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # Then two-finger scrolling on both axes at natural size (pan2d.py).
         orders += SOLAR_JS + CRAFT_JS + STARS_JS + FLY_JS + SOLAR3D_JS + PAN2D_JS + SOLAR_PAN2D_JS
     if index_axes:
-        orders += ((palace_index_glue() if b.mode == "palace" and not building_view(b) else dx.AXIS_INDEX_GLUE)
+        orders += ((palace_index_glue() if b.mode == "palace" and not (building_view(b) or world_view(b)) else dx.AXIS_INDEX_GLUE)
                    + dx.axes_config(b, index_axes))
     if rel_key_items:
         orders += ("\nvar REL_NODES={" + ",".join(
@@ -1603,7 +1608,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         nav_char_css += LANES_CSS
     if solar_plan_:
         nav_char_css += SOLAR_CSS + STARS_CSS + FLY_CSS + SOLAR3D_CSS + CRAFT_CSS
-    if b.mode == "palace" and not building_view(b):
+    if b.mode == "palace" and not (building_view(b) or world_view(b)):
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
     nav_char_css += (

@@ -256,7 +256,9 @@ HUB_LOOKS = ("stars", "hub")
 # blueprint and a first-person view inside ONE building (building_schema.py;
 # the plan is brief.building). (1.9.105's "stars" view, the Star chart, is now
 # the Star chart look of a System: migrate_brief turns such a brief into one.)
-PALACE_VIEWS = ("city", "building")
+# "world" — the World Palace: the world map, cards on countries (and states or
+# cities), no first-person view (world_plan.py; the places are brief.world).
+PALACE_VIEWS = ("city", "building", "world")
 # Keys a stored brief may still carry from before System had two looks
 # (1.9.105: hub_style; convert_timeline's stash). Loading accepts them and
 # migrate_brief drops them; palace_view stays (city / building) unless it is
@@ -393,7 +395,7 @@ class Brief:
     # System only, a sample (Luke, 2026-10-20, his torts System): the page's wallpaper runs up behind
     # the two top bars, their glass gone, their buttons and text where they are (solar_draw.py).
     wallpaper_top: bool = False
-    # Mind Palace only (PALACE_VIEWS): "city" (the default) or "building".
+    # Mind Palace only (PALACE_VIEWS): "city" (the default), "building" or "world".
     palace_view: str = "city"
     # Building Palace only (palace_view "building"; building_schema.py):
     # {name, plan_z (the packed plan), plan_h (its hash), mode: "room"|"anchor",
@@ -401,6 +403,11 @@ class Brief:
     # made}. set_up_building writes it. The page names the plan by its hash and
     # loads the hosted file (/bldg/plan-<hash>.json).
     building: dict = field(default_factory=dict)
+    # World Palace only (palace_view "world"; world_plan.py): {level: "country"|"deep",
+    # places: {node id: a place set_up_world resolved, "r": 1 when the notes name it},
+    # regions: [a region per unit, "" for the route's own]}. set_up_world writes it;
+    # the map itself is hosted (/world/, world_geo.py).
+    world: dict = field(default_factory=dict)
     # A tree's lines down a branch's spine. "fan": a section's lines spread
     # across the top of its first card and drop to each child at its own point,
     # so every child has a line of its own to hover and follow; "trunk": one
@@ -658,7 +665,7 @@ def validate_brief(b: Brief) -> list[str]:
     # the brief carries. A course with eleven units gets eleven bands.
     # A System may be one system for the whole outline, a Building Palace
     # one building: one unit.
-    if len(b.acts) < (1 if (solar_style(b) or building_view(b)) else 2):
+    if len(b.acts) < (1 if (solar_style(b) or building_view(b) or world_view(b)) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
                          "(with one band there is no periodization to show)")
     for flag in ("line_filter", "chip_filters"):
@@ -699,6 +706,14 @@ def validate_brief(b: Brief) -> list[str]:
     check_palace(b, warnings)
     from .building_schema import check_building
     check_building(b, warnings)
+    if b.world and not world_view(b):
+        raise BriefError("world needs mode 'palace' and palace_view 'world': it is the World Palace's places")
+    if world_view(b):
+        from .world_plan import validate as _vw
+        try:
+            _vw(b.world)
+        except ValueError as e:
+            raise BriefError(str(e))
     if b.mode == "outline" and b.columns == 3:
         warnings.append(
             "outline mode with 3 columns: depth has nowhere to spread — "
@@ -1050,6 +1065,11 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
 def building_view(b) -> bool:
     """True for a Building Palace (a Mind Palace in its "building" view): one building's blueprint and first-person view."""
     return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "building"
+
+
+def world_view(b) -> bool:
+    """True for a World Palace (a Mind Palace in its "world" view): the world map, cards on countries, no first-person view."""
+    return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "world"
 
 
 def solar_style(b) -> str:

@@ -14,6 +14,8 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
           and the first-person interior renderer (palace_building_fpv.py, fetched by the blueprint the first time someone walks in)
   retro   the Retro style of every format but the System (retro.py): its rules and frame, fetched only by a page set to Retro
   phone   the whole view on a phone (phone.py): the desktop page made for a finger, fetched only by a phone set to see the page whole
+  world   the World Palace (palace_view "world"): its renderer (palace_world.py) and the map it fetches (world_geo.py: base-<hash>.json the whole
+          world at 1:110m, cont-<continent>-<hash>.json a continent at 1:50m, a1-<ISO3>-<hash>.json a country's state lines), all published always
   fleet   the toy weapons: the battleship, destroyers, carriers, submarines and military bases of any city, with their sound, the crowd that
           runs from a collapse and the construction rebuild (palace_fleet_asset.py; loaded only by a city that has a vessel or a base)
 
@@ -33,6 +35,7 @@ ASSETS = (
     ("bldg", "palace_building_fpv", "fpv_asset"),
     ("retro", "retro", "retro_asset"),
     ("phone", "phone", "phone_asset"),
+    ("world", "palace_world", "world_asset"),
 )
 
 
@@ -51,6 +54,8 @@ def assets(street_refs=None, building_plans=None) -> list:
         name, text = getattr(importlib.import_module("." + mod, __package__), fn)()
         out.append((folder, name, text))
     out += [("bldg", name, text) for name, text in sorted((building_plans or {}).items())]
+    from . import world_geo                                  # the World Palace's map: every tier, always (small; any page may zoom anywhere)
+    out += [(world_geo.FOLDER, name, text) for name, text in world_geo.hosted()]
     from . import palace_street
     out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs(referenced=street_refs)]
     return out

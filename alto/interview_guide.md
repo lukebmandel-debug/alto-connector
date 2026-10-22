@@ -310,7 +310,7 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
-If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Mind Palace as a city or a Mind Palace in a building), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building`. The homepage can start a System itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Mind Palace as a city, in a building or on the world map), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building` — and a Mind Palace on the world map (`palace_view: 'world'`) is §D-World: build the outline, then `set_up_world` with the places the notes name. The homepage can start a System itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
@@ -324,12 +324,14 @@ when), never before, and never for a sketch, a horizontal timeline or a Mind
 Palace.
 
 A further shape, only when the user asks for it by name (a **Mind Palace**, a
-memory palace, "put my outline on a city", "in a museum / a building") — never
-offered unprompted: `mode: 'palace'`, **§D-Palace** (the city, `palace_view:
-'city'`, the default) or **§D-Building** (one real building, `palace_view:
-'building'`). Only Claude can build either (a city needs the real map, a
-building its plan); the homepage's "+ New timeline" sends the user to Claude
-for both (Mind Palace tile: City | Building).
+memory palace, "put my outline on a city", "in a museum / a building", "on a
+world map") — never offered unprompted: `mode: 'palace'`, **§D-Palace** (the
+city, `palace_view: 'city'`, the default), **§D-Building** (one real building,
+`palace_view: 'building'`) or **§D-World** (the world map, `palace_view:
+'world'`). Only Claude can build them (a city needs the real map, a building
+its plan, the world its places); the homepage's "+ New timeline" sends the
+user to Claude for all three (Mind Palace tile: City | Museum / building |
+World).
 
 ### §D-Palace. A Mind Palace (`mode: 'palace'`)
 The method of loci on a real map: each section is a district of a real city,
@@ -613,6 +615,35 @@ trades scale for fidelity.
   a link to the museum's own page. Do not embed images whose terms forbid it.
 - The page carries a loader and the node placements only: the renderer and the
   plan are hosted files (the private page is at its size cap).
+
+### §D-World. World Palace (`mode: 'palace'`, `palace_view: 'world'`)
+The method of loci on the **world map**: a smoothed real world (Equal Earth),
+each unit a region, each concept a country, the cards under a concept a
+cluster round it; flight arcs carry the route from country to country, and a
+Tour steps it. No first-person view. Classic and Retro, like every format.
+- **Structure.** Build the outline as for any outline (units, concepts, the
+  cards under them). A unit whose one top card holds its concepts (an
+  outline's unit hub) is the region itself: the hub is shown over the region
+  and its concepts are the countries. With a deep outline (four or more
+  levels), offer `level: 'deep'`: the cards under a concept go on cities of
+  its country and theirs cluster round the city.
+- **Places come from the notes, never from you.** Read the materials for the
+  places they tie a card to (a case decided in Oregon, a doctrine from
+  France, a treaty signed in Vienna) and pass them as
+  `set_up_world(timeline_id, places=[{node, place, notes: true}])`. Do not
+  guess a place from a subject. Everything else follows Alto's memory route:
+  one region per unit round the world, country to neighbouring country, the
+  larger countries first. Tell the user the route is a memory scaffold, not
+  content.
+- **Pins.** A country's pin is its capital. Only when two or more states,
+  provinces or cities of one country are in use does each stand where it
+  really is (a lone Oregon card pins at Washington, D.C.).
+- **Moving cards.** The user says where ("put Erie in Germany", "Unit 3 in
+  East Asia"): `places` with `notes: false`, or `regions` (one per unit, ""
+  for the route's own); `clear` sends a card back to the route.
+- **Tools.** `create_timeline` (`mode: 'palace'`, `palace_view: 'world'`),
+  `add_nodes`, then `set_up_world` — its reply lists each unit's region and
+  each stop's place; read it back to the user in one or two lines.
 
 ### B. Subject & spine
 - Title + subject → `create_timeline` brief.
@@ -1110,6 +1141,7 @@ outline mode `parent` carries the tree) →
 6d. System only: nothing extra to author; `layout: 'solar'` rides on
 `create_timeline` (or the layout/build calls below), §D-Solar →
 6e. Building Palace only: `set_up_building` once the nodes exist (§D-Building) →
+6f. World Palace only: `set_up_world` once the nodes exist (§D-World) →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
 section** (4-8 sentences: what the section is about, how its main ideas fit
 together, the turning points and tests, in the notes' own terms — a thin

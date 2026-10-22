@@ -193,7 +193,7 @@ def check_palace(b, warnings: list) -> None:
     unknown = set(pal) - PALACE_KEYS
     if unknown:
         raise BriefError(f"palace: unknown keys {sorted(unknown)}")
-    if not pal.get("data_z") and getattr(b, "palace_view", "city") == "city":
+    if not pal.get("data_z") and getattr(b, "palace_view", "city") == "city":     # (a Building / World Palace has no city to set up)
         warnings.append("palace: no city yet — run set_up_palace(timeline_id, place, …) "
                         "before building; the page has nothing to draw until then")
     from .palace_towers import check_buildings            # (towers: a landmark entry with a unit)

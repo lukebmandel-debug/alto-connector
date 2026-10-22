@@ -63,7 +63,7 @@ def _timeline(view="building"):
 # ── the brief ────────────────────────────────────────────────────────────────
 
 def test_building_is_a_palace_view_and_needs_its_plan():
-    assert PALACE_VIEWS == ("city", "building")        # (1.9.105's "stars" view is the System's Star chart look now)
+    assert PALACE_VIEWS == ("city", "building", "world")        # (1.9.105's "stars" view is the System's Star chart look now)
     b, ns, _ = load_brief({"brief": brief(), "nodes": NODES})
     assert building_view(b) and not solar_style(b)
     assert validate_brief(b) is not None
@@ -268,7 +268,7 @@ def test_the_homepage_picker_offers_the_building_and_hands_it_to_claude():
     phrases = HOME[HOME.index("const KIND_PHRASE = {"):HOME.index("function kindSentence(kind)")]
     assert "  building: '" in phrases and "palace_view \\'building\\'" in phrases and "set_up_building" in phrases
     assert 'data-mode="building" aria-pressed="false">' in HOME and 'Museum / building</button>' in HOME and 'data-for="building"' in HOME
-    assert "ntModes.palace === 'building' ? 'building' : 'palace'" in HOME
-    assert "if(ntKind === 'palace' || ntKind === 'building'){ ntClose(); openClaude(" in HOME      # a building needs its plan: Claude's, never a browser starter
+    assert "ntModes.palace === 'building' ? 'building' :" in HOME
+    assert "if(ntKind === 'palace' || ntKind === 'building' || ntKind === 'world'){ ntClose(); openClaude(" in HOME      # a building needs its plan: Claude's, never a browser starter
     assert (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8") == HOME     # staged
     assert "building" not in __import__("alto.build.starter", fromlist=["KINDS"]).KINDS

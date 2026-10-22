@@ -23,7 +23,7 @@ def _dict_in(text, name):
 
 
 def test_every_format_has_a_distinct_symbol():
-    assert F.KEYS == ("timeline", "lanes", "outline", "system", "palace", "building")
+    assert F.KEYS == ("timeline", "lanes", "outline", "system", "palace", "building", "world")
     assert len({F.SYMBOLS[k][1] for k in F.KEYS}) == len(F.KEYS)
     for k in F.KEYS:
         assert F.name(k) and 'stroke="currentColor"' in F.svg(k)
@@ -34,6 +34,7 @@ def test_every_format_has_a_distinct_symbol():
     ({"mode": "linear"}, "timeline"), ({"mode": "lanes"}, "lanes"),
     ({"mode": "outline"}, "outline"), ({"mode": "outline", "layout": "solar"}, "system"),
     ({"mode": "palace"}, "palace"), ({"mode": "palace", "palace_view": "building"}, "building"),
+    ({"mode": "palace", "palace_view": "world"}, "world"),
 ])
 def test_a_brief_picks_its_symbol(kw, key):
     assert F.key_of(Brief(title="t", **kw)) == key
@@ -66,6 +67,7 @@ def test_the_listing_record_knows_the_format(name, key):
 def test_the_format_is_read_off_each_formats_own_script():
     assert fmt_of("x\nwindow._ALTO_SOLAR={};\nwindow._ALTO_OUTLINE={};") == "system"
     assert fmt_of("x\nwindow._ALTO_BUILDING={};") == "building"
+    assert fmt_of("x\nwindow._ALTO_PALACE={};\nwindow._ALTO_WORLD={};") == "world"
     assert fmt_of("x\nwindow._altoPalace=function(h){") == "palace"
     assert fmt_of("x\nwindow._ALTO_LANES={};") == "lanes"
     assert fmt_of("a window._altoPalace=function") == "timeline"     # mid-line mentions don't count
@@ -75,7 +77,7 @@ def test_the_format_is_read_off_each_formats_own_script():
 def test_the_browser_reads_the_format_the_same_way(tmp_path):
     js = (ROOT / "alto" / "cloud" / "alto-cloud.js").read_text(encoding="utf-8")
     fn = js[js.index("  function _fmtOf"):js.index("  function _metaOf")]
-    cases = ["x\nwindow._ALTO_SOLAR={};\nwindow._ALTO_OUTLINE={};", "x\nwindow._ALTO_BUILDING={};",
+    cases = ["x\nwindow._ALTO_SOLAR={};\nwindow._ALTO_OUTLINE={};", "x\nwindow._ALTO_BUILDING={};", "x\nwindow._ALTO_WORLD={};",
              "x\nwindow._altoPalace=function(h){", "x\nwindow._ALTO_OUTLINE={};",
              "a window._altoPalace=function", "x\nwindow._ALTO_LANES={};", "plain"]
     runner = tmp_path / "f.js"

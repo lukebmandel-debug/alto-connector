@@ -1,0 +1,550 @@
+"""The World Palace's hosted renderer (brief.palace_view "world"): /world/palace-world-<hash>.js, loaded by the page (palace_assets.py).
+
+The page holds a ~350 byte loader and the page data (`window._ALTO_WORLD`, world_data below: each card's number, title, unit and — for the cards that
+stand on the map — where, in world units, plus the clusters round them); the map itself is the hosted geodata (world_geo.py: base tier at 1:110m, a
+continent's 1:50m detail and a country's state lines fetched when zoomed in). A page whose script or map is missing (an exported single file, no
+network) keeps its cards.
+
+Luke's design (2026-10-22, the spec in the CEO notes world-palace/): a smoothed real world (Equal Earth, coastlines curved), flat Alto glass land,
+only the countries in use tinted (the unit's colour) and labelled; numbered pins; the route as curved flight arcs in the unit's colour with
+direction chevrons, a dotted arc handing one unit to the next; a place opens into its cluster of cards; free zoom / pan, a click flies there, and a
+Tour steps the route (◀ ▶, the arrow keys). Classic and Retro (retro.FORMAT_CSS styles #wpal-root); no first-person view. Text is only ever
+written with textContent.
+
+SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId), tour(i), world(), view() -> {cx, cy, k}, on(event, fn)
+('ready' when the map is drawn, 'select', 'land' when a flight ends).
+"""
+from __future__ import annotations
+
+import hashlib as _hashlib
+import json as _json
+
+from .palace_assets import loader as _loader
+
+WORLD_CSS = r"""
+#wpal-root{--w-sea1:#eef2fb;--w-sea2:#dde6f6;--w-land:rgba(255,255,255,.93);--w-edge:rgba(110,125,165,.30);--w-grat:rgba(110,130,180,.11);
+  --w-text:var(--text,#1d2433);--w-sub:var(--text-dim,#5b6478);--w-panel:rgba(255,255,255,.78);--w-panel-b:rgba(255,255,255,.95);
+  --w-card:rgba(255,255,255,.9);--w-shadow:0 10px 30px rgba(40,55,95,.16);--w-font:inherit;--w-mix:#fff;--w-used:30%;--w-pin:#fff;
+  position:fixed;left:0;right:0;bottom:0;top:var(--w-top,0px);z-index:30;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
+  background:radial-gradient(120% 90% at 50% 42%,var(--w-sea1),var(--w-sea2));color:var(--w-text);font-family:var(--w-font);}
+html.dark #wpal-root{--w-sea1:#16203a;--w-sea2:#0b1122;--w-land:rgba(36,44,66,.95);--w-edge:rgba(170,185,225,.22);--w-grat:rgba(170,190,240,.07);
+  --w-panel:rgba(20,26,42,.86);--w-panel-b:rgba(255,255,255,.12);--w-card:rgba(22,28,46,.94);--w-shadow:0 12px 32px rgba(0,0,0,.45);--w-mix:#1a2238;--w-used:42%;--w-pin:#121a2e;}
+#wpal-root[hidden]{display:none;}
+html.wpal-open #world{visibility:hidden !important;}
+#wpal-root svg.wp-svg{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+#wpal-root.wp-drag svg.wp-svg{cursor:grabbing;}
+#wpal-root .wp-grat{fill:none;stroke:var(--w-grat);stroke-width:1px;vector-effect:non-scaling-stroke;}
+#wpal-root .wp-sphere{fill:none;stroke:var(--w-edge);stroke-width:1.2px;vector-effect:non-scaling-stroke;}
+#wpal-root .wp-c{fill:var(--w-land);stroke:var(--w-edge);stroke-width:.8px;vector-effect:non-scaling-stroke;stroke-linejoin:round;fill-rule:evenodd;}
+#wpal-root .wp-land{filter:drop-shadow(0 3px 5px rgba(40,55,95,.13));}
+html.dark #wpal-root .wp-land{filter:none;}
+#wpal-root .wp-c.wp-u{fill:color-mix(in srgb,var(--u) var(--w-used),var(--w-mix));stroke:color-mix(in srgb,var(--u) 80%,transparent);stroke-width:1.2px;cursor:pointer;}
+#wpal-root .wp-c.wp-on{fill:color-mix(in srgb,var(--u) 52%,var(--w-mix));stroke-width:2.2px;}
+#wpal-root.wp-focus .wp-c.wp-u:not(.wp-on){opacity:.55;}
+#wpal-root .wp-a1{fill:none;stroke:var(--w-edge);stroke-width:.8px;stroke-dasharray:3 3;vector-effect:non-scaling-stroke;}
+#wpal-root .wp-arc{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+#wpal-root .wp-arc.h{stroke:color-mix(in srgb,var(--u) 35%,transparent);stroke-width:6px;}
+#wpal-root .wp-arc.m{stroke:var(--u);stroke-width:3px;}
+#wpal-root .wp-arc.s{stroke:rgba(255,255,255,.6);stroke-width:1px;}
+#wpal-root .wp-arc.k{stroke:var(--u);stroke-width:1.6px;stroke-opacity:.85;}
+#wpal-root .wp-arc.hand{stroke:var(--w-sub);stroke-width:1.6px;stroke-dasharray:2 7;stroke-opacity:.7;}
+#wpal-root.wp-focus .wp-arcs g:not(.wp-on){opacity:.22;}
+#wpal-root svg.wp-ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+#wpal-root .wp-chev{fill:none;stroke:#fff;stroke-width:1.8px;stroke-linecap:round;stroke-linejoin:round;}
+#wpal-root .wp-link{fill:none;stroke:var(--u);stroke-width:2.2px;stroke-linecap:round;opacity:.9;}
+#wpal-root .wp-dot{fill:var(--u);}
+#wpal-root .wp-layer{position:absolute;inset:0;pointer-events:none;}
+#wpal-root .wp-pin{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;box-sizing:border-box;pointer-events:auto;cursor:pointer;
+  background:var(--w-pin);border:2px solid var(--u);box-shadow:0 0 0 3px color-mix(in srgb,var(--u) 25%,transparent);
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;line-height:1;color:color-mix(in srgb,var(--u) 75%,#000);}
+html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
+#wpal-root .wp-pin.n{width:24px;height:24px;margin:-12px 0 0 -12px;}
+#wpal-root .wp-pin.wp-on{width:34px;height:34px;margin:-17px 0 0 -17px;font-size:11px;border-width:2.5px;}
+#wpal-root .wp-pin:focus-visible{outline:2px solid var(--u);outline-offset:3px;}
+#wpal-root .wp-pin .wp-nm{position:absolute;right:-9px;top:-11px;width:11px;height:14px;pointer-events:none;}
+#wpal-root .wp-pin .wp-nm path{fill:var(--u);stroke:var(--w-pin);stroke-width:1.5px;}
+#wpal-root.wp-focus .wp-pin:not(.wp-in){opacity:.35;}
+#wpal-root .wp-lbl{position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;text-align:center;font-size:11.5px;font-weight:650;line-height:1.25;
+  text-shadow:0 0 3px var(--w-sea1),0 0 3px var(--w-sea1),0 0 6px var(--w-sea1);pointer-events:none;}
+#wpal-root .wp-lbl i{display:block;font-style:normal;font-weight:500;font-size:11px;color:var(--w-sub);}
+#wpal-root :is(.wp-lbl,.wp-tag,.wp-pin){transition:opacity .22s,visibility 0s linear 0s,width .22s,height .22s,margin .22s,font-size .22s;}
+#wpal-root :is(.wp-lbl,.wp-tag).wp-off{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s,visibility 0s linear .22s;}
+#wpal-root .wp-tag{position:absolute;left:0;top:0;transform:translate(-50%,-50%);padding:3px 9px;border-radius:999px;border:1.5px solid var(--u);background:var(--w-card);
+  font-size:11.5px;white-space:nowrap;box-shadow:var(--w-shadow);pointer-events:auto;cursor:pointer;}
+#wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 75%,var(--w-text));margin-right:4px;}
+#wpal-root .wp-tag span{color:var(--w-sub);}
+#wpal-root .wp-card{position:absolute;left:0;top:0;width:220px;box-sizing:border-box;padding:10px 13px 11px;border-radius:14px;background:var(--w-card);border:1px solid var(--w-panel-b);
+  box-shadow:var(--w-shadow);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);font-size:12px;line-height:1.35;pointer-events:auto;cursor:pointer;text-align:left;color:var(--w-text);font-family:var(--w-font);}
+#wpal-root .wp-card:hover{border-color:var(--u);}
+#wpal-root .wp-card .n{font-size:10.5px;font-weight:700;letter-spacing:.04em;color:color-mix(in srgb,var(--u) 80%,var(--w-text));text-transform:uppercase;}
+#wpal-root .wp-card h4{margin:2px 0 0;font-size:14px;line-height:1.22;font-weight:650;}
+#wpal-root .wp-card.main{width:290px;padding:13px 16px 14px;}
+#wpal-root .wp-card.main h4{font-size:17px;}
+#wpal-root .wp-card .pl{margin-top:5px;color:var(--w-sub);font-size:11.5px;}
+#wpal-root .wp-list{position:absolute;right:20px;top:64px;bottom:96px;width:300px;overflow:auto;padding:10px;border-radius:14px;background:var(--w-panel);border:1px solid var(--w-panel-b);
+  box-shadow:var(--w-shadow);pointer-events:auto;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);touch-action:pan-y;}
+#wpal-root .wp-list[hidden]{display:none;}
+#wpal-root .wp-list button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--w-text);font:inherit;font-size:13px;padding:7px 8px;border-radius:9px;cursor:pointer;}
+#wpal-root .wp-list button:hover{background:color-mix(in srgb,var(--u) 14%,transparent);}
+#wpal-root .wp-list button b{color:color-mix(in srgb,var(--u) 80%,var(--w-text));margin-right:6px;font-size:11px;}
+#wpal-root .wp-bar{position:absolute;display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:14px;background:var(--w-panel);border:1px solid var(--w-panel-b);
+  box-shadow:var(--w-shadow);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);font-size:13px;white-space:nowrap;}
+#wpal-root .wp-bar[hidden]{display:none;}
+#wpal-root .wp-btn{border:1px solid var(--w-edge);background:none;color:var(--w-text);font:inherit;font-size:12.5px;padding:5px 11px;border-radius:9px;cursor:pointer;}
+#wpal-root .wp-btn:hover{background:color-mix(in srgb,var(--w-text) 7%,transparent);}
+#wpal-root .wp-btn.r{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+#wpal-root .wp-ctl{right:16px;top:12px;}
+#wpal-root .wp-tour{left:50%;bottom:18px;transform:translateX(-50%);max-width:calc(100% - 32px);}
+#wpal-root .wp-tour .d{color:var(--w-sub);overflow:hidden;text-overflow:ellipsis;max-width:180px;}
+#wpal-root .wp-tour .c{font-weight:650;overflow:hidden;text-overflow:ellipsis;}
+#wpal-root .wp-key{left:16px;bottom:66px;display:block;font-size:12px;line-height:20px;max-width:340px;white-space:normal;}
+#wpal-root .wp-key button.u{display:flex;align-items:center;gap:7px;border:0;background:none;color:var(--w-text);font:inherit;padding:0 4px;border-radius:6px;cursor:pointer;width:100%;text-align:left;}
+#wpal-root .wp-key button.u:hover{background:color-mix(in srgb,var(--u) 14%,transparent);}
+#wpal-root .wp-key i{display:inline-block;width:10px;height:10px;border-radius:5px;background:var(--u);flex:none;}
+#wpal-root .wp-key span{color:var(--w-sub);}
+#wpal-root .wp-key .wp-kt{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--w-text);font:inherit;padding:0;cursor:pointer;}
+#wpal-root .wp-key.shut .u,#wpal-root .wp-key.shut .wp-kn{display:none;}
+#wpal-root .wp-key:not(.shut) .wp-kt{margin-bottom:4px;color:var(--w-sub);}
+#wpal-root .wp-kn{color:var(--w-sub);margin-top:4px;display:flex;align-items:center;gap:6px;}
+#wpal-root .wp-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--w-sub);font-size:13px;}
+@media print{#wpal-root{display:none !important;}html.wpal-open #world{visibility:visible !important;}}
+@media (max-width:700px){#wpal-root .wp-card{width:180px;padding:8px 10px 9px;}#wpal-root .wp-card.main{width:220px;}#wpal-root .wp-card h4{font-size:13px;}
+  #wpal-root .wp-card.main h4{font-size:15px;}#wpal-root .wp-tour .d{display:none;}#wpal-root .wp-tour{bottom:68px;}
+  #wpal-root .wp-key{bottom:120px;left:12px;max-width:calc(100% - 24px);}#wpal-root .wp-ctl{right:10px;top:8px;}
+  #wpal-root .wp-list{left:12px;right:12px;width:auto;top:auto;bottom:120px;max-height:40%;}}
+"""
+
+WORLD_JS = r"""
+var NS='http://www.w3.org/2000/svg', A=window.AltoWorld={}, ev={};
+var S={k:1,cx:0,cy:0,vw:1,vh:1,kW:1,paths:{},bb:{},base:{},det:{},detOn:{},cont:{},a1:{},pins:{},lbls:{},tags:[],chev:[],sel:null,ti:-1,ptr:{},anim:null,cl:null};
+function on(e,f){ (ev[e]=ev[e]||[]).push(f); }
+function emit(e,d){ (ev[e]||[]).slice().forEach(function(f){ try{ f(d); }catch(x){} }); }
+function el(t,a,p){ var n=document.createElementNS(NS,t); if(a) for(var k in a) n.setAttribute(k,a[k]); if(p) p.appendChild(n); return n; }
+function h(t,a,p,txt){ var n=document.createElement(t); if(a) for(var k in a) n.setAttribute(k,a[k]); if(txt!=null) n.textContent=txt; if(p) p.appendChild(n); return n; }
+function dec(s){ var t=document.createElement('textarea'); t.innerHTML=s==null?'':String(s); return t.value; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function mj(t){ return t*t*t*(10-15*t+6*t*t); }            // minimum jerk: Alto's one motion curve
+function reduced(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(x){ return false; } }
+function phone(){ return S.vw<700; }
+
+// ── geometry: integer delta rings → smooth closed curves (centripetal Catmull-Rom) ──
+function decode(flat,q){ var x=flat[0],y=flat[1],o=[[x/q,y/q]]; for(var i=2;i<flat.length;i+=2){ x+=flat[i]; y+=flat[i+1]; o.push([x/q,y/q]); } return o; }
+function curve(P,dp){
+  var n=P.length, f=function(v){ return v.toFixed(dp); };
+  if(n<4){ var s='M'+f(P[0][0])+' '+f(P[0][1]); for(var j=1;j<n;j++) s+='L'+f(P[j][0])+' '+f(P[j][1]); return s+'Z'; }
+  var d='M'+f(P[0][0])+' '+f(P[0][1]);
+  for(var i=0;i<n;i++){
+    var p0=P[(i-1+n)%n],p1=P[i],p2=P[(i+1)%n],p3=P[(i+2)%n];
+    var l01=Math.sqrt(Math.hypot(p1[0]-p0[0],p1[1]-p0[1])),l12=Math.sqrt(Math.hypot(p2[0]-p1[0],p2[1]-p1[1])),l23=Math.sqrt(Math.hypot(p3[0]-p2[0],p3[1]-p2[1]));
+    var a1=p1,a2=p2,e=1e-9;
+    if(l01>e){ var a=2*l01*l01+3*l01*l12+l12*l12, nn=3*l01*(l01+l12); a1=[(p1[0]*a-p0[0]*l12*l12+p2[0]*l01*l01)/nn,(p1[1]*a-p0[1]*l12*l12+p2[1]*l01*l01)/nn]; }
+    if(l23>e){ var b=2*l23*l23+3*l23*l12+l12*l12, m=3*l23*(l23+l12); a2=[(p2[0]*b+p1[0]*l23*l23-p3[0]*l12*l12)/m,(p2[1]*b+p1[1]*l23*l23-p3[1]*l12*l12)/m]; }
+    d+='C'+f(a1[0])+' '+f(a1[1])+' '+f(a2[0])+' '+f(a2[1])+' '+f(p2[0])+' '+f(p2[1]);
+  }
+  return d+'Z';
+}
+// bb gets the box of the country's main landmass (its largest ring): France is zoomed to France, not to French Guiana as well
+function rings2d(list,q,dp,bb){ var d='', best=-1; list.forEach(function(fl){ var P=decode(fl,q), b=[1e9,1e9,-1e9,-1e9];
+  P.forEach(function(p){ if(p[0]<b[0])b[0]=p[0]; if(p[1]<b[1])b[1]=p[1]; if(p[0]>b[2])b[2]=p[0]; if(p[1]>b[3])b[3]=p[1]; });
+  var a=(b[2]-b[0])*(b[3]-b[1]); if(a>best){ best=a; bb[0]=b[0]; bb[1]=b[1]; bb[2]=b[2]; bb[3]=b[3]; } d+=curve(P,dp); }); return d; }
+function line2d(flat,q){ var P=decode(flat,q), d='M'+P[0][0].toFixed(2)+' '+P[0][1].toFixed(2); for(var i=1;i<P.length;i++) d+='L'+P[i][0].toFixed(2)+' '+P[i][1].toFixed(2); return d; }
+function quad(a,b,bend){ var mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,k=bend*Math.min(L,520);
+  return {c:[mx-dy/L*k,my+dx/L*k],L:L}; }
+
+// ── view ──
+function scr(x,y){ return [(x-S.cx)*S.k+S.vw/2,(y-S.cy)*S.k+S.vh/2]; }
+function wld(sx,sy){ return [(sx-S.vw/2)/S.k+S.cx,(sy-S.vh/2)/S.k+S.cy]; }
+function inset(){ return phone()?{t:56,b:124,l:14,r:14}:{t:60,b:96,l:30,r:70}; }      // (clear of the page's own corner buttons and side rail)
+function fitBox(bb,pad){ var I=inset(), w=S.vw-I.l-I.r-2*pad, hh=S.vh-I.t-I.b-2*pad, bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3);
+  var k=Math.min(w/bw,hh/bh); return {k:k,cx:(bb[0]+bb[2])/2-((I.l-I.r)/2)/k,cy:(bb[1]+bb[3])/2-((I.t-I.b)/2)/k}; }
+function worldView(){ var v=fitBox([-1000,-487,1000,487],phone()?2:10); if(!phone()) return v;
+  // a phone is tall: the world fills most of its height, centred on the route, and the reader pans sideways
+  var I=inset(), k=Math.max(v.k,(S.vh-I.t-I.b)*.6/974), xs=[]; for(var id in (D().nodes||{})){ var n=N(id); if(n.x!=null) xs.push(n.x); }
+  var cx=xs.length?(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2:0, half=(S.vw/2)/k;
+  return {k:k,cx:clamp(cx,-1000+half,1000-half),cy:v.cy}; }
+function apply(){
+  S.g.setAttribute('transform','translate('+(S.vw/2-S.cx*S.k).toFixed(2)+' '+(S.vh/2-S.cy*S.k).toFixed(2)+') scale('+S.k.toFixed(5)+')');
+  place();
+}
+function setView(cx,cy,k){ var kmin=S.kW*(phone()?.35:.6), kmax=S.kW*60; S.k=clamp(k,kmin,kmax); S.cx=clamp(cx,-1100,1100); S.cy=clamp(cy,-560,560); apply(); settleSoon(); }
+function zoomAt(f,sx,sy){ var p=wld(sx,sy), k=clamp(S.k*f,S.kW*(phone()?.35:.6),S.kW*60); S.cx=p[0]-(sx-S.vw/2)/k; S.cy=p[1]-(sy-S.vh/2)/k; S.k=k; stop(); apply(); settleSoon(); }
+function stop(){ if(S.anim){ cancelAnimationFrame(S.anim.raf); S.anim=null; } }
+function fly(cx,cy,k,done){
+  stop(); var c0=[S.cx,S.cy,S.k], d=Math.hypot(cx-c0[0],cy-c0[1]), kmin=Math.min(c0[2],k);
+  var far=d*kmin/Math.max(S.vw,1), ms=reduced()?0:clamp(480+260*Math.log2(1+far)+90*Math.abs(Math.log2(k/c0[2])),480,1400);
+  var dip=far>1.1?Math.log(Math.max((S.vw*.85)/(d*kmin),.08)):0;       // a long flight rises first, so the reader sees where it goes
+  if(!ms){ S.cx=cx; S.cy=cy; S.k=k; apply(); settleSoon(); if(done) done(); return; }
+  var t0=performance.now(), l0=Math.log(c0[2]), l1=Math.log(k);
+  var A0={raf:0}; S.anim=A0;
+  (function step(now){
+    var t=clamp((now-t0)/ms,0,1), e=mj(t);
+    S.cx=c0[0]+(cx-c0[0])*e; S.cy=c0[1]+(cy-c0[1])*e; S.k=Math.exp(l0+(l1-l0)*e+dip*4*e*(1-e)); apply();
+    if(t<1&&S.anim===A0) A0.raf=requestAnimationFrame(step); else if(S.anim===A0){ S.anim=null; settleSoon(); if(done) done(); emit('land',S.sel); }
+  })(t0);
+}
+var settleT=0; function settleSoon(){ clearTimeout(settleT); settleT=setTimeout(settle,140); }
+function settle(){ detail(); labels(); }
+
+// ── page data ──
+function D(){ return A.data||{}; }
+function N(id){ return (D().nodes||{})[id]; }
+function placed(id){ var n=N(id); return n&&n.x!=null; }
+function unitOf(id){ var n=N(id); return n?n.a:0; }
+function stops(){ var o=[]; (D().u||[]).forEach(function(u){ if(u.hub) o.push(u.hub); (u.st||[]).forEach(function(id){ if(placed(id)) o.push(id); }); }); return o; }
+function hubUnit(id){ var U=D().u||[]; for(var a=0;a<U.length;a++) if(U[a].hub===id) return a; return -1; }
+function ucls(a){ return 'wu'+(a%12); }
+function placeOf(id){ var n=N(id); while(n&&n.x==null&&n.par){ id=n.par; n=N(id); } return n&&n.x!=null?id:null; }
+
+// ── drawing ──
+function drawBase(G){
+  S.base=G; var q=G.q, used=D().used||{};
+  (G.grat||[]).forEach(function(fl){ el('path',{d:line2d(fl,q),'class':'wp-grat'},S.gGrat); });
+  if(G.sphere) el('path',{d:curve(decode(G.sphere,q),1),'class':'wp-sphere'},S.gGrat);
+  Object.keys(G.c).sort().forEach(function(cid){
+    if(cid==='ATA'&&used[cid]==null) return;
+    var bb=[1e9,1e9,-1e9,-1e9], d=rings2d(G.c[cid],q,1,bb); S.bb[cid]=bb;
+    var p=el('path',{d:d,'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._base=d; p._cid=cid; S.paths[cid]=p;
+    if(used[cid]!=null) p.addEventListener('click',function(){ if(S.dragged) return; var f=firstIn(cid); if(f) A.select(f); });
+  });
+}
+function firstIn(cid){ var s=stops(); for(var i=0;i<s.length;i++) if(N(s[i]).c===cid) return s[i]; return null; }
+function drawArcs(){
+  var g=S.gArcs; while(g.firstChild) g.removeChild(g.firstChild); S.chev=[];
+  var U=D().u||[], prev=null;
+  U.forEach(function(u,a){
+    var gu=el('g',{'class':ucls(a),'data-u':a},g), tops=(u.tops||[]).filter(placed);
+    for(var i=0;i+1<tops.length;i++) tube(gu,N(tops[i]),N(tops[i+1]),a,.22,true);
+    tops.forEach(function(t){ (D().cl[t]||[]).concat(kidsPlaced(t)).forEach(function(c){ if(placed(c)&&N(c).par===t) tube(gu,N(t),N(c),a,.12,false,'k'); }); });
+    if(prev&&tops.length){ var p0=N(prev),p1=N(tops[0]); if(Math.hypot(p1.x-p0.x,p1.y-p0.y)>1){ var Q=quad([p0.x,p0.y],[p1.x,p1.y],.18);
+      el('path',{d:'M'+p0.x+' '+p0.y+'Q'+Q.c[0].toFixed(2)+' '+Q.c[1].toFixed(2)+' '+p1.x+' '+p1.y,'class':'wp-arc hand'},gu); } }
+    if(tops.length) prev=tops[tops.length-1];
+  });
+}
+function kidsPlaced(t){ var o=[]; var all=D().nodes||{}; for(var id in all) if(all[id].par===t&&all[id].x!=null) o.push(id); return o; }
+function tube(g,a,b,u,bend,chev,only){
+  if(Math.hypot(b.x-a.x,b.y-a.y)<.5) return;
+  var Q=quad([a.x,a.y],[b.x,b.y],bend), d='M'+a.x+' '+a.y+'Q'+Q.c[0].toFixed(2)+' '+Q.c[1].toFixed(2)+' '+b.x+' '+b.y;
+  if(only){ el('path',{d:d,'class':'wp-arc '+only},g); return; }
+  el('path',{d:d,'class':'wp-arc h'},g); el('path',{d:d,'class':'wp-arc m'},g); el('path',{d:d,'class':'wp-arc s'},g);
+  if(chev) S.chev.push({a:[a.x,a.y],c:Q.c,b:[b.x,b.y],u:u});
+}
+function drawPins(){
+  var all=D().nodes||{}, groups={};
+  Object.keys(all).forEach(function(id){ var n=all[id]; if(n.x==null) return;
+    var key=n.x.toFixed(1)+','+n.y.toFixed(1); (groups[key]=groups[key]||[]).push(id);
+    var p=h('button',{type:'button','class':'wp-pin '+ucls(n.a),'aria-label':dec(n.n+' '+n.t+' — '+(n.pl||''))},S.lPins);
+    p.addEventListener('click',function(e){ e.stopPropagation(); A.select(id); });
+    if(n.r){ var s=el('svg',{'class':'wp-nm',viewBox:'-8 -16 16 17'},p); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z'},s);
+      p.title='Place named in your notes'+(n.nm?': '+dec(n.nm):''); }
+    var t=h('span',null,p,''); var L=h('div',{'class':'wp-lbl'},S.lLbl); h('b',null,L,dec(n.pl||'')); h('i',null,L,dec(n.t||''));
+    S.pins[id]={el:p,num:t,lbl:L,off:[0,0]};
+  });
+  Object.keys(groups).forEach(function(k){ var g=groups[k]; if(g.length<2) return;            // cards sharing a capital fan round it
+    g.forEach(function(id,i){ var a=-Math.PI/2+i*2*Math.PI/g.length, r=12+3*g.length; S.pins[id].off=[r*Math.cos(a),r*Math.sin(a)]; S.pins[id].fan=1; }); });
+  (D().u||[]).forEach(function(u,a){
+    var tg=h('button',{type:'button','class':'wp-tag '+ucls(a)},S.lTag); h('b',null,tg,String(a+1)); tg.appendChild(document.createTextNode(dec((D().acts[a]||{}).n||''))); h('span',null,tg,' · '+(u.tops||[]).length);
+    tg.addEventListener('click',function(e){ e.stopPropagation(); if(u.hub) A.select(u.hub); else A.unit(a); });
+    S.tags.push({el:tg,a:a});
+  });
+}
+// Markers (the shared rules, Luke 2026-10-22: "shifting so much and changing size"): every pin, name and tag keeps one screen size and is
+// pinned to its place, so a zoom or a pan changes only its transform; which names show, where the tags sit and whether pins carry their
+// numbers is decided once the gesture settles (bands, not thresholds), a marker keeps its place while it is still free, and what goes fades.
+function place(){
+  var big=S.big;
+  for(var id in S.pins){ var P=S.pins[id], n=N(id), s=scr(n.x,n.y), f=big?1.6:1, x=s[0]+P.off[0]*f, y=s[1]+P.off[1]*f;
+    P.x=x; P.y=y; P.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
+    P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)).toFixed(1)+'px)'; }
+  S.tags.forEach(function(T){ if(T.pos){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
+  var ov=S.ovChev; while(ov.firstChild) ov.removeChild(ov.firstChild);
+  S.chev.forEach(function(C){ var t=.5, x=(1-t)*(1-t)*C.a[0]+2*(1-t)*t*C.c[0]+t*t*C.b[0], y=(1-t)*(1-t)*C.a[1]+2*(1-t)*t*C.c[1]+t*t*C.b[1];
+    var tx=2*(1-t)*(C.c[0]-C.a[0])+2*t*(C.b[0]-C.c[0]), ty=2*(1-t)*(C.c[1]-C.a[1])+2*t*(C.b[1]-C.c[1]), s=scr(x,y);
+    if(Math.hypot(C.b[0]-C.a[0],C.b[1]-C.a[1])*S.k<46) return;
+    el('path',{d:'M-4,-4L3,0L-4,4','class':'wp-chev','transform':'translate('+s[0].toFixed(1)+' '+s[1].toFixed(1)+') rotate('+(Math.atan2(ty,tx)*180/Math.PI).toFixed(1)+')',opacity:S.sel!=null&&unitOf(S.sel)!==C.u?.25:1},ov); });
+  cluster();
+}
+function band(was,v,lo,hi){ return was?v>=lo:v>=hi; }
+function off(e,on){ e.classList.toggle('wp-off',!on); }
+function labels(){                                  // decided once a gesture settles: names that fit, the ones already showing first
+  var lvl=S.k/S.kW, big=S.big=band(S.big,lvl,1.65,1.9), tags=S.tagsOn=!band(!S.tagsOn,lvl,1.3,1.55), tight=!big;
+  for(var id0 in S.pins){ var P0=S.pins[id0], n0=N(id0); P0.el.classList.toggle('n',big); P0.num.textContent=big?(n0.n||''):''; }
+  place();
+  var taken=[];
+  for(var id in S.pins){ var P=S.pins[id]; taken.push([P.x-8,P.y-8,P.x+8,P.y+8]); }
+  if(S.cl) S.cl.boxes.forEach(function(b){ taken.push(b); });
+  var hit=function(b,sl){ sl=sl||0; for(var i=0;i<taken.length;i++){ var t=taken[i]; if(b[0]+sl<t[2]&&b[2]-sl>t[0]&&b[1]+sl<t[3]&&b[3]-sl>t[1]) return true; } return false; };
+  var seenC={}, order=stops().concat(Object.keys(S.pins)), was=order.filter(function(id){ return S.pins[id]&&S.pins[id].on; });
+  was.concat(order).forEach(function(id){ var P=S.pins[id]; if(!P||P._done===S) return; P._done=S; var n=N(id);
+    var L=P.lbl, show=!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
+    if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
+    L.querySelector('i').style.display=tight?'none':'';
+    if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
+    P.on=show; off(L,show); });
+  for(var k in S.pins) delete S.pins[k]._done;
+  // the unit tags (world view only): beside their unit's pins where nothing else is; a tag keeps its side while that is free
+  S.tags.forEach(function(T){ var u=D().u[T.a], ids=(u.tops||[]).filter(placed); if(!ids.length){ T.pos=null; off(T.el,false); return; }
+    var cx=0,cy=0; ids.forEach(function(i){ cx+=N(i).x; cy+=N(i).y; }); cx/=ids.length; cy/=ids.length; T.pos=[cx,cy];
+    var w=T.el.offsetWidth||120, hh=T.el.offsetHeight||22, s=scr(cx,cy), best=null, I=inset();
+    var fits=function(v,sl){ var dx=v[0]*(w/2+44), dy=v[1]*(hh/2+40), b=[s[0]+dx-w/2,s[1]+dy-hh/2,s[0]+dx+w/2,s[1]+dy+hh/2];
+      if(b[0]<10||b[2]>S.vw-10||b[1]<I.t||b[3]>S.vh-I.b||hit(b,sl)) return null; taken.push(b); return [dx,dy]; };
+    if(T.v) best=fits(T.v,3);
+    if(!best) [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1],[-1.6,0],[1.6,0],[0,-1.8],[0,1.8]].some(function(v){ best=fits(v,0); if(best) T.v=v; return !!best; });
+    if(best) T.d=best; off(T.el,!!best&&tags); });
+  place();
+}
+
+// ── zoomed-in detail: a continent at 1:50m, a country's state lines ──
+function fetchJSON(url){ return fetch(url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
+function visBox(){ var a=wld(0,0), b=wld(S.vw,S.vh); return [a[0],a[1],b[0],b[1]]; }
+function meets(a,b){ return a[0]<b[2]&&a[2]>b[0]&&a[1]<b[3]&&a[3]>b[1]; }
+function detail(){
+  var want=S.k>=S.kW*2.4, vb=visBox();
+  Object.keys(GEO.cont).forEach(function(cs){
+    if(want&&meets(CBOX[cs]||[-1e9,-1e9,1e9,1e9],vb)){
+      if(!S.cont[cs]){ S.cont[cs]='loading'; fetchJSON(GEO.cont[cs]).then(function(G){ S.cont[cs]=G; if(S.k>=S.kW*2.4) swapIn(cs); }).catch(function(){ S.cont[cs]=null; }); }
+      else if(S.cont[cs]!=='loading') swapIn(cs);
+    } else if(S.detOn[cs]) swapOut(cs);
+  });
+  if(want) (D().multi||[]).forEach(function(cid){ if(S.a1[cid]||!GEO.a1[cid]||!S.bb[cid]||!meets(S.bb[cid],vb)) return; S.a1[cid]='loading';
+    fetchJSON(GEO.a1[cid]).then(function(G){ S.a1[cid]=G; var g=el('g',{'data-c':cid},S.gA1); G.l.forEach(function(fl){ el('path',{d:line2d(fl,G.q),'class':'wp-a1'},g); }); }).catch(function(){}); });
+  S.gA1.style.display=want?'':'none';
+}
+function swapIn(cs){ if(S.detOn[cs]) return; var G=S.cont[cs]; if(!G||!G.c) return; S.detOn[cs]=1; var used=D().used||{};
+  Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid];
+    if(cid==='ATA'&&used[cid]==null) return;
+    if(!p){ p=el('path',{'class':'wp-c'+(used[cid]!=null?' wp-u '+ucls(used[cid]):'')},S.gLand); p._cid=cid; p._extra=1; S.paths[cid]=p; }
+    if(!p._det){ var bb=[1e9,1e9,-1e9,-1e9]; p._det=rings2d(G.c[cid],G.q,2,bb); if(!S.bb[cid]) S.bb[cid]=bb; }
+    p.setAttribute('d',p._det); p.style.display=''; }); }
+function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Object.keys(G.c).forEach(function(cid){ var p=S.paths[cid]; if(!p) return; if(p._extra) p.style.display='none'; else p.setAttribute('d',p._base); }); }
+
+// ── a place and its cluster ──
+function placeView(id){
+  var n=N(id), bb=S.bb[n.c], I=inset(), room=Math.min(S.vw-I.l-I.r,S.vh-I.t-I.b);
+  var span=bb?Math.max(bb[2]-bb[0],bb[3]-bb[1]):8; if(n.k==='sub') span=Math.min(span,110); else if(n.k==='city') span=Math.min(span,60);
+  var k=clamp(room*(phone()?.62:.42)/Math.max(span,4),S.kW*2.2,S.kW*30);
+  return {cx:n.x,cy:n.y-(phone()?40:30)/k,k:k};
+}
+A.select=function(id,opts){
+  if(hubUnit(id)>=0) return A.unit(hubUnit(id),opts);
+  if(!placed(id)) id=placeOf(id); if(!id) return;
+  opts=opts||{}; S.sel=id; var n=N(id); S.ti=stops().indexOf(id); closeCluster();
+  focus(n.a,n.c,id); tourBar();
+  var v=placeView(id);
+  var land=function(){ if(S.sel===id) openCluster(id); };
+  if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=v.k; apply(); settle(); land(); } else fly(v.cx,v.cy,v.k,land);
+  emit('select',id);
+};
+function focus(a,cid,id){
+  S.root.classList.toggle('wp-focus',a!=null);
+  Object.keys(S.paths).forEach(function(c){ S.paths[c].classList.toggle('wp-on',c===cid); });
+  [].forEach.call(S.gArcs.children,function(g){ g.classList.toggle('wp-on',+g.getAttribute('data-u')===a); });
+  for(var k in S.pins){ S.pins[k].el.classList.toggle('wp-in',N(k).a===a); S.pins[k].el.classList.toggle('wp-on',k===id); }
+}
+function closeCluster(){ if(!S.cl) return; S.cl.els.forEach(function(e){ e.remove(); }); S.list.hidden=true; S.cl=null; S.ovLinks.innerHTML=''; }
+function card(id,main){
+  var n=N(id), c=h('div',{'class':'wp-card '+ucls(n.a)+(main?' main':''),role:'button',tabindex:'0'},S.lCards);
+  var ha=hubUnit(id);
+  h('div',{'class':'n'},c,ha>=0?'Unit '+(ha+1)+' · '+(D().u[ha].reg||[]).join(', '):dec(n.n||'')+(main&&n.pl?' · '+dec(n.pl):''));
+  h('h4',null,c,dec(n.t||''));
+  if(main&&n.nm) h('div',{'class':'pl'},c,'Named in your notes: '+dec(n.nm));
+  var go=function(e){ if(e) e.stopPropagation(); openNode(id); };
+  c.addEventListener('click',go); c.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
+  return c;
+}
+function anchorOf(C){ if(C.at){ var s=scr(C.at[0],C.at[1]); return {x:s[0],y:s[1]}; } return S.pins[C.id]; }
+function openCluster(id,at){
+  closeCluster(); var kids=at?[]:((D().cl||{})[id]||[]), main=card(id,true), els=[main], cards=[];
+  var many=kids.length>(phone()?4:10);
+  if(many){ S.list.hidden=false; S.list.className='wp-list '+ucls(N(id).a); while(S.list.firstChild) S.list.removeChild(S.list.firstChild);
+    kids.forEach(function(c){ var b=h('button',{type:'button'},S.list); h('b',null,b,dec(N(c).n||'')); b.appendChild(document.createTextNode(dec(N(c).t||''))); b.addEventListener('click',function(){ openNode(c); }); }); }
+  else kids.forEach(function(c){ var e=card(c,false); els.push(e); cards.push({id:c,el:e}); });
+  S.cl={id:id,els:els,main:main,cards:cards,k:S.k,boxes:[],at:at||null};
+  layoutCluster(); place(); labels();
+}
+function layoutCluster(){
+  var C=S.cl; if(!C) return; var P=anchorOf(C), I=inset();
+  var mw=C.main.offsetWidth, mh=C.main.offsetHeight, gap=phone()?22:30;
+  C.mo=[-mw/2,-mh-gap];                                                      // the place's own card above its pin
+  var n=C.cards.length, rx=Math.min(S.vw*(phone()?.3:.36),430), ry=Math.min(S.vh*.3,250), boxes=[[P.x+C.mo[0],P.y+C.mo[1],P.x+C.mo[0]+mw,P.y+C.mo[1]+mh],[P.x-20,P.y-20,P.x+20,P.y+20]];
+  C.cards.forEach(function(K,i){
+    var w=K.el.offsetWidth, hh=K.el.offsetHeight, a=(n===1?35:-160+i*(320/(n-1)))*Math.PI/180, r=1, b;
+    for(var tries=0;tries<14;tries++){
+      var x=P.x+Math.cos(a)*rx*r-w/2, y=P.y+Math.sin(a)*ry*r-hh/2;
+      x=clamp(x,I.l,S.vw-I.r-w); y=clamp(y,I.t,S.vh-I.b-hh); b=[x,y,x+w,y+hh];
+      if(!boxes.some(function(o){ return b[0]<o[2]+10&&b[2]>o[0]-10&&b[1]<o[3]+8&&b[3]>o[1]-8; })) break;
+      r+=.14; a+=(i%2?-1:1)*.09;
+    }
+    boxes.push(b); K.o=[b[0]-P.x,b[1]-P.y];
+  });
+  C.boxes=boxes;
+}
+function cluster(){
+  var C=S.cl; if(!C) return; var P=anchorOf(C);
+  if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim) closeCluster(); return; }
+  var links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
+  C.main.style.transform='translate('+(P.x+C.mo[0]).toFixed(1)+'px,'+(P.y+C.mo[1]).toFixed(1)+'px)';
+  C.boxes=[[P.x+C.mo[0],P.y+C.mo[1],P.x+C.mo[0]+C.main.offsetWidth,P.y+C.mo[1]+C.main.offsetHeight]];
+  C.cards.forEach(function(K){ var x=P.x+K.o[0], y=P.y+K.o[1], w=K.el.offsetWidth, hh=K.el.offsetHeight;
+    K.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)'; C.boxes.push([x,y,x+w,y+hh]);
+    var q=[clamp(P.x,x,x+w),clamp(P.y,y,y+hh)], Q=quad([P.x,P.y],q,.1), g=el('g',{'class':ucls(N(C.id).a)},links);
+    el('path',{d:'M'+P.x.toFixed(1)+' '+P.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+q[0].toFixed(1)+' '+q[1].toFixed(1),'class':'wp-link'},g);
+    el('circle',{cx:q[0].toFixed(1),cy:q[1].toFixed(1),r:3.5,'class':'wp-dot'},g); });
+}
+function openNode(id){ if(typeof window.showDetail==='function'){ S.opened=id; A.hide(); try{ window.showDetail('node',id); }catch(x){} } }
+
+// ── tour, units, the whole world ──
+A.tour=function(i){ var s=stops(); if(!s.length) return; S.ti=(i+s.length)%s.length; A.select(s[S.ti]); };
+A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1e9,-1e9];
+  (u.st||[]).filter(placed).forEach(function(id){ var n=N(id), b=S.bb[n.c]||[n.x,n.y,n.x,n.y]; bb=[Math.min(bb[0],n.x,b[0]),Math.min(bb[1],n.y,b[1]),Math.max(bb[2],n.x,b[2]),Math.max(bb[3],n.y,b[3])]; });
+  if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(); S.sel=u.hub||null; S.ti=u.hub?stops().indexOf(u.hub):-1; focus(a,null,null); tourBar();
+  var v=fitBox(bb,phone()?20:60), k=Math.min(v.k,S.kW*14), mh=u.hub?(phone()?120:150):0;
+  v.cy-=mh/2/k;                                                               // room above the region for its own card
+  var land=function(){ if(u.hub&&S.sel===u.hub) openCluster(u.hub,[(bb[0]+bb[2])/2,bb[1]]); };
+  if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=k; apply(); settle(); land(); } else fly(v.cx,v.cy,k,land); emit('select',u.hub||null); };
+A.world=function(){ S.sel=null; S.ti=-1; closeCluster(); focus(null,null,null); tourBar(); var v=worldView(); fly(v.cx,v.cy,v.k); };
+A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
+function tourBar(){
+  var s=stops(), B=S.tourEl, on=S.ti>=0&&s.length; B.hidden=!on; if(!on) return;
+  var nm=function(id){ var n=N(id), a=hubUnit(id); return a>=0?dec((a+1)+' '+((D().acts[a]||{}).n||'')):dec((n.n||'')+' '+(n.pl||'')); };
+  S.tPrev.textContent=nm(s[(S.ti-1+s.length)%s.length]); S.tNext.textContent=nm(s[(S.ti+1)%s.length]);
+  S.tCur.textContent='Tour '+(S.ti+1)+' / '+s.length+' · '+nm(s[S.ti]);
+}
+
+// ── input: drag, pinch, wheel, Safari's trackpad gestures, keys ──
+function bindInput(){
+  var svg=S.svg, root=S.root;
+  root.addEventListener('wheel',function(e){ if(e.target.closest&&e.target.closest('.wp-list,.wp-key')) return; e.preventDefault(); stop();
+    var m=e.deltaMode===1?16:e.deltaMode===2?S.vh:1;
+    if(e.ctrlKey) zoomAt(Math.exp(clamp(-e.deltaY*m*.01,-.3,.3)),e.clientX,e.clientY-S.top);       // a pinch's small steps, a mouse notch at most ×1.35
+    else { S.cx+=e.deltaX*m/S.k; S.cy+=e.deltaY*m/S.k; setView(S.cx,S.cy,S.k); } },{passive:false});
+  var gs=1;
+  root.addEventListener('gesturestart',function(e){ if(Object.keys(S.ptr).length) return; e.preventDefault(); gs=1; },{passive:false});
+  root.addEventListener('gesturechange',function(e){ if(Object.keys(S.ptr).length) return; e.preventDefault(); zoomAt(e.scale/gs,e.clientX||S.vw/2,(e.clientY||S.vh/2)-S.top); gs=e.scale; },{passive:false});
+  root.addEventListener('gestureend',function(e){ e.preventDefault(); },{passive:false});
+  var last=null;
+  var mid=function(){ var k=Object.keys(S.ptr), a=S.ptr[k[0]], b=S.ptr[k[1]]||a; return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)}; };
+  svg.addEventListener('pointerdown',function(e){ stop(); S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top}; try{ svg.setPointerCapture(e.pointerId); }catch(x){}
+    S.dragged=false; S.down={x:e.clientX,y:e.clientY}; last=mid(); root.classList.add('wp-drag'); });
+  svg.addEventListener('pointermove',function(e){ if(!S.ptr[e.pointerId]) return; S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top};
+    if(Math.hypot(e.clientX-S.down.x,e.clientY-S.down.y)>5) S.dragged=true;
+    var m=mid(); if(last){ if(Object.keys(S.ptr).length>1&&last.d>0) zoomAt(m.d/last.d,m.x,m.y); S.cx-=(m.x-last.x)/S.k; S.cy-=(m.y-last.y)/S.k; setView(S.cx,S.cy,S.k); } last=m; });
+  var up=function(e){ delete S.ptr[e.pointerId]; last=Object.keys(S.ptr).length?mid():null; if(!last) root.classList.remove('wp-drag'); };
+  svg.addEventListener('pointerup',up); svg.addEventListener('pointercancel',up);
+  svg.addEventListener('click',function(e){ if(S.dragged) return; if(e.target===svg||e.target.classList.contains('wp-c')&&!e.target.classList.contains('wp-u')){ if(S.cl){ closeCluster(); S.sel=null; S.ti=-1; focus(null,null,null); tourBar(); } } });
+  svg.addEventListener('dblclick',function(e){ e.preventDefault(); var r=root.getBoundingClientRect(); var s=S.k*2, p=wld(e.clientX,e.clientY-r.top); fly(p[0],p[1],s); });
+  document.addEventListener('keydown',function(e){
+    if(S.root.hidden||document.documentElement.classList.contains('detail-open')) return;
+    var t=e.target, tag=t&&t.tagName; if(tag==='INPUT'||tag==='TEXTAREA'||(t&&t.isContentEditable)) return;
+    if(e.key==='ArrowRight'){ e.preventDefault(); A.tour(S.ti+1); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); A.tour(S.ti<0?-1:S.ti-1); }
+    else if(e.key==='Escape'){ if(S.sel!=null||S.ti>=0) A.world(); }
+    else if(e.key==='+'||e.key==='='){ zoomAt(1.5,S.vw/2,S.vh/2); } else if(e.key==='-'){ zoomAt(1/1.5,S.vw/2,S.vh/2); } });
+  window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); });
+}
+function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=r.width||window.innerWidth; S.vh=r.height||window.innerHeight; var v=worldView(); S.kW=v.k;
+  if(!S.inited){ S.inited=1; S.cx=v.cx; S.cy=v.cy; S.k=v.k; } else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
+function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
+  S.top=top; S.root.style.setProperty('--w-top',top+'px'); }
+
+// ── chrome ──
+function chrome(){
+  var root=S.root;
+  var ctl=h('div',{'class':'wp-bar wp-ctl'},root);
+  var tb=h('button',{type:'button','class':'wp-btn'},ctl,'▶ Tour'); tb.addEventListener('click',function(){ A.tour(S.ti<0?0:S.ti); });
+  var wb=h('button',{type:'button','class':'wp-btn',title:'The whole world'},ctl,'⤢ World'); wb.addEventListener('click',A.world);
+  var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
+  var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
+  var key=S.keyEl=h('div',{'class':'wp-bar wp-key'+(phone()?' shut':'')},root);
+  var kt=h('button',{type:'button','class':'wp-kt'},key); (D().acts||[]).forEach(function(a,i){ h('i',{'class':ucls(i),style:'width:8px;height:8px'},kt); }); kt.appendChild(document.createTextNode(' Key'));
+  kt.addEventListener('click',function(){ key.classList.toggle('shut'); });
+  (D().u||[]).forEach(function(u,a){ var b=h('button',{type:'button','class':'u '+ucls(a)},key); h('i',null,b); b.appendChild(document.createTextNode((a+1)+' '+dec((D().acts[a]||{}).n||'')+' ')); h('span',null,b,'· '+(u.reg||[]).join(', '));
+    b.addEventListener('click',function(){ A.unit(a); }); });
+  if(Object.keys(D().nodes||{}).some(function(id){ return N(id).r; })){ var kn=h('div',{'class':'wp-kn'},key); var s=el('svg',{viewBox:'-8 -16 16 17',width:10,height:12},kn); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z',fill:'currentColor'},s); kn.appendChild(document.createTextNode('place named in your notes')); }
+  var tour=S.tourEl=h('div',{'class':'wp-bar wp-tour',hidden:''},root);
+  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.tour(S.ti-1); });
+  S.tPrev=h('span',{'class':'d'},tour,''); S.tCur=h('span',{'class':'c'},tour,''); S.tNext=h('span',{'class':'d'},tour,'');
+  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.tour(S.ti+1); });
+  S.list=h('div',{'class':'wp-list',hidden:''},root);
+}
+function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
+  var s=document.getElementById('wpal-units')||h('style',{id:'wpal-units'},document.head); s.textContent=css; }
+
+A.show=function(){ if(S.root){ S.root.hidden=false; resize(); } document.documentElement.classList.add('wpal-open'); };
+A.hide=function(){ if(S.root) S.root.hidden=true; document.documentElement.classList.remove('wpal-open'); };
+A.on=on;
+function watchDetail(){ var de=document.documentElement, was=de.classList.contains('detail-open');
+  new MutationObserver(function(){ var o=de.classList.contains('detail-open'); if(was&&!o&&S.ready&&S.root.hidden){ A.show(); var id=S.opened; S.opened=null;
+    if(id&&placeOf(id)&&placeOf(id)!==S.sel) A.select(placeOf(id),{instant:true}); else if(S.sel) openCluster(S.sel); } was=o; }).observe(de,{attributes:true,attributeFilter:['class']}); }
+A.mount=function(data){
+  if(S.root||!data||!window.fetch) return; A.data=data;
+  var st=h('style',{id:'wpal-css'},document.head); st.textContent=WORLD_CSS; unitStyle();
+  var root=S.root=h('div',{id:'wpal-root','aria-label':'World map'},document.body);
+  S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
+  S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
+  S.ov=el('svg',{'class':'wp-ov'},root); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
+  S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
+  var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
+  chrome(); A.show(); bindInput(); watchDetail();
+  fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
+    msg.remove(); drawBase(G); drawArcs(); drawPins(); S.ready=1; resize(); settle(); emit('ready');
+  }).catch(function(){ msg.remove(); A.hide(); S.root.remove(); S.root=null; });      // no map: the page keeps its cards
+};
+"""
+
+
+def _asset() -> str:
+    from .world_geo import manifest, continent_boxes
+    return ("(function(){\nvar WORLD_CSS=" + _json.dumps(WORLD_CSS) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
+            + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\n" + WORLD_JS + "\n})();\n")
+
+
+WORLD_ASSET = _asset()
+WORLD_V = _hashlib.sha256(WORLD_ASSET.encode("utf-8")).hexdigest()[:10]
+WORLD_PATH = f"/world/palace-world-{WORLD_V}.js"
+# the page's loader: a synchronous request answered from the browser's cache after the first visit, run as an inline script (as the building's)
+WORLD_LOADER = "\nfunction altoLoadWorld(){ " + _loader(WORLD_PATH, "AltoWorld") + " }\n"
+WORLD_START = ("\n(function(){ function go(){ try{ altoLoadWorld(); if(window.AltoWorld) window.AltoWorld.mount(window._ALTO_WORLD); }catch(e){} }"
+               " if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go); else go(); })();\n")
+
+
+def world_asset() -> tuple[str, str]:
+    """(file name under /world/, the script) for the site."""
+    return WORLD_PATH.rsplit("/", 1)[1], WORLD_ASSET
+
+
+def _unit_name(s: str) -> str:
+    """A unit's name without its own number ("Unit 1 — Formation" → "Formation"): the map numbers its units itself."""
+    import re
+    t = re.sub(r"^\s*(unit|part|section|chapter|module|week|topic)\s+[\w.]+\s*[—–:\-]\s*", "", s or "", flags=re.I)
+    return t or s
+
+
+def world_data(b, nodes) -> str:
+    """window._ALTO_WORLD: what the hosted renderer needs from the page (the map itself is hosted, world_geo.py)."""
+    from .palace import numbers, structure
+    from .sanitize import js_json
+    from .world_geo import gazetteer
+    from .world_plan import plan
+    units, floors, _of = structure(b, nodes)
+    num = numbers(units, floors)
+    p = plan(b, nodes)
+    C = gazetteer()["countries"]
+    out = {}
+    for n in nodes:
+        rec = {"n": num.get(n.id, ""), "t": n.title, "a": n.act}
+        if n.parent:
+            rec["par"] = n.parent
+        q = p["places"].get(n.id)
+        if q:
+            rec.update({"x": q["x"], "y": q["y"], "c": q["c"], "pl": q["label"], "k": q["k"]})
+            if q.get("r"):
+                rec["r"] = 1
+            if q.get("named"):
+                rec["nm"] = q["named"]
+        out[n.id] = rec
+    data = {"v": 1, "lv": p["level"],
+            "acts": [{"n": _unit_name(a.short or a.label), "c": a.color or ""} for a in b.acts],
+            "u": [{"reg": u["reg"], "tops": u["tops"], "st": u["stops"], **({"hub": u["hub"]} if u.get("hub") else {})} for u in p["units"]],
+            "nodes": out, "cl": p["cl"], "used": p["used"], "multi": p["multi"],
+            "names": {c: C[c]["n"] for c in p["used"] if c in C}}
+    return "\nwindow._ALTO_WORLD=" + js_json(data, separators=(",", ":")) + ";" + WORLD_LOADER + WORLD_START

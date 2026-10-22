@@ -696,6 +696,7 @@
   // with (fmt_of in meta.py). A System is checked first: an outline with more.
   function _fmtOf(h) {
     return /^window\._ALTO_SOLAR=/m.test(h) ? 'system' : /^window\._ALTO_BUILDING=/m.test(h) ? 'building'
+      : /^window\._ALTO_WORLD=/m.test(h) ? 'world'
       : /^window\._altoPalace=function/m.test(h) ? 'palace' : /^window\._ALTO_OUTLINE=/m.test(h) ? 'outline'
       : /^window\._ALTO_LANES=/m.test(h) ? 'lanes' : 'timeline';
   }
