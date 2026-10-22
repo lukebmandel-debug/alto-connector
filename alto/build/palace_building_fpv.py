@@ -82,6 +82,12 @@ FPV_CSS = r"""
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto;}
 #bf-root.bf-touch .bf-credit{bottom:4px;left:12px;right:12px;max-width:none;text-align:center;}
 #bf-root .bf-perf{left:12px;bottom:12px;font:600 11px/1.35 ui-monospace,Menlo,monospace;white-space:pre;pointer-events:none;border-radius:8px;}
+#bf-root .bf-opts{position:absolute;right:14px;top:14px;display:flex;gap:6px;}
+#bf-root .bf-opts button{font:inherit;font-size:12px;height:30px;padding:0 12px;border-radius:15px;color:#fff;cursor:pointer;border:1px solid rgba(255,255,255,.22);background:rgba(20,20,24,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap;}
+#bf-root .bf-opts button:disabled{opacity:.55;cursor:default;}
+#bf-root .bf-tag{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(20,20,24,.55);border:1px solid rgba(255,255,255,.18);font-size:11px;font-weight:600;letter-spacing:.01em;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s;will-change:transform;}
+#bf-root .bf-hop{position:absolute;right:40px;bottom:158px;width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font:600 13px -apple-system,Helvetica,Arial,sans-serif;display:none;touch-action:none;}
+#bf-root.bf-touch .bf-hop{display:block;} #bf-root.bf-touch .bf-lv{bottom:236px;}
 @media (max-width:700px){#bf-root .bf-toast{top:56px;font-size:14px;}}
 """
 
@@ -351,8 +357,10 @@ FPV_JS = r"""
 (function(){
 if(window.AltoBuildingFPV) return;
 var TEXGEN=__TEXGEN__, QUADVS=__QUADVS__, SKYFS=__SKYFS__, WVS=__WVS__, WFS=__WFS__, DVS=__DVS__, DFS=__DFS__;
-var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.75, knee:.35, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900};
-var PI=Math.PI, D=document;
+var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, head:1.85, knee:.35, drop:1.0, minDoor:.9, pitchMax:85*Math.PI/180, lookX:.0042, lookY:.0036, near:.05, far:900, camD:3.1, camUp:.32};
+/* the walker is a capsule: radius pr (0.26 m), feet to the top of the head `head` (1.85 m: the tallest avatar, 1.80 m, with hair); `drop` is the most it may step down off an edge that is not a stair (higher ledges are walls) */
+var PI=Math.PI, D=typeof document!=='undefined'?document:null;
+__AVATAR__
 var S={on:false, gl:null};
 
 /* ── small math ── */
@@ -435,7 +443,7 @@ function bfIndex(plan){
   G.site=mkBatch(G,'site',null);
   G.rooms.forEach(function(r){ var A=(r.bb[2]-r.bb[0])*(r.bb[3]-r.bb[1]); G.lvs.forEach(function(l){ if(l.e<=r.l.e+.5||l.e>=r.ceil-.3) return;     /* a ceiling never pokes through the floor of a room above, unless that room shares its ceiling (an open hall and its balcony) */
       if(G.rooms.some(function(u){ return u.l===l&&Math.abs(u.ceil-r.ceil)>1&&ovl(u.bb,r.bb)>.3*Math.min(A,(u.bb[2]-u.bb[0])*(u.bb[3]-u.bb[1])); })){ r.ceil=l.e-.3; r.ch=r.ceil-r.l.e; } }); });
-  voids(G); stairs(G); walls(G); gaps(G); voidRails(G); things(G); exterior(G); portals(G);
+  voids(G); stairs(G); stairCuts(G); throughCuts(G); walls(G); gaps(G); voidRails(G); things(G); deadDoors(G); exterior(G); portals(G);
   return G; }
 /* a floored gap between traced rooms (plan gp) is part of the room it opens from: that room's height, finishes, light and name, so it reads as one space */
 function adoptGaps(G){ G.rooms.forEach(function(o){ if(!o.r.gp) return; var best=null, bs=0, e=[o.bb[0]-.5,o.bb[1]-.5,o.bb[2]+.5,o.bb[3]+.5];
@@ -455,8 +463,57 @@ function boxPrim(G,x,y,w,d,rot,z0,z1,tag){ var c=Math.cos(rot), s=Math.sin(rot);
 
 function wallTop(w,lv){ return lv.e+(w.h!=null?w.h:lv.wh); }
 function archTop(op,a){ if(!op.arch) return op.z1; var hw=(op.a1-op.a0)/2, x=a-(op.a0+op.a1)/2; return op.zc+Math.sqrt(Math.max(0,op.R*op.R-x*x)); }
+/* traced plans put two walls side by side (an inner wall and the old outer shell, misregistered by a metre): a doorway in one then opens onto the solid
+   face of the other. Where a room lies beyond that second wall the doorway goes through it too (a plain cut, same width and height); where none does,
+   the doorway is recorded in G.dead (the walk audit reports it). The blueprint's plan is never changed: G.wl is the renderer's own copy. */
+/* a flight always has a way on and off: a traced wall lying across the place where a flight starts or arrives (PMA: the small stairwells' enclosures)
+   gets an opening as wide as the flight there (G.wl, the renderer's own copy of the walls; the blueprint is not changed) */
+function stairCuts(G){ var wl=G.wl=(G.wl||(G.plan.wl||[]).slice()); G.scuts=[];
+  G.st.forEach(function(o){ if(o.k==='elevator') return; o.fl.forEach(function(fl){ [[fl.a,-1],[fl.b,1]].forEach(function(en){ var E=en[0], dir=[fl.d[0]*en[1],fl.d[1]*en[1]], l=null;
+      G.lvs.forEach(function(q){ if(Math.abs(q.e-E[2])<.3) l=q; }); if(!l) return;
+      [0,.4,-.4].forEach(function(lat){ var nx=fl.n[0]*fl.w*lat, ny=fl.n[1]*fl.w*lat, P0=[E[0]-dir[0]*.15+nx,E[1]-dir[1]*.15+ny], P1=[E[0]+dir[0]*1.0+nx,E[1]+dir[1]*1.0+ny];        /* across the flight's width: a short wall piece beside the middle counts too */
+      wl.forEach(function(w,wi){ if(w.l!==l.id||!w.p||w.k==='rail') return; var pts=w.p.slice(); if(w.loop) pts.push(pts[0]); var run=0;
+        for(var i=0;i+1<pts.length;i++){ var A=pts[i], B=pts[i+1], ex=B[0]-A[0], ey=B[1]-A[1], L=Math.hypot(ex,ey); if(L<1e-6) continue;
+          var fx=P1[0]-P0[0], fy=P1[1]-P0[1], den=fx*ey-fy*ex; if(Math.abs(den)>1e-9){ var t=((A[0]-P0[0])*ey-(A[1]-P0[1])*ex)/den, u=((A[0]-P0[0])*fy-(A[1]-P0[1])*fx)/den;
+            if(t>=0&&t<=1&&u>=-.02&&u<=1.02){ var a=run+clamp(u,0,1)*L, ow=clamp(fl.w,CFG.minDoor,L), h=Math.min(2.4,(w.h!=null?w.h:l.wh)-.05);
+              if(!(w.o||[]).some(function(q){ return q.k!=='window'&&(q.z||0)<=CFG.knee&&Math.abs(q.a-a)<q.w/2-.1; })){ if(w===(G.plan.wl||[])[wi]) w=wl[wi]=Object.assign({},w,{o:(w.o||[]).slice()}); w.o.push({k:'gap', a:a, w:ow, h:h, z:0, cut:1, st:1}); G.scuts.push({w:w.id, a:+a.toFixed(2), st:o.s.id}); } } }
+          run+=L; } }); }); }); }); }); }
+function throughCuts(G){ var wl=(G.wl||(G.plan.wl||[])).slice(), segsOf=function(w){ var pts=(w.p||[]).slice(), out=[], run=0; if(w.loop&&pts.length) pts.push(pts[0]);
+    for(var i=0;i+1<pts.length;i++){ var A=pts[i], B=pts[i+1], dx=B[0]-A[0], dy=B[1]-A[1], L=Math.hypot(dx,dy); if(L<1e-6) continue; out.push({A:A, d:[dx/L,dy/L], n:[-dy/L,dx/L], L:L, s0:run}); run+=L; } return out; };
+  var SG=wl.map(segsOf); G.cuts=[]; G.dead=[]; G.blind={};
+  wl.forEach(function(w,wi){ var lv=G.lv[w.l]; if(!lv||w.k==='rail') return; (w.o||[]).forEach(function(o){ if(o.k==='window'||!(o.w>0)||(o.z||0)>CFG.knee||(o.z||0)+o.h<CFG.head+.1) return;
+    var sg=null; SG[wi].forEach(function(q){ if(o.a>=q.s0-1e-6&&o.a<=q.s0+q.L+1e-6) sg=q; }); if(!sg) return; var u=o.a-sg.s0, c=[sg.A[0]+sg.d[0]*u,sg.A[1]+sg.d[1]*u], ht=(w.t||.2)/2, ow=Math.max(o.w,CFG.minDoor);
+    /* a second wall traced on the same line (overlapping this one's thickness) and solid across the doorway: cut it too, when there is a room on both sides */
+    if([1,-1].every(function(sd){ var r=roomAt(G,lv.id,c[0]+sg.n[0]*sd*(ht+.35),c[1]+sg.n[1]*sd*(ht+.35)); return r&&!r.isVoid; }))
+      wl.forEach(function(w2,wj){ if(wj===wi||w2.l!==w.l||w2.k==='rail') return; var ht2=(w2.t||.2)/2; SG[wj].forEach(function(q){ if(Math.abs(q.d[0]*sg.d[0]+q.d[1]*sg.d[1])<.95) return;
+        var rx=c[0]-q.A[0], ry=c[1]-q.A[1], t=rx*q.d[0]+ry*q.d[1], off=Math.abs(rx*q.n[0]+ry*q.n[1]); if(t<-.2||t>q.L+.2||off>=ht+ht2-.02) return;
+        var a2=q.s0+clamp(t,0,q.L), w3=wl[wj]; if((w3.o||[]).some(function(o2){ return o2.k!=='window'&&(o2.z||0)<=CFG.knee&&Math.abs(o2.a-a2)<Math.max(.05,o2.w/2-ow/2+.05); })) return;
+        if(w3===(G.plan.wl||[])[wj]) w3=wl[wj]=Object.assign({},w3,{o:(w3.o||[]).slice()}); w3.o.push({k:'gap', a:a2, w:o.w, h:o.h, z:o.z||0, cut:1}); G.cuts.push({w:w3.id, a:+a2.toFixed(2), for:w.id+'@'+o.a.toFixed(1), on:1}); }); });
+    [1,-1].forEach(function(sd){ var hit=null, hd=1e9;
+      wl.forEach(function(w2,wj){ if(wj===wi||w2.l!==w.l||w2.k==='rail') return; var ht2=(w2.t||.2)/2; SG[wj].forEach(function(q){ if(Math.abs(q.d[0]*sg.d[0]+q.d[1]*sg.d[1])<.95) return;
+        var rx=c[0]-q.A[0], ry=c[1]-q.A[1], t=rx*q.d[0]+ry*q.d[1], dist=-(rx*q.n[0]+ry*q.n[1])*(q.n[0]*sg.n[0]+q.n[1]*sg.n[1]>0?1:-1)*sd;      /* how far along this side's normal the other wall's centre line lies */
+        if(t<-.2||t>q.L+.2||dist<=.02||dist-ht-ht2>=2*CFG.pr+.1||dist>=hd) return;                 /* a gap the walker fits in is a passage, not a blocked door */ hd=dist; hit={w:w2, wj:wj, q:q, a:q.s0+clamp(t,0,q.L), ht2:ht2}; }); });
+      if(!hit) return; var w2=wl[hit.wj], covered=(w2.o||[]).some(function(o2){ return o2.k!=='window'&&(o2.z||0)<=CFG.knee&&(o2.z||0)+o2.h>=CFG.head+.1&&Math.abs(o2.a-hit.a)<Math.max(.05,o2.w/2-ow/2+.05); });
+      if(covered) return; var bx=c[0]+sg.n[0]*sd*(hd+hit.ht2+.4), by=c[1]+sg.n[1]*sd*(hd+hit.ht2+.4), rb=roomAt(G,lv.id,bx,by);
+      if(!rb||rb.isVoid||rb.r.gp){ G.dead.push({w:w.id, a:o.a, side:sd, by:w2.id}); G.blind[w.id+'@'+o.a]=1; return; }                 /* nothing real beyond (outside, or a floor-only gap): the doorway is closed in the walk, never a door you cannot use */
+      if(w2===(G.plan.wl||[])[hit.wj]) w2=wl[hit.wj]=Object.assign({},w2,{o:(w2.o||[]).slice()});
+      w2.o.push({k:'gap', a:hit.a, w:ow, h:o.h, z:o.z||0, cut:1}); G.cuts.push({w:w2.id, a:+hit.a.toFixed(2), for:w.id+'@'+o.a.toFixed(1)}); }); }); });
+  G.wl=wl; }
+/* a doorway with no room to stand on one side (traced walls crowding it, a sliver of floor) is filled with a wall panel: collision and picture.
+   Nothing in the walk is a door you cannot go through (G.dead lists them; the walk audit reports them). */
+/* can the capsule slide straight from P to Q at floor e (free and floored all the way)? */
+function reachLine(G,P,Q,e){ var L=Math.hypot(Q[0]-P[0],Q[1]-P[1]), n=Math.max(1,Math.ceil(L/.1)); for(var i=0;i<=n;i++){ var x=P[0]+(Q[0]-P[0])*i/n, y=P[1]+(Q[1]-P[1])*i/n, sp=supportDisc(G,x,y,e+.3); if(sp==null||Math.abs(sp-e)>.3||blockedAt(G,x,y,e)) return false; } return true; }
+function deadDoors(G){ var reach=function(P,Q,e){ return reachLine(G,P,Q,e); }; G.walls.forEach(function(W){ W.ops.forEach(function(op){ if(!op.pass||!op.sg||W.rail) return; var sg=op.sg, e=W.lv.e+(op.o.z||0), um=(op.a0+op.a1)/2-sg.s0, c=[sg.A[0]+sg.d[0]*um,sg.A[1]+sg.d[1]*um];
+    var room=function(sd){ var os=[.45,.6,.75,.9,1.1,1.3,1.5], ls=[0,.25,-.25]; for(var i=0;i<os.length;i++) for(var j=0;j<ls.length;j++){ var o=W.ht+os[i], x=c[0]+sg.n[0]*sd*o+sg.d[0]*ls[j], y=c[1]+sg.n[1]*sd*o+sg.d[1]*ls[j], sp=supportAt(G,x,y,e+.3);
+        if(sp!=null&&Math.abs(sp-e)<.15&&!blockedAt(G,x,y,e)&&reach(c,[x,y],e)) return true; } return false; };
+    if(W.k==='ext'&&!(op.ra&&op.rb)) return;                           /* an entrance: the outside is checked by the exterior, not here */
+    if(op.o.st||G.st.some(function(o){ return o.k!=='elevator'&&o.fl.some(function(fl){ return segD(c[0],c[1],fl.a[0],fl.a[1],fl.b[0],fl.b[1])<fl.w/2+1.2; }); })) return;      /* a stair's way on or off: the flight is the room beyond */
+    if(room(1)&&room(-1)) return;
+    op.pass=false; op.plug=1; G.dead.push({w:W.w.id, a:op.o.a, side:0, by:'no room to stand'});
+    var a=op.a0-sg.s0, b=op.a1-sg.s0; addPrim(G,{k:'seg', flat:1, ax:sg.A[0]+sg.d[0]*a, ay:sg.A[1]+sg.d[1]*a, bx:sg.A[0]+sg.d[0]*b, by:sg.A[1]+sg.d[1]*b, r:W.ht, z0:op.z0, z1:op.z1, wall:1, plug:1});
+    [op.ra,op.rb].forEach(function(r,j){ var bt=batchOf(G,r,W.lv); bt.items=bt.items.filter(function(it){ return !(it.t==='op'&&it.op===op)&&!(it.t==='niche'&&it.op===op); }); bt.items.push({t:'plug', W:W, op:op, room:r, s:j?-1:1}); }); }); }); }
 function walls(G){
-  (G.plan.wl||[]).forEach(function(w,wi){
+  (G.wl||G.plan.wl||[]).forEach(function(w,wi){
     var lv=G.lv[w.l]; if(!lv||!w.p||w.p.length<2) return;
     var pts=w.p.slice(); if(w.loop) pts.push(pts[0]);
     var W={w:w, wi:wi, lv:lv, ht:Math.max(.01,(w.t||.2)/2), base:lv.e, top:wallTop(w,lv), exH:w.h!=null, k:w.k||'int', m:matName(w.m,'plaster'), segs:[], ops:[]};
@@ -471,14 +528,21 @@ function walls(G){
       var k0=0, k1=0; if(pv){ var c0=1+pv.n[0]*sg.n[0]+pv.n[1]*sg.n[1]; k0=c0>.05?W.ht*(pv.n[0]*sg.d[0]+pv.n[1]*sg.d[1])/c0:0; }
       if(nx){ var c1=1+nx.n[0]*sg.n[0]+nx.n[1]*sg.n[1]; k1=c1>.05?W.ht*(nx.n[0]*sg.d[0]+nx.n[1]*sg.d[1])/c1:0; }
       sg.k0=k0; sg.k1=k1; sg.o0=!pv; sg.o1=!nx; });
-    (w.o||[]).forEach(function(o){ if(!(o.w>0&&o.h>0)) return; var z0=lv.e+(o.z||0), op={o:o, k:o.k, a0:Math.max(0,o.a-o.w/2), a1:Math.min(run,o.a+o.w/2), z0:z0, z1:Math.min(W.top,z0+o.h), arch:o.k==='arch'};
+    (w.o||[]).forEach(function(o){ if(!(o.w>0&&o.h>0)||(G.blind&&G.blind[w.id+'@'+o.a])) return; var z0=lv.e+(o.z||0), op={o:o, k:o.k, a0:Math.max(0,o.a-o.w/2), a1:Math.min(run,o.a+o.w/2), z0:z0, z1:Math.min(W.top,z0+o.h), arch:o.k==='arch'};
+      if(o.k!=='window'&&op.a1-op.a0<CFG.minDoor&&run>=CFG.minDoor){ var oc=clamp(o.a,CFG.minDoor/2,run-CFG.minDoor/2); op.a0=oc-CFG.minDoor/2; op.a1=oc+CFG.minDoor/2; op.widened=1; }      /* a traced door narrower than the walker (PMA: 7 of 191) opens to 0.9 m: every doorway fits the capsule */
       if(op.arch){ var hw=(op.a1-op.a0)/2, rise=Math.min(hw,(op.z1-op.z0)*.45); op.R=(rise*rise+hw*hw)/(2*rise); op.zc=op.z1-op.R; op.zs=op.z1-rise; }
       op.pass=o.k!=='window'&&(o.z||0)<=CFG.knee&&(o.z||0)+o.h>=CFG.head+.1; op.W=W; W.ops.push(op); });
     G.walls.push(W);
     /* collision: the solid stretches between passable openings, per segment */
     W.segs.forEach(function(sg){ var cuts=[[0,sg.L]];
       W.ops.forEach(function(op){ if(!op.pass) return; var a=op.a0-sg.s0, b=op.a1-sg.s0; if(b<=0||a>=sg.L) return; var nc=[]; cuts.forEach(function(c){ if(b<=c[0]||a>=c[1]){ nc.push(c); return; } if(a>c[0]) nc.push([c[0],a]); if(b<c[1]) nc.push([b,c[1]]); }); cuts=nc; });
-      cuts.forEach(function(c){ if(c[1]-c[0]<.01) return; addPrim(G,{k:'seg', ax:sg.A[0]+sg.d[0]*c[0], ay:sg.A[1]+sg.d[1]*c[0], bx:sg.A[0]+sg.d[0]*c[1], by:sg.A[1]+sg.d[1]*c[1], r:W.ht, z0:W.low?Math.min(G.gz,W.base):W.base, z1:W.top, wall:1}); }); });
+      cuts.forEach(function(c){ if(c[1]-c[0]<.01) return; var e0=c[0]<1e-6&&!sg.o0?W.ht:0, e1=c[1]>sg.L-1e-6&&!sg.o1?W.ht:0;      /* FLAT-ended (a box, not a capsule): a round cap reached half the wall's thickness into every doorway (a 0.9 m door in a 0.75 m wall left 0.15 m); at a corner the piece runs on by its half thickness so the corner stays closed */
+        var up=G.lvs[lv.i+1], z1w=W.top; if(up&&W.top>up.e+CFG.knee){ var hits=0, nS=Math.max(2,Math.ceil((c[1]-c[0])/1.2));        /* a tall wall from below stops at the floor above wherever that floor runs over it (it has its own walls; PMA: G walls 12 m high blocked L1 doors) */
+          for(var k2=0;k2<=nS;k2++){ var uu=c[0]+(c[1]-c[0])*k2/nS, qx=sg.A[0]+sg.d[0]*uu, qy=sg.A[1]+sg.d[1]*uu; if([0,1,-1].some(function(sd){ var r=roomAt(G,up.id,qx+sg.n[0]*sd*(W.ht+.3),qy+sg.n[1]*sd*(W.ht+.3)); return r&&!r.isVoid; })) hits++; }
+          if(hits>(nS+1)/2){ z1w=up.e; G.clipped=(G.clipped||0)+1; } }
+        var nI=0, nT=Math.max(2,Math.ceil((c[1]-c[0])/.5)); for(var k3=0;k3<=nT;k3++){ var u3=c[0]+(c[1]-c[0])*k3/nT, x3=sg.A[0]+sg.d[0]*u3, y3=sg.A[1]+sg.d[1]*u3; if(G.st.some(function(o){ return o.k!=='elevator'&&o.lo===lv&&pip(o.fp,x3,y3); })) nI++; }
+        if(nI>(nT+1)*.6){ G.inStair=(G.inStair||0)+1; return; }             /* a wall of the lower floor standing inside a stairwell: the flights pass over it (PMA: it stopped walkers near the top) */
+        addPrim(G,{k:'seg', flat:1, ax:sg.A[0]+sg.d[0]*(c[0]-e0), ay:sg.A[1]+sg.d[1]*(c[0]-e0), bx:sg.A[0]+sg.d[0]*(c[1]+e1), by:sg.A[1]+sg.d[1]*(c[1]+e1), r:W.ht, z0:W.low?Math.min(G.gz,W.base):W.base, z1:z1w, wall:1}); }); });
     if(!W.rail&&W.k!=='ext'&&W.segs.every(function(sg){ var mx=(sg.A[0]+sg.B[0])/2, my=(sg.A[1]+sg.B[1])/2, o=W.ht+.6, ra=roomAt(G,lv.id,mx+sg.n[0]*o,my+sg.n[1]*o), rb=roomAt(G,lv.id,mx-sg.n[0]*o,my-sg.n[1]*o);
         return ra&&ra===rb&&ra.ceil>lv.top+.5; })){ W.rail=1; W.top=W.base+1.05; W.m=(function(){ var sg=W.segs[0], r0=roomAt(G,lv.id,(sg.A[0]+sg.B[0])/2+sg.n[0]*(W.ht+.6),(sg.A[1]+sg.B[1])/2+sg.n[1]*(W.ht+.6)); return r0&&/^(limestone|stone)$/.test(r0.wm)?'kasota':'marble'; })(); W.bal=1; G.prims=G.prims; }
     if(W.rail){ var stoneRail=/^(marble|kasota|limestone|stone|sandstone|granite|concrete|brick)$/.test(W.m);
@@ -499,6 +563,8 @@ function walls(G){
     W.ops.forEach(function(op){ var sg=segAt(W,(op.a0+op.a1)/2); if(!sg) return; op.sg=sg; var um=(op.a0+op.a1)/2-sg.s0;
       var cx=sg.A[0]+sg.d[0]*um, cy=sg.A[1]+sg.d[1]*um, ra=roomAt(G,lv.id,cx+sg.n[0]*(W.ht+.3),cy+sg.n[1]*(W.ht+.3)), rb=roomAt(G,lv.id,cx-sg.n[0]*(W.ht+.3),cy-sg.n[1]*(W.ht+.3));
       op.ra=ra; op.rb=rb; op.c=[cx,cy]; var host=ra||rb, b=batchOf(G,host,lv); op.side=ra?1:-1;
+      if(op.pass){ var hw=W.ht+.5, u0=op.a0-sg.s0, u1=op.a1-sg.s0, at2=function(u,o){ return [sg.A[0]+sg.d[0]*u+sg.n[0]*o,sg.A[1]+sg.d[1]*u+sg.n[1]*o]; }, sp2=[at2(u0,hw),at2(u1,hw),at2(u1,-hw),at2(u0,-hw)], sb=bb2(sp2);       /* the floor under the doorway: rooms end at the wall faces, so without it the strip under every door had no floor (stand in a doorway and you fell to the floor below) */
+        var sl={p:sp2, z:op.z0, bb:sb}; (G.sills||(G.sills=[])).push(sl); for(var gx=Math.floor(sb[0]/2);gx<=Math.floor(sb[2]/2);gx++) for(var gy=Math.floor(sb[1]/2);gy<=Math.floor(sb[3]/2);gy++){ var gk=gx+','+gy; ((G.sg||(G.sg={}))[gk]||(G.sg[gk]=[])).push(sl); } }
       if(W.k!=='ext'&&op.k!=='window'&&(ra?1:0)+(rb?1:0)===1){ op.niche=1; b.items.push({t:'niche', W:W, op:op, room:host, s:ra?-1:1}); }
       b.items.push({t:'op', W:W, op:op}); grow(b,cx-op.o.w,cy-op.o.w,op.z0,cx+op.o.w,cy+op.o.w,op.z1);
       if(op.k==='window'){ [ra,rb].forEach(function(r,j){ if(r&&!(ra&&rb)) r.wins.push({c:[cx,cy,(op.z0+op.z1)/2], U:[sg.d[0],sg.d[1],0], hw:(op.a1-op.a0)/2, hh:(op.z1-op.z0)/2, n:j===0?[sg.n[0],sg.n[1],0]:[-sg.n[0],-sg.n[1],0], ext:W.k==='ext'}); }); }
@@ -514,7 +580,7 @@ function gaps(G){ G.rooms.forEach(function(r){ if(r.isVoid) return; var p=r.p, s
           addPrim(G,{k:'seg', ax:P0[0], ay:P0[1], bx:P1[0], by:P1[1], r:.1, z0:e, z1:r.ceil, wall:1}); } run=null; };
       for(var k=0;k<=n;k++){ var t=Math.min(L,k*L/n), x=A[0]+ux*t, y=A[1]+uy*t, z=e+1.2;
         var open=!primsNear(G,x,y,.9).some(function(q2){ return q2.k==='seg'&&q2.z0<=z&&q2.z1>=z&&segD(x,y,q2.ax,q2.ay,q2.bx,q2.by)<q2.r+.45; })&&!roomAt(G,r.l.id,x+ox*.5,y+oy*.5)&&!onOpening(x,y,z,G);
-        var inside=G.st.some(function(o){ return pip(o.fp,x-ox*.3,y-oy*.3); });
+        var inside=G.st.some(function(o){ return pip(o.fp,x-ox*.3,y-oy*.3)||(o.k!=='elevator'&&(o.lo===r.l||o.hi===r.l)&&pip(o.fp,x+ox*.5,y+oy*.5)); });      /* a stairwell's edge has its balustrade (stairs()), and the flight arrives across it: never a plain wall */
         if(open&&!inside){ if(run==null) run=t; } else flush(t); }
       flush(L); } }); }
 function gapwallItem(G,mb,it){ var r=it.room, A=it.a, B=it.b, n=it.n, k=wallKey(r,{m:r.wm}), e=r.l.e, c=r.ceil, L=Math.hypot(B[0]-A[0],B[1]-A[1]);
@@ -530,16 +596,21 @@ function addFace(G,W,sg,s,u0,u1,ri,uS,uE){ if(u1-u0<.004) return; var room=ri>=0
   var x0=sg.A[0]+sg.d[0]*u0, y0=sg.A[1]+sg.d[1]*u0, x1=sg.A[0]+sg.d[0]*u1, y1=sg.A[1]+sg.d[1]*u1, m=W.ht+.3;
   grow(b,Math.min(x0,x1)-m,Math.min(y0,y1)-m,fb,Math.max(x0,x1)+m,Math.max(y0,y1)+m,ft); }
 
+/* is a doorway (any opening but a window, on level lid) within d of the segment a-c? from the plan, before the walls are built */
+function opNear(G,lid,a,c,d){ if(!G.opc){ G.opc=[]; (G.plan.wl||[]).forEach(function(w){ var pts=(w.p||[]).slice(); if(w.loop&&pts.length) pts.push(pts[0]); var run=0, sg=[];
+      for(var i=0;i+1<pts.length;i++){ var A=pts[i], B=pts[i+1], L=Math.hypot(B[0]-A[0],B[1]-A[1]); if(L<1e-6) continue; sg.push({A:A, d:[(B[0]-A[0])/L,(B[1]-A[1])/L], L:L, s0:run}); run+=L; }
+      (w.o||[]).forEach(function(o){ if(o.k==='window') return; sg.forEach(function(q){ if(o.a>=q.s0&&o.a<=q.s0+q.L) G.opc.push({l:w.l, x:q.A[0]+q.d[0]*(o.a-q.s0), y:q.A[1]+q.d[1]*(o.a-q.s0)}); }); }); }); }
+  return G.opc.some(function(o){ return o.l===lid&&segD(o.x,o.y,a[0],a[1],c[0],c[1])<d; }); }
 function stairs(G){
   (G.plan.st||[]).forEach(function(s){ var f=G.lv[s.from], t=G.lv[s.to]; if(!f||!t||!s.fp) return; var lo=f.e<=t.e?f:t, hi=f.e<=t.e?t:f;
     var o={s:s, k:s.k||'stair', lo:lo, hi:hi, fp:s.fp, bb:bb2(s.fp), fl:[], ld:[], rails:[]};
     if(o.k==='elevator'){ G.lifts.push(o); [lo,hi].forEach(function(l){ var r=roomAt(G,l.id,interior(s.fp)[0],interior(s.fp)[1])||nearestRoom(G,l,interior(s.fp));
         var b=batchOf(G,r,l); b.items.push({t:'lift', st:o, lv:l, room:r}); grow(b,o.bb[0],o.bb[1],l.e,o.bb[2],o.bb[3],l.e+3);
-        for(var i=0,n=s.fp.length;i<n;i++){ var a=s.fp[i], c=s.fp[(i+1)%n]; addPrim(G,{k:'seg',ax:a[0],ay:a[1],bx:c[0],by:c[1],r:.08,z0:l.e,z1:l.e+2.6}); } }); G.st.push(o); return; }
-    var fls=(s.fl&&s.fl.length)?s.fl:[derive(s,lo,hi)];
+        for(var i=0,n=s.fp.length;i<n;i++){ var a=s.fp[i], c=s.fp[(i+1)%n]; if(opNear(G,l.id,a,c,1.2)) continue; addPrim(G,{k:'seg',ax:a[0],ay:a[1],bx:c[0],by:c[1],r:.08,z0:l.e,z1:l.e+2.6}); } }); G.st.push(o); return; }      /* the cab is open on the side a doorway faces: you walk in */
+    var dl=[], fls=(s.fl&&s.fl.length)?s.fl:deriveFlights(s,lo,hi,dl,G);
     o.fl=fls.map(function(fl){ var a=fl.a, b=fl.b; if(a[2]>b[2]){ var x=a; a=b; b=x; } var dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy)||1;
       return {a:a, b:b, w:fl.w||s.w||1.4, L:L, d:[dx/L,dy/L], n:[-dy/L,dx/L], H:b[2]-a[2], ramp:o.k==='ramp', esc:o.k==='escalator'}; });
-    o.ld=(s.ld||[]).map(function(l){ return {p:l.p, z:l.z, bb:bb2(l.p)}; });
+    o.ld=(s.ld||[]).concat(dl).map(function(l){ return {p:l.p, z:l.z, bb:bb2(l.p)}; });
     var ctr=interior(s.fp), host=roomAt(G,lo.id,ctr[0],ctr[1])||nearestRoom(G,lo,ctr), b=batchOf(G,host,lo); o.host=host;
     o.fl.forEach(function(fl){ b.items.push({t:'flight', fl:fl, st:o, room:host}); var m=fl.w;
       grow(b,Math.min(fl.a[0],fl.b[0])-m,Math.min(fl.a[1],fl.b[1])-m,fl.a[2]-.4,Math.max(fl.a[0],fl.b[0])+m,Math.max(fl.a[1],fl.b[1])+m,fl.b[2]+1.2);
@@ -548,12 +619,12 @@ function stairs(G){
     o.ld.forEach(function(l){ b.items.push({t:'land', ld:l, st:o}); grow(b,l.bb[0],l.bb[1],l.z-.4,l.bb[2],l.bb[3],l.z+1); });
     G.rooms.forEach(function(r){ if(!bbHit(r.bb,o.bb)) return; if(r.l===hi&&!(r.vholes&&r.vholes.some(function(v){ return bbHit(o.bb,v); }))) r.holesF.push(s.fp); if(r.l===lo&&r.ceil>=hi.e-.8&&r.ceil<=hi.e+.4) r.holesC.push({p:s.fp, z1:hi.e}); });
     /* a balustrade round the stairwell above, except where a flight arrives */
-    for(var i=0,n=s.fp.length;i<n;i++){ var A=s.fp[i], B=s.fp[(i+1)%n], arr=o.fl.some(function(fl){ return Math.abs(fl.b[2]-hi.e)<.4&&segD(fl.b[0],fl.b[1],A[0],A[1],B[0],B[1])<.6; });
+    (G.railJobs||(G.railJobs=[])).push(function(){ for(var i=0,n=s.fp.length;i<n;i++){ var A=s.fp[i], B=s.fp[(i+1)%n], arr=G.st.some(function(o2){ return o2.k!=='elevator'&&o2.fl.some(function(fl){ return [fl.a,fl.b].some(function(E){ return Math.abs(E[2]-hi.e)<.4&&segD(E[0],E[1],A[0],A[1],B[0],B[1])<.6+fl.w/2*0; }); }); });      /* every stair's flights, run once all are known: a stacked stair starts where the one below arrives */
       var mx0=(A[0]+B[0])/2, my0=(A[1]+B[1])/2; if(arr||G.rooms.some(function(r){ return r.l===hi&&r.vholes&&r.vholes.some(function(v){ return mx0>=v[0]-.3&&mx0<=v[2]+.3&&my0>=v[1]-.3&&my0<=v[3]+.3; }); })) continue; var mx=(A[0]+B[0])/2, my=(A[1]+B[1])/2, nearWall=primsNear(G,mx,my,.6).some(function(p){ return p.wall&&p.k==='seg'&&segD(mx,my,p.ax,p.ay,p.bx,p.by)<p.r+.35&&p.z0<=hi.e+.5&&p.z1>hi.e+.5; });
       if(nearWall) continue; var rr=roomAt(G,hi.id,mx,my)||nearestRoom(G,hi,[mx,my]), rb=batchOf(G,rr,hi);
       rb.items.push({t:'rail', a:A, b:B, z:hi.e, m:'metal'}); grow(rb,Math.min(A[0],B[0]),Math.min(A[1],B[1]),hi.e,Math.max(A[0],B[0]),Math.max(A[1],B[1]),hi.e+1.1);
-      addPrim(G,{k:'seg', ax:A[0], ay:A[1], bx:B[0], by:B[1], r:.04, z0:hi.e, z1:hi.e+1.05}); }
-    G.st.push(o); }); }
+      addPrim(G,{k:'seg', ax:A[0], ay:A[1], bx:B[0], by:B[1], r:.04, z0:hi.e, z1:hi.e+1.05}); } });
+    G.st.push(o); }); (G.railJobs||[]).forEach(function(f){ f(); }); G.railJobs=[]; }
 function ovl(a,b){ var ix=Math.min(a[2],b[2])-Math.max(a[0],b[0]), iy=Math.min(a[3],b[3])-Math.max(a[1],b[1]); return ix>0&&iy>0?ix*iy:0; }
 function voids(G){ G.voids=[];
   G.rooms.forEach(function(T){ G.lvs.forEach(function(l){ if(l.e<=T.l.e+.5||l.e>=T.ceil-1) return;
@@ -570,6 +641,8 @@ function voidRails(G){ (G.voids||[]).forEach(function(v){ var l=v.l, hp=v.h, arr
     for(var i=0;i<4;i++){ var A=hp[i], B=hp[(i+1)%4], L=Math.hypot(B[0]-A[0],B[1]-A[1]), ux=(B[0]-A[0])/L, uy=(B[1]-A[1])/L, cut=[[0,L]];
       arr.forEach(function(fl){ if(segD(fl.b[0],fl.b[1],A[0],A[1],B[0],B[1])>1.2) return; var t=(fl.b[0]-A[0])*ux+(fl.b[1]-A[1])*uy, a=t-fl.w/2-.2, b=t+fl.w/2+.2, nc=[];
         cut.forEach(function(c){ if(b<=c[0]||a>=c[1]){ nc.push(c); return; } if(a>c[0]) nc.push([c[0],a]); if(b<c[1]) nc.push([b,c[1]]); }); cut=nc; });
+      var edge=function(t){ var x=A[0]+ux*t, y=A[1]+uy*t, f=function(sd){ return supports(G,x-uy*sd*.4,y+ux*sd*.4).some(function(z){ return Math.abs(z-l.e)<.05; }); }; return !(f(1)&&f(-1))&&!opNear(G,l.id,[x,y],[x,y],1.0); };      /* the void's box is a rectangle: no parapet where floor runs on both sides (it crossed a doorway on L3) */
+      cut=[].concat.apply([],cut.map(function(c){ var o=[], st=null, n=Math.max(1,Math.ceil((c[1]-c[0])/.5)); for(var k=0;k<=n;k++){ var t=c[0]+(c[1]-c[0])*k/n, e=edge(t); if(e&&st==null) st=t; if((!e||k===n)&&st!=null){ if(t-st>.3) o.push([st,t]); st=null; } } return o; }));
       cut.forEach(function(c){ if(c[1]-c[0]<.3) return; var P0=[A[0]+ux*c[0],A[1]+uy*c[0]], P1=[A[0]+ux*c[1],A[1]+uy*c[1]];
         v.U.b.items.push({t:'parapet', a:P0, b:P1, z:l.e, h:1.05, w:.32, m:/^(limestone|stone)$/.test(v.U.wm)?'kasota':'marble', bal:1}); addPrim(G,{k:'seg', ax:P0[0], ay:P0[1], bx:P1[0], by:P1[1], r:.16, z0:l.e, z1:l.e+1.05}); }); } }); }
 function nearestRoom(G,l,p){ var best=null, bd=1e9; G.rooms.forEach(function(r){ if(r.l!==l) return; var d=Math.hypot(r.ctr[0]-p[0],r.ctr[1]-p[1]); if(d<bd){ bd=d; best=r; } }); return best; }
@@ -577,6 +650,22 @@ function derive(s,lo,hi){ var ang=(s.up!=null?s.up:90)*PI/180, ux=Math.cos(ang),
   s.fp.forEach(function(p){ var u=p[0]*ux+p[1]*uy, v=p[0]*vx+p[1]*vy; mn=Math.min(mn,u); mx=Math.max(mx,u); vn=Math.min(vn,v); vm=Math.max(vm,v); });
   var v0=(vn+vm)/2; return {a:[mn*ux+v0*vx,mn*uy+v0*vy,lo.e], b:[mx*ux+v0*vx,mx*uy+v0*vy,hi.e], w:Math.min(s.w||(vm-vn),vm-vn)}; }
 
+/* a stair with no drawn flights: one straight flight along `up` when that is a sane stair (<= 37 degrees); a traced stairwell is often a small box for a
+   whole storey (PMA: 1.9 x 4.3 m for 6.6 m), which made a 60-70 degree ramp, sometimes across the narrow side; then it is a SWITCHBACK along the box's long
+   side: two flights side by side and a landing at the turn (the same box, the same floors; walkable up and down) */
+/* can you step off a stair end at P on level l? a room there (not a void) and no traced wall right across it without an opening (from the plan: the walls are not built yet) */
+function endOk(G,l,P){ var r=roomAt(G,l.id,P[0],P[1]); if(!r||r.isVoid) return 0; var bad=(G.wl||G.plan.wl||[]).some(function(w){ if(w.l!==l.id||!w.p) return false; var pts=w.p.slice(); if(w.loop) pts.push(pts[0]);
+    for(var i=0;i+1<pts.length;i++) if(segD(P[0],P[1],pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1])<(w.t||.2)/2+.3) return !opNear(G,l.id,P,P,1.0); return false; }); return bad?1:2; }
+function deriveFlights(s,lo,hi,lands,G){ var one=derive(s,lo,hi), H=hi.e-lo.e, L1=Math.hypot(one.b[0]-one.a[0],one.b[1]-one.a[1]); if(H/Math.max(.01,L1)<=.75) return [one];
+  var bb=bb2(s.fp), ex=bb[2]-bb[0], ey=bb[3]-bb[1], along=ex>=ey, ux=along?1:0, uy=along?0:1, sgn=Math.cos(((s.up!=null?s.up:90)*PI/180)-(along?0:PI/2))<-.3?-1:1;
+  if(G){ var u0b=along?bb[0]:bb[1], Lb=along?ex:ey, vcb=(along?bb[1]+ey/2:bb[0]+ex/2), Q=function(u){ return along?[u,vcb]:[vcb,u]; }, lo0=Q(u0b-.6), hi0=Q(u0b+Lb+.6);
+    var sc=function(sg2){ return sg2>0?endOk(G,lo,lo0)+endOk(G,hi,hi0):endOk(G,lo,hi0)+endOk(G,hi,lo0); }; var a1=sc(sgn), a2=sc(-sgn); if(a2>a1) sgn=-sgn; }      /* run the way both ends can be stepped off */
+  var Lu=along?ex:ey, Wv=along?ey:ex, u0=along?bb[0]:bb[1], v0=along?bb[1]:bb[0], d=clamp(Wv/2,.9,1.4), lw=Wv/2, mid=lo.e+H/2;
+  var P=function(u,v){ return along?[u,v]:[v,u]; }, uA=sgn>0?u0:u0+Lu, uT=sgn>0?u0+Lu-d:u0+d, uE=sgn>0?u0+Lu:u0;
+  if(lw<1.0){ var vc=v0+Wv/2, S0=P(uA,vc), S1=P(uE,vc); return [{a:[S0[0],S0[1],lo.e], b:[S1[0],S1[1],hi.e], w:Wv-.1}]; }       /* too narrow for two flights side by side: one flight along the long side */
+  var c0=v0+lw/2, c1=v0+lw*1.5, A=P(uA,c0), B=P(uT,c0), C=P(uT,c1), D=P(uA,c1);
+  lands.push({p:[P(uT,v0),P(uE,v0),P(uE,v0+Wv),P(uT,v0+Wv)], z:mid});
+  return [{a:[A[0],A[1],lo.e], b:[B[0],B[1],mid], w:lw-.06}, {a:[C[0],C[1],mid], b:[D[0],D[1],hi.e], w:lw-.06}]; }
 function things(G){
   var P=G.plan;
   var cols=(P.cols||[]).filter(function(c){ return G.lv[c.l]&&c.p; }), skip={}, hm={};
@@ -633,8 +722,11 @@ function things(G){
 /* a spot inside the room, on its floor (not over a stairwell or the open hall), clear of walls and fixtures, nearest the wanted point */
 function cardSpot(G,r,dx,dy,base){ var c=base||r.ctr, wx=c[0]+dx, wy=c[1]+dy, e=r.l.e, best=null, bd=1e9;
   for(var rad=0;rad<=14;rad+=.5) for(var a=0;a<(rad?16:1);a++){ var t=a/16*2*PI, x=wx+Math.cos(t)*rad, y=wy+Math.sin(t)*rad; if(!pip(r.p,x,y)) continue;
-    var sp=supportAt(G,x,y,e+.2); if(sp==null||Math.abs(sp-e)>.12||blockedAt(G,x,y,e)) continue; if(r.holesF&&r.holesF.some(function(h){ return pip(h,x,y); })) continue;
+    var sp=supportAt(G,x,y,e+.2); if(sp==null||Math.abs(sp-e)>.12||blockedAt(G,x,y,e)) continue; if(r.holesF&&r.holesF.some(function(h){ return pip(h,x,y); })) continue; if(inWay(G,x,y,e)) continue;
     var d=Math.hypot(x-wx,y-wy); if(d<bd){ bd=d; best=[x,y]; } } if(best) return best; return base?base:[r.ctr[0],r.ctr[1]]; }
+/* is (x,y) in the way: within 1.3 m of a doorway's middle or of a stair's end on this floor, or on a stair? (card signs never stand there) */
+function inWay(G,x,y,e){ if(onStair(G,x,y)) return true; for(var i=0;i<G.walls.length;i++){ var W=G.walls[i]; if(Math.abs(W.lv.e-e)>.3) continue; for(var j=0;j<W.ops.length;j++){ var op=W.ops[j]; if(op.pass&&op.c&&Math.hypot(x-op.c[0],y-op.c[1])<1.3+(op.a1-op.a0)/2) return true; } }
+  return G.st.some(function(o){ return o.fl.some(function(fl){ return [fl.a,fl.b].some(function(E){ return Math.abs(E[2]-e)<.3&&Math.hypot(x-E[0],y-E[1])<1.5+fl.w/2; }); }); }); }
 function addCards(G){ var d=S.data||{}, ns=d.nodes||{}, ord=d.order||Object.keys(ns), per={}; G.cards=[];
   ord.forEach(function(id){ var n=ns[id]; if(!n||!n.r||n.s) return; var r=G.rid[n.r]; if(!r) return; var k=per[r.id]=(per[r.id]||0); per[r.id]++;
     var c=cardSpot(G,r,0,0), dx=(k%2?1:-1)*Math.ceil(k/2)*1.6, p=cardSpot(G,r,dx,0,c), si=(G.plan.sl||[]).length+G.cards.length;
@@ -703,26 +795,31 @@ function portals(G){
 
 /* ── supports: what the walker stands on ── */
 function flightZ(fl,x,y,tol){ var px=x-fl.a[0], py=y-fl.a[1], u=px*fl.d[0]+py*fl.d[1], v=px*fl.n[0]+py*fl.n[1]; tol=tol||0;
-  if(u<-.05-tol||u>fl.L+.05+tol||Math.abs(v)>fl.w/2+tol) return null; return fl.a[2]+fl.H*clamp(u/fl.L,0,1); }
+  if(u<-.3-tol||u>fl.L+.3+tol||Math.abs(v)>fl.w/2+tol) return null; return fl.a[2]+fl.H*clamp(u/fl.L,0,1); }
 function stepsZ(s,x,y){ if(!pip(s.p,x,y)) return null; var ang=(s.up!=null?s.up:90)*PI/180, ux=Math.cos(ang), uy=Math.sin(ang), mn=1e9, mx=-1e9;
   s.p.forEach(function(p){ var u=p[0]*ux+p[1]*uy; mn=Math.min(mn,u); mx=Math.max(mx,u); }); var t=clamp(((x*ux+y*uy)-mn)/Math.max(.01,mx-mn),0,1), n=s.n||Math.max(1,Math.round(Math.abs(s.z1-s.z0)/.15));
   return s.z0+(s.z1-s.z0)*t; }
-function supports(G,x,y){ var out=[G.gz];
-  G.lvs.forEach(function(l){ var r=roomAt(G,l.id,x,y); if(!r||r.isVoid) return; for(var i=0;i<r.holesF.length;i++) if(pip(r.holesF[i],x,y)) return; out.push(l.e); });
+function inShell(G,x,y){ var sh=(G.plan.ex||{}).sh||[]; for(var i=0;i<sh.length;i++) if(sh[i].p&&pip(sh[i].p,x,y)) return true; return false; }
+function supports(G,x,y){ var out=[], cov=false, sl=G.sg&&G.sg[Math.floor(x/2)+','+Math.floor(y/2)]; if(sl) for(var q=0;q<sl.length;q++) if(pip(sl[q].p,x,y)) out.push(sl[q].z);
+  G.lvs.forEach(function(l){ var r=roomAt(G,l.id,x,y); if(!r) return; cov=true; if(r.isVoid) return; for(var i=0;i<r.holesF.length;i++) if(pip(r.holesF[i],x,y)) return; out.push(l.e); });
+  if(!cov||!inShell(G,x,y)) out.unshift(G.gz);                       /* the site's ground only outside the building: under a room it was a slab 2 m over the basement (the Forum stair) */
   G.st.forEach(function(o){ if(x<o.bb[0]-2||x>o.bb[2]+2||y<o.bb[1]-2||y>o.bb[3]+2) return; o.fl.forEach(function(fl){ var z=flightZ(fl,x,y); if(z!=null) out.push(z); }); o.ld.forEach(function(l){ if(pip(l.p,x,y)) out.push(l.z); }); });
   var ex=G.plan.ex||{}; (ex.stp||[]).forEach(function(s){ var z=stepsZ(s,x,y); if(z!=null) out.push(z); }); (ex.tr||[]).forEach(function(t){ if(pip(t.p,x,y)) out.push(t.z); });
   return out; }
 function onStair(G,x,y){ for(var i=0;i<G.st.length;i++){ var o=G.st[i]; if(x<o.bb[0]-2||x>o.bb[2]+2||y<o.bb[1]-2||y>o.bb[3]+2) continue; for(var j=0;j<o.fl.length;j++) if(flightZ(o.fl[j],x,y)!=null) return true; for(var k=0;k<o.ld.length;k++) if(pip(o.ld[k].p,x,y)) return true; } return false; }
+/* what the capsule stands on: the highest support under its foot disc (centre and 8 points 0.2 m out), never above a step up; hairline gaps between traced rooms carry you */
+var DISC=[[0,0]].concat([0,1,2,3,4,5,6,7].map(function(i){ return [Math.cos(i*PI/4)*.2,Math.sin(i*PI/4)*.2]; }));
+function supportDisc(G,x,y,fz){ var best=null; for(var i=0;i<DISC.length;i++){ var s=supportAt(G,x+DISC[i][0],y+DISC[i][1],fz); if(s!=null&&(best==null||s>best)) best=s; } return best; }
 function supportAt(G,x,y,fz){ var s=supports(G,x,y), best=-1e9; for(var i=0;i<s.length;i++) if(s[i]<=fz+CFG.step&&s[i]>best) best=s[i]; return best>-1e8?best:null; }
 function blockedAt(G,x,y,fz){ var s=supports(G,x,y); for(var i=0;i<s.length;i++) if(s[i]>fz+CFG.step&&s[i]<fz+CFG.head) return true;
   var ps=primsNear(G,x,y,CFG.pr+.5), z0=fz+CFG.knee, z1=fz+CFG.head;
-  for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z1<z0||p.z0>z1) continue; if(primDist(p,x,y)<CFG.pr) return true; } return false; }
-function primDist(p,x,y){ if(p.k==='seg') return segD(x,y,p.ax,p.ay,p.bx,p.by)-p.r; if(p.k==='circ') return Math.hypot(x-p.x,y-p.y)-p.r;
+  for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z1<(p.wall?z0+CFG.step+.08-CFG.knee:z0)||p.z0>z1) continue; if(primDist(p,x,y)<CFG.pr) return true; } return false; }
+function primDist(p,x,y){ if(p.k==='seg'){ if(p.flat){ var fx=p.bx-p.ax, fy=p.by-p.ay, fl=Math.hypot(fx,fy)||1e-9, qx=x-p.ax, qy=y-p.ay, al=(qx*fx+qy*fy)/fl, lx2=Math.abs(al-fl/2)-fl/2, ly2=Math.abs((qx*fy-qy*fx)/fl)-p.r; return Math.hypot(Math.max(lx2,0),Math.max(ly2,0))+Math.min(Math.max(lx2,ly2),0); } return segD(x,y,p.ax,p.ay,p.bx,p.by)-p.r; } if(p.k==='circ') return Math.hypot(x-p.x,y-p.y)-p.r;
   var dx=x-p.x, dy=y-p.y, lx=Math.abs(dx*p.c+dy*p.s)-p.hx, ly=Math.abs(-dx*p.s+dy*p.c)-p.hy; return Math.hypot(Math.max(lx,0),Math.max(ly,0))+Math.min(Math.max(lx,ly),0); }
 /* push a walker circle out of every primitive it overlaps (a few rounds: sliding along walls falls out of it) */
 function resolve(G,x,y,fz){ var z0=fz+CFG.knee, z1=fz+CFG.head, R=CFG.pr;
   for(var it=0;it<4;it++){ var moved=false, ps=primsNear(G,x,y,R+.6);
-    for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z1<z0||p.z0>z1) continue; var d=primDist(p,x,y); if(d>=R) continue;
+    for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z1<(p.wall?z0+CFG.step+.08-CFG.knee:z0)||p.z0>z1) continue; var d=primDist(p,x,y); if(d>=R) continue;
       var e=.002, gx=(primDist(p,x+e,y)-primDist(p,x-e,y))/(2*e), gy=(primDist(p,x,y+e)-primDist(p,x,y-e))/(2*e), gl=Math.hypot(gx,gy)||1;
       x+=gx/gl*(R-d+.001); y+=gy/gl*(R-d+.001); moved=true; }
     if(!moved) break; }
@@ -871,6 +968,8 @@ ITEM.flight=function(G,mb,it){ var fl=it.fl, st=it.st, r=it.room, mk=fl.esc?'met
     var hr=pt(us2,vi-sd*.06,hgt-.12), he=pt(ue,vi-sd*.06,hgt-.12); limb(mb,'gilt',hr,he,.024,.024,8); }); };
 ITEM.land=function(G,mb,it){ var l=it.ld, h=it.st&&it.st.host, k=h&&/^(limestone|stone)$/.test(h.wm)?'kasota':'marble'; flat(mb,k,[l.p],l.z,true); flat(mb,'plaster',[l.p],l.z-.3,false);
   for(var i=0,n=l.p.length;i<n;i++){ var a=l.p[i], c=l.p[(i+1)%n]; mb.qg(k,[[a[0],a[1],l.z-.3],[c[0],c[1],l.z-.3],[c[0],c[1],l.z],[a[0],a[1],l.z]],[c[1]-a[1],a[0]-c[0],0].map(function(v){ return v*(parea(l.p)>0?1:-1); }),[[0,0],[1,0],[1,.3],[0,.3]]); } };
+ITEM.plug=function(G,mb,it){ var W=it.W, op=it.op, sg=op.sg, r=it.room, s=it.s, a=op.a0-sg.s0, c=op.a1-sg.s0, z0=op.z0, z1=op.z1, k=r?wallKey(r,{m:r.wm}):(W.m==='paint'?'plaster':W.m);
+  var P=function(u,z){ return [sg.A[0]+sg.d[0]*u+sg.n[0]*W.ht*s,sg.A[1]+sg.d[1]*u+sg.n[1]*W.ht*s,z]; }; mb.quad(k,[P(a,z0),P(c,z0),P(c,z1),P(a,z1)],[sg.n[0]*s,sg.n[1]*s,0],[[a,z0],[c,z0],[c,z1],[a,z1]]); };
 ITEM.niche=function(G,mb,it){ var W=it.W, op=it.op, sg=op.sg, r=it.room, s=it.s, a=op.a0-sg.s0, c=op.a1-sg.s0, z0=op.z0, z1=op.arch?op.z1:op.z1, d=W.ht+1.3, k=wallKey(r,{m:r.wm});
   var P=function(u,w,z){ return [sg.A[0]+sg.d[0]*u+sg.n[0]*w*s,sg.A[1]+sg.d[1]*u+sg.n[1]*w*s,z]; }, N=[sg.n[0]*s,sg.n[1]*s,0], D=[sg.d[0],sg.d[1],0];
   mb.quad(k,[P(a,d,z0),P(c,d,z0),P(c,d,z1),P(a,d,z1)],[-N[0],-N[1],0],[[a,z0],[c,z0],[c,z1],[a,z1]]);
@@ -1185,6 +1284,8 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='shadow'){ m={kind:5,a:.42,trans:1}; }
   else if(base==='lens'){ m={kind:6,tint:[1,.86,.66],e:9}; }
   else if(base==='lay'){ m={kind:1,tint:[1,.98,.94]}; }
+  else if(base==='av'){ m={kind:3,tint:AV.hex(arg),rough:.72,metal:0}; }
+  else if(base==='avshadow'){ m={kind:5,a:.5,trans:1}; }
   else if(base.slice(0,4)==='book'){ var bc=[[.42,.12,.1],[.12,.2,.3],[.2,.28,.16],[.5,.4,.22],[.3,.16,.2],[.62,.55,.42]][+base.slice(4)||0]; m={kind:3,tint:bc,rough:.7,metal:0}; }
   else if(base==='plaster'&&arg){ m=null; }
   if(!m){ var d=MAT[base]||MAT.plaster; if(d[0]<0) d=MAT.plaster; m={gen:d[0],tint:d[1],tile:d[2],rough:d[3],metal:d[4],bump:d[5],kind:0};
@@ -1311,7 +1412,7 @@ function label(g,x,y,w,h,it){ var s=it.s, d=S.data||{}, nid=nodeForAnchor(s.id),
   g.fillStyle='#1d1b18'; g.font='600 '+Math.round(h*.2)+'px '+F; var t1=n?(n.n+'  '+dec(n.t)):(wk.t||it.room.name); g.fillText(fit(t1),x+w*.07,y+h*.32);
   g.fillStyle='#4a463f'; g.font=Math.round(h*.15)+'px '+F; var t2=n?(wk.t||''):[wk.a,wk.d].filter(Boolean).join(', '); if(!t2) t2=it.room.no?('Gallery '+it.room.no):it.room.name; g.fillText(fit(t2),x+w*.07,y+h*.58);
   g.fillStyle='#7a756c'; g.font=Math.round(h*.13)+'px '+F; g.fillText(fit(n?'Press E to open':(wk.lic?wk.lic:'')),x+w*.07,y+h*.82); g.restore(); }
-function dec(s){ var t=D.createElement('textarea'); t.innerHTML=s==null?'':String(s); return t.value; }
+function dec(s){ if(!D) return s==null?'':String(s); var t=D.createElement('textarea'); t.innerHTML=s==null?'':String(s); return t.value; }
 var ART_URL=/^\/bart\/[a-z0-9][a-z0-9-]{0,80}\.(jpg|jpeg|png|webp)$/;
 function loadImages(b){ b.art.forEach(function(x){ var wk=x.it.s.work; if(!wk||!wk.img||!ART_URL.test(String(wk.img))) return;          /* only the site's own vetted public-domain images */
     var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ if(!S.on||!b.built) return; var gl=S.gl, M=S.T.name==='high'?1024:512, sc=Math.min(1,M/Math.max(img.width,img.height)), cv=D.createElement('canvas');
@@ -1337,7 +1438,7 @@ function budget(){ var cap=S.T.name==='high'?220e6:S.T.name==='medium'?110e6:64e
 
 /* ── which batches to draw: room-to-room through openings in view ── */
 function visible(G,P,eye){ var cur=S.room, seen={}, out=[], queue=[], vis={};
-  var start=cur?cur.i:-1; queue.push([start,0]); seen[start]=1;
+  var start=cur?cur.i:-1; queue.push([start,0]); seen[start]=1; var cr=S.camRoom; if(cr&&cr!==cur&&!seen[cr.i]){ queue.push([cr.i,0]); seen[cr.i]=1; }        /* third person: the camera may stand a room behind the walker */
   while(queue.length){ var it=queue.shift(), id=it[0], dp=it[1]; vis[id]=dp;
     var nb=id<0?G.outNb:G.rooms[id].nb; if(dp>=(start<0?3:7)||(id<0&&dp>0)) continue;
     for(var i=0;i<nb.length;i++){ var p=nb[i], o=p.a===id?p.b:p.a; if(seen[o]) continue; var bb=p.bb, near=eye[0]>bb[0]-1.5&&eye[0]<bb[3]+1.5&&eye[1]>bb[1]-1.5&&eye[1]<bb[4]+1.5&&eye[2]>bb[2]-1.5&&eye[2]<bb[5]+1.5;
@@ -1353,7 +1454,7 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
   if(T.samples&&T.wgl2){ if(!S.fb||S.fb.w!==cw||S.fb.h!==ch){ S.fb=target(gl,cw,ch,T.samples,S.fb); } gl.bindFramebuffer(gl.FRAMEBUFFER,S.fb?S.fb.fb:null); } else gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   gl.viewport(0,0,cw,ch); gl.clearColor(.05,.05,.05,1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   var asp=cw/ch, vf=asp>=1?2*Math.atan(Math.tan(PI/4)/asp):PI/2; vf=clamp(vf,50*PI/180,90*PI/180);
-  var cp=Math.cos(S.pitch), fw=[Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)], eye=[S.x,S.y,S.ez], ctr=[eye[0]+fw[0],eye[1]+fw[1],eye[2]+fw[2]];
+  var cp=Math.cos(S.pitch), fw=[Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)], eye=camEye(fw), ctr=[eye[0]+fw[0],eye[1]+fw[1],eye[2]+fw[2]];
   var V=lookAt(eye,ctr,[0,0,1]), Pm=persp(vf,asp,CFG.near,CFG.far), VP=mmul(Pm,V), PL=planes(VP); S.VP=VP;
   var rt=nrm(cross(fw,[0,0,1])), up=cross(rt,fw), ty=Math.tan(vf/2), tx=ty*asp;
   /* the exposure eases toward the room's (or outdoors) */
@@ -1380,8 +1481,10 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
     if(T.samples&&T.wgl2&&S.fb) gl.bindFramebuffer(gl.FRAMEBUFFER,S.fb.fb); else gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); gl.uniformMatrix4fv(u.uVP,false,VP); gl.uniform3fv(u.uEye,eye); }
   gl.uniform4fv(u.uClip,[0,0,0,0]); gl.uniform4fv(u.uRefl,rh!=null?[1,rh,1,0]:[0,0,0,0]); gl.uniform1i(u.uRT,3); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,rh!=null?S.rt.tx:S.white); gl.activeTexture(gl.TEXTURE0);
   list.forEach(function(b){ b.lastUse=S.frame; drawBatch(b,false,stats); });
+  var avb=avatarBatch(); if(avb) drawBatch(avb,false,stats);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.CULL_FACE);
   for(var i=list.length-1;i>=0;i--) drawBatch(list[i],true,stats);
+  if(avb) drawBatch(avb,true,stats);
   gl.disable(gl.BLEND); gl.depthMask(true);
   if(S.fb&&T.wgl2){ var t=S.fb; gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.fb); if(t.rfb){ gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,t.rfb); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.rfb); }
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
@@ -1402,26 +1505,81 @@ function drawBatch(b,trans,stats){ var gl=S.gl, u=S.pw.u, B=b.built, L=b.light, 
     var t=m.tint||[1,1,1]; gl.uniform4fv(u.uTint,[t[0],t[1],t[2],m.kind]); gl.uniform4fv(u.uJ,m.j||Z4); var mv=m.v||Z4; gl.uniform4fv(u.uVar,[mv[0],mv[1],mv[2],mv[3]||0]); gl.uniform1f(u.uPol,m.pol||0); gl.uniform4fv(u.uMat,[m.kind===6?(m.e||8):(m.tile||1),m.kind>=4&&m.kind<=5?(m.a||0):(m.rough||.8),m.metal||0,m.bump||0]); gl.uniform4fv(u.uUv,uv);
     gl.drawArrays(gl.TRIANGLES,r.first,r.count); stats.draws++; stats.tris+=r.count/3; } }
 
+/* ── third person: the camera behind and a little above the walker's head, pulled in before any wall, floor or ceiling ── */
+function third(){ return !!(S.av&&S.view==='third'); }
+function camHit(G,x,y,z,lid){ var ps=primsNear(G,x,y,.4); for(var i=0;i<ps.length;i++){ var p=ps[i]; if(z>=p.z0-.1&&z<=p.z1+.1&&primDist(p,x,y)<.17) return true; }
+  var s=supports(G,x,y); for(var j=0;j<s.length;j++) if(Math.abs(z-s[j])<.14) return true;
+  var r=roomAt(G,lid,x,y); if(S.room&&(!r||r.isVoid&&z<r.l.e+.2)) return true; if(r&&!r.isVoid&&z>r.ceil-.14) return true; return false; }
+function camEye(fw){ var me=[S.x,S.y,S.ez]; S.camRoom=null; if(!third()) return me; var G=S.G, piv=[S.x,S.y,S.ez-CFG.eye+S.av.R.H*.93], lid=levelAt(S.fz).id;
+  var d=[-fw[0]*CFG.camD,-fw[1]*CFG.camD,-fw[2]*CFG.camD+CFG.camUp], L=Math.hypot(d[0],d[1],d[2]), u=[d[0]/L,d[1]/L,d[2]/L], t=L;
+  for(var s=.12;s<=L+.2;s+=.08){ if(camHit(G,piv[0]+u[0]*s,piv[1]+u[1]*s,piv[2]+u[2]*s,lid)){ t=Math.max(.15,s-.24); break; } }
+  if(S.camD==null||t<S.camD||S.snapCam) S.camD=t; else S.camD+=(t-S.camD)*(1-Math.exp(-(S.dt||.016)/.3)); S.snapCam=0;
+  var e=[piv[0]+u[0]*S.camD,piv[1]+u[1]*S.camD,piv[2]+u[2]*S.camD]; S.camRoom=roomAt(G,lid,e[0],e[1]); S.camE=e; return e; }
+/* the avatar as a batch of its own (one range per colour + its soft shadow), re-skinned every frame; lit like the room it stands in */
+function avatarBatch(){ if(!third()||S.camD<.75) { if(S.tagEl) S.tagEl.style.opacity=0; return null; } var gl=S.gl, A=S.av, G=S.G, lt=S.room?S.room.b.light:(G.site&&G.site.light); if(!lt) return null;
+  var fz=S.ez-CFG.eye+(S.dip||0); AV.emit(A,S.x,S.y,fz,1,null); var n=A.n, nv=n+6;
+  if(!S.avAB||S.avAB.byteLength<nv*STRIDE){ S.avAB=new ArrayBuffer(nv*STRIDE); S.avF=new Float32Array(S.avAB); S.avI8=new Int8Array(S.avAB); S.avU8=new Uint8Array(S.avAB); }
+  var f=S.avF, i8=S.avI8, u8=S.avU8, P=A.pos, N=A.nrm;
+  for(var v=0;v<n;v++){ var o=v*7, b=v*STRIDE, k=v*3; f[o]=P[k]; f[o+1]=P[k+1]; f[o+2]=P[k+2]; i8[b+12]=Math.round(N[k]*127); i8[b+13]=Math.round(N[k+1]*127); i8[b+14]=Math.round(N[k+2]*127); f[o+4]=0; f[o+5]=0; u8[b+24]=255; u8[b+25]=255; u8[b+26]=0; u8[b+27]=0; }
+  var sup=supportAt(G,S.x,S.y,S.fz+.05), sz=(sup==null?fz:sup)+.012, r=.42*(1-clamp((fz-(sup==null?fz:sup))*.8,0,.5)), Q=[[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]];
+  for(var q=0;q<6;q++){ var o2=(n+q)*7, b2=(n+q)*STRIDE; f[o2]=S.x+Q[q][0]*r; f[o2+1]=S.y+Q[q][1]*r; f[o2+2]=sz; i8[b2+12]=0; i8[b2+13]=0; i8[b2+14]=127; f[o2+4]=Q[q][0]; f[o2+5]=Q[q][1]; u8[b2+24]=255; u8[b2+25]=255; u8[b2+26]=0; u8[b2+27]=0; }
+  if(!S.avVB) S.avVB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,S.avVB); gl.bufferData(gl.ARRAY_BUFFER,new Uint8Array(S.avAB,0,nv*STRIDE),gl.DYNAMIC_DRAW);
+  var ranges=A.ranges.map(function(rg){ var key='av#'+A.cols[rg.c].slice(1); return {k:key, m:matOf(G,key), first:rg.first, count:rg.count, trans:false}; });
+  ranges.push({k:'avshadow', m:matOf(G,'avshadow'), first:n, count:6, trans:true});
+  avatarTag(A); return {built:{vb:S.avVB, ranges:ranges}, light:lt}; }
+function avatarTag(A){ var el2=S.tagEl; if(!el2||!A.head||!S.VP) return; var t=AV.tag(A); if(!t.text){ el2.style.opacity=0; return; }
+  var m=S.VP, h=A.head, x=m[0]*h[0]+m[4]*h[1]+m[8]*(h[2]+.08)+m[12], y=m[1]*h[0]+m[5]*h[1]+m[9]*(h[2]+.08)+m[13], w=m[3]*h[0]+m[7]*h[1]+m[11]*(h[2]+.08)+m[15];
+  if(w<.1){ el2.style.opacity=0; return; } var cw=S.root.clientWidth, ch=S.root.clientHeight; el2.style.transform='translate('+((x/w*.5+.5)*cw).toFixed(1)+'px,'+((.5-y/w*.5)*ch).toFixed(1)+'px) translate(-50%,-100%)'; el2.style.opacity=1;
+  if(el2.textContent!==t.text){ el2.textContent=t.text; el2.title=t.title; } }
+function setView(v){ S.view=v==='first'?'first':'third'; AV.setPref('view',S.view); S.snapCam=1; if(S.viewBtn) S.viewBtn.textContent=S.view==='third'?'First person · T':'Third person · T'; if(S.tagEl&&S.view!=='third') S.tagEl.style.opacity=0; }
+function setAvatar(w){ var c=AV.city(S.G&&S.G.plan.name,(S.G&&S.G.plan.geo||{}).lat,(S.G&&S.G.plan.geo||{}).lon); S.av=AV.make(c,w==='generic'?'generic':'mayor'); AV.setPref('avatar',S.av.mayor?'mayor':'generic');
+  if(S.avBtn){ var m=c&&c.m; S.avBtn.textContent=S.av.mayor?'Avatar: '+m.n:'Avatar: generic'; S.avBtn.disabled=!(c&&c.look&&m); S.avBtn.title=S.av.mayor?AV.tag(S.av).title:(c&&c.look&&m?'Switch to the figure after Mayor '+m.n:'No mayor data for this city: the generic figure'); } }
+
 /* ── walking ── */
 function levelAt(z){ var G=S.G, l=G.lvs[0]; G.lvs.forEach(function(o){ if(o.e<=z+.6) l=o; }); return l; }
 function locate(){ var G=S.G, fz=S.fz, best=null; G.lvs.forEach(function(l){ if(l.e>fz+.6) return; var r=roomAt(G,l.id,S.x,S.y); if(r&&(!best||l.e>best.l.e)) best=r; });
   if(best&&S.fz>best.ceil) best=null; return best; }
-function step(dt,keys){ var G=S.G; keys=keys||S.keys; dt=Math.min(dt,.1); S.dt=dt;
-  var f=(keys.f?1:0)-(keys.b?1:0)+(S.joyL?-S.joyL[1]:0), s=(keys.r?1:0)-(keys.l?1:0)+(S.joyL?S.joyL[0]:0), sp=keys.run||(S.joyL&&Math.hypot(S.joyL[0],S.joyL[1])>.95)?CFG.hurry:CFG.walk;
+function colZ(){ return S.air?Math.min(S.fz,S.gnd):S.fz; }        /* furniture and walls are tested from the ground you left: a hop never clears a bench or a rope (and never lands inside one) */
+/* the lowest thing over the head at (x,y): a floor or flight above (its slab), the room's ceiling, a lintel or beam */
+function ceilAt(G,x,y,fz){ var c=1e9, s=supports(G,x,y); for(var i=0;i<s.length;i++) if(s[i]>fz+CFG.step+.05&&s[i]-.25<c) c=s[i]-.25;
+  G.lvs.forEach(function(l){ if(l.e>fz+.6||l.e<fz-6.5) return; var r=roomAt(G,l.id,x,y); if(r&&!r.isVoid&&r.ceil>fz+.5&&r.ceil<c) c=r.ceil; });
+  var ps=primsNear(G,x,y,CFG.pr+.5); for(var j=0;j<ps.length;j++){ var p=ps[j]; if(p.z0>fz+CFG.knee+.05&&p.z0<c&&primDist(p,x,y)<CFG.pr) c=p.z0; } return c; }
+function ledge(G,x,y){ var ref=S.air?S.gnd:S.fz, sup=supportDisc(G,x,y,Math.max(S.fz,ref)); if(sup==null) return true; return ref-sup>CFG.drop&&!onStair(G,x,y); }
+function okAt(G,x,y){ return !blockedBySurf(x,y)&&!ledge(G,x,y); }
+function step(dt,keys){ var G=S.G; keys=keys||S.keys; dt=Math.min(dt,.1); S.dt=dt; var H=AV.HOP, pd=S.noPad?null:AV.pad();
+  var f=(keys.f?1:0)-(keys.b?1:0)+(S.joyL?-S.joyL[1]:0)+(pd?-pd.my:0), s=(keys.r?1:0)-(keys.l?1:0)+(S.joyL?S.joyL[0]:0)+(pd?pd.mx:0), sp=keys.run||(pd&&pd.run)||(S.joyL&&Math.hypot(S.joyL[0],S.joyL[1])>.95)?CFG.hurry:CFG.walk;
   var mag=Math.hypot(f,s); if(mag>1){ f/=mag; s/=mag; }
-  var cy=Math.cos(S.yaw), sy=Math.sin(S.yaw), tvx=(cy*f+sy*s)*sp, tvy=(sy*f-cy*s)*sp, k=1-Math.exp(-dt/CFG.tau); S.vx+=(tvx-S.vx)*k; S.vy+=(tvy-S.vy)*k;
+  var cy=Math.cos(S.yaw), sy=Math.sin(S.yaw), tvx=(cy*f+sy*s)*sp, tvy=(sy*f-cy*s)*sp, k=1-Math.exp(-dt/(S.air?.5:CFG.tau)); S.vx+=(tvx-S.vx)*k; S.vy+=(tvy-S.vy)*k;      /* in the air you steer less */
   S.yaw+=((keys.tl?1:0)-(keys.tr?1:0))*CFG.turn*dt; if(S.joyR){ S.yaw-=S.joyR[0]*2.2*dt; S.pitch=clamp(S.pitch-S.joyR[1]*1.6*dt,-CFG.pitchMax,CFG.pitchMax); }
-  var dx=S.vx*dt, dy=S.vy*dt, n=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.08));
+  if(pd){ S.yaw-=pd.lx*2.4*dt; S.pitch=clamp(S.pitch-pd.ly*1.7*dt,-CFG.pitchMax,CFG.pitchMax); }
+  /* the hop: pressed within `buffer` s before touching ground, or within `coyote` s after leaving it; one per touch of the ground, none in the air */
+  var hk=!!(keys.hop||(pd&&pd.a)); if(hk&&!S.hopHeld) S.hopBuf=H.buffer; S.hopHeld=hk; S.coy=S.grounded?H.coyote:Math.max(0,(S.coy||0)-dt);
+  if(S.hopBuf>0&&S.coy>0&&!S.air&&!S.glide&&ceilAt(G,S.x,S.y,S.fz)-S.fz-CFG.head>.12){ S.air=true; S.gnd=S.fz; S.vz=H.v0; S.coy=0; S.hopBuf=0; S.grounded=false; S.hops=(S.hops||0)+1; }
+  S.hopBuf=Math.max(0,(S.hopBuf||0)-dt);
+  /* horizontal: sub-steps of at most 8 cm, each committed only when the capsule there is free and not over a drop; else slide along the wall */
+  var cz=colZ(), dx=S.vx*dt, dy=S.vy*dt, n=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.08)), x0=S.x, y0=S.y;
   for(var i=0;i<n;i++){ var nx=S.x+dx/n, ny=S.y+dy/n;
-    if(blockedBySurf(nx,ny)){ if(!blockedBySurf(nx,S.y)) ny=S.y; else if(!blockedBySurf(S.x,ny)) nx=S.x; else { S.vx*=.5; S.vy*=.5; break; } }
-    var p=resolve(G,nx,ny,S.fz); if(blockedBySurf(p[0],p[1])) break; S.x=p[0]; S.y=p[1]; }
-  var sup=supportAt(G,S.x,S.y,S.fz); if(sup==null) sup=S.fz;
-  if(sup>=S.fz&&sup-S.fz<.05&&!S.glide){ var sf=S.safe; if(!sf||Math.hypot(S.x-sf.x,S.y-sf.y)>1.5||Math.abs(S.fz-sf.z)>.4) S.safe={x:S.x,y:S.y,z:S.fz}; }
-  if(S.safe&&!S.glide&&S.fz<S.safe.z-2.5&&S.fz-sup>1.5&&S.vz<-7.4&&!onStair(G,S.x,S.y)){ S.x=S.safe.x; S.y=S.safe.y; S.fz=S.safe.z; S.vz=0; S.vx=S.vy=0; S.snap=1; S.snapExp=1; sup=S.fz; }       /* never fall out of the building: back to the last safe spot */
-  if(sup>=S.fz){ S.fz=sup; S.vz=0; } else { S.vz-=9.8*dt; S.fz=Math.max(sup,S.fz+S.vz*dt); if(S.fz===sup) S.vz=0; }
-  if(S.glide){ var g=S.glide; g.t+=dt; var a=clamp(g.t/g.d,0,1), e=a*a*(3-2*a); S.fz=g.z0+(g.z1-g.z0)*e; S.vz=0; if(a>=1) S.glide=null; }
-  var tz=S.fz+CFG.eye; S.ez+=(tz-S.ez)*(1-Math.exp(-dt*(Math.abs(tz-S.ez)>1?6:16))); if(S.snap){ S.ez=tz; S.snap=0; }
-  S.room=locate(); S.lv=levelAt(S.fz); }
+    if(!okAt(G,nx,ny)){ if(okAt(G,nx,S.y)) ny=S.y; else if(okAt(G,S.x,ny)) nx=S.x; else { S.vx*=.5; S.vy*=.5; break; } }
+    var p=resolve(G,nx,ny,cz); if(!okAt(G,p[0],p[1])) break; S.x=p[0]; S.y=p[1]; }
+  if(dt>0){ var mv=Math.hypot(S.x-x0,S.y-y0); S.spd=mv/dt; if(mv<Math.hypot(S.vx,S.vy)*dt*.3){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; } }           /* against a wall: no speed stored up */
+  /* stuck rescue: inside geometry for 3 frames in a row (a moved prop, a bad spawn) -> the nearest free spot */
+  if(blockedAt(G,S.x,S.y,colZ())){ S.stuckN=(S.stuckN||0)+1; if(S.stuckN>=3){ var fr=freeNear(S.x,S.y,S.fz); S.x=fr[0]; S.y=fr[1]; S.stuckN=0; S.rescues=(S.rescues||0)+1; } } else S.stuckN=0;
+  /* vertical: ground snap on stairs and small steps, else the hop / fall in sub-steps of at most 5 cm: land on the first support met, bonk the first ceiling */
+  var sup=supportDisc(G,S.x,S.y,S.fz); if(sup==null) sup=S.fz;
+  if(!S.air&&!S.glide){ if(sup>=S.fz||S.fz-sup<=CFG.step+.02){ S.fz=sup; S.vz=0; S.grounded=true; } else { S.air=true; S.gnd=S.fz; S.vz=0; S.grounded=false; } }
+  if(S.air&&!S.glide){ S.vz-=H.g*dt; var dz=S.vz*dt, m=Math.max(1,Math.ceil(Math.abs(dz)/.05));
+    for(var j=0;j<m;j++){ var z1=S.fz+dz/m;
+      if(dz>0){ var ce=ceilAt(G,S.x,S.y,S.fz); if(z1+CFG.head>ce-.02){ S.fz=Math.max(S.fz,ce-CFG.head-.02); S.vz=0; S.bonks=(S.bonks||0)+1; break; } }
+      else { var su=supportDisc(G,S.x,S.y,S.fz); if(su!=null&&z1<=su){ var imp=-S.vz; S.fz=su; S.vz=0; S.air=false; S.grounded=true; S.dip=Math.min(.07,imp*.011); break; } }
+      S.fz=z1; } }
+  if(sup>=S.fz-.005&&!S.air&&!S.glide&&!onStair(G,S.x,S.y)){ var sf=S.safe; if(!sf||Math.hypot(S.x-sf.x,S.y-sf.y)>1.5||Math.abs(S.fz-sf.z)>.4) S.safe={x:S.x,y:S.y,z:S.fz}; }
+  if(S.safe&&!S.glide&&S.air&&S.fz<S.safe.z-1.3&&S.vz<-4.5&&!onStair(G,S.x,S.y)){ S.x=S.safe.x; S.y=S.safe.y; S.fz=S.safe.z; S.vz=0; S.vx=S.vy=0; S.air=false; S.grounded=true; S.snap=1; S.snapExp=1; S.nets=(S.nets||0)+1; }       /* never fall into another floor: back to the last safe spot */
+  if(!isFinite(S.x+S.y+S.fz)&&S.safe){ S.x=S.safe.x; S.y=S.safe.y; S.fz=S.safe.z; S.vx=S.vy=S.vz=0; }
+  if(S.glide){ var g=S.glide; g.t+=dt; var a=clamp(g.t/g.d,0,1), e=a*a*(3-2*a); S.fz=g.z0+(g.z1-g.z0)*e; S.vz=0; S.air=false; if(a>=1) S.glide=null; }
+  S.dip=Math.max(0,(S.dip||0)-dt*.35);
+  var tz=S.fz+CFG.eye-(S.dip||0); if(S.air) S.ez=tz; else S.ez+=(tz-S.ez)*(1-Math.exp(-dt*(Math.abs(tz-S.ez)>1?6:16))); if(S.snap){ S.ez=tz; S.snap=0; }
+  S.room=locate(); S.lv=levelAt(S.fz);
+  if(S.av&&dt>0) AV.tick(S.av,dt,{gait:(S.spd||0)/CFG.walk, vx:S.vx, vy:S.vy, air:S.air, vz:S.vz, face:S.yaw}); }
 function blockedBySurf(x,y){ var s=supports(S.G,x,y), fz=S.fz; for(var i=0;i<s.length;i++) if(s[i]>fz+CFG.step&&s[i]<fz+CFG.head) return true; return false; }
 function goLevel(dir){ var G=S.G, cur=levelAt(S.fz), i=G.lvs.indexOf(cur)+dir; if(i<0||i>=G.lvs.length) return false; var l=G.lvs[i];
   var r=roomAt(G,l.id,S.x,S.y), hole=r&&r.holesF.some(function(h){ return pip(h,S.x,S.y); });
@@ -1490,7 +1648,11 @@ function mountHud(){ var css=D.getElementById('bf-css'); if(!css){ css=el('style
   S.lvBox=el('div','bf-lv',root); S.G.lvs.forEach(function(l){ var b=el('button',null,S.lvBox,dec(l.lb)); b.type='button'; b.setAttribute('aria-label','Go to '+dec(l.n)); b.setAttribute('data-lv',l.id); b.addEventListener('click',function(e){ e.stopPropagation(); var i=S.G.lvs.indexOf(levelAt(S.fz)), j=S.G.lvs.indexOf(l); if(j!==i) goLevel(j>i?1:-1); }); });
   var ex=el('button','bf-exit',root,'Blueprint · Esc'); ex.type='button'; ex.addEventListener('click',function(e){ e.stopPropagation(); exit(); });
   var cbn=el('button','bf-cardsbtn',root,'Cards \u00b7 C'); cbn.type='button'; cbn.addEventListener('click',function(e){ e.stopPropagation(); toggleCards(); });
-  S.hint=el('div','bf-pill bf-hint',root,'W A S D move \u00b7 drag to look \u00b7 Shift run \u00b7 C cards \u00b7 N / P next / previous card \u00b7 [ ] floors \u00b7 E open \u00b7 Esc blueprint');
+  var ob=el('div','bf-opts',root); S.viewBtn=el('button',null,ob,''); S.viewBtn.type='button'; S.viewBtn.addEventListener('click',function(e){ e.stopPropagation(); setView(S.view==='third'?'first':'third'); });
+  S.avBtn=el('button',null,ob,''); S.avBtn.type='button'; S.avBtn.addEventListener('click',function(e){ e.stopPropagation(); setAvatar(S.av&&S.av.mayor?'generic':'mayor'); });
+  S.tagEl=el('div','bf-tag',root,''); S.hopBtn=el('button','bf-hop',root,'Hop'); S.hopBtn.type='button'; S.hopBtn.setAttribute('aria-label','Hop');
+  S.hopBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); e.preventDefault(); S.keys.hop=1; }); ['pointerup','pointercancel','pointerleave'].forEach(function(t){ S.hopBtn.addEventListener(t,function(e){ e.stopPropagation(); S.keys.hop=0; }); });
+  S.hint=el('div','bf-pill bf-hint',root,'W A S D move \u00b7 Space hop \u00b7 T first / third person \u00b7 drag to look \u00b7 Shift run \u00b7 C cards \u00b7 N / P next / previous card \u00b7 [ ] floors \u00b7 E open \u00b7 Esc blueprint');
   S.jl=el('div','bf-joy bf-jl',root); el('i',null,S.jl); S.jr=el('div','bf-joy bf-jr',root); el('i',null,S.jr);
   var cr=(S.G.plan.src||[]).map(function(x){ return x&&x.cr; }).filter(Boolean); if(cr.length){ var ce=el('div','bf-credit',root,cr.map(dec).join(' \u00b7 ')); ce.title=ce.textContent; }
   S.veil=el('div','bf-veil',root,'Walking in…'); if(q().bldgperf==='1') S.perf=el('div','bf-pill bf-perf',root);
@@ -1505,11 +1667,12 @@ function mountHud(){ var css=D.getElementById('bf-css'); if(!css){ css=el('style
     j.addEventListener('pointermove',function(e){ joyMove(e); }); j.addEventListener('pointerup',function(e){ joyUp(e); }); j.addEventListener('pointercancel',function(e){ joyUp(e); }); });
   S.onKey=function(e){ if(!S.on||S.paused) return; var t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return; var down=e.type==='keydown', k=e.key, c=e.code, n=null;
     if(c==='KeyW'||k==='ArrowUp'||k==='w'||k==='W') n='f'; else if(c==='KeyS'||k==='ArrowDown'||k==='s'||k==='S') n='b'; else if(c==='KeyA'||k==='a'||k==='A') n='l'; else if(c==='KeyD'||k==='d'||k==='D') n='r';
-    else if(k==='ArrowLeft') n='tl'; else if(k==='ArrowRight') n='tr'; else if(k==='Shift') n='run';
+    else if(k==='ArrowLeft') n='tl'; else if(k==='ArrowRight') n='tr'; else if(k==='Shift') n='run'; else if(k===' '||c==='Space') n='hop';
     if(n){ S.keys[n]=down?1:0; e.preventDefault(); e.stopPropagation(); return; }
     if(!down) return;
     if(k==='Escape'){ e.preventDefault(); e.stopPropagation(); exit(); return; }
     if(k===']'||k==='PageUp'){ e.preventDefault(); goLevel(1); return; } if(k==='['||k==='PageDown'){ e.preventDefault(); goLevel(-1); return; }
+    if((k==='t'||k==='T')&&!e.repeat){ e.preventDefault(); setView(S.view==='third'?'first':'third'); return; }
     if(k==='c'||k==='C'){ e.preventDefault(); toggleCards(); return; } if(k==='n'||k==='N'){ e.preventDefault(); stepCard(1); return; } if(k==='p'||k==='P'){ e.preventDefault(); stepCard(-1); return; }
     if(k==='e'||k==='E'||k==='Enter'){ e.preventDefault(); act(S.hover); } };
   window.addEventListener('keydown',S.onKey,true); window.addEventListener('keyup',S.onKey,true);
@@ -1570,8 +1733,8 @@ function enter(roomId,ctx){ ctx=ctx||{}; var A=window.AltoBuilding, plan=ctx.pla
   try{ S.G=bfIndex(plan); addCards(S.G); }catch(e){ if(window.console) console.warn('bldg fpv index',e); return false; }
   var geo=plan.geo||{}, north=(geo.north||0)*PI/180, bear=215*PI/180-north, el2=36*PI/180; S.sun=nrm([Math.cos(el2)*Math.sin(bear),Math.cos(el2)*Math.cos(bear),Math.sin(el2)]);
   S.sunC=[6.2,5.5,4.5]; S.sky=[1.9,2.25,2.8];
-  S.lost=0; S.rt=null; S.noRefl=0; S.abytes=0; S.keys={}; S.vx=S.vy=S.vz=0; S.frame=0; S.built=0; S.last=0; S.iv=[]; S.roomSig=null; S.pkTxt=null; S.gov=null; S.fb=null; S.glide=null; S.safe=null;
-  mountHud(); var gl=glInit(S.cv); if(!gl){ unmount(); return false; }
+  S.lost=0; S.rt=null; S.noRefl=0; S.abytes=0; S.keys={}; S.vx=S.vy=S.vz=0; S.frame=0; S.built=0; S.last=0; S.iv=[]; S.roomSig=null; S.pkTxt=null; S.gov=null; S.fb=null; S.glide=null; S.safe=null; S.air=false; S.grounded=true; S.vz=0; S.dip=0; S.hopBuf=0; S.hopHeld=false; S.camD=null; S.av=null; S.avVB=null; S.avAB=null;
+  mountHud(); setAvatar(AV.pref('avatar')); setView(AV.pref('view')); var gl=glInit(S.cv); if(!gl){ unmount(); return false; }
   try{ glSetup(); }catch(e){ if(window.console) console.warn('bldg fpv gl',e); unmount(); return false; }
   var sp=spawn(S.G,roomId,ctx); S.x=sp.x; S.y=sp.y; S.fz=sp.z; S.ez=sp.z+CFG.eye; S.yaw=sp.yaw; S.pitch=sp.pitch; S.snap=1; S.snapExp=1; S.exp=1;
   S.on=true; S.paused=false; size(); step(0); S.settling=1; if(S.sm){ S.G.batches.forEach(function(b){ if(b.kind!=='room'&&!b.built) upload(S.G,b); }); } try{ render(); render(); }catch(e){ if(window.console) console.warn('bldg fpv render',e); } S.settling=0;
@@ -1579,12 +1742,12 @@ function enter(roomId,ctx){ ctx=ctx||{}; var A=window.AltoBuilding, plan=ctx.pla
   S.raf=requestAnimationFrame(loop); emitPos('alto-building-fpv-pos'); return true; }
 function exit(silent){ if(!S.on) return; emitPos('alto-building-fpv-exit'); S.on=false; cancelAnimationFrame(S.raf); S.raf=0; if(S.mo){ S.mo.disconnect(); S.mo=null; }
   var gl=S.gl; if(gl&&S.G){ S.G.batches.forEach(drop); for(var g in S.tex){ gl.deleteTexture(S.tex[g][0]); gl.deleteTexture(S.tex[g][1]); } freeTarget(gl,S.fb); if(S.rt){ gl.deleteTexture(S.rt.tx); gl.deleteRenderbuffer(S.rt.rb); gl.deleteFramebuffer(S.rt.fb); S.rt=null; } if(S.sm){ gl.deleteTexture(S.sm.tx); gl.deleteRenderbuffer(S.sm.rb); gl.deleteFramebuffer(S.sm.fb); S.sm=null; } try{ var lx=gl.getExtension('WEBGL_lose_context'); if(lx) lx.loseContext(); }catch(x){} }
-  unmount(); var pos=S.lastPos; S.gl=null; S.G=null; S.tex={}; S.fb=null;
+  if(gl&&S.avVB){ gl.deleteBuffer(S.avVB); S.avVB=null; } unmount(); var pos=S.lastPos; S.gl=null; S.G=null; S.tex={}; S.fb=null;
   if(!silent){ try{ var A=window.AltoBuilding; if(A){ A.show(); if(pos&&A.showWalker) A.showWalker(pos); } }catch(x){} } }
 function unmount(){ window.removeEventListener('keydown',S.onKey,true); window.removeEventListener('keyup',S.onKey,true); window.removeEventListener('blur',S.onBlur); window.removeEventListener('resize',S.onResize); if(S.root){ S.root.remove(); S.root=null; } }
 
 var API={version:1, enter:enter, exit:function(){ exit(); },
-  state:function(){ return S.G?{x:S.x, y:S.y, z:S.fz, eye:S.ez, yaw:S.yaw, pitch:S.pitch, room:S.room?S.room.id:null, level:levelAt(S.fz).id, tier:S.T.name, wgl2:S.T.wgl2, exp:S.exp, on:S.on}:null; },
+  state:function(){ return S.G?{x:S.x, y:S.y, z:S.fz, eye:S.ez, yaw:S.yaw, pitch:S.pitch, air:!!S.air, vz:S.vz, hops:S.hops||0, bonks:S.bonks||0, nets:S.nets||0, rescues:S.rescues||0, view:S.view, avatar:S.av?{mayor:S.av.mayor, tag:AV.tag(S.av).text, city:S.av.city&&S.av.city.id}:null, cam:S.camE||null, camD:S.camD, room:S.room?S.room.id:null, level:levelAt(S.fz).id, tier:S.T.name, wgl2:S.T.wgl2, exp:S.exp, on:S.on}:null; },
   place:function(x,y,z,yaw,pitch){ S.safe=null; S.x=x; S.y=y; if(z!=null) S.fz=z; else { var s=supportAt(S.G,x,y,1e3); S.fz=s==null?S.fz:s; } if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); S.snap=1; S.snapExp=1; S.vx=S.vy=0; step(0); },
   step:function(dt,keys,n){ for(var i=0;i<(n||1);i++) step(dt,keys); }, look:function(yaw,pitch){ if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); },
   settle:function(){ S.settling=1; S.snapExp=1; render(); render(); S.settling=0; hud(performance.now()+1e4); return API.stats(); },
@@ -1592,7 +1755,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
   timeFrames:function(n){ var gl=S.gl, t0=performance.now(); for(var i=0;i<n;i++){ render(); } var px=new Uint8Array(4); gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px); return (performance.now()-t0)/n; },
   pick:function(){ var h=pickNow(S.root.clientWidth/2,S.root.clientHeight/2), d=describe(h); return d?{text:d.text, node:d.node||null, kind:h?h.k:'room'}:null; },
   act:function(){ act(S.hover||pickNow(S.root.clientWidth/2,S.root.clientHeight/2)); }, level:function(d){ return goLevel(d); },
-  geom:{ index:bfIndex, support:function(x,y,z){ return supportAt(S.G,x,y,z); }, blocked:function(x,y,z){ return blockedAt(S.G,x,y,z); }, flightZ:flightZ,
+  geom:{ index:bfIndex, support:function(x,y,z){ return supportAt(S.G,x,y,z); }, supports:function(x,y){ return supports(S.G,x,y); }, ceil:function(x,y,z){ return ceilAt(S.G,x,y,z); }, onStair:function(x,y){ return onStair(S.G,x,y); }, segD:segD, ok:function(x,y){ return {ledge:ledge(S.G,x,y), surf:blockedBySurf(x,y), prim:blockedAt(S.G,x,y,colZ())}; }, blocked:function(x,y,z){ return blockedAt(S.G,x,y,z); }, flightZ:flightZ,
     wallPieces:function(G,wid){ var W=G.walls.filter(function(w){ return w.w.id===wid; })[0]; if(!W) return null; var out={faces:[], ops:W.ops.map(function(o){ return {k:o.k, a0:o.a0, a1:o.a1, z0:o.z0, z1:o.z1, pass:o.pass, ra:o.ra?o.ra.id:null, rb:o.rb?o.rb.id:null}; }), prims:[]};
       G.batches.forEach(function(b){ b.items.forEach(function(f){ if(f.t==='face'&&f.W===W) out.faces.push({room:f.room?f.room.id:null, s:f.s, u0:f.u0+f.sg.s0, u1:f.u1+f.sg.s0, fb:f.fb, ft:f.ft}); }); });
       return out; },
@@ -1603,6 +1766,10 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
           if(n&&Math.abs(dot(g,n))<.9) continue; var d=dot(sub([x,y,z],P[0]),g); if(Math.abs(d)>tol) continue; var q=[x-g[0]*d,y-g[1]*d,z-g[2]*d], ok=true;
           for(var e=0;e<3;e++){ var A=P[e], B2=P[(e+1)%3]; if(dot(cross(sub(B2,A),sub(q,A)),g)<-1e-7){ ok=false; break; } } if(ok) hits.push(k); } }); }); return hits; } } };
 API._debug=function(){ return S; };
+API.view=function(v){ if(v) setView(v); return S.view; }; API.avatar=function(w){ if(w) setAvatar(w); return S.av?{mayor:S.av.mayor, tag:AV.tag(S.av)}:null; }; API.AV=AV; API.CFG=CFG;
+/* headless walking (tests in node, no GL, no page): the plan indexed, the walker placed, step() as in the view */
+API.sim=function(plan,data){ S.data=data||{}; S.mc={}; S.G=bfIndex(plan); if(data) addCards(S.G); S.keys={}; S.vx=S.vy=S.vz=0; S.air=false; S.grounded=true; S.dip=0; S.safe=null; S.glide=null; S.noPad=1; S.hops=S.bonks=S.nets=S.rescues=0;
+  var sp=spawn(S.G,null,{}); S.x=sp.x; S.y=sp.y; S.fz=sp.z; S.ez=sp.z+CFG.eye; S.yaw=sp.yaw; S.pitch=0; S.room=locate(); return S.G; };
 window.AltoBuildingFPV=API;
 function reg(){ if(window.AltoBuilding&&AltoBuilding.registerFPV) AltoBuilding.registerFPV({enter:function(id,ctx){ return enter(id,ctx); }, exit:function(){ exit(); }}); }
 reg();
@@ -1610,12 +1777,15 @@ reg();
 """
 
 
+from .fpv_avatar import avatar_js  # noqa: E402  (the hop, the avatar, the gamepad: shared with the city roam)
+
+
 def _js() -> str:
     js = FPV_JS
     for key, src in (("__TEXGEN__", _GLSL_TEXGEN), ("__QUADVS__", _GLSL_QUAD_VS), ("__SKYFS__", _GLSL_SKY), ("__WVS__", _GLSL_WORLD_VS), ("__WFS__", _GLSL_WORLD_FS),
                      ("__DVS__", _GLSL_DEPTH_VS), ("__DFS__", _GLSL_DEPTH_FS)):
         js = js.replace(key, _json.dumps(src))
-    return js
+    return js.replace("__AVATAR__", avatar_js())
 
 
 FPV_ASSET = "(function(){\nvar BF_CSS=" + _json.dumps(FPV_CSS) + ";\n" + _js() + "\n})();\n"

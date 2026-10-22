@@ -57,7 +57,7 @@ def test_roam_is_left_before_the_page_opens_and_entered_again_when_it_closes():
 
 
 def test_human_scale_constants():
-    for k in ("walk:14,", "brisk:40,", "jog:60,", "eye:2.15", "PRGL:1.3", "bob:.03"):
+    for k in ("walk:14,", "brisk:40,", "jog:60,", "eye:2.15", "PRGL:.85", "bob:.03"):
         assert k in JSE
     assert abs(14 / 1.3 - 10.8) < 0.05 and abs(2.15 / 1.3 - 1.65) < 0.01      # m/s and m at 1.3 units a metre
     assert "Math.min(stepHz(S.speed/UM),2.1)" in JSE and "function stepHz(v)" in palace_ride_b.JS_B
@@ -113,7 +113,7 @@ STUB = r"""
 def _html():
     M, P, fg = _city()
     return ("<!doctype html><html class=\"alto-palace\"><head><meta charset=\"utf-8\"><style>html,body{margin:0;background:#cdd}#canvas{position:fixed;left:0;top:0;width:1400px;height:900px}"
-            + palace_ride.RIDE_CSS + "</style></head><body><div id=\"canvas\"></div><script>" + palace_ride.RIDE_JS + "</script><script>"
+            + palace_ride.RIDE_CSS + "</style></head><body><div id=\"canvas\"></div><script>window._altoFpv={view:'first'};</script><script>" + palace_ride.RIDE_JS + "</script><script>"
             + STUB % json.dumps({"M": M, "P": P, "fg": fg, "lots": LOTS, "names": NAMES}) + "</script></body></html>")
 
 

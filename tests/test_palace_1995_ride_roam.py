@@ -24,7 +24,7 @@ def test_roam_is_assembled_into_the_ride_and_exported():
 
 
 def test_collision_is_a_free_circle_test_with_a_wall_slide_and_a_near_plane_margin():
-    assert "PR:2.4" in JS and "PRGL:1.3" in JS                                              # a little more than the renderer's NEARZ (1.8), so a wall never clips away
+    assert "PR:2.4" in JS and "PRGL:.85" in JS and "PR3:.45" in JS                                              # a little more than the renderer's NEARZ (1.8), so a wall never clips away
     assert "function blockedAt(x,y)" in JS and "function ringHit(" in JS and "function moveStep(dx,dy)" in JS
     assert "function normalAt(" in JS and "function cut(" in JS          # contact by binary search, normal by sampling, then the rest of the move slides
     assert "QUAL=['b','node','fill','lm']" in JS and "s.collide" in JS
@@ -141,7 +141,7 @@ STUB = r"""
 def _html():
     M, P, fg = _city()
     return ("<!doctype html><html class=\"alto-palace\"><head><meta charset=\"utf-8\"><style>html,body{margin:0;background:#cdd}#canvas{position:fixed;left:0;top:0;width:1400px;height:900px}"
-            + palace_ride.RIDE_CSS + "</style></head><body><div id=\"canvas\"></div><script>" + palace_ride.RIDE_JS + "</script><script>"
+            + palace_ride.RIDE_CSS + "</style></head><body><div id=\"canvas\"></div><script>window._altoFpv={view:'first'};</script><script>" + palace_ride.RIDE_JS + "</script><script>"
             + STUB % json.dumps({"M": M, "P": P, "fg": fg}) + "</script></body></html>")
 
 

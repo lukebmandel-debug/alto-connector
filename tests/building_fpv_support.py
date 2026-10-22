@@ -72,7 +72,7 @@ def launch(p, which):
         return p.chromium.launch(channel="chrome")
 
 
-def open_view(browser, srv, html, plan, room=None, ctx=None, width=1280, height=800, enter=True):
+def open_view(browser, srv, html, plan, room=None, ctx=None, width=1280, height=800, enter=True, view="first"):
     """The built page with `plan` as its hosted plan, walked into (room None: outside, at the main entrance). Returns (page, errors)."""
     srv.html, srv.plan = html, bs.hosted_json(plan)[1]
     page = browser.new_page(viewport={"width": width, "height": height})
@@ -81,6 +81,7 @@ def open_view(browser, srv, html, plan, room=None, ctx=None, width=1280, height=
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)   # the page's own optional files 404 here
     page.goto(srv.origin + "/index.html")
     page.wait_for_function("window.AltoBuilding && AltoBuilding.plan", timeout=30000)
+    page.evaluate("v => { window._altoFpv = {view: v}; }", view)          # the first-person tests measure the walker's own eye; the avatar tests ask for "third"
     if enter:
         page.evaluate("([r, c]) => AltoBuilding.enterFPV(r, c || {from: 'plan'})", [room, ctx])
         page.wait_for_function("window.AltoBuildingFPV && AltoBuildingFPV.state() && AltoBuildingFPV.state().on", timeout=30000)

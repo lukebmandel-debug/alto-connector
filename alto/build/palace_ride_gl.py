@@ -508,6 +508,8 @@ function glDrawWorld(gl,Wd,L,tm,vp){
   if(GLX.inside && GLX.inside.buf){ var bt=GLX.insideTex; if(bt){ gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,bt); gl.uniform2f(pg.u.uAtlS,1,1); gl.activeTexture(gl.TEXTURE0); }   /* the directory board's canvas stands in for the street-name atlas during this draw */
     gl.disable(gl.CULL_FACE); glBind(gl,pg,GLX.inside); gl.drawArrays(gl.TRIANGLES,0,GLX.inside.n); draws++; tris+=GLX.inside.n/3; gl.enable(gl.CULL_FACE);
     if(bt){ gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,GLX.atlTex); var as2=GLX.atlS||[1,1]; gl.uniform2f(pg.u.uAtlS,as2[0],as2[1]); gl.activeTexture(gl.TEXTURE0); } }
+  /* the walker's avatar in third person (palace_ride_e.py avDraw): its own buffer, re-skinned each frame; the map's y runs south, so it is drawn with culling off */
+  var av=GLX.avatar; if(av && av.buf && av.n && av.gen===GLX.gen){ gl.disable(gl.CULL_FACE); glBind(gl,pg,av); gl.drawArrays(gl.TRIANGLES,0,av.n); draws++; tris+=av.n/3; gl.enable(gl.CULL_FACE); }
   /* the ride's way */
   var wy=GLX.curWay; if(wy && wy.segs){ for(i=0;i<wy.segs.length;i++){ var s=wy.segs[i]; if(!glSphVis(s.cx,s.cy,s.cz,s.r)) continue; glBind(gl,pg,s); gl.drawArrays(gl.TRIANGLES,0,s.n); draws++; tris+=s.n/3; } }
   /* meshes from the landmark and scenery parts: no culling (their winding is not ours to trust) */

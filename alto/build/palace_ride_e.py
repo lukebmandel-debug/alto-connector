@@ -38,17 +38,54 @@ for a cell that stays loaded.
 from .palace_ride_door import CSS_DOOR, JS_DOORS
 from .palace_ride_inside import CSS_INSIDE, JS_INSIDE, JS_INSIDE_GL      # FPV phase 2: looking up / down, going inside a node building
 from .palace_ride_mark import CSS_MARK, JS_MARK                            # 2.0.1: content buildings made obvious (labels, beams, Nearby, mini-map)
+from .fpv_avatar import avatar_js                                           # the hop, the third-person avatar after the mayor, the gamepad (shared with the Museum Palace walk)
 
 _JS_E = r"""
 var ROAM=(function(){
-var CFG={ eye:2.15, PR:2.4, PRGL:1.3, walk:14, brisk:40, jog:60, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:1.4835, pitch0:-.03, edge:8,
+var CFG={ eye:2.15, PR:2.4, PRGL:.85, PR3:.45, walk:14, brisk:40, jog:60, hurryAfter:2.2, hurryRamp:1.6, tau:.16, turn:1.9, load:1450, keep:1900, sync:520, budget:3.2, grab:true, lookX:.0042, lookY:.0034, pitchMax:1.4835, pitch0:-.03, edge:8,
   waterGap:17, waterOff:8, deckHW:9.5, bob:.03, crossAt:34, gridC:160, stayZoom:.6 };
 var MXC=90;                                     /* palace.py MX = MY = 90: the margin round the drawn city; scroll = (x + MX) * zoom + gap - viewport / 2 */
 var S={ on:false, hold:false, x:0, y:0, yaw:0, pitch:0, vx:0, vy:0, run:false, hurry:0, keys:{}, tm:0, last:0, raf:0, phase:0, walked:0, speed:0, drag:null, cells:{}, queue:[], bigs:[],
   W:null, real:null, plan:{x:-1e9,y:-1e9}, dirty:false, built:0, evicted:0, merges:0, plans:0, bms:[], lbms:[], mms:[], fr:[], view:null, hud:null, hudAt:0, hint:0, lastDark:null, spawned:null, sync:false, ver:0, loc:null, said:'' };
 var QUAL=['b','node','fill','lm'], BIGR=CELL*.4;
+/*@AVATAR@*/
+/* ── the hop and the third-person avatar (alto/build/fpv_avatar.py: the figure after the city's mayor, the hop's constants, the gamepad, the settings) ── */
+var AVR={view:'third', camD:null, jz:0, jv:0, air:false, dip:0, hopBuf:0, hopHeld:false, coy:0, hops:0, bonks:0, cam:null, pd:null, buf:null};
+function avCity(){ var P=E&&E.P; return AV.city(P&&P.place||'',null,null); }
+function third(){ return AVR.view==='third'&&!!S.av&&glOk(); }
+function avSet(w){ S.av=AV.make(avCity(),w==='generic'?'generic':'mayor'); AV.setPref('avatar',S.av.mayor?'mayor':'generic'); avButtons(); }
+function avView(v){ AVR.view=v==='first'?'first':'third'; AV.setPref('view',AVR.view); AVR.camD=null; IDX=null; avButtons(); if(!third()&&S.hud&&S.hud.tag) S.hud.tag.style.opacity=0; }
+function avButtons(){ var H=S.hud; if(!H||!H.vb) return; H.vb.textContent=AVR.view==='third'?'First person · T':'Third person · T'; H.vb.style.display=glOk()?'':'none';
+  var c=S.av&&S.av.city, m=c&&c.m; H.ab.textContent=S.av&&S.av.mayor?'Avatar: '+m.n:'Avatar: generic'; H.ab.disabled=!(c&&c.look&&m); H.ab.style.display=glOk()?'':'none';
+  H.ab.title=S.av&&S.av.mayor?AV.tag(S.av).title:(c&&c.look&&m?'Switch to the figure after Mayor '+m.n:'No mayor data for this city: the generic figure'); }
+/* the hop: from the ground only (a press up to `buffer` s early, or `coyote` s late, counts), one per touch of the ground; inside a building the head stops at the ceiling */
+function avCeil(){ return IN.on?(IN_FH-.25)*UM:1e9; }
+function avHop(dt){ var H=AV.HOP, k=S.keys, pd=AVR.pd, hk=!!(k.hop||(pd&&pd.a)); if(hk&&!AVR.hopHeld) AVR.hopBuf=H.buffer; AVR.hopHeld=hk;
+  AVR.coy=AVR.air?Math.max(0,AVR.coy-dt):H.coyote; var room=avCeil()-1.85*UM;
+  if(AVR.hopBuf>0&&AVR.coy>0&&!AVR.air&&!(IN.on&&(IN.gl||IN.busy))&&room>.12*UM){ AVR.air=true; AVR.jv=H.v0*UM; AVR.coy=0; AVR.hopBuf=0; AVR.hops++; }
+  AVR.hopBuf=Math.max(0,AVR.hopBuf-dt);
+  if(AVR.air){ AVR.jv-=H.g*UM*dt; var z=AVR.jz+AVR.jv*dt; if(AVR.jv>0&&z>room-.02*UM){ z=Math.max(AVR.jz,room-.02*UM); AVR.jv=0; AVR.bonks++; }
+    if(z<=0){ AVR.dip=Math.min(.07,-AVR.jv/UM*.011)*UM; z=0; AVR.air=false; AVR.jv=0; } AVR.jz=z; }
+  AVR.dip=Math.max(0,AVR.dip-dt*.35*UM); }
+/* the camera behind and a little above the head, pulled in before any building (or the room's walls and ceiling, inside one) */
+function camBlocked(x,y){ if(IN.on) return !insideClear(IN.ring,x,y,.3*UM); return buildingHit(x,y,.35*UM); }
+function avCam(feet,F,dt){ var piv=[S.x,S.y,feet+S.av.R.H*.93*UM], D=3.3*UM, d=[-F[0]*D,-F[1]*D,-F[2]*D+.35*UM], L=Math.hypot(d[0],d[1],d[2]), u=[d[0]/L,d[1]/L,d[2]/L], t=L, base=IN.on?IN.z:0;
+  for(var s=.25*UM;s<=L+.2*UM;s+=.12*UM){ var x=piv[0]+u[0]*s, y=piv[1]+u[1]*s, z=piv[2]+u[2]*s; if(camBlocked(x,y)||z<base+.2*UM||(IN.on&&z>base+(IN_FH-.4)*UM)){ t=Math.max(.2*UM,s-.3*UM); break; } }
+  if(AVR.camD==null||t<AVR.camD) AVR.camD=t; else AVR.camD+=(t-AVR.camD)*(1-Math.exp(-(dt||.016)/.3));
+  AVR.cam=[piv[0]+u[0]*AVR.camD,piv[1]+u[1]*AVR.camD,piv[2]+u[2]*AVR.camD]; return AVR.cam; }
+/* the figure, re-skinned every frame into one GL buffer (15 floats a vertex, palace_ride_gl.py's layout): material 22 takes the colour straight from the vertex; a soft contact shadow (50) under it */
+function avDraw(feet){ var A=S.av, gl=GLX.gl; if(!A||!gl||AVR.camD<.8*UM){ if(GLX.avatar) GLX.avatar.n=0; return; } var base=IN.on?IN.z:0; AV.emit(A,S.x,S.y,feet,UM,null); var n=A.n, nv=n+6, F=15;
+  if(!AVR.buf||AVR.buf.length<nv*F) AVR.buf=new Float32Array(nv*F); var b=AVR.buf, P=A.pos, N=A.nrm, col=A.cols.map(function(c){ var h=AV.hex(c); return [Math.min(h[0],.985),Math.min(h[1],.985),Math.min(h[2],.985)]; }), vi=0;
+  A.ranges.forEach(function(rg){ var c=col[rg.c]; for(var v=rg.first;v<rg.first+rg.count;v++){ var o=vi*F, k=v*3; b[o]=P[k]; b[o+1]=P[k+1]; b[o+2]=P[k+2]; b[o+3]=N[k]; b[o+4]=N[k+1]; b[o+5]=N[k+2]; b[o+6]=0; b[o+7]=0; b[o+8]=22; b[o+9]=0; b[o+10]=c[0]; b[o+11]=c[1]; b[o+12]=c[2]; b[o+13]=0; b[o+14]=0; vi++; } });
+  var r=.42*UM*(1-Math.min(.5,AVR.jz/UM*.8)), Q=[[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]];
+  for(var q=0;q<6;q++){ var o2=vi*F; b[o2]=S.x+Q[q][0]*r; b[o2+1]=S.y+Q[q][1]*r; b[o2+2]=base+.03*UM; b[o2+3]=0; b[o2+4]=0; b[o2+5]=1; b[o2+6]=(Q[q][0]+1)/2; b[o2+7]=(Q[q][1]+1)/2; b[o2+8]=50; b[o2+9]=0; b[o2+10]=b[o2+11]=b[o2+12]=1; b[o2+13]=0; b[o2+14]=0; vi++; }
+  var o=GLX.avatar; if(!o||o.gen!==GLX.gen||!o.buf){ o=GLX.avatar={buf:gl.createBuffer(), n:0, gen:GLX.gen}; }
+  gl.bindBuffer(gl.ARRAY_BUFFER,o.buf); gl.bufferData(gl.ARRAY_BUFFER,b.subarray(0,vi*F),gl.DYNAMIC_DRAW); o.n=vi; }
+function avTag(){ var H=S.hud, el=H&&H.tag, A=S.av; if(!el) return; var t=A&&third()&&GLX.avatar&&GLX.avatar.n?AV.tag(A):{text:''}; if(!t.text||!A.head){ if(el.style.opacity!=='0') el.style.opacity=0; return; }
+  var h=A.head, p=toScr(h[0],h[1],h[2]+.1*UM); if(!p){ el.style.opacity=0; return; } el.style.transform='translate('+p[0].toFixed(1)+'px,'+p[1].toFixed(1)+'px) translate(-50%,-100%)'; el.style.opacity=1;
+  if(el.textContent!==t.text){ el.textContent=t.text; el.title=t.title; } }
 /* the player circle: 1.3 units (1 m) with the GL renderer, whose near plane is .5 (palace_ride_gl.py GL_NEAR) so a wall can be walked right up to; 2.4 for the 2D fallback (near plane 1.8) */
-function PRX(){ return S.pr||CFG.PR; }
+function PRX(){ return (S.pr===CFG.PRGL&&third())?CFG.PR3:(S.pr||CFG.PR); }      /* third person: the avatar's capsule (0.35 m); first person: 0.65 m, so the camera's near plane (0.38 m) never reaches a wall */
 
 /* \u2500\u2500 the page's data indexes, built once on first use \u2500\u2500 */
 var IDX=null;
@@ -86,7 +123,7 @@ function listHit(l,x,y,PR,pr2){ for(var i=0;i<l.length;i++){ var s=l[i], dx=x-s.
 function obstHit(x,y){ var OB=S.W&&S.W.real&&S.W.real.obst; if(!OB) return false; var PR=PRX(), bx=Math.floor(x/64), by=Math.floor(y/64), a, b, l, i;
   for(a=-1;a<=1;a++) for(b=-1;b<=1;b++){ l=OB[(bx+a)+','+(by+b)]; if(!l) continue; for(i=0;i<l.length;i+=3){ var dx=x-l[i], dy=y-l[i+1], rr=l[i+2]+PR; if(dx*dx+dy*dy<rr*rr) return true; } }
   return false; }
-function buildingHit(x,y){ var PR=PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), a, b, c;
+function buildingHit(x,y,PRo){ var PR=PRo||PRX(), pr2=PR*PR, ci=Math.floor(x/CELL), cj=Math.floor(y/CELL), a, b, c;
   for(a=-1;a<=1;a++) for(b=-1;b<=1;b++){ c=S.cells[(ci+a)+','+(cj+b)]; if(c && listHit(c.small,x,y,PR,pr2)) return true; }
   return listHit(S.bigs,x,y,PR,pr2); }
 /* the player circle at (x,y) overlaps a building, the water (off a deck) or the city's edge */
@@ -328,13 +365,15 @@ function ensureHud(){
   h.innerHTML='<div class="rm-compass" aria-hidden="true"><div class="rm-win">'+tape+'</div><u></u></div>'
     +'<div class="rm-left"><div class="rm-where" aria-hidden="true"><b class="rm-st"></b><span class="rm-cx"></span><em class="rm-ar"></em></div>'
     +'<button type="button" class="rm-pin" data-roam="door" aria-hidden="true" tabindex="-1"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18s5.6-4.9 5.6-9.3a5.6 5.6 0 0 0-11.2 0C4.4 13.1 10 18 10 18z"/><circle cx="10" cy="8.6" r="2"/></svg><b class="rm-pn"></b><kbd aria-hidden="true">E</kbd></button></div>'
-    +'<div class="rm-btns"><button type="button" data-roam="exit">Back to the map \u00b7 Esc</button><button type="button" data-roam="stay">Stay here</button></div>'
+    +'<div class="rm-btns"><button type="button" data-roam="view"></button><button type="button" data-roam="avatar"></button><button type="button" data-roam="exit">Back to the map \u00b7 Esc</button><button type="button" data-roam="stay">Stay here</button></div>'
+    +'<div class="rm-tag" aria-hidden="true"></div><button type="button" class="rm-hop" data-roam="hop" aria-label="Hop">Hop</button>'
     +'<div class="rm-edge" aria-hidden="true">edge of the palace</div>'
-    +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 \u2190 \u2192 turn \u00b7 drag to look \u00b7 Shift to walk faster \u00b7 Esc to leave</div>'
+    +'<div class="rm-hint" aria-hidden="true">W A S D move \u00b7 Space hop \u00b7 T first / third person \u00b7 drag to look \u00b7 Shift to walk faster \u00b7 Esc to leave</div>'
     +'<div class="pr-live rm-live" aria-live="polite"></div>';
-  R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), edge:h.querySelector('.rm-edge'), live:h.querySelector('.rm-live')};
+  R.ov.appendChild(h); S.hud={root:h, pin:h.querySelector('.rm-pin'), pn:h.querySelector('.rm-pn'), tape:h.querySelector('.rm-tape'), st:h.querySelector('.rm-st'), cx:h.querySelector('.rm-cx'), ar:h.querySelector('.rm-ar'), hint:h.querySelector('.rm-hint'), edge:h.querySelector('.rm-edge'), live:h.querySelector('.rm-live'), vb:h.querySelector('[data-roam=view]'), ab:h.querySelector('[data-roam=avatar]'), tag:h.querySelector('.rm-tag'), hop:h.querySelector('.rm-hop')};
+  S.hud.hop.addEventListener('pointerdown',function(e){ e.preventDefault(); e.stopPropagation(); S.keys.hop=1; }); ['pointerup','pointercancel','pointerleave'].forEach(function(t){ S.hud.hop.addEventListener(t,function(e){ e.stopPropagation(); S.keys.hop=0; }); });
   markHud(h);                                                     /*@MARK-glue@*/
-  h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); if(b.getAttribute('data-roam')==='door'){ openDoor(); return; } ROAMAPI.exit(b.getAttribute('data-roam')==='stay'); });
+  h.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-roam]'); if(!b) return; e.preventDefault(); e.stopPropagation(); var w=b.getAttribute('data-roam'); if(w==='door'){ openDoor(); return; } if(w==='view'){ avView(AVR.view==='third'?'first':'third'); return; } if(w==='avatar'){ avSet(S.av&&S.av.mayor?'generic':'mayor'); return; } if(w==='hop') return; ROAMAPI.exit(w==='stay'); });
   ['click','dblclick','contextmenu','mousedown','mouseup'].forEach(function(t){ R.ov.addEventListener(t, function(e){ if(S.on){ e.stopPropagation(); if(t==='contextmenu') e.preventDefault(); } }); });
   var cv=R.cv; cv.addEventListener('pointerdown', function(e){ if(!S.on||e.button>0||DR.busy) return; S.drag={id:e.pointerId,x:e.clientX,y:e.clientY,mv:0}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} R.ov.classList.add('drag'); e.preventDefault(); });
   cv.addEventListener('pointermove', function(e){ var d=S.drag; if(!d||d.id!==e.pointerId){ doorHover(e); return; } d.mv+=Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y); var g=CFG.grab?-1:1; S.yaw+=g*(e.clientX-d.x)*CFG.lookX; S.pitch=clamp(S.pitch-g*(e.clientY-d.y)*CFG.lookY,-CFG.pitchMax,CFG.pitchMax); d.x=e.clientX; d.y=e.clientY; });
@@ -351,7 +390,7 @@ function hudFrame(force){
 }
 
 /* \u2500\u2500 the frame \u2500\u2500 */
-var KEYS={KeyW:'f',ArrowUp:'f',KeyS:'b',ArrowDown:'b',KeyA:'l',KeyD:'r',ArrowLeft:'tl',ArrowRight:'tr',w:'f',s:'b',a:'l',d:'r',W:'f',S:'b',A:'l',D:'r'};
+var KEYS={Space:'hop',' ':'hop',KeyW:'f',ArrowUp:'f',KeyS:'b',ArrowDown:'b',KeyA:'l',KeyD:'r',ArrowLeft:'tl',ArrowRight:'tr',w:'f',s:'b',a:'l',d:'r',W:'f',S:'b',A:'l',D:'r'};
 function keyName(e){ return KEYS[e.code]||KEYS[e.key]||null; }
 function setKey(name, down){ if(name) S.keys[name]=down?1:0; }
 function clearKeys(){ S.keys={}; S.run=false; }
@@ -367,6 +406,7 @@ function onKey(e){
   if(e.type==='keydown' && doorKey(e)) return;
   if(e.type==='keydown' && markKey(e)) return;                   /*@MARK-glue@*/
   if(e.type==='keydown' && e.key==='Escape'){ ROAMAPI.exit(false); return; }
+  if(e.type==='keydown' && (e.key==='t'||e.key==='T'||e.code==='KeyT')){ if(!e.repeat) avView(AVR.view==='third'?'first':'third'); return; }
   S.run=!!e.shiftKey;
   setKey(keyName(e), e.type==='keydown'); }
 function onWheel(e){ if(!S.on) return; var t=e.target; if(t && R.ov && R.ov.contains(t)){ e.preventDefault(); e.stopImmediatePropagation(); } }
@@ -376,7 +416,8 @@ window.addEventListener('blur', function(){ clearKeys(); S.drag=null; });
 document.addEventListener('visibilitychange', function(){ if(document.hidden) clearKeys(); });
 
 function tick(dt, sync){
-  var k=S.keys, fx=Math.cos(S.yaw), fy=Math.sin(S.yaw), rx=-fy, ry=fx, ax=(k.f?1:0)-(k.b?1:0), ay=(k.r?1:0)-(k.l?1:0), l=Math.hypot(ax,ay);
+  var k=S.keys, pd=AVR.pd=S.noPad?null:AV.pad(), fx=Math.cos(S.yaw), fy=Math.sin(S.yaw), rx=-fy, ry=fx, ax=(k.f?1:0)-(k.b?1:0)+(pd?-pd.my:0), ay=(k.r?1:0)-(k.l?1:0)+(pd?pd.mx:0), l=Math.hypot(ax,ay);
+  if(pd){ S.yaw+=pd.lx*2.4*dt; S.pitch=clamp(S.pitch-pd.ly*1.6*dt,-CFG.pitchMax,CFG.pitchMax); if(pd.run) S.run=true; }
   if(k.tl||k.tr) S.yaw+=((k.tr?1:0)-(k.tl?1:0))*CFG.turn*dt*(S.run?1.4:1);
   S.hurry=(S.run&&l>0)?Math.min(S.hurry+dt,CFG.hurryAfter+CFG.hurryRamp):Math.max(0,S.hurry-dt*2);
   var sp=S.run?mix(CFG.brisk,CFG.jog,sstep(CFG.hurryAfter,CFG.hurryAfter+CFG.hurryRamp,S.hurry)):CFG.walk, tx=0, ty=0; if(l>0){ tx=(fx*ax+rx*ay)/l*sp; ty=(fy*ax+ry*ay)/l*sp; }
@@ -386,7 +427,8 @@ function tick(dt, sync){
   var mv=Math.hypot(S.x-x0,S.y-y0); S.speed=dt>0?mv/dt:0;
   if(dt>0 && mv<Math.hypot(S.vx,S.vy)*dt*.5){ S.vx=(S.x-x0)/dt; S.vy=(S.y-y0)/dt; }       /* pressed against a wall: no speed stored up */
   if(S.real && !IN.on) realBound(dt); else if(IN.on) RW.edge=0;       /* inside a building the footprint is the room: no edge fog, no clamp */
-  S.phase+=Math.min(stepHz(S.speed/UM),2.1)*6.2832*dt; S.walked+=mv; S.tm+=dt;
+  avHop(dt); if(S.av&&dt>0) AV.tick(S.av,dt,{gait:S.speed/CFG.walk, vx:S.vx, vy:S.vy, air:AVR.air, vz:AVR.jv/UM, face:S.yaw});
+  S.phase+=Math.min(stepHz(S.speed/UM),2.1)*6.2832*dt*(AVR.air?0:1); S.walked+=mv; S.tm+=dt;
   plan(false); stream(!!sync); }
 function draw(){
   var t0=performance.now(); sizeCheck(); var ctx=R.ctx, W=R.w, H=R.h, dpr=R.dpr; if(!ctx||!S.W) return;
@@ -395,10 +437,12 @@ function draw(){
   var a=clamp(S.speed/CFG.walk,0,1.4), a1=Math.min(a,1), bob=reduced()?0:Math.sin(S.phase)*CFG.bob*a, sway=reduced()?0:Math.sin(S.phase*.5)*.004*a1;
   var pitch=S.pitch+(reduced()?0:Math.abs(Math.sin(S.phase))*.004*a);
   var ee=(S.real&&!IN.on)?RW.edge:0; if(typeof GLX!=='undefined') GLX.edge=ee; if(S.hud&&S.hud.edge){ var eo=ee<.12?0:Math.min(.9,(ee-.12)*1.4); if(S._eo!==eo){ S._eo=eo; S.hud.edge.style.opacity=String(eo); } }
-  S.camZ=CFG.eye+(IN.on?IN.z:0)+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,glOk()?pitch:clamp(pitch,-.42,.42),W,H);
+  var feet=(IN.on?IN.z:0)+AVR.jz-AVR.dip;
+  if(third()){ var p3=S.pitch, cp=Math.cos(p3), cam=avCam(feet,[Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(p3)],S.dtD); S.camZ=cam[2]; camSet(cam[0],cam[1],cam[2],S.yaw,p3,W,H); avDraw(feet); }
+  else { S.camZ=CFG.eye+feet+bob; camSet(S.x,S.y,S.camZ,S.yaw+sway,glOk()?pitch:clamp(pitch,-.42,.42),W,H); if(typeof GLX!=='undefined'&&GLX.avatar) GLX.avatar.n=0; }
   sceneryUpdate(S.W, S.tm, C);
   drawCity(ctx, W, H, R.PAL, S.W, S.yaw, S.tm, null);
-  ctx.setTransform(dpr,0,0,dpr,0,0); doorGlow(ctx);
+  ctx.setTransform(dpr,0,0,dpr,0,0); doorGlow(ctx); avTag();
   markDraw(ctx);                                                 /*@MARK-glue@*/
   var ms=performance.now()-t0; S.fr.push(ms); if(S.fr.length>600) S.fr.shift(); }
 /* the one place the camera is set: setCam's 8th argument is the real pitch (the GL renderer tilts the view; the 2D fallback has no pitch of its own, so it keeps the old horizon shift) */
@@ -406,7 +450,7 @@ function camSet(x,y,z,yaw,pitch,W,H){ setCam(x,y,z,yaw,W,H,.5,pitch,fpFoc(W,H));
 function frame(now){
   S.raf=0; if(!S.on) return;
   if(!R.active){ shutdown(); return; }                          /* something else closed the overlay (a trip started) */
-  var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now;
+  var dt=Math.min(.05, S.last?(now-S.last)/1000:.016); S.last=now; S.dtD=dt;
   if(DR.cine){ cineStep(dt*1000); if(!S.on) return; } else if(!DR.busy){ markSteer(dt); tick(dt,false); }      /*@MARK-glue@*/
   if(!S.real) lattRetry();
   hudFrame(false); if(IN.on) insideFrame(dt); else doorFrame(dt); draw(); showNow();
@@ -420,7 +464,7 @@ function frame(now){
 function shutdown(){
   markReset();                                                   /*@MARK-glue@*/
   if(S.raf){ cancelAnimationFrame(S.raf); S.raf=0; }
-  doorReset(); S.on=false; clearKeys(); S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.wdAt=0; RW.Rnow=0; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
+  doorReset(); S.on=false; clearKeys(); if(GLX.avatar&&GLX.avatar.buf&&GLX.gl){ try{ GLX.gl.deleteBuffer(GLX.avatar.buf); }catch(x){} } GLX.avatar=null; if(S.hud&&S.hud.tag) S.hud.tag.style.opacity=0; S.drag=null; S.cells={}; S.queue=[]; S.bigs=[]; S.W=null; S.vx=S.vy=0; S.real=null; S.wantReal=false; S.xf=0; S.pendingReal=null; RW.busy=false; RW.gen=null; RW.wdAt=0; RW.Rnow=0; RW.edge=0; if(typeof GLX!=='undefined') GLX.edge=0;
   if(R.ov){ R.ov.classList.remove('rm','drag'); } }
 function enter(x,y,heading,opts){
   opts=opts||{};
@@ -428,7 +472,7 @@ function enter(x,y,heading,opts){
   if(document.documentElement.classList.contains('mobile')) return false;
   x=+x; y=+y; if(!isFinite(x)||!isFinite(y)) return false;
   var view=opts.view||(E.curView?E.curView():null);
-  ensureOverlay(); ensureHud(); openOv();
+  ensureOverlay(); ensureHud(); openOv(); AVR.view=AV.pref('view'); AVR.jz=AVR.jv=AVR.dip=0; AVR.air=false; AVR.camD=null; AVR.hopBuf=0; AVR.hopHeld=false; avSet(AV.pref('avatar'));
   var pr=glOk()?CFG.PRGL:CFG.PR; if(pr!==S.pr){ S.pr=pr; IDX=null; }
   var cs=document.activeElement; if(cs&&cs.blur&&cs!==document.body) cs.blur();
   R.saved=view; R.M=null; R.W=null; R.hold=false; R.shown=false; R.playing=false; R.line=null;
@@ -468,7 +512,12 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
   inside:INSIDEAPI,
   marks:MARKAPI,                                                 /*@MARK-glue@*/
   rwl:RWL,                                                       /* QA: the street-data retry state */
-  door:{ cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
+  door:{ /* the door audit: every door in the loaded world has floor to stand on in front of it, free for the walker's circle, within E's reach (DOOR_IN units) and a clear line up to it */
+    audit:function(){ var out=[], seen={}; Object.keys(S.cells).forEach(function(k){ (S.cells[k].doors||[]).forEach(function(sd){ var d=sd.door; if(!d||seen[d.id]) return; seen[d.id]=1; var at=null;
+        for(var m=.6;m<=9;m+=.2){ var x=d.x+d.nx*m*UM, y=d.y+d.ny*m*UM; if(!blockedAt(x,y)){ at=[x,y,m]; break; } }
+        var line=!!at; if(at) for(var q=at[2];q<=at[2]+.6;q+=.2){ if(blockedAt(d.x+d.nx*q*UM,d.y+d.ny*q*UM)){ line=false; break; } }
+        out.push({id:d.id, name:d.name, x:d.x, y:d.y, ok:!!at&&at[2]*UM<=12&&line, front:at?+at[2].toFixed(2):null, clear:line}); }); }); return out; },
+    cur:function(){ return DR.cur; }, find:findDoor, frame:doorFrame, open:openDoor, step:cineStep, near:doorsAround, back:comeBack, hit:function(){ return DR.hit; },
     state:function(){ return {busy:DR.busy, ret:!!DR.ret, opened:!!(DR.ret&&DR.ret.opened), mem:DR.mem, glow:DR.glow, t:DR.t, cine:!!DR.cine, veil:DR.veil?+DR.veil.style.opacity:0}; } },
   /* tests and the QA kit */
   tick:function(dt, keys, run, slice){ if(keys) { S.keys={}; String(keys).split(',').forEach(function(q){ if(q) S.keys[q]=1; }); } S.run=!!run; tick(dt,!slice); },      /* slice: as the frame loop does (the streaming gets its few milliseconds), not all at once */
@@ -480,11 +529,13 @@ var ROAMAPI={ enter:enter, exit:exit, active:function(){ return S.on; }, streetH
   draw:function(){ hudFrame(true); draw(); showNow(); },
   blocked:blockedAt, free:freeNear, world:function(){ return S.W; }, dbg:function(){ return E; }, deckSegs:function(){ return idx().decks; },
   rings:function(x,y,rad){ var o=[]; Object.keys(S.cells).forEach(function(k){ S.cells[k].col.forEach(function(s){ if(Math.hypot(s.cx-x,s.cy-y)<=rad+s.r) o.push({ring:s.ring,kind:s.kind,name:s.name,h:s.h}); }); }); return o; },
-  inWater:function(x,y){ return inWaterZone(x,y,0); }, onDeck:onDeck };
+  inWater:function(x,y){ return inWaterZone(x,y,0); }, onDeck:onDeck,
+  avatar:{ view:function(v){ if(v) avView(v); return AVR.view; }, set:function(w){ if(w) avSet(w); return S.av?{mayor:S.av.mayor, tag:AV.tag(S.av), city:S.av.city&&S.av.city.id}:null; },
+    state:function(){ return {view:AVR.view, third:third(), jz:AVR.jz/UM, air:AVR.air, hops:AVR.hops, bonks:AVR.bonks, cam:AVR.cam, camD:AVR.camD!=null?AVR.camD/UM:null, drawn:!!(typeof GLX!=='undefined'&&GLX.avatar&&GLX.avatar.n), pr:PRX()/UM}; }, AV:AV } };
 return ROAMAPI; })();
 """
 
-JS_E = JS_INSIDE_GL + _JS_E.replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE).replace("/*@MARK@*/", JS_MARK)
+JS_E = JS_INSIDE_GL + _JS_E.replace("/*@AVATAR@*/", avatar_js()).replace("/*@DOORS@*/", JS_DOORS).replace("/*@INSIDE@*/", JS_INSIDE).replace("/*@MARK@*/", JS_MARK)
 
 _CSS_E = r"""
   #pal-ride.rm .pr-chip,#pal-ride.rm .pr-btns{display:none;}
@@ -513,6 +564,10 @@ _CSS_E = r"""
   #pal-ride .rm-hint.gone{opacity:0;}
   #pal-ride .rm-edge{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(14,16,26,.5);border:1px solid rgba(255,255,255,.12);font-weight:500;font-size:12px;letter-spacing:.02em;opacity:0;transition:opacity .5s ease;pointer-events:none;white-space:nowrap;}
   #pal-ride .rm-xf{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;opacity:1;transition:opacity .7s ease;z-index:1;}
+  #pal-ride .rm-tag{position:absolute;left:0;top:0;padding:3px 9px;border-radius:10px;background:rgba(14,16,26,.55);border:1px solid rgba(255,255,255,.18);font-size:11px;font-weight:600;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s;will-change:transform;}
+  #pal-ride .rm-hop{position:absolute;right:28px;bottom:120px;width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(14,16,26,.45);color:#fff;font:600 13px system-ui,-apple-system,sans-serif;display:none;pointer-events:auto;touch-action:none;}
+  @media (pointer:coarse){ #pal-ride .rm-hop{display:block;} }
+  #pal-ride .rm-btns button:disabled{opacity:.55;cursor:default;}
   @media (max-width:900px){ #pal-ride .rm-compass{top:12px;} #pal-ride .rm-hint{white-space:normal;text-align:center;width:calc(100vw - 48px);} }
   @media (prefers-reduced-motion: reduce){ #pal-ride .rm-hint{transition:none;} }
 """
