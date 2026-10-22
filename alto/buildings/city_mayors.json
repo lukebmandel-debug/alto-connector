@@ -1,5 +1,5 @@
 {
- "about": "The avatar of the first-person views (alto/build/fpv_avatar.py) is a respectful, stylised low-poly figure after the CURRENT mayor of the palace's city. `mayor` is written by tools/refresh_mayors.py from Wikidata (head of government, P6) with its source and the date it was read; never type it by hand. `look` holds public-facing cues only (overall build, typical attire, hair, skin tone) for the person named in look.for; it is not a likeness and has no face. When look.for is not the current mayor, or a city has no entry, the neutral generic figure is used.",
+ "about": "The avatar of the first-person views (alto/build/fpv_avatar.py) is a respectful, stylised low-poly figure after the CURRENT mayor of the palace's city. `mayor` is written by alto/buildings/mayors.py from Wikidata (head of government, P6) with its source and the date it was read; never type it by hand. `look` holds public-facing cues only (overall build, typical attire, hair, skin tone) for the person named in look.for; it is not a likeness and has no face. When look.for is not the current mayor, or a city has no entry, the neutral generic figure is used.",
  "cities": [
   {
    "id": "philadelphia",

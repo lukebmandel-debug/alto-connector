@@ -5,7 +5,7 @@ Museum Palace walk (palace_building_fpv.py, hosted /bldg/ renderer). Nothing of 
 
   AV.city(place, lat, lon)   the palace's city from data already on the page (the city palace's `place` name; the building plan's geo lat/lon)
                              -> an entry of alto/buildings/city_mayors.json or null
-  AV.make(city, want)        an avatar instance: the city's MAYOR figure when the city has a current mayor (Wikidata, tools/refresh_mayors.py)
+  AV.make(city, want)        an avatar instance: the city's MAYOR figure when the city has a current mayor (Wikidata, alto/buildings/mayors.py)
                              and a look written for that same person, else (or with want 'generic') the neutral generic figure
   AV.tick(A, dt, o)          animate: o = {gait (speed / the view's walking pace), vx, vy (to face along), air (bool), vz}
   AV.emit(A, x, y, z, s)     skin the figure into A.pos / A.nrm (Float32Array, 3 per vertex, triangles) in world units: x, y, z of the feet,
