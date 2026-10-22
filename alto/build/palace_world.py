@@ -70,7 +70,7 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
 #wpal-root :is(.wp-lbl,.wp-tag,.wp-pin){transition:opacity .22s,visibility 0s linear 0s,width .22s,height .22s,margin .22s,font-size .22s;}
 #wpal-root :is(.wp-lbl,.wp-tag).wp-off{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s,visibility 0s linear .22s;}
 #wpal-root .wp-tag{position:absolute;left:0;top:0;transform:translate(-50%,-50%);padding:3px 9px;border-radius:999px;border:1.5px solid var(--u);background:var(--w-card);
-  font-size:11.5px;white-space:nowrap;box-shadow:var(--w-shadow);pointer-events:auto;cursor:pointer;}
+  font:inherit;font-size:11.5px;color:var(--w-text);white-space:nowrap;box-shadow:var(--w-shadow);pointer-events:auto;cursor:pointer;}
 #wpal-root .wp-tag b{color:color-mix(in srgb,var(--u) 75%,var(--w-text));margin-right:4px;}
 #wpal-root .wp-tag span{color:var(--w-sub);}
 #wpal-root .wp-card{position:absolute;left:0;top:0;width:220px;box-sizing:border-box;padding:10px 13px 11px;border-radius:14px;background:var(--w-card);border:1px solid var(--w-panel-b);
