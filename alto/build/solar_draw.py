@@ -61,7 +61,7 @@ SOLAR_CSS = r"""
   #solar-svg .sol-rider .sol-rc{fill:#fff;stroke:var(--accent,#6d5bd0);stroke-width:2.2;}
   html.dark #solar-svg .sol-rider .sol-rh{fill:#cfc6ff;} html.dark #solar-svg .sol-rider .sol-rc{stroke:#cfc6ff;}
   #solar-svg .sol-rider .sol-ship{display:none;}
-  html.sk-retro.alto-stars #solar-svg .sol-rider .sol-ship{display:inline;} html.sk-retro.alto-stars #solar-svg .sol-rider :is(.sol-rh,.sol-rc){display:none;}
+  html.alto-stars #solar-svg .sol-rider .sol-ship{display:inline;} html.alto-stars #solar-svg .sol-rider :is(.sol-rh,.sol-rc){display:none;}   /* (the chosen craft: solar_craft.py) */
   .sol-ship .sh-hull,.fly-ship .sh-hull{fill:#14161c;stroke:#d9ae55;stroke-width:.9;stroke-linejoin:round;}
   .sol-ship .sh-deck,.fly-ship .sh-deck{fill:#262a33;}
   .sol-ship .sh-fin,.fly-ship .sh-fin{fill:#0c0e12;stroke:#d9ae55;stroke-width:.8;stroke-linejoin:round;}
@@ -1537,25 +1537,13 @@ function ways(id){ var nb=joined(id), c=[], k={}, d={}; if(!B[id]) return {nb:nb
 /* the drawn line between two joined bodies (a spoke or a sun link) */
 function rideLine(a, b){ var r=null; spokes.concat(sunl).some(function(s){ if((s.a===a && s.b===b) || (s.a===b && s.b===a)){ r=s.e[0]; return true; } }); return r; }
 /* the rider: a bright bead (Retro: the ship, solar_fly.py's art), on the spoke, over the lines, under the bodies */
-/* Retro's ship (Luke, 2026-10-21: "more of a spaceship ... inspiration from Foundation ... more regal"): an
-   Imperial-style vessel — a long, slender, symmetrical monolith drawn to a spear point, a great gold ring
-   standing round it amidships (its far half behind the hull, its near half in front), small swept vanes
-   astern, a gold keel and seams, a warm drive glow. Original art; nose along +x, about 70 px long.
-   solar_fly.py flies the same ship (window._altoSolarShip). */
-var SHIP='<ellipse class="sh-glow" cx="-33" cy="0" rx="10" ry="3.2"/>'+
-  '<ellipse class="sh-ring" cx="-8" cy="0" rx="2.6" ry="10.5"/>'+
-  '<path class="sh-fin" d="M-17 -3.6 L-27 -8.4 L-31.5 -8.4 L-28.5 -3 Z M-17 3.6 L-27 8.4 L-31.5 8.4 L-28.5 3 Z"/>'+
-  '<path class="sh-hull" d="M37 0 L18 -2.1 L-6 -3.7 L-24 -3.7 L-30 -1.9 L-30 1.9 L-24 3.7 L-6 3.7 L18 2.1 Z"/>'+
-  '<path class="sh-deck" d="M16 0 L-4 -1.8 L-22 -1.8 L-22 1.8 L-4 1.8 Z"/>'+
-  '<path class="sh-gold" d="M34 0 L-27 0 M14 -2.3 L14 2.3 M-20 -3.7 L-20 3.7"/>'+
-  '<path class="sh-ring sh-near" d="M-8 -10.5 A2.6 10.5 0 0 1 -8 10.5"/>'+
-  '<circle class="sh-eng" cx="-30.6" cy="0" r="1.5"/>';
-window._altoSolarShip=SHIP;
+/* the rider is the chosen craft (solar_craft.py: window._altoCraft), drawn in this style's look */
 var RDg=null;
 function rider(){ if(RDg && RDg.isConnected && RDg.parentNode===svg) return RDg; if(!svg) return null;
   RDg=el('g', {'class':'sol-rider', 'aria-hidden':'true'}, svg);
   el('circle', {r:15, 'class':'sol-rh'}, RDg); el('circle', {r:5.5, 'class':'sol-rc'}, RDg);
-  var sh=el('g', {'class':'sol-ship', transform:'scale(1.5)'}, RDg); sh.innerHTML=SHIP; return RDg; }
+  el('g', {'class':'sol-ship', transform:'scale(1.5)'}, RDg); return RDg; }
+function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg:''}; }
 function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
 function ride(from, to){
   if(!locked() || !B[from] || !B[to] || !B[to].n) return false;
@@ -1563,13 +1551,13 @@ function ride(from, to){
   if(OV) ovLeave(null, true);
   lclear(); LASTF=to;
   var g=camGet();
-  if(de.classList.contains('sk-3d') || reduced || !g || !svg){ enter(to); return true; }   /* the 3D scene's camera glides there itself; reduced motion: straight there */
-  var A=B[from], Z=B[to], L=Math.hypot(Z.rx-A.rx, Z.ry-A.ry), ms=Math.round(Math.min(2600, Math.max(900, 650+L*.55))*(RETRO ? 1.25 : 1));
+  if((de.classList.contains('sk-3d') && window._altoFlyOff) || reduced || !g || !svg){ enter(to); return true; }   /* the 3D scene with Flights off: its camera glides there; reduced motion: straight there */
+  var A=B[from], Z=B[to], L=Math.hypot(Z.rx-A.rx, Z.ry-A.ry), cr=craft(), ms=Math.round(Math.min(2600, Math.max(900, 650+L*.55))*(RETRO ? 1.25 : 1)*(cr.k||1));
   if(window._focusedNodeId && window.exitFocus) window.exitFocus();
   var ln=rideLine(from, to); if(ln) ln.classList.add('sol-ride');
   RD={from:from, to:to, t0:performance.now(), ms:ms, x0:g.cx, y0:g.cy, ln:ln};
   window._altoFlyMs=ms+480;                              /* (the engine's hop queue waits for the arrival) */
-  var r=rider(); if(r){ r.setAttribute('transform', 'translate('+f2(A.rx)+' '+f2(A.ry)+')'); r.classList.add('on'); }
+  var r=rider(); if(r){ r.setAttribute('transform', 'translate('+f2(A.rx)+' '+f2(A.ry)+')'); r.classList.add('on'); r.querySelector('.sol-ship').innerHTML=cr.svg||''; }
   de.classList.add('sol-riding');
   requestAnimationFrame(rideF); return true;
 }
@@ -1579,7 +1567,8 @@ function rideF(now){
   var k=Math.min(1, Math.max(0, (now-R.t0)/R.ms)), ez=window._altoEase || function(x){ return x*x*(3-2*x); }, e=ez(k);
   var A=B[R.from], Z=B[R.to], dx=Z.rx-A.rx, dy=Z.ry-A.ry, px=A.rx+dx*e, py=A.ry+dy*e;
   if(window._altoSolarCam) window._altoSolarCam.set(R.x0+(Z.rx-R.x0)*e, R.y0+(Z.ry-PAD-R.y0)*e, 1);   /* the view behind the rider, from where it was to the body */
-  var r=rider(); if(r) r.setAttribute('transform', 'translate('+f2(px)+' '+f2(py)+') rotate('+f2(Math.atan2(dy, dx)*180/Math.PI)+')');
+  R.p=[px, py]; R.h=Math.atan2(dy, dx);                                              /* (the 3D scene flies its model here: window._altoSolarRide) */
+  var r=rider(); if(r) r.setAttribute('transform', 'translate('+f2(px)+' '+f2(py)+') rotate('+f2(R.h*180/Math.PI)+')');
   if(k>=1) return rideEnd(true);
   requestAnimationFrame(rideF);
 }
@@ -1589,6 +1578,7 @@ function rideEnd(arrive){
   if(arrive) enter(R.to);
   setTimeout(rideNext, (window._altoFlyMs=520));
 }
+window._altoSolarRide=function(){ return RD && RD.p ? {p:RD.p, h:RD.h, from:RD.from, to:RD.to} : null; };
 function rideNext(){ if(RD || !RQ.length) return; var d=RQ.shift(), f=window._focusedNodeId; if(!f || !LOCK){ RQ=[]; return; } window._altoSolarNav(f, d); }
 /* anything not one spoke away: nothing happens, and it says so (the joined bodies' pills nudge) */
 var NOPE=null, nopeT=0;
@@ -1682,13 +1672,16 @@ function ctl(){
       '<button type="button" data-sty="classic" role="radio" title="Classic: the painted space scene">Classic</button>'+
       '<button type="button" data-sty="real" role="radio" title="Realistic 3D: turning globes lit by their suns, clouds, depth">Realistic 3D</button></div>'+
       '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span><i class="sol-sw"></i><b class="sol-st"></b></button>'+
+      '<button type="button" id="sol-craft" class="sol-opt" aria-haspopup="dialog" aria-expanded="false"><i class="cr-i"></i><span>Ship</span></button>'+
       '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
       if(b.getAttribute('data-look')) setLook(b.getAttribute('data-look'));
       else if(b.getAttribute('data-sty')) setSty(b.getAttribute('data-sty'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION);
       else if(b.id==='sol-fly'){ window._altoFlyOff=!window._altoFlyOff; keep('fly', window._altoFlyOff ? 0 : 1); ctl(); }
-      else if(b.id==='sol-lock') setLock(!LOCK); });
+      else if(b.id==='sol-lock') setLock(!LOCK);
+      else if(b.id==='sol-craft' && window._altoCraft) window._altoCraft.open(b); });
+    if(window._altoCraft) window._altoCraft.onChange(function(){ ctl(); });
     document.body.appendChild(w); }
   [].forEach.call(w.querySelectorAll('[data-look]'), function(b){ var on=b.getAttribute('data-look')===LOOK; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var m=w.querySelector('#sol-motion'), run=!!MOTION && MOVES;
@@ -1700,6 +1693,9 @@ function ctl(){
   var fb=w.querySelector('#sol-fly'), fo=!window._altoFlyOff; fb.hidden=LOOK!=='stars'; fb.classList.toggle('on', fo); fb.setAttribute('aria-pressed', fo ? 'true' : 'false');
   fb.title=fo ? 'Flights on: a spaceship flies you between bodies (click to go straight there instead)' : 'Flights off: you go straight to each body (click to fly again)';
   fb.querySelector('.sol-st').textContent=fo ? 'ON' : 'OFF';
+  var cb=w.querySelector('#sol-craft'), CR=window._altoCraft; cb.hidden=LOOK!=='stars' || !CR;
+  if(CR){ var cc=CR.get(); if(cb._c!==cc.id+STY){ cb._c=cc.id+STY; cb.querySelector('.cr-i').innerHTML=CR.art(cc.id); }
+    cb.title='Your ship: '+cc.name+' (click to choose another)'; cb.setAttribute('aria-label', cb.title); }
   var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.querySelector('.sol-st').textContent=LOCK ? 'ON' : 'OFF'; lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');
   lb.title=LOCK ? 'Spokes only: on. Arrows, scrolling and clicks ride the spokes from body to body; no free panning or zooming (click to move freely)' : 'Spokes only: off. Click to travel only by riding the spokes';
 }

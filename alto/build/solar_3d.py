@@ -29,6 +29,13 @@ lit per pixel, crisp coastlines, craters, dunes, ice cracks, lava glow, banded t
 own (drifting, casting shadows), city lights on ocean worlds' night side, an atmosphere's rim and halo; its
 octaves come in with the body's size on screen, so detail ramps up as the camera nears (no swap, no pop), and a
 finer sphere is drawn once a body is big. A slow machine steps the detail (and the canvas's resolution) down.
+
+Flights in 3D (Luke, 2026-10-21: "i want a real ship"): with Flights on, solar_fly.py's planner flies as ever (its
+routes move the bodies on the flight's own clock, which this scene draws), and here the chosen craft
+(solar_craft.py) is a lit model on the route: its heading eased, banking into turns, its engines glowing and a fine
+trail behind, the camera calm behind it (pulling back as it speeds up, turning towards the body it is going to as it
+nears), and on landing the close-up's dive starts from there. Spokes only rides fly the same craft
+(window._altoSolarRide). Flights off: the camera glides, as before.
 """
 
 SOLAR3D_CSS = r"""
@@ -145,6 +152,11 @@ var VS_G='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float S;va
 var FS_G='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a;void main(){float r=length(Q);if(r>1.)discard;float g=pow(1.-r,2.4);gl_FragColor=vec4(K*g*a,g*a);}';
 var FS_H='precision highp float;varying vec2 Q;uniform vec3 K,X,Y,L;uniform float a;void main(){float r=length(Q);if(r<.97||r>1.3)discard;'+
   'float g=r<1.?smoothstep(.97,1.,r):exp(-(r-1.)*24.);float k=g*smoothstep(-.45,.65,dot(normalize(X*Q.x+Y*Q.y),L))*a*.9;gl_FragColor=vec4(K*k,k*.6);}';
+var VS_K='attribute vec3 p,n;attribute vec4 k;uniform mat4 VP,M;varying vec3 Nw,Wp;varying vec4 Kc;'+
+  'void main(){vec4 w=M*vec4(p,1.);Wp=w.xyz;Nw=(M*vec4(n,0.)).xyz;Kc=k;gl_Position=VP*w;}';
+var FS_K='precision highp float;varying vec3 Nw,Wp;varying vec4 Kc;uniform vec3 L,E;uniform float al;'+
+  'void main(){vec3 n=normalize(Nw),l=normalize(L-Wp),v=normalize(E-Wp);if(dot(n,v)<0.)n=-n;float d=max(dot(n,l),0.),r=pow(1.-max(dot(n,v),0.),3.);'+
+  'vec3 c=Kc.rgb*(.16+1.05*d)+vec3(1.)*pow(max(dot(n,normalize(l+v)),0.),40.)*.35*d+vec3(.35,.45,.6)*r*.3;if(Kc.a>.5)c=Kc.rgb*1.5;gl_FragColor=vec4(c*al,al);}';
 var VS_R='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float R;varying vec2 Q;void main(){Q=q;gl_Position=VP*vec4(C+(X*q.x+Y*q.y)*R,1.);}';
 var FS_R='precision mediump float;varying vec2 Q;uniform vec3 K;void main(){float r=length(Q);if(r<1.35||r>2.3)discard;float b=.55+.45*sin(r*38.)*sin(r*11.);'+
   'float e=smoothstep(1.35,1.45,r)*smoothstep(2.3,2.18,r);gl_FragColor=vec4(K*b,.6*e*(abs(r-1.9)<.04?.25:1.));}';
@@ -162,8 +174,8 @@ function init(){
   try{ gl=cv.getContext('webgl', {antialias:true, alpha:true, premultipliedAlpha:true}); }catch(e){ gl=null; }
   if(!gl) return false;
   var hp=gl.getShaderPrecisionFormat && gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
-  if(!hp || !hp.precision){ FS_B=FS_B.replace('highp', 'mediump'); FS_H=FS_H.replace('highp', 'mediump'); QL=0; }   /* (no highp: no procedural detail) */
-  try{ P.h=sh(VS_G, FS_H); P.b=sh(VS_B, FS_B); P.g=sh(VS_G, FS_G); P.r=sh(VS_R, FS_R); P.l=sh(VS_L, FS_L); P.c=sh(VS_C, FS_C); P.s=sh(VS_S, FS_S); }catch(e){ if(window.console) console.warn('3d', e); gl=null; return false; }
+  if(!hp || !hp.precision){ FS_B=FS_B.replace('highp', 'mediump'); FS_H=FS_H.replace('highp', 'mediump'); FS_K=FS_K.replace('highp', 'mediump'); QL=0; }   /* (no highp: no procedural detail) */
+  try{ P.k=sh(VS_K, FS_K); P.h=sh(VS_G, FS_H); P.b=sh(VS_B, FS_B); P.g=sh(VS_G, FS_G); P.r=sh(VS_R, FS_R); P.l=sh(VS_L, FS_L); P.c=sh(VS_C, FS_C); P.s=sh(VS_S, FS_S); }catch(e){ if(window.console) console.warn('3d', e); gl=null; return false; }
   /* a sphere, its texture's longitude across, latitude up: 40 x 24, and 128 x 64 for a big one */
   P.lo=mesh(40, 24); P.hi=mesh(128, 64);
   /* the noise: random values, the green a copy of the red 37 across and 17 down (one fetch gives two slices of 3D value noise) */
@@ -176,7 +188,7 @@ function init(){
   var c=[]; for(i=0;i<=128;i++){ var w=i/128*Math.PI*2; c.push(Math.cos(w), Math.sin(w)); } P.ci=buf(c);
   var R=mkR(7), sp=[], sz=[]; for(i=0;i<2600;i++){ var u=R()*2-1, ph=R()*Math.PI*2, s=Math.sqrt(1-u*u); sp.push(s*Math.cos(ph), u, s*Math.sin(ph)); sz.push(Math.pow(R(), 6)); }
   P.sp=buf(sp); P.sz=buf(sz); P.sn2=sz.length;
-  P.lb=gl.createBuffer();
+  P.lb=gl.createBuffer(); P.tb=gl.createBuffer();
   cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); window.addEventListener('pointerup', up, true);
   cv.addEventListener('dblclick', function(e){ e.preventDefault(); e.stopPropagation(); reset(); });
   /* the pick is the pointerup's; no click on the scene (a pick, or the end of a turn) may reach the engine, which reads it as a
@@ -258,7 +270,7 @@ function cin(G, id, r){
 /* the focus moved: dive in (from where the camera was, kept to fly back to), hop across (pulling back on the way), or fly back out */
 function focus(G, a, b){
   var t=performance.now(), A=snap(); if(!a && !b) return;
-  if(b){ if(!a) pre=tw && tw.b ? tw.b : A;
+  if(b){ if(!a && !(pre && SH.end && t-SH.end<1500)) pre=tw && tw.b ? tw.b : A;      /* (a landing keeps the view from before the flight to go back to) */
     var g=G.bodies[b], s=sunOf(G, b), side=1;
     if(s && s!==g){ var sa=Math.atan2(s.x-g.x, s.y-g.y); side=Math.abs(wrap(cam.az-sa-1.05))<=Math.abs(wrap(cam.az-sa+1.05)) ? 1 : -1; }
     LK={id:b, side:side, da:0, de:0, az0:cam.az};
@@ -320,11 +332,13 @@ function frame(){
   var G=geo(); if(!G){ raf=requestAnimationFrame(frame); return; }
   bodies(G);
   var now=performance.now(), f=window._focusedNodeId||null; if(f && !G.bodies[f]) f=null;
-  if(f!==foc){ focus(G, foc, f); foc=f; }
+  var FS=fly(G, now);
+  if(f!==foc){ if(FS){ LK=null; tw=null; } else focus(G, foc, f); foc=f; }        /* (on the way: the card it left goes home, the camera stays on the craft) */
   pace(now);
   size(); RC=null;
   var r=RC=cv.getBoundingClientRect(), asp=r.width/Math.max(1, r.height), nf=f && document.getElementById('node-'+f);
-  if(tw){ var p=Math.min(1, (now-tw.t0)/tw.ms); blend(tw.a, tw.lock ? cin(G, tw.lock, r) : tw.b, p, tw.hop);
+  if(FS) chase(G, now);
+  else if(tw){ var p=Math.min(1, (now-tw.t0)/tw.ms); blend(tw.a, tw.lock ? cin(G, tw.lock, r) : tw.b, p, tw.hop);
     if(nf && tw.lock===f) nf.style.setProperty('--s3o', String(Math.round(sm(.72, 1, p)*1000)/1000));
     var nl=tw.leave && document.getElementById('node-'+tw.leave); if(nl){ if(p>=1) nl.style.removeProperty('--s3o'); else nl.style.setProperty('--s3o', String(Math.round((1-sm(0, .2, p))*1000)/1000)); }
     if(p>=1) tw=null; }
@@ -334,10 +348,64 @@ function frame(){
   for(var k=0;k<4;k++){ VPm[k*4]+=cam.ox*VPm[k*4+3]; VPm[k*4+1]+=cam.oy*VPm[k*4+3]; }         /* (the lens shifted: the aim drawn where the disc is) */
   gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  stars(); lines(G); spheres(G); halos(G); glows(G); labels(G, r);
+  stars(); lines(G); spheres(G); craft3(G, now); halos(G); glows(G); labels(G, r);
   var dl=performance.now()+3; if(foc && (!tw || now-tw.t0>300)) hiStep(foc, performance.now()+3);      /* (not in the dive's first, busiest frames) */
   Object.keys(BOD).sort(function(a, b){ return dist(G, a)-dist(G, b); }).some(function(id){ var o=BOD[id]; if(o.tex || o.kind==='sun' || o.kind==='sat') return false; texStep(o, dl); return performance.now()>=dl; });
   raf=requestAnimationFrame(frame);
+}
+/* ── the craft: where the flight (or the Spokes-only ride) has it, its heading eased and its bank; the camera behind it ── */
+var SH={on:false, al:0, tr:[], hs:null, bk:0, v:0};
+function fly(G, now){
+  var F=window._altoSolarFlight && window._altoSolarFlight(), R=!F && window._altoSolarRide && window._altoSolarRide(), p=F && F.at ? F.at : R ? R.p : null;
+  var dt=SH.lt ? Math.min(.05, (now-SH.lt)/1000) : 0; SH.lt=now;
+  if(!p){ if(SH.on){ SH.on=false; SH.end=now; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
+  var cr=window._altoCraft ? window._altoCraft.get() : {};
+  if(!SH.on){ SH.on=true; SH.t0=now; SH.a=snap(); SH.hs=null; SH.hc=null; SH.cd=null; SH.lp=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.cr=cr.id; }
+  if(SH.lp && dt>0){ var vx=(p[0]-SH.lp[0])/dt, vy=(p[1]-SH.lp[1])/dt, sp=Math.hypot(vx, vy); SH.v+=(sp-SH.v)*Math.min(1, dt*2);
+    var h=R ? R.h : sp>4 ? Math.atan2(vy, vx) : SH.hs;
+    if(h!=null){ if(SH.hs==null) SH.hs=h; var tn=wrap(h-SH.hs)*Math.min(1, dt*(cr.turn||2.4)); SH.hs+=tn;
+      var bk=Math.max(-1, Math.min(1, tn/dt/1.1)); SH.bk+=(bk-SH.bk)*Math.min(1, dt*3); } }
+  SH.lp=[p[0], p[1]]; SH.p=SH.lp; SH.to=F ? F.to : R.to; SH.al=Math.min(1, SH.al+dt*3);
+  SH.tr.push([p[0], p[1], now]); while(SH.tr.length>2 && now-SH.tr[0][2]>1600) SH.tr.shift();
+  return SH;
+}
+/* calm behind the craft: farther back the faster it goes, turning to the body it is going to as it nears; eased in from where the camera was */
+function chase(G, now){
+  if(SH.hs==null) return; var dt=Math.min(.05, SH.lt0 ? (now-SH.lt0)/1000 : .016); SH.lt0=now;
+  var p=SH.p, q=G.bodies[SH.to], ht=SH.hs;
+  if(q){ var dg=Math.hypot(q.x-p[0], q.y-p[1]); ht+=wrap(Math.atan2(q.y-p[1], q.x-p[0])-SH.hs)*sm(900, 200, dg)*.6; }
+  SH.hc=SH.hc==null ? ht : SH.hc+wrap(ht-SH.hc)*Math.min(1, dt*1.5);
+  var cd=Math.max(150, Math.min(420, 150+SH.v*.1)); SH.cd=SH.cd==null ? cd : SH.cd+(cd-SH.cd)*Math.min(1, dt*1.1);
+  blend(SH.a, {x:p[0]+Math.cos(SH.hc)*55, z:p[1]+Math.sin(SH.hc)*55, d:SH.cd, az:Math.atan2(-Math.cos(SH.hc), -Math.sin(SH.hc)), el:.22+.12*sm(150, 420, SH.cd), ox:0, oy:0},
+    Math.min(1, (now-SH.t0)/1000), 0);
+}
+var CM={};
+function craft3(G, now){
+  if(SH.al<=0 || !SH.p || SH.hs==null || !window._altoCraft) return;
+  var cr=window._altoCraft.list.filter(function(c){ return c.id===SH.cr; })[0] || window._altoCraft.get(), m=CM[cr.id];
+  if(!m){ var o=window._altoCraft.mesh(cr.id); m=CM[cr.id]={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3};
+    gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); }
+  var S=.42, th=-SH.hs+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.9, c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=3;
+  var M=[c*S, 0, -s*S, 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
+  /* the trail: a fine line fading behind */
+  var tv=[], tk=[], T=cr.trail||[.8, .85, 1];
+  for(var i=0;i+1<SH.tr.length;i++){ var A=SH.tr[i], B2=SH.tr[i+1], a0=(1-(now-A[2])/1600)*.55*SH.al, a1=(1-(now-B2[2])/1600)*.55*SH.al;
+    tv.push(A[0], Y, A[1], B2[0], Y, B2[1]); tk.push(T[0], T[1], T[2], Math.max(0, a0), T[0], T[1], T[2], Math.max(0, a1)); }
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.DEPTH_TEST);
+  if(tv.length){ var l=P.l; gl.useProgram(l.p); gl.uniformMatrix4fv(l.u.VP, false, VPm); gl.depthMask(false);
+    gl.bindBuffer(gl.ARRAY_BUFFER, P.tb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tv.concat(tk)), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(l.a.p); gl.vertexAttribPointer(l.a.p, 3, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(l.a.k); gl.vertexAttribPointer(l.a.k, 4, gl.FLOAT, false, 0, tv.length*4);
+    gl.drawArrays(gl.LINES, 0, tv.length/3); dis(l); gl.depthMask(true); }
+  var k=P.k; gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniformMatrix4fv(k.u.M, false, M); gl.uniform3fv(k.u.E, EYE); gl.uniform3fv(k.u.L, W(sun)); gl.uniform1f(k.u.al, SH.al);
+  attr(k, 'p', m.p, 3); attr(k, 'n', m.n, 3); gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.enableVertexAttribArray(k.a.k); gl.vertexAttribPointer(k.a.k, 4, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, m.c); dis(k);
+  /* the engines' glow, flickering a little */
+  var g=P.g, G2=cr.glow||[1, .8, .5]; gl.useProgram(g.p); gl.uniformMatrix4fv(g.u.VP, false, VPm); gl.uniform3fv(g.u.X, RT); gl.uniform3fv(g.u.Y, UP); attr(g, 'q', P.q, 2);
+  gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE); gl.uniform3fv(g.u.K, G2);
+  (cr.eng||[]).forEach(function(e, j){ var w=[M[0]*e[0]+M[4]*e[1]+M[8]*e[2]+M[12], M[1]*e[0]+M[5]*e[1]+M[9]*e[2]+M[13], M[2]*e[0]+M[6]*e[1]+M[10]*e[2]+M[14]], fl=1+.12*Math.sin(now*.031+j*1.7);
+    gl.uniform3fv(g.u.C, w); gl.uniform1f(g.u.S, 3.2*fl); gl.uniform1f(g.u.a, .95*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.uniform1f(g.u.S, 9*fl); gl.uniform1f(g.u.a, .35*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+  dis(g); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* a machine that cannot keep up close up gets less detail, then a coarser canvas */
 function pace(now){ var dt=lastT ? now-lastT : 16; lastT=now; if(dt>250) return; dtA=dtA*.92+dt*.08;
@@ -466,7 +534,7 @@ function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
-  closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
+  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
 

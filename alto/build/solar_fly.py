@@ -444,6 +444,7 @@ var FL=null, raf=0, Q=[], ovAt=-1e9, landAt=-1e9, enter0=null, nav0=null, svg=nu
 try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
   var mqf=function(){ reduced=mq.matches; }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
 function cvs(){ return document.getElementById('canvas'); }
+function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg:''}; }
 function cam(){ return window._altoSolarCam; }
 function pad(){ return (typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0; }
 function ss(x){ x=Math.min(Math.max(x, 0), 1); return x*x*(3-2*x); }
@@ -452,7 +453,7 @@ function f1(v){ return Math.round(v*10)/10; }
 function dz(){ return (parseFloat(getComputedStyle(de).zoom)||1)*(window.devicePixelRatio||1); }
 /* may this change of body be flown? */
 function can(){
-  if(window._altoFlyOff || (window._altoSolarLock && window._altoSolarLock.get()) || de.classList.contains('sk-3d') || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
+  if(window._altoFlyOff || (window._altoSolarLock && window._altoSolarLock.get()) || !stars() || de.classList.contains('mobile') || reduced || printing || de.classList.contains('alto-editing')) return false;
   if(!cam() || !window._altoSolarDrive || !window._altoSolarRate || !cvs() || document.querySelector('#detail-page.visible')) return false;
   if(FL) return true;
   var g=cam().get(); return !!g && g.scale>=.999 && performance.now()-ovAt>K.OV_MS;
@@ -496,11 +497,11 @@ function layer(){
     ship=el('g', {'class':'fly-craft'}, gp);
     el('circle', {r:9, 'class':'fly-halo'}, ship);
     el('path', {d:'M7 0 L-5 -4.6 L-2.6 0 L-5 4.6 Z', 'class':'fly-hull'}, ship);
-    /* Retro's ship (Luke, 2026-10-21, after the poster's probe: "more of a spaceship ... Foundation ... more
-       regal"): solar_draw.py's Imperial vessel (window._altoSolarShip), shown by CSS in html.sk-retro */
-    var pr=el('g', {'class':'fly-ship', transform:'scale(1.35)'}, ship); pr.innerHTML=window._altoSolarShip||'';
+    el('g', {'class':'fly-ship'}, ship);
     w.appendChild(svg);
   }
+  /* the chosen craft (solar_craft.py), in this style's look: Retro's bigger, as its poster's ship */
+  var pr=ship.querySelector('.fly-ship'); pr.innerHTML=craft().svg||''; pr.setAttribute('transform', de.classList.contains('sk-retro') ? 'scale(1.35)' : 'scale(1.15)');
   svg.setAttribute('width', w.offsetWidth); svg.setAttribute('height', w.offsetHeight);
   gp.setAttribute('transform', 'translate(0,'+pad()+')');
   svg.classList.remove('fly-out'); lastS=0;
@@ -516,13 +517,13 @@ function draw(p, h, s, now){
   var d='M'+tr.map(function(q){ return f1(q[0])+' '+f1(q[1]); }).join('L');
   trl.setAttribute('d', d);
   var t0=tr[0]; grd.setAttribute('x1', f1(t0[0])); grd.setAttribute('y1', f1(t0[1])); grd.setAttribute('x2', f1(p[0])); grd.setAttribute('y2', f1(p[1]));
-  var k=Math.round(1000/s)/1000, rt=FL.k>1;
-  if(rt){                                    /* Retro: the ship every frame, its heading eased (it comes round slowly, never snaps) and
-                                                banking into a turn — narrowed across as it rolls, by how fast it is turning */
-    var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, hs=FL.hs==null ? h : FL.hs, dh=Math.atan2(Math.sin(h-hs), Math.cos(h-hs)), tn=dh*Math.min(1, dt*2.4);
-    FL.lt=now; FL.hs=hs+tn; var bk=Math.max(-1, Math.min(1, dt ? tn/dt/1.1 : 0)); FL.bk=(FL.bk||0)+(bk-(FL.bk||0))*Math.min(1, dt*3);
-    ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+f1(FL.hs*180/Math.PI)+') scale('+k+','+f1(k*(1-.3*Math.abs(FL.bk))*1000)/1000+')'); }
-  else ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+Math.round(h*180/Math.PI)+') scale('+k+')');
+  var k=Math.round(1000/s)/1000, rt=de.classList.contains('sk-retro'), cr=craft();
+  /* the craft every frame, its heading eased (it comes round at its own pace, never snaps) and banking into a turn —
+     narrowed across as it rolls, by how fast it is turning (each craft its own turn and bank: solar_craft.py) */
+  var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, hs=FL.hs==null ? h : FL.hs, dh=Math.atan2(Math.sin(h-hs), Math.cos(h-hs)), tn=dh*Math.min(1, dt*(cr.turn||2.4));
+  FL.lt=now; FL.hs=hs+tn; var bk=Math.max(-1, Math.min(1, dt ? tn/dt/1.1 : 0)); FL.bk=(FL.bk||0)+(bk-(FL.bk||0))*Math.min(1, dt*3);
+  ship.setAttribute('transform', 'translate('+f1(p[0])+','+f1(p[1])+') rotate('+f1(FL.hs*180/Math.PI)+') scale('+k+','+f1(k*(1-(cr.bank==null ? .3 : cr.bank)*Math.abs(FL.bk))*1000)/1000+')');
+  if(cr.spin){ var sp=ship.querySelector('.sh-spin'); if(sp) sp.setAttribute('transform', 'rotate('+f1(now/1000*cr.spin*57.3%360)+')'); }
   if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
     pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', rt ? f1(1/s)+' '+f1(7/s) : f1(4/s)+' '+f1(8/s));
     trl.setAttribute('stroke-width', f1((rt ? 1.5 : 2.6)/s*10)/10); }
@@ -537,7 +538,7 @@ function fly(from, to, o){
   var R=F.plan(S(), from, to, opt); if(!R) return false;
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
   var tr=FL ? FL.trail : [];
-  var rk=de.classList.contains('sk-retro') ? K.RETRO_K : 1;     /* Retro: a stately flight, the same route on a slower clock */
+  var rk=(de.classList.contains('sk-retro') ? K.RETRO_K : 1)*(craft().k||1);     /* Retro: a stately flight, the same route on a slower clock; each craft its own pace */
   FL={R:R, o:opt, to:to, from:from, t0:performance.now(), k:rk, trail:tr, set:null, ms:FL ? FL.ms : [], head:FL ? FL.head : (function(a, b){ return Math.atan2(b[1]-a[1], b[0]-a[0]); })(F.at(R, 0), F.at(R, Math.min(R.D, .25))), hs:FL ? FL.hs : null, bk:FL ? FL.bk : 0, ext:(FL && FL.ext) || (g.scale>=.999 ? extent() : null)};
   window._altoFlyMs=Math.round(R.D*1000*rk)+K.LAND_MS;     /* an arrow's hop waits for the landing */
   layer(); route(R);
@@ -637,6 +638,7 @@ window.addEventListener('pointerdown', function(e){ dn=FL && cvs() && cvs().cont
 window.addEventListener('pointerup', function(e){
   if(!dn) return; var d0=dn; dn=null; if(!FL) return; e.preventDefault(); e.stopImmediatePropagation();
   if(Math.abs(e.clientX-d0.x)+Math.abs(e.clientY-d0.y)>6) return;
+  if(de.classList.contains('sk-3d') && window._altoSolar3D && window._altoSolar3D.pick){ var id3=window._altoSolar3D.pick(e.clientX, e.clientY); if(id3) window.enterFocus(id3); return; }   /* (the 3D scene: its own pick) */
   var c=cvs(), r=c.getBoundingClientRect(), g=cam().get(), k=r.width/c.offsetWidth||1;
   var wx=g.cx+((e.clientX-r.left)/k-c.clientWidth/2)/g.scale, wy=g.cy+((e.clientY-r.top)/k-c.clientHeight/2)/g.scale;
   var W=F.bodies(S()), T=window._altoSolarRate().T, best=null, bd=1e18;
@@ -675,9 +677,7 @@ FLY_CSS = r"""
   html.dark #solar-fly-svg .fly-path{stroke:#fff;stroke-opacity:.38;}
   html.dark #solar-fly-svg .fly-t0,html.dark #solar-fly-svg .fly-t1,html.dark #solar-fly-svg .fly-halo{stop-color:#cfc6ff;fill:#cfc6ff;}
   html.dark #solar-fly-svg .fly-hull{fill:#cfc6ff;stroke:#1a1830;}
-  #solar-fly-svg .fly-ship{display:none;}
-  html.sk-retro #solar-fly-svg .fly-ship{display:inline;}
-  html.sk-retro #solar-fly-svg .fly-hull,html.sk-retro #solar-fly-svg .fly-halo{display:none;}
+  #solar-fly-svg .fly-hull,#solar-fly-svg .fly-halo{display:none;}   /* (the chosen craft flies: solar_craft.py) */
   html.sk-retro #solar-fly-svg .fly-path{stroke:#d9ae55 !important;stroke-opacity:.32 !important;stroke-linecap:round;}
   html.sk-retro #solar-fly-svg .fly-t0,html.sk-retro #solar-fly-svg .fly-t1{stop-color:#f0c15e !important;}
   html.sk-retro #solar-fly-svg .fly-t1{stop-opacity:.55 !important;}

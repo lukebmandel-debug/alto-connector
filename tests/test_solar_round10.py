@@ -307,7 +307,7 @@ def test_the_3d_scene_is_small_and_on_system_pages_only():
     from alto.build import blocks
     from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
-    assert size < 15000, size                   # (~13.9 KB gz: a small WebGL kit with its shaders and the close-up's procedural detail, no library)
+    assert size < 17500, size                   # (~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
 
 
@@ -441,5 +441,52 @@ def test_retro_flies_a_regal_ship_smoothly(browser, page):
     assert pg.evaluate("() => getComputedStyle(document.querySelector('#solar-svg .sol-rider .sol-ship')).display") == "inline"
     pg.wait_for_timeout(3000)
     pg.evaluate("() => window._altoSolarLock.set(false)")
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_ships_to_choose_real_and_science_fiction(browser, page):
+    """Luke (2026-10-21): "give users choice ships/crafts, some from sci fi, others from real life" — one choice per
+    viewer, in every Star chart style; Retro's Imperial vessel its default there, the Shuttle elsewhere."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); }")
+    L = pg.evaluate("() => window._altoCraft.list.map(function(c){ var m=window._altoCraft.mesh(c.id); return [c.id, c.real, m.p.length, m.k.length]; })")
+    assert len(L) >= 8 and any(r for _, r, _, _ in L) and any(not r for _, r, _, _ in L), L
+    assert all(n >= 90 and n % 9 == 0 and k * 3 == n * 4 for _, _, n, k in L), L        # every craft a model of its own
+    assert pg.evaluate("() => window._altoCraft.id()") == "imperial"
+    pg.evaluate("() => window._altoSolarStyle.set('classic')")
+    assert pg.evaluate("() => window._altoCraft.id()") == "shuttle"
+    pg.click("#sol-craft"); pg.wait_for_timeout(200)
+    assert pg.evaluate("() => document.querySelectorAll('#sol-craft-pop [data-craft]').length") == len(L)
+    pg.click("#sol-craft-pop [data-craft=dart]"); pg.wait_for_timeout(200)
+    assert pg.evaluate("() => [localStorage.getItem('alto-ship'), !!document.getElementById('sol-craft-pop'), document.getElementById('sol-craft').title]") == [
+        "dart", False, "Your ship: Dart (click to choose another)"]
+    pg.evaluate("() => window._altoSolarStyle.set('retro')")
+    assert pg.evaluate("() => window._altoCraft.id()") == "dart"                       # a choice holds in every style
+    pg.click("#sol-craft"); pg.wait_for_timeout(150); pg.keyboard.press("Escape"); pg.wait_for_timeout(150)
+    assert not pg.evaluate("() => !!document.getElementById('sol-craft-pop')")
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_a_flight_in_3d_flies_the_chosen_craft_then_dives_close_up(browser, page):
+    """Luke (2026-10-21): "i want a real ship" — in Realistic 3D the chosen craft is a lit model on the route, the camera
+    behind it, and the landing hands into the close-up's dive; in 2D the same craft's art flies."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoCraft.set('starship'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u2-p1')"); pg.wait_for_timeout(500)
+    assert pg.evaluate("() => !!document.querySelector('#solar-fly-svg .fly-ship path.sh-hull[d^=\"M36 0 L32 -4\"]')")   # the Starship's own art
+    pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 400)
+    pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pg.context.close(); pytest.skip("no WebGL in this browser")
+    pg.evaluate("() => window.enterFocus('u1-p1')"); pg.wait_for_timeout(1000)
+    s = pg.evaluate("() => { var f=window._altoSolarFlight(), s=window._altoSolar3D.ship(); return {f:!!f, s:s, d:window._altoSolar3D.cam().d}; }")
+    assert s["f"] and s["s"] and s["s"]["craft"] == "starship" and s["s"]["on"], s
+    assert s["d"] < 700 and abs(s["s"]["sx"] - 650) < 400, s                          # the camera is with the craft
+    pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 1600)
+    q = pg.evaluate("() => [window._focusedNodeId, window._altoSolar3D.closeup().lock, window._altoSolarFlight()]")
+    assert q[0] == "u1-p1" and q[1] == "u1-p1" and q[2] is None, q
     pg.context.close()
     assert not errs, errs
