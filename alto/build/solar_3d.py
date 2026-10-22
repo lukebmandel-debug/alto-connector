@@ -32,10 +32,13 @@ finer sphere is drawn once a body is big. A slow machine steps the detail (and t
 
 Flights in 3D (Luke, 2026-10-21: "i want a real ship"): with Flights on, solar_fly.py's planner flies as ever (its
 routes move the bodies on the flight's own clock, which this scene draws), and here the chosen craft
-(solar_craft.py) is a lit model on the route: its heading eased, banking into turns, its engines glowing and a fine
-trail behind, the camera calm behind it (pulling back as it speeds up, turning towards the body it is going to as it
-nears), and on landing the close-up's dive starts from there. Spokes only rides fly the same craft
-(window._altoSolarRide). Flights off: the camera glides, as before.
+(solar_craft.py) is a lit model on the route: its nose on the route's tangent, banking a little into turns, its
+engines glowing and a fine trail behind, the camera calm behind it (pulling back as it speeds up, turning towards the
+body it is going to as it nears), and on landing the close-up's dive starts from there. Spokes only rides fly the same
+craft (window._altoSolarRide). Flights off: the camera glides, as before. (Luke, 2026-10-22: "it should come
+into a gentle orbit around planets") It never flies into a body: it comes into a gentle orbit round the one it goes to,
+at a radius by that body's size, and goes on round it while the close-up shows; the model is small and clear, smaller
+still near a small body.
 """
 
 SOLAR3D_CSS = r"""
@@ -82,6 +85,8 @@ var RC=null, de=document.documentElement, cv=null, lay=null, gl=null, P={}, read
 var cam={tx:0, ty:0, tz:0, d:1600, az:-0.6, el:0.62, fov:0.82, ox:0, oy:0}, tw=null, LK=null, pre=null, QL=1, dtA=16, slow=0, lastT=0, TAU=Math.PI*2, foc=undefined, drag=null, VPm=null, EYE=[0, 0, 0], RT=[1, 0, 0], UP=[0, 1, 0];
 var TYPES=['rocky', 'ocean', 'gas', 'ice', 'desert', 'lava'], ATM={rocky:[.55,.6,.7], ocean:[.4,.66,1], gas:[.95,.82,.6], ice:[.6,.88,1], desert:[1,.66,.45], lava:[1,.45,.2], moon:[0,0,0], sat:[0,0,0]};
 /* each kind's shading: [type for the shader, atmosphere, cloud cover's threshold (1: none), cloud opacity] */
+/* the craft's model: its scale on the way (the models are about 60 long) and the least near a small body; the chase camera's distance */
+var K3={S:.2, S_MIN:.06, CD:[120, 340], Y:3, CLR:9};
 var KD={rocky:[0, .32, .6, .5], ocean:[1, 1, .53, .95], gas:[2, .55, 1, 0], ice:[3, .7, .62, .45], desert:[4, .55, .66, .35], lava:[5, .4, .68, .3], moon:[6, 0, 1, 0], sat:[7, 0, 1, 0], sun:[8, 0, 1, 0]};
 function geo(){ return window._altoSolarGeo ? window._altoSolarGeo() : null; }
 function want(){ return de.classList.contains('sk-real') && de.classList.contains('alto-stars') && !de.classList.contains('mobile') && !de.classList.contains('alto-editing')
@@ -353,30 +358,46 @@ function frame(){
   Object.keys(BOD).sort(function(a, b){ return dist(G, a)-dist(G, b); }).some(function(id){ var o=BOD[id]; if(o.tex || o.kind==='sun' || o.kind==='sat') return false; texStep(o, dl); return performance.now()>=dl; });
   raf=requestAnimationFrame(frame);
 }
-/* ── the craft: where the flight (or the Spokes-only ride) has it, its heading eased and its bank; the camera behind it ── */
+/* ── the craft: where the flight (or the Spokes-only ride) has it, its nose on the way's tangent and its bank
+   (solar_craft.py's steer); landed, in its gentle orbit round the enlarged body (solar_craft.py's parked) while the
+   close-up shows; the camera behind it on the way ── */
 var SH={on:false, al:0, tr:[], hs:null, bk:0, v:0};
 function fly(G, now){
-  var F=window._altoSolarFlight && window._altoSolarFlight(), R=!F && window._altoSolarRide && window._altoSolarRide(), p=F && F.at ? F.at : R ? R.p : null;
+  var A=window._altoCraft, F=window._altoSolarFlight && window._altoSolarFlight(), R=!F && window._altoSolarRide && window._altoSolarRide(), p=null, v=null, m=null, id=null, o;
   var dt=SH.lt ? Math.min(.05, (now-SH.lt)/1000) : 0; SH.lt=now;
-  if(!p){ if(SH.on){ SH.on=false; SH.end=now; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
-  var cr=window._altoCraft ? window._altoCraft.get() : {};
-  if(!SH.on){ SH.on=true; SH.t0=now; SH.a=snap(); SH.hs=null; SH.hc=null; SH.cd=null; SH.lp=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.cr=cr.id; }
-  if(SH.lp && dt>0){ var vx=(p[0]-SH.lp[0])/dt, vy=(p[1]-SH.lp[1])/dt, sp=Math.hypot(vx, vy); SH.v+=(sp-SH.v)*Math.min(1, dt*2);
-    var h=R ? R.h : sp>4 ? Math.atan2(vy, vx) : SH.hs;
-    if(h!=null){ if(SH.hs==null) SH.hs=h; var tn=wrap(h-SH.hs)*Math.min(1, dt*(cr.turn||2.4)); SH.hs+=tn;
-      var bk=Math.max(-1, Math.min(1, tn/dt/1.1)); SH.bk+=(bk-SH.bk)*Math.min(1, dt*3); } }
-  SH.lp=[p[0], p[1]]; SH.p=SH.lp; SH.to=F ? F.to : R.to; SH.al=Math.min(1, SH.al+dt*3);
-  SH.tr.push([p[0], p[1], now]); while(SH.tr.length>2 && now-SH.tr[0][2]>1600) SH.tr.shift();
-  return SH;
+  if(F && F.at){ p=F.at; v=F.v; m='fly'; } else if(R && R.p){ p=R.p; v=R.v || [Math.cos(R.h), Math.sin(R.h)]; m='fly'; }
+  else if(A && A.orbiting()){ id=window._focusedNodeId; var g=id && G.bodies[id]; o=g && A.parked(id, [g.x, g.y]);
+    if(o){ p=o.p; v=o.v; m='park'; } else A.unpark(); }              /* (left the close-up: the orbit is over) */
+  if(!p){ if(SH.on){ SH.on=false; SH.end=now; SH.m=null; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
+  var cr=A ? A.get() : {};
+  if(!SH.on){ SH.on=true; SH.hs=null; SH.ht=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.cr=cr.id; SH.m=null; }
+  if(m==='fly' && SH.m!=='fly'){ SH.t0=now; SH.a=snap(); SH.hc=null; SH.cd=null; }   /* (the chase eases in from where the camera is; the heading carries on) */
+  SH.m=m; if(A && v) A.steer(SH, v, dt);
+  if(v) SH.v+=(Math.hypot(v[0], v[1])-SH.v)*Math.min(1, dt*2);
+  SH.p=[p[0], p[1]]; SH.to=F ? F.to : R ? R.to : id; SH.fr=F ? F.from : R ? R.from : id; SH.al=Math.min(1, SH.al+dt*3); SH.y=lift(G, p);
+  SH.tr.push([p[0], p[1], now, SH.y]); while(SH.tr.length>2 && now-SH.tr[0][2]>1600) SH.tr.shift();
+  return m==='fly' ? SH : null;
 }
+/* the craft's height over the board's plane: a little above it, lifted smoothly clear of any body near (a moon by its
+   planet, a planet's own moons round its orbit, a body on the way): over each, R(1-(h/2R)²)² for h (its distance across
+   the plane) under 2R, R its radius and the craft's clearance, which is never under the sphere's own height there */
+function lift(G, p){ var y=K3.Y, c=K3.CLR;
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], R=g.d/2+c, h=Math.hypot(g.x-p[0], g.y-p[1]); if(h<2*R){ var u=h/(2*R), k=1-u*u; y+=R*k*k; } });
+  return y; }
+/* the model's scale: small and clear on the way (Luke, 2026-10-22: "we don't need the ship to be massive, just clear"),
+   smaller still near a small body (about a quarter of its width), so a moon's close-up is not all ship */
+function shipS(G){ var S=K3.S, A=window._altoCraft;
+  [SH.to, SH.fr].forEach(function(id){ var g=id && G.bodies[id]; if(!g || !A) return; var r=A.orbitR(g.d), sb=Math.max(K3.S_MIN, Math.min(K3.S, g.d/240)),
+    w=sm(r*1.15, r*3.6, Math.hypot(g.x-SH.p[0], g.y-SH.p[1])); S=Math.min(S, sb+(K3.S-sb)*w); });
+  return S; }
 /* calm behind the craft: farther back the faster it goes, turning to the body it is going to as it nears; eased in from where the camera was */
 function chase(G, now){
   if(SH.hs==null) return; var dt=Math.min(.05, SH.lt0 ? (now-SH.lt0)/1000 : .016); SH.lt0=now;
   var p=SH.p, q=G.bodies[SH.to], ht=SH.hs;
   if(q){ var dg=Math.hypot(q.x-p[0], q.y-p[1]); ht+=wrap(Math.atan2(q.y-p[1], q.x-p[0])-SH.hs)*sm(900, 200, dg)*.6; }
   SH.hc=SH.hc==null ? ht : SH.hc+wrap(ht-SH.hc)*Math.min(1, dt*1.5);
-  var cd=Math.max(150, Math.min(420, 150+SH.v*.1)); SH.cd=SH.cd==null ? cd : SH.cd+(cd-SH.cd)*Math.min(1, dt*1.1);
-  blend(SH.a, {x:p[0]+Math.cos(SH.hc)*55, z:p[1]+Math.sin(SH.hc)*55, d:SH.cd, az:Math.atan2(-Math.cos(SH.hc), -Math.sin(SH.hc)), el:.22+.12*sm(150, 420, SH.cd), ox:0, oy:0},
+  var cd=Math.max(K3.CD[0], Math.min(K3.CD[1], K3.CD[0]+SH.v*.08)); SH.cd=SH.cd==null ? cd : SH.cd+(cd-SH.cd)*Math.min(1, dt*1.1);
+  blend(SH.a, {x:p[0]+Math.cos(SH.hc)*40, z:p[1]+Math.sin(SH.hc)*40, d:SH.cd, az:Math.atan2(-Math.cos(SH.hc), -Math.sin(SH.hc)), el:.22+.12*sm(150, 420, SH.cd), ox:0, oy:0},
     Math.min(1, (now-SH.t0)/1000), 0);
 }
 var CM={};
@@ -385,12 +406,12 @@ function craft3(G, now){
   var cr=window._altoCraft.list.filter(function(c){ return c.id===SH.cr; })[0] || window._altoCraft.get(), m=CM[cr.id];
   if(!m){ var o=window._altoCraft.mesh(cr.id); m=CM[cr.id]={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3};
     gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); }
-  var S=.42, th=-SH.hs+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.9, c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=3;
+  var S=shipS(G), th=-SH.hs+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.6, c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=SH.y||K3.Y;
   var M=[c*S, 0, -s*S, 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
   /* the trail: a fine line fading behind */
   var tv=[], tk=[], T=cr.trail||[.8, .85, 1];
   for(var i=0;i+1<SH.tr.length;i++){ var A=SH.tr[i], B2=SH.tr[i+1], a0=(1-(now-A[2])/1600)*.55*SH.al, a1=(1-(now-B2[2])/1600)*.55*SH.al;
-    tv.push(A[0], Y, A[1], B2[0], Y, B2[1]); tk.push(T[0], T[1], T[2], Math.max(0, a0), T[0], T[1], T[2], Math.max(0, a1)); }
+    tv.push(A[0], A[3]||Y, A[1], B2[0], B2[3]||Y, B2[1]); tk.push(T[0], T[1], T[2], Math.max(0, a0), T[0], T[1], T[2], Math.max(0, a1)); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.DEPTH_TEST);
   if(tv.length){ var l=P.l; gl.useProgram(l.p); gl.uniformMatrix4fv(l.u.VP, false, VPm); gl.depthMask(false);
     gl.bindBuffer(gl.ARRAY_BUFFER, P.tb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tv.concat(tk)), gl.DYNAMIC_DRAW);
@@ -403,8 +424,8 @@ function craft3(G, now){
   var g=P.g, G2=cr.glow||[1, .8, .5]; gl.useProgram(g.p); gl.uniformMatrix4fv(g.u.VP, false, VPm); gl.uniform3fv(g.u.X, RT); gl.uniform3fv(g.u.Y, UP); attr(g, 'q', P.q, 2);
   gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE); gl.uniform3fv(g.u.K, G2);
   (cr.eng||[]).forEach(function(e, j){ var w=[M[0]*e[0]+M[4]*e[1]+M[8]*e[2]+M[12], M[1]*e[0]+M[5]*e[1]+M[9]*e[2]+M[13], M[2]*e[0]+M[6]*e[1]+M[10]*e[2]+M[14]], fl=1+.12*Math.sin(now*.031+j*1.7);
-    gl.uniform3fv(g.u.C, w); gl.uniform1f(g.u.S, 3.2*fl); gl.uniform1f(g.u.a, .95*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.uniform1f(g.u.S, 9*fl); gl.uniform1f(g.u.a, .35*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+    gl.uniform3fv(g.u.C, w); gl.uniform1f(g.u.S, 7.6*S*fl); gl.uniform1f(g.u.a, .95*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.uniform1f(g.u.S, 21*S*fl); gl.uniform1f(g.u.a, .35*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
   dis(g); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* a machine that cannot keep up close up gets less detail, then a coarser canvas */

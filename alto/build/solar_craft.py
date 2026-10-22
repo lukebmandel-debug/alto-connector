@@ -3,7 +3,7 @@ ships/crafts, some from sci fi, others from real life. Same options should apply
 
 One choice per viewer (localStorage alto-ship, every timeline); none chosen, Retro flies its Imperial vessel and the
 other styles the Space Shuttle. Each craft is:
-  * 2D art (top view, nose along +x, about 70 px long) in the Imperial vessel's classes (sh-hull, sh-deck, sh-fin,
+  * 2D art (top view, nose along +x, about 70 px long, flown at 0.4-0.5 of that) in the Imperial vessel's classes (sh-hull, sh-deck, sh-fin,
     sh-gold, sh-eng, sh-glow, sh-ring): Retro paints them gold on black, Classic clean light grey (CRAFT_CSS); the
     flights (solar_fly.py) and the Spokes-only rider (solar_draw.py) draw it;
   * a low-poly 3D model built in code (lathes, boxes, slabs: no asset to load) that solar_3d.py lights and flies;
@@ -180,13 +180,77 @@ function open(btn){
 window.addEventListener('pointerdown', function(e){ if(POP && !POP.contains(e.target) && !(e.target.closest && e.target.closest('#sol-craft'))) close(); }, true);
 window.addEventListener('keydown', function(e){ if(POP && e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); close(); var b=document.getElementById('sol-craft'); if(b) b.focus(); } }, true);
 function set(id){ if(!BY[id]) return; MINE=id; try{ localStorage.setItem(KEY, id); }catch(e){} subs.forEach(function(f){ try{ f(id); }catch(x){} }); }
+/* ── how a craft flies a way (solar_fly.py's flights, solar_draw.py's Spokes-only rides, solar_3d.py's model; Luke,
+   2026-10-22: "it should come into a gentle orbit around planets ... always be sort of pointing accurately according to
+   its line"). It never touches a body: it sets off from an orbit round the body it is at and comes into a gentle orbit
+   round the one it goes to, at a radius by that body's size, and stays in it while that body is enlarged. Its nose is
+   the way's own tangent; its bank, subtle, the way's turning. ── */
+var ORB_W=.42, ORB=null;                 /* the settled orbit's pace (rad a second of the flight's clock); the orbit the craft is in */
+function wrap(a){ return Math.atan2(Math.sin(a), Math.cos(a)); }
+function ss(x){ x=Math.min(Math.max(x, 0), 1); return x*x*(3-2*x); }
+/* a body's orbit radius by its diameter (+ px: the 2D art's own half length, its size on screen), within room (the
+   gap to its parent's surface and its own moons' paths: a moon's orbit never reaches its planet, a planet's never
+   crosses its moons) */
+function orbitR(d, px, room){ var R=(+d||20)/2, r=R*1.4+10+(px||0); return room>0 ? Math.min(r, Math.max(R+4+(px||0)/2, room)) : r; }
+/* o: base(t) the way (ending on the centre it goes to at o.D), cen(t) that centre, r the orbit's radius, D, spin, and
+   start {p, v} where the craft is and how it moves (blended in over the first stretch). → at(t) and pv(t) the craft
+   on the way and on in its orbit after D; off(t) the orbit's offset from the centre, after D. The way is bent only
+   near its end: inside r it is held off the centre (the radius softened) and swung round it, the way it was turning,
+   easing to the orbit's pace. (Bodies passed on the way: the 3D scene lifts the craft over them.) */
+function track(o){
+  var D=o.D, r=o.r, N=160, tb=null, tc=null, i, pr=null, t, q, m;
+  function rel(t){ var p=o.base(t), c=o.cen(t); return [p[0]-c[0], p[1]-c[1]]; }
+  function ang(t){ var q=rel(t); return Math.atan2(q[1], q[0]); }
+  for(i=N;i>=0 && tb===null;i--){ t=D*i/N; q=rel(t); m=Math.hypot(q[0], q[1]);     /* (from the end back: the last times it is r, and .3 r, out) */
+    if(tc===null && m>=.3*r) tc=pr ? t+(pr[0]-t)*(m-.3*r)/Math.max(1e-9, m-pr[1]) : t;
+    if(m>=r) tb=pr ? t+(pr[0]-t)*(m-r)/Math.max(1e-9, m-pr[1]) : t;
+    pr=[t, m]; }
+  if(tc===null) tc=0; if(tb===null) tb=0; tb=Math.max(0, Math.min(tb, tc-.5)); tc=Math.max(tc, tb+.05);
+  var Tb=tc-tb, th=ang(tc), h=.01, w0=wrap(ang(tb+h)-ang(Math.max(0, tb-h)))/(tb+h-Math.max(0, tb-h));
+  var sg=Math.abs(w0)>1e-3 ? (w0>0 ? 1 : -1) : (o.spin<0 ? -1 : 1), Wi=sg*Math.min(1.4, Math.max(ORB_W, Math.abs(w0))), Wo=sg*ORB_W, Ts=1.4, t0w=Math.max(0, tb-1.2);
+  function G(t){ if(t<=tb) return 0; if(t<=tc){ var x=(t-tb)/Tb; return Wi*Tb*(x*x*x-x*x*x*x/2); }
+    var u=t-tc; return Wi*Tb/2+Wo*u+(Wi-Wo)*Ts*(1-Math.exp(-u/Ts)); }
+  function raw(t){
+    if(t<=t0w) return o.base(t);
+    var c=o.cen(t), q=rel(t), m=Math.hypot(q[0], q[1]), a=Math.atan2(q[1], q[0]), wr=tb>t0w ? ss((t-t0w)/(tb-t0w)) : 1;
+    if(t>=tc) a=th; else if(t>tb) a+=wrap(th-a)*ss((t-tb)/Tb);
+    m+=(Math.sqrt(m*m+r*r)-m)*wr; a+=G(t);
+    return [c[0]+m*Math.cos(a), c[1]+m*Math.sin(a)]; }
+  var Tq=Math.min(.8, D/3), S=o.start, dp=null, dv=null;
+  if(S && Tq>0){ var p0=raw(0), p1=raw(.004); dp=[S.p[0]-p0[0], S.p[1]-p0[1]]; dv=[S.v[0]-(p1[0]-p0[0])/.004, S.v[1]-(p1[1]-p0[1])/.004]; }
+  function at(t){ var p=raw(t); if(dp && t<Tq){ var x=Math.max(0, t)/Tq, a=2*x*x*x-3*x*x+1, b=(x*x*x-2*x*x+x)*Tq; p=[p[0]+a*dp[0]+b*dv[0], p[1]+a*dp[1]+b*dv[1]]; } return p; }
+  function pv(t){ var e=.008, a=at(Math.max(0, t-e)), b=at(t+e), k=t+e-Math.max(0, t-e); return [(a[0]+b[0])/2, (a[1]+b[1])/2, (b[0]-a[0])/k, (b[1]-a[1])/k]; }
+  var qe=rel(D), me=Math.hypot(qe[0], qe[1]), re=Math.sqrt(me*me+r*r);
+  function off(t){ var a=th+G(t); return [re*Math.cos(a), re*Math.sin(a)]; }
+  return {at:at, pv:pv, off:off, D:D, r:r, sg:sg};
+}
+/* the orbit the craft is in after a landing (k: the flight's clock to real time); parked(id, centre) → where it is now
+   and how it moves (px a second), or null */
+function park(id, tr, k){ ORB={id:id, tr:tr, k:k||1, t0:performance.now()}; }
+function parked(id, c){ if(!ORB || !c || (id && ORB.id!==id)) return null; var t=ORB.tr.D+(performance.now()-ORB.t0)/1000/ORB.k, a=ORB.tr.off(t), b=ORB.tr.off(t+.01);
+  return {id:ORB.id, p:[c[0]+a[0], c[1]+a[1]], v:[(b[0]-a[0])/.01/ORB.k, (b[1]-a[1])/.01/ORB.k], r:ORB.tr.r, sg:ORB.tr.sg}; }
+/* the nose on the way's tangent (v: its velocity) every frame, and the bank by how fast that tangent turns; only a jump
+   (a new way from where it is) is eased round, never snapped. S keeps hs (heading), ht, bk. */
+function steer(S, v, dt){
+  var sp=Math.hypot(v[0], v[1]); if(sp<.5){ S.bk=(S.bk||0)*(1-Math.min(1, dt*3)); return S; }
+  var h=Math.atan2(v[1], v[0]); if(S.hs==null){ S.hs=S.ht=h; S.bk=0; return S; }
+  var w=dt>0 && S.ht!=null ? wrap(h-S.ht)/dt : 0, d=wrap(h-S.hs); S.ht=h;
+  /* (a jump — the way turning on itself where the craft all but stops, a new way — comes round eased, keeping up with
+     the turning) */
+  S.hs=Math.abs(d)<.25 ? h : S.hs+Math.max(-4, Math.min(4, w))*dt+d*Math.min(1, dt*8);
+  S.bk=(S.bk||0)+(Math.max(-1, Math.min(1, w/2.4))*ss(sp/80)-(S.bk||0))*Math.min(1, dt*3);
+  return S;
+}
 window._altoCraft={list:C, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, set:set, open:open, close:close,
-  chosen:function(){ return pick(); }, onChange:function(f){ subs.push(f); }};
+  chosen:function(){ return pick(); }, onChange:function(f){ subs.push(f); },
+  track:track, orbitR:orbitR, park:park, parked:parked, unpark:function(){ ORB=null; }, orbiting:function(){ return ORB && ORB.id; }, steer:steer, W:ORB_W};
 window._altoSolarShip=BY.imperial.svg;      /* (the name 1.9.132's Retro read: the Imperial vessel) */
 })();
 """
 
 CRAFT_CSS = r"""
+  /* the flying art is small (solar_fly.py SHIP / SHIP_RETRO): its lines a steady width on the screen, so it stays clear */
+  :is(.sol-ship,.fly-ship) *{vector-effect:non-scaling-stroke;}
   /* Classic (and the 3D style's 2D pieces): the craft clean and light; Retro keeps solar_draw.py's gold on black */
   html:not(.sk-retro) :is(.sol-ship,.fly-ship,.cr-art) .sh-hull{fill:#e8ecf5;stroke:#27304c;stroke-width:.9;stroke-linejoin:round;}
   html:not(.sk-retro) :is(.sol-ship,.fly-ship,.cr-art) .sh-deck{fill:#aeb9d2;stroke:none;}

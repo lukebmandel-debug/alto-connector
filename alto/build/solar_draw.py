@@ -1543,8 +1543,11 @@ var RDg=null;
 function rider(){ if(RDg && RDg.isConnected && RDg.parentNode===svg) return RDg; if(!svg) return null;
   RDg=el('g', {'class':'sol-rider', 'aria-hidden':'true'}, svg);
   el('circle', {r:15, 'class':'sol-rh'}, RDg); el('circle', {r:5.5, 'class':'sol-rc'}, RDg);
-  el('g', {'class':'sol-ship', transform:'scale(1.5)'}, RDg); return RDg; }
+  el('g', {'class':'sol-ship', transform:'scale(.4)'}, RDg); return RDg; }
 function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg:''}; }
+function shipK(){ return RETRO ? .5 : .4; }             /* (small and clear, as solar_fly.py's SHIP / SHIP_RETRO) */
+/* the rider on the screen: its nose on its way's tangent, narrowed a little as it banks */
+function riderAt(r, p, h, bk){ var cr=craft(); r.setAttribute('transform', 'translate('+f2(p[0])+' '+f2(p[1])+') rotate('+f2(h*180/Math.PI)+') scale(1 '+f2(1-(cr.bank==null ? .3 : cr.bank)*.5*Math.abs(bk||0))+')'); }
 function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
 function ride(from, to){
   if(!locked() || !B[from] || !B[to] || !B[to].n) return false;
@@ -1556,9 +1559,19 @@ function ride(from, to){
   var A=B[from], Z=B[to], L=Math.hypot(Z.rx-A.rx, Z.ry-A.ry), cr=craft(), ms=Math.round(Math.min(2600, Math.max(900, 650+L*.55))*(RETRO ? 1.25 : 1)*(cr.k||1));
   if(window._focusedNodeId && window.exitFocus) window.exitFocus();
   var ln=rideLine(from, to); if(ln) ln.classList.add('sol-ride');
-  RD={from:from, to:to, t0:performance.now(), ms:ms, x0:g.cx, y0:g.cy, ln:ln};
+  /* along the spoke from the orbit it is in round the body it leaves (or that orbit's point on the spoke) into a gentle
+     orbit round the one it goes to: never touching either (solar_craft.py's track) */
+  var Cr=window._altoCraft, D=ms/1000, ez=window._altoEase || function(x){ return x*x*(3-2*x); }, px=de.classList.contains('sk-3d') ? 0 : 35*shipK(), tr=null;
+  if(Cr){ var rA=Cr.orbitR(A.d, px), st=Cr.parked(from, [A.rx, A.ry]);
+    tr=Cr.track({D:D, r:Cr.orbitR(Z.d, px), spin:SPIN, start:st ? {p:st.p, v:st.v} : null,
+      base:function(t){ var a=B[from], z=B[to], dx=z.rx-a.rx, dy=z.ry-a.ry, l=Math.hypot(dx, dy)||1, sx=a.rx+dx/l*rA, sy=a.ry+dy/l*rA, e=ez(Math.min(1, Math.max(0, t/D)));
+        return [sx+(z.rx-sx)*e, sy+(z.ry-sy)*e]; },
+      cen:function(){ return [B[to].rx, B[to].ry]; }});
+    Cr.unpark(); }
+  RD={from:from, to:to, t0:performance.now(), ms:ms, x0:g.cx, y0:g.cy, ln:ln, tr:tr, st:{hs:null, bk:0}};
   window._altoFlyMs=ms+480;                              /* (the engine's hop queue waits for the arrival) */
-  var r=rider(); if(r){ r.setAttribute('transform', 'translate('+f2(A.rx)+' '+f2(A.ry)+')'); r.classList.add('on'); r.querySelector('.sol-ship').innerHTML=cr.svg||''; }
+  var r=rider(); if(r){ var p0=tr ? tr.at(0) : [A.rx, A.ry]; r.setAttribute('transform', 'translate('+f2(p0[0])+' '+f2(p0[1])+')'); r.classList.add('on');
+    var sh=r.querySelector('.sol-ship'); sh.innerHTML=cr.svg||''; sh.setAttribute('transform', 'scale('+shipK()+')'); }
   de.classList.add('sol-riding');
   requestAnimationFrame(rideF); return true;
 }
@@ -1568,18 +1581,24 @@ function rideF(now){
   var k=Math.min(1, Math.max(0, (now-R.t0)/R.ms)), ez=window._altoEase || function(x){ return x*x*(3-2*x); }, e=ez(k);
   var A=B[R.from], Z=B[R.to], dx=Z.rx-A.rx, dy=Z.ry-A.ry, px=A.rx+dx*e, py=A.ry+dy*e;
   if(window._altoSolarCam) window._altoSolarCam.set(R.x0+(Z.rx-R.x0)*e, R.y0+(Z.ry-PAD-R.y0)*e, 1);   /* the view behind the rider, from where it was to the body */
-  R.p=[px, py]; R.h=Math.atan2(dy, dx);                                              /* (the 3D scene flies its model here: window._altoSolarRide) */
-  var r=rider(); if(r) r.setAttribute('transform', 'translate('+f2(px)+' '+f2(py)+') rotate('+f2(R.h*180/Math.PI)+')');
+  R.p=[px, py]; R.h=Math.atan2(dy, dx); R.v=null;                                    /* (the 3D scene flies its model here: window._altoSolarRide) */
+  if(R.tr){ var q=R.tr.pv((now-R.t0)/1000), dt=R.lt ? Math.min(.05, (now-R.lt)/1000) : 0; R.lt=now; window._altoCraft.steer(R.st, [q[2], q[3]], dt);
+    R.p=[q[0], q[1]]; R.v=[q[2], q[3]]; if(R.st.hs!=null) R.h=R.st.hs; }
+  var r=rider(); if(r) riderAt(r, R.p, R.h, R.st.bk);
   if(k>=1) return rideEnd(true);
   requestAnimationFrame(rideF);
 }
 function rideEnd(arrive){
-  var R=RD; RD=null; if(!R) return;
+  var R=RD; RD=null; if(!R) return; var Cr=window._altoCraft, done=performance.now()-R.t0>=R.ms-20;
   if(R.ln) R.ln.classList.remove('sol-ride'); if(RDg) RDg.classList.remove('on'); de.classList.remove('sol-riding');
+  if(arrive && done && R.tr && Cr){ Cr.park(R.to, R.tr, 1);           /* into its orbit round the body (the 3D model stays in it); the art goes on round as it fades */
+    var t1=performance.now()+400; (function step(now){ var o=!RD && now<t1 && RDg && Cr.parked(R.to, [B[R.to].rx, B[R.to].ry]); if(!o) return;
+      var dt=R.lt ? Math.min(.05, (now-R.lt)/1000) : 0; R.lt=now; Cr.steer(R.st, o.v, dt); riderAt(RDg, o.p, R.st.hs||0, R.st.bk); requestAnimationFrame(step); })(performance.now()); }
+  else if(Cr) Cr.unpark();
   if(arrive) enter(R.to);
   setTimeout(rideNext, (window._altoFlyMs=520));
 }
-window._altoSolarRide=function(){ return RD && RD.p ? {p:RD.p, h:RD.h, from:RD.from, to:RD.to} : null; };
+window._altoSolarRide=function(){ return RD && RD.p ? {p:RD.p, h:RD.h, v:RD.v, from:RD.from, to:RD.to} : null; };
 function rideNext(){ if(RD || !RQ.length) return; var d=RQ.shift(), f=window._focusedNodeId; if(!f || !LOCK){ RQ=[]; return; } window._altoSolarNav(f, d); }
 /* anything not one spoke away: nothing happens, and it says so (the joined bodies' pills nudge) */
 var NOPE=null, nopeT=0;

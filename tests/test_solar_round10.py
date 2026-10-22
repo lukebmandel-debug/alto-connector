@@ -4,6 +4,7 @@ and brief.wallpaper_top (the wallpaper and the chart up behind the two top bars,
 
 Browser checks run in Chromium and WebKit (Playwright; skipped without them)."""
 import copy
+import math
 import sys
 from pathlib import Path
 
@@ -488,5 +489,45 @@ def test_a_flight_in_3d_flies_the_chosen_craft_then_dives_close_up(browser, page
     pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 1600)
     q = pg.evaluate("() => [window._focusedNodeId, window._altoSolar3D.closeup().lock, window._altoSolarFlight()]")
     assert q[0] == "u1-p1" and q[1] == "u1-p1" and q[2] is None, q
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_ships_point_along_their_way_and_arrive_into_an_orbit(browser, page):
+    """Luke (2026-10-22): "it should come into a gentle orbit around planets ... always be sort of pointing accurately
+    according to its line ... we don't need the ship to be massive, just clear" — the 2D craft's nose is the way's
+    tangent every frame, it is small, it lands in an orbit round the body (never on it) and stays in it; in 3D the model
+    goes on round the body while the close-up shows."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoCraft.set('dart'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u2-p1')")
+    f = pg.evaluate("""() => new Promise(function(done){ var off=[], n=0, big=0;
+      (function g(){ var F=window._altoSolarFlight(), c=document.querySelector('#solar-fly-svg .fly-craft');
+        if(F && c){ var m=/rotate\\((-?[\\d.]+)\\)/.exec(c.getAttribute('transform')), sp=Math.hypot(F.v[0], F.v[1]);
+          if(m && sp>60){ var d=Math.abs(((+m[1]-Math.atan2(F.v[1], F.v[0])*180/Math.PI)%360+540)%360-180); off.push(d); if(d>12) big++; }
+          n++; requestAnimationFrame(g); }
+        else done({n:n, off:off.length, big:big, k:document.querySelector('#solar-fly-svg .fly-ship').getAttribute('transform'),
+          w:document.querySelector('#solar-fly-svg .fly-ship').getBoundingClientRect().width}); })(); })""")
+    assert f["n"] > 30 and f["off"] > 20 and f["big"] <= f["off"] * .05, f        # the nose on the way's tangent
+    assert f["k"] == "scale(0.4)" and f["w"] < 40, f                               # small and clear
+    pg.wait_for_timeout(300)
+    o = pg.evaluate(r"""() => { var n=document.getElementById('node-u2-p1'), P=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0,
+      c=[parseFloat(n.style.left), parseFloat(n.style.top)-P], d=window._altoSolarGeo().bodies['u2-p1'].d, a=window._altoCraft.parked('u2-p1', c);
+      return {id:window._focusedNodeId, on:window._altoCraft.orbiting(), r:a && Math.hypot(a.p[0]-c[0], a.p[1]-c[1]), R:d/2, sp:a && Math.hypot(a.v[0], a.v[1])}; }""")
+    assert o["id"] == "u2-p1" and o["on"] == "u2-p1", o
+    assert o["R"] + 4 < o["r"] < o["R"] * 1.4 + 40 and 0 < o["sp"] < o["r"] * .6, o   # in a gentle orbit, clear of the body
+    pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pg.context.close(); pytest.skip("no WebGL in this browser")
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 1800)
+    S = """() => { var s=window._altoSolar3D.ship(), g=window._altoSolarGeo().bodies['u1-p1']; return s && {on:s.on, al:s.al, d:Math.hypot(s.x-g.x, s.y-g.y), R:g.d/2, x:s.x, y:s.y,
+      lock:window._altoSolar3D.closeup().lock}; }"""
+    a = pg.evaluate(S); pg.wait_for_timeout(600); b = pg.evaluate(S)
+    assert a and a["on"] and a["lock"] == "u1-p1" and a["d"] > a["R"] + 4 and abs(a["d"] - b["d"]) < 2, (a, b)   # round the globe, never in it
+    assert 0.5 < math.hypot(a["x"] - b["x"], a["y"] - b["y"]) < a["d"], (a, b)                                    # slowly round
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1500)
+    assert not pg.evaluate("() => window._altoCraft.orbiting()")
     pg.context.close()
     assert not errs, errs
