@@ -234,16 +234,34 @@ function parked(id, c){ if(!ORB || !c || (id && ORB.id!==id)) return null; var t
 function steer(S, v, dt){
   var sp=Math.hypot(v[0], v[1]); if(sp<.5){ S.bk=(S.bk||0)*(1-Math.min(1, dt*3)); return S; }
   var h=Math.atan2(v[1], v[0]); if(S.hs==null){ S.hs=S.ht=h; S.bk=0; return S; }
-  var w=dt>0 && S.ht!=null ? wrap(h-S.ht)/dt : 0, d=wrap(h-S.hs); S.ht=h;
-  /* (a jump — the way turning on itself where the craft all but stops, a new way — comes round eased, keeping up with
-     the turning) */
-  S.hs=Math.abs(d)<.25 ? h : S.hs+Math.max(-4, Math.min(4, w))*dt+d*Math.min(1, dt*8);
+  var dd=S.ht!=null ? wrap(h-S.ht) : 0, w=dt>0 ? dd/dt : 0, d=wrap(h-S.hs), on=S.ht!=null && Math.abs(wrap(S.hs-S.ht))<.05; S.ht=h;
+  /* (on the tangent, it stays on it however fast the way turns between frames; a jump — the way turning on itself where
+     the craft all but stops, a new way — comes round eased, keeping up with the turning) */
+  S.hs=Math.abs(d)<.25 || (on && Math.abs(w)<15) ? h : S.hs+Math.max(-15, Math.min(15, w))*dt+d*Math.min(1, dt*8);
   S.bk=(S.bk||0)+(Math.max(-1, Math.min(1, w/2.4))*ss(sp/80)-(S.bk||0))*Math.min(1, dt*3);
   return S;
 }
+/* the art on the screen (k its scale): at p, its nose at h, narrowed a little across as it banks */
+function xf(p, h, bk, k){ var c=BY[cur()], f=function(v){ return Math.round(v*100)/100; }; k=k||1;
+  return 'translate('+f(p[0])+' '+f(p[1])+') rotate('+f((h||0)*180/Math.PI)+') scale('+k+' '+f(k*(1-(c.bank==null ? .3 : c.bank)*.5*Math.abs(bk||0)))+')'; }
+/* a ride along a straight line (a spoke): from the orbit the craft is in round a (or that orbit's point on the line) into
+   an orbit round z; a(), z() → [x, y, d] now; ez the ease; px the art's half length */
+function line(from, a, z, D, ez, px, spin){ var A=a(), rA=orbitR(A[2], px), st=parked(from, A), tr=track({D:D, r:orbitR(z()[2], px), spin:spin, start:st,
+    base:function(t){ var p=a(), q=z(), dx=q[0]-p[0], dy=q[1]-p[1], l=Math.hypot(dx, dy)||1, sx=p[0]+dx/l*rA, sy=p[1]+dy/l*rA, e=ez(Math.min(1, Math.max(0, t/D)));
+      return [sx+(q[0]-sx)*e, sy+(q[1]-sy)*e]; }, cen:z});
+  ORB=null; return tr; }
+/* where a flight from a body (centre c) towards b sets off: the orbit the craft is in round it, else the point of an
+   orbit of radius r from which going round it (the orbits' way) is going towards b; as [x, y, vx, vy], v by k */
+function leave(id, c, b, r, spin, k){ var o=parked(id, c); if(o) return [o.p[0], o.p[1], o.v[0]*k, o.v[1]*k];
+  var sg=spin<0 ? -1 : 1, a=Math.atan2(b[1]-c[1], b[0]-c[0])-sg*Math.PI/2, w=ORB_W*r*sg;
+  return [c[0]+r*Math.cos(a), c[1]+r*Math.sin(a), -Math.sin(a)*w, Math.cos(a)*w]; }
+/* landed: draw(o, dt) the craft going on round its orbit for ms (as its art fades), unless stop() */
+function coast(c, draw, ms, stop){ var t1=performance.now()+ms, lt=0;
+  (function step(now){ var o=!stop() && now<t1 && ORB && parked(ORB.id, c()); if(!o) return; draw(o, lt ? Math.min(.05, (now-lt)/1000) : 0); lt=now; requestAnimationFrame(step); })(performance.now()); }
 window._altoCraft={list:C, id:cur, get:function(){ return BY[cur()]; }, svg:function(id){ return BY[id||cur()].svg; }, art:art, mesh:mesh, set:set, open:open, close:close,
   chosen:function(){ return pick(); }, onChange:function(f){ subs.push(f); },
-  track:track, orbitR:orbitR, park:park, parked:parked, unpark:function(){ ORB=null; }, orbiting:function(){ return ORB && ORB.id; }, steer:steer, W:ORB_W};
+  track:track, orbitR:orbitR, park:park, parked:parked, unpark:function(){ ORB=null; }, orbiting:function(){ return ORB && ORB.id; }, steer:steer, W:ORB_W,
+  xf:xf, line:line, leave:leave, coast:coast};
 window._altoSolarShip=BY.imperial.svg;      /* (the name 1.9.132's Retro read: the Imperial vessel) */
 })();
 """
