@@ -241,7 +241,8 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #world .node[data-solar]>.sol-lbl.sol-lx{opacity:0;}
   html.alto-solar:not(.mobile) #canvas:not(.sol-lo) #world .node[data-solar=sun]>.sol-lbl,
   html.alto-solar:not(.mobile) #canvas.sol-lo #world .node[data-solar=sat]>.sol-lbl,
-  html.alto-solar:not(.mobile) #canvas.sol-lm #world .node[data-solar=moon]>.sol-lbl{display:none;}
+  html.alto-solar:not(.mobile) #canvas.sol-lm #world .node[data-solar=moon]>.sol-lbl{opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s;}
+  #canvas.sol-glide #world .node[data-solar]>.sol-lbl{transition:opacity .2s,transform .3s cubic-bezier(.2,.7,.2,1);}
   #canvas.sol-lo #world .node[data-solar] .sol-face{visibility:hidden;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing)>.sol-lbl,
@@ -955,12 +956,12 @@ function fspokes(){
    cover a label shown already, or a body as big as its own or bigger, tries above, right, left, else
    waits (hover shows it). Sizes are measured once per mode (natural size, zoomed out); the rest is
    arithmetic in world px, at most ~14 times a second while things move. ── */
-var DCT=0, RK={sun:0, planet:1, moon:2, sat:3};
+var DCT=0, DSP=0, DST=0, RK={sun:0, planet:1, moon:2, sat:3};
 function ov2(a, b){ return a[0]<b[2] && b[0]<a[2] && a[1]<b[3] && b[1]<a[3]; }
 function setP(lb, p, hide){ if(lb._p!==p){ lb.classList.remove('sol-l1', 'sol-l2', 'sol-l3'); if(p) lb.classList.add('sol-l'+p); lb._p=p; }
   if(lb._x!==hide){ lb.classList.toggle('sol-lx', hide); lb._x=hide; } }
 function declutter(force){
-  if(!ready || !world || !desk()) return;
+  if(!ready || !world || !desk() || DSP) return;
   var now=performance.now(); if(!force && now-DCT<70) return; DCT=now;
   var cv=cvs(), ov=!!OV, s=ov ? OV.s : 1, k=1/s, cl=function(c){ return !!cv && cv.classList.contains(c); }, lo=cl('sol-lo'), lm=cl('sol-lm'), fm=cl('focus-mode'), mk=cl('sol-ov') ? 'w1' : 'w0';
   var todo=ORD.filter(function(id){ var b=B[id]; return b.n && b.lb && b.lb.isConnected; });
@@ -981,8 +982,8 @@ function declutter(force){
     if(fm){ if(b.n.classList.contains('sol-flank')) setP(b.lb, 0, false); return; }
     if(!shown(b) || !wh || !wh[0]) return;      /* (not shown at this zoom) */
     var w=wh[0]*k, h=wh[1]*k, rr=Math.max(b.d*s/2, 2.5)*k, g=3*k, gx=4*k, x=b.rx, y=b.ry, pick=-1;
-    var C=[[x-w/2, y+rr+g], [x-w/2, y-rr-g-h], [x+rr+gx, y-h/2], [x-rr-gx-w, y-h/2]];
-    for(var i=0;i<4 && pick<0;i++) if(!clash([C[i][0], C[i][1], C[i][0]+w, C[i][1]+h], b)) pick=i;
+    var C=[[x-w/2, y+rr+g], [x-w/2, y-rr-g-h], [x+rr+gx, y-h/2], [x-rr-gx-w, y-h/2]], pv=b.lb._x ? -1 : b.lb._p||0, o=[pv, 0, 1, 2, 3];
+    for(var j=0;j<5 && pick<0;j++){ var i=o[j], e=i===pv ? 2*k : b.lb._x ? -2*k : 0; if(i>=0 && !clash([C[i][0]+e, C[i][1]+e, C[i][0]+w-e, C[i][1]+h-e], b)) pick=i; }
     if(pick>=0) placed.push([C[pick][0], C[pick][1], C[pick][0]+w, C[pick][1]+h]);
     setP(b.lb, pick<0 ? (b.lb._p||0) : pick, pick<0);
   });
@@ -996,9 +997,12 @@ function ovVars(sc){
   if(sc==null || sc>=.9999){ ['--ovs', '--ils', '--cls', '--lk', '--lw'].forEach(function(v){ world.style.removeProperty(v); }); c.classList.remove('sol-lo', 'sol-lm', 'sol-tiny'); }
   else { world.style.setProperty('--ovs', f2(sc*1e4)/1e4); world.style.setProperty('--ils', f2(1e4/sc)/1e4); world.style.setProperty('--cls', f2((1+.15*(1-sc))/sc*1e4)/1e4);
     world.style.setProperty('--lk', f2(Math.min(1.7, 1+.9*(1-sc))*100)/100); world.style.setProperty('--lw', f2(Math.min(1.4, 1+.5*(1-sc))*100)/100);   /* lines: a little stronger the further out (round 10) */
-    c.classList.toggle('sol-lo', sc<.5); c.classList.toggle('sol-lm', sc<.3); c.classList.toggle('sol-tiny', sc<.12); }
-  declutter(true);
+    bnd(c, 'sol-lo', sc, .5); bnd(c, 'sol-lm', sc, .3); bnd(c, 'sol-tiny', sc, .12); }
+  DSP=1; clearTimeout(DST); c.classList.remove('sol-glide');
+  DST=setTimeout(function(){ DSP=0; c.classList.add('sol-glide'); declutter(true); setTimeout(function(){ c.classList.remove('sol-glide'); }, 360); }, 170);
 }
+/* (markers.py's rules, inline for the page's size: a level of detail turns on below t and off only above it again, 4% apart) */
+function bnd(c, k, v, t){ c.classList.toggle(k, v<t*(c.classList.contains(k) ? 1.04 : .96)); }
 
 /* ── an enlarged circle stays a circle (Luke, rounds 4 and 7): no clip-path. Under Safari's page zoom a
    clip-path circle() on a zoomed card was resolved in another box than the one painted (Luke's Torts

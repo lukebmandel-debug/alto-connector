@@ -36,6 +36,7 @@ from __future__ import annotations
 import hashlib as _hashlib
 import json as _json
 
+from .markers import MARKERS_CSS, MARKERS_JS
 from .palace_assets import loader as _loader
 from .palace_building_fpv import FPV_PATH as _FPV_PATH
 
@@ -82,10 +83,12 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-walk{margin-top:8px;height:28px;font-size:12px;}
 #bldg-root .bl-lab{font-size:var(--bl-fs,1px);fill:var(--bl-text);text-anchor:middle;pointer-events:none;font-weight:600;paint-order:stroke;stroke:var(--bl-paper);stroke-width:.25px;stroke-opacity:.8;}
 #bldg-root .bl-lab2{font-weight:400;fill:var(--bl-muted);}
-#bldg-root .bl-pill rect{fill:var(--bl-tint,var(--bl-accent));stroke:rgba(255,255,255,.85);stroke-width:1.2px;}
-#bldg-root .bl-pill text{fill:#fff;font-size:12px;font-weight:700;pointer-events:none;}
-#bldg-root .bl-pill{cursor:pointer;}
-#bldg-root .bl-pill:hover rect{stroke:var(--bl-text);stroke-width:2px;}
+#bldg-root .bl-mk{position:absolute;left:0;top:0;width:0;height:0;z-index:1;pointer-events:none;}
+#bldg-root .bl-pill{position:absolute;left:0;top:0;height:22px;margin-top:-11px;padding:0 10px;box-sizing:border-box;border-radius:11px;background:var(--bl-tint,var(--bl-accent));
+  border:1.2px solid rgba(255,255,255,.85);color:#fff;font-size:12px;font-weight:700;line-height:19.6px;white-space:nowrap;overflow:hidden;pointer-events:auto;cursor:pointer;will-change:transform;}
+#bldg-root .bl-pill:hover{border-color:var(--bl-text);}
+#bldg-root .bl-pill>span{margin-left:6px;opacity:0;transition:opacity .22s ease;}
+#bldg-root .bl-mk.bl-near .bl-pill>span{opacity:1;}
 #bldg-root .bl-gapfill{stroke:none;pointer-events:none;}
 html.bldg-open #world{visibility:hidden !important;}
 #bldg-root .bl-ui{position:absolute;z-index:2;pointer-events:auto;}
@@ -241,7 +244,7 @@ function tintOf(nodeIds){ var d=A.data; if(!nodeIds||!nodeIds.length||!d||!d.act
 function drawLevel(g,id){
   var plan=A.plan, d=A.data;
   var rooms=(plan.rm||[]).filter(function(r){ return r.l===id; });
-  var gR=el('g',{},g), gW=el('g',{},g), gX=el('g',{},g), gL=el('g',{},S.view), gP=el('g',{},S.view);
+  var gR=el('g',{},g), gW=el('g',{},g), gX=el('g',{},g), gL=el('g',{},S.view);
   var fs=Math.max(.4,Math.min(.9,Math.sqrt(plan._area||200)/30));
   S.view.style.setProperty('--bl-fs',fs+'px');
   rooms.forEach(function(r){
@@ -303,7 +306,6 @@ function drawLevel(g,id){
     var t=el('text',{x:f2(c[0]),y:f2(c[1]-up),'class':'bl-lab'},gL); t.textContent=dec(r.n);
     if(r.no){ var t2=el('text',{x:f2(c[0]),y:f2(c[1]-up+fs*1.25),'class':'bl-lab bl-lab2'},gL); t2.textContent=dec(r.no); }
   });
-  drawPills(gP,id);
   (plan.en||[]).filter(function(e){ return e.l===id; }).forEach(function(e){ entranceMark(gX,e); });
 }
 function ptsBounds(pts){ var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; pts.forEach(function(p){ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }); return [x0,y0,x1,y1]; }
@@ -313,41 +315,53 @@ function entranceMark(g,e){
   var tip=[p[0]+ux*s*1.7,p[1]+uy*s*1.7], l=[p[0]+ux*s*.5+vx*s*.7,p[1]+uy*s*.5+vy*s*.7], r=[p[0]+ux*s*.5-vx*s*.7,p[1]+uy*s*.5-vy*s*.7];
   var n=el('path',{d:'M'+P(tip)+'L'+P(l)+'L'+P([p[0]+ux*s*.9,p[1]+uy*s*.9])+'L'+P(r)+'Z','class':'bl-ent'},g); var t=el('title',{},n); t.textContent=dec(e.n||'Entrance');
 }
-function drawPills(g,levelId){
-  var plan=A.plan;
+/* the numbered chips (1.9.145, markers.py): an HTML layer over the drawing, each chip pinned to its anchor and one size on the screen.
+   While a zoom or pan runs a chip only follows its anchor (a transform); where it stands beside a crowded anchor and whether it
+   shows its title are decided once the gesture settles, held (a chip keeps its place while that is free; the title shows below
+   .125 m per px and goes above .14) and glide. Anchors are screen-frame drawing coordinates (after the turn). */
+function drawPills(levelId){
+  var plan=A.plan, mk=S.mk; while(mk.firstChild) mk.removeChild(mk.firstChild); S.chips=[];
   (plan.rm||[]).filter(function(r){ return r.l===levelId&&!r.gp; }).forEach(function(r){
     var list=S.nodesByRoom[r.id]||[]; if(!list.length) return;
     var c=centroid(r.p);
     list.forEach(function(n,i){
-      var pos=n.s?anchorPoint(n.s):null, q=V(pos||c), cx=q[0], cy=q[1];   // on screen (after the turn)
-      var pill=el('g',{'class':'bl-pill','data-node':n.id,'data-cx':f2(cx),'data-cy':f2(cy),'data-i':pos?0:i,'data-n':pos?1:list.length},g);
+      var pos=n.s?anchorPoint(n.s):null, q=V(pos||c);
+      var title=dec(n.t); if(title.length>26) title=title.slice(0,25)+'…';
+      var pill=h('div',{'class':'bl-pill alto-mk','data-node':n.id,role:'button',title:n.n+'  '+dec(n.t)},mk);
+      h('b',null,pill,String(n.n)); h('span',null,pill,title);
       var col=A.data.acts&&A.data.acts[n.a]&&A.data.acts[n.a].c; if(col) pill.style.setProperty('--bl-tint',col);
-      el('rect',{height:22,y:-11,rx:11},pill); el('text',{y:4},pill);
-      var tt=el('title',{},pill); tt.textContent=n.n+'  '+dec(n.t); pill._n=n;
+      pill._n=n; pill._a=q; pill._o=[0,0]; S.chips.push(pill);
       pill.addEventListener('click',function(e){ if(S.moved) return; e.stopPropagation(); openNode(n.id); });
     });
   });
-  placePills();
+  S.mkLay=null; layoutPills(false);
 }
-/* chips are drawn in screen pixels (one unit = one pixel), so they stay readable at any zoom: numbers when zoomed out, number and title when zoomed in */
-function placePills(){
-  if(!S.svg||!S.vb||!S.root) return;
-  var k=S.vb[2]/Math.max(1,S.root.clientWidth), far=k>.13, placed=[], H=24*k, gap=3*k, hx=S.home&&[S.home[0],S.home[0]+S.home[2]];
-  var ps=[].slice.call(S.svg.querySelectorAll('.bl-pill'));
-  ps.forEach(function(p){
-    var n=p._n; if(!n) return; var cx=+p.getAttribute('data-cx'), cy=+p.getAttribute('data-cy');
-    var title=dec(n.t); if(title.length>26) title=title.slice(0,25)+'\u2026';
-    var txt=far?String(n.n):String(n.n)+'  '+title, w=far?Math.max(32,String(n.n).length*8+18):Math.min(250,txt.length*6.7+20), W=w*k;
-    var rect=p.querySelector('rect'), t=p.querySelector('text'); rect.setAttribute('width',f2(w)); rect.setAttribute('x',f2(-w/2));
-    t.setAttribute('x',far?0:f2(-w/2+10)); t.setAttribute('text-anchor',far?'middle':'start'); t.textContent=txt;
-    var best=null, tries=[[0,0]]; for(var r=1;r<7;r++){ tries.push([0,r],[0,-r],[(W+gap)/H,r*.0],[-(W+gap)/H,0],[(W+gap)/H,r],[-(W+gap)/H,-r],[(W+gap)/H,-r],[-(W+gap)/H,r]); }
-    for(var i=0;i<tries.length&&!best;i++){ var x=cx+tries[i][0]*H, y=cy+tries[i][1]*H, ok=true;
-      if(hx&&i&&(x-W/2<hx[0]||x+W/2>hx[1])) continue;           // a chip pushed aside stays over the building's width, not out under the side rails
-      for(var j=0;j<placed.length;j++){ var q=placed[j]; if(Math.abs(x-q.x)<(W+q.w)/2+gap&&Math.abs(y-q.y)<H) { ok=false; break; } }
-      if(ok) best={x:x,y:y}; }
-    if(!best) best={x:cx,y:cy+(placed.length%5)*H}; placed.push({x:best.x,y:best.y,w:W});
-    p.setAttribute('transform','translate('+f2(best.x)+','+f2(best.y)+') scale('+(Math.round(k*1000)/1000)+')');
-  });
+function measurePills(){ // each chip's width with the number alone and with its title (once, while the blueprint shows)
+  if(!S.chips.length||S.chips[0]._wF||!S.root.clientWidth) return;
+  S.chips.forEach(function(p){ p.style.width='auto'; });
+  S.chips.forEach(function(p){ var b=p.firstChild.offsetWidth, t=p.lastChild.offsetWidth; p._wF=Math.ceil(Math.max(32,b+22.4)); p._wT=Math.ceil(Math.min(250,b+t+28.4)); });
+  S.chips.forEach(function(p){ p.style.width=''; });
+}
+function scr(){ var W=S.root.clientWidth||1, s=W/S.vb[2]; return {s:s, x:-S.vb[0]*s, y:-S.vb[1]*s}; }   // drawing units -> the root's px
+function movePills(){ // every frame of a zoom or pan: each chip follows its anchor, nothing else changes
+  if(!S.chips||!S.vb) return; var t=scr();
+  S.chips.forEach(function(p){ var w=p._w||32; AltoMarkers.at(p, p._a[0]*t.s+t.x+p._o[0]-w/2, p._a[1]*t.s+t.y+p._o[1]); });
+}
+function layoutPills(glide){ // once a gesture settles: the title band, then the places (held), then a glide to them
+  if(!S.chips||!S.vb||!S.root.clientWidth) return; measurePills();
+  var k=S.vb[2]/S.root.clientWidth, key=Math.round(Math.log(k)*40)+':'+S.chips.length;
+  if(key===S.mkLay){ movePills(); return; } S.mkLay=key;
+  var near=S.near=AltoMarkers.band(S.near, -k, -.14, -.125), t=scr(), H=24, gap=3;
+  var hx=S.home&&[S.home[0]*t.s+t.x, (S.home[0]+S.home[2])*t.s+t.x];
+  S.mk.classList.toggle('bl-near', near);
+  var items=S.chips.map(function(p){ var w=near?(p._wT||Math.min(250,(String(p._n.n).length+String(dec(p._n.t)).length)*6.7+20)):(p._wF||32), W=w+gap, c=[[0,0]];
+    p._w=w; p.style.width=w+'px';
+    for(var r=1;r<7;r++) c.push([0,r*H],[0,-r*H],[W,0],[-W,0],[W,r*H],[-W,-r*H],[W,-r*H],[-W,r*H]);
+    return {id:p._n.id, x:p._a[0]*t.s+t.x, y:p._a[1]*t.s+t.y, w:w, h:H-2, c:c}; });
+  S.mkSt=S.mkSt||{};
+  var at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w){ return !hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]); }});   // pushed aside, a chip stays over the building's width
+  S.chips.forEach(function(p){ var o=at[p._n.id]; p._o=o?[o.dx,o.dy]:[0,0]; });
+  if(glide) AltoMarkers.glide(S.mk); movePills();
 }
 function anchorPoint(id){ var s=(A.plan.sl||[]).concat(A.plan.fx||[]); for(var i=0;i<s.length;i++) if(s[i].id===id) return s[i].p; return null; }
 
@@ -375,7 +389,8 @@ function render(){
   var bb=screenBounds(lv);
   if(!S.home){ var m=Math.max(bb[2]-bb[0],bb[3]-bb[1])*(S.root.clientWidth<700?.02:.12)+2; S.home=[bb[0]-m,bb[1]-m,(bb[2]-bb[0])+2*m,(bb[3]-bb[1])+2*m]; }
   if(!S.vb) fit();
-  applyVB();
+  if(lv==='outside'){ S.chips=[]; while(S.mk.firstChild) S.mk.removeChild(S.mk.firstChild); }
+  applyVB(); if(lv!=='outside') drawPills(lv);
   [].forEach.call(S.tabs.children,function(b){ b.classList.toggle('on',b.getAttribute('data-level')===lv); });
   if(S.sel){ var r=S.svg.querySelector('[data-room="'+S.sel+'"]'); if(r) r.classList.add('bl-sel'); }
   drawWalker();
@@ -394,7 +409,8 @@ function applyVB(){ // keep the drawing's aspect equal to the viewport's
   var r=S.root.getBoundingClientRect(), W=Math.max(1,r.width), H=Math.max(1,r.height), vb=S.vb, asp=W/H;
   var w=vb[2], hh=vb[3];
   if(w/hh<asp){ var nw=hh*asp; vb[0]-=(nw-w)/2; vb[2]=nw; } else { var nh=w/asp; vb[1]-=(nh-hh)/2; vb[3]=nh; }
-  S.svg.setAttribute('viewBox',vb.map(f2).join(' ')); placePills();
+  S.svg.setAttribute('viewBox',vb.map(function(v){ return Math.round(v*1e4)/1e4; }).join(' '));
+  if(S.mkSet){ AltoMarkers.stop(S.mk); S.mkSet.poke(); movePills(); } else layoutPills(false);
 }
 
 // ── panel ──
@@ -542,14 +558,22 @@ function zoom(f,cx,cy){ // cx,cy in client px
   var nw=Math.max(4,Math.min(S.home[2]*4,vb[2]*f)), k=nw/vb[2];
   vb[0]=px-(px-vb[0])*k; vb[1]=py-(py-vb[1])*k; vb[2]*=k; vb[3]*=k; applyVB();
 }
+function zoomGlide(f,cx,cy){ // the + and - buttons: the same zoom, eased over a moment instead of one jump
+  cancelAnimationFrame(S.zg); var t0=performance.now(), done=0, ms=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches?1:240;
+  (function step(t){ var u=Math.min(1,(t-t0)/ms), e=1-Math.pow(1-u,3); zoom(Math.exp(Math.log(f)*(e-done)),cx,cy); done=e; if(u<1) S.zg=requestAnimationFrame(step); })(t0);
+}
 function wire(){
-  var svg=S.svg, pts=S.pts;
-  svg.addEventListener('wheel',function(e){ e.preventDefault(); zoom(Math.exp(e.deltaY*(e.ctrlKey?.01:.0016)),e.clientX,e.clientY); },{passive:false});
-  svg.addEventListener('pointerdown',function(e){
+  var svg=S.svg, pts=S.pts, both=function(t,f,o){ svg.addEventListener(t,f,o); S.mk.addEventListener(t,f,o); }, gs=0;
+  both('wheel',function(e){ e.preventDefault(); zoom(Math.exp(e.deltaY*(e.ctrlKey?.01:.0016)),e.clientX,e.clientY); },{passive:false});
+  /* Safari's trackpad pinch is gesturestart / gesturechange (scale since the start), not a ctrl-wheel */
+  both('gesturestart',function(e){ e.preventDefault(); e.stopPropagation(); gs=e.scale||1; },{passive:false});
+  both('gesturechange',function(e){ e.preventDefault(); e.stopPropagation(); if(!gs||!e.scale) return; zoom(gs/e.scale,e.clientX,e.clientY); gs=e.scale; },{passive:false});
+  both('gestureend',function(e){ e.preventDefault(); gs=0; },{passive:false});
+  both('pointerdown',function(e){
     pts[e.pointerId]={x:e.clientX,y:e.clientY}; S.moved=false;
     S.drag={x:e.clientX,y:e.clientY,vb:S.vb.slice(),d:pinch()};
   });             // (the pointer is captured only once a drag starts: capturing at once would send the click to the svg, not to the room or pill)
-  svg.addEventListener('pointermove',function(e){
+  both('pointermove',function(e){
     if(!pts[e.pointerId]) return; pts[e.pointerId]={x:e.clientX,y:e.clientY};
     var ids=Object.keys(pts), r=svg.getBoundingClientRect();
     if(ids.length>=2){ var d=pinch(); if(S.drag&&S.drag.d&&d){ zoom(S.drag.d/d,mid().x,mid().y); S.drag.d=d; S.moved=true; } return; }
@@ -560,7 +584,7 @@ function wire(){
     var vb=S.drag.vb; S.vb[0]=vb[0]-dx/r.width*vb[2]; S.vb[1]=vb[1]-dy/r.height*vb[3]; S.vb[2]=vb[2]; S.vb[3]=vb[3]; applyVB();
   });
   function up(e){ delete pts[e.pointerId]; svg.classList.remove('bl-drag'); if(!Object.keys(pts).length) setTimeout(function(){ S.moved=false; },0); if(S.drag) S.drag.d=0; }
-  svg.addEventListener('pointerup',up); svg.addEventListener('pointercancel',up);
+  both('pointerup',up); both('pointercancel',up);
   svg.addEventListener('click',function(){ if(S.moved) return; S.sel=null; info(null); [].forEach.call(svg.querySelectorAll('.bl-sel'),function(n){ n.classList.remove('bl-sel'); }); });
   function pinch(){ var k=Object.keys(pts); if(k.length<2) return 0; return Math.hypot(pts[k[0]].x-pts[k[1]].x,pts[k[0]].y-pts[k[1]].y); }
   function mid(){ var k=Object.keys(pts); return {x:(pts[k[0]].x+pts[k[1]].x)/2,y:(pts[k[0]].y+pts[k[1]].y)/2}; }
@@ -575,11 +599,15 @@ A.mount=function(data){
   S.svg=el('svg',{'class':'bl-svg',role:'img','aria-label':'Blueprint of '+dec(A.data.name||'the building'),preserveAspectRatio:'xMidYMid meet',viewBox:'0 0 100 100'},root);
   var defs=el('defs',{},S.svg), flt=el('filter',{id:'bl-feather',x:'-8%',y:'-8%',width:'116%',height:'116%'},defs); el('feGaussianBlur',{stdDeviation:'.55'},flt);
   S.view=el('g',{},S.svg);
+  S.mk=h('div',{'class':'bl-mk'},root); S.chips=[]; S.mkSet=AltoMarkers.settle(function(){ layoutPills(true); },170);
+  AltoMarkers.reg('bldg',function(){ if(!S.vb||S.root.hidden) return []; var r=S.root.getBoundingClientRect(), z=r.width/(S.root.clientWidth||1), t=scr();   // tests: chips and anchors in client px
+    return S.chips.map(function(p){ var b=p.getBoundingClientRect(), cs=getComputedStyle(p);
+      return {id:p._n.id, x:b.left+b.width/2, y:b.top+b.height/2, w:b.width, h:b.height, ax:r.left+(p._a[0]*t.s+t.x)*z, ay:r.top+(p._a[1]*t.s+t.y)*z, op:cs.visibility==='hidden'?0:+cs.opacity}; }); });
   S.head=h('div',{'class':'bl-ui bl-head'},root);
   S.tabs=h('div',{'class':'bl-ui bl-tabs'},root);
   S.info=h('div',{'class':'bl-ui bl-info',hidden:''},root);
   var z=h('div',{'class':'bl-ui bl-zoom'},root);
-  [['+',.7,'Zoom in'],['−',1.4,'Zoom out']].forEach(function(b){ var x=h('button',{'class':'bl-btn',type:'button','aria-label':b[2]},z,b[0]); x.addEventListener('click',function(){ var r=S.svg.getBoundingClientRect(); zoom(b[1],r.left+r.width/2,r.top+r.height/2); }); });
+  [['+',.7,'Zoom in'],['−',1.4,'Zoom out']].forEach(function(b){ var x=h('button',{'class':'bl-btn',type:'button','aria-label':b[2]},z,b[0]); x.addEventListener('click',function(){ var r=S.svg.getBoundingClientRect(); zoomGlide(b[1],r.left+r.width/2,r.top+r.height/2); }); });
   var fitb=h('button',{'class':'bl-btn',type:'button','aria-label':'Fit to screen'},z,'▣'); fitb.addEventListener('click',function(){ fit(); applyVB(); });
   setTop(); wire(); watchDetail();
   A.show();
@@ -600,7 +628,7 @@ window.AltoBuilding=A;
 """
 
 # the script text: the stylesheet is spliced in as a JS string, the whole wrapped so BLDG_CSS is not a global
-BUILDING_ASSET = ("(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS) + ";\nvar FPV_URL=" + _json.dumps(_FPV_PATH) + ";\n" + BUILDING_JS + "\n})();\n")
+BUILDING_ASSET = (MARKERS_JS + "(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS + MARKERS_CSS) + ";\nvar FPV_URL=" + _json.dumps(_FPV_PATH) + ";\n" + BUILDING_JS + "\n})();\n")
 BUILDING_V = _hashlib.sha256(BUILDING_ASSET.encode("utf-8")).hexdigest()[:10]
 BUILDING_PATH = f"/bldg/palace-building-{BUILDING_V}.js"
 # the page's loader: a synchronous request answered from the browser's cache after the first visit, run as an inline script (as the ride's and the fleet's)

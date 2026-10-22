@@ -171,7 +171,7 @@ def test_the_blueprint_lies_level_and_symmetrical_with_the_east_entrance_at_the_
                     assert abs(box["L"] - box["R"]) < box["W"] * .03, (lv, w, box)                              # balanced left and right
             page.evaluate("AltoBuilding.selectLevel('l2')")
             assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-lab')].every(t => !t.closest('[transform]'))")   # labels upright
-            assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-pill')].every(p => !/rotate/.test(p.getAttribute('transform') || ''))")
+            assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-pill')].every(p => !/rotate/.test(p.style.transform || ''))")
             assert errors == []
         finally:
             page.close()

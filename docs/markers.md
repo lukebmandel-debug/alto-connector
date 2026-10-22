@@ -1,0 +1,76 @@
+# Map markers: one behaviour for every map-like format (1.9.145)
+
+Luke, 2026-10-22, on the Museum Palace blueprint: "When you're zooming in ... all the little buttons for nodes are shifting so much
+and changing size that it looks like it's really glitchy. So anywhere this could be a problem across these sorts of formats, I want
+you to make sure that there's an elegant solution."
+
+A *marker* is anything pinned to a point of a map that should stay readable at every zoom: node chips, room pills, names, number
+tags, unit chips. The map itself (streets, walls, bodies) scales with the zoom; markers do not.
+
+## The rules
+
+1. **Pinned, one size.** A marker sits at its anchor's place on screen plus an offset, and keeps one size on screen. While a zoom
+   or pan runs, the only per-frame change is its transform (`translate3d`). Nothing is measured, laid out or re-chosen per frame.
+2. **Layout once, after the gesture.** Collision placement (which side of a crowded anchor a marker takes) and level of detail
+   (a title after the number, which names show) are decided when the gesture settles (~170 ms after the last input), and the
+   change glides (~0.3 s) instead of jumping.
+3. **Held decisions.** A marker keeps the place it had while that place is still free (tested with a few px of slack); a nearer
+   place must be *clearly* free to win it back. Zoom thresholds are bands (on below one value, off above another), so nothing
+   flips at the edge of a threshold.
+4. **Fade, never pop.** Level-of-detail changes and hidden markers fade (opacity, then `visibility`), never `display:none`.
+5. **Safari pinch.** A trackpad pinch in Safari is `gesturestart/gesturechange/gestureend` (scale since the start), not a
+   ctrl-wheel. Handle both, `preventDefault` both.
+
+## The module: `alto/build/markers.py`
+
+`MARKERS_JS` defines `window.AltoMarkers` (idempotent, ~3 KB raw, ~0.9 KB gz) and `MARKERS_CSS` its two classes. Put it in a
+**hosted** script where the page is near its size cap (the Museum blueprint prepends it to `/bldg/palace-building-*.js`).
+
+| call | what it does |
+|---|---|
+| `AltoMarkers.settle(done, ms)` | returns `{poke(), now(), busy}`. `poke()` on every zoom/pan input; `done()` runs once, `ms` (170) after the last. |
+| `AltoMarkers.place(items, st, o)` | stable collision placement in screen px. `items`: `[{id, x, y, w, h, c:[[dx,dy],...]}]`, most important first, `c` = allowed offsets nearest-home first. `st`: the layer's memory object (keep it across calls). `o`: `{gap, slack:3, ok(x,y,w,h), hide}`. Returns `{id: {dx, dy, on}}`. |
+| `AltoMarkers.band(was, v, lo, hi)` | a held threshold: true above `hi`, false below `lo`, else `was`. |
+| `AltoMarkers.at(el, x, y)` | `transform: translate3d(x px, y px, 0)`. |
+| `AltoMarkers.show(el, on)` | toggles `.alto-mk-off` (fade out, then `visibility:hidden`). |
+| `AltoMarkers.glide(layer)` / `stop(layer)` | `.alto-mk-glide` on the layer for one transition, so a settled re-layout glides; `stop()` at the next input so following the anchor stays instant. |
+| `AltoMarkers.reg(key, fn)` / `debug(key)` | tests: `fn()` returns `[{id, x, y, w, h, ax, ay, op}]` in client px (`ax/ay` = the anchor). |
+
+Give every marker the class `alto-mk`, put them in one absolutely positioned layer (`pointer-events:none` on the layer, `auto`
+on the markers) over the map, and position each with `left:0; top:0` plus `AltoMarkers.at`.
+
+## The pattern (from `palace_building_asset.py`)
+
+```js
+S.mkSet = AltoMarkers.settle(function(){ layout(true); }, 170);
+function onViewChange(){            // every wheel / pinch / drag frame
+  AltoMarkers.stop(S.layer); S.mkSet.poke(); move();
+}
+function move(){                    // per frame: transforms only
+  S.markers.forEach(function(m){ AltoMarkers.at(m, ax(m) + m._o[0] - m._w / 2, ay(m) + m._o[1]); });
+}
+function layout(glide){             // once per settle
+  S.near = AltoMarkers.band(S.near, zoom, LO, HI);           // level of detail, held
+  var at = AltoMarkers.place(items(), S.st, {gap: 3});       // places, held
+  S.markers.forEach(function(m){ m._o = [at[m.id].dx, at[m.id].dy]; AltoMarkers.show(m, at[m.id].on); });
+  if(glide) AltoMarkers.glide(S.layer);
+  move();
+}
+```
+
+Work in the layer's own (unzoomed) px: anchor = (map point − view origin) × (layer width / view width). Never position with
+`getBoundingClientRect` numbers directly: under Safari's page `zoom` those are zoomed px.
+
+## Where it is applied
+
+- **Museum Palace blueprint** (`palace_building_asset.py`): the chips moved out of the SVG into an HTML layer driven by the
+  module; Safari pinch; eased +/− buttons; viewBox no longer rounded to 1 cm (it moved the whole drawing in ~3 px steps close in).
+- **System** (`solar_draw.py`, all 2D styles): the same rules inline (the page is at its size cap): labels decided once a zoom
+  settles, held places, level-of-detail thresholds as 4% bands, level-of-detail by fade, re-layout glides (`#canvas.sol-glide`).
+- **City Mind Palace** and **lanes**: see the release notes for what the measurements showed.
+
+## Verifying
+
+`AltoMarkers.debug(key)` each animation frame during a scripted zoom; jitter = frame-to-frame change of (marker − anchor) while
+the gesture runs (should be ≤ 0.5 px) and of the marker's size (should be 0); after the settle, the largest single-frame move
+should be a glide's step, not a jump.

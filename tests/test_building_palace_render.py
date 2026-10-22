@@ -76,7 +76,7 @@ def test_the_blueprint_draws_the_plan_with_its_tabs_rooms_and_pills(browser, htm
         assert page.evaluate("document.querySelector('#bldg-root .bl-tab.on').textContent") == "Outside"
         page.click("#bldg-root .bl-tab[data-level=g]")
         assert page.locator("#bldg-root .bl-room").count() == 2
-        assert sorted(page.eval_on_selector_all("#bldg-root .bl-pill text", "els => els.map(e => e.textContent.split('  ')[0])")) == ["1.1", "1.1-1", "1.2"]
+        assert sorted(page.eval_on_selector_all("#bldg-root .bl-pill b", "els => els.map(e => e.textContent)")) == ["1.1", "1.1-1", "1.2"]
         # every wall one weight: a tube and a sheen per solid stretch, none with a width of its own
         assert page.evaluate("[...document.querySelectorAll('#bldg-root .bl-tube:not(.bl-rail)')].every(e => getComputedStyle(e).strokeWidth === '4.2px')")
         assert page.locator("#bldg-root .bl-tube").count() == page.locator("#bldg-root .bl-sheen").count()
