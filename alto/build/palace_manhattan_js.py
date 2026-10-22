@@ -24,3 +24,27 @@ def patch_js(js: str) -> str:
     if ANCHOR not in js:
         raise RuntimeError("palace_manhattan_js: anchor not found in PALACE_JS")
     return js.replace(ANCHOR, ANCHOR + GHOST_JS, 1)
+
+
+# ── the five-borough map's own names (city_boroughs.LABELS / names_page): a borough-sized name ("k": "b") and the water's
+# names ("k": "w", in the rivers' blue, italic). Spliced only for Manhattan's layout with such names, so every other palace
+# page is byte-identical. Each name's size on the screen is its CSS size, so the names' fit (lblFS) reads it from the text.
+AREA_ANCHOR = ("t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; });")
+AREA_JS = ("t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; if(a.k){ t.classList.add('pl-a'+a.k); t._prb=a.k==='b'?480:20;"
+           " t._fs=a.k==='b'?function(z){ return Math.max(14, Math.min(24, 11+14*z)); }:function(z){ return Math.max(10, Math.min(15, 8.5+7*z)); }; } });"
+           "if(!document.getElementById('pl-nyc-css')){ var nyc=document.createElement('style'); nyc.id='pl-nyc-css'; nyc.textContent="
+           "'.pal-svg .pl-area.pl-ab{--afs:clamp(14px, calc(11px + 14px * var(--pz,1)), 24px);font-weight:750;letter-spacing:.32em;opacity:.8;}"
+           ".pal-svg .pl-area.pl-aw{--afs:clamp(10px, calc(8.5px + 7px * var(--pz,1)), 15px);font-style:italic;font-weight:650;letter-spacing:.22em;fill:#21507f;opacity:.85;}"
+           "html.dark .pal-svg .pl-area.pl-aw{fill:#d6e8fa;}'; document.head.appendChild(nyc); }")
+FS_ANCHOR = "case 'pl-area': return phone?"
+FS_JS = "case 'pl-area': if(t._fs) return t._fs(z); return phone?"
+PR_ANCHOR = "add(t, 'pl-area', 560-40*"
+PR_JS = "add(t, 'pl-area', (t._prb||0)+560-40*"
+
+
+def patch_labels(js: str) -> str:
+    for a, b in ((AREA_ANCHOR, AREA_JS), (FS_ANCHOR, FS_JS), (PR_ANCHOR, PR_JS)):
+        if js.count(a) != 1:
+            raise RuntimeError("palace_manhattan_js: label anchor not found once in PALACE_JS: " + a)
+        js = js.replace(a, b, 1)
+    return js

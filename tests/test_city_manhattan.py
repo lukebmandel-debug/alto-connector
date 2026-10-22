@@ -140,3 +140,63 @@ def test_the_ghost_page_code_is_spliced_in_only_for_a_map_that_has_it():
 def test_only_manhattans_fill_gets_the_bigger_budget():
     from alto.build import palace_fillin as pf
     assert pf.BUDGET_MANHATTAN > pf.BUDGET_CHARS == 118_000
+
+
+def test_downtown_runs_on_to_the_tip_and_a_park_there_is_drawn(city):
+    # Luke, 2026-10-22: "I feel like Battery Park is missing": no street crosses it, so the even spread squeezed it into the
+    # half-block margin; unnamed rows carry downtown on to the tip, and Battery Park is drawn whatever its size
+    m, _g = city
+    W_ = (len(cm.AVENUES) - 1) * AVE
+    q = [_real(W_ / 2 - 300, -3150), _real(W_ / 2 + 300, -3150), _real(W_ / 2 + 300, -2850), _real(W_ / 2 - 300, -2850)]
+    pk = {"n": "Battery Park", "r": [[round(v, 1) for p in q for v in p]]}
+    g = cm.build(dict(m, parks=[pk]), majors=["Broadway"], diagonals=["Broadway"])
+    bp = [p for p in g["parks"] if p["n"] == "Battery Park"]
+    assert bp and sum((i1 - i0) * (j1 - j0) for i0, j0, i1, j1 in bp[0]["c"]) >= 4
+    assert "Battery Park" in cm.PARKS
+
+
+def _outer_stub(sea=lambda x, y: False):
+    from alto.build import city_boroughs as cb
+    o = object.__new__(cb.Outer)
+    o.P1 = lambda lat, lon: ((lon + 74.3) * 84000.0, (41.0 - lat) * 111000.0)
+    o.is_sea = sea
+    o.city = lambda x, y: x < 30000
+    o.detailed = lambda x, y: 20000 <= x < 22000
+    o.aff = lambda x, y: (x, y)
+    o._field = lambda x, y: (0.0, 0.0)
+    o.o = (0.0, 0.0)
+    o.boros, o.places = {}, []
+    return o
+
+
+def test_the_five_boroughs_name_their_water_islands_and_famous_neighbourhoods_first():
+    from alto.build import city_boroughs as cb
+    gi = next(l_ for l_ in cb.LABELS if l_[0] == "Governors Island")
+    o = _outer_stub()
+    wet = {o.P1(l_[1], l_[2]) for l_ in cb.LABELS if "w" in l_[4]}
+    o.is_sea = lambda x, y: (x, y) in wet
+    gx, gy = o.P1(gi[1], gi[2])
+    o.places = [("Nolan Park", "neighbourhood", gx + 200, gy), ("Obscure Corner", "neighbourhood", 1000.0, 1000.0),
+                ("Park Slope", "neighbourhood", 1500.0, 1000.0)]
+    out = o.names_page(man=lambda x, y: (-x, -y))
+    by = {f["n"]: f for f in out}
+    assert "Nolan Park" not in by and by["Governors Island"]["r"] == 2               # an island is named as the island
+    assert by["Upper New York Bay"]["k"] == "w" and by["New Jersey"]["k"] == "b"
+    assert by["Manhattan"]["k"] == "b" and by["Manhattan"]["x"] < 0                   # Manhattan's names by its own mapping
+    assert "Park Slope" in by and "Obscure Corner" not in by                          # the famous one wins the spot
+
+
+def test_a_bridge_reaches_the_island_and_new_jerseys_overpasses_stay_out():
+    o = _outer_stub()
+    o.roads = [(("Brooklyn Bridge", 1, 1), [(21000.0, 0.0), (23000.0, 0.0), (25000.0, 0.0)]),
+               (("NJ Overpass", 2, 1), [(31000.0, 0.0), (32000.0, 0.0)])]
+    out = dict(o.roads_page(man=lambda x, y: (x, y + 1)))
+    br = out[("Brooklyn Bridge", 1, 1)]
+    assert br[0] == (21000.0, 1.0) and br[-1] == (25000.0, 0.0)                      # from the lattice to the far bank
+    assert ("NJ Overpass", 2, 1) not in out
+
+
+def test_the_five_boroughs_names_page_code_is_spliced_in_only_for_manhattans_layout():
+    from alto.build.palace import PALACE_JS
+    from alto.build.palace_manhattan_js import patch_labels
+    assert "pl-nyc-css" not in PALACE_JS and "pl-nyc-css" in patch_labels(PALACE_JS)

@@ -383,6 +383,9 @@ def palace_js(b) -> str:
         if mm.get("ghost"):                         # Manhattan's layout: the far banks' faint grid (palace_manhattan_js.py)
             from .palace_manhattan_js import patch_js as ghost_js
             js = ghost_js(js)
+        if mm.get("layout") == "manhattan" and any(f.get("k") for f in mm.get("far") or ()):
+            from .palace_manhattan_js import patch_labels       # the five boroughs' borough-sized and water names
+            js = patch_labels(js)
     except Exception:                               # noqa: BLE001 — a palace whose data cannot be read keeps all the art
         pass
     if (b.palace or {}).get("fill_z"):
@@ -455,8 +458,15 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
     # a landmark found both as an outline and as a point (a station node beside
     # its building) is named once, by its outline
     lms = m.get("landmarks", [])
+
+    def alike(a, b):                                     # NYC: only a point named like the outline beside it (Madison Square
+        if preset != "nyc":                              # Park took the Appellate Division, which then fell to 60 Centre St)
+            return True
+        a, b = a.lower(), b.lower()
+        return a in b or b in a or a[:4] == b[:4]
     m["landmarks"] = [l for l in lms if l.get("r") or not any(
-        o.get("r") and math.hypot(o["x"] - l["x"], o["y"] - l["y"]) < 260 for o in lms)]
+        o.get("r") and math.hypot(o["x"] - l["x"], o["y"] - l["y"]) < 260 and alike(o.get("n") or "", l.get("n") or "")
+        for o in lms)]
     if preset == "nyc":                                  # Manhattan's own layout, the Commissioners' Grid (city_manhattan.py)
         from .city_manhattan import LAYOUT
         m["layout"] = LAYOUT

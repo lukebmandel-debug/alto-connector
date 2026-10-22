@@ -119,13 +119,45 @@ def ring_area_m2(r):
 
 
 # ── the page: the rest of the city around Manhattan's lattice ───────────────
-SEA_CELL = 50.0           # m: the real water raster (coastline flood)
+SEA_CELL = 25.0           # m: the real water raster (coastline flood; at 50 m the Harlem River's banks met and Manhattan ran into the Bronx)
 PAGE_CELL = 110.0          # page px: the drawn water's raster
 FIELD = 250.0             # m: the displacement field's grid
 FADE = 1800.0             # m: how far from Manhattan's shore its lattice still pulls the rest of the city
 PARK_HA = 25.0            # hectares: the parks drawn outside Manhattan
 NAME_GAP = 2600.0         # m: neighbourhood names at least this far apart
 SEA_SEED = (40.50, -73.90)  # the Atlantic south of the Rockaways
+# the names a New Yorker looks for first (a blind audit, 2026-10-22: Williamsburg, DUMBO, Harlem, LIC... were crowded out by
+# whichever neighbourhood OSM listed first): placed before the rest, and allowed closer together
+FAMOUS = ("Harlem", "East Harlem", "Washington Heights", "Inwood", "Williamsburg", "DUMBO", "Brooklyn Heights", "Park Slope",
+          "Bedford-Stuyvesant", "Bushwick", "Greenpoint", "Red Hook", "Coney Island", "Brighton Beach", "Bay Ridge",
+          "Crown Heights", "Flatbush", "Sunset Park", "Long Island City", "Astoria", "Flushing", "Jamaica",
+          "Jackson Heights", "Forest Hills", "Sunnyside", "Riverdale", "Mott Haven", "Fordham", "St. George")
+FAMOUS_GAP = 700.0        # m
+# what OSM's neighbourhood nodes never name: the water, the islands, the airports, the far shore, and Manhattan itself.
+# (name, lat, lon, rank, kind): kind b = a borough-sized name, w = water, m = on Manhattan's lattice (placed by its mapping),
+# i = an island too small for the page's water raster, drawn as its own land (isles_page)
+LABELS = [("Manhattan", 40.7790, -73.9665, 1, "bm"), ("Upper West Side", 40.7870, -73.9754, 2, "m"),
+          ("Upper East Side", 40.7736, -73.9566, 2, "m"),
+          ("New Jersey", 40.7780, -74.0700, 1, "b"), ("Jersey City", 40.7215, -74.0630, 3, ""), ("Hoboken", 40.7445, -74.0300, 3, ""),
+          ("Upper New York Bay", 40.6640, -74.0450, 1, "w"), ("Lower New York Bay", 40.5350, -74.0400, 1, "w"),
+          ("Atlantic Ocean", 40.5250, -73.8700, 1, "w"), ("Jamaica Bay", 40.6150, -73.8400, 1, "w"),
+          ("Long Island Sound", 40.8150, -73.7650, 1, "w"), ("Harlem River", 40.8450, -73.9280, 2, "w"),
+          ("Hudson River", 40.8650, -73.9420, 2, "w"), ("Newark Bay", 40.6750, -74.1350, 2, "w"),
+          ("Raritan Bay", 40.5050, -74.2000, 2, "w"), ("The Narrows", 40.6070, -74.0440, 3, "w"),
+          ("Flushing Bay", 40.7660, -73.8560, 3, "w"), ("Kill Van Kull", 40.6450, -74.1200, 3, "w"),
+          ("Arthur Kill", 40.5900, -74.2050, 3, "w"), ("Gravesend Bay", 40.5900, -74.0150, 3, "w"),
+          ("Governors Island", 40.6890, -74.0165, 2, ""), ("Statue of Liberty", 40.6892, -74.0445, 2, "i"),
+          ("Ellis Island", 40.6990, -74.0395, 3, "i"), ("Roosevelt Island", 40.7620, -73.9495, 2, ""),
+          ("Randalls Island", 40.7935, -73.9215, 2, ""), ("Rikers Island", 40.7930, -73.8855, 3, ""),
+          ("JFK Airport", 40.6413, -73.7781, 2, ""), ("LaGuardia Airport", 40.7769, -73.8740, 2, ""),
+          # famous neighbourhoods OSM tags as something other than a suburb or neighbourhood node
+          ("Harlem", 40.8116, -73.9465, 3, ""), ("Washington Heights", 40.8417, -73.9394, 3, ""),
+          ("Williamsburg", 40.7081, -73.9571, 3, ""), ("Bushwick", 40.6944, -73.9213, 3, ""),
+          ("Coney Island", 40.5755, -73.9707, 3, ""), ("Brighton Beach", 40.5781, -73.9597, 3, ""),
+          ("Flatbush", 40.6409, -73.9566, 3, ""), ("Long Island City", 40.7447, -73.9485, 3, ""),
+          ("Flushing", 40.7675, -73.8331, 3, ""), ("Jamaica", 40.7027, -73.7890, 3, ""),
+          ("St. George", 40.6437, -74.0736, 3, "")]
+LABEL_GAP = 900.0         # m: no neighbourhood node this near a fixed name (Governors Island's "Nolan Park")
 
 
 def _lstsq3(rows, vals):
@@ -399,24 +431,33 @@ class Outer:
                     g[j][i] = 1
         return [[(x - M * PAGE_CELL, y - M * PAGE_CELL) for x, y in r] for r in _trace(g, nx, ny, PAGE_CELL)]
 
-    def roads_page(self):
-        """Main roads in New York outside Manhattan's lattice: (key, page points) runs."""
+    def roads_page(self, man=None):
+        """Main roads in New York outside Manhattan's lattice: (key, page points) runs. A bridge runs on past the city's
+        line (the GWB to New Jersey), and with man (real -> page on Manhattan's lattice) it is joined to its last point on
+        the lattice, so its deck reaches the island (else every East River bridge stopped at the water)."""
         runs = []
         for key, pts in _merge(self.roads):
-            cur = []
+            cur, head, prev = [], None, None
+            cross = key[2] and any(self.city(*p) for p in pts)     # a bridge into the city (not New Jersey's overpasses)
             for p in pts:
-                ok = self.city(*p) and not self.detailed(*p)
-                if ok:
+                det = self.detailed(*p)
+                if (cross or self.city(*p)) and not det:
+                    if not cur and key[2] and prev is not None and self.detailed(*prev):
+                        head = prev
                     cur.append(p)
                 else:
-                    if len(cur) >= 2:
-                        runs.append((key, cur))
-                    cur = []
-            if len(cur) >= 2:
-                runs.append((key, cur))
+                    tail = p if key[2] and det else None
+                    if len(cur) >= 2 or (cur and (head or tail)):
+                        runs.append((key, cur, head, tail))
+                    cur, head = [], None
+                prev = p
+            if len(cur) >= 2 or (cur and head):
+                runs.append((key, cur, head, None))
         out = []
-        for key, pts in runs:
+        for key, pts, head, tail in runs:
             pg = _dp([self(*p) for p in _dp(pts, 8.0)], 14.0)
+            if man is not None:
+                pg = ([man(*head)] if head else []) + pg + ([man(*tail)] if tail else [])
             if len(pg) >= 2 and sum(math.dist(a, b) for a, b in zip(pg, pg[1:])) > 60:
                 out.append((key, pg))
         return out
@@ -439,9 +480,49 @@ class Outer:
                 out.append({"n": n, "k": "park", "z": 1, "r": rs, "p": [], "o": [], "t": [round(t[0]), round(t[1])], "pg": 1})
         return out
 
-    def names_page(self):
-        """The boroughs' names (rank 1) and neighbourhoods (rank 3, spaced) outside Manhattan's lattice."""
+    def isles_page(self, reach=24):
+        """The small islands of LABELS (kind i: Liberty, Ellis) as page rings: the real raster's land around each name, one
+        island's hull; one that runs on past `reach` cells (joined to the mainland) is left to the water raster."""
         out = []
+        for n, lat, lon, _r, k in LABELS:
+            if "i" not in k:
+                continue
+            x0, y0 = self.P1(lat, lon)
+            st, seen, bad = [(0, 0)], set(), False
+            while st and not bad:
+                i, j = st.pop()
+                if (i, j) in seen or self.is_sea(x0 + i * SEA_CELL, y0 + j * SEA_CELL):
+                    continue
+                if abs(i) > reach or abs(j) > reach:
+                    bad = True
+                    break
+                seen.add((i, j))
+                st += [(i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)]
+            if bad or len(seen) < 4:
+                continue
+            h = _hull2([(x0 + (i + a) * SEA_CELL, y0 + (j + b) * SEA_CELL) for i, j in seen for a in (-.5, .5) for b in (-.5, .5)])
+            out.append([round(v) for p in h for v in self(*p)])
+        return out
+
+    def names_page(self, man=None):
+        """The boroughs' names (rank 1) and neighbourhoods (rank 3, spaced; the famous ones first) outside Manhattan's
+        lattice, and the fixed LABELS (water, islands, airports, New Jersey, Manhattan's own with man)."""
+        out, fixed = [], []
+        for n, lat, lon, r, k in LABELS:
+            x, y = self.P1(lat, lon)
+            if "m" in k:
+                if man is None:
+                    continue
+                X, Y = man(x, y)
+            else:
+                if ("w" in k) != self.is_sea(x, y):
+                    continue                                # a water name only on water, a place's only on land
+                X, Y = self(x, y)
+            fixed.append((x, y))
+            f = {"n": n, "x": round(X), "y": round(Y), "r": r}
+            if k.strip("mi"):
+                f["k"] = k.strip("mi")
+            out.append(f)
         for n, rings in self.boros.items():
             if n == "Manhattan" or not rings:
                 continue
@@ -459,20 +540,45 @@ class Outer:
                             best = (d, x, y)
             if best:
                 X, Y = self(best[1], best[2])
-                out.append({"n": n, "x": round(X), "y": round(Y), "r": 1})
+                out.append({"n": n, "x": round(X), "y": round(Y), "r": 1, "k": "b"})
         taken = []
         boro_names = {b_.lower() for b_ in BOROUGHS} | {b_.lower() for b_ in self.boros}
-        for n, k, x, y in sorted(self.places, key=lambda p: p[1] != "suburb"):
-            if n.lower() in boro_names:
+        fam = {f.lower(): i for i, f in enumerate(FAMOUS)}
+        named = set()
+        for n, k, x, y in sorted(self.places, key=lambda p: (fam.get(p[0].lower(), len(fam)), p[1] != "suburb")):
+            if n.lower() in boro_names or n.lower() in named:
                 continue                                    # a borough is named once, as a borough
             if not self.city(x, y) or self.detailed(x, y) or self.is_sea(x, y):
                 continue
-            if any(math.hypot(x - a, y - b) < NAME_GAP for a, b in taken):
+            if any(math.hypot(x - a, y - b) < LABEL_GAP for a, b in fixed):
+                continue
+            gap = FAMOUS_GAP if n.lower() in fam else NAME_GAP
+            if any(math.hypot(x - a, y - b) < gap for a, b in taken):
                 continue
             taken.append((x, y))
+            named.add(n.lower())
             X, Y = self(x, y)
             out.append({"n": n, "x": round(X), "y": round(Y), "r": 3})
         return out
+
+
+def _hull2(pts):
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return pts
+
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, hi = [], []
+    for p in pts:
+        while len(lo) >= 2 and cr(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(hi) >= 2 and cr(hi[-2], hi[-1], p) <= 0:
+            hi.pop()
+        hi.append(p)
+    return lo[:-1] + hi[:-1]
 
 
 def _trace(g, nx, ny, cs):

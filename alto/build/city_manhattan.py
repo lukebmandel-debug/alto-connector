@@ -66,6 +66,8 @@ ROW_ALIAS = {"central park south": 59, "cathedral parkway": 110, "central park n
 _NUM = re.compile(r"^(?:west |east )?(\d+)(?:st|nd|rd|th) street$")
 FAR = [("New Jersey", "w", .45), ("Brooklyn", "e", .88), ("Queens", "e", .42)]         # far-bank names: side, height share
 BRIDGES = ("Brooklyn Bridge", "Manhattan Bridge", "Williamsburg Bridge", "Ed Koch Queensboro Bridge")
+# parks every New Yorker knows that are under palace_parks.AUTO_HA (Luke, 2026-10-22: "I feel like Battery Park is missing")
+PARKS = ("Battery Park",)
 
 
 def applies(m) -> bool:
@@ -401,6 +403,7 @@ def _row_name(num):
 
 # ── build ───────────────────────────────────────────────────────────────────
 def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> dict:
+    parks = tuple(parks or ()) + tuple(p for p in PARKS if p not in (parks or ()))
     segs = [(x0, y0, x1, y1, s.get("n") or "") for s in m.get("streets", []) for x0, y0, x1, y1 in _segs(s["p"])]
     land = Land(m)
     # the island: the land component the avenues stand on
@@ -592,6 +595,13 @@ def build(m, majors=(), diagonals=(), rail_specs=(), lm_specs=(), parks=()) -> d
         lv, lh = L.get("v", []), L.get("h", [])
         if len(lv) < 3 or len(lh) < 3:
             continue
+        if did == 2:
+            # the Battery: no street crosses it, so the even spread would squeeze its 400 m south of the last street
+            # into the half-block margin; unnamed rows at downtown's own street spacing carry the grid on to the tip
+            tipv = max((trd(x, y)[1] for x, y in pts if ring_inside(rp, x, y)), default=lh[-1][0])
+            gaps = sorted(b[0] - a[0] for a, b in zip(lh, lh[1:]))
+            stp = gaps[len(gaps) // 2]
+            lh = lh + [(lh[-1][0] + stp * (k + 1), 0.0, "") for k in range(int((tipv - lh[-1][0]) / stp - .5))]
         dxr, dyr = [t[0] for t in lv], [t[0] for t in lh]
         # graph paper over the whole region: its real lines, in order, spread evenly across the region turned by the
         # domain's angle (half a block of margin at each end), so no land of the region is left without blocks
@@ -893,7 +903,10 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
         x = x - BAND_W - GHOST_W * .4 if side == "w" else x + BAND_E + GHOST_W * .4
         g["far"].append({"n": n, "x": round(x), "y": round(y), "r": 1})
     if outer is not None:
-        _the_rest(g, outer, org, shore_real, ring, sea, tipy, streets, te, park_cells)
+        def man(x, y):                                              # real -> page on Manhattan's own lattices
+            own = [d for d in doms if ring_inside(d.poly, x, y)]
+            return maps[(own[0] if own else doms[0]).id](x, y)
+        _the_rest(g, outer, org, shore_real, ring, sea, tipy, streets, te, park_cells, man, m.get("streets", ()))
         W, H = g["W"], g["H"]
     g["blocks"] = blocks
     # transit on the drawn domains
@@ -923,6 +936,10 @@ def _water_and_rest(m, doms, lats, maps, streets, tiles, edges, tq, te, blocks, 
     from .city_highways import attach as attach_highways
     attach_highways(g, m)
     _clip_hw(g, ring)
+    if outer is not None:                                           # the bands only carry the names now (the water is the sea):
+        for rv in g["river"]:                                       # none where the band turns ashore above the grid's top
+            q = [(rv["p"][k], rv["p"][k + 1]) for k in range(0, len(rv["p"]) - 1, 2) if rv["p"][k + 1] > ytop + 3 * CHM]
+            rv["p"] = flat(q) if len(q) >= 6 else rv["p"]
     g["engine"] = {"path": LAYOUT, "domains": len(doms), "cols": len(cols), "rows": len(row_num),
                    "angles": [round(d.a, 2) for d in doms]}
     return g
@@ -1026,13 +1043,13 @@ def _hull(pts):
     return lo[:-1] + up[:-1]
 
 
-def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells):
+def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells, man=None, mstreets=()):
     """The other four boroughs and upper Manhattan, lighter (city_boroughs.Outer): their main roads (trunk and primary
     as named heavy lines, secondary as minor ones, bridges with decks), big parks, borough and neighbourhood names, and
     the real water of the whole city as one shape around them; no faint far-bank grid then."""
     outer.setup(o, shore_real)
     outer.sea_real()
-    for (n, c, br), pg in outer.roads_page():
+    for (n, c, br), pg in outer.roads_page(man):
         p = [round(v) for q in pg for v in q]
         if c <= 2:
             st = {"n": norm(n) if n else "", "k": 0 if c <= 2 else 1, "p": p}
@@ -1043,8 +1060,19 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
             streets.append(st)
         else:
             te.append(p)
+    if man is not None:                                             # an East River bridge the outer roads lack (the Manhattan
+        from .city_boroughs import _merge                           # Bridge's span): from the island's own streets, each point
+        have = {s_["n"] for s_ in streets if s_.get("o")}           # by the mapping that draws its ground
+        for bn in BRIDGES:
+            if any(h.startswith(norm(bn)) for h in have):
+                continue
+            ways = [(bn, _pairs(s_["p"])) for s_ in mstreets if (s_.get("n") or "").startswith(bn)]
+            for _k, pts in _merge(ways):
+                pg = _dp([man(*q) if outer.detailed(*q) else outer(*q) for q in pts], 6.0)
+                if len(pg) >= 2:
+                    streets.append({"n": norm(bn), "k": 0, "o": 1, "L": 1, "p": [round(v) for q in pg for v in q]})
     park_cells += outer.parks_page()
-    g["far"] = outer.names_page()
+    g["far"] = outer.names_page(man)
     xs = [v for s in streets for v in s["p"][0::2]] + [v for t in te for v in t[0::2]]
     ys = [v for s in streets for v in s["p"][1::2]] + [v for t in te for v in t[1::2]]
     g["W"] = int(max(max(xs), outer.ext[0] + o[0]) + 900)
@@ -1052,7 +1080,7 @@ def _the_rest(g, outer, o, shore_real, ring, band, tipy, streets, te, park_cells
     band_top = _clip_half(band, 1, tipy - 300, True)
     rings = outer.page_sea(g["W"], g["H"], ring, band_top if len(band_top) >= 3 else band)
     g["sea"] = [[round(v) for p in _chaikin(r + r[:1], 1)[:-1] for v in p] for r in rings if len(r) >= 3]
-    g["land"] = [flat(ring)]
+    g["land"] = [flat(ring)] + outer.isles_page()
     g.pop("ghost", None)
 
 
