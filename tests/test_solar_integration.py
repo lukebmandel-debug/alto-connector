@@ -268,7 +268,7 @@ def test_the_look_switch_with_the_skin_and_a_flight_running(browser, pages):
     assert f and f["to"] == "u1-p1", f
     pg.wait_for_timeout(600)
     assert pg.evaluate(STATE)["fly"]
-    pg.click("#sol-ctl [data-look=hub]")
+    pg.click("#sol-ctl [data-style=system]")
     pg.mouse.move(2, 940)
     pg.wait_for_timeout(1200)
     s1 = pg.evaluate(STATE)
@@ -276,7 +276,7 @@ def test_the_look_switch_with_the_skin_and_a_flight_running(browser, pages):
     assert s1["look"] == "hub" and s1["solarPlain"] and not s1["stars"] and not s1["skyShown"] and s1["shown"] == 0 \
         and s1["trails"] == 0, s1
     assert not pg.evaluate("()=>document.getElementById('sol-motion').disabled")
-    pg.click("#sol-ctl [data-look=stars]")
+    pg.click("#sol-ctl [data-style=chart]")
     pg.mouse.move(2, 940)
     pg.wait_for_timeout(1500)
     s2 = pg.evaluate(STATE)

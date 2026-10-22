@@ -490,16 +490,18 @@ Palace.
 - A phone keeps the usual single-column card view; a System is a computer
   view.
 
-**Two looks, switched in the page.** Every System page carries both looks
-of the same layout, and the reader flips between them with the switch on the
-page (**System | Star chart**), instantly, any time — nothing to rebuild,
-nothing for you to do:
-- **Star chart** (the look it opens in): the orbit rings with realistic
+**Four styles, switched in the page.** Every System page carries all four
+styles of the same layout, and the reader flips between them with the one
+style switch on the page (**System | Star chart | Retro | 3D Star chart**),
+instantly, any time — nothing to rebuild, nothing for you to do:
+- **Star chart** (the style it opens in): the orbit rings with realistic
   planets, moons, satellites and a sun, and travel between bodies along
-  spaceflight-style routes.
+  spaceflight-style routes (a ship the reader picks).
 - **System**: the same concentric rings, spokes and circles (number and
   title) in Alto's usual glass look, no space graphics.
-In both, the planets, moons and satellites orbit, each on its own ring; an
+- **Retro**: the Star chart as a vintage space poster, black and gold.
+- **3D Star chart**: lit, turning 3D globes with depth.
+In all of them, the planets, moons and satellites orbit, each on its own ring; an
 **Orbit** switch turns the motion on or off (it also stops on hover, on a
 focused circle, while editing, in print, and for anyone who asks their device
 for reduced motion). Zoom out shows every system at once.
@@ -510,9 +512,9 @@ left and right — a click on one enlarges it in turn; a click on the circle
 itself (or Enter) opens its detail page, whose **← System** button (or Escape) goes back to the chart:
 call the main view of a System page "the system", not "the outline". Say this once when you hand it over, in a
 sentence, so the student knows the switch is there. If they want the System
-look to be what people see first, set `hub_look: 'hub'` in the brief
+style to be what people see first, set `hub_look: 'hub'` in the brief
 (`hub_look: 'stars'`, the Star chart, is the default; `build_timeline(hub_look=…)`
-also sets it); otherwise leave it out. The look is the page's, not the
+also sets it); otherwise leave it out. The style is the page's, not the
 content's: nothing is ever converted or rebuilt to flip it.
 
 **Ask** (with the default stated, so one word answers): **One system in great

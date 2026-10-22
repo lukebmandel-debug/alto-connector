@@ -992,12 +992,12 @@ def test_the_skin_tick_and_the_orbit_clock(browser, pages):
     pg.context.close()
 
 
-# ── one format, one plan, two looks: System | Star chart, and the Orbit switch (rounds 5, 7) ──
+# ── one format, one plan, one style switch: System | Star chart | Retro | 3D Star chart, and the Orbit switch (rounds 5, 7; 2026-10-22) ──
 
 LOOKST = """() => ({look:window._altoSolarLook.get(), mot:window._altoSolarMotion.get(), T:window._altoSolarT,
   stars:document.documentElement.classList.contains('alto-solar-stars'), hub:document.documentElement.classList.contains('alto-solar-hub'),
   rings:document.querySelectorAll('#solar-svg .sol-ring').length, tubes:document.querySelectorAll('#solar-svg path.sol-tube').length,
-  seg:[].map.call(document.querySelectorAll('#sol-ctl [data-look]'), function(b){ return b.getAttribute('data-look')+':'+b.getAttribute('aria-checked'); }),
+  seg:[].map.call(document.querySelectorAll('#sol-ctl [data-style]'), function(b){ return b.getAttribute('data-style')+':'+b.getAttribute('aria-checked'); }),
   orbitBtn:(function(m){ return m ? {dis:m.disabled, pressed:m.getAttribute('aria-pressed')} : null; })(document.getElementById('sol-motion'))})"""
 
 
@@ -1007,11 +1007,11 @@ def test_the_look_switch_moves_nothing_and_keeps_the_focus_the_view_and_the_choi
     pg.mouse.move(2, 940)
     st = pg.evaluate(LOOKST)
     assert st["look"] == "hub" and st["hub"] and not st["stars"] and st["rings"] > 0 and st["tubes"] == 0 and st["mot"], st
-    assert st["seg"] == ["hub:true", "stars:false"] and not st["orbitBtn"]["dis"]      # System | Star chart, Orbit works in both
+    assert st["seg"] == ["system:true", "chart:false", "retro:false", "3d:false"] and not st["orbitBtn"]["dis"]      # one style switch, Orbit works in all
     pg.evaluate("() => window.enterFocus('u1-p1')")
     pg.wait_for_timeout(900)
     g0 = pg.evaluate(BODIES)
-    pg.click("#sol-ctl [data-look=stars]")
+    pg.click("#sol-ctl [data-style=chart]")
     pg.wait_for_timeout(500)
     st = pg.evaluate(LOOKST)
     assert st["look"] == "stars" and st["stars"] and not st["hub"] and st["rings"] > 0, st

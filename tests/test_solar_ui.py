@@ -182,9 +182,9 @@ def test_the_guide_has_one_hub_and_spoke_section_that_asks_one_or_several():
     assert "hub_style" not in GUIDE and "run_layout_preview" in GUIDE[GUIDE.index("## Build sequence"):]
 
 
-def test_the_guide_tells_claude_about_the_two_looks_and_never_about_converting():
-    sec = _sec("**Two looks, switched in the page.**", "**Ask**")
-    for want in ("Star chart** (the look it opens in)", "**System**", "System | Star chart", "spaceflight-style routes", "Zoom out",
+def test_the_guide_tells_claude_about_the_four_styles_and_never_about_converting():
+    sec = _sec("**Four styles, switched in the page.**", "**Ask**")
+    for want in ("Star chart** (the style it opens in)", "**System**", "System | Star chart | Retro | 3D Star chart", "**Retro**", "**3D Star chart**", "spaceflight-style routes", "Zoom out",
                  "Orbit** switch", "click on the circle", "enlarged circle stays circular", "hub_look: 'hub'", "nothing to rebuild"):
         assert want in sec, want
     low = GUIDE.lower()
@@ -761,6 +761,6 @@ def test_nothing_the_user_reads_says_hub_and_spoke():
     for style in ("orbit", "spoke"):
         html = solar_page(style=style)
         assert not pat.search(html), pat.search(html).group(0)
-        assert "<span>System</span>" in html and "<span>Star chart</span>" in html
+        assert "['system', 'System'," in html and "['chart', 'Star chart'," in html and "['3d', '3D Star chart'," in html
     for fn in (srv.create_timeline, srv.set_overview):
         assert not pat.search(inspect.getdoc(fn) or "")

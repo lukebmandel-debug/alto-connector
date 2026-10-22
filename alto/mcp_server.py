@@ -1035,9 +1035,9 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       (only a card's `order` among its siblings), and a phone keeps the
       single-column card view.
      hub_look?: 'stars'|'hub' (System only; default 'stars'): the look a
-      viewer sees FIRST. Every System page carries both looks of the same
-      content and the same orbit layout, and a switch in the page (System |
-      Star chart) flips them instantly, with no rebuild (the viewer's choice is
+      viewer sees FIRST. Every System page carries all its styles of the same
+      content and the same orbit layout, and one switch in the page (System |
+      Star chart | Retro | 3D Star chart) flips them instantly, with no rebuild (the viewer's choice is
       remembered for that timeline): HUB = System (concentric orbit rings,
       spokes, circles with number and title in Alto's usual glass look) and
       STARS = the Star chart (the same rings with realistic space graphics and
@@ -2288,7 +2288,7 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     than sun, planet, moon, satellite is refused, naming the card and its path.
     hub_look: for a System, the look a viewer sees FIRST — 'stars' (the
     Star chart, the default) or 'hub' (System: the same orbit rings in
-    Alto's usual glass look); '' keeps the brief's. Both looks are in every page and its switch
+    Alto's usual glass look); '' keeps the brief's. Every style is in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.
     palace_view: for a Mind Palace, 'city' or 'building' (the Building Palace:

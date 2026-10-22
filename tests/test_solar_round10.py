@@ -205,17 +205,42 @@ def test_a_resting_pointer_on_a_spoke_or_an_orbit_names_it(browser, page):
 def test_the_star_chart_has_a_retro_style_kept_per_timeline(browser, page):
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate("() => window._altoSolarLook.set('hub')")
-    assert pg.evaluate("() => document.getElementById('sol-sty').hidden")          # a Star chart style only
-    pg.evaluate("() => window._altoSolarLook.set('stars')")
-    pg.wait_for_timeout(300)
-    pg.click("#sol-sty [data-sty=retro]")
+    assert pg.eval_on_selector_all("#sol-sty [data-style]", "b => b.map(x => x.textContent)") == \
+        ["System", "Star chart", "Retro", "3D Star chart"]                              # one switch of four styles (2026-10-22)
+    assert not pg.evaluate("() => document.documentElement.classList.contains('sk-retro')")
+    pg.click("#sol-sty [data-style=retro]")
     pg.wait_for_timeout(300)
     s = pg.evaluate("""() => { var c=document.querySelector('#node-u1 .node-card'), b=document.querySelector('#solar-svg .sol-oband'), sp=document.querySelector('#solar-svg .sol-spoke');
       return [document.documentElement.classList.contains('sk-retro'), getComputedStyle(c).backgroundColor, getComputedStyle(b).display, getComputedStyle(sp).stroke,
               Object.keys(localStorage).filter(function(k){ return /alto-solar-style:/.test(k); }).map(function(k){ return localStorage.getItem(k); })]; }""")
     assert s[0] and s[1] == "rgb(245, 230, 189)" and s[2] != "none" and s[3] == "rgb(240, 193, 94)" and s[4] == ["retro"], s
-    pg.click("#sol-sty [data-sty=classic]")
+    pg.click("#sol-sty [data-style=chart]")
     assert not pg.evaluate("() => document.documentElement.classList.contains('sk-retro')")
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_a_choice_kept_by_the_old_two_switches_opens_in_the_matching_style(browser, page):
+    """Luke (2026-10-22): one style switch, System | Star chart | Retro | 3D Star chart, in place of the look switch and the
+    Star chart's own Classic | Retro | Realistic 3D. A reader's kept look + style reads as the matching one of the four."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { window._altoSolarLook.set('hub'); window._altoSolarStyle.set('retro'); }")     # both keys now kept
+    for look, sty, want in (("hub", "retro", "system"), ("hub", "real", "system"), ("plain", "classic", "system"),
+                            ("stars", "classic", "chart"), ("stars", "retro", "retro"), ("stars", "real", "3d")):
+        pg.evaluate("""([l, s]) => Object.keys(localStorage).forEach(function(k){
+            if(/^alto-solar-look:/.test(k)) localStorage.setItem(k, l); if(/^alto-solar-style:/.test(k)) localStorage.setItem(k, s); })""", [look, sty])
+        pg.reload(); pg.wait_for_timeout(1400)
+        st = pg.evaluate("""() => { var de=document.documentElement; return [window._altoSolarStyles.get(),
+            [].map.call(document.querySelectorAll('#sol-sty [aria-checked=true]'), function(b){ return b.getAttribute('data-style'); }),
+            de.classList.contains('sk-retro'), de.classList.contains('sk-real'), de.classList.contains('alto-solar-hub')]; }""")
+        assert st[0] == want and st[1] == [want], (look, sty, st)
+        assert st[2] == (want == "retro") and st[3] == (want == "3d") and st[4] == (want == "system"), (look, sty, st)
+    for v in ("chart", "3d", "system", "retro"):                                     # the switch itself
+        pg.click(f"#sol-sty [data-style='{v}']"); pg.wait_for_timeout(200)
+        assert pg.evaluate("() => window._altoSolarStyles.get()") == v
+    assert not pg.evaluate("() => document.getElementById('sol-fly').hidden || document.getElementById('sol-craft').hidden")
+    pg.click("#sol-sty [data-style=system]"); pg.wait_for_timeout(200)
+    assert pg.evaluate("() => document.getElementById('sol-fly').hidden && !document.getElementById('sol-lock').hidden")
     pg.context.close()
     assert not errs, errs
 

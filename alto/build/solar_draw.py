@@ -99,7 +99,7 @@ SOLAR_CSS = r"""
   .sol-unit b{font-weight:800;opacity:.6;margin-right:7.5px;}
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
-  /* the look switch (System | Star chart) and the orbit switch: glass, under the bars at the top left */
+  /* the style switch (System | Star chart | Retro | 3D Star chart) and the switches beside it */
   #sol-ctl{position:fixed;z-index:310;left:71.5px;bottom:24px;height:35px;display:flex;gap:12.5px;align-items:center;font-family:inherit;}   /* in the bottom row beside the account toggle, as palace.py #pal-ctl (round 10) */
   #sol-ctl>*{height:35px;box-sizing:border-box;border-radius:17.5px !important;}
   #sol-ctl .sol-sw{position:relative;display:inline-block;width:26px;height:15px;border-radius:8px;background:color-mix(in srgb,var(--text) 22%,transparent);transition:background .15s;flex:none;}
@@ -1488,7 +1488,7 @@ window._altoSolarLook={get:function(){ return LOOK; }, set:setLook, plan:functio
 window._altoSolarMotion={get:function(){ return !!MOTION && MOVES; },
   set:function(on){ on=!!on; if(on===!!MOTION) return MOTION; MOTION=on; keep('motion', on ? 1 : 0); if(on){ sp=0; RAMP=.4; last=null; } ctl(); tell(motFns, MOTION && MOVES); go(); return MOTION; },
   onChange:function(fn){ motFns.push(fn); return function(){ var i=motFns.indexOf(fn); if(i>=0) motFns.splice(i, 1); }; }};
-/* the controls, under the bars at the top left: System | Star chart, and Orbit */
+/* the controls, in the bottom row: the style (System | Star chart | Retro | 3D Star chart), Orbit, Flights, Ship, Spokes only */
 var IC_EXTRA={fly:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 13.5 16.5 4.5 12 16l-2.6-4.2L3 13.5z" fill="currentColor"/></svg>',
   lock:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="4" cy="10" r="2.4" fill="currentColor"/><circle cx="16" cy="5" r="2.4" fill="currentColor"/><circle cx="16" cy="15" r="2.4" fill="currentColor"/><path d="M4 10 16 5M4 10l12 5" stroke="currentColor" stroke-width="1.5"/></svg>'};
 var IC={stars:'<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="10" r="4.4" fill="currentColor"/><ellipse cx="10" cy="10" rx="8.6" ry="3" fill="none" stroke="currentColor" stroke-width="1.4" transform="rotate(-22 10 10)"/></svg>',
@@ -1636,7 +1636,7 @@ window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:functio
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
-function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('sk-retro', STY==='retro'); de.classList.toggle('sk-real', STY==='real');
+function stySync(){ var st=LOOK==='stars'; RETRO=STY==='retro' && st; de.classList.toggle('sk-retro', RETRO); de.classList.toggle('sk-real', st && STY==='real');
   window._altoRetroDark(RETRO && desk());   /* Retro wears the dark theme, whatever the toggle says (retro.DARK_JS) */
   var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
   var fr=document.getElementById('sk-frame');
@@ -1647,6 +1647,21 @@ function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('
   else if(m) m.remove(); }
 function setSty(v){ STY=styOf(v); keep('style', STY); stySync(); chips.forEach(function(c){ c._wh=null; }); if(ready) apply(true); ctl(); return STY; }
 window._altoSolarStyle={get:function(){ return STY; }, set:setSty};
+/* one switch of four styles (Luke, 2026-10-22: "make system another style along with the classic, the retro, and the 3D"):
+   System = the look 'hub'; Star chart = 'stars' + 'classic'; Retro = 'stars' + 'retro'; 3D Star chart = 'stars' + 'real'.
+   The kept choices (alto-solar-look / alto-solar-style) read the same way, so nothing older needs migrating. */
+var STYLES=[['system', 'System', 'System: the orbits in Alto\u2019s own glass look'],
+  ['chart', 'Star chart', 'Star chart: the orbits as a painted space scene, with flights between bodies'],
+  ['retro', 'Retro', 'Retro: a vintage space poster in black and gold'],
+  ['3d', '3D Star chart', '3D Star chart: turning globes lit by their suns, in depth']];
+function styleOf(){ return LOOK==='hub' ? 'system' : STY==='retro' ? 'retro' : STY==='real' ? '3d' : 'chart'; }
+function setStyle(v){
+  if(v==='system') return setLook('hub'), styleOf();
+  var t={chart:'classic', retro:'retro', '3d':'real'}[v]; if(!t) return styleOf();
+  if(LOOK==='stars'){ if(t!==STY) setSty(t); }
+  else { STY=t; keep('style', t); chips.forEach(function(c){ c._wh=null; }); setLook('stars'); }
+  return styleOf(); }
+window._altoSolarStyles={get:styleOf, set:setStyle, list:function(){ return STYLES.map(function(x){ return x[0]; }); }};
 stySync();
 function lockStep(d){
   if(LOCK){
@@ -1676,32 +1691,25 @@ function ctl(){
   var w=document.getElementById('sol-ctl');
   if(!desk() || !ready){ if(w) w.remove(); return; }
   if(!w){ w=document.createElement('div'); w.id='sol-ctl'; w.setAttribute('role', 'group'); w.setAttribute('aria-label', 'How the chart looks');
-    w.innerHTML='<div class="sol-seg" role="radiogroup" aria-label="Look">'+
-      '<button type="button" data-look="hub" role="radio" title="System: the orbits in Alto\'s own look">'+IC.hub+'<span>System</span></button>'+
-      '<button type="button" data-look="stars" role="radio" title="Star chart: the same orbits as a space scene, with flights between bodies">'+IC.stars+'<span>Star chart</span></button></div>'+
+    w.innerHTML='<div class="sol-seg" id="sol-sty" role="radiogroup" aria-label="Style">'+STYLES.map(function(x){
+        return '<button type="button" data-style="'+x[0]+'" role="radio" title="'+x[2]+'"><span>'+x[1]+'</span></button>'; }).join('')+'</div>'+
       '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>'+
-      '<div class="sol-seg" id="sol-sty" role="radiogroup" aria-label="Star chart style"><button type="button" data-sty="retro" role="radio" title="Retro: flat poster colours, gold spokes">Retro</button>'+
-      '<button type="button" data-sty="classic" role="radio" title="Classic: the painted space scene">Classic</button>'+
-      '<button type="button" data-sty="real" role="radio" title="Realistic 3D: turning globes lit by their suns, clouds, depth">Realistic 3D</button></div>'+
       '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span><i class="sol-sw"></i><b class="sol-st"></b></button>'+
       '<button type="button" id="sol-craft" class="sol-opt" aria-haspopup="dialog" aria-expanded="false"><i class="cr-i"></i><span>Ship</span></button>'+
       '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
-      if(b.getAttribute('data-look')) setLook(b.getAttribute('data-look'));
-      else if(b.getAttribute('data-sty')) setSty(b.getAttribute('data-sty'));
+      if(b.getAttribute('data-style')) setStyle(b.getAttribute('data-style'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION);
       else if(b.id==='sol-fly'){ window._altoFlyOff=!window._altoFlyOff; keep('fly', window._altoFlyOff ? 0 : 1); ctl(); }
       else if(b.id==='sol-lock') setLock(!LOCK);
       else if(b.id==='sol-craft' && window._altoCraft) window._altoCraft.open(b); });
     if(window._altoCraft) window._altoCraft.onChange(function(){ ctl(); });
     document.body.appendChild(w); }
-  [].forEach.call(w.querySelectorAll('[data-look]'), function(b){ var on=b.getAttribute('data-look')===LOOK; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+  var sv=styleOf(); [].forEach.call(w.querySelectorAll('[data-style]'), function(b){ var on=b.getAttribute('data-style')===sv; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var m=w.querySelector('#sol-motion'), run=!!MOTION && MOVES;
   m.disabled=!MOVES; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
   m.title=!MOVES ? 'Orbit: nothing here orbits' : run ? 'Orbit on/off (Space): on, click to stop the planets where they are' : 'Orbit on/off (Space): off, click to set the planets moving again';
   m.setAttribute('aria-label', m.title);
-  var sy=w.querySelector('#sol-sty'); sy.hidden=LOOK!=='stars';
-  [].forEach.call(sy.querySelectorAll('[data-sty]'), function(b){ var on=b.getAttribute('data-sty')===STY; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var fb=w.querySelector('#sol-fly'), fo=!window._altoFlyOff; fb.hidden=LOOK!=='stars'; fb.classList.toggle('on', fo); fb.setAttribute('aria-pressed', fo ? 'true' : 'false');
   fb.title=fo ? 'Flights on: a spaceship flies you between bodies (click to go straight there instead)' : 'Flights off: you go straight to each body (click to fly again)';
   fb.querySelector('.sol-st').textContent=fo ? 'ON' : 'OFF';
