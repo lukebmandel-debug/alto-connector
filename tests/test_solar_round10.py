@@ -4,6 +4,7 @@ and brief.wallpaper_top (the wallpaper and the chart up behind the two top bars,
 
 Browser checks run in Chromium and WebKit (Playwright; skipped without them)."""
 import copy
+import json
 import math
 import sys
 from pathlib import Path
@@ -221,14 +222,19 @@ def test_a_choice_kept_by_the_old_two_switches_opens_in_the_matching_style(brows
     Star chart's own Classic | Retro | Realistic 3D. A reader's kept look + style reads as the matching one of the four."""
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate("() => { window._altoSolarLook.set('hub'); window._altoSolarStyle.set('retro'); }")     # both keys now kept
+    sk = pg.evaluate("() => Object.keys(localStorage).filter(function(k){ return /^alto-solar-style:/.test(k); })")
+    assert len(sk) == 1, sk                                              # (the look this page opens in writes nothing: name both keys)
+    keys = [sk[0], sk[0].replace("-style:", "-look:")]
     for look, sty, want in (("hub", "retro", "system"), ("hub", "real", "system"), ("plain", "classic", "system"),
                             ("stars", "classic", "chart"), ("stars", "retro", "retro"), ("stars", "real", "3d")):
-        pg.evaluate("""([l, s]) => Object.keys(localStorage).forEach(function(k){
-            if(/^alto-solar-look:/.test(k)) localStorage.setItem(k, l); if(/^alto-solar-style:/.test(k)) localStorage.setItem(k, s); })""", [look, sty])
-        pg.reload(); pg.wait_for_timeout(1400)
-        st = pg.evaluate("""() => { var de=document.documentElement; return [window._altoSolarStyles.get(),
+        ctx = browser.new_context(viewport={"width": 1500, "height": 950}, reduced_motion="reduce")
+        vals = {k: (look if "-look:" in k else sty) for k in keys}       # kept before the page loads, as a returning viewer's
+        ctx.add_init_script("(function(v){ try{ for(var k in v) localStorage.setItem(k, v[k]); }catch(e){} })(%s)" % json.dumps(vals))
+        q = ctx.new_page(); q.goto(page.as_uri()); q.wait_for_timeout(1400)
+        st = q.evaluate("""() => { var de=document.documentElement; return [window._altoSolarStyles.get(),
             [].map.call(document.querySelectorAll('#sol-sty [aria-checked=true]'), function(b){ return b.getAttribute('data-style'); }),
             de.classList.contains('sk-retro'), de.classList.contains('sk-real'), de.classList.contains('alto-solar-hub')]; }""")
+        ctx.close()
         assert st[0] == want and st[1] == [want], (look, sty, st)
         assert st[2] == (want == "retro") and st[3] == (want == "3d") and st[4] == (want == "system"), (look, sty, st)
     for v in ("chart", "3d", "system", "retro"):                                     # the switch itself

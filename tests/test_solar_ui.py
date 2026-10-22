@@ -69,7 +69,7 @@ def test_hub_and_spoke_previews_its_star_look_and_respects_reduced_motion():
     assert ">System<" in hub and "Solar" not in hub and 'aria-hidden="true"' in hub
     assert "pv-o1" in hub and "pv-om" in hub and hub.count("<circle") >= 8              # planets and a moon go round
     assert "radialGradient" in hub and "url(#ntsun)" in hub and "url(#ntglow)" in hub    # a glowing sun
-    assert "Concepts as a system: suns with planets, moons and satellites you can orbit between. Toggle System or Star chart any time." in hub
+    assert "Concepts as a system: suns with planets, moons and satellites you can orbit between. Switch its style any time: System, Star chart, Retro or 3D Star chart." in hub
     assert "turn it into" not in hub
     css = h[h.index(".nt-pv{"):h.index(".nt-make{")]
     assert "@keyframes ntorb" in css

@@ -297,8 +297,8 @@ def test_a_detail_page_shows_no_chart_chrome_and_goes_back_to_the_system(browser
     pg.evaluate("() => showDetail('node','u1-p1')")
     pg.wait_for_timeout(600)
     assert pg.evaluate(vis) == "none"
-    b = pg.evaluate("() => { var b=document.getElementById('desk-back'); return [b.textContent.trim(), b.title, b.getAttribute('aria-label'), document.querySelector('.db-name').textContent]; }")
-    assert b == ["System", "Back to the system", "Back to the system", "System"], b
+    b = pg.evaluate("() => { var b=document.getElementById('desk-back'), n=document.querySelector('.db-name'); return [!!b.querySelector('svg'), b.title, b.getAttribute('aria-label'), !!n.querySelector('svg')]; }")
+    assert b == [True, "Back to the system", "Back to the system", True], b       # the format's symbol, named in its tooltip (1.9.139)
     pg.evaluate("() => showTimeline()")
     pg.wait_for_timeout(600)
     assert pg.evaluate(vis) != "none"
@@ -316,8 +316,8 @@ def test_an_outline_tree_page_keeps_its_wording(browser, tmp_path):
     pg, errs = _pg(browser, f)
     pg.evaluate("() => showDetail('node','u1-p1')")
     pg.wait_for_timeout(500)
-    b = pg.evaluate("() => [document.getElementById('desk-back').textContent.trim(), document.querySelector('.db-name').textContent]")
-    assert b == ["Outline", "Timeline"], b
+    b = pg.evaluate("() => { var b=document.getElementById('desk-back'); return [!!b.querySelector('svg'), b.getAttribute('aria-label'), b.title]; }")
+    assert b == [True, "Back to the outline", "Back to the outline"], b             # the outline's symbol, named in its tooltip (1.9.139)
     pg.context.close()
 
 
