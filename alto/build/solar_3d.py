@@ -422,7 +422,8 @@ function fly(G, now){
     if(o){ p=o.p; v=o.v; m='park'; } else A.unpark(); }              /* (left the close-up: the orbit is over) */
   if(!p){ if(SH.on){ SH.on=false; SH.end=now; SH.m=null; } SH.al=Math.max(0, SH.al-dt*1.8); return null; }
   var cr=A ? A.get() : {};
-  if(!SH.on){ SH.on=true; SH.hs=null; SH.ht=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.cr=cr.id; SH.m=null; }
+  if(!SH.on){ SH.on=true; SH.hs=null; SH.ht=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.m=null; }
+  if(SH.cr!==cr.id){ SH.cr=cr.id; SH.hs=SH.ht=null; }      /* (a new pick shows at once, in orbit too: the ship stays on between flights) */
   if(m==='fly' && SH.m!=='fly'){ SH.t0=now; SH.a=snap(); SH.hc=null; SH.cd=null; }   /* (the chase eases in from where the camera is; the heading carries on) */
   SH.m=m; if(A && v) A.steer(SH, v, dt);
   if(v) SH.v+=(Math.hypot(v[0], v[1])-SH.v)*Math.min(1, dt*2);

@@ -250,8 +250,9 @@ window._altoCraft={list:C, gl:GL, id:cur, get:function(){ return BY[cur()]; }, s
 """
 
 CRAFT_CSS = r"""
-  /* the flying art is small (solar_fly.py SHIP / SHIP_RETRO): its lines a steady width on the screen, so it stays clear */
-  :is(.sol-ship,.fly-ship) *{vector-effect:non-scaling-stroke;}
+  /* the flying art is small (solar_fly.py SHIP / SHIP_RETRO, 0.4-0.5): its lines drawn twice as thick so they stay clear
+     (not vector-effect: non-scaling strokes cost a recalculation every frame the camera moves) */
+  :is(.sol-ship,.fly-ship) :is(.sh-hull,.sh-fin,.sh-gold,.sh-ring){stroke-width:1.8px !important;} :is(.sol-ship,.fly-ship) .sh-near{stroke-width:2.4px !important;}
   /* the Retro drawing's own deco details (the flat top-down drawing's gold sunburst and lines), Retro only */
   .sh-ro{display:none;} html.sk-retro :is(.sol-ship,.fly-ship,.cr-art) .sh-ro{display:inline;}
   /* Classic (and the 3D style's 2D pieces): the craft clean and light; Retro keeps solar_draw.py's gold on black */

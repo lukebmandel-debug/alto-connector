@@ -622,3 +622,34 @@ def test_ships_point_along_their_way_and_arrive_into_an_orbit(browser, page):
     assert not pg.evaluate("() => window._altoCraft.orbiting()")
     pg.context.close()
     assert not errs, errs
+
+
+def test_a_ship_picked_on_the_way_or_in_orbit_shows_at_once(browser, page):
+    """Luke (2026-10-22): "Ship switching doesn't work" — since 1.9.144 the 3D ship stays on in its orbit between
+    flights, so its model was read only once; a pick now shows at once: on the way in Classic and Retro, and round the
+    enlarged body in Realistic 3D."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoCraft.set('explorer'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    ART = "s => !!document.querySelector('#solar-fly-svg .fly-ship '+s)"
+    pg.evaluate("() => window.enterFocus('u2-p1')"); pg.wait_for_timeout(400)
+    assert pg.evaluate(ART, ".sh-ro") and pg.evaluate("() => !!window._altoSolarFlight()")
+    pg.evaluate("() => window._altoCraft.set('halo')"); pg.wait_for_timeout(50)
+    assert pg.evaluate(ART, 'circle.sh-hull[r="20"]')                                # Classic, on the way
+    pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 400)
+    pg.evaluate("() => window._altoSolarStyle.set('retro')"); pg.wait_for_timeout(400)
+    pg.evaluate("() => window.enterFocus('u1-p1')"); pg.wait_for_timeout(400)
+    pg.evaluate("() => window._altoCraft.set('explorer')"); pg.wait_for_timeout(50)
+    assert pg.evaluate(ART, ".sh-ro")                                                # Retro, on the way
+    pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 400)
+    pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pg.context.close(); pytest.skip("no WebGL in this browser")
+    pg.evaluate("() => window.enterFocus('u2-p1')")
+    pg.wait_for_timeout(int(pg.evaluate("() => window._altoFlyMs")) + 1800)
+    assert pg.evaluate("() => [window._altoCraft.orbiting(), window._altoSolar3D.ship().craft]") == ["u2-p1", "explorer"]
+    pg.evaluate("() => window._altoCraft.set('halo')"); pg.wait_for_timeout(300)
+    s = pg.evaluate("() => window._altoSolar3D.ship()")
+    assert s["craft"] == "halo" and s["on"] and s["al"] > .9, s                      # Realistic 3D, in orbit
+    pg.context.close()
+    assert not errs, errs

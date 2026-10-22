@@ -671,7 +671,7 @@ function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') 
     .observe(c, {attributes:true, attributeFilter:['class']}); }
 /* System look: nothing of the flight left (stopped where it was, the layer gone) */
 function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
-function init(){ watchOv(); var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
+function init(){ watchOv(); if(A) A.onChange(function(){ var pr=ship && ship.querySelector('.fly-ship'); if(pr) pr.innerHTML=craft().svg||''; });   /* (a new pick: the art at once, on the way too) */ var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
   if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
 window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=tauOf(performance.now());
