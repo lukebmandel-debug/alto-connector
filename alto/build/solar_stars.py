@@ -48,7 +48,7 @@ theme). window._altoSkinStats exposes tick timings and texture hashes for tests.
 from __future__ import annotations
 
 from .solar_draw import _slim
-from .retro import BRAND_CSS, FRAME_CSS, WORDMARK_CSS   # shared with every format's Retro (retro.py)
+from .retro import BRAND_CSS, CHROME_CSS, FRAME_CSS, WORDMARK_CSS, scoped, _slim as _rt_slim   # shared with every format's Retro (retro.py)
 
 _P = "html.alto-stars:not(.mobile)"
 # a resting circle (solar_draw's own rest selector)
@@ -695,10 +695,9 @@ RETRO_CSS = (r"""
   X .sol-unit{font-weight:300 !important;background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:none !important;
     border:0 !important;border-radius:0 !important;color:#d9ae55 !important;letter-spacing:.32em !important;}
   X .sol-unit b,X .sol-unit span{color:#d9ae55 !important;}
-""" + WORDMARK_CSS + r"""  body:has(#detail-page.visible) #sk-mark{display:none !important;}
-  /* the page round the chart goes black too (the bars stay clear, as on every main page: clear_top.py), the name in poster letters, the switches rimmed in gold */
+""" + WORDMARK_CSS + r"""  /* the page round the chart goes black too (the bars stay clear, as on every main page: clear_top.py), the switches rimmed in gold; the name, the chips
+     and the rest of the chrome are every Retro's own (retro.CHROME_CSS, below) */
   X #page-bg:not(#_){background:#000 !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
-  X #title-text:not(#_){color:#efe6cf !important;font-family:"Avenir Next","Futura","Century Gothic",system-ui,sans-serif !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X #sol-ctl .sol-seg,X #sol-ctl #sol-motion,X #sol-ctl .sol-opt{background:#000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;border-radius:0 !important;}
   X #sol-ctl button{color:#c9d1dc !important;font-family:"Avenir Next","Futura",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;border-radius:0 !important;}
   X #sol-ctl .sol-seg button.on,X #sol-ctl #sol-motion.on,X #sol-ctl .sol-opt.on{color:#000 !important;background:#d9ae55 !important;}
@@ -710,11 +709,10 @@ RETRO_CSS = (r"""
   X #world .node[data-solar]:is(.focused,.sol-closing) .node-tag{color:#d9ae55 !important;letter-spacing:.2em;}
   X #world .node[data-solar]:is(.focused,.sol-closing) .node-title{font-family:"Avenir Next","Futura","Century Gothic",system-ui,sans-serif !important;text-transform:uppercase;letter-spacing:.06em;}
   X #world .node-card>.node-footer>:is(button,.sol-more){background:#000 !important;border:1px solid rgba(217,174,85,.75) !important;color:#d9ae55 !important;box-shadow:none !important;}
-  X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X #nav .nav-group-label:not(#_){background:#000 !important;box-shadow:0 0 0 3px #000 !important;text-shadow:none;}   /* (readable over whatever passes under them) */
-  X #ct-chips{background:#000 !important;border-color:rgba(217,174,85,.6) !important;color:#d9ae55 !important;}
   X .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;}
 """).replace("X ", _X + " ").replace("PROBE", "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='none' stroke='%23b9bec6' stroke-width='1.6'%3E%3Cpath d='M23 8v6h3M24 20l-7 14M24 20l4 9M24 20l7 7'/%3E%3Crect x='21' y='15' width='6' height='7' fill='%237d838c'/%3E%3C/g%3E%3Cpath d='M19 12a7 8 0 0 0 0 14z' fill='%23f2f2ee'/%3E%3Ccircle cx='24' cy='18.5' r='1.3' fill='%23d6a93c'/%3E%3C/svg%3E")
+# the chrome round the chart and its detail pages, every Retro's own (retro.CHROME_CSS): dark whatever the theme toggle says
+RETRO_CSS += "@media screen{\n" + _rt_slim(scoped(CHROME_CSS, _X)) + "\n}\n"
 STARS_CSS += RETRO_CSS
 
 STARS_JS = _slim(STARS_JS)

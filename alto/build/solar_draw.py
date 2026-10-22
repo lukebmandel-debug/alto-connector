@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import json
 
+from .retro import DARK_JS
 from .solar import GOLDEN, LOOK_FLAGS, SOLAR, SPIN
 
 SOLAR_CSS = r"""
@@ -1626,6 +1627,7 @@ window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:functio
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
 function stySync(){ RETRO=STY==='retro' && LOOK==='stars'; de.classList.toggle('sk-retro', STY==='retro'); de.classList.toggle('sk-real', STY==='real');
+  window._altoRetroDark(RETRO && desk());   /* Retro wears the dark theme, whatever the toggle says (retro.DARK_JS) */
   var m=document.getElementById('sk-mark');      /* the poster's wordmark: the timeline's name, lower left */
   var fr=document.getElementById('sk-frame');
   if(RETRO && desk()){ if(!fr){ fr=document.createElement('div'); fr.id='sk-frame'; fr.setAttribute('aria-hidden', 'true'); fr.innerHTML='<i></i><i></i><i></i><i></i><b></b>'; document.body.appendChild(fr); } }
@@ -1902,5 +1904,5 @@ def _slim(src: str) -> str:
     return "\n".join(l.strip() for l in src.splitlines() if l.strip()) + "\n"
 
 
-SOLAR_JS = _slim(SOLAR_PLAN_JS + SOLAR_JS)
+SOLAR_JS = _slim(SOLAR_PLAN_JS + DARK_JS + "\n" + SOLAR_JS)   # (DARK_JS: retro.py, the one rule for Retro and the theme)
 SOLAR_CSS = _slim(SOLAR_CSS)

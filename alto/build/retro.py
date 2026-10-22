@@ -57,27 +57,17 @@ WORDMARK_CSS = r"""  X #sk-mark{display:block;position:fixed;left:50%;transform:
 """
 FRAME_HTML = "<i></i><i></i><i></i><i></i><b></b>"
 
-# ── every engine page (timeline, horizontal, outline, the palaces' chrome and detail pages) ──
-COMMON_CSS = r"""
-  #sk-frame,#sk-mark{display:none;}
+# ── the chrome round every Retro page, shared with the System's Retro (solar_stars.RETRO_CSS splices it in with scoped()): Retro is a
+# dark look, so these are the dark tokens and the dark drawing of the bars, chips, controls, panels and detail pages whatever the theme
+# toggle says (DARK_JS keeps html.dark on while Retro is), screen only (a page prints in the engine's own black on white) ──
+CHROME_CSS = r"""
   X:not(#_){color-scheme:dark;--rt-g:#d9ae55;--rt-gh:#f0c15e;--rt-c:#efe6cf;--rt-ink:#b9b2a0;--rt-line:rgba(217,174,85,.5);--rt-f:FONT;
     --bg:#000;--surface:#05070b;--border:rgba(217,174,85,.32);--text:#efe6cf;--muted:#b9b2a0;--accent:#d9ae55;
     --card-glass-bg:#05070b;--card-desc-color:#b9b2a0;--panel-glass-bg:rgba(3,4,7,.97);--chip-glass-bg:#000;--chip-plate:#000;
     --nav-bg:rgba(0,0,0,.96);--nav-bar-bg:rgba(0,0,0,.96);--legend-bg:rgba(0,0,0,.94);--header-glass-bg:transparent;--page-glass-tint:transparent;
     --glass-slab-bg:none;--glass-slab-border:transparent;--glass-slab-shadow:none;--glass-sheen:transparent;}
-  FRAME BRAND WORD
   X body:has(#detail-page.visible) :is(#sk-mark,#sk-frame),X.detail-open :is(#sk-mark,#sk-frame){display:none !important;}
   X #mode-toggle{display:none !important;}
-  /* the poster's name on an engine page: a small cartouche in the bottom row, between its controls (the Star chart keeps its own place) */
-  X:not(.alto-stars) #sk-mark{bottom:28px;font-size:12px;letter-spacing:.5em;padding:9px 4px 9px 16px;background:#000;font-family:var(--rt-f);text-transform:uppercase;}
-  X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
-  X.alto-lanes #sk-mark{display:none !important;}
-  @media (max-width:900px){ X #sk-mark{display:none !important;} X #title-text:not(#_){letter-spacing:.22em;font-size:13px;} }   /* (a narrow window: the name fits, no cartouche) */
-  X.bldg-open #sk-frame i{display:none;}                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
-  /* the page: flat black, no wallpaper, no picture, no glass slab */
-  X body,X #app,X #canvas{background:#000 !important;}
-  X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
-  X #glass-slab{background:none !important;box-shadow:none !important;border-color:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* the bars: the name in poster letters, the chips cut square and rimmed in gold */
   X #title-text:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
@@ -102,6 +92,42 @@ COMMON_CSS = r"""
   X #search-results,X #info-content,X #bg-panel,X #ef-panel,X #notes-panel,X #summary-wrap,X .key-pop,X #share-dialog>*{background:rgba(3,4,7,.97) !important;color:#efe6cf !important;
     border:1px solid rgba(217,174,85,.45) !important;border-radius:0 !important;box-shadow:0 0 0 4px #000 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X :is(#bg-panel,#ef-panel,#notes-panel,#summary-wrap) :is(h1,h2,h3,.bg-t,.bg-h,.ef-h){color:#d9ae55 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.22em;font-weight:400 !important;}
+  /* a detail page: the poster's black, gold rules and headings, cream text */
+  X #detail-page:not(#_){background:#000 !important;color:#efe6cf !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #detail-page :is(h1,.detail-name):not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-weight:300 !important;}
+  X #detail-page :is(h2,h3,h4,.detail-section-title,.section-title,.dp-h):not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.26em;font-weight:400 !important;border-color:rgba(217,174,85,.4) !important;}
+  X #detail-page :is(p,li,td,th,dd,dt,blockquote){color:#e3dccb;}
+  X #detail-page .detail-role:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.3em;}
+  X #detail-page .detail-header:not(#_){border-color:rgba(217,174,85,.45) !important;}
+  X #detail-page a{color:#f0c15e !important;}
+  X #detail-page :is(.detail-card,.detail-section,.dp-card,section,.card,.panel,blockquote,table):not(#_){background:#030407 !important;border-color:rgba(217,174,85,.35) !important;border-radius:0 !important;box-shadow:none !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #detail-page :is(button,.chip,.nav-btn,.node-nav-btn):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
+  X .node-nav-btn:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;letter-spacing:.14em;text-transform:uppercase;}
+  X :is(#nav-prev-label,#nav-next-label,#nav-prev-label .wrap-pill,#nav-next-label .wrap-pill):not(#_){background:#000 !important;color:#efe6cf !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;}
+  X :is(#nav-prev-label,#nav-next-label) .wrap-pill:not(#_){box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;}
+  X #nav-label{color:#efe6cf !important;font-family:var(--rt-f) !important;letter-spacing:.3em;text-transform:uppercase;}
+  X .alto-fmt-sym,X [class*="fmt-sym"],X .fmt-badge{color:#d9ae55 !important;opacity:1 !important;}   /* the format symbols keep showing, in gold */
+  /* the rest of a detail page (Luke, 2026-10-22: "detail pages are the worst"): its back button, the page's chips, the study blocks' buttons */
+  X #desk-back:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #detail-page .char-chip:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
+  X #detail-page .ast-btn.pri:not(#_){background:#d9ae55 !important;color:#000 !important;}
+"""
+
+# ── the board of an engine page (timeline, horizontal, outline, the palaces' map and plan): the hosted layer only ──
+BOARD_CSS = r"""
+  /* the poster's name on an engine page: a small cartouche in the bottom row, between its controls (the Star chart keeps its own place) */
+  X:not(.alto-stars) #sk-mark{bottom:28px;font-size:12px;letter-spacing:.5em;padding:9px 4px 9px 16px;background:#000;font-family:var(--rt-f);text-transform:uppercase;}
+  X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
+  X.alto-lanes #sk-mark{display:none !important;}
+  @media (max-width:900px){ X #sk-mark{display:none !important;} X #title-text:not(#_){letter-spacing:.22em;font-size:13px;} }   /* (a narrow window: the name fits, no cartouche) */
+  X.bldg-open #sk-frame i{display:none;}                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  /* the page: flat black, no wallpaper, no picture, no glass slab */
+  X body,X #app,X #canvas{background:#000 !important;}
+  X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
+  X #glass-slab{background:none !important;box-shadow:none !important;border-color:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   /* the units: no glass bars; a fine gold rule, the unit's name in spaced capitals, its numeral in thin gold */
   X:not(.alto-lanes) #world .phase-band:not(#_){background:none !important;border:0 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #world .phase-band::before,X #world .phase-band::after{display:none !important;}
@@ -133,24 +159,12 @@ COMMON_CSS = r"""
   X #river-svg path[data-edge]:is([stroke="rgb(60,64,84)"],[stroke="rgb(208,212,226)"]){stroke:#d9ae55 !important;}
   X #river-svg path[data-edge-part]{display:none;}
   X .line-tip{background:#000 !important;color:#d9ae55 !important;border:1px solid #d9ae55 !important;border-radius:0 !important;font-family:var(--rt-f) !important;letter-spacing:.06em;text-transform:uppercase;}
-  /* a detail page: the poster's black, gold rules and headings, cream text */
-  X #detail-page:not(#_){background:#000 !important;color:#efe6cf !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X #detail-page :is(h1,.detail-name):not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-weight:300 !important;}
-  X #detail-page :is(h2,h3,h4,.detail-section-title,.section-title,.dp-h):not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.26em;font-weight:400 !important;border-color:rgba(217,174,85,.4) !important;}
-  X #detail-page :is(p,li,td,th,dd,dt,blockquote){color:#e3dccb;}
-  X #detail-page .detail-role:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.3em;}
-  X #detail-page .detail-header:not(#_){border-color:rgba(217,174,85,.45) !important;}
-  X #detail-page a{color:#f0c15e !important;}
-  X #detail-page :is(.detail-card,.detail-section,.dp-card,section,.card,.panel,blockquote,table):not(#_){background:#030407 !important;border-color:rgba(217,174,85,.35) !important;border-radius:0 !important;box-shadow:none !important;
-    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X #detail-page :is(button,.chip,.nav-btn,.node-nav-btn):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
-  X .node-nav-btn:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;letter-spacing:.14em;text-transform:uppercase;}
-  X :is(#nav-prev-label,#nav-next-label,#nav-prev-label .wrap-pill,#nav-next-label .wrap-pill):not(#_){background:#000 !important;color:#efe6cf !important;border-radius:0 !important;box-shadow:none !important;
-    font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-size:11px !important;}
-  X :is(#nav-prev-label,#nav-next-label) .wrap-pill:not(#_){box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;}
-  X #nav-label{color:#efe6cf !important;font-family:var(--rt-f) !important;letter-spacing:.3em;text-transform:uppercase;}
-  X .alto-fmt-sym,X [class*="fmt-sym"],X .fmt-badge{color:#d9ae55 !important;opacity:1 !important;}   /* the format symbols keep showing, in gold */
 """
+
+# ── every engine page (timeline, horizontal, outline, the palaces' chrome and detail pages) ──
+COMMON_CSS = r"""
+  #sk-frame,#sk-mark{display:none;}
+""" + CHROME_CSS + "  FRAME BRAND WORD\n" + BOARD_CSS
 
 # ── each format's own drawing (its structure stays; only how it is drawn changes) ──
 FORMAT_CSS = r"""
@@ -229,7 +243,7 @@ FORMAT_CSS = r"""
 
 JS = r"""(function(){
 if(window._altoRetro) return;
-var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null, was=null;
+var r=document.documentElement, CSS=__CSS__, FRAME=__FRAME__, st=null;
 function desk(){ return !r.classList.contains('mobile'); }
 function plain(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
 // the frame and the wordmark are the Star chart's (#sk-frame, #sk-mark): drawn on a desktop page
@@ -242,25 +256,40 @@ function art(){
     var tt=document.getElementById('title-text'); m.textContent=plain(tt ? tt.textContent : document.title).split(/\s+[—–-]\s+/)[0]; }
   else if(m) m.remove();
 }
-// Retro wears the dark theme (its tokens and every format's dark drawing under the gold): kept on while Retro is, and
-// the theme the reader chose comes back with Classic (the engine stores the theme only when its toggle is used)
-function dark(){ if(r.classList.contains('alto-retro') && !r.classList.contains('dark')) r.classList.add('dark'); }
+__DARK__
 function redraw(){ try{ if(typeof window.drawLines==='function') window.drawLines(); window.dispatchEvent(new Event('resize')); }catch(e){} }
 function on(){
   if(!st){ st=document.createElement('style'); st.id='alto-retro-css'; st.textContent=CSS; }
   if(!st.parentNode) (document.head||r).appendChild(st);
-  if(!r.classList.contains('alto-retro')){ was=r.classList.contains('dark'); r.classList.add('alto-retro'); }
-  dark(); art(); redraw();
+  r.classList.add('alto-retro'); window._altoRetroDark(1); art(); redraw();
 }
 function off(){
   if(!r.classList.contains('alto-retro')) return;
-  r.classList.remove('alto-retro'); if(was===false) r.classList.remove('dark'); was=null; art(); redraw();
+  r.classList.remove('alto-retro'); window._altoRetroDark(0); art(); redraw();
 }
-new MutationObserver(dark).observe(r,{attributes:true,attributeFilter:['class']});
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', art);
 window.addEventListener('load', art);
 window._altoRetro={on:on, off:off, art:art};
 })();"""
+
+
+# Retro wears the dark theme, in every format and the System's Star chart alike (Luke, 2026-10-22: "finding many things about dark
+# mode do not work on retro"): on, html.dark goes on and stays on whatever the toggle does (the toggle is hidden: CHROME_CSS); off,
+# the theme the reader had comes back (the engine stores a theme only when its toggle is used). One function, in the hosted layer
+# and in the System's page (solar_draw.py).
+DARK_JS = r"""window._altoRetroDark=window._altoRetroDark||function(on){
+  var r=document.documentElement, o=window._altoRetroDark;
+  if(on){ if(o.was==null) o.was=r.classList.contains('dark'); r.classList.add('dark');
+    if(!o.mo && typeof MutationObserver==='function'){ o.mo=new MutationObserver(function(){ if(o.was!=null && !r.classList.contains('dark')) r.classList.add('dark'); });
+      o.mo.observe(r,{attributes:true,attributeFilter:['class']}); } }
+  else if(o.was!=null){ var w=o.was; o.was=null; if(!w) r.classList.remove('dark'); }
+};"""
+
+
+def scoped(css: str, sel: str) -> str:
+    """Rules written with the `X` selector token (X , X., X:, X{) for the style class `sel`."""
+    return (css.replace("FONT", FONT).replace("X ", sel + " ").replace("X.", sel + ".").replace("X{", sel + "{")
+            .replace("X:", sel + ":"))
 
 
 def _slim(src: str) -> str:
@@ -270,11 +299,12 @@ def _slim(src: str) -> str:
 
 def css() -> str:
     """Every format's Retro rules, as the hosted script adds them."""
-    body = (COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS).replace("FONT", FONT)
-    return _slim(body.replace("X ", "html.alto-retro ").replace("X.", "html.alto-retro.").replace("X{", "html.alto-retro{").replace("X:", "html.alto-retro:"))
+    body = COMMON_CSS.replace("FRAME BRAND WORD", FRAME_CSS + BRAND_CSS + WORDMARK_CSS) + FORMAT_CSS
+    return ("@media screen{\n" + _slim(scoped(body, "html.alto-retro")) + "\n}\n"     # (printing: the engine's black on white)
+            "@media print{#sk-frame,#sk-mark{display:none !important;}}")
 
 
-ASSET = _slim(JS.replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)))
+ASSET = _slim(JS.replace("__DARK__", DARK_JS).replace("__CSS__", _json.dumps(css())).replace("__FRAME__", _json.dumps(FRAME_HTML)))
 V = _hashlib.sha256(ASSET.encode("utf-8")).hexdigest()[:10]
 PATH = f"/{FOLDER}/alto-retro-{V}.js"
 GUARD = "_altoRetro"

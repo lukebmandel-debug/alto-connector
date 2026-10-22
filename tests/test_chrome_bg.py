@@ -42,3 +42,21 @@ def test_the_homepage_bar_is_clear_on_a_computer_and_search_opens_compact():
 def test_retro_corners_sit_at_the_top_above_the_marks():
     assert "top:3px;bottom:71px;" in retro.FRAME_CSS and "var(--nav-bottom" not in retro.FRAME_CSS
     assert "X #title-bar:not(#_)>*{translate:0 8px;}" in retro.FRAME_CSS
+
+
+def test_retro_and_the_theme_follow_one_rule_everywhere():
+    """Retro is a dark look (Luke, 2026-10-22: "many things about dark mode do not work on retro star chart"): the hosted
+    layer and the System's Star chart share one chrome (dark tokens, bars, controls, panels, detail pages) and one
+    function that keeps html.dark on while Retro is and gives the reader's theme back after."""
+    from alto.build.solar_draw import SOLAR_JS
+    from alto.build.solar_stars import RETRO_CSS, _X
+    assert "window._altoRetroDark" in retro.ASSET and "window._altoRetroDark" in SOLAR_JS
+    assert "window._altoRetroDark(RETRO && desk());" in SOLAR_JS
+    shared = retro._slim(retro.scoped(retro.CHROME_CSS, _X))
+    assert shared in RETRO_CSS and _X + " #detail-page:not(#_){background:#000 !important" in shared
+    assert _X + " #mode-toggle{display:none !important;}" in shared
+    hosted = retro.css()
+    assert hosted.startswith("@media screen{") and "html.alto-retro #desk-back:not(#_)" in hosted
+    assert "@media print{#sk-frame,#sk-mark{display:none !important;}}" in hosted     # a Retro page prints black on white
+    for part in ("#detail-page .char-chip", "#desk-back", ".ast-btn.pri"):
+        assert part in retro.CHROME_CSS and part not in retro.BOARD_CSS
