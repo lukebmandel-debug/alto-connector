@@ -282,6 +282,12 @@ HEAD_JS = r"""(function(){
     choose:function(id){ try{ localStorage.setItem(KEY, JSON.stringify({v:id||'', t:Date.now()})); }catch(e){} apply(id); }};
   window._altoBgId='';
   apply(read());
+  // the style, Classic or Retro (retro.py), kept per timeline; Retro's look is a hosted script, fetched only when Retro is chosen
+  if(__RETRO__){ var SK=KEY.replace(/-bg$/,'-style');
+    var sty=function(){ try{ return localStorage.getItem(SK)==='retro' ? 'retro' : 'classic'; }catch(e){ return 'classic'; } };
+    var ret=function(on){ if(on && web()) __LOAD__ var R=window._altoRetro; if(R) R[on ? 'on' : 'off'](); };
+    window._altoStyle={get:sty, set:function(v){ try{ localStorage.setItem(SK, v==='retro' ? 'retro' : 'classic'); }catch(e){} ret(v==='retro'); return sty(); }};
+    if(sty()==='retro') ret(1); }
   window.addEventListener('alto-bg', function(){ apply(read()); });
   window.addEventListener('storage', function(e){ if(e && (e.key===KEY || e.key===LK)) apply(read()); });
   // The engine sets the bar colour itself when the page loads and when the theme flips; ours goes last. A
@@ -295,13 +301,17 @@ HEAD_JS = r"""(function(){
 })();"""
 
 
-def head_block(key: str, palace: bool = False) -> str:
+def head_block(key: str, palace: bool = False, retro: bool = False) -> str:
     """The <script> for <head>. `key` is the localStorage key of this page's choice; a Mind Palace
-    page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it."""
+    page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it.
+    `retro`: the page offers the Classic | Retro style (retro.py; a timeline page, not the homepage or a System)."""
+    from . import retro as _rt
+    from .palace_assets import loader
     js = (HEAD_JS.replace("__CATALOG__", catalog_json(palace))
           .replace("__KEY__", json.dumps(key)).replace("__BASE__", json.dumps(BG_BASE))
           .replace("__DEFAULT__", json.dumps(pbg.DEFAULT if palace else ""))
-          .replace("__LIBKEY__", json.dumps(LIB_KEY)).replace("__LIBPATH__", json.dumps(LIB_PATH)))
+          .replace("__LIBKEY__", json.dumps(LIB_KEY)).replace("__LIBPATH__", json.dumps(LIB_PATH))
+          .replace("__RETRO__", "1" if retro else "0").replace("__LOAD__", loader(_rt.PATH, _rt.GUARD) if retro else ";"))
     return '<script id="alto-bg-head">' + _lean(js) + "</script>"
 
 

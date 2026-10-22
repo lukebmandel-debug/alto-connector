@@ -90,4 +90,8 @@ JS = r"""(function(){
 
 
 def block() -> str:
-    return '<style id="alto-clear-top-css">' + CSS + '</style><script id="alto-clear-top-js">' + JS + "</script>"
+    """The page copy: comments and indentation left out (the source keeps them; every byte counts on a palace page)."""
+    import re
+    from .backgrounds import _lean
+    return ('<style id="alto-clear-top-css">' + _lean(CSS, css=True) + '</style><script id="alto-clear-top-js">'
+            + _lean(re.sub(r"/\*.*?\*/", "", JS, flags=re.S)) + "</script>")

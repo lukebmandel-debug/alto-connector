@@ -160,6 +160,13 @@ LIB_JS = r"""(function(){
 
   // ── the look ──
   var CSS=[
+    // the style row (Classic | Retro): two halves of one pill, the chosen one filled
+    '#bg-panel .bg-seg{display:flex;width:100%;border:1px solid var(--border);border-radius:9px;overflow:hidden;}',
+    '#bg-panel .bg-segb{flex:1;font:inherit;font-size:12px;height:30px;border:0;background:transparent;color:var(--text);cursor:pointer;}',
+    '#bg-panel .bg-segb+.bg-segb{border-left:1px solid var(--border);}',
+    '#bg-panel .bg-segb.on{background:var(--accent,#6d5bd0);color:#fff;font-weight:600;}',
+    'html.alto-retro #bg-panel .bg-seg{border-radius:0;border-color:rgba(217,174,85,.6);} html.alto-retro #bg-panel .bg-segb{font-family:"Avenir Next","Futura",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.2em;font-size:11px;}',
+    'html.alto-retro #bg-panel .bg-segb.on{background:#d9ae55;color:#000;}',
     '#bg-panel .bg-tile.bg-mine .bg-more{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;',
     ' font-size:13px;line-height:1;color:#fff;background:rgba(0,0,0,.45);opacity:0;transition:opacity .15s;cursor:pointer;}',
     '#bg-panel .bg-tile.bg-mine:hover .bg-more,#bg-panel .bg-tile.bg-mine:focus-within .bg-more,html.mobile #bg-panel .bg-more,#bg-panel .bg-tile.bg-mine.active .bg-more{opacity:1;}',
@@ -222,7 +229,18 @@ LIB_JS = r"""(function(){
   }
 
   // ── the picker's "Yours" section ──
-  function picker(s){ sec=s; style(); drop(); redraw(); pull().catch(function(){}); }
+  function picker(s){ sec=s; style(); styles(); drop(); redraw(); pull().catch(function(){}); }
+  // the page's style, Classic | Retro (retro.py): a timeline's head script keeps the choice (window._altoStyle); its row heads the picker
+  function styles(){
+    var S=window._altoStyle, ui=B.ui; if(!S || !ui || document.getElementById('bg-style')) return;
+    var row=el('div', 'bg-sec'), seg=el('div', 'bg-seg'); row.id='bg-style'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Style');
+    function mark(){ var c=S.get(); [].forEach.call(seg.children, function(b){ var on=b.getAttribute('data-sty')===c; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+    [['classic', 'Classic'], ['retro', 'Retro']].forEach(function(v){
+      var b=el('button', 'bg-segb', v[1]); b.type='button'; b.setAttribute('data-sty', v[0]);
+      b.title=v[0]==='retro' ? 'Retro: black and gold, like a vintage space poster' : 'Classic: Alto\u2019s own look, with the background below';
+      b.addEventListener('click', function(e){ e.stopPropagation(); S.set(v[0]); mark(); }); seg.appendChild(b); });
+    row.appendChild(el('div', 'bg-h', 'Style')); row.appendChild(seg); ui.body.insertBefore(row, ui.body.firstChild); mark();
+  }
   function order(L){ return Object.keys(L).sort(function(a, b){ return (L[b].c||0)-(L[a].c||0); }); }
   function redraw(){
     var ui=B.ui; if(!sec || !ui) return;

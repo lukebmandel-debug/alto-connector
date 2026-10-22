@@ -272,7 +272,8 @@ def _add_background_head(html: str, brief: Brief) -> str:
     # ahead of the tag, not after it: engine_patches appends the mobile runway
     # right behind it and every patch's text must stay in one piece
     city = brief.mode == "palace" and not building_view(brief)     # a Building Palace has no maps to offer
-    return html.replace(anchor, backgrounds.head_block(key, palace=city) + "\n" + anchor, 1)
+    retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
+    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + anchor, 1)
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
