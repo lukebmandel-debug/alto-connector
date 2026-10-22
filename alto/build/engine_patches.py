@@ -1825,7 +1825,11 @@ PATCHES += [
 #     header's frosted glass (on a child) reaches up under the clock.
 # Inside a frame (window.top !== window) nothing changes.
 _RW_CLASS_OLD = "  if(ua || qp) document.documentElement.classList.add('mobile');"
-_RW_CLASS_NEW = (_RW_CLASS_OLD + "\n"
+# The whole view (phone.py): a phone the viewer has set to see the page whole gets the desktop page,
+# html.phone-whole in place of html.mobile; the runway stays.
+_RW_CLASS_NEW = ("  var pw = (ua || qp) && window._altoPhoneWhole;\n"
+                 "  if((ua || qp) && !pw) document.documentElement.classList.add('mobile');\n"
+                 "  if(pw) document.documentElement.classList.add('phone-whole');\n"
                  "  // Before first layout — see engine_patches.py, mobile-runway-behind-bars.\n"
                  "  if((ua || qp) && window.top === window) document.documentElement.classList.add('rw');")
 

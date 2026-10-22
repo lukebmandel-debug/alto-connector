@@ -273,7 +273,14 @@ def _add_background_head(html: str, brief: Brief) -> str:
     # right behind it and every patch's text must stay in one piece
     city = brief.mode == "palace" and not building_view(brief)     # a Building Palace has no maps to offer
     retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
-    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + anchor, 1)
+    from .phone import head_block as phone_head
+    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + phone_head(phone_whole(brief)) + "\n" + anchor, 1)
+
+
+def phone_whole(brief: Brief) -> bool:
+    """A System or a Mind Palace is always seen whole on a phone; a timeline, horizontal timeline or outline offers
+    the one-card view too (phone.py)."""
+    return brief.mode == "palace" or brief.layout == "solar"
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
@@ -292,6 +299,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
     from .manual_edit import manual_edit
     from .print_views import print_views
     from .history_nav import history_nav
+    from .phone import card_block
     table = dx.autolink_table(brief)
     # Sources with a copy on the author's computer (empty when none have one).
     local, local_warnings = dx.local_sources(brief)
@@ -306,7 +314,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief))
-            + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
+            + card_block(phone_whole(brief)) + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])

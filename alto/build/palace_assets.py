@@ -13,6 +13,7 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
           each published Building Palace's plan as plan-<hash>.json (building_schema.hosted_json), written from the briefs at publish (`assets(building_plans=...)`),
           and the first-person interior renderer (palace_building_fpv.py, fetched by the blueprint the first time someone walks in)
   retro   the Retro style of every format but the System (retro.py): its rules and frame, fetched only by a page set to Retro
+  phone   the whole view on a phone (phone.py): the desktop page made for a finger, fetched only by a phone set to see the page whole
   fleet   the toy weapons: the battleship, destroyers, carriers, submarines and military bases of any city, with their sound, the crowd that
           runs from a collapse and the construction rebuild (palace_fleet_asset.py; loaded only by a city that has a vessel or a base)
 
@@ -31,6 +32,7 @@ ASSETS = (
     ("bldg", "palace_building_asset", "building_asset"),
     ("bldg", "palace_building_fpv", "fpv_asset"),
     ("retro", "retro", "retro_asset"),
+    ("phone", "phone", "phone_asset"),
 )
 
 
