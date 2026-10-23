@@ -1290,7 +1290,7 @@ function matOf(G,key){ var C=S.mc[key]; if(C) return C; var k=key, i=k.indexOf('
   else if(base==='lay'){ m={kind:1,tint:[1,.98,.94]}; }
   else if(base==='av'){ m={kind:3,tint:AV.hex(arg),rough:.72,metal:0}; }
   else if(base==='avshadow'){ m={kind:5,a:.5,trans:1}; }
-  else if(base==='navglow'){ m={kind:6,tint:[1,.78,.32],e:2.2}; }
+  else if(base==='navglow'){ m={kind:6,tint:[1,.42,.08],e:1.5}; }          /* a deep orange: it reads on white marble as well as on parquet */
   else if(base.slice(0,4)==='book'){ var bc=[[.42,.12,.1],[.12,.2,.3],[.2,.28,.16],[.5,.4,.22],[.3,.16,.2],[.62,.55,.42]][+base.slice(4)||0]; m={kind:3,tint:bc,rough:.7,metal:0}; }
   else if(base==='plaster'&&arg){ m=null; }
   if(!m){ var d=MAT[base]||MAT.plaster; if(d[0]<0) d=MAT.plaster; m={gen:d[0],tint:d[1],tile:d[2],rough:d[3],metal:d[4],bump:d[5],kind:0};
@@ -1708,10 +1708,10 @@ function G0(){ return S.G; }
 /* the trail ahead (a dashed glowing line on the floor) and a frame round the sign it leads to, as a batch of their own */
 function navBatch(lt){ var G=S.G, N=S.nav, hi=S.hiSlot&&S.hiT>0?S.hiSlot:(N&&N.it), pts=[], gl=S.gl; if(!N&&!hi) return null;
   var quad=function(a,b,c,d,nn){ [a,b,c,a,c,d].forEach(function(v){ pts.push(v[0],v[1],v[2],nn[0],nn[1],nn[2]); }); };
-  if(N){ var P=[[S.x,S.y,S.fz]].concat(N.pts.slice(N.k)); for(var i=0;i+1<P.length;i++){ var a=P[i], b=P[i+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]); if(L<.01) continue; var ux=(b[0]-a[0])/L, uy=(b[1]-a[1])/L, w=.07;
+  if(N){ var P=[[S.x,S.y,S.fz]].concat(N.pts.slice(N.k)); for(var i=0;i+1<P.length;i++){ var a=P[i], b=P[i+1], L=Math.hypot(b[0]-a[0],b[1]-a[1]); if(L<.01) continue; var ux=(b[0]-a[0])/L, uy=(b[1]-a[1])/L, w=.11;
       for(var u=(i?0:.8);u<L;u+=.7){ var u1=Math.min(L,u+.38), t0=u/L, t1=u1/L, x0=a[0]+ux*u, y0=a[1]+uy*u, x1=a[0]+ux*u1, y1=a[1]+uy*u1, z0=a[2]+(b[2]-a[2])*t0+.035, z1=a[2]+(b[2]-a[2])*t1+.035;
         var s0=supportAt(G,x0,y0,z0+.3), s1=supportAt(G,x1,y1,z1+.3); if(s0!=null&&Math.abs(s0+.035-z0)<.5) z0=s0+.035; if(s1!=null&&Math.abs(s1+.035-z1)<.5) z1=s1+.035;
-        quad([x0-uy*w,y0+ux*w,z0],[x1-uy*w,y1+ux*w,z1],[x1+uy*w,y1-ux*w,z1],[x0+uy*w,y0-ux*w,z0],[0,0,1]); } } }
+        quad([x0+uy*w,y0-ux*w,z0],[x1+uy*w,y1-ux*w,z1],[x1-uy*w,y1+ux*w,z1],[x0-uy*w,y0+ux*w,z0],[0,0,1]); } } }          /* counter-clockwise seen from above (the other way round was culled) */
   if(hi){ var s=hi.s, c=s.p, n=hi.n, dd=[-n[1],n[0]], W=s.sz[0]/2+.08, H=s.sz[1]/2+.08, z=hi.z, fs=s.card?[1,-1]:[1], b2=.045;
     fs.forEach(function(f){ var o=f*(s.card?.06:.035), cx=c[0]+n[0]*o, cy=c[1]+n[1]*o, nn=[n[0]*f,n[1]*f,0], P2=function(a,v){ return [cx+dd[0]*a,cy+dd[1]*a,z+v]; };
       quad(P2(-W,-H),P2(W,-H),P2(W,-H+b2),P2(-W,-H+b2),nn); quad(P2(-W,H-b2),P2(W,H-b2),P2(W,H),P2(-W,H),nn); quad(P2(-W,-H),P2(-W+b2,-H),P2(-W+b2,H),P2(-W,H),nn); quad(P2(W-b2,-H),P2(W,-H),P2(W,H),P2(W-b2,H),nn); }); }
@@ -1849,7 +1849,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
           for(var e=0;e<3;e++){ var A=P[e], B2=P[(e+1)%3]; if(dot(cross(sub(B2,A),sub(q,A)),g)<-1e-7){ ok=false; break; } } if(ok) hits.push(k); } }); }); return hits; } } };
 API._debug=function(){ return S; };
 API.camProbe=function(){ S.av=S.av||AV.make(AV.city('',39.97,-75.18),'mayor'); S.view='third'; S.camD=null; S.camWhy=''; var cp=Math.cos(S.pitch), e=camEye([Math.cos(S.yaw)*cp,Math.sin(S.yaw)*cp,Math.sin(S.pitch)]); return {cam:e, d:S.camD, why:S.camWhy}; };
-API.go=function(id){ return goNode(id); }; API.nav=function(){ return {on:!!(S.nav||S.plan), k:S.nav?S.nav.k:0, n:S.nav?S.nav.pts.length:0, last:S.lastRoute||null, hi:!!(S.hiSlot&&S.hiT>0)}; }; API.arrival=function(slot){ var it=S.G.slots[slot]; return it?arrival(S.G,it):null; };
+API.go=function(id){ return goNode(id); }; API.routeTo=function(id){ var it=S.G.slots['card-'+id]; if(!it) return null; var to=arrival(S.G,it), r=routeRun(routeStart(S.G,{x:S.x,y:S.y,z:S.fz},to),1e9); return {ok:r.ok, why:r.why, len:r.ok?pathLen(r.pts):0, n:r.n}; }; API.nav=function(){ return {on:!!(S.nav||S.plan), k:S.nav?S.nav.k:0, n:S.nav?S.nav.pts.length:0, last:S.lastRoute||null, hi:!!(S.hiSlot&&S.hiT>0)}; }; API.arrival=function(slot){ var it=S.G.slots[slot]; return it?arrival(S.G,it):null; };
 API.view=function(v){ if(v) setView(v); return S.view; }; API.avatar=function(w){ if(w) setAvatar(w); return S.av?{mayor:S.av.mayor, tag:AV.tag(S.av)}:null; }; API.AV=AV; API.CFG=CFG;
 /* headless walking (tests in node, no GL, no page): the plan indexed, the walker placed, step() as in the view */
 API.sim=function(plan,data){ S.data=data||{}; S.mc={}; S.G=bfIndex(plan); if(data) addCards(S.G); S.keys={}; S.vx=S.vy=S.vz=0; S.air=false; S.grounded=true; S.dip=0; S.safe=null; S.glide=null; S.noPad=1; S.hops=S.bonks=S.nets=S.rescues=0;
