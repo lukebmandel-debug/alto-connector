@@ -393,7 +393,10 @@ function cluster(){
 function openNode(id){ if(typeof window.showDetail==='function'){ S.opened=id; A.hide(); try{ window.showDetail('node',id); }catch(x){} } }
 
 // ── tour, units, the whole world ──
-A.tour=function(i){ var s=stops(); if(!s.length) return; S.ti=(i+s.length)%s.length; A.select(s[S.ti]); };
+/* a filter on: the Tour stops only where it shows (window._altoShown, filter_panel.py), the nearest such stop that way */
+function shownStop(id){ return !(window._altoFilterOn&&window._altoFilterOn()) || !window._altoShown || window._altoShown(id); }
+function tourNb(i,d){ var s=stops(), L=s.length; for(var k=0;k<L;k++,i+=d){ var j=((i%L)+L)%L; if(shownStop(s[j])) return j; } return -1; }
+A.tour=function(i){ var s=stops(); if(!s.length) return; var j=tourNb(i,(i<0||i<S.ti)?-1:1); if(j<0) return; S.ti=j; A.select(s[S.ti]); };
 A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1e9,-1e9];
   (u.st||[]).filter(placed).forEach(function(id){ var n=N(id), b=S.bb[n.c]||[n.x,n.y,n.x,n.y]; bb=[Math.min(bb[0],n.x,b[0]),Math.min(bb[1],n.y,b[1]),Math.max(bb[2],n.x,b[2]),Math.max(bb[3],n.y,b[3])]; });
   if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(); S.sel=u.hub||null; S.ti=u.hub?stops().indexOf(u.hub):-1; focus(a,null,null); tourBar();
@@ -406,7 +409,7 @@ A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
 function tourBar(){
   var s=stops(), B=S.tourEl, on=S.ti>=0&&s.length; B.hidden=!on; if(!on) return;
   var nm=function(id){ var n=N(id), a=hubUnit(id); return a>=0?dec((a+1)+' '+((D().acts[a]||{}).n||'')):dec((n.n||'')+' '+(n.pl||'')); };
-  S.tPrev.textContent=nm(s[(S.ti-1+s.length)%s.length]); S.tNext.textContent=nm(s[(S.ti+1)%s.length]);
+  var pj=tourNb(S.ti-1,-1), nj=tourNb(S.ti+1,1); S.tPrev.textContent=pj<0?'':nm(s[pj]); S.tNext.textContent=nj<0?'':nm(s[nj]);
   S.tCur.textContent='Tour '+(S.ti+1)+' / '+s.length+' · '+nm(s[S.ti]);
 }
 

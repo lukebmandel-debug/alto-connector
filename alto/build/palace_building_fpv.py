@@ -1804,7 +1804,11 @@ function navBatch(lt){ var G=S.G, N=S.nav, hi=S.hiSlot&&S.hiT>0?S.hiSlot:(N&&N.i
   for(var v=0;v<nv;v++){ var o=v*7, bb=v*STRIDE, q=v*6; f[o]=pts[q]; f[o+1]=pts[q+1]; f[o+2]=pts[q+2]; i8[bb+12]=Math.round(pts[q+3]*127); i8[bb+13]=Math.round(pts[q+4]*127); i8[bb+14]=Math.round(pts[q+5]*127); u8[bb+24]=255; u8[bb+25]=255; }
   if(!S.navVB) S.navVB=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,S.navVB); gl.bufferData(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW);
   return {built:{vb:S.navVB, ranges:[{k:'navglow', m:matOf(G,'navglow'), first:0, count:nv, trans:false}]}, light:lt}; }
-function stepCard(dir){ var d=S.data||{}, ord=(d.order||Object.keys(d.nodes||{})).filter(function(id){ var n=d.nodes[id]; return n&&n.r; }); if(!ord.length) return; var cur=ord.indexOf((d.order||Object.keys(d.nodes||{}))[S.cardIx==null?-1:S.cardIx]); var i=cur<0?(dir>0?0:ord.length-1):(cur+dir+ord.length)%ord.length; goNode(ord[i]); }
+/* a filter on: only the cards it shows (window._altoShown, filter_panel.py); from a card it hides, the nearest shown one that way */
+function stepCard(dir){ var d=S.data||{}, all=d.order||Object.keys(d.nodes||{}), on=!!(window._altoFilterOn&&window._altoFilterOn()), L=all.length;
+  var ok=function(id){ var n=(d.nodes||{})[id]; return !!(n&&n.r) && (!on||!window._altoShown||window._altoShown(id)); };
+  var c=S.cardIx==null?-1:S.cardIx, placed=c>=0&&!!((d.nodes||{})[all[c]]||{}).r, i=(c<0||(!on&&!placed))?(dir>0?0:L-1):c+dir;
+  for(var k=0;k<L;k++,i+=dir){ var j=((i%L)+L)%L; if(ok(all[j])){ goNode(all[j]); return; } } }
 function toggleCards(){ if(S.cp){ S.cp.remove(); S.cp=null; return; } var d=S.data||{}, ns=d.nodes||{}, ord=d.order||Object.keys(ns), p=S.cp=el('div','bf-cards',S.root), inp=el('input',null,p), list=el('div','bf-clist',p); inp.placeholder='Find a card'; inp.setAttribute('aria-label','Find a card');
   var fill=function(q){ while(list.firstChild) list.removeChild(list.firstChild); ord.forEach(function(id){ var n=ns[id]; if(!n||!n.r) return; var t=dec(n.t); if(q&&(n.n+' '+t).toLowerCase().indexOf(q)<0) return;
       var b=el('button',null,list), sw=el('i',null,b), ac=d.acts&&d.acts[n.a]; b.type='button'; if(ac&&ac.c) sw.style.background=ac.c; el('b',null,b,String(n.n)); b.appendChild(D.createTextNode(t)); b.addEventListener('click',function(e){ e.stopPropagation(); goNode(id); toggleCards(); }); }); };

@@ -187,7 +187,7 @@ def test_detail_page_next_buttons_skip_what_the_filter_hides(browser, pages, fmt
         pg.context.close()
 
 
-@pytest.mark.parametrize("fmt", ["timeline", "outline", "lanes", "system"])
+@pytest.mark.parametrize("fmt", ["timeline", "outline", "lanes"])      # (a System on a phone is always whole: below)
 def test_phone_cards_step_only_through_what_the_filter_shows(browser, pages, fmt):
     pg, errs = _open(browser, pages[fmt], phone=True)
     try:
@@ -223,3 +223,137 @@ def test_with_no_filter_steps_are_unchanged(browser, pages, fmt):
         assert not errs, errs
     finally:
         pg.context.close()
+
+
+# ── the formats on hosted files: the World Palace's Tour, the Museum's N / P, a phone's Whole view ──
+class _Site:
+    """The page at /index.html and every hosted file (palace_assets.assets()) at its own path, as the site serves them."""
+
+    def __init__(self, html):
+        import http.server
+        import socketserver
+        import threading
+        from alto.build import palace_assets
+        files = {f"/{folder}/{name}": text for folder, name, text in palace_assets.assets()}
+        files["/index.html"] = html
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                body = files.get(self.path.split("?")[0])
+                b = (body.encode() if isinstance(body, str) else body) if body is not None else b"no"
+                self.send_response(200 if body is not None else 404)
+                ct = "text/html; charset=utf-8" if self.path.startswith("/index") else \
+                    "application/json" if self.path.split("?")[0].endswith(".json") else "text/javascript"
+                self.send_header("Content-Type", ct)
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+        socketserver.TCPServer.allow_reuse_address = True
+        self.httpd = socketserver.ThreadingTCPServer(("127.0.0.1", 0), H)
+        self.httpd.daemon_threads = True
+        self.origin = "http://127.0.0.1:%d" % self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+def test_the_world_palace_tour_stops_only_where_the_filter_shows(browser):
+    import test_world_palace as twp
+    d = _with_filter({"brief": twp.brief(), "nodes": json.loads(json.dumps(twp.NODES))})
+    html, _ = build_timeline(*load_brief(d))
+    site = _Site(html)
+    pg = browser.new_page(viewport={"width": 1400, "height": 900})
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    try:
+        pg.goto(site.origin + "/index.html")
+        pg.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-tour')", timeout=30000)
+        pg.evaluate("() => { window._sel = []; AltoWorld.on('select', id => window._sel.push(id)); }")
+        heavy = set(pg.evaluate(HEAVY))
+        # unfiltered, the Tour reaches a stop the filter would hide
+        pg.evaluate("() => AltoWorld.tour(0)")
+        for _ in range(4):
+            pg.keyboard.press("ArrowRight")
+            pg.wait_for_timeout(250)
+        assert any(s and s not in heavy for s in pg.evaluate("window._sel")), pg.evaluate("window._sel")
+        pg.evaluate(CHIP)
+        pg.wait_for_timeout(400)
+        pg.evaluate("() => { window._sel = []; }")
+        for k in ("ArrowRight",) * 4 + ("ArrowLeft",) * 3:
+            pg.keyboard.press(k)
+            pg.wait_for_timeout(250)
+        seen = [s for s in pg.evaluate("window._sel") if s]
+        assert len(set(seen)) > 1 and all(s in heavy for s in seen), (seen, sorted(heavy))
+        assert not errs, errs
+    finally:
+        pg.close()
+        site.close()
+
+
+def test_the_museum_n_and_p_walk_only_to_the_cards_the_filter_shows(browser):
+    import test_building_palace_tools as tbp
+    from alto.build import building_schema as bs
+    from tests.building_fpv_support import Server, open_view
+    d = _with_filter({"brief": tbp.brief(), "nodes": json.loads(json.dumps(tbp.NODES))})
+    html, _ = build_timeline(*load_brief(d))
+    srv = Server()
+    try:
+        page, errors = open_view(browser, srv, html, bs.fixture())
+        try:
+            heavy = set(page.evaluate(HEAVY))
+            cur = "() => { const S = AltoBuildingFPV._debug(), o = S.data.order || Object.keys(S.data.nodes); return S.cardIx == null ? null : o[S.cardIx]; }"
+            seen = []
+            for _ in range(4):                       # no filter: N reaches the others too
+                page.keyboard.press("n")
+                page.wait_for_timeout(300)
+                seen.append(page.evaluate(cur))
+            assert any(s and s not in heavy for s in seen), seen
+            page.evaluate(CHIP)
+            page.wait_for_timeout(300)
+            seen = []
+            for k in "nnnpp":
+                page.keyboard.press(k)
+                page.wait_for_timeout(300)
+                seen.append(page.evaluate(cur))
+            assert len(set(seen)) > 1 and all(s in heavy for s in seen), (seen, sorted(heavy))
+            assert not [e for e in errors if "Failed to load" not in e], errors
+        finally:
+            page.close()
+    finally:
+        srv.close()
+
+
+@pytest.mark.parametrize("fmt", ["timeline", "system"])
+def test_a_phones_whole_view_steps_only_through_what_the_filter_shows(browser, pages, fmt):
+    site = _Site(pages[fmt].read_text(encoding="utf-8"))
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, user_agent=PHONE_UA, device_scale_factor=2,
+                              is_mobile=browser.browser_type.name == "chromium")
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    try:
+        pg.goto(site.origin + "/index.html?view=whole")
+        pg.wait_for_function("document.documentElement.classList.contains('ph-ready')", timeout=30000)
+        assert not pg.evaluate("document.documentElement.classList.contains('mobile')")
+        heavy = set(pg.evaluate(HEAVY))
+        start = _start(pg, heavy)
+        pg.evaluate(CHIP)
+        pg.wait_for_timeout(500)
+        pg.evaluate("id => window.showDetail('node', id)", start)
+        pg.wait_for_timeout(900)
+        seen = []
+        for _ in range(3):
+            pg.evaluate("() => document.getElementById('nav-next').click()")
+            pg.wait_for_timeout(700)
+            seen.append(pg.evaluate("() => window._currentDetailId"))
+        assert len(set(seen)) > 1 and all(s in heavy for s in seen), (seen, sorted(heavy))
+        assert not errs, errs
+    finally:
+        ctx.close()
+        site.close()
