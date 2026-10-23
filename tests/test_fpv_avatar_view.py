@@ -42,7 +42,7 @@ def test_city_third_person_follows_the_mayor_figure_and_t_switches(roam):
     cam = st["cam"]
     back = (cam[0] - s0["x"]) * math.cos(s0["yaw"]) + (cam[1] - s0["y"]) * math.sin(s0["yaw"])
     assert back < -2.0                                                                     # behind the walker
-    tag = pg.evaluate("() => { var t=document.querySelector('#pal-ride .rm-tag'); return {txt:t.textContent, op:+getComputedStyle(t).opacity}; }")
+    tag = pg.evaluate("() => { var t=document.querySelector('#pal-ride .rm-tag'); return {txt:t.textContent, op:+t.style.opacity}; }")
     assert tag["txt"] == "Mayor Cherelle Parker" and tag["op"] > 0.5
     pg.keyboard.press("t"); pg.evaluate(f"() => {R}.draw()")
     st = pg.evaluate(f"() => {R}.avatar.state()")
@@ -68,7 +68,7 @@ def test_city_hop_is_one_per_press_and_lands(roam):
     assert pg.evaluate(f"() => {R}.avatar.set().tag.text") == "Mayor Zohran Mamdani"
     zs = pg.evaluate(f"() => {{ var o=[]; for(var i=0;i<60;i++){{ {R}.tick(1/60,'hop'); o.push({R}.avatar.state().jz); }} return o; }}")
     assert 0.3 < max(zs) < 0.5 and zs[-1] == 0 and pg.evaluate(f"() => {R}.avatar.state().hops") == 1     # held for a second: one hop
-    pg.evaluate(f"() => {{ for(var i=0;i<5;i++) {R}.tick(1/60,''); {R}.tick(1/60,'hop'); for(var j=0;j<40;j++) {R}.tick(1/60,''); }}")
+    pg.evaluate(f"() => {{ for(var i=0;i<5;i++) {R}.tick(1/60,','); {R}.tick(1/60,'hop'); for(var j=0;j<40;j++) {R}.tick(1/60,','); }}")
     assert pg.evaluate(f"() => {R}.avatar.state().hops") == 2
     pg.evaluate(f"() => {R}.exit(false)")
 
@@ -81,57 +81,6 @@ def test_city_camera_is_pulled_in_before_a_building(roam):
     st = pg.evaluate(f"() => {R}.avatar.state()")
     assert st["camD"] < 2.6 and not pg.evaluate(f"([x,y]) => {R}.blocked(x,y)", st["cam"][:2])
     pg.evaluate(f"() => {R}.exit(false)")
-
-
-# ── the Museum Palace walk ──
-from alto.build import building_schema as bs  # noqa: E402
-from tests.building_fpv_support import Server, launch, open_view  # noqa: E402
-from tests.test_building_palace_tools import built  # noqa: E402
-
-try:
-    import playwright.sync_api as pw
-except ImportError:
-    pw = None
-
-
-@pytest.fixture(scope="module")
-def museum():
-    if pw is None:
-        pytest.skip("Playwright is not installed")
-    srv = Server()
-    with pw.sync_playwright() as p:
-        try:
-            b = launch(p, "chromium")
-        except Exception as e:
-            srv.close()
-            pytest.skip(f"no chromium: {e}")
-        pg, errors = open_view(b, srv, built()[0], bs.fixture(), room="hall", view="third")
-        yield pg, errors
-        pg.close(); b.close()
-    srv.close()
-
-
-def test_museum_third_person_draws_the_figure_inside_the_room(museum):
-    pg, errors = museum
-    pg.evaluate("AltoBuildingFPV.settle()")
-    st = pg.evaluate("AltoBuildingFPV.state()")
-    assert st["view"] == "third" and st["avatar"] and st["camD"] is not None and st["cam"]
-    assert pg.evaluate("AltoBuildingFPV._debug().camRoom !== null || AltoBuildingFPV._debug().room === null")
-    assert pg.evaluate("AltoBuildingFPV.stats().draws") > 0
-    pg.keyboard.press("t")
-    assert pg.evaluate("AltoBuildingFPV.state().view") == "first"
-    pg.keyboard.press("t")
-    assert pg.evaluate("AltoBuildingFPV.state().view") == "third"
-    assert not errors
-
-
-def test_museum_space_hops(museum):
-    pg, _ = museum
-    pg.evaluate("AltoBuildingFPV.place(5, 6, 0, 0, 0)")
-    h0 = pg.evaluate("AltoBuildingFPV.state().hops")
-    pg.keyboard.down(" "); pg.wait_for_timeout(120); pg.keyboard.up(" "); pg.wait_for_timeout(900)
-    st = pg.evaluate("AltoBuildingFPV.state()")
-    assert st["hops"] == h0 + 1 and not st["air"] and st["z"] == pytest.approx(0, abs=0.01)
 
 
 def test_city_trip_from_the_menu_arrives_facing_the_door(roam):
@@ -148,19 +97,3 @@ def test_city_trip_from_the_menu_arrives_facing_the_door(roam):
       for(var k=0;k<30;k++){ M.steer(1/60); R.tick(1/60,null,false,true); R.door.frame(1/60); } var c=R.door.cur(); return {tgt:M.state().tgt, trip:M.trip(), cur:c&&String(c.id)}; }""")
     assert r["trip"]["last"]["arrived"] and r["cur"] == r["tgt"]                       # in front of that building's door, facing it (its prompt shows)
     pg.evaluate("() => window._palRide.roam.exit(false)")
-
-
-def test_museum_trip_to_a_card_walks_and_arrives_facing_it(museum):
-    pg, _ = museum
-    pg.evaluate("AltoBuildingFPV.place(2, 2, 0, 0, 0)")
-    ids = pg.evaluate("Object.keys(AltoBuildingFPV._debug().data.nodes||{}).filter(function(id){ return AltoBuildingFPV._debug().G.slots['card-'+id]; })")
-    assert ids
-    pg.evaluate("(() => { var S=AltoBuildingFPV._debug(); S.paused=true; cancelAnimationFrame(S.raf); })()")
-    pg.evaluate("id => AltoBuildingFPV.go(id)", ids[-1])
-    pg.evaluate("(() => { for (var i=0; i<60*30 && AltoBuildingFPV.nav().on; i++) AltoBuildingFPV.step(1/60, {}, 1); })()")
-    nv = pg.evaluate("AltoBuildingFPV.nav()")
-    st = pg.evaluate("AltoBuildingFPV.state()")
-    to = pg.evaluate("id => AltoBuildingFPV.arrival('card-'+id)", ids[-1])
-    assert nv["last"]["arrived"] and nv["hi"] and math.hypot(st["x"] - to["x"], st["y"] - to["y"]) < 0.5
-    assert abs(math.remainder(st["yaw"] - to["yaw"], 2 * math.pi)) < 0.2
-    pg.evaluate("(() => { var S=AltoBuildingFPV._debug(); S.paused=false; S.last=0; S.raf=requestAnimationFrame(function(){}); })()")

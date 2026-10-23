@@ -1655,7 +1655,9 @@ function arrival(G,it){ var s=it.s, c=s.p, e=it.room.l.e, n=it.n, faces=s.card?[
   var dx=c[0]-best[0], dy=c[1]-best[1], dist=Math.hypot(dx,dy)||1; return {x:best[0], y:best[1], z:e, yaw:Math.atan2(dy,dx), pitch:clamp(Math.atan2(cz-(e+CFG.eye),dist),-.5,.4)}; }
 /* the route: A* over 0.4 m cells evaluated as they are reached, with the walker's own tests (floor under the capsule, nothing in the way, no step down a ledge); stairs are just cells whose floor rises */
 var NAV={cell:.4, max:30000, frameMs:6, totalMs:1600};
-function navCell(G,cache,i,j,zc){ var k=i+','+j+','+Math.round(zc*4), v=cache[k]; if(v!==undefined) return v; var x=i*NAV.cell, y=j*NAV.cell, z=supportAt(G,x,y,zc); if(z==null) z=supportDisc(G,x,y,zc);
+function navBox(G){ if(G.navBB) return G.navBB; var b=[1e9,1e9,-1e9,-1e9]; G.rooms.forEach(function(r){ b[0]=Math.min(b[0],r.bb[0]); b[1]=Math.min(b[1],r.bb[1]); b[2]=Math.max(b[2],r.bb[2]); b[3]=Math.max(b[3],r.bb[3]); }); return G.navBB=[b[0]-10,b[1]-10,b[2]+10,b[3]+10]; }
+function navCell(G,cache,i,j,zc){ var k=i+','+j+','+Math.round(zc*4), v=cache[k]; if(v!==undefined) return v; var x=i*NAV.cell, y=j*NAV.cell, bb=navBox(G); if(x<bb[0]||y<bb[1]||x>bb[2]||y>bb[3]){ cache[k]=null; return null; }          /* the building and 10 m round it: never a search across the whole site */
+  z=supportAt(G,x,y,zc); if(z==null) z=supportDisc(G,x,y,zc);
   v=(z==null||z<zc-CFG.step-.02||blockedAt(G,x,y,z))?null:z; cache[k]=v; return v; }
 /* the search keeps its state, so it can run a few milliseconds a frame (the trip's pill shows at once; nothing freezes) */
 function routeStart(G,from,to){ var C=NAV.cell, R={G:G, from:from, to:to, cache:{}, open:[], seen:{}, n:0, gi:Math.round(to.x/C), gj:Math.round(to.y/C)}, si=Math.round(from.x/C), sj=Math.round(from.y/C);

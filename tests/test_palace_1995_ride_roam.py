@@ -403,7 +403,7 @@ def test_hud_names_the_street_cross_street_district_and_a_compass(roam):
     tape = pg.evaluate("() => document.querySelector('.rm-tape').style.transform")
     assert "translate3d(" in tape
     # the two buttons
-    assert pg.evaluate("() => [].map.call(document.querySelectorAll('.rm-btns button'), function(b){ return b.getAttribute('data-roam'); })") == ["exit", "stay"]
+    assert pg.evaluate("() => [].map.call(document.querySelectorAll('.rm-btns button'), function(b){ return b.getAttribute('data-roam'); })") == ["view", "avatar", "exit", "stay"]
     pg.evaluate("() => window._palRide.roam.exit(false)")
 
 
