@@ -235,16 +235,21 @@ function lampAt(m, x, y, ox, oy, h){   /* (ox,oy) unit vector toward the street 
 function lampPark(m, x, y){
   frame(x,y,SZ_SW,0,UM); if(_rec) _rec.push(x,y,4*UM,1,0); if(_lamps) _lamps.push(x,y,SZ_SW+3.8*UM); fcyl(m,0,0,0,3.4,.1,.07,5,MAT.metal,PC.rail,false); fcyl(m,0,0,3.4,3.55,.2,.2,6,MAT.metal,PC.rail,false);
   fcyl(m,0,0,3.55,4.0,.22,.16,6,MAT.lamp,PC.lampW,true); }
+/* a prop model in the current frame (fpv_gfx.py: Poly Haven CC0 shapes, loaded by the GFX tiers; metres, z up, front along +x), one palette colour */
+function mdlOf(k){ return (typeof GFX!=='undefined'&&GFX.mdl)?GFX.mdl[k]:null; }
+function mdlAt(m, md, mat, tint){ var p=md.p, q=md.n, ix=md.i, ca=FR.ca, sa=FR.sa;
+  for(var j=0;j<ix.length;j++){ var i=ix[j]*3, lx=p[i], ly=p[i+1], nx=q[i], ny=q[i+1]; sv(m,WX(lx,ly),WY(lx,ly),WZ(p[i+2]),nx*ca-ny*sa,nx*sa+ny*ca,q[i+2],0,0,mat,tint); } }
 function benchAt(m, x, y, ox, oy){          /* seat facing (ox,oy) */
   frameV(x,y,SZ_SW,ox,oy,UM);
-  contact(m,.1,0,.5,.85,.02); fbox(m,-.1,-.8,.42,.36,.8,.47,MAT.wood,PC.bench,MAT.wood,PC.bench);
+  contact(m,.1,0,.5,.85,.02); var md=mdlOf('bench'); if(md){ mdlAt(m,md,MAT.wood,PC.bench); return; } fbox(m,-.1,-.8,.42,.36,.8,.47,MAT.wood,PC.bench,MAT.wood,PC.bench);
   fbox(m,-.18,-.8,.47,-.12,.8,.92,MAT.wood,PC.bench);
   fbox(m,-.05,-.72,0,.05,-.62,.42,MAT.metal,PC.rail); fbox(m,-.05,.62,0,.05,.72,.42,MAT.metal,PC.rail); }
 function hydrantAt(m, x, y, ox, oy, h){
   frameV(x,y,SZ_SW,ox,oy,UM); var c=PC.hyd[h<.7?0:1];
-  contact(m,0,0,.42,.42,.02); fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
+  contact(m,0,0,.42,.42,.02); var md=mdlOf('hydrant'); if(md){ mdlAt(m,md,MAT.sign,c); return; } fcyl(m,0,0,0,.62,.17,.15,6,MAT.sign,c,true,MAT.sign,c); fbox(m,-.26,-.045,.34,.26,.045,.44,MAT.sign,c); fcyl(m,0,0,.62,.74,.09,.05,6,MAT.sign,c,true); }
 function trashAt(m, x, y){
-  frame(x,y,SZ_SW,0,UM); contact(m,0,0,.5,.5,.02); fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
+  frame(x,y,SZ_SW,hash(Math.round(x*7)+Math.round(y*3))*6.2832,UM); contact(m,0,0,.5,.5,.02); var md=mdlOf('bin'); if(md){ mdlAt(m,md,MAT.sign,PC.trash); return; }
+  fcyl(m,0,0,0,.92,.27,.3,6,MAT.sign,PC.trash,true,MAT.sign,PC.rubber); }
 function manholeAt(m, x, y){ var n=8, i, r=.5*UM; for(i=0;i<n;i++){ var a0=i/n*6.28318, a1=(i+1)/n*6.28318; tr(m,x,y,SZ_RD+.01,x+Math.cos(a0)*r,y+Math.sin(a0)*r,SZ_RD+.01,x+Math.cos(a1)*r,y+Math.sin(a1)*r,SZ_RD+.01,MAT.sign,PC.manh,x,y,-1); } }
 function mailboxAt(m, x, y, ox, oy){
   frameV(x,y,SZ_SW,ox,oy,UM); fbox(m,-.26,-.28,0,.26,.28,.15,MAT.metal,PC.rail);

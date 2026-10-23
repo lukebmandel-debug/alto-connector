@@ -6,6 +6,7 @@ World program: every surface of the city (buildings, ground, way, landmark and s
   dr.. = the district hue (1,1,1 = none)    H = height of the building this wall belongs to (m, 0 = unknown)    L = the wall's length (m)
 GL-only material ids: 40 marking, 41 ballast+ties, 42 rail, 43 roadway (lane lines), 44 portal glow, 45 curb, 46 lot, 47 plain concrete, 48 crosswalk
 """
+from .fpv_gfx import IBL_GLSL_CITY as IBL_GLSL
 from .palace_ride_facade import FS_FACADE
 
 SH_COMMON = r"""
@@ -13,6 +14,7 @@ precision highp float;
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uSunCol; uniform vec3 uSkyA; uniform vec3 uGndA; uniform vec3 uZen; uniform vec3 uHor; uniform vec3 uFog;
 uniform float uFogD; uniform float uNight; uniform float uTime; uniform float uPix; uniform float uExp;
 uniform sampler2D uNz;
+""" + IBL_GLSL + r"""
 const float UMc=1.3;
 float h11(float x){ return fract(sin(x*12.9898+1.234)*43758.5453); }
 float h21(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
@@ -21,6 +23,9 @@ vec3 nz3(vec2 p){ return texture2D(uNz,p*(1./64.)).rgb; }
 vec3 skyAt(vec3 d){
   float h=clamp(d.z,0.,1.);
   vec3 c=mix(uHor,uZen,pow(h,.5));
+#ifdef GFX_ENV
+  if(uEnvP.w>0.) c=mix(c,hdrAt(vec3(d.xy,max(d.z,0.)),0.)*uIbl.y,uIbl.z);      /* fpv_gfx: the HDRI sky (its own sun painted out), faded in once loaded */
+#endif
   float sd=max(dot(d,uSun),0.);
   float day=1.-uNight;
   c+=uSunCol*(pow(sd,6.)*.10+pow(sd,60.)*.16)*(.35+.65*day);
@@ -73,6 +78,9 @@ uniform sampler2D uSh; uniform sampler2D uSq; uniform vec4 uShP;   /* x: 1 when 
 uniform vec2 uShQ;                                                  /* x: 1/size of the near map, y: unused */
 uniform vec4 uShO;                                                  /* where each map's UNSNAPPED centre is in its own clip space (far xy, near zw): the cascade blend follows the camera smoothly while the maps move in texel steps */
 #ifdef GFX
+#ifdef GFX_REAL
+uniform sampler2D uRA0; uniform sampler2D uRB0; uniform sampler2D uRA1; uniform sampler2D uRB1; uniform vec4 uRx; uniform vec3 uRm0; uniform vec3 uRm1;   /* fpv_gfx: real asphalt (0) and sidewalk (1) sets: fade, metres a tile; their mean albedo */
+#endif
 uniform sampler2D uTx0; uniform sampler2D uTx1; uniform float uTxA;   /* gfx material detail (palace_ride_gfx.py): tex0 asphalt/concrete/gravel, tex1 brick/limestone/grime; uTxA fades them in (0: none) */
 vec4 txs(sampler2D s, vec2 p){
 #ifdef GFX_HI
@@ -506,6 +514,12 @@ void main(){
     }
     alb*=1.+uTxA*k*(t-.5)*2.;
   }
+#ifdef GFX_REAL
+  if(uRx.x>0.&&N.z>.85){ bool asp=id>10.5&&id<11.5||id>42.5&&id<43.5||id>39.5&&id<40.5, pav=id>11.5&&id<12.5||id>44.5&&id<47.5;     /* the photographed asphalt and sidewalk: their variation, never their colour */
+    if(asp||pav){ vec2 q=gp/(asp?uRx.y:uRx.z); vec4 ra=asp?texture2D(uRA0,q):texture2D(uRA1,q), rb=asp?texture2D(uRB0,q):texture2D(uRB1,q);
+      float k=uRx.x*(1.-smoothstep(70.,240.,dist/UMc)); vec3 rt=clamp(ra.rgb/max(asp?uRm0:uRm1,vec3(.02)),0.,2.2);
+      alb=mix(alb,alb*rt,k*(asp?.8:.9)); N=normalize(N+vec3((rb.xy*2.-1.)*.8*k,0.)); ao*=mix(1.,rb.a,k*.7); if(asp) sheen*=mix(1.,1.-ra.a,k); } }
+#endif
 #endif
   if(id>26.5&&id<31.5){ vec3 amb2=mix(vec3(.30,.285,.26),vec3(.68,.64,.58),N.z*.5+.5)*(.55+.45*ao); vec3 c2=lin(clamp(alb,0.,1.))*amb2*1.7+emi; c2=aces(c2*uExp); gl_FragColor=vec4(pow(c2,vec3(1./2.2)),1.); return; }
   float nl=max(dot(N,uSun),0.); float nlw=max(dot(N,uSun)*(1.-wrap)+wrap,0.);
@@ -516,6 +530,9 @@ void main(){
   float up=N.z*.5+.5; float cany=1.; if(wallLike&&vHA.x>.5) cany=mix(.6,1.,smoothstep(0.,max(vHA.x*.55,5.),vUV.y));
   vec2 sh2=normalize(uSun.xy+vec2(1e-4)); float sside=max(dot(N.xy,sh2),0.)*(1.-abs(N.z));
   vec3 amb=uSkyA*up*cany+uGndA*(1.-up)+uSunCol*.05*sside*cany;
+#ifdef GFX_IBL
+  if(uIbl.w>.5) amb=shIrr(N)*uIbl.x*cany+uSunCol*.05*sside*cany;          /* fpv_gfx: the HDRI sky's irradiance (and its sun-lit ground) */
+#endif
   vec3 sunK=uSunCol;
   vec3 L=lin(clamp(alb,0.,1.));
   vec3 col=L*(amb*ao+sunK*nlw*mix(1.,ao,.35)*mix(1.,.85,wrap)*shd)+emi;
@@ -538,6 +555,9 @@ void main(){
     col=mix(col,sr,clamp(refl,0.,.95)); if(spec>.5||id>2.5&&id<3.5){ col+=uSunCol*pow(max(dot(R,uSun),0.),240.)*refl*3.*shd; } }
   float fq=dist/uFogD; float f=1.-exp(-fq*fq); float hf=clamp(1.-(vP.z/UMc)/260.,.0,1.); f*=mix(.5,1.,hf);
   vec3 fogc=uFog+uSunCol*.045*pow(max(dot(-V,uSun),0.),5.)*(1.-uNight);
+#ifdef GFX_IBL
+  if(uIbl.w>.5) fogc*=shIrr(normalize(vec3(-V.xy,0.)+vec3(0.,0.,1e-4)))/max(uShH,vec3(1e-3));     /* aerial perspective takes the sky's colour that way: warm toward the sun, blue away from it */
+#endif
   float aer=min(dist*dist/(uFogD*uFogD*5.),1.); col=mix(col,vec3(dot(col,vec3(.2126,.7152,.0722)))*vec3(.92,.97,1.08),aer*.35);
   col=mix(col,fogc*vec3(.96,.99,1.04),clamp(f,0.,1.));
   col=aces(col*uExp);
@@ -565,6 +585,9 @@ void main(){
     vec2 p=d.xy/(d.z+.12)*3.2+vec2(uTime*.05,uTime*.02);
     float f=fbm(p*1.3);
     float dens=smoothstep(.50,.78,f)*cs;
+#ifdef GFX_ENV
+    dens*=1.-uIbl.z;                                                     /* the HDRI has real clouds */
+#endif
     float lt=.55+.45*clamp(dot(vec3(d.xy,d.z),uSun)*.6+.5,0.,1.);
     vec3 cc=mix(vec3(.62,.66,.74),vec3(1.,.99,.96),lt)*(1.-.88*uNight)+vec3(.035,.045,.085)*uNight;
     cc=mix(cc,uHor*1.05,.25);
@@ -573,7 +596,11 @@ void main(){
   } else {
     float t=min(uEye.z/max(-d.z,.002),9000.);
     float fq=t/uFogD; float f=1.-exp(-fq*fq);
-    c=mix(uGnd,uFog,clamp(f,0.,1.));
+    vec3 fg=uFog;
+#ifdef GFX_IBL
+    if(uIbl.w>.5) fg*=shIrr(normalize(vec3(d.xy,0.)+vec3(0.,0.,1e-4)))/max(uShH,vec3(1e-3));
+#endif
+    c=mix(uGnd,fg,clamp(f,0.,1.));
   }
   c=aces(c*uExp);
   gl_FragColor=vec4(pow(c,vec3(1./2.2)),1.);

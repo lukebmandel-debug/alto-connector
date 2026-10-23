@@ -1,0 +1,20 @@
+Alto FPV graphics assets (alto/build/fpv_gfx.py), hosted under /gfx/.
+
+Textures and sky: CC0 1.0 Universal (public domain dedication); no attribution required, credited here anyway.
+  tex/kasota-*     Poly Haven "marble_01" (polyhaven.com/a/marble_01)                         CC0 1.0
+  tex/marble-*     ambientCG "Marble012" (ambientcg.com/view?id=Marble012)                      CC0 1.0
+  tex/parquet-*    Poly Haven "herringbone_parquet" (polyhaven.com/a/herringbone_parquet)     CC0 1.0
+  tex/boards-*     Poly Haven "oak_wood_planks" (polyhaven.com/a/oak_wood_planks)             CC0 1.0
+  tex/terrazzo-*   ambientCG "Terrazzo011" (ambientcg.com/view?id=Terrazzo011)                  CC0 1.0
+  tex/brick-*      Poly Haven "brick_wall_001" (polyhaven.com/a/brick_wall_001)               CC0 1.0
+  tex/asphalt-*    Poly Haven "asphalt_02" (polyhaven.com/a/asphalt_02)                        CC0 1.0
+  tex/sidewalk-*   Poly Haven "concrete_pavement" (polyhaven.com/a/concrete_pavement)         CC0 1.0
+  tex/brickwalk-*  Poly Haven "brick_pavement_02" (polyhaven.com/a/brick_pavement_02)         CC0 1.0
+  env-*            Poly Haven HDRI "kloofendal_48d_partly_cloudy_puresky" (Greg Zaal)          CC0 1.0
+Derived by Alto: albedo luminance matched to the procedural material it replaces, channels repacked (A = albedo + roughness,
+B = normal X/Y + height + cavity), resized to 1024/512 px, encoded to KTX2 with Basis Universal (ETC1S / UASTC + Zstandard);
+the HDRI's sun painted out, exposure scaled, lower hemisphere replaced, Reinhard-encoded.
+
+Software:
+  basis_transcoder.js / .wasm   Basis Universal transcoder by Binomial LLC, as shipped by three.js r186 (npm three@0.186.1,
+                                examples/jsm/libs/basis/). Apache License 2.0, https://github.com/BinomialLLC/basis_universal

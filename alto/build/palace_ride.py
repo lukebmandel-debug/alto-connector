@@ -87,7 +87,8 @@ function pause(){ R.playing=false; }
 window._palRide={real:REAL, roam:(typeof ROAM!=='undefined'?ROAM:null), ui:(typeof UIX!=='undefined'?UIX:null), mb:MB, init:init, leg:leg, lineEnter:lineEnter, lineStep:lineStep, exit:exit, mark:mark, switchHtml:switchHtml, toggle:toggle,
   active:function(){ return R.active; }, pref:pref, setPref:function(v){ setPref(v); labelBtns(); }, stats:stats, resetStats:resetStats, demo:demo, simTo:simTo, bench:bench, play:play, pause:pause,
   model:function(){ return R.M; }, time:function(){ return R.t; }, flash:function(){ return {RING_HZ:RING_HZ, MAX_FLASH_HZ:MAX_FLASH_HZ, BAR_HZ:BAR_HZ, HUE_DPS:HUE_DPS}; }, build:buildModel,
-  canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; }};
+  canvas:function(){ return R.cv; }, unlock:function(){ R.saved=null; },
+  gfx:function(){ return (typeof GFX!=='undefined'&&GFX.fx)?GFX.fx():null; }, glx:function(){ return typeof GLX!=='undefined'?GLX:null; }};      /* QA: the graphics pass (fpv_gfx.py) and the GL state */
 """
 
 RIDE_JS = "\n(function(){\nif(window._palRide) return;\n" + STREET_JS + JS_A + JS_MB + JS_B + JS_DOOR_GEO + JS_GL + JS_C + JS_D + JS_G + JS_H + JS_E + JS_F + JS_REAL + JS_STREET + JS_STREET_LM + JS_WATER + JS_CREDIT + _API + "})();\n"

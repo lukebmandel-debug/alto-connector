@@ -29,6 +29,8 @@ import json
 import re
 from pathlib import Path
 
+from .fpv_gfx import gfx_js as _gfx_js
+
 TEX_DIR = Path(__file__).resolve().parent.parent / "assets" / "tex"
 TEX_FOLDER = "tex"
 TEX_SRC = ("alto-tex0.png", "alto-tex1.png")
@@ -81,7 +83,23 @@ function gfxContext(cv){ var o=gfxProbe(); GFX.tier=gfxPickTier(o); if(GFX.tier=
   var gl=null; try{ gl=cv.getContext('webgl2',{alpha:false, antialias:false, depth:true, stencil:false, powerPreference:'high-performance', preserveDrawingBuffer:false}); }catch(x){ gl=null; }
   if(!gl){ GFX.tier='legacy'; return null; } GFX.wgl2=true; return gl; }
 /* the shader defines for the tier (legacy: none: the 1.9.102 shaders word for word) */
-function gfxDefs(){ return GFX.tier==='high'?'#define GFX 1\n#define GFX_HI 1\n':GFX.tier==='medium'?'#define GFX 1\n':''; }
+function gfxDefs(){ var F=gfxFx(); return (GFX.tier==='high'?'#define GFX 1\n#define GFX_HI 1\n':GFX.tier==='medium'?'#define GFX 1\n':'')
+  +(F.ibl?'#define GFX_IBL 1\n':'')+(F.env?'#define GFX_ENV 1\n':'')+(F.real?'#define GFX_REAL 1\n':''); }
+/* the graphics pass (fpv_gfx.py) per tier: SSAO taps (half size), bloom, the HDRI sky's size, the real asphalt/sidewalk albedo size (normals 512); a phone
+   (coarse pointer, iOS) keeps the light but drops the SSAO and the large files; ?palfx=0 turns the pass off (before/after strips); legacy: none of it */
+function gfxFx(){ var t=GFX.tier, ph=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)||/iPhone|iPad|iPod/.test(navigator.userAgent||'');
+  if(t==='legacy'||gfxQ().palfx==='0'||typeof FXG==='undefined'||!FXG.env) return {ao:0, bloom:0, ibl:0, env:'', real:''};
+  return t==='high'?{ao:ph?0:10, bloom:1, ibl:1, env:ph?'1024':'2048', real:ph?'a512':'a1024'}:{ao:0, bloom:1, ibl:1, env:'1024', real:'a512'}; }
+/* the post chain, the sky and the two ground sets, made with the programs (gfxInit) and again after a tier drop */
+function gfxFxSetup(gl){ if(typeof FXG==='undefined') return; var F=gfxFx(); if(GFX.post){ GFX.post.free(); GFX.post=null; }
+  if(GFX.wgl2&&(F.ao||F.bloom)){ GFX.post=FXG.post(gl); if(GFX.post){ var o=GFX.post.o; o.ao=F.ao; o.aoR=.72; o.aoK=.5; o.bloom=F.bloom; o.bloomK=GFX.tier==='high'?.05:.04; o.th=.88; } }
+  if(!F.env){ GFX.env=null; GFX.real={}; return; }
+  if(!GFX.mdl){ GFX.mdl={}; ['hydrant','bin','bench'].forEach(function(k){ var d=FXG.A.mdl[k]; if(d) FXG.glb(d.glb,function(r){ if(r) GFX.mdl[k]=r; }); }); }      /* the props' shapes: the cells built after they land use them */
+  var gen=GLX.gen, ok=function(){ return gen===GLX.gen&&glOk(); };
+  if(!GFX.env||GFX.envPx!==F.env){ GFX.env=null; GFX.envPx=F.env; FXG.ktx2(gl,FXG.env.px[F.env],{clampT:1},function(t){ if(!t) return; if(!ok()){ return; } GFX.env=t; GFX.envT0=performance.now(); }); }
+  GFX.real=GFX.real||{}; ['asphalt','sidewalk'].forEach(function(nm,i){ var set=FXG.A.tex[nm]; if(!set||GFX.real[nm]) return; var e=GFX.real[nm]={n:0, tile:set.tile*1.3, m:set.mean||[.5,.5,.5]};
+    var ax=gl.getExtension('EXT_texture_filter_anisotropic'), cb=function(k){ return function(t){ if(!t||!ok()) return; e[k]=t.tx; if(++e.n===2) e.t0=performance.now(); }; };
+    FXG.ktx2(gl,set[F.real],{aniso:ax, an:8},cb('a')); FXG.ktx2(gl,set.b512,{aniso:ax, an:8},cb('b')); }); }
 /* WebGL2 has these in core: the shims the renderer's WebGL1 calls expect */
 function gfxShim(gl){ if(!GFX.wgl2) return; GLX.inst={vertexAttribDivisorANGLE:function(i,d){ gl.vertexAttribDivisor(i,d); }, drawArraysInstancedANGLE:function(m,f,c,n){ gl.drawArraysInstanced(m,f,c,n); }}; }
 function gfxTarget(gl,w,h,samples,old){ if(old) gfxFreeTarget(gl,old);
@@ -97,7 +115,7 @@ function gfxTarget(gl,w,h,samples,old){ if(old) gfxFreeTarget(gl,old);
   if(!ok){ gfxFreeTarget(gl,t); return null; } return t; }
 function gfxFreeTarget(gl,t){ if(!t) return; try{ gl.deleteFramebuffer(t.fb); gl.deleteRenderbuffer(t.rc); gl.deleteRenderbuffer(t.rd); if(t.rfb){ gl.deleteFramebuffer(t.rfb); gl.deleteRenderbuffer(t.rt); } }catch(x){} }
 /* called by glSetup once the programs are made (and again after a context restore) */
-function gfxInit(gl){ GLX.gfx=GFX; GFX.fb=null; GFX.tx=[null,null]; GFX.txT0=0; GFX.txReq=0; GFX.txErr=''; GFX.iv=[]; GFX.last=0;
+function gfxInit(gl){ GLX.gfx=GFX; GFX.fb=null; GFX.tx=[null,null]; GFX.txT0=0; GFX.txReq=0; GFX.txErr=''; GFX.iv=[]; GFX.last=0; GFX.env=null; GFX.envPx=''; GFX.real={}; GFX.post=null;
   var n=window.devicePixelRatio||1, hi=GFX.tier==='high'?n:Math.min(n,1.5);
   if(!GFX.gov || GFX.gov.tier!==GFX.tier){ var s0=Math.max(1,Math.min(hi,Math.sqrt(2.3e6/Math.max(1,(R.w||innerWidth)*(R.h||innerHeight))))); s0=Math.max(1,Math.round(s0*4)/4); GFX.gov=gfxGovNew(Math.min(1,n),Math.max(Math.min(1,n),hi),s0); GFX.gov.tier=GFX.tier; }
   if(navigator.webdriver && gfxQ().palgov!=='1') GFX.gov.pin=1;      /* under automation the scale holds still (pixel tests compare frames) unless ?palgov=1 */
@@ -119,23 +137,25 @@ function gfxGov(g,dt,now){ if(g.pin) return '';
 function gfxSize(){ if(GFX.tier==='legacy' || !GFX.gov) return [R.cv.width,R.cv.height]; var s=GFX.gov.s; return [Math.max(1,Math.round(R.w*s)),Math.max(1,Math.round(R.h*s))]; }
 function gfxTierDown(){ var gl=GLX.gl; if(!gl || GFX.tier==='legacy') return;
   GFX.tier=GFX.tier==='high'?'medium':'legacy'; GFX.down++;
-  try{ glPrograms(gl); }catch(x){ GLX.err=String(x&&x.message||x); }
+  try{ glPrograms(gl); }catch(x){ GLX.err=String(x&&x.message||x); } gfxFxSetup(gl);
   var n=window.devicePixelRatio||1, keep=GFX.gov; GFX.gov=gfxGovNew(keep.lo,GFX.tier==='medium'?Math.max(keep.lo,Math.min(n,1.5)):keep.lo,keep.lo); GFX.gov.tier=GFX.tier;
   if(GFX.fb){ gfxFreeTarget(gl,GFX.fb); GFX.fb=null; } }
+GFX.fx=function(){ if(typeof FXG==='undefined') return null; var r=GFX.real||{}; return {tier:GFX.tier, fx:gfxFx(), env:!!GFX.env, real:['asphalt','sidewalk'].filter(function(k){ return r[k]&&r[k].n===2; }).length, post:!!(GFX.post&&GFX.post.ok), mdl:Object.keys(GFX.mdl||{}).length, err:FXG.err, fmt:GLX.gl?FXG.fmt(GLX.gl).n:'', pending:FXG.pending(), down:GFX.down}; };
 /* the frame: begin binds the MSAA target at the frame's size (re-made when the size changes), end resolves it to the canvas */
 function gfxBegin(gl,cw,ch){ if(!GFX.wgl2) return;
   var smp=GFX.tier==='high'?GFX.probe.samples:Math.min(2,GFX.probe.samples);
   if(!GFX.fb || GFX.fb.w!==cw || GFX.fb.h!==ch || GFX.fb.s!==smp){ var t=gfxTarget(gl,cw,ch,smp,GFX.fb); GFX.fb=t; if(!t){ GFX.wgl2fail=1; } }
   if(GFX.fb){ gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.fb.fb); } gl.viewport(0,0,cw,ch); }
-function gfxEnd(gl,cw,ch){ var now=performance.now();
-  if(GFX.wgl2 && GFX.fb){ var t=GFX.fb; gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.fb);
+function gfxEnd(gl,cw,ch){ var now=performance.now(); if(typeof FXG!=='undefined') FXG.pump(GLX.fresh?30:3);
+  var cm=GLX.cam; if(GFX.wgl2 && GFX.fb && GFX.post && GFX.post.ok && cm && GFX.post.end(GFX.fb.fb,cw,ch,{near:GL_NEAR, far:GL_FAR, tx:1/cm.ax, ty:1/cm.ay, ox:cm.ox, oy:cm.oy})){}
+  else if(GFX.wgl2 && GFX.fb){ var t=GFX.fb; gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.fb);
     if(t.rfb){ gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,t.rfb); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.rfb); }
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
   /* the governor and the warm-up see the interval between frames */
   var dt=GFX.last?now-GFX.last:0; GFX.last=now; var gdt=GLX.st.pending>0?0:dt;      /* frames that build streamed cells are not the resolution's fault */
   if(dt>0 && dt<1000){ GFX.iv.push(dt); if(GFX.iv.length>240) GFX.iv.shift(); }
   if(GFX.gov && GFX.tier!=='legacy'){ var r=gfxGov(GFX.gov,gdt,now); if(r==='floor'){ gfxTierDown(); } }
-  if(GLX.frame>2 && !GFX.txReq) gfxTexLoad(gl);
+  if(GLX.frame>2 && !GFX.txReq){ gfxTexLoad(gl); gfxFxSetup(gl); }
   if(GFX.perf && (!GFX.perfT || now-GFX.perfT>500)){ GFX.perfT=now; var a=GFX.iv.slice().sort(function(p,q){ return p-q; }), n=a.length;
     GFX.perf.textContent='tier '+GFX.tier+(GFX.wgl2?' webgl2 msaa'+(GFX.fb?GFX.fb.s:0):' webgl1')+'\nscale '+(GFX.gov?GFX.gov.s.toFixed(2):'-')+' '+cw+'x'+ch+'\nframe p50 '+(n?a[n>>1].toFixed(1):'-')+' p95 '+(n?a[Math.min(n-1,Math.floor(n*.95))].toFixed(1):'-')+' ms\ntextures '+(GFX.tx[0]&&GFX.tx[1]?'on':GFX.txErr||'loading'); } }
 /* ── the material textures: hosted, lazy, faded in; any failure keeps the procedural look ── */
@@ -155,9 +175,17 @@ function gfxTexLoad(gl){ GFX.txReq=1; if(GFX.tier==='legacy' || GFX_TEX.length<2
 function gfxUni(gl,pg){ if(GFX.tier==='legacy' || !pg.u.uTx0) return; var on=GFX.tx[0]&&GFX.tx[1], a=0;
   if(on){ a=Math.min(1,(performance.now()-GFX.txT0)/1000); a=a*a*(3-2*a); if(GFX.q&&GFX.q.paltexnow==='1') a=1; }
   gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D,on?GFX.tx[0]:null); gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D,on?GFX.tx[1]:null); gl.activeTexture(gl.TEXTURE0);
-  gl.uniform1i(pg.u.uTx0,5); gl.uniform1i(pg.u.uTx1,6); gl.uniform1f(pg.u.uTxA,on?a:0); }
+  gl.uniform1i(pg.u.uTx0,5); gl.uniform1i(pg.u.uTx1,6); gl.uniform1f(pg.u.uTxA,on?a:0); gfxIbl(gl,pg);
+  if(pg.u.uRx&&GFX.real){ var ra=GFX.real.asphalt, rs=GFX.real.sidewalk, now=performance.now(), ka=ra&&ra.n===2?Math.min(1,(now-ra.t0)/900):0, ks=rs&&rs.n===2?Math.min(1,(now-rs.t0)/900):0, k=Math.min(ka,ks);
+    if(k>0){ gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D,ra.a); gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D,ra.b); gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D,rs.a); gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D,rs.b); gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(pg.u.uRA0,8); gl.uniform1i(pg.u.uRB0,9); gl.uniform1i(pg.u.uRA1,10); gl.uniform1i(pg.u.uRB1,11); gl.uniform3fv(pg.u.uRm0,ra.m); gl.uniform3fv(pg.u.uRm1,rs.m); }
+    gl.uniform4f(pg.u.uRx,k,ra?ra.tile:1,rs?rs.tile:1,0); } }
+/* the HDRI sky's uniforms on the world and the sky programs: SH irradiance scaled to this tier's sky fill, the sky itself scaled to the analytic dome; by day only */
+function gfxIbl(gl,pg){ if(!pg.u.uIbl||typeof FXG==='undefined') return; var L=GFX.L||{}, sa=L.skyA||[.62,.72,.9], k=sa[0]*.2126+sa[1]*.7152+sa[2]*.0722, z=L.zen||[.5,.6,.8], h=L.hor||[.8,.85,.9];
+  var sky=((z[0]+h[0])*.2126+(z[1]+h[1])*.7152+(z[2]+h[2])*.0722)/2, on=!L.dk&&!!FXG.env;
+  FXG.uni(gl,pg.u,L.sun||[0,0,1],k,on&&GFX.env?GFX.env.tx:null,12); gl.uniform4f(pg.u.uIbl,k,sky/2,on&&GFX.env?Math.min(1,(performance.now()-GFX.envT0)/800):0,on?1:0); }
 /* the light for the GFX tiers: a soft golden-hour sun (~28 degrees up, warm), a cool sky fill and a warm ground bounce; night stays 1.9.102's */
-function gfxLight(L){ if(GFX.tier==='legacy' || L.dk) return L;
+function gfxLight(L){ GFX.L=L; if(GFX.tier==='legacy' || L.dk) return L;
   var el=28*Math.PI/180, az=Math.atan2(-.66,-.55); L.sun=[Math.cos(el)*Math.cos(az), Math.cos(el)*Math.sin(az), Math.sin(el)];
   L.sunCol=[2.35,1.96,1.45]; L.skyA=[.62,.72,.90]; L.gndA=[.30,.26,.21]; L.exp=1.0; return L; }
 GFX.pick=gfxPickTier; GFX.govNew=gfxGovNew; GFX.govStep=gfxGov;
@@ -165,7 +193,7 @@ GFX.pick=gfxPickTier; GFX.govNew=gfxGovNew; GFX.govStep=gfxGov;
 
 
 def js_gfx() -> str:
-    return _JS_GFX.replace("__GFX_TEX__", json.dumps(_tex_paths()))
+    return _gfx_js() + _JS_GFX.replace("__GFX_TEX__", json.dumps(_tex_paths()))
 
 
 JS_GFX = js_gfx()

@@ -22,6 +22,9 @@ What it builds from the plan (all in metres, x east, y north, z up)
 Lighting is per room (uniform arrays per draw): art spots and wall washers (warm), window daylight as area lights with sun patches cast through
 the window rectangles (mullion and transom shadows), laylights, a hemisphere bounce tinted by the floor, analytic contact AO (wall-floor,
 corners, room edges, column and fixture footprints), haze, filmic tone curve with eye adaptation, vignette and dither.
+The graphics pass (fpv_gfx.py, per tier in FX): soft sun shadows (Poisson / blocker-sized penumbra), half-size SSAO and bloom after the MSAA
+resolve, the HDRI sky as background, outdoor SH irradiance and reflections, and photographed CC0 material sets (KTX2) faded in over the
+procedural ones (REAL); the light shafts step aside when the pass is on (the two together crash WebKit's Metal shader compiler).
 Materials are procedural tileable textures rendered on the GPU at start (albedo+roughness, normal+height+cavity, mip-mapped): marble, limestone
 ashlar, granite, brick, plaster, eggshell paint, wood panelling, floorboards, chevron parquet, tile, terrazzo, concrete, carpet, brushed metal,
 leather, paving, roof tile.
@@ -38,6 +41,8 @@ from __future__ import annotations
 
 import hashlib as _hashlib
 import json as _json
+
+from .fpv_gfx import IBL_GLSL as _IBL_GLSL, gfx_js as _gfx_js
 
 FPV_CSS = r"""
 #bf-root{position:fixed;inset:0;z-index:2147483000;background:#0c0c0d;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
@@ -211,6 +216,7 @@ _GLSL_SKY = r"""
 precision highp float;
 VARY_F vec2 vQ;
 uniform vec3 uF; uniform vec3 uR; uniform vec3 uU; uniform vec3 uSun; uniform vec3 uSunC; uniform vec3 uSkyC; uniform vec4 uScr;
+""" + _IBL_GLSL + r"""
 float hs(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(hs(i),hs(i+vec2(1.,0.)),f.x),mix(hs(i+vec2(0.,1.)),hs(i+vec2(1.,1.)),f.x),f.y); }
 vec3 tone(vec3 c){ c*=uScr.x; c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14); return pow(clamp(c,0.,1.),vec3(1./2.2)); }
@@ -221,6 +227,9 @@ void main(){
   float sd=max(dot(d,uSun),0.); c+=uSunC*(pow(sd,1500.)*40.+pow(sd,10.)*.12);
   if(d.z>0.){ vec2 p=d.xy/(d.z+.18)*1.3; float n=vn(p)*.5+vn(p*2.1)*.3+vn(p*4.3)*.2; float cl=smoothstep(.52,.82,n)*smoothstep(0.,.3,d.z); c=mix(c,uSkyC*1.18+uSunC*.12,cl*.55); }
   else c=mix(hor*.92,uSkyC*vec3(.42,.41,.39),min(1.,-d.z*5.));
+#ifdef ENV
+  if(uEnvP.w>0.){ vec3 e=hdrAt(d,0.)+uSunC*(pow(sd,1500.)*40.+pow(sd,10.)*.06); c=mix(c,e,uIbl.z); }      /* the HDRI sky (its own sun painted out: ours is drawn), faded in once loaded */
+#endif
   vec3 o=tone(c); o+=(hs(gl_FragCoord.xy)-.5)/255.;
   FRAG=vec4(o,1.);
 }
@@ -256,21 +265,51 @@ uniform vec4 uBl[NB]; uniform vec4 uBr[NB]; uniform float uNB;
 uniform vec3 uSun; uniform vec3 uSunC; uniform vec3 uSkyC; uniform vec4 uFog; uniform vec4 uScr;
 uniform vec4 uJ; uniform vec4 uVar; uniform sampler2D uSM; uniform mat4 uLVP; uniform vec4 uSMp;
 uniform sampler2D uRT; uniform vec4 uRefl; uniform vec4 uClip; uniform float uPol;
+#ifdef REALTEX
+uniform sampler2D uA2; uniform sampler2D uB2; uniform vec4 uRx;      /* the real (photographed) set: x fade-in 0..1, y metres a tile, z joints baked into it */
+#endif
+""" + _IBL_GLSL + r"""
 float h31(vec3 p){ p=fract(p*.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
 float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x),mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x),mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y),f.z); }
 float unpk(vec4 b){ return dot(b,vec4(1.,1./255.,1./65025.,1./16581375.)); }
 float shTap(vec2 uv, float z){ return step(z,unpk(TEX(uSM,uv))); }
+#ifdef SOFTSH
+/* soft sun shadows: a rotated Poisson disc; on high the disc grows with the distance to the blocker (a ~1.5 degree sun: sharp at contact, soft further off) */
+const vec2 PD[16]=vec2[16](vec2(-.942,-.399),vec2(.946,-.769),vec2(-.094,-.929),vec2(.345,.294),vec2(-.916,.458),vec2(-.815,-.879),vec2(-.383,.277),vec2(.975,.756),
+  vec2(.443,-.975),vec2(.537,-.474),vec2(-.265,-.419),vec2(.792,.191),vec2(-.242,.997),vec2(-.814,.914),vec2(.2,.786),vec2(.144,-.141));
+float shadow(vec3 p, vec3 n){ if(uSMp.z<.5) return -1.; vec4 l=uLVP*vec4(p+n*uSMp.y*2.+uSun*uSMp.y,1.); vec3 c=l.xyz/l.w*.5+.5;
+  if(c.x<.001||c.y<.001||c.x>.999||c.y>.999||c.z>.999) return -1.; float t=uSMp.x, s=0., z=c.z-uSMp.w;
+  float a=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))*6.2832; mat2 R=mat2(cos(a),sin(a),-sin(a),cos(a));
+#if SOFTSH>1
+  float bs=0., bn=0.; for(int i=0;i<6;i++){ float d=unpk(TEX(uSM,c.xy+R*PD[i*2+1]*t*5.)); if(d<z){ bs+=d; bn+=1.; } }
+  if(bn<.5) return 1.; float w=clamp((z-bs/bn)*279.*.026/uSMp.y,1.,6.); z-=uSMp.w*w*.35;
+  for(int i=0;i<12;i++) s+=shTap(c.xy+R*PD[i]*t*w,z); return s/12.;
+#else
+  for(int i=0;i<8;i++) s+=shTap(c.xy+R*PD[i*2]*t*1.6,z); return s/8.;
+#endif
+  }
+#else
 float shadow(vec3 p, vec3 n){ if(uSMp.z<.5) return -1.; vec4 l=uLVP*vec4(p+n*uSMp.y*2.+uSun*uSMp.y,1.); vec3 c=l.xyz/l.w*.5+.5;
   if(c.x<.001||c.y<.001||c.x>.999||c.y>.999||c.z>.999) return -1.; float t=uSMp.x, s=0., z=c.z-uSMp.w;
   for(int i=-1;i<=1;i++) for(int j=-1;j<=1;j++) s+=shTap(c.xy+vec2(float(i),float(j))*t*1.3,z);
   return s/9.; }
+#endif
 float sh1(vec3 p){ vec4 l=uLVP*vec4(p,1.); vec3 c=l.xyz/l.w*.5+.5; if(c.x<.001||c.y<.001||c.x>.999||c.y>.999) return 0.; return shTap(c.xy,c.z-uSMp.w); }
 float sd2(vec2 p, vec2 a, vec2 b){ vec2 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-6),0.,1.); return length(pa-ba*h); }
 float ggx(vec3 N, vec3 V, vec3 L, float r){ vec3 H=normalize(V+L); float a=r*r, a2=a*a, nh=max(dot(N,H),0.), d=nh*nh*(a2-1.)+1.;
   float nl=max(dot(N,L),0.), nv=max(dot(N,V),1e-3), k=(r+1.)*(r+1.)/8.;
   return a2/(3.14159*d*d)*(nv/(nv*(1.-k)+k))/(4.*nv*(nl*(1.-k)+k)+1e-4); }
 vec3 tone(vec3 c){ c*=uScr.x; c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14); return pow(clamp(c,0.,1.),vec3(1./2.2)); }
+/* the material's two textures at uv: the procedural set (uA, uB), the real one (uA2, uB2) faded in over it once loaded */
+void samp(vec2 uv, vec2 ur, bool rot, out vec4 A, out vec4 B){ A=vec4(0.); B=vec4(.5,.5,.5,1.);
+#ifdef REALTEX
+  if(uRx.x<1.){ A=TEX(uA,uv); B=TEX(uB,uv); }
+  if(uRx.x>0.&&!(rot&&uRx.z>.5)){ vec4 A2=TEX(uA2,ur), B2=TEX(uB2,ur); A=uRx.x<1.?mix(A,A2,uRx.x):A2; B=uRx.x<1.?mix(B,B2,uRx.x):B2; }
+#else
+  A=TEX(uA,uv); B=TEX(uB,uv);
+#endif
+}
 vec3 post(vec3 c, float dist){ c=mix(c,uFog.rgb,1.-exp(-dist*uFog.a));
 #ifdef SHAFTS
   if(uSMp.z>.5&&uRoom.z<.5&&uClip.x<.5){ float L=min(dist,28.), dn=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453), a=0.; vec3 dir=(vP-uEye)/max(dist,1e-3);
@@ -296,8 +335,16 @@ void main(){
     vec2 uv=vT/uMat.x, sl=vec2(0.); float tone=1.;
     if(uJ.x>0.){ sl=floor(vT/uJ.x); float hh=h31(vec3(sl,uJ.x)); uv+=vec2(hh,h31(vec3(sl.yx,7.)))*3.7; if(hh>.5) uv=uv.yx;
       vec2 fj=abs(fract(vT/uJ.x)-.5)*uJ.x; float dj=uJ.x*.5-max(fj.x,fj.y); jl=1.-smoothstep(uJ.y*.5,uJ.y,dj); tone=1.+(h31(vec3(sl,3.))-.5)*uJ.z; }
-    vec4 A=TEX(uA,uv), B=TEX(uB,uv);
-    if(uVar.w>0.){ float an=n3(vP*.23+3.1)*.7+n3(vP*.97+1.3)*.3, wt=smoothstep(.36,.64,an); if(wt>.01){ vec2 u2=vec2(uv.y,-uv.x)*.83+vec2(.37,.61); vec4 A2=TEX(uA,u2), B2=TEX(uB,u2); vec2 n2=B2.xy*2.-1.; B2.xy=vec2(-n2.y,n2.x)*.5+.5; A=mix(A,A2,wt); B=mix(B,B2,wt); } }
+    vec2 ur=uv;
+#ifdef REALTEX
+    if(uRx.x>0.){ if(uRx.z>.5){ ur=vT/uRx.y; jl*=1.-uRx.x; tone=mix(tone,1.,uRx.x); } else ur=uv*(uMat.x/uRx.y); }     /* a set with its own joints: no slabs of ours over it */
+#endif
+    vec4 A, B; samp(uv,ur,false,A,B);
+    if(uVar.w>0.){ float an=n3(vP*.23+3.1)*.7+n3(vP*.97+1.3)*.3, wt=smoothstep(.36,.64,an); if(wt>.01){ vec2 u2=vec2(uv.y,-uv.x)*.83+vec2(.37,.61), r2=vec2(ur.y,-ur.x)*.83+vec2(.37,.61); vec4 A2, B2; samp(u2,r2,true,A2,B2);
+#ifdef REALTEX
+      if(uRx.z>.5) wt*=1.-uRx.x;
+#endif
+      vec2 n2=B2.xy*2.-1.; B2.xy=vec2(-n2.y,n2.x)*.5+.5; A=mix(A,A2,wt); B=mix(B,B2,wt); } }
     alb=pow(A.rgb,vec3(2.2))*uTint.rgb*tone; rough=clamp(A.a*uMat.y,.04,1.); cav=mix(1.,B.a,.75);
     float mv=n3(vP*.31+.5)*.65+n3(vP*1.7)*.35; alb*=1.+(mv-.5)*uVar.x; alb*=1.+(h31(vec3(floor(vT/uMat.x),1.))-.5)*uVar.y;
     alb=mix(alb,alb*vec3(.86,.82,.76),uVar.z*exp(-max(vP.z-uRoom.x,0.)/.45)*(1.-abs(vN.z)));
@@ -341,9 +388,19 @@ void main(){
   if(sv>=0.){ if(uRoom.z<.5) sv*=step(.0,dot(normalize(vN),uSun)); vec3 E=uSunC*snl*sv*(uRoom.z>.5?1.:.9); Ld+=E; Ls+=E*ggx(N,V,uSun,rough); }
   else if(uRoom.z>.5){ vec3 E=uSunC*snl*mix(.55,1.,smoothstep(0.,1.5,hz)); Ld+=E; Ls+=E*ggx(N,V,uSun,rough); }
   vec3 amb=mix(uAmbF,uAmbC,N.z*.3+.55);
+#ifdef IBL
+  if(uRoom.z>.5) amb=shIrr(N)*uIbl.x;                     /* outdoors: the HDRI sky's irradiance (and its sun-lit ground) */
+#endif
   float nv=max(dot(N,V),1e-3); vec3 F0=mix(vec3(.04),alb,metal), F=F0+(1.-F0)*pow(1.-nv,5.)*(1.-rough*.8);
   vec3 R=reflect(-V,N); bool outside=uRoom.z>.5; if(kind>3.5&&vX.z>.25){ outside=(vX.z>.75)==(dot(normalize(vN),V)>0.); }
   vec3 env=outside?uSkyC*(.45+.55*clamp(R.z+.25,0.,1.))*(R.z<0.?.45:1.):mix(uAmbF*.55,uAmbC*1.55,smoothstep(-.45,.75,R.z))*1.15+uSkyC*(.06*uRoom.w*pow(max(R.z,0.),5.));
+#ifdef IBL
+  if(outside){ vec3 e=shIrr(R)*uIbl.x*1.15;
+#ifdef ENV
+    if(uEnvP.w>0.) e=mix(e,hdrAt(R,rough*7.)*uIbl.y,uIbl.z);
+#endif
+    env=e*(R.z<0.?.6:1.); }
+#endif
   if(metal>.5&&!outside) env*=(.3+1.5*smoothstep(-.15,.85,R.z))*(.45+1.1*pow(max(dot(R,vec3(.36,.48,.8)),0.),2.));
   vec3 col;
   if(kind>3.5){ col=F*(env*1.2+Ls)+alb*(amb+Ld)*.03; alpha=clamp(uMat.y+dot(F,vec3(.33))*.9+(outside&&vX.z>.25?.22:0.),0.,.96); if(outside&&vX.z>.25) col+=env*.2; }
@@ -364,6 +421,7 @@ var CFG={eye:1.65, walk:3.2, hurry:8.0, tau:.18, turn:1.9, pr:.26, step:.52, hea
 /* the walker is a capsule: radius pr (0.26 m), feet to the top of the head `head` (1.85 m: the tallest avatar, 1.80 m, with hair); `drop` is the most it may step down off an edge that is not a stair (higher ledges are walls) */
 var PI=Math.PI, D=typeof document!=='undefined'?document:null;
 __AVATAR__
+__FXG__
 var S={on:false, gl:null};
 
 /* ── small math ── */
@@ -1305,6 +1363,12 @@ function pickTier(o){ var f=o.force; if(f==='high'||f==='medium'||f==='low') ret
   if(!o.wgl2||!o.msaa) return 'low'; var r=String(o.renderer||'').toLowerCase(); if(/swiftshader|llvmpipe|softpipe|software|microsoft basic/.test(r)) return 'low';
   if(o.mobile||o.ios||(o.mem&&o.mem<8)||(o.cores&&o.cores<6)||/mali|adreno|powervr|intel\(r\) hd graphics [2-5]/.test(r)||(o.samples||0)<4) return 'medium'; return 'high'; }
 var TIERS={high:{NS:12,NW:6,NE:24,NB:12,tex:1024,samples:4,atlas:1024,scaleHi:2}, medium:{NS:8,NW:4,NE:16,NB:8,tex:512,samples:2,atlas:512,scaleHi:1.5}, low:{NS:4,NW:2,NE:8,NB:4,tex:512,samples:0,atlas:512,scaleHi:1}};
+/* the graphics pass (fpv_gfx.py) per tier: soft shadows (2 = blocker-sized penumbra, 1 = fixed disc), SSAO taps at half size, bloom, the HDRI sky
+   (its size; SH irradiance needs nothing loaded), the real material sets (albedo size; normals are 512). A phone's medium drops the SSAO.
+   ?bldgfx=0 turns the whole pass off (the look before it: before/after strips) */
+var FX={high:{soft:2, ao:12, bloom:1, ibl:1, env:'2048', real:'a1024'}, medium:{soft:1, ao:6, bloom:1, ibl:1, env:'1024', real:'a512'}, low:{soft:0, ao:0, bloom:0, ibl:1, env:'', real:''}, off:{soft:0, ao:0, bloom:0, ibl:0, env:'', real:''}};
+function fxFor(name,o){ var f={}, b=FX[q().bldgfx==='0'?'off':name]; for(var k in b) f[k]=b[k]; if(name==='medium'&&o&&(o.mobile||o.ios)) f.ao=0;
+  String(q().bldgfxoff||'').split(',').forEach(function(k){ if(k in f) f[k]=typeof f[k]==='string'?'':0; }); return f; }      /* ?bldgfxoff=soft,ao,...: QA, one feature at a time */
 function glInit(cv){ var Q=q(), N=navigator, ua=String(N.userAgent||''), o={force:Q.bldgtier||'', wgl2:false, msaa:false, samples:0, renderer:'', mobile:matchMedia&&matchMedia('(pointer:coarse)').matches,
     ios:/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&(N.maxTouchPoints|0)>1), mem:+N.deviceMemory||0, cores:N.hardwareConcurrency|0}, gl=null;
   if(Q.bldggl!=='1'){ try{ gl=cv.getContext('webgl2',{alpha:false, antialias:false, depth:true, stencil:false, powerPreference:'high-performance', preserveDrawingBuffer:false}); }catch(x){ gl=null; } }
@@ -1314,7 +1378,7 @@ function glInit(cv){ var Q=q(), N=navigator, ua=String(N.userAgent||''), o={forc
   if(tier==='low'&&gl&&!o.msaa){ gl=null; }
   if(!gl){ try{ gl=cv.getContext('webgl',{alpha:false, antialias:true, depth:true, stencil:false, powerPreference:'high-performance'})||cv.getContext('experimental-webgl',{alpha:false, antialias:true}); }catch(x){ gl=null; } o.wgl2=false; tier='low'; }
   if(!gl) return null;
-  var T={}; for(var k in TIERS[tier]) T[k]=TIERS[tier][k]; T.name=tier; T.wgl2=o.wgl2; T.probe=o;
+  var T={}; for(var k in TIERS[tier]) T[k]=TIERS[tier][k]; T.name=tier; T.wgl2=o.wgl2; T.probe=o; T.fx=fxFor(tier,o); if(!o.wgl2){ T.fx.env=''; T.fx.real=''; T.fx.soft=0; T.fx.ao=0; T.fx.bloom=0; }
   var need=T.NS*3+T.NW*3+T.NE+T.NB*2+24; if((gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS)|0)<need){ T.NS=4; T.NW=2; T.NE=8; T.NB=4; }
   T.deriv=o.wgl2||!!gl.getExtension('OES_standard_derivatives'); T.aniso=gl.getExtension('EXT_texture_filter_anisotropic')||gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
   T.vao=null; S.T=T; S.gl=gl; return gl; }
@@ -1326,7 +1390,8 @@ function target(gl,w,h,samples,old){ if(old) freeTarget(gl,old); var fb=gl.creat
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,rt); ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE; t.rfb=rfb; t.rt=rt; }
   gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.bindRenderbuffer(gl.RENDERBUFFER,null); if(!ok){ freeTarget(gl,t); return null; } return t; }
 function freeTarget(gl,t){ if(!t) return; try{ gl.deleteFramebuffer(t.fb); gl.deleteRenderbuffer(t.rc); gl.deleteRenderbuffer(t.rd); if(t.rfb){ gl.deleteFramebuffer(t.rfb); gl.deleteRenderbuffer(t.rt); } }catch(x){} }
-function hdr(gl,frag){ var T=S.T, d='#define NS '+T.NS+'\n#define NW '+T.NW+'\n#define NE '+T.NE+'\n#define NB '+T.NB+'\n'+(T.deriv?'#define DERIV 1\n':'')+(T.name==='high'?'#define SHAFTS 1\n':'');
+function hdr(gl,frag){ var T=S.T, F=T.fx||{}, d='#define NS '+T.NS+'\n#define NW '+T.NW+'\n#define NE '+T.NE+'\n#define NB '+T.NB+'\n'+(T.deriv?'#define DERIV 1\n':'')+(T.name==='high'&&!(F.real&&T.wgl2)?'#define SHAFTS 1\n':'')      /* the light shafts' loop and the pass do not fit one shader in WebKit's Metal compiler (it crashes: the context is lost); bloom carries the windows' glow */
+    +(F.soft&&T.wgl2?'#define SOFTSH '+F.soft+'\n':'')+(F.ibl&&FXG.env?'#define IBL 1\n':'')+(F.ibl&&F.env&&T.wgl2&&FXG.env?'#define ENV 1\n#define ENV_LOD 1\n':'')+(F.real&&T.wgl2?'#define REALTEX 1\n':'');
   if(T.wgl2) return '#version 300 es\n'+d+(frag?'precision highp float;\n#define VARY_F in\n#define TEX texture\n#define TEXB texture\nout vec4 oC;\n#define FRAG oC\n':'#define ATTR in\n#define VARY_V out\n');
   return (frag&&T.deriv?'#extension GL_OES_standard_derivatives : enable\n':'')+d+(frag?'#define VARY_F varying\n#define TEX texture2D\n#define TEXB texture2D\n#define FRAG gl_FragColor\n':'#define ATTR attribute\n#define VARY_V varying\n'); }
 function prog(gl,vs,fs,attrs){ var sh=function(t,src){ var s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error('shader: '+gl.getShaderInfoLog(s)); return s; };
@@ -1375,7 +1440,23 @@ function glSetup(){ var gl=S.gl; S.pw=prog(gl,WVS,WFS,['aP','aN','aT','aX']); S.
   S.quad=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,S.quad); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
   S.white=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,S.white); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
   S.flatN=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,S.flatN); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([128,128,128,255]));
-  S.tex={}; S.mc={}; S.bytes=0; S.texBytes=0; smInit(); }
+  S.tex={}; S.mc={}; S.bytes=0; S.texBytes=0; smInit(); fxSetup(); }
+/* ── the graphics pass (fpv_gfx.py): the post chain, the HDRI sky, the real material sets ── */
+function fxSetup(){ var gl=S.gl, T=S.T, F=T.fx; S.real={}; S.env=null; S.envT0=0; S.post=null;
+  if(T.wgl2&&T.samples&&(F.ao||F.bloom)){ S.post=FXG.post(gl); if(S.post){ S.post.o.ao=F.ao; S.post.o.bloom=F.bloom; S.post.o.bloomK=T.name==='high'?.05:.04; S.post.o.th=.9; } }
+  if(F.env&&FXG.env&&FXG.env.px[F.env]) FXG.ktx2(gl,FXG.env.px[F.env],{clampT:1},function(t){ if(!t) return; if(S.gl!==gl){ gl.deleteTexture(t.tx); return; } S.env=t; S.envT0=performance.now(); }); }
+/* procedural texture set -> the real set that stands in for it, and whether the photograph has its own joints (then our slabs step aside) */
+var REAL={0:['marble',0], 19:['kasota',1], 1:['kasota',1,1.6], 8:['parquet',1], 7:['boards',1], 10:['terrazzo',0], 3:['brick',1]};
+function realOf(g){ var T=S.T, F=T.fx, r=REAL[g]; if(!r||!F.real||!S.real) return null; var e=S.real[g]; if(e) return e.st===1?e:null;
+  var set=FXG.A.tex[r[0]]; if(!set) return null; var gl=S.gl; e=S.real[g]={st:0, tile:set.tile*(r[2]||1), baked:r[1], n:0};
+  var done=function(k){ return function(t){ if(!t||S.gl!==gl||!S.real){ if(t) gl.deleteTexture(t.tx); e.st=-1; return; } e[k]=t.tx; e.bytes=(e.bytes||0)+t.bytes; if(++e.n===2&&e.st===0){ e.st=1; e.t0=performance.now(); } }; };
+  FXG.ktx2(gl,set[F.real],{aniso:T.aniso, an:T.name==='high'?8:4},done('a')); FXG.ktx2(gl,set.b512,{aniso:T.aniso, an:T.name==='high'?8:4},done('b')); return null; }
+/* the governor at its floor and still slow: one tier down (programs rebuilt with the smaller pass; never back up in this visit) */
+function fxDown(){ var T=S.T, gl=S.gl; if(!gl||T.name==='low') return; T.name=T.name==='high'?'medium':'low'; T.fx=fxFor(T.name,T.probe); S.down=(S.down||0)+1;
+  if(T.name==='low'){ T.fx.env=''; T.fx.real=''; if(S.sm){ gl.deleteTexture(S.sm.tx); gl.deleteRenderbuffer(S.sm.rb); gl.deleteFramebuffer(S.sm.fb); S.sm=null; } }
+  try{ S.pw=prog(gl,WVS,WFS,['aP','aN','aT','aX']); S.ps=prog(gl,QUADVS,SKYFS,['aQ']); }catch(e){ if(window.console) console.warn('bldg fpv tier',e); }
+  if(S.post){ S.post.o.ao=T.fx.ao; S.post.o.bloom=T.fx.bloom; if(!T.fx.ao&&!T.fx.bloom){ S.post.free(); S.post=null; } }
+  if(S.gov){ S.gov.buf.length=0; S.gov.good=performance.now(); } }
 function genTex(g){ if(S.tex[g]) return S.tex[g]; var gl=S.gl, N=S.T.tex>512&&[0,7,8,10].indexOf(g)<0?512:S.T.tex, out=[];
   for(var o=0;o<2;o++){ var tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,N,N,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
     var fb=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);
@@ -1433,7 +1514,7 @@ function upload(G,b){ var gl=S.gl, mb=buildBatch(G,b), total=0, ranges=[]; mb.or
   ranges.sort(function(a,c){ return (a.trans?1:0)-(c.trans?1:0)||(a.m.kind===5?0:1)-(c.m.kind===5?0:1); });
   var vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,ab,gl.STATIC_DRAW);
   b.built={vb:vb, ranges:ranges, bytes:ab.byteLength, tris:total/3}; b.texBytes=0; S.bytes+=ab.byteLength; if(S.sm) S.sm.dirty=1;
-  ranges.forEach(function(r){ if(r.m.kind===0&&r.m.gen!=null) genTex(r.m.gen); });
+  ranges.forEach(function(r){ if(r.m.kind===0&&r.m.gen!=null){ genTex(r.m.gen); realOf(r.m.gen); } });
   if(b.art.length||b.lab.length){ b.atlas=artAtlas(G,b); S.abytes=(S.abytes||0)+(b.texBytes||0); loadImages(b); }
   S.built++; }
 function drop(b){ var gl=S.gl; if(!b.built) return; gl.deleteBuffer(b.built.vb); S.bytes-=b.built.bytes; S.abytes=Math.max(0,(S.abytes||0)-(b.texBytes||0)); b.texBytes=0; if(b.atlas) gl.deleteTexture(b.atlas); if(b.imgs) for(var k in b.imgs) gl.deleteTexture(b.imgs[k]); b.atlas=null; b.imgs=null; b.built=null; }
@@ -1454,7 +1535,7 @@ function visible(G,P,eye){ var cur=S.room, seen={}, out=[], queue=[], vis={};
   return out; }
 
 /* ── the frame ── */
-function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
+function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++; S.now=performance.now(); FXG.pump(S.settling?40:4);
   var cw=S.cw, ch=S.ch, T=S.T;
   if(T.samples&&T.wgl2){ if(!S.fb||S.fb.w!==cw||S.fb.h!==ch){ S.fb=target(gl,cw,ch,T.samples,S.fb); } gl.bindFramebuffer(gl.FRAMEBUFFER,S.fb?S.fb.fb:null); } else gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   gl.viewport(0,0,cw,ch); gl.clearColor(.05,.05,.05,1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -1469,6 +1550,7 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
   var skyOn=!S.room||roomHasWin(G,S.room)||S.outVis;       /* a room with no window never shows sky: a hairline gap in its walls then reads as shadow, not a white crack */
   gl.disable(gl.DEPTH_TEST); gl.depthMask(false); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.useProgram(S.ps.p); var u=S.ps.u;
   gl.uniform3fv(u.uF,fw); gl.uniform3fv(u.uR,[rt[0]*tx,rt[1]*tx,rt[2]*tx]); gl.uniform3fv(u.uU,[up[0]*ty,up[1]*ty,up[2]*ty]); gl.uniform3fv(u.uSun,S.sun); gl.uniform3fv(u.uSunC,S.sunC); gl.uniform3fv(u.uSkyC,S.sky); gl.uniform4fv(u.uScr,[S.exp,0,1/cw,1/ch]);
+  var ibl=[1.37,1,S.env?Math.min(1,(S.now-S.envT0)/800):0,0]; FXG.uni(gl,u,S.sun,1,S.env&&S.env.tx,6); if(u.uIbl) gl.uniform4fv(u.uIbl,ibl);
   gl.bindBuffer(gl.ARRAY_BUFFER,S.quad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0); for(var a=1;a<4;a++) gl.disableVertexAttribArray(a); if(skyOn) gl.drawArrays(gl.TRIANGLES,0,6);
   /* world */
   S.pre=[]; var list=visible(G,PL,eye), t0=performance.now(); S.list=list;
@@ -1478,7 +1560,7 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
   if(S.sm){ smRender(G,eye); if(T.samples&&T.wgl2&&S.fb) gl.bindFramebuffer(gl.FRAMEBUFFER,S.fb.fb); else gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cw,ch); }
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW);
   var pw=S.pw; gl.useProgram(pw.p); u=pw.u; gl.uniformMatrix4fv(u.uVP,false,VP); gl.uniform3fv(u.uEye,eye); gl.uniform3fv(u.uSun,S.sun); gl.uniform3fv(u.uSunC,S.sunC); gl.uniform3fv(u.uSkyC,S.sky); gl.uniform4fv(u.uScr,scr);
-  gl.uniform1i(u.uA,0); gl.uniform1i(u.uB,1); gl.uniform1i(u.uSM,2);
+  gl.uniform1i(u.uA,0); gl.uniform1i(u.uB,1); gl.uniform1i(u.uSM,2); if(u.uA2){ gl.uniform1i(u.uA2,4); gl.uniform1i(u.uB2,5); } FXG.uni(gl,u,S.sun,1,S.env&&S.env.tx,6); if(u.uIbl) gl.uniform4fv(u.uIbl,ibl);
   if(S.sm){ gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,S.sm.tx); gl.activeTexture(gl.TEXTURE0); gl.uniformMatrix4fv(u.uLVP,false,S.sm.lvp); gl.uniform4fv(u.uSMp,[1/S.sm.N,2*S.sm.R/S.sm.N,1,.00035]); }
   else gl.uniform4fv(u.uSMp,[0,0,0,0]);
   var stats={draws:0, tris:0, batches:list.length}, rh=null, rp=S.room&&!S.noRefl&&T.name==='high'&&q().bldgrefl!=='0'?polish(S.room):0;
@@ -1491,7 +1573,8 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++;
   for(var i=list.length-1;i>=0;i--) drawBatch(list[i],true,stats);
   if(avb) drawBatch(avb,true,stats);
   gl.disable(gl.BLEND); gl.depthMask(true);
-  if(S.fb&&T.wgl2){ var t=S.fb; gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.fb); if(t.rfb){ gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,t.rfb); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.rfb); }
+  if(S.fb&&T.wgl2&&S.post&&S.post.ok&&S.post.end(S.fb.fb,cw,ch,{near:CFG.near, far:CFG.far, tx:tx, ty:ty})){}
+  else if(S.fb&&T.wgl2){ var t=S.fb; gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.fb); if(t.rfb){ gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,t.rfb); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.rfb); }
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
   S.stats=stats; budget(); }
 function bdist(b,e){ var a=b.bb, dx=Math.max(a[0]-e[0],0,e[0]-a[3]), dy=Math.max(a[1]-e[1],0,e[1]-a[4]), dz=Math.max(a[2]-e[2],0,e[2]-a[5]); return Math.sqrt(dx*dx+dy*dy+dz*dz)+(b.kind==='site'?50:0); }
@@ -1504,8 +1587,10 @@ function drawBatch(b,trans,stats){ var gl=S.gl, u=S.pw.u, B=b.built, L=b.light, 
   gl.uniform4fv(u.uWnC,L.wC); gl.uniform4fv(u.uWnU,L.wU); gl.uniform4fv(u.uWnN,L.wN); gl.uniform1f(u.uNW,L.nw);
   gl.uniform4fv(u.uEd,L.ed); gl.uniform1f(u.uNE,L.ne); gl.uniform4fv(u.uBl,L.bl); gl.uniform4fv(u.uBr,L.br); gl.uniform1f(u.uNB,L.nb);
   for(var j=0;j<B.ranges.length;j++){ var r=B.ranges[j]; if(r.trans!==trans) continue; var m=r.m, ta=S.white, tb=S.flatN, uv=[1,1,0,0];
-    if(m.kind===0){ var tx=S.tex[m.gen]||genTex(m.gen); ta=tx[0]; tb=tx[1]; }
+    if(m.kind===0){ var tx=S.tex[m.gen]||genTex(m.gen); ta=tx[0]; tb=tx[1];
+      if(u.uRx){ var re=realOf(m.gen); if(re){ gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,re.a); gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D,re.b); gl.uniform4fv(u.uRx,[Math.min(1,(S.now-re.t0)/700),re.tile,re.baked,0]); } else gl.uniform4fv(u.uRx,Z4); } }
     else if(m.kind===2){ if(m.lab){ ta=b.atlas||S.white; } else { var im=b.imgs&&b.imgs[r.k]; if(im) ta=im; else { ta=b.atlas||S.white; var i2=m.art%12; uv=[.25,.25,(i2%4)*.25,1-(Math.floor(i2/4)+1)*.25]; } } }
+    if(m.kind!==0&&u.uRx) gl.uniform4fv(u.uRx,Z4);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,ta); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,tb);
     var t=m.tint||[1,1,1]; gl.uniform4fv(u.uTint,[t[0],t[1],t[2],m.kind]); gl.uniform4fv(u.uJ,m.j||Z4); var mv=m.v||Z4; gl.uniform4fv(u.uVar,[mv[0],mv[1],mv[2],mv[3]||0]); gl.uniform1f(u.uPol,m.pol||0); gl.uniform4fv(u.uMat,[m.kind===6?(m.e||8):(m.tile||1),m.kind>=4&&m.kind<=5?(m.a||0):(m.rough||.8),m.metal||0,m.bump||0]); gl.uniform4fv(u.uUv,uv);
     gl.drawArrays(gl.TRIANGLES,r.first,r.count); stats.draws++; stats.tris+=r.count/3; } }
@@ -1761,7 +1846,8 @@ function mountHud(){ var css=D.getElementById('bf-css'); if(!css){ css=el('style
   S.onBlur=function(){ S.keys={}; }; window.addEventListener('blur',S.onBlur);
   S.onResize=function(){ size(); }; window.addEventListener('resize',S.onResize);
   cv.addEventListener('webglcontextlost',function(e){ if(e.target!==S.cv||!S.on) return; e.preventDefault(); S.lost=1; },false);
-  cv.addEventListener('webglcontextrestored',function(e){ if(e.target!==S.cv) return; S.lost=0; try{ glSetup(); S.fb=null; S.rt=null; S.G.batches.forEach(function(b){ b.built=null; b.atlas=null; b.imgs=null; }); S.bytes=0; }catch(x){} },false); }
+  cv.addEventListener('webglcontextrestored',function(e){ if(e.target!==S.cv) return; S.lost=0; var T=S.T; if(T&&T.name==='high'&&T.fx&&(T.fx.real||T.fx.ao)){ T.name='medium'; T.fx=fxFor('medium',T.probe); S.down=(S.down||0)+1; }      /* a GPU that lost the context under the high pass comes back one tier down */
+    try{ glSetup(); S.fb=null; S.rt=null; S.G.batches.forEach(function(b){ b.built=null; b.atlas=null; b.imgs=null; }); S.bytes=0; }catch(x){} },false); }
 function joyHit(e){ return false; }
 function joyMove(e){ var J=S.joy&&S.joy[e.pointerId]; if(!J) return false; var dx=(e.clientX-J.cx)/50, dy=(e.clientY-J.cy)/50, l=Math.hypot(dx,dy); if(l>1){ dx/=l; dy/=l; } J.el.firstChild.style.transform='translate('+(dx*34)+'px,'+(dy*34)+'px)';
   if(J.el===S.jl) S.joyL=[dx,dy]; else S.joyR=[dx,dy]; return true; }
@@ -1788,13 +1874,14 @@ function hud(now){ var cw=S.root.clientWidth, ch=S.root.clientHeight;
   var lv=levelAt(S.fz); [].forEach.call(S.lvBox.children,function(b){ b.classList.toggle('on',b.getAttribute('data-lv')===lv.id); });
   if(!S.posT||now-S.posT>250){ S.posT=now; emitPos('alto-building-fpv-pos'); }
   if(S.perf&&(!S.perfT||now-S.perfT>500)){ S.perfT=now; var a=(S.iv||[]).slice().sort(function(p,c){ return p-c; }), n=a.length, st=S.stats||{};
-    S.perf.textContent='tier '+S.T.name+(S.T.wgl2?' webgl2':' webgl1')+(S.fb?' msaa'+S.fb.s:'')+'\nscale '+S.gov.s.toFixed(2)+' '+S.cw+'x'+S.ch+'\nframe p50 '+(n?a[n>>1].toFixed(1):'-')+' p95 '+(n?a[Math.floor(n*.95)].toFixed(1):'-')+' ms\ndraws '+st.draws+' tris '+Math.round((st.tris||0)/1000)+'k batches '+st.batches+'\nbuilt '+S.G.batches.filter(function(b){ return b.built; }).length+'/'+S.G.batches.length+' '+(S.bytes/1e6).toFixed(1)+' MB'; } }
+    S.perf.textContent='tier '+S.T.name+(S.T.wgl2?' webgl2':' webgl1')+(S.fb?' msaa'+S.fb.s:'')+'\nscale '+S.gov.s.toFixed(2)+' '+S.cw+'x'+S.ch+'\nframe p50 '+(n?a[n>>1].toFixed(1):'-')+' p95 '+(n?a[Math.floor(n*.95)].toFixed(1):'-')+' ms\ndraws '+st.draws+' tris '+Math.round((st.tris||0)/1000)+'k batches '+st.batches+'\nbuilt '+S.G.batches.filter(function(b){ return b.built; }).length+'/'+S.G.batches.length+' '+(S.bytes/1e6).toFixed(1)+' MB'
+      +'\nfx '+(S.T.fx.soft?'soft'+S.T.fx.soft+' ':'')+(S.post&&S.post.ok?(S.post.o.ao?'ao'+S.post.o.ao+' ':'')+(S.post.o.bloom?'bloom ':''):'')+(S.env?'sky ':'')+API.fx().real+' sets'+(FXG.err?' ('+FXG.err+')':''); } }
 function emitPos(type){ var d={l:levelAt(S.fz).id, x:Math.round(S.x*100)/100, y:Math.round(S.y*100)/100, yaw:Math.round(S.yaw*180/PI), room:S.room?S.room.id:null, z:Math.round(S.fz*100)/100};
   S.lastPos=d; try{ window.dispatchEvent(new CustomEvent(type,{detail:d})); }catch(x){} }
 function veilPulse(fn,label){ if(reduced()||!S.veil){ fn(); return; } S.veil.textContent=label||''; S.veil.style.opacity=1; setTimeout(function(){ fn(); setTimeout(function(){ if(S.veil) S.veil.style.opacity=0; },60); },260); }
 function loop(t){ if(!S.on||S.paused) return; S.raf=requestAnimationFrame(loop); var now=performance.now(), dt=S.last?(now-S.last)/1000:1/60; S.last=now;
   if(dt*1000<1000){ (S.iv||(S.iv=[])).push(dt*1000); if(S.iv.length>240) S.iv.shift(); }
-  var r=S.gov?gov(S.gov,dt*1000,now):''; if(r==='up'||r==='down') size();
+  var r=S.gov?gov(S.gov,dt*1000,now):''; if(r==='up'||r==='down') size(); else if(r==='floor') fxDown();
   step(dt); render(); hud(now); }
 
 /* ── enter / exit ── */
@@ -1833,6 +1920,7 @@ var API={version:1, enter:enter, exit:function(){ exit(); },
   place:function(x,y,z,yaw,pitch){ S.safe=null; S.x=x; S.y=y; if(z!=null) S.fz=z; else { var s=supportAt(S.G,x,y,1e3); S.fz=s==null?S.fz:s; } if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); S.snap=1; S.snapExp=1; S.vx=S.vy=0; step(0); },
   step:function(dt,keys,n){ for(var i=0;i<(n||1);i++) step(dt,keys); }, look:function(yaw,pitch){ if(yaw!=null) S.yaw=yaw; if(pitch!=null) S.pitch=clamp(pitch,-CFG.pitchMax,CFG.pitchMax); },
   settle:function(){ S.settling=1; S.snapExp=1; render(); render(); S.settling=0; hud(performance.now()+1e4); return API.stats(); },
+  fx:function(){ var T=S.T||{}, n=0, k; for(k in (S.real||{})) if(S.real[k].st===1) n++; return {tier:T.name, fx:T.fx, real:n, env:!!S.env, post:!!(S.post&&S.post.ok), err:FXG.err, down:S.down||0, fmt:S.gl?FXG.fmt(S.gl).n:'', pending:FXG.pending(), loads:FXG.loads}; },
   stats:function(){ var st=S.stats||{}; return {draws:st.draws, tris:st.tris, batches:st.batches, built:S.G?S.G.batches.filter(function(b){ return b.built; }).length:0, total:S.G?S.G.batches.length:0, mb:S.bytes/1e6, texMb:S.texBytes/1e6, artMb:(S.abytes||0)/1e6, tier:S.T&&S.T.name, samples:S.fb?S.fb.s:0, w:S.cw, h:S.ch}; },
   timeFrames:function(n){ var gl=S.gl, t0=performance.now(); for(var i=0;i<n;i++){ render(); } var px=new Uint8Array(4); gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px); return (performance.now()-t0)/n; },
   pick:function(){ var h=pickNow(S.root.clientWidth/2,S.root.clientHeight/2), d=describe(h); return d?{text:d.text, node:d.node||null, kind:h?h.k:'room'}:null; },
@@ -1869,7 +1957,7 @@ def _js() -> str:
     for key, src in (("__TEXGEN__", _GLSL_TEXGEN), ("__QUADVS__", _GLSL_QUAD_VS), ("__SKYFS__", _GLSL_SKY), ("__WVS__", _GLSL_WORLD_VS), ("__WFS__", _GLSL_WORLD_FS),
                      ("__DVS__", _GLSL_DEPTH_VS), ("__DFS__", _GLSL_DEPTH_FS)):
         js = js.replace(key, _json.dumps(src))
-    return js.replace("__AVATAR__", avatar_js())
+    return js.replace("__AVATAR__", avatar_js()).replace("__FXG__", _gfx_js())
 
 
 FPV_ASSET = "(function(){\nvar BF_CSS=" + _json.dumps(FPV_CSS) + ";\n" + _js() + "\n})();\n"

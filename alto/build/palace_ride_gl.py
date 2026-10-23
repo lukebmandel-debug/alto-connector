@@ -61,8 +61,8 @@ function glSetup(restore){
   setupRest(gl); return true; }
 /* the world and sky programs, with the tier's defines (gfx: palace_ride_gfx.py; legacy = none) */
 function glPrograms(gl){ var dfs=gfxDefs();
-    GLX.prog=glProgram(gl, GLS.vsw, dfs+GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uShO','uPal','uAtl','uAtlS','uLamp','uLampC','uIn','uTx0','uTx1','uTxA']);
-    GLX.sky=glProgram(gl, GLS.vss, dfs+GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz']); }
+    GLX.prog=glProgram(gl, GLS.vsw, dfs+GLS.fsw, ['aP','aN','aUV','aMT','aDC','aHA','aI','aT2'], ['uVP','uEye','uInst','uSun','uSunCol','uSkyA','uGndA','uZen','uHor','uFog','uFogD','uNight','uTime','uPix','uExp','uNz','uLP','uLQ','uNOff','uSh','uSq','uShP','uShQ','uShO','uPal','uAtl','uAtlS','uLamp','uLampC','uIn','uTx0','uTx1','uTxA','uSH','uEnvP','uIbl','uShH','uEnv','uRA0','uRB0','uRA1','uRB1','uRx','uRm0','uRm1']);
+    GLX.sky=glProgram(gl, GLS.vss, dfs+GLS.fss, ['aQ'], ['uF','uR','uU','uPrj','uUn','uUt','uGnd','uEye','uSun','uSunCol','uZen','uHor','uFog','uFogD','uNight','uTime','uExp','uNz','uSH','uEnvP','uIbl','uShH','uEnv']); }
 function setupRest(gl){
   /* the noise texture: random bytes, filtered and mip-mapped, read for value noise in the shaders */
   var N=128, px=new Uint8Array(N*N*4), i, s=12345;
@@ -482,7 +482,7 @@ function glBind(gl,pg,o){
   gl.vertexAttribPointer(a.aMT,2,gl.FLOAT,false,S,32); gl.vertexAttribPointer(a.aDC,3,gl.FLOAT,false,S,40); gl.vertexAttribPointer(a.aHA,2,gl.FLOAT,false,S,52); }
 function glDrawSky(gl,L,tm,vp){
   var pg=GLX.sky, cm=GLX.cam; gl.useProgram(pg.p); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
-  glUni(gl,pg,L,tm,null);
+  glUni(gl,pg,L,tm,null); gfxIbl(gl,pg);
   gl.uniform3fv(pg.u.uF,cm.F); gl.uniform3fv(pg.u.uR,cm.R); gl.uniform3fv(pg.u.uU,cm.U); gl.uniform4f(pg.u.uPrj,1/cm.ax,cm.ox,1/cm.ay,cm.oy);
   var s=cm.sc, c=cm.cs, sn=cm.sn, W=C.W, H=C.H;
   gl.uniformMatrix2fv(pg.u.uUn,false,[c/s, (W/H)*sn/s, -(H/W)*sn/s, c/s]); gl.uniform2f(pg.u.uUt,cm.tx,cm.ty); gl.uniform3fv(pg.u.uGnd,L.gnd);

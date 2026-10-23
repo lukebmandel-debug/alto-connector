@@ -308,6 +308,15 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     for tname, tbytes in tex_files():
         tex_out.mkdir(parents=True, exist_ok=True)
         (tex_out / tname).write_bytes(tbytes)
+    # The FPV graphics pass (build/fpv_gfx.py): CC0 material sets and the HDRI sky as KTX2, the Basis transcoder; binary, content-hash named, under /gfx/,
+    # fetched lazily by both first-person renderers (never by their low tiers); without them the procedural look stays
+    from .build import fpv_gfx
+    gfx_out = site / fpv_gfx.FOLDER
+    if gfx_out.exists():
+        shutil.rmtree(gfx_out)
+    for gname, gbytes in fpv_gfx.files():
+        gfx_out.mkdir(parents=True, exist_ok=True)
+        (gfx_out / gname).write_bytes(gbytes)
     # The curated buildings' artwork images (alto/buildings: the PMA's public-domain paintings), binary, content-hash named, under /bart/
     from .buildings.pma_art import ART_FOLDER, files as art_files
     art_out = site / ART_FOLDER
@@ -414,7 +423,7 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir), _art_names(site_dir), _bldg_names(site_dir))
+    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir), _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir))
 
 
 def _csp(form_action: str) -> str:
@@ -423,7 +432,8 @@ def _csp(form_action: str) -> str:
         # gstatic serves the Firebase SDK; apis.google.com serves the gapi
         # loader signInWithPopup injects — without it Google sign-in (and so
         # cross-device sync) is dead on every published page.
-        "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com",
+        # 'wasm-unsafe-eval' lets WebAssembly compile (the FPV's Basis texture transcoder, build/fpv_gfx.py) and nothing else: no eval(), no new Function.
+        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https://*.googleusercontent.com",
         "font-src 'self' data:",
@@ -443,7 +453,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_files=(), bldg_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_files=(), bldg_files=(), gfx_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -482,6 +492,8 @@ def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_file
         *_tex_rules(tex_files),
         # bart: the curated buildings' artwork images, one literal immutable rule per file that exists
         *_art_rules(art_files),
+        # gfx: the FPV graphics pass's textures, sky and transcoder, one literal immutable rule per file that exists
+        *_gfx_rules(gfx_files),
         # After "**" so it wins for this path (Hosting applies matching
         # header blocks in order; a later one overrides the same key).
         {"source": "/connect/**", "headers": [
@@ -502,6 +514,21 @@ def _tex_names(site_dir) -> list:
     from .build.palace_ride_gfx import TEX_FOLDER, TEX_RE
     d = Path(site_dir) / TEX_FOLDER
     return sorted(p.name for p in d.iterdir() if p.is_file() and TEX_RE.match(p.name)) if d.is_dir() else []
+
+
+def _gfx_names(site_dir) -> list:
+    """The FPV graphics files in the site folder (build/fpv_gfx.py), only names of the published shape."""
+    if site_dir is None:
+        return []
+    from .build.fpv_gfx import FOLDER, NAME_RE
+    d = Path(site_dir) / FOLDER
+    return sorted(p.name for p in d.iterdir() if p.is_file() and NAME_RE.match(p.name)) if d.is_dir() else []
+
+
+def _gfx_rules(names) -> list:
+    from .build.fpv_gfx import FOLDER, NAME_RE
+    return [{"source": "/%s/%s" % (FOLDER, n), "headers": [
+        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if NAME_RE.match(n)]
 
 
 def _art_names(site_dir) -> list:

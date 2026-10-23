@@ -40,7 +40,7 @@ def test_the_legacy_tier_compiles_1_9_102s_shaders():
     assert "vec3 sr=mix(uHor*.30+vec3(.02),skyAt(vec3(R.xy,max(R.z,0.))),smoothstep(-.12,.16,R.z));" in legacy
     assert "vec3 amb=mix(uGndA,uSkyA,N.z*.5+.5);" in legacy
     g = palace_ride_gfx._JS_GFX
-    assert "function gfxDefs(){ return GFX.tier==='high'?" in g and ":'';" in g            # legacy: no defines at all
+    assert "function gfxDefs(){ var F=gfxFx(); return (GFX.tier==='high'?" in g and ":'')" in g and "if(t==='legacy'||" in g            # legacy: no defines at all
     assert "if(GFX.tier==='legacy' || L.dk) return L;" in g                               # and 1.9.102's light
 
 
@@ -129,7 +129,7 @@ def test_shaders_compile_on_webgl2_and_on_webgl1_and_the_msaa_target_is_complete
             GFX.probe={msaa:true,samples:Math.min(4,g2.getParameter(g2.MAX_SAMPLES))}; var t=gfxTarget(g2,64,48,GFX.probe.samples,null); o.fbo=!!t; o.samples=GFX.probe.samples;
             if(t){ g2.bindFramebuffer(g2.FRAMEBUFFER,t.fb); g2.clearColor(1,0,0,1); g2.clear(g2.COLOR_BUFFER_BIT); g2.bindFramebuffer(g2.FRAMEBUFFER,null); GFX.wgl2=true; GFX.fb=t; gfxEnd(g2,64,48); o.err=g2.getError(); } }
           if(g1){ GFX.tier='legacy'; o.legacy=[prog(g1,GLS.vsw,gfxDefs()+GLS.fsw),prog(g1,GLS.vss,gfxDefs()+GLS.fss)]; }
-          return o; }""", [palace_ride_gl._GLS, palace_ride_gfx._JS_GFX])
+          return o; }""", [palace_ride_gl._GLS, palace_ride_gfx.JS_GFX])           # the full part: with fpv_gfx's FXG the tiers compile the graphics pass's variants too
         b.close()
     if "high" not in res:
         pytest.skip("no WebGL2 in this browser")

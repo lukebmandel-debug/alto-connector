@@ -41,6 +41,11 @@ class Server:
                     for name, data in pma_art.files():
                         if path == "/bart/" + name:
                             body, ct, code = data, "image/jpeg", 200
+                elif path.startswith("/gfx/"):
+                    from alto.build import fpv_gfx
+                    for name, data in fpv_gfx.files():
+                        if path == "/gfx/" + name:
+                            body, ct, code = data, ("application/wasm" if name.endswith(".wasm") else "text/javascript" if name.endswith(".js") else "application/octet-stream"), 200
                 elif path.startswith("/bldg/"):
                     hit = palace_assets.find(path)
                     if hit:
