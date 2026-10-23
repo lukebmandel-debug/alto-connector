@@ -462,7 +462,7 @@ def test_arrows_fly_and_presses_on_the_way_wait_their_turn(browser, pages):
         pg.keyboard.press("ArrowLeft")
     q = pg.evaluate(FLIGHT)["queued"]
     assert q == ["w", "w", "w"], q
-    pg.wait_for_timeout(int(f["D"] * 1000) + 300)
+    pg.wait_for_timeout(int(f["D"] * f.get("k", 1) * 1000) + 300)     # (its time on the screen: D on the flight's own clock, k to real time)
     assert pg.evaluate("()=>window._focusedNodeId") == f["to"]
     pg.wait_for_timeout(900)
     g = pg.evaluate(FLIGHT)                           # the next press flies on from there
