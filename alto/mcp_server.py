@@ -2103,9 +2103,11 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     region's own card; its concepts are the countries.
     regions: a region per unit in unit order, "" for the route's own (the
     names above, or "Europe", "Middle East", "East Asia" …).
-    level: 'country' (default) or 'deep' — for a deep outline: concepts on
-    countries, the cards under them on cities of that country, theirs
-    clustered round the city. ('' keeps the stored one.)
+    level: 'country' (default): concepts on countries, every card under a
+    concept on one of its country's major cities, the largest first (the
+    rest cluster round the card above them when the cities run out);
+    'cluster': the cards under a concept cluster round its country instead;
+    'deep' is the default's old name. ('' keeps the stored one.)
     clear: node ids whose place should go back to the route.
     The reply lists every unit's region and every stop's place."""
     doc, err = _timeline_or_error(timeline_id)
@@ -2118,7 +2120,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     from .build import world_plan as wp
     old = dict(brief.get("world") or {})
     if level and level not in wp.LEVELS:
-        return {"error": "invalid_level", "message": f"level {level!r}: must be 'country' or 'deep'"}
+        return {"error": "invalid_level", "message": f"level {level!r}: must be 'country', 'cluster' or 'deep'"}
     nodes_raw = [{k: v for k, v in n.items() if not k.startswith("_")} for n in get_store().list_nodes(uid(), timeline_id)]
     ids = {n.get("id") for n in nodes_raw}
     given = dict(old.get("places") or {})

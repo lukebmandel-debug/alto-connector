@@ -125,7 +125,7 @@ def test_the_route_gives_each_unit_a_region_round_the_world():
     countries = [p["places"][t]["c"] for u in p["units"] for t in u["tops"]]
     assert len(set(countries)) == len(countries)                                                    # nobody shares while there is room
     assert set(countries[:4]) == {"USA", "CAN", "MEX", "GRL"}                                      # the region's largest countries
-    assert p["cl"] == {"pj": ["pj1", "pj2"], "erie": ["erie1"]}
+    assert p["cl"] == {"pj": ["pj2"]}                                    # cards under a country go on its cities; Greenland has one to give
     assert wp.plan(*loaded()[:2]) == p                                                              # deterministic
 
 
@@ -151,11 +151,38 @@ def test_the_notes_pull_a_unit_to_their_region_and_the_user_may_name_one():
     assert p["units"][1]["reg"] == ["East and Southeast Asia"] and p["places"]["erie"]["c"] in ("CHN", "IDN", "MNG")
 
 
-def test_the_deep_level_puts_a_concepts_cards_on_its_cities():
-    b, ns, _ = loaded(world={"level": "deep"})
+def test_the_cards_under_a_country_stand_on_its_major_cities_largest_first():
+    # Luke, 2026-10-23: "Automatically assign major cities to other nodes within a country"
+    b, ns, _ = loaded(world={"places": {"erie": wp.resolve("Peru")}})
     p = wp.plan(b, ns)
-    assert p["places"]["pj1"]["k"] == "city" and p["places"]["pj1"]["c"] == p["places"]["pj"]["c"]
-    assert p["units"][0]["stops"][:3] == ["pj", "pj1", "pj2"] and "pj" not in p["cl"]
+    assert p["places"]["erie1"]["k"] == "city" and p["places"]["erie1"]["label"] == "Arequipa"      # Lima is the capital, Callao beside it
+    assert p["units"][1]["stops"][:2] == ["erie", "erie1"] and "erie" not in p["cl"]
+    assert p["places"]["pj1"]["label"] == "Qaanaaq" and p["cl"]["pj"] == ["pj2"]                   # the cities run out: the rest cluster
+    assert not p["multi"]                                                                           # (the route's own cities draw no state lines)
+
+
+def test_two_concepts_in_one_country_never_share_a_city():
+    b, ns, _ = loaded(world={"places": {"pj": wp.resolve("Oregon"), "ms": wp.resolve("Texas")}})
+    p = wp.plan(b, ns)
+    towns = [q["label"] for q in p["places"].values() if q["k"] == "city"]
+    assert len(towns) == len(set(towns)) and p["places"]["pj1"]["c"] == "USA" and p["places"]["pj2"]["c"] == "USA"
+
+
+def test_the_cluster_and_deep_levels():
+    b, ns, _ = loaded(world={"level": "cluster"})
+    p = wp.plan(b, ns)
+    assert p["cl"] == {"pj": ["pj1", "pj2"], "erie": ["erie1"]} and not any(q["k"] == "city" for q in p["places"].values())
+    assert wp.plan(*loaded(world={"level": "deep"})[:2])["places"] == wp.plan(*loaded()[:2])["places"]     # "deep" is the default's old name
+
+
+def test_the_renderer_enlarges_hops_and_follows_the_engine():
+    js = pw.WORLD_ASSET
+    for seam in ("A.hop=function", "wp-enl", "giveBack()", "search-flash", "ent-dimmed", "CONNECTIONS", "alto-editing", "_featuredNodeId"):
+        assert seam in js, seam
+    assert "html.detail-open #wpal-root{visibility:hidden" in js                    # a card's page never shows the map through it
+    assert "html.alto-bg:not(.alto-bg-map) #wpal-root{background:none;}" in js       # a picked background is the sea
+    assert "html.alto-retro #wpal-root .wp-enl .node-card" in js                     # the enlarged card in Retro
+    assert "#wpal-root .wp-pin.n{width:auto" in js                                   # a number never spills out of its pin
 
 
 # ── the brief ────────────────────────────────────────────────────────────────
@@ -187,7 +214,7 @@ def test_the_page_carries_a_loader_and_the_places_not_the_map():
     d = data_of(html)
     assert d["u"][0]["hub"] == "hub" and d["nodes"]["pj"]["r"] == 1 and d["nodes"]["pj"]["n"] == "1.1-1"
     assert d["nodes"]["erie"]["t"] in ("Erie & Co", "Erie &amp; Co") and d["acts"][1] == {"n": "Erie", "c": "#9b5de5"}
-    assert d["cl"]["pj"] == ["pj1", "pj2"] and "x" not in d["nodes"]["pj1"] and d["names"]["USA"]
+    assert d["nodes"]["pj1"]["k"] == "city" and d["nodes"]["pj1"]["c"] == "USA" and "x" in d["nodes"]["pj1"] and d["names"]["USA"]
     assert fmt_of(html) == "world" and report["warnings"] is not None
 
 

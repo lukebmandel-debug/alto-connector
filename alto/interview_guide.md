@@ -618,15 +618,17 @@ trades scale for fidelity.
 
 ### §D-World. World Palace (`mode: 'palace'`, `palace_view: 'world'`)
 The method of loci on the **world map**: a smoothed real world (Equal Earth),
-each unit a region, each concept a country, the cards under a concept a
-cluster round it; flight arcs carry the route from country to country, and a
-Tour steps it. No first-person view. Classic and Retro, like every format.
+each unit a region, each concept a country, the cards under a concept on
+that country's major cities (largest first); flight arcs carry the route from
+country to country, a Tour and the arrow keys step it card by card, and a
+card is enlarged where it stands. No first-person view. Classic and Retro, like every format.
 - **Structure.** Build the outline as for any outline (units, concepts, the
   cards under them). A unit whose one top card holds its concepts (an
   outline's unit hub) is the region itself: the hub is shown over the region
-  and its concepts are the countries. With a deep outline (four or more
-  levels), offer `level: 'deep'`: the cards under a concept go on cities of
-  its country and theirs cluster round the city.
+  and its concepts are the countries. The cards under a concept go on its
+  country's major cities, the largest first, by themselves; when a country's
+  cities run out the rest cluster round the card above them. A user who wants
+  the cards clustered round the country instead: `level: 'cluster'`.
 - **Places come from the notes, never from you.** Read the materials for the
   places they tie a card to (a case decided in Oregon, a doctrine from
   France, a treaty signed in Vienna) and pass them as

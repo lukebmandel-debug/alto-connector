@@ -1,8 +1,9 @@
 """Where each card of a World Palace stands (brief.palace_view "world"): pure and deterministic, so a rebuild puts every card in the same place.
 
 Luke's design (2026-10-22):
-- A unit is a region; each top card gets a country, and its child cards cluster round it (level "country", the default). With level "deep" a
-  top card's children get cities of its country and the grandchildren cluster round those.
+- A unit is a region; each top card gets a country, and every card under it stands on one of that country's major cities, the largest first
+  (Luke, 2026-10-23; level "country", the default — "deep", its old name for this, is the same); when the country's cities run out the rest
+  cluster round the nearest placed card above them. Level "cluster" keeps the first design: the cards under a country cluster round it.
 - A unit with ONE top card over several (an outline's unit hub) is the region itself: the hub is the region's own card (shown over the region,
   the unit's first Tour stop) and its children are the unit's countries.
 - A card stands where the user's notes put it (set_up_world places, notes=true) or where the user says; every other card follows a memory route:
@@ -11,7 +12,7 @@ Luke's design (2026-10-22):
 - A country's pin is its capital, unless two or more of its states / provinces / cities are in use: then each of those stands where it really is
   (a state at its capital), and the country's other cards stay at the capital. (A single Oregon card pins at Washington, D.C. — Luke confirmed.)
 
-The brief keeps only what set_up_world was told: brief.world = {"level": "country"|"deep", "places": {node id: place}, "regions": [region names per
+The brief keeps only what set_up_world was told: brief.world = {"level": "country"|"deep"|"cluster", "places": {node id: place}, "regions": [region names per
 unit, "" for auto]}, a place being resolve()'s dict plus "r": 1 when the notes name it.
 """
 from __future__ import annotations
@@ -22,7 +23,9 @@ from collections import Counter
 
 from .world_geo import REGIONS, REGION_WORDS, gazetteer, norm, project
 
-LEVELS = ("country", "deep")
+LEVELS = ("country", "deep", "cluster")
+SEP_K = .12        # two city pins of one country stand at least this x the country's size apart
+REACH_K = 1.6      # and no farther than this x its size from its capital (France's cities, not Cayenne)
 ALIASES = {"us": "USA", "u s": "USA", "usa": "USA", "u s a": "USA", "america": "USA", "united states of america": "USA",
            "uk": "GBR", "u k": "GBR", "britain": "GBR", "great britain": "GBR", "holland": "NLD", "the netherlands": "NLD",
            "russia": "RUS", "south korea": "KOR", "korea": "KOR", "north korea": "PRK", "czech republic": "CZE", "ivory coast": "CIV",
@@ -192,6 +195,63 @@ def _walk(cids, cur):
     return best[1] if best else []
 
 
+def _cities(top, places, given, kids, C, state) -> list:
+    """Every card under a country's card stands on one of that country's major cities (Luke, 2026-10-23: "Automatically assign major
+    cities to other nodes within a country"): its children take the largest cities first, their children the larger ones nearest their
+    parent's; a city closer than SEP_K x the country's size to one in use is skipped (Callao beside Lima), and so are its far-off
+    territories' towns. A card the user or the notes placed keeps its place; when the cities run out the rest cluster round the nearest
+    placed card above them. `state` keeps each country's cities and pins in use across its concepts (two concepts in one country never
+    share a city). Returns the cards placed, in Tour order (depth first, outline order)."""
+    cap = places[top]
+    cid = cap["c"]
+    size = math.sqrt(max(C[cid].get("area", 1.0), 1.0))
+    home = _at(cid)
+    sep = SEP_K * size
+    if cid not in state:
+        pins = [_xy(p) for p in places.values() if p["c"] == cid] + [_xy(p) for p in given.values() if p.get("c") == cid] + [home]
+        state[cid] = {"used": pins, "towns": sorted((r for r in _places() if r[2] == cid and r[7] != 0
+                                                    and _dist(home, project(r[4], r[5])) <= REACH_K * size), key=lambda r: (-r[6], r[0]))}
+    used, towns = state[cid]["used"], state[cid]["towns"]
+    used.append(_xy(cap))
+    order = []
+
+    def free(r):
+        at = project(r[4], r[5])
+        return all(_dist(at, u) >= sep for u in used)
+
+    def take(ch, near):
+        if ch in given and given[ch].get("c") in C:
+            q = dict(given[ch])
+        else:
+            pool = [r for r in towns if free(r)]
+            if not pool:
+                return False
+            r = pool[0] if near is None else min(pool[:6], key=lambda r: (_dist(near, project(r[4], r[5])), r[0]))
+            towns.remove(r)
+            q = {"c": cid, "s": r[3], "city": r[0], "lon": r[4], "lat": r[5], "label": f"{r[0]}, {C[cid]['n']}", "auto": 1}
+        q["k"] = "city"
+        places[ch] = q
+        used.append(_xy(q))
+        return True
+
+    level, nxt = [(ch, None) for ch in kids.get(top, [])], []
+    placed = {}
+    while level:                                   # breadth first: a concept's own cards get the largest cities
+        for ch, near in level:
+            if take(ch, near):
+                placed[ch] = 1
+                nxt += [(g, _xy(places[ch])) for g in kids.get(ch, [])]
+        level, nxt = nxt, []
+
+    def walk(n):
+        for ch in kids.get(n, []):
+            if ch in placed:
+                order.append(ch)
+                walk(ch)
+    walk(top)
+    return order
+
+
 def plan(b, nodes) -> dict:
     """{"units": [{"reg": [regions], "tops": [ids, route order], "stops": [ids, tour order]}], "places": {id: {"c", "x", "y", "label", "k", "r"?}},
     "cl": {placed id: [cluster ids in outline order]}, "used": {country: unit}, "multi": [countries with their own state / city pins]}."""
@@ -218,6 +278,7 @@ def plan(b, nodes) -> dict:
     cur = None
     ptr = 0
     hubs = {}
+    cstate = {}
     for a, tops in enumerate(units):
         if len(tops) == 1 and len(kids.get(tops[0], [])) >= 2:                    # an outline's unit hub: its concepts are the countries
             hubs[a] = tops[0]
@@ -269,24 +330,8 @@ def plan(b, nodes) -> dict:
         stops = []
         for t in route:
             stops.append(t)
-            if level == "deep":
-                cap = places[t]
-                towns = [r for r in _places() if r[2] == cap["c"] and r[7] != 0] if not cap.get("city") else []
-                towns.sort(key=lambda r: -r[6])
-                at = _xy(cap)
-                for ch in kids.get(t, []):
-                    if ch in given and given[ch].get("c") in C:
-                        q = dict(given[ch])
-                    elif towns:
-                        r = min(towns[:max(6, len(kids.get(t, [])) * 2)], key=lambda r: (_dist(at, project(r[4], r[5])), r[0]))
-                        towns.remove(r)
-                        q = {"c": r[2], "s": r[3], "city": r[0], "lon": r[4], "lat": r[5], "label": f"{r[0]}, {C[r[2]]['n']}"}
-                    else:
-                        continue
-                    q["k"] = "city"
-                    places[ch] = q
-                    at = _xy(q)
-                    stops.append(ch)
+            if level != "cluster":
+                stops += _cities(t, places, given, kids, C, cstate)
         out_units.append({"reg": regs, "tops": route, "stops": stops, **({"hub": hubs[a]} if a in hubs else {})})
     # any other card the user placed by hand (a floor given a place of its own)
     for nid, p in given.items():
@@ -296,7 +341,7 @@ def plan(b, nodes) -> dict:
     subs = {}
     for nid, p in places.items():
         key = p.get("city") or p.get("s")
-        if key:
+        if key and not p.get("auto"):                  # (the route's own cities draw no state lines)
             subs.setdefault(p["c"], set()).add(norm(key))
     multi = sorted(c for c, s in subs.items() if len(s) >= 2)
     out = {}

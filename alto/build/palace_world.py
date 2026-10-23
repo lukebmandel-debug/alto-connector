@@ -11,7 +11,7 @@ direction chevrons, a dotted arc handing one unit to the next; a place opens int
 Tour steps the route (◀ ▶, the arrow keys). Classic and Retro (retro.FORMAT_CSS styles #wpal-root); no first-person view. Text is only ever
 written with textContent.
 
-SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId), tour(i), world(), view() -> {cx, cy, k}, on(event, fn)
+SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId) (enlarges it), hop(±1), tour(i), unit(a), world(), view() -> {cx, cy, k}, on(event, fn)
 ('ready' when the map is drawn, 'select', 'land' when a flight ends).
 """
 from __future__ import annotations
@@ -54,12 +54,36 @@ html.dark #wpal-root .wp-land{filter:none;}
 #wpal-root .wp-link{fill:none;stroke:var(--u);stroke-width:2.2px;stroke-linecap:round;opacity:.9;}
 #wpal-root .wp-dot{fill:var(--u);}
 #wpal-root .wp-layer{position:absolute;inset:0;pointer-events:none;}
-#wpal-root .wp-pin{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;box-sizing:border-box;pointer-events:auto;cursor:pointer;
-  background:var(--w-pin);border:2px solid var(--u);box-shadow:0 0 0 3px color-mix(in srgb,var(--u) 25%,transparent);
+#wpal-root .wp-pin{position:absolute;left:0;top:0;width:12px;height:12px;translate:-50% -50%;border-radius:999px;box-sizing:border-box;pointer-events:auto;cursor:pointer;
+  background:var(--w-pin);border:2px solid var(--u);box-shadow:0 0 0 3px color-mix(in srgb,var(--u) 25%,transparent);white-space:nowrap;
   display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;line-height:1;color:color-mix(in srgb,var(--u) 75%,#000);}
 html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
-#wpal-root .wp-pin.n{width:24px;height:24px;margin:-12px 0 0 -12px;}
-#wpal-root .wp-pin.wp-on{width:34px;height:34px;margin:-17px 0 0 -17px;font-size:11px;border-width:2.5px;}
+/* a numbered pin is a pill as wide as its number ("2.1-11" stays inside it), centred on its place */
+#wpal-root .wp-pin.n{width:auto;min-width:24px;height:24px;padding:0 5px;}
+#wpal-root .wp-pin.wp-on{min-width:34px;height:34px;font-size:11px;border-width:2.5px;}
+#wpal-root .wp-pin.wp-on:not(.n){width:34px;}
+#wpal-root .wp-pin.wp-dim{opacity:.16;}
+#wpal-root .wp-c.wp-u.wp-dim{opacity:.4;}
+#wpal-root .wp-card.wp-dim{opacity:.35;}
+/* an enlarged card is the timeline's own card, borrowed from the hidden board while it shows (its chips, highlights, filters and edits
+   come with it; a click on it opens its page, as everywhere in Alto) */
+#wpal-root .wp-enl{position:absolute;left:0;top:0;pointer-events:auto;z-index:4;transform-origin:50% 100%;
+  transition:opacity .28s cubic-bezier(.25,.2,.4,1),scale .32s cubic-bezier(.25,.2,.4,1);}
+#wpal-root .wp-enl.wp-grow{opacity:0;scale:.55;}
+#wpal-root .wp-enl.kid{transform-origin:50% 50%;z-index:5;}
+#wpal-root .wp-enl.s-down{transform-origin:50% 0;}#wpal-root .wp-enl.s-left{transform-origin:100% 50%;}#wpal-root .wp-enl.s-right{transform-origin:0 50%;}
+#wpal-root .wp-enl > .node{position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;
+  transform:none !important;translate:none !important;scale:none !important;rotate:none !important;margin:0 !important;opacity:1 !important;visibility:visible !important;
+  display:block !important;animation:none !important;zoom:1.18;}
+#wpal-root .wp-enl > .node > .node-card{position:relative !important;left:auto !important;top:auto !important;transform:none !important;scale:none !important;margin:0 !important;
+  animation:none !important;opacity:1 !important;}
+@media (prefers-reduced-motion: reduce){#wpal-root .wp-enl{transition:none;}}
+#wpal-root .wp-rel{fill:none;stroke:var(--u);stroke-width:1.8px;stroke-dasharray:5 5;stroke-linecap:round;opacity:.85;}
+#wpal-root .wp-reld{fill:var(--u);stroke:var(--w-pin);stroke-width:1.5px;}
+/* a background the reader picked (a photo, a colour, a pattern) is the sea: the land lies on it */
+html.alto-bg:not(.alto-bg-map) #wpal-root{background:none;}
+/* the map is not drawn over a card's page, nor while the cards are edited by hand */
+html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-pin:focus-visible{outline:2px solid var(--u);outline-offset:3px;}
 #wpal-root .wp-pin .wp-nm{position:absolute;right:-9px;top:-11px;width:11px;height:14px;pointer-events:none;}
 #wpal-root .wp-pin .wp-nm path{fill:var(--u);stroke:var(--w-pin);stroke-width:1.5px;}
@@ -111,12 +135,14 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
 @media (max-width:700px){#wpal-root .wp-card{width:180px;padding:8px 10px 9px;}#wpal-root .wp-card.main{width:220px;}#wpal-root .wp-card h4{font-size:13px;}
   #wpal-root .wp-card.main h4{font-size:15px;}#wpal-root .wp-tour .d{display:none;}#wpal-root .wp-tour{bottom:68px;}
   #wpal-root .wp-key{bottom:120px;left:12px;max-width:calc(100% - 24px);}#wpal-root .wp-ctl{right:10px;top:8px;}
-  #wpal-root .wp-list{left:12px;right:12px;width:auto;top:auto;bottom:120px;max-height:40%;}}
+  #wpal-root .wp-list{left:12px;right:12px;width:auto;top:auto;bottom:120px;max-height:40%;}
+  #wpal-root .wp-enl > .node{zoom:1;max-width:calc(100vw - 28px);}}
 """
 
 WORLD_JS = r"""
 var NS='http://www.w3.org/2000/svg', A=window.AltoWorld={}, ev={};
-var S={k:1,cx:0,cy:0,vw:1,vh:1,kW:1,paths:{},bb:{},base:{},det:{},detOn:{},cont:{},a1:{},pins:{},lbls:{},tags:[],chev:[],sel:null,ti:-1,ptr:{},anim:null,cl:null};
+var S={k:1,cx:0,cy:0,vw:1,vh:1,kW:1,paths:{},bb:{},base:{},det:{},detOn:{},cont:{},a1:{},pins:{},lbls:{},tags:[],chev:[],sel:null,ti:-1,ptr:{},anim:null,cl:null,
+  out:{},dimSig:null,bor:null,cur:null,rel:[]};
 function on(e,f){ (ev[e]=ev[e]||[]).push(f); }
 function emit(e,d){ (ev[e]||[]).slice().forEach(function(f){ try{ f(d); }catch(x){} }); }
 function el(t,a,p){ var n=document.createElementNS(NS,t); if(a) for(var k in a) n.setAttribute(k,a[k]); if(p) p.appendChild(n); return n; }
@@ -194,6 +220,11 @@ function stops(){ var o=[]; (D().u||[]).forEach(function(u){ if(u.hub) o.push(u.
 function hubUnit(id){ var U=D().u||[]; for(var a=0;a<U.length;a++) if(U[a].hub===id) return a; return -1; }
 function ucls(a){ return 'wu'+(a%12); }
 function placeOf(id){ var n=N(id); while(n&&n.x==null&&n.par){ id=n.par; n=N(id); } return n&&n.x!=null?id:null; }
+// every card in the order the Tour and the arrow keys hop through them: each stop, then the cards clustered round it
+function seq(){ var o=[]; stops().forEach(function(id){ o.push(id); ((D().cl||{})[id]||[]).forEach(function(c){ o.push(c); }); }); return o; }
+// the reader's filters (the engine dims a card it hides): a filtered-out card's pin fades and the hops skip it
+function out(id){ var e=document.getElementById('node-'+id), c=e&&e.querySelector('.node-card'); return !!(c&&(c.classList.contains('dimmed')||c.classList.contains('ent-dimmed'))); }
+function live(){ return seq().filter(function(id){ return !S.out[id]; }); }
 
 // ── drawing ──
 function drawBase(G){
@@ -255,12 +286,18 @@ function place(){
   for(var id in S.pins){ var P=S.pins[id], n=N(id), s=scr(n.x,n.y), f=big?1.6:1, x=s[0]+P.off[0]*f, y=s[1]+P.off[1]*f;
     P.x=x; P.y=y; P.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
     P.lbl.style.transform='translate(-50%,0) translate('+x.toFixed(1)+'px,'+(y+(big?16:10)).toFixed(1)+'px)'; }
-  S.tags.forEach(function(T){ if(T.pos){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
+  S.tags.forEach(function(T){ if(T.pos&&T.d){ var s=scr(T.pos[0],T.pos[1]); T.el.style.transform='translate(-50%,-50%) translate('+(s[0]+T.d[0]).toFixed(1)+'px,'+(s[1]+T.d[1]).toFixed(1)+'px)'; } });
   var ov=S.ovChev; while(ov.firstChild) ov.removeChild(ov.firstChild);
   S.chev.forEach(function(C){ var t=.5, x=(1-t)*(1-t)*C.a[0]+2*(1-t)*t*C.c[0]+t*t*C.b[0], y=(1-t)*(1-t)*C.a[1]+2*(1-t)*t*C.c[1]+t*t*C.b[1];
     var tx=2*(1-t)*(C.c[0]-C.a[0])+2*t*(C.b[0]-C.c[0]), ty=2*(1-t)*(C.c[1]-C.a[1])+2*t*(C.b[1]-C.c[1]), s=scr(x,y);
     if(Math.hypot(C.b[0]-C.a[0],C.b[1]-C.a[1])*S.k<46) return;
     el('path',{d:'M-4,-4L3,0L-4,4','class':'wp-chev','transform':'translate('+s[0].toFixed(1)+' '+s[1].toFixed(1)+') rotate('+(Math.atan2(ty,tx)*180/Math.PI).toFixed(1)+')',opacity:S.sel!=null&&unitOf(S.sel)!==C.u?.25:1},ov); });
+  // the enlarged card's links to other cards (the hover lines of every other format): dashed arcs from its place to theirs
+  var rv=S.ovRel; while(rv.firstChild) rv.removeChild(rv.firstChild);
+  var A0=S.cur&&S.pins[placeOf(S.cur)];
+  if(A0) S.rel.forEach(function(to){ var P=S.pins[to]; if(!P||P===A0||S.out[to]) return; var Q=quad([A0.x,A0.y],[P.x,P.y],.2), g=el('g',{'class':ucls(N(to).a)},rv);
+    el('path',{d:'M'+A0.x.toFixed(1)+' '+A0.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+P.x.toFixed(1)+' '+P.y.toFixed(1),'class':'wp-rel'},g);
+    el('circle',{cx:P.x.toFixed(1),cy:P.y.toFixed(1),r:4.5,'class':'wp-reld'},g); });
   cluster();
 }
 function band(was,v,lo,hi){ return was?v>=lo:v>=hi; }
@@ -272,10 +309,12 @@ function labels(){                                  // decided once a gesture se
   var taken=[];
   for(var id in S.pins){ var P=S.pins[id]; taken.push([P.x-8,P.y-8,P.x+8,P.y+8]); }
   if(S.cl) S.cl.boxes.forEach(function(b){ taken.push(b); });
+  var o=S.root.getBoundingClientRect();                            // the map's own panels: no name goes under them
+  [S.ctlEl,S.keyEl,S.tourEl,S.list].forEach(function(e){ if(!e||e.hidden) return; var r=e.getBoundingClientRect(); if(r.width) taken.push([r.left-o.left-6,r.top-o.top-6,r.right-o.left+6,r.bottom-o.top+6]); });
   var hit=function(b,sl){ sl=sl||0; for(var i=0;i<taken.length;i++){ var t=taken[i]; if(b[0]+sl<t[2]&&b[2]-sl>t[0]&&b[1]+sl<t[3]&&b[3]-sl>t[1]) return true; } return false; };
   var seenC={}, order=stops().concat(Object.keys(S.pins)), was=order.filter(function(id){ return S.pins[id]&&S.pins[id].on; });
   was.concat(order).forEach(function(id){ var P=S.pins[id]; if(!P||P._done===S) return; P._done=S; var n=N(id);
-    var L=P.lbl, show=!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
+    var L=P.lbl, show=!S.out[id]&&!(S.cl&&S.cl.id===id)&&P.x>-50&&P.x<S.vw+50&&P.y>-50&&P.y<S.vh+50;
     if(show&&tight){ if(seenC[n.c]&&n.k==='country') show=false; seenC[n.c]=1; }
     L.querySelector('i').style.display=tight?'none':'';
     if(show){ var w=L.offsetWidth, hh=L.offsetHeight, y=P.y+(tight?10:16), b=[P.x-w/2,y,P.x+w/2,y+hh]; if(hit(b,P.on?3:0)) show=false; else taken.push(b); }
@@ -321,51 +360,85 @@ function swapOut(cs){ var G=S.cont[cs]; S.detOn[cs]=0; if(!G||!G.c) return; Obje
 function placeView(id){
   var n=N(id), bb=S.bb[n.c], I=inset(), room=Math.min(S.vw-I.l-I.r,S.vh-I.t-I.b);
   var span=bb?Math.max(bb[2]-bb[0],bb[3]-bb[1]):8; if(n.k==='sub') span=Math.min(span,110); else if(n.k==='city') span=Math.min(span,60);
-  var k=clamp(room*(phone()?.62:.42)/Math.max(span,4),S.kW*2.2,S.kW*30);
+  var cities=n.k==='country'&&Object.keys(D().nodes||{}).some(function(c){ var m=N(c); return m.par===id&&m.k==='city'; });
+  var k=clamp(room*(phone()?.62:cities?.72:.42)/Math.max(span,4),S.kW*2.2,S.kW*30);          // (a country with cards on its cities: close enough to tell them apart)
   return {cx:n.x,cy:n.y-(phone()?40:30)/k,k:k};
 }
+// A card is enlarged where it stands (Luke, 2026-10-23: "it should still have the ability to enlarge nodes"): a pin, a cluster card, a
+// Tour stop or an arrow key enlarges that card; a click on the enlarged card opens its page, a click away or Esc shrinks it.
 A.select=function(id,opts){
   if(hubUnit(id)>=0) return A.unit(hubUnit(id),opts);
-  if(!placed(id)) id=placeOf(id); if(!id) return;
-  opts=opts||{}; S.sel=id; var n=N(id); S.ti=stops().indexOf(id); closeCluster();
-  focus(n.a,n.c,id); tourBar();
-  var v=placeView(id);
-  var land=function(){ if(S.sel===id) openCluster(id); };
+  var pl=placed(id)?id:placeOf(id); if(!pl) return; opts=opts||{};
+  S.cur=id; rels(id);
+  if(S.cl&&S.cl.id===pl&&!S.anim){ swapEnl(id); tourBar(); place(); emit('select',id); return; }      // a card of the cluster that is open
+  S.sel=pl; var n=N(pl); closeCluster();
+  focus(n.a,n.c,pl); tourBar();
+  var v=placeView(pl);
+  var land=function(){ if(S.sel===pl&&S.cur===id) openCluster(pl,null,id); };
   if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=v.k; apply(); settle(); land(); } else fly(v.cx,v.cy,v.k,land);
   emit('select',id);
 };
+function rels(id){ S.rel=[]; if(typeof CONNECTIONS==='undefined') return; var seen={}, n=N(id);
+  try{ CONNECTIONS.forEach(function(c){ var o=c[0]===id?c[1]:c[1]===id?c[0]:null, m=o&&N(o); if(!m||n.par===o||m.par===id) return;
+    var p=placeOf(o); if(p&&!seen[p]){ seen[p]=1; S.rel.push(p); } }); }catch(x){} }
 function focus(a,cid,id){
   S.root.classList.toggle('wp-focus',a!=null);
   Object.keys(S.paths).forEach(function(c){ S.paths[c].classList.toggle('wp-on',c===cid); });
   [].forEach.call(S.gArcs.children,function(g){ g.classList.toggle('wp-on',+g.getAttribute('data-u')===a); });
   for(var k in S.pins){ S.pins[k].el.classList.toggle('wp-in',N(k).a===a); S.pins[k].el.classList.toggle('wp-on',k===id); }
 }
-function closeCluster(){ if(!S.cl) return; S.cl.els.forEach(function(e){ e.remove(); }); S.list.hidden=true; S.cl=null; S.ovLinks.innerHTML=''; }
+function unfocus(){ closeCluster(); S.sel=null; S.cur=null; S.rel=[]; focus(null,null,null); tourBar(); place(); }
+// the timeline's own card, borrowed from the board while it is enlarged and given back after (the board keeps its order)
+function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.classList.remove('wp-bnode');
+  if(B.par&&B.par.isConnected&&document.getElementById(n.id)===n) B.par.insertBefore(n,B.nxt&&B.nxt.parentNode===B.par?B.nxt:null); else n.remove(); }
+function enlarge(id,kid){
+  var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
+  giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
+  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node);
+  void w.offsetWidth; w.classList.remove('wp-grow'); return w;
+}
+function closeCluster(){ if(!S.cl) return; giveBack(); els(S.cl).forEach(function(e){ e.remove(); }); S.list.hidden=true; S.cl=null; S.ovLinks.innerHTML=''; }
+function els(C){ return [C.main].concat(C.cards.map(function(K){ return K.el; })); }
 function card(id,main){
-  var n=N(id), c=h('div',{'class':'wp-card '+ucls(n.a)+(main?' main':''),role:'button',tabindex:'0'},S.lCards);
+  var n=N(id), c=h('div',{'class':'wp-card '+ucls(n.a)+(main?' main':'')+(S.out[id]?' wp-dim':''),role:'button',tabindex:'0','data-id':id},S.lCards);
   var ha=hubUnit(id);
   h('div',{'class':'n'},c,ha>=0?'Unit '+(ha+1)+' · '+(D().u[ha].reg||[]).join(', '):dec(n.n||'')+(main&&n.pl?' · '+dec(n.pl):''));
   h('h4',null,c,dec(n.t||''));
   if(main&&n.nm) h('div',{'class':'pl'},c,'Named in your notes: '+dec(n.nm));
-  var go=function(e){ if(e) e.stopPropagation(); openNode(id); };
+  var go=function(e){ if(e) e.stopPropagation(); A.select(id); };
   c.addEventListener('click',go); c.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
   return c;
 }
 function anchorOf(C){ if(C.at){ var s=scr(C.at[0],C.at[1]); return {x:s[0],y:s[1]}; } return S.pins[C.id]; }
-function openCluster(id,at){
-  closeCluster(); var kids=at?[]:((D().cl||{})[id]||[]), main=card(id,true), els=[main], cards=[];
+function openCluster(id,at,enl){
+  closeCluster(); enl=enl||id; var kids=at?[]:((D().cl||{})[id]||[]), cards=[];
+  var main=enl===id?enlarge(id,false):card(id,true);
   var many=kids.length>(phone()?4:10);
   if(many){ S.list.hidden=false; S.list.className='wp-list '+ucls(N(id).a); while(S.list.firstChild) S.list.removeChild(S.list.firstChild);
-    kids.forEach(function(c){ var b=h('button',{type:'button'},S.list); h('b',null,b,dec(N(c).n||'')); b.appendChild(document.createTextNode(dec(N(c).t||''))); b.addEventListener('click',function(){ openNode(c); }); }); }
-  else kids.forEach(function(c){ var e=card(c,false); els.push(e); cards.push({id:c,el:e}); });
-  S.cl={id:id,els:els,main:main,cards:cards,k:S.k,boxes:[],at:at||null};
+    kids.forEach(function(c){ var b=h('button',{type:'button'},S.list); h('b',null,b,dec(N(c).n||'')); b.appendChild(document.createTextNode(dec(N(c).t||''))); b.addEventListener('click',function(){ A.select(c); }); });
+    if(enl!==id) cards.push({id:enl,el:enlarge(enl,true),extra:1}); }
+  else kids.forEach(function(c){ cards.push({id:c,el:c===enl?enlarge(c,true):card(c,false)}); });
+  S.cl={id:id,main:main,cards:cards,k:S.k,boxes:[],at:at||null,enl:enl};
   layoutCluster(); place(); labels();
+}
+function swapEnl(id){
+  var C=S.cl; if(!C||C.enl===id) return; giveBack();
+  var put=function(K,big){ var nid=K?K.id:C.id, e=big?enlarge(nid,!!K):card(nid,!K), old=K?K.el:C.main; old.replaceWith(e); if(K) K.el=e; else C.main=e; };
+  var rec=function(x){ for(var i=0;i<C.cards.length;i++) if(C.cards[i].id===x) return C.cards[i]; return null; };
+  if(C.enl===C.id) put(null,false); else { var K0=rec(C.enl); if(K0&&K0.extra){ K0.el.remove(); C.cards.splice(C.cards.indexOf(K0),1); } else if(K0) put(K0,false); }
+  if(id===C.id) put(null,true);
+  else { var K=rec(id); if(K) put(K,true); else { K={id:id,el:enlarge(id,true),extra:1,c:[Math.min(S.vw*.28,320),0]}; C.cards.push(K); } }
+  C.enl=id; place(); labels();
 }
 function layoutCluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C), I=inset();
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, gap=phone()?22:30;
-  C.mo=[-mw/2,-mh-gap];                                                      // the place's own card above its pin
-  var n=C.cards.length, rx=Math.min(S.vw*(phone()?.3:.36),430), ry=Math.min(S.vh*.3,250), boxes=[[P.x+C.mo[0],P.y+C.mo[1],P.x+C.mo[0]+mw,P.y+C.mo[1]+mh],[P.x-20,P.y-20,P.x+20,P.y+20]];
+  // the place's own card goes on the side of its pin that hides the fewest other pins (above, then beside, then below)
+  var cost=function(sd){ var b=mainBox(P,sd,mw,mh), c=b[0]<8||b[2]>S.vw-8||b[1]<8||b[3]>S.vh-I.b+40?1000:0;
+    for(var k in S.pins){ var Q=S.pins[k]; if(k!==C.id&&Q.x>b[0]-14&&Q.x<b[2]+14&&Q.y>b[1]-14&&Q.y<b[3]+14) c++; } return c; };
+  C.side=['up','right','left','down'].reduce(function(best,sd){ return cost(sd)<cost(best)?sd:best; },'up');
+  var mb=mainBox(P,C.side,mw,mh);
+  var n=C.cards.length, rx=Math.min(S.vw*(phone()?.3:.36),430), ry=Math.min(S.vh*.3,250), boxes=[mb,[P.x-20,P.y-20,P.x+20,P.y+20]];
   C.cards.forEach(function(K,i){
     var w=K.el.offsetWidth, hh=K.el.offsetHeight, a=(n===1?35:-160+i*(320/(n-1)))*Math.PI/180, r=1, b;
     for(var tries=0;tries<14;tries++){
@@ -374,44 +447,68 @@ function layoutCluster(){
       if(!boxes.some(function(o){ return b[0]<o[2]+10&&b[2]>o[0]-10&&b[1]<o[3]+8&&b[3]>o[1]-8; })) break;
       r+=.14; a+=(i%2?-1:1)*.09;
     }
-    boxes.push(b); K.o=[b[0]-P.x,b[1]-P.y];
+    boxes.push(b); K.c=[(b[0]+b[2])/2-P.x,(b[1]+b[3])/2-P.y];                   // (its centre: an enlarged card grows round it)
   });
-  C.boxes=boxes;
+  C.boxes=boxes; C.main.classList.remove('s-down','s-left','s-right'); if(C.side!=='up') C.main.classList.add('s-'+C.side);
 }
+function mainBox(P,sd,mw,mh){ var g=phone()?22:30, x=sd==='left'?P.x-g-mw:sd==='right'?P.x+g:P.x-mw/2, y=sd==='up'?P.y-g-mh:sd==='down'?P.y+g:P.y-mh/2;
+  return [x,y,x+mw,y+mh]; }
 function cluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C);
   if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim) closeCluster(); return; }
-  var links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
-  C.main.style.transform='translate('+(P.x+C.mo[0]).toFixed(1)+'px,'+(P.y+C.mo[1]).toFixed(1)+'px)';
-  C.boxes=[[P.x+C.mo[0],P.y+C.mo[1],P.x+C.mo[0]+C.main.offsetWidth,P.y+C.mo[1]+C.main.offsetHeight]];
-  C.cards.forEach(function(K){ var x=P.x+K.o[0], y=P.y+K.o[1], w=K.el.offsetWidth, hh=K.el.offsetHeight;
+  var I=inset(), links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
+  var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh);
+  var mx=clamp(mb[0],8,Math.max(8,S.vw-8-mw)), my=clamp(mb[1],8,Math.max(8,S.vh-8-mh));     // the place's own card beside its pin
+  C.main.style.transform='translate('+mx.toFixed(1)+'px,'+my.toFixed(1)+'px)';
+  C.boxes=[[mx,my,mx+mw,my+mh]];
+  C.cards.forEach(function(K){ var w=K.el.offsetWidth, hh=K.el.offsetHeight, x=P.x+K.c[0]-w/2, y=P.y+K.c[1]-hh/2;
+    if(K.el.classList.contains('wp-enl')){ x=clamp(x,I.l,Math.max(I.l,S.vw-I.r-w)); y=clamp(y,I.t,Math.max(I.t,S.vh-I.b-hh)); }
     K.el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)'; C.boxes.push([x,y,x+w,y+hh]);
     var q=[clamp(P.x,x,x+w),clamp(P.y,y,y+hh)], Q=quad([P.x,P.y],q,.1), g=el('g',{'class':ucls(N(C.id).a)},links);
     el('path',{d:'M'+P.x.toFixed(1)+' '+P.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+q[0].toFixed(1)+' '+q[1].toFixed(1),'class':'wp-link'},g);
     el('circle',{cx:q[0].toFixed(1),cy:q[1].toFixed(1),r:3.5,'class':'wp-dot'},g); });
 }
-function openNode(id){ if(typeof window.showDetail==='function'){ S.opened=id; A.hide(); try{ window.showDetail('node',id); }catch(x){} } }
 
-// ── tour, units, the whole world ──
-/* a filter on: the Tour stops only where it shows (window._altoShown, filter_panel.py), the nearest such stop that way */
-function shownStop(id){ return !(window._altoFilterOn&&window._altoFilterOn()) || !window._altoShown || window._altoShown(id); }
-function tourNb(i,d){ var s=stops(), L=s.length; for(var k=0;k<L;k++,i+=d){ var j=((i%L)+L)%L; if(shownStop(s[j])) return j; } return -1; }
-A.tour=function(i){ var s=stops(); if(!s.length) return; var j=tourNb(i,(i<0||i<S.ti)?-1:1); if(j<0) return; S.ti=j; A.select(s[S.ti]); };
+// ── tour, hops, units, the whole world ──
+A.tour=function(i){ var s=live(); if(!s.length) return; A.select(s[((i%s.length)+s.length)%s.length]); };
+// the arrow keys and ◀ ▶: the next card on the route that the reader's filters show
+A.hop=function(d){ var all=seq(), n=all.length; if(!n) return; var i=all.indexOf(S.cur); if(i<0) i=d>0?-1:n;
+  for(var k=1;k<=n;k++){ var j=((i+d*k)%n+n)%n; if(!S.out[all[j]]) return A.select(all[j]); } };
 A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1e9,-1e9];
   (u.st||[]).filter(placed).forEach(function(id){ var n=N(id), b=S.bb[n.c]||[n.x,n.y,n.x,n.y]; bb=[Math.min(bb[0],n.x,b[0]),Math.min(bb[1],n.y,b[1]),Math.max(bb[2],n.x,b[2]),Math.max(bb[3],n.y,b[3])]; });
-  if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(); S.sel=u.hub||null; S.ti=u.hub?stops().indexOf(u.hub):-1; focus(a,null,null); tourBar();
-  var v=fitBox(bb,phone()?20:60), k=Math.min(v.k,S.kW*14), mh=u.hub?(phone()?120:150):0;
+  if(bb[0]>bb[2]) return; opts=opts||{}; closeCluster(); S.sel=u.hub||null; S.cur=u.hub||null; if(u.hub) rels(u.hub); else S.rel=[]; focus(a,null,null); tourBar();
+  var I=inset(), v=fitBox(bb,phone()?20:60), k=Math.min(v.k,S.kW*14), mh=u.hub?(phone()?150:260):0;
   v.cy-=mh/2/k;                                                               // room above the region for its own card
   var land=function(){ if(u.hub&&S.sel===u.hub) openCluster(u.hub,[(bb[0]+bb[2])/2,bb[1]]); };
   if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=k; apply(); settle(); land(); } else fly(v.cx,v.cy,k,land); emit('select',u.hub||null); };
-A.world=function(){ S.sel=null; S.ti=-1; closeCluster(); focus(null,null,null); tourBar(); var v=worldView(); fly(v.cx,v.cy,v.k); };
+A.world=function(){ unfocus(); var v=worldView(); fly(v.cx,v.cy,v.k); };
 A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
 function tourBar(){
-  var s=stops(), B=S.tourEl, on=S.ti>=0&&s.length; B.hidden=!on; if(!on) return;
-  var nm=function(id){ var n=N(id), a=hubUnit(id); return a>=0?dec((a+1)+' '+((D().acts[a]||{}).n||'')):dec((n.n||'')+' '+(n.pl||'')); };
-  var pj=tourNb(S.ti-1,-1), nj=tourNb(S.ti+1,1); S.tPrev.textContent=pj<0?'':nm(s[pj]); S.tNext.textContent=nj<0?'':nm(s[nj]);
-  S.tCur.textContent='Tour '+(S.ti+1)+' / '+s.length+' · '+nm(s[S.ti]);
+  var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.cur!=null&&i>=0; B.hidden=!on; if(!on) return;
+  var nm=function(id){ var n=N(id), a=hubUnit(id); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var q=N(placeOf(id)||id); return dec((n.n||'')+' '+(n.pl||(q&&q.pl)||'')); };
+  S.tPrev.textContent=nm(s[(i-1+s.length)%s.length]); S.tNext.textContent=nm(s[(i+1)%s.length]);
+  S.tCur.textContent='Tour '+(i+1)+' / '+s.length+' · '+nm(S.cur);
 }
+// the reader's filters: the cards they hide fade on the map, a country all of whose cards are hidden fades, and the map flies to what is left
+function dim(){ if(!S.ready) return; var sig='', any=0, byC={};
+  for(var id in (D().nodes||{})){ var o=out(id); S.out[id]=o; if(o){ sig+=id+','; any=1; } var p=placeOf(id); if(p){ var c=N(p).c; byC[c]=byC[c]||[0,0]; byC[c][0]++; if(o) byC[c][1]++; } }
+  for(var k in S.pins) S.pins[k].el.classList.toggle('wp-dim',!!S.out[k]);
+  for(var c in byC){ var pp=S.paths[c]; if(pp) pp.classList.toggle('wp-dim',byC[c][0]===byC[c][1]); }
+  [].forEach.call(S.lCards.querySelectorAll('.wp-card[data-id]'),function(e){ e.classList.toggle('wp-dim',!!S.out[e.getAttribute('data-id')]); });
+  if(sig!==S.dimSig){ var first=S.dimSig==null; S.dimSig=sig; tourBar(); labels(); if(!first&&any) fitLive(); } }
+function fitLive(){ var bb=[1e9,1e9,-1e9,-1e9], k=0;
+  live().forEach(function(id){ var p=placeOf(id), n=p&&N(p); if(!n) return; bb=[Math.min(bb[0],n.x),Math.min(bb[1],n.y),Math.max(bb[2],n.x),Math.max(bb[3],n.y)]; k++; });
+  if(!k) return; unfocus(); var v=fitBox([bb[0]-6,bb[1]-6,bb[2]+6,bb[3]+6],phone()?30:80); fly(v.cx,v.cy,Math.min(v.k,S.kW*14)); }
+// what happens on the hidden board reaches the map: a search hit (the engine flashes it) or a card the engine enlarges is enlarged here
+function watchBoard(){ var t=0, w=document.getElementById('world');
+  var mo=new MutationObserver(function(ms){ var hit=null;
+    ms.forEach(function(m){ var e=m.target, c=e.classList, was=' '+(m.oldValue||'')+' '; if(!c||!e.id||e.id.indexOf('node-')!==0) return;
+      if((c.contains('search-flash')&&was.indexOf(' search-flash ')<0)||(c.contains('focused')&&was.indexOf(' focused ')<0)) hit=e.id.slice(5); });
+    if(hit&&N(hit)&&!S.root.hidden&&!document.documentElement.classList.contains('detail-open')){
+      if(window._focusedNodeId&&window.exitFocus){ try{ window.exitFocus(); }catch(x){} } A.select(hit); }
+    clearTimeout(t); t=setTimeout(dim,60); });
+  var o={attributes:true,subtree:true,attributeFilter:['class'],attributeOldValue:true};
+  if(w) mo.observe(w,o); mo.observe(S.lCards,o); }
 
 // ── input: drag, pinch, wheel, Safari's trackpad gestures, keys ──
 function bindInput(){
@@ -433,14 +530,14 @@ function bindInput(){
     var m=mid(); if(last){ if(Object.keys(S.ptr).length>1&&last.d>0) zoomAt(m.d/last.d,m.x,m.y); S.cx-=(m.x-last.x)/S.k; S.cy-=(m.y-last.y)/S.k; setView(S.cx,S.cy,S.k); } last=m; });
   var up=function(e){ delete S.ptr[e.pointerId]; last=Object.keys(S.ptr).length?mid():null; if(!last) root.classList.remove('wp-drag'); };
   svg.addEventListener('pointerup',up); svg.addEventListener('pointercancel',up);
-  svg.addEventListener('click',function(e){ if(S.dragged) return; if(e.target===svg||e.target.classList.contains('wp-c')&&!e.target.classList.contains('wp-u')){ if(S.cl){ closeCluster(); S.sel=null; S.ti=-1; focus(null,null,null); tourBar(); } } });
+  svg.addEventListener('click',function(e){ if(S.dragged) return; if(e.target===svg||e.target.classList.contains('wp-c')&&!e.target.classList.contains('wp-u')){ if(S.cl||S.cur) unfocus(); } });
   svg.addEventListener('dblclick',function(e){ e.preventDefault(); var r=root.getBoundingClientRect(); var s=S.k*2, p=wld(e.clientX,e.clientY-r.top); fly(p[0],p[1],s); });
   document.addEventListener('keydown',function(e){
     if(S.root.hidden||document.documentElement.classList.contains('detail-open')) return;
     var t=e.target, tag=t&&t.tagName; if(tag==='INPUT'||tag==='TEXTAREA'||(t&&t.isContentEditable)) return;
-    if(e.key==='ArrowRight'){ e.preventDefault(); A.tour(S.ti+1); }
-    else if(e.key==='ArrowLeft'){ e.preventDefault(); A.tour(S.ti<0?-1:S.ti-1); }
-    else if(e.key==='Escape'){ if(S.sel!=null||S.ti>=0) A.world(); }
+    if(e.key==='ArrowRight'){ e.preventDefault(); A.hop(1); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); A.hop(-1); }
+    else if(e.key==='Escape'){ if(S.cl||S.cur) unfocus(); else if(S.sel!=null) A.world(); }      // Esc shrinks the card; again, the whole world
     else if(e.key==='+'||e.key==='='){ zoomAt(1.5,S.vw/2,S.vh/2); } else if(e.key==='-'){ zoomAt(1/1.5,S.vw/2,S.vh/2); } });
   window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); });
 }
@@ -452,8 +549,8 @@ function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=do
 // ── chrome ──
 function chrome(){
   var root=S.root;
-  var ctl=h('div',{'class':'wp-bar wp-ctl'},root);
-  var tb=h('button',{type:'button','class':'wp-btn'},ctl,'▶ Tour'); tb.addEventListener('click',function(){ A.tour(S.ti<0?0:S.ti); });
+  var ctl=S.ctlEl=h('div',{'class':'wp-bar wp-ctl'},root);
+  var tb=h('button',{type:'button','class':'wp-btn'},ctl,'▶ Tour'); tb.addEventListener('click',function(){ if(S.cur) A.select(S.cur); else A.hop(1); });
   var wb=h('button',{type:'button','class':'wp-btn',title:'The whole world'},ctl,'⤢ World'); wb.addEventListener('click',A.world);
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
@@ -464,40 +561,57 @@ function chrome(){
     b.addEventListener('click',function(){ A.unit(a); }); });
   if(Object.keys(D().nodes||{}).some(function(id){ return N(id).r; })){ var kn=h('div',{'class':'wp-kn'},key); var s=el('svg',{viewBox:'-8 -16 16 17',width:10,height:12},kn); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z',fill:'currentColor'},s); kn.appendChild(document.createTextNode('place named in your notes')); }
   var tour=S.tourEl=h('div',{'class':'wp-bar wp-tour',hidden:''},root);
-  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.tour(S.ti-1); });
+  var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.hop(-1); });
   S.tPrev=h('span',{'class':'d'},tour,''); S.tCur=h('span',{'class':'c'},tour,''); S.tNext=h('span',{'class':'d'},tour,'');
-  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.tour(S.ti+1); });
+  var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.hop(1); });
   S.list=h('div',{'class':'wp-list',hidden:''},root);
 }
 function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
   var s=document.getElementById('wpal-units')||h('style',{id:'wpal-units'},document.head); s.textContent=css; }
 
 A.show=function(){ if(S.root){ S.root.hidden=false; resize(); } document.documentElement.classList.add('wpal-open'); };
-A.hide=function(){ if(S.root) S.root.hidden=true; document.documentElement.classList.remove('wpal-open'); };
+A.hide=function(){ giveBack(); if(S.root) S.root.hidden=true; document.documentElement.classList.remove('wpal-open'); };
 A.on=on;
-function watchDetail(){ var de=document.documentElement, was=de.classList.contains('detail-open');
-  new MutationObserver(function(){ var o=de.classList.contains('detail-open'); if(was&&!o&&S.ready&&S.root.hidden){ A.show(); var id=S.opened; S.opened=null;
-    if(id&&placeOf(id)&&placeOf(id)!==S.sel) A.select(placeOf(id),{instant:true}); else if(S.sel) openCluster(S.sel); } was=o; }).observe(de,{attributes:true,attributeFilter:['class']}); }
+// a card's page hides the map (CSS) and takes its card back to the board; closing it brings the map back where the reader is — on the card
+// they stepped to through the pages, if they did. Editing by hand works on the board: the map steps aside until the editing ends.
+function watchDetail(){ var de=document.documentElement, was=de.classList.contains('detail-open'), ed=de.classList.contains('alto-editing');
+  new MutationObserver(function(){ var o=de.classList.contains('detail-open'), e=de.classList.contains('alto-editing');
+    if(o&&!was){ S.reopen=S.cl?{id:S.cl.id,at:S.cl.at,enl:S.cl.enl}:null; S.f0=window._featuredNodeId; giveBack(); }
+    if(!o&&was&&S.ready&&!e) back();
+    if(e!==ed){ ed=e; if(S.ready){ if(e) A.hide(); else { A.show(); back(); } } }
+    was=o; }).observe(de,{attributes:true,attributeFilter:['class']}); }
+function back(){ var f=window._featuredNodeId, R=S.reopen; S.reopen=null;
+  if(f&&f!==S.f0&&N(f)&&placeOf(f)){ A.select(f,{instant:true}); return; }
+  if(R) openCluster(R.id,R.at,R.enl); }
 A.mount=function(data){
   if(S.root||!data||!window.fetch) return; A.data=data;
   var st=h('style',{id:'wpal-css'},document.head); st.textContent=WORLD_CSS; unitStyle();
   var root=S.root=h('div',{id:'wpal-root','aria-label':'World map'},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
-  S.ov=el('svg',{'class':'wp-ov'},root); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
+  S.ov=el('svg',{'class':'wp-ov'},root); S.ovRel=el('g',null,S.ov); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail();
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
-    msg.remove(); drawBase(G); drawArcs(); drawPins(); S.ready=1; resize(); settle(); emit('ready');
+    msg.remove(); drawBase(G); drawArcs(); drawPins(); S.ready=1; resize(); settle(); watchBoard(); dim(); emit('ready');
   }).catch(function(){ msg.remove(); A.hide(); S.root.remove(); S.root=null; });      // no map: the page keeps its cards
 };
 """
 
 
+def _retro_cards() -> str:
+    """Retro's look for the timeline's cards (retro.COMMON_CSS, written for the board #world) on the card the map enlarges."""
+    from . import retro
+    import re
+    body = re.sub(r"/\*.*?\*/", "", retro.COMMON_CSS, flags=re.S)
+    rows = [r.strip() for r in re.findall(r"[^{}]+\{[^{}]*\}", body) if "#world .node" in r.split("{")[0] and "phase" not in r.split("{")[0]]
+    return retro._slim(retro.scoped("\n".join(rows).replace("#world .node", "#wpal-root .wp-enl .node"), "html.alto-retro"))
+
+
 def _asset() -> str:
     from .world_geo import manifest, continent_boxes
-    return ("(function(){\nvar WORLD_CSS=" + _json.dumps(WORLD_CSS) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
+    return ("(function(){\nvar WORLD_CSS=" + _json.dumps(WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
             + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\n" + WORLD_JS + "\n})();\n")
 
 
