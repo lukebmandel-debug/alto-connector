@@ -8920,8 +8920,9 @@ html:not(.mobile) .node-desc{ color:var(--card-desc-color) !important; }
 html:not(.mobile) #canvas.focus-mode .node:not(.focused) .node-card{ opacity:.14 !important; }
 html:not(.mobile) #canvas.focus-mode .phase-label,
 html:not(.mobile) #canvas.focus-mode .phase-label-float,
-html:not(.mobile) #canvas.focus-mode .unit-bar,
-html:not(.mobile) #canvas.focus-mode .phase-numeral{ opacity:.22 !important; transition:opacity .3s; }
+html:not(.mobile) #canvas.focus-mode .unit-bar{ opacity:.22 !important; transition:opacity .3s; }
+/* Roman-numeral section labels never fade (Director Mandel) */
+html:not(.mobile) #canvas.focus-mode .phase-numeral{ opacity:1 !important; }
 html:not(.mobile) #canvas.focus-mode #river-svg{ opacity:.10 !important; transition:opacity .3s; }
 html:not(.mobile) .node.focused{ z-index:300 !important; }
 html:not(.mobile) .node.focused .node-card{
