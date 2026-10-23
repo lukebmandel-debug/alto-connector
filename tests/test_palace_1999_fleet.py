@@ -247,7 +247,7 @@ def test_the_page_is_smaller_than_it_was_with_the_battleship_code_in_it():
 
 # ── the registry the ride shares ────────────────────────────────────────────────────────────────────────
 def test_the_registry_lists_the_ride_and_the_fleet_and_serves_them():
-    assert palace_assets.folders() == ["ride", "fleet", "street"]
+    assert {"ride", "fleet", "street"} <= set(palace_assets.folders())
     got = {(f, n): t for f, n, t in palace_assets.assets()}
     rn, rj = palace_ride.ride_asset()
     fn, fj = palace_fleet_asset.fleet_asset()

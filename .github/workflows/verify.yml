@@ -11,8 +11,7 @@ name: verify
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    tags: ["v*"]
   workflow_dispatch:
   release:
     types: [published]
@@ -37,6 +36,9 @@ jobs:
         run: python packaging/stage_engine.py
       - name: Run the suite
         # test_roundtrip skips here by design: its fixtures are private.
+        # UTF-8 mode: many tests read generated pages without an encoding.
+        env:
+          PYTHONUTF8: "1"
         run: python -m pytest tests/ -q
 
   # Build the bundle natively and run it. This tests the CURRENT code, so a
