@@ -174,3 +174,48 @@ def test_a_page_without_the_hosted_file_stays_classic(browser, site):
     st = pg.evaluate(_STATE)
     assert st[:3] == [False, False, False] and st[4] == "retro"
     ctx.close()
+
+
+# ── controls drawn round in Classic are deliberate squares in Retro (Luke, 2026-10-23) ──
+
+_ROUND = ["#ct-chips", "#info-btn", "#notes-close", ".nt-btn", ".ef-chip", "#ef-close", ".csym-btn", "#fw-seg"]
+
+
+def test_the_round_controls_have_square_rules_shared_with_the_system():
+    from alto.build.solar_stars import STARS_CSS
+    for sel in ["#ct-chips", "#info-btn", "#notes-panel button", ".nt-btn", ".ef-chip", "#ef-close", ".csym-btn", "#fw-seg", "#sol-tour", ".hl-color-swatch", "#m-search"]:
+        assert sel in retro.CHROME_CSS, sel
+    assert "html.alto-stars.sk-retro:not(.mobile) #sol-tour" in STARS_CSS                 # (the System's Retro wears the same chrome)
+    for sel in (".lnv-thumb", ".pr-tk", "#pal-ctl button,#alto-edit-pill .aep-half)::after"):
+        assert sel in retro.FORMAT_CSS, sel
+
+
+_RADII = """(sels)=>sels.map(function(s){ var e=document.querySelector(s); if(!e) return [s, null];
+  var r=e.getBoundingClientRect(), c=getComputedStyle(e), rad=parseFloat(c.borderTopLeftRadius)||0;
+  var inner=[].slice.call(e.querySelectorAll('*')).map(function(k){ return parseFloat(getComputedStyle(k).borderTopLeftRadius)||0; });
+  return [s, rad, Math.max.apply(null, [0].concat(inner)), Math.round(r.width), Math.round(r.height)]; })"""
+
+
+def test_in_retro_every_round_control_is_square_inside_and_out_and_keeps_its_box(browser, site):
+    base, _ = site
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(base + "/t.html")
+    pg.wait_for_timeout(600)
+    pg.evaluate("toggleNotes()")
+    pg.click("#filter-toggle")
+    pg.wait_for_timeout(500)
+    classic = {r[0]: r for r in pg.evaluate(_RADII, _ROUND) if r[1] is not None and r[3] > 0}   # (drawn in Classic: a panel's close is hidden on a desktop)
+    assert classic["#ct-chips"][1] >= classic["#ct-chips"][3] / 2 - 1 and classic[".ef-chip"][1] >= 12   # (round in Classic)
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(1200)                       # (#info-btn eases its corners: measure once settled)
+    for s, rad, inner, w, h in pg.evaluate(_RADII, list(classic)):
+        assert rad == 0 and inner == 0, (s, rad, inner)
+        if s in (".ef-chip", "#fw-seg"):          # text chips: Retro's own lettering sets their width; their height stays
+            assert abs(h - classic[s][4]) <= 2, (s, w, h, classic[s][3:5])
+        else:                                     # icon controls: the same box, so the same hit area
+            assert (w, h) == tuple(classic[s][3:5]), (s, w, h, classic[s][3:5])
+    assert pg.evaluate("getComputedStyle(document.querySelector('#fw-seg button[aria-selected=true]')).backgroundColor") == "rgb(217, 174, 85)"
+    pg.evaluate("window._altoStyle.set('classic')")
+    assert pg.evaluate(_RADII, ["#ct-chips"])[0][1] > 0                                       # Classic stays round
+    ctx.close()

@@ -120,6 +120,39 @@ CHROME_CSS = r"""
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #detail-page .char-chip:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
   X #detail-page .ast-btn.pri:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  /* the controls drawn round in Classic, as deliberate squares in Retro (Luke, 2026-10-23: "things that were designed to be circular
+     toggles but are square in retro, make them square properly"): the same box (so the same hit area), corners square on the control and
+     on everything inside it (no round halo, knob or pill left within), a 1px gold rim, the glyph centred, gold when on; Classic stays round */
+  X :is(#info-btn,#ct-chips,#m-search,.wrap-pill,#sol-tour):not(#_){border-radius:0 !important;}
+  X #info-btn:not(#_){box-shadow:none !important;background:transparent !important;}
+  X #ct-chips:not(#_){border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;}
+  X :is(#notes-panel button:not(#fw-seg button),#ef-close,#bg-close,#msp-close,#minimap-close,#tutorial-close,.nt-btn):not(#_){border-radius:0 !important;background:#000 !important;color:#d9ae55 !important;
+    border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;display:inline-flex;align-items:center;justify-content:center;}
+  X :is(#notes-panel button:not(#fw-seg button),#ef-close,#bg-close,#msp-close,#minimap-close,#tutorial-close,.nt-btn):not(#_):hover{box-shadow:0 0 0 1px #d9ae55 !important;}
+  X :is(#notes-panel button,.nt-btn):is(.active,[aria-pressed=true]):not(#fw-seg button):not(#_){background:#d9ae55 !important;color:#000 !important;}
+  /* the panel's two tabs (Notes & highlights | Freewrite, freewrite.py): one square segmented bar, the chosen half in gold */
+  X #fw-seg:not(#_){border-radius:0 !important;border-color:rgba(217,174,85,.55) !important;background:#000 !important;}
+  X #fw-seg button:not(#_){border-radius:0 !important;background:transparent !important;color:#b9b2a0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
+  X #fw-seg button[aria-selected="true"]:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  /* the filter's chips: square tabs, gold when on */
+  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;letter-spacing:.06em;}
+  X .ef-chip:not(#_):hover{border-color:#d9ae55 !important;}
+  X .ef-chip:is(.active,[aria-pressed=true]):not(#_){background:#d9ae55 !important;color:#000 !important;border-color:#d9ae55 !important;}
+  X .ef-chip .ef-line:not(#_){border-radius:0 !important;}
+  /* the highlight colours: square swatches; the chosen one framed in gold (not grown) */
+  X .hl-color-swatch:not(#_){border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.35) !important;}
+  X .hl-color-swatch.active:not(#_){transform:none !important;box-shadow:0 0 0 2px #000,0 0 0 3px #d9ae55 !important;}
+  /* a phone's search: a square field with the gold rim, no soft shadow */
+  X #m-search:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X .wrap-pill:not(#_){background:#000 !important;color:#efe6cf !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;font-family:var(--rt-f) !important;}
+  /* the System's tour bar (Next / Back, solar_*.py): a square bar of square buttons, Next in gold */
+  X #sol-tour:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X #sol-tour button:not(#_){border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
+  X #sol-tour .tb-next:not(#_){background:#d9ae55 !important;color:#000 !important;}
+  X #sol-tour button:not(.tb-next):not(#_):hover{box-shadow:inset 0 0 0 1px rgba(217,174,85,.7) !important;color:#d9ae55 !important;}
+  /* the cards' chips (doctrine / court glyphs) wherever they stand, the System's bodies included: square, a gold rim */
+  X :is(.csym-btn,.esym-btn,.tsym-btn):not(#_){border-radius:0 !important;background:#000 !important;color:#d9ae55 !important;border:0 !important;box-shadow:inset 0 0 0 1px rgba(217,174,85,.55) !important;}
 """
 
 # ── the board of an engine page (timeline, horizontal, outline, the palaces' map and plan): the hosted layer only ──
@@ -194,6 +227,7 @@ FORMAT_CSS = r"""
   X #lanes-nav:not(#_),X #lanes-nav *:not(svg *){background-color:transparent;}
   X #lanes-nav:not(#_){background:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;color:#d9ae55 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #lanes-ov-sky{background:#000 !important;}
+  X #lanes-nav .lnv-thumb:not(#_){border-radius:0 !important;background:#d9ae55 !important;box-shadow:0 0 0 2px #000 !important;}   /* (the step bar's thumb: a square, not a dot) */
   /* the outline (the tree): its lines are the engine's, drawn gold above */
 
   /* the city Mind Palace's map (palace.py), as a blueprint: the ground black, the streets fine gold, water deep navy,
@@ -232,6 +266,13 @@ FORMAT_CSS = r"""
   X #pal-ctl .pc-pill button:not(#_){box-shadow:none !important;}
   X #pal-ctl :is(button.on,button[aria-pressed=true]):not(#_){background:#d9ae55 !important;color:#000 !important;}
   X #pal-ctl .pc-div{background:rgba(217,174,85,.45) !important;}
+  /* the controls' tips and the ride switch in the key (palace.py, palace_ride_*): square too; a card's number pin a square tab */
+  X :is(#pal-ctl button,#alto-edit-pill .aep-half)::after{border-radius:0 !important;background:#000 !important;color:#d9ae55 !important;box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;
+    font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.1em;}
+  X .pr-tk:not(#_){border-radius:0 !important;background:#000 !important;box-shadow:inset 0 0 0 1px rgba(217,174,85,.6) !important;}
+  X .pr-tk i:not(#_){border-radius:0 !important;background:rgba(217,174,85,.55) !important;box-shadow:none !important;}
+  X [aria-checked=true] > .pr-tk:not(#_){background:rgba(217,174,85,.22) !important;} X [aria-checked=true] > .pr-tk i:not(#_){background:#d9ae55 !important;}
+  X.alto-palace #world .node-card::before{border-radius:0 !important;}
 
   /* the Museum / Building Palace's blueprint (palace_building_asset.py): an architect's plan in gold on black */
   X #bldg-root:not(#_){--bl-ink:#d9ae55;--bl-sheen:rgba(0,0,0,0);--bl-glass:rgba(217,174,85,.035);--bl-glass-edge:rgba(217,174,85,.38);--bl-paper:#000;--bl-text:#efe6cf;--bl-muted:#b9b2a0;
