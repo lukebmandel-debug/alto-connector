@@ -446,13 +446,20 @@ def _csp(form_action: str) -> str:
         "font-src 'self' data:",
         # Firestore + Identity Toolkit, which alto-cloud.js talks to directly.
         "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com "
-        "wss://*.firebaseio.com https://*.firebaseapp.com",
+        "wss://*.firebaseio.com https://*.firebaseapp.com" + _tile_src(),
         "frame-src https://*.firebaseapp.com",   # the Google sign-in popup
         "object-src 'none'",
         "base-uri 'self'",
         f"form-action {form_action}",
         "frame-ancestors 'none'",
     ])
+
+
+def _tile_src() -> str:
+    """The palace's detail tiles' host (build/palace_tiles.tile_host) when it is another site than this one."""
+    from .build.palace_tiles import tile_host
+    h = tile_host()
+    return (" " + h) if re.fullmatch(r"https://[a-z0-9-]+\.(web\.app|firebaseapp\.com)", h or "") else ""
 
 
 def _palace_folders() -> list:
@@ -609,7 +616,9 @@ def _cmap_rules(names) -> list:
         {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if palace_tiles.BASE_RE.match(n)]
     if any(palace_tiles.TILE_RE.match(n) for n in names):
         rules.append({"regex": "^/%s/t-[0-9a-f]{10}\\.json$" % palace_tiles.FOLDER, "headers": [
-            {"key": "Cache-Control", "value": "public, max-age=604800"}]})
+            {"key": "Cache-Control", "value": "public, max-age=604800"},
+            # the tiles are shared geography, fetched by the palaces of other sites (palace_tiles.tile_host)
+            {"key": "Access-Control-Allow-Origin", "value": "*"}]})
     return rules
 
 

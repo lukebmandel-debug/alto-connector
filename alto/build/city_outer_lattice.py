@@ -406,6 +406,18 @@ def lattice(g, inside, land, park):
         return out
     cr = {i: keep(_snap_iv(l["iv"], g.vs, g.rows), lambda k, i=i: g.back(g.U(i), g.V(k))) for i, l in g.cols.items()}
     rr = {j: keep(_snap_iv(l["iv"], g.us, g.cols), lambda k, j=j: g.back(g.U(k), g.V(j))) for j, l in g.rows.items()}
+    # nothing from nowhere: a run starts and stops on a crossing street (a run with no crossing at all is dropped), twice over, since
+    # trimming one family's runs can take another's crossing away
+    for _ in range(2):
+        def trim(runs, other, me):
+            out = []
+            for a, b in runs:
+                xs = [k for k in range(a, b + 1) if any(x <= me <= y for x, y in other.get(k, ()))]
+                if len(xs) >= 2:
+                    out.append((xs[0], xs[-1]))
+            return out
+        cr = {i: trim(runs, rr, i) for i, runs in cr.items()}
+        rr = {j: trim(runs, cr, j) for j, runs in rr.items()}
     blocks, faces = {}, []
     if not g.cols or not g.rows:
         return blocks, faces, cr, rr
@@ -532,6 +544,8 @@ def emit(g, blocks, faces, cr, rr, out, dom_index):
                 st = {"n": l["n"] or "", "k": max(1, l["k"]) if heavy else 3, "p": p}     # primary k 1 (every zoom), the rest 3 (close in)
                 if heavy:
                     st["L"] = 1
+                elif l["k"] == 2 and l["n"]:                 # a secondary avenue: also a plain line, which a long one keeps at every zoom (the overview)
+                    out["te"].append(p)
                 if st["n"] or heavy:
                     out["streets"].append(st)
     # the buildings' frame: each face's cells and its box (a building is clipped to its face's box when the face is a rectangle)
@@ -634,10 +648,10 @@ REGIONS = (("Brooklyn and Queens", ("Brooklyn", "Queens")), ("The Bronx", ("The 
 PARK_MIN_M2 = 4000.0              # a park this big (0.4 ha) is drawn
 # the other boroughs' landmarks, drawn with their own art (palace_skyline): name, lat, lon, art, footprint width and depth (m)
 LANDMARKS = (("Barclays Center", 40.6826, -73.9754, "bcl", 230, 200), ("Brooklyn Museum", 40.6712, -73.9636, "bkm", 150, 70),
-             ("Soldiers' and Sailors' Arch", 40.6741, -73.9701, "ssa", 30, 20), ("Wonder Wheel", 40.5740, -73.9787, "ww", 40, 16),
-             ("Parachute Jump", 40.5733, -73.9844, "pj", 30, 30), ("Yankee Stadium", 40.8296, -73.9262, "yank", 290, 260),
+             ("Soldiers' and Sailors' Arch", 40.6741, -73.9701, "ssa", 70, 50), ("Wonder Wheel", 40.5740, -73.9787, "ww", 90, 40),
+             ("Parachute Jump", 40.5733, -73.9844, "pj", 70, 70), ("Yankee Stadium", 40.8296, -73.9262, "yank", 290, 260),
              ("NYBG Conservatory", 40.8633, -73.8800, "nybg", 110, 40), ("Citi Field", 40.7571, -73.8458, "citi", 260, 270),
-             ("Unisphere", 40.7466, -73.8448, "uni", 90, 90), ("St. George Ferry Terminal", 40.6437, -74.0736, "sgt", 150, 70),
+             ("Unisphere", 40.7466, -73.8448, "uni", 160, 160), ("St. George Ferry Terminal", 40.6437, -74.0736, "sgt", 150, 70),
              ("The Met Cloisters", 40.8649, -73.9317, "clo", 120, 60))
 BOX_DEG = (0.07, 0.09)            # degrees: a borough is laid out a box at a time (about 8 km) ...
 BOX_PAD = 0.012                   # ... each seeing this much past its core

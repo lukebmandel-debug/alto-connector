@@ -46,6 +46,20 @@ PUBLISHED_LOG = "published-%s.txt"      # per site (ALTO_FIREBASE_SITE): a site 
 CORE_KEYS = ("v", "place", "scale", "attribution", "layout", "W", "H", "landmarks", "banners", "rails", "stations", "boats", "bases", "portals")
 
 
+def tile_host() -> str:
+    """Where the detail tiles are served from: ALTO_TILE_HOST (an https origin, e.g. the public Alto site that every user of this machine's
+    sites shares; the tiles are card-independent geography, so one copy serves every palace and every build), else "" = the page's own
+    site. The bases (one per page build) always stay on the page's own site."""
+    return (os.environ.get("ALTO_TILE_HOST") or "").strip().rstrip("/")
+
+
+def hosts_tiles(site: str = None) -> bool:
+    """Does this deploy carry the tiles? With no tile host every site carries its own; with one, only the host's site does."""
+    h = tile_host()
+    site = site if site is not None else os.environ.get("ALTO_FIREBASE_SITE", "")
+    return not h or h == "https://%s.web.app" % site or h == "https://%s.firebaseapp.com" % site
+
+
 def blob_dir() -> Path:
     return Path(os.environ.get("ALTO_TILES_DIR") or (Path.home() / ".cache" / "alto" / FOLDER))
 
@@ -324,7 +338,7 @@ def strip(html: str, directory=None) -> str:
     store(name, btext, directory)
     LAST_BASE.clear()
     LAST_BASE.update({"name": name, "gz": gz_len(btext)})
-    core = {**out, "m": {k: mp[k] for k in CORE_KEYS if k in mp}, "b": [], "cb": name[:-5]}
+    core = {**out, "m": {k: mp[k] for k in CORE_KEYS if k in mp}, "b": [], "cb": name[:-5], **({"cu": tile_host()} if tile_host() else {})}
     return html[:i] + "\nwindow._ALTO_PALACE=" + js_json(core, separators=(",", ":")) + ";\n" + LOADER_JS + html[j + len(MARK1):]
 
 
@@ -335,6 +349,7 @@ def page_refs(html: str) -> set:
 
 # ── publish: what goes into site/cmap/ ───────────────────────────────────
 LAST_MISSING: list = []
+LAST_PUBLISH: dict = {}           # what the last blobs() put in the deploy: counts and raw bytes of bases and tiles (the publish report)
 
 
 def blobs(referenced=(), directory=None) -> list:
@@ -360,12 +375,19 @@ def blobs(referenced=(), directory=None) -> list:
             tiles |= set(tile_names(json.loads(txt).get("m")))
         except ValueError:
             pass
+    if not hosts_tiles():
+        tiles = set()                                   # the tiles live on the tile host (tile_host), not in this deploy
+    elif tile_host():
+        tiles |= {p.name for p in d.glob("t-*.json") if TILE_RE.match(p.name)}     # the host carries every tile this machine made
+    LAST_PUBLISH.clear()
     for n in sorted(tiles):
         txt = read(n, d)
         if txt is None or digest(txt, 10) != TILE_RE.match(n).group(1):
             LAST_MISSING.append(n)
             continue
         out[n] = txt
+    LAST_PUBLISH.update({"bases": sum(1 for k in out if BASE_RE.match(k)), "base_bytes": sum(len(v.encode()) for k, v in out.items() if BASE_RE.match(k)),
+                         "tiles": sum(1 for k in out if TILE_RE.match(k)), "tile_bytes": sum(len(v.encode()) for k, v in out.items() if TILE_RE.match(k))})
     if referenced:
         try:
             d.mkdir(parents=True, exist_ok=True)
@@ -395,11 +417,13 @@ def find(path: str, directory=None):
 CT_ON = 7000                     # page px: a view this wide or narrower draws the detail tiles (about 5 km of New York)
 CT_OFF = 9500                    # ... and one wider than this hides them again (between the two nothing changes)
 
+# No standing opacity on a tile's groups: an SVG group with an opacity (or one being faded) is painted into its own transparency layer,
+# again for every screen tile WebKit repaints (a pan with a dozen tiles cost 330 ms a frame). A tile fades in and out by a short inline
+# opacity that is taken off when it ends; a hidden tile is display:none.
 TILES_CSS = r"""
-  .pal-svg g.ct{transition:opacity .3s cubic-bezier(.25,.2,.4,1);}
-  .pal-svg g.ct.ct-new{opacity:0;}
-  .pal-svg g.ct.ct-off{opacity:0;visibility:hidden;transition:opacity .3s cubic-bezier(.25,.2,.4,1),visibility 0s .3s;}
+  .pal-svg g.ct.ct-off{display:none;}
 """
+FADE_MS = 280
 
 TILES_JS = r"""
 /* ── city tiles (palace_tiles.py): the detail of the cells in view, fetched from /cmap/ once the board shows a few km, drawn into the
@@ -416,7 +440,7 @@ function ctData(e){ var c=CTC[e.k]; if(!c){ c=CTC[e.k]={e:e, st:0, on:{}, g:{}};
     var F=window._ALTO_CITY_F||{}; if(F['t-'+e.h]){ c.d=F['t-'+e.h]; c.st=2; } }
   return c; }
 function ctFetch(c){ c.st=1; CTL++;
-  fetch('/cmap/t-'+c.e.h+'.json').then(function(r){ return r.ok?r.json():null; }).then(function(d){ CTL--; c.d=d; c.st=d?2:3; ctTick(); })
+  fetch((P.cu||'')+'/cmap/t-'+c.e.h+'.json').then(function(r){ return r.ok?r.json():null; }).then(function(d){ CTL--; c.d=d; c.st=d?2:3; ctTick(); })
     .catch(function(){ CTL--; c.st=3; }); }
 /* where the city is shown now: the board (desktop) and the phone's map page, each with its view in map px */
 function ctTargets(){ var t=[]; if(svgD && palaceOn()){ var v=ctView(); if(v) t.push([svgD, v]); }
@@ -438,14 +462,21 @@ function ctTick1(svg, v){
 function ctStep(){ CTraf=0; var q=CTpend.shift(); if(!q) return; var c=q[0], svg=q[1], sid=svg._sid||'';
   if(!c.on[sid] && svg.isConnected){ ctDraw(svg, c, true); c.on[sid]=1; ctAfter(svg); }
   if(CTpend.length) CTraf=requestAnimationFrame(ctStep); }
+/* a fade on the group's own inline opacity, taken off when it ends (no standing transparency layer: see TILES_CSS) */
+function ctFade(g, to, done){ var t0=performance.now(), from=to?0:1;
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches){ g.style.opacity=''; if(done) done(); return; }
+  g.style.opacity=from; (function f(t){ var k=Math.min(1,(t-t0)/CT_FADE); g.style.opacity=from+(to-from)*k*k*(3-2*k);
+    if(k<1) requestAnimationFrame(f); else { g.style.opacity=''; if(done) done(); } })(t0); }
 function ctShow(c, svg, how){ var sid=svg._sid||''; var gs=c.g[sid]||[];
   if(how==='drop'){ gs.forEach(function(g){ if(g.parentNode) g.parentNode.removeChild(g); }); c.g[sid]=null; c.on[sid]=0; return; }
-  gs.forEach(function(g){ g.classList.toggle('ct-off', how==='hide'); }); }   /* fade, never pop (docs/markers.md) */
+  gs.forEach(function(g){ var off=g.classList.contains('ct-off');                                   /* fade, never pop (docs/markers.md) */
+    if(how==='hide' && !off && !g._fo){ g._fo=1; ctFade(g, 0, function(){ g._fo=0; g.classList.add('ct-off'); }); }
+    else if(how==='show' && off){ g.classList.remove('ct-off'); ctFade(g, 1); } }); }
 function ctAfter(svg){ clearTimeout(CTlbl); CTlbl=setTimeout(function(){ if(svg.isConnected){ try{ lblFit(svg, true); }catch(e){} } }, 200); }
 /* the city's layers: the tile's groups go under what the base draws there (the base's major lines stay on top) */
 function ctLayers(svg){ var lb=svg.querySelector(':scope > g > .pl-credit'); return {pk:svg.querySelector(':scope > .pl-parks'), st:svg.querySelector(':scope > .pl-streets'),
   lb:lb?lb.parentNode:null, hit:svg.querySelector(':scope > .pl-hits'), defs:svg.querySelector(':scope > defs')}; }
-function ctG(parent, c, sid, fade, first){ var g=el('g',{'class':'ct'+(fade?' ct-new':''), 'data-ct':c.e.k}); if(first && parent.firstChild) parent.insertBefore(g, parent.firstChild); else parent.appendChild(g);
+function ctG(parent, c, sid, fade, first){ var g=el('g',{'class':'ct', 'data-ct':c.e.k}); if(fade) g.style.opacity=0; if(first && parent.firstChild) parent.insertBefore(g, parent.firstChild); else parent.appendChild(g);
   (c.g[sid]=c.g[sid]||[]).push(g); return g; }
 function ctRpc(a, r){ var n=a.length>>1, d=''; for(var i=0;i<n;i++){ var x=a[2*i], y=a[2*i+1], px=a[2*((i+n-1)%n)], py=a[2*((i+n-1)%n)+1], nx=a[2*((i+1)%n)], ny=a[2*((i+1)%n)+1],
     l1=Math.hypot(x-px,y-py)||1, l2=Math.hypot(nx-x,ny-y)||1, rr=Math.min(r,l1/2,l2/2), sx=x+(px-x)/l1*rr, sy=y+(py-y)/l1*rr;
@@ -479,7 +510,7 @@ function ctDraw(svg, c, fade){
     nbs.forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':4, 'aria-hidden':'true'},lg); t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; }); }
   if(L.hit && sts.length){ var hg=ctG(L.hit, c, sid, false); sts.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hg); h._n=s.n; }); }
   if(T.f && !c.fl){ c.fl=1; ctFillAdd(T.f); }
-  if(fade) requestAnimationFrame(function(){ (c.g[sid]||[]).forEach(function(g){ g.classList.remove('ct-new'); }); });
+  if(fade) (c.g[sid]||[]).forEach(function(g){ ctFade(g, 1); });
 }
 /* a redrawn board (light/dark, a new map ground) draws the tiles it showed again */
 function ctDrawAll(svg){ if(!CT) return; var sid=svg._sid||''; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.on[sid]){ c.g[sid]=null; ctDraw(svg, c, false); } }); }
@@ -499,11 +530,27 @@ if(CT){ setInterval(function(){ if(!document.hidden) ctTick(); }, 250);
 """
 
 
+# A city of several boroughs: the base's loose lines and heavy lines, grouped by district colour alone, made one path each that ran the
+# length of the city, and WebKit strokes a whole path again for every screen tile it repaints (a pan cost 300 ms a frame). Each colour's
+# lines are grouped per CHUNK px square as well (the chunk is part of the key; stubes colours by the part before "|").
+CHUNK = 4096
+_GROUP = (
+    ("(M.te||[]).forEach(function(p){ if(p.length<4) return; var u=distAt((p[0]+p[p.length-2])/2,(p[1]+p[p.length-1])/2); byU[u]=(byU[u]||'')+rp(p); });",
+     "(M.te||[]).forEach(function(p){ if(p.length<4) return; var u=distAt((p[0]+p[p.length-2])/2,(p[1]+p[p.length-1])/2)+ctChunk(p); byU[u]=(byU[u]||'')+rp(p); });"),
+    ("if(hasL){ var byL={}; M.streets.forEach(function(st){ if(st.L) lruns(st.p).forEach(function(r){ byL[r.u]=(byL[r.u]||'')+rp(r.p); }); });",
+     "if(hasL){ var byL={}; M.streets.forEach(function(st){ if(st.L) lruns(st.p).forEach(function(r){ var k=r.u+ctChunk(r.p); byL[k]=(byL[k]||'')+rp(r.p); }); });"),
+)
+CHUNK_JS = ("function ctChunk(p){ var n=p.length>>1, x=p[2*(n>>1)], y=p[2*(n>>1)+1]; return '|c'+Math.floor(x/" + str(CHUNK) +
+            ")+','+Math.floor(y/" + str(CHUNK) + "); }\n")
+
+
 def patch_js(js: str) -> str:
-    """The palace script with the tiles' loader (only a palace whose map has m.ct with cells)."""
+    """The palace script with the tiles' loader (only a palace whose map has m.ct with cells), and the base's lines grouped by chunk."""
     a = "window._altoPalace=function(h){"
     b = "  svg._b=bg; svg._r=route;"
-    if js.count(a) != 1 or js.count(b) != 1:
+    if js.count(a) != 1 or js.count(b) != 1 or any(js.count(o) != 1 for o, _n in _GROUP):
         raise ValueError("palace_tiles.patch_js: anchors not found")
-    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)) + a)
+    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_FADE", str(FADE_MS)) + CHUNK_JS + a)
+    for o, n in _GROUP:
+        js = js.replace(o, n)
     return js.replace(b, "  ctDrawAll(svg);\n" + b)

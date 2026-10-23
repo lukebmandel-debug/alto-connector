@@ -130,3 +130,23 @@ def test_find_serves_the_blob_folder():
     assert pt.find("/cmap/" + n) == ("application/json; charset=utf-8", t)
     assert pt.find("/cmap/../secret") is None and pt.find("/street/x.json") is None
 
+
+
+def test_tiles_live_on_the_shared_host_and_bases_on_each_site(monkeypatch, tmp_path):
+    t = pt.text_of({"v": 1, "k": "1,1"})
+    tn = "t-%s.json" % pt.digest(t, 10)
+    pt.store(tn, t, tmp_path)
+    b = pt.text_of({"v": 1, "m": {"ct": {"c": {"1,1": tn[2:-5]}}}, "b": []})
+    bn = "b-%s.json" % pt.digest(b, 12)
+    pt.store(bn, b, tmp_path)
+    monkeypatch.setenv("ALTO_TILE_HOST", "https://alto-connector.web.app")
+    monkeypatch.setenv("ALTO_FIREBASE_SITE", "luke-alto")
+    assert dict(pt.blobs({bn}, tmp_path)).keys() == {bn} and not pt.LAST_MISSING      # a user's site: its bases only
+    monkeypatch.setenv("ALTO_FIREBASE_SITE", "alto-connector")
+    assert tn in dict(pt.blobs(set(), tmp_path))                                       # the host: every tile
+    from alto.publish_static import _tile_src
+    assert _tile_src() == " https://alto-connector.web.app"
+    html, _ = build_timeline(*load(bundle()))
+    b_, _n, _c = load(bundle())
+    assert json.loads(PAL.search(private_page(b_, html)).group(1))["cu"] == "https://alto-connector.web.app"
+    assert "(P.cu||'')+'/cmap/t-'" in pt.TILES_JS

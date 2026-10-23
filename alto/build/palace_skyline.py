@@ -1431,25 +1431,25 @@ def _citi():
 def _unisphere():
     """The Unisphere (Gilmore Clarke, 1964; a steel globe 37 m across, 43 m high): the meridians, parallels and continents of a tilted world on
     a three-legged base, over its round reflecting pool in Flushing Meadows."""
-    return {"h": 44, "D": 90, "parts": [
-        {"k": "drum", "ring": _ccw(_super(90, 90, 2.0, 48)), "x": 0, "w": 90, "v": 0, "d": 90, "y0": 0, "h": 0.8, "m": "glass", "mu": 99},
-        {"k": "globe", "x": 0, "y": 25, "r": 18.5, "y0": 0.8, "tilt": 23.5}]}
+    return {"h": 88, "D": 160, "parts": [                     # drawn twice life size, as the map's icon of Flushing Meadows
+        {"k": "drum", "ring": _ccw(_super(160, 160, 2.0, 48)), "x": 0, "w": 160, "v": 0, "d": 160, "y0": 0, "h": 1.2, "m": "glass", "mu": 99},
+        {"k": "globe", "x": 0, "y": 50, "r": 37, "y0": 1.2, "tilt": 23.5}]}
 
 
 def _wonderwheel():
     """The Wonder Wheel (Coney Island, 1920; 45.7 m): an eccentric steel wheel on its A-frame, the cars round the rim, on the boardwalk."""
-    return {"h": 46, "D": 14, "parts": [
-        {"k": "box", "w": 34, "d": 14, "y0": 0, "y1": 3, "m": "trim", "sheen": False},
-        {"k": "wheel", "x": 0, "y": 24, "r": 21, "n": 16}]}
+    return {"h": 98, "D": 30, "parts": [                      # drawn about twice life size, as the map's icon of Coney Island
+        {"k": "box", "w": 76, "d": 30, "y0": 0, "y1": 6, "m": "trim", "sheen": False},
+        {"k": "wheel", "x": 0, "y": 51, "r": 45, "n": 16}]}
 
 
 def _parachute():
     """The Parachute Jump (Coney Island, 1939; 76 m): an open steel tower, braced, and its round crown of twelve arms like an opened parachute."""
-    return {"h": 77, "D": 14, "parts": [
-        {"k": "box", "w": 14, "w1": 6, "d": 14, "y0": 0, "y1": 64, "m": "brick", "solid": 1, "fl": 99, "mu": 99, "sheen": False},
-        {"k": "brace", "w": 14, "w1": 6, "y0": 0, "y1": 64, "n": 8},
-        {"k": "dome", "w": 30, "d": 30, "y0": 64, "y1": 72, "m": "brick"},
-        {"k": "spire", "y0": 72, "y1": 77, "w": 1.6}]}
+    return {"h": 150, "D": 28, "parts": [                     # drawn about twice life size, beside the Wonder Wheel
+        {"k": "box", "w": 28, "w1": 12, "d": 28, "y0": 0, "y1": 124, "m": "brick", "solid": 1, "fl": 99, "mu": 99, "sheen": False},
+        {"k": "brace", "w": 28, "w1": 12, "y0": 0, "y1": 124, "n": 10},
+        {"k": "dome", "w": 60, "d": 60, "y0": 124, "y1": 140, "m": "brick"},
+        {"k": "spire", "y0": 140, "y1": 150, "w": 2.4}]}
 
 
 def _stgeorge():
@@ -1475,11 +1475,11 @@ def _bkmuseum():
 
 def _arch():
     """The Soldiers' and Sailors' Arch (Grand Army Plaza, 1892; 24 m): a granite triumphal arch, its great opening, the quadriga on top."""
-    return {"h": 33, "D": 16, "parts": [
-        {"k": "box", "w": 24, "d": 16, "y0": 0, "y1": 24, "m": "granite", "solid": 1, "fl": 99, "mu": 99, "sheen": False},
-        {"k": "door", "w": 11, "h": 17},
-        {"k": "box", "w": 26, "d": 17, "y0": 20, "y1": 22, "m": "trim", "sheen": False},
-        {"k": "statue", "y0": 24, "y1": 33}]}
+    return {"h": 66, "D": 32, "parts": [                      # drawn twice life size, at the head of Prospect Park
+        {"k": "box", "w": 48, "d": 32, "y0": 0, "y1": 48, "m": "granite", "solid": 1, "fl": 99, "mu": 99, "sheen": False},
+        {"k": "door", "w": 22, "h": 34},
+        {"k": "box", "w": 52, "d": 34, "y0": 40, "y1": 44, "m": "trim", "sheen": False},
+        {"k": "statue", "y0": 48, "y1": 66}]}
 
 
 def _conservatory():
