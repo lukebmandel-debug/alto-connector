@@ -28,7 +28,8 @@ SYMBOLS: dict[str, tuple[str, str, int]] = {
               '<circle cx="11.5" cy="12" r="2.2" stroke-width="1.25"/><circle cx="15" cy="5" r="2.2" '
               'stroke-width="1.25"/></g>', 24),
     "outline": ("Outline",
-                '<path d="M3 4.5h14M5 8v7.5M5 10.5h3M5 15.5h3M10.5 10.5H17M10.5 15.5H17"/>', 20),
+                '<path d="M7.5 4H17M10.5 8H15M10.5 12H15M7.5 16H17"/>'
+                '<circle cx="3.5" cy="4" r="0.7" fill="currentColor"/><circle cx="6.5" cy="8" r="0.7" fill="currentColor"/><circle cx="6.5" cy="12" r="0.7" fill="currentColor"/><circle cx="3.5" cy="16" r="0.7" fill="currentColor"/>', 20),
     "system": ("System",
                '<circle cx="10" cy="10" r="1.8"/><circle cx="10" cy="10" r="7"/>'
                '<circle cx="5" cy="5" r="1.3"/>', 20),
