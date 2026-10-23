@@ -54,3 +54,36 @@ def test_numerals_stay_fully_visible(url, engine):
             assert all(o == 1 for o in pg.evaluate(OPS))
         pg.screenshot(path=str(Path(__file__).parent / f"_roman_{engine}.png"))
         b.close()
+
+
+NUM = """() => { const e = document.querySelector('.phase-numeral'), r = e.getBoundingClientRect(),
+  c = document.getElementById('canvas').getBoundingClientRect(), s = getComputedStyle(e), o = [];
+  for (let n = e; n; n = n.parentElement) o.push(+getComputedStyle(n).opacity);
+  return {right: r.right, edge: c.right, bg: s.backgroundColor, ops: o}; }"""
+
+
+@pytest.mark.parametrize("cls", ["alto-bg", "alto-bg alto-retro"])
+@pytest.mark.parametrize("engine", ENGINES)
+def test_unit_numeral_solid_and_on_screen_over_a_background(url, engine, cls):
+    """With a wallpaper chosen (and in Retro) the unit-bar numeral keeps full opacity all the way up
+    its parents, a non-translucent backing, and stays inside the window even when the board is wider."""
+    with pw.sync_playwright() as p:
+        try:
+            try:
+                b = getattr(p, engine).launch()
+            except Exception:
+                if engine != "chromium":
+                    raise
+                b = p.chromium.launch(channel="chrome")
+        except Exception as e:
+            pytest.skip(f"no {engine}: {e}")
+        pg = b.new_page(viewport={"width": 1000, "height": 800})
+        pg.goto(url)
+        pg.wait_for_timeout(1500)
+        pg.evaluate("c => document.documentElement.classList.add(...c.split(' '))", cls)
+        pg.wait_for_timeout(1200)          # past the keep-on-screen tick
+        d = pg.evaluate(NUM)
+        assert all(o == 1 for o in d["ops"]), d
+        assert d["bg"] != "rgba(0, 0, 0, 0)" and not d["bg"].endswith("0.35)"), d
+        assert d["right"] <= d["edge"] + 1, d
+        b.close()

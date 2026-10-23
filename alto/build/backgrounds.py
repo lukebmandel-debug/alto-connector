@@ -330,7 +330,8 @@ html.alto-bg #page-bg::after{ content:''; position:absolute; inset:0; pointer-ev
    lets the background through (it used to hide the wallpaper entirely) */
 html.alto-bg #page-glass:not(#_){ background:none !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 html.alto-bg:not(.mobile) #glass-slab{ -webkit-backdrop-filter:none !important; backdrop-filter:none !important; opacity:.5; }
-html.alto-bg:not(.mobile) .phase-band{ opacity:.35; }
+/* the band holds only the roman numeral chip, which never fades: it stays solid on a photograph */
+html.alto-bg:not(.mobile) .phase-band{ opacity:1; }
 /* A node's detail page is glass over the wallpaper too (a dark or pale tint and a 50px blur that left a
    photograph as a smudge); with a background chosen it is the photograph itself, as in the timeline. */
 html.alto-bg #detail-page:not(#_){ background:none !important; -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }

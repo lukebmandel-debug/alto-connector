@@ -8970,6 +8970,7 @@ html:not(.mobile) .phase-numeral{
     inset 0 0 0 1px rgba(255,255,255,0.5),
     0 6px 18px var(--node-rest-shadow);
 }
+html:not(.mobile) .phase-numeral{ translate:var(--num-shift,0px) 0; }
 /* ── DETAIL PAGES inherit the glass background ── */
 html:not(.mobile) #detail-page{
   background:var(--detail-glass-tint) !important;
@@ -11443,5 +11444,28 @@ html:not(.mobile) .node-card .tsym-btn:hover ~ .chip-tip{
 })();
 </script>
 <script type="module" src="alto-cloud.js"></script>
+<script>
+/* Roman-numeral unit chips stay on screen: when the board is wider than the window they ride the
+   canvas's right edge instead of sitting clipped past it (translate, so no layout and no fade). */
+(function(){
+  var c=document.getElementById('canvas'), q=0;
+  if(!c) return;
+  function run(){
+    q=0;
+    var ns=c.querySelectorAll('.phase-numeral'); if(!ns.length) return;
+    var edge=c.getBoundingClientRect().right-9, cur=0;
+    try{ cur=parseFloat(ns[0].style.getPropertyValue('--num-shift'))||0; }catch(e){}
+    var b=ns[0].getBoundingClientRect(), k=(b.width/ns[0].offsetWidth)||1;
+    var s=Math.min(0, Math.round(cur+(edge-b.right)/k));
+    if(s===cur) return;
+    for(var i=0;i<ns.length;i++){ ns[i].style.setProperty('--num-shift', s+'px'); }
+  }
+  function ask(){ if(!q) q=requestAnimationFrame(run); }
+  c.addEventListener('scroll', ask, {passive:true});
+  window.addEventListener('resize', ask);
+  setInterval(ask, 600);
+  ask();
+})();
+</script>
 </body>
 </html>

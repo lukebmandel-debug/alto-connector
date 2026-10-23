@@ -464,7 +464,7 @@ LANES_CSS = KEY_CSS + """
   .lanes-unit .lu-chip{position:absolute;left:14px;top:22px;white-space:nowrap;font-size:12px;font-weight:800;
     letter-spacing:.12em;text-transform:uppercase;color:var(--unit-color);padding:6px 12px;border-radius:9px;
     background:color-mix(in srgb,var(--surface) 80%,transparent);border:1.5px solid color-mix(in srgb,var(--unit-color) 45%,transparent);}
-  .lanes-unit .lu-chip b{font-weight:800;opacity:.6;margin-right:7px;}
+  .lanes-unit .lu-chip b{font-weight:800;margin-right:7px;}
   html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
   html.alto-editing .node-card .lanes-when:empty{display:block;}
