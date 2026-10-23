@@ -193,8 +193,9 @@ def _open(browser, f, reduced=False, mobile=False, wait=2400):
     ctx.add_init_script(RAF_COUNT)
     pg = ctx.new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))   # (the phone whole-view script is hosted: a file:// copy cannot fetch it)
     pg.on("console", lambda m: m.type == "error" and "alto-cloud.js" not in m.text + str((m.location or {}).get("url", ""))
+          and "/phone/" not in m.text + str((m.location or {}).get("url", "")) and "Cross origin requests are only supported" not in m.text and "net::ERR_FAILED" not in m.text
           and errs.append(m.text))
     pg.goto(f.as_uri())
     pg.wait_for_timeout(wait)
@@ -517,7 +518,7 @@ def test_an_enlarged_disc_is_readable_in_both_looks_and_themes(browser, pages, t
         ctx.add_init_script("try{localStorage.setItem('alto-theme-v1','%s')}catch(e){}" % theme)
         pg = ctx.new_page()
         errs = []
-        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))   # (the phone whole-view script is hosted: a file:// copy cannot fetch it)
         pg.goto(pages[look].as_uri())
         pg.wait_for_timeout(2400)
         pg.mouse.move(2, 940)

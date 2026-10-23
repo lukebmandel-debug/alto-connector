@@ -142,7 +142,7 @@ def _open(browser, f, reduced=False, wait=1500, theme=None):
         ctx.add_init_script("try{localStorage.setItem('alto-theme-v1','%s')}catch(e){}" % theme)
     pg = ctx.new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))   # (the phone whole-view script is hosted: a file:// copy cannot fetch it)
     # a file:// page cannot load the cloud script beside it; anything else is an error
     pg.on("console", lambda m: m.type == "error" and "alto-cloud.js" not in m.text + str((m.location or {}).get("url", ""))
           and errs.append(m.text))
@@ -292,7 +292,7 @@ def test_a_phone_has_no_skin(browser, pages):
                                           "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"))
     pg = ctx.new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))   # (the phone whole-view script is hosted: a file:// copy cannot fetch it)
     pg.goto(pages["orbit"].as_uri())
     pg.wait_for_timeout(1200)
     st = pg.evaluate("() => ({stars:document.documentElement.classList.contains('alto-stars'), sk:document.querySelectorAll('.sk-sky,.node-card>.sk').length})")
