@@ -102,7 +102,7 @@ def test_every_door_connects_something():
     shell = PLAN["ex"]["sh"][0]["p"]
     by = {}
     for r in PLAN["rm"]:
-        if not r.get("ov"):
+        if not r.get("ov") or r["l"] == "g":                  # level G is all published-figure rooms; its doorways are where two of them meet
             by.setdefault(r["l"], []).append(r["p"])
     n = 0
     for w in PLAN["wl"]:

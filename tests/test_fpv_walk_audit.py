@@ -63,6 +63,19 @@ def test_every_door_and_stair_walks_clean(tmp, name, cards):
         assert r["tripStuckFade"] <= max(2, r["trips"] // 10)              # rarely stuck on the way (the fade then still gets you there)
 
 
+def test_every_pma_room_can_be_walked_to(tmp):
+    """the inferred doorways (build_pma_plan.INFERRED_DOORS) join every room to the Great Stair Hall on foot, stairs and lifts included; a trip to a
+    card walks unless it is far. Lift cabs never hold a card (circulation), so only they may be reached by their floor rather than the card's spot."""
+    p = tmp / "pma_reach.json"
+    p.write_text(bs.hosted_json(_pma())[1], "utf-8")
+    out = subprocess.run([NODE, str(ROOT / "tests" / "fpv_walk" / "reach_audit.js"), str(tmp / "fpv.js"), str(p)], capture_output=True, text=True, timeout=300)
+    assert out.returncode == 0, out.stderr[-2000:]
+    r = json.loads(out.stdout.strip().splitlines()[-1])
+    assert r["rooms"] >= 160 and not r["missing"], r["missing"]
+    lifts = {x["id"] for x in _pma()["rm"] if x.get("ty") == "lift"}
+    assert set(r["floorOnly"]) <= lifts, r["floorOnly"]
+
+
 HOP_JS = r"""
 global.window=global; global.document=null; global.navigator={};
 eval(require('fs').readFileSync(process.argv[2],'utf8'));

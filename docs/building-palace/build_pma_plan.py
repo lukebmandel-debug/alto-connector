@@ -382,8 +382,10 @@ def build(src: Path, art_manifest: dict) -> dict:
         return any(r["l"] == s["to"] and bs.inside(r["p"], [cx_, cy_]) for r in rooms)
     dropped_links = [s["id"] for s in stairs if not lands(s)]
     stairs[:] = [s for s in stairs if s["id"] not in dropped_links]
-    stairs.append({"id": "g-forum-stair", "k": "stair", "from": "g", "to": "l1", "fp": rect(-20.0, 5.2, -16.0, 9.2), "tp": rect(-20.0, 5.2, -16.0, 9.2), "w": 1.8, "up": 90, "c": 0,
-                   "s": ["pma-press"], "tb": "assumed: PMA press names a cantilevered stair in the Forum (G to level 1); its position is a guess", "dz": 6.2})
+    # one straight flight up the Forum's length, rising north so that it lands on level 1 just past the Forum's north edge (level 1 has no floor over the Forum)
+    stairs.append({"id": "g-forum-stair", "k": "stair", "from": "g", "to": "l1", "fp": rect(-18.9, -1.3, -17.1, 9.4), "tp": rect(-18.9, -1.3, -17.1, 9.4), "w": 1.8, "up": 90, "n": 36, "c": 0,
+                   "fl": [{"a": [-18.0, -1.3, 0.0], "b": [-18.0, 9.4, 6.2], "w": 1.8}],
+                   "s": ["pma-press"], "tb": "assumed: PMA press names a cantilevered stair in the Forum (G to level 1); its position and run are a guess, chosen so it lands on the level 1 floor", "dz": 6.2})
 
     # ── entrances ──
     for e in ents:
@@ -442,7 +444,7 @@ def build(src: Path, art_manifest: dict) -> dict:
     for w in walls:
         keep = []
         for o in w.get("o", []):
-            if o["k"] == "window":
+            if o["k"] == "window" or w["l"] == "g":              # level G's openings are made where two of its rooms meet (above)
                 keep.append(o); continue
             pt = seg_point(w, o["a"])
             if any(bs.dist_to_edge(rp, pt) <= 3.0 for rp in byl.get(w["l"], [])) or bs.dist_to_edge(foot, pt) <= 3.0:
@@ -450,6 +452,7 @@ def build(src: Path, art_manifest: dict) -> dict:
             else:
                 pruned += 1
         w["o"] = keep
+    inferred = infer_doors(rooms, walls)
     plan["rm"] = rooms
     plan["wl"] = walls
     plan["st"] = [{k: v for k, v in s.items() if v is not None} for s in stairs]
@@ -613,7 +616,157 @@ def build(src: Path, art_manifest: dict) -> dict:
     plan["sl"], unplaced = art_slots(plan, guide, inst_names, nrm, art_manifest)
     plan["tour"] = make_tour(plan)
     plan["src"] = credit_sources(plan, art_manifest)
-    return plan, {"gap_rooms": info_gaps, "closed_installation_windows": info_closed, "rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links}
+    return plan, {"gap_rooms": info_gaps, "closed_installation_windows": info_closed, "rocky": rk, "unplaced_works": unplaced, "pruned_openings": pruned, "dropped_links": dropped_links, "inferred_doors": inferred}
+
+
+# ── inferred doorways ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# The 1928 plates do not show every doorway (the tracer read some as windows, some walls are doubled with the opening on one face only, and the
+# pavilions were left closed off), so 87 of the 166 rooms could not be walked to. Each doorway below joins two rooms on a shared wall. ASSUMED
+# (confidence 0), centred on the shared stretch of wall unless a traced opening on that wall gives its place and width. Never through a wall with
+# the outside beyond it: both ends lie inside rooms. Basis per entry: "mirror" = the 1928 plan has a doorway at the mirror-image place in the other
+# wing (the building is symmetric about the Great Stair Hall axis); "window" = the traced 2.3 m 'window' there is a doorway (it opens room to room);
+# "seq" = the rooms are consecutive PMA gallery numbers in one row or column (see SEQUENCE); "use" = the room's use (an office onto its corridor,
+# two halves of one 1928 room) puts a door there. A room named twice: traced cross-walls divide it, and each gets a doorway at x = "at".
+INFERRED_DOORS = [
+    # (room, room, basis, options)
+    ("g-learning", "g-walk-n", "use: the Learning and Engagement Center opens off the Vaulted Walkway (PMA map); the north hall side is the shell", {}),
+    ("l1-s-indoffice", "l1-s-corr", "use: an office opens onto the corridor it lines", {}),
+    ("l1-c-lobby-c", "l1-c-lobby-s", "use: the east lobbies under the East Entrance open into each other (west of the thick traced wall)", {"at": -4.4}),
+    ("l1-c-lobby-c", "l1-c-lobby-n", "use: the east lobbies under the East Entrance open into each other (west of the thick traced wall)", {"at": -4.4}),
+    ("l1-c-lobby-c", "l1-c-lobby-c", "use: two traced cross-walls divide this lobby; a doorway in each, in line with the doors above", {"walls": ["l1-w127", "l1-w131"], "at": -4.4}),
+    ("l2-c-vest", "l2-c-vest", "use: a traced partition closes off the vestibule's south end; a doorway on the vestibule's centre line", {"walls": ["l2-w89"], "at": -6.76}),
+    ("l2-sw-passage", "l2-s-rug", "window: the 2.3 m opening on the passage axis through the south wing's east wall", {"win": 1}),
+    ("l2-nw-passage", "l2-n-tapestry", "window: the 2.3 m opening on the passage axis through the north wing's east wall (mirror of the south pavilion)", {"win": 1, "gap": 6.5}),
+    ("l2-sw-stairhall", "l2-sw-passage", "use: the pavilion stair hall opens onto its passage", {}),
+    ("l3-n-italian", "l3-gsh-balcony", "mirror: the balcony opens into the south wing's first gallery at the same place", {}),
+    ("l3-n-21", "l3-n-italian", "seq + use: the row of galleries across the wing's end, one into the next", {}),
+    ("l3-n-20", "l3-n-22", "seq: galleries 351 and 356 in the west column", {}),
+    ("l3-n-20", "l3-n-18", "seq: galleries 356 and 357 in the west column", {}),
+    ("l3-n-11", "l3-n-impress", "seq: the west column runs on to gallery 370", {}),
+    ("l3-n-11", "l3-n-end-gal", "seq + mirror: galleries 370 and 372 in the north end row", {}),
+    ("l3-sw-special-or", "l3-s-28", "window + mirror: the 2.4 m opening through the south wing's east wall; the north wing has the doorway there", {"win": 1}),
+    ("l3-sw-elev", "l3-sw-chou", "mirror: the north pavilion has the doorway there", {}),
+    ("l3-sw-30a", "l3-sw-30b", "use: two halves of the 1928 room 30, so a wide opening (clear of the bench and cases down the middle)", {"w": 4.0}),
+    ("l3-sw-stair", "l3-s-28", "window: the 2.0 m opening through the south wing's east wall into the pavilion stair hall", {"win": 1}),
+    ("l3-s-court", "l3-sw-china-mc", "mirror: the north pavilion's court has the doorway there", {}),
+]
+DOOR_W = {"gallery": 1.8, "court": 1.8, "hall": 2.4, "stair-hall": 2.4, "lobby": 1.8, "corridor": 1.6, "classroom": 1.6}       # else (office, lift, service) 1.1
+
+
+def infer_doors(rooms, walls):
+    """cut each INFERRED_DOORS doorway: through every traced wall that runs along the shared stretch, or through a new partition where none is traced."""
+    rid = {r["id"]: r for r in rooms}
+    out = []
+
+    def edges(P):
+        for i in range(len(P)):
+            a, b = P[i], P[(i + 1) % len(P)]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L >= 1.2 and abs(b[1] - a[1]) < 0.05 * L:
+                yield 1, a[1], sorted([a[0], b[0]])                 # an edge along x at y = a[1]
+            elif L >= 1.2 and abs(b[0] - a[0]) < 0.05 * L:
+                yield 0, a[0], sorted([a[1], b[1]])                 # an edge along y at x = a[0]
+
+    def wall_runs(L, ax, c0, c1, m):
+        """walls of level L along axis ax whose line lies between c0 and c1 and that cover the point m: (wall, arc length there)."""
+        hits = []
+        for w in walls:
+            if w["l"] != L:
+                continue
+            pts = w["p"] + ([w["p"][0]] if w.get("loop") else [])
+            run = 0
+            for a, b in zip(pts, pts[1:]):
+                SL = math.hypot(b[0] - a[0], b[1] - a[1])
+                if SL > 0 and ((ax == 1 and abs(b[1] - a[1]) < 0.05 * SL) or (ax == 0 and abs(b[0] - a[0]) < 0.05 * SL)):
+                    c = a[1] if ax == 1 else a[0]
+                    u0, u1 = (a[0], b[0]) if ax == 1 else (a[1], b[1])
+                    if min(c0, c1) - 0.05 <= c <= max(c0, c1) + 0.05 and min(u0, u1) <= m <= max(u0, u1):
+                        hits.append((w, run + abs(m - u0), 1 if u1 > u0 else -1, c))
+                        break
+                run += SL
+        return hits
+
+    def opening(a, ww, top, basis):
+        """a doorway: double leaves from 1.6 m, an open arch above 2.6 m (two halves of one room)."""
+        o = {"k": "door", "a": round(a, 2), "w": round(ww, 2), "h": min(3.0 if ww >= 1.6 else 2.4, top), "z": 0, "d": "double" if ww >= 1.6 else "single", "c": 0, "bs": "inferred: " + basis}
+        if ww > 2.6:
+            o.update(k="arch", d="none", h=min(3.4, top))
+        return o
+
+    def cut(wl, a, ww, basis):
+        """a doorway ww wide centred a metres along wall wl (it replaces any traced window there); False when an opening is already there."""
+        pts = wl["p"] + ([wl["p"][0]] if wl.get("loop") else [])
+        total = sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip(pts, pts[1:]))
+        ww = min(ww, total - 0.1)
+        a = min(max(a, ww / 2 + 0.05), total - ww / 2 - 0.05)
+        keep, there = [], False
+        for o in wl.get("o", []):
+            if abs(o["a"] - a) < (o["w"] + ww) / 2:
+                if o["k"] == "window":
+                    continue
+                there = True
+            keep.append(o)
+        if not there:
+            keep.append(opening(a, ww, (wl.get("h") or 6) - 0.1, basis))
+            keep.sort(key=lambda o: o["a"])
+        wl["o"] = keep
+        return not there
+
+    for ra, rb, basis, opt in INFERRED_DOORS:
+        A, B = rid[ra], rid[rb]
+        if ra == rb:                                              # traced cross-walls inside one traced room: a doorway in each, at x = opt["at"]
+            for wid in opt["walls"]:
+                wl = next(w for w in walls if w["id"] == wid)
+                assert len(wl["p"]) == 2 and abs(wl["p"][1][1] - wl["p"][0][1]) < 0.05, wid      # a straight wall along x
+                cut(wl, abs(opt["at"] - wl["p"][0][0]), 1.6, basis)
+            out.append(f"{ra}: doorways in {', '.join(opt['walls'])} at x={opt['at']:.2f}")
+            continue
+        best = None
+        for ka, ca, sa in edges(A["p"]):
+            for kb, cb, sb in edges(B["p"]):
+                lo, hi = max(sa[0], sb[0]), min(sa[1], sb[1])
+                if ka != kb or abs(ca - cb) > opt.get("gap", 3.0) or hi - lo < 1.2:
+                    continue
+                def side(P, c):                                   # +1 / -1: the room lies on the far / near side of its edge at c
+                    u = (lo + hi) / 2
+                    return next((s for s in (1, -1) if bs.inside(P, [u, c + 0.3 * s] if ka == 1 else [c + 0.3 * s, u])), 0)
+                qa, qb = side(A["p"], ca), side(B["p"], cb)
+                if qa and qa == -qb and (cb - ca) * qb > -0.5 and (best is None or abs(ca - cb) < best[0]):
+                    best = (abs(ca - cb), ka, ca, cb, lo, hi, qa, qb)
+        assert best, f"inferred door {ra} -> {rb}: the rooms share no wall"
+        _, ax, ca, cb, lo, hi, qa, qb = best
+        m = opt.get("at", (lo + hi) / 2)
+        w = DOOR_W.get(A.get("ty")) if DOOR_W.get(A.get("ty")) and DOOR_W.get(B.get("ty")) else 1.1
+        w = opt.get("w") or min(w, (DOOR_W.get(B.get("ty")) or 1.1), hi - lo - 0.4)
+        # a traced opening on one of these walls gives the doorway's place and width (the other faces of a doubled wall did not show it)
+        reach = 1.1                                              # walls up to this far inside either room still bound the doorway
+        c0, c1 = ca + qa * reach, cb + qb * reach
+        traced = None
+        for wl, a, sg, _ in [] if "at" in opt else wall_runs(A["l"], ax, c0, c1, m):
+            for o in wl.get("o", []):
+                if abs(o["a"] - a) < (hi - lo) / 2 and (o["k"] != "window" or (opt.get("win") and o["w"] >= 2.0)) and (traced is None or abs(o["a"] - a) < traced[0]):
+                    traced = (abs(o["a"] - a), (o["a"] - a) * sg, o["w"])
+        if traced:
+            m += traced[1]
+            w = traced[2] if opt.get("win") else max(w, traced[2])
+        hits = wall_runs(A["l"], ax, c0, c1, m)
+        made = 0
+        for wl, a, _, _ in hits:
+            made += cut(wl, a, w, basis)
+        # a room edge with no traced wall along it would get a plain wall from the renderer (an edge with nothing traced is closed): a thin
+        # partition just outside that edge carries the doorway instead (when neither edge has one, a single partition fills the gap between them)
+        bare = [(c, q) for c, q in ((ca, qa), (cb, qb)) if not any(abs(wc - c) <= (wl.get("t") or 0.3) / 2 + 0.3 for wl, _, _, wc in hits)]
+        if len(bare) == 2 and abs(ca - cb) < 3.0:
+            bare = [((ca + cb) / 2, 0)]
+        for k, (c, q) in enumerate(bare):
+            at = c - q * 0.1
+            p0, p1 = ([lo, at], [hi, at]) if ax == 1 else ([at, lo], [at, hi])
+            walls.append({"id": f"{A['l']}-wi-{ra.split('-', 1)[1]}-{rb.split('-', 1)[1]}{'-' + str(k) if len(bare) > 1 else ''}", "l": A["l"], "k": "int", "m": "plaster",
+                          "t": round(max(abs(cb - ca) + 0.2, 0.2) if q == 0 else 0.2, 2), "p": [p0, p1], "c": 0, "s": ["est"], "bs": "inferred partition: no wall traced along this room edge",
+                          "o": [opening(m - lo, w, 6, basis)]})
+            made += 1
+        out.append(f"{ra} -> {rb}: {made} opening(s) at {'x' if ax == 1 else 'y'}={m:.2f}, {w:.1f} m")
+    return out
 
 
 # period rooms: a finish typical of the room's period and place (oak, pine, painted or white-and-gold panelling, parquet or boards). These are
