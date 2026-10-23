@@ -612,12 +612,15 @@ PALACE_CSS = KEY_CSS + r"""
   html.dark{--pal-river:#3f78b4;--pal-rv-rim:rgba(255,255,255,.16);--pal-casing:rgba(18,22,34,.55);--pal-br-edge:rgba(214,222,244,.62);--pal-br-pier:rgba(214,222,244,.42);--pal-br-text:#dfe6fa;--pal-rv-lite:#9fcaf2;--pal-rv-sheen:rgba(255,255,255,.34);--pal-glass:rgba(22,24,34,.42);--pal-glass-edge:rgba(255,255,255,.16);--pal-water:rgba(38,64,100,.92);--pal-water-edge:rgba(255,255,255,.28);
     --pal-park:rgba(255,255,255,.06);--pal-pk:rgba(86,178,104,.26);--pal-pk-edge:rgba(255,255,255,.2);--pal-pk-path:rgba(214,240,214,.5);--pal-pk-txt:#a8e0b0;--pal-lm:rgba(255,255,255,.10);--pal-text:#e4e2ec;--pal-halo:rgba(14,16,24,.88);--pal-trail:#6fbf68;--pal-ground:28,30,40;}
   html.alto-palace:not(.mobile) #world{margin:0 !important;translate:var(--ppan-x,0px) var(--ppan-y,0px);}
+  /* pans not inherited: a pan frame restyles #world, not the whole city in it */
+  @property --pan-x{syntax:'*';inherits:false;} @property --pan-y{syntax:'*';inherits:false;} @property --ppan-x{syntax:'*';inherits:false;} @property --ppan-y{syntax:'*';inherits:false;}
   /* the board is its own compositing layer all the time (it already is a stacking context: translate): made one only for a zoom,
      WebKit painted the whole window into the new layer on a zoom's first frame and into the old one again at its end (~100 ms each) */
   html.alto-palace:not(.mobile) #world{will-change:transform;}
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
   html.alto-palace:not(.mobile) #world .phase-band,html.alto-palace:not(.mobile) #world .phase-label-float,
   html.alto-palace:not(.mobile) #world .unit-bar{display:none !important;}
+  #pal-fx{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;will-change:transform;}
   #palace-svg{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;
     -webkit-user-select:none;user-select:none;transition:opacity .3s;}
   #canvas.focus-mode #palace-svg{opacity:.55;}
@@ -1111,7 +1114,7 @@ function route(a,b){
 var ENT={};
 function entrance(id){ var L=lot(P.at[bOf(id)]); if(!L) return -1; var k=P.at[bOf(id)]; if(ENT[k]==null) ENT[k]=nearest(L[0],L[1],1,300); return ENT[k]; }
 /* the real transit (palace_transit_js.py) is given the palace's own parts */
-window._palTr.init({M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z,done){ flyAway(x,y,z,done); }, leave:leaveBoard,
+window._palTr.init({fx:function(){ return fxSvg(); }, M:M, P:P, graph:graph, nearest:nearest, entrance:entrance, lot:lot, bOf:bOf, isB:isB, order:function(){ return ORDER; }, flyMap:function(x,y,z,done){ flyAway(x,y,z,done); }, leave:leaveBoard,
   center:function(x,y){ var cv=document.getElementById('canvas'); if(!cv) return; if(PV) placeAll(); cv.scrollLeft=(x+MX)*Z+gapAt(Z,cv.clientWidth)-cv.clientWidth/2; cv.scrollTop=(y+MY)*Z+gyAt(Z,cv.clientHeight)-cv.clientHeight/2; },
   name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
@@ -1127,8 +1130,8 @@ window._palBr.init({M:M, el:el, pts:pts, pin:pin});     /* the bridges' design e
 
 /* ── the city, drawn once into an <svg> (a page may hold two: the desktop board, a phone's map page) ── */
 /* a thing that keeps its size on the screen, at map point (x,y): <g class=cls transform="translate(x y)"><g class="pl-sc">…</g></g>.
-   The position is an SVG attribute in map units; the size a unitless CSS scale (--tw) — so the page's CSS zoom cannot move it in
-   any browser (Safari zooms px inside an SVG element's CSS transform; Chrome does not). Returns the inner, scaled group. */
+   Position: an SVG attribute in map units; size: a unitless CSS scale (--tw), so page zoom cannot move it (Safari scales px in an
+   SVG element's CSS transform). Returns the inner, scaled group. */
 function pin(parent, cls, x, y, attrs){ var o={'class':cls, transform:'translate('+(+x)+' '+(+y)+')'}; for(var k in attrs||{}) o[k]=attrs[k];
   var g=el('g',o,parent); return el('g',{'class':'pl-sc'},g); }
 /* a station's name beside its ring: dx,dy screen px from the stop, scaled with the ring; the text itself un-scaled (.pl-stt) */
@@ -1263,9 +1266,8 @@ function riverLabels(svg, defs, parent, r, k){
     var t=el('text',{'class':'pl-river', dy:'.35em', style:'font-size:max(calc(13px / var(--pz,1)),'+fs.toFixed(0)+'px)'},parent), tp=el('textPath',{href:'#'+id, startOffset:(rev?tot-s:s).toFixed(0), 'text-anchor':'middle'},t);
     t._g=atLen(p, s); t._fs=fs; t._pr=800-j-k*.1;
     tp.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','#'+id); tp.textContent=r.n; } }
-/* the streets' tubes, chunk by chunk ({'district|chunk': d}): the .95 tube over the ground and the sheen over it are worked out as
-   opaque colours, and each district's tubes are all drawn before its sheens, so the chunks look exactly as one path per district
-   did (where two chunks meet on a street, or two lines overlap, a line is drawn twice in one colour: no darker seam, no lost sheen) */
+/* the streets' tubes, chunk by chunk ({'district|chunk': d}): tube (.95) and sheen are worked out as opaque colours, a district's
+   tubes all drawn before its sheens, so the chunks look like one path (overlaps redraw one colour: no darker seam, no lost sheen) */
 function stubes(parent, by, tc, w, cls){ var g=GR&&GR.length===3?GR:(dk()?[28,30,40]:[238,238,242]), sh=rgbaOf(sheen())||[255,255,255,.7], us=[], ks={};
   function css(a){ return 'rgb('+a.map(function(v){ return Math.round(v); }).join(',')+')'; }
   Object.keys(by).forEach(function(k){ var u=String(k).split('|')[0]; if(!ks[u]){ ks[u]=[]; us.push(u); } ks[u].push(k); });
@@ -1285,6 +1287,11 @@ function stackLayers(svg){
   svg.appendChild(lm); svg.appendChild(bl);
   [].forEach.call(svg.querySelectorAll(':scope > .pl-portals,:scope > .pl-fx'), function(h){ svg.appendChild(h); });      /* the airport portals ride over the buildings they stand on */
   [].forEach.call(svg.querySelectorAll(':scope > .pl-route-hits,:scope > .pl-tr-hits,:scope > .pl-hov'), function(h){ svg.appendChild(h); }); }
+/* what moves (route dashes, chip route, rider) is drawn in #pal-fx over the drawing: inside it, it repainted the city every frame */
+function fxSvg(clear){ if(!svgD) return null; var f=svgD._fx;
+  if(!f){ f=svgD._fx=el('svg',{id:'pal-fx','aria-hidden':'true',preserveAspectRatio:'none'}); new MutationObserver(fxSync).observe(svgD, {attributes:true}); }
+  if(clear) f.innerHTML=''; if(svgD.parentNode && f.previousSibling!==svgD) svgD.parentNode.insertBefore(f, svgD.nextSibling); fxSync(); return f; }
+function fxSync(){ var f=svgD&&svgD._fx; if(!f) return; ['viewBox','width','height','class'].forEach(function(a){ var v=svgD.getAttribute(a); if(v!=null) f.setAttribute(a, v); }); f.style.cssText=svgD.style.cssText; }
 function drawCity(svg){
   if(!svg._stk){ svg._stk=new MutationObserver(function(){ stackLayers(svg); }); svg._stk.observe(svg,{childList:true}); }
   GR=groundNow(); var tD0=performance.now();
@@ -1413,7 +1420,7 @@ function drawCity(svg){
   window._palHw.lines(svg);                    /* the highways, under the transit (palace_highway_js.py) */
   window._palTr.lines(svg);                    /* the real lines: SEPTA, PATCO (palace_transit.py) */
   var bg=el('g',{'class':'pl-blds'},svg);
-  var route=el('g',{'class':'pl-routes'},svg);
+  var route=el('g',{'class':'pl-routes'},svg===svgD&&fxSvg(1)||svg);
   /* stations: Alto's ring (a tube bent into a circle, its sheen on top); a hub is a double ring */
   var stl=el('g',{'class':'pl-stns'},svg);
   (M.stations||[]).forEach(function(s){
@@ -1443,9 +1450,8 @@ function drawCity(svg){
   /* boats (palace_boats.py) and bases (palace_fleet.py): the hosted fleet script draws them, each for what it is — a battleship, a carrier, a submarine, a tall ship — and arms the warships */
   if(!window._palFleet && ((M.boats&&M.boats.length)||(M.bases&&M.bases.length))) palLoadFleet();
   if(window._palFleet) window._palFleet.draw(lg, M, fleetHost());
-  /* the landmark names over every building: a tower in front (the next block down a column of towers, rising 300 m+ at
-     true scale, more than a row) would otherwise hide the name hanging under the card behind it. Each name keeps its
-     landmark's colours, --lm-nat and (tilted district) offset on its own .pl-lmn wrapper, data-name tying it back */
+  /* the landmark names over every building (a tower in front, 300 m+ at true scale, would hide the name under the card behind);
+     each keeps its landmark's colours, --lm-nat and (tilted district) offset on its .pl-lmn wrapper, data-name tying it back */
   var lmn=el('g',{'class':'pl-lmns'},lg);
   [].forEach.call(lg.querySelectorAll('.pl-lmb'), function(g){ var L=g._lm; if(!L || !L.nameT) return; var up=L.nameT.parentNode;
     var w=el('g',{'class':'pl-lmn'+(g.classList.contains('has-page')?' has-page':''), 'data-name':g.getAttribute('data-name')||'', 'data-page':g.getAttribute('data-page')||''},lmn);
@@ -1613,10 +1619,6 @@ function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; va
 var ZREAD=(function(){ var L=null; for(var i=0;i<P.b.length && !L;i++) if(P.b[i] && P.b[i][0]) L=P.b[i][0]; if(!L) return .1;
   return Math.max(10/(L[3]*.55), 10*(4*.62+.6)/L[2]); })();
 /* one screen px in map units, a touch more on screen as the map comes close (lines and rings keep their weight, not their scale) */
-/* names grew or shrank with the board while a zoom ran: they come back at their size by a short fade of their layers, not a jump */
-function pvIn(sv){ if(!sv || !sv.animate) return; var L=[];
-  [].forEach.call(sv.querySelectorAll('text'), function(t){ var g=t.parentNode; if(g.classList.contains('pl-lmn')) g=g.parentNode; if(g!==sv && L.indexOf(g)<0) L.push(g); });
-  L.forEach(function(g){ g.animate([{opacity:0}, {opacity:1}], {duration:240, easing:'ease-out'}); }); }
 function pfz(z){ return Math.max(9, Math.min(13, 8+z*9)); }
 function tw(z){ return (Math.max(.88, Math.min(1.4, Math.pow(z,.3)))/z*Math.max(.34, Math.min(1, z/.24))).toFixed(4); }   /* far out the lines thin too, so a whole city of blocks stays a grid and not a blur */
 function zmin(){ return fitZ()*.97; }       /* the farthest the board zooms out is the whole city in the window (a thin margin of glass round it) */
@@ -1644,19 +1646,19 @@ function pvSet(z, sxT, syT){
   sxT=Math.max(0, Math.min(sxT, Math.max(0, Math.round(VW*z)+Math.round(gx)*2-cw)));
   syT=Math.max(0, Math.min(syT, Math.max(0, g+Math.round(VH*z)-ch)));
   PV.tx=sxT; PV.ty=syT; Z=z;
-  /* markers.py: a tag keeps its size by its own scale (a variable on #world, or any change in the drawing, restyles the whole city) */
+  /* markers.py: a tag keeps its size by its own scale (a variable on #world restyles the city) */
   var k=(pfz(z)/pfz(PV.zc)*PV.zc/z).toFixed(4); (PV.tg=PV.tg||[].slice.call(world.querySelectorAll(':scope > .node > .node-card'))).forEach(function(c){ c.style.scale=k; });
   /* scaled about the city's top-left corner (the pad above it stays put), shifted by what the margins and the scroll will do */
   world.style.transform='translate('+(PV.sx-sxT+Math.round(gx)-Math.round(PV.gx))+'px,'+(PV.sy-syT+g-PV.gy)+'px) scale('+(z/PV.zc)+')';
   if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
-  /* settled: 160 ms with no zoom input, confirmed a frame later (input queued behind a long frame is handled before it) */
+  /* settled: 160 ms with no input, confirmed a frame later */
   PV.n=(PV.n||0)+1; clearTimeout(pvTimer); pvTimer=setTimeout(function(){ var n=PV&&PV.n; requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); }); }, 160);
 }
 function placeAll(){
   var cvh=document.getElementById('canvas'); if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;   /* hidden under a detail page: laid out when it closes */
   if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
     if(w) w.style.transform=''; (p.tg||[]).forEach(function(c){ c.style.scale=''; });
-    placeAllReal(); if(Math.abs(Math.log(Z/p.zc))>.12) pvIn(svgD); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
+    placeAllReal(); settleNow(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
   placeAllReal();
 }
 function placeAllReal(){
@@ -1732,6 +1734,8 @@ function nbOcclude(){
 }
 /* ── the tags at a distance: where tags would run into one another each is moved aside, a thin pointer joining it to its roof ── */
 var nbSpT=0;
+/* a settled zoom: tags spread and names fitted in one task (not one stall per timer) */
+function settleNow(){ clearTimeout(nbSpT); nbSpread(); nbOcclude(); if(svgD){ clearTimeout(svgD._arT); lblFit(svgD); } }
 function nbSpreadSoon(){ clearTimeout(nbSpT); nbSpT=setTimeout(function(){ nbSpread(); nbOcclude(); }, 40); }
 function nbSpread(){
   if(mob() || !svgD) return;
@@ -1743,7 +1747,7 @@ function nbSpread(){
   var placed=[], dirs=[-90,-50,-130,0,180,50,130], rings=[0,22,40];
   function clash(x,y,w,h){ for(var i=0;i<placed.length;i++){ var r=placed[i]; if(x-w/2<r[0]+r[2]/2+3 && x+w/2>r[0]-r[2]/2-3 && y-h/2<r[1]+r[3]/2+2 && y+h/2>r[1]-r[3]/2-2) return true; } return false; }
   it.forEach(function(t){
-    var pv=t.e._nbP, done=!clash(t.ax, t.ay, t.w+6, t.h+4);   /* (markers.py) home when clearly free, else the place it had while free */
+    var pv=t.e._nbP, done=!clash(t.ax, t.ay, t.w+6, t.h+4);   /* home if clearly free, else its last place if free */
     if(!done && pv && !clash(t.ax+pv[0], t.ay+pv[1], t.w-6, t.h-4)){ t.dx=pv[0]; t.dy=pv[1]; done=true; }
     for(var ri=0; ri<rings.length && !done; ri++){ var r=rings[ri];
       for(var di=0; di<(r?dirs.length:1) && !done; di++){ var a=dirs[di]*Math.PI/180, dx=r?Math.cos(a)*r*1.5:0, dy=r?Math.sin(a)*r:0;
@@ -1797,11 +1801,8 @@ function placeBoard(world, cv){
   /* last: the chips and landmark names measure the page (one layout, after every write above) */
   if(svgD) sizeChips(svgD);
 }
-/* Enlarging a building asks the engine to pan the board (--pan-x/--pan-y) until the card is in the
-   middle of the window. Near the city's edge that pulls the edge inwards and shows the bare page
-   behind it, so the pan the board actually takes (--ppan-x/--ppan-y) is held to what keeps the
-   city over the whole window — except as far as the enlarged card itself needs, so it is never
-   cut off by the bars: it then sits nearer the edge than the middle, with the city under it. */
+/* Enlarging a building pans the board (--pan-x/-y) to centre the card; the pan it takes (--ppan-x/-y) is held so the city still
+   covers the window, except as far as the card needs to clear the bars (it then sits nearer the edge, the city under it). */
 var panLast='', focW=0, focH=0;
 function holdPan(){
   var w=document.getElementById('world'), cv=document.getElementById('canvas'); if(!w||!cv||!svgD) return;
@@ -1830,7 +1831,7 @@ window._altoPalace=function(h){
   if(P._dirty){ P._dirty=0; restructure(true); if(svgD) drawBuildings(svgD); }
   if(P._lmDirty && svgD){ P._lmDirty=0; drawCity(svgD); if(MM.svg) drawCity(MM.svg); }
   if(!svgD){ svgD=el('svg',{id:'palace-svg', 'class':'pal-svg', viewBox:(-MX)+' '+(-MY)+' '+VW+' '+VH, preserveAspectRatio:'none'}); svgD._sid='d'; drawCity(svgD); }
-  if(svgD.parentNode!==world) world.insertBefore(svgD, world.firstChild);
+  if(svgD.parentNode!==world) world.insertBefore(svgD, world.firstChild); fxSvg();
   /* a pan that stops brings in the names now within reach of the window (lblFit) */
   var cvL=document.getElementById('canvas'); if(cvL && !cvL._lblScroll){ cvL._lblScroll=1; cvL.addEventListener('scroll', function(){ if(!svgD) return; clearTimeout(cvL._lblT);
     cvL._lblT=setTimeout(function(){ if(svgD && !PV && palaceOn()){ lblFit(svgD, true); nbSpreadSoon(); } }, 120); }, {passive:true}); }
@@ -2071,9 +2072,8 @@ document.addEventListener('click', function(e){
   lastB={id:id, t:now}; enlarge(id);
 }, true);
 /* ═══ ROUTES (interaction pass): a lit route is a line you can follow ═══
-   On an ordinary timeline a click on a connecting line flies to the node at its far end (blocks.py, LINE_NAV_GLUE).
-   Here the routes all start at the building you are pointing at or have enlarged, so the far end is always the other
-   building. Where several routes share a street, the click picks the one whose building is nearest along the line. */
+   Routes start at the pointed-at / enlarged building, so a click flies to the other one (blocks.py LINE_NAV_GLUE); on a shared
+   street the click takes the route whose building is nearest along the line. */
 var hotR=null;
 function routeHot(h){ if(h===hotR) return;
   if(hotR && hotR._rt){ hotR._rt.g.classList.remove('hot'); var o=document.getElementById('node-'+hotR._rt.to); if(o) o.classList.remove('pal-dest'); }
@@ -2159,9 +2159,8 @@ document.addEventListener('dblclick', function(e){
 function wrapFocus(){ var _ef=window.enterFocus; if(!_ef || _ef._pal) return;
   window.enterFocus=function(id){ if(P.of[id] && !mob()){ return window.showDetail('node', id); } return _ef.apply(this, arguments); }; window.enterFocus._pal=1; }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, wrapFocus); });
-/* The board is not under the window while a detail page is open (the canvas is display:none: no size, no scroll). So the view is
-   settled and remembered before the page opens, nothing is laid out against the hidden canvas, and the view is put back, laid out
-   for real, when the page closes — else the map came back scrolled to its empty top-left corner. */
+/* While a detail page is open the canvas is display:none (no size, no scroll): the view is settled and remembered before it opens,
+   nothing is laid out against the hidden canvas, and the view is put back for real when it closes (not the empty top-left). */
 var LV=null, lastRv=0;
 /* the view as it was last seen on the map: kept as it changes, so that however a page opens over the map (any function, any link) the map can be put back */
 function trackView(){ var cv=document.getElementById('canvas'); if(!cv || mob() || !cv.clientWidth || PV || de.classList.contains('detail-open') || !de.classList.contains('alto-palace')) return; LV={z:Z, x:cv.scrollLeft, y:cv.scrollTop}; }
@@ -2625,9 +2624,8 @@ window.addEventListener('mouseup', function(e){
 }, true);
 
 /* ── manual edit mode: add a building on a free lot, or a floor on a building ──
-   A free lot shows a faint + under the pointer (and every free lot does while "Add building" is on);
-   choosing one opens the glass form. The card is made the way any card is (nn|card-…, with the lot as
-   p|card-…|lot, or pf|card-… for a floor), so Save, undo, reload and republish already know it. */
+   A free lot shows a faint + under the pointer (every free lot while "Add building" is on); it opens the glass form. The card is
+   made as any card (nn|card-…, lot p|card-…|lot, floor pf|card-…), so Save, undo, reload and republish already know it. */
 var addMode=false, ghost=null, ghostKey=null, freeLayer=null, addBtn=null, formAt=null;
 function lotAt(p){
   var t=taken();

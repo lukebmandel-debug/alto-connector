@@ -26,7 +26,7 @@ DIR_CSS = r"""
   .pal-svg .dr-stop circle{fill:#fff;stroke-width:3.4;}
   .pal-svg .dr-a circle.o{fill:#fff;stroke:var(--accent,#6d5bd0);stroke-width:3;} .pal-svg .dr-a circle.i{fill:var(--accent,#6d5bd0);}
   .pal-svg .dr-b path{fill:#e5484d;stroke:#fff;stroke-width:2;stroke-linejoin:round;} .pal-svg .dr-b circle{fill:#fff;}
-  .pal-svg .dr-cur circle{fill:none;stroke:var(--accent,#6d5bd0);stroke-width:3;} .pal-svg .dr-cur circle.p{animation:drpulse 1.5s ease-out infinite;}
+  .pal-svg .dr-cur circle{fill:none;stroke:var(--accent,#6d5bd0);stroke-width:3;} .pal-svg .dr-cur circle.p{animation:drpulse 1.5s ease-out 3;}
   @keyframes drpulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.4);opacity:0}}
   @media (prefers-reduced-motion: reduce){.pal-svg .dr-cur circle.p{animation:none;}}
   .pal-svg.dr-on .pl-blds .pl-bld:not(.pal-hot){opacity:.62;}

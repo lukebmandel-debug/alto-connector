@@ -60,7 +60,7 @@ TRANSIT_CSS = r"""
   .pal-svg .tr-stn.maj .tr-ring{stroke-width:3.4;}
   .pal-svg .tr-stn.lit .tr-dot,.pal-svg .tr-stn:hover .tr-dot{transform:scale(1.3);}
   .pal-svg .tr-stn.cur .tr-dot{transform:scale(1.7);}
-  .pal-svg .tr-stn.cur .tr-pulse{animation:trpulse 1.6s ease-out infinite;}
+  .pal-svg .tr-stn.cur .tr-pulse{animation:trpulse 1.6s ease-out 3;}
   .pal-svg .tr-pulse{fill:none;stroke:var(--tc,#888);stroke-width:2;opacity:0;}
   @keyframes trpulse{0%{r:8px;opacity:.9}100%{r:26px;opacity:0}}
   .pal-svg .tr-lbl{font-size:calc(11px / var(--pz,1));}
@@ -246,7 +246,7 @@ function hits(svg){
   if(!T || svg._sid!=='d') return; var h=el('g',{'class':'pl-tr-hits'},svg);
   T.lines.forEach(function(l){ l.p.forEach(function(a){ var p=el('path',{'class':'pl-tl-hit', d:E.pts(a),'data-l':l.id},h); }); });
   T.stops.forEach(function(s,i){ el('circle',{r:12}, E.pin(h, 'pl-stn-hit', s.x, s.y, {'data-s':i})); });
-  var cr=el('g',{'class':'pl-chiprt'},svg); svg._cr=cr; svg.insertBefore(cr, svg._tst||null);
+  var fx=E.fx&&E.fx(), cr=el('g',{'class':'pl-chiprt'},fx||svg); svg._cr=cr; if(!fx) svg.insertBefore(cr, svg._tst||null);   /* (its dashes flow: #pal-fx, palace.py) */
   svg.classList.toggle('tr-focus', false); paint();
 }
 
@@ -510,7 +510,7 @@ function renderRel(){
 var tripRaf=0, tripTimer=0;
 function nameOf(id){ return E.name?E.name(id):id; }
 function stopAnim(){ cancelAnimationFrame(tripRaf); tripRaf=0; clearTimeout(tripTimer); tripTimer=0; }
-function riderG(){ var svg=E.svg(); if(!svg) return null; var g=svg._rd; if(!g || g.parentNode!==svg){ g=svg._rd=el('g',{'class':'pl-rd'},svg); } svg.appendChild(g); return g; }
+function riderG(){ var svg=E.svg(); if(!svg) return null; var h=E.fx&&E.fx()||svg, g=svg._rd; if(!g || g.parentNode!==h){ g=svg._rd=el('g',{'class':'pl-rd'},h); } if(h.lastChild!==g) h.appendChild(g); return g; }
 function markCur(id){ document.querySelectorAll('#world .node.pal-trip-cur').forEach(function(n){ n.classList.remove('pal-trip-cur'); });
   var n=id!=null?document.getElementById('node-'+E.bOf(id)):null; if(n){ n.classList.add('pal-trip-cur'); n.style.setProperty('--cc', (S.trip&&S.trip.color)||'var(--accent)'); } }
 function endTrip(){ if(window._palRide) window._palRide.exit(); if(!S.trip && !tripRaf) return; stopAnim(); S.trip=null; document.documentElement.classList.remove('pal-tripping'); markCur(null);

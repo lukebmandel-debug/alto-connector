@@ -106,13 +106,39 @@ def test_city_tags_keep_their_size_while_the_board_is_scaled():
     assert "requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); })" in pv   # settled = no input up to the next frame, not a bare timer
 
 
-def test_city_names_come_back_by_a_fade_and_tags_are_held():
+def test_city_tags_are_held_and_glide():
     js, css = _palace_js()
-    assert "if(Math.abs(Math.log(Z/p.zc))>.12) pvIn(svgD);" in js and "g.animate([{opacity:0}, {opacity:1}]" in js
     assert "t.e._nbP=[t.dx, t.dy]" in js and "!clash(t.ax+pv[0], t.ay+pv[1], t.w-6, t.h-4)" in js   # a tag sent aside keeps its place while free
     assert ".node.nb-gl:not(.focused) .node-card{transition:translate" in css                  # and glides there
-    assert "if(s<.55 || s>1.8){ pvIn(MM.svg); pmCommit(z); s=1; }" in js                       # the phone's commits fade the names too
     assert "function pmCommit(z){ var sv=MM.svg; MM.z=z;" in js                                # (palace_fillin's anchor)
+
+
+# ── city palace motion (Luke: "Frame rate of movement in mind palace map mode is glitchy") ──
+
+def test_moving_things_are_drawn_over_the_city_not_in_it():
+    # a route's flowing dashes animated inside the 11,000-shape drawing repainted all of it every frame (an enlarged card: p50 131 ms)
+    js, css = _palace_js()
+    assert "var route=el('g',{'class':'pl-routes'},svg===svgD&&fxSvg(1)||svg);" in js
+    assert "#pal-fx{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;will-change:transform;}" in css
+    assert "cr=el('g',{'class':'pl-chiprt'},fx||svg)" in js and "var h=E.fx&&E.fx()||svg" in js   # the chip route and the rider too
+
+
+def test_the_board_pans_restyle_only_the_board():
+    # the engine pans #world by --pan-x/-y every frame; inherited, each frame restyled the whole city (~140 ms in WebKit)
+    js, css = _palace_js()
+    for v in ("--pan-x", "--pan-y", "--ppan-x", "--ppan-y"):
+        assert "@property %s{syntax:'*';inherits:false;}" % v in css
+
+
+def test_a_settled_zoom_is_laid_out_in_one_task():
+    js, css = _palace_js()
+    assert "placeAllReal(); settleNow();" in js
+    assert "function settleNow(){ clearTimeout(nbSpT); nbSpread(); nbOcclude(); if(svgD){ clearTimeout(svgD._arT); lblFit(svgD); } }" in js
+
+
+def test_pulses_do_not_run_forever():
+    from alto.build import palace_directions, palace_transit_js
+    assert "trpulse 1.6s ease-out 3;" in palace_transit_js.TRANSIT_CSS and "drpulse 1.5s ease-out 3;" in palace_directions.DIR_CSS
 
 
 # ── System (solar_draw.py): markers.py's rules inline ──
