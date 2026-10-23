@@ -292,7 +292,10 @@ function course(o){
     var X=[], d=[], x=0, Lt=g.reduce(function(a, e){ return a+e.len; }, 0), sg=Math.min(120, 30+.03*Lt), i, k;
     g.forEach(function(e){ var f=Math.max(1, 1.6*vb/(OMG*(e.k==='xfer' ? 1 : 1.4)*Math.max(1, (e.r0+e.r1)/2)));      /* (an orbit's steady turn: a little brisker) */
       for(var m=1;m<e.ds.length;m++){ x+=e.ds[m]; X.push([x-e.ds[m]/2, e.ds[m]]); d.push(f*e.kp[m]); } });
-    var sd=X.map(function(q){ var a=1; for(k=0;k<X.length;k++){ var z=(X[k][0]-q[0])/sg; a=Math.max(a, 1+(d[k]-1)*Math.exp(-z*z/2)); } return a; });   /* (a slow stretch eased into, never diluted) */
+    var sd=X.map(function(q, j){ var a=d[j], z;                  /* (a slow stretch eased into, never diluted; within 3 sigma) */
+      for(k=j-1;k>=0 && (z=(q[0]-X[k][0])/sg)<3;k--) a=Math.max(a, 1+(d[k]-1)*Math.exp(-z*z/2));
+      for(k=j+1;k<X.length && (z=(X[k][0]-q[0])/sg)<3;k++) a=Math.max(a, 1+(d[k]-1)*Math.exp(-z*z/2));
+      return Math.max(1, a); });
     i=0; g.forEach(function(e){ var w=[0]; for(var m=1;m<e.ds.length;m++){ w.push(w[m-1]+e.ds[m]*sd[i]); i++; }
       var n=w.length-1; e.w=w[n]; e.tab=w.map(function(v){ return w[n]>1e-9 ? v/w[n] : 0; }); });
   }
