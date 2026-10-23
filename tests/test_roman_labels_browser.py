@@ -52,7 +52,6 @@ def test_numerals_stay_fully_visible(url, engine):
             pg.mouse.wheel(0, dy)
             pg.wait_for_timeout(500)
             assert all(o == 1 for o in pg.evaluate(OPS))
-        pg.screenshot(path=str(Path(__file__).parent / f"_roman_{engine}.png"))
         b.close()
 
 
