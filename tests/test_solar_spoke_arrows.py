@@ -171,3 +171,40 @@ def test_3d_star_chart_points_at_the_scene_and_keeps_its_spokes_lit(browser, pag
     assert pg.evaluate("() => document.querySelectorAll('#sk3d-l i:not([style*=\"display: none\"])').length") == 0     # its own pills give way
     pg.context.close()
     assert not errs, errs
+
+
+FLYING = """() => { var p=document.querySelector('#solar-fly-svg .fly-path'), s=p && p.closest('svg');
+  return {flight:!!window._altoSolarFlight(), ride:!!window._altoSolarLock.riding(),
+    path:!!p && (p.getAttribute('d')||'').length>20 && !s.classList.contains('fly-out') && getComputedStyle(s).display!=='none'}; }"""
+
+
+@pytest.mark.parametrize("style", ["chart", "retro"])
+def test_normal_mode_moves_fly_their_flight_paths_and_spokes_only_rides_the_spokes(browser, page, style):
+    """Luke on v1.9.150 (2026-10-23): "spoke only mode on classic star chart works correctly, but it has since gotten rid
+    of the actual flight paths for non-spoke only mode incorrectly". With Spokes only off, a move (the bar's Next, an
+    arrow key, a named button) flies the flight's own course again; with it on, it rides the spokes."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("s => { window._altoSolarStyles.set(s); window._altoSolarLock.set(false); window._altoFlyOff=false; window.enterFocus('u1-p3'); }", style)
+    pg.wait_for_timeout(2500)
+    pg.mouse.move(2, 600)
+    pg.click("#sol-tour .tb-next")
+    pg.wait_for_timeout(400)
+    st = pg.evaluate(FLYING)
+    assert st == {"flight": True, "ride": False, "path": True}, st                  # its flight path drawn, not a spoke ride
+    pg.wait_for_function("() => !window._altoSolarFlight() && window._focusedNodeId && window._focusedNodeId!=='u1-p3'", timeout=12000)
+    pg.wait_for_timeout(700)
+    pg.keyboard.press("ArrowLeft")                                                   # an arrow key: the same
+    pg.wait_for_timeout(400)
+    st = pg.evaluate(FLYING)
+    assert st["flight"] and not st["ride"] and st["path"], st
+    pg.wait_for_function("() => !window._altoSolarFlight() && window._focusedNodeId==='u1-p3'", timeout=12000)
+    pg.wait_for_timeout(700)
+    pg.evaluate("() => window._altoSolarLock.set(true)")                             # Spokes only: rides along the spokes, no flight
+    pg.wait_for_timeout(300)
+    pg.click("#sol-tour .tb-next")
+    pg.wait_for_timeout(400)
+    st = pg.evaluate(FLYING)
+    assert st["ride"] and not st["flight"] and not st["path"], st
+    pg.evaluate("() => window._altoSolarLock.set(false)")
+    pg.context.close()
+    assert not errs, errs

@@ -690,6 +690,7 @@ function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); s
 function init(){ watchOv(); if(A) A.onChange(function(){ var pr=ship && ship.querySelector('.fly-ship'); if(pr) pr.innerHTML=craft().svg||''; });   /* (a new pick: the art at once, on the way too) */ var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
   if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
+window._altoSolarFlyCan=can;   /* (solar_draw.py's Tour: a move in normal mode flies when it can) */
 window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=tauOf(performance.now());
   var q=FL.tr.pv(tau);
   return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:[q[0], q[1]], v:[q[2]/FL.k, q[3]/FL.k], k:FL.k, queued:Q.slice(), ms:FL.ms.slice(), legs:FL.tr.segs||null, path:FL.pts}; };

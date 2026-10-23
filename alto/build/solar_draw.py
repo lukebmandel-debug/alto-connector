@@ -1696,6 +1696,7 @@ function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
 function ride(from, to){
   if(!tourOK() || !B[from] || !B[to] || !B[to].n || RD) return false;
   lclear(); tShow(null); LASTF=to;
+  if(!LOCK && window._focusedNodeId && window._altoSolarFlyCan && window._altoSolarFlyCan()){ enter(to); tBar(); return true; }   /* normal mode with Flights: the flight's own course (solar_fly.py), as before 1.9.150 (Luke, 2026-10-23); Spokes only rides the spokes */
   var g=camGet(), path=tRoute(from, to);
   if((de.classList.contains('sk-3d') && window._altoFlyOff) || reduced || !g || !svg){   /* the 3D scene with Flights off: its camera glides there; reduced motion: straight there */
     if(OV) ovLeave({x:B[to].rx, y:B[to].ry}, true); enter(to); tBar(); return true; }
