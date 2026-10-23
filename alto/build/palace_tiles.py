@@ -199,12 +199,22 @@ def cut(m, blocks, districts, fill=None, directory=None):
         detail = s.get("k", 0) >= 2 and not s.get("o") and not s.get("t") and not s.get("hw")
         (put(c, "streets", s) if detail and not _inside(c, z) else keep.append(s))
     m["streets"] = keep
-    keep = []
+    keep, water = [], None
     for pk in m.get("parks") or []:
         rs = [r for r in pk.get("r") or [] if len(r) >= 6]
         c = _cell(*_ringc(rs[0])) if rs else (0, 0)
         big = (pk.get("z") or 0) > PARK_SMALL or sum(_area(r) for r in rs) >= PARK_BASE_PX2
-        (put(c, "parks", pk) if rs and not big and not _inside(c, z) else keep.append(pk))
+        if rs and not big and not _inside(c, z):
+            # a park bound for a tile is kept on dry land here (the base's parks are fitted at build: palace_parkfit, palace_data)
+            if water is None:
+                from .palace_parkfit import Water
+                water = Water(m)
+            from .palace_parks import _dry
+            pk = _dry(dict(pk), water)
+            if pk:
+                put(c, "parks", pk)
+        else:
+            keep.append(pk)
     m["parks"] = keep
     for nm in m.pop("nb", None) or []:                  # the close-in neighbourhood names (city_outer_lattice): always tile detail
         put(_cell(nm["x"], nm["y"]), "nb", nm)
@@ -416,6 +426,8 @@ def find(path: str, directory=None):
 # ── the page: the detail tiles, loaded and drawn as the board is zoomed in (spliced into the palace's closure, palace.palace_js) ──
 CT_ON = 7000                     # page px: a view this wide or narrower draws the detail tiles (about 5 km of New York)
 CT_OFF = 9500                    # ... and one wider than this hides them again (between the two nothing changes)
+CT_LITE = 30000                  # page px: up to this wide the tiles' blocks and parks are drawn (a borough's texture, lite) ...
+CT_LITE_OFF = 38000              # ... and past this they go
 
 # No standing opacity on a tile's groups: an SVG group with an opacity (or one being faded) is painted into its own transparency layer,
 # again for every screen tile WebKit repaints (a pan with a dozen tiles cost 330 ms a frame). A tile fades in and out by a short inline
@@ -437,7 +449,7 @@ if(CT){ var CTS=CT.cell||2048; Object.keys(CT.c).forEach(function(k){ var q=k.sp
 function ctView(){ var cv=document.getElementById('canvas'), world=document.getElementById('world'); if(!cv || !world || !svgD || PV || Z==null) return null;
   var wr=world.getBoundingClientRect(), cr=cv.getBoundingClientRect(), k=(cr.width/cv.clientWidth)||1, pad=(typeof WORLD_PAD_TOP!=='undefined')?WORLD_PAD_TOP:0;
   var x0=(cr.left-wr.left)/k/Z-MX, y0=((cr.top-wr.top)/k-pad)/Z-MY; return [x0, y0, x0+cv.clientWidth/Z, y0+cv.clientHeight/Z]; }
-function ctData(e){ var c=CTC[e.k]; if(!c){ c=CTC[e.k]={e:e, st:0, on:{}, g:{}};
+function ctData(e){ var c=CTC[e.k]; if(!c){ c=CTC[e.k]={e:e, st:0, on:{}, g:{}, lv:{}};
     var F=window._ALTO_CITY_F||{}; if(F['t-'+e.h]){ c.d=F['t-'+e.h]; c.st=2; } }
   return c; }
 function ctFetch(c){ c.st=1; CTL++;
@@ -454,27 +466,36 @@ var CTmv=0, CTlast='';
 function ctMoving(){ if(PV){ CTmv=performance.now(); return true; } return performance.now()-CTmv<CT_SETTLE; }   /* a zoom glide runs (PV) */
 /* the close-in buildings' canvas (palace_fillin) is set aside while a zoom glide scales the board (WebKit re-scales a painted canvas of the
    window's size every frame: 350 ms a frame with a borough's buildings on it) and comes back, painted for the new zoom, when it settles */
-var CTwo=null;
+var CTwo=null, CTwt=0;
 function ctWatchZoom(){ if(CTwo) return; var w=document.getElementById('world'); if(!w) return;
-  CTwo=new MutationObserver(function(){ var c=document.getElementById('pal-fillc'); if(!c) return; var on=!w.style.transform;
-    if(on===!c.style.visibility) return; c.style.visibility=on?'':'hidden'; if(on && typeof fillSoon==='function') fillSoon(); });
+  CTwo=new MutationObserver(function(){ var c=document.getElementById('pal-fillc'); if(!c) return;
+    if(w.style.transform){ clearTimeout(CTwt); CTwt=0; c.style.visibility='hidden'; return; }
+    /* back only once the board has stayed still a moment (a zoom that pauses between frames is laid out and goes on: painting the canvas
+       at each such pause made the next frame slow, and the next) */
+    if(c.style.visibility && !CTwt) CTwt=setTimeout(function(){ CTwt=0; if(w.style.transform) return; c.style.visibility=''; if(typeof fillSoon==='function') fillSoon(); }, CT_SETTLE+50); });
   CTwo.observe(w, {attributes:true, attributeFilter:['style']}); }
 function ctTick(){ if(!CT) return; ctWatchZoom(); var tv=ctTargets(), key=tv.map(function(t){ return t[1].map(Math.round).join(','); }).join('|');
   if(key!==CTlast){ CTlast=key; CTmv=performance.now(); }
+  CTpend=[];                                         /* what to draw is decided afresh each tick, nearest the view's middle first: never a queue of the last place's tiles */
   tv.forEach(function(t){ ctTick1(t[0], t[1]); }); if(CTpend.length && !CTraf && !ctMoving()) CTraf=requestAnimationFrame(ctStep); }
+/* two levels: full (every part: names, hover lines, buildings) on a view CT_ON px wide or less, lite (blocks, loose lines and parks: the
+   texture of a borough) up to CT_LITE; each level a held band (on below one width, off above a wider one: docs/markers.md) */
 function ctTick1(svg, v){
-  var sid=svg._sid||'', w=v[2]-v[0], on=CTon[sid]=CTon[sid]?(w<=CT_OFF):(w<=CT_ON);
+  var sid=svg._sid||'', w=v[2]-v[0], was=CTon[sid]||0;
+  var lv=CTon[sid]=(was===2?(w<=CT_OFF):(w<=CT_ON))?2:((was>=1?(w<=CT_LITE_OFF):(w<=CT_LITE))?1:0), on=lv>0;
   var cx=(v[0]+v[2])/2, cy=(v[1]+v[3])/2, m=CTS, near=[];
   CTE.forEach(function(e){ var b=e.b, c=CTC[e.k], inv=on && b[2]>v[0]-m && b[0]<v[2]+m && b[3]>v[1]-m && b[1]<v[3]+m;
     if(inv){ near.push(e); return; }
     if(c && c.on[sid]){ var far=!on || b[2]<v[0]-3*m || b[0]>v[2]+3*m || b[3]<v[1]-3*m || b[1]>v[3]+3*m; ctShow(c, svg, far?'drop':'hide'); } });
   near.sort(function(a,b){ return Math.hypot((a.b[0]+a.b[2])/2-cx,(a.b[1]+a.b[3])/2-cy)-Math.hypot((b.b[0]+b.b[2])/2-cx,(b.b[1]+b.b[3])/2-cy); });
-  near.forEach(function(e){ var c=ctData(e); if(c.st===0 && CTL<4) ctFetch(c);
-    else if(c.st===2 && !c.on[sid]){ if(!CTpend.some(function(q){ return q[0]===c && q[1]===svg; })) CTpend.push([c, svg]); }
+  near.forEach(function(e){ var c=ctData(e);
+    if(c.on[sid] && lv===2 && c.lv[sid]===1){ ctShow(c, svg, 'drop'); }                   /* lite -> full: drawn again, whole */
+    if(c.st===0 && CTL<4) ctFetch(c);
+    else if(c.st===2 && !c.on[sid]) CTpend.push([c, svg, lv]);
     else if(c.st===2 && c.g[sid] && c.g[sid][0] && c.g[sid][0].classList.contains('ct-off')) ctShow(c, svg, 'show'); }); }
 /* one tile a frame */
 function ctStep(){ CTraf=0; if(ctMoving()) return; var q=CTpend.shift(); if(!q) return; var c=q[0], svg=q[1], sid=svg._sid||'';
-  if(!c.on[sid] && svg.isConnected){ ctDraw(svg, c, true); c.on[sid]=1; ctAfter(svg); }
+  if(!c.on[sid] && svg.isConnected){ var lite=(CTon[sid]||0)<2; ctDraw(svg, c, true, lite); c.on[sid]=1; c.lv[sid]=lite?1:2; if(!lite) ctAfter(svg); }
   if(CTpend.length) CTraf=requestAnimationFrame(ctStep); }
 /* a fade on the group's own inline opacity, taken off when it ends (no standing transparency layer: see TILES_CSS) */
 function ctFade(g, to, done){ var t0=performance.now(), from=to?0:1;
@@ -500,7 +521,7 @@ function ctRpc(a, r){ var n=a.length>>1, d=''; for(var i=0;i<n;i++){ var x=a[2*i
 function ctTileD(t){ var x0=t[0], y0=t[1], x1=t[2], y1=t[3], r=Math.min(R, (x1-x0)/2, (y1-y0)/2);
   return 'M'+(x0+r)+' '+y0+'H'+(x1-r)+'Q'+x1+' '+y0+' '+x1+' '+(y0+r)+'V'+(y1-r)+'Q'+x1+' '+y1+' '+(x1-r)+' '+y1
     +'H'+(x0+r)+'Q'+x0+' '+y1+' '+x0+' '+(y1-r)+'V'+(y0+r)+'Q'+x0+' '+y0+' '+(x0+r)+' '+y0+'Z'; }
-function ctDraw(svg, c, fade){
+function ctDraw(svg, c, fade, lite){
   var T=c.d, L=ctLayers(svg), sid=svg._sid||''; if(!T || !L.st) return; c.g[sid]=[];
   if(T.parks && T.parks.length && L.pk){ var pg=ctG(L.pk, c, sid, fade, true);
     T.parks.forEach(function(pk){ var g=el('g',{'class':'pl-pk-g','data-name':pk.n||''},pg);
@@ -519,6 +540,7 @@ function ctDraw(svg, c, fade){
   var sg=ctG(L.st, c, sid, fade, true); stubes(sg, byU, tc, 3.6, 't-min');
   var byL={}; sts.forEach(function(st){ if(st.L) lruns(st.p).forEach(function(r){ byL[r.u]=(byL[r.u]||'')+rp(r.p); }); });
   if(Object.keys(byL).length) stubes(sg, byL, tc, 5.6, 't-maj');
+  if(lite){ if(fade) (c.g[sid]||[]).forEach(function(g){ ctFade(g, 1); }); return; }
   var pkn=(T.parks||[]).filter(function(pk){ return pk.n && pk.t; }), nbs=T.nb||[];
   if(L.lb && (sts.length || pkn.length || nbs.length)){ var lg=ctG(L.lb, c, sid, fade), M0=M, mj=T.mj||sts.map(function(s){ return s.n; }).filter(Boolean);
     if(sts.length){ M={streets:sts, majors:mj, top:[]}; try{ streetLabels(svg, L.defs, lg); } finally { M=M0; } }
@@ -529,7 +551,7 @@ function ctDraw(svg, c, fade){
   if(fade) (c.g[sid]||[]).forEach(function(g){ ctFade(g, 1); });
 }
 /* a redrawn board (light/dark, a new map ground) draws the tiles it showed again */
-function ctDrawAll(svg){ if(!CT) return; var sid=svg._sid||''; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.on[sid]){ c.g[sid]=null; ctDraw(svg, c, false); } }); }
+function ctDrawAll(svg){ if(!CT) return; var sid=svg._sid||''; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.on[sid]){ c.g[sid]=null; ctDraw(svg, c, false, c.lv[sid]===1); } }); }
 /* the tile's buildings join the fill-in while the tile is shown, and leave it with the tile: the fill holds the page's own buildings and
    those of the tiles on the board, never every tile ever visited. Each keeps its own thinning rank (rk), so the set changing never
    reshuffles which buildings a slider share shows. */
@@ -544,7 +566,7 @@ function ctFillAdd(part, c){
   c.fs=Sp; ctFillSoon(); }
 function ctFillSoon(){ clearTimeout(CTfill); CTfill=setTimeout(ctFillSet, 150); }
 function ctFillSet(){ if(!CTfs0 || typeof fillShapes!=='function') return; if(ctMoving()){ ctFillSoon(); return; }
-  var on=Object.keys(CTC).sort().map(function(k){ return CTC[k]; }).filter(function(c){ return c.fs && ['d','m'].some(function(k){ var g=c.on[k] && c.g[k] && c.g[k][0]; return g && !g.classList.contains('ct-off') && !g._fo; }); });
+  var on=Object.keys(CTC).sort().map(function(k){ return CTC[k]; }).filter(function(c){ return c.fs && ['d','m'].some(function(k){ var g=c.on[k] && c.g[k] && c.g[k][0]; return g && c.lv[k]===2 && !g.classList.contains('ct-off') && !g._fo; }); });
   for(var lv=1;lv<=4;lv++){ var a=(CTfs0[lv]||[]).slice(); on.forEach(function(c){ if(c.fs[lv]) Array.prototype.push.apply(a, c.fs[lv]); }); FS[lv]=a; }
   FG=null; if(FC) FC.cache={}; if(svgD){ fillDraw(svgD); fillLOD(svgD); fillSoon(); } if(MM.svg){ fillDraw(MM.svg); fillLOD(MM.svg); } }
 if(CT){ setInterval(function(){ if(!document.hidden) ctTick(); }, 250);
@@ -552,7 +574,9 @@ if(CT){ setInterval(function(){ if(!document.hidden) ctTick(); }, 250);
   window._altoCity={ensure:function(box, cb){ var n=0; CTE.forEach(function(e){ var b=e.b; if(b[2]>box[0] && b[0]<box[2] && b[3]>box[1] && b[1]<box[3]){ var c=ctData(e); if(c.st===0){ n++; ctFetch(c); } } });
       if(cb){ var t0=Date.now(); (function wait(){ var busy=CTE.some(function(e){ var c=CTC[e.k]; return c && c.st===1; }); if(busy && Date.now()-t0<8000) setTimeout(wait, 100); else cb(window._altoCity.streets(box)); })(); } return n; },
     streets:function(box){ var out=[]; Object.keys(CTC).forEach(function(k){ var c=CTC[k], b=c.e.b; if(c.d && b[2]>box[0] && b[0]<box[2] && b[3]>box[1] && b[1]<box[3]) out=out.concat(c.d.streets||[]); }); return out; },
-    stats:function(){ var s={cells:CTE.length, loaded:0, drawn:0, inflight:CTL, on:CTon.d||false}; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.st===2) s.loaded++; if(c.on.d && c.g.d && c.g.d[0] && !c.g.d[0].classList.contains('ct-off')) s.drawn++; }); return s; }}; }
+    stats:function(){ var cv=document.getElementById('pal-fillc');
+      var s={cells:CTE.length, loaded:0, drawn:0, inflight:CTL, on:CTon.d||0, fs:(typeof FS!=='undefined'&&FS)?FS.map(function(a){ return a?a.length:0; }):null,
+             canvas:cv?{vis:cv.style.visibility, disp:cv.style.display, w:cv.width, painted:window._fillPaintMs}:null, lvl:(typeof fillLevel!=='undefined')?fillLevel:null}; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.st===2) s.loaded++; if(c.on.d && c.g.d && c.g.d[0] && !c.g.d[0].classList.contains('ct-off')) s.drawn++; }); return s; }}; }
 """
 
 
@@ -576,7 +600,7 @@ def patch_js(js: str) -> str:
     b = "  svg._b=bg; svg._r=route;"
     if js.count(a) != 1 or js.count(b) != 1 or any(js.count(o) != 1 for o, _n in _GROUP):
         raise ValueError("palace_tiles.patch_js: anchors not found")
-    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_FADE", str(FADE_MS)).replace("CT_SETTLE", str(SETTLE_MS)) + CHUNK_JS + a)
+    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_LITE_OFF", str(CT_LITE_OFF)).replace("CT_LITE", str(CT_LITE)).replace("CT_FADE", str(FADE_MS)).replace("CT_SETTLE", str(SETTLE_MS)) + CHUNK_JS + a)
     for o, n in _GROUP:
         js = js.replace(o, n)
     return js.replace(b, "  ctDrawAll(svg);\n" + b)
