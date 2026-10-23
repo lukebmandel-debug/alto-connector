@@ -120,6 +120,7 @@ def test_moving_things_are_drawn_over_the_city_not_in_it():
     js, css = _palace_js()
     assert "var route=el('g',{'class':'pl-routes'},svg===svgD&&fxSvg(1)||svg);" in js
     assert "#pal-fx{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;will-change:transform;}" in css
+    assert "#pal-fx:not(:has(path,circle)){display:none;}" in css        # empty, no layer: re-tiling it after every zoom cost 6-8 frames of 65-85 ms
     assert "cr=el('g',{'class':'pl-chiprt'},fx||svg)" in js and "var h=E.fx&&E.fx()||svg" in js   # the chip route and the rider too
 
 
@@ -130,10 +131,11 @@ def test_the_board_pans_restyle_only_the_board():
         assert "@property %s{syntax:'*';inherits:false;}" % v in css
 
 
-def test_a_settled_zoom_is_laid_out_in_one_task():
+def test_a_settled_zoom_keeps_its_own_timers():
+    # merging the tags' spread and the names' fit into the settle's task left 6-8 frames of 65-100 ms after every zoom (WebKit); the
+    # separate timers end in 3
     js, css = _palace_js()
-    assert "placeAllReal(); settleNow();" in js
-    assert "function settleNow(){ clearTimeout(nbSpT); nbSpread(); nbOcclude(); if(svgD){ clearTimeout(svgD._arT); lblFit(svgD); } }" in js
+    assert "function settleNow" not in js and "placeAllReal(); var cv=document.getElementById('canvas');" in js
 
 
 def test_pulses_do_not_run_forever():

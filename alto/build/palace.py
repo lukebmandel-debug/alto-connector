@@ -620,7 +620,7 @@ PALACE_CSS = KEY_CSS + r"""
   html.alto-palace:not(.mobile) #glass-slab,html.alto-palace:not(.mobile) #river-svg,
   html.alto-palace:not(.mobile) #world .phase-band,html.alto-palace:not(.mobile) #world .phase-label-float,
   html.alto-palace:not(.mobile) #world .unit-bar{display:none !important;}
-  #pal-fx{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;will-change:transform;}
+  #pal-fx{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;will-change:transform;} #pal-fx:not(:has(path,circle)){display:none;}
   #palace-svg{position:absolute;left:0;z-index:1;overflow:visible;pointer-events:none;
     -webkit-user-select:none;user-select:none;transition:opacity .3s;}
   #canvas.focus-mode #palace-svg{opacity:.55;}
@@ -1657,7 +1657,7 @@ function placeAll(){
   var cvh=document.getElementById('canvas'); if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;   /* hidden under a detail page: laid out when it closes */
   if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
     if(w) w.style.transform=''; (p.tg||[]).forEach(function(c){ c.style.scale=''; });
-    placeAllReal(); settleNow(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
+    placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
   placeAllReal();
 }
 function placeAllReal(){
@@ -1733,8 +1733,6 @@ function nbOcclude(){
 }
 /* ── the tags at a distance: where tags would run into one another each is moved aside, a thin pointer joining it to its roof ── */
 var nbSpT=0;
-/* a settled zoom: tags spread and names fitted in one task (not one stall per timer) */
-function settleNow(){ clearTimeout(nbSpT); nbSpread(); nbOcclude(); if(svgD){ clearTimeout(svgD._arT); lblFit(svgD); } }
 function nbSpreadSoon(){ clearTimeout(nbSpT); nbSpT=setTimeout(function(){ nbSpread(); nbOcclude(); }, 40); }
 function nbSpread(){
   if(mob() || !svgD) return;
