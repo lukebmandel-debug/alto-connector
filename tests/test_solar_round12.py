@@ -98,7 +98,7 @@ def test_a_ship_chosen_while_the_rider_shows_is_drawn_at_once(browser, page):
     pg.evaluate("() => { window._altoSolarStyles.set('chart'); window._altoSolarLock.set(true); window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(900)
     other = pg.evaluate("() => window._altoCraft.list.map(function(c){ return c.id; }).filter(function(i){ return i!==window._altoCraft.id(); })[0]")
-    pg.keyboard.press("ArrowRight"); pg.wait_for_timeout(250)
+    pg.click("#sol-tour .tb-next"); pg.wait_for_timeout(250)
     assert pg.evaluate("() => !!window._altoSolarLock.riding()")
     pg.evaluate("id => window._altoCraft.set(id)", other)
     assert pg.evaluate("""id => { var t=document.createElementNS('http://www.w3.org/2000/svg', 'g'); t.innerHTML=window._altoCraft.svg(id);

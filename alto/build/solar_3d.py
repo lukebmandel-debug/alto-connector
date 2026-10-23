@@ -628,6 +628,7 @@ function hints(G){
   var f=window._focusedNodeId, out={}; hints.hot={};
   if(!f || !G.bodies[f] || !window._altoSolarLevelNav || (window._altoSolarFlight && window._altoSolarFlight())) return out;
   var Wy=window._altoSolarLock && window._altoSolarLock.ways ? window._altoSolarLock.ways(f) : null;     /* the Tour's named ways (solar_draw.py), in both modes */
+  if(lk() && Wy){ window._altoSolarLock.spokes(f).forEach(function(to){ hints.hot[to]=1; }); return out; }   /* (Spokes only: solar_draw.py's arrows, the spokes lit) */
   if(Wy){ Wy.nb.forEach(function(to){ if(G.bodies[to]){ out[to]=[Wy.d[to]||'c']; hints.hot[to]=1; } }); return out; }
   ['n', 's', 'w', 'e'].forEach(function(d){ var to=window._altoSolarLevelNav(f, d); if(to && to!==f && G.bodies[to]){ (out[to]=out[to]||[]).push(d); hints.hot[to]=1; } });
   return out;

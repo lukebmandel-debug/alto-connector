@@ -123,8 +123,9 @@ def test_motion_never_uses_a_transform_and_rounds_to_device_px():
     # the one transform is the whole-chart view's, on #world itself
     # (and the focus shadow's scale, kept the same circle as the growing disc: not a node)
     # (and the enlarged disc's chips, turned a few degrees to the circle's edge by pool(): k, more, el are chips, not nodes;
-    #  ch: a system's name, zoomed out, in its own unscaled layer #sol-ulay — not a node)
-    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el", "ch")] == ["sh", "world", "world"]
+    #  ch: a system's name, zoomed out, in its own unscaled layer #sol-ulay — not a node;
+    #  e: Spokes only's arrows and their names, in their own layer #sol-arw over the board — not nodes)
+    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el", "ch", "e")] == ["sh", "world", "world"]
     assert ".n.style.transform" not in SOLAR_JS
     assert "b.n.style.left=x+'px'" in SOLAR_JS and "Math.round(v*zq)/zq" in SOLAR_JS
     # no SVG <mask> on anything that moves (Safari): the rings and spokes are plain
@@ -141,7 +142,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 42500, size      # + one way of moving in both modes and the bug round (2026-10-22, ~1.5 KB); + the Tour (2026-10-22: tour order, multi-stop rides, the whole system with routes, the bar; ~3 KB); + the ships' rides from orbit to orbit along the spoke, nose on the way (~0.4 KB, 2026-10-22); + Spokes-only rides, Retro's orbit bands and ship, the units' names in their own layer (~2.8 KB); + round 11's navigation hints: named pills, drawn ways, edge pills (~2.3 KB, against the 1,000,000-byte page); + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
+    assert size < 43200, size      # + Spokes only's arrows on the map (~1.6 KB, 2026-10-23); + one way of moving in both modes and the bug round (2026-10-22, ~1.5 KB); + the Tour (2026-10-22: tour order, multi-stop rides, the whole system with routes, the bar; ~3 KB); + the ships' rides from orbit to orbit along the spoke, nose on the way (~0.4 KB, 2026-10-22); + Spokes-only rides, Retro's orbit bands and ship, the units' names in their own layer (~2.8 KB); + round 11's navigation hints: named pills, drawn ways, edge pills (~2.3 KB, against the 1,000,000-byte page); + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
 
 
 def test_the_hub_look_orbits_on_the_same_plan():

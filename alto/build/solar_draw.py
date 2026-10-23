@@ -283,6 +283,18 @@ SOLAR_CSS = r"""
   #sol-nav{position:absolute;left:0;top:0;width:0;height:0;z-index:400;}
   html.mobile :is(#sol-way,#sol-nav),.sol-nhx,#sol-nav [hidden]{display:none !important;}
   html.sol-flying :is(#sol-way,#sol-nav,#world .sol-nh){opacity:0 !important;transition:opacity .15s;}   /* a flight (solar_fly.py): gone at once, back faded in on landing */
+  #sol-arw{position:fixed;left:0;top:0;width:0;height:0;z-index:300;}
+  #sol-arw>*{position:absolute;left:0;top:0;cursor:pointer;color:var(--nc);--nc:var(--u,color-mix(in srgb,var(--accent,#6d5bd0) 80%,var(--text)));animation:solnh .3s ease-out both;}
+  .sol-ar{width:52px;height:32px;margin:-16px 0 0;padding:0;border:0;background:none;transform-origin:0 50%;}
+  .sol-ar svg{width:52px;height:26px;fill:none;stroke:currentColor;stroke-width:3.4px;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 2px var(--bg,#fff)) drop-shadow(0 0 1px var(--bg,#fff));}
+  .sol-al{white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;padding:3px 10px;border-radius:12px;font:650 12.5px/18px system-ui,sans-serif;color:var(--text);
+    background:color-mix(in srgb,var(--bg,#fff) 92%,transparent);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--nc) 55%,transparent),0 3px 10px rgba(20,24,60,.16);}
+  #sol-arw .sol-alx{opacity:0;pointer-events:none;} #sol-arw .hot{opacity:1;z-index:2;} .sol-ar.hot svg{stroke-width:4.4px;} .sol-al.hot{box-shadow:0 0 0 2.5px var(--nc);}
+  @media (pointer:coarse){ .sol-ar{height:44px;margin-top:-22px;} .sol-al{padding:8px 12px;} }
+  html.alto-stars #sol-arw>*{--nc:#cfe0ff;} html.alto-stars .sol-ar svg{filter:drop-shadow(0 0 2px #000);}
+  html.alto-stars .sol-al{color:#eef2ff;background:rgba(5,10,28,.9);box-shadow:0 0 0 1px rgba(170,198,255,.5),0 4px 16px rgba(0,0,0,.55);}
+  html.sk-retro #sol-arw>*{--nc:#d9ae55;} html.sk-retro .sol-al{color:#d9ae55;background:#000;border-radius:0;font-weight:500;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 0 0 1px #d9ae55,0 0 0 4px #000;}
+  html.mobile #sol-arw{display:none;}
   html.alto-solar:not(.mobile) #world .node.sol-hint>.sol-lbl{opacity:0 !important;}
   html:not(.mobile) #canvas.focus-mode #world .node.sol-hint .node-card{opacity:1 !important;}
   #world .sol-nh{position:absolute;left:50%;top:50%;z-index:8;display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;
@@ -1124,7 +1136,8 @@ function navTo(id, dir){
 }
 /* the Tour: never a jump — a move rides there (nothing that way: a gentle word); the engine stays put */
 window._altoSolarNav=function(id, dir){
-  if(LOCK && ready && desk() && B[id]){ tStep({n:'up', s:'down', e:'next', w:'prev'}[String(dir||'').charAt(0)]); return id; }
+  var d=String(dir||'').charAt(0), to;
+  if(LOCK && ready && desk() && B[id]){ if(!AR.f) tStep({n:'up', s:'down', e:'next', w:'prev'}[d]); else if((to=arPick(d))) rideTo(to); return id; }   /* (Spokes only: the arrow that points that way) */
   return navTo(id, dir); };
 var levelNav=navTo;     /* (unwrapped: solar_fly.py wraps the global to fly the hop) */
 window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight) */
@@ -1154,8 +1167,9 @@ function hints(){
   if(f) LASTF=f; else if(ok && LOCK) o=home();
   var k=(LOCK ? 'L' : '')+(f ? 'f'+f : o ? 'o'+o : ''); if(k===NH.k) return; NH.k=k;
   NH.t.forEach(function(t){ t.n.classList.remove('sol-hint'); t.p.remove(); if(t.q) t.q.remove(); if(t.w) t.w.remove(); }); NH.t=[]; NH.f=f || null;
+  arSet(LOCK && f);
   if(o && !OV){ NH.t.push({id:o, n:B[o].n, p:nhOn(o, 'o', 'b')}); return; }
-  if(!f) return;
+  if(!f || LOCK) return;
   if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; world.appendChild(NH.L); }
   if(!NH.g || !NH.g.isConnected){ NH.g=el('svg', {id:'sol-way', width:1, height:1, 'aria-hidden':'true'}); world.insertBefore(NH.g, svg && svg.parentNode===world ? svg.nextSibling : world.firstChild); }
   var F=B[f], Wy=tWays(f);
@@ -1195,6 +1209,54 @@ function nhPlace(){
     t.q.style.setProperty('--a', Math.round(Math.atan2(dy, dx)*180/Math.PI)+'deg'); });
 }
 setInterval(hints, 250);
+/* ── Spokes only, the arrows (Luke, 2026-10-23: "you don't know which arrow to look at and its not intuitive why
+   something is in a certain direction"): in place of the pills, an arrow on each spoke leaving the enlarged body, just
+   outside its disc, pointing where the body at the spoke's other end is on the screen, and named for it (a name with no
+   room clear of the disc, the other arrows and names shows on hover). An arrow key takes the arrow pointing most nearly
+   its way; a click or a tap rides there. Drawn over the board in screen px, so the same size at any zoom (in 3D Star
+   chart, at the scene's own projection), and placed again each frame while it shows. ── */
+var AR={f:null, t:[], L:null, q:0, z:1, h:null};
+function arSet(f){
+  if(f===AR.f) return; cancelAnimationFrame(AR.q); arHot(null); AR.t.forEach(function(t){ t.a.remove(); t.l.remove(); }); AR.t=[]; AR.f=f||null;
+  if(!f) return;
+  if(!AR.L){ AR.L=document.createElement('div'); AR.L.id='sol-arw'; document.body.appendChild(AR.L);
+    AR.L.addEventListener('mouseover', function(e){ var p=e.target.closest && e.target.closest('[data-id]'); arHot(p && p.getAttribute('data-id')); });
+    AR.L.addEventListener('mouseout', function(e){ if(!(e.relatedTarget && AR.L.contains(e.relatedTarget))) arHot(null); }); }
+  AR.z=parseFloat(getComputedStyle(de).zoom)||1;
+  AR.t=joined(f).map(function(to){ var nm=lname(to), a=document.createElement('button'), l=document.createElement('span');
+    a.type='button'; a.className='sol-ar'; a.innerHTML='<svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 10h32M26 3l9 7-9 7"/></svg>'; a.setAttribute('aria-label', 'Ride to '+nm);
+    l.className='sol-al'; l.textContent=nm; l.setAttribute('aria-hidden', 'true');
+    [a, l].forEach(function(e){ e.setAttribute('data-id', to); e.style.cssText=(B[to].n.style.cssText.match(/--u:[^;]*/)||[''])[0]; AR.L.appendChild(e); });
+    return {id:to, a:a, l:l}; });
+  arPlace();
+}
+function arHot(id){ if(id===AR.h) return; AR.h=id; AR.t.forEach(function(t){ t.a.classList.toggle('hot', t.id===id); t.l.classList.toggle('hot', t.id===id); }); if(!OV) tShow(id); }
+/* the arrow key's way (n s e w): the arrow pointing most nearly that way on the screen (within ~70 degrees) */
+function arPick(d){ var v={n:[0, -1], s:[0, 1], e:[1, 0], w:[-1, 0]}[d], b=null, bd=.33;
+  if(v) AR.t.forEach(function(t){ var k=t.ux*v[0]+t.uy*v[1]; if(k>bd){ bd=k; b=t.id; } }); return b; }
+function arPlace(){
+  var F=AR.f && B[AR.f]; if(!F) return; AR.q=requestAnimationFrame(arPlace);
+  var on=F.c && F.n.classList.contains('focused') && !OV && !RD && !flying() && !document.querySelector('#detail-page.visible') && !de.classList.contains('alto-editing');
+  AR.L.hidden=!on; if(!on) return;
+  var z=AR.z, r=F.c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, rf=r.width/2, tb=document.getElementById('sol-tour'),
+    x0=10, x1=innerWidth-44, y0=92, y1=(tb ? tb.getBoundingClientRect().top : innerHeight-80)-6, done=[], S=window._altoSolar3D, D3=de.classList.contains('sk-3d') && S && S.on();
+  function bad(q, j){ var X=Math.max(q[0], Math.min(q[2], cx)), Y=Math.max(q[1], Math.min(q[3], cy));
+    return (j<18 && Math.hypot(X-cx, Y-cy)<rf+4) || done.some(function(o){ return ov2(o, q); }); }
+  function put(e, x, y, rot){ var s='translate('+f2(x/z)+'px,'+f2(y/z)+'px)'+(rot||''); if(e._s!==s) e.style.transform=e._s=s; }
+  AR.t.forEach(function(t){ var q=D3 && S.project(t.id), b;      /* where the far end is on the screen */
+    if(!q){ b=(B[t.id].c || B[t.id].n).getBoundingClientRect(); q={x:b.left+b.width/2, y:b.top+b.height/2}; }
+    var dx=q.x-cx, dy=q.y-cy, L=Math.hypot(dx, dy)||1, ux=t.ux=dx/L, uy=t.uy=dy/L, a=rf+14,
+      ke=Math.min(ux>0 ? (x1-cx)/ux : ux<0 ? (x0-cx)/ux : 1e9, uy>0 ? (y1-cy)/uy : uy<0 ? (y0-cy)/uy : 1e9);
+    if(a+56>ke) a=Math.max(0, ke-56);                   /* (a disc bigger than the window: the arrow stays on the window) */
+    var bx=cx+ux*a, by=cy+uy*a; t.x=cx+ux*(a+50); t.y=cy+uy*(a+50);
+    put(t.a, bx, by, ' rotate('+f2(Math.atan2(dy, dx))+'rad)');
+    done.push([Math.min(bx, t.x)-4, Math.min(by, t.y)-4, Math.max(bx, t.x)+4, Math.max(by, t.y)+4]); });
+  AR.t.forEach(function(t){ var w=t.w||(t.w=t.l.offsetWidth*z), h=t.h||(t.h=t.l.offsetHeight*z), cl=function(v){ return Math.max(-1, Math.min(1, v*2)); },
+    ox=(cl(t.ux)-1)/2*w, oy=(cl(t.uy)-1)/2*h, q, fit=null, first=null;
+    for(var j=0; j<36 && !fit; j++){ var k=10+(j%18/3|0)*12, p=[0, 1, -1][j%3]*(h+4), X=t.x+t.ux*k-t.uy*p+ox, Y=t.y+t.uy*k+t.ux*p+oy;   /* out along the spoke, else beside it */
+      X=Math.max(x0, Math.min(x1-w, X)); Y=Math.max(y0, Math.min(y1-h, Y)); q=[X, Y, X+w, Y+h]; first=first || q; if(!bad(q, j)) fit=q; }   /* (a disc wider than the window, a phone's: then on its rim) */
+    q=fit || first; if(fit) done.push(q); t.l.classList.toggle('sol-alx', !fit); put(t.l, q[0], q[1]); });
+}
 /* the orbits' state on their button (Luke: "sometimes orbiting doesn't work"): on but waiting says why; and a hover the
    pointer has left without moving (the bodies moved away from under it: a ride, a flight, a glide) lets go */
 var OWH={focus:'while a body is enlarged', hover:'while you point at a body', line:'while you point at a line', page:'while a page is open', dim:'while a filter dims some bodies'};
@@ -1207,9 +1269,11 @@ setInterval(function(){
 }, 300);
 document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') nhQ(); }, {capture:true, passive:true});
 window.addEventListener('resize', nhQ);
-['pointerdown', 'mousedown', 'click'].forEach(function(t){ document.addEventListener(t, function(e){   /* an edge pill: a click hops there (before the board takes it for a click on empty space) */
-  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh,#world .node>.sol-nh'); if(!p) return; e.stopPropagation(); e.preventDefault();
-  if(t==='click') rideTo(p.getAttribute('data-id') || p.parentNode.id.slice(5)); }, true); });
+var TAP=0;
+['pointerdown', 'pointerup', 'mousedown', 'click'].forEach(function(t){ document.addEventListener(t, function(e){   /* an edge pill, an arrow: a click (a tap: as it lifts) hops there (before the board takes it for a click on empty space) */
+  if(t==='click' && e.timeStamp-TAP<700){ e.stopPropagation(); e.preventDefault(); return; }   /* (a tap's own click, after it: on whatever is under the finger by then) */
+  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh,#world .node>.sol-nh,#sol-arw [data-id]'), tc=e.pointerType==='touch'; if(!p) return; e.stopPropagation(); e.preventDefault();
+  if(tc ? t==='pointerup' : t==='click'){ if(tc) TAP=e.timeStamp; rideTo(p.getAttribute('data-id') || p.parentNode.id.slice(5)); } }, true); });
 /* ── edit mode changed the outline (manual_edit.py calls this before it lays
    the page out again with the live tables {kids, parent, num, seqs, act}): the
    systems are planned again here — SOLAR_PLAN_JS, solar.py's solar_plan in
@@ -1752,7 +1816,7 @@ function tShow(id, e){
   RT.tip.textContent=lname(id)+' · '+(RT.n ? RT.n+(RT.n===1 ? ' stop' : ' stops')+' · click to ride there' : 'you are here');
   RT.tip.style.left=(e.clientX+14)+'px'; RT.tip.style.top=(e.clientY+16)+'px'; RT.tip.style.display='block';
 }
-document.addEventListener('mousemove', function(e){ if(!RT.id && !(OV && TOV)) return; tShow((tourOK() && OV && TOV && !RD && mine(e)) ? tPick(e) : null, e); }, {passive:true});
+document.addEventListener('mousemove', function(e){ if(AR.h || (!RT.id && !(OV && TOV))) return; tShow((tourOK() && OV && TOV && !RD && mine(e)) ? tPick(e) : null, e); }, {passive:true});
 /* the bar: Back, where you are, Next, the whole system */
 var TB=null;
 function tBar(){
@@ -1778,6 +1842,7 @@ function tSeen(id){ var n=B[id] && B[id].n, c=cvs(); if(!n || !c) return false; 
 /* Spokes only, the clicks: on the enlarged disc its own (its full page); any other body, or a line, rides there; on the whole system the body under the pointer */
 window.addEventListener('click', function(e){
   if(!locked() || e.button) return;
+  if(e.timeStamp-TAP<700){ e.preventDefault(); e.stopImmediatePropagation(); return; }   /* (an arrow's tap: its click comes after the ride began, on the disc left behind) */
   var c=cvs(), t=e.target; if(!c || !t || t.nodeType!==1 || !c.contains(t) || t.id==='sk3d' || document.querySelector('#detail-page.visible')) return;
   if(t.closest('button,a,input,select,textarea,[contenteditable],#sol-ctl,#sol-nav,#sol-tour')) return;
   if(OV){ e.preventDefault(); e.stopImmediatePropagation(); var o=tPick(e); if(o) rideTo(o, e); return; }
@@ -1802,12 +1867,15 @@ window.addEventListener('keydown', function(e){
   var k=e.key, mine=!ae || ae===document.body || cvs().contains(ae) || !!(ae.closest && ae.closest('#sol-ctl,#sol-tour'));
   if(k==='Escape' && !mine) return;                    /* (a panel's own Escape) */
   if(k==='Escape' && flying()) return;                 /* (a flight's own: solar_fly.py stops it where it is) */
+  var d={ArrowUp:'n', ArrowDown:'s', ArrowRight:'e', ArrowLeft:'w'}[k];
+  if(d && LOCK && !e.shiftKey && !OV && (AR.f || RD)){ e.preventDefault(); e.stopImmediatePropagation();   /* Spokes only: the arrow on the map that points the key's way */
+    if(!e.repeat && !RD){ var to=arPick(d); if(to) rideTo(to); else nope(null, 'No spoke that way'); } return; }
   var c=k==='ArrowRight' ? (e.shiftKey ? 'sn' : 'next') : k==='ArrowLeft' ? (e.shiftKey ? 'sp' : 'prev') : k==='ArrowUp' ? 'up' : k==='ArrowDown' ? 'down'
     : (k==='o' || k==='O') ? 'ov' : k==='Escape' ? ((window._focusedNodeId && !OV) ? 'let' : 'ov') : null;   /* Esc: an enlarged card goes home first, then the whole system (Luke) */
   if(!c) return;
   e.preventDefault(); e.stopImmediatePropagation(); if(!e.repeat || !RQ.length) tStep(c);
 }, true);
-window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:function(id){ return tWays(id || home()); }, step:tStep, order:tOrder, route:tRoute,
+window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:function(id){ return tWays(id || home()); }, spokes:function(id){ return joined(id || home()); }, step:tStep, order:tOrder, route:tRoute,
   riding:function(){ return RD ? {from:RD.path[0], to:RD.dest, path:RD.path.slice(), ms:RD.ms} : null; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }

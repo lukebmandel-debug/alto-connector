@@ -132,8 +132,8 @@ def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
     assert pg.evaluate("() => document.querySelectorAll('.sol-nh').length") == 0   # calm: nothing enlarged, nothing shown
     pg.click("#sol-lock")                                                       # Spokes only (it boards the middle body)
     pg.wait_for_timeout(1300)
-    k = pg.evaluate("() => [].map.call(document.querySelectorAll('#world .sol-nh>i'), function(i){ return getComputedStyle(i, '::after').content; })")
-    assert k and set(k) <= {'"Up"', '"Down"', '"Sibling"'}, k
+    k = pg.evaluate("() => [document.querySelectorAll('#world .sol-nh').length, document.querySelectorAll('#sol-arw:not([hidden]) .sol-ar').length]")
+    assert k[0] == 0 and k[1] >= 1, k      # Spokes only: arrows on the map in place of the pills (test_solar_spoke_arrows.py)
     pg.click("#sol-lock")
     pg.context.close()
     assert not errs, errs
@@ -412,14 +412,14 @@ def test_the_tour_walks_the_outline_along_the_spokes(browser, page):
     want = {"u2"} | {i for i in T if G[i] == "u2-p2"} | set(sib[max(0, k - 1):k] + sib[k + 1:k + 2])
     w = pg.evaluate("() => window._altoSolarLock.ways()")
     assert set(w["nb"]) == want and w["k"]["n"] == "u2", (w, want)
-    pills = {p.split(":")[0][5:] for p in pg.evaluate(HINTS)["pills"]}
-    assert pills == want, pills
+    arw = set(pg.evaluate("() => [].map.call(document.querySelectorAll('#sol-arw .sol-ar'), function(a){ return a.dataset.id; })"))
+    assert arw == set(pg.evaluate("() => window._altoSolarLock.spokes()")) and "u2" in arw and pg.evaluate(HINTS)["pills"] == [], arw   # Spokes only: an arrow on each spoke (2026-10-23)
     i = T.index("u2-p2")
     bar = pg.evaluate("() => [document.querySelector('#sol-tour .tb-next').textContent, document.querySelector('#sol-tour .tb-at').textContent]")
     assert bar[0].startswith("Next: ") and f"{i + 1} of {len(T)}" in bar[1], bar
-    # → rides to the next on the tour: the card goes home, the view runs behind the rider, the body is enlarged on arrival
+    # Next (the bar) rides to the next on the tour: the card goes home, the view runs behind the rider, the body is enlarged on arrival
     s0 = pg.evaluate(SCROLL)
-    pg.keyboard.press("ArrowRight")
+    pg.click("#sol-tour .tb-next")
     pg.wait_for_timeout(120)
     r = pg.evaluate("() => [window._altoSolarLock.riding(), window._focusedNodeId, document.querySelector('#solar-svg .sol-rider.on')!==null]")
     assert r[0] and r[0]["to"] == T[i + 1] and r[0]["path"][0] == "u2-p2" and r[1] is None and r[2], r
@@ -427,9 +427,9 @@ def test_the_tour_walks_the_outline_along_the_spokes(browser, page):
     s1 = pg.evaluate(SCROLL)
     arrive(T[i + 1])
     assert s1 != s0 and s1 != pg.evaluate(SCROLL)                               # the view moved on the way, not in one jump
-    pg.keyboard.press("ArrowLeft"); arrive("u2-p2")                             # ← back
-    pg.keyboard.press("ArrowUp"); arrive("u2")                                  # ↑ the parent
-    pg.keyboard.press("ArrowDown"); arrive(T[T.index("u2") + 1])                # ↓ the first child
+    pg.click("#sol-tour [data-t=prev]"); arrive("u2-p2")                       # Back
+    pg.click('#sol-arw .sol-ar[data-id="u2"]'); arrive("u2")                    # the arrow on the spoke to the parent
+    pg.click('#sol-arw .sol-ar[data-id="%s"]' % T[T.index("u2") + 1]); arrive(T[T.index("u2") + 1])   # ... and to a child
     pg.keyboard.press("Shift+ArrowRight"); arrive(sib[1])                       # Shift+→ the next sibling
     # a click on any body rides there, through the bodies between
     far = next(j for j in T if j.startswith("u3-p"))
