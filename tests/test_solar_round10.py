@@ -145,11 +145,11 @@ def test_hints_hide_in_a_flight_and_come_back_on_landing(browser, page):
     pg.wait_for_timeout(1500)
     assert pg.evaluate("() => document.querySelectorAll('#world .node.sol-hint').length") == 3
     r = pg.evaluate("""() => new Promise(function(done){ var seen=0, shown=0, t0=performance.now();
-      document.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', code:'ArrowRight', bubbles:true}));
-      (function f(){ if(window._altoSolarFlight && window._altoSolarFlight()){ seen++;
+      window.enterFocus('u1-p3');                                    /* (a flight: the arrows ride the Tour now) */
+      (function f(){ if(window._altoSolarFlight && window._altoSolarFlight()){ seen++; if(seen>12)      /* (past the .15 s fade out) */
           [].forEach.call(document.querySelectorAll('.sol-nh,#sol-way path'), function(e){ if(e.offsetParent!==null && getComputedStyle(e).opacity!=='0' && getComputedStyle(e.closest('#sol-nav,#sol-way')||e).opacity!=='0') shown++; }); }
         if(performance.now()-t0<6000 && !(seen && !window._altoSolarFlight())) requestAnimationFrame(f); else done([seen, shown]); })(); })""")
-    assert r[0] > 3 and r[1] == 0, r                                            # in a flight: none shown
+    assert r[0] > 16 and r[1] == 0, r                                           # in a flight: none shown
     pg.wait_for_timeout(900)
     assert pg.evaluate("() => window._focusedNodeId") == "u1-p3"
     assert pg.evaluate("() => document.querySelectorAll('#world .node.sol-hint').length") >= 2  # back on landing
@@ -280,7 +280,7 @@ def test_realistic_3d_is_a_3d_scene_with_a_free_camera(browser, page):
     pg.wait_for_timeout(1500)
     assert pg.evaluate("() => window._focusedNodeId") == "u1-p2"
     pills = pg.evaluate("() => [].filter.call(document.querySelectorAll('#sk3d-l i'), function(e){ return e.style.display!=='none'; }).map(function(e){ return e.textContent; })")
-    assert len(pills) == 3 and any("Up a level" in p for p in pills), pills
+    assert len(pills) == 3 and any(p.startswith("↑Up") for p in pills), pills          # (the Tour's named ways, both modes)
     # a drag turns the camera; the wheel comes nearer; Reset view puts it back
     c0 = pg.evaluate("() => window._altoSolar3D.cam()")
     pg.mouse.move(200, 600); pg.mouse.down(); pg.mouse.move(380, 520, steps=6); pg.mouse.up()
@@ -439,10 +439,11 @@ def test_the_tour_walks_the_outline_along_the_spokes(browser, page):
     assert r and r["path"][0] == sib[1] and r["path"][-1] == far and "u3" in r["path"] and len(r["path"]) >= 4, r
     arrive(far)
     # no free camera: a drag pans nothing; a pinch out (ctrl wheel) is the whole system, your place ringed; Esc comes back
-    s3 = pg.evaluate(SCROLL)
+    pg.wait_for_timeout(500); s3 = pg.evaluate(SCROLL)                         # (the landing's settle glide over)
     pg.mouse.move(60, 520); pg.mouse.down(); pg.mouse.move(420, 300, steps=8); pg.mouse.up()
     pg.wait_for_timeout(300)
-    assert pg.evaluate(SCROLL) == s3 and pg.evaluate("() => window._focusedNodeId") == far
+    s4 = pg.evaluate(SCROLL)
+    assert abs(s4[0] - s3[0]) < 2 and abs(s4[1] - s3[1]) < 2 and pg.evaluate("() => window._focusedNodeId") == far, (s3, s4)
     pg.mouse.move(700, 500); pg.keyboard.down("Control"); pg.mouse.wheel(0, 300); pg.keyboard.up("Control")
     pg.wait_for_timeout(1400)
     o = pg.evaluate("() => [window._altoSolarZoom(), !!document.getElementById('sol-here'), document.querySelector('#sol-tour .tb-ov').textContent]")
@@ -463,7 +464,7 @@ def test_the_tour_walks_the_outline_along_the_spokes(browser, page):
     pg.click("#sol-lock")                                                       # off: as before
     pg.evaluate("() => window.enterFocus('u1-p1')")
     pg.wait_for_timeout(200)
-    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding(), document.getElementById('sol-tour')]") == ["u1-p1", None, None]
+    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarLock.riding(), !!document.getElementById('sol-tour')]") == ["u1-p1", None, True]   # (the Tour bar stays: both modes)
     pg.context.close()
     assert not errs, errs
 

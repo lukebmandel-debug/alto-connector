@@ -110,11 +110,11 @@ def test_a_body_beside_the_disc_is_enlarged_where_it_stands_and_esc_brings_all_h
     assert abs(now[m]["x"] - st["kids"][m]["x"]) < 2 and abs(now[m]["y"] - st["kids"][m]["y"]) < 2      # where it stood
     st2 = pg.evaluate(FLANK, m)
     assert sorted(st2["kids"]) == ["u2-p2-m1-s1", "u2-p2-m1-s2", "u2-p2-m1-s3"], st2                    # its own, not its siblings
-    # arrows: right from the disc goes to one of its own on the right
-    pg.keyboard.press("ArrowRight")                                  # (round 9: the same level, in outline order)
+    # arrows: → from the disc is the next in the outline: its first satellite (the Tour, 2026-10-22)
+    pg.keyboard.press("ArrowRight")
     pg.wait_for_timeout(900)
     f = pg.evaluate("() => window._focusedNodeId")
-    assert f == "u2-p2-m2", f
+    assert f == "u2-p2-m1-s1", f
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(900)
     end = pg.evaluate("() => window._altoSolarGeo().bodies")

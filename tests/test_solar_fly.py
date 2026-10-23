@@ -443,30 +443,21 @@ def test_a_new_target_on_the_way_replans_and_esc_stops(browser, pages):
     pg.context.close()
 
 
-def test_arrows_fly_and_presses_on_the_way_wait_their_turn(browser, pages):
+def test_arrows_wait_for_a_flight_and_then_walk_the_outline(browser, pages):
+    """A click flies (here: enterFocus on a far body); the arrows walk the outline (the Tour, 2026-10-22): pressed on
+    the way, they wait for the landing and then go on from where it landed."""
     pg, errs = _open(browser, pages["orbit"])
     _rest_on(pg, "u1-p3")
-    want = pg.evaluate("()=>window._altoSolarNav._fly && null")
-    pg.keyboard.press("ArrowRight")
+    far = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, a=G['u1-p3']; return Object.keys(G).filter(function(i){ return G[i].si!==a.si && G[i].role==='planet'; })[0]; }")
+    pg.evaluate("(i)=>window.enterFocus(i)", far)
     pg.wait_for_timeout(200)
     f = pg.evaluate(FLIGHT)
-    if f is None:                                     # nothing that way: try the other three
-        for k in ("ArrowLeft", "ArrowDown", "ArrowUp"):
-            pg.keyboard.press(k)
-            pg.wait_for_timeout(200)
-            f = pg.evaluate(FLIGHT)
-            if f:
-                break
-    assert f, "no arrow flew"
-    for _ in range(5):                                # five presses: three wait
-        pg.keyboard.press("ArrowLeft")
-    q = pg.evaluate(FLIGHT)["queued"]
-    assert q == ["w", "w", "w"], q
-    pg.wait_for_timeout(int(f["D"] * f.get("k", 1) * 1000) + 300)     # (its time on the screen: D on the flight's own clock, k to real time)
-    assert pg.evaluate("()=>window._focusedNodeId") == f["to"]
-    pg.wait_for_timeout(900)
-    g = pg.evaluate(FLIGHT)                           # the next press flies on from there
-    assert (g and g["from"] == f["to"]) or pg.evaluate("()=>window._focusedNodeId") != f["to"]
+    assert f and f["to"] == far, f
+    pg.keyboard.press("ArrowRight")
+    assert pg.evaluate(FLIGHT)["to"] == far                         # the press waits; the flight flies on
+    pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarFlight()", arg=far, timeout=12000)
+    T = pg.evaluate("()=>window._altoSolarLock.order()")
+    pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarLock.riding()", arg=T[T.index(far) + 1], timeout=8000)
     assert not errs, errs
     pg.context.close()
 

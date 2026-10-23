@@ -54,9 +54,9 @@ def _page(style="orbit"):
 def test_all_of_the_solar_script_stays_under_67_kb_gzipped():
     """The drawing, the skin and the flight together, against the 1,000,000-byte
     stored page (each has its own cap in its own suite: 22 / 14 / 13 KB). 51 -> 55 KB in round 10
-    (upright chips + named rows, unit borders / Oort clouds, spoke hits, nav hints, Flights / Spokes only); -> 58 KB for the Star chart's Retro style; -> 61 KB for Retro's probe, sigil, frame and the Spokes-only / controls round; -> 63 KB for round 11's navigation hints (~2.4 KB: named pills, drawn ways, edge pills); -> 67 KB for Spokes-only rides, Retro's orbit bands and its ship (~3.2 KB, System pages only); -> 69 KB for 1.9.142's Retro / theme rule (~1.4 KB) and the ships' orbit arrivals and tangent heading (~0.6 KB, 2026-10-22).; -> 72.5 KB for the Tour (2026-10-22, ~3 KB, System pages only)"""
+    (upright chips + named rows, unit borders / Oort clouds, spoke hits, nav hints, Flights / Spokes only); -> 58 KB for the Star chart's Retro style; -> 61 KB for Retro's probe, sigil, frame and the Spokes-only / controls round; -> 63 KB for round 11's navigation hints (~2.4 KB: named pills, drawn ways, edge pills); -> 67 KB for Spokes-only rides, Retro's orbit bands and its ship (~3.2 KB, System pages only); -> 69 KB for 1.9.142's Retro / theme rule (~1.4 KB) and the ships' orbit arrivals and tangent heading (~0.6 KB, 2026-10-22).; -> 72.5 KB for the Tour (2026-10-22, ~3 KB, System pages only); -> 74.5 KB for one way of moving in both modes and the bug round (~1.5 KB)"""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS + STARS_JS + STARS_CSS + FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 72500, size
+    assert size < 74500, size
 
 
 @pytest.mark.parametrize("style", ["orbit", "spoke"])
@@ -476,27 +476,25 @@ def test_zooming_out_with_the_skin_on_shows_no_rectangle(browser, pages, tmp_pat
 
 
 def test_arrow_hops_queue_behind_flights_and_end_on_a_round_dressed_body(browser, pages):
+    """A flight (a click on a far body) takes no arrows: presses on the way wait for its landing (two at most) and then
+    ride the Tour from there (the arrows walk the outline in both modes, 2026-10-22); all ends on a round, dressed body."""
     pg, errs = _open(browser, pages["stars"])
     _rest_on(pg, "u1-p3")
-    f = None
-    for k in ("ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"):
-        pg.keyboard.press(k)
-        pg.wait_for_timeout(200)
-        f = pg.evaluate(FLIGHT)
-        if f:
-            break
-    assert f, "no arrow flew"
+    far = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, a=G['u1-p3']; return Object.keys(G).filter(function(i){ return G[i].si!==a.si && G[i].role==='planet'; })[0]; }")
+    pg.evaluate("(i)=>window.enterFocus(i)", far)
+    pg.wait_for_timeout(200)
+    f = pg.evaluate(FLIGHT)
+    assert f and f["to"] == far, f
     for _ in range(4):
-        pg.keyboard.press(k)
-    q = pg.evaluate(FLIGHT)
-    assert q and len(q["queued"]) == 3, q
-    # every queued hop flies in turn from the last landing (each up to ~7 s, ~0.5 s
-    # on the ground between); then all is still: landed and nothing flying for 2 s
-    pg.wait_for_function("""()=>{ var still=!window._altoSolarFlight() && !!window._focusedNodeId, t=performance.now();
+        pg.keyboard.press("ArrowRight")
+    assert pg.evaluate(FLIGHT), "the presses took the flight's place"
+    # the flight lands, then the queued presses ride on from there; then all is still: landed and nothing moving for 2 s
+    pg.wait_for_function("""()=>{ var still=!window._altoSolarFlight() && !window._altoSolarLock.riding() && !!window._focusedNodeId, t=performance.now();
         if(!still){ window.__still=0; return false; } if(!window.__still) window.__still=t; return t-window.__still>2000; }""",
                          timeout=45000, polling=200)
     fid = pg.evaluate("()=>window._focusedNodeId")
-    assert fid, "nothing enlarged at the end of the queue"
+    T = pg.evaluate("()=>window._altoSolarLock.order()")
+    assert fid == T[T.index(far) + 2], (fid, far)                                          # two presses kept, ridden from the landing
     st = pg.evaluate(DISC, fid)
     assert st["focused"] and abs(st["w"] - st["h"]) <= 1 and st["skin"], st
     assert pg.evaluate("()=>window._altoSolarFlight(true).how") == "landed"

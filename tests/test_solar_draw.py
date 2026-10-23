@@ -141,7 +141,7 @@ def test_the_drawing_is_small():
     """~15 KB gz was the first budget; the in-page plan (edit mode), the camera and
     the zoom gestures took it past that. Under 20 KB, against a 1,000,000-byte page."""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS).encode("utf-8"), 9))
-    assert size < 40500, size      # + the Tour (2026-10-22: tour order, multi-stop rides, the whole system with routes, the bar; ~3 KB); + the ships' rides from orbit to orbit along the spoke, nose on the way (~0.4 KB, 2026-10-22); + Spokes-only rides, Retro's orbit bands and ship, the units' names in their own layer (~2.8 KB); + round 11's navigation hints: named pills, drawn ways, edge pills (~2.3 KB, against the 1,000,000-byte page); + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
+    assert size < 42500, size      # + one way of moving in both modes and the bug round (2026-10-22, ~1.5 KB); + the Tour (2026-10-22: tour order, multi-stop rides, the whole system with routes, the bar; ~3 KB); + the ships' rides from orbit to orbit along the spoke, nose on the way (~0.4 KB, 2026-10-22); + Spokes-only rides, Retro's orbit bands and ship, the units' names in their own layer (~2.8 KB); + round 11's navigation hints: named pills, drawn ways, edge pills (~2.3 KB, against the 1,000,000-byte page); + the in-page planner's comets, belts, core and drifters (Round 5), the looks; + round 8's labels, flanking children and zoomed-out detail (~3.6 KB); + the chips' pool and Enter (~1 KB); + round 10's upright / named chips, unit borders, spoke hits, hints, Flights / Spokes only, wallpaper_top (~2.5 KB)
 
 
 def test_the_hub_look_orbits_on_the_same_plan():
@@ -358,58 +358,45 @@ def test_reduced_motion_stands_still_and_the_hub_look_orbits_with_rings(browser,
         pg.context.close()
 
 
-# (start, keys, where each lands): Up = what it orbits (a sun stays), Down = the child it was come up
-# from, else its first (none: stays), Left / Right = the same level in outline order, on into the
-# next system at the ends (Luke, round 9)
-NAV_SMALL = [
-    ("u1-p1-m1", "Up Up Up", ["u1-p1", "u1", "u1"]),
-    ("u1", "Right Right Right Left", ["u2", "u3", "u3", "u2"]),
-    ("u1-p1", "Right Right Right Right", ["u1-p2", "u1-p3", "u2-p1", "u2-p2"]),
-    ("u2-p2-m2", "Up Down Left Left Left", ["u2-p2", "u2-p2-m2", "u2-p2-m1", "u2-p1-m1", "u1-p3-m1"]),
-    ("u1-p2", "Down Left Down", ["u1-p2", "u1-p1", "u1-p1-m1"]),
-    ("u2-p2-m2-s1", "Down Right Up Up", ["u2-p2-m2-s1", "u2-p2-m2-s2", "u2-p2-m2", "u2-p2"]),
-]
-NAV_TORTS = [
-    ("u1-p2-m1", "Right Right Right", ["u1-p2-m2", "u1-p3-m1", "u1-p3-m2"]),
-    ("u1-p5-m2", "Right", ["u2-p1-m1"]),
-    ("u3", "Right Left Left Left", ["u3", "u2", "u1", "u1"]),
-    ("u2-p3-m1", "Up Up Down Down", ["u2-p3", "u2", "u2-p3", "u2-p3-m1"]),
-]
-
-
 @pytest.mark.parametrize("shape", ["small", "torts"])
-def test_arrows_and_the_wheel_go_strictly_by_outline_level(browser, tmp_path, shape):
-    if shape == "small":
-        units, table = SMALL, NAV_SMALL
-    else:
-        units, table = TORTS_SHAPE, NAV_TORTS
+def test_arrows_follow_the_outline_and_the_wheel_pans(browser, tmp_path, shape):
+    """The Tour in both modes (Luke, 2026-10-22, in place of round 9's arrows by outline level): ↑ the parent, ↓ the
+    first child, → / ← the next / previous in the outline's order, Shift+→ / ← the next / previous sibling — for every
+    body; in normal mode the wheel over an enlarged disc pans the board (the card goes home)."""
+    units = SMALL if shape == "small" else TORTS_SHAPE
     f = tmp_path / f"nav-{shape}.html"
     f.write_text(_page(units, links=() if shape == "torts" else SMALL_LINKS), encoding="utf-8")
-    pg, errs = _open(browser, f, wait=1600)
+    pg, errs = _open(browser, f, reduced=True, wait=1600)          # (reduced motion: each move goes straight there)
     pg.mouse.move(2, 940)
-    pg.evaluate("() => { window._altoFlyOff = 1; }")      # the pick, not the flight there (test_solar_fly.py)
-    for start, keys, want in table:
-        pg.evaluate("(i) => window.enterFocus(i)", start)
-        pg.wait_for_timeout(500)
-        got = []
-        for k in keys.split():
-            pg.keyboard.press("Arrow" + k)
-            pg.wait_for_timeout(520)
-            got.append(pg.evaluate("() => window._focusedNodeId"))
-        assert got == want, (start, keys, got)
-    # the wheel over an enlarged disc: down = its first child, up = what it orbits
+    G = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, o={}; Object.keys(G).forEach(function(i){ o[i]=[G[i].p||null, G[i].role]; }); return o; }")
+    T = pg.evaluate("() => window._altoSolarLock.order()")
+    assert sorted(T) == sorted(G)
+    for start in T[::max(1, len(T) // 7)]:
+        p, role = G[start]
+        kids = [i for i in T if G[i][0] == start]
+        sib = [i for i in T if G[i][1] == role and G[i][0] == p]
+        k = sib.index(start)
+        want = {"ArrowUp": p or start, "ArrowDown": kids[0] if kids else start, "ArrowRight": T[T.index(start) + 1] if start != T[-1] else start,
+                "ArrowLeft": T[T.index(start) - 1] if T.index(start) else start, "Shift+ArrowRight": sib[k + 1] if k + 1 < len(sib) else start}
+        for key, to in want.items():
+            pg.evaluate("(i) => window.enterFocus(i)", start)
+            pg.wait_for_timeout(450)
+            pg.keyboard.press(key)
+            pg.wait_for_timeout(450)
+            got = pg.evaluate("() => window._focusedNodeId")
+            if key == "ArrowRight" and start == T[-1]:
+                continue                                               # (the end: the whole system)
+            assert got == to, (start, key, got, to)
     pg.evaluate("() => window.enterFocus('u2-p2')")
     pg.wait_for_timeout(600)
-    kid = "u2-p2-m2" if shape == "small" else "u2-p2-m1"   # (the small table went up from u2-p2-m2 before)
-    for dy, want in ((160, kid), (-160, "u2-p2")):
-        pg.mouse.move(750, 520)
-        for _ in range(4):
-            pg.mouse.wheel(0, dy / 4)
-            pg.wait_for_timeout(16)
-        pg.wait_for_timeout(900)
-        assert pg.evaluate("() => window._focusedNodeId") == want, dy
-    pg.evaluate("() => window.exitFocus()")
-    pg.wait_for_timeout(1500)
+    s0 = pg.evaluate("() => document.getElementById('canvas').scrollTop")
+    pg.mouse.move(750, 520)
+    for _ in range(4):
+        pg.mouse.wheel(0, 40)
+        pg.wait_for_timeout(16)
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => [window._focusedNodeId, document.getElementById('canvas').scrollTop!==" + str(s0) + "]") == [None, True]
+    pg.wait_for_timeout(600)
     assert pg.evaluate("() => document.querySelectorAll('#world .sol-closing,#world .sol-clip').length") == 0
     assert not errs, errs
     pg.context.close()
@@ -875,8 +862,9 @@ def test_esc_and_arrows_from_an_enlarged_disc_and_back_to_a_circle(browser, page
     pg.mouse.move(2, 940)
     pg.evaluate("() => window.enterFocus('u1')")
     pg.wait_for_timeout(800)
-    pg.keyboard.press("ArrowRight")
-    pg.wait_for_timeout(900)
+    pg.keyboard.press("ArrowRight")                              # (the Tour: a ride to the next in the outline)
+    pg.wait_for_function("() => window._focusedNodeId && window._focusedNodeId!=='u1' && !window._altoSolarLock.riding()", timeout=6000)
+    pg.wait_for_timeout(400)
     got = pg.evaluate("() => window._focusedNodeId")
     assert got and got != "u1"
     res = pg.evaluate("() => { var p=(" + DISC_WATCH.replace("u1-p1", "u1") + ")(); return p; }")

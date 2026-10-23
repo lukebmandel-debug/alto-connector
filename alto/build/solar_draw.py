@@ -1328,7 +1328,7 @@ function ovZoom(s, fx, fy, anim){
 function ovLeave(p, instant, then){
   if(!OV) return; var c=cvs(), o=OV, off=woff(c), cw=c.clientWidth, ch=c.clientHeight;
   if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
-  OV=null; ovStop(); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange=''; ulay();
+  OV=null; TOV=false; ovStop(); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange=''; ulay();
   var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
   var fin=function(){ OVD=null; world.style.transform=''; ovVars(null); ovHold(false);
     var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
@@ -1730,7 +1730,7 @@ function tOv(on){
   TOV=false; if(!OV) return; var b=B[home()]; tShow(null);
   ovLeave(b ? {x:b.rx, y:b.ry} : null, false, function(){ if(b) enter(b.id); tBar(); });
 }
-function tMark(){ cancelAnimationFrame(HR); HR=0; var r=document.getElementById('sol-here'), h=LASTF && B[LASTF]; if(!OV) TOV=false;
+function tMark(){ cancelAnimationFrame(HR); HR=0; var r=document.getElementById('sol-here'), h=LASTF && B[LASTF];
   if(!(OV && TOV && tourOK() && svg && h && !RD)){ if(r) r.remove(); return; }
   if(!r || r.parentNode!==svg) r=el('circle', {id:'sol-here', 'class':'sol-here', 'aria-hidden':'true'}, svg);
   r.setAttribute('cx', f2(h.rx)); r.setAttribute('cy', f2(h.ry)); r.setAttribute('r', f2(h.d/2+16/OV.s));
