@@ -148,6 +148,7 @@ def test_pan_and_zoom_move_the_view_not_the_plan(browser, html):
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         vb0 = page.evaluate("document.querySelector('#bldg-root svg.bl-svg').getAttribute('viewBox')")
         page.click("#bldg-root .bl-zoom .bl-btn >> nth=0")
+        page.wait_for_timeout(400)                                                          # the + button eases in (1.9.145)
         vb1 = page.evaluate("document.querySelector('#bldg-root svg.bl-svg').getAttribute('viewBox')")
         assert float(vb1.split()[2]) < float(vb0.split()[2])
         page.click("#bldg-root .bl-zoom .bl-btn >> nth=2")                                 # fit

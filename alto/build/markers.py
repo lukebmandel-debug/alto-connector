@@ -30,10 +30,12 @@ MARKERS_JS = r"""
 var M=window.AltoMarkers={}, REG={};
 /* a threshold held as a band: on above hi, off below lo, between them it stays as it was */
 M.band=function(was, v, lo, hi){ return was ? v>lo : v>hi; };
-/* a gesture (wheel, pinch, drag, glide): poke() on every input; done() runs once, ms after the last (a test may hold it with window._altoMkHold) */
-M.settle=function(done, ms){ ms=ms||170; var t=0, s={busy:false};
-  function fire(){ if(window._altoMkHold){ t=setTimeout(fire, ms); return; } s.busy=false; done(); }
-  s.poke=function(){ s.busy=true; clearTimeout(t); t=setTimeout(fire, ms); };
+/* a gesture (wheel, pinch, drag, glide): poke() on every input; done() runs once, ms after the last, confirmed a frame later (input
+   queued behind a long frame is handled before that frame, and pokes again). A test may hold it with window._altoMkHold. */
+M.settle=function(done, ms){ ms=ms||170; var t=0, n=0, s={busy:false};
+  function fire(){ var k=n; if(window._altoMkHold){ t=setTimeout(fire, ms); return; }
+    requestAnimationFrame(function(){ if(k===n && s.busy){ s.busy=false; done(); } }); }
+  s.poke=function(){ n++; s.busy=true; clearTimeout(t); t=setTimeout(fire, ms); };
   s.now=function(){ clearTimeout(t); s.busy=false; done(); };
   return s; };
 /* where each marker sits beside its anchor, decided once a gesture settles. items: [{id, x, y, w, h, c:[[dx,dy],..]}] in screen px,

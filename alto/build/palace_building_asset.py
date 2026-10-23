@@ -564,7 +564,7 @@ function zoomGlide(f,cx,cy){ // the + and - buttons: the same zoom, eased over a
 }
 function wire(){
   var svg=S.svg, pts=S.pts, both=function(t,f,o){ svg.addEventListener(t,f,o); S.mk.addEventListener(t,f,o); }, gs=0;
-  both('wheel',function(e){ e.preventDefault(); zoom(Math.exp(e.deltaY*(e.ctrlKey?.01:.0016)),e.clientX,e.clientY); },{passive:false});
+  both('wheel',function(e){ e.preventDefault(); cancelAnimationFrame(S.zg); zoom(Math.exp(e.deltaY*(e.ctrlKey?.01:.0016)),e.clientX,e.clientY); },{passive:false});
   /* Safari's trackpad pinch is gesturestart / gesturechange (scale since the start), not a ctrl-wheel */
   both('gesturestart',function(e){ e.preventDefault(); e.stopPropagation(); gs=e.scale||1; },{passive:false});
   both('gesturechange',function(e){ e.preventDefault(); e.stopPropagation(); if(!gs||!e.scale) return; zoom(gs/e.scale,e.clientX,e.clientY); gs=e.scale; },{passive:false});
@@ -608,7 +608,7 @@ A.mount=function(data){
   S.info=h('div',{'class':'bl-ui bl-info',hidden:''},root);
   var z=h('div',{'class':'bl-ui bl-zoom'},root);
   [['+',.7,'Zoom in'],['−',1.4,'Zoom out']].forEach(function(b){ var x=h('button',{'class':'bl-btn',type:'button','aria-label':b[2]},z,b[0]); x.addEventListener('click',function(){ var r=S.svg.getBoundingClientRect(); zoomGlide(b[1],r.left+r.width/2,r.top+r.height/2); }); });
-  var fitb=h('button',{'class':'bl-btn',type:'button','aria-label':'Fit to screen'},z,'▣'); fitb.addEventListener('click',function(){ fit(); applyVB(); });
+  var fitb=h('button',{'class':'bl-btn',type:'button','aria-label':'Fit to screen'},z,'▣'); fitb.addEventListener('click',function(){ cancelAnimationFrame(S.zg); fit(); applyVB(); });
   setTop(); wire(); watchDetail();
   A.show();
   [150,500,1200,2500].forEach(function(t){ setTimeout(setTop,t); });

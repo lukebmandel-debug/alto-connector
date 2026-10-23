@@ -983,7 +983,7 @@ function declutter(force){
     if(!shown(b) || !wh || !wh[0]) return;      /* (not shown at this zoom) */
     var w=wh[0]*k, h=wh[1]*k, rr=Math.max(b.d*s/2, 2.5)*k, g=3*k, gx=4*k, x=b.rx, y=b.ry, pick=-1;
     var C=[[x-w/2, y+rr+g], [x-w/2, y-rr-g-h], [x+rr+gx, y-h/2], [x-rr-gx-w, y-h/2]], pv=b.lb._x ? -1 : b.lb._p||0, o=[pv, 0, 1, 2, 3];
-    for(var j=0;j<5 && pick<0;j++){ var i=o[j], e=i===pv ? 2*k : b.lb._x ? -2*k : 0; if(i>=0 && !clash([C[i][0]+e, C[i][1]+e, C[i][0]+w-e, C[i][1]+h-e], b)) pick=i; }
+    for(var j=0;j<5 && pick<0;j++){ var i=o[j], e=b.lb._x && i!==pv ? -2*k : 0; if(i>=0 && !clash([C[i][0]+e, C[i][1]+e, C[i][0]+w-e, C[i][1]+h-e], b)) pick=i; }
     if(pick>=0) placed.push([C[pick][0], C[pick][1], C[pick][0]+w, C[pick][1]+h]);
     setP(b.lb, pick<0 ? (b.lb._p||0) : pick, pick<0);
   });

@@ -89,3 +89,39 @@ def test_a_safari_pinch_zooms_the_blueprint(browser, html):  # noqa: F811
         assert errors == []
     finally:
         page.close()
+
+
+# ── the city Mind Palace (palace.py): a zoom preview is a transform of the whole board ──
+
+def _palace_js():
+    from alto.build import palace
+    return palace.PALACE_JS, palace.PALACE_CSS
+
+
+def test_city_tags_keep_their_size_while_the_board_is_scaled():
+    js, css = _palace_js()
+    pv = js[js.index("function pvSet(z, sxT, syT){"):js.index("function placeAll(){")]
+    assert "c.style.scale=k" in pv and "pfz(z)/pfz(PV.zc)*PV.zc/z" in pv       # each tag scaled back by itself ...
+    assert "setProperty('--pvk'" not in pv and "setProperty('--pz'" not in pv  # ... never a variable on #world / the drawing (restyles the whole city: ~140-300 ms a frame in WebKit)
+    assert "requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); })" in pv   # settled = no input up to the next frame, not a bare timer
+
+
+def test_city_names_come_back_by_a_fade_and_tags_are_held():
+    js, css = _palace_js()
+    assert "if(Math.abs(Math.log(Z/p.zc))>.12) pvIn(svgD);" in js and "g.animate([{opacity:0}, {opacity:1}]" in js
+    assert "t.e._nbP=[t.dx, t.dy]" in js and "!clash(t.ax+pv[0], t.ay+pv[1], t.w-6, t.h-4)" in js   # a tag sent aside keeps its place while free
+    assert ".node.nb-gl:not(.focused) .node-card{transition:translate" in css                  # and glides there
+    assert "if(s<.55 || s>1.8){ pvIn(MM.svg); pmCommit(z); s=1; }" in js                       # the phone's commits fade the names too
+    assert "function pmCommit(z){ var sv=MM.svg; MM.z=z;" in js                                # (palace_fillin's anchor)
+
+
+# ── System (solar_draw.py): markers.py's rules inline ──
+
+def test_system_labels_are_decided_once_a_zoom_settles_held_and_faded():
+    from alto.build import solar_draw
+    js, css = solar_draw.SOLAR_JS, solar_draw.SOLAR_CSS
+    assert "bnd(c,'sol-lo',sc,.5)" in js.replace(" ", "") and "function bnd(" in js          # thresholds are bands
+    assert "DSP=1" in js and "||DSP)return" in js.replace(" ", "")                            # no re-placing while a zoom runs
+    assert "pv=b.lb._x?-1:b.lb._p||0" in js.replace(" ", "") and "e=b.lb._x&&i!==pv?-2*k:0" in js.replace(" ", "")   # a label keeps its side while free, a hidden one returns only when clearly free
+    assert "#canvas.sol-glide #world .node[data-solar]>.sol-lbl{transition:" in css
+    assert "sol-lm #world .node[data-solar=moon]>.sol-lbl{display:none" not in css            # level of detail fades

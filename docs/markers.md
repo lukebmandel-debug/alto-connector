@@ -67,7 +67,17 @@ Work in the layer's own (unzoomed) px: anchor = (map point − view origin) × (
   module; Safari pinch; eased +/− buttons; viewBox no longer rounded to 1 cm (it moved the whole drawing in ~3 px steps close in).
 - **System** (`solar_draw.py`, all 2D styles): the same rules inline (the page is at its size cap): labels decided once a zoom
   settles, held places, level-of-detail thresholds as 4% bands, level-of-detail by fade, re-layout glides (`#canvas.sol-glide`).
-- **City Mind Palace** and **lanes**: see the release notes for what the measurements showed.
+- **City Mind Palace** (`palace.py`, `palace_mobile.py`): a zoom already runs as one transform of the whole board (the city
+  is far too heavy to lay out per frame), and any style change inside its 11,000-element drawing costs ~300 ms in WebKit, even
+  for 20 labels, as does a custom property on `#world` (it inherits into the drawing). So: building number tags (HTML) keep their
+  size by their own inline `scale` (free); the names ride with the board while the zoom runs and, when it settled more than
+  12% away, their layers fade back in at their size (one WAAPI opacity animation) instead of jumping; a tag sent aside keeps its
+  place while free and glides; the settle is confirmed a frame later, so input queued behind a long frame never triggers a
+  re-layout mid-pinch. The phone palace fades its names on its 0.55x / 1.8x commits. Page bytes: net −245 B.
+- **Lanes**: measured clean. Its overview zoom scales the cards with the board (map content, one transform), and nothing hops.
+- **3D Star chart** (`solar_3d.py`): labels follow their bodies per frame with `left/top` and appear / disappear by `display` at a
+  size threshold. Left for the session that owns that file (it had uncommitted work there): move them to `translate3d` and fade
+  them by the body's on-screen radius.
 
 ## Verifying
 

@@ -191,7 +191,7 @@ def test_every_body_has_an_upright_label_and_none_overlap(browser, built, look, 
         pg.evaluate("() => { if(!document.documentElement.classList.contains('dark') && window.toggleMode) toggleMode(); }")
         pg.wait_for_timeout(300)
     pg.evaluate("() => window._altoSolarZoom(0.32)")             # the Torts shape in view (labels keep their size)
-    pg.wait_for_timeout(400)
+    pg.wait_for_timeout(800)                                      # the labels are placed once the zoom settles, and glide (1.9.145)
     st = pg.evaluate(LABELS)
     assert st["bodies"] == len(pg.evaluate("() => Object.keys(window._ALTO_SOLAR.nodes)")) and not st["missing"], st["missing"]
     assert not _overlaps(st["shown"]), _overlaps(st["shown"])

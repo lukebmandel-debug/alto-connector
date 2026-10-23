@@ -769,6 +769,7 @@ PALACE_CSS = KEY_CSS + r"""
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-order{position:static !important;display:block !important;margin:0 !important;
     font-size:var(--pf,11px) !important;line-height:1.15 !important;font-weight:800 !important;letter-spacing:.01em;color:var(--text) !important;
     opacity:1 !important;white-space:nowrap;transform:none !important;rotate:0deg;}
+  html.alto-palace:not(.mobile) #world .node.nb-gl:not(.focused) .node-card{transition:translate .3s cubic-bezier(.2,.7,.2,1);}
   .node .nb-ld{position:absolute;left:50%;top:50%;width:1px;height:1px;overflow:visible;pointer-events:none;}
   .node .nb-ld line{stroke:var(--pc,#888);stroke-width:1.2;stroke-linecap:round;stroke-opacity:.6;}
   .node .nb-ld circle{fill:var(--pc,#888);fill-opacity:.7;}
@@ -1321,11 +1322,9 @@ function drawCity(svg){
   /* ── /parks ── */
   /* the streets: every block a rounded tile of connecting line, so each street
      curves at every intersection; the tiles in their district's colour */
-  /* Each colour's blocks were one path per district: WebKit stroked all of it again for every 512 px tile it repainted (a zoom's
-     end or a pan exposing new tiles cost 150-400 ms). They are now one path per district per SUPER-BLOCK (the blocks between
-     heavy lines, superBlocks), which a repainted tile skips unless it shows it. Two blocks side by side share a street; drawn in
-     two paths that street would be stroked twice (its anti-aliased edge darker), so every border between two chunks runs under a
-     heavy line, which is drawn over it. The heavy lines, loose edges and the tubes' colours stay as they were (per district). */
+  /* Blocks are one path per district per SUPER-BLOCK (between heavy lines, superBlocks), not per district: WebKit restroked a whole
+     district for every 512 px tile it repainted (150-400 ms at a zoom's end). Chunk borders run under heavy lines, so no street is
+     stroked twice. Heavy lines, loose edges and tube colours stay per district. */
   var sg=el('g',{'class':'pl-streets'},svg), byU={};
   function tileD(t){ var x0=t[0], y0=t[1], x1=t[2], y1=t[3], r=Math.min(R, (x1-x0)/2, (y1-y0)/2);
     return 'M'+(x0+r)+' '+y0+'H'+(x1-r)+'Q'+x1+' '+y0+' '+x1+' '+(y0+r)+'V'+(y1-r)+'Q'+x1+' '+y1+' '+(x1-r)+' '+y1
@@ -1371,10 +1370,8 @@ function drawCity(svg){
      centre, a sheen) on a smooth course, run off the glass at its ends; the bridges over it */
   var cp=el('clipPath',{id:'plclip'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},cp);
   var rv=el('g',{'class':'pl-river-g','clip-path':'url(#plclip'+(svg._sid||'')+')'},svg);
-  /* the glass: lighter toward the middle in soft steps, then the sheen of Alto's own connecting lines. The steps are the light
-     laid over the (opaque) water at .10/.12/.14/.18, the sheen over them: each band's colour is worked out here and drawn opaque,
-     in pieces of the course, so a repainted tile strokes only the pieces it shows (one whole river's five wide strokes, for every
-     tile, were a third of a frame); opaque pieces of one colour overlap with no seam. The rim (translucent, over the ground) stays whole. */
+  /* the glass: lighter toward the middle in soft steps (.10/.12/.14/.18 over the opaque water), then Alto's sheen; each band's
+     colour is worked out and drawn opaque in pieces, so a repainted tile strokes only what it shows (no seams). The rim stays whole. */
   var LITE=[[.84,.10],[.68,.12],[.52,.14],[.36,.18]], bands=riverBands(LITE);
   (M.river||[]).forEach(function(r){ if(r.ch && M.sea && M.sea.length) return; var d=smoothD(r.p), w=r.w||100;       /* a band that is part of the open water is drawn with it */
     el('path',{'class':'pl-rv-bank', d:d, 'stroke-width':w+64},rv);                           /* the banks: a green margin either side */
@@ -1476,14 +1473,10 @@ function drawCity(svg){
   if(svg===svgD){ window._palTr.ready(); window._palHw.ready(); }
   (window._palT=window._palT||{}).draw=Math.round(performance.now()-tD0);
 }
-/* ── the names on the map: which show. Every name keeps its size on the screen, so far out they would pile up (Center City:
-   the towers', the neighbourhoods', the streets'). When a zoom settles the names are taken in priority order: a unit's district
-   (always), a landmark (one with a page, a tower, the bigger first), a river, a main street (the longer first), a neighbourhood
-   by rank, a big bridge or park, the other streets, the small bridges and parks, the minor streets; one that would touch a name
-   already kept is hidden (a landmark's card, a chip, a station's name shown and, for a neighbourhood, a building also count).
-   A name of rank r appears once the board is zoomed AREA_K[r] times in from the whole city. Each name's box (turned along its
-   street) is worked out from the map, not measured from the page, so a hidden name costs nothing; and only names within reach of
-   the window are laid out at all (display), checked again when a pan stops: the page lays out tens of names, not a thousand. ── */
+/* ── which names show. Names keep their screen size, so far out they pile up. When a zoom settles they are taken in priority
+   order (a unit's district always, landmarks, rivers, main streets, neighbourhoods by rank, big bridges / parks, other streets,
+   small ones); one touching a kept name, card, chip or station name is hidden. Rank r appears once zoomed AREA_K[r] times in.
+   Boxes come from the map, not the page, and only names within reach of the window are laid out (again when a pan stops). ── */
 var AREA_K=[0, 0, 2, 4, 8];
 function areaSoon(svg){ clearTimeout(svg._arT); svg._arT=setTimeout(function(){ if(svg===svgD && PV){ areaSoon(svg); return; } lblFit(svg); }, 90); }
 function areaFit(svg){ lblFit(svg); }
@@ -1620,6 +1613,11 @@ function fitZ(){ var cv=document.getElementById('canvas'); if(!cv) return .3; va
 var ZREAD=(function(){ var L=null; for(var i=0;i<P.b.length && !L;i++) if(P.b[i] && P.b[i][0]) L=P.b[i][0]; if(!L) return .1;
   return Math.max(10/(L[3]*.55), 10*(4*.62+.6)/L[2]); })();
 /* one screen px in map units, a touch more on screen as the map comes close (lines and rings keep their weight, not their scale) */
+/* names grew or shrank with the board while a zoom ran: they come back at their size by a short fade of their layers, not a jump */
+function pvIn(sv){ if(!sv || !sv.animate) return; var L=[];
+  [].forEach.call(sv.querySelectorAll('text'), function(t){ var g=t.parentNode; if(g.classList.contains('pl-lmn')) g=g.parentNode; if(g!==sv && L.indexOf(g)<0) L.push(g); });
+  L.forEach(function(g){ g.animate([{opacity:0}, {opacity:1}], {duration:240, easing:'ease-out'}); }); }
+function pfz(z){ return Math.max(9, Math.min(13, 8+z*9)); }
 function tw(z){ return (Math.max(.88, Math.min(1.4, Math.pow(z,.3)))/z*Math.max(.34, Math.min(1, z/.24))).toFixed(4); }   /* far out the lines thin too, so a whole city of blocks stays a grid and not a blur */
 function zmin(){ return fitZ()*.97; }       /* the farthest the board zooms out is the whole city in the window (a thin margin of glass round it) */
 function setClasses(){ de.classList.toggle('nb-far', Z<.3); de.classList.toggle('pz-far', Z<.42); de.classList.toggle('pz-mid', Z<.8);
@@ -1630,9 +1628,8 @@ function ctlState(){ var c=document.getElementById('pal-ctl'); if(!c || Z==null)
   if(o) o.classList.toggle('off', lo); if(i) i.classList.toggle('off', hi); if(f) f.classList.toggle('on', lo); }
 /* where the city's top edge sits in the canvas's scroll range: 0, or the gap that centres a short city */
 function gy(){ var cv=document.getElementById('canvas'); return cv?Math.max(0,Math.round((cvSize(cv)[1]-VH*Z)/2)):0; }
-/* While the board is being zoomed (a glide, a pinch, the wheel) it is not laid out again on every frame: laying out and
-   repainting the whole city took ~200 ms a frame, so a zoom was three jumps. The board (#world: the city and its cards) is
-   only SCALED and shifted by a transform while the zoom runs, and laid out for real once when it settles (placeAll). */
+/* While a zoom runs (glide, pinch, wheel) the board (#world) is only scaled and shifted by a transform (a full layout took
+   ~200 ms a frame); it is laid out for real once it settles (placeAll). */
 var PV=null, pvTimer=null;
 /* where the board's left edge / top edge sit (the margins placeBoard gives a city smaller than the window) at zoom z */
 function gapAt(z, cw){ return Math.max(0,(cw-VW*z)/2); }
@@ -1647,16 +1644,19 @@ function pvSet(z, sxT, syT){
   sxT=Math.max(0, Math.min(sxT, Math.max(0, Math.round(VW*z)+Math.round(gx)*2-cw)));
   syT=Math.max(0, Math.min(syT, Math.max(0, g+Math.round(VH*z)-ch)));
   PV.tx=sxT; PV.ty=syT; Z=z;
+  /* markers.py: a tag keeps its size by its own scale (a variable on #world, or any change in the drawing, restyles the whole city) */
+  var k=(pfz(z)/pfz(PV.zc)*PV.zc/z).toFixed(4); (PV.tg=PV.tg||[].slice.call(world.querySelectorAll(':scope > .node > .node-card'))).forEach(function(c){ c.style.scale=k; });
   /* scaled about the city's top-left corner (the pad above it stays put), shifted by what the margins and the scroll will do */
   world.style.transform='translate('+(PV.sx-sxT+Math.round(gx)-Math.round(PV.gx))+'px,'+(PV.sy-syT+g-PV.gy)+'px) scale('+(z/PV.zc)+')';
   if(window._altoPalaceGeo) window._altoPalaceGeo.Z=Z;
-  clearTimeout(pvTimer); pvTimer=setTimeout(function(){ if(PV) placeAll(); }, 160);
+  /* settled: 160 ms with no zoom input, confirmed a frame later (input queued behind a long frame is handled before it) */
+  PV.n=(PV.n||0)+1; clearTimeout(pvTimer); pvTimer=setTimeout(function(){ var n=PV&&PV.n; requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); }); }, 160);
 }
 function placeAll(){
   var cvh=document.getElementById('canvas'); if(cvh && !cvh.clientWidth && de.classList.contains('detail-open')) return;   /* hidden under a detail page: laid out when it closes */
   if(PV){ var p=PV; PV=null; clearTimeout(pvTimer); var w=document.getElementById('world');
-    if(w) w.style.transform='';
-    placeAllReal(); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
+    if(w) w.style.transform=''; (p.tg||[]).forEach(function(c){ c.style.scale=''; });
+    placeAllReal(); if(Math.abs(Math.log(Z/p.zc))>.12) pvIn(svgD); var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=p.tx; cv.scrollTop=p.ty; } return; }
   placeAllReal();
 }
 function placeAllReal(){
@@ -1743,13 +1743,15 @@ function nbSpread(){
   var placed=[], dirs=[-90,-50,-130,0,180,50,130], rings=[0,22,40];
   function clash(x,y,w,h){ for(var i=0;i<placed.length;i++){ var r=placed[i]; if(x-w/2<r[0]+r[2]/2+3 && x+w/2>r[0]-r[2]/2-3 && y-h/2<r[1]+r[3]/2+2 && y+h/2>r[1]-r[3]/2-2) return true; } return false; }
   it.forEach(function(t){
-    var done=false;
+    var pv=t.e._nbP, done=!clash(t.ax, t.ay, t.w+6, t.h+4);   /* (markers.py) home when clearly free, else the place it had while free */
+    if(!done && pv && !clash(t.ax+pv[0], t.ay+pv[1], t.w-6, t.h-4)){ t.dx=pv[0]; t.dy=pv[1]; done=true; }
     for(var ri=0; ri<rings.length && !done; ri++){ var r=rings[ri];
       for(var di=0; di<(r?dirs.length:1) && !done; di++){ var a=dirs[di]*Math.PI/180, dx=r?Math.cos(a)*r*1.5:0, dy=r?Math.sin(a)*r:0;
         if(!clash(t.ax+dx, t.ay+dy, t.w, t.h)){ t.dx=dx; t.dy=dy; done=true; } } }
-    placed.push([t.ax+t.dx, t.ay+t.dy, t.w, t.h]); });
+    placed.push([t.ax+t.dx, t.ay+t.dy, t.w, t.h]); t.e._nbP=[t.dx, t.dy]; });
   it.forEach(function(t){ var e=t.e, moved=Math.hypot(t.dx,t.dy)>12, ld=e.querySelector(':scope > .nb-ld');
     var k=moved?Math.round(t.dx)+','+Math.round(t.dy):'';
+    if(e._tdk!=null && e._tdk!==k){ clearTimeout(e._glT); e.classList.add('nb-gl'); e._glT=setTimeout(function(){ e.classList.remove('nb-gl'); }, 360); } e._tdk=k;   /* a tag sent aside glides there */
     e.style.setProperty('--tdx', moved?t.dx.toFixed(1)+'px':'0px'); e.style.setProperty('--tdy', moved?t.dy.toFixed(1)+'px':'0px');
     if(!moved){ if(ld) ld.remove(); e._nbLk=''; return; }
     if(!ld){ ld=el('svg',{'class':'nb-ld','aria-hidden':'true'}); el('line',{},ld); el('circle',{r:3},ld); e.insertBefore(ld, e.firstChild.nextSibling||null); }
@@ -1786,7 +1788,7 @@ function placeBoard(world, cv){
     e.style.setProperty('--bx', (NB_SK*L[3]/2).toFixed(1)); e.style.setProperty('--hh', (H+L[3]).toFixed(1)); e.style.setProperty('--hc', (L[3]/2).toFixed(1)); e._nbx=x; e._nby=y+WORLD_PAD_TOP; e._nbN=num(n.id); e._nbA=[NB_SK*L[3]/2, H+L[3], L[3]/2]; e.style.setProperty('--bh', H); e.style.setProperty('--nz', 3+(nzRank[n.id]||0));
     var cd=e.querySelector('.node-card'); if(cd && !mob()){ cd.tabIndex=0; cd.setAttribute('role','button'); cd.setAttribute('aria-label', num(n.id)+' '+title(n.id)); }   /* focus shows the same in-place pill */
     /* its number always inside it: as big as the building allows, up to 18px */
-    e.style.setProperty('--pf', Math.max(9, Math.min(13, 8+Z*9)).toFixed(1)+'px');                 /* the tag's number: easy to read, a touch larger as you come closer */
+    e.style.setProperty('--pf', pfz(Z).toFixed(1)+'px');                 /* the tag's number: easy to read, a touch larger as you come closer */
     var f=Math.min(5,(P.fl[n.id]||[]).length), sh=[], o=Math.max(1.5, Math.min(3.2, 3.2*Z));
     for(var i=1;i<=f;i++){ var q=(i*o).toFixed(1); sh.push(q+'px '+q+'px 0 0 rgba(255,255,255,.8)', q+'px '+q+'px 0 1px '+ucol(n.id)); }
     if(sh.length) e.style.setProperty('--pfl', sh.join(',')); else e.style.removeProperty('--pfl');
@@ -2093,10 +2095,8 @@ function followRoute(e){
   enlarge(best.to);
 }
 /* ═══ RISE (interaction pass): an enlarged building's card stands ABOVE its building ═══
-   The enlarged card is still the node's ordinary card; it is moved up (top/left on the card, which the engine's CSS zoom
-   scales along with it) so its bottom edge clears the building, and the building is drawn again under it (.pal-ghost)
-   with a notch (.pal-tail) pointing down onto it. The engine centres the card and building TOGETHER because
-   _altoFocusShift moves the point it centres (engine_patches.py, palace-focus-centres-card-and-building). */
+   The ordinary card, moved up (top/left, scaled by the engine's zoom) to clear the building, drawn again under it (.pal-ghost)
+   with a notch (.pal-tail). _altoFocusShift centres card and building together (engine_patches.py). */
 var RISE_T=15, FK=1.7;
 function riseEls(el, id){
   var g=el.querySelector(':scope > .pal-ghost'), t=el.querySelector(':scope > .pal-tail');
@@ -2343,12 +2343,10 @@ function watch(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', watch); else watch();
 
-/* ═══ ELEVATOR (interaction pass): more ways to change floors, and the car's place made plain ═══
-   The floor buttons stay. Added: the call buttons ▲ ▼; ↑ ↓ / PgUp PgDn (when the page cannot scroll further that way, or with Alt);
-   scrolling or swiping PAST the top or bottom edge of the page (a pull shows where it leads, a gesture that began mid-page
-   never counts, so momentum does not carry you through a floor); the wheel over the elevator; dragging the car; the roof is
-   the ground floor. ← → keep their meaning (the previous / next card, as on every detail page). Up = the next floor above:
-   scroll past the TOP of a floor and you go up, past the BOTTOM and you go down. */
+/* ═══ ELEVATOR (interaction pass): more ways to change floors ═══
+   Besides the floor buttons: call buttons ▲ ▼; ↑ ↓ / PgUp PgDn at the page's end (or with Alt); scrolling or swiping PAST the top
+   (up) or bottom (down) edge (a pull shows where it leads; momentum from mid-page never counts); the wheel over the elevator;
+   dragging the car; the roof is the ground floor. ← → stay previous / next card. */
 function elevOn(){ return de.classList.contains('pal-elev-on') && !riding && !!cur; }
 function stepFloor(d){ if(!elevOn()) return false; var s=stack(cur), i=s.indexOf(cur)+d; if(i<0||i>=s.length) return false; ride(s[i]); return true; }
 function elevState(id){ if(!elev) return; var s=stack(id), i=s.indexOf(id);
@@ -2725,12 +2723,10 @@ window.addEventListener('click', function(e){
 }, true);
 window.addEventListener('keydown', function(e){ if(e.key==='Escape' && addMode){ addMode=false; syncAdd(); } }, true);
 
-/* ── manual edit mode: a landmark building offers "Add a floor" (and houses a unit, or moves it out) ──
-   Hover a landmark — or a tower's own chip — and a small glass bar straddles its lower edge (so the pointer never has to cross a gap),
-   it waits 350 ms after the pointer leaves both, a click on the landmark pins it open (until Esc, a click away or another landmark),
-   keyboard focus and a touch tap reach it too, and it follows the landmark as the map pans and zooms, flipping inside the viewport
-   edge. A landmark with no unit asks which unit it houses first; a tower adds a floor of its unit, with the next real floor number
-   or the one typed. */
+/* ── manual edit mode: a landmark offers "Add a floor" (and houses a unit, or moves it out) ──
+   Hovering a landmark or a tower's chip shows a glass bar on its lower edge (350 ms grace; a click pins it until Esc / a click away;
+   focus and taps reach it; it follows pans and zooms inside the viewport). No unit yet: it asks which first; a tower adds a floor
+   (the next real number or the one typed). */
 var lmBar=null, lmFor=null, lmT=null, lmPin=false, lmRaf=0, lmKey='';
 function lmBarEl(){
   if(lmBar && lmBar.parentNode) return lmBar;
