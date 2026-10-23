@@ -71,7 +71,7 @@ Work in the layer's own (unzoomed) px: anchor = (map point − view origin) × (
   per frame), and in WebKit any change inside its 11,000-shape drawing costs ~100-300 ms: a style or transform on even 20 labels,
   an opacity fade of the label layers, an inherited custom property on `#world`. So building number tags (HTML) keep their size by
   their own inline `scale` (free); names ride with the board and are fitted once it settles; a tag sent aside keeps its place
-  while free and glides; the settle is confirmed a frame later (input queued behind a long frame never triggers a mid-pinch
+  while free (no glide: anything moving over the drawing repaints it every frame); the settle is confirmed a frame later (input queued behind a long frame never triggers a mid-pinch
   re-layout) and runs as one task (tags, then names), not one stall per timer.
 - **Map motion** (Luke, same day: "Frame rate of movement in mind palace map mode is glitchy"): what animates on the map (a
   route's flowing dashes, the transit chip route, a trip's rider) is drawn in `#pal-fx`, a mirror layer over the drawing, not

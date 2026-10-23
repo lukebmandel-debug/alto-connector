@@ -772,7 +772,6 @@ PALACE_CSS = KEY_CSS + r"""
   html.alto-palace:not(.mobile) #world .node:not(.focused) .node-order{position:static !important;display:block !important;margin:0 !important;
     font-size:var(--pf,11px) !important;line-height:1.15 !important;font-weight:800 !important;letter-spacing:.01em;color:var(--text) !important;
     opacity:1 !important;white-space:nowrap;transform:none !important;rotate:0deg;}
-  html.alto-palace:not(.mobile) #world .node.nb-gl:not(.focused) .node-card{transition:translate .3s cubic-bezier(.2,.7,.2,1);}
   .node .nb-ld{position:absolute;left:50%;top:50%;width:1px;height:1px;overflow:visible;pointer-events:none;}
   .node .nb-ld line{stroke:var(--pc,#888);stroke-width:1.2;stroke-linecap:round;stroke-opacity:.6;}
   .node .nb-ld circle{fill:var(--pc,#888);fill-opacity:.7;}
@@ -1755,7 +1754,6 @@ function nbSpread(){
     placed.push([t.ax+t.dx, t.ay+t.dy, t.w, t.h]); t.e._nbP=[t.dx, t.dy]; });
   it.forEach(function(t){ var e=t.e, moved=Math.hypot(t.dx,t.dy)>12, ld=e.querySelector(':scope > .nb-ld');
     var k=moved?Math.round(t.dx)+','+Math.round(t.dy):'';
-    if(e._tdk!=null && e._tdk!==k){ clearTimeout(e._glT); e.classList.add('nb-gl'); e._glT=setTimeout(function(){ e.classList.remove('nb-gl'); }, 360); } e._tdk=k;   /* a tag sent aside glides there */
     e.style.setProperty('--tdx', moved?t.dx.toFixed(1)+'px':'0px'); e.style.setProperty('--tdy', moved?t.dy.toFixed(1)+'px':'0px');
     if(!moved){ if(ld) ld.remove(); e._nbLk=''; return; }
     if(!ld){ ld=el('svg',{'class':'nb-ld','aria-hidden':'true'}); el('line',{},ld); el('circle',{r:3},ld); e.insertBefore(ld, e.firstChild.nextSibling||null); }

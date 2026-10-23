@@ -106,10 +106,10 @@ def test_city_tags_keep_their_size_while_the_board_is_scaled():
     assert "requestAnimationFrame(function(){ if(PV && PV.n===n) placeAll(); })" in pv   # settled = no input up to the next frame, not a bare timer
 
 
-def test_city_tags_are_held_and_glide():
+def test_city_tags_are_held():
     js, css = _palace_js()
     assert "t.e._nbP=[t.dx, t.dy]" in js and "!clash(t.ax+pv[0], t.ay+pv[1], t.w-6, t.h-4)" in js   # a tag sent aside keeps its place while free
-    assert ".node.nb-gl:not(.focused) .node-card{transition:translate" in css                  # and glides there
+    assert "nb-gl" not in css                                     # no glide: a tag moving over the city repaints it every frame (65-130 ms in WebKit)
     assert "function pmCommit(z){ var sv=MM.svg; MM.z=z;" in js                                # (palace_fillin's anchor)
 
 
