@@ -113,7 +113,10 @@ FLY = {
 FLY_RT = {"TRAIL_MS": 1100, "LAND_MS": 500, "OV_MS": 900, "TAKE_S": 0.45, "TAKE_PX": 3,
           "CLAMP_FROM": 0.7, "RETRO_K": 1.3, "CALM_MS": 520, "PATH_N": 180, "NEAR": 60, "HIT": 18,
           # the 2D craft's size (its art is about 70 px nose to tail): Classic, Retro
-          "SHIP": 0.4, "SHIP_RETRO": 0.5}
+          "SHIP": 0.4, "SHIP_RETRO": 0.5,
+          # a flight's length on the screen at most (s: its clock runs faster on a long way; Luke: "sometimes map is
+          # stuck"), and how soon Enter / Space / a click on empty space lands it
+          "MAX_S": 5.0, "HURRY_S": 0.5}
 
 
 FLY_PLAN_JS = r"""
@@ -448,8 +451,8 @@ try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
 function cvs(){ return document.getElementById('canvas'); }
 function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg:''}; }
 function shipK(){ return de.classList.contains('sk-retro') ? K.SHIP_RETRO : K.SHIP; }
-var A=window._altoCraft;                   /* (solar_craft.py: the craft, its way, its orbit; before this on every System page) */
-/* the orbit radius round a body: by its size, (2D) clear of the art's own half length, and short of its parent */
+var A=window._altoCraft;                   /* (solar_craft.py, before this on System pages) */
+/* a body's orbit radius (solar_craft.py), short of its parent */
 function half(){ return de.classList.contains('sk-3d') ? 6 : 35*shipK(); }
 function orbR(W, id, T){ var b=W.B[id], d=b ? b.d : 20, P=b && b.p && W.B[b.p], room=0, c=b ? F.pos(W, id, T) : null;
   function gap(j){ var q=F.pos(W, j, T), g=Math.hypot(c[0]-q[0], c[1]-q[1])-W.B[j].d/2-half()-6; room=room>0 ? Math.min(room, g) : g; }
@@ -510,8 +513,7 @@ function layer(){
     el('g', {'class':'fly-ship'}, ship);
     w.appendChild(svg);
   }
-  /* the chosen craft (solar_craft.py), in this style's look, small and clear (Luke, 2026-10-22: "we don't need the ship
-     to be massive, just clear"): Retro's a little bigger, as its poster's ship */
+  /* the chosen craft (solar_craft.py), small and clear; Retro's a little bigger */
   var pr=ship.querySelector('.fly-ship'); pr.innerHTML=craft().svg||''; pr.setAttribute('transform', 'scale('+shipK()+')');
   svg.setAttribute('width', w.offsetWidth); svg.setAttribute('height', w.offsetHeight);
   gp.setAttribute('transform', 'translate(0,'+pad()+')');
@@ -529,8 +531,7 @@ function draw(p, v, s, now){
   trl.setAttribute('d', d);
   var t0=tr[0]; grd.setAttribute('x1', f1(t0[0])); grd.setAttribute('y1', f1(t0[1])); grd.setAttribute('x2', f1(p[0])); grd.setAttribute('y2', f1(p[1]));
   var k=Math.round(1000/s)/1000, rt=de.classList.contains('sk-retro'), cr=craft();
-  /* the craft every frame, its nose on the way's tangent (Luke, 2026-10-22: "always be sort of pointing accurately
-     according to its line") and banking a little into a turn — narrowed across as it rolls (each craft its own bank) */
+  /* the craft every frame: its nose on the way's tangent, banking a little */
   var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, st=FL.st; FL.lt=now;
   A.steer(st, v, dt); ship.setAttribute('transform', A.xf(p, st.hs, st.bk, k));
   if(cr.spin){ var sp=ship.querySelector('.sh-spin'); if(sp) sp.setAttribute('transform', 'rotate('+f1(now/1000*cr.spin*57.3%360)+')'); }
@@ -540,6 +541,9 @@ function draw(p, v, s, now){
 }
 function fade(){ if(svg) svg.classList.add('fly-out'); }
 function tauOf(now){ return (now-FL.t0)/1000/(FL.k||1); }      /* the flight's own time (Retro's runs slower) */
+/* land soon: the rest on a quicker clock */
+function hurry(){ if(!FL) return; var now=performance.now(), tau=tauOf(now), rest=FL.R.D-tau; if(rest<=0) return;
+  var k=Math.min(FL.k, K.HURRY_S/rest); FL.t0=now-tau*1000*k; FL.k=k; window._altoFlyMs=Math.round(K.HURRY_S*1000)+K.LAND_MS; }
 
 /* ── a flight ─────────────────────────────────────────────────────────────── */
 function fly(from, to, o){
@@ -548,7 +552,7 @@ function fly(from, to, o){
   var rk=(de.classList.contains('sk-retro') ? K.RETRO_K : 1)*(craft().k||1);     /* Retro: a stately flight, the same route on a slower clock; each craft its own pace */
   var W=F.bodies(S());          /* from the orbit it is in (or would be in) round the body it leaves */
   opt.start=(o && o.start) || A.leave(from, F.pos(W, from, opt.T0), F.pos(W, to, opt.T0), orbR(W, from, opt.T0), W.spin, rk);
-  var R=F.plan(S(), from, to, opt); if(!R) return false; W=R.W;
+  var R=F.plan(S(), from, to, opt); if(!R) return false; W=R.W; rk=Math.min(rk, K.MAX_S/R.D);
   var tr=A.track({D:R.D, r:orbR(W, to, F.clock(R, R.D)), spin:W.spin, base:function(t){ return F.at(R, t); }, cen:function(t){ return F.pos(W, to, F.clock(R, Math.min(t, R.D))); }});
   A.unpark();
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
@@ -641,6 +645,7 @@ window.addEventListener('keydown', function(e){
   if(!FL) return;
   if(!stars()) return stop(false);
   if(e.key==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); stop(true); return; }
+  if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopImmediatePropagation(); hurry(); return; }
   if(!d) return;
   e.preventDefault(); e.stopImmediatePropagation();
   var v=d==='n' || d==='s', pr=v ? (held.e ? 'e' : held.w ? 'w' : '') : (held.n ? 'n' : held.s ? 's' : '');
@@ -654,12 +659,12 @@ window.addEventListener('pointerdown', function(e){ dn=FL && cvs() && cvs().cont
 window.addEventListener('pointerup', function(e){
   if(!dn) return; var d0=dn; dn=null; if(!FL) return; e.preventDefault(); e.stopImmediatePropagation();
   if(Math.abs(e.clientX-d0.x)+Math.abs(e.clientY-d0.y)>6) return;
-  if(de.classList.contains('sk-3d') && window._altoSolar3D && window._altoSolar3D.pick){ var id3=window._altoSolar3D.pick(e.clientX, e.clientY); if(id3) window.enterFocus(id3); return; }   /* (the 3D scene: its own pick) */
+  if(de.classList.contains('sk-3d') && window._altoSolar3D && window._altoSolar3D.pick){ var id3=window._altoSolar3D.pick(e.clientX, e.clientY); if(id3) window.enterFocus(id3); else hurry(); return; }   /* (the 3D scene: its own pick) */
   var c=cvs(), r=c.getBoundingClientRect(), g=cam().get(), k=r.width/c.offsetWidth||1;
   var wx=g.cx+((e.clientX-r.left)/k-c.clientWidth/2)/g.scale, wy=g.cy+((e.clientY-r.top)/k-c.clientHeight/2)/g.scale;
   var W=F.bodies(S()), T=window._altoSolarRate().T, best=null, bd=1e18;
   Object.keys(W.B).forEach(function(i){ if(W.B[i].role==='core') return; var p=F.pos(W, i, T), dd=Math.hypot(p[0]-wx, p[1]-wy)-W.B[i].d/2; if(dd<bd){ bd=dd; best=i; } });
-  if(best && bd<K.HIT/g.scale) window.enterFocus(best);
+  if(best && bd<K.HIT/g.scale) window.enterFocus(best); else hurry();       /* (a click on empty space: land soon) */
 }, true);
 ['click', 'mousedown', 'dblclick'].forEach(function(t){ window.addEventListener(t, function(e){ if(FL && cvs() && cvs().contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); } }, true); });
 window.addEventListener('wheel', function(){ if(FL) stop(false); }, {capture:true, passive:true});

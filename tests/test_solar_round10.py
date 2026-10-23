@@ -514,7 +514,7 @@ def test_retro_flies_a_regal_ship_smoothly(browser, page):
           hull:getComputedStyle(document.querySelector('#solar-fly-svg .fly-hull')).display, fl:window._altoSolarFlight(), ms:window._altoFlyMs}); })(); })""")
     assert f["ship"] == "inline" and f["hull"] == "none", f
     assert f["n"] > 20 and f["distinct"] >= f["n"] * .8, f                     # every frame, not 12 a second
-    assert f["fl"] and f["ms"] >= f["fl"]["D"] * 1000 * 1.25, f                 # the stately clock
+    assert f["fl"] and f["ms"] >= min(f["fl"]["D"] * 1000 * 1.25, 5000), f       # the stately clock (a flight at most 5 s on the screen)
     pg.wait_for_timeout(int(f["ms"]) + 600)
     pg.evaluate("() => window._altoSolarLock.set(true)")
     pg.wait_for_timeout(300)
@@ -651,5 +651,22 @@ def test_a_ship_picked_on_the_way_or_in_orbit_shows_at_once(browser, page):
     pg.evaluate("() => window._altoCraft.set('halo')"); pg.wait_for_timeout(300)
     s = pg.evaluate("() => window._altoSolar3D.ship()")
     assert s["craft"] == "halo" and s["on"] and s["al"] > .9, s                      # Realistic 3D, in orbit
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_a_long_flight_is_at_most_five_seconds_and_enter_lands_it(browser, page):
+    """Luke (2026-10-22): "sometimes map is stuck" — a flight to another system took 7-9 s; now at most 5 s on the
+    screen (its clock quicker on a long way), and Enter, Space or a click on empty space lands it in about half a second."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u2-p1')"); pg.wait_for_timeout(100)
+    f = pg.evaluate("() => [window._altoSolarFlight(), window._altoFlyMs]")
+    assert f[0] and f[0]["to"] == "u2-p1" and f[0]["D"] * f[0]["k"] <= 5.001 and f[1] <= 5000 + 600, f
+    pg.wait_for_timeout(400); pg.keyboard.press("Enter"); t = pg.evaluate("() => performance.now()")
+    pg.wait_for_function("() => !window._altoSolarFlight()", timeout=3000)
+    assert pg.evaluate("t => performance.now()-t", t) < 1200
+    assert pg.evaluate("() => [window._focusedNodeId, window._altoSolarFlight(true).how]") == ["u2-p1", "landed"]
     pg.context.close()
     assert not errs, errs
