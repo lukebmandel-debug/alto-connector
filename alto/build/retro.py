@@ -317,7 +317,8 @@ FORMAT_CSS = r"""
   X #wpal-root .wp-card h4{font-weight:400;letter-spacing:.03em;}
   X #wpal-root .wp-card .n{font-weight:400;letter-spacing:.18em;}
   X #wpal-root .wp-btn:not(#_){border-radius:0;color:#d9ae55;border-color:rgba(217,174,85,.55);letter-spacing:.12em;text-transform:uppercase;font-size:11px;}
-  X #wpal-root .wp-btn.r:not(#_){border-radius:50%;}
+  X #wpal-root .wp-btn.r:not(#_){border-radius:0;}                       /* (round in Classic: a deliberate square here, 1.9.160) */
+  X #wpal-root .wp-key i:not(#_){border-radius:0;}
   X #wpal-root .wp-tour .c{color:#f0c15e;font-weight:400;letter-spacing:.06em;}
 """
 

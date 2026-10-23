@@ -80,6 +80,8 @@ html.dark #wpal-root .wp-pin{color:color-mix(in srgb,var(--u) 70%,#fff);}
 @media (prefers-reduced-motion: reduce){#wpal-root .wp-enl{transition:none;}}
 #wpal-root .wp-rel{fill:none;stroke:var(--u);stroke-width:1.8px;stroke-dasharray:5 5;stroke-linecap:round;opacity:.85;}
 #wpal-root .wp-reld{fill:var(--u);stroke:var(--w-pin);stroke-width:1.5px;}
+#wpal-root .wp-relh{fill:none;stroke:transparent;stroke-width:16px;pointer-events:stroke;cursor:pointer;}
+#wpal-root .wp-relh:hover ~ .wp-reld,#wpal-root g:hover > .wp-rel{stroke-width:3px;opacity:1;}
 /* a background the reader picked (a photo, a colour, a pattern) is the sea: the land lies on it */
 html.alto-bg:not(.alto-bg-map) #wpal-root{background:none;}
 /* the map is not drawn over a card's page, nor while the cards are edited by hand */
@@ -131,6 +133,14 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-key:not(.shut) .wp-kt{margin-bottom:4px;color:var(--w-sub);}
 #wpal-root .wp-kn{color:var(--w-sub);margin-top:4px;display:flex;align-items:center;gap:6px;}
 #wpal-root .wp-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--w-sub);font-size:13px;}
+/* the key in Alto's floating key toggle (outside the map's root): the same rows */
+.key-pop.wk button.u{display:flex;align-items:center;gap:7px;border:0;background:none;color:var(--text);font:inherit;padding:2px 4px;border-radius:6px;cursor:pointer;width:100%;text-align:left;line-height:20px;}
+.key-pop.wk button.u:hover{background:color-mix(in srgb,var(--u) 14%,transparent);}
+.key-pop.wk i{display:inline-block;width:10px;height:10px;border-radius:5px;background:var(--u);flex:none;}
+.key-pop.wk span{color:var(--muted);}.key-pop.wk h5 span{color:inherit;}
+.key-pop.wk .wp-kn{color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:6px;}
+html:not(.wpal-open) #key-toggle,html:not(.wpal-open) .key-pop.wk{display:none !important;}
+html.alto-retro .key-pop.wk i{border-radius:0;}
 @media print{#wpal-root{display:none !important;}html.wpal-open #world{visibility:visible !important;}}
 @media (max-width:700px){#wpal-root .wp-card{width:180px;padding:8px 10px 9px;}#wpal-root .wp-card.main{width:220px;}#wpal-root .wp-card h4{font-size:13px;}
   #wpal-root .wp-card.main h4{font-size:15px;}#wpal-root .wp-tour .d{display:none;}#wpal-root .wp-tour{bottom:68px;}
@@ -296,7 +306,8 @@ function place(){
   var rv=S.ovRel; while(rv.firstChild) rv.removeChild(rv.firstChild);
   var A0=S.cur&&S.pins[placeOf(S.cur)];
   if(A0) S.rel.forEach(function(to){ var P=S.pins[to]; if(!P||P===A0||S.out[to]) return; var Q=quad([A0.x,A0.y],[P.x,P.y],.2), g=el('g',{'class':ucls(N(to).a)},rv);
-    el('path',{d:'M'+A0.x.toFixed(1)+' '+A0.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+P.x.toFixed(1)+' '+P.y.toFixed(1),'class':'wp-rel'},g);
+    var d='M'+A0.x.toFixed(1)+' '+A0.y.toFixed(1)+'Q'+Q.c[0].toFixed(1)+' '+Q.c[1].toFixed(1)+' '+P.x.toFixed(1)+' '+P.y.toFixed(1);
+    el('path',{d:d,'class':'wp-rel'},g); el('path',{d:d,'class':'wp-relh','data-to':to},g);
     el('circle',{cx:P.x.toFixed(1),cy:P.y.toFixed(1),r:4.5,'class':'wp-reld'},g); });
   cluster();
 }
@@ -554,19 +565,24 @@ function chrome(){
   var wb=h('button',{type:'button','class':'wp-btn',title:'The whole world'},ctl,'⤢ World'); wb.addEventListener('click',A.world);
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
-  var key=S.keyEl=h('div',{'class':'wp-bar wp-key'+(phone()?' shut':'')},root);
+  var narrow=(window.innerWidth||1000)<700;                                   // (the map is not measured yet)
+  var key=S.keyEl=h('div',{'class':'wp-bar wp-key'+(narrow?' shut':'')},root);
   var kt=h('button',{type:'button','class':'wp-kt'},key); (D().acts||[]).forEach(function(a,i){ h('i',{'class':ucls(i),style:'width:8px;height:8px'},kt); }); kt.appendChild(document.createTextNode(' Key'));
   kt.addEventListener('click',function(){ key.classList.toggle('shut'); });
   (D().u||[]).forEach(function(u,a){ var b=h('button',{type:'button','class':'u '+ucls(a)},key); h('i',null,b); b.appendChild(document.createTextNode((a+1)+' '+dec((D().acts[a]||{}).n||'')+' ')); h('span',null,b,'· '+(u.reg||[]).join(', '));
     b.addEventListener('click',function(){ A.unit(a); }); });
   if(Object.keys(D().nodes||{}).some(function(id){ return N(id).r; })){ var kn=h('div',{'class':'wp-kn'},key); var s=el('svg',{viewBox:'-8 -16 16 17',width:10,height:12},kn); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z',fill:'currentColor'},s); kn.appendChild(document.createTextNode('place named in your notes')); }
+  // the key is Alto's floating key toggle on desktop (key_toggle.py, as the city palace's and the horizontal timeline's): a round glass
+  // button top left under the bars, the key opening beside it; a phone keeps the small key at the bottom (no room for a toggle there)
+  if(!narrow&&typeof window._altoKeyToggle==='function'){ key.className='wk'; kt.remove(); var hd=document.createElement('h5'); h('span',null,hd,'Key'); h('span',null,hd,'');
+    key.insertBefore(hd,key.firstChild); try{ window._altoKeyToggle(key,'alto-world-key','Key to the map'); }catch(x){} }
   var tour=S.tourEl=h('div',{'class':'wp-bar wp-tour',hidden:''},root);
   var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.hop(-1); });
   S.tPrev=h('span',{'class':'d'},tour,''); S.tCur=h('span',{'class':'c'},tour,''); S.tNext=h('span',{'class':'d'},tour,'');
   var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.hop(1); });
   S.list=h('div',{'class':'wp-list',hidden:''},root);
 }
-function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
+function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+',.wk .wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
   var s=document.getElementById('wpal-units')||h('style',{id:'wpal-units'},document.head); s.textContent=css; }
 
 A.show=function(){ if(S.root){ S.root.hidden=false; resize(); } document.documentElement.classList.add('wpal-open'); };
@@ -589,7 +605,8 @@ A.mount=function(data){
   var root=S.root=h('div',{id:'wpal-root','aria-label':'World map'},document.body);
   S.svg=el('svg',{'class':'wp-svg',role:'img','aria-label':'World map with the cards on their places'},root);
   S.g=el('g',null,S.svg); S.gGrat=el('g',null,S.g); S.gLand=el('g',{'class':'wp-land'},S.g); S.gA1=el('g',null,S.g); S.gArcs=el('g',{'class':'wp-arcs'},S.g);
-  S.ov=el('svg',{'class':'wp-ov'},root); S.ovRel=el('g',null,S.ov); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
+  S.ov=el('svg',{'class':'wp-ov'},root); S.ovRel=el('g',null,S.ov);
+  S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
   chrome(); A.show(); bindInput(); watchDetail();
@@ -611,7 +628,8 @@ def _retro_cards() -> str:
 
 def _asset() -> str:
     from .world_geo import manifest, continent_boxes
-    return ("(function(){\nvar WORLD_CSS=" + _json.dumps(WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
+    from .key_toggle import KEY_CSS, KEY_JS
+    return (KEY_JS + "\n(function(){\nvar WORLD_CSS=" + _json.dumps(KEY_CSS + WORLD_CSS + _retro_cards()) + ";\nvar GEO=" + _json.dumps(manifest(), sort_keys=True)
             + ";\nvar CBOX=" + _json.dumps(continent_boxes(), sort_keys=True) + ";\n" + WORLD_JS + "\n})();\n")
 
 

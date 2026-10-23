@@ -183,6 +183,9 @@ def test_the_renderer_enlarges_hops_and_follows_the_engine():
     assert "html.alto-bg:not(.alto-bg-map) #wpal-root{background:none;}" in js       # a picked background is the sea
     assert "html.alto-retro #wpal-root .wp-enl .node-card" in js                     # the enlarged card in Retro
     assert "#wpal-root .wp-pin.n{width:auto" in js                                   # a number never spills out of its pin
+    assert "window._altoKeyToggle(key,'alto-world-key'" in js and "window._altoKeyToggle=function" in js     # Alto's floating key toggle
+    from alto.build import retro
+    assert "X #wpal-root .wp-btn.r:not(#_){border-radius:0;}" in retro.FORMAT_CSS                  # round controls square in Retro (1.9.160)
 
 
 # ── the brief ────────────────────────────────────────────────────────────────
