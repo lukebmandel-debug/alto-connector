@@ -971,7 +971,7 @@ function units(world, order, X, w, H, W){
 window._altoLanesNav=function(id, dir){
   var G=window._altoLanesGeo; if(!G || de.classList.contains('mobile')) return null;
   var lid=(L.ev[id]||{}).l||'main', l=null; G.lines.forEach(function(q){ if(q.id===lid) l=q; }); if(!l) return null;
-  function live(i){ var c=document.querySelector('#node-'+i+' .node-card'); return c && !c.classList.contains('dimmed') && !c.classList.contains('ent-dimmed') && !c.classList.contains('rel-dimmed'); }
+  function live(i){ return !!document.querySelector('#node-'+i+' .node-card') && (!window._altoShown || window._altoShown(i)); }
   if(dir==='e'||dir==='w'){
     var ev=l.ev.filter(live), i=ev.indexOf(id), j=i+(dir==='e'?1:-1);
     if(i>=0 && j>=0 && j<ev.length) return ev[j];

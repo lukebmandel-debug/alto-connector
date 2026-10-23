@@ -1517,10 +1517,12 @@ PATCHES += [
 # engine's `_filteredOrder`. The Filter panel's sub-chip filters (characters,
 # themes…) hide cards too and have to steer the same way, or a swipe lands on a
 # card the reader just filtered out. They report through two hooks the panel
-# defines, `_altoChipOn` and `_altoChipKeep`; a timeline with no panel has
-# neither, and every check below falls through to what it was.
-_CHIP_ON = "(window._altoChipOn&&window._altoChipOn())"
-_CHIP_KEEP = "(!window._altoChipKeep||window._altoChipKeep(id))"
+# defines; the line filters too. Every format asks the same two hooks:
+# `_altoFilterOn` (any filter on) and `_altoShown(id)` (the one "is this node
+# shown under the filters" test, filter_panel.py); with no filter on, every
+# check below falls through to what it was.
+_CHIP_ON = "(window._altoFilterOn&&window._altoFilterOn())"
+_CHIP_KEEP = "(!window._altoShown||window._altoShown(id))"
 PATCHES += [
     {"name": "filtered-order-preview", "old": "(_pF.era||_pF.weight)",
      "new": f"(_pF.era||_pF.weight||{_CHIP_ON})", "count": 1},
@@ -1926,8 +1928,8 @@ PATCHES += [
 #     this one, same row or same column;
 #   * only then the old nearest-within-60-degrees pick (and for diagonals).
 # Arrow presses take one hop at a time (_hop, arrows-one-hop-at-a-time).
-# Cards dimmed by any filter (slot `dimmed`, relation `rel-dimmed`, entity
-# `ent-dimmed`) are skipped, as the retired compass-hop patch did.
+# Cards a filter hides are skipped (the shared `_altoShown`, filter_panel.py),
+# as the retired compass-hop patch did.
 _ARROWS_OLD = """  function focusNeighbor(dir){
     var cur=window._focusedNodeId&&nodeEl(window._focusedNodeId); if(!cur) return;
     var ta=_DIRANG[dir]; if(ta===undefined) return;
@@ -1963,8 +1965,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
       var x=parseFloat(n.style.left), y=parseFloat(n.style.top);
       if(isNaN(x)) x=n.offsetLeft; if(isNaN(y)) y=n.offsetTop;
       return {id:n.id.slice(5), x:x, y:y, l:x-w/2, r:x+w/2, t:y-h/2, b:y+h/2,
-              dim:!!(c&&(c.classList.contains('dimmed')||c.classList.contains('rel-dimmed')||
-                          c.classList.contains('ent-dimmed')))};
+              dim:!!(window._altoShown&&!window._altoShown(n.id.slice(5)))};
     }
     var C=g(cur), all=allNodes().filter(function(n){ return n!==cur; }).map(g)
                          .filter(function(q){ return !q.dim; });

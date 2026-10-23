@@ -2240,8 +2240,8 @@ window._altoPalaceNav=function(id, dir){
   if(mob()) return null; var A=lot(P.at[bOf(id)]); if(!A) return null;
   var V={e:[1,0],w:[-1,0],n:[0,-1],s:[0,1],ne:[.7071,-.7071],nw:[-.7071,-.7071],se:[.7071,.7071],sw:[-.7071,.7071]}[dir]; if(!V) return null;
   var best=null, bd=1e18, diag=dir.length===2, near=null, nd=1e18;
-  (P.units||[]).forEach(function(ids){ ids.forEach(function(o){ if(o===id) return; var c=document.querySelector('#node-'+o+' .node-card');
-    if(c && (c.classList.contains('dimmed')||c.classList.contains('ent-dimmed')||c.classList.contains('rel-dimmed'))) return;
+  (P.units||[]).forEach(function(ids){ ids.forEach(function(o){ if(o===id) return;
+    if(window._altoShown && !window._altoShown(o)) return;   /* only what the filters show (filter_panel.py) */
     var B=lot(P.at[o]); if(!B) return; var dx=B[0]-A[0], dy=B[1]-A[1], along=dx*V[0]+dy*V[1]; if(along<=10) return;
     var across=Math.abs(dx*V[1]-dy*V[0]), cost=along+across*2.2; if(cost<bd){ bd=cost; best=o; }
     /* a diagonal asks for a building on that diagonal (within 35 degrees of it), the nearest of those; none there: the best of any */
@@ -2379,7 +2379,9 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
    (up) or bottom (down) edge (a pull shows where it leads; momentum from mid-page never counts); the wheel over the elevator;
    dragging the car; the roof is the ground floor. ← → stay previous / next card. */
 function elevOn(){ return de.classList.contains('pal-elev-on') && !riding && !!cur; }
-function stepFloor(d){ if(!elevOn()) return false; var s=stack(cur), i=s.indexOf(cur)+d; if(i<0||i>=s.length) return false; ride(s[i]); return true; }
+function stepFloor(d){ if(!elevOn()) return false; var s=stack(cur), i=s.indexOf(cur)+d;
+  while(i>=0 && i<s.length && window._altoShown && !window._altoShown(s[i])) i+=d;   /* a filter on: only the floors it shows (filter_panel.py) */
+  if(i<0||i>=s.length) return false; ride(s[i]); return true; }
 function elevState(id){ if(!elev) return; var s=stack(id), i=s.indexOf(id);
   var w=elev.querySelector('.pe-where'), tw=towerOf(id); if(w) w.textContent=i===0?'Ground floor':(tw?'Floor '+floorNo(id)+' of '+tw.top:'Floor '+i+' of '+(s.length-1));
   var up=elev.querySelector('.pe-up'), dn=elev.querySelector('.pe-dn'); if(up) up.disabled=i>=s.length-1; if(dn) dn.disabled=i<=0;

@@ -93,6 +93,29 @@ FILTER_PANEL_GLUE = """
   window._altoChipKeep=keep;
   // The picked chips, {section key: [chip ids]} (the Mind Palace lights what they tag).
   window._altoChipSel=function(){ var o={}; chipKeys().forEach(function(k){ o[k]=Object.keys(sel[k]); }); return o; };
+  // The one test every step asks, in every format (arrow keys, swipes, the
+  // next / previous buttons): is this node shown under the filters now on?
+  // Not if any filter dims its card (slot `dimmed`, line `rel-dimmed`, chip
+  // `ent-dimmed`), nor if a chip or (a phone's) slot pick leaves it out by
+  // the data, for a phone's cards that are never dimmed.
+  var byId=null;
+  window._altoShown=function(id){
+    var c=document.getElementById('node-'+id), k=c&&c.querySelector('.node-card');
+    if(k && (k.classList.contains('dimmed')||k.classList.contains('rel-dimmed')||k.classList.contains('ent-dimmed'))) return false;
+    if(!keep(id)) return false;
+    var f=mobile()&&window._mobileFilter;
+    if(f && (f.era||f.weight) && typeof NODES_SRC!=='undefined'){
+      if(!byId){ byId={}; NODES_SRC.forEach(function(n){ byId[n.id]=n; }); }
+      var n=byId[id]; if(n && ((f.era && n.era!==f.era) || (f.weight && n.examWeight!==f.weight))) return false;
+    }
+    return true;
+  };
+  // Any filter on at all (with none, every step is as it always was).
+  window._altoFilterOn=function(){
+    if(chipKeys().length || activeLines().length) return true;
+    var f=mobile()?(window._mobileFilter||{}):((typeof _activeFilters!=='undefined'&&_activeFilters)||{});
+    return !!(f.era||f.weight) || !!document.querySelector('#world .node-card.dimmed,#world .node-card[class~="rel-dimmed"],#world .node-card[class~="ent-dimmed"]');
+  };
   function slotVal(slot){ return mobile() ? ((window._mobileFilter||{})[slot]||null) : (slotState[slot]||null); }
   function activeLines(){ return document.querySelectorAll('#ef-panel .line-key-btn.active'); }
   function activeCount(){

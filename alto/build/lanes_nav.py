@@ -146,7 +146,7 @@ function legacy(){
   for(var k in L.ev){ var p=L.ev[k].present; if(p && p.length) return false; }
   return true;
 }
-function live(id){ var c=document.querySelector('#node-'+id+' .node-card'); return !!c && !c.classList.contains('dimmed') && !c.classList.contains('ent-dimmed') && !c.classList.contains('rel-dimmed'); }
+function live(id){ return !!document.querySelector('#node-'+id+' .node-card') && (!window._altoShown || window._altoShown(id)); }
 function lineDef(id){ for(var i=0;i<L.lines.length;i++) if(L.lines[i].id===id) return L.lines[i]; return null; }
 function charOf(){ var k=window._altoLanesLock ? window._altoLanesLock() : null; return (k && k!=='main' && lineDef(k)) ? k : null; }
 function ofChar(id, c){

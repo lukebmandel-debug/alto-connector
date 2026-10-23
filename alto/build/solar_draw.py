@@ -1123,15 +1123,24 @@ setInterval(heal, 700);
    system, depth first), on into the next system's at the ends. A diagonal is its up / down.
    Returns id itself to stay (the engine then does nothing), null off the chart (a phone). ──── */
 var UPFROM={};
+/* a filter on: only the bodies it shows are stops (window._altoShown, filter_panel.py, the test every format asks);
+   a hidden body's place in the outline goes to the nearest shown body it orbits (sp) */
+function navFOn(){ return !!(window._altoFilterOn && window._altoFilterOn()); }
+function navShown(i){ return !window._altoShown || !navFOn() || window._altoShown(i); }
+function navUp(i){ var p=B[i] && B[i].p; if(!navFOn()) return p; while(p && B[p] && !(B[p].n && navShown(p))) p=B[p].p; return (p && B[p]) ? p : null; }
+function navUnder(i, id){ var p=B[i] && B[i].p; while(p && B[p]){ if(p===id) return true; p=B[p].p; } return false; }
+/* (from a body the filter hides: down is the first shown body under it) */
+function navKid(i, id){ return navShown(id) ? navUp(i)===id : navUnder(i, id) && navUp(i)===navUp(id); }
 function navTo(id, dir){
   var a=B[id]; if(!a || !a.n || !desk()) return null;
   var d=String(dir||'').charAt(0), j, nx=null;
   if(LOCK){ var tg=tTarget(id, {n:'up', s:'down', e:'next', w:'prev'}[d]); return (tg && tg!=='ov') ? tg : id; }   /* the Tour: the outline's way (the Tour block below) */
-  if(d==='n'){ if(a.p && B[a.p]){ UPFROM[a.p]=id; nx=a.p; } }
-  else if(d==='s'){ var u=UPFROM[id]; if(u && B[u] && B[u].p===id && B[u].n) nx=u;
-    else for(j=0;j<ORD.length;j++){ if(B[ORD[j]].p===id && B[ORD[j]].n){ nx=ORD[j]; break; } } }
-  else if(d==='e' || d==='w'){ var i=ORD.indexOf(id), st=d==='e' ? 1 : -1;
-    for(j=i+st;j>=0 && j<ORD.length;j+=st){ var b=B[ORD[j]]; if(b.role===a.role && b.n){ nx=ORD[j]; break; } } }
+  if(d==='n'){ var up=navUp(id); if(up && B[up]){ UPFROM[up]=id; nx=up; } }
+  else if(d==='s'){ var u=UPFROM[id]; if(u && B[u] && navKid(u, id) && B[u].n && navShown(u)) nx=u;
+    else for(j=0;j<ORD.length;j++){ if(navKid(ORD[j], id) && B[ORD[j]].n && navShown(ORD[j])){ nx=ORD[j]; break; } } }
+  else if(d==='e' || d==='w'){ var i=ORD.indexOf(id), st=d==='e' ? 1 : -1, any=null;
+    for(j=i+st;j>=0 && j<ORD.length;j+=st){ var b=B[ORD[j]]; if(!b.n || !navShown(ORD[j])) continue; if(b.role===a.role){ nx=ORD[j]; break; } if(!any) any=ORD[j]; }
+    if(!nx && navFOn()) nx=any; }   /* a filter that shows none of this level that way: the nearest shown body that way */
   return nx || id;
 }
 /* the Tour: never a jump — a move rides there (nothing that way: a gentle word); the engine stays put */
@@ -1649,14 +1658,16 @@ function spot(id){ if(de.classList.contains('sk-3d') && window._altoSolar3D && w
   var b=B[id], n=b.n; return [b.rx+((n && n._fx)||0), b.ry+((n && n._fy)||0)]; }
 /* the tour: the outline's order (ORD is the plan's depth-first order); a body's children, its siblings (the same
    level under the same parent; suns: the other suns) */
-function tOrder(){ return ORD.filter(function(i){ return B[i].n; }); }
-function tKids(id){ return ORD.filter(function(i){ return B[i].p===id && B[i].n; }); }
-function tSibs(id){ var a=B[id]; return ORD.filter(function(i){ var b=B[i]; return b.n && b.role===a.role && (a.p ? b.p===a.p : !b.p); }); }
+function tOrder(){ return ORD.filter(function(i){ return B[i].n && navShown(i); }); }
+function tKids(id){ return ORD.filter(function(i){ return navKid(i, id) && B[i].n && navShown(i); }); }
+function tSibs(id){ var a=B[id], q=navUp(id); return ORD.filter(function(i){ var b=B[i]; return b.n && navShown(i) && b.role===a.role && (q ? navUp(i)===q : !navUp(i)); }); }
 /* where a move goes from h: an id, 'ov' (Next at the end: the whole system), or null (nothing that way) */
 function tTarget(h, cmd){ var a=B[h]; if(!a) return null; var T=tOrder(), i=T.indexOf(h), s, k;
+  if(i<0 && (cmd==='next' || cmd==='prev')){ var o=ORD.indexOf(h), st=cmd==='next' ? 1 : -1;   /* from a body a filter hides: the nearest shown one that way */
+    for(var j=o+st;j>=0 && j<ORD.length;j+=st) if(T.indexOf(ORD[j])>=0) return ORD[j]; return cmd==='next' ? 'ov' : null; }
   if(cmd==='next') return T[i+1] || 'ov';
   if(cmd==='prev') return T[i-1] || null;
-  if(cmd==='up') return (a.p && B[a.p] && B[a.p].n) ? a.p : null;
+  if(cmd==='up'){ var q=navUp(h); return (q && B[q] && B[q].n) ? q : null; }
   if(cmd==='down') return tKids(h)[0] || null;
   s=tSibs(h); k=s.indexOf(h); return cmd==='sn' ? (s[k+1] || null) : cmd==='sp' ? (s[k-1] || null) : null; }
 /* the named ways from a body ({nb, k: way -> id, d: id -> way}): up the parent, down each child, w / e its siblings */
