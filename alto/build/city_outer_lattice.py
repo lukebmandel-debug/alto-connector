@@ -528,7 +528,7 @@ def emit(g, blocks, faces, cr, rr, out, dom_index):
         for idx, l in lines.items():
             for a, b in runs.get(idx, ()):
                 p = (P(g.U(idx), g.V(a)) + P(g.U(idx), g.V(b))) if fam == "u" else (P(g.U(a), g.V(idx)) + P(g.U(b), g.V(idx)))
-                heavy = l["k"] <= HEAVY_K
+                heavy = l["k"] <= HEAVY_K and bool(l["n"])          # (an unnamed primary piece is a ramp)
                 st = {"n": l["n"] or "", "k": max(1, l["k"]) if heavy else 3, "p": p}     # primary k 1 (every zoom), the rest 3 (close in)
                 if heavy:
                     st["L"] = 1
@@ -583,8 +583,8 @@ def free_lines(pieces, out, smooth):
             continue
         q = smooth(p) if len(p) > 2 else p
         flat = [round(v) for pt in q for v in pt]
-        if k <= HEAVY_K:
-            out["streets"].append({"n": n or "", "k": 1, "d": 1, "p": flat})
+        if k <= HEAVY_K and n:
+            out["streets"].append({"n": n, "k": 1, "d": 1, "p": flat})
         else:
             out["te"].append(flat)
             if n:
@@ -603,7 +603,7 @@ def build(m_real, to_page, land, park, inside_city=None, dom_base=0):
         pieces = []
         for st in d.streets or ():
             pts = _pairs(st.get("p") or [])
-            if len(pts) >= 2 and st.get("k", 4) <= 4:
+            if len(pts) >= 2 and 0 < st.get("k", 4) <= 4:            # (a motorway or trunk is the light boroughs' own heavy line, drawn as it runs)
                 pieces.append(([to_page(*q) for q in pts], st.get("n") or "", st.get("k", 4)))
         poly = [to_page(*q) for q in d.poly]
         if len(poly) < 3:
@@ -618,7 +618,7 @@ def build(m_real, to_page, land, park, inside_city=None, dom_base=0):
             continue
         blocks, faces, cr, rr = lattice(g, inside, land, park)
         emit(g, blocks, faces, cr, rr, out, dom_base + len(out["doms"]))
-        diag = [([g.back(*run[0][0])] + [g.back(*s_[1]) for s_ in run], n, k) for run, n, k in g.diag if k == 1]
+        diag = [([g.back(*run[0][0])] + [g.back(*s_[1]) for s_ in run], n, k) for run, n, k in g.diag if k == 1 and n]
         for pts, n, k in _chain(diag):              # a diagonal avenue across the grid: one clean line
             if inside(*pts[len(pts) // 2]):
                 out["streets"].append({"n": n or "", "k": 1, "d": 1, "p": [round(v) for q in city_free.smooth(pts, 10.0, 1) for v in q]})
