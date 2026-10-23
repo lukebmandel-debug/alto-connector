@@ -657,7 +657,7 @@ def test_a_ship_picked_on_the_way_or_in_orbit_shows_at_once(browser, page):
 
 def test_a_long_flight_is_at_most_five_seconds_and_enter_lands_it(browser, page):
     """Luke (2026-10-22): "sometimes map is stuck" — a flight to another system took 7-9 s; now at most 5 s on the
-    screen (its clock quicker on a long way), and Enter, Space or a click on empty space lands it in about half a second."""
+    screen (its clock quicker on a long way), and Enter or a click on empty space lands it in about half a second."""
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("() => { window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(1500)

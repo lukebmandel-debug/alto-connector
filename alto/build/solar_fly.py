@@ -115,7 +115,7 @@ FLY_RT = {"TRAIL_MS": 1100, "LAND_MS": 500, "OV_MS": 900, "TAKE_S": 0.45, "TAKE_
           # the 2D craft's size (its art is about 70 px nose to tail): Classic, Retro
           "SHIP": 0.4, "SHIP_RETRO": 0.5,
           # a flight's length on the screen at most (s: its clock runs faster on a long way; Luke: "sometimes map is
-          # stuck"), and how soon Enter / Space / a click on empty space lands it
+          # stuck"), and how soon Enter or a click on empty space lands it
           "MAX_S": 5.0, "HURRY_S": 0.5}
 
 
@@ -645,7 +645,7 @@ window.addEventListener('keydown', function(e){
   if(!FL) return;
   if(!stars()) return stop(false);
   if(e.key==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); stop(true); return; }
-  if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopImmediatePropagation(); hurry(); return; }
+  if(e.key==='Enter'){ e.preventDefault(); e.stopImmediatePropagation(); hurry(); return; }   /* (Space is the Orbit switch's) */
   if(!d) return;
   e.preventDefault(); e.stopImmediatePropagation();
   var v=d==='n' || d==='s', pr=v ? (held.e ? 'e' : held.w ? 'w' : '') : (held.n ? 'n' : held.s ? 's' : '');
