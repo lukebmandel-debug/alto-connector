@@ -99,11 +99,11 @@ def test_blobs_keep_every_published_base_and_its_tiles(tmp_path):
     assert pt.LAST_MISSING == [missing]
 
 
-def test_the_site_headers_keep_bases_a_year_and_tiles_a_week():
+def test_the_site_headers_keep_bases_a_year_and_tiles_a_day():
     from alto.publish_static import _cmap_rules
     r = _cmap_rules(["b-0123456789ab.json", "t-0123456789.json", "x.json"])
     assert r[0]["source"] == "/cmap/b-0123456789ab.json" and "immutable" in r[0]["headers"][0]["value"]
-    assert r[1]["regex"].startswith("^/cmap/t-") and "604800" in r[1]["headers"][0]["value"] and len(r) == 2
+    assert r[1]["regex"].startswith("^/cmap/t-") and "86400" in r[1]["headers"][0]["value"] and len(r) == 2
 
 
 def test_the_tiles_loader_splices_into_the_palace_script():
@@ -118,7 +118,7 @@ def test_a_palace_with_tiles_gets_the_loader(monkeypatch, tmp_path):
     data["map"]["ct"] = {"v": 1, "cell": pt.CELL, "zone": [0, 0, 0, 0], "c": {"9,9": "0123456789"}}
     d["brief"]["palace"]["data_z"] = palace.pack(data)
     html, _ = build_timeline(*load(d))
-    assert "function ctTick(){" in html and ".pal-svg g.ct{" in html
+    assert "function ctTick(){" in html and ".pal-svg g.ct.ct-off{display:none;}" in html
     plain, _ = build_timeline(*load(bundle()))
     assert "function ctTick(){" not in plain
 

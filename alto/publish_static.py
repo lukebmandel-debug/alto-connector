@@ -609,14 +609,14 @@ def _cmap_names(site_dir) -> list:
 
 def _cmap_rules(names) -> list:
     """Each base (a few per published palace) gets a literal immutable rule. The tiles, which may number in the thousands (a rule each
-    would bloat firebase.json), share one pattern kept a week: a tile a page asks for before it is uploaded answers 404, and a week
-    is how long a browser may remember that, never a year."""
+    would bloat firebase.json), share one pattern kept a day: a tile a page asks for before its host is deployed answers 404, and a
+    day is the longest a browser may remember that."""
     from .build import palace_tiles
     rules = [{"source": "/%s/%s" % (palace_tiles.FOLDER, n), "headers": [
         {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if palace_tiles.BASE_RE.match(n)]
     if any(palace_tiles.TILE_RE.match(n) for n in names):
         rules.append({"regex": "^/%s/t-[0-9a-f]{10}\\.json$" % palace_tiles.FOLDER, "headers": [
-            {"key": "Cache-Control", "value": "public, max-age=604800"},
+            {"key": "Cache-Control", "value": "public, max-age=86400"},
             # the tiles are shared geography, fetched by the palaces of other sites (palace_tiles.tile_host)
             {"key": "Access-Control-Allow-Origin", "value": "*"}]})
     return rules

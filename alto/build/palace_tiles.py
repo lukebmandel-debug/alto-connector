@@ -40,6 +40,7 @@ BASE_RE = re.compile(r"^b-([0-9a-f]{12})\.json$")
 TILE_RE = re.compile(r"^t-([0-9a-f]{10})\.json$")
 MARK0, MARK1 = "/*<alto-cmap>*/", "/*</alto-cmap>*/"
 PUBLISHED_LOG = "published-%s.txt"      # per site (ALTO_FIREBASE_SITE): a site publishes the bases its own pages named
+RECENT_DAYS = 14                         # a base built this recently has its tiles on the tile host (palace_tiles.blobs)
 # map keys that stay on the page: its scalars, and everything the user's own material decides (the landmark buildings they chose and the
 # pages those open, the words across a river, hypothetical railways and their stops, the ships named after them) — the base on the site is
 # only public geography (a file named by its hash, readable by anyone who has its name)
@@ -388,7 +389,24 @@ def blobs(referenced=(), directory=None) -> list:
     if not hosts_tiles():
         tiles = set()                                   # the tiles live on the tile host (tile_host), not in this deploy
     elif tile_host():
-        tiles |= {p.name for p in d.glob("t-*.json") if TILE_RE.match(p.name)}     # the host carries every tile this machine made
+        # the host carries the tiles of every base any site of this machine published (each published-<site>.txt) or built in the last
+        # RECENT_DAYS (a page about to be published names a base built already: deploy the host first, then the page's site)
+        import time as _t
+        others = set()
+        for lg in d.glob(PUBLISHED_LOG % "*"):
+            try:
+                others |= {ln.strip() for ln in lg.read_text("utf-8").splitlines() if BASE_RE.match(ln.strip())}
+            except OSError:
+                pass
+        others |= {p.name for p in d.glob("b-*.json") if BASE_RE.match(p.name) and _t.time() - p.stat().st_mtime < RECENT_DAYS * 86400}
+        for n in sorted(others - set(out)):
+            txt = read(n, d)
+            if txt is None:
+                continue
+            try:
+                tiles |= set(tile_names(json.loads(txt).get("m")))
+            except ValueError:
+                pass
     LAST_PUBLISH.clear()
     for n in sorted(tiles):
         txt = read(n, d)
@@ -436,6 +454,7 @@ TILES_CSS = r"""
   .pal-svg g.ct.ct-off{display:none;}
 """
 FADE_MS = 280
+BUDGET_MS = 10                    # ms of tile drawing a frame (more tiles a frame once one is cheap: the lite ones)
 SETTLE_MS = 300                   # ms a view must stay still before tiles are drawn, names fitted and buildings laid again
 
 TILES_JS = r"""
@@ -493,9 +512,10 @@ function ctTick1(svg, v){
     if(c.st===0 && CTL<4) ctFetch(c);
     else if(c.st===2 && !c.on[sid]) CTpend.push([c, svg, lv]);
     else if(c.st===2 && c.g[sid] && c.g[sid][0] && c.g[sid][0].classList.contains('ct-off')) ctShow(c, svg, 'show'); }); }
-/* one tile a frame */
-function ctStep(){ CTraf=0; if(ctMoving()) return; var q=CTpend.shift(); if(!q) return; var c=q[0], svg=q[1], sid=svg._sid||'';
-  if(!c.on[sid] && svg.isConnected){ var lite=(CTon[sid]||0)<2; ctDraw(svg, c, true, lite); c.on[sid]=1; c.lv[sid]=lite?1:2; if(!lite) ctAfter(svg); }
+/* tiles drawn a frame's budget at a time (CT_BUDGET ms), at least one */
+function ctStep(){ CTraf=0; if(ctMoving()) return; var t0=performance.now(), n=0;
+  while(CTpend.length && (n===0 || performance.now()-t0<CT_BUDGET)){ var q=CTpend.shift(), c=q[0], svg=q[1], sid=svg._sid||'';
+    if(!c.on[sid] && svg.isConnected){ var lite=(CTon[sid]||0)<2; ctDraw(svg, c, true, lite); c.on[sid]=1; c.lv[sid]=lite?1:2; if(!lite) ctAfter(svg); n++; } }
   if(CTpend.length) CTraf=requestAnimationFrame(ctStep); }
 /* a fade on the group's own inline opacity, taken off when it ends (no standing transparency layer: see TILES_CSS) */
 function ctFade(g, to, done){ var t0=performance.now(), from=to?0:1;
@@ -575,7 +595,7 @@ if(CT){ setInterval(function(){ if(!document.hidden) ctTick(); }, 250);
       if(cb){ var t0=Date.now(); (function wait(){ var busy=CTE.some(function(e){ var c=CTC[e.k]; return c && c.st===1; }); if(busy && Date.now()-t0<8000) setTimeout(wait, 100); else cb(window._altoCity.streets(box)); })(); } return n; },
     streets:function(box){ var out=[]; Object.keys(CTC).forEach(function(k){ var c=CTC[k], b=c.e.b; if(c.d && b[2]>box[0] && b[0]<box[2] && b[3]>box[1] && b[1]<box[3]) out=out.concat(c.d.streets||[]); }); return out; },
     stats:function(){ var cv=document.getElementById('pal-fillc');
-      var s={cells:CTE.length, loaded:0, drawn:0, inflight:CTL, on:CTon.d||0, fs:(typeof FS!=='undefined'&&FS)?FS.map(function(a){ return a?a.length:0; }):null,
+      var s={cells:CTE.length, loaded:0, drawn:0, inflight:CTL, pend:CTpend.length, on:CTon.d||0, fs:(typeof FS!=='undefined'&&FS)?FS.map(function(a){ return a?a.length:0; }):null,
              canvas:cv?{vis:cv.style.visibility, disp:cv.style.display, w:cv.width, painted:window._fillPaintMs}:null, lvl:(typeof fillLevel!=='undefined')?fillLevel:null}; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.st===2) s.loaded++; if(c.on.d && c.g.d && c.g.d[0] && !c.g.d[0].classList.contains('ct-off')) s.drawn++; }); return s; }}; }
 """
 
@@ -600,7 +620,7 @@ def patch_js(js: str) -> str:
     b = "  svg._b=bg; svg._r=route;"
     if js.count(a) != 1 or js.count(b) != 1 or any(js.count(o) != 1 for o, _n in _GROUP):
         raise ValueError("palace_tiles.patch_js: anchors not found")
-    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_LITE_OFF", str(CT_LITE_OFF)).replace("CT_LITE", str(CT_LITE)).replace("CT_FADE", str(FADE_MS)).replace("CT_SETTLE", str(SETTLE_MS)) + CHUNK_JS + a)
+    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_LITE_OFF", str(CT_LITE_OFF)).replace("CT_LITE", str(CT_LITE)).replace("CT_FADE", str(FADE_MS)).replace("CT_SETTLE", str(SETTLE_MS)).replace("CT_BUDGET", str(BUDGET_MS)) + CHUNK_JS + a)
     for o, n in _GROUP:
         js = js.replace(o, n)
     return js.replace(b, "  ctDrawAll(svg);\n" + b)
