@@ -622,7 +622,7 @@ var NHD={n:['↑', 'Up a level'], s:['↓', 'Down a level'], w:['←', 'Previous
 function hints(G){
   var f=window._focusedNodeId, out={}; hints.hot={};
   if(!f || !G.bodies[f] || !window._altoSolarLevelNav || (window._altoSolarFlight && window._altoSolarFlight())) return out;
-  var Wy=lk() && window._altoSolarLock.ways ? window._altoSolarLock.ways(f) : null;     /* Spokes only: every body one spoke away, and only those */
+  var Wy=window._altoSolarLock && window._altoSolarLock.ways ? window._altoSolarLock.ways(f) : null;     /* the Tour's named ways (solar_draw.py), in both modes */
   if(Wy){ Wy.nb.forEach(function(to){ if(G.bodies[to]){ out[to]=[Wy.d[to]||'c']; hints.hot[to]=1; } }); return out; }
   ['n', 's', 'w', 'e'].forEach(function(d){ var to=window._altoSolarLevelNav(f, d); if(to && to!==f && G.bodies[to]){ (out[to]=out[to]||[]).push(d); hints.hot[to]=1; } });
   return out;
@@ -632,7 +632,7 @@ function labels(G, r){
   var z=zoomK(), H=hints(G), nb=0, ni=0, f=window._focusedNodeId;
   function b(cls){ var e=PB[nb]; if(!e){ e=PB[nb]=document.createElement('b'); lay.appendChild(e); } nb++; e.className=cls; e.style.display=''; return e; }
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
-    e.children[0].textContent=H[id].map(function(d){ return ((lk() && NHT[d]) || NHD[d])[0]; }).join(''); e.children[1].textContent=(lk() && NHT[H[id][0]]) ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
+    e.children[0].textContent=H[id].map(function(d){ return (NHT[d] || NHD[d])[0]; }).join(''); e.children[1].textContent=NHT[H[id][0]] ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   var BX=[], NM=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */
   function free(x, y, w, h){ if(BX.some(function(a){ return x<a[2] && x+w>a[0] && y<a[3] && y+h>a[1]; })) return false; BX.push([x, y, x+w, y+h]); return true; }

@@ -95,8 +95,8 @@ def test_hints_flights_and_spokes_only(browser, page):
     pg.evaluate("() => window.enterFocus('u1-p2')")
     pg.wait_for_timeout(1300)
     h = pg.evaluate(HINTS)
-    assert h["pills"] == ["node-u1-p1:w:←:Previous:Planet concept 1.1", "node-u1-p3:e:→:Next:Planet concept 1.3",
-                          "node-u1:n:↑:Up a level:Doctrine 1"], h        # each target: its key, its move, its name
+    assert h["pills"] == ["node-u1-p1:w:⇧←:Sibling:Planet concept 1.1", "node-u1-p3:e:⇧→:Sibling:Planet concept 1.3",
+                          "node-u1:n:↑:Up:Doctrine 1"], h        # each target: its key, its move, its name (the Tour's ways, in both modes)
     assert h["ways"] == ["e", "n", "w"] and h["lbl"] == [0, 0, 0], h    # each one's way drawn; its own label steps aside
     assert h["once"], h                                                   # shown once: beside it, or at the window's edge
     # Flights: shown in the Star chart look only, kept per timeline
@@ -122,18 +122,15 @@ def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
     pg.evaluate("() => window.enterFocus('u2-p2')")
     pg.wait_for_timeout(1300)
     h = pg.evaluate(HINTS)
-    assert h["once"] and "node-u2-p2-m1:s:↓:Down a level:Case 1" in h["pills"], h
-    nxt = [e for e in h["edge"] if e[0] == "e"]
-    assert nxt and nxt[0][1] == "Planet concept 3.1" and nxt[0][2], h   # the next system's first planet: off the window, pointed at
-    assert pg.evaluate("() => getComputedStyle(document.querySelector('#sol-nav .sol-nh[data-k=e]>i'), '::after').content") == '"Next system"'
-    pg.click("#sol-nav .sol-nh[data-k=e]")
-    pg.wait_for_timeout(1300)
-    assert pg.evaluate("() => window._focusedNodeId") == "u3-p1"
+    assert h["once"] and "node-u2-p2-m1:s:↓:Down:Case 1" in h["pills"], h
+    assert all(e[2] for e in h["edge"]), h                                 # an edge pill stays inside the window
+    pg.click("#node-u2-p2-m1>.sol-nh")                                       # a named button rides there (both modes)
+    pg.wait_for_function("() => window._focusedNodeId==='u2-p2-m1' && !window._altoSolarLock.riding()", timeout=6000)
     assert pg.evaluate(HINTS)["once"]
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(700)
     assert pg.evaluate("() => document.querySelectorAll('.sol-nh').length") == 0   # calm: nothing enlarged, nothing shown
-    pg.click("#sol-lock")                                                       # the Tour (it boards the middle body)
+    pg.click("#sol-lock")                                                       # Spokes only (it boards the middle body)
     pg.wait_for_timeout(1300)
     k = pg.evaluate("() => [].map.call(document.querySelectorAll('#world .sol-nh>i'), function(i){ return getComputedStyle(i, '::after').content; })")
     assert k and set(k) <= {'"Up"', '"Down"', '"Sibling"'}, k
@@ -400,7 +397,7 @@ def test_the_tour_walks_the_outline_along_the_spokes(browser, page):
     pg.wait_for_timeout(1300)
     pg.click("#sol-lock")
     pg.wait_for_timeout(400)
-    assert pg.evaluate("() => document.querySelector('#sol-lock span').textContent") == "Tour"
+    assert pg.evaluate("() => document.querySelector('#sol-lock span').textContent") == "Spokes only"
     G = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, o={}; Object.keys(G).forEach(function(i){ o[i]=G[i].p||null; }); return o; }")
     T = pg.evaluate("() => window._altoSolarLock.order()")
     assert T[0] == "u1" and sorted(T) == sorted(G) and all(G[i] is None or T.index(G[i]) < T.index(i) for i in T), T   # the outline's order

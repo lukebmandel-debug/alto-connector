@@ -78,7 +78,7 @@ SOLAR_CSS = r"""
   @keyframes solhere{50%{stroke-opacity:.3;}}
   @media (prefers-reduced-motion:reduce){ #solar-svg .sol-here{animation:none;} }
   #world .node.sol-pass .node-card{box-shadow:0 0 0 3px #ffd27a,0 0 26px #ffd27a !important;}
-  #sol-tour{position:fixed;z-index:310;left:50%;bottom:76px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;font-size:13px;
+  #sol-tour{position:fixed;z-index:310;left:50%;bottom:calc(41px + var(--sol-ctl-h, 35px));transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;font-size:13px;
     max-width:calc(100vw - 40px);box-sizing:border-box;color:var(--text);background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
     border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);}
   #sol-tour button{font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;border-radius:999px;padding:7px 13px;cursor:pointer;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
@@ -93,8 +93,9 @@ SOLAR_CSS = r"""
   html.sk-retro.alto-stars #sol-tour .tb-next{background:#d9a441;color:#140f02;}
   html.mobile #sol-tour,html.alto-editing #sol-tour{display:none !important;}
   @media print{ #sol-tour{display:none !important;} }
-  #canvas.sol-lock #world .sol-nh{pointer-events:auto;cursor:pointer;font-size:13px;line-height:20px;padding:5px 14px 5px 5px;border-radius:16px;}
-  #canvas.sol-lock .sol-nh>kbd{min-width:30px;height:22px;border-radius:11px;font-size:12.5px;}
+  html.alto-solar:not(.mobile) #world .sol-nh{pointer-events:auto;cursor:pointer;font-size:13px;line-height:20px;padding:5px 14px 5px 5px;border-radius:16px;}
+  html.alto-solar:not(.mobile) .sol-nh>kbd{min-width:30px;height:22px;border-radius:11px;font-size:12.5px;}
+  #sol-tour .tb-home{color:var(--text);box-shadow:inset 0 0 0 1.5px var(--accent,#6d5bd0);} html.alto-stars #sol-tour .tb-home{color:#fff;}
   html.sk-retro.alto-stars #solar-svg :is(.sol-spoke,.sol-link).sol-ride{stroke:#ffd27a !important;}
   #canvas.sol-nudge #world .node.sol-hint:not(.focused) .node-card{animation:sol-nudge .7s cubic-bezier(.25,.2,.4,1) 2;}
   @keyframes sol-nudge{50%{filter:brightness(1.45);}}
@@ -124,7 +125,7 @@ SOLAR_CSS = r"""
   html.dark .sol-unit{color:color-mix(in srgb,var(--u) 55%,#fff);}
   /* the whole chart (zoomed out to fit): its toggle is the key toggle's round glass, under the bars */
   /* the style switch (System | Star chart | Retro | 3D Star chart) and the switches beside it */
-  #sol-ctl{position:fixed;z-index:310;left:71.5px;bottom:24px;height:35px;display:flex;gap:12.5px;align-items:center;font-family:inherit;}   /* in the bottom row beside the account toggle, as palace.py #pal-ctl (round 10) */
+  #sol-ctl{position:fixed;z-index:310;left:71.5px;bottom:24px;min-height:35px;max-width:calc(100vw - 90px);display:flex;flex-wrap:wrap-reverse;gap:8px 12.5px;align-items:center;font-family:inherit;}   /* in the bottom row beside the account toggle, as palace.py #pal-ctl (round 10) */
   #sol-ctl>*{height:35px;box-sizing:border-box;border-radius:17.5px !important;}
   #sol-ctl .sol-sw{position:relative;display:inline-block;width:26px;height:15px;border-radius:8px;background:color-mix(in srgb,var(--text) 22%,transparent);transition:background .15s;flex:none;}
   #sol-ctl .sol-sw::after{content:'';position:absolute;left:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--surface,#fff);transition:transform .15s;}
@@ -143,6 +144,7 @@ SOLAR_CSS = r"""
   #sol-ctl #sol-sty button{padding:6.25px 10px;}
   #canvas.sol-lock{overflow:hidden !important;}
   #sol-ctl #sol-motion.on{color:var(--accent,#6d5bd0);}
+  #sol-ctl #sol-motion .sol-ow{font-style:normal;font-weight:500;opacity:.75;} #sol-ctl #sol-motion.sol-wait .sol-ic-pause{opacity:.55;}
   #sol-ctl #sol-motion:disabled{opacity:.42;cursor:default;}
   #sol-ctl #sol-motion .sol-ic-play,#sol-ctl #sol-motion.on .sol-ic-pause{display:block;}
   #sol-ctl #sol-motion .sol-ic-pause,#sol-ctl #sol-motion.on .sol-ic-play{display:none;}
@@ -294,7 +296,7 @@ SOLAR_CSS = r"""
   .sol-nh[data-k=n]>kbd{background:var(--nc);color:#fff;box-shadow:none;}
   .sol-nh[data-k=s]>kbd{background:color-mix(in srgb,var(--nc) 22%,transparent);box-shadow:inset 0 0 0 1.8px var(--nc);}
   .sol-nh>i{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;opacity:.6;}
-  .sol-nh>i::after{content:attr(data-a);} #canvas.sol-lock .sol-nh>i::after{content:attr(data-b);}
+  .sol-nh>i::after{content:attr(data-b);}
   .sol-nh>b{max-width:170px;overflow:hidden;text-overflow:ellipsis;font-weight:650;}
   .sol-nh>em{display:none;font-style:normal;font-size:12px;width:12px;text-align:center;opacity:.75;transform:rotate(var(--a,0deg));}
   #sol-nav .sol-nh>em{display:block;margin-left:5px;}
@@ -821,11 +823,17 @@ var SCR=0, scrT=0;
 function scrolling(){ SCR=1; clearTimeout(scrT); scrT=setTimeout(function(){ SCR=0; go(); }, 400); }
 window.addEventListener('wheel', scrolling, {capture:true, passive:true});
 document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') scrolling(); }, {capture:true, passive:true});
-function hold(){
-  if(!MOVES || !MOTION || !desk() || document.hidden || hov || FLN || SCR || RD) return true;
-  if(window._focusedNodeId || document.querySelector('#canvas.focus-mode,#canvas.edge-hover,#detail-page.visible')) return true;
-  return !!document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
+/* why the orbits wait, or '' (window._altoSolarHold: Luke, 2026-10-22, "sometimes orbiting doesn't work") */
+function holdWhy(){
+  if(!MOVES) return 'static'; if(!MOTION) return 'off'; if(!desk()) return 'phone'; if(document.hidden) return 'hidden';
+  if(window._focusedNodeId || document.querySelector('#canvas.focus-mode')) return 'focus';
+  if(hov) return 'hover'; if(FLN) return 'flank'; if(SCR) return 'scroll'; if(RD) return 'ride';
+  if(document.querySelector('#canvas.edge-hover')) return 'line'; if(document.querySelector('#detail-page.visible')) return 'page';
+  var q=document.querySelector('#world .node.alto-found,#world .node.sol-closing,#world .node-card.dimmed,#world .node-card.rel-dimmed,#world .node-card.ent-dimmed');
+  return q ? 'dim:'+q.className : '';
 }
+function hold(){ return !!holdWhy(); }
+window._altoSolarHold=holdWhy;
 function tick(ts){
   raf=0; if(!ready || DRV) return;
   var dt=last==null ? 0 : Math.min(.1, (ts-last)/1000); last=ts;
@@ -1130,7 +1138,7 @@ window._altoSolarLevelNav=levelNav;   /* (solar_3d.py's hints, without a flight)
 var NH={k:undefined, t:[], L:null, g:null, f:null, q:0}, NHD={n:['↑', 'Up a level', 'Ride'], s:['↓', 'Down a level', 'Ride'],
   w:['←', 'Previous', 'Ride'], e:['→', 'Next', 'Ride'], c:['•', 'Click to ride', 'Click to ride'], o:['⇕', 'Scroll to enlarge', 'Press → to start']},
   NHL={n:['↑', 'Up', 'Up'], s:['↓', 'Down', 'Down'], w:['⇧←', 'Sibling', 'Sibling'], e:['⇧→', 'Sibling', 'Sibling']};   /* (the Tour's: siblings are Shift+arrow) */
-function nhPill(id, d, wd){ var p=document.createElement('span'), D=(LOCK && NHL[d]) || NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
+function nhPill(id, d, wd){ var p=document.createElement('span'), D=NHL[d] || NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
   p.innerHTML='<em>➜</em><kbd></kbd><i></i><b></b>'; p.children[1].textContent=D[0]; p.children[2].setAttribute('data-a', wd||D[1]); p.children[2].setAttribute('data-b', D[2]);
   p.children[3].textContent=(b.lb && b.lb.getAttribute('data-l'))||''; return p; }
 function nhOn(id, d, side, wd){ var n=B[id].n, p=nhPill(id, d, wd);
@@ -1146,7 +1154,7 @@ function hints(){
   if(!f) return;
   if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; world.appendChild(NH.L); }
   if(!NH.g || !NH.g.isConnected){ NH.g=el('svg', {id:'sol-way', width:1, height:1, 'aria-hidden':'true'}); world.insertBefore(NH.g, svg && svg.parentNode===world ? svg.nextSibling : world.firstChild); }
-  var F=B[f], Wy=LOCK ? tWays(f) : null;
+  var F=B[f], Wy=tWays(f);
   (Wy ? Wy.nb.map(function(to){ return [Wy.d[to]||'c', to]; }) : ['n', 's', 'w', 'e'].map(function(d){ return [d, levelNav(f, d)]; })).forEach(function(dt){ var d=dt[0], to=dt[1], b=B[to]; if(!to || to===f || !b || !b.n || NH.t.some(function(t){ return t.id===to; })) return;
     var wd=!Wy && (d==='e' || d==='w') && b.si!==F.si && (d==='e' ? 'Next system' : 'Previous system'), q=nhPill(to, d, wd); q.setAttribute('data-id', to); q.style.cssText=(b.n.style.cssText.match(/--u:[^;]*/)||[''])[0]; NH.L.appendChild(q);
     NH.t.push({id:to, d:d, n:b.n, p:nhOn(to, d, 'b', wd), q:q, w:el('path', {'data-k':d}, NH.g)}); });
@@ -1176,16 +1184,28 @@ function nhPlace(){
       kx=dx ? ((dx>0 ? ex1 : ex0)-px)/dx : 1e9, ky=dy ? ((dy>0 ? ey1 : ey0)-py)/dy : 1e9, kk=Math.max(0, Math.min(kx, ky, 1)); X=px+dx*kk; Y=py+dy*kk; ux=-ux; uy=-uy; }
     else { X=cx+ux*rf; Y=cy+uy*rf; }
     var cl=function(v){ return Math.max(-1, Math.min(1, v*2)); }, ox=50*cl(ux)-50, oy=50*cl(uy)-50, q=[X+ox/100*w, Y+oy/100*h, X+(ox/100+1)*w, Y+(oy/100+1)*h];
-    for(var j=0; j<4 && done.some(function(o){ return ov2(o, q); }); j++){ var dv=(uy<0 ? -1 : 1)*(h+6); Y+=dv; q[1]+=dv; q[3]+=dv; }   /* (two on one edge: stacked) */
+    var onBody=function(q){ return ORD.some(function(id){ var b=B[id], n=b.n; if(!n || id===t.id || id===NH.f) return false; var x=b.rx+(n._fx||0), y=b.ry+(n._fy||0), r=b.d/2+4; return ov2(q, [x-r, y-r, x+r, y+r]); }); };
+    for(var j=0; j<8 && (done.some(function(o){ return ov2(o, q); }) || onBody(q)); j++){ var dv=(uy<0 ? -1 : 1)*(h+6); Y+=dv; q[1]+=dv; q[3]+=dv; }   /* (two on one edge: stacked; never on a body) */
     done.push(q);
     t.q.style.left=f2(X)+'px'; t.q.style.top=f2(Y)+'px'; t.q.style.setProperty('--o', f2(ox)+'%,'+f2(oy)+'%');   /* (its anchor: a custom property, no transform written) */
     t.q.style.setProperty('--a', Math.round(Math.atan2(dy, dx)*180/Math.PI)+'deg'); });
 }
 setInterval(hints, 250);
+/* the orbits' state on their button (Luke: "sometimes orbiting doesn't work"): on but waiting says why; and a hover the
+   pointer has left without moving (the bodies moved away from under it: a ride, a flight, a glide) lets go */
+var OWH={focus:'while a body is enlarged', hover:'while you point at a body', line:'while you point at a line', page:'while a page is open', dim:'while a filter dims some bodies'};
+setInterval(function(){
+  if(hov && !document.querySelector('#world .node[data-solar]:hover,#river-svg [data-edge-hit]:hover')){ hov=0; go(); }
+  var m=document.getElementById('sol-motion'); if(!m || !MOTION || !MOVES) return;
+  var w=holdWhy(), why=OWH[w.split(':')[0]]||'', k=why ? 'w'+w : '';
+  if(m._w===k) return; m._w=k; m.classList.toggle('sol-wait', !!why); var st=m.querySelector('.sol-ow'); if(st) st.textContent=why ? ' \u00b7 paused' : '';
+  m.title=why ? 'Orbit: on, paused '+why+' (Space or click: stop)' : 'Orbit on/off (Space): on, click to stop the planets where they are'; m.setAttribute('aria-label', m.title);
+}, 300);
 document.addEventListener('scroll', function(e){ if(e.target && e.target.id==='canvas') nhQ(); }, {capture:true, passive:true});
 window.addEventListener('resize', nhQ);
 ['pointerdown', 'mousedown', 'click'].forEach(function(t){ document.addEventListener(t, function(e){   /* an edge pill: a click hops there (before the board takes it for a click on empty space) */
-  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh'); if(!p) return; e.stopPropagation(); e.preventDefault(); if(t==='click'){ if(LOCK) rideTo(p.getAttribute('data-id')); else lockStep(p.getAttribute('data-k')); } }, true); });
+  var p=e.target && e.target.closest && e.target.closest('#sol-nav .sol-nh,#world .node>.sol-nh'); if(!p) return; e.stopPropagation(); e.preventDefault();
+  if(t==='click') rideTo(p.getAttribute('data-id') || p.parentNode.id.slice(5)); }, true); });
 /* ── edit mode changed the outline (manual_edit.py calls this before it lays
    the page out again with the live tables {kids, parent, num, seqs, act}): the
    systems are planned again here — SOLAR_PLAN_JS, solar.py's solar_plan in
@@ -1220,7 +1240,7 @@ function usePlan(P){
    go on. A click (or ⌘+ / ⌘0 / Esc / an arrow) comes back down to full size —
    on the body clicked, which is then enlarged. Only layout px are used: where
    a body is comes from its own left/top, the pointer from the canvas's rect. */
-var OV=null, ovA=0, OVMIN=.03;
+var OV=null, OVD=null, ovA=0, OVMIN=.03;   /* OVD: the scale and place drawn now (a glide's frame), OV: where it is going */
 function cvs(){ return document.getElementById('canvas'); }
 function zk(c){ var r=c.getBoundingClientRect(); return (r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1; }
 function woff(c){ var ox=0, oy=0, q=world; while(q && q!==c){ ox+=q.offsetLeft; oy+=q.offsetTop; q=q.offsetParent; } return {x:ox, y:oy}; }
@@ -1243,7 +1263,7 @@ function clampO(o){ var c=cvs(), cw=c.clientWidth, ch=c.clientHeight, w, h;
   if(g>0){ var ix=w<=cw ? Math.max(0, Math.min(cw-w, o.tx)) : Math.max(cw-w, Math.min(0, o.tx)), iy=h<=ch ? Math.max(0, Math.min(ch-h, o.ty)) : Math.max(ch-h, Math.min(0, o.ty));
     o.tx+=(ix-o.tx)*g; o.ty+=(iy-o.ty)*g; }
   return o; }
-function ovSet(o){ var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); ulay(); camTell(); reRaster(o.s); }
+function ovSet(o){ OVD={s:o.s, tx:o.tx, ty:o.ty}; var off=woff(cvs()); world.style.transform='translate('+rd(o.tx-off.x)+'px,'+rd(o.ty-off.y)+'px) scale('+o.s+')'; ovVars(o.s); ulay(); camTell(); reRaster(o.s); }
 /* ── the systems' names, zoomed out (Luke, 2026-10-21: the units' labels "look glitchy" in Safari). On the scaled
    board they were text inside a layer drawn at one scale and shown at another (and moved by fractions of a pixel as
    their suns turned), so thin lettering lost strokes. Zoomed out they leave the board for a layer of their own over
@@ -1279,8 +1299,10 @@ function ovHold(on){
   sp.style.width=c.scrollWidth+'px'; sp.style.height=c.scrollHeight+'px';
 }
 function ease(p){ return window._altoEase ? window._altoEase(p) : p*p*(3-2*p); }
+/* a zoom glide cut short (a ride, a click, the camera): its class goes with it, or the board takes no clicks (Luke: "sometimes map is stuck") */
+function ovStop(){ cancelAnimationFrame(ovA); ovA=0; var c=cvs(); if(c) c.classList.remove('sol-ovanim'); }
 function ovAnim(from, to, done){
-  cancelAnimationFrame(ovA); var c=cvs(); c.classList.add('sol-ovanim');
+  ovStop(); var c=cvs(); c.classList.add('sol-ovanim');
   if(reduced){ ovSet(to); c.classList.remove('sol-ovanim'); return done(); }
   var t0=performance.now();
   (function fr(now){ var p=Math.min(1, (now-t0)/560), k=ease(p), sc=Math.exp(Math.log(from.s)+(Math.log(to.s)-Math.log(from.s))*k),
@@ -1297,7 +1319,7 @@ function ovZoom(s, fx, fy, anim){
     var off=woff(c); OV={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop};
     ovHold(true); ovSet(OV); c.scrollLeft=0; c.scrollTop=0; c.classList.add('sol-ov'); fitBtn();
   }
-  var from={s:OV.s, tx:OV.tx, ty:OV.ty}, to=clampO({s:s, tx:fx-(fx-OV.tx)*s/OV.s, ty:fy-(fy-OV.ty)*s/OV.s});
+  var C=OVD || OV, from={s:C.s, tx:C.tx, ty:C.ty}, to=clampO({s:s, tx:fx-(fx-C.tx)*s/C.s, ty:fy-(fy-C.ty)*s/C.s});   /* (from the frame on the window: a glide cut short goes on from where it is, not from where it was going) */
   if(to.s>=.999 && from.s>=.999) return ovLeave(null, true);
   OV=to;
   if(anim) ovAnim(from, to, function(){}); else ovSet(to);
@@ -1306,9 +1328,9 @@ function ovZoom(s, fx, fy, anim){
 function ovLeave(p, instant, then){
   if(!OV) return; var c=cvs(), o=OV, off=woff(c), cw=c.clientWidth, ch=c.clientHeight;
   if(!p) p={x:(cw/2-o.tx)/o.s, y:(ch/2-o.ty)/o.s};
-  OV=null; cancelAnimationFrame(ovA); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange=''; ulay();
+  OV=null; ovStop(); c.classList.remove('sol-ov'); fitBtn(); clearTimeout(RS.t); RS.s=1; world.style.willChange=''; ulay();
   var sl=Math.max(0, Math.min(c.scrollWidth-cw, p.x+off.x-cw/2)), st=Math.max(0, Math.min(c.scrollHeight-ch, p.y+off.y-ch/2));
-  var fin=function(){ world.style.transform=''; ovVars(null); ovHold(false);
+  var fin=function(){ OVD=null; world.style.transform=''; ovVars(null); ovHold(false);
     var ax=window._altoScrollAxis; if(ax){ ax('scrollLeft').go(sl); ax('scrollTop').go(st); } else { c.scrollLeft=sl; c.scrollTop=st; }
     if(then) then(); };
   if(instant) return fin();
@@ -1436,8 +1458,8 @@ window.addEventListener('keydown', function(e){
     dn.moved=true; OV.tx=dn.tx+(e.clientX-dn.x)/k; OV.ty=dn.ty+(e.clientY-dn.y)/k; clampO(OV); ovSet(OV); }, true);
   document.addEventListener('pointerup', function(e){ if(!dn || e.pointerId!==dn.id) return; var d=dn; dn=null;
     if(!OV || d.moved) return;
-    var q=local(e), wx=(q.x-OV.tx)/OV.s, wy=(q.y-OV.ty)/OV.s, id=nearest(wx, wy), b=id && B[id];
-    if(!b || Math.hypot(b.rx-wx, b.ry-wy)>b.d/2+10/OV.s) return;
+    var q=local(e), V=OVD || OV, wx=(q.x-V.tx)/V.s, wy=(q.y-V.ty)/V.s, id=nearest(wx, wy), b=id && B[id];   /* (what is under the pointer now, mid-glide too) */
+    if(!b || Math.hypot(b.rx-wx, b.ry-wy)>b.d/2+10/V.s) return;
     ovLeave({x:b.rx, y:b.ry}, false, function(){ if(window.enterFocus) window.enterFocus(id); }); }, true);
   /* nothing under the whole chart is clicked through to */
   ['mousedown', 'click', 'dblclick'].forEach(function(t){ document.addEventListener(t, function(e){ if(OV && mine(e)){ e.preventDefault(); e.stopPropagation(); } }, true); });
@@ -1462,7 +1484,8 @@ window.addEventListener('keydown', function(e){
 var camFns=[], camRaf=0;
 function camGet(){
   var c=cvs(); if(!c || !world) return null; var cw=c.clientWidth, ch=c.clientHeight;
-  if(OV) return {cx:(cw/2-OV.tx)/OV.s, cy:(ch/2-OV.ty)/OV.s-PAD, scale:OV.s};
+  var o=(OV || ovA) ? (OVD || OV) : null;   /* (a zoom glide's own frame, in or out: never where it will end, nor the scroll it has not reached) */
+  if(o) return {cx:(cw/2-o.tx)/o.s, cy:(ch/2-o.ty)/o.s-PAD, scale:o.s};
   var off=woff(c), pn=window._altoPan ? window._altoPan() : {x:0, y:0};
   return {cx:c.scrollLeft+cw/2-off.x-pn.x, cy:c.scrollTop+ch/2-off.y-pn.y-PAD, scale:1};
 }
@@ -1477,7 +1500,7 @@ window._altoSolarCam={
     var cw=c.clientWidth, ch=c.clientHeight, wx=+cx, wy=+cy+PAD;
     if(scale<.999){
       if(!OV){ var o0=woff(c); OV={s:1, tx:o0.x-c.scrollLeft, ty:o0.y-c.scrollTop}; ovHold(true); c.scrollLeft=0; c.scrollTop=0; c.classList.add('sol-ov'); fitBtn(); }
-      cancelAnimationFrame(ovA); OV.s=scale; OV.tx=cw/2-wx*scale; OV.ty=ch/2-wy*scale; ovSet(OV);
+      ovStop(); OV.s=scale; OV.tx=cw/2-wx*scale; OV.ty=ch/2-wy*scale; ovSet(OV);
     } else {
       if(OV) ovLeave(null, true);
       var off=woff(c), ax=window._altoScrollAxis, sl=wx+off.x-cw/2, st=wy+off.y-ch/2;
@@ -1537,13 +1560,16 @@ window._altoFlyOff=pref('fly')==='0';
 var LOCK=pref('lock')==='1', LW={t:0, x:0, y:0, done:false}, RD=null, RQ=[], LASTF=null;
 function lockSync(){ var c=cvs(); if(c) c.classList.toggle('sol-lock', !!(LOCK && ready && desk())); }
 function setLock(on){ LOCK=!!on; keep('lock', LOCK ? 1 : 0); if(LOCK && OV) ovLeave(null, true); if(!LOCK){ RQ=[]; if(RD) rideEnd(true); tShow(null); } lockSync(); ctl(); tBar(); if(LOCK && !window._focusedNodeId) lockStep(null); return LOCK; }
-function locked(){ return LOCK && ready && desk() && !de.classList.contains('alto-editing') && !printing; }
+function tourOK(){ return ready && desk() && !de.classList.contains('alto-editing') && !printing; }   /* the Tour: in both modes (Luke, 2026-10-22: one way to move) */
+function locked(){ return LOCK && tourOK(); }
+function flying(){ return !!(window._altoSolarFlight && window._altoSolarFlight()); }
+var TOV=false;   /* the whole system as the Tour's overview (O / Esc / the bar), not a free zoom out */
 /* the body nearest the middle of the window: where the Tour boards when there is no body yet */
 function nearestMid(){ var c=cvs(); if(!c) return null; var r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, best=null, bd=Infinity;
   ORD.forEach(function(id){ var n=B[id].n; if(!n) return; var q=n.getBoundingClientRect(); if(!q.width) return; var d=Math.hypot(q.left+q.width/2-cx, q.top+q.height/2-cy); if(d<bd){ bd=d; best=id; } });
   return best; }
 /* where you are: the body a ride is going to, the enlarged one, else the last one, else the one in the middle */
-function home(){ if(RD) return RD.dest; var f=window._focusedNodeId; if(f && B[f] && B[f].n) return f; return (LASTF && B[LASTF] && B[LASTF].n) ? LASTF : nearestMid(); }
+function home(){ if(RD) return RD.dest; var fl=window._altoSolarFlight && window._altoSolarFlight(); if(fl && B[fl.to] && B[fl.to].n) return fl.to; var f=window._focusedNodeId; if(f && B[f] && B[f].n) return f; return (LASTF && B[LASTF] && B[LASTF].n) ? LASTF : nearestMid(); }
 /* what a body is joined to by a drawn spoke: what it orbits, what orbits it, the suns its sun is linked to */
 function joined(id){ var a=B[id], o=[]; if(!a) return o;
   function add(j){ if(j && j!==id && B[j] && B[j].n && o.indexOf(j)<0) o.push(j); }
@@ -1582,11 +1608,16 @@ function tRoute(a, b){
 function rideLine(a, b){ var r=null; spokes.concat(sunl).some(function(s){ if((s.a===a && s.b===b) || (s.a===b && s.b===a)){ r=s.e[0]; return true; } }); return r; }
 /* the rider: a bright bead, or the chosen craft in a Star chart style (solar_craft.py: window._altoCraft) */
 var RDg=null;
-function rider(){ if(RDg && RDg.isConnected && RDg.parentNode===svg) return RDg; if(!svg) return null;
+function rider(){ riderSub(); if(RDg && RDg.isConnected && RDg.parentNode===svg) return RDg; if(!svg) return null;
   RDg=el('g', {'class':'sol-rider', 'aria-hidden':'true'}, svg);
   el('circle', {r:15, 'class':'sol-rh'}, RDg); el('circle', {r:5.5, 'class':'sol-rc'}, RDg);
   el('g', {'class':'sol-ship', transform:'scale(.4)'}, RDg); return RDg; }
 function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg:''}; }
+/* a new ship chosen while the rider shows (on a ride, or orbiting as it fades after one): it is drawn at once (Luke: "Ship switching doesn't work");
+   subscribed with the first rider (solar_craft.py's script comes after this one) */
+var RDsub=false;
+function riderSub(){ if(RDsub || !window._altoCraft) return; RDsub=true;
+  window._altoCraft.onChange(function(){ var sh=RDg && RDg.querySelector('.sol-ship'); if(sh){ sh.innerHTML=craft().svg||''; sh.setAttribute('transform', 'scale('+shipK()+')'); } }); }
 function shipK(){ return RETRO ? .5 : .4; }             /* (small and clear, as solar_fly.py's SHIP / SHIP_RETRO) */
 function bAt(id){ var b=B[id]; return function(){ return [b.rx, b.ry, b.d]; }; }
 function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
@@ -1595,7 +1626,7 @@ function enter(id){ LASTF=id; if(window.enterFocus) window.enterFocus(id); }
    fit the window (and from the whole system, straight in); its middle follows the rider, or (dipping) bows through
    the route's middle. */
 function ride(from, to){
-  if(!locked() || !B[from] || !B[to] || !B[to].n || RD) return false;
+  if(!tourOK() || !B[from] || !B[to] || !B[to].n || RD) return false;
   lclear(); tShow(null); LASTF=to;
   var g=camGet(), path=tRoute(from, to);
   if((de.classList.contains('sk-3d') && window._altoFlyOff) || reduced || !g || !svg){   /* the 3D scene with Flights off: its camera glides there; reduced motion: straight there */
@@ -1620,7 +1651,7 @@ function ride(from, to){
 }
 function rideF(now){
   var R=RD; if(!R) return;
-  if(!locked() || window._focusedNodeId || document.querySelector('#detail-page.visible')) return rideEnd(!window._focusedNodeId);   /* someone else took the focus or the switch: theirs */
+  if(!tourOK() || window._focusedNodeId || document.querySelector('#detail-page.visible')) return rideEnd(!window._focusedNodeId);   /* someone else took the focus or the switch: theirs */
   var k=Math.min(1, Math.max(0, (now-R.t0)/R.ms)), ez=window._altoEase || function(x){ return x*x*(3-2*x); }, u=ez(k);
   var d=u*R.L, j=0; while(j<R.seg.length-1 && d>R.seg[j]){ d-=R.seg[j]; j++; }
   var A=R.P[j], Z=R.P[j+1], f=R.seg[j] ? Math.min(1, d/R.seg[j]) : 1, px=A[0]+(Z[0]-A[0])*f, py=A[1]+(Z[1]-A[1])*f;
@@ -1642,7 +1673,7 @@ function rideEnd(arrive){
   if(arrive && done && R.tr && Cr){ Cr.park(R.dest, R.tr, 1);           /* into its orbit round the body (the 3D model stays in it); the art goes on round as it fades */
     Cr.coast(bAt(R.dest), function(o, dt){ Cr.steer(R.st, o.v, dt); RDg.setAttribute('transform', Cr.xf(o.p, R.st.hs, R.st.bk)); }, 400, function(){ return RD || !RDg; }); }
   else if(Cr) Cr.unpark();
-  if(arrive) enter(R.dest);
+  if(arrive){ var fo=window._altoFlyOff; window._altoFlyOff=true; try{ enter(R.dest); } finally { window._altoFlyOff=fo; } }   /* (arrived: no flight on top, solar_fly.py's can()) */
   tBar(); setTimeout(rideNext, (window._altoFlyMs=520));
 }
 /* the craft's way along a route (solar_craft.py track): from the orbit it is in round the first body (or that orbit's
@@ -1659,7 +1690,7 @@ function rideTrack(path, D){ var Cr=window._altoCraft; if(!Cr || !Cr.track || pa
   Cr.unpark(); return tr; }
 function tPass(id){ var n=B[id] && B[id].n; if(!n) return; n.classList.add('sol-pass'); setTimeout(function(){ n.classList.remove('sol-pass'); }, 650); }
 window._altoSolarRide=function(){ return RD && RD.p ? {p:RD.p, h:RD.h, v:RD.v, from:RD.from, to:RD.to} : null; };
-function rideNext(){ if(RD || !RQ.length) return; if(!LOCK){ RQ=[]; return; } tStep(RQ.shift()); }
+function rideNext(){ if(RD || !RQ.length) return; if(!tourOK()){ RQ=[]; return; } if(flying()) return void setTimeout(rideNext, 250); tStep(RQ.shift()); }
 /* a move that goes nowhere: it says so (the named buttons nudge) */
 var NOPE=null, nopeT=0;
 function nope(e, msg){
@@ -1672,11 +1703,12 @@ function nope(e, msg){
 var SAY={next:'The end of the tour', prev:'The start of the tour', up:'Nothing above this one', down:'Nothing below this one', sn:'No sibling after this one', sp:'No sibling before this one'};
 /* one move: next | prev | up | down | sn | sp | ov (a ride on: queued, two at most) */
 function tStep(cmd){
-  if(!locked() || !cmd) return;
-  if(RD){ if(RQ.length<2) RQ.push(cmd); return; }
-  if(cmd==='ov') return tOv(!OV);
+  if(!tourOK() || !cmd) return;
+  if(RD || flying()){ if(RQ.length<2) RQ.push(cmd); if(!RD) setTimeout(rideNext, 250); return; }   /* (a ride or a free flight on: after it) */
+  if(cmd==='let'){ if(window.exitFocus) window.exitFocus(); return; }
+  if(cmd==='ov') return tOv(!(OV && TOV));
   var h=home(); if(!h) return;
-  if(!OV && !window._focusedNodeId){ enter(h); return; }     /* nothing enlarged: first, board where you are */
+  if(!OV && !window._focusedNodeId && !LASTF){ enter(h); return; }     /* nowhere yet: first, board the body in the middle */
   var to=tTarget(h, cmd);
   if(to==='ov') return tOv(true);
   if(!to) return nope(null, SAY[cmd]);
@@ -1684,7 +1716,7 @@ function tStep(cmd){
 }
 /* a body asked for (a click; the 3D scene's pick; a button): ridden to, wherever it is */
 function rideTo(id, e){
-  if(!locked() || RD) return false;
+  if(!tourOK() || RD) return false;
   var h=home(); if(!id || !h || !B[id] || !B[id].n) return nope(e), false;
   if(id===h){ if(OV) tOv(false); else if(!window._focusedNodeId) enter(id); return true; }
   return ride(h, id);
@@ -1693,19 +1725,19 @@ window._altoSolarGo=rideTo;
 /* the whole system (O, Esc, a pinch out, Next at the end), your place ringed; back the same way, or a click on a body rides there */
 var HR=0;
 function tOv(on){
-  if(!locked()) return;
-  if(on){ if(OV) return; var h=home(); if(h) LASTF=h; ovZoom(omin(), null, null, true); setTimeout(tMark, 30); setTimeout(tMark, UNF+80); tBar(); return; }
-  if(!OV) return; var b=B[home()]; tShow(null);
+  if(!tourOK()) return;
+  if(on){ var h=home(); if(h) LASTF=h; TOV=true; if(!OV) ovZoom(omin(), null, null, true); setTimeout(tMark, 30); setTimeout(tMark, UNF+80); tBar(); return; }
+  TOV=false; if(!OV) return; var b=B[home()]; tShow(null);
   ovLeave(b ? {x:b.rx, y:b.ry} : null, false, function(){ if(b) enter(b.id); tBar(); });
 }
-function tMark(){ cancelAnimationFrame(HR); HR=0; var r=document.getElementById('sol-here'), h=LASTF && B[LASTF];
-  if(!(OV && locked() && svg && h && !RD)){ if(r) r.remove(); return; }
+function tMark(){ cancelAnimationFrame(HR); HR=0; var r=document.getElementById('sol-here'), h=LASTF && B[LASTF]; if(!OV) TOV=false;
+  if(!(OV && TOV && tourOK() && svg && h && !RD)){ if(r) r.remove(); return; }
   if(!r || r.parentNode!==svg) r=el('circle', {id:'sol-here', 'class':'sol-here', 'aria-hidden':'true'}, svg);
   r.setAttribute('cx', f2(h.rx)); r.setAttribute('cy', f2(h.ry)); r.setAttribute('r', f2(h.d/2+16/OV.s));
   HR=requestAnimationFrame(tMark); }
 /* the body under the pointer on the whole system (its board takes no pointer events) */
-function tPick(e){ if(!OV) return null; var p=local(e), wx=(p.x-OV.tx)/OV.s, wy=(p.y-OV.ty)/OV.s, id=nearest(wx, wy);
-  return (id && Math.hypot(B[id].rx-wx, B[id].ry-wy)<=B[id].d/2+24/OV.s) ? id : null; }
+function tPick(e){ if(!OV) return null; var V=OVD || OV, p=local(e), wx=(p.x-V.tx)/V.s, wy=(p.y-V.ty)/V.s, id=nearest(wx, wy);
+  return (id && Math.hypot(B[id].rx-wx, B[id].ry-wy)<=B[id].d/2+24/V.s) ? id : null; }
 /* the route to the body under the pointer, drawn, with its name and stops */
 var RT={id:null, ls:[], n:0, tip:null};
 function tShow(id, e){
@@ -1716,24 +1748,30 @@ function tShow(id, e){
   RT.tip.textContent=lname(id)+' · '+(RT.n ? RT.n+(RT.n===1 ? ' stop' : ' stops')+' · click to ride there' : 'you are here');
   RT.tip.style.left=(e.clientX+14)+'px'; RT.tip.style.top=(e.clientY+16)+'px'; RT.tip.style.display='block';
 }
-document.addEventListener('mousemove', function(e){ if(!RT.id && !(OV && LOCK)) return; tShow((locked() && OV && !RD && mine(e)) ? tPick(e) : null, e); }, {passive:true});
+document.addEventListener('mousemove', function(e){ if(!RT.id && !(OV && TOV)) return; tShow((tourOK() && OV && TOV && !RD && mine(e)) ? tPick(e) : null, e); }, {passive:true});
 /* the bar: Back, where you are, Next, the whole system */
 var TB=null;
 function tBar(){
-  var dp=document.querySelector('#detail-page.visible'), h=locked() && !dp && home();
+  var dp=document.querySelector('#detail-page.visible'), h=tourOK() && !dp && home();
   if(!h || !B[h]){ if(TB){ TB.remove(); TB=null; } return; }
   if(!TB){ TB=document.createElement('div'); TB.id='sol-tour'; TB.setAttribute('role', 'toolbar'); TB.setAttribute('aria-label', 'Tour');
-    TB.innerHTML='<button type="button" data-t="prev"></button><span class="tb-at"><i></i><b></b><i></i></span><button type="button" data-t="next" class="tb-next"></button><button type="button" data-t="ov" class="tb-ov"></button>';
-    TB.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b || b.disabled) return; e.stopPropagation(); tStep(b.getAttribute('data-t')); });
+    TB.innerHTML='<button type="button" data-t="prev"></button><span class="tb-at"><i></i><b></b><i></i></span><button type="button" data-t="home" class="tb-home" hidden></button><button type="button" data-t="next" class="tb-next"></button><button type="button" data-t="ov" class="tb-ov"></button>';
+    TB.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b || b.disabled) return; e.stopPropagation(); var t=b.getAttribute('data-t');
+      if(t==='home'){ var h2=home(); if(OV) ovLeave({x:B[h2].rx, y:B[h2].ry}, false, function(){ enter(h2); }); else enter(h2); } else tStep(t); });
     document.body.appendChild(TB); }
-  var T=tOrder(), i=T.indexOf(h), pv=T[i-1], nx=T[i+1], a=B[h], k=(OV ? 'o' : '')+h+'|'+T.length; if(TB._k===k) return; TB._k=k;
-  var bs=TB.querySelectorAll('button'), at=TB.querySelector('.tb-at').children;
+  var fl=flying(), away=!fl && !RD && !window._focusedNodeId && !(OV && TOV) && (OV || !tSeen(h));        /* (panned or zoomed away from your place: the way back) */
+  var T=tOrder(), i=T.indexOf(h), pv=T[i-1], nx=T[i+1], a=B[h], k=(OV && TOV ? 'o' : '')+(away ? 'a' : '')+(fl || RD ? 'f' : '')+h+'|'+T.length; if(TB._k===k) return; TB._k=k;
+  var bs=TB.querySelectorAll('[data-t=prev],[data-t=next],[data-t=ov]'), at=TB.querySelector('.tb-at').children, hb=TB.querySelector('.tb-home');
+  hb.hidden=!away; hb.textContent='↩ Back to '+lname(h); hb.title='Back to '+lname(h)+', where you were';
   bs[0].disabled=!pv; bs[0].textContent='‹ '+(pv ? 'Back: '+lname(pv) : 'Back'); bs[0].title='Back on the tour (←, or scroll up)';
   bs[1].textContent=nx ? 'Next: '+lname(nx)+' ›' : 'End · the whole system ›'; bs[1].title='Next on the tour (→, or scroll down)';
-  bs[2].textContent=OV ? 'Back to '+lname(h) : '◎ Overview'; bs[2].title=OV ? 'Back where you were (O or Esc)' : 'The whole system (O or Esc)';
-  at[0].textContent=(a.p && B[a.p]) ? lname(a.p)+' › ' : ''; at[1].textContent=lname(h); at[2].textContent=' · '+(i+1)+' of '+T.length;
+  bs[2].textContent=(OV && TOV) ? 'Back to '+lname(h) : '◎ Overview'; bs[2].title=(OV && TOV) ? 'Back where you were (O or Esc)' : 'The whole system (O or Esc)';
+  at[0].textContent=(fl || RD) ? 'On the way to ' : (a.p && B[a.p]) ? lname(a.p)+' › ' : ''; at[1].textContent=lname(h); at[2].textContent=(fl || RD) ? '…' : ' · '+(i+1)+' of '+T.length;   /* (a long flight says where it is going: Luke, "sometimes map is stuck") */
 }
-/* the clicks: on the enlarged disc its own (its full page); any other body, or a line, rides there; on the whole system the body under the pointer */
+/* is a body on the window (its middle inside, clear of the bars)? */
+function tSeen(id){ var n=B[id] && B[id].n, c=cvs(); if(!n || !c) return false; var q=n.getBoundingClientRect(), r=c.getBoundingClientRect(), x=q.left+q.width/2, y=q.top+q.height/2;
+  return q.width>0 && x>r.left+40 && x<r.right-40 && y>r.top+90 && y<r.bottom-110; }
+/* Spokes only, the clicks: on the enlarged disc its own (its full page); any other body, or a line, rides there; on the whole system the body under the pointer */
 window.addEventListener('click', function(e){
   if(!locked() || e.button) return;
   var c=cvs(), t=e.target; if(!c || !t || t.nodeType!==1 || !c.contains(t) || t.id==='sk3d' || document.querySelector('#detail-page.visible')) return;
@@ -1743,6 +1781,8 @@ window.addEventListener('click', function(e){
   if(id && id===window._focusedNodeId) return;
   e.preventDefault(); e.stopImmediatePropagation(); if(id) rideTo(id, e);
 }, true);
+/* without Spokes only, a ride is the camera's until you take it: a wheel or a press on the board ends it where it is */
+['wheel', 'pointerdown'].forEach(function(ty){ window.addEventListener(ty, function(e){ if(RD && !LOCK && mine(e) && !(e.target.closest && e.target.closest('button,#sol-ctl,#sol-tour'))) rideEnd(false); }, {capture:true, passive:true}); });
 /* no dragging the view: a press on empty space does nothing (bodies, lines, buttons still take their clicks) */
 ['pointerdown', 'mousedown'].forEach(function(ty){ document.addEventListener(ty, function(e){ if(!locked()) return; var c=cvs(), t=e.target;
   if(!c || !c.contains(t) || t.id==='sk3d' || (t.closest && t.closest('.node,button,a,input,#sol-ctl')) || (t._r)) return;   /* (the 3D scene: solar_3d.py turns nothing while it is on) */
@@ -1752,11 +1792,14 @@ window.addEventListener('click', function(e){
   if(ty==='gestureend' && e.scale) tOv(e.scale<.85 ? true : e.scale>1.18 ? false : !!OV); }, {capture:true, passive:false}); });
 /* the keys: → / ← the tour (Shift: the siblings), ↑ / ↓ a level, O or Esc the whole system */
 window.addEventListener('keydown', function(e){
-  if(!locked() || e.metaKey || e.ctrlKey || e.altKey) return;
+  if(!tourOK() || e.metaKey || e.ctrlKey || e.altKey) return;
   var ae=document.activeElement; if(ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return;
-  if(document.querySelector('#detail-page.visible,#summary-wrap.open')) return;
-  var k=e.key, c=k==='ArrowRight' ? (e.shiftKey ? 'sn' : 'next') : k==='ArrowLeft' ? (e.shiftKey ? 'sp' : 'prev') : k==='ArrowUp' ? 'up' : k==='ArrowDown' ? 'down'
-    : (k==='o' || k==='O' || k==='Escape') ? 'ov' : null;
+  if(document.querySelector('#detail-page.visible,#summary-wrap.open,#sol-craft-pop')) return;
+  var k=e.key, mine=!ae || ae===document.body || cvs().contains(ae) || !!(ae.closest && ae.closest('#sol-ctl,#sol-tour'));
+  if(k==='Escape' && !mine) return;                    /* (a panel's own Escape) */
+  if(k==='Escape' && flying()) return;                 /* (a flight's own: solar_fly.py stops it where it is) */
+  var c=k==='ArrowRight' ? (e.shiftKey ? 'sn' : 'next') : k==='ArrowLeft' ? (e.shiftKey ? 'sp' : 'prev') : k==='ArrowUp' ? 'up' : k==='ArrowDown' ? 'down'
+    : (k==='o' || k==='O') ? 'ov' : k==='Escape' ? ((window._focusedNodeId && !OV) ? 'let' : 'ov') : null;   /* Esc: an enlarged card goes home first, then the whole system (Luke) */
   if(!c) return;
   e.preventDefault(); e.stopImmediatePropagation(); if(!e.repeat || !RQ.length) tStep(c);
 }, true);
@@ -1798,6 +1841,15 @@ function lockStep(d){
   document.dispatchEvent(new KeyboardEvent('keydown', {key:k, code:k, bubbles:true, cancelable:true}));
   setTimeout(function(){ document.dispatchEvent(new KeyboardEvent('keyup', {key:k, code:k, bubbles:true})); }, 30);
 }
+/* normal mode: a scroll pans, an enlarged card or not (Luke's one way of moving: the engine's focus mode would step to a
+   neighbour instead); the card goes home and the scroll pans */
+window.addEventListener('wheel', function(e){
+  if(LOCK || !tourOK() || e.ctrlKey || !window._focusedNodeId || RD) return;
+  var c=cvs(); if(!c || !c.contains(e.target) || document.querySelector('#detail-page.visible')) return;
+  if(e.target.closest && e.target.closest('#notes-panel,#summary-wrap,#info-btn,#note-dialog,input,textarea')) return;
+  if(Math.abs(e.deltaX)+Math.abs(e.deltaY)<2) return;
+  if(window.exitFocus) window.exitFocus();   /* (then the board's own wheel pans it: pan2d.py; the engine's focus-mode step finds no focus) */
+}, {capture:true, passive:true});
 /* the Tour: a wheel or a trackpad never moves or zooms the view; one gesture is one move (down / left: Next; up / right: Back), a pinch out the whole system */
 window.addEventListener('wheel', function(e){
   if(!locked()) return;
@@ -1817,10 +1869,10 @@ function ctl(){
   if(!w){ w=document.createElement('div'); w.id='sol-ctl'; w.setAttribute('role', 'group'); w.setAttribute('aria-label', 'How the chart looks');
     w.innerHTML='<div class="sol-seg" id="sol-sty" role="radiogroup" aria-label="Style">'+STYLES.map(function(x){
         return '<button type="button" data-style="'+x[0]+'" role="radio" title="'+x[2]+'"><span>'+x[1]+'</span></button>'; }).join('')+'</div>'+
-      '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit</span></button>'+
+      '<button type="button" id="sol-motion">'+IC.pause+IC.play+'<span>Orbit<i class="sol-ow"></i></span></button>'+
       '<button type="button" id="sol-fly" class="sol-opt">'+IC.fly+'<span>Flights</span><i class="sol-sw"></i><b class="sol-st"></b></button>'+
       '<button type="button" id="sol-craft" class="sol-opt" aria-haspopup="dialog" aria-expanded="false"><i class="cr-i"></i><span>Ship</span></button>'+
-      '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Tour</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
+      '<button type="button" id="sol-lock" class="sol-opt">'+IC.lock+'<span>Spokes only</span><i class="sol-sw"></i><b class="sol-st"></b></button>';
     w.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b) return; e.stopPropagation();
       if(b.getAttribute('data-style')) setStyle(b.getAttribute('data-style'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION);
@@ -1828,10 +1880,11 @@ function ctl(){
       else if(b.id==='sol-lock') setLock(!LOCK);
       else if(b.id==='sol-craft' && window._altoCraft) window._altoCraft.open(b); });
     if(window._altoCraft) window._altoCraft.onChange(function(){ ctl(); });
-    document.body.appendChild(w); }
+    document.body.appendChild(w); window.addEventListener('resize', function(){ var w2=document.getElementById('sol-ctl'); if(w2) de.style.setProperty('--sol-ctl-h', w2.offsetHeight+'px'); }); }
+  de.style.setProperty('--sol-ctl-h', w.offsetHeight+'px');
   var sv=styleOf(); [].forEach.call(w.querySelectorAll('[data-style]'), function(b){ var on=b.getAttribute('data-style')===sv; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
   var m=w.querySelector('#sol-motion'), run=!!MOTION && MOVES;
-  m.disabled=!MOVES; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false');
+  m.disabled=!MOVES; m.classList.toggle('on', run); m.setAttribute('aria-pressed', run ? 'true' : 'false'); m._w=null; if(!run){ m.classList.remove('sol-wait'); m.querySelector('.sol-ow').textContent=''; }
   m.title=!MOVES ? 'Orbit: nothing here orbits' : run ? 'Orbit on/off (Space): on, click to stop the planets where they are' : 'Orbit on/off (Space): off, click to set the planets moving again';
   m.setAttribute('aria-label', m.title);
   var fb=w.querySelector('#sol-fly'), fo=!window._altoFlyOff; fb.hidden=LOOK!=='stars'; fb.classList.toggle('on', fo); fb.setAttribute('aria-pressed', fo ? 'true' : 'false');
@@ -1841,7 +1894,7 @@ function ctl(){
   if(CR){ var cc=CR.get(); if(cb._c!==cc.id+STY){ cb._c=cc.id+STY; cb.querySelector('.cr-i').innerHTML=CR.art(cc.id); }
     cb.title='Your ship: '+cc.name+' (click to choose another)'; cb.setAttribute('aria-label', cb.title); }
   var lb=w.querySelector('#sol-lock'); lb.classList.toggle('on', LOCK); lb.querySelector('.sol-st').textContent=LOCK ? 'ON' : 'OFF'; lb.setAttribute('aria-pressed', LOCK ? 'true' : 'false');
-  lb.title=LOCK ? 'Tour: on. \u2192 / \u2190 walk the outline, \u2191 / \u2193 go up or down a level, O shows the whole system; every move rides the spokes (click to move freely)' : 'Tour: off. Click to move through the system as a guided tour along its spokes';
+  lb.title=LOCK ? 'Spokes only: on. No free panning or zooming: scrolling steps the tour, a click rides the spokes (click to move freely)' : 'Spokes only: off. You can also pan, zoom and click anything; \u2192 / \u2190, \u2191 / \u2193 and O work as ever (click to travel only by the spokes)';
 }
 /* the space bar starts / stops the orbit like the Orbit button: only while the system is showing (the button is there
    and enabled: not a phone, not the detail page, not edit mode, not print), no modifier, not held down, not in a field or on

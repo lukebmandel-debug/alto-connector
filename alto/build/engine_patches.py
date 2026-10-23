@@ -747,7 +747,9 @@ _FLY_BACK_OLD = """    if(!fx&&!fy){ el.style.transform=''; return; }
     _animate(300,function(k){ el.style.transform='translate(-50%,-50%) translate('+(fx*(1-k))+'px,'+(fy*(1-k))+'px)'; },
       function(){ el.style.transform=''; el._fx=el._fy=0; });"""
 _FLY_BACK_NEW = """    var px0=_pan.x, py0=_pan.y;
-    if(!fx&&!fy&&!px0&&!py0){ _place(el,0,0); return; }
+    // nothing to glide back: still stop the glide that brought it (a scroll or a drag right after a card was
+    // enlarged was written over by the rest of flyTo's frames; Luke, 2026-10-22: "glitchy in movement")
+    if(!fx&&!fy&&!px0&&!py0){ if(_tw){ cancelAnimationFrame(_tw); _tw=0; } _place(el,0,0); return; }
     // the board glides back to rest, as one piece (see flyTo)
     _animate(UNFOCUS_MS,function(k){ _place(el, fx*(1-k), fy*(1-k)); _setPan(px0*(1-k), py0*(1-k)); },
       function(){ _place(el,0,0); _setPan(0,0); });"""
