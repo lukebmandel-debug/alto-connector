@@ -1438,9 +1438,9 @@ def _unisphere():
 
 def _wonderwheel():
     """The Wonder Wheel (Coney Island, 1920; 45.7 m): an eccentric steel wheel on its A-frame, the cars round the rim, on the boardwalk."""
-    return {"h": 98, "D": 30, "parts": [                      # drawn about twice life size, as the map's icon of Coney Island
-        {"k": "box", "w": 76, "d": 30, "y0": 0, "y1": 6, "m": "trim", "sheen": False},
-        {"k": "wheel", "x": 0, "y": 51, "r": 45, "n": 16}]}
+    return {"h": 150, "D": 40, "parts": [                     # drawn about three times life size, as the map's icon of Coney Island
+        {"k": "box", "w": 110, "d": 40, "y0": 0, "y1": 8, "m": "trim", "sheen": False},
+        {"k": "wheel", "x": 0, "y": 78, "r": 68, "n": 16}]}
 
 
 def _parachute():

@@ -424,6 +424,7 @@ TILES_CSS = r"""
   .pal-svg g.ct.ct-off{display:none;}
 """
 FADE_MS = 280
+SETTLE_MS = 300                   # ms a view must stay still before tiles are drawn, names fitted and buildings laid again
 
 TILES_JS = r"""
 /* ── city tiles (palace_tiles.py): the detail of the cells in view, fetched from /cmap/ once the board shows a few km, drawn into the
@@ -447,7 +448,20 @@ function ctTargets(){ var t=[]; if(svgD && palaceOn()){ var v=ctView(); if(v) t.
   if(MM.svg && MM.box && MM.box.classList.contains('on') && typeof PM!=='undefined' && PM.W && PM.z){ var z=PM.z;
     t.push([MM.svg, [PM.sx/z-MX, PM.sy/z-MY, (PM.sx+PM.W)/z-MX, (PM.sy+PM.H)/z-MY]]); }
   return t; }
-function ctTick(){ if(!CT) return; ctTargets().forEach(function(tv){ ctTick1(tv[0], tv[1]); }); if(CTpend.length && !CTraf) CTraf=requestAnimationFrame(ctStep); }
+/* drawing a tile, fitting the names and laying the buildings again wait until the view has settled (docs/markers.md: layout once, after
+   the gesture): while a pan or zoom runs, tiles are only fetched */
+var CTmv=0, CTlast='';
+function ctMoving(){ if(PV){ CTmv=performance.now(); return true; } return performance.now()-CTmv<CT_SETTLE; }   /* a zoom glide runs (PV) */
+/* the close-in buildings' canvas (palace_fillin) is set aside while a zoom glide scales the board (WebKit re-scales a painted canvas of the
+   window's size every frame: 350 ms a frame with a borough's buildings on it) and comes back, painted for the new zoom, when it settles */
+var CTwo=null;
+function ctWatchZoom(){ if(CTwo) return; var w=document.getElementById('world'); if(!w) return;
+  CTwo=new MutationObserver(function(){ var c=document.getElementById('pal-fillc'); if(!c) return; var on=!w.style.transform;
+    if(on===!c.style.visibility) return; c.style.visibility=on?'':'hidden'; if(on && typeof fillSoon==='function') fillSoon(); });
+  CTwo.observe(w, {attributes:true, attributeFilter:['style']}); }
+function ctTick(){ if(!CT) return; ctWatchZoom(); var tv=ctTargets(), key=tv.map(function(t){ return t[1].map(Math.round).join(','); }).join('|');
+  if(key!==CTlast){ CTlast=key; CTmv=performance.now(); }
+  tv.forEach(function(t){ ctTick1(t[0], t[1]); }); if(CTpend.length && !CTraf && !ctMoving()) CTraf=requestAnimationFrame(ctStep); }
 function ctTick1(svg, v){
   var sid=svg._sid||'', w=v[2]-v[0], on=CTon[sid]=CTon[sid]?(w<=CT_OFF):(w<=CT_ON);
   var cx=(v[0]+v[2])/2, cy=(v[1]+v[3])/2, m=CTS, near=[];
@@ -459,7 +473,7 @@ function ctTick1(svg, v){
     else if(c.st===2 && !c.on[sid]){ if(!CTpend.some(function(q){ return q[0]===c && q[1]===svg; })) CTpend.push([c, svg]); }
     else if(c.st===2 && c.g[sid] && c.g[sid][0] && c.g[sid][0].classList.contains('ct-off')) ctShow(c, svg, 'show'); }); }
 /* one tile a frame */
-function ctStep(){ CTraf=0; var q=CTpend.shift(); if(!q) return; var c=q[0], svg=q[1], sid=svg._sid||'';
+function ctStep(){ CTraf=0; if(ctMoving()) return; var q=CTpend.shift(); if(!q) return; var c=q[0], svg=q[1], sid=svg._sid||'';
   if(!c.on[sid] && svg.isConnected){ ctDraw(svg, c, true); c.on[sid]=1; ctAfter(svg); }
   if(CTpend.length) CTraf=requestAnimationFrame(ctStep); }
 /* a fade on the group's own inline opacity, taken off when it ends (no standing transparency layer: see TILES_CSS) */
@@ -468,11 +482,13 @@ function ctFade(g, to, done){ var t0=performance.now(), from=to?0:1;
   g.style.opacity=from; (function f(t){ var k=Math.min(1,(t-t0)/CT_FADE); g.style.opacity=from+(to-from)*k*k*(3-2*k);
     if(k<1) requestAnimationFrame(f); else { g.style.opacity=''; if(done) done(); } })(t0); }
 function ctShow(c, svg, how){ var sid=svg._sid||''; var gs=c.g[sid]||[];
-  if(how==='drop'){ gs.forEach(function(g){ if(g.parentNode) g.parentNode.removeChild(g); }); c.g[sid]=null; c.on[sid]=0; return; }
+  if(how==='drop'){ gs.forEach(function(g){ if(g.parentNode) g.parentNode.removeChild(g); }); c.g[sid]=null; c.on[sid]=0; if(c.fs) ctFillSoon(); return; }
+  var changed=0;
   gs.forEach(function(g){ var off=g.classList.contains('ct-off');                                   /* fade, never pop (docs/markers.md) */
-    if(how==='hide' && !off && !g._fo){ g._fo=1; ctFade(g, 0, function(){ g._fo=0; g.classList.add('ct-off'); }); }
-    else if(how==='show' && off){ g.classList.remove('ct-off'); ctFade(g, 1); } }); }
-function ctAfter(svg){ clearTimeout(CTlbl); CTlbl=setTimeout(function(){ if(svg.isConnected){ try{ lblFit(svg, true); }catch(e){} } }, 200); }
+    if(how==='hide' && !off && !g._fo){ changed=1; g._fo=1; ctFade(g, 0, function(){ g._fo=0; g.classList.add('ct-off'); }); }
+    else if(how==='show' && off){ changed=1; g.classList.remove('ct-off'); ctFade(g, 1); } });
+  if(changed && c.fs) ctFillSoon(); }
+function ctAfter(svg){ clearTimeout(CTlbl); CTlbl=setTimeout(function(){ if(ctMoving()){ ctAfter(svg); return; } if(svg.isConnected){ try{ lblFit(svg, true); }catch(e){} } }, 200); }
 /* the city's layers: the tile's groups go under what the base draws there (the base's major lines stay on top) */
 function ctLayers(svg){ var lb=svg.querySelector(':scope > g > .pl-credit'); return {pk:svg.querySelector(':scope > .pl-parks'), st:svg.querySelector(':scope > .pl-streets'),
   lb:lb?lb.parentNode:null, hit:svg.querySelector(':scope > .pl-hits'), defs:svg.querySelector(':scope > defs')}; }
@@ -509,18 +525,28 @@ function ctDraw(svg, c, fade){
     pkn.forEach(function(pk){ var t=lbl(lg, 'pl-pkt', pk.n, pk.t[0], pk.t[1]); t._g=[pk.t[0], pk.t[1], 0]; t._up=.35; });
     nbs.forEach(function(a){ var t=el('text',{'class':'pl-area', x:a.x, y:a.y, 'text-anchor':'middle', 'data-r':4, 'aria-hidden':'true'},lg); t.textContent=a.n; t._g=[a.x, a.y, 0]; t._up=.35; }); }
   if(L.hit && sts.length){ var hg=ctG(L.hit, c, sid, false); sts.forEach(function(s){ if(!s.n || s.t) return; var h=el('path',{'class':'pl-hit', d:pts(s.p)},hg); h._n=s.n; }); }
-  if(T.f && !c.fl){ c.fl=1; ctFillAdd(T.f); }
+  if(T.f && !c.fl){ c.fl=1; ctFillAdd(T.f, c); } else if(c.fs) ctFillSoon();
   if(fade) (c.g[sid]||[]).forEach(function(g){ ctFade(g, 1); });
 }
 /* a redrawn board (light/dark, a new map ground) draws the tiles it showed again */
 function ctDrawAll(svg){ if(!CT) return; var sid=svg._sid||''; Object.keys(CTC).forEach(function(k){ var c=CTC[k]; if(c.on[sid]){ c.g[sid]=null; ctDraw(svg, c, false); } }); }
-/* the tile's buildings join the fill-in (decoded with the page's own domains and steps), drawn again a moment after the last arrives */
-function ctFillAdd(part){
+/* the tile's buildings join the fill-in while the tile is shown, and leave it with the tile: the fill holds the page's own buildings and
+   those of the tiles on the board, never every tile ever visited. Each keeps its own thinning rank (rk), so the set changing never
+   reshuffles which buildings a slider share shows. */
+var CTfs0=null;
+function ctFillAdd(part, c){
   if(typeof fillShapes!=='function' || !FILL) return; var S0=fillShapes(); if(!S0) return;
+  if(!CTfs0) CTfs0=S0.map(function(a){ return a?a.slice():a; });
   var F0=FILL; FILL={L:part.L, h:part.h, n:part.n, q:F0.q, doms:F0.doms, ch:F0.ch, c:part.c}; FS=null; var Sp;
   try{ Sp=fillShapes(); } finally { FILL=F0; FS=S0; }
-  for(var lv=1;lv<=4;lv++) if(Sp && Sp[lv]) Array.prototype.push.apply(S0[lv], Sp[lv]);
-  clearTimeout(CTfill); CTfill=setTimeout(function(){ FG=null; if(FC) FC.cache={}; if(svgD){ fillDraw(svgD); fillLOD(svgD); fillSoon(); } if(MM.svg){ fillDraw(MM.svg); fillLOD(MM.svg); } }, 150); }
+  var seed=0; for(var i=0;i<c.e.k.length;i++) seed=(Math.imul(seed,31)+c.e.k.charCodeAt(i))|0;
+  for(var lv=1;lv<=4;lv++) (Sp&&Sp[lv]||[]).forEach(function(sh,i){ sh.rk=((Math.imul(i+1+seed,2654435761)^Math.imul(lv,40503))>>>0)%1000/1000; });
+  c.fs=Sp; ctFillSoon(); }
+function ctFillSoon(){ clearTimeout(CTfill); CTfill=setTimeout(ctFillSet, 150); }
+function ctFillSet(){ if(!CTfs0 || typeof fillShapes!=='function') return; if(ctMoving()){ ctFillSoon(); return; }
+  var on=Object.keys(CTC).sort().map(function(k){ return CTC[k]; }).filter(function(c){ return c.fs && ['d','m'].some(function(k){ var g=c.on[k] && c.g[k] && c.g[k][0]; return g && !g.classList.contains('ct-off') && !g._fo; }); });
+  for(var lv=1;lv<=4;lv++){ var a=(CTfs0[lv]||[]).slice(); on.forEach(function(c){ if(c.fs[lv]) Array.prototype.push.apply(a, c.fs[lv]); }); FS[lv]=a; }
+  FG=null; if(FC) FC.cache={}; if(svgD){ fillDraw(svgD); fillLOD(svgD); fillSoon(); } if(MM.svg){ fillDraw(MM.svg); fillLOD(MM.svg); } }
 if(CT){ setInterval(function(){ if(!document.hidden) ctTick(); }, 250);
   /* other code (the ride, the first-person view) can ask for a box's tiles: their streets come back once drawn */
   window._altoCity={ensure:function(box, cb){ var n=0; CTE.forEach(function(e){ var b=e.b; if(b[2]>box[0] && b[0]<box[2] && b[3]>box[1] && b[1]<box[3]){ var c=ctData(e); if(c.st===0){ n++; ctFetch(c); } } });
@@ -550,7 +576,7 @@ def patch_js(js: str) -> str:
     b = "  svg._b=bg; svg._r=route;"
     if js.count(a) != 1 or js.count(b) != 1 or any(js.count(o) != 1 for o, _n in _GROUP):
         raise ValueError("palace_tiles.patch_js: anchors not found")
-    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_FADE", str(FADE_MS)) + CHUNK_JS + a)
+    js = js.replace(a, TILES_JS.replace("CT_OFF", str(CT_OFF)).replace("CT_ON", str(CT_ON)).replace("CT_FADE", str(FADE_MS)).replace("CT_SETTLE", str(SETTLE_MS)) + CHUNK_JS + a)
     for o, n in _GROUP:
         js = js.replace(o, n)
     return js.replace(b, "  ctDrawAll(svg);\n" + b)

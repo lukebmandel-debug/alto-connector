@@ -1080,7 +1080,7 @@ function fillGroups(){ var sg=fillSig(); if(FG && FGsig===sg) return FG; FGsig=s
   var CH=FILL.ch, taken=fillTaken(), grid={};
   taken.forEach(function(b){ for(var i=Math.floor(b[0]/CH[0]);i<=Math.floor(b[2]/CH[0]);i++) for(var j=Math.floor(b[1]/CH[1]);j<=Math.floor(b[3]/CH[1]);j++) (grid[i+','+j]=grid[i+','+j]||[]).push(b); });
   for(var lv=1;lv<=4;lv++) S[lv].forEach(function(s,si){ var b=s.b, ci=Math.floor((b[0]+b[2])/2/CH[0]), cj=Math.floor((b[1]+b[3])/2/CH[1]), key=ci+','+cj, tk=grid[key];
-    if((lv-1)+fillRank(si,lv) >= fillLevelAt((b[0]+b[2])/2,(b[1]+b[3])/2)) return;       /* past the slider's share of this part of the city */
+    if((lv-1)+(s.rk!=null?s.rk:fillRank(si,lv)) >= fillLevelAt((b[0]+b[2])/2,(b[1]+b[3])/2)) return;       /* past the slider's share of this part of the city */
     if(tk && lv<4) for(var q=0;q<tk.length;q++){ var t=tk[q]; if(b[0]<t[2] && b[2]>t[0] && b[1]<t[3] && b[3]>t[1]) return; }
     var C=FG[lv][key]||(FG[lv][key]={ci:ci, cj:cj, u:{}}), u=distAt((b[0]+b[2])/2,(b[1]+b[3])/2); (C.u[u]=C.u[u]||[]).push(s); });
   if(FC) FC.cache={}; return FG; }
@@ -1151,7 +1151,7 @@ function fillHover(e){ if(fillHovRaf) return; var cx=e.clientX, cy=e.clientY, tg
   var name='', hit=null;
   if(svgD && fillLevel>=1 && !mob() && !(tg && tg.closest && tg.closest('.node,.pl-lmb,.pl-hit,.pl-chip,#pal-key,#pal-ctl,#pal-dock,#pal-lmbar,.pl-route-hit,.pl-tr-hit'))){
     var r=svgD.getBoundingClientRect(); if(r.width){ var mx=(cx-r.left)/r.width*VW-MX, my=(cy-r.top)/r.height*VH-MY, S=fillShapes();
-      for(var lv=1;lv<=Math.min(2,fillLevel) && !hit;lv++) for(var i=0;i<S[lv].length;i++){ var s=S[lv][i], b=s.b; if(!s.n || mx<b[0]||mx>b[2]||my<b[1]||my>b[3] || (lv-1)+fillRank(i,lv)>=fillLevelAt((b[0]+b[2])/2,(b[1]+b[3])/2)) continue;
+      for(var lv=1;lv<=Math.min(2,fillLevel) && !hit;lv++) for(var i=0;i<S[lv].length;i++){ var s=S[lv][i], b=s.b; if(!s.n || mx<b[0]||mx>b[2]||my<b[1]||my>b[3] || (lv-1)+(s.rk!=null?s.rk:fillRank(i,lv))>=fillLevelAt((b[0]+b[2])/2,(b[1]+b[3])/2)) continue;
         var p=s.p, c=false; for(var a=0,n=p.length,j=n-2;a<n;j=a,a+=2){ if((p[a+1]>my)!==(p[j+1]>my) && mx<p[a]+(my-p[a+1])*(p[j]-p[a])/(p[j+1]-p[a+1])) c=!c; }
         if(c){ hit=s; break; } } } }
   if(hit){ if(fillHov===hit) return; fillHov=hit; var b=hit.b, rc=svgD.querySelector(':scope > .pl-fhit')||el('rect',{'class':'pl-fhit'},svgD);
