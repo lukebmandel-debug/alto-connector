@@ -351,8 +351,9 @@ def palace_data(b, nodes) -> str:
     # the parks, less the blocks a building stands on (a park never moves a building)
     from .palace_parks import shape as shape_parks
     g_ = m.get("grid") or {}
+    from .palace_parkfit import Water                      # ... and never on the water the page draws
     mp["parks"] = shape_parks(m.get("parks"), g_.get("xg") or [], g_.get("yg") or [],
-                              [(by_key[k][0], by_key[k][1]) for k in at.values() if k in by_key])
+                              [(by_key[k][0], by_key[k][1]) for k in at.values() if k in by_key], water=Water(m))
     mp["streets"] = [{**s, "n": short(s.get("n") or "")} for s in m.get("streets", [])]
     mp["majors"] = [short(s) for s in m.get("majors", [])]
     mp["cols"] = [short(s) for s in m.get("cols", [])]      # the grid's streets by column / row, to tell a major from a minor one
@@ -1306,11 +1307,13 @@ function drawCity(svg){
     d+=(i?'L':'M')+sx+' '+sy+'Q'+x+' '+y+' '+(x+(nx-x)/l2*rr)+' '+(y+(ny-y)/l2*rr); } return d+'Z'; }
   /* the open water (build/city_water.py: the harbour a far-bank city's rivers run out into): one shape with the rivers' own bands (they are part of it: the same blue, the same green margin along the land, none across the water), clipped to the glass */
   if(M.sea && M.sea.length){ var scp=el('clipPath',{id:'plsea'+(svg._sid||'')},defs); el('rect',{x:-MX, y:-MY, width:VW, height:VH, rx:34},scp);
-    var sd=M.sea.map(function(r){ return rpc(r, 90); }).join(''), sc='url(#plsea'+(svg._sid||'')+')';
+    var sd=M.sea.map(function(r){ return rpc(r, 90); }).join(''), sc='url(#plsea'+(svg._sid||'')+')', ld='';
+    if(M.land && M.land.length){ ld=M.land.map(function(r){ return rpc(r, 20); }).join('');                         /* the island's real shore: the water that runs under its margin is cut away
+         there (glass less land, even-odd), not painted over, so what lies under the city's SVG (the fill-in's canvas) shows on the land as it does on Philadelphia's */
+      var lcp=el('clipPath',{id:'plsl'+(svg._sid||'')},defs); el('path',{d:'M'+(-MX)+' '+(-MY)+'h'+VW+'v'+VH+'h'+(-VW)+'Z'+ld, 'clip-rule':'evenodd'},lcp); sc='url(#plsl'+(svg._sid||'')+')'; }
     el('path',{'class':'pl-sea-bank', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},seag);                                     /* the green margin, as along a band */
     el('path',{'class':'pl-sea', d:sd, 'fill-rule':'evenodd', 'clip-path':sc},seag);
-    if(M.land && M.land.length){ var ld=M.land.map(function(r){ return rpc(r, 20); }).join('');                     /* the island's real shore, laid over the water that runs under its margin */
-      el('path',{'class':'pl-land-bank', d:ld, 'fill-rule':'evenodd', 'clip-path':sc},seag); el('path',{'class':'pl-land-top', d:ld, 'fill-rule':'evenodd', 'clip-path':sc},seag); } }
+    if(ld) el('path',{'class':'pl-land-bank', d:ld, 'fill-rule':'evenodd', 'clip-path':sc},seag); }
   (M.parks||[]).forEach(function(pk){ var g=el('g',{'class':'pl-pk-g','data-name':pk.n},pkg);
     el('path',{'class':'pl-pk', d:(pk.r||[]).map(function(r){ return rpc(r, R); }).join('')},g);
     (pk.p||[]).forEach(function(p){ el('path',{'class':'pl-pkp', d:rp(p)},g); });

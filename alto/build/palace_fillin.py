@@ -287,6 +287,26 @@ def _clip(poly, x0, y0, x1, y1):
     return poly if len(poly) >= 3 else []
 
 
+def _boxed(loc, cx, cy, x0, y0, x1, y1, small=6.0):
+    """Manhattan's layout (Luke, 2026-10-22: "in NYC background buildings look really weird"): its angled grids carry a
+    footprint into the lattice through a frame its own streets do not quite follow, so a real box came out a slanted sliver.
+    Drawn as Philadelphia's are instead: a box square to its block, as big as the footprint (its area, its proportions
+    across the lattice), round its own middle, moved inside the block's inset; None when it is a speck."""
+    xs, ys = [p[0] for p in loc], [p[1] for p in loc]
+    bw, bh = max(xs) - min(xs), max(ys) - min(ys)
+    area = abs(pmap.ring_area(loc))
+    if area <= 0 or bw <= 0 or bh <= 0 or x1 - x0 < small or y1 - y0 < small:
+        return None
+    asp = max(.2, min(5.0, bw / bh))
+    w, h = math.sqrt(area * asp), math.sqrt(area / asp)
+    w, h = min(w, x1 - x0), min(h, y1 - y0)
+    if w < small or h < small:
+        return None
+    cx = max(x0 + w / 2, min(x1 - w / 2, cx))
+    cy = max(y0 + h / 2, min(y1 - h / 2, cy))
+    return [(cx - w / 2, cy - h / 2), (cx + w / 2, cy - h / 2), (cx + w / 2, cy + h / 2), (cx - w / 2, cy + h / 2)]
+
+
 def _snap(pts, tol=math.tan(math.radians(8))):
     """A footprint whose every edge is within 8 degrees of the lattice's axes, made exactly rectilinear (a real
     building square to its streets stays square: the mapping is a turn and then separate in x and y)."""
@@ -379,7 +399,8 @@ def _in_core(core, lat, lon):
     return core is None or (core[0] <= lat <= core[2] and core[1] <= lon <= core[3])
 
 
-def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None, far_max: int = 4, why=None, far_tiers=None) -> dict:
+def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None, far_max: int = 4, why=None, far_tiers=None,
+              far_fronts=False) -> dict:
     """Footprints on the graph paper, packed. Each building goes into the domain that owns its real centre, through
     that domain's mapping into the block (cell) its centre falls in, snapped square where it is nearly square, and
     clipped `ins` px inside the block's streets. None in a landmark's block, in a park, outside a block (a cell
@@ -390,6 +411,7 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
     why: a Counter that collects why buildings were left out (the report and the tests)."""
     from .palace_banks import BANK_GAP, _Riv
     bbox, scale = m["bbox"], m.get("scale", 1.0)
+    reg = m.get("layout") == "manhattan"              # Manhattan's own layout: the graph paper's own building vocabulary (_boxed)
     doms = domains(m)
     by_page, by_real = _owners(doms)
     rivs = _Riv(m)
@@ -431,8 +453,11 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
         t = tier_of(tags, area, h)
         if t is None:
             continue
+        front = False
         if (t > far_max or (far_tiers is not None and t not in far_tiers)) and not _in_core(core, sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)):
-            continue
+            if not far_fronts:
+                continue
+            front = True                              # past the reach: the block's fronts only (Manhattan, fill_for)
         real = [pmap.project(la, lo, bbox, scale) for la, lo in ring]
         if len(real) > 3 and real[0] == real[-1]:
             real = real[:-1]
@@ -453,6 +478,12 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
                 _no(why, "free_clearance", t)
                 continue
         else:
+            if reg:                                   # Manhattan: the lattice that owns the page where it lands takes it (near a seam
+                d2 = by_page(*d.page(lx, ly))         # the real owner's lattice runs on past its own ground)
+                if d2 is not d and not d2.free:
+                    d = d2
+                    loc = [d.mp(x, y) for x, y in real]
+                    lx, ly = sum(p[0] for p in loc) / len(loc), sum(p[1] for p in loc) / len(loc)
             ij = d.cell(lx, ly)
             if not ij or (d.k, ij) not in valid:
                 _no(why, "no_block", t)
@@ -465,13 +496,15 @@ def fill_data(raw, m, blocks=None, ins: float = INSET, chunk: int = 4, core=None
                 _no(why, "other_domain", t)
                 continue
             g = _clip(_snap(loc), x0 + ins, y0 + ins, x1 - ins, y1 - ins)
+            if reg and t < 4 and not (g and len(g) >= 4 and _rectilinear([(round(x), round(y)) for x, y in g])):
+                g = _boxed(loc, lx, ly, x0 + ins, y0 + ins, x1 - ins, y1 - ins)
             if g and wet(g, d):
                 _no(why, "river_bank", t)
                 continue
         if not g:
             _no(why, "outside_inset", t)
             continue
-        if t == 4 and not d.free:                     # level 4 is drawn as one shape per block front (fronts() below)
+        if (t == 4 or front) and not d.free:          # level 4 is drawn as one shape per block front (fronts() below)
             fronts.setdefault((d.k, ij), []).append((min(p[0] for p in g), min(p[1] for p in g), max(p[0] for p in g), max(p[1] for p in g)))
             continue
         if len(g) > 4 and not _rectilinear([(round(x), round(y)) for x, y in g]):
@@ -875,15 +908,18 @@ def fill_for(m, blocks, districts, bbox, cache_dir=None, level: int = 1, offline
     from .palace import pack
     box = reach(districts, bbox)
     best, ships_done = None, False
+    man = m.get("layout") == "manhattan"
     for km in [REACH_KM] + [k for k in REACH_LADDER if k > REACH_KM] + [None]:
         core = reach(districts, bbox, km) if km is not None else None
         cover = core or tuple(float(v) for v in bbox)
+        if man:                                       # Manhattan: every block is filled, past the reach as its fronts only
+            cover = tuple(float(v) for v in bbox)
         raw = fetch_footprints(box, cover, cache_dir=cache_dir, offline=offline)
         if ships_out is not None and not ships_done:
             from .palace_boats import find
             ships_out.extend(find(raw, m["bbox"], m.get("scale", 1.0)))
             ships_done = True
-        f = fill_data(raw, m, blocks, core=core, far_tiers={1})
+        f = fill_data(raw, m, blocks, core=core, far_tiers={1}, far_fronts=man)
         if not sum(counts(f)):
             if best is None and km is None:
                 return None

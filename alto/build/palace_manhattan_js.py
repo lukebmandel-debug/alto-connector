@@ -42,8 +42,13 @@ PR_ANCHOR = "add(t, 'pl-area', 560-40*"
 PR_JS = "add(t, 'pl-area', (t._prb||0)+560-40*"
 
 
+# the ground: on Manhattan's layout the glass is not painted over (Philadelphia's rule: the page's own ground), so the fill-in's
+# canvas, which lies under the city's SVG, shows its levels 3-4 (Luke, 2026-10-22: "in NYC background buildings look really weird")
+GROUND_JS = ANCHOR.replace("if(M.sea && M.sea.length)", "if(M.sea && M.sea.length && M.layout!=='manhattan')")
+
+
 def patch_labels(js: str) -> str:
-    for a, b in ((AREA_ANCHOR, AREA_JS), (FS_ANCHOR, FS_JS), (PR_ANCHOR, PR_JS)):
+    for a, b in ((AREA_ANCHOR, AREA_JS), (FS_ANCHOR, FS_JS), (PR_ANCHOR, PR_JS), (ANCHOR, GROUND_JS)):
         if js.count(a) != 1:
             raise RuntimeError("palace_manhattan_js: label anchor not found once in PALACE_JS: " + a)
         js = js.replace(a, b, 1)

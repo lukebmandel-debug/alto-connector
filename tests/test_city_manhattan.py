@@ -200,3 +200,25 @@ def test_the_five_boroughs_names_page_code_is_spliced_in_only_for_manhattans_lay
     from alto.build.palace import PALACE_JS
     from alto.build.palace_manhattan_js import patch_labels
     assert "pl-nyc-css" not in PALACE_JS and "pl-nyc-css" in patch_labels(PALACE_JS)
+
+
+def test_manhattans_fill_buildings_are_boxes_square_to_their_block():
+    # Luke, 2026-10-22: "in NYC background buildings look really weird": a footprint carried through an angled grid's frame
+    # came out a slanted sliver; it is drawn as Philadelphia's are, a box square to its block, as big as the footprint
+    from alto.build import palace_fillin as pf
+    sheared = [(0, 0), (100, 30), (100, 90), (0, 60)]                            # a parallelogram, 6000 px2
+    g = pf._boxed(sheared, 50, 45, 0, 0, 390, 150)
+    xs, ys = {p[0] for p in g}, {p[1] for p in g}
+    assert len(g) == 4 and len(xs) == 2 and len(ys) == 2                         # square to the block
+    assert abs((max(xs) - min(xs)) * (max(ys) - min(ys)) - 6000) < 1             # the footprint's own area
+    g = pf._boxed(sheared, 385, 145, 0, 0, 390, 150)                              # moved inside the block, never cut
+    assert max(p[0] for p in g) <= 390 and max(p[1] for p in g) <= 150
+    assert pf._boxed([(0, 0), (2, 0), (2, 2), (0, 2)], 1, 1, 0, 0, 390, 150) is None    # a speck
+
+
+def test_manhattans_glass_is_not_painted_over_so_the_fill_canvas_shows():
+    from alto.build.palace import PALACE_JS
+    from alto.build.palace_manhattan_js import patch_labels, ANCHOR
+    js = patch_labels(PALACE_JS)
+    assert ANCHOR in PALACE_JS and "M.layout!=='manhattan'" in js and "M.layout!=='manhattan'" not in PALACE_JS
+    assert "pl-land-top" not in PALACE_JS.split("/* ── parks:")[1].split("/* ── /parks")[0]   # the land is cut out of the water, not laid over it

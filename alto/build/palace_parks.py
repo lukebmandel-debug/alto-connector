@@ -335,10 +335,39 @@ def _to_page(rec, fwd):
     return rec
 
 
-def shape(raw, xg, yg, used=(), min_pts=0) -> list:
+def _dry(rec, water):
+    """A shaped park kept off the water the page draws (palace_parkfit): its outline fitted again, its walkways, plazas
+    and name kept on the green; None when nothing of it is dry."""
+    from .palace_parkfit import fit, inside
+    r = fit(rec["r"], water) if water is not None else None
+    if r is None:
+        return rec
+    if not r:
+        return None
+    def ok(x, y):
+        return inside(r, x, y)
+    rec["r"] = r
+    rec["p"] = [q for p in rec.get("p") or [] for q in _clip(list(zip(p[0::2], p[1::2])), ok)]
+    rec["o"] = [o for o in rec.get("o") or [] if ok(o[0], o[1])]
+    if rec.get("t") and not ok(*rec["t"]):                 # the name onto the biggest piece of green left
+        big = max(r, key=len)
+        xs, ys = big[0::2], big[1::2]
+        cy = (min(ys) + max(ys)) / 2
+        xc = [x0 + (cy - y0) * (x1 - x0) / (y1 - y0) for x0, y0, x1, y1 in zip(xs, ys, xs[1:] + xs[:1], ys[1:] + ys[:1])
+              if (y0 > cy) != (y1 > cy)]
+        xc.sort()
+        if len(xc) >= 2:
+            k = max(range(0, len(xc) - 1, 2), key=lambda k: xc[k + 1] - xc[k])
+            rec["t"] = [round((xc[k] + xc[k + 1]) / 2), round(cy)]
+    return rec
+
+
+def shape(raw, xg, yg, used=(), min_pts=0, water=None) -> list:
     """The parks to draw: raw (from pick) less the cells of `used` (points: building lots). A park with a domain frame
     ("f", city engine v2: a park on a turned district's lattice) is shaped on that lattice and turned onto the page;
-    the others on the page grid xg, yg."""
+    the others on the page grid xg, yg. water (palace_parkfit.Water): the water the page draws, which no park reaches."""
+    if water is not None:
+        return [d for d in (_dry(rec, water) for rec in shape(raw, xg, yg, used, min_pts)) if d]
     out = []
     for pk in raw or []:
         if pk.get("pg"):                                   # city engine v2 free domain: already page rings, as drawn
