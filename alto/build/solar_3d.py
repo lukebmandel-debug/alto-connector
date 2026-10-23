@@ -100,8 +100,8 @@ var TYPES=['rocky', 'ocean', 'gas', 'ice', 'desert', 'lava'], ATM={rocky:[.55,.6
   icy:[.7,.85,1], sulphur:[1,.85,.45], rust:[1,.6,.4], haze:[1,.62,.25]};
 /* the moons' six kinds (each the moon's painted surface recoloured: dark, middle, light) and the satellite level's four objects */
 var MOONS=['moon', 'icy', 'sulphur', 'rust', 'carbon', 'haze'], SATS=['sat', 'asteroid', 'station', 'comet'], MK={sat:1, station:1}, NT={sun:1, sat:1, station:1, blackhole:1};
-var MT={icy:[[.5,.44,.38],[.85,.8,.72],[.97,.96,.93]], sulphur:[[.42,.28,.1],[.85,.7,.28],[.98,.94,.62]], rust:[[.3,.14,.08],[.62,.32,.18],[.85,.6,.42]],
-  carbon:[[.11,.1,.09],[.25,.23,.21],[.45,.42,.38]], haze:[[.5,.3,.1],[.8,.55,.22],[.95,.78,.45]]};
+var MT={icy:[[.5,.44,.38],[.85,.8,.72],[.97,.96,.93]], sulphur:[[.5,.3,.08],[.92,.68,.22],[1,.9,.55]], rust:[[.3,.14,.08],[.62,.32,.18],[.85,.6,.42]],
+  carbon:[[.07,.06,.05],[.18,.15,.12],[.34,.28,.22]], haze:[[.5,.3,.1],[.8,.55,.22],[.95,.78,.45]]};
 /* each kind's shading: [type for the shader, atmosphere, cloud cover's threshold (1: none), cloud opacity] */
 /* the craft's model: its scale on the way (the models are about 60 long) and the least near a small body; the chase camera's distance */
 var K3={S:.2, S_MIN:.06, CD:[120, 340], Y:3, CLR:9};
@@ -169,10 +169,11 @@ var FS_B='precision highp float;varying vec3 N,V,Lv,O;varying vec2 T;uniform sam
       'else if(ty<4.5)d=c*(.82+h*.8);'+
       'else if(ty<5.5){d=c*(.65+h*.6);lg=smoothstep(.22,.42,rg(r*3.6,oc+1.));}'+
       'else if(ty<6.5)d=c*(.72+h*.75);'+
-      'else if(ty<9.5){d=c*(.9+h*.4);float k1=1.-abs(2.*n3(r*4.+fb(r*2.,3.)*2.)-1.),k2=1.-abs(2.*n3(r*vec3(9.,3.,9.)+5.)-1.);'+
-        'd=mix(d,vec3(.6,.33,.2),(smoothstep(.9,.98,k1)+smoothstep(.93,.985,k2)*.7)*.8);}'+
-      'else if(ty<10.5){float z=n3(r*6.+11.);d=mix(c*(.85+h*.5),vec3(.96,.93,.84),smoothstep(.62,.75,n3(r*3.+4.))*.45);d=mix(d,vec3(.78,.26,.08),smoothstep(.6,.7,z)*.75);'+
-        'd=mix(d,vec3(.1,.06,.04),smoothstep(.74,.8,z));lg=smoothstep(.8,.86,z)*.9;}'+
+      'else if(ty<9.5){d=mix(c*(.9+h*.4),vec3(.62,.5,.38),smoothstep(.6,.75,n3(r*3.+8.))*.5);float L=0.;'+   /* (Europa: long crossing lineae, arcs of circles, faintly doubled) */
+        'for(int i=0;i<6;i++){float f=float(i);vec3 a=normalize(vec3(sin(f*2.4+.3),cos(f*1.7)*.7,cos(f*2.4+.3)));float x=abs(dot(r,a)+.25*sin(f*1.9)+.07*(n3(r*3.+f*7.)-.5));'+
+        'L=max(L,(1.-smoothstep(.004,.016,x))+(1.-smoothstep(.003,.01,abs(x-.03)))*.6);}d=mix(d,vec3(.6,.33,.2),min(L,1.)*.85);}'+
+      'else if(ty<10.5){float z=n3(r*9.+11.);d=mix(c*(.85+h*.5),vec3(.96,.93,.84),smoothstep(.62,.75,n3(r*3.+4.))*.45);d=mix(d,vec3(.78,.26,.08),smoothstep(.6,.7,z)*.75);'+
+        'd=mix(d,vec3(.1,.06,.04),smoothstep(.76,.8,z));lg=smoothstep(.84,.88,z)*.7*(1.-smoothstep(-.1,.3,g0));}'+
       'else if(ty<11.5)d=mix(c*(.78+h*.8),c*1.25+.05,smoothstep(.55,.7,fb(r*vec3(2.,7.,2.),oc)+.5)*.5);'+
       'else if(ty<12.5)d=c*(.75+h*.9)+vec3(.1,.09,.08)*smoothstep(.12,.3,cr(r*5.));'+
       'else if(ty<13.5)d=mix(c*(.9+h*.3),vec3(.45,.28,.12),smoothstep(.55,.9,abs(r.y))*.5);'+
@@ -198,9 +199,9 @@ var VS_R='attribute vec2 q;uniform mat4 VP;uniform vec3 C,X,Y;uniform float R;va
 var FS_R='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a;void main(){float r=length(Q);if(r<1.35||r>2.3)discard;float b=.55+.45*sin(r*38.)*sin(r*11.);'+
   'float e=smoothstep(1.35,1.45,r)*smoothstep(2.3,2.18,r);gl_FragColor=vec4(K*b,.6*e*(abs(r-1.9)<.04?.25:1.))*a;}';
 /* a black hole's accretion disc: hot within, turning streaks */
-var FS_A='precision mediump float;varying vec2 Q;uniform float a,tm;void main(){float r=length(Q);if(r<1.25||r>2.95)discard;float w=atan(Q.y,Q.x),t=1.-smoothstep(1.25,2.95,r);'+
-  'float s=.62+.38*sin(w*3.-r*6.+tm*1.5)*sin(w*7.+r*11.-tm*2.3),e=smoothstep(1.25,1.33,r)*smoothstep(2.95,2.4,r)*a;'+
-  'gl_FragColor=vec4(mix(vec3(.9,.25,.05),vec3(1.,.86,.58),t*t)*(.4+1.4*t*t)*s*e,e*.8);}';
+var FS_A='precision mediump float;varying vec2 Q;uniform float a,tm;void main(){float r=length(Q);if(r<1.25||r>2.6)discard;float w=atan(Q.y,Q.x),t=1.-smoothstep(1.25,2.6,r);'+
+  'float s=.62+.38*sin(w*3.-r*6.+tm*1.5)*sin(w*7.+r*11.-tm*2.3),e=smoothstep(1.25,1.33,r)*smoothstep(2.6,2.1,r)*a;'+
+  'gl_FragColor=vec4(mix(vec3(.9,.25,.05),vec3(1.,.86,.58),t*t)*(.25+1.1*t*t)*s*e,e*.7);}';
 /* a comet's tail: a soft strip from the nucleus away from its sun, widening and fading, faintly streaked */
 var VS_T='attribute vec2 q;uniform mat4 VP;uniform vec3 C,D,X;uniform float Lg,Wd;varying vec2 Q;void main(){Q=q;gl_Position=VP*vec4(C+D*q.x*Lg+X*q.y*Wd*(.35+q.x*1.3),1.);}';
 var FS_T='precision mediump float;varying vec2 Q;uniform vec3 K;uniform float a,tm;void main(){float u=Q.x,v=Q.y,s=.75+.25*sin(v*9.+u*4.-tm*.6)*sin(v*23.-u*7.);'+
@@ -254,12 +255,13 @@ function rgbOf(c){ var m=/^#?([0-9a-f]{6})$/i.exec(String(c||'').trim()); if(m){
   m=/rgb\w*\((\d+)[ ,]+(\d+)[ ,]+(\d+)/.exec(c||''); return m ? [m[1]/255, m[2]/255, m[3]/255] : [.62,.7,1]; }
 /* each body: its kind (a system's planets cycle the types, each unit starting elsewhere), its name, its texture (built a few rows a frame) */
 function bodies(G){
-  var per={}, ids=Object.keys(G.bodies);
+  var per={}, ps={}, st={}, ids=Object.keys(G.bodies), N=(window._ALTO_SOLAR||{}).nodes||{};
+  ids.forEach(function(id){ if((N[id]||{}).station) st[G.bodies[id].p]=1; });          /* (beside the plan's station, no second one) */
   ids.forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(o) return;
-    var n=document.getElementById('node-'+id), lb=n && n.querySelector('.sol-lbl'), kind, P=((window._ALTO_SOLAR||{}).nodes||{})[id]||{}, k=(per[g.p]=(per[g.p]||0)+1)-1;
+    var n=document.getElementById('node-'+id), lb=n && n.querySelector('.sol-lbl'), kind, P=N[id]||{}, k=(per[g.p]=(per[g.p]||0)+1)-1;
     if(/^(blackhole|comet|asteroid)$/.test(P.look||'')) kind=P.look;            /* (a plan's look overrules the role's, as in 2D) */
     else if(g.role==='sun') kind='sun'; else if(g.role==='moon') kind=MOONS[(k+hsh(g.p||''))%6];
-    else if(g.role==='sat') kind=P.station ? 'station' : SATS[(k+hsh(g.p||''))%4];
+    else if(g.role==='sat'){ var L=st[g.p] ? SATS.filter(function(x){ return x!=='station'; }) : SATS; kind=P.station ? 'station' : L[((ps[g.p]=(ps[g.p]||0)+1)-1+hsh(g.p||''))%L.length]; }
     else kind=TYPES[(k+(g.si||0)*2)%TYPES.length];
     var R=mkR(hsh(id+'#3d')), lp=/^(asteroid|comet)$/.test(kind);
     BOD[id]={id:id, kind:kind, name:(lb && lb.getAttribute('data-l')) || (n && n.getAttribute('data-title')) || '', tex:null, ty:0, v:(kind==='station' ? 't' : 's')+(hsh(id)&3),
@@ -363,10 +365,11 @@ function wheel(e){
 /* what is under the pointer: a body (its projected disc, at least 10px), else a spoke, else an orbit (6px) */
 var LINES=[];
 function pick(x, y){
-  var G=geo(); if(!G || !VPm) return null; var best=null, bd=Infinity;
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], q=proj(W(g)); if(!q || (BOD[id] && BOD[id].fa<.5)) return; var r=Math.max(10, g.d/2*q.s), d=Math.hypot(q.x-x, q.y-y);
-    if(d<r && q.w<bd){ bd=q.w; best={id:id}; } });
-  if(best) return best;
+  var G=geo(); if(!G || !VPm) return null; var best=null, bd=Infinity, near=null, nd=Infinity;
+  /* on a body's own disc: the nearest to the camera; else, within 10px, the one whose edge is nearest (a small moon, not the satellite beside it) */
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], q=proj(W(g)); if(!q || (BOD[id] && BOD[id].fa<.5)) return; var rp=g.d/2*q.s, d=Math.hypot(q.x-x, q.y-y);
+    if(d<rp){ if(q.w<bd){ bd=q.w; best={id:id}; } } else if(d<Math.max(10, rp) && d-rp<nd){ nd=d-rp; near={id:id}; } });
+  if(best || near) return best || near;
   for(var i=0;i<LINES.length;i++){ var L=LINES[i], k;
     for(k=0;k+1<L.pts.length;k++){ var a=L.pts[k], b=L.pts[k+1]; if(!a || !b) continue; var vx=b.x-a.x, vy=b.y-a.y, l2=vx*vx+vy*vy||1, t=Math.max(0, Math.min(1, ((x-a.x)*vx+(y-a.y)*vy)/l2));
       if(Math.hypot(a.x+vx*t-x, a.y+vy*t-y)<6) return L; } }
@@ -487,10 +490,10 @@ function size(){ var c=document.getElementById('canvas'); if(!c) return; var r=c
 function stars(){ var p=P.s; gl.useProgram(p.p); gl.uniformMatrix4fv(p.u.VP, false, VPm); gl.uniform3fv(p.u.E, EYE); attr(p, 'p', P.sp, 3); attr(p, 'z', P.sz, 1);
   gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.POINTS, 0, P.sn2); dis(p); }
 function dis(p){ Object.keys(p.a).forEach(function(k){ if(p.a[k]>=0) gl.disableVertexAttribArray(p.a[k]); }); }
-/* close up, a body nearer the camera than the enlarged one (where it would cover it), or larger on screen than its disc, fades */
+/* close up, a body nearer the camera than the enlarged one (where it would cover it), larger on screen than its disc, nearly as large and beside it, or over the disc at all, fades */
 var FC=null;
 function fade(id, q, rp){ if(!FC || id===FC.id || !q) return 1;
-  var a=Math.max(sm(.9, 1.2, rp/FC.rd), sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, Math.hypot(q.x-FC.x, q.y-FC.y))));
+  var d=Math.hypot(q.x-FC.x, q.y-FC.y), k=rp/FC.rd, a=Math.max(sm(.9, 1.2, k), sm(.65, .9, k)*(1-sm(rp+FC.rd*.9, rp+FC.rd*1.5, d)), 1-sm(rp+FC.rd*.85, rp+FC.rd*1.1, d), sm(0, .05, 1-q.w/FC.w)*(1-sm(rp+FC.rp*1.2, rp+FC.rp*2, d)));
   return 1-a*FC.k; }
 function spheres(G){
   var p=P.b, M0=null, LT=[]; gl.useProgram(p.p); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
@@ -540,12 +543,13 @@ function mk3(v){ var g=window._altoCraft.kit(), b=+v.charAt(1), wt=[.86,.87,.89,
     [.8, -.8].forEach(function(y){ g.box([0, y, 2.6], [17, .7, .5], wn); g.box([0, y, -2.6], [17, .7, .5], wn); });
     g.torus(2.2, .5, 16, [.8,.8,.82,0], [11.6, 0, 0]); g.torus(17, 1.6, 48, [.8,.82,.85,.6], [0, 0, 0], true); g.box([0, 0, 0], [1, 1, 34], gr); }
   var o=g.out(), m={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3}; gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); return m; }
-/* each turned to face its sun (its wings full on), rocking gently; fading as the spheres do */
+/* each turned to face its sun (its wings full on), rocking gently, and enlarged a little towards the close-up's camera (so its wings never show edge on); fading as the spheres do */
 function objs(G, now){
   var k=P.k, A=window._altoCraft; if(!k || !A || !A.kit) return;
   gl.enable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniform3fv(k.u.E, EYE);
   Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q; if(!o || !MK[o.kind] || !(o.fa>.01) || !(q=proj(W(g))) || g.d/2*q.s<.6) return;
-    var m=MS[o.v]||(MS[o.v]=mk3(o.v)), s=sunOf(G, id)||{x:0, y:0}, S=g.d/2/(o.kind==='station' ? 36 : 32), th=Math.atan2(s.x-g.x, s.y-g.y)+.35*Math.sin(now/1000/o.spin*TAU+o.ph*TAU), c=Math.cos(th), n=Math.sin(th);
+    var m=MS[o.v]||(MS[o.v]=mk3(o.v)), s=sunOf(G, id)||{x:0, y:0}, S=g.d/2/(o.kind==='station' ? 36 : 32), yo=LK && LK.id===id ? LK.side*.5 : 0;
+    o.yo=(o.yo||0)+(yo-(o.yo||0))*.06; var th=Math.atan2(s.x-g.x, s.y-g.y)+o.yo+.12*Math.sin(now/1000/o.spin*TAU+o.ph*TAU), c=Math.cos(th), n=Math.sin(th);
     gl.uniformMatrix4fv(k.u.M, false, [c*S, 0, -n*S, 0, 0, S, 0, 0, n*S, 0, c*S, 0, g.x, 0, g.y, 1]); gl.uniform3fv(k.u.L, W(s)); gl.uniform1f(k.u.al, o.fa);
     if(k.u.WC) gl.uniform4fv(k.u.WC, o.kind==='station' ? [0, 0, 19, -2] : [0, 0, 0, 1e9]);
     attr(k, 'p', m.p, 3); attr(k, 'n', m.n, 3); gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.enableVertexAttribArray(k.a.k); gl.vertexAttribPointer(k.a.k, 4, gl.FLOAT, false, 0, 0);
@@ -584,6 +588,7 @@ function glows(G){
     if(o.kind==='comet'){ put(g, [.55, .8, 1], g.d*2.6, .35*f); return; }
     if(MK[o.kind] && (q=proj(W(g)))){ var rp=g.d/2*q.s; if(rp<8) put(g, o.kind==='sat' ? [1, .8, .45] : [.75, .85, 1], Math.max(g.d*.8, 7/q.s), .55*(1-sm(3, 8, rp))*f); return; }
     if(g.role!=='sun') return;
+    if(FC && FC.id===id) f*=.4;                      /* (its own close-up: the bloom calmer, the sky not washed out) */
     put(g, [1, .72, .38], g.d*2.4, .55*f); put(g, [1, .72, .38], g.d*7, .16*f); });
   dis(p); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
@@ -628,18 +633,22 @@ function labels(G, r){
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
     e.children[0].textContent=H[id].map(function(d){ return ((lk() && NHT[d]) || NHD[d])[0]; }).join(''); e.children[1].textContent=(lk() && NHT[H[id][0]]) ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
-  (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun], q=s && proj(W(s)); if(!q) return; var ch=document.querySelector('.sol-unit[data-unit="'+u.unit+'"] span'); if(!ch) return;
-    var e=b('u'); e.textContent=ch.textContent; e.style.setProperty('--u', u.c||'#9fb4ff'); at(e, q.x, q.y-Math.max(30, s.d/2*q.s*1.9)); });
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f || o.fa<.5) return;
+  var BX=[], NM=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */
+  function free(x, y, w, h){ if(BX.some(function(a){ return x<a[2] && x+w>a[0] && y<a[3] && y+h>a[1]; })) return false; BX.push([x, y, x+w, y+h]); return true; }
+  (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun], q=s && proj(W(s)); if(!q || u.sun===f) return; var ch=document.querySelector('.sol-unit[data-unit="'+u.unit+'"] span'); if(!ch) return;
+    var e=b('u'), y=q.y-Math.max(30, s.d/2*q.s*1.9), w=ch.textContent.length*10+24; e.textContent=ch.textContent; e.style.setProperty('--u', u.c||'#9fb4ff'); at(e, q.x, y); free(q.x-w/2, y-24, w, 24); });   /* (none for the enlarged sun: it would sit on the title) */
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f || (o.fa<.5 && !H[id])) return;     /* (a faded body's name goes, its hint stays) */
     var inside=q && q.x>r.left && q.x<r.right && q.y>r.top && q.y<r.bottom, rp=q ? g.d/2*q.s : 0;
-    if(H[id]){ if(inside){ at(pill(id), q.x, q.y-rp-6); return; }
+    if(H[id]){ if(inside){ at(pill(id), q.x, q.y-rp-6); free(q.x-70, q.y-rp-30, 140, 24); return; }
       /* a hint whose body is off the window: the pill at the edge, on the line towards it */
       /* (clear of the bars above, where the board runs under them, and of the controls below) */
       var T0=r.top+130, B0=r.bottom-80, cx=r.left+r.width/2, cy=(T0+B0)/2, x=q ? q.x : cx, y=q ? q.y : T0, dx=x-cx, dy=y-cy,
         k=Math.min((r.width/2-110)/Math.max(1, Math.abs(dx)), ((B0-T0)/2)/Math.max(1, Math.abs(dy)), 1);
       at(pill(id), cx+dx*k, cy+dy*k+12); return; }
     if(!inside || rp<(g.role==='planet' ? 1.2 : g.role==='sun' ? .5 : 3)) return;
-    var e=b(g.role==='planet' || g.role==='sun' ? '' : 'm'); e.textContent=o.name; at(e, q.x, q.y+rp+4); });
+    NM.push({id:id, x:q.x, y:q.y+rp+4, rk:({sun:0, planet:1, moon:2}[g.role]||3)*1e4-rp, m:g.role!=='planet' && g.role!=='sun'}); });
+  NM.sort(function(a, c){ return a.rk-c.rk; }).forEach(function(n){ var nm=BOD[n.id].name, w=nm.length*(n.m ? 5.6 : 6.6)+4; if(!free(n.x-w/2, n.y, w, n.m ? 13 : 15)) return;
+    var e=b(n.m ? 'm' : ''); e.textContent=nm; at(e, n.x, n.y); });
   for(var i=nb;i<PB.length;i++) PB[i].style.display='none';
   for(i=ni;i<PI.length;i++) PI[i].style.display='none';
 }

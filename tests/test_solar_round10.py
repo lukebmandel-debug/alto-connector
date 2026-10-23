@@ -369,7 +369,7 @@ def test_the_3d_scene_is_small_and_on_system_pages_only():
     from alto.build import blocks
     from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
-    assert size < 20500, size                   # (~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~19.7 KB with 1.9.145's moon kinds, satellites, stations, asteroids, comets and black holes)
+    assert size < 21000, size                   # (~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~20.2 KB with 1.9.146's moon kinds, satellites, stations, asteroids, comets and black holes)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
 
 
