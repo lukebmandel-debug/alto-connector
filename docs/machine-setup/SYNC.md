@@ -1,4 +1,13 @@
-# Keeping the two Macs in step: options (nothing is turned on yet)
+# Keeping the two Macs in step
+
+**Decided 2026-10-24: Luke picked A + C.** It's set up as follows.
+- **A:** the private repo `alto-notes` (in your GitHub account), checked out at `~/Desktop/Alto Development/alto-notes`.
+  Run `bash bin/notes-sync.sh` (or `--check` to preview) at the end of a session on either Mac. Only `*.md` and `*.txt`
+  travel. Nothing is deleted, and a file is only replaced by a newer copy. A secret scan runs on every commit.
+- **C:** `bash bin/notes-push-screens.sh user@worker.local`, run from the main Mac only, copies screenshots one way.
+  It needs SSH key login to the worker (LUKE-STEPS step 6).
+
+The options as first proposed:
 
 What needs sharing, all non-secret:
 - Claude memory: `~/.claude/projects/<Terrarium-Alto project>/memory` (428 KB)

@@ -5,6 +5,7 @@
 #   bash alto-setup.sh            # install / update everything, then run the smoke test
 #   bash alto-setup.sh --check    # dry run: report what it WOULD change, change nothing
 #   bash alto-setup.sh --smoke    # only the smoke test (one fast pytest file, WebKit + Chrome)
+#   bash alto-setup.sh --only venvs,browsers [--check]   # just those steps (preflight tools repo venvs browsers xcode logins remote_login smoke)
 #
 # Same layout as the main Mac: tools live user-local (no sudo, no Homebrew needed):
 #   ~/.local/bin/{uv,gh,claude}  ~/.local/node (node + firebase CLI)  ~/.local/share/alto/{venv,pw12}
@@ -12,14 +13,17 @@
 # No secrets here. Sign-ins (gh, firebase, Google, Claude) are Luke's: see SECRETS.md / LUKE-STEPS.md.
 set -uo pipefail
 
-MODE=apply
-case "${1:-}" in
-  --check) MODE=check ;;
-  --smoke) MODE=smoke ;;
-  ""|--apply) ;;
-  -h|--help) sed -n 2,12p "$0"; exit 0 ;;
-  *) echo "usage: alto-setup.sh [--check|--smoke]"; exit 2 ;;
-esac
+MODE=apply; ONLY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) MODE=check ;;
+    --smoke) MODE=smoke ;;
+    --apply) ;;
+    --only) ONLY="${2:-}"; shift ;;
+    -h|--help) sed -n 2,13p "$0"; exit 0 ;;
+    *) echo "usage: alto-setup.sh [--check|--smoke] [--only step,step]"; exit 2 ;;
+  esac; shift
+done
 
 # Pinned to what the main Mac runs (2026-10-24, see INVENTORY.md).
 PY_VER=3.12.14
@@ -207,7 +211,8 @@ smoke() {
 }
 
 echo "Alto setup — mode: $MODE — $(date '+%Y-%m-%d %H:%M')"
-if [ $MODE = smoke ]; then smoke
+if [ -n "$ONLY" ]; then for f in ${ONLY//,/ }; do "$f"; done
+elif [ $MODE = smoke ]; then smoke
 else
   preflight; tools; repo; venvs; browsers; xcode; logins; remote_login
   if [ $MODE = apply ]; then smoke; else echo; echo "(--check: smoke test not run; use --smoke)"; fi

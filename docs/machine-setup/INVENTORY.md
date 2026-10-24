@@ -60,6 +60,8 @@ Browser tests run as `PYTHONPATH=<repo>:<alto venv site-packages>:_qa/kit <pw12 
 - `slot.sh` (fair FIFO test slots, `slot.max` = 2), `busy.sh`, `py` (clean-env Python with WebKit), `pwpy` (new: picks the Playwright venv), `chromefix.py`.
 - Release & Ops only (not for a worker): `lukeenv*.sh`, `publicenv*.sh`, `publish_rel.sh`, `live_release*.py`, `publish_all*.py`, `deploy_public*.py`.
 
-## Changes IT made on this Mac (2026-10-24)
-- Added `_qa/kit/pwpy`. `_qa/kit/py` now uses pwpy's pick (permanent pw12, then /private/tmp pw12, then wkvenv); old copy kept as `py.bak-wkvenv`.
-- Nothing installed. `alto-setup.sh --check` lists what it would add here: the permanent pw12 venv, Firefox, kit/chromefix.py, a ~/.zprofile PATH line, and a fast-forward of public-main.
+## Changes IT made on this Mac (2026-10-24, approved by the CEO)
+- Added `_qa/kit/pwpy`. `_qa/kit/py` now uses pwpy's pick (permanent pw12, then /private/tmp pw12, then wkvenv); the old copy is kept as `py.bak-wkvenv`.
+- Built the permanent test venv `~/.local/share/alto/pw12` (Playwright 1.64.0, pytest 9.1.1, xdist 3.8.0, pillow 13.0.0) and installed Playwright Firefox (firefox-1555). The smoke test passes on it in WebKit and Chrome. The /private/tmp pw12 stays as a fallback.
+- Notes sync A + C: the private repo `alto-notes` (in your GitHub account) at `~/Desktop/Alto Development/alto-notes` (see SYNC.md).
+- Left alone: the main checkout (still on public-main, behind GitHub main), `~/.zprofile`, and everything the release scripts use.

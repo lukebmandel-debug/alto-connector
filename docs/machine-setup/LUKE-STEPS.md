@@ -21,7 +21,15 @@ About 20 minutes of your time; the script does the rest. Do them on the **other 
 6. **Save it in the Claude app (on this Mac):** in the Code tab, open the environment/location picker → Add SSH connection,
    paste the address from step 5, and approve the first connection (it asks you to trust the host key and enter your
    password on the other laptop once). Then tell the CEO it's saved, and they can start sessions there.
-7. **Pick a sync option** for memory and notes from `SYNC.md` (IT recommends A + C), and tell the CEO which. Nothing syncs until you pick.
+7. **Notes sync (you picked A + C).** On the other laptop, the setup session clones the private `alto-notes` repo and runs
+   its first sync. On this Mac, once step 6 works, run these two commands so the screenshot copy can log in without a password:
+   ```bash
+   ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+   ```
+   ```bash
+   ssh-copy-id you@Your-Old-MacBook.local
+   ```
+   (Use the address from step 5. The second command asks for that laptop's password once.)
 
 Not needed on a worker: the Firebase login, lukeenv/publicenv scripts, the Alto cloud sign-in, and the recovery codes
 (see SECRETS.md). Deploys stay on this Mac.
