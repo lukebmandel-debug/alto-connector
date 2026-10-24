@@ -2468,6 +2468,10 @@ document.addEventListener('touchend', function(e){
   if(!mob()) return; var t=e.target.closest && e.target.closest('#minimap-toggle'); if(!t) return;
   e.preventDefault(); e.stopImmediatePropagation(); mmapOpen();
 }, true);
+/* a phone opens the Memory Map whole, on the map page (Luke, 2026-10-23: the formats past the timeline and the outline
+   have no one-card start); its round Close leaves the card page under it, as it always did */
+window.addEventListener('load', function(){ if(!mob()) return;
+  setTimeout(function(){ if(mob() && !document.documentElement.classList.contains('detail-open') && !document.documentElement.classList.contains('pm-open')) mmapOpen(); }, 80); });
 
 /* ── manual edit mode: drag a building to another lot, or onto a building to make it a floor of it ── */
 var dragging=null, moved=false;

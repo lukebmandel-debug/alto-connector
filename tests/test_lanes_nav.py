@@ -637,7 +637,7 @@ def test_phones_keep_the_card_view(browser, page_file):
         kw.update(is_mobile=True, has_touch=True)
     pg = browser.new_context(**kw).new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))   # (the phone whole-view script is hosted: a file:// copy cannot fetch it and stays one card)
     pg.goto(page_file.as_uri())
     pg.wait_for_timeout(1500)
     r = pg.evaluate("({m: document.documentElement.classList.contains('mobile'), rail: !!document.getElementById('lanes-nav'), step: typeof window._altoLanesStep, travel: typeof window._altoLanesTravel})")

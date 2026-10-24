@@ -1,8 +1,10 @@
-"""The whole view on a phone (alto/build/phone.py): the desktop page made for a finger, the one-card view kept for timelines
-and outlines, the device's last choice remembered.
+"""A phone (alto/build/phone.py, builder.phone_mode): a timeline or an outline opens in the phone design (one card) every
+time, the whole view a switch in its MENU drawer for this tab only; a System or a horizontal timeline opens whole under the
+phone design's own tiles and drawer; a Memory Palace is the phone page it always was, the Memory Map opening on its map.
 
 A page carries only the choice and a loader; the touch layer and the bar are a hosted script. The browser parts run as an
 iPhone (touch, mobile user agent) in WebKit and Chromium and are skipped when Playwright is not installed."""
+import copy
 import http.server
 import json
 import re
@@ -34,11 +36,15 @@ def _build(name, **over):
 
 @pytest.fixture(scope="module")
 def pages():
-    return {"outline": _build("outline"), "system": _build("outline", layout="solar"), "lanes": _build("lanes_v2")}
+    sys.path.insert(0, str(ROOT / "tests"))
+    import test_palace_transit as tt
+    city = build_timeline(*load_brief(copy.deepcopy(tt._bundle())))[0]
+    return {"outline": _build("outline"), "system": _build("outline", layout="solar"), "lanes": _build("lanes_v2"), "city": city}
 
 
 def _head(page):
-    return re.search(r'<script id="alto-phone-head">(.*?)</script>', page, re.S).group(1)
+    m = re.search(r'<script id="alto-phone-head">(.*?)</script>', page, re.S)
+    return m and m.group(1)
 
 
 # ── what a page carries ─────────────────────────────────────────────────────
@@ -47,48 +53,63 @@ def test_the_page_holds_the_choice_and_a_loader_and_the_layer_is_hosted(pages):
     name, text = phone.phone_asset()
     assert phone.PATH == "/phone/" + name and ("phone", name, text) in palace_assets.assets()
     assert palace_assets.find(phone.PATH)[1] == text
-    for page in pages.values():
-        head = _head(page)
+    for k in ("outline", "system", "lanes"):
+        page, head = pages[k], _head(pages[k])
         assert json.dumps(phone.PATH) in head and phone.KEY in head and len(head) < 900
         assert "ph-bar" not in page and "alto-phone-css" not in page                  # none of the layer rides in the page
         # the choice is made before the engine decides what a phone is
         assert page.index('id="alto-phone-head"') < page.index("classList.add('phone-whole')") < page.index("classList.add('rw')")
 
 
-def test_only_timelines_and_outlines_offer_the_one_card_view(pages):
-    assert "var f=0," in _head(pages["outline"]) and "var f=0," in _head(pages["lanes"])
-    assert "var f=1," in _head(pages["system"])
-    assert "drawer-view-btn" in pages["outline"] and "drawer-view-btn" in pages["lanes"]
-    assert "drawer-view-btn" not in pages["system"]
+def test_each_format_opens_its_own_way(pages):
+    assert "var f=0," in _head(pages["outline"]) and "drawer-view-btn" in pages["outline"]       # one card, whole on request
+    for k in ("system", "lanes"):                                                                   # whole, no one-card switch
+        assert "var f=1," in _head(pages[k]) and "drawer-view-btn" not in pages[k]
+    assert _head(pages["city"]) is None and phone.PATH not in pages["city"]                        # the phone page as it was
+    assert "_altoPhoneWhole&&document.documentElement.classList.add('mobile')" not in pages["city"]
+
+
+def test_the_phone_design_scripts_run_inside_the_mobile_window(pages):
+    for k in ("outline", "system", "lanes"):
+        page = pages[k]
+        for mark in phone.PHONE_SCRIPTS:
+            i = page.index(mark)
+            assert page[:i].endswith(phone._ON) and page.index(phone._OFF, i) < page.index("</script>", i) + len("</script>") + len(phone._OFF) + 1
+        for _, new in phone._CARD_PARTS:
+            assert page.count(new) == 1
 
 
 def test_the_hosted_layer_parses_and_keeps_its_parts():
     a = phone.ASSET
-    for part in ("gesturestart", "gesturechange", "gestureend", "ph-bar", "ph-sheet", "toggleSearch", "phone-whole.rw", "#search-btn"):
+    for part in ("gesturestart", "gesturechange", "gestureend", "alto-phone-chrome", "nav-drawer-body", "phone-whole.rw", "One card"):
         assert part in a, part
+    assert "ph-bar" not in a and "ph-sheet" not in a                                 # the v1.9.153 bar is gone
     assert "/*" not in a                                                            # comments are stripped at emit
 
 
 # ── in a browser, as an iPhone ──────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
-def site(pages, tmp_path_factory):
+def site(pages):
     if pw is None:
         pytest.skip("Playwright is not installed")
-    d = tmp_path_factory.mktemp("phonesite")
-    for k, v in pages.items():
-        (d / f"{k}.html").write_text(v, encoding="utf-8")
-    (d / "old.html").write_text(pages["outline"].replace(phone.PATH, "/phone/alto-phone-0000000000.js"), encoding="utf-8")
-    (d / "phone").mkdir()
-    name, text = phone.phone_asset()
-    (d / "phone" / name).write_text(text, encoding="utf-8")
+    served = {f"/{k}.html": v for k, v in pages.items()}
+    served["/old.html"] = pages["outline"].replace(phone.PATH, "/phone/alto-phone-0000000000.js")
 
-    class H(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *a, **k):
-            super().__init__(*a, directory=str(d), **k)
-
+    class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
+
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            hit = (("text/html", served[path]) if path in served else ("text/javascript", "") if path == "/alto-cloud.js"
+                   else palace_assets.find(path))
+            body = (hit[1] if hit else "no").encode("utf-8")
+            self.send_response(200 if hit else 404)
+            self.send_header("Content-Type", hit[0] if hit else "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
     srv = socketserver.ThreadingTCPServer(("127.0.0.1", 0), H)
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -129,8 +150,12 @@ def pg(phone_ctx):
     assert not errors, errors
 
 
-_STATE = "[document.documentElement.classList.contains('mobile'), document.documentElement.classList.contains('phone-whole'), localStorage.getItem('alto-phone-view')]"
-_BAR = "[...document.querySelectorAll('#ph-bar>button')].map(b=>b.getAttribute('aria-label'))"
+_STATE = "[document.documentElement.classList.contains('mobile'), document.documentElement.classList.contains('phone-whole')]"
+# the phone design's tiles, shown: MAP, MENU, the search pill, INFO, MARK, NOTES
+_TILES = """['minimap-toggle','hamburger-tab','m-search','tutorial-toggle','hl-mode-btn','notes-toggle'].filter(i => {
+  const e = document.getElementById(i); if(!e) return false; const r = e.getBoundingClientRect(), c = getComputedStyle(e);
+  return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > .05 && r.width > 0 && r.bottom > 0 && r.top < innerHeight; })"""
+_ALL = ['minimap-toggle', 'hamburger-tab', 'm-search', 'tutorial-toggle', 'hl-mode-btn', 'notes-toggle']
 _PINCH = """([x, y, d0, d1]) => { const t = document.elementFromPoint(x, y);
   const ev = (type, d) => { const a = {identifier:1, target:t, clientX:x-d/2, clientY:y}, b = {identifier:2, target:t, clientX:x+d/2, clientY:y};
     const e = new Event(type, {bubbles:true, cancelable:true}); const ts = type === 'touchend' ? [] : [a, b];
@@ -143,36 +168,81 @@ def _go(pg, url):
     pg.wait_for_timeout(1200)
 
 
-def test_one_card_first_then_the_last_choice_on_this_phone(pg, site):
+def test_an_outline_opens_one_card_every_time_and_whole_only_on_request(pg, site):
+    pg.goto(site + "/outline.html")
+    pg.evaluate("localStorage.setItem('alto-phone-view', 'whole')")              # v1.9.153's remembered choice: ignored, cleared
     _go(pg, site + "/outline.html")
-    assert pg.evaluate(_STATE) == [True, False, None]
+    assert pg.evaluate(_STATE) == [True, False] and pg.evaluate("localStorage.getItem('alto-phone-view')") is None
+    assert pg.evaluate(_TILES) == _ALL
     pg.evaluate("window.openNavDrawer()")
     pg.wait_for_timeout(300)
     with pg.expect_navigation():
         pg.evaluate("document.getElementById('drawer-view-btn').click()")
     pg.wait_for_timeout(1200)
-    assert pg.evaluate(_STATE) == [False, True, "whole"]
-    assert pg.evaluate(_BAR)[:2] == ["Cards", "Search"]
-    _go(pg, site + "/lanes.html")                                                  # one choice for every timeline on the phone
-    assert pg.evaluate(_STATE) == [False, True, "whole"]
+    assert pg.evaluate(_STATE) == [False, True]
+    assert pg.evaluate(_TILES) == _ALL and not pg.evaluate("!!document.getElementById('ph-bar')")
+    _go(pg, site + "/outline.html")                                               # this tab keeps it on a reload
+    assert pg.evaluate(_STATE) == [False, True]
+    _go(pg, site + "/lanes.html")
+    _go(pg, site + "/old.html")                                                   # another timeline opens one card
+    assert pg.evaluate(_STATE) == [True, False]
+    _go(pg, site + "/outline.html")
+    pg.evaluate("window.openNavDrawer()")
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.querySelector('#drawer-view-btn .drawer-label').textContent") == "One card"
     with pg.expect_navigation():
-        pg.evaluate("document.querySelector('#ph-bar>button[aria-label=Cards]').click()")
+        pg.evaluate("document.getElementById('drawer-view-btn').click()")
     pg.wait_for_timeout(1200)
-    assert pg.evaluate(_STATE) == [True, False, "card"]
+    assert pg.evaluate(_STATE) == [True, False]
 
 
-def test_a_system_is_always_whole_and_has_no_cards_button(pg, site):
+def test_a_system_opens_whole_under_the_phone_design(pg, site):
     _go(pg, site + "/system.html?view=card")
-    assert pg.evaluate(_STATE)[:2] == [False, True]
-    assert "Cards" not in pg.evaluate(_BAR) and "Search" in pg.evaluate(_BAR)
+    assert pg.evaluate(_STATE) == [False, True]
+    assert pg.evaluate(_TILES) == _ALL and pg.evaluate("!!document.getElementById('filter-toggle')")
+    assert pg.evaluate("!document.getElementById('drawer-view-btn')")
+    pg.evaluate("window.openNavDrawer()")
+    pg.wait_for_timeout(400)
+    labels = pg.evaluate("[...document.querySelectorAll('#nav-drawer-body .drawer-label')].map(e=>e.textContent.trim())")
+    assert labels[1:4] == ["Overview", "Dark / Light", "Scene"]
+    pg.evaluate("window.closeNavDrawer()")
+    pg.wait_for_timeout(400)
+    assert pg.evaluate(_TILES) == _ALL                                           # the tiles come back with the drawer shut
     pg.evaluate(_PINCH, [195, 400, 250, 70])                                       # two fingers in: the whole chart
     pg.wait_for_timeout(700)
     assert pg.evaluate("document.getElementById('canvas').classList.contains('sol-ov')")
 
 
+def test_map_lands_on_the_card_in_the_whole_view(pg, site):
+    _go(pg, site + "/system.html")
+    pg.tap("#minimap-toggle")
+    pg.wait_for_timeout(500)
+    pg.tap("#minimap-nav-panel .mnp-node-btn >> nth=3")
+    pg.wait_for_timeout(2500)
+    assert pg.evaluate("!document.getElementById('minimap-wrap').classList.contains('expanded')")
+    assert pg.evaluate("(document.querySelector('#world .node.focused')||{}).id") == "node-offer"
+
+
+def test_the_tiles_open_the_phone_panels(pg, site):
+    _go(pg, site + "/lanes.html")
+    assert pg.evaluate(_STATE) == [False, True] and pg.evaluate(_TILES) == _ALL
+    pg.tap("#m-search-glyph")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("[document.getElementById('m-search').classList.contains('expanded'), document.activeElement.id]") == [True, "m-search-input"]
+    assert pg.evaluate("document.documentElement.scrollWidth") == pg.evaluate("innerWidth")   # nothing to pan sideways into
+
+
 def test_a_page_without_the_hosted_file_stays_one_card(pg, site):
     _go(pg, site + "/old.html?view=whole")
-    assert pg.evaluate(_STATE)[:2] == [True, False]
+    assert pg.evaluate(_STATE) == [True, False]
+
+
+def test_the_memory_map_opens_on_its_map_page(pg, site):
+    _go(pg, site + "/city.html")
+    assert pg.evaluate(_STATE) == [True, False]
+    assert pg.evaluate("document.documentElement.classList.contains('pm-open') && document.getElementById('pal-mmap').classList.contains('on')")
+    pg.evaluate("window._palMob.close()")                                          # its Close shows the card page under it
+    assert pg.evaluate("!document.documentElement.classList.contains('pm-open')")
 
 
 def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
@@ -186,16 +256,3 @@ def test_the_board_is_fitted_and_two_fingers_scale_it(pg, site):
     pg.evaluate(_PINCH, [195, 400, 260, 60])
     pg.wait_for_timeout(500)
     assert abs(pg.evaluate("window._altoPhone.ov.s") - s0) < 1e-6                 # never smaller than the phone's width
-
-
-def test_the_bar_opens_the_desktop_panels(pg, site):
-    _go(pg, site + "/outline.html?view=whole")
-    pg.evaluate("document.querySelector('#ph-bar>button[aria-label=Search]').click()")
-    assert pg.evaluate("[window._searchOpen, document.activeElement && document.activeElement.id]") == [True, "search-input"]
-    pg.evaluate("window._searchClose()")
-    pg.evaluate("document.querySelector('#ph-bar>button[aria-label=More]').click()")
-    assert pg.evaluate("!!document.querySelector('#ph-sheet.on')")
-    pg.evaluate("[...document.querySelectorAll('#ph-sheet button')].find(b=>b.getAttribute('aria-label')==='Background').click()")
-    pg.wait_for_timeout(500)
-    assert pg.evaluate("document.getElementById('bg-panel').classList.contains('open') && !document.querySelector('#ph-sheet.on')")
-    assert pg.evaluate("document.documentElement.scrollWidth") == pg.evaluate("innerWidth")   # nothing to pan sideways into

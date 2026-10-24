@@ -117,7 +117,8 @@ def _open(browser, f, phone=False):
     pg = ctx.new_page()
     errs = []
     # (the first-person ride is a hosted file a file:// page cannot load: not this test's business)
-    pg.on("pageerror", lambda e: None if "palace-ride" in str(e) else errs.append(str(e)))
+    # (the phone whole-view script is hosted: a file:// copy cannot fetch it, and the page stays one card)
+    pg.on("pageerror", lambda e: None if "palace-ride" in str(e) or "/phone/" in str(e) else errs.append(str(e)))
     pg.goto(f.as_uri())
     pg.wait_for_timeout(2500)
     return pg, errs

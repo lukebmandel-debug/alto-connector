@@ -235,6 +235,9 @@ def build_timeline(brief: Brief, nodes: list[Node], connections: list,
     html = apply_patches(emit(template, regions, tokens))
     html = _add_tail(html, brief, nodes, warnings, trees, study)
     html = _add_background_head(html, brief)
+    if phone_mode(brief) != "phone":
+        from .phone import phone_scripts
+        html = phone_scripts(html)
 
     # Deep links that survived sanitize (unknown ones were demoted) must reach
     # the output as engine chip markup — assert each one did.
@@ -274,13 +277,19 @@ def _add_background_head(html: str, brief: Brief) -> str:
     city = brief.mode == "palace" and not (building_view(brief) or world_view(brief))     # a Building or Memory Atlas has no maps to offer
     retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
     from .phone import head_block as phone_head
-    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + phone_head(phone_whole(brief)) + "\n" + anchor, 1)
+    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + phone_head(phone_mode(brief)) + "\n" + anchor, 1)
 
 
-def phone_whole(brief: Brief) -> bool:
-    """A System or a Memory Palace is always seen whole on a phone; a timeline, horizontal timeline or outline offers
-    the one-card view too (phone.py)."""
-    return brief.mode == "palace" or brief.layout == "solar"
+def phone_mode(brief: Brief) -> str:
+    """How a phone opens this page (phone.py; Luke, 2026-10-23: "timeline and outline start in phone design default.
+    Other modes don't have that default option at all"):
+      "card"  a timeline or an outline: the phone design (one card), the whole view a switch in the MENU drawer;
+      "whole" a System or a horizontal timeline: the whole view, under the phone design's own tiles and drawer;
+      "phone" a Memory Palace (map, blueprint, atlas): the phone design as it was before the whole view, its map
+              (the Memory Map's Apple-Maps page, the blueprint, the atlas) drawn under it, so nothing of phone.py."""
+    if brief.mode == "palace":
+        return "phone"
+    return "whole" if brief.layout == "solar" or brief.mode == "lanes" else "card"
 
 
 def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
@@ -314,7 +323,7 @@ def _add_tail(html: str, brief: Brief, nodes: list, warnings=None,
             + manual_edit(brief, nodes) + print_views()
             + backgrounds.ui_block("This timeline", rail=True) + hover_lines.block()
             + clear_top.block(sheet=brief.mode != "palace" and not solar_style(brief))
-            + card_block(phone_whole(brief)) + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
+            + card_block(phone_mode(brief)) + history_nav())   # last: the outermost wrapper of showDetail / showTimeline
     at = html.rfind("</body>")
     if at < 0:
         raise VerifyError(["page has no </body> for the detail extras"])

@@ -119,7 +119,7 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-btn{border:1px solid var(--w-edge);background:none;color:var(--w-text);font:inherit;font-size:12.5px;padding:5px 11px;border-radius:9px;cursor:pointer;}
 #wpal-root .wp-btn:hover{background:color-mix(in srgb,var(--w-text) 7%,transparent);}
 #wpal-root .wp-btn.r{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
-#wpal-root .wp-ctl{right:16px;top:12px;}
+#wpal-root .wp-ctl{right:16px;top:12px;}html.mobile #wpal-root .wp-ctl{top:112px !important;}
 #wpal-root .wp-tour{left:50%;bottom:18px;transform:translateX(-50%);max-width:calc(100% - 32px);}
 #wpal-root .wp-tour .d{color:var(--w-sub);overflow:hidden;text-overflow:ellipsis;max-width:180px;}
 #wpal-root .wp-tour .c{font-weight:650;overflow:hidden;text-overflow:ellipsis;}

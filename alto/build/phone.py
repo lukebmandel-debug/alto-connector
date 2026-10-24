@@ -8,16 +8,23 @@ pinch-zoomed and panned, a card opened with a tap, with the filters, search and 
 timeline or an outline keeps the one-card view as the other choice, a clear toggle switches, and the phone remembers
 the last choice.
 
-How a page decides. One class has always made a phone a phone: html.mobile, set from the user agent before the
-engine lays anything out, and every format draws its desktop view only under :not(.mobile). So the whole view is the
-desktop page itself (html.phone-whole, no .mobile; the runway that keeps Safari's bars clear, html.rw, stays), and
-everything the desktop has comes with it. HEAD_JS runs ahead of the engine's own head script and says which:
+How a page decides (Luke, 2026-10-23, after v1.9.153 had put the desktop page with a new bar on phones: "look at how
+it was before you started mobile parity and build up from there"; "timeline and outline start in phone design default.
+Other modes don't have that default option at all"). One class has always made a phone a phone: html.mobile, set from
+the user agent before the engine lays anything out; the phone design (the engine's phone script and every html.mobile
+rule) and every format's desktop view hang on it. builder.phone_mode picks, and HEAD_JS runs ahead of the engine's
+own head script:
 
-  * a System, a Memory Palace (city or building): always whole on a phone (the CEO's call: no one-card toggle there);
-  * a timeline, horizontal timeline or outline: the device's last choice (localStorage `alto-phone-view`, one choice
-    for every timeline on that phone), one card until the viewer picks whole. ?view=whole / ?view=card overrides it.
+  * a timeline or an outline ("card"): the phone design, one card, every time it is opened; MENU's "Whole view" shows
+    it whole for this tab (sessionStorage `alto-phone-view:<path>`); ?view=whole / ?view=card overrides it;
+  * a System or a horizontal timeline ("whole"): always whole;
+  * a Memory Palace ("phone"): nothing of this file, the phone page it has always been (palace_mobile.py's map page,
+    the Blueprint and the Atlas drawn under the phone tiles).
 
-Whole means the hosted script below (/phone/alto-phone-<hash>.js, palace_assets.ASSETS) is fetched in <head>,
+Whole means the desktop page (html.phone-whole, no .mobile; the runway that keeps Safari's bars clear, html.rw, stays)
+under the phone design: phone_scripts lets the engine's phone scripts run in a window where the page is html.mobile, so
+they build its tiles, MENU drawer, MAP list and search pill themselves, and the hosted script below gives those pieces
+their phone rules. The hosted script (/phone/alto-phone-<hash>.js, palace_assets.ASSETS) is fetched in <head>,
 synchronously like Retro's, so its rules are in before Safari first lays the page out (the bars latch then). A page
 whose file cannot be had (an exported copy, an Artifact preview) stays the one-card phone page it always was.
 
@@ -35,11 +42,9 @@ What the hosted script adds to the desktop page:
   * no hover from a finger. iOS turns the first tap on something whose hover changes the page into a hover and
     eats the click; the hover events a touch makes are stopped before the page hears them. What hover showed (a
     chip's name, a planet's name, a building's label) shows on a long press instead.
-  * the controls in reach. The desktop toggles around the window's edges are hidden and stand in one glass bar at
-    the bottom (44px targets, above the home indicator): Cards (timelines and outlines), Search, Filter, Notes, and
-    More, a bottom sheet with the rest (overview, scene and background, light / dark, style, info, key ...). Each
-    button clicks the desktop toggle it stands for, so nothing behaves differently. The panels open as sheets from
-    the bottom.
+  * the phone design's chrome. remap() copies each html.mobile rule of the chrome (header, MAP, MENU and its drawer,
+    the search pill, INFO, FILTER, MARK, NOTES and their panels) to html.phone-whole and stands the desktop's rules for
+    the same pieces down; the board's own rules (canvas, cards, detail page, a format's layers) stay the desktop's.
 
 Editing stays on a computer (detail_extras' edit tile already skips a phone).
 """
@@ -55,7 +60,7 @@ GUARD = "_altoPhone"
 
 # ── in every page's <head> (a few hundred bytes): the choice, and the hosted script when it is "whole" ──
 HEAD_JS = r"""(function(){var q=location.search,u=/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||/[?&]mobile/.test(q);if(!u)return;
-var f=__FORCE__,m=/[?&]view=(card|whole)/.exec(q),v=null;try{v=localStorage.getItem('__KEY__')}catch(e){}
+var f=__FORCE__,m=/[?&]view=(card|whole)/.exec(q),v=null;try{localStorage.removeItem('__KEY__');v=sessionStorage.getItem('__KEY__:'+location.pathname)}catch(e){}
 window._altoPhoneCan=!f;if(!(f||(m?m[1]==='whole':v==='whole')))return;__LOAD__;if(window.__GUARD__)window._altoPhoneWhole=1;})();"""
 
 # ── in a one-card timeline / outline page: "Whole view" in the MENU drawer (under Dark / Light and Scene) ──
@@ -63,7 +68,7 @@ CARD_JS = r"""(function(){var de=document.documentElement;if(!window._altoPhoneC
 function go(){var b=document.getElementById('nav-drawer-body');if(!b)return;var x=document.getElementById('drawer-view-btn');
 if(!x){x=document.createElement('button');x.id='drawer-view-btn';x.type='button';x.className='drawer-btn';
 x.innerHTML='<span class="drawer-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3" width="6" height="5" rx="1.2"/><rect x="11.5" y="3" width="6" height="5" rx="1.2"/><rect x="7" y="12" width="6" height="5" rx="1.2"/><path d="M5.5 8v2h9V8M10 10v2"/></svg></span><span class="drawer-label">Whole view</span>';
-x.onclick=function(){try{localStorage.setItem('__KEY__','whole')}catch(e){}location.reload()};}
+x.onclick=function(){try{sessionStorage.setItem('__KEY__:'+location.pathname,'whole')}catch(e){}location.reload()};}
 var a=document.getElementById('drawer-scene-btn')||document.getElementById('drawer-mode-btn');
 if(a&&a.parentNode){if(a.nextSibling!==x)a.parentNode.insertBefore(x,a.nextSibling);}else if(x.parentNode!==b)b.insertBefore(x,b.firstChild);}
 go();document.addEventListener('DOMContentLoaded',go);window.addEventListener('load',function(){go();setTimeout(go,800)});
@@ -83,55 +88,21 @@ html.phone-whole.rw :is(#page-bg,#page-glass):not(#_){position:absolute !importa
 html.phone-whole.rw :is(__FIXED__):not(#_),html.phone-whole.rw .rw-abs:not(#_){position:absolute !important;}
 html.phone-whole #canvas{touch-action:pan-x pan-y;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
 html.phone-whole.alto-lanes #canvas{touch-action:none;}
-/* the desktop toggles the bar stands in for */
-html.phone-whole .ph-hide:not(.expanded):not(#_){opacity:0 !important;pointer-events:none !important;}
-html.phone-whole #search-btn.expanded:not(#_){width:auto !important;height:44px;transform:none !important;}
-html.phone-whole #search-btn.expanded #search-results:not(#_){left:0;right:0;width:auto;max-height:52dvh;}
 /* iOS zooms the page into any field under 16px when it takes the focus */
 html.phone-whole :is(input,textarea,select):not(#_){font-size:16px !important;}
-html.phone-whole #info-btn.expanded:not(#_){max-width:calc(100vw - 16px) !important;max-height:62dvh !important;}
-html.phone-whole:not(.ph-ready) :is(#search-btn,#info-icon,#search-toggle,#filter-toggle,#notes-toggle,#overview-toggle,#bg-toggle,#mode-toggle,#info-btn,#key-toggle):not(#_){opacity:0 !important;}
-/* the bar */
-#ph-bar{position:absolute;z-index:100000;opacity:1 !important;filter:none !important;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:2px;padding:4px;border-radius:26px;
-  background:var(--card-glass-bg,var(--surface));border:1px solid var(--card-glass-border,var(--border));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
-  box-shadow:0 10px 26px var(--node-rest-shadow,rgba(0,0,0,.25)),inset 0 0 0 .5px var(--card-glass-rim,transparent);font-family:system-ui,-apple-system,sans-serif;}
-html.detail-open #ph-bar,html.printing #ph-bar{display:none;}
-#ph-bar button,#ph-sheet button{-webkit-tap-highlight-color:transparent;font:inherit;color:var(--text);background:none;border:0;margin:0;cursor:pointer;}
-#ph-bar>button{min-width:52px;height:48px;border-radius:22px;padding:2px 6px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;letter-spacing:.02em;color:var(--muted);}
-#ph-bar>button.on,#ph-bar>button:active{color:var(--text);background:color-mix(in srgb,var(--text) 10%,transparent);}
-#ph-bar svg{display:block;width:22px;height:22px;}
-/* More: a bottom sheet */
-#ph-scrim{position:absolute;z-index:3001;inset:-80px 0 -140px;background:rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .2s;}
-#ph-scrim.on{opacity:1;pointer-events:auto;}
-#ph-sheet{position:absolute;z-index:3002;left:0;right:0;bottom:-140px;padding:8px 12px calc(150px + env(safe-area-inset-bottom,0px));border-radius:18px 18px 0 0;
-  background:color-mix(in srgb,var(--surface,#fff) 88%,transparent);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
-  box-shadow:0 -10px 30px rgba(0,0,0,.25);transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);font-family:system-ui,-apple-system,sans-serif;}
-#ph-sheet.on{transform:none;}
-#ph-sheet .ph-grab{width:36px;height:5px;border-radius:3px;margin:0 auto 10px;background:color-mix(in srgb,var(--muted) 60%,transparent);}
-#ph-sheet .ph-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-#ph-sheet .ph-grid button{min-height:68px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11.5px;color:var(--text);
-  background:color-mix(in srgb,var(--text) 6%,transparent);}
-#ph-sheet .ph-grid button:active{background:color-mix(in srgb,var(--text) 14%,transparent);}
-#ph-sheet .ph-grid svg{width:24px;height:24px;}
+/* nothing of the desktop's corner toggles before the phone design's rules are in (remap) */
+html.phone-whole:not(.ph-ready) :is(#search-btn,#info-btn,#overview-toggle,#bg-toggle,#mode-toggle,#key-toggle,#account-btn):not(#_){opacity:0 !important;}
 /* what a hover showed, on a long press */
 html.phone-whole .node-card :is(.csym-btn,.esym-btn,.tsym-btn).ph-hover ~ .chip-tip{opacity:1;transform:translateX(-50%) translateY(0);}
 html.phone-whole.alto-solar #world .node[data-solar].ph-hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
-/* the top: the name clear of the clef and the wordmark, the chips one row that a finger scrolls */
-html.phone-whole #title-text:not(#_){max-width:calc(100vw - 196px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:20px;}
-html.phone-whole #nav:not(#_){flex-wrap:nowrap !important;height:46px !important;max-height:46px;overflow-x:auto !important;overflow-y:hidden !important;justify-content:flex-start !important;
-  pointer-events:auto !important;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
-html.phone-whole #nav::-webkit-scrollbar{display:none;}
-html.phone-whole #nav>*{flex:none !important;}
-/* each format's own row of controls rides above the bar, a finger's width from the edges, and scrolls if it is wide */
-html.phone-whole :is(#sol-ctl,#pal-ctl,#lanes-nav):not(#_){bottom:calc(74px + env(safe-area-inset-bottom,0px)) !important;max-width:calc(100vw - 16px);}
-html.phone-whole :is(#sol-ctl,#pal-ctl):not(#_){left:8px !important;right:auto !important;transform:none !important;overflow-x:auto;scrollbar-width:none;}
+/* the one-card view's pieces: the swipe hint and the chips that step a card at a time */
+html.phone-whole :is(#tab-rail,#scroll-hint,#timeline-label-bar,#compass-rose,#nav-prev-btn,#nav-next-btn):not(#_){display:none !important;}
+/* each format's own row of controls sits at the bottom between the phone design's corner tiles (INFO / FILTER left,
+   MARK / NOTES right), and scrolls sideways if it is wide */
+html.phone-whole :is(#sol-ctl,#pal-ctl,#lanes-nav):not(#_){bottom:calc(8px + env(safe-area-inset-bottom,0px)) !important;max-width:calc(100vw - 112px);}
+html.phone-whole :is(#sol-ctl,#pal-ctl):not(#_){left:56px !important;right:auto !important;transform:none !important;overflow-x:auto;scrollbar-width:none;}
 html.phone-whole :is(#sol-ctl,#pal-ctl)::-webkit-scrollbar{display:none;}
-/* the panels: full width, from the bottom */
-html.phone-whole :is(#ef-panel,#bg-panel,#notes-panel):not(#_){left:0 !important;right:0 !important;width:auto !important;max-width:none !important;}
-html.phone-whole #notes-panel:not(#_){padding-bottom:calc(76px + env(safe-area-inset-bottom,0px)) !important;}
-html.phone-whole #summary-wrap:not(#_){padding-bottom:calc(76px + env(safe-area-inset-bottom,0px)) !important;}
-/* an open search or INFO stands where the format's row was */
-html.phone-whole:has(:is(#search-btn,#info-btn).expanded) :is(#sol-ctl,#pal-ctl,#lanes-nav):not(#_){visibility:hidden !important;}
+html.phone-whole #lanes-nav:not(#_){left:56px !important;right:56px !important;width:auto !important;transform:none !important;}
 """
 
 JS = r"""(function(){
@@ -270,81 +241,73 @@ document.addEventListener('touchend', function(e){
 }, {capture:true, passive:false});
 document.addEventListener('touchcancel', function(){ if(G) pinchEnd(); T=null; clearTimeout(LP && LP.t); }, true);
 
-/* ── the bar ── */
-var IC={
-  cards:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg>',
-  whole:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="3.5" width="7" height="6" rx="1.4"/><rect x="14.5" y="3.5" width="7" height="6" rx="1.4"/><rect x="8.5" y="14.5" width="7" height="6" rx="1.4"/><path d="M6 9.5v2.5h12V9.5M12 12v2.5"/></svg>',
-  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg>',
-  filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3.5 5h17l-6.5 8v6l-4-2v-4z"/></svg>',
-  notes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4M9 12h7M9 16h5"/></svg>',
-  more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
-  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></svg>',
-  dot:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="7"/></svg>'
-};
-/* [desktop toggle, label, icon key or null (its own icon), in the bar] — the first found of a group stands for it */
-var SLOTS=[['search-btn','Search','search',1],['search-toggle','Search','search',1],['filter-toggle','Filter','filter',1],['notes-toggle','Notes','notes',1],
-  ['overview-toggle','Overview',null,0],['bg-toggle','Scene',null,0],['mode-toggle','Light / Dark',null,0],['key-toggle','Key',null,0],
-  ['minimap-toggle','Map',null,0],['info-icon','Info','info',0],['info-btn','Info','info',0],['account-btn','Account',null,0]];
-function label(el, d){ return (el.getAttribute('aria-label')||el.getAttribute('title')||d||el.textContent||'').trim().split('\n')[0].slice(0,22); }
-function icon(el, k){ if(k && IC[k]) return IC[k]; var s=el.querySelector('svg'); return s ? s.outerHTML : IC.dot; }
-function mk(tag, cls, html){ var e=document.createElement(tag); if(cls) e.className=cls; if(html!=null) e.innerHTML=html; return e; }
-var bar=null, sheet=null, scrim=null;
-function sheetOn(v){ if(!sheet) return; sheet.classList.toggle('on', v); scrim.classList.toggle('on', v); }
-function swap(v){ try{ localStorage.setItem(KEY, v); }catch(e){} location.reload(); }
+/* ── the phone design over the whole view (Luke, 2026-10-23: "look at how it was before you started mobile parity and
+   build up from there"). The engine's phone scripts ran inside a window where the page was html.mobile (phone_scripts:
+   the tiles, the MENU drawer, MAP's list, the search pill, INFO, MARK and NOTES are theirs, built by their own code);
+   their rules are written for html.mobile, so here the ones for that chrome are copied for html.phone-whole and the
+   desktop rules for the same pieces stand down. A board's own rules (the cards, the canvas, a detail page) are left
+   to the desktop. ── */
+var BOARD=/#(canvas|world|river-svg|solar-svg|glass-slab|detail-page|detail-content|detail-[\w-]+|sol-[\w-]+|lanes-[\w-]+|pal-[\w-]+|bldg-[\w-]+|wpal-[\w-]+)(?![\w-])|\.(node|node-[\w-]+|unit-bar|phase-[\w-]+|edge[\w-]*|detail-[\w-]+|mobile-featured)(?![\w-])|(^|[\s>+~])mark(?![\w-])/;
+var done=typeof WeakSet==='function' ? new WeakSet() : null, extra=[];
+function parts(s){ var o=[], d=0, b=0; for(var i=0;i<s.length;i++){ var c=s[i]; if(c==='('||c==='[') d++; else if(c===')'||c===']') d--; else if(c===','&&!d){ o.push(s.slice(b,i)); b=i+1; } } o.push(s.slice(b)); return o; }
+function rules(list, wrap){
+  for(var i=0;i<list.length;i++){ var r=list[i];
+    if(r.cssRules && r.selectorText==null){ var c=r.media ? '@media '+r.media.mediaText : r.conditionText!=null ? '@supports '+r.conditionText : null;
+      if(c) rules(r.cssRules, (wrap||'')+c+'{'); continue; }
+    if(r.selectorText==null || r.selectorText.indexOf('mobile')<0) continue;
+    var ps=parts(r.selectorText), copy=[], off=false;
+    for(var k=0;k<ps.length;k++){ var s=ps[k];
+      if(BOARD.test(s)) continue;
+      if(/:not\(\.mobile\)/.test(s)){ ps[k]=s.replace(/:not\(\.mobile\)/g, ':not(.mobile):not(.phone-whole)'); off=true; }
+      else if(/\.mobile(?![\w-])/.test(s)) copy.push(s.replace(/\.mobile(?![\w-])/g, '.phone-whole')); }
+    if(off) try{ r.selectorText=ps.join(','); }catch(e){}
+    if(copy.length){ var css=copy.join(',')+'{'+r.style.cssText+'}'; if(wrap) css=wrap+css+new Array(wrap.split('{').length).join('}'); extra.push(css); }
+  }
+}
+function remap(){
+  [].forEach.call(document.styleSheets, function(sh){ if(done && done.has(sh)) return; var n=sh.ownerNode; if(n && n.id==='alto-phone-chrome') return;
+    var list; try{ list=sh.cssRules; }catch(e){ return; } if(done) done.add(sh); rules(list, ''); });
+  if(!extra.length) return;
+  var st=document.getElementById('alto-phone-chrome'); if(!st){ st=document.createElement('style'); st.id='alto-phone-chrome'; }
+  st.textContent+=extra.join('\n')+'\n'; extra=[]; document.head.appendChild(st);           /* last in <head>: after the phone design's own */
+}
+function swap(v){ try{ sessionStorage.setItem(KEY+':'+location.pathname, v); }catch(e){} location.reload(); }
+/* a timeline or an outline seen whole: "One card" in the MENU drawer, where "Whole view" stood (phone.py CARD_JS) */
+function cardsBtn(){
+  var b=document.getElementById('nav-drawer-body'); if(!CAN || !b) return; var x=document.getElementById('drawer-view-btn');
+  if(!x){ x=document.createElement('button'); x.id='drawer-view-btn'; x.type='button'; x.className='drawer-btn';
+    x.innerHTML='<span class="drawer-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4.5" y="2.5" width="11" height="15" rx="2"/><path d="M7.5 7h5M7.5 10h5M7.5 13h3"/></svg></span><span class="drawer-label">One card</span>';
+    x.onclick=function(){ swap('card'); }; }
+  var a=document.getElementById('drawer-scene-btn')||document.getElementById('drawer-mode-btn');
+  if(a && a.parentNode){ if(a.nextSibling!==x) a.parentNode.insertBefore(x, a.nextSibling); } else if(x.parentNode!==b) b.appendChild(x);
+}
+/* the desktop gathers NOTES and FILTER into its side rail (filter_panel.RAIL_GLUE); on a phone they are corner tiles */
+function unrail(){
+  var r=document.getElementById('tab-rail'), app=document.getElementById('app')||document.body; if(!r) return;
+  ['notes-toggle','filter-toggle'].forEach(function(id){ var b=document.getElementById(id); if(b && b.parentNode===r) (id==='notes-toggle' ? app : document.body).appendChild(b); });
+}
+/* the MENU drawer as a phone has it: Dark / Light straight under Overview, no "Appearance" label (the engine's
+   upgradeDrawer, in a phone-only script), and Scene under Dark / Light (backgrounds.py adds it only to html.mobile) */
+function drawer(){
+  var b=document.getElementById('nav-drawer-body'); if(!b) return;
+  var ov=null; [].forEach.call(b.querySelectorAll('.drawer-btn'), function(x){ if((x.getAttribute('onclick')||'').indexOf('toggleSummary')>=0) ov=x; });
+  [].forEach.call(b.querySelectorAll('.drawer-section-label'), function(l){ if((l.textContent||'').trim()==='Appearance') l.remove(); });
+  var dm=document.getElementById('drawer-mode-btn'); if(dm && ov && ov.nextSibling!==dm) ov.parentNode.insertBefore(dm, ov.nextSibling);
+  var bg=document.getElementById('bg-toggle'), sb=document.getElementById('drawer-scene-btn');
+  if(bg && dm && !sb){ sb=document.createElement('button'); sb.id='drawer-scene-btn'; sb.type='button'; sb.className='drawer-btn';
+    var ic=bg.querySelector('svg'); sb.innerHTML='<span class="drawer-icon">'+(ic ? ic.outerHTML.replace(/width="\d+" height="\d+"/, 'width="20" height="20"') : '')+'</span><span class="drawer-label">Scene</span>';
+    sb.addEventListener('click', function(e){ e.stopPropagation(); if(window.closeNavDrawer) window.closeNavDrawer(); setTimeout(function(){ bg.click(); }, 0); }); }
+  if(sb && dm && sb.previousElementSibling!==dm) dm.parentNode.insertBefore(sb, dm.nextSibling);
+}
 function build(){
   if(!on() || !document.body) return;
-  if(bar) bar.remove(); if(sheet){ sheet.remove(); scrim.remove(); }
-  bar=mk('div'); bar.id='ph-bar'; bar.setAttribute('role','toolbar'); bar.setAttribute('aria-label','Controls');
-  scrim=mk('div'); scrim.id='ph-scrim'; scrim.onclick=function(){ sheetOn(false); };
-  sheet=mk('div', null, '<div class="ph-grab"></div><div class="ph-grid"></div>'); sheet.id='ph-sheet'; sheet.setAttribute('role','dialog'); sheet.setAttribute('aria-label','More');
-  var grid=sheet.querySelector('.ph-grid');
-  function btn(where, html, txt, fn){ var b=mk('button', null, html+(where===bar ? '<span>'+txt+'</span>' : '<span>'+txt+'</span>')); b.type='button'; b.setAttribute('aria-label', txt); b.onclick=fn; where.appendChild(b); return b; }
-  if(CAN) btn(bar, IC.cards, 'Cards', function(){ swap('card'); });
-  var had={};
-  SLOTS.forEach(function(s){
-    var el=document.getElementById(s[0]); if(!el || getComputedStyle(el).display==='none') return;
-    el.classList.add('ph-hide'); if(had[s[1]]) return; had[s[1]]=1;
-    var go=function(){ sheetOn(false);
-      /* search: opened and focused inside this tap, or iOS raises no keyboard (its own focus waits 60ms) */
-      if(s[0]==='search-btn' && window.toggleSearch){ window.toggleSearch(); var i=document.getElementById('search-input'); if(i && window._searchOpen) i.focus(); return; }
-      setTimeout(function(){ el.click(); }, 0); };   /* the rest after this tap is done: a panel's own "a click outside closes me" must not hear it */
-    if(s[3]) btn(bar, icon(el, s[2]), s[1], go); else btn(grid, icon(el, s[2]), label(el, s[1]), go);
-  });
-  if(CAN) btn(grid, IC.cards, 'One card at a time', function(){ swap('card'); });
-  if(grid.children.length) btn(bar, IC.more, 'More', function(){ sheetOn(!sheet.classList.contains('on')); });
-  document.body.appendChild(scrim); document.body.appendChild(sheet); document.body.appendChild(bar);
-  de.classList.add('ph-ready');
-  help(); pin('search-btn', {left:'8px', right:'8px', bottom:ABOVE}); pin('info-btn', {left:'auto', right:'8px', bottom:ABOVE, top:'auto'});
-}
-/* the engine pins search and INFO by the desktop's bottom row (alignInfo: inline !important, rewritten on every scroll);
-   on a phone they stand above the bar, the search the bar's width */
-function pin(id, props){
-  var el=document.getElementById(id); if(!el || el._phPin) return; el._phPin={};
-  var go=function(){ for(var k in props){ var v=el.style.getPropertyValue(k);
-    if(v!==el._phPin[k] || el.style.getPropertyPriority(k)!=='important'){ el.style.setProperty(k, props[k], 'important'); el._phPin[k]=el.style.getPropertyValue(k); } } };
-  new MutationObserver(go).observe(el, {attributes:true, attributeFilter:['style']}); go();
-}
-var ABOVE='calc(74px + env(safe-area-inset-bottom, 0px))';
-/* INFO speaks of a finger here: the first two paragraphs stay (how it is made; which pages a card opens), the rest say how this view is used */
-var HELP=[['Zoom &amp; move','pinch to zoom, drag to move; a double tap zooms in, a two-finger tap zooms out.'],
-  ['Names','press and hold a chip, a planet or a building to see what the pointer would show on a computer.'],
-  ['The bar','at the bottom: <em>Cards</em> (one card at a time, where there is that view), <em>Search</em>, <em>Filter</em>, <em>Notes</em> and <em>More</em>: the overview, the background, light or dark, your account.'],
-  ['Groups &amp; filters','the chips along the top (swipe them sideways) open group pages; <em>Filter</em> narrows the cards.'],
-  ['Highlight &amp; note','on a detail page, press and drag over text to highlight it; tap a highlight to add a note. <em>Notes</em> holds them, makes reports, shares and prints.'],
-  ['Alto home','the Alto clef or the wordmark at the top opens your homepage. Editing is on a computer.']];
-function help(){
-  var c=document.getElementById('info-content'); if(!c || c._ph) return; c._ph=1;
-  var ps=[].slice.call(c.querySelectorAll('p')), open=null;
-  ps.forEach(function(p, i){ var t=(p.querySelector('strong')||{}).textContent||'';
-    if(/^Open a card/.test(t)){ open=p; p.innerHTML=p.innerHTML.replace(/click/gi, 'tap').replace(/\.\s*<em>[^]*$/, '. The names along the top of a detail page step between pages; &#8592; goes back.'); }
-    else if(!/^Making it/.test(t)) p.remove(); });
-  HELP.forEach(function(h){ var p=mk('p', 'info-desktop', '<strong>'+h[0]+'</strong> &#8212; '+h[1]); p.style.margin='5px 0'; c.appendChild(p); });
+  remap(); unrail(); drawer(); cardsBtn(); de.classList.add('ph-ready');
 }
 function fit(){ if(on() && fmt()==='tl' && !detail()){ var s=fitS(), c=cv(); if(s<.999 && c){ var r=c.getBoundingClientRect(); ovSet(s, r.left, r.top); c.scrollLeft=0; c.scrollTop=0; } } }
 document.addEventListener('DOMContentLoaded', function(){ build(); });
 window.addEventListener('load', function(){ build(); fit(); setTimeout(build, 900); });
 window.addEventListener('resize', function(){ if(OV.s<1) ovSet(OV.s); });
-window._altoPhone={on:on, fmt:fmt, ov:OV, ovSet:ovSet, zoomBy:zoomBy, build:build, swap:swap};
+window._altoPhone={on:on, fmt:fmt, ov:OV, ovSet:ovSet, zoomBy:zoomBy, build:build, swap:swap, remap:remap};
 })();"""
 
 
@@ -369,14 +332,66 @@ def phone_asset() -> tuple[str, str]:
     return PATH.rsplit("/", 1)[1], ASSET
 
 
-def head_block(force: bool) -> str:
-    """The <script> for <head>, ahead of the engine's own: `force` for a System or a Memory Palace (whole on every phone)."""
+def head_block(mode: str) -> str:
+    """The <script> for <head>, ahead of the engine's own (builder.phone_mode): "whole" for a System or a horizontal
+    timeline (whole on every phone), "card" for a timeline or an outline (the phone design, the whole view on request),
+    nothing for a Memory Palace (the phone design as it always was)."""
+    if mode == "phone":
+        return ""
     from .palace_assets import loader
-    js = (HEAD_JS.replace("__FORCE__", "1" if force else "0").replace("__KEY__", KEY)
+    js = (HEAD_JS.replace("__FORCE__", "1" if mode == "whole" else "0").replace("__KEY__", KEY)
           .replace("__GUARD__", GUARD).replace("__LOAD__", loader(PATH, GUARD)))
     return '<script id="alto-phone-head">' + js + "</script>"
 
 
-def card_block(force: bool) -> str:
-    """The MENU drawer's "Whole view" (a timeline, horizontal timeline or outline only)."""
-    return "" if force else "<script>" + CARD_JS.replace("__KEY__", KEY) + "</script>\n"
+# The engine's phone scripts (the phone design: its tiles, MENU drawer, MAP list, search pill, header brand). On a page
+# seen whole they run inside a window where the page is html.mobile, so they build what they always built; the class
+# is gone again before the desktop's own scripts run. Every other script sees the page as it is.
+PHONE_SCRIPTS = ("<script>\n(function(){\n  if(!document.documentElement.classList.contains('mobile')) return;\n  // ── Inject mobile",
+                 '<script id="alto-mobile-brand">', '<script id="alto-search-mobile">')
+_ON = "<script>window._altoPhoneWhole&&document.documentElement.classList.add('mobile');</script>"
+_OFF = "<script>window._altoPhoneWhole&&document.documentElement.classList.remove('mobile');</script>"
+
+
+# The engine's phone script also lays the cards out for one-card reading and steps between them; on a page seen whole the
+# board is the desktop's, so those parts stand aside there (and only there): the one-card layout (MAP's list keeps its
+# names and colours), the "always start in focus" class, and featuring a card, which becomes the desktop's own landing on it (window._altoSearch.land, the way
+# search goes to a card) when a tap asks for it (MAP's list, the chips; a swipe or the page's own start asks nothing).
+_CARD_PARTS = (
+    ("    if(_origInitLayout) _origInitLayout.apply(this, arguments);\n",
+     "    if(_origInitLayout) _origInitLayout.apply(this, arguments);\n"
+     "    if(window._altoPhoneWhole){ if(typeof NODES !== 'undefined') window._minimapNodeData = NODES.map(function(n){\n"
+     "      return {id: n.id, color: (typeof hex === 'function') ? hex(n.color) : '#a78bfa', title: n.title || n.id}; }); return; }\n"),
+    ("  function featureNode(nodeId, animate){\n",
+     "  function featureNode(nodeId, animate){\n"
+     "    if(window._altoPhoneWhole){ if(animate===true && window._altoSearch && window._altoSearch.land) window._altoSearch.land(nodeId); return; }\n"),
+    ("    var ok = !!window._featuredNodeId;\n",
+     "    var ok = !!window._featuredNodeId || !!window._altoPhoneWhole;   // (the whole view features no card)\n"),
+    ("    _focusMode = true;\n    document.documentElement.classList.add('focus-mode');",
+     "    _focusMode = !window._altoPhoneWhole;\n    if(_focusMode) document.documentElement.classList.add('focus-mode');"),
+)
+
+
+def phone_scripts(html: str) -> str:
+    """Each of PHONE_SCRIPTS between _ON and _OFF (a page whose phone opens the whole view or offers it), with the
+    engine phone script's card parts standing aside on the whole view (_CARD_PARTS)."""
+    for mark in PHONE_SCRIPTS:
+        i = html.find(mark)
+        if i < 0:
+            if mark is PHONE_SCRIPTS[0]:
+                raise ValueError("phone.phone_scripts: the engine's phone script is not in the page")
+            continue
+        j = html.index("</script>", i) + len("</script>")
+        body = html[i:j]
+        if mark is PHONE_SCRIPTS[0]:
+            for old, new in _CARD_PARTS:
+                if body.count(old) != 1:
+                    raise ValueError("phone.phone_scripts: the engine phone script changed near " + old.strip()[:40])
+                body = body.replace(old, new)
+        html = html[:i] + _ON + body + _OFF + html[j:]
+    return html
+
+
+def card_block(mode: str) -> str:
+    """The MENU drawer's "Whole view" (a timeline or an outline only)."""
+    return "<script>" + CARD_JS.replace("__KEY__", KEY) + "</script>\n" if mode == "card" else ""

@@ -361,7 +361,7 @@ def _phone(browser, html, tmp_path, name):
     ctx = browser.new_context(viewport={"width": 390, "height": 844}, user_agent=PHONE_UA, has_touch=True)
     pg = ctx.new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))   # (the phone whole-view script is hosted: a file:// copy cannot fetch it)
     pg.goto(f.as_uri())
     pg.wait_for_timeout(1500)
     first = pg.evaluate(PHONE_VIEW)

@@ -93,6 +93,8 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 html.bldg-open #world{visibility:hidden !important;}
 #bldg-root .bl-ui{position:absolute;z-index:2;pointer-events:auto;}
 #bldg-root .bl-tabs{top:14px;right:14px;display:flex;flex-direction:column-reverse;gap:6px;}
+/* a phone: the plan's name and floor tabs start below the phone design's MAP, Search and MENU (phone.py, 2026-10-23) */
+html.mobile #bldg-root :is(.bl-head,.bl-tabs){top:112px;}
 #bldg-root .bl-tab,#bldg-root .bl-btn{font:inherit;font-size:13px;min-width:38px;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--bl-line);background:color-mix(in srgb,var(--bl-panel) 82%,transparent);
   color:var(--bl-text);cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:border-color .15s,color .15s;}
 #bldg-root .bl-tab:hover,#bldg-root .bl-btn:hover{border-color:var(--bl-accent);}
