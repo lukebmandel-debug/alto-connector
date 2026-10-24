@@ -1,4 +1,4 @@
-"""Mind Palace parks (palace_parks): green glass snapped to the grid with geometric paths, under the streets.
+"""Memory Palace parks (palace_parks): green glass snapped to the grid with geometric paths, under the streets.
 Offline, on the synthetic city of test_palace; the browser test is skipped without Playwright's browsers."""
 import json
 import re

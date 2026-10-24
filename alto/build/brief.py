@@ -251,7 +251,7 @@ TREE_LINES = ("fan", "trunk")
 # orbit (the page's Orbit switch). brief.hub_look is the one a viewer sees
 # first; a stored "plain" (1.9.108's still look) reads as "hub".
 HUB_LOOKS = ("stars", "hub")
-# A Mind Palace's view, chosen at build (the page carries one or the other):
+# A Memory Palace's view, chosen at build (the page carries one or the other):
 # "city" — buildings on a real city's map; "building" — the Building Palace: a
 # blueprint and a first-person view inside ONE building (building_schema.py;
 # the plan is brief.building). (1.9.105's "stars" view, the Star chart, is now
@@ -395,7 +395,7 @@ class Brief:
     # System only, a sample (Luke, 2026-10-20, his torts System): the page's wallpaper runs up behind
     # the two top bars, their glass gone, their buttons and text where they are (solar_draw.py).
     wallpaper_top: bool = False
-    # Mind Palace only (PALACE_VIEWS): "city" (the default), "building" or "world".
+    # Memory Palace only (PALACE_VIEWS): "city" (the default), "building" or "world".
     palace_view: str = "city"
     # Building Palace only (palace_view "building"; building_schema.py):
     # {name, plan_z (the packed plan), plan_h (its hash), mode: "room"|"anchor",
@@ -490,7 +490,7 @@ class Brief:
     lines: list[dict] = field(default_factory=list)
     main_line: str = ""
     flashbacks: list[dict] = field(default_factory=list)
-    # Mind Palace mode (palace.py): the city — {place, area?, bbox, districts:
+    # Memory Palace mode (palace.py): the city — {place, area?, bbox, districts:
     # [{unit, name, bounds}], majors, landmarks, scale, data_z (the fetched map
     # and its lots, packed; set_up_palace writes it)}.
     palace: dict = field(default_factory=dict)
@@ -693,7 +693,7 @@ def validate_brief(b: Brief) -> list[str]:
                          "chart is a look of a System now: mode 'outline', layout 'solar')")
     if b.palace_view != "city" and b.mode != "palace":
         raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Building Palace "
-                         "is a Mind Palace view")
+                         "is a Memory Palace view")
     if b.layout == "solar" and b.mode != "outline":
         raise BriefError("layout 'solar' needs mode 'outline': a solar system is "
                          "drawn from the nodes' parents (a unit's top concept is "
@@ -925,7 +925,7 @@ def _check_placement(b: Brief, warnings: list[str]) -> None:
             if (not isinstance(hints, dict) or set(hints) - {"lot", "fno", "out", "shape"} or not isinstance(hints.get("lot", ""), str)
                     or not (hints.get("fno") is None or (isinstance(hints["fno"], int) and not isinstance(hints["fno"], bool)
                                                          and 2 <= hints["fno"] <= 250))):
-                raise BriefError(f"placement {nid}: a Mind Palace places a building by "
+                raise BriefError(f"placement {nid}: a Memory Palace places a building by "
                                  "{\"lot\": \"<block>.<lot>\"}; a tower's floor may also carry "
                                  "{\"fno\": its real floor number} and {\"out\": true} (let out of the tower); "
                                  "a building may carry {\"shape\": {x, y, a, w, h, r}} instead (the footprint of a background building it stands on)")
@@ -1063,12 +1063,12 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
 
 
 def building_view(b) -> bool:
-    """True for a Building Palace (a Mind Palace in its "building" view): one building's blueprint and first-person view."""
+    """True for a Building Palace (a Memory Palace in its "building" view): one building's blueprint and first-person view."""
     return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "building"
 
 
 def world_view(b) -> bool:
-    """True for a World Palace (a Mind Palace in its "world" view): the world map, cards on countries, no first-person view."""
+    """True for a World Palace (a Memory Palace in its "world" view): the world map, cards on countries, no first-person view."""
     return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "world"
 
 
@@ -1083,7 +1083,7 @@ def solar_style(b) -> str:
 def migrate_brief(d: dict) -> tuple[dict, dict]:
     """A stored brief as this version reads it: (the brief, what it set aside).
 
-    Star chart was a Mind Palace view in 1.9.105 (mode 'palace' + palace_view
+    Star chart was a Memory Palace view in 1.9.105 (mode 'palace' + palace_view
     'stars'); it is now the Star chart look of a System. Such a brief
     loads as mode 'outline' + layout 'solar', look 'stars' — its nodes,
     parents, flags, sections, entities, axes, sources are all in the brief or

@@ -91,7 +91,7 @@ def test_a_solar_page_carries_the_drawing_and_a_tree_page_does_not():
 
 
 def test_a_hub_and_spoke_page_carries_one_plan_and_no_palace():
-    """The Star chart is a look of a System page, not a Mind Palace: path
+    """The Star chart is a look of a System page, not a Memory Palace: path
     numbers, ONE plan (both looks draw it, round 7), the renderer mounted after it, none of the city."""
     html = _page(suns={0: 1})
     assert "window._ALTO_PALACE=" not in html and "window._ALTO_OUTLINE=" in html and "window._altoSolarMount=" in html

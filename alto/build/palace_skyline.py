@@ -1,4 +1,4 @@
-"""The Mind Palace's building generator: every landmark and tower drawn from data, at ONE scale,
+"""The Memory Palace's building generator: every landmark and tower drawn from data, at ONE scale,
 standing on its REAL FOOTPRINT.
 
 Why: the art used to be hand-drawn per building and then squeezed into whatever card its block

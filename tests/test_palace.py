@@ -1,4 +1,4 @@
-"""The Mind Palace (brief.mode "palace"): validation, structure and numbers,
+"""The Memory Palace (brief.mode "palace"): validation, structure and numbers,
 the geometry (palace_place), the built page and its isolation from the other
 modes, manual-edit folds (lot / floor), get_timeline's city summary and the
 set_up_palace tool. A tiny synthetic city is used throughout; nothing here

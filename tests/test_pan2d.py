@@ -1,4 +1,4 @@
-"""Two-finger scrolling pans on both axes at once (alto/build/pan2d.py): the Mind Palace city map and System / Star chart.
+"""Two-finger scrolling pans on both axes at once (alto/build/pan2d.py): the Memory Palace city map and System / Star chart.
 
 Safari's own scroll of an overflow box keeps to the predominant axis of a trackpad gesture (WebKit's
 WheelEventDeltaFilterMac); the page now scrolls the map from the wheel events' two deltas itself. Synthetic events cannot

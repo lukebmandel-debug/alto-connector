@@ -1,4 +1,4 @@
-"""Mind Palace neighbourhood names: label-only area names (brief.palace.areas) beside the section districts. Static checks of
+"""Memory Palace neighbourhood names: label-only area names (brief.palace.areas) beside the section districts. Static checks of
 the list, validation and layout; a real browser checks that the names are in the page, are click-through, and that no two
 visible names overlap at the whole-city zoom. Nothing here touches the network, Firebase or any ALTO_* setting."""
 import copy

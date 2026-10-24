@@ -1,4 +1,4 @@
-"""The Mind Palace's parks: green glass on the grid, with their paths (Luke, 2026-10-14).
+"""The Memory Palace's parks: green glass on the grid, with their paths (Luke, 2026-10-14).
 
 The real parks (palace_map: OSM rings) are carried onto the even grid and
 snapped to it: a park is the set of grid blocks (cells) its outline mostly

@@ -900,7 +900,7 @@ def test_a_civ_pro_page_is_far_under_the_stored_page_cap():
     assert any(n.get("look") == "comet" and n.get("orbit") for n in S["nodes"].values())
 
 
-# ── a 1.9.105 Star chart (a Mind Palace in its stars view) loads as System ─
+# ── a 1.9.105 Star chart (a Memory Palace in its stars view) loads as System ─
 
 def _palace_star_chart():
     """A stored 1.9.105 Star chart: the shape of Luke's torts-star-chart —

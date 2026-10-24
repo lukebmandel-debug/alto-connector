@@ -1,4 +1,4 @@
-"""Two-finger scrolling moves the map the way the fingers go — diagonally too (Mind Palace city map, System / Star chart).
+"""Two-finger scrolling moves the map the way the fingers go — diagonally too (Memory Palace city map, System / Star chart).
 
 Luke, 1.9.110: "diagonal scrolling ... the view only moves along one axis at a time". Both views pan at rest by the browser's
 own scroll of #canvas (one overflow:auto box, nothing clipped on either axis), and a synthetic diagonal wheel moves it on both

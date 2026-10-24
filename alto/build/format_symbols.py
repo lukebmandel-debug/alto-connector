@@ -1,6 +1,6 @@
 """The symbol each project format wears instead of its name.
 
-A project (timeline, outline, Mind Palace, System) is labelled with one small
+A project (timeline, outline, Memory Palace, System) is labelled with one small
 line drawing wherever it is named as a label: the homepage cards, the way back
 from a detail page, the print heading. The name rides along as the tooltip and
 the aria-label. Stroke-only, in the style of glyphs.py, so a symbol takes
@@ -34,15 +34,15 @@ SYMBOLS: dict[str, tuple[str, str, int]] = {
                '<circle cx="10" cy="10" r="1.8"/><circle cx="10" cy="10" r="7"/>'
                '<circle cx="5" cy="5" r="1.3"/>', 20),
     # a map pin
-    "palace": ("Mind Palace",
+    "palace": ("Memory Palace",
                BADGE + '<path d="M12 16.5s-3-2.9-3-5.2a3 3 0 0 1 6 0c0 2.3-3 5.2-3 5.2z"/>'
                '<circle cx="12" cy="11.3" r="1" fill="currentColor"/>', 24),
     # a domed palace
-    "building": ("Mind Palace \u00b7 Building",
+    "building": ("Memory Palace \u00b7 Building",
                  BADGE + '<path d="M6.5 17.5h11M8 17.5v-5h8v5M8.3 12.5c0-2.2 1.2-3.3 3.7-4.8 2.5 1.5 '
                  '3.7 2.6 3.7 4.8M12 7.7V6M10.8 17.5v-2.2a1.2 1.2 0 0 1 2.4 0v2.2"/>', 24),
     # a globe with a route arc hopping to a stop: the World Palace
-    "world": ("Mind Palace \u00b7 World",
+    "world": ("Memory Palace \u00b7 World",
               BADGE + '<circle cx="11" cy="13.2" r="5.3"/><path d="M11 7.9a2.3 5.3 0 0 0 0 10.6a2.3 5.3 0 0 0 0-10.6"/>'
               '<path d="M5.9 8.4Q10.6 3.4 16.6 6.4" stroke-dasharray="1.5 1.7"/><circle cx="17.6" cy="7.1" r="1.25" fill="currentColor"/>', 24),
 }

@@ -1,4 +1,4 @@
-"""Highways of the Mind Palace city: Interstates, expressways, parkways and freeways as first-class NAMED ROUTE LINES,
+"""Highways of the Memory Palace city: Interstates, expressways, parkways and freeways as first-class NAMED ROUTE LINES,
 drawn like the transit lines (palace_transit*.py) but with their own look (palace_highway_js.py).
 
 Three steps, each usable alone:

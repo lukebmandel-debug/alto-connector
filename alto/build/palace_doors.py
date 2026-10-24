@@ -1,6 +1,6 @@
-"""The Mind Palace's Index pages as the INSIDE of a landmark building.
+"""The Memory Palace's Index pages as the INSIDE of a landmark building.
 
-In a Mind Palace the big Index lists (the Cases, a code, the Federal Rules ...) are
+In a Memory Palace the big Index lists (the Cases, a code, the Federal Rules ...) are
 reached through a landmark building on the map (Art Museum, City Hall, Independence
 Hall) or an Index chip. Instead of one long dumping-ground list, the page is the
 building's lobby: a header with that landmark's little 3D art, and below it each
@@ -214,7 +214,7 @@ window._palDoors={head:head, lobby:lobby, after:after, reveal:reveal, toggle:tog
 
 
 def axis_index_glue() -> str:
-    """AXIS_INDEX_GLUE with the Mind Palace's lobby hooked in (a palace build only)."""
+    """AXIS_INDEX_GLUE with the Memory Palace's lobby hooked in (a palace build only)."""
     g = AXIS_INDEX_GLUE
     edits = [
         ("function showAxisIndex(kind){ window.showDetail('index', kind); }",

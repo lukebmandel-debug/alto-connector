@@ -1,4 +1,4 @@
-"""Subject-aware landmarks: a law palace (a Mind Palace for a law class) gets the city's real courthouses as landmark
+"""Subject-aware landmarks: a law palace (a Memory Palace for a law class) gets the city's real courthouses as landmark
 buildings, by level — federal (U.S. district courthouses, the courts of appeals, the U.S. Supreme Court), state
 (state supreme / appellate / trial courts) and city (municipal, county, family, superior / district courts, a City
 Hall that houses courts).

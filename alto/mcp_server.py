@@ -1011,7 +1011,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       they are on the page (node `present`) and runs alongside while they are
       not; a flashback is a labelled dip of the main line into the past (node
       `flash`), §D-Lanes;
-      'palace' is the Mind Palace: a real city the user names, each section a
+      'palace' is the Memory Palace: a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
       Only Claude builds a city (the homepage sends the user to Claude for it).
@@ -1052,7 +1052,7 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       'building' is the BUILDING PALACE (§D-Building; set_up_building stores
       the building's plan; one section is enough); 'world' the WORLD PALACE
       (§D-World; set_up_world places the cards the notes tie to a place). The Star chart is not a
-      Mind Palace: it is the default look of a System (hub_look above),
+      Memory Palace: it is the default look of a System (hub_look above),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
       flashbacks?: [{id, label}] (lanes only: the main line's label; the
       characters / places / threads, one line each; the flashbacks, each a
@@ -1607,7 +1607,7 @@ def set_flags(timeline_id: str, flags: list[dict],
 
 
 def _own_palaces(exclude_tid: str, place: str) -> list:
-    """The user's other Mind Palaces, as airport destinations: [{city, code, timeline, url}] (url relative, a private link)."""
+    """The user's other Memory Palaces, as airport destinations: [{city, code, timeline, url}] (url relative, a private link)."""
     from .build.palace_airport import code_for
     out, seen = [], {(place or "").strip().lower()}
     try:
@@ -1633,7 +1633,7 @@ def _own_palaces(exclude_tid: str, place: str) -> list:
 
 
 def _refresh_portal_destinations(doc: dict, tid: str) -> dict:
-    """An airport's departures board is made when the palace is set up, so a city whose Mind Palace was made later still
+    """An airport's departures board is made when the palace is set up, so a city whose Memory Palace was made later still
     read "Build it". At every build the board takes the user's other palaces: a city on it without a link gets one, a palace
     not on it is added first. Nothing the board already links is touched. A palace with no airport, or a board whose every
     city already links, is left as it is (and asks the store for nothing)."""
@@ -1725,7 +1725,7 @@ def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None
             "flashbacks": [x["id"] for x in b.flashbacks or []], "warnings": warnings}
 
 
-@mcp.tool(title="Set up a Mind Palace city", annotations=RW)
+@mcp.tool(title="Set up a Memory Palace city", annotations=RW)
 @accounted
 def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   area: str = "", districts: list[dict] | None = None,
@@ -1740,7 +1740,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   transit: list[dict] | None = None,
                   auto: bool = True,
                   subject: str | None = None) -> dict:
-    """The city a Mind Palace (mode 'palace', §D-Palace) is drawn on: fetches
+    """The city a Memory Palace (mode 'palace', §D-Palace) is drawn on: fetches
     its streets, rivers, parks, railways, stations and landmarks from
     OpenStreetMap, finds its blocks and building lots, and stores them with the
     timeline (nothing is fetched again at build). Run it once the timeline
@@ -1785,7 +1785,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     Square"); the big ones (15 ha and up) are drawn anyway. portals: gateways to places off the
     map (an airport, another city), [{name, stations: [station names], via?, line?, code?, destinations?}] — each named
     station shows a portal pin; clicking it makes the trip (the camera goes to the station, a plane lifts off, and an AIRPORT
-    scene opens with a departures board of cities: a city that has a Mind Palace in the user's account boards straight into
+    scene opens with a departures board of cities: a city that has a Memory Palace in the user's account boards straight into
     it; one without says what to ask Claude for). An airport portal that names no destinations gets the board automatically:
     the user's other palaces, then New York, Boston, Washington, Chicago, Los Angeles, London, Paris. code: the airport's IATA code (PHL). areas: the
     city's named neighborhoods, drawn as small label-only names,
@@ -1819,7 +1819,7 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
     brief = doc["brief"]
     if brief.get("mode") != "palace":
         return {"error": "not_a_palace", "message": "this timeline's mode is "
-                f"{brief.get('mode') or 'linear'!r}; a Mind Palace is created with mode 'palace'"}
+                f"{brief.get('mode') or 'linear'!r}; a Memory Palace is created with mode 'palace'"}
     from .build import palace as pal_mod
     from . import palace_map
     nodes = get_store().list_nodes(uid(), timeline_id)
@@ -2320,7 +2320,7 @@ def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
                                "the Star chart is the System's default look (hub_look 'stars')"}
         if doc["brief"].get("mode") != "palace":
             return {"error": "invalid_palace_view",
-                    "message": "palace_view only applies to a Mind Palace (mode 'palace')"}
+                    "message": "palace_view only applies to a Memory Palace (mode 'palace')"}
     return None
 
 
@@ -2376,7 +2376,7 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     Alto's usual glass look); '' keeps the brief's. Every style is in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.
-    palace_view: for a Mind Palace, 'city', 'building' (the Building Palace:
+    palace_view: for a Memory Palace, 'city', 'building' (the Building Palace:
     one building's blueprint, §D-Building) or 'world' (the World Palace,
     §D-World); '' keeps the brief's. Chosen when
     the page is built, not switched in the page.
@@ -3037,7 +3037,7 @@ def get_timeline(timeline_id: str) -> dict:
 
 
 def _brief_out(brief):
-    """A brief as a tool hands it back: a Mind Palace's packed city (or a Building Palace's packed plan) summarised."""
+    """A brief as a tool hands it back: a Memory Palace's packed city (or a Building Palace's packed plan) summarised."""
     if isinstance(brief, dict) and (brief.get("palace") or {}).get("data_z"):
         from .build.palace import summary
         brief = {**brief, "palace": summary(brief["palace"])}

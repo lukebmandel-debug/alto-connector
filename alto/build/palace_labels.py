@@ -1,4 +1,4 @@
-"""Where a landmark's NAME hangs on the Mind Palace map (1.9.95).
+"""Where a landmark's NAME hangs on the Memory Palace map (1.9.95).
 
 The names of the landmark buildings (towers, courthouses, stations, City Hall, the stadiums, the Convention Center, every
 generic building the palace draws) keep one size on the screen, while the buildings shrink with the zoom. The declutter in

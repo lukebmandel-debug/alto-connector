@@ -1,4 +1,4 @@
-"""Mind Palace Directions: building to building, like the Apple Maps app, on the phone and on the desktop.
+"""Memory Palace Directions: building to building, like the Apple Maps app, on the phone and on the desktop.
 
 One shared engine (DIR_JS, spliced into the palace's own script so it sees its streets and buildings) and one panel
 that either module can host: the phone's bottom sheet (palace_mobile.py) or a floating glass card beside the zoom

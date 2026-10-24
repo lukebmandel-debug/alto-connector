@@ -169,7 +169,7 @@ def test_the_mobile_runway_treats_the_tab_and_the_picker_as_fixed_chrome(timelin
 
 def test_a_choice_on_a_page_with_no_web_address_changes_nothing():
     """A copy downloaded for offline use opens from a file: it cannot reach the
-    photographs, so it keeps the Alto wallpaper. (A Mind Palace's own map grounds are CSS, no files:
+    photographs, so it keeps the Alto wallpaper. (A Memory Palace's own map grounds are CSS, no files:
     they are the one kind that needs no web address.)"""
     assert "function web(){ return /^https?:/i.test(document.baseURI || location.href); }" in bg.HEAD_JS
     assert "if(!c || (c.k!=='m' && !web())){" in bg.HEAD_JS

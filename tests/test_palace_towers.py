@@ -1,4 +1,4 @@
-"""Mind Palace towers (palace_towers.py): the skyscraper art, a landmark entry's `unit`/`floors`, a unit's
+"""Memory Palace towers (palace_towers.py): the skyscraper art, a landmark entry's `unit`/`floors`, a unit's
 buildings becoming the tower's floors with real floor numbers, the elevator, edit mode, and that a palace with
 no `unit` is unchanged. Runs on test_palace's synthetic city; nothing here touches the network or any ALTO_* setting."""
 import copy

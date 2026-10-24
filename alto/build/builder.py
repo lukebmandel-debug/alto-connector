@@ -278,7 +278,7 @@ def _add_background_head(html: str, brief: Brief) -> str:
 
 
 def phone_whole(brief: Brief) -> bool:
-    """A System or a Mind Palace is always seen whole on a phone; a timeline, horizontal timeline or outline offers
+    """A System or a Memory Palace is always seen whole on a phone; a timeline, horizontal timeline or outline offers
     the one-card view too (phone.py)."""
     return brief.mode == "palace" or brief.layout == "solar"
 

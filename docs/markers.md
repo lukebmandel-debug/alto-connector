@@ -66,7 +66,7 @@ Work in the layer's own (unzoomed) px: anchor = (map point − view origin) × (
   module; Safari pinch; eased +/− buttons; viewBox no longer rounded to 1 cm (it moved the whole drawing in ~3 px steps close in).
 - **System** (`solar_draw.py`, all 2D styles): the same rules inline (the page is at its size cap): labels decided once a zoom
   settles, held places, level-of-detail thresholds as 4% bands, level-of-detail by fade, re-layout glides (`#canvas.sol-glide`).
-- **City Mind Palace** (`palace.py`): a zoom runs as one transform of the whole board (the city is far too heavy to lay out
+- **City Memory Palace** (`palace.py`): a zoom runs as one transform of the whole board (the city is far too heavy to lay out
   per frame), and in WebKit any change inside its 11,000-shape drawing costs ~100-300 ms: a style or transform on even 20 labels,
   an opacity fade of the label layers, an inherited custom property on `#world`. So building number tags (HTML) keep their size by
   their own inline `scale` (free); names ride with the board and are fitted once it settles; a tag sent aside keeps its place

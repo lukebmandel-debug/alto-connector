@@ -1,4 +1,4 @@
-"""Mind Palace street maps (alto/palace_map.py): offline tests on small synthetic
+"""Memory Palace street maps (alto/palace_map.py): offline tests on small synthetic
 Overpass-shaped data. Nothing here touches the network."""
 from __future__ import annotations
 

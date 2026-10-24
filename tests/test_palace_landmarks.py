@@ -1,4 +1,4 @@
-"""The Mind Palace's landmark buildings (palace_landmarks.py): the art, the
+"""The Memory Palace's landmark buildings (palace_landmarks.py): the art, the
 way-in tag with its real count, the key's row, keyboard access, and the hooks in
 palace.py. A browser (Chrome via playwright) is used for the drawing tests and
 they skip where there is none; nothing here touches the network or any ALTO_*

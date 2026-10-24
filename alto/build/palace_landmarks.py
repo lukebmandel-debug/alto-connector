@@ -1,4 +1,4 @@
-"""Landmark buildings of the Mind Palace: a little 3D detail from real life, and a
+"""Landmark buildings of the Memory Palace: a little 3D detail from real life, and a
 clear sign when one has reference material inside.
 
 Everything about a landmark building lives here; palace.py has four small hooks

@@ -1322,7 +1322,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
 
     overview_html = b.overview_html
     if not overview_html:
-        # A Mind Palace's Overview reads like an outline's: each district's
+        # A Memory Palace's Overview reads like an outline's: each district's
         # buildings, and the floors in each.
         if b.mode in ("outline", "palace"):
             overview_html = dx.outline_overview(b, nodes)
@@ -1546,7 +1546,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         from .palace_world import world_data
         orders += palace_stub(b, nodes) + world_data(b, nodes)
     elif b.mode == "palace":
-        # The Mind Palace (palace.py): the city, its buildings and floors,
+        # The Memory Palace (palace.py): the city, its buildings and floors,
         # the layout initLayout hands over to on desktop, the elevator.
         # PAN2D_JS (pan2d.py) first: two-finger scrolling pans the map on both axes (the hook is in palace.py)
         orders += PAN2D_JS + palace_data(b, nodes) + palace_js(b) + DOORS_JS

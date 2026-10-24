@@ -1,10 +1,10 @@
-"""The key of a horizontal timeline's lines, or of a Mind Palace's city.
+"""The key of a horizontal timeline's lines, or of a Memory Palace's city.
 
 A key is a toggle, not a panel that sits on the page: a round glass button like
 the search / info / light-dark ones, floating at the top left of the page just
 under the bars across the top, and the key opens beside it. Closed until asked
 for; the choice is remembered per kind of key. Desktop only — a phone has no
-room for one, and neither horizontal timelines nor Mind Palaces draw their key
+room for one, and neither horizontal timelines nor Memory Palaces draw their key
 there.
 
 Both pages (lanes.py, palace.py) put KEY_CSS and KEY_JS in front of their own

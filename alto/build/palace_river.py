@@ -1,4 +1,4 @@
-"""The rivers of the Mind Palace city: smooth bands, not map lines.
+"""The rivers of the Memory Palace city: smooth bands, not map lines.
 
 The grid (palace_grid) carries the streets onto graph paper, stretching the real
 map unevenly, so a river carried point by point comes out lumpy. Here a river is

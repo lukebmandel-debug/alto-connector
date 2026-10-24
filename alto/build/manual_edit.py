@@ -1540,8 +1540,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     syncHist(); return true;
   }
   function change(k, v){ return changes([[k, v]]); }
-  window._altoEditChanges = changes;      // a Mind Palace's drags (palace.py)
-  // what a Mind Palace needs to add a building or a floor: a fresh card id, the units to choose
+  window._altoEditChanges = changes;      // a Memory Palace's drags (palace.py)
+  // what a Memory Palace needs to add a building or a floor: a fresh card id, the units to choose
   // from (and the key the page stores one under), the glass form, the toast
   window._altoEdit = {rid: rid, ask: function(){ return askForm.apply(null, arguments); }, toast: toast, editing: editing,
     units: function(){ var out = []; for(var i = 0; i < ACT_SEQS.length; i++) out.push({i: i, key: unitKeyOf(i), name: unitName(i)}); return out; }};
@@ -1570,7 +1570,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       return;
     }
     if(kind === 'nn' || kind === 'nd' || kind === 'nu' || kind === 'rp' || kind === 'ua' || kind === 'ud' || kind === 'so' || kind === 'sx'){
-      if(window._altoPalaceDirty) window._altoPalaceDirty();      // a Mind Palace: its buildings and numbers again
+      if(window._altoPalaceDirty) window._altoPalaceDirty();      // a Memory Palace: its buildings and numbers again
       relayoutSoon(); if(FLAGS.length || FTOUCH) drawFiltersSoon();
       if(P && P.type === 'node' && !srcNode(P.id)){ try{ window.showTimeline(); }catch(e){} }
       else if(P) { rerenderPage(P); repaint(); }

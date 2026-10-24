@@ -3,7 +3,7 @@
 Luke: "make it so that the viewer can actually see systems and timelines and outlines sort of like they do on desktop.
 In fact, all of them. But also that they, for timelines and outlines specifically, that they can still view it in the
 current format of just one card on the page." His interview: every format (vertical and horizontal timeline, outline,
-the System in all its styles, the Mind Palace's city map, the Building / Museum blueprint) can be seen whole on a phone,
+the System in all its styles, the Memory Palace's city map, the Building / Museum blueprint) can be seen whole on a phone,
 pinch-zoomed and panned, a card opened with a tap, with the filters, search and the style and background pickers; a
 timeline or an outline keeps the one-card view as the other choice, a clear toggle switches, and the phone remembers
 the last choice.
@@ -13,7 +13,7 @@ engine lays anything out, and every format draws its desktop view only under :no
 desktop page itself (html.phone-whole, no .mobile; the runway that keeps Safari's bars clear, html.rw, stays), and
 everything the desktop has comes with it. HEAD_JS runs ahead of the engine's own head script and says which:
 
-  * a System, a Mind Palace (city or building): always whole on a phone (the CEO's call: no one-card toggle there);
+  * a System, a Memory Palace (city or building): always whole on a phone (the CEO's call: no one-card toggle there);
   * a timeline, horizontal timeline or outline: the device's last choice (localStorage `alto-phone-view`, one choice
     for every timeline on that phone), one card until the viewer picks whole. ?view=whole / ?view=card overrides it.
 
@@ -31,7 +31,7 @@ What the hosted script adds to the desktop page:
     opens fitted to the phone's width and two fingers scale it (#world's transform, the canvas still scrolls it);
     pinched back to full size it is the desktop board again and a further pinch enlarges a card as on a Mac. The
     horizontal timeline's own "whole timeline" (lanes_nav.py) is its zoom-out. One finger pans (the canvas's own
-    scroll, so it coasts as iOS does); a double tap zooms in, a two-finger tap zooms out (Mind Palace's phone map).
+    scroll, so it coasts as iOS does); a double tap zooms in, a two-finger tap zooms out (Memory Palace's phone map).
   * no hover from a finger. iOS turns the first tap on something whose hover changes the page into a hover and
     eats the click; the hover events a touch makes are stopped before the page hears them. What hover showed (a
     chip's name, a planet's name, a building's label) shows on a long press instead.
@@ -370,7 +370,7 @@ def phone_asset() -> tuple[str, str]:
 
 
 def head_block(force: bool) -> str:
-    """The <script> for <head>, ahead of the engine's own: `force` for a System or a Mind Palace (whole on every phone)."""
+    """The <script> for <head>, ahead of the engine's own: `force` for a System or a Memory Palace (whole on every phone)."""
     from .palace_assets import loader
     js = (HEAD_JS.replace("__FORCE__", "1" if force else "0").replace("__KEY__", KEY)
           .replace("__GUARD__", GUARD).replace("__LOAD__", loader(PATH, GUARD)))

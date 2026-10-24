@@ -1,4 +1,4 @@
-"""New York in the Mind Palace: its landmark buildings have art of their own (not Philadelphia's), City Hall is New York's,
+"""New York in the Memory Palace: its landmark buildings have art of their own (not Philadelphia's), City Hall is New York's,
 a page carries only the landmark art its city uses, and an airport's board links the user's palace of a city made since it
 was set up. Offline: nothing here touches the network, Firebase or any ALTO_* setting."""
 import json

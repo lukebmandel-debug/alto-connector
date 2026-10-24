@@ -91,7 +91,7 @@ FILTER_PANEL_GLUE = """
   // stepping through the timeline skips what the filter has hidden.
   window._altoChipOn=function(){ return chipKeys().length>0; };
   window._altoChipKeep=keep;
-  // The picked chips, {section key: [chip ids]} (the Mind Palace lights what they tag).
+  // The picked chips, {section key: [chip ids]} (the Memory Palace lights what they tag).
   window._altoChipSel=function(){ var o={}; chipKeys().forEach(function(k){ o[k]=Object.keys(sel[k]); }); return o; };
   // The one test every step asks, in every format (arrow keys, swipes, the
   // next / previous buttons): is this node shown under the filters now on?
@@ -351,7 +351,7 @@ FILTER_PANEL_GLUE = """
   // A re-render (theme toggle, back from a detail page) rebuilds the cards; put
   // the filter back on them.
   var queued=false;
-  // (Not the Mind Palace's own drawing — its route pill, panel and map svg are rewritten BY the filter-changed
+  // (Not the Memory Palace's own drawing — its route pill, panel and map svg are rewritten BY the filter-changed
   // event this sends, which would call it again every frame, for ever.)
   new MutationObserver(function(rs){
     if(queued || !window._altoChipOn()) return;

@@ -1,4 +1,4 @@
-"""The Mind Palace's highways, on the page (data: city_highways.py, the map's M.hw).
+"""The Memory Palace's highways, on the page (data: city_highways.py, the map's M.hw).
 
   * each highway (Interstate, expressway, parkway, freeway) is ONE named route line, drawn like Alto's connecting lines
     but as a road: a thicker glass tube in the road colour with a white centre sheen and a halo casing, rounded only

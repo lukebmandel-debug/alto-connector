@@ -1,4 +1,4 @@
-"""The Mind Palace (brief.mode "palace"): a timeline drawn as a real city.
+"""The Memory Palace (brief.mode "palace"): a timeline drawn as a real city.
 
 The user names a city (and, if they like, the part of it); Claude fetches its
 streets, rivers, parks and railways from OpenStreetMap (palace_map.py) and
@@ -187,7 +187,7 @@ def check_palace(b, warnings: list) -> None:
     if not isinstance(pal, dict):
         raise BriefError("palace: must be an object")
     if pal and b.mode != "palace":
-        raise BriefError("palace needs mode 'palace': it is the Mind Palace's city")
+        raise BriefError("palace needs mode 'palace': it is the Memory Palace's city")
     if b.mode != "palace":
         return
     unknown = set(pal) - PALACE_KEYS
@@ -237,7 +237,7 @@ def check_nodes(b, nodes, warnings: list) -> None:
             seen.add(cur.id); cur = by.get(cur.parent)
     bad = [k for k, v in (b.placement or {}).items() if set(v) - {"lot", "fno", "out", "shape"}]
     if bad:
-        raise BriefError(f"placement: a Mind Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})")
+        raise BriefError(f"placement: a Memory Palace places buildings by lot (and a tower's floors by fno/out) only ({', '.join(bad[:5])})")
 
 
 # ── structure ──────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-"""Mind Palace neighbourhood names: label-only area names drawn over the city (no tint, no hover, no click) beside the
+"""Memory Palace neighbourhood names: label-only area names drawn over the city (no tint, no hover, no click) beside the
 section districts. brief.palace.areas = [{name, lat, lon, rank}]: rank 1 is a major name (shown at the whole-city zoom),
 2 appears a little closer, 3 closer still, 4 only up close; the page hides any name that would overlap a district's name,
 a landmark, a building or a name of higher rank. A name a district already carries is not drawn twice."""

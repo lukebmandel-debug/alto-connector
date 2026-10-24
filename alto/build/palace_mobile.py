@@ -1,4 +1,4 @@
-"""Mind Palace on a phone: the map page, drawn like the Apple Maps app (the Alto glass look kept).
+"""Memory Palace on a phone: the map page, drawn like the Apple Maps app (the Alto glass look kept).
 
 The MAP button opens the city full-bleed. One finger pans and the map coasts on after you let go, two fingers pinch
 around where they are, a double tap zooms in, a two-finger tap zooms out, and nothing scrolls the page behind it. A

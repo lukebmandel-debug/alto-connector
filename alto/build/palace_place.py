@@ -1,4 +1,4 @@
-"""Mind Palace geometry (brief.mode "palace"): the city's blocks, the lots a
+"""Memory Palace geometry (brief.mode "palace"): the city's blocks, the lots a
 building can stand on, the street graph routes follow, and which lot each
 building gets.
 

@@ -1,4 +1,4 @@
-"""Built-in city presets for the Mind Palace: New York City, Boston and Washington, DC.
+"""Built-in city presets for the Memory Palace: New York City, Boston and Washington, DC.
 
 A preset is the set_up_palace parameters a careful person would pass for that city (Philadelphia's are the model:
 see set_up_palace's docstring), so set_up_palace("Boston") draws Boston well with no other argument. Any explicit

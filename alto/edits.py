@@ -445,7 +445,7 @@ def _target(key, brief, by_id, conns):
         if brief.get("layout") == "solar":
             return None              # a solar system places itself: nothing to keep of a drag
         return brief.setdefault("placement", {}), p[1], p[2]
-    # a Mind Palace (palace.py): the lot a building stands on, the building a floor is in
+    # a Memory Palace (palace.py): the lot a building stands on, the building a floor is in
     if kind == "p" and len(p) == 3 and p[2] == "lot" and p[1] in by_id and brief.get("mode") == "palace":
         return brief.setdefault("placement", {}), p[1], "lot"
     # a floor's real number in a tower, a floor let out of its tower (placement hints); a landmark's unit

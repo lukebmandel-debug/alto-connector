@@ -1,4 +1,4 @@
-"""Mind Palace transit: the real lines read from route relations (palace_map._transit), snapped onto the palace's
+"""Memory Palace transit: the real lines read from route relations (palace_map._transit), snapped onto the palace's
 grid (palace_grid / palace_transit), drawn and used on the page (palace_transit_js): stops, riding a line, an Element
 chip's tour. Offline; the browser tests are skipped without Playwright's browsers."""
 import copy
@@ -125,7 +125,7 @@ def test_a_stop_whose_track_is_not_there_is_not_drawn_and_a_line_lists_only_stop
 
 
 def test_no_stop_floats_off_its_lines_in_the_civ_pro_bundle():
-    """Every dot on the real Civ Pro Mind Palace stands on each line it names (to within the lane gap), every line lists
+    """Every dot on the real Civ Pro Memory Palace stands on each line it names (to within the lane gap), every line lists
     only stops that list it back, (a trolley's street is checked by test_the_civ_pro_bundles_trolleys_run_on_streets)."""
     import json
     import os
@@ -177,7 +177,7 @@ def test_the_audit_names_a_floating_stop_a_stub_and_a_river_crossing():
 
 
 def test_the_civ_pro_bundles_transit_passes_the_audit():
-    """Every line of the real Civ Pro Mind Palace: its stops stand on its track and list it back, no piece of track is left
+    """Every line of the real Civ Pro Memory Palace: its stops stand on its track and list it back, no piece of track is left
     without a stop, no stub runs past a last stop, no line crosses a river without a tunnel or bridge, consecutive stops are
     joined by track, and each line runs its real route's stops in order (palace_transit_audit)."""
     import json
@@ -376,7 +376,7 @@ def test_the_audit_flags_a_trolley_stop_in_blank_space_and_track_over_a_void():
 
 
 def test_the_civ_pro_bundles_trolleys_run_on_streets():
-    """The real Civ Pro Mind Palace: every stretch of trolley track (sampled every 20 px) and every trolley stop has a drawn
+    """The real Civ Pro Memory Palace: every stretch of trolley track (sampled every 20 px) and every trolley stop has a drawn
     street under it, none of it runs on a street the grid drew only for the line, and the grid is not grown for it."""
     import json
     import os

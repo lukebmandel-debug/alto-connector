@@ -1,4 +1,4 @@
-"""First-person rides on the Mind Palace: when you ride a line or a filter's route you are INSIDE the vehicle.
+"""First-person rides on the Memory Palace: when you ride a line or a filter's route you are INSIDE the vehicle.
 
 A full-screen layer (one canvas, a small software 3D projection, no filters) renders the city as you move along the leg's real path
 (the plan's own legs: palace_directions.py legPlan / the tour's S.tourLegs): the track, road or footpath ahead, the buildings you pass

@@ -310,7 +310,7 @@ history:
 > main line dipping back into the past, then rising to where the story
 > resumes)."
 
-If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Mind Palace as a city, in a building or on the world map), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Mind Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Mind Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building` — and a Mind Palace on the world map (`palace_view: 'world'`) is §D-World: build the outline, then `set_up_world` with the places the notes name. The homepage can start a System itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
+If the opening message already says which type the user chose on the homepage (outline, sketch timeline, horizontal timeline, System, a Memory Palace as a city, in a building or on the world map), use it as the answer and do not ask again: System is an outline with `layout: 'solar'` (§D-Solar), a Memory Palace as a city is §D-Palace — it needs a real place, so ask which, then use `set_up_palace` — and a Memory Palace in a building (`palace_view: 'building'`) is §D-Building — it needs one real building, so ask which, then use `set_up_building` — and a Memory Palace on the world map (`palace_view: 'world'`) is §D-World: build the outline, then `set_up_world` with the places the notes name. The homepage can start a System itself (the user may only want Claude to fill it from their notes); a city or a building only Claude can build.
 
 Unsure → timeline (sketch). → `mode` in the `create_timeline` brief
 (`'linear'` = sketch, `'lanes'` = horizontal); outline mode then routes §D to
@@ -323,17 +323,17 @@ only a different picture; raise it once the structure is known (§D-Solar says
 when), never before, and never for a sketch, a horizontal timeline or a Mind
 Palace.
 
-A further shape, only when the user asks for it by name (a **Mind Palace**, a
+A further shape, only when the user asks for it by name (a **Memory Palace**, a
 memory palace, "put my outline on a city", "in a museum / a building", "on a
 world map") — never offered unprompted: `mode: 'palace'`, **§D-Palace** (the
 city, `palace_view: 'city'`, the default), **§D-Building** (one real building,
 `palace_view: 'building'`) or **§D-World** (the world map, `palace_view:
 'world'`). Only Claude can build them (a city needs the real map, a building
 its plan, the world its places); the homepage's "+ New timeline" sends the
-user to Claude for all three (Mind Palace tile: City | Museum / building |
+user to Claude for all three (Memory Palace tile: City | Museum / building |
 World).
 
-### §D-Palace. A Mind Palace (`mode: 'palace'`)
+### §D-Palace. A Memory Palace (`mode: 'palace'`)
 The method of loci on a real map: each section is a district of a real city,
 each concept a building on one of its blocks, and what sits under a concept
 its floors, reached by an elevator inside the building.

@@ -346,7 +346,7 @@ _FOCUS_JS_NEW = """  /* ── focus magnification: CSS zoom, ramped per frame �
      ~420ms — the two beats again). Same arithmetic as flyTo. */
   function _flyPlanMs(el){
     var cw=canvas.clientWidth, ch=canvas.clientHeight, a=_canvasXY(el);
-    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }   // a Mind Palace: centre the card and its building together
+    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs) a={x:a.x+_fs[0], y:a.y+_fs[1]}; }   // a Memory Palace: centre the card and its building together
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(a.y-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -718,7 +718,7 @@ _FLY_SCROLL_OLD = """    var tl=_clamp(Math.round(a.x-cw/2),0,Math.max(0,canvas.
 _FLY_SCROLL_NEW = """    // Where the card sits on the board at rest (_canvasXY reads layout, which
     // the pan's transform does not change).
     var ax=a.x, ay=a.y;
-    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }   // a Mind Palace: centre the card and its building together (palace.py, RISE)
+    if(window._altoFocusShift){ var _fs=window._altoFocusShift(el); if(_fs){ ax+=_fs[0]; ay+=_fs[1]; } }   // a Memory Palace: centre the card and its building together (palace.py, RISE)
     var qx=_scrollAxis('scrollLeft'), qy=_scrollAxis('scrollTop');
     var tl=qx.stop(_clamp(Math.round(ax-cw/2),0,Math.max(0,canvas.scrollWidth-cw)));
     var tt=qy.stop(_clamp(Math.round(ay-ch/2),0,Math.max(0,canvas.scrollHeight-ch)));
@@ -962,7 +962,7 @@ _ORDER_MAP_NEW = ("    NODE_ORDER_MAP[id] = (window._ALTO_OUTLINE && window._ALT
 _LANES_HOOK_OLD = "    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
 _LANES_CENTRE_OLD = "  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;"
 _LANES_CENTRE_NEW = ("  function centreWorld(){\n    var cv=document.getElementById('canvas'); if(!cv) return;\n"
-                     "    if(window._altoLanesGeo || window._altoPalaceGeo || window._altoSolarView) return;   // a horizontal timeline opens at its start; a Mind Palace on its city; a star chart / System on its first sun (solar_draw.py)")
+                     "    if(window._altoLanesGeo || window._altoPalaceGeo || window._altoSolarView) return;   // a horizontal timeline opens at its start; a Memory Palace on its city; a star chart / System on its first sun (solar_draw.py)")
 _LANES_HOOK_NEW = ("    nodeHeights[n.id] = h > 0 ? h : 260;\n  });\n"
                    "  if((window._altoLanes && window._altoLanes(nodeHeights)) || (window._altoPalace && window._altoPalace(nodeHeights))) return;\n")
 
@@ -1955,7 +1955,7 @@ _ARROWS_NEW = """  function focusNeighbor(dir){
     var O=window._ALTO_OUTLINE||{}, P=O.parent||{}, K=O.kids||{}, id=cur.id.slice(5);
     if(window._altoSolarNav){ var _sn=window._altoSolarNav(id, dir); if(_sn){ if(_sn!==id) enterFocus(_sn); return; } }   // a System / star chart (solar_draw.py): by outline level (id itself: stay)
     if(window._altoLanesNav){ var _ln=window._altoLanesNav(id, dir); if(_ln){ enterFocus(_ln); return; } }   // a horizontal timeline: along its lines
-    if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Mind Palace: the nearest building that way
+    if(window._altoPalaceNav){ var _pn=window._altoPalaceNav(id, dir); if(_pn){ enterFocus(_pn); return; } }   // a Memory Palace: the nearest building that way
     // Every node's resting box in world px: style.left/top is its centre however
     // it is placed (margins, fly transform, tree), the card its size unzoomed.
     function g(n){

@@ -1,4 +1,4 @@
-"""The Mind Palace's transit, on the page (data: palace_transit.py).
+"""The Memory Palace's transit, on the page (data: palace_transit.py).
 
   * the real lines (SEPTA's subways, trolleys and Regional Rail, PATCO) drawn as
     Alto's own connecting lines on the grid, their stops standing on them: a small

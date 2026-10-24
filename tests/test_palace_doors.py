@@ -1,4 +1,4 @@
-"""The Mind Palace's Index pages as a building's lobby (palace_doors.py): each group is a department behind a glass
+"""The Memory Palace's Index pages as a building's lobby (palace_doors.py): each group is a department behind a glass
 door (a button: aria-expanded / aria-controls) that swings open and unfolds its rows; palace-only (every other
 timeline's index glue is byte-identical). Browser tests skip without Playwright's browsers; nothing here touches the
 network or any ALTO_* setting."""

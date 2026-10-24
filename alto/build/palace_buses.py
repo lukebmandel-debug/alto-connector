@@ -1,4 +1,4 @@
-"""Bus routes on the Mind Palace: the main bus routes drawn along ITS streets and ridden like any transit line.
+"""Bus routes on the Memory Palace: the main bus routes drawn along ITS streets and ridden like any transit line.
 
 The rail and tram lines come from OSM track (palace_transit.py). A bus runs on the streets, and on this page the streets are the even grid. So a
 route is taken from what is real about it — the path of its OSM route relation (route=bus: the ways it runs along, in order) — carried onto the

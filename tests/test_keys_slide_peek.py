@@ -1,6 +1,6 @@
 """1.9.67: the detail-page swipe preview is clear over a chosen Scene; a horizontal timeline's lines look like the
 New-timeline preview (smooth S branches, solid, a ruler along the bottom); arrows with nothing enlarged slide to the next
-event instead of scrolling freely; and the key of the lines / of a Mind Palace is a round toggle floating at the top left
+event instead of scrolling freely; and the key of the lines / of a Memory Palace is a round toggle floating at the top left
 under the bars (key_toggle.py), closed until asked for.
 
 The browser tests are skipped without Playwright's browsers.

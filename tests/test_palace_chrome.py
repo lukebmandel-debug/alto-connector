@@ -1,4 +1,4 @@
-"""The Mind Palace's chrome: the zoom controls beside the account toggle (and the phone's map
+"""The Memory Palace's chrome: the zoom controls beside the account toggle (and the phone's map
 page), the board that never scrolls past the city's edge, and the map-only backgrounds
 (palace_backgrounds.py). A synthetic city is used; nothing here touches the network, Firebase
 or any ALTO_* setting. The browser parts are skipped when Playwright is not installed."""
@@ -94,7 +94,7 @@ def test_eight_map_backgrounds_each_with_a_light_and_a_dark_ground():
     other_names = {c["name"] for c in COLOURS} | {c["name"] for c in PATTERNS}
     assert not other & set(ids) and not other_names & set(names)
     for i, e in pbg.client_entries().items():
-        assert e["g"] == "Mind Palace" and e["k"] == "m" and re.fullmatch(r"m-[a-z]+", i)
+        assert e["g"] == "Memory Palace" and e["k"] == "m" and re.fullmatch(r"m-[a-z]+", i)
         for th in ("l", "d"):
             t = e[th]
             assert t["b"].count("(") == t["b"].count(")") and "linear-gradient(" in t["b"]
@@ -149,12 +149,12 @@ def test_a_map_page_carries_the_set_and_opens_on_the_first():
 
 def test_only_a_palace_page_offers_them():
     pal, _ = build_timeline(*load_brief(copy.deepcopy(bundle())))
-    assert '"m-midnight"' in pal and '"g":"Mind Palace"' in pal
+    assert '"m-midnight"' in pal and '"g":"Memory Palace"' in pal
     for sample in ("contracts_brief.json", "lanes_brief.json", "outline_brief.json"):
         d = json.loads((ROOT / "samples" / sample).read_text())
         html, _ = build_timeline(*load_brief(d))
         head = re.search(r'<script id="alto-bg-head">.*?</script>', html, re.S).group(0)
-        assert '"g":"Mind Palace"' not in head and "m-atlas" not in head and 'DEF=""' in head, sample
+        assert '"g":"Memory Palace"' not in head and "m-atlas" not in head and 'DEF=""' in head, sample
 
 
 def test_a_change_to_the_map_grounds_changes_the_timeline_fingerprint():
@@ -334,7 +334,7 @@ def test_a_palace_opens_on_the_atlas_and_the_picker_offers_the_set_first(browser
     assert pg.evaluate("localStorage.getItem(window._altoBg.key)") is None            # a default is not a choice: nothing to sync
     pg.click("#bg-toggle"); pg.wait_for_timeout(400)
     heads = pg.evaluate("[...document.querySelectorAll('#bg-panel .bg-h')].map(e=>e.textContent)")
-    assert heads[0] == "Mind Palace" and heads.index("Colors") > 0
+    assert heads[0] == "Memory Palace" and heads.index("Colors") > 0
     tiles = pg.evaluate("[...document.querySelector('#bg-panel .bg-grid').children].map(e=>e.getAttribute('data-bg'))")
     assert tiles == [i for i, _n, _b in pbg.PALACE_BGS] + [""]
     assert pg.evaluate("[...document.querySelectorAll('.bg-tile.active')].map(e=>e.getAttribute('data-bg'))") == ["m-atlas"]

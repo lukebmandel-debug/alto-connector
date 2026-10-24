@@ -114,11 +114,11 @@ def tune(p: dict, theme: str) -> dict:
 
 def client_catalog(palace: bool = False) -> dict:
     """What a page needs to know about each background, as compactly as it can.
-    A Mind Palace page (palace=True) also carries the maps' own set (palace_backgrounds.py), first.
+    A Memory Palace page (palace=True) also carries the maps' own set (palace_backgrounds.py), first.
     A photograph (k "p"): g group, and for each theme (l, d) {n name, f file, w/h size, x/y where its
     subject sits, by author, lic licence, u source page, m mean colour, b lift, v veil, q gate colour,
     s status-bar colour, a top-strip colour}. A colour (k "c"): n, l and d = [from, to]. A pattern
-    (k "x"): n, p kind, l and d = [from, to, ink, ink alpha]. A map background (k "m", Mind Palace pages
+    (k "x"): n, p kind, l and d = [from, to, ink, ink alpha]. A map background (k "m", Memory Palace pages
     only): n, and for each theme {b CSS background, a top colour, q gate colour, s status-bar colour, v the
     map's custom properties}."""
     out = dict(pbg.client_entries()) if palace else {}
@@ -164,7 +164,7 @@ HEAD_JS = r"""(function(){
   // On a web address. A share is shown in a srcdoc frame whose own address is about:srcdoc, so ask the
   // base URL it inherits (the same question the page's local-file links ask); a downloaded copy is file:.
   function web(){ return /^https?:/i.test(document.baseURI || location.href); }
-  // what was chosen; with no choice recorded, the page's own default (a Mind Palace's first map ground, else none).
+  // what was chosen; with no choice recorded, the page's own default (a Memory Palace's first map ground, else none).
   // A recorded choice of '' is the Alto wallpaper, chosen.
   function read(){ try{ var s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s && typeof s.v==='string') return s.v; }catch(e){} return DEF; }
   // the opaque key in a private or shared page's address: what a gate knows about this page before it has it
@@ -304,7 +304,7 @@ HEAD_JS = r"""(function(){
 
 
 def head_block(key: str, palace: bool = False, retro: bool = False) -> str:
-    """The <script> for <head>. `key` is the localStorage key of this page's choice; a Mind Palace
+    """The <script> for <head>. `key` is the localStorage key of this page's choice; a Memory Palace
     page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it.
     `retro`: the page offers the Classic | Retro style (retro.py; a timeline page, not the homepage or a System)."""
     from . import retro as _rt
@@ -475,16 +475,16 @@ UI_JS = r"""(function(){
       var s=mk('div','bg-sec'); if(title) s.appendChild(mk('div','bg-h',title));
       var g=mk('div','bg-grid'); ids.forEach(function(id){ g.appendChild(tile(id, B.C[id])); }); if(extra) g.appendChild(extra); s.appendChild(g); return s;
     }
-    // a Mind Palace's own grounds for the map come first, the one it opens on at the head of them; the Alto wallpaper
+    // a Memory Palace's own grounds for the map come first, the one it opens on at the head of them; the Alto wallpaper
     // is the ninth tile of that set, not a section of its own
-    if(by['Mind Palace']) body.appendChild(sec('Mind Palace', by['Mind Palace'], tile('',null)));
+    if(by['Memory Palace']) body.appendChild(sec('Memory Palace', by['Memory Palace'], tile('',null)));
     else { var first=mk('div','bg-sec'), g0=mk('div','bg-grid'); g0.appendChild(tile('',null)); first.appendChild(g0); body.appendChild(first); }
     // the account's own pictures and the Import tile, drawn by the hosted library script (on a web address only)
     if(B.web()){ var ys=mk('div','bg-sec'); ys.id='bg-yours'; body.appendChild(ys);
       B.ui={tile:tile, mark:mark, tiles:tiles, panel:panel, body:body, foot:foot, mk:mk}; B.need(function(L){ L.picker(ys); }); }
     // colours and patterns next (they are the quick ones), then the photographs
     ['Colors','Patterns'].forEach(function(g){ if(by[g]) body.appendChild(sec(g, by[g], g==='Colors' ? custom() : null)); });
-    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Mind Palace') body.appendChild(sec(g, by[g])); });
+    order.forEach(function(g){ if(g!=='Colors' && g!=='Patterns' && g!=='Memory Palace') body.appendChild(sec(g, by[g])); });
     lastDark=dark(); mark();
   }
   function open(v){

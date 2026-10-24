@@ -1,4 +1,4 @@
-"""Boats on the Mind Palace: a ship (OSM historic=ship / building=ship — USS Olympia, Moshulu, USS Constitution ...) is not a building on a
+"""Boats on the Memory Palace: a ship (OSM historic=ship / building=ship — USS Olympia, Moshulu, USS Constitution ...) is not a building on a
 block. It is found by its tags, taken out of the fill-in and out of the landmark list, and put IN THE WATER: where the river's own line passes
 nearest to where the real ship lies, on the bank side, turned along the river. The page draws it (palace.py drawBoats): a hull, its deck, a
 glass superstructure, and a name above it.

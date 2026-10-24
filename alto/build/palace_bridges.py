@@ -1,4 +1,4 @@
-"""The Mind Palace's bridges: a deck with design elements, still one calm line weight (data: M.streets with o=1, M.river).
+"""The Memory Palace's bridges: a deck with design elements, still one calm line weight (data: M.streets with o=1, M.river).
 
 A bridge is a street that crosses water (or a rail / road): palace.py draws its deck (a light band between two fine rail lines) and the
 street's own tube on it. This module gives each bridge a character, read from the plan view, by what it crosses:

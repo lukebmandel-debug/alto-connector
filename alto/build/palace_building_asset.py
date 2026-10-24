@@ -552,7 +552,7 @@ function footer(){
   f.addEventListener('click',function(e){ e.stopPropagation(); tg(); });
   f.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tg(); } });
 }
-/* a Mind Palace in a building is told apart from the city one by its name and a symbol (columns and a pediment): the back button and nav say "Museum Palace" / "Building Palace" */
+/* a Memory Palace in a building is told apart from the city one by its name and a symbol (columns and a pediment): the back button and nav say "Museum Palace" / "Building Palace" */
 function brand(){
   if(!A.plan) return; var nm=A.plan.kind==='museum'?'Museum Palace':'Building Palace';
   var set=function(sel,pre){ [].forEach.call(document.querySelectorAll(sel),function(e){ e.innerHTML=pre+MUSEUM_ICON+nm; }); };

@@ -1,4 +1,4 @@
-"""Towers of the Mind Palace: Center City's big skyscrapers as landmark buildings, and the
+"""Towers of the Memory Palace: Center City's big skyscrapers as landmark buildings, and the
 elevator a unit can take from one.
 
 - The art (`ART`, `MATCH`, `FLOORS`): One and Two Liberty Place, Comcast Center, Comcast Technology

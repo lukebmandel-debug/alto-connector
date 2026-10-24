@@ -1,4 +1,4 @@
-"""Adding a building (or a floor) to a Mind Palace in manual edit mode: the
+"""Adding a building (or a floor) to a Memory Palace in manual edit mode: the
 fold-in into the stored nodes and placement (alto/edits.py), and the page's own
 flow in a real browser — a faint + on a free lot, the glass form, a numbered
 building on that lot, undo, redo, a floor, search. Uses the tiny synthetic city

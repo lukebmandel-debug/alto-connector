@@ -1,4 +1,4 @@
-"""Mind Palace on a phone (palace_mobile.py) and Directions (palace_directions.py): the Apple-Maps-style map page.
+"""Memory Palace on a phone (palace_mobile.py) and Directions (palace_directions.py): the Apple-Maps-style map page.
 
 Runs on test_palace_transit's little city (a real-looking pair of lines over the grid). Static checks first; the browser
 tests drive a 390x844 touch phone with real touch events (CDP), and a desktop window for the Directions panel.

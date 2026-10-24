@@ -1,4 +1,4 @@
-"""Mind Palace interaction pass: a lit route is a line you can follow; an enlarged building's card rises ABOVE its
+"""Memory Palace interaction pass: a lit route is a line you can follow; an enlarged building's card rises ABOVE its
 building (with a notch pointing down onto it) instead of covering it; the elevator takes more than its buttons
 (keys, scrolling past an edge, the wheel over it, the car dragged, the roof, a swipe on a phone).
 

@@ -1,4 +1,4 @@
-"""Hosted scripts of the Mind Palace: code the page loads, not part of the page.
+"""Hosted scripts of the Memory Palace: code the page loads, not part of the page.
 
 A private page is ONE Firestore document (private_shell.MAX_PAGE_BYTES stored bytes) and the palace is already within a few KB of it, so code
 that only some palaces use goes to the site instead, in a folder named by the content hash of the file (it never changes under that name, the

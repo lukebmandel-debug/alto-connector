@@ -92,7 +92,7 @@ def test_a_safari_pinch_zooms_the_blueprint(browser, html):  # noqa: F811
         page.close()
 
 
-# ── the city Mind Palace (palace.py): a zoom preview is a transform of the whole board ──
+# ── the city Memory Palace (palace.py): a zoom preview is a transform of the whole board ──
 
 def _palace_js():
     from alto.build import palace

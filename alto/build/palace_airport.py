@@ -1,8 +1,8 @@
-"""Portals that really go somewhere: an airport is a gateway to other cities (and to the Mind Palaces made there).
+"""Portals that really go somewhere: an airport is a gateway to other cities (and to the Memory Palaces made there).
 
 A portal (brief.palace.portals) pins itself to the stations it is reached from. Clicking the pin (or "Fly there" on its
 card) now makes the trip: the camera goes to the station, a plane lifts off the pin, and the page becomes the airport —
-a departures board of cities. A city that has a Mind Palace in the same account boards the traveller straight into it
+a departures board of cities. A city that has a Memory Palace in the same account boards the traveller straight into it
 (its `url`, a relative private link); a city without one says so and what to ask Claude for. Nothing is invented: the
 board lists only the cities the portal names (`destinations`), and `set_up_palace` fills that list with the user's own
 other palaces plus the cities Alto can build on request.
@@ -134,16 +134,16 @@ function art(){ return '<svg class="pa-art" viewBox="0 0 1200 300" preserveAspec
   +'<g class="a-pl" transform="translate(330 205) scale(2.3)"><path d="M44 24c0-1.700-1.300-3-3-3H29.500L20 5h-4.200l5.200 16H10l-3-4H3.500l3 7-3 7H7l3-4h11l-5.200 16H20l9.500-16H41c1.700 0 3-1.300 3-3z"/></g></svg>'; }
 function build(po){
   var ds=po.destinations||[], code=po.code||'', place=(E&&E.P&&E.P.place)||'';
-  var rows=ds.map(function(d,i){ var go=!!d.url, state=go?'Mind Palace ›':(d.preset?'Build it ›':'No palace yet'), ask=!go;
-    var ask_txt='Set up a Mind Palace for '+d.city;
+  var rows=ds.map(function(d,i){ var go=!!d.url, state=go?'Memory Palace ›':(d.preset?'Build it ›':'No palace yet'), ask=!go;
+    var ask_txt='Set up a Memory Palace for '+d.city;
     return '<div class="pa-item" data-i="'+i+'"><button type="button" class="pa-row'+(go?' go':'')+'" data-i="'+i+'" aria-expanded="false"><span class="c">'+esc(d.code||'···')+'</span><span class="n">'+esc(d.city)
-      +'<small>'+(go?'Your Mind Palace of this city':(d.preset?'Alto can draw this city for you':'Not built yet'))+'</small></span><span class="s">'+state+'</span></button>'
-      +(ask?'<div class="pa-note"><p>There is no Mind Palace of '+esc(d.city)+' yet. Claude builds it from your own materials: copy this request and paste it to Claude.</p><code>'+esc(ask_txt)+'</code>'
+      +'<small>'+(go?'Your Memory Palace of this city':(d.preset?'Alto can draw this city for you':'Not built yet'))+'</small></span><span class="s">'+state+'</span></button>'
+      +(ask?'<div class="pa-note"><p>There is no Memory Palace of '+esc(d.city)+' yet. Claude builds it from your own materials: copy this request and paste it to Claude.</p><code>'+esc(ask_txt)+'</code>'
         +'<button type="button" class="pa-copy" data-t="'+esc(ask_txt)+'">Copy request for Claude</button><span class="pa-hint" role="status"></span></div>':'')+'</div>'; }).join('');
   root.innerHTML='<div class="pa-plane">'+PLANE+'</div>'+art()
     +'<div class="pa-panel" role="document"><div class="pa-h"><span class="pa-code">'+esc(code||'AIR')+'</span><div><b>'+esc(po.name)+'</b><small>'+esc(place?('Leaving '+place+(po.via?' by '+po.via:'')):(po.via?'Reached by '+po.via:''))+'</small></div></div>'
     +'<div class="pa-sub">Departures</div><div class="pa-board">'+(rows||'<div class="pa-row"><span class="c">···</span><span class="n">No destinations yet<small>Add cities to this portal</small></span><span class="s"> </span></div>')+'</div>'
-    +'<div class="pa-foot"><button type="button" class="pa-back">‹ Back to the city</button><span class="pa-via">Every city here is a door to its own Mind Palace.</span></div></div>';
+    +'<div class="pa-foot"><button type="button" class="pa-back">‹ Back to the city</button><span class="pa-via">Every city here is a door to its own Memory Palace.</span></div></div>';
 }
 function show(po){
   if(!root){ root=document.createElement('div'); root.id='pal-airport'; root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); document.body.appendChild(root);

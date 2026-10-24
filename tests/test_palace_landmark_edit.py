@@ -1,4 +1,4 @@
-"""Landmark buildings in edit mode (Mind Palace): a landmark can be given a unit to house and a floor added to it,
+"""Landmark buildings in edit mode (Memory Palace): a landmark can be given a unit to house and a floor added to it,
 a tower's floors take chosen real floor numbers or are let out, and all of it folds into the stored brief
 (palace.buildings[].unit/floors, placement fno/out) so Save, reload and a rebuild keep it. The fold-in units run on
 test_palace's synthetic city; the form is driven in a real browser. Nothing here touches the network, Firebase or any

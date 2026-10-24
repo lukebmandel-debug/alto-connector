@@ -1,6 +1,6 @@
 """The new-timeline dialog offers four tiles, each with a small preview: Timeline
 (Sketch: kind `timeline`, or Horizontal: kind `lanes`), Outline, System
-(kind `solar`, shown in its star look) and Mind Palace (a city: Claude's).
+(kind `solar`, shown in its star look) and Memory Palace (a city: Claude's).
 Looked at in Chromium and WebKit, desktop and phone, light and dark, against a
 stand-in account."""
 import re
@@ -25,12 +25,12 @@ def test_the_dialog_has_four_tiles_each_with_its_own_preview():
     assert kinds == ["timeline", "outline", "solar", "palace"]
     blk = h[h.index('class="nt-kinds"'):h.index('id="nt-msg"')]
     assert blk.count('class="nt-pv"') == 6                       # one each, and a second for the two with modes (Horizontal, Building)
-    for want in ("Timeline", "Outline", ">System<", "Mind Palace", ">Sketch<", ">Horizontal<", "City</button>", "Museum / building</button>"):
+    for want in ("Timeline", "Outline", ">System<", "Memory Palace", ">Sketch<", ">Horizontal<", "City</button>", "Museum / building</button>"):
         assert want in blk, want
     assert "Star chart</span>" not in blk and 'data-kind="stars"' not in blk and ">Star chart<" not in blk      # one format, two looks: no tile or mode for the second
     pal = h[h.index('class="nt-modes" data-for="palace"'):]
     pal = pal[:pal.index("</div>")]
-    assert re.findall(r'data-mode="(\w+)"', pal) == ["city", "building"]             # Mind Palace: City | Building
+    assert re.findall(r'data-mode="(\w+)"', pal) == ["city", "building"]             # Memory Palace: City | Building
     hub = blk[blk.index('data-kind="solar"'):blk.index('data-kind="palace"')]
     assert "Switch its style any time: System, Star chart, Retro or 3D Star chart." in hub and "planets, moons and satellites you can orbit between" in hub
 
@@ -84,7 +84,7 @@ def test_build_it_with_claude_tells_claude_which_tile_was_picked():
     assert "ntClose(); openClaude(p ? inProjectPrompt(p, ntKind) : newProjectPrompt(ntKind));" in h
     guide = (ROOT / "alto" / "interview_guide.md").read_text(encoding="utf-8")
     line = " ".join(guide[guide.index("If the opening message already says which type"):].split("\n\n")[0].split())
-    for want in ("System", "Mind Palace as a city", "Mind Palace in a building", "do not ask again", "set_up_palace", "set_up_building"):
+    for want in ("System", "Memory Palace as a city", "Memory Palace in a building", "do not ask again", "set_up_palace", "set_up_building"):
         assert want in line, want
     assert "Star chart" not in line and "'stars'" not in line
 
@@ -120,7 +120,7 @@ def test_the_picker_in_a_browser_shows_one_picture_per_tile():
         pg.evaluate("ntPick('palace')")
         assert pg.evaluate("ntKind") == "palace" and pg.evaluate("document.getElementById('nt-make').textContent") == "Build it with Claude"
         assert shown()[3] == ["palace", 1, 1]
-        pg.evaluate("ntMode('palace', 'building')")                          # Mind Palace: City | Building, both Claude's
+        pg.evaluate("ntMode('palace', 'building')")                          # Memory Palace: City | Building, both Claude's
         assert pg.evaluate("ntKind") == "building" and shown()[3] == ["palace", 1, 1]
         assert pg.evaluate("document.getElementById('nt-make').textContent") == "Build it with Claude"
         b.close()

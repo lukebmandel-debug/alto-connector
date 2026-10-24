@@ -1,4 +1,4 @@
-"""Mind Palace under the page's CSS zoom, in every engine (the Safari "floating stops" bug, 1.9.70–1.9.73).
+"""Memory Palace under the page's CSS zoom, in every engine (the Safari "floating stops" bug, 1.9.70–1.9.73).
 
 The page runs at html{zoom:.8–1} (engine_patches.py #alto-fit: innerWidth/1700, clamped). Safari (WebKit, measured on
 WebKit 26.4) multiplies the px inside an SVG element's CSS `transform` by that zoom; Chrome does not. Stops were placed

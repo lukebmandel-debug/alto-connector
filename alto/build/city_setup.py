@@ -1,5 +1,5 @@
 """Generic city set-up: everything a city preset (city_presets) holds, worked out from OpenStreetMap alone, so a
-user can name a city the engine has never seen and the Mind Palace draws it by the same rules.
+user can name a city the engine has never seen and the Memory Palace draws it by the same rules.
 
     bbox = bbox_for("Lyon")                         # Nominatim lookup + the size rule (5-8 km a side)
     raw  = fetch_city(bbox, cache_dir, names=[...]) # the engine's own Overpass query, tiled, reusing every cached tile

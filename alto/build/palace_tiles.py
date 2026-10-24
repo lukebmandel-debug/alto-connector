@@ -1,4 +1,4 @@
-"""City tiles (1.9.145): the Mind Palace's city geometry off the page, in hosted, content-hashed files the page loads.
+"""City tiles (1.9.145): the Memory Palace's city geometry off the page, in hosted, content-hashed files the page loads.
 
 A private page is one Firestore document (private_shell.MAX_PAGE_BYTES), and a city at full detail (all five boroughs of New York) is many
 times that. So the page keeps only what the cards need (where each building stands, its floors and numbers), and the city comes from the site:

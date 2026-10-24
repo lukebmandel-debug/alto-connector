@@ -230,7 +230,7 @@ FORMAT_CSS = r"""
   X #lanes-nav .lnv-thumb:not(#_){border-radius:0 !important;background:#d9ae55 !important;box-shadow:0 0 0 2px #000 !important;}   /* (the step bar's thumb: a square, not a dot) */
   /* the outline (the tree): its lines are the engine's, drawn gold above */
 
-  /* the city Mind Palace's map (palace.py), as a blueprint: the ground black, the streets fine gold, water deep navy,
+  /* the city Memory Palace's map (palace.py), as a blueprint: the ground black, the streets fine gold, water deep navy,
      parks a dim green line, buildings outlined; the units keep their hue on the buildings that hold their cards */
   X:not(#_){--pal-river:#0e2a4d !important;--pal-rv-rim:rgba(217,174,85,.45) !important;--pal-casing:#000 !important;--pal-br-edge:rgba(217,174,85,.7) !important;--pal-br-pier:rgba(217,174,85,.45) !important;--pal-br-text:#d9ae55 !important;--pal-rv-lite:#163a66 !important;--pal-rv-sheen:rgba(217,174,85,.25) !important;--pal-glass:rgba(217,174,85,.05) !important;--pal-glass-edge:rgba(217,174,85,.45) !important;--pal-water:#0a1b34 !important;--pal-water-edge:rgba(217,174,85,.5) !important;--pal-park:rgba(217,174,85,.04) !important;--pal-pk:rgba(140,170,110,.10) !important;--pal-pk-edge:rgba(160,190,120,.5) !important;--pal-pk-path:rgba(217,174,85,.3) !important;--pal-pk-txt:#b9c79a !important;--pal-lm:rgba(217,174,85,.06) !important;--pal-text:#efe6cf !important;--pal-halo:#000 !important;--pal-trail:#9fb27a !important;--pal-ground:0,0,0 !important;}
   X.alto-palace :is(#page-bg,#canvas):not(#_){background:#000 !important;}

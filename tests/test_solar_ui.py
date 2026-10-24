@@ -85,7 +85,7 @@ def test_the_picker_stays_inside_the_dialog_with_four_tiles():
 
 def test_there_is_no_star_chart_starter_any_more():
     """The Star chart is a look of every System page (Round 5), not a
-    Mind Palace mode with a starter of its own."""
+    Memory Palace mode with a starter of its own."""
     assert "stars" not in starter.KINDS and "stars" not in __import__(
         "alto.build.brief", fromlist=["PALACE_VIEWS"]).PALACE_VIEWS        # (palace_view is city | building: 1.9.107)
 

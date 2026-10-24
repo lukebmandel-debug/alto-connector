@@ -1,4 +1,4 @@
-"""The Mind Palace's city as an even grid (Luke's spec, 2026-10-09).
+"""The Memory Palace's city as an even grid (Luke's spec, 2026-10-09).
 
 The real map (palace_map.build_map) decides only WHICH streets there are, in
 what ORDER, and where each one really runs. The drawing is graph paper:

@@ -1,6 +1,6 @@
 """Fill-in: the rest of the city as simulated buildings, on a slider (brief.palace.fill_z; absent = off).
 
-The Mind Palace draws only the user's own buildings (numbered cards on lots), the landmark art and the
+The Memory Palace draws only the user's own buildings (numbered cards on lots), the landmark art and the
 towers. Fill-in adds the city's real building footprints (OpenStreetMap building=* ways) of the whole city (every tile
 of its box; past the user's districts + 1 km only the levels the size budget allows), carried onto the graph paper by the same mapping the
 streets go through — per domain on the v2 city engine (a tilted district's lattice) — clipped inside

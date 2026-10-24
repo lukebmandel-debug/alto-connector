@@ -279,7 +279,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         shutil.rmtree(bg_out)
     if bg_src.is_dir():
         shutil.copytree(bg_src, bg_out / f"v{BG_V}")
-    # The Mind Palace's hosted scripts (build/palace_assets.py: the first-person ride, the fleet's toy weapons): code, not page, each in a
+    # The Memory Palace's hosted scripts (build/palace_assets.py: the first-person ride, the fleet's toy weapons): code, not page, each in a
     # folder named by the content hash of its file.
     from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS
     refs = _street_refs(store, uid)

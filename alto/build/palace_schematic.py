@@ -1,7 +1,7 @@
-"""The Mind Palace's city as a diagram: a basic grid, the exceptions only where
+"""The Memory Palace's city as a diagram: a basic grid, the exceptions only where
 the city really has them.
 
-palace_map.build_map gives the real geometry. A Mind Palace does not want
+palace_map.build_map gives the real geometry. A Memory Palace does not want
 that — it wants the city the way a subway map wants it: the main streets
 straightened into a level, upright grid (the whole map turned so its own
 street grid runs square to the screen), a street that truly runs on a slant

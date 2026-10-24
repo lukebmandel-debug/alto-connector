@@ -1,6 +1,6 @@
-"""Backgrounds made for reading a street-grid map: the Mind Palace's own set.
+"""Backgrounds made for reading a street-grid map: the Memory Palace's own set.
 
-A Mind Palace is a city drawn as an even grid of coloured lines, with chips, numbered
+A Memory Palace is a city drawn as an even grid of coloured lines, with chips, numbered
 buildings and street names on glass. The photographs, colours and patterns offered to
 every timeline suit a timeline or an outline; a map is read differently: it wants a calm,
 low-contrast ground that stays out of the way of the coloured streets, so each of these is
@@ -8,7 +8,7 @@ quiet (a pale or deep ground, never a picture) and each has a light and a dark v
 
 They are the same kind of thing as the colours and patterns (backgrounds.py): drawn as CSS,
 no image to download, one id stored per timeline and synced like the others. They are in
-the catalog, and so in the picker, of a Mind Palace page only; a Mind Palace that nobody
+the catalog, and so in the picker, of a Memory Palace page only; a Memory Palace that nobody
 has chosen for opens on the first of them (DEFAULT) rather than the Alto wallpaper.
 
 Each theme's entry carries
@@ -24,7 +24,7 @@ from __future__ import annotations
 import random
 from urllib.parse import quote
 
-GROUP = "Mind Palace"
+GROUP = "Memory Palace"
 
 
 def _rgb(h: str) -> tuple:
@@ -221,7 +221,7 @@ def _mist():
     return light, dark
 
 
-# (id, name, builder); the first is the default of every Mind Palace nobody has chosen for
+# (id, name, builder); the first is the default of every Memory Palace nobody has chosen for
 PALACE_BGS = [
     ("m-atlas", "Atlas paper", _atlas),
     ("m-blueprint", "Blueprint", _blueprint),
@@ -236,7 +236,7 @@ DEFAULT = PALACE_BGS[0][0]
 
 
 def client_entries() -> dict:
-    """Catalog entries a Mind Palace page adds to the others (backgrounds.client_catalog):
+    """Catalog entries a Memory Palace page adds to the others (backgrounds.client_catalog):
     {id: {g, k 'm', n, l, d}}."""
     out = {}
     for pid, name, build in PALACE_BGS:

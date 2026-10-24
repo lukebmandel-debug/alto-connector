@@ -1,6 +1,6 @@
-"""OpenStreetMap -> a compact street map for Alto's Mind Palace mode.
+"""OpenStreetMap -> a compact street map for Alto's Memory Palace mode.
 
-A Mind Palace draws a user's outline as buildings on a real city's streets. The
+A Memory Palace draws a user's outline as buildings on a real city's streets. The
 page draws the map as SVG, so this module turns a bounding box of OpenStreetMap
 data into a small, projected, simplified JSON-able dict (streets, water, parks,
 trails, rail lines, stations, landmarks). Pure standard library (urllib), no
