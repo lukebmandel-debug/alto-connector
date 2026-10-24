@@ -398,7 +398,7 @@ BLDG_RENDERER_RE = re.compile(r"^palace-building-(fpv-)?[0-9a-f]{10}\.js$")
 
 
 def _bldg_kept(d: Path) -> dict:
-    """{name: (bytes, mtime)} of the Building Palace renderers an earlier publish left in /bldg/ (the newest BLDG_KEEP of each kind): a stored
+    """{name: (bytes, mtime)} of the Memory Blueprint renderers an earlier publish left in /bldg/ (the newest BLDG_KEEP of each kind): a stored
     page names the renderer of the release that built it, so a deploy from newer code must not take that file away (civ-pro-museum,
     built by 1.9.154, lost its blueprint when the 1.9.155 site replaced the folder, 2026-10-23)."""
     if not d.is_dir():

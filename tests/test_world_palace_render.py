@@ -1,4 +1,4 @@
-"""The World Palace in a real browser (Luke, 2026-10-23: "World palace is missing things that we've rolled out alto-wide. Also it should
+"""The Memory Atlas in a real browser (Luke, 2026-10-23: "World palace is missing things that we've rolled out alto-wide. Also it should
 still have the ability to enlarge nodes"): a pin enlarges the timeline's own card where it stands and gives it back, the arrow keys hop
 card by card past the ones a filter hides, a search hit and the engine's own enlarging reach the map, and a card's page or editing by hand
 puts the map aside.

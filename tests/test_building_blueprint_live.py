@@ -1,4 +1,4 @@
-"""The Museum Palace as Luke's civ-pro-museum page is built (2026-10-23): "the museum disappeared" — the page named the renderer of the release that
+"""The Memory Blueprint as Luke's civ-pro-museum page is built (2026-10-23): "the museum disappeared" — the page named the renderer of the release that
 built it (1.9.154), a later deploy (1.9.155) took that file away, and the page fell back to the timeline's cards. Now the page falls back to the
 newest renderer under a fixed name, a deploy keeps earlier renderers, and with no renderer at all the page says so instead of showing cards
 (Luke: "we don't need the card view for that style"). Also the chips while zooming in WebKit (Luke uses Safari): pinned, one size, no jump.
@@ -29,7 +29,7 @@ ACTS = [{"label": f"Part {i}", "color": c} for i, c in enumerate(("#7c5cff", "#e
 
 def _html():
     nodes = [{"id": f"n{i}", "act": i * 6 // 92, "title": f"Concept number {i + 1}", "tag": "", "desc": "d"} for i in range(92)]
-    b = {"title": "Civil Procedure — Museum Palace", "timeline_id": "civ-pro-museum", "mode": "palace", "palace_view": "building", "columns": 5,
+    b = {"title": "Civil Procedure — Memory Blueprint", "timeline_id": "civ-pro-museum", "mode": "palace", "palace_view": "building", "columns": 5,
          "node_noun": "Room", "period_noun": "Wing", "acts": ACTS,
          "building": {"plan_z": bs.pack(PLAN), "plan_h": bs.plan_hash(PLAN), "mode": "room", "assign": {}}}
     br, ns, cs = load_brief({"brief": b, "nodes": nodes})
