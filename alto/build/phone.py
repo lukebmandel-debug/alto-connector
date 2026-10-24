@@ -92,6 +92,8 @@ html.phone-whole.alto-lanes #canvas{touch-action:none;}
 html.phone-whole :is(input,textarea,select):not(#_){font-size:16px !important;}
 /* nothing of the desktop's corner toggles before the phone design's rules are in (remap) */
 html.phone-whole:not(.ph-ready) :is(#search-btn,#info-btn,#overview-toggle,#bg-toggle,#mode-toggle,#key-toggle,#account-btn):not(#_){opacity:0 !important;}
+/* the phone detail page's BACK tile belongs to a detail page only (it showed on the whole view itself) */
+html.phone-whole:not(.detail-open) #detail-back-fixed:not(#_){display:none !important;}
 /* a timeline or an outline seen whole: a card shows its name alone until it is enlarged (Luke, 2026-10-24: "just have node
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
