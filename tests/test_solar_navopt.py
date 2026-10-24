@@ -50,7 +50,7 @@ def test_a_breadcrumb_and_named_neighbours(browser, page):
     _at(pg, "a")
     n = _hood(pg)
     assert pg.is_hidden("#sol-tour") and pg.is_visible("#nvo-a")
-    assert "You are in:" in pg.inner_text("#nvo-a .nv-at")
+    assert pg.inner_text("#nvo-a .nv-at").count("›") >= 2
     pg.click(f'#nvo-a button[data-go="{n["up"]}"]')
     _arrive(pg, n["up"])
     _at(pg, "a")
