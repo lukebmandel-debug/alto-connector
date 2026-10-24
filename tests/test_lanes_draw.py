@@ -156,7 +156,7 @@ def _open(browser, html, tmp_path, phone=False):
         ctx = browser.new_context(viewport={"width": 1600, "height": 1000})
     pg = ctx.new_page()
     errs = []
-    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.on("pageerror", lambda e: "/phone/" in str(e) or errs.append(str(e)))      # (the phone whole-view script is hosted: a file:// copy cannot fetch it)
     pg.goto(f.as_uri())
     pg.wait_for_timeout(1200)
     return pg, errs
