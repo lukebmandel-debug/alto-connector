@@ -59,7 +59,7 @@ def test_ui_bits_of_the_lead():
     assert "kp-sz" in key_toggle.KEY_JS and "--kp-s" in key_toggle.KEY_CSS
     assert "HOVER_DWELL" in palace_transit_js.TRANSIT_JS and "S.dwT" in palace_transit_js.TRANSIT_JS
     assert "pa-copy" in palace_airport.AIRPORT_JS and "copyText" in palace_airport.AIRPORT_JS and "execCommand('copy')" in palace_airport.AIRPORT_JS
-    assert "Memory Palace" in search._FORMAT_NAME_JS and "building" in search._FORMAT_NAME_JS and "#desk-back .db-label" in search._FORMAT_NAME_JS
+    assert "/^Memory/" in search._FORMAT_NAME_JS and "G._p" in search._FORMAT_NAME_JS and "#desk-back .db-label" in search._FORMAT_NAME_JS
 
 
 def test_a_ground_bigger_than_its_block_is_drawn_to_stand_inside_it_front_to_back():

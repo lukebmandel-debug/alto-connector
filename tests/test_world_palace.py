@@ -277,7 +277,7 @@ def test_set_up_world_refuses_clearly(local_store):
 # ── the homepage, the guide ─────────────────────────────────────────────────
 
 def test_the_homepage_offers_the_world_and_sends_the_user_to_claude():
-    assert 'data-mode="world"' in HOME and "World</button>" in HOME and 'data-for="world"' in HOME
+    assert 'data-mode="world"' in HOME and "Memory Atlas</button>" in HOME and 'data-for="world"' in HOME
     assert "palace_view \\'world\\'" in HOME and "set_up_world" in HOME
     assert "ntModes.palace === 'world' ? 'world'" in HOME and "ntKind === 'world'" in HOME
     assert (ROOT / "alto" / "engine" / "home_template.html").read_text(encoding="utf-8") == HOME
