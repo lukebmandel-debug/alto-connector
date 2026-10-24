@@ -1,4 +1,4 @@
-"""Build the World Palace's geodata (alto/assets/world/) from Natural Earth (public domain, naturalearthdata.com, v5.1.2 GeoJSON).
+"""Build the Memory Atlas's geodata (alto/assets/world/) from Natural Earth (public domain, naturalearthdata.com, v5.1.2 GeoJSON).
 
 Run:  python -I docs/world-palace/build_world_geo.py --src <folder holding the Natural Earth .geojson files>
 

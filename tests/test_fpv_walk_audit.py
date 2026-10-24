@@ -1,4 +1,4 @@
-"""The first-person walks are glitch-free (and trips to cards arrive): tests/fpv_walk/walk_audit.js drives the Museum Palace renderer's own walking code (no browser, no GL;
+"""The first-person walks are glitch-free (and trips to cards arrive): tests/fpv_walk/walk_audit.js drives the Memory Blueprint renderer's own walking code (no browser, no GL;
 node) through EVERY passable doorway of a plan, both ways, walking and running, up and down EVERY stair flight, out of and into every entrance
 with traced ground, and hops in every doorway and on every flight; it fails on a door narrower or lower than the walker's capsule, a fall into
 another floor (or the safety net catching one), a walker stuck in a corner or in geometry. Also: the hop itself (one per press, never through a

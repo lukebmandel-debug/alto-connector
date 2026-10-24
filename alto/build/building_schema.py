@@ -1,6 +1,6 @@
-"""The Building Palace's plan: one building, measured, as data (brief.palace_view "building").
+"""The Memory Blueprint's plan: one building, measured, as data (brief.palace_view "building").
 
-A Building Palace is a Memory Palace in ONE building: a blueprint map (the hosted renderer, palace_building_asset.py) and a first-person view
+A Memory Blueprint is a Memory Palace in ONE building: a blueprint map (the hosted renderer, palace_building_asset.py) and a first-person view
 inside it (a later phase). Both read the same plan, so the plan carries what either needs and says how sure it is of each part. The plan is
 authored by Claude from public sources (official floor plans, HABS drawings, visitor maps, photos, known dimensions) or by the user, checked
 here, stored with the timeline (brief.building) and published as one content-hashed JSON file the page loads (/bldg/plan-<hash>.json).
@@ -686,7 +686,7 @@ def check_building(b, warnings: list) -> None:
         raise BriefError("building: must be an object")
     view = getattr(b, "palace_view", "city") == "building"
     if bd and not (b.mode == "palace" and view):
-        raise BriefError("building needs mode 'palace' and palace_view 'building': it is the Building Palace's plan")
+        raise BriefError("building needs mode 'palace' and palace_view 'building': it is the Memory Blueprint's plan")
     if not view:
         return
     unknown = set(bd) - BUILDING_KEYS

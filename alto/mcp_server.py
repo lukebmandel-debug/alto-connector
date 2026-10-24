@@ -1011,14 +1011,14 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       they are on the page (node `present`) and runs alongside while they are
       not; a flashback is a labelled dip of the main line into the past (node
       `flash`), §D-Lanes;
-      'palace' is the Memory Palace: a real city the user names, each section a
+      'palace' is the Memory Palace (by default its Memory Map): a real city the user names, each section a
       district, each node with no `parent` a building in it and each node with
       a `parent` a floor of that building — then set_up_palace, §D-Palace.
       Only Claude builds a city (the homepage sends the user to Claude for it).
-      The BUILDING PALACE (palace_view 'building', §D-Building) is a Mind
+      The MEMORY BLUEPRINT (palace_view 'building', §D-Building) is a Memory
       Palace inside ONE real building (a museum, a courthouse, a school):
       a blueprint and a first-person view; cards stand in its rooms or on its
-      walls — then set_up_building. The WORLD PALACE (palace_view 'world',
+      walls — then set_up_building. The MEMORY ATLAS (palace_view 'world',
       §D-World) puts the outline on the world map: units are regions,
       concepts countries, the cards under them clustered round them; no
       first-person view — then set_up_world,
@@ -1049,8 +1049,8 @@ def create_timeline(project_id: str, brief: dict) -> dict:
       it out unless the user wants the System look first; there is
       nothing to convert,
      palace_view?: 'city'|'building'|'world' (mode 'palace'; default 'city'):
-      'building' is the BUILDING PALACE (§D-Building; set_up_building stores
-      the building's plan; one section is enough); 'world' the WORLD PALACE
+      'building' is the MEMORY BLUEPRINT (§D-Building; set_up_building stores
+      the building's plan; one section is enough); 'world' the MEMORY ATLAS
       (§D-World; set_up_world places the cards the notes tie to a place). The Star chart is not a
       Memory Palace: it is the default look of a System (hub_look above),
      main_line?, lines?: [{id, label, color?, side?: 'above'|'below'}],
@@ -1725,7 +1725,7 @@ def set_lines(timeline_id: str, lines: list[dict], flashbacks: list[dict] | None
             "flashbacks": [x["id"] for x in b.flashbacks or []], "warnings": warnings}
 
 
-@mcp.tool(title="Set up a Memory Palace city", annotations=RW)
+@mcp.tool(title="Set up a Memory Map", annotations=RW)
 @accounted
 def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
                   area: str = "", districts: list[dict] | None = None,
@@ -1960,12 +1960,12 @@ def set_up_palace(timeline_id: str, place: str, bbox: list[float] | None = None,
             "next": "build_timeline, then publish_timeline(…, 'private-web')"}
 
 
-@mcp.tool(title="Set up a Building Palace", annotations=RW)
+@mcp.tool(title="Set up a Memory Blueprint", annotations=RW)
 @accounted
 def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
                     assignments: dict[str, str] | None = None, name: str = "",
                     demo: bool = False, building: str = "") -> dict:
-    """The building a Building Palace (mode 'palace', palace_view 'building',
+    """The building a Memory Blueprint (mode 'palace', palace_view 'building',
     §D-Building) is drawn in: stores a checked PLAN of ONE building with the
     timeline, hands the timeline's nodes to its rooms (or to the art slots and
     fixtures in them) and tells the user nothing to do. Run it once the
@@ -2021,7 +2021,7 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
     brief = doc["brief"]
     if brief.get("mode") != "palace":
         return {"error": "not_a_palace", "message": "this timeline's mode is "
-                f"{brief.get('mode') or 'linear'!r}; a Building Palace is created with mode 'palace' and palace_view 'building'"}
+                f"{brief.get('mode') or 'linear'!r}; a Memory Blueprint is created with mode 'palace' and palace_view 'building'"}
     from .build import building_schema as bs
     old = brief.get("building") or {}
     if (plan is not None) + bool(building) + bool(demo) > 1:
@@ -2077,11 +2077,11 @@ def set_up_building(timeline_id: str, plan: dict | None = None, mode: str = "",
 
 
 
-@mcp.tool(title="Set up a World Palace", annotations=RW)
+@mcp.tool(title="Set up a Memory Atlas", annotations=RW)
 @accounted
 def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: list[str] | None = None,
                  level: str = "", clear: list[str] | None = None) -> dict:
-    """Where the cards of a World Palace (mode 'palace', palace_view 'world',
+    """Where the cards of a Memory Atlas (mode 'palace', palace_view 'world',
     §D-World) stand on the world map: a unit is a region, each of its concepts
     a country, and the cards under a concept cluster round it. Run it once the
     timeline has its nodes; run it again to move cards. Nothing is fetched: the
@@ -2116,7 +2116,7 @@ def set_up_world(timeline_id: str, places: list[dict] | None = None, regions: li
     brief = doc["brief"]
     if brief.get("mode") != "palace":
         return {"error": "not_a_palace", "message": "this timeline's mode is "
-                f"{brief.get('mode') or 'linear'!r}; a World Palace is created with mode 'palace' and palace_view 'world'"}
+                f"{brief.get('mode') or 'linear'!r}; a Memory Atlas is created with mode 'palace' and palace_view 'world'"}
     from .build import world_plan as wp
     old = dict(brief.get("world") or {})
     if level and level not in wp.LEVELS:
@@ -2316,7 +2316,7 @@ def _layout_error(doc, layout: str, hub_look: str, palace_view: str = ""):
     if palace_view:
         if palace_view not in ("city", "building", "world"):
             return {"error": "invalid_palace_view",
-                    "message": f"palace_view {palace_view!r}: must be 'city', 'building' (the Building Palace) or 'world' (the World Palace); "
+                    "message": f"palace_view {palace_view!r}: must be 'city', 'building' (the Memory Blueprint) or 'world' (the Memory Atlas); "
                                "the Star chart is the System's default look (hub_look 'stars')"}
         if doc["brief"].get("mode") != "palace":
             return {"error": "invalid_palace_view",
@@ -2376,8 +2376,8 @@ def run_layout_preview(timeline_id: str, layout: str = "",
     Alto's usual glass look); '' keeps the brief's. Every style is in every page and its switch
     flips them, so this never needs a rebuild to be tried; a unit may have
     several top concepts, each a sun.
-    palace_view: for a Memory Palace, 'city', 'building' (the Building Palace:
-    one building's blueprint, §D-Building) or 'world' (the World Palace,
+    palace_view: for a Memory Palace, 'city', 'building' (the Memory Blueprint:
+    one building's blueprint, §D-Building) or 'world' (the Memory Atlas,
     §D-World); '' keeps the brief's. Chosen when
     the page is built, not switched in the page.
     tree_lines: 'fan' (each child down a spine gets its own line) or 'trunk'.
@@ -2558,8 +2558,8 @@ def build_timeline(timeline_id: str, layout: str = "",
 
     layout / tree_lines / hub_look / palace_view: as run_layout_preview (layout
     'solar' is the System outline, §D-Solar; hub_look the look it opens
-    in, 'stars' or 'hub'; palace_view 'building' the Building Palace,
-    §D-Building, 'world' the World Palace, §D-World); given here they are also kept in the brief, so every later
+    in, 'stars' or 'hub'; palace_view 'building' the Memory Blueprint,
+    §D-Building, 'world' the Memory Atlas, §D-World); given here they are also kept in the brief, so every later
     build (and publish) uses them. Cards placed
     with place_nodes are used automatically; overlaps come back as warnings.
     Edits the owner made in the page itself (manual edit mode) are folded into
@@ -2767,7 +2767,7 @@ def _publish_to_account(timeline_id: str, doc: dict, visibility: str,
             missing = [p_ for p_ in ("/bldg/" + bs.file_name(bd["plan_h"]), BUILDING_PATH, FPV_PATH) if A.probe(f"https://{site}.web.app{p_}") != 200]
             if missing:
                 urls["building_files_missing"] = missing
-                urls["note"] += (" This Building Palace's plan or renderer is not on the site yet (" + ", ".join(missing) + "): until the site is "
+                urls["note"] += (" This Memory Blueprint's plan or renderer is not on the site yet (" + ", ".join(missing) + "): until the site is "
                                  "redeployed (publish once from a computer whose Firebase CLI is signed in to this account), the page shows its cards "
                                  "and the blueprint says it could not load the plan.")
         if A.probe(f"https://{site}.web.app/pv/") != 200:
@@ -3037,7 +3037,7 @@ def get_timeline(timeline_id: str) -> dict:
 
 
 def _brief_out(brief):
-    """A brief as a tool hands it back: a Memory Palace's packed city (or a Building Palace's packed plan) summarised."""
+    """A brief as a tool hands it back: a Memory Palace's packed city (or a Memory Blueprint's packed plan) summarised."""
     if isinstance(brief, dict) and (brief.get("palace") or {}).get("data_z"):
         from .build.palace import summary
         brief = {**brief, "palace": summary(brief["palace"])}

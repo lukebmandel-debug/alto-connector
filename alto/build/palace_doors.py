@@ -136,7 +136,7 @@ function head(kind, A, total, color, base, outline){
   var unit=total===1?String(A.unit).replace(/s$/,''):A.unit;
   return '<div class="detail-header pd-hdr" style="--pd-hc:'+color+'"><div class="pd-facade" aria-hidden="false">'+facade(kind,A)+'</div><div>'
     +'<div class="detail-name" style="color:'+color+'">'+A.label+'</div>'
-    +'<div class="detail-role">'+total+' '+unit+' &middot; in '+(outline?'outline':'timeline')+' order</div>'
+    +'<div class="detail-role">'+total+' '+unit+' &middot; in '+(outline?'outline':(window._altoPalace||window._palTr)?'route':'timeline')+' order</div>'
     +'<div class="detail-badge '+(base==='env'?'badge-env':'badge-theme')+'">Index</div></div></div>';
 }
 var CHEV='<svg class="pd-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>';

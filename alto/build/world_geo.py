@@ -1,4 +1,4 @@
-"""The World Palace's geography (brief.palace_view "world"): the projection, the regions a memory route sweeps through, and the packaged data.
+"""The Memory Atlas's geography (brief.palace_view "world"): the projection, the regions a memory route sweeps through, and the packaged data.
 
 Data lives in alto/assets/world/ (docs/world-palace/build_world_geo.py makes it from Natural Earth, public domain):
   gazetteer.json.gz   read here, at set-up and build time only: countries (names, subregion, continent, label point, capital) and populated places

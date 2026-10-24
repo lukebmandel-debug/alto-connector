@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble alto/buildings/pma_plan.json (the curated Philadelphia Museum of Art Building Palace plan) from the research folder.
+"""Assemble alto/buildings/pma_plan.json (the curated Philadelphia Museum of Art Memory Blueprint plan) from the research folder.
 
     python docs/building-palace/build_pma_plan.py --src <research dir> [--out alto/buildings/pma_plan.json]
 

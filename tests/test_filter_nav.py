@@ -225,7 +225,7 @@ def test_with_no_filter_steps_are_unchanged(browser, pages, fmt):
         pg.context.close()
 
 
-# ── the formats on hosted files: the World Palace's Tour, the Museum's N / P, a phone's Whole view ──
+# ── the formats on hosted files: the Memory Atlas's Tour, the Museum's N / P, a phone's Whole view ──
 class _Site:
     """The page at /index.html and every hosted file (palace_assets.assets()) at its own path, as the site serves them."""
 

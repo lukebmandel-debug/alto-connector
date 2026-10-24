@@ -1,4 +1,4 @@
-"""The Building Palace's hosted renderer (brief.palace_view "building"): /bldg/palace-building-<hash>.js, loaded by the page (palace_assets.py).
+"""The Memory Blueprint's hosted renderer (brief.palace_view "building"): /bldg/palace-building-<hash>.js, loaded by the page (palace_assets.py).
 
 The page holds a ~350 byte loader and the page data (`window._ALTO_BUILDING`: the plan's hash, the timeline's nodes and the room or anchor each stands
 in); everything else — the blueprint, and later the first-person view — is this script plus the plan it fetches (/bldg/plan-<hash>.json,
@@ -526,7 +526,7 @@ function build(){
   if(en&&lv.some(function(l){ return l.id===en.l; })&&!(plan.ex&&(plan.ex.sh||[]).length)) S.level=en.l;
   if(plan.sp&&levelOf(plan.sp.l)) S.level=plan.sp.l;                                  /* open where the walk starts, not on an empty outline */
   while(S.head.firstChild) S.head.removeChild(S.head.firstChild);
-  var kb=h('div',{'class':'bl-kind'},S.head); kb.innerHTML=MUSEUM_ICON; kb.appendChild(document.createTextNode((plan.kind==='museum'?'Museum Palace':'Building Palace')));
+  var kb=h('div',{'class':'bl-kind'},S.head); kb.innerHTML=MUSEUM_ICON; kb.appendChild(document.createTextNode((plan.kind==='museum'?'Memory Blueprint':'Memory Blueprint')));
   h('h2',null,S.head,dec(plan.name||A.data.name||'Building'));
   var n=0; for(var k in (A.data.nodes||{})) n++;
   h('p',null,S.head,n+(n===1?' card':' cards')+' placed in '+Object.keys(S.nodesByRoom).length+' rooms. Dashed outlines are approximate, blurred rooms estimated.');
@@ -552,9 +552,9 @@ function footer(){
   f.addEventListener('click',function(e){ e.stopPropagation(); tg(); });
   f.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tg(); } });
 }
-/* a Memory Palace in a building is told apart from the city one by its name and a symbol (columns and a pediment): the back button and nav say "Museum Palace" / "Building Palace" */
+/* a Memory Palace in a building is told apart from the city one by its name and a symbol (columns and a pediment): the back button and nav say "Memory Blueprint" / "Memory Blueprint" */
 function brand(){
-  if(!A.plan) return; var nm=A.plan.kind==='museum'?'Museum Palace':'Building Palace';
+  if(!A.plan) return; var nm=A.plan.kind==='museum'?'Memory Blueprint':'Memory Blueprint';
   var set=function(sel,pre){ [].forEach.call(document.querySelectorAll(sel),function(e){ e.innerHTML=pre+MUSEUM_ICON+nm; }); };
   set('#desk-back .db-label',''); set('#nav-timeline','\u21a9 '); set('#drawer-timeline-btn .drawer-label','');
   [].forEach.call(document.querySelectorAll('#desk-back'),function(e){ e.setAttribute('aria-label','Back to the '+nm); e.title='Back to the '+nm; });

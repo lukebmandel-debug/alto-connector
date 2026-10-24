@@ -1,6 +1,6 @@
 """The one behaviour for the little things pinned on a map (1.9.145): node chips, room pills, names, tags.
 
-Luke (2026-10-22), on the Museum Palace blueprint: "When you're zooming in ... all the little buttons for nodes are shifting so
+Luke (2026-10-22), on the Memory Blueprint blueprint: "When you're zooming in ... all the little buttons for nodes are shifting so
 much and changing size that it looks like it's really glitchy." The blueprint laid its chips out again on EVERY wheel event
 (a greedy collision pass whose winners changed from one frame to the next, so chips hopped sideways), switched them from a
 number to a number-and-title at a hard zoom threshold (their width jumped), and rounded their counter-scale to 0.001 (their
@@ -15,7 +15,7 @@ Every map-like format follows these rules, and the helpers below are what they s
   3. Decisions are held: a marker keeps the place it had while it is still free (`place` tests it with a slack, and a nearer
      place must be clearly free to win it back); a zoom threshold is a band (`band`), so nothing flips at its edge.
   4. Level of detail fades (`.alto-mk-off`: opacity, then visibility), never pops by display.
-The World Palace adopts the same module (see docs/markers.md).
+The Memory Atlas adopts the same module (see docs/markers.md).
 """
 from __future__ import annotations
 

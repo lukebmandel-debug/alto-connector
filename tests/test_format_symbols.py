@@ -99,3 +99,26 @@ def test_a_card_wears_its_symbol_large_and_a_lock_for_its_privacy():
 
 def test_the_system_planet_is_at_the_upper_left_clear_of_the_card_controls():
     assert '<circle cx="5" cy="5" r="1.3"/>' in F.SYMBOLS["system"][1]
+
+
+# ── the way back from a detail page names the format the reader is in ──
+
+@pytest.mark.parametrize("kw,label", [
+    ({"mode": "linear"}, "Timeline"), ({"mode": "lanes"}, "Timeline"),
+    ({"mode": "outline"}, "Outline"), ({"mode": "outline", "layout": "solar"}, "System"),
+    ({"mode": "palace"}, "Memory Map"), ({"mode": "palace", "palace_view": "building"}, "Memory Blueprint"),
+    ({"mode": "palace", "palace_view": "world"}, "Memory Atlas"),
+])
+def test_the_back_control_names_the_actual_format(kw, label):
+    from alto.build.search import format_name_js
+    js = format_name_js(Brief(title="t", **kw))
+    g = _dict_in(js.replace("var G=", "G = ", 1), "G")
+    key = F.key_of(Brief(title="t", **kw))
+    assert g[key][0] == label, g
+    if key in ("palace", "building", "world"):
+        assert g["_p"] == key                      # the page picks its own option, never the city's by default
+    assert "Mind Palace" not in js
+
+
+def test_the_format_names_say_memory():
+    assert [F.name(k) for k in ("palace", "building", "world")] == ["Memory Map", "Memory Blueprint", "Memory Atlas"]

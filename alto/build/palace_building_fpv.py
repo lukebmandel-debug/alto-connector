@@ -1,4 +1,4 @@
-"""The Building Palace's first-person view (phase 2): /bldg/palace-building-fpv-<hash>.js, a hosted, standalone interior renderer for ANY plan in
+"""The Memory Blueprint's first-person view (phase 2): /bldg/palace-building-fpv-<hash>.js, a hosted, standalone interior renderer for ANY plan in
 the building_schema format. It registers itself with the blueprint through `AltoBuilding.registerFPV({enter, exit})`; the blueprint
 (palace_building_asset.py) fetches this script the first time someone walks in, so the page itself carries nothing for it.
 

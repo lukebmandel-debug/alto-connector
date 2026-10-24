@@ -1,6 +1,6 @@
 # Map markers: one behaviour for every map-like format (1.9.145)
 
-Luke, 2026-10-22, on the Museum Palace blueprint: "When you're zooming in ... all the little buttons for nodes are shifting so much
+Luke, 2026-10-22, on the Memory Blueprint blueprint: "When you're zooming in ... all the little buttons for nodes are shifting so much
 and changing size that it looks like it's really glitchy. So anywhere this could be a problem across these sorts of formats, I want
 you to make sure that there's an elegant solution."
 
@@ -62,7 +62,7 @@ Work in the layer's own (unzoomed) px: anchor = (map point − view origin) × (
 
 ## Where it is applied
 
-- **Museum Palace blueprint** (`palace_building_asset.py`): the chips moved out of the SVG into an HTML layer driven by the
+- **Memory Blueprint blueprint** (`palace_building_asset.py`): the chips moved out of the SVG into an HTML layer driven by the
   module; Safari pinch; eased +/− buttons; viewBox no longer rounded to 1 cm (it moved the whole drawing in ~3 px steps close in).
 - **System** (`solar_draw.py`, all 2D styles): the same rules inline (the page is at its size cap): labels decided once a zoom
   settles, held places, level-of-detail thresholds as 4% bands, level-of-detail by fade, re-layout glides (`#canvas.sol-glide`).

@@ -38,7 +38,7 @@ for a cell that stays loaded.
 from .palace_ride_door import CSS_DOOR, JS_DOORS
 from .palace_ride_inside import CSS_INSIDE, JS_INSIDE, JS_INSIDE_GL      # FPV phase 2: looking up / down, going inside a node building
 from .palace_ride_mark import CSS_MARK, JS_MARK                            # 2.0.1: content buildings made obvious (labels, beams, Nearby, mini-map)
-from .fpv_avatar import avatar_js                                           # the hop, the third-person avatar after the mayor, the gamepad (shared with the Museum Palace walk)
+from .fpv_avatar import avatar_js                                           # the hop, the third-person avatar after the mayor, the gamepad (shared with the Memory Blueprint walk)
 
 _JS_E = r"""
 var ROAM=(function(){

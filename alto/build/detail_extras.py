@@ -368,7 +368,7 @@ function _altoAxisIndex(kind){
   var total = Object.keys(reg).length;
   var html = '<div class="detail-header"><div class="detail-symbol" style="color:'+color+'">'+A.sym+'</div><div>'
     + '<div class="detail-name" style="color:'+color+'">'+A.label+'</div>'
-    + '<div class="detail-role">'+total+' '+A.unit+' &middot; in '+(O?'outline':'timeline')+' order</div>'
+    + '<div class="detail-role">'+total+' '+A.unit+' &middot; in '+(O?'outline':(window._altoPalace||window._palTr)?'route':'timeline')+' order</div>'
     + '<div class="detail-badge '+(base==='env'?'badge-env':'badge-theme')+'">Index</div></div></div>';
   (A.top||[]).forEach(function(s){ html += '<div class="detail-section"><h3>'+s.h+'</h3><p>'+s.t+'</p></div>'; });
   groups.forEach(function(g){

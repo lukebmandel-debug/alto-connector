@@ -193,7 +193,7 @@ def check_palace(b, warnings: list) -> None:
     unknown = set(pal) - PALACE_KEYS
     if unknown:
         raise BriefError(f"palace: unknown keys {sorted(unknown)}")
-    if not pal.get("data_z") and getattr(b, "palace_view", "city") == "city":     # (a Building / World Palace has no city to set up)
+    if not pal.get("data_z") and getattr(b, "palace_view", "city") == "city":     # (a Building / Memory Atlas has no city to set up)
         warnings.append("palace: no city yet — run set_up_palace(timeline_id, place, …) "
                         "before building; the page has nothing to draw until then")
     from .palace_towers import check_buildings            # (towers: a landmark entry with a unit)
@@ -304,7 +304,7 @@ def _near(graph, lots_at, kmin=None) -> dict:
 
 def palace_stub(b, nodes) -> str:
     """window._ALTO_PALACE with no city: the buildings' floors and their
-    numbers (3.4, 3.4-2) only — what a Building Palace (palace_view
+    numbers (3.4, 3.4-2) only — what a Memory Blueprint (palace_view
     "building", which never draws the city) numbers cards by."""
     units, floors, of = structure(b, nodes)
     par = {n.id: n.parent for n in nodes if n.parent}

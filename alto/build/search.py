@@ -683,9 +683,9 @@ _FORMAT_NAME_JS = r"""
 function hub(){return !!window._ALTO_SOLAR&&!H.classList.contains('mobile')}
 function ic(g){var v=g[2]||20;return '<svg viewBox="0 0 '+v+' '+v+'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="'+v/16+'" stroke-linecap="round" stroke-linejoin="round">'+g[1]+'</svg>'}
 function set(s,f){[].forEach.call(document.querySelectorAll(s),f)}
-function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._altoPalace||window._palTr)?(G.building?'building':'palace'):G.lanes?'lanes':'timeline';
+function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._altoPalace||window._palTr)?(G._p||'palace'):G.lanes?'lanes':'timeline';
 if(K===k)return;K=k;
-var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g):n,t='Back to the '+(n==='Memory Palace'?n:n.toLowerCase());window._altoFB=function(){return h};
+var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g):n,t='Back to the '+(/^Memory/.test(n)?n:n.toLowerCase());window._altoFB=function(){return h};
 set('#desk-back .db-label,#drawer-timeline-btn .drawer-label',function(e){e.innerHTML=h});
 set('#desk-back,#drawer-timeline-btn,#detail-back-fixed',function(e){e.setAttribute('aria-label',t);if(e.id=='desk-back')e.title=t});
 set('#nav-timeline',function(e){e.innerHTML='\u21a9 '+h;e.setAttribute('aria-label',t);e.title=t});
@@ -701,9 +701,11 @@ def format_name_js(b: Brief) -> str:
     drawings ride in it."""
     key = format_symbols.key_of(b)
     keys = [key] + (["outline"] if key == "system" else [])
-    g = {k: [{"building": "Memory Palace", "world": "Memory Palace", "lanes": "Timeline"}.get(k) or format_symbols.name(k),
+    g = {k: [{"lanes": "Timeline"}.get(k) or format_symbols.name(k),
              format_symbols.SYMBOLS[k][1]] + ([24] if format_symbols.SYMBOLS[k][2] == 24 else [])
          for k in keys}
+    if key in ("palace", "building", "world"):
+        g["_p"] = key           # which Memory Palace option this page is (Map / Blueprint / Atlas)
     return _FORMAT_NAME_JS.replace("__G__", js_json(g, separators=(",", ":")))
 
 

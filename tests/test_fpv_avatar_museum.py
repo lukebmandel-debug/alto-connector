@@ -1,4 +1,4 @@
-"""The third-person avatar, the hop and trips to cards in the Museum Palace walk (the test building, Chromium as the other building tests).
+"""The third-person avatar, the hop and trips to cards in the Memory Blueprint walk (the test building, Chromium as the other building tests).
 Its own module: the city tests hold a sync Playwright session of their own.
 
 Skipped without Playwright."""

@@ -252,11 +252,11 @@ TREE_LINES = ("fan", "trunk")
 # first; a stored "plain" (1.9.108's still look) reads as "hub".
 HUB_LOOKS = ("stars", "hub")
 # A Memory Palace's view, chosen at build (the page carries one or the other):
-# "city" — buildings on a real city's map; "building" — the Building Palace: a
+# "city" — buildings on a real city's map; "building" — the Memory Blueprint: a
 # blueprint and a first-person view inside ONE building (building_schema.py;
 # the plan is brief.building). (1.9.105's "stars" view, the Star chart, is now
 # the Star chart look of a System: migrate_brief turns such a brief into one.)
-# "world" — the World Palace: the world map, cards on countries (and states or
+# "world" — the Memory Atlas: the world map, cards on countries (and states or
 # cities), no first-person view (world_plan.py; the places are brief.world).
 PALACE_VIEWS = ("city", "building", "world")
 # Keys a stored brief may still carry from before System had two looks
@@ -397,13 +397,13 @@ class Brief:
     wallpaper_top: bool = False
     # Memory Palace only (PALACE_VIEWS): "city" (the default), "building" or "world".
     palace_view: str = "city"
-    # Building Palace only (palace_view "building"; building_schema.py):
+    # Memory Blueprint only (palace_view "building"; building_schema.py):
     # {name, plan_z (the packed plan), plan_h (its hash), mode: "room"|"anchor",
     # assign: {node id: room / art slot / fixture id} (the caller's overrides),
     # made}. set_up_building writes it. The page names the plan by its hash and
     # loads the hosted file (/bldg/plan-<hash>.json).
     building: dict = field(default_factory=dict)
-    # World Palace only (palace_view "world"; world_plan.py): {level: "country"|"deep",
+    # Memory Atlas only (palace_view "world"; world_plan.py): {level: "country"|"deep",
     # places: {node id: a place set_up_world resolved, "r": 1 when the notes name it},
     # regions: [a region per unit, "" for the route's own]}. set_up_world writes it;
     # the map itself is hosted (/world/, world_geo.py).
@@ -663,7 +663,7 @@ def validate_brief(b: Brief) -> list[str]:
     # No upper bound: the engine builds bands in a runtime loop over PHASE_META
     # and takes each band's colour from its own entry, so it renders as many as
     # the brief carries. A course with eleven units gets eleven bands.
-    # A System may be one system for the whole outline, a Building Palace
+    # A System may be one system for the whole outline, a Memory Blueprint
     # one building: one unit.
     if len(b.acts) < (1 if (solar_style(b) or building_view(b) or world_view(b)) else 2):
         raise BriefError(f"{len(b.acts)} acts: a timeline needs at least 2 "
@@ -692,7 +692,7 @@ def validate_brief(b: Brief) -> list[str]:
         raise BriefError(f"palace_view {b.palace_view!r}: must be one of {PALACE_VIEWS} (the Star "
                          "chart is a look of a System now: mode 'outline', layout 'solar')")
     if b.palace_view != "city" and b.mode != "palace":
-        raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Building Palace "
+        raise BriefError(f"palace_view {b.palace_view!r} needs mode 'palace': the Memory Blueprint "
                          "is a Memory Palace view")
     if b.layout == "solar" and b.mode != "outline":
         raise BriefError("layout 'solar' needs mode 'outline': a solar system is "
@@ -707,7 +707,7 @@ def validate_brief(b: Brief) -> list[str]:
     from .building_schema import check_building
     check_building(b, warnings)
     if b.world and not world_view(b):
-        raise BriefError("world needs mode 'palace' and palace_view 'world': it is the World Palace's places")
+        raise BriefError("world needs mode 'palace' and palace_view 'world': it is the Memory Atlas's places")
     if world_view(b):
         from .world_plan import validate as _vw
         try:
@@ -1063,12 +1063,12 @@ def _validate_outline_tree(b: Brief, nodes: list[Node]) -> list[str]:
 
 
 def building_view(b) -> bool:
-    """True for a Building Palace (a Memory Palace in its "building" view): one building's blueprint and first-person view."""
+    """True for a Memory Blueprint (a Memory Palace in its "building" view): one building's blueprint and first-person view."""
     return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "building"
 
 
 def world_view(b) -> bool:
-    """True for a World Palace (a Memory Palace in its "world" view): the world map, cards on countries, no first-person view."""
+    """True for a Memory Atlas (a Memory Palace in its "world" view): the world map, cards on countries, no first-person view."""
     return getattr(b, "mode", "") == "palace" and getattr(b, "palace_view", "city") == "world"
 
 
@@ -1094,7 +1094,7 @@ def migrate_brief(d: dict) -> tuple[dict, dict]:
     parked in `stash` come back. hub_style and stash are dropped from every
     brief (hub_style 'spoke' becomes the System look, as does 1.9.108's
     hub_look 'plain'); palace_view is kept as it
-    is ("city", "building" — 1.9.107's Building Palace) except the old "stars",
+    is ("city", "building" — 1.9.107's Memory Blueprint) except the old "stars",
     which goes with the migration. The input is not changed."""
     if not isinstance(d, dict):
         return d, {}

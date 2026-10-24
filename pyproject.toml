@@ -57,7 +57,7 @@ include = ["alto*"]
   "assets/gfx/mdl/*.glb",
   "assets/gfx/mdl/meta.json",
   "assets/bldg/pma/*.jpg",
-  # the World Palace's map (Natural Earth, public domain; docs/world-palace/build_world_geo.py)
+  # the Memory Atlas's map (Natural Earth, public domain; docs/world-palace/build_world_geo.py)
   "assets/world/*.gz",
   "assets/world/NOTICE",
   "buildings/*.json",

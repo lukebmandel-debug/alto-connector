@@ -1,4 +1,4 @@
-"""Curated buildings: plans Alto ships for famous public buildings, so a Building Palace of one needs no plan upload.
+"""Curated buildings: plans Alto ships for famous public buildings, so a Memory Blueprint of one needs no plan upload.
 
     set_up_building(timeline_id, building="pma")        the Philadelphia Museum of Art (pma.py)
     set_up_building(timeline_id, building="test-pavilion")   the tiny invented fixture (not a real building)

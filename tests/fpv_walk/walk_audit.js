@@ -1,4 +1,4 @@
-/* The first-person walk audit (node, no browser, no GL): the Museum Palace renderer's own walking code (palace_building_fpv.py, API.sim / API.step)
+/* The first-person walk audit (node, no browser, no GL): the Memory Blueprint renderer's own walking code (palace_building_fpv.py, API.sim / API.step)
    walks a capsule through EVERY passable opening of a plan (both ways, at a walk and a run) and up and down EVERY stair flight, and hops in every
    room it passes. It reports doors narrower or lower than the capsule, any fall into another floor, any place the walker gets stuck and every
    time the safety net had to catch it.

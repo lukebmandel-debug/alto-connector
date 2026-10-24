@@ -1,4 +1,4 @@
-"""The Building Palace's plan format (alto/build/building_schema.py): validation, hashing, storage, assignment, size."""
+"""The Memory Blueprint's plan format (alto/build/building_schema.py): validation, hashing, storage, assignment, size."""
 import copy
 import gzip
 import json

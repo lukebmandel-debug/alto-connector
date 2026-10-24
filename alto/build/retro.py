@@ -274,7 +274,7 @@ FORMAT_CSS = r"""
   X [aria-checked=true] > .pr-tk:not(#_){background:rgba(217,174,85,.22) !important;} X [aria-checked=true] > .pr-tk i:not(#_){background:#d9ae55 !important;}
   X.alto-palace #world .node-card::before{border-radius:0 !important;}
 
-  /* the Museum / Building Palace's blueprint (palace_building_asset.py): an architect's plan in gold on black */
+  /* the Museum / Memory Blueprint's blueprint (palace_building_asset.py): an architect's plan in gold on black */
   X #bldg-root:not(#_){--bl-ink:#d9ae55;--bl-sheen:rgba(0,0,0,0);--bl-glass:rgba(217,174,85,.035);--bl-glass-edge:rgba(217,174,85,.38);--bl-paper:#000;--bl-text:#efe6cf;--bl-muted:#b9b2a0;
     --bl-line:rgba(217,174,85,.55);--bl-panel:#000;--bl-accent:#f0c15e;background:#000 !important;}
   X #bldg-root .bl-tube{stroke-width:2.2px;}
@@ -288,7 +288,7 @@ FORMAT_CSS = r"""
   X #bldg-root .bl-kind{color:#d9ae55 !important;letter-spacing:.28em !important;font-weight:400 !important;}
   X #bldg-root .bl-head h2{text-transform:uppercase;letter-spacing:.14em;font-weight:300 !important;}
 
-  /* the World Palace's map (palace_world.py): a navigator's chart, gold on night blue, the units in the poster's inks */
+  /* the Memory Atlas's map (palace_world.py): a navigator's chart, gold on night blue, the units in the poster's inks */
   X #wpal-root:not(#_){--w-sea1:#0a1b34;--w-sea2:#05070b;--w-land:#0b0d12;--w-edge:rgba(217,174,85,.32);--w-grat:rgba(217,174,85,.07);--w-text:#efe6cf;--w-sub:#b9b2a0;
     --w-panel:#000;--w-panel-b:rgba(217,174,85,.55);--w-card:#000;--w-shadow:none;--w-font:var(--rt-f);--w-mix:#0b0d12;--w-used:22%;--w-pin:#05070b;
     background:radial-gradient(120% 90% at 50% 45%,#0a1b34 0%,#05070b 75%) !important;}

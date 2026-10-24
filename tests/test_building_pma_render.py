@@ -145,7 +145,7 @@ def test_the_back_button_says_museum_palace_with_its_symbol(browser):
         page.wait_for_function("window.AltoBuilding && AltoBuilding.plan")
         page.wait_for_timeout(900)
         got = page.evaluate("[...document.querySelectorAll('#desk-back .db-label, #nav-timeline, #drawer-timeline-btn .drawer-label')].map(e => [e.textContent, !!e.querySelector('svg')])")
-        assert got and all("Museum Palace" in t and svg for t, svg in got), got
+        assert got and all("Memory Blueprint" in t and svg for t, svg in got), got
     finally:
         page.close()
 

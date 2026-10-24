@@ -11,12 +11,12 @@ browser keeps it for a year). The page holds a ~350 byte loader and every use of
           (palace_street.blobs(referenced=...)); a file a page names that the cache lacks is reported (LAST_MISSING -> LAST_STALE), never dropped silently
   cmap    the city itself (palace_tiles.py): each site page's base (b-<h12>.json: the map, the lots, the fill-in of the zone) and the detail tiles
           its base names (t-<h10>.json) — every base a published page of this site names now or ever did (published-<site>.txt), with its tiles
-  bldg    the Building Palace (palace_view "building"): its renderer (palace_building_asset.py, the blueprint and the seam for the first-person view) and, beside it,
-          each published Building Palace's plan as plan-<hash>.json (building_schema.hosted_json), written from the briefs at publish (`assets(building_plans=...)`),
+  bldg    the Memory Blueprint (palace_view "building"): its renderer (palace_building_asset.py, the blueprint and the seam for the first-person view) and, beside it,
+          each published Memory Blueprint's plan as plan-<hash>.json (building_schema.hosted_json), written from the briefs at publish (`assets(building_plans=...)`),
           and the first-person interior renderer (palace_building_fpv.py, fetched by the blueprint the first time someone walks in)
   retro   the Retro style of every format but the System (retro.py): its rules and frame, fetched only by a page set to Retro
   phone   the whole view on a phone (phone.py): the desktop page made for a finger, fetched only by a phone set to see the page whole
-  world   the World Palace (palace_view "world"): its renderer (palace_world.py) and the map it fetches (world_geo.py: base-<hash>.json the whole
+  world   the Memory Atlas (palace_view "world"): its renderer (palace_world.py) and the map it fetches (world_geo.py: base-<hash>.json the whole
           world at 1:110m, cont-<continent>-<hash>.json a continent at 1:50m, a1-<ISO3>-<hash>.json a country's state lines), all published always
   fleet   the toy weapons: the battleship, destroyers, carriers, submarines and military bases of any city, with their sound, the crowd that
           runs from a collapse and the construction rebuild (palace_fleet_asset.py; loaded only by a city that has a vessel or a base)
@@ -50,7 +50,7 @@ def folders() -> list:
 
 def assets(street_refs=None, building_plans=None, cmap_refs=None) -> list:
     """[(folder, file name, text)] of every hosted script. `street_refs`: the street manifest hashes the published pages name (all are published; see palace_street.blobs).
-    `building_plans`: {file name: JSON text} of the Building Palace plans the published pages name (building_schema.hosted_json), written into /bldg/ beside the renderer."""
+    `building_plans`: {file name: JSON text} of the Memory Blueprint plans the published pages name (building_schema.hosted_json), written into /bldg/ beside the renderer."""
     out = []
     for folder, mod, fn in ASSETS:
         name, text = getattr(importlib.import_module("." + mod, __package__), fn)()
@@ -58,7 +58,7 @@ def assets(street_refs=None, building_plans=None, cmap_refs=None) -> list:
     from .palace_building_asset import BUILDING_LATEST, BUILDING_ASSET   # the newest renderer under its fixed name too (the page's fallback)
     out.append(("bldg", BUILDING_LATEST.rsplit("/", 1)[1], BUILDING_ASSET))
     out += [("bldg", name, text) for name, text in sorted((building_plans or {}).items())]
-    from . import world_geo                                  # the World Palace's map: every tier, always (small; any page may zoom anywhere)
+    from . import world_geo                                  # the Memory Atlas's map: every tier, always (small; any page may zoom anywhere)
     out += [(world_geo.FOLDER, name, text) for name, text in world_geo.hosted()]
     from . import palace_street
     out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs(referenced=street_refs)]

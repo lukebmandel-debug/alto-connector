@@ -1,4 +1,4 @@
-"""Where each card of a World Palace stands (brief.palace_view "world"): pure and deterministic, so a rebuild puts every card in the same place.
+"""Where each card of a Memory Atlas stands (brief.palace_view "world"): pure and deterministic, so a rebuild puts every card in the same place.
 
 Luke's design (2026-10-22):
 - A unit is a region; each top card gets a country, and every card under it stands on one of that country's major cities, the largest first

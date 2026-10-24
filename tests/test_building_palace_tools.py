@@ -1,4 +1,4 @@
-"""The Building Palace end to end (no browser): brief view, set_up_building, the built page, hosting, convert, homepage picker, guide."""
+"""The Memory Blueprint end to end (no browser): brief view, set_up_building, the built page, hosting, convert, homepage picker, guide."""
 import json
 import re
 import sys
@@ -114,7 +114,7 @@ def test_the_page_carries_a_loader_and_the_placements_not_the_plan():
 
 
 def test_the_page_grows_by_a_few_kilobytes_only():
-    """The private page is at its size cap: a Building Palace costs a loader and the placements, and is far lighter than the city."""
+    """The private page is at its size cap: a Memory Blueprint costs a loader and the placements, and is far lighter than the city."""
     plain, _ = built(mode="linear", palace_view="city", building={})
     html, _ = built()
     assert 0 < len(html) - len(plain) < 12_000, len(html) - len(plain)

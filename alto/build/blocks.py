@@ -1536,12 +1536,12 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # the engine's initLayout hands over to on desktop.
         orders += lanes_data(b, nodes) + LANES_JS
     if b.mode == "palace" and building_view(b):
-        # A Building Palace (building_schema.py): no city — the floors' numbers
+        # A Memory Blueprint (building_schema.py): no city — the floors' numbers
         # (3.4-2) and the hosted blueprint over the cards (palace_building_asset.py).
         from .palace_building_asset import building_data
         orders += palace_stub(b, nodes) + building_data(b, nodes)
     elif b.mode == "palace" and world_view(b):
-        # A World Palace (world_plan.py): no city — the cards' numbers (3.4-2),
+        # A Memory Atlas (world_plan.py): no city — the cards' numbers (3.4-2),
         # where each stands, and the hosted world map over the cards (palace_world.py).
         from .palace_world import world_data
         orders += palace_stub(b, nodes) + world_data(b, nodes)

@@ -1,4 +1,4 @@
-"""The World Palace end to end (no browser): geodata, place names, the memory route, the capital rule, the brief, the page, hosting, the tool,
+"""The Memory Atlas end to end (no browser): geodata, place names, the memory route, the capital rule, the brief, the page, hosting, the tool,
 the homepage picker, the guide. Luke's design, 2026-10-22 (the CEO notes' world-palace/SPEC.md)."""
 import json
 import re
@@ -285,6 +285,6 @@ def test_the_homepage_offers_the_world_and_sends_the_user_to_claude():
 
 
 def test_the_guide_says_places_come_from_the_notes():
-    assert "### §D-World. World Palace" in GUIDE and "set_up_world" in GUIDE
+    assert "### §D-World. Memory Atlas" in GUIDE and "set_up_world" in GUIDE
     assert "Do not guess a place from a subject" in " ".join(GUIDE.split())
-    assert "Washington, D.C." in GUIDE and "6f. World Palace only" in GUIDE
+    assert "Washington, D.C." in GUIDE and "6f. Memory Atlas only" in GUIDE

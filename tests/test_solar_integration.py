@@ -89,7 +89,7 @@ def test_an_old_star_chart_palace_loads_as_hub_and_spoke_with_all_three():
 
 @pytest.mark.parametrize("view", ["city", "building"])
 def test_a_city_or_building_palace_keeps_its_view_through_the_migration(view):
-    """1.9.107's Building Palace (palace_view 'building') and the city stay Mind
+    """1.9.107's Memory Blueprint (palace_view 'building') and the city stay Memory
     Palaces: only the old 'stars' view migrates (to a System)."""
     from alto.build.brief import migrate_brief, migrate_doc
     bd = {"title": "P", "mode": "palace", "palace_view": view, "acts": [{"label": "A"}],

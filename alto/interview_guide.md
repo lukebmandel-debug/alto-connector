@@ -320,7 +320,7 @@ An outline can also be drawn as a **System** (round nodes: each unit's
 hub in the middle, its concepts around it as planets, moons and satellites) —
 **§D-Solar**. It is the same outline with the same numbers, pages and edits,
 only a different picture; raise it once the structure is known (§D-Solar says
-when), never before, and never for a sketch, a horizontal timeline or a Mind
+when), never before, and never for a sketch, a horizontal timeline or a Memory
 Palace.
 
 A further shape, only when the user asks for it by name (a **Memory Palace**, a
@@ -452,7 +452,7 @@ known (D-Outline steps 1-3), when it fits: each unit has one hub concept with
 a ring of sub-concepts around it, and the student wants — or lights up at —
 the system picture. Offer it once, in a sentence, with the tree as the
 default; do not push it on an outline that is mostly a long chain or goes
-deeper than four levels. Never for a sketch, a horizontal timeline or a Mind
+deeper than four levels. Never for a sketch, a horizontal timeline or a Memory
 Palace.
 
 > "Your outline can also be drawn as a **System**: each unit's main concept
@@ -550,7 +550,7 @@ where it sits is decided by its place in the outline. Dropping a circle on
 empty space, on a circle that would make it too deep (past a satellite) or on
 one of its own, puts it back.
 
-### §D-Building. Building Palace (`mode: 'palace'`, `palace_view: 'building'`)
+### §D-Building. Memory Blueprint (`mode: 'palace'`, `palace_view: 'building'`)
 The method of loci inside ONE real building — a museum, a courthouse, a
 school: a **blueprint** (floor tabs, walls, rooms, the cards standing in them)
 and a **first-person view** inside it (a BETA: say so; the blueprint's "Walk
@@ -562,7 +562,7 @@ trades scale for fidelity.
   or describes it (to the accuracy they want) — nothing else is asked of them.
 - **Plans are public files.** A building's plan is served from the site's
   public `/bldg/` folder (anyone with its address can read it), unlike the
-  private page. Do not use a Building Palace for a user's private house or any
+  private page. Do not use a Memory Blueprint for a user's private house or any
   building whose layout should not be public; say this before drawing one.
 - **Ask which building** (and nothing else): "which building do you want to
   walk through?" A famous public one (an art museum, a courthouse, a
@@ -616,7 +616,7 @@ trades scale for fidelity.
 - The page carries a loader and the node placements only: the renderer and the
   plan are hosted files (the private page is at its size cap).
 
-### §D-World. World Palace (`mode: 'palace'`, `palace_view: 'world'`)
+### §D-World. Memory Atlas (`mode: 'palace'`, `palace_view: 'world'`)
 The method of loci on the **world map**: a smoothed real world (Equal Earth),
 each unit a region, each concept a country, the cards under a concept on
 that country's major cities (largest first); flight arcs carry the route from
@@ -1142,8 +1142,8 @@ outline mode `parent` carries the tree) →
 (§D-Lanes) →
 6d. System only: nothing extra to author; `layout: 'solar'` rides on
 `create_timeline` (or the layout/build calls below), §D-Solar →
-6e. Building Palace only: `set_up_building` once the nodes exist (§D-Building) →
-6f. World Palace only: `set_up_world` once the nodes exist (§D-World) →
+6e. Memory Blueprint only: `set_up_building` once the nodes exist (§D-Building) →
+6f. Memory Atlas only: `set_up_world` once the nodes exist (§D-World) →
 7. `set_overview`. **Outline: `section_summaries`, one substantial paragraph per
 section** (4-8 sentences: what the section is about, how its main ideas fit
 together, the turning points and tests, in the notes' own terms — a thin

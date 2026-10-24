@@ -349,7 +349,7 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
 
 
 def _building_plans(store, uid: str) -> dict:
-    """{plan-<hash>.json: JSON text} of every published Building Palace (build/building_schema.py): the file its page fetches from /bldg/."""
+    """{plan-<hash>.json: JSON text} of every published Memory Blueprint (build/building_schema.py): the file its page fetches from /bldg/."""
     from .build import building_schema as bs
     out = {}
     try:
@@ -517,7 +517,7 @@ def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_file
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
         ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
-        # bldg: the Building Palace's renderers and plans, one literal immutable rule per file that exists (as /street/): a plan a page names before the
+        # bldg: the Memory Blueprint's renderers and plans, one literal immutable rule per file that exists (as /street/): a plan a page names before the
         # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
         *_bldg_rules(bldg_files),
         # The street data (build/palace_street.py) is kept for a year too — but ONLY the files that exist, named one by one: Hosting matches headers against
@@ -582,7 +582,7 @@ BLDG_RE = re.compile(r"^(palace-building-(fpv-)?[0-9a-f]{10}\.js|plan-[0-9a-f]{1
 
 
 def _bldg_names(site_dir) -> list:
-    """The Building Palace files in the site folder (renderers and plans), only names of the published shape."""
+    """The Memory Blueprint files in the site folder (renderers and plans), only names of the published shape."""
     if site_dir is None:
         return []
     d = Path(site_dir) / "bldg"

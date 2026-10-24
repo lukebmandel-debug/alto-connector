@@ -1,7 +1,7 @@
 """Shared by both first-person views: the HOP, the third-person AVATAR the camera follows, the gamepad and the view settings.
 
 Both hosted renderers embed AVATAR_JS (one copy each, in their own scope): the city palace's roam (palace_ride_e.py, hosted ride asset) and the
-Museum Palace walk (palace_building_fpv.py, hosted /bldg/ renderer). Nothing of it is on a palace page (civ-pro-palace sits at its 976 KB cap).
+Memory Blueprint walk (palace_building_fpv.py, hosted /bldg/ renderer). Nothing of it is on a palace page (civ-pro-palace sits at its 976 KB cap).
 
   AV.city(place, lat, lon)   the palace's city from data already on the page (the city palace's `place` name; the building plan's geo lat/lon)
                              -> an entry of alto/buildings/city_mayors.json or null

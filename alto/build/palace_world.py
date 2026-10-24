@@ -1,4 +1,4 @@
-"""The World Palace's hosted renderer (brief.palace_view "world"): /world/palace-world-<hash>.js, loaded by the page (palace_assets.py).
+"""The Memory Atlas's hosted renderer (brief.palace_view "world"): /world/palace-world-<hash>.js, loaded by the page (palace_assets.py).
 
 The page holds a ~350 byte loader and the page data (`window._ALTO_WORLD`, world_data below: each card's number, title, unit and — for the cards that
 stand on the map — where, in world units, plus the clusters round them); the map itself is the hosted geodata (world_geo.py: base tier at 1:110m, a
