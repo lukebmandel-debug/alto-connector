@@ -212,7 +212,7 @@ def test_the_shell_prefers_the_label_over_the_title():
 def test_publishing_passes_the_project_name(tmp_path):
     """A label that is always the brief title would defeat the whole point."""
     src = (ROOT / "alto" / "publish_static.py").read_text(encoding="utf-8")
-    assert 'private_page(\n                b, raw, name_by_pid.get(' in src
+    assert 'private_page(b, raw, name_by_pid.get(' in src
 
 
 # ── a private chip is still a chip ──────────────────────────────────────────
