@@ -686,9 +686,12 @@ function set(s,f){[].forEach.call(document.querySelectorAll(s),f)}
 function apply(){var k=hub()?'system':window._ALTO_OUTLINE?'outline':(window._altoPalace||window._palTr)?(G._p||'palace'):G.lanes?'lanes':'timeline';
 if(K===k)return;K=k;
 var g=G[k]||['Timeline'],n=g[0],h=g[1]?ic(g):n,t='Back to the '+(/^Memory/.test(n)?n:n.toLowerCase());window._altoFB=function(){return h};
-set('#desk-back .db-label,#drawer-timeline-btn .drawer-label',function(e){e.innerHTML=h});
+set('#desk-back .db-label',function(e){e.innerHTML=h});
+/* a phone: back to the timeline is one symbol, the format's own (Luke, 2026-10-24: "I don't like that you have two symbols in back to timeline") */
+set('#drawer-timeline-btn .drawer-icon',function(e){e.innerHTML=h});set('#drawer-timeline-btn .drawer-label',function(e){e.innerHTML=''});
 set('#desk-back,#drawer-timeline-btn,#detail-back-fixed',function(e){e.setAttribute('aria-label',t);if(e.id=='desk-back')e.title=t});
-set('#nav-timeline',function(e){e.innerHTML='\u21a9 '+h;e.setAttribute('aria-label',t);e.title=t});
+var ph=H.classList.contains('mobile')||H.classList.contains('phone-whole');
+set('#nav-timeline',function(e){e.innerHTML=(ph?'':'\u21a9 ')+h;e.setAttribute('aria-label',t);e.title=t});
 set('.db-name',function(e){e.innerHTML=h})}
 apply();document.addEventListener('DOMContentLoaded',apply);addEventListener('load',apply);
 new MutationObserver(apply).observe(H,{attributes:true,attributeFilter:['class']})})();
