@@ -217,6 +217,7 @@ def _rested_ok(r):
             and r["ring"] and not r["moving"])
 
 
+FITS = "() => { const c=document.getElementById('canvas'); return c.scrollHeight <= c.clientHeight + 1; }"
 MAINSCREEN = """(id) => { const G=window._altoLanesGeo, cv=document.getElementById('canvas'), ev=G.at && G.at[id];
   return ((ev && ev.line === 'main') ? ev.y : G.mainY) - cv.scrollTop; }"""
 
@@ -232,9 +233,13 @@ def test_the_camera_stays_with_the_main_line(browser, v2_file):
         ys.append((id_, pg.evaluate(MAINSCREEN, id_)))
     plain = [y for i, y in ys if i not in inside]
     assert plain and max(plain) - min(plain) <= 1.5, ys                         # the page's own events: one height
+    fits, G = pg.evaluate(FITS), pg.evaluate("() => ({m: window._altoLanesGeo.mainY, p: (window._altoLanesGeo.detours[0] || {}).y})")
     for i, y in ys:
-        if i in inside:                                                          # a flashback: the main line is down on the past track, the camera went with it
-            assert abs(y - plain[0]) <= 1.5, ys
+        if i in inside:
+            if fits:          # the whole board is in the window (lanes.py's fit): nothing to scroll, the dip is seen where it is
+                assert abs(y - (plain[0] + G["p"] - G["m"])) <= 1.5 and G["p"] - G["m"] > 20, (ys, G)
+            else:             # a flashback: the main line is down on the past track, the camera went with it
+                assert abs(y - plain[0]) <= 1.5, ys
     assert not errs
 
 
@@ -370,7 +375,10 @@ def test_the_height_follows_the_line_through_a_flashback(browser, v2_file):
     _at(pg, S[j - 1])
     t = pg.evaluate(TRAVEL)
     P = t["P"]
-    assert P[j][1] > P[j - 1][1] + 20 and abs(P[k][1] - P[j - 1][1]) < 2        # its rest dips with the line, and comes back up
+    if pg.evaluate(FITS):                                                        # the whole board in the window: the height never moves
+        assert abs(P[j][1] - P[j - 1][1]) < 1 and abs(P[k][1] - P[j - 1][1]) < 1, P
+    else:
+        assert P[j][1] > P[j - 1][1] + 20 and abs(P[k][1] - P[j - 1][1]) < 2    # its rest dips with the line, and comes back up
     pg.evaluate(REC, f"#node-{S[k]} .node-card")
     n = int((t["U"][k] - t["U"][j - 1] - 3) / 10)                                # ends just short of it: the settle goes on
     pg.evaluate(WHEEL, [[10, 0, 3]] + [[16, 0, 10]] * n)                          # a steady sideways scroll across it

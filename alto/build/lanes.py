@@ -339,7 +339,8 @@ def derive(L: dict, order: "list | None" = None) -> dict:
         lid = ln["id"]
         ln["events"] = [i for i in order if ev[i]["l"] == lid]
         ln["presence"] = [i for i in mains
-                          if lid in (ev[i].get("present") or []) or i in (ln.get("from"), ln.get("to"))]
+                          if lid in (ev[i].get("present") or []) or lid in (ev[i].get("ent") or [])
+                          or i in (ln.get("from"), ln.get("to"))]
         both = set(ln["events"]) | set(ln["presence"])
         on = [i for i in order if i in both]
         ln["span"] = [on[0], on[-1]] if on else []
@@ -353,16 +354,65 @@ def derive(L: dict, order: "list | None" = None) -> dict:
     return L
 
 
+def _name_key(s) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(s or "").lower())
+
+
+def chip_lines(b, nodes) -> "tuple[list, dict]":
+    """Every character with a chip in the nav bar (brief.entities) has a line of its own.
+
+    Luke (2026-10-23): "You left out major characters that had nav bar chips." The brief's
+    lines were the only lines drawn, so a character the brief never named (SONYA, Anya,
+    Daisy, Elana on terrarium-horizontal) had a chip and no line. An entity is matched to
+    a brief line by id, or by its name / an alias against the line's label ("Marc Voss");
+    each one still without a line, and linked from at least one event, gets one: the
+    entity's id, name and colour, on the side with fewer lines. Only on a v2 timeline (someone on
+    the page somewhere, or a flashback): a v1 one keeps its side lines as they were. Returns the page's lines
+    (brief lines first, normalised) and {entity id: line id}. An event's chips are then
+    where that character is on the page (Luke: "a scene mentions a character if the
+    mention is strong enough for a subchip"), on top of its authored `present`."""
+    lines = [norm_line(ln, i) for i, ln in enumerate(b.lines)]
+    if not b.flashbacks and not any(n.present for n in nodes):
+        return lines, {}            # a v1 timeline (no one on the page anywhere): its side lines carry the story, as before
+    used = {ln["id"] for ln in lines} | {fb["id"] for fb in b.flashbacks or []} | {MAIN}
+    linked = {e for n in nodes for e in (n.entity_ids or [])}
+    of = {}
+    for e in b.entities or []:
+        keys = {_name_key(e.name)} | {_name_key(a) for a in e.aliases or []}
+        hit = next((ln for ln in lines if ln["id"] == e.id), None) or \
+            next((ln for ln in lines if _name_key(ln["label"]) in keys - {""}), None)
+        if hit:
+            of[e.id] = hit["id"]
+            continue
+        if e.id not in linked:
+            continue
+        lid = e.id.lower() if SLUG.match(e.id.lower() or "") else "ch-" + (re.sub(r"[^a-z0-9]+", "-", e.id.lower()).strip("-")[:30] or "x")
+        k, base = 2, lid
+        while lid in used:
+            lid, k = f"{base}-{k}", k + 1
+        sides = [ln["side"] for ln in lines]
+        side = "above" if sides.count("above") <= sides.count("below") else "below"
+        lines.append({"id": lid, "label": e.name or e.id, "color": e.color or _PALETTE[len(lines) % len(_PALETTE)],
+                      "side": side, "from": "", "to": ""})
+        used.add(lid)
+        of[e.id] = lid
+    return lines, of
+
+
 def lanes_payload(b, nodes) -> dict:
     """The page's data (docs/lanes-v2-contract.md), as a dict."""
+    lines, of = chip_lines(b, nodes)
     ev = {}
     for n in nodes:
+        main = (n.line or MAIN) == MAIN
+        chips = [] if not main else [of[e] for e in (n.entity_ids or []) if e in of and of[e] != n.line]
         ev[n.id] = {"l": n.line or MAIN, "w": n.when or "", "t": parse_when(n.when), "i": 0,
                     "present": [str(x) for x in (n.present or [])], "flash": n.flash or "",
+                    "ent": list(dict.fromkeys(chips)),
                     "g": GAPS.get(n.gap or "", 0), "gap": n.gap or ""}
     L = {"v": 2, "main": b.main_line or "",
          "order": [n.id for n in page_order(b, nodes)],
-         "lines": [norm_line(ln, i) for i, ln in enumerate(b.lines)],
+         "lines": lines,
          "ev": ev,
          "flashbacks": [{"id": fb["id"], "label": fb.get("label") or ""} for fb in b.flashbacks or []]}
     return derive(L)
@@ -382,7 +432,7 @@ window._altoLanesDerive=function(L, order){
   var mains=order.filter(function(i){ return ev[i].l==='main' || !lids[ev[i].l]; });
   (L.lines||[]).forEach(function(l){
     l.events=order.filter(function(i){ return ev[i].l===l.id; });
-    l.presence=mains.filter(function(i){ return (ev[i].present||[]).indexOf(l.id)>=0 || i===l.from || i===l.to; });
+    l.presence=mains.filter(function(i){ return (ev[i].present||[]).indexOf(l.id)>=0 || (ev[i].ent||[]).indexOf(l.id)>=0 || i===l.from || i===l.to; });
     var both={}; l.events.concat(l.presence).forEach(function(i){ both[i]=1; });
     var on=order.filter(function(i){ return both[i]; });
     l.span=on.length ? [on[0], on[on.length-1]] : [];
@@ -467,6 +517,22 @@ LANES_CSS = KEY_CSS + """
   .lanes-unit .lu-chip b{font-weight:800;margin-right:7px;}
   html.alto-lanes:not(.mobile) #world .node-card:not(.focused) .node-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;}
   .node-card .lanes-when:empty{display:none;}
+  /* the most compact boards (the fit in LANES_JS): a card shows its title only, the labels are smaller, and at
+     the last the cards are drawn smaller; a card opened (enlarged) is whole again */
+  html.ln-compact:not(.mobile) #world .node:not(.focused) .node-card:not(.focused) .node-desc,
+  html.ln-compact:not(.mobile) #world .node:not(.focused) .node-card:not(.focused) .node-footer,
+  html.ln-compact:not(.mobile) #world .node:not(.focused) .node-card:not(.focused) .node-summary{display:none !important;}
+  html.ln-compact:not(.mobile) #world .node:not(.focused) .node-card:not(.focused){padding:9px 14px;width:auto;max-width:250px;}
+  html.ln-compact:not(.mobile) #world .node:not(.focused) .node-card:not(.focused) .node-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  html.ln-compact:not(.mobile) .lanes-tag{font-size:10px;padding:1px 8px;}
+  html.ln-cz:not(.mobile) #world .node:not(.focused) .node-card:not(.focused){zoom:var(--ln-cz,1);}
+  html.ln-cz:not(.mobile) .lanes-tag{font-size:calc(10px * var(--ln-cz,1));padding:calc(1px * var(--ln-cz,1)) calc(8px * var(--ln-cz,1));border-width:1px;}
+  html.ln-cz:not(.mobile) .lanes-gap{font-size:calc(11px * var(--ln-cz,1));}
+  html.ln-cz:not(.mobile) #lanes-svg .ln-main-halo{stroke-width:calc(26px * var(--ln-cz,1));}
+  html.ln-cz:not(.mobile) #lanes-svg .ln-main{stroke-width:calc(10px * var(--ln-cz,1));}
+  html.ln-cz:not(.mobile) #lanes-svg .ln-br{stroke-width:calc(3px * var(--ln-cz,1));}
+  /* the frosted slab is as tall as the board (the engine sized it for its vertical layout, which made the page scroll) */
+  html.alto-lanes:not(.mobile) #glass-slab{height:var(--lanes-slab-h) !important;}
   html.alto-editing .node-card .lanes-when:empty{display:block;}
   html.alto-editing .node-card .lanes-when:empty::before{content:'+ When';opacity:.7;}
   html.alto-editing:not(.mobile) .node-card .lanes-when{pointer-events:auto;cursor:text;border-radius:4px;}
@@ -489,7 +555,7 @@ var de=document.documentElement;
 if(!de.classList.contains('mobile')) de.classList.add('alto-lanes');
 var NS='http://www.w3.org/2000/svg';
 var STEM=36, CARD_GAP=12, CARD_PAD=12, LEFT=330, RIGHT=420, TOP=96, BOTTOM=110;
-var SPAN=190, MAXPX=1000, BREAK=190, BASE=190;
+var SPAN=190, MAXPX=1000, BREAK=320, BASE=190;          /* BREAK: a squeezed stretch still reads wider than an ordinary step */
 /* the band between the main line and the cards: the characters' tracks, track k
    of a side BAND0+k*TRACK from the main line (the past track of the flashbacks,
    PAST below the main line, comes first on the lower side). Cards hang beyond
@@ -548,7 +614,7 @@ function derive(){
   var mains=order.filter(function(i){ var e=L.ev[i]; return e && !lids[e.l]; });
   L.lines.forEach(function(l){
     l.events=order.filter(function(i){ return L.ev[i] && L.ev[i].l===l.id; });
-    l.presence=mains.filter(function(i){ return (L.ev[i].present||[]).indexOf(l.id)>=0 || i===l.from || i===l.to; });
+    l.presence=mains.filter(function(i){ return (L.ev[i].present||[]).indexOf(l.id)>=0 || (L.ev[i].ent||[]).indexOf(l.id)>=0 || i===l.from || i===l.to; });
   });
   L.flashbacks=(L.flashbacks||[]).map(function(f){ f.nodes=mains.filter(function(i){ return L.ev[i].flash===f.id; }); return f; });
 }
@@ -571,6 +637,27 @@ function fbRange(ids){
    y: the main line at 0; the characters' tracks in a band either side of it
    (sharing a track when they never run at the same time); every card beyond
    the band on its side, packed outward where it would overlap another. */
+/* the room the board has: the canvas between the bars at the top (under the key's toggle) and the
+   rail at the bottom, in canvas layout px, as lanes_nav's band() sees it. Before the rail exists its
+   place is kept: RAIL above the canvas's foot (PHONE_RAIL on a phone's whole view, where the rail sits on
+   the phone's bar); once it is there the board is laid out again to it. `top` also clears the units'
+   chips at the top of the world. */
+var RAIL=88, PHONE_RAIL=128;
+function lanesRoom(world){
+  var c=document.getElementById('canvas'); if(!c || !c.clientHeight) return null;
+  var r=c.getBoundingClientRect(), k=(r.width && c.offsetWidth) ? r.width/c.offsetWidth : 1, ch=c.clientHeight, t=16, b=ch-16, q;
+  var vis=function(e){ if(!e) return null; var x=e.getBoundingClientRect(); return (x.width && x.height && getComputedStyle(e).display!=='none') ? x : null; };
+  if((q=vis(document.getElementById('key-toggle'))) && q.bottom>r.top) t=Math.max(t, (q.bottom-r.top)/k+12);
+  if((q=vis(document.getElementById('lanes-nav'))) && q.top<r.bottom) b=Math.min(b, (q.top-r.top)/k-14);
+  else b=Math.min(b, ch-(de.classList.contains('phone-whole') ? PHONE_RAIL : RAIL));
+  var wo=0, e=world; while(e && e!==c){ wo+=e.offsetTop; e=e.offsetParent; }
+  return {t:t, b:b, ch:ch, wo:wo, pt:parseFloat(getComputedStyle(c).paddingTop)||0, top:Math.max(t, wo+56)};
+}
+/* whether the board carries a time axis: something dated in the present, and every `when` a plain number or date */
+function axisNums(order, fbOf){
+  if(!order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; })) return false;
+  return order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); });
+}
 window._altoLanes=function(h){
   if(de.classList.contains('mobile')) return false;
   var world=document.getElementById('world'); if(!world) return false;
@@ -624,68 +711,151 @@ window._altoLanes=function(h){
   var X={};
   pres.forEach(function(id){ X[id]=Xr[id]+shift(Xr[id], idx[id]); });
   runs.forEach(function(r){ r.nodes.forEach(function(id,k){ X[id]=r.f0+r.pin+r.off[k]; }); });
-  /* the main line: 200px either side of its events; a story that opens in a
-     flashback starts just before the dip (a short present, then down) */
-  var mx=mains.filter(function(i){ return !fbOf[i]; }).map(function(i){ return X[i]; }), dx=runs.map(function(r){ return r.x0; });
-  if(!mx.length && !dx.length) mx=order.map(function(i){ return X[i]; });
-  main.x0=Math.min(mx.length?Math.min.apply(null,mx)-200:Infinity, dx.length?Math.min.apply(null,dx)-30:Infinity);
-  main.x1=Math.max(mx.length?Math.max.apply(null,mx)+200:-Infinity, runs.length?runs[runs.length-1].x1+60:-Infinity);
   var hasPast=runs.length>0;
   /* each character: where it is on the page (its presence, plus a legacy
      from / to on another character's line) and its own events */
   L.lines.forEach(function(l){
     var pr=(l.presence||[]).filter(function(i){ return X[i]!=null; });
     [l.from,l.to].forEach(function(f){ if(f && X[f]!=null && pr.indexOf(f)<0 && L.ev[f].l!==l.id) pr.push(f); });
-    l.pr=pr; l.sd=l.side==='below'?1:-1;
-    var xs=pr.map(function(i){ return X[i]; }).concat(l.ev.map(function(i){ return X[i]; }));
-    l.drawn=xs.length>0;
-    if(!xs.length){ l.x0=l.x1=null; return; }
-    var a=Math.min.apply(null,xs), b=Math.max.apply(null,xs);
-    var lead=pr.some(function(i){ return X[i]===a; }) ? RAMP_MAX+SPREAD*2 : 30;
-    var tail=pr.some(function(i){ return X[i]===b; }) ? RAMP_MAX+SPREAD*2+40 : 70;
-    l.x0=a-lead-l.tagW-6; l.x1=b+tail;
+    l.pr=pr; l.drawn=pr.length+l.ev.length>0;
   });
-  /* tracks: nearest the main line first, a track shared by lines that never run at the same time */
-  var track={'-1':[], '1':[]};
-  L.lines.forEach(function(l){
-    if(!l.drawn) return;
-    var T=track[String(l.sd)], k=0;
-    for(;k<T.length;k++){ if(T[k].every(function(o){ return l.x1+40<o.x0 || o.x1+40<l.x0; })) break; }
-    (T[k]=T[k]||[]).push(l); l.track=k;
-  });
-  main.y=0; var pastY=PAST;
-  var base={'-1':BAND0, '1':hasPast?PAST+BAND0-14:BAND0};
-  L.lines.forEach(function(l){ if(l.drawn) l.y=l.sd*(base[String(l.sd)]+l.track*TRACK); else l.y=0; });
-  var band={'-1':track['-1'].length?base['-1']+(track['-1'].length-1)*TRACK+22:0,
-            '1':track['1'].length?base['1']+(track['1'].length-1)*TRACK+22:(hasPast?PAST+22:0)};
-  /* the cards: beyond the band, packed outward wherever one would overlap another */
-  var placed={'-1':[], '1':[]}, sideOf={}, offOf={}, alt=0;
-  function fit(sd, id, minOff){
-    var lo=X[id]-w[id]/2-CARD_PAD, hi=X[id]+w[id]/2+CARD_PAD, hh=h[id]||120, off=minOff, moved=true;
-    while(moved){ moved=false;
-      placed[sd].forEach(function(r){ if(lo<r.hi && hi>r.lo && off<r.y1+CARD_GAP && off+hh+CARD_GAP>r.y0){ off=r.y1+CARD_GAP; moved=true; } }); }
-    return {off:off, lo:lo, hi:hi, y0:off, y1:off+hh};
-  }
-  order.slice().sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }).forEach(function(id){
-    var ln=lineOfEv(id), sides=ln===main ? (fbOf[id]?['1']:['-1','1']) : [String(ln.sd)], best=null;
-    sides.forEach(function(sd, si){
-      var from=ln===main ? (fbOf[id]?pastY:0) : Math.abs(ln.y);
-      var c=fit(sd, id, Math.max(band[sd], ln===main&&!fbOf[id]?0:from)+STEM);
-      if(!best || c.off<best.c.off-1 || (Math.abs(c.off-best.c.off)<=1 && si===alt)) best={sd:sd, c:c};
+  /* where the main line and each character's line run: 200px either side of the main
+     line's events (a story that opens in a flashback starts just before the dip), a
+     character from just before its first event to just after its last */
+  function span(){
+    var mx=mains.filter(function(i){ return !fbOf[i]; }).map(function(i){ return X[i]; }), dx=runs.map(function(r){ return r.x0; });
+    if(!mx.length && !dx.length) mx=order.map(function(i){ return X[i]; });
+    main.x0=Math.min(mx.length?Math.min.apply(null,mx)-200:Infinity, dx.length?Math.min.apply(null,dx)-30:Infinity);
+    main.x1=Math.max(mx.length?Math.max.apply(null,mx)+200:-Infinity, runs.length?runs[runs.length-1].x1+60:-Infinity);
+    L.lines.forEach(function(l){
+      if(!l.drawn){ l.x0=l.x1=null; return; }
+      var xs=l.pr.map(function(i){ return X[i]; }).concat(l.ev.map(function(i){ return X[i]; }));
+      var a=Math.min.apply(null,xs), b=Math.max.apply(null,xs);
+      var lead=l.pr.some(function(i){ return X[i]===a; }) ? RAMP_MAX+SPREAD*2 : 30;
+      var tail=l.pr.some(function(i){ return X[i]===b; }) ? RAMP_MAX+SPREAD*2+40 : 70;
+      l.x0=a-lead-l.tagW-6; l.x1=b+tail;
     });
-    placed[best.sd].push(best.c); sideOf[id]=+best.sd; offOf[id]=best.c.off;
+  }
+  /* tracks: nearest the main line first, a track shared by lines that never run at the same time;
+     `one`: every character above the main line (the most compact board, below) */
+  var track;
+  function tracks(one){
+    track={'-1':[], '1':[]};
+    L.lines.forEach(function(l){
+      l.sd=one ? -1 : (l.side==='below'?1:-1);
+      if(!l.drawn) return;
+      var T=track[String(l.sd)], k=0;
+      for(;k<T.length;k++){ if(T[k].every(function(o){ return l.x1+40<o.x0 || o.x1+40<l.x0; })) break; }
+      (T[k]=T[k]||[]).push(l); l.track=k;
+    });
+  }
+  /* ── the height: everything inside the window (Luke, 2026-10-23: "Its a problem that you have to
+     scroll up or down to see them all, they should all be within the bounds of the page"). The room is
+     the canvas between the bars at the top and the rail at the bottom, as lanes_nav's camera sees it.
+     Boards are tried from the roomiest to the most compact until one fits: cards both sides of the main
+     line, whole; the gaps (main line → tracks → cards) eased down towards their least (FIT); cards showing
+     their title only (html.ln-compact); every character above the main line and every card below it;
+     then the cards drawn smaller (--ln-cz). Cards never stack deeper than the room: a card that would
+     overlap the one before it in its row moves later along the line instead, and everything after it
+     moves with it, so the board stays in story order. */
+  var FIT={b0:[34,BAND0], tr:[14,TRACK], st:[12,STEM], pad:[8,22], past:[44,PAST], none:[14,14]}, ZMIN=.35;
+  function fv(k,u){ return FIT[k][0]+(FIT[k][1]-FIT[k][0])*u; }
+  var room=lanesRoom(world), nums=axisNums(order, fbOf), AX=nums?54:0;
+  var hIn=h, hh={}, cards=order.filter(function(id){ return !!document.querySelector('#node-'+id+' .node-card'); });
+  function measure(compact){
+    de.classList.toggle('ln-compact', !!compact); de.classList.remove('ln-cz');
+    L.lines.forEach(function(l){ l.tagW=l.tagEl.offsetWidth||60; });
+    order.forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card');
+      hh[id]=(c && c.offsetHeight) || hIn[id] || 120; if(c) w[id]=c.offsetWidth; });
+    return Math.max.apply(null, cards.map(function(id){ return hh[id]; }).concat([40]));
+  }
+  function sideBand(sd,u){
+    var n=track[sd].length, past=sd==='1' && hasPast;
+    if(!n) return past ? fv('past',u)+fv('pad',u) : fv('none',u);
+    return (past ? fv('past',u)+fv('b0',u)-14 : fv('b0',u))+(n-1)*fv('tr',u)+fv('pad',u);
+  }
+  /* how tall a board is: one = lines above / cards below; R rows of cards a side of height hr */
+  function need(one,u,R,hr){
+    if(one) return sideBand('-1',u)+sideBand('1',u)+fv('st',u)+R*hr+(R-1)*CARD_GAP+AX;
+    return sideBand('-1',u)+sideBand('1',u)+2*(fv('st',u)+R*hr+(R-1)*CARD_GAP)+AX;
+  }
+  var A=room ? room.b-room.top : Infinity, mode=null;
+  [[0,0],[0,1],[1,1]].some(function(m){
+    var hr=measure(m[1]); span(); tracks(m[0]);
+    var n0=need(m[0],0,1,hr), n1=need(m[0],1,1,hr);
+    if(n0>A) return false;
+    var u=n1<=A ? 1 : (A-n0)/Math.max(1e-6,n1-n0);
+    var R=1; if(u>=1){ var per=(hr+CARD_GAP)*(m[0]?1:2); R=Math.min(3, 1+Math.floor((A-n1)/per)); }
+    mode={one:m[0], compact:m[1], u:u, R:R, hr:hr, cz:1}; return true;
+  });
+  if(!mode){                       /* still too tall (a phone held sideways): the whole board drawn smaller — gaps,
+                                      cards, labels, strokes — as far as it stays legible (ZMIN) */
+    var hr=measure(1); span(); tracks(1);
+    var z=Math.max(ZMIN, Math.min(1, A/need(1,0,1,hr)));
+    Object.keys(FIT).forEach(function(k){ FIT[k][0]*=z; });
+    de.classList.add('ln-cz'); de.style.setProperty('--ln-cz', z.toFixed(3));
+    L.lines.forEach(function(l){ l.tagW=l.tagEl.offsetWidth||l.tagW*z; });
+    order.forEach(function(id){ hh[id]*=z; w[id]*=z; });
+    span(); tracks(1);
+    mode={one:1, compact:1, u:0, R:1, hr:hr*z, cz:z};
+  }
+  h=hh;
+  var u=mode.u, STm=fv('st',u), TRm=fv('tr',u), HR=mode.hr;
+  main.y=0; var pastY=fv('past',u);
+  var base={'-1':fv('b0',u), '1':hasPast?pastY+fv('b0',u)-14:fv('b0',u)};
+  L.lines.forEach(function(l){ if(l.drawn) l.y=l.sd*(base[String(l.sd)]+l.track*TRm); else l.y=0; });
+  var band={'-1':sideBand('-1',u), '1':sideBand('1',u)};
+  /* the cards, in time order: each in the first free row on its side; with no free row it moves
+     later in time, just clear of the card in its way, and everything after it moves as much */
+  var rows={'-1':mode.one?0:mode.R, '1':mode.R}, placed={'-1':[], '1':[]}, sideOf={}, offOf={}, alt=0, cum=0, PX=[], X0={};
+  var rowOff=function(sd,r){ return band[sd]+STm+r*(HR+CARD_GAP); };
+  order.slice().sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }).forEach(function(id){
+    var ln=lineOfEv(id), x0=X[id], x=x0+cum, half=w[id]/2+CARD_PAD;
+    var sides=mode.one ? ['1'] : ln===main ? (fbOf[id]?['1']:(alt?['1','-1']:['-1','1'])) : [String(ln.sd)];
+    var pick=null, best=null;
+    for(var r=0;r<3 && !pick;r++) sides.forEach(function(sd){
+      if(pick || r>=rows[sd]) return;
+      var row=placed[sd][r]||[], lo=x-half, hi=x+half, blk=row.filter(function(q){ return lo<q[1] && hi>q[0]; });
+      if(!blk.length){ pick={sd:sd, r:r, x:x}; return; }
+      var nx=Math.max.apply(null, blk.map(function(q){ return q[1]; }))+half;
+      if(!best || nx<best.x-.5) best={sd:sd, r:r, x:nx};
+    });
+    pick=pick||best;
+    cum+=pick.x-x; X0[id]=x0; X[id]=pick.x; PX.push([x0, cum]);
+    (placed[pick.sd][pick.r]=placed[pick.sd][pick.r]||[]).push([pick.x-half, pick.x+half]);
+    sideOf[id]=+pick.sd; offOf[id]=rowOff(pick.sd, pick.r);
     if(ln===main && !fbOf[id]) alt=1-alt;
   });
+  /* anything placed by x (a detour, the time axis, a squeezed stretch) moves as the events
+     before it did; then the lines' labels, side by side where several start together */
+  var push=function(x){ var s=0; for(var i=0;i<PX.length;i++) if(PX[i][0]<=x+1e-6 && PX[i][1]>s) s=PX[i][1]; return x+s; };
+  runs.forEach(function(r){ ['x0','x1','d0','d1','f0','f1'].forEach(function(k){ r[k]=push(r[k]); }); });
+  span();
+  var tags=L.lines.filter(function(l){ return l.drawn; }).sort(function(a,b){ return Math.abs(a.y)-Math.abs(b.y); }), TH=(mode.compact?16:24)*mode.cz;
+  tags.forEach(function(l,i){
+    for(var k=0;k<i;k++){ var o=tags[k];
+      if(Math.abs(o.y-l.y)<TH && l.x0<o.x0+o.tagW+8 && l.x0+l.tagW+8>o.x0){ l.x0=o.x0-l.tagW-10; k=-1; } }
+  });
+  var lmin=Math.min.apply(null, tags.map(function(l){ return l.x0; }).concat([main.x0-90, 24]));
+  var sh=lmin<24 ? 24-lmin : 0;
+  if(sh){ order.forEach(function(id){ X[id]+=sh; }); runs.forEach(function(r){ ['x0','x1','d0','d1','f0','f1'].forEach(function(k){ r[k]+=sh; }); });
+    L.lines.forEach(function(l){ if(l.drawn){ l.x0+=sh; l.x1+=sh; } }); main.x0+=sh; main.x1+=sh; }
+  var shiftAll=function(raw, i){ var x=raw+shift(raw, i); return push(x)+sh-raw; };
   var cy={};
-  order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||120)/2); });
-  var ys=[0, hasPast?pastY+30:0];
-  L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-16, l.y+16); });
-  order.forEach(function(id){ ys.push(cy[id]-(h[id]||120)/2, cy[id]+(h[id]||120)/2); });
-  var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys), dy=TOP-y0;
-  var xe=[S.end, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
-  var W=Math.max.apply(null,xe)+RIGHT, H=y1+dy+BOTTOM;
+  order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||HR)/2); });
+  var ys=[-16*mode.cz, 16*mode.cz, hasPast?pastY+30:0];
+  L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-TH/2, l.y+TH/2); });
+  order.forEach(function(id){ ys.push(cy[id]-(h[id]||HR)/2, cy[id]+(h[id]||HR)/2); });
+  var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys)+AX;
+  /* the board's top where the room starts (the slack shared above and below); the page no taller than the canvas */
+  var dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2 : TOP-y0;
+  var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
+  order.forEach(function(id){ xe.push(X[id]+w[id]/2); });
+  var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+(nums?AX+BOTTOM-56:24);
+  if(room && y1-y0<=A) H=Math.max(y1-AX+dy+8, Math.min(H, room.ch-room.pt-WORLD_PAD_TOP));
   lines.forEach(function(l){ l.y+=dy; }); pastY+=dy;
   runs.forEach(function(r){ r.y=pastY; });
+  window._altoLanesFit={room:room, A:A, need:y1-y0, mode:mode};
   /* the cards */
   var pos={};
   order.forEach(function(id){
@@ -703,8 +873,18 @@ window._altoLanes=function(h){
   main.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; });
   L.lines.forEach(function(l){ l.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }); });
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
-                       pastY:pastY, sideOf:sideOf, shift:shift});
+                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz});
   units(world, order, X, w, H, W);
+  /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
+     canvas less its top padding (the engine's place() would lay the page out again every 250ms) — its height corrected by
+     the difference, whatever its box; and the world ends where it does, in place()'s own terms (two different heights
+     ping-pong in its ResizeObserver: WebKit's "loop completed with undelivered notifications") */
+  var slab=document.getElementById('glass-slab');
+  if(slab){
+    var foot=Math.ceil((room && y1-y0<=A) ? room.ch-room.pt : H+WORLD_PAD_TOP);
+    for(var k=0;k<3 && slab.offsetTop+slab.offsetHeight!==foot;k++)          // whole px, so its rounded foot cannot drift by one
+      de.style.setProperty('--lanes-slab-h', Math.max(0, Math.round((parseFloat(getComputedStyle(slab).height)||0)+foot-(slab.offsetTop+slab.offsetHeight)))+'px');
+  }
   /* window._altoLanesGeo — the drawing's geometry, for navigation (stepping,
      the camera) and anything else that needs to know where things are. All
      coordinates are #world layout px WITHOUT WORLD_PAD_TOP (add it for a node's
@@ -733,9 +913,21 @@ window._altoLanes=function(h){
     detours:runs.map(function(r){ return {id:r.id, label:r.label, range:r.range, nodes:r.nodes.slice(), x0:r.x0, x1:r.x1,
       d0:r.d0, d1:r.d1, f0:r.f0, f1:r.f1, y:r.y, prev:r.prev, next:r.next}; })};
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:H}; });
+  /* the bars and the rail arrive after the first layout: lay out again if the room they leave changed */
+  window._altoLanesH=hIn;
+  if(!window._altoLanesRefit){ window._altoLanesRefit=1;
+    var again=function(){ var f=window._altoLanesFit, r2=lanesRoom(world); if(!f || !f.room || !r2 || !window._altoLanesH || de.classList.contains('mobile')) return;
+      if(Math.abs(r2.b-f.room.b)>6 || Math.abs(r2.top-f.room.top)>6 || Math.abs(r2.ch-f.room.ch)>6) window._altoLanes(window._altoLanesH); };
+    [700, 1800].forEach(function(ms){ setTimeout(again, ms); });
+    window.addEventListener('load', function(){ setTimeout(again, 300); }); }
   /* the first time: open at the start of time, not the engine's centre */
   if(!window._altoLanesOpened){ window._altoLanesOpened=1; var cv=document.getElementById('canvas'); if(cv){ cv.scrollLeft=0; setTimeout(function(){ if(!window._focusedNodeId) cv.scrollLeft=0; }, 60); } }
   var svgR=document.getElementById('river-svg'); if(svgR) svgR.innerHTML='';
+  /* last of all, the world ends where the slab now does, in the engine's place()'s own terms: two different heights
+     ping-pong in its ResizeObserver (WebKit: "loop completed with undelivered notifications") */
+  var sl=document.getElementById('glass-slab');
+  if(sl && sl.offsetHeight){ var wcs=getComputedStyle(world), pads=(parseFloat(wcs.paddingTop)||0)+(parseFloat(wcs.paddingBottom)||0);
+    var mh=Math.max(0, sl.offsetTop+sl.offsetHeight-pads)+'px'; if(world.style.minHeight!==mh) world.style.minHeight=mh; }
   return true;
 };
 /* a smooth path through levels [{x0, x1, y}]: flat along each, an S between
@@ -772,15 +964,16 @@ function draw(world, G){
   /* the time axis: a ruler along the bottom of the page, ticks where the numbers
      are round; it stops at each detour — the present's clock does not run there */
   var ay=H+P-52, tk=el('g',{'class':'ln-axis'},svg);
-  var nums=order.every(function(id){ var w=L.ev[id].w; return !w || /^-?\d{1,6}(-\d{1,2}){0,2}$/.test(String(w).trim()); });
-  if(!order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; })) nums=false;   // nothing dated: no clock to show
+  var nums=axisNums(order, fbOf);                              // nothing dated: no clock to show
+  var dts=order.filter(function(id){ return L.ev[id].t!=null && !fbOf[id]; }).map(function(id){ return L.ev[id].t; });
+  var tlo=Math.min.apply(null,dts.concat([Infinity])), thi=Math.max.apply(null,dts.concat([-Infinity]));   // the clock runs only where the material dates it
   var inDetour=function(x){ return runs.some(function(r){ return x>r.x0-4 && x<r.x1+4; }); };
   if(nums){ var cuts=[main.x0]; runs.forEach(function(r){ cuts.push(r.x0, r.x1); }); cuts.push(main.x1);
     for(var c=0;c+1<cuts.length;c+=2) if(cuts[c+1]>cuts[c]+60) el('line',{'class':'ln-rule', x1:cuts[c], x2:cuts[c+1], y1:ay, y2:ay},tk); }
   S.segs.forEach(function(sg){
     if(sg.t1==null || sg.t1<=sg.t0 || !nums) return;
     var step=nice(220/S.s); if(step<1) step=1;
-    for(var v=Math.ceil(sg.t0/step)*step; v<=sg.t1+1e-9; v+=step){
+    for(var v=Math.ceil(Math.max(sg.t0,tlo)/step)*step; v<=Math.min(sg.t1,thi)+1e-9; v+=step){
       var raw=sg.x0+(v-sg.t0)*S.s, x=raw+G.shift(raw, -1); if(x<main.x0+30 || x>main.x1-30 || inDetour(x)) continue;
       el('line',{'class':'ln-tick', x1:x, x2:x, y1:ay, y2:ay+8},tk);
       var tl=el('text',{'class':'ln-ticklbl', x:x, y:ay+22, 'text-anchor':'middle'},tk); tl.textContent=String(Math.round(v*100)/100);
@@ -808,7 +1001,7 @@ function draw(world, G){
       .sort(function(p,q){ return p.x-q.x || q.a-p.a; });
     var R=function(s){ return Math.max(RAMP_MIN, Math.min(RAMP_MAX, Math.abs(ty-s.y)*1.25)); };
     var x0=l.x0+l.tagW+4, lv=[{x0:x0, x1:x0, y:ty}], top=function(){ return lv[lv.length-1]; };
-    var hug=HUG0+l.track*HUG_STEP;
+    var hug=Math.min(HUG0+l.track*HUG_STEP, Math.abs(ty-my)*.6);          // beside the main line, inside the band on a compact board
     stops.forEach(function(s,i){
       var p=stops[i-1], q=stops[i+1];
       if(!s.a){ if(top().y!==ty) lv.push({x0:s.x, x1:s.x, y:ty}); else top().x1=s.x; return; }
@@ -883,12 +1076,12 @@ function draw(world, G){
     var l=lineOfEv(id), x=X[id], ly=at[id].y+P, cyy=pos[id]+P, hh=(h[id]||120)/2, edge=cyy+(cyy<ly?hh:-hh), c=col(l);
     var g=el('g',{'data-ln':l.id},svg);
     el('line',{'class':'ln-stem', x1:x, x2:x, y1:ly, y2:edge, stroke:c},g);
-    if(!meets[id]) el('circle',{'class':'ln-dot', cx:x, cy:ly, r:6.5, fill:c},g);   // with characters there, their rings mark it
+    if(!meets[id]) el('circle',{'class':'ln-dot', cx:x, cy:ly, r:6.5*(G.z||1), fill:c},g);   // with characters there, their rings mark it
   });
   /* where a character meets the page: a ring in its colour, on top of everything */
   marks.forEach(function(m){
     var g=el('g',{'data-ln':m.l.id, 'class':'ln-meet'},svg);
-    el('circle',{'class':'ln-ring', cx:m.x, cy:m.y, r:5.5, stroke:m.c},g);
+    el('circle',{'class':'ln-ring', cx:m.x, cy:m.y, r:5.5*(G.z||1), stroke:m.c},g);
   });
   /* connections the material draws between events (not the lines themselves) */
   (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(cn){

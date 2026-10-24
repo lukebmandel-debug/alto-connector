@@ -949,6 +949,9 @@ EDIT_TILE = r"""<style id="alto-edit-css">
     // The page ends exactly where the timeline's background (the glass slab)
     // ends: no strip of bare page gradient below it (Luke). #world's height
     // is its min-height plus its padding; absolutely placed children add none.
+    // A horizontal timeline sizes its world and its slab itself (lanes.py): under WebKit's zoom the slab's foot
+    // rounds one way or the other with the world's own height, so a second writer here would ping-pong with it.
+    if(window._altoLanesGeo) return;
     var slab = document.getElementById('glass-slab');
     if(!slab || !slab.offsetHeight) return;
     var end = slab.offsetTop + slab.offsetHeight, cs = getComputedStyle(world);

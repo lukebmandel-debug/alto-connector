@@ -77,7 +77,7 @@ window._ALTO_LANES = {
     to:   "" | node id,             // LEGACY
     events:   [node ids],           // its own events (node.line == id), page order
     presence: [node ids],           // main-line events where it is on the page, page order:
-                                    //   ev[x].present contains id, PLUS legacy from/to
+                                    //   ev[x].present or ev[x].ent contains id, PLUS legacy from/to
                                     //   when that node is a main-line event
     span: [first id, last id] | []  // page-order extent of events ∪ presence
                                     //   (the stretch over which its line is drawn continuous)
@@ -89,6 +89,7 @@ window._ALTO_LANES = {
       t: 1852.41 | null,            // parse_when(w)
       i: 0,                         // index in `order`
       present: [line ids],          // AS AUTHORED on the node (no legacy additions); [] if none
+      ent: [line ids],              // the event's chips (entity_ids) as line ids — a chip is "on the page" too
       flash: "" | flashback id      // as authored
     }
   },
@@ -115,6 +116,14 @@ order differs, e.g. edit mode added a card), call
 mutated in place, and computes exactly what Python computed (tested). Manual
 edit mode already calls it before its relayout. Drawing code (B) should read
 derived fields fresh on each layout pass rather than caching them.
+
+## Every chip has a line (2026-10-23)
+
+`lanes.chip_lines`: the page's `lines` are the brief's lines, then one for every entity (a chip in the nav
+bar) that no brief line stands for and at least one event links — the entity's id, name and colour, on the
+side with fewer lines. An entity stands for a brief line with its id, or whose label is its name or an
+alias. Such lines are page data only (nothing is written to the brief); manual edit mode can still edit
+them, which writes them into `brief.lines` like any other line.
 
 ## Tools (Claude's side)
 

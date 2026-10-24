@@ -47,7 +47,7 @@ def test_sample_validates_and_builds_with_the_layout():
     assert "(window._altoLanes && window._altoLanes(nodeHeights))" in html
     data = json.loads(re.search(r"window\._ALTO_LANES=(\{.*?\});\n", html).group(1))
     assert data["ev"]["storm-1810"] == {"l": "flashback", "w": "1810", "t": 1810.0, "i": 0,
-                                         "present": [], "flash": "", "g": 0, "gap": ""}
+                                         "present": [], "flash": "", "ent": [], "g": 0, "gap": ""}
     assert {l["id"]: l["to"] for l in data["lines"]}["flashback"] == "memory"
     assert data["main"] == "The town" and data["v"] == 2 and data["flashbacks"] == []
     # v1 branch / join points are where the line is on the page (presence)
@@ -146,7 +146,7 @@ def test_v2_sample_validates_and_carries_presence_and_flashbacks():
     assert L["flashbacks"] == [{"id": "storm", "label": "Twenty years earlier", "nodes": ["great-storm", "lamp-dark"],
                                 "prev": "warning", "next": "quay"}]
     e = L["ev"]["great-storm"]
-    assert e == {"l": "main", "w": "1870-10", "t": e["t"], "i": 3, "present": ["keeper"], "flash": "storm", "g": 0, "gap": ""}
+    assert e == {"l": "main", "w": "1870-10", "t": e["t"], "i": 3, "present": ["keeper"], "flash": "storm", "ent": e["ent"], "g": 0, "gap": ""}
     assert L["ev"]["logbooks"]["l"] == "ada" and L["ev"]["logbooks"]["present"] == []
 
 
