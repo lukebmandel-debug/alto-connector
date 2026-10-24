@@ -1,11 +1,11 @@
-"""The FPV graphics pass (alto/build/fpv_gfx.py): the hosted CC0 assets, the shared FXG module in both first-person renderers, the quality ladder,
+"""The FPV graphics pass (alto/build/fpv_gfx.py): the hosted CC0 assets, the FXG module in the Building Palace's first-person renderer, the quality ladder,
 the site's headers and CSP. Source and file checks only (no browser); the WebKit frames are in tests/test_fpv_gfx_render.py."""
 import json
 import re
 import struct
 
 from alto import publish_static
-from alto.build import fpv_gfx, palace_building_fpv, palace_ride, palace_ride_gfx, palace_ride_gl_shaders
+from alto.build import fpv_gfx, palace_building_fpv
 
 M = fpv_gfx._manifest()
 FILES = dict(fpv_gfx.files())
@@ -47,13 +47,10 @@ def test_the_sky_carries_its_sh_and_sun():
     assert abs(up[0] * .2126 + up[1] * .7152 + up[2] * .0722 - 1) < .02                                    # normalised: the zenith's E/pi = 1
 
 
-def test_both_renderers_embed_the_shared_module_and_nothing_reaches_a_page():
-    ride = palace_ride.ride_asset()[1]
-    for js in (palace_building_fpv.FPV_ASSET, ride):
-        assert "var FXG=(function(){" in js and "X.post=function(gl)" in js and "__FXG_ASSETS__" not in js
-    assert "FXG" not in palace_ride.RIDE_LOADER if hasattr(palace_ride, "RIDE_LOADER") else True
+def test_the_renderer_embeds_the_module():
+    js = palace_building_fpv.FPV_ASSET
+    assert "var FXG=(function(){" in js and "X.post=function(gl)" in js and "__FXG_ASSETS__" not in js
     assert "#ifdef IBL" in palace_building_fpv._GLSL_WORLD_FS and "#ifdef SOFTSH" in palace_building_fpv._GLSL_WORLD_FS
-    assert "#ifdef GFX_IBL" in palace_ride_gl_shaders.SH_COMMON and "#ifdef GFX_REAL" in palace_ride_gl_shaders.FS_WORLD and "textureLod" not in palace_ride_gl_shaders.SH_COMMON
 
 
 def test_the_quality_ladder():
@@ -65,9 +62,6 @@ def test_the_quality_ladder():
     assert low["ao"] == "0" and low["env"] == "" and low["real"] == "" and low["bloom"] == "0"            # the low tier fetches nothing
     assert all(v in ("0", "") for v in off.values())
     assert "if(name==='medium'&&o&&(o.mobile||o.ios)) f.ao=0;" in js and "else if(r==='floor') fxDown();" in js
-    g = palace_ride_gfx.JS_GFX
-    assert "if(t==='legacy'||gfxQ().palfx==='0'||typeof FXG==='undefined'||!FXG.env) return {ao:0, bloom:0, ibl:0, env:'', real:''};" in g
-    assert "ao:ph?0:10" in g and "gfxFxSetup(gl)" in g
 
 
 def test_headers_keep_gfx_files_a_year_and_the_csp_allows_wasm_only():

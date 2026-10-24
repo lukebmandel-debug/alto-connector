@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from alto.build import palace, palace_assets, palace_boats, palace_fleet, palace_fleet_asset, palace_ride, palace_sound, private_shell
+from alto.build import palace, palace_assets, palace_boats, palace_fleet, palace_fleet_asset, palace_sound, private_shell
 
 QA = Path.home() / "Desktop" / "Alto Development" / "_qa"
 NODE = Path.home() / ".local" / "node" / "bin" / "node"
@@ -245,35 +245,33 @@ def test_the_page_is_smaller_than_it_was_with_the_battleship_code_in_it():
     # (the civ-pro palace page, 1,000,923 stored bytes before this change, was 978,800 after: see the hand-over note)
 
 
-# ── the registry the ride shares ────────────────────────────────────────────────────────────────────────
-def test_the_registry_lists_the_ride_and_the_fleet_and_serves_them():
-    assert palace_assets.folders() == ["ride", "fleet", "street"]
+# ── the registry of hosted scripts ──────────────────────────────────────────────────────────────────────
+def test_the_registry_lists_the_fleet_and_serves_it():
+    assert "fleet" in palace_assets.folders() and not set(palace_assets.folders()) & set(palace_assets.RETIRED_FOLDERS)
     got = {(f, n): t for f, n, t in palace_assets.assets()}
-    rn, rj = palace_ride.ride_asset()
     fn, fj = palace_fleet_asset.fleet_asset()
-    assert got[("ride", rn)] == rj and got[("fleet", fn)] == fj
-    assert palace_assets.find("/fleet/" + fn + "?x=1") == ("text/javascript; charset=utf-8", fj) and palace_assets.find("/ride/" + rn)[1] == rj
+    assert got[("fleet", fn)] == fj
+    assert palace_assets.find("/fleet/" + fn + "?x=1") == ("text/javascript; charset=utf-8", fj)
     assert palace_assets.find("/fleet/palace-fleet-0000000000.js") is None and palace_assets.find("/elsewhere/x.js") is None
-    # the ride is untouched: its own loader still stands where RIDE_JS did
-    assert palace_ride.RIDE_LOADER in PAGE_JS and palace_ride.RIDE_JS not in PAGE_JS
+    assert "palace-ride-" not in PAGE_JS                                                  # the city's first-person view is retired
 
 
 def test_the_site_writes_every_hosted_script_and_keeps_them_for_a_year(tmp_path):
     from alto.publish_static import regenerate_site, _headers
     from alto.store.local import LocalStore
     site = tmp_path / "site"
-    for f, old in (("ride", "palace-ride-0000000000.js"), ("fleet", "palace-fleet-0000000000.js")):
+    for f, old in (("ride", "palace-ride-0000000000.js"), ("street", "palace-street-000000000000.json"), ("fleet", "palace-fleet-0000000000.js")):
         (site / f).mkdir(parents=True)
         (site / f / old).write_text("old", encoding="utf-8")                          # an earlier release's file is swept
     regenerate_site(LocalStore(tmp_path / "store"), "local", site)
     for f, n, t in palace_assets.assets():
         assert n in [p.name for p in (site / f).iterdir()]
         assert (site / f / n).read_text(encoding="utf-8") == t
-    assert sorted(p.name for p in (site / "ride").iterdir()) == [palace_ride.ride_asset()[0]]      # (a folder keeps one script; the street folder keeps every stored blob)
-    heads = _headers("csp", "ccsp", ["s-0123abcd.json"])
-    for f, src in (("ride", "/ride/**"), ("fleet", "/fleet/**"), ("street", "/street/s-0123abcd.json")):      # (street: named files only, see test_palace_street_publish.py)
-        rule = next(h for h in heads if h["source"] == src)
-        assert {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in rule["headers"] and heads.index(rule) > 0
+    assert not (site / "ride").exists() and not (site / "street").exists() and not (site / "tex").exists()     # retired: nothing of them stays
+    heads = _headers("csp", "ccsp")
+    rule = next(h for h in heads if h["source"] == "/fleet/**")
+    assert {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"} in rule["headers"] and heads.index(rule) > 0
+    assert not any(h.get("source", "").startswith(("/ride/", "/street/", "/tex/")) for h in heads)
 
 
 # ── sound ────────────────────────────────────────────────────────────────────────────────────────────────

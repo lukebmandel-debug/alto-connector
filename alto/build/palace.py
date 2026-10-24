@@ -44,7 +44,6 @@ from .palace_mobile import MOBILE_CSS, MOBILE_JS
 from .palace_claim import claimed as claimed_shapes, claim_lots, migrate_shapes      # a node on a background building's footprint
 from .palace_airport import AIRPORT_CSS, AIRPORT_JS, clean_destinations
 from .palace_transit_js import TRANSIT_CSS, TRANSIT_JS
-from .palace_ride import RIDE_LOADER
 from .palace_highway_js import HIGHWAY_CSS, HIGHWAY_JS     # C3 highways
 from .palace_bridges import BRIDGE_CSS, BRIDGE_JS          # bridge design elements
 from .sanitize import js_json
@@ -343,7 +342,7 @@ def palace_data(b, nodes) -> str:
     for d in districts:
         x0, y0, x1, y1 = pp.district_box(m, d)
         dist.append({"u": d["unit"], "n": d.get("name") or "", "box": [round(x0), round(y0), round(x1), round(y1)]})
-    mp = {k: v for k, v in m.items() if k not in ("bbox",)}
+    mp = {k: v for k, v in m.items() if k not in ("bbox", "street")}   # "street": the retired city first-person view's data (_cold-storage/memory-map-fpv), never on a page
     from .palace_areas import layout as area_layout
     mp["areas"] = area_layout(m, pal.get("areas"), [d.get("name") or "" for d in districts])
     from .palace_areas import banners_layout
@@ -553,17 +552,6 @@ def set_up(place: str, bbox, districts=None, majors=None, landmarks=None, scale:
         from . import palace_fleet
         palace_fleet.attach(m, palace_fleet.fetch(m.get("bbox") or bbox, cache_dir=cache_dir, offline=offline), bbox)
     except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with neither: no fleet beyond the boats found
-        pass
-    # the street-level data of the first-person view (palace_street.py): one hosted, content-hashed blob; the page holds only its 10 character hash (m["street"])
-    try:
-        from . import palace_street
-        try:
-            from .palace_ride_real import scope_for
-            scope = scope_for(m, districts or [], bbox)      # first-person view scope: only the districts with nodes, the fleet and the landmarks (+ buffer) get street data
-        except Exception:                                   # noqa: BLE001 — a map the scope cannot be read from keeps the whole box
-            scope = None
-        palace_street.attach(m, bbox, cache_dir=cache_dir, offline=offline, scope=scope)
-    except Exception:                                       # noqa: BLE001 — a busy Overpass or a city with nothing: no street data, the ride is as before
         pass
     # buses (palace_buses.py): the main routes, drawn along the page's streets from their real stops, ridden like any line
     try:
@@ -1043,7 +1031,7 @@ PALACE_CSS = KEY_CSS + r"""
 """ + LANDMARK_CSS + LABELS_CSS + TRANSIT_CSS + HIGHWAY_CSS + BRIDGE_CSS + AIRPORT_CSS + DIR_CSS + MOBILE_CSS
 
 
-PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + FLEET_LOADER + TRANSIT_JS + RIDE_LOADER + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
+PALACE_JS = KEY_JS + LANDMARK_JS + LABELS_JS + FLEET_LOADER + TRANSIT_JS + HIGHWAY_JS + BRIDGE_JS + AIRPORT_JS + r"""
 (function(){
 var P=window._ALTO_PALACE; if(!P || P.none) return;
 var de=document.documentElement, M=P.m, NS='http://www.w3.org/2000/svg';
@@ -1153,12 +1141,6 @@ window._palTr.init({fx:function(){ return fxSvg(); }, M:M, P:P, graph:graph, nea
   center:function(x,y){ var cv=document.getElementById('canvas'); if(!cv) return; if(PV) placeAll(); cv.scrollLeft=(x+MX)*Z+gapAt(Z,cv.clientWidth)-cv.clientWidth/2; cv.scrollTop=(y+MY)*Z+gyAt(Z,cv.clientHeight)-cv.clientHeight/2; },
   name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); },
   Z:function(){ return Z; }, svg:function(){ return svgD; }, palaceOn:function(){ return palaceOn(); }, el:el, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }});
-if(window._palRide) window._palRide.init({M:M, P:P, lot:lot, bOf:bOf, ucol:ucol, dcol:dcol, tubeCol:tubeCol, NEUTRAL:function(){ return NEUTRAL(); }, nbH:nbHeight, name:function(id){ var b=bOf(id); return (num(b)?num(b)+' ':'')+title(b); }, title:function(id){ return title(id); },
-  fillGroups:(typeof fillGroups==='function'?function(){ return fillGroups(); }:null),
-  curView:function(){ var cv=document.getElementById('canvas'); if(!cv||!cv.clientWidth) return null; if(PV) placeAll(); return {z:Z, x:cv.scrollLeft, y:cv.scrollTop}; },
-  putView:function(v){ if(!v) return; holdView={z:v.z, x:v.x, y:v.y}; restoreView(); },
-  fly:function(x,y,z,done){ flyAway(x,y,z,done); }, Z:function(){ return Z; }, palaceOn:function(){ return palaceOn(); },   /* drop in from the aerial view (palace_ride_f.py) */
-  mapAt:function(cx,cy){ var cv=document.getElementById('canvas'); if(!cv||!cv.clientWidth) return null; var p=canvasPt(cv,cx,cy), sx=PV?PV.tx:cv.scrollLeft, sy=PV?PV.ty:cv.scrollTop, sz=cvSize(cv); return [(sx+p[0]-gapAt(Z,sz[0]))/Z-MX, (sy+p[1]-gyAt(Z,sz[1]))/Z-MY]; }});   /* the first-person ride (palace_ride.py) */
 window._palAirport.init({P:P, Z:function(){ return Z; }, fly:function(x,y,z,done){ flyAway(x,y,z,done); }});
 window._palHw.init({M:M, graph:graph, nearest:nearest, flyMap:function(x,y,z){ flyAway(x,y,z); }, Z:function(){ return Z; }, svg:function(){ return svgD; }, pin:pin, stLbl:stLbl, pts:pts, rp:rp, tube:tube});   /* the highways (palace_highway_js.py) */
 window._palBr.init({M:M, el:el, pts:pts, pin:pin});     /* the bridges' design elements (palace_bridges.py) */
@@ -2268,7 +2250,6 @@ function ctl(){
   var rk={}; (typeof CONNECTIONS!=='undefined'?CONNECTIONS:[]).forEach(function(x){ if(x && x[2]!=='spine') rk[x[2]]=1; });
   Object.keys(rk).forEach(function(r){ var col=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--accent)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
     h+='<div class="pk-row">'+sw('<line x1="1" y1="6" x2="25" y2="6" stroke="'+col+'" stroke-width="4" stroke-dasharray="7 4"/>')+'<div>Route: '+esc(lb)+'</div></div>'; });
-  if(window._palRide&&window._palRide.ui&&window._palRide.ui.keyRows) h+=window._palRide.ui.keyRows();   /* aerial / first-person, first-person rides (palace_ride_f.py) */
   h+='<small style="margin-top:4px">Point at a building for its name and its routes; click to enlarge it, again to go inside. Point at a street for its name.</small>';
   h+='<div class="pk-credit">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>';
   var ic=function(d){ return '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>'; };

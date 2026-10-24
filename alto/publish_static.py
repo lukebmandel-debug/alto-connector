@@ -279,20 +279,20 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
         shutil.rmtree(bg_out)
     if bg_src.is_dir():
         shutil.copytree(bg_src, bg_out / f"v{BG_V}")
-    # The Memory Palace's hosted scripts (build/palace_assets.py: the first-person ride, the fleet's toy weapons): code, not page, each in a
+    # The Memory Palace's hosted scripts (build/palace_assets.py: the fleet's toy weapons, the Memory Blueprint, ...): code, not page, each in a
     # folder named by the content hash of its file.
-    from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS
-    refs = _street_refs(store, uid)
-    new_assets = palace_assets(street_refs=refs, building_plans=_building_plans(store, uid), cmap_refs=cmap_refs)
-    from .build import palace_street
-    on_site = _street_on_site(site / palace_street.FOLDER)       # what a former publish left there: a referenced file the cache lacks is kept, not wiped
+    from .build.palace_assets import assets as palace_assets, folders as palace_folders, BLOB_FOLDERS, RETIRED_FOLDERS
+    new_assets = palace_assets(building_plans=_building_plans(store, uid), cmap_refs=cmap_refs)
+    for folder in RETIRED_FOLDERS:                                # the city's first-person view, retired: nothing of it stays on the site
+        if (site / folder).exists():
+            shutil.rmtree(site / folder)
     for folder in palace_folders():
         out_ = site / folder
         if folder in BLOB_FOLDERS:
             # content-hash-named blobs: remove only the files no page names and this publish does not write (never one still referenced)
             out_.mkdir(parents=True, exist_ok=True)
             fresh = {n for f, n, _t in new_assets if f == folder}
-            keep = fresh | (_street_keep(out_, refs) if folder == palace_street.FOLDER else set())
+            keep = fresh
             for p_ in out_.iterdir():
                 if p_.name not in keep:
                     p_.unlink() if p_.is_file() else shutil.rmtree(p_)
@@ -307,16 +307,8 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     for folder, aname, atext in new_assets:
         (site / folder).mkdir(parents=True, exist_ok=True)
         (site / folder / aname).write_text(atext, encoding="utf-8")
-    # gfx (1.9.103): the ride's material textures (build/palace_ride_gfx.py), binary, content-hash named; the ride keeps its procedural look without them
-    from .build.palace_ride_gfx import TEX_FOLDER, tex_files
-    tex_out = site / TEX_FOLDER
-    if tex_out.exists():
-        shutil.rmtree(tex_out)
-    for tname, tbytes in tex_files():
-        tex_out.mkdir(parents=True, exist_ok=True)
-        (tex_out / tname).write_bytes(tbytes)
     # The FPV graphics pass (build/fpv_gfx.py): CC0 material sets and the HDRI sky as KTX2, the Basis transcoder; binary, content-hash named, under /gfx/,
-    # fetched lazily by both first-person renderers (never by their low tiers); without them the procedural look stays
+    # fetched lazily by the Memory Blueprint's first-person renderer (never by their low tiers); without them the procedural look stays
     from .build import fpv_gfx
     gfx_out = site / fpv_gfx.FOLDER
     if gfx_out.exists():
@@ -332,16 +324,11 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     for aname, abytes in art_files():
         art_out.mkdir(parents=True, exist_ok=True)
         (art_out / aname).write_bytes(abytes)
-    # A page names a street file the cache does not have and the site does not either: the ride would have no street data. Say so (publish_timeline refuses
-    # a stale build unless ALTO_ALLOW_STALE) instead of publishing a palace that silently lost its streets.
+    # A page names a city file the cache does not have: its map would not load. Say so (publish_timeline refuses a stale build unless ALTO_ALLOW_STALE).
     for name in palace_tiles.LAST_MISSING:
-        if name not in _street_on_site(site / palace_tiles.FOLDER):
+        if name not in _on_site(site / palace_tiles.FOLDER):
             stale_notes.append(f"city data {name}: a published palace names it, but it is not in {palace_tiles.blob_dir()} — rebuild that timeline "
                                "(or restore the folder) before publishing, or its map does not load")
-    for name in palace_street.LAST_MISSING:
-        if name not in on_site:
-            stale_notes.append(f"street data {name}: a published palace names it, but it is neither in {palace_street.blob_dir()} nor on the site — "
-                               "re-run set_up_palace for that timeline (or restore the cache) before publishing, or its first-person view loses the real streets")
     pdir = site / "privacy"
     pdir.mkdir(exist_ok=True)
     shutil.copy(REPO / "alto" / "privacy.html", pdir / "index.html")
@@ -371,60 +358,8 @@ def _building_plans(store, uid: str) -> dict:
     return out
 
 
-def _street_refs(store, uid: str) -> set:
-    """The street manifest hashes (m["street"]["h"]) of every published timeline's palace."""
-    from .build.palace_street import street_hash
-    out = set()
-    try:
-        timelines = store.list_timelines(uid)
-    except Exception:                                       # noqa: BLE001
-        return out
-    for t in timelines:
-        if t.get("status") != "published":
-            continue
-        pal = (t.get("brief") or {}).get("palace")
-        h = street_hash(pal) if isinstance(pal, dict) else ""
-        if h:
-            out.add(h)
-    return out
-
-
-def _street_on_site(d: Path) -> set:
+def _on_site(d: Path) -> set:
     return {p.name for p in d.iterdir()} if d.is_dir() else set()
-
-
-BLDG_KEEP = 12
-BLDG_RENDERER_RE = re.compile(r"^palace-building-(fpv-)?[0-9a-f]{10}\.js$")
-
-
-def _bldg_kept(d: Path) -> dict:
-    """{name: (bytes, mtime)} of the Memory Blueprint renderers an earlier publish left in /bldg/ (the newest BLDG_KEEP of each kind): a stored
-    page names the renderer of the release that built it, so a deploy from newer code must not take that file away (civ-pro-museum,
-    built by 1.9.154, lost its blueprint when the 1.9.155 site replaced the folder, 2026-10-23)."""
-    if not d.is_dir():
-        return {}
-    files = sorted((p for p in d.iterdir() if p.is_file() and BLDG_RENDERER_RE.match(p.name)), key=lambda p: p.stat().st_mtime, reverse=True)
-    out = {}
-    for fpv in (False, True):
-        for p in [p for p in files if ("-fpv-" in p.name) == fpv][:BLDG_KEEP]:
-            out[p.name] = (p.read_bytes(), p.stat().st_mtime)
-    return out
-
-
-def _street_keep(d: Path, refs: set) -> set:
-    """Files in the site's street folder to leave alone: each referenced manifest already there and the shards it names."""
-    from .build import palace_street
-    keep = set()
-    for h in refs:
-        p = d / palace_street.file_name(h)
-        if not p.is_file():
-            continue
-        keep.add(p.name)
-        try:
-            keep |= {palace_street.file_name(sid) for sid in (json.loads(p.read_text("utf-8")).get("f") or {})}
-        except (OSError, ValueError, AttributeError):
-            pass
-    return keep
 
 
 def firebase_configured() -> tuple[str, str, str] | None:
@@ -452,7 +387,7 @@ def _security_headers(site_dir: Path | None = None) -> list[dict]:
     # /connect/ hands the connector its sign-in by posting a form to the user's
     # own machine (alto/build/connect_page.py) — the one place a form may go.
     connect_csp = build("http://127.0.0.1:*")
-    return _headers(csp, connect_csp, _street_names(site_dir), _tex_names(site_dir), _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir))
+    return _headers(csp, connect_csp, _art_names(site_dir), _bldg_names(site_dir), _gfx_names(site_dir), _cmap_names(site_dir))
 
 
 def _csp(form_action: str) -> str:
@@ -489,7 +424,7 @@ def _palace_folders() -> list:
     return folders()
 
 
-def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_files=(), bldg_files=(), gfx_files=(), cmap_files=()) -> list[dict]:
+def _headers(csp: str, connect_csp: str, art_files=(), bldg_files=(), gfx_files=(), cmap_files=()) -> list[dict]:
     return [
         {"source": "**", "headers": [
             {"key": "Content-Security-Policy", "value": csp},
@@ -513,21 +448,16 @@ def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_file
         {"source": "/bg/**", "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
         ]},
-        # A hosted palace script (the ride, the fleet) is named by a hash of its own text: it never changes under that name.
+        # A hosted palace script (the fleet, the Retro style, ...) is named by a hash of its own text: it never changes under that name.
         *({"source": "/%s/**" % f, "headers": [
             {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"},
         ]} for f in _palace_folders() if f not in _blob_folders() and f != "bldg"),
-        # bldg: the Memory Blueprint's renderers and plans, one literal immutable rule per file that exists (as /street/): a plan a page names before the
+        # bldg: the Memory Blueprint's renderers and plans, one literal immutable rule per file that exists: a plan a page names before the
         # site has it answers 404, and a folder-wide rule would make browsers keep that 404 for a year
         *_bldg_rules(bldg_files),
-        # The street data (build/palace_street.py) is kept for a year too — but ONLY the files that exist, named one by one: Hosting matches headers against
-        # the request path, so a "/street/**" rule would stamp "immutable" on the 404 page a missing or not-yet-uploaded shard answers with, and the
-        # browser would remember that failure for a year. Anything else under /street/ keeps the "**" rule's no-cache.
-        *_street_rules(street_files),
-        # cmap: the city's base and tiles (build/palace_tiles.py), named by their content's hash, one literal immutable rule per file that exists (as /street/)
+        # cmap: the city's base and tiles (build/palace_tiles.py), named by their content's hash, one literal immutable rule per file that exists: Hosting matches
+        # headers against the request path, so a folder-wide rule would stamp "immutable" on the 404 a missing file answers with
         *_cmap_rules(cmap_files),
-        # gfx: the ride's textures, one literal immutable rule per file that exists (as /street/: a 404 never gets one)
-        *_tex_rules(tex_files),
         # bart: the curated buildings' artwork images, one literal immutable rule per file that exists
         *_art_rules(art_files),
         # gfx: the FPV graphics pass's textures, sky and transcoder, one literal immutable rule per file that exists
@@ -543,15 +473,6 @@ def _headers(csp: str, connect_csp: str, street_files=(), tex_files=(), art_file
 def _blob_folders() -> tuple:
     from .build.palace_assets import BLOB_FOLDERS
     return BLOB_FOLDERS
-
-
-def _tex_names(site_dir) -> list:
-    """The ride's texture files in the site folder (build/palace_ride_gfx.py), only names of the published shape."""
-    if site_dir is None:
-        return []
-    from .build.palace_ride_gfx import TEX_FOLDER, TEX_RE
-    d = Path(site_dir) / TEX_FOLDER
-    return sorted(p.name for p in d.iterdir() if p.is_file() and TEX_RE.match(p.name)) if d.is_dir() else []
 
 
 def _gfx_names(site_dir) -> list:
@@ -600,24 +521,6 @@ def _art_rules(names) -> list:
         {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if ART_RE.match(n)]
 
 
-def _tex_rules(names) -> list:
-    from .build.palace_ride_gfx import TEX_FOLDER, TEX_RE
-    return [{"source": "/%s/%s" % (TEX_FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names if TEX_RE.match(n)]
-
-
-def _street_names(site_dir) -> list:
-    """The street files (manifests and shards) in the site folder; none when there is no folder."""
-    if site_dir is None:
-        return []
-    from .build import palace_street
-    d = Path(site_dir) / palace_street.FOLDER
-    if not d.is_dir():
-        return []
-    return sorted(p.name for p in d.iterdir()
-                  if p.is_file() and (palace_street.MAN_RE.match(p.name) or palace_street.SHARD_RE.match(p.name)))
-
-
 def _cmap_names(site_dir) -> list:
     """The city files in the site folder (build/palace_tiles.py), only names of the published shape."""
     if site_dir is None:
@@ -642,15 +545,6 @@ def _cmap_rules(names) -> list:
             # the tiles are shared geography, fetched by the palaces of other sites (palace_tiles.tile_host)
             {"key": "Access-Control-Allow-Origin", "value": "*"}]})
     return rules
-
-
-def _street_rules(names) -> list:
-    """One immutable rule per street file, each a LITERAL path. (An extglob alternation, /street/@(a|b|..), was tried first: Firebase Hosting's matcher did not
-    apply it to the live files, so they stayed no-cache. A literal path always matches, and only a file that exists has a rule: a 404 never gets one.)"""
-    from .build import palace_street
-    names = [n for n in names if palace_street.MAN_RE.match(n) or palace_street.SHARD_RE.match(n)]    # (only names of the safe shape reach a glob)
-    return [{"source": "/%s/%s" % (palace_street.FOLDER, n), "headers": [
-        {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]} for n in names]
 
 
 def deploy_site(site_dir: Path) -> str:

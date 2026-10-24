@@ -5,10 +5,6 @@ that only some palaces use goes to the site instead, in a folder named by the co
 browser keeps it for a year). The page holds a ~350 byte loader and every use of what it loads is guarded, so a page whose file is missing
 (an exported single file, an old page that asks for an earlier hash) simply lacks that feature.
 
-  ride    the first-person ride (palace_ride.py; its own RIDE_LOADER stands where RIDE_JS used to, loaded at once)
-  street  the street-level data of the city (palace_street.py: buildings with their materials and roofs, shop signs, doors, trees, lamps, lanes) for the first-person view — a
-          content-hashed JSON blob per city, not a script: every manifest a published page names (m["street"]["h"]), each box's newest and any under two weeks old is published with its shards
-          (palace_street.blobs(referenced=...)); a file a page names that the cache lacks is reported (LAST_MISSING -> LAST_STALE), never dropped silently
   cmap    the city itself (palace_tiles.py): each site page's base (b-<h12>.json: the map, the lots, the fill-in of the zone) and the detail tiles
           its base names (t-<h10>.json) — every base a published page of this site names now or ever did (published-<site>.txt), with its tiles
   bldg    the Memory Blueprint (palace_view "building"): its renderer (palace_building_asset.py, the blueprint and the seam for the first-person view) and, beside it,
@@ -31,7 +27,6 @@ import json as _json
 
 # (folder, module, function) — the function returns (file name under /<folder>/, the script text)
 ASSETS = (
-    ("ride", "palace_ride", "ride_asset"),
     ("fleet", "palace_fleet_asset", "fleet_asset"),
     ("bldg", "palace_building_asset", "building_asset"),
     ("bldg", "palace_building_fpv", "fpv_asset"),
@@ -41,16 +36,19 @@ ASSETS = (
 )
 
 
-BLOB_FOLDERS = ("street", "cmap")
+BLOB_FOLDERS = ("cmap",)
+
+# The city's first-person view (the ride: /ride/, its street data: /street/, its textures: /tex/) is retired to
+# _cold-storage/memory-map-fpv (git tag cold/memory-map-fpv); a publish removes what an earlier one left of it.
+RETIRED_FOLDERS = ("ride", "street", "tex")
 
 
 def folders() -> list:
     return [a[0] for a in ASSETS] + list(BLOB_FOLDERS)
 
 
-def assets(street_refs=None, building_plans=None, cmap_refs=None) -> list:
-    """[(folder, file name, text)] of every hosted script. `street_refs`: the street manifest hashes the published pages name (all are published; see palace_street.blobs).
-    `building_plans`: {file name: JSON text} of the Memory Blueprint plans the published pages name (building_schema.hosted_json), written into /bldg/ beside the renderer."""
+def assets(building_plans=None, cmap_refs=None) -> list:
+    """[(folder, file name, text)] of every hosted script. `building_plans`: {file name: JSON text} of the Memory Blueprint plans the published pages name (building_schema.hosted_json), written into /bldg/ beside the renderer."""
     out = []
     for folder, mod, fn in ASSETS:
         name, text = getattr(importlib.import_module("." + mod, __package__), fn)()
@@ -60,15 +58,13 @@ def assets(street_refs=None, building_plans=None, cmap_refs=None) -> list:
     out += [("bldg", name, text) for name, text in sorted((building_plans or {}).items())]
     from . import world_geo                                  # the Memory Atlas's map: every tier, always (small; any page may zoom anywhere)
     out += [(world_geo.FOLDER, name, text) for name, text in world_geo.hosted()]
-    from . import palace_street
-    out += [(palace_street.FOLDER, name, text) for name, text in palace_street.blobs(referenced=street_refs)]
     from . import palace_tiles
     out += [(palace_tiles.FOLDER, name, text) for name, text in palace_tiles.blobs(referenced=cmap_refs or ())]
     return out
 
 
 def find(path: str, building_plans=None):
-    """(content type, text) for a request path such as /fleet/palace-fleet-0123456789.js (or /street/palace-street-0123456789.json) (the QA kit's server uses it), else None."""
+    """(content type, text) for a request path such as /fleet/palace-fleet-0123456789.js (or /cmap/b-0123456789ab.json) (the QA kit's server uses it), else None."""
     p = path.split("?")[0]
     from . import palace_tiles
     hit = palace_tiles.find(p)
