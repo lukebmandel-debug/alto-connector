@@ -94,7 +94,7 @@ html.phone-whole :is(input,textarea,select):not(#_){font-size:16px !important;}
 html.phone-whole:not(.ph-ready) :is(#search-btn,#info-btn,#overview-toggle,#bg-toggle,#mode-toggle,#key-toggle,#account-btn):not(#_){opacity:0 !important;}
 /* a timeline or an outline seen whole: a card shows its name alone until it is enlarged (Luke, 2026-10-24: "just have node
    titles/label unless enlarged, cause the text is falling outside the borders") */
-html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer):not(#_){display:none !important;}
+html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-title{overflow-wrap:anywhere;}
 /* what a hover showed, on a long press */
 html.phone-whole .node-card :is(.csym-btn,.esym-btn,.tsym-btn).ph-hover ~ .chip-tip{opacity:1;transform:translateX(-50%) translateY(0);}
