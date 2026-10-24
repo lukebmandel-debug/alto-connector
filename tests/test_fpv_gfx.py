@@ -1,4 +1,4 @@
-"""The FPV graphics pass (alto/build/fpv_gfx.py): the hosted CC0 assets, the FXG module in the Building Palace's first-person renderer, the quality ladder,
+"""The FPV graphics pass (alto/build/fpv_gfx.py): the hosted CC0 assets, the FXG module in the Memory Blueprint's first-person renderer, the quality ladder,
 the site's headers and CSP. Source and file checks only (no browser); the WebKit frames are in tests/test_fpv_gfx_render.py."""
 import json
 import re

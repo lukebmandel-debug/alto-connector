@@ -1,6 +1,6 @@
 """The city palace's first-person view is retired (cold storage: ~/Desktop/Alto Development/_cold-storage/memory-map-fpv, git tag
 cold/memory-map-fpv): a Memory Map page has no way into it and asks for none of its hosted files, even when its stored map still names
-street data from before. The Building Palace keeps its own first-person view (tests/test_building_fpv_*.py).
+street data from before. The Memory Blueprint keeps its own first-person view (tests/test_building_fpv_*.py).
 Offline; Chromium and WebKit through Playwright (skipped without them)."""
 import copy
 import functools

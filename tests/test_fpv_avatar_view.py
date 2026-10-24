@@ -1,4 +1,4 @@
-"""The avatar module (alto/build/fpv_avatar.py) in the Museum Palace's first-person view: the mayor table, the hop and the T switch are embedded.
+"""The avatar module (alto/build/fpv_avatar.py) in the Memory Blueprint's first-person view: the mayor table, the hop and the T switch are embedded.
 The city palace's half of this file (its roam on a synthetic city) went to cold storage with the city's first-person view
 (_cold-storage/memory-map-fpv/shared-at-v1.9.163/tests/test_fpv_avatar_view.py); the Museum's browser checks are in test_fpv_avatar_museum.py."""
 from alto.build import palace_building_fpv
