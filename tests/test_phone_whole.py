@@ -152,10 +152,11 @@ def pg(phone_ctx):
 
 _STATE = "[document.documentElement.classList.contains('mobile'), document.documentElement.classList.contains('phone-whole')]"
 # the phone design's tiles, shown: MAP, MENU, the search pill, INFO, MARK, NOTES
-_TILES = """['minimap-toggle','hamburger-tab','m-search','tutorial-toggle','hl-mode-btn','notes-toggle'].filter(i => {
+_TILES = """['minimap-toggle','hamburger-tab','pmin-find','m-search','tutorial-toggle','hl-mode-btn','notes-toggle'].filter(i => {
   const e = document.getElementById(i); if(!e) return false; const r = e.getBoundingClientRect(), c = getComputedStyle(e);
   return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > .05 && r.width > 0 && r.bottom > 0 && r.top < innerHeight; })"""
-_ALL = ['minimap-toggle', 'hamburger-tab', 'm-search', 'tutorial-toggle', 'hl-mode-btn', 'notes-toggle']
+# at rest only MENU and FIND are on the page (phone_minimal.py, Luke 2026-10-24: "A + fade"); the rest is in the MENU grid
+_ALL = ['hamburger-tab', 'pmin-find']
 _PINCH = """([x, y, d0, d1]) => { const t = document.elementFromPoint(x, y);
   const ev = (type, d) => { const a = {identifier:1, target:t, clientX:x-d/2, clientY:y}, b = {identifier:2, target:t, clientX:x+d/2, clientY:y};
     const e = new Event(type, {bubbles:true, cancelable:true}); const ts = type === 'touchend' ? [] : [a, b];
@@ -166,6 +167,7 @@ _PINCH = """([x, y, d0, d1]) => { const t = document.elementFromPoint(x, y);
 def _go(pg, url):
     pg.goto(url, wait_until="load")
     pg.wait_for_timeout(1200)
+    pg.evaluate("window._altoPhoneMinApi && window._altoPhoneMinApi.wake()")     # the controls awake (they fade at rest)
 
 
 def test_an_outline_opens_one_card_every_time_and_whole_only_on_request(pg, site):
@@ -207,6 +209,7 @@ def test_a_system_opens_whole_under_the_phone_design(pg, site):
     assert labels[1:4] == ["Overview", "Dark / Light", "Scene"]
     pg.evaluate("window.closeNavDrawer()")
     pg.wait_for_timeout(400)
+    pg.evaluate("window._altoPhoneMinApi.wake()")
     assert pg.evaluate(_TILES) == _ALL                                           # the tiles come back with the drawer shut
     pg.evaluate(_PINCH, [195, 400, 250, 70])                                       # two fingers in: the whole chart
     pg.wait_for_timeout(700)
@@ -215,8 +218,10 @@ def test_a_system_opens_whole_under_the_phone_design(pg, site):
 
 def test_map_lands_on_the_card_in_the_whole_view(pg, site):
     _go(pg, site + "/system.html")
-    pg.tap("#minimap-toggle")
-    pg.wait_for_timeout(500)
+    pg.evaluate("window.openNavDrawer()")                                          # MAP is a square in the MENU grid now
+    pg.wait_for_timeout(400)
+    pg.tap("#pmin-minimap-toggle")
+    pg.wait_for_timeout(700)
     pg.tap("#minimap-nav-panel .mnp-node-btn >> nth=3")
     pg.wait_for_timeout(2500)
     assert pg.evaluate("!document.getElementById('minimap-wrap').classList.contains('expanded')")
@@ -226,7 +231,7 @@ def test_map_lands_on_the_card_in_the_whole_view(pg, site):
 def test_the_tiles_open_the_phone_panels(pg, site):
     _go(pg, site + "/lanes.html")
     assert pg.evaluate(_STATE) == [False, True] and pg.evaluate(_TILES) == _ALL
-    pg.tap("#m-search-glyph")
+    pg.tap("#pmin-find")                                                           # FIND opens the phone's search as a sheet
     pg.wait_for_timeout(500)
     assert pg.evaluate("[document.getElementById('m-search').classList.contains('expanded'), document.activeElement.id]") == [True, "m-search-input"]
     assert pg.evaluate("document.documentElement.scrollWidth") == pg.evaluate("innerWidth")   # nothing to pan sideways into

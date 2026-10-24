@@ -277,7 +277,9 @@ def _add_background_head(html: str, brief: Brief) -> str:
     city = brief.mode == "palace" and not (building_view(brief) or world_view(brief))     # a Building or Memory Atlas has no maps to offer
     retro = brief.layout != "solar"                                # a System keeps its own styles (solar_draw.py)
     from .phone import head_block as phone_head
-    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + phone_head(phone_mode(brief)) + "\n" + anchor, 1)
+    from .phone_minimal import head_block as phone_min_head
+    return html.replace(anchor, backgrounds.head_block(key, palace=city, retro=retro) + "\n" + phone_head(phone_mode(brief)) + phone_min_head()
+                        + "\n" + anchor, 1)
 
 
 def phone_mode(brief: Brief) -> str:
