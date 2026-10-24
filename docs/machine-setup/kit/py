@@ -1,0 +1,7 @@
+#!/bin/zsh
+# Run python with Playwright WebKit + the Alto packages, clean env (no cloud). ALTO_REPO picks which checkout to import (default: released main).
+# Interpreter: kit/pwpy's pick (permanent ~/.local/share/alto/pw12 first, old /private/tmp pw12, then wkvenv). Old version: py.bak-wkvenv.
+D="$HOME/Desktop/Alto Development/_qa"
+REPO=${ALTO_REPO:-"$HOME/Desktop/Alto Development/Alto Connector"}
+PYBIN=$("$D/kit/pwpy" --which 2>/dev/null) || PYBIN="$D/wkvenv/bin/python"
+exec env -i HOME=$HOME PATH=$PATH ALTO_REPO="$REPO" PYTHONPATH="$REPO:$HOME/.local/share/alto/venv/lib/python3.12/site-packages:$D/kit" "$PYBIN" -W ignore "$@"

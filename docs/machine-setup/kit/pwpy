@@ -1,0 +1,11 @@
+#!/bin/bash
+# The Playwright test Python (Playwright 1.64 + pytest + xdist), from its permanent home first.
+# Order: $ALTO_PW_VENV, ~/.local/share/alto/pw12 (built by _qa/setup/alto-setup.sh), then the old
+# /private/tmp pw12 (tmp gets cleaned), then _qa/wkvenv. `pwpy --which` prints the one it picked.
+for v in "${ALTO_PW_VENV:-}" "$HOME/.local/share/alto/pw12" "/private/tmp/claude-501/bldg/pw12" \
+         "$HOME/Desktop/Alto Development/_qa/wkvenv"; do
+  [ -n "$v" ] && [ -x "$v/bin/python" ] && "$v/bin/python" -c "import playwright" 2>/dev/null && {
+    [ "$1" = "--which" ] && { echo "$v/bin/python"; exit 0; }
+    exec "$v/bin/python" "$@"; }
+done
+echo "pwpy: no Playwright venv found; run _qa/setup/alto-setup.sh" >&2; exit 1
