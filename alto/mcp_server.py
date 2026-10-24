@@ -246,7 +246,7 @@ CONSENT_ERROR = {
 RO = ToolAnnotations(readOnlyHint=True)
 RW = ToolAnnotations(readOnlyHint=False, destructiveHint=False)
 
-__version__ = "1.9.172"
+__version__ = "1.9.173"
 WEBSITE_URL = "https://alto-get.web.app"
 
 
