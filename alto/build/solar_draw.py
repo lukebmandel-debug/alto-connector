@@ -91,7 +91,7 @@ SOLAR_CSS = r"""
   html.alto-stars #sol-tour{color:#eef2ff;background:rgba(5,10,28,.84);border-color:rgba(170,198,255,.3);}
   html.alto-stars #sol-tour button,html.alto-stars #sol-tour .tb-at{color:#c9d4f5;} html.alto-stars #sol-tour .tb-at b{color:#fff;}
   html.sk-retro.alto-stars #sol-tour .tb-next{background:#d9a441;color:#140f02;}
-  html.mobile #sol-tour,html.alto-editing #sol-tour{display:none !important;}
+  html.mobile #sol-tour,html.alto-editing #sol-tour,html.navx #sol-tour{display:none !important;}
   @media print{ #sol-tour{display:none !important;} }
   html.alto-solar:not(.mobile) #world .sol-nh{pointer-events:auto;cursor:pointer;font-size:13px;line-height:20px;padding:5px 14px 5px 5px;border-radius:16px;}
   html.alto-solar:not(.mobile) .sol-nh>kbd{min-width:30px;height:22px;border-radius:11px;font-size:12.5px;}
@@ -1873,7 +1873,7 @@ window.addEventListener('click', function(e){
   if(ty==='gestureend' && e.scale) tOv(e.scale<.85 ? true : e.scale>1.18 ? false : !!OV); }, {capture:true, passive:false}); });
 /* the keys: → / ← the tour (Shift: the siblings), ↑ / ↓ a level, O or Esc the whole system */
 window.addEventListener('keydown', function(e){
-  if(!tourOK() || e.metaKey || e.ctrlKey || e.altKey) return;
+  if(!tourOK() || e.metaKey || e.ctrlKey || e.altKey || de.classList.contains('navx')) return;   /* (a nav option's own keys: solar_navopt.py) */
   var ae=document.activeElement; if(ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return;
   if(document.querySelector('#detail-page.visible,#summary-wrap.open,#sol-craft-pop')) return;
   var k=e.key, mine=!ae || ae===document.body || cvs().contains(ae) || !!(ae.closest && ae.closest('#sol-ctl,#sol-tour'));
@@ -1889,6 +1889,9 @@ window.addEventListener('keydown', function(e){
 }, true);
 window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:function(id){ return tWays(id || home()); }, spokes:function(id){ return joined(id || home()); }, step:tStep, order:tOrder, route:tRoute,
   riding:function(){ return RD ? {from:RD.path[0], to:RD.dest, path:RD.path.slice(), ms:RD.ms} : null; }};
+/* the nav options' handles (solar_navopt.py): where you are, its neighbours, a ride, the whole system, a route drawn */
+window._altoSolarNavApi={ok:tourOK, home:home, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
+  ov:function(){ return !!(OV && TOV); }, show:function(id){ tShow(id || null); }, geo:function(){ return window._altoSolarGeo(); }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
