@@ -33,7 +33,7 @@ tags, unit chips. The map itself (streets, walls, bodies) scales with the zoom; 
 | `AltoMarkers.band(was, v, lo, hi)` | a held threshold: true above `hi`, false below `lo`, else `was`. |
 | `AltoMarkers.at(el, x, y)` | `transform: translate3d(x px, y px, 0)`. |
 | `AltoMarkers.show(el, on)` | toggles `.alto-mk-off` (fade out, then `visibility:hidden`). |
-| `AltoMarkers.glide(layer)` / `stop(layer)` | `.alto-mk-glide` on the layer for one transition, so a settled re-layout glides; `stop()` at the next input so following the anchor stays instant. |
+| `AltoMarkers.glide(layer, step, ms)` / `stop(layer)` | a settled re-layout glides: `step(k)` runs each frame with `k` eased 0..1 (~0.32 s) and the caller puts each marker k of the way from where it was to where it goes; `stop()` at the next input freezes them where they are. Driven in JS, never a CSS transition: WebKit let a running transform transition go on after its class was removed (blueprint fix, 2026-10-23). |
 | `AltoMarkers.reg(key, fn)` / `debug(key)` | tests: `fn()` returns `[{id, x, y, w, h, ax, ay, op}]` in client px (`ax/ay` = the anchor). |
 
 Give every marker the class `alto-mk`, put them in one absolutely positioned layer (`pointer-events:none` on the layer, `auto`
@@ -53,8 +53,7 @@ function layout(glide){             // once per settle
   S.near = AltoMarkers.band(S.near, zoom, LO, HI);           // level of detail, held
   var at = AltoMarkers.place(items(), S.st, {gap: 3});       // places, held
   S.markers.forEach(function(m){ m._o = [at[m.id].dx, at[m.id].dy]; AltoMarkers.show(m, at[m.id].on); });
-  if(glide) AltoMarkers.glide(S.layer);
-  move();
+  if(glide) AltoMarkers.glide(S.layer, function(k){ /* m._o = from + (to - from) * k */ move(); }); else move();
 }
 ```
 
@@ -82,6 +81,15 @@ Work in the layer's own (unzoomed) px: anchor = (map point − view origin) × (
 - **3D Star chart** (`solar_3d.py`): labels follow their bodies per frame with `left/top` and appear / disappear by `display` at a
   size threshold. Left for the session that owns that file (it had uncommitted work there): move them to `translate3d` and fade
   them by the body's on-screen radius.
+
+## Level of detail never moves a marker (blueprint fix, 2026-10-23)
+
+Luke, 2026-10-23: "i still felt like the blueprint was glitchy with the card labels when zooming in/out." Measured in WebKit on a page
+shaped like civ-pro-museum (47 chips on the ground floor): after a settle the chips glided by CSS transition, the next wheel event
+removed the class, and WebKit let the transition run on, so chips drifted ~15 px a frame beside their anchors and then snapped (up to
+380 px); and the title threshold widened every chip, so the whole set was re-placed (up to 233 px). Now the glide is driven per frame
+(above), markers are placed by their short form only (the number), and a title is shown only where it has room, growing to the right
+from the number's fixed left edge. A chip moves only when its number must step aside.
 
 ## Verifying
 

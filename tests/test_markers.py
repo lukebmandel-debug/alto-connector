@@ -17,7 +17,8 @@ from tests.test_building_palace_render import _open, browser, html, pw  # noqa: 
 
 def test_the_blueprint_carries_the_shared_markers_module():
     assert pba.BUILDING_ASSET.startswith(markers.MARKERS_JS)
-    assert ".alto-mk-glide .alto-mk{" in pba.BUILDING_ASSET              # its CSS rides in the blueprint's stylesheet
+    assert ".alto-mk.alto-mk-off{" in pba.BUILDING_ASSET                 # its CSS rides in the blueprint's stylesheet
+    assert "alto-mk-glide" not in pba.BUILDING_ASSET and "AltoMarkers.glide(S.mk, step)" in pba.BUILDING_JS   # the glide is driven per frame, never a CSS transition (WebKit ran it on into the next zoom)
     js = pba.BUILDING_JS
     assert "function placePills" not in js                               # the per-frame collision pass is gone
     vb = js[js.index("function applyVB(){"):js.index("// ── panel ──")]

@@ -55,6 +55,8 @@ def assets(street_refs=None, building_plans=None, cmap_refs=None) -> list:
     for folder, mod, fn in ASSETS:
         name, text = getattr(importlib.import_module("." + mod, __package__), fn)()
         out.append((folder, name, text))
+    from .palace_building_asset import BUILDING_LATEST, BUILDING_ASSET   # the newest renderer under its fixed name too (the page's fallback)
+    out.append(("bldg", BUILDING_LATEST.rsplit("/", 1)[1], BUILDING_ASSET))
     out += [("bldg", name, text) for name, text in sorted((building_plans or {}).items())]
     from . import world_geo                                  # the World Palace's map: every tier, always (small; any page may zoom anywhere)
     out += [(world_geo.FOLDER, name, text) for name, text in world_geo.hosted()]

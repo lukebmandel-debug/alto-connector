@@ -297,9 +297,13 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
                 if p_.name not in keep:
                     p_.unlink() if p_.is_file() else shutil.rmtree(p_)
             continue
+        kept = _bldg_kept(out_) if folder == "bldg" else {}
         if out_.exists():
             shutil.rmtree(out_)
         out_.mkdir()
+        for kname, (kbytes, kt) in kept.items():
+            (out_ / kname).write_bytes(kbytes)
+            os.utime(out_ / kname, (kt, kt))                 # its age kept: the oldest go first
     for folder, aname, atext in new_assets:
         (site / folder).mkdir(parents=True, exist_ok=True)
         (site / folder / aname).write_text(atext, encoding="utf-8")
@@ -387,6 +391,24 @@ def _street_refs(store, uid: str) -> set:
 
 def _street_on_site(d: Path) -> set:
     return {p.name for p in d.iterdir()} if d.is_dir() else set()
+
+
+BLDG_KEEP = 12
+BLDG_RENDERER_RE = re.compile(r"^palace-building-(fpv-)?[0-9a-f]{10}\.js$")
+
+
+def _bldg_kept(d: Path) -> dict:
+    """{name: (bytes, mtime)} of the Building Palace renderers an earlier publish left in /bldg/ (the newest BLDG_KEEP of each kind): a stored
+    page names the renderer of the release that built it, so a deploy from newer code must not take that file away (civ-pro-museum,
+    built by 1.9.154, lost its blueprint when the 1.9.155 site replaced the folder, 2026-10-23)."""
+    if not d.is_dir():
+        return {}
+    files = sorted((p for p in d.iterdir() if p.is_file() and BLDG_RENDERER_RE.match(p.name)), key=lambda p: p.stat().st_mtime, reverse=True)
+    out = {}
+    for fpv in (False, True):
+        for p in [p for p in files if ("-fpv-" in p.name) == fpv][:BLDG_KEEP]:
+            out[p.name] = (p.read_bytes(), p.stat().st_mtime)
+    return out
 
 
 def _street_keep(d: Path, refs: set) -> set:

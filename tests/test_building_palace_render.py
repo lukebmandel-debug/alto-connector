@@ -167,17 +167,19 @@ def test_pan_and_zoom_move_the_view_not_the_plan(browser, html):
         page.close()
 
 
-def test_a_missing_plan_or_renderer_leaves_the_cards_alone(browser, html):
+def test_a_missing_plan_or_renderer_never_falls_back_to_the_cards(browser, html):
+    # Luke (2026-10-23): "the museum disappeared ... i thought we said that we don't need the card view for that style"
     page, errors = _open(browser, html, plan=False)
     try:
-        page.wait_for_function("document.getElementById('bldg-root') && document.getElementById('bldg-root').hidden")
-        assert page.evaluate("document.documentElement.classList.contains('bldg-open')") is False          # the cards are there
+        page.wait_for_function("document.querySelector('#bldg-root .bl-msg') && /could not load/.test(document.querySelector('#bldg-root .bl-msg').textContent)")
+        assert page.evaluate("!document.getElementById('bldg-root').hidden && document.documentElement.classList.contains('bldg-open')") is True
     finally:
         page.close()
     page, errors = _open(browser, html, script=False)
     try:
-        page.wait_for_timeout(300)
+        page.wait_for_selector("#bldg-fail")
         assert page.evaluate("typeof window.AltoBuilding") == "undefined" and page.evaluate("!!document.getElementById('bldg-root')") is False
+        assert page.evaluate("getComputedStyle(document.getElementById('world')).visibility") == "hidden"
         assert errors == []
     finally:
         page.close()

@@ -11,7 +11,7 @@ Every map-like format follows these rules, and the helpers below are what they s
      per frame is its transform (translate3d to the anchor's place on screen + the offset it was given); nothing is measured,
      re-laid out or re-chosen.
   2. Layout (which place beside its anchor a marker takes when it would cover another, and level of detail such as a title
-     after the number) is decided ONCE, when the gesture settles (`settle`), and the change glides (`.alto-mk-glide`).
+     after the number) is decided ONCE, when the gesture settles (`settle`), and the change glides (`glide`: eased frame by frame in JS, never a CSS transition).
   3. Decisions are held: a marker keeps the place it had while it is still free (`place` tests it with a slack, and a nearer
      place must be clearly free to win it back); a zoom threshold is a band (`band`), so nothing flips at its edge.
   4. Level of detail fades (`.alto-mk-off`: opacity, then visibility), never pops by display.
@@ -20,9 +20,7 @@ The World Palace adopts the same module (see docs/markers.md).
 from __future__ import annotations
 
 MARKERS_CSS = r"""
-.alto-mk-glide .alto-mk{transition:transform .32s cubic-bezier(.2,.7,.2,1),width .32s cubic-bezier(.2,.7,.2,1),opacity .22s ease;}
 .alto-mk.alto-mk-off{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s ease,visibility 0s linear .22s;}
-@media (prefers-reduced-motion:reduce){.alto-mk-glide .alto-mk{transition:none;}}
 """
 
 MARKERS_JS = r"""
@@ -54,10 +52,14 @@ M.place=function(items, st, o){ o=o||{}; var sl=o.slack==null ? 3 : o.slack, gap
     if(on) box.push([m.x+c[pick][0], m.y+c[pick][1], m.w, m.h]);
     out[m.id]={dx:c[pick][0], dy:c[pick][1], on:on}; });
   return out; };
-/* a layer's re-layout glides: the class for one transition's length, then off (so following the anchor stays instant) */
-M.glide=function(layer, ms){ if(!layer) return; clearTimeout(layer._mkG); layer.classList.add('alto-mk-glide');
-  layer._mkG=setTimeout(function(){ layer.classList.remove('alto-mk-glide'); }, ms||360); };
-M.stop=function(layer){ if(layer){ clearTimeout(layer._mkG); layer.classList.remove('alto-mk-glide'); } };
+/* a layer's re-layout glides, driven here frame by frame: step(k) with k eased 0..1, the caller placing each marker between where it
+   was and where it goes. Not a CSS transition: WebKit lets a running transform transition go on after its class is removed, so at the
+   next zoom the chips flew on beside their anchors and then snapped (up to 380 px, measured). stop() at the next input freezes the
+   markers where they are; the following settle glides on from there. */
+M.glide=function(layer, step, ms){ if(!layer) return; M.stop(layer); ms=window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : (ms||320);
+  var t0=performance.now();
+  (function f(t){ var u=Math.min(1, Math.max(0, (t-t0)/ms)); step(1-Math.pow(1-u, 3)); if(u<1) layer._mkG=requestAnimationFrame(f); else layer._mkG=0; })(t0); };
+M.stop=function(layer){ if(layer && layer._mkG){ cancelAnimationFrame(layer._mkG); layer._mkG=0; } };
 /* a marker's place on screen: transform only (the compositor moves it) */
 M.at=function(e, x, y){ e.style.transform='translate3d('+x.toFixed(2)+'px,'+y.toFixed(2)+'px,0)'; };
 M.show=function(e, on){ e.classList.toggle('alto-mk-off', !on); };

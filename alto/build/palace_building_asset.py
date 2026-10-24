@@ -88,7 +88,7 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
   border:1.2px solid rgba(255,255,255,.85);color:#fff;font-size:12px;font-weight:700;line-height:19.6px;white-space:nowrap;overflow:hidden;pointer-events:auto;cursor:pointer;will-change:transform;}
 #bldg-root .bl-pill:hover{border-color:var(--bl-text);}
 #bldg-root .bl-pill>span{margin-left:6px;opacity:0;transition:opacity .22s ease;}
-#bldg-root .bl-mk.bl-near .bl-pill>span{opacity:1;}
+#bldg-root .bl-mk.bl-near .bl-pill.bl-t>span{opacity:1;}
 #bldg-root .bl-gapfill{stroke:none;pointer-events:none;}
 html.bldg-open #world{visibility:hidden !important;}
 #bldg-root .bl-ui{position:absolute;z-index:2;pointer-events:auto;}
@@ -343,25 +343,34 @@ function measurePills(){ // each chip's width with the number alone and with its
   S.chips.forEach(function(p){ p.style.width=''; });
 }
 function scr(){ var W=S.root.clientWidth||1, s=W/S.vb[2]; return {s:s, x:-S.vb[0]*s, y:-S.vb[1]*s}; }   // drawing units -> the root's px
-function movePills(){ // every frame of a zoom or pan: each chip follows its anchor, nothing else changes
+function movePills(){ // every frame of a zoom or pan: each chip follows its anchor, nothing else changes (its left edge is the number's, so a title only grows rightwards)
   if(!S.chips||!S.vb) return; var t=scr();
-  S.chips.forEach(function(p){ var w=p._w||32; AltoMarkers.at(p, p._a[0]*t.s+t.x+p._o[0]-w/2, p._a[1]*t.s+t.y+p._o[1]); });
+  S.chips.forEach(function(p){ AltoMarkers.at(p, p._a[0]*t.s+t.x+p._o[0]-(p._wF||32)/2, p._a[1]*t.s+t.y+p._o[1]); });
 }
-function layoutPills(glide){ // once a gesture settles: the title band, then the places (held), then a glide to them
+function layoutPills(glide){ // once a gesture settles: the places of the numbers (held), then which titles have room, then a glide to them
   if(!S.chips||!S.vb||!S.root.clientWidth) return; measurePills();
   var k=S.vb[2]/S.root.clientWidth, key=Math.round(Math.log(k)*40)+':'+S.chips.length;
   if(key===S.mkLay){ movePills(); return; } S.mkLay=key;
-  var near=S.near=AltoMarkers.band(S.near, -k, -.14, -.125), t=scr(), H=24, gap=3;
+  var near=S.near=AltoMarkers.band(S.near, -k, -.14, -.125), t=scr(), H=24, gap=3, sl=3;
   var hx=S.home&&[S.home[0]*t.s+t.x, (S.home[0]+S.home[2])*t.s+t.x];
   S.mk.classList.toggle('bl-near', near);
-  var items=S.chips.map(function(p){ var w=near?(p._wT||Math.min(250,(String(p._n.n).length+String(dec(p._n.t)).length)*6.7+20)):(p._wF||32), W=w+gap, c=[[0,0]];
-    p._w=w; p.style.width=w+'px';
+  // placed by the number alone, so a title showing or not never moves a chip (titles once widened every chip and re-laid the lot: up to 233 px)
+  var items=S.chips.map(function(p){ var w=p._wF||32, W=w+gap, c=[[0,0]];
     for(var r=1;r<7;r++) c.push([0,r*H],[0,-r*H],[W,0],[-W,0],[W,r*H],[-W,-r*H],[W,-r*H],[-W,r*H]);
     return {id:p._n.id, x:p._a[0]*t.s+t.x, y:p._a[1]*t.s+t.y, w:w, h:H-2, c:c}; });
   S.mkSt=S.mkSt||{};
   var at=AltoMarkers.place(items, S.mkSt, {gap:gap, ok:function(x,y,w){ return !hx||(x-w/2>=hx[0]&&x+w/2<=hx[1]); }});   // pushed aside, a chip stays over the building's width
-  S.chips.forEach(function(p){ var o=at[p._n.id]; p._o=o?[o.dx,o.dy]:[0,0]; });
-  if(glide) AltoMarkers.glide(S.mk); movePills();
+  var box=items.map(function(m){ var o=at[m.id]; return [m.x+o.dx-m.w/2, m.y+o.dy, m.w, m.h]; });   // [left, centre y, w, h]
+  function clear(i, x, w, s){ var b=box[i]; for(var j=0;j<box.length;j++){ if(j===i) continue; var c=box[j];
+    if(x<c[0]+c[2]+gap-s && c[0]<x+w+gap-s && Math.abs(b[1]-c[1])<(b[3]+c[3])/2+gap-s) return false; } return true; }
+  S.chips.forEach(function(p, i){ var o=at[p._n.id], wF=p._wF||32, wT=Math.max(wF, p._wT||wF), on=near&&wT>wF&&clear(i, box[i][0], wT, p._tOn?sl:-sl);   // a title shown keeps its room within the slack
+    p._tOn=on; if(on) box[i][2]=wT; p._o1=[o.dx,o.dy]; p._w1=on?wT:wF; p._o0=p._o; p._w0=p._w||p._w1; p.classList.toggle('bl-t', on); });
+  if(!glide){ step(1); return; }
+  AltoMarkers.glide(S.mk, step);
+  function step(k){ // where each chip is k of the way from where it stood to its new place (and width); its anchor read afresh each frame
+    S.chips.forEach(function(p){ var w=p._w0+(p._w1-p._w0)*k; p._o=[p._o0[0]+(p._o1[0]-p._o0[0])*k, p._o0[1]+(p._o1[1]-p._o0[1])*k];
+      w=Math.round(w*10)/10; if(w!==p._w){ p._w=w; p.style.width=w+'px'; } });
+    movePills(); }
 }
 function anchorPoint(id){ var s=(A.plan.sl||[]).concat(A.plan.fx||[]); for(var i=0;i<s.length;i++) if(s[i].id===id) return s[i].p; return null; }
 
@@ -618,7 +627,7 @@ A.mount=function(data){
   A.ready=new Promise(function(res,rej){
     if(A.data.plan){ A.load(A.data.plan); res(A.plan); return; }
     fetch(A.data.url,{credentials:'same-origin'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(function(p){ A.load(p); res(p); }).catch(function(e){ nomsg('The building plan could not be loaded. The cards are still here.'); A.hide(); rej(e); });
+      .then(function(p){ A.load(p); res(p); }).catch(function(e){ nomsg('The blueprint could not load its plan. Reload the page; if it still does not appear, ask Claude to republish this timeline.'); rej(e); });   // never the cards: this method has only the blueprint and the walk
   });
   A.ready.catch(function(){});
 };
@@ -631,8 +640,15 @@ window.AltoBuilding=A;
 BUILDING_ASSET = (MARKERS_JS + "(function(){\nvar BLDG_CSS=" + _json.dumps(BUILDING_CSS + MARKERS_CSS) + ";\nvar FPV_URL=" + _json.dumps(_FPV_PATH) + ";\n" + BUILDING_JS + "\n})();\n")
 BUILDING_V = _hashlib.sha256(BUILDING_ASSET.encode("utf-8")).hexdigest()[:10]
 BUILDING_PATH = f"/bldg/palace-building-{BUILDING_V}.js"
-# the page's loader: a synchronous request answered from the browser's cache after the first visit, run as an inline script (as the ride's and the fleet's)
-BUILDING_LOADER = "\nfunction altoLoadBuilding(){ " + _loader(BUILDING_PATH, "AltoBuilding") + " }\n"
+# The newest renderer under a fixed name, written by every publish beside the hashed one (no-cache). A page names the renderer of the
+# release that built it; a later deploy that dropped that file left civ-pro-museum with no blueprint (1.9.154's renderer was gone
+# once 1.9.155's site went up, 2026-10-23), so the page falls back to this one. The page data is the same contract (window._ALTO_BUILDING v 1).
+BUILDING_LATEST = "/bldg/palace-building-latest.js"
+# the page's loader: a synchronous request answered from the browser's cache after the first visit, run as an inline script (as the ride's and the fleet's);
+# the fixed name only when the hashed file did not load
+BUILDING_LOADER = ("\nfunction altoLoadBuilding(){ " + _json.dumps([BUILDING_PATH, BUILDING_LATEST]).replace('"', "'") + ".forEach(function(u){ if(window.AltoBuilding) return;"
+                   " try{ var x=new XMLHttpRequest(); x.open('GET',u,false); x.send(null); if(x.status===200&&x.responseText){ var s=document.createElement('script');"
+                   " s.text=x.responseText; (document.head||document.documentElement).appendChild(s); s.remove(); } }catch(e){} }); }\n")
 
 
 def building_asset() -> tuple[str, str]:
@@ -640,8 +656,15 @@ def building_asset() -> tuple[str, str]:
     return BUILDING_PATH.rsplit("/", 1)[1], BUILDING_ASSET
 
 
-BUILDING_START = ("\n(function(){ function go(){ try{ altoLoadBuilding(); if(window.AltoBuilding) window.AltoBuilding.mount(window._ALTO_BUILDING); }catch(e){} }"
-                  " if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go); else go(); })();\n")
+# Mounted, or, when no renderer loads at all, a plain notice over a hidden page: this method is the blueprint and the walk, never the
+# timeline's cards (Luke: "we don't need the card view for that style").
+BUILDING_START = ("\n(function(){ function fail(){ var d=document.documentElement, m=document.createElement('div'); d.classList.add('bldg-open'); m.id='bldg-fail'; m.setAttribute('role','alert');"
+                  " m.style.cssText='position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);max-width:min(440px,calc(100vw - 32px));padding:18px 22px;border-radius:14px;"
+                  "background:#16181ddd;color:#f3f1ea;font:15px/1.45 system-ui;text-align:center;z-index:50';"
+                  " m.textContent='The blueprint could not load. Reload the page; if it still does not appear, ask Claude to republish this timeline.'; document.body.appendChild(m);"
+                  " var w=document.getElementById('world'); if(w) w.style.visibility='hidden'; }"
+                  " function go(){ try{ altoLoadBuilding(); if(window.AltoBuilding) window.AltoBuilding.mount(window._ALTO_BUILDING); }catch(e){} if(!document.getElementById('bldg-root')) fail(); }"
+" if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go); else go(); })();\n")
 
 
 def resolved(b, nodes) -> dict:

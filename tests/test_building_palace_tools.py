@@ -223,14 +223,16 @@ def test_the_renderer_is_a_hashed_asset_and_plans_are_written_beside_it():
     pname, ptext = bs.hosted_json(bs.fixture())
     got = {(f, n): t for f, n, t in palace_assets.assets(building_plans={pname: ptext}) if f == "bldg"}
     from alto.build import palace_building_fpv as fpv
-    assert set(got) == {("bldg", name), ("bldg", pname), ("bldg", fpv.fpv_asset()[0])} and got[("bldg", pname)] == ptext       # + the first-person view (phase 2)
+    assert set(got) == {("bldg", name), ("bldg", pname), ("bldg", fpv.fpv_asset()[0]), ("bldg", pba.BUILDING_LATEST.rsplit("/", 1)[1])} and got[("bldg", pname)] == ptext   # + the first-person view (phase 2), + the newest renderer under its fixed name
+    assert got[("bldg", pba.BUILDING_LATEST.rsplit("/", 1)[1])] == text
     assert palace_assets.find("/bldg/" + pname, building_plans={pname: ptext})[0].startswith("application/json")
     assert palace_assets.find(pba.BUILDING_PATH)[0].startswith("text/javascript")
 
 
 def test_the_loader_is_guarded_and_small():
     assert "if(window.AltoBuilding) return;" in pba.BUILDING_LOADER and "catch(e){}" in pba.BUILDING_LOADER
-    assert len(pba.BUILDING_LOADER) < 700 and len(pba.BUILDING_START) < 500
+    assert pba.BUILDING_PATH in pba.BUILDING_LOADER and pba.BUILDING_LATEST in pba.BUILDING_LOADER     # the hashed renderer, then the newest one
+    assert len(pba.BUILDING_LOADER) < 700 and len(pba.BUILDING_START) < 1000                           # START carries the no-renderer notice (never the cards)
 
 
 def test_publishing_writes_the_plan_of_every_published_building_palace_and_caches_it_for_a_year(tmp_path, local_store):
