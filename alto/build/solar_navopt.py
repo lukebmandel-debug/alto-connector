@@ -58,7 +58,7 @@ NAVOPT_CSS = r"""
   #nvo-help .nvpk{margin-top:8px;}
   html.phone-whole .nvpk button,html.phone-whole .nvo button{min-width:44px;min-height:44px;}
   html.phone-whole #nvo-c{right:8px;} html.phone-whole #nvo-help{right:8px;top:136px;}
-  html.navx :is(.sol-nh,#sol-way){display:none !important;}   /* (the Tour's own named pills and drawn ways: the option says it instead) */
+  html.navx :is(.sol-nh,#sol-way,#sol-arw,#sol-lock,#sol-here){display:none !important;}   /* (Luke: "the current system is super confusing" — an option is tried on its own: no Tour bar, pills, drawn ways, spoke arrows or Spokes only) */
   html.mobile .nvo,html.alto-editing .nvo{display:none !important;}
   @media print{ .nvo{display:none !important;} }
 """
@@ -68,11 +68,11 @@ NAVOPT_JS = r"""
 if(!window._altoSolarNavApi) return;
 var A=window._altoSolarNavApi, de=document.documentElement, OPTS=['a', 'b', 'c', 'd', 'current'];
 var NAMES={a:'Breadcrumb + neighbours', b:'Radial ring', c:'Minimap', d:'Guided Next / Back', current:'Current (the Tour bar)'};
-var KEYS={a:[['↑ or U', 'up to the parent'], ['← →', 'the siblings, in orbit order'], ['↓', 'the first child'], ['1 – 9', 'that child'], ['O or Esc', 'the whole system']],
-  b:[['R or Space', 'ring the body with its neighbours'], ['↑ ↓ ← →', 'with the ring: parent, first child, siblings'], ['Esc', 'close the ring, then the whole system']],
-  c:[['tap the map', 'fly there; the route lights up'], ['M', 'show or hide the map'], ['O or Esc', 'the whole system']],
-  d:[['→ or Space', 'Next, in reading order'], ['←', 'Back'], ['O or Esc', 'the whole system']],
-  current:[['→ ←', 'the tour'], ['Shift + → ←', 'the siblings'], ['↑ ↓', 'a level'], ['O or Esc', 'the whole system']]};
+var KEYS={a:[['Up arrow', 'up a level'], ['Left / Right arrows', 'the one before / after, same level'], ['Down arrow', 'inside: the first one'], ['1 – 9', 'inside: that one'], ['O or Esc', 'see the whole system']],
+  b:[['R or Space', 'ring the body with its neighbours'], ['Arrow keys', 'with the ring open: up, inside, before, after'], ['Esc', 'close the ring, then the whole system']],
+  c:[['tap the map', 'fly there; the route lights up'], ['M', 'show or hide the map'], ['O or Esc', 'see the whole system']],
+  d:[['Right arrow or Space', 'Next, in reading order'], ['Left arrow', 'Back'], ['O or Esc', 'see the whole system']],
+  current:[['→ ←', 'the tour'], ['Shift + → ←', 'the siblings'], ['↑ ↓', 'a level'], ['O or Esc', 'see the whole system']]};
 function get(){ try{ return localStorage.getItem('alto-solar-nav'); }catch(e){ return null; } }
 function put(v){ try{ localStorage.setItem('alto-solar-nav', v); }catch(e){} }
 var q=(location.search.match(/[?&]nav=(a|b|c|d|current)\b/i) || [])[1], NV=q ? q.toLowerCase() : get();
@@ -89,32 +89,32 @@ var W={}, K='';
 function drop(){ Object.keys(W).forEach(function(k){ if(W[k]) W[k].remove(); }); W={}; K=''; ring(false); }
 /* ── A: where you are, and every neighbour by name ── */
 function drawA(h){ var w=W.a || (W.a=mk('div', 'nvo-a', 'nvo')), c=chain(h), up=A.up(h), s=A.sibs(h), k=A.kids(h);
-  w.innerHTML='<div class="nv-at"><a data-go="" title="The whole system (O)">◎</a> › '+c.map(function(i, j){ return j===c.length-1 ? '<b>'+nm(i)+'</b>' : '<a data-go="'+esc(i)+'">'+nm(i)+'</a>'; }).join(' › ')+'</div>'+
-    '<div class="nv-r">'+(up ? btn(up, '↑ '+nm(up), 'Up: the body this one orbits (↑)') : '')+
-    (s.length>1 ? '<i title="Siblings, in orbit order (← →)">↔</i>'+s.map(function(i){ return btn(i, nm(i), i===h ? 'You are here' : 'A sibling (← →)', i===h ? 'on' : ''); }).join('') : '')+'</div>'+
-    (k.length ? '<div class="nv-r"><i title="Children (↓, or 1 – 9)">↓</i>'+k.map(function(i, j){ return btn(i, nm(i), 'Child '+(j+1)+' ('+(j<9 ? j+1 : '↓')+')'); }).join('')+'</div>' : '');
+  w.innerHTML='<div class="nv-at"><a data-go="" title="The whole system (O)">Whole system</a> › '+c.map(function(i, j){ return j===c.length-1 ? '<b>'+nm(i)+'</b>' : '<a data-go="'+esc(i)+'">'+nm(i)+'</a>'; }).join(' › ')+'</div>'+
+    '<div class="nv-r">'+(up ? btn(up, 'Up to '+nm(up), 'The body this one orbits (↑)') : '')+
+    (s.length>1 ? '<i title="In orbit order (← →)">Same level:</i>'+s.map(function(i){ return btn(i, nm(i), i===h ? 'You are here' : 'A sibling (← →)', i===h ? 'on' : ''); }).join('') : '')+'</div>'+
+    (k.length ? '<div class="nv-r"><i title="Its children (↓, or 1 – 9)">Inside:</i>'+k.map(function(i, j){ return btn(i, nm(i), 'Child '+(j+1)+' ('+(j<9 ? j+1 : '↓')+')'); }).join('')+'</div>' : '');
   var on=w.querySelector('.on'); if(on) on.scrollIntoView({block:'nearest', inline:'center'}); return w; }
 /* ── D: the outline in reading order ── */
 function drawD(h){ var w=W.d || (W.d=mk('div', 'nvo-d', 'nvo')), T=A.order(), i=T.indexOf(h), pv=T[i-1], nx=T[i+1];
-  w.innerHTML=(pv ? btn(pv, '‹', 'Back: '+A.name(pv)+' (←)') : '<button type="button" disabled>‹</button>')+
+  w.innerHTML=(pv ? btn(pv, 'Back', 'Back: '+A.name(pv)+' (←)') : '<button type="button" disabled>Back</button>')+
     '<div class="nv-at"><b>'+nm(h)+'</b>'+(i+1)+' of '+T.length+'</div>'+
-    btn(nx || '', nx ? 'Next: '+nm(nx)+' ›' : 'Whole system ›', nx ? 'Next: '+A.name(nx)+' (→ or Space)' : 'The whole system', 'nv-go')+btn('', '◎', 'The whole system (O)', 'nv-ov');
+    btn(nx || '', nx ? 'Next: '+nm(nx) : 'Whole system', nx ? 'Next: '+A.name(nx)+' (→ or Space)' : 'The whole system', 'nv-go')+btn('', 'Whole system', 'See the whole system (O)', 'nv-ov');
   return w; }
 /* ── B: the ring round the enlarged body ── */
 var RG=null;
 function bodyBox(id){ var n=document.querySelector('#node-'+(window.CSS && CSS.escape ? CSS.escape(id) : id)+' .node-card'); return n && n.getBoundingClientRect(); }
 function ring(on){ if(!on){ if(RG){ RG.remove(); RG=null; } return; }
   var h=A.home(), r=h && bodyBox(h); if(!r || !r.width) return; ring(false);
-  var y0=110, y1=innerHeight-(parseFloat(getComputedStyle(de).getPropertyValue('--nvo-bot'))||80)-24, cx=Math.max(90, Math.min(innerWidth-90, r.left+r.width/2)), cy=Math.max(y0+60, Math.min(y1-60, r.top+r.height/2)),
+  var z=parseFloat(getComputedStyle(de).zoom)||1, y0=110, y1=innerHeight-(parseFloat(getComputedStyle(de).getPropertyValue('--nvo-bot'))||80)*z-24,   /* (z: narrow windows zoom the page; the rects are the window's px) */ cx=Math.max(90, Math.min(innerWidth-90, r.left+r.width/2)), cy=Math.max(y0+60, Math.min(y1-60, r.top+r.height/2)),
     R=Math.min(Math.max(r.width, r.height)/2+46, (y1-y0)/2-10, innerWidth/2-60), up=A.up(h), k=A.kids(h).slice(0, 7), a=sib(h, -1), b=sib(h, 1), s='';
-  function at(id, x, y, ic, tip){ s+='<button type="button" data-go="'+esc(id)+'" title="'+esc(tip)+'" style="left:'+Math.max(70, Math.min(innerWidth-70, x)).toFixed(0)+'px;top:'+Math.max(y0, Math.min(y1, y)).toFixed(0)+'px"><i>'+ic+'</i>'+nm(id)+'</button>'; }
-  if(up) at(up, cx, cy-R, '↑', 'Up: the parent (↑)');
-  if(a) at(a, cx-R-40, cy, '←', 'The sibling before (←)'); if(b) at(b, cx+R+40, cy, '→', 'The sibling after (→)');
-  k.forEach(function(id, j){ var t=k.length===1 ? Math.PI/2 : Math.PI*(.2+.6*j/(k.length-1)); at(id, cx+Math.cos(t)*(R+30)*1.15, cy+Math.sin(t)*(R+18)-(k.length>3 ? 46*(j%2) : 0), '↓', 'A child'+(j ? '' : ' (↓)')); });
-  s+='<button type="button" data-open="1" title="Open its page" style="left:'+cx.toFixed(0)+'px;top:'+cy.toFixed(0)+'px">Open page</button>';
+  function at(id, x, y, ic, tip){ s+='<button type="button" data-go="'+esc(id)+'" title="'+esc(tip)+'" style="left:'+(Math.max(70, Math.min(innerWidth-70, x))/z).toFixed(0)+'px;top:'+(Math.max(y0, Math.min(y1, y))/z).toFixed(0)+'px"><i>'+ic+'</i>'+nm(id)+'</button>'; }
+  if(up) at(up, cx, cy-R, 'Up:', 'The body this one orbits (↑)');
+  if(a) at(a, cx-R-40, cy, 'Before:', 'The one before, same level (←)'); if(b) at(b, cx+R+40, cy, 'After:', 'The one after, same level (→)');
+  k.forEach(function(id, j){ var t=k.length===1 ? Math.PI/2 : Math.PI*(.2+.6*j/(k.length-1)); at(id, cx+Math.cos(t)*(R+30)*1.15, cy+Math.sin(t)*(R+18)-(k.length>3 ? 46*(j%2) : 0), 'Inside:', 'Inside this one'+(j ? '' : ' (↓)')); });
+  s+='<button type="button" data-open="1" title="Open its page" style="left:'+(cx/z).toFixed(0)+'px;top:'+(Math.min(y1, cy+Math.min(r.height*.3, R-30))/z).toFixed(0)+'px">Open page</button>';   /* (low on the disc, clear of its words) */
   RG=mk('div', 'nvo-b', 'nvo', s); RG._h=h; RG._c=r.left+r.width/2+','+(r.top+r.height/2)+','+r.width; RG._k={n:up, s:k[0], w:a, e:b}; document.body.appendChild(RG); }
 function ringKeep(){ if(!RG) return; var r=bodyBox(RG._h); if(r && r.width && Math.abs(r.left+r.width/2-RG._c.split(',')[0])+Math.abs(r.top+r.height/2-RG._c.split(',')[1])+Math.abs(r.width-RG._c.split(',')[2])>6) ring(true); }   /* (the body still gliding in, or orbiting: the ring stays on it) */
-function drawB(h){ var w=W.b || (W.b=mk('div', 'nvo-bh', 'nvo')); w.textContent='Tap the body (or R) for its neighbours'; if(RG && RG._h!==h) ring(false); return w; }
+function drawB(h){ var w=W.b || (W.b=mk('div', 'nvo-bh', 'nvo')); w.textContent='Tap the big circle to see where you can go'; if(RG && RG._h!==h) ring(false); return w; }
 /* ── C: the minimap ── */
 var CG=null, CB=null, SH=true;
 function mapGeo(){ var g=A.geo(), ids=Object.keys(g), x0=1/0, y0=1/0, x1=-1/0, y1=-1/0;
@@ -128,7 +128,7 @@ function mapGeo(){ var g=A.geo(), ids=Object.keys(g), x0=1/0, y0=1/0, x1=-1/0, y
 function lit(to){ if(!W.c) return; var c=to ? chain(to) : [], h=A.home(), hc=h ? chain(h) : [];
   W.c.querySelectorAll('line').forEach(function(l){ var a=l.getAttribute('data-a'); l.classList.toggle('r', !!to && (c.indexOf(a)>=0) !== (hc.indexOf(a)>=0)); });
   A.show(to); }
-function drawC(h){ var w=W.c; if(!w){ w=W.c=mk('div', 'nvo-c', 'nvo', mapGeo());
+function drawC(h){ var w=W.c; if(!w){ w=W.c=mk('div', 'nvo-c', 'nvo', mapGeo()+'<div class="nv-at">Tap a dot to go there</div>');
     w.addEventListener('pointerover', function(e){ var t=e.target.getAttribute && e.target.getAttribute('data-id'); if(t) lit(t); });
     w.addEventListener('pointerleave', function(){ lit(null); }); }
   w.hidden=!SH; w.querySelectorAll('circle.h').forEach(function(c){ c.classList.remove('h'); });
@@ -150,7 +150,8 @@ function help(on){ if(HP){ HP.remove(); HP=null; } if(!on) return;
 function set(v){ if(OPTS.indexOf(v)<0) return; NV=v; put(v); drop(); if(HP) help(true); tick(true); }
 /* ── keeping it current: what is drawn follows where you are ── */
 function tick(force){
-  chooser(); var sc=document.getElementById('sol-ctl'), bt=sc && sc.getClientRects().length ? Math.round(innerHeight-sc.getBoundingClientRect().top+10)+'px' : '';   /* (just above the style row, wherever it wraps to: phones) */
+  if(NV!=='current' && window._altoSolarLock && window._altoSolarLock.get()) window._altoSolarLock.set(false);
+  chooser(); var sc=document.getElementById('sol-ctl'), bt=sc && sc.getClientRects().length ? Math.round((innerHeight-sc.getBoundingClientRect().top)/(parseFloat(getComputedStyle(de).zoom)||1)+10)+'px' : '';   /* (just above the style row, wherever it wraps to: phones) */
   if(de.style.getPropertyValue('--nvo-bot')!==bt) de.style.setProperty('--nvo-bot', bt); de.classList.toggle('navx', NV!=='current' && A.ok());
   if(NV==='current' || !live()){ if(Object.keys(W).length) drop(); return; }
   if(NV==='b') ringKeep();
