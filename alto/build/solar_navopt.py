@@ -35,7 +35,7 @@ NAVOPT_CSS = r"""
   #nvo-d{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;}
   #nvo-d button{min-height:52px;font-size:15px;} #nvo-d .nv-go{flex:1 1 auto;max-width:none;}
   #nvo-d .nv-at{text-align:center;color:var(--muted);font-size:12px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} #nvo-d .nv-at b{display:block;color:var(--text);font-size:14px;}
-  #nvo-b{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none;width:0;height:0;}
+  #nvo-b{left:0;top:0;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none;width:0;height:0;}
   #nvo-b button{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 6px 16px var(--node-rest-shadow);max-width:180px;animation:nvpop .18s ease-out both;}
   #nvo-b button i{font-style:normal;color:var(--muted);margin-right:5px;}
   @keyframes nvpop{from{opacity:0;transform:translate(-50%,-50%) scale(.6);}}

@@ -28,7 +28,7 @@ def page(tmp_path_factory):
     return f
 
 
-AT = "u1-p2"
+AT = "u1-p1"
 
 
 def _at(pg, opt, at=AT):
@@ -77,7 +77,7 @@ def test_b_a_ring_of_neighbours_on_the_body(browser, page):
     _at(pg, "b")
     n = _hood(pg)
     pg.click(f"#node-{AT} .node-card")
-    pg.wait_for_selector("#nvo-b")
+    pg.wait_for_selector("#nvo-b button")
     ring = pg.evaluate("() => [].map.call(document.querySelectorAll('#nvo-b [data-go]'), function(b){ var r=b.getBoundingClientRect(); return [b.dataset.go, r.left+r.width/2, r.top+r.height/2]; })")
     pos = {r[0]: r[1:] for r in ring}
     assert n["up"] in pos and n["kids"][0] in pos
@@ -85,11 +85,11 @@ def test_b_a_ring_of_neighbours_on_the_body(browser, page):
     pg.click(f'#nvo-b button[data-go="{n["kids"][0]}"]')
     _arrive(pg, n["kids"][0])
     pg.keyboard.press("r")
-    pg.wait_for_selector("#nvo-b")
+    pg.wait_for_selector("#nvo-b button")
     pg.keyboard.press("ArrowUp")
     _arrive(pg, AT)
     pg.keyboard.press("r")
-    pg.wait_for_selector("#nvo-b")
+    pg.wait_for_selector("#nvo-b button")
     sib = [s for s in n["sibs"] if s != AT]
     pg.click(f'#nvo-b button[data-go="{sib[0]}"]') if sib[0] in pos else None
     if sib[0] in pos:

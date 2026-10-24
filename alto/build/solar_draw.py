@@ -1891,7 +1891,7 @@ window._altoSolarLock={get:function(){ return LOCK; }, set:setLock, ways:functio
   riding:function(){ return RD ? {from:RD.path[0], to:RD.dest, path:RD.path.slice(), ms:RD.ms} : null; }};
 /* the nav options' handles (solar_navopt.py): where you are, its neighbours, a ride, the whole system, a route drawn */
 window._altoSolarNavApi={ok:tourOK, home:home, up:function(i){ return tTarget(i, 'up'); }, kids:tKids, sibs:tSibs, order:tOrder, name:lname, go:rideTo, step:tStep,
-  ov:function(){ return !!(OV && TOV); }, show:function(id){ tShow(id || null); }, geo:function(){ return window._altoSolarGeo(); }};
+  ov:function(){ return !!(OV && TOV); }, show:function(id){ tShow(id || null); }, geo:function(){ var g=window._altoSolarGeo(); return g.bodies || g; }};
 /* the Star chart's style (round 10): Classic (the painted scene) or Retro (solar_stars.py RETRO_CSS), per timeline */
 function styOf(v){ return v==='retro' || v==='real' ? v : 'classic'; }
 var STY=styOf(pref('style')), RETRO=false;
