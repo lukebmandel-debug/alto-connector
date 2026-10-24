@@ -4382,6 +4382,14 @@ html.mobile #detail-page { padding-top: 48px !important; }
     };
   })();
 
+  // A title too long for one line between the clef and the wordmark takes two smaller lines (.ttl-2, CSS above).
+  (function fitTitle(){
+    var el = document.querySelector('#nav .title'); if(!el) return;
+    function fit(){ el.classList.remove('ttl-2'); if(el.scrollWidth > el.clientWidth + 1) el.classList.add('ttl-2'); }
+    fit(); window.addEventListener('resize', fit); window.addEventListener('orientationchange', function(){ setTimeout(fit, 120); });
+    window.addEventListener('load', fit); if(document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    new MutationObserver(fit).observe(el, {childList:true, characterData:true, subtree:true});
+  })();
   var titleEl = document.querySelector('#nav .title');
   if(titleEl){
     titleEl.style.cursor = 'pointer';
@@ -9371,6 +9379,13 @@ html.mobile #nav .brand-word{
 }
 html.mobile.dark #nav .brand-word .alto-word{ fill:url(#altoWordG2); }
 html.mobile #nav .title{ padding:0 64px; }   /* keep the centred title clear of clef + the 21px wordmark (61px zone) */
+/* A long title (Luke, 2026-10-24: "titles, especially long ones, are interfering with the Alto logos on mobile. So
+   maybe let's we could move the title down a bit"): it never leaves the space between the clef and the wordmark. When
+   one line cannot hold it, the phone script's fitTitle gives it .ttl-2: two smaller lines, set down in the lower part of
+   the bar, clear of both marks (the clef is 34px tall in the 52px bar). */
+html.mobile #nav .title{ white-space:nowrap; overflow:hidden; min-width:0; }
+html.mobile #nav .title.ttl-2{ white-space:normal; font-size:12.5px; line-height:1.25; letter-spacing:.08em; text-indent:0;
+  align-self:flex-end; margin-bottom:6px; max-height:2.5em; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 
 /* ── MOBILE SEARCH: an always-open glass pill at the bottom-CENTER showing the
    magnifier + "Search". Tapping expands it to an input pill (kept clear of the
