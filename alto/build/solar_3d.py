@@ -105,7 +105,7 @@ var MT={icy:[[.5,.44,.38],[.85,.8,.72],[.97,.96,.93]], sulphur:[[.5,.3,.08],[.92
   carbon:[[.07,.06,.05],[.18,.15,.12],[.34,.28,.22]], haze:[[.5,.3,.1],[.8,.55,.22],[.95,.78,.45]]};
 /* each kind's shading: [type for the shader, atmosphere, cloud cover's threshold (1: none), cloud opacity] */
 /* the craft's model: its scale on the way (the models are about 60 long) and the least near a small body; the chase camera's distance */
-var K3={S:.2, S_MIN:.06, CD:[120, 340], Y:3, CLR:9};
+var K3={S:.2, S_MIN:.06, CD:[120, 340], Y:3};
 var KD={rocky:[0, .32, .6, .5], ocean:[1, 1, .53, .95], gas:[2, .55, 1, 0], ice:[3, .7, .62, .45], desert:[4, .55, .66, .35], lava:[5, .4, .68, .3], moon:[6, 0, 1, 0], sun:[8, 0, 1, 0],
   icy:[9, .12, 1, 0], sulphur:[10, .1, 1, 0], rust:[11, .1, 1, 0], carbon:[12, 0, 1, 0], haze:[13, .95, .38, .75], asteroid:[14, 0, 1, 0], comet:[15, 0, 1, 0], blackhole:[16, 0, 1, 0]};
 function geo(){ return window._altoSolarGeo ? window._altoSolarGeo() : null; }
@@ -428,15 +428,20 @@ function fly(G, now){
   if(m==='fly' && SH.m!=='fly'){ SH.t0=now; SH.a=snap(); SH.hc=null; SH.cd=null; }   /* (the chase eases in from where the camera is; the heading carries on) */
   SH.m=m; if(A && v) A.steer(SH, v, dt);
   if(v) SH.v+=(Math.hypot(v[0], v[1])-SH.v)*Math.min(1, dt*2);
+  SH.th=F && F.thr || null; SH.sg=F && F.sg || 1;            /* (the engines on the way: solar_craft.py thrust()) */
   SH.p=[p[0], p[1]]; SH.to=F ? F.to : R ? R.to : id; SH.fr=F ? F.from : R ? R.from : id; SH.al=Math.min(1, SH.al+dt*3); SH.y=lift(G, p);
   SH.tr.push([p[0], p[1], now, SH.y]); while(SH.tr.length>2 && now-SH.tr[0][2]>1600) SH.tr.shift();
   return m==='fly' ? SH : null;
 }
-/* the craft's height over the board's plane: a little above it, lifted smoothly clear of any body near (a moon by its
-   planet, a planet's own moons round its orbit, a body on the way): over each, R(1-(h/2R)²)² for h (its distance across
-   the plane) under 2R, R its radius and the craft's clearance, which is never under the sphere's own height there */
-function lift(G, p){ var y=K3.Y, c=K3.CLR;
-  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], R=g.d/2+c, h=Math.hypot(g.x-p[0], g.y-p[1]); if(h<2*R){ var u=h/(2*R), k=1-u*u; y+=R*k*k; } });
+/* the craft's height over the board's plane: a little above it, in the plane its orbits and ways are flown in (Luke,
+   2026-10-25: ships "end up going above"), lifted only where it would pass through a body (one merely passed on the
+   way: its course keeps it off the bodies it goes round, its orbits clear of them): over a sphere 4 px larger than the
+   body, tapering (a cubic, level at its edge) from 4 px inside the body's edge to 4 px outside it, so it never dips
+   into the body and nothing lifts it a few px clear of one */
+function lift(G, p){ var y=K3.Y, m=4;
+  Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], R=g.d/2, h=Math.hypot(g.x-p[0], g.y-p[1]), h0, V, t; if(h>=R+m) return;
+    h0=Math.max(0, R-m); V=Math.sqrt((R+m)*(R+m)-h0*h0);
+    if(h<=h0) y+=Math.sqrt((R+m)*(R+m)-h*h); else { t=(h-h0)/(R+m-h0); y+=(1-t)*(1-t)*(V*(1+2*t)-h0/V*(R+m-h0)*t); } });
   return y; }
 /* the model's scale: small and clear on the way (Luke, 2026-10-22: "we don't need the ship to be massive, just clear"),
    smaller still near a small body (about a quarter of its width), so a moon's close-up is not all ship */
@@ -460,7 +465,10 @@ function craft3(G, now){
   var cr=window._altoCraft.list.filter(function(c){ return c.id===SH.cr; })[0] || window._altoCraft.get(), m=CM[cr.id];
   if(!m){ var o=window._altoCraft.mesh(cr.id); m=CM[cr.id]={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3};
     gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); }
-  var S=shipS(G), th=-SH.hs+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.6, c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=SH.y||K3.Y;
+  /* (braking on the way in: a rocket turned tail first on its main engine, the others firing retro thrusters forward) */
+  var E=window._altoCraft.engines ? window._altoCraft.engines(SH.th, cr.id) : {m:0, r:0, f:0};
+  SH.e=E; SH.nose=SH.hs+SH.sg*Math.PI*E.f;
+  var S=shipS(G), th=-SH.nose+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.6*(1-E.f), c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=SH.y||K3.Y;
   var M=[c*S, 0, -s*S, 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
   /* the trail: a fine line fading behind */
   var tv=[], tk=[], T=cr.trail||[.8, .85, 1];
@@ -480,6 +488,13 @@ function craft3(G, now){
   (cr.eng||[]).forEach(function(e, j){ var w=[M[0]*e[0]+M[4]*e[1]+M[8]*e[2]+M[12], M[1]*e[0]+M[5]*e[1]+M[9]*e[2]+M[13], M[2]*e[0]+M[6]*e[1]+M[10]*e[2]+M[14]], fl=1+.12*Math.sin(now*.031+j*1.7);
     gl.uniform3fv(g.u.C, w); gl.uniform1f(g.u.S, 7.6*S*fl); gl.uniform1f(g.u.a, .95*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.uniform1f(g.u.S, 21*S*fl); gl.uniform1f(g.u.a, .35*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+  /* the flames: a plume of glows streaming from each main nozzle aft (nz3, else eng) and each retro thruster forward
+     (rz3), long and bright as the engine fires, flickering */
+  [[cr.nz3 || cr.eng || [], -1, E.m], [cr.rz3 || [], 1, E.r*.6]].forEach(function(q){ var k=q[2]; if(k<.02) return;
+    var dx=M[0]/S*q[1], dz=M[2]/S*q[1];
+    q[0].forEach(function(e, j){ var w=[M[0]*e[0]+M[4]*e[1]+M[8]*e[2]+M[12], M[1]*e[0]+M[5]*e[1]+M[9]*e[2]+M[13], M[2]*e[0]+M[6]*e[1]+M[10]*e[2]+M[14]], fl=k*(1+.15*Math.sin(now*.043+j*2.3));
+      for(var i=0;i<6;i++){ var d=i*3.2*S*fl; gl.uniform3fv(g.u.K, i<2 ? [1, .92, .75] : [1, .58, .24]); gl.uniform3fv(g.u.C, [w[0]+dx*d, w[1], w[2]+dz*d]);
+        gl.uniform1f(g.u.S, (7.5-i*.95)*S*(.5+.5*fl)); gl.uniform1f(g.u.a, (1-i/6.5)*.9*Math.min(1, k*1.6)*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } }); });
   dis(g); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* a machine that cannot keep up close up gets less detail, then a coarser canvas */
@@ -687,7 +702,7 @@ function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
-  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
+  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, e:SH.e, nose:SH.nose}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
 

@@ -528,12 +528,12 @@ def test_retro_flies_a_regal_ship_smoothly(browser, page):
 
 def test_ships_to_choose_explorer_and_halo(browser, page):
     """Luke (2026-10-21): "give users choice ships/crafts"; (2026-10-22, from three options sheets) "P4 is the best ...
-    i want high def graphics" and Halo kept — one choice per viewer, in every Star chart style; Retro's Halo its
-    default there, the Explorer elsewhere; each a dense high-definition model."""
+    i want high def graphics" and Halo kept; (2026-10-25) "add a classic rocket ship design" — one choice per viewer, in
+    every Star chart style; Retro's Halo its default there, the Explorer elsewhere; each a dense high-definition model."""
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); }")
     L = pg.evaluate("() => window._altoCraft.list.map(function(c){ var m=window._altoCraft.mesh(c.id); return [c.id, c.real, m.p.length, m.k.length]; })")
-    assert [c for c, _, _, _ in L] == ["explorer", "halo"], L
+    assert [c for c, _, _, _ in L] == ["explorer", "halo", "rocket"], L
     assert all(n >= 9 * 10000 and n % 9 == 0 and k * 3 == n * 4 for _, _, n, k in L), L   # each a dense model (10,000+ triangles)
     assert pg.evaluate("() => window._altoCraft.id()") == "halo"
     pg.evaluate("() => window._altoSolarStyle.set('classic')")
@@ -649,6 +649,53 @@ def test_a_ship_picked_on_the_way_or_in_orbit_shows_at_once(browser, page):
     pg.evaluate("() => window._altoCraft.set('halo')"); pg.wait_for_timeout(300)
     s = pg.evaluate("() => window._altoSolar3D.ship()")
     assert s["craft"] == "halo" and s["on"] and s["al"] > .9, s                      # Realistic 3D, in orbit
+    pg.context.close()
+    assert not errs, errs
+
+
+FLIGHT = """() => new Promise(function(done){ var F=[], t0=performance.now(), seen=false;
+  (function g(){ var f=window._altoSolarFlight(), c=document.querySelector('#solar-fly-svg .fly-craft'), m=document.querySelector('#solar-fly-svg .sh-fl[data-f=m]');
+    if(f && c){ seen=true; var r=/rotate\\(([-\\d.e]+)\\)/.exec(c.getAttribute('transform')), s3=window._altoSolar3D && window._altoSolar3D.on() ? window._altoSolar3D.ship() : null;
+      F.push({x:f.tau/f.D, b:f.thr.b, f:f.thr.f, rot:r ? +r[1]*Math.PI/180 : null, vh:Math.atan2(f.v[1], f.v[0]), fl:m ? +m.getAttribute('opacity') : 0, k:f.k, D:f.D,
+        lift:s3 && s3.lift, nose:s3 && s3.nose, h3:s3 && s3.h, e3:s3 && s3.e}); }
+    if((seen && !f) || performance.now()-t0>9000) done(F); else requestAnimationFrame(g); })(); })"""
+
+
+def _wr(a):
+    return math.atan2(math.sin(a), math.cos(a))
+
+
+def test_the_rocket_brakes_tail_first_into_a_smooth_orbit(browser, page):
+    """Luke (2026-10-25): "add a classic rocket ship design for the three star chart modes that have ship designs. And
+    it should apply the brakes when approaching a planet like a normal rocket would." The Rocket in the picker, drawn in
+    each style; on the way in it turns tail first (smoothly, never a snap), its engine's flame lit as it brakes, and
+    turns nose first again as it settles into its orbit; in Realistic 3D the model does the same, flying in the plane
+    (never lifted over the body it goes to); the flight at most 5 s on the screen."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoCraft.set('rocket'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u1-p2')")
+    F = [f for f in pg.evaluate(FLIGHT.replace("var F=[]", "var F=[], red=document.querySelectorAll('#solar-fly-svg .fly-ship .sh-red').length") .replace("done(F)", "done(F.concat([{red:red}]))")) if f.get("rot") is not None or "red" in f]
+    assert F.pop()["red"] >= 3                                                                     # its red nose and fins
+    assert len(F) > 30 and F[0]["D"] * F[0]["k"] <= 5.01, (len(F), F[:1])                   # at most 5 s on the screen
+    braking = [f for f in F if f["b"] > .6 and f["f"] > .95]
+    assert braking and all(abs(_wr(f["rot"] - f["vh"] - math.pi)) < .3 and f["fl"] > .5 for f in braking), braking[:3]   # tail first, burning
+    end = [f for f in F if f["x"] > .985]
+    assert end and all(abs(_wr(f["rot"] - f["vh"])) < .3 and f["fl"] < .05 for f in end), end[-3:]                   # nose first into its orbit
+    assert max(abs(_wr(b["rot"] - a["rot"])) for a, b in zip(F, F[1:])) < 1.2, "the flip snapped"
+    pg.wait_for_timeout(1200)
+    pg.evaluate("() => window._altoSolarStyle.set('retro')"); pg.wait_for_timeout(300)
+    assert pg.evaluate("() => getComputedStyle(document.querySelector('#solar-fly-svg .fly-ship .sh-red')).fill") in ("rgb(12, 14, 18)", "#0c0e12")   # gold on black in Retro
+    pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pg.context.close(); pytest.skip("no WebGL in this browser")
+    pg.evaluate("() => window.enterFocus('u1-p1-m1')")
+    F = [f for f in pg.evaluate(FLIGHT) if f["nose"] is not None]
+    assert len(F) > 20, len(F)
+    assert all(f["lift"] <= 3.01 for f in F if f["x"] > .7), [f["lift"] for f in F if f["x"] > .7][:20]           # in the plane on the way in
+    flipped = [f for f in F if f["e3"]["f"] > .95]
+    assert flipped and all(abs(_wr(f["nose"] - f["h3"] - math.pi)) < (1 - f["e3"]["f"]) * math.pi + .05 for f in flipped), flipped[:2]   # tail first,
+    assert max(f["e3"]["m"] for f in flipped) > .9                                                                   # on its main engine
     pg.context.close()
     assert not errs, errs
 

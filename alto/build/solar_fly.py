@@ -458,6 +458,8 @@ try{ var mq=matchMedia('(prefers-reduced-motion: reduce)'); reduced=mq.matches;
   var mqf=function(){ reduced=mq.matches; }; if(mq.addEventListener) mq.addEventListener('change', mqf); else mq.addListener(mqf); }catch(e){}
 function cvs(){ return document.getElementById('canvas'); }
 function craft(){ return window._altoCraft ? window._altoCraft.get() : {k:1, svg:''}; }
+/* the chosen craft's drawing and its engines' flames (solar_craft.py) */
+function art(){ return (craft().svg||'')+(A && A.flames ? A.flames() : ''); }
 function shipK(){ return de.classList.contains('sk-retro') ? K.SHIP_RETRO : K.SHIP; }
 var A=window._altoCraft;                   /* (solar_craft.py, before this on System pages) */
 /* a body's orbit radius (solar_craft.py), short of its parent */
@@ -522,7 +524,7 @@ function layer(){
     w.appendChild(svg);
   }
   /* the chosen craft (solar_craft.py), small and clear; Retro's a little bigger */
-  var pr=ship.querySelector('.fly-ship'); pr.innerHTML=craft().svg||''; pr.setAttribute('transform', 'scale('+shipK()+')');
+  var pr=ship.querySelector('.fly-ship'); pr.innerHTML=art(); pr.setAttribute('transform', 'scale('+shipK()+')');
   svg.setAttribute('width', w.offsetWidth); svg.setAttribute('height', w.offsetHeight);
   gp.setAttribute('transform', 'translate(0,'+pad()+')');
   svg.classList.remove('fly-out'); lastS=0;
@@ -532,16 +534,18 @@ function route(R){
   for(var i=0;i<=n;i++){ var p=FL.tr.at(R.D*i/n); FL.pts.push(p); d+=(i ? 'L' : 'M')+f1(p[0])+' '+f1(p[1]); }
   pth.setAttribute('d', d);
 }
-function draw(p, v, s, now){
+function draw(p, v, s, now, th){
   var tr=FL.trail; tr.push([p[0], p[1], now]);
   while(tr.length>2 && now-tr[0][2]>K.TRAIL_MS) tr.shift();
   var d='M'+tr.map(function(q){ return f1(q[0])+' '+f1(q[1]); }).join('L');
   trl.setAttribute('d', d);
   var t0=tr[0]; grd.setAttribute('x1', f1(t0[0])); grd.setAttribute('y1', f1(t0[1])); grd.setAttribute('x2', f1(p[0])); grd.setAttribute('y2', f1(p[1]));
   var k=Math.round(1000/s)/1000, rt=de.classList.contains('sk-retro'), cr=craft();
-  /* the craft every frame: its nose on the way's tangent, banking a little */
-  var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, st=FL.st; FL.lt=now;
-  A.steer(st, v, dt); ship.setAttribute('transform', A.xf(p, st.hs, st.bk, k));
+  /* the craft every frame: its nose on the way's tangent, banking a little; braking on the way in, its engines firing
+     (a rocket turned tail first: the way it turns, round the way its orbit will go) */
+  var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, st=FL.st, e=A.engines ? A.engines(th) : {m:0, r:0, f:0}; FL.lt=now;
+  A.steer(st, v, dt); ship.setAttribute('transform', A.xf(p, st.hs+(FL.tr.sg||1)*Math.PI*e.f, st.bk*(1-e.f), k));
+  var pr=ship.querySelector('.fly-ship'); if(A.burn && pr) A.burn(pr, e, now);
   if(cr.spin){ var sp=ship.querySelector('.sh-spin'); if(sp) sp.setAttribute('transform', 'rotate('+f1(now/1000*cr.spin*57.3%360)+')'); }
   if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
     pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', rt ? f1(1/s)+' '+f1(7/s) : f1(4/s)+' '+f1(8/s));
@@ -563,7 +567,7 @@ function fly(from, to, o){
   var R=F.plan(S(), from, to, opt); if(!R) return false; W=R.W; rk=Math.min(rk, K.MAX_S/R.D);
   /* from its orbit: a course as a ship would chart it (solar_craft.py); a re-plan, another system: the route */
   var tr=!(o && o.start) && A.course({W:W, F:F, R:R, opt:opt, from:from, to:to, st:opt.start, v0:Math.hypot(opt.start[2], opt.start[3]), rc:function(id){ return orbR(W, id, opt.T0); }});
-  if(tr) R.keys=F.keys(R, opt, tr.at);
+  if(tr){ R.keys=F.keys(R, opt, tr.at); rk=Math.min(rk, K.MAX_S/R.D); }        /* (the course retimes the flight: at most 5 s on screen still) */
   else tr=A.track({D:R.D, r:orbR(W, to, F.clock(R, R.D)), spin:W.spin, base:function(t){ return F.at(R, t); }, cen:function(t){ return F.pos(W, to, F.clock(R, Math.min(t, R.D))); }});
   A.unpark();
   if(!FL && window._focusedNodeId && window.exitFocus) window.exitFocus();       /* the card it leaves goes home */
@@ -585,7 +589,7 @@ function frame(now){
   window._altoSolarDrive(F.clock(R, tau));
   var q=FL.tr.pv(tau), m=F.cam(R, tau, FL.o);
   setCam(m);
-  draw(q, [q[2], q[3]], m[2], now);
+  draw(q, [q[2], q[3]], m[2], now, FL.tr.thr ? FL.tr.thr(tau) : null);
   FL.ms.push(performance.now()-c0);                    /* this layer's own cost a frame (tests read it) */
   if(tau>=R.D) return land();
   raf=requestAnimationFrame(frame);
@@ -687,13 +691,13 @@ function watchOv(){ var c=cvs(); if(!c || typeof MutationObserver!=='function') 
     .observe(c, {attributes:true, attributeFilter:['class']}); }
 /* System look: nothing of the flight left (stopped where it was, the layer gone) */
 function look(){ if(stars()) return; stop(false); Q=[]; if(svg){ svg.remove(); svg=null; } }
-function init(){ watchOv(); if(A) A.onChange(function(){ var pr=ship && ship.querySelector('.fly-ship'); if(pr) pr.innerHTML=craft().svg||''; });   /* (a new pick: the art at once, on the way too) */ var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
+function init(){ watchOv(); if(A) A.onChange(function(){ var pr=ship && ship.querySelector('.fly-ship'); if(pr) pr.innerHTML=art(); });   /* (a new pick: the art at once, on the way too) */ var L=window._altoSolarLook, M=window._altoSolarMotion; if(L && L.onChange) L.onChange(look);
   if(M && M.onChange) M.onChange(function(){ if(FL && !!FL.o.still===moving() && !replan(FL.to)) stop(false); }); }   /* switched on the way: on from here, the new way */
 if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
 window._altoSolarFlyCan=can;   /* (solar_draw.py's Tour: a move in normal mode flies when it can) */
 window._altoSolarFlight=function(last){ if(last) return LAST; if(!FL) return null; var R=FL.R, tau=tauOf(performance.now());
   var q=FL.tr.pv(tau);
-  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:[q[0], q[1]], v:[q[2]/FL.k, q[3]/FL.k], k:FL.k, queued:Q.slice(), ms:FL.ms.slice(), legs:FL.tr.segs||null, path:FL.pts}; };
+  return {from:FL.from, to:FL.to, D:R.D, tau:tau, steps:R.steps.map(function(q){ return q[0]; }), at:[q[0], q[1]], v:[q[2]/FL.k, q[3]/FL.k], k:FL.k, queued:Q.slice(), ms:FL.ms.slice(), legs:FL.tr.segs||null, path:FL.pts, thr:FL.tr.thr ? FL.tr.thr(tau) : null, sg:FL.tr.sg||1}; };
 })();
 """.replace("__RT__", json.dumps(FLY_RT, separators=(",", ":")))
 

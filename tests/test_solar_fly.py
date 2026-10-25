@@ -637,3 +637,60 @@ console.log(JSON.stringify(out));"""
         assert 2.5 <= c["D"] <= 7, c
     led = [c for c in flown if not c["still"] and c["moved"] > c["r"] * 2]
     assert len(led) > 20                                                   # it met bodies where they had moved to
+
+
+@needs_node
+def test_a_ship_comes_into_orbit_smoothly_tangent_and_in_plane(plans, tmp_path):
+    """Luke (2026-10-25): "I'm not happy with how ships come into orbit. Some of them end up going above and in sort of
+    weird directions. It's not smooth" — and "it should apply the brakes when approaching a planet like a normal rocket
+    would". Chained flights (each from the orbit the last one left it in) between planets, moons, satellites and suns:
+    at the hand-off from the way to the orbit no jump in where it is, how fast it goes or where it points; on the way in
+    and round the orbit its heading turns gently; it meets the orbit level, at the orbit's radius, on the way round it
+    came; it never goes over (in 3D, never climbs over) the body it goes to or that body's parent, flying in the plane
+    (2 px clear at the least on the way in, where solar_3d.py's lift is under 2 px; the orbit clear of the parent but
+    where a satellite sits so near its moon that no orbit round it fits: there it grazes it); it slows into the orbit on a braking burn, the burn and
+    a rocket's flip over before it settles."""
+    from alto.build.solar_craft import CRAFT_JS
+    body = r"""
+var F=window._altoFly, A=window._altoCraft, out=[], seed=11, cur=null;
+function rnd(){ seed=(seed*16807)%2147483647; return seed/2147483647; }
+function orbR(W, id){ var b=W.B[id], P=b.p && W.B[b.p], room=0, c=F.pos(W, id, 0);
+  if(P){ var q=F.pos(W, b.p, 0); room=Math.hypot(c[0]-q[0], c[1]-q[1])-P.d/2-12; } return A.orbitR(b.d, 6, room); }
+function wr(a){ return Math.atan2(Math.sin(a), Math.cos(a)); }
+for(var k=0;k<480;k++){ var S=P[Math.floor(k/6)%P.length], W=F.bodies(S), ids=Object.keys(W.B).filter(function(i){ return W.B[i].role!=='core'; });
+  if(k%6===0){ A.unpark(); cur=null; }
+  var a=cur || ids[Math.floor(rnd()*ids.length)], b=ids[Math.floor(rnd()*ids.length)]; if(a===b || W.B[a].si!==W.B[b].si) continue;
+  var o={T0:rnd()*200, r0:[0, .4, 1][k%3], view:[1500, 950], still:k%11===5};
+  o.start=A.leave(a, F.pos(W, a, o.T0), F.pos(W, b, o.T0), orbR(W, a), W.spin, 1);
+  var R=F.plan(S, a, b, o); if(!R) continue;
+  var tr=A.course({W:W, F:F, R:R, opt:o, from:a, to:b, st:o.start, v0:Math.hypot(o.start[2], o.start[3]), rc:function(id){ return orbR(W, id); }});
+  if(!tr) continue; cur=b;
+  var D=tr.D, c9=F.pos(W, b, F.clock(R, D)), pb=W.B[b].p;
+  function pv(t){ if(t<D) return tr.pv(t); var e=.004, x=tr.off(t-e), y=tr.off(t+e); return [c9[0]+(x[0]+y[0])/2, c9[1]+(x[1]+y[1])/2, (y[0]-x[0])/(2*e), (y[1]-x[1])/(2*e)]; }
+  var n=800, dt=D/n, turn=0, hp=null, gap=1e9, gp=1e9, go=1e9, burn=0;
+  for(var i=Math.floor(n*.7);i<=n+Math.round(1.5/dt);i++){ var t=i*dt, q=pv(t), h=Math.atan2(q[3], q[2]), sp=Math.hypot(q[2], q[3]), T=F.clock(R, Math.min(t, D));
+    if(hp!==null && sp>5) turn=Math.max(turn, Math.abs(wr(h-hp))/dt); hp=h;
+    var c=F.pos(W, b, T); gap=Math.min(gap, Math.hypot(q[0]-c[0], q[1]-c[1])-W.B[b].d/2);
+    if(pb && W.B[pb].role!=='core'){ var cp=F.pos(W, pb, T), gq=Math.hypot(q[0]-cp[0], q[1]-cp[1])-W.B[pb].d/2; if(t<D) gp=Math.min(gp, gq); else go=Math.min(go, gq); }
+    if(t<D) burn=Math.max(burn, tr.thr(t).b); }
+  var qa=pv(D-1e-3), qb=pv(D+1e-3), e9=tr.at(D), th9=tr.thr(D), r9=Math.hypot(e9[0]-c9[0], e9[1]-c9[1]), vr=((e9[0]-c9[0])*qa[2]+(e9[1]-c9[1])*qa[3])/r9;
+  out.push({kind:W.B[a].role+'>'+W.B[b].role, a:a, b:b, turn:turn, gap:gap, gp:gp, go:go, burn:burn, end:[th9.b, th9.f], r:tr.r, r9:r9, vr:vr/Math.max(1e-6, Math.hypot(qa[2], qa[3])),
+    hj:Math.abs(wr(Math.atan2(qb[3], qb[2])-Math.atan2(qa[3], qa[2]))), vj:Math.hypot(qb[2], qb[3])/Math.max(1e-6, Math.hypot(qa[2], qa[3])),
+    pj:Math.hypot(qb[0]-qa[0], qb[1]-qa[1])});
+  A.park(b, tr, 1); }
+console.log(JSON.stringify(out));"""
+    js = ("var window=globalThis, document={documentElement:{classList:{contains:function(){ return false; }}}};"
+          "window.addEventListener=function(){};\n" + FLY_PLAN_JS + "\n" + CRAFT_JS + "\nvar P=" + json.dumps(plans) + ";\n" + body)
+    f = tmp_path / "insert.js"
+    f.write_text(js, encoding="utf-8")
+    out = json.loads(subprocess.check_output([NODE, str(f)], timeout=180))
+    kinds = {c["kind"] for c in out}
+    assert {"planet>moon", "moon>planet", "moon>moon", "planet>planet", "planet>sat", "sat>moon", "sat>sat"} <= kinds, kinds
+    for c in out:
+        assert c["hj"] < 0.01 and 0.97 < c["vj"] < 1.03 and c["pj"] < 0.5, c         # one motion through the hand-off
+        assert abs(c["r9"] - c["r"]) < 0.01 and abs(c["vr"]) < 0.02, c               # at the orbit's radius, level (tangent)
+        assert c["turn"] < 20, c                                                     # never snapping round
+        assert c["gap"] > 3.5 and c["gp"] > 1.9 and c["go"] > -1.5, c                # off the body and its parent (in 3D: never over them)
+        assert c["burn"] > 0.95 and max(c["end"]) < 1e-6, c                          # braked on the way in, the burn done at the orbit
+    turns = sorted(c["turn"] for c in out)
+    assert turns[len(turns) // 2] < 5 and turns[int(len(turns) * .95)] < 10, turns[-10:]   # gently, nearly always
