@@ -71,7 +71,9 @@
   }
 
   *{margin:0;padding:0;box-sizing:border-box;}
-  html,body{height:100%;}
+  html,body{height:100%; overscroll-behavior:none;}
+  /* No elastic bounce at the top or bottom of the page: the header and wallpaper stay put. */
+  #projects-wrap, .share-menu .sm-projects{ overscroll-behavior:none; }
   /* Solid on-theme canvas: anything iOS exposes outside the painted page (overscroll,
      keyboard viewport shifts, safe-area strips) shows this instead of white. */
   html{ background:#ffc98a; }
