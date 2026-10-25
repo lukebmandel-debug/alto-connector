@@ -124,7 +124,7 @@ def test_hints_point_off_the_window_and_a_click_goes_there(browser, page):
     h = pg.evaluate(HINTS)
     assert h["once"] and "node-u2-p2-m1:s:↓:Down:Case 1" in h["pills"], h
     assert all(e[2] for e in h["edge"]), h                                 # an edge pill stays inside the window
-    pg.click("#node-u2-p2-m1>.sol-nh")                                       # a named button rides there (both modes)
+    pg.click('#sol-nav .sol-nh[data-id="u2-p2-m1"]')                       # a named button rides there (both modes; laid out on the screen: test_solar_declutter.py)
     pg.wait_for_function("() => window._focusedNodeId==='u2-p2-m1' && !window._altoSolarLock.riding()", timeout=6000)
     assert pg.evaluate(HINTS)["once"]
     pg.keyboard.press("Escape")

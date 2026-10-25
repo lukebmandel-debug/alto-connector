@@ -681,7 +681,7 @@ function ctl(){ var w=document.getElementById('sol-ctl'); if(!w) return; var b=d
   if(!b){ b=document.createElement('button'); b.type='button'; b.id='sk3d-reset'; b.className='sol-opt'; b.title='Back to the first view (or double-click on space)';
     b.innerHTML='<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 4v3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Reset view</span>';
     b.addEventListener('click', function(e){ e.stopPropagation(); reset(); ctl(); }); w.appendChild(b); }
-  var f=window._focusedNodeId||null; if(f!==MVF){ MVF=f; MOVED=0; }
+  var f=window._focusedNodeId||null; if(f!==MVF){ MVF=f; if(f) MOVED=0; }   /* (a body enlarged: a fresh close-up; leaving one keeps the turned view) */
   var hide=!(on && MOVED && !lk()); if(b.hidden!==hide){ b.hidden=hide; de.style.setProperty('--sol-ctl-h', w.offsetHeight+'px'); } }
 function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);

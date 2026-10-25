@@ -1285,7 +1285,8 @@ function nhLay(){
     q.hidden=!p; if(!p) return; q.classList.toggle('sol-nhk', !!it.row);
     var tr='translate('+f2(p[0]/z)+'px,'+f2(p[1]/z)+'px)'; if(q._s!==tr) q.style.transform=q._s=tr; });
 }
-setInterval(function(){ hints(); if(NH.f) nhQ(); }, 250);
+setInterval(function(){ hints(); var F=NH.f && B[NH.f], r=F && F.c && F.c.getBoundingClientRect();     /* (the pills follow the disc and the window: placed again only when either moved, no frame asked for) */
+  var k=r ? [r.left|0, r.top|0, r.width|0, innerWidth, innerHeight].join() : ''; if(k && k!==NH.at){ NH.at=k; nhPlace(); } }, 250);
 /* ── Spokes only, the arrows (Luke, 2026-10-23: "you don't know which arrow to look at and its not intuitive why
    something is in a certain direction"): in place of the pills, an arrow on each spoke leaving the enlarged body, just
    outside its disc, pointing where the body at the spoke's other end is on the screen, and named for it (a name with no

@@ -124,8 +124,9 @@ def test_motion_never_uses_a_transform_and_rounds_to_device_px():
     # (and the focus shadow's scale, kept the same circle as the growing disc: not a node)
     # (and the enlarged disc's chips, turned a few degrees to the circle's edge by pool(): k, more, el are chips, not nodes;
     #  ch: a system's name, zoomed out, in its own unscaled layer #sol-ulay — not a node;
-    #  e: Spokes only's arrows and their names, in their own layer #sol-arw over the board — not nodes)
-    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el", "ch", "e")] == ["sh", "world", "world"]
+    #  e: Spokes only's arrows and their names, in their own layer #sol-arw over the board — not nodes;
+    #  q: the named pills, laid out on the screen in their own layer #sol-nav — not nodes)
+    assert [x for x in re.findall(r"(\w+)\.style\.transform=", SOLAR_JS) if x not in ("k", "more", "el", "ch", "e", "q")] == ["sh", "world", "world"]
     assert ".n.style.transform" not in SOLAR_JS
     assert "b.n.style.left=x+'px'" in SOLAR_JS and "Math.round(v*zq)/zq" in SOLAR_JS
     # no SVG <mask> on anything that moves (Safari): the rings and spokes are plain
@@ -1226,7 +1227,7 @@ def test_a_click_on_an_orbit_enlarges_its_body(browser, pages, look):
             out=[x, y, e && e.getAttribute('class')]; return out[2]==='sol-hit sol-rgh'; }); return out; }""", i)
         assert xy[2] == "sol-hit sol-rgh", (i, xy)          # (a ring's own target; Retro's are its bands)
         pg.mouse.move(xy[0], xy[1])
-        pg.wait_for_timeout(100)
+        pg.wait_for_timeout(350)                            # (a calm hover: lit after the pointer rests 200 ms, test_solar_declutter.py)
         assert pg.evaluate("() => document.querySelectorAll('#solar-svg .sol-ring.sol-hot').length") == 1
         pg.mouse.click(xy[0], xy[1])
         pg.wait_for_timeout(900)
