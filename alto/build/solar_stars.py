@@ -87,7 +87,7 @@ STARS_CSS = r"""
   /* (will-change: each resting body its own layer, as the glass card's backdrop-filter made it: a moving
      body is then a layer moved, not the board repainted under it — 4x cheaper with the whole chart in view) */
   R .node-card::before,R .node-card::after{display:none !important;}
-  R .node-card:hover{box-shadow:0 0 0 1.5px rgba(205,220,255,.7) !important;}
+  P #world .sol-hov:not(.focused) .node-card{box-shadow:0 0 0 1.5px rgba(205,220,255,.7) !important;}
   P #world .node[data-solar=sat]:not(.focused):not(.sol-closing) .node-card{border-color:rgba(170,190,255,.25) !important;}
   R .node-card>.sk.sk,F .node-card>.sk.sk{display:block !important;position:absolute;pointer-events:none;left:50%;top:50%;}
   /* enlarged (solar_draw's bigger disc, --sD): the body keeps its look under the scrim and the content */
@@ -683,9 +683,9 @@ RETRO_CSS = (r"""
   X #world .node[data-solar=sat] .node-card:not(#_){background:url("PROBE") 50% 50%/118% 118% no-repeat !important;filter:none;}
   X #world .node[data-solar] .sol-face,X #world .node[data-solar] .sol-face *{color:#fff !important;text-shadow:none !important;}
   X #world .node[data-solar=sun] .sol-face.sol-face,X #world .node[data-solar=sun] .sol-face.sol-face *{color:#0a1b34 !important;}
-  X #world .node[data-solar] .node-card:not(#_):hover{outline:1.5px solid #d9ae55;outline-offset:3px;}
+  X #world .sol-hov .node-card:not(#_){outline:1.5px solid #d9ae55;outline-offset:3px;}
   X #world .node[data-solar].sol-hint:not(.focused) .node-card:not(#_){outline:1.5px solid #d9ae55;outline-offset:4px;}
-  X #world .sol-nh.sol-nh{background:#000;color:#d9ae55;border-radius:0;box-shadow:0 0 0 1px #d9ae55,0 0 0 4px #000;}
+  X :is(#world,#sol-nav) .sol-nh.sol-nh{background:#000;color:#d9ae55;border-radius:0;box-shadow:0 0 0 1px #d9ae55,0 0 0 4px #000;}
   X .sol-nh>kbd{border-radius:0;color:#d9ae55;box-shadow:inset 0 0 0 1px rgba(217,174,85,.55);} X .sol-nh[data-k=n]>kbd{background:#d9ae55;color:#000;}
   X .sol-nh[data-k=s]>kbd{box-shadow:inset 0 0 0 2px #d9ae55;} X .sol-nh>b{font-weight:500;letter-spacing:.12em;} X #sol-way path{stroke:#d9ae55;stroke-opacity:.9;}
   /* poster lettering */

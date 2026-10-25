@@ -183,7 +183,7 @@ BOARD_CSS = r"""
   X #world .node-card:not(#_){background:#05070b !important;border-radius:2px !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;filter:none !important;
     border-left-color:rgba(217,174,85,.4) !important;border-right-color:rgba(217,174,85,.4) !important;border-bottom-color:rgba(217,174,85,.4) !important;}
   X #world .node-card::before,X #world .node-card::after{display:none !important;}
-  X #world .node:not(.dimmed):hover .node-card:not(#_){border-left-color:#d9ae55 !important;border-right-color:#d9ae55 !important;border-bottom-color:#d9ae55 !important;}
+  X #world .node:not(.dimmed):is(:hover:not([data-solar]),.sol-hov) .node-card:not(#_){border-left-color:#d9ae55 !important;border-right-color:#d9ae55 !important;border-bottom-color:#d9ae55 !important;}
   X #world .node-tag:not(#_){color:#d9ae55 !important;font-family:var(--rt-f) !important;letter-spacing:.24em !important;font-weight:400 !important;}
   X #world .node-title:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.07em;font-weight:500 !important;}
   X #world .node-desc:not(#_){color:#b9b2a0 !important;font-family:var(--rt-f) !important;}

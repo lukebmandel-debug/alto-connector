@@ -73,6 +73,7 @@ SOLAR3D_CSS = r"""
     background:rgba(14,20,44,.86);border:1px solid rgba(160,190,255,.55);border-radius:999px;padding:4px 9px 4px 6px;transform:translate(-50%,-100%);}
   #sk3d-l i kbd{display:inline-block;font:700 10px/16px inherit;min-width:16px;height:16px;text-align:center;border-radius:4px;margin-right:6px;
     background:#cfe0ff;color:#0b1430;}
+  #sk3d-l i.pl{transform:none;}
   #sk3d-l i em{font-style:normal;opacity:.7;margin-right:5px;text-transform:uppercase;font-size:9px;letter-spacing:.1em;}
   /* the enlarged disc in 3D: no disc of its own (the globe under it is the body), its content on a soft scrim */
   html.sk-3d:not(.mobile) #world>.node[data-solar]:is(.focused,.sol-closing) .node-card:not(#_){background:transparent !important;border-color:transparent !important;
@@ -87,8 +88,8 @@ SOLAR3D_CSS = r"""
   html.sk-3d:not(.mobile) #world>.node[data-solar]:is(.focused,.sol-closing) :is(.sol-body,.node-card>.node-footer):not(#_){opacity:calc(var(--sbo,1) * var(--s3o,1)) !important;}
   html.sk-3d:not(.mobile) #world>.node[data-solar]:is(.focused,.sol-closing) .sol-body *{text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.6) !important;}
   html.sk-3d:not(.mobile) #world>.node[data-solar]:is(.focused,.sol-closing) .node-card>.node-footer>*{box-shadow:0 2px 10px rgba(0,0,0,.45);}
-  #sk3d-reset{display:none;}
-  html.sk-3d #sol-ctl #sk3d-reset{display:inline-flex;}
+  #sol-ctl #sk3d-reset{display:none;}   /* (two ids: #sol-ctl button's own display no longer shows it in every style) */
+  html.sk-3d #sol-ctl #sk3d-reset:not([hidden]){display:inline-flex;}
 """
 
 SOLAR3D_JS = r"""
@@ -304,7 +305,7 @@ function home(G){
   var s=best && G.bodies[best.sun]; return s ? {x:s.x, z:s.y, d:Math.max(900, (best.R||800)*2.3)} : {x:cam.tx, z:cam.tz, d:cam.d}; }
 function snap(){ return {x:cam.tx, z:cam.tz, d:cam.d, az:cam.az, el:cam.el, ox:cam.ox, oy:cam.oy}; }
 function glide(G, keepAngle){ var h=home(G); tw={t0:performance.now(), ms:850, hop:0, a:snap(), b:{x:h.x, z:h.z, d:h.d, az:keepAngle ? cam.az : -0.6, el:keepAngle ? cam.el : 0.62, ox:0, oy:0}}; }
-function reset(){ var G=geo(); if(!G) return;
+function reset(){ var G=geo(); MOVED=0; if(!G) return;
   if(LK && foc){ LK.da=LK.de=0; tw={t0:performance.now(), ms:800, hop:0, a:snap(), lock:foc}; } else glide(G, false); }
 function mj(p){ return p*p*p*(10+p*(6*p-15)); }                                  /* minimum jerk (Luke's eye, 1.9.16) */
 function sm(a, b, x){ var t=Math.max(0, Math.min(1, (x-a)/(b-a))); return t*t*(3-2*t); }
@@ -339,7 +340,7 @@ function down(e){ if(e.button) return; drag={x:e.clientX, y:e.clientY, az:cam.az
 function move(e){
   if(drag && e.pointerId===drag.id){ var dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(!drag.m && Math.abs(dx)+Math.abs(dy)<4) return;
     drag.m=true; if(lk()) return;                 /* Spokes only: no free camera (a drag turns nothing) */
-    cv.classList.add('drag');
+    cv.classList.add('drag'); MOVED=1;
     if(LK && foc){ var a0=LK.da, e0=LK.de; LK.da=drag.da-dx*.006; LK.de=Math.max(-1.5, Math.min(1.05, drag.de+dy*.006));
       if(!tw){ cam.az+=LK.da-a0; cam.el+=LK.de-e0; } return; }   /* (close up: the camera turns about the globe, at once) */
     tw=null; cam.az=drag.az-dx*.006; cam.el=Math.max(-1.45, Math.min(1.45, drag.el+dy*.006)); return; }
@@ -358,7 +359,7 @@ function wheel(e){
   e.preventDefault(); e.stopImmediatePropagation();
   var m=e.deltaMode===1 ? 16 : e.deltaMode===2 ? 400 : 1, dy=e.deltaY*m, dx=e.deltaX*m;
   if(LK && foc){ if(dy>2 && window.exitFocus) window.exitFocus(); return; }       /* close up, scrolling out leaves the close-up (flying back out) */
-  tw=null;
+  tw=null; MOVED=1;
   cam.d=Math.max(60, Math.min(60000, cam.d*Math.exp(dy*(e.ctrlKey ? .012 : .0025))));
   if(!e.ctrlKey) cam.az-=dx*.004;
 }
@@ -640,20 +641,24 @@ function labels(G, r){
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
     e.children[0].textContent=H[id].map(function(d){ return (NHT[d] || NHD[d])[0]; }).join(''); e.children[1].textContent=NHT[H[id][0]] ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
-  var BX=[], NM=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */
+  var BX=[], NM=[], PL=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */
   function free(x, y, w, h){ if(BX.some(function(a){ return x<a[2] && x+w>a[0] && y<a[3] && y+h>a[1]; })) return false; BX.push([x, y, x+w, y+h]); return true; }
   (G.units||[]).forEach(function(u){ var s=G.bodies[u.sun], q=s && proj(W(s)); if(!q || u.sun===f) return; var ch=document.querySelector('.sol-unit[data-unit="'+u.unit+'"] span'); if(!ch) return;
     var e=b('u'), y=q.y-Math.max(30, s.d/2*q.s*1.9), w=ch.textContent.length*10+24; e.textContent=ch.textContent; e.style.setProperty('--u', u.c||'#9fb4ff'); at(e, q.x, y); free(q.x-w/2, y-24, w, 24); });   /* (none for the enlarged sun: it would sit on the title) */
   Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id], q=proj(W(g)); if(!o || id===f || (o.fa<.5 && !H[id])) return;     /* (a faded body's name goes, its hint stays) */
     var inside=q && q.x>r.left && q.x<r.right && q.y>r.top && q.y<r.bottom, rp=q ? g.d/2*q.s : 0;
-    if(H[id]){ if(inside){ at(pill(id), q.x, q.y-rp-6); free(q.x-70, q.y-rp-30, 140, 24); return; }
-      /* a hint whose body is off the window: the pill at the edge, on the line towards it */
-      /* (clear of the bars above, where the board runs under them, and of the controls below) */
-      var T0=r.top+130, B0=r.bottom-80, cx=r.left+r.width/2, cy=(T0+B0)/2, x=q ? q.x : cx, y=q ? q.y : T0, dx=x-cx, dy=y-cy,
-        k=Math.min((r.width/2-110)/Math.max(1, Math.abs(dx)), ((B0-T0)/2)/Math.max(1, Math.abs(dy)), 1);
-      at(pill(id), cx+dx*k, cy+dy*k+12); return; }
+    if(H[id]){ PL.push({id:id, q:q, rp:rp}); return; }     /* (the pills: laid out together below, clear of the disc, the bodies and each other) */
     if(!inside || rp<(g.role==='planet' ? 1.2 : g.role==='sun' ? .5 : 3)) return;
     NM.push({id:id, x:q.x, y:q.y+rp+4, rk:({sun:0, planet:1, moon:2}[g.role]||3)*1e4-rp, m:g.role!=='planet' && g.role!=='sun'}); });
+  var PP=window._altoSolarPills, fc=f && document.getElementById('node-'+f), fr=fc && (fc.querySelector('.node-card')||fc).getBoundingClientRect();
+  if(PL.length && PP){ var obs=[], WB=PP.bounds(); WB.x1=Math.min(WB.x1, r.right-16);
+    Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], o=BOD[id]; if(!o || id===f || o.fa<.5) return; var q=proj(W(g)), rp=q ? g.d/2*q.s : 0;
+      if(q && rp>2 && q.x>r.left && q.x<r.right && q.y>r.top && q.y<r.bottom) obs.push({id:id, r:[q.x-rp-2, q.y-rp-2, q.x+rp+2, q.y+rp+2]}); });
+    BX.forEach(function(a){ obs.push({id:'', r:a}); });
+    var disc=fr && fr.width ? {x:fr.left+fr.width/2, y:fr.top+fr.height/2, r:fr.width/2+10} : {x:(r.left+r.right)/2, y:(r.top+r.bottom)/2, r:0};
+    PP.lay(PL.map(function(p){ var e=pill(p.id); e.classList.add('pl'); var w=e.offsetWidth*z||140, h=e.offsetHeight*z||24, q=p.q || {x:disc.x, y:r.top};
+      return {e:e, id:p.id, w:w, h:h, bx:q.x, by:q.y, rb:p.rp+4, rank:{n:0, w:1, e:1, s:2}[H[p.id][0]]==null ? 3 : {n:0, w:1, e:1, s:2}[H[p.id][0]]}; }), WB, disc, obs)
+      .forEach(function(it){ var p=it.at || it.row; if(!p){ it.e.style.display='none'; return; } it.e.classList.toggle('rw', !!it.row); at(it.e, p[0], p[1]); BX.push([p[0], p[1], p[0]+it.w, p[1]+it.h]); }); }
   NM.sort(function(a, c){ return a.rk-c.rk; }).forEach(function(n){ var nm=BOD[n.id].name, w=nm.length*(n.m ? 5.6 : 6.6)+4; if(!free(n.x-w/2, n.y, w, n.m ? 13 : 15)) return;
     var e=b(n.m ? 'm' : ''); e.textContent=nm; at(e, n.x, n.y); });
   for(var i=nb;i<PB.length;i++) PB[i].style.display='none';
@@ -668,10 +673,16 @@ function toggle(w){
     ctl(); }
   else { if(TIP) TIP.style.display='none'; }
 }
-function ctl(){ var w=document.getElementById('sol-ctl'); if(!w || document.getElementById('sk3d-reset')) return;
-  var b=document.createElement('button'); b.type='button'; b.id='sk3d-reset'; b.className='sol-opt'; b.title='Back to the first view (or double-click on space)';
-  b.innerHTML='<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 4v3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Reset view</span>';
-  b.addEventListener('click', function(e){ e.stopPropagation(); reset(); }); w.appendChild(b); }
+/* Reset view (the button audit, 2026-10-25: it was in every style's bar and did nothing in the flat ones, nor in 3D until
+   the view had been turned): only in 3D Star chart, only with the camera turned or zoomed by hand since the last reset or
+   the last body enlarged, and not in Spokes only (no free camera there) */
+var MOVED=0, MVF;
+function ctl(){ var w=document.getElementById('sol-ctl'); if(!w) return; var b=document.getElementById('sk3d-reset');
+  if(!b){ b=document.createElement('button'); b.type='button'; b.id='sk3d-reset'; b.className='sol-opt'; b.title='Back to the first view (or double-click on space)';
+    b.innerHTML='<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 4v3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Reset view</span>';
+    b.addEventListener('click', function(e){ e.stopPropagation(); reset(); ctl(); }); w.appendChild(b); }
+  var f=window._focusedNodeId||null; if(f!==MVF){ MVF=f; MOVED=0; }
+  var hide=!(on && MOVED && !lk()); if(b.hidden!==hide){ b.hidden=hide; de.style.setProperty('--sol-ctl-h', w.offsetHeight+'px'); } }
 function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});

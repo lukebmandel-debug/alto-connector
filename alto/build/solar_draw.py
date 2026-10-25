@@ -93,7 +93,7 @@ SOLAR_CSS = r"""
   html.sk-retro.alto-stars #sol-tour .tb-next{background:#d9a441;color:#140f02;}
   html.mobile #sol-tour,html.alto-editing #sol-tour,html.navx #sol-tour{display:none !important;}
   @media print{ #sol-tour{display:none !important;} }
-  html.alto-solar:not(.mobile) #world .sol-nh{pointer-events:auto;cursor:pointer;font-size:13px;line-height:20px;padding:5px 14px 5px 5px;border-radius:16px;}
+  html.alto-solar:not(.mobile) :is(#world,#sol-nav) .sol-nh{pointer-events:auto;cursor:pointer;font-size:13px;line-height:20px;padding:5px 14px 5px 5px;border-radius:16px;}
   html.alto-solar:not(.mobile) .sol-nh>kbd{min-width:30px;height:22px;border-radius:11px;font-size:12.5px;}
   #sol-tour .tb-home{color:var(--text);box-shadow:inset 0 0 0 1.5px var(--accent,#6d5bd0);} html.alto-stars #sol-tour .tb-home{color:#fff;}
   html.sk-retro.alto-stars #solar-svg :is(.sol-spoke,.sol-link).sol-ride{stroke:#ffd27a !important;}
@@ -244,7 +244,7 @@ SOLAR_CSS = r"""
   html.alto-solar:not(.mobile) #canvas.sol-lm #world .node[data-solar=moon]>.sol-lbl{opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s;}
   #canvas.sol-glide #world .node[data-solar]>.sol-lbl{transition:opacity .2s,transform .3s cubic-bezier(.2,.7,.2,1);}
   #canvas.sol-lo #world .node[data-solar] .sol-face{visibility:hidden;}
-  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused):hover>.sol-lbl{opacity:1;z-index:9;max-width:none;}
+  html.alto-solar:not(.mobile) #world .node[data-solar]:not(.focused).sol-hov>.sol-lbl{opacity:1;z-index:9;max-width:none;}
   html.alto-solar:not(.mobile) #world .node[data-solar]:is(.focused,.sol-closing)>.sol-lbl,
   html.alto-solar:not(.mobile) #canvas.focus-mode #world .node[data-solar]:not(.sol-flank)>.sol-lbl{opacity:0 !important;}
   html.alto-solar:not(.mobile) #world .node-card:is(.dimmed,.rel-dimmed,.ent-dimmed)~.sol-lbl{opacity:.14;}
@@ -280,10 +280,18 @@ SOLAR_CSS = r"""
   #sol-way{position:absolute;left:0;top:0;z-index:5;pointer-events:none;overflow:visible;}
   #sol-way path{fill:none;stroke:color-mix(in srgb,var(--accent,#6d5bd0) 75%,var(--text));stroke-opacity:.75;stroke-width:2.6px;stroke-linecap:round;animation:solnh .4s ease-out .1s both;}
   #sol-way path:is([data-k=e],[data-k=w]){stroke-dasharray:.1 8;stroke-width:3.4px;stroke-opacity:.7;}
-  #sol-nav{position:absolute;left:0;top:0;width:0;height:0;z-index:400;}
+  #sol-nav{position:fixed;left:0;top:0;width:0;height:0;z-index:300;}
+  html.sk-3d #sol-nav,body:has(#detail-page.visible) #sol-nav{display:none !important;}
   html.mobile :is(#sol-way,#sol-nav),.sol-nhx,#sol-nav [hidden]{display:none !important;}
   html.sol-flying :is(#sol-way,#sol-nav,#world .sol-nh){opacity:0 !important;transition:opacity .15s;}   /* a flight (solar_fly.py): gone at once, back faded in on landing */
   #sol-arw{position:fixed;left:0;top:0;width:0;height:0;z-index:300;}
+  html.alto-solar:not(.mobile) #world .node.sol-arn>.sol-lbl{opacity:0 !important;}
+  #sol-note{position:fixed;z-index:320;max-width:310px;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.4;color:var(--text);pointer-events:none;
+    background:var(--card-glass-bg,var(--surface,#fff));box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 18%,transparent),0 6px 18px rgba(0,0,0,.18);opacity:0;transform:translateY(4px);transition:opacity .25s,transform .25s;}
+  #sol-note.on{opacity:1;transform:none;}
+  html.alto-stars #sol-note{background:rgba(5,10,28,.94);color:#eef2ff;box-shadow:0 0 0 1px rgba(170,198,255,.42);}
+  html.alto-stars.sk-retro #sol-note{background:#000;color:#d9ae55;border-radius:0;box-shadow:0 0 0 1px #d9ae55;}
+  html.mobile #sol-note{display:none;}
   #sol-arw>*{position:absolute;left:0;top:0;cursor:pointer;color:var(--nc);--nc:var(--u,color-mix(in srgb,var(--accent,#6d5bd0) 80%,var(--text)));animation:solnh .3s ease-out both;}
   .sol-ar{width:52px;height:32px;margin:-16px 0 0;padding:0;border:0;background:none;transform-origin:0 50%;}
   .sol-ar svg{width:52px;height:26px;fill:none;stroke:currentColor;stroke-width:3.4px;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 2px var(--bg,#fff)) drop-shadow(0 0 1px var(--bg,#fff));}
@@ -297,23 +305,26 @@ SOLAR_CSS = r"""
   html.mobile #sol-arw{display:none;}
   html.alto-solar:not(.mobile) #world .node.sol-hint>.sol-lbl{opacity:0 !important;}
   html:not(.mobile) #canvas.focus-mode #world .node.sol-hint .node-card{opacity:1 !important;}
-  #world .sol-nh{position:absolute;left:50%;top:50%;z-index:8;display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;
+  :is(#world,#sol-nav) .sol-nh{position:absolute;left:50%;top:50%;z-index:8;display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;
     --lr:calc(max(var(--dn,20) * var(--ovs,1) / 2, 2.5) * 1px);transform-origin:0 0;transform:scale(var(--ils,1)) translate(-50%,calc(var(--lr) + 6px));
     padding:3px 11px 3px 3px;border-radius:14px;font-size:12px;line-height:18px;font-weight:600;font-style:normal;color:var(--text);
     --nc:var(--u,var(--accent,#6d5bd0));background:color-mix(in srgb,var(--bg,#fff) 93%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--nc) 35%,transparent),0 4px 14px rgba(20,24,60,.16);animation:solnh .35s ease-out .12s both;}
   #world .sol-nh[data-p=a]{transform:scale(var(--ils,1)) translate(-50%,calc(-100% - var(--lr) - 6px));}
   #world .sol-nh[data-p=r]{transform:scale(var(--ils,1)) translate(calc(var(--lr) + 8px),-50%);}
   #world .sol-nh[data-p=l]{transform:scale(var(--ils,1)) translate(calc(-100% - var(--lr) - 8px),-50%);}
-  #sol-nav .sol-nh{left:0;top:0;transform:translate(var(--o,-50%,-50%));pointer-events:auto;cursor:pointer;}
+  #sol-nav .sol-nh{left:0;top:0;width:max-content;transform:none;pointer-events:auto;cursor:pointer;}
+  #sol-nav .sol-nh.sol-nhk>kbd::after{content:attr(data-n);margin-left:3px;font-weight:600;opacity:.8;}
+  #sol-nav .sol-nh.sol-nhk>em{display:none !important;}
   .sol-nh>kbd{display:grid;place-items:center;min-width:22px;height:18px;border-radius:9px;font:800 12px/1 system-ui,sans-serif;box-shadow:inset 0 0 0 1.3px color-mix(in srgb,var(--text) 38%,transparent);}
   .sol-nh[data-k=n]>kbd{background:var(--nc);color:#fff;box-shadow:none;}
   .sol-nh[data-k=s]>kbd{background:color-mix(in srgb,var(--nc) 22%,transparent);box-shadow:inset 0 0 0 1.8px var(--nc);}
   .sol-nh>i{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;opacity:.6;}
   .sol-nh>i::after{content:attr(data-b);}
-  .sol-nh>b{max-width:170px;overflow:hidden;text-overflow:ellipsis;font-weight:650;}
+  .sol-nh>b{max-width:230px;overflow:hidden;text-overflow:ellipsis;font-weight:650;}
+  #sol-nav .sol-nh>b{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.25;}   /* (a long name on two lines, not cut short)*/
   .sol-nh>em{display:none;font-style:normal;font-size:12px;width:12px;text-align:center;opacity:.75;transform:rotate(var(--a,0deg));}
-  #sol-nav .sol-nh>em{display:block;margin-left:5px;}
-  html.alto-stars #world .sol-nh{color:#eef2ff;background:rgba(5,10,28,.9);box-shadow:0 0 0 1px rgba(170,198,255,.42),0 4px 16px rgba(0,0,0,.55);}
+  #sol-nav .sol-nh>em{display:none;}
+  html.alto-stars :is(#world,#sol-nav) .sol-nh{color:#eef2ff;background:rgba(5,10,28,.9);box-shadow:0 0 0 1px rgba(170,198,255,.42),0 4px 16px rgba(0,0,0,.55);}
   html.alto-stars .sol-nh>kbd{box-shadow:inset 0 0 0 1.3px rgba(220,230,255,.5);}
   html.alto-stars .sol-nh[data-k=n]>kbd{background:#d6e4ff;color:#06102a;}
   html.alto-stars .sol-nh[data-k=s]>kbd{color:#cfe0ff;box-shadow:inset 0 0 0 1.8px #a9c6ff;}
@@ -600,7 +611,27 @@ function ringAt(e){ var h=e.target, r=h && h._r; if(!r || !h.classList || !h.cla
   if(r.ids.length<2) return r.ids[0];
   var m=svg && svg.getScreenCTM(), p=m ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : {x:0, y:0}, x=p.x, y=p.y, best=null, bd=Infinity;
   r.ids.forEach(function(i){ var b=B[i], d=Math.hypot(b.rx-x, b.ry-y); if(d<bd){ bd=d; best=i; } }); return best; }
-['pointerover', 'pointerout'].forEach(function(t){ document.addEventListener(t, function(e){ var h=e.target; if(h && h._r && h._r.e){ h._r.e.classList.toggle('sol-hot', t==='pointerover'); if(h._r.b) h._r.b.classList.toggle('sol-hot', t==='pointerover'); } }); });
+/* ── a calm hover (Luke, 2026-10-25: "some of the elements that change when you hover on them are too quick to change.
+   So it's just like constant changing"): a hover shows once the pointer has rested on a thing HI_IN ms and goes HI_OUT ms
+   after it leaves (not at all if it comes back), and moving straight from one thing to the next swaps them once the new one
+   has had its rest, with nothing lit or dimmed in between: a pointer crossing the bands and bodies on its way somewhere
+   changes nothing. An orbit's or a spoke's hover is its class sol-hot, a body's sol-hov (the styles' hover rules read it). ── */
+var HI_IN=200, HI_OUT=140;
+function hiSet(o, on){ if(o.r){ o.r.e.classList.toggle('sol-hot', on); if(o.r.b) o.r.b.classList.toggle('sol-hot', on); } else o.n.classList.toggle('sol-hov', on); }
+function intent(){ var S={on:null, t:0};
+  return {over:function(o){ clearTimeout(S.t); if(S.on && S.on.k===o.k) return;
+      S.t=setTimeout(function(){ if(S.on) hiSet(S.on, false); S.on=o; hiSet(o, true); }, HI_IN); },
+    out:function(){ clearTimeout(S.t); if(S.on) S.t=setTimeout(function(){ if(S.on) hiSet(S.on, false); S.on=null; }, HI_OUT); },
+    drop:function(){ clearTimeout(S.t); if(S.on) hiSet(S.on, false); S.on=null; }}; }
+var RHI=intent(), NHI=intent();
+function hiNode(t){ return t && t.closest ? t.closest('#world .node[data-solar]') : null; }
+document.addEventListener('pointerover', function(e){ var h=e.target, n;
+  if(h && h._r && h._r.e){ if(!(window._altoPointerStill && window._altoPointerStill(e))) RHI.over({k:h._r, r:h._r}); return; }
+  if(e.pointerType!=='touch' && (n=hiNode(h)) && !(window._altoPointerStill && window._altoPointerStill(e))) NHI.over({k:n, n:n}); });
+document.addEventListener('pointerout', function(e){ var h=e.target, to=e.relatedTarget;
+  if(h && h._r && h._r.e){ if(!(to && to._r===h._r)) RHI.out(); return; }
+  var n=hiNode(h); if(n && !(to && n.contains(to))) NHI.out(); });
+['wheel', 'pointerdown'].forEach(function(t){ window.addEventListener(t, function(){ NHI.drop(); }, {capture:true, passive:true}); });
 /* ── a resting pointer on an orbit or a spoke (round 10, outline mode's rules: blocks.py LINE_NAV_GLUE — a
    300ms dwell, 6px slop, never a line slid under a still pointer; its ends stay, the rest fades; the same
    .line-tip label at the pointer, following it, gone on leaving) names it: a spoke its two ends, an orbit
@@ -620,13 +651,16 @@ function lshow(r){ var c=cvs(); if(!c || c.classList.contains('focus-mode') || c
 document.addEventListener('pointerover', function(e){ var h=e.target, r=h && h._r;
   if(!r || !h.classList || !h.classList.contains('sol-hit') || !desk() || de.classList.contains('alto-editing')) return;
   if(window._altoPointerStill && window._altoPointerStill(e)) return;
-  if(LH.on && LH.on!==r) lclear(); if(LH.on===r) return;
-  clearTimeout(LH.t); LH.r=r; LH.x=e.clientX; LH.y=e.clientY; LH.t=setTimeout(function(){ LH.t=0; if(LH.r===r) lshow(r); }, 300); });
+  if(LH.on===r){ clearTimeout(LH.t); LH.t=0; LH.r=null; return; }   /* (back on it within its grace: it stays) */
+  clearTimeout(LH.t); LH.r=r; LH.x=e.clientX; LH.y=e.clientY; LH.t=setTimeout(function(){ LH.t=0; if(LH.r!==r) return; if(LH.on) lclear(); lshow(r); }, 300); });
 document.addEventListener('pointermove', function(e){
-  if(LH.on){ if(LH.tip){ LH.tip.style.left=(e.clientX+12)+'px'; LH.tip.style.top=(e.clientY+14)+'px'; } return; }
+  if(LH.on && LH.tip){ LH.tip.style.left=(e.clientX+12)+'px'; LH.tip.style.top=(e.clientY+14)+'px'; }
+  if(LH.on && !LH.r) return;
   if(LH.r && LH.t && Math.hypot(e.clientX-LH.x, e.clientY-LH.y)>6){ var r=LH.r; clearTimeout(LH.t); LH.x=e.clientX; LH.y=e.clientY;
-    LH.t=setTimeout(function(){ LH.t=0; if(LH.r===r) lshow(r); }, 300); } });
-document.addEventListener('pointerout', function(e){ var h=e.target; if(h && h._r && h.classList && h.classList.contains('sol-hit')){ var to=e.relatedTarget; if(!(to && to._r===h._r)) lclear(); } });
+    LH.t=setTimeout(function(){ LH.t=0; if(LH.r!==r) return; if(LH.on) lclear(); lshow(r); }, 300); } });
+document.addEventListener('pointerout', function(e){ var h=e.target; if(h && h._r && h.classList && h.classList.contains('sol-hit')){ var to=e.relatedTarget; if(to && to._r===h._r) return;
+  if(to && to._r && to.classList && to.classList.contains('sol-hit')) return;   /* (straight onto the next line: this one stays until that one's rest is up) */
+  if(!LH.on){ lclear(); return; } clearTimeout(LH.t); LH.r=null; LH.t=setTimeout(lclear, HI_OUT); } });
 ['wheel', 'pointerdown', 'keydown'].forEach(function(t){ window.addEventListener(t, function(){ if(LH.on || LH.t) lclear(); }, true); });
 document.addEventListener('click', function(e){ if(!e.target || !e.target._r || de.classList.contains('alto-editing') || !desk()) return;
   var id=ringAt(e); if(!id) return; e.stopPropagation(); e.preventDefault(); if(window.enterFocus) window.enterFocus(id); }, true);
@@ -875,7 +909,7 @@ window.addEventListener('afterprint', function(){ printing=0; go(); });
 document.addEventListener('visibilitychange', function(){ last=null; go(); });
 /* a hover is the pointer moving onto a circle or a line, not one sliding under a still pointer */
 function hot(t){ return t && t.closest && t.closest('#world .node[data-solar],#river-svg [data-edge-hit]'); }
-function over(e){ if(!hot(e.target) || (window._altoPointerStill && window._altoPointerStill(e))) return; clearTimeout(hovT); hov=1; }
+function over(e){ if(!hot(e.target) || (window._altoPointerStill && window._altoPointerStill(e))) return; clearTimeout(hovT); hov=1; }   /* (at once: the body stops under the pointer, so its calm hover can settle on it) */
 document.addEventListener('mouseover', over); document.addEventListener('mousemove', over, {passive:true});
 document.addEventListener('mouseout', function(e){ if(hot(e.relatedTarget)) return; clearTimeout(hovT); hovT=setTimeout(function(){ hov=0; }, 320); });
 
@@ -1166,7 +1200,7 @@ var NH={k:undefined, t:[], L:null, g:null, f:null, q:0}, NHD={n:['↑', 'Up a le
   NHL={n:['↑', 'Up', 'Up'], s:['↓', 'Down', 'Down'], w:['⇧←', 'Sibling', 'Sibling'], e:['⇧→', 'Sibling', 'Sibling']};   /* (the Tour's: siblings are Shift+arrow) */
 function nhPill(id, d, wd){ var p=document.createElement('span'), D=NHL[d] || NHD[d], b=B[id]; p.className='sol-nh'; p.setAttribute('data-k', d); p.setAttribute('aria-hidden', 'true');
   p.innerHTML='<em>➜</em><kbd></kbd><i></i><b></b>'; p.children[1].textContent=D[0]; p.children[2].setAttribute('data-a', wd||D[1]); p.children[2].setAttribute('data-b', D[2]);
-  p.children[3].textContent=(b.lb && b.lb.getAttribute('data-l'))||''; return p; }
+  p.children[3].textContent=(b.lb && b.lb.getAttribute('data-l'))||''; var fb=b.c && b.c.querySelector('.sol-face>b'), nn=fb && /^\d+$/.test(fb.textContent.trim()) ? fb.textContent.trim() : ''; if(nn) p.children[1].setAttribute('data-n', nn); return p; }
 function nhOn(id, d, side, wd){ var n=B[id].n, p=nhPill(id, d, wd);
   p.setAttribute('data-p', side); n.classList.add('sol-hint'); n.appendChild(p); return p; }
 function hints(){
@@ -1179,7 +1213,7 @@ function hints(){
   arSet(LOCK && f);
   if(o && !OV){ NH.t.push({id:o, n:B[o].n, p:nhOn(o, 'o', 'b')}); return; }
   if(!f || LOCK) return;
-  if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; world.appendChild(NH.L); }
+  if(!NH.L || !NH.L.isConnected){ NH.L=document.createElement('div'); NH.L.id='sol-nav'; document.body.appendChild(NH.L); }
   if(!NH.g || !NH.g.isConnected){ NH.g=el('svg', {id:'sol-way', width:1, height:1, 'aria-hidden':'true'}); world.insertBefore(NH.g, svg && svg.parentNode===world ? svg.nextSibling : world.firstChild); }
   var F=B[f], Wy=tWays(f);
   (Wy ? Wy.nb.map(function(to){ return [Wy.d[to]||'c', to]; }) : ['n', 's', 'w', 'e'].map(function(d){ return [d, levelNav(f, d)]; })).forEach(function(dt){ var d=dt[0], to=dt[1], b=B[to]; if(!to || to===f || !b || !b.n || NH.t.some(function(t){ return t.id===to; })) return;
@@ -1190,34 +1224,68 @@ function hints(){
 function nhQ(){ if(NH && NH.f && !NH.q) NH.q=requestAnimationFrame(nhPlace); }
 function nhPlace(){
   NH.q=0; var F=NH.f && B[NH.f], c=cvs(); if(!F || !F.n || !c || !world) return;
-  var tr=String(getComputedStyle(world).translate||'').split(' ').map(parseFloat), wo=woff(c), sx=c.scrollLeft-wo.x-(tr[0]||0), sy=c.scrollTop-wo.y-(tr[1]||0), cw=c.clientWidth, ch=c.clientHeight;
-  var x0=sx+44, x1=sx+cw-44, y0=sy+120, y1=sy+ch-96;            /* the window in world px, inside its bars: a place here shows its own pill */
-  var cz=F.c ? parseFloat(F.c.style.zoom)||1 : 1, rf=(parseFloat(F.n.style.getPropertyValue('--scd'))||sDof(F.n, F))*cz/2+6, cx=F.rx+(F.n._fx||0), cy=F.ry+(F.n._fy||0), done=[];
-  function clear(q){ var X=Math.max(q[0], Math.min(q[2], cx)), Y=Math.max(q[1], Math.min(q[3], cy));   /* a box inside the window, off the disc and off the pills placed */
-    return q[0]>=x0-30 && q[2]<=x1+30 && q[1]>=y0-24 && q[3]<=y1+30 && Math.hypot(X-cx, Y-cy)>rf && !done.some(function(o){ return ov2(o, q); }); }
-  NH.t.forEach(function(t){ var b=B[t.id], dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, rb=b.d/2+6, mx=(cx+b.rx)/2, my=(cy+b.ry)/2, qx=mx, qy=my;
+  var cxw=F.rx+(F.n._fx||0), cyw=F.ry+(F.n._fy||0), cz=F.c ? parseFloat(F.c.style.zoom)||1 : 1, rfw=(parseFloat(F.n.style.getPropertyValue('--scd'))||sDof(F.n, F))*cz/2+6;
+  NH.t.forEach(function(t){ var b=B[t.id], dx=b.rx-cxw, dy=b.ry-cyw, L=Math.hypot(dx, dy)||1, rb=b.d/2+6, mx=(cxw+b.rx)/2, my=(cyw+b.ry)/2, qx=mx, qy=my;   /* the way there, drawn under the bodies (world px) */
     if(!LOCK && (t.d==='e' || t.d==='w')){ var P=b.p===F.p && B[F.p], ax=P ? mx-P.rx : dy, ay=P ? my-P.ry : -dx, al=Math.hypot(ax, ay)||1; qx+=ax/al*L*.2; qy+=ay/al*L*.2; }   /* bowed away from what both orbit */
-    var u=function(x, y, X, Y, r){ var l=Math.hypot(X-x, Y-y)||1; return [f2(x+(X-x)/l*r), f2(y+(Y-y)/l*r)]; }, s=u(cx, cy, qx, qy, rf), e=u(b.rx, b.ry, qx, qy, rb);
-    t.w.setAttribute('d', L>rf+rb+4 ? 'M'+s+'Q'+f2(qx)+' '+f2(qy)+' '+e : 'M0 0');
-    var w=t.pw||(t.pw=t.p.offsetWidth||180), h=24, r=b.d/2, bx={b:[b.rx-w/2, b.ry+r+6, b.rx+w/2, b.ry+r+6+h], a:[b.rx-w/2, b.ry-r-6-h, b.rx+w/2, b.ry-r-6],
-      r:[b.rx+r+8, b.ry-h/2, b.rx+r+8+w, b.ry+h/2], l:[b.rx-r-8-w, b.ry-h/2, b.rx-r-8, b.ry+h/2]};
-    var sd=(b.fs && b.fs.m==='to') ? ['b'] : (Math.abs(dx)>Math.abs(dy) ? [dx>0 ? 'r' : 'l'] : [dy>0 ? 'b' : 'a']).concat(['b', 'a', 'r', 'l']), k=sd.filter(function(x){ return clear(bx[x]); })[0];
-    var on=!!k && b.rx>=x0 && b.rx<=x1 && b.ry>=y0 && b.ry<=y1 && L>rf;
-    t.p.classList.toggle('sol-nhx', !on); t.q.hidden=on;
-    if(on){ t.p.setAttribute('data-p', k); done.push(bx[k]); return; }   /* its pill on the side away from the disc, else the first side clear (beside the disc: under it, where its label was) */
-    /* else (off the window, or under the disc): the pill on the line from the disc to it — at the window's edge, or at the disc's rim */
-    var X, Y;
-    if(L>rf){ var ex0=sx+14, ex1=sx+cw-14, ey0=sy+100, ey1=sy+ch-72, px=Math.max(ex0, Math.min(ex1, cx)), py=Math.max(ey0, Math.min(ey1, cy)),
-      kx=dx ? ((dx>0 ? ex1 : ex0)-px)/dx : 1e9, ky=dy ? ((dy>0 ? ey1 : ey0)-py)/dy : 1e9, kk=Math.max(0, Math.min(kx, ky, 1)); X=px+dx*kk; Y=py+dy*kk; ux=-ux; uy=-uy; }
-    else { X=cx+ux*rf; Y=cy+uy*rf; }
-    var cl=function(v){ return Math.max(-1, Math.min(1, v*2)); }, ox=50*cl(ux)-50, oy=50*cl(uy)-50, q=[X+ox/100*w, Y+oy/100*h, X+(ox/100+1)*w, Y+(oy/100+1)*h];
-    var onBody=function(q){ return ORD.some(function(id){ var b=B[id], n=b.n; if(!n || id===t.id || id===NH.f) return false; var x=b.rx+(n._fx||0), y=b.ry+(n._fy||0), r=b.d/2+4; return ov2(q, [x-r, y-r, x+r, y+r]); }); };
-    for(var j=0; j<8 && (done.some(function(o){ return ov2(o, q); }) || onBody(q)); j++){ var dv=(uy<0 ? -1 : 1)*(h+6); Y+=dv; q[1]+=dv; q[3]+=dv; }   /* (two on one edge: stacked; never on a body) */
-    done.push(q);
-    t.q.style.left=f2(X)+'px'; t.q.style.top=f2(Y)+'px'; t.q.style.setProperty('--o', f2(ox)+'%,'+f2(oy)+'%');   /* (its anchor: a custom property, no transform written) */
-    t.q.style.setProperty('--a', Math.round(Math.atan2(dy, dx)*180/Math.PI)+'deg'); });
+    var u=function(x, y, X, Y, r){ var l=Math.hypot(X-x, Y-y)||1; return [f2(x+(X-x)/l*r), f2(y+(Y-y)/l*r)]; }, s=u(cxw, cyw, qx, qy, rfw), e=u(b.rx, b.ry, qx, qy, rb);
+    t.w.setAttribute('d', L>rfw+rb+4 ? 'M'+s+'Q'+f2(qx)+' '+f2(qy)+' '+e : 'M0 0'); t.p.classList.add('sol-nhx'); });
+  nhLay();
 }
-setInterval(hints, 250);
+/* ── the pills, laid out on the screen (Luke, 2026-10-25, of Duty's five moons with their pills on each other and on the
+   disc: "still very, very busy and kind of hard to understand what's going on"). In screen px, in a layer of their own
+   over the board: each pill beside its body on the side away from the disc, else another side, else further out; never on
+   the enlarged disc, another body, another pill or the bars; a place off the window at the window's edge on the line towards
+   it, slid along the edge rather than stacked. A pill with no clear room anywhere goes to one row above the Tour bar
+   (its key, its body's number, its name), so nothing is ever drawn over anything else. Up first, then the same level,
+   then down. Names that would read the same cut short (two "Duties Arising from …") lose their shared start instead. ── */
+var NHO={n:0, w:1, e:1, s:2};
+function nhBounds(){ var tb=document.getElementById('sol-tour'), nv=document.getElementById('nav'), t=92, rr=document.getElementById('tab-rail');
+  if(nv){ [].forEach.call(nv.querySelectorAll('button,.nav-btn,a'), function(e){ var r=e.getBoundingClientRect(); if(r.height && r.bottom<innerHeight/3) t=Math.max(t, r.bottom+10); }); }
+  var x1=innerWidth-16; if(rr){ var q=rr.getBoundingClientRect(); if(q.width && q.left>innerWidth/2) x1=Math.min(x1, q.left-10); }
+  var tr=tb && !tb.hidden && tb.getBoundingClientRect(); return {x0:16, x1:x1, y0:t, y1:(tr && tr.height ? tr.top : innerHeight-90)-10, tt:tr && tr.height ? tr.top : innerHeight-90}; }
+function nhNames(){ var bs=NH.t.map(function(t){ return t.q.querySelector('b'); });
+  bs.forEach(function(b){ if(b._full==null) b._full=b.textContent; b.textContent=b._full; b.title=b._full; });
+  bs.forEach(function(b){ var w=b._full.split(' '); if(b.scrollWidth<=b.clientWidth+1 && b.scrollHeight<=b.clientHeight+1) return;
+    bs.forEach(function(o){ if(o===b) return; var v=o._full.split(' '), k=0; while(k<w.length-1 && k<v.length-1 && w[k]===v[k]) k++;
+      if(k>=2) b.textContent='… '+w.slice(k).join(' '); }); }); }
+/* the layout itself, for these pills and solar_3d.py's: items {id, w, h, bx, by, rb (its body: centre, radius), rank}
+   in screen px; disc {x, y, r}; obs [{id, r:[l, t, r, b]}] (the other bodies). Each item gets at:[x, y] (its top left),
+   row:[x, y] (in the row above the Tour bar) or gone (no room even there). */
+function pillLay(items, W, disc, obs){
+  items=items.slice().sort(function(a, b){ return a.rank-b.rank; });
+  function lay(W){ var done=[], spill=[];
+    function bad(q, id){ if(q[0]<W.x0 || q[2]>W.x1 || q[1]<W.y0 || q[3]>W.y1) return true;
+      var X=Math.max(q[0], Math.min(q[2], disc.x)), Y=Math.max(q[1], Math.min(q[3], disc.y)); if(Math.hypot(X-disc.x, Y-disc.y)<disc.r) return true;
+      return done.some(function(o){ return ov2(o, q); }) || obs.some(function(o){ return o.id!==id && ov2(o.r, q); }); }
+    items.forEach(function(t){ var w=t.w, h=t.h, bx=t.bx, by=t.by, dx=bx-disc.x, dy=by-disc.y, L=Math.hypot(dx, dy)||1, ux=dx/L, uy=dy/L, fit=null, j, k, q,
+        inw=bx>W.x0 && bx<W.x1 && by>W.y0 && by<W.y1, at=function(x, y){ return [x, y, x+w, y+h]; };
+      if(inw){ var sides=[[ux, uy], [uy, -ux], [-uy, ux], [0, 1], [0, -1], [1, 0], [-1, 0]];   /* beside it: away from the disc, then round it, then further out */
+        for(k=0; k<4 && !fit; k++) for(j=0; j<sides.length && !fit; j++){ var sx=sides[j][0], sy=sides[j][1], g=t.rb+6+k*(h+8), px=bx+sx*g, py=by+sy*g;
+          q=at(px+(Math.abs(sx)<.38 ? -w/2 : sx>0 ? 0 : -w), py+(Math.abs(sy)<.38 ? -h/2 : sy>0 ? 0 : -h)); if(!bad(q, t.id)) fit=q; } }
+      else {     /* off the window: at its edge, on the line towards it, slid along that edge when taken */
+        var kx=ux>0 ? (W.x1-w/2-disc.x)/ux : ux<0 ? (W.x0+w/2-disc.x)/ux : 1e9, ky=uy>0 ? (W.y1-h/2-disc.y)/uy : uy<0 ? (W.y0+h/2-disc.y)/uy : 1e9,
+          kk=Math.max(0, Math.min(kx, ky)), ex=disc.x+ux*kk, ey=disc.y+uy*kk, al=kx<ky ? [0, 1] : [1, 0];
+        for(j=0; j<17 && !fit; j++){ var s=(j+1>>1)*(j%2 ? 1 : -1)*(al[0] ? w*.55+6 : h+6); q=at(ex+al[0]*s-w/2, ey+al[1]*s-h/2); if(!bad(q, t.id)) fit=q; } }
+      t.ux=ux; t.uy=uy; t.at=fit; t.row=null; t.gone=false; if(fit) done.push(fit); else spill.push(t); });
+    return spill; }
+  var spill=lay(W);
+  if(spill.length){ var rh=Math.max.apply(null, spill.map(function(t){ return t.h; })); W=Object.assign({}, W, {y1:W.y1-rh-8}); spill=lay(W);
+    var rw=spill.reduce(function(a, t){ return a+t.w+8; }, -8), x=Math.max(W.x0, (W.x0+W.x1)/2-rw/2);
+    spill.forEach(function(t){ if(x+t.w>W.x1){ t.gone=true; return; } t.row=[x, W.y1+8]; x+=t.w+8; }); }
+  return items; }
+window._altoSolarPills={bounds:function(){ return nhBounds(); }, lay:pillLay};
+function nhLay(){
+  var F=NH.f && B[NH.f]; if(!F || !F.c || !NH.L) return;
+  var z=parseFloat(getComputedStyle(de).zoom)||1, r=F.c.getBoundingClientRect(); if(!r.width) return;
+  if(NH.nm!==NH.k){ NH.nm=NH.k; nhNames(); NH.t.forEach(function(t){ t.sw=t.q.offsetWidth*z||160; t.sh=t.q.offsetHeight*z||28; }); }
+  var obs=ORD.filter(function(id){ return id!==NH.f && B[id] && B[id].c; }).map(function(id){ var q=B[id].c.getBoundingClientRect(); return {id:id, r:[q.left-3, q.top-3, q.right+3, q.bottom+3]}; })
+    .filter(function(o){ return o.r[2]>o.r[0]+4 && o.r[2]>0 && o.r[0]<innerWidth && o.r[3]>0 && o.r[1]<innerHeight; });
+  var items=NH.t.map(function(t){ var br=(B[t.id].c||B[t.id].n).getBoundingClientRect(); return {t:t, id:t.id, w:t.sw, h:t.sh, bx:br.left+br.width/2, by:br.top+br.height/2, rb:br.width/2+6, rank:NHO[t.d]==null ? 3 : NHO[t.d]}; });
+  pillLay(items, nhBounds(), {x:r.left+r.width/2, y:r.top+r.height/2, r:r.width/2+10}, obs).forEach(function(it){ var q=it.t.q, p=it.at || it.row;
+    q.hidden=!p; if(!p) return; q.classList.toggle('sol-nhk', !!it.row);
+    var tr='translate('+f2(p[0]/z)+'px,'+f2(p[1]/z)+'px)'; if(q._s!==tr) q.style.transform=q._s=tr; });
+}
+setInterval(function(){ hints(); if(NH.f) nhQ(); }, 250);
 /* ── Spokes only, the arrows (Luke, 2026-10-23: "you don't know which arrow to look at and its not intuitive why
    something is in a certain direction"): in place of the pills, an arrow on each spoke leaving the enlarged body, just
    outside its disc, pointing where the body at the spoke's other end is on the screen, and named for it (a name with no
@@ -1226,7 +1294,7 @@ setInterval(hints, 250);
    chart, at the scene's own projection), and placed again each frame while it shows. ── */
 var AR={f:null, t:[], L:null, q:0, z:1, h:null};
 function arSet(f){
-  if(f===AR.f) return; cancelAnimationFrame(AR.q); arHot(null); AR.t.forEach(function(t){ t.a.remove(); t.l.remove(); }); AR.t=[]; AR.f=f||null;
+  if(f===AR.f) return; cancelAnimationFrame(AR.q); arHot(null); AR.t.forEach(function(t){ t.a.remove(); t.l.remove(); if(B[t.id] && B[t.id].n) B[t.id].n.classList.remove('sol-arn'); }); AR.t=[]; AR.f=f||null;
   if(!f) return;
   if(!AR.L){ AR.L=document.createElement('div'); AR.L.id='sol-arw'; document.body.appendChild(AR.L);
     AR.L.addEventListener('mouseover', function(e){ var p=e.target.closest && e.target.closest('[data-id]'); arHot(p && p.getAttribute('data-id')); });
@@ -1235,6 +1303,7 @@ function arSet(f){
   AR.t=joined(f).map(function(to){ var nm=lname(to), a=document.createElement('button'), l=document.createElement('span');
     a.type='button'; a.className='sol-ar'; a.innerHTML='<svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 10h32M26 3l9 7-9 7"/></svg>'; a.setAttribute('aria-label', 'Ride to '+nm);
     l.className='sol-al'; l.textContent=nm; l.setAttribute('aria-hidden', 'true');
+    if(B[to].n) B[to].n.classList.add('sol-arn');   /* (its arrow names it: its own label steps aside, so no name twice) */
     [a, l].forEach(function(e){ e.setAttribute('data-id', to); e.style.cssText=(B[to].n.style.cssText.match(/--u:[^;]*/)||[''])[0]; AR.L.appendChild(e); });
     return {id:to, a:a, l:l}; });
   arPlace();
@@ -1950,6 +2019,12 @@ window.addEventListener('wheel', function(e){
   if(Math.max(Math.abs(LW.x), Math.abs(LW.y))<40) return;
   LW.done=true; if(e.ctrlKey) tOv(LW.y>0); else tStep((Math.abs(LW.y)>=Math.abs(LW.x) ? LW.y : LW.x)>0 ? 'next' : 'prev');
 }, {capture:true, passive:false});
+/* a switch whose effect is not on the map at once (Spokes only changes what a drag and a scroll do) says so in plain words
+   above its button for a few seconds (the button audit, 2026-10-25: "spokes only doesn't really seem to change anything") */
+function solNote(b, txt){ var n=document.getElementById('sol-note'), z=parseFloat(getComputedStyle(de).zoom)||1, r=b.getBoundingClientRect();
+  if(!n){ n=document.createElement('div'); n.id='sol-note'; n.setAttribute('role', 'status'); document.body.appendChild(n); }
+  n.textContent=txt; n.style.left=f2(Math.max(8, Math.min(r.left, innerWidth-330))/z)+'px'; n.style.bottom=f2((innerHeight-r.top+10)/z)+'px';
+  n.classList.add('on'); clearTimeout(n._t); n._t=setTimeout(function(){ n.classList.remove('on'); }, 4500); }
 function ctl(){
   var w=document.getElementById('sol-ctl');
   if(!desk() || !ready){ if(w) w.remove(); return; }
@@ -1964,7 +2039,8 @@ function ctl(){
       if(b.getAttribute('data-style')) setStyle(b.getAttribute('data-style'));
       else if(b.id==='sol-motion' && !b.disabled) window._altoSolarMotion.set(!MOTION);
       else if(b.id==='sol-fly'){ window._altoFlyOff=!window._altoFlyOff; keep('fly', window._altoFlyOff ? 0 : 1); ctl(); }
-      else if(b.id==='sol-lock') setLock(!LOCK);
+      else if(b.id==='sol-lock'){ setLock(!LOCK); solNote(b, LOCK ? 'Spokes only: you move one step at a time along the lines \u2014 scroll, the arrow keys or the named arrows. Dragging and zooming are off.'
+        : 'Free view: '+(styleOf()==='3d' ? 'drag to turn, scroll to zoom' : 'drag or scroll to look around')+', and click any body to go there.'); }
       else if(b.id==='sol-craft' && window._altoCraft) window._altoCraft.open(b); });
     if(window._altoCraft) window._altoCraft.onChange(function(){ ctl(); });
     document.body.appendChild(w); window.addEventListener('resize', function(){ var w2=document.getElementById('sol-ctl'); if(w2) de.style.setProperty('--sol-ctl-h', w2.offsetHeight+'px'); }); }
