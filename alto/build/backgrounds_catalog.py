@@ -186,6 +186,7 @@ PATTERNS = [
     dict(id='p-lines',    name='Diagonals',   kind='lines',   l=('#f7efe0', '#ebdfc8', '#a47e3c', 0.26), d=('#251c0e', '#150f06', '#d9b26a', 0.18)),
     dict(id='p-waves',    name='Waves',       kind='waves',   l=('#e4f5f0', '#cfeae2', '#2f8f7b', 0.26), d=('#08241f', '#041512', '#5fd0b8', 0.20)),
     dict(id='p-hex',      name='Hexagons',    kind='hex',     l=('#eceff4', '#dde2eb', '#5a6781', 0.24), d=('#151a25', '#0b0f17', '#8fa0c4', 0.20)),
+    dict(id='p-pebble',   name='River pebbles', kind='pebble', l=('#e8ece6', '#d7ddd2', '#6c7867', 0.30), d=('#161a17', '#0b0e0c', '#a9b8a3', 0.24)),
     dict(id='p-chevron',  name='Chevrons',    kind='chevron', l=('#fbe9ee', '#f3d3dc', '#c05a7a', 0.22), d=('#2c1019', '#180810', '#f08aa9', 0.18)),
     dict(id='p-diamond',  name='Diamonds',    kind='diamond', l=('#e3e8f8', '#cdd6f1', '#4a5fb0', 0.22), d=('#0c1233', '#060a1f', '#7d92f0', 0.20)),
     dict(id='p-paper',    name='Paper',       kind='paper',   l=('#f6f2ea', '#ebe5d8', '#5b4a2e', 0.34), d=('#1a1917', '#0e0d0c', '#e6dcc8', 0.22)),

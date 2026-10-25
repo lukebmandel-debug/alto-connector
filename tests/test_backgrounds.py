@@ -104,7 +104,7 @@ def test_colours_and_patterns_are_pale_in_light_and_deep_in_dark():
         assert all(lum(h) > 0.70 for h in c["l"][:2]), (c["id"], c["l"])
         assert all(lum(h) < 0.30 for h in c["d"][:2]), (c["id"], c["d"])
     for c in PATTERNS:
-        assert c["kind"] in ("dots", "grid", "lines", "waves", "hex", "chevron", "diamond", "paper")
+        assert c["kind"] in ("dots", "grid", "lines", "waves", "hex", "pebble", "chevron", "diamond", "paper")
         assert 0 < c["l"][3] < 0.5 and 0 < c["d"][3] < 0.5
     ids = [c["id"] for c in COLOURS + PATTERNS] + [sc["id"] for sc in SCENES]
     assert len(set(ids)) == len(ids)
@@ -336,7 +336,7 @@ def test_colours_patterns_and_a_colour_of_your_own_can_be_chosen_and_follow_the_
     pg.goto(base + "/t.html"); pg.wait_for_timeout(2500)
     bgval = lambda: pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--alto-bg').trim()")
     for cid, kind in (("c-ocean", "linear-gradient"), ("p-dots", "radial-gradient"), ("p-waves", "data:image/svg+xml"),
-                      ("p-paper", "feTurbulence"), ("p-hex", "data:image/svg+xml")):
+                      ("p-paper", "feTurbulence"), ("p-hex", "data:image/svg+xml"), ("p-pebble", "data:image/svg+xml")):
         pg.evaluate("id=>window._altoBg.choose(id)", cid); pg.wait_for_timeout(200)
         v = bgval()
         assert pg.evaluate(STATE)["on"] and (kind in v or kind in __import__("urllib.parse").parse.unquote(v)), (cid, v[:120])

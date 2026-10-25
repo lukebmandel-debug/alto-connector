@@ -191,6 +191,41 @@ HEAD_JS = r"""(function(){
     return {g:'Colors', k:'c', n:'Custom color', custom:h, l:[mix(h,.84,true), mix(h,.66,true)], d:[mix(h,.80,false), mix(h,.90,false)]};
   }
   function svgu(s){ return 'url("data:image/svg+xml,'+encodeURIComponent(s)+'")'; }
+  // River pebbles: a seamless packed tiling (relaxed periodic Voronoi cells with softened corners, a thin seam
+  // each and a faint fill), drawn here from a fixed seed so no tile has to be stored. Cached per ink.
+  var PB={};
+  function peb(ink,al){
+    var k=ink+al; if(PB[k]) return PB[k];
+    var n=7, T=266, c=T/n, s=5, P=[], i, j, o=[-T,0,T], d='', R=function(){ s=(s+0x6D2B79F5)|0; var t=Math.imul(s^s>>>15,1|s); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+    for(i=0;i<n;i++) for(j=0;j<n;j++) P.push([(i+.5+(R()-.5)*.56)*c,(j+.5+(R()-.5)*.56)*c]);
+    function cells(){
+      return P.map(function(p){
+        var x=p[0], y=p[1], g=[[x-2*c,y-2*c],[x+2*c,y-2*c],[x+2*c,y+2*c],[x-2*c,y+2*c]];
+        P.forEach(function(q){ o.forEach(function(a){ o.forEach(function(b){
+          var qx=q[0]+a, qy=q[1]+b, nx=qx-x, ny=qy-y, h=nx*nx+ny*ny; if(!h||h>16*c*c) return;
+          var mx=(x+qx)/2, my=(y+qy)/2, r=[], m=g.length, u, v, fu, fv, t;
+          for(u=0;u<m;u++){ v=(u+1)%m; fu=(g[u][0]-mx)*nx+(g[u][1]-my)*ny; fv=(g[v][0]-mx)*nx+(g[v][1]-my)*ny;
+            if(fu<=0) r.push(g[u]);
+            if((fu<0)!=(fv<0)&&fu!=fv){ t=fu/(fu-fv); r.push([g[u][0]+t*(g[v][0]-g[u][0]), g[u][1]+t*(g[v][1]-g[u][1])]); } }
+          g=r; }); }); });
+        return g; });
+    }
+    var V=cells(), m;
+    for(m=0;m<2;m++){ P=V.map(function(g){ var a=0,b=0; g.forEach(function(q){ a+=q[0]; b+=q[1]; }); return [(a/g.length+T)%T,(b/g.length+T)%T]; }); V=cells(); }
+    var f=function(z){ return +z.toFixed(1); }, out='';
+    V.forEach(function(g){
+      var fa=(R()*.08+.02)*al*4, q='', e=g.length;
+      o.forEach(function(a){ o.forEach(function(b){
+        var xs=g.map(function(z){ return z[0]+a; }), ys=g.map(function(z){ return z[1]+b; });
+        if(Math.max.apply(0,xs)<-2||Math.min.apply(0,xs)>T+2||Math.max.apply(0,ys)<-2||Math.min.apply(0,ys)>T+2) return;
+        var dd='', u, p0, p1, p2, L, A, B;
+        for(u=0;u<e;u++){ p0=g[(u+e-1)%e]; p1=g[u]; p2=g[(u+1)%e];
+          L=Math.hypot(p0[0]-p1[0],p0[1]-p1[1])||1; A=Math.min(4,L*.45)/L; L=Math.hypot(p2[0]-p1[0],p2[1]-p1[1])||1; B=Math.min(4,L*.45)/L;
+          dd+=(u?'L':'M')+f(p1[0]+(p0[0]-p1[0])*A+a)+' '+f(p1[1]+(p0[1]-p1[1])*A+b)+'Q'+f(p1[0]+a)+' '+f(p1[1]+b)+' '+f(p1[0]+(p2[0]-p1[0])*B+a)+' '+f(p1[1]+(p2[1]-p1[1])*B+b); }
+        out+='<path fill-opacity="'+f(fa*1000)/1000+'" d="'+dd+'Z"/>'; }); });
+    });
+    return PB[k]='<svg xmlns="http://www.w3.org/2000/svg" width="'+T+'" height="'+T+'"><g fill="'+ink+'" stroke="'+ink+'" stroke-opacity="'+al+'" stroke-width="1.4" stroke-linejoin="round">'+out+'</g></svg>';
+  }
   // the repeating mark of a pattern, over its gradient
   function pattern(kind, v){
     var a=v[0], b=v[1], ink=v[2], al=v[3], i=rgba(ink,al), S='<svg xmlns="http://www.w3.org/2000/svg" ', st='fill="none" stroke="'+ink+'" stroke-opacity="'+al+'" stroke-width="1.4" ';
@@ -200,6 +235,7 @@ HEAD_JS = r"""(function(){
       lines:['repeating-linear-gradient(135deg,'+i+' 0,'+i+' 1.2px, transparent 1.2px, transparent 13px)'],
       waves:[svgu(S+'width="80" height="24"><path '+st+'d="M0 12 Q20 0 40 12 T80 12"/></svg>')+' 0 0/80px 24px'],
       hex:[svgu(S+'width="56" height="100"><path '+st+'d="M28 2 L54 17 L54 49 L28 64 L2 49 L2 17 Z M28 64 L28 98 M2 49 L-2 51 M54 49 L58 51"/></svg>')+' 0 0/56px 100px'],
+      pebble:kind==='pebble' ? [svgu(peb(ink,al))+' 0 0/266px 266px'] : 0,
       chevron:[svgu(S+'width="44" height="22"><path '+st+'d="M0 22 L22 2 L44 22"/></svg>')+' 0 0/44px 22px'],
       diamond:[svgu(S+'width="42" height="42"><path '+st+'d="M21 1 L41 21 L21 41 L1 21 Z"/></svg>')+' 0 0/42px 42px'],
       paper:[svgu(S+'width="160" height="160"><filter id="n" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 '+(h2n(ink)>>16&255)/255+' 0 0 0 0 '+(h2n(ink)>>8&255)/255+' 0 0 0 0 '+(h2n(ink)&255)/255+' '+al*1.2+' 0 0 0 -.2"/></filter><rect width="160" height="160" filter="url(#n)"/></svg>')+' 0 0/160px 160px']
