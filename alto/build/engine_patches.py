@@ -1758,7 +1758,8 @@ _ALIGN_OLD = (
     "    var bottomCSS = 30 + (dhCSS - COLLAPSED_H) / 2;  // centre INFO on the toggle\n"
     "    if(bottomCSS < 0) bottomCSS = 30;\n")
 _ALIGN_NEW = (
-    "    if(mt.offsetWidth === 0) return;\n"
+    "    var mtOff = getComputedStyle(mt).display === 'none';   // hidden on purpose (Retro is always dark): INFO takes its place\n"
+    "    if(mt.offsetWidth === 0 && !mtOff) return;\n"
     "    var MARGIN = 12.5;        // gap (10px VISUAL after zoom) \u2014 matches homepage rhythm\n"
     "    var COLLAPSED_H = 35;     // every circle's diameter (28px VISUAL)\n"
     "    // The row, right to left: the edit toggle (manual_edit's #alto-edit-pill, when\n"
@@ -1770,7 +1771,7 @@ _ALIGN_NEW = (
     "    // row sits left of it, the same 30 off its edge as it is off the corner.\n"
     "    var dock = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--np-dock')) || 0;\n"
     "    var modeR = 30 + epW + dock;                    // 30 = the corner inset (24px VISUAL)\n"
-    "    var rightCSS  = modeR + COLLAPSED_H + MARGIN;\n"
+    "    var rightCSS  = mtOff ? modeR : modeR + COLLAPSED_H + MARGIN;\n"
     "    var bottomCSS = 30;\n"
     "    mt.style.setProperty('right',  modeR + 'px', 'important');\n"
     "    mt.style.setProperty('bottom', bottomCSS + 'px', 'important');\n"

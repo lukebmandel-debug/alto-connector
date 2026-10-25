@@ -219,3 +219,30 @@ def test_in_retro_every_round_control_is_square_inside_and_out_and_keeps_its_box
     pg.evaluate("window._altoStyle.set('classic')")
     assert pg.evaluate(_RADII, ["#ct-chips"])[0][1] > 0                                       # Classic stays round
     ctx.close()
+
+
+def test_in_retro_the_bottom_right_row_has_no_gap_and_every_control_its_frame(browser, site):
+    """Luke, 2026-10-25: "The Google sign-in is still a circle within a square. The square around search doesn't look right,
+    and there's no square around information. And then now there's a gap where light or dark mode used to be." Retro hides the
+    light / dark toggle (it is always dark), so search and info take its place; info is framed like search; a photo is square."""
+    base, _ = site
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(base + "/t.html")
+    pg.wait_for_timeout(600)
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(1200)
+    pg.evaluate("""() => { var b=document.getElementById('account-btn'), m=document.getElementById('acct-avatar-mini'), g=document.getElementById('acct-glyph');
+      b.classList.add('signed-in'); g.style.display='none'; m.style.display='flex';
+      m.innerHTML='<img alt="" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22/%3E">'; }""")
+    h = pg.evaluate("""() => { var R=id=>document.getElementById(id).getBoundingClientRect(), s=R('search-btn'), i=R('info-btn'), p=R('alto-edit-pill'),
+        a=R('account-btn'), m=document.querySelector('#acct-avatar-mini img').getBoundingClientRect(), cs=e=>getComputedStyle(e);
+      return {mode:cs(document.getElementById('mode-toggle')).display, gap1:i.left-s.right, gap2:p.left-i.right, info:cs(document.getElementById('info-btn')).boxShadow,
+        search:cs(document.getElementById('search-btn')).boxShadow, iw:i.width, sw:s.width, img:[m.width, m.height, a.width, a.height],
+        rad:[cs(document.getElementById('acct-avatar-mini')).borderTopLeftRadius, cs(document.querySelector('#acct-avatar-mini img')).borderTopLeftRadius]}; }""")
+    ctx.close()
+    assert h["mode"] == "none", h
+    assert abs(h["gap1"] - h["gap2"]) <= 4 and h["gap1"] < 20, h                 # even spacing, no hole
+    assert "217, 174, 85" in h["info"] and h["info"] == h["search"], h          # the same gold rim
+    assert abs(h["iw"] - h["sw"]) <= 1, h
+    assert h["rad"] == ["0px", "0px"] and h["img"][0] >= h["img"][2] - 2, h     # a square photo filling its frame

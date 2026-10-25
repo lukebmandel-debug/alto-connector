@@ -67,7 +67,7 @@ CHROME_CSS = r"""
     --nav-bg:rgba(0,0,0,.96);--nav-bar-bg:rgba(0,0,0,.96);--legend-bg:rgba(0,0,0,.94);--header-glass-bg:transparent;--page-glass-tint:transparent;
     --glass-slab-bg:none;--glass-slab-border:transparent;--glass-slab-shadow:none;--glass-sheen:transparent;}
   X body:has(#detail-page.visible) :is(#sk-mark,#sk-frame),X.detail-open :is(#sk-mark,#sk-frame){display:none !important;}
-  X #mode-toggle{display:none !important;}
+  X #mode-toggle{display:none !important;}   /* (Retro is always dark: DARK_JS; info and search close up into its place, engine_patches alignInfo) */
   /* the bars: the name in poster letters, the chips cut square and rimmed in gold */
   X #title-text:not(#_){color:#efe6cf !important;font-family:var(--rt-f) !important;font-weight:300 !important;text-transform:uppercase;letter-spacing:.5em;font-size:15px;}
   X :is(#title-text,.nav-group-label){box-shadow:none !important;background:transparent !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
@@ -124,7 +124,14 @@ CHROME_CSS = r"""
      toggles but are square in retro, make them square properly"): the same box (so the same hit area), corners square on the control and
      on everything inside it (no round halo, knob or pill left within), a 1px gold rim, the glyph centred, gold when on; Classic stays round */
   X :is(#info-btn,#ct-chips,#m-search,.wrap-pill,#sol-tour):not(#_){border-radius:0 !important;}
-  X #info-btn:not(#_){box-shadow:none !important;background:transparent !important;}
+  X #info-btn:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;}   /* (its frame on the box: the icon's own was clipped by the box's overflow, so info had none) */
+  X #info-btn:not(#_) #info-icon{background:transparent !important;box-shadow:none !important;}
+  X #info-btn:not(.expanded):hover{box-shadow:0 0 0 1px #d9ae55 !important;}
+  X #search-btn:not(#_) #search-glyph{color:#d9ae55 !important;}   /* (it was the theme's grey: the only control not in gold) */
+  /* signed in: the photo fills the square frame, square (Luke: "the Google sign-in is still a circle within a square") */
+  X #account-btn:not(#_) #acct-avatar-mini,X #account-btn:not(#_) #acct-avatar-mini img{border-radius:0 !important;}
+  X #account-btn.signed-in:not(#_) #acct-avatar-mini{width:100% !important;height:100% !important;}
+  X #account-btn.signed-in:not(#_){overflow:hidden;}
   X #ct-chips:not(#_){border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.6) !important;}
   X :is(#notes-panel button:not(#fw-seg button),#ef-close,#bg-close,#msp-close,#minimap-close,#tutorial-close,.nt-btn):not(#_){border-radius:0 !important;background:#000 !important;color:#d9ae55 !important;
     border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;display:inline-flex;align-items:center;justify-content:center;}
@@ -364,6 +371,7 @@ DARK_JS = r"""window._altoRetroDark=window._altoRetroDark||function(on){
     if(!o.mo && typeof MutationObserver==='function'){ o.mo=new MutationObserver(function(){ if(o.was!=null && !r.classList.contains('dark')) r.classList.add('dark'); });
       o.mo.observe(r,{attributes:true,attributeFilter:['class']}); } }
   else if(o.was!=null){ var w=o.was; o.was=null; if(!w) r.classList.remove('dark'); }
+  if(window._altoAlignInfo) setTimeout(window._altoAlignInfo, 0);   /* (the light / dark toggle comes and goes with Retro: info and search close up into its place, engine_patches' alignInfo) */
 };"""
 
 
