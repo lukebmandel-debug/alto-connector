@@ -124,6 +124,7 @@ CHROME_CSS = r"""
      toggles but are square in retro, make them square properly"): the same box (so the same hit area), corners square on the control and
      on everything inside it (no round halo, knob or pill left within), a 1px gold rim, the glyph centred, gold when on; Classic stays round */
   X :is(#info-btn,#ct-chips,#m-search,.wrap-pill,#sol-tour):not(#_){border-radius:0 !important;}
+  X #info-btn{--info-r-open:0px;--info-r-shut:0px;}   /* (the engine's open / shut animation writes its corners inline: these keep them square, timeline_template patchInfoExpand) */
   X #info-btn:not(#_){background:#000 !important;border:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;}   /* (its frame on the box: the icon's own was clipped by the box's overflow, so info had none) */
   X #info-btn:not(#_) #info-icon{background:transparent !important;box-shadow:none !important;}
   X #info-btn:not(.expanded):hover{box-shadow:0 0 0 1px #d9ae55 !important;}
@@ -371,6 +372,7 @@ DARK_JS = r"""window._altoRetroDark=window._altoRetroDark||function(on){
     if(!o.mo && typeof MutationObserver==='function'){ o.mo=new MutationObserver(function(){ if(o.was!=null && !r.classList.contains('dark')) r.classList.add('dark'); });
       o.mo.observe(r,{attributes:true,attributeFilter:['class']}); } }
   else if(o.was!=null){ var w=o.was; o.was=null; if(!w) r.classList.remove('dark'); }
+  var ib=document.getElementById('info-btn'); if(ib) ib.style.removeProperty('border-radius');   /* (corners an open / shut left inline in the other style: the style's own rules take over) */
   if(window._altoAlignInfo) setTimeout(window._altoAlignInfo, 0);   /* (the light / dark toggle comes and goes with Retro: info and search close up into its place, engine_patches' alignInfo) */
 };"""
 

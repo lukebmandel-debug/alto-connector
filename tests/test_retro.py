@@ -246,3 +246,36 @@ def test_in_retro_the_bottom_right_row_has_no_gap_and_every_control_its_frame(br
     assert "217, 174, 85" in h["info"] and h["info"] == h["search"], h          # the same gold rim
     assert abs(h["iw"] - h["sw"]) <= 1, h
     assert h["rad"] == ["0px", "0px"] and h["img"][0] >= h["img"][2] - 2, h     # a square photo filling its frame
+
+
+def test_in_retro_the_corner_controls_stay_square_after_opening_and_closing(browser, site):
+    """Luke, 2026-10-25: "in retro style when I expand the info button and collapse it again. While it originally looks
+    square, it then reverts to a circle incorrectly." The engine's open / shut animation wrote the corners inline
+    (50% shut, 12px open, !important); Retro's are square in every state, and back in Classic they are round again."""
+    base, _ = site
+    ctx = browser.new_context(viewport={"width": 1400, "height": 900})
+    pg = ctx.new_page()
+    pg.goto(base + "/t.html")
+    pg.wait_for_timeout(600)
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(1200)
+    rad = "id => getComputedStyle(document.getElementById(id)).borderTopLeftRadius"
+    for _ in range(3):
+        pg.click("#info-icon")
+        pg.wait_for_timeout(500)
+        assert pg.evaluate(rad, "info-btn") == "0px"                                   # open
+        pg.click("#info-icon")
+        pg.wait_for_timeout(500)
+        assert pg.evaluate(rad, "info-btn") == "0px"                                   # shut
+        pg.hover("#info-btn")
+        assert pg.evaluate(rad, "info-btn") == "0px"                                   # hovered
+        pg.click("#search-glyph")
+        pg.wait_for_timeout(400)
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(400)
+        assert pg.evaluate(rad, "search-btn") == "0px" and pg.evaluate(rad, "account-btn") == "0px"
+        pg.mouse.move(5, 450)
+    pg.evaluate("window._altoStyle.set('classic')")                                    # Classic: round again
+    pg.wait_for_timeout(500)
+    assert pg.evaluate(rad, "info-btn") not in ("0px", "")
+    ctx.close()

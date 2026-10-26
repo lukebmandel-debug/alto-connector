@@ -20,7 +20,7 @@ from test_solar_draw import SMALL, SMALL_LINKS, _open, browser, solar_doc  # noq
 
 
 def test_the_panel_stays_small_and_the_other_options_are_gone():
-    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 3600
+    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 4600   # (+ the dock's looks, the Tour bar in its head: 2026-10-25)
     for gone in (r"nvo-[bcd](?![\w-])", "nvo-pick", "data-nav", "Radial ring", "Minimap"):
         assert not re.search(gone, NAVOPT_JS + NAVOPT_CSS), gone
 
@@ -81,13 +81,17 @@ def test_the_breadcrumb_and_named_neighbours(browser, page):
 
 
 @pytest.mark.parametrize("style", ["system", "chart", "retro", "3d"])
-def test_the_panel_sits_over_the_tour_bar_and_the_tour_still_walks(browser, page, style):
+def test_the_dock_holds_the_tour_and_the_tour_still_walks(browser, page, style):
     pg, errs = _open(browser, page, reduced=True, wait=1400)
     _at(pg, style=style)
-    box = pg.evaluate("""() => { var R=id=>document.getElementById(id).getBoundingClientRect(), a=R('nvo-a'), t=R('sol-tour'), c=R('sol-ctl');
-      return {a:[a.top, a.bottom, a.left, a.right], t:[t.top, t.bottom], c:c.top, w:innerWidth}; }""")
-    assert box["a"][1] <= box["t"][0] + 1 and box["t"][1] <= box["c"] + 1, box     # panel, then Tour bar, then the controls
-    assert box["a"][2] >= 0 and box["a"][3] <= box["w"], box
+    box = pg.evaluate("""() => { var R=id=>document.getElementById(id).getBoundingClientRect(), a=R('nvo-a'), t=R('sol-tour'), c=R('sol-ctl'),
+        n=document.querySelector('#sol-tour .tb-next'), sec=[].map.call(document.querySelectorAll('#sol-tour :is([data-t=prev],.tb-ov)'), function(b){ return b.getBoundingClientRect().width; });
+      return {a:[a.top, a.bottom, a.left, a.right], t:[t.top, t.bottom], c:c.top, w:innerWidth, inside:document.getElementById('nvo-a').contains(document.getElementById('sol-tour')),
+        nextBg:getComputedStyle(n).backgroundColor, sec:sec, home:getComputedStyle(document.querySelector('#sol-tour .tb-home')).display}; }""")
+    assert box["inside"] and box["a"][0] <= box["t"][0] and box["t"][1] <= box["a"][1], box   # one dock: the Tour bar is its head
+    assert box["a"][1] <= box["c"] + 1 and box["a"][2] >= 0 and box["a"][3] <= box["w"], box  # over the controls, on the window
+    assert box["nextBg"] not in ("rgba(0, 0, 0, 0)", "transparent") and all(w <= 36 for w in box["sec"]), box   # Next filled; Back, Overview glyphs
+    assert box["home"] == "none", box                                                         # (the way back: only when panned away)
     T = _hood(pg)["order"]
     pg.click("#sol-tour [data-t=next]")
     _arrive(pg, T[T.index(AT) + 1])

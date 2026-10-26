@@ -81,12 +81,12 @@ SOLAR_CSS = r"""
   #sol-tour{position:fixed;z-index:310;left:50%;bottom:calc(41px + var(--sol-ctl-h, 35px));transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:4px;border-radius:999px;font-size:13px;
     max-width:calc(100vw - 40px);box-sizing:border-box;color:var(--text);background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
     border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);}
-  #sol-tour button{font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;border-radius:999px;padding:7px 13px;cursor:pointer;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
+  #sol-tour button{display:inline-flex;align-items:center;gap:6px;font:inherit;font-weight:600;color:var(--muted);background:transparent;border:0;border-radius:999px;padding:7px 13px;cursor:pointer;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
   #sol-tour button:hover:not(:disabled){color:var(--text);}
   #sol-tour button:disabled{opacity:.4;cursor:default;}
   #sol-tour .tb-next,#sol-tour .tb-next:hover{color:#fff;background:var(--accent,#6d5bd0);}
   #sol-tour .tb-at{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding:0 6px;font-size:12px;}
-  #sol-tour .tb-at i{font-style:normal;} #sol-tour .tb-at b{color:var(--text);font-weight:700;}
+  #sol-tour .tb-at i{font-style:normal;} #sol-tour .tb-at b+i:not(:empty)::before{content:' \00b7  ';} #sol-tour [hidden]{display:none !important;} #sol-tour .tb-at b{color:var(--text);font-weight:700;}
   #sol-tour button:focus-visible{outline:2px solid var(--accent,#6d5bd0);outline-offset:2px;}
   html.alto-stars #sol-tour{color:#eef2ff;background:rgba(5,10,28,.84);border-color:rgba(170,198,255,.3);}
   html.alto-stars #sol-tour button,html.alto-stars #sol-tour .tb-at{color:#c9d4f5;} html.alto-stars #sol-tour .tb-at b{color:#fff;}
@@ -1831,18 +1831,23 @@ function tBar(){
   var dp=document.querySelector('#detail-page.visible'), h=tourOK() && !dp && home();
   if(!h || !B[h]){ if(TB){ TB.remove(); TB=null; } return; }
   if(!TB){ TB=document.createElement('div'); TB.id='sol-tour'; TB.setAttribute('role', 'toolbar'); TB.setAttribute('aria-label', 'Tour');
-    TB.innerHTML='<button type="button" data-t="prev"></button><span class="tb-at"><i></i><b></b><i></i></span><button type="button" data-t="home" class="tb-home" hidden></button><button type="button" data-t="next" class="tb-next"></button><button type="button" data-t="ov" class="tb-ov"></button>';
+    var sv=function(d){ return '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>'; };   /* (Alto's glyph style: format_symbols.py) */
+    TB.innerHTML='<button type="button" data-t="prev">'+sv('<path d="M12 4.5 6.5 10l5.5 5.5"/>')+'<span></span></button><span class="tb-at"><i></i><b></b><i></i></span>'+
+      '<button type="button" data-t="home" class="tb-home" hidden>'+sv('<path d="M8 5.5 4 9.5l4 4M4 9.5h8.5a3.5 3.5 0 0 1 0 7H10"/>')+'<span></span></button>'+
+      '<button type="button" data-t="next" class="tb-next"><span></span>'+sv('<path d="M8 4.5 13.5 10 8 15.5"/>')+'</button>'+
+      '<button type="button" data-t="ov" class="tb-ov">'+sv('<circle cx="10" cy="10" r="1.8"/><circle cx="10" cy="10" r="7"/><circle cx="5" cy="5" r="1.3"/>')+'<span></span></button>';
     TB.addEventListener('click', function(e){ var b=e.target.closest && e.target.closest('button'); if(!b || b.disabled) return; e.stopPropagation(); var t=b.getAttribute('data-t');
       if(t==='home'){ var h2=home(); if(OV) ovLeave({x:B[h2].rx, y:B[h2].ry}, false, function(){ enter(h2); }); else enter(h2); } else tStep(t); });
     document.body.appendChild(TB); }
   var fl=flying(), away=!fl && !RD && !window._focusedNodeId && !(OV && TOV) && (OV || !tSeen(h));        /* (panned or zoomed away from your place: the way back) */
   var T=tOrder(), i=T.indexOf(h), pv=T[i-1], nx=T[i+1], a=B[h], k=(OV && TOV ? 'o' : '')+(away ? 'a' : '')+(fl || RD ? 'f' : '')+h+'|'+T.length; if(TB._k===k) return; TB._k=k;
   var bs=TB.querySelectorAll('[data-t=prev],[data-t=next],[data-t=ov]'), at=TB.querySelector('.tb-at').children, hb=TB.querySelector('.tb-home');
-  hb.hidden=!away; hb.textContent='↩ Back to '+lname(h); hb.title='Back to '+lname(h)+', where you were';
-  bs[0].disabled=!pv; bs[0].textContent='‹ '+(pv ? 'Back: '+lname(pv) : 'Back'); bs[0].title='Back on the tour, in reading order';
-  bs[1].textContent=nx ? 'Next: '+lname(nx)+' ›' : 'End · the whole system ›'; bs[1].title='Next on the tour, in reading order';
-  bs[2].textContent=(OV && TOV) ? 'Back to '+lname(h) : '◎ Overview'; bs[2].title=(OV && TOV) ? 'Back where you were (O or Esc)' : 'The whole system (O or Esc)';
-  at[0].textContent=(fl || RD) ? 'On the way to ' : (a.p && B[a.p]) ? lname(a.p)+' › ' : ''; at[1].textContent=lname(h); at[2].textContent=(fl || RD) ? '…' : ' · '+(i+1)+' of '+T.length;   /* (a long flight says where it is going: Luke, "sometimes map is stuck") */
+  function lab(b, t, tip){ b.querySelector('span').textContent=t; b.title=tip; b.setAttribute('aria-label', tip); }   /* (a label beside its glyph; the dock shows Back and Overview by glyph alone: solar_navopt.py) */
+  hb.hidden=!away; lab(hb, 'Back to '+lname(h), 'Back to '+lname(h)+', where you were');
+  bs[0].disabled=!pv; lab(bs[0], pv ? 'Back: '+lname(pv) : 'Back', pv ? 'Back: '+lname(pv)+' (the tour, in reading order)' : 'Back');
+  lab(bs[1], nx ? 'Next: '+lname(nx) : 'End · the whole system', nx ? 'Next: '+lname(nx)+' (the tour, in reading order)' : 'The whole system');
+  lab(bs[2], (OV && TOV) ? 'Back to '+lname(h) : 'Overview', (OV && TOV) ? 'Back where you were (O or Esc)' : 'The whole system (O or Esc)');
+  at[0].textContent=(fl || RD) ? 'On the way to ' : (a.p && B[a.p]) ? lname(a.p)+' › ' : ''; at[1].textContent=lname(h); at[2].textContent=(fl || RD) ? '…' : (i+1)+' of '+T.length;   /* (a long flight says where it is going: Luke, "sometimes map is stuck") */
 }
 /* is a body on the window (its middle inside, clear of the bars)? */
 function tSeen(id){ var n=B[id] && B[id].n, c=cvs(); if(!n || !c) return false; var q=n.getBoundingClientRect(), r=c.getBoundingClientRect(), x=q.left+q.width/2, y=q.top+q.height/2;

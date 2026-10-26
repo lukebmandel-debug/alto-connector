@@ -14,34 +14,60 @@ ignored. Every move goes through solar_draw.py's own ride / flight (window._alto
 from .solar_draw import _slim
 
 NAVOPT_CSS = r"""
-  .nvo{position:fixed;z-index:305;font-size:13px;color:var(--text);background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);
-    border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow), inset 0 0 0 0.5px var(--card-glass-rim);border-radius:16px;box-sizing:border-box;}
-  .nvo button{font:inherit;font-weight:600;color:var(--text);background:transparent;border:0;border-radius:999px;padding:0 11px;min-height:34px;cursor:pointer;
-    white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
-  .nvo button:hover{background:color-mix(in srgb,var(--accent,#6d5bd0) 12%,transparent);} .nvo button:focus-visible{outline:2px solid var(--accent,#6d5bd0);outline-offset:2px;}
-  .nvo button.on{color:#fff;background:var(--accent,#6d5bd0);border-color:transparent;}
+  /* the dock (Luke, 2026-10-25: the Tour bar "looks like it was designed in the early 2000s. Let's make that a little bit
+     more modern according to Alto style"): one flat card, a hairline rim. Its head: where you are, how far along, and the
+     tour's moves (Back and Overview by their glyphs, quiet; Next the one filled button); under it the ways from here by
+     name, flat (the place you are, a soft tint). */
+  .nvo{position:fixed;z-index:305;font-size:13px;color:var(--text);background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid color-mix(in srgb,var(--text) 12%,transparent);box-shadow:0 8px 28px color-mix(in srgb,var(--node-rest-shadow,rgba(20,24,60,.18)) 70%,transparent);border-radius:14px;box-sizing:border-box;}
+  .nvo button{font:inherit;font-weight:500;color:var(--text);background:transparent;border:0;border-radius:8px;padding:0 9px;min-height:30px;cursor:pointer;
+    white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;line-height:1.2;transition:background .15s,color .15s;}
+  .nvo button:hover{background:color-mix(in srgb,var(--text) 7%,transparent);} .nvo button:focus-visible{outline:2px solid var(--accent,#6d5bd0);outline-offset:1px;}
+  .nvo .nv-r button.on{background:color-mix(in srgb,var(--accent,#6d5bd0) 14%,transparent);color:var(--text);font-weight:650;}
   .nvo .nv-r>button{flex:0 0 auto;}
-  .nvo .nv-r>i{font-style:normal;color:var(--muted);align-self:center;padding:0 2px 0 6px;}
-  .nvo .nv-r{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px;} .nvo .nv-r::-webkit-scrollbar{display:none;}
-  #nvo-a{left:50%;bottom:var(--nvo-bot, calc(90px + var(--sol-ctl-h, 35px)));transform:translateX(-50%);width:fit-content;max-width:calc(100vw - 24px);padding:6px 8px;display:flex;flex-direction:column;gap:2px;}
-  #nvo-a .nv-at{font-size:12px;padding:2px 6px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  #nvo-a .nv-at a{color:var(--text);cursor:pointer;text-decoration:none;font-weight:600;} #nvo-a .nv-at b{color:var(--text);font-weight:800;}
+  .nvo .nv-r>i{font-style:normal;color:var(--muted);align-self:center;padding:0 4px 0 6px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;}
+  .nvo .nv-r{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;padding:1px 0;} .nvo .nv-r::-webkit-scrollbar{display:none;}
+  #nvo-a{left:50%;bottom:var(--nvo-bot, calc(41px + var(--sol-ctl-h, 35px)));transform:translateX(-50%);width:max-content;max-width:min(940px, calc(100vw - 24px));padding:6px 8px 7px;display:flex;flex-direction:column;gap:3px;}
+  #nvo-a .nv-hd{display:flex;align-items:center;gap:10px;padding:0 0 5px 4px;border-bottom:1px solid color-mix(in srgb,var(--text) 9%,transparent);margin-bottom:2px;}
+  #nvo-a .nv-at{flex:1 1 auto;min-width:0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #nvo-a .nv-at a{color:var(--muted);cursor:pointer;text-decoration:none;} #nvo-a .nv-at a:hover{color:var(--text);} #nvo-a .nv-at b{color:var(--text);font-weight:650;}
+  /* the Tour bar, inside the head: no box of its own */
+  #nvo-a #sol-tour:not(#_){position:static;transform:none;flex:0 0 auto;display:flex;align-items:center;gap:2px;padding:0;margin:0;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-radius:0;font-size:13px;}
+  #nvo-a #sol-tour .tb-at{order:0;padding:0 8px 0 0;font-size:11.5px;color:var(--muted);} #nvo-a #sol-tour .tb-at>:is(i:first-child,b){display:none;} #nvo-a #sol-tour .tb-at b+i::before{content:none;}
+  #nvo-a #sol-tour button:not(#_){order:1;min-height:30px;padding:0 7px;border-radius:8px;color:var(--muted);font-weight:500;box-shadow:none;}
+  #nvo-a #sol-tour :is([data-t=prev],.tb-ov):not(#_){width:32px;padding:0;justify-content:center;} #nvo-a #sol-tour :is([data-t=prev],.tb-ov)>span{display:none;}
+  #nvo-a #sol-tour .tb-ov:not(#_){order:2;} #nvo-a #sol-tour .tb-home:not(#_){order:3;color:var(--text);}
+  #nvo-a #sol-tour .tb-next:not(#_){order:4;margin-left:4px;padding:0 10px 0 14px;color:#fff;background:var(--accent,#6d5bd0);font-weight:600;border-radius:999px;max-width:300px;}
+  #nvo-a #sol-tour .tb-next>span,#nvo-a #sol-tour .tb-home>span{overflow:hidden;text-overflow:ellipsis;}
+  #nvo-a #sol-tour button:not(.tb-next):hover:not(:disabled){color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent);}
+  #nvo-a #sol-tour .tb-next:hover{filter:brightness(1.08);}
   #nvo-help{right:58px;top:84px;width:min(330px, calc(100vw - 24px));padding:12px 14px;line-height:1.45;}
   #nvo-help kbd{font:inherit;font-weight:700;border:1px solid var(--border);border-radius:5px;padding:0 5px;}
-  html.navx :is(.sol-nh,#sol-way,#sol-here,#sk3d-l i){display:none !important;}   /* (the panel names every way: nothing on the map, nor on the 3D scene) */
-  html.navx #sol-tour .tb-at>i:first-child{display:none;}                /* (the panel has the crumb) */
-  #nvo-where{display:none !important;}                                   /* (MENU's way to the panel, on a phone only) */
+  html.navx :is(.sol-nh,#sol-way,#sol-here,#sk3d-l i){display:none !important;}   /* (the dock names every way: nothing on the map, nor on the 3D scene) */
+  #nvo-where{display:none !important;}                                   /* (MENU's way to the dock, on a phone only) */
   html.phone-whole #nvo-a{display:none;left:8px;right:8px;width:auto;transform:none;max-width:none;max-height:58vh;overflow-y:auto;bottom:calc(70px + env(safe-area-inset-bottom,0px));padding:8px;}
   html.phone-whole.nvo-open #nvo-a{display:flex;}
   html.phone-whole .nvo button{min-width:44px;min-height:44px;}
   html.phone-whole #nvo-a .nv-at{font-size:13px;white-space:normal;} html.phone-whole #nvo-a .nv-r{flex-wrap:wrap;overflow:visible;}
   html.mobile:not(.phone-whole) .nvo,html.alto-editing .nvo{display:none !important;}   /* (the phone's card view; seen whole a phone has the sheet: phone.py copies html.mobile rules to it) */
-  html.alto-stars:not(.sk-retro) .nvo{background:rgba(5,10,28,.86);color:#eef2ff;border-color:rgba(170,198,255,.3);}   /* (the Star charts' dark glass, as their Tour bar) */
-  html.alto-stars:not(.sk-retro) .nvo button{color:#eef2ff;} html.alto-stars:not(.sk-retro) .nvo .nv-r>i,html.alto-stars:not(.sk-retro) #nvo-a .nv-at{color:rgba(220,230,255,.62);}
-  html.alto-stars:not(.sk-retro) #nvo-a .nv-at :is(a,b){color:#eef2ff;}
-  html.sk-retro .nvo{background:rgba(3,4,7,.95);color:#efe6cf;border-radius:0;border-color:rgba(217,174,85,.55);box-shadow:none;}
-  html.sk-retro .nvo button{border-radius:0;color:#d9ae55;} html.sk-retro .nvo button.on{background:#d9ae55;color:#000;}
-  html.sk-retro #nvo-a .nv-at a,html.sk-retro #nvo-a .nv-at b{color:#efe6cf;}
+  /* the Star charts and 3D: dark glass, a faint blue hairline */
+  html.alto-stars:not(.sk-retro) .nvo{background:rgba(6,10,26,.72);color:#eef2ff;border-color:rgba(170,198,255,.18);box-shadow:0 10px 30px rgba(0,0,0,.35);}
+  html.sk-3d .nvo{background:rgba(6,10,26,.6);}
+  html.alto-stars:not(.sk-retro) .nvo button,html.alto-stars:not(.sk-retro) #nvo-a .nv-at b{color:#eef2ff;}
+  html.alto-stars:not(.sk-retro) :is(.nvo .nv-r>i,#nvo-a .nv-at,#nvo-a .nv-at a,#nvo-a #sol-tour .tb-at,#nvo-a #sol-tour button:not(.tb-next)){color:rgba(214,226,255,.6);}
+  html.alto-stars:not(.sk-retro) .nvo button:hover,html.alto-stars:not(.sk-retro) #nvo-a #sol-tour button:not(.tb-next):hover:not(:disabled){background:rgba(214,226,255,.09);color:#fff;}
+  html.alto-stars:not(.sk-retro) .nvo .nv-r button.on{background:rgba(169,198,255,.16);color:#fff;}
+  html.alto-stars:not(.sk-retro) #nvo-a .nv-hd{border-bottom-color:rgba(170,198,255,.14);}
+  /* Retro: black, square, a gold rim; Next the gold one (the Retro rules: retro.py) */
+  html.sk-retro .nvo{background:rgba(3,4,7,.94);color:#efe6cf;border-radius:0;border-color:rgba(217,174,85,.55);box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--rt-f, inherit);}
+  html.sk-retro .nvo button,html.sk-retro #nvo-a #sol-tour button:not(#_){border-radius:0 !important;color:#d9ae55;font-family:inherit !important;}
+  html.sk-retro .nvo button:hover,html.sk-retro #nvo-a #sol-tour button:not(.tb-next):not(#_):hover{background:rgba(217,174,85,.12);box-shadow:none !important;color:#f0c15e !important;}
+  html.sk-retro .nvo .nv-r button.on{background:none;color:#efe6cf;box-shadow:inset 0 0 0 1px rgba(217,174,85,.7);}
+  html.sk-retro .nvo .nv-r>i,html.sk-retro #nvo-a .nv-at,html.sk-retro #nvo-a .nv-at a,html.sk-retro #nvo-a #sol-tour .tb-at{color:rgba(239,230,207,.55);}
+  html.sk-retro #nvo-a .nv-at b{color:#efe6cf;}
+  html.sk-retro #nvo-a .nv-hd{border-bottom-color:rgba(217,174,85,.3);}
+  html.sk-retro #nvo-a #sol-tour .tb-next:not(#_){background:#d9ae55 !important;color:#000 !important;text-transform:uppercase;letter-spacing:.1em;font-size:12px;}
+  html.sk-retro #nvo-a #sol-tour:not(#_):not(#__){background:none !important;box-shadow:none !important;}
   @media print{ .nvo{display:none !important;} }
 """
 
@@ -61,8 +87,10 @@ function chain(h){ var c=[h], p=A.up(h); while(p && c.length<12){ c.unshift(p); 
 function sib(h, d){ var s=A.sibs(h), i=s.indexOf(h); return s[i+d] || null; }
 function live(){ return A.ok() && !document.querySelector('#detail-page.visible'); }
 var W=null, K='';
-function draw(h){ var w=W || (W=mk('div', 'nvo-a', 'nvo')), c=chain(h), up=A.up(h), s=A.sibs(h), k=A.kids(h);
-  w.innerHTML='<div class="nv-at"><a data-go="" title="The whole system (O)">Whole system</a> › '+c.map(function(i, j){ return j===c.length-1 ? '<b>'+nm(i)+'</b>' : '<a data-go="'+esc(i)+'">'+nm(i)+'</a>'; }).join(' › ')+'</div>'+
+function draw(h){ var w=W, c=chain(h), up=A.up(h), s=A.sibs(h), k=A.kids(h);
+  if(!w){ w=W=mk('div', 'nvo-a', 'nvo', '<div class="nv-hd"><div class="nv-at"></div></div><div class="nv-bd"></div>'); w.setAttribute('role', 'navigation'); w.setAttribute('aria-label', 'Where you are'); }
+  w.querySelector('.nv-at').innerHTML='<a data-go="" title="The whole system (O)">Whole system</a> › '+c.map(function(i, j){ return j===c.length-1 ? '<b>'+nm(i)+'</b>' : '<a data-go="'+esc(i)+'">'+nm(i)+'</a>'; }).join(' › ');
+  w.querySelector('.nv-bd').innerHTML=''+
     '<div class="nv-r">'+(up ? btn(up, 'Up to '+nm(up), 'The body this one orbits (↑)') : '')+
     (s.length>1 ? '<i title="In orbit order (← →)">Same level:</i>'+s.map(function(i){ return btn(i, nm(i), i===h ? 'You are here' : 'A sibling (← →)', i===h ? 'on' : ''); }).join('') : '')+'</div>'+
     (k.length ? '<div class="nv-r"><i title="Its children (↓, or 1 – 9)">Inside:</i>'+k.map(function(i, j){ return btn(i, nm(i), 'Child '+(j+1)+' ('+(j<9 ? j+1 : '↓')+')'); }).join('')+'</div>' : '');
@@ -78,10 +106,10 @@ function where(){ var c=document.getElementById('sol-ctl'); if(!c || document.ge
 /* ── keeping it current: what is drawn follows where you are ── */
 function tick(force){
   where(); var tb=document.getElementById('sol-tour'), sc=document.getElementById('sol-ctl'), z=parseFloat(getComputedStyle(de).zoom)||1,
-    r=tb && tb.getClientRects().length ? tb.getBoundingClientRect() : sc && sc.getClientRects().length ? sc.getBoundingClientRect() : null,
-    bt=r ? Math.round((innerHeight-r.top)/z+8)+'px' : '';   /* (just above the Tour bar, else the style row) */
+    r=sc && sc.getClientRects().length ? sc.getBoundingClientRect() : null, bt=r ? Math.round((innerHeight-r.top)/z+10)+'px' : '';   /* (just above the style row) */
+  if(W && tb && tb.parentNode!==W.firstChild) W.firstChild.appendChild(tb);   /* (the Tour bar: the dock's head, beside where you are) */
   if(de.style.getPropertyValue('--nvo-bot')!==bt) de.style.setProperty('--nvo-bot', bt); de.classList.toggle('navx', A.ok());
-  if(!live()){ if(W){ W.remove(); W=null; K=''; } sheet(false); return; }
+  if(!live()){ if(W){ if(tb && W.contains(tb)) document.body.appendChild(tb); W.remove(); W=null; K=''; } sheet(false); return; }   /* (the Tour bar is solar_draw's: handed back) */
   var h=A.home(); if(!h) return; var k=h+'|'+A.ov()+'|'+A.order().length; if(k===K && !force) return; K=k;
   var w=draw(h); if(!w.isConnected) document.body.appendChild(w);
 }

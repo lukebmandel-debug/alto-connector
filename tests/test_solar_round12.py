@@ -125,7 +125,7 @@ def test_normal_mode_moves_the_same_way_with_the_free_camera_besides(browser, pa
     pg.keyboard.press("Escape"); pg.wait_for_timeout(700)
     pg.evaluate("() => { var c=document.getElementById('canvas'); c.scrollTop+=2600; c.scrollLeft+=2600; }"); pg.wait_for_timeout(600)
     hb = pg.evaluate("() => { var b=document.querySelector('#sol-tour .tb-home'); return [b.hidden, b.textContent]; }")
-    assert hb[0] is False and hb[1].startswith("↩ Back to "), hb
+    assert hb[0] is False and hb[1].startswith("Back to "), hb                         # (its ↩ a glyph since the dock, 2026-10-25)
     pg.click("#sol-tour .tb-home")
     pg.wait_for_function("id => window._focusedNodeId===id", arg=up, timeout=6000)
     pg.context.close()

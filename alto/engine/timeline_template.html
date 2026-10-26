@@ -6441,7 +6441,8 @@ html:not(.mobile) .note-dialog-btn {
       var fromH = infoBtn.offsetHeight;
       var toW = expanded ? 360 : 36;
       var toH = expanded ? 660 : 36;
-      var toBR = expanded ? '12px' : '50%';
+      // (a style may set its own corners: Retro's are square open and shut, retro.py --info-r-open / --info-r-shut)
+      var toBR = getComputedStyle(infoBtn).getPropertyValue(expanded ? '--info-r-open' : '--info-r-shut').trim() || (expanded ? '12px' : '50%');
       if(current) try { current.cancel(); } catch(e){}
       current = infoBtn.animate(
         [
