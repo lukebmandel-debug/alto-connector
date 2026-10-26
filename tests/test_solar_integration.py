@@ -477,8 +477,8 @@ def test_zooming_out_with_the_skin_on_shows_no_rectangle(browser, pages, tmp_pat
 
 
 def test_arrow_hops_queue_behind_flights_and_end_on_a_round_dressed_body(browser, pages):
-    """A flight (a click on a far body) takes no arrows: presses on the way wait for its landing (two at most) and then
-    go on from there (→ the next sibling, solar_navopt.py); all ends on a round, dressed body."""
+    """A flight (a click on a far body) takes no arrows: presses on the way wait for its landing (one kept) and then
+    go on from there (→ round what is beside it, solar_navopt.py; a body with nothing beside it: its side neighbours); all ends on a round, dressed body."""
     pg, errs = _open(browser, pages["stars"])
     _rest_on(pg, "u1-p3")
     far = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, a=G['u1-p3']; return Object.keys(G).filter(function(i){ return G[i].si!==a.si && G[i].role==='planet'; })[0]; }")
@@ -494,11 +494,20 @@ def test_arrow_hops_queue_behind_flights_and_end_on_a_round_dressed_body(browser
         if(!still){ window.__still=0; return false; } if(!window.__still) window.__still=t; return t-window.__still>2000; }""",
                          timeout=45000, polling=200)
     fid = pg.evaluate("()=>window._focusedNodeId")
-    S = pg.evaluate("(i)=>window._altoSolarNavApi.sibs(i)", far)                        # (→ is the next sibling: the panel's keys, 2026-10-25)
-    assert fid == S[min(S.index(far) + 2, len(S) - 1)], (fid, far, S)                     # two presses kept, ridden from the landing
+    S = pg.evaluate("(i)=>window._altoNavOpt.scope(i)", far)                            # (→ goes round what is beside it: Luke, 2026-10-26)
+    assert fid == (S[(S.index(far) + 1) % len(S)] if far in S else S[0]), (fid, far, S)   # one press kept, ridden from the landing
     st = pg.evaluate(DISC, fid)
     assert st["focused"] and abs(st["w"] - st["h"]) <= 1 and st["skin"], st
     assert pg.evaluate("()=>window._altoSolarFlight(true).how") == "landed"
+    # a body with nothing beside it: → goes round what is beside its parent (its side neighbours), never up or out
+    leaf = pg.evaluate("() => { var A=window._altoSolarNavApi, G=window._altoSolarGeo().bodies; return Object.keys(G).filter(function(i){ return !A.kids(i).length && A.sibs(i).length>1; })[0]; }")
+    S = pg.evaluate("(i)=>window._altoSolarNavApi.sibs(i)", leaf)
+    pg.evaluate("(i)=>window.enterFocus(i)", leaf)
+    pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarFlight() && !window._altoSolarLock.riding()", arg=leaf, timeout=20000)
+    pg.wait_for_timeout(500)
+    pg.keyboard.press("ArrowRight")
+    to = S[(S.index(leaf) + 1) % len(S)]
+    pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarFlight() && !window._altoSolarLock.riding()", arg=to, timeout=20000)
     assert not errs, errs
     pg.context.close()
 
