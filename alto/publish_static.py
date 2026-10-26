@@ -297,7 +297,8 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
                 if p_.name not in keep:
                     p_.unlink() if p_.is_file() else shutil.rmtree(p_)
             continue
-        kept = _bldg_kept(out_) if folder == "bldg" else {}
+        fresh = {n for f, n, _t in new_assets if f == folder}
+        kept = _bldg_kept(out_) if folder == "bldg" else _kept_earlier(out_, fresh)
         if out_.exists():
             shutil.rmtree(out_)
         out_.mkdir()
@@ -311,19 +312,23 @@ def regenerate_site(store, uid: str, site_dir: Path | None = None) -> Path:
     # fetched lazily by the Memory Blueprint's first-person renderer (never by their low tiers); without them the procedural look stays
     from .build import fpv_gfx
     gfx_out = site / fpv_gfx.FOLDER
+    gfx_kept = _kept_earlier(gfx_out, {n for n, _b in fpv_gfx.files()})
     if gfx_out.exists():
         shutil.rmtree(gfx_out)
     for gname, gbytes in fpv_gfx.files():
         gfx_out.mkdir(parents=True, exist_ok=True)
         (gfx_out / gname).write_bytes(gbytes)
+    _restore_kept(gfx_out, gfx_kept)
     # The curated buildings' artwork images (alto/buildings: the PMA's public-domain paintings), binary, content-hash named, under /bart/
     from .buildings.pma_art import ART_FOLDER, files as art_files
     art_out = site / ART_FOLDER
+    art_kept = _kept_earlier(art_out, {n for n, _b in art_files()})
     if art_out.exists():
         shutil.rmtree(art_out)
     for aname, abytes in art_files():
         art_out.mkdir(parents=True, exist_ok=True)
         (art_out / aname).write_bytes(abytes)
+    _restore_kept(art_out, art_kept)
     # A page names a city file the cache does not have: its map would not load. Say so (publish_timeline refuses a stale build unless ALTO_ALLOW_STALE).
     for name in palace_tiles.LAST_MISSING:
         if name not in _on_site(site / palace_tiles.FOLDER):
@@ -356,6 +361,37 @@ def _building_plans(store, uid: str) -> dict:
             continue
         out[name] = text
     return out
+
+
+ASSET_NAME_RE = re.compile(r"^(?P<kind>[^ ]+?)-[0-9a-f]{8,12}(?P<ext>\.[A-Za-z0-9.]+)$")
+
+
+def _kept_earlier(d: Path, fresh, per_kind: int = 1) -> dict:
+    """{name: (bytes, mtime)} of the hashed hosted files the PREVIOUS release left in folder d, for every kind of file (retro, world, phone, gfx, ...):
+    a stored page names the file of the release that built it, and a deploy from newer code replaces the folder, so the page loses its file
+    (Oct 23 the Museum; Oct 26 the Retro style and the Memory Atlas, between a partial publish and its finish). Keep the newest `per_kind`
+    earlier file of each kind that this release does not write itself: with the new one that is the last two releases. mtimes are kept, so the
+    oldest go first. Files whose names are not <kind>-<hash><ext> (and anything with a space in it) are never kept."""
+    if not d.is_dir():
+        return {}
+    by_kind = {}
+    for p in d.iterdir():
+        m = p.is_file() and p.name not in fresh and ASSET_NAME_RE.match(p.name)
+        if m:
+            by_kind.setdefault(m.group("kind") + m.group("ext"), []).append(p)
+    out = {}
+    for files in by_kind.values():
+        for p in sorted(files, key=lambda q: q.stat().st_mtime, reverse=True)[:per_kind]:
+            out[p.name] = (p.read_bytes(), p.stat().st_mtime)
+    return out
+
+
+def _restore_kept(d: Path, kept: dict) -> None:
+    for name, (data, t) in kept.items():
+        d.mkdir(parents=True, exist_ok=True)
+        if not (d / name).exists():
+            (d / name).write_bytes(data)
+            os.utime(d / name, (t, t))
 
 
 BLDG_KEEP = 12
@@ -642,6 +678,46 @@ def live_pages(site_dir: Path) -> list[str]:
             if (sub / "index.html").exists():
                 out.append(f"/{parent}/{sub.name}/")
     return out
+
+
+HOSTED_REF_RE = re.compile(r"(?<![A-Za-z0-9_.-])/((?:retro|world|phone|bldg|gfx|fleet|bart|tex|street|cmap)/[A-Za-z0-9_.-]+-[0-9a-f]{8,12}\.[A-Za-z0-9.]+)")
+
+
+def hosted_refs(html: str) -> set:
+    """Every hashed hosted file (/retro/alto-retro-<hash>.js, /world/..., /bldg/..., /cmap/...) a stored page names."""
+    return {m.group(1) for m in HOSTED_REF_RE.finditer(html or "")}
+
+
+def verify_assets(store, uid: str, base_url: str, timeout: int = 20) -> list[str]:
+    """Walk every stored private page of the user, collect the hosted files it names and ask the live site for each: a page built by an earlier
+    release must still find its files after a deploy from newer code (it did not on Oct 23 and Oct 26). Returns the problems (empty when all
+    answer 200). Needs the store (the Firestore daily limit stops it: then it says so instead of passing)."""
+    problems, seen = [], {}
+    try:
+        timelines = store.list_timelines(uid)
+    except Exception as e:                                                # noqa: BLE001
+        return [f"assets: the stored pages could not be read ({e})"]
+    for t in timelines:
+        tid = t.get("timeline_id") or t.get("id")
+        try:
+            page = store.get_artifact(uid, tid, "private.html")
+        except Exception as e:                                            # noqa: BLE001
+            problems.append(f"{tid}: its stored page could not be read ({e})")
+            continue
+        for ref in sorted(hosted_refs(page)):
+            seen.setdefault(ref, []).append(tid)
+    for ref, tids in sorted(seen.items()):
+        try:
+            req = urllib.request.Request(base_url.rstrip("/") + "/" + ref, method="HEAD", headers={"User-Agent": "alto-publish"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                code = r.status
+        except urllib.error.HTTPError as e:
+            code = e.code
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            code = str(e)[:40]
+        if code != 200:
+            problems.append(f"/{ref}: {code} (named by {', '.join(tids)})")
+    return problems
 
 
 def verify_live(site_dir: Path, base_url: str, timeout: int = 20) -> list[str]:
