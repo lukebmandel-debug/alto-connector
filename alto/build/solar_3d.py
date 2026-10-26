@@ -652,6 +652,7 @@ var NHD={n:['↑', 'Up a level'], s:['↓', 'Down a level'], w:['←', 'Previous
 function hints(G){
   var f=window._focusedNodeId, out={}; hints.hot={};
   if(!f || !G.bodies[f] || !window._altoSolarLevelNav || (window._altoSolarFlight && window._altoSolarFlight())) return out;
+  var NA=window._altoSolarNavApi; if(NA && document.documentElement.classList.contains('navx')){ NA.kids(f).forEach(function(to){ if(G.bodies[to]){ out[to]=['c']; hints.hot[to]=1; } }); return out; }   /* (the nav: what is beside it, by name, a click away: solar_navopt.py) */
   var Wy=window._altoSolarLock && window._altoSolarLock.ways ? window._altoSolarLock.ways(f) : null;     /* the Tour's named ways (solar_draw.py), in both modes */
   if(lk() && Wy){ window._altoSolarLock.spokes(f).forEach(function(to){ hints.hot[to]=1; }); return out; }   /* (Spokes only: solar_draw.py's arrows, the spokes lit) */
   if(Wy){ Wy.nb.forEach(function(to){ if(G.bodies[to]){ out[to]=[Wy.d[to]||'c']; hints.hot[to]=1; } }); return out; }
@@ -663,6 +664,7 @@ function labels(G, r){
   var z=zoomK(), H=hints(G), nb=0, ni=0, f=window._focusedNodeId;
   function b(cls){ var e=PB[nb]; if(!e){ e=PB[nb]=document.createElement('b'); lay.appendChild(e); } nb++; e.className=cls; e.style.display=''; return e; }
   function pill(id){ var e=PI[ni]; if(!e){ e=PI[ni]=document.createElement('i'); e.innerHTML='<kbd></kbd><em></em><span></span>'; lay.appendChild(e); } ni++; e.style.display='';
+    e.setAttribute('data-go', id);
     e.children[0].textContent=H[id].map(function(d){ return (NHT[d] || NHD[d])[0]; }).join(''); e.children[1].textContent=NHT[H[id][0]] ? NHT[H[id][0]][1] : NHD[H[id][0]][1]; e.children[2].textContent=(BOD[id]||{}).name||''; return e; }
   function at(e, x, y){ e.style.left=((x-r.left)/z)+'px'; e.style.top=((y-r.top)/z)+'px'; }
   var BX=[], NM=[], PL=[];                       /* (the boxes taken: a name that would overlap one is left out, the bigger bodies' first) */

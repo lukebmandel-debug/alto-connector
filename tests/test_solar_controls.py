@@ -68,7 +68,7 @@ def test_the_ship_picker_has_off_and_a_craft_flies(browser, page, style):
     pg.click("#sol-craft-pop .sol-shipoff")
     assert pg.evaluate(ship) == ["Off", False, True]
     assert not pg.is_visible("#sol-craft-pop")
-    pg.click("#sol-tour .tb-next")                                               # off: straight there, no flight
+    pg.click("#nvo-a [data-n=next]")                                               # off: straight there, no flight
     pg.wait_for_timeout(400)
     assert not pg.evaluate(FLYING)["flight"]
     pg.wait_for_timeout(1500)
@@ -80,7 +80,7 @@ def test_the_ship_picker_has_off_and_a_craft_flies(browser, page, style):
     pg.evaluate("() => window.enterFocus('u1-p3')")
     pg.wait_for_function("() => !window._altoSolarFlight() && window._focusedNodeId==='u1-p3'", timeout=12000)
     pg.wait_for_timeout(800)
-    pg.click("#sol-tour .tb-next")                                               # a ship: its flight path again
+    pg.click("#nvo-a [data-n=next]")                                               # a ship: its flight path again
     pg.wait_for_timeout(400)
     st = pg.evaluate(FLYING)
     assert st == {"flight": True, "ride": False, "path": True}, st

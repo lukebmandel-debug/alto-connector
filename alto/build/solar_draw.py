@@ -915,10 +915,12 @@ function fpos(b){
 }
 /* the slots round the enlarged body fid, world px (its disc is in the middle of the canvas once the
    focus fly lands): {id: [x, y]} */
+/* (with the nav on, a body beside the disc shows bigger, titled: solar_navopt.py's --fk, at least 54px, at most 2.6 times) */
+function fkd(b){ return de.classList.contains('navx') ? Math.min(b.d*2.6, Math.max(b.d, 54)) : b.d; }
 function slots(fid){
   var F=B[fid], kids=ORD.filter(function(i){ return B[i].p===fid && B[i].n; }), out={}, c=cvs(); if(!kids.length || !c) return out;
-  var R=sDof(F.n, F)*K/2, G=34, cw=c.clientWidth, ch=c.clientHeight, TOP=72, BOT=72, GAP=14, LH=18, LW=150, E=EDGE;
-  var dm=Math.max.apply(null, kids.map(function(i){ return B[i].d; })), side=[[], []];
+  var R=sDof(F.n, F)*K/2, G=34, cw=c.clientWidth, ch=c.clientHeight, TOP=72, BOT=72, GAP=14, nx=de.classList.contains('navx'), LH=nx ? 34 : 18, LW=nx ? 170 : 150, E=EDGE;
+  var dm=Math.max.apply(null, kids.map(function(i){ return fkd(B[i]); })), side=[[], []];
   kids.forEach(function(id, k){ side[k%2].push(id); });
   var n=side[0].length, cellH=dm+LH+GAP, rows, cols, cellW, avW;
   for(var t=0;t<4;t++){                                     /* roomier labels, then a narrower edge, before running off the window */
@@ -969,7 +971,7 @@ function fspokes(){
     var b=B[id], P=b.fs && B[b.p]; if(!P || !P.n || !(P.n.classList.contains('focused') || P.n.classList.contains('sol-closing'))) return;
     var k=fe(b.fs), o=b.fs.m==='to' ? k.e : 1-k.e, cz=P.c ? parseFloat(P.c.style.zoom)||1 : 1;
     var r=(parseFloat(P.n.style.getPropertyValue('--scd'))||(P.n.classList.contains('focused') ? sDof(P.n, P) : P.d))*cz/2+5;
-    var cx=P.rx+(P.n._fx||0), cy=P.ry+(P.n._fy||0), dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy), rb=b.d/2+4;
+    var cx=P.rx+(P.n._fx||0), cy=P.ry+(P.n._fy||0), dx=b.rx-cx, dy=b.ry-cy, L=Math.hypot(dx, dy), rb=fkd(b)/2+4;
     var e=fsvg._l[id]; if(!e){ e=fsvg._l[id]=el('line', {}, fsvg); }
     keep[id]=1;
     if(L<=r+rb+2 || o<=.01){ e.setAttribute('opacity', 0); return; }
@@ -1905,7 +1907,7 @@ stySync();
 /* normal mode: a scroll pans, an enlarged card or not (Luke's one way of moving: the engine's focus mode would step to a
    neighbour instead); the card goes home and the scroll pans */
 window.addEventListener('wheel', function(e){
-  if(!tourOK() || e.ctrlKey || !window._focusedNodeId || RD) return;
+  if(!tourOK() || e.ctrlKey || !window._focusedNodeId || RD || de.classList.contains('navx')) return;   /* (the nav's own scroll: round what is beside the enlarged body, solar_navopt.py) */
   var c=cvs(); if(!c || !c.contains(e.target) || document.querySelector('#detail-page.visible')) return;
   if(e.target.closest && e.target.closest('#notes-panel,#summary-wrap,#info-btn,#note-dialog,input,textarea')) return;
   if(Math.abs(e.deltaX)+Math.abs(e.deltaY)<2) return;

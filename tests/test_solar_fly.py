@@ -444,7 +444,7 @@ def test_a_new_target_on_the_way_replans_and_esc_stops(browser, pages):
 
 
 def test_arrows_wait_for_a_flight_and_then_walk_the_outline(browser, pages):
-    """A click flies (here: enterFocus on a far body); the arrows walk the outline (the Tour, 2026-10-22): pressed on
+    """A click flies (here: enterFocus on a far body); the arrows go round what is beside it (the nav, 2026-10-26): pressed on
     the way, they wait for the landing and then go on from where it landed."""
     pg, errs = _open(browser, pages["orbit"])
     _rest_on(pg, "u1-p3")
@@ -456,8 +456,8 @@ def test_arrows_wait_for_a_flight_and_then_walk_the_outline(browser, pages):
     pg.keyboard.press("ArrowRight")
     assert pg.evaluate(FLIGHT)["to"] == far                         # the press waits; the flight flies on
     pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarFlight()", arg=far, timeout=12000)
-    T = pg.evaluate("()=>window._altoSolarLock.order()")
-    pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarLock.riding()", arg=T[T.index(far) + 1], timeout=8000)
+    to = pg.evaluate("(h)=>{ var s=window._altoNavOpt.scope(h), i=s.indexOf(h); return i<0 ? s[0] : s[(i+1)%s.length]; }", far)   # (round what is beside it: the nav, 2026-10-26)
+    pg.wait_for_function("(i)=>window._focusedNodeId===i && !window._altoSolarLock.riding() && !window._altoSolarFlight()", arg=to, timeout=12000)
     assert not errs, errs
     pg.context.close()
 

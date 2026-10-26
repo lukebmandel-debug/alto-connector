@@ -94,22 +94,23 @@ def test_the_orbits_say_why_they_wait_and_come_back_after_a_hover_or_an_enlarged
 
 def test_normal_mode_moves_the_same_way_with_the_free_camera_besides(browser, page):
     """One way of moving (Luke, 2026-10-22: "Approve"): the Tour's bar, named buttons, → / ← / ↑ / ↓ and the whole
-    system in normal mode too; Esc lets an enlarged card go first, then shows the whole system; panned away, the
-    bar offers the way back."""
+    system in normal mode too; Esc lets an enlarged card go first, then shows the whole system; panned away, where
+    you are (the nav's crumb) is the way back."""
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("() => { window._altoSolarStyles.set('system'); window._altoSolarMotion.set(false); window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(1200)
     assert pg.evaluate("() => [window._altoSolarLock.get(), !!document.getElementById('sol-lock')]") == [False, False]   # (Spokes only is gone: 2026-10-25)
-    T = pg.evaluate("() => window._altoSolarLock.order()")
-    bar = pg.evaluate("() => document.querySelector('#sol-tour .tb-next').textContent")
+    nx = pg.evaluate("() => window._altoNavOpt.next('u1-p1')")
+    bar = pg.evaluate("() => document.querySelector('#nvo-a [data-n=next]').title")
     assert bar.startswith("Next: "), bar
-    pg.click("#sol-tour .tb-next")                                                     # (→ / ← are the siblings now: the panel's keys, test_solar_navopt.py)
+    pg.click("#nvo-a [data-n=next]")                                                   # (Next: the next at the same level; the nav's keys, test_solar_navopt.py)
     pg.wait_for_timeout(120)
-    assert pg.evaluate("() => window._altoSolarLock.riding()")["to"] == T[T.index("u1-p1") + 1]   # a ride along the spokes
-    _arrive(pg, T[T.index("u1-p1") + 1])
-    up = pg.evaluate("id => window._altoSolarGeo().bodies[id].p", T[T.index("u1-p1") + 1])
-    pg.keyboard.press("ArrowUp"); _arrive(pg, up)                                      # ↑ the parent
-    # a wheel pans freely (no step); a free click still flies straight there
+    assert pg.evaluate("() => window._altoSolarLock.riding()")["to"] == nx             # a ride along the spokes
+    _arrive(pg, nx)
+    up = pg.evaluate("id => window._altoSolarGeo().bodies[id].p", nx)
+    pg.click("#nvo-a [data-n=up]"); _arrive(pg, up)                                    # Back: the parent
+    # with nothing enlarged a wheel pans freely (no step)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(700)
     s0 = pg.evaluate("() => document.getElementById('canvas').scrollTop")
     pg.mouse.move(700, 500); pg.mouse.wheel(0, 260); pg.wait_for_timeout(500)
     assert pg.evaluate("() => [document.getElementById('canvas').scrollTop!==" + str(s0) + ", window._altoSolarLock.riding(), window._focusedNodeId]") == [True, None, None]
@@ -124,9 +125,8 @@ def test_normal_mode_moves_the_same_way_with_the_free_camera_besides(browser, pa
     # panned away from your place: the bar offers the way back
     pg.keyboard.press("Escape"); pg.wait_for_timeout(700)
     pg.evaluate("() => { var c=document.getElementById('canvas'); c.scrollTop+=2600; c.scrollLeft+=2600; }"); pg.wait_for_timeout(600)
-    hb = pg.evaluate("() => { var b=document.querySelector('#sol-tour .tb-home'); return [b.hidden, b.textContent]; }")
-    assert hb[0] is False and hb[1].startswith("Back to "), hb                         # (its ↩ a glyph since the dock, 2026-10-25)
-    pg.click("#sol-tour .tb-home")
+    assert pg.inner_text("#nvo-a .nv-at").endswith(pg.evaluate("id => window._altoSolarNavApi.name(id)", up))   # where you are: a click goes back to it
+    pg.click("#nvo-a .nv-at")
     pg.wait_for_function("id => window._focusedNodeId===id", arg=up, timeout=6000)
     pg.context.close()
     assert not errs, errs

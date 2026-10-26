@@ -684,7 +684,7 @@ window.addEventListener('keydown', function(e){
   if(!stars()) return stop(false);
   if(e.key==='Escape'){ e.preventDefault(); e.stopImmediatePropagation(); stop(true); return; }
   if(e.key==='Enter'){ e.preventDefault(); e.stopImmediatePropagation(); hurry(); return; }   /* (Space is the Orbit switch's) */
-  if(!d) return;
+  if(!d || de.classList.contains('navx')) return;   /* (the nav's arrows wait for the landing themselves: solar_navopt.py) */
   e.preventDefault(); e.stopImmediatePropagation();
   var v=d==='n' || d==='s', pr=v ? (held.e ? 'e' : held.w ? 'w' : '') : (held.n ? 'n' : held.s ? 's' : '');
   if(pr) d=v ? d+pr : pr+d;

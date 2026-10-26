@@ -226,14 +226,20 @@ def test_realistic_3d_is_a_3d_scene_with_a_free_camera(browser, page):
     pg.wait_for_timeout(1500)
     assert pg.evaluate("() => window._focusedNodeId") == "u1-p2"
     pills = pg.evaluate("() => [].filter.call(document.querySelectorAll('#sk3d-l i'), function(e){ return e.style.display!=='none'; }).map(function(e){ return e.textContent; })")
-    assert len(pills) == 3 and any(p.startswith("↑Up") for p in pills), pills          # (the Tour's named ways, both modes)
+    kids = pg.evaluate("() => window._altoSolarNavApi.kids('u1-p2').map(window._altoSolarNavApi.name)")
+    assert sorted(p.strip() for p in pills) == sorted(kids), (pills, kids)               # (the nav, 2026-10-26: what is beside it, by name, no arrows)
     # a drag turns the camera; the wheel comes nearer; Reset view puts it back
     c0 = pg.evaluate("() => window._altoSolar3D.cam()")
     pg.mouse.move(200, 600); pg.mouse.down(); pg.mouse.move(380, 520, steps=6); pg.mouse.up()
     c1 = pg.evaluate("() => window._altoSolar3D.cam()")
     assert abs(c1["az"] - c0["az"]) > .5 and abs(c1["el"] - c0["el"]) > .2 and pg.evaluate("() => window._focusedNodeId") == "u1-p2", (c0, c1)
-    pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(1100)             # (close up, scrolling out flies back out)
-    assert pg.evaluate("() => window._altoSolar3D.cam().d") > c1["d"] * 1.5 and not pg.evaluate("() => window._focusedNodeId")
+    nx = pg.evaluate("() => { var s=window._altoNavOpt.scope('u1-p2'), i=s.indexOf('u1-p2'); return i<0 ? s[0] : s[(i+1)%s.length]; }")
+    pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(1500)             # (close up, a scroll goes round what is beside it: Luke, 2026-10-26)
+    assert pg.evaluate("() => window._focusedNodeId") == nx
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(1100)
+    c1 = pg.evaluate("() => window._altoSolar3D.cam()")
+    pg.mouse.move(200, 600); pg.mouse.wheel(0, 300); pg.wait_for_timeout(1100)             # (nothing enlarged: scrolling out flies back out)
+    assert pg.evaluate("() => window._altoSolar3D.cam().d") > c1["d"] * 1.2 and not pg.evaluate("() => window._focusedNodeId")
     pg.click("#sk3d-reset"); pg.wait_for_timeout(1000)
     c2 = pg.evaluate("() => window._altoSolar3D.cam()")
     assert abs(c2["az"] + .6) < .01 and abs(c2["el"] - .62) < .01, c2

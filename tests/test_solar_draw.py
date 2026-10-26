@@ -362,9 +362,8 @@ def test_reduced_motion_stands_still_and_the_hub_look_orbits_with_rings(browser,
 
 @pytest.mark.parametrize("shape", ["small", "torts"])
 def test_arrows_follow_the_outline_and_the_wheel_pans(browser, tmp_path, shape):
-    """The keys (the panel's since 2026-10-25, solar_navopt.py; the Tour bar walks the outline's order): ↑ the parent,
-    ↓ the first child, → / ← the next / previous sibling — for every body; the wheel over an enlarged disc pans the
-    board (the card goes home)."""
+    """The keys (solar_navopt.py): with a body enlarged the arrows go round what is beside it (its children, else its siblings: Luke, 2026-10-26), and
+    so does a flick of the wheel; with nothing enlarged the wheel pans."""
     units = SMALL if shape == "small" else TORTS_SHAPE
     f = tmp_path / f"nav-{shape}.html"
     f.write_text(_page(units, links=() if shape == "torts" else SMALL_LINKS), encoding="utf-8")
@@ -378,8 +377,11 @@ def test_arrows_follow_the_outline_and_the_wheel_pans(browser, tmp_path, shape):
         A = pg.evaluate("h => { var A=window._altoSolarNavApi; return {up:A.up(h), kids:A.kids(h), sibs:A.sibs(h)}; }", start)
         sib, k = A["sibs"], A["sibs"].index(start)
         assert A["up"] == p and A["kids"] == [i for i in T if G[i][0] == start] and sorted(sib) == sorted(i for i in T if G[i][1] == role and G[i][0] == p)
-        want = {"ArrowUp": p or start, "ArrowDown": A["kids"][0] if A["kids"] else start,          # (the panel's keys, 2026-10-25: → / ← the siblings)
-                "ArrowRight": sib[k + 1] if k + 1 < len(sib) else start, "ArrowLeft": sib[k - 1] if k else start}
+        sc = A["kids"] or sib                                                                    # (Luke, 2026-10-26: the arrows only go round what is beside it)
+        i = sc.index(start) if start in sc else -1
+        fw = sc[(i + 1) % len(sc)] if len(sc) > 1 or i < 0 else start
+        bw = (sc[(i - 1) % len(sc)] if i >= 0 else sc[-1]) if len(sc) > 1 or i < 0 else start
+        want = {"ArrowRight": fw, "ArrowDown": fw, "ArrowLeft": bw, "ArrowUp": bw}
         for key, to in want.items():
             pg.evaluate("(i) => window.enterFocus(i)", start)
             pg.wait_for_timeout(450)
@@ -395,6 +397,13 @@ def test_arrows_follow_the_outline_and_the_wheel_pans(browser, tmp_path, shape):
         pg.mouse.wheel(0, 40)
         pg.wait_for_timeout(16)
     pg.wait_for_timeout(900)
+    sc = pg.evaluate("() => window._altoNavOpt.scope('u2-p2')")                                   # one flick: one step round what is beside it
+    want = sc[(sc.index("u2-p2") + 1) % len(sc)] if "u2-p2" in sc else sc[0]
+    assert pg.evaluate("() => window._focusedNodeId") == want, sc
+    pg.evaluate("() => window.exitFocus()")
+    pg.wait_for_timeout(700)
+    pg.mouse.wheel(0, 160)                                                                         # nothing enlarged: the wheel pans
+    pg.wait_for_timeout(600)
     assert pg.evaluate("() => [window._focusedNodeId, document.getElementById('canvas').scrollTop!==" + str(s0) + "]") == [None, True]
     pg.wait_for_timeout(600)
     assert pg.evaluate("() => document.querySelectorAll('#world .sol-closing,#world .sol-clip').length") == 0
