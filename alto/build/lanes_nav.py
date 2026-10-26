@@ -96,6 +96,7 @@ NAV_CSS = """
   html.alto-lanes.ln-stepped:not(.mobile) #world .node.ln-cur:not(.focused) .node-card{ box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 60%,transparent), 0 10px 26px var(--node-rest-shadow); }
   /* the whole timeline, fitted to the window */
   html.alto-lanes #canvas.ln-ov{ cursor:zoom-in; }
+  html.alto-lanes #canvas.ln-ov.ln-zin{ cursor:grab; }
   html.alto-lanes #canvas.ln-ov.ln-drag{ cursor:grabbing; }
   html.alto-lanes #canvas.ln-ov #world, html.alto-lanes #canvas.ln-ovanim #world{ pointer-events:none; transform-origin:0 0; will-change:transform; }
 """
@@ -110,7 +111,7 @@ if(de.classList.contains('mobile')) return;          // phones: the engine's car
    once BIAS of the gap (BIAS_MIN..BIAS_MAX px) is travelled toward it */
 var SETTLE=170, TAU_CHASE=55, TAU_FLING=330, FLING_MIN=.12, FLING_MAX=5, COAST_PW=2.5, OFFLEN=260, MINSEG=56,
     BIAS=.12, BIAS_MIN=12, BIAS_MAX=48, NOTCH=.34, NOTCH_MIN=90, NOTCH_MAX=240, NOTCH_MS=260, SOFT=12, SFN=4.000244140625, LONE=40, GESTURE=120,
-    QMAX=3, OV_MIN=0.14;
+    QMAX=3, OV_MIN=0.14, ZMAX=3, ZSNAP=.05, ZGAP=220;
 var RM=window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 function reduced(){ return !!(RM && RM.matches); }
 function cv(){ return document.getElementById('canvas'); }
@@ -146,9 +147,11 @@ function legacy(){
   for(var k in L.ev){ var p=L.ev[k].present; if(p && p.length) return false; }
   return true;
 }
-function live(id){ return !!document.querySelector('#node-'+id+' .node-card') && (!window._altoShown || window._altoShown(id)); }
+function hid(id){ return !!(window._altoLanesHid && window._altoLanesHid(id)); }
+function live(id){ return !!document.querySelector('#node-'+id+' .node-card') && !hid(id) && (!window._altoShown || window._altoShown(id)); }
 function lineDef(id){ for(var i=0;i<L.lines.length;i++) if(L.lines[i].id===id) return L.lines[i]; return null; }
-function charOf(){ var k=window._altoLanesLock ? window._altoLanesLock() : null; return (k && k!=='main' && lineDef(k)) ? k : null; }
+/* the lines picked to show only them (lanes.py setPick): their events are the only ones left on the board */
+function picks(){ return (window._altoLanesPick ? window._altoLanesPick() : []).filter(lineDef); }
 function ofChar(id, c){
   var e=L.ev[id], ln=lineDef(c); if(!e) return false;
   if(e.l===c || (e.present||[]).indexOf(c)>=0) return true;
@@ -156,11 +159,11 @@ function ofChar(id, c){
 }
 var _S=null;       // cached per call chain: {ids, at}
 function stops(){
-  var o=pageOrder(), c=charOf(), lg=legacy();
-  var ids=o.filter(function(id){ if(!live(id)) return false; if(c) return ofChar(id,c); return lg || (L.ev[id].l||'main')==='main'; });
+  var o=pageOrder(), c=picks(), lg=legacy();
+  var ids=o.filter(function(id){ if(!live(id)) return false; if(c.length) return c.some(function(k){ return ofChar(id,k); }); return lg || (L.ev[id].l||'main')==='main'; });
   if(!ids.length) ids=o.filter(live);
   var at={}; o.forEach(function(id,i){ at[id]=i; });
-  return _S={ids:ids, at:at, ch:c};
+  return _S={ids:ids, at:at, ch:c.length ? c : null};
 }
 function neighbour(id, dir){
   var S=stops(), i=S.ids.indexOf(id);
@@ -633,21 +636,17 @@ document.addEventListener('click', function(e){
   var n=e.target.closest && e.target.closest('#world .node[data-ln]'); if(!n) return;
   cancelAll(); setCur(n.id.slice(5)); _trust=true;
 }, true);
-/* a character's label or key row: its line is kept (lanes.py) and the steps visit only
-   its events — go to the nearest of them */
-document.addEventListener('click', function(e){
-  if(!on() || _ov || de.classList.contains('alto-editing')) return;
-  var t=e.target.closest && e.target.closest('.lanes-tag,.lk-row[data-k]'); if(!t) return;
-  setTimeout(function(){   // after lanes.py's own handler (same node and phase, registered first) has kept or let go of the line
-    var c=charOf(); invalidate(); ui(current(),0);
-    if(!c) return;
-    var from=current(); if(from && ofChar(from,c)) return;
-    var S=stops(), oi=from!=null ? S.at[from] : -1, nx=null;
-    for(var i=0;i<S.ids.length && !nx;i++) if(S.at[S.ids[i]]>oi) nx=S.ids[i];
-    if(!nx) nx=S.ids[S.ids.length-1];
-    if(nx){ cancelAll(); step(nx,'line'); }
-  },0);
-}, true);
+/* lines picked or let go (lanes.py setPick, after its new layout): the steps visit only what is shown — from an
+   event that left the board, on to the next one still on it */
+document.addEventListener('alto:lanes-pick', function(){
+  if(!on()) return;
+  invalidate(); var from=current(); ui(from,0);
+  if(_ov || !from || live(from)) return;
+  var S=stops(), oi=S.at[from], nx=null;
+  for(var i=0;i<S.ids.length && !nx;i++) if(S.at[S.ids[i]]>oi) nx=S.ids[i];
+  nx=nx||S.ids[S.ids.length-1];
+  if(nx){ cancelAll(); step(nx,'line'); }
+});
 /* an enlarged card's own hops and exits move the steps along with it */
 var _lastFocus=null;
 function watchFocus(){
@@ -665,7 +664,7 @@ function svgI(d){ return '<svg viewBox="0 0 20 20" width="16" height="16" fill="
 function buildRail(){
   if(R || de.classList.contains('mobile')) return;
   var n=document.createElement('div'); n.id='lanes-nav'; n.setAttribute('role','navigation'); n.setAttribute('aria-label','Go through the timeline');
-  n.innerHTML='<button type="button" class="lnv-ov" aria-pressed="false" title="The whole timeline" aria-label="The whole timeline">'
+  n.innerHTML='<button type="button" class="lnv-ov" aria-pressed="false" title="'+OV_T+'" aria-label="'+OV_T+'">'
     +svgI('<rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M5.5 10h9M7 7.5h2M11 12.5h2"/>')+'</button>'
     +'<button type="button" class="lnv-prev" title="Previous event (←)" aria-label="Previous event">'+svgI('<path d="M12 5l-5 5 5 5"/>')+'</button>'
     +'<div class="lnv-mid"><div class="lnv-txt"><span><b class="lnv-n">1</b> / <span class="lnv-N">1</span></span><span class="lnv-tag"></span></div>'
@@ -703,11 +702,12 @@ function ui(id, ms){
   var S=stops(), N=S.ids.length, i=S.ids.indexOf(id), pos=i;
   if(i<0 && id!=null){ var oi=S.at[id]; pos=-1; for(var k=0;k<N;k++) if(S.at[S.ids[k]]<oi) pos=k; }
   R.n.textContent=i>=0 ? String(i+1) : (pos>=0 ? (pos+1)+'+' : '–'); R.N.textContent=String(N);
-  var fb=id && flashOf(id), ev=id && L.ev[id], ln=ev && ev.l!=='main' ? lineDef(ev.l) : null, c=charOf(), tag='';
-  if(c){ tag=(lineDef(c)||{}).label||''; R.tag.innerHTML=''; R.tag.textContent=tag+' only'; var x=document.createElement('button'); x.type='button'; x.textContent='✕'; x.title='All events (Esc)'; x.setAttribute('aria-label','Show all events');
-         x.addEventListener('click', function(e){ e.stopPropagation(); if(window._altoLanesLock) window._altoLanesLock(null); invalidate(); ui(current(),0); }); R.tag.appendChild(x); }
+  var fb=id && flashOf(id), ev=id && L.ev[id], ln=ev && ev.l!=='main' ? lineDef(ev.l) : null, c=picks(), tag='';
+  if(c.length){ tag=c.length<3 ? c.map(function(k){ return (lineDef(k)||{}).label||''; }).join(' + ') : c.length+' lines';
+         R.tag.innerHTML=''; R.tag.textContent=tag+' only'; var x=document.createElement('button'); x.type='button'; x.textContent='✕'; x.title='Show all lines (Esc)'; x.setAttribute('aria-label','Show all lines');
+         x.addEventListener('click', function(e){ e.stopPropagation(); if(window._altoLanesPick) window._altoLanesPick([]); }); R.tag.appendChild(x); }
   else { tag=fb ? fb.label : (ln ? ln.label+' · off the page' : ''); R.tag.textContent=tag; }
-  R.tag.style.color=c ? (lineDef(c)||{}).color||'' : (ln ? ln.color : '');
+  R.tag.style.color=c.length===1 ? (lineDef(c[0])||{}).color||'' : (c.length ? '' : (ln ? ln.color : ''));
   R.prev.disabled=!(N && (i>0 || (i<0 && pos>=0))); R.next.disabled=!(N && (i<N-1 || (i<0 && pos<N-1)));
   var f=railFrac(Math.max(0,i>=0?i:pos+.5), N), w=R.rail.clientWidth;
   if(M.raf) return;                                          // travelling: the thumb goes with the camera (thumb())
@@ -812,21 +812,22 @@ function ovEnter(){
   var c=cv(), off=worldOff(c), from={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop}, to=ovFit();
   _ov=to;
   ovHold(true); ovSet(from); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
-  if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title='Back to the events'; }
+  if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title=OV_BACK; R.ov.setAttribute('aria-label', OV_BACK); }
   ovAnim(from, to, function(){});
 }
 /* back down to step mode, resting on this event (null: where the steps were) */
-function ovLeave(id, instant){
+function ovLeave(id, instant, then){
   if(!_ov) return;
   var c=cv(), from=_ov; id=id||_cur||stops().ids[0];
-  _ov=null; c.classList.remove('ln-ov','ln-drag');
-  if(R){ R.ov.setAttribute('aria-pressed','false'); R.ov.title='The whole timeline'; }
+  if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; c.classList.remove('ln-ovanim'); }
+  _ov=null; _zg=null; c.classList.remove('ln-ov','ln-drag','ln-zin');
+  if(R){ R.ov.setAttribute('aria-pressed','false'); R.ov.title=OV_T; R.ov.setAttribute('aria-label', OV_T); }
   var w=document.getElementById('world'), off=worldOff(c);
   /* where the camera will rest, worked out as if the board were at scale 1 */
   w.style.transform='none';
   var B=band(c), t=camFor(id,B), qx=axis('scrollLeft'), qy=axis('scrollTop'), tl=qx.stop(dev(t.l,t.ml)), tt=qy.stop(dev(t.t,t.mt));
   ovSet(from); ovSkyFade();
-  var fin=function(){ w.style.transform=''; ovSlab(null); ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); };
+  var fin=function(){ w.style.transform=''; ovSlab(null); ovHold(false); qx.go(tl); qy.go(tt); setCur(id); _land=[c.scrollLeft,c.scrollTop]; _trust=false; ui(id,0); announce(id); if(then) then(); };
   if(instant){ fin(); return; }
   de.classList.add('ln-stepped');
   ovAnim(from, {s:1, tx:off.x-tl, ty:off.y-tt}, fin);
@@ -847,43 +848,150 @@ function ovNoScroll(){ var c=cv(); if(!c || c._lnOvS) return; c._lnOvS=1; c.addE
 function ovWheel(e){
   e.preventDefault();
   if(_ovA) return;
-  var m=e.deltaMode===1?40:e.deltaMode===2?800:1;
-  _ov.tx-=(Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY)*m; ovClampX(_ov); ovSet(_ov);
+  var m=e.deltaMode===1?40:e.deltaMode===2?800:1, dx=e.deltaX*m, dy=e.deltaY*m;
+  if(tall(_ov)){ if(e.shiftKey && !dx){ dx=dy; dy=0; } _ov.tx-=dx; _ov.ty-=dy; }
+  else _ov.tx-=(Math.abs(dx)>Math.abs(dy)?dx:dy);
+  ovClamp(_ov); ovSet(_ov);
 }
 function ovPoint(cx, cy){
   var c=cv(), r=c.getBoundingClientRect(), k=zk(c), lx=(cx-r.left)/k, ly=(cy-r.top)/k, P=PAD();
   var wx=(lx-_ov.tx)/_ov.s, wy=(ly-_ov.ty)/_ov.s-P, G=geo(), best=null, bd=Infinity;
+  _ovCard=null;
   Object.keys(G.x).forEach(function(id){
     if(!live(id)) return;
     var a=anchor(id), h=G.h[id]||120, top=G.y[id]-h/2, bot=G.y[id]+h/2;
     var dyc=wy<top ? top-wy : wy>bot ? wy-bot : 0, dya=Math.abs(wy-a.y);   // on the card, or near its dot on the line
     var d=Math.abs(wx-a.x)+Math.min(dyc,dya)*1.4;
     if(d<bd){ bd=d; best=id; }
+    var n=document.querySelector('#node-'+id+' .node-card');
+    if(!dyc && n && Math.abs(wx-G.x[id])<=n.offsetWidth/2) _ovCard=id;
   });
   return best;
 }
 (function(){
-  var dn=null;
+  var dn=null, np=0;
   document.addEventListener('pointerdown', function(e){
     if(!_ov) return; var c=cv(); if(!c || !c.contains(e.target)) return;
     e.preventDefault(); e.stopPropagation();
-    dn={x:e.clientX, y:e.clientY, tx:_ov.tx, moved:false, id:e.pointerId};
+    np++; if(np>1 || _zg){ if(dn) dn.moved=true; dn=null; return; }        // a second finger: a pinch, not a drag
+    dn={x:e.clientX, y:e.clientY, tx:_ov.tx, ty:_ov.ty, moved:false, id:e.pointerId};
   }, true);
   document.addEventListener('pointermove', function(e){
-    if(!dn || !_ov || e.pointerId!==dn.id) return;
-    var k=zk(cv()), dx=(e.clientX-dn.x)/k;
+    if(!dn || !_ov || e.pointerId!==dn.id || _zg) return;
+    var k=zk(cv()), dx=(e.clientX-dn.x)/k, dy=(e.clientY-dn.y)/k;
     if(!dn.moved && Math.abs(e.clientX-dn.x)+Math.abs(e.clientY-dn.y)<5) return;
-    dn.moved=true; cv().classList.add('ln-drag'); _ov.tx=dn.tx+dx; ovClampX(_ov); ovSet(_ov);
+    if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; cv().classList.remove('ln-ovanim'); }
+    dn.moved=true; cv().classList.add('ln-drag'); _ov.tx=dn.tx+dx; if(tall(_ov)) _ov.ty=dn.ty+dy; ovClamp(_ov); ovSet(_ov);
   }, true);
+  ['pointerup','pointercancel'].forEach(function(t){ document.addEventListener(t, function(e){ if(np>0) np--; }, true); });
   document.addEventListener('pointerup', function(e){
     if(!dn || e.pointerId!==dn.id) return;
     var d=dn; dn=null; cv().classList.remove('ln-drag');
-    if(!_ov || d.moved) return;
-    var id=ovPoint(e.clientX, e.clientY); if(id) ovLeave(id);
+    if(!_ov || d.moved || _zg) return;
+    /* a click: down to that event at the fitted size (zoomed in and right on a card: it opens as well) */
+    var id=ovPoint(e.clientX, e.clientY), open=_ov.s>1.001 && _ovCard===id;
+    if(id) ovLeave(id, false, open ? function(){ if(window.enterFocus) window.enterFocus(id); } : null);
   }, true);
   /* nothing under the whole timeline is clicked through to (cards, the engine's own drag) */
   ['mousedown','click','dblclick'].forEach(function(t){ document.addEventListener(t, function(e){ var c=cv(); if(_ov && c && c.contains(e.target)){ e.preventDefault(); e.stopPropagation(); } }, true); });
 })();
+
+/* ── zoom (Luke, 2026-10-26: "Can't seem to zoom out or in"). A pinch, ctrl/⌘ + the wheel (a Chrome
+   trackpad's pinch), Safari's gesture events (a Mac trackpad; a phone's two fingers, phone.py) and + / − / 0
+   (with or without ⌘) all scale the board itself — the same transform as the whole timeline above — round
+   the point under the pointer or the fingers, from the whole timeline (its least) to ZMAX. The page still
+   opens fitted to the window; zoomed back within ZSNAP of it, or with 0 / Esc / the whole-timeline toggle,
+   the board returns to the fitted view on the event nearest the middle. Zoomed in, the board pans both ways
+   (wheel, drag); a click goes down to that event (right on a card: it opens). Each gesture has one owner,
+   decided as it starts (the System's rule, solar_draw.py): an enlarged card's (let go) or an open panel's
+   (the Overview's own zoom) stays the engine's; everything else on the board is this. ── */
+var OV_T='The whole timeline (−) · zoom: pinch, ⌘ + scroll, + / −', OV_BACK='Back to the events (0 / Esc)', _ovCard=null, _zg=null, _zw=null, _zt=0;
+function wsz(){ var w=document.getElementById('world'); return {w:(w && w.offsetWidth) || geo().W, h:(w && w.offsetHeight) || (geo().H+PAD())}; }
+function tall(o){ var c=cv(), z=wsz(); return o.s>1.001 || z.h*o.s>c.clientHeight+2; }
+/* the board never leaves the window: bigger than it, its edges stay at or past the window's (+30px); smaller, it stays inside */
+function ovClamp(o){
+  var c=cv(), z=wsz(), cw=c.clientWidth, ch=c.clientHeight, Wd=z.w*o.s, Hd=z.h*o.s, m=30;
+  o.tx=Wd>cw-2*m ? Math.max(cw-Wd-m, Math.min(m, o.tx)) : Math.max(m, Math.min(cw-Wd-m, o.tx));
+  o.ty=Hd>ch ? Math.max(ch-Hd-m, Math.min(m, o.ty)) : Math.max(Math.min(0, ch-Hd), Math.min(Math.max(0, ch-Hd), o.ty));
+  return o;
+}
+function zMin(){ var f=ovFit(); return Math.min(1, f.s); }
+function zLocal(e){ var c=cv(), r=c.getBoundingClientRect(), k=zk(c);
+  if(e && e.clientX!=null && (e.clientX || e.clientY)) return {x:(e.clientX-r.left)/k, y:(e.clientY-r.top)/k};
+  var B=band(c); return {x:c.clientWidth/2, y:(B.t+B.b)/2}; }
+/* into the scaled view at the size it is now, the board exactly where it was */
+function zEnter(){
+  if(_ov) return true;
+  if(!on() || window._focusedNodeId || busyElsewhere()) return false;
+  cancelAll(); var here=current(); if(here) setCur(here);
+  var c=cv(), off=worldOff(c);
+  _ov={s:1, tx:off.x-c.scrollLeft, ty:off.y-c.scrollTop, hand:1};
+  ovHold(true); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; c.classList.add('ln-ov');
+  if(R){ R.ov.setAttribute('aria-pressed','true'); R.ov.title=OV_BACK; R.ov.setAttribute('aria-label', OV_BACK); }
+  return true;
+}
+function zSet(s2, q, w){                     /* scale s2; world point w (default: the one under q) under q */
+  var o=_ov; s2=Math.max(zMin(), Math.min(ZMAX, s2));
+  if(!w) w={x:(q.x-o.tx)/o.s, y:(q.y-o.ty)/o.s};
+  o.s=s2; o.tx=q.x-w.x*s2; o.ty=q.y-w.y*s2; o.hand=1; ovClamp(o); ovSet(o);
+  cv().classList.toggle('ln-zin', s2>1.001);
+}
+function zStop(){ if(_ovA){ cancelAnimationFrame(_ovA); _ovA=null; cv().classList.remove('ln-ovanim'); } }
+/* a gesture over: back near the fitted size, the fitted view (on the event nearest the middle) */
+function zSettle(){
+  if(!_ov || _ovA || Math.abs(_ov.s-1)>ZSNAP) return;
+  var c=cv(), B=band(c), id=ovPoint(c.getBoundingClientRect().left+c.clientWidth/2*zk(c), c.getBoundingClientRect().top+(B.t+B.b)/2*zk(c));
+  ovLeave(id||null);
+}
+/* + / − and the keys: a step of 1.25, gliding, round the middle of the window */
+function zStep(f, e){
+  if(!zEnter()) return;
+  zStop(); var q=zLocal(e), from={s:_ov.s, tx:_ov.tx, ty:_ov.ty}, w={x:(q.x-_ov.tx)/_ov.s, y:(q.y-_ov.ty)/_ov.s};
+  var t=Math.max(zMin(), Math.min(ZMAX, from.s*f)); if(Math.abs(t-1)<ZSNAP) t=1;
+  zSet(t, q, w); var to={s:_ov.s, tx:_ov.tx, ty:_ov.ty, hand:1}; ovSet(from); _ov=from; _ov.hand=1;
+  ovAnim(from, to, function(){ _ov=to; ovSet(to); cv().classList.toggle('ln-zin', to.s>1.001); if(Math.abs(to.s-1)<1e-3) zSettle(); });
+}
+window.addEventListener('wheel', function(e){
+  if(!e.ctrlKey && !e.metaKey) return;
+  var c=cv(); if(!on() || !c || !e.target || !c.contains(e.target)) return;
+  var now=performance.now();
+  if(!_zw || now-_zw.t>ZGAP) _zw={own:(window._focusedNodeId || busyElsewhere()) ? 'engine' : 'me'};
+  _zw.t=now;
+  if(_zw.own!=='me') return;                                    // an enlarged card: the engine lets it go
+  e.preventDefault(); e.stopImmediatePropagation();
+  if(_zg || !zEnter()) return;                                  // (Safari's own pinch is already scaling)
+  zStop();
+  var m=e.deltaMode===1 ? 40 : e.deltaMode===2 ? 800 : 1, d=Math.max(-60, Math.min(60, e.deltaY*m));
+  zSet(_ov.s*Math.exp(-d*.01), zLocal(e));
+  clearTimeout(_zt); _zt=setTimeout(zSettle, ZGAP+40);
+}, {passive:!!window.GestureEvent, capture:true});   /* Safari pinches with gesture events: there the wheel stays passive, so it keeps scrolling panels off the main thread (engine_patches) */
+document.addEventListener('gesturestart', function(e){
+  var c=cv(); _zg=null;
+  if(!on() || !c || !e.target || !c.contains(e.target) || window._focusedNodeId || busyElsewhere()) return;   // the engine's
+  e.preventDefault(); e.stopImmediatePropagation();
+  if(!zEnter()) return;
+  zStop(); var q=zLocal(e);
+  _zg={s0:_ov.s, w:{x:(q.x-_ov.tx)/_ov.s, y:(q.y-_ov.ty)/_ov.s}};
+}, {passive:false});
+document.addEventListener('gesturechange', function(e){
+  if(!_zg) return; e.preventDefault(); e.stopImmediatePropagation();
+  if(!_ov) return;
+  zSet(_zg.s0*(e.scale||1), zLocal(e), _zg.w);                    // the point first pinched stays under the fingers (they pan it too)
+}, {passive:false});
+document.addEventListener('gestureend', function(e){
+  if(!_zg) return; e.preventDefault(); e.stopImmediatePropagation();
+  _zg=null; zSettle();
+}, {passive:false});
+window.addEventListener('keydown', function(e){
+  var k=e.key; if(!(k==='+' || k==='=' || k==='-' || k==='_' || k==='0') || e.altKey || !on()) return;
+  if(window._focusedNodeId || busyElsewhere()) return;            // the engine's: let a card go, the Overview's own zoom
+  var ae=document.activeElement, tg=ae && ae.tagName;
+  if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if(k==='0'){ if(_ov) ovLeave(null); return; }
+  zStep(k==='-' || k==='_' ? 1/1.25 : 1.25);
+}, true);
+window._altoLanesZoom={s:function(){ return _ov ? _ov.s : 1; }, view:function(){ return _ov ? {s:_ov.s, tx:_ov.tx, ty:_ov.ty} : null; }, step:zStep, reset:function(){ if(_ov) ovLeave(null); }};
 
 /* ── after every layout ─────────────────────────────────────────────────── */
 function relaid(first){
@@ -893,7 +1001,7 @@ function relaid(first){
   if(_cur && !document.getElementById('node-'+_cur)) _cur=null;
   if(_cur){ var n=document.getElementById('node-'+_cur); if(n) n.classList.add('ln-cur'); }
   railMarks();
-  if(_ov){ var c=cv(); _ov=ovFit(); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; ui(current(),0); return; }
+  if(_ov){ var c=cv(); _ov=_ov.hand ? ovClamp(_ov) : ovFit(); ovSet(_ov); c.scrollLeft=0; c.scrollTop=0; ui(current(),0); return; }
   /* a re-layout (a resize, an edit) keeps the view on the event the steps were on */
   if(M.raf){ M.stale=true; ui(current(),0); return; }        // mid-travel: tick carries on from the view as it is
   M.pth=null; _fit=null;

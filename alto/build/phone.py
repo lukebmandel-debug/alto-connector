@@ -37,7 +37,7 @@ What the hosted script adds to the desktop page:
     twice. A vertical timeline or outline has no zoom-out on the desktop (a window shows it whole), so here the board
     opens fitted to the phone's width and two fingers scale it (#world's transform, the canvas still scrolls it);
     pinched back to full size it is the desktop board again and a further pinch enlarges a card as on a Mac. The
-    horizontal timeline's own "whole timeline" (lanes_nav.py) is its zoom-out. One finger pans (the canvas's own
+    horizontal timeline scales its board with the same events (lanes_nav.py's zoom). One finger pans (the canvas's own
     scroll, so it coasts as iOS does); a double tap zooms in, a two-finger tap zooms out (Memory Palace's phone map).
   * no hover from a finger. iOS turns the first tap on something whose hover changes the page into a hover and
     eats the click; the hover events a touch makes are stopped before the page hears them. What hover showed (a
@@ -172,10 +172,6 @@ document.addEventListener('click', function(e){
     var ev=new MouseEvent('click', {bubbles:true, cancelable:true, clientX:x, clientY:y}); ev._alto=1; card.dispatchEvent(ev); });
 }, true);
 
-/* ── the horizontal timeline: its own "whole timeline" is the zoom-out ── */
-function lanesOv(){ var c=cv(); return !!(c && c.classList.contains('ln-ov')); }
-function lanesToggle(){ var b=document.querySelector('#lanes-nav .lnv-ov'); if(b) b.click(); }
-
 /* ── touches on the board ── */
 var G=null, T=null, lastTap=null, LP=null, hov=[];
 function mine(e){ var c=cv(), t=e.target; return on() && !detail() && c && t && c.contains(t) && !(t.closest && t.closest('input,textarea,select,[contenteditable]')); }
@@ -197,20 +193,15 @@ document.addEventListener('click', function(e){ if(eatClick && now()<eatClick){ 
 function pinchStart(e){
   var m=mid(e), f=fmt(); clearTimeout(LP && LP.t); LP=null;
   G={d0:dist(e), m0:m, m:m, f:f, own:null, s:1, t0:now(), moved:false, ov0:OV.s};
-  if(f==='palace' || f==='solar'){ G.own='engine'; gev('gesturestart', 1, m[0], m[1]); }
-  else if(f==='tl'){ G.own=OV.s<.999 ? 'me' : '?'; }
-  else G.own='lanes';
+  if(f==='palace' || f==='solar' || f==='lanes'){ G.own='engine'; gev('gesturestart', 1, m[0], m[1]); }
+  else G.own=OV.s<.999 ? 'me' : '?';
 }
 function pinchMove(e){
   var m=mid(e), s=dist(e)/G.d0, c=cv(), dx=m[0]-G.m[0], dy=m[1]-G.m[1]; G.m=m; G.s=s;
   if(Math.abs(s-1)>.04 || Math.hypot(m[0]-G.m0[0], m[1]-G.m0[1])>12) G.moved=true;
   if(G.own==='?'){ if(s<.97) G.own='me'; else if(s>1.03){ G.own='engine'; gev('gesturestart', 1, G.m0[0], G.m0[1]); } }
-  if(G.own==='engine'){ if(c && G.f!=='solar'){ c.scrollLeft-=dx; c.scrollTop-=dy; } gev('gesturechange', s, m[0], m[1]); }
+  if(G.own==='engine'){ if(c && G.f!=='solar' && G.f!=='lanes'){ c.scrollLeft-=dx; c.scrollTop-=dy; } gev('gesturechange', s, m[0], m[1]); }   /* (the horizontal timeline's zoom keeps the pinched point under the fingers itself) */
   else if(G.own==='me'){ if(c){ c.scrollLeft-=dx; c.scrollTop-=dy; } ovSet(G.ov0*s, m[0], m[1]); }
-  else if(G.own==='lanes' && !G.done){
-    if(!lanesOv() && s<.8){ G.done=1; lanesToggle(); }
-    else if(lanesOv() && s>1.25){ G.done=1; var t=document.elementFromPoint(m[0], m[1]); if(t) t.click(); }
-  }
 }
 function pinchEnd(){
   var g=G; G=null; if(!g) return;
@@ -221,7 +212,6 @@ function pinchEnd(){
 function zoomBy(f, x, y){                          /* a double tap (in) or a two-finger tap (out), gliding */
   var k=fmt();
   if(k==='tl'){ if(f<1 || OV.s<.999) ovAnim(Math.max(fitS(), Math.min(1, OV.s*f)), x, y); return; }
-  if(k==='lanes'){ if((f<1)!==lanesOv()) lanesToggle(); return; }
   var t0=now(), ms=reduced() ? 1 : 300; gev('gesturestart', 1, x, y);
   (function fr(t){ var p=Math.min(1, (t-t0)/ms), e=1-Math.pow(1-p, 3); gev('gesturechange', Math.exp(Math.log(f)*e), x, y);
     if(p<1) requestAnimationFrame(fr); else gev('gestureend', f, x, y); })(t0);

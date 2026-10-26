@@ -451,6 +451,8 @@ def lanes_data(b, nodes) -> str:
     """window._ALTO_LANES — what the page needs to lay the lines out — and
     window._altoLanesDerive, which keeps its derived fields true after edits."""
     return ("\nwindow._ALTO_LANES=" + js_json(lanes_payload(b, nodes), separators=(",", ":")) + ";\n"
+            + "window._ALTO_LANES_PICK=" + js_json("alto-lanes-pick-" + (b.timeline_id or "")) + ";\n"
+            + "window._ALTO_LANES_ENT=" + js_json(chip_lines(b, nodes)[1], separators=(",", ":")) + ";\n"
             + LANES_DERIVE_JS)
 
 
@@ -479,8 +481,8 @@ LANES_CSS = KEY_CSS + """
   .lanes-past span:empty{display:none;}
   #lanes-svg .ln-rule{stroke:var(--muted);stroke-width:1.2;opacity:.55;}
   #lanes-svg .ln-hit{stroke:transparent;stroke-width:22;fill:none;pointer-events:stroke;cursor:pointer;}
-  #lanes-svg g{transition:opacity .2s;}
-  .node[data-ln] .node-card{transition:opacity .2s;}
+  #lanes-svg g{transition:opacity .3s ease;}
+  .node[data-ln] .node-card{transition:opacity .3s ease;}
   /* the key is a floating toggle's panel (key_toggle.py) */
   #lanes-key h5{margin:0 0 4px;}
   #lanes-key.shut .lk-body{display:none;}
@@ -502,7 +504,7 @@ LANES_CSS = KEY_CSS + """
   .lanes-tag{position:absolute;z-index:7;transform:translate(0,-50%);white-space:nowrap;
     font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 11px;border-radius:999px;
     background:color-mix(in srgb,var(--surface) 88%,transparent);border:1.5px solid currentColor;
-    pointer-events:auto;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
+    pointer-events:auto;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:opacity .3s ease,background .2s;}
   .lanes-tag:hover{background:var(--surface);}
   .lanes-gap{position:absolute;z-index:8;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;
     font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 9px;border-radius:999px;color:var(--text);
@@ -540,6 +542,20 @@ LANES_CSS = KEY_CSS + """
   html.alto-editing .lanes-tag{cursor:context-menu;}
   .node-card .lanes-when{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--muted);
     margin:-2px 0 4px;font-variant-numeric:tabular-nums;}
+  /* lines picked to show only them (LANES_JS setPick): the rest leave the board */
+  html.alto-lanes:not(.mobile) #world .node.ln-hid{display:none !important;}
+  #lanes-key .lk-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px;padding:0 4px;font-size:11px;color:var(--muted);}
+  #lanes-key .lk-all{all:unset;cursor:pointer;font-weight:700;color:var(--accent);padding:2px 6px;border-radius:6px;white-space:nowrap;}
+  #lanes-key .lk-all:hover{background:color-mix(in srgb,var(--accent) 14%,transparent);}
+  #lanes-key .lk-all:focus-visible,#lanes-key .lk-row:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  #lanes-key:not(.lk-picking) .lk-all{visibility:hidden;}
+  #lanes-key .lk-ck{flex:none;width:13px;height:13px;margin-top:2px;border-radius:4px;box-sizing:border-box;border:1.5px solid color-mix(in srgb,var(--muted) 70%,transparent);position:relative;transition:background .18s,border-color .18s;}
+  #lanes-key .lk-row.lk-pick .lk-ck{background:var(--lk-c,var(--accent));border-color:var(--lk-c,var(--accent));}
+  #lanes-key .lk-row.lk-pick .lk-ck::after{content:'';position:absolute;left:3.5px;top:.5px;width:3px;height:7px;border:solid var(--surface);border-width:0 2px 2px 0;transform:rotate(45deg);}
+  #lanes-key .lk-row.lk-off{opacity:.5;}
+  html.alto-lanes:not(.mobile) #nav .nav-btn.ln-chip-on{outline:2px solid currentColor;outline-offset:1px;}
+  html.alto-lanes:not(.mobile) #nav .nav-btn.ln-chip-off{opacity:.5;}
+  #lanes-key .lk-row.lk-off:hover{opacity:.85;}
   html.alto-lanes #canvas.ln-dimline .node[data-ln]:not(.ln-on) .node-card{opacity:.16 !important;}
   html.alto-lanes #canvas.ln-dimline #lanes-svg g[data-ln]:not(.ln-on){opacity:.1;}
   html.alto-lanes #canvas.ln-dimline #lanes-svg g[data-ln=main]:not(.ln-on){opacity:.3;}   /* the page stays in view under a character */
@@ -662,8 +678,9 @@ window._altoLanes=function(h){
   if(de.classList.contains('mobile')) return false;
   var world=document.getElementById('world'); if(!world) return false;
   derive();
-  var order=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id); });
-  NODES.forEach(function(n){ if(order.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id)) order.push(n.id); });
+  hideOut();
+  var order=[].concat.apply([],ACT_SEQS).filter(function(id){ return !!L.ev[id] && document.getElementById('node-'+id) && !hidEv(id); });
+  NODES.forEach(function(n){ if(order.indexOf(n.id)<0 && L.ev[n.id] && document.getElementById('node-'+n.id) && !hidEv(n.id)) order.push(n.id); });
   var idx={}; order.forEach(function(id,i){ idx[id]=i; });
   var w={}; order.forEach(function(id){ var c=document.querySelector('#node-'+id+' .node-card'); w[id]=c?c.offsetWidth:270; });
   var main={id:'main', label:L.main, color:'', side:'both'}, LB={main:main};
@@ -717,7 +734,7 @@ window._altoLanes=function(h){
   L.lines.forEach(function(l){
     var pr=(l.presence||[]).filter(function(i){ return X[i]!=null; });
     [l.from,l.to].forEach(function(f){ if(f && X[f]!=null && pr.indexOf(f)<0 && L.ev[f].l!==l.id) pr.push(f); });
-    l.pr=pr; l.drawn=pr.length+l.ev.length>0;
+    l.pr=pr; l.drawn=pr.length+l.ev.length>0 && !hidLine(l.id);
   });
   /* where the main line and each character's line run: 200px either side of the main
      line's events (a story that opens in a flashback starts just before the dip), a
@@ -1115,7 +1132,7 @@ function tag(world, l, x, y, c, before){
   var t=document.createElement('div'); t.className='lanes-tag'+(l.id==='main'?' ln-main-tag':''); t.style.left=x+'px'; t.style.top=y+'px';
   if(before) t.style.transform='translate(-100%,-50%)';
   t.style.color=c; t.textContent=l.label||''; t.setAttribute('data-ln-tag', l.id);
-  t.title='Show only this line — click again for all';
+  t.title='Show only this line — click again for all lines';
   world.appendChild(t);
   return t;
 }
@@ -1184,11 +1201,42 @@ window._altoLanesNav=function(id, dir){
 /* stepping event to event — keys, wheel, touch, the rail and the whole-timeline
    view — is lanes_nav.py (NAV_JS, appended to this script) */
 /* isolating a line: its events, its curves, where it branches and joins, the
-   arcs to it. A click keeps it; hovering shows it for as long as you point. */
-var _lock=null, _ht=null;
-/* the kept line, for stepping (lanes_nav.py: a character's events only); with an
-   argument, keep that line (null: all of them again) */
-window._altoLanesLock=function(id){ if(arguments.length){ _lock=id||null; isolate(_lock); } return _lock; };
+   arcs to it. Hovering shows it (calmly, below); picking lines shows only them. */
+function lineBy(id){ for(var i=0;i<L.lines.length;i++) if(L.lines[i].id===id) return L.lines[i]; return null; }
+/* ── showing only some lines (Luke, 2026-10-26: "Should be able to select multiple lines at once to only show").
+   The picked characters' lines stay, with their own events and the main-line events where any of them is on the
+   page; every other line and event leaves the board, and the board is laid out again for what is left (the main
+   line stays as the page's context). Picked in the key (a row a toggle each, "Show all" to undo) or by a line's
+   label on the board (only that line; again for all). Remembered per timeline on this device; the steps, the
+   wheel's path and the filters' order skip what is hidden (window._altoLanesHid). ── */
+var PK=window._ALTO_LANES_PICK||'', PICK=[];
+try{ PICK=JSON.parse(localStorage.getItem(PK)||'[]')||[]; }catch(e){ PICK=[]; }
+function pickOk(){ var seen={}; PICK=(Array.isArray(PICK)?PICK:[]).filter(function(i){ if(seen[i] || !lineBy(i)) return false; seen[i]=1; return true; }); }
+pickOk();
+function hidLine(id){ return PICK.length>0 && id!=='main' && PICK.indexOf(id)<0; }
+function hidEv(id){
+  var e=L.ev[id]; if(!PICK.length || !e) return false;
+  if(e.l && e.l!=='main' && lineBy(e.l)) return PICK.indexOf(e.l)<0;          // a character's own event
+  return !PICK.some(function(c){ var l=lineBy(c);                                // a main-line event: someone picked is on the page
+    return (e.present||[]).indexOf(c)>=0 || (e.ent||[]).indexOf(c)>=0 || (!!l && ((l.presence||[]).indexOf(id)>=0 || l.from===id || l.to===id)); });
+}
+window._altoLanesHid=hidEv;
+function hideOut(){ document.querySelectorAll('#world .node[id^="node-"]').forEach(function(n){ var id=n.id.slice(5); if(L.ev[id]) n.classList.toggle('ln-hid', hidEv(id)); }); }
+function setPick(ids){
+  PICK=(ids||[]).slice(); pickOk();
+  try{ if(PK){ if(PICK.length) localStorage.setItem(PK, JSON.stringify(PICK)); else localStorage.removeItem(PK); } }catch(e){}
+  if(window._focusedNodeId && hidEv(window._focusedNodeId) && window.exitFocus) window.exitFocus();
+  hvDrop(); isolate(null);
+  if(window._altoLanesGeo && window._altoLanesH) window._altoLanes(window._altoLanesH); else hideOut();
+  keyPick();
+  try{ document.dispatchEvent(new CustomEvent('alto:lanes-pick', {detail:PICK.slice()})); }catch(e){}
+}
+window._altoLanesPick=function(ids){ if(arguments.length) setPick(ids); return PICK.slice(); };
+/* (one line: the older single "kept line") */
+window._altoLanesLock=function(id){ if(arguments.length) setPick(id && id!=='main' ? [id] : []); return PICK[0]||null; };
+/* the engine's "is this shown" (its own steps, an enlarged card's hops) leaves hidden events out too */
+window.addEventListener('load', function(){ var sh=window._altoShown; if(sh && sh._ln) return;
+  var f=function(id){ return !hidEv(id) && (!sh || sh.apply(this, arguments)); }; f._ln=1; window._altoShown=f; });
 function isolate(id){
   var cv=document.getElementById('canvas'); if(!cv) return;
   document.querySelectorAll('.ln-on').forEach(function(x){ x.classList.remove('ln-on'); });
@@ -1196,7 +1244,7 @@ function isolate(id){
   cv.classList.add('ln-dimline');
   /* the line, its own events, and the main-line events where it is on the page (data-lp) */
   document.querySelectorAll('[data-ln~="'+id+'"],[data-lp~="'+id+'"],[data-ln-tag="'+id+'"],.lk-row[data-k="'+id+'"]').forEach(function(x){ x.classList.add('ln-on'); });
-  var l=null; L.lines.forEach(function(q){ if(q.id===id) l=q; });
+  var l=lineBy(id);
   if(l) [l.from,l.to].forEach(function(f){ var n=f && document.getElementById('node-'+f); if(n) n.classList.add('ln-on'); });
 }
 function lnOf(t){
@@ -1205,18 +1253,73 @@ function lnOf(t){
   var h=t.closest('#lanes-svg g[data-ln]'); if(h && t.classList.contains('ln-hit')) return h.getAttribute('data-ln');
   var n=t.closest('#canvas .node[data-ln]'); return n ? n.getAttribute('data-ln') : null;
 }
-document.addEventListener('mouseover', function(e){
-  if(_lock || de.classList.contains('mobile') || !window._altoLanesGeo) return;
-  var id=lnOf(e.target), cv=document.getElementById('canvas');
-  if(cv && cv.classList.contains('focus-mode')) return;
-  clearTimeout(_ht); _ht=setTimeout(function(){ if(!_lock) isolate(id); }, id ? 140 : 220);
+/* ── a calm hover (Luke, 2026-10-26: "its too reactive to hovering right now"; the System's calm hover, 1.9.176):
+   a line lights once the pointer has rested on it (its line, label, key row or a card on it) HI_IN ms, within
+   SLOP px; it goes HI_OUT ms after the pointer leaves, and not at all if it comes back. Moving straight from one
+   line to another swaps them once the new one has had its rest, with nothing lit or dimmed in between, so a
+   pointer crossing the board on its way somewhere changes nothing. A wheel or a press lets it go. ── */
+var HI_IN=220, HI_OUT=380, SLOP=8, _hv={on:null, want:undefined, t:0, x:0, y:0};
+function hvDrop(){ clearTimeout(_hv.t); _hv.t=0; _hv.want=undefined; if(_hv.on){ _hv.on=null; isolate(null); } }
+function hvArm(id){
+  clearTimeout(_hv.t);
+  _hv.t=setTimeout(function(){ _hv.t=0; if(_hv.want!==id) return; if(id){ _hv.on=id; isolate(id); } else if(_hv.on){ _hv.on=null; isolate(null); } }, id ? HI_IN : HI_OUT);
+}
+function hvQuiet(){ var cv=document.getElementById('canvas');
+  return de.classList.contains('mobile') || !window._altoLanesGeo || (cv && (cv.classList.contains('focus-mode') || cv.classList.contains('ln-ov'))); }
+document.addEventListener('pointerover', function(e){
+  if(e.pointerType==='touch' || hvQuiet()) return;
+  if(window._altoPointerStill && window._altoPointerStill(e)) return;    // a card slid under a still pointer
+  var id=lnOf(e.target)||null;
+  if(id===_hv.want) return;                                              // still on the same line
+  _hv.want=id; _hv.x=e.clientX; _hv.y=e.clientY;
+  if(id && id===_hv.on){ clearTimeout(_hv.t); _hv.t=0; return; }          // back on it within its grace: it stays
+  if(!id && !_hv.on){ clearTimeout(_hv.t); _hv.t=0; return; }
+  hvArm(id);
 });
+document.addEventListener('pointermove', function(e){
+  if(!_hv.t || !_hv.want || e.pointerType==='touch') return;
+  if(Math.abs(e.clientX-_hv.x)+Math.abs(e.clientY-_hv.y)>SLOP){ _hv.x=e.clientX; _hv.y=e.clientY; hvArm(_hv.want); }   // not resting yet
+}, {passive:true});
+['wheel','pointerdown'].forEach(function(t){ window.addEventListener(t, function(e){ if(t==='pointerdown' && e.target && e.target.closest && e.target.closest('#lanes-key')) return; hvDrop(); }, {capture:true, passive:true}); });
 document.addEventListener('click', function(e){
-  var t=e.target.closest && e.target.closest('.lanes-tag,.lk-row[data-k]'); if(!t || de.classList.contains('alto-editing')) return;
-  e.stopPropagation(); var id=t.getAttribute('data-ln-tag')||t.getAttribute('data-k');
-  _lock=(_lock===id)?null:id; isolate(_lock||id);
+  var t=e.target.closest && e.target.closest('.lanes-tag,.lk-row[data-k],.lk-all'); if(!t || de.classList.contains('alto-editing')) return;
+  e.stopPropagation();
+  if(t.classList.contains('lk-all')){ setPick([]); return; }
+  var id=t.getAttribute('data-ln-tag')||t.getAttribute('data-k');
+  if(id==='main' || !lineBy(id)){ setPick([]); return; }
+  var nx=PICK.slice(), i=nx.indexOf(id);
+  if(t.classList.contains('lanes-tag')) nx=(PICK.length===1 && i===0) ? [] : (i>=0 && PICK.length>1 ? PICK.filter(function(x){ return x!==id; }) : [id]);
+  else if(i>=0) nx.splice(i,1); else nx.push(id);
+  setPick(nx);
 }, true);
-document.addEventListener('keydown', function(e){ if(e.key==='Escape' && _lock){ _lock=null; isolate(null); } });
+/* Esc shows every line again — not while it is closing the key, an enlarged card or the whole timeline */
+var _escBusy=false;
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var k=document.getElementById('lanes-key'), c=document.getElementById('canvas');
+  _escBusy=!!window._focusedNodeId || !!(k && k.classList.contains('open')) || !!(c && c.classList.contains('ln-ov')); } }, true);
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && PICK.length && !_escBusy) setPick([]); });
+/* the nav bar's character chips: a plain click is still the character's page; ⇧- or ⌘-click picks (or lets go of)
+   their line, and each chip shows whether its line is picked */
+var ENT=window._ALTO_LANES_ENT||{};
+function chipLine(b){ var m=/showDetail\('char','([^']+)'\)/.exec(b.getAttribute('onclick')||''), l=m && ENT[m[1]]; return l && lineBy(l) ? l : null; }
+function chips(){ return [].filter.call(document.querySelectorAll('#nav .nav-btn'), chipLine); }
+document.addEventListener('click', function(e){
+  if(!(e.shiftKey || e.metaKey || e.ctrlKey) || de.classList.contains('mobile') || de.classList.contains('alto-editing') || !window._altoLanesGeo) return;
+  var b=e.target.closest && e.target.closest('#nav .nav-btn'), id=b && chipLine(b); if(!id) return;
+  e.preventDefault(); e.stopPropagation();
+  var nx=PICK.slice(), i=nx.indexOf(id); if(i>=0) nx.splice(i,1); else nx.push(id); setPick(nx);
+}, true);
+/* the key's rows say what is shown: a tick on each picked line, the others faded; "Show all" when some are hidden */
+function keyPick(){
+  if(!de.classList.contains('mobile')) chips().forEach(function(b){ var id=chipLine(b), on=PICK.indexOf(id)>=0;
+    b.classList.toggle('ln-chip-on', on); b.classList.toggle('ln-chip-off', PICK.length>0 && !on);
+    if(!b._lnT){ b._lnT=1; b.title=(b.title ? b.title+' · ' : '')+'⇧-click: show only the lines you pick'; } });
+  var k=document.getElementById('lanes-key'); if(!k) return;
+  k.classList.toggle('lk-picking', PICK.length>0);
+  k.querySelectorAll('.lk-row[data-k]').forEach(function(r){ var id=r.getAttribute('data-k'); if(id==='main') return;
+    var on=PICK.indexOf(id)>=0; r.classList.toggle('lk-pick', on); r.classList.toggle('lk-off', PICK.length>0 && !on); r.setAttribute('aria-pressed', on?'true':'false'); });
+  var bar=k.querySelector('.lk-pickbar span');
+  if(bar) bar.textContent=PICK.length ? 'Showing '+PICK.length+' of '+L.lines.length+' lines' : 'All lines shown — pick some to show only them';
+}
 /* the key: what each line follows, where it is on the page, what each shape means */
 function key(){
   if(de.classList.contains('mobile')) return;
@@ -1232,12 +1335,13 @@ function key(){
   var det='<svg width="26" height="18"><rect x="7" y="7" width="12" height="10" rx="3" fill="var(--accent)" fill-opacity=".16"/>'+
     '<path d="M0 4 L3 4 C8 4 6 14 11 14 L15 14 C20 14 18 4 23 4 L26 4" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/></svg>';
   var h='<h5><span>Lines</span><span></span></h5><div class="lk-body">';
+  if(L.lines.length) h+='<div class="lk-pickbar"><span></span><button type="button" class="lk-all">Show all</button></div>';
   h+='<div class="lk-row" data-k="main">'+sw('var(--accent)','',5)+'<div><b>'+esc(L.main||'Main line')+'</b><small>The main line: what is on the page, in the order the story tells it</small></div></div>';
   L.lines.forEach(function(l){
     var n=(l.presence||[]).length, o=(l.events||[]).length, w=[];
     if(n) w.push('on the page at '+n+' event'+(n>1?'s':'')+((l.presence||[])[0]?', first at “'+esc(T(l.presence[0]))+'”':''));
     if(o) w.push(o+' event'+(o>1?'s':'')+' of its own');
-    h+='<div class="lk-row" data-k="'+esc(l.id)+'">'+sw(l.color,'',5)+'<div><b>'+esc(l.label)+'</b><small>'+(w.join(' · ')||'not on the page yet')+'</small></div></div>';
+    h+='<div class="lk-row" data-k="'+esc(l.id)+'" role="button" tabindex="0" aria-pressed="false" style="--lk-c:'+esc(l.color)+'"><i class="lk-ck" aria-hidden="true"></i>'+sw(l.color,'',5)+'<div><b>'+esc(l.label)+'</b><small>'+(w.join(' · ')||'not on the page yet')+'</small></div></div>';
   });
   h+='<div class="lk-sep"></div>';
   if(L.lines.length) h+='<div class="lk-row">'+sw('var(--muted)','',4)+'<div>A coloured line: a character while they are off the page</div></div>'+
@@ -1248,10 +1352,12 @@ function key(){
   Object.keys(rels).forEach(function(r){ var c=(typeof COLOR_MAP!=='undefined'&&COLOR_MAP[r])||'var(--muted)', lb=(typeof REL_LABELS!=='undefined'&&REL_LABELS[r])||r;
     h+='<div class="lk-row">'+sw(c,'7 5',2)+'<div>Dashed arc: '+esc(lb)+' <small>a link the material draws between events on different lines; it brightens when you point at either line</small></div></div>'; });
   h+='<div class="lk-row"><span style="width:26px;text-align:center;flex:none">≈</span><div>Time squeezed — a long stretch with nothing in it</div></div>';
-  h+='<small style="margin-top:4px">Point at a line, its label or a card to follow it; click a label to keep it.</small></div>';
+  h+='<small style="margin-top:4px">Point at a line, its label or a card to follow it. Tick lines here to show only them; click a label on the board to show only that line.</small></div>';
   k.innerHTML=h; window._altoKeyToggle(k, 'alto-lanes-key', 'Key to the lines');
+  k.addEventListener('keydown', function(e){ var r=e.target.closest && e.target.closest('.lk-row[data-k]'); if(r && (e.key==='Enter' || e.key===' ')){ e.preventDefault(); r.click(); } });
+  keyPick();
 }
-window.addEventListener('load', function(){ setTimeout(key, 300); });
+window.addEventListener('load', function(){ setTimeout(key, 300); setTimeout(keyPick, 320); });
 })();
 """
 
