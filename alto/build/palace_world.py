@@ -207,22 +207,26 @@ function quad(a,b,bend){ var mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,dx=b[0]-a[0],dy=b
   return {c:[mx-dy/L*k,my+dx/L*k],L:L}; }
 
 // ── view ──
+// The engine may scale the whole page (CSS zoom on <html>, e.g. ×0.85 on a 1440 px window): the map is laid out in CSS px, while
+// events and getBoundingClientRect come in the window's px. cp() turns a window point into the map's own (S.z, S.rl, S.rt from resize).
+function cp(x,y){ return [(x-(S.rl||0))/(S.z||1),(y-(S.rt||0))/(S.z||1)]; }
 function scr(x,y){ return [(x-S.cx)*S.k+S.vw/2,(y-S.cy)*S.k+S.vh/2]; }
 function wld(sx,sy){ return [(sx-S.vw/2)/S.k+S.cx,(sy-S.vh/2)/S.k+S.cy]; }
 function inset(){ return phone()?{t:56,b:124,l:14,r:14}:{t:60,b:96,l:30,r:70}; }      // (clear of the page's own corner buttons and side rail)
 function fitBox(bb,pad){ var I=inset(), w=S.vw-I.l-I.r-2*pad, hh=S.vh-I.t-I.b-2*pad, bw=Math.max(bb[2]-bb[0],1e-3), bh=Math.max(bb[3]-bb[1],1e-3);
   var k=Math.min(w/bw,hh/bh); return {k:k,cx:(bb[0]+bb[2])/2-((I.l-I.r)/2)/k,cy:(bb[1]+bb[3])/2-((I.t-I.b)/2)/k}; }
-function worldView(){ var v=fitBox([-1000,-487,1000,487],phone()?2:10); if(!phone()) return v;
-  // a phone is tall: the world fills most of its height, centred on the route, and the reader pans sideways
-  var I=inset(), k=Math.max(v.k,(S.vh-I.t-I.b)*.6/974), xs=[]; for(var id in (D().nodes||{})){ var n=N(id); if(n.x!=null) xs.push(n.x); }
-  var cx=xs.length?(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2:0, half=(S.vw/2)/k;
-  return {k:k,cx:clamp(cx,-1000+half,1000-half),cy:v.cy}; }
+// The whole world, centred in the map (Luke, 2026-10-26: "have the map centered when opening from homepage"): the same margin on either
+// side (the map's bars float over the sea), less on a short landscape phone; a phone held upright shows the world taller (60% of its
+// height) and the reader pans sideways from its middle.
+function worldView(){ var short=S.vh<500, px=phone()?10:short?16:40, py=short?18:62, bw=2000, bh=974;
+  var k=Math.min((S.vw-2*px)/bw,(S.vh-2*py)/bh); if(phone()&&!short) k=Math.max(k,(S.vh-2*py)*.6/bh);
+  return {k:k,cx:0,cy:0}; }
 function apply(){
   S.g.setAttribute('transform','translate('+(S.vw/2-S.cx*S.k).toFixed(2)+' '+(S.vh/2-S.cy*S.k).toFixed(2)+') scale('+S.k.toFixed(5)+')');
   place();
 }
 function setView(cx,cy,k){ var kmin=S.kW*(phone()?.35:.6), kmax=S.kW*60; S.k=clamp(k,kmin,kmax); S.cx=clamp(cx,-1100,1100); S.cy=clamp(cy,-560,560); apply(); settleSoon(); }
-function zoomAt(f,sx,sy){ var p=wld(sx,sy), k=clamp(S.k*f,S.kW*(phone()?.35:.6),S.kW*60); S.cx=p[0]-(sx-S.vw/2)/k; S.cy=p[1]-(sy-S.vh/2)/k; S.k=k; stop(); apply(); settleSoon(); }
+function zoomAt(f,sx,sy){ S.zt=performance.now(); var p=wld(sx,sy), k=clamp(S.k*f,S.kW*(phone()?.35:.6),S.kW*60); S.cx=p[0]-(sx-S.vw/2)/k; S.cy=p[1]-(sy-S.vh/2)/k; S.k=k; stop(); apply(); settleSoon(); }
 function stop(){ if(S.anim){ cancelAnimationFrame(S.anim.raf); S.anim=null; } }
 function fly(cx,cy,k,done){
   stop(); var c0=[S.cx,S.cy,S.k], d=Math.hypot(cx-c0[0],cy-c0[1]), kmin=Math.min(c0[2],k);
@@ -339,8 +343,8 @@ function labels(){                                  // decided once a gesture se
   var taken=[];
   for(var id in S.pins){ var P=S.pins[id]; taken.push([P.x-8,P.y-8,P.x+8,P.y+8]); }
   if(S.cl) S.cl.boxes.forEach(function(b){ taken.push(b); });
-  var o=S.root.getBoundingClientRect();                            // the map's own panels: no name goes under them
-  [S.ctlEl,S.keyEl,S.tourEl,S.list].forEach(function(e){ if(!e||e.hidden) return; var r=e.getBoundingClientRect(); if(r.width) taken.push([r.left-o.left-6,r.top-o.top-6,r.right-o.left+6,r.bottom-o.top+6]); });
+  [S.ctlEl,S.keyEl,S.tourEl,S.list].forEach(function(e){ if(!e||e.hidden) return; var r=e.getBoundingClientRect(); if(!r.width) return;      // the map's own panels: no name goes under them
+    var a=cp(r.left,r.top), b=cp(r.right,r.bottom); taken.push([a[0]-6,a[1]-6,b[0]+6,b[1]+6]); });
   var hit=function(b,sl){ sl=sl||0; for(var i=0;i<taken.length;i++){ var t=taken[i]; if(b[0]+sl<t[2]&&b[2]-sl>t[0]&&b[1]+sl<t[3]&&b[3]-sl>t[1]) return true; } return false; };
   var seenC={}, order=stops().concat(Object.keys(S.pins)), was=order.filter(function(id){ return S.pins[id]&&S.pins[id].on; });
   was.concat(order).forEach(function(id){ var P=S.pins[id]; if(!P||P._done===S) return; P._done=S; var n=N(id);
@@ -541,12 +545,18 @@ function fitLive(){ var bb=[1e9,1e9,-1e9,-1e9], k=0;
   live().forEach(function(id){ var p=placeOf(id), n=p&&N(p); if(!n) return; bb=[Math.min(bb[0],n.x),Math.min(bb[1],n.y),Math.max(bb[2],n.x),Math.max(bb[3],n.y)]; k++; });
   if(!k) return; unfocus(); var v=fitBox([bb[0]-6,bb[1]-6,bb[2]+6,bb[3]+6],phone()?30:80); fly(v.cx,v.cy,Math.min(v.k,S.kW*14)); }
 // what happens on the hidden board reaches the map: a search hit (the engine flashes it) or a card the engine enlarges is enlarged here
+// A card the engine enlarges because of a zoom on the map is not one (Luke, 2026-10-26: "it keeps bouncing back when i try to zoom in"):
+// the engine's focus mode hears a pinch first (window capture) and enlarges the card nearest it; the map's own handlers run after, so its
+// 'focused' is weighed once the event is done (a map zoom stamps S.zt) — let go of on the board, never flown to.
 function watchBoard(){ var t=0, w=document.getElementById('world');
-  var mo=new MutationObserver(function(ms){ var hit=null;
+  var exit=function(){ if(window._focusedNodeId&&window.exitFocus){ try{ window.exitFocus(); }catch(x){} } };
+  var go=function(hit){ if(N(hit)&&!S.root.hidden&&!document.documentElement.classList.contains('detail-open')){ exit(); A.select(hit); } };
+  var mo=new MutationObserver(function(ms){ var hit=null, foc=null;
     ms.forEach(function(m){ var e=m.target, c=e.classList, was=' '+(m.oldValue||'')+' '; if(!c||!e.id||e.id.indexOf('node-')!==0) return;
-      if((c.contains('search-flash')&&was.indexOf(' search-flash ')<0)||(c.contains('focused')&&was.indexOf(' focused ')<0)) hit=e.id.slice(5); });
-    if(hit&&N(hit)&&!S.root.hidden&&!document.documentElement.classList.contains('detail-open')){
-      if(window._focusedNodeId&&window.exitFocus){ try{ window.exitFocus(); }catch(x){} } A.select(hit); }
+      if(c.contains('search-flash')&&was.indexOf(' search-flash ')<0) hit=e.id.slice(5);
+      else if(c.contains('focused')&&was.indexOf(' focused ')<0) foc=e.id.slice(5); });
+    if(hit) go(hit);
+    else if(foc) setTimeout(function(){ if(S.root.hidden) return; if(performance.now()-(S.zt||-1e9)<600) exit(); else go(foc); },0);
     clearTimeout(t); t=setTimeout(dim,60); });
   var o={attributes:true,subtree:true,attributeFilter:['class'],attributeOldValue:true};
   if(w) mo.observe(w,o); mo.observe(S.lCards,o); }
@@ -556,27 +566,27 @@ function bindInput(){
   var svg=S.svg, root=S.root;
   root.addEventListener('wheel',function(e){ if(e.target.closest&&e.target.closest('.wp-list,.wp-key')) return; e.preventDefault(); stop();
     var m=e.deltaMode===1?16:e.deltaMode===2?S.vh:1;
-    if(e.ctrlKey) zoomAt(Math.exp(clamp(-e.deltaY*m*.01,-.3,.3)),e.clientX,e.clientY-S.top);       // a pinch's small steps, a mouse notch at most ×1.35
+    if(e.ctrlKey){ var q=cp(e.clientX,e.clientY); zoomAt(Math.exp(clamp(-e.deltaY*m*.01,-.3,.3)),q[0],q[1]); }       // a pinch's small steps, a mouse notch at most ×1.35
     else { S.cx+=e.deltaX*m/S.k; S.cy+=e.deltaY*m/S.k; setView(S.cx,S.cy,S.k); } },{passive:false});
   var gs=1;
-  root.addEventListener('gesturestart',function(e){ if(Object.keys(S.ptr).length) return; e.preventDefault(); gs=1; },{passive:false});
-  root.addEventListener('gesturechange',function(e){ if(Object.keys(S.ptr).length) return; e.preventDefault(); zoomAt(e.scale/gs,e.clientX||S.vw/2,(e.clientY||S.vh/2)-S.top); gs=e.scale; },{passive:false});
-  root.addEventListener('gestureend',function(e){ e.preventDefault(); },{passive:false});
+  root.addEventListener('gesturestart',function(e){ e.stopPropagation(); S.zt=performance.now(); if(Object.keys(S.ptr).length) return; e.preventDefault(); gs=1; },{passive:false});
+  root.addEventListener('gesturechange',function(e){ e.stopPropagation(); if(Object.keys(S.ptr).length) return; e.preventDefault(); var q=e.clientX?cp(e.clientX,e.clientY):[S.vw/2,S.vh/2]; zoomAt(e.scale/gs,q[0],q[1]); gs=e.scale; },{passive:false});
+  root.addEventListener('gestureend',function(e){ e.stopPropagation(); e.preventDefault(); S.zt=performance.now(); },{passive:false});      // (the engine's gestureend would enlarge a card)
   var last=null;
   var mid=function(){ var k=Object.keys(S.ptr), a=S.ptr[k[0]], b=S.ptr[k[1]]||a; return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)}; };
   // a drag pans from anywhere on the map, a pin or a name too (not from a card or a panel); it takes the pointer once it is a drag, so a
   // tap on a pin is still the pin's
   var mine=function(t){ return t===svg||!(t.closest&&t.closest('.wp-bar,.wp-list,.wp-enl,.wp-card,.wk,.key-pop')); };
-  root.addEventListener('pointerdown',function(e){ if(!mine(e.target)||e.button>0) return; stop(); S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top};
+  root.addEventListener('pointerdown',function(e){ if(!mine(e.target)||e.button>0) return; stop(); var q=cp(e.clientX,e.clientY); S.ptr[e.pointerId]={x:q[0],y:q[1]};
     if(e.target===svg) try{ svg.setPointerCapture(e.pointerId); }catch(x){}
     S.dragged=false; S.down={x:e.clientX,y:e.clientY}; last=mid(); root.classList.add('wp-drag'); });
-  root.addEventListener('pointermove',function(e){ if(!S.ptr[e.pointerId]) return; S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top};
+  root.addEventListener('pointermove',function(e){ if(!S.ptr[e.pointerId]) return; var q=cp(e.clientX,e.clientY); S.ptr[e.pointerId]={x:q[0],y:q[1]};
     if(!S.dragged&&Math.hypot(e.clientX-S.down.x,e.clientY-S.down.y)>5){ S.dragged=true; try{ root.setPointerCapture(e.pointerId); }catch(x){} }
     var m=mid(); if(last){ if(Object.keys(S.ptr).length>1&&last.d>0) zoomAt(m.d/last.d,m.x,m.y); S.cx-=(m.x-last.x)/S.k; S.cy-=(m.y-last.y)/S.k; setView(S.cx,S.cy,S.k); } last=m; });
   var up=function(e){ if(!S.ptr[e.pointerId]) return; delete S.ptr[e.pointerId]; last=Object.keys(S.ptr).length?mid():null; if(!last){ root.classList.remove('wp-drag'); if(S.dragged) setTimeout(function(){ S.dragged=false; },0); } };
   root.addEventListener('pointerup',up); root.addEventListener('pointercancel',up);
   svg.addEventListener('click',function(e){ if(S.dragged) return; if(e.target===svg||e.target.classList.contains('wp-c')&&!e.target.classList.contains('wp-u')){ if(S.cl||S.cur) unfocus(); } });
-  svg.addEventListener('dblclick',function(e){ e.preventDefault(); var r=root.getBoundingClientRect(); var s=S.k*2, p=wld(e.clientX,e.clientY-r.top); fly(p[0],p[1],s); });
+  svg.addEventListener('dblclick',function(e){ e.preventDefault(); var q=cp(e.clientX,e.clientY), s=S.k*2, p=wld(q[0],q[1]); fly(p[0],p[1],s); });
   document.addEventListener('keydown',function(e){
     if(S.root.hidden||document.documentElement.classList.contains('detail-open')) return;
     var t=e.target, tag=t&&t.tagName; if(tag==='INPUT'||tag==='TEXTAREA'||(t&&t.isContentEditable)) return;
@@ -589,7 +599,8 @@ function bindInput(){
     else if(e.key==='+'||e.key==='='){ zoomAt(1.5,S.vw/2,S.vh/2); } else if(e.key==='-'){ zoomAt(1/1.5,S.vw/2,S.vh/2); } });
   window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); });
 }
-function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=r.width||window.innerWidth; S.vh=r.height||window.innerHeight; var v=worldView(); S.kW=v.k;
+function resize(){ setTop(); var r=S.root.getBoundingClientRect(), was=S.kW; S.vw=S.root.clientWidth||r.width||window.innerWidth; S.vh=S.root.clientHeight||r.height||window.innerHeight;
+  S.z=r.width&&S.root.clientWidth?r.width/S.root.clientWidth:1; S.rl=r.left; S.rt=r.top; var v=worldView(); S.kW=v.k;
   if(!S.inited){ S.inited=1; S.cx=v.cx; S.cy=v.cy; S.k=v.k; } else S.k*=S.kW/was; apply(); if(S.cl) layoutCluster(); settleSoon(); }
 function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var b=e.getBoundingClientRect(); if(b.height>0&&b.height<200&&b.top<80&&b.bottom>top) top=Math.round(b.bottom); });
   S.top=top; S.root.style.setProperty('--w-top',top+'px'); }
@@ -603,7 +614,7 @@ function chrome(){
   var wb=h('button',{type:'button','class':'wp-btn',title:'The whole world'},ctl,'⤢ World'); wb.addEventListener('click',A.world);
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
-  var narrow=(window.innerWidth||1000)<700;                                   // (the map is not measured yet)
+  var narrow=(window.innerWidth||1000)<700||document.documentElement.classList.contains('mobile');      // (the map is not measured yet; a phone on its side too)
   var key=S.keyEl=h('div',{'class':'wp-bar wp-key'+(narrow?' shut':'')},root);
   var kt=h('button',{type:'button','class':'wp-kt'},key); (D().acts||[]).forEach(function(a,i){ h('i',{'class':ucls(i),style:'width:8px;height:8px'},kt); }); kt.appendChild(document.createTextNode(' Key'));
   kt.addEventListener('click',function(){ key.classList.toggle('shut'); });

@@ -249,3 +249,70 @@ def test_a_card_says_where_it_stands_enlarged_and_on_its_page(browser, origin):
         assert not errors
     finally:
         page.close()
+
+
+@pytest.mark.parametrize("tour", [True, False])
+def test_a_zoom_in_holds_where_the_reader_leaves_it(browser, origin, tour):
+    # Luke, 2026-10-26: "it keeps bouncing back when i try to zoom in, regardless of whether tour is on or not" — the engine's focus mode
+    # heard the pinch too and enlarged the card nearest it, and the map flew to that card
+    page, errors = _open(browser, origin)
+    try:
+        _settle(page, 600)
+        page.evaluate(f"AltoWorld.tourMode({'true' if tour else 'false'})")
+        _settle(page, 300)
+        k = lambda: page.evaluate("AltoWorld.view().k")
+        held = lambda: page.evaluate("[AltoWorld.view().k, AltoWorld.view().cx, AltoWorld.view().cy]")
+        for how in ("gesture", "wheel", "button"):
+            k0 = k()
+            if how == "gesture":                                                                  # Safari's trackpad pinch
+                page.evaluate("""(() => { var r = document.getElementById('wpal-root');
+                    function g(t, s) { var e = new Event(t, {bubbles: true, cancelable: true}); e.scale = s; e.clientX = 640; e.clientY = 380; r.dispatchEvent(e); }
+                    g('gesturestart', 1); [1.1, 1.3, 1.6].forEach(function (s) { g('gesturechange', s); }); g('gestureend', 1.6); })()""")
+            elif how == "wheel":                                                                  # Chrome's: ctrl + wheel
+                page.mouse.move(640, 380)
+                page.keyboard.down("Control")
+                for _ in range(6):
+                    page.mouse.wheel(0, -25)
+                page.keyboard.up("Control")
+            else:
+                page.click("#wpal-root .wp-ctl button[aria-label='Zoom in']")
+            _settle(page, 200)
+            v = held()
+            assert v[0] > k0 * 1.15, how
+            _settle(page, 2000)
+            assert held() == v, how                                                               # no bounce back, no fly to a card
+            assert page.evaluate(ENL) is None and not page.evaluate("window._focusedNodeId"), how
+        # the engine enlarging a card for any other reason still reaches the map
+        page.evaluate("document.querySelector('#world #node-hanna').classList.add('focused')")
+        _settle(page)
+        assert page.evaluate(ENL) == "hanna"
+        assert not errors
+    finally:
+        page.close()
+
+
+@pytest.mark.parametrize("size", [(1440, 900, False), (900, 1200, False), (390, 664, True), (750, 342, True)])
+def test_the_world_opens_centred(browser, origin, size):
+    # Luke, 2026-10-26: "have the map centered when opening from homepage" — the engine scales the page (CSS zoom on <html>) and the map
+    # had measured itself in the window's px, so its fit sat to one side; a phone on its side also got a desktop's margins
+    w, hgt, phone = size
+    ua = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+          if phone else None)
+    ctx = browser.new_context(viewport={"width": w, "height": hgt}, **({"user_agent": ua, "has_touch": True} if phone else {}))
+    page = ctx.new_page()
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    try:
+        page.goto(origin + "/index.html")
+        page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+        _settle(page, 900)
+        r = page.evaluate("""(() => { var s = document.querySelector('#wpal-root .wp-sphere').getBoundingClientRect(),
+            m = document.getElementById('wpal-root').getBoundingClientRect();
+            return [(s.left + s.right) / 2 - (m.left + m.right) / 2, (s.top + s.bottom) / 2 - (m.top + m.bottom) / 2,
+                    Math.max(s.width / m.width, s.height / m.height)]; })()""")
+        assert abs(r[0]) <= 2 and abs(r[1]) <= 2, r                                             # the world's middle is the map's middle
+        assert r[2] > .7, r                                                                     # and it fills the map's width or height
+        assert page.evaluate("!document.querySelector('.wk:not(.key-pop)') || !!document.querySelector('.key-pop.wk')")    # no stray key
+        assert not [e for e in errors if "ResizeObserver loop" not in e]                        # (WebKit's notice for the engine's card observer)
+    finally:
+        ctx.close()
