@@ -171,3 +171,81 @@ def test_the_key_is_alto_s_floating_toggle_and_a_link_rides_to_its_card(browser,
         assert not errors
     finally:
         page.close()
+
+
+VIEW = "AltoWorld.view()"
+BAR = "!document.querySelector('#wpal-root .wp-tour').hidden"
+
+
+def test_the_tour_switch_turns_off_and_the_map_roams_free_then_on_again(browser, origin):
+    # Luke, 2026-10-26: "it seems i can't turn tour mode off and freely go around the world"
+    page, errors = _open(browser, origin)
+    try:
+        _settle(page, 600)
+        assert page.evaluate("AltoWorld.tourMode()") is True and page.evaluate(BAR)          # on: as before, its bar ready to start
+        page.evaluate("AltoWorld.select('erie')")
+        _settle(page)
+        assert page.evaluate(BAR) and page.evaluate(ENL) == "erie"
+        page.click("#wpal-root .wp-tour .x")                                                    # the bar's ✕ ends the Tour
+        _settle(page, 500)
+        assert page.evaluate("AltoWorld.tourMode()") is False
+        assert not page.evaluate(BAR) and page.evaluate(ENL) is None
+        assert not page.evaluate("document.getElementById('wpal-root').classList.contains('wp-focus')")      # nothing left dimmed
+        assert page.evaluate("document.querySelector('#wpal-root .wp-tt').getAttribute('aria-pressed')") == "false"
+        # free: a drag (from a pin too), the arrow keys, the zoom keys, and the map stays where it is put
+        v0 = page.evaluate(VIEW)
+        pin = page.evaluate("""(() => { var ps = document.querySelectorAll('#wpal-root .wp-pin');       // a pin in sight, nothing over it
+            for (var i = 0; i < ps.length; i++) { var r = ps[i].getBoundingClientRect(), x = r.x + r.width/2, y = r.y + r.height/2;
+              if (x > 40 && x < innerWidth - 320 && y > 120 && y < innerHeight - 160 && ps[i].contains(document.elementFromPoint(x, y))) return [x, y]; }
+            return null; })()""")
+        assert pin, "no pin in sight"
+        page.mouse.move(*pin)
+        page.mouse.down()
+        page.mouse.move(pin[0] + 260, pin[1] + 90, steps=8)
+        page.mouse.up()
+        _settle(page, 400)
+        v1 = page.evaluate(VIEW)
+        assert v1["cx"] < v0["cx"] - 20 and page.evaluate(ENL) is None                         # panned, and the pin was not opened
+        page.keyboard.press("ArrowRight")
+        page.keyboard.press("ArrowDown")
+        _settle(page, 300)
+        v2 = page.evaluate(VIEW)
+        assert v2["cx"] > v1["cx"] and v2["cy"] > v1["cy"] and page.evaluate(ENL) is None      # the arrows pan, not hop
+        page.keyboard.press("-")
+        _settle(page, 1500)
+        v3 = page.evaluate(VIEW)
+        assert v3["k"] < v2["k"] and abs(v3["cx"] - v2["cx"]) < 1e-6 and abs(v3["cy"] - v2["cy"]) < 1e-6        # no snapping back
+        # remembered on this device; on again, the Tour starts
+        page.reload()
+        page.wait_for_function("window.AltoWorld && document.querySelector('#wpal-root .wp-pin')", timeout=20000)
+        _settle(page, 600)
+        assert page.evaluate("AltoWorld.tourMode()") is False and not page.evaluate(BAR)
+        page.click("#wpal-root .wp-tt")
+        _settle(page)
+        assert page.evaluate("AltoWorld.tourMode()") is True and page.evaluate(BAR) and page.evaluate(ENL) is not None
+        assert "Tour 1 /" in page.evaluate("document.querySelector('#wpal-root .wp-tour .c').textContent")
+        assert not errors
+    finally:
+        page.close()
+
+
+def test_a_card_says_where_it_stands_enlarged_and_on_its_page(browser, origin):
+    page, errors = _open(browser, origin)
+    try:
+        where = "[].map.call(document.querySelectorAll('#wpal-root .wp-enl .wp-where'), function(e){ return e.textContent; })"
+        page.evaluate("AltoWorld.select('erie')")
+        _settle(page)
+        assert page.evaluate(where) == ["Peru"]                                                 # a country's own card: the country
+        page.evaluate("AltoWorld.select('erie1')")
+        _settle(page)
+        assert page.evaluate(where) == ["Arequipa, Peru"]                                       # a card on a city: city, country
+        page.evaluate("showDetail('node', 'erie1')")
+        _settle(page, 400)
+        assert page.evaluate("document.querySelector('#detail-content .detail-role + .wp-where-d').textContent") == "Arequipa, Peru"
+        page.evaluate("showDetail('node', 'erie')")                                             # the engine writes each page afresh
+        _settle(page, 400)
+        assert page.evaluate("document.querySelectorAll('#detail-content .wp-where-d').length") == 1
+        assert page.evaluate("document.querySelector('#detail-content .wp-where-d').textContent") == "Peru"
+        assert not errors
+    finally:
+        page.close()

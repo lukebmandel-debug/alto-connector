@@ -11,7 +11,7 @@ direction chevrons, a dotted arc handing one unit to the next; a place opens int
 Tour steps the route (◀ ▶, the arrow keys). Classic and Retro (retro.FORMAT_CSS styles #wpal-root); no first-person view. Text is only ever
 written with textContent.
 
-SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId) (enlarges it), hop(±1), tour(i), unit(a), world(), view() -> {cx, cy, k}, on(event, fn)
+SEAMS: window.AltoWorld — data, mount(data), show(), hide(), select(nodeId) (enlarges it), hop(±1), tour(i), tourMode(on?) (the Tour switch; no argument reads it), unit(a), world(), view() -> {cx, cy, k}, on(event, fn)
 ('ready' when the map is drawn, 'select', 'land' when a flight ends).
 """
 from __future__ import annotations
@@ -132,6 +132,24 @@ html.detail-open #wpal-root{visibility:hidden !important;}
 #wpal-root .wp-key.shut .u,#wpal-root .wp-key.shut .wp-kn{display:none;}
 #wpal-root .wp-key:not(.shut) .wp-kt{margin-bottom:4px;color:var(--w-sub);}
 #wpal-root .wp-kn{color:var(--w-sub);margin-top:4px;display:flex;align-items:center;gap:6px;}
+/* the Tour switch (Luke, 2026-10-26: "i can't turn tour mode off and freely go around the world"): on, the route as before; off, the map is free */
+#wpal-root .wp-tt{display:flex;align-items:center;gap:7px;}
+#wpal-root .wp-sw{position:relative;width:24px;height:14px;border-radius:7px;background:color-mix(in srgb,var(--w-text) 22%,transparent);transition:background .2s;flex:none;}
+#wpal-root .wp-sw::after{content:'';position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:5px;background:var(--w-pin);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:translate .2s;}
+#wpal-root .wp-tt[aria-pressed="true"] .wp-sw{background:var(--accent,#5b6cff);}
+#wpal-root .wp-tt[aria-pressed="true"] .wp-sw::after{translate:10px 0;}
+#wpal-root .wp-tour .x{margin-left:2px;}
+/* where a card stands ("Lima, Peru"; "Peru" for a country's own card): under the enlarged card, and on its page under its kind */
+#wpal-root .wp-where{display:flex;align-items:center;gap:5px;margin:7px auto 0;width:max-content;max-width:100%;box-sizing:border-box;padding:3px 10px 3px 8px;border-radius:999px;
+  background:var(--w-card);border:1px solid var(--w-panel-b);box-shadow:var(--w-shadow);font-size:10.5px;font-weight:600;line-height:1.3;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--w-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);}
+#wpal-root .wp-where svg,#detail-page .wp-where-d svg{width:9px;height:11px;flex:none;}
+#wpal-root .wp-where path,#detail-page .wp-where-d path{fill:var(--u,currentColor);}
+#detail-page .wp-where-d{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#5b6478);}
+html.alto-retro #wpal-root .wp-where:not(#_){border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--rt-f);font-weight:400;letter-spacing:.2em;color:#d9ae55;border-color:rgba(217,174,85,.55);background:#0b0d12;}
+html.alto-retro #detail-page .wp-where-d:not(#_){color:#d9ae55;font-family:var(--rt-f);letter-spacing:.3em;}
+html.alto-retro #wpal-root .wp-sw,html.alto-retro #wpal-root .wp-sw::after{border-radius:0;}
+html.alto-retro #wpal-root .wp-tt[aria-pressed="true"] .wp-sw{background:#d9ae55;}
 #wpal-root .wp-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--w-sub);font-size:13px;}
 /* the key in Alto's floating key toggle (outside the map's root): the same rows */
 .key-pop.wk button.u{display:flex;align-items:center;gap:7px;border:0;background:none;color:var(--text);font:inherit;padding:2px 4px;border-radius:6px;cursor:pointer;width:100%;text-align:left;line-height:20px;}
@@ -152,7 +170,8 @@ html.alto-retro .key-pop.wk i{border-radius:0;}
 WORLD_JS = r"""
 var NS='http://www.w3.org/2000/svg', A=window.AltoWorld={}, ev={};
 var S={k:1,cx:0,cy:0,vw:1,vh:1,kW:1,paths:{},bb:{},base:{},det:{},detOn:{},cont:{},a1:{},pins:{},lbls:{},tags:[],chev:[],sel:null,ti:-1,ptr:{},anim:null,cl:null,
-  out:{},dimSig:null,bor:null,cur:null,rel:[]};
+  out:{},dimSig:null,bor:null,cur:null,rel:[],tour:true};
+try{ S.tour=localStorage.getItem('alto-world-tour')!=='off'; }catch(x){}      // the Tour switch, remembered on this device
 function on(e,f){ (ev[e]=ev[e]||[]).push(f); }
 function emit(e,d){ (ev[e]||[]).slice().forEach(function(f){ try{ f(d); }catch(x){} }); }
 function el(t,a,p){ var n=document.createElementNS(NS,t); if(a) for(var k in a) n.setAttribute(k,a[k]); if(p) p.appendChild(n); return n; }
@@ -274,7 +293,7 @@ function drawPins(){
   Object.keys(all).forEach(function(id){ var n=all[id]; if(n.x==null) return;
     var key=n.x.toFixed(1)+','+n.y.toFixed(1); (groups[key]=groups[key]||[]).push(id);
     var p=h('button',{type:'button','class':'wp-pin '+ucls(n.a),'aria-label':dec(n.n+' '+n.t+' — '+(n.pl||''))},S.lPins);
-    p.addEventListener('click',function(e){ e.stopPropagation(); A.select(id); });
+    p.addEventListener('click',function(e){ e.stopPropagation(); if(!S.dragged) A.select(id); });
     if(n.r){ var s=el('svg',{'class':'wp-nm',viewBox:'-8 -16 16 17'},p); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z'},s);
       p.title='Place named in your notes'+(n.nm?': '+dec(n.nm):''); }
     var t=h('span',null,p,''); var L=h('div',{'class':'wp-lbl'},S.lLbl); h('b',null,L,dec(n.pl||'')); h('i',null,L,dec(n.t||''));
@@ -284,7 +303,7 @@ function drawPins(){
     g.forEach(function(id,i){ var a=-Math.PI/2+i*2*Math.PI/g.length, r=12+3*g.length; S.pins[id].off=[r*Math.cos(a),r*Math.sin(a)]; S.pins[id].fan=1; }); });
   (D().u||[]).forEach(function(u,a){
     var tg=h('button',{type:'button','class':'wp-tag '+ucls(a)},S.lTag); h('b',null,tg,String(a+1)); tg.appendChild(document.createTextNode(dec((D().acts[a]||{}).n||''))); h('span',null,tg,' · '+(u.tops||[]).length);
-    tg.addEventListener('click',function(e){ e.stopPropagation(); if(u.hub) A.select(u.hub); else A.unit(a); });
+    tg.addEventListener('click',function(e){ e.stopPropagation(); if(S.dragged) return; if(u.hub) A.select(u.hub); else A.unit(a); });
     S.tags.push({el:tg,a:a});
   });
 }
@@ -405,9 +424,14 @@ function giveBack(){ var B=S.bor; if(!B) return; S.bor=null; var n=B.el; n.class
 function enlarge(id,kid){
   var n=N(id), node=document.getElementById('node-'+id); if(!node||node.closest('#wpal-root')) return card(id,!kid);
   giveBack(); var w=h('div',{'class':'wp-enl '+ucls(n.a)+(kid?' kid':'')+' wp-grow','data-id':id},S.lCards);
-  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node);
+  S.bor={el:node,par:node.parentNode,nxt:node.nextSibling}; node.classList.add('wp-bnode'); w.appendChild(node); whereLine(id,'wp-where',w);
   void w.offsetWidth; w.classList.remove('wp-grow'); return w;
 }
+// where a card stands: its own place or the place it is clustered round ("Lima, Peru"; "Peru"), a unit's own card its regions
+function where(id){ var p=placeOf(id); if(!p){ var a=hubUnit(id); return a>=0?dec((D().u[a].reg||[]).join(', ')):''; }
+  var n=N(p), cn=dec((D().names||{})[n.c]||''), pl=dec(n.pl||''); if(n.k==='country'||!pl) return cn||pl; return pl+(cn&&pl!==cn?', '+cn:''); }
+function pinIcon(p){ var s=el('svg',{viewBox:'-8 -16 16 17','aria-hidden':'true'},p); el('path',{d:'M0,0 c-5,-7 -8,-11 -8,-15 a8,8 0 1 1 16,0 c0,4 -3,8 -8,15z'},s); return s; }
+function whereLine(id,cls,p){ var t=where(id); if(!t) return null; var d=h('div',{'class':cls},p); pinIcon(d); h('span',null,d,t); d.title=t; return d; }
 function closeCluster(){ if(!S.cl) return; giveBack(); els(S.cl).forEach(function(e){ e.remove(); }); S.list.hidden=true; S.cl=null; S.ovLinks.innerHTML=''; }
 function els(C){ return [C.main].concat(C.cards.map(function(K){ return K.el; })); }
 function card(id,main){
@@ -466,7 +490,7 @@ function mainBox(P,sd,mw,mh){ var g=phone()?22:30, x=sd==='left'?P.x-g-mw:sd==='
   return [x,y,x+mw,y+mh]; }
 function cluster(){
   var C=S.cl; if(!C) return; var P=anchorOf(C);
-  if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim) closeCluster(); return; }
+  if(!P||S.k<C.k*.55||S.k>C.k*1.9){ if(!S.anim){ closeCluster(); if(!S.tour) setTimeout(function(){ if(!S.cl&&!S.anim) unfocus(); },0); } return; }
   var I=inset(), links=S.ovLinks; while(links.firstChild) links.removeChild(links.firstChild);
   var mw=C.main.offsetWidth, mh=C.main.offsetHeight, mb=mainBox(P,C.side||'up',mw,mh);
   var mx=clamp(mb[0],8,Math.max(8,S.vw-8-mw)), my=clamp(mb[1],8,Math.max(8,S.vh-8-mh));     // the place's own card beside its pin
@@ -492,11 +516,17 @@ A.unit=function(a,opts){ var u=(D().u||[])[a]; if(!u) return; var bb=[1e9,1e9,-1
   v.cy-=mh/2/k;                                                               // room above the region for its own card
   var land=function(){ if(u.hub&&S.sel===u.hub) openCluster(u.hub,[(bb[0]+bb[2])/2,bb[1]]); };
   if(opts.instant){ S.cx=v.cx; S.cy=v.cy; S.k=k; apply(); settle(); land(); } else fly(v.cx,v.cy,k,land); emit('select',u.hub||null); };
+// the Tour switch: off, the bar goes, nothing is dimmed and the map stays where the reader is (free to pan, zoom and fly anywhere; the
+// arrow keys pan); on, it starts from the card the reader is on, or the first stop
+A.tourMode=function(v){ if(v==null) return S.tour; S.tour=!!v; try{ localStorage.setItem('alto-world-tour',S.tour?'on':'off'); }catch(x){}
+  if(S.tourBtn) S.tourBtn.setAttribute('aria-pressed',String(S.tour)); S.root.classList.toggle('wp-free',!S.tour);
+  if(S.tour){ if(S.cur) A.select(S.cur); else A.hop(1); } else { stop(); if(S.cl||S.cur) unfocus(); else tourBar(); if(S.ready) labels(); } };
 A.world=function(){ unfocus(); var v=worldView(); fly(v.cx,v.cy,v.k); };
 A.view=function(){ return {cx:S.cx,cy:S.cy,k:S.k,kW:S.kW}; };
 function tourBar(){
-  var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.cur!=null&&i>=0; B.hidden=!on; if(!on) return;
+  var s=live(), B=S.tourEl, i=s.indexOf(S.cur), on=S.tour&&s.length>0; B.hidden=!on; if(!on) return;      // (the Tour on: its bar is there before the first stop)
   var nm=function(id){ var n=N(id), a=hubUnit(id); if(a>=0) return dec((a+1)+' '+((D().acts[a]||{}).n||'')); var q=N(placeOf(id)||id); return dec((n.n||'')+' '+(n.pl||(q&&q.pl)||'')); };
+  if(i<0){ S.tPrev.textContent=''; S.tCur.textContent='Tour · '+s.length+' stops'; S.tNext.textContent=nm(s[0]); return; }
   S.tPrev.textContent=nm(s[(i-1+s.length)%s.length]); S.tNext.textContent=nm(s[(i+1)%s.length]);
   S.tCur.textContent='Tour '+(i+1)+' / '+s.length+' · '+nm(S.cur);
 }
@@ -534,20 +564,27 @@ function bindInput(){
   root.addEventListener('gestureend',function(e){ e.preventDefault(); },{passive:false});
   var last=null;
   var mid=function(){ var k=Object.keys(S.ptr), a=S.ptr[k[0]], b=S.ptr[k[1]]||a; return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)}; };
-  svg.addEventListener('pointerdown',function(e){ stop(); S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top}; try{ svg.setPointerCapture(e.pointerId); }catch(x){}
+  // a drag pans from anywhere on the map, a pin or a name too (not from a card or a panel); it takes the pointer once it is a drag, so a
+  // tap on a pin is still the pin's
+  var mine=function(t){ return t===svg||!(t.closest&&t.closest('.wp-bar,.wp-list,.wp-enl,.wp-card,.wk,.key-pop')); };
+  root.addEventListener('pointerdown',function(e){ if(!mine(e.target)||e.button>0) return; stop(); S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top};
+    if(e.target===svg) try{ svg.setPointerCapture(e.pointerId); }catch(x){}
     S.dragged=false; S.down={x:e.clientX,y:e.clientY}; last=mid(); root.classList.add('wp-drag'); });
-  svg.addEventListener('pointermove',function(e){ if(!S.ptr[e.pointerId]) return; S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top};
-    if(Math.hypot(e.clientX-S.down.x,e.clientY-S.down.y)>5) S.dragged=true;
+  root.addEventListener('pointermove',function(e){ if(!S.ptr[e.pointerId]) return; S.ptr[e.pointerId]={x:e.clientX,y:e.clientY-S.top};
+    if(!S.dragged&&Math.hypot(e.clientX-S.down.x,e.clientY-S.down.y)>5){ S.dragged=true; try{ root.setPointerCapture(e.pointerId); }catch(x){} }
     var m=mid(); if(last){ if(Object.keys(S.ptr).length>1&&last.d>0) zoomAt(m.d/last.d,m.x,m.y); S.cx-=(m.x-last.x)/S.k; S.cy-=(m.y-last.y)/S.k; setView(S.cx,S.cy,S.k); } last=m; });
-  var up=function(e){ delete S.ptr[e.pointerId]; last=Object.keys(S.ptr).length?mid():null; if(!last) root.classList.remove('wp-drag'); };
-  svg.addEventListener('pointerup',up); svg.addEventListener('pointercancel',up);
+  var up=function(e){ if(!S.ptr[e.pointerId]) return; delete S.ptr[e.pointerId]; last=Object.keys(S.ptr).length?mid():null; if(!last){ root.classList.remove('wp-drag'); if(S.dragged) setTimeout(function(){ S.dragged=false; },0); } };
+  root.addEventListener('pointerup',up); root.addEventListener('pointercancel',up);
   svg.addEventListener('click',function(e){ if(S.dragged) return; if(e.target===svg||e.target.classList.contains('wp-c')&&!e.target.classList.contains('wp-u')){ if(S.cl||S.cur) unfocus(); } });
   svg.addEventListener('dblclick',function(e){ e.preventDefault(); var r=root.getBoundingClientRect(); var s=S.k*2, p=wld(e.clientX,e.clientY-r.top); fly(p[0],p[1],s); });
   document.addEventListener('keydown',function(e){
     if(S.root.hidden||document.documentElement.classList.contains('detail-open')) return;
     var t=e.target, tag=t&&t.tagName; if(tag==='INPUT'||tag==='TEXTAREA'||(t&&t.isContentEditable)) return;
-    if(e.key==='ArrowRight'){ e.preventDefault(); A.hop(1); }
+    if(!S.tour&&/^Arrow/.test(e.key)){ e.preventDefault(); var st=.18*(e.shiftKey?2.5:1), dx=e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0, dy=e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0;
+      stop(); setView(S.cx+dx*st*S.vw/S.k,S.cy+dy*st*S.vh/S.k,S.k); }               // the Tour off: the arrows pan the map
+    else if(e.key==='ArrowRight'){ e.preventDefault(); A.hop(1); }
     else if(e.key==='ArrowLeft'){ e.preventDefault(); A.hop(-1); }
+    else if((e.key==='t'||e.key==='T')&&!e.metaKey&&!e.ctrlKey&&!e.altKey){ A.tourMode(!S.tour); }
     else if(e.key==='Escape'){ if(S.cl||S.cur) unfocus(); else if(S.sel!=null) A.world(); }      // Esc shrinks the card; again, the whole world
     else if(e.key==='+'||e.key==='='){ zoomAt(1.5,S.vw/2,S.vh/2); } else if(e.key==='-'){ zoomAt(1/1.5,S.vw/2,S.vh/2); } });
   window.addEventListener('resize',function(){ if(!S.root.hidden) resize(); });
@@ -561,7 +598,8 @@ function setTop(){ var top=0; ['title-bar','nav'].forEach(function(id){ var e=do
 function chrome(){
   var root=S.root;
   var ctl=S.ctlEl=h('div',{'class':'wp-bar wp-ctl'},root);
-  var tb=h('button',{type:'button','class':'wp-btn'},ctl,'▶ Tour'); tb.addEventListener('click',function(){ if(S.cur) A.select(S.cur); else A.hop(1); });
+  var tb=S.tourBtn=h('button',{type:'button','class':'wp-btn wp-tt','aria-pressed':String(S.tour),title:'Tour the route stop by stop, or turn it off to roam the world (T)'},ctl,'Tour');
+  h('span',{'class':'wp-sw','aria-hidden':'true'},tb); tb.addEventListener('click',function(){ A.tourMode(!S.tour); }); root.classList.toggle('wp-free',!S.tour);
   var wb=h('button',{type:'button','class':'wp-btn',title:'The whole world'},ctl,'⤢ World'); wb.addEventListener('click',A.world);
   var zi=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom in'},ctl,'+'); zi.addEventListener('click',function(){ zoomAt(1.6,S.vw/2,S.vh/2); });
   var zo=h('button',{type:'button','class':'wp-btn r','aria-label':'Zoom out'},ctl,'−'); zo.addEventListener('click',function(){ zoomAt(1/1.6,S.vw/2,S.vh/2); });
@@ -580,9 +618,10 @@ function chrome(){
   var pv=h('button',{type:'button','class':'wp-btn r','aria-label':'Previous stop'},tour,'◀'); pv.addEventListener('click',function(){ A.hop(-1); });
   S.tPrev=h('span',{'class':'d'},tour,''); S.tCur=h('span',{'class':'c'},tour,''); S.tNext=h('span',{'class':'d'},tour,'');
   var nx=h('button',{type:'button','class':'wp-btn r','aria-label':'Next stop'},tour,'▶'); nx.addEventListener('click',function(){ A.hop(1); });
+  var tx=h('button',{type:'button','class':'wp-btn r x','aria-label':'End the Tour',title:'End the Tour: roam the world freely'},tour,'✕'); tx.addEventListener('click',function(){ A.tourMode(false); });
   S.list=h('div',{'class':'wp-list',hidden:''},root);
 }
-function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+',.wk .wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
+function unitStyle(){ var css=''; (D().acts||[]).forEach(function(a,i){ if(a.c) css+='#wpal-root .wu'+(i%12)+',.wk .wu'+(i%12)+',.wp-where-d.wu'+(i%12)+'{--u:'+String(a.c).replace(/[^#0-9a-zA-Z(),.% ]/g,'')+';}'; });
   var s=document.getElementById('wpal-units')||h('style',{id:'wpal-units'},document.head); s.textContent=css; }
 
 A.show=function(){ if(S.root){ S.root.hidden=false; resize(); } document.documentElement.classList.add('wpal-open'); };
@@ -596,6 +635,11 @@ function watchDetail(){ var de=document.documentElement, was=de.classList.contai
     if(!o&&was&&S.ready&&!e) back();
     if(e!==ed){ ed=e; if(S.ready){ if(e) A.hide(); else { A.show(); back(); } } }
     was=o; }).observe(de,{attributes:true,attributeFilter:['class']}); }
+// a card's page says where the card stands, under its kind (the engine writes the page afresh for every card)
+function watchPage(){ var dc=document.getElementById('detail-content'); if(!dc) return;
+  var put=function(){ if(window._currentDetailType!=='node') return; var id=window._currentDetailId, n=N(id), r=dc.querySelector('.detail-header .detail-role');
+    if(!n||!r||dc.querySelector('.wp-where-d')) return; var d=whereLine(id,'wp-where-d '+ucls(n.a),null); if(d) r.parentNode.insertBefore(d,r.nextSibling); };
+  new MutationObserver(put).observe(dc,{childList:true}); put(); }
 function back(){ var f=window._featuredNodeId, R=S.reopen; S.reopen=null;
   if(f&&f!==S.f0&&N(f)&&placeOf(f)){ A.select(f,{instant:true}); return; }
   if(R) openCluster(R.id,R.at,R.enl); }
@@ -609,7 +653,7 @@ A.mount=function(data){
   S.ovRel.addEventListener('click',function(e){ var t=e.target.getAttribute&&e.target.getAttribute('data-to'); if(t){ e.stopPropagation(); A.select(t); } }); S.ovLinks=el('g',null,S.ov); S.ovChev=el('g',null,S.ov);
   S.lTag=h('div',{'class':'wp-layer'},root); S.lLbl=h('div',{'class':'wp-layer'},root); S.lPins=h('div',{'class':'wp-layer'},root); S.lCards=h('div',{'class':'wp-layer'},root);
   var msg=h('div',{'class':'wp-msg'},root,'Loading the world…');
-  chrome(); A.show(); bindInput(); watchDetail();
+  chrome(); A.show(); bindInput(); watchDetail(); watchPage();
   fetchJSON(GEO.base).catch(function(){ return new Promise(function(ok){ setTimeout(ok,1200); }).then(function(){ return fetchJSON(GEO.base); }); }).then(function(G){
     msg.remove(); drawBase(G); drawArcs(); drawPins(); S.ready=1; resize(); settle(); watchBoard(); dim(); emit('ready');
   }).catch(function(){ msg.remove(); A.hide(); S.root.remove(); S.root=null; });      // no map: the page keeps its cards
