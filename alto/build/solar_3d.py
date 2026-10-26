@@ -426,9 +426,10 @@ function fly(G, now){
   if(!SH.on){ SH.on=true; SH.hs=null; SH.ht=null; SH.tr=[]; SH.v=0; SH.bk=0; SH.m=null; }
   if(SH.cr!==cr.id){ SH.cr=cr.id; SH.hs=SH.ht=null; }      /* (a new pick shows at once, in orbit too: the ship stays on between flights) */
   if(m==='fly' && SH.m!=='fly'){ SH.t0=now; SH.a=snap(); SH.hc=null; SH.cd=null; }   /* (the chase eases in from where the camera is; the heading carries on) */
-  SH.m=m; if(A && v) A.steer(SH, v, dt);
+  SH.m=m; if(A && v) A.steer(SH, v, dt); if(v && F && F.fx && F.fx.warp>.02){ SH.hs=SH.ht=Math.atan2(v[1], v[0]); SH.bk=0; }
   if(v) SH.v+=(Math.hypot(v[0], v[1])-SH.v)*Math.min(1, dt*2);
   SH.th=F && F.thr || null; SH.sg=F && F.sg || 1;            /* (the engines on the way: solar_craft.py thrust()) */
+  SH.F=F || null; SH.fx=F && F.fx || null; if(SH.fx && SH.fx.vis<.99) SH.tr=[];      /* (a warp, a jump: solar_craft.py travel; no trail through a jump) */
   SH.p=[p[0], p[1]]; SH.to=F ? F.to : R ? R.to : id; SH.fr=F ? F.from : R ? R.from : id; SH.al=Math.min(1, SH.al+dt*3); SH.y=lift(G, p);
   SH.tr.push([p[0], p[1], now, SH.y]); while(SH.tr.length>2 && now-SH.tr[0][2]>1600) SH.tr.shift();
   return m==='fly' ? SH : null;
@@ -462,6 +463,7 @@ function chase(G, now){
 var CM={};
 function craft3(G, now){
   if(SH.al<=0 || !SH.p || SH.hs==null || !window._altoCraft || !P.k) return;
+  var FX=SH.fx || {vis:1, warp:0, fa:0, fb:0, fw:0}, AL=SH.al*FX.vis;
   var cr=window._altoCraft.list.filter(function(c){ return c.id===SH.cr; })[0] || window._altoCraft.get(), m=CM[cr.id];
   if(!m){ var o=window._altoCraft.mesh(cr.id); m=CM[cr.id]={p:buf(o.p), n:buf(o.n), k:gl.createBuffer(), c:o.p.length/3};
     gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); }
@@ -469,32 +471,39 @@ function craft3(G, now){
   var E=window._altoCraft.engines ? window._altoCraft.engines(SH.th, cr.id) : {m:0, r:0, f:0};
   SH.e=E; SH.nose=SH.hs+SH.sg*Math.PI*E.f;
   var S=shipS(G), th=-SH.nose+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.6*(1-E.f), c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=SH.y||K3.Y;
-  var M=[c*S, 0, -s*S, 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
+  var M=[c*S*(1+1.2*FX.warp), 0, -s*S*(1+1.2*FX.warp), 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
   /* the trail: a fine line fading behind */
   var tv=[], tk=[], T=cr.trail||[.8, .85, 1];
-  for(var i=0;i+1<SH.tr.length;i++){ var A=SH.tr[i], B2=SH.tr[i+1], a0=(1-(now-A[2])/1600)*.55*SH.al, a1=(1-(now-B2[2])/1600)*.55*SH.al;
+  for(var i=0;i+1<SH.tr.length;i++){ var A=SH.tr[i], B2=SH.tr[i+1], a0=(1-(now-A[2])/1600)*.55*AL, a1=(1-(now-B2[2])/1600)*.55*AL;
     tv.push(A[0], A[3]||Y, A[1], B2[0], B2[3]||Y, B2[1]); tk.push(T[0], T[1], T[2], Math.max(0, a0), T[0], T[1], T[2], Math.max(0, a1)); }
+  /* at warp, the stars streaking past: fine lines round the craft along its way, drifting aft */
+  if(FX.warp>.02){ var hx=Math.cos(SH.hs), hz=Math.sin(SH.hs);
+    for(var si=0;si<22;si++){ var sp=.35+((si*53)%7)/10, off=((si*37)%17-8)*7, yy=Y+((si*29)%11-5)*3, al0=(110-((now*.13*sp+si*71)%260))*.5, L=(10+70*FX.warp)*sp*.5, aw=.55*FX.warp*AL;
+      var x0=SH.p[0]+hx*al0-hz*off, z0=SH.p[1]+hz*al0+hx*off; tv.push(x0, yy, z0, x0-hx*L, yy, z0-hz*L); tk.push(.8, .9, 1, aw, .8, .9, 1, 0); } }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.DEPTH_TEST);
   if(tv.length){ var l=P.l; gl.useProgram(l.p); gl.uniformMatrix4fv(l.u.VP, false, VPm); gl.depthMask(false);
     gl.bindBuffer(gl.ARRAY_BUFFER, P.tb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tv.concat(tk)), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(l.a.p); gl.vertexAttribPointer(l.a.p, 3, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(l.a.k); gl.vertexAttribPointer(l.a.k, 4, gl.FLOAT, false, 0, tv.length*4);
     gl.drawArrays(gl.LINES, 0, tv.length/3); dis(l); gl.depthMask(true); }
-  var k=P.k; gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniformMatrix4fv(k.u.M, false, M); gl.uniform3fv(k.u.E, EYE); gl.uniform3fv(k.u.L, W(sun)); gl.uniform1f(k.u.al, SH.al); if(k.u.WC) gl.uniform4fv(k.u.WC, cr.wc||[0, 0, 0, 1e9]);
+  var k=P.k; gl.useProgram(k.p); gl.uniformMatrix4fv(k.u.VP, false, VPm); gl.uniformMatrix4fv(k.u.M, false, M); gl.uniform3fv(k.u.E, EYE); gl.uniform3fv(k.u.L, W(sun)); gl.uniform1f(k.u.al, AL); if(k.u.WC) gl.uniform4fv(k.u.WC, cr.wc||[0, 0, 0, 1e9]);
   attr(k, 'p', m.p, 3); attr(k, 'n', m.n, 3); gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.enableVertexAttribArray(k.a.k); gl.vertexAttribPointer(k.a.k, 4, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLES, 0, m.c); dis(k);
   /* the engines' glow, flickering a little */
   var g=P.g, G2=cr.glow||[1, .8, .5]; gl.useProgram(g.p); gl.uniformMatrix4fv(g.u.VP, false, VPm); gl.uniform3fv(g.u.X, RT); gl.uniform3fv(g.u.Y, UP); attr(g, 'q', P.q, 2);
   gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE); gl.uniform3fv(g.u.K, G2);
   (cr.eng||[]).forEach(function(e, j){ var w=[M[0]*e[0]+M[4]*e[1]+M[8]*e[2]+M[12], M[1]*e[0]+M[5]*e[1]+M[9]*e[2]+M[13], M[2]*e[0]+M[6]*e[1]+M[10]*e[2]+M[14]], fl=1+.12*Math.sin(now*.031+j*1.7);
-    gl.uniform3fv(g.u.C, w); gl.uniform1f(g.u.S, 7.6*S*fl); gl.uniform1f(g.u.a, .95*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.uniform1f(g.u.S, 21*S*fl); gl.uniform1f(g.u.a, .35*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
+    gl.uniform3fv(g.u.C, w); gl.uniform1f(g.u.S, 7.6*S*fl); gl.uniform1f(g.u.a, .95*AL); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.uniform1f(g.u.S, 21*S*fl); gl.uniform1f(g.u.a, .35*AL); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); });
   /* the flames: a plume of glows streaming from each main nozzle aft (nz3, else eng) and each retro thruster forward
      (rz3), long and bright as the engine fires, flickering */
   [[cr.nz3 || cr.eng || [], -1, E.m], [cr.rz3 || [], 1, E.r*.6]].forEach(function(q){ var k=q[2]; if(k<.02) return;
     var dx=M[0]/S*q[1], dz=M[2]/S*q[1];
     q[0].forEach(function(e, j){ var w=[M[0]*e[0]+M[4]*e[1]+M[8]*e[2]+M[12], M[1]*e[0]+M[5]*e[1]+M[9]*e[2]+M[13], M[2]*e[0]+M[6]*e[1]+M[10]*e[2]+M[14]], fl=k*(1+.15*Math.sin(now*.043+j*2.3));
       for(var i=0;i<6;i++){ var d=i*3.2*S*fl; gl.uniform3fv(g.u.K, i<2 ? [1, .92, .75] : [1, .58, .24]); gl.uniform3fv(g.u.C, [w[0]+dx*d, w[1], w[2]+dz*d]);
-        gl.uniform1f(g.u.S, (7.5-i*.95)*S*(.5+.5*fl)); gl.uniform1f(g.u.a, (1-i/6.5)*.9*Math.min(1, k*1.6)*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } }); });
+        gl.uniform1f(g.u.S, (7.5-i*.95)*S*(.5+.5*fl)); gl.uniform1f(g.u.a, (1-i/6.5)*.9*Math.min(1, k*1.6)*AL); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } }); });
+  /* the flashes: where it leaves (a jump), round it as it drops out of warp, where it comes out */
+  [[FX.fa && SH.F && SH.F.pa, FX.fa], [FX.fw && SH.p, FX.fw], [FX.fb && SH.F && SH.F.pb, FX.fb]].forEach(function(q){ if(!q[0] || q[1]<.01) return;
+    [[22, [1, 1, 1]], [70, [.55, .8, 1]]].forEach(function(z){ gl.uniform3fv(g.u.K, z[1]); gl.uniform3fv(g.u.C, [q[0][0], Y, q[0][1]]); gl.uniform1f(g.u.S, z[0]*(.4+.6*q[1])); gl.uniform1f(g.u.a, q[1]*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }); });
   dis(g); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* a machine that cannot keep up close up gets less detail, then a coarser canvas */
@@ -628,7 +637,7 @@ function lines(G){
     LINES.unshift({sp:[g.p, id], pts:[proj(W(pa)), proj(W(g))], line:1, tip:((BOD[g.p]||{}).name||'')+' — '+((BOD[id]||{}).name||'')}); });
   /* a flight's charted course ahead of the craft, faint (solar_fly.py's path: where the craft will be, so it leads a
      moving moon to where it will meet it), plainer as it sets off */
-  var Fl=window._altoSolarFlight && window._altoSolarFlight(), pp=Fl && Fl.path;
+  var Fl=window._altoSolarFlight && window._altoSolarFlight(), pp=Fl && Fl.mode!=='jump' && Fl.path;      /* (a jump: no transit to show) */
   if(pp && pp.length>1){ var n=pp.length-1, i0=Math.max(0, Math.min(n, Math.floor(Fl.tau/Fl.D*n))), a0=.22+.33*(1-sm(0, .5, Fl.tau/Fl.D));
     for(var i=i0;i<n;i++){ var a1=a0*(1-.7*(i-i0)/Math.max(1, n-i0)); v.push(pp[i][0], K3.Y, pp[i][1], pp[i+1][0], K3.Y, pp[i+1][1]); k.push(.6, .88, 1, a1, .6, .88, 1, a1); } }
   gl.useProgram(l.p); gl.uniformMatrix4fv(l.u.VP, false, VPm);
@@ -702,7 +711,7 @@ function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
 window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
-  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, e:SH.e, nose:SH.nose}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
+  pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, e:SH.e, nose:SH.nose, vis:SH.fx ? SH.fx.vis : 1, warp:SH.fx ? SH.fx.warp : 0}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
 

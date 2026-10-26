@@ -366,7 +366,7 @@ def test_the_3d_scene_is_small_and_on_system_pages_only():
     from alto.build import blocks
     from alto.build.solar_3d import SOLAR3D_CSS, SOLAR3D_JS
     size = len(gzip.compress((SOLAR3D_JS + SOLAR3D_CSS).encode("utf-8"), 9))
-    assert size < 21000, size                   # (~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~20.2 KB with 1.9.146's moon kinds, satellites, stations, asteroids, comets and black holes)
+    assert size < 21600, size                   # (~21.2 KB with 1.9.17x's flame plumes, rocket flip, warp streaks and flashes; ~16.3 KB gz: a small WebGL kit with its shaders, the close-up's procedural detail and the flying craft, no library; ~20.2 KB with 1.9.146's moon kinds, satellites, stations, asteroids, comets and black holes)
     assert "SOLAR3D_JS" in open(blocks.__file__, encoding="utf-8").read()
 
 
@@ -500,10 +500,11 @@ def test_retro_bands_are_the_orbits(browser, page):
 
 
 def test_retro_flies_a_regal_ship_smoothly(browser, page):
-    """Retro's craft (the Halo by default; Luke, 2026-10-21: "more of a spaceship ... Foundation ... more regal"),
-    drawn every frame (no stop-motion), on a slower clock, its heading eased; the same ship rides the spokes."""
+    """Retro's craft (Luke, 2026-10-21: "more of a spaceship ... Foundation ... more regal"), drawn every frame (no
+    stop-motion), on a slower clock, its heading eased; the same ship rides the spokes. (The Halo, Retro's default,
+    jumps since 2026-10-25 — test_the_halo_jumps_in_a_flash_of_light — so a craft that flies the way: the Rocket.)"""
     pg, errs = _open(browser, page, wait=1400)
-    pg.evaluate("() => { window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); window._altoFlyOff=false; window.enterFocus('u1-p1'); }")
+    pg.evaluate("() => { window._altoCraft.set('rocket'); window._altoSolarLook.set('stars'); window._altoSolarStyle.set('retro'); window._altoFlyOff=false; window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(1500)
     pg.evaluate("() => window.enterFocus('u2-p1')")
     f = pg.evaluate("""() => new Promise(function(done){ var seen=[], n=0, t0=performance.now();
@@ -696,6 +697,71 @@ def test_the_rocket_brakes_tail_first_into_a_smooth_orbit(browser, page):
     flipped = [f for f in F if f["e3"]["f"] > .95]
     assert flipped and all(abs(_wr(f["nose"] - f["h3"] - math.pi)) < (1 - f["e3"]["f"]) * math.pi + .05 for f in flipped), flipped[:2]   # tail first,
     assert max(f["e3"]["m"] for f in flipped) > .9                                                                   # on its main engine
+    pg.context.close()
+    assert not errs, errs
+
+
+TRAVEL = """() => new Promise(function(done){ var F=[], t0=performance.now(), seen=false;
+  (function g(){ var f=window._altoSolarFlight(), c=document.querySelector('#solar-fly-svg .fly-craft'), pr=document.querySelector('#solar-fly-svg .fly-ship'),
+      w=document.querySelector('#solar-fly-svg .fly-warp'), t=document.querySelector('#solar-fly-svg .fly-trail'), p=document.querySelector('#solar-fly-svg .fly-path'),
+      fl=[].map.call(document.querySelectorAll('#solar-fly-svg .fly-flash'), function(e){ return +e.getAttribute('opacity'); });
+    if(f && c){ seen=true; var sc=/scale\\(([\\d.]+) ([\\d.]+)\\)/.exec(pr.getAttribute('transform')||''), s3=window._altoSolar3D && window._altoSolar3D.on() ? window._altoSolar3D.ship() : null;
+      F.push({x:f.x, mode:f.mode, S:f.S, u:f.tau/f.D, fx:f.fx, op:c.getAttribute('opacity'), sx:sc ? +sc[1] : 0, sy:sc ? +sc[2] : 0, wd:(w && w.getAttribute('d'))||'',
+        trail:(t && t.getAttribute('d'))||'', path:p ? getComputedStyle(p).display : '', fl:fl, vis3:s3 && s3.vis, warp3:s3 && s3.warp}); }
+    if((seen && !f) || performance.now()-t0>9000) done(F); else requestAnimationFrame(g); })(); })"""
+
+
+def test_the_explorer_warps_between_systems_and_flies_on_impulse_within_one(browser, page):
+    """Luke (2026-10-25): "the enterprise-based ship, it should be able to go to warp speed between units or solar
+    systems. But it goes at impulse speed inside a single star system." Within a system: the ordinary course (impulse,
+    braking into its orbit). Between systems: off on impulse, the warp — most of the way in a moment, the craft
+    stretched, the stars streaking past — a flash as it drops out, then on impulse into its orbit; about 3 s."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoCraft.set('explorer'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u1-p2')")
+    F = pg.evaluate(TRAVEL)
+    assert F and all(f["mode"] is None for f in F), F[:2]                                     # impulse within a system
+    pg.wait_for_timeout(1000)
+    pg.evaluate("() => window.enterFocus('u2-p1')")
+    F = pg.evaluate(TRAVEL)
+    assert F and F[0]["mode"] == "warp" and F[0]["S"] <= 3.01, F[:1]
+    warp = [f for f in F if f["fx"]["warp"] > .9]
+    assert warp and all(f["wd"] and f["sx"] > f["sy"] * 1.8 for f in warp), warp[:2]       # stretched, the stars streaking
+    assert max(f["u"] for f in F if f["x"] < .5) > .85                                      # most of the way in a moment
+    assert max(f["fl"][0] for f in F if .4 < f["x"] < .55) > .5                             # the flash as it drops out
+    assert all(not f["wd"] and abs(f["sx"] - f["sy"]) < .01 for f in F if f["x"] > .6), "impulse into its orbit"
+    pg.wait_for_timeout(900)
+    assert pg.evaluate("() => window._altoCraft.orbiting()") == "u2-p1"
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_the_halo_jumps_in_a_flash_of_light(browser, page):
+    """Luke (2026-10-25): "the Halo ship, try to make that travel like a ship in Foundation would, how it just sort of
+    pops out at the location ... goes into a flash of light and comes out of a flash of light." A flash where it is and
+    it is gone (no trail, no course drawn), a flash where it comes out and it is there easing into its orbit; in Retro
+    too, and in Realistic 3D."""
+    pg, errs = _open(browser, page, wait=1400)
+    pg.evaluate("() => { window._altoCraft.set('halo'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
+    pg.wait_for_timeout(1500)
+    for sty, to in (("classic", "u2-p1"), ("retro", "u1-p2")):
+        pg.evaluate("s => window._altoSolarStyle.set(s)", sty); pg.wait_for_timeout(300)
+        pg.evaluate("i => window.enterFocus(i)", to)
+        F = pg.evaluate(TRAVEL)
+        assert F and F[0]["mode"] == "jump" and F[0]["S"] <= 1.51 and all(f["path"] == "none" for f in F), (sty, F[:1])
+        gone = [f for f in F if .3 < f["x"] < .65]
+        assert gone and all(f["op"] == "0" and f["trail"].count("L") == 0 for f in gone), (sty, gone[:2])   # no transit seen
+        assert max(f["fl"][0] for f in F if f["x"] < .25) > .6 and max(f["fl"][1] for f in F if f["x"] > .7) > .6, sty   # out in a flash, in in a flash
+        assert all(f["op"] == "1" for f in F if f["x"] > .93), sty                                                       # there, into its orbit
+        pg.wait_for_timeout(900)
+        assert pg.evaluate("() => window._altoCraft.orbiting()") == to, sty
+    pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
+    if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
+        pg.context.close(); pytest.skip("no WebGL in this browser")
+    pg.evaluate("() => window.enterFocus('u1-p1')")
+    F = [f for f in pg.evaluate(TRAVEL) if f["vis3"] is not None]
+    assert F and min(f["vis3"] for f in F if .3 < f["x"] < .65) < .01 and max(f["vis3"] for f in F if f["x"] > .93) > .99, F[:3]
     pg.context.close()
     assert not errs, errs
 

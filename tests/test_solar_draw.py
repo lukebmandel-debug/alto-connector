@@ -1200,8 +1200,7 @@ def test_back_from_a_detail_page_is_where_you_left(browser, tmp_path):
         if how == "zoomed out":
             pg.keyboard.press("Meta+-")
             pg.wait_for_timeout(900)
-        a = pg.evaluate(view)
-        pg.evaluate("(i) => showDetail('node', i)", a[3] or "u3")
+        a = pg.evaluate("() => { var v=(" + view + ")(); showDetail('node', v[3] || 'u3'); return v; }")   # (read as it is left: a flight on its way moves on between two calls)
         pg.wait_for_timeout(500)
         pg.keyboard.press("Escape")                                   # back to the system
         pg.wait_for_timeout(1300)

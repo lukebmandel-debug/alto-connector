@@ -298,7 +298,7 @@ def test_every_hub_and_spoke_page_carries_the_flight_and_other_pages_do_not():
 
 def test_the_flight_is_small_and_draws_without_masks_or_filters():
     size = len(gzip.compress((FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 14600, size      # (+ the ships' orbit arrivals, a flight at most 5 s and Enter to land: ~0.4 KB, 2026-10-22; 12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
+    assert size < 15000, size      # (+ the flames, flip, warp and jump: ~0.2 KB, 2026-10-25; + the ships' orbit arrivals, a flight at most 5 s and Enter to land: ~0.4 KB, 2026-10-22; 12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
     for s in ("<mask", "'mask'", "filter", "backdrop"):
         assert s not in FLY_JS and s not in FLY_CSS, s
     assert re.search(r"pointer-events:none", FLY_CSS)
@@ -569,6 +569,7 @@ def test_a_flight_to_another_system_swings_by_and_its_frames_are_cheap(browser, 
     """The long route: escape, gravity assists, cruise, capture. Frame times
     while flying (rAF intervals) and this layer's own work per frame."""
     pg, errs = _open(browser, pages["orbit"])
+    pg.evaluate("()=>window._altoCraft.set('rocket')")      # (a craft that flies the long route: the Explorer warps it, the Halo jumps it)
     _rest_on(pg, "u1-p3-m1")
     pg.evaluate("""()=>{ window.__fr=[]; var l=null; (function f(t){ if(l!==null) window.__fr.push(t-l); l=t;
                        if(window.__fr.length<2000) requestAnimationFrame(f); })(performance.now()); }""")

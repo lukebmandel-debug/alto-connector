@@ -56,7 +56,7 @@ def test_all_of_the_solar_script_stays_under_67_kb_gzipped():
     stored page (each has its own cap in its own suite: 22 / 14 / 13 KB). 51 -> 55 KB in round 10
     (upright chips + named rows, unit borders / Oort clouds, spoke hits, nav hints, Flights / Spokes only); -> 58 KB for the Star chart's Retro style; -> 61 KB for Retro's probe, sigil, frame and the Spokes-only / controls round; -> 63 KB for round 11's navigation hints (~2.4 KB: named pills, drawn ways, edge pills); -> 67 KB for Spokes-only rides, Retro's orbit bands and its ship (~3.2 KB, System pages only); -> 69 KB for 1.9.142's Retro / theme rule (~1.4 KB) and the ships' orbit arrivals and tangent heading (~0.6 KB, 2026-10-22).; -> 72.5 KB for the Tour (2026-10-22, ~3 KB, System pages only); -> 74.5 KB for one way of moving in both modes and the bug round (~1.5 KB)"""
     size = len(gzip.compress((SOLAR_JS + SOLAR_CSS + STARS_JS + STARS_CSS + FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 78300, size      # + Spokes only's arrows on the map (~1.6 KB, 2026-10-23); + the declutter (~1.9 KB, 2026-10-25: pills laid out on the screen, the calm hover, Spokes only's note)
+    assert size < 79600, size      # + Spokes only's arrows on the map (~1.6 KB, 2026-10-23); + the declutter (~1.9 KB, 2026-10-25: pills laid out on the screen, the calm hover, Spokes only's note); + the ships' approach and capture, the Rocket, flames, warp and jump (~1.2 KB, 2026-10-25)
 
 
 @pytest.mark.parametrize("style", ["orbit", "spoke"])
