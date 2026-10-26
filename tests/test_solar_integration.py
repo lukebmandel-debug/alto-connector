@@ -478,7 +478,7 @@ def test_zooming_out_with_the_skin_on_shows_no_rectangle(browser, pages, tmp_pat
 
 def test_arrow_hops_queue_behind_flights_and_end_on_a_round_dressed_body(browser, pages):
     """A flight (a click on a far body) takes no arrows: presses on the way wait for its landing (two at most) and then
-    ride the Tour from there (the arrows walk the outline in both modes, 2026-10-22); all ends on a round, dressed body."""
+    go on from there (→ the next sibling, solar_navopt.py); all ends on a round, dressed body."""
     pg, errs = _open(browser, pages["stars"])
     _rest_on(pg, "u1-p3")
     far = pg.evaluate("() => { var G=window._altoSolarGeo().bodies, a=G['u1-p3']; return Object.keys(G).filter(function(i){ return G[i].si!==a.si && G[i].role==='planet'; })[0]; }")
@@ -494,8 +494,8 @@ def test_arrow_hops_queue_behind_flights_and_end_on_a_round_dressed_body(browser
         if(!still){ window.__still=0; return false; } if(!window.__still) window.__still=t; return t-window.__still>2000; }""",
                          timeout=45000, polling=200)
     fid = pg.evaluate("()=>window._focusedNodeId")
-    T = pg.evaluate("()=>window._altoSolarLock.order()")
-    assert fid == T[T.index(far) + 2], (fid, far)                                          # two presses kept, ridden from the landing
+    S = pg.evaluate("(i)=>window._altoSolarNavApi.sibs(i)", far)                        # (→ is the next sibling: the panel's keys, 2026-10-25)
+    assert fid == S[min(S.index(far) + 2, len(S) - 1)], (fid, far, S)                     # two presses kept, ridden from the landing
     st = pg.evaluate(DISC, fid)
     assert st["focused"] and abs(st["w"] - st["h"]) <= 1 and st["skin"], st
     assert pg.evaluate("()=>window._altoSolarFlight(true).how") == "landed"

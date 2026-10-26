@@ -2,10 +2,7 @@
 understand what's going on"; of 3D Star chart: "some of the buttons like reset or spokes only doesn't really seem to change
 anything"; of Retro: "some of the elements that change when you hover on them are too quick to change").
 
-- the pills naming where each way goes sit clear of the enlarged disc, of the bodies, of each other and of the bars, in
-  every style; two long names that start alike read differently (never "Duties Arising fr…" twice);
 - Reset view is in the bar only in 3D Star chart, and only once the view has been turned by hand;
-- Spokes only says what it changed, and a body its arrow names shows no second name;
 - a hover settles: a pointer passing over a body changes nothing, one resting on it lights it, and leaving lets go after
   a short grace.
 
@@ -56,22 +53,6 @@ def _focus(pg, style, at="u1-p1"):
     pg.wait_for_timeout(400)
 
 
-@pytest.mark.parametrize("style", ["system", "chart", "retro"])
-def test_the_pills_never_cover_anything(browser, page, style):
-    pg, errs = _open(browser, page)
-    _focus(pg, style)
-    h = pg.evaluate(PILLS)
-    pg.context.close()
-    assert not errs, errs
-    assert h["n"] >= 5 and not h["overlaps"], h
-    for p in h["pills"]:
-        assert p["disc"] > 0 and p["bodies"] == 0, p                 # off the enlarged disc, off every body
-        assert p["box"][3] <= h["top"] + 1 and p["box"][1] >= 60, p     # above the Tour bar, under the chips
-    txt = [p["txt"] for p in h["pills"]]
-    assert len(set(txt)) == len(txt), txt                               # no two read the same
-    assert not any(t.endswith("…") and txt.count(t) > 1 for t in txt), txt
-
-
 def test_reset_view_only_when_there_is_a_view_to_reset(browser, page):
     pg, errs = _open(browser, page)
     shown = "() => { var b=document.getElementById('sk3d-reset'); return !!b && !b.hidden && b.getBoundingClientRect().width>0; }"
@@ -94,29 +75,8 @@ def test_reset_view_only_when_there_is_a_view_to_reset(browser, page):
     pg.click("#sk3d-reset")
     pg.wait_for_timeout(900)
     assert not pg.evaluate(shown)
-    pg.evaluate("() => window._altoSolarLock.set(true)")                  # Spokes only: no free camera, so no reset
-    pg.mouse.move(300, 600)
-    pg.mouse.down()
-    pg.mouse.move(480, 520, steps=8)
-    pg.mouse.up()
-    pg.wait_for_timeout(900)
-    assert not pg.evaluate(shown)
     pg.context.close()
     assert not errs, errs
-
-
-def test_spokes_only_says_what_it_changed_and_names_once(browser, page):
-    pg, errs = _open(browser, page)
-    _focus(pg, "retro")
-    pg.click("#sol-lock")
-    pg.wait_for_timeout(1800)
-    h = pg.evaluate(r"""() => { var n=document.getElementById('sol-note');
-      return {lock:window._altoSolarLock.get(), note:n && n.classList.contains('on') ? n.textContent : '',
-        twice:[].filter.call(document.querySelectorAll('#sol-arw .sol-al'), l=>{ var b=document.querySelector('#node-'+l.dataset.id+'>.sol-lbl');
-          return b && +getComputedStyle(b).opacity>0; }).map(l=>l.dataset.id)}; }""")
-    pg.context.close()
-    assert not errs, errs
-    assert h["lock"] and "Spokes only" in h["note"] and not h["twice"], h
 
 
 def test_a_hover_settles(browser, page):
@@ -149,3 +109,6 @@ def test_a_hover_settles(browser, page):
     assert not pg.evaluate(lit)
     pg.context.close()
     assert not errs, errs
+
+# (the named pills on the map and Spokes only went with the controls round of 2026-10-25: the panel names every way,
+#  test_solar_navopt.py; Spokes only is gone, test_solar_controls.py)

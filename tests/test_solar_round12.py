@@ -92,36 +92,20 @@ def test_the_orbits_say_why_they_wait_and_come_back_after_a_hover_or_an_enlarged
     assert not errs, errs
 
 
-def test_a_ship_chosen_while_the_rider_shows_is_drawn_at_once(browser, page):
-    """Ship switching: the rider (on a ride, or orbiting as it fades after one) kept the ship it set off with."""
-    pg, errs = _open(browser, page, wait=1400)
-    pg.evaluate("() => { window._altoSolarStyles.set('chart'); window._altoSolarLock.set(true); window.enterFocus('u1-p1'); }")
-    pg.wait_for_timeout(900)
-    other = pg.evaluate("() => window._altoCraft.list.map(function(c){ return c.id; }).filter(function(i){ return i!==window._altoCraft.id(); })[0]")
-    pg.click("#sol-tour .tb-next"); pg.wait_for_timeout(250)
-    assert pg.evaluate("() => !!window._altoSolarLock.riding()")
-    pg.evaluate("id => window._altoCraft.set(id)", other)
-    assert pg.evaluate("""id => { var t=document.createElementNS('http://www.w3.org/2000/svg', 'g'); t.innerHTML=window._altoCraft.svg(id);
-      return document.querySelector('#solar-svg .sol-rider .sol-ship').innerHTML===t.innerHTML; }""", other)
-    pg.evaluate("() => window._altoSolarLock.set(false)")
-    pg.context.close()
-    assert not errs, errs
-
-
 def test_normal_mode_moves_the_same_way_with_the_free_camera_besides(browser, page):
     """One way of moving (Luke, 2026-10-22: "Approve"): the Tour's bar, named buttons, → / ← / ↑ / ↓ and the whole
     system in normal mode too; Esc lets an enlarged card go first, then shows the whole system; panned away, the
-    bar offers the way back. The switch is "Spokes only" again (off: the free camera besides)."""
+    bar offers the way back."""
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("() => { window._altoSolarStyles.set('system'); window._altoSolarMotion.set(false); window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(1200)
-    assert pg.evaluate("() => [window._altoSolarLock.get(), document.querySelector('#sol-lock span').textContent]") == [False, "Spokes only"]
+    assert pg.evaluate("() => [window._altoSolarLock.get(), !!document.getElementById('sol-lock')]") == [False, False]   # (Spokes only is gone: 2026-10-25)
     T = pg.evaluate("() => window._altoSolarLock.order()")
     bar = pg.evaluate("() => document.querySelector('#sol-tour .tb-next').textContent")
     assert bar.startswith("Next: "), bar
-    pg.keyboard.press("ArrowRight")
+    pg.click("#sol-tour .tb-next")                                                     # (→ / ← are the siblings now: the panel's keys, test_solar_navopt.py)
     pg.wait_for_timeout(120)
-    assert pg.evaluate("() => window._altoSolarLock.riding()")["to"] == T[T.index("u1-p1") + 1]   # a ride along the spokes, as in Spokes only
+    assert pg.evaluate("() => window._altoSolarLock.riding()")["to"] == T[T.index("u1-p1") + 1]   # a ride along the spokes
     _arrive(pg, T[T.index("u1-p1") + 1])
     up = pg.evaluate("id => window._altoSolarGeo().bodies[id].p", T[T.index("u1-p1") + 1])
     pg.keyboard.press("ArrowUp"); _arrive(pg, up)                                      # ↑ the parent

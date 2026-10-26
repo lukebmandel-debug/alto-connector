@@ -362,9 +362,9 @@ def test_reduced_motion_stands_still_and_the_hub_look_orbits_with_rings(browser,
 
 @pytest.mark.parametrize("shape", ["small", "torts"])
 def test_arrows_follow_the_outline_and_the_wheel_pans(browser, tmp_path, shape):
-    """The Tour in both modes (Luke, 2026-10-22, in place of round 9's arrows by outline level): ↑ the parent, ↓ the
-    first child, → / ← the next / previous in the outline's order, Shift+→ / ← the next / previous sibling — for every
-    body; in normal mode the wheel over an enlarged disc pans the board (the card goes home)."""
+    """The keys (the panel's since 2026-10-25, solar_navopt.py; the Tour bar walks the outline's order): ↑ the parent,
+    ↓ the first child, → / ← the next / previous sibling — for every body; the wheel over an enlarged disc pans the
+    board (the card goes home)."""
     units = SMALL if shape == "small" else TORTS_SHAPE
     f = tmp_path / f"nav-{shape}.html"
     f.write_text(_page(units, links=() if shape == "torts" else SMALL_LINKS), encoding="utf-8")
@@ -375,19 +375,17 @@ def test_arrows_follow_the_outline_and_the_wheel_pans(browser, tmp_path, shape):
     assert sorted(T) == sorted(G)
     for start in T[::max(1, len(T) // 7)]:
         p, role = G[start]
-        kids = [i for i in T if G[i][0] == start]
-        sib = [i for i in T if G[i][1] == role and G[i][0] == p]
-        k = sib.index(start)
-        want = {"ArrowUp": p or start, "ArrowDown": kids[0] if kids else start, "ArrowRight": T[T.index(start) + 1] if start != T[-1] else start,
-                "ArrowLeft": T[T.index(start) - 1] if T.index(start) else start, "Shift+ArrowRight": sib[k + 1] if k + 1 < len(sib) else start}
+        A = pg.evaluate("h => { var A=window._altoSolarNavApi; return {up:A.up(h), kids:A.kids(h), sibs:A.sibs(h)}; }", start)
+        sib, k = A["sibs"], A["sibs"].index(start)
+        assert A["up"] == p and A["kids"] == [i for i in T if G[i][0] == start] and sorted(sib) == sorted(i for i in T if G[i][1] == role and G[i][0] == p)
+        want = {"ArrowUp": p or start, "ArrowDown": A["kids"][0] if A["kids"] else start,          # (the panel's keys, 2026-10-25: → / ← the siblings)
+                "ArrowRight": sib[k + 1] if k + 1 < len(sib) else start, "ArrowLeft": sib[k - 1] if k else start}
         for key, to in want.items():
             pg.evaluate("(i) => window.enterFocus(i)", start)
             pg.wait_for_timeout(450)
             pg.keyboard.press(key)
             pg.wait_for_timeout(450)
             got = pg.evaluate("() => window._focusedNodeId")
-            if key == "ArrowRight" and start == T[-1]:
-                continue                                               # (the end: the whole system)
             assert got == to, (start, key, got, to)
     pg.evaluate("() => window.enterFocus('u2-p2')")
     pg.wait_for_timeout(600)
