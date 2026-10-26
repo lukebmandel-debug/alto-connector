@@ -72,25 +72,32 @@ var C=[
      g.slathe([[2.6, 8.5], [4.6, 7.4], [6.4, 5.4], [7.6, 3], [8, 0]], 64, [.22, .42, .68, .3], null, 1); g.torus(8.6, .3, 96, [.46, .48, .55], [0, 2.6, 0], 1);
      g.torus(14.5, .16, 128, [.46, .48, .55], [0, 1.95, 0], 1); g.torus(10, .35, 96, [.6, .92, 1, 1], [0, -2.25, 0], 1);
      for(var i=0;i<12;i++){ var a=i/12*TAU; g.rbox([Math.cos(a)*18, .72, Math.sin(a)*18], [1.6, .5, 1.1], -a, [.6, .92, 1, 1]); } }},
-  /* the classic rocket (Luke, 2026-10-25: "add a classic rocket ship design for the three star chart modes"): a tall
-     polished body, a red ogive nose, four swept red fins, a porthole, a bell nozzle and its flame; it brakes as a rocket
-     does, turning tail first and burning (brake 'flip'; the others fire retro thrusters forward) */
-  {id:'rocket', name:'Rocket', real:false, k:1, turn:2, bank:.35, glow:[1, .72, .4], trail:[1, .82, .62], eng:[[-27.4, 0, 0]], wc:[0, 0, 0, 1e9],
-   brake:'flip', nz:[[-27.4, 0]],
-   svg:'<path class="sh-red" d="M-8 5 L-19 13.5 L-25 13.5 L-21.5 5 Z M-8 -5 L-19 -13.5 L-25 -13.5 L-21.5 -5 Z"/>'+
-     '<path class="sh-deck" d="M-21.5 -3.4 L-27.4 -4.5 L-27.4 4.5 L-21.5 3.4 Z"/>'+
-     '<path class="sh-hull" d="M-22 -5.3 L16 -5.6 Q24 -5 30 0 Q24 5 16 5.6 L-22 5.3 Q-23 0 -22 -5.3 Z"/>'+
-     '<path class="sh-red" d="M16.6 -5.55 Q24 -5 30 0 Q24 5 16.6 5.55 Q17.7 0 16.6 -5.55 Z"/><path class="sh-red" d="M-9 -.85 L-24.6 -.85 L-24.6 .85 L-9 .85 Z"/>'+
-     '<path class="sh-gold" d="M-14 -5.4 L-14 5.4 M12.5 -5.6 L12.5 5.6"/><circle class="sh-deck" cx="5" cy="0" r="2.7"/><circle class="sh-eng" cx="5" cy="0" r="1.15"/>'+
-     '<path class="sh-gold sh-ro" d="M-20 -3.1 L-15.5 -3.2 M-12.5 -3.2 L11 -3.4 M-20 3.1 L-15.5 3.2 M-12.5 3.2 L11 3.4 M14 -4.4 L14 4.4 M-16 -5.3 L-16 5.3"/>',
-   build:function(g){ var H=[.82, .83, .86], Rd=[.78, .16, .13], D=[.3, .32, .37], Gl=[.12, .16, .24, .3];
-     g.slathe([[-22, 4.9], [-21, 5.3], [-14, 5.45], [0, 5.55], [12, 5.6], [16.6, 5.5]], 128, H);
-     g.slathe([[16.6, 5.5], [18.4, 5.3], [20, 4.9], [21.8, 4.4], [23.5, 3.8], [25, 3.2], [26.5, 2.5], [27.7, 1.9], [28.6, 1.3], [29.3, .8], [29.7, .5], [30.1, 0]], 128, Rd);
-     g.torus(5.62, .22, 128, D, [12.5, 0, 0]); g.torus(5.5, .22, 128, D, [-14, 0, 0]);
-     g.slathe([[-22, 4.9], [-22.4, 3.4], [-22.6, 0]], 64, D);
-     g.slathe([[-21.6, 3.2], [-23.4, 3.4], [-25.6, 3.9], [-27.4, 4.5]], 64, [.36, .34, .34]); g.slathe([[-27.3, 4.3], [-26.8, 3.4], [-25.2, 2.4], [-24.6, 0]], 48, [1, .7, .38, 1]);
-     g.slathe([[0, 1.9], [.55, 1.55], [.85, .9], [.95, 0]], 32, Gl, [5, 5.35, 0], 1); g.torus(1.95, .26, 40, D, [5, 5.4, 0], 1);
-     [1, -1].forEach(function(s){ g.vslab([[-8, 5.2*s], [-21.5, 5.2*s], [-25, 13.5*s], [-19, 13.5*s]], 0, .9, Rd); g.slab([[-8, 5.2*s], [-21.5, 5.2*s], [-25, 13.5*s], [-19, 13.5*s]], 0, .9, Rd); }); }}
+  /* the classic rocket (Luke, 2026-10-25: "add a classic rocket ship design for the three star chart modes"; then "a
+     little bit more like a stereotypical cartoon of a 1950s rocket"): a plump teardrop body in chrome and white, a
+     rounded red nose, a red band, a big round porthole with a chrome ring, three swept red fins with rounded tips
+     reaching past the tail, a flared exhaust bell and a cartoon flame; it brakes as a rocket does, turning tail first
+     and burning (brake 'flip'; the others fire retro thrusters forward) */
+  {id:'rocket', name:'Rocket', real:false, k:1, turn:2, bank:.35, glow:[1, .72, .4], trail:[1, .82, .62], eng:[[-23.6, 0, 0]], wc:[0, 0, 0, 1e9],
+   brake:'flip', nz:[[-23.6, 0]], fl:'toon',
+   svg:'<path class="sh-red" d="M-3 7.6 C-9 9 -17 12 -24 15.8 Q-28.6 17.6 -27.6 13 C-26.4 9.4 -22.4 6.2 -17 4 Z M-3 -7.6 C-9 -9 -17 -12 -24 -15.8 Q-28.6 -17.6 -27.6 -13 C-26.4 -9.4 -22.4 -6.2 -17 -4 Z"/>'+
+     '<path class="sh-deck" d="M-17.6 -3.4 L-23.2 -5.4 Q-24.4 0 -23.2 5.4 L-17.6 3.4 Z"/>'+
+     '<path class="sh-hull" d="M27 0 C27 -5.6 19 -9 7 -9 C-4 -9 -13 -6.4 -18.2 -3.5 Q-19 0 -18.2 3.5 C-13 6.4 -4 9 7 9 C19 9 27 5.6 27 0 Z"/>'+
+     '<path class="sh-red" d="M27 0 C27 -4.4 22.4 -7.4 16 -8.5 Q18 0 16 8.5 C22.4 7.4 27 4.4 27 0 Z M-5.4 -8.2 L-7.6 -7.8 Q-8.6 0 -7.6 7.8 L-5.4 8.2 Q-4.4 0 -5.4 -8.2 Z"/>'+
+     '<path class="sh-red" d="M-5 -1.1 L-23.4 -1.1 Q-27.8 -1.1 -27.8 0 Q-27.8 1.1 -23.4 1.1 L-5 1.1 Z"/>'+
+     '<circle class="sh-gold" cx="7" cy="0" r="4.1"/><circle class="sh-deck" cx="7" cy="0" r="3"/><circle class="sh-eng" cx="6" cy="-1" r=".9"/>'+
+     '<path class="sh-gold sh-ro" d="M16.6 -6.6 Q18.2 0 16.6 6.6 M-12.2 -6.4 Q-13.2 0 -12.2 6.4 M7 -6 L7 -8.2 M7 6 L7 8.2 M1.4 0 L-.8 0 M12.6 0 L14.8 0 M-14 -12.2 L-22 -14.6 M-14 12.2 L-22 14.6"/>',
+   build:function(g){ var H=[.88, .89, .92], Rd=[.82, .14, .12], C=[.7, .72, .78], D=[.26, .27, .31], Gl=[.12, .16, .24, .3];
+     g.slathe([[-18.2, 3.6], [-15, 5.1], [-11, 6.5], [-6, 7.8], [-1, 8.6], [4, 8.9], [9, 8.8], [12.5, 8.5], [15.6, 8]], 128, H);
+     g.slathe([[15.6, 8], [18, 7.5], [20, 6.9], [21.8, 6.2], [23.4, 5.3], [24.8, 4.2], [25.9, 3], [26.6, 1.8], [26.9, .9], [27, 0]], 128, Rd);
+     g.torus(7.86, .5, 128, Rd, [-6.5, 0, 0]); g.torus(8.02, .3, 128, C, [15.6, 0, 0]);
+     g.slathe([[-18.2, 3.6], [-18.6, 2.4], [-18.8, 0]], 64, D);
+     g.slathe([[-17.8, 3.2], [-19.5, 3.6], [-21.5, 4.4], [-23.6, 5.6]], 64, D); g.slathe([[-23.4, 5.3], [-21, 3.4], [-19.8, 0]], 48, [1, .72, .38, 1]); g.torus(5.6, .28, 64, C, [-23.6, 0, 0]);
+     /* the round porthole, chrome-ringed: on top (the flat drawing's) and on each side */
+     g.slathe([[0, 3.2], [.5, 2.6], [.8, 1.6], [.92, 0]], 40, Gl, [7, 8.55, 0], 1); g.torus(3.5, .55, 64, C, [7, 8.6, 0], 1);
+     [1, -1].forEach(function(s){ g.slathe([[0, 3.2], [.5*s, 2.6], [.8*s, 1.6], [.92*s, 0]], 40, Gl, [7, 0, 8.55*s], 2); g.torus(3.5, .55, 64, C, [7, 0, 8.6*s], 2); });
+     /* the three fins, a third of a turn apart (one straight up), swept back past the tail, their tips rounded */
+     var F=[[-3, 7.4], [-12, 10.6], [-19, 13.6], [-23, 15.3], [-25.4, 15.9], [-27, 15.2], [-27.6, 13.6], [-26.6, 10.6], [-17, 3.8]];
+     [Math.PI/2, Math.PI/2+2.0944, Math.PI/2-2.0944].forEach(function(a){ g.rslab(F, a, 1, Rd); }); }}
 ];
 var BY={}; C.forEach(function(c){ BY[c.id]=c; });
 var MINE;                                           /* (read once: a flight asks every frame, and WebKit's storage is a round trip) */
@@ -113,15 +120,15 @@ function kit(){
       for(var i=0;i<sg;i++){ var a0=i/sg*TAU, a1=(i+1)/sg*TAU;
         for(var j=0;j+1<pr.length;j++){ var A=pr[j], B=pr[j+1], h=(A[0]+B[0])/2; if(A[1]<1e-6 && B[1]<1e-6) continue;
           quad(pt(A, a0), pt(B, a0), pt(B, a1), pt(A, a1), k, ay ? [c[0], c[1]+h, c[2]] : [c[0]+h, c[1], c[2]]); } } },
-    /* the same, smooth: each point's normal from the profile's own slope (shared where the profile bends gently, a crease
+    /* the same, smooth (ay 1: about y; 2: about z, a porthole on the side): each point's normal from the profile's own slope (shared where the profile bends gently, a crease
        where it turns sharply), so a hull reads as one polished surface, not facets */
     slathe:function(pr, sg, k, c, ay){ c=c||[0, 0, 0]; var n=pr.length, cA=0, cR=0, S=[], j, i;
       pr.forEach(function(q){ cA+=q[0]/n; cR+=q[1]/n; });
       for(j=0;j+1<n;j++){ var A=pr[j], B=pr[j+1], dA=B[0]-A[0], dR=B[1]-A[1], l=Math.hypot(dA, dR)||1, q=[-dR/l, dA/l];
         if(q[0]*((A[0]+B[0])/2-cA)+q[1]*((A[1]+B[1])/2-cR)<0) q=[-q[0], -q[1]]; S.push(q); }
       function nv(s, j2){ var o=j2===s ? s-1 : s+1, a=S[s], b=S[o]; if(!b || a[0]*b[0]+a[1]*b[1]<.5) return a; var x=a[0]+b[0], y=a[1]+b[1], l=Math.hypot(x, y)||1; return [x/l, y/l]; }
-      function pt(q, a){ return ay ? [c[0]+q[1]*Math.cos(a), c[1]+q[0], c[2]+q[1]*Math.sin(a)] : [c[0]+q[0], c[1]+q[1]*Math.cos(a), c[2]+q[1]*Math.sin(a)]; }
-      function nm(q, a){ return ay ? [q[1]*Math.cos(a), q[0], q[1]*Math.sin(a)] : [q[0], q[1]*Math.cos(a), q[1]*Math.sin(a)]; }
+      function pt(q, a){ return ay===2 ? [c[0]+q[1]*Math.cos(a), c[1]+q[1]*Math.sin(a), c[2]+q[0]] : ay ? [c[0]+q[1]*Math.cos(a), c[1]+q[0], c[2]+q[1]*Math.sin(a)] : [c[0]+q[0], c[1]+q[1]*Math.cos(a), c[2]+q[1]*Math.sin(a)]; }
+      function nm(q, a){ return ay===2 ? [q[1]*Math.cos(a), q[1]*Math.sin(a), q[0]] : ay ? [q[1]*Math.cos(a), q[0], q[1]*Math.sin(a)] : [q[0], q[1]*Math.cos(a), q[1]*Math.sin(a)]; }
       function put(p, m){ P.push(p[0], p[1], p[2]); N.push(m[0], m[1], m[2]); K.push(k[0], k[1], k[2], k[3]||0); }
       for(i=0;i<sg;i++){ var a0=i/sg*TAU, a1=(i+1)/sg*TAU;
         for(j=0;j+1<n;j++){ var A2=pr[j], B2=pr[j+1]; if(A2[1]<1e-6 && B2[1]<1e-6) continue; var na=nv(j, j), nb=nv(j, j+1);
@@ -139,6 +146,8 @@ function kit(){
     /* a flat convex plate, [[x, z], ...] at height y (a wing), or [[x, y], ...] at z (a fin: vslab), t thick */
     slab:function(pl, y, t, k){ plate(pl, t, k, function(u, v, w){ return [u, y+w, v]; }); },
     vslab:function(pl, z, t, k){ plate(pl, t, k, function(u, v, w){ return [u, v, z+w]; }); },
+    /* the same as a fin round the x axis: [[x, r], ...] in the plane at angle a from +z towards +y */
+    rslab:function(pl, a, t, k){ var c=Math.cos(a), sn=Math.sin(a); plate(pl, t, k, function(u, v, w){ return [u, v*sn+w*c, v*c-w*sn]; }); },
     out:function(){ return {p:P, n:N, k:K}; } };
   function plate(pl, t, k, at){ var cu=0, cv=0, i; pl.forEach(function(q){ cu+=q[0]; cv+=q[1]; }); cu/=pl.length; cv/=pl.length;
     for(i=1;i+1<pl.length;i++){ tri(at(pl[0][0], pl[0][1], t/2), at(pl[i][0], pl[i][1], t/2), at(pl[i+1][0], pl[i+1][1], t/2), k, at(cu, cv, -1));
@@ -170,9 +179,11 @@ window.addEventListener('keydown', function(e){ if(POP && e.key==='Escape'){ e.p
 function set(id){ if(!BY[id]) return; MINE=id; try{ localStorage.setItem(KEY, id); }catch(e){} subs.forEach(function(f){ try{ f(id); }catch(x){} }); }
 /* ── its engines' flames on the flat drawing (solar_fly.py): a flame at each nozzle (nz, aft) and retro thruster (rz,
    fore), drawn pointing aft (a retro one turned forward), shown and stretched by burn() as the engines fire ── */
-function flames(id){ var c=BY[id||cur()], o='';
+function flames(id){ var c=BY[id||cur()], o='', T=c.fl==='toon';          /* (toon: a cartoon flame, lobed, its core yellow) */
   [['m', c.nz||[]], ['r', c.rz||[]]].forEach(function(q){ q[1].forEach(function(z){
-    o+='<g class="sh-fl" data-f="'+q[0]+'" data-x="'+z[0]+'" data-y="'+z[1]+'" opacity="0"><path class="sh-flame" d="M0 -2.6 C-4 -2.6 -9 -1.2 -16 0 C-9 1.2 -4 2.6 0 2.6 Z"/><path class="sh-flame2" d="M0 -1.3 C-3 -1.3 -6 -.6 -10 0 C-6 .6 -3 1.3 0 1.3 Z"/></g>'; }); });
+    o+='<g class="sh-fl" data-f="'+q[0]+'" data-x="'+z[0]+'" data-y="'+z[1]+'" opacity="0">'+(T && q[0]==='m' ?
+      '<path class="sh-flame" d="M0 -5 C-4 -6.4 -7 -3.6 -9.5 -5 C-9 -2.6 -12.5 -3 -14 -3.6 C-13 -1.6 -17 -.8 -21 0 C-17 .8 -13 1.6 -14 3.6 C-12.5 3 -9 2.6 -9.5 5 C-7 3.6 -4 6.4 0 5 Z"/><path class="sh-flame3" d="M0 -3.2 C-3 -3.8 -5 -2.2 -7 -3 C-7.4 -1.2 -10 -.6 -13 0 C-10 .6 -7.4 1.2 -7 3 C-5 2.2 -3 3.8 0 3.2 Z"/><path class="sh-flame2" d="M0 -1.6 C-2 -1.6 -4 -.8 -7 0 C-4 .8 -2 1.6 0 1.6 Z"/>' :
+      '<path class="sh-flame" d="M0 -2.6 C-4 -2.6 -9 -1.2 -16 0 C-9 1.2 -4 2.6 0 2.6 Z"/><path class="sh-flame2" d="M0 -1.3 C-3 -1.3 -6 -.6 -10 0 C-6 .6 -3 1.3 0 1.3 Z"/>')+'</g>'; }); });
   return o; }
 /* the engines a craft fires now, from a way's thr (solar_craft.py thrust(): g, b, f): m its main engines, r its retro
    thrusters, f how far it has turned tail first (a rocket brakes so; the others fire forward) */
@@ -541,8 +552,8 @@ CRAFT_CSS = r"""
   html:not(.sk-retro) :is(.sol-ship,.fly-ship,.cr-art) .sh-red{fill:#d4473d;stroke:#27304c;stroke-width:.8;stroke-linejoin:round;}
   html.sk-retro :is(.sol-ship,.fly-ship) .sh-red,.cr-art .sh-red{fill:#0c0e12;stroke:#d9ae55;stroke-width:.8;stroke-linejoin:round;}
   /* the engines' flames (solar_craft.py burn()): white-hot core, orange plume; Retro's in gold */
-  .sh-flame{fill:#ff9a3c;fill-opacity:.85;} .sh-flame2{fill:#fff4d6;}
-  html.sk-retro .sh-flame{fill:#ffcf6e;fill-opacity:.8;} html.sk-retro .sh-flame2{fill:#fff3cf;}
+  .sh-flame{fill:#ff9a3c;fill-opacity:.85;} .sh-flame2{fill:#fff4d6;} .sh-flame3{fill:#ffd23c;}
+  html.sk-retro .sh-flame{fill:#ffcf6e;fill-opacity:.8;} html.sk-retro .sh-flame2{fill:#fff3cf;} html.sk-retro .sh-flame3{fill:#ffe39a;}
   .cr-art .sh-eng{fill:#ffe6a8;} .cr-art .sh-glow{fill:#ffd27a;fill-opacity:.3;} .cr-art .sh-ring{fill:none;stroke:#d9ae55;stroke-width:1.1;stroke-opacity:.55;}
   #sol-craft{display:inline-flex;align-items:center;gap:7px;}
   #sol-craft .cr-art{width:34px;height:26px;flex:none;}
