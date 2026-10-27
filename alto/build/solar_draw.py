@@ -101,8 +101,7 @@ SOLAR_CSS = r"""
   @keyframes sol-nudge{50%{filter:brightness(1.45);}}
   html.alto-editing #solar-svg .sol-hit,html.mobile #solar-svg .sol-hit,#canvas.sol-ov #solar-svg .sol-hit{pointer-events:none;}
   html:not(.mobile) #canvas.sol-lhov #world .node[data-solar]:not(.edge-end):not(.focused) .node-card{opacity:.35 !important;}
-  html:not(.mobile) #canvas.sol-lhov #solar-svg :is(.sol-ring,.sol-spoke):not(.sol-hot){stroke-opacity:.07 !important;}
-  html:not(.mobile) #canvas.sol-lhov #river-svg{opacity:.15;}
+  html:not(.mobile) #canvas.sol-lhov #solar-svg .sol-ring:not(.sol-hot){stroke-opacity:.07 !important;}   /* (the connecting lines never fade: in Retro the bands are under the pointer almost everywhere, 2026-10-26) */
   #solar-svg .sol-spoke.sol-hot.sol-hot{stroke-opacity:.8 !important;stroke-width:2.6px !important;}
   #solar-svg .sol-ring.sol-hot.sol-hot{stroke-opacity:.75 !important;stroke-width:2.2px !important;}
   #solar-svg .sol-ring{fill:none;stroke:color-mix(in srgb,var(--u,var(--text)) 45%,var(--text));stroke-opacity:calc(.3 * var(--lk,1));stroke-width:calc(1.5px * var(--lw,1));}

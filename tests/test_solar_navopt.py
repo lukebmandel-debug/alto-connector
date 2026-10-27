@@ -21,7 +21,7 @@ from test_solar_draw import SMALL, SMALL_LINKS, _open, browser, solar_doc  # noq
 
 
 def test_the_control_stays_small_and_the_card_is_gone():
-    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 6200   # (the minimap, the scoped arrows and scroll, the phone row: 2026-10-26)
+    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 8500   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag and place: 2026-10-26)
     for gone in (r"nvo-[bcd](?![\w-])", "nvo-pick", "data-nav", "Same level:", "Inside:", r"\.nv-r", r"\.nv-hd"):
         assert not re.search(gone, NAVOPT_JS + NAVOPT_CSS), gone
 
@@ -140,8 +140,8 @@ def test_the_minimap_names_what_you_point_at(browser, page):
     pg.evaluate("() => localStorage.removeItem('alto-solar-map')")
     _at(pg, style="chart")
     pg.wait_for_selector("#nvo-map", state="visible")
-    r = pg.evaluate("() => { var m=document.getElementById('nvo-map').getBoundingClientRect(), a=document.getElementById('nvo-a').getBoundingClientRect(); return [m.bottom, a.top, m.height]; }")
-    assert r[0] <= r[1] and r[2] <= 130, r                                         # small, above the control
+    r = pg.evaluate("() => { var m=document.getElementById('nvo-map').getBoundingClientRect(); return [m.height, m.right, innerWidth]; }")
+    assert r[0] <= 130 and r[1] > r[2] - 80, r                                     # small, in the bottom-right corner
     to = "u1-p3"
     c = pg.evaluate("id => { var e=document.querySelector('#nvo-map circle[data-b=\"'+id+'\"]').getBoundingClientRect(); return [e.left+e.width/2, e.top+e.height/2]; }", to)
     pg.mouse.move(c[0], c[1])
@@ -181,4 +181,163 @@ def test_on_a_phone_the_control_is_in_menu(browser, page):
     _arrive(pg, up)
     assert pg.is_visible("#nvo-a")
     ctx.close()
+    assert not errs, errs
+
+
+# ── the minimap, round 2 (Luke 2026-10-26): it starts in the bottom-right corner, moves anywhere, and a box on it is
+#    the window's view (drag it to pan, pull its edges to zoom: a bigger box shows more) ──
+RECT = "s => { var e=document.querySelector(s); if(!e) return null; var r=e.getBoundingClientRect(); return {l:r.left, t:r.top, r:r.right, b:r.bottom, w:r.width, h:r.height}; }"
+VIEW = """() => { var g=window._altoSolarCam.get(), c=document.getElementById('canvas'), sv=document.querySelector('#nvo-map svg'), v=sv.viewBox.baseVal, b=document.querySelector('#nvo-map .vb'),
+  P=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0, w=c.clientWidth/g.scale, h=c.clientHeight/g.scale, x0=g.cx-w/2, y0=g.cy+P-h/2;
+  return {s:g.scale, cx:g.cx, cy:g.cy, want:[Math.max(x0, v.x), Math.max(y0, v.y), Math.min(x0+w, v.x+v.width), Math.min(y0+h, v.y+v.height)],
+    got:['x', 'y', 'width', 'height'].map(a => +b.getAttribute(a)), shown:b.style.display!=='none'}; }"""
+
+
+def _map(browser, page, style="chart", clear=True):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    if clear:
+        pg.evaluate("() => { localStorage.removeItem('alto-solar-map'); localStorage.removeItem('alto-solar-map-at'); }")
+    _at(pg, style=style)
+    pg.wait_for_selector("#nvo-map", state="visible")
+    pg.wait_for_timeout(300)
+    return pg, errs
+
+
+def _box_is_the_view(v, tol=2.5):
+    g = v["got"]
+    assert v["shown"], v
+    got = [g[0], g[1], g[0] + g[2], g[1] + g[3]]
+    assert all(abs(a - b) <= tol * max(1, 1 / v["s"]) for a, b in zip(got, v["want"])), v
+
+
+@pytest.mark.parametrize("style", ["system", "chart", "retro", "3d"])
+def test_the_minimap_starts_in_the_bottom_right_corner_clear_of_the_controls(browser, page, style):
+    pg, errs = _map(browser, page, style)
+    m = pg.evaluate(RECT, "#nvo-map")
+    vw = pg.evaluate("() => [innerWidth, innerHeight]")
+    assert m["r"] > vw[0] - 60 and m["b"] > vw[1] - 260, (m, vw)                  # the bottom-right corner
+    for sel in ("#nvo-a", "#sol-ctl", "#search-btn", "#info-btn", "#mode-toggle", "#alto-edit-pill"):
+        o = pg.evaluate(RECT, sel)
+        if o and o["w"]:
+            assert m["b"] <= o["t"] or m["r"] <= o["l"] or m["l"] >= o["r"] or m["t"] >= o["b"], (sel, m, o)   # clear of the bar and the corner controls
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_the_minimap_moves_anywhere_and_keeps_its_place(browser, page):
+    pg, errs = _map(browser, page)
+    m = pg.evaluate(RECT, "#nvo-map")
+    x, y = m["l"] + 6, m["t"] + 4                                                   # its frame (not the box, not a body)
+    pg.mouse.move(x, y)
+    pg.mouse.down()
+    pg.mouse.move(x - 500, y - 300, steps=8)
+    pg.mouse.up()
+    n = pg.evaluate(RECT, "#nvo-map")
+    assert abs((m["l"] - n["l"]) - 500) < 6 and abs((m["t"] - n["t"]) - 300) < 6, (m, n)
+    assert pg.evaluate("() => window._focusedNodeId") == AT                        # a drag is not a click: nothing went anywhere
+    kept = pg.evaluate("() => JSON.parse(localStorage.getItem('alto-solar-map-at'))")
+    assert 0 < kept["x"] < 1 and 0 < kept["y"] < 1, kept
+    pg.reload()
+    pg.wait_for_timeout(1400)
+    _at(pg)
+    pg.wait_for_selector("#nvo-map", state="visible")
+    pg.wait_for_timeout(300)
+    r = pg.evaluate(RECT, "#nvo-map")
+    assert abs(r["l"] - n["l"]) < 3 and abs(r["t"] - n["t"]) < 3, (n, r)            # kept on this device
+    pg.mouse.move(r["l"] + 6, r["t"] + 4)
+    pg.mouse.down()
+    pg.mouse.move(r["l"] + 3000, r["t"] + 3000, steps=6)                           # flung off the edge: it stays on screen
+    pg.mouse.up()
+    pg.set_viewport_size({"width": 900, "height": 600})                           # and a smaller window keeps it in view
+    pg.wait_for_timeout(500)
+    r = pg.evaluate(RECT, "#nvo-map")
+    assert 0 <= r["l"] and r["r"] <= 900 and 0 <= r["t"] and r["b"] <= 600, r
+    pg.context.close()
+    assert not errs, errs
+
+
+@pytest.mark.parametrize("style", ["system", "retro"])
+def test_the_box_is_what_the_window_shows_live(browser, page, style):
+    pg, errs = _map(browser, page, style)
+    _box_is_the_view(pg.evaluate(VIEW))
+    v = pg.evaluate(VIEW)
+    for cx, cy, s in ((v["cx"] + 400, v["cy"] - 150, .6), (v["cx"] - 300, v["cy"] + 100, .35), (v["cx"], v["cy"], 1)):
+        pg.evaluate("a => window._altoSolarCam.set(a[0], a[1], a[2])", [cx, cy, s])
+        pg.wait_for_timeout(450)
+        _box_is_the_view(pg.evaluate(VIEW))                                         # it follows every pan and zoom
+    pg.context.close()
+    assert not errs, errs
+
+
+def test_dragging_the_box_pans_and_pulling_it_zooms(browser, page):
+    pg, errs = _map(browser, page)
+    pg.evaluate("() => window._altoSolarCam.set(window._altoSolarCam.get().cx, window._altoSolarCam.get().cy, .5)")
+    pg.wait_for_timeout(450)
+    v0 = pg.evaluate(VIEW)
+    b = pg.evaluate(RECT, "#nvo-map .vb")
+    cx, cy = b["l"] + b["w"] / 2, b["t"] + b["h"] / 2
+    pg.mouse.move(cx, cy)
+    pg.mouse.down()
+    pg.mouse.move(cx - 12, cy + 8, steps=6)                                         # the box dragged left and down
+    pg.mouse.up()
+    pg.wait_for_timeout(450)
+    v1 = pg.evaluate(VIEW)
+    assert v1["cx"] < v0["cx"] - 20 and v1["cy"] > v0["cy"] + 10 and abs(v1["s"] - v0["s"]) < .01, (v0, v1)
+    _box_is_the_view(v1)
+    b = pg.evaluate(RECT, "#nvo-map .vb")
+    pg.mouse.move(b["l"], b["t"])                                                   # its top-left corner, pulled out: bigger box
+    pg.mouse.down()
+    pg.mouse.move(b["l"] - 30, b["t"] - 26, steps=6)
+    pg.mouse.up()
+    pg.wait_for_timeout(450)
+    v2 = pg.evaluate(VIEW)
+    assert v2["s"] < v1["s"] - .05, (v1, v2)                                         # shows more of the system
+    _box_is_the_view(v2)
+    b = pg.evaluate(RECT, "#nvo-map .vb")
+    pg.mouse.move(b["r"], b["t"] + b["h"] / 2)                                      # its right edge, pulled in: smaller box
+    pg.mouse.down()
+    pg.mouse.move(b["r"] - b["w"] / 3, b["t"] + b["h"] / 2, steps=6)
+    pg.mouse.up()
+    pg.wait_for_timeout(450)
+    v3 = pg.evaluate(VIEW)
+    assert v3["s"] > v2["s"] + .05, (v2, v3)                                         # shows less: zoomed in
+    _box_is_the_view(v3)
+    pg.context.close()
+    assert not errs, errs
+
+
+# ── the connecting lines keep one strength (Luke on Retro, 2026-10-26: "some of the connecting lines between nodes …
+#    fade out for no apparent reason"). The cause: a resting pointer on an orbit named it and faded every other line,
+#    and in Retro the orbit bands are under the pointer almost everywhere. ──
+LINES = r"""() => { var o={}; document.querySelectorAll('#solar-svg :is(.sol-spoke,.sol-link,.sol-bun), #river-svg path[data-edge]').forEach(function(e, i){
+  var cs=getComputedStyle(e); if(cs.display==='none' || e.classList.contains('sol-hot')) return; var a=+cs.strokeOpacity*+cs.opacity, p=e.parentNode;
+  while(p && p.nodeType===1){ a*=+getComputedStyle(p).opacity; p=p.parentNode; } o[(e.getAttribute('data-edge') || e.getAttribute('class'))+'#'+i]=+a.toFixed(3); }); return o; }"""
+
+
+@pytest.mark.parametrize("style", ["retro", "system"])
+def test_the_connecting_lines_keep_one_strength(browser, page, style):
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("s => window._altoSolarStyles.set(s)", style)
+    pg.wait_for_timeout(700)
+    base = pg.evaluate(LINES)
+    assert base and min(base.values()) > .15, base                                # (a sun link's dots are faint by design)
+    seen = []
+    for x in range(250, 1300, 210):                                                 # a pointer resting here and there
+        for y in range(180, 800, 200):
+            pg.mouse.move(x, y)
+            pg.wait_for_timeout(380)
+            if not pg.evaluate("() => document.getElementById('canvas').classList.contains('edge-hover')"):   # (on a line itself: it lights, the rest give way)
+                seen.append(pg.evaluate(LINES))
+    pg.mouse.move(5, 5)
+    cam = pg.evaluate("() => window._altoSolarCam.get()")
+    for dx, s in ((0, 1), (300, 1), (-300, .7)):                                    # panned (zoom has its own deliberate ramp: --lk)
+        pg.evaluate("a => window._altoSolarCam.set(a[0], a[1], a[2])", [cam["cx"] + dx, cam["cy"], s])
+        pg.wait_for_timeout(450)
+        if s == 1 or style == "retro":                                              # (Retro: one strength at every zoom too)
+            seen.append(pg.evaluate(LINES))
+    for o in seen:
+        for k, a in o.items():
+            if k in base:
+                assert abs(a - base[k]) < .02, (k, base[k], a)
+    pg.context.close()
     assert not errs, errs
