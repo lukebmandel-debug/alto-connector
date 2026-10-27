@@ -9,8 +9,10 @@ what is beside it (a planet's three moons: round those three; a body with nothin
 its parent). No arrows are drawn on the page. The minimap (the whole system, you ringed) names the body under the
 pointer and goes there on a click. O / Esc: the whole system; ?: the keys.
 
-The minimap (Luke, 2026-10-26) opens in the bottom-right corner, above the corner controls, and is dragged anywhere
-(its place kept per device, as fractions of the room, so a resize keeps it on screen). A box on it is what the window
+The minimap (Luke, 2026-10-26, twice) shows only while a body is enlarged (it fades in and out), as big as the free
+room allows: it is placed by measuring what is on the screen (the enlarged card, the bodies beside it, the nav row,
+Ship, the corner controls) and never covers any of it. It can be dragged anywhere that is free (its place kept per
+device, as fractions of the room, and used again while it still fits there). A box on it is what the window
 shows, live: drag the box to pan, pull a corner or an edge to zoom. The box is always exactly the view, so a bigger
 box shows more of the system (the window zooms out) and a smaller one less (it zooms in, down to the 1x view).
 
@@ -35,8 +37,11 @@ NAVOPT_CSS = r"""
   /* the minimap: the whole system above the control, you ringed */
   .nvo{position:fixed;z-index:305;color:var(--text);background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);
     border:1px solid var(--card-glass-border, var(--border));box-shadow:0 10px 26px var(--node-rest-shadow, rgba(20,24,60,.18));border-radius:12px;box-sizing:border-box;font-size:13px;}
-  #nvo-map{right:16px;bottom:70px;padding:5px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;} #nvo-map.dr{cursor:grabbing;}
-  #nvo-map svg{display:block;height:104px;width:auto;max-width:190px;touch-action:manipulation;}
+  #nvo-map{right:16px;bottom:70px;padding:6px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .28s ease,visibility 0s .28s;}
+  #nvo-map.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .28s ease;} #nvo-map.dr{cursor:grabbing;}
+  #nvo-map svg{display:block;height:104px;width:auto;touch-action:manipulation;}
+  #nvo-map circle.hr.hr{fill:none !important;stroke:var(--accent,#6d5bd0) !important;stroke-width:2px;vector-effect:non-scaling-stroke;pointer-events:none;}
+  html.alto-stars:not(.sk-retro) #nvo-map circle.hr.hr{stroke:#fff !important;} html.sk-retro #nvo-map circle.hr.hr{stroke:#efe6cf !important;}
   #nvo-map .vb{fill:var(--accent,#6d5bd0);fill-opacity:.1;stroke:var(--accent,#6d5bd0);stroke-width:1.5px;vector-effect:non-scaling-stroke;}
   #nvo-map .vh{fill:var(--surface,#fff);stroke:var(--accent,#6d5bd0);stroke-width:1.2px;vector-effect:non-scaling-stroke;}
   html.alto-stars:not(.sk-retro) #nvo-map .vb{fill:#9fc0ff;stroke:#bcd2ff;} html.alto-stars:not(.sk-retro) #nvo-map .vh{fill:#0b1430;stroke:#bcd2ff;}
@@ -64,7 +69,7 @@ NAVOPT_CSS = r"""
   html.navx #sk3d-l i{pointer-events:auto;cursor:pointer;font-size:13px;} html.navx #sk3d-l i :is(kbd,em){display:none;}
   #nvo-where{display:none !important;}                                   /* (MENU's way in, on a phone only) */
   /* a phone seen whole: the control and the map wait in MENU, then sit above the corner controls */
-  html.phone-whole :is(#nvo-a,#nvo-map){display:none;}
+  html.phone-whole :is(#nvo-a,#nvo-map){display:none;} html.phone-whole #nvo-map.fit{display:block;}
   html.phone-whole.nvo-open #nvo-a{display:flex;position:fixed;z-index:330;left:8px;right:8px;max-width:none;height:44px;bottom:calc(68px + env(safe-area-inset-bottom,0px));box-sizing:border-box;border-radius:22px;
     background:var(--card-glass-bg, var(--surface));-webkit-backdrop-filter:blur(18px) saturate(190%);backdrop-filter:blur(18px) saturate(190%);border:1px solid var(--card-glass-border, var(--border));}
   html.phone-whole.nvo-open #nvo-a button{width:44px;height:38px;} html.phone-whole.nvo-open #nvo-a .nv-at{flex:1 1 auto;max-width:none;text-align:center;font-size:13.5px;}
@@ -118,7 +123,7 @@ function mapSvg(){ var g=A.geo(), ids=Object.keys(g), x0=1/0, y0=1/0, x1=-1/0, y
   if(!ids.length) return ''; var p=(x1-x0)*.04, m=(x1-x0)/70, s='<svg viewBox="'+[x0-p, y0-p, x1-x0+2*p, y1-y0+2*p].map(function(v){ return v.toFixed(0); }).join(' ')+'" role="img" aria-label="The whole system: point at a body for its name, click to go there">';
   ids.forEach(function(i){ var b=g[i]; if(b.p && g[b.p]) s+='<line x1="'+g[b.p].x.toFixed(0)+'" y1="'+g[b.p].y.toFixed(0)+'" x2="'+b.x.toFixed(0)+'" y2="'+b.y.toFixed(0)+'"/>'; });
   ids.forEach(function(i){ var b=g[i]; s+='<circle data-b="'+esc(i)+'" class="'+(b.role==='sun' ? 's' : '')+'" cx="'+b.x.toFixed(0)+'" cy="'+b.y.toFixed(0)+'" r="'+Math.max(b.d/2, m).toFixed(0)+'"/>'; });
-  MG={m:m, b:ids.map(function(i){ var b=g[i]; return [i, b.x, b.y, Math.max(b.d/2, m)]; })};
+  MG={m:m, a:(x1-x0+2*p)/Math.max(1, y1-y0+2*p), b:ids.map(function(i){ var b=g[i]; return [i, b.x, b.y, Math.max(b.d/2, m)]; })};
   return s+'</svg>'; }
 /* the body nearest the point (a wide, clear target: within three dots of it) */
 var MG=null;
@@ -135,10 +140,12 @@ function mapDraw(h){
     MP.addEventListener('pointermove', function(e){ if(DG) return; var E=edges(e.clientX, e.clientY); if(E && E.any){ tip(null); MP.style.cursor=cur(E); return; } var t=near(e.clientX, e.clientY); tip(t, e.clientX, e.clientY); MP.style.cursor=t ? 'pointer' : E && E.in ? 'move' : ''; });
     MP.addEventListener('pointerleave', function(){ if(!DG) tip(null); });
     MP.addEventListener('pointerdown', grab); }
-  MP.innerHTML=mapSvg().replace('</svg>', '<rect class="vb"/>'+'<rect class="vh"/>'.repeat(4)+'</svg>'); var me=MP.querySelector('circle[data-b="'+(window.CSS && CSS.escape ? CSS.escape(h) : h)+'"]'); if(me) me.classList.add('h');
-  return MP; }
+  MP.innerHTML=mapSvg().replace('</svg>', '<rect class="vb"/>'+'<rect class="vh"/>'.repeat(4)+'</svg>'); var me=MP.querySelector('circle[data-b="'+(window.CSS && CSS.escape ? CSS.escape(h) : h)+'"]'); if(me){ me.classList.add('h');   /* (you: ringed as well, to be found at a glance) */
+    var hr=document.createElementNS('http://www.w3.org/2000/svg', 'circle'); hr.setAttribute('class', 'hr'); ['cx', 'cy'].forEach(function(a){ hr.setAttribute(a, me.getAttribute(a)); });
+    hr.setAttribute('r', Math.max(+me.getAttribute('r')*1.9, MG.m*3.2).toFixed(0)); me.parentNode.insertBefore(hr, me.nextSibling); }
+  SZ=0; return MP; }
 /* ── where you are looking: the box (the window's view, in the map's own units: world px) ── */
-var CAM=window._altoSolarCam, PY=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0, DG=null, SUP=0, MIN=.03;
+var HOLD=0, CAM=window._altoSolarCam, PY=(typeof WORLD_PAD_TOP!=='undefined') ? WORLD_PAD_TOP : 0, DG=null, SUP=0, MIN=.03;
 function cnv(){ return document.getElementById('canvas'); }
 function zm(){ return parseFloat(getComputedStyle(de).zoom)||1; }
 function vbox(){ var g=CAM && CAM.get(), c=cnv(); if(!g || !c || !c.clientWidth) return null; var w=c.clientWidth/g.scale, h=c.clientHeight/g.scale;
@@ -164,8 +171,8 @@ function drag(e){ if(!DG) return; e.stopPropagation(); var dx=e.clientX-DG.x, dy
   if(!DG.on){ if(Math.abs(dx)+Math.abs(dy)<4) return; DG.on=1; tip(null); MP.classList.add('dr'); try{ MP.setPointerCapture(DG.id); }catch(_){} }
   var b=DG.b, p=svPt(e.clientX, e.clientY);
   if(DG.m==='mv'){ var z=zm(), w=MP.offsetWidth, h=MP.offsetHeight, W=innerWidth/z, H=innerHeight/z;
-    POS={x:Math.max(0, Math.min(1, ((DG.r.left+dx)/z)/Math.max(1, W-w))), y:Math.max(0, Math.min(1, ((DG.r.top+dy)/z)/Math.max(1, H-h)))}; place(); return; }
-  if(!b || !p || !DG.p || !CAM) return;
+    POS={x:Math.max(0, Math.min(1, ((DG.r.left+dx)/z)/Math.max(1, W-w))), y:Math.max(0, Math.min(1, ((DG.r.top+dy)/z)/Math.max(1, H-h)))}; dragTo(); return; }
+  if(!b || !p || !DG.p || !CAM) return; HOLD=1;   /* (a pan or zoom from the box lets the body go: the map stays till you are done with it) */
   if(DG.m==='pan'){ CAM.set(b.x+b.w/2+p.x-DG.p.x, b.y+b.h/2-PY+p.y-DG.p.y, b.s); vbDraw(); return; }
   var E=DG.E, ex=p.x-DG.p.x, ey=p.y-DG.p.y, x0=b.x+(E.l ? ex : 0), x1=b.x+b.w+(E.r ? ex : 0), y0=b.y+(E.t ? ey : 0), y1=b.y+b.h+(E.b ? ey : 0), W2=Math.abs(x1-x0), H2=Math.abs(y1-y0);
   var s=(E.l || E.r) && (E.t || E.b) ? Math.min(b.cw/W2, b.ch/H2) : E.l || E.r ? b.cw/W2 : b.ch/H2;   /* (a corner: the bigger of the two pulls) */
@@ -173,19 +180,38 @@ function drag(e){ if(!DG) return; e.stopPropagation(); var dx=e.clientX-DG.x, dy
   var cx=E.l ? b.x+b.w-w/2 : E.r ? b.x+w/2 : b.x+b.w/2, cy=E.t ? b.y+b.h-h/2 : E.b ? b.y+h/2 : b.y+b.h/2;   /* (the far side stays put) */
   CAM.set(cx, cy-PY, s); vbDraw(); }
 function drop(){ if(!DG) return; var on=DG.on, mv=DG.m==='mv'; DG=null; MP && MP.classList.remove('dr'); if(!on) return;
-  SUP=performance.now(); if(mv) lsSet('alto-solar-map-at', JSON.stringify({x:+POS.x.toFixed(4), y:+POS.y.toFixed(4)})); }
-/* its place: kept as fractions of the room, so it stays on screen; first time, the bottom-right corner, over the corner controls */
+  SUP=performance.now(); if(mv){ SK=''; SP=null; } if(mv) lsSet('alto-solar-map-at', JSON.stringify({x:+POS.x.toFixed(4), y:+POS.y.toFixed(4)})); }
+/* its place: the biggest that fits in the free room, first where you last put it, else down the right side then the
+   left, from the bottom; never over the enlarged card, what is beside it, the nav row, Ship or the corner controls */
 var POS=(function(){ try{ var p=JSON.parse(lsGet('alto-solar-map-at')||'null'); return p && isFinite(p.x) && isFinite(p.y) ? p : null; }catch(e){ return null; } })();
-var CR=null;
-function corner(w, h, z){ var now=performance.now(), ck=[innerWidth, innerHeight, w, h, de.className].join(); if(CR && CR.k===ck && now-CR.t<1500) return CR.q; var W=innerWidth, H=innerHeight, top=H-12*z, rt=0;
-  [].forEach.call(document.querySelectorAll('body>*,#app>*'), function(el){ if(el===MP || el===TIP || el===HP || el.id==='nvo-a') return; var cs=getComputedStyle(el); if(cs.position!=='fixed' || cs.display==='none' || cs.visibility==='hidden') return;
-    var r=el.getBoundingClientRect(); if(r.width && r.height && r.width<W*.6 && r.top>H*.6 && r.right>W-(w+60)*z){ top=Math.min(top, r.top); rt=Math.max(rt, r.right); } });
-  CR={k:ck, t:now, q:[(rt || W-16*z)/z-w, top/z-10-h]}; return CR.q; }
-function place(){ if(!MP || !MP.isConnected) return; var st=MP.style;
-  if(phone()){ if(st.left) st.left=st.top=st.right=st.bottom=''; return; }
-  var z=zm(), W=innerWidth/z, H=innerHeight/z, w=MP.offsetWidth, h=MP.offsetHeight, q=POS ? [POS.x*(W-w), POS.y*(H-h)] : corner(w, h, z);
-  var l=Math.round(Math.max(4, Math.min(W-w-4, q[0])))+'px', t=Math.round(Math.max(4, Math.min(H-h-4, q[1])))+'px';
-  if(st.left!==l) st.left=l; if(st.top!==t) st.top=t; if(st.right!=='auto'){ st.right='auto'; st.bottom='auto'; } }
+var SZ=0, SP=null, SK='', SIZES=[300, 264, 232, 204, 180, 158, 138, 120, 104];
+function obst(){ var W=innerWidth, H=innerHeight, o=[];
+  function add(e, g){ var r=e && e.getBoundingClientRect(); if(!r || r.width<1 || r.height<1 || r.bottom<0 || r.top>H || r.right<0 || r.left>W) return; var cs=getComputedStyle(e);
+    if(cs.visibility==='hidden' || cs.display==='none' || +cs.opacity<.05) return; o.push([r.left-g, r.top-g, r.right+g, r.bottom+g]); }
+  [].forEach.call(document.querySelectorAll('body>*,#app>*'), function(e){ if(e===MP || e===TIP || e===HP || e.id==='canvas' || getComputedStyle(e).position!=='fixed') return;
+    var r=e.getBoundingClientRect(); if(!(r.width>W*.6 && r.height>H*.6)) add(e, 8); });
+  [].forEach.call(document.querySelectorAll('#nvo-a,#sol-ctl,#sol-craft'), function(e){ add(e, 8); });
+  [].forEach.call(document.querySelectorAll('#world .node.focused .node-card,#world .node.sol-flank .node-card,#world .node.sol-flank>.sol-lbl,#sk3d-l i'), function(e){ add(e, 14); });
+  var c=window._altoSolar3dFocus && window._altoSolar3dFocus(); if(c) o.push([c[0]-14, c[1]-14, c[2]+14, c[3]+14]);   /* (3D: the enlarged globe) */
+  return o; }
+function free(q, O){ if(q[0]<4 || q[1]<4 || q[2]>innerWidth-4 || q[3]>innerHeight-4) return false;
+  for(var i=0;i<O.length;i++){ var b=O[i]; if(q[0]<b[2] && b[0]<q[2] && q[1]<b[3] && b[1]<q[3]) return false; } return true; }
+function dims(h){ var a=(MG && MG.a) || 1.5, w=h*a; if(w>h*1.9){ w=h*1.9; h=w/a; } return [w, h]; }   /* (the map's own px: its svg) */
+function spot(){ if(!MG) return null; var z=zm(), W=innerWidth, H=innerHeight, O=obst(), m=12*z, mw=phone() ? W*.45 : 0, i, d, bw, bh, x, y;   /* (a phone: legible or not at all, MENU has it) */
+  function box(x, y){ return [x, y, x+bw, y+bh]; }
+  function sz(h){ d=dims(h); bw=(d[0]+14)*z; bh=(d[1]+14)*z; }
+  if(POS) for(i=0;i<SIZES.length;i++){ sz(SIZES[i]); if(bw<mw) break; x=POS.x*(W-bw); y=POS.y*(H-bh); if(free(box(x, y), O)) return [x/z, y/z, d]; }
+  for(i=0;i<SIZES.length;i++){ sz(SIZES[i]); if(bw<mw) break;
+    for(var c=0;c<2;c++){ x=c ? m : W-m-bw; for(y=H-m-bh; y>=m; y-=10*z) if(free(box(x, y), O)) return [x/z, y/z, d]; } }
+  return null; }
+function size(d){ var sv=MP && MP.querySelector('svg'); if(!sv || SZ===d[1]) return; SZ=d[1]; sv.style.width=d[0].toFixed(0)+'px'; sv.style.height=d[1].toFixed(0)+'px'; var r=MP.querySelector('.vb'); if(r) r._k=''; }
+function put(x, y){ var st=MP.style, l=Math.round(x)+'px', t=Math.round(y)+'px'; if(st.left!==l) st.left=l; if(st.top!==t) st.top=t; if(st.right!=='auto'){ st.right='auto'; st.bottom='auto'; } }
+/* placed once per enlarged body (and window, style), checked again every tick: moved only when something comes over it */
+function place(key){ if(!MP || !MP.isConnected) return false;
+  if(SP && SK===key){ var r=MP.getBoundingClientRect(); if(r.width && free([r.left, r.top, r.right, r.bottom], obst())) return true; }
+  SK=key; SP=spot(); if(!SP) return false; size(SP[2]); put(SP[0], SP[1]); return true; }
+function dragTo(){ var z=zm(), W=innerWidth/z, H=innerHeight/z, w=MP.offsetWidth, h=MP.offsetHeight;
+  put(Math.max(4, Math.min(W-w-4, POS.x*(W-w))), Math.max(4, Math.min(H-h-4, POS.y*(H-h)))); }
 var HP=null;
 function help(on){ if(HP){ HP.remove(); HP=null; } if(!on) return;
   HP=mk('div', 'nvo-help', 'nvo', '<b>How to move</b><br>'+KEYS.map(function(k){ return '<kbd>'+k[0]+'</kbd> '+k[1]; }).join('<br>'));
@@ -202,12 +228,25 @@ function tick(force){
   var h=A.home(); if(!h) return; var k=h+'|'+A.ov()+'|'+A.order().length+'|'+MAP; if(k!==K || force){ K=k; draw(h); if(MAP && !A.ov()) mapDraw(h); }
   if(phone()){ if(W.parentNode!==document.body) document.body.appendChild(W); }
   else if(c){ var at=cr && cr.parentNode===c ? cr : null; if(at ? W.previousElementSibling!==at : W.parentNode!==c) at ? at.after(W) : c.appendChild(W); }   /* (just right of Ship) */
-  var on=MAP && !A.ov(); if(!on){ if(MP && MP.isConnected) MP.remove(); tip(null); }
-  else { if(!MP) mapDraw(h); if(!MP.isConnected) document.body.appendChild(MP); if(!DG) place(); vbDraw(); }
+  if(!MAP){ if(MP && MP.isConnected) MP.remove(); tip(null); return; }
+  if(A.ov()){ HOLD=0; if(MP) MP.classList.remove('on', 'fit'); tip(null); return; }   /* (the whole system: it fades out) */
+  if(!MP) mapDraw(h); if(!MP.isConnected) document.body.appendChild(MP);
+  /* shown only while a body is enlarged (kept through the ride to the next one; placed again on landing) */
+  var en=enl(); if(en) HOLD=0; var was=MP.classList.contains('on'), sh=phone() && de.classList.contains('nvo-open'), fit=false;
+  if(sh){ if(MP.style.left){ var st=MP.style; st.left=st.top=st.right=st.bottom=''; } size(dims(104)); SK=''; SP=null; }
+  else if(DG) fit=true;
+  else if(HOLD && !en) fit=!!SP;
+  else if(en && !busy()) fit=place([en, innerWidth, innerHeight, de.className].join('|'));
+  else fit=was && (!!en || busy()) && !!SP;
+  MP.classList.toggle('fit', fit && phone()); MP.classList.toggle('on', sh || fit);
+  if(!(sh || fit)) tip(null); vbDraw();
 }
 setInterval(function(){ tick(); later(); }, 250); tick(true);
-(function fr(){ if(MP && MP.isConnected && !document.hidden) vbDraw(); requestAnimationFrame(fr); })();   /* (the box follows every pan and zoom: a few reads a frame, a write only when it moved) */
-addEventListener('resize', function(){ if(!DG) place(); });
+/* the box follows every pan and zoom: redrawn on the camera's own news and a scroll, one frame each, nothing at rest */
+var VQ=0; function vbSoon(){ if(VQ || !MP || !MP.isConnected) return; VQ=requestAnimationFrame(function(){ VQ=0; vbDraw(); }); }
+if(CAM && CAM.onChange) CAM.onChange(vbSoon); document.addEventListener('scroll', vbSoon, {capture:true, passive:true});
+addEventListener('resize', function(){ SK=''; });
+addEventListener('pointerdown', function(e){ if(HOLD && !(MP && MP.contains(e.target))) HOLD=0; }, true);
 addEventListener('pointermove', drag, true); ['pointerup', 'pointercancel'].forEach(function(t){ addEventListener(t, drop, true); });   /* (a drag goes on outside the map) */
 function act(b){ var n=b.getAttribute('data-n');
   if(n==='map'){ MAP=!MAP; lsSet('alto-solar-map', MAP ? '1' : '0'); tick(true); return; }

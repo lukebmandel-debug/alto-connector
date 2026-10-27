@@ -21,7 +21,7 @@ from test_solar_draw import SMALL, SMALL_LINKS, _open, browser, solar_doc  # noq
 
 
 def test_the_control_stays_small_and_the_card_is_gone():
-    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 8500   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag and place: 2026-10-26)
+    assert len(gzip.compress((NAVOPT_JS + NAVOPT_CSS).encode("utf-8"), 9)) < 9600   # (the minimap, the scoped arrows and scroll, the phone row; the minimap's box, drag, free-room placement: 2026-10-26)
     for gone in (r"nvo-[bcd](?![\w-])", "nvo-pick", "data-nav", "Same level:", "Inside:", r"\.nv-r", r"\.nv-hd"):
         assert not re.search(gone, NAVOPT_JS + NAVOPT_CSS), gone
 
@@ -140,8 +140,6 @@ def test_the_minimap_names_what_you_point_at(browser, page):
     pg.evaluate("() => localStorage.removeItem('alto-solar-map')")
     _at(pg, style="chart")
     pg.wait_for_selector("#nvo-map", state="visible")
-    r = pg.evaluate("() => { var m=document.getElementById('nvo-map').getBoundingClientRect(); return [m.height, m.right, innerWidth]; }")
-    assert r[0] <= 130 and r[1] > r[2] - 80, r                                     # small, in the bottom-right corner
     to = "u1-p3"
     c = pg.evaluate("id => { var e=document.querySelector('#nvo-map circle[data-b=\"'+id+'\"]').getBoundingClientRect(); return [e.left+e.width/2, e.top+e.height/2]; }", to)
     pg.mouse.move(c[0], c[1])
@@ -210,16 +208,38 @@ def _box_is_the_view(v, tol=2.5):
     assert all(abs(a - b) <= tol * max(1, 1 / v["s"]) for a, b in zip(got, v["want"])), v
 
 
+CLEAR = """() => { var m=document.getElementById('nvo-map').getBoundingClientRect(), bad=[];
+  document.querySelectorAll('#world .node.focused .node-card,#world .node.sol-flank .node-card,#world .node.sol-flank>.sol-lbl,#sk3d-l i,#nvo-a,#sol-ctl,#sol-craft,#search-btn,#info-btn,#mode-toggle,#alto-edit-pill,#hamburger-tab').forEach(function(e){
+    var r=e.getBoundingClientRect(), cs=getComputedStyle(e); if(!r.width || cs.visibility==='hidden' || cs.display==='none') return;
+    if(m.left<r.right && r.left<m.right && m.top<r.bottom && r.top<m.bottom) bad.push(e.id || e.className); });
+  return {bad:bad, w:m.width, h:m.height, in:m.left>=0 && m.top>=0 && m.right<=innerWidth && m.bottom<=innerHeight}; }"""
+
+
 @pytest.mark.parametrize("style", ["system", "chart", "retro", "3d"])
-def test_the_minimap_starts_in_the_bottom_right_corner_clear_of_the_controls(browser, page, style):
-    pg, errs = _map(browser, page, style)
-    m = pg.evaluate(RECT, "#nvo-map")
-    vw = pg.evaluate("() => [innerWidth, innerHeight]")
-    assert m["r"] > vw[0] - 60 and m["b"] > vw[1] - 260, (m, vw)                  # the bottom-right corner
-    for sel in ("#nvo-a", "#sol-ctl", "#search-btn", "#info-btn", "#mode-toggle", "#alto-edit-pill"):
-        o = pg.evaluate(RECT, sel)
-        if o and o["w"]:
-            assert m["b"] <= o["t"] or m["r"] <= o["l"] or m["l"] >= o["r"] or m["t"] >= o["b"], (sel, m, o)   # clear of the bar and the corner controls
+def test_the_minimap_shows_only_with_a_body_enlarged_big_and_clear(browser, page, style):
+    """Luke, 2026-10-26: "Minimap only shows up when nodes are enlarged, and it should be big enough that you can
+    realistically see where you are in the entire system page, without obstructing other elements of the page"."""
+    pg, errs = _open(browser, page, reduced=True, wait=1400)
+    pg.evaluate("() => { localStorage.removeItem('alto-solar-map'); localStorage.removeItem('alto-solar-map-at'); }")
+    pg.evaluate("s => window._altoSolarStyles.set(s)", style)
+    pg.wait_for_timeout(600)
+    assert not pg.is_visible("#nvo-map")                                            # nothing enlarged: no minimap
+    _at(pg, style=style)
+    pg.wait_for_timeout(500)
+    assert pg.is_visible("#nvo-map")                                                # enlarged: it fades in
+    c = pg.evaluate(CLEAR)
+    assert c["in"] and not c["bad"], c                                              # over nothing: the card, beside it, the bar, the corner
+    assert c["h"] >= 200 and c["w"] >= 200, c                                       # big enough to see the whole system
+    assert pg.evaluate("() => !!document.querySelector('#nvo-map circle.h') && !!document.querySelector('#nvo-map circle.hr')")   # you, ringed
+    pg.keyboard.press("o")                                                          # the whole system: it fades out
+    pg.wait_for_timeout(700)
+    assert not pg.is_visible("#nvo-map")
+    pg.keyboard.press("Escape")
+    pg.evaluate("id => window.enterFocus(id)", AT)
+    _arrive(pg, AT)
+    pg.evaluate("() => window.exitFocus()")                                          # let go: it fades out
+    pg.wait_for_timeout(700)
+    assert not pg.is_visible("#nvo-map")
     pg.context.close()
     assert not errs, errs
 
@@ -230,10 +250,13 @@ def test_the_minimap_moves_anywhere_and_keeps_its_place(browser, page):
     x, y = m["l"] + 6, m["t"] + 4                                                   # its frame (not the box, not a body)
     pg.mouse.move(x, y)
     pg.mouse.down()
-    pg.mouse.move(x - 500, y - 300, steps=8)
+    tx, ty = 30 - m["l"], 860 - m["b"]                                             # to the bottom-left, over the bar: free room
+    pg.mouse.move(x + tx, y + ty, steps=8)
     pg.mouse.up()
+    pg.wait_for_timeout(400)
     n = pg.evaluate(RECT, "#nvo-map")
-    assert abs((m["l"] - n["l"]) - 500) < 6 and abs((m["t"] - n["t"]) - 300) < 6, (m, n)
+    assert abs(n["l"] - m["l"] - tx) < 6 and abs(n["t"] - m["t"] - ty) < 6, (m, n)
+    assert not pg.evaluate(CLEAR)["bad"]
     assert pg.evaluate("() => window._focusedNodeId") == AT                        # a drag is not a click: nothing went anywhere
     kept = pg.evaluate("() => JSON.parse(localStorage.getItem('alto-solar-map-at'))")
     assert 0 < kept["x"] < 1 and 0 < kept["y"] < 1, kept
@@ -270,9 +293,7 @@ def test_the_box_is_what_the_window_shows_live(browser, page, style):
 
 
 def test_dragging_the_box_pans_and_pulling_it_zooms(browser, page):
-    pg, errs = _map(browser, page)
-    pg.evaluate("() => window._altoSolarCam.set(window._altoSolarCam.get().cx, window._altoSolarCam.get().cy, .5)")
-    pg.wait_for_timeout(450)
+    pg, errs = _map(browser, page)                                                 # (from an enlarged body, where the map is)
     v0 = pg.evaluate(VIEW)
     b = pg.evaluate(RECT, "#nvo-map .vb")
     cx, cy = b["l"] + b["w"] / 2, b["t"] + b["h"] / 2
@@ -284,6 +305,7 @@ def test_dragging_the_box_pans_and_pulling_it_zooms(browser, page):
     v1 = pg.evaluate(VIEW)
     assert v1["cx"] < v0["cx"] - 20 and v1["cy"] > v0["cy"] + 10 and abs(v1["s"] - v0["s"]) < .01, (v0, v1)
     _box_is_the_view(v1)
+    assert pg.is_visible("#nvo-map")                                                # the body let go, the map stays while in use
     b = pg.evaluate(RECT, "#nvo-map .vb")
     pg.mouse.move(b["l"], b["t"])                                                   # its top-left corner, pulled out: bigger box
     pg.mouse.down()
