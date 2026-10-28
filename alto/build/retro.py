@@ -37,12 +37,9 @@ FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the 
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
   X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:4px;right:4px;top:3px;bottom:calc(3px + env(safe-area-inset-bottom,0px));}
   X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
-  X #sk-frame i{position:absolute;width:46px;height:46px;border:0 solid #d9ae55;opacity:.8;}
-  X #sk-frame i:nth-child(1){left:0;top:0;border-width:1.5px 0 0 1.5px;} X #sk-frame i:nth-child(2){right:0;top:0;border-width:1.5px 1.5px 0 0;}
-  X #sk-frame i:nth-child(3){left:0;bottom:0;border-width:0 0 1.5px 1.5px;} X #sk-frame i:nth-child(4){right:0;bottom:0;border-width:0 1.5px 1.5px 0;}
-  X #sk-frame i::after{content:'';position:absolute;width:7px;height:7px;background:#d9ae55;transform:rotate(45deg);}
-  X #sk-frame i:nth-child(1)::after{left:8px;top:8px;} X #sk-frame i:nth-child(2)::after{right:8px;top:8px;}
-  X #sk-frame i:nth-child(3)::after{left:8px;bottom:8px;} X #sk-frame i:nth-child(4)::after{right:8px;bottom:8px;}
+  /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page": a hairline gold border, no corner marks) */
+  X #sk-frame{box-sizing:border-box;border:1.5px solid rgba(217,174,85,.8);}
+  X #sk-frame i{display:none !important;}
   X #sk-frame b{position:absolute;left:50%;top:31px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
     background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
   X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}
@@ -113,8 +110,8 @@ CHROME_CSS = r"""
      place between the clef and the wordmark (Luke, 2026-10-22: "put it where Torts -- System would be, then eliminate that in retro
      mode because we already have the title at the bottom of the page"); a detail page, a narrow window and the horizontal timeline have
      no cartouche: there the name stays and the crown goes back to the very top */
-  @media (min-width:901px){ X:not(.detail-open):not(.mobile):not(.alto-lanes) #title-bar #title-text:not(#_){visibility:hidden !important;} }
-  @media (max-width:900px){ X #sk-frame b:not(#_){top:0;} }
+  /* (Luke, 2026-10-28: "don't try to squeeze in the title there underneath it. It kind of mushes it together": the crown stands alone, at every width and on the horizontal timeline too) */
+  X:not(.detail-open):not(.mobile) #title-bar #title-text:not(#_){visibility:hidden !important;}
   /* the rest of a detail page (Luke, 2026-10-22: "detail pages are the worst"): its back button, the page's chips, the study blocks' buttons */
   X #desk-back:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
@@ -169,8 +166,7 @@ BOARD_CSS = r"""
   X:not(.alto-stars) #sk-mark{bottom:28px;font-size:12px;letter-spacing:.5em;padding:9px 4px 9px 16px;background:#000;font-family:var(--rt-f);text-transform:uppercase;}
   X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
   X.alto-lanes #sk-mark{display:none !important;}
-  X.alto-lanes #sk-frame b:not(#_){top:0;}   /* (the horizontal timeline has no cartouche: its name stays, the crown above it) */
-  @media (max-width:900px){ X #sk-mark{display:none !important;} X #title-text:not(#_){letter-spacing:.22em;font-size:13px;} }   /* (a narrow window: the name fits, no cartouche) */
+  @media (max-width:900px){ X #sk-mark{display:none !important;} }   /* (a narrow window: no cartouche) */
   X:is(.bldg-open,.wpal-open) #sk-frame i{display:none;}  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
