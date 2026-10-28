@@ -26,6 +26,7 @@ from .solar_draw import SOLAR_CSS, SOLAR_JS
 from .solar_stars import STARS_CSS, STARS_JS
 from .solar_craft import CRAFT_CSS, CRAFT_JS
 from .solar_fly import FLY_CSS, FLY_JS
+from .solar_hole import HOLE_CSS, HOLE_JS
 from .solar_navopt import NAVOPT_CSS, NAVOPT_JS
 from .solar_3d import SOLAR3D_CSS, SOLAR3D_JS
 from .pan2d import PAN2D_JS, SOLAR_PAN2D_JS
@@ -1557,7 +1558,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
         # look's graphics (solar_stars.py; off in the System look); then
         # the flights between bodies (solar_fly.py: Star chart look only).
         # Then two-finger scrolling on both axes at natural size (pan2d.py).
-        orders += SOLAR_JS + CRAFT_JS + STARS_JS + FLY_JS + SOLAR3D_JS + PAN2D_JS + SOLAR_PAN2D_JS + NAVOPT_JS   # (+ the nav options to try: solar_navopt.py)
+        orders += SOLAR_JS + CRAFT_JS + STARS_JS + FLY_JS + SOLAR3D_JS + HOLE_JS + PAN2D_JS + SOLAR_PAN2D_JS + NAVOPT_JS   # (+ the nav options to try: solar_navopt.py)
     if index_axes:
         orders += ((palace_index_glue() if b.mode == "palace" and not (building_view(b) or world_view(b)) else dx.AXIS_INDEX_GLUE)
                    + dx.axes_config(b, index_axes))
@@ -1608,7 +1609,7 @@ def timeline_blocks(b: Brief, nodes: list[Node], positions, heights,
     if b.mode == "lanes":
         nav_char_css += LANES_CSS
     if solar_plan_:
-        nav_char_css += SOLAR_CSS + STARS_CSS + FLY_CSS + SOLAR3D_CSS + CRAFT_CSS + NAVOPT_CSS
+        nav_char_css += SOLAR_CSS + STARS_CSS + FLY_CSS + SOLAR3D_CSS + HOLE_CSS + CRAFT_CSS + NAVOPT_CSS
     if b.mode == "palace" and not (building_view(b) or world_view(b)):
         nav_char_css += palace_css(b) + DOORS_CSS
     # Doctrine/entity detail-page auto-body (member roster + relation rows).
