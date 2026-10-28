@@ -127,6 +127,23 @@ if(!window._altoBinClose){
 """
 
 
+_DASH = r".replace(/ ([\u2014\u2013-]) /g, '\u00a0$1 ')"
+TITLE_OLD = (
+    ".tile-title').textContent = c.title;",
+    ".tile-title').textContent = it.heading || it.title || 'Shared timeline';",
+    ".tile-title').textContent = heading;",
+)
+
+
+def swap_titles(template: str) -> str:
+    """Bind a dash to the word before it so a title never wraps onto a lone dash."""
+    for old in TITLE_OLD:
+        assert template.count(old) == 1, old
+        body = old.split("textContent = ")[1].rstrip(";")
+        template = template.replace(old, old.split("textContent = ")[0] + "textContent = String(" + body + ")" + _DASH + ";")
+    return template
+
+
 def swap_bin(template: str) -> str:
     """The template's drawBin (a folded 'Recently deleted' group under the projects) becomes the corner bin's."""
     a = template.index(BIN_START)

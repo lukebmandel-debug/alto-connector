@@ -367,7 +367,7 @@ HOME_CSS = r"""
   X.alto-home .bin-row:not(#_){background:#070a0f;border:1px solid rgba(217,174,85,.5);border-radius:0;}
   X.alto-home .bin-row button{border-radius:0;border-color:rgba(217,174,85,.6);color:#d9ae55;background:#000;}
   /* the corner controls: square chips with a gold rim (the light / dark button is gone: Retro is always dark) */
-  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
+  X.alto-home :is(#search-btn,#info-btn,#account-btn,#bin-btn,#download-all,#bg-toggle,#drawer-scene-btn):not(#_){border-radius:0 !important;background:#000 !important;border:1.5px solid #d9ae55 !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;color:#d9ae55;}
   X.alto-home :is(#search-btn,#info-btn):not(.expanded) :is(#search-glyph,#info-icon){color:#d9ae55;}
   X.alto-home #search-btn.expanded{background:#000 !important;}
   X.alto-home #info-btn.expanded:not(#_){background:#05070a !important;}

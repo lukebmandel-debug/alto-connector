@@ -28,3 +28,7 @@ def test_the_dead_switch_is_gone_and_retro_has_no_moon_or_cartouche_on_the_homep
     assert "html.alto-retro.alto-home #sk-mark{display:none" in c
     assert "html.alto-retro #mode-toggle{display:none" in c
     assert "classList.add('alto-home')" in _page()
+
+
+def test_titles_bind_the_dash_to_the_word_before_it():
+    assert "u00a0$1" in pages.build_home([])
