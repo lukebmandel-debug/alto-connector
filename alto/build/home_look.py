@@ -50,7 +50,7 @@ html.dark .course-tile .unit-strip{ filter:brightness(.9); }
   .project-slab{ padding:30px 22px 32px; }
   #projects-wrap{ padding-left:16px; padding-right:16px; }
   .course-tile .tile-body{ flex:1; padding:12px 14px 0; }
-  .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:break-word; }
+  .course-tile .tile-title{ font-size:16px; line-height:1.2; margin-bottom:6px; overflow-wrap:normal; }
   /* the card's ⋯ sits beside the first line only: a float keeps that line short and lets the rest run full width */
   .course-tile.has-more .tile-title{ padding-right:0; }
   .course-tile.has-more .tile-title::before{ content:''; float:right; width:34px; height:22px; }
