@@ -544,7 +544,8 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   html.alto-editing:not(.mobile) #canvas .node-card .node-desc:hover,html.alto-editing:not(.mobile) #canvas .phase-label-float:hover,html.alto-editing:not(.mobile) #title-text:hover{
     background-color:color-mix(in srgb,var(--accent,#a78bfa) 9%,transparent);}
   .aed-ph{border-radius:6px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted) 55%,transparent);font-style:normal;font-size:.92em;}
-  html.mobile #alto-edit-exit{height:44px;}
+  :where(html.alto-editing.mobile #canvas .node-card),:where(html.alto-editing.mobile #canvas .node:hover .node-card){outline-width:1.5px;outline-offset:2px;}   /* (cards run nearly edge to edge on a phone) */
+  html.mobile #alto-edit-exit{height:44px;bottom:calc(74px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px);box-sizing:border-box;}
   @media (prefers-reduced-motion:reduce){#alto-edit-rail,#alto-edit-exit,#alto-edit-exit .ee-dot,html.alto-editing .aed-uc{animation:none !important;}}
 </style>"""
 
