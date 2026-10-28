@@ -234,7 +234,7 @@ FORMAT_CSS = r"""
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.16em;}
   X .lanes-flag:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;max-width:34ch;}
-  X .lanes-box:not(#_){background:none !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+  X .lanes-box:not(#_){background:rgba(0,0,0,.8) !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
     font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
   X .lanes-box .lb-g svg{stroke:#d9ae55;}
   X #lanes-svg .ln-bstub{stroke:#d9ae55 !important;opacity:.55;}

@@ -688,8 +688,8 @@ LANES_CSS = KEY_CSS + """
   .lanes-flaglist div{padding:3px 0;} .lanes-flaglist b{display:block;font-weight:700;} .lanes-flaglist span{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
   /* box tags (brief.box_tags): an annotation, like a caption on a map — flat, dashed, no number, no shadow, no lift, never a control */
   .lanes-box{position:absolute;z-index:7;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;box-sizing:border-box;min-width:72px;max-width:220px;
-    font-size:13px;font-weight:400;line-height:1.25;color:var(--muted);padding:4px 10px;border-radius:6px;cursor:default;pointer-events:auto;
-    border:1px dashed color-mix(in srgb,var(--text) 40%,transparent);background:color-mix(in srgb,var(--text) 6%,transparent);}
+    font-size:13px;font-weight:400;line-height:1.25;color:color-mix(in srgb,var(--text) 75%,transparent);padding:4px 10px;border-radius:6px;cursor:default;pointer-events:auto;
+    border:1px dashed color-mix(in srgb,var(--text) 40%,transparent);background:color-mix(in srgb,var(--bg,var(--surface)) 80%,transparent);}   /* a flat backing: a line never runs through the words */
   .lanes-box .lb-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
   .lanes-box .lb-g{flex:none;display:inline-flex;width:14px;height:14px;opacity:.8;}
   .lanes-box .lb-g svg{width:14px;height:14px;display:block;}

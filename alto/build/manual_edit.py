@@ -1226,7 +1226,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
-    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bt' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
+    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bx' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
       return {kind:'plain', get:function(){ return n[p[2]] || ''; }, set:function(v){
@@ -2040,7 +2040,7 @@ MANUAL_JS = r"""<script id="alto-manual">
           if(!v){ if(i >= 0) LN.flashbacks.splice(i, 1); } else if(i >= 0) LN.flashbacks[i].label = v.label || ''; else LN.flashbacks.push(fspec(v));
           lnSync(); }};
     }
-    if(kind === 'bt'){                                   // a box tag, whole: {id, label, glyph, on, at, node, side} or null
+    if(kind === 'bx'){                                   // a box tag, whole: {id, label, glyph, on, at, node, side} or null
       var b0 = null; (LN0.bt || []).forEach(function(q){ if(q.id === id) b0 = q; });
       return {kind:'card', sig:function(){ return btSpec(b0); }, get:function(){ return btSpec(btOf(id)); },
         set:function(v){ LN.bt = LN.bt || []; var i = -1; LN.bt.forEach(function(q, j){ if(q.id === id) i = j; });
@@ -2200,7 +2200,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(!T || !T.dated || !f){ toast('This timeline has no dated events to stand ' + (d.box ? 'a box' : 'a flag') + ' on — set its place to an event from its menu.'); relayoutSoon(); return; }
     var t = T.t(d.left + dx), step = T.snap, snapped = Math.round(t / step) * step;
     var span = (!d.box && f.to && f.t2 != null && f.t != null) ? f.t2 - f.t : 0, a = whenOf(snapped, T), z = span > 0 ? whenOf(snapped + span, T) : '';
-    var ok = d.box ? change('bt|' + d.id, Object.assign({}, btSpec(f), {at: a, node: ''})) : change('tf|' + d.id, Object.assign({}, tfSpec(f), {at: a, to: z, node: ''}));
+    var ok = d.box ? change('bx|' + d.id, Object.assign({}, btSpec(f), {at: a, node: ''})) : change('tf|' + d.id, Object.assign({}, tfSpec(f), {at: a, to: z, node: ''}));
     if(!ok) relayoutSoon();
     else toast('Moved to ' + a + (z ? ' – ' + z : '') + ' — ⌘Z puts it back.');
   }, true);
@@ -2231,12 +2231,12 @@ MANUAL_JS = r"""<script id="alto-manual">
   function addBox(at){
     askForm(at || document.body, 'New box tag', boxFields({label: '', on: 'axis', at: '', node: ''}), 'Add', function(v){
       var bid = 'bt-' + Math.random().toString(36).slice(2, 7), spec = boxFromVals(v, {id: bid, glyph: '', side: ''});
-      if(change('bt|' + bid, btSpec(spec))) toast('“' + v.label + '” is on the board — a label only, no page. Drag it along, or click it for more. ⌘Z puts it back.');
+      if(change('bx|' + bid, btSpec(spec))) toast('“' + v.label + '” is on the board — a label only, no page. Drag it along, or click it for more. ⌘Z puts it back.');
     }, boxCheck);
   }
   function boxMenu(bid){
     var b = btOf(bid); if(!b) return;
-    var put = function(ch, msg){ if(change('bt|' + bid, Object.assign({}, btSpec(b), ch))) toast(msg + ' — ⌘Z puts it back.'); };
+    var put = function(ch, msg){ if(change('bx|' + bid, Object.assign({}, btSpec(b), ch))) toast(msg + ' — ⌘Z puts it back.'); };
     var A = [
       {t: 'Rename it…', fn: function(){ askName(boxEl(bid) || document.body, 'Name this box', b.label, function(v){
         v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== b.label) put({label: v}, 'Renamed'); }); }},
@@ -2244,7 +2244,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         fn: function(){ askForm(boxEl(bid) || document.body, 'Where it sits', boxFields(b), 'Save', function(v){
           var o = boxFromVals(v, b); put({label: b.label, on: o.on, at: o.at, node: o.node}, 'Moved'); }, boxCheck); }}];
     if(b.on !== 'axis') A.push({t: 'Put it ' + (b.side === 'below' ? 'above' : 'below') + ' its line', fn: function(){ put({side: b.side === 'below' ? 'above' : 'below'}, 'Moved'); }});
-    A.push({t: 'Remove this box', cls: 'aa-danger', fn: function(){ if(change('bt|' + bid, null)) toast('Box removed — ⌘Z puts it back.'); }});
+    A.push({t: 'Remove this box', cls: 'aa-danger', fn: function(){ if(change('bx|' + bid, null)) toast('Box removed — ⌘Z puts it back.'); }});
     ask('The box “' + b.label + '”', 'It is only a label: no page, no step. Drag it along the axis to move it.', A);
   }
   var LINE_COLORS = ['#e07a5f', '#3d9a8b', '#8a6fd1', '#d4a017', '#4a90d9', '#c2577a', '#5a9e4b', '#b8763e'];

@@ -1,6 +1,6 @@
 """Box tags on the horizontal timeline (brief.box_tags, lanes.py): plain dashed labelled boxes on the
 board that are not nodes — no detail page, no step, no click-through. Set in the brief (set_lines /
-create_timeline) and in manual edit mode (bt| ops)."""
+create_timeline) and in manual edit mode (bx| ops)."""
 import copy
 import re
 
@@ -109,7 +109,7 @@ def test_set_lines_sets_and_clears_box_tags(tmp_path):
         srv.set_store(None)
 
 
-# ── manual edit mode: bt| ops fold into the brief ────────────────────────────
+# ── manual edit mode: bx| ops fold into the brief ────────────────────────────
 
 def _full(b):
     z = norm_box(dict(b))
@@ -121,9 +121,9 @@ def test_box_ops_fold_add_move_relabel_remove():
     st = _store(_with(_boxes()))
     new = {"id": "fest", "label": "Festival", "glyph": "", "on": "axis", "at": "1890-07", "node": "", "side": ""}
     st.edits = {"v": 1, "ops": {
-        "bt|fest": {"b": None, "v": new, "t": 1},
-        "bt|siege": {"b": _full(BOXES[0]), "v": dict(_full(BOXES[0]), label="Siege", at="1890-10"), "t": 2},
-        "bt|ada": {"b": _full(BOXES[2]), "v": None, "t": 3}}}
+        "bx|fest": {"b": None, "v": new, "t": 1},
+        "bx|siege": {"b": _full(BOXES[0]), "v": dict(_full(BOXES[0]), label="Siege", at="1890-10"), "t": 2},
+        "bx|ada": {"b": _full(BOXES[2]), "v": None, "t": 3}}}
     r = fold(st, "u", "t1")
     assert not r.get("error") and not r["conflicts"], r
     bx = {b["id"]: b for b in st.doc["brief"]["box_tags"]}
@@ -136,9 +136,9 @@ def test_a_box_changed_since_is_a_conflict_and_the_last_removal_leaves_no_list()
     from alto.edits import fold
     st = _store(_with(BOXES[:1]))
     other = dict(_full(BOXES[0]), label="Something else")
-    st.edits = {"v": 1, "ops": {"bt|siege": {"b": other, "v": dict(other, label="X"), "t": 1}}}
-    assert fold(st, "u", "t1")["conflicts"] == ["bt|siege"]
-    st.edits = {"v": 1, "ops": {"bt|siege": {"b": _full(BOXES[0]), "v": None, "t": 2}}}
+    st.edits = {"v": 1, "ops": {"bx|siege": {"b": other, "v": dict(other, label="X"), "t": 1}}}
+    assert fold(st, "u", "t1")["conflicts"] == ["bx|siege"]
+    st.edits = {"v": 1, "ops": {"bx|siege": {"b": _full(BOXES[0]), "v": None, "t": 2}}}
     assert not fold(st, "u", "t1").get("error")
     assert "box_tags" not in st.doc["brief"]
 
@@ -156,7 +156,7 @@ def test_deleting_the_card_a_box_sits_beside_keeps_its_date_or_drops_it():
 def test_the_page_carries_the_boxes_and_their_looks():
     html, _ = build_timeline(*load_brief(_with(_boxes())))
     assert re.search(r'"bt":\[\{"id":"siege"', html)
-    for s in ("lanes-box", "ln-bstub", "function boxTags", "ee-box", "bt|", "lanes-bchip"):
+    for s in ("lanes-box", "ln-bstub", "function boxTags", "ee-box", "bx|", "lanes-bchip"):
         assert s in html, s
     from alto.build import retro
     assert ".lanes-box" in retro.FORMAT_CSS and ".lanes-bchip" in retro.FORMAT_CSS
@@ -288,7 +288,7 @@ def test_edit_mode_adds_moves_renames_and_removes_a_box(editing):
     assert len(ids) == 4 and any(s.endswith(":Spring thaw") for s in ids), ids
     new = next(s.split(":")[0] for s in ids if s.endswith(":Spring thaw"))
     pg.wait_for_timeout(700)
-    assert pg.evaluate(f"window.__edits.ops['bt|{new}'].v.at") == "1890-07"
+    assert pg.evaluate(f"window.__edits.ops['bx|{new}'].v.at") == "1890-07"
     # drag it along the axis
     sel = f".lanes-box[data-box='{new}']"
     pg.evaluate(f"document.querySelector(\"{sel}\").scrollIntoView({{inline: 'center'}})")
@@ -303,7 +303,8 @@ def test_edit_mode_adds_moves_renames_and_removes_a_box(editing):
     pg.mouse.up()
     pg.wait_for_timeout(800)
     assert pg.evaluate(f"window._altoLanesGeo.boxes.find(b => b.id === '{new}').x") > x0 + 100
-    assert pg.evaluate(f"window.__edits.ops['bt|{new}'].v.at") > "1890-07"
+    pg.wait_for_timeout(1500)                                               # the saved copy follows the page a moment later
+    assert pg.evaluate(f"window.__edits.ops['bx|{new}'].v.at") > "1890-07"
     # a click: its menu; rename it; undo walks back
     pg.click(sel)
     assert "The box" in pg.inner_text("#aed-ask")

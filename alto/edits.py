@@ -381,7 +381,7 @@ def _target(key, brief, by_id, conns):
     if kind == "tf" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
         return brief, p[1], "tflag"
     # a box tag of a horizontal timeline: the whole {id, label, glyph, on, at, node, side}, or None
-    if kind == "bt" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
+    if kind == "bx" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
         return brief, p[1], "boxtag"
     # who is on the page at a main-line event: the whole list of line ids
     if kind == "n" and len(p) == 3 and p[2] == "present":
