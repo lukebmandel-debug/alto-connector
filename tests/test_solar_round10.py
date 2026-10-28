@@ -547,7 +547,10 @@ def test_the_explorer_warps_between_systems_and_flies_on_impulse_within_one(brow
     """Luke (2026-10-25): "the enterprise-based ship, it should be able to go to warp speed between units or solar
     systems. But it goes at impulse speed inside a single star system." Within a system: the ordinary course (impulse,
     braking into its orbit). Between systems: off on impulse, the warp — most of the way in a moment, the craft
-    stretched, the stars streaking past — a flash as it drops out, then on impulse into its orbit; about 3 s."""
+    stretched, the stars streaking past — a flash as it drops out, then on impulse into its orbit; about 3 s. And
+    (Luke, 2026-10-28) "a little bit of start to the animation before a jump or a warp speed jump, so it doesn't just
+    look like a glitch": first a wind-up with the craft where it is — its engines spooling up, a faint glow, a light
+    stretch, a beat's pause — about 1 s more."""
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("() => { window._altoCraft.set('explorer'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(1500)
@@ -557,12 +560,16 @@ def test_the_explorer_warps_between_systems_and_flies_on_impulse_within_one(brow
     pg.wait_for_timeout(1000)
     pg.evaluate("() => window.enterFocus('u2-p1')")
     F = pg.evaluate(TRAVEL)
-    assert F and F[0]["mode"] == "warp" and F[0]["S"] <= 3.01, F[:1]
+    assert F and F[0]["mode"] == "warp" and F[0]["S"] <= 4.01, F[:1]                      # (3 s of warp + 1 s of wind-up)
     warp = [f for f in F if f["fx"]["warp"] > .9]
     assert warp and all(f["wd"] and f["sx"] > f["sy"] * 1.8 for f in warp), warp[:2]       # stretched, the stars streaking
-    assert max(f["u"] for f in F if f["x"] < .5) > .85                                      # most of the way in a moment
-    assert max(f["fl"][0] for f in F if .4 < f["x"] < .55) > .5                             # the flash as it drops out
-    assert all(not f["wd"] and abs(f["sx"] - f["sy"]) < .01 for f in F if f["x"] > .6), "impulse into its orbit"
+    wind = [f for f in F if f["x"] < .2]                                                    # the wind-up: still where it is
+    assert wind and max(f["u"] for f in wind) < .01 and all(f["op"] in (None, "1") for f in wind), wind[:2]
+    assert max(f["fx"]["wu"] for f in wind) > .9 and max(f["fx"]["ws"] for f in wind) > .2 and max(f["fl"][2] for f in wind) > .15    # engines up, a light stretch, a glow
+    assert max(f["sx"] for f in wind) > 1.1 * min(f["sx"] for f in wind) and not any(f["wd"] for f in wind)              # (stretched a little, no streaks yet)
+    assert max(f["u"] for f in F if f["x"] < .6) > .85                                      # most of the way in a moment
+    assert max(f["fl"][0] for f in F if .5 < f["x"] < .66) > .5                             # the flash as it drops out
+    assert all(not f["wd"] and abs(f["sx"] - f["sy"]) < .01 for f in F if f["x"] > .72), "impulse into its orbit"
     pg.wait_for_timeout(900)
     assert pg.evaluate("() => window._altoCraft.orbiting()") == "u2-p1"
     pg.context.close()
@@ -573,19 +580,28 @@ def test_the_halo_jumps_in_a_flash_of_light(browser, page):
     """Luke (2026-10-25): "the Halo ship, try to make that travel like a ship in Foundation would, how it just sort of
     pops out at the location ... goes into a flash of light and comes out of a flash of light." A flash where it is and
     it is gone (no trail, no course drawn), a flash where it comes out and it is there easing into its orbit; in Retro
-    too, and in Realistic 3D."""
+    too, and in Realistic 3D. Only between systems (Luke, 2026-10-28: "warp speed and ship jumping happens only when
+    you're going between solar systems, not within solar systems": inside one it flies as it is, no braking burn), and
+    after a wind-up: a glow growing round it, then light gathering in on it in a flash."""
     pg, errs = _open(browser, page, wait=1400)
     pg.evaluate("() => { window._altoCraft.set('halo'); window._altoFlyOff=false; window._altoSolarLook.set('stars'); window._altoSolarStyle.set('classic'); window.enterFocus('u1-p1'); }")
     pg.wait_for_timeout(1500)
+    pg.evaluate("() => window.enterFocus('u1-p2')")                                          # within a system: no jump, no flash, no braking burn
+    F = pg.evaluate(TRAVEL)
+    assert F and all(f["mode"] is None and max(f["fl"]) < .01 and f["path"] != "none" for f in F), F[:2]
+    pg.wait_for_timeout(1000)
     for sty, to in (("classic", "u2-p1"), ("retro", "u1-p2")):
         pg.evaluate("s => window._altoSolarStyle.set(s)", sty); pg.wait_for_timeout(300)
         pg.evaluate("i => window.enterFocus(i)", to)
         F = pg.evaluate(TRAVEL)
-        assert F and F[0]["mode"] == "jump" and F[0]["S"] <= 1.51 and all(f["path"] == "none" for f in F), (sty, F[:1])
-        gone = [f for f in F if .3 < f["x"] < .65]
+        assert F and F[0]["mode"] == "jump" and F[0]["S"] <= 2.51 and all(f["path"] == "none" for f in F), (sty, F[:1])
+        wind = [f for f in F if f["x"] < .3]                                                  # the wind-up: where it is, a glow gathering in
+        assert wind and max(f["u"] for f in wind) < .01 and all(f["op"] == "1" for f in wind), (sty, wind[:2])
+        assert max(f["fl"][2] for f in wind) > .6 and max(f["fx"]["gr"] for f in wind) > 60 and min(f["fx"]["gr"] for f in wind if f["fl"][2] > .5) < 40, sty
+        gone = [f for f in F if .62 < f["x"] < .78]
         assert gone and all(f["op"] == "0" and f["trail"].count("L") == 0 for f in gone), (sty, gone[:2])   # no transit seen
-        assert max(f["fl"][0] for f in F if f["x"] < .25) > .6 and max(f["fl"][1] for f in F if f["x"] > .7) > .6, sty   # out in a flash, in in a flash
-        assert all(f["op"] == "1" for f in F if f["x"] > .93), sty                                                       # there, into its orbit
+        assert max(f["fl"][0] for f in F if .4 < f["x"] < .56) > .6 and max(f["fl"][1] for f in F if f["x"] > .85) > .6, sty   # out in a flash, in in a flash
+        assert all(f["op"] == "1" for f in F if f["x"] > .97), sty                                                       # there, into its orbit
         pg.wait_for_timeout(900)
         assert pg.evaluate("() => window._altoCraft.orbiting()") == to, sty
     pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
@@ -593,7 +609,7 @@ def test_the_halo_jumps_in_a_flash_of_light(browser, page):
         pg.context.close(); pytest.skip("no WebGL in this browser")
     pg.evaluate("() => window.enterFocus('u1-p1')")
     F = [f for f in pg.evaluate(TRAVEL) if f["vis3"] is not None]
-    assert F and min(f["vis3"] for f in F if .3 < f["x"] < .65) < .01 and max(f["vis3"] for f in F if f["x"] > .93) > .99, F[:3]
+    assert F and min(f["vis3"] for f in F if .62 < f["x"] < .78) < .01 and max(f["vis3"] for f in F if f["x"] > .97) > .99, F[:3]
     pg.context.close()
     assert not errs, errs
 

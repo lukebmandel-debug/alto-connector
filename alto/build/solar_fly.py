@@ -524,7 +524,7 @@ function layer(){
     el('circle', {r:9, 'class':'fly-halo'}, ship);
     el('path', {d:'M7 0 L-5 -4.6 L-2.6 0 L-5 4.6 Z', 'class':'fly-hull'}, ship);
     PR=el('g', {'class':'fly-ship'}, ship); WP=el('path', {'class':'fly-warp'}, ship);
-    FLS=[el('circle', {r:1, 'class':'fly-flash', fill:'url(#sol-fly-flash)', opacity:0}, gp), el('circle', {r:1, 'class':'fly-flash', fill:'url(#sol-fly-flash)', opacity:0}, gp)];
+    FLS=[0, 0, 0].map(function(){ return el('circle', {r:1, 'class':'fly-flash', fill:'url(#sol-fly-flash)', opacity:0}, gp); });
     w.appendChild(svg);
   }
   /* the chosen craft (solar_craft.py), small and clear; Retro's a little bigger */
@@ -548,7 +548,8 @@ function draw(p, v, s, now, th){
   /* the craft every frame: its nose on the way's tangent, banking a little; braking on the way in, its engines firing
      (a rocket turned tail first: the way it turns, round the way its orbit will go) */
   var dt=FL.lt ? Math.min(.05, (now-FL.lt)/1000) : 0, st=FL.st, e=A.engines ? A.engines(th) : {m:0, r:0, f:0}; FL.lt=now;
-  var fx=FL.fx || {vis:1, warp:0, fa:0, fb:0, fw:0};
+  var fx=FL.fx || {vis:1, warp:0, fa:0, fb:0, fw:0}, sx=Math.max(fx.warp, fx.ws||0);
+  if(fx.wu>.02) e.m=Math.max(e.m, fx.wu);                 /* (winding up: the engines spool up before the warp or the jump) */
   A.steer(st, v, dt); if(fx.warp>.02){ st.hs=st.ht=Math.atan2(v[1], v[0]); st.bk=0; }      /* (at warp: on its way exactly, whatever it turns between frames) */
   ship.setAttribute('transform', A.xf(p, st.hs+(FL.tr.sg||1)*Math.PI*e.f, st.bk*(1-e.f), k));
   var pr=PR; if(A.burn && pr && (e.m>.02 || e.r>.02 || FL.bu)){ FL.bu=e.m>.02 || e.r>.02; A.burn(pr, e, now); }
@@ -557,11 +558,11 @@ function draw(p, v, s, now, th){
   var fl=FLS, f2=function(v){ return Math.round(v*100)/100; };
   if(fx.vis<.99) tr.length=0;
   if(FL.vis!==fx.vis){ FL.vis=fx.vis; ship.setAttribute('opacity', f2(fx.vis)); trl.setAttribute('opacity', f2(fx.vis)); }
-  if(fx.warp>.001 || FL.wp){ FL.wp=fx.warp>.001; var kk=shipK(); pr.setAttribute('transform', FL.wp ? 'scale('+f2(kk*(1+1.2*fx.warp))+' '+f2(kk*(1-.25*fx.warp))+')' : 'scale('+kk+')');
+  if(sx>.001 || FL.wp){ FL.wp=sx>.001; var kk=shipK(); pr.setAttribute('transform', FL.wp ? 'scale('+f2(kk*(1+1.2*sx))+' '+f2(kk*(1-.25*sx))+')' : 'scale('+kk+')');
     WP.setAttribute('d', A.streaks ? A.streaks(fx.warp, now) : ''); }
-  [[fx.fa ? FL.pa : p, Math.max(fx.fa, fx.fw)], [FL.pb, fx.fb]].forEach(function(q, j){ var c=fl[j]; if(!c) return;
+  [[fx.fa ? FL.pa : p, Math.max(fx.fa, fx.fw)], [FL.pb, fx.fb], [fx.cg>.01 ? p : null, fx.cg, fx.gr]].forEach(function(q, j){ var c=fl[j]; if(!c) return;
     if(q[1]<.01 || !q[0]){ if(c._on){ c.setAttribute('opacity', '0'); c._on=false; } return; }
-    c.setAttribute('cx', f1(q[0][0])); c.setAttribute('cy', f1(q[0][1])); c.setAttribute('r', f1((16+40*q[1])/s)); c.setAttribute('opacity', f2(q[1])); c._on=true; });
+    c.setAttribute('cx', f1(q[0][0])); c.setAttribute('cy', f1(q[0][1])); c.setAttribute('r', f1((q[2] || 16+40*q[1])/s)); c.setAttribute('opacity', f2(q[1])); c._on=true; });
   if(cr.spin){ var sp=ship.querySelector('.sh-spin'); if(sp) sp.setAttribute('transform', 'rotate('+f1(now/1000*cr.spin*57.3%360)+')'); }
   if(Math.abs(s-lastS)>lastS*.01){ lastS=s;                /* the lines keep their width on screen as the board scales */
     pth.setAttribute('stroke-width', f1(1.6/s*10)/10); pth.setAttribute('stroke-dasharray', rt ? f1(1/s)+' '+f1(7/s) : f1(4/s)+' '+f1(8/s));
@@ -594,7 +595,7 @@ function fly(from, to, o){
   /* the craft's own travel: a warp between systems (the Explorer), a jump (the Halo): its own seconds on the screen,
      the orbit after it at the pace it ends on */
   var tv=A.travel && A.travel(craft().id, !!(W.B[from] && W.B[to] && W.B[from].si!==W.B[to].si));
-  if(tv){ FL.tv=tv; FL.S=tv.S(R.D*rk); FL.k=FL.S/(R.D*tv.dmap(1)); FL.pa=tr.at(0); FL.pb=tv.at ? tr.at(R.D*tv.map(tv.at)) : null; FL.fx=tv.fx(0); window._altoFlyMs=Math.round(FL.S*1000)+K.LAND_MS; }
+  if(tv){ FL.tv=tv; FL.S=tv.S(R.D*rk); FL.k=FL.S/(R.D*tv.dmap(1)); FL.pa=tr.at(0); FL.pb=tv.atw!=null ? tr.at(R.D*tv.atw) : null; FL.fx=tv.fx(0); window._altoFlyMs=Math.round(FL.S*1000)+K.LAND_MS; }
   layer(); route(R); pth.style.display=tv && tv.mode==='jump' ? 'none' : '';
   window._altoSolarDrive(F.clock(R, 0));
   de.classList.add('sol-flying');
