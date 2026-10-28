@@ -94,6 +94,9 @@ html.phone-whole :is(input,textarea,select):not(#_){font-size:16px !important;}
 html.phone-whole:not(.ph-ready) :is(#search-btn,#info-btn,#overview-toggle,#bg-toggle,#mode-toggle,#key-toggle,#account-btn):not(#_){opacity:0 !important;}
 /* the phone detail page's BACK tile belongs to a detail page only (it showed on the whole view itself) */
 html.phone-whole:not(.detail-open) #detail-back-fixed:not(#_){display:none !important;}
+/* a detail page's Back, whole view: the same chevron-only round button beside the clef as the phone design's (item 12; the desktop's #desk-back is off here) */
+html.phone-whole.detail-open #detail-back-fixed:not(#_){display:flex !important;position:fixed !important;top:calc((51px + env(safe-area-inset-top,0px)) / 2 - 17px);bottom:auto;left:48px;width:34px;height:34px;padding:0;align-items:center;justify-content:center;
+  background:var(--card-glass-bg);border:1px solid var(--card-glass-border);border-radius:17px;color:var(--muted);font-size:0;gap:0;z-index:296;}
 /* a timeline or an outline seen whole: a card shows its name alone until it is enlarged (Luke, 2026-10-24: "just have node
    titles/label unless enlarged, cause the text is falling outside the borders") */
 html.phone-whole:not(.alto-solar):not(.alto-lanes) #world .node:not(.focused) .node-card :is(.node-desc,.node-summary,.node-footer,.node-tag,.node-order):not(#_){display:none !important;}

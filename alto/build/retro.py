@@ -117,7 +117,7 @@ CHROME_CSS = r"""
   @media (max-width:900px){ X #sk-frame b:not(#_){top:0;} }
   /* the rest of a detail page (Luke, 2026-10-22: "detail pages are the worst"): its back button, the page's chips, the study blocks' buttons */
   X:not(.mobile) #desk-back:not(#_){translate:0 7.6px;}   /* (Luke: "always centered with the alto glyph": the clef drops 8px in Retro, so Back drops with it) */
-  X.mobile #detail-back-fixed:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
+  X:is(.mobile,.phone-whole) #detail-back-fixed:not(#_){background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #desk-back:not(#_){font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.14em;font-size:12px;background:#000 !important;color:#d9ae55 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #detail-page .char-chip:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;}
