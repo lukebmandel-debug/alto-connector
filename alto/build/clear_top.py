@@ -103,7 +103,8 @@ JS = r"""(function(){
   bt.addEventListener('click', function(e){ e.stopPropagation(); turn(); });
   document.body.appendChild(bt); de.classList.toggle('ct-chips-off', off); label(); place();
   window.addEventListener('resize', place); setTimeout(place, 300); setTimeout(place, 1200); if(document.fonts && document.fonts.ready) document.fonts.ready.then(place);   /* (after the row's own layout settles) */
-  if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);   /* (a frame later: never a change inside the observer's own pass) */
+  if(typeof ResizeObserver==='function') new ResizeObserver(function(){ requestAnimationFrame(place); }).observe(nav);
+  var pt=0; if(typeof MutationObserver==='function') new MutationObserver(function(){ requestAnimationFrame(place); clearTimeout(pt); pt=setTimeout(place, 400); }).observe(de, {attributes:true, attributeFilter:['class']});   /* (a style switch — Retro's wider labels — moves the row without resizing the bar: the x follows it, so it never sits on the first label) */   /* (a frame later: never a change inside the observer's own pass) */
 })();"""
 
 
