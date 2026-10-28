@@ -1781,6 +1781,9 @@ _ALIGN_HOOK_NEW = (
     "  window._altoAlignInfo = alignInfo;   // manual_edit calls it once the edit toggle exists\n"
     "  new MutationObserver(alignInfo).observe(document.documentElement, {attributes:true, attributeFilter:['class']});\n"
     + _ALIGN_HOOK_OLD)
+# a Memory Palace in a narrow window packs its bottom row itself (palace.py _palRowFit): it runs after every alignInfo
+_ROWFIT_OLD = "      sb.style.setProperty('left', 'auto', 'important');\n    }\n  }\n"
+_ROWFIT_NEW = "      sb.style.setProperty('left', 'auto', 'important');\n    }\n    if(window._palRowFit) window._palRowFit();\n  }\n"
 _INFO_FB_OLD = "html:not(.mobile) #info-btn{ bottom:24px !important; right:96px !important; top:auto !important; }"
 _INFO_FB_NEW = "html:not(.mobile) #info-btn{ bottom:30px !important; right:78px !important; top:auto !important; }"
 _SB_FB_OLD = "position:fixed; bottom:24px; right:144px; z-index:300;"
@@ -1795,6 +1798,7 @@ _SG_NEW = ("'<svg viewBox=\"0 0 20 20\" width=\"20\" height=\"20\" fill=\"none\"
            "           'stroke-width=\"1.8\" stroke-linecap=\"round\"")
 PATCHES += [
     {"name": "desktop-search-glyph-matches-home", "old": _SG_OLD, "new": _SG_NEW, "count": 1},
+    {"name": "palace-tight-row-after-align", "old": _ROWFIT_OLD, "new": _ROWFIT_NEW, "count": 1},
     {"name": "desktop-controls-above-nodes", "old": _CTRL_OLD, "new": _CTRL_NEW, "count": 1},
     {"name": "desktop-mode-toggle-glyph", "old": _MODE_BTN_OLD, "new": _MODE_BTN_NEW, "count": 1},
     {"name": "desktop-mode-toggle-no-text", "old": _MODE_TXT_OLD, "new": _MODE_TXT_NEW, "count": 1},
