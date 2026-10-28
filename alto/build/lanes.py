@@ -151,6 +151,55 @@ def check_lines(b, warnings: list) -> None:
         if unknown:
             raise BriefError(f"flashback {fid}: unknown keys {sorted(unknown)} — a flashback is {{id, label}}; "
                              "its events say they are in it with node.flash")
+    check_flags(b, warnings)
+
+
+FLAG_KEYS = {"id", "label", "at", "to", "node", "color"}
+
+
+def check_flags(b, warnings: list) -> None:
+    """brief.time_flags: markers pinned to a point in story time on the horizontal
+    timeline's time axis. `at` (a date or number, as node.when) or `node` (an event whose
+    place the flag takes) says where; `to` ends an era that starts at `at`."""
+    fl = b.time_flags if b.time_flags is not None else []
+    if not isinstance(fl, list):
+        raise BriefError("time_flags: must be a list of {id, label, at?, to?, node?, color?}")
+    if fl and b.mode != "lanes":
+        raise BriefError("time_flags need mode 'lanes': they are flags on the horizontal timeline's time axis")
+    seen = set()
+    for i, f in enumerate(fl):
+        if not isinstance(f, dict):
+            raise BriefError(f"time_flags[{i}]: must be an object {{id, label, at?, to?, node?, color?}}")
+        fid = str(f.get("id") or "").strip()
+        if not fid or not SLUG.match(fid):
+            raise BriefError(f"time_flags[{i}]: id {fid!r} must be a short lowercase slug")
+        if fid in seen:
+            raise BriefError(f"time_flags: id {fid!r} is used twice")
+        seen.add(fid)
+        if not str(f.get("label") or "").strip():
+            raise BriefError(f"time flag {fid}: needs a label (a date, an era or a few words)")
+        if len(str(f["label"])) > 80:
+            raise BriefError(f"time flag {fid}: label is longer than 80 characters — keep it to a few words")
+        unknown = set(f) - FLAG_KEYS
+        if unknown:
+            raise BriefError(f"time flag {fid}: unknown keys {sorted(unknown)} — a flag is {{id, label, at?, to?, node?, color?}}")
+        at, to, node = (str(f.get(k) if f.get(k) is not None else "").strip() for k in ("at", "to", "node"))
+        if not at and not node:
+            raise BriefError(f"time flag {fid}: pin it — `at` (a date or number, like an event's `when`) "
+                             "or `node` (the event whose place it takes)")
+        if at and parse_when(at) is None:
+            raise BriefError(f"time flag {fid}: `at` {at!r} names no date or number — use one (\"1852-06\", "
+                             "\"500 BC\", \"Day 3\"), or give `node` to pin it to an event")
+        if to:
+            if not at:
+                raise BriefError(f"time flag {fid}: `to` ends an era that starts at `at` — give `at` too")
+            if parse_when(to) is None:
+                raise BriefError(f"time flag {fid}: `to` {to!r} names no date or number")
+            if parse_when(to) < parse_when(at):
+                raise BriefError(f"time flag {fid}: the era ends ({to}) before it starts ({at})")
+        c = f.get("color")
+        if c and not re.match(r"^#[0-9a-fA-F]{6}$", str(c)):
+            raise BriefError(f"time flag {fid}: color must be #rrggbb")
 
 
 def page_order(b, nodes) -> list:
@@ -173,6 +222,12 @@ def check_nodes(b, nodes, warnings: list) -> None:
     by = {n.id: n for n in nodes}
     lids = {ln["id"] for ln in b.lines}
     fids = {fb["id"] for fb in (b.flashbacks or [])}
+    for f in b.time_flags or []:
+        if f.get("node") and f["node"] not in by:
+            raise BriefError(f"time flag {f.get('id')}: node {f['node']!r} is not one of the events")
+        if f.get("at") and not f.get("node") and nodes and not any(parse_when(n.when) is not None for n in nodes):
+            warnings.append(f"time flag {f.get('id')}: no event is dated, so there is no time axis to pin `at` to — "
+                            "give it `node` (an event) or date the events")
     on = {}
     undated = []
     shown = set()
@@ -280,6 +335,19 @@ def tidy(brief: dict, nodes: list) -> list:
     lids = {ln.get("id") for ln in brief.get("lines") or [] if isinstance(ln, dict)}
     fids = {fb.get("id") for fb in brief.get("flashbacks") or [] if isinstance(fb, dict)}
     changed = set()
+    # a flag pinned to an event that is gone is pinned to nothing: it goes, or keeps its date
+    ids = {n.get("id") for n in nodes}
+    keep = []
+    for f in brief.get("time_flags") or []:
+        if isinstance(f, dict) and f.get("node") and f["node"] not in ids:
+            if not f.get("at"):
+                continue
+            f.pop("node")
+        keep.append(f)
+    if keep:
+        brief["time_flags"] = keep
+    else:
+        brief.pop("time_flags", None)
     for n in nodes:
         main = (n.get("line") or MAIN) == MAIN
         pr = n.get("present")
@@ -319,6 +387,15 @@ def norm_line(ln: dict, i: int) -> dict:
             "color": ln.get("color") or _PALETTE[i % len(_PALETTE)],
             "side": ln.get("side") or SIDES[i % 2],
             "from": ln.get("from") or "", "to": ln.get("to") or ""}
+
+
+def norm_flag(f: dict) -> dict:
+    """A time flag as the page shows it: every key, `t` / `t2` the parsed `at` / `to`
+    (manual edit mode compares and stores flags in this form, without t / t2)."""
+    at, to = str(f.get("at") or "").strip(), str(f.get("to") or "").strip()
+    return {"id": f["id"], "label": str(f.get("label") or "").strip(), "at": at, "to": to,
+            "node": str(f.get("node") or "").strip(), "color": f.get("color") or "",
+            "t": parse_when(at) if at else None, "t2": parse_when(to) if to else None}
 
 
 def derive(L: dict, order: "list | None" = None) -> dict:
@@ -414,7 +491,8 @@ def lanes_payload(b, nodes) -> dict:
          "order": [n.id for n in page_order(b, nodes)],
          "lines": lines,
          "ev": ev,
-         "flashbacks": [{"id": fb["id"], "label": fb.get("label") or ""} for fb in b.flashbacks or []]}
+         "flashbacks": [{"id": fb["id"], "label": fb.get("label") or ""} for fb in b.flashbacks or []],
+         "tf": [norm_flag(f) for f in b.time_flags or []]}
     return derive(L)
 
 
@@ -511,6 +589,24 @@ LANES_CSS = KEY_CSS + """
     background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid color-mix(in srgb,var(--text) 22%,transparent);}
   html.mobile .lanes-gap{display:none !important;}
   .lanes-tag.ln-main-tag{color:var(--accent);}
+  /* time flags (brief.time_flags): a pennant on a hairline pole that stands on the time axis; never a card — no page, no step.
+     They are context: the lines dimmed to a character leave them at full strength (no data-ln). */
+  .lanes-flag{position:absolute;z-index:7;transform:translate(0,-50%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:26ch;box-sizing:border-box;
+    font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--text);padding:3px 11px 3px 10px;border-radius:0 6px 6px 0;cursor:default;pointer-events:auto;
+    background:color-mix(in srgb,var(--flag-c,var(--accent)) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--flag-c,var(--accent)) 50%,transparent);
+    border-left:3px solid var(--flag-c,var(--accent));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:ln-unfurl .15s ease-out;}
+  @keyframes ln-unfurl{from{opacity:0;transform:translate(-5px,-50%);}}
+  @media (prefers-reduced-motion:reduce){.lanes-flag{animation:none;}}
+  #lanes-svg .ln-fpole{stroke:var(--flag-c,var(--accent));stroke-width:1.5;opacity:.55;}
+  #lanes-svg .ln-fdia{fill:var(--flag-c,var(--accent));stroke:var(--surface);stroke-width:1.5;}
+  #lanes-svg .ln-fera{fill:var(--flag-c,var(--accent));opacity:.4;}
+  html.phone-whole .lanes-flag{max-width:15ch;font-size:11px;padding:2px 8px 2px 7px;}
+  html.alto-editing .lanes-flag{cursor:pointer;}
+  html.alto-editing .lanes-flag:hover,.lanes-flag.aed-on{outline:2px solid var(--accent);outline-offset:1px;}
+  html.alto-editing .lanes-flag.aed-drag{cursor:grabbing;opacity:.85;}
+  html.ln-compact:not(.mobile) .lanes-flag{font-size:11px;}
+  html.ln-cz:not(.mobile) .lanes-flag{font-size:calc(11px * var(--ln-cz,1));}
+  @media print{.lanes-flag{border-style:solid;}}
   .lanes-unit{position:absolute;z-index:6;top:0;border-left:1.5px solid color-mix(in srgb,var(--unit-color) 30%,transparent);pointer-events:none;}
   .lanes-unit:first-child{border-left:0;}
   .lanes-unit .lu-chip{position:absolute;left:14px;top:22px;white-space:nowrap;font-size:12px;font-weight:800;
@@ -702,7 +798,7 @@ window._altoLanes=function(h){
   var tv=times(pres), S=scale(tv), Xr={};
   pres.forEach(function(id){ Xr[id]=S.x(tv[id]); });
   /* labels first: their widths decide where lines start and how much room a detour's label needs */
-  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap').forEach(function(e){ e.remove(); });
+  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap,.lanes-flag').forEach(function(e){ e.remove(); });
   L.lines.forEach(function(l){ l.tagEl=tag(world, l, 0, 0, l.color, 0); l.tagW=l.tagEl.offsetWidth||60; });
   var shiftBefore=0;
   runs.forEach(function(r){
@@ -777,7 +873,10 @@ window._altoLanes=function(h){
      moves with it, so the board stays in story order. */
   var FIT={b0:[34,BAND0], tr:[14,TRACK], st:[12,STEM], pad:[8,22], past:[44,PAST], none:[14,14]}, ZMIN=.35;
   function fv(k,u){ return FIT[k][0]+(FIT[k][1]-FIT[k][0])*u; }
-  var room=lanesRoom(world), nums=axisNums(order, fbOf), AX=nums?54:0;
+  var room=lanesRoom(world), nums=axisNums(order, fbOf);
+  /* time flags (brief.time_flags): pinned to an event's place (`node`) or to a point in story time (`at`, only on a
+     board whose events are dated); they stand on the time axis, so a board with flags has the axis's room even undated */
+  var FLG=timeFlags(order, fbOf), hasFl=FLG.length>0, FLR=hasFl ? (FLG.length>1 ? 2*FL_ROW : FL_ROW) : 0, AX=(nums||hasFl)?54:0;
   var hIn=h, hh={}, cards=order.filter(function(id){ return !!document.querySelector('#node-'+id+' .node-card'); });
   function measure(compact){
     de.classList.toggle('ln-compact', !!compact); de.classList.remove('ln-cz');
@@ -796,7 +895,7 @@ window._altoLanes=function(h){
     if(one) return sideBand('-1',u)+sideBand('1',u)+fv('st',u)+R*hr+(R-1)*CARD_GAP+AX;
     return sideBand('-1',u)+sideBand('1',u)+2*(fv('st',u)+R*hr+(R-1)*CARD_GAP)+AX;
   }
-  var A=room ? room.b-room.top : Infinity, mode=null;
+  var A=room ? room.b-room.top-FLR : Infinity, mode=null;
   [[0,0],[0,1],[1,1]].some(function(m){
     var hr=measure(m[1]); span(); tracks(m[0]);
     var n0=need(m[0],0,1,hr), n1=need(m[0],1,1,hr);
@@ -858,19 +957,40 @@ window._altoLanes=function(h){
   if(sh){ order.forEach(function(id){ X[id]+=sh; }); runs.forEach(function(r){ ['x0','x1','d0','d1','f0','f1'].forEach(function(k){ r[k]+=sh; }); });
     L.lines.forEach(function(l){ if(l.drawn){ l.x0+=sh; l.x1+=sh; } }); main.x0+=sh; main.x1+=sh; }
   var shiftAll=function(raw, i){ var x=raw+shift(raw, i); return push(x)+sh-raw; };
+  FLG.forEach(function(f){
+    var a=f.node ? X[f.node] : flagRaw(S, f.t); if(a==null) return;
+    f.x=f.node ? a : a+shiftAll(a, -1);
+    if(!f.node && f.t2!=null && f.t2>f.t){ var b=flagRaw(S, f.t2); f.x2=b+shiftAll(b, -1); }
+    f.x=Math.max(main.x0+8, Math.min(main.x1-8, f.x)); if(f.x2!=null) f.x2=Math.max(f.x, Math.min(main.x1-8, f.x2));
+  });
+  FLG=FLG.filter(function(f){ return f.x!=null; });
+  /* time ↔ x for manual edit mode's flag drag: x(t) rises with t, so t(x) is found by halving */
+  (function(){
+    var dated=order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; }), g=S.segs;
+    if(!dated || !g.length){ window._altoLanesTime={dated:false}; return; }
+    var lo0=g[0].t0, hi0=g[g.length-1].t1, rg=Math.max(hi0-lo0, 1e-6);
+    var xf=function(t){ var a=flagRaw(S, t); return a+shiftAll(a, -1); };
+    var yl=order.every(function(id){ var e=L.ev[id]; return e.t==null || fbOf[id] || (/^-?\d{3,4}(-\d{1,2}){0,2}$/.test(String(e.w||'').trim()) && e.t>-3000 && e.t<4000); });
+    window._altoLanesTime={dated:true, yearLike:yl, pxYear:S.s, snap:yl ? 1/12 : nice(40/S.s),
+      x:xf, t:function(x){ var a=lo0-8*rg, b=hi0+8*rg; for(var k=0;k<48;k++){ var m=(a+b)/2; if(xf(m)<x) a=m; else b=m; } return (a+b)/2; }};
+  })();
   var cy={};
   order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||HR)/2); });
   var ys=[-16*mode.cz, 16*mode.cz, hasPast?pastY+30:0];
   L.lines.forEach(function(l){ if(l.drawn) ys.push(l.y-TH/2, l.y+TH/2); });
   order.forEach(function(id){ ys.push(cy[id]-(h[id]||HR)/2, cy[id]+(h[id]||HR)/2); });
+  /* the flags' lane: pennants in rows above everything (a flag that would overlap the one before it goes up a row) */
+  var frows=flagRows(world, FLG), flTop=Math.min.apply(null,ys)-6;
+  if(frows) ys.push(flTop-frows*FL_ROW);
+  FLG.forEach(function(f){ f.y=flTop-FL_ROW*(f.row+.5); });
   var y0=Math.min.apply(null,ys), y1=Math.max.apply(null,ys)+AX;
   /* the board's top where the room starts (the slack shared above and below); the page no taller than the canvas */
   var dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2 : TOP-y0;
   var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
   order.forEach(function(id){ xe.push(X[id]+w[id]/2); });
-  var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+(nums?AX+BOTTOM-56:24);
+  var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl)?AX+BOTTOM-56:24);
   if(room && y1-y0<=A) H=Math.max(y1-AX+dy+8, Math.min(H, room.ch-room.pt-WORLD_PAD_TOP));
-  lines.forEach(function(l){ l.y+=dy; }); pastY+=dy;
+  lines.forEach(function(l){ l.y+=dy; }); pastY+=dy; FLG.forEach(function(f){ f.y+=dy; });
   runs.forEach(function(r){ r.y=pastY; });
   window._altoLanesFit={room:room, A:A, need:y1-y0, mode:mode};
   /* the cards */
@@ -890,7 +1010,7 @@ window._altoLanes=function(h){
   main.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; });
   L.lines.forEach(function(l){ l.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }); });
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
-                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz});
+                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG});
   units(world, order, X, w, H, W);
   /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
      canvas less its top padding (the engine's place() would lay the page out again every 250ms) — its height corrected by
@@ -926,7 +1046,7 @@ window._altoLanes=function(h){
                     d0, d1 (where the main line leaves / rejoins the present y),
                     f0, f1 (the flat past stretch), y (the past track's y),
                     prev, next (the present events either side, or null)} */
-  window._altoLanesGeo={x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
+  window._altoLanesGeo={flags:FLG.map(function(f){ return {id:f.id, label:f.label, x:f.x, x2:f.x2, row:f.row, y:f.y}; }), x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
     detours:runs.map(function(r){ return {id:r.id, label:r.label, range:r.range, nodes:r.nodes.slice(), x0:r.x0, x1:r.x1,
       d0:r.d0, d1:r.d1, f0:r.f0, f1:r.f1, y:r.y, prev:r.prev, next:r.next}; })};
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:H}; });
@@ -947,6 +1067,40 @@ window._altoLanes=function(h){
     var mh=Math.max(0, sl.offsetTop+sl.offsetHeight-pads)+'px'; if(world.style.minHeight!==mh) world.style.minHeight=mh; }
   return true;
 };
+/* ── time flags ──────────────────────────────────────────────────────────── */
+var FL_ROW=26;
+/* time → x before the detours / cards shifted anything: along the scale's segments, across a squeezed stretch
+   in proportion, beyond the ends at the scale's pace */
+function flagRaw(S, t){
+  var g=S.segs; if(!g.length || t==null) return null;
+  if(t<=g[0].t0) return g[0].x0+(t-g[0].t0)*S.s;
+  for(var i=0;i<g.length;i++){
+    if(g[i].t1!=null && t<=g[i].t1) return g[i].x0+(t-g[i].t0)*S.s;
+    if(i+1<g.length && t<g[i+1].t0){ var a=g[i].x1, b=g[i+1].x0; return a+(b-a)*(t-g[i].t1)/(g[i+1].t0-g[i].t1); }
+  }
+  var z=g[g.length-1]; return z.x1+(t-z.t1)*S.s;
+}
+/* the flags this board can place: pinned to an event that is shown, or dated on a board with dated events */
+function timeFlags(order, fbOf){
+  var dated=order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; }), shown={}; order.forEach(function(id){ shown[id]=1; });
+  return (L.tf||[]).filter(function(f){ return f && f.label && (f.node ? shown[f.node] : (f.t!=null && dated)); })
+    .map(function(f){ return {id:f.id, label:f.label, at:f.at||'', to:f.to||'', node:f.node||'', color:f.color||'', t:f.t, t2:f.t2}; });
+}
+/* the pennants (HTML, like the line labels), measured and given rows: left to right, each in the lowest row
+   whose last pennant ends before it */
+function flagRows(world, F){
+  F.sort(function(a,b){ return a.x-b.x; });
+  var ends=[], rows=0;
+  F.forEach(function(f){
+    var d=document.createElement('div'); d.className='lanes-flag'; d.setAttribute('data-flag', f.id);
+    if(f.color) d.style.setProperty('--flag-c', f.color);
+    var era=f.to ? ' – '+f.to : '', tip=f.label+(f.at ? ' ('+f.at+era+')' : '');
+    d.title=tip; d.setAttribute('aria-label', tip); d.textContent=f.label; world.appendChild(d); f.el=d;
+    var w=d.offsetWidth||80, r=0; while(ends[r]!=null && ends[r]+10>f.x) r++;
+    f.row=r; ends[r]=f.x+w; rows=Math.max(rows, r+1);
+  });
+  return rows;
+}
 /* a smooth path through levels [{x0, x1, y}]: flat along each, an S between
    one and the next whose ends are level (so a dip meets the main line square
    on, and leaves it the same way) */
@@ -985,7 +1139,7 @@ function draw(world, G){
   var dts=order.filter(function(id){ return L.ev[id].t!=null && !fbOf[id]; }).map(function(id){ return L.ev[id].t; });
   var tlo=Math.min.apply(null,dts.concat([Infinity])), thi=Math.max.apply(null,dts.concat([-Infinity]));   // the clock runs only where the material dates it
   var inDetour=function(x){ return runs.some(function(r){ return x>r.x0-4 && x<r.x1+4; }); };
-  if(nums){ var cuts=[main.x0]; runs.forEach(function(r){ cuts.push(r.x0, r.x1); }); cuts.push(main.x1);
+  if(nums || G.flags.length){ var cuts=[main.x0]; runs.forEach(function(r){ cuts.push(r.x0, r.x1); }); cuts.push(main.x1);
     for(var c=0;c+1<cuts.length;c+=2) if(cuts[c+1]>cuts[c]+60) el('line',{'class':'ln-rule', x1:cuts[c], x2:cuts[c+1], y1:ay, y2:ay},tk); }
   S.segs.forEach(function(sg){
     if(sg.t1==null || sg.t1<=sg.t0 || !nums) return;
@@ -996,6 +1150,16 @@ function draw(world, G){
       var tl=el('text',{'class':'ln-ticklbl', x:x, y:ay+22, 'text-anchor':'middle'},tk); tl.textContent=String(Math.round(v*100)/100);
     }
   });
+  /* time flags: a hairline pole from the pennant down to the time axis, a diamond where it stands, a bracket along the axis for an era */
+  if(G.flags.length){ var fg=el('g',{'class':'ln-flags'},svg);
+    G.flags.forEach(function(f){
+      var g=el('g',{'class':'ln-flag', 'data-flag':f.id},fg), c=f.color||'';
+      if(c) g.style.setProperty('--flag-c', c);
+      el('line',{'class':'ln-fpole', x1:f.x, x2:f.x, y1:f.y+P+9, y2:ay},g);
+      if(f.x2!=null && f.x2-f.x>6) el('rect',{'class':'ln-fera', x:f.x, y:ay-2, width:f.x2-f.x, height:4, rx:2},g);
+      el('path',{'class':'ln-fdia', d:'M'+f.x+' '+(ay-6)+' l5.5 6 l-5.5 6 l-5.5 -6 Z'},g);
+      var d=f.el; d.style.left=f.x+'px'; d.style.top=(f.y+P)+'px'; });
+  }
   /* who is on the page at each main-line event, spread around its stem: lines
      from above to the left of lines from below, the outermost track outermost */
   var at0={};

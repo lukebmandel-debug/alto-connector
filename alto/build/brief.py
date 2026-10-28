@@ -490,6 +490,10 @@ class Brief:
     lines: list[dict] = field(default_factory=list)
     main_line: str = ""
     flashbacks: list[dict] = field(default_factory=list)
+    # Lanes mode: time flags, [{id, label, at?, to?, node?, color?}] — markers pinned to a
+    # point in story time along the time axis (`at`, a date or number as node.when;
+    # `to` ends an era; or `node`, an event whose place they take). Not nodes: no page.
+    time_flags: list[dict] = field(default_factory=list)
     # Memory Palace mode (palace.py): the city — {place, area?, bbox, districts:
     # [{unit, name, bounds}], majors, landmarks, scale, data_z (the fetched map
     # and its lots, packed; set_up_palace writes it)}.

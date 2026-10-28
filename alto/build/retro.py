@@ -232,6 +232,11 @@ FORMAT_CSS = r"""
   X .lanes-unit:not(#_){background:none !important;box-shadow:none !important;border-color:rgba(217,174,85,.13) !important;}
   X :is(.lanes-tag,.ln-main-tag,.lanes-past,.lu-chip):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.16em;}
+  X .lanes-flag:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
+  X #lanes-svg .ln-fpole{stroke:#d9ae55 !important;stroke-width:1.5;opacity:.5 !important;}
+  X #lanes-svg .ln-fdia{fill:#d9ae55 !important;stroke:#000 !important;}
+  X #lanes-svg .ln-fera{fill:#d9ae55 !important;opacity:.4 !important;}
   X #lanes-nav:not(#_),X #lanes-nav *:not(svg *){background-color:transparent;}
   X #lanes-nav:not(#_){background:#000 !important;border:0 !important;border-radius:0 !important;box-shadow:0 0 0 1px rgba(217,174,85,.55) !important;color:#d9ae55 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   X #lanes-ov-sky{background:#000 !important;}

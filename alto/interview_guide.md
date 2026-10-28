@@ -416,6 +416,15 @@ its floors, reached by an elevator inside the building.
   them keep theirs, so the main line dips into the past and rises back where
   the present resumes. Characters in a flashback scene are `present` there
   as anywhere else.
+- **Time flags**: `time_flags: [{id, label, at?, to?, node?, color?}]` in the
+  brief — a pennant on a pole standing on the time axis at a point in story
+  time (a date, the start of an era, a named moment). Only where the material
+  names it: `at` is written like an event's `when` ("1852-06", "500 BC",
+  "Day 3"); `to` ends an era that starts at `at` (the flag then carries a
+  bracket along the axis); `node` pins the flag where an event sits (use it
+  when events have no dates, or the label is a name like "The war years"). A
+  flag is not a card: no page, no step. Change them later with `set_lines`
+  (`time_flags`). Never invent a date for a flag.
 - `when` on every event, exactly as the material dates it ("1852",
   "1852-06-14", "March 1852", "500 BC", "Day 3"). Time is drawn to scale
   wherever events are dated and long empty stretches are squeezed (marked ≈);
@@ -437,7 +446,8 @@ its floors, reached by an elevator inside the building.
   the page — new ones use `present`.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
-  flashback (or a new one) or take it out, and add or rename lines.
+  flashback (or a new one) or take it out, add or rename lines, and add,
+  move, rename or remove time flags (the ⚑ Flag button while editing).
 
 ### §D-Solar. System (`mode: 'outline'`, `layout: 'solar'`)
 "System" is what the student calls it; `solar` is only the id in the
