@@ -699,7 +699,7 @@ def test_a_hub_and_spoke_unit_may_get_a_second_sun_and_the_unit_controls_sit_by_
     ctl = pg.evaluate("""[...document.querySelectorAll('.aed-uc:not(.aed-unew)')].map(e => [e.textContent, e.offsetLeft, e.offsetTop])""")
     chips = pg.evaluate("[...document.querySelectorAll('.sol-unit')].map(c => [+c.dataset.unit, c.offsetLeft + c.offsetWidth, c.offsetTop])")
     assert [c[0] for c in chips] == [0, 1]
-    assert [c[0] for c in ctl][:4] == ["✎ Rename", "+ Add a card", "+ Add a sun", "✕ Delete unit"] and len(ctl) == 8, ctl
+    assert [c[0] for c in ctl][:4] == ["✎", "+", "☉", "✕"] and len(ctl) == 8, ctl
     for i, (_, right, top) in enumerate(chips):
         mine = ctl[i * 4:(i + 1) * 4]
         assert mine[0][1] >= right and all(c[2] >= top - 20 for c in mine), (chips, mine)       # right of its chip, level with it

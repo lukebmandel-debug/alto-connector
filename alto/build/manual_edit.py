@@ -488,6 +488,64 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
     background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 10px 30px var(--node-rest-shadow);font-size:13px;max-width:90vw;}
   #aed-toast.show{display:block;}
   #aed-toast{pointer-events:none;}     /* a passing word: never in the way of a click */
+  /* ── quiet glass (item 14, 2026-10-28): symbols, a live dot, a rail across the top, calm dashed cards ── */
+  #alto-edit-rail{position:fixed;top:0;left:0;right:0;height:3px;z-index:9000;display:none;pointer-events:none;
+    background:linear-gradient(90deg,#38bdf8,#a78bfa,#f472b6,#38bdf8);background-size:200% 100%;animation:aedRail 9s linear infinite;}
+  html.alto-editing #alto-edit-rail{display:block;}
+  html.printing #alto-edit-rail{display:none !important;}
+  @keyframes aedRail{to{background-position:-200% 0;}}
+  @keyframes aedPop{from{opacity:0;transform:scale(.82);}to{opacity:1;transform:none;}}
+  @keyframes aedDot{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.55);}60%{box-shadow:0 0 0 6px rgba(52,211,153,0);}}
+  #alto-edit-exit{background:rgba(16,20,36,.9);color:#f4f6fc;border:1px solid rgba(255,255,255,.16);gap:9px;height:40px;
+    -webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%);
+    box-shadow:0 10px 28px rgba(0,0,0,.32),inset 0 .5px 0 rgba(255,255,255,.22);animation:aedPop .22s cubic-bezier(.2,.8,.3,1);}
+  html.dark #alto-edit-exit{background:rgba(10,12,24,.86);box-shadow:0 10px 28px rgba(0,0,0,.6),inset 0 .5px 0 rgba(255,255,255,.18);}
+  #alto-edit-exit .ee-dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none;margin-right:-2px;animation:aedDot 2.4s ease-out infinite;}
+  #alto-edit-exit[data-st="saving"] .ee-dot,#alto-edit-exit[data-st="offline"] .ee-dot{background:#fbbf24;animation:none;}
+  #alto-edit-exit[data-st="error"] .ee-dot{background:#f87171;animation:none;}
+  #alto-edit-exit .ee-st{opacity:.78;}
+  #alto-edit-exit button{background:rgba(255,255,255,.1);transition:background .15s,transform .15s;}
+  #alto-edit-exit button:hover{background:rgba(255,255,255,.2);}
+  #alto-edit-exit button:active{transform:scale(.94);}
+  #alto-edit-exit button:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+  #alto-edit-exit .ee-done{background:#f4f6fc;color:#12151f;font-weight:600;}
+  #alto-edit-exit .ee-done:hover{background:#fff;}
+  /* every tool while editing: a small dark-glass chip, a symbol, its name on hover (title) */
+  .aed-uc,.aed-cc button,.aed-sc button,.aed-tc button{background:rgba(16,20,36,.74);color:#f4f6fc;border:1px solid rgba(255,255,255,.16);
+    -webkit-backdrop-filter:blur(12px) saturate(160%);backdrop-filter:blur(12px) saturate(160%);box-shadow:0 4px 14px rgba(0,0,0,.22);
+    transition:transform .14s,background .14s,border-color .14s,box-shadow .14s;}
+  .aed-uc:hover,.aed-cc button:hover,.aed-sc button:hover,.aed-tc button:hover{background:rgba(40,46,78,.9);color:#fff;border-color:rgba(255,255,255,.4);transform:translateY(-1px);}
+  .aed-uc:active,.aed-cc button:active,.aed-sc button:active,.aed-tc button:active{transform:scale(.93);}
+  .aed-uc:focus-visible,.aed-cc button:focus-visible,.aed-sc button:focus-visible,.aed-tc button:focus-visible,.aed-add:focus-visible{outline:2px solid var(--accent,#a78bfa);outline-offset:2px;}
+  html.alto-editing .aed-uc{animation:aedPop .2s cubic-bezier(.2,.8,.3,1) both;}
+  .aed-uc{width:34px;height:34px;padding:0;border-radius:50%;font:600 16px/1 system-ui,-apple-system,sans-serif;letter-spacing:0;display:flex;align-items:center;justify-content:center;}
+  .aed-uc.aed-unew{width:auto;padding:0 15px;border-radius:17px;border-style:dashed;border-color:rgba(255,255,255,.4);}
+  .aed-uc.aed-ux:hover,.aed-cc button[data-x="delc"]:hover,.aed-sc button[data-x="del"]:hover,.aed-tc button[data-x="del"]:hover{background:rgba(127,29,29,.92);border-color:#fca5a5;color:#fff;}
+  .aed-cc button{border-radius:50%;width:28px;height:28px;line-height:1;font-size:14px;}
+  .aed-sc button,.aed-tc button{border-radius:50%;width:26px;height:26px;line-height:1;}
+  /* the rest of the add-things: dashed, soft, a tint on hover */
+  .aed-add,.aed-nadd,.aed-chadd{transition:background .15s,border-color .15s,color .15s;}
+  .aed-add:hover,.aed-nadd:hover,.aed-chadd:hover{background:color-mix(in srgb,var(--accent,#a78bfa) 12%,transparent);}
+  .aed-nadd,.aed-chadd{width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;border-radius:50%;}
+  .aed-add{border-radius:14px;}
+  .aed-flags,.aed-chips{border-radius:14px;border-color:color-mix(in srgb,var(--accent,#a78bfa) 38%,transparent);background:color-mix(in srgb,var(--accent,#a78bfa) 4%,transparent);}
+  #aed-bar{background:rgba(16,20,36,.86);color:#f4f6fc;border-color:rgba(255,255,255,.16);-webkit-backdrop-filter:blur(16px) saturate(160%);backdrop-filter:blur(16px) saturate(160%);}
+  #aed-bar button{color:#f4f6fc;}
+  #aed-bar button:hover{background:rgba(255,255,255,.14);}
+  #aed-bar .ab-sep{background:rgba(255,255,255,.22);}
+  #aed-bar .ab-hint{color:rgba(244,246,252,.7);}
+  #aed-bar .ab-done{background:#f4f6fc;color:#12151f;}
+  /* cards: a calm dashed outline while editing (zero specificity: drop targets, picking, moving keep theirs) */
+  :where(html.alto-editing #canvas .node-card){outline:2px dashed color-mix(in srgb,var(--text,#222) 42%,transparent);outline-offset:5px;transition:outline-color .18s,outline-offset .18s;}
+  :where(html.alto-editing #canvas .node:hover .node-card){outline-color:var(--accent,#a78bfa);outline-offset:6px;}
+  html.alto-editing .aed-f,html.alto-editing:not(.mobile) #canvas .node-card .node-title,html.alto-editing:not(.mobile) #canvas .node-card .node-tag,
+  html.alto-editing:not(.mobile) #canvas .node-card .node-desc,html.alto-editing:not(.mobile) #canvas .phase-label-float,html.alto-editing:not(.mobile) #title-text{transition:outline-color .15s,background-color .15s;}
+  html.alto-editing .aed-f:hover,html.alto-editing:not(.mobile) #canvas .node-card .node-title:hover,html.alto-editing:not(.mobile) #canvas .node-card .node-tag:hover,
+  html.alto-editing:not(.mobile) #canvas .node-card .node-desc:hover,html.alto-editing:not(.mobile) #canvas .phase-label-float:hover,html.alto-editing:not(.mobile) #title-text:hover{
+    background-color:color-mix(in srgb,var(--accent,#a78bfa) 9%,transparent);}
+  .aed-ph{border-radius:6px;padding:0 6px;border:1px dashed color-mix(in srgb,var(--muted) 55%,transparent);font-style:normal;font-size:.92em;}
+  html.mobile #alto-edit-exit{height:44px;}
+  @media (prefers-reduced-motion:reduce){#alto-edit-rail,#alto-edit-exit,#alto-edit-exit .ee-dot,html.alto-editing .aed-uc{animation:none !important;}}
 </style>"""
 
 
@@ -1481,7 +1539,7 @@ MANUAL_JS = r"""<script id="alto-manual">
 
   /* ── saving: localStorage at once, the account shortly after ──────────── */
   var pushT = null, status = 'saved', unwatch = null;
-  function setStatus(s){ status = s; var el = document.querySelector('#alto-edit-exit .ee-st');
+  function setStatus(s){ status = s; var bar = document.getElementById('alto-edit-exit'); if(bar) bar.setAttribute('data-st', s); var el = document.querySelector('#alto-edit-exit .ee-st');
     if(el) el.textContent = s === 'saving' ? 'Saving…' : s === 'offline' ? 'Saved on this device' : s === 'error' ? 'Not saved to your account yet' : 'All changes saved'; }
   function merge(a, b){
     var out = {}, ka = (a && a.ops) || {}, kb = (b && b.ops) || {};
@@ -1687,11 +1745,12 @@ MANUAL_JS = r"""<script id="alto-manual">
   function exitPill(){
     var b = document.getElementById('alto-edit-exit'); if(b) return b;
     b = document.createElement('div'); b.id = 'alto-edit-exit';
-    b.innerHTML = '<span>✎ Editing</span><span class="ee-st">All changes saved</span>'
+    b.innerHTML = '<i class="ee-dot" aria-hidden="true"></i><span class="ee-t">✎ Editing</span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
       if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
+    if(!document.getElementById('alto-edit-rail')){ var rl = document.createElement('div'); rl.id = 'alto-edit-rail'; rl.setAttribute('aria-hidden', 'true'); document.body.appendChild(rl); }
     document.body.appendChild(b); placePill(); return b;
   }
   function placePill(){}
@@ -1844,26 +1903,26 @@ MANUAL_JS = r"""<script id="alto-manual">
       var chip = hub ? world.querySelector('.sol-unit[data-unit="' + i + '"]') : null, ax, ay;
       if(hub){ if(chip){ ax = chip.offsetLeft + chip.offsetWidth; ay = chip.offsetTop + chip.offsetHeight / 2 - 15; } else { ax = 0; ay = 16 + i * 38; } }
       else { ax = l.offsetLeft + l.offsetWidth; ay = l.offsetTop + l.offsetHeight / 2 - 15; }
-      var r = document.createElement('button'); r.type = 'button'; r.className = 'aed-uc aed-ur'; r.textContent = '✎ Rename';
+      var r = document.createElement('button'); r.type = 'button'; r.className = 'aed-uc aed-ur'; r.textContent = '✎'; r.setAttribute('aria-label', 'Rename this unit');
       r.title = 'Rename this unit'; r.setAttribute('data-x', 'renu'); r.setAttribute('data-act', i);
       r.style.left = Math.round(ax + 14) + 'px';
       r.style.top = Math.round(ay) + 'px';
       world.appendChild(r);
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-uc'; b.textContent = '+ Add a card';
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'aed-uc'; b.textContent = '+';
       b.title = OUT ? 'Add a card to this unit, under its top card' : 'Add a card at the end of this unit';
-      b.setAttribute('data-act', i);
+      b.setAttribute('data-act', i); b.setAttribute('aria-label', b.title);
       b.style.left = Math.round(ax + 14 + r.offsetWidth + 8) + 'px';
       b.style.top = r.style.top;
       world.appendChild(b);
       var prev = b;
       if(hub){          // a unit may have several top concepts, each a sun of its own
-        var sn = document.createElement('button'); sn.type = 'button'; sn.className = 'aed-uc'; sn.textContent = '+ Add a sun';
-        sn.title = 'Add another top concept to this unit: a second sun, with its own planets'; sn.setAttribute('data-x', 'addsun'); sn.setAttribute('data-act', i);
+        var sn = document.createElement('button'); sn.type = 'button'; sn.className = 'aed-uc'; sn.textContent = '☉';
+        sn.title = 'Add another top concept to this unit: a second sun, with its own planets'; sn.setAttribute('data-x', 'addsun'); sn.setAttribute('aria-label', sn.title); sn.setAttribute('data-act', i);
         sn.style.left = Math.round(b.offsetLeft + b.offsetWidth + 8) + 'px'; sn.style.top = r.style.top;
         world.appendChild(sn); prev = sn;
       }
-      var x = document.createElement('button'); x.type = 'button'; x.className = 'aed-uc aed-ux'; x.textContent = '✕ Delete unit';
-      x.title = 'Delete this unit — you choose what happens to its cards'; x.setAttribute('data-x', 'delu'); x.setAttribute('data-act', i);
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'aed-uc aed-ux'; x.textContent = '✕';
+      x.title = 'Delete this unit — you choose what happens to its cards'; x.setAttribute('data-x', 'delu'); x.setAttribute('aria-label', 'Delete this unit'); x.setAttribute('data-act', i);
       x.style.left = Math.round(prev.offsetLeft + prev.offsetWidth + 8) + 'px'; x.style.top = r.style.top;
       world.appendChild(x);
     });
@@ -1871,8 +1930,8 @@ MANUAL_JS = r"""<script id="alto-manual">
     var bands = Array.prototype.slice.call(world.querySelectorAll('.phase-band')).sort(function(a, b){ return a.offsetTop - b.offsetTop; });
     var last = bands[bands.length - 1];
     if(last){
-      var u = document.createElement('button'); u.type = 'button'; u.className = 'aed-uc aed-unew'; u.textContent = '+ Add a unit';
-      u.title = 'A new unit at the end, with its first card'; u.setAttribute('data-x', 'addunit');
+      var u = document.createElement('button'); u.type = 'button'; u.className = 'aed-uc aed-unew'; u.textContent = '+ ▤';
+      u.title = 'A new unit at the end, with its first card'; u.setAttribute('data-x', 'addunit'); u.setAttribute('aria-label', 'Add a unit');
       // under the lowest card of the last unit
       var low = 0, la = PHASE_META.length - 1;
       world.querySelectorAll('.node').forEach(function(n){ if(NODE_ACT[n.id.slice(5)] === la && n.offsetHeight) low = Math.max(low, n.offsetTop + n.offsetHeight); });
@@ -2389,7 +2448,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         x.title = 'Take this chip off the card'; x.setAttribute('aria-label', x.title); x.textContent = '✕'; c.appendChild(x);
         row.appendChild(c); });
       var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-chadd'; add.setAttribute('data-x', 'chipadd'); add.setAttribute('data-f', k.f); add.setAttribute('data-nid', nid);
-      add.textContent = '+ Add'; add.title = 'Add ' + aOne(k) + ' to this card'; row.appendChild(add);
+      add.textContent = '+'; add.title = 'Add ' + aOne(k) + ' to this card'; add.setAttribute('aria-label', add.title); row.appendChild(add);
       box.appendChild(row);
     });
     return box;
@@ -2563,7 +2622,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       var x = document.createElement('span'); x.className = 'aed-nx aed-nxl'; x.setAttribute('role', 'button'); x.setAttribute('data-x', 'navx'); x.setAttribute('data-ax', k.fk);
       x.title = 'Remove this category of chips'; x.setAttribute('aria-label', x.title); x.textContent = '✕'; l.appendChild(x); });
     var add = document.createElement('button'); add.type = 'button'; add.className = 'aed-nadd'; add.setAttribute('data-x', 'navadd');
-    add.textContent = '+ Add'; add.title = 'Add a chip, or a new category of chips'; nav.appendChild(add);
+    add.textContent = '+'; add.title = 'Add a chip, or a new category of chips'; add.setAttribute('aria-label', add.title); nav.appendChild(add);
   }
   function cardsWith(r, id){ var f = RF[r]; return NODES_SRC.filter(function(n){ return (n[f] || []).indexOf(id) >= 0 && !cardGone(n.id); }).map(function(n){ return n.id; }); }
   function navRemove(b){
