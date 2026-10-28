@@ -519,9 +519,9 @@ def chip_lines(b, nodes) -> "tuple[list, dict]":
     """Every character with a chip in the nav bar (brief.entities) has a line of its own.
 
     Luke (2026-10-23): "You left out major characters that had nav bar chips." The brief's
-    lines were the only lines drawn, so a character the brief never named (SONYA, Anya,
-    Daisy, Elana on terrarium-horizontal) had a chip and no line. An entity is matched to
-    a brief line by id, or by its name / an alias against the line's label ("Marc Voss");
+    lines were the only lines drawn, so a character the brief never named (some minor
+    characters of terrarium-horizontal) had a chip and no line. An entity is matched to
+    a brief line by id, or by its name / an alias against the line's label ("a full name");
     each one still without a line, and linked from at least one event, gets one: the
     entity's id, name and colour, on the side with fewer lines. Only on a v2 timeline (someone on
     the page somewhere, or a flashback): a v1 one keeps its side lines as they were. Returns the page's lines
