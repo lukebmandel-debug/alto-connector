@@ -298,7 +298,7 @@ def test_every_hub_and_spoke_page_carries_the_flight_and_other_pages_do_not():
 
 def test_the_flight_is_small_and_draws_without_masks_or_filters():
     size = len(gzip.compress((FLY_JS + FLY_CSS).encode("utf-8"), 9))
-    assert size < 15000, size      # (+ the flames, flip, warp and jump: ~0.2 KB, 2026-10-25; + the ships' orbit arrivals, a flight at most 5 s and Enter to land: ~0.4 KB, 2026-10-22; 12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
+    assert size < 15400, size      # (+ the wind-up before a warp or jump and Retro's gold gathering ticks: ~0.1 KB, 2026-10-28; + the flames, flip, warp and jump: ~0.2 KB, 2026-10-25; + the ships' orbit arrivals, a flight at most 5 s and Enter to land: ~0.4 KB, 2026-10-22; 12.6 KB gz at the round-2 merge; the three together stay under 50 KB: test_solar_integration)
     for s in ("<mask", "'mask'", "filter", "backdrop"):
         assert s not in FLY_JS and s not in FLY_CSS, s
     assert re.search(r"pointer-events:none", FLY_CSS)

@@ -469,9 +469,10 @@ function craft3(G, now){
     gl.bindBuffer(gl.ARRAY_BUFFER, m.k); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(o.k), gl.STATIC_DRAW); }
   /* (braking on the way in: a rocket turned tail first on its main engine, the others firing retro thrusters forward) */
   var E=window._altoCraft.engines ? window._altoCraft.engines(SH.th, cr.id) : {m:0, r:0, f:0};
+  if(FX.wu>.02) E.m=Math.max(E.m, FX.wu);        /* (winding up for a warp or a jump) */
   SH.e=E; SH.nose=SH.hs+SH.sg*Math.PI*E.f;
   var S=shipS(G), th=-SH.nose+(cr.spin ? now/1000*cr.spin : 0), b=cr.roll ? now/1000*cr.roll : -SH.bk*(cr.bank||0)*.6*(1-E.f), c=Math.cos(th), s=Math.sin(th), cb=Math.cos(b), sb=Math.sin(b), Y=SH.y||K3.Y;
-  var M=[c*S*(1+1.2*FX.warp), 0, -s*S*(1+1.2*FX.warp), 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
+  var SX=1+1.2*Math.max(FX.warp, FX.ws||0), M=[c*S*SX, 0, -s*S*SX, 0, s*sb*S, cb*S, c*sb*S, 0, s*cb*S, -sb*S, c*cb*S, 0, SH.p[0], Y, SH.p[1], 1], sun=sunOf(G, SH.to)||{x:0, y:0};
   /* the trail: a fine line fading behind */
   var tv=[], tk=[], T=cr.trail||[.8, .85, 1];
   for(var i=0;i+1<SH.tr.length;i++){ var A=SH.tr[i], B2=SH.tr[i+1], a0=(1-(now-A[2])/1600)*.55*AL, a1=(1-(now-B2[2])/1600)*.55*AL;
@@ -502,8 +503,8 @@ function craft3(G, now){
       for(var i=0;i<6;i++){ var d=i*3.2*S*fl; gl.uniform3fv(g.u.K, i<2 ? [1, .92, .75] : [1, .58, .24]); gl.uniform3fv(g.u.C, [w[0]+dx*d, w[1], w[2]+dz*d]);
         gl.uniform1f(g.u.S, (7.5-i*.95)*S*(.5+.5*fl)); gl.uniform1f(g.u.a, (1-i/6.5)*.9*Math.min(1, k*1.6)*AL); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } }); });
   /* the flashes: where it leaves (a jump), round it as it drops out of warp, where it comes out */
-  [[FX.fa && SH.F && SH.F.pa, FX.fa], [FX.fw && SH.p, FX.fw], [FX.fb && SH.F && SH.F.pb, FX.fb]].forEach(function(q){ if(!q[0] || q[1]<.01) return;
-    [[22, [1, 1, 1]], [70, [.55, .8, 1]]].forEach(function(z){ gl.uniform3fv(g.u.K, z[1]); gl.uniform3fv(g.u.C, [q[0][0], Y, q[0][1]]); gl.uniform1f(g.u.S, z[0]*(.4+.6*q[1])); gl.uniform1f(g.u.a, q[1]*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }); });
+  [[FX.fa && SH.F && SH.F.pa, FX.fa], [FX.fw && SH.p, FX.fw], [FX.fb && SH.F && SH.F.pb, FX.fb], [FX.cg>.01 && SH.p, FX.cg, FX.gr]].forEach(function(q){ if(!q[0] || q[1]<.01) return;
+    [[22, [1, 1, 1]], [70, [.55, .8, 1]]].forEach(function(z){ gl.uniform3fv(g.u.K, z[1]); gl.uniform3fv(g.u.C, [q[0][0], Y, q[0][1]]); gl.uniform1f(g.u.S, z[0]*(q[2] ? q[2]/70 : .4+.6*q[1])); gl.uniform1f(g.u.a, q[1]*SH.al); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }); });
   dis(g); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
 }
 /* a machine that cannot keep up close up gets less detail, then a coarser canvas */
