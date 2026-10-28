@@ -214,7 +214,7 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   /* phones: above the controls along the foot of the screen */
   html.mobile #alto-edit-exit{bottom:calc(66px + env(safe-area-inset-bottom,0px));height:42px;border-radius:21px;font-size:14px;padding:0 5px 0 14px;gap:6px;}
   html.mobile #alto-edit-exit .ee-st{display:none;}
-  html.mobile #alto-edit-exit .ee-flag{display:none;}
+  html.mobile #alto-edit-exit .ee-flag,html.mobile #alto-edit-exit .ee-box{display:none;}
   html.mobile.alto-editing #scroll-hint{display:none !important;}   /* the swipe hint would sit on the bar */
   html.printing #alto-edit-exit{display:none !important;}
   /* what else sits at the foot of the screen moves up while editing */
@@ -1226,7 +1226,7 @@ MANUAL_JS = r"""<script id="alto-manual">
   function field(k){
     var p = k.split('|'), kind = p[0], id = p[1];
     if(window._altoPalaceField && (kind === 'pf' || kind === 'pu' || (kind === 'p' && /^(lot|fno|out|shape)$/.test(p[2] || '')))) return window._altoPalaceField(k);
-    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
+    if(LN && (kind === 'ln' || kind === 'fb' || kind === 'tf' || kind === 'bt' || (kind === 'n' && p.length === 3 && /^(when|line|present|flash)$/.test(p[2])))) return laneField(kind, id, p[2]);
     if(kind === 'n' && p.length === 3 && /^(title|tag|desc)$/.test(p[2])){
       var n = srcNode(id); if(!n) return null;
       return {kind:'plain', get:function(){ return n[p[2]] || ''; }, set:function(v){
@@ -1690,10 +1690,11 @@ MANUAL_JS = r"""<script id="alto-manual">
     b = document.createElement('div'); b.id = 'alto-edit-exit';
     b.innerHTML = '<span>✎ Editing</span><span class="ee-st">All changes saved</span>'
       + '<button type="button" class="ee-h ee-undo" aria-label="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button type="button" class="ee-h ee-redo" aria-label="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>'
+      + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-box" aria-label="Add a box tag" title="Add a box tag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/></svg></button>' : '')
       + (window._ALTO_LANES ? '<button type="button" class="ee-h ee-flag" aria-label="Add a time flag" title="Add a time flag"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2.5 4L16 12H5"/></svg></button>' : '')
       + '<button type="button" class="ee-done">Done</button>';
     b.addEventListener('click', function(e){ var t = e.target.closest('button'); if(!t) return; e.stopPropagation();
-      if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
+      if(t.classList.contains('ee-flag')) addFlag(t); else if(t.classList.contains('ee-box')) addBox(t); else if(t.classList.contains('ee-done')) exit(); else if(t.classList.contains('ee-undo')) undo(); else if(t.classList.contains('ee-redo')) redo(); });
     document.body.appendChild(b); placePill(); return b;
   }
   function placePill(){}
@@ -2017,6 +2018,9 @@ MANUAL_JS = r"""<script id="alto-manual">
   function lnSync(){ if(window._altoLanesDerive) try{ window._altoLanesDerive(LN); }catch(e){} }
   // a line as stored: only its authored keys (lanes.norm_line), never the derived ones
   function lineSpec(l){ return l ? {id: l.id, label: l.label || '', color: l.color || '', side: l.side || '', from: l.from || '', to: l.to || ''} : null; }
+  function btOf(id){ var f = null; (LN.bt || []).forEach(function(q){ if(q.id === id) f = q; }); return f; }
+  // a box tag as stored: only its authored keys (lanes.norm_box without t / svg)
+  function btSpec(q){ return q ? {id: q.id, label: q.label || '', glyph: q.glyph || '', on: q.on || 'axis', at: q.at || '', node: q.node || '', side: q.side || ''} : null; }
   function tfOf(id){ var f = null; (LN.tf || []).forEach(function(q){ if(q.id === id) f = q; }); return f; }
   // a flag as stored: only its authored keys (lanes.norm_flag without t / t2)
   function tfSpec(q){ return q ? {id: q.id, label: q.label || '', at: q.at || '', to: q.to || '', node: q.node || '', color: q.color || ''} : null; }
@@ -2035,6 +2039,16 @@ MANUAL_JS = r"""<script id="alto-manual">
         set:function(v){ LN.flashbacks = LN.flashbacks || []; var i = -1; LN.flashbacks.forEach(function(q, j){ if(q.id === id) i = j; });
           if(!v){ if(i >= 0) LN.flashbacks.splice(i, 1); } else if(i >= 0) LN.flashbacks[i].label = v.label || ''; else LN.flashbacks.push(fspec(v));
           lnSync(); }};
+    }
+    if(kind === 'bt'){                                   // a box tag, whole: {id, label, glyph, on, at, node, side} or null
+      var b0 = null; (LN0.bt || []).forEach(function(q){ if(q.id === id) b0 = q; });
+      return {kind:'card', sig:function(){ return btSpec(b0); }, get:function(){ return btSpec(btOf(id)); },
+        set:function(v){ LN.bt = LN.bt || []; var i = -1; LN.bt.forEach(function(q, j){ if(q.id === id) i = j; });
+          if(!v){ if(i >= 0) LN.bt.splice(i, 1); }
+          else { var o = Object.assign({}, btSpec(v), {id: id}); o.t = o.at ? lanesWhen(o.at) : null;
+            var gl = (EDK.glyphs || []).filter(function(g){ return g.n === o.glyph; })[0]; o.svg = gl ? gl.s : '';
+            if(i >= 0) LN.bt[i] = o; else LN.bt.push(o); }
+          relayoutSoon(); }};
     }
     if(kind === 'tf'){                                   // a time flag, whole: {id, label, at, to, node, color} or null
       var t0 = null; (LN0.tf || []).forEach(function(q){ if(q.id === id) t0 = q; });
@@ -2167,28 +2181,72 @@ MANUAL_JS = r"""<script id="alto-manual">
   var FD = null;
   document.addEventListener('pointerdown', function(e){
     if(!LN || !structOK() || !editing() || e.button) return;
-    var el = e.target.closest && e.target.closest('.lanes-flag'); if(!el) return;
-    FD = {id: el.getAttribute('data-flag'), el: el, x0: e.clientX, left: parseFloat(el.style.left) || 0, moved: false, k: 1};
-    var cv = document.getElementById('canvas'), r = el.getBoundingClientRect(); FD.k = el.offsetWidth ? r.width / el.offsetWidth : 1;
+    var el = e.target.closest && e.target.closest('.lanes-flag,.lanes-box'); if(!el) return;
+    var box = el.classList.contains('lanes-box');
+    FD = {id: el.getAttribute(box ? 'data-box' : 'data-flag'), box: box, el: el, x0: e.clientX, left: parseFloat(el.style.left) || 0, moved: false, k: 1};
+    var r = el.getBoundingClientRect(); FD.k = el.offsetWidth ? r.width / el.offsetWidth : 1;
     e.preventDefault(); e.stopPropagation();
   }, true);
   document.addEventListener('pointermove', function(e){
     if(!FD) return; var dx = (e.clientX - FD.x0) / (FD.k || 1);
     if(!FD.moved && Math.abs(dx) < 4) return;
     FD.moved = true; FD.el.classList.add('aed-drag'); FD.el.style.left = (FD.left + dx) + 'px';
-    var pole = document.querySelector('#lanes-svg .ln-flag[data-flag="' + FD.id + '"] .ln-fpole'); if(pole){ pole.setAttribute('x1', FD.left + dx); pole.setAttribute('x2', FD.left + dx); }
+    var pole = !FD.box && document.querySelector('#lanes-svg .ln-flag[data-flag="' + FD.id + '"] .ln-fpole'); if(pole){ pole.setAttribute('x1', FD.left + dx); pole.setAttribute('x2', FD.left + dx); }
   }, true);
   document.addEventListener('pointerup', function(e){
     if(!FD) return; var d = FD; FD = null; d.el.classList.remove('aed-drag'); e.stopPropagation();
-    if(!d.moved){ flagMenu(d.id); return; }
-    var T = window._altoLanesTime, f = tfOf(d.id), dx = (e.clientX - d.x0) / (d.k || 1);
-    if(!T || !T.dated || !f){ toast('This timeline has no dated events to stand a flag on — pin it to an event from its menu.'); relayoutSoon(); return; }
+    if(!d.moved){ if(d.box) boxMenu(d.id); else flagMenu(d.id); return; }
+    var T = window._altoLanesTime, f = d.box ? btOf(d.id) : tfOf(d.id), dx = (e.clientX - d.x0) / (d.k || 1);
+    if(!T || !T.dated || !f){ toast('This timeline has no dated events to stand ' + (d.box ? 'a box' : 'a flag') + ' on — set its place to an event from its menu.'); relayoutSoon(); return; }
     var t = T.t(d.left + dx), step = T.snap, snapped = Math.round(t / step) * step;
-    var span = (f.to && f.t2 != null && f.t != null) ? f.t2 - f.t : 0, a = whenOf(snapped, T), z = span > 0 ? whenOf(snapped + span, T) : '';
-    if(!change('tf|' + d.id, Object.assign({}, tfSpec(f), {at: a, to: z, node: ''}))) relayoutSoon();
+    var span = (!d.box && f.to && f.t2 != null && f.t != null) ? f.t2 - f.t : 0, a = whenOf(snapped, T), z = span > 0 ? whenOf(snapped + span, T) : '';
+    var ok = d.box ? change('bt|' + d.id, Object.assign({}, btSpec(f), {at: a, node: ''})) : change('tf|' + d.id, Object.assign({}, tfSpec(f), {at: a, to: z, node: ''}));
+    if(!ok) relayoutSoon();
     else toast('Moved to ' + a + (z ? ' – ' + z : '') + ' — ⌘Z puts it back.');
   }, true);
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && FD){ var d = FD; FD = null; d.el.classList.remove('aed-drag'); relayoutSoon(); } }, true);
+  /* ── box tags: labelled boxes that are not cards (add, drag, rename, move to a line, remove) ── */
+  function boxEl(id){ return document.querySelector('.lanes-box[data-box="' + id + '"]'); }
+  function boxFields(b){
+    var F = [{k: 'label', l: 'Label', val: b.label, req: 1}];
+    var on = [['axis', 'The time axis'], ['main', LN.main || 'The main line']];
+    (LN.lines || []).forEach(function(l){ on.push([l.id, l.label]); });
+    F.push({k: 'on', l: 'Sits on', type: 'select', val: b.on || 'axis', opts: on});
+    F.push({k: 'at', l: 'Date or number', val: b.at, hint: 'Written like an event’s date: 1852-06, 500 BC, Day 3'});
+    var opts = [['', 'None — use the date']];
+    (LN.order || []).forEach(function(i){ if(srcNode(i) && !cardGone(i)) opts.push([i, titleOf(i)]); });
+    F.push({k: 'node', l: 'Or beside an event', type: 'select', val: b.node || '', opts: opts});
+    return F;
+  }
+  function boxCheck(v){
+    if(!v.at && !v.node) return 'Give a date or number, or pick the event it sits beside.';
+    if(!v.node && lanesWhen(v.at) == null) return '“' + v.at + '” is not a date or number — try 1852-06, 500 BC or Day 3.';
+    return '';
+  }
+  function boxFromVals(v, old){
+    var o = Object.assign({}, old || {}, {label: v.label, on: v.on || 'axis'});
+    if(v.node){ o.node = v.node; o.at = ''; } else { o.node = ''; o.at = v.at; }
+    return o;
+  }
+  function addBox(at){
+    askForm(at || document.body, 'New box tag', boxFields({label: '', on: 'axis', at: '', node: ''}), 'Add', function(v){
+      var bid = 'bt-' + Math.random().toString(36).slice(2, 7), spec = boxFromVals(v, {id: bid, glyph: '', side: ''});
+      if(change('bt|' + bid, btSpec(spec))) toast('“' + v.label + '” is on the board — a label only, no page. Drag it along, or click it for more. ⌘Z puts it back.');
+    }, boxCheck);
+  }
+  function boxMenu(bid){
+    var b = btOf(bid); if(!b) return;
+    var put = function(ch, msg){ if(change('bt|' + bid, Object.assign({}, btSpec(b), ch))) toast(msg + ' — ⌘Z puts it back.'); };
+    var A = [
+      {t: 'Rename it…', fn: function(){ askName(boxEl(bid) || document.body, 'Name this box', b.label, function(v){
+        v = String(v || '').replace(/\s+/g, ' ').trim(); if(v && v !== b.label) put({label: v}, 'Renamed'); }); }},
+      {t: 'Change its place…', sub: b.node ? 'Now beside “' + titleOf(b.node) + '”.' : 'Now: ' + b.at + '. Another date, an event, or another line.',
+        fn: function(){ askForm(boxEl(bid) || document.body, 'Where it sits', boxFields(b), 'Save', function(v){
+          var o = boxFromVals(v, b); put({label: b.label, on: o.on, at: o.at, node: o.node}, 'Moved'); }, boxCheck); }}];
+    if(b.on !== 'axis') A.push({t: 'Put it ' + (b.side === 'below' ? 'above' : 'below') + ' its line', fn: function(){ put({side: b.side === 'below' ? 'above' : 'below'}, 'Moved'); }});
+    A.push({t: 'Remove this box', cls: 'aa-danger', fn: function(){ if(change('bt|' + bid, null)) toast('Box removed — ⌘Z puts it back.'); }});
+    ask('The box “' + b.label + '”', 'It is only a label: no page, no step. Drag it along the axis to move it.', A);
+  }
   var LINE_COLORS = ['#e07a5f', '#3d9a8b', '#8a6fd1', '#d4a017', '#4a90d9', '#c2577a', '#5a9e4b', '#b8763e'];
   function newLine(id){
     var nd = srcNode(id), at = (nd && nd.id && document.getElementById('node-' + id)) || document.body;

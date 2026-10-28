@@ -380,6 +380,9 @@ def _target(key, brief, by_id, conns):
     # a time flag of a horizontal timeline: the whole {id, label, at, to, node, color}, or None
     if kind == "tf" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
         return brief, p[1], "tflag"
+    # a box tag of a horizontal timeline: the whole {id, label, glyph, on, at, node, side}, or None
+    if kind == "bt" and len(p) == 2 and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", p[1]):
+        return brief, p[1], "boxtag"
     # who is on the page at a main-line event: the whole list of line ids
     if kind == "n" and len(p) == 3 and p[2] == "present":
         return (by_id[p[1]], "present", "present") if p[1] in by_id else None
@@ -1149,6 +1152,36 @@ def fold(store, uid, tid) -> "dict | None":
                     fl[at] = keep
             if not fl:
                 holder.pop("time_flags", None)
+        elif kind == "boxtag":
+            # a box tag (lanes.py): the whole tag, or None to remove it
+            from .build.lanes import norm_box
+            bx = holder.setdefault("box_tags", [])
+            at = next((j for j, q in enumerate(bx) if q.get("id") == f), None)
+            BK = ("id", "label", "glyph", "on", "at", "node", "side")
+
+            def nbox(q):
+                if not isinstance(q, dict):
+                    return None
+                z = norm_box(dict(q, id=f))
+                return {k2: z[k2] for k2 in BK}
+            cur = nbox(bx[at]) if at is not None else None
+            if cur == nbox(v):
+                already.append(k)
+                continue
+            if cur != nbox(b):
+                conflicts.append(k)
+                continue
+            if v is None:
+                bx.pop(at)
+            else:
+                z = nbox(v)
+                keep = {k2: z[k2] for k2 in BK if z[k2] and not (k2 == "on" and z[k2] == "axis")}
+                if at is None:
+                    bx.append(keep)
+                else:
+                    bx[at] = keep
+            if not bx:
+                holder.pop("box_tags", None)
         elif kind == "present":
             # the characters on the page at a main-line event: compared as a set,
             # kept in the brief's line order
@@ -1529,10 +1562,10 @@ def fold(store, uid, tid) -> "dict | None":
 
     # a horizontal timeline: presence / flashback marks that no longer mean anything
     from .build.lanes import tidy as lanes_tidy
-    flags0 = copy.deepcopy(brief.get("time_flags"))
+    flags0 = copy.deepcopy((brief.get("time_flags"), brief.get("box_tags")))
     for i in lanes_tidy(brief, nodes):
         touched["nodes"].add(i)
-    if brief.get("time_flags") != flags0:
+    if (brief.get("time_flags"), brief.get("box_tags")) != flags0:
         touched["brief"] = True              # a flag pinned to a removed card lost its pin (or went)
 
     if written:

@@ -494,6 +494,9 @@ class Brief:
     # point in story time along the time axis (`at`, a date or number as node.when;
     # `to` ends an era; or `node`, an event whose place they take). Not nodes: no page.
     time_flags: list[dict] = field(default_factory=list)
+    # Lanes mode: box tags, [{id, label, glyph?, on?, at?, node?, side?}] — plain labelled boxes
+    # on the board (on a line, or on the time axis) that are not nodes: no page, no step, no click.
+    box_tags: list[dict] = field(default_factory=list)
     # Memory Palace mode (palace.py): the city — {place, area?, bbox, districts:
     # [{unit, name, bounds}], majors, landmarks, scale, data_z (the fetched map
     # and its lots, packed; set_up_palace writes it)}.

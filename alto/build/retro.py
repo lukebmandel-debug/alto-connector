@@ -234,6 +234,12 @@ FORMAT_CSS = r"""
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.16em;}
   X .lanes-flag:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;max-width:34ch;}
+  X .lanes-box:not(#_){background:none !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+    font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
+  X .lanes-box .lb-g svg{stroke:#d9ae55;}
+  X #lanes-svg .ln-bstub{stroke:#d9ae55 !important;opacity:.55;}
+  X.phone-whole .lanes-box:not(#_){font-size:11px;letter-spacing:.08em;}
+  X .lanes-bchip:not(#_){background:none !important;color:rgba(217,174,85,.85) !important;border:1px dashed rgba(217,174,85,.55) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
   X .lanes-flag-n:not(#_){max-width:none !important;letter-spacing:.04em;}
   X .lanes-flaglist:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
   X .lanes-fchip:not(#_){background:none !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}

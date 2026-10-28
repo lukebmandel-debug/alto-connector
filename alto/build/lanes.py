@@ -152,6 +152,52 @@ def check_lines(b, warnings: list) -> None:
             raise BriefError(f"flashback {fid}: unknown keys {sorted(unknown)} — a flashback is {{id, label}}; "
                              "its events say they are in it with node.flash")
     check_flags(b, warnings)
+    check_boxes(b, warnings)
+
+
+BOX_KEYS = {"id", "label", "glyph", "on", "at", "node", "side"}
+
+
+def check_boxes(b, warnings: list) -> None:
+    """brief.box_tags: labelled boxes on the board that are not nodes. `on` is where one sits
+    ('axis' — the default —, 'main', or a line id), `at` (a date or number, as node.when) or `node`
+    (an event: it sits beside it) says where along the story, `side` which side of its line."""
+    from .glyphs import LIBRARY
+    bt = b.box_tags if b.box_tags is not None else []
+    if not isinstance(bt, list):
+        raise BriefError("box_tags: must be a list of {id, label, glyph?, on?, at?, node?, side?}")
+    if bt and b.mode != "lanes":
+        raise BriefError("box_tags need mode 'lanes': they are boxes on the horizontal timeline's board")
+    seen, lids, names = set(), {ln.get("id") for ln in b.lines if isinstance(ln, dict)}, {g["n"] for g in LIBRARY}
+    for i, t in enumerate(bt):
+        if not isinstance(t, dict):
+            raise BriefError(f"box_tags[{i}]: must be an object {{id, label, glyph?, on?, at?, node?, side?}}")
+        tid = str(t.get("id") or "").strip()
+        if not tid or not SLUG.match(tid):
+            raise BriefError(f"box_tags[{i}]: id {tid!r} must be a short lowercase slug")
+        if tid in seen:
+            raise BriefError(f"box_tags: id {tid!r} is used twice")
+        seen.add(tid)
+        if not str(t.get("label") or "").strip():
+            raise BriefError(f"box tag {tid}: needs a label")
+        if len(str(t["label"])) > 60:
+            raise BriefError(f"box tag {tid}: label is longer than 60 characters — a box tag is a few words")
+        unknown = set(t) - BOX_KEYS
+        if unknown:
+            raise BriefError(f"box tag {tid}: unknown keys {sorted(unknown)} — a box tag is {{id, label, glyph?, on?, at?, node?, side?}}")
+        if t.get("glyph") and t["glyph"] not in names:
+            raise BriefError(f"box tag {tid}: glyph {t['glyph']!r} is not one of the glyph library's names")
+        on = str(t.get("on") or "axis").strip()
+        if on not in ("axis", MAIN) and on not in lids:
+            raise BriefError(f"box tag {tid}: `on` {on!r} is not 'axis', 'main' or one of the brief's lines")
+        if t.get("side") not in (None, "") + SIDES:
+            raise BriefError(f"box tag {tid}: side must be 'above' or 'below'")
+        at, node = str(t.get("at") if t.get("at") is not None else "").strip(), str(t.get("node") or "").strip()
+        if not at and not node:
+            raise BriefError(f"box tag {tid}: place it — `at` (a date or number, like an event's `when`) "
+                             "or `node` (the event it sits beside)")
+        if at and parse_when(at) is None:
+            raise BriefError(f"box tag {tid}: `at` {at!r} names no date or number — use one, or give `node`")
 
 
 FLAG_KEYS = {"id", "label", "at", "to", "node", "color"}
@@ -222,6 +268,11 @@ def check_nodes(b, nodes, warnings: list) -> None:
     by = {n.id: n for n in nodes}
     lids = {ln["id"] for ln in b.lines}
     fids = {fb["id"] for fb in (b.flashbacks or [])}
+    for t in b.box_tags or []:
+        if t.get("node") and t["node"] not in by:
+            raise BriefError(f"box tag {t.get('id')}: node {t['node']!r} is not one of the events")
+        if t.get("at") and not t.get("node") and nodes and not any(parse_when(n.when) is not None for n in nodes):
+            warnings.append(f"box tag {t.get('id')}: no event is dated, so there is no time axis to pin `at` to — give it `node`")
     for f in b.time_flags or []:
         if f.get("node") and f["node"] not in by:
             raise BriefError(f"time flag {f.get('id')}: node {f['node']!r} is not one of the events")
@@ -348,6 +399,22 @@ def tidy(brief: dict, nodes: list) -> list:
         brief["time_flags"] = keep
     else:
         brief.pop("time_flags", None)
+    # a box tag on a line that is gone moves to the time axis; one beside a gone event with no date goes
+    keepb = []
+    for t in brief.get("box_tags") or []:
+        if not isinstance(t, dict):
+            continue
+        if t.get("on") not in (None, "", "axis", MAIN) and t["on"] not in lids:
+            t["on"] = "axis"
+        if t.get("node") and t["node"] not in ids:
+            if not t.get("at"):
+                continue
+            t.pop("node")
+        keepb.append(t)
+    if keepb:
+        brief["box_tags"] = keepb
+    else:
+        brief.pop("box_tags", None)
     for n in nodes:
         main = (n.get("line") or MAIN) == MAIN
         pr = n.get("present")
@@ -396,6 +463,19 @@ def norm_flag(f: dict) -> dict:
     return {"id": f["id"], "label": str(f.get("label") or "").strip(), "at": at, "to": to,
             "node": str(f.get("node") or "").strip(), "color": f.get("color") or "",
             "t": parse_when(at) if at else None, "t2": parse_when(to) if to else None}
+
+
+def norm_box(t: dict) -> dict:
+    """A box tag as the page shows it: every key; `t` the parsed `at`, `svg` the glyph (manual edit
+    mode compares and stores tags without t / svg)."""
+    from .glyphs import LIBRARY
+    at = str(t.get("at") if t.get("at") is not None else "").strip()
+    g = str(t.get("glyph") or "").strip()
+    svg = next((x["s"] for x in LIBRARY if x["n"] == g), "") if g else ""
+    on = str(t.get("on") or "axis").strip()
+    return {"id": t["id"], "label": str(t.get("label") or "").strip(), "glyph": g, "on": on, "at": at,
+            "node": str(t.get("node") or "").strip(), "side": t.get("side") or "",
+            "t": parse_when(at) if at else None, "svg": svg}
 
 
 def derive(L: dict, order: "list | None" = None) -> dict:
@@ -492,7 +572,8 @@ def lanes_payload(b, nodes) -> dict:
          "lines": lines,
          "ev": ev,
          "flashbacks": [{"id": fb["id"], "label": fb.get("label") or ""} for fb in b.flashbacks or []],
-         "tf": [norm_flag(f) for f in b.time_flags or []]}
+         "tf": [norm_flag(f) for f in b.time_flags or []],
+         "bt": [norm_box(t) for t in b.box_tags or []]}
     return derive(L)
 
 
@@ -605,6 +686,22 @@ LANES_CSS = KEY_CSS + """
   .lanes-flaglist{position:absolute;z-index:9;max-width:230px;padding:8px 10px;border-radius:8px;font-size:12px;color:var(--text);
     background:color-mix(in srgb,var(--surface) 96%,transparent);border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.18);}
   .lanes-flaglist div{padding:3px 0;} .lanes-flaglist b{display:block;font-weight:700;} .lanes-flaglist span{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+  /* box tags (brief.box_tags): an annotation, like a caption on a map — flat, dashed, no number, no shadow, no lift, never a control */
+  .lanes-box{position:absolute;z-index:7;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;box-sizing:border-box;min-width:72px;max-width:220px;
+    font-size:13px;font-weight:400;line-height:1.25;color:var(--muted);padding:4px 10px;border-radius:6px;cursor:default;pointer-events:auto;
+    border:1px dashed color-mix(in srgb,var(--text) 40%,transparent);background:color-mix(in srgb,var(--text) 6%,transparent);}
+  .lanes-box .lb-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .lanes-box .lb-g{flex:none;display:inline-flex;width:14px;height:14px;opacity:.8;}
+  .lanes-box .lb-g svg{width:14px;height:14px;display:block;}
+  #lanes-svg .ln-bstub{stroke:color-mix(in srgb,var(--text) 40%,transparent);stroke-width:1;}
+  html.phone-whole .lanes-box{font-size:12px;max-width:160px;}
+  html.alto-editing .lanes-box{cursor:pointer;}
+  html.alto-editing .lanes-box:hover,.lanes-box.aed-on{outline:2px solid var(--accent);outline-offset:1px;}
+  html.alto-editing .lanes-box.aed-drag{cursor:grabbing;opacity:.85;}
+  html.ln-compact:not(.mobile) .lanes-box{font-size:12px;}
+  html.ln-cz:not(.mobile) .lanes-box{font-size:calc(12px * var(--ln-cz,1));}
+  @media print{.lanes-box{border-style:solid;border-width:1px;}}
+  .lanes-bchip{font-size:11px;font-weight:500;color:var(--muted);padding:2px 9px;border-radius:6px;pointer-events:none;border:1px dashed color-mix(in srgb,var(--text) 40%,transparent);}
   /* the phone's card view: a flag is a chip under the card's date — flat, not a button, the whole label */
   .lanes-fchips{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px;}
   .lanes-fchip{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--text);padding:2px 9px 2px 8px;border-radius:0 6px 6px 0;pointer-events:none;
@@ -806,7 +903,7 @@ window._altoLanes=function(h){
   var tv=times(pres), S=scale(tv), Xr={};
   pres.forEach(function(id){ Xr[id]=S.x(tv[id]); });
   /* labels first: their widths decide where lines start and how much room a detour's label needs */
-  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap,.lanes-flag,.lanes-flaglist').forEach(function(e){ e.remove(); });
+  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap,.lanes-flag,.lanes-flaglist,.lanes-box').forEach(function(e){ e.remove(); });
   L.lines.forEach(function(l){ l.tagEl=tag(world, l, 0, 0, l.color, 0); l.tagW=l.tagEl.offsetWidth||60; });
   var shiftBefore=0;
   runs.forEach(function(r){
@@ -884,7 +981,9 @@ window._altoLanes=function(h){
   var room=lanesRoom(world), nums=axisNums(order, fbOf);
   /* time flags (brief.time_flags): pinned to an event's place (`node`) or to a point in story time (`at`, only on a
      board whose events are dated); they stand on the time axis, so a board with flags has the axis's room even undated */
-  var FLG=timeFlags(order, fbOf), hasFl=FLG.length>0, FLR=hasFl ? (FLG.length>1 ? 2*FL_ROW : FL_ROW) : 0, AX=(nums||hasFl)?54:0;
+  var FLG=timeFlags(order, fbOf), hasFl=FLG.length>0, FLR=hasFl ? (FLG.length>1 ? 2*FL_ROW : FL_ROW) : 0;
+  /* box tags (brief.box_tags): labelled boxes that are not events; one on the axis has a row of its own above the ruler */
+  var BTG=boxTags(order, fbOf), hasBA=BTG.some(function(t){ return t.on==='axis'; }), AX=(nums||hasFl||hasBA)?54+(hasBA?36:0):0;
   var hIn=h, hh={}, cards=order.filter(function(id){ return !!document.querySelector('#node-'+id+' .node-card'); });
   function measure(compact){
     de.classList.toggle('ln-compact', !!compact); de.classList.remove('ln-cz');
@@ -982,6 +1081,7 @@ window._altoLanes=function(h){
     window._altoLanesTime={dated:true, yearLike:yl, pxYear:S.s, snap:yl ? 1/12 : nice(40/S.s),
       x:xf, t:function(x){ var a=lo0-8*rg, b=hi0+8*rg; for(var k=0;k<48;k++){ var m=(a+b)/2; if(xf(m)<x) a=m; else b=m; } return (a+b)/2; }};
   })();
+  boxRows(world, BTG, X, w, shiftAll, S, main);
   var cy={};
   order.forEach(function(id){ cy[id]=sideOf[id]*(offOf[id]+(h[id]||HR)/2); });
   var ys=[-16*mode.cz, 16*mode.cz, hasPast?pastY+30:0];
@@ -996,7 +1096,7 @@ window._altoLanes=function(h){
   var dy=room ? room.top-room.wo-WORLD_PAD_TOP-y0+Math.max(0, A-(y1-y0))/2 : TOP-y0;
   var xe=[S.end+sh, push(S.end)+sh, main.x1]; L.lines.forEach(function(l){ if(l.drawn) xe.push(l.x1); });
   order.forEach(function(id){ xe.push(X[id]+w[id]/2); });
-  var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl)?AX+BOTTOM-56:24);
+  var W=Math.max.apply(null,xe)+RIGHT, H=y1-AX+dy+((nums||hasFl||hasBA)?AX+BOTTOM-56:24);
   if(room && y1-y0<=A) H=Math.max(y1-AX+dy+8, Math.min(H, room.ch-room.pt-WORLD_PAD_TOP));
   lines.forEach(function(l){ l.y+=dy; }); pastY+=dy; FLG.forEach(function(f){ f.y+=dy; });
   runs.forEach(function(r){ r.y=pastY; });
@@ -1018,7 +1118,7 @@ window._altoLanes=function(h){
   main.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; });
   L.lines.forEach(function(l){ l.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }); });
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
-                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG, w:w});
+                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG, w:w, boxes:BTG, boxOff:Math.max(14, Math.min(28, fv('b0',u)/2.4))*mode.cz});
   units(world, order, X, w, H, W);
   /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
      canvas less its top padding (the engine's place() would lay the page out again every 250ms) — its height corrected by
@@ -1054,7 +1154,7 @@ window._altoLanes=function(h){
                     d0, d1 (where the main line leaves / rejoins the present y),
                     f0, f1 (the flat past stretch), y (the past track's y),
                     prev, next (the present events either side, or null)} */
-  window._altoLanesGeo={flags:FLG.map(function(f){ return {id:f.id, label:f.label, x:f.x, x2:f.x2, row:f.row, y:f.y}; }), x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
+  window._altoLanesGeo={boxes:BTG.map(function(t){ return {id:t.id, label:t.label, on:t.on, x:t.x, y:t.y}; }), flags:FLG.map(function(f){ return {id:f.id, label:f.label, x:f.x, x2:f.x2, row:f.row, y:f.y}; }), x:X, y:pos, h:h, lines:lines, W:W, H:H, mainY:main.y, at:geo.at, presence:geo.presence,
     detours:runs.map(function(r){ return {id:r.id, label:r.label, range:r.range, nodes:r.nodes.slice(), x0:r.x0, x1:r.x1,
       d0:r.d0, d1:r.d1, f0:r.f0, f1:r.f1, y:r.y, prev:r.prev, next:r.next}; })};
   _actBands=ACT_SEQS.map(function(){ return {startY:0, endY:H}; });
@@ -1075,6 +1175,36 @@ window._altoLanes=function(h){
     var mh=Math.max(0, sl.offsetTop+sl.offsetHeight-pads)+'px'; if(world.style.minHeight!==mh) world.style.minHeight=mh; }
   return true;
 };
+/* ── box tags ─────────────────────────────────────────────────────────────── */
+/* the box tags this board can place: beside an event that is shown, or dated on a board with dated events */
+function boxTags(order, fbOf){
+  var dated=order.some(function(id){ return L.ev[id].t!=null && !fbOf[id]; }), shown={}; order.forEach(function(id){ shown[id]=1; });
+  return (L.bt||[]).filter(function(t){ return t && t.label && (t.node ? shown[t.node] : (t.t!=null && dated)) &&
+      (t.on==='axis' || t.on==='main' || !t.on || (lineBy(t.on) && !hidLine(t.on))); })
+    .map(function(t){ return {id:t.id, label:t.label, glyph:t.glyph||'', svg:t.svg||'', on:t.on||'axis', at:t.at||'', node:t.node||'', side:t.side||'', t:t.t}; });
+}
+/* the boxes (HTML, like the line labels): measured, an event's beside its stem, those on the axis kept apart */
+function boxRows(world, B, X, w, shiftAll, S, main){
+  B.forEach(function(t){
+    var d=document.createElement('div'); d.className='lanes-box'; d.setAttribute('data-box', t.id);
+    if(t.svg){ var g=document.createElement('span'); g.className='lb-g'; g.innerHTML=t.svg; d.appendChild(g); }
+    var lb=document.createElement('span'); lb.className='lb-t'; lb.textContent=t.label; d.appendChild(lb);
+    world.appendChild(d); t.el=d; t.w=d.offsetWidth||90;
+    if(d.scrollWidth>d.clientWidth+1 || lb.scrollWidth>lb.clientWidth+1) d.title=t.label;
+    var a=t.node ? X[t.node] : flagRaw(S, t.t);
+    if(a==null){ t.x=null; return; }
+    t.x0=t.node ? a : a+shiftAll(a, -1);
+    t.x=t.node && t.on!=='axis' ? t.x0+t.w/2+18 : t.x0;           // beside its event's stem, not over it
+    t.sx=t.x0;
+  });
+  var gone=B.filter(function(t){ return t.x==null; }); gone.forEach(function(t){ t.el.remove(); });
+  var keepB=B.filter(function(t){ return t.x!=null; }); B.length=0; keepB.forEach(function(t){ B.push(t); });
+  var ends={};                                                          // on one line (or the axis): none on another
+  B.slice().sort(function(a,b){ return a.x-b.x; }).forEach(function(t){
+    var e=ends[t.on]; if(e!=null && t.x-t.w/2<e+8) t.x=e+8+t.w/2;
+    t.x=Math.max(t.x, main.x0+t.w/2); ends[t.on]=t.x+t.w/2; });
+}
+
 /* ── time flags ──────────────────────────────────────────────────────────── */
 var FL_ROW=26;
 /* time → x before the detours / cards shifted anything: along the scale's segments, across a squeezed stretch
@@ -1201,6 +1331,20 @@ function draw(world, G){
       if(f.x2!=null && f.x2-f.x>6) el('rect',{'class':'ln-fera', x:f.x, y:ay-2, width:f.x2-f.x, height:4, rx:2},g);
       el('path',{'class':'ln-fdia', d:'M'+f.x+' '+(ay-6)+' l5.5 6 l-5.5 6 l-5.5 -6 Z'},g);
       var d=f.el; if(d){ d.style.left=f.x+'px'; d.style.top=(f.y+P)+'px'; } });
+  }
+  /* box tags: a flat dashed box on its line (a 1px stub to the line) or standing above the time axis; not a node */
+  if(G.boxes.length){ var bg=el('g',{'class':'ln-boxes'},svg);
+    G.boxes.forEach(function(t){
+      var d=t.el, hh=d.offsetHeight||24, y, by;
+      if(t.on==='axis'){ y=ay-24; by=ay; }
+      else { var ln=t.on==='main' ? main : LB[t.on];
+        if(!ln || (ln!==main && !ln.drawn)){ d.style.display='none'; t.y=null; return; }
+        by=(ln===main ? main.y : ln.y)+P;
+        var sd=t.side==='below' ? 1 : t.side==='above' ? -1 : (ln===main ? -1 : ln.sd);
+        y=by+sd*G.boxOff; }
+      d.style.display=''; d.style.left=t.x+'px'; d.style.top=y+'px'; t.y=y-P;
+      var sx=Math.max(t.x-t.w/2+8, Math.min(t.x+t.w/2-8, t.sx)), ey=by>y ? y+hh/2 : y-hh/2;
+      el('line',{'class':'ln-bstub', x1:sx, x2:sx, y1:ey, y2:by},bg); });
   }
   /* who is on the page at each main-line event, spread around its stem: lines
      from above to the left of lines from below, the outermost track outermost */
@@ -1337,7 +1481,9 @@ function phoneChips(){ if(!de.classList.contains('mobile')) return;
    a chip under the card's date, its whole label and date in words */
 function phoneFlags(){
   document.querySelectorAll('.lanes-fchips').forEach(function(e){ e.remove(); });
-  var F=(L.tf||[]).filter(function(f){ return f && f.label; }); if(!F.length) return;
+  var F=(L.tf||[]).filter(function(f){ return f && f.label; })
+    .concat((L.bt||[]).filter(function(t){ return t && t.label; }).map(function(t){ return {label:t.label, at:t.at, to:'', node:t.node, t:t.t, box:true}; }));
+  if(!F.length) return;
   var order=[].concat.apply([], typeof ACT_SEQS!=='undefined' ? ACT_SEQS : []).filter(function(id){ return L.ev[id] && document.getElementById('node-'+id); });
   var main=order.filter(function(id){ return !L.ev[id].flash; }), home={};
   F.forEach(function(f){
@@ -1349,8 +1495,8 @@ function phoneFlags(){
     var c=document.querySelector('#node-'+id+' .node-card'); if(!c) return;
     var box=document.createElement('div'); box.className='lanes-fchips';
     home[id].forEach(function(f){ var s=document.createElement('span'), era=f.to ? ' – '+f.to : '';
-      s.className='lanes-fchip'; if(f.color) s.style.setProperty('--flag-c', f.color);
-      s.textContent=f.label+(f.at ? ' · '+f.at+era : ''); box.appendChild(s); });
+      s.className=f.box ? 'lanes-bchip' : 'lanes-fchip'; if(f.color) s.style.setProperty('--flag-c', f.color);
+      s.textContent=f.label+(f.at && !f.box ? ' · '+f.at+era : ''); box.appendChild(s); });
     var w=c.querySelector('.lanes-when'); if(w && w.nextSibling) c.insertBefore(box, w.nextSibling); else c.insertBefore(box, c.firstChild);
   }); }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, function(){ phoneChips(); setTimeout(phoneChips, 400); }); });

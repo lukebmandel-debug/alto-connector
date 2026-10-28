@@ -425,6 +425,13 @@ its floors, reached by an elevator inside the building.
   when events have no dates, or the label is a name like "The war years"). A
   flag is not a card: no page, no step. Change them later with `set_lines`
   (`time_flags`). Never invent a date for a flag.
+- **Box tags**: `box_tags: [{id, label, glyph?, on?, at?, node?, side?}]` in the
+  brief — a plain dashed labelled box on the board that is NOT a node: no
+  detail page, no step, no click. For a caption the material gives that has
+  no page of its own ("Siege begins", "Years of silence"). `on`: `axis`
+  (default; above the time axis), `main`, or a line id (beside that line);
+  `at` a date like an event's `when`, or `node` an event it sits beside.
+  Change them later with `set_lines` (`box_tags`). Never invent one.
 - `when` on every event, exactly as the material dates it ("1852",
   "1852-06-14", "March 1852", "500 BC", "Day 3"). Time is drawn to scale
   wherever events are dated and long empty stretches are squeezed (marked ≈);
@@ -447,7 +454,7 @@ its floors, reached by an elevator inside the building.
 - The owner can, in the page (✎ Edit manually → a card's ⟿), change an
   event's date or line, put a character on or off the page at it, put it in a
   flashback (or a new one) or take it out, add or rename lines, and add,
-  move, rename or remove time flags (the ⚑ Flag button while editing).
+  move, rename or remove time flags and box tags (the ⚑ and ▭ buttons while editing).
 
 ### §D-Solar. System (`mode: 'outline'`, `layout: 'solar'`)
 "System" is what the student calls it; `solar` is only the id in the
