@@ -595,7 +595,7 @@ def test_the_halo_jumps_in_a_flash_of_light(browser, page):
         pg.evaluate("i => window.enterFocus(i)", to)
         F = pg.evaluate(TRAVEL)
         assert F and F[0]["mode"] == "jump" and F[0]["S"] <= 2.51 and all(f["path"] == "none" for f in F), (sty, F[:1])
-        wind = [f for f in F if f["x"] < .3]                                                  # the wind-up: where it is, a glow gathering in
+        wind = [f for f in F if f["x"] < .39]                                                  # the wind-up: where it is, a glow gathering in
         assert wind and max(f["u"] for f in wind) < .01 and all(f["op"] == "1" for f in wind), (sty, wind[:2])
         assert max(f["fl"][2] for f in wind) > .6 and max(f["fx"]["gr"] for f in wind) > 60 and min(f["fx"]["gr"] for f in wind if f["fl"][2] > .5) < 40, sty
         gone = [f for f in F if .62 < f["x"] < .78]
@@ -607,7 +607,7 @@ def test_the_halo_jumps_in_a_flash_of_light(browser, page):
     pg.evaluate("() => window._altoSolarStyle.set('real')"); pg.wait_for_timeout(2500)
     if not pg.evaluate("() => !!(window._altoSolar3D && window._altoSolar3D.on())"):
         pg.context.close(); pytest.skip("no WebGL in this browser")
-    pg.evaluate("() => window.enterFocus('u1-p1')")
+    pg.evaluate("() => window.enterFocus('u2-p1')")
     F = [f for f in pg.evaluate(TRAVEL) if f["vis3"] is not None]
     assert F and min(f["vis3"] for f in F if .62 < f["x"] < .78) < .01 and max(f["vis3"] for f in F if f["x"] > .97) > .99, F[:3]
     pg.context.close()
