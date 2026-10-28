@@ -18,6 +18,8 @@ Field keys ("|"-separated; ids are slugs):
   u|<i>|label                             a unit's name
   bt|title                                the timeline's own name (the title bar; Brief.title)
   dt|<tree key>|<step>|title  text  edge  a decision-tree step (subtree.py)
+  dt|<tree key>|<step>|when  to           a mini timeline's item: its date, a flag's end (layout "timeline"; the
+                                          list op dt|<key>|tree carries its events, flags and box tags in order)
   p|<id>|shift                            a card dragged on an outline, [dx, dy]
   p|<id>|slide                            a card slid along its own line, [dx, dy] (it alone)
   n|<id>|order  n|<id>|s|new-…|h t p      a page's own sections, new ones (p: their kind)
@@ -263,6 +265,10 @@ MANUAL_CSS = r"""<style id="alto-manual-css">
   #summary-inner > .aed-blk > .aed-sc{position:absolute;right:-4px;top:-14px;margin:0;}
   html.alto-editing .adt-card .aed-tc{display:flex;position:absolute;right:6px;top:-12px;z-index:3;opacity:0;transition:opacity .15s;}
   html.alto-editing .adt-card:hover .aed-tc,html.alto-editing .adt-card:focus-within .aed-tc{opacity:1;}
+  html.alto-editing .amt-i:not(.adt-card) .aed-tc{display:flex;position:absolute;right:2px;top:-24px;z-index:6;opacity:0;transition:opacity .15s;margin:0;}
+  html.alto-editing .amt-i:not(.adt-card):hover .aed-tc,html.alto-editing .amt-i:not(.adt-card):focus-within .aed-tc{opacity:1;}
+  html.alto-editing .amt-flag,html.alto-editing .amt-box{overflow:visible;text-overflow:clip;}
+  html.alto-editing .amt .adt-scroll{cursor:default;}
   .aed-add{display:none;margin:8px 0 34px;padding:10px 16px;border-radius:10px;border:1.5px dashed var(--border);background:none;color:var(--muted);
     cursor:pointer;font:inherit;font-size:13px;letter-spacing:.06em;}
   html.alto-editing .aed-add{display:inline-block;}
@@ -598,7 +604,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(mk) t = t.replace(MARK, ''); var m = SLOT.exec(t); return {text: m ? t.slice(0, m.index) : t, tail: (m ? m[0] : '') + mks}; }
   function plan(){ return window._ALTO_TREE_PLAN || null; }
   function treeStep(key, step){ var T = (window._ALTO_DT || {})[key]; if(!T) return null; for(var i = 0; i < T.n.length; i++) if(T.n[i].i === step) return T.n[i]; return null; }
-  var DTF = {title:'t', text:'x', edge:'e', tag:'g'};
+  var DTF = {title:'t', text:'x', edge:'e', tag:'g', when:'w', to:'z'};
 
   /* a section added here: its kind (brief.PROVENANCE), and a tree of its own */
   var PROVL = {quoted:'Quoted', notes:'From your notes', summary:'Summary'};
@@ -1282,7 +1288,7 @@ MANUAL_JS = r"""<script id="alto-manual">
         get:function(){ var X = window._ALTO_DT[id]; return X ? JSON.parse(JSON.stringify(X.n)) : []; },
         set:function(v){ var X = window._ALTO_DT[id]; v = JSON.parse(JSON.stringify(v || []));
           if(!X) X = window._ALTO_DT[id] = {n: [], lay: 'auto', open: true, fold: 0, label: ''};
-          X.n = v; var q = newTreeSec(id); if(q) setSlot(q.s, id, v.length > 0); }};
+          X.n = v; if(v.some(function(q){ return q.k; })) X.lay = 'timeline'; var q = newTreeSec(id); if(q) setSlot(q.s, id, v.length > 0); }};
     }
     if(kind === 'dt' && p.length === 3 && p[2] === 'tree'){
       var TT = (window._ALTO_DT || {})[id]; if(!TT) return null;
@@ -1801,6 +1807,7 @@ MANUAL_JS = r"""<script id="alto-manual">
       dc.querySelectorAll('.adt[data-adt-key]').forEach(function(bx){
         var key = bx.getAttribute('data-adt-key');
         var T0 = (window._ALTO_DT || {})[key], rootId = T0 && T0.n.filter(function(x){ return !x.p; })[0];
+        if(T0 && T0.lay === 'timeline'){ decorateTL(bx, key, T0); return; }
         bx.querySelectorAll('.adt-card[data-i]').forEach(function(c){
           var i = c.getAttribute('data-i');
           setF(c.querySelector('.adt-t'), 'dt|' + key + '|' + i + '|title');
@@ -1823,6 +1830,34 @@ MANUAL_JS = r"""<script id="alto-manual">
         });
       });
     }
+  }
+  // A mini timeline (subtree.py layout "timeline"): every item's words and date are fields;
+  // a computer also gets + (an event after it), a flag and a box tag at its date, ← →, ✕.
+  function decorateTL(bx, key, T0){
+    var fresh = false;
+    bx.querySelectorAll('.amt-i[data-i]').forEach(function(c){
+      var i = c.getAttribute('data-i'), n = treeStep(key, i); if(!n) return;
+      var kind = n.k === 'f' ? 'flag' : n.k === 'b' ? 'box' : 'event';
+      setF(c.querySelector('.adt-t'), 'dt|' + key + '|' + i + '|title');
+      if(kind === 'event'){ setF(c.querySelector('.adt-x'), 'dt|' + key + '|' + i + '|text'); setF(c.querySelector('.adt-tag'), 'dt|' + key + '|' + i + '|tag'); }
+      var w = c.querySelector('.amt-when');
+      if(!w){ w = document.createElement('span'); w.className = 'amt-when' + (n.w ? '' : ' aed-ph'); w.textContent = n.w || '+ date';
+        if(c.classList.contains('amt-chip')) c.appendChild(w); else c.insertBefore(w, c.firstChild); fresh = true; }
+      setF(w, 'dt|' + key + '|' + i + '|when');
+      if(kind === 'flag' && !c.querySelector('.amt-to')){
+        var z = document.createElement('span'); z.className = 'amt-to' + (n.z ? '' : ' aed-ph'); z.textContent = n.z || '+ end'; z.title = 'Where this era ends (optional)';
+        c.appendChild(z); fresh = true; setF(z, 'dt|' + key + '|' + i + '|to'); }
+      if(kind === 'event' && !c.classList.contains('amt-chip')){
+        if(!c.querySelector('.adt-tag')){ var tg = document.createElement('div'); tg.className = 'adt-tag aed-ph'; tg.textContent = '+ tag'; c.insertBefore(tg, c.querySelector('.adt-t')); setF(tg, 'dt|' + key + '|' + i + '|tag'); fresh = true; }
+        if(!c.querySelector('.adt-x')){ var tx = document.createElement('div'); tx.className = 'adt-x aed-ph'; tx.textContent = '+ words'; c.insertBefore(tx, c.querySelector('.adt-foot')); setF(tx, 'dt|' + key + '|' + i + '|text'); fresh = true; }
+      }
+      if(structOK() && !c.querySelector('.aed-tc')){
+        c.appendChild(ctl('aed-tc', [['add', '+', 'Add an event after this one'], ['addf', '⚑', 'Add a flag at this date'], ['addb', '▭', 'Add a box tag at this date'],
+          ['up', '←', 'Move earlier in the reading order'], ['down', '→', 'Move later in the reading order'], ['del', '✕', 'Remove this ' + kind]], {tk: key, ts: i}));
+        fresh = true;
+      }
+    });
+    if(fresh) bx.dispatchEvent(new Event('amt-relayout'));
   }
   // Moving, adding and removing pieces is for a computer; phones edit words.
   function structOK(){ return !PHONE && !root.classList.contains('mobile'); }
@@ -2976,7 +3011,8 @@ MANUAL_JS = r"""<script id="alto-manual">
   }
   var KINDS = [['text', 'Text', 'A heading and a paragraph'], ['list', 'List', 'A heading and bullet points'],
     ['quoted', 'Quote', 'The source’s own words, marked Quoted'], ['notes', 'From your notes', 'Your notes, marked as yours'],
-    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch, like a small timeline'],
+    ['summary', 'Summary', 'A short summary'], ['tree', 'Decision tree', 'Questions and answers that branch'],
+    ['timeline', 'Mini timeline', 'Events along a horizontal line, with flags and box tags'],
     ['quiz', 'Quiz', 'Multiple-choice questions that grade you — best written by Claude from your notes'],
     ['cards', 'Flash cards', 'Cards you flip and mark Know it / Still learning — best written by Claude from your notes'],
     ['cases', 'Cases', 'A list of cases — each with its citation, a note and a link'],
@@ -2996,12 +3032,13 @@ MANUAL_JS = r"""<script id="alto-manual">
     var f = field(ok + '|order'); if(!f) return;
     if(kind === 'cases' || kind === 'authorities'){ addAuthSection(ok, kind, at || document.body); return; }
     var nk = rid('new-'), base = ok + '|s|' + nk, q = ok.split('|');
-    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', quiz:'Quiz', cards:'Flash cards'}[kind] || 'New section';
-    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : kind === 'tree' ? '' : 'Write here.';
+    var H = {text:'New section', list:'Key points', quoted:'Quote', notes:'Notes', summary:'Summary', tree:'Decision tree', timeline:'Timeline', quiz:'Quiz', cards:'Flash cards'}[kind] || 'New section';
+    var T = kind === 'list' ? '<ul><li>First point</li><li>Second point</li></ul>' : kind === 'quoted' ? 'Paste the source’s words here.' : (kind === 'tree' || kind === 'timeline') ? '' : 'Write here.';
     var L = [[ok + '|order', f.get().concat(nk)], [base + '|h', H]];
     if(T) L.push([base + '|t', T]);
     if(PROVL[kind]) L.push([base + '|p', kind]);
     if(kind === 'tree') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), t: 'First question'}]]);
+    if(kind === 'timeline') L.push(['dt|' + DTPRE[q[0]] + '-' + q[1] + '-' + nk + '|tree', [{i: rid('s-'), k: 'e', t: 'First event'}, {i: rid('s-'), k: 'e', t: 'Second event'}]]);
     if(kind === 'quiz' || kind === 'cards'){
       var sk = DTPRE[q[0]] + '-' + q[1] + '-' + nk;
       L.push(['sd|' + sk + '|study', studyStarter(kind)]);
@@ -3776,6 +3813,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(w && w.hasAttribute('data-tk')){
       var tk = w.getAttribute('data-tk'), ts = w.getAttribute('data-ts'), tf = field('dt|' + tk + '|tree'); if(!tf) return;
       var n = tf.get(), me = n.filter(function(q){ return q.i === ts; })[0]; if(!me) return;
+      var TLX = (window._ALTO_DT || {})[tk]; if(TLX && TLX.lay === 'timeline'){ timelineOp(tk, tf, n, me, x); return; }
       if(x === 'add'){
         var ni = rid('s-'); n.push({i: ni, p: ts, t: 'New step'});
         if(change('dt|' + tk + '|tree', n)) setTimeout(function(){ var c = document.querySelector('#detail-content .adt[data-adt-key="' + tk + '"] .adt-card[data-i="' + ni + '"] .adt-t');
@@ -3807,13 +3845,33 @@ MANUAL_JS = r"""<script id="alto-manual">
         else if(x === 'down'){ var nx = b0.nextElementSibling; if(!nx) return false; d.insertBefore(nx, b0); } });
     }
   }
+  function timelineOp(tk, tf, n, me, x){
+    var at = n.indexOf(me), kind = {e: 'event', f: 'flag', b: 'box'}[me.k || 'e'];
+    if(x === 'add' || x === 'addf' || x === 'addb'){
+      var ni = rid('s-'), k = x === 'addf' ? 'f' : x === 'addb' ? 'b' : 'e', it = {i: ni, k: k, t: k === 'f' ? 'New flag' : k === 'b' ? 'New box tag' : 'New event'};
+      if(k !== 'e' && me.w) it.w = me.w;                 // a flag or a box tag starts at this item's date
+      if(k === 'e' && me.d) it.d = me.d;
+      n.splice(at + 1, 0, it);
+      if(change('dt|' + tk + '|tree', n)) setTimeout(function(){ var c = document.querySelector('#detail-content .adt[data-adt-key="' + tk + '"] .amt-i[data-i="' + ni + '"] .adt-t');
+        if(c){ decorate(); startField(c, 'dt|' + tk + '|' + ni + '|title'); try{ document.execCommand('selectAll'); }catch(_){} } }, 60);
+      return;
+    }
+    if(x === 'del'){
+      if(n.length < 2){ toast('A timeline keeps at least one item — remove its section instead.'); return; }
+      n.splice(at, 1);
+      if(change('dt|' + tk + '|tree', n)) toast('Removed — ⌘Z brings it back.');
+      return;
+    }
+    var to = x === 'up' ? at - 1 : at + 1; if(to < 0 || to >= n.length) return;
+    n.splice(to, 0, n.splice(at, 1)[0]); change('dt|' + tk + '|tree', n);
+  }
   function eatIfEditing(e){
     if(!editing()) return;
     var t = e.target; if(!t || !t.closest || inUi(t)) return;
     if(cur && cur.el.contains(t)){ e.stopPropagation(); return; }       // typing / selecting inside the field
     var ck = canvasKey(t) || unitKey(t) || titleKey(t);
     var f = t.closest('[data-aed]'), body = t.closest('.aed-bodypart');
-    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
+    if(ck || f || body || t.closest('#canvas .node-card') || t.closest('.adt-card,.amt-i') || t.closest('.aed-sc,.aed-tc,.aed-cc,.aed-add,.aed-uc,.aed-flags,.aed-chips,.aed-nadd,.aed-nx') || ((PICK || LINK) && t.closest('#canvas .node'))){
       e.stopPropagation(); if(e.type === 'click') e.preventDefault();
     }
   }
@@ -3857,7 +3915,7 @@ MANUAL_JS = r"""<script id="alto-manual">
     if(f){ e.stopPropagation(); e.preventDefault(); startField(f, f.getAttribute('data-aed')); return; }
     var body = t.closest('.aed-bodypart');
     if(body){ var box = body.closest('[data-aed-body]'); if(box){ e.stopPropagation(); e.preventDefault(); startField(body, box.getAttribute('data-aed-body')); return; } }
-    if(t.closest('#canvas .node-card') || t.closest('.adt-card')){ e.stopPropagation(); e.preventDefault(); }
+    if(t.closest('#canvas .node-card') || t.closest('.adt-card,.amt-i')){ e.stopPropagation(); e.preventDefault(); }
     if(cur) endField(true);
   }, true);
   // Leaving a field by clicking anywhere else saves it.

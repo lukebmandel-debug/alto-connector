@@ -911,6 +911,27 @@ between tree and list, and hover a step to light up its path. §0 as
 everywhere: every question, answer and outcome comes from the notes. A tree's
 steps are not cards on the map and need no ids anywhere else.
 
+**Mini timelines inside a page.** A concept or element whose page is really a
+sequence in time — the road to a statute, a case's procedural history, an
+element's development — can carry a small horizontal timeline instead of a
+long list. Offer it only when the notes give dates or a clear order, and only
+if the student wants it. It is a `tree` with `layout: "timeline"`
+(`add_nodes` → `sections: [{h, t?, tree: {layout: "timeline", nodes: [...]}}]`),
+drawn in that section under its text, with a time axis, events alternating
+above and below it. There are no parents: the items run in reading order.
+Each item is `{id, title, when?, text?, tag?, tone?, link?, sections?}` (an
+event: a small card; `link` opens a page of this timeline, `sections` a short
+panel under the band). `when` is a date as the notes write it ("1215", "June
+1215", "500 BC", "Day 3"); two or more dated events are placed to scale, undated
+ones evenly. Two more kinds: `kind: "flag"` is a pennant on the axis at `when`
+(`to` = where that era ends, drawn as a bracket), and `kind: "box"` is a dashed
+caption at `when`; both need `when` and are just their words. `side:
+"above"|"below"` pins an event to one side. On a phone it becomes one row of
+chips. A section carries one of tree / cards / quiz, so a timeline is its own
+section. §0 as everywhere: every date and event comes from the notes. The
+student can add, move, retitle and delete items by hand in edit mode ("+ Add a
+section" → Mini timeline).
+
 **Flash cards and quizzes inside a page.** A concept's or element's page can
 carry flash cards or a graded multiple-choice quiz so the student can study the
 material they gave you right on the page. Offer them for outline concepts (once

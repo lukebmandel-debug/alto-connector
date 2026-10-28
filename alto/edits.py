@@ -440,7 +440,7 @@ def _target(key, brief, by_id, conns):
     if kind == "dt" and len(p) == 3 and p[2] == "tree":
         t = _dt_section(p[1], brief, by_id)
         return (t[0], "tree", "tree") if t and (t[0].get("tree") or {}).get("nodes") else None
-    if kind == "dt" and len(p) == 4 and p[3] in ("title", "text", "edge", "tag"):
+    if kind == "dt" and len(p) == 4 and p[3] in ("title", "text", "edge", "tag", "when", "to"):
         t = _dt_section(p[1], brief, by_id)
         if not t:
             return None
@@ -502,13 +502,20 @@ def _tree_from_list(v, old):
     not carry: the tree's own settings, a step section's provenance)."""
     steps_old = {s.get("id"): s for s in (old.get("nodes") or [])}
     out = []
+    tl = False
     for c in v or []:
         n = {"id": c["i"], "title": c.get("t") or ""}
         if c.get("p"):
             n["parent"] = c["p"]
-        for src, dst in (("x", "text"), ("g", "tag"), ("e", "edge"), ("c", "tone")):
+        for src, dst in (("x", "text"), ("g", "tag"), ("e", "edge"), ("c", "tone"),
+                         ("w", "when"), ("z", "to"), ("d", "side")):
             if c.get(src):
                 n[dst] = c[src]
+        if c.get("k"):                           # a step with a kind is a mini timeline's
+            tl = True
+            kind = {"e": "event", "f": "flag", "b": "box"}.get(c["k"], "event")
+            if kind != "event":
+                n["kind"] = kind
         if c.get("l"):
             n["link"] = c["l"][-1] if isinstance(c["l"], list) else c["l"]
         if c.get("s"):
@@ -523,6 +530,8 @@ def _tree_from_list(v, old):
         out.append(n)
     tree = {k: v2 for k, v2 in old.items() if k != "nodes"}
     tree["nodes"] = out
+    if tl:
+        tree["layout"] = "timeline"
     return tree
 
 

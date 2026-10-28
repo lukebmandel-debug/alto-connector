@@ -1427,6 +1427,13 @@ def add_nodes(timeline_id: str, nodes: list[dict]) -> dict:
     from its parent, `link` = a page of this timeline the step opens,
     `sections` = a small page of its own; see the guide's "Decision trees
     inside a page". Only when the student wants one.
+    The same `tree` with `layout: "timeline"` is a MINI HORIZONTAL TIMELINE
+    inside the page instead: no parents, items in reading order, each
+    `{id, title, when?, text?, tag?, tone?, link?, sections?, kind?, to?,
+    side?}`; `kind: "flag"` (a pennant on the axis, `to` = where its era ends)
+    or `"box"` (a dashed caption) need a `when` and nothing else; dated items
+    are placed to scale, undated ones evenly; see the guide's "Mini timelines
+    inside a page". Only when the student wants one.
     A section may instead carry flash cards or a quiz, drawn inside it: `cards:
     {cards: [{front, back}], shuffle?, label?}` or `quiz: {questions: [{q,
     choices: [2-8 strings], answer: <index of the right choice, or a list of
