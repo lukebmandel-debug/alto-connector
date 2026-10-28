@@ -327,6 +327,9 @@ function focus(G, a, b){
   if(b){ if(!a && !(pre && SH.end && t-SH.end<1500)) pre=tw && tw.b ? tw.b : A;      /* (a landing keeps the view from before the flight to go back to) */
     var g=G.bodies[b], s=sunOf(G, b), side=1;
     if(s && s!==g){ var sa=Math.atan2(s.x-g.x, s.y-g.y); side=Math.abs(wrap(cam.az-sa-1.05))<=Math.abs(wrap(cam.az-sa+1.05)) ? 1 : -1; }
+    if(s && s!==g){ var ks=[side, -side].map(function(sd){ LK={id:b, side:sd, da:0, de:0, az0:cam.az}; var Q=cin(G, b, RC||cv.getBoundingClientRect()), E=[Q.x+Q.d*Math.cos(Q.el)*Math.sin(Q.az), Q.d*Math.sin(Q.el), Q.z+Q.d*Math.cos(Q.el)*Math.cos(Q.az)], m=1e9;
+      Object.keys(G.bodies).forEach(function(i){ var o=G.bodies[i]; if(i!==b) m=Math.min(m, Math.hypot(E[0]-o.x, E[1], E[2]-o.y)-o.d/2); }); return m; });
+      if(ks[0]<24 && ks[1]>ks[0]) side=-side; }          /* (the sun's side that leaves the eye clear of its moons) */
     LK={id:b, side:side, da:0, de:0, az0:cam.az};
     var tr=Math.hypot(g.x-A.x, g.y-A.z), nb=document.getElementById('node-'+b); if(nb) nb.style.setProperty('--s3o', '0');
     tw={t0:t, a:A, lock:b, leave:a, ms:a ? 1000 : 1150, hop:a ? Math.min(1.2, Math.max(0, tr/Math.max(A.d, 1)*.45-.1)) : 0}; }
@@ -335,6 +338,17 @@ function focus(G, a, b){
 function blend(A, B, p, hop){ var e=mj(p), et=mj(Math.min(1, p*1.35));             /* (the aim leads the zoom: the body comes to its place, then near) */
   cam.tx=A.x+(B.x-A.x)*et; cam.tz=A.z+(B.z-A.z)*et; cam.d=Math.exp(Math.log(A.d)+(Math.log(B.d)-Math.log(A.d))*e)*(1+hop*Math.sin(Math.PI*e));
   cam.az=A.az+wrap(B.az-A.az)*e; cam.el=A.el+(B.el-A.el)*e; cam.ox=A.ox+(B.ox-A.ox)*e; cam.oy=A.oy+(B.oy-A.oy)*e; }
+/* the eye never in a body, nor so near that the near plane cuts it (Luke, 2026-10-28: "it's the camera view for the
+   viewer"): every body keeps a clear shell round it (half its radius and a little more, and a few near planes), the eye
+   pressed out of it along the line from the body's centre by a smooth curve (a flat push would be a visible kink), so
+   a flight, a dive, a drag or a zoom arcs round a body instead of through it. w: how much of the push (the dive's
+   last stretch lets it go, to land exactly on the close-up); ex: the bodies it is not applied to (the one dived to / left) */
+function keep(G, E, w, ex){ if(w<=0) return E; var nr=Math.max(2, cam.d/400);
+  for(var it=0;it<2;it++) Object.keys(G.bodies).forEach(function(id){ if(ex && ex[id]) return;
+    var g=G.bodies[id], R=g.d/2, C=R*.5+6+nr*3, Rc=R+C, B=C*.7, dx=E[0]-g.x, dy=E[1], dz=E[2]-g.y, r=Math.hypot(dx, dy, dz); if(r>=Rc+B) return;
+    var q=Rc+B*Math.exp((r-Rc-B)/B), u=r<1e-3 ? [0, 1, 0] : [dx/r, dy/r, dz/r];
+    E=[E[0]+(g.x+u[0]*q-E[0])*w, E[1]+(u[1]*q-E[1])*w, E[2]+(g.y+u[2]*q-E[2])*w]; });
+  return E; }
 /* ── input: drag turns, wheel / pinch nears, a click picks ── */
 function down(e){ if(e.button) return; drag={x:e.clientX, y:e.clientY, az:cam.az, el:cam.el, da:LK ? LK.da : 0, de:LK ? LK.de : 0, m:false, id:e.pointerId}; try{ cv.setPointerCapture(e.pointerId); }catch(x){} }
 function move(e){
@@ -399,6 +413,8 @@ function frame(){
     if(p>=1) tw=null; }
   else if(f && LK){ var B=cin(G, f, r); cam.tx=B.x; cam.tz=B.z; cam.d=B.d; cam.az=B.az; cam.el=B.el; cam.ox=B.ox; cam.oy=B.oy; if(nf) nf.style.setProperty('--s3o', '1'); }   /* (held on the disc, round its orbit) */
   EYE=[cam.tx+cam.d*Math.cos(cam.el)*Math.sin(cam.az), cam.d*Math.sin(cam.el), cam.tz+cam.d*Math.cos(cam.el)*Math.cos(cam.az)];
+  if(!(f && LK && !tw && !FS)){ var kx={}, kp=tw ? Math.min(1, (now-tw.t0)/tw.ms) : 1; if(tw && tw.lock) kx[tw.lock]=1; if(tw && tw.leave) kx[tw.leave]=1;      /* (held on a close-up: its own, with the fades; the dive eases the push off at its end) */
+    EYE=keep(G, EYE, tw && tw.lock ? 1-sm(.6, 1, kp) : 1, kx); }
   var V=look(EYE, [cam.tx, 0, cam.tz], [0, 1, 0]); VPm=mul(persp(cam.fov, asp, Math.max(2, cam.d/400), 200000), V);
   for(var k=0;k<4;k++){ VPm[k*4]+=cam.ox*VPm[k*4+3]; VPm[k*4+1]+=cam.oy*VPm[k*4+3]; }         /* (the lens shifted: the aim drawn where the disc is) */
   /* close up, what fades: judged against the enlarged body (the one left, on the way out), coming in with the dive; "larger" against the disc it is diving to */
@@ -439,7 +455,7 @@ function fly(G, now){
    way: its course keeps it off the bodies it goes round, its orbits clear of them): over a sphere 4 px larger than the
    body, tapering (a cubic, level at its edge) from 4 px inside the body's edge to 4 px outside it, so it never dips
    into the body and nothing lifts it a few px clear of one */
-function lift(G, p){ var y=K3.Y, m=4;
+function lift(G, p){ var y=K3.Y, m=12;
   Object.keys(G.bodies).forEach(function(id){ var g=G.bodies[id], R=g.d/2, h=Math.hypot(g.x-p[0], g.y-p[1]), h0, V, t; if(h>=R+m) return;
     h0=Math.max(0, R-m); V=Math.sqrt((R+m)*(R+m)-h0*h0);
     if(h<=h0) y+=Math.sqrt((R+m)*(R+m)-h*h); else { t=(h-h0)/(R+m-h0); y+=(1-t)*(1-t)*(V*(1+2*t)-h0/V*(R+m-h0)*t); } });
@@ -713,7 +729,7 @@ function ctl(){ var w=document.getElementById('sol-ctl'); if(!w) return; var b=d
 function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
 setInterval(function(){ if(!raf && want()) kick(); else if(!want() && on) kick(); ctl(); }, 600);
 if(typeof MutationObserver==='function') new MutationObserver(kick).observe(de, {attributes:true, attributeFilter:['class']});
-window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
+window._altoSolar3D={on:function(){ return on; }, cam:function(){ return {tx:cam.tx, tz:cam.tz, d:cam.d, az:cam.az, el:cam.el}; }, eye:function(){ return EYE; }, set:function(o){ tw=null; for(var k in o) cam[k]=o[k]; },
   pick:function(x, y){ var h=pick(x, y); return h && h.id || null; }, ship:function(){ if(!SH.p || SH.al<=0) return null; var q=VPm ? proj([SH.p[0], 3, SH.p[1]]) : null; return {x:SH.p[0], y:SH.p[1], h:SH.hs, al:SH.al, craft:SH.cr, on:SH.on, sx:q && q.x, sy:q && q.y, lift:SH.y, e:SH.e, nose:SH.nose, vis:SH.fx ? SH.fx.vis : 1, warp:SH.fx ? SH.fx.warp : 0}; }, closeup:function(){ return {lock:LK && LK.id, moving:!!tw, ql:QL, ox:cam.ox, oy:cam.oy}; }, kinds:function(){ var o={}; Object.keys(BOD).forEach(function(id){ o[id]=BOD[id].kind; }); return o; }, fades:function(){ var o={}; Object.keys(BOD).forEach(function(id){ if(BOD[id].fa<.999) o[id]=Math.round(BOD[id].fa*100)/100; }); return o; }, project:function(id){ var G=geo(), g=G && G.bodies[id]; return g && VPm ? proj(W(g)) : null; }, reset:reset, textures:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].tex; }).length; }, fine:function(){ return Object.keys(BOD).filter(function(id){ return !!BOD[id].thi; }); }};
 })();
 """
