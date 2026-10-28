@@ -270,6 +270,8 @@ def test_a_detail_page_of_a_whole_lanes_timeline_has_a_chevron_back_beside_the_c
     r = pg.evaluate("""() => { var b=document.getElementById('detail-back-fixed').getBoundingClientRect(), m=document.querySelector('.brand-mark').getBoundingClientRect();
       return {bc:b.top+b.height/2, mc:m.top+m.height/2, w:b.width, left:b.left, pos:getComputedStyle(document.getElementById('detail-back-fixed')).position}; }""")
     assert abs(r["bc"] - r["mc"]) <= 0.5 and r["w"] == 34 and r["left"] > 40 and r["pos"] == "fixed", r       # item 12: centred on the clef, not a stray square at the edge
+    pill = pg.evaluate("() => { var p=document.querySelector('#nav-prev-label .wrap-pill'); if(!p) return null; var r=p.getBoundingClientRect(); return [r.left, parseFloat(getComputedStyle(p).paddingLeft)]; }")
+    assert pill is None or (pill[0] >= 8 and pill[1] >= 6), pill      # Art: the first page's 'back around' chip is 8px clear of the edge with 6px of padding
     pg.tap("#detail-back-fixed")
     pg.wait_for_timeout(1000)
     assert not pg.evaluate("document.documentElement.classList.contains('detail-open')")
