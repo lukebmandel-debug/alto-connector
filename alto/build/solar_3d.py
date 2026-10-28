@@ -339,13 +339,13 @@ function blend(A, B, p, hop){ var e=mj(p), et=mj(Math.min(1, p*1.35));          
   cam.tx=A.x+(B.x-A.x)*et; cam.tz=A.z+(B.z-A.z)*et; cam.d=Math.exp(Math.log(A.d)+(Math.log(B.d)-Math.log(A.d))*e)*(1+hop*Math.sin(Math.PI*e));
   cam.az=A.az+wrap(B.az-A.az)*e; cam.el=A.el+(B.el-A.el)*e; cam.ox=A.ox+(B.ox-A.ox)*e; cam.oy=A.oy+(B.oy-A.oy)*e; }
 /* the eye never in a body, nor so near that the near plane cuts it (Luke, 2026-10-28: "it's the camera view for the
-   viewer"): every body keeps a clear shell round it (half its radius and a little more, and a few near planes), the eye
+   viewer"): every body keeps a clear shell round it (half its radius, the sun four fifths, and a little more, and a few near planes), the eye
    pressed out of it along the line from the body's centre by a smooth curve (a flat push would be a visible kink), so
    a flight, a dive, a drag or a zoom arcs round a body instead of through it. w: how much of the push (the dive's
    last stretch lets it go, to land exactly on the close-up); ex: the bodies it is not applied to (the one dived to / left) */
 function keep(G, E, w, ex){ if(w<=0) return E; var nr=Math.max(2, cam.d/400);
   for(var it=0;it<2;it++) Object.keys(G.bodies).forEach(function(id){ if(ex && ex[id]) return;
-    var g=G.bodies[id], R=g.d/2, C=R*.5+6+nr*3, Rc=R+C, B=C*.7, dx=E[0]-g.x, dy=E[1], dz=E[2]-g.y, r=Math.hypot(dx, dy, dz); if(r>=Rc+B) return;
+    var g=G.bodies[id], R=g.d/2, C=R*(g.role==='sun' ? .8 : .5)+6+nr*3, Rc=R+C, B=C*.7, dx=E[0]-g.x, dy=E[1], dz=E[2]-g.y, r=Math.hypot(dx, dy, dz); if(r>=Rc+B) return;
     var q=Rc+B*Math.exp((r-Rc-B)/B), u=r<1e-3 ? [0, 1, 0] : [dx/r, dy/r, dz/r];
     E=[E[0]+(g.x+u[0]*q-E[0])*w, E[1]+(u[1]*q-E[1])*w, E[2]+(g.y+u[2]*q-E[2])*w]; });
   return E; }
