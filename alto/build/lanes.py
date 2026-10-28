@@ -1194,7 +1194,8 @@ function draw(world, G){
       var cuts=[]; order.forEach(function(id){ var hw=(G.w[id]||270)/2+4, hh=(h[id]||120)/2+10;
         if(Math.abs(X[id]-f.x)<hw) cuts.push([pos[id]+P-hh, pos[id]+P+hh]); });
       cuts.sort(function(a,b){ return a[0]-b[0]; });
-      var yy=f.y+P+9;
+      var yy=f.y+P+9, orphan=!f.el;            // a flag folded into a numbered pennant keeps its diamond, not a pole to nothing
+      if(orphan) cuts=[[-1e9, 1e9]];
       cuts.forEach(function(c){ if(c[0]>yy) el('line',{'class':'ln-fpole', x1:f.x, x2:f.x, y1:yy, y2:Math.min(c[0],ay)},g); yy=Math.max(yy,c[1]); });
       if(yy<ay) el('line',{'class':'ln-fpole', x1:f.x, x2:f.x, y1:yy, y2:ay},g);
       if(f.x2!=null && f.x2-f.x>6) el('rect',{'class':'ln-fera', x:f.x, y:ay-2, width:f.x2-f.x, height:4, rx:2},g);

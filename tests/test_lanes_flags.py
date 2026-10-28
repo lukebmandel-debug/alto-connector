@@ -297,7 +297,8 @@ def test_phone_whole_view_collapses_overlapping_flags_to_a_numbered_pennant(brow
     assert not errs, errs
     pens = pg.evaluate("[...document.querySelectorAll('.lanes-flag')].map(e => [e.textContent, e.className.includes('lanes-flag-n')])")
     assert ["3", True] in pens and ["Far away", False] in pens and len(pens) == 2, pens
-    assert pg.evaluate("document.querySelectorAll('#lanes-svg .ln-flag').length") == 4          # every pole still stands
+    assert pg.evaluate("document.querySelectorAll('#lanes-svg .ln-fdia').length") == 4          # every diamond still stands
+    assert pg.evaluate("[...document.querySelectorAll('#lanes-svg .ln-flag')].filter(g => g.querySelector('.ln-fpole')).length") == 2   # a pole only under a pennant
     pg.evaluate("document.querySelector('.lanes-flag-n').click()")
     rows = pg.evaluate("[...document.querySelectorAll('.lanes-flaglist b')].map(e => e.textContent)")
     assert rows == ["Flag number 0", "Flag number 1", "Flag number 2"], rows
