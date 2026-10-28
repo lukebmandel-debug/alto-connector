@@ -37,9 +37,17 @@ FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the 
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
   X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:calc(4px / var(--alto-zoom,.8));right:calc(4px / var(--alto-zoom,.8));top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));}
   X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
-  /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page": a hairline gold border, no corner marks) */
-  X #sk-frame{box-sizing:border-box;border:1.5px solid rgba(217,174,85,.8);}
-  X #sk-frame i{display:none !important;}
+  /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page";
+     the corners (Art's pick, option B): chamfered 45deg x 16px, so a rounded window cannot clip a corner point. Drawn as four straight gradient lines that stop 16px short
+     of each corner and the four <i>'s diagonals; every length is whole real px under the page zoom) */
+  X #sk-frame{--fz:var(--alto-zoom,.8);--fc:calc(16px / var(--fz));--ft:calc(1px / var(--fz));--fg:rgba(217,174,85,.8);
+    background:linear-gradient(var(--fg),var(--fg)) var(--fc) 0/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,linear-gradient(var(--fg),var(--fg)) var(--fc) 100%/calc(100% - 2 * var(--fc)) var(--ft) no-repeat,
+      linear-gradient(var(--fg),var(--fg)) 0 var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat,linear-gradient(var(--fg),var(--fg)) 100% var(--fc)/var(--ft) calc(100% - 2 * var(--fc)) no-repeat;}
+  X #sk-frame i{position:absolute;width:var(--fc);height:var(--fc);}
+  X #sk-frame i:nth-child(1){left:0;top:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(2){right:0;top:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(3){left:0;bottom:0;background:linear-gradient(to bottom left,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
+  X #sk-frame i:nth-child(4){right:0;bottom:0;background:linear-gradient(to bottom right,transparent calc(50% - var(--ft) / 2),var(--fg) calc(50% - var(--ft) / 2),var(--fg) calc(50% + var(--ft) / 2),transparent calc(50% + var(--ft) / 2));}
   /* (Art, 2026-10-28: the right rail and the X box sat on the frame's line, and the two bottom rows on different baselines: the rail and the X stand
      inside the line, the left row rides the right row's baseline; all in whole real px, so the zoom doesn't blur them) */
   X:not(.mobile):not(.detail-open) #tab-rail:not(#_){right:calc(6px / var(--alto-zoom,.8)) !important;}
@@ -172,7 +180,7 @@ BOARD_CSS = r"""
   X:not(.alto-stars) #sk-mark::before,X:not(.alto-stars) #sk-mark::after{width:40px;margin:0 16px 4px;}
   X.alto-lanes #sk-mark{display:none !important;}
   @media (max-width:900px){ X #sk-mark{display:none !important;} }   /* (a narrow window: no cartouche) */
-  X:is(.bldg-open,.wpal-open) #sk-frame i{display:none;}  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
+  X.wpal-open #sk-mark{display:none !important;}   /* (the World map's Tour bar has the bottom middle) */                  /* (the Museum's own panels sit in the corners: the frame keeps its crown) */           /* (the horizontal timeline's step bar has the middle of that row) */                 /* Retro is one look: the poster's night, in either theme */
   /* the page: flat black, no wallpaper, no picture, no glass slab */
   X body,X #app,X #canvas{background:#000 !important;}
   X #page-bg:not(#_){background:#000 !important;filter:none !important;} X #page-bg::before,X #page-bg::after{display:none !important;}
