@@ -565,7 +565,7 @@ def test_the_explorer_warps_between_systems_and_flies_on_impulse_within_one(brow
     assert warp and all(f["wd"] and f["sx"] > f["sy"] * 1.8 for f in warp), warp[:2]       # stretched, the stars streaking
     wind = [f for f in F if f["x"] < .2]                                                    # the wind-up: still where it is
     assert wind and max(f["u"] for f in wind) < .01 and all(f["op"] in (None, "1") for f in wind), wind[:2]
-    assert max(f["fx"]["wu"] for f in wind) > .9 and max(f["fx"]["ws"] for f in wind) > .2 and max(f["fl"][2] for f in wind) > .15    # engines up, a light stretch, a glow
+    assert max(f["fx"]["wu"] for f in wind) > .8 and max(f["fx"]["ws"] for f in wind) > .2 and max(f["fl"][2] for f in wind) > .15    # engines up, a light stretch, a glow
     assert max(f["sx"] for f in wind) > 1.1 * min(f["sx"] for f in wind) and not any(f["wd"] for f in wind)              # (stretched a little, no streaks yet)
     assert max(f["u"] for f in F if f["x"] < .6) > .85                                      # most of the way in a moment
     assert max(f["fl"][0] for f in F if .5 < f["x"] < .66) > .5                             # the flash as it drops out

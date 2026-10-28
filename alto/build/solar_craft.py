@@ -207,7 +207,7 @@ function burn(root, e, now){ var L=root._fl; if(!L || L.c!==root.firstChild){ L=
    stars streaking past — a flash as it drops out, and on impulse into its orbit (the approach and capture above).
    Jump (the Halo, any flight): a flash where it is, gone; a flash where it comes out, there easing into its orbit; no
    transit seen (the view moves on meanwhile). Under reduced motion no flight flies at all (solar_fly.py can()). ── */
-var WARP={a0:.16, a1:.36, w:.08, W:22, S:3}, JUMP={S:1.5, out:.18, back:.74, inS:.16}, WIND={warp:1, jump:1};
+var WARP={a0:.16, a1:.36, w:.08, W:22, S:3}, JUMP={S:1.5, out:.18, back:.74, inS:.16, hold:.12}, WIND={warp:1, jump:1};
 function pulse(x, c, w){ var u=(x-c)/w; return Math.abs(u)>=1 ? 0 : (1-u*u)*(1-u*u); }
 var WT=null;
 function warpTab(){ if(WT) return WT; var n=400, v=[0], i, acc=0;
@@ -228,13 +228,14 @@ function travel(id, cross){ var c=BY[id||cur()], m=cross && (c.travel==='jump' |
   function X(x){ x=Math.min(1, Math.max(0, x)); return u>0 ? Math.max(0, (x-u)/(1-u)) : x; }
   function wind(x, y){ var w=u>0 ? Math.min(1, x/u) : 1, o;
     if(m==='jump'){ var g=ss((w-.5)/.5), h=ss(w/.65);
-      o={wu:.5*h*(1-ss(y/.05)), ws:0, cg:Math.max(0, (.4*h+.45*g)*(1-ss(y/.06))), gr:w>=1 && y>0 ? 24 : 80-56*g}; }
-    else o={wu:ss(w/.5)*(1-ss(y/.1)), ws:y<=WARP.a0+.7*WARP.w ? .25*ss((w-.4)/.35) : 0, cg:.3*ss((w-.2)/.5)*(1-ss(y/.1)), gr:0};
+      o={wu:.5*h*(1-ss(y/.05)), ws:0, cg:Math.min(1, (.4*h+.65*g)*(1-ss(y/.06))), gr:w>=1 && y>0 ? 24 : 80-56*g}; }
+    else { var gl=ss((w-.1)/.6), lv=.7+.3*ss((w-.6)/.2), pl=w<.6 ? .3*(.5-.5*Math.cos(Math.PI*2*3*w/.6)) : 0;      /* (Art, 2026-10-28: the glow from .1 s to its peak at .7 s, the engines pulsing three times in the first .6 s, the stretch .25 to .45, then a .25 s hold) */
+      o={wu:Math.min(1, ss(w/.2)*(lv+pl))*(1-ss(y/.1)), ws:y<=WARP.a0+.7*WARP.w ? (.25+.2*ss((w-.3)/.4))*ss((w-.1)/.2) : 0, cg:.55*gl*(1-ss(y/.1)), gr:12+18*gl}; }
     return o; }
   function more(x, f){ var y=X(x), o=wind(x, y); f.wu=o.wu; f.ws=o.ws; f.cg=o.cg; f.gr=o.gr; return f; }
-  if(m==='jump') return {mode:m, S:function(s){ var b=Math.min(s, JUMP.S); u=W0/(b+W0); return b+W0; }, map:X, dmap:function(){ return 1/(1-u); },
+  if(m==='jump') return {mode:m, S:function(s){ var b=Math.min(s, JUMP.S); u=W0/(b+W0); return b+W0; }, map:function(x){ return Math.max(0, (X(x)-JUMP.hold)/(1-JUMP.hold)); }, dmap:function(){ return 1/(1-u)/(1-JUMP.hold); },
     fx:function(x){ var y=X(x); return more(x, {vis:Math.max(1-ss(y/JUMP.out), ss((y-JUMP.back)/JUMP.inS)), warp:0, fa:pulse(y, JUMP.out*.55, JUMP.out*.75), fb:pulse(y, JUMP.back+JUMP.inS*.35, JUMP.inS*.9), fw:0}); },
-    atw:JUMP.back+JUMP.inS*.35, wind:W0};
+    atw:(JUMP.back+JUMP.inS*.35-JUMP.hold)/(1-JUMP.hold), wind:W0};
   return {mode:m, S:function(s){ var b=Math.min(s, WARP.S); u=W0/(b+W0); return b+W0; },
     map:function(x){ x=X(x); var f=x*T.n, i=Math.min(T.n-1, Math.floor(f)); return T.v[i]+(T.v[i+1]-T.v[i])*(f-i); },
     dmap:function(x){ x=X(x); return (1+(WARP.W-1)*T.bump(x))*T.d1/(1-u); },
