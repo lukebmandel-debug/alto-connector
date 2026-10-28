@@ -35,11 +35,16 @@ FONT = '"Avenir Next","Futura","Century Gothic","Helvetica Neue",system-ui,sans-
 # ── shared with the Star chart (solar_stars.RETRO_CSS splices these in; `X ` is the style's own selector) ──
 FRAME_CSS = r"""  /* the frame round the whole page (Luke, 2026-10-22: "for the two top corners, they should be above the Alto logo", "bottom
      corner caps … should actually be at the bottom corner"): its corners in the window's four corners, clear of the marks and controls */
-  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:4px;right:4px;top:3px;bottom:calc(3px + env(safe-area-inset-bottom,0px));}
+  X #sk-frame{display:block;position:fixed;pointer-events:none;z-index:299;left:calc(4px / var(--alto-zoom,.8));right:calc(4px / var(--alto-zoom,.8));top:calc(3px / var(--alto-zoom,.8));bottom:calc(3px / var(--alto-zoom,.8) + env(safe-area-inset-bottom,0px));}
   X #title-bar:not(#_)>*{translate:0 8px;}   /* (the clef, the name and the wordmark a little lower, inside the corners) */
   /* (Luke, 2026-10-28: the corner diamonds "interfering just a bit with the elements on the page … take that out, but we can make it a solid border around the entire page": a hairline gold border, no corner marks) */
   X #sk-frame{box-sizing:border-box;border:1.5px solid rgba(217,174,85,.8);}
   X #sk-frame i{display:none !important;}
+  /* (Art, 2026-10-28: the right rail and the X box sat on the frame's line, and the two bottom rows on different baselines: the rail and the X stand
+     inside the line, the left row rides the right row's baseline; all in whole real px, so the zoom doesn't blur them) */
+  X:not(.mobile):not(.detail-open) #tab-rail:not(#_){right:calc(6px / var(--alto-zoom,.8)) !important;}
+  X:not(.mobile):not(.detail-open) #ct-chips:not(#_){margin-left:calc(4px / var(--alto-zoom,.8));}
+  X:not(.mobile) :is(#account-btn,#pal-ctl):not(#_){bottom:30px !important;}
   X #sk-frame b{position:absolute;left:50%;top:31px;width:min(46vw,520px);height:1.5px;transform:translateX(-50%);
     background:linear-gradient(90deg,transparent,#d9ae55 18%,#d9ae55 46%,transparent 46% 54%,#d9ae55 54%,#d9ae55 82%,transparent);opacity:.7;}
   X #sk-frame b::after{content:'';position:absolute;left:50%;top:-5px;width:10px;height:10px;margin-left:-5px;border:1.5px solid #d9ae55;transform:rotate(45deg);}
@@ -73,7 +78,7 @@ CHROME_CSS = r"""
   X :is(#title-bar,#nav,#node-nav-bar):not(#_){background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;border-color:transparent !important;}
   X.detail-open :is(#title-bar,#nav,#node-nav-bar):not(#_){background:#000 !important;border-bottom:1px solid rgba(217,174,85,.35) !important;}
   X :is(#title-bar,#nav,#node-nav-bar):not(#_)::before,X :is(#title-bar,#nav,#node-nav-bar):not(#_)::after{background:transparent !important;box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
-  X #nav .nav-btn:not(#_){background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
+  X #nav .nav-btn:not(#_){background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.55) !important;border-radius:0 !important;box-shadow:none !important;
     -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;font-size:10px !important;}
   X #nav .nav-btn:hover,X #nav .nav-btn.active{border-color:#d9ae55 !important;color:#d9ae55 !important;}
   X #nav .nav-btn :is(.nav-chip-count){color:#d9ae55 !important;background:transparent !important;}
@@ -140,7 +145,7 @@ CHROME_CSS = r"""
   X #fw-seg button:not(#_){border-radius:0 !important;background:transparent !important;color:#b9b2a0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.12em;}
   X #fw-seg button[aria-selected="true"]:not(#_){background:#d9ae55 !important;color:#000 !important;}
   /* the filter's chips: square tabs, gold when on */
-  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
+  X .ef-chip:not(#_){border-radius:0 !important;background:#000 !important;color:#efe6cf !important;border:1.5px solid rgba(217,174,85,.5) !important;box-shadow:none !important;
     font-family:var(--rt-f) !important;letter-spacing:.06em;}
   X .ef-chip:not(#_):hover{border-color:#d9ae55 !important;}
   X .ef-chip:is(.active,[aria-pressed=true]):not(#_){background:#d9ae55 !important;color:#000 !important;border-color:#d9ae55 !important;}
