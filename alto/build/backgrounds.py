@@ -321,7 +321,7 @@ HEAD_JS = r"""(function(){
   window._altoBgId='';
   apply(read());
   // the style, Classic or Retro (retro.py), kept per timeline; Retro's look is a hosted script, fetched only when Retro is chosen
-  if(__RETRO__){ var SK=KEY.replace(/-bg$/,'-style');
+  if(__RETRO__){ var SK=/-bg$/.test(KEY) ? KEY.replace(/-bg$/,'-style') : KEY+'-style';
     var sty=function(){ try{ return localStorage.getItem(SK)==='retro' ? 'retro' : 'classic'; }catch(e){ return 'classic'; } };
     var ret=function(on){ if(on && web()) __LOAD__ var R=window._altoRetro; if(R) R[on ? 'on' : 'off'](); };
     window._altoStyle={get:sty, set:function(v){ try{ localStorage.setItem(SK, v==='retro' ? 'retro' : 'classic'); }catch(e){} ret(v==='retro'); return sty(); }};
@@ -342,7 +342,7 @@ HEAD_JS = r"""(function(){
 def head_block(key: str, palace: bool = False, retro: bool = False) -> str:
     """The <script> for <head>. `key` is the localStorage key of this page's choice; a Memory Palace
     page (palace=True) offers the maps' set and, with no choice recorded, opens on the first of it.
-    `retro`: the page offers the Classic | Retro style (retro.py; a timeline page, not the homepage or a System)."""
+    `retro`: the page offers the Classic | Retro style (retro.py; a timeline page or the homepage, not a System)."""
     from . import retro as _rt
     from .palace_assets import loader
     js = (HEAD_JS.replace("__CATALOG__", catalog_json(palace))
