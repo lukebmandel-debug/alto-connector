@@ -233,8 +233,12 @@ FORMAT_CSS = r"""
   X :is(.lanes-tag,.ln-main-tag,.lanes-past,.lu-chip):not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.6) !important;border-radius:0 !important;
     box-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.16em;}
   X .lanes-flag:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;
-    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;}
-  X #lanes-svg .ln-fpole{stroke:#d9ae55 !important;stroke-width:1.5;opacity:.5 !important;}
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;font-family:var(--rt-f) !important;font-size:11px;text-transform:uppercase;letter-spacing:.14em;max-width:34ch;}
+  X .lanes-flag-n:not(#_){max-width:none !important;letter-spacing:.04em;}
+  X .lanes-flaglist:not(#_){background:#000 !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;box-shadow:none !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X .lanes-fchip:not(#_){background:none !important;color:#d9ae55 !important;border:1px solid rgba(217,174,85,.7) !important;border-radius:0 !important;font-family:var(--rt-f) !important;text-transform:uppercase;letter-spacing:.08em;}
+  X.phone-whole .lanes-flag:not(#_){letter-spacing:.08em;font-size:11px;max-width:19ch;}
+  X #lanes-svg .ln-fpole{stroke:#d9ae55 !important;stroke-width:1.5;opacity:.45 !important;}
   X #lanes-svg .ln-fdia{fill:#d9ae55 !important;stroke:#000 !important;}
   X #lanes-svg .ln-fera{fill:#d9ae55 !important;opacity:.4 !important;}
   X #lanes-nav:not(#_),X #lanes-nav *:not(svg *){background-color:transparent;}

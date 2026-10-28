@@ -597,10 +597,18 @@ LANES_CSS = KEY_CSS + """
     border-left:3px solid var(--flag-c,var(--accent));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:ln-unfurl .15s ease-out;}
   @keyframes ln-unfurl{from{opacity:0;transform:translate(-5px,-50%);}}
   @media (prefers-reduced-motion:reduce){.lanes-flag{animation:none;}}
-  #lanes-svg .ln-fpole{stroke:var(--flag-c,var(--accent));stroke-width:1.5;opacity:.55;}
+  #lanes-svg .ln-fpole{stroke:var(--flag-c,var(--accent));stroke-width:1.5;opacity:.45;}
   #lanes-svg .ln-fdia{fill:var(--flag-c,var(--accent));stroke:var(--surface);stroke-width:1.5;}
   #lanes-svg .ln-fera{fill:var(--flag-c,var(--accent));opacity:.4;}
   html.phone-whole .lanes-flag{max-width:15ch;font-size:11px;padding:2px 8px 2px 7px;}
+  .lanes-flag-n{max-width:none !important;min-width:24px;text-align:center;font-weight:800;cursor:pointer;}
+  .lanes-flaglist{position:absolute;z-index:9;max-width:230px;padding:8px 10px;border-radius:8px;font-size:12px;color:var(--text);
+    background:color-mix(in srgb,var(--surface) 96%,transparent);border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.18);}
+  .lanes-flaglist div{padding:3px 0;} .lanes-flaglist b{display:block;font-weight:700;} .lanes-flaglist span{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+  /* the phone's card view: a flag is a chip under the card's date — flat, not a button, the whole label */
+  .lanes-fchips{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 6px;}
+  .lanes-fchip{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--text);padding:2px 9px 2px 8px;border-radius:0 6px 6px 0;pointer-events:none;
+    background:color-mix(in srgb,var(--flag-c,var(--accent)) 14%,transparent);border-left:3px solid var(--flag-c,var(--accent));}
   html.alto-editing .lanes-flag{cursor:pointer;}
   html.alto-editing .lanes-flag:hover,.lanes-flag.aed-on{outline:2px solid var(--accent);outline-offset:1px;}
   html.alto-editing .lanes-flag.aed-drag{cursor:grabbing;opacity:.85;}
@@ -798,7 +806,7 @@ window._altoLanes=function(h){
   var tv=times(pres), S=scale(tv), Xr={};
   pres.forEach(function(id){ Xr[id]=S.x(tv[id]); });
   /* labels first: their widths decide where lines start and how much room a detour's label needs */
-  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap,.lanes-flag').forEach(function(e){ e.remove(); });
+  world.querySelectorAll('.lanes-tag,.lanes-past,.lanes-gap,.lanes-flag,.lanes-flaglist').forEach(function(e){ e.remove(); });
   L.lines.forEach(function(l){ l.tagEl=tag(world, l, 0, 0, l.color, 0); l.tagW=l.tagEl.offsetWidth||60; });
   var shiftBefore=0;
   runs.forEach(function(r){
@@ -1010,7 +1018,7 @@ window._altoLanes=function(h){
   main.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; });
   L.lines.forEach(function(l){ l.ev.sort(function(a,b){ return X[a]-X[b] || idx[a]-idx[b]; }); });
   var geo=draw(world, {lines:lines, main:main, order:order, X:X, pos:pos, h:h, S:S, W:W, H:H, runs:runs, fbOf:fbOf, mains:mains, idx:idx,
-                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG});
+                       pastY:pastY, sideOf:sideOf, shift:shiftAll, z:mode.cz, flags:FLG, w:w});
   units(world, order, X, w, H, W);
   /* the frosted slab (units() placed it) ends at the board's foot — at the canvas's when the board fits, never short of the
      canvas less its top padding (the engine's place() would lay the page out again every 250ms) — its height corrected by
@@ -1090,16 +1098,43 @@ function timeFlags(order, fbOf){
    whose last pennant ends before it */
 function flagRows(world, F){
   F.sort(function(a,b){ return a.x-b.x; });
-  var ends=[], rows=0;
   F.forEach(function(f){
     var d=document.createElement('div'); d.className='lanes-flag'; d.setAttribute('data-flag', f.id);
     if(f.color) d.style.setProperty('--flag-c', f.color);
     var era=f.to ? ' – '+f.to : '', tip=f.label+(f.at ? ' ('+f.at+era+')' : '');
     d.title=tip; d.setAttribute('aria-label', tip); d.textContent=f.label; world.appendChild(d); f.el=d;
-    var w=d.offsetWidth||80, r=0; while(ends[r]!=null && ends[r]+10>f.x) r++;
-    f.row=r; ends[r]=f.x+w; rows=Math.max(rows, r+1);
+    f.w=d.offsetWidth||80;
   });
+  if(de.classList.contains('phone-whole')){
+    /* a phone has no room for rows: flags that would overlap become ONE numbered pennant ("3"); a tap lists them */
+    var groups=[], cur=null;
+    F.forEach(function(f){ if(cur && f.x<cur.end+10){ cur.list.push(f); cur.end=Math.max(cur.end, f.x+f.w); } else { cur={list:[f], end:f.x+f.w}; groups.push(cur); } });
+    groups.forEach(function(g){
+      g.list.forEach(function(f){ f.row=0; });
+      if(g.list.length<2) return;
+      var lead=g.list[0], d=lead.el, n=g.list.length;
+      g.list.slice(1).forEach(function(f){ f.el.remove(); f.el=null; });
+      d.className='lanes-flag lanes-flag-n'; d.textContent=String(n); d.removeAttribute('title');
+      d.setAttribute('aria-label', n+' flags: '+g.list.map(function(f){ return f.label; }).join(', '));
+      d.setAttribute('role','button'); d.tabIndex=0; d._flags=g.list;
+      d.addEventListener('click', function(e){ e.stopPropagation(); flagList(world, d); });
+    });
+    return F.length ? 1 : 0;
+  }
+  var ends=[], rows=0;
+  F.forEach(function(f){ var r=0; while(ends[r]!=null && ends[r]+10>f.x) r++;
+    f.row=r; ends[r]=f.x+f.w; rows=Math.max(rows, r+1); });
   return rows;
+}
+/* the numbered pennant's list: each flag's label and date, under the pennant; a tap anywhere else shuts it */
+function flagList(world, d){
+  var old=world.querySelector('.lanes-flaglist'), same=old && old._for===d; if(old) old.remove(); if(same) return;
+  var l=document.createElement('div'); l.className='lanes-flaglist'; l._for=d;
+  d._flags.forEach(function(f){ var r=document.createElement('div'), era=f.to ? ' – '+f.to : '';
+    r.innerHTML='<b></b><span></span>'; r.firstChild.textContent=f.label; r.lastChild.textContent=f.at ? f.at+era : ''; l.appendChild(r); });
+  l.style.left=d.style.left; l.style.top=(parseFloat(d.style.top)+16)+'px'; world.appendChild(l);
+  var shut=function(){ l.remove(); document.removeEventListener('click', shut, true); };
+  setTimeout(function(){ document.addEventListener('click', shut, true); }, 0);
 }
 /* a smooth path through levels [{x0, x1, y}]: flat along each, an S between
    one and the next whose ends are level (so a dip meets the main line square
@@ -1155,10 +1190,16 @@ function draw(world, G){
     G.flags.forEach(function(f){
       var g=el('g',{'class':'ln-flag', 'data-flag':f.id},fg), c=f.color||'';
       if(c) g.style.setProperty('--flag-c', c);
-      el('line',{'class':'ln-fpole', x1:f.x, x2:f.x, y1:f.y+P+9, y2:ay},g);
+      /* the pole stands behind the cards: it is cut wherever a card is in its way, so a glass card never shows it through */
+      var cuts=[]; order.forEach(function(id){ var hw=(G.w[id]||270)/2+4, hh=(h[id]||120)/2+10;
+        if(Math.abs(X[id]-f.x)<hw) cuts.push([pos[id]+P-hh, pos[id]+P+hh]); });
+      cuts.sort(function(a,b){ return a[0]-b[0]; });
+      var yy=f.y+P+9;
+      cuts.forEach(function(c){ if(c[0]>yy) el('line',{'class':'ln-fpole', x1:f.x, x2:f.x, y1:yy, y2:Math.min(c[0],ay)},g); yy=Math.max(yy,c[1]); });
+      if(yy<ay) el('line',{'class':'ln-fpole', x1:f.x, x2:f.x, y1:yy, y2:ay},g);
       if(f.x2!=null && f.x2-f.x>6) el('rect',{'class':'ln-fera', x:f.x, y:ay-2, width:f.x2-f.x, height:4, rx:2},g);
       el('path',{'class':'ln-fdia', d:'M'+f.x+' '+(ay-6)+' l5.5 6 l-5.5 6 l-5.5 -6 Z'},g);
-      var d=f.el; d.style.left=f.x+'px'; d.style.top=(f.y+P)+'px'; });
+      var d=f.el; if(d){ d.style.left=f.x+'px'; d.style.top=(f.y+P)+'px'; } });
   }
   /* who is on the page at each main-line event, spread around its stem: lines
      from above to the left of lines from below, the outermost track outermost */
@@ -1289,7 +1330,28 @@ function whenChip(c, id){
   var tg=c.querySelector('.node-tag'); c.insertBefore(d, tg||c.firstChild);
 }
 function phoneChips(){ if(!de.classList.contains('mobile')) return;
-  document.querySelectorAll('.node[id^="node-"]').forEach(function(n){ whenChip(n.querySelector('.node-card'), n.id.slice(5)); }); }
+  document.querySelectorAll('.node[id^="node-"]').forEach(function(n){ whenChip(n.querySelector('.node-card'), n.id.slice(5)); });
+  phoneFlags(); }
+/* the phone's card view has no axis: a time flag shows on the first card at or after its time (or the card it is pinned to),
+   a chip under the card's date, its whole label and date in words */
+function phoneFlags(){
+  document.querySelectorAll('.lanes-fchips').forEach(function(e){ e.remove(); });
+  var F=(L.tf||[]).filter(function(f){ return f && f.label; }); if(!F.length) return;
+  var order=[].concat.apply([], typeof ACT_SEQS!=='undefined' ? ACT_SEQS : []).filter(function(id){ return L.ev[id] && document.getElementById('node-'+id); });
+  var main=order.filter(function(id){ return !L.ev[id].flash; }), home={};
+  F.forEach(function(f){
+    var id=f.node && L.ev[f.node] ? f.node : null;
+    if(!id && f.t!=null){ for(var k=0;k<main.length;k++){ var e=L.ev[main[k]]; if(e.t!=null && e.t>=f.t-1e-9){ id=main[k]; break; } }
+      if(!id) for(var j=main.length-1;j>=0;j--) if(L.ev[main[j]].t!=null){ id=main[j]; break; } }
+    if(id) (home[id]=home[id]||[]).push(f); });
+  Object.keys(home).forEach(function(id){
+    var c=document.querySelector('#node-'+id+' .node-card'); if(!c) return;
+    var box=document.createElement('div'); box.className='lanes-fchips';
+    home[id].forEach(function(f){ var s=document.createElement('span'), era=f.to ? ' – '+f.to : '';
+      s.className='lanes-fchip'; if(f.color) s.style.setProperty('--flag-c', f.color);
+      s.textContent=f.label+(f.at ? ' · '+f.at+era : ''); box.appendChild(s); });
+    var w=c.querySelector('.lanes-when'); if(w && w.nextSibling) c.insertBefore(box, w.nextSibling); else c.insertBefore(box, c.firstChild);
+  }); }
 ['DOMContentLoaded','load'].forEach(function(ev){ window.addEventListener(ev, function(){ phoneChips(); setTimeout(phoneChips, 400); }); });
 function lineOf(lines,id){ for(var i=0;i<lines.length;i++) if(lines[i].ev.indexOf(id)>=0) return lines[i]; return null; }
 function tag(world, l, x, y, c, before){

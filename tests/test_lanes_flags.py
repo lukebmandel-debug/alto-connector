@@ -177,6 +177,7 @@ def test_the_page_carries_the_flags_and_their_looks():
     assert "data-flag" in LANES_JS and not re.search(r"ln-flag'[^)]*data-ln", LANES_JS)
     from alto.build import retro
     assert ".lanes-flag" in retro.FORMAT_CSS and ".ln-fpole" in retro.FORMAT_CSS
+    assert "X.phone-whole .lanes-flag" in retro.FORMAT_CSS and "letter-spacing:.08em" in retro.FORMAT_CSS
     assert "prefers-reduced-motion" in LANES_CSS
 
 
@@ -248,7 +249,14 @@ def test_flags_stand_on_the_axis_at_their_time(browser, tmp_path):
     card_tops = pg.evaluate("[...document.querySelectorAll('#world .node .node-card')].map(e => e.getBoundingClientRect().top)")
     assert max(tops) <= min(card_tops) + 1
     assert pg.evaluate("document.querySelectorAll('.lanes-flag').length") == 3
-    assert pg.evaluate("document.querySelectorAll('#lanes-svg .ln-fpole').length") == 3
+    assert pg.evaluate("document.querySelectorAll('#lanes-svg .ln-flag').length") == 3
+    assert pg.evaluate("[...document.querySelectorAll('#lanes-svg .ln-flag')].every(g => g.querySelector('.ln-fpole'))")
+    # a pole is cut where a card is in its way: it never shows through a glass card
+    hit = pg.evaluate("""() => { const cards = [...document.querySelectorAll('#world .node .node-card')].map(e => e.getBoundingClientRect()), out = [];
+      document.querySelectorAll('#lanes-svg .ln-fpole').forEach(p => { const r = p.getBoundingClientRect();
+        cards.forEach(c => { if (r.left < c.right && r.right > c.left && r.top < c.bottom - 1 && r.bottom > c.top + 1) out.push([r.left, r.top, r.bottom]); }); });
+      return out; }""")
+    assert not hit, hit
     assert pg.evaluate("document.querySelectorAll('.lanes-flag[onclick], .lanes-flag a').length") == 0
     # the board still fits the window (no new scroll from the flag lane)
     assert pg.evaluate("(() => { const c = document.getElementById('canvas'); return c.scrollHeight <= c.clientHeight + 2; })()")
@@ -280,6 +288,42 @@ def test_a_phone_width_whole_view_shortens_the_labels(browser, tmp_path):
     assert not errs, errs
     w = pg.evaluate("[...document.querySelectorAll('.lanes-flag')].map(e => e.getBoundingClientRect().width)")
     assert w and max(w) <= 15 * 12 and pg.evaluate("document.querySelectorAll('.lanes-flag').length") == 3
+
+
+def test_phone_whole_view_collapses_overlapping_flags_to_a_numbered_pennant(browser, tmp_path):
+    flags = [{"id": f"f{i}", "label": f"Flag number {i}", "at": f"1890-04-{1 + 5 * i:02d}"} for i in range(3)] + \
+            [{"id": "far", "label": "Far away", "at": "1891-03"}]
+    pg, errs = _open(browser, tmp_path, flags, width=430, height=800, cls="phone-whole")
+    assert not errs, errs
+    pens = pg.evaluate("[...document.querySelectorAll('.lanes-flag')].map(e => [e.textContent, e.className.includes('lanes-flag-n')])")
+    assert ["3", True] in pens and ["Far away", False] in pens and len(pens) == 2, pens
+    assert pg.evaluate("document.querySelectorAll('#lanes-svg .ln-flag').length") == 4          # every pole still stands
+    pg.evaluate("document.querySelector('.lanes-flag-n').click()")
+    rows = pg.evaluate("[...document.querySelectorAll('.lanes-flaglist b')].map(e => e.textContent)")
+    assert rows == ["Flag number 0", "Flag number 1", "Flag number 2"], rows
+    pg.evaluate("document.body.click()")
+    pg.wait_for_timeout(100)
+    assert pg.evaluate("document.querySelectorAll('.lanes-flaglist').length") == 0
+    assert pg.evaluate("window._altoLanesGeo.flags.every(f => f.row === 0)")
+
+
+def test_the_phones_card_view_shows_each_flag_on_the_card_it_comes_before(browser, tmp_path):
+    html, _ = build_timeline(*load_brief(_with(FLAGS)))
+    f = tmp_path / "t.html"
+    f.write_text(html, encoding="utf-8")
+    ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True,
+                              user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+    pg = ctx.new_page()
+    errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e)))
+    pg.goto(f.as_uri())
+    pg.wait_for_timeout(2500)
+    errs = [e for e in errs if "/phone/alto-phone" not in e]            # the hosted phone layer is not served from a file
+    assert pg.evaluate("document.documentElement.classList.contains('mobile')") and not errs, errs
+    got = pg.evaluate("Object.fromEntries([...document.querySelectorAll('.node[id^=node-]')].map(n => [n.id.slice(5), [...n.querySelectorAll('.lanes-fchip')].map(c => c.textContent)]).filter(x => x[1].length))")
+    assert got == {"arrive": ["The lamp years · 1870-10 – 1891-03"], "council": ["The hard winter · 1890-12"], "ben-leaves": ["Ben leaves"]}, got
+    # a chip is not a control: no click-through, no pointer
+    assert pg.evaluate("getComputedStyle(document.querySelector('.lanes-fchip')).pointerEvents") == "none"
 
 
 def test_retro_wears_the_gold_square_flag(browser, tmp_path):
