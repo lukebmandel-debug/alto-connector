@@ -628,7 +628,7 @@ def test_the_chips_x_never_sits_on_the_first_label_at_820px_in_any_style(browser
         g = pg.evaluate("""() => { var b=document.getElementById('ct-chips').getBoundingClientRect(), nav=document.getElementById('nav'),
           f=[].filter.call(nav.querySelectorAll('button,.nav-group-label'), function(e){ return e.offsetWidth; })[0].getBoundingClientRect();
           return {x:[b.left, b.right], first:[f.left, f.right]}; }""")
-        assert g["x"][1] <= g["first"][0] - .5 and g["first"][0] - g["x"][1] < 40, (look, sty, g)       # clear of it, and still just before it
+        assert 6 <= g["first"][0] - g["x"][1] <= 11, (look, sty, g)       # clear of it, 8 px before it (Art: about 8 px in every style)
         pg.evaluate("() => window.exitFocus && window.exitFocus()"); pg.wait_for_timeout(500)
     pg.context.close()
     assert not errs, errs
