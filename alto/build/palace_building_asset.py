@@ -81,7 +81,7 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-me{fill:var(--bl-accent);stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke;}
 #bldg-root .bl-cone{fill:var(--bl-accent);fill-opacity:.22;stroke:none;}
 #bldg-root .bl-walk{margin-top:8px;height:28px;font-size:12px;}
-#bldg-root .bl-lab{font-size:var(--bl-fs,1px);fill:var(--bl-text);text-anchor:middle;pointer-events:none;font-weight:600;paint-order:stroke;stroke:var(--bl-paper);stroke-width:.25px;stroke-opacity:.8;}
+#bldg-root .bl-lab{font-size:var(--bl-fs,1px);fill:var(--bl-text);text-anchor:middle;pointer-events:none;font-weight:600;paint-order:stroke;stroke:var(--bl-paper);stroke-width:.25px;stroke-opacity:.9;stroke-linejoin:round;}
 #bldg-root .bl-lab2{font-weight:400;fill:var(--bl-muted);}
 #bldg-root .bl-mk{position:absolute;left:0;top:0;width:0;height:0;z-index:1;pointer-events:none;}
 #bldg-root .bl-pill{position:absolute;left:0;top:0;height:22px;margin-top:-11px;padding:0 10px;box-sizing:border-box;border-radius:11px;background:var(--bl-tint,var(--bl-accent));
@@ -107,7 +107,7 @@ html.mobile #bldg-root :is(.bl-head,.bl-tabs){top:112px;}
 #bldg-root .bl-head h2{margin:0;font-size:15px;font-weight:650;}
 #bldg-root .bl-head p{margin:3px 0 0;font-size:12px;color:var(--bl-muted);line-height:1.4;}
 #bldg-root .bl-info{left:14px;bottom:58px;width:min(340px,calc(100% - 28px));max-height:46%;overflow:auto;padding:12px 14px;border-radius:14px;border:1px solid var(--bl-line);
-  background:color-mix(in srgb,var(--bl-panel) 90%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);user-select:text;-webkit-user-select:text;}
+  background:var(--bl-panel);user-select:text;-webkit-user-select:text;}
 #bldg-root .bl-info[hidden]{display:none;}
 #bldg-root .bl-info h3{margin:0 0 2px;font-size:14px;}
 #bldg-root .bl-info .bl-sub{font-size:12px;color:var(--bl-muted);margin-bottom:8px;}
@@ -118,10 +118,10 @@ html.mobile #bldg-root :is(.bl-head,.bl-tabs){top:112px;}
 #bldg-root .bl-go{font:inherit;font-size:13px;height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--bl-accent);background:var(--bl-accent);color:#fff;cursor:pointer;}
 #bldg-root .bl-note{font-size:12px;color:var(--bl-muted);margin-top:6px;}
 #bldg-root .bl-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;font-size:14px;color:var(--bl-muted);pointer-events:none;}
-#bldg-root .bl-foot{left:0;right:0;bottom:2px;z-index:3;text-align:center;font-size:10px;line-height:12px;color:var(--bl-muted);padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;}
+#bldg-root .bl-foot{left:0;right:0;bottom:0;z-index:3;text-align:center;font-size:10px;line-height:12px;color:var(--bl-muted);padding:3px 10px 4px;background:var(--bl-panel);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;cursor:pointer;}
 #bldg-root .bl-foot:hover{color:var(--bl-text);}
 #bldg-root .bl-credits{left:14px;right:14px;bottom:22px;max-width:640px;max-height:62%;overflow:auto;padding:12px 14px;border-radius:14px;border:1px solid var(--bl-line);font-size:12px;line-height:1.45;
-  background:color-mix(in srgb,var(--bl-panel) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);user-select:text;-webkit-user-select:text;}
+  background:var(--bl-panel);user-select:text;-webkit-user-select:text;}
 #bldg-root .bl-credits[hidden]{display:none;}
 #bldg-root .bl-credits h3{margin:8px 0 4px;font-size:12px;} #bldg-root .bl-credits h3:first-child{margin-top:0;}
 #bldg-root .bl-credits p{margin:3px 0;} #bldg-root .bl-key{display:flex;align-items:center;gap:7px;margin:2px 0;}
@@ -376,15 +376,53 @@ function drawLevel(g,id){
     var a=(s.fc+180)*Math.PI/180, hw=s.sz[0]/2, tx=-Math.sin(a), ty=Math.cos(a); // along the wall = perpendicular to the facing
     el('path',{d:'M'+P([s.p[0]-tx*hw,s.p[1]-ty*hw])+'L'+P([s.p[0]+tx*hw,s.p[1]+ty*hw]),'class':'bl-slot'},gX);
   });
-  // labels, then the numbered pills
+  // labels (placed by labels(): fitted, culled by zoom), then the numbered pills
+  S.gL=gL; S.labelRooms=rooms; labels();
+}
+/* Room labels, one size on the screen (12 px, never below 11), re-placed on every zoom and pan. Each room's name is wrapped to its own width (3 lines at most); a room whose
+   name cannot fit shows its gallery number alone if that fits, else nothing. Larger and more important rooms (stair halls, courts, halls) claim their place first and a label that
+   would touch an earlier one is left out, so at the whole-floor zoom only the big spaces and numbers show and names appear as you zoom in. */
+var LAB_PX=12, LAB_MIN=11, LAB_W={'stair-hall':3,court:2.2,hall:2.2,lobby:1.6,auditorium:1.6,gallery:1.2}, labCtx=null, labSoon=0;
+function labWidth(t,px){ if(!labCtx){ try{ labCtx=document.createElement('canvas').getContext('2d'); }catch(x){} } if(labCtx&&labCtx.measureText){ labCtx.font='600 '+px+'px -apple-system,BlinkMacSystemFont,sans-serif'; return labCtx.measureText(t).width; } return t.length*px*.58; }
+function labWrap(name,maxW,px){ // the name in up to three lines no wider than maxW, or null
+  var words=String(name).split(/\s+/).filter(Boolean), lines=[], cur='';
+  for(var i=0;i<words.length;i++){ var t=cur?cur+' '+words[i]:words[i]; if(labWidth(t,px)<=maxW||!cur) cur=t; else { lines.push(cur); cur=words[i]; } }
+  if(cur) lines.push(cur); if(lines.length>3) return null;
+  for(var j=0;j<lines.length;j++) if(labWidth(lines[j],px)>maxW) return null;
+  return lines;
+}
+function labels(){
+  var g=S.gL, rooms=S.labelRooms; if(!g||!rooms||!S.vb||!S.svg) return;
+  while(g.firstChild) g.removeChild(g.firstChild);
+  var rw=S.svg.getBoundingClientRect().width||S.root.clientWidth||1, k=rw/S.vb[2], px=LAB_PX; if(px<LAB_MIN) return;
+  var items=[];
   rooms.forEach(function(r){
-    if(r.gp) return; var c=V(centroid(r.p)), bb=ptsBounds(r.p.map(V)), w=bb[2]-bb[0];
-    var many=(S.nodesByRoom[r.id]||[]).length;
-    if(w<fs*3) return;
-    var up=many?1.7:0;                    // a room with cards: its name stands above them
-    var t=el('text',{x:f2(c[0]),y:f2(c[1]-up),'class':'bl-lab'},gL); t.textContent=dec(r.n);
-    if(r.no){ var t2=el('text',{x:f2(c[0]),y:f2(c[1]-up+fs*1.25),'class':'bl-lab bl-lab2'},gL); t2.textContent=dec(r.no); }
+    if(r.gp||!r.n) return;
+    var bb=ptsBounds(r.p.map(V)), w=(bb[2]-bb[0])*k, hgt=(bb[3]-bb[1])*k; if(w<px*1.5||hgt<px*1.4) return;
+    var many=(S.nodesByRoom[r.id]||[]).length, wt=LAB_W[r.ty]||1;
+    items.push({r:r, w:w, h:hgt, c:V(centroid(r.p)), many:many, pri:w*hgt*wt});
   });
+  items.sort(function(a,b){ return b.pri-a.pri; });
+  var placed=[], lh=px*1.18;
+  items.forEach(function(it){
+    var r=it.r, maxW=it.w-8, lines=labWrap(dec(r.n),maxW,px), num=r.no?String(r.no):null;
+    if(!lines||lines.length*lh>it.h-4){ lines=num&&labWidth(num,px)<=maxW&&lh<=it.h-4?[num]:null; }
+    if(!lines) return;
+    var tw=0; lines.forEach(function(l){ tw=Math.max(tw,labWidth(l,px)); });
+    var cx=it.c[0]*k, cy=it.c[1]*k-(it.many?px*1.6:0), th=lines.length*lh, box=[cx-tw/2-2,cy-th/2-1,cx+tw/2+2,cy+th/2+1];
+    for(var i=0;i<placed.length;i++){ var q=placed[i]; if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]) return; }
+    placed.push(box);
+    var t=el('text',{x:f2(it.c[0]),y:f2(it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2),'class':'bl-lab','text-anchor':'middle'},g);
+    t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth=f2(3/k)+'px';
+    lines.forEach(function(l,i){ var ts=el('tspan',{x:f2(it.c[0]),dy:i?f2(lh/k):0},t); ts.textContent=l; });
+  });
+}
+function labelsSoon(){ if(labSoon) return; labSoon=requestAnimationFrame(function(){ labSoon=0; labels(); }); }
+function cornerOf(poly){ // the vertex nearest the room's top-left on screen, drawn a little way in
+  var cen=centroid(poly), vc=V(cen), best=poly[0], bd=Infinity, bb=ptsBounds(poly.map(V));
+  poly.forEach(function(p){ var v=V(p), d=Math.hypot(v[0]-bb[0],v[1]-bb[1]); if(d<bd){ bd=d; best=p; } });
+  var dx=cen[0]-best[0], dy=cen[1]-best[1], l=Math.hypot(dx,dy)||1, step=Math.min(.9,l*.25);
+  return [best[0]+dx/l*step,best[1]+dy/l*step];
 }
 function ptsBounds(pts){ var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity; pts.forEach(function(p){ x0=Math.min(x0,p[0]); y0=Math.min(y0,p[1]); x1=Math.max(x1,p[0]); y1=Math.max(y1,p[1]); }); return [x0,y0,x1,y1]; }
 function insideBand(poly,ux,uy,u){ return true; }
@@ -401,7 +439,7 @@ function drawPills(levelId){
   var plan=A.plan, mk=S.mk; while(mk.firstChild) mk.removeChild(mk.firstChild); S.chips=[];
   (plan.rm||[]).filter(function(r){ return r.l===levelId&&!r.gp; }).forEach(function(r){
     var list=S.nodesByRoom[r.id]||[]; if(!list.length) return;
-    var c=centroid(r.p);
+    var c=cornerOf(r.p);                  // a chip sits on a corner of its room (the top-left one on screen), never on the room's name in the middle
     list.forEach(function(n,i){
       var pos=n.s?anchorPoint(n.s):null, q=V(pos||c);
       var title=dec(n.t); if(title.length>26) title=title.slice(0,25)+'…';
@@ -474,7 +512,7 @@ function render(){
   S.geo=el('g',S.rot?{transform:'rotate('+f2(S.rot)+')'}:{},view);
   if(lv==='outside') drawOutside(S.geo); else drawLevel(S.geo,lv);
   var bb=screenBounds(lv);
-  if(!S.home){ var m=Math.max(bb[2]-bb[0],bb[3]-bb[1])*(S.root.clientWidth<700?.02:.12)+2; S.home=[bb[0]-m,bb[1]-m,(bb[2]-bb[0])+2*m,(bb[3]-bb[1])+2*m]; }
+  if(!S.home){ var m=Math.max(bb[2]-bb[0],bb[3]-bb[1])*(S.root.clientWidth<700?.06:.12)+2; S.home=[bb[0]-m,bb[1]-m,(bb[2]-bb[0])+2*m,(bb[3]-bb[1])+2*m]; }
   if(!S.vb) fit();
   if(lv==='outside'){ S.chips=[]; while(S.mk.firstChild) S.mk.removeChild(S.mk.firstChild); }
   applyVB(); if(lv!=='outside') drawPills(lv);
@@ -491,13 +529,19 @@ function fit(){ // the home box centred in the free part of the screen: on a pho
   var s=Math.min((W-2*side)/h0[2],(bot-top)/h0[3]), cx=h0[0]+h0[2]/2, cy=h0[1]+h0[3]/2;
   S.vb=[cx-W/2/s, cy-(top+bot)/2/s, W/s, H/s];
 }
+function clampPan(){ // the drawing can be pushed off by a drag, never out of reach: at least a margin of the floor stays in view
+  var h=S.home, v=S.vb; if(!h||!v) return;
+  [[0,2],[1,3]].forEach(function(a){ var i=a[0], j=a[1], m=v[j]*.4, lo=h[i]-m, hi=h[i]+h[j]-v[j]+m; v[i]=hi<lo?(lo+hi)/2:Math.max(lo,Math.min(hi,v[i])); });
+}
 function applyVB(){ // keep the drawing's aspect equal to the viewport's
   if(!S.vb||!S.svg) return;
   var r=S.root.getBoundingClientRect(), W=Math.max(1,r.width), H=Math.max(1,r.height), vb=S.vb, asp=W/H;
   var w=vb[2], hh=vb[3];
   if(w/hh<asp){ var nw=hh*asp; vb[0]-=(nw-w)/2; vb[2]=nw; } else { var nh=w/asp; vb[1]-=(nh-hh)/2; vb[3]=nh; }
+  clampPan();
   S.svg.setAttribute('viewBox',vb.map(function(v){ return Math.round(v*1e4)/1e4; }).join(' '));
   if(S.mkSet){ AltoMarkers.stop(S.mk); S.mkSet.poke(); movePills(); } else layoutPills(false);
+  labelsSoon();
 }
 
 // ── panel ──
