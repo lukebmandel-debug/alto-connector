@@ -47,23 +47,24 @@ function build(d){
   var fg=el('radialGradient', {id:'bh-fl'}, df); el('stop', {offset:'0', 'class':'bh-f0'}, fg); el('stop', {offset:'.35', 'class':'bh-f1'}, fg); el('stop', {offset:'1', 'class':'bh-f2'}, fg);
   var dg=el('linearGradient', {id:'bh-disc', x1:'0', y1:'0', x2:'1', y2:'0'}, df);        /* the approaching side (left) brighter: the Doppler */
   el('stop', {offset:'0', 'class':'bh-d0'}, dg); el('stop', {offset:'.55', 'class':'bh-d1'}, dg); el('stop', {offset:'1', 'class':'bh-d2'}, dg);
+  var bf=el('filter', {id:'bh-bl', x:'-20%', y:'-80%', width:'140%', height:'260%'}, df); el('feGaussianBlur', {stdDeviation:'6'}, bf);
   var sp=el('radialGradient', {id:'bh-sp', cx:'50%', cy:'50%', r:'50%'}, df); el('stop', {offset:'.3', 'class':'bh-s0'}, sp); el('stop', {offset:'1', 'class':'bh-s1'}, sp);
   var veil=el('rect', {width:W, height:H, 'class':'bh-veil', opacity:0}, svg);
   var scene=el('g', {opacity:0}, svg);
   var bgs=el('path', {'class':'bh-stars'}, scene), arcs=el('path', {'class':'bh-sarc'}, scene);       /* stars (streaking in transit) and the few bent round the hole */
   var halo=el('circle', {cx:hx, cy:hy, r:r*5, fill:'url(#bh-sp)'}, scene);
   var hole=el('g', {transform:'translate('+hx+' '+hy+')'}, scene), rx=r*2.35, ry=rx*.28;
-  el('ellipse', {rx:rx*1.02, ry:ry*1.02, 'class':'bh-out', fill:'none', 'stroke-width':r*.4}, hole);             /* the outer band, violet -> clear */
-  var inn=el('ellipse', {rx:rx*.72, ry:ry*.72, 'class':'bh-in', fill:'none', 'stroke-width':r*.3, stroke:'url(#bh-disc)'}, hole);     /* the inner band, gold -> orange */
-  var tur=el('ellipse', {rx:rx*.86, ry:ry*.86, 'class':'bh-turn', fill:'none', 'stroke-width':r*.12}, hole);    /* its turning light: dashes that go round */
+  el('ellipse', {rx:rx*.8, ry:ry*.8, 'class':'bh-out', fill:'none', 'stroke-width':r*.5, stroke:'url(#bh-disc)', filter:'url(#bh-bl)'}, hole);     /* its soft glow (no outer ring: a blur of the band itself) */
+  var inn=el('ellipse', {rx:rx*.8, ry:ry*.8, 'class':'bh-in', fill:'none', 'stroke-width':r*.2, stroke:'url(#bh-disc)'}, hole);     /* the accretion disc: thin and hot, white-yellow -> orange -> deep red (Art 2026-10-29: a tenth of the hole's width) */
+  var tur=el('ellipse', {rx:rx*.8, ry:ry*.8, 'class':'bh-turn', fill:'none', 'stroke-width':r*.07}, hole);    /* its turning light: dashes that go round */
   var back=el('g', {}, hole);                                                                                    /* behind the hole: the ship on the far side of it */
   el('circle', {r:r*1.16, fill:'none', 'class':'bh-ring', 'stroke-width':3}, hole);                              /* the photon ring */
-  el('path', {d:'M'+(-r*1.28)+' 0A'+(r*1.28)+' '+(r*1.28)+' 0 0 1 '+(r*1.28)+' 0', 'class':'bh-lens', fill:'none', 'stroke-width':r*.16, transform:'translate(0 '+(-r*.1)+')'}, hole);   /* the disc's light bent over the top ... */
-  el('path', {d:'M'+(-r*1.22)+' 0A'+(r*1.22)+' '+(r*1.22)+' 0 0 0 '+(r*1.22)+' 0', 'class':'bh-lens', fill:'none', 'stroke-width':r*.11, transform:'translate(0 '+(r*.1)+')'}, hole);    /* ... and under it */
+  el('path', {d:'M'+(-r*1.28)+' 0A'+(r*1.28)+' '+(r*1.28)+' 0 0 1 '+(r*1.28)+' 0', 'class':'bh-lens', fill:'none', 'stroke-width':r*.09, stroke:'url(#bh-disc)', 'stroke-opacity':.9, transform:'translate(0 '+(-r*.08)+')'}, hole);   /* the disc's far side bent over the top (thinner than the disc) ... */
+  el('path', {d:'M'+(-r*1.22)+' 0A'+(r*1.22)+' '+(r*1.22)+' 0 0 0 '+(r*1.22)+' 0', 'class':'bh-lens', fill:'none', 'stroke-width':r*.06, stroke:'url(#bh-disc)', 'stroke-opacity':.4, transform:'translate(0 '+(r*.08)+')'}, hole);    /* ... and a fainter one under it */
   el('circle', {r:r, 'class':'bh-core'}, hole);
   el('circle', {r:r, 'class':'bh-rim', fill:'none', 'stroke-width':2}, hole);
-  var near=el('path', {d:'M'+(-rx*1.02)+' 0A'+(rx*1.02)+' '+(ry*1.02)+' 0 0 0 '+(rx*1.02)+' 0', 'class':'bh-out', fill:'none', 'stroke-width':r*.4}, hole);       /* the disc's near half, over the hole */
-  var near2=el('path', {d:'M'+(-rx*.72)+' 0A'+(rx*.72)+' '+(ry*.72)+' 0 0 0 '+(rx*.72)+' 0', 'class':'bh-in', fill:'none', 'stroke-width':r*.3, stroke:'url(#bh-disc)'}, hole);
+  var near=el('path', {d:'M'+(-rx*.8)+' 0A'+(rx*.8)+' '+(ry*.8)+' 0 0 0 '+(rx*.8)+' 0', 'class':'bh-out', fill:'none', 'stroke-width':r*.5, stroke:'url(#bh-disc)', filter:'url(#bh-bl)'}, hole);       /* the disc's near half, over the hole */
+  var near2=el('path', {d:'M'+(-rx*.8)+' 0A'+(rx*.8)+' '+(ry*.8)+' 0 0 0 '+(rx*.8)+' 0', 'class':'bh-in', fill:'none', 'stroke-width':r*.2, stroke:'url(#bh-disc)'}, hole);
   var front=el('g', {}, hole);                                                                                   /* in front of it: the ship on the near side */
   var ship=el('g', {'class':'fly-craft', opacity:0}, svg), pr=el('g', {'class':'fly-ship'}, ship), wp=el('path', {'class':'fly-warp'}, ship);
   pr.innerHTML=(A().get().svg||'')+(A().flames ? A().flames() : '');
@@ -212,11 +213,27 @@ function offer(P0, d){
   x.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
   go.onclick=again; x.onclick=gone; c.appendChild(go); c.appendChild(x); document.body.appendChild(c); chip=c;
   last=performance.now();
-  /* beside the ship, never near the page edge */
-  var W=c.parentNode.clientWidth || innerWidth, H=c.parentNode.clientHeight || innerHeight, w=c.offsetWidth, h=c.offsetHeight;
-  var l=P0[0]+34, tp=P0[1]-h/2; if(l+w>W-16) l=P0[0]-34-w; l=Math.max(16, Math.min(W-w-16, l)); tp=Math.max(70, Math.min(H-h-16, tp));
-  c.style.left=Math.round(l)+'px'; c.style.top=Math.round(tp)+'px'; chip._d=d;
+  /* under the enlarged card's text, centred, 8px+ clear of its last line (Art 2026-10-29: never over the words); the ship's side
+     when there is no card; never near the page edge */
+  function place(){
+    if(chip!==c) return;
+    var W=innerWidth, H=innerHeight, w=c.offsetWidth, h=c.offsetHeight, tb=textBox(), l=P0[0]+34, tp=P0[1]-h/2;
+    if(tb){ l=(tb.l+tb.r)/2-w/2; tp=tb.b+12; if(tp+h>H-16) tp=Math.max(70, tb.t-12-h); }
+    else if(l+w>W-16) l=P0[0]-34-w;
+    l=Math.max(16, Math.min(W-w-16, l)); tp=Math.max(70, Math.min(H-h-16, tp));
+    c.style.left=Math.round(l)+'px'; c.style.top=Math.round(tp)+'px';
+  }
+  place(); c.style.transition='left .25s ease, top .25s ease'; chip._d=d;
+  [250, 600, 1100, 1800].forEach(function(ms){ setTimeout(place, ms); });          /* (the chart is still settling back under it: the card's words land where they land) */
   setTimeout(function(){ try{ go.focus({preventScroll:true}); }catch(e){} }, 30);
+}
+/* where the enlarged card's words are (the union of its text lines), or null */
+function textBox(){
+  var id=BACK && BACK.id, q=id && document.getElementById('node-'+id); if(!q) return null;
+  var w=document.createTreeWalker(q, NodeFilter.SHOW_TEXT, null), n, l=1e9, t=1e9, r=-1e9, b=-1e9, rg=document.createRange();
+  while((n=w.nextNode())){ if(!/\S/.test(n.nodeValue)) continue; var pe=n.parentNode, cs=pe && getComputedStyle(pe); if(!cs || cs.visibility==='hidden' || cs.display==='none') continue;
+    rg.selectNodeContents(n); var rs=rg.getClientRects(); for(var i=0;i<rs.length;i++){ var k=rs[i]; if(k.width<1 || k.height<1) continue; l=Math.min(l, k.left); t=Math.min(t, k.top); r=Math.max(r, k.right); b=Math.max(b, k.bottom); } }
+  return r>l ? {l:l, t:t, r:r, b:b} : null;
 }
 function gone(){ if(chip){ if(chip.parentNode) chip.parentNode.removeChild(chip); chip=null; } }
 /* "Try again": the same page the quiz was on, the quiz fresh and in view */
@@ -249,11 +266,10 @@ HOLE_CSS = r"""
   #bh .bh-s0{stop-color:#000;stop-opacity:.85;} #bh .bh-s1{stop-color:#000;stop-opacity:0;}
   #bh .bh-core{fill:#000;} #bh .bh-rim{stroke:#d9c7ff;stroke-opacity:.9;}
   #bh .bh-ring{stroke:#fff4d6;stroke-opacity:.9;}
-  #bh .bh-out{stroke:#b36bff;stroke-opacity:.38;} html.sk-3d #bh .bh-out{stroke:#8f5bff;stroke-opacity:.45;}
-  #bh .bh-d0{stop-color:#ffe6a8;} #bh .bh-d1{stop-color:#ffd27a;} #bh .bh-d2{stop-color:#ff8a3d;}
-  html.sk-3d #bh .bh-d0{stop-color:#ffd9a0;} html.sk-3d #bh .bh-d1{stop-color:#ffb347;} html.sk-3d #bh .bh-d2{stop-color:#ff5a1f;}
+  #bh .bh-out{stroke-opacity:.4;}
+  #bh .bh-d0{stop-color:#fff3c4;} #bh .bh-d1{stop-color:#ff9a3c;} #bh .bh-d2{stop-color:#8f1d12;}
+  html.sk-3d #bh .bh-d0{stop-color:#ffeab4;} html.sk-3d #bh .bh-d1{stop-color:#ff7a2a;} html.sk-3d #bh .bh-d2{stop-color:#7a160e;}
   #bh .bh-in{stroke-opacity:.92;} #bh .bh-turn{stroke:#fff4d6;stroke-opacity:.28;}
-  #bh .bh-lens{stroke:#ffd27a;stroke-opacity:.22;}
   #bh .bh-f0{stop-color:#fff;stop-opacity:1;} #bh .bh-f1{stop-color:#ffe9b0;stop-opacity:.6;} #bh .bh-f2{stop-color:#ffd27a;stop-opacity:0;}
   #bh .bh-wash{fill:#fff4d6;}
   #bh .fly-warp{fill:none;stroke:#cfe6ff;stroke-opacity:.75;stroke-width:1.1;stroke-linecap:round;}

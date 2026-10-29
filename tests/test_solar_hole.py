@@ -92,6 +92,10 @@ def test_a_failing_score_falls_into_the_black_hole_skips_and_offers_try_again(br
     s = _st(pg); assert s["chip"] and not s["bh"] and not s["on"], s              # the ship is back, the offer stands
     chip = pg.evaluate("() => { var c=document.getElementById('bh-chip'), r=c.getBoundingClientRect(); return {t:c.textContent.trim(), l:r.left, r:r.right, tp:r.top, b:r.bottom, w:innerWidth, h:innerHeight}; }")
     assert chip["t"] == "Try again" and chip["l"] >= 16 and chip["r"] <= chip["w"] - 16 and chip["tp"] >= 16 and chip["b"] <= chip["h"] - 16, chip
+    pg.wait_for_timeout(1600)                                                      # (the chart settles back under it; the offer moves clear of the card's words)
+    over = pg.evaluate("""() => { var c=document.getElementById('bh-chip').getBoundingClientRect(), q=document.getElementById('node-u1-p1'), w=document.createTreeWalker(q, NodeFilter.SHOW_TEXT, null), n, hit=0, rg=document.createRange();
+      while((n=w.nextNode())){ if(!/\\S/.test(n.nodeValue)) continue; rg.selectNodeContents(n); [].forEach.call(rg.getClientRects(), function(k){ if(k.width>1 && k.height>1 && k.left<c.right && k.right>c.left && k.top<c.bottom+7 && k.bottom>c.top-7) hit++; }); } return hit; }""")
+    assert over == 0, over                                                            # never over the card's words (8 px clear)
     rec = pg.evaluate("() => { var o=JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(function(k){ return /-st$/.test(k); })[0])); var k=Object.keys(o.s)[0]; return o.s[k].l; }")
     assert rec["s"] == 1 and rec["n"] == 3, rec                                    # the quiz's own record is intact
     _key(pg, "Enter"); pg.wait_for_timeout(600)                           # Enter = try again: the page, the quiz fresh
