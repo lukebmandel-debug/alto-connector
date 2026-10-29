@@ -34,7 +34,7 @@ def _walk(srv, b, qs):
     page.on("request", lambda r: gfx.append(r.url) if "/gfx/" in r.url else None)
     page.goto(srv.origin + "/index.html" + qs)
     page.wait_for_function("window.AltoBuilding && AltoBuilding.plan", timeout=30000)
-    page.evaluate("() => { window._altoFpv = {view: 'first'}; AltoBuilding.enterFPV(null, {from: 'plan'}); }")
+    page.evaluate("() => { AltoBuilding.enterFPV(null, {from: 'plan'}); }")
     page.wait_for_function("window.AltoBuildingFPV && AltoBuildingFPV.state() && AltoBuildingFPV.state().on", timeout=30000)
     page.evaluate("a => AltoBuildingFPV.place(...a)", HALL)
     t0 = time.time()
