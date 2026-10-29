@@ -40,7 +40,9 @@ def test_museum_space_hops(museum):
     pg, _ = museum
     pg.evaluate("AltoBuildingFPV.place(5, 6, 0, 0, 0)")
     h0 = pg.evaluate("AltoBuildingFPV.state().hops")
-    pg.keyboard.down(" "); pg.wait_for_timeout(120); pg.keyboard.up(" "); pg.wait_for_timeout(900)
+    pg.keyboard.down(" "); pg.wait_for_timeout(120); pg.keyboard.up(" ")
+    pg.wait_for_function("AltoBuildingFPV.state().hops > %d" % h0, timeout=20000)
+    pg.wait_for_function("!AltoBuildingFPV.state().air", timeout=40000)          # a hop is ~0.65 s of game time; under a loaded machine frames (and so game time) run slow
     st = pg.evaluate("AltoBuildingFPV.state()")
     assert st["hops"] == h0 + 1 and not st["air"] and st["z"] == pytest.approx(0, abs=0.01)
 
