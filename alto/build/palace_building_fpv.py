@@ -1565,7 +1565,6 @@ function render(){ var gl=S.gl, G=S.G; if(!gl||S.lost) return; S.frame++; S.now=
   var lt0=S.room?S.room.b.light:(G.site&&G.site.light); if(lt0){ var nvb=navBatch(lt0); if(nvb) drawBatch(nvb,false,stats); }
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.CULL_FACE);
   for(var i=list.length-1;i>=0;i--) drawBatch(list[i],true,stats);
-  if(avb) drawBatch(avb,true,stats);
   gl.disable(gl.BLEND); gl.depthMask(true);
   if(S.fb&&T.wgl2&&S.post&&S.post.ok&&S.post.end(S.fb.fb,cw,ch,{near:CFG.near, far:CFG.far, tx:tx, ty:ty})){}
   else if(S.fb&&T.wgl2){ var t=S.fb; gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.fb); if(t.rfb){ gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,t.rfb); gl.blitFramebuffer(0,0,cw,ch,0,0,cw,ch,gl.COLOR_BUFFER_BIT,gl.NEAREST); gl.bindFramebuffer(gl.READ_FRAMEBUFFER,t.rfb); }
