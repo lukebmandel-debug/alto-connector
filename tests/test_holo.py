@@ -90,6 +90,16 @@ def test_the_system_and_the_homepage_carry_the_layer_too():
     assert "Holographic" in page and "_altoHoloLayer" in page               # the System's own switch
 
 
+def test_the_homepage_offers_all_three_styles_and_the_reports_two():
+    # (Luke 2026-10-28/29: the homepage follows Classic | Retro | Holographic; the reports keep Classic | Holographic)
+    from alto.build import pages
+    home = pages.build_home([])
+    head = re.search(r'<script id="alto-bg-head">(.*?)</script>', home, re.S).group(1)
+    assert '["classic", "retro", "holo"]' in head and json.dumps(holo.PATH) in head and json.dumps(retro.PATH) in head
+    c = holo.css()
+    assert "html.alto-holo.alto-home" in c and "#d9ae55" not in c and "#000 !important" not in c.split("alto-home")[1][:200]
+
+
 def test_the_picker_offers_holographic():
     js = bi.lib_js()
     assert "'Holographic'" in js and "'Retro'" in js
@@ -128,6 +138,8 @@ def site(outline, tmp_path_factory):
         pytest.skip("Playwright is not installed")
     d = tmp_path_factory.mktemp("holosite")
     (d / "t.html").write_text(outline, encoding="utf-8")
+    from alto.build import pages
+    (d / "home.html").write_text(pages.build_home([]), encoding="utf-8")
     (d / "holo").mkdir()
     (d / "retro").mkdir()
     name, text = holo.holo_asset()
@@ -189,5 +201,30 @@ def test_text_on_a_timeline_page_meets_aa_in_both_themes_and_sizes(browser, site
     # remembered per timeline, and Classic comes back clean
     pg.evaluate("window._altoStyle.set('classic')")
     assert not pg.evaluate("document.documentElement.classList.contains('alto-holo')")
+    assert not errors, errors
+    ctx.close()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+@pytest.mark.parametrize("size", [(1400, 900), (390, 844)])
+def test_text_on_the_homepage_meets_aa_in_both_themes_and_sizes(browser, site, dark, size):
+    ctx = browser.new_context(viewport={"width": size[0], "height": size[1]}, has_touch=size[0] < 500, is_mobile=size[0] < 500)
+    pg = ctx.new_page()
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(site + "/home.html")
+    pg.wait_for_timeout(500)
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("window._altoStyle.set('holo')")
+    pg.wait_for_timeout(500)
+    pg.evaluate("document.documentElement.classList.toggle('dark', %s)" % ("true" if dark else "false"))
+    pg.wait_for_timeout(300)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-holo') && window._altoStyle.get() === 'holo'")
+    res = pg.evaluate(AUDIT_JS)
+    assert res["seen"] > 2, res
+    assert not res["bad"], res["bad"][:12]
+    pg.evaluate("window._altoStyle.set('retro')")
+    pg.wait_for_timeout(500)
+    assert pg.evaluate("document.documentElement.classList.contains('alto-retro') && !document.documentElement.classList.contains('alto-holo')")
     assert not errors, errors
     ctx.close()

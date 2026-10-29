@@ -142,7 +142,7 @@ def ink(css: str) -> str:
 
 def css() -> str:
     """Every format's Holographic rules, as the hosted script adds them."""
-    base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS)
+    base = ink(_rt.CHROME_CSS + _rt.BOARD_CSS + _rt.FORMAT_CSS + _rt.HOME_CSS)
     body = base + "\n" + HOLO_CSS + FORMAT_CSS + _UNIT_CSS
     sel = "html.alto-holo"
     toks = (f"  {sel}:not(#_){{color-scheme:light;{_vars(TOKENS['light'], UNITS['light'])}}}\n"
