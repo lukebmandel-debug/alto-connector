@@ -82,6 +82,7 @@ html.dark #bldg-root{--bl-ink:rgb(208,212,226);--bl-sheen:rgba(255,255,255,.5);-
 #bldg-root .bl-cone{fill:var(--bl-accent);fill-opacity:.22;stroke:none;}
 #bldg-root .bl-walk{margin-top:8px;height:28px;font-size:12px;}
 #bldg-root .bl-lab{font-size:var(--bl-fs,1px);fill:var(--bl-text);text-anchor:middle;pointer-events:none;font-weight:600;paint-order:stroke;stroke:var(--bl-paper);stroke-width:.25px;stroke-opacity:.9;stroke-linejoin:round;}
+#bldg-root .bl-labplate{pointer-events:none;}
 #bldg-root .bl-lab2{font-weight:400;fill:var(--bl-muted);}
 #bldg-root .bl-mk{position:absolute;left:0;top:0;width:0;height:0;z-index:1;pointer-events:none;}
 #bldg-root .bl-pill{position:absolute;left:0;top:0;height:22px;margin-top:-11px;padding:0 10px;box-sizing:border-box;border-radius:11px;background:var(--bl-tint,var(--bl-accent));
@@ -414,10 +415,11 @@ function labels(){
     var cx=it.c[0]*sc0.s+sc0.x, cy=it.c[1]*sc0.s+sc0.y-(it.many?px*1.6:0), th=lines.length*lh, box=[cx-tw/2-2,cy-th/2-1,cx+tw/2+2,cy+th/2+1];
     for(var i=0;i<placed.length;i++){ var q=placed[i]; if(box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]) return; }
     placed.push(box);
-    var t=el('text',{x:f2(it.c[0]),y:f2(it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2),'class':'bl-lab','text-anchor':'middle'},g);
-    t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth=f2(4/k)+'px';
-    var rp=S.svg.querySelector('[data-room="'+r.id+'"]'), hc=rp?getComputedStyle(rp).fill:'';             // the halo is the room's own fill, so no wall or dash ever runs through the text
-    t.style.stroke=haloColor(hc); t.style.strokeOpacity='.9';
+    var ty=it.c[1]-(it.many?px*1.6/k:0)-(lines.length-1)*lh/k/2;
+    var rp=S.svg.querySelector('[data-room="'+r.id+'"]'), hc=haloColor(rp?getComputedStyle(rp).fill:'');     // a plate in the room's own fill behind the text: no wall or dash ever runs through a label
+    el('rect',{x:f2(it.c[0]-(tw/2+3)/k),y:f2(ty-px*.92/k),width:f2((tw+6)/k),height:f2(((lines.length-1)*lh+px*1.2)/k),rx:f2(2/k),fill:hc,'fill-opacity':'.88','class':'bl-labplate'},g);
+    var t=el('text',{x:f2(it.c[0]),y:f2(ty),'class':'bl-lab','text-anchor':'middle'},g);
+    t.style.fontSize=f2(px/k)+'px'; t.style.strokeWidth='0';
     lines.forEach(function(l,i){ var ts=el('tspan',{x:f2(it.c[0]),dy:i?f2(lh/k):0},t); ts.textContent=l; });
   });
 }
