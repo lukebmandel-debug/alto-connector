@@ -227,12 +227,15 @@ function offer(P0, d){
   [250, 600, 1100, 1800].forEach(function(ms){ setTimeout(place, ms); });          /* (the chart is still settling back under it: the card's words land where they land) */
   setTimeout(function(){ try{ go.focus({preventScroll:true}); }catch(e){} }, 30);
 }
-/* where the enlarged card's words are (the union of its text lines), or null */
+/* where the enlarged card's words are (the union of the text lines drawn inside its circle), or null */
 function textBox(){
-  var id=BACK && BACK.id, q=id && document.getElementById('node-'+id); if(!q) return null;
-  var w=document.createTreeWalker(q, NodeFilter.SHOW_TEXT, null), n, l=1e9, t=1e9, r=-1e9, b=-1e9, rg=document.createRange();
-  while((n=w.nextNode())){ if(!/\S/.test(n.nodeValue)) continue; var pe=n.parentNode, cs=pe && getComputedStyle(pe); if(!cs || cs.visibility==='hidden' || cs.display==='none') continue;
-    rg.selectNodeContents(n); var rs=rg.getClientRects(); for(var i=0;i<rs.length;i++){ var k=rs[i]; if(k.width<1 || k.height<1) continue; l=Math.min(l, k.left); t=Math.min(t, k.top); r=Math.max(r, k.right); b=Math.max(b, k.bottom); } }
+  var id=window._focusedNodeId || (BACK && BACK.id), q=id && document.getElementById('node-'+id), cr=q && q.getBoundingClientRect(); if(!cr || cr.width<20) return null;
+  var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, l=1e9, t=1e9, r=-1e9, b=-1e9, rg=document.createRange();
+  while((n=w.nextNode())){ if(!/\S/.test(n.nodeValue)) continue; var pe=n.parentNode; if(!pe || !pe.closest || pe.closest('#bh,#bh-chip,#bh-score,script,style')) continue;
+    rg.selectNodeContents(n); var rs=rg.getClientRects();
+    for(var i=0;i<rs.length;i++){ var k=rs[i], cx=(k.left+k.right)/2, cy=(k.top+k.bottom)/2; if(k.width<1 || k.height<1 || cx<cr.left || cx>cr.right || cy<cr.top || cy>cr.bottom) continue;
+      var cs=getComputedStyle(pe); if(cs.visibility==='hidden' || +cs.opacity===0) continue;
+      l=Math.min(l, k.left); t=Math.min(t, k.top); r=Math.max(r, k.right); b=Math.max(b, k.bottom); } }
   return r>l ? {l:l, t:t, r:r, b:b} : null;
 }
 function gone(){ if(chip){ if(chip.parentNode) chip.parentNode.removeChild(chip); chip=null; } }

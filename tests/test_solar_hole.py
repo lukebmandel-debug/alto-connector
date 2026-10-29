@@ -93,9 +93,11 @@ def test_a_failing_score_falls_into_the_black_hole_skips_and_offers_try_again(br
     chip = pg.evaluate("() => { var c=document.getElementById('bh-chip'), r=c.getBoundingClientRect(); return {t:c.textContent.trim(), l:r.left, r:r.right, tp:r.top, b:r.bottom, w:innerWidth, h:innerHeight}; }")
     assert chip["t"] == "Try again" and chip["l"] >= 16 and chip["r"] <= chip["w"] - 16 and chip["tp"] >= 16 and chip["b"] <= chip["h"] - 16, chip
     pg.wait_for_timeout(1600)                                                      # (the chart settles back under it; the offer moves clear of the card's words)
-    over = pg.evaluate("""() => { var c=document.getElementById('bh-chip').getBoundingClientRect(), q=document.getElementById('node-u1-p1'), w=document.createTreeWalker(q, NodeFilter.SHOW_TEXT, null), n, hit=0, rg=document.createRange();
-      while((n=w.nextNode())){ if(!/\\S/.test(n.nodeValue)) continue; rg.selectNodeContents(n); [].forEach.call(rg.getClientRects(), function(k){ if(k.width>1 && k.height>1 && k.left<c.right && k.right>c.left && k.top<c.bottom+7 && k.bottom>c.top-7) hit++; }); } return hit; }""")
-    assert over == 0, over                                                            # never over the card's words (8 px clear)
+    over = pg.evaluate("""() => { var c=document.getElementById('bh-chip'), cb=c.getBoundingClientRect(), q=document.getElementById('node-u1-p1').getBoundingClientRect(), w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, hit=0, seen=0, rg=document.createRange();
+      while((n=w.nextNode())){ if(!/\\S/.test(n.nodeValue) || n.parentNode.closest('#bh-chip,script,style')) continue; rg.selectNodeContents(n);
+        [].forEach.call(rg.getClientRects(), function(k){ if(k.width<1 || k.height<1 || (k.left+k.right)/2<q.left || (k.left+k.right)/2>q.right || (k.top+k.bottom)/2<q.top || (k.top+k.bottom)/2>q.bottom) return; seen++;
+          if(k.left<cb.right && k.right>cb.left && k.top<cb.bottom+7 && k.bottom>cb.top-7) hit++; }); } return [hit, seen]; }""")
+    assert over[1] > 0 and over[0] == 0, over                                                            # never over the card's words (8 px clear)
     rec = pg.evaluate("() => { var o=JSON.parse(localStorage.getItem(Object.keys(localStorage).filter(function(k){ return /-st$/.test(k); })[0])); var k=Object.keys(o.s)[0]; return o.s[k].l; }")
     assert rec["s"] == 1 and rec["n"] == 3, rec                                    # the quiz's own record is intact
     _key(pg, "Enter"); pg.wait_for_timeout(600)                           # Enter = try again: the page, the quiz fresh
